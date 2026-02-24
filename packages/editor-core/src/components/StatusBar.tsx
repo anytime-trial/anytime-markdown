@@ -1,16 +1,21 @@
-import { memo, useCallback, useEffect, useState } from "react";
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { Box, Typography } from "@mui/material";
 import type { Editor } from "@tiptap/react";
 
 interface StatusBarProps {
   editor: Editor;
   sourceMode?: boolean;
   sourceText?: string;
+  t: (key: string) => string;
 }
 
-export const StatusBar = memo(function StatusBar({ editor, sourceMode, sourceText }: StatusBarProps) {
+export function StatusBar({ editor, sourceMode, sourceText, t }: StatusBarProps) {
   const [cursorLine, setCursorLine] = useState(1);
   const [sourceCursorLine, setSourceCursorLine] = useState(1);
 
+  // TipTap エディタのカーソル行
   useEffect(() => {
     const update = () => {
       const { $from } = editor.state.selection;
@@ -25,8 +30,9 @@ export const StatusBar = memo(function StatusBar({ editor, sourceMode, sourceTex
     };
   }, [editor]);
 
+  // ソースモード textarea のカーソル行を監視
   const handleSourceCursor = useCallback(() => {
-    const textarea = document.querySelector<HTMLTextAreaElement>("textarea.source-editor");
+    const textarea = document.querySelector<HTMLTextAreaElement>("textarea[aria-label]");
     if (!textarea) return;
     const pos = textarea.selectionStart ?? 0;
     const line = (textarea.value.substring(0, pos).match(/\n/g) || []).length + 1;
@@ -52,10 +58,17 @@ export const StatusBar = memo(function StatusBar({ editor, sourceMode, sourceTex
     : editor.state.doc.content.childCount;
 
   return (
-    <div className="status-bar" contentEditable={false}>
-      <span className="status-item">Ln {displayLine}</span>
-      <span className="status-item">{charCount.toLocaleString()} chars</span>
-      <span className="status-item">{lineCount.toLocaleString()} lines</span>
-    </div>
+    <Box sx={{ display: "flex", alignItems: "center", gap: 2, px: 1.5, py: 0.5, borderTop: 1, borderColor: "divider" }} contentEditable={false}>
+      <Typography variant="caption" sx={{ color: "text.secondary" }}>
+        {t("cursorLine")} {displayLine}
+      </Typography>
+      <Typography variant="caption" sx={{ color: "text.secondary" }}>
+        {charCount.toLocaleString()} {t("chars")}
+      </Typography>
+      <Typography variant="caption" sx={{ color: "text.secondary" }}>
+        {lineCount.toLocaleString()} {t("lines")}
+      </Typography>
+      <Box sx={{ flex: 1 }} />
+    </Box>
   );
-});
+}

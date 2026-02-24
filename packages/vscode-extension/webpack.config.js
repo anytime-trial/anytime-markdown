@@ -54,7 +54,13 @@ const webviewConfig = {
     filename: 'webview.js',
   },
   resolve: {
-    extensions: ['.tsx', '.ts', '.js']
+    extensions: ['.tsx', '.ts', '.js', '.json'],
+    alias: {
+      'next-intl': path.resolve(__dirname, 'src/webview/shims/next-intl.ts'),
+      'next-intl/server': path.resolve(__dirname, 'src/webview/shims/next-intl.ts'),
+      'next/dynamic': path.resolve(__dirname, 'src/webview/shims/next-dynamic.ts'),
+      '@': path.resolve(__dirname, '../editor-core/src'),
+    },
   },
   module: {
     rules: [
@@ -74,12 +80,21 @@ const webviewConfig = {
       {
         test: /\.css$/,
         use: ['style-loader', 'css-loader']
+      },
+      {
+        test: /\.md$/,
+        type: 'asset/source',
       }
     ]
   },
   plugins: [
     new webpack.DefinePlugin({
       'process.env.NODE_ENV': JSON.stringify('production'),
+    }),
+    // VS Code webview cannot load dynamic chunks (CSP nonce + webview URI issues).
+    // Force everything into a single bundle file.
+    new webpack.optimize.LimitChunkCountPlugin({
+      maxChunks: 1,
     }),
   ],
   devtool: 'nosources-source-map',

@@ -1,11 +1,30 @@
+"use client";
+
+import ClearIcon from "@mui/icons-material/Clear";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
+import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
+import {
+  Box,
+  Divider,
+  IconButton,
+  Paper,
+  Tooltip,
+  Typography,
+  useTheme,
+} from "@mui/material";
 import type { Editor } from "@tiptap/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+
 interface SearchReplaceBarProps {
   editor: Editor;
+  t: (key: string, values?: Record<string, string | number>) => string;
 }
 
-export function SearchReplaceBar({ editor }: SearchReplaceBarProps) {
+export function SearchReplaceBar({ editor, t }: SearchReplaceBarProps) {
+  const theme = useTheme();
   const storage = editor.storage.searchReplace;
 
   const [showReplace, setShowReplace] = useState(false);
@@ -20,6 +39,7 @@ export function SearchReplaceBar({ editor }: SearchReplaceBarProps) {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Sync from extension storage to local state
   useEffect(() => {
     const handler = () => {
       const s = editor.storage.searchReplace;
@@ -28,12 +48,15 @@ export function SearchReplaceBar({ editor }: SearchReplaceBarProps) {
       setCaseSensitive(s.caseSensitive);
       setWholeWord(s.wholeWord);
       setUseRegex(s.useRegex);
+      // openSearch / openSearchReplace command からの showReplace 同期
       if (s.isOpen && s.showReplace) {
         setShowReplace(true);
       }
+      // openSearch でフォーカス
       if (s.isOpen) {
-        s.isOpen = false;
+        s.isOpen = false; // consume the flag
         setTimeout(() => searchInputRef.current?.focus(), 50);
+        // 選択テキストを初期検索語として使用
         const { from, to } = editor.state.selection;
         if (from !== to) {
           const selectedText = editor.state.doc.textBetween(from, to);
@@ -50,6 +73,7 @@ export function SearchReplaceBar({ editor }: SearchReplaceBarProps) {
     };
   }, [editor, storage]);
 
+  // Cleanup debounce on unmount
   useEffect(() => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -115,130 +139,242 @@ export function SearchReplaceBar({ editor }: SearchReplaceBarProps) {
     [handleClearAndBlur],
   );
 
+  const toggleBtnSx = (active: boolean) => ({
+    p: 0.25,
+    borderRadius: 0.5,
+    minWidth: 28,
+    minHeight: 28,
+    fontSize: "0.65rem",
+    fontWeight: 700,
+    fontFamily: "monospace",
+    bgcolor: active
+      ? theme.palette.mode === "dark"
+        ? "primary.dark"
+        : "primary.light"
+      : "transparent",
+    color: active ? "primary.contrastText" : "inherit",
+    border: 1,
+    borderColor: active ? "primary.main" : "transparent",
+    "&:hover": {
+      bgcolor: active
+        ? theme.palette.mode === "dark"
+          ? "primary.dark"
+          : "primary.light"
+        : "action.hover",
+    },
+  });
+
+  const inputSx = {
+    minHeight: 24,
+    px: 0.75,
+    border: 1,
+    borderColor: "divider",
+    borderRadius: 0.5,
+    fontSize: "0.78rem",
+    outline: "none",
+    bgcolor: "transparent",
+    color: "text.primary",
+    fontFamily: "inherit",
+    "&:focus": {
+      borderColor: "primary.main",
+    },
+  };
+
   return (
     <>
-      <div className="separator" />
+      {/* Inline search in toolbar */}
+      <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
 
       {/* Replace toggle */}
-      <button
-        className="search-toggle-btn"
-        title="Replace"
-        onClick={() => setShowReplace((v) => !v)}
-      >
-        {showReplace ? "\u25BC" : "\u25B6"}
-      </button>
+      <Tooltip title={t("replace")}>
+        <IconButton
+          size="small"
+          aria-label={t("replace")}
+          onClick={() => setShowReplace((v) => !v)}
+          sx={{ p: 0.25 }}
+        >
+          {showReplace ? (
+            <ExpandMoreIcon sx={{ fontSize: 16 }} />
+          ) : (
+            <ChevronRightIcon sx={{ fontSize: 16 }} />
+          )}
+        </IconButton>
+      </Tooltip>
 
       {/* Search + Replace container */}
-      <div className="search-container">
+      <Box sx={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 0.5 }}>
         {/* Search input */}
-        <input
+        <Box
+          component="input"
           ref={searchInputRef}
-          className="search-input"
-          aria-label="Search"
+          aria-label={t("searchPlaceholder")}
           value={searchTerm}
-          onChange={(e) => handleSearchChange(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+            handleSearchChange(e.target.value)
+          }
           onKeyDown={handleSearchKeyDown}
-          placeholder="Search..."
+          placeholder={t("searchPlaceholder")}
+          sx={{ ...inputSx, width: 120, maxWidth: 180, flex: "0 1 auto" }}
         />
 
         {/* Clear search */}
         {searchTerm && (
-          <button
-            className="search-clear-btn"
-            title="Clear"
+          <IconButton
+            size="small"
+            aria-label={t("clearSearch")}
             onClick={() => {
               setSearchTerm("");
               editor.commands.setSearchTerm("");
               searchInputRef.current?.focus();
             }}
+            sx={{ p: 0.125, ml: -0.5 }}
           >
-            \u00D7
-          </button>
+            <ClearIcon sx={{ fontSize: 14 }} />
+          </IconButton>
         )}
 
-        {/* Replace row */}
+        {/* Replace row - below search input */}
         {showReplace && (
-          <div className="replace-dropdown">
-            <input
-              className="search-input replace-input"
-              aria-label="Replace"
+          <Box
+            sx={{
+              position: "absolute",
+              top: "100%",
+              left: 0,
+              mt: 0.5,
+              zIndex: 20,
+              display: "flex",
+              alignItems: "center",
+              gap: 0.5,
+              px: 0.5,
+              py: 0.5,
+              borderRadius: 1,
+              border: 1,
+              borderColor: "divider",
+              bgcolor: "background.paper",
+              boxShadow: 2,
+              minWidth: 200,
+            }}
+          >
+            <Box
+              component="input"
+              aria-label={t("replacePlaceholder")}
               value={replaceTerm}
-              onChange={(e) => handleReplaceChange(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                handleReplaceChange(e.target.value)
+              }
               onKeyDown={handleReplaceKeyDown}
-              placeholder="Replace..."
+              placeholder={t("replacePlaceholder")}
+              sx={{ ...inputSx, flex: 1 }}
             />
-            <button
-              className="replace-action-btn"
-              title="Replace"
-              onClick={() => editor.commands.replaceCurrentMatch()}
-              disabled={resultCount === 0}
-            >
-              1
-            </button>
-            <button
-              className="replace-action-btn"
-              title="Replace All"
-              onClick={() => editor.commands.replaceAllMatches()}
-              disabled={resultCount === 0}
-            >
-              *
-            </button>
-          </div>
+            <Tooltip title={t("replace")}>
+              <span>
+                <IconButton
+                  size="small"
+                  aria-label={t("replace")}
+                  onClick={() => editor.commands.replaceCurrentMatch()}
+                  disabled={resultCount === 0}
+                  sx={{ p: 0.25 }}
+                >
+                  <Typography aria-hidden="true" sx={{ fontSize: "0.65rem", fontWeight: 700, lineHeight: 1 }}>1</Typography>
+                </IconButton>
+              </span>
+            </Tooltip>
+            <Tooltip title={t("replaceAll")}>
+              <span>
+                <IconButton
+                  size="small"
+                  aria-label={t("replaceAll")}
+                  onClick={() => editor.commands.replaceAllMatches()}
+                  disabled={resultCount === 0}
+                  sx={{ p: 0.25 }}
+                >
+                  <Typography aria-hidden="true" sx={{ fontSize: "0.65rem", fontWeight: 700, lineHeight: 1 }}>*</Typography>
+                </IconButton>
+              </span>
+            </Tooltip>
+          </Box>
         )}
-      </div>
+      </Box>
 
       {/* Match count */}
       {searchTerm && (
-        <span className={`search-result-count ${resultCount === 0 ? "no-results" : ""}`}>
+        <Typography
+          variant="caption"
+          sx={{
+            whiteSpace: "nowrap",
+            fontSize: "0.65rem",
+            color: resultCount === 0 ? "error.main" : "text.secondary",
+            mx: 0.25,
+          }}
+        >
           {resultCount > 0
-            ? `${currentIndex + 1}/${resultCount}`
-            : "No results"}
-        </span>
+            ? t("searchResults", {
+                current: String(currentIndex + 1),
+                total: String(resultCount),
+              })
+            : t("noResults")}
+        </Typography>
       )}
 
       {/* Toggle buttons */}
-      <button
-        className={`search-option-btn ${caseSensitive ? "is-active" : ""}`}
-        title="Case Sensitive"
-        onClick={() => editor.commands.toggleCaseSensitive()}
-      >
-        Aa
-      </button>
-      <button
-        className={`search-option-btn ${wholeWord && !useRegex ? "is-active" : ""}`}
-        title="Whole Word"
-        onClick={() => editor.commands.toggleWholeWord()}
-        disabled={useRegex}
-      >
-        Ab|
-      </button>
-      <button
-        className={`search-option-btn ${useRegex ? "is-active" : ""}`}
-        title="Regex"
-        onClick={() => editor.commands.toggleUseRegex()}
-      >
-        .*
-      </button>
+      <Tooltip title={t("caseSensitive")}>
+        <IconButton
+          size="small"
+          onClick={() => editor.commands.toggleCaseSensitive()}
+          sx={toggleBtnSx(caseSensitive)}
+        >
+          Aa
+        </IconButton>
+      </Tooltip>
+      <Tooltip title={t("wholeWord")}>
+        <span>
+          <IconButton
+            size="small"
+            onClick={() => editor.commands.toggleWholeWord()}
+            disabled={useRegex}
+            sx={toggleBtnSx(wholeWord && !useRegex)}
+          >
+            Ab|
+          </IconButton>
+        </span>
+      </Tooltip>
+      <Tooltip title={t("regex")}>
+        <IconButton
+          size="small"
+          onClick={() => editor.commands.toggleUseRegex()}
+          sx={toggleBtnSx(useRegex)}
+        >
+          .*
+        </IconButton>
+      </Tooltip>
 
       {/* Prev / Next */}
-      <button
-        className="search-nav-btn"
-        title="Previous Match (Shift+Enter)"
-        onClick={() => editor.commands.goToPrevMatch()}
-        disabled={resultCount === 0}
-      >
-        \u25B2
-      </button>
-      <button
-        className="search-nav-btn"
-        title="Next Match (Enter)"
-        onClick={() => editor.commands.goToNextMatch()}
-        disabled={resultCount === 0}
-      >
-        \u25BC
-      </button>
+      <Tooltip title={`${t("prevMatch")} (Shift+Enter)`}>
+        <span>
+          <IconButton
+            size="small"
+            onClick={() => editor.commands.goToPrevMatch()}
+            disabled={resultCount === 0}
+            sx={{ p: 0.25 }}
+          >
+            <KeyboardArrowUpIcon sx={{ fontSize: 16 }} />
+          </IconButton>
+        </span>
+      </Tooltip>
+      <Tooltip title={`${t("nextMatch")} (Enter)`}>
+        <span>
+          <IconButton
+            size="small"
+            onClick={() => editor.commands.goToNextMatch()}
+            disabled={resultCount === 0}
+            sx={{ p: 0.25 }}
+          >
+            <KeyboardArrowDownIcon sx={{ fontSize: 16 }} />
+          </IconButton>
+        </span>
+      </Tooltip>
 
-      <div className="separator" />
+      <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
     </>
   );
 }

@@ -1,0 +1,93 @@
+[
+  {
+    "label": "Sequence",
+    "i18nKey": "sampleSequence",
+    "icon": "sd",
+    "enabled": true,
+    "code": "actor User\nparticipant App\nparticipant Server\nparticipant DB\n\nUser -> App: Request\nApp -> Server: API Call\nServer -> DB: Query\nDB --> Server: Result\nServer --> App: Response\nApp --> User: Display"
+  },
+  {
+    "label": "Class",
+    "i18nKey": "sampleClass",
+    "icon": "cls",
+    "enabled": true,
+    "code": "class Animal {\n  +String name\n  +int age\n  +makeSound()\n}\nclass Dog {\n  +fetch()\n}\nclass Cat {\n  +purr()\n}\nAnimal <|-- Dog\nAnimal <|-- Cat"
+  },
+  {
+    "label": "UseCase",
+    "i18nKey": "sampleUseCase",
+    "icon": "uc",
+    "enabled": true,
+    "code": "left to right direction\nactor User\nrectangle System {\n  usecase \"Login\" as UC1\n  usecase \"View Dashboard\" as UC2\n  usecase \"Edit Profile\" as UC3\n}\nUser --> UC1\nUser --> UC2\nUser --> UC3"
+  },
+  {
+    "label": "State",
+    "i18nKey": "sampleState",
+    "icon": "stm",
+    "enabled": true,
+    "code": "[*] --> Idle\nIdle --> Processing : Start\nProcessing --> Success : OK\nProcessing --> Error : Fail\nSuccess --> [*]\nError --> Idle : Retry"
+  },
+  {
+    "label": "ER",
+    "i18nKey": "sampleER",
+    "icon": "er",
+    "enabled": true,
+    "code": "entity User {\n  *id : int <<PK>>\n  --\n  name : varchar\n  email : varchar\n}\nentity Order {\n  *id : int <<PK>>\n  --\n  *user_id : int <<FK>>\n  order_date : date\n  total : decimal\n}\nentity Product {\n  *id : int <<PK>>\n  --\n  name : varchar\n  price : decimal\n}\nentity OrderItem {\n  *id : int <<PK>>\n  --\n  *order_id : int <<FK>>\n  *product_id : int <<FK>>\n  quantity : int\n}\nUser ||--o{ Order\nOrder ||--|{ OrderItem\nProduct ||--o{ OrderItem"
+  },
+  {
+    "label": "Activity",
+    "i18nKey": "sampleActivity",
+    "icon": "act",
+    "enabled": false,
+    "code": "start\n:Input Data;\nif (Valid?) then (yes)\n  :Process;\n  :Save;\nelse (no)\n  :Show Error;\nendif\nstop"
+  },
+  {
+    "label": "Swimlane",
+    "i18nKey": "sampleSwimlane",
+    "icon": "swim",
+    "enabled": false,
+    "code": "|User|\nstart\n:Submit Form;\n|System|\n:Validate Input;\nif (Valid?) then (yes)\n  :Process Request;\n  |Database|\n  :Save Data;\n  |System|\n  :Send Response;\n  |User|\n  :View Result;\nelse (no)\n  |System|\n  :Return Error;\n  |User|\n  :Fix Input;\nendif\nstop"
+  },  
+  {
+    "label": "Mindmap",
+    "i18nKey": "sampleMindmap",
+    "icon": "mind",
+    "enabled": false,
+    "code": "@startmindmap\n* Project\n** Planning\n*** Requirements\n*** Schedule\n** Development\n*** Frontend\n*** Backend\n*** Database\n** Testing\n*** Unit Test\n*** E2E Test\n@endmindmap"
+  },
+  {
+    "label": "WBS",
+    "i18nKey": "sampleWBS",
+    "icon": "wbs",
+    "enabled": false,
+    "code": "@startwbs\n* Project\n** Phase 1\n*** Task 1.1\n*** Task 1.2\n** Phase 2\n*** Task 2.1\n*** Task 2.2\n*** Task 2.3\n** Phase 3\n*** Task 3.1\n@endwbs"
+  },
+  {
+    "label": "JSON",
+    "i18nKey": "sampleJSON",
+    "icon": "json",
+    "enabled": false,
+    "code": "@startjson\n{\n  \"name\": \"Project\",\n  \"version\": \"1.0\",\n  \"modules\": [\n    {\n      \"name\": \"Frontend\",\n      \"tech\": \"React\"\n    },\n    {\n      \"name\": \"Backend\",\n      \"tech\": \"Node.js\"\n    }\n  ],\n  \"database\": {\n    \"type\": \"PostgreSQL\",\n    \"version\": \"16\"\n  }\n}\n@endjson"
+  },
+  {
+    "label": "YAML",
+    "i18nKey": "sampleYAML",
+    "icon": "yaml",
+    "enabled": false,
+    "code": "@startyaml\nproject:\n  name: MyApp\n  version: 1.0\nservices:\n  web:\n    image: nginx\n    ports:\n      - 80:80\n  api:\n    image: node\n    ports:\n      - 3000:3000\n  db:\n    image: postgres\n    environment:\n      POSTGRES_DB: mydb\n@endyaml"
+  },
+  {
+    "label": "Component",
+    "i18nKey": "sampleComponent",
+    "icon": "comp",
+    "enabled": false,
+    "code": "package \"Frontend\" {\n  [Web App] as WA\n  [Mobile App] as MA\n}\npackage \"Backend\" {\n  [API Gateway] as GW\n  [Auth Service] as Auth\n  [User Service] as US\n  [Order Service] as OS\n}\npackage \"Data\" {\n  database \"PostgreSQL\" as DB\n  database \"Redis\" as Cache\n}\nWA --> GW\nMA --> GW\nGW --> Auth\nGW --> US\nGW --> OS\nUS --> DB\nOS --> DB\nAuth --> Cache"
+  },
+  {
+    "label": "Deployment",
+    "i18nKey": "sampleDeployment",
+    "icon": "dep",
+    "enabled": false,
+    "code": "node \"Load Balancer\" as LB {\n  [Nginx]\n}\nnode \"Web Server 1\" as WS1 {\n  [App Instance 1]\n}\nnode \"Web Server 2\" as WS2 {\n  [App Instance 2]\n}\nnode \"DB Server\" as DBS {\n  database \"PostgreSQL\" as DB\n}\nnode \"Cache Server\" as CS {\n  database \"Redis\" as Cache\n}\nLB --> WS1\nLB --> WS2\nWS1 --> DBS\nWS2 --> DBS\nWS1 --> CS\nWS2 --> CS"
+  }
+]

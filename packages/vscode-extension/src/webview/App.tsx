@@ -1,64 +1,72 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
 import { getVsCodeApi } from './vscodeApi';
-import { TiptapEditor, DEFAULT_SETTINGS } from '@anytime-markdown/editor-core';
-import type { EditorSettings } from '@anytime-markdown/editor-core';
+import { ConfirmProvider } from '@anytime-markdown/editor-core';
+import MarkdownEditorPage from '@anytime-markdown/editor-core/src/MarkdownEditorPage';
+
+const vscode = getVsCodeApi();
+
+// localStorage bridge: intercept content key to sync with VS Code
+const CONTENT_KEY = 'markdown-editor-content';
+let currentContent: string | null = null;
+
+const originalSetItem = localStorage.setItem.bind(localStorage);
+const originalGetItem = localStorage.getItem.bind(localStorage);
+const originalRemoveItem = localStorage.removeItem.bind(localStorage);
+
+localStorage.setItem = (key: string, value: string) => {
+  if (key === CONTENT_KEY) {
+    currentContent = value;
+    vscode.postMessage({ type: 'contentChanged', content: value });
+    return;
+  }
+  originalSetItem(key, value);
+};
+
+localStorage.getItem = (key: string): string | null => {
+  if (key === CONTENT_KEY) {
+    return currentContent;
+  }
+  return originalGetItem(key);
+};
+
+localStorage.removeItem = (key: string) => {
+  if (key === CONTENT_KEY) {
+    currentContent = '';
+    return;
+  }
+  originalRemoveItem(key);
+};
+
+const darkTheme = createTheme({ palette: { mode: 'dark' } });
 
 export function App() {
-  const [content, setContent] = useState('');
-  const [baseUri, setBaseUri] = useState('');
-  const [settings, setSettings] = useState<EditorSettings>(DEFAULT_SETTINGS);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const vscode = getVsCodeApi();
-    vscode.postMessage({ type: 'ready' });
-
     const handleMessage = (event: MessageEvent) => {
-      try {
-        const message = event.data as Record<string, unknown>;
-        if (typeof message?.type !== 'string') { return; }
-        switch (message.type) {
-          case 'setContent':
-            if (typeof message.content === 'string') {
-              setContent(message.content);
-            }
-            break;
-          case 'setBaseUri':
-            if (typeof message.baseUri === 'string') {
-              setBaseUri(message.baseUri);
-            }
-            break;
-          case 'setSettings':
-            if (message.settings && typeof message.settings === 'object') {
-              setSettings(message.settings as EditorSettings);
-            }
-            break;
+      const message = event.data;
+      if (message?.type === 'setContent' && typeof message.content === 'string') {
+        currentContent = message.content;
+        if (!ready) {
+          setReady(true);
         }
-      } catch (err) {
-        console.error('Error handling message:', err);
       }
     };
-
     window.addEventListener('message', handleMessage);
+    vscode.postMessage({ type: 'ready' });
     return () => window.removeEventListener('message', handleMessage);
-  }, []);
+  }, [ready]);
 
-  const handleUpdate = useCallback((markdown: string) => {
-    const vscode = getVsCodeApi();
-    vscode.postMessage({ type: 'contentChanged', content: markdown });
-  }, []);
-
-  const handleSave = useCallback(() => {
-    const vscode = getVsCodeApi();
-    vscode.postMessage({ type: 'save' });
-  }, []);
+  if (!ready) return null;
 
   return (
-    <TiptapEditor
-      content={content}
-      baseUri={baseUri}
-      settings={settings}
-      onUpdate={handleUpdate}
-      onSave={handleSave}
-    />
+    <ThemeProvider theme={darkTheme}>
+      <CssBaseline />
+      <ConfirmProvider>
+        <MarkdownEditorPage />
+      </ConfirmProvider>
+    </ThemeProvider>
   );
 }

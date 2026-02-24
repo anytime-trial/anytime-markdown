@@ -1,5 +1,5 @@
 import HardBreak from "@tiptap/extension-hard-break";
-import type { MdSerializerState } from "./types";
+import type { MdSerializerState } from "../types";
 import type { Node as PMNode } from "@tiptap/pm/model";
 
 /** Shift+Enterでハードブレイク（スペース2つ+改行）、Enterは通常の段落分割 */

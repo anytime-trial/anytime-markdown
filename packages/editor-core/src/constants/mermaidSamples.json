@@ -1,0 +1,65 @@
+[
+  {
+    "label": "Flowchart",
+    "i18nKey": "sampleFlowchart",
+    "icon": "flow",
+    "enabled": true,
+    "code": "graph TD\n    A[Start] --> B{Condition}\n    B -->|Yes| C[Process A]\n    B -->|No| D[Process B]\n    C --> E[End]\n    D --> E"
+  },
+  {
+    "label": "Sequence",
+    "i18nKey": "sampleSequence",
+    "icon": "sd",
+    "enabled": true,
+    "code": "sequenceDiagram\n    participant U as User\n    participant S as Server\n    participant DB as Database\n    U->>S: Request\n    S->>DB: Query\n    DB-->>S: Result\n    S-->>U: Response"
+  },
+  {
+    "label": "Class",
+    "i18nKey": "sampleClass",
+    "icon": "cls",
+    "enabled": true,
+    "code": "classDiagram\n    class Animal {\n        +String name\n        +int age\n        +makeSound()\n    }\n    class Dog {\n        +fetch()\n    }\n    class Cat {\n        +purr()\n    }\n    Animal <|-- Dog\n    Animal <|-- Cat"
+  },
+  {
+    "label": "ER",
+    "i18nKey": "sampleER",
+    "icon": "er",
+    "enabled": true,
+    "code": "erDiagram\n    USER ||--o{ ORDER : places\n    ORDER ||--|{ LINE_ITEM : contains\n    PRODUCT ||--o{ LINE_ITEM : \"ordered in\"\n    USER {\n        int id PK\n        string name\n        string email\n    }\n    ORDER {\n        int id PK\n        int user_id FK\n        date order_date\n    }\n    PRODUCT {\n        int id PK\n        string name\n        decimal price\n    }"
+  },
+  {
+    "label": "State",
+    "i18nKey": "sampleState",
+    "icon": "stm",
+    "enabled": true,
+    "code": "stateDiagram-v2\n    [*] --> Idle\n    Idle --> Processing : Start\n    Processing --> Success : OK\n    Processing --> Error : Fail\n    Success --> [*]\n    Error --> Idle : Retry\n    state Processing {\n        [*] --> Validating\n        Validating --> Executing\n        Executing --> [*]\n    }"
+  },
+  {
+    "label": "Mindmap",
+    "i18nKey": "sampleMindmap",
+    "icon": "mind",
+    "enabled": false,
+    "code": "mindmap\n  root((Project))\n    Planning\n      Requirements\n      Schedule\n    Development\n      Frontend\n      Backend\n      Database\n    Testing\n      Unit Test\n      E2E Test"
+  },
+  {
+    "label": "Architecture",
+    "i18nKey": "sampleArchitecture",
+    "icon": "arch",
+    "enabled": false,
+    "code": "architecture-beta\n    group api(cloud)[API]\n    group client(cloud)[Client]\n\n    service db(database)[Database] in api\n    service server(server)[Server] in api\n    service web(internet)[Web App] in client\n\n    web:R --> L:server\n    server:R --> L:db"
+  },
+  {
+    "label": "Gantt",
+    "i18nKey": "sampleGantt",
+    "icon": "gantt",
+    "enabled": false,
+    "code": "gantt\n    title Project Plan\n    dateFormat YYYY-MM-DD\n    section Design\n    Requirements :a1, 2026-03-01, 7d\n    UI Design    :a2, after a1, 5d\n    section Development\n    Implement    :b1, after a2, 10d\n    Test         :b2, after b1, 5d"
+  },  
+  {
+    "label": "Git",
+    "i18nKey": "sampleGit",
+    "icon": "git",
+    "enabled": false,
+    "code": "gitGraph\n    commit\n    commit\n    branch develop\n    checkout develop\n    commit\n    commit\n    checkout main\n    merge develop\n    commit\n    branch feature\n    checkout feature\n    commit\n    checkout develop\n    merge feature\n    checkout main\n    merge develop"
+  }
+]

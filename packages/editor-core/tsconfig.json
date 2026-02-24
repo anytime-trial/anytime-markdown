@@ -5,7 +5,12 @@
 		"moduleResolution": "bundler",
 		"composite": true,
 		"rootDir": "src",
-		"outDir": "dist"
+		"outDir": "dist",
+		"resolveJsonModule": true,
+		"baseUrl": ".",
+		"paths": {
+			"@/*": ["./src/*"]
+		}
 	},
 	"include": ["src/**/*"]
 }

@@ -1,0 +1,104 @@
+import { renderHook, act } from "@testing-library/react";
+import { useMarkdownEditor } from "../useMarkdownEditor";
+
+const STORAGE_KEY = "markdown-editor-content";
+
+describe("useMarkdownEditor", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  test("localStorageからコンテンツを読み込む", () => {
+    localStorage.setItem(STORAGE_KEY, "# Saved");
+
+    const { result } = renderHook(() => useMarkdownEditor("# Default"));
+
+    expect(result.current.initialContent).toBe("# Saved");
+    expect(result.current.loading).toBe(false);
+  });
+
+  test("localStorageが空の場合はデフォルトコンテンツを使用", () => {
+    const { result } = renderHook(() => useMarkdownEditor("# Default"));
+
+    expect(result.current.initialContent).toBe("# Default");
+    expect(result.current.loading).toBe(false);
+  });
+
+  test("500msのdebounceでlocalStorageに保存", () => {
+    const { result } = renderHook(() => useMarkdownEditor("# Default"));
+
+    act(() => {
+      result.current.saveContent("# Updated");
+    });
+
+    // まだ保存されていない
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
+
+    act(() => {
+      jest.advanceTimersByTime(500);
+    });
+
+    // 保存完了
+    expect(localStorage.getItem(STORAGE_KEY)).toBe("# Updated");
+    expect(result.current.lastSavedAt).not.toBeNull();
+    expect(result.current.saveError).toBe(false);
+  });
+
+  test("debounce中の連続呼び出しは最後の値のみ保存", () => {
+    const { result } = renderHook(() => useMarkdownEditor("# Default"));
+
+    act(() => {
+      result.current.saveContent("# First");
+    });
+    act(() => {
+      jest.advanceTimersByTime(200);
+      result.current.saveContent("# Second");
+    });
+    act(() => {
+      jest.advanceTimersByTime(200);
+      result.current.saveContent("# Third");
+    });
+    act(() => {
+      jest.advanceTimersByTime(500);
+    });
+
+    expect(localStorage.getItem(STORAGE_KEY)).toBe("# Third");
+  });
+
+  test("localStorageエラー時にsaveErrorがtrueになる", () => {
+    const { result } = renderHook(() => useMarkdownEditor("# Default"));
+
+    const originalSetItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = () => {
+      throw new Error("QuotaExceeded");
+    };
+
+    act(() => {
+      result.current.saveContent("# Big content");
+    });
+    act(() => {
+      jest.advanceTimersByTime(500);
+    });
+
+    expect(result.current.saveError).toBe(true);
+
+    Storage.prototype.setItem = originalSetItem;
+  });
+
+  test("clearContentでlocalStorageから削除", () => {
+    localStorage.setItem(STORAGE_KEY, "# Saved");
+    const { result } = renderHook(() => useMarkdownEditor("# Default"));
+
+    act(() => {
+      result.current.clearContent();
+    });
+
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
+    expect(result.current.lastSavedAt).toBeNull();
+  });
+});

@@ -1,53 +1,58 @@
-const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.userAgent);
-const modKey = isMac ? '\u2318' : 'Ctrl';
+export const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent);
+export const modKey = isMac ? "⌘" : "Ctrl";
 
-const SHORTCUTS: Record<string, { keys: string; label: string }> = {
-  bold: { keys: 'Mod-b', label: `${modKey}+B` },
-  italic: { keys: 'Mod-i', label: `${modKey}+I` },
-  underline: { keys: 'Mod-u', label: `${modKey}+U` },
-  strikethrough: { keys: 'Mod-Shift-x', label: `${modKey}+Shift+X` },
-  highlight: { keys: 'Mod-Shift-h', label: `${modKey}+Shift+H` },
-  h1: { keys: 'Mod-Alt-1', label: `${modKey}+Alt+1` },
-  h2: { keys: 'Mod-Alt-2', label: `${modKey}+Alt+2` },
-  h3: { keys: 'Mod-Alt-3', label: `${modKey}+Alt+3` },
-  bulletList: { keys: 'Mod-Shift-8', label: `${modKey}+Shift+8` },
-  orderedList: { keys: 'Mod-Shift-7', label: `${modKey}+Shift+7` },
-  taskList: { keys: 'Mod-Shift-9', label: `${modKey}+Shift+9` },
-  blockquote: { keys: 'Mod-Shift-b', label: `${modKey}+Shift+B` },
-  codeBlock: { keys: 'Mod-Alt-c', label: `${modKey}+Alt+C` },
-  horizontalRule: { keys: 'Mod-Alt-r', label: `${modKey}+Alt+R` },
-  table: { keys: 'Mod-Alt-t', label: `${modKey}+Alt+T` },
-  link: { keys: 'Mod-k', label: `${modKey}+K` },
-  source: { keys: 'Mod-Alt-s', label: `${modKey}+Alt+S` },
-  code: { keys: 'Mod-e', label: `${modKey}+E` },
-};
-
-const TOOLTIP_NAMES: Record<string, string> = {
-  bold: 'Bold',
-  italic: 'Italic',
-  underline: 'Underline',
-  strikethrough: 'Strikethrough',
-  highlight: 'Highlight',
-  h1: 'Heading 1',
-  h2: 'Heading 2',
-  h3: 'Heading 3',
-  bulletList: 'Bullet List',
-  orderedList: 'Ordered List',
-  taskList: 'Task List',
-  blockquote: 'Blockquote',
-  codeBlock: 'Code Block',
-  horizontalRule: 'Horizontal Rule',
-  table: 'Insert Table',
-  link: 'Link',
-  source: 'Source View',
-  code: 'Code',
-};
-
-export function tooltipWithShortcut(key: string): string {
-  const name = TOOLTIP_NAMES[key] || key;
-  const shortcut = SHORTCUTS[key];
-  if (!shortcut) { return name; }
-  return `${name} (${shortcut.label})`;
-}
-
-export { SHORTCUTS, isMac, modKey };
+export const KEYBOARD_SHORTCUTS: { categoryKey: string; items: { keys: string; descKey: string }[] }[] = [
+  {
+    categoryKey: "shortcutTextStyle",
+    items: [
+      { keys: `${modKey}+B`, descKey: "shortcutBold" },
+      { keys: `${modKey}+I`, descKey: "shortcutItalic" },
+      { keys: `${modKey}+U`, descKey: "shortcutUnderline" },
+      { keys: `${modKey}+Shift+X`, descKey: "shortcutStrikethrough" },
+      { keys: `${modKey}+Shift+H`, descKey: "shortcutHighlight" },
+    ],
+  },
+  {
+    categoryKey: "shortcutBlock",
+    items: [
+      { keys: `${modKey}+Alt+1~5`, descKey: "shortcutHeading" },
+      { keys: `${modKey}+Shift+7`, descKey: "shortcutBulletList" },
+      { keys: `${modKey}+Shift+8`, descKey: "shortcutOrderedList" },
+      { keys: `${modKey}+Shift+9`, descKey: "shortcutTaskList" },
+      { keys: `${modKey}+Shift+B`, descKey: "shortcutBlockquote" },
+      { keys: `${modKey}+Alt+C`, descKey: "shortcutCodeBlock" },
+      { keys: `${modKey}+E`, descKey: "shortcutInlineCode" },
+      { keys: `${modKey}+Alt+I`, descKey: "shortcutImage" },
+      { keys: `${modKey}+Alt+R`, descKey: "shortcutHorizontalRule" },
+      { keys: `${modKey}+Alt+T`, descKey: "shortcutTable" },
+      { keys: `${modKey}+Alt+D`, descKey: "shortcutDiagram" },
+      { keys: `${modKey}+Alt+P`, descKey: "shortcutTemplate" },
+      { keys: `${modKey}+Alt+S`, descKey: "shortcutToggleSourceMode" },
+      { keys: `${modKey}+Alt+M`, descKey: "shortcutToggleCompareMode" },
+    ],
+  },
+  {
+    categoryKey: "shortcutEdit",
+    items: [
+      { keys: `${modKey}+Z`, descKey: "shortcutUndo" },
+      { keys: `${modKey}+Shift+Z`, descKey: "shortcutRedo" },
+      { keys: `${modKey}+Shift+K`, descKey: "shortcutDeleteLine" },
+      { keys: "Shift+Enter", descKey: "shortcutHardBreak" },
+      { keys: "Tab", descKey: "shortcutNextCell" },
+      { keys: "Shift+Tab", descKey: "shortcutPrevCell" },
+    ],
+  },
+  {
+    categoryKey: "shortcutLinkImage",
+    items: [
+      { keys: `${modKey}+K`, descKey: "shortcutInsertLink" },
+    ],
+  },
+  {
+    categoryKey: "shortcutSearch",
+    items: [
+      { keys: `${modKey}+F`, descKey: "shortcutSearch" },
+      { keys: `${modKey}+H`, descKey: "shortcutSearchReplace" },
+    ],
+  },
+];

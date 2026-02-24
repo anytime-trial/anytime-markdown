@@ -3,12 +3,19 @@
 	"compilerOptions": {
 		"module": "ESNext",
 		"moduleResolution": "bundler",
+		"resolveJsonModule": true,
 		"paths": {
-			"@anytime-markdown/editor-core": ["../editor-core/src/index.ts"]
+			"@anytime-markdown/editor-core": ["../editor-core/src/index.ts"],
+			"@anytime-markdown/editor-core/*": ["../editor-core/*"],
+			"@/*": ["../editor-core/src/*"]
 		}
 	},
 	"include": [
 		"src/webview/**/*",
 		"../editor-core/src/**/*"
+	],
+	"exclude": [
+		"../editor-core/src/__tests__/**/*",
+		"../editor-core/src/testUtils/**/*"
 	]
 }

@@ -100,6 +100,9 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@types/vscode": "^1.109.0",
+    "@types/dompurify": "^3.0.5",
+    "@types/diff": "^7.0.2",
+    "@types/plantuml-encoder": "^1.4.2",
     "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2",
     "css-loader": "^7.1.4",
@@ -113,7 +116,16 @@
   },
   "dependencies": {
     "@anytime-markdown/editor-core": "*",
+    "@mui/material": "^7.3.7",
+    "@mui/icons-material": "^7.3.7",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
     "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "react-dom": "^19.2.4",
+    "dompurify": "^3.3.1",
+    "marked": "^17.0.3",
+    "diff": "^8.0.3",
+    "plantuml-encoder": "^1.4.0",
+    "mermaid": "^11.12.3"
   }
 }

@@ -13,12 +13,19 @@
     "noEmit": true,
     "allowJs": true,
     "resolveJsonModule": true,
-    "jsx": "preserve"
+    "jsx": "preserve",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["../editor-core/src/*"],
+      "@anytime-markdown/editor-core/src/*": ["../editor-core/src/*"],
+      "@anytime-markdown/editor-core": ["../editor-core/src/index.ts"]
+    }
   },
   "include": [
     "src/**/*",
     "next-env.d.ts",
-    ".next/types/**/*.ts"
+    ".next/types/**/*.ts",
+    "../editor-core/src/md.d.ts"
   ],
   "exclude": [
     "node_modules"
