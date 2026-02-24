@@ -1,6 +1,6 @@
 # Anytime Markdown
 
-Tiptap ベースのリッチマークダウンエディタ。Web アプリと VS Code 拡張機能の両方で動作します。
+Tiptap ベースのリッチマークダウンエディタ featuring Claude Code。Web アプリと VS Code 拡張機能の両方で動作します。
 
 ## プロジェクト構成
 

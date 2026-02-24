@@ -89,8 +89,6 @@ interface EditorToolbarProps {
   onSourceInsertCodeBlock?: () => void;
   onSourceInsertTable?: () => void;
   mergeUndoRedo?: MergeUndoRedo | null;
-  lastSavedAt: string | null;
-  saveError: boolean;
   t: (key: string) => string;
 }
 
@@ -119,8 +117,6 @@ export function EditorToolbar({
   onSourceInsertCodeBlock,
   onSourceInsertTable,
   mergeUndoRedo,
-  lastSavedAt,
-  saveError,
   t,
 }: EditorToolbarProps) {
   const handleToolbarKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -188,18 +184,6 @@ export function EditorToolbar({
 
   return (
     <>
-    {/* Auto-save indicator above toolbar */}
-    <Box sx={{ display: "flex", justifyContent: "flex-end", px: 0.5, pb: 0.25 }}>
-      {saveError ? (
-        <Typography variant="caption" sx={{ color: "error.main" }}>
-          {t("saveError")}
-        </Typography>
-      ) : lastSavedAt ? (
-        <Typography variant="caption" sx={{ color: "text.secondary" }}>
-          {t("autoSaved")} {lastSavedAt}
-        </Typography>
-      ) : null}
-    </Box>
     <Paper
       variant="outlined"
       role="toolbar"

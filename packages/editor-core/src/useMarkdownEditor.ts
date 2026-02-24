@@ -7,8 +7,6 @@ const DEBOUNCE_MS = 500;
 
 export function useMarkdownEditor(defaultContent: string) {
   const [initialContent, setInitialContent] = useState<string | null>(null);
-  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
-  const [saveError, setSaveError] = useState(false);
   const [loading, setLoading] = useState(true);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -29,10 +27,8 @@ export function useMarkdownEditor(defaultContent: string) {
     timerRef.current = setTimeout(() => {
       try {
         localStorage.setItem(STORAGE_KEY, markdown);
-        setLastSavedAt(new Date().toLocaleTimeString());
-        setSaveError(false);
       } catch {
-        setSaveError(true);
+        // silent fail
       }
     }, DEBOUNCE_MS);
   }, []);
@@ -52,7 +48,6 @@ export function useMarkdownEditor(defaultContent: string) {
 
   // クリア
   const clearContent = useCallback(() => {
-    setLastSavedAt(null);
     try {
       localStorage.removeItem(STORAGE_KEY);
     } catch {
@@ -69,8 +64,6 @@ export function useMarkdownEditor(defaultContent: string) {
 
   return {
     initialContent,
-    lastSavedAt,
-    saveError,
     loading,
     saveContent,
     downloadMarkdown,

@@ -1,7 +1,7 @@
 {
   "name": "anytime-markdown",
   "displayName": "Anytime Markdown",
-  "description": "markdown editor",
+  "description": "markdown editor featuring Claude Code",
   "version": "0.0.1",
   "license": "MIT",
   "publisher": "anytime-markdown",

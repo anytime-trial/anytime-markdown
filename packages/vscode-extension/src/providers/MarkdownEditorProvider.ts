@@ -153,6 +153,11 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src ${webview.cspSource} https: data:;">
     <title>Markdown Editor</title>
+    <style>
+      html, body, #root { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
+      #root > .MuiBox-root { padding: 0 !important; }
+      #root > .MuiBox-root > .MuiBox-root:empty { display: none !important; margin: 0 !important; }
+    </style>
 </head>
 <body>
     <div id="root"></div>

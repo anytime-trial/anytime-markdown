@@ -102,8 +102,6 @@ export default function MarkdownEditorPage() {
   const isLg = useMediaQuery(theme.breakpoints.up("lg"));
   const {
     initialContent,
-    lastSavedAt,
-    saveError,
     loading,
     saveContent,
     downloadMarkdown,
@@ -544,8 +542,6 @@ export default function MarkdownEditorPage() {
         onSourceInsertCodeBlock={() => appendToSource("\n```\n\n```\n")}
         onSourceInsertTable={() => appendToSource("\n| Header | Header | Header |\n| ------ | ------ | ------ |\n|        |        |        |\n|        |        |        |\n")}
         mergeUndoRedo={inlineMergeOpen ? mergeUndoRedo : null}
-        lastSavedAt={lastSavedAt}
-        saveError={saveError}
         t={t}
       />
       <input

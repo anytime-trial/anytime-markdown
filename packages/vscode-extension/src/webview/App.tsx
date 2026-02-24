@@ -39,6 +39,15 @@ localStorage.removeItem = (key: string) => {
   originalRemoveItem(key);
 };
 
+// VS Code extension: force showTitle off
+const SETTINGS_KEY = 'markdown-editor-settings';
+try {
+  const saved = localStorage.getItem(SETTINGS_KEY);
+  const obj = saved ? JSON.parse(saved) : {};
+  obj.showTitle = false;
+  originalSetItem(SETTINGS_KEY, JSON.stringify(obj));
+} catch { /* ignore */ }
+
 const darkTheme = createTheme({ palette: { mode: 'dark' } });
 
 export function App() {
