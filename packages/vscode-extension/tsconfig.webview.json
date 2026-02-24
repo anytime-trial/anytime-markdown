@@ -1,0 +1,14 @@
+{
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"paths": {
+			"@anytime-markdown/editor-core": ["../editor-core/src/index.ts"]
+		}
+	},
+	"include": [
+		"src/webview/**/*",
+		"../editor-core/src/**/*"
+	]
+}

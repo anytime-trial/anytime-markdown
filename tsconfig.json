@@ -1,0 +1,7 @@
+{
+	"files": [],
+	"references": [
+		{ "path": "packages/editor-core" },
+		{ "path": "packages/vscode-extension" }
+	]
+}

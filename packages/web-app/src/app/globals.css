@@ -1,0 +1,93 @@
+/* --vscode-* compatible CSS variables for standalone web usage */
+
+/* ========== Dark Theme (default) ========== */
+:root {
+  --vscode-editor-background: #1e1e1e;
+  --vscode-editor-foreground: #d4d4d4;
+  --vscode-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --vscode-font-size: 14px;
+  --vscode-panel-border: #2d2d2d;
+  --vscode-toolbar-hoverBackground: rgba(90, 93, 94, 0.31);
+  --vscode-toolbar-activeBackground: rgba(127, 127, 127, 0.2);
+  --vscode-focusBorder: #007fd4;
+  --vscode-textCodeBlock-background: rgba(10, 10, 10, 0.4);
+  --vscode-editor-font-family: 'Cascadia Code', 'Fira Code', Menlo, Monaco, 'Courier New', monospace;
+  --vscode-editor-font-size: 14px;
+  --vscode-textBlockQuote-border: #007acc;
+  --vscode-textBlockQuote-foreground: #cccccc;
+  --vscode-textLink-foreground: #3794ff;
+  --vscode-textLink-activeForeground: #3794ff;
+  --vscode-editor-findMatchHighlightBackground: #ffd33d44;
+  --vscode-editor-findMatchBackground: rgba(162, 113, 0, 0.6);
+  --vscode-editor-findMatchBorder: #f0a000;
+  --vscode-editor-selectionBackground: rgba(0, 120, 215, 0.3);
+  --vscode-editorGroupHeader-tabsBackground: rgba(127, 127, 127, 0.1);
+  --vscode-input-placeholderForeground: #a6a6a6;
+  --vscode-input-border: #3c3c3c;
+  --vscode-input-background: transparent;
+  --vscode-input-foreground: #cccccc;
+  --vscode-descriptionForeground: #717171;
+  --vscode-errorForeground: #f44747;
+  --vscode-editorWidget-background: #252526;
+  --vscode-editorWidget-border: #454545;
+  --vscode-button-background: #0078d4;
+  --vscode-button-foreground: #fff;
+  --vscode-button-hoverBackground: #006cbd;
+  --vscode-symbolIcon-keywordForeground: #569cd6;
+  --vscode-symbolIcon-classForeground: #4ec9b0;
+  --vscode-symbolIcon-methodForeground: #dcdcaa;
+  --vscode-symbolIcon-stringForeground: #ce9178;
+  --vscode-symbolIcon-numberForeground: #b5cea8;
+  --vscode-symbolIcon-commentForeground: #6a9955;
+  --vscode-symbolIcon-variableForeground: #9cdcfe;
+  --vscode-symbolIcon-propertyForeground: #9cdcfe;
+  --vscode-symbolIcon-colorForeground: #d16969;
+  --vscode-gitDecoration-deletedResourceForeground: #f44747;
+  --vscode-symbolIcon-enumeratorForeground: #d4d4d4;
+  --vscode-symbolIcon-namespaceForeground: #c586c0;
+}
+
+/* ========== Light Theme ========== */
+@media (prefers-color-scheme: light) {
+  :root {
+    --vscode-editor-background: #ffffff;
+    --vscode-editor-foreground: #1f1f1f;
+    --vscode-panel-border: #e5e5e5;
+    --vscode-toolbar-hoverBackground: rgba(0, 0, 0, 0.06);
+    --vscode-toolbar-activeBackground: rgba(0, 0, 0, 0.1);
+    --vscode-focusBorder: #0078d4;
+    --vscode-textCodeBlock-background: rgba(220, 220, 220, 0.4);
+    --vscode-textBlockQuote-border: #0078d4;
+    --vscode-textBlockQuote-foreground: #57606a;
+    --vscode-textLink-foreground: #0969da;
+    --vscode-textLink-activeForeground: #0969da;
+    --vscode-editor-findMatchHighlightBackground: rgba(234, 172, 0, 0.4);
+    --vscode-editor-findMatchBackground: rgba(162, 113, 0, 0.4);
+    --vscode-editor-findMatchBorder: #d18616;
+    --vscode-editor-selectionBackground: rgba(0, 120, 215, 0.2);
+    --vscode-editorGroupHeader-tabsBackground: rgba(0, 0, 0, 0.04);
+    --vscode-input-placeholderForeground: #767676;
+    --vscode-input-border: #cecece;
+    --vscode-input-background: #ffffff;
+    --vscode-input-foreground: #1f1f1f;
+    --vscode-descriptionForeground: #717171;
+    --vscode-errorForeground: #d32f2f;
+    --vscode-editorWidget-background: #f3f3f3;
+    --vscode-editorWidget-border: #c8c8c8;
+    --vscode-button-background: #0078d4;
+    --vscode-button-foreground: #fff;
+    --vscode-button-hoverBackground: #006cbd;
+    --vscode-symbolIcon-keywordForeground: #0000ff;
+    --vscode-symbolIcon-classForeground: #267f99;
+    --vscode-symbolIcon-methodForeground: #795e26;
+    --vscode-symbolIcon-stringForeground: #a31515;
+    --vscode-symbolIcon-numberForeground: #098658;
+    --vscode-symbolIcon-commentForeground: #008000;
+    --vscode-symbolIcon-variableForeground: #001080;
+    --vscode-symbolIcon-propertyForeground: #001080;
+    --vscode-symbolIcon-colorForeground: #811f3f;
+    --vscode-gitDecoration-deletedResourceForeground: #d32f2f;
+    --vscode-symbolIcon-enumeratorForeground: #1f1f1f;
+    --vscode-symbolIcon-namespaceForeground: #af00db;
+  }
+}

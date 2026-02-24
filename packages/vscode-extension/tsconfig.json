@@ -1,0 +1,15 @@
+{
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"module": "Node16",
+		"composite": true,
+		"rootDir": "src",
+		"outDir": "dist"
+	},
+	"include": [
+		"src/**/*"
+	],
+	"exclude": [
+		"src/webview/**/*"
+	]
+}

@@ -1,0 +1,9 @@
+{
+  "name": "anytime-markdown-monorepo",
+  "private": true,
+  "workspaces": [
+    "packages/editor-core",
+    "packages/vscode-extension",
+    "packages/web-app"
+  ]
+}

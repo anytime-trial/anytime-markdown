@@ -1,0 +1,119 @@
+{
+  "name": "anytime-markdown-editor",
+  "displayName": "anytime-markdown-editor",
+  "description": "markdown editor",
+  "version": "0.0.1",
+  "license": "MIT",
+  "publisher": "anytime-markdown",
+  "engines": {
+    "vscode": "^1.109.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "icon": "images/camel_markdown.png",
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "anytime-markdown-editor.openEditor",
+        "title": "Open Markdown Editor"
+      },
+      {
+        "command": "anytime-markdown-editor.openEditorWithFile",
+        "title": "Open with Markdown Editor"
+      }
+    ],
+    "customEditors": [
+      {
+        "viewType": "anytimeMarkdownEditor",
+        "displayName": "Markdown Editor",
+        "selector": [
+          {
+            "filenamePattern": "*.md"
+          },
+          {
+            "filenamePattern": "*.markdown"
+          }
+        ],
+        "priority": "option"
+      }
+    ],
+    "configuration": {
+      "title": "Anytime Markdown Editor",
+      "properties": {
+        "anytimeMarkdownEditor.fontSize": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 72,
+          "description": "Font size in pixels for the editor. 0 uses the VS Code default."
+        },
+        "anytimeMarkdownEditor.lineHeight": {
+          "type": "number",
+          "default": 1.6,
+          "minimum": 1,
+          "maximum": 3,
+          "description": "Line height for the editor content."
+        },
+        "anytimeMarkdownEditor.editorMaxWidth": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 10000,
+          "description": "Maximum width of the editor content in pixels. 0 means no limit."
+        }
+      }
+    },
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "anytime-markdown-editor.openEditorWithFile",
+          "when": "resourceLangId == markdown",
+          "group": "navigation"
+        }
+      ],
+      "editor/title/context": [
+        {
+          "command": "anytime-markdown-editor.openEditorWithFile",
+          "when": "resourceLangId == markdown",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "webpack",
+    "watch": "webpack --watch",
+    "package": "webpack --mode production --devtool hidden-source-map",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "22.x",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@types/vscode": "^1.109.0",
+    "@vscode/test-cli": "^0.0.12",
+    "@vscode/test-electron": "^2.5.2",
+    "css-loader": "^7.1.4",
+    "eslint": "^9.39.2",
+    "style-loader": "^4.0.0",
+    "ts-loader": "^9.5.4",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.54.0",
+    "webpack": "^5.104.1",
+    "webpack-cli": "^6.0.1"
+  },
+  "dependencies": {
+    "@anytime-markdown/editor-core": "*",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  }
+}
