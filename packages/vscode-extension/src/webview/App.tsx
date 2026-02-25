@@ -71,9 +71,17 @@ export function App() {
         }
       }
     };
+    const handleSaveCompare = (e: Event) => {
+      const content = (e as CustomEvent<string>).detail;
+      vscode.postMessage({ type: 'saveCompareFile', content });
+    };
     window.addEventListener('message', handleMessage);
+    window.addEventListener('vscode-save-compare-file', handleSaveCompare);
     vscode.postMessage({ type: 'ready' });
-    return () => window.removeEventListener('message', handleMessage);
+    return () => {
+      window.removeEventListener('message', handleMessage);
+      window.removeEventListener('vscode-save-compare-file', handleSaveCompare);
+    };
   }, [ready]);
 
   const handleCompareModeChange = useCallback((active: boolean) => {

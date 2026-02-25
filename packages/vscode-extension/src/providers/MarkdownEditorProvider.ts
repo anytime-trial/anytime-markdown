@@ -7,6 +7,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
 
   private static instance: MarkdownEditorProvider | null = null;
   private activePanel: vscode.WebviewPanel | null = null;
+  public compareFileUri: vscode.Uri | null = null;
 
   public static getInstance(): MarkdownEditorProvider | null {
     return MarkdownEditorProvider.instance;
@@ -110,6 +111,16 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
           vscode.commands.executeCommand('setContext', 'anytimeMarkdown.compareModeActive', !!message.active);
           break;
 
+        case 'saveCompareFile':
+          if (this.compareFileUri && typeof message.content === 'string') {
+            try {
+              await vscode.workspace.fs.writeFile(this.compareFileUri, new TextEncoder().encode(message.content));
+            } catch (err) {
+              vscode.window.showErrorMessage(`Error saving compare file: ${err instanceof Error ? err.message : String(err)}`);
+            }
+          }
+          break;
+
         case 'contentChanged': {
           const newContent = message.content;
           if (typeof newContent !== 'string') { return; }
@@ -155,6 +166,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       disposed = true;
       if (this.activePanel === webviewPanel) {
         this.activePanel = null;
+        this.compareFileUri = null;
         vscode.commands.executeCommand('setContext', 'anytimeMarkdown.compareModeActive', false);
       }
       docChangeSubscription.dispose();

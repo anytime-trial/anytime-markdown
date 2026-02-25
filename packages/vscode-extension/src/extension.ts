@@ -37,8 +37,11 @@ export function activate(context: vscode.ExtensionContext) {
 		async (uri?: vscode.Uri) => {
 			const fileUri = uri ?? vscode.window.activeTextEditor?.document.uri;
 			if (!fileUri) { return; }
+			const provider = MarkdownEditorProvider.getInstance();
+			if (!provider) { return; }
 			const content = new TextDecoder().decode(await vscode.workspace.fs.readFile(fileUri));
-			MarkdownEditorProvider.getInstance()?.postMessageToActivePanel({
+			provider.compareFileUri = fileUri;
+			provider.postMessageToActivePanel({
 				type: 'loadCompareFile',
 				content,
 			});

@@ -260,6 +260,17 @@ export function InlineMergeView({
     });
   }, [onRightFileOpsReady, rightText]);
 
+  // Ctrl+S で右パネル内容も保存
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        window.dispatchEvent(new CustomEvent('vscode-save-compare-file', { detail: rightText }));
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [rightText]);
+
   const isSyncingScroll = useRef(false);
   const isRightEditorUpdate = useRef(false);
   const isProgrammaticUpdate = useRef(false);
