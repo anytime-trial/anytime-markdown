@@ -22,11 +22,12 @@
       },
       {
         "command": "anytime-markdown.openEditorWithFile",
-        "title": "Open with Markdown Editor"
+        "title": "Open with Markdown"
       },
       {
         "command": "anytime-markdown.compareWithMarkdownEditor",
-        "title": "Compare with Markdown Editor"
+        "title": "Compare with Markdown",
+        "enablement": "anytimeMarkdown.compareModeActive"
       }
     ],
     "customEditors": [
@@ -79,7 +80,7 @@
         },
         {
           "command": "anytime-markdown.compareWithMarkdownEditor",
-          "when": "anytimeMarkdown.compareModeActive && resourceLangId == markdown",
+          "when": "resourceLangId == markdown",
           "group": "navigation"
         }
       ],
@@ -91,7 +92,7 @@
         },
         {
           "command": "anytime-markdown.compareWithMarkdownEditor",
-          "when": "anytimeMarkdown.compareModeActive && resourceLangId == markdown",
+          "when": "resourceLangId == markdown",
           "group": "navigation"
         }
       ]
