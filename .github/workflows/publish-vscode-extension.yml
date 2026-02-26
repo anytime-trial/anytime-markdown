@@ -1,0 +1,43 @@
+name: Publish VS Code Extension
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Build extension
+        run: npm run package
+        working-directory: packages/vscode-extension
+
+      - name: Package VSIX
+        run: npx vsce package --no-dependencies
+        working-directory: packages/vscode-extension
+
+      - name: Publish to Marketplace
+        run: npx vsce publish --no-dependencies --pat "$VSCE_PAT"
+        working-directory: packages/vscode-extension
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vsix
+          path: packages/vscode-extension/*.vsix
