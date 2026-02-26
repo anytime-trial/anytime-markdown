@@ -13,6 +13,7 @@ import {
 import HelpCenterIcon from "@mui/icons-material/HelpCenter";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import { KEYBOARD_SHORTCUTS } from "../constants/shortcuts";
+import { APP_VERSION } from "../version";
 import { HelpDialog } from "./HelpDialog";
 
 interface EditorDialogsProps {
@@ -193,10 +194,10 @@ export function EditorDialogs({
         </DialogTitle>
         <DialogContent dividers>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-            <Box component="img" src="/help/camel_markdown.png" alt="" sx={{ width: 40, height: 40 }} />
+            <Box component="img" src={(window as Record<string, unknown>).__LOGO_URI__ as string || "/help/camel_markdown.png"} alt="" sx={{ width: 40, height: 40 }} />
             <Typography variant="h6" sx={{ fontWeight: 700 }}>{t("versionName")}</Typography>
           </Box>
-          <Typography variant="caption" sx={{ color: "text.secondary" }}>v{t("versionNumber")}</Typography>
+          <Typography variant="caption" sx={{ color: "text.secondary" }}>v{APP_VERSION}</Typography>
           <Typography variant="body2" sx={{ mt: 2 }}>{t("versionDescription")}</Typography>
           <Typography variant="caption" sx={{ display: "block", mt: 2, color: "text.secondary" }}>{t("versionTech")}</Typography>
           <Typography variant="caption" sx={{ display: "block", mt: 1, color: "text.secondary" }}>{t("versionCopyright")}</Typography>

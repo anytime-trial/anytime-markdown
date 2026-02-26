@@ -62,6 +62,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
   ): Promise<void> {
     const localResourceRoots = [
       vscode.Uri.joinPath(this.context.extensionUri, 'dist'),
+      vscode.Uri.joinPath(this.context.extensionUri, 'images'),
     ];
 
     const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
@@ -251,6 +252,9 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     const scriptUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this.context.extensionUri, 'dist', 'webview.js')
     );
+    const logoUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.context.extensionUri, 'images', 'camel_markdown.png')
+    );
     const nonce = randomBytes(16).toString('hex');
 
     return `<!DOCTYPE html>
@@ -268,6 +272,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
 </head>
 <body>
     <div id="root"></div>
+    <script nonce="${nonce}">window.__LOGO_URI__ = "${logoUri}";</script>
     <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;

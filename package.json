@@ -1,6 +1,10 @@
 {
   "name": "anytime-markdown-monorepo",
+  "version": "0.0.1",
   "private": true,
+  "scripts": {
+    "version:sync": "npm version --no-git-tag-version --workspaces"
+  },
   "workspaces": [
     "packages/editor-core",
     "packages/vscode-extension",

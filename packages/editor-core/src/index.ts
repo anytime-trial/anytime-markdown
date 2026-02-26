@@ -71,6 +71,9 @@ export type {
   PlantUmlToolbarContextValue,
 } from './types';
 
+// Version
+export { APP_VERSION } from './version';
+
 // Constants
 export { defaultContent } from './constants/defaultContent';
 export { KEYBOARD_SHORTCUTS, isMac, modKey } from './constants/shortcuts';
