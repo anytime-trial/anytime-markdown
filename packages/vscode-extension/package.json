@@ -28,6 +28,11 @@
         "command": "anytime-markdown.compareWithMarkdownEditor",
         "title": "Compare with Markdown",
         "enablement": "anytimeMarkdown.compareModeActive"
+      },
+      {
+        "command": "anytime-markdown.compareWithGitHead",
+        "title": "Compare with Git HEAD",
+        "icon": "$(git-compare)"
       }
     ],
     "customEditors": [
@@ -82,6 +87,25 @@
           "command": "anytime-markdown.compareWithMarkdownEditor",
           "when": "resourceLangId == markdown",
           "group": "navigation@2"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "anytime-markdown.compareWithGitHead",
+          "when": "activeCustomEditorId == anytimeMarkdown",
+          "group": "navigation"
+        }
+      ],
+      "scm/resourceState/context": [
+        {
+          "command": "anytime-markdown.compareWithGitHead",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "anytime-markdown.compareWithGitHead",
+          "when": "activeCustomEditorId == anytimeMarkdown || scmProvider == git"
         }
       ],
       "editor/title/context": [
