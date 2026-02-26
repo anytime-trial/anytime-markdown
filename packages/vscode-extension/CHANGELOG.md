@@ -1,24 +1,30 @@
 # Changelog
 
-All notable changes to the "anytime-markdown-editor" extension will be documented in this file.
+All notable changes to the "anytime-markdown" extension will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
-## [0.0.1] - 2026-02-24
+## [0.0.1] - 2026-02-26
 
 ### Added
 
 - WYSIWYG Markdown エディタ (Tiptap ベース)
 - ソースモード切替
+- 比較（マージ）モード: 左右パネルでの差分比較、行単位マージ、ブロック単位差分ハイライト
+- Compare with Markdown Editor: エクスプローラーのコンテキストメニューから外部ファイルを比較モードの右パネルに読み込み
+- 比較モード中の Ctrl+S で右パネルの内容も元ファイルに保存
 - テキスト書式: Bold, Italic, Underline, Strikethrough, Highlight
-- 見出し: H1 / H2 / H3
+- 見出し: H1 - H5
 - リスト: 箇条書き、番号付き、タスクリスト
 - ブロック要素: 引用、コードブロック（シンタックスハイライト）、水平線
 - テーブル: 挿入・行列の追加/削除
 - 画像: 相対パス解決、ドラッグ&ドロップ、クリップボードからのペースト
 - リンクダイアログ: 挿入/編集/削除 (Ctrl+K)
 - Details (`<details>`) 折りたたみブロック
+- Mermaid / PlantUML ダイアグラム: ライブプレビュー付きコードブロック
 - 検索・置換 (Ctrl+F / Ctrl+H): 大文字小文字区別、単語一致、正規表現
+- アウトラインパネル: 見出しのドラッグ&ドロップ並べ替え、折りたたみ
+- テンプレート挿入
 - バブルメニュー: テキスト選択時のフローティング書式メニュー
 - ステータスバー: 行番号、文字数、行数
 - キーボードショートカット一式
