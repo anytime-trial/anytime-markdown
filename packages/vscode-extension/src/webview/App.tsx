@@ -88,6 +88,27 @@ export function App() {
     vscode.postMessage({ type: 'compareModeChanged', active });
   }, []);
 
+  useEffect(() => {
+    const openLink = (e: MouseEvent) => {
+      const anchor = (e.target as HTMLElement).closest('a');
+      if (!anchor) return;
+      const href = anchor.getAttribute('href');
+      if (!href) return;
+      if (/^https?:\/\//.test(href)) return;
+      e.preventDefault();
+      vscode.postMessage({ type: 'openLink', href });
+    };
+    const handleCtrlClick = (e: MouseEvent) => {
+      if (e.ctrlKey || e.metaKey) openLink(e);
+    };
+    document.addEventListener('click', handleCtrlClick);
+    document.addEventListener('dblclick', openLink);
+    return () => {
+      document.removeEventListener('click', handleCtrlClick);
+      document.removeEventListener('dblclick', openLink);
+    };
+  }, []);
+
   if (!ready) return null;
 
   return (

@@ -188,6 +188,20 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
           break;
         }
 
+        case 'openLink': {
+          const href = (message as { type: string; href?: string }).href;
+          if (typeof href !== 'string') { return; }
+          const docDir = path.dirname(document.uri.fsPath);
+          const targetPath = path.resolve(docDir, href);
+          const targetUri = vscode.Uri.file(targetPath);
+          try {
+            await vscode.commands.executeCommand('vscode.open', targetUri);
+          } catch {
+            vscode.window.showWarningMessage(`Cannot open file: ${href}`);
+          }
+          break;
+        }
+
         case 'save':
           try {
             await document.save();
