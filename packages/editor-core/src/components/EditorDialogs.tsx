@@ -194,7 +194,7 @@ export function EditorDialogs({
         </DialogTitle>
         <DialogContent dividers>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-            <Box component="img" src={(window as Record<string, unknown>).__LOGO_URI__ as string || "/help/camel_markdown.png"} alt="" sx={{ width: 40, height: 40 }} />
+            <Box component="img" src={(window as unknown as Record<string, unknown>).__LOGO_URI__ as string || "/help/camel_markdown.png"} alt="" sx={{ width: 40, height: 40 }} />
             <Typography variant="h6" sx={{ fontWeight: 700 }}>{t("versionName")}</Typography>
           </Box>
           <Typography variant="caption" sx={{ color: "text.secondary" }}>v{APP_VERSION}</Typography>

@@ -4,6 +4,20 @@ All notable changes to the "anytime-markdown" extension will be documented in th
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.0.2] - 2026-02-26
+
+### Added
+- Mermaid/PlantUML ツールバーにダイアグラムキャプチャボタンを追加
+- VS Code のカラーテーマとエディタのダーク/ライトモードを同期
+- GitHub Actions による Marketplace 自動公開ワークフロー
+
+### Changed
+- バージョン管理を一元化し、バージョンダイアログのロゴを修正
+- VS Code 拡張機能でヘルプ・バージョン情報メニューを非表示に変更
+
+### Fixed
+- ソースモードの行番号がクリップされる問題を修正
+
 ## [0.0.1] - 2026-02-26
 
 ### Added
