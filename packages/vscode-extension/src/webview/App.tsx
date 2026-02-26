@@ -120,7 +120,7 @@ export function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <ConfirmProvider>
-        <MarkdownEditorPage hideFileOps hideUndoRedo hideSettings onCompareModeChange={handleCompareModeChange} />
+        <MarkdownEditorPage hideFileOps hideUndoRedo hideSettings hideHelp hideVersionInfo onCompareModeChange={handleCompareModeChange} />
       </ConfirmProvider>
     </ThemeProvider>
   );

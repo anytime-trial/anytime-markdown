@@ -42,6 +42,8 @@ interface EditorMenuPopoversProps {
   setVersionDialogOpen: (open: boolean) => void;
   setHelpDialogOpen: (open: boolean) => void;
   hideSettings?: boolean;
+  hideHelp?: boolean;
+  hideVersionInfo?: boolean;
   t: (key: string) => string;
 }
 
@@ -55,6 +57,8 @@ export function EditorMenuPopovers({
   headingMenu, setHeadingMenu,
   setSettingsOpen, setVersionDialogOpen, setHelpDialogOpen,
   hideSettings,
+  hideHelp,
+  hideVersionInfo,
   t,
 }: EditorMenuPopoversProps) {
 
@@ -69,16 +73,18 @@ export function EditorMenuPopovers({
         transformOrigin={{ vertical: "top", horizontal: "left" }}
       >
         <Box sx={{ display: "flex", flexDirection: "column", p: 0.5 }}>
-          <Tooltip title={t("helpPage")} placement="right">
-            <IconButton
-              size="small"
-              aria-label={t("helpPage")}
-              onClick={() => { setHelpDialogOpen(true); setHelpAnchorEl(null); }}
-              sx={{ minWidth: 32, minHeight: 32 }}
-            >
-              <MenuBookIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
+          {!hideHelp && (
+            <Tooltip title={t("helpPage")} placement="right">
+              <IconButton
+                size="small"
+                aria-label={t("helpPage")}
+                onClick={() => { setHelpDialogOpen(true); setHelpAnchorEl(null); }}
+                sx={{ minWidth: 32, minHeight: 32 }}
+              >
+                <MenuBookIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
           {!hideSettings && (
             <Tooltip title={t("editorSettings")} placement="right">
               <IconButton
@@ -91,16 +97,18 @@ export function EditorMenuPopovers({
               </IconButton>
             </Tooltip>
           )}
-          <Tooltip title={t("versionInfo")} placement="right">
-            <IconButton
-              size="small"
-              aria-label={t("versionInfo")}
-              onClick={() => { setVersionDialogOpen(true); setHelpAnchorEl(null); }}
-              sx={{ minWidth: 32, minHeight: 32 }}
-            >
-              <InfoOutlinedIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
+          {!hideVersionInfo && (
+            <Tooltip title={t("versionInfo")} placement="right">
+              <IconButton
+                size="small"
+                aria-label={t("versionInfo")}
+                onClick={() => { setVersionDialogOpen(true); setHelpAnchorEl(null); }}
+                sx={{ minWidth: 32, minHeight: 32 }}
+              >
+                <InfoOutlinedIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
         </Box>
       </Popover>
 

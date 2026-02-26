@@ -91,6 +91,7 @@ interface EditorToolbarProps {
   mergeUndoRedo?: MergeUndoRedo | null;
   hideFileOps?: boolean;
   hideUndoRedo?: boolean;
+  hideMoreMenu?: boolean;
   onLoadRightFile?: () => void;
   onExportRightFile?: () => void;
   t: (key: string) => string;
@@ -123,6 +124,7 @@ export function EditorToolbar({
   mergeUndoRedo,
   hideFileOps,
   hideUndoRedo,
+  hideMoreMenu,
   onLoadRightFile,
   onExportRightFile,
   t,
@@ -494,14 +496,16 @@ export function EditorToolbar({
       </ToggleButtonGroup>
 
       {/* More menu */}
-      <Tooltip title={t("more")}>
-        <IconButton aria-label={t("more")}
-          size="small"
-          onClick={(e) => onSetHelpAnchor(e.currentTarget)}
-        >
-          <MoreVertIcon fontSize="small" />
-        </IconButton>
-      </Tooltip>
+      {!hideMoreMenu && (
+        <Tooltip title={t("more")}>
+          <IconButton aria-label={t("more")}
+            size="small"
+            onClick={(e) => onSetHelpAnchor(e.currentTarget)}
+          >
+            <MoreVertIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      )}
     </Paper>
     </>
   );

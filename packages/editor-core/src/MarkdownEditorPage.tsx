@@ -97,10 +97,12 @@ interface MarkdownEditorPageProps {
   hideFileOps?: boolean;
   hideUndoRedo?: boolean;
   hideSettings?: boolean;
+  hideHelp?: boolean;
+  hideVersionInfo?: boolean;
   onCompareModeChange?: (active: boolean) => void;
 }
 
-export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, onCompareModeChange }: MarkdownEditorPageProps = {}) {
+export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideHelp, hideVersionInfo, onCompareModeChange }: MarkdownEditorPageProps = {}) {
   const theme = useTheme();
   const t = useTranslations("MarkdownEditor");
   const locale = useLocale() as "en" | "ja";
@@ -590,6 +592,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         mergeUndoRedo={inlineMergeOpen ? mergeUndoRedo : null}
         hideFileOps={hideFileOps}
         hideUndoRedo={hideUndoRedo}
+        hideMoreMenu={hideHelp && hideVersionInfo && hideSettings}
         onLoadRightFile={rightFileOps?.loadFile}
         onExportRightFile={rightFileOps?.exportFile}
         t={t}
@@ -1102,6 +1105,8 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         setVersionDialogOpen={setVersionDialogOpen}
         setHelpDialogOpen={setHelpDialogOpen}
         hideSettings={hideSettings}
+        hideHelp={hideHelp}
+        hideVersionInfo={hideVersionInfo}
         t={t}
       />
 
