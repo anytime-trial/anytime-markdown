@@ -5,6 +5,10 @@
   "version": "0.0.2",
   "license": "MIT",
   "publisher": "kiytaka-ueda",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kiyotaka-ueda/anytime-markdown.git"
+  },
   "engines": {
     "vscode": "^1.109.0"
   },
