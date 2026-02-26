@@ -5,7 +5,7 @@ import { Providers } from './providers';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Anytime Markdown Editor',
+  title: 'Anytime Markdown',
   description: 'A rich markdown editor powered by Tiptap',
 };
 
