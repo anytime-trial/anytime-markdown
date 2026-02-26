@@ -17,6 +17,7 @@ import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
 import SchemaIcon from "@mui/icons-material/Schema";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import type mermaidAPI from "mermaid";
 import plantumlEncoder from "plantuml-encoder";
@@ -99,6 +100,45 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: No
   });
 
   const code = node.textContent;
+
+  const handleCapture = useCallback(async () => {
+    try {
+      if (isMermaid && svg) {
+        const svgEl = new DOMParser().parseFromString(svg, "image/svg+xml").documentElement;
+        const w = parseFloat(svgEl.getAttribute("width") || "800");
+        const h = parseFloat(svgEl.getAttribute("height") || "600");
+        const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const img = new Image();
+        img.onload = () => {
+          const scale = 2;
+          const canvas = document.createElement("canvas");
+          canvas.width = w * scale;
+          canvas.height = h * scale;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return;
+          ctx.scale(scale, scale);
+          ctx.drawImage(img, 0, 0, w, h);
+          URL.revokeObjectURL(url);
+          canvas.toBlob((b) => {
+            if (!b) return;
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(b);
+            a.download = "diagram.png";
+            a.click();
+            URL.revokeObjectURL(a.href);
+          }, "image/png");
+        };
+        img.src = url;
+      } else if (isPlantUml && plantUmlUrl) {
+        const pngUrl = plantUmlUrl.replace("/svg/", "/png/");
+        const a = document.createElement("a");
+        a.href = pngUrl;
+        a.download = "diagram.png";
+        a.click();
+      }
+    } catch { /* ignore */ }
+  }, [isMermaid, isPlantUml, svg, plantUmlUrl]);
 
   // 全画面オープン時にコードを同期
   useEffect(() => {
@@ -502,6 +542,15 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: No
               </Tooltip>
               <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
             </>
+          )}
+
+          {/* Capture (hidden when collapsed, shown when diagram exists) */}
+          {!allCollapsed && (svg || plantUmlUrl) && (
+            <Tooltip title={t("capture")} placement="top">
+              <IconButton size="small" sx={{ p: 0.25 }} onClick={handleCapture} aria-label={t("capture")}>
+                <PhotoCameraIcon sx={{ fontSize: 16, color: "text.secondary" }} />
+              </IconButton>
+            </Tooltip>
           )}
 
           {/* Delete (hidden when collapsed) */}
