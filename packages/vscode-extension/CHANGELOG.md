@@ -4,6 +4,17 @@ All notable changes to the "anytime-markdown" extension will be documented in th
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.0.3] - 2026-02-27
+
+### Added
+- エディタ設定パネルにダークモード切替・言語切替 UI を追加
+
+### Changed
+- GitHub Actions の公開トリガーをタグ push から master マージに変更
+
+### Fixed
+- vscode-extension package.json に repository フィールドを追加（vsce 警告解消）
+
 ## [0.0.2] - 2026-02-26
 
 ### Added
