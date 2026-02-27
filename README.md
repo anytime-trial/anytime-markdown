@@ -9,6 +9,7 @@ packages/
   editor-core/      # エディタ本体（共通ライブラリ）
   web-app/          # Next.js Web アプリケーション
   vscode-extension/ # VS Code 拡張機能
+  mobile-app/       # Capacitor Android アプリ
 
 ```
 
@@ -18,10 +19,12 @@ graph TB
         EC["@anytime-markdown/editor-core<br/>共有エディタライブラリ"]
         WA["@anytime-markdown/web-app<br/>Next.js Web アプリ"]
         VE["@anytime-markdown/vscode-extension<br/>VS Code 拡張機能"]
+        MA["@anytime-markdown/mobile-app<br/>Capacitor Android アプリ"]
     end
 
     WA -->|"workspace 依存"| EC
     VE -->|"workspace 依存"| EC
+    MA -->|"静的ビルド参照"| WA
 
     subgraph "外部依存"
         Tiptap["@tiptap/core + 拡張"]
@@ -41,6 +44,12 @@ graph TB
     EC --> Mermaid
     EC --> DOMPurify
 
+    subgraph "モバイル依存"
+        Capacitor["Capacitor 7"]
+    end
+
+    MA --> Capacitor
+
 ```
 
 ## 前提条件
@@ -48,6 +57,7 @@ graph TB
 - Node.js 24+
 - npm 10+
 - Docker / Docker Compose（Docker で起動する場合）
+- Android Studio（Android アプリをビルドする場合）
 
 ## Web アプリの起動手順
 
@@ -86,6 +96,27 @@ npm run dev
 ```
 
 ブラウザで http://localhost:3000 にアクセスしてください。
+
+## Android アプリのビルド手順
+
+Web アプリを Capacitor でラップした Android アプリです。
+
+```bash
+# 1. 依存パッケージをインストール（リポジトリルート）
+npm install
+
+# 2. 静的ビルド + Capacitor sync をワンコマンドで実行
+cd packages/mobile-app
+npm run sync
+
+# 3. Android Studio でプロジェクトを開く
+npm run open
+
+```
+
+`npm run sync` は内部で Web アプリの静的エクスポート（`build:static`）と `cap sync` を順次実行します。
+
+> モバイルビルドではデフォルトロケール（日本語）で静的HTMLを生成します。アプリ内での言語切替は未対応です。
 
 ## VS Code 拡張機能の使い方
 
