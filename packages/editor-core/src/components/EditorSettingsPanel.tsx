@@ -27,6 +27,7 @@ interface EditorSettingsPanelProps {
   t: (key: string) => string;
   themeMode?: 'light' | 'dark';
   onThemeModeChange?: (mode: 'light' | 'dark') => void;
+  onLocaleChange?: (locale: string) => void;
 }
 
 export function EditorSettingsPanel({
@@ -38,6 +39,7 @@ export function EditorSettingsPanel({
   t,
   themeMode,
   onThemeModeChange,
+  onLocaleChange,
 }: EditorSettingsPanelProps) {
   const confirm = useConfirm();
   const currentLocale = useLocale();
@@ -58,8 +60,12 @@ export function EditorSettingsPanel({
 
   const handleLocaleChange = (_: React.MouseEvent<HTMLElement>, newLocale: string | null) => {
     if (!newLocale || newLocale === currentLocale) return;
-    document.cookie = `NEXT_LOCALE=${newLocale};path=/;max-age=31536000`;
-    window.location.reload();
+    if (onLocaleChange) {
+      onLocaleChange(newLocale);
+    } else {
+      document.cookie = `NEXT_LOCALE=${newLocale};path=/;max-age=31536000`;
+      window.location.reload();
+    }
   };
 
   return (

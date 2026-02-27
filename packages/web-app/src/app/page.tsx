@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic';
 import { Box, CircularProgress } from '@mui/material';
 import { useThemeMode } from './providers';
+import { useLocaleSwitch } from './LocaleProvider';
 
 const MarkdownEditorPage = dynamic(
   () => import('@anytime-markdown/editor-core/src/MarkdownEditorPage'),
@@ -18,10 +19,12 @@ const MarkdownEditorPage = dynamic(
 
 export default function Page() {
   const { themeMode, setThemeMode } = useThemeMode();
+  const { setLocale } = useLocaleSwitch();
   return (
     <MarkdownEditorPage
       themeMode={themeMode}
       onThemeModeChange={setThemeMode}
+      onLocaleChange={setLocale}
       iconSrc="/help/camel_markdown.png"
     />
   );

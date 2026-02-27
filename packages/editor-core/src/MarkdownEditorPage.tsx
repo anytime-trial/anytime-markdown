@@ -102,10 +102,11 @@ interface MarkdownEditorPageProps {
   onCompareModeChange?: (active: boolean) => void;
   themeMode?: 'light' | 'dark';
   onThemeModeChange?: (mode: 'light' | 'dark') => void;
+  onLocaleChange?: (locale: string) => void;
   iconSrc?: string;
 }
 
-export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideHelp, hideVersionInfo, onCompareModeChange, themeMode, onThemeModeChange, iconSrc }: MarkdownEditorPageProps = {}) {
+export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideHelp, hideVersionInfo, onCompareModeChange, themeMode, onThemeModeChange, onLocaleChange, iconSrc }: MarkdownEditorPageProps = {}) {
   const theme = useTheme();
   const t = useTranslations("MarkdownEditor");
   const locale = useLocale() as "en" | "ja";
@@ -651,6 +652,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
           t={t}
           themeMode={themeMode}
           onThemeModeChange={onThemeModeChange}
+          onLocaleChange={onLocaleChange}
         />
       )}
 
