@@ -15,6 +15,7 @@ import {
 import CloseIcon from "@mui/icons-material/Close";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import useConfirm from "@/hooks/useConfirm";
+import { useLocale } from "next-intl";
 import type { EditorSettings } from "../useEditorSettings";
 
 interface EditorSettingsPanelProps {
@@ -24,6 +25,8 @@ interface EditorSettingsPanelProps {
   updateSettings: (patch: Partial<EditorSettings>) => void;
   resetSettings: () => void;
   t: (key: string) => string;
+  themeMode?: 'light' | 'dark';
+  onThemeModeChange?: (mode: 'light' | 'dark') => void;
 }
 
 export function EditorSettingsPanel({
@@ -33,8 +36,11 @@ export function EditorSettingsPanel({
   updateSettings,
   resetSettings,
   t,
+  themeMode,
+  onThemeModeChange,
 }: EditorSettingsPanelProps) {
   const confirm = useConfirm();
+  const currentLocale = useLocale();
 
   const handleReset = async () => {
     try {
@@ -48,6 +54,12 @@ export function EditorSettingsPanel({
       return;
     }
     resetSettings();
+  };
+
+  const handleLocaleChange = (_: React.MouseEvent<HTMLElement>, newLocale: string | null) => {
+    if (!newLocale || newLocale === currentLocale) return;
+    document.cookie = `NEXT_LOCALE=${newLocale};path=/;max-age=31536000`;
+    window.location.reload();
   };
 
   return (
@@ -65,6 +77,42 @@ export function EditorSettingsPanel({
           <CloseIcon sx={{ fontSize: 20 }} />
         </IconButton>
       </Box>
+
+      {/* Dark Mode */}
+      {themeMode !== undefined && onThemeModeChange && (
+        <>
+          <Box sx={{ mb: 2, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary" }}>
+              {t("settingDarkMode")}
+            </Typography>
+            <Switch
+              checked={themeMode === 'dark'}
+              onChange={(e) => onThemeModeChange(e.target.checked ? 'dark' : 'light')}
+              size="small"
+              inputProps={{ "aria-label": t("settingDarkMode") }}
+            />
+          </Box>
+
+          {/* Language */}
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary", mb: 0.5, display: "block" }}>
+              {t("settingLanguage")}
+            </Typography>
+            <ToggleButtonGroup
+              value={currentLocale}
+              exclusive
+              onChange={handleLocaleChange}
+              size="small"
+              fullWidth
+            >
+              <ToggleButton value="ja">日本語</ToggleButton>
+              <ToggleButton value="en">English</ToggleButton>
+            </ToggleButtonGroup>
+          </Box>
+
+          <Divider sx={{ mb: 2 }} />
+        </>
+      )}
 
       {/* Line Height */}
       <Box sx={{ mb: 3 }}>

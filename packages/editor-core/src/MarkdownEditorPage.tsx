@@ -100,9 +100,12 @@ interface MarkdownEditorPageProps {
   hideHelp?: boolean;
   hideVersionInfo?: boolean;
   onCompareModeChange?: (active: boolean) => void;
+  themeMode?: 'light' | 'dark';
+  onThemeModeChange?: (mode: 'light' | 'dark') => void;
+  iconSrc?: string;
 }
 
-export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideHelp, hideVersionInfo, onCompareModeChange }: MarkdownEditorPageProps = {}) {
+export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideHelp, hideVersionInfo, onCompareModeChange, themeMode, onThemeModeChange, iconSrc }: MarkdownEditorPageProps = {}) {
   const theme = useTheme();
   const t = useTranslations("MarkdownEditor");
   const locale = useLocale() as "en" | "ja";
@@ -540,7 +543,11 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
       >
         {settings.showTitle && (
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-            <EditNoteIcon sx={{ fontSize: 32, color: theme.palette.primary.main }} />
+            {iconSrc ? (
+              <Box component="img" src={iconSrc} alt="" sx={{ width: 32, height: 32 }} />
+            ) : (
+              <EditNoteIcon sx={{ fontSize: 32, color: theme.palette.primary.main }} />
+            )}
             <Box>
               <Typography
                 component="h1"
@@ -642,6 +649,8 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
           updateSettings={updateSettings}
           resetSettings={resetSettings}
           t={t}
+          themeMode={themeMode}
+          onThemeModeChange={onThemeModeChange}
         />
       )}
 

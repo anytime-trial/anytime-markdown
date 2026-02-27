@@ -177,6 +177,8 @@
     "settingDarkBgColor": "ダークモード背景色",
     "settingDarkTextColor": "ダークモード文字色",
     "settingColorDefault": "デフォルト",
+    "settingDarkMode": "ダークモード",
+    "settingLanguage": "言語",
     "settingShowTitle": "タイトルを表示",
     "settingReset": "すべてデフォルトに戻す",
     "resetSettingsConfirm": "すべての設定をデフォルトに戻しますか？",

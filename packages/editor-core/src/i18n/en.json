@@ -177,6 +177,8 @@
     "settingDarkBgColor": "Dark mode background color",
     "settingDarkTextColor": "Dark mode text color",
     "settingColorDefault": "Default",
+    "settingDarkMode": "Dark Mode",
+    "settingLanguage": "Language",
     "settingShowTitle": "Show Title",
     "settingReset": "Reset All to Default",
     "resetSettingsConfirm": "Reset all settings to default values?",

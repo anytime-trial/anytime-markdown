@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { Box, CircularProgress } from '@mui/material';
+import { useThemeMode } from './providers';
 
 const MarkdownEditorPage = dynamic(
   () => import('@anytime-markdown/editor-core/src/MarkdownEditorPage'),
@@ -16,5 +17,12 @@ const MarkdownEditorPage = dynamic(
 );
 
 export default function Page() {
-  return <MarkdownEditorPage />;
+  const { themeMode, setThemeMode } = useThemeMode();
+  return (
+    <MarkdownEditorPage
+      themeMode={themeMode}
+      onThemeModeChange={setThemeMode}
+      iconSrc="/help/camel_markdown.png"
+    />
+  );
 }
