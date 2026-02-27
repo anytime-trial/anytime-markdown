@@ -7,5 +7,5 @@ node_modules
 .serena
 .claude
 .vscode
-packages/vscode-extension/tsconfig.tsbuildinfo
 docs/project-structure.md
+*.tsbuildinfo
