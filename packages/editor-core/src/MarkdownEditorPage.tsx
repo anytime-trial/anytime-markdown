@@ -529,19 +529,6 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
       >
         {liveMessage}
       </Box>
-      {/* Header */}
-      <Box
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          mb: 3,
-          flexWrap: "wrap",
-          gap: 2,
-        }}
-      >
-      </Box>
-
       {/* Toolbar */}
       <EditorToolbar
         editor={editor}
