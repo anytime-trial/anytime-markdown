@@ -83,20 +83,6 @@ npm run dev
 
 > ポートマッピングが `3001:3000` のため、ホスト側は **3001** ポートです。
 
-### ローカル（Docker なし）の場合
-
-```bash
-# 1. 依存パッケージをインストール
-npm install
-
-# 2. 開発サーバーを起動
-cd packages/web-app
-npm run dev
-
-```
-
-ブラウザで http://localhost:3000 にアクセスしてください。
-
 ## Android アプリのビルド手順
 
 Web アプリを Capacitor でラップした Android アプリです。
@@ -105,9 +91,16 @@ Web アプリを Capacitor でラップした Android アプリです。
 
 - **Android Studio**（Windows / Mac にインストール）
 - **Android SDK**（Android Studio に同梱）
-- **JDK 17**（Android Studio に同梱）
+- **JDK 21**
 
 > WSL2 / Docker 内では `npm run sync` までは実行できますが、Android Studio の起動やエミュレータは **Windows 側** で行う必要があります。
+
+WSL 内でコマンドラインビルドする場合は JDK 21 を別途インストール:
+
+```bash
+sudo apt install -y openjdk-21-jdk
+
+```
 
 ### ビルド手順
 
@@ -131,15 +124,18 @@ npm run sync
 
 ```bash
 npm run open
+
 ```
 
 Android Studio が開いたら、デバイスを選択して ▶ ボタンで実行します。
 
-> WSL2 環境の場合は、Windows 側の Android Studio で `\\wsl$\<distro>\<path>\packages\mobile-app\android` を直接開いてください。
+> WSL2 環境の場合は、Windows 側の Android Studio で `\\wsl$\\\packages\mobile-app\android` を直接開いてください。
 
-#### 方法 B: コマンドラインで APK ビルド
+#### 方法 B: コマンドラインで APK ビルド + エミュレータで確認
 
-Android Studio の GUI を使わず APK のみ生成する場合:
+Android Studio の GUI を使わず APK を生成し、エミュレータで確認する方法です。
+
+**APK ビルド（WSL 内で実行）:**
 
 ```bash
 cd packages/mobile-app/android
@@ -149,10 +145,20 @@ cd packages/mobile-app/android
 
 APK の出力先: `app/build/outputs/apk/debug/app-debug.apk`
 
-実機にインストール:
+**エミュレータで確認（Windows 側）:**
 
-```bash
-adb install app/build/outputs/apk/debug/app-debug.apk
+1. Android Studio を起動（プロジェクトを開く必要なし）
+2. Device Manager → Create Virtual Device → Pixel 系を選択 → API 35 の System Image をダウンロード → Finish
+3. 作成したデバイスの ▶ ボタンでエミュレータを起動
+4. エクスプローラーで `\\wsl$\\<リポジトリパス>\packages\mobile-app\android\app\build\outputs\apk\debug\` を開く
+5. `app-debug.apk` をエミュレータの画面に**ドラッグ&ドロップ**でインストール
+
+**実機にインストールする場合:**
+
+端末の USB デバッグを有効化し、Windows の PowerShell から:
+
+```powershell
+adb install \\wsl.localhost\<distro>\<リポジトリパス>\packages\mobile-app\android\app\build\outputs\apk\debug\app-debug.apk
 
 ```
 
@@ -203,6 +209,7 @@ cd packages/vscode-extension
 npx vsce publish --no-dependencies --pat <your-token>
 
 ```
+
 
 ### 手動アップロード
 
