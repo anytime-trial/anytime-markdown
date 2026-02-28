@@ -22,6 +22,7 @@ import {
 import type { Editor } from "@tiptap/react";
 import { PLANTUML_SAMPLES } from "../constants/samples";
 import { BUILTIN_TEMPLATES, type MarkdownTemplate } from "../constants/templates";
+import type { TranslationFn } from "../types";
 
 
 interface EditorMenuPopoversProps {
@@ -46,10 +47,10 @@ interface EditorMenuPopoversProps {
   hideSettings?: boolean;
   hideHelp?: boolean;
   hideVersionInfo?: boolean;
-  t: (key: string) => string;
+  t: TranslationFn;
 }
 
-export function EditorMenuPopovers({
+export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
   editor,
   helpAnchorEl, setHelpAnchorEl,
   diagramAnchorEl, setDiagramAnchorEl,
@@ -350,4 +351,4 @@ export function EditorMenuPopovers({
       </Popover>
     </>
   );
-}
+});

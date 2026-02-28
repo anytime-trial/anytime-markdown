@@ -20,7 +20,7 @@ import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 import UnfoldLessIcon from "@mui/icons-material/UnfoldLess";
 import UnfoldMoreIcon from "@mui/icons-material/UnfoldMore";
 import React, { useState, useCallback, useMemo } from "react";
-import type { HeadingItem, OutlineKind } from "../types";
+import type { HeadingItem, OutlineKind, TranslationFn } from "../types";
 
 const blockIcon: Record<Exclude<OutlineKind, "heading">, React.ReactElement> = {
   codeBlock: <CodeIcon sx={{ fontSize: 14 }} />,
@@ -44,7 +44,7 @@ interface OutlinePanelProps {
   handleOutlineResizeStart: (e: React.MouseEvent) => void;
   onHeadingDragEnd?: (fromIdx: number, toIdx: number) => void;
   onOutlineDelete?: (pos: number, kind: string) => void;
-  t: (key: string) => string;
+  t: TranslationFn;
 }
 
 export function OutlinePanel({

@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import {
   Box,
   Button,
@@ -15,6 +16,7 @@ import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import { KEYBOARD_SHORTCUTS } from "../constants/shortcuts";
 import { APP_VERSION } from "../version";
 import { HelpDialog } from "./HelpDialog";
+import type { TranslationFn } from "../types";
 
 interface EditorDialogsProps {
   linkDialogOpen: boolean;
@@ -37,10 +39,10 @@ interface EditorDialogsProps {
   helpDialogOpen: boolean;
   setHelpDialogOpen: (open: boolean) => void;
   locale: "en" | "ja";
-  t: (key: string) => string;
+  t: TranslationFn;
 }
 
-export function EditorDialogs({
+export const EditorDialogs = React.memo(function EditorDialogs({
   linkDialogOpen,
   setLinkDialogOpen,
   linkUrl,
@@ -211,4 +213,4 @@ export function EditorDialogs({
       <HelpDialog open={helpDialogOpen} onClose={() => setHelpDialogOpen(false)} locale={locale} t={t} />
     </>
   );
-}
+});

@@ -1,19 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Box, Typography } from "@mui/material";
 import type { Editor } from "@tiptap/react";
+import type { TranslationFn } from "../types";
 
 interface StatusBarProps {
   editor: Editor;
   sourceMode?: boolean;
   sourceText?: string;
-  t: (key: string) => string;
+  t: TranslationFn;
   fileName?: string | null;
   isDirty?: boolean;
 }
 
-export function StatusBar({ editor, sourceMode, sourceText, t, fileName, isDirty }: StatusBarProps) {
+export const StatusBar = React.memo(function StatusBar({ editor, sourceMode, sourceText, t, fileName, isDirty }: StatusBarProps) {
   const [cursorLine, setCursorLine] = useState(1);
   const [sourceCursorLine, setSourceCursorLine] = useState(1);
 
@@ -81,4 +82,4 @@ export function StatusBar({ editor, sourceMode, sourceText, t, fileName, isDirty
       <Box sx={{ flex: 1 }} />
     </Box>
   );
-}
+});

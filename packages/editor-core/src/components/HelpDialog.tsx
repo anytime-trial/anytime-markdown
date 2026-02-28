@@ -19,12 +19,13 @@ import KeyboardIcon from "@mui/icons-material/Keyboard";
 import DOMPurify from "dompurify";
 import { marked } from "marked";
 import { KEYBOARD_SHORTCUTS } from "../constants/shortcuts";
+import type { TranslationFn } from "../types";
 
 interface HelpDialogProps {
   open: boolean;
   onClose: () => void;
   locale: "en" | "ja";
-  t: (key: string) => string;
+  t: TranslationFn;
 }
 
 /** Kbd-style chip for shortcut keys (matches shortcut dialog style) */

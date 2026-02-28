@@ -17,15 +17,16 @@ import {
   useTheme,
 } from "@mui/material";
 import type { Editor } from "@tiptap/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import type { TranslationFn } from "../types";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
 
 interface SearchReplaceBarProps {
   editor: Editor;
-  t: (key: string, values?: Record<string, string | number>) => string;
+  t: TranslationFn;
 }
 
-export function SearchReplaceBar({ editor, t }: SearchReplaceBarProps) {
+export const SearchReplaceBar = React.memo(function SearchReplaceBar({ editor, t }: SearchReplaceBarProps) {
   const theme = useTheme();
   const storage = editor.storage.searchReplace;
 
@@ -403,4 +404,4 @@ export function SearchReplaceBar({ editor, t }: SearchReplaceBarProps) {
       )}
     </Paper>
   );
-}
+});

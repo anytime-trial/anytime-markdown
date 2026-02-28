@@ -33,6 +33,9 @@ export function getMarkdownFromEditor(editor: Editor): string {
   return md;
 }
 
+/** 翻訳関数の共通型 */
+export type TranslationFn = (key: string, values?: Record<string, string | number>) => string;
+
 export type OutlineKind = "heading" | "codeBlock" | "table" | "plantuml" | "mermaid" | "image";
 
 export interface HeadingItem {
