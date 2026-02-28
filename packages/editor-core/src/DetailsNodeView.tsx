@@ -5,8 +5,10 @@ import { useCallback, useState } from "react";
 import { Box, GlobalStyles } from "@mui/material";
 import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
+import { useTranslations } from "next-intl";
 
 export function DetailsNodeView() {
+  const t = useTranslations("MarkdownEditor");
   const [open, setOpen] = useState(true);
   const toggle = useCallback(() => setOpen((v) => !v), []);
   const handleKeyDown = useCallback(
@@ -42,6 +44,7 @@ export function DetailsNodeView() {
           role="button"
           tabIndex={0}
           aria-expanded={open}
+          aria-label={open ? t("collapseSection") : t("expandSection")}
           onClick={toggle}
           onKeyDown={handleKeyDown}
           sx={{

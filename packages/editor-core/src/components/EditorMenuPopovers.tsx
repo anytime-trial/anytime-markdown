@@ -12,6 +12,8 @@ import {
   Box,
   Divider,
   IconButton,
+  ListItemIcon,
+  ListItemText,
   MenuItem,
   Popover,
   Tooltip,
@@ -71,44 +73,35 @@ export function EditorMenuPopovers({
         onClose={() => setHelpAnchorEl(null)}
         anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
         transformOrigin={{ vertical: "top", horizontal: "left" }}
-        slotProps={{ paper: { role: "menu" } }}
+        slotProps={{ paper: { role: "menu", "aria-label": t("helpMenu") } }}
       >
-        <Box sx={{ display: "flex", flexDirection: "column", p: 0.5 }}>
+        <Box sx={{ py: 0.5, minWidth: 160 }}>
           {!hideHelp && (
-            <Tooltip title={t("helpPage")} placement="right">
-              <IconButton
-                size="small"
-                aria-label={t("helpPage")}
-                onClick={() => { setHelpDialogOpen(true); setHelpAnchorEl(null); }}
-                sx={{ minWidth: 32, minHeight: 32 }}
-              >
-                <MenuBookIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
+            <MenuItem
+              onClick={() => { setHelpDialogOpen(true); setHelpAnchorEl(null); }}
+              sx={{ fontSize: "0.85rem", minHeight: 36 }}
+            >
+              <ListItemIcon><MenuBookIcon fontSize="small" /></ListItemIcon>
+              <ListItemText>{t("helpPage")}</ListItemText>
+            </MenuItem>
           )}
           {!hideSettings && (
-            <Tooltip title={t("editorSettings")} placement="right">
-              <IconButton
-                size="small"
-                aria-label={t("editorSettings")}
-                onClick={() => { setSettingsOpen(true); setHelpAnchorEl(null); }}
-                sx={{ minWidth: 32, minHeight: 32 }}
-              >
-                <SettingsIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
+            <MenuItem
+              onClick={() => { setSettingsOpen(true); setHelpAnchorEl(null); }}
+              sx={{ fontSize: "0.85rem", minHeight: 36 }}
+            >
+              <ListItemIcon><SettingsIcon fontSize="small" /></ListItemIcon>
+              <ListItemText>{t("editorSettings")}</ListItemText>
+            </MenuItem>
           )}
           {!hideVersionInfo && (
-            <Tooltip title={t("versionInfo")} placement="right">
-              <IconButton
-                size="small"
-                aria-label={t("versionInfo")}
-                onClick={() => { setVersionDialogOpen(true); setHelpAnchorEl(null); }}
-                sx={{ minWidth: 32, minHeight: 32 }}
-              >
-                <InfoOutlinedIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
+            <MenuItem
+              onClick={() => { setVersionDialogOpen(true); setHelpAnchorEl(null); }}
+              sx={{ fontSize: "0.85rem", minHeight: 36 }}
+            >
+              <ListItemIcon><InfoOutlinedIcon fontSize="small" /></ListItemIcon>
+              <ListItemText>{t("versionInfo")}</ListItemText>
+            </MenuItem>
           )}
         </Box>
       </Popover>
@@ -120,12 +113,13 @@ export function EditorMenuPopovers({
         onClose={() => setDiagramAnchorEl(null)}
         anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
         transformOrigin={{ vertical: "top", horizontal: "left" }}
-        slotProps={{ paper: { role: "menu" } }}
+        slotProps={{ paper: { role: "menu", "aria-label": t("diagramMenu") } }}
       >
         <Box sx={{ display: "flex", flexDirection: "column", p: 0.5 }}>
           <Tooltip title={t("mermaid")} placement="right">
             <IconButton
               size="small"
+              role="menuitem"
               aria-label={t("mermaid")}
               onClick={() => {
                 if (sourceMode) {
@@ -144,6 +138,8 @@ export function EditorMenuPopovers({
           <Tooltip title={t("plantuml")} placement="right">
             <IconButton
               size="small"
+              role="menuitem"
+              aria-label={t("plantuml")}
               onClick={() => {
                 if (sourceMode) {
                   onSourceInsertPlantUml?.();
@@ -167,7 +163,7 @@ export function EditorMenuPopovers({
         onClose={() => setSampleAnchorEl(null)}
         anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
         transformOrigin={{ vertical: "top", horizontal: "left" }}
-        slotProps={{ paper: { role: "menu" } }}
+        slotProps={{ paper: { role: "menu", "aria-label": t("plantumlSampleMenu") } }}
       >
         <Box sx={{ display: "flex", flexDirection: "column", p: 0.5 }}>
           {PLANTUML_SAMPLES.filter((s) => s.enabled).map((sample) => {
@@ -176,6 +172,7 @@ export function EditorMenuPopovers({
               <Tooltip key={sample.label} title={t(sample.i18nKey)} placement="right">
                 <IconButton
                   size="small"
+                  role="menuitem"
                   aria-label={t(sample.i18nKey)}
                   onClick={() => {
                     if (!editor) return;

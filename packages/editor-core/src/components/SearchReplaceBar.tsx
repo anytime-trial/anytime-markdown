@@ -212,7 +212,7 @@ export function SearchReplaceBar({ editor, t }: SearchReplaceBarProps) {
           size="small"
           aria-label={t("replace")}
           onClick={() => setShowReplace((v) => !v)}
-          sx={{ p: 0.25 }}
+          sx={{ p: 0.25, minWidth: 24, minHeight: 24 }}
         >
           {showReplace ? (
             <ExpandMoreIcon sx={{ fontSize: 16 }} />
@@ -294,7 +294,7 @@ export function SearchReplaceBar({ editor, t }: SearchReplaceBarProps) {
                   aria-label={t("replace")}
                   onClick={() => editor.commands.replaceCurrentMatch()}
                   disabled={resultCount === 0}
-                  sx={{ p: 0.25 }}
+                  sx={{ p: 0.25, minWidth: 24, minHeight: 24 }}
                 >
                   <FindReplaceIcon sx={{ fontSize: 16 }} />
                 </IconButton>
@@ -307,7 +307,7 @@ export function SearchReplaceBar({ editor, t }: SearchReplaceBarProps) {
                   aria-label={t("replaceAll")}
                   onClick={() => editor.commands.replaceAllMatches()}
                   disabled={resultCount === 0}
-                  sx={{ p: 0.25 }}
+                  sx={{ p: 0.25, minWidth: 24, minHeight: 24 }}
                 >
                   <DoneAllIcon sx={{ fontSize: 16 }} />
                 </IconButton>
@@ -379,9 +379,10 @@ export function SearchReplaceBar({ editor, t }: SearchReplaceBarProps) {
         <span>
           <IconButton
             size="small"
+            aria-label={t("prevMatch")}
             onClick={() => editor.commands.goToPrevMatch()}
             disabled={resultCount === 0}
-            sx={{ p: 0.25 }}
+            sx={{ p: 0.25, minWidth: 24, minHeight: 24 }}
           >
             <KeyboardArrowUpIcon sx={{ fontSize: 16 }} />
           </IconButton>
@@ -391,9 +392,10 @@ export function SearchReplaceBar({ editor, t }: SearchReplaceBarProps) {
         <span>
           <IconButton
             size="small"
+            aria-label={t("nextMatch")}
             onClick={() => editor.commands.goToNextMatch()}
             disabled={resultCount === 0}
-            sx={{ p: 0.25 }}
+            sx={{ p: 0.25, minWidth: 24, minHeight: 24 }}
           >
             <KeyboardArrowDownIcon sx={{ fontSize: 16 }} />
           </IconButton>
@@ -406,7 +408,7 @@ export function SearchReplaceBar({ editor, t }: SearchReplaceBarProps) {
           size="small"
           aria-label={t("close")}
           onClick={handleClearAndBlur}
-          sx={{ p: 0.25 }}
+          sx={{ p: 0.25, minWidth: 24, minHeight: 24 }}
         >
           <CloseIcon sx={{ fontSize: 16 }} />
         </IconButton>
