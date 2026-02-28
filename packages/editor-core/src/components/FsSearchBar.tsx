@@ -130,6 +130,8 @@ export function FsSearchBar({ search, t }: FsSearchBarProps) {
       {search.searchTerm && (
         <Typography
           variant="caption"
+          aria-live="polite"
+          aria-atomic="true"
           sx={{
             whiteSpace: "nowrap",
             fontSize: "0.65rem",
@@ -150,6 +152,7 @@ export function FsSearchBar({ search, t }: FsSearchBarProps) {
       <Tooltip title={t("caseSensitive")}>
         <IconButton
           size="small"
+          aria-label={t("caseSensitive")}
           onClick={search.toggleCaseSensitive}
           sx={toggleBtnSx(search.caseSensitive)}
         >

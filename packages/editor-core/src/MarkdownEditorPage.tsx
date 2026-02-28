@@ -601,6 +601,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         hideMoreMenu={hideHelp && hideVersionInfo && hideSettings}
         onLoadRightFile={rightFileOps?.loadFile}
         onExportRightFile={rightFileOps?.exportFile}
+        onAnnounce={setLiveMessage}
         t={t}
       />
       <input
@@ -608,6 +609,8 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         type="file"
         accept=".md,text/markdown,text/plain"
         hidden
+        aria-hidden="true"
+        tabIndex={-1}
         onChange={(e) => {
           const f = e.target.files?.[0];
           if (!f) return;
@@ -669,7 +672,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
           onRightFileOpsReady={setRightFileOps}
         >
           {(leftBgGradient, leftDiffLines, onMerge, onHoverLine) => (
-          <Box ref={editorContainerRef} sx={{ display: "flex", gap: 0, height: "100%" }}>
+          <Box component="main" ref={editorContainerRef} sx={{ display: "flex", gap: 0, height: "100%" }}>
             {outlineOpen && isLg && (
               <OutlinePanel
                 outlineWidth={outlineWidth}
@@ -709,7 +712,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
           )}
         </InlineMergeView>
       ) : (
-      <Box ref={editorContainerRef} sx={{ display: "flex", gap: 0 }}>
+      <Box component="main" ref={editorContainerRef} sx={{ display: "flex", gap: 0 }}>
         {/* Outline panel (lg 以上のみ表示) */}
         {outlineOpen && isLg && (
           <OutlinePanel

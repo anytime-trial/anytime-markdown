@@ -136,6 +136,8 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
       }}>
         <Box
           data-block-toolbar=""
+          role="toolbar"
+          aria-label={t("imageToolbar")}
           sx={{ bgcolor: "action.hover", px: 0.75, py: 0.25, display: "flex", alignItems: "center", gap: 0.25 }}
           contentEditable={false}
         >

@@ -38,7 +38,7 @@ import {
 import { useEditorState } from "@tiptap/react";
 import type { Editor } from "@tiptap/react";
 
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { modKey } from "../constants/shortcuts";
 import { SearchReplaceBar } from "./SearchReplaceBar";
 import type { MergeUndoRedo } from "./InlineMergeView";
@@ -104,6 +104,7 @@ interface EditorToolbarProps {
   onSaveAsFile?: () => void;
   hasFileHandle?: boolean;
   supportsDirectAccess?: boolean;
+  onAnnounce?: (message: string) => void;
   t: (key: string) => string;
 }
 
@@ -141,9 +142,16 @@ export function EditorToolbar({
   onSaveFile,
   onSaveAsFile,
   hasFileHandle,
+  onAnnounce,
   supportsDirectAccess,
   t,
 }: EditorToolbarProps) {
+  useEffect(() => {
+    if (copied) {
+      onAnnounce?.(t("copiedToClipboard"));
+    }
+  }, [copied, onAnnounce, t]);
+
   const handleToolbarKeyDown = useCallback((e: React.KeyboardEvent) => {
     const toolbar = e.currentTarget;
     const items = Array.from(toolbar.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
@@ -478,6 +486,7 @@ export function EditorToolbar({
         value={inlineMergeOpen ? "compare" : "edit"}
         exclusive
         size="small"
+        aria-label={t("compareMode")}
         sx={{ height: 30, display: { xs: "none", lg: "inline-flex" } }}
       >
         <ToggleButton
@@ -506,12 +515,12 @@ export function EditorToolbar({
       {inlineMergeOpen && (
         <>
           <Tooltip title={t("mergeLoadFileRight")}>
-            <IconButton size="small" onClick={onLoadRightFile}>
+            <IconButton size="small" onClick={onLoadRightFile} aria-label={t("loadCompareFile")}>
               <FileUploadIcon fontSize="small" />
             </IconButton>
           </Tooltip>
           <Tooltip title={t("mergeExportRight")}>
-            <IconButton size="small" onClick={onExportRightFile}>
+            <IconButton size="small" onClick={onExportRightFile} aria-label={t("exportCompareFile")}>
               <DownloadIcon fontSize="small" />
             </IconButton>
           </Tooltip>
@@ -523,6 +532,7 @@ export function EditorToolbar({
         value={sourceMode ? "source" : "wysiwyg"}
         exclusive
         size="small"
+        aria-label={t("editMode")}
         sx={{ height: 30 }}
       >
         <ToggleButton

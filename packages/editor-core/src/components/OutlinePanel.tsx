@@ -182,6 +182,8 @@ export function OutlinePanel({
     <>
       <Paper
         variant="outlined"
+        role="navigation"
+        aria-label={t("outlineNavigation")}
         sx={{
           width: outlineWidth,
           minWidth: outlineWidth,
