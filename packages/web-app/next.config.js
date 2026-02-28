@@ -5,6 +5,7 @@ const isCapacitorBuild = process.env.CAPACITOR_BUILD === 'true';
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  devIndicators: false,
   transpilePackages: ['@anytime-markdown/editor-core'],
   ...(isCapacitorBuild && {
     output: 'export',
