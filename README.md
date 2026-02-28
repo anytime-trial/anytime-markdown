@@ -210,7 +210,6 @@ npx vsce publish --no-dependencies --pat <your-token>
 
 ```
 
-
 ### 手動アップロード
 
 1. `npx vsce package --no-dependencies` で `.vsix` ファイルを生成
