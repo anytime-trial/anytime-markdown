@@ -23,12 +23,14 @@ export interface MarkdownStorage {
 /** tiptap-markdown の storage から markdown を取得するヘルパー */
 export function getMarkdownFromEditor(editor: Editor): string {
   let md = (editor.storage as unknown as MarkdownStorage).markdown.getMarkdown();
+  // ZWSP マーカー段落を除去し、元の空行を復元する
+  // ※ コードフェンス修正より先に実行する（ZWSP が残っていると正規表現が一致しないため）
+  md = restoreBlankLines(md);
   // tiptap-markdown の image シリアライザは closeBlock() を呼ばないため、
   // 画像直後のコードフェンスとの間に改行が出力されないことがある。
   // 改行が0個または1個の場合に空行（\n\n）を補完する。
   md = md.replace(/([^\n])\n?(```)/gm, "$1\n\n$2");
-  // ZWSP マーカー段落を除去し、元の空行を復元する
-  return restoreBlankLines(md);
+  return md;
 }
 
 export type OutlineKind = "heading" | "codeBlock" | "table" | "plantuml" | "mermaid" | "image";

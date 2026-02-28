@@ -1,7 +1,9 @@
+import * as fs from "fs";
+import * as path from "path";
 import { sanitizeMarkdown, preserveBlankLines, restoreBlankLines } from "../utils/sanitizeMarkdown";
 import { getMarkdownFromEditor } from "../types";
 import { createTestEditor } from "../testUtils/createTestEditor";
-import type { Editor } from "@tiptap/core";
+import { Editor } from "@tiptap/core";
 
 // ---------- sanitizeMarkdown ----------
 
@@ -482,5 +484,135 @@ describe("空行保持ラウンドトリップ", () => {
     editor.commands.setContent(preserveBlankLines(md));
     const result = getMarkdownFromEditor(editor);
     expect(result).toBe("# Heading1\n\n\n\n## Heading2");
+  });
+});
+
+// ---------- テンプレートファイル ラウンドトリップ ----------
+
+describe("テンプレートファイル ラウンドトリップ", () => {
+  let editor: Editor;
+  afterEach(() => editor?.destroy());
+
+  const templatesDir = path.resolve(__dirname, "../../src/constants/templates");
+
+  /** テンプレートを読み込み→保存して比較するヘルパー */
+  function templateRoundTrip(filename: string, opts?: { withTable?: boolean }): string {
+    const original = fs.readFileSync(path.join(templatesDir, filename), "utf-8");
+    editor = createTestEditor({ withMarkdown: true, withTable: opts?.withTable });
+    const preprocessed = preserveBlankLines(sanitizeMarkdown(original));
+    editor.commands.setContent(preprocessed);
+    return getMarkdownFromEditor(editor);
+  }
+
+  test("defaultContent.md: 読み込み→保存で内容が変わらない", () => {
+    const original = fs.readFileSync(path.join(templatesDir, "defaultContent.md"), "utf-8");
+    const saved = templateRoundTrip("defaultContent.md", { withTable: true });
+    expect(saved).toBe(original.trimEnd());
+  });
+
+  test("welcomeContent.md: 読み込み→保存で内容が変わらない", () => {
+    const original = fs.readFileSync(path.join(templatesDir, "welcomeContent.md"), "utf-8");
+    const saved = templateRoundTrip("welcomeContent.md");
+    expect(saved).toBe(original.trimEnd());
+  });
+
+  test("blogPost.md: 読み込み→保存で内容が変わらない", () => {
+    const original = fs.readFileSync(path.join(templatesDir, "blogPost.md"), "utf-8");
+    const saved = templateRoundTrip("blogPost.md");
+    expect(saved).toBe(original.trimEnd());
+  });
+
+  test("meetingNotes.md: 読み込み→保存で内容が変わらない", () => {
+    const original = fs.readFileSync(path.join(templatesDir, "meetingNotes.md"), "utf-8");
+    const saved = templateRoundTrip("meetingNotes.md");
+    expect(saved).toBe(original.trimEnd());
+  });
+
+  test("readme.md: 読み込み→保存で内容が変わらない", () => {
+    const original = fs.readFileSync(path.join(templatesDir, "readme.md"), "utf-8");
+    const saved = templateRoundTrip("readme.md", { withTable: true });
+    expect(saved).toBe(original.trimEnd());
+  });
+});
+
+// ---------- エッジケース ラウンドトリップ ----------
+
+describe("エッジケース ラウンドトリップ", () => {
+  let editor: Editor;
+  afterEach(() => editor?.destroy());
+
+  /** preserveBlankLines + sanitizeMarkdown → editor → getMarkdownFromEditor */
+  function fullRoundTrip(md: string, opts?: { withTable?: boolean }): string {
+    editor = createTestEditor({ withMarkdown: true, withTable: opts?.withTable });
+    const preprocessed = preserveBlankLines(sanitizeMarkdown(md));
+    editor.commands.setContent(preprocessed);
+    return getMarkdownFromEditor(editor);
+  }
+
+  test("見出し + 段落 + コードブロックの組み合わせ", () => {
+    const md = "## セクション\n\n説明文。\n\n```js\nconst x = 1;\n\n```";
+    expect(fullRoundTrip(md)).toBe(md);
+  });
+
+  test("連続空行を挟む見出し群", () => {
+    const md = "# 見出し1\n\n\n## 見出し2\n\n\n### 見出し3";
+    expect(fullRoundTrip(md)).toBe(md);
+  });
+
+  test("箇条書きリスト + 番号付きリスト連続", () => {
+    const md = "- A\n- B\n- C\n\n1. 一\n2. 二\n3. 三";
+    expect(fullRoundTrip(md)).toBe(md);
+  });
+
+  test("タスクリスト（未完了 + 完了の混在）", () => {
+    // tiptap はタスクリスト項目間に空行を挿入する
+    const md = "- [ ] 未完了\n\n- [x] 完了\n\n- [ ] もう一つ";
+    expect(fullRoundTrip(md)).toBe(md);
+  });
+
+  test("ネストされた引用", () => {
+    const md = "> 外側\n>\n> > 内側";
+    expect(fullRoundTrip(md)).toBe(md);
+  });
+
+  test("太字 + 斜体 + 打ち消し線を含む段落", () => {
+    const md = "これは**太字**と*斜体*と~~取消~~を含むテキスト";
+    expect(fullRoundTrip(md)).toBe(md);
+  });
+
+  test("画像の後にテーブル", () => {
+    // image シリアライザが closeBlock() を呼ばないため空行が消失する
+    const md = "![alt](image.png)\n\n| A | B |\n| --- | --- |\n| 1 | 2 |";
+    const result = fullRoundTrip(md, { withTable: true });
+    expect(result).toContain("![alt](image.png)");
+    expect(result).toContain("| A | B |");
+    expect(result).toContain("| 1 | 2 |");
+  });
+
+  test("コードブロック → 段落 → コードブロック", () => {
+    const md =
+      "```python\nprint('hello')\n\n```\n\n中間テキスト\n\n```bash\necho hi\n\n```";
+    expect(fullRoundTrip(md)).toBe(md);
+  });
+
+  test("水平線で区切られたセクション", () => {
+    const md = "セクション1\n\n---\n\nセクション2\n\n---\n\nセクション3";
+    expect(fullRoundTrip(md)).toBe(md);
+  });
+
+  test("リンク + インラインコードを含むリスト", () => {
+    const md = "- [リンク](https://example.com)\n- `コード`\n- **太字項目**";
+    expect(fullRoundTrip(md)).toBe(md);
+  });
+
+  test("5つの連続空行が保持される", () => {
+    const md = "段落A\n\n\n\n\n\n段落B";
+    expect(fullRoundTrip(md)).toBe(md);
+  });
+
+  test("mermaid + plantuml 連続コードブロック", () => {
+    const md =
+      "```mermaid\ngraph TD\n    A --> B\n\n```\n\n```plantuml\nA -> B\n\n```";
+    expect(fullRoundTrip(md)).toBe(md);
   });
 });
