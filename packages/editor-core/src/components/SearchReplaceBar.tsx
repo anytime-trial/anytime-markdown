@@ -1,13 +1,15 @@
 "use client";
 
 import ClearIcon from "@mui/icons-material/Clear";
+import CloseIcon from "@mui/icons-material/Close";
+import DoneAllIcon from "@mui/icons-material/DoneAll";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import FindReplaceIcon from "@mui/icons-material/FindReplace";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 import {
   Box,
-  Divider,
   IconButton,
   Paper,
   Tooltip,
@@ -27,6 +29,7 @@ export function SearchReplaceBar({ editor, t }: SearchReplaceBarProps) {
   const theme = useTheme();
   const storage = editor.storage.searchReplace;
 
+  const [isVisible, setIsVisible] = useState(false);
   const [showReplace, setShowReplace] = useState(false);
   const [searchTerm, setSearchTerm] = useState(storage.searchTerm);
   const [replaceTerm, setReplaceTerm] = useState(storage.replaceTerm);
@@ -52,9 +55,10 @@ export function SearchReplaceBar({ editor, t }: SearchReplaceBarProps) {
       if (s.isOpen && s.showReplace) {
         setShowReplace(true);
       }
-      // openSearch でフォーカス
+      // openSearch でフォーカス & 表示
       if (s.isOpen) {
         s.isOpen = false; // consume the flag
+        setIsVisible(true);
         setTimeout(() => searchInputRef.current?.focus(), 50);
         // 選択テキストを初期検索語として使用
         const { from, to } = editor.state.selection;
@@ -65,6 +69,9 @@ export function SearchReplaceBar({ editor, t }: SearchReplaceBarProps) {
             editor.commands.setSearchTerm(selectedText);
           }
         }
+      } else if (!s.searchTerm && !s.replaceTerm) {
+        // closeSearch で非表示
+        setIsVisible(false);
       }
     };
     storage.onSearchStateChange = handler;
@@ -86,7 +93,7 @@ export function SearchReplaceBar({ editor, t }: SearchReplaceBarProps) {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
         editor.commands.setSearchTerm(value);
-      }, 300);
+      }, 200);
     },
     [editor],
   );
@@ -103,6 +110,7 @@ export function SearchReplaceBar({ editor, t }: SearchReplaceBarProps) {
     setSearchTerm("");
     setReplaceTerm("");
     setShowReplace(false);
+    setIsVisible(false);
     editor.commands.closeSearch();
     editor.commands.focus();
   }, [editor]);
@@ -180,11 +188,24 @@ export function SearchReplaceBar({ editor, t }: SearchReplaceBarProps) {
     },
   };
 
-  return (
-    <>
-      {/* Inline search in toolbar */}
-      <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+  if (!isVisible) return null;
 
+  return (
+    <Paper
+      elevation={3}
+      sx={{
+        position: "absolute",
+        top: 0,
+        right: 16,
+        zIndex: 10,
+        borderRadius: 1,
+        px: 1.5,
+        py: 0.5,
+        display: "flex",
+        alignItems: "center",
+        gap: 0.5,
+      }}
+    >
       {/* Replace toggle */}
       <Tooltip title={t("replace")}>
         <IconButton
@@ -275,7 +296,7 @@ export function SearchReplaceBar({ editor, t }: SearchReplaceBarProps) {
                   disabled={resultCount === 0}
                   sx={{ p: 0.25 }}
                 >
-                  <Typography aria-hidden="true" sx={{ fontSize: "0.65rem", fontWeight: 700, lineHeight: 1 }}>1</Typography>
+                  <FindReplaceIcon sx={{ fontSize: 16 }} />
                 </IconButton>
               </span>
             </Tooltip>
@@ -288,7 +309,7 @@ export function SearchReplaceBar({ editor, t }: SearchReplaceBarProps) {
                   disabled={resultCount === 0}
                   sx={{ p: 0.25 }}
                 >
-                  <Typography aria-hidden="true" sx={{ fontSize: "0.65rem", fontWeight: 700, lineHeight: 1 }}>*</Typography>
+                  <DoneAllIcon sx={{ fontSize: 16 }} />
                 </IconButton>
               </span>
             </Tooltip>
@@ -300,6 +321,8 @@ export function SearchReplaceBar({ editor, t }: SearchReplaceBarProps) {
       {searchTerm && (
         <Typography
           variant="caption"
+          aria-live="polite"
+          aria-atomic="true"
           sx={{
             whiteSpace: "nowrap",
             fontSize: "0.65rem",
@@ -320,6 +343,7 @@ export function SearchReplaceBar({ editor, t }: SearchReplaceBarProps) {
       <Tooltip title={t("caseSensitive")}>
         <IconButton
           size="small"
+          aria-label={t("caseSensitive")}
           onClick={() => editor.commands.toggleCaseSensitive()}
           sx={toggleBtnSx(caseSensitive)}
         >
@@ -330,6 +354,7 @@ export function SearchReplaceBar({ editor, t }: SearchReplaceBarProps) {
         <span>
           <IconButton
             size="small"
+            aria-label={t("wholeWord")}
             onClick={() => editor.commands.toggleWholeWord()}
             disabled={useRegex}
             sx={toggleBtnSx(wholeWord && !useRegex)}
@@ -341,6 +366,7 @@ export function SearchReplaceBar({ editor, t }: SearchReplaceBarProps) {
       <Tooltip title={t("regex")}>
         <IconButton
           size="small"
+          aria-label={t("regex")}
           onClick={() => editor.commands.toggleUseRegex()}
           sx={toggleBtnSx(useRegex)}
         >
@@ -374,7 +400,17 @@ export function SearchReplaceBar({ editor, t }: SearchReplaceBarProps) {
         </span>
       </Tooltip>
 
-      <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
-    </>
+      {/* Close button */}
+      <Tooltip title={t("close")}>
+        <IconButton
+          size="small"
+          aria-label={t("close")}
+          onClick={handleClearAndBlur}
+          sx={{ p: 0.25 }}
+        >
+          <CloseIcon sx={{ fontSize: 16 }} />
+        </IconButton>
+      </Tooltip>
+    </Paper>
   );
 }

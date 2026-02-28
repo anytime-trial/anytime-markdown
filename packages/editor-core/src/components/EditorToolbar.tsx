@@ -1,4 +1,5 @@
 import AccountTreeIcon from "@mui/icons-material/AccountTree";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import ArticleIcon from "@mui/icons-material/Article";
 import CheckIcon from "@mui/icons-material/Check";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
@@ -6,6 +7,9 @@ import DescriptionIcon from "@mui/icons-material/Description";
 import DownloadIcon from "@mui/icons-material/Download";
 import WysiwygIcon from "@mui/icons-material/Wysiwyg";
 import FileUploadIcon from "@mui/icons-material/FileUpload";
+import FolderOpenIcon from "@mui/icons-material/FolderOpen";
+import SaveIcon from "@mui/icons-material/Save";
+import SaveAsIcon from "@mui/icons-material/SaveAs";
 import GridOnIcon from "@mui/icons-material/GridOn";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import HorizontalRuleIcon from "@mui/icons-material/HorizontalRule";
@@ -21,11 +25,16 @@ import UnfoldLessIcon from "@mui/icons-material/UnfoldLess";
 import UnfoldMoreIcon from "@mui/icons-material/UnfoldMore";
 import CodeOffIcon from "@mui/icons-material/CodeOff";
 import CodeIcon from "@mui/icons-material/Code";
+import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
 
 import {
   Box,
   Divider,
   IconButton,
+  ListItemIcon,
+  ListItemText,
+  Menu,
+  MenuItem,
   Paper,
   ToggleButton,
   ToggleButtonGroup,
@@ -35,9 +44,9 @@ import {
 import { useEditorState } from "@tiptap/react";
 import type { Editor } from "@tiptap/react";
 
-import { useCallback } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { modKey } from "../constants/shortcuts";
-import { SearchReplaceBar } from "./SearchReplaceBar";
+
 import type { MergeUndoRedo } from "./InlineMergeView";
 
 /** WAI-ARIA Toolbar パターン: 矢印キーでフォーカス移動 */
@@ -47,6 +56,13 @@ const FOCUSABLE_SELECTOR = 'button:not([disabled]), [role="button"]:not([disable
 const TOOLTIP_SHORTCUTS: Record<string, string> = {
   undo: `${modKey}+Z`,
   redo: `${modKey}+Shift+Z`,
+  createNew: `${modKey}+Alt+N`,
+  copy: `${modKey}+Shift+C`,
+  openFile: `${modKey}+O`,
+  saveFile: `${modKey}+S`,
+  saveAsFile: `${modKey}+Shift+S`,
+  upload: `${modKey}+Alt+U`,
+  download: `${modKey}+Alt+E`,
   codeBlock: `${modKey}+Alt+C`,
   image: `${modKey}+Alt+I`,
   horizontalRule: `${modKey}+Alt+R`,
@@ -56,6 +72,9 @@ const TOOLTIP_SHORTCUTS: Record<string, string> = {
   sourceMode: `${modKey}+Alt+S`,
   normalMode: `${modKey}+Alt+M`,
   compareMode: `${modKey}+Alt+M`,
+  foldAll: `${modKey}+Alt+F`,
+  unfoldAll: `${modKey}+Alt+F`,
+  outline: `${modKey}+Alt+O`,
 };
 
 /** ツールチップにショートカットキーを付加 */
@@ -94,10 +113,16 @@ interface EditorToolbarProps {
   hideMoreMenu?: boolean;
   onLoadRightFile?: () => void;
   onExportRightFile?: () => void;
+  onOpenFile?: () => void;
+  onSaveFile?: () => void;
+  onSaveAsFile?: () => void;
+  hasFileHandle?: boolean;
+  supportsDirectAccess?: boolean;
+  onAnnounce?: (message: string) => void;
   t: (key: string) => string;
 }
 
-export function EditorToolbar({
+export const EditorToolbar = React.memo(function EditorToolbar({
   editor,
   isInDiagramBlock,
   onImage,
@@ -127,8 +152,22 @@ export function EditorToolbar({
   hideMoreMenu,
   onLoadRightFile,
   onExportRightFile,
+  onOpenFile,
+  onSaveFile,
+  onSaveAsFile,
+  hasFileHandle,
+  onAnnounce,
+  supportsDirectAccess,
   t,
 }: EditorToolbarProps) {
+  const [fileMenuAnchorEl, setFileMenuAnchorEl] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (copied) {
+      onAnnounce?.(t("copiedToClipboard"));
+    }
+  }, [copied, onAnnounce, t]);
+
   const handleToolbarKeyDown = useCallback((e: React.KeyboardEvent) => {
     const toolbar = e.currentTarget;
     const items = Array.from(toolbar.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
@@ -217,43 +256,135 @@ export function EditorToolbar({
       {/* File actions */}
       {!hideFileOps && (
         <>
-          <Tooltip title={t("createNew")}>
-            <IconButton
-              size="small"
-              aria-label={t("createNew")}
-              onClick={onClear}
-            >
-              <DescriptionIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title={copied ? t("copied") : t("copy")}>
-            <IconButton
-              size="small"
-              aria-label={copied ? t("copied") : t("copy")}
-              onClick={onCopy}
-              color={copied ? "success" : "default"}
-            >
-              {copied ? <CheckIcon fontSize="small" /> : <ContentCopyIcon fontSize="small" />}
-            </IconButton>
-          </Tooltip>
-          <Tooltip title={t("upload")}>
-            <IconButton
-              size="small"
-              aria-label={t("upload")}
-              onClick={onImport}
-            >
-              <FileUploadIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title={t("download")}>
-            <IconButton
-              size="small"
-              aria-label={t("download")}
-              onClick={onDownload}
-            >
-              <DownloadIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
+          {/* Mobile: single file menu button */}
+          <IconButton
+            size="small"
+            aria-label={t("fileActions")}
+            onClick={(e) => setFileMenuAnchorEl(e.currentTarget)}
+            sx={{ display: { xs: "inline-flex", sm: "none" } }}
+          >
+            <InsertDriveFileIcon fontSize="small" />
+          </IconButton>
+          <Menu
+            anchorEl={fileMenuAnchorEl}
+            open={!!fileMenuAnchorEl}
+            onClose={() => setFileMenuAnchorEl(null)}
+          >
+            <MenuItem onClick={() => { onClear(); setFileMenuAnchorEl(null); }}>
+              <ListItemIcon><DescriptionIcon fontSize="small" /></ListItemIcon>
+              <ListItemText>{t("createNew")}</ListItemText>
+            </MenuItem>
+            <MenuItem onClick={() => { onCopy(); setFileMenuAnchorEl(null); }}>
+              <ListItemIcon>
+                {copied ? <CheckIcon fontSize="small" color="success" /> : <ContentCopyIcon fontSize="small" />}
+              </ListItemIcon>
+              <ListItemText>{copied ? t("copied") : t("copy")}</ListItemText>
+            </MenuItem>
+            {supportsDirectAccess ? ([
+              <MenuItem key="open" onClick={() => { onOpenFile?.(); setFileMenuAnchorEl(null); }}>
+                <ListItemIcon><FolderOpenIcon fontSize="small" /></ListItemIcon>
+                <ListItemText>{t("openFile")}</ListItemText>
+              </MenuItem>,
+              <MenuItem key="save" onClick={() => { onSaveFile?.(); setFileMenuAnchorEl(null); }} disabled={!hasFileHandle}>
+                <ListItemIcon><SaveIcon fontSize="small" /></ListItemIcon>
+                <ListItemText>{t("saveFile")}</ListItemText>
+              </MenuItem>,
+              <MenuItem key="saveAs" onClick={() => { onSaveAsFile?.(); setFileMenuAnchorEl(null); }}>
+                <ListItemIcon><SaveAsIcon fontSize="small" /></ListItemIcon>
+                <ListItemText>{t("saveAsFile")}</ListItemText>
+              </MenuItem>,
+            ]) : ([
+              <MenuItem key="upload" onClick={() => { onImport(); setFileMenuAnchorEl(null); }}>
+                <ListItemIcon><FileUploadIcon fontSize="small" /></ListItemIcon>
+                <ListItemText>{t("upload")}</ListItemText>
+              </MenuItem>,
+              <MenuItem key="download" onClick={() => { onDownload(); setFileMenuAnchorEl(null); }}>
+                <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>
+                <ListItemText>{t("download")}</ListItemText>
+              </MenuItem>,
+            ])}
+          </Menu>
+
+          {/* Desktop: individual file buttons */}
+          <Box sx={{ display: { xs: "none", sm: "contents" } }}>
+            <Tooltip title={tip(t, "createNew")}>
+              <IconButton
+                size="small"
+                aria-label={t("createNew")}
+                onClick={onClear}
+              >
+                <DescriptionIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title={copied ? t("copied") : tip(t, "copy")}>
+              <IconButton
+                size="small"
+                aria-label={copied ? t("copied") : t("copy")}
+                onClick={onCopy}
+                color={copied ? "success" : "default"}
+              >
+                {copied ? <CheckIcon fontSize="small" /> : <ContentCopyIcon fontSize="small" />}
+              </IconButton>
+            </Tooltip>
+            {supportsDirectAccess ? (
+              <>
+                <Tooltip title={tip(t, "openFile")}>
+                  <IconButton
+                    size="small"
+                    aria-label={t("openFile")}
+                    onClick={onOpenFile}
+                  >
+                    <FolderOpenIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title={hasFileHandle ? tip(t, "saveFile") : t("saveFileNoHandle")}>
+                  <span>
+                    <IconButton
+                      size="small"
+                      aria-label={t("saveFile")}
+                      onClick={onSaveFile}
+                      disabled={!hasFileHandle}
+                    >
+                      <SaveIcon fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+                <Tooltip title={tip(t, "saveAsFile")}>
+                  <IconButton
+                    size="small"
+                    aria-label={t("saveAsFile")}
+                    onClick={onSaveAsFile}
+                  >
+                    <SaveAsIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </>
+            ) : (
+              <>
+                <Tooltip title={t("fileApiNotSupported")}>
+                  <InfoOutlinedIcon sx={{ fontSize: 16, color: "text.disabled", mx: 0.25 }} />
+                </Tooltip>
+                <Tooltip title={tip(t, "upload")}>
+                  <IconButton
+                    size="small"
+                    aria-label={t("upload")}
+                    onClick={onImport}
+                  >
+                    <FileUploadIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title={tip(t, "download")}>
+                  <IconButton
+                    size="small"
+                    aria-label={t("download")}
+                    onClick={onDownload}
+                  >
+                    <DownloadIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </>
+            )}
+          </Box>
           <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
         </>
       )}
@@ -285,9 +416,6 @@ export function EditorToolbar({
           </Tooltip>
         </>
       )}
-
-      {/* Search / Replace (inline in toolbar) */}
-      {editor && <SearchReplaceBar editor={editor} t={t} />}
 
       {/* Image + Table */}
       <Tooltip title={tip(t, "image")}>
@@ -372,7 +500,7 @@ export function EditorToolbar({
 
       {/* Collapse/Expand all blocks */}
       {editorState?.hasBlocks && (
-        <Tooltip title={editorState.allBlocksCollapsed ? t("unfoldAll") : t("foldAll")}>
+        <Tooltip title={editorState.allBlocksCollapsed ? tip(t, "unfoldAll") : tip(t, "foldAll")}>
           <span>
           <IconButton
             size="small"
@@ -407,7 +535,7 @@ export function EditorToolbar({
       )}
 
       {/* Outline toggle (lg 以上のみ表示) */}
-      <Tooltip title={t("outline")}>
+      <Tooltip title={tip(t, "outline")}>
         <span>
         <IconButton aria-label={t("outline")}
           size="small"
@@ -426,6 +554,7 @@ export function EditorToolbar({
         value={inlineMergeOpen ? "compare" : "edit"}
         exclusive
         size="small"
+        aria-label={t("compareMode")}
         sx={{ height: 30, display: { xs: "none", lg: "inline-flex" } }}
       >
         <ToggleButton
@@ -454,12 +583,12 @@ export function EditorToolbar({
       {inlineMergeOpen && (
         <>
           <Tooltip title={t("mergeLoadFileRight")}>
-            <IconButton size="small" onClick={onLoadRightFile}>
+            <IconButton size="small" onClick={onLoadRightFile} aria-label={t("loadCompareFile")}>
               <FileUploadIcon fontSize="small" />
             </IconButton>
           </Tooltip>
           <Tooltip title={t("mergeExportRight")}>
-            <IconButton size="small" onClick={onExportRightFile}>
+            <IconButton size="small" onClick={onExportRightFile} aria-label={t("exportCompareFile")}>
               <DownloadIcon fontSize="small" />
             </IconButton>
           </Tooltip>
@@ -471,6 +600,7 @@ export function EditorToolbar({
         value={sourceMode ? "source" : "wysiwyg"}
         exclusive
         size="small"
+        aria-label={t("editMode")}
         sx={{ height: 30 }}
       >
         <ToggleButton
@@ -509,4 +639,4 @@ export function EditorToolbar({
     </Paper>
     </>
   );
-}
+});

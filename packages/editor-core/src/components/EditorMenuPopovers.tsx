@@ -71,6 +71,7 @@ export function EditorMenuPopovers({
         onClose={() => setHelpAnchorEl(null)}
         anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
         transformOrigin={{ vertical: "top", horizontal: "left" }}
+        slotProps={{ paper: { role: "menu" } }}
       >
         <Box sx={{ display: "flex", flexDirection: "column", p: 0.5 }}>
           {!hideHelp && (
@@ -119,6 +120,7 @@ export function EditorMenuPopovers({
         onClose={() => setDiagramAnchorEl(null)}
         anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
         transformOrigin={{ vertical: "top", horizontal: "left" }}
+        slotProps={{ paper: { role: "menu" } }}
       >
         <Box sx={{ display: "flex", flexDirection: "column", p: 0.5 }}>
           <Tooltip title={t("mermaid")} placement="right">
@@ -165,6 +167,7 @@ export function EditorMenuPopovers({
         onClose={() => setSampleAnchorEl(null)}
         anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
         transformOrigin={{ vertical: "top", horizontal: "left" }}
+        slotProps={{ paper: { role: "menu" } }}
       >
         <Box sx={{ display: "flex", flexDirection: "column", p: 0.5 }}>
           {PLANTUML_SAMPLES.filter((s) => s.enabled).map((sample) => {
@@ -211,6 +214,7 @@ export function EditorMenuPopovers({
         onClose={() => setTemplateAnchorEl(null)}
         anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
         transformOrigin={{ vertical: "top", horizontal: "left" }}
+        slotProps={{ paper: { role: "menu" } }}
       >
         <Box sx={{ py: 0.5, minWidth: 180 }}>
           <Typography variant="caption" sx={{ px: 2, py: 0.5, color: "text.secondary", fontWeight: 600, display: "block" }}>
@@ -237,6 +241,7 @@ export function EditorMenuPopovers({
         onClose={() => setHeadingMenu(null)}
         anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
         transformOrigin={{ vertical: "top", horizontal: "left" }}
+        slotProps={{ paper: { role: "menu" } }}
       >
         <Box sx={{ py: 0.5 }}>
           {[

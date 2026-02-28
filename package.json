@@ -1,6 +1,6 @@
 {
   "name": "anytime-markdown-monorepo",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "private": true,
   "scripts": {
     "version:sync": "npm version --no-git-tag-version --workspaces"
@@ -10,5 +10,9 @@
     "packages/vscode-extension",
     "packages/web-app",
     "packages/mobile-app"
-  ]
+  ],
+  "overrides": {
+    "serialize-javascript": "7.0.3",
+    "diff": "8.0.3"
+  }
 }

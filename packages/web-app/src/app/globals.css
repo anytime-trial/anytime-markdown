@@ -1,5 +1,12 @@
 /* --vscode-* compatible CSS variables for standalone web usage */
 
+html, body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  height: 100%;
+}
+
 /* ========== Dark Theme (default) ========== */
 :root {
   --vscode-editor-background: #1e1e1e;
@@ -45,6 +52,13 @@
   --vscode-gitDecoration-deletedResourceForeground: #f44747;
   --vscode-symbolIcon-enumeratorForeground: #d4d4d4;
   --vscode-symbolIcon-namespaceForeground: #c586c0;
+}
+
+/* ========== Focus Visible ========== */
+a:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder);
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 
 /* ========== Light Theme ========== */

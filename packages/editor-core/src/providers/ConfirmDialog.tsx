@@ -47,8 +47,10 @@ const ConfirmDialog: React.FC<ConfirmProps> = ({
     <Dialog
       open={open}
       onClose={onClose}
+      aria-labelledby="confirm-dialog-title"
     >
       <DialogTitle
+        id="confirm-dialog-title"
         sx={{
           color: 'primary.main',
           display: 'flex',

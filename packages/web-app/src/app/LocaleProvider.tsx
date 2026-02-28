@@ -26,6 +26,9 @@ function getInitialLocale(serverLocale: string): Locale {
   if (typeof window !== 'undefined') {
     const stored = localStorage.getItem('NEXT_LOCALE');
     if (stored === 'ja' || stored === 'en') return stored;
+    // 初回アクセス時: ブラウザ/OS の言語設定を参照
+    const browserLang = navigator.language.split('-')[0];
+    if (browserLang === 'ja' || browserLang === 'en') return browserLang;
   }
   if (serverLocale === 'ja' || serverLocale === 'en') return serverLocale;
   return 'ja';

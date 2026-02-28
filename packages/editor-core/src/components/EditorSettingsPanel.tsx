@@ -74,9 +74,10 @@ export function EditorSettingsPanel({
       open={open}
       onClose={onClose}
       slotProps={{ paper: { sx: { width: 320, p: 2 } } }}
+      aria-labelledby="settings-panel-title"
     >
       <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
-        <Typography variant="subtitle1" sx={{ fontWeight: 700, flex: 1 }}>
+        <Typography variant="subtitle1" id="settings-panel-title" sx={{ fontWeight: 700, flex: 1 }}>
           {t("editorSettings")}
         </Typography>
         <IconButton size="small" onClick={onClose} aria-label={t("close")}>
@@ -110,6 +111,7 @@ export function EditorSettingsPanel({
               onChange={handleLocaleChange}
               size="small"
               fullWidth
+              aria-label={t("languageSelect")}
             >
               <ToggleButton value="ja">日本語</ToggleButton>
               <ToggleButton value="en">English</ToggleButton>
@@ -134,6 +136,7 @@ export function EditorSettingsPanel({
             step={0.1}
             size="small"
             aria-label={t("settingLineHeight")}
+            aria-valuetext={`${settings.lineHeight}x`}
           />
           <Typography variant="body2" sx={{ minWidth: 32, textAlign: "right", fontFamily: "monospace" }}>
             {settings.lineHeight.toFixed(1)}
@@ -155,6 +158,7 @@ export function EditorSettingsPanel({
             step={1}
             size="small"
             aria-label={t("settingFontSize")}
+            aria-valuetext={`${settings.fontSize}px`}
           />
           <Typography variant="body2" sx={{ minWidth: 40, textAlign: "right", fontFamily: "monospace" }}>
             {settings.fontSize}px
@@ -175,6 +179,7 @@ export function EditorSettingsPanel({
           onChange={(_, v) => { if (v) updateSettings({ tableWidth: v }); }}
           size="small"
           fullWidth
+          aria-label={t("tableWidthSelect")}
         >
           <ToggleButton value="auto">{t("settingTableAuto")}</ToggleButton>
           <ToggleButton value="100%">{t("settingTableFull")}</ToggleButton>

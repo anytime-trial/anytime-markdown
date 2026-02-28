@@ -54,6 +54,20 @@ import { FsSearchBar } from "./components/FsSearchBar";
 
 const pumlIconSx = { fontSize: 16 };
 
+/** Detect Mermaid diagram type from code content for aria-label */
+function detectMermaidType(code: string): string {
+  const first = code.trimStart().split(/[\s\n{]/)[0].toLowerCase();
+  if (first === "graph" || first === "flowchart") return "diagramFlowchart";
+  if (first === "sequencediagram") return "diagramSequence";
+  if (first === "classdiagram") return "diagramClass";
+  if (first === "statediagram" || first === "statediagram-v2") return "diagramState";
+  if (first === "erdiagram") return "diagramEr";
+  if (first === "gantt") return "diagramGantt";
+  if (first === "pie") return "diagramPie";
+  if (first === "mindmap") return "diagramMindmap";
+  return "diagramGeneric";
+}
+
 export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: NodeViewProps) {
   const theme = useTheme();
   const t = useTranslations("MarkdownEditor");
@@ -589,6 +603,8 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: No
           <>
             {isMermaid && svg && (
               <Box
+                role="img"
+                aria-label={t(detectMermaidType(code))}
                 sx={{ overflow: "hidden", bgcolor: "background.paper", cursor: "grab", "&:active": { cursor: "grabbing" } }}
                 contentEditable={false}
                 onPointerDown={normalZP.handlePointerDown}
@@ -631,7 +647,7 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: No
               >
                 <Box sx={{ p: 2, display: "flex", justifyContent: "center", transform: `translate(${normalZP.pan.x}px, ${normalZP.pan.y}px) scale(${normalZP.zoom})`, transformOrigin: "top center", transition: normalZP.isPanningRef.current ? "none" : "transform 0.15s", "@media (prefers-reduced-motion: reduce)": { transition: "none" }, pointerEvents: "none" }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={plantUmlUrl} alt="PlantUML diagram" style={{ maxWidth: "100%" }} />
+                  <img src={plantUmlUrl} alt={t("plantUmlDiagram")} style={{ maxWidth: "100%" }} />
                 </Box>
               </Box>
             )}
@@ -790,11 +806,11 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: No
           >
             <Box sx={{ width: "100%", height: "100%", display: "flex", justifyContent: "center", alignItems: "center", transform: `translate(${fsZP.pan.x}px, ${fsZP.pan.y}px) scale(${fsZP.zoom})`, transformOrigin: "center center", transition: fsZP.isPanningRef.current ? "none" : "transform 0.15s", "@media (prefers-reduced-motion: reduce)": { transition: "none" }, pointerEvents: "none" }}>
               {isMermaid && svg && (
-                <Box dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(svg, SVG_SANITIZE_CONFIG) }} />
+                <Box role="img" aria-label={t(detectMermaidType(code))} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(svg, SVG_SANITIZE_CONFIG) }} />
               )}
               {isPlantUml && plantUmlUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={plantUmlUrl} alt="PlantUML diagram" style={{ maxWidth: "90vw", maxHeight: "85vh" }} />
+                <img src={plantUmlUrl} alt={t("plantUmlDiagram")} style={{ maxWidth: "90vw", maxHeight: "85vh" }} />
               )}
             </Box>
           </Box>

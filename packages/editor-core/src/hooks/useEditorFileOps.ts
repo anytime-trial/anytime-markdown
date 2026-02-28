@@ -14,6 +14,10 @@ interface UseEditorFileOpsParams {
   saveContent: (md: string) => void;
   downloadMarkdown: (md: string) => void;
   clearContent: () => void;
+  openFile?: () => Promise<string | null>;
+  saveFile?: (content: string) => Promise<void>;
+  saveAsFile?: (content: string) => Promise<void>;
+  resetFile?: () => void;
 }
 
 export function useEditorFileOps({
@@ -24,6 +28,10 @@ export function useEditorFileOps({
   saveContent,
   downloadMarkdown,
   clearContent,
+  openFile,
+  saveFile,
+  saveAsFile,
+  resetFile,
 }: UseEditorFileOpsParams) {
   const [copied, setCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -47,7 +55,8 @@ export function useEditorFileOps({
       editor?.commands.clearContent();
     }
     clearContent();
-  }, [confirm, t, sourceMode, setSourceText, editor, clearContent]);
+    resetFile?.();
+  }, [confirm, t, sourceMode, setSourceText, editor, clearContent, resetFile]);
 
   const handleImport = useCallback(
     (file: File) => {
@@ -99,6 +108,45 @@ export function useEditorFileOps({
     setTimeout(() => setCopied(false), 2000);
   }, [sourceMode, sourceText, editor]);
 
+  const handleOpenFile = useCallback(async () => {
+    if (!openFile) return;
+    const hasContent = sourceMode ? sourceText.trim() !== "" : !editor?.isEmpty;
+    if (hasContent) {
+      try {
+        await confirm({
+          open: true,
+          title: t("openFile"),
+          icon: "info",
+          description: t("importConfirm"),
+        });
+      } catch {
+        return;
+      }
+    }
+    const content = await openFile();
+    if (content === null) return;
+    const sanitized = sanitizeMarkdown(content);
+    if (sourceMode) {
+      setSourceText(sanitized);
+    } else if (editor) {
+      editor.commands.setContent(
+        (editor.storage as unknown as MarkdownStorage).markdown.parser.parse(sanitized),
+      );
+    }
+  }, [openFile, editor, sourceMode, sourceText, setSourceText, confirm, t]);
+
+  const handleSaveFile = useCallback(async () => {
+    if (!saveFile) return;
+    const md = sourceMode ? sourceText : editor ? getMarkdownFromEditor(editor) : "";
+    await saveFile(md);
+  }, [saveFile, editor, sourceMode, sourceText]);
+
+  const handleSaveAsFile = useCallback(async () => {
+    if (!saveAsFile) return;
+    const md = sourceMode ? sourceText : editor ? getMarkdownFromEditor(editor) : "";
+    await saveAsFile(md);
+  }, [saveAsFile, editor, sourceMode, sourceText]);
+
   return {
     copied,
     fileInputRef,
@@ -107,5 +155,8 @@ export function useEditorFileOps({
     handleDownload,
     handleImport,
     handleCopy,
+    handleOpenFile,
+    handleSaveFile,
+    handleSaveAsFile,
   };
 }

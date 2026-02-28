@@ -1,3 +1,4 @@
+import React from "react";
 import BorderColorIcon from "@mui/icons-material/BorderColor";
 import CodeIcon from "@mui/icons-material/Code";
 import FormatBoldIcon from "@mui/icons-material/FormatBold";
@@ -34,6 +35,22 @@ interface EditorBubbleMenuProps {
 }
 
 export function EditorBubbleMenu({ editor, onLink, t }: EditorBubbleMenuProps) {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    const buttons = Array.from(
+      (e.currentTarget as HTMLElement).querySelectorAll(
+        "button:not([disabled])",
+      ),
+    ) as HTMLElement[];
+    const current = buttons.indexOf(document.activeElement as HTMLElement);
+    const next =
+      e.key === "ArrowRight"
+        ? (current + 1) % buttons.length
+        : (current - 1 + buttons.length) % buttons.length;
+    buttons[next]?.focus();
+  };
+
   return (
     <BubbleMenu
       editor={editor}
@@ -45,6 +62,9 @@ export function EditorBubbleMenu({ editor, onLink, t }: EditorBubbleMenuProps) {
       }}
     >
       <Paper
+        role="toolbar"
+        aria-label={t("textFormatMenu")}
+        onKeyDown={handleKeyDown}
         elevation={8}
         sx={{
           display: "flex",
@@ -58,6 +78,7 @@ export function EditorBubbleMenu({ editor, onLink, t }: EditorBubbleMenuProps) {
         <Tooltip title={tip(t, "bold")}>
           <IconButton
             size="small"
+            aria-label={t("bold")}
             onClick={() => editor.chain().focus().toggleBold().run()}
             color={editor.isActive("bold") ? "primary" : "default"}
             sx={{ p: 0.5 }}
@@ -68,6 +89,7 @@ export function EditorBubbleMenu({ editor, onLink, t }: EditorBubbleMenuProps) {
         <Tooltip title={tip(t, "italic")}>
           <IconButton
             size="small"
+            aria-label={t("italic")}
             onClick={() => editor.chain().focus().toggleItalic().run()}
             color={editor.isActive("italic") ? "primary" : "default"}
             sx={{ p: 0.5 }}
@@ -78,6 +100,7 @@ export function EditorBubbleMenu({ editor, onLink, t }: EditorBubbleMenuProps) {
         <Tooltip title={tip(t, "underline")}>
           <IconButton
             size="small"
+            aria-label={t("underline")}
             onClick={() => editor.chain().focus().toggleUnderline().run()}
             color={editor.isActive("underline") ? "primary" : "default"}
             sx={{ p: 0.5 }}
@@ -88,6 +111,7 @@ export function EditorBubbleMenu({ editor, onLink, t }: EditorBubbleMenuProps) {
         <Tooltip title={tip(t, "strikethrough")}>
           <IconButton
             size="small"
+            aria-label={t("strikethrough")}
             onClick={() => editor.chain().focus().toggleStrike().run()}
             color={editor.isActive("strike") ? "primary" : "default"}
             sx={{ p: 0.5 }}
@@ -98,6 +122,7 @@ export function EditorBubbleMenu({ editor, onLink, t }: EditorBubbleMenuProps) {
         <Tooltip title={tip(t, "highlight")}>
           <IconButton
             size="small"
+            aria-label={t("highlight")}
             onClick={() => editor.chain().focus().toggleHighlight().run()}
             color={editor.isActive("highlight") ? "primary" : "default"}
             sx={{ p: 0.5 }}
@@ -108,6 +133,7 @@ export function EditorBubbleMenu({ editor, onLink, t }: EditorBubbleMenuProps) {
         <Tooltip title={tip(t, "code")}>
           <IconButton
             size="small"
+            aria-label={t("code")}
             onClick={() => editor.chain().focus().toggleCode().run()}
             color={editor.isActive("code") ? "primary" : "default"}
             sx={{ p: 0.5 }}
@@ -118,6 +144,7 @@ export function EditorBubbleMenu({ editor, onLink, t }: EditorBubbleMenuProps) {
         <Tooltip title={tip(t, "link")}>
           <IconButton
             size="small"
+            aria-label={t("link")}
             onClick={onLink}
             color={editor.isActive("link") ? "primary" : "default"}
             sx={{ p: 0.5 }}

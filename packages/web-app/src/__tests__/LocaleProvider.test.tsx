@@ -36,10 +36,12 @@ describe("useLocaleSwitch (via LocaleProvider)", () => {
   });
 
   test("デフォルトは ja", () => {
+    const langSpy = jest.spyOn(window.navigator, "language", "get").mockReturnValue("zh");
     const { result } = renderHook(() => useLocaleSwitch(), {
       wrapper: createWrapper("unknown"),
     });
     expect(result.current.locale).toBe("ja");
+    langSpy.mockRestore();
   });
 
   test("setLocale でロケールを切替し localStorage に永続化する", () => {
@@ -57,6 +59,7 @@ describe("useLocaleSwitch (via LocaleProvider)", () => {
   });
 
   test("不正なロケールは無視する", () => {
+    const langSpy = jest.spyOn(window.navigator, "language", "get").mockReturnValue("zh");
     const { result } = renderHook(() => useLocaleSwitch(), {
       wrapper: createWrapper("ja"),
     });
@@ -66,6 +69,16 @@ describe("useLocaleSwitch (via LocaleProvider)", () => {
     });
 
     expect(result.current.locale).toBe("ja");
+    langSpy.mockRestore();
+  });
+
+  test("localStorage が空の場合はブラウザ言語を検出する", () => {
+    const langSpy = jest.spyOn(window.navigator, "language", "get").mockReturnValue("en-US");
+    const { result } = renderHook(() => useLocaleSwitch(), {
+      wrapper: createWrapper("unknown"),
+    });
+    expect(result.current.locale).toBe("en");
+    langSpy.mockRestore();
   });
 
   test("Provider 外で useLocaleSwitch を使うとエラー", () => {
