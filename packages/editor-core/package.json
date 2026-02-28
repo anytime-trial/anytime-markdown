@@ -34,7 +34,7 @@
     "@emotion/styled": "^11.0.0",
     "@mui/icons-material": "^6.0.0 || ^7.0.0",
     "@mui/material": "^6.0.0 || ^7.0.0",
-    "diff": "^7.0.0 || ^8.0.0",
+    "diff": "^8.0.3",
     "dompurify": "^3.0.0",
     "marked": "^15.0.0 || ^17.0.0",
     "mermaid": "^11.0.0",

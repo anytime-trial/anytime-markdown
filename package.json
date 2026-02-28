@@ -10,5 +10,9 @@
     "packages/vscode-extension",
     "packages/web-app",
     "packages/mobile-app"
-  ]
+  ],
+  "overrides": {
+    "serialize-javascript": "7.0.3",
+    "diff": "8.0.3"
+  }
 }
