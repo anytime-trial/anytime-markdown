@@ -41,7 +41,7 @@ import type { Editor } from "@tiptap/react";
 
 import React, { useCallback, useEffect } from "react";
 import { modKey } from "../constants/shortcuts";
-import { SearchReplaceBar } from "./SearchReplaceBar";
+
 import type { MergeUndoRedo } from "./InlineMergeView";
 
 /** WAI-ARIA Toolbar パターン: 矢印キーでフォーカス移動 */
@@ -349,9 +349,6 @@ export const EditorToolbar = React.memo(function EditorToolbar({
           </Tooltip>
         </>
       )}
-
-      {/* Search / Replace (inline in toolbar) */}
-      {editor && <SearchReplaceBar editor={editor} t={t} />}
 
       {/* Image + Table */}
       <Tooltip title={tip(t, "image")}>
