@@ -135,7 +135,11 @@ export function HelpDialog({ open, onClose, locale, t }: HelpDialogProps) {
 
   const handleTocClick = useCallback((id: string) => {
     const el = contentRef.current?.querySelector(`#${CSS.escape(id)}`);
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      el.setAttribute("tabindex", "-1");
+      (el as HTMLElement).focus();
+    }
   }, []);
 
   return (
@@ -153,6 +157,8 @@ export function HelpDialog({ open, onClose, locale, t }: HelpDialogProps) {
           <>
             {/* TOC sidebar */}
             <Box
+              role="navigation"
+              aria-label={t("tableOfContents")}
               sx={{
                 width: 200,
                 minWidth: 200,
