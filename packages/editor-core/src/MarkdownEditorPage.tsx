@@ -20,7 +20,7 @@ import { useMarkdownEditor } from "./useMarkdownEditor";
 import { defaultContent } from "./constants/defaultContent";
 import { Details, DetailsSummary } from "./detailsExtension";
 import { StatusBar } from "./components/StatusBar";
-import { OutlinePanel } from "./components/OutlinePanel";
+import OutlinePanel from "./components/OutlinePanel";
 import { EditorDialogs } from "./components/EditorDialogs";
 import { EditorSettingsPanel } from "./components/EditorSettingsPanel";
 import { useEditorSettings, EditorSettingsContext } from "./useEditorSettings";
@@ -139,6 +139,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
 
   // Refs for callbacks used in useEditor config (avoids stale closures)
   const setHeadingsRef = useRef<(h: HeadingItem[]) => void>(() => {});
+  const headingsDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleImportRef = useRef<(f: File) => void>(() => {});
 
   const editor = useEditor(
@@ -258,7 +259,10 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         const md = getMarkdownFromEditor(e);
         saveContent(md);
         setEditorMarkdown(md);
-        setHeadingsRef.current(extractHeadings(e));
+        if (headingsDebounceRef.current) clearTimeout(headingsDebounceRef.current);
+        headingsDebounceRef.current = setTimeout(() => {
+          setHeadingsRef.current(extractHeadings(e));
+        }, 300);
       },
       onCreate: ({ editor: e }) => {
         setHeadingsRef.current(extractHeadings(e));
@@ -275,6 +279,13 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     },
     [initialContent]
   );
+
+  // Clean up debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (headingsDebounceRef.current) clearTimeout(headingsDebounceRef.current);
+    };
+  }, []);
 
   // --- Custom hooks ---
   const {

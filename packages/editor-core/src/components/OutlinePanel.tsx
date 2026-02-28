@@ -19,7 +19,7 @@ import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 import UnfoldLessIcon from "@mui/icons-material/UnfoldLess";
 import UnfoldMoreIcon from "@mui/icons-material/UnfoldMore";
-import { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import type { HeadingItem, OutlineKind } from "../types";
 
 const blockIcon: Record<Exclude<OutlineKind, "heading">, React.ReactElement> = {
@@ -68,11 +68,15 @@ export function OutlinePanel({
   const [dropIdx, setDropIdx] = useState<number | null>(null);
 
   // heading のみのインデックスマップ (headings 配列 idx → headingOnly idx)
-  const headingOnlyIndices = headings
-    .map((h, i) => (h.kind === "heading" ? i : -1))
-    .filter((i) => i !== -1);
+  const headingOnlyIndices = useMemo(
+    () => headings.map((h, i) => (h.kind === "heading" ? i : -1)).filter((i) => i !== -1),
+    [headings]
+  );
 
-  const headingOnly = headingOnlyIndices.map((i) => headings[i]);
+  const headingOnly = useMemo(
+    () => headingOnlyIndices.map((i) => headings[i]),
+    [headingOnlyIndices, headings]
+  );
 
   const toHeadingOnlyIdx = useCallback(
     (arrIdx: number) => headingOnlyIndices.indexOf(arrIdx),
@@ -410,3 +414,5 @@ export function OutlinePanel({
     </>
   );
 }
+
+export default React.memo(OutlinePanel);
