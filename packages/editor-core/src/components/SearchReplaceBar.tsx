@@ -300,6 +300,8 @@ export function SearchReplaceBar({ editor, t }: SearchReplaceBarProps) {
       {searchTerm && (
         <Typography
           variant="caption"
+          aria-live="polite"
+          aria-atomic="true"
           sx={{
             whiteSpace: "nowrap",
             fontSize: "0.65rem",
@@ -320,6 +322,7 @@ export function SearchReplaceBar({ editor, t }: SearchReplaceBarProps) {
       <Tooltip title={t("caseSensitive")}>
         <IconButton
           size="small"
+          aria-label={t("caseSensitive")}
           onClick={() => editor.commands.toggleCaseSensitive()}
           sx={toggleBtnSx(caseSensitive)}
         >
@@ -330,6 +333,7 @@ export function SearchReplaceBar({ editor, t }: SearchReplaceBarProps) {
         <span>
           <IconButton
             size="small"
+            aria-label={t("wholeWord")}
             onClick={() => editor.commands.toggleWholeWord()}
             disabled={useRegex}
             sx={toggleBtnSx(wholeWord && !useRegex)}
@@ -341,6 +345,7 @@ export function SearchReplaceBar({ editor, t }: SearchReplaceBarProps) {
       <Tooltip title={t("regex")}>
         <IconButton
           size="small"
+          aria-label={t("regex")}
           onClick={() => editor.commands.toggleUseRegex()}
           sx={toggleBtnSx(useRegex)}
         >
