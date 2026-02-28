@@ -202,6 +202,7 @@ export function OutlinePanel({
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 0.5 }}>
             <Typography
               variant="caption"
+              component="h2"
               sx={{
                 fontWeight: 700,
                 color: theme.palette.text.secondary,

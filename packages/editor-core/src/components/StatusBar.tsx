@@ -60,22 +60,22 @@ export function StatusBar({ editor, sourceMode, sourceText, t, fileName, isDirty
     : editor.state.doc.content.childCount;
 
   return (
-    <Box role="contentinfo" aria-label={t("statusBar")} sx={{ display: "flex", alignItems: "center", gap: 2, px: 1.5, py: 0.5, borderTop: 1, borderColor: "divider" }} contentEditable={false}>
+    <Box role="contentinfo" aria-label={t("statusBar")} sx={{ display: "flex", alignItems: "center", gap: 2, px: 1.5, py: 0.75, borderTop: 1, borderColor: "divider" }} contentEditable={false}>
       <Box aria-live="polite" aria-atomic="true" sx={{ display: "contents" }}>
-        <Typography variant="caption" sx={{ color: "text.secondary" }}>
+        <Typography variant="body2" sx={{ color: "text.secondary" }}>
           {t("cursorLine")} {displayLine}
         </Typography>
-        <Typography variant="caption" sx={{ color: "text.secondary" }}>
+        <Typography variant="body2" sx={{ color: "text.secondary" }}>
           {charCount.toLocaleString()} {t("chars")}
         </Typography>
-        <Typography variant="caption" sx={{ color: "text.secondary" }}>
+        <Typography variant="body2" sx={{ color: "text.secondary" }}>
           {lineCount.toLocaleString()} {t("lines")}
         </Typography>
       </Box>
       {fileName && (
-        <Typography variant="caption" sx={{ ml: 1, color: "text.secondary" }} aria-label={isDirty ? `${fileName} (${t("unsavedChanges")})` : fileName || undefined}>
+        <Typography variant="body2" sx={{ ml: 1, color: "text.secondary" }} aria-label={isDirty ? `${fileName} (${t("unsavedChanges")})` : fileName || undefined}>
           {fileName}
-          {isDirty && <Typography component="span" variant="caption" sx={{ color: "warning.main", ml: 0.5 }}>*</Typography>}
+          {isDirty && <Typography component="span" variant="body2" sx={{ color: "warning.main", ml: 0.5 }}>*</Typography>}
         </Typography>
       )}
       <Box sx={{ flex: 1 }} />

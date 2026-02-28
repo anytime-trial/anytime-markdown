@@ -38,7 +38,7 @@ import {
 import { useEditorState } from "@tiptap/react";
 import type { Editor } from "@tiptap/react";
 
-import { useCallback, useEffect } from "react";
+import React, { useCallback, useEffect } from "react";
 import { modKey } from "../constants/shortcuts";
 import { SearchReplaceBar } from "./SearchReplaceBar";
 import type { MergeUndoRedo } from "./InlineMergeView";
@@ -108,7 +108,7 @@ interface EditorToolbarProps {
   t: (key: string) => string;
 }
 
-export function EditorToolbar({
+export const EditorToolbar = React.memo(function EditorToolbar({
   editor,
   isInDiagramBlock,
   onImage,
@@ -571,4 +571,4 @@ export function EditorToolbar({
     </Paper>
     </>
   );
-}
+});
