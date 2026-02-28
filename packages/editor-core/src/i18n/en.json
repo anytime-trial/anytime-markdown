@@ -288,7 +288,21 @@
     "mergeRight": "Secondary",
     "mergeLoadFileRight": "Upload (.md)",
     "mergeExportRight": "Download (.md)",
-    "mergeLeftEditor": "Primary"
+    "mergeLeftEditor": "Primary",
+    "textFormatMenu": "Text formatting menu",
+    "searchReplace": "Search and replace",
+    "imageToolbar": "Image toolbar",
+    "statusBar": "Status bar",
+    "unsavedChanges": "Unsaved",
+    "outlineNavigation": "Heading navigation",
+    "settingsPanel": "Settings panel",
+    "languageSelect": "Language",
+    "tableWidthSelect": "Table width",
+    "editMode": "Edit mode toggle",
+    "tableOfContents": "Table of contents",
+    "loadCompareFile": "Load compare file",
+    "exportCompareFile": "Export compare file",
+    "copiedToClipboard": "Copied to clipboard"
   },
   "Common": {
     "ok": "OK",

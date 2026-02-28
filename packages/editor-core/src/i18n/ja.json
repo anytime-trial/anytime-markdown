@@ -288,7 +288,21 @@
     "mergeRight": "セカンダリ",
     "mergeLoadFileRight": "アップロード (.md)",
     "mergeExportRight": "ダウンロード (.md)",
-    "mergeLeftEditor": "プライマリ"
+    "mergeLeftEditor": "プライマリ",
+    "textFormatMenu": "テキスト装飾メニュー",
+    "searchReplace": "検索・置換",
+    "imageToolbar": "画像ツールバー",
+    "statusBar": "ステータスバー",
+    "unsavedChanges": "未保存",
+    "outlineNavigation": "見出しナビゲーション",
+    "settingsPanel": "設定パネル",
+    "languageSelect": "言語選択",
+    "tableWidthSelect": "テーブル幅",
+    "editMode": "編集モード切替",
+    "tableOfContents": "目次",
+    "loadCompareFile": "比較ファイルを読み込む",
+    "exportCompareFile": "比較ファイルをエクスポート",
+    "copiedToClipboard": "クリップボードにコピーしました"
   },
   "Common": {
     "ok": "OK",
