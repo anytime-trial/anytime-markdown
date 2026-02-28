@@ -4,6 +4,24 @@ All notable changes to the "anytime-markdown" extension will be documented in th
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.0.5] - 2026-02-28
+
+### Added
+- 初回アクセス時にウェルカムコンテンツを表示するオンボーディング機能 (H-08)
+- アウトラインパネルの折りたたみ/展開アニメーション (L-04)
+- 検索バーをツールバーからフローティングオーバーレイに移動（VS Code スタイル）
+- スマホサイズでファイル操作ボタンをメニューに集約
+- ブラウザ/OS の言語設定による初回言語自動検出
+- ツールバーの全ボタンにキーボードショートカットをツールチップ表示
+- ヘルプダイアログにファイル操作・表示切替のショートカットカテゴリを追加
+
+### Changed
+- EditorToolbar / MarkdownEditorPage のリファクタリング: hooks・styles を分離 (M-09)
+
+### Fixed
+- 日本語翻訳の統一（文体の一貫性修正） (L-03)
+- UX・アクセシビリティの改善 (M-01〜M-05, M-08, M-10, M-12)
+
 ## [0.0.4] - 2026-02-28
 
 ### Changed
