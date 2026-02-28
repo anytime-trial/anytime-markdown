@@ -60,7 +60,7 @@ export function StatusBar({ editor, sourceMode, sourceText, t, fileName, isDirty
     : editor.state.doc.content.childCount;
 
   return (
-    <Box role="contentinfo" aria-label={t("statusBar")} sx={{ display: "flex", alignItems: "center", gap: 2, px: 1.5, py: 0.75, borderTop: 1, borderColor: "divider" }} contentEditable={false}>
+    <Box role="region" aria-label={t("statusBar")} sx={{ display: "flex", alignItems: "center", gap: 2, px: 1.5, py: 0.75, borderTop: 1, borderColor: "divider" }} contentEditable={false}>
       <Box aria-live="polite" aria-atomic="true" sx={{ display: "contents" }}>
         <Typography variant="body2" sx={{ color: "text.secondary" }}>
           {t("cursorLine")} {displayLine}

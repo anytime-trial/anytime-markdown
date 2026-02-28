@@ -118,6 +118,7 @@ export function EditorMenuPopovers({
         <Box sx={{ display: "flex", flexDirection: "column", p: 0.5 }}>
           <Tooltip title={t("mermaid")} placement="right">
             <IconButton
+              autoFocus
               size="small"
               role="menuitem"
               aria-label={t("mermaid")}
@@ -166,11 +167,12 @@ export function EditorMenuPopovers({
         slotProps={{ paper: { role: "menu", "aria-label": t("plantumlSampleMenu") } }}
       >
         <Box sx={{ display: "flex", flexDirection: "column", p: 0.5 }}>
-          {PLANTUML_SAMPLES.filter((s) => s.enabled).map((sample) => {
+          {PLANTUML_SAMPLES.filter((s) => s.enabled).map((sample, idx) => {
             const code = sample.code;
             return (
               <Tooltip key={sample.label} title={t(sample.i18nKey)} placement="right">
                 <IconButton
+                  autoFocus={idx === 0}
                   size="small"
                   role="menuitem"
                   aria-label={t(sample.i18nKey)}
