@@ -3,6 +3,8 @@ name: CI / Publish VS Code Extension
 on:
   push:
     branches: [master, develop]
+  pull_request:
+    branches: [develop, master]
 
 jobs:
   ci:
