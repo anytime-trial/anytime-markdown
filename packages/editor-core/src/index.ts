@@ -77,6 +77,7 @@ export { APP_VERSION } from './version';
 
 // Constants
 export { defaultContent } from './constants/defaultContent';
+export { welcomeContent } from './constants/welcomeContent';
 export { KEYBOARD_SHORTCUTS, isMac, modKey } from './constants/shortcuts';
 export { MERMAID_SAMPLES, PLANTUML_SAMPLES } from './constants/samples';
 export type { DiagramSample } from './constants/samples';

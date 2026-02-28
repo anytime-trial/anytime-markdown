@@ -1,5 +1,6 @@
 {
   "MarkdownEditor": {
+    "placeholder": "Start writing...",
     "edit": "Edit",
     "split": "Split",
     "preview": "Preview",

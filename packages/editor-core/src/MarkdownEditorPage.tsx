@@ -17,7 +17,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useMarkdownEditor } from "./useMarkdownEditor";
-import { defaultContent } from "./constants/defaultContent";
+import { welcomeContent } from "./constants/welcomeContent";
 import { Details, DetailsSummary } from "./detailsExtension";
 import { StatusBar } from "./components/StatusBar";
 import OutlinePanel from "./components/OutlinePanel";
@@ -120,7 +120,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     saveContent,
     downloadMarkdown,
     clearContent,
-  } = useMarkdownEditor(defaultContent);
+  } = useMarkdownEditor(welcomeContent);
 
   const { settings, updateSettings, resetSettings } = useEditorSettings();
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -151,7 +151,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         SearchReplaceExtension,
         Details,
         DetailsSummary,
-        Placeholder.configure({ placeholder: "Start writing..." }),
+        Placeholder.configure({ placeholder: t("placeholder") }),
       ],
       editorProps: {
         handleDrop: (view, event, _slice, moved) => {
