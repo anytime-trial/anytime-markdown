@@ -315,7 +315,10 @@
     "tableOfContents": "Table of contents",
     "loadCompareFile": "Load compare file",
     "exportCompareFile": "Export compare file",
-    "copiedToClipboard": "Copied to clipboard"
+    "copiedToClipboard": "Copied to clipboard",
+    "fileApiNotSupported": "This browser does not support direct file access. Use Upload/Download instead.",
+    "saveFileNoHandle": "Open a file first to use Save",
+    "resizeImage": "Resize image"
   },
   "Common": {
     "ok": "OK",

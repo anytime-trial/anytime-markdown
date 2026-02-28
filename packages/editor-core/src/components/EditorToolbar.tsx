@@ -1,4 +1,5 @@
 import AccountTreeIcon from "@mui/icons-material/AccountTree";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import ArticleIcon from "@mui/icons-material/Article";
 import CheckIcon from "@mui/icons-material/Check";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
@@ -270,7 +271,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
                   <FolderOpenIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
-              <Tooltip title={tip(t, "saveFile")}>
+              <Tooltip title={hasFileHandle ? tip(t, "saveFile") : t("saveFileNoHandle")}>
                 <span>
                   <IconButton
                     size="small"
@@ -294,6 +295,9 @@ export const EditorToolbar = React.memo(function EditorToolbar({
             </>
           ) : (
             <>
+              <Tooltip title={t("fileApiNotSupported")}>
+                <InfoOutlinedIcon sx={{ fontSize: 16, color: "text.disabled", mx: 0.25 }} />
+              </Tooltip>
               <Tooltip title={t("upload")}>
                 <IconButton
                   size="small"

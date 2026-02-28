@@ -114,6 +114,20 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
     setResizeWidth(null);
   }, [resizing, resizeWidth, updateAttributes]);
 
+  const handleResizeKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    const step = e.shiftKey ? 50 : 10;
+    const container = imgContainerRef.current;
+    if (!container) return;
+    const img = container.querySelector("img");
+    if (!img) return;
+    const currentWidth = parseInt(width, 10) || img.getBoundingClientRect().width;
+    const delta = e.key === "ArrowRight" ? step : -step;
+    const newWidth = Math.max(MIN_WIDTH, Math.round(currentWidth + delta));
+    updateAttributes({ width: `${newWidth}px` });
+  }, [width, updateAttributes]);
+
   const displayWidth = resizeWidth !== null ? `${resizeWidth}px` : width || undefined;
 
   return (
@@ -273,7 +287,14 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
             {/* Resize handle (bottom-right corner) */}
             {isSelected && (
               <Box
+                role="slider"
+                tabIndex={0}
+                aria-label={t("resizeImage")}
+                aria-valuemin={MIN_WIDTH}
+                aria-valuemax={800}
+                aria-valuenow={parseInt(width, 10) || undefined}
                 onPointerDown={handleResizePointerDown}
+                onKeyDown={handleResizeKeyDown}
                 sx={{
                   position: "absolute",
                   right: 0,
@@ -285,6 +306,7 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
                   opacity: 0.7,
                   borderTopLeftRadius: 4,
                   "&:hover": { opacity: 1 },
+                  "&:focus-visible": { opacity: 1, outline: "2px solid", outlineColor: "primary.main", outlineOffset: 1 },
                   // 三角形の視覚的ヒント
                   clipPath: "polygon(100% 0, 100% 100%, 0 100%)",
                 }}
