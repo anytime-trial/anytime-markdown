@@ -6,6 +6,9 @@ const config = {
   },
   testMatch: ["<rootDir>/src/__tests__/**/*.test.ts", "<rootDir>/src/__tests__/**/*.test.tsx"],
   moduleFileExtensions: ["ts", "tsx", "js", "jsx", "json"],
+  moduleNameMapper: {
+    "^@/(.*)$": "<rootDir>/src/$1",
+  },
 };
 
 module.exports = config;
