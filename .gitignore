@@ -13,3 +13,6 @@ docs/project-structure.md
 # Serwist
 packages/web-app/public/sw*
 packages/web-app/public/swe-worker*
+
+.agents/skills/
+skills-lock.json
