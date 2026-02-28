@@ -70,6 +70,7 @@ export type {
   HeadingItem,
   PlantUmlToolbarContextValue,
 } from './types';
+export type { FileHandle, FileOpenResult, FileSystemProvider } from './types/fileSystem';
 
 // Version
 export { APP_VERSION } from './version';
