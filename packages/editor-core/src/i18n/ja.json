@@ -315,7 +315,10 @@
     "tableOfContents": "目次",
     "loadCompareFile": "比較ファイルを読み込む",
     "exportCompareFile": "比較ファイルをエクスポート",
-    "copiedToClipboard": "クリップボードにコピーしました"
+    "copiedToClipboard": "クリップボードにコピーしました",
+    "fileApiNotSupported": "このブラウザはファイルの直接アクセスに対応していません。アップロード／ダウンロードをご利用ください。",
+    "saveFileNoHandle": "保存するにはまずファイルを開いてください",
+    "resizeImage": "画像のリサイズ"
   },
   "Common": {
     "ok": "OK",

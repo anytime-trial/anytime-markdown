@@ -54,6 +54,13 @@ html, body {
   --vscode-symbolIcon-namespaceForeground: #c586c0;
 }
 
+/* ========== Focus Visible ========== */
+a:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
 /* ========== Light Theme ========== */
 @media (prefers-color-scheme: light) {
   :root {
