@@ -60,18 +60,20 @@ export function StatusBar({ editor, sourceMode, sourceText, t, fileName, isDirty
     : editor.state.doc.content.childCount;
 
   return (
-    <Box sx={{ display: "flex", alignItems: "center", gap: 2, px: 1.5, py: 0.5, borderTop: 1, borderColor: "divider" }} contentEditable={false}>
-      <Typography variant="caption" sx={{ color: "text.secondary" }}>
-        {t("cursorLine")} {displayLine}
-      </Typography>
-      <Typography variant="caption" sx={{ color: "text.secondary" }}>
-        {charCount.toLocaleString()} {t("chars")}
-      </Typography>
-      <Typography variant="caption" sx={{ color: "text.secondary" }}>
-        {lineCount.toLocaleString()} {t("lines")}
-      </Typography>
+    <Box role="contentinfo" aria-label={t("statusBar")} sx={{ display: "flex", alignItems: "center", gap: 2, px: 1.5, py: 0.5, borderTop: 1, borderColor: "divider" }} contentEditable={false}>
+      <Box aria-live="polite" aria-atomic="true" sx={{ display: "contents" }}>
+        <Typography variant="caption" sx={{ color: "text.secondary" }}>
+          {t("cursorLine")} {displayLine}
+        </Typography>
+        <Typography variant="caption" sx={{ color: "text.secondary" }}>
+          {charCount.toLocaleString()} {t("chars")}
+        </Typography>
+        <Typography variant="caption" sx={{ color: "text.secondary" }}>
+          {lineCount.toLocaleString()} {t("lines")}
+        </Typography>
+      </Box>
       {fileName && (
-        <Typography variant="caption" sx={{ ml: 1, opacity: 0.7 }}>
+        <Typography variant="caption" sx={{ ml: 1, opacity: 0.7 }} aria-label={isDirty ? `${fileName} (${t("unsavedChanges")})` : fileName || undefined}>
           {fileName}{isDirty ? " *" : ""}
         </Typography>
       )}
