@@ -136,6 +136,7 @@ export function EditorSettingsPanel({
             step={0.1}
             size="small"
             aria-label={t("settingLineHeight")}
+            aria-valuetext={`${settings.lineHeight}x`}
           />
           <Typography variant="body2" sx={{ minWidth: 32, textAlign: "right", fontFamily: "monospace" }}>
             {settings.lineHeight.toFixed(1)}
@@ -157,6 +158,7 @@ export function EditorSettingsPanel({
             step={1}
             size="small"
             aria-label={t("settingFontSize")}
+            aria-valuetext={`${settings.fontSize}px`}
           />
           <Typography variant="body2" sx={{ minWidth: 40, textAlign: "right", fontFamily: "monospace" }}>
             {settings.fontSize}px

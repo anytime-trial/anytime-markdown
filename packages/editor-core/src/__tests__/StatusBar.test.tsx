@@ -103,8 +103,8 @@ describe("StatusBar", () => {
     expect(statusBar).toBeTruthy();
 
     // ファイル名に対応する要素がないことを確認
-    // cursorLine, chars, lines の3つのcaptionのみ
-    const captions = statusBar.querySelectorAll(".MuiTypography-caption");
-    expect(captions).toHaveLength(3);
+    // cursorLine, chars, lines の3つのbody2のみ
+    const body2s = statusBar.querySelectorAll(".MuiTypography-body2");
+    expect(body2s).toHaveLength(3);
   });
 });

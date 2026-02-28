@@ -15,7 +15,8 @@ export function useMarkdownEditor(defaultContent: string) {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       setInitialContent(saved ?? defaultContent);
-    } catch {
+    } catch (e) {
+      console.warn("Failed to read localStorage:", e);
       setInitialContent(defaultContent);
     }
     setLoading(false);
@@ -27,8 +28,12 @@ export function useMarkdownEditor(defaultContent: string) {
     timerRef.current = setTimeout(() => {
       try {
         localStorage.setItem(STORAGE_KEY, markdown);
-      } catch {
-        // silent fail
+      } catch (e) {
+        if (e instanceof DOMException && e.name === "QuotaExceededError") {
+          console.warn("localStorage quota exceeded. Content not saved.");
+        } else {
+          console.warn("Failed to save to localStorage:", e);
+        }
       }
     }, DEBOUNCE_MS);
   }, []);
@@ -50,8 +55,8 @@ export function useMarkdownEditor(defaultContent: string) {
   const clearContent = useCallback(() => {
     try {
       localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      // silent fail
+    } catch (e) {
+      console.warn("Failed to clear localStorage:", e);
     }
   }, []);
 
