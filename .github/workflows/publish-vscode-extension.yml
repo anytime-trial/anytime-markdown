@@ -43,6 +43,16 @@ jobs:
         if: steps.tag_check.outputs.exists == 'false'
         run: npx tsc --noEmit
 
+      - name: Run editor-core tests
+        if: steps.tag_check.outputs.exists == 'false'
+        run: npm test
+        working-directory: packages/editor-core
+
+      - name: Run web-app tests
+        if: steps.tag_check.outputs.exists == 'false'
+        run: npm test
+        working-directory: packages/web-app
+
       - name: Build extension
         if: steps.tag_check.outputs.exists == 'false'
         run: npm run package

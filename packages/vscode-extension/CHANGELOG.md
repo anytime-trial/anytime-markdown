@@ -4,6 +4,15 @@ All notable changes to the "anytime-markdown" extension will be documented in th
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.0.4] - 2026-02-28
+
+### Changed
+- タイトル表示と showTitle 設定を削除し、エディタ領域を拡大
+- ヘッダーの空ボックスを除去
+
+### Added
+- editor-core / web-app / vscode-extension のテストスイートを追加
+
 ## [0.0.3] - 2026-02-27
 
 ### Added

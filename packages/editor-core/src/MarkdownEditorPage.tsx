@@ -1,7 +1,6 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import EditNoteIcon from "@mui/icons-material/EditNote";
 import {
   Box,
   CircularProgress,
@@ -103,10 +102,9 @@ interface MarkdownEditorPageProps {
   themeMode?: 'light' | 'dark';
   onThemeModeChange?: (mode: 'light' | 'dark') => void;
   onLocaleChange?: (locale: string) => void;
-  iconSrc?: string;
 }
 
-export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideHelp, hideVersionInfo, onCompareModeChange, themeMode, onThemeModeChange, onLocaleChange, iconSrc }: MarkdownEditorPageProps = {}) {
+export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideHelp, hideVersionInfo, onCompareModeChange, themeMode, onThemeModeChange, onLocaleChange }: MarkdownEditorPageProps = {}) {
   const theme = useTheme();
   const t = useTranslations("MarkdownEditor");
   const locale = useLocale() as "en" | "ja";
@@ -531,47 +529,6 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
       >
         {liveMessage}
       </Box>
-      {/* Header */}
-      <Box
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          mb: 3,
-          flexWrap: "wrap",
-          gap: 2,
-        }}
-      >
-        {settings.showTitle && (
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-            {iconSrc ? (
-              <Box component="img" src={iconSrc} alt="" sx={{ width: 32, height: 32 }} />
-            ) : (
-              <EditNoteIcon sx={{ fontSize: 32, color: theme.palette.primary.main }} />
-            )}
-            <Box>
-              <Typography
-                component="h1"
-                variant="h5"
-                sx={{ fontWeight: 700, color: theme.palette.text.primary }}
-              >
-                {t("title")}
-              </Typography>
-              <Typography
-                variant="body2"
-                sx={{
-                  color: theme.palette.text.secondary,
-                  mt: 0.25,
-                  display: { xs: "none", sm: "block" },
-                }}
-              >
-                {t("subtitle")}
-              </Typography>
-            </Box>
-          </Box>
-        )}
-      </Box>
-
       {/* Toolbar */}
       <EditorToolbar
         editor={editor}

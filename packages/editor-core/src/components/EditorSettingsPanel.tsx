@@ -181,19 +181,6 @@ export function EditorSettingsPanel({
         </ToggleButtonGroup>
       </Box>
 
-      {/* Show Title */}
-      <Box sx={{ mb: 2, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary" }}>
-          {t("settingShowTitle")}
-        </Typography>
-        <Switch
-          checked={settings.showTitle}
-          onChange={(e) => updateSettings({ showTitle: e.target.checked })}
-          size="small"
-          inputProps={{ "aria-label": t("settingShowTitle") }}
-        />
-      </Box>
-
       <Divider sx={{ mb: 2 }} />
 
       {/* Reset */}

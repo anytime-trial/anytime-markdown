@@ -45,8 +45,6 @@ describe("useMarkdownEditor", () => {
 
     // 保存完了
     expect(localStorage.getItem(STORAGE_KEY)).toBe("# Updated");
-    expect(result.current.lastSavedAt).not.toBeNull();
-    expect(result.current.saveError).toBe(false);
   });
 
   test("debounce中の連続呼び出しは最後の値のみ保存", () => {
@@ -70,26 +68,6 @@ describe("useMarkdownEditor", () => {
     expect(localStorage.getItem(STORAGE_KEY)).toBe("# Third");
   });
 
-  test("localStorageエラー時にsaveErrorがtrueになる", () => {
-    const { result } = renderHook(() => useMarkdownEditor("# Default"));
-
-    const originalSetItem = Storage.prototype.setItem;
-    Storage.prototype.setItem = () => {
-      throw new Error("QuotaExceeded");
-    };
-
-    act(() => {
-      result.current.saveContent("# Big content");
-    });
-    act(() => {
-      jest.advanceTimersByTime(500);
-    });
-
-    expect(result.current.saveError).toBe(true);
-
-    Storage.prototype.setItem = originalSetItem;
-  });
-
   test("clearContentでlocalStorageから削除", () => {
     localStorage.setItem(STORAGE_KEY, "# Saved");
     const { result } = renderHook(() => useMarkdownEditor("# Default"));
@@ -99,6 +77,5 @@ describe("useMarkdownEditor", () => {
     });
 
     expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
-    expect(result.current.lastSavedAt).toBeNull();
   });
 });

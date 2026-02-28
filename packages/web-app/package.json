@@ -1,12 +1,13 @@
 {
   "name": "@anytime-markdown/web-app",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "build:static": "CAPACITOR_BUILD=true next build",
-    "start": "next start"
+    "start": "next start",
+    "test": "jest"
   },
   "dependencies": {
     "@anytime-markdown/editor-core": "*",
@@ -17,6 +18,7 @@
     "@mui/icons-material": "^7.3.7",
     "@mui/material": "^7.3.7",
     "@mui/material-nextjs": "^7.3.8",
+    "@serwist/next": "^9.5.6",
     "diff": "^8.0.3",
     "dompurify": "^3.3.1",
     "marked": "^17.0.3",
@@ -28,11 +30,17 @@
     "react-dom": "^19.2.4"
   },
   "devDependencies": {
+    "@testing-library/react": "^16.3.2",
     "@types/diff": "^7.0.2",
     "@types/dompurify": "^3.0.5",
+    "@types/jest": "^30.0.0",
     "@types/plantuml-encoder": "^1.4.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "jest": "^30.2.0",
+    "jest-environment-jsdom": "^30.2.0",
+    "serwist": "^9.5.6",
+    "ts-jest": "^29.4.6",
     "typescript": "^5.9.3"
   }
 }

@@ -25,7 +25,6 @@ export default function Page() {
       themeMode={themeMode}
       onThemeModeChange={setThemeMode}
       onLocaleChange={setLocale}
-      iconSrc="/help/camel_markdown.png"
     />
   );
 }

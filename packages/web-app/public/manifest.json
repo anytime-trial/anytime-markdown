@@ -1,0 +1,13 @@
+{
+  "name": "Anytime Markdown",
+  "short_name": "Anytime MD",
+  "description": "A rich markdown editor powered by Tiptap",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#121212",
+  "theme_color": "#121212",
+  "icons": [
+    { "src": "/icons/icon-192x192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512x512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

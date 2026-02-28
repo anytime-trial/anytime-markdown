@@ -3,6 +3,8 @@
   "compilerOptions": {
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable", "webworker"],
+    "types": ["@serwist/next/typings", "jest"],
     "plugins": [
       {
         "name": "next"
@@ -28,6 +30,7 @@
     "../editor-core/src/md.d.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "public/sw.js"
   ]
 }

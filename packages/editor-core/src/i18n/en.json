@@ -1,7 +1,5 @@
 {
   "MarkdownEditor": {
-    "title": "Anytime Markdown",
-    "subtitle": "WYSIWYG markdown editing and preview",
     "edit": "Edit",
     "split": "Split",
     "preview": "Preview",
@@ -179,7 +177,6 @@
     "settingColorDefault": "Default",
     "settingDarkMode": "Dark Mode",
     "settingLanguage": "Language",
-    "settingShowTitle": "Show Title",
     "settingReset": "Reset All to Default",
     "resetSettingsConfirm": "Reset all settings to default values?",
     "close": "Close",

@@ -82,6 +82,18 @@ VS Code 上で動作する WYSIWYG Markdown エディタ拡張機能です。Tip
 | `anytimeMarkdown.lineHeight` | number | `1.6` | 行の高さ |
 | `anytimeMarkdown.editorMaxWidth` | number | `0` | エディタの最大幅（px）。0 で制限なし |
 
+## Testing
+
+```bash
+cd packages/vscode-extension
+npm test
+```
+
+`@vscode/test-electron` により実際の VS Code インスタンスが起動し、`src/test/` 配下のテストが実行されます。
+
+- テストは `pretest` スクリプトで自動的にコンパイル・lint された後に実行されます
+- ヘッドレス CI 環境（Linux）では `xvfb-run npm test` が必要な場合があります
+
 ## Usage
 
 1. `.md` ファイルを右クリック → **"Open with Markdown Editor"** を選択
