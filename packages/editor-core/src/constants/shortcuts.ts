@@ -49,6 +49,25 @@ export const KEYBOARD_SHORTCUTS: { categoryKey: string; items: { keys: string; d
     ],
   },
   {
+    categoryKey: "shortcutFileOps",
+    items: [
+      { keys: `${modKey}+Alt+N`, descKey: "shortcutCreateNew" },
+      { keys: `${modKey}+Shift+C`, descKey: "shortcutCopy" },
+      { keys: `${modKey}+O`, descKey: "shortcutOpenFile" },
+      { keys: `${modKey}+S`, descKey: "shortcutSaveFile" },
+      { keys: `${modKey}+Shift+S`, descKey: "shortcutSaveAsFile" },
+      { keys: `${modKey}+Alt+U`, descKey: "shortcutUpload" },
+      { keys: `${modKey}+Alt+E`, descKey: "shortcutDownload" },
+    ],
+  },
+  {
+    categoryKey: "shortcutView",
+    items: [
+      { keys: `${modKey}+Alt+O`, descKey: "shortcutOutline" },
+      { keys: `${modKey}+Alt+F`, descKey: "shortcutFoldAll" },
+    ],
+  },
+  {
     categoryKey: "shortcutSearch",
     items: [
       { keys: `${modKey}+F`, descKey: "shortcutSearch" },
