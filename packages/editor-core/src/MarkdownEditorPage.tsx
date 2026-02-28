@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import {
   Box,
   CircularProgress,
+  Drawer,
   Paper,
   Typography,
   useMediaQuery,
@@ -612,7 +613,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         >
           {(leftBgGradient, leftDiffLines, onMerge, onHoverLine) => (
           <Box component="main" ref={editorContainerRef} sx={{ display: "flex", gap: 0, height: "100%" }}>
-            {outlineOpen && isLg && (
+            {outlineOpen && isMd && (
               <OutlinePanel
                 outlineWidth={outlineWidth}
                 setOutlineWidth={setOutlineWidth}
@@ -629,6 +630,31 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
                 onOutlineDelete={handleOutlineDelete}
                 t={t}
               />
+            )}
+            {!isMd && (
+              <Drawer
+                anchor="left"
+                open={outlineOpen}
+                onClose={handleToggleOutline}
+                slotProps={{ paper: { sx: { width: 280 } } }}
+              >
+                <OutlinePanel
+                  outlineWidth={280}
+                  setOutlineWidth={setOutlineWidth}
+                  editorHeight={editorHeight}
+                  headings={headings}
+                  foldedIndices={foldedIndices}
+                  hiddenByFold={hiddenByFold}
+                  foldAll={foldAll}
+                  unfoldAll={unfoldAll}
+                  toggleFold={toggleFold}
+                  handleOutlineClick={(id) => { handleOutlineClick(id); handleToggleOutline(); }}
+                  handleOutlineResizeStart={handleOutlineResizeStart}
+                  onHeadingDragEnd={handleHeadingDragEnd}
+                  onOutlineDelete={handleOutlineDelete}
+                  t={t}
+                />
+              </Drawer>
             )}
             <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
               <MergeEditorPanel
@@ -652,8 +678,8 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         </InlineMergeView>
       ) : (
       <Box component="main" ref={editorContainerRef} sx={{ display: "flex", gap: 0 }}>
-        {/* Outline panel (lg 以上のみ表示) */}
-        {outlineOpen && isLg && (
+        {/* Outline panel - side panel on lg+, drawer on smaller */}
+        {outlineOpen && isMd && (
           <OutlinePanel
             outlineWidth={outlineWidth}
             setOutlineWidth={setOutlineWidth}
@@ -670,6 +696,31 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
             onOutlineDelete={handleOutlineDelete}
             t={t}
           />
+        )}
+        {!isMd && (
+          <Drawer
+            anchor="left"
+            open={outlineOpen}
+            onClose={handleToggleOutline}
+            slotProps={{ paper: { sx: { width: 280 } } }}
+          >
+            <OutlinePanel
+              outlineWidth={280}
+              setOutlineWidth={setOutlineWidth}
+              editorHeight={editorHeight}
+              headings={headings}
+              foldedIndices={foldedIndices}
+              hiddenByFold={hiddenByFold}
+              foldAll={foldAll}
+              unfoldAll={unfoldAll}
+              toggleFold={toggleFold}
+              handleOutlineClick={(id) => { handleOutlineClick(id); handleToggleOutline(); }}
+              handleOutlineResizeStart={handleOutlineResizeStart}
+              onHeadingDragEnd={handleHeadingDragEnd}
+              onOutlineDelete={handleOutlineDelete}
+              t={t}
+            />
+          </Drawer>
         )}
 
         {/* Editor */}

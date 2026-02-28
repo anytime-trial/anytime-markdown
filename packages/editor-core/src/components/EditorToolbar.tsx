@@ -534,7 +534,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
         </Tooltip>
       )}
 
-      {/* Outline toggle (lg 以上のみ表示) */}
+      {/* Outline toggle */}
       <Tooltip title={tip(t, "outline")}>
         <span>
         <IconButton aria-label={t("outline")}
@@ -542,7 +542,6 @@ export const EditorToolbar = React.memo(function EditorToolbar({
           onClick={onToggleOutline}
           disabled={inlineMergeOpen}
           color={outlineOpen ? "primary" : "default"}
-          sx={{ display: { xs: "none", lg: "inline-flex" } }}
         >
           <ListAltIcon fontSize="small" />
         </IconButton>
