@@ -27,6 +27,7 @@ import { EditorSettingsPanel } from "./components/EditorSettingsPanel";
 import { useEditorSettings, EditorSettingsContext } from "./useEditorSettings";
 import { SearchReplaceExtension } from "./searchReplaceExtension";
 import { EditorToolbar } from "./components/EditorToolbar";
+import { SearchReplaceBar } from "./components/SearchReplaceBar";
 import { EditorMenuPopovers } from "./components/EditorMenuPopovers";
 import { EditorBubbleMenu } from "./components/EditorBubbleMenu";
 import type { MergeUndoRedo } from "./components/InlineMergeView";
@@ -731,6 +732,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         </Paper>
       ) : (
         <Box ref={editorWrapperRef} sx={{ position: "relative" }}>
+        {editor && <SearchReplaceBar editor={editor} t={t} />}
         <Paper
           id="md-editor-content"
           variant="outlined"

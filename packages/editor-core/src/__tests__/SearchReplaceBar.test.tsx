@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import { SearchReplaceBar } from "../components/SearchReplaceBar";
 
 // MUI useTheme モック
@@ -58,16 +58,32 @@ function createMockEditor(storageOverrides: Record<string, unknown> = {}) {
   } as unknown as import("@tiptap/react").Editor;
 }
 
+/** SearchReplaceBar を表示状態にする（isOpen フラグをシミュレート） */
+function openSearchBar(editor: import("@tiptap/react").Editor) {
+  act(() => {
+    editor.storage.searchReplace.isOpen = true;
+    editor.storage.searchReplace.onSearchStateChange?.();
+  });
+}
+
 describe("SearchReplaceBar", () => {
-  test("最小限のpropsでクラッシュせずレンダリングされる", () => {
+  test("isVisible=false のとき何もレンダリングしない", () => {
     const editor = createMockEditor();
     const { container } = render(<SearchReplaceBar editor={editor} t={t} />);
+    expect(container.firstChild).toBeNull();
+  });
+
+  test("openSearch でバーが表示される", () => {
+    const editor = createMockEditor();
+    const { container } = render(<SearchReplaceBar editor={editor} t={t} />);
+    openSearchBar(editor);
     expect(container.firstChild).toBeTruthy();
   });
 
   test("検索入力が正しいaria-labelで表示される", () => {
     const editor = createMockEditor();
     render(<SearchReplaceBar editor={editor} t={t} />);
+    openSearchBar(editor);
 
     const input = screen.getByLabelText("searchPlaceholder");
     expect(input).toBeTruthy();
@@ -78,6 +94,7 @@ describe("SearchReplaceBar", () => {
     jest.useFakeTimers();
     const editor = createMockEditor();
     render(<SearchReplaceBar editor={editor} t={t} />);
+    openSearchBar(editor);
 
     const input = screen.getByLabelText("searchPlaceholder");
     fireEvent.change(input, { target: { value: "hello" } });
@@ -96,6 +113,7 @@ describe("SearchReplaceBar", () => {
       currentIndex: 1,
     });
     const { container } = render(<SearchReplaceBar editor={editor} t={t} />);
+    openSearchBar(editor);
 
     // aria-live="polite" の要素を取得
     const liveRegion = container.querySelector('[aria-live="polite"]');
@@ -111,6 +129,7 @@ describe("SearchReplaceBar", () => {
       currentIndex: 0,
     });
     render(<SearchReplaceBar editor={editor} t={t} />);
+    openSearchBar(editor);
 
     // replace パネルを開くトグルボタン（最初の "replace" aria-label）
     const toggleBtn = screen.getAllByLabelText("replace")[0];
@@ -132,6 +151,7 @@ describe("SearchReplaceBar", () => {
       currentIndex: 0,
     });
     render(<SearchReplaceBar editor={editor} t={t} />);
+    openSearchBar(editor);
 
     // replace パネルを開く
     const toggleBtn = screen.getAllByLabelText("replace")[0];
@@ -150,11 +170,25 @@ describe("SearchReplaceBar", () => {
       searchTerm: "test",
     });
     render(<SearchReplaceBar editor={editor} t={t} />);
+    openSearchBar(editor);
 
     // searchTerm が "test" なので clearSearch ボタンが表示される
     const clearBtn = screen.getByLabelText("clearSearch");
     fireEvent.click(clearBtn);
 
     expect(editor.commands.setSearchTerm).toHaveBeenCalledWith("");
+  });
+
+  test("閉じるボタンをクリックするとバーが非表示になる", () => {
+    const editor = createMockEditor();
+    const { container } = render(<SearchReplaceBar editor={editor} t={t} />);
+    openSearchBar(editor);
+    expect(container.firstChild).toBeTruthy();
+
+    const closeBtn = screen.getByLabelText("close");
+    fireEvent.click(closeBtn);
+
+    expect(container.firstChild).toBeNull();
+    expect(editor.commands.closeSearch).toHaveBeenCalledTimes(1);
   });
 });
