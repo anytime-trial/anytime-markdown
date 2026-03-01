@@ -228,6 +228,19 @@ function getLineBgColor(type: DiffLine["type"], theme: Theme) {
   }
 }
 
+function getDiffLineSymbol(type: DiffLine["type"]): string {
+  switch (type) {
+    case "added":
+    case "modified-new":
+      return "+";
+    case "removed":
+    case "modified-old":
+      return "-";
+    default:
+      return " ";
+  }
+}
+
 interface MergeEditorPanelProps {
   sourceMode: boolean;
   sourceText?: string;
@@ -341,6 +354,11 @@ export function MergeEditorPanel({
     const lineNumbers = diffLines
       ? diffLines.map(dl => dl.lineNumber != null ? String(dl.lineNumber) : "").join("\n")
       : Array.from({ length: rawLineCount }, (_, i) => i + 1).join("\n");
+
+    // 差分記号列: +/-/空白
+    const diffSymbols = diffLines
+      ? diffLines.map(dl => getDiffLineSymbol(dl.type)).join("\n")
+      : null;
 
     // Build merge button map: diffLines index -> blockId (first line of each diff block only)
     const mergeButtonIndices = new Map<number, number>();
@@ -465,6 +483,31 @@ export function MergeEditorPanel({
           >
             {lineNumbers}
           </Box>
+          {/* 差分記号列 (+/-) */}
+          {diffSymbols && (
+            <Box
+              component="pre"
+              aria-hidden="true"
+              sx={{
+                width: "2ch",
+                minWidth: "2ch",
+                py: 2,
+                m: 0,
+                textAlign: "center",
+                whiteSpace: "pre",
+                fontFamily: "monospace",
+                fontSize: `${editorSettings.fontSize}px`,
+                lineHeight: editorSettings.lineHeight,
+                color: alpha(theme.palette.text.secondary, 0.6),
+                userSelect: "none",
+                overflow: "hidden",
+                boxSizing: "border-box",
+                flexShrink: 0,
+              }}
+            >
+              {diffSymbols}
+            </Box>
+          )}
 
           {/* Textarea（編集可能） */}
           <Box

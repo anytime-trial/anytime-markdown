@@ -12,6 +12,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import UnfoldLessIcon from "@mui/icons-material/UnfoldLess";
 import UnfoldMoreIcon from "@mui/icons-material/UnfoldMore";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
+import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import { useTranslations } from "next-intl";
 
 const iconSx = { fontSize: 16 };
@@ -208,7 +209,8 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
             {src?.startsWith("data:") ? "(base64)" : src ? `(${src})` : ""}
           </Typography>
           {imgError && (
-            <Typography variant="caption" sx={{ color: "error.main", fontSize: "0.65rem", fontWeight: 600, flexShrink: 0 }}>
+            <Typography variant="caption" sx={{ color: "error.main", fontSize: "0.65rem", fontWeight: 600, flexShrink: 0, display: "flex", alignItems: "center", gap: 0.25 }}>
+              <ErrorOutlineIcon sx={{ fontSize: 14 }} />
               {t("imageNotFound")}
             </Typography>
           )}

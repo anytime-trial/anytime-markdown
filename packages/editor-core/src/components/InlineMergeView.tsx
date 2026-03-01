@@ -146,6 +146,7 @@ const LinePreviewPanel = React.memo(function LinePreviewPanel({
                     : theme.palette.success.main,
                   0.35,
                 ),
+                textDecoration: highlightType === "removed" ? "line-through" : "underline",
                 borderRadius: 2,
               }
             : undefined
