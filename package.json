@@ -4,7 +4,9 @@
   "license": "MIT",
   "private": true,
   "scripts": {
-    "version:sync": "npm version --no-git-tag-version --workspaces"
+    "version:sync": "npm version --no-git-tag-version --workspaces",
+    "lint": "eslint packages/editor-core/src packages/web-app/src",
+    "lint:fix": "eslint --fix packages/editor-core/src packages/web-app/src"
   },
   "workspaces": [
     "packages/editor-core",
