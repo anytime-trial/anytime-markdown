@@ -440,7 +440,7 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: No
             )}
             {isPlantUml && plantUmlUrl && (
               <Box
-                sx={{ overflow: "hidden", bgcolor: isDark ? "grey.900" : "background.paper", cursor: "grab", "&:active": { cursor: "grabbing" } }}
+                sx={{ overflow: "hidden", bgcolor: "background.paper", cursor: "grab", "&:active": { cursor: "grabbing" } }}
                 contentEditable={false}
                 onPointerDown={normalZP.handlePointerDown}
                 onPointerMove={normalZP.handlePointerMove}
