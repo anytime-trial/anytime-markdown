@@ -16,3 +16,7 @@ packages/web-app/public/swe-worker*
 
 .agents/skills/
 skills-lock.json
+
+# Playwright
+playwright-report/
+test-results/
