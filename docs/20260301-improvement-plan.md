@@ -270,9 +270,9 @@ const HTML_SANITIZE_CONFIG = {
 ### Sprint 3（中期）: M コスト
 - H-3: CSP 段階的厳格化
 - M-4: 500行超ファイル分割
-- M-5: ESLint 設定追加
+- [x] M-5: ESLint 設定追加
 - M-7: PDF エクスポートローディング表示
-- M-8: any 型解消
+- [x] M-8: any 型解消
 
 ### Backlog（長期）
 - L-1 ~ L-15: 低優先課題
