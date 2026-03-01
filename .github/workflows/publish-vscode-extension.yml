@@ -31,6 +31,14 @@ jobs:
         run: npm test
         working-directory: packages/web-app
 
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+        working-directory: packages/web-app
+
+      - name: Run e2e tests
+        run: npm run e2e
+        working-directory: packages/web-app
+
       - name: Build extension
         run: npm run package
         working-directory: packages/vscode-extension
