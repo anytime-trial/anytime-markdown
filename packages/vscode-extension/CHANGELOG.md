@@ -4,6 +4,27 @@ All notable changes to the "anytime-markdown" extension will be documented in th
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.0.6] - 2026-03-01
+
+### Added
+- NodeView コンポーネント・MergeView hooks のユニットテスト 50 件追加 (L-08)
+- ルート jest.config.js によるモノレポテスト検出対応
+
+### Changed
+- InlineMergeView.tsx を hooks とコンポーネントに分割 (M-11)
+- MermaidNodeView.tsx を hooks とコンポーネントに分割 (M-10)
+- MarkdownEditorPage.tsx を hooks とコンポーネントに分割 (M-09)
+- OutlinePanel の JSX 重複除去とマージモードブレークポイント改善 (M-07, M-12)
+- React.memo を 6 コンポーネントに適用、TranslationFn 型統一 (M-13, M-14)
+- File System Access API の any キャストを型付きインターフェースに置換 (L-06)
+
+### Fixed
+- デフォルト値の改善と未使用 i18n キーの削除 (L-01, L-02, L-04, L-05)
+- global-error ページの i18n 対応とスタイリング (M-15)
+- not-found / error ページの追加 (L-07)
+- npm test --workspaces のエラー解消 (mobile-app, vscode-extension)
+- providers.test.tsx の window.matchMedia モック追加
+
 ## [0.0.5] - 2026-02-28
 
 ### Added
