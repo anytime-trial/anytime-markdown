@@ -10,6 +10,7 @@ export const CodeBlockWithMermaid = CodeBlock.extend({
       ...this.parent?.(),
       collapsed: { default: false, rendered: false },
       codeCollapsed: { default: true, rendered: false },
+      width: { default: null, rendered: false },
     };
   },
 

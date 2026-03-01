@@ -335,6 +335,7 @@
     "fileApiNotSupported": "This browser does not support direct file access. Use Upload/Download instead.",
     "saveFileNoHandle": "Open a file first to use Save",
     "resizeImage": "Resize image",
+    "resizeDiagram": "Resize diagram",
     "slashCommandPlaceholder": "Type to filter...",
     "slashH1": "Heading 1",
     "slashH2": "Heading 2",

@@ -335,6 +335,7 @@
     "fileApiNotSupported": "このブラウザはファイルの直接アクセスに対応していません。アップロード／ダウンロードをご利用ください。",
     "saveFileNoHandle": "保存するにはまずファイルを開いてください",
     "resizeImage": "画像のリサイズ",
+    "resizeDiagram": "ダイアグラムのリサイズ",
     "slashCommandPlaceholder": "コマンドを検索...",
     "slashH1": "見出し 1",
     "slashH2": "見出し 2",
