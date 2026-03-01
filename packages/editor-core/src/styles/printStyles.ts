@@ -9,6 +9,10 @@ import React from "react";
 export const PrintStyles: React.FC = () =>
   React.createElement(GlobalStyles, {
     styles: {
+      "@page": {
+        size: "A4",
+        margin: "15mm",
+      },
       "@media print": {
         /* === ページ全体のクリッピング解除 === */
         "html, body": {
