@@ -1,33 +1,21 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Box,
   Divider,
-  IconButton,
-  MenuItem,
-  Popover,
-  Tooltip,
 } from "@mui/material";
-import CheckBoxIcon from "@mui/icons-material/CheckBox";
-import FormatListBulletedIcon from "@mui/icons-material/FormatListBulleted";
-import FormatListNumberedIcon from "@mui/icons-material/FormatListNumbered";
-import FormatQuoteIcon from "@mui/icons-material/FormatQuote";
-import Paper from "@mui/material/Paper";
-import FormatBoldIcon from "@mui/icons-material/FormatBold";
-import FormatItalicIcon from "@mui/icons-material/FormatItalic";
-import FormatUnderlinedIcon from "@mui/icons-material/FormatUnderlined";
-import StrikethroughSIcon from "@mui/icons-material/StrikethroughS";
-import BorderColorIcon from "@mui/icons-material/BorderColor";
-import CodeIcon from "@mui/icons-material/Code";
-import InsertLinkIcon from "@mui/icons-material/InsertLink";
 import { alpha, useTheme } from "@mui/material/styles";
 import { useEditor } from "@tiptap/react";
-import { BubbleMenu } from "@tiptap/react/menus";
 import type { Editor } from "@tiptap/react";
 import { getBaseExtensions } from "../editorExtensions";
-import { computeBlockDiff } from "../extensions/diffHighlight";
 import { useMergeDiff } from "../hooks/useMergeDiff";
+import { useCodeBlockAutoCollapse } from "../hooks/useCodeBlockAutoCollapse";
+import { useDiffBackground } from "../hooks/useDiffBackground";
+import { useDiffHighlight } from "../hooks/useDiffHighlight";
+import { useScrollSync } from "../hooks/useScrollSync";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import { MergeEditorPanel } from "./MergeEditorPanel";
+import { MergeRightBubbleMenu } from "./MergeRightBubbleMenu";
+import { RightEditorBlockMenu } from "./RightEditorBlockMenu";
 import { getMarkdownFromEditor } from "../types";
 import { preserveBlankLines } from "../utils/sanitizeMarkdown";
 import { computeInlineDiff, type DiffLine, type DiffResult, type InlineSegment } from "../utils/diffEngine";
@@ -217,8 +205,6 @@ export function InlineMergeView({
   onRightFileOpsReady,
   children,
 }: InlineMergeViewProps) {
-  const theme = useTheme();
-  const settings = useEditorSettingsContext();
   const {
     rightText,
     setLeftText,
@@ -272,7 +258,6 @@ export function InlineMergeView({
     return () => document.removeEventListener('keydown', handler);
   }, [rightText]);
 
-  const isSyncingScroll = useRef(false);
   const isRightEditorUpdate = useRef(false);
   const isProgrammaticUpdate = useRef(false);
   const [, setRightMeta] = useState<FileMetadata>(DEFAULT_METADATA);
@@ -371,197 +356,13 @@ export function InlineMergeView({
     prevSourceMode.current = sourceMode;
   }, [sourceMode, rightEditor, rightText]);
 
-  // Block-level diff highlighting for WYSIWYG (preview) mode
-  useEffect(() => {
-    if (sourceMode) {
-      // ソースモードではクリア（行単位ハイライトを使用）
-      if (leftEditor && !leftEditor.isDestroyed) {
-        leftEditor.commands.clearDiffHighlight();
-      }
-      if (rightEditor && !rightEditor.isDestroyed) {
-        rightEditor.commands.clearDiffHighlight();
-      }
-      return;
-    }
-    if (!leftEditor || !rightEditor) return;
+  useDiffHighlight(sourceMode, leftEditor, rightEditor);
 
-    const updateHighlights = () => {
-      if (leftEditor.isDestroyed || rightEditor.isDestroyed) return;
-      const { left, right } = computeBlockDiff(
-        leftEditor.state.doc,
-        rightEditor.state.doc,
-      );
-      requestAnimationFrame(() => {
-        if (leftEditor.isDestroyed || rightEditor.isDestroyed) return;
-        leftEditor.commands.setDiffHighlight(left, "left");
-        rightEditor.commands.setDiffHighlight(right, "right");
-      });
-    };
+  useCodeBlockAutoCollapse(sourceMode, leftEditor, rightEditor);
 
-    updateHighlights();
-    leftEditor.on("update", updateHighlights);
-    rightEditor.on("update", updateHighlights);
+  useScrollSync(leftContainerRef, rightScrollRef);
 
-    return () => {
-      leftEditor.off("update", updateHighlights);
-      rightEditor.off("update", updateHighlights);
-      if (!leftEditor.isDestroyed) leftEditor.commands.clearDiffHighlight();
-      if (!rightEditor.isDestroyed) rightEditor.commands.clearDiffHighlight();
-    };
-  }, [sourceMode, leftEditor, rightEditor]);
-
-  // マージプレビューモード時: mermaid/plantuml を常に折りたたむ
-  useEffect(() => {
-    if (sourceMode) return;
-    const collapseIfNeeded = (ed: Editor) => {
-      if (ed.isDestroyed) return;
-      const { tr, doc } = ed.state;
-      let modified = false;
-      doc.descendants((node, pos) => {
-        if (node.type.name === "codeBlock") {
-          const lang = (node.attrs.language || "").toLowerCase();
-          if ((lang === "mermaid" || lang === "plantuml") && !node.attrs.collapsed) {
-            tr.setNodeMarkup(pos, undefined, { ...node.attrs, collapsed: true });
-            modified = true;
-          }
-        }
-      });
-      if (modified) ed.view.dispatch(tr);
-    };
-
-    const editors = [leftEditor, rightEditor].filter((e): e is Editor => !!e);
-    // 初回折りたたみ
-    for (const ed of editors) collapseIfNeeded(ed);
-
-    // 展開操作されたら再折りたたみ
-    const handlers = editors.map((ed) => {
-      const handler = () => {
-        requestAnimationFrame(() => collapseIfNeeded(ed));
-      };
-      ed.on("update", handler);
-      return () => ed.off("update", handler);
-    });
-
-    return () => { for (const off of handlers) off(); };
-  }, [sourceMode, leftEditor, rightEditor]);
-
-  // Helper: find the first scrollable child element (BFS)
-  const findScrollableChild = useCallback((container: HTMLElement): HTMLElement | null => {
-    const queue: HTMLElement[] = [container];
-    while (queue.length > 0) {
-      const el = queue.shift();
-      if (!el) continue;
-      if (el.scrollHeight > el.clientHeight + 1) {
-        const style = getComputedStyle(el);
-        if (style.overflowY === "auto" || style.overflowY === "scroll") {
-          return el;
-        }
-      }
-      for (const child of Array.from(el.children)) {
-        if (child instanceof HTMLElement) queue.push(child);
-      }
-    }
-    return null;
-  }, []);
-
-  // Left -> Right scroll sync (capture phase)
-  useEffect(() => {
-    const container = leftContainerRef.current;
-    if (!container) return;
-    const handleScroll = (e: Event) => {
-      if (isSyncingScroll.current) return;
-      const target = e.target as HTMLElement;
-      if (!target || !container.contains(target)) return;
-      isSyncingScroll.current = true;
-      requestAnimationFrame(() => {
-        const right = rightScrollRef.current;
-        if (right) {
-          const maxLeft = target.scrollHeight - target.clientHeight;
-          const ratio = maxLeft > 0 ? target.scrollTop / maxLeft : 0;
-          right.scrollTop = ratio * (right.scrollHeight - right.clientHeight);
-        }
-        isSyncingScroll.current = false;
-      });
-    };
-    container.addEventListener("scroll", handleScroll, true);
-    return () => container.removeEventListener("scroll", handleScroll, true);
-  }, []);
-
-  // Right -> Left scroll sync
-  useEffect(() => {
-    const right = rightScrollRef.current;
-    if (!right) return;
-    const handleScroll = () => {
-      if (isSyncingScroll.current) return;
-      const container = leftContainerRef.current;
-      if (!container) return;
-      isSyncingScroll.current = true;
-      requestAnimationFrame(() => {
-        const scrollable = findScrollableChild(container);
-        if (scrollable) {
-          const maxRight = right.scrollHeight - right.clientHeight;
-          const ratio = maxRight > 0 ? right.scrollTop / maxRight : 0;
-          scrollable.scrollTop = ratio * (scrollable.scrollHeight - scrollable.clientHeight);
-        }
-        isSyncingScroll.current = false;
-      });
-    };
-    right.addEventListener("scroll", handleScroll);
-    return () => right.removeEventListener("scroll", handleScroll);
-  }, [findScrollableChild]);
-
-  // Build a CSS gradient from diff lines for source-mode textarea coloring
-  const buildBgGradient = useCallback(
-    (lines: { type: string }[] | undefined) => {
-      if (!sourceMode || !lines) return "none";
-      const lineColors: (string | null)[] = [];
-      for (const line of lines) {
-        // padding行もスキップせず含める（テキストエリアに空行として表示されるため）
-        switch (line.type) {
-          case "added":
-          case "modified-new":
-            lineColors.push(alpha(theme.palette.success.main, 0.18));
-            break;
-          case "removed":
-          case "modified-old":
-            lineColors.push(alpha(theme.palette.error.main, 0.18));
-            break;
-          default:
-            lineColors.push(null);
-        }
-      }
-      if (lineColors.length === 0) return "none";
-      const runs: { color: string; count: number }[] = [];
-      for (const c of lineColors) {
-        const color = c ?? "transparent";
-        if (runs.length > 0 && runs[runs.length - 1].color === color) {
-          runs[runs.length - 1].count++;
-        } else {
-          runs.push({ color, count: 1 });
-        }
-      }
-      // editorSettings から実際の行高さを計算（px単位）
-      const lineH = settings.fontSize * settings.lineHeight;
-      const padTop = 16; // pt: 2 = 16px (MUI spacing 8px * 2)
-      const stops: string[] = [`transparent 0px`, `transparent ${padTop}px`];
-      let y = padTop;
-      for (const run of runs) {
-        stops.push(`${run.color} ${y}px`, `${run.color} ${y + run.count * lineH}px`);
-        y += run.count * lineH;
-      }
-      return `linear-gradient(to bottom, ${stops.join(", ")})`;
-    },
-    [sourceMode, theme, settings.fontSize, settings.lineHeight],
-  );
-
-  const leftBgGradient = useMemo(
-    () => buildBgGradient(diffResult?.leftLines),
-    [buildBgGradient, diffResult],
-  );
-  const rightBgGradient = useMemo(
-    () => buildBgGradient(diffResult?.rightLines),
-    [buildBgGradient, diffResult],
-  );
+  const { leftBgGradient, rightBgGradient } = useDiffBackground(diffResult, sourceMode);
 
   const loadFile = (setter: (text: string) => void, metaSetter: (meta: FileMetadata) => void) => (file: File) => {
     const reader = new FileReader();
@@ -644,211 +445,20 @@ export function InlineMergeView({
       />
 
       {/* Right editor heading/block type popover */}
-      <Popover
-        open={!!rightHeadingMenu}
-        anchorEl={rightHeadingMenu?.anchorEl}
+      <RightEditorBlockMenu
+        headingMenu={rightHeadingMenu}
         onClose={() => setRightHeadingMenu(null)}
-        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
-        transformOrigin={{ vertical: "top", horizontal: "left" }}
-      >
-        <Box sx={{ py: 0.5 }}>
-          {[
-            { level: 0, label: "Paragraph" },
-            { level: 1, label: "H1" },
-            { level: 2, label: "H2" },
-            { level: 3, label: "H3" },
-            { level: 4, label: "H4" },
-            { level: 5, label: "H5" },
-          ].map(({ level, label }) => (
-            <MenuItem
-              key={level}
-              selected={
-                rightHeadingMenu?.currentLevel === level
-                && (level !== 0 || !(rightEditor?.isActive("bulletList") || rightEditor?.isActive("orderedList") || rightEditor?.isActive("taskList") || rightEditor?.isActive("blockquote")))
-              }
-              onClick={() => {
-                if (!rightEditor || !rightHeadingMenu) return;
-                const el = rightHeadingMenu.anchorEl;
-                const inBlockquote = el.tagName.toLowerCase() === "blockquote" || !!el.closest("blockquote");
-                const parentList = el.closest("ul, ol");
-                const inTaskList = !!parentList?.getAttribute("data-type")?.includes("taskList");
-                const inBulletList = !inTaskList && parentList?.tagName.toLowerCase() === "ul";
-                const inOrderedList = parentList?.tagName.toLowerCase() === "ol";
-                rightEditor.chain().focus().setTextSelection(rightHeadingMenu.pos).run();
-                const chain = rightEditor.chain().focus();
-                if (inBulletList) chain.toggleBulletList();
-                else if (inOrderedList) chain.toggleOrderedList();
-                else if (inTaskList) chain.toggleTaskList();
-                if (inBlockquote) chain.lift("blockquote");
-                if (level === 0) {
-                  chain.setParagraph();
-                } else {
-                  chain.setHeading({ level: level as 1 | 2 | 3 | 4 | 5 });
-                }
-                chain.run();
-                setRightHeadingMenu(null);
-              }}
-              sx={{ fontSize: "0.85rem", minHeight: 36 }}
-            >
-              {label}
-            </MenuItem>
-          ))}
-          <Divider sx={{ my: 0.5 }} />
-          <MenuItem
-            onClick={() => {
-              if (!rightEditor || !rightHeadingMenu) return;
-              rightEditor.chain().focus().setTextSelection(rightHeadingMenu.pos).toggleBulletList().run();
-              setRightHeadingMenu(null);
-            }}
-            selected={rightEditor?.isActive("bulletList")}
-            sx={{ fontSize: "0.85rem", minHeight: 36, gap: 1 }}
-          >
-            <FormatListBulletedIcon sx={{ fontSize: 18 }} />
-            {t("bulletList")}
-          </MenuItem>
-          <MenuItem
-            onClick={() => {
-              if (!rightEditor || !rightHeadingMenu) return;
-              rightEditor.chain().focus().setTextSelection(rightHeadingMenu.pos).toggleOrderedList().run();
-              setRightHeadingMenu(null);
-            }}
-            selected={rightEditor?.isActive("orderedList")}
-            sx={{ fontSize: "0.85rem", minHeight: 36, gap: 1 }}
-          >
-            <FormatListNumberedIcon sx={{ fontSize: 18 }} />
-            {t("orderedList")}
-          </MenuItem>
-          <MenuItem
-            onClick={() => {
-              if (!rightEditor || !rightHeadingMenu) return;
-              rightEditor.chain().focus().setTextSelection(rightHeadingMenu.pos).toggleTaskList().run();
-              setRightHeadingMenu(null);
-            }}
-            selected={rightEditor?.isActive("taskList")}
-            sx={{ fontSize: "0.85rem", minHeight: 36, gap: 1 }}
-          >
-            <CheckBoxIcon sx={{ fontSize: 18 }} />
-            {t("taskList")}
-          </MenuItem>
-          <Divider sx={{ my: 0.5 }} />
-          <MenuItem
-            onClick={() => {
-              if (!rightEditor || !rightHeadingMenu) return;
-              rightEditor.chain().focus().setTextSelection(rightHeadingMenu.pos).toggleBlockquote().run();
-              setRightHeadingMenu(null);
-            }}
-            selected={rightEditor?.isActive("blockquote")}
-            sx={{ fontSize: "0.85rem", minHeight: 36, gap: 1 }}
-          >
-            <FormatQuoteIcon sx={{ fontSize: 18 }} />
-            {t("blockquote")}
-          </MenuItem>
-        </Box>
-      </Popover>
+        editor={rightEditor}
+        t={t}
+      />
 
       {/* BubbleMenu for right editor (text formatting) */}
-      {rightEditor && !sourceMode && (
-        <BubbleMenu
+      {rightEditor && (
+        <MergeRightBubbleMenu
           editor={rightEditor}
-          shouldShow={({ editor: e, state }) => {
-            const { selection } = state;
-            if (selection.empty) return false;
-            if (e.isActive("codeBlock")) return false;
-            return true;
-          }}
-        >
-          <Paper
-            elevation={8}
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 0.25,
-              px: 0.5,
-              py: 0.25,
-              borderRadius: 1,
-            }}
-          >
-            <Tooltip title={t("bold")}>
-              <IconButton
-                size="small"
-                onClick={() => rightEditor.chain().focus().toggleBold().run()}
-                color={rightEditor.isActive("bold") ? "primary" : "default"}
-                sx={{ p: 0.5 }}
-              >
-                <FormatBoldIcon sx={{ fontSize: 18 }} />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title={t("italic")}>
-              <IconButton
-                size="small"
-                onClick={() => rightEditor.chain().focus().toggleItalic().run()}
-                color={rightEditor.isActive("italic") ? "primary" : "default"}
-                sx={{ p: 0.5 }}
-              >
-                <FormatItalicIcon sx={{ fontSize: 18 }} />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title={t("underline")}>
-              <IconButton
-                size="small"
-                onClick={() => rightEditor.chain().focus().toggleUnderline().run()}
-                color={rightEditor.isActive("underline") ? "primary" : "default"}
-                sx={{ p: 0.5 }}
-              >
-                <FormatUnderlinedIcon sx={{ fontSize: 18 }} />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title={t("strikethrough")}>
-              <IconButton
-                size="small"
-                onClick={() => rightEditor.chain().focus().toggleStrike().run()}
-                color={rightEditor.isActive("strike") ? "primary" : "default"}
-                sx={{ p: 0.5 }}
-              >
-                <StrikethroughSIcon sx={{ fontSize: 18 }} />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title={t("highlight")}>
-              <IconButton
-                size="small"
-                onClick={() => rightEditor.chain().focus().toggleHighlight().run()}
-                color={rightEditor.isActive("highlight") ? "primary" : "default"}
-                sx={{ p: 0.5 }}
-              >
-                <BorderColorIcon sx={{ fontSize: 18 }} />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title={t("code")}>
-              <IconButton
-                size="small"
-                onClick={() => rightEditor.chain().focus().toggleCode().run()}
-                color={rightEditor.isActive("code") ? "primary" : "default"}
-                sx={{ p: 0.5 }}
-              >
-                <CodeIcon sx={{ fontSize: 18 }} />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title={t("link")}>
-              <IconButton
-                size="small"
-                onClick={() => {
-                  if (rightEditor.isActive("link")) {
-                    rightEditor.chain().focus().unsetLink().run();
-                    return;
-                  }
-                  const url = window.prompt("URL:");
-                  if (url?.trim()) {
-                    rightEditor.chain().focus().extendMarkRange("link").setLink({ href: url.trim() }).run();
-                  }
-                }}
-                color={rightEditor.isActive("link") ? "primary" : "default"}
-                sx={{ p: 0.5 }}
-              >
-                <InsertLinkIcon sx={{ fontSize: 18 }} />
-              </IconButton>
-            </Tooltip>
-          </Paper>
-        </BubbleMenu>
+          sourceMode={sourceMode}
+          t={t}
+        />
       )}
 
     </Box>
