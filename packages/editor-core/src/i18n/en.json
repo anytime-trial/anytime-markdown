@@ -333,7 +333,21 @@
     "copiedToClipboard": "Copied to clipboard",
     "fileApiNotSupported": "This browser does not support direct file access. Use Upload/Download instead.",
     "saveFileNoHandle": "Open a file first to use Save",
-    "resizeImage": "Resize image"
+    "resizeImage": "Resize image",
+    "slashCommandPlaceholder": "Type to filter...",
+    "slashH1": "Heading 1",
+    "slashH2": "Heading 2",
+    "slashH3": "Heading 3",
+    "slashBulletList": "Bullet List",
+    "slashOrderedList": "Numbered List",
+    "slashTaskList": "Task List",
+    "slashBlockquote": "Quote",
+    "slashCodeBlock": "Code Block",
+    "slashTable": "Table",
+    "slashHorizontalRule": "Divider",
+    "slashMermaid": "Mermaid Diagram",
+    "slashPlantUml": "PlantUML Diagram",
+    "slashNoResults": "No matching commands"
   },
   "Common": {
     "ok": "OK",

@@ -26,6 +26,8 @@ import { EditorToolbar } from "./components/EditorToolbar";
 import { SearchReplaceBar } from "./components/SearchReplaceBar";
 import { EditorMenuPopovers } from "./components/EditorMenuPopovers";
 import { EditorBubbleMenu } from "./components/EditorBubbleMenu";
+import { SlashCommandMenu } from "./components/SlashCommandMenu";
+import type { SlashCommandState } from "./extensions/slashCommandExtension";
 import type { MergeUndoRedo } from "./components/InlineMergeView";
 
 const InlineMergeView = dynamic(
@@ -99,11 +101,13 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   const setHeadingsRef = useRef<(h: HeadingItem[]) => void>(() => {});
   const headingsDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleImportRef = useRef<(f: File) => void>(() => {});
+  const slashCommandCallbackRef = useRef<(state: SlashCommandState) => void>(() => {});
 
   const editorConfig = useEditorConfig({
     t, initialContent, saveContent,
     editorRef, setEditorMarkdownRef, setHeadingsRef,
     headingsDebounceRef, handleImportRef, setHeadingMenu,
+    slashCommandCallbackRef,
   });
   const editor = useEditor(editorConfig, [initialContent]);
   editorRef.current = editor;
@@ -425,6 +429,11 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
       {/* BubbleMenu (text formatting) – rendered for both merge and non-merge modes */}
       {editor && !sourceMode && (
         <EditorBubbleMenu editor={editor} onLink={handleLink} t={t} />
+      )}
+
+      {/* Slash command menu */}
+      {editor && !sourceMode && (
+        <SlashCommandMenu editor={editor} t={t} slashCommandCallbackRef={slashCommandCallbackRef} />
       )}
 
       {/* Status bar */}

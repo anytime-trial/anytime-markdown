@@ -7,6 +7,8 @@ import { CustomHardBreak } from "../extensions/customHardBreak";
 import { DeleteLineExtension } from "../extensions/deleteLineExtension";
 import { SearchReplaceExtension } from "../searchReplaceExtension";
 import { Details, DetailsSummary } from "../detailsExtension";
+import { SlashCommandExtension } from "../extensions/slashCommandExtension";
+import type { SlashCommandState } from "../extensions/slashCommandExtension";
 import {
   getMarkdownFromEditor,
   extractHeadings,
@@ -29,6 +31,7 @@ interface UseEditorConfigParams {
   headingsDebounceRef: RefObject<ReturnType<typeof setTimeout> | null>;
   handleImportRef: RefObject<(file: File) => void>;
   setHeadingMenu: (menu: HeadingMenuArg) => void;
+  slashCommandCallbackRef: RefObject<(state: SlashCommandState) => void>;
 }
 
 export function useEditorConfig({
@@ -41,6 +44,7 @@ export function useEditorConfig({
   headingsDebounceRef,
   handleImportRef,
   setHeadingMenu,
+  slashCommandCallbackRef,
 }: UseEditorConfigParams) {
   // Clean up debounce timer on unmount
   useEffect(() => {
@@ -58,6 +62,9 @@ export function useEditorConfig({
       Details,
       DetailsSummary,
       Placeholder.configure({ placeholder: t("placeholder") }),
+      SlashCommandExtension.configure({
+        onStateChange: (state: SlashCommandState) => slashCommandCallbackRef.current(state),
+      }),
     ],
     editorProps: {
       handleDrop: (view: any, event: DragEvent, _slice: any, moved: boolean) => {

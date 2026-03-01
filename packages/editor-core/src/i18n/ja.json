@@ -333,7 +333,21 @@
     "copiedToClipboard": "クリップボードにコピーしました",
     "fileApiNotSupported": "このブラウザはファイルの直接アクセスに対応していません。アップロード／ダウンロードをご利用ください。",
     "saveFileNoHandle": "保存するにはまずファイルを開いてください",
-    "resizeImage": "画像のリサイズ"
+    "resizeImage": "画像のリサイズ",
+    "slashCommandPlaceholder": "コマンドを検索...",
+    "slashH1": "見出し 1",
+    "slashH2": "見出し 2",
+    "slashH3": "見出し 3",
+    "slashBulletList": "箇条書きリスト",
+    "slashOrderedList": "番号付きリスト",
+    "slashTaskList": "タスクリスト",
+    "slashBlockquote": "引用",
+    "slashCodeBlock": "コードブロック",
+    "slashTable": "テーブル",
+    "slashHorizontalRule": "区切り線",
+    "slashMermaid": "Mermaid 図",
+    "slashPlantUml": "PlantUML 図",
+    "slashNoResults": "一致するコマンドがありません"
   },
   "Common": {
     "ok": "OK",
