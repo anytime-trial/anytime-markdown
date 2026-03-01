@@ -260,7 +260,6 @@ export function InlineMergeView({
   }, [rightText]);
 
   const isRightEditorUpdate = useRef(false);
-  const isProgrammaticUpdate = useRef(false);
   const [, setRightMeta] = useState<FileMetadata>(DEFAULT_METADATA);
   const hoverSetterRef = useRef<((v: number | null) => void) | null>(null);
   const handleHoverLine = useCallback((idx: number | null) => {
@@ -312,10 +311,6 @@ export function InlineMergeView({
     },
     content: "",
     onUpdate: ({ editor: e }) => {
-      if (isProgrammaticUpdate.current) {
-        isProgrammaticUpdate.current = false;
-        return;
-      }
       isRightEditorUpdate.current = true;
       // コードブロック内の HTML エンティティを復元
       const md = splitByCodeBlocks(getMarkdownFromEditor(e))
@@ -342,9 +337,7 @@ export function InlineMergeView({
       return;
     }
     if (rightEditor && !sourceMode) {
-      isProgrammaticUpdate.current = true;
       rightEditor.commands.setContent(preserveBlankLines(rightText));
-      isProgrammaticUpdate.current = false;
     }
   }, [rightText, rightEditor, sourceMode]);
 
@@ -352,9 +345,7 @@ export function InlineMergeView({
   const prevSourceMode = useRef(sourceMode);
   useEffect(() => {
     if (prevSourceMode.current && !sourceMode && rightEditor) {
-      isProgrammaticUpdate.current = true;
       rightEditor.commands.setContent(preserveBlankLines(rightText));
-      isProgrammaticUpdate.current = false;
     }
     prevSourceMode.current = sourceMode;
   }, [sourceMode, rightEditor, rightText]);
