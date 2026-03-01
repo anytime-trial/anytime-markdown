@@ -1,0 +1,44 @@
+[
+  {
+    "label": "Form",
+    "i18nKey": "sampleHtmlForm",
+    "icon": "form",
+    "enabled": true,
+    "code": "<form style=\"max-width: 400px; margin: 0 auto; font-family: sans-serif;\">\n  <div style=\"margin-bottom: 12px;\">\n    <label style=\"display: block; margin-bottom: 4px; font-weight: bold;\">Name</label>\n    <input type=\"text\" placeholder=\"Enter your name\" style=\"width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;\" />\n  </div>\n  <div style=\"margin-bottom: 12px;\">\n    <label style=\"display: block; margin-bottom: 4px; font-weight: bold;\">Category</label>\n    <select style=\"width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;\">\n      <option>Option A</option>\n      <option>Option B</option>\n      <option>Option C</option>\n    </select>\n  </div>\n  <div style=\"margin-bottom: 12px;\">\n    <label style=\"display: block; margin-bottom: 4px; font-weight: bold;\">Message</label>\n    <textarea rows=\"3\" placeholder=\"Enter message\" style=\"width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;\"></textarea>\n  </div>\n  <button type=\"button\" style=\"padding: 10px 24px; background: #1976d2; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;\">Submit</button>\n</form>"
+  },
+  {
+    "label": "Table",
+    "i18nKey": "sampleHtmlTable",
+    "icon": "tbl",
+    "enabled": true,
+    "code": "<table style=\"width: 100%; border-collapse: collapse; font-family: sans-serif;\">\n  <thead>\n    <tr>\n      <th style=\"padding: 10px; text-align: left; border-bottom: 2px solid #1976d2; background: #e3f2fd;\">Name</th>\n      <th style=\"padding: 10px; text-align: left; border-bottom: 2px solid #1976d2; background: #e3f2fd;\">Role</th>\n      <th style=\"padding: 10px; text-align: right; border-bottom: 2px solid #1976d2; background: #e3f2fd;\">Score</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <td style=\"padding: 10px; border-bottom: 1px solid #eee;\">Alice</td>\n      <td style=\"padding: 10px; border-bottom: 1px solid #eee;\">Engineer</td>\n      <td style=\"padding: 10px; border-bottom: 1px solid #eee; text-align: right;\">92</td>\n    </tr>\n    <tr style=\"background: #fafafa;\">\n      <td style=\"padding: 10px; border-bottom: 1px solid #eee;\">Bob</td>\n      <td style=\"padding: 10px; border-bottom: 1px solid #eee;\">Designer</td>\n      <td style=\"padding: 10px; border-bottom: 1px solid #eee; text-align: right;\">87</td>\n    </tr>\n    <tr>\n      <td style=\"padding: 10px; border-bottom: 1px solid #eee;\">Carol</td>\n      <td style=\"padding: 10px; border-bottom: 1px solid #eee;\">Manager</td>\n      <td style=\"padding: 10px; border-bottom: 1px solid #eee; text-align: right;\">95</td>\n    </tr>\n  </tbody>\n</table>"
+  },
+  {
+    "label": "Card",
+    "i18nKey": "sampleHtmlCard",
+    "icon": "card",
+    "enabled": true,
+    "code": "<div style=\"max-width: 320px; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.15); font-family: sans-serif;\">\n  <div style=\"height: 160px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 48px;\">&#9733;</div>\n  <div style=\"padding: 16px;\">\n    <h3 style=\"margin: 0 0 8px 0;\">Card Title</h3>\n    <p style=\"margin: 0 0 16px 0; color: #666; font-size: 14px; line-height: 1.5;\">This is a sample card component with a gradient header, text content, and an action button.</p>\n    <button type=\"button\" style=\"padding: 8px 20px; background: #667eea; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;\">Learn More</button>\n  </div>\n</div>"
+  },
+  {
+    "label": "Navigation List",
+    "i18nKey": "sampleHtmlList",
+    "icon": "list",
+    "enabled": true,
+    "code": "<nav style=\"max-width: 260px; font-family: sans-serif;\">\n  <ul style=\"list-style: none; margin: 0; padding: 0;\">\n    <li><a href=\"#\" style=\"display: block; padding: 10px 16px; text-decoration: none; color: #1976d2; border-left: 3px solid #1976d2; background: #e3f2fd; font-weight: bold;\">Dashboard</a></li>\n    <li><a href=\"#\" style=\"display: block; padding: 10px 16px; text-decoration: none; color: #333; border-left: 3px solid transparent;\">Profile</a></li>\n    <li><a href=\"#\" style=\"display: block; padding: 10px 16px; text-decoration: none; color: #333; border-left: 3px solid transparent;\">Settings</a></li>\n    <li><a href=\"#\" style=\"display: block; padding: 10px 16px; text-decoration: none; color: #333; border-left: 3px solid transparent;\">Notifications</a></li>\n    <li><a href=\"#\" style=\"display: block; padding: 10px 16px; text-decoration: none; color: #999; border-left: 3px solid transparent;\">Logout</a></li>\n  </ul>\n</nav>"
+  },
+  {
+    "label": "Details/Summary",
+    "i18nKey": "sampleHtmlDetails",
+    "icon": "dtl",
+    "enabled": true,
+    "code": "<div style=\"max-width: 500px; font-family: sans-serif;\">\n  <details open style=\"margin-bottom: 8px; border: 1px solid #ddd; border-radius: 4px;\">\n    <summary style=\"padding: 12px 16px; cursor: pointer; font-weight: bold; background: #f5f5f5;\">What is HTML?</summary>\n    <div style=\"padding: 12px 16px; line-height: 1.6;\">HTML (HyperText Markup Language) is the standard markup language for creating web pages and web applications.</div>\n  </details>\n  <details style=\"margin-bottom: 8px; border: 1px solid #ddd; border-radius: 4px;\">\n    <summary style=\"padding: 12px 16px; cursor: pointer; font-weight: bold; background: #f5f5f5;\">What is CSS?</summary>\n    <div style=\"padding: 12px 16px; line-height: 1.6;\">CSS (Cascading Style Sheets) is used to describe the presentation of a document written in HTML.</div>\n  </details>\n  <details style=\"margin-bottom: 8px; border: 1px solid #ddd; border-radius: 4px;\">\n    <summary style=\"padding: 12px 16px; cursor: pointer; font-weight: bold; background: #f5f5f5;\">What is JavaScript?</summary>\n    <div style=\"padding: 12px 16px; line-height: 1.6;\">JavaScript is a programming language that enables interactive web pages and is an essential part of web applications.</div>\n  </details>\n</div>"
+  },
+  {
+    "label": "CSS Grid Layout",
+    "i18nKey": "sampleHtmlGrid",
+    "icon": "grid",
+    "enabled": true,
+    "code": "<div style=\"display: grid; grid-template-columns: 200px 1fr; grid-template-rows: auto 1fr auto; gap: 8px; min-height: 300px; font-family: sans-serif;\">\n  <header style=\"grid-column: 1 / -1; background: #1976d2; color: #fff; padding: 16px; text-align: center; border-radius: 4px;\">\n    <h2 style=\"margin: 0;\">Header</h2>\n  </header>\n  <nav style=\"background: #e3f2fd; padding: 16px; border-radius: 4px;\">\n    <strong>Nav</strong>\n    <ul style=\"list-style: none; padding: 0; margin: 8px 0 0 0;\">\n      <li style=\"padding: 4px 0;\">Menu 1</li>\n      <li style=\"padding: 4px 0;\">Menu 2</li>\n      <li style=\"padding: 4px 0;\">Menu 3</li>\n    </ul>\n  </nav>\n  <main style=\"background: #fafafa; padding: 16px; border-radius: 4px;\">\n    <strong>Main Content</strong>\n    <p style=\"color: #666; line-height: 1.6;\">This is the main content area using CSS Grid layout with a sidebar navigation.</p>\n  </main>\n  <footer style=\"grid-column: 1 / -1; background: #333; color: #fff; padding: 12px; text-align: center; border-radius: 4px; font-size: 14px;\">\n    Footer &copy; 2024\n  </footer>\n</div>"
+  }
+]

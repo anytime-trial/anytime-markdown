@@ -288,6 +288,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         onSwitchToWysiwyg={handleSwitchToWysiwyg}
         onSourceInsertHr={() => appendToSource("\n---\n")}
         onSourceInsertCodeBlock={() => appendToSource("\n```\n\n```\n")}
+        onSourceInsertHtmlBlock={() => appendToSource("\n```html\n\n```\n")}
         onSourceInsertTable={() => appendToSource("\n| Header | Header | Header |\n| ------ | ------ | ------ |\n|        |        |        |\n|        |        |        |\n")}
         mergeUndoRedo={inlineMergeOpen ? mergeUndoRedo : null}
         onOpenFile={handleOpenFile}

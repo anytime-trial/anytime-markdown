@@ -200,6 +200,12 @@
     "sampleComponent": "コンポーネント図",
     "sampleDeployment": "デプロイメント図",
     "sampleContent": "サンプル",
+    "sampleHtmlForm": "フォーム",
+    "sampleHtmlTable": "テーブル",
+    "sampleHtmlCard": "カード",
+    "sampleHtmlList": "ナビゲーションリスト",
+    "sampleHtmlDetails": "Details / Summary",
+    "sampleHtmlGrid": "CSS Grid レイアウト",
     "settingLightBgColor": "ライトモード背景色",
     "settingLightTextColor": "ライトモード文字色",
     "settingDarkBgColor": "ダークモード背景色",
@@ -350,7 +356,8 @@
     "slashHorizontalRule": "区切り線",
     "slashMermaid": "Mermaid 図",
     "slashPlantUml": "PlantUML 図",
-    "slashNoResults": "一致するコマンドがありません"
+    "slashNoResults": "一致するコマンドがありません",
+    "htmlPreview": "HTML"
   },
   "Common": {
     "ok": "OK",

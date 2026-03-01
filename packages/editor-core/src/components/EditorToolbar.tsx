@@ -23,6 +23,7 @@ import UndoIcon from "@mui/icons-material/Undo";
 import UnfoldLessIcon from "@mui/icons-material/UnfoldLess";
 import UnfoldMoreIcon from "@mui/icons-material/UnfoldMore";
 import CodeIcon from "@mui/icons-material/Code";
+import WebAssetIcon from "@mui/icons-material/WebAsset";
 import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
 import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
 import SettingsIcon from "@mui/icons-material/Settings";
@@ -105,6 +106,7 @@ interface EditorToolbarProps {
   onSwitchToWysiwyg: () => void;
   onSourceInsertHr?: () => void;
   onSourceInsertCodeBlock?: () => void;
+  onSourceInsertHtmlBlock?: () => void;
   onSourceInsertTable?: () => void;
   mergeUndoRedo?: MergeUndoRedo | null;
   hideFileOps?: boolean;
@@ -146,6 +148,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
   onSwitchToWysiwyg,
   onSourceInsertHr,
   onSourceInsertCodeBlock,
+  onSourceInsertHtmlBlock,
   onSourceInsertTable,
   mergeUndoRedo,
   hideFileOps,
@@ -457,6 +460,16 @@ export const EditorToolbar = React.memo(function EditorToolbar({
         </MenuItem>
         <MenuItem
           onClick={() => {
+            sourceMode ? onSourceInsertHtmlBlock?.() : editor?.chain().focus().setCodeBlock({ language: "html" }).run();
+            setPartsMenuAnchorEl(null);
+          }}
+          disabled={isInDiagramBlock || editorState?.isInDiagramCode || inlineMergeOpen}
+        >
+          <ListItemIcon><WebAssetIcon fontSize="small" /></ListItemIcon>
+          <ListItemText>{t("htmlPreview")}</ListItemText>
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
             setPartsMenuAnchorEl(null);
             if (partsMenuRef.current) onSetDiagramAnchor(partsMenuRef.current);
           }}
@@ -498,6 +511,11 @@ export const EditorToolbar = React.memo(function EditorToolbar({
         <ToggleButton value="codeBlock" onClick={() => sourceMode ? onSourceInsertCodeBlock?.() : editor?.chain().focus().toggleCodeBlock().run()} aria-label={t("codeBlock")} disabled={isInDiagramBlock || editorState?.isInDiagramCode || inlineMergeOpen} sx={{ px: 0.75, py: 0.25 }}>
           <Tooltip title={tip(t, "codeBlock")}>
             <span style={{ display: "inline-flex" }}><TerminalIcon fontSize="small" /></span>
+          </Tooltip>
+        </ToggleButton>
+        <ToggleButton value="htmlBlock" onClick={() => sourceMode ? onSourceInsertHtmlBlock?.() : editor?.chain().focus().setCodeBlock({ language: "html" }).run()} aria-label={t("htmlPreview")} disabled={isInDiagramBlock || editorState?.isInDiagramCode || inlineMergeOpen} sx={{ px: 0.75, py: 0.25 }}>
+          <Tooltip title={t("htmlPreview")}>
+            <span style={{ display: "inline-flex" }}><WebAssetIcon fontSize="small" /></span>
           </Tooltip>
         </ToggleButton>
         <ToggleButton value="diagram" onClick={(e) => onSetDiagramAnchor(e.currentTarget)} aria-label={t("insertDiagram")} disabled={isInDiagramBlock || editorState?.isInDiagramCode || inlineMergeOpen} sx={{ px: 0.75, py: 0.25 }}>

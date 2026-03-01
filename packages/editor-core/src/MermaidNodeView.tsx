@@ -24,11 +24,18 @@ import { useDiagramCapture } from "./hooks/useDiagramCapture";
 import { CodeBlockFullscreenDialog } from "./components/CodeBlockFullscreenDialog";
 import { DiagramFullscreenDialog } from "./components/DiagramFullscreenDialog";
 import { MermaidSamplePopover } from "./components/MermaidSamplePopover";
+import { HtmlSamplePopover } from "./components/HtmlSamplePopover";
 import { useZoomPan } from "./hooks/useZoomPan";
 import { useDiagramResize } from "./hooks/useDiagramResize";
 import { useTextareaSearch } from "./hooks/useTextareaSearch";
 
 const pumlIconSx = { fontSize: 16 };
+
+const HTML_SANITIZE_CONFIG = {
+  FORBID_TAGS: ["script", "iframe", "object", "embed", "style", "link", "meta", "base"],
+  FORBID_ATTR: ["onerror", "onload", "onclick", "onmouseover", "onfocus", "onblur"],
+  ALLOW_DATA_ATTR: false,
+};
 
 export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: NodeViewProps) {
   const theme = useTheme();
@@ -37,6 +44,7 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: No
   const language = node.attrs.language;
   const isMermaid = language === "mermaid";
   const isPlantUml = language === "plantuml";
+  const isHtml = language === "html";
   const isDiagram = isMermaid || isPlantUml;
   const settings = useEditorSettingsContext();
   const { setSampleAnchorEl } = usePlantUmlToolbar();
@@ -44,8 +52,9 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: No
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const allCollapsed = !!node.attrs.collapsed;
   const codeCollapsed = !!node.attrs.codeCollapsed;
-  const toggleAllCollapsed = useCallback(() => updateAttributes({ collapsed: !allCollapsed }), [allCollapsed, updateAttributes]);
+  const toggleAllCollapsed = useCallback(() => updateAttributes(allCollapsed ? { collapsed: false, codeCollapsed: false } : { collapsed: true }), [allCollapsed, updateAttributes]);
   const [mermaidSampleAnchorEl, setMermaidSampleAnchorEl] = useState<HTMLElement | null>(null);
+  const [htmlSampleAnchorEl, setHtmlSampleAnchorEl] = useState<HTMLElement | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [fsCodeVisible, setFsCodeVisible] = useState(true);
   const [fsCode, setFsCode] = useState("");
@@ -166,6 +175,138 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: No
     const to = pos + node.nodeSize;
     editor.chain().focus().command(({ tr }) => { tr.delete(from, to); return true; }).run();
   }, [editor, getPos, node.nodeSize]);
+
+  // HTML preview block
+  if (isHtml) {
+    return (
+      <NodeViewWrapper>
+        <Box sx={{
+          border: 1, borderRadius: 1, overflow: "hidden", my: 1,
+          borderColor: (allCollapsed || isSelected) ? "divider" : "transparent",
+          ...(!allCollapsed && !isSelected && {
+            "& > [data-block-toolbar]": {
+              maxHeight: 0, opacity: 0, py: 0, overflow: "hidden",
+            },
+          }),
+        }}>
+          <Box
+            data-block-toolbar=""
+            sx={{ bgcolor: "action.hover", px: 0.75, py: 0.25, display: "flex", alignItems: "center", gap: 0.25 }}
+            contentEditable={false}
+          >
+            {/* Drag handle */}
+            <Box
+              data-drag-handle=""
+              sx={{ cursor: "grab", display: "flex", alignItems: "center", opacity: 0.5, "&:hover": { opacity: 1 } }}
+            >
+              <DragIndicatorIcon sx={{ fontSize: 16, color: "text.secondary" }} />
+            </Box>
+            {/* Collapse/Expand */}
+            <Tooltip title={allCollapsed ? t("unfoldAll") : t("foldAll")} placement="top">
+              <IconButton size="small" sx={{ p: 0.25 }} onClick={toggleAllCollapsed} aria-label={allCollapsed ? t("unfoldAll") : t("foldAll")}>
+                {allCollapsed ? <UnfoldMoreIcon sx={{ fontSize: 16, color: "text.secondary" }} /> : <UnfoldLessIcon sx={{ fontSize: 16, color: "text.secondary" }} />}
+              </IconButton>
+            </Tooltip>
+            {/* Fullscreen */}
+            {!allCollapsed && (
+              <Tooltip title={t("fullscreen")} placement="top">
+                <IconButton size="small" sx={{ p: 0.25 }} onClick={() => setFullscreen(true)} aria-label={t("fullscreen")}>
+                  <FullscreenIcon sx={{ fontSize: 16, color: "text.secondary" }} />
+                </IconButton>
+              </Tooltip>
+            )}
+            {/* Label */}
+            <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary" }}>
+              {t("htmlPreview")}
+            </Typography>
+            {/* HTML サンプル挿入 */}
+            {!allCollapsed && (<>
+              <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
+              <Tooltip title={t("insertSample")} placement="top">
+                <IconButton size="small" sx={{ p: 0.25 }} onClick={(e) => setHtmlSampleAnchorEl(e.currentTarget)} aria-label={t("insertSample")}>
+                  <SchemaIcon sx={{ fontSize: 16, color: "text.secondary" }} />
+                </IconButton>
+              </Tooltip>
+              <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
+            </>)}
+
+            <Box sx={{ flex: 1 }} />
+
+            {!allCollapsed && (<>
+              <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
+
+              {/* Copy code */}
+              <Tooltip title={t("copyCode")} placement="top">
+                <IconButton size="small" sx={{ p: 0.25 }} onClick={handleCopyCode} aria-label={t("copyCode")}>
+                  <ContentCopyIcon sx={{ fontSize: 16, color: "text.secondary" }} />
+                </IconButton>
+              </Tooltip>
+
+              {/* Delete */}
+              <Tooltip title={t("delete")} placement="top">
+                <IconButton size="small" sx={{ p: 0.25 }} onClick={() => setDeleteDialogOpen(true)} aria-label={t("delete")}>
+                  <DeleteOutlineIcon sx={{ fontSize: 16 }} />
+                </IconButton>
+              </Tooltip>
+            </>)}
+          </Box>
+          {/* Code editor with collapse support */}
+          <Box
+            component="pre"
+            spellCheck={false}
+            sx={allCollapsed
+              ? { position: "absolute", width: 0, height: 0, overflow: "hidden", opacity: 0, pointerEvents: "none" }
+              : {
+                  m: 0, p: 1.5, fontSize: `${settings.fontSize}px`, lineHeight: settings.lineHeight, bgcolor: isDark ? "grey.900" : "grey.50",
+                  maxHeight: codeCollapsed ? 0 : 200, overflow: codeCollapsed ? "hidden" : "auto",
+                  py: codeCollapsed ? 0 : 1.5, px: codeCollapsed ? 0 : 1.5,
+                  opacity: codeCollapsed ? 0 : 1, transition: "max-height 0.2s, padding 0.2s, opacity 0.15s",
+                  "@media (prefers-reduced-motion: reduce)": { transition: "none" },
+                }
+            }
+          >
+            {/* @ts-expect-error Tiptap NodeViewContent as prop type is too restrictive */}
+            <NodeViewContent as="code" />
+          </Box>
+          {/* HTML Preview */}
+          {!allCollapsed && (
+            <Box
+              contentEditable={false}
+              onClick={selectNode}
+              sx={{ p: 2, bgcolor: "background.paper", borderTop: 1, borderColor: "divider", overflow: "auto", maxHeight: 400, "& img": { maxWidth: "100%" } }}
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(code, HTML_SANITIZE_CONFIG) }}
+            />
+          )}
+        </Box>
+        {/* Fullscreen dialog */}
+        <CodeBlockFullscreenDialog
+          open={fullscreen}
+          onClose={() => { fsSearch.reset(); setFullscreen(false); }}
+          label={t("htmlPreview")}
+          fsCode={fsCode}
+          onFsCodeChange={handleFsCodeChange}
+          fsTextareaRef={fsTextareaRef}
+          fsSearch={fsSearch}
+          t={t}
+        />
+        <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
+          <DialogTitle>{t("delete")}</DialogTitle>
+          <DialogContent><Typography>{t("clearConfirm")}</Typography></DialogContent>
+          <DialogActions>
+            <Button onClick={() => setDeleteDialogOpen(false)}>{t("cancel")}</Button>
+            <Button color="error" variant="contained" onClick={() => { setDeleteDialogOpen(false); handleDeleteBlock(); }}>{t("delete")}</Button>
+          </DialogActions>
+        </Dialog>
+        {/* HTML サンプル選択 Popover */}
+        <HtmlSamplePopover
+          anchorEl={htmlSampleAnchorEl}
+          onClose={() => setHtmlSampleAnchorEl(null)}
+          editor={editor}
+          t={t}
+        />
+      </NodeViewWrapper>
+    );
+  }
 
   // Regular code block
   if (!isDiagram) {

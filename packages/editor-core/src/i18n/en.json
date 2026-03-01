@@ -200,6 +200,12 @@
     "sampleComponent": "Component",
     "sampleDeployment": "Deployment",
     "sampleContent": "Sample",
+    "sampleHtmlForm": "Form",
+    "sampleHtmlTable": "Table",
+    "sampleHtmlCard": "Card",
+    "sampleHtmlList": "Navigation List",
+    "sampleHtmlDetails": "Details / Summary",
+    "sampleHtmlGrid": "CSS Grid Layout",
     "settingLightBgColor": "Light mode background color",
     "settingLightTextColor": "Light mode text color",
     "settingDarkBgColor": "Dark mode background color",
@@ -350,7 +356,8 @@
     "slashHorizontalRule": "Divider",
     "slashMermaid": "Mermaid Diagram",
     "slashPlantUml": "PlantUML Diagram",
-    "slashNoResults": "No matching commands"
+    "slashNoResults": "No matching commands",
+    "htmlPreview": "HTML"
   },
   "Common": {
     "ok": "OK",
