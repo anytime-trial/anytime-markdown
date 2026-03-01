@@ -53,7 +53,7 @@ export function LocaleProvider({ serverLocale, children }: LocaleProviderProps) 
 
   return (
     <LocaleContext.Provider value={ctx}>
-      <NextIntlClientProvider locale={locale} messages={messages[locale]}>
+      <NextIntlClientProvider locale={locale} messages={messages[locale]} timeZone="UTC">
         {children}
       </NextIntlClientProvider>
     </LocaleContext.Provider>
