@@ -128,9 +128,13 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: No
   useEffect(() => {
     const container = diagramResize.containerRef.current;
     if (!container) { setDiagramSize(null); return; }
+    const diagramType = isMermaid ? "Mermaid" : isPlantUml ? "PlantUML" : "Diagram";
     const update = () => {
       const rect = container.getBoundingClientRect();
-      setDiagramSize({ w: Math.round(rect.width), h: Math.round(rect.height) });
+      const w = Math.round(rect.width);
+      const h = Math.round(rect.height);
+      console.log(`[${diagramType}] size: ${w}x${h}px`);
+      setDiagramSize({ w, h });
     };
     update();
     const ro = new ResizeObserver(update);
