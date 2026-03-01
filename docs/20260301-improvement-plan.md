@@ -259,13 +259,13 @@ const HTML_SANITIZE_CONFIG = {
 - [x] M-11: package.json license フィールド追加
 - [x] M-12: PlantUML img referrerPolicy 追加
 
-### Sprint 2（短期）: S コスト
-- H-1: 通知システム導入
-- H-2: LICENSE + サードパーティライセンス表示
-- H-5: 全画面フォーカストラップ
-- H-6: 色のみ依存解消
-- M-2: ARIA 一貫性確保
-- M-3: i18n ギャップ解消
+### Sprint 2（短期）: S コスト [完了]
+- [x] H-1: 通知システム導入
+- [x] H-2: LICENSE + サードパーティライセンス表示
+- [x] H-5: 全画面フォーカストラップ
+- [x] H-6: 色のみ依存解消
+- [x] M-2: ARIA 一貫性確保
+- [x] M-3: i18n ギャップ解消
 
 ### Sprint 3（中期）: M コスト
 - H-3: CSP 段階的厳格化
