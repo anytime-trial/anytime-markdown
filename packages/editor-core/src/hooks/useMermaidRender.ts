@@ -60,6 +60,7 @@ export function useMermaidRender({ code, isMermaid, isDark }: UseMermaidRenderPa
         startOnLoad: false,
         suppressErrorRendering: true,
         theme: isDark ? "dark" : "default",
+        securityLevel: "strict",
       });
 
       try {
