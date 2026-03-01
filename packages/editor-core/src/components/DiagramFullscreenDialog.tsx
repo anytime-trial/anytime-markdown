@@ -192,7 +192,7 @@ export function DiagramFullscreenDialog({
         >
           <Box sx={{ width: "100%", height: "100%", display: "flex", justifyContent: "center", alignItems: "center", transform: `translate(${fsZP.pan.x}px, ${fsZP.pan.y}px) scale(${fsZP.zoom})`, transformOrigin: "center center", transition: fsZP.isPanningRef.current ? "none" : "transform 0.15s", "@media (prefers-reduced-motion: reduce)": { transition: "none" }, pointerEvents: "none" }}>
             {isMermaid && svg && (
-              <Box role="img" aria-label={t(detectMermaidType(code))} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(svg, SVG_SANITIZE_CONFIG) }} />
+              <Box role="img" aria-label={t(detectMermaidType(code))} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(svg, SVG_SANITIZE_CONFIG) }} sx={{ width: "100%", "& svg": { width: "100%", height: "auto" } }} />
             )}
             {isPlantUml && plantUmlUrl && (
               // eslint-disable-next-line @next/next/no-img-element
