@@ -196,7 +196,7 @@ export function DiagramFullscreenDialog({
             )}
             {isPlantUml && plantUmlUrl && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={plantUmlUrl} alt={t("plantUmlDiagram")} style={{ maxWidth: "90vw", maxHeight: "85vh" }} />
+              <img src={plantUmlUrl} alt={t("plantUmlDiagram")} referrerPolicy="no-referrer" style={{ maxWidth: "90vw", maxHeight: "85vh" }} />
             )}
           </Box>
         </Box>

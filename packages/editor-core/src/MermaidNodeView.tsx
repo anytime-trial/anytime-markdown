@@ -627,7 +627,7 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: No
               >
                 <Box sx={{ p: 2, display: "flex", justifyContent: "flex-start", zoom: diagramScale, transform: `translate(${normalZP.pan.x}px, ${normalZP.pan.y}px) scale(${normalZP.zoom})`, transformOrigin: "top left", transition: normalZP.isPanningRef.current ? "none" : "transform 0.15s", "@media (prefers-reduced-motion: reduce)": { transition: "none" }, pointerEvents: "none" }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={plantUmlUrl} alt={t("plantUmlDiagram")} style={{ maxWidth: "100%", height: "auto" }} />
+                  <img src={plantUmlUrl} alt={t("plantUmlDiagram")} referrerPolicy="no-referrer" style={{ maxWidth: "100%", height: "auto" }} />
                 </Box>
                 {isSelected && (
                   <Box
