@@ -6,7 +6,7 @@ import { getMarkdownFromEditor } from "../types";
 interface UseMergeModeParams {
   editor: Editor | null;
   sourceMode: boolean;
-  isLg: boolean;
+  isMd: boolean;
   outlineOpen: boolean;
   handleToggleOutline: () => void;
   onCompareModeChange?: (open: boolean) => void;
@@ -15,7 +15,7 @@ interface UseMergeModeParams {
 }
 
 export function useMergeMode({
-  editor, sourceMode, isLg, outlineOpen, handleToggleOutline,
+  editor, sourceMode, isMd, outlineOpen, handleToggleOutline,
   onCompareModeChange, t, setLiveMessage,
 }: UseMergeModeParams) {
   const [inlineMergeOpen, setInlineMergeOpen] = useState(false);
@@ -29,7 +29,7 @@ export function useMergeMode({
       setInlineMergeOpen(false);
       setLiveMessage(t("switchedToNormal"));
     } else {
-      if (!isLg) return;
+      if (!isMd) return;
       if (outlineOpen) handleToggleOutline();
       if (!sourceMode && editor) {
         setEditorMarkdown(getMarkdownFromEditor(editor));
@@ -37,7 +37,7 @@ export function useMergeMode({
       setInlineMergeOpen(true);
       setLiveMessage(t("switchedToCompare"));
     }
-  }, [sourceMode, editor, inlineMergeOpen, isLg, outlineOpen, handleToggleOutline, t, setLiveMessage]);
+  }, [sourceMode, editor, inlineMergeOpen, isMd, outlineOpen, handleToggleOutline, t, setLiveMessage]);
 
   // マージモードが閉じたときにデコレーションをクリア
   useEffect(() => {
@@ -69,10 +69,10 @@ export function useMergeMode({
 
   // 画面が小さくなったら比較モードを自動で閉じる
   useEffect(() => {
-    if (!isLg && inlineMergeOpen) {
+    if (!isMd && inlineMergeOpen) {
       setInlineMergeOpen(false);
     }
-  }, [isLg, inlineMergeOpen]);
+  }, [isMd, inlineMergeOpen]);
 
   return {
     inlineMergeOpen, setInlineMergeOpen,

@@ -10,6 +10,7 @@ import { IconButton, Paper, Tooltip } from "@mui/material";
 import type { Editor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import { modKey } from "../constants/shortcuts";
+import type { TranslationFn } from "../types";
 
 /** ツールチップキー → ショートカットキー表示マッピング */
 const TOOLTIP_SHORTCUTS: Record<string, string> = {
@@ -23,7 +24,7 @@ const TOOLTIP_SHORTCUTS: Record<string, string> = {
 };
 
 /** ツールチップにショートカットキーを付加 */
-function tip(t: (key: string) => string, key: string): string {
+function tip(t: TranslationFn, key: string): string {
   const shortcut = TOOLTIP_SHORTCUTS[key];
   return shortcut ? `${t(key)}  (${shortcut})` : t(key);
 }
@@ -31,10 +32,10 @@ function tip(t: (key: string) => string, key: string): string {
 interface EditorBubbleMenuProps {
   editor: Editor;
   onLink: () => void;
-  t: (key: string) => string;
+  t: TranslationFn;
 }
 
-export function EditorBubbleMenu({ editor, onLink, t }: EditorBubbleMenuProps) {
+export const EditorBubbleMenu = React.memo(function EditorBubbleMenu({ editor, onLink, t }: EditorBubbleMenuProps) {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
     e.preventDefault();
@@ -155,4 +156,4 @@ export function EditorBubbleMenu({ editor, onLink, t }: EditorBubbleMenuProps) {
       </Paper>
     </BubbleMenu>
   );
-}
+});

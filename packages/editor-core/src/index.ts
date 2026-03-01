@@ -87,7 +87,7 @@ export type { MarkdownTemplate } from './constants/templates';
 // Utils
 export { computeDiff, computeInlineDiff, applyMerge } from './utils/diffEngine';
 export type { DiffBlock, DiffLine, DiffResult, DiffOptions, InlineSegment } from './utils/diffEngine';
-export { sanitizeMarkdown } from './utils/sanitizeMarkdown';
+export { sanitizeMarkdown, preserveBlankLines, restoreBlankLines } from './utils/sanitizeMarkdown';
 export { getSectionRange, moveHeadingSection } from './utils/sectionHelpers';
 export { moveTableRow, moveTableColumn } from './utils/tableHelpers';
 export { PLANTUML_SERVER, PLANTUML_CONSENT_KEY, PLANTUML_DARK_SKINPARAMS } from './utils/plantumlHelpers';

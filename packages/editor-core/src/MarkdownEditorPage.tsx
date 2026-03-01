@@ -9,23 +9,19 @@ import {
   useMediaQuery,
   useTheme,
 } from "@mui/material";
-import { alpha } from "@mui/material/styles";
 import { getEditorPaperSx } from "./styles/editorStyles";
 import { useEditor, EditorContent } from "@tiptap/react";
-import Placeholder from "@tiptap/extension-placeholder";
-import { getBaseExtensions } from "./editorExtensions";
 import { useLocale, useTranslations } from "next-intl";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef } from "react";
 
 import { useMarkdownEditor } from "./useMarkdownEditor";
 import { welcomeContent } from "./constants/welcomeContent";
-import { Details, DetailsSummary } from "./detailsExtension";
+import { EditorOutlineSection } from "./components/EditorOutlineSection";
+import { SourceModeEditor } from "./components/SourceModeEditor";
 import { StatusBar } from "./components/StatusBar";
-import OutlinePanel from "./components/OutlinePanel";
 import { EditorDialogs } from "./components/EditorDialogs";
 import { EditorSettingsPanel } from "./components/EditorSettingsPanel";
 import { useEditorSettings, EditorSettingsContext } from "./useEditorSettings";
-import { SearchReplaceExtension } from "./searchReplaceExtension";
 import { EditorToolbar } from "./components/EditorToolbar";
 import { SearchReplaceBar } from "./components/SearchReplaceBar";
 import { EditorMenuPopovers } from "./components/EditorMenuPopovers";
@@ -38,11 +34,8 @@ const InlineMergeView = dynamic(
 );
 import { MergeEditorPanel } from "./components/MergeEditorPanel";
 import type { Editor } from "@tiptap/react";
-import { CustomHardBreak } from "./extensions/customHardBreak";
-import { DeleteLineExtension } from "./extensions/deleteLineExtension";
 import {
-  getMarkdownFromEditor,
-  type HeadingItem, extractHeadings,
+  type HeadingItem,
   PlantUmlToolbarContext,
 } from "./types";
 import type { MarkdownTemplate } from "./constants/templates";
@@ -55,49 +48,11 @@ import { useEditorMenuState } from "./hooks/useEditorMenuState";
 import { useEditorHeight } from "./hooks/useEditorHeight";
 import { useMergeMode } from "./hooks/useMergeMode";
 import { useEditorShortcuts } from "./hooks/useEditorShortcuts";
+import { useFloatingToolbar } from "./hooks/useFloatingToolbar";
+import { useEditorBlockActions } from "./hooks/useEditorBlockActions";
+import { useEditorConfig } from "./hooks/useEditorConfig";
+import { useEditorSideEffects } from "./hooks/useEditorSideEffects";
 import type { FileSystemProvider } from "./types/fileSystem";
-
-
-// Floating toolbar position hook (M-5: shared logic for table/plantuml/mermaid)
-function useFloatingToolbar(
-  editor: Editor | null,
-  wrapperRef: React.RefObject<HTMLDivElement | null>,
-  nodeType: string,
-  language?: string,
-): { top: number; left: number } | null {
-  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
-
-  useEffect(() => {
-    if (!editor) { setPosition(null); return; }
-    const update = () => {
-      if (!wrapperRef.current) { setPosition(null); return; }
-      const { $from } = editor.state.selection;
-      let depth = $from.depth;
-      let found = false;
-      while (depth > 0) {
-        const node = $from.node(depth);
-        if (node.type.name === nodeType && (!language || node.attrs.language === language)) {
-          found = true;
-          break;
-        }
-        depth--;
-      }
-      if (!found) { setPosition(null); return; }
-      const blockStart = $from.before(depth);
-      const dom = editor.view.nodeDOM(blockStart);
-      if (!(dom instanceof HTMLElement)) { setPosition(null); return; }
-      const rect = dom.getBoundingClientRect();
-      const wrapperRect = wrapperRef.current.getBoundingClientRect();
-      setPosition({ top: rect.top - wrapperRect.top - 36, left: rect.right - wrapperRect.left });
-    };
-    editor.on("selectionUpdate", update);
-    editor.on("update", update);
-    update();
-    return () => { editor.off("selectionUpdate", update); editor.off("update", update); };
-  }, [editor, wrapperRef, nodeType, language]);
-
-  return position;
-}
 
 
 interface MarkdownEditorPageProps {
@@ -119,7 +74,6 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   const locale = useLocale() as "en" | "ja";
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const isMd = useMediaQuery(theme.breakpoints.up("md"));
-  const isLg = useMediaQuery(theme.breakpoints.up("lg"));
   const {
     initialContent,
     loading,
@@ -140,154 +94,19 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   const editorWrapperRef = useRef<HTMLDivElement>(null);
 
   // Refs for callbacks used in useEditor config (avoids stale closures)
+  const editorRef = useRef<Editor | null>(null);
+  const setEditorMarkdownRef = useRef<(md: string) => void>(() => {});
   const setHeadingsRef = useRef<(h: HeadingItem[]) => void>(() => {});
   const headingsDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleImportRef = useRef<(f: File) => void>(() => {});
 
-  const editor = useEditor(
-    {
-      extensions: [
-        ...getBaseExtensions(),
-        CustomHardBreak,
-        DeleteLineExtension,
-        SearchReplaceExtension,
-        Details,
-        DetailsSummary,
-        Placeholder.configure({ placeholder: t("placeholder") }),
-      ],
-      editorProps: {
-        handleDrop: (view, event, _slice, moved) => {
-          if (moved || !event.dataTransfer?.files.length) return false;
-          const mdFile = Array.from(event.dataTransfer.files).find((f) => f.name.endsWith(".md") || f.type === "text/markdown");
-          if (mdFile) { event.preventDefault(); handleImportRef.current(mdFile); return true; }
-          const images = Array.from(event.dataTransfer.files).filter((f) => f.type.startsWith("image/"));
-          if (!images.length) return false;
-          event.preventDefault();
-          const pos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos ?? view.state.selection.from;
-          images.forEach((file) => {
-            const reader = new FileReader();
-            reader.onload = () => {
-              if (typeof reader.result !== "string") return;
-              const tr = view.state.tr.insert(pos, view.state.schema.nodes.image.create({ src: reader.result, alt: file.name }));
-              view.dispatch(tr);
-            };
-            reader.readAsDataURL(file);
-          });
-          return true;
-        },
-        handlePaste: (view, event) => {
-          const items = event.clipboardData?.items;
-          if (!items) return false;
-          const images = Array.from(items).filter((item) => item.type.startsWith("image/"));
-          if (!images.length) return false;
-          event.preventDefault();
-          images.forEach((item) => {
-            const file = item.getAsFile();
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = () => {
-              if (typeof reader.result !== "string") return;
-              const { from } = view.state.selection;
-              const tr = view.state.tr.insert(from, view.state.schema.nodes.image.create({ src: reader.result, alt: file.name }));
-              view.dispatch(tr);
-            };
-            reader.readAsDataURL(file);
-          });
-          return true;
-        },
-        handleDOMEvents: {
-          click: (_view, event) => {
-            const target = event.target as HTMLElement;
-            const headingEl = target.closest("h1, h2, h3, h4, h5") as HTMLElement | null;
-            let blockEl: HTMLElement | null = headingEl;
-            let level = 0;
-            if (headingEl) {
-              level = parseInt(headingEl.tagName.substring(1));
-            } else {
-              // tiptap 直下の p, li, blockquote を検出
-              const candidates = ["li", "p", "blockquote"] as const;
-              for (const sel of candidates) {
-                const el = target.closest(sel) as HTMLElement | null;
-                if (el) {
-                  // tiptap 直下、または直下の要素の子孫であること
-                  let parent: HTMLElement | null = el;
-                  while (parent && !parent.classList.contains("tiptap")) {
-                    parent = parent.parentElement;
-                  }
-                  if (parent) { blockEl = el; break; }
-                }
-              }
-            }
-            if (!blockEl) return false;
-            const rect = blockEl.getBoundingClientRect();
-            if (event.clientX < rect.left) {
-              event.preventDefault();
-              // blockquote の場合は内部の最初の p から位置を取得
-              const posTarget = blockEl.tagName.toLowerCase() === "blockquote"
-                ? (blockEl.querySelector("p") ?? blockEl)
-                : blockEl;
-              const pos = _view.posAtDOM(posTarget, 0);
-              editor?.chain().setTextSelection(pos).run();
-              setHeadingMenu({ anchorEl: blockEl, pos, currentLevel: level });
-              return true;
-            }
-            return false;
-          },
-          copy: (view, event) => {
-            const { $from, $to } = view.state.selection;
-            if ($from.parent.type.name === "codeBlock" && $from.sameParent($to)) {
-              if (!event.clipboardData) return false;
-              event.clipboardData.setData("text/plain", view.state.doc.textBetween($from.pos, $to.pos));
-              event.preventDefault();
-              return true;
-            }
-            return false;
-          },
-          cut: (view, event) => {
-            const { $from, $to } = view.state.selection;
-            if ($from.parent.type.name === "codeBlock" && $from.sameParent($to)) {
-              if (!event.clipboardData) return false;
-              event.clipboardData.setData("text/plain", view.state.doc.textBetween($from.pos, $to.pos));
-              event.preventDefault();
-              view.dispatch(view.state.tr.deleteSelection());
-              return true;
-            }
-            return false;
-          },
-        },
-      },
-      content: initialContent ?? "",
-      onUpdate: ({ editor: e }) => {
-        const md = getMarkdownFromEditor(e);
-        saveContent(md);
-        setEditorMarkdown(md);
-        if (headingsDebounceRef.current) clearTimeout(headingsDebounceRef.current);
-        headingsDebounceRef.current = setTimeout(() => {
-          setHeadingsRef.current(extractHeadings(e));
-        }, 300);
-      },
-      onCreate: ({ editor: e }) => {
-        setHeadingsRef.current(extractHeadings(e));
-        setEditorMarkdown(getMarkdownFromEditor(e));
-        // 引用ブロックのマークダウン出力で継続行に > を付加しない（lazy blockquote）
-        const bqExt = e.extensionManager.extensions.find((ext) => ext.name === "blockquote");
-        if (bqExt?.storage?.markdown) {
-          bqExt.storage.markdown.serialize = (state: any, node: any) => {
-            state.wrapBlock("> ", null, node, () => state.renderContent(node));
-          };
-        }
-      },
-      immediatelyRender: false,
-    },
-    [initialContent]
-  );
-
-  // Clean up debounce timer on unmount
-  useEffect(() => {
-    return () => {
-      if (headingsDebounceRef.current) clearTimeout(headingsDebounceRef.current);
-    };
-  }, []);
+  const editorConfig = useEditorConfig({
+    t, initialContent, saveContent,
+    editorRef, setEditorMarkdownRef, setHeadingsRef,
+    headingsDebounceRef, handleImportRef, setHeadingMenu,
+  });
+  const editor = useEditor(editorConfig, [initialContent]);
+  editorRef.current = editor;
 
   // --- Custom hooks ---
   const {
@@ -316,25 +135,6 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     openFile, saveFile, saveAsFile, markDirty, resetFile,
   } = useFileSystem(fileSystemProvider ?? null);
 
-  // ファイル変更検知
-  useEffect(() => {
-    if (!editor || !markDirty) return;
-    const handler = () => markDirty();
-    editor.on("update", handler);
-    return () => { editor.off("update", handler); };
-  }, [editor, markDirty]);
-
-  // H-03: 未保存変更の beforeunload 警告
-  useEffect(() => {
-    const handler = (e: BeforeUnloadEvent) => {
-      if (isDirty) {
-        e.preventDefault();
-      }
-    };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
-  }, [isDirty]);
-
   const {
     copied, fileInputRef, handleClear, handleFileSelected,
     handleDownload, handleImport, handleCopy,
@@ -354,22 +154,6 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   // Mermaid toolbar is now embedded in MermaidNodeView
   const plantUmlFloating = useFloatingToolbar(editor, editorWrapperRef, "codeBlock", "plantuml");
 
-  // VS Code 拡張からの外部コンテンツ更新（メニュー Undo/Redo など）
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const content = (e as CustomEvent<string>).detail;
-      if (!editor || editor.isDestroyed) return;
-      const currentMd = getMarkdownFromEditor(editor);
-      if (content === currentMd) return;
-      // emitUpdate=false でループを防止（onUpdate → saveContent → contentChanged を抑制）
-      editor.commands.setContent(content, { emitUpdate: false });
-      setHeadingsRef.current(extractHeadings(editor));
-      setEditorMarkdown(getMarkdownFromEditor(editor));
-    };
-    window.addEventListener('vscode-set-content', handler);
-    return () => window.removeEventListener('vscode-set-content', handler);
-  }, [editor]);
-
   const {
     inlineMergeOpen, setInlineMergeOpen,
     editorMarkdown, setEditorMarkdown,
@@ -378,9 +162,14 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     rightFileOps, setRightFileOps,
     handleMerge,
   } = useMergeMode({
-    editor, sourceMode, isLg, outlineOpen, handleToggleOutline,
+    editor, sourceMode, isMd, outlineOpen, handleToggleOutline,
     onCompareModeChange, t, setLiveMessage,
   });
+
+  // Update refs for useEditor callbacks (setEditorMarkdown comes from useMergeMode)
+  setEditorMarkdownRef.current = setEditorMarkdown;
+
+  useEditorSideEffects({ editor, isDirty, markDirty, setHeadingsRef, setEditorMarkdown });
 
   const { editorContainerRef, editorHeight } = useEditorHeight(isMobile, isMd);
 
@@ -396,51 +185,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   // PlantUML/Mermaid 編集中はMarkdownツールバーを無効化
   const isInDiagramBlock = !!plantUmlFloating;
 
-  /** コードブロック・テーブルの折りたたみを一括トグル */
-  const handleToggleAllBlocks = useCallback(() => {
-    if (!editor) return;
-    let anyExpanded = false;
-    editor.state.doc.descendants((node) => {
-      if ((node.type.name === "codeBlock" || node.type.name === "table" || node.type.name === "image") && !node.attrs.collapsed) {
-        anyExpanded = true;
-        return false;
-      }
-    });
-    const collapsed = anyExpanded;
-    const tr = editor.state.tr;
-    editor.state.doc.descendants((node, pos) => {
-      if (node.type.name === "codeBlock" || node.type.name === "table" || node.type.name === "image") {
-        tr.setNodeMarkup(pos, undefined, { ...node.attrs, collapsed });
-      }
-    });
-    editor.view.dispatch(tr);
-  }, [editor]);
-
-  /** Mermaid/PlantUML ブロックのコード欄を一括トグル */
-  const handleToggleDiagramCode = useCallback(() => {
-    if (!editor) return;
-    let anyExpanded = false;
-    editor.state.doc.descendants((node) => {
-      if (node.type.name === "codeBlock") {
-        const lang = (node.attrs.language || "").toLowerCase();
-        if ((lang === "mermaid" || lang === "plantuml") && !node.attrs.codeCollapsed) {
-          anyExpanded = true;
-          return false;
-        }
-      }
-    });
-    const codeCollapsed = anyExpanded;
-    const tr = editor.state.tr;
-    editor.state.doc.descendants((node, pos) => {
-      if (node.type.name === "codeBlock") {
-        const lang = (node.attrs.language || "").toLowerCase();
-        if (lang === "mermaid" || lang === "plantuml") {
-          tr.setNodeMarkup(pos, undefined, { ...node.attrs, codeCollapsed });
-        }
-      }
-    });
-    editor.view.dispatch(tr);
-  }, [editor]);
+  const { handleToggleAllBlocks, handleToggleDiagramCode } = useEditorBlockActions({ editor });
 
   useEditorShortcuts({
     editor, sourceMode, appendToSource,
@@ -465,6 +210,17 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
       </Box>
     );
   }
+
+  const outlineProps = {
+    isMd, outlineOpen, handleToggleOutline,
+    outlineWidth, setOutlineWidth, editorHeight,
+    headings, foldedIndices, hiddenByFold,
+    foldAll, unfoldAll, toggleFold,
+    handleOutlineClick, handleOutlineResizeStart,
+    onHeadingDragEnd: handleHeadingDragEnd,
+    onOutlineDelete: handleOutlineDelete,
+    t,
+  };
 
   return (
     <EditorSettingsContext.Provider value={settings}>
@@ -538,6 +294,10 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         hideFileOps={hideFileOps}
         hideUndoRedo={hideUndoRedo}
         hideMoreMenu={hideHelp && hideVersionInfo && hideSettings}
+        hideSettings={hideSettings}
+        hideVersionInfo={hideVersionInfo}
+        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenVersionDialog={() => setVersionDialogOpen(true)}
         onLoadRightFile={rightFileOps?.loadFile}
         onExportRightFile={rightFileOps?.exportFile}
         onAnnounce={setLiveMessage}
@@ -612,24 +372,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         >
           {(leftBgGradient, leftDiffLines, onMerge, onHoverLine) => (
           <Box component="main" ref={editorContainerRef} sx={{ display: "flex", gap: 0, height: "100%" }}>
-            {outlineOpen && isLg && (
-              <OutlinePanel
-                outlineWidth={outlineWidth}
-                setOutlineWidth={setOutlineWidth}
-                editorHeight={editorHeight}
-                headings={headings}
-                foldedIndices={foldedIndices}
-                hiddenByFold={hiddenByFold}
-                foldAll={foldAll}
-                unfoldAll={unfoldAll}
-                toggleFold={toggleFold}
-                handleOutlineClick={handleOutlineClick}
-                handleOutlineResizeStart={handleOutlineResizeStart}
-                onHeadingDragEnd={handleHeadingDragEnd}
-                onOutlineDelete={handleOutlineDelete}
-                t={t}
-              />
-            )}
+            <EditorOutlineSection {...outlineProps} />
             <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
               <MergeEditorPanel
                 sourceMode={sourceMode}
@@ -652,88 +395,17 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         </InlineMergeView>
       ) : (
       <Box component="main" ref={editorContainerRef} sx={{ display: "flex", gap: 0 }}>
-        {/* Outline panel (lg 以上のみ表示) */}
-        {outlineOpen && isLg && (
-          <OutlinePanel
-            outlineWidth={outlineWidth}
-            setOutlineWidth={setOutlineWidth}
-            editorHeight={editorHeight}
-            headings={headings}
-            foldedIndices={foldedIndices}
-            hiddenByFold={hiddenByFold}
-            foldAll={foldAll}
-            unfoldAll={unfoldAll}
-            toggleFold={toggleFold}
-            handleOutlineClick={handleOutlineClick}
-            handleOutlineResizeStart={handleOutlineResizeStart}
-            onHeadingDragEnd={handleHeadingDragEnd}
-            onOutlineDelete={handleOutlineDelete}
-            t={t}
-          />
-        )}
+        <EditorOutlineSection {...outlineProps} />
 
         {/* Editor */}
         <Box sx={{ flex: 1, minWidth: 0 }}>
       {sourceMode ? (
-        <Paper
-          variant="outlined"
-          sx={{
-            borderTopLeftRadius: 0,
-            borderTopRightRadius: 0,
-            maxHeight: editorHeight,
-            overflow: "auto",
-          }}
-        >
-          <Box sx={{ display: "flex", minHeight: "100%" }}>
-            <Box
-              component="pre"
-              sx={{
-                width: "auto",
-                minWidth: "3ch",
-                py: 2,
-                px: 1,
-                m: 0,
-                textAlign: "right",
-                whiteSpace: "pre",
-                fontFamily: "monospace",
-                fontSize: `${settings.fontSize}px`,
-                lineHeight: settings.lineHeight,
-                color: alpha(theme.palette.text.secondary, 0.6),
-                userSelect: "none",
-                overflow: "hidden",
-                boxSizing: "border-box",
-                flexShrink: 0,
-              }}
-            >
-              {Array.from({ length: (sourceText || "").split("\n").length || 1 }, (_, i) => i + 1).join("\n")}
-            </Box>
-            <Box
-              component="textarea"
-              aria-label={t("sourceEditor")}
-              value={sourceText}
-              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                handleSourceChange(e.target.value)
-              }
-              sx={{
-                flex: 1,
-                minWidth: 0,
-                minHeight: editorHeight - 36,
-                py: 2,
-                pr: 2,
-                pl: 1,
-                border: "none",
-                outline: "none",
-                resize: "none",
-                fontFamily: "monospace",
-                fontSize: `${settings.fontSize}px`,
-                lineHeight: settings.lineHeight,
-                color: theme.palette.text.primary,
-                bgcolor: "transparent",
-                boxSizing: "border-box",
-              }}
-            />
-          </Box>
-        </Paper>
+        <SourceModeEditor
+          sourceText={sourceText}
+          onSourceChange={handleSourceChange}
+          editorHeight={editorHeight}
+          ariaLabel={t("sourceEditor")}
+        />
       ) : (
         <Box ref={editorWrapperRef} sx={{ position: "relative" }}>
         {editor && <SearchReplaceBar editor={editor} t={t} />}

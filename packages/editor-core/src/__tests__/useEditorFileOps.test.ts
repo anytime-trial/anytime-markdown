@@ -22,6 +22,7 @@ jest.mock("../types", () => ({
 
 jest.mock("../utils/sanitizeMarkdown", () => ({
   sanitizeMarkdown: (md: string) => md,
+  preserveBlankLines: (md: string) => md,
 }));
 
 const mockedGetMarkdown = getMarkdownFromEditor as jest.MockedFunction<

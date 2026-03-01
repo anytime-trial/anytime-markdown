@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import type { Editor } from "@tiptap/react";
 import { getMarkdownFromEditor } from "../types";
-import { sanitizeMarkdown } from "../utils/sanitizeMarkdown";
+import { sanitizeMarkdown, preserveBlankLines } from "../utils/sanitizeMarkdown";
 
 interface UseSourceModeParams {
   editor: Editor | null;
@@ -24,7 +24,7 @@ export function useSourceMode({ editor, saveContent, t }: UseSourceModeParams) {
 
   const handleSwitchToWysiwyg = useCallback(() => {
     if (editor) {
-      const sanitized = sanitizeMarkdown(sourceText);
+      const sanitized = preserveBlankLines(sanitizeMarkdown(sourceText));
       editor.commands.setContent(sanitized);
       saveContent(sanitized);
     }

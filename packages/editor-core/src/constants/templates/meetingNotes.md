@@ -6,11 +6,11 @@ YYYY-MM-DD
 
 ## Attendees
 
--
+- 
 
 ## Agenda
 
-1.
+1. 
 
 ## Discussion
 
@@ -18,4 +18,4 @@ YYYY-MM-DD
 
 ## Action Items
 
-- [ ]
+- \[ \]

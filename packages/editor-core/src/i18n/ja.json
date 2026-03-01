@@ -24,7 +24,6 @@
     "skipToEditor": "エディタへスキップ",
     "chars": "文字",
     "lines": "行",
-    "minRead": "分で読了",
     "import": "インポート (.md)",
     "shortcuts": "キーボードショートカット",
     "shortcutTextStyle": "テキスト装飾",
@@ -117,6 +116,8 @@
     "zoomReset": "ズームリセット",
     "foldAll": "すべて折りたたむ",
     "unfoldAll": "すべて展開する",
+    "collapseSection": "セクションを折りたたむ",
+    "expandSection": "セクションを展開する",
     "diagramCodeHide": "ダイアグラムコードを隠す",
     "diagramCodeShow": "ダイアグラムコードを表示する",
     "diagramFlowchart": "フローチャート",
@@ -210,6 +211,10 @@
     "back": "戻る",
     "help": "ヘルプ",
     "more": "その他",
+    "helpMenu": "ヘルプメニュー",
+    "insertElements": "要素の挿入",
+    "diagramMenu": "図メニュー",
+    "plantumlSampleMenu": "PlantUMLサンプルメニュー",
     "view": "表示",
     "sourceEditor": "マークダウンソースエディタ",
     "editorToolbar": "エディタツールバー",
@@ -300,7 +305,6 @@
     "blogPost": "ブログ記事",
     "noTemplates": "カスタムテンプレートなし",
     "builtinTemplates": "固定テンプレート",
-    "customTemplates": "カスタムテンプレート",
     "normalMode": "通常モード",
     "compare": "比較モード",
     "compareMode": "比較/マージ",
@@ -333,6 +337,8 @@
   },
   "Common": {
     "ok": "OK",
-    "cancel": "キャンセル"
+    "cancel": "キャンセル",
+    "error": "エラーが発生しました",
+    "retry": "もう一度試す"
   }
 }

@@ -17,15 +17,16 @@ import {
   useTheme,
 } from "@mui/material";
 import type { Editor } from "@tiptap/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import type { TranslationFn } from "../types";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
 
 interface SearchReplaceBarProps {
   editor: Editor;
-  t: (key: string, values?: Record<string, string | number>) => string;
+  t: TranslationFn;
 }
 
-export function SearchReplaceBar({ editor, t }: SearchReplaceBarProps) {
+export const SearchReplaceBar = React.memo(function SearchReplaceBar({ editor, t }: SearchReplaceBarProps) {
   const theme = useTheme();
   const storage = editor.storage.searchReplace;
 
@@ -202,28 +203,28 @@ export function SearchReplaceBar({ editor, t }: SearchReplaceBarProps) {
         px: 1.5,
         py: 0.5,
         display: "flex",
-        alignItems: "center",
+        flexDirection: "column",
         gap: 0.5,
       }}
     >
-      {/* Replace toggle */}
-      <Tooltip title={t("replace")}>
-        <IconButton
-          size="small"
-          aria-label={t("replace")}
-          onClick={() => setShowReplace((v) => !v)}
-          sx={{ p: 0.25 }}
-        >
-          {showReplace ? (
-            <ExpandMoreIcon sx={{ fontSize: 16 }} />
-          ) : (
-            <ChevronRightIcon sx={{ fontSize: 16 }} />
-          )}
-        </IconButton>
-      </Tooltip>
+      {/* Search row */}
+      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+        {/* Replace toggle */}
+        <Tooltip title={t("replace")}>
+          <IconButton
+            size="small"
+            aria-label={t("replace")}
+            onClick={() => setShowReplace((v) => !v)}
+            sx={{ p: 0.25, minWidth: 24, minHeight: 24 }}
+          >
+            {showReplace ? (
+              <ExpandMoreIcon sx={{ fontSize: 16 }} />
+            ) : (
+              <ChevronRightIcon sx={{ fontSize: 16 }} />
+            )}
+          </IconButton>
+        </Tooltip>
 
-      {/* Search + Replace container */}
-      <Box sx={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 0.5 }}>
         {/* Search input */}
         <Box
           component="input"
@@ -254,163 +255,153 @@ export function SearchReplaceBar({ editor, t }: SearchReplaceBarProps) {
           </IconButton>
         )}
 
-        {/* Replace row - below search input */}
-        {showReplace && (
-          <Box
+        {/* Match count */}
+        {searchTerm && (
+          <Typography
+            variant="caption"
+            aria-live="polite"
+            aria-atomic="true"
             sx={{
-              position: "absolute",
-              top: "100%",
-              left: 0,
-              mt: 0.5,
-              zIndex: 20,
-              display: "flex",
-              alignItems: "center",
-              gap: 0.5,
-              px: 0.5,
-              py: 0.5,
-              borderRadius: 1,
-              border: 1,
-              borderColor: "divider",
-              bgcolor: "background.paper",
-              boxShadow: 2,
-              minWidth: 200,
+              whiteSpace: "nowrap",
+              fontSize: "0.65rem",
+              color: resultCount === 0 ? "error.main" : "text.secondary",
+              mx: 0.25,
             }}
           >
-            <Box
-              component="input"
-              aria-label={t("replacePlaceholder")}
-              value={replaceTerm}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                handleReplaceChange(e.target.value)
-              }
-              onKeyDown={handleReplaceKeyDown}
-              placeholder={t("replacePlaceholder")}
-              sx={{ ...inputSx, flex: 1 }}
-            />
-            <Tooltip title={t("replace")}>
-              <span>
-                <IconButton
-                  size="small"
-                  aria-label={t("replace")}
-                  onClick={() => editor.commands.replaceCurrentMatch()}
-                  disabled={resultCount === 0}
-                  sx={{ p: 0.25 }}
-                >
-                  <FindReplaceIcon sx={{ fontSize: 16 }} />
-                </IconButton>
-              </span>
-            </Tooltip>
-            <Tooltip title={t("replaceAll")}>
-              <span>
-                <IconButton
-                  size="small"
-                  aria-label={t("replaceAll")}
-                  onClick={() => editor.commands.replaceAllMatches()}
-                  disabled={resultCount === 0}
-                  sx={{ p: 0.25 }}
-                >
-                  <DoneAllIcon sx={{ fontSize: 16 }} />
-                </IconButton>
-              </span>
-            </Tooltip>
-          </Box>
+            {resultCount > 0
+              ? t("searchResults", {
+                  current: String(currentIndex + 1),
+                  total: String(resultCount),
+                })
+              : t("noResults")}
+          </Typography>
         )}
+
+        {/* Toggle buttons */}
+        <Tooltip title={t("caseSensitive")}>
+          <IconButton
+            size="small"
+            aria-label={t("caseSensitive")}
+            onClick={() => editor.commands.toggleCaseSensitive()}
+            sx={toggleBtnSx(caseSensitive)}
+          >
+            Aa
+          </IconButton>
+        </Tooltip>
+        <Tooltip title={t("wholeWord")}>
+          <span>
+            <IconButton
+              size="small"
+              aria-label={t("wholeWord")}
+              onClick={() => editor.commands.toggleWholeWord()}
+              disabled={useRegex}
+              sx={toggleBtnSx(wholeWord && !useRegex)}
+            >
+              Ab|
+            </IconButton>
+          </span>
+        </Tooltip>
+        <Tooltip title={t("regex")}>
+          <IconButton
+            size="small"
+            aria-label={t("regex")}
+            onClick={() => editor.commands.toggleUseRegex()}
+            sx={toggleBtnSx(useRegex)}
+          >
+            .*
+          </IconButton>
+        </Tooltip>
+
+        {/* Prev / Next */}
+        <Tooltip title={`${t("prevMatch")} (Shift+Enter)`}>
+          <span>
+            <IconButton
+              size="small"
+              aria-label={t("prevMatch")}
+              onClick={() => editor.commands.goToPrevMatch()}
+              disabled={resultCount === 0}
+              sx={{ p: 0.25, minWidth: 24, minHeight: 24 }}
+            >
+              <KeyboardArrowUpIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          </span>
+        </Tooltip>
+        <Tooltip title={`${t("nextMatch")} (Enter)`}>
+          <span>
+            <IconButton
+              size="small"
+              aria-label={t("nextMatch")}
+              onClick={() => editor.commands.goToNextMatch()}
+              disabled={resultCount === 0}
+              sx={{ p: 0.25, minWidth: 24, minHeight: 24 }}
+            >
+              <KeyboardArrowDownIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          </span>
+        </Tooltip>
+
+        {/* Close button */}
+        <Tooltip title={t("close")}>
+          <IconButton
+            size="small"
+            aria-label={t("close")}
+            onClick={handleClearAndBlur}
+            sx={{ p: 0.25, minWidth: 24, minHeight: 24 }}
+          >
+            <CloseIcon sx={{ fontSize: 16 }} />
+          </IconButton>
+        </Tooltip>
       </Box>
 
-      {/* Match count */}
-      {searchTerm && (
-        <Typography
-          variant="caption"
-          aria-live="polite"
-          aria-atomic="true"
+      {/* Replace row */}
+      {showReplace && (
+        <Box
           sx={{
-            whiteSpace: "nowrap",
-            fontSize: "0.65rem",
-            color: resultCount === 0 ? "error.main" : "text.secondary",
-            mx: 0.25,
+            display: "flex",
+            alignItems: "center",
+            gap: 0.5,
+            pl: 4,
           }}
         >
-          {resultCount > 0
-            ? t("searchResults", {
-                current: String(currentIndex + 1),
-                total: String(resultCount),
-              })
-            : t("noResults")}
-        </Typography>
+          <Box
+            component="input"
+            aria-label={t("replacePlaceholder")}
+            value={replaceTerm}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+              handleReplaceChange(e.target.value)
+            }
+            onKeyDown={handleReplaceKeyDown}
+            placeholder={t("replacePlaceholder")}
+            sx={{ ...inputSx, width: 120, maxWidth: 180, flex: "0 1 auto" }}
+          />
+          <Tooltip title={t("replace")}>
+            <span>
+              <IconButton
+                size="small"
+                aria-label={t("replace")}
+                onClick={() => editor.commands.replaceCurrentMatch()}
+                disabled={resultCount === 0}
+                sx={{ p: 0.25, minWidth: 24, minHeight: 24 }}
+              >
+                <FindReplaceIcon sx={{ fontSize: 16 }} />
+              </IconButton>
+            </span>
+          </Tooltip>
+          <Tooltip title={t("replaceAll")}>
+            <span>
+              <IconButton
+                size="small"
+                aria-label={t("replaceAll")}
+                onClick={() => editor.commands.replaceAllMatches()}
+                disabled={resultCount === 0}
+                sx={{ p: 0.25, minWidth: 24, minHeight: 24 }}
+              >
+                <DoneAllIcon sx={{ fontSize: 16 }} />
+              </IconButton>
+            </span>
+          </Tooltip>
+        </Box>
       )}
-
-      {/* Toggle buttons */}
-      <Tooltip title={t("caseSensitive")}>
-        <IconButton
-          size="small"
-          aria-label={t("caseSensitive")}
-          onClick={() => editor.commands.toggleCaseSensitive()}
-          sx={toggleBtnSx(caseSensitive)}
-        >
-          Aa
-        </IconButton>
-      </Tooltip>
-      <Tooltip title={t("wholeWord")}>
-        <span>
-          <IconButton
-            size="small"
-            aria-label={t("wholeWord")}
-            onClick={() => editor.commands.toggleWholeWord()}
-            disabled={useRegex}
-            sx={toggleBtnSx(wholeWord && !useRegex)}
-          >
-            Ab|
-          </IconButton>
-        </span>
-      </Tooltip>
-      <Tooltip title={t("regex")}>
-        <IconButton
-          size="small"
-          aria-label={t("regex")}
-          onClick={() => editor.commands.toggleUseRegex()}
-          sx={toggleBtnSx(useRegex)}
-        >
-          .*
-        </IconButton>
-      </Tooltip>
-
-      {/* Prev / Next */}
-      <Tooltip title={`${t("prevMatch")} (Shift+Enter)`}>
-        <span>
-          <IconButton
-            size="small"
-            onClick={() => editor.commands.goToPrevMatch()}
-            disabled={resultCount === 0}
-            sx={{ p: 0.25 }}
-          >
-            <KeyboardArrowUpIcon sx={{ fontSize: 16 }} />
-          </IconButton>
-        </span>
-      </Tooltip>
-      <Tooltip title={`${t("nextMatch")} (Enter)`}>
-        <span>
-          <IconButton
-            size="small"
-            onClick={() => editor.commands.goToNextMatch()}
-            disabled={resultCount === 0}
-            sx={{ p: 0.25 }}
-          >
-            <KeyboardArrowDownIcon sx={{ fontSize: 16 }} />
-          </IconButton>
-        </span>
-      </Tooltip>
-
-      {/* Close button */}
-      <Tooltip title={t("close")}>
-        <IconButton
-          size="small"
-          aria-label={t("close")}
-          onClick={handleClearAndBlur}
-          sx={{ p: 0.25 }}
-        >
-          <CloseIcon sx={{ fontSize: 16 }} />
-        </IconButton>
-      </Tooltip>
     </Paper>
   );
-}
+});

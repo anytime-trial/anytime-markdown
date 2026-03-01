@@ -99,7 +99,7 @@ describe("StatusBar", () => {
     render(<StatusBar editor={editor} t={t} />);
 
     // ステータスバーは存在する
-    const statusBar = screen.getByRole("contentinfo");
+    const statusBar = screen.getByRole("region");
     expect(statusBar).toBeTruthy();
 
     // ファイル名に対応する要素がないことを確認

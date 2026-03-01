@@ -1,11 +1,12 @@
 {
   "name": "@anytime-markdown/mobile-app",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "private": true,
   "scripts": {
     "sync": "bash scripts/sync.sh",
     "open": "npx cap open android",
-    "run": "npx cap run android"
+    "run": "npx cap run android",
+    "test": "echo \"No tests configured\""
   },
   "dependencies": {
     "@capacitor/android": "^7.2.0",

@@ -26,6 +26,8 @@ import UnfoldMoreIcon from "@mui/icons-material/UnfoldMore";
 import CodeOffIcon from "@mui/icons-material/CodeOff";
 import CodeIcon from "@mui/icons-material/Code";
 import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
+import SettingsIcon from "@mui/icons-material/Settings";
+import WidgetsIcon from "@mui/icons-material/Widgets";
 
 import {
   Box,
@@ -44,7 +46,8 @@ import {
 import { useEditorState } from "@tiptap/react";
 import type { Editor } from "@tiptap/react";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import type { TranslationFn } from "../types";
 import { modKey } from "../constants/shortcuts";
 
 import type { MergeUndoRedo } from "./InlineMergeView";
@@ -78,7 +81,7 @@ const TOOLTIP_SHORTCUTS: Record<string, string> = {
 };
 
 /** ツールチップにショートカットキーを付加 */
-function tip(t: (key: string) => string, key: string): string {
+function tip(t: TranslationFn, key: string): string {
   const shortcut = TOOLTIP_SHORTCUTS[key];
   return shortcut ? `${t(key)}  (${shortcut})` : t(key);
 }
@@ -111,6 +114,10 @@ interface EditorToolbarProps {
   hideFileOps?: boolean;
   hideUndoRedo?: boolean;
   hideMoreMenu?: boolean;
+  hideSettings?: boolean;
+  hideVersionInfo?: boolean;
+  onOpenSettings?: () => void;
+  onOpenVersionDialog?: () => void;
   onLoadRightFile?: () => void;
   onExportRightFile?: () => void;
   onOpenFile?: () => void;
@@ -119,7 +126,7 @@ interface EditorToolbarProps {
   hasFileHandle?: boolean;
   supportsDirectAccess?: boolean;
   onAnnounce?: (message: string) => void;
-  t: (key: string) => string;
+  t: TranslationFn;
 }
 
 export const EditorToolbar = React.memo(function EditorToolbar({
@@ -150,6 +157,10 @@ export const EditorToolbar = React.memo(function EditorToolbar({
   hideFileOps,
   hideUndoRedo,
   hideMoreMenu,
+  hideSettings,
+  hideVersionInfo,
+  onOpenSettings,
+  onOpenVersionDialog,
   onLoadRightFile,
   onExportRightFile,
   onOpenFile,
@@ -161,6 +172,10 @@ export const EditorToolbar = React.memo(function EditorToolbar({
   t,
 }: EditorToolbarProps) {
   const [fileMenuAnchorEl, setFileMenuAnchorEl] = useState<HTMLElement | null>(null);
+  const [partsMenuAnchorEl, setPartsMenuAnchorEl] = useState<HTMLElement | null>(null);
+  const [mobileMenuAnchorEl, setMobileMenuAnchorEl] = useState<HTMLElement | null>(null);
+  const partsMenuRef = useRef<HTMLButtonElement>(null);
+  const mobileMoreRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (copied) {
@@ -261,7 +276,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
             size="small"
             aria-label={t("fileActions")}
             onClick={(e) => setFileMenuAnchorEl(e.currentTarget)}
-            sx={{ display: { xs: "inline-flex", sm: "none" } }}
+            sx={{ display: { xs: "inline-flex", md: "none" } }}
           >
             <InsertDriveFileIcon fontSize="small" />
           </IconButton>
@@ -306,7 +321,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
           </Menu>
 
           {/* Desktop: individual file buttons */}
-          <Box sx={{ display: { xs: "none", sm: "contents" } }}>
+          <Box sx={{ display: { xs: "none", md: "contents" } }}>
             <Tooltip title={tip(t, "createNew")}>
               <IconButton
                 size="small"
@@ -417,7 +432,82 @@ export const EditorToolbar = React.memo(function EditorToolbar({
         </>
       )}
 
-      {/* Image + Table */}
+      {/* Insert elements - mobile menu */}
+      <IconButton
+        ref={partsMenuRef}
+        size="small"
+        aria-label={t("insertElements")}
+        onClick={(e) => setPartsMenuAnchorEl(e.currentTarget)}
+        sx={{ display: { xs: "inline-flex", md: "none" } }}
+      >
+        <WidgetsIcon fontSize="small" />
+      </IconButton>
+      <Menu
+        anchorEl={partsMenuAnchorEl}
+        open={!!partsMenuAnchorEl}
+        onClose={() => setPartsMenuAnchorEl(null)}
+      >
+        <MenuItem
+          onClick={() => { onImage(); setPartsMenuAnchorEl(null); }}
+          disabled={isInDiagramBlock || editorState?.isInDiagramCode || inlineMergeOpen}
+        >
+          <ListItemIcon><ImageIcon fontSize="small" /></ListItemIcon>
+          <ListItemText>{t("image")}</ListItemText>
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            sourceMode ? onSourceInsertHr?.() : editor?.chain().focus().setHorizontalRule().run();
+            setPartsMenuAnchorEl(null);
+          }}
+          disabled={isInDiagramBlock || editorState?.isInDiagramCode || inlineMergeOpen}
+        >
+          <ListItemIcon><HorizontalRuleIcon fontSize="small" /></ListItemIcon>
+          <ListItemText>{t("horizontalRule")}</ListItemText>
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            sourceMode ? onSourceInsertTable?.() : editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
+            setPartsMenuAnchorEl(null);
+          }}
+          disabled={isInDiagramBlock || editorState?.isInDiagramCode || inlineMergeOpen}
+        >
+          <ListItemIcon><GridOnIcon fontSize="small" /></ListItemIcon>
+          <ListItemText>{t("insertTable")}</ListItemText>
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            sourceMode ? onSourceInsertCodeBlock?.() : editor?.chain().focus().toggleCodeBlock().run();
+            setPartsMenuAnchorEl(null);
+          }}
+          disabled={isInDiagramBlock || editorState?.isInDiagramCode || inlineMergeOpen}
+        >
+          <ListItemIcon><TerminalIcon fontSize="small" /></ListItemIcon>
+          <ListItemText>{t("codeBlock")}</ListItemText>
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            setPartsMenuAnchorEl(null);
+            if (partsMenuRef.current) onSetDiagramAnchor(partsMenuRef.current);
+          }}
+          disabled={isInDiagramBlock || editorState?.isInDiagramCode || inlineMergeOpen}
+        >
+          <ListItemIcon><AccountTreeIcon fontSize="small" /></ListItemIcon>
+          <ListItemText>{t("insertDiagram")}</ListItemText>
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            setPartsMenuAnchorEl(null);
+            if (partsMenuRef.current) onSetTemplateAnchor(partsMenuRef.current);
+          }}
+          disabled={editorState?.isInDiagramCode || inlineMergeOpen}
+        >
+          <ListItemIcon><ArticleIcon fontSize="small" /></ListItemIcon>
+          <ListItemText>{t("templates")}</ListItemText>
+        </MenuItem>
+      </Menu>
+
+      {/* Insert actions - hidden on mobile, shown in More menu */}
+      <Box sx={{ display: { xs: "none", md: "contents" } }}>
       <Tooltip title={tip(t, "image")}>
         <span>
         <IconButton aria-label={t("image")}
@@ -491,13 +581,16 @@ export const EditorToolbar = React.memo(function EditorToolbar({
         </IconButton>
         </span>
       </Tooltip>
+      </Box>
 
-      <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+      <Divider orientation="vertical" flexItem sx={{ mx: 0.5, display: { xs: "none", md: "flex" } }} />
 
       <Box sx={{ flexGrow: 1 }} />
 
-      <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+      <Divider orientation="vertical" flexItem sx={{ mx: 0.5, display: { xs: "none", md: "flex" } }} />
 
+      {/* Fold/Unfold, DiagramCode, Outline - hidden on mobile */}
+      <Box sx={{ display: { xs: "none", md: "contents" } }}>
       {/* Collapse/Expand all blocks */}
       {editorState?.hasBlocks && (
         <Tooltip title={editorState.allBlocksCollapsed ? tip(t, "unfoldAll") : tip(t, "foldAll")}>
@@ -534,7 +627,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
         </Tooltip>
       )}
 
-      {/* Outline toggle (lg 以上のみ表示) */}
+      {/* Outline toggle */}
       <Tooltip title={tip(t, "outline")}>
         <span>
         <IconButton aria-label={t("outline")}
@@ -542,12 +635,12 @@ export const EditorToolbar = React.memo(function EditorToolbar({
           onClick={onToggleOutline}
           disabled={inlineMergeOpen}
           color={outlineOpen ? "primary" : "default"}
-          sx={{ display: { xs: "none", lg: "inline-flex" } }}
         >
           <ListAltIcon fontSize="small" />
         </IconButton>
         </span>
       </Tooltip>
+      </Box>
 
       {/* Compare toggle (md 以上のみ表示) */}
       <ToggleButtonGroup
@@ -555,7 +648,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
         exclusive
         size="small"
         aria-label={t("compareMode")}
-        sx={{ height: 30, display: { xs: "none", lg: "inline-flex" } }}
+        sx={{ height: 30, display: { xs: "none", md: "inline-flex" } }}
       >
         <ToggleButton
           value="edit"
@@ -609,7 +702,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
           onClick={onSwitchToWysiwyg}
           sx={{ px: 0.75, py: 0.25 }}
         >
-          <Tooltip title={tip(t, "sourceMode")}>
+          <Tooltip title={tip(t, "normalMode")}>
             <WysiwygIcon fontSize="small" />
           </Tooltip>
         </ToggleButton>
@@ -625,18 +718,102 @@ export const EditorToolbar = React.memo(function EditorToolbar({
         </ToggleButton>
       </ToggleButtonGroup>
 
-      {/* More menu */}
+      {/* More menu - desktop: help/settings, mobile: all hidden items */}
       {!hideMoreMenu && (
-        <Tooltip title={t("more")}>
-          <IconButton aria-label={t("more")}
+        <>
+          <Box sx={{ display: { xs: "none", md: "contents" } }}>
+            <Tooltip title={t("more")}>
+              <IconButton aria-label={t("more")}
+                size="small"
+                onClick={(e) => onSetHelpAnchor(e.currentTarget)}
+              >
+                <MoreVertIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Box>
+          <IconButton
+            ref={mobileMoreRef}
+            aria-label={t("more")}
             size="small"
-            onClick={(e) => onSetHelpAnchor(e.currentTarget)}
+            onClick={(e) => setMobileMenuAnchorEl(e.currentTarget)}
+            sx={{ display: { xs: "inline-flex", md: "none" } }}
           >
             <MoreVertIcon fontSize="small" />
           </IconButton>
-        </Tooltip>
+        </>
       )}
     </Paper>
+
+    {/* Mobile More menu */}
+    <Menu
+      anchorEl={mobileMenuAnchorEl}
+      open={!!mobileMenuAnchorEl}
+      onClose={() => setMobileMenuAnchorEl(null)}
+    >
+      <MenuItem
+        onClick={() => { onToggleOutline(); setMobileMenuAnchorEl(null); }}
+        disabled={inlineMergeOpen}
+      >
+        <ListItemIcon><ListAltIcon fontSize="small" color={outlineOpen ? "primary" : "inherit"} /></ListItemIcon>
+        <ListItemText>{t("outline")}</ListItemText>
+      </MenuItem>
+      {editorState?.hasBlocks && (
+        <MenuItem
+          onClick={() => { onToggleAllBlocks(); setMobileMenuAnchorEl(null); }}
+          disabled={inlineMergeOpen || sourceMode}
+        >
+          <ListItemIcon>
+            {editorState.allBlocksCollapsed
+              ? <UnfoldMoreIcon fontSize="small" />
+              : <UnfoldLessIcon fontSize="small" />}
+          </ListItemIcon>
+          <ListItemText>
+            {editorState.allBlocksCollapsed ? t("unfoldAll") : t("foldAll")}
+          </ListItemText>
+        </MenuItem>
+      )}
+      {editorState?.hasDiagrams && (
+        <MenuItem
+          onClick={() => { onToggleDiagramCode(); setMobileMenuAnchorEl(null); }}
+          disabled={inlineMergeOpen || sourceMode}
+        >
+          <ListItemIcon>
+            {editorState.allDiagramCodeCollapsed
+              ? <CodeIcon fontSize="small" />
+              : <CodeOffIcon fontSize="small" />}
+          </ListItemIcon>
+          <ListItemText>
+            {editorState.allDiagramCodeCollapsed ? t("diagramCodeShow") : t("diagramCodeHide")}
+          </ListItemText>
+        </MenuItem>
+      )}
+      <Divider />
+      <MenuItem
+        onClick={() => {
+          setMobileMenuAnchorEl(null);
+          if (mobileMoreRef.current) onSetHelpAnchor(mobileMoreRef.current);
+        }}
+      >
+        <ListItemIcon><InfoOutlinedIcon fontSize="small" /></ListItemIcon>
+        <ListItemText>{t("helpMenu")}</ListItemText>
+      </MenuItem>
+      {!hideSettings && (
+        <MenuItem
+          onClick={() => { onOpenSettings?.(); setMobileMenuAnchorEl(null); }}
+        >
+          <ListItemIcon><SettingsIcon fontSize="small" /></ListItemIcon>
+          <ListItemText>{t("editorSettings")}</ListItemText>
+        </MenuItem>
+      )}
+      {!hideVersionInfo && (
+        <MenuItem
+          onClick={() => { onOpenVersionDialog?.(); setMobileMenuAnchorEl(null); }}
+        >
+          <ListItemIcon><InfoOutlinedIcon fontSize="small" /></ListItemIcon>
+          <ListItemText>{t("versionInfo")}</ListItemText>
+        </MenuItem>
+      )}
+    </Menu>
     </>
   );
 });

@@ -16,7 +16,7 @@ export interface EditorSettings {
 }
 
 export const DEFAULT_SETTINGS: EditorSettings = {
-  lineHeight: 1.2,
+  lineHeight: 1.6,
   fontSize: 14,
   tableWidth: "auto",
   editorBg: "white",

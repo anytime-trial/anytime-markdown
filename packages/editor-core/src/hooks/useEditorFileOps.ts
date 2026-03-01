@@ -4,7 +4,7 @@ import type { Editor } from "@tiptap/react";
 import { useTranslations } from "next-intl";
 import useConfirm from "@/hooks/useConfirm";
 import { getMarkdownFromEditor, type MarkdownStorage } from "../types";
-import { sanitizeMarkdown } from "../utils/sanitizeMarkdown";
+import { sanitizeMarkdown, preserveBlankLines } from "../utils/sanitizeMarkdown";
 
 interface UseEditorFileOpsParams {
   editor: Editor | null;
@@ -69,7 +69,7 @@ export function useEditorFileOps({
         } else if (editor) {
           editor.commands.setContent(
             (editor.storage as unknown as MarkdownStorage).markdown.parser.parse(
-              sanitizeMarkdown(reader.result),
+              preserveBlankLines(sanitizeMarkdown(reader.result)),
             ),
           );
         }
@@ -130,7 +130,9 @@ export function useEditorFileOps({
       setSourceText(sanitized);
     } else if (editor) {
       editor.commands.setContent(
-        (editor.storage as unknown as MarkdownStorage).markdown.parser.parse(sanitized),
+        (editor.storage as unknown as MarkdownStorage).markdown.parser.parse(
+          preserveBlankLines(sanitized),
+        ),
       );
     }
   }, [openFile, editor, sourceMode, sourceText, setSourceText, confirm, t]);

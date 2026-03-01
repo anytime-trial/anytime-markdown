@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { preserveBlankLines } from "./utils/sanitizeMarkdown";
 
 const STORAGE_KEY = "markdown-editor-content";
 const DEBOUNCE_MS = 500;
@@ -14,7 +15,7 @@ export function useMarkdownEditor(defaultContent: string) {
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
-      setInitialContent(saved ?? defaultContent);
+      setInitialContent(preserveBlankLines(saved ?? defaultContent));
     } catch (e) {
       console.warn("Failed to read localStorage:", e);
       setInitialContent(defaultContent);

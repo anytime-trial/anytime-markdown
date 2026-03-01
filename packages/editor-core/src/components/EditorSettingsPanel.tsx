@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import {
   Box,
   Button,
@@ -17,6 +18,7 @@ import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import useConfirm from "@/hooks/useConfirm";
 import { useLocale } from "next-intl";
 import type { EditorSettings } from "../useEditorSettings";
+import type { TranslationFn } from "../types";
 
 interface EditorSettingsPanelProps {
   open: boolean;
@@ -24,13 +26,13 @@ interface EditorSettingsPanelProps {
   settings: EditorSettings;
   updateSettings: (patch: Partial<EditorSettings>) => void;
   resetSettings: () => void;
-  t: (key: string) => string;
+  t: TranslationFn;
   themeMode?: 'light' | 'dark';
   onThemeModeChange?: (mode: 'light' | 'dark') => void;
   onLocaleChange?: (locale: string) => void;
 }
 
-export function EditorSettingsPanel({
+export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
   open,
   onClose,
   settings,
@@ -200,4 +202,4 @@ export function EditorSettingsPanel({
       </Button>
     </Drawer>
   );
-}
+});

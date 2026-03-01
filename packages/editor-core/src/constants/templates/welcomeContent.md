@@ -2,6 +2,6 @@
 
 Start writing here — this editor supports **bold**, *italic*, lists, tables, code blocks, and more.
 
-- Press `Ctrl+/` to open **Help** for keyboard shortcuts and features
+- Click the **menu icon** (⋮) in the toolbar to access **Help**, **Settings**, and more
 - Use the **toolbar** above to insert headings, lists, images, and diagrams
 - Try a **template** from the toolbar menu to get started quickly

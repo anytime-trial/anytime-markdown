@@ -1,19 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Box, Typography } from "@mui/material";
 import type { Editor } from "@tiptap/react";
+import type { TranslationFn } from "../types";
 
 interface StatusBarProps {
   editor: Editor;
   sourceMode?: boolean;
   sourceText?: string;
-  t: (key: string) => string;
+  t: TranslationFn;
   fileName?: string | null;
   isDirty?: boolean;
 }
 
-export function StatusBar({ editor, sourceMode, sourceText, t, fileName, isDirty }: StatusBarProps) {
+export const StatusBar = React.memo(function StatusBar({ editor, sourceMode, sourceText, t, fileName, isDirty }: StatusBarProps) {
   const [cursorLine, setCursorLine] = useState(1);
   const [sourceCursorLine, setSourceCursorLine] = useState(1);
 
@@ -60,7 +61,7 @@ export function StatusBar({ editor, sourceMode, sourceText, t, fileName, isDirty
     : editor.state.doc.content.childCount;
 
   return (
-    <Box role="contentinfo" aria-label={t("statusBar")} sx={{ display: "flex", alignItems: "center", gap: 2, px: 1.5, py: 0.75, borderTop: 1, borderColor: "divider" }} contentEditable={false}>
+    <Box role="region" aria-label={t("statusBar")} sx={{ display: "flex", alignItems: "center", gap: 2, px: 1.5, py: 0.75, borderTop: 1, borderColor: "divider" }} contentEditable={false}>
       <Box aria-live="polite" aria-atomic="true" sx={{ display: "contents" }}>
         <Typography variant="body2" sx={{ color: "text.secondary" }}>
           {t("cursorLine")} {displayLine}
@@ -81,4 +82,4 @@ export function StatusBar({ editor, sourceMode, sourceText, t, fileName, isDirty
       <Box sx={{ flex: 1 }} />
     </Box>
   );
-}
+});

@@ -83,6 +83,7 @@ npm run dev
 
 > ポートマッピングが `3001:3000` のため、ホスト側は **3001** ポートです。
 
+
 ## Android アプリのビルド手順
 
 Web アプリを Capacitor でラップした Android アプリです。
@@ -98,13 +99,15 @@ Web アプリを Capacitor でラップした Android アプリです。
 WSL 内でコマンドラインビルドする場合は JDK 21 を別途インストール:
 
 ```bash
+# (wsl host)
 sudo apt install -y openjdk-21-jdk
 
 ```
 
-### ビルド手順
+### ビルド手順（WSL コンテナ 内で実行）
 
 ```bash
+# (wsl host)
 # 1. 依存パッケージをインストール（リポジトリルート）
 npm install
 
@@ -116,22 +119,8 @@ npm run sync
 
 `npm run sync` は内部で Web アプリの静的エクスポート（`build:static`）と `cap sync` を順次実行します。
 
-> モバイルビルドではデフォルトロケール（日本語）で静的HTMLを生成します。アプリ内での言語切替は未対応です。
 
-### 動作確認
-
-#### 方法 A: Android Studio で開く（推奨）
-
-```bash
-npm run open
-
-```
-
-Android Studio が開いたら、デバイスを選択して ▶ ボタンで実行します。
-
-> WSL2 環境の場合は、Windows 側の Android Studio で `\\wsl$\\\packages\mobile-app\android` を直接開いてください。
-
-#### 方法 B: コマンドラインで APK ビルド + エミュレータで確認
+#### コマンドラインで APK ビルド + エミュレータで確認
 
 Android Studio の GUI を使わず APK を生成し、エミュレータで確認する方法です。
 
@@ -153,18 +142,23 @@ APK の出力先: `app/build/outputs/apk/debug/app-debug.apk`
 4. エクスプローラーで `\\wsl$\\<リポジトリパス>\packages\mobile-app\android\app\build\outputs\apk\debug\` を開く
 5. `app-debug.apk` をエミュレータの画面に**ドラッグ&ドロップ**でインストール
 
-**実機にインストールする場合:**
+## リリース準備
+### 1. mobile-app/android ディレクトリに移動
+cd packages/mobile-app/android
 
-端末の USB デバッグを有効化し、Windows の PowerShell から:
+### 2. キーストアファイルが配置されていることを確認
+ls anytime-markdown-release.keystore
 
-```powershell
-adb install \\wsl.localhost\<distro>\<リポジトリパス>\packages\mobile-app\android\app\build\outputs\apk\debug\app-debug.apk
+### 3. keystore.properties のパスワードが正しいことを確認
+cat keystore.properties
 
-```
+### 4. AAB を生成
+./gradlew bundleRelease
 
-### デバッグ
+### 5. 出力ファイルの確認
+ls -la app/build/outputs/bundle/release/app-release.aab
 
-実機またはエミュレータでアプリを起動した状態で、PC の Chrome から `chrome://inspect` にアクセスすると WebView の DevTools を使用できます。
+
 
 ## VS Code 拡張機能の使い方
 
@@ -209,7 +203,6 @@ cd packages/vscode-extension
 npx vsce publish --no-dependencies --pat <your-token>
 
 ```
-
 
 ### 手動アップロード
 
