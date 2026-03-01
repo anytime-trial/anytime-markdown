@@ -251,13 +251,13 @@ const HTML_SANITIZE_CONFIG = {
 
 ## 実装ロードマップ
 
-### Sprint 1（即時対応）: XS コスト
-- H-4: HTML サニタイズ許可リスト化
-- M-1: Mermaid securityLevel 明示
-- M-6: OGP メタデータ追加
-- M-10: sw.js の .gitignore 追加
-- M-11: package.json license フィールド追加
-- M-12: PlantUML fetch レスポンス検証
+### Sprint 1（即時対応）: XS コスト [完了]
+- [x] H-4: HTML サニタイズ許可リスト化
+- [x] M-1: Mermaid securityLevel 明示
+- [x] M-6: OGP メタデータ追加
+- [x] M-10: sw.js の .gitignore 追加（既存 .gitignore でカバー済み）
+- [x] M-11: package.json license フィールド追加
+- [x] M-12: PlantUML img referrerPolicy 追加
 
 ### Sprint 2（短期）: S コスト
 - H-1: 通知システム導入
