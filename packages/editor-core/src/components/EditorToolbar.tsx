@@ -2,7 +2,6 @@ import AccountTreeIcon from "@mui/icons-material/AccountTree";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import ArticleIcon from "@mui/icons-material/Article";
 import CheckIcon from "@mui/icons-material/Check";
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DescriptionIcon from "@mui/icons-material/Description";
 import DownloadIcon from "@mui/icons-material/Download";
 import WysiwygIcon from "@mui/icons-material/Wysiwyg";
@@ -92,11 +91,9 @@ interface EditorToolbarProps {
   onImage: () => void;
   onToggleAllBlocks: () => void;
   onToggleDiagramCode: () => void;
-  onCopy: () => void;
   onDownload: () => void;
   onImport: () => void;
   onClear: () => void;
-  copied: boolean;
   onSetDiagramAnchor: (el: HTMLElement) => void;
   onSetTemplateAnchor: (el: HTMLElement) => void;
   onSetHelpAnchor: (el: HTMLElement) => void;
@@ -135,11 +132,9 @@ export const EditorToolbar = React.memo(function EditorToolbar({
   onImage,
   onToggleAllBlocks,
   onToggleDiagramCode,
-  onCopy,
   onDownload,
   onImport,
   onClear,
-  copied,
   onSetDiagramAnchor,
   onSetTemplateAnchor,
   onSetHelpAnchor,
@@ -176,12 +171,6 @@ export const EditorToolbar = React.memo(function EditorToolbar({
   const [mobileMenuAnchorEl, setMobileMenuAnchorEl] = useState<HTMLElement | null>(null);
   const partsMenuRef = useRef<HTMLButtonElement>(null);
   const mobileMoreRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (copied) {
-      onAnnounce?.(t("copiedToClipboard"));
-    }
-  }, [copied, onAnnounce, t]);
 
   const handleToolbarKeyDown = useCallback((e: React.KeyboardEvent) => {
     const toolbar = e.currentTarget;
@@ -261,7 +250,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
         p: 1,
         borderBottomLeftRadius: 0,
         borderBottomRightRadius: 0,
-        borderBottom: "none",
+        borderBottom: inlineMergeOpen ? undefined : "none",
         position: "sticky",
         top: 0,
         zIndex: 10,
@@ -288,12 +277,6 @@ export const EditorToolbar = React.memo(function EditorToolbar({
             <MenuItem onClick={() => { onClear(); setFileMenuAnchorEl(null); }}>
               <ListItemIcon><DescriptionIcon fontSize="small" /></ListItemIcon>
               <ListItemText>{t("createNew")}</ListItemText>
-            </MenuItem>
-            <MenuItem onClick={() => { onCopy(); setFileMenuAnchorEl(null); }}>
-              <ListItemIcon>
-                {copied ? <CheckIcon fontSize="small" color="success" /> : <ContentCopyIcon fontSize="small" />}
-              </ListItemIcon>
-              <ListItemText>{copied ? t("copied") : t("copy")}</ListItemText>
             </MenuItem>
             {supportsDirectAccess ? ([
               <MenuItem key="open" onClick={() => { onOpenFile?.(); setFileMenuAnchorEl(null); }}>
@@ -322,114 +305,88 @@ export const EditorToolbar = React.memo(function EditorToolbar({
 
           {/* Desktop: individual file buttons */}
           <Box sx={{ display: { xs: "none", md: "contents" } }}>
-            <Tooltip title={tip(t, "createNew")}>
-              <IconButton
-                size="small"
-                aria-label={t("createNew")}
-                onClick={onClear}
-              >
-                <DescriptionIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title={copied ? t("copied") : tip(t, "copy")}>
-              <IconButton
-                size="small"
-                aria-label={copied ? t("copied") : t("copy")}
-                onClick={onCopy}
-                color={copied ? "success" : "default"}
-              >
-                {copied ? <CheckIcon fontSize="small" /> : <ContentCopyIcon fontSize="small" />}
-              </IconButton>
-            </Tooltip>
-            {supportsDirectAccess ? (
-              <>
+            <ToggleButtonGroup size="small" aria-label={t("fileActions")} sx={{ height: 30 }}>
+              <ToggleButton value="new" onClick={onClear} aria-label={t("createNew")} sx={{ px: 0.75, py: 0.25 }}>
+                <Tooltip title={tip(t, "createNew")}>
+                  <DescriptionIcon fontSize="small" />
+                </Tooltip>
+              </ToggleButton>
+            {supportsDirectAccess ? ([
+              <ToggleButton key="open" value="open" onClick={onOpenFile} aria-label={t("openFile")} sx={{ px: 0.75, py: 0.25 }}>
                 <Tooltip title={tip(t, "openFile")}>
-                  <IconButton
-                    size="small"
-                    aria-label={t("openFile")}
-                    onClick={onOpenFile}
-                  >
-                    <FolderOpenIcon fontSize="small" />
-                  </IconButton>
+                  <FolderOpenIcon fontSize="small" />
                 </Tooltip>
+              </ToggleButton>,
+              <ToggleButton key="save" value="save" onClick={onSaveFile} disabled={!hasFileHandle} aria-label={t("saveFile")} sx={{ px: 0.75, py: 0.25 }}>
                 <Tooltip title={hasFileHandle ? tip(t, "saveFile") : t("saveFileNoHandle")}>
-                  <span>
-                    <IconButton
-                      size="small"
-                      aria-label={t("saveFile")}
-                      onClick={onSaveFile}
-                      disabled={!hasFileHandle}
-                    >
-                      <SaveIcon fontSize="small" />
-                    </IconButton>
-                  </span>
+                  <span style={{ display: "inline-flex" }}><SaveIcon fontSize="small" /></span>
                 </Tooltip>
+              </ToggleButton>,
+              <ToggleButton key="saveAs" value="saveAs" onClick={onSaveAsFile} aria-label={t("saveAsFile")} sx={{ px: 0.75, py: 0.25 }}>
                 <Tooltip title={tip(t, "saveAsFile")}>
-                  <IconButton
-                    size="small"
-                    aria-label={t("saveAsFile")}
-                    onClick={onSaveAsFile}
-                  >
-                    <SaveAsIcon fontSize="small" />
-                  </IconButton>
+                  <SaveAsIcon fontSize="small" />
                 </Tooltip>
-              </>
-            ) : (
-              <>
-                <Tooltip title={t("fileApiNotSupported")}>
-                  <InfoOutlinedIcon sx={{ fontSize: 16, color: "text.disabled", mx: 0.25 }} />
-                </Tooltip>
+              </ToggleButton>,
+            ]) : ([
+              <ToggleButton key="upload" value="upload" onClick={onImport} aria-label={t("upload")} sx={{ px: 0.75, py: 0.25 }}>
                 <Tooltip title={tip(t, "upload")}>
-                  <IconButton
-                    size="small"
-                    aria-label={t("upload")}
-                    onClick={onImport}
-                  >
-                    <FileUploadIcon fontSize="small" />
-                  </IconButton>
+                  <FileUploadIcon fontSize="small" />
                 </Tooltip>
+              </ToggleButton>,
+              <ToggleButton key="download" value="download" onClick={onDownload} aria-label={t("download")} sx={{ px: 0.75, py: 0.25 }}>
                 <Tooltip title={tip(t, "download")}>
-                  <IconButton
-                    size="small"
-                    aria-label={t("download")}
-                    onClick={onDownload}
-                  >
-                    <DownloadIcon fontSize="small" />
-                  </IconButton>
+                  <DownloadIcon fontSize="small" />
                 </Tooltip>
+              </ToggleButton>,
+            ])}
+            </ToggleButtonGroup>
+            {inlineMergeOpen && (
+              <>
+                <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+                <ToggleButtonGroup size="small" aria-label={t("mergeRight")} sx={{ height: 30 }}>
+                  <ToggleButton value="open" onClick={onLoadRightFile} aria-label={t("loadCompareFile")} sx={{ px: 0.75, py: 0.25 }}>
+                    <Tooltip title={t("mergeLoadFileRight")}>
+                      <FolderOpenIcon fontSize="small" />
+                    </Tooltip>
+                  </ToggleButton>
+                  <ToggleButton value="saveAs" onClick={onExportRightFile} aria-label={t("exportCompareFile")} sx={{ px: 0.75, py: 0.25 }}>
+                    <Tooltip title={t("mergeExportRight")}>
+                      <SaveAsIcon fontSize="small" />
+                    </Tooltip>
+                  </ToggleButton>
+                </ToggleButtonGroup>
               </>
             )}
           </Box>
-          <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
         </>
       )}
 
       {/* Undo/Redo */}
       {!hideUndoRedo && (
-        <>
-          <Tooltip title={tip(t, "undo")}>
-            <span>
-              <IconButton aria-label={t("undo")}
-                size="small"
-                onClick={() => mergeUndoRedo ? mergeUndoRedo.undo() : editor?.chain().focus().undo().run()}
-                disabled={mergeUndoRedo ? !mergeUndoRedo.canUndo : !editorState?.canUndo}
-              >
-                <UndoIcon fontSize="small" />
-              </IconButton>
-            </span>
-          </Tooltip>
-          <Tooltip title={tip(t, "redo")}>
-            <span>
-              <IconButton aria-label={t("redo")}
-                size="small"
-                onClick={() => mergeUndoRedo ? mergeUndoRedo.redo() : editor?.chain().focus().redo().run()}
-                disabled={mergeUndoRedo ? !mergeUndoRedo.canRedo : !editorState?.canRedo}
-              >
-                <RedoIcon fontSize="small" />
-              </IconButton>
-            </span>
-          </Tooltip>
-        </>
+        <ToggleButtonGroup size="small" aria-label={`${t("undo")} / ${t("redo")}`} sx={{ height: 30 }}>
+          <ToggleButton
+            value="undo"
+            aria-label={t("undo")}
+            onClick={() => mergeUndoRedo ? mergeUndoRedo.undo() : editor?.chain().focus().undo().run()}
+            disabled={mergeUndoRedo ? !mergeUndoRedo.canUndo : !editorState?.canUndo}
+            sx={{ px: 0.75, py: 0.25 }}
+          >
+            <Tooltip title={tip(t, "undo")}>
+              <span style={{ display: "inline-flex" }}><UndoIcon fontSize="small" /></span>
+            </Tooltip>
+          </ToggleButton>
+          <ToggleButton
+            value="redo"
+            aria-label={t("redo")}
+            onClick={() => mergeUndoRedo ? mergeUndoRedo.redo() : editor?.chain().focus().redo().run()}
+            disabled={mergeUndoRedo ? !mergeUndoRedo.canRedo : !editorState?.canRedo}
+            sx={{ px: 0.75, py: 0.25 }}
+          >
+            <Tooltip title={tip(t, "redo")}>
+              <span style={{ display: "inline-flex" }}><RedoIcon fontSize="small" /></span>
+            </Tooltip>
+          </ToggleButton>
+        </ToggleButtonGroup>
       )}
 
       {/* Insert elements - mobile menu */}
@@ -508,138 +465,65 @@ export const EditorToolbar = React.memo(function EditorToolbar({
 
       {/* Insert actions - hidden on mobile, shown in More menu */}
       <Box sx={{ display: { xs: "none", md: "contents" } }}>
-      <Tooltip title={tip(t, "image")}>
-        <span>
-        <IconButton aria-label={t("image")}
-          size="small"
-          onClick={onImage}
-          disabled={isInDiagramBlock || editorState?.isInDiagramCode || inlineMergeOpen}
-        >
-          <ImageIcon fontSize="small" />
-        </IconButton>
-        </span>
-      </Tooltip>
-      <Tooltip title={tip(t, "horizontalRule")}>
-        <span>
-        <IconButton aria-label={t("horizontalRule")}
-          size="small"
-          onClick={() => sourceMode ? onSourceInsertHr?.() : editor?.chain().focus().setHorizontalRule().run()}
-          disabled={isInDiagramBlock || editorState?.isInDiagramCode || inlineMergeOpen}
-        >
-          <HorizontalRuleIcon fontSize="small" />
-        </IconButton>
-        </span>
-      </Tooltip>
-      <Tooltip title={tip(t, "insertTable")}>
-        <span>
-        <IconButton aria-label={t("insertTable")}
-          size="small"
-          onClick={() =>
-            sourceMode ? onSourceInsertTable?.() : editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
-          }
-          disabled={isInDiagramBlock || editorState?.isInDiagramCode || inlineMergeOpen}
-        >
-          <GridOnIcon fontSize="small" />
-        </IconButton>
-        </span>
-      </Tooltip>
-      <Tooltip title={tip(t, "codeBlock")}>
-        <span>
-        <IconButton aria-label={t("codeBlock")}
-          size="small"
-          onClick={() => sourceMode ? onSourceInsertCodeBlock?.() : editor?.chain().focus().toggleCodeBlock().run()}
-          disabled={isInDiagramBlock || editorState?.isInDiagramCode || inlineMergeOpen}
-          color="default"
-        >
-          <TerminalIcon fontSize="small" />
-        </IconButton>
-        </span>
-      </Tooltip>
-
-      {/* Diagrams */}
-      <Tooltip title={tip(t, "insertDiagram")}>
-        <span>
-        <IconButton aria-label={t("insertDiagram")}
-          size="small"
-          onClick={(e) => onSetDiagramAnchor(e.currentTarget)}
-          disabled={isInDiagramBlock || editorState?.isInDiagramCode || inlineMergeOpen}
-        >
-          <AccountTreeIcon fontSize="small" />
-        </IconButton>
-        </span>
-      </Tooltip>
-
-      {/* Templates */}
-      <Tooltip title={tip(t, "templates")}>
-        <span>
-        <IconButton aria-label={t("templates")}
-          size="small"
-          onClick={(e) => onSetTemplateAnchor(e.currentTarget)}
-          disabled={editorState?.isInDiagramCode || inlineMergeOpen}
-        >
-          <ArticleIcon fontSize="small" />
-        </IconButton>
-        </span>
-      </Tooltip>
+      <ToggleButtonGroup size="small" aria-label={t("insertElements")} sx={{ height: 30 }}>
+        <ToggleButton value="image" onClick={onImage} aria-label={t("image")} disabled={isInDiagramBlock || editorState?.isInDiagramCode || inlineMergeOpen} sx={{ px: 0.75, py: 0.25 }}>
+          <Tooltip title={tip(t, "image")}>
+            <span style={{ display: "inline-flex" }}><ImageIcon fontSize="small" /></span>
+          </Tooltip>
+        </ToggleButton>
+        <ToggleButton value="hr" onClick={() => sourceMode ? onSourceInsertHr?.() : editor?.chain().focus().setHorizontalRule().run()} aria-label={t("horizontalRule")} disabled={isInDiagramBlock || editorState?.isInDiagramCode || inlineMergeOpen} sx={{ px: 0.75, py: 0.25 }}>
+          <Tooltip title={tip(t, "horizontalRule")}>
+            <span style={{ display: "inline-flex" }}><HorizontalRuleIcon fontSize="small" /></span>
+          </Tooltip>
+        </ToggleButton>
+        <ToggleButton value="table" onClick={() => sourceMode ? onSourceInsertTable?.() : editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()} aria-label={t("insertTable")} disabled={isInDiagramBlock || editorState?.isInDiagramCode || inlineMergeOpen} sx={{ px: 0.75, py: 0.25 }}>
+          <Tooltip title={tip(t, "insertTable")}>
+            <span style={{ display: "inline-flex" }}><GridOnIcon fontSize="small" /></span>
+          </Tooltip>
+        </ToggleButton>
+        <ToggleButton value="codeBlock" onClick={() => sourceMode ? onSourceInsertCodeBlock?.() : editor?.chain().focus().toggleCodeBlock().run()} aria-label={t("codeBlock")} disabled={isInDiagramBlock || editorState?.isInDiagramCode || inlineMergeOpen} sx={{ px: 0.75, py: 0.25 }}>
+          <Tooltip title={tip(t, "codeBlock")}>
+            <span style={{ display: "inline-flex" }}><TerminalIcon fontSize="small" /></span>
+          </Tooltip>
+        </ToggleButton>
+        <ToggleButton value="diagram" onClick={(e) => onSetDiagramAnchor(e.currentTarget)} aria-label={t("insertDiagram")} disabled={isInDiagramBlock || editorState?.isInDiagramCode || inlineMergeOpen} sx={{ px: 0.75, py: 0.25 }}>
+          <Tooltip title={tip(t, "insertDiagram")}>
+            <span style={{ display: "inline-flex" }}><AccountTreeIcon fontSize="small" /></span>
+          </Tooltip>
+        </ToggleButton>
+        <ToggleButton value="template" onClick={(e) => onSetTemplateAnchor(e.currentTarget)} aria-label={t("templates")} disabled={editorState?.isInDiagramCode || inlineMergeOpen} sx={{ px: 0.75, py: 0.25 }}>
+          <Tooltip title={tip(t, "templates")}>
+            <span style={{ display: "inline-flex" }}><ArticleIcon fontSize="small" /></span>
+          </Tooltip>
+        </ToggleButton>
+      </ToggleButtonGroup>
       </Box>
-
-      <Divider orientation="vertical" flexItem sx={{ mx: 0.5, display: { xs: "none", md: "flex" } }} />
 
       <Box sx={{ flexGrow: 1 }} />
 
-      <Divider orientation="vertical" flexItem sx={{ mx: 0.5, display: { xs: "none", md: "flex" } }} />
-
       {/* Fold/Unfold, DiagramCode, Outline - hidden on mobile */}
       <Box sx={{ display: { xs: "none", md: "contents" } }}>
-      {/* Collapse/Expand all blocks */}
-      {editorState?.hasBlocks && (
-        <Tooltip title={editorState.allBlocksCollapsed ? tip(t, "unfoldAll") : tip(t, "foldAll")}>
-          <span>
-          <IconButton
-            size="small"
-            onClick={onToggleAllBlocks}
-            disabled={inlineMergeOpen || sourceMode}
-            aria-label={editorState.allBlocksCollapsed ? t("unfoldAll") : t("foldAll")}
-          >
-            {editorState.allBlocksCollapsed
-              ? <UnfoldMoreIcon fontSize="small" />
-              : <UnfoldLessIcon fontSize="small" />}
-          </IconButton>
-          </span>
-        </Tooltip>
-      )}
-
-      {/* Collapse/Expand diagram code panes */}
-      {editorState?.hasDiagrams && (
-        <Tooltip title={editorState.allDiagramCodeCollapsed ? t("diagramCodeShow") : t("diagramCodeHide")}>
-          <span>
-          <IconButton
-            size="small"
-            onClick={onToggleDiagramCode}
-            disabled={inlineMergeOpen || sourceMode}
-            aria-label={editorState.allDiagramCodeCollapsed ? t("diagramCodeShow") : t("diagramCodeHide")}
-          >
-            {editorState.allDiagramCodeCollapsed
-              ? <CodeIcon fontSize="small" />
-              : <CodeOffIcon fontSize="small" />}
-          </IconButton>
-          </span>
-        </Tooltip>
-      )}
-
-      {/* Outline toggle */}
-      <Tooltip title={tip(t, "outline")}>
-        <span>
-        <IconButton aria-label={t("outline")}
-          size="small"
-          onClick={onToggleOutline}
-          disabled={inlineMergeOpen}
-          color={outlineOpen ? "primary" : "default"}
-        >
-          <ListAltIcon fontSize="small" />
-        </IconButton>
-        </span>
-      </Tooltip>
+      <ToggleButtonGroup size="small" aria-label={t("view")} sx={{ height: 30 }}>
+        {editorState?.hasBlocks && (
+          <ToggleButton value="fold" onClick={onToggleAllBlocks} disabled={inlineMergeOpen || sourceMode} aria-label={editorState.allBlocksCollapsed ? t("unfoldAll") : t("foldAll")} sx={{ px: 0.75, py: 0.25 }}>
+            <Tooltip title={editorState.allBlocksCollapsed ? tip(t, "unfoldAll") : tip(t, "foldAll")}>
+              <span style={{ display: "inline-flex" }}>{editorState.allBlocksCollapsed ? <UnfoldMoreIcon fontSize="small" /> : <UnfoldLessIcon fontSize="small" />}</span>
+            </Tooltip>
+          </ToggleButton>
+        )}
+        {editorState?.hasDiagrams && (
+          <ToggleButton value="diagramCode" onClick={onToggleDiagramCode} disabled={inlineMergeOpen || sourceMode} aria-label={editorState.allDiagramCodeCollapsed ? t("diagramCodeShow") : t("diagramCodeHide")} sx={{ px: 0.75, py: 0.25 }}>
+            <Tooltip title={editorState.allDiagramCodeCollapsed ? t("diagramCodeShow") : t("diagramCodeHide")}>
+              <span style={{ display: "inline-flex" }}>{editorState.allDiagramCodeCollapsed ? <CodeIcon fontSize="small" /> : <CodeOffIcon fontSize="small" />}</span>
+            </Tooltip>
+          </ToggleButton>
+        )}
+        <ToggleButton value="outline" selected={outlineOpen} onClick={onToggleOutline} disabled={inlineMergeOpen} aria-label={t("outline")} sx={{ px: 0.75, py: 0.25 }}>
+          <Tooltip title={tip(t, "outline")}>
+            <span style={{ display: "inline-flex" }}><ListAltIcon fontSize="small" /></span>
+          </Tooltip>
+        </ToggleButton>
+      </ToggleButtonGroup>
       </Box>
 
       {/* Compare toggle (md 以上のみ表示) */}
@@ -671,22 +555,6 @@ export const EditorToolbar = React.memo(function EditorToolbar({
           </Tooltip>
         </ToggleButton>
       </ToggleButtonGroup>
-
-      {/* Right panel file ops (compare mode only) */}
-      {inlineMergeOpen && (
-        <>
-          <Tooltip title={t("mergeLoadFileRight")}>
-            <IconButton size="small" onClick={onLoadRightFile} aria-label={t("loadCompareFile")}>
-              <FileUploadIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title={t("mergeExportRight")}>
-            <IconButton size="small" onClick={onExportRightFile} aria-label={t("exportCompareFile")}>
-              <DownloadIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        </>
-      )}
 
       {/* Source / WYSIWYG toggle */}
       <ToggleButtonGroup

@@ -72,16 +72,6 @@ describe("EditorToolbar", () => {
     expect(onClear).toHaveBeenCalledTimes(1);
   });
 
-  test("コピーボタンをクリックするとonCopyが呼ばれる", () => {
-    const onCopy = jest.fn();
-    const props = createDefaultProps({ onCopy });
-    render(<EditorToolbar {...props} />);
-
-    const btn = screen.getByLabelText("copy");
-    fireEvent.click(btn);
-    expect(onCopy).toHaveBeenCalledTimes(1);
-  });
-
   test("supportsDirectAccess=true のとき、ファイルシステムボタン（open/save/saveAs）を表示する", () => {
     const props = createDefaultProps({
       supportsDirectAccess: true,

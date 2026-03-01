@@ -140,7 +140,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   } = useFileSystem(fileSystemProvider ?? null);
 
   const {
-    copied, fileInputRef, handleClear, handleFileSelected,
+    fileInputRef, handleClear, handleFileSelected,
     handleDownload, handleImport, handleCopy,
     handleOpenFile, handleSaveFile, handleSaveAsFile,
   } = useEditorFileOps({
@@ -271,11 +271,9 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         onImage={handleImage}
         onToggleAllBlocks={handleToggleAllBlocks}
         onToggleDiagramCode={handleToggleDiagramCode}
-        onCopy={handleCopy}
         onDownload={handleDownload}
         onImport={() => fileInputRef.current?.click()}
         onClear={handleClear}
-        copied={copied}
         onSetDiagramAnchor={setDiagramAnchorEl}
         onSetTemplateAnchor={setTemplateAnchorEl}
         onSetHelpAnchor={setHelpAnchorEl}
