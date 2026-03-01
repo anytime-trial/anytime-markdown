@@ -3,8 +3,7 @@
 import type { NodeViewProps } from "@tiptap/react";
 import { NodeViewContent, NodeViewWrapper, useEditorState } from "@tiptap/react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Divider, IconButton, Popover, ToggleButton, ToggleButtonGroup, Tooltip, Typography, useTheme } from "@mui/material";
-import CloseIcon from "@mui/icons-material/Close";
+import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Divider, IconButton, ToggleButton, ToggleButtonGroup, Tooltip, Typography, useTheme } from "@mui/material";
 import CodeIcon from "@mui/icons-material/Code";
 import CodeOffIcon from "@mui/icons-material/CodeOff";
 import FullscreenIcon from "@mui/icons-material/Fullscreen";
@@ -19,54 +18,20 @@ import SchemaIcon from "@mui/icons-material/Schema";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
-import type mermaidAPI from "mermaid";
-import plantumlEncoder from "plantuml-encoder";
-
-/** Lazy-load mermaid (~1.5 MB) only when needed */
-let mermaidInstance: typeof mermaidAPI | null = null;
-async function getMermaid() {
-  if (!mermaidInstance) {
-    const mod = await import("mermaid");
-    mermaidInstance = mod.default;
-  }
-  return mermaidInstance;
-}
 import DOMPurify from "dompurify";
 import { useTranslations } from "next-intl";
 import { usePlantUmlToolbar } from "./types";
-import { MERMAID_SAMPLES } from "./constants/samples";
 import { useEditorSettingsContext } from "./useEditorSettings";
-
-let mermaidIdCounter = 0;
-
-/** Mermaid SVG用のDOMPurify設定: foreignObject経由のXSSを防止 */
-const SVG_SANITIZE_CONFIG = {
-  USE_PROFILES: { svg: true, svgFilters: true, html: true },
-  ADD_TAGS: ["foreignObject"] as string[],
-  ADD_ATTR: ["xmlns", "style", "class", "requiredExtensions"] as string[],
-  FORBID_TAGS: ["script", "iframe", "object", "embed"] as string[],
-};
-
-import { PLANTUML_SERVER, PLANTUML_CONSENT_KEY, PLANTUML_DARK_SKINPARAMS } from "./utils/plantumlHelpers";
+import { useMermaidRender, SVG_SANITIZE_CONFIG, detectMermaidType } from "./hooks/useMermaidRender";
+import { usePlantUmlRender } from "./hooks/usePlantUmlRender";
+import { useDiagramCapture } from "./hooks/useDiagramCapture";
+import { CodeBlockFullscreenDialog } from "./components/CodeBlockFullscreenDialog";
+import { DiagramFullscreenDialog } from "./components/DiagramFullscreenDialog";
+import { MermaidSamplePopover } from "./components/MermaidSamplePopover";
 import { useZoomPan } from "./hooks/useZoomPan";
 import { useTextareaSearch } from "./hooks/useTextareaSearch";
-import { FsSearchBar } from "./components/FsSearchBar";
 
 const pumlIconSx = { fontSize: 16 };
-
-/** Detect Mermaid diagram type from code content for aria-label */
-function detectMermaidType(code: string): string {
-  const first = code.trimStart().split(/[\s\n{]/)[0].toLowerCase();
-  if (first === "graph" || first === "flowchart") return "diagramFlowchart";
-  if (first === "sequencediagram") return "diagramSequence";
-  if (first === "classdiagram") return "diagramClass";
-  if (first === "statediagram" || first === "statediagram-v2") return "diagramState";
-  if (first === "erdiagram") return "diagramEr";
-  if (first === "gantt") return "diagramGantt";
-  if (first === "pie") return "diagramPie";
-  if (first === "mindmap") return "diagramMindmap";
-  return "diagramGeneric";
-}
 
 export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: NodeViewProps) {
   const theme = useTheme();
@@ -79,14 +44,6 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: No
   const settings = useEditorSettingsContext();
   const { setSampleAnchorEl } = usePlantUmlToolbar();
 
-  const [svg, setSvg] = useState("");
-  const [plantUmlUrl, setPlantUmlUrl] = useState("");
-  const [error, setError] = useState("");
-  const [plantUmlConsent, setPlantUmlConsent] = useState<"pending" | "accepted" | "rejected">(() => {
-    if (typeof window === "undefined") return "pending";
-    const v = sessionStorage.getItem(PLANTUML_CONSENT_KEY);
-    return v === "accepted" || v === "rejected" ? v : "pending";
-  });
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const allCollapsed = !!node.attrs.collapsed;
   const codeCollapsed = !!node.attrs.codeCollapsed;
@@ -98,9 +55,6 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: No
   const normalZP = useZoomPan();
   const fsZP = useZoomPan();
   const fsTextareaRef = useRef<HTMLTextAreaElement>(null);
-  const [fsSplitPct, setFsSplitPct] = useState(40);
-  const [fsDragging, setFsDragging] = useState(false);
-  const fsContainerRef = useRef<HTMLDivElement>(null);
 
   const isSelected = useEditorState({
     editor,
@@ -115,44 +69,14 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: No
 
   const code = node.textContent;
 
-  const handleCapture = useCallback(async () => {
-    try {
-      if (isMermaid && svg) {
-        const svgEl = new DOMParser().parseFromString(svg, "image/svg+xml").documentElement;
-        const w = parseFloat(svgEl.getAttribute("width") || "800");
-        const h = parseFloat(svgEl.getAttribute("height") || "600");
-        const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-        const img = new Image();
-        img.onload = () => {
-          const scale = 2;
-          const canvas = document.createElement("canvas");
-          canvas.width = w * scale;
-          canvas.height = h * scale;
-          const ctx = canvas.getContext("2d");
-          if (!ctx) return;
-          ctx.scale(scale, scale);
-          ctx.drawImage(img, 0, 0, w, h);
-          URL.revokeObjectURL(url);
-          canvas.toBlob((b) => {
-            if (!b) return;
-            const a = document.createElement("a");
-            a.href = URL.createObjectURL(b);
-            a.download = "diagram.png";
-            a.click();
-            URL.revokeObjectURL(a.href);
-          }, "image/png");
-        };
-        img.src = url;
-      } else if (isPlantUml && plantUmlUrl) {
-        const pngUrl = plantUmlUrl.replace("/svg/", "/png/");
-        const a = document.createElement("a");
-        a.href = pngUrl;
-        a.download = "diagram.png";
-        a.click();
-      }
-    } catch { /* ignore */ }
-  }, [isMermaid, isPlantUml, svg, plantUmlUrl]);
+  const { svg, error: mermaidError, setError: setMermaidError } = useMermaidRender({ code, isMermaid, isDark });
+  const {
+    plantUmlUrl, error: plantUmlError, plantUmlConsent,
+    handlePlantUmlAccept, handlePlantUmlReject, setError: setPlantUmlError,
+  } = usePlantUmlRender({ code, isPlantUml, isDark });
+  const error = isMermaid ? mermaidError : plantUmlError;
+
+  const handleCapture = useDiagramCapture({ isMermaid, isPlantUml, svg, plantUmlUrl });
 
   // 全画面オープン時にコードを同期
   useEffect(() => {
@@ -199,7 +123,6 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: No
 
   const fsSearch = useTextareaSearch(fsTextareaRef, fsCode, handleFsTextChange);
 
-
   /** コードブロック（PlantUML / Mermaid / 通常）を削除 */
   const handleDeleteBlock = useCallback(() => {
     if (!editor || typeof getPos !== "function") return;
@@ -209,86 +132,6 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: No
     const to = pos + node.nodeSize;
     editor.chain().focus().command(({ tr }) => { tr.delete(from, to); return true; }).run();
   }, [editor, getPos, node.nodeSize]);
-
-  // Mermaid rendering
-  useEffect(() => {
-    if (!isMermaid || !code.trim()) {
-      if (isMermaid) { setSvg(""); setError(""); }
-      return;
-    }
-
-    let cancelled = false;
-    const timer = setTimeout(async () => {
-      if (cancelled) return;
-      const mermaid = await getMermaid();
-      if (cancelled) return;
-      mermaid.initialize({
-        startOnLoad: false,
-        suppressErrorRendering: true,
-        theme: isDark ? "dark" : "default",
-      });
-
-      try {
-        await mermaid.parse(code);
-      } catch (err) {
-        if (!cancelled) { setError(`Mermaid: ${err instanceof Error ? err.message : "syntax error"}`); setSvg(""); }
-        return;
-      }
-
-      if (cancelled) return;
-      try {
-        const id = `mermaid-${++mermaidIdCounter}`;
-        const { svg: rendered } = await mermaid.render(id, code);
-        if (!cancelled) { setSvg(rendered); setError(""); }
-      } catch (err) {
-        if (!cancelled) { setError(`Mermaid: ${err instanceof Error ? err.message : "render error"}`); setSvg(""); }
-      }
-
-      document.querySelectorAll('[id^="dmermaid-"]').forEach((el) => el.remove());
-    }, 500);
-
-    return () => { cancelled = true; clearTimeout(timer); };
-  }, [code, isMermaid, isDark]);
-
-  // PlantUML rendering — gated by user consent
-  useEffect(() => {
-    if (!isPlantUml || !code.trim() || plantUmlConsent !== "accepted") {
-      if (isPlantUml) { setPlantUmlUrl(""); setError(""); }
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      try {
-        const startMatch = code.match(/@start(uml|mindmap|wbs|json|yaml)/);
-        const diagramType = startMatch ? startMatch[1] : null;
-        const needsSkinParam = diagramType === "uml" || diagramType === null;
-        let src: string;
-        if (diagramType) {
-          src = needsSkinParam && isDark ? code.replace(/@startuml/, `@startuml\n${PLANTUML_DARK_SKINPARAMS}`) : code;
-        } else {
-          src = isDark ? `@startuml\n${PLANTUML_DARK_SKINPARAMS}\n${code}\n@enduml` : `@startuml\n${code}\n@enduml`;
-        }
-        const encoded = plantumlEncoder.encode(src);
-        setPlantUmlUrl(`${PLANTUML_SERVER}/svg/${encoded}`);
-        setError("");
-      } catch (err) {
-        setError(`PlantUML: ${err instanceof Error ? err.message : "encode error"}`);
-        setPlantUmlUrl("");
-      }
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [code, isPlantUml, isDark, plantUmlConsent]);
-
-  const handlePlantUmlAccept = useCallback(() => {
-    sessionStorage.setItem(PLANTUML_CONSENT_KEY, "accepted");
-    setPlantUmlConsent("accepted");
-  }, []);
-
-  const handlePlantUmlReject = useCallback(() => {
-    sessionStorage.setItem(PLANTUML_CONSENT_KEY, "rejected");
-    setPlantUmlConsent("rejected");
-  }, []);
 
   // Regular code block
   if (!isDiagram) {
@@ -362,57 +205,16 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: No
           </Box>
         </Box>
         {/* Fullscreen dialog */}
-        <Dialog
+        <CodeBlockFullscreenDialog
           open={fullscreen}
           onClose={() => { fsSearch.reset(); setFullscreen(false); }}
-          fullScreen
-          aria-labelledby="codeblock-fullscreen-title"
-          slotProps={{ paper: { sx: { bgcolor: settings.editorBg === "grey" && !isDark ? "grey.50" : undefined, display: "flex", flexDirection: "column" } } }}
-          onKeyDown={(e: React.KeyboardEvent) => {
-            const mod = e.metaKey || e.ctrlKey;
-            if (mod && (e.key === "f" || e.key === "h")) {
-              e.preventDefault();
-              e.stopPropagation();
-              fsSearch.focusSearch();
-            }
-          }}
-        >
-          <Box sx={{ display: "flex", alignItems: "center", px: 2, py: 1, borderBottom: 1, borderColor: "divider", position: "relative" }}>
-            <DialogTitle id="codeblock-fullscreen-title" sx={{ p: 0, fontSize: "0.875rem", fontWeight: 600, mr: 1 }}>
-              {codeLabel}
-            </DialogTitle>
-            {/* Search & Replace bar */}
-            <FsSearchBar search={fsSearch} t={t} />
-            <Box sx={{ flex: 1 }} />
-            <Tooltip title={t("close")} placement="bottom">
-              <IconButton size="small" onClick={() => { fsSearch.reset(); setFullscreen(false); }} sx={{ ml: 1 }} aria-label={t("close")}>
-                <CloseIcon sx={{ fontSize: 20 }} />
-              </IconButton>
-            </Tooltip>
-          </Box>
-          <Box
-            component="textarea"
-            ref={fsTextareaRef}
-            value={fsCode}
-            onChange={handleFsCodeChange}
-            spellCheck={false}
-            sx={{
-              flex: 1,
-              width: "100%",
-              border: "none",
-              outline: "none",
-              resize: "none",
-              fontFamily: "monospace",
-              fontSize: `${settings.fontSize}px`,
-              lineHeight: settings.lineHeight,
-              p: 2,
-              color: "text.primary",
-              bgcolor: isDark ? "grey.900" : "grey.50",
-              boxSizing: "border-box",
-              overflow: "auto",
-            }}
-          />
-        </Dialog>
+          label={codeLabel}
+          fsCode={fsCode}
+          onFsCodeChange={handleFsCodeChange}
+          fsTextareaRef={fsTextareaRef}
+          fsSearch={fsSearch}
+          t={t}
+        />
         <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
           <DialogTitle>{t("delete")}</DialogTitle>
           <DialogContent><Typography>{t("clearConfirm")}</Typography></DialogContent>
@@ -660,206 +462,31 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: No
         )}
       </Box>
       {/* Fullscreen dialog */}
-      <Dialog
+      <DiagramFullscreenDialog
         open={fullscreen}
         onClose={() => { fsSearch.reset(); setFullscreen(false); }}
-        fullScreen
-        aria-labelledby="diagram-fullscreen-title"
-        slotProps={{ paper: { sx: { bgcolor: settings.editorBg === "grey" && !isDark ? "grey.50" : undefined, display: "flex", flexDirection: "column" } } }}
-        onKeyDown={(e: React.KeyboardEvent) => {
-          const mod = e.metaKey || e.ctrlKey;
-          if (mod && (e.key === "f" || e.key === "h")) {
-            e.preventDefault();
-            e.stopPropagation();
-            fsSearch.focusSearch();
-          }
-        }}
-      >
-        <Box sx={{ display: "flex", alignItems: "center", px: 2, py: 1, borderBottom: 1, borderColor: "divider", position: "relative" }}>
-          <DialogTitle id="diagram-fullscreen-title" sx={{ p: 0, fontSize: "0.875rem", fontWeight: 600, mr: 1 }}>
-            {label}
-          </DialogTitle>
-          <ToggleButtonGroup size="small" sx={{ height: 30 }}>
-            <ToggleButton value="zoomOut" aria-label={t("zoomOut")} sx={{ px: 0.75, py: 0.25 }} onClick={fsZP.zoomOut}>
-              <Tooltip title={t("zoomOut")} placement="bottom">
-                <ZoomOutIcon sx={{ fontSize: 18 }} />
-              </Tooltip>
-            </ToggleButton>
-            <ToggleButton value="zoomIn" aria-label={t("zoomIn")} sx={{ px: 0.75, py: 0.25 }} onClick={fsZP.zoomIn}>
-              <Tooltip title={t("zoomIn")} placement="bottom">
-                <ZoomInIcon sx={{ fontSize: 18 }} />
-              </Tooltip>
-            </ToggleButton>
-            {fsZP.isDirty && (
-              <ToggleButton value="zoomReset" aria-label={t("zoomReset")} sx={{ px: 0.75, py: 0.25 }} onClick={fsZP.reset}>
-                <Tooltip title={t("zoomReset")} placement="bottom">
-                  <RestartAltIcon sx={{ fontSize: 18 }} />
-                </Tooltip>
-              </ToggleButton>
-            )}
-          </ToggleButtonGroup>
-          <Typography variant="caption" sx={{ minWidth: 40, textAlign: "center" }}>
-            {Math.round(fsZP.zoom * 100)}%
-          </Typography>
-          {/* Search & Replace bar */}
-          {fsCodeVisible && (
-            <FsSearchBar search={fsSearch} t={t} />
-          )}
-          <Box sx={{ flex: 1 }} />
-          <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
-          {/* Code toggle */}
-          <Tooltip title={fsCodeVisible ? t("foldAll") : t("unfoldAll")} placement="bottom">
-            <IconButton
-              size="small"
-              onClick={() => setFsCodeVisible((v) => !v)}
-              aria-label={fsCodeVisible ? t("foldAll") : t("unfoldAll")}
-            >
-              {fsCodeVisible ? <CodeOffIcon sx={{ fontSize: 18 }} /> : <CodeIcon sx={{ fontSize: 18 }} />}
-            </IconButton>
-          </Tooltip>
-          <Tooltip title={t("close")} placement="bottom">
-            <IconButton size="small" onClick={() => { fsSearch.reset(); setFullscreen(false); }} sx={{ ml: 1 }} aria-label={t("close")}>
-              <CloseIcon sx={{ fontSize: 20 }} />
-            </IconButton>
-          </Tooltip>
-        </Box>
-        {/* Split view: Code + Divider + Preview */}
-        <Box
-          ref={fsContainerRef}
-          sx={{ flex: 1, display: "flex", overflow: "hidden", position: "relative" }}
-          onPointerMove={(e: React.PointerEvent) => {
-            if (fsDragging && fsContainerRef.current) {
-              const rect = fsContainerRef.current.getBoundingClientRect();
-              const pct = ((e.clientX - rect.left) / rect.width) * 100;
-              setFsSplitPct(Math.min(80, Math.max(15, pct)));
-            }
-            if (!fsDragging) fsZP.handlePointerMove(e);
-          }}
-          onPointerUp={(e: React.PointerEvent) => {
-            if (fsDragging) {
-              setFsDragging(false);
-              (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
-            } else {
-              fsZP.handlePointerUp();
-            }
-          }}
-        >
-          {/* Code editor */}
-          {fsCodeVisible && (
-            <Box sx={{ width: `${fsSplitPct}%`, minWidth: 120, display: "flex", flexDirection: "column", pointerEvents: fsDragging ? "none" : "auto" }}>
-              <Box
-                component="textarea"
-                ref={fsTextareaRef}
-                value={fsCode}
-                onChange={handleFsCodeChange}
-                spellCheck={false}
-                sx={{
-                  flex: 1,
-                  width: "100%",
-                  border: "none",
-                  outline: "none",
-                  resize: "none",
-                  fontFamily: "monospace",
-                  fontSize: `${settings.fontSize}px`,
-                  lineHeight: settings.lineHeight,
-                  p: 2,
-                  color: "text.primary",
-                  bgcolor: isDark ? "grey.900" : "grey.50",
-                  boxSizing: "border-box",
-                  overflow: "auto",
-                }}
-              />
-            </Box>
-          )}
-          {/* Draggable divider */}
-          {fsCodeVisible && (
-            <Box
-              onPointerDown={(e: React.PointerEvent) => {
-                setFsDragging(true);
-                (e.target as HTMLElement).setPointerCapture(e.pointerId);
-                e.preventDefault();
-              }}
-              sx={{
-                width: 4,
-                cursor: "col-resize",
-                bgcolor: "divider",
-                flexShrink: 0,
-                "&:hover": { bgcolor: "primary.main" },
-                transition: "background-color 0.15s",
-                "@media (prefers-reduced-motion: reduce)": { transition: "none" },
-              }}
-            />
-          )}
-          {/* Preview */}
-          <Box
-            sx={{
-              flex: 1,
-              overflow: "hidden",
-              bgcolor: isDark ? "grey.900" : "background.paper",
-              cursor: fsDragging ? "col-resize" : "grab",
-              "&:active": { cursor: fsDragging ? "col-resize" : "grabbing" },
-              // Prevent iframe/textarea stealing pointer events during drag
-              pointerEvents: fsDragging ? "none" : "auto",
-            }}
-            onPointerDown={fsZP.handlePointerDown}
-            onWheel={fsZP.handleWheel}
-          >
-            <Box sx={{ width: "100%", height: "100%", display: "flex", justifyContent: "center", alignItems: "center", transform: `translate(${fsZP.pan.x}px, ${fsZP.pan.y}px) scale(${fsZP.zoom})`, transformOrigin: "center center", transition: fsZP.isPanningRef.current ? "none" : "transform 0.15s", "@media (prefers-reduced-motion: reduce)": { transition: "none" }, pointerEvents: "none" }}>
-              {isMermaid && svg && (
-                <Box role="img" aria-label={t(detectMermaidType(code))} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(svg, SVG_SANITIZE_CONFIG) }} />
-              )}
-              {isPlantUml && plantUmlUrl && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={plantUmlUrl} alt={t("plantUmlDiagram")} style={{ maxWidth: "90vw", maxHeight: "85vh" }} />
-              )}
-            </Box>
-          </Box>
-        </Box>
-      </Dialog>
+        label={label}
+        isMermaid={isMermaid}
+        isPlantUml={isPlantUml}
+        svg={svg}
+        plantUmlUrl={plantUmlUrl}
+        code={code}
+        fsCode={fsCode}
+        onFsCodeChange={handleFsCodeChange}
+        fsTextareaRef={fsTextareaRef}
+        fsSearch={fsSearch}
+        fsCodeVisible={fsCodeVisible}
+        onToggleFsCodeVisible={() => setFsCodeVisible((v) => !v)}
+        fsZP={fsZP}
+        t={t}
+      />
       {/* Mermaid サンプル選択 Popover */}
-      <Popover
-        open={!!mermaidSampleAnchorEl}
+      <MermaidSamplePopover
         anchorEl={mermaidSampleAnchorEl}
         onClose={() => setMermaidSampleAnchorEl(null)}
-        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
-        transformOrigin={{ vertical: "top", horizontal: "left" }}
-      >
-        <Box sx={{ display: "flex", flexDirection: "column", p: 0.5 }}>
-          {MERMAID_SAMPLES.filter((s) => s.enabled).map((sample) => {
-            const sampleCode = sample.code;
-            return (
-              <Tooltip key={sample.label} title={t(sample.i18nKey)} placement="right">
-                <IconButton
-                  size="small"
-                  aria-label={t(sample.i18nKey)}
-                  onClick={() => {
-                    if (!editor) return;
-                    const { $from } = editor.state.selection;
-                    let depth = $from.depth;
-                    while (depth > 0) {
-                      const nd = $from.node(depth);
-                      if (nd.type.name === "codeBlock" && nd.attrs.language === "mermaid") break;
-                      depth--;
-                    }
-                    if (depth > 0) {
-                      const start = $from.start(depth);
-                      const end = $from.end(depth);
-                      editor.chain().focus().command(({ tr }) => {
-                        tr.replaceWith(start, end, editor.schema.text(sampleCode));
-                        return true;
-                      }).run();
-                    }
-                    setMermaidSampleAnchorEl(null);
-                  }}
-                  sx={{ minWidth: 32, minHeight: 32 }}
-                >
-                  <Typography aria-hidden="true" sx={{ fontSize: 9, fontFamily: "monospace", fontWeight: 700, lineHeight: 1, border: 1, borderColor: "divider", borderRadius: 0.5, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center" }}>{sample.icon}</Typography>
-                </IconButton>
-              </Tooltip>
-            );
-          })}
-        </Box>
-      </Popover>
+        editor={editor}
+        t={t}
+      />
       <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
         <DialogTitle>{t("delete")}</DialogTitle>
         <DialogContent><Typography>{t("clearConfirm")}</Typography></DialogContent>
