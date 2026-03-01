@@ -217,9 +217,6 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
         slotProps={{ paper: { role: "menu" } }}
       >
         <Box sx={{ py: 0.5, minWidth: 180 }}>
-          <Typography variant="caption" sx={{ px: 2, py: 0.5, color: "text.secondary", fontWeight: 600, display: "block" }}>
-            {t("builtinTemplates")}
-          </Typography>
           {BUILTIN_TEMPLATES.map((tmpl) => (
             <MenuItem
               key={tmpl.id}
