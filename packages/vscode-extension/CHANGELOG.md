@@ -4,6 +4,48 @@ All notable changes to the "anytime-markdown" extension will be documented in th
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.0.7] - 2026-03-01
+
+### Added
+- nonce ベースの CSP を middleware で実装し、script-src から unsafe-inline を除去 (H-3)
+- CSP に worker-src 'self' ディレクティブを追加
+- PDF エクスポート中のローディングインジケーター表示
+- ESLint + typescript-eslint の設定を追加
+- スラッシュコマンドメニューによるブロック挿入機能
+- ツールバーボタンを ToggleButtonGroup に統一
+- Playwright による E2E テスト（エディタ基本操作、モード切替、ツールバー、ファイル操作、検索置換、アウトライン、設定、キーボードショートカット）
+- PDF エクスポート機能（@media print スタイル対応）
+- Mermaid/PlantUML ダイアグラムのリサイズハンドル
+- ダイアグラムコードのデフォルト折りたたみ表示
+- コードブロックのコピーボタン
+- HTML サンプルポップオーバーとツールバー挿入ボタン
+- OpenGraph メタデータ
+- フォーカストラップとキーボード操作の改善（フルスクリーン NodeView）
+- ファイル操作の Snackbar 通知
+- 差分・エラー状態の非カラー視覚インジケーター
+- MIT LICENSE ファイル
+
+### Changed
+- any 型を ProseMirror / Tiptap の適切な型に置換
+- ESLint の孤立した disable コメントを除去
+- ダイアグラムをエディタのフォントサイズに連動して CSS zoom でスケーリング
+- PDF エクスポート時にダイアグラムをライトテーマでレンダリング
+- PDF デフォルト用紙サイズを A4 に設定
+- コードブロック背景をダイアグラム背景と統一
+- PlantUML ダークモード背景を Mermaid と統一
+- フルスクリーンダイアログ背景を background.paper に統一
+- ダイアグラムコード切替ボタンをツールバーから削除
+
+### Fixed
+- Mermaid SVG のフルスクリーンダイアログ内でのコンテナ幅スケーリング
+- PDF エクスポート時に Mermaid/PlantUML コードブロックを非表示
+
+### Security
+- HTML サニタイズ設定を許可リスト方式に変更
+- PlantUML img 要素に referrerPolicy を追加
+- Mermaid の securityLevel を strict に設定
+- CSP の script-src から unsafe-inline を除去し nonce ベースに移行
+
 ## [0.0.6] - 2026-03-01
 
 ### Added
