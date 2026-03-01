@@ -10,6 +10,12 @@
 	},
 	// Turn off tsc task auto detection since we have the necessary tasks as npm scripts
 	"typescript.tsc.autoDetect": "off",
+	// Jest Test Provider: monorepo の各パッケージを明示指定
+	"jest.jestCommandLine": "npx jest",
+	"jest.projects": [
+		{ "rootPath": "packages/editor-core", "jestCommandLine": "npx jest" },
+		{ "rootPath": "packages/web-app", "jestCommandLine": "npx jest" }
+	],
 	// "workbench.editorAssociations": {                                                                                                                               
 	// 	"*.md": "anytimeMarkdown"                                                                                                                               
 	// }        
