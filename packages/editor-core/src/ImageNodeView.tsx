@@ -303,7 +303,7 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
                 aria-label={t("resizeImage")}
                 aria-valuemin={MIN_WIDTH}
                 aria-valuemax={800}
-                aria-valuenow={parseInt(width, 10) || undefined}
+                aria-valuenow={width ? parseInt(width, 10) || undefined : undefined}
                 onPointerDown={handleResizePointerDown}
                 onKeyDown={handleResizeKeyDown}
                 sx={{

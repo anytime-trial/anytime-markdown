@@ -215,7 +215,7 @@ export function DiagramBlock(props: DiagramBlockProps) {
       aria-label={t("resizeDiagram")}
       aria-valuemin={diagramResize.MIN_WIDTH}
       aria-valuemax={800}
-      aria-valuenow={parseInt(node.attrs.width, 10) || undefined}
+      aria-valuenow={node.attrs.width ? parseInt(node.attrs.width, 10) || undefined : undefined}
       onPointerDown={diagramResize.handlePointerDown}
       onKeyDown={diagramResize.handleKeyDown}
       sx={{

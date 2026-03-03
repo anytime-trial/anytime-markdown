@@ -318,7 +318,7 @@ export function OutlinePanel({
                         {h.text || "(empty)"}
                       </Box>
                     </Tooltip>
-                    <Box className="outline-move-btns" sx={{ display: "flex", flexShrink: 0, transition: "opacity 0.15s" }}>
+                    <Box className="outline-move-btns" sx={{ display: "flex", flexShrink: 0, transition: "opacity 0.15s", "@media (prefers-reduced-motion: reduce)": { transition: "none" } }}>
                       {isHeading && onHeadingDragEnd && (<>
                         <Tooltip title={t("moveRowUp")} placement="top">
                           <span>

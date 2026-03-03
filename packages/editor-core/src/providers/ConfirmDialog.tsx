@@ -48,6 +48,7 @@ const ConfirmDialog: React.FC<ConfirmProps> = ({
       open={open}
       onClose={onClose}
       aria-labelledby="confirm-dialog-title"
+      aria-describedby="confirm-dialog-description"
     >
       <DialogTitle
         id="confirm-dialog-title"
@@ -63,6 +64,7 @@ const ConfirmDialog: React.FC<ConfirmProps> = ({
       </DialogTitle>
       <DialogContent>
         <DialogContentText
+          id="confirm-dialog-description"
           sx={{
             mb: 2,
             whiteSpace: 'pre-line',

@@ -43,10 +43,6 @@ const nextConfig = {
       test: /\.md$/,
       type: 'asset/source',
     });
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      '@': require('path').resolve(__dirname, '../editor-core/src'),
-    };
     return config;
   },
 };

@@ -70,9 +70,9 @@ export default function LandingHeader() {
               fontWeight: 600,
               borderRadius: 2,
               px: 2.5,
-              bgcolor: '#e8a012',
+              bgcolor: 'secondary.main',
               color: '#1a1a1a',
-              '&:hover': { bgcolor: '#d4920e' },
+              '&:hover': { bgcolor: 'secondary.dark' },
             }}
           >
             {t('openEditor')}
