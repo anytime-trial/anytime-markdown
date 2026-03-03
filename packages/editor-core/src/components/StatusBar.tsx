@@ -149,8 +149,11 @@ export const StatusBar = React.memo(function StatusBar({ editor, sourceMode, sou
                 key={opt}
                 selected={opt === (encoding ?? "UTF-8")}
                 onClick={() => {
-                  onEncodingChange(opt);
                   setEncodingAnchor(null);
+                  if (opt === (encoding ?? "UTF-8")) return;
+                  if (window.confirm(t("encodingChangeConfirm", { encoding: opt }))) {
+                    onEncodingChange(opt);
+                  }
                 }}
               >
                 {opt}

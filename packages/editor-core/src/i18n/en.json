@@ -379,7 +379,8 @@
     "mergeLeftToRight": "Left → Right",
     "mergeRightToLeft": "Right → Left",
     "imageOriginalSize": "original",
-    "fileSaved": "File saved"
+    "fileSaved": "File saved",
+    "encodingChangeConfirm": "Change encoding to {encoding}? Some characters may not display correctly."
   },
   "Landing": {
     "heroTitle": "Write Markdown, Beautifully",

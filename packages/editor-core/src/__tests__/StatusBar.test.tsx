@@ -148,6 +148,7 @@ describe("StatusBar", () => {
   });
 
   test("onEncodingChangeが指定されている場合、エンコーディングがボタンになりメニューで変換できる", () => {
+    const confirmSpy = jest.spyOn(window, "confirm").mockReturnValue(true);
     const handleChange = jest.fn();
     const editor = createMockEditor();
     render(
@@ -163,9 +164,41 @@ describe("StatusBar", () => {
     const sjisItem = screen.getByRole("menuitem", { name: "Shift_JIS" });
     expect(sjisItem).toBeTruthy();
 
-    // Shift_JIS を選択するとコールバックが呼ばれる
+    // Shift_JIS を選択すると確認ダイアログが表示され、承認後にコールバックが呼ばれる
     fireEvent.click(sjisItem);
+    expect(confirmSpy).toHaveBeenCalled();
     expect(handleChange).toHaveBeenCalledWith("Shift_JIS");
+    confirmSpy.mockRestore();
+  });
+
+  test("同一エンコーディング選択時は確認ダイアログを表示しない", () => {
+    const confirmSpy = jest.spyOn(window, "confirm").mockReturnValue(true);
+    const handleChange = jest.fn();
+    const editor = createMockEditor();
+    render(
+      <StatusBar editor={editor} t={t} encoding="UTF-8" onEncodingChange={handleChange} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "UTF-8" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "UTF-8" }));
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(handleChange).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
+
+  test("エンコーディング変更を確認ダイアログでキャンセルするとコールバックが呼ばれない", () => {
+    const confirmSpy = jest.spyOn(window, "confirm").mockReturnValue(false);
+    const handleChange = jest.fn();
+    const editor = createMockEditor();
+    render(
+      <StatusBar editor={editor} t={t} encoding="UTF-8" onEncodingChange={handleChange} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "UTF-8" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Shift_JIS" }));
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(handleChange).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
   });
 
   test("エンコーディングメニューにEUC-JPが表示される", () => {

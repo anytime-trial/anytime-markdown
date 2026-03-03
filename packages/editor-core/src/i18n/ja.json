@@ -379,7 +379,8 @@
     "mergeLeftToRight": "左 → 右",
     "mergeRightToLeft": "右 → 左",
     "imageOriginalSize": "元のサイズ",
-    "fileSaved": "ファイルを保存しました"
+    "fileSaved": "ファイルを保存しました",
+    "encodingChangeConfirm": "エンコーディングを {encoding} に変更しますか？一部の文字が正しく表示されなくなる可能性があります。"
   },
   "Landing": {
     "heroTitle": "美しくMarkdownを書こう",
