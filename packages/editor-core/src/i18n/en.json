@@ -112,6 +112,8 @@
     "moveColRight": "Move Column Right",
     "deleteTable": "Delete Table",
     "dragHandle": "Drag to reorder",
+    "moveBlockUp": "Move block up (Alt+\u2191)",
+    "moveBlockDown": "Move block down (Alt+\u2193)",
     "fullscreen": "Fullscreen",
     "zoomIn": "Zoom In",
     "zoomOut": "Zoom Out",

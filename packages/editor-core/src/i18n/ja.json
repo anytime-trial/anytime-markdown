@@ -112,6 +112,8 @@
     "moveColRight": "列を右に移動",
     "deleteTable": "テーブルを削除",
     "dragHandle": "ドラッグして並べ替え",
+    "moveBlockUp": "ブロックを上に移動 (Alt+\u2191)",
+    "moveBlockDown": "ブロックを下に移動 (Alt+\u2193)",
     "fullscreen": "全画面表示",
     "zoomIn": "拡大",
     "zoomOut": "縮小",
