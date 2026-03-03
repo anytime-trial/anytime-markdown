@@ -189,6 +189,7 @@ export function useEditorFileOps({
       return;
     }
     setPdfExporting(true);
+    try {
     // 印刷前に折りたたまれたブロックを一時展開
     const collapsedPositions: number[] = [];
     editor.state.doc.descendants((node, pos) => {
@@ -225,8 +226,14 @@ export function useEditorFileOps({
           if (!code) continue;
           try {
             const id = `print-mermaid-${++renderIdx}`;
-            const { svg: lightSvg } = await mermaid.render(id, code);
-            const innerDiv = imgBox.querySelector<HTMLElement>(":scope > div");
+            const { svg: lightSvg } = await Promise.race([
+              mermaid.render(id, code),
+              new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error("mermaid render timeout")), 5000),
+              ),
+            ]);
+            const innerDiv = imgBox.querySelector<HTMLElement>(":scope > div")
+              || (imgBox.firstElementChild as HTMLElement | null);
             if (innerDiv) {
               pendingMermaidReplacements.push({
                 innerDiv,
@@ -280,23 +287,30 @@ export function useEditorFileOps({
     const needsDelay = collapsedPositions.length > 0 || diagramRestores.length > 0 || pendingMermaidReplacements.length > 0;
     const delay = needsDelay ? 300 : 0;
     setTimeout(() => {
-      // Mermaid ライトSVGをprint直前に同期的にDOM書き込み（React再レンダリングの介入を防ぐ）
-      for (const { innerDiv, lightHtml, originalHTML, imgBox } of pendingMermaidReplacements) {
-        innerDiv.innerHTML = lightHtml;
-        diagramRestores.push(() => { imgBox.innerHTML = originalHTML; });
-      }
-      window.print();
-      // 復元
-      for (const restore of diagramRestores) restore();
-      if (collapsedPositions.length > 0) {
-        const tr = editor.state.tr;
-        for (const pos of collapsedPositions) {
-          tr.setNodeAttribute(pos, "collapsed", true);
+      try {
+        // Mermaid ライトSVGをprint直前に同期的にDOM書き込み（React再レンダリングの介入を防ぐ）
+        for (const { innerDiv, lightHtml, originalHTML, imgBox } of pendingMermaidReplacements) {
+          innerDiv.innerHTML = lightHtml;
+          diagramRestores.push(() => { imgBox.innerHTML = originalHTML; });
         }
-        editor.view.dispatch(tr);
+        window.print();
+      } finally {
+        // 復元
+        for (const restore of diagramRestores) restore();
+        if (collapsedPositions.length > 0) {
+          const tr = editor.state.tr;
+          for (const pos of collapsedPositions) {
+            tr.setNodeAttribute(pos, "collapsed", true);
+          }
+          editor.view.dispatch(tr);
+        }
+        setPdfExporting(false);
       }
-      setPdfExporting(false);
     }, delay);
+    } catch {
+      setPdfExporting(false);
+      return;
+    }
   }, [editor, isDark]);
 
   return {
