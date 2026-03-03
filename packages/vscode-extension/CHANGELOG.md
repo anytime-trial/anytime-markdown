@@ -4,6 +4,13 @@ All notable changes to the "anytime-markdown" extension will be documented in th
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.0.10] - 2026-03-03
+
+### Fixed
+- GitHub Actions ワークフローにトップレベル permissions ブロックを追加
+- e2e テストの dark mode switch セレクタを修正（複数 switch の曖昧性解消）
+- HelpDialog の DOMPurify 型注釈を修正（tsc / webpack ビルドエラー解消）
+
 ## [0.0.9] - 2026-03-03
 
 ### Added

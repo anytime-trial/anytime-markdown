@@ -29,8 +29,8 @@ test.describe("Settings", () => {
     // 設定パネルを開く
     await openSettingsPanel(page);
 
-    // ダークモードの Switch をクリック（MUI Switch は role="switch" で描画される）
-    const darkModeSwitch = page.getByRole("switch");
+    // ダークモードの Switch をクリック（設定パネル内の最初の switch）
+    const darkModeSwitch = page.getByRole("switch").first();
     await expect(darkModeSwitch).toBeVisible();
     await darkModeSwitch.click();
 
