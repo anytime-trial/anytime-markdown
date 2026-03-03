@@ -115,6 +115,29 @@ export default function LandingBody({ headingFontFamily }: { headingFontFamily?:
           >
             {t('openEditor')}
           </Button>
+
+          <Typography
+            variant="body2"
+            sx={{
+              mt: 4,
+              color: 'text.disabled',
+              fontSize: '0.8rem',
+              lineHeight: 1.6,
+            }}
+          >
+            {t.rich('experimentalNotice', {
+              github: (chunks) => (
+                <MuiLink
+                  href="https://github.com/kiyotaka-ueda/anytime-markdown"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  sx={{ color: 'text.disabled', textDecorationColor: 'inherit' }}
+                >
+                  {chunks}
+                </MuiLink>
+              ),
+            })}
+          </Typography>
         </Container>
       </Box>
 

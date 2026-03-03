@@ -389,7 +389,8 @@
     "footerRights": "© 2026 Anytime Markdown",
     "footerPrivacy": "プライバシーポリシー",
     "footerGithub": "GitHub",
-    "footerVscode": "VS Code 拡張機能"
+    "footerVscode": "VS Code 拡張機能",
+    "experimentalNotice": "本サイトは Claude Code（AI コーディングアシスタント）を活用して構築された実験的なプロジェクトです。ソースコードは <github>GitHub</github> で公開しています。"
   },
   "Common": {
     "ok": "OK",

@@ -389,7 +389,8 @@
     "footerRights": "© 2026 Anytime Markdown",
     "footerPrivacy": "Privacy Policy",
     "footerGithub": "GitHub",
-    "footerVscode": "VS Code Extension"
+    "footerVscode": "VS Code Extension",
+    "experimentalNotice": "This site is an experimental project built with Claude Code, an AI coding assistant. Source code is available on <github>GitHub</github>."
   },
   "Common": {
     "ok": "OK",
