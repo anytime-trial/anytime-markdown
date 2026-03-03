@@ -1,0 +1,51 @@
+[
+  {
+    "label": "Fraction",
+    "i18nKey": "sampleMathFraction",
+    "icon": "f(x)",
+    "enabled": true,
+    "code": "x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}"
+  },
+  {
+    "label": "Sum",
+    "i18nKey": "sampleMathSum",
+    "icon": "\u03a3",
+    "enabled": true,
+    "code": "\\sum_{k=1}^{n} k = \\frac{n(n+1)}{2}"
+  },
+  {
+    "label": "Integral",
+    "i18nKey": "sampleMathIntegral",
+    "icon": "\u222b",
+    "enabled": true,
+    "code": "\\int_{a}^{b} f(x) \\, dx = F(b) - F(a)"
+  },
+  {
+    "label": "Matrix",
+    "i18nKey": "sampleMathMatrix",
+    "icon": "[ ]",
+    "enabled": true,
+    "code": "\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix} \\begin{pmatrix} x \\\\ y \\end{pmatrix} = \\begin{pmatrix} ax + by \\\\ cx + dy \\end{pmatrix}"
+  },
+  {
+    "label": "Limit",
+    "i18nKey": "sampleMathLimit",
+    "icon": "lim",
+    "enabled": true,
+    "code": "\\lim_{x \\to 0} \\frac{\\sin x}{x} = 1"
+  },
+  {
+    "label": "Derivative",
+    "i18nKey": "sampleMathDerivative",
+    "icon": "\u2202",
+    "enabled": true,
+    "code": "\\frac{\\partial f}{\\partial x} = \\lim_{h \\to 0} \\frac{f(x+h, y) - f(x, y)}{h}"
+  },
+  {
+    "label": "Cases",
+    "i18nKey": "sampleMathCases",
+    "icon": "{",
+    "enabled": true,
+    "code": "f(x) = \\begin{cases} x^2 & \\text{if } x \\geq 0 \\\\ -x^2 & \\text{if } x < 0 \\end{cases}"
+  }
+]
