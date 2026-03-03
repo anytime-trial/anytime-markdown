@@ -19,6 +19,7 @@ import { CustomTableCell, CustomTableHeader } from "./extensions/customTableCell
 import { DiffHighlight } from "./extensions/diffHighlight";
 import { HeadingFoldExtension } from "./extensions/headingFoldExtension";
 import { CodeBlockNavigation } from "./extensions/codeBlockNavigationExtension";
+import { MathInline } from "./extensions/mathInlineExtension";
 import type { Extensions } from "@tiptap/react";
 
 /** 共通 Extension（メインエディタ / 比較エディタで共有） */
@@ -52,5 +53,6 @@ export function getBaseExtensions(): Extensions {
     DiffHighlight,
     HeadingFoldExtension,
     CodeBlockNavigation,
+    MathInline,
   ];
 }

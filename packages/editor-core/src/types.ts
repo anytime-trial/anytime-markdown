@@ -2,6 +2,7 @@ import { createContext, useContext } from "react";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import type { Editor } from "@tiptap/react";
 import { restoreBlankLines } from "./utils/sanitizeMarkdown";
+import { postprocessMathBlock } from "./utils/mathHelpers";
 
 export type EncodingLabel = "UTF-8" | "Shift_JIS" | "EUC-JP";
 
@@ -32,6 +33,8 @@ export function getMarkdownFromEditor(editor: Editor): string {
   // 画像直後のコードフェンスとの間に改行が出力されないことがある。
   // 改行が0個または1個の場合に空行（\n\n）を補完する。
   md = md.replace(/([^\n])\n?(```)/gm, "$1\n\n$2");
+  // ```math フェンスが残っている場合に $$...$$ に変換する（フォールバック）
+  md = postprocessMathBlock(md);
   return md;
 }
 

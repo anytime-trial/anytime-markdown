@@ -1,4 +1,5 @@
 import DOMPurify from "dompurify";
+import { preprocessMathBlock, preprocessMathInline } from "./mathHelpers";
 
 const ALLOWED_TAGS = ["details", "summary", "br", "hr", "sub", "sup", "mark", "kbd", "u"];
 const ALLOWED_ATTR = ["open"];
@@ -70,6 +71,9 @@ export function splitByCodeBlocks(md: string): string[] {
  * DOMPurify による &gt; 等のエスケープを防ぐ。
  */
 export function sanitizeMarkdown(md: string): string {
+  // Math 前処理: $$...$$ → ```math, $...$ → <span data-math-inline>
+  md = preprocessMathBlock(md);
+  md = preprocessMathInline(md);
   // コードブロック境界で分割し、コードブロック外のみサニタイズ
   const parts = splitByCodeBlocks(md);
   return parts
@@ -78,14 +82,22 @@ export function sanitizeMarkdown(md: string): string {
       // DOMPurify は前後の改行を除去するため、退避して復元する
       const leadingNL = part.match(/^\n*/)?.[0] ?? "";
       const trailingNL = part.match(/\n*$/)?.[0] ?? "";
-      const inner = part.slice(leadingNL.length, part.length - (trailingNL.length || 0));
+      let inner = part.slice(leadingNL.length, part.length - (trailingNL.length || 0));
       if (!inner) return part;
+      // math inline スパンを DOMPurify から保護するため、一時プレースホルダに退避
+      const mathSpans: string[] = [];
+      inner = inner.replace(/<span data-math-inline="[^"]*"><\/span>/g, (m) => {
+        mathSpans.push(m);
+        return `\x00MATH${mathSpans.length - 1}\x00`;
+      });
       // DOMPurify でサニタイズ後、マークダウンで意味を持つ文字の
       // HTMLエンティティを元に戻す
-      const sanitized = DOMPurify.sanitize(inner, { ALLOWED_TAGS, ALLOWED_ATTR, KEEP_CONTENT: true })
+      let sanitized = DOMPurify.sanitize(inner, { ALLOWED_TAGS, ALLOWED_ATTR, KEEP_CONTENT: true })
         .replace(/&gt;/g, ">")
         .replace(/&lt;/g, "<")
         .replace(/&amp;/g, "&");
+      // math inline スパンを復元
+      sanitized = sanitized.replace(/\x00MATH(\d+)\x00/g, (_, i) => mathSpans[Number(i)]);
       return leadingNL + sanitized + trailingNL;
     })
     .join("");

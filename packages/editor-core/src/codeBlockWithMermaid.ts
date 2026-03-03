@@ -1,6 +1,14 @@
 import CodeBlock from "@tiptap/extension-code-block";
 import { ReactNodeViewRenderer } from "@tiptap/react";
+import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { CodeBlockNodeView } from "./MermaidNodeView";
+
+interface MarkdownSerializerState {
+  write: (text: string) => void;
+  text: (text: string, escape?: boolean) => void;
+  ensureNewLine: () => void;
+  closeBlock: (node: ProseMirrorNode) => void;
+}
 
 export const CodeBlockWithMermaid = CodeBlock.extend({
   draggable: true,
@@ -16,5 +24,28 @@ export const CodeBlockWithMermaid = CodeBlock.extend({
 
   addNodeView() {
     return ReactNodeViewRenderer(CodeBlockNodeView);
+  },
+
+  addStorage() {
+    return {
+      markdown: {
+        serialize(state: MarkdownSerializerState, node: ProseMirrorNode) {
+          if (node.attrs.language === "math") {
+            state.write("$$\n");
+            state.text(node.textContent, false);
+            state.ensureNewLine();
+            state.write("$$");
+            state.closeBlock(node);
+          } else {
+            state.write(`\`\`\`${node.attrs.language || ""}\n`);
+            state.text(node.textContent, false);
+            state.ensureNewLine();
+            state.write("```");
+            state.closeBlock(node);
+          }
+        },
+        parse: {},
+      },
+    };
   },
 });
