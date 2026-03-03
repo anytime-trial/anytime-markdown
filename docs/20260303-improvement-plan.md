@@ -3,6 +3,8 @@
 **作成日**: 2026-03-03
 **レビューチーム**: Designer / A11y / Engineer
 **対象**: packages/web-app + packages/editor-core
+**H3/H4/H6 実装完了**: 2026-03-03
+**M4/M5/M6/M8 実装完了**: 2026-03-03
 
 ---
 
