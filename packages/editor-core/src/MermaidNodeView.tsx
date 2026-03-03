@@ -179,7 +179,6 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: No
   useEffect(() => {
     const container = diagramResize.containerRef.current;
     if (!container) { setDiagramSize(null); return; }
-    const diagramType = isMermaid ? "Mermaid" : isPlantUml ? "PlantUML" : "Diagram";
     const update = () => {
       const rect = container.getBoundingClientRect();
       const w = Math.round(rect.width);
@@ -190,7 +189,7 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: No
     const ro = new ResizeObserver(update);
     ro.observe(container);
     return () => ro.disconnect();
-  }, [svg, plantUmlUrl, allCollapsed, settings.fontSize, diagramScale]);
+  }, [svg, plantUmlUrl, allCollapsed]);
 
   // 全画面オープン時にコードを同期
   useEffect(() => {
@@ -272,7 +271,7 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: No
               aria-roledescription="draggable item"
               aria-label={t("dragHandle")}
               onKeyDown={handleDragKeyDown}
-              sx={{ cursor: "grab", display: "flex", alignItems: "center", opacity: 0.5, "&:hover, &:focus-visible": { opacity: 1 }, "&:focus-visible": { outline: "2px solid", outlineColor: "primary.main", borderRadius: 0.5 } }}
+              sx={{ cursor: "grab", display: "flex", alignItems: "center", opacity: 0.7, "&:hover, &:focus-visible": { opacity: 1 }, "&:focus-visible": { outline: "2px solid", outlineColor: "primary.main", borderRadius: 0.5 } }}
             >
               <DragIndicatorIcon sx={{ fontSize: 16, color: "text.secondary" }} />
             </Box>
@@ -414,7 +413,7 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: No
               aria-roledescription="draggable item"
               aria-label={t("dragHandle")}
               onKeyDown={handleDragKeyDown}
-              sx={{ cursor: "grab", display: "flex", alignItems: "center", opacity: 0.5, "&:hover, &:focus-visible": { opacity: 1 }, "&:focus-visible": { outline: "2px solid", outlineColor: "primary.main", borderRadius: 0.5 } }}
+              sx={{ cursor: "grab", display: "flex", alignItems: "center", opacity: 0.7, "&:hover, &:focus-visible": { opacity: 1 }, "&:focus-visible": { outline: "2px solid", outlineColor: "primary.main", borderRadius: 0.5 } }}
             >
               <DragIndicatorIcon sx={{ fontSize: 16, color: "text.secondary" }} />
             </Box>
@@ -552,7 +551,7 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: No
               aria-roledescription="draggable item"
               aria-label={t("dragHandle")}
               onKeyDown={handleDragKeyDown}
-              sx={{ cursor: "grab", display: "flex", alignItems: "center", opacity: 0.5, "&:hover, &:focus-visible": { opacity: 1 }, "&:focus-visible": { outline: "2px solid", outlineColor: "primary.main", borderRadius: 0.5 } }}
+              sx={{ cursor: "grab", display: "flex", alignItems: "center", opacity: 0.7, "&:hover, &:focus-visible": { opacity: 1 }, "&:focus-visible": { outline: "2px solid", outlineColor: "primary.main", borderRadius: 0.5 } }}
             >
               <DragIndicatorIcon sx={{ fontSize: 16, color: "text.secondary" }} />
             </Box>
@@ -651,7 +650,7 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: No
               aria-roledescription="draggable item"
               aria-label={t("dragHandle")}
               onKeyDown={handleDragKeyDown}
-              sx={{ cursor: "grab", display: "flex", alignItems: "center", opacity: 0.5, "&:hover, &:focus-visible": { opacity: 1 }, "&:focus-visible": { outline: "2px solid", outlineColor: "primary.main", borderRadius: 0.5 } }}
+              sx={{ cursor: "grab", display: "flex", alignItems: "center", opacity: 0.7, "&:hover, &:focus-visible": { opacity: 1 }, "&:focus-visible": { outline: "2px solid", outlineColor: "primary.main", borderRadius: 0.5 } }}
             >
               <DragIndicatorIcon sx={{ fontSize: 16, color: "text.secondary" }} />
             </Box>
