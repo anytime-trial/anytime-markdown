@@ -107,7 +107,7 @@ export function TableNodeView({ editor, node, updateAttributes, getPos }: NodeVi
               tabIndex={0}
               aria-roledescription="drag"
               aria-label={t("dragHandle")}
-              sx={{ cursor: "grab", display: "flex", alignItems: "center", opacity: 0.5, "&:hover, &:focus-visible": { opacity: 1 }, "&:focus-visible": { outline: "2px solid", outlineColor: "primary.main", borderRadius: 0.5 } }}
+              sx={{ cursor: "grab", display: "flex", alignItems: "center", opacity: 0.7, "&:hover, &:focus-visible": { opacity: 1 }, "&:focus-visible": { outline: "2px solid", outlineColor: "primary.main", borderRadius: 0.5 } }}
             >
               <DragIndicatorIcon sx={iconSx} />
             </Box>
