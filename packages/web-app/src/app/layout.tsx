@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from 'next';
+import { headers } from 'next/headers';
 import { getLocale } from 'next-intl/server';
+import Script from 'next/script';
 import { Providers } from './providers';
 import { LocaleProvider } from './LocaleProvider';
 import './globals.css';
@@ -34,6 +36,8 @@ export const viewport: Viewport = {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const locale = await getLocale();
+  const nonce = (await headers()).get('x-nonce') ?? undefined;
+  const gaId = process.env.NEXT_PUBLIC_GA_ID;
 
   return (
     <html lang={locale}>
@@ -43,6 +47,18 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             {children}
           </Providers>
         </LocaleProvider>
+        {gaId && (
+          <>
+            <Script
+              src={`https://www.googletagmanager.com/gtag/js?id=${gaId}`}
+              strategy="afterInteractive"
+              nonce={nonce}
+            />
+            <Script id="ga-init" strategy="afterInteractive" nonce={nonce}>
+              {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${gaId}');`}
+            </Script>
+          </>
+        )}
       </body>
     </html>
   );

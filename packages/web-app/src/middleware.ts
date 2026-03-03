@@ -6,11 +6,11 @@ export function middleware(request: NextRequest) {
 
   const cspHeader = [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'unsafe-eval'`,
+    `script-src 'self' 'nonce-${nonce}' 'unsafe-eval' https://www.googletagmanager.com`,
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob: https://www.plantuml.com",
+    "img-src 'self' data: blob: https://www.plantuml.com https://www.google-analytics.com https://www.googletagmanager.com",
     "font-src 'self' data:",
-    "connect-src 'self' https://www.plantuml.com",
+    "connect-src 'self' https://www.plantuml.com https://www.google-analytics.com https://www.googletagmanager.com",
     "worker-src 'self'",
     "frame-src 'none'",
     "object-src 'none'",
