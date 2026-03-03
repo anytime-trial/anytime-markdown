@@ -358,6 +358,8 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: No
           onClose={() => setMathSampleAnchorEl(null)}
           editor={editor}
           t={t}
+          getPos={getPos}
+          nodeContentSize={node.content.size}
         />
       </NodeViewWrapper>
     );

@@ -8,9 +8,11 @@ interface MathSamplePopoverProps {
   onClose: () => void;
   editor: Editor | null;
   t: (key: string) => string;
+  getPos: (() => number | undefined) | boolean;
+  nodeContentSize: number;
 }
 
-export function MathSamplePopover({ anchorEl, onClose, editor, t }: MathSamplePopoverProps) {
+export function MathSamplePopover({ anchorEl, onClose, editor, t, getPos, nodeContentSize }: MathSamplePopoverProps) {
   return (
     <Popover
       open={!!anchorEl}
@@ -28,22 +30,15 @@ export function MathSamplePopover({ anchorEl, onClose, editor, t }: MathSamplePo
                 size="small"
                 aria-label={t(sample.i18nKey)}
                 onClick={() => {
-                  if (!editor) return;
-                  const { $from } = editor.state.selection;
-                  let depth = $from.depth;
-                  while (depth > 0) {
-                    const nd = $from.node(depth);
-                    if (nd.type.name === "codeBlock" && nd.attrs.language === "math") break;
-                    depth--;
-                  }
-                  if (depth > 0) {
-                    const start = $from.start(depth);
-                    const end = $from.end(depth);
-                    editor.chain().focus().command(({ tr }) => {
-                      tr.replaceWith(start, end, editor.schema.text(sampleCode));
-                      return true;
-                    }).run();
-                  }
+                  if (!editor || typeof getPos !== "function") return;
+                  const pos = getPos();
+                  if (pos == null) return;
+                  const from = pos + 1;
+                  const to = from + nodeContentSize;
+                  editor.chain().focus().command(({ tr }) => {
+                    tr.replaceWith(from, to, editor.schema.text(sampleCode));
+                    return true;
+                  }).run();
                   onClose();
                 }}
                 sx={{ minWidth: 32, minHeight: 32 }}
