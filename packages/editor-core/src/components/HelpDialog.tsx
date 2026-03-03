@@ -21,7 +21,7 @@ import { marked } from "marked";
 import { KEYBOARD_SHORTCUTS } from "../constants/shortcuts";
 import type { TranslationFn } from "../types";
 
-const HELP_SANITIZE_CONFIG: DOMPurify.Config = {
+const HELP_SANITIZE_CONFIG = {
   ALLOWED_TAGS: [
     "h1", "h2", "h3", "h4", "h5", "h6",
     "p", "br", "hr",

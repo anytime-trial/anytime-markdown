@@ -4,6 +4,42 @@ All notable changes to the "anytime-markdown" extension will be documented in th
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.0.9] - 2026-03-03
+
+### Added
+- KaTeX 数式レンダリング（インライン・ブロック対応）
+- 数式サンプルポップオーバーによる LaTeX テンプレート挿入
+- 数式・日付のスラッシュコマンド
+- 見出しからの目次（TOC）自動生成
+- エンコーディング変換メニュー（ステータスバー）
+- 改行コード変換メニュー（ステータスバー）
+- 改ページガイド表示設定
+- Google Analytics（GA4）対応（nonce ベース CSP）
+- エンコーディング変更時の確認ダイアログ (M6)
+- ドラッグハンドルのキーボード操作対応 (H3)
+- 図のアクセシブルな代替テキスト改善 (H4)
+- CodeBlock サブコンポーネントのユニットテスト (M10)
+
+### Changed
+- MermaidNodeView を4つのサブコンポーネントに分割 (M3)
+- ドラッグハンドルのコントラスト改善（opacity 0.5→0.7）(M5)
+- 図リサイズの useEffect/useCallback 依存関係最適化 (M4)
+- ウェルカムコンテンツのデザインリニューアル
+- ブランドカラーをテーマ secondary パレットに統一 (L2)
+- webpack alias を削除し tsconfig paths に統一 (L6)
+
+### Fixed
+- aria-valuenow の NaN 対策（画像・図リサイズ）(L5)
+- ConfirmDialog に aria-describedby 追加 (L3)
+- OutlinePanel トランジションに prefers-reduced-motion 追加 (L4)
+- 図コード切替ボタンに aria-pressed 追加 (M8)
+- HelpDialog に DOMPurify 設定を明示化 (H6)
+- PDF エクスポート時の Mermaid 図ダーク表示修正
+- Mermaid 図 SVG 幅のエディタフォントサイズ連動
+- 数式ブロック初期表示時の sanitizeMarkdown 適用
+- テンプレート挿入時の flushSync 競合回避
+- ReDoS 脆弱性のある正規表現を線形時間パーサーに置換
+
 ## [0.0.8] - 2026-03-01
 
 ### Added

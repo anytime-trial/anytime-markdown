@@ -2,7 +2,7 @@
   "name": "anytime-markdown",
   "displayName": "Anytime Markdown",
   "description": "markdown editor featuring Claude Code",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "license": "MIT",
   "publisher": "kiytaka-ueda",
   "repository": {
