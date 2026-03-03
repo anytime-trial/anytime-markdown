@@ -2,7 +2,7 @@
 
 import type { NodeViewProps } from "@tiptap/react";
 import { NodeViewContent, NodeViewWrapper, useEditorState } from "@tiptap/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Divider, IconButton, Tooltip, Typography, useTheme } from "@mui/material";
 import FullscreenIcon from "@mui/icons-material/Fullscreen";
 import FullscreenExitIcon from "@mui/icons-material/FullscreenExit";
@@ -122,7 +122,19 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: No
 
   const handleCapture = useDiagramCapture({ isMermaid, isPlantUml, svg, plantUmlUrl, code, isDark });
   const handleCopyCode = useCallback(() => { navigator.clipboard.writeText(code); }, [code]);
-  const diagramScale = settings.fontSize / 16;
+  const diagramScale = 1;
+
+  // SVG の幅をエディタフォントサイズに合わせて調整（表示用のみ）
+  const displaySvg = useMemo(() => {
+    if (!svg) return svg;
+    const viewBoxMatch = svg.match(/viewBox="[\d.]+ [\d.]+ ([\d.]+) [\d.]+"/);
+    if (!viewBoxMatch) return svg;
+    const viewBoxWidth = parseFloat(viewBoxMatch[1]);
+    const targetWidth = (settings.fontSize / 16) * viewBoxWidth;
+    return svg
+      .replace(/width="100%"/, `width="${targetWidth}"`)
+      .replace(/max-width:\s*[\d.]+px/, `max-width: 100%`);
+  }, [svg, settings.fontSize]);
 
   // ダイアグラムコンテナのサイズを追跡
   useEffect(() => {
@@ -135,12 +147,27 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: No
       const h = Math.round(rect.height);
       console.log(`[${diagramType}] size: ${w}x${h}px`);
       setDiagramSize({ w, h });
+
+      // デバッグ: SVG 内テキストの見た目フォントサイズを出力
+      const svgEl = container.querySelector("svg");
+      const textEl = container.querySelector("svg foreignObject span, svg text");
+      if (svgEl && textEl) {
+        const internalFontSize = parseFloat(window.getComputedStyle(textEl).fontSize);
+        const viewBox = svgEl.getAttribute("viewBox");
+        const renderedWidth = svgEl.getBoundingClientRect().width;
+        const viewBoxWidth = viewBox ? parseFloat(viewBox.split(" ")[2]) : renderedWidth;
+        const visualScale = renderedWidth / viewBoxWidth;
+        const visualFontSize = internalFontSize * visualScale;
+        console.debug(`[${diagramType}] visualFontSize: ${visualFontSize.toFixed(1)}px (internal: ${internalFontSize}px, viewBoxWidth: ${viewBoxWidth}, renderedWidth: ${Math.round(renderedWidth)}, scale: ${visualScale.toFixed(3)})`);
+      } else {
+        console.debug(`[${diagramType}] No SVG/text element found`);
+      }
     };
     update();
     const ro = new ResizeObserver(update);
     ro.observe(container);
     return () => ro.disconnect();
-  }, [svg, plantUmlUrl, allCollapsed]);
+  }, [svg, plantUmlUrl, allCollapsed, settings.fontSize, diagramScale]);
 
   // 全画面オープン時にコードを同期
   useEffect(() => {
@@ -584,7 +611,7 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: No
               >
                 <Box
                   sx={{ p: 2, display: "flex", justifyContent: "flex-start", zoom: diagramScale, transform: `translate(${normalZP.pan.x}px, ${normalZP.pan.y}px) scale(${normalZP.zoom})`, transformOrigin: "top left", transition: normalZP.isPanningRef.current ? "none" : "transform 0.15s", "@media (prefers-reduced-motion: reduce)": { transition: "none" }, pointerEvents: "none" }}
-                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(svg, SVG_SANITIZE_CONFIG) }}
+                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(displaySvg, SVG_SANITIZE_CONFIG) }}
                 />
                 {isSelected && (
                   <Box
