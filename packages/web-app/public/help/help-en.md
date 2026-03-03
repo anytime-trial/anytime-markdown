@@ -143,6 +143,30 @@ Floating toolbar:
 | ![Copy](/help/icons/copy.png) | Copy Code | Copy the HTML source code to the clipboard. |
 | ![Delete](/help/icons/delete.png) | Delete | Delete the HTML block. |
 
+### Math Equations (KaTeX)
+
+Write mathematical expressions using KaTeX syntax.
+
+- Use the `/math` slash command to insert a math block.
+- Write inline math by wrapping expressions with `$...$` (e.g. `$E = mc^2$`).
+
+Floating toolbar:
+
+| Icon | Action | Description |
+| :--: | ------ | ----------- |
+| ![Fold](/help/icons/fold.png) | Fold/Unfold | Collapse or expand the math preview. |
+| ![Fullscreen](/help/icons/fullscreen.png) | Fullscreen | Edit the math expression in fullscreen mode. |
+| ![Sample](/help/icons/sample.png) | Insert Sample | Insert a predefined math sample (Fraction, Sum, Integral, Matrix, Limit, Derivative, Cases). |
+| ![Copy](/help/icons/copy.png) | Copy Code | Copy the KaTeX source to the clipboard. |
+| ![Delete](/help/icons/delete.png) | Delete | Delete the math block. |
+
+### Table of Contents
+
+Automatically generate a table of contents from headings in the document.
+
+- Use the `/toc` slash command or the TOC button on the toolbar.
+- A Markdown link list is generated from all headings (H1–H6) in the document.
+
 ### Images
 
 Insert images and import Markdown files by various methods.
@@ -151,6 +175,26 @@ Insert images and import Markdown files by various methods.
 - Drag and drop image files directly into the editor.
 - Paste images from the clipboard (Ctrl+V / Cmd+V).
 - Drag and drop a .md file into the editor to import its content.
+
+## Slash Commands
+
+Type `/` in the editor to open the slash command menu for quick insertion.
+
+| Command | Description |
+| ------- | ----------- |
+| `/h1`, `/h2`, `/h3` | Insert a heading. |
+| `/bulletList` | Insert a bullet list. |
+| `/orderedList` | Insert a numbered list. |
+| `/taskList` | Insert a task list (checkboxes). |
+| `/blockquote` | Insert a blockquote. |
+| `/codeBlock` | Insert a code block. |
+| `/table` | Insert a 3×3 table. |
+| `/horizontalRule` | Insert a horizontal rule. |
+| `/mermaid` | Insert a Mermaid diagram. |
+| `/plantuml` | Insert a PlantUML diagram. |
+| `/math` | Insert a math equation block (KaTeX). |
+| `/toc` | Generate a table of contents from headings. |
+| `/date` | Insert today's date (YYYY-MM-DD). |
 
 ## Search & Replace
 
@@ -200,4 +244,12 @@ Customize the editor appearance and behavior.
 ![Editor Settings](/help/settings.png)
 
 - Adjustable settings: Line Height, Font Size, Table Width, Editor Min Width, Editor Background Color.
+- Page break guide: Toggle the "Page break guide" switch in the settings panel to show or hide page break indicators in the editor.
+
+### Encoding & Line Ending
+
+Change the file encoding or line ending format from the status bar at the bottom of the editor.
+
+- Click the encoding label (e.g. "UTF-8") in the status bar to choose from UTF-8 / Shift_JIS / EUC-JP. A confirmation dialog is shown before converting.
+- Click the line ending label ("LF" or "CRLF") in the status bar to toggle between LF and CRLF.
 
