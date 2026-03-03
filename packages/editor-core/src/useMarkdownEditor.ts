@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { preserveBlankLines } from "./utils/sanitizeMarkdown";
+import type { EncodingLabel } from "./types";
 
 const STORAGE_KEY = "markdown-editor-content";
 const DEBOUNCE_MS = 500;
@@ -40,8 +41,17 @@ export function useMarkdownEditor(defaultContent: string) {
   }, []);
 
   // .md ファイルダウンロード（markdown 文字列を受け取る）
-  const downloadMarkdown = useCallback((markdown: string) => {
-    const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
+  const downloadMarkdown = useCallback(async (markdown: string, encoding?: EncodingLabel) => {
+    let blob: Blob;
+    if (encoding && encoding !== "UTF-8") {
+      const Encoding = (await import("encoding-japanese")).default;
+      const unicodeArray = Encoding.stringToCode(markdown);
+      const toEnc = encoding === "Shift_JIS" ? "SJIS" : "EUCJP";
+      const converted = Encoding.convert(unicodeArray, { to: toEnc, from: "UNICODE" });
+      blob = new Blob([new Uint8Array(converted)], { type: "text/markdown" });
+    } else {
+      blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
+    }
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;

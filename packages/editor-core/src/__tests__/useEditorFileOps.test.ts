@@ -352,7 +352,7 @@ describe("useEditorFileOps", () => {
       result.current.handleDownload();
     });
 
-    expect(downloadMarkdown).toHaveBeenCalledWith("# Download");
+    expect(downloadMarkdown).toHaveBeenCalledWith("# Download", undefined);
   });
 
   test("handleDownload: sourceMode 時は sourceText を渡す", () => {
@@ -365,7 +365,7 @@ describe("useEditorFileOps", () => {
       result.current.handleDownload();
     });
 
-    expect(downloadMarkdown).toHaveBeenCalledWith("# SourceDL");
+    expect(downloadMarkdown).toHaveBeenCalledWith("# SourceDL", undefined);
   });
 
   // ---- handleCopy ----

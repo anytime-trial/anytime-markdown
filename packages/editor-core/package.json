@@ -25,6 +25,7 @@
     "@tiptap/pm": "^3.20.0",
     "@tiptap/react": "^3.20.0",
     "@tiptap/starter-kit": "^3.20.0",
+    "encoding-japanese": "^2.2.0",
     "tiptap-markdown": "^0.9.0"
   },
   "peerDependencies": {
@@ -45,6 +46,7 @@
     "@testing-library/react": "^16.3.2",
     "@types/diff": "^7.0.2",
     "@types/dompurify": "^3.0.5",
+    "@types/encoding-japanese": "^2.2.1",
     "@types/jest": "^30.0.0",
     "@types/plantuml-encoder": "^1.4.2",
     "jest": "^30.2.0",

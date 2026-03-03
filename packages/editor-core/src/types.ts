@@ -3,6 +3,8 @@ import type { Node as PMNode } from "@tiptap/pm/model";
 import type { Editor } from "@tiptap/react";
 import { restoreBlankLines } from "./utils/sanitizeMarkdown";
 
+export type EncodingLabel = "UTF-8" | "Shift_JIS" | "EUC-JP";
+
 /** tiptap-markdown serializer state (minimal interface) */
 export interface MdSerializerState {
   write(s: string): void;

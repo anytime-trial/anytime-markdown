@@ -143,4 +143,47 @@ describe("StatusBar", () => {
     expect(screen.getByText("CRLF")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "CRLF" })).toBeNull();
   });
+
+  test("onEncodingChangeが指定されている場合、エンコーディングがボタンになりメニューで変換できる", () => {
+    const handleChange = jest.fn();
+    const editor = createMockEditor();
+    render(
+      <StatusBar editor={editor} t={t} encoding="UTF-8" onEncodingChange={handleChange} />,
+    );
+
+    // UTF-8 がボタンとして表示されている
+    const button = screen.getByRole("button", { name: "UTF-8" });
+    expect(button).toBeTruthy();
+
+    // ボタンをクリックするとメニューが開く
+    fireEvent.click(button);
+    const sjisItem = screen.getByRole("menuitem", { name: "Shift_JIS" });
+    expect(sjisItem).toBeTruthy();
+
+    // Shift_JIS を選択するとコールバックが呼ばれる
+    fireEvent.click(sjisItem);
+    expect(handleChange).toHaveBeenCalledWith("Shift_JIS");
+  });
+
+  test("エンコーディングメニューにEUC-JPが表示される", () => {
+    const handleChange = jest.fn();
+    const editor = createMockEditor();
+    render(
+      <StatusBar editor={editor} t={t} encoding="UTF-8" onEncodingChange={handleChange} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "UTF-8" }));
+    expect(screen.getByRole("menuitem", { name: "EUC-JP" })).toBeTruthy();
+  });
+
+  test("onEncodingChangeが未指定の場合、エンコーディングはテキスト表示のまま", () => {
+    const editor = createMockEditor();
+    render(
+      <StatusBar editor={editor} t={t} encoding="Shift_JIS" />,
+    );
+
+    // Shift_JIS がテキストとして表示されている（ボタンではない）
+    expect(screen.getByText("Shift_JIS")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Shift_JIS" })).toBeNull();
+  });
 });

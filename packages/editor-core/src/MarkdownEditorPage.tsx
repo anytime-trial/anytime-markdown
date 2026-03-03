@@ -16,7 +16,7 @@ import { getEditorPaperSx } from "./styles/editorStyles";
 import { PrintStyles } from "./styles/printStyles";
 import { useEditor, EditorContent } from "@tiptap/react";
 import { useLocale, useTranslations } from "next-intl";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { alpha } from "@mui/material/styles";
 
 import { useMarkdownEditor } from "./useMarkdownEditor";
@@ -42,7 +42,9 @@ const InlineMergeView = dynamic(
 import { MergeEditorPanel } from "./components/MergeEditorPanel";
 import type { Editor } from "@tiptap/react";
 import {
+  type EncodingLabel,
   type HeadingItem,
+  type MarkdownStorage,
   PlantUmlToolbarContext,
   getMarkdownFromEditor,
 } from "./types";
@@ -91,6 +93,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     clearContent,
   } = useMarkdownEditor(welcomeContent);
 
+  const [encoding, setEncoding] = useState<EncodingLabel>("UTF-8");
   const { settings, updateSettings, resetSettings } = useEditorSettings();
   const {
     settingsOpen, setSettingsOpen,
@@ -156,6 +159,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     editor, sourceMode, sourceText, setSourceText,
     saveContent, downloadMarkdown, clearContent,
     openFile, saveFile, saveAsFile, resetFile,
+    encoding, fileHandle,
   });
 
   const handleLineEndingChange = useCallback(
@@ -175,6 +179,35 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
       }
     },
     [sourceMode, sourceText, handleSourceChange, editor, setSourceText, saveContent],
+  );
+
+  const handleEncodingChange = useCallback(
+    async (newEncoding: EncodingLabel) => {
+      setEncoding(newEncoding);
+      // fileHandle がある場合、ファイルを新しいエンコーディングで再読み込み
+      if (fileHandle?.nativeHandle) {
+        try {
+          const nativeHandle = fileHandle.nativeHandle as FileSystemFileHandle;
+          const file = await nativeHandle.getFile();
+          const buffer = await file.arrayBuffer();
+          const decoder = new TextDecoder(newEncoding.toLowerCase());
+          const decoded = sanitizeMarkdown(decoder.decode(buffer));
+          if (sourceMode) {
+            setSourceText(decoded);
+          } else if (editor) {
+            editor.commands.setContent(
+              (editor.storage as unknown as MarkdownStorage).markdown.parser.parse(
+                preserveBlankLines(decoded),
+              ),
+            );
+          }
+          saveContent(decoded);
+        } catch (e) {
+          console.warn("Failed to re-read file with encoding:", newEncoding, e);
+        }
+      }
+    },
+    [fileHandle, sourceMode, setSourceText, editor, saveContent],
   );
 
   // Update refs for useEditor callbacks
@@ -551,7 +584,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
       )}
 
       {/* Status bar */}
-      {editor && <StatusBar editor={editor} sourceMode={sourceMode} sourceText={sourceText} t={t} fileName={fileName} isDirty={isDirty} onLineEndingChange={handleLineEndingChange} />}
+      {editor && <StatusBar editor={editor} sourceMode={sourceMode} sourceText={sourceText} t={t} fileName={fileName} isDirty={isDirty} onLineEndingChange={handleLineEndingChange} encoding={encoding} onEncodingChange={handleEncodingChange} />}
 
       <EditorMenuPopovers
         editor={editor}
