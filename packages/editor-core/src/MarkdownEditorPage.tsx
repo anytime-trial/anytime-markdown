@@ -457,12 +457,10 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
       <EditorToolbar
         editor={editor}
         isInDiagramBlock={isInDiagramBlock}
-        onImage={handleImage}
         onToggleAllBlocks={handleToggleAllBlocks}
         onDownload={handleDownload}
         onImport={() => fileInputRef.current?.click()}
         onClear={handleClear}
-        onSetDiagramAnchor={setDiagramAnchorEl}
         onSetTemplateAnchor={setTemplateAnchorEl}
         onSetHelpAnchor={setHelpAnchorEl}
         sourceMode={sourceMode}
@@ -472,11 +470,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         inlineMergeOpen={inlineMergeOpen}
         onSwitchToSource={handleSwitchToSource}
         onSwitchToWysiwyg={handleSwitchToWysiwyg}
-        onSourceInsertHr={() => appendToSource("\n---\n")}
-        onSourceInsertCodeBlock={() => appendToSource("\n```\n\n```\n")}
-        onSourceInsertHtmlBlock={() => appendToSource("\n```html\n\n```\n")}
-        onSourceInsertTable={() => appendToSource("\n| Header | Header | Header |\n| ------ | ------ | ------ |\n|        |        |        |\n|        |        |        |\n")}
-        onInsertToc={handleInsertToc}
+
         mergeUndoRedo={inlineMergeOpen ? mergeUndoRedo : null}
         onOpenFile={handleOpenFile}
         onSaveFile={handleSaveFile}

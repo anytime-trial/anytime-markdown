@@ -26,6 +26,7 @@ import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import SuperscriptIcon from "@mui/icons-material/Superscript";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
+import WebIcon from "@mui/icons-material/Web";
 
 export interface SlashCommandItem {
   id: string;
@@ -257,6 +258,15 @@ export const slashCommandItems: SlashCommandItem[] = [
         tr.setNodeAttribute(bqPos, "admonitionType", "caution");
         return true;
       }).run();
+    },
+  },
+  {
+    id: "html",
+    labelKey: "slashHtml",
+    icon: React.createElement(WebIcon, { fontSize: "small" }),
+    keywords: ["html", "web", "markup", "ウェブ"],
+    action: (editor) => {
+      editor.chain().focus().setCodeBlock({ language: "html" }).run();
     },
   },
   {

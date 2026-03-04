@@ -1,4 +1,3 @@
-import AccountTreeIcon from "@mui/icons-material/AccountTree";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import ArticleIcon from "@mui/icons-material/Article";
 import CheckIcon from "@mui/icons-material/Check";
@@ -9,26 +8,24 @@ import FileUploadIcon from "@mui/icons-material/FileUpload";
 import FolderOpenIcon from "@mui/icons-material/FolderOpen";
 import SaveIcon from "@mui/icons-material/Save";
 import SaveAsIcon from "@mui/icons-material/SaveAs";
-import GridOnIcon from "@mui/icons-material/GridOn";
+
 import MoreVertIcon from "@mui/icons-material/MoreVert";
-import HorizontalRuleIcon from "@mui/icons-material/HorizontalRule";
-import ImageIcon from "@mui/icons-material/Image";
+
+
 import CompareIcon from "@mui/icons-material/Compare";
 import ViewStreamIcon from "@mui/icons-material/ViewStream";
 import EditNoteIcon from "@mui/icons-material/EditNote";
 import ListAltIcon from "@mui/icons-material/ListAlt";
 import RedoIcon from "@mui/icons-material/Redo";
-import TerminalIcon from "@mui/icons-material/Terminal";
+
 import UndoIcon from "@mui/icons-material/Undo";
 import UnfoldLessIcon from "@mui/icons-material/UnfoldLess";
 import UnfoldMoreIcon from "@mui/icons-material/UnfoldMore";
 import CodeIcon from "@mui/icons-material/Code";
-import WebAssetIcon from "@mui/icons-material/WebAsset";
 import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
 import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
 import SettingsIcon from "@mui/icons-material/Settings";
-import TocIcon from "@mui/icons-material/Toc";
-import WidgetsIcon from "@mui/icons-material/Widgets";
+
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 
 import {
@@ -68,11 +65,8 @@ const TOOLTIP_SHORTCUTS: Record<string, string> = {
   saveAsFile: `${modKey}+Shift+S`,
   upload: `${modKey}+Alt+U`,
   download: `${modKey}+Alt+E`,
-  codeBlock: `${modKey}+Alt+C`,
-  image: `${modKey}+Alt+I`,
-  horizontalRule: `${modKey}+Alt+R`,
-  insertTable: `${modKey}+Alt+T`,
-  insertDiagram: `${modKey}+Alt+D`,
+
+
   templates: `${modKey}+Alt+P`,
   sourceMode: `${modKey}+Alt+S`,
   normalMode: `${modKey}+Alt+M`,
@@ -91,12 +85,11 @@ function tip(t: TranslationFn, key: string): string {
 interface EditorToolbarProps {
   editor: Editor | null;
   isInDiagramBlock: boolean;
-  onImage: () => void;
+
   onToggleAllBlocks: () => void;
   onDownload: () => void;
   onImport: () => void;
   onClear: () => void;
-  onSetDiagramAnchor: (el: HTMLElement) => void;
   onSetTemplateAnchor: (el: HTMLElement) => void;
   onSetHelpAnchor: (el: HTMLElement) => void;
   sourceMode: boolean;
@@ -106,11 +99,7 @@ interface EditorToolbarProps {
   inlineMergeOpen: boolean;
   onSwitchToSource: () => void;
   onSwitchToWysiwyg: () => void;
-  onSourceInsertHr?: () => void;
-  onSourceInsertCodeBlock?: () => void;
-  onSourceInsertHtmlBlock?: () => void;
-  onSourceInsertTable?: () => void;
-  onInsertToc?: () => void;
+
   mergeUndoRedo?: MergeUndoRedo | null;
   hideFileOps?: boolean;
   hideUndoRedo?: boolean;
@@ -136,12 +125,11 @@ interface EditorToolbarProps {
 export const EditorToolbar = React.memo(function EditorToolbar({
   editor,
   isInDiagramBlock,
-  onImage,
+
   onToggleAllBlocks,
   onDownload,
   onImport,
   onClear,
-  onSetDiagramAnchor,
   onSetTemplateAnchor,
   onSetHelpAnchor,
   sourceMode,
@@ -151,11 +139,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
   inlineMergeOpen,
   onSwitchToSource,
   onSwitchToWysiwyg,
-  onSourceInsertHr,
-  onSourceInsertCodeBlock,
-  onSourceInsertHtmlBlock,
-  onSourceInsertTable,
-  onInsertToc,
+
   mergeUndoRedo,
   hideFileOps,
   hideUndoRedo,
@@ -178,9 +162,9 @@ export const EditorToolbar = React.memo(function EditorToolbar({
   t,
 }: EditorToolbarProps) {
   const [fileMenuAnchorEl, setFileMenuAnchorEl] = useState<HTMLElement | null>(null);
-  const [partsMenuAnchorEl, setPartsMenuAnchorEl] = useState<HTMLElement | null>(null);
+
   const [mobileMenuAnchorEl, setMobileMenuAnchorEl] = useState<HTMLElement | null>(null);
-  const partsMenuRef = useRef<HTMLButtonElement>(null);
+
   const mobileMoreRef = useRef<HTMLButtonElement>(null);
 
   const handleToolbarKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -414,145 +398,14 @@ export const EditorToolbar = React.memo(function EditorToolbar({
         </ToggleButtonGroup>
       )}
 
-      {/* Insert elements - mobile menu */}
-      <IconButton
-        ref={partsMenuRef}
-        size="small"
-        aria-label={t("insertElements")}
-        onClick={(e) => setPartsMenuAnchorEl(e.currentTarget)}
-        sx={{ display: { xs: "inline-flex", md: "none" } }}
-      >
-        <WidgetsIcon fontSize="small" />
-      </IconButton>
-      <Menu
-        anchorEl={partsMenuAnchorEl}
-        open={!!partsMenuAnchorEl}
-        onClose={() => setPartsMenuAnchorEl(null)}
-      >
-        <MenuItem
-          onClick={() => { onImage(); setPartsMenuAnchorEl(null); }}
-          disabled={isInDiagramBlock || editorState?.isInDiagramCode || inlineMergeOpen}
-        >
-          <ListItemIcon><ImageIcon fontSize="small" /></ListItemIcon>
-          <ListItemText>{t("image")}</ListItemText>
-        </MenuItem>
-        <MenuItem
-          onClick={() => {
-            sourceMode ? onSourceInsertHr?.() : editor?.chain().focus().setHorizontalRule().run();
-            setPartsMenuAnchorEl(null);
-          }}
-          disabled={isInDiagramBlock || editorState?.isInDiagramCode || inlineMergeOpen}
-        >
-          <ListItemIcon><HorizontalRuleIcon fontSize="small" /></ListItemIcon>
-          <ListItemText>{t("horizontalRule")}</ListItemText>
-        </MenuItem>
-        <MenuItem
-          onClick={() => {
-            sourceMode ? onSourceInsertTable?.() : editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
-            setPartsMenuAnchorEl(null);
-          }}
-          disabled={isInDiagramBlock || editorState?.isInDiagramCode || inlineMergeOpen}
-        >
-          <ListItemIcon><GridOnIcon fontSize="small" /></ListItemIcon>
-          <ListItemText>{t("insertTable")}</ListItemText>
-        </MenuItem>
-        <MenuItem
-          onClick={() => {
-            sourceMode ? onSourceInsertCodeBlock?.() : editor?.chain().focus().toggleCodeBlock().run();
-            setPartsMenuAnchorEl(null);
-          }}
-          disabled={isInDiagramBlock || editorState?.isInDiagramCode || inlineMergeOpen}
-        >
-          <ListItemIcon><TerminalIcon fontSize="small" /></ListItemIcon>
-          <ListItemText>{t("codeBlock")}</ListItemText>
-        </MenuItem>
-        <MenuItem
-          onClick={() => {
-            sourceMode ? onSourceInsertHtmlBlock?.() : editor?.chain().focus().setCodeBlock({ language: "html" }).run();
-            setPartsMenuAnchorEl(null);
-          }}
-          disabled={isInDiagramBlock || editorState?.isInDiagramCode || inlineMergeOpen}
-        >
-          <ListItemIcon><WebAssetIcon fontSize="small" /></ListItemIcon>
-          <ListItemText>{t("htmlPreview")}</ListItemText>
-        </MenuItem>
-        <MenuItem
-          onClick={() => {
-            setPartsMenuAnchorEl(null);
-            if (partsMenuRef.current) onSetDiagramAnchor(partsMenuRef.current);
-          }}
-          disabled={isInDiagramBlock || editorState?.isInDiagramCode || inlineMergeOpen}
-        >
-          <ListItemIcon><AccountTreeIcon fontSize="small" /></ListItemIcon>
-          <ListItemText>{t("insertDiagram")}</ListItemText>
-        </MenuItem>
-        <MenuItem
-          onClick={() => {
-            onInsertToc?.();
-            setPartsMenuAnchorEl(null);
-          }}
-          disabled={editorState?.isInDiagramCode || inlineMergeOpen}
-        >
-          <ListItemIcon><TocIcon fontSize="small" /></ListItemIcon>
-          <ListItemText>{t("tableOfContents")}</ListItemText>
-        </MenuItem>
-        <MenuItem
-          onClick={() => {
-            setPartsMenuAnchorEl(null);
-            if (partsMenuRef.current) onSetTemplateAnchor(partsMenuRef.current);
-          }}
-          disabled={editorState?.isInDiagramCode || inlineMergeOpen}
-        >
-          <ListItemIcon><ArticleIcon fontSize="small" /></ListItemIcon>
-          <ListItemText>{t("templates")}</ListItemText>
-        </MenuItem>
-      </Menu>
-
-      {/* Insert actions - hidden on mobile, shown in More menu */}
-      <Box sx={{ display: { xs: "none", md: "contents" } }}>
+      {/* Insert actions */}
       <ToggleButtonGroup size="small" aria-label={t("insertElements")} sx={{ height: 30 }}>
-        <ToggleButton value="image" onClick={onImage} aria-label={t("image")} disabled={isInDiagramBlock || editorState?.isInDiagramCode || inlineMergeOpen} sx={{ px: 0.75, py: 0.25 }}>
-          <Tooltip title={tip(t, "image")}>
-            <span style={{ display: "inline-flex" }}><ImageIcon fontSize="small" /></span>
-          </Tooltip>
-        </ToggleButton>
-        <ToggleButton value="hr" onClick={() => sourceMode ? onSourceInsertHr?.() : editor?.chain().focus().setHorizontalRule().run()} aria-label={t("horizontalRule")} disabled={isInDiagramBlock || editorState?.isInDiagramCode || inlineMergeOpen} sx={{ px: 0.75, py: 0.25 }}>
-          <Tooltip title={tip(t, "horizontalRule")}>
-            <span style={{ display: "inline-flex" }}><HorizontalRuleIcon fontSize="small" /></span>
-          </Tooltip>
-        </ToggleButton>
-        <ToggleButton value="table" onClick={() => sourceMode ? onSourceInsertTable?.() : editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()} aria-label={t("insertTable")} disabled={isInDiagramBlock || editorState?.isInDiagramCode || inlineMergeOpen} sx={{ px: 0.75, py: 0.25 }}>
-          <Tooltip title={tip(t, "insertTable")}>
-            <span style={{ display: "inline-flex" }}><GridOnIcon fontSize="small" /></span>
-          </Tooltip>
-        </ToggleButton>
-        <ToggleButton value="codeBlock" onClick={() => sourceMode ? onSourceInsertCodeBlock?.() : editor?.chain().focus().toggleCodeBlock().run()} aria-label={t("codeBlock")} disabled={isInDiagramBlock || editorState?.isInDiagramCode || inlineMergeOpen} sx={{ px: 0.75, py: 0.25 }}>
-          <Tooltip title={tip(t, "codeBlock")}>
-            <span style={{ display: "inline-flex" }}><TerminalIcon fontSize="small" /></span>
-          </Tooltip>
-        </ToggleButton>
-        <ToggleButton value="htmlBlock" onClick={() => sourceMode ? onSourceInsertHtmlBlock?.() : editor?.chain().focus().setCodeBlock({ language: "html" }).run()} aria-label={t("htmlPreview")} disabled={isInDiagramBlock || editorState?.isInDiagramCode || inlineMergeOpen} sx={{ px: 0.75, py: 0.25 }}>
-          <Tooltip title={t("htmlPreview")}>
-            <span style={{ display: "inline-flex" }}><WebAssetIcon fontSize="small" /></span>
-          </Tooltip>
-        </ToggleButton>
-        <ToggleButton value="diagram" onClick={(e) => onSetDiagramAnchor(e.currentTarget)} aria-label={t("insertDiagram")} disabled={isInDiagramBlock || editorState?.isInDiagramCode || inlineMergeOpen} sx={{ px: 0.75, py: 0.25 }}>
-          <Tooltip title={tip(t, "insertDiagram")}>
-            <span style={{ display: "inline-flex" }}><AccountTreeIcon fontSize="small" /></span>
-          </Tooltip>
-        </ToggleButton>
-        <ToggleButton value="toc" onClick={() => onInsertToc?.()} aria-label={t("tableOfContents")} disabled={editorState?.isInDiagramCode || inlineMergeOpen} sx={{ px: 0.75, py: 0.25 }}>
-          <Tooltip title={t("tableOfContents")}>
-            <span style={{ display: "inline-flex" }}><TocIcon fontSize="small" /></span>
-          </Tooltip>
-        </ToggleButton>
         <ToggleButton value="template" onClick={(e) => onSetTemplateAnchor(e.currentTarget)} aria-label={t("templates")} disabled={editorState?.isInDiagramCode || inlineMergeOpen} sx={{ px: 0.75, py: 0.25 }}>
           <Tooltip title={tip(t, "templates")}>
             <span style={{ display: "inline-flex" }}><ArticleIcon fontSize="small" /></span>
           </Tooltip>
         </ToggleButton>
       </ToggleButtonGroup>
-      </Box>
 
       <Box sx={{ flexGrow: 1 }} />
 
