@@ -29,6 +29,7 @@ import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
 import SettingsIcon from "@mui/icons-material/Settings";
 import TocIcon from "@mui/icons-material/Toc";
 import WidgetsIcon from "@mui/icons-material/Widgets";
+import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 
 import {
   Box,
@@ -127,6 +128,8 @@ interface EditorToolbarProps {
   supportsDirectAccess?: boolean;
   onExportPdf?: () => void;
   onAnnounce?: (message: string) => void;
+  commentOpen?: boolean;
+  onToggleComments?: () => void;
   t: TranslationFn;
 }
 
@@ -170,6 +173,8 @@ export const EditorToolbar = React.memo(function EditorToolbar({
   onAnnounce,
   supportsDirectAccess,
   onExportPdf,
+  commentOpen,
+  onToggleComments,
   t,
 }: EditorToolbarProps) {
   const [fileMenuAnchorEl, setFileMenuAnchorEl] = useState<HTMLElement | null>(null);
@@ -566,6 +571,13 @@ export const EditorToolbar = React.memo(function EditorToolbar({
             <span style={{ display: "inline-flex" }}><ListAltIcon fontSize="small" /></span>
           </Tooltip>
         </ToggleButton>
+        {onToggleComments && (
+          <ToggleButton value="comments" selected={commentOpen} onClick={onToggleComments} disabled={inlineMergeOpen || sourceMode} aria-label={t("commentPanel") || "Comments"} sx={{ px: 0.75, py: 0.25 }}>
+            <Tooltip title={t("commentPanel") || "Comments"}>
+              <span style={{ display: "inline-flex" }}><ChatBubbleOutlineIcon fontSize="small" /></span>
+            </Tooltip>
+          </ToggleButton>
+        )}
       </ToggleButtonGroup>
       </Box>
 
@@ -668,6 +680,15 @@ export const EditorToolbar = React.memo(function EditorToolbar({
         <ListItemIcon><ListAltIcon fontSize="small" color={outlineOpen ? "primary" : "inherit"} /></ListItemIcon>
         <ListItemText>{t("outline")}</ListItemText>
       </MenuItem>
+      {onToggleComments && (
+        <MenuItem
+          onClick={() => { onToggleComments(); setMobileMenuAnchorEl(null); }}
+          disabled={inlineMergeOpen || sourceMode}
+        >
+          <ListItemIcon><ChatBubbleOutlineIcon fontSize="small" color={commentOpen ? "primary" : "inherit"} /></ListItemIcon>
+          <ListItemText>{t("commentPanel") || "Comments"}</ListItemText>
+        </MenuItem>
+      )}
       {editorState?.hasBlocks && (
         <MenuItem
           onClick={() => { onToggleAllBlocks(); setMobileMenuAnchorEl(null); }}
