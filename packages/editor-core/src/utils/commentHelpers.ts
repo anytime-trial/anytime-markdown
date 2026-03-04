@@ -17,9 +17,10 @@ const COMMENT_BLOCK_RE = /\n?\n<!-- comments\n([\s\S]*?)\n-->\s*$/;
 /**
  * コメントデータ行の正規表現。
  * `[resolved] id: text | createdAt` または `id: text | createdAt` にマッチ。
+ * テキスト内のパイプ文字に対応するため、最後の `|` で分割する（`(.*)` 貪欲）。
  */
 const COMMENT_LINE_RE =
-  /^(?:\[resolved\]\s+)?([^:]+):\s*(.*?)\s*\|\s*(\S+)\s*$/;
+  /^(?:\[resolved\]\s+)?([^:]+):\s*(.*)\s*\|\s*(\S+)\s*$/;
 
 /**
  * Markdown 末尾の `<!-- comments -->` ブロックからコメントデータを抽出する。

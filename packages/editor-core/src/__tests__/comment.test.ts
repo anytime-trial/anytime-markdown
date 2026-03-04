@@ -6,8 +6,8 @@
  * - preprocessComments: コメントマーカーの HTML タグ変換
  * - appendCommentData: コメントデータブロックの付加
  */
+import type { InlineComment } from "../utils/commentHelpers";
 import {
-  InlineComment,
   parseCommentData,
   preprocessComments,
   appendCommentData,
@@ -169,5 +169,29 @@ describe("appendCommentData", () => {
     const result = appendCommentData(md, comments);
     expect(result).toBe(md);
     expect(result).not.toContain("<!-- comments");
+  });
+});
+
+describe("ラウンドトリップ", () => {
+  test("appendCommentData の出力を parseCommentData で復元できる", () => {
+    const original = new Map<string, InlineComment>([
+      ["c1", { id: "c1", text: "Review this", resolved: false, createdAt: "2026-03-04T00:00:00Z" }],
+      ["c2", { id: "c2", text: "Done", resolved: true, createdAt: "2026-03-04T01:00:00Z" }],
+    ]);
+    const serialized = appendCommentData("# Title", original);
+    const { comments, body } = parseCommentData(serialized);
+    expect(body).toBe("# Title");
+    expect(comments.size).toBe(2);
+    expect(comments.get("c1")).toEqual(original.get("c1"));
+    expect(comments.get("c2")).toEqual(original.get("c2"));
+  });
+
+  test("パイプ文字を含むコメントテキストのラウンドトリップ", () => {
+    const original = new Map<string, InlineComment>([
+      ["c1", { id: "c1", text: "A | B | C", resolved: false, createdAt: "2026-03-04T00:00:00Z" }],
+    ]);
+    const serialized = appendCommentData("text", original);
+    const { comments } = parseCommentData(serialized);
+    expect(comments.get("c1")?.text).toBe("A | B | C");
   });
 });
