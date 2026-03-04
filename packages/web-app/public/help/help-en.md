@@ -67,6 +67,14 @@ Insert block-level elements via the toolbar or keyboard shortcuts.
 | ![HTML](/help/icons/html-block.png) | HTML | Ctrl+Alt+H | Insert an HTML preview block. |
 | ![Template](/help/icons/template.png) | Template | Ctrl+Alt+P | Insert a predefined template. |
 
+### Code Block
+
+Insert a fenced code block with `Ctrl+Alt+C` or the toolbar.
+
+- Syntax highlighting is supported for approximately 37 languages, including TypeScript, JavaScript, Python, Java, Go, Rust, C/C++, SQL, Bash, HTML, CSS, and more.
+- The language is auto-detected, or you can specify it by selecting from the language label in the toolbar.
+- The toolbar provides fold/unfold, fullscreen editing, code copy, and delete actions.
+
 ### Table
 
 Insert and edit tables using the toolbar and in-table controls.
@@ -143,6 +151,28 @@ Floating toolbar:
 | ![Copy](/help/icons/copy.png) | Copy Code | Copy the HTML source code to the clipboard. |
 | ![Delete](/help/icons/delete.png) | Delete | Delete the HTML block. |
 
+### Admonitions
+
+Admonitions (callout blocks) highlight important information with colored borders and backgrounds.
+
+- Use slash commands (`/note`, `/tip`, `/important`, `/warning`, `/caution`) to insert an admonition.
+- In source mode, use GitHub-compatible syntax: `> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]`, `> [!CAUTION]`.
+
+| Type | Color | Description |
+| ---- | ----- | ----------- |
+| Note | Blue | General information or reference. |
+| Tip | Green | Helpful advice or best practices. |
+| Important | Purple | Key information that should not be missed. |
+| Warning | Yellow | Potential issues to be aware of. |
+| Caution | Red | Critical warnings about dangerous actions. |
+
+### Footnotes
+
+Insert footnote references in your document.
+
+- Use the `/footnote` slash command to insert a footnote reference.
+- In source mode, use `[^id]` syntax for references and `[^id]: content` for definitions.
+
 ### Math Equations (KaTeX)
 
 Write mathematical expressions using KaTeX syntax.
@@ -193,8 +223,16 @@ Type `/` in the editor to open the slash command menu for quick insertion.
 | `/mermaid` | Insert a Mermaid diagram. |
 | `/plantuml` | Insert a PlantUML diagram. |
 | `/math` | Insert a math equation block (KaTeX). |
+| `/html` | Insert an HTML preview block. |
 | `/toc` | Generate a table of contents from headings. |
 | `/date` | Insert today's date (YYYY-MM-DD). |
+| `/footnote` | Insert a footnote reference. |
+| `/note` | Insert a note admonition. |
+| `/tip` | Insert a tip admonition. |
+| `/important` | Insert an important admonition. |
+| `/warning` | Insert a warning admonition. |
+| `/caution` | Insert a caution admonition. |
+| `/comment` | Add a comment to the selected text. |
 
 ## Search & Replace
 
@@ -237,6 +275,16 @@ View the document structure and navigate between sections.
 - Reorder sections by drag-and-drop or up/down move buttons.
 - Drag the panel border to resize the outline panel width.
 
+## Comments
+
+Add comments and annotations to the document.
+
+- Select text and press Ctrl+Shift+M or use the `/comment` slash command to add a comment.
+- Comments on selected text are highlighted with a yellow background.
+- Point comments (without text selection) insert a marker at the cursor position.
+- Open the comment panel from the toolbar to view, resolve, and manage comments.
+- Filter comments by status: All, Unresolved, or Resolved.
+
 ## Editor Settings
 
 Customize the editor appearance and behavior.
@@ -244,7 +292,8 @@ Customize the editor appearance and behavior.
 ![Editor Settings](/help/settings.png)
 
 - Adjustable settings: Line Height, Font Size, Table Width, Editor Min Width, Editor Background Color.
-- Page break guide: Toggle the "Page break guide" switch in the settings panel to show or hide page break indicators in the editor.
+- Section numbers: Toggle the "Section numbers" switch to auto-number headings (e.g. 1, 1.1, 1.1.1).
+- Page break guide: Toggle the "Page break guide" switch to show or hide page break indicators in the editor.
 
 ### Encoding & Line Ending
 
@@ -252,4 +301,3 @@ Change the file encoding or line ending format from the status bar at the bottom
 
 - Click the encoding label (e.g. "UTF-8") in the status bar to choose from UTF-8 / Shift_JIS / EUC-JP. A confirmation dialog is shown before converting.
 - Click the line ending label ("LF" or "CRLF") in the status bar to toggle between LF and CRLF.
-
