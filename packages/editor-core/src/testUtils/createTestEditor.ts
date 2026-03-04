@@ -1,4 +1,4 @@
-import { Editor, type Extensions } from "@tiptap/core";
+import { Editor, Extension, type Extensions } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import { TableKit } from "@tiptap/extension-table";
 import { Markdown } from "tiptap-markdown";
@@ -8,6 +8,25 @@ import Highlight from "@tiptap/extension-highlight";
 import Underline from "@tiptap/extension-underline";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
+
+/** taskList にも tight 属性を追加（tiptap-markdown は bulletList/orderedList のみ対象のため） */
+const TaskListTight = Extension.create({
+  name: "taskListTight",
+  addGlobalAttributes() {
+    return [{
+      types: ["taskList"],
+      attributes: {
+        tight: {
+          default: true,
+          parseHTML: (el: HTMLElement) =>
+            el.getAttribute("data-tight") === "true" || !el.querySelector("p"),
+          renderHTML: (attrs: Record<string, unknown>) =>
+            attrs.tight ? { class: "tight", "data-tight": "true" } : {},
+        },
+      },
+    }];
+  },
+});
 
 interface CreateTestEditorOptions {
   content?: string;
@@ -40,6 +59,7 @@ export function createTestEditor({
     extensions.push(Underline);
     extensions.push(TaskList);
     extensions.push(TaskItem.configure({ nested: true }));
+    extensions.push(TaskListTight);
   }
 
   return new Editor({ extensions, content });

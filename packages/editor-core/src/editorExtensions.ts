@@ -24,7 +24,29 @@ import { AdmonitionBlockquote } from "./extensions/admonitionExtension";
 import { FootnoteRef } from "./extensions/footnoteExtension";
 import { HeadingNumberExtension } from "./extensions/headingNumberExtension";
 import { CommentHighlight, CommentPoint, CommentDataPlugin } from "./extensions/commentExtension";
-import type { Extensions } from "@tiptap/react";
+import { Extension, type Extensions } from "@tiptap/react";
+
+/**
+ * tiptap-markdown の MarkdownTightLists は bulletList / orderedList のみ対象。
+ * taskList にも tight 属性を追加し、空行なしで出力できるようにする。
+ */
+const TaskListTight = Extension.create({
+  name: "taskListTight",
+  addGlobalAttributes() {
+    return [{
+      types: ["taskList"],
+      attributes: {
+        tight: {
+          default: true,
+          parseHTML: (el: HTMLElement) =>
+            el.getAttribute("data-tight") === "true" || !el.querySelector("p"),
+          renderHTML: (attrs: Record<string, unknown>) =>
+            attrs.tight ? { class: "tight", "data-tight": "true" } : {},
+        },
+      },
+    }];
+  },
+});
 
 /** 共通 Extension（メインエディタ / 比較エディタで共有） */
 export function getBaseExtensions(): Extensions {
@@ -43,6 +65,7 @@ export function getBaseExtensions(): Extensions {
     CustomImage.configure({ inline: false, allowBase64: true }),
     TaskList,
     TaskItem.configure({ nested: true }),
+    TaskListTight,
     TableKit.configure({
       table: false,
       tableCell: false,

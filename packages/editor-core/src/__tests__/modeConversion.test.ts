@@ -584,6 +584,40 @@ describe("エッジケース ラウンドトリップ", () => {
     expect(fullRoundTrip(md)).toBe(md);
   });
 
+  test("タスクリスト（空行なし）が空行なしで保持される", () => {
+    const md = "- [x] エディタの基本操作を覚える\n- [x] ダイアグラムを試す\n- [ ] 自分のドキュメントを書いてみる";
+    expect(fullRoundTrip(md)).toBe(md);
+  });
+
+  test("通常リスト（空行なし）が空行なしで保持される", () => {
+    const md = "- 項目A\n- 項目B\n- 項目C";
+    const result = fullRoundTrip(md);
+    expect(result).toBe(md);
+  });
+
+  test("ネストされた番号付きリストが空行なしで保持される", () => {
+    const md = "1. ファイルを開く\n   1. ツールバーの「開く」をクリック\n   2. `.md` ファイルを選択\n2. 編集する\n3. 保存する";
+    expect(fullRoundTrip(md)).toBe(md);
+  });
+
+  test("insertContent でネストされたリストが空行なしで保持される", () => {
+    const template = "1. ファイルを開く\n   1. ツールバーの「開く」をクリック\n   2. `.md` ファイルを選択\n2. 編集する\n3. 保存する";
+
+    // setContent: markdown 出力を取得（参照）
+    editor = createTestEditor({ withMarkdown: true });
+    editor.commands.setContent("# テスト\n\n" + template);
+    const setMd = getMarkdownFromEditor(editor);
+    editor.destroy();
+
+    // insertContent: markdown 出力を取得
+    editor = createTestEditor({ withMarkdown: true });
+    editor.commands.setContent("# テスト");
+    editor.chain().focus().insertContent(template).run();
+    const insertMd = getMarkdownFromEditor(editor);
+
+    expect(insertMd).toBe(setMd);
+  });
+
   test("ネストされた引用", () => {
     const md = "> 外側\n>\n> > 内側";
     expect(fullRoundTrip(md)).toBe(md);
