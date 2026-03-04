@@ -12,6 +12,7 @@ import TaskItem from "@tiptap/extension-task-item";
 import TaskList from "@tiptap/extension-task-list";
 import { Markdown } from "tiptap-markdown";
 import { TableKit } from "@tiptap/extension-table";
+import { common, createLowlight } from "lowlight";
 import { CodeBlockWithMermaid } from "./codeBlockWithMermaid";
 import { CustomImage } from "./imageExtension";
 import { CustomTable } from "./tableExtension";
@@ -102,7 +103,7 @@ export function getBaseExtensions(): Extensions {
       blockquote: false, // AdmonitionBlockquote で置換
     }),
     AdmonitionBlockquote,
-    CodeBlockWithMermaid,
+    CodeBlockWithMermaid.configure({ lowlight: createLowlight(common) }),
     Highlight,
     Underline,
     LinkExtension.configure({ openOnClick: false, validate: () => true }),

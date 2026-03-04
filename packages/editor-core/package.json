@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@tiptap/core": "^3.20.0",
+    "@tiptap/extension-code-block-lowlight": "^3.20.0",
     "@tiptap/extension-highlight": "^3.20.0",
     "@tiptap/extension-image": "^3.20.0",
     "@tiptap/extension-link": "^3.20.0",
@@ -26,6 +27,7 @@
     "@tiptap/react": "^3.20.0",
     "@tiptap/starter-kit": "^3.20.0",
     "encoding-japanese": "^2.2.0",
+    "lowlight": "^3.3.0",
     "tiptap-markdown": "^0.9.0"
   },
   "peerDependencies": {
@@ -35,8 +37,8 @@
     "@mui/material": "^6.0.0 || ^7.0.0",
     "diff": "^8.0.3",
     "dompurify": "^3.0.0",
-    "marked": "^15.0.0 || ^17.0.0",
     "katex": "^0.16.0",
+    "marked": "^15.0.0 || ^17.0.0",
     "mermaid": "^11.0.0",
     "next-intl": "^3.0.0 || ^4.0.0",
     "plantuml-encoder": "^1.0.0",
