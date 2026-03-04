@@ -99,10 +99,10 @@
 | E-003 | Next.js | ランディングページで next/image 未使用 | Engineer | XS |
 | E-004 | Next.js | robots.ts / sitemap.ts が未実装（SEO） | Engineer | XS |
 | E-008 | Next.js | ランディングページ全体が Client Component（SSR 恩恵なし） | Engineer | S | Done |
-| E-006 | パフォーマンス | MUI バレルインポートが41ファイル | Engineer | S |
+| E-006 | パフォーマンス | MUI バレルインポートが41ファイル | Engineer | S | N/A (Next.js 15 デフォルト済) |
 | E-011 | DX | CI に next build ステップがない | Engineer | S |
 | E-012 | DX | ESLint に React hooks / Next.js ルールがない | Engineer | S |
-| E-016 | テスト | web-app のユニットテストが3ファイルのみ | Engineer | S |
+| E-016 | テスト | web-app のユニットテストが3ファイルのみ | Engineer | S | Done |
 | C-003 | UX | オンボーディング不足（初回ガイド・空状態ヒント） | Designer | M |
 | D-004 | UX | ツールバーの情報密度が高く初見ユーザーに不親切 | Designer | M |
 
