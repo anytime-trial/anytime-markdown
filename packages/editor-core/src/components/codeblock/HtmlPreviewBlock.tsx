@@ -130,7 +130,7 @@ export function HtmlPreviewBlock(props: HtmlPreviewBlockProps) {
         <Box
           contentEditable={false}
           onClick={selectNode}
-          sx={{ p: 2, bgcolor: "background.paper", borderTop: 1, borderColor: "divider", overflow: "auto", maxHeight: 400, "& img": { maxWidth: "100%" } }}
+          sx={{ pt: 0, px: 2, pb: 2, bgcolor: "background.paper", borderTop: codeCollapsed ? 0 : 1, borderColor: "divider", overflow: "auto", maxHeight: 400, "& img": { maxWidth: "100%" } }}
           dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(code, HTML_SANITIZE_CONFIG) }}
         />
       )}

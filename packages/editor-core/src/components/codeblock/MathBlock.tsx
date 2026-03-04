@@ -136,7 +136,7 @@ export function MathBlock(props: MathBlockProps) {
         <Box
           contentEditable={false}
           onClick={selectNode}
-          sx={{ p: 2, bgcolor: "background.paper", borderTop: codeCollapsed ? 0 : 1, borderColor: "divider", overflow: "auto", maxHeight: 400, display: "flex", justifyContent: "center" }}
+          sx={{ pt: 0, px: 2, pb: 2, bgcolor: "background.paper", borderTop: codeCollapsed ? 0 : 1, borderColor: "divider", overflow: "auto", maxHeight: 400, display: "flex", justifyContent: "center" }}
           dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(mathHtml, MATH_SANITIZE_CONFIG) }}
         />
       )}

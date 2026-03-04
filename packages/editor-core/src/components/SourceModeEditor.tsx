@@ -68,6 +68,7 @@ export function SourceModeEditor({
             border: "none",
             outline: "none",
             resize: "none",
+            overflow: "hidden",
             fontFamily: "monospace",
             fontSize: `${settings.fontSize}px`,
             lineHeight: settings.lineHeight,
