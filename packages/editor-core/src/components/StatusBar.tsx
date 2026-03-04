@@ -5,6 +5,7 @@ import { Box, Button, Menu, MenuItem, Tooltip, Typography } from "@mui/material"
 import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord";
 import type { Editor } from "@tiptap/react";
 import type { EncodingLabel, TranslationFn } from "../types";
+import useConfirm from "../hooks/useConfirm";
 
 interface StatusBarProps {
   editor: Editor;
@@ -19,6 +20,7 @@ interface StatusBarProps {
 }
 
 export const StatusBar = React.memo(function StatusBar({ editor, sourceMode, sourceText, t, fileName, isDirty, onLineEndingChange, encoding, onEncodingChange }: StatusBarProps) {
+  const confirm = useConfirm();
   const [cursorLine, setCursorLine] = useState(1);
   const [cursorCol, setCursorCol] = useState(1);
   const [sourceCursorLine, setSourceCursorLine] = useState(1);
@@ -151,9 +153,13 @@ export const StatusBar = React.memo(function StatusBar({ editor, sourceMode, sou
                 onClick={() => {
                   setEncodingAnchor(null);
                   if (opt === (encoding ?? "UTF-8")) return;
-                  if (window.confirm(t("encodingChangeConfirm", { encoding: opt }))) {
+                  confirm({
+                    open: true,
+                    title: t("encodingChangeConfirm", { encoding: opt }),
+                    description: "",
+                  }).then(() => {
                     onEncodingChange(opt);
-                  }
+                  }).catch(() => { /* cancelled */ });
                 }}
               >
                 {opt}

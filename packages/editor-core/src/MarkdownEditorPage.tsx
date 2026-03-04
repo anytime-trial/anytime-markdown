@@ -150,6 +150,8 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   } = useSourceMode({ editor, saveContent, t });
 
   const {
+    commentDialogOpen, setCommentDialogOpen, commentText, setCommentText,
+    handleCommentOpen, handleCommentInsert,
     linkDialogOpen, setLinkDialogOpen, linkUrl, setLinkUrl,
     handleLink, handleLinkInsert, imageDialogOpen, setImageDialogOpen,
     imageUrl, setImageUrl, imageAlt, setImageAlt, imageEditPos,
@@ -171,7 +173,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   } = useFileSystem(fileSystemProvider ?? null);
 
   const {
-    notification, setNotification, pdfExporting,
+    notification, setNotification, showNotification, pdfExporting,
     fileInputRef, handleClear, handleFileSelected,
     handleDownload, handleImport, handleCopy,
     handleOpenFile, handleSaveFile, handleSaveAsFile,
@@ -419,7 +421,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     <EditorSettingsContext.Provider value={settings}>
     <PlantUmlToolbarContext.Provider value={plantUmlToolbarCtx}>
     <PrintStyles />
-    <Box sx={{ p: { xs: 2, sm: 3 } }}>
+    <Box id="main-content" component="main" sx={{ p: { xs: 2, sm: 3 } }}>
       {/* Skip link (WCAG 2.4.1) */}
       <Box
         component="a"
@@ -509,6 +511,11 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
       />
 
       <EditorDialogs
+        commentDialogOpen={commentDialogOpen}
+        setCommentDialogOpen={setCommentDialogOpen}
+        commentText={commentText}
+        setCommentText={setCommentText}
+        handleCommentInsert={handleCommentInsert}
         linkDialogOpen={linkDialogOpen}
         setLinkDialogOpen={setLinkDialogOpen}
         linkUrl={linkUrl}
@@ -666,7 +673,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
       >
         <Alert
           onClose={() => setNotification(null)}
-          severity="success"
+          severity={notification?.endsWith("Error") ? "error" : "success"}
           variant="filled"
           sx={{ width: "100%" }}
         >

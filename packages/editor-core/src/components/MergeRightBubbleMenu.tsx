@@ -113,9 +113,10 @@ export function MergeRightBubbleMenu({
                 editor.chain().focus().unsetLink().run();
                 return;
               }
-              const url = window.prompt("URL:");
-              if (url?.trim()) {
-                editor.chain().focus().extendMarkRange("link").setLink({ href: url.trim() }).run();
+              const storage = editor.storage as unknown as Record<string, Record<string, unknown>>;
+              const openDialog = storage.linkDialog?.open as (() => void) | undefined;
+              if (openDialog) {
+                openDialog();
               }
             }}
             color={editor.isActive("link") ? "primary" : "default"}

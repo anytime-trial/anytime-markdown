@@ -18,6 +18,8 @@ export function useEditorDialogs({
   const [imageUrl, setImageUrl] = useState("");
   const [imageAlt, setImageAlt] = useState("");
   const [imageEditPos, setImageEditPos] = useState<number | null>(null);
+  const [commentDialogOpen, setCommentDialogOpen] = useState(false);
+  const [commentText, setCommentText] = useState("");
   const [shortcutDialogOpen, setShortcutDialogOpen] = useState(false);
   const [versionDialogOpen, setVersionDialogOpen] = useState(false);
   const [helpDialogOpen, setHelpDialogOpen] = useState(false);
@@ -38,6 +40,28 @@ export function useEditorDialogs({
     };
   }, [editor]);
 
+  const handleCommentOpen = useCallback(() => {
+    setCommentText("");
+    setCommentDialogOpen(true);
+  }, []);
+
+  const handleCommentInsert = useCallback(() => {
+    if (!editor || !commentText.trim()) return;
+    editor.chain().focus().addComment(commentText.trim()).run();
+    setCommentDialogOpen(false);
+  }, [editor, commentText]);
+
+  // editor.storage 経由でコメントダイアログを開く（BubbleMenu / SlashCommand から利用）
+  useEffect(() => {
+    if (!editor) return;
+    const storage = editor.storage as unknown as Record<string, Record<string, unknown>>;
+    if (!storage.commentDialog) storage.commentDialog = {};
+    storage.commentDialog.open = handleCommentOpen;
+    return () => {
+      if (storage.commentDialog) storage.commentDialog.open = null;
+    };
+  }, [editor, handleCommentOpen]);
+
   const handleLink = useCallback(() => {
     if (!editor) return;
     if (editor.isActive("link")) {
@@ -53,6 +77,17 @@ export function useEditorDialogs({
     editor.chain().focus().extendMarkRange("link").setLink({ href: linkUrl.trim() }).run();
     setLinkDialogOpen(false);
   }, [editor, linkUrl]);
+
+  // editor.storage 経由でリンクダイアログを開く（MergeRightBubbleMenu から利用）
+  useEffect(() => {
+    if (!editor) return;
+    const storage = editor.storage as unknown as Record<string, Record<string, unknown>>;
+    if (!storage.linkDialog) storage.linkDialog = {};
+    storage.linkDialog.open = handleLink;
+    return () => {
+      if (storage.linkDialog) storage.linkDialog.open = null;
+    };
+  }, [editor, handleLink]);
 
   const handleImage = useCallback(() => {
     if (!editor && !sourceMode) return;
@@ -105,6 +140,12 @@ export function useEditorDialogs({
     imageEditPos,
     handleImage,
     handleImageInsert,
+    commentDialogOpen,
+    setCommentDialogOpen,
+    commentText,
+    setCommentText,
+    handleCommentOpen,
+    handleCommentInsert,
     shortcutDialogOpen,
     setShortcutDialogOpen,
     versionDialogOpen,

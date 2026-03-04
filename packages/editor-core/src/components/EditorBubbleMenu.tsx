@@ -166,8 +166,11 @@ export const EditorBubbleMenu = React.memo(function EditorBubbleMenu({ editor, o
             size="small"
             aria-label={t("comment")}
             onClick={() => {
-              const text = prompt(t("commentPrompt") || "Comment:");
-              if (text) editor.chain().focus().addComment(text).run();
+              const storage = editor.storage as unknown as Record<string, Record<string, unknown>>;
+              const openDialog = storage.commentDialog?.open as (() => void) | undefined;
+              if (openDialog) {
+                openDialog();
+              }
             }}
             color={editor.isActive("commentHighlight") ? "primary" : "default"}
             sx={{ p: 0.5 }}

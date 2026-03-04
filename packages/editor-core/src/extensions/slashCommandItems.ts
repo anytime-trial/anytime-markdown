@@ -275,8 +275,11 @@ export const slashCommandItems: SlashCommandItem[] = [
     icon: React.createElement(ChatBubbleOutlineIcon, { fontSize: "small" }),
     keywords: ["comment", "annotation", "note", "コメント", "注釈", "メモ"],
     action: (editor) => {
-      const text = prompt("Comment:");
-      if (text) editor.chain().focus().addComment(text).run();
+      const storage = editor.storage as unknown as Record<string, Record<string, unknown>>;
+      const openDialog = storage.commentDialog?.open as (() => void) | undefined;
+      if (openDialog) {
+        openDialog();
+      }
     },
   },
 ];
