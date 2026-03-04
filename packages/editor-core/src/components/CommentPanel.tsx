@@ -191,7 +191,15 @@ export const CommentPanel = React.memo(function CommentPanel({
           return (
             <Box
               key={comment.id}
+              role="button"
+              tabIndex={0}
               onClick={() => handleClick(comment.id)}
+              onKeyDown={(e: React.KeyboardEvent) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  handleClick(comment.id);
+                }
+              }}
               sx={{
                 mb: 1,
                 p: 1,
@@ -200,7 +208,8 @@ export const CommentPanel = React.memo(function CommentPanel({
                 borderRadius: 1,
                 cursor: "pointer",
                 opacity: comment.resolved ? 0.5 : 1,
-                "&:hover": { bgcolor: "action.hover" },
+                "&:hover, &:focus-visible": { bgcolor: "action.hover" },
+                "&:focus-visible": { outline: "2px solid", outlineColor: "primary.main", outlineOffset: -2 },
               }}
             >
               {/* Target text */}
