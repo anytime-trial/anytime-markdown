@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 const SETTINGS_KEY = "markdown-editor-settings";
-const SETTINGS_VERSION = 3; // editorMaxWidth 設定を廃止
+const SETTINGS_VERSION = 4; // showHeadingNumbers 追加
 
 export interface EditorSettings {
   lineHeight: number;
@@ -14,6 +14,7 @@ export interface EditorSettings {
   darkBgColor: string;     // ダークモード背景色（空文字 = テーマデフォルト）
   darkTextColor: string;   // ダークモード文字色（空文字 = テーマデフォルト）
   showPageBreakGuide: boolean;
+  showHeadingNumbers: boolean;
 }
 
 export const DEFAULT_SETTINGS: EditorSettings = {
@@ -26,6 +27,7 @@ export const DEFAULT_SETTINGS: EditorSettings = {
   darkBgColor: "",
   darkTextColor: "",
   showPageBreakGuide: true,
+  showHeadingNumbers: false,
 };
 
 export function useEditorSettings() {

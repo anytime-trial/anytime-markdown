@@ -40,6 +40,12 @@ export function getEditorPaperSx(
       "@media print": {
         backgroundImage: "none !important",
       },
+      "& .heading-number": {
+        color: theme.palette.text.secondary,
+        fontWeight: 400,
+        marginRight: "0.25em",
+        userSelect: "none" as const,
+      },
       "& .heading-folded::after": {
         content: "' ...'",
         fontSize: "0.75rem",

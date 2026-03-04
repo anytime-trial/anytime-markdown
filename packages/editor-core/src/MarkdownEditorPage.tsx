@@ -303,6 +303,12 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     };
   }, [editor, theme, settings.fontSize, settings.lineHeight, settings.showPageBreakGuide]);
 
+  // セクション自動番号の表示切替
+  useEffect(() => {
+    if (!editor) return;
+    editor.commands.setShowHeadingNumbers(settings.showHeadingNumbers);
+  }, [editor, settings.showHeadingNumbers]);
+
   const {
     inlineMergeOpen, setInlineMergeOpen,
     editorMarkdown, setEditorMarkdown,
