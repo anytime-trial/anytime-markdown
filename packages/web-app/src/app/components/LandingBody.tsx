@@ -10,6 +10,7 @@ import {
   InstallDesktop as InstallDesktopIcon,
 } from '@mui/icons-material';
 import NextLink from 'next/link';
+import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 import { useTheme } from '@mui/material/styles';
 
@@ -224,15 +225,13 @@ export default function LandingBody({ headingFontFamily }: { headingFontFamily?:
                 : '0 8px 32px rgba(0,0,0,0.12)',
             }}
           >
-            <Box
-              component="img"
+            <Image
               src="/images/editor-preview.png"
               alt={t('screenshot')}
-              sx={{
-                display: 'block',
-                width: '100%',
-                height: 'auto',
-              }}
+              width={2880}
+              height={1800}
+              priority
+              style={{ display: 'block', width: '100%', height: 'auto' }}
             />
           </Box>
         </Container>
