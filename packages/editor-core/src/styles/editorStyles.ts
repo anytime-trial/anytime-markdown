@@ -383,6 +383,15 @@ export function getEditorPaperSx(
         borderTop: `1px solid ${theme.palette.divider}`,
         my: 2,
       },
+      "& hr.ProseMirror-selectednode": {
+        borderLeft: `1.5px solid ${theme.palette.text.primary}`,
+        py: "0.5em",
+        animation: "blink-caret 1s step-end infinite",
+        "@keyframes blink-caret": {
+          "0%, 100%": { borderLeftColor: theme.palette.text.primary },
+          "50%": { borderLeftColor: "transparent" },
+        },
+      },
       "& p.is-editor-empty:first-of-type::before": {
         content: "attr(data-placeholder)",
         color: theme.palette.text.disabled,
