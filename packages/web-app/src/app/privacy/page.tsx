@@ -3,15 +3,28 @@ import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
 import Typography from '@mui/material/Typography';
 import Link from '@mui/material/Link';
+import NextLink from 'next/link';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import { getTranslations } from 'next-intl/server';
 
 export const metadata: Metadata = {
   title: 'Privacy Policy - Anytime Markdown',
   description: 'Anytime Markdown privacy policy',
 };
 
-export default function PrivacyPolicyPage() {
+export default async function PrivacyPolicyPage() {
+  const t = await getTranslations('Landing');
+
   return (
     <Container maxWidth="md" sx={{ py: 6 }}>
+      <Link
+        component={NextLink}
+        href="/"
+        sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, mb: 2, textDecoration: 'none', color: 'text.secondary', '&:hover': { color: 'primary.main' } }}
+      >
+        <ArrowBackIcon sx={{ fontSize: 18 }} />
+        {t('backToHome')}
+      </Link>
       <Typography variant="h3" component="h1" gutterBottom>
         Privacy Policy
       </Typography>
@@ -58,8 +71,13 @@ export default function PrivacyPolicyPage() {
 
       <Section title="5. Analytics and Tracking">
         <P>
-          The App does not use analytics services, tracking pixels, or advertising SDKs.
-          We do not track your usage behavior.
+          The App may use Google Analytics to collect anonymous usage data such as page views and
+          session duration. This data is used solely to improve the App and is not used for
+          advertising or sold to third parties. No personally identifiable information is collected
+          through analytics.
+        </P>
+        <P>
+          The App does not use tracking pixels or advertising SDKs.
         </P>
       </Section>
 

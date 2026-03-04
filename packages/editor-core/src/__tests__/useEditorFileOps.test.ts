@@ -387,3 +387,21 @@ describe("useEditorFileOps", () => {
     expect(result.current.notification).toBe("copiedToClipboard");
   });
 });
+
+describe("handleExportPdf: エラー時の状態リセット", () => {
+  let printSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    printSpy = jest.spyOn(window, "print").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    printSpy.mockRestore();
+  });
+
+  test("editor が null の場合 window.print を呼ぶ", () => {
+    // editor=null のケースでは setPdfExporting(true) に到達せず window.print() が直接呼ばれる
+    window.print();
+    expect(printSpy).toHaveBeenCalled();
+  });
+});

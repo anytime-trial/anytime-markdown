@@ -15,6 +15,7 @@ function createMockEditor() {
     commands: {
       closeSearch: jest.fn(),
       setContent: jest.fn(),
+      initComments: jest.fn(),
     },
   } as unknown as Editor;
 }
@@ -95,5 +96,99 @@ describe("useSourceMode", () => {
     act(() => hook.result.current.handleSwitchToSource());
     expect(hook.result.current.sourceMode).toBe(false);
     expect(mockedGetMarkdown).not.toHaveBeenCalled();
+  });
+
+  describe("ソースモード切替時のコメント保持", () => {
+    const SOURCE_WITH_COMMENTS = [
+      "# Title",
+      "",
+      "Some <!-- comment-start:abc12345 -->highlighted<!-- comment-end:abc12345 --> text.",
+      "",
+      "<!-- comments",
+      "abc12345: review this | 2026-01-01T00:00:00Z",
+      "-->",
+    ].join("\n");
+
+    test("handleSwitchToWysiwyg → setContent にコメントデータブロックが含まれない", () => {
+      const { hook, editor } = setup();
+      const setContent = (editor as any).commands.setContent as jest.Mock;
+
+      // ソースモードにしてコメント付きテキストを設定
+      act(() => hook.result.current.handleSourceChange(SOURCE_WITH_COMMENTS));
+      act(() => hook.result.current.handleSwitchToWysiwyg());
+
+      // setContent に渡された引数を確認
+      const contentArg = setContent.mock.calls[0][0] as string;
+      expect(contentArg).not.toContain("<!-- comments");
+      expect(contentArg).not.toContain("abc12345: review this");
+    });
+
+    test("handleSwitchToWysiwyg → initComments がコメント Map で呼ばれる", () => {
+      const initComments = jest.fn();
+      const mockEditor = {
+        commands: {
+          closeSearch: jest.fn(),
+          setContent: jest.fn(),
+          initComments,
+        },
+      } as unknown as Editor;
+      const { hook } = setup(mockEditor);
+
+      act(() => hook.result.current.handleSourceChange(SOURCE_WITH_COMMENTS));
+      act(() => hook.result.current.handleSwitchToWysiwyg());
+
+      expect(initComments).toHaveBeenCalledTimes(1);
+      const commentsMap = initComments.mock.calls[0][0] as Map<string, any>;
+      expect(commentsMap).toBeInstanceOf(Map);
+      expect(commentsMap.size).toBe(1);
+      expect(commentsMap.get("abc12345")).toEqual(
+        expect.objectContaining({
+          id: "abc12345",
+          text: "review this",
+          resolved: false,
+        }),
+      );
+    });
+
+    test("handleSwitchToWysiwyg → setContent にインラインコメントマーカーは保持される", () => {
+      const { hook, editor } = setup();
+      const setContent = (editor as any).commands.setContent as jest.Mock;
+
+      act(() => hook.result.current.handleSourceChange(SOURCE_WITH_COMMENTS));
+      act(() => hook.result.current.handleSwitchToWysiwyg());
+
+      const contentArg = setContent.mock.calls[0][0] as string;
+      // preprocessComments により <span data-comment-id> に変換されている
+      expect(contentArg).toContain('data-comment-id="abc12345"');
+    });
+
+    test("handleSwitchToWysiwyg → saveContent にコメントデータブロックが含まれる（元テキスト保持）", () => {
+      const { hook, saveContent } = setup();
+
+      act(() => hook.result.current.handleSourceChange(SOURCE_WITH_COMMENTS));
+      act(() => hook.result.current.handleSwitchToWysiwyg());
+
+      // saveContent の最後の呼び出しに元のコメントデータが含まれる
+      const lastCall = saveContent.mock.calls[saveContent.mock.calls.length - 1][0] as string;
+      expect(lastCall).toContain("<!-- comments");
+      expect(lastCall).toContain("abc12345: review this");
+    });
+
+    test("コメントなしのソーステキスト → initComments は呼ばれない", () => {
+      const initComments = jest.fn();
+      const mockEditor = {
+        commands: {
+          closeSearch: jest.fn(),
+          setContent: jest.fn(),
+          initComments,
+        },
+      } as unknown as Editor;
+      const { hook } = setup(mockEditor);
+
+      act(() => hook.result.current.handleSourceChange("# No comments here"));
+      act(() => hook.result.current.handleSwitchToWysiwyg());
+
+      expect(initComments).not.toHaveBeenCalled();
+    });
   });
 });

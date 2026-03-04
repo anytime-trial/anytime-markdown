@@ -26,6 +26,9 @@ jobs:
       - name: Type check
         run: npx tsc --noEmit
 
+      - name: Lint
+        run: npm run lint
+
       - name: Run editor-core tests
         run: npm test
         working-directory: packages/editor-core
@@ -40,6 +43,10 @@ jobs:
 
       - name: Run e2e tests
         run: npm run e2e
+        working-directory: packages/web-app
+
+      - name: Build web-app
+        run: npx next build
         working-directory: packages/web-app
 
       - name: Build extension

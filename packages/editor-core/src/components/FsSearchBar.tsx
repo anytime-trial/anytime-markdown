@@ -167,6 +167,7 @@ export function FsSearchBar({ search, t }: FsSearchBarProps) {
         <span>
           <IconButton
             size="small"
+            aria-label={t("prevMatch")}
             onClick={search.goToPrev}
             disabled={resultCount === 0}
             sx={{ p: 0.25 }}
@@ -179,6 +180,7 @@ export function FsSearchBar({ search, t }: FsSearchBarProps) {
         <span>
           <IconButton
             size="small"
+            aria-label={t("nextMatch")}
             onClick={search.goToNext}
             disabled={resultCount === 0}
             sx={{ p: 0.25 }}

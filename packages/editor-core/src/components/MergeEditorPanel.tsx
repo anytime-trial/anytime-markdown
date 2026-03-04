@@ -424,6 +424,7 @@ export function MergeEditorPanel({
                   >
                     <IconButton
                       size="small"
+                      aria-label={panelSide === "left" ? t("mergeLeftToRight") : t("mergeRightToLeft")}
                       onClick={() => onMerge!(blockId, panelSide === "left" ? "left-to-right" : "right-to-left")}
                       sx={{ p: 0 }}
                     >

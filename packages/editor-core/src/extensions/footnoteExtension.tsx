@@ -1,0 +1,107 @@
+"use client";
+
+/**
+ * Footnote Reference Extension
+ *
+ * MathInline と同じパターンで脚注参照 [^id] をサポートする。
+ * - sanitizeMarkdown で [^id] → <sup data-footnote-ref="id">id</sup> に前処理
+ * - parseHTML で <sup data-footnote-ref> を検出
+ * - InputRule: [^id] パターンで FootnoteRef ノードに変換
+ * - serialize: [^id] を出力
+ */
+import { Node, InputRule } from "@tiptap/core";
+import { ReactNodeViewRenderer, NodeViewWrapper } from "@tiptap/react";
+import type { NodeViewProps } from "@tiptap/react";
+import { Box, useTheme } from "@mui/material";
+
+/** FootnoteRef NodeView コンポーネント */
+function FootnoteRefView({ node, selected }: NodeViewProps) {
+  const theme = useTheme();
+  const noteId = node.attrs.noteId as string;
+
+  return (
+    <NodeViewWrapper as="span" style={{ display: "inline" }}>
+      <Box
+        component="span"
+        sx={{
+          display: "inline",
+          cursor: "default",
+          fontSize: "0.75em",
+          verticalAlign: "super",
+          lineHeight: 1,
+          color: theme.palette.primary.main,
+          fontWeight: 600,
+          borderRadius: 0.5,
+          px: 0.25,
+          ...(selected && {
+            outline: `2px solid ${theme.palette.primary.main}`,
+            outlineOffset: 1,
+          }),
+        }}
+      >
+        [{noteId}]
+      </Box>
+    </NodeViewWrapper>
+  );
+}
+
+export const FootnoteRef = Node.create({
+  name: "footnoteRef",
+  group: "inline",
+  inline: true,
+  atom: true,
+
+  addAttributes() {
+    return {
+      noteId: { default: "" },
+    };
+  },
+
+  parseHTML() {
+    return [
+      {
+        tag: "sup[data-footnote-ref]",
+        getAttrs: (el) => {
+          if (typeof el === "string") return false;
+          return { noteId: el.getAttribute("data-footnote-ref") || "" };
+        },
+      },
+    ];
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    return ["sup", { "data-footnote-ref": HTMLAttributes.noteId }, HTMLAttributes.noteId];
+  },
+
+  addNodeView() {
+    return ReactNodeViewRenderer(FootnoteRefView);
+  },
+
+  addInputRules() {
+    return [
+      new InputRule({
+        find: /\[\^([^\]]+)\]$/,
+        handler: ({ state, range, match, chain }) => {
+          const noteId = match[1];
+          if (!noteId) return;
+          const node = state.schema.nodes.footnoteRef.create({ noteId });
+          chain().insertContentAt({ from: range.from, to: range.to }, node.toJSON()).run();
+        },
+      }),
+    ];
+  },
+
+  addStorage() {
+    return {
+      markdown: {
+        serialize(
+          state: { write: (text: string) => void },
+          node: { attrs: { noteId: string } },
+        ) {
+          state.write(`[^${node.attrs.noteId}]`);
+        },
+        parse: {},
+      },
+    };
+  },
+});

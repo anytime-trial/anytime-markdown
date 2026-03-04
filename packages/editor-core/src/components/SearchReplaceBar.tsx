@@ -194,6 +194,7 @@ export const SearchReplaceBar = React.memo(function SearchReplaceBar({ editor, t
   return (
     <Paper
       elevation={3}
+      role="search"
       sx={{
         position: "absolute",
         top: 0,
@@ -214,6 +215,7 @@ export const SearchReplaceBar = React.memo(function SearchReplaceBar({ editor, t
           <IconButton
             size="small"
             aria-label={t("replace")}
+            aria-pressed={showReplace}
             onClick={() => setShowReplace((v) => !v)}
             sx={{ p: 0.25, minWidth: 24, minHeight: 24 }}
           >
@@ -230,6 +232,7 @@ export const SearchReplaceBar = React.memo(function SearchReplaceBar({ editor, t
           component="input"
           ref={searchInputRef}
           aria-label={t("searchPlaceholder")}
+          autoComplete="off"
           value={searchTerm}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
             handleSearchChange(e.target.value)
@@ -282,6 +285,7 @@ export const SearchReplaceBar = React.memo(function SearchReplaceBar({ editor, t
           <IconButton
             size="small"
             aria-label={t("caseSensitive")}
+            aria-pressed={caseSensitive}
             onClick={() => editor.commands.toggleCaseSensitive()}
             sx={toggleBtnSx(caseSensitive)}
           >
@@ -293,6 +297,7 @@ export const SearchReplaceBar = React.memo(function SearchReplaceBar({ editor, t
             <IconButton
               size="small"
               aria-label={t("wholeWord")}
+              aria-pressed={wholeWord && !useRegex}
               onClick={() => editor.commands.toggleWholeWord()}
               disabled={useRegex}
               sx={toggleBtnSx(wholeWord && !useRegex)}
@@ -305,6 +310,7 @@ export const SearchReplaceBar = React.memo(function SearchReplaceBar({ editor, t
           <IconButton
             size="small"
             aria-label={t("regex")}
+            aria-pressed={useRegex}
             onClick={() => editor.commands.toggleUseRegex()}
             sx={toggleBtnSx(useRegex)}
           >
@@ -366,6 +372,7 @@ export const SearchReplaceBar = React.memo(function SearchReplaceBar({ editor, t
           <Box
             component="input"
             aria-label={t("replacePlaceholder")}
+            autoComplete="off"
             value={replaceTerm}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
               handleReplaceChange(e.target.value)

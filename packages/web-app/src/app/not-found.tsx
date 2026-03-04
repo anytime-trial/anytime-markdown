@@ -1,7 +1,12 @@
+'use client';
+
 import Link from 'next/link';
 import { Box, Button, Typography } from '@mui/material';
+import { useTranslations } from 'next-intl';
 
 export default function NotFound() {
+  const t = useTranslations('Landing');
+
   return (
     <Box
       sx={{
@@ -17,10 +22,10 @@ export default function NotFound() {
         404
       </Typography>
       <Typography variant="body1" color="text.secondary">
-        Page not found
+        {t('notFoundTitle')}
       </Typography>
       <Button component={Link} href="/" variant="outlined" sx={{ mt: 1 }}>
-        Go to Editor
+        {t('notFoundLink')}
       </Button>
     </Box>
   );

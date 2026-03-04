@@ -1,5 +1,9 @@
 const createNextIntlPlugin = require('next-intl/plugin');
 const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
+const withBundleAnalyzer = require('@next/bundle-analyzer')({
+  enabled: process.env.ANALYZE === 'true',
+  openAnalyzer: false,
+});
 
 const isCapacitorBuild = process.env.CAPACITOR_BUILD === 'true';
 
@@ -53,7 +57,7 @@ if (!isCapacitorBuild) {
     swSrc: 'src/app/sw.ts',
     swDest: 'public/sw.js',
   });
-  module.exports = withSerwist(withNextIntl(nextConfig));
+  module.exports = withBundleAnalyzer(withSerwist(withNextIntl(nextConfig)));
 } else {
-  module.exports = withNextIntl(nextConfig);
+  module.exports = withBundleAnalyzer(withNextIntl(nextConfig));
 }

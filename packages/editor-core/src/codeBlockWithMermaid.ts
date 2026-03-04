@@ -1,4 +1,4 @@
-import CodeBlock from "@tiptap/extension-code-block";
+import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { CodeBlockNodeView } from "./MermaidNodeView";
@@ -10,7 +10,7 @@ interface MarkdownSerializerState {
   closeBlock: (node: ProseMirrorNode) => void;
 }
 
-export const CodeBlockWithMermaid = CodeBlock.extend({
+export const CodeBlockWithMermaid = CodeBlockLowlight.extend({
   draggable: true,
 
   addAttributes() {

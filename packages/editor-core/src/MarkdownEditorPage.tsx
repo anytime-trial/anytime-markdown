@@ -66,6 +66,9 @@ import type { FileSystemProvider } from "./types/fileSystem";
 import { sanitizeMarkdown, preserveBlankLines } from "./utils/sanitizeMarkdown";
 import { extractHeadings } from "./types";
 import { generateTocMarkdown } from "./utils/tocHelpers";
+import { CommentPanel } from "./components/CommentPanel";
+import { parseCommentData } from "./utils/commentHelpers";
+import type { InlineComment } from "./utils/commentHelpers";
 
 
 interface MarkdownEditorPageProps {
@@ -96,6 +99,16 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   } = useMarkdownEditor(welcomeContent);
 
   const [encoding, setEncoding] = useState<EncodingLabel>("UTF-8");
+  const [commentOpen, setCommentOpen] = useState(false);
+  const commentDataRef = useRef<Map<string, InlineComment>>(new Map());
+
+  // initialContent からコメントデータを分離
+  const processedInitialContent = useMemo(() => {
+    if (!initialContent) return initialContent;
+    const { comments, body } = parseCommentData(initialContent);
+    commentDataRef.current = comments;
+    return body;
+  }, [initialContent]);
   const { settings, updateSettings, resetSettings } = useEditorSettings();
   const {
     settingsOpen, setSettingsOpen,
@@ -116,13 +129,19 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   const slashCommandCallbackRef = useRef<(state: SlashCommandState) => void>(() => {});
 
   const editorConfig = useEditorConfig({
-    t, initialContent, saveContent,
+    t, initialContent: processedInitialContent, saveContent,
     editorRef, setEditorMarkdownRef, setHeadingsRef,
     headingsDebounceRef, handleImportRef, setHeadingMenu,
     slashCommandCallbackRef,
   });
-  const editor = useEditor(editorConfig, [initialContent]);
+  const editor = useEditor(editorConfig, [processedInitialContent]);
   editorRef.current = editor;
+
+  // コメントデータの初期化（editor 生成後に1回だけ実行）
+  useEffect(() => {
+    if (!editor || commentDataRef.current.size === 0) return;
+    editor.commands.initComments(commentDataRef.current);
+  }, [editor]);
 
   // --- Custom hooks ---
   const {
@@ -131,6 +150,8 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   } = useSourceMode({ editor, saveContent, t });
 
   const {
+    commentDialogOpen, setCommentDialogOpen, commentText, setCommentText,
+    handleCommentOpen, handleCommentInsert,
     linkDialogOpen, setLinkDialogOpen, linkUrl, setLinkUrl,
     handleLink, handleLinkInsert, imageDialogOpen, setImageDialogOpen,
     imageUrl, setImageUrl, imageAlt, setImageAlt, imageEditPos,
@@ -152,7 +173,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   } = useFileSystem(fileSystemProvider ?? null);
 
   const {
-    notification, setNotification, pdfExporting,
+    notification, setNotification, showNotification, pdfExporting,
     fileInputRef, handleClear, handleFileSelected,
     handleDownload, handleImport, handleCopy,
     handleOpenFile, handleSaveFile, handleSaveAsFile,
@@ -303,6 +324,12 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     };
   }, [editor, theme, settings.fontSize, settings.lineHeight, settings.showPageBreakGuide]);
 
+  // セクション自動番号の表示切替
+  useEffect(() => {
+    if (!editor) return;
+    editor.commands.setShowHeadingNumbers(settings.showHeadingNumbers);
+  }, [editor, settings.showHeadingNumbers]);
+
   const {
     inlineMergeOpen, setInlineMergeOpen,
     editorMarkdown, setEditorMarkdown,
@@ -328,10 +355,11 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
       return;
     }
     if (!editor) return;
+    const preprocessed = sanitizeMarkdown(template.content);
     // requestAnimationFrame で次フレームに遅延し、Popover 閉じ等の React レンダリングと
     // Tiptap ReactRenderer の flushSync の競合を回避する
     requestAnimationFrame(() => {
-      editor.chain().focus().insertContent(template.content).run();
+      editor.chain().focus().insertContent(preprocessed).run();
     });
   }, [editor, sourceMode, appendToSource]);
 
@@ -393,7 +421,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     <EditorSettingsContext.Provider value={settings}>
     <PlantUmlToolbarContext.Provider value={plantUmlToolbarCtx}>
     <PrintStyles />
-    <Box sx={{ p: { xs: 2, sm: 3 } }}>
+    <Box id="main-content" component="main" sx={{ p: { xs: 2, sm: 3 } }}>
       {/* Skip link (WCAG 2.4.1) */}
       <Box
         component="a"
@@ -432,12 +460,10 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
       <EditorToolbar
         editor={editor}
         isInDiagramBlock={isInDiagramBlock}
-        onImage={handleImage}
         onToggleAllBlocks={handleToggleAllBlocks}
         onDownload={handleDownload}
         onImport={() => fileInputRef.current?.click()}
         onClear={handleClear}
-        onSetDiagramAnchor={setDiagramAnchorEl}
         onSetTemplateAnchor={setTemplateAnchorEl}
         onSetHelpAnchor={setHelpAnchorEl}
         sourceMode={sourceMode}
@@ -447,11 +473,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         inlineMergeOpen={inlineMergeOpen}
         onSwitchToSource={handleSwitchToSource}
         onSwitchToWysiwyg={handleSwitchToWysiwyg}
-        onSourceInsertHr={() => appendToSource("\n---\n")}
-        onSourceInsertCodeBlock={() => appendToSource("\n```\n\n```\n")}
-        onSourceInsertHtmlBlock={() => appendToSource("\n```html\n\n```\n")}
-        onSourceInsertTable={() => appendToSource("\n| Header | Header | Header |\n| ------ | ------ | ------ |\n|        |        |        |\n|        |        |        |\n")}
-        onInsertToc={handleInsertToc}
+
         mergeUndoRedo={inlineMergeOpen ? mergeUndoRedo : null}
         onOpenFile={handleOpenFile}
         onSaveFile={handleSaveFile}
@@ -469,6 +491,8 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         onExportRightFile={rightFileOps?.exportFile}
         onExportPdf={handleExportPdf}
         onAnnounce={setLiveMessage}
+        commentOpen={commentOpen}
+        onToggleComments={() => setCommentOpen((prev) => !prev)}
         t={t}
       />
       <input
@@ -487,6 +511,11 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
       />
 
       <EditorDialogs
+        commentDialogOpen={commentDialogOpen}
+        setCommentDialogOpen={setCommentDialogOpen}
+        commentText={commentText}
+        setCommentText={setCommentText}
+        handleCommentInsert={handleCommentInsert}
         linkDialogOpen={linkDialogOpen}
         setLinkDialogOpen={setLinkDialogOpen}
         linkUrl={linkUrl}
@@ -587,6 +616,9 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         </Box>
       )}
         </Box>
+        {commentOpen && editor && !sourceMode && (
+          <CommentPanel editor={editor} open={commentOpen} onClose={() => setCommentOpen(false)} t={t} />
+        )}
       </Box>
       )}
 
@@ -641,7 +673,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
       >
         <Alert
           onClose={() => setNotification(null)}
-          severity="success"
+          severity={notification?.endsWith("Error") ? "error" : "success"}
           variant="filled"
           sx={{ width: "100%" }}
         >

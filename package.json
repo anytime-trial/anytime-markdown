@@ -1,6 +1,6 @@
 {
   "name": "anytime-markdown-monorepo",
-  "version": "0.0.10",
+  "version": "0.0.11",
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -17,5 +17,9 @@
   "overrides": {
     "serialize-javascript": "7.0.3",
     "diff": "8.0.3"
+  },
+  "devDependencies": {
+    "@next/eslint-plugin-next": "^16.1.6",
+    "eslint-plugin-react-hooks": "^7.0.1"
   }
 }

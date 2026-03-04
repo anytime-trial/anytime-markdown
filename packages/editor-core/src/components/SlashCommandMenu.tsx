@@ -157,7 +157,7 @@ export const SlashCommandMenu = React.memo(function SlashCommandMenu({
       open
       anchorEl={virtualAnchor as VirtualElement}
       placement="bottom-start"
-      role="listbox"
+      role="menu"
       aria-label={t("slashCommandPlaceholder")}
       style={{ zIndex: 1300 }}
       modifiers={[

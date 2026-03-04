@@ -4,7 +4,7 @@ services:
       context: .
       target: local # Dockerfile の local ステージを使用
     ports:
-      - "3001:3000" # ホスト:3001 → コンテナ:3000（Next.js dev server）
+      - "3000:3000" # ホスト:3001 → コンテナ:3000（Next.js dev server）
     volumes:
       - .:/anytime-markdown                                    # プロジェクトソースコードを共有
       - node_modules:/anytime-markdown/node_modules            # node_modules を名前付きボリュームで永続化（ホストと分離）

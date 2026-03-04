@@ -246,7 +246,7 @@ export function DiagramBlock(props: DiagramBlockProps) {
   };
 
   const panTransformSx = {
-    p: 2, display: "flex", justifyContent: "flex-start", zoom: diagramScale,
+    pt: 0, px: 2, pb: 2, display: "flex", justifyContent: "flex-start", zoom: diagramScale,
     transform: `translate(${normalZP.pan.x}px, ${normalZP.pan.y}px) scale(${normalZP.zoom})`,
     transformOrigin: "top left",
     transition: normalZP.isPanningRef.current ? "none" : "transform 0.15s",

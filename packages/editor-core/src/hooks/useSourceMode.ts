@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import type { Editor } from "@tiptap/react";
 import { getMarkdownFromEditor } from "../types";
 import { sanitizeMarkdown, preserveBlankLines } from "../utils/sanitizeMarkdown";
+import { parseCommentData } from "../utils/commentHelpers";
 
 interface UseSourceModeParams {
   editor: Editor | null;
@@ -24,9 +25,13 @@ export function useSourceMode({ editor, saveContent, t }: UseSourceModeParams) {
 
   const handleSwitchToWysiwyg = useCallback(() => {
     if (editor) {
-      const sanitized = preserveBlankLines(sanitizeMarkdown(sourceText));
+      const { comments, body } = parseCommentData(sourceText);
+      const sanitized = preserveBlankLines(sanitizeMarkdown(body));
       editor.commands.setContent(sanitized);
-      saveContent(sanitized);
+      if (comments.size > 0) {
+        (editor.commands as any).initComments(comments);
+      }
+      saveContent(sourceText);
     }
     setSourceMode(false);
     setLiveMessage(t("switchedToWysiwyg"));

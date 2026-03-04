@@ -54,6 +54,33 @@ html, body {
   --vscode-symbolIcon-namespaceForeground: #c586c0;
 }
 
+/* ========== Skip Link ========== */
+.skip-link {
+  position: absolute;
+  left: -10000px;
+  top: auto;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  z-index: 10000;
+}
+.skip-link:focus {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  width: auto;
+  height: auto;
+  padding: 8px 16px;
+  background: #0078d4;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 4px;
+  text-decoration: none;
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
 /* ========== Focus Visible ========== */
 a:focus-visible {
   outline: 2px solid var(--vscode-focusBorder);

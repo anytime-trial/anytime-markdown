@@ -4,6 +4,60 @@ All notable changes to the "anytime-markdown" extension will be documented in th
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.0.11] - 2026-03-04
+
+### Added
+- インラインコメント機能（範囲選択コメント + ポイントコメント、解決/再開/削除）
+- コールアウト拡張（[!NOTE], [!TIP], [!IMPORTANT], [!WARNING], [!CAUTION]）
+- 脚注参照拡張（[^id] 構文）
+- セクション自動番号付け拡張
+- 設計書テンプレート（基本設計書、API仕様書、ADR）
+- コードブロックのシンタックスハイライト（lowlight）
+- スラッシュコマンドによるブロック挿入（ツールバー簡素化）
+- robots.ts / sitemap.ts による SEO 対応
+- loading.tsx によるルート遷移ローディング
+- @next/bundle-analyzer 導入
+- ヘルプページに数式・TOC・スラッシュコマンド・エンコーディングの説明追加
+
+### Changed
+- ランディングページを Server Component 化（パフォーマンス改善）
+- ランディングページの img を next/Image に置換
+- MUI icons のバレルインポートを深いパスインポートに変更
+- CI パイプラインに lint / next build ステップを追加
+- ESLint に React hooks / Next.js ルールを追加
+
+### Fixed
+- PDF エクスポートのタイムアウト・エラー処理改善
+- テンプレート挿入時の Markdown 前処理
+- リスト直列化の改善（タイトリスト、ネスト対応）
+- コードブロック折りたたみ時の余分な余白除去
+- ソースモード切替時のコメント保持・DOMPurify NUL バイト対策
+- 数式ブロックの左揃え表示
+- 水平線選択時のキャレット表示
+- Providers の useEffect 依存配列修正
+
+### Improved (a11y)
+- スキップリンク、キーボードアクセシビリティ改善
+- main ランドマーク追加（WCAG 1.3.1）
+- aria-label / aria-pressed / role 属性を全コンポーネントに追加
+- SearchReplaceBar に role="search" / autoComplete="off"
+- HtmlPreviewBlock に role="document"
+- ブロックタイプラベルの focus-within 表示
+- FullPageLoader に role="status" + ブランドテキスト
+- LandingHeader の h1 要素化
+- VersionDialog ロゴの alt テキスト追加
+
+### Improved (UX)
+- StatusBar レスポンシブ対応（xs で一部項目非表示）
+- HelpDialog TOC のモバイル非表示
+- Privacy ページに戻りナビゲーション追加
+- 404 ページ / CommentPanel / RightEditorBlockMenu の i18n 対応
+- エラー通知（PDF エクスポート、保存、エンコーディング変更）
+- native prompt/confirm を MUI Dialog に置換
+
+### Security
+- CSP の unsafe-eval を開発環境のみに制限
+
 ## [0.0.10] - 2026-03-03
 
 ### Fixed

@@ -42,9 +42,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang={locale}>
       <body>
+        <a href="#main-content" className="skip-link">Skip to content</a>
         <LocaleProvider serverLocale={locale}>
           <Providers>
-            {children}
+            <main id="main-content">
+              {children}
+            </main>
           </Providers>
         </LocaleProvider>
         {gaId && (

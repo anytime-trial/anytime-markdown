@@ -214,7 +214,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
         onClose={() => setTemplateAnchorEl(null)}
         anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
         transformOrigin={{ vertical: "top", horizontal: "left" }}
-        slotProps={{ paper: { role: "menu" } }}
+        slotProps={{ paper: { role: "menu", "aria-label": t("templateMenu") } }}
       >
         <Box sx={{ py: 0.5, minWidth: 180 }}>
           {BUILTIN_TEMPLATES.map((tmpl) => (
@@ -238,7 +238,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
         onClose={() => setHeadingMenu(null)}
         anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
         transformOrigin={{ vertical: "top", horizontal: "left" }}
-        slotProps={{ paper: { role: "menu" } }}
+        slotProps={{ paper: { role: "menu", "aria-label": t("headingMenu") } }}
       >
         <Box sx={{ py: 0.5 }}>
           {[

@@ -93,6 +93,20 @@ describe("sanitizeMarkdown", () => {
     expect(result).toContain("インライン");
   });
 
+  test("コメントハイライト span が保護・復元される", () => {
+    const md = 'Hello <!-- comment-start:c1 -->world<!-- comment-end:c1 --> end.';
+    const result = sanitizeMarkdown(md);
+    expect(result).toContain('data-comment-id="c1"');
+    expect(result).not.toContain("CMT");
+  });
+
+  test("コメントポイント span が保護・復元される", () => {
+    const md = 'Hello <!-- comment-point:c2 --> end.';
+    const result = sanitizeMarkdown(md);
+    expect(result).toContain('data-comment-point="c2"');
+    expect(result).not.toContain("CMTP");
+  });
+
   test("マークダウン記法（> 引用, **太字**）をサニタイズで壊さない", () => {
     const md = "> 引用テキスト\n\n**太字テキスト**";
     const result = sanitizeMarkdown(md);
@@ -568,6 +582,45 @@ describe("エッジケース ラウンドトリップ", () => {
     // tiptap はタスクリスト項目間に空行を挿入する
     const md = "- [ ] 未完了\n\n- [x] 完了\n\n- [ ] もう一つ";
     expect(fullRoundTrip(md)).toBe(md);
+  });
+
+  test("タスクリスト（空行なし）が空行なしで保持される", () => {
+    const md = "- [x] エディタの基本操作を覚える\n- [x] ダイアグラムを試す\n- [ ] 自分のドキュメントを書いてみる";
+    expect(fullRoundTrip(md)).toBe(md);
+  });
+
+  test("通常リスト（空行なし）が空行なしで保持される", () => {
+    const md = "- 項目A\n- 項目B\n- 項目C";
+    const result = fullRoundTrip(md);
+    expect(result).toBe(md);
+  });
+
+  test("ネストされた番号付きリストが空行なしで保持される", () => {
+    const md = "1. ファイルを開く\n   1. ツールバーの「開く」をクリック\n   2. `.md` ファイルを選択\n2. 編集する\n3. 保存する";
+    expect(fullRoundTrip(md)).toBe(md);
+  });
+
+  test("insertContent でネストされたリストが空行なしで保持される", () => {
+    const template = "1. ファイルを開く\n   1. ツールバーの「開く」をクリック\n   2. `.md` ファイルを選択\n2. 編集する\n3. 保存する";
+
+    // setContent: ドキュメント構造と markdown 出力を取得（参照）
+    editor = createTestEditor({ withMarkdown: true });
+    editor.commands.setContent("# テスト\n\n" + template);
+    const setDoc = JSON.stringify(editor.state.doc.toJSON(), null, 2);
+    const setMd = getMarkdownFromEditor(editor);
+    editor.destroy();
+
+    // insertContent: ドキュメント構造と markdown 出力を取得
+    editor = createTestEditor({ withMarkdown: true });
+    editor.commands.setContent("# テスト");
+    editor.chain().focus().insertContent(template).run();
+    const insertDoc = JSON.stringify(editor.state.doc.toJSON(), null, 2);
+    const insertMd = getMarkdownFromEditor(editor);
+
+    // ドキュメント構造が一致（末尾 \n が除去されている）
+    expect(insertDoc).toBe(setDoc);
+    // markdown 出力も一致
+    expect(insertMd).toBe(setMd);
   });
 
   test("ネストされた引用", () => {

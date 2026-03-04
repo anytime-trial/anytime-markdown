@@ -58,6 +58,7 @@ export function CodeBlockFullscreenDialog({
         value={fsCode}
         onChange={onFsCodeChange}
         spellCheck={false}
+        aria-label={t("codeBlock")}
         sx={{
           flex: 1,
           width: "100%",

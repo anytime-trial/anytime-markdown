@@ -5,6 +5,7 @@ import { Box, Button, Menu, MenuItem, Tooltip, Typography } from "@mui/material"
 import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord";
 import type { Editor } from "@tiptap/react";
 import type { EncodingLabel, TranslationFn } from "../types";
+import useConfirm from "../hooks/useConfirm";
 
 interface StatusBarProps {
   editor: Editor;
@@ -19,6 +20,7 @@ interface StatusBarProps {
 }
 
 export const StatusBar = React.memo(function StatusBar({ editor, sourceMode, sourceText, t, fileName, isDirty, onLineEndingChange, encoding, onEncodingChange }: StatusBarProps) {
+  const confirm = useConfirm();
   const [cursorLine, setCursorLine] = useState(1);
   const [cursorCol, setCursorCol] = useState(1);
   const [sourceCursorLine, setSourceCursorLine] = useState(1);
@@ -74,7 +76,7 @@ export const StatusBar = React.memo(function StatusBar({ editor, sourceMode, sou
   const lineEnding = useMemo(() => (sourceText ?? "").includes("\r\n") ? "CRLF" : "LF", [sourceText]);
 
   return (
-    <Box role="region" aria-label={t("statusBar")} sx={{ display: "flex", alignItems: "center", gap: 2, px: 1.5, py: 0.75, borderTop: 1, borderColor: "divider" }} contentEditable={false}>
+    <Box role="region" aria-label={t("statusBar")} sx={{ display: "flex", alignItems: "center", gap: 2, px: 1.5, py: 0.75, borderTop: 1, borderColor: "divider", flexWrap: "wrap", overflow: "hidden" }} contentEditable={false}>
       <Box aria-live="polite" aria-atomic="true" sx={{ display: "contents" }}>
         <Typography variant="body2" sx={{ color: "text.secondary" }}>
           {t("cursorLine")} {displayLine} {t("cursorCol")} {displayCol}
@@ -87,7 +89,7 @@ export const StatusBar = React.memo(function StatusBar({ editor, sourceMode, sou
         </Typography>
       </Box>
       {fileName && (
-        <Typography variant="body2" sx={{ ml: 1, color: "text.secondary", display: "flex", alignItems: "center" }} aria-label={isDirty ? `${fileName} (${t("unsavedChanges")})` : fileName || undefined}>
+        <Typography variant="body2" sx={{ ml: 1, color: "text.secondary", display: { xs: "none", sm: "flex" }, alignItems: "center" }} aria-label={isDirty ? `${fileName} (${t("unsavedChanges")})` : fileName || undefined}>
           {fileName}
           {isDirty && (
             <Tooltip title={t("unsavedChanges")}>
@@ -97,75 +99,81 @@ export const StatusBar = React.memo(function StatusBar({ editor, sourceMode, sou
         </Typography>
       )}
       <Box sx={{ flex: 1 }} />
-      {onLineEndingChange ? (
-        <>
-          <Button
-            size="small"
-            onClick={(e) => setLineEndingAnchor(e.currentTarget)}
-            sx={{ color: "text.secondary", textTransform: "none", minWidth: 0, px: 0.5, py: 0, fontSize: "0.875rem", lineHeight: 1.43 }}
-          >
+      <Box sx={{ display: { xs: "none", sm: "flex" }, alignItems: "center", gap: 2 }}>
+        {onLineEndingChange ? (
+          <>
+            <Button
+              size="small"
+              onClick={(e) => setLineEndingAnchor(e.currentTarget)}
+              sx={{ color: "text.secondary", textTransform: "none", minWidth: 0, px: 0.5, py: 0, fontSize: "0.875rem", lineHeight: 1.43 }}
+            >
+              {lineEnding}
+            </Button>
+            <Menu
+              anchorEl={lineEndingAnchor}
+              open={Boolean(lineEndingAnchor)}
+              onClose={() => setLineEndingAnchor(null)}
+            >
+              {(["LF", "CRLF"] as const).map((opt) => (
+                <MenuItem
+                  key={opt}
+                  selected={opt === lineEnding}
+                  onClick={() => {
+                    onLineEndingChange(opt);
+                    setLineEndingAnchor(null);
+                  }}
+                >
+                  {opt}
+                </MenuItem>
+              ))}
+            </Menu>
+          </>
+        ) : (
+          <Typography variant="body2" sx={{ color: "text.secondary" }}>
             {lineEnding}
-          </Button>
-          <Menu
-            anchorEl={lineEndingAnchor}
-            open={Boolean(lineEndingAnchor)}
-            onClose={() => setLineEndingAnchor(null)}
-          >
-            {(["LF", "CRLF"] as const).map((opt) => (
-              <MenuItem
-                key={opt}
-                selected={opt === lineEnding}
-                onClick={() => {
-                  onLineEndingChange(opt);
-                  setLineEndingAnchor(null);
-                }}
-              >
-                {opt}
-              </MenuItem>
-            ))}
-          </Menu>
-        </>
-      ) : (
-        <Typography variant="body2" sx={{ color: "text.secondary" }}>
-          {lineEnding}
-        </Typography>
-      )}
-      {onEncodingChange ? (
-        <>
-          <Button
-            size="small"
-            onClick={(e) => setEncodingAnchor(e.currentTarget)}
-            sx={{ color: "text.secondary", textTransform: "none", minWidth: 0, px: 0.5, py: 0, fontSize: "0.875rem", lineHeight: 1.43 }}
-          >
+          </Typography>
+        )}
+        {onEncodingChange ? (
+          <>
+            <Button
+              size="small"
+              onClick={(e) => setEncodingAnchor(e.currentTarget)}
+              sx={{ color: "text.secondary", textTransform: "none", minWidth: 0, px: 0.5, py: 0, fontSize: "0.875rem", lineHeight: 1.43 }}
+            >
+              {encoding ?? "UTF-8"}
+            </Button>
+            <Menu
+              anchorEl={encodingAnchor}
+              open={Boolean(encodingAnchor)}
+              onClose={() => setEncodingAnchor(null)}
+            >
+              {(["UTF-8", "Shift_JIS", "EUC-JP"] as const).map((opt) => (
+                <MenuItem
+                  key={opt}
+                  selected={opt === (encoding ?? "UTF-8")}
+                  onClick={() => {
+                    setEncodingAnchor(null);
+                    if (opt === (encoding ?? "UTF-8")) return;
+                    confirm({
+                      open: true,
+                      title: t("encodingChangeConfirm", { encoding: opt }),
+                      description: "",
+                    }).then(() => {
+                      onEncodingChange(opt);
+                    }).catch(() => { /* cancelled */ });
+                  }}
+                >
+                  {opt}
+                </MenuItem>
+              ))}
+            </Menu>
+          </>
+        ) : (
+          <Typography variant="body2" sx={{ color: "text.secondary" }}>
             {encoding ?? "UTF-8"}
-          </Button>
-          <Menu
-            anchorEl={encodingAnchor}
-            open={Boolean(encodingAnchor)}
-            onClose={() => setEncodingAnchor(null)}
-          >
-            {(["UTF-8", "Shift_JIS", "EUC-JP"] as const).map((opt) => (
-              <MenuItem
-                key={opt}
-                selected={opt === (encoding ?? "UTF-8")}
-                onClick={() => {
-                  setEncodingAnchor(null);
-                  if (opt === (encoding ?? "UTF-8")) return;
-                  if (window.confirm(t("encodingChangeConfirm", { encoding: opt }))) {
-                    onEncodingChange(opt);
-                  }
-                }}
-              >
-                {opt}
-              </MenuItem>
-            ))}
-          </Menu>
-        </>
-      ) : (
-        <Typography variant="body2" sx={{ color: "text.secondary" }}>
-          {encoding ?? "UTF-8"}
-        </Typography>
-      )}
+          </Typography>
+        )}
+      </Box>
     </Box>
   );
 });

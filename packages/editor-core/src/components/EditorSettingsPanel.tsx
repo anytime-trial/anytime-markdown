@@ -201,6 +201,19 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
         />
       </Box>
 
+      {/* Heading Numbers */}
+      <Box sx={{ mb: 2, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary" }}>
+          {t("settingHeadingNumbers")}
+        </Typography>
+        <Switch
+          checked={settings.showHeadingNumbers}
+          onChange={(e) => updateSettings({ showHeadingNumbers: e.target.checked })}
+          size="small"
+          inputProps={{ "aria-label": t("settingHeadingNumbers") }}
+        />
+      </Box>
+
       <Divider sx={{ mb: 2 }} />
 
       {/* Reset */}

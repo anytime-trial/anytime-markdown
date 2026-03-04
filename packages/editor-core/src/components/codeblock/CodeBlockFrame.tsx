@@ -50,16 +50,18 @@ export function CodeBlockFrame({
   const hasCodeCollapse = codeCollapsed !== undefined;
   const maxH = codeMaxHeight ?? (hasCodeCollapse ? 200 : 400);
 
+  const hiddenSx = { position: "absolute", width: 0, height: 0, overflow: "hidden", opacity: 0, pointerEvents: "none" } as const;
   const preSx: SxProps<Theme> = allCollapsed
-    ? { position: "absolute", width: 0, height: 0, overflow: "hidden", opacity: 0, pointerEvents: "none" }
+    ? hiddenSx
     : hasCodeCollapse
-      ? {
-          m: 0, p: 1.5, fontSize: `${settings.fontSize}px`, lineHeight: settings.lineHeight, bgcolor: isDark ? "grey.900" : "grey.50",
-          maxHeight: codeCollapsed ? 0 : maxH, overflow: codeCollapsed ? "hidden" : "auto",
-          py: codeCollapsed ? 0 : 1.5, px: codeCollapsed ? 0 : 1.5,
-          opacity: codeCollapsed ? 0 : 1, transition: "max-height 0.2s, padding 0.2s, opacity 0.15s",
-          "@media (prefers-reduced-motion: reduce)": { transition: "none" },
-        }
+      ? (codeCollapsed
+        ? { ...hiddenSx, m: 0 }
+        : {
+            m: 0, p: 1.5, fontSize: `${settings.fontSize}px`, lineHeight: settings.lineHeight, bgcolor: isDark ? "grey.900" : "grey.50",
+            maxHeight: maxH, overflow: "auto",
+            transition: "max-height 0.2s, padding 0.2s, opacity 0.15s",
+            "@media (prefers-reduced-motion: reduce)": { transition: "none" },
+          })
       : { m: 0, p: 1.5, fontSize: `${settings.fontSize}px`, lineHeight: settings.lineHeight, bgcolor: isDark ? "grey.900" : "grey.50", overflow: "auto", maxHeight: maxH };
 
   const preElement = (
@@ -82,7 +84,7 @@ export function CodeBlockFrame({
       }}>
         {toolbar}
         {isDiagramLayout
-          ? <Box sx={allCollapsed ? { position: "absolute", width: 0, height: 0, overflow: "hidden", opacity: 0, pointerEvents: "none" } : {}}>{preElement}</Box>
+          ? <Box sx={(allCollapsed || codeCollapsed) ? { position: "absolute", width: 0, height: 0, overflow: "hidden", opacity: 0, pointerEvents: "none" } : {}}>{preElement}</Box>
           : preElement
         }
         {children}

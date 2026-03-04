@@ -1,15 +1,14 @@
 'use client';
 
 import { Box, Container, Typography, Button, Card, CardContent, Grid, Link as MuiLink } from '@mui/material';
-import {
-  EditNote as EditNoteIcon,
-  Code as CodeIcon,
-  CompareArrows as CompareArrowsIcon,
-  AccountTree as AccountTreeIcon,
-  PictureAsPdf as PictureAsPdfIcon,
-  InstallDesktop as InstallDesktopIcon,
-} from '@mui/icons-material';
+import EditNoteIcon from '@mui/icons-material/EditNote';
+import CodeIcon from '@mui/icons-material/Code';
+import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
+import AccountTreeIcon from '@mui/icons-material/AccountTree';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import InstallDesktopIcon from '@mui/icons-material/InstallDesktop';
 import NextLink from 'next/link';
+import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 import { useTheme } from '@mui/material/styles';
 
@@ -224,15 +223,13 @@ export default function LandingBody({ headingFontFamily }: { headingFontFamily?:
                 : '0 8px 32px rgba(0,0,0,0.12)',
             }}
           >
-            <Box
-              component="img"
+            <Image
               src="/images/editor-preview.png"
               alt={t('screenshot')}
-              sx={{
-                display: 'block',
-                width: '100%',
-                height: 'auto',
-              }}
+              width={2880}
+              height={1800}
+              priority
+              style={{ display: 'block', width: '100%', height: 'auto' }}
             />
           </Box>
         </Container>

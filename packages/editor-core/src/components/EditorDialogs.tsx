@@ -19,6 +19,11 @@ import { HelpDialog } from "./HelpDialog";
 import type { TranslationFn } from "../types";
 
 interface EditorDialogsProps {
+  commentDialogOpen: boolean;
+  setCommentDialogOpen: (open: boolean) => void;
+  commentText: string;
+  setCommentText: (text: string) => void;
+  handleCommentInsert: () => void;
   linkDialogOpen: boolean;
   setLinkDialogOpen: (open: boolean) => void;
   linkUrl: string;
@@ -43,6 +48,11 @@ interface EditorDialogsProps {
 }
 
 export const EditorDialogs = React.memo(function EditorDialogs({
+  commentDialogOpen,
+  setCommentDialogOpen,
+  commentText,
+  setCommentText,
+  handleCommentInsert,
   linkDialogOpen,
   setLinkDialogOpen,
   linkUrl,
@@ -67,6 +77,35 @@ export const EditorDialogs = React.memo(function EditorDialogs({
 }: EditorDialogsProps) {
   return (
     <>
+      {/* Comment input dialog */}
+      <Dialog
+        open={commentDialogOpen}
+        onClose={() => setCommentDialogOpen(false)}
+        aria-labelledby="comment-dialog-title"
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle id="comment-dialog-title">{t("comment")}</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            label={t("commentPrompt")}
+            value={commentText}
+            onChange={(e) => setCommentText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleCommentInsert(); }}
+            fullWidth
+            size="small"
+            sx={{ mt: 1 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCommentDialogOpen(false)}>{t("cancel")}</Button>
+          <Button variant="contained" onClick={handleCommentInsert} disabled={!commentText.trim()}>
+            {t("insert")}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Link insert dialog (H-6) */}
       <Dialog
         open={linkDialogOpen}
@@ -196,7 +235,7 @@ export const EditorDialogs = React.memo(function EditorDialogs({
         </DialogTitle>
         <DialogContent dividers>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-            <Box component="img" src={(window as unknown as Record<string, unknown>).__LOGO_URI__ as string || "/help/camel_markdown.png"} alt="" sx={{ width: 40, height: 40 }} />
+            <Box component="img" src={(window as unknown as Record<string, unknown>).__LOGO_URI__ as string || "/help/camel_markdown.png"} alt="Anytime Markdown" sx={{ width: 40, height: 40 }} />
             <Typography variant="h6" sx={{ fontWeight: 700 }}>{t("versionName")}</Typography>
           </Box>
           <Typography variant="caption" sx={{ color: "text.secondary" }}>v{APP_VERSION}</Typography>

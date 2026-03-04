@@ -40,7 +40,7 @@ export function RightEditorBlockMenu({
     >
       <Box sx={{ py: 0.5 }}>
         {[
-          { level: 0, label: "Paragraph" },
+          { level: 0, label: t("headingParagraph") },
           { level: 1, label: "H1" },
           { level: 2, label: "H2" },
           { level: 3, label: "H3" },

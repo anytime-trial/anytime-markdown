@@ -162,6 +162,22 @@ export function DiagramFullscreenDialog({
         {/* Draggable divider */}
         {fsCodeVisible && (
           <Box
+            role="separator"
+            aria-orientation="vertical"
+            aria-label={t("resizeSplitter")}
+            aria-valuenow={fsSplitPct}
+            aria-valuemin={20}
+            aria-valuemax={80}
+            tabIndex={0}
+            onKeyDown={(e: React.KeyboardEvent) => {
+              if (e.key === "ArrowLeft") {
+                setFsSplitPct((v) => Math.max(20, v - 5));
+                e.preventDefault();
+              } else if (e.key === "ArrowRight") {
+                setFsSplitPct((v) => Math.min(80, v + 5));
+                e.preventDefault();
+              }
+            }}
             onPointerDown={(e: React.PointerEvent) => {
               setFsDragging(true);
               (e.target as HTMLElement).setPointerCapture(e.pointerId);
@@ -173,6 +189,7 @@ export function DiagramFullscreenDialog({
               bgcolor: "divider",
               flexShrink: 0,
               "&:hover": { bgcolor: "primary.main" },
+              "&:focus-visible": { bgcolor: "primary.main", outline: "2px solid", outlineColor: "primary.main" },
               transition: "background-color 0.15s",
               "@media (prefers-reduced-motion: reduce)": { transition: "none" },
             }}

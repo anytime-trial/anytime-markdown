@@ -1,4 +1,4 @@
-import { Editor, type Extensions } from "@tiptap/core";
+import { Editor, Extension, type Extensions } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import { TableKit } from "@tiptap/extension-table";
 import { Markdown } from "tiptap-markdown";
@@ -8,6 +8,66 @@ import Highlight from "@tiptap/extension-highlight";
 import Underline from "@tiptap/extension-underline";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
+import { Plugin, PluginKey } from "@tiptap/pm/state";
+import type { Mark } from "@tiptap/pm/model";
+
+/** taskList にも tight 属性を追加（tiptap-markdown は bulletList/orderedList のみ対象のため） */
+const TaskListTight = Extension.create({
+  name: "taskListTight",
+  addGlobalAttributes() {
+    return [{
+      types: ["taskList"],
+      attributes: {
+        tight: {
+          default: true,
+          parseHTML: (el: HTMLElement) =>
+            el.getAttribute("data-tight") === "true" || !el.querySelector("p"),
+          renderHTML: (attrs: Record<string, unknown>) =>
+            attrs.tight ? { class: "tight", "data-tight": "true" } : {},
+        },
+      },
+    }];
+  },
+});
+
+/** insertContent 経由で残るリスト内テキストノードの末尾 \n を除去する */
+const ListTextCleanup = Extension.create({
+  name: "listTextCleanup",
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: new PluginKey("listTextCleanup"),
+        appendTransaction(transactions, _oldState, newState) {
+          if (!transactions.some((tr) => tr.docChanged)) return null;
+          const changes: { from: number; to: number; text: string; marks: readonly Mark[] }[] = [];
+          newState.doc.descendants((node, pos) => {
+            if (!node.isText || !node.text?.endsWith("\n")) return;
+            const $pos = newState.doc.resolve(pos);
+            if ($pos.parent.type.name !== "paragraph") return;
+            for (let d = $pos.depth; d > 0; d--) {
+              if ($pos.node(d).type.name === "listItem") {
+                const trimmed = node.text!.replace(/\n+$/, "");
+                changes.push({ from: pos, to: pos + node.text!.length, text: trimmed, marks: [...node.marks] });
+                break;
+              }
+            }
+          });
+          if (changes.length === 0) return null;
+          const tr = newState.tr;
+          for (let i = changes.length - 1; i >= 0; i--) {
+            const { from, to, text, marks } = changes[i];
+            if (text.length > 0) {
+              tr.replaceWith(from, to, newState.schema.text(text, marks));
+            } else {
+              tr.delete(from, to);
+            }
+          }
+          return tr;
+        },
+      }),
+    ];
+  },
+});
 
 interface CreateTestEditorOptions {
   content?: string;
@@ -40,6 +100,8 @@ export function createTestEditor({
     extensions.push(Underline);
     extensions.push(TaskList);
     extensions.push(TaskItem.configure({ nested: true }));
+    extensions.push(TaskListTight);
+    extensions.push(ListTextCleanup);
   }
 
   return new Editor({ extensions, content });

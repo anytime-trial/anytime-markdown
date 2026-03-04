@@ -183,6 +183,7 @@ export function HelpDialog({ open, onClose, locale, t }: HelpDialogProps) {
                 top: 0,
                 alignSelf: "flex-start",
                 maxHeight: "100%",
+                display: { xs: "none", md: "block" },
               }}
             >
               <Typography variant="caption" sx={{ px: 2, pt: 1.5, pb: 0.5, display: "block", fontWeight: 600, color: "text.secondary" }}>

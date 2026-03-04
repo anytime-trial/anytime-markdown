@@ -5,6 +5,7 @@ import FormatBoldIcon from "@mui/icons-material/FormatBold";
 import FormatItalicIcon from "@mui/icons-material/FormatItalic";
 import FormatUnderlinedIcon from "@mui/icons-material/FormatUnderlined";
 import InsertLinkIcon from "@mui/icons-material/InsertLink";
+import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import StrikethroughSIcon from "@mui/icons-material/StrikethroughS";
 import { IconButton, Paper, Tooltip } from "@mui/material";
 import type { Editor } from "@tiptap/react";
@@ -20,6 +21,7 @@ const TOOLTIP_SHORTCUTS: Record<string, string> = {
   strikethrough: `${modKey}+Shift+X`,
   highlight: `${modKey}+Shift+H`,
   link: `${modKey}+K`,
+  comment: `${modKey}+Shift+M`,
   code: `${modKey}+E`,
 };
 
@@ -157,6 +159,23 @@ export const EditorBubbleMenu = React.memo(function EditorBubbleMenu({ editor, o
             sx={{ p: 0.5 }}
           >
             <InsertLinkIcon sx={{ fontSize: 18 }} />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title={tip(t, "comment")}>
+          <IconButton
+            size="small"
+            aria-label={t("comment")}
+            onClick={() => {
+              const storage = editor.storage as unknown as Record<string, Record<string, unknown>>;
+              const openDialog = storage.commentDialog?.open as (() => void) | undefined;
+              if (openDialog) {
+                openDialog();
+              }
+            }}
+            color={editor.isActive("commentHighlight") ? "primary" : "default"}
+            sx={{ p: 0.5 }}
+          >
+            <ChatBubbleOutlineIcon sx={{ fontSize: 18 }} />
           </IconButton>
         </Tooltip>
       </Paper>

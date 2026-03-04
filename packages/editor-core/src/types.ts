@@ -3,6 +3,9 @@ import type { Node as PMNode } from "@tiptap/pm/model";
 import type { Editor } from "@tiptap/react";
 import { restoreBlankLines } from "./utils/sanitizeMarkdown";
 import { postprocessMathBlock } from "./utils/mathHelpers";
+import { appendCommentData } from "./utils/commentHelpers";
+import { commentDataPluginKey } from "./extensions/commentExtension";
+import type { InlineComment } from "./utils/commentHelpers";
 
 export type EncodingLabel = "UTF-8" | "Shift_JIS" | "EUC-JP";
 
@@ -33,8 +36,18 @@ export function getMarkdownFromEditor(editor: Editor): string {
   // 画像直後のコードフェンスとの間に改行が出力されないことがある。
   // 改行が0個または1個の場合に空行（\n\n）を補完する。
   md = md.replace(/([^\n])\n?(```)/gm, "$1\n\n$2");
+  // insertContent 経由で挿入されたネストリストの親テキストに末尾 \n が残り、
+  // シリアライザがインデント付きの空白行を出力することがある。除去する。
+  md = md.replace(/\n( +)\n(\1(?:\d+[.)]\s|[-*+]\s))/gm, "\n$2");
   // ```math フェンスが残っている場合に $$...$$ に変換する（フォールバック）
   md = postprocessMathBlock(md);
+  // Plugin State からコメントデータを取得し、末尾に付加
+  const commentState = editor.state
+    ? commentDataPluginKey.getState(editor.state) as { comments: Map<string, InlineComment> } | undefined
+    : undefined;
+  if (commentState?.comments && commentState.comments.size > 0) {
+    md = appendCommentData(md, commentState.comments);
+  }
   return md;
 }
 
