@@ -21,6 +21,7 @@ import { HeadingFoldExtension } from "./extensions/headingFoldExtension";
 import { CodeBlockNavigation } from "./extensions/codeBlockNavigationExtension";
 import { MathInline } from "./extensions/mathInlineExtension";
 import { AdmonitionBlockquote } from "./extensions/admonitionExtension";
+import { FootnoteRef } from "./extensions/footnoteExtension";
 import type { Extensions } from "@tiptap/react";
 
 /** 共通 Extension（メインエディタ / 比較エディタで共有） */
@@ -57,5 +58,6 @@ export function getBaseExtensions(): Extensions {
     HeadingFoldExtension,
     CodeBlockNavigation,
     MathInline,
+    FootnoteRef,
   ];
 }

@@ -231,6 +231,14 @@ export function getEditorPaperSx(
         borderLeftColor: theme.palette.error.main,
         bgcolor: alpha(theme.palette.error.main, 0.05),
       },
+      // 脚注定義行 ([^id]: content) のスタイリング
+      "& p:has(> sup[data-footnote-ref])": {
+        "& sup[data-footnote-ref]": {
+          color: theme.palette.primary.main,
+          fontWeight: 600,
+          cursor: "default",
+        },
+      },
       "& table": {
         borderCollapse: "collapse",
         width: settings.tableWidth,

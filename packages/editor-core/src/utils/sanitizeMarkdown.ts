@@ -1,6 +1,7 @@
 import DOMPurify from "dompurify";
 import { preprocessMathBlock, preprocessMathInline } from "./mathHelpers";
 import { preprocessAdmonition } from "./admonitionHelpers";
+import { preprocessFootnoteRefs } from "./footnoteHelpers";
 
 const ALLOWED_TAGS = ["details", "summary", "br", "hr", "sub", "sup", "mark", "kbd", "u"];
 const ALLOWED_ATTR = ["open"];
@@ -77,6 +78,8 @@ export function sanitizeMarkdown(md: string): string {
   md = preprocessMathInline(md);
   // Admonition 前処理: > [!TYPE] → <blockquote data-admonition-type>
   md = preprocessAdmonition(md);
+  // 脚注参照前処理: [^id] → <sup data-footnote-ref>
+  md = preprocessFootnoteRefs(md);
   // コードブロック境界で分割し、コードブロック外のみサニタイズ
   const parts = splitByCodeBlocks(md);
   return parts
@@ -92,6 +95,12 @@ export function sanitizeMarkdown(md: string): string {
       inner = inner.replace(/<span data-math-inline="[^"]*"><\/span>/g, (m) => {
         mathSpans.push(m);
         return `\x00MATH${mathSpans.length - 1}\x00`;
+      });
+      // 脚注参照 sup を DOMPurify から保護
+      const fnSpans: string[] = [];
+      inner = inner.replace(/<sup data-footnote-ref="[^"]*">[^<]*<\/sup>/g, (m) => {
+        fnSpans.push(m);
+        return `\x00FN${fnSpans.length - 1}\x00`;
       });
       // admonition blockquote を DOMPurify から保護
       const admBlocks: string[] = [];
@@ -109,6 +118,8 @@ export function sanitizeMarkdown(md: string): string {
       sanitized = sanitized.replace(/\x00MATH(\d+)\x00/g, (_, i) => mathSpans[Number(i)]);
       // admonition blockquote を復元
       sanitized = sanitized.replace(/\x00ADM(\d+)\x00/g, (_, i) => admBlocks[Number(i)]);
+      // 脚注参照 sup を復元
+      sanitized = sanitized.replace(/\x00FN(\d+)\x00/g, (_, i) => fnSpans[Number(i)]);
       return leadingNL + sanitized + trailingNL;
     })
     .join("");

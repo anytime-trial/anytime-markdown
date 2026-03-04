@@ -24,6 +24,7 @@ import TipsAndUpdatesIcon from "@mui/icons-material/TipsAndUpdates";
 import PriorityHighIcon from "@mui/icons-material/PriorityHigh";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
+import SuperscriptIcon from "@mui/icons-material/Superscript";
 
 export interface SlashCommandItem {
   id: string;
@@ -172,6 +173,19 @@ export const slashCommandItems: SlashCommandItem[] = [
     action: (editor) => {
       const today = new Date().toISOString().slice(0, 10);
       editor.chain().focus().insertContent(today).run();
+    },
+  },
+  {
+    id: "footnote",
+    labelKey: "slashFootnote",
+    icon: React.createElement(SuperscriptIcon, { fontSize: "small" }),
+    keywords: ["footnote", "note", "reference", "脚注", "きゃくちゅう"],
+    action: (editor) => {
+      const noteId = String(Date.now()).slice(-4);
+      const node = editor.state.schema.nodes.footnoteRef?.create({ noteId });
+      if (node) {
+        editor.chain().focus().insertContent(node.toJSON()).run();
+      }
     },
   },
   {
