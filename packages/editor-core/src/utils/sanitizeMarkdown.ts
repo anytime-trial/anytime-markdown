@@ -155,6 +155,14 @@ export function preserveBlankLines(md: string): string {
   return parts
     .map((part) => {
       if (/^```/.test(part)) return part;
+      // 連続する段落行（ブロック要素でない行同士）の \n を \n\n に変換
+      // （CommonMark ではソフトブレーク＝スペースに変換され行が結合されるのを防ぐ）
+      // ※ ブロック要素開始行（リスト・見出し・引用・テーブル）は除外
+      const blk = "\\s*[-*+] |\\s*\\d+[.)] |#{1,6} |> |\\|";
+      part = part.replace(
+        new RegExp(`^((?!${blk})\\S[^\\n]*)\\n(?=(?!${blk})\\S)`, "gm"),
+        "$1\n\n",
+      );
       // ブロック + 空行 + リストの境界に ZWNJ マーカー段落を挿入
       // （ProseMirror が \n\n に正規化するため、意図的な空行を識別する目印）
       // ※ リスト項目行（- / * / + / 1. 等）は tightLists で制御するため除外

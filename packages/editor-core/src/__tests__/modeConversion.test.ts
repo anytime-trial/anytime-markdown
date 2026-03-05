@@ -627,6 +627,18 @@ describe("エッジケース ラウンドトリップ", () => {
     expect(result).toBe(md);
   });
 
+  test("連続する段落行が結合されない", () => {
+    const md = "**A11y レビュー**: 該当なし\n**Designer レビュー**: 該当なし";
+    const result = fullRoundTrip(md);
+    // 1行に結合されず、別々の行として保持される
+    const lines = result.trim().split("\n").filter((l) => l.trim());
+    const a11yIdx = lines.findIndex((l) => l.includes("A11y"));
+    const designerIdx = lines.findIndex((l) => l.includes("Designer"));
+    expect(a11yIdx).toBeGreaterThanOrEqual(0);
+    expect(designerIdx).toBeGreaterThanOrEqual(0);
+    expect(a11yIdx).not.toBe(designerIdx);
+  });
+
   test("ネストされた番号付きリストが空行なしで保持される", () => {
     const md = "1. ファイルを開く\n   1. ツールバーの「開く」をクリック\n   2. `.md` ファイルを選択\n2. 編集する\n3. 保存する";
     expect(fullRoundTrip(md)).toBe(md);
