@@ -398,17 +398,6 @@ export const EditorToolbar = React.memo(function EditorToolbar({
         </ToggleButtonGroup>
       )}
 
-      {/* Insert actions */}
-      <ToggleButtonGroup size="small" aria-label={t("insertElements")} sx={{ height: 30 }}>
-        <ToggleButton value="template" onClick={(e) => onSetTemplateAnchor(e.currentTarget)} aria-label={t("templates")} disabled={editorState?.isInDiagramCode || inlineMergeOpen} sx={{ px: 0.75, py: 0.25 }}>
-          <Tooltip title={tip(t, "templates")}>
-            <span style={{ display: "inline-flex" }}><ArticleIcon fontSize="small" /></span>
-          </Tooltip>
-        </ToggleButton>
-      </ToggleButtonGroup>
-
-      <Box sx={{ flexGrow: 1 }} />
-
       {/* Fold/Unfold, DiagramCode, Outline - hidden on mobile */}
       <Box sx={{ display: { xs: "none", md: "contents" } }}>
       <ToggleButtonGroup size="small" aria-label={t("view")} sx={{ height: 30 }}>
@@ -434,33 +423,68 @@ export const EditorToolbar = React.memo(function EditorToolbar({
       </ToggleButtonGroup>
       </Box>
 
+      {/* Insert actions */}
+      <ToggleButtonGroup size="small" aria-label={t("insertElements")} sx={{ height: 30 }}>
+        <ToggleButton value="template" onClick={(e) => onSetTemplateAnchor(e.currentTarget)} aria-label={t("templates")} disabled={editorState?.isInDiagramCode || inlineMergeOpen} sx={{ px: 0.75, py: 0.25 }}>
+          <Tooltip title={tip(t, "templates")}>
+            <span style={{ display: "inline-flex" }}><ArticleIcon fontSize="small" /></span>
+          </Tooltip>
+        </ToggleButton>
+      </ToggleButtonGroup>
+
+      <Box sx={{ flexGrow: 1 }} />
+
       {/* Compare toggle (md 以上のみ表示) */}
       <ToggleButtonGroup
         value={inlineMergeOpen ? "compare" : "edit"}
         exclusive
         size="small"
         aria-label={t("compareMode")}
-        sx={{ height: 30, display: { xs: "none", md: "inline-flex" } }}
+        sx={{
+          height: 34,
+          borderRadius: "20px",
+          bgcolor: "action.hover",
+          p: 0.25,
+          display: { xs: "none", md: "inline-flex" },
+          "& .MuiToggleButton-root": {
+            border: "none",
+            borderRadius: "20px !important",
+            px: 2,
+            py: 0,
+            gap: 0.5,
+            fontSize: "0.8rem",
+            textTransform: "none",
+            lineHeight: 1,
+          },
+          "& .Mui-selected": {
+            bgcolor: "background.paper !important",
+            color: "text.primary !important",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.15)",
+          },
+          "& .MuiToggleButton-root:not(.Mui-selected)": {
+            bgcolor: "transparent",
+            color: "text.secondary",
+            "&:hover": {
+              bgcolor: "action.selected",
+            },
+          },
+        }}
       >
         <ToggleButton
           value="edit"
           aria-label={t("normalMode")}
           onClick={() => { if (inlineMergeOpen) onMerge(); }}
-          sx={{ px: 0.75, py: 0.25 }}
         >
-          <Tooltip title={tip(t, "normalMode")}>
-            <EditNoteIcon fontSize="small" />
-          </Tooltip>
+          <EditNoteIcon sx={{ fontSize: "1rem" }} />
+          {t("normalMode")}
         </ToggleButton>
         <ToggleButton
           value="compare"
           aria-label={t("compare")}
           onClick={() => { if (!inlineMergeOpen) onMerge(); }}
-          sx={{ px: 0.75, py: 0.25 }}
         >
-          <Tooltip title={tip(t, "compareMode")}>
-            <ViewStreamIcon fontSize="small" sx={{ transform: "rotate(90deg)" }} />
-          </Tooltip>
+          <ViewStreamIcon sx={{ fontSize: "1rem", transform: "rotate(90deg)" }} />
+          {t("compare")}
         </ToggleButton>
       </ToggleButtonGroup>
 
@@ -470,27 +494,50 @@ export const EditorToolbar = React.memo(function EditorToolbar({
         exclusive
         size="small"
         aria-label={t("editMode")}
-        sx={{ height: 30 }}
+        sx={{
+          height: 34,
+          borderRadius: "20px",
+          bgcolor: "action.hover",
+          p: 0.25,
+          "& .MuiToggleButton-root": {
+            border: "none",
+            borderRadius: "20px !important",
+            px: 2,
+            py: 0,
+            gap: 0.5,
+            fontSize: "0.8rem",
+            textTransform: "none",
+            lineHeight: 1,
+          },
+          "& .Mui-selected": {
+            bgcolor: "background.paper !important",
+            color: "text.primary !important",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.15)",
+          },
+          "& .MuiToggleButton-root:not(.Mui-selected)": {
+            bgcolor: "transparent",
+            color: "text.secondary",
+            "&:hover": {
+              bgcolor: "action.selected",
+            },
+          },
+        }}
       >
         <ToggleButton
           value="wysiwyg"
           aria-label={t("wysiwyg")}
           onClick={onSwitchToWysiwyg}
-          sx={{ px: 0.75, py: 0.25 }}
         >
-          <Tooltip title={tip(t, "normalMode")}>
-            <WysiwygIcon fontSize="small" />
-          </Tooltip>
+          <WysiwygIcon sx={{ fontSize: "1rem" }} />
+          {t("wysiwyg")}
         </ToggleButton>
         <ToggleButton
           value="source"
           aria-label={t("source")}
           onClick={onSwitchToSource}
-          sx={{ px: 0.75, py: 0.25 }}
         >
-          <Tooltip title={tip(t, "sourceMode")}>
-            <CodeIcon fontSize="small" />
-          </Tooltip>
+          <CodeIcon sx={{ fontSize: "1rem" }} />
+          {t("source")}
         </ToggleButton>
       </ToggleButtonGroup>
 
