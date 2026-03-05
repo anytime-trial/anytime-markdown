@@ -57,7 +57,6 @@
 function greet(name: string): string {
   return `Hello, ${name}!`;
 }
-
 ```
 
 ---
@@ -68,7 +67,6 @@ function greet(name: string): string {
 
 $$
 \int_{-\infty}^{\infty} e^{-x^2} \, dx = \sqrt{\pi}
-
 $$
 
 ---
@@ -83,7 +81,6 @@ graph LR
     B -->|render| C[Preview]
     B -->|export| D[PDF]
     B -->|serialize| E[.md File]
-
 ```
 
 ### PlantUML
@@ -99,7 +96,6 @@ User -> Editor: Export PDF
 Editor -> Server: Render Diagram
 Server --> Editor: SVG Image
 Editor --> User: Display
-
 ```
 
 ---

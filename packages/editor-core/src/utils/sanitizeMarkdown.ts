@@ -10,6 +10,71 @@ const ALLOWED_ATTR = ["open"];
 /** 空行保持用の Zero-Width Space マーカー */
 export const BLANK_LINE_MARKER = "\u200B";
 
+/** ブロック間 tight transition マーカー (ZWNJ) */
+export const TIGHT_TRANSITION_MARKER = "\u200C";
+
+const isHeading = (line: string) => /^#{1,6}\s/.test(line);
+const isListStart = (line: string) => /^[-*+]\s|^\d+[.)]\s/.test(line);
+const isBlockquoteStart = (line: string) => /^>\s?/.test(line);
+const isHR = (line: string) => /^(?:---+|___+|\*\*\*+)\s*$/.test(line);
+const isIndented = (line: string) => /^[ \t]/.test(line);
+/** 新しいブロックを開始する行か */
+const isBlockStart = (line: string) =>
+  isHeading(line) || isListStart(line) || isBlockquoteStart(line) || isHR(line);
+/** 1行で完結するブロックか（見出し・水平線） */
+const isOneLineBlock = (line: string) => isHeading(line) || isHR(line);
+
+/** ZWNJ を行末に付与する（強調末尾はスペースを挟む） */
+function appendMarker(line: string): string {
+  if (/[*_]$/.test(line)) return line + " " + TIGHT_TRANSITION_MARKER;
+  return line + TIGHT_TRANSITION_MARKER;
+}
+
+/**
+ * ブロック間の tight transition（空行なし）を ZWNJ マーカーで記録する。
+ * ProseMirror はブロック間を \n\n に正規化するため、元の \n を保持するために使用。
+ * コードブロック外のテキストに対して呼び出すこと。
+ */
+function markTightBlockTransitions(text: string): string {
+  const lines = text.split("\n");
+  if (lines.length < 2) return text;
+
+  const marked = [...lines];
+
+  for (let i = 0; i < lines.length - 1; i++) {
+    const cur = lines[i];
+    const nxt = lines[i + 1];
+
+    if (cur === "" || nxt === "") continue;
+
+    // 同一ブロックの継続をスキップ
+    // - 同じ blockquote 内
+    if (isBlockquoteStart(cur) && isBlockquoteStart(nxt)) continue;
+    // - 同一リスト内（同種のリストマーカー）
+    if (isListStart(cur) && isListStart(nxt)) {
+      const curOrd = /^\d+[.)]\s/.test(cur);
+      const nxtOrd = /^\d+[.)]\s/.test(nxt);
+      if (curOrd === nxtOrd) continue;
+    }
+    // - インデント行は前ブロックの継続
+    const curBlockRelated = isBlockStart(cur) || isIndented(cur);
+    if (curBlockRelated && isIndented(nxt)) continue;
+
+    let needsMark = false;
+    // 1行完結ブロック（見出し・HR）→ 次は必ず別ブロック
+    if (isOneLineBlock(cur)) needsMark = true;
+    // 次行がブロック開始
+    else if (isBlockStart(nxt)) needsMark = true;
+    // ブロック関連行 → 通常テキスト（ブロック脱出）
+    else if (curBlockRelated && !isBlockStart(nxt) && !isIndented(nxt))
+      needsMark = true;
+
+    if (needsMark) marked[i] = appendMarker(cur);
+  }
+
+  return marked.join("\n");
+}
+
 /**
  * マークダウン文字列をコードブロックの内外に分割する。
  * 正規表現の [\s\S]*? による多項式バックトラック（ReDoS）を回避するため、
@@ -152,27 +217,44 @@ export function sanitizeMarkdown(md: string): string {
  */
 export function preserveBlankLines(md: string): string {
   const parts = splitByCodeBlocks(md);
-  return parts
-    .map((part) => {
-      if (/^```/.test(part)) return part;
-      // 連続する段落行（ブロック要素でない行同士）の \n を \n\n に変換
-      // （CommonMark ではソフトブレーク＝スペースに変換され行が結合されるのを防ぐ）
-      // ※ ブロック要素開始行（リスト・見出し・引用・テーブル）は除外
-      const blk = "\\s*[-*+] |\\s*\\d+[.)] |#{1,6} |> |\\|";
-      part = part.replace(
-        new RegExp(`^((?!${blk})\\S[^\\n]*)\\n(?=(?!${blk})\\S)`, "gm"),
-        "$1\n\n",
-      );
-      // ブロック + 空行 + リストの境界に ZWNJ マーカー段落を挿入
-      // （ProseMirror が \n\n に正規化するため、意図的な空行を識別する目印）
-      // ※ リスト項目行（- / * / + / 1. 等）は tightLists で制御するため除外
-      part = part.replace(/^((?!\s*[-*+] |\s*\d+[.)] )[^\n]+\n)\n([-*+] |\d+[.)] )/gm, "$1\n\u200C\n\n$2");
-      return part.replace(/\n{3,}/g, (match) => {
-        const extra = match.length - 2;
-        return "\n\n" + `${BLANK_LINE_MARKER}\n\n`.repeat(extra);
-      });
-    })
-    .join("");
+  // NOTE: ProseMirror はブロック間を \n\n に正規化し、
+  // 連続段落行をソフトブレーク（スペース結合）にする。これは仕様として許容する。
+
+  // 1. 非コード部分: tight transition マーキング + ZWSP 処理
+  const processed = parts.map((part) => {
+    if (/^```/.test(part)) return part;
+    part = markTightBlockTransitions(part);
+    return part.replace(/\n{3,}/g, (match) => {
+      const extra = match.length - 2;
+      return "\n\n" + `${BLANK_LINE_MARKER}\n\n`.repeat(extra);
+    });
+  });
+
+  // 2. コードフェンス境界の tight transition
+  for (let j = 0; j < processed.length - 1; j++) {
+    const cur = processed[j];
+    const nxt = processed[j + 1];
+    const curIsCode = /^```/.test(cur);
+    const nxtIsCode = /^```/.test(nxt);
+
+    // 非コード → コード: フェンス前が \n（空行なし）ならマーク
+    if (!curIsCode && nxtIsCode && cur.endsWith("\n") && !cur.endsWith("\n\n")) {
+      const trimmed = cur.slice(0, -1);
+      const lastLine = trimmed.slice(trimmed.lastIndexOf("\n") + 1);
+      if (lastLine !== "") {
+        processed[j] = trimmed.slice(0, -lastLine.length) + appendMarker(lastLine) + "\n";
+      }
+    }
+    // コード → 非コード: フェンス後が \n（空行なし）かつ実コンテンツありならマーク
+    if (curIsCode && !nxtIsCode && nxt.startsWith("\n") && !nxt.startsWith("\n\n")) {
+      const afterNl = nxt.slice(1);
+      if (afterNl.trim() !== "") {
+        processed[j + 1] = "\n" + TIGHT_TRANSITION_MARKER + afterNl;
+      }
+    }
+  }
+
+  return processed.join("");
 }
 
 /**
@@ -180,5 +262,14 @@ export function preserveBlankLines(md: string): string {
  * 元の空行を復元する。
  */
 export function restoreBlankLines(md: string): string {
+  // tight transition（強調末尾）: *|_ + space + ZWNJ + \n\n → *|_ + \n
+  md = md.replace(/([*_]) \u200C\n\n/g, "$1\n");
+  // tight transition（通常）: ZWNJ + \n\n → \n
+  md = md.replace(/\u200C\n\n/g, "\n");
+  // tight transition（コードフェンス後）: \n\n + ZWNJ → \n
+  md = md.replace(/\n\n\u200C/g, "\n");
+  // 残存 ZWNJ を除去
+  md = md.replace(/\u200C/g, "");
+  // ZWSP マーカー除去で元の空行を復元
   return md.replace(/\u200B\n/g, "");
 }

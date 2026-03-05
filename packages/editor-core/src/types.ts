@@ -32,19 +32,8 @@ export function getMarkdownFromEditor(editor: Editor): string {
   // ZWSP マーカー段落を除去し、元の空行を復元する
   // ※ コードフェンス修正より先に実行する（ZWSP が残っていると正規表現が一致しないため）
   md = restoreBlankLines(md);
-  // ブロック直後のリストに ProseMirror が挿入する \n\n を元の \n に戻す
-  // （ZWNJ マーカー段落が間にあるとリスト開始にマッチしないため、意図的な空行は保持される）
-  // ※ リスト項目行は tightLists で制御するため除外
-  md = md.replace(/^((?!\s*[-*+] |\s*\d+[.)] )[^\n]+)\n\n([-*+] |\d+[.)] )/gm, "$1\n$2");
-  // ZWNJ マーカー段落を除去（圧縮ステップで \u200C\n に変換済み）
-  md = md.replace(/\u200C\n/g, "");
-  // tiptap-markdown の image シリアライザは closeBlock() を呼ばないため、
-  // 画像直後のコードフェンスとの間に改行が出力されないことがある。
-  // 改行が0個または1個の場合に空行（\n\n）を補完する。
-  md = md.replace(/([^\n])\n?(```)/gm, "$1\n\n$2");
-  // insertContent 経由で挿入されたネストリストの親テキストに末尾 \n が残り、
-  // シリアライザがインデント付きの空白行を出力することがある。除去する。
-  md = md.replace(/\n( +)\n(\1(?:\d+[.)]\s|[-*+]\s))/gm, "\n$2");
+  // NOTE: ProseMirror はブロック間を \n\n に正規化するため、
+  // 元の \n が \n\n に変わる場合がある。これは ProseMirror の仕様として許容する。
   // ```math フェンスが残っている場合に $$...$$ に変換する（フォールバック）
   md = postprocessMathBlock(md);
   // Plugin State からコメントデータを取得し、末尾に付加
