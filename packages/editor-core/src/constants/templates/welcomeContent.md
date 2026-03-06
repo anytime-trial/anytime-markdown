@@ -9,7 +9,7 @@ Start writing here — this editor supports **bold**, *italic*, lists, tables, c
 ```mermaid
 graph TD
     A[Create Document] --> B{Edit Mode}
-    B --> C[WYSIWYG Editor]
+    B --> C[Rich Text Editor]
     B --> D[Source Mode]
     C <--> D
     C --> E[Compare & Merge]

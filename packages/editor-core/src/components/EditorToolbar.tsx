@@ -438,7 +438,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
 
       <Box sx={{ flexGrow: 1 }} />
 
-      {/* Source / WYSIWYG / Viewer toggle */}
+      {/* Source / Edit / Review toggle */}
       <ToggleButtonGroup
         value={viewMode ? "viewer" : sourceMode ? "source" : "wysiwyg"}
         exclusive

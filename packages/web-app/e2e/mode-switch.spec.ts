@@ -19,12 +19,12 @@ test.describe("Mode Switch", () => {
     await expect(textarea).toBeVisible();
     await expect(textarea).toHaveValue(/Test content for mode switch/);
 
-    // WYSIWYG モードに戻す
-    await page.getByRole("button", { name: /wysiwyg/i }).click();
+    // 編集モードに戻す
+    await page.getByRole("button", { name: /edit/i }).click();
     await expect(page.locator(".tiptap")).toContainText("Test content for mode switch");
   });
 
-  test("edit markdown in source mode reflects in WYSIWYG", async ({ page }) => {
+  test("edit markdown in source mode reflects in edit mode", async ({ page }) => {
     // ソースモードに切替
     await page.getByRole("button", { name: /source/i }).click();
     const textarea = page.locator("textarea");
@@ -33,8 +33,8 @@ test.describe("Mode Switch", () => {
     await page.keyboard.press("Control+a");
     await textarea.fill("# Heading from Source\n\nParagraph text");
 
-    // WYSIWYG に戻す
-    await page.getByRole("button", { name: /wysiwyg/i }).click();
+    // 編集モードに戻す
+    await page.getByRole("button", { name: /edit/i }).click();
     const editor = page.locator(".tiptap");
     await expect(editor.locator("h1")).toContainText("Heading from Source");
     await expect(editor).toContainText("Paragraph text");

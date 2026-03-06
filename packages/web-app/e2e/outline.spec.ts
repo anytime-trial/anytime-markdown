@@ -26,8 +26,8 @@ test.describe("Outline", () => {
     await page.keyboard.press("Control+a");
     await textarea.fill(MARKDOWN_WITH_HEADINGS);
 
-    // WYSIWYG モードに戻す
-    await page.getByRole("button", { name: /wysiwyg/i }).click();
+    // 編集モードに戻す
+    await page.getByRole("button", { name: /edit/i }).click();
     await expect(page.locator(".tiptap")).toBeVisible();
   });
 
