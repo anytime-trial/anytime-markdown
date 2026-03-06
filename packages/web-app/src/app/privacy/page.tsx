@@ -13,6 +13,9 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: `${t('title')} - Anytime Markdown`,
     description: t('metaDescription'),
+    alternates: {
+      canonical: '/privacy',
+    },
   };
 }
 

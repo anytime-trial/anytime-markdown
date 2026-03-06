@@ -20,6 +20,13 @@ export const metadata: Metadata = {
     statusBarStyle: 'default',
     title: 'Anytime Markdown',
   },
+  alternates: {
+    languages: {
+      en: '/',
+      ja: '/',
+      'x-default': '/',
+    },
+  },
   openGraph: {
     title: 'Anytime Markdown',
     description: 'A rich markdown editor powered by Tiptap',
