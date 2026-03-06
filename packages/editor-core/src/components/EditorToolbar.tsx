@@ -618,6 +618,15 @@ export const EditorToolbar = React.memo(function EditorToolbar({
           </ListItemText>
         </MenuItem>
       )}
+      <MenuItem
+        onClick={() => { onMerge(); setMobileMenuAnchorEl(null); }}
+        disabled={viewMode}
+      >
+        <ListItemIcon>
+          <ViewStreamIcon fontSize="small" sx={{ transform: "rotate(90deg)" }} color={inlineMergeOpen ? "primary" : "inherit"} />
+        </ListItemIcon>
+        <ListItemText>{inlineMergeOpen ? t("normalMode") : t("compare")}</ListItemText>
+      </MenuItem>
       <Divider />
       <MenuItem
         onClick={() => {

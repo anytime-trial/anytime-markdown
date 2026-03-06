@@ -1,6 +1,11 @@
 'use client';
 
-import { AppBar, Toolbar, Typography, ToggleButtonGroup, ToggleButton, Button, Box } from '@mui/material';
+import { useState } from 'react';
+import {
+  AppBar, Toolbar, Typography, ToggleButtonGroup, ToggleButton,
+  Button, Box, IconButton, Drawer, List, ListItemButton, ListItemText,
+} from '@mui/material';
+import MenuIcon from '@mui/icons-material/Menu';
 import NextLink from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useLocaleSwitch } from '../LocaleProvider';
@@ -8,6 +13,7 @@ import { useLocaleSwitch } from '../LocaleProvider';
 export default function LandingHeader() {
   const { locale, setLocale } = useLocaleSwitch();
   const t = useTranslations('Landing');
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   return (
     <AppBar
@@ -86,8 +92,36 @@ export default function LandingHeader() {
           >
             {t('openEditor')}
           </Button>
+
+          <IconButton
+            aria-label="Menu"
+            aria-expanded={drawerOpen}
+            aria-controls="mobile-nav-drawer"
+            onClick={() => setDrawerOpen(true)}
+            sx={{ display: { xs: 'inline-flex', sm: 'none' }, color: 'text.primary' }}
+          >
+            <MenuIcon />
+          </IconButton>
         </Box>
       </Toolbar>
+
+      <Drawer
+        id="mobile-nav-drawer"
+        anchor="right"
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+      >
+        <Box sx={{ width: 220, pt: 2 }} role="navigation" aria-label="Mobile navigation">
+          <List>
+            <ListItemButton component={NextLink} href="/features" onClick={() => setDrawerOpen(false)}>
+              <ListItemText primary={t('featuresPage')} />
+            </ListItemButton>
+            <ListItemButton component={NextLink} href="/markdown" onClick={() => setDrawerOpen(false)}>
+              <ListItemText primary={t('openEditor')} />
+            </ListItemButton>
+          </List>
+        </Box>
+      </Drawer>
     </AppBar>
   );
 }
