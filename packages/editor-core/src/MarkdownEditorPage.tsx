@@ -77,6 +77,7 @@ interface MarkdownEditorPageProps {
   hideSettings?: boolean;
   hideHelp?: boolean;
   hideVersionInfo?: boolean;
+  featuresUrl?: string;
   onCompareModeChange?: (active: boolean) => void;
   themeMode?: 'light' | 'dark';
   onThemeModeChange?: (mode: 'light' | 'dark') => void;
@@ -84,7 +85,7 @@ interface MarkdownEditorPageProps {
   fileSystemProvider?: FileSystemProvider | null;
 }
 
-export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideHelp, hideVersionInfo, onCompareModeChange, themeMode, onThemeModeChange, onLocaleChange, fileSystemProvider }: MarkdownEditorPageProps = {}) {
+export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideHelp, hideVersionInfo, featuresUrl, onCompareModeChange, themeMode, onThemeModeChange, onLocaleChange, fileSystemProvider }: MarkdownEditorPageProps = {}) {
   const theme = useTheme();
   const t = useTranslations("MarkdownEditor");
   const locale = useLocale() as "en" | "ja";
@@ -661,6 +662,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         hideSettings={hideSettings}
         hideHelp={hideHelp}
         hideVersionInfo={hideVersionInfo}
+        featuresUrl={featuresUrl}
         t={t}
       />
 

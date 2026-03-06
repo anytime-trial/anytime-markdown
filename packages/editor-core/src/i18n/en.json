@@ -255,6 +255,7 @@
     "versionCopyright": "Copyright © Kiyotaka Ueda",
     "cursorLine": "Ln",
     "cursorCol": "Col",
+    "featuresPage": "Features",
     "helpPage": "Keyboard Shortcuts",
     "helpBasicOps": "Basic Operations",
     "helpBasicOpsDesc": "The editor supports two modes and various file operations.",

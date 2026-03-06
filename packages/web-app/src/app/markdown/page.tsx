@@ -36,6 +36,7 @@ export default function Page() {
       onThemeModeChange={setThemeMode}
       onLocaleChange={setLocale}
       fileSystemProvider={fileSystemProvider}
+      featuresUrl="/features"
     />
   );
 }
