@@ -4,6 +4,29 @@ All notable changes to the "anytime-markdown" extension will be documented in th
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.1.0] - 2026-03-06
+
+### Added
+- ビューモード（読み取り専用ブラウジング + アウトライン改善）
+- /features ページ（ヘルプコンテンツ + TOC ナビゲーション）
+- `#L` 行番号ナビゲーション
+- デフォルト改ページオフ設定
+- FileSystemWatcher による外部変更通知（VS Code 拡張機能）
+- ヘルプメニューに features ページリンク追加
+
+### Changed
+- HelpDialog をキーボードショートカットのみに簡素化
+- ランディングページの機能説明・デザイン更新
+- モード切替ボタンをピル型セグメントにリデザイン
+
+### Fixed
+- ZWNJ タイトトランジションマーカーによるスペーシング修正
+- 連続段落行のラウンドトリップ時マージ防止
+- 見出し-リスト間スペーシング保持
+- ブロック-リスト間汎用スペーシング保持
+- VS Code 拡張機能でのソースモードタブ切替時永続化
+- ツールバー e2e テストのスラッシュコマンド対応
+
 ## [0.0.11] - 2026-03-04
 
 ### Added

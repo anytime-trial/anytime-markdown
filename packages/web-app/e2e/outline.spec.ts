@@ -19,7 +19,7 @@ test.describe("Outline", () => {
     await page.locator(".tiptap").waitFor({ state: "visible" });
 
     // ソースモードに切替えて見出し付きコンテンツを入力
-    await page.getByRole("button", { name: /source mode/i }).click();
+    await page.getByRole("button", { name: /source/i }).click();
     const textarea = page.locator("textarea");
     await expect(textarea).toBeVisible();
     await textarea.click();
@@ -27,7 +27,7 @@ test.describe("Outline", () => {
     await textarea.fill(MARKDOWN_WITH_HEADINGS);
 
     // WYSIWYG モードに戻す
-    await page.getByRole("button", { name: /wysiwyg mode/i }).click();
+    await page.getByRole("button", { name: /wysiwyg/i }).click();
     await expect(page.locator(".tiptap")).toBeVisible();
   });
 
