@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { sanitizeMarkdown, preserveBlankLines } from "./utils/sanitizeMarkdown";
+import { parseCommentData, appendCommentData } from "./utils/commentHelpers";
 import type { EncodingLabel } from "./types";
 
 const STORAGE_KEY = "markdown-editor-content";
@@ -16,7 +17,12 @@ export function useMarkdownEditor(defaultContent: string) {
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
-      setInitialContent(preserveBlankLines(sanitizeMarkdown(saved ?? defaultContent)));
+      const raw = saved ?? defaultContent;
+      // コメントデータブロックを分離してからサニタイズし、再付加する
+      // （DOMPurify が <!-- comments --> ブロックを除去するのを防ぐ）
+      const { comments, body } = parseCommentData(raw);
+      const sanitized = preserveBlankLines(sanitizeMarkdown(body));
+      setInitialContent(comments.size > 0 ? appendCommentData(sanitized, comments) : sanitized);
     } catch (e) {
       console.warn("Failed to read localStorage:", e);
       setInitialContent(defaultContent);
