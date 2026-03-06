@@ -41,7 +41,7 @@ jobs:
         working-directory: packages/web-app
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium firefox webkit
         working-directory: packages/web-app
 
       - name: Run e2e tests
