@@ -22,7 +22,7 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: No
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const allCollapsed = !!node.attrs.collapsed;
-  const codeCollapsed = !!node.attrs.codeCollapsed;
+  const codeCollapsed = !!node.attrs.codeCollapsed || !editor.isEditable;
   const toggleAllCollapsed = useCallback(() => updateAttributes(allCollapsed ? { collapsed: false, codeCollapsed: false } : { collapsed: true }), [allCollapsed, updateAttributes]);
   const [fullscreen, setFullscreen] = useState(false);
   const [fsCodeVisible, setFsCodeVisible] = useState(true);

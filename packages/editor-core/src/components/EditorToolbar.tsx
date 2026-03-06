@@ -406,13 +406,13 @@ export const EditorToolbar = React.memo(function EditorToolbar({
       <Box sx={{ display: { xs: "none", md: "contents" } }}>
       <ToggleButtonGroup size="small" aria-label={t("view")} sx={{ height: 30 }}>
         {editorState?.hasBlocks && (
-          <ToggleButton value="fold" onClick={onToggleAllBlocks} disabled={inlineMergeOpen || sourceMode} aria-label={editorState.allBlocksCollapsed ? t("unfoldAll") : t("foldAll")} sx={{ px: 0.75, py: 0.25 }}>
+          <ToggleButton value="fold" onClick={onToggleAllBlocks} disabled={inlineMergeOpen || sourceMode || viewMode} aria-label={editorState.allBlocksCollapsed ? t("unfoldAll") : t("foldAll")} sx={{ px: 0.75, py: 0.25 }}>
             <Tooltip title={editorState.allBlocksCollapsed ? tip(t, "unfoldAll") : tip(t, "foldAll")}>
               <span style={{ display: "inline-flex" }}>{editorState.allBlocksCollapsed ? <UnfoldMoreIcon fontSize="small" /> : <UnfoldLessIcon fontSize="small" />}</span>
             </Tooltip>
           </ToggleButton>
         )}
-        <ToggleButton value="outline" selected={outlineOpen} onClick={onToggleOutline} disabled={inlineMergeOpen} aria-label={t("outline")} sx={{ px: 0.75, py: 0.25 }}>
+        <ToggleButton value="outline" selected={outlineOpen} onClick={onToggleOutline} disabled={inlineMergeOpen || sourceMode} aria-label={t("outline")} sx={{ px: 0.75, py: 0.25 }}>
           <Tooltip title={tip(t, "outline")}>
             <span style={{ display: "inline-flex" }}><ListAltIcon fontSize="small" /></span>
           </Tooltip>
@@ -589,7 +589,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
     >
       <MenuItem
         onClick={() => { onToggleOutline(); setMobileMenuAnchorEl(null); }}
-        disabled={inlineMergeOpen}
+        disabled={inlineMergeOpen || sourceMode}
       >
         <ListItemIcon><ListAltIcon fontSize="small" color={outlineOpen ? "primary" : "inherit"} /></ListItemIcon>
         <ListItemText>{t("outline")}</ListItemText>
@@ -606,7 +606,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
       {editorState?.hasBlocks && (
         <MenuItem
           onClick={() => { onToggleAllBlocks(); setMobileMenuAnchorEl(null); }}
-          disabled={inlineMergeOpen || sourceMode}
+          disabled={inlineMergeOpen || sourceMode || viewMode}
         >
           <ListItemIcon>
             {editorState.allBlocksCollapsed

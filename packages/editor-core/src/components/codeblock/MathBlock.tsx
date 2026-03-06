@@ -103,7 +103,7 @@ export function MathBlock(props: MathBlockProps) {
       allCollapsed={allCollapsed}
       codeCollapsed={codeCollapsed}
       isDark={isDark}
-      showBorder={allCollapsed || isSelected}
+      showBorder={(allCollapsed || isSelected) && editor.isEditable}
       deleteDialogOpen={deleteDialogOpen}
       setDeleteDialogOpen={setDeleteDialogOpen}
       handleDeleteBlock={handleDeleteBlock}

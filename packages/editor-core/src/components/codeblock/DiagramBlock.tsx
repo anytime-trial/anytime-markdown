@@ -243,8 +243,8 @@ export function DiagramBlock(props: DiagramBlockProps) {
   const diagramContainerSx = {
     overflow: "hidden", bgcolor: "background.paper", position: "relative",
     width: diagramResize.displayWidth || "fit-content", maxWidth: "100%",
-    cursor: diagramResize.resizing ? "nwse-resize" : "grab",
-    "&:active": { cursor: diagramResize.resizing ? "nwse-resize" : "grabbing" },
+    cursor: !isEditable ? "default" : diagramResize.resizing ? "nwse-resize" : "grab",
+    "&:active": { cursor: !isEditable ? "default" : diagramResize.resizing ? "nwse-resize" : "grabbing" },
   };
 
   const panTransformSx = {
@@ -314,17 +314,17 @@ export function DiagramBlock(props: DiagramBlockProps) {
               contentEditable={false}
               onClick={selectNode}
               onDoubleClick={handleDoubleClickFullscreen}
-              onPointerDown={normalZP.handlePointerDown}
-              onPointerMove={(e) => diagramResize.resizing ? diagramResize.handlePointerMove(e) : normalZP.handlePointerMove(e)}
-              onPointerUp={() => diagramResize.resizing ? diagramResize.handlePointerUp() : normalZP.handlePointerUp()}
-              onWheel={normalZP.handleWheel}
+              onPointerDown={isEditable ? normalZP.handlePointerDown : undefined}
+              onPointerMove={isEditable ? (e) => diagramResize.resizing ? diagramResize.handlePointerMove(e) : normalZP.handlePointerMove(e) : undefined}
+              onPointerUp={isEditable ? () => diagramResize.resizing ? diagramResize.handlePointerUp() : normalZP.handlePointerUp() : undefined}
+              onWheel={isEditable ? normalZP.handleWheel : undefined}
             >
               <Box
                 sx={panTransformSx}
                 dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(displaySvg, SVG_SANITIZE_CONFIG) }}
               />
-              {resizeHandle}
-              {resizeIndicator}
+              {isEditable && resizeHandle}
+              {isEditable && resizeIndicator}
             </Box>
           )}
           {isPlantUml && plantUmlConsent !== "accepted" && (
@@ -352,16 +352,16 @@ export function DiagramBlock(props: DiagramBlockProps) {
               contentEditable={false}
               onClick={selectNode}
               onDoubleClick={handleDoubleClickFullscreen}
-              onPointerDown={normalZP.handlePointerDown}
-              onPointerMove={(e) => diagramResize.resizing ? diagramResize.handlePointerMove(e) : normalZP.handlePointerMove(e)}
-              onPointerUp={() => diagramResize.resizing ? diagramResize.handlePointerUp() : normalZP.handlePointerUp()}
-              onWheel={normalZP.handleWheel}
+              onPointerDown={isEditable ? normalZP.handlePointerDown : undefined}
+              onPointerMove={isEditable ? (e) => diagramResize.resizing ? diagramResize.handlePointerMove(e) : normalZP.handlePointerMove(e) : undefined}
+              onPointerUp={isEditable ? () => diagramResize.resizing ? diagramResize.handlePointerUp() : normalZP.handlePointerUp() : undefined}
+              onWheel={isEditable ? normalZP.handleWheel : undefined}
             >
               <Box sx={panTransformSx}>
                 <img src={plantUmlUrl} alt={extractDiagramAltText(code, "plantuml")} referrerPolicy="no-referrer" style={{ maxWidth: "100%", height: "auto" }} />
               </Box>
-              {resizeHandle}
-              {resizeIndicator}
+              {isEditable && resizeHandle}
+              {isEditable && resizeIndicator}
             </Box>
           )}
           {error && (
