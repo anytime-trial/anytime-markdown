@@ -158,14 +158,45 @@ export function sanitizeMarkdown(md: string): string {
       const trailingNL = part.match(/\n*$/)?.[0] ?? "";
       let inner = part.slice(leadingNL.length, part.length - (trailingNL.length || 0));
       if (!inner) return part;
-      // インラインコード（`...` or ``...``）を DOMPurify から保護
+      // インラインコード（任意長バッククォートのコードスパン）を DOMPurify から保護
       // 注意: \x00 (NUL) はブラウザの DOMPurify が HTML 仕様に従い除去するため、
       // Unicode Private Use Area 文字 \uE000 をデリミタとして使用する。
+      // CommonMark 仕様: コードスパンは同数のバッククォートで開閉する（1〜N個）
       const inlineCodes: string[] = [];
-      inner = inner.replace(/``(?:(?!``).)+``|`[^`]+`/g, (m) => {
-        inlineCodes.push(m);
-        return `\uE000IC${inlineCodes.length - 1}\uE000`;
-      });
+      {
+        let out = "";
+        let j = 0;
+        while (j < inner.length) {
+          if (inner[j] === "`") {
+            const tickStart = j;
+            while (j < inner.length && inner[j] === "`") j++;
+            const tickCount = j - tickStart;
+            const openTicks = "`".repeat(tickCount);
+            let found = false;
+            let searchFrom = j;
+            while (searchFrom < inner.length) {
+              const closePos = inner.indexOf(openTicks, searchFrom);
+              if (closePos === -1) break;
+              const before = closePos > 0 ? inner[closePos - 1] : "";
+              const after = closePos + tickCount < inner.length ? inner[closePos + tickCount] : "";
+              if (before !== "`" && after !== "`") {
+                const fullCode = inner.slice(tickStart, closePos + tickCount);
+                inlineCodes.push(fullCode);
+                out += `\uE000IC${inlineCodes.length - 1}\uE000`;
+                j = closePos + tickCount;
+                found = true;
+                break;
+              }
+              searchFrom = closePos + 1;
+            }
+            if (!found) out += openTicks;
+          } else {
+            out += inner[j];
+            j++;
+          }
+        }
+        inner = out;
+      }
       // math inline スパンを DOMPurify から保護するため、一時プレースホルダに退避
       const mathSpans: string[] = [];
       inner = inner.replace(/<span data-math-inline="[^"]*"><\/span>/g, (m) => {
