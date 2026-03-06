@@ -49,7 +49,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     return vscode.window.registerCustomEditorProvider(
       MarkdownEditorProvider.viewType,
       provider,
-      { supportsMultipleEditorsPerDocument: false }
+      { supportsMultipleEditorsPerDocument: false, webviewOptions: { retainContextWhenHidden: true } }
     );
   }
 
