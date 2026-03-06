@@ -460,5 +460,28 @@
     "cancel": "Cancel",
     "error": "Something went wrong",
     "retry": "Try again"
+  },
+  "Privacy": {
+    "title": "Privacy Policy",
+    "metaDescription": "Anytime Markdown privacy policy",
+    "lastUpdated": "Last updated: February 28, 2026",
+    "section1Title": "1. Introduction",
+    "section1Body": "Anytime Markdown (\"the App\") is a markdown editor application. This Privacy Policy explains how we handle information when you use the App.",
+    "section2Title": "2. Information We Collect",
+    "section2Body": "<strong>We do not collect personal information.</strong> The App is designed to work locally on your device. Your documents and settings are stored only on your device and are not transmitted to our servers.",
+    "section3Title": "3. Data Storage",
+    "section3Body": "All data created within the App (documents, settings, preferences) is stored locally on your device using browser storage or device storage. We do not have access to this data.",
+    "section4Title": "4. Third-Party Services",
+    "section4Intro": "The App may connect to the following external services for specific features:",
+    "section4Plantuml": "<strong>PlantUML Server</strong> - When rendering PlantUML diagrams, diagram code is sent to an external PlantUML rendering server. No personal information is included in these requests.",
+    "section5Title": "5. Analytics and Tracking",
+    "section5Body1": "The App may use Google Analytics to collect anonymous usage data such as page views and session duration. This data is used solely to improve the App and is not used for advertising or sold to third parties. No personally identifiable information is collected through analytics.",
+    "section5Body2": "The App does not use tracking pixels or advertising SDKs.",
+    "section6Title": "6. Children's Privacy",
+    "section6Body": "The App does not knowingly collect information from children under 13. The App is a general-purpose text editor suitable for all ages.",
+    "section7Title": "7. Changes to This Policy",
+    "section7Body": "We may update this Privacy Policy from time to time. Changes will be reflected on this page with an updated revision date.",
+    "section8Title": "8. Contact",
+    "section8Body": "If you have questions about this Privacy Policy, please contact us through our <link>GitHub Issues</link>."
   }
 }
