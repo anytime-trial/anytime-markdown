@@ -6,6 +6,7 @@ import Link from '@mui/material/Link';
 import NextLink from 'next/link';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { getTranslations } from 'next-intl/server';
+import SiteFooter from '../components/SiteFooter';
 
 export const metadata: Metadata = {
   title: 'Privacy Policy - Anytime Markdown',
@@ -16,6 +17,7 @@ export default async function PrivacyPolicyPage() {
   const t = await getTranslations('Landing');
 
   return (
+  <>
     <Container maxWidth="md" sx={{ py: 6 }}>
       <Link
         component={NextLink}
@@ -109,12 +111,9 @@ export default async function PrivacyPolicyPage() {
         </P>
       </Section>
 
-      <Box sx={{ mt: 6, pt: 3, borderTop: 1, borderColor: 'divider' }}>
-        <Typography variant="body2" color="text.secondary" align="center">
-          &copy; 2026 Anytime Markdown
-        </Typography>
-      </Box>
     </Container>
+    <SiteFooter />
+  </>
   );
 }
 

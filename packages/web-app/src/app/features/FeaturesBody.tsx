@@ -18,6 +18,7 @@ import { useTheme } from '@mui/material/styles';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import LandingHeader from '../components/LandingHeader';
+import SiteFooter from '../components/SiteFooter';
 import { useLocaleSwitch } from '../LocaleProvider';
 
 const SANITIZE_CONFIG = {
@@ -223,15 +224,7 @@ export default function FeaturesBody() {
         )}
       </Container>
 
-      {/* Footer */}
-      <Box
-        component="footer"
-        sx={{ py: 4, px: 3, borderTop: 1, borderColor: 'divider', mt: 'auto' }}
-      >
-        <Typography variant="body2" sx={{ color: 'text.disabled', fontSize: '0.85rem' }} align="center">
-          &copy; 2026 Anytime Markdown
-        </Typography>
-      </Box>
+      <SiteFooter />
     </Box>
   );
 }
