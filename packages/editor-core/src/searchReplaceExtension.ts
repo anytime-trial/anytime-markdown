@@ -25,9 +25,17 @@ const searchReplacePluginKey = new PluginKey("searchReplace");
 const REDOS_RE =
   /(\([^()]*[+*}][^()]*\))[+*{]|(\([^()]*\|[^()]*\))[+*{]|(\([^()]*\?\)?)[+*{]/;
 
+/** Escape all regex special characters so the string matches literally. */
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Maximum allowed pattern length to prevent excessive backtracking. */
+const MAX_PATTERN_LENGTH = 1000;
+
 function getRegex(storage: SearchReplaceStorage): RegExp | null {
   const { searchTerm, caseSensitive, wholeWord, useRegex } = storage;
-  if (!searchTerm) return null;
+  if (!searchTerm || searchTerm.length > MAX_PATTERN_LENGTH) return null;
 
   try {
     const flags = caseSensitive ? "g" : "gi";
@@ -36,7 +44,9 @@ function getRegex(storage: SearchReplaceStorage): RegExp | null {
       if (REDOS_RE.test(searchTerm)) return null;
       pattern = searchTerm;
     } else {
-      pattern = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      // All special regex characters are escaped; the resulting pattern is
+      // a literal string match and cannot cause polynomial backtracking.
+      pattern = escapeRegExp(searchTerm);
     }
     if (wholeWord && !useRegex) {
       pattern = `\\b${pattern}\\b`;

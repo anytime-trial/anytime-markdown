@@ -235,6 +235,11 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
           // #L行番号 フラグメントを解析
           const lineMatch = href.match(/#L(\d+)$/);
           const filePath = lineMatch ? href.replace(/#L\d+$/, '') : href;
+          // パストラバーサル防止: 絶対パスおよび親ディレクトリ参照を拒否
+          if (path.isAbsolute(filePath) || path.normalize(filePath).startsWith('..')) {
+            vscode.window.showWarningMessage(`Invalid file path: ${filePath}`);
+            return;
+          }
           const docDir = path.dirname(document.uri.fsPath);
           const targetPath = path.resolve(docDir, filePath);
           const targetUri = vscode.Uri.file(targetPath);

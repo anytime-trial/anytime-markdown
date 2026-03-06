@@ -34,6 +34,7 @@ function setup(editor: Editor | null = createMockEditor()) {
 describe("useSourceMode", () => {
   beforeEach(() => {
     mockedGetMarkdown.mockReset();
+    localStorage.clear();
   });
 
   test("初期状態 → sourceMode=false, sourceText=''", () => {
@@ -110,10 +111,12 @@ describe("useSourceMode", () => {
     ].join("\n");
 
     test("handleSwitchToWysiwyg → setContent にコメントデータブロックが含まれない", () => {
+      mockedGetMarkdown.mockReturnValue("");
       const { hook, editor } = setup();
       const setContent = (editor as any).commands.setContent as jest.Mock;
 
       // ソースモードにしてコメント付きテキストを設定
+      act(() => hook.result.current.handleSwitchToSource());
       act(() => hook.result.current.handleSourceChange(SOURCE_WITH_COMMENTS));
       act(() => hook.result.current.handleSwitchToWysiwyg());
 
@@ -124,6 +127,7 @@ describe("useSourceMode", () => {
     });
 
     test("handleSwitchToWysiwyg → initComments がコメント Map で呼ばれる", () => {
+      mockedGetMarkdown.mockReturnValue("");
       const initComments = jest.fn();
       const mockEditor = {
         commands: {
@@ -134,6 +138,7 @@ describe("useSourceMode", () => {
       } as unknown as Editor;
       const { hook } = setup(mockEditor);
 
+      act(() => hook.result.current.handleSwitchToSource());
       act(() => hook.result.current.handleSourceChange(SOURCE_WITH_COMMENTS));
       act(() => hook.result.current.handleSwitchToWysiwyg());
 
@@ -151,9 +156,11 @@ describe("useSourceMode", () => {
     });
 
     test("handleSwitchToWysiwyg → setContent にインラインコメントマーカーは保持される", () => {
+      mockedGetMarkdown.mockReturnValue("");
       const { hook, editor } = setup();
       const setContent = (editor as any).commands.setContent as jest.Mock;
 
+      act(() => hook.result.current.handleSwitchToSource());
       act(() => hook.result.current.handleSourceChange(SOURCE_WITH_COMMENTS));
       act(() => hook.result.current.handleSwitchToWysiwyg());
 
@@ -163,8 +170,10 @@ describe("useSourceMode", () => {
     });
 
     test("handleSwitchToWysiwyg → saveContent にコメントデータブロックが含まれる（元テキスト保持）", () => {
+      mockedGetMarkdown.mockReturnValue("");
       const { hook, saveContent } = setup();
 
+      act(() => hook.result.current.handleSwitchToSource());
       act(() => hook.result.current.handleSourceChange(SOURCE_WITH_COMMENTS));
       act(() => hook.result.current.handleSwitchToWysiwyg());
 
@@ -175,6 +184,7 @@ describe("useSourceMode", () => {
     });
 
     test("コメントなしのソーステキスト → initComments は呼ばれない", () => {
+      mockedGetMarkdown.mockReturnValue("");
       const initComments = jest.fn();
       const mockEditor = {
         commands: {
@@ -185,6 +195,7 @@ describe("useSourceMode", () => {
       } as unknown as Editor;
       const { hook } = setup(mockEditor);
 
+      act(() => hook.result.current.handleSwitchToSource());
       act(() => hook.result.current.handleSourceChange("# No comments here"));
       act(() => hook.result.current.handleSwitchToWysiwyg());
 

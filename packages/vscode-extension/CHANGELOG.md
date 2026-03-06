@@ -4,6 +4,16 @@ All notable changes to the "anytime-markdown" extension will be documented in th
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.1.2] - 2026-03-06
+
+### Fixed
+- ビューモードから WYSIWYG モードへの切替時にデータが消失する問題を修正
+- useSourceMode テストの localStorage 汚染による偽陽性を修正
+
+### Security
+- 検索パターンの正規表現エスケープ関数を分離し、パターン長上限（1000文字）を追加（CodeQL #9）
+- openLink のパストラバーサル防止: 絶対パスおよび親ディレクトリ参照を拒否（CodeQL #5-#8）
+
 ## [0.1.1] - 2026-03-06
 
 ### Fixed
