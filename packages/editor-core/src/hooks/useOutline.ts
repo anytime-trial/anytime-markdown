@@ -76,7 +76,9 @@ export function useOutline({ editor, sourceMode }: UseOutlineParams) {
   const handleOutlineClick = useCallback(
     (pos: number) => {
       if (!editor) return;
-      editor.chain().focus().setTextSelection(pos).run();
+      if (editor.isEditable) {
+        editor.chain().focus().setTextSelection(pos).run();
+      }
       const domAtPos = editor.view.domAtPos(pos);
       const node =
         domAtPos.node instanceof HTMLElement ? domAtPos.node : domAtPos.node.parentElement;

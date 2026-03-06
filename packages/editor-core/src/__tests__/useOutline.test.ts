@@ -21,6 +21,7 @@ const mockedMoveHeadingSection = moveHeadingSection as jest.MockedFunction<
 
 function createMockEditor(overrides?: Partial<Editor>): Editor {
   return {
+    isEditable: true,
     state: {
       doc: {
         nodeAt: jest.fn(),
