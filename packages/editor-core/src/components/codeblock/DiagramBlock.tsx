@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Box, Button, Divider, IconButton, Tooltip, Typography } from "@mui/material";
 import FullscreenIcon from "@mui/icons-material/Fullscreen";
 import FullscreenExitIcon from "@mui/icons-material/FullscreenExit";
@@ -46,12 +46,12 @@ type DiagramBlockProps = Pick<
 
 export function DiagramBlock(props: DiagramBlockProps) {
   const {
-    editor, node, updateAttributes, getPos,
+    editor, node, updateAttributes, getPos: _getPos,
     allCollapsed, codeCollapsed, isSelected, toggleAllCollapsed,
     selectNode, handleDragKeyDown, code,
     handleCopyCode, handleDeleteBlock, deleteDialogOpen, setDeleteDialogOpen,
     fullscreen, setFullscreen, fsCode, onFsCodeChange, fsTextareaRef, fsSearch,
-    fsCodeVisible, setFsCodeVisible, handleFsTextChange,
+    fsCodeVisible, setFsCodeVisible, handleFsTextChange: _handleFsTextChange,
     t, isDark,
   } = props;
 

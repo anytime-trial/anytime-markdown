@@ -1,6 +1,6 @@
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import ArticleIcon from "@mui/icons-material/Article";
-import CheckIcon from "@mui/icons-material/Check";
+
 import DescriptionIcon from "@mui/icons-material/Description";
 import DownloadIcon from "@mui/icons-material/Download";
 import WysiwygIcon from "@mui/icons-material/Wysiwyg";
@@ -12,7 +12,7 @@ import SaveAsIcon from "@mui/icons-material/SaveAs";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 
-import CompareIcon from "@mui/icons-material/Compare";
+
 import ViewStreamIcon from "@mui/icons-material/ViewStream";
 import EditNoteIcon from "@mui/icons-material/EditNote";
 import ListAltIcon from "@mui/icons-material/ListAlt";
@@ -40,12 +40,12 @@ import {
   ToggleButton,
   ToggleButtonGroup,
   Tooltip,
-  Typography,
+
 } from "@mui/material";
 import { useEditorState } from "@tiptap/react";
 import type { Editor } from "@tiptap/react";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import type { TranslationFn } from "../types";
 import { modKey } from "../constants/shortcuts";
 
@@ -126,7 +126,7 @@ interface EditorToolbarProps {
 
 export const EditorToolbar = React.memo(function EditorToolbar({
   editor,
-  isInDiagramBlock,
+  isInDiagramBlock: _isInDiagramBlock,
 
   onToggleAllBlocks,
   onDownload,
@@ -158,7 +158,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
   onSaveFile,
   onSaveAsFile,
   hasFileHandle,
-  onAnnounce,
+  onAnnounce: _onAnnounce,
   supportsDirectAccess,
   onExportPdf,
   commentOpen,

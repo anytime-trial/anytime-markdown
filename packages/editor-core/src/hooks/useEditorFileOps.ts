@@ -35,7 +35,7 @@ export function useEditorFileOps({
   sourceMode,
   sourceText,
   setSourceText,
-  saveContent,
+  saveContent: _saveContent,
   downloadMarkdown,
   clearContent,
   openFile,

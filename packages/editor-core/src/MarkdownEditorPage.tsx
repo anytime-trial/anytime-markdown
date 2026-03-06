@@ -33,7 +33,7 @@ import { EditorMenuPopovers } from "./components/EditorMenuPopovers";
 import { EditorBubbleMenu } from "./components/EditorBubbleMenu";
 import { SlashCommandMenu } from "./components/SlashCommandMenu";
 import type { SlashCommandState } from "./extensions/slashCommandExtension";
-import type { MergeUndoRedo } from "./components/InlineMergeView";
+
 
 const InlineMergeView = dynamic(
   () => import("./components/InlineMergeView").then((m) => m.InlineMergeView),
@@ -64,8 +64,7 @@ import { useEditorConfig } from "./hooks/useEditorConfig";
 import { useEditorSideEffects } from "./hooks/useEditorSideEffects";
 import type { FileSystemProvider } from "./types/fileSystem";
 import { sanitizeMarkdown, preserveBlankLines } from "./utils/sanitizeMarkdown";
-import { extractHeadings } from "./types";
-import { generateTocMarkdown } from "./utils/tocHelpers";
+
 import { CommentPanel } from "./components/CommentPanel";
 import { parseCommentData } from "./utils/commentHelpers";
 import type { InlineComment } from "./utils/commentHelpers";
@@ -153,7 +152,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
 
   const {
     commentDialogOpen, setCommentDialogOpen, commentText, setCommentText,
-    handleCommentOpen, handleCommentInsert,
+    handleCommentInsert,
     linkDialogOpen, setLinkDialogOpen, linkUrl, setLinkUrl,
     handleLink, handleLinkInsert, imageDialogOpen, setImageDialogOpen,
     imageUrl, setImageUrl, imageAlt, setImageAlt, imageEditPos,
@@ -175,7 +174,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   } = useFileSystem(fileSystemProvider ?? null);
 
   const {
-    notification, setNotification, showNotification, pdfExporting,
+    notification, setNotification, pdfExporting,
     fileInputRef, handleClear, handleFileSelected,
     handleDownload, handleImport, handleCopy,
     handleOpenFile, handleSaveFile, handleSaveAsFile,
@@ -333,7 +332,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   }, [editor, settings.showHeadingNumbers]);
 
   const {
-    inlineMergeOpen, setInlineMergeOpen,
+    inlineMergeOpen, _setInlineMergeOpen,
     editorMarkdown, setEditorMarkdown,
     mergeUndoRedo, setMergeUndoRedo,
     compareFileContent, setCompareFileContent,
@@ -363,20 +362,6 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     requestAnimationFrame(() => {
       editor.chain().focus().insertContent(preprocessed).run();
     });
-  }, [editor, sourceMode, appendToSource]);
-
-  const handleInsertToc = useCallback(() => {
-    if (!editor) return;
-    const headings = extractHeadings(editor);
-    const tocMd = generateTocMarkdown(headings);
-    if (!tocMd) return;
-    if (sourceMode) {
-      appendToSource("\n" + tocMd);
-    } else {
-      requestAnimationFrame(() => {
-        editor.chain().focus().insertContent(tocMd).run();
-      });
-    }
   }, [editor, sourceMode, appendToSource]);
 
   // PlantUML/Mermaid 編集中はMarkdownツールバーを無効化

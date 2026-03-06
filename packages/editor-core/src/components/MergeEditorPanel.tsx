@@ -213,7 +213,7 @@ export function getMergeTiptapStyles(theme: Theme, fontSize = 14, lineHeight = 1
   };
 }
 
-function getLineBgColor(type: DiffLine["type"], theme: Theme) {
+function _getLineBgColor(type: DiffLine["type"], theme: Theme) {
   switch (type) {
     case "added":
     case "modified-new":

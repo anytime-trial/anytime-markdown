@@ -119,7 +119,6 @@ export function useMergeDiff(onLeftTextChange?: (text: string) => void) {
 
   const canUndo = undoStack.current.length > 0;
   const canRedo = redoStack.current.length > 0;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const _hv = historyVersion; // ensure re-render on history change
 
   return {

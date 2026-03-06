@@ -89,11 +89,6 @@ export function OutlinePanel({
     [headings]
   );
 
-  const headingOnly = useMemo(
-    () => headingOnlyIndices.map((i) => headings[i]),
-    [headingOnlyIndices, headings]
-  );
-
   const toHeadingOnlyIdx = useCallback(
     (arrIdx: number) => headingOnlyIndices.indexOf(arrIdx),
     [headingOnlyIndices]
@@ -197,8 +192,8 @@ export function OutlinePanel({
                 const isHeading = h.kind === "heading";
                 const isFolded = isHeading && foldedIndices.has(h.headingIndex ?? -1);
                 const hoIdx = isHeading ? toHeadingOnlyIdx(idx) : -1;
-                const isFirst = isHeading && hoIdx === 0;
-                const isLast = isHeading && hoIdx === headingOnlyIndices.length - 1;
+                const _isFirst = isHeading && hoIdx === 0;
+                const _isLast = isHeading && hoIdx === headingOnlyIndices.length - 1;
                 const isDragging = isHeading && hoIdx === dragIdx;
                 const isDropTarget = isHeading && hoIdx === dropIdx && hoIdx !== dragIdx;
                 // ブロック要素は直近の見出しレベルに合わせてインデント

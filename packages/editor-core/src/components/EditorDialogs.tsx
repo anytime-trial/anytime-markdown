@@ -72,7 +72,7 @@ export const EditorDialogs = React.memo(function EditorDialogs({
   setVersionDialogOpen,
   helpDialogOpen,
   setHelpDialogOpen,
-  locale,
+  locale: _locale,
   t,
 }: EditorDialogsProps) {
   return (
