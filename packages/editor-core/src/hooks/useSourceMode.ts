@@ -66,18 +66,20 @@ export function useSourceMode({ editor, saveContent, t }: UseSourceModeParams) {
         setViewMode(false);
         try { localStorage.setItem(VIEWER_MODE_KEY, "false"); } catch { /* ignore */ }
       }
-      const { comments, body } = parseCommentData(sourceText);
-      const sanitized = preserveBlankLines(sanitizeMarkdown(body));
-      editor.commands.setContent(sanitized);
-      if (comments.size > 0) {
-        (editor.commands as any).initComments(comments);
+      if (sourceMode) {
+        const { comments, body } = parseCommentData(sourceText);
+        const sanitized = preserveBlankLines(sanitizeMarkdown(body));
+        editor.commands.setContent(sanitized);
+        if (comments.size > 0) {
+          (editor.commands as any).initComments(comments);
+        }
+        saveContent(sourceText);
       }
-      saveContent(sourceText);
     }
     setSourceMode(false);
     try { localStorage.setItem(SOURCE_MODE_KEY, "false"); } catch { /* ignore */ }
     setLiveMessage(t("switchedToWysiwyg"));
-  }, [editor, viewMode, sourceText, saveContent, t]);
+  }, [editor, sourceMode, viewMode, sourceText, saveContent, t]);
 
   const handleSwitchToView = useCallback(() => {
     if (!editor) return;

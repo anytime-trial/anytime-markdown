@@ -316,7 +316,7 @@ export function InlineMergeView({
       const md = splitByCodeBlocks(getMarkdownFromEditor(e))
         .map((part) =>
           /^```/.test(part)
-            ? part.replace(/&gt;/g, ">").replace(/&lt;/g, "<").replace(/&amp;/g, "&")
+            ? part.replace(/&(amp|lt|gt);/g, (m) => ({ "&amp;": "&", "&lt;": "<", "&gt;": ">" })[m] ?? m)
             : part,
         )
         .join("");

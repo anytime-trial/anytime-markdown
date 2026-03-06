@@ -4,6 +4,16 @@ All notable changes to the "anytime-markdown" extension will be documented in th
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.1.1] - 2026-03-06
+
+### Fixed
+- ビューモードから WYSIWYG モードへの切替時にデータが消失する問題を修正
+
+### Security
+- tar を 7.5.10 に更新（パストラバーサル脆弱性対応）
+- HTML エンティティ復元を単一パス置換に変更（CodeQL #11: 不完全な多文字サニタイゼーション）
+- 検索正規表現の ReDoS 検出パターン強化とマッチ回数上限追加（CodeQL #10）
+
 ## [0.1.0] - 2026-03-06
 
 ### Added

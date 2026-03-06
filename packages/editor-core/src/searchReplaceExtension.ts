@@ -18,8 +18,12 @@ export interface SearchReplaceStorage {
 
 const searchReplacePluginKey = new PluginKey("searchReplace");
 
-/** Detect ReDoS-prone patterns: nested quantifiers like (a+)+, (a*)+, (a+)*, overlapping alternation */
-const REDOS_RE = /(\((?:[^()]*[+*])[^()]*\))[+*{]|\(\?[^)]*[+*][^)]*\)[+*{]/;
+/** Detect ReDoS-prone patterns:
+ * - nested quantifiers: (a+)+, (a*)+, (a+)*, (a{2,})+
+ * - quantified groups with alternation: (a|b)+ where branches may overlap
+ * - star/plus after optional groups: (a?)+ , (a?b*)+ */
+const REDOS_RE =
+  /(\([^()]*[+*}][^()]*\))[+*{]|(\([^()]*\|[^()]*\))[+*{]|(\([^()]*\?\)?)[+*{]/;
 
 function getRegex(storage: SearchReplaceStorage): RegExp | null {
   const { searchTerm, caseSensitive, wholeWord, useRegex } = storage;
@@ -43,18 +47,23 @@ function getRegex(storage: SearchReplaceStorage): RegExp | null {
   }
 }
 
+const MAX_MATCH_ITERATIONS = 10000;
+
 function findMatches(
   doc: PMNode,
   regex: RegExp,
 ): { from: number; to: number }[] {
   const results: { from: number; to: number }[] = [];
+  let iterations = 0;
   doc.descendants((node, pos) => {
+    if (iterations >= MAX_MATCH_ITERATIONS) return false;
     if (!node.isText || !node.text) return;
     const text = node.text;
     let match: RegExpExecArray | null;
     regex.lastIndex = 0;
     while ((match = regex.exec(text)) !== null) {
       if (match[0].length === 0) break;
+      if (++iterations > MAX_MATCH_ITERATIONS) break;
       results.push({ from: pos + match.index, to: pos + match.index + match[0].length });
     }
   });

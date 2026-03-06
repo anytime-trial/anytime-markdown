@@ -191,9 +191,7 @@ export function sanitizeMarkdown(md: string): string {
       // DOMPurify でサニタイズ後、マークダウンで意味を持つ文字の
       // HTMLエンティティを元に戻す
       let sanitized = DOMPurify.sanitize(inner, { ALLOWED_TAGS, ALLOWED_ATTR, KEEP_CONTENT: true })
-        .replace(/&gt;/g, ">")
-        .replace(/&lt;/g, "<")
-        .replace(/&amp;/g, "&");
+        .replace(/&(amp|lt|gt);/g, (m) => ({ "&amp;": "&", "&lt;": "<", "&gt;": ">" })[m] ?? m);
       // math inline スパンを復元
       sanitized = sanitized.replace(/\uE000MATH(\d+)\uE000/g, (_, i) => mathSpans[Number(i)]);
       // admonition blockquote を復元
