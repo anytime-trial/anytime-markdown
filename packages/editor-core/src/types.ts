@@ -1,7 +1,7 @@
 import { createContext, useContext } from "react";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import type { Editor } from "@tiptap/react";
-import { restoreBlankLines, normalizeCodeSpanDelimiters } from "./utils/sanitizeMarkdown";
+import { restoreBlankLines, normalizeCodeSpanDelimitersInLine } from "./utils/sanitizeMarkdown";
 import { postprocessMathBlock } from "./utils/mathHelpers";
 import { appendCommentData } from "./utils/commentHelpers";
 import { commentDataPluginKey } from "./extensions/commentExtension";
@@ -38,10 +38,11 @@ export function getMarkdownFromEditor(editor: Editor): string {
   md = postprocessMathBlock(md);
   // テーブル行内で prosemirror-markdown がエスケープした文字を復元する
   // (例: "1\." → "1.", "\#" → "#")
-  md = md.replace(/^(\|.+\|)$/gm, (line) => line.replace(/\\([.#>+\-*])/g, "$1"));
-  // コードスパンのバッククォート区切りを最小限に正規化する
-  // (tiptap-markdown シリアライザが過剰に増やすのを修正)
-  md = normalizeCodeSpanDelimiters(md);
+  // + コードスパンのバッククォート区切りをテーブル行内のみ最小限に正規化
+  md = md.replace(/^(\|.+\|)$/gm, (line) => {
+    line = line.replace(/\\([.#>+\-*])/g, "$1");
+    return normalizeCodeSpanDelimitersInLine(line);
+  });
   // Plugin State からコメントデータを取得し、末尾に付加
   const commentState = editor.state
     ? commentDataPluginKey.getState(editor.state) as { comments: Map<string, InlineComment> } | undefined

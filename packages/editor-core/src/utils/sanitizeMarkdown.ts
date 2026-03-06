@@ -313,71 +313,57 @@ export function restoreBlankLines(md: string): string {
 }
 
 /**
- * インラインコードスパンのバッククォート区切りを最小限に正規化する。
- * tiptap-markdown シリアライザはコンテンツ内のバッククォートを見て
+ * 1行内のインラインコードスパンのバッククォート区切りを最小限に正規化する。
+ * tiptap-markdown シリアライザはテーブルセル内でコンテンツ内のバッククォートを見て
  * 区切り数を増やすが、CommonMark 仕様では同数のバッククォートのみが
  * 閉じ区切りとなるため、より少ない区切りで安全にデリミットできる場合がある。
- * コードブロック内は対象外。
  */
-export function normalizeCodeSpanDelimiters(md: string): string {
-  const parts = splitByCodeBlocks(md);
-  return parts.map((part) => {
-    if (/^```/.test(part)) return part;
+export function normalizeCodeSpanDelimitersInLine(line: string): string {
+  let out = "";
+  let i = 0;
+  while (i < line.length) {
+    if (line[i] === "`") {
+      const tickStart = i;
+      while (i < line.length && line[i] === "`") i++;
+      const tickCount = i - tickStart;
+      const openTicks = "`".repeat(tickCount);
 
-    let out = "";
-    let i = 0;
-    while (i < part.length) {
-      if (part[i] === "`") {
-        const tickStart = i;
-        while (i < part.length && part[i] === "`") i++;
-        const tickCount = i - tickStart;
-        const openTicks = "`".repeat(tickCount);
-
-        // 閉じ区切り（同数のバッククォート）を探す
-        let found = false;
-        let searchFrom = i;
-        while (searchFrom < part.length) {
-          const closePos = part.indexOf(openTicks, searchFrom);
-          if (closePos === -1) break;
-          const before = closePos > 0 ? part[closePos - 1] : "";
-          const after = closePos + tickCount < part.length ? part[closePos + tickCount] : "";
-          if (before !== "`" && after !== "`") {
-            // コードスパン発見: content を取得
-            const content = part.slice(i, closePos);
-            // 改行を含むスパンはフェンスドコードブロックの可能性があるためスキップ
-            if (content.includes("\n")) {
-              out += openTicks + content + openTicks;
-              i = closePos + tickCount;
-              found = true;
-              break;
-            }
-            // content 内のバッククォート連続長を集める
-            const runs = new Set<number>();
-            let r = 0;
-            for (let c = 0; c < content.length; c++) {
-              if (content[c] === "`") { r++; }
-              else { if (r > 0) runs.add(r); r = 0; }
-            }
-            if (r > 0) runs.add(r);
-            // 最小の安全な区切り数を求める（runs に含まれない最小正整数）
-            let minTicks = 1;
-            while (runs.has(minTicks)) minTicks++;
-
-            out += "`".repeat(minTicks) + content + "`".repeat(minTicks);
-            i = closePos + tickCount;
-            found = true;
-            break;
+      // 閉じ区切り（同数のバッククォート）を探す
+      let found = false;
+      let searchFrom = i;
+      while (searchFrom < line.length) {
+        const closePos = line.indexOf(openTicks, searchFrom);
+        if (closePos === -1) break;
+        const before = closePos > 0 ? line[closePos - 1] : "";
+        const after = closePos + tickCount < line.length ? line[closePos + tickCount] : "";
+        if (before !== "`" && after !== "`") {
+          const content = line.slice(i, closePos);
+          // content 内のバッククォート連続長を集める
+          const runs = new Set<number>();
+          let r = 0;
+          for (let c = 0; c < content.length; c++) {
+            if (content[c] === "`") { r++; }
+            else { if (r > 0) runs.add(r); r = 0; }
           }
-          searchFrom = closePos + 1;
+          if (r > 0) runs.add(r);
+          // 最小の安全な区切り数を求める（runs に含まれない最小正整数）
+          let minTicks = 1;
+          while (runs.has(minTicks)) minTicks++;
+
+          out += "`".repeat(minTicks) + content + "`".repeat(minTicks);
+          i = closePos + tickCount;
+          found = true;
+          break;
         }
-        if (!found) {
-          out += openTicks;
-        }
-      } else {
-        out += part[i];
-        i++;
+        searchFrom = closePos + 1;
       }
+      if (!found) {
+        out += openTicks;
+      }
+    } else {
+      out += line[i];
+      i++;
     }
-    return out;
-  }).join("");
+  }
+  return out;
 }
