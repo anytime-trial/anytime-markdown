@@ -95,7 +95,7 @@ export function createTestEditor({
   if (withMarkdown) {
     extensions.push(Markdown.configure({ html: true }));
     extensions.push(Image);
-    extensions.push(Link.configure({ openOnClick: false }));
+    extensions.push(Link.configure({ openOnClick: false, isAllowedUri: () => true }));
     extensions.push(Highlight);
     extensions.push(Underline);
     extensions.push(TaskList);
