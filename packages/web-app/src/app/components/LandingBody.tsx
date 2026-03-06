@@ -275,6 +275,14 @@ export default function LandingBody({ headingFontFamily }: { headingFontFamily?:
           </MuiLink>
           <MuiLink
             component={NextLink}
+            href="/features"
+            underline="hover"
+            sx={{ color: 'text.secondary', fontSize: '0.85rem' }}
+          >
+            {t('featuresPage')}
+          </MuiLink>
+          <MuiLink
+            component={NextLink}
             href="/privacy"
             underline="hover"
             sx={{ color: 'text.secondary', fontSize: '0.85rem' }}

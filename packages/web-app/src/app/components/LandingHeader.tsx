@@ -35,6 +35,14 @@ export default function LandingHeader() {
         </Typography>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 } }}>
+          <Button
+            component={NextLink}
+            href="/features"
+            sx={{ textTransform: 'none', color: 'text.secondary', fontWeight: 600, fontSize: '0.85rem', display: { xs: 'none', sm: 'inline-flex' } }}
+          >
+            {t('featuresPage')}
+          </Button>
+
           <ToggleButtonGroup
             value={locale}
             exclusive
