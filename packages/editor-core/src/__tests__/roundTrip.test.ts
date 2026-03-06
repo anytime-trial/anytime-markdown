@@ -515,4 +515,11 @@ describe("エッジケース ラウンドトリップ", () => {
     expect(result).toContain("修正済み");
     expect(result).toContain("結論");
   });
+
+  test("テーブルセル内の番号+ピリオドがエスケープされない", () => {
+    const md = "| # | 手順 | 内容 |\n| --- | --- | --- |\n| 1. 入力サニタイズ | `func` | 説明 |";
+    const result = fullRoundTrip(md, { withTable: true });
+    expect(result).not.toContain("1\\.");
+    expect(result).toContain("1.");
+  });
 });

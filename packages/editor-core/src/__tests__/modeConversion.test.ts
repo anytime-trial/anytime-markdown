@@ -132,6 +132,26 @@ describe("sanitizeMarkdown", () => {
     const result = sanitizeMarkdown(md);
     expect(result).toBe(md);
   });
+
+  test("インラインコード内のHTMLタグがエンティティにエスケープされる", () => {
+    const md = "- **HTML 安全性**: `<script>`, `<iframe>` 等の危険タグは除去される";
+    const result = sanitizeMarkdown(md);
+    expect(result).toContain("`&lt;script&gt;`");
+    expect(result).toContain("`&lt;iframe&gt;`");
+  });
+
+  test("複数のインラインコードのHTMLタグがエスケープされる", () => {
+    const md = "`<div>` と `<span>` はブロック要素とインライン要素";
+    const result = sanitizeMarkdown(md);
+    expect(result).toContain("`&lt;div&gt;`");
+    expect(result).toContain("`&lt;span&gt;`");
+  });
+
+  test("ダブルバッククォートのインラインコードのHTMLタグがエスケープされる", () => {
+    const md = "`` `<script>` `` はネストされたバッククォート";
+    const result = sanitizeMarkdown(md);
+    expect(result).toContain("&lt;script&gt;");
+  });
 });
 
 // ---------- getMarkdownFromEditor — 改行数を変更しない ----------

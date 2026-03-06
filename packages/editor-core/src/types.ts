@@ -36,6 +36,9 @@ export function getMarkdownFromEditor(editor: Editor): string {
   // 元の \n が \n\n に変わる場合がある。これは ProseMirror の仕様として許容する。
   // ```math フェンスが残っている場合に $$...$$ に変換する（フォールバック）
   md = postprocessMathBlock(md);
+  // テーブル行内で prosemirror-markdown がエスケープした文字を復元する
+  // (例: "1\." → "1.", "\#" → "#")
+  md = md.replace(/^(\|.+\|)$/gm, (line) => line.replace(/\\([.#>+\-*])/g, "$1"));
   // Plugin State からコメントデータを取得し、末尾に付加
   const commentState = editor.state
     ? commentDataPluginKey.getState(editor.state) as { comments: Map<string, InlineComment> } | undefined

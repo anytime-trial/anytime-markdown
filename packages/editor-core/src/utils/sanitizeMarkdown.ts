@@ -158,9 +158,15 @@ export function sanitizeMarkdown(md: string): string {
       const trailingNL = part.match(/\n*$/)?.[0] ?? "";
       let inner = part.slice(leadingNL.length, part.length - (trailingNL.length || 0));
       if (!inner) return part;
-      // math inline スパンを DOMPurify から保護するため、一時プレースホルダに退避
+      // インラインコード（`...` or ``...``）を DOMPurify から保護
       // 注意: \x00 (NUL) はブラウザの DOMPurify が HTML 仕様に従い除去するため、
       // Unicode Private Use Area 文字 \uE000 をデリミタとして使用する。
+      const inlineCodes: string[] = [];
+      inner = inner.replace(/``(?:(?!``).)+``|`[^`]+`/g, (m) => {
+        inlineCodes.push(m);
+        return `\uE000IC${inlineCodes.length - 1}\uE000`;
+      });
+      // math inline スパンを DOMPurify から保護するため、一時プレースホルダに退避
       const mathSpans: string[] = [];
       inner = inner.replace(/<span data-math-inline="[^"]*"><\/span>/g, (m) => {
         mathSpans.push(m);
@@ -202,6 +208,19 @@ export function sanitizeMarkdown(md: string): string {
       sanitized = sanitized.replace(/\uE000CMTP(\d+)\uE000/g, (_, i) => cmtPoints[Number(i)]);
       // コメントハイライト span を復元
       sanitized = sanitized.replace(/\uE000CMT(\d+)\uE000/g, (_, i) => cmtBlocks[Number(i)]);
+      // インラインコードを復元（コード内の HTML タグをエンティティにエスケープ）
+      // tiptap-markdown パーサーがブラウザ環境でインラインコード内の HTML を実行するのを防ぐ
+      sanitized = sanitized.replace(/\uE000IC(\d+)\uE000/g, (_, i) => {
+        const code = inlineCodes[Number(i)];
+        // バッククォートの開始・終了を分離してコード部分のみエスケープ
+        const backtickMatch = code.match(/^(`+)([\s\S]*)\1$/);
+        if (!backtickMatch) return code;
+        const ticks = backtickMatch[1];
+        // HTMLタグ（<tag>, </tag>, <tag />）のみエスケープ。<リポジトリパス> 等の非HTMLはそのまま
+        const body = backtickMatch[2]
+          .replace(/<(\/?[a-zA-Z][a-zA-Z0-9]*(?:\s[^>]*)?\s*\/?)>/g, "&lt;$1&gt;");
+        return ticks + body + ticks;
+      });
       return leadingNL + sanitized + trailingNL;
     })
     .join("");
