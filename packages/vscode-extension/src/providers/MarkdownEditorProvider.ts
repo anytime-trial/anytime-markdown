@@ -242,18 +242,33 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
           }
           const docDir = path.dirname(document.uri.fsPath);
           const targetPath = path.resolve(docDir, filePath);
-          const targetUri = vscode.Uri.file(targetPath);
-          try {
-            if (lineMatch) {
-              const line = Math.max(0, parseInt(lineMatch[1], 10) - 1);
-              const doc = await vscode.workspace.openTextDocument(targetUri);
-              await vscode.window.showTextDocument(doc, {
-                selection: new vscode.Range(line, 0, line, 0),
-              });
-            } else {
-              await vscode.commands.executeCommand('vscode.open', targetUri);
+          // ワークスペースルートからの相対パスもフォールバックとして試す
+          const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+          const candidates = [targetPath];
+          if (workspaceRoot) {
+            const fromRoot = path.resolve(workspaceRoot, filePath);
+            if (fromRoot !== targetPath) { candidates.push(fromRoot); }
+          }
+          let opened = false;
+          for (const candidate of candidates) {
+            const uri = vscode.Uri.file(candidate);
+            try {
+              if (lineMatch) {
+                const line = Math.max(0, parseInt(lineMatch[1], 10) - 1);
+                const doc = await vscode.workspace.openTextDocument(uri);
+                await vscode.window.showTextDocument(doc, {
+                  selection: new vscode.Range(line, 0, line, 0),
+                });
+              } else {
+                await vscode.commands.executeCommand('vscode.open', uri);
+              }
+              opened = true;
+              break;
+            } catch {
+              // 次の候補を試す
             }
-          } catch {
+          }
+          if (!opened) {
             vscode.window.showWarningMessage(`Cannot open file: ${href}`);
           }
           break;
