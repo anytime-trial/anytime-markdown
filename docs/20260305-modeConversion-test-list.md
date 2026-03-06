@@ -35,11 +35,11 @@
 
 ---
 
-## [ファイル A: modeConversion.test.ts（28件）](../packages/editor-core/src/__tests__/modeConversion.test.ts#L1)
+## [ファイル A: modeConversion.test.ts（28件）](packages/editor-core/src/__tests__/modeConversion.test.ts#L1)
 
 ユニットテスト（エディタ不要 or モックエディタ使用）
 
-### [1. sanitizeMarkdown（21件）](../packages/editor-core/src/__tests__/modeConversion.test.ts#L7)
+### [1. sanitizeMarkdown（21件）](packages/editor-core/src/__tests__/modeConversion.test.ts#L7)
 
 ソースモードの Markdown を WYSIWYG エディタに渡す前に HTML をサニタイズする。コードブロック内はそのまま保持し、コードブロック外のみ DOMPurify で処理する。許可タグ（`<mark>`, `<kbd>`, `<details>` 等）は残し、`<script>`, `<div>` 等は除去。Math・脚注・コメントの前処理もここで行う。
 
@@ -67,7 +67,7 @@
 | 20 | コードブロック間のテキスト部の改行を保持する | フェンス間の段落改行が消えない | `` ```js\ncode1\n```\n\nparagraph\n\n```js\ncode2\n```\n `` | IN と同一 |
 | 21 | 改行のみの部分はそのまま保持する | `\n\n\n\n`がそのまま返る | `aaa\n\n\n\nbbb\n` | IN と同一 |
 
-### [2. preserveBlankLines（5件）](../packages/editor-core/src/__tests__/modeConversion.test.ts#L166)
+### [2. preserveBlankLines（5件）](packages/editor-core/src/__tests__/modeConversion.test.ts#L166)
 
 エディタへの入力前処理。ProseMirror が圧縮・正規化する情報を ZWSP/ZWNJ マーカーで記録する。連続空行（`\n{3,}`）を ZWSP マーカー段落に変換し（空行圧縮対策）、ブロック間の tight transition（空行なし）を ZWNJ でマークする（`\n\n` 正規化対策）。
 
@@ -79,7 +79,7 @@
 | 4 | 通常の入力をそのまま返す（改行数を変更しない） | 空行ありリスト等がそのまま | `テキスト\n\n- リスト\n` / `- 項目A\n\n1. 項目B\n` / `行1\n行2\n行3\n` | 各 IN と同一 |
 | 5 | リスト前後の tight transition に ZWNJ マーカーを付与する | 空行なし→ZWNJ付与、空行あり→なし | `テキスト\n- リスト\n` / `# 見出し\n- リスト\n` / `- リスト\nテキスト\n` / `テキスト\n\n- リスト\n` | `テキスト\u200C\n- リスト\n` / `# 見出し\u200C\n- リスト\n` / `- リスト\u200C\nテキスト\n` / IN と同一 |
 
-### [3. getMarkdownFromEditor — 改行数を変更しない（2件）](../packages/editor-core/src/__tests__/modeConversion.test.ts#L139)
+### [3. getMarkdownFromEditor — 改行数を変更しない（2件）](packages/editor-core/src/__tests__/modeConversion.test.ts#L139)
 
 WYSIWYG エディタから Markdown 文字列を取得する出口関数。tiptap-markdown シリアライザの出力に対し、`restoreBlankLines` で空行マーカーを復元し、`postprocessMathBlock` で math フェンスを `$$` 記法に変換し、コメントデータを末尾に付加する。
 
@@ -88,7 +88,7 @@ WYSIWYG エディタから Markdown 文字列を取得する出口関数。tipta
 | 1 | シリアライザ出力の改行数をそのまま保持する | 画像→コードブロック間の`\n`が増えない | `![img](url)\n```js\ncode\n```\n` | `![img](url)\n```js` 含む |
 | 2 | 既に空行がある場合、そのまま保持する | 画像→コードブロック間の`\n\n`がそのまま | `![img](url)\n\n```js\ncode\n```\n` | `![img](url)\n\n```js` 含む |
 
-### [4. restoreBlankLines（2件）](../packages/editor-core/src/__tests__/modeConversion.test.ts#L209)
+### [4. restoreBlankLines（2件）](packages/editor-core/src/__tests__/modeConversion.test.ts#L209)
 
 エディタからの出力後処理（`getMarkdownFromEditor` 内で呼ばれる）。`preserveBlankLines` が埋め込んだマーカーを除去し、元の改行数を復元する。ZWNJ + `\n\n` → `\n`（tight transition 復元）、ZWSP 段落 → 空行（連続空行復元）。
 
