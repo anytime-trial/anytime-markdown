@@ -1,6 +1,6 @@
 import { Box, Paper, useTheme } from "@mui/material";
 import { alpha } from "@mui/material/styles";
-import React, { useCallback, useEffect, useLayoutEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import type { TextareaSearchMatch } from "../hooks/useTextareaSearch";
 
@@ -64,13 +64,7 @@ export function SourceModeEditor({
 
   const hasMatches = searchMatches && searchMatches.length > 0;
 
-  // Auto-expand textarea height to content so parent Paper handles all scrolling
-  useLayoutEffect(() => {
-    const ta = textareaRef?.current;
-    if (!ta) return;
-    ta.style.height = "auto";
-    ta.style.height = `${ta.scrollHeight}px`;
-  }, [sourceText, textareaRef, settings.fontSize, settings.lineHeight]);
+  const lineCount = (sourceText || "").split("\n").length || 1;
 
   // Sync textarea scroll to highlight layer
   const handleScroll = useCallback(() => {
@@ -146,7 +140,7 @@ export function SourceModeEditor({
             flexShrink: 0,
           }}
         >
-          {Array.from({ length: (sourceText || "").split("\n").length || 1 }, (_, i) => i + 1).join("\n")}
+          {Array.from({ length: lineCount }, (_, i) => i + 1).join("\n")}
         </Box>
         <Box sx={{ flex: 1, minWidth: 0, position: "relative" }}>
           {/* Highlight layer behind textarea */}
@@ -172,6 +166,7 @@ export function SourceModeEditor({
             ref={textareaRef}
             aria-label={ariaLabel}
             value={sourceText}
+            rows={Math.max(lineCount, Math.ceil((editorHeight - 36) / (settings.fontSize * settings.lineHeight)))}
             wrap="off"
             onScroll={hasMatches ? handleScroll : undefined}
             onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
@@ -180,7 +175,6 @@ export function SourceModeEditor({
             sx={{
               position: "relative",
               width: "100%",
-              minHeight: editorHeight - 36,
               ...sharedPaddingSx,
               border: "none",
               outline: "none",
