@@ -89,10 +89,13 @@ export const EditorDialogs = React.memo(function EditorDialogs({
         <DialogContent>
           <TextField
             autoFocus
+            multiline
+            minRows={2}
+            maxRows={8}
             label={t("commentPrompt")}
             value={commentText}
             onChange={(e) => setCommentText(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") handleCommentInsert(); }}
+            onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) handleCommentInsert(); }}
             fullWidth
             size="small"
             sx={{ mt: 1 }}

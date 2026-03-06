@@ -47,7 +47,7 @@ export function parseCommentData(md: string): {
 
     const resolved = trimmed.startsWith("[resolved]");
     const id = lineMatch[1].trim();
-    const text = lineMatch[2].trim();
+    const text = lineMatch[2].trim().replace(/\\n/g, "\n").replace(/\\\\/g, "\\");
     const createdAt = lineMatch[3].trim();
 
     comments.set(id, { id, text, resolved, createdAt });
@@ -101,7 +101,8 @@ export function appendCommentData(
   const lines: string[] = [];
   for (const comment of comments.values()) {
     const prefix = comment.resolved ? "[resolved] " : "";
-    lines.push(`${prefix}${comment.id}: ${comment.text} | ${comment.createdAt}`);
+    const escapedText = comment.text.replace(/\\/g, "\\\\").replace(/\n/g, "\\n");
+    lines.push(`${prefix}${comment.id}: ${escapedText} | ${comment.createdAt}`);
   }
 
   return `${md}\n\n<!-- comments\n${lines.join("\n")}\n-->`;

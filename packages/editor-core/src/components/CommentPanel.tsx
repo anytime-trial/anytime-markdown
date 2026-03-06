@@ -1,10 +1,11 @@
 "use client";
-import React, { useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import {
   Box,
   Button,
   IconButton,
   Paper,
+  TextField,
   ToggleButton,
   ToggleButtonGroup,
   Typography,
@@ -20,6 +21,7 @@ interface CommentPanelProps {
   editor: Editor;
   open: boolean;
   onClose: () => void;
+  onSave?: () => void;
   t: TranslationFn;
 }
 
@@ -61,9 +63,32 @@ export const CommentPanel = React.memo(function CommentPanel({
   editor,
   open,
   onClose,
+  onSave,
   t,
 }: CommentPanelProps) {
   const [filter, setFilter] = useState<"all" | "open" | "resolved">("all");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
+  const editRef = useRef<HTMLInputElement>(null);
+
+  const startEdit = useCallback((comment: InlineComment, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingId(comment.id);
+    setEditText(comment.text);
+    setTimeout(() => editRef.current?.focus(), 50);
+  }, []);
+
+  const commitEdit = useCallback(() => {
+    if (editingId) {
+      editor.commands.updateCommentText(editingId, editText);
+      onSave?.();
+      setEditingId(null);
+    }
+  }, [editor, editingId, editText, onSave]);
+
+  const cancelEdit = useCallback(() => {
+    setEditingId(null);
+  }, []);
 
   // Plugin State からコメント一覧を購読
   const comments = useEditorState({
@@ -241,9 +266,37 @@ export const CommentPanel = React.memo(function CommentPanel({
                 </Typography>
               )}
               {/* Comment text */}
-              <Typography variant="body2" sx={{ mb: 0.5 }}>
-                {comment.text}
-              </Typography>
+              {editingId === comment.id ? (
+                <TextField
+                  inputRef={editRef}
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
+                  onKeyDown={(e) => {
+                    e.stopPropagation();
+                    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); commitEdit(); }
+                    if (e.key === "Escape") { e.preventDefault(); cancelEdit(); }
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  onBlur={commitEdit}
+                  multiline
+                  size="small"
+                  fullWidth
+                  sx={{ mb: 0.5, "& .MuiInputBase-input": { fontSize: "0.875rem", p: 0.75 } }}
+                />
+              ) : (
+                <Typography
+                  variant="body2"
+                  onClick={(e) => startEdit(comment, e)}
+                  sx={{
+                    mb: 0.5,
+                    cursor: "text",
+                    minHeight: "1.4em",
+                    "&:hover": { bgcolor: "action.hover", borderRadius: 0.5 },
+                  }}
+                >
+                  {comment.text || <Box component="span" sx={{ color: "text.disabled", fontStyle: "italic" }}>{t("commentPlaceholder") || "Add comment..."}</Box>}
+                </Typography>
+              )}
               {/* Actions */}
               <Box sx={{ display: "flex", gap: 0.5 }}>
                 <Button
@@ -257,6 +310,7 @@ export const CommentPanel = React.memo(function CommentPanel({
                     } else {
                       editor.commands.resolveComment(comment.id);
                     }
+                    onSave?.();
                   }}
                 >
                   {comment.resolved
