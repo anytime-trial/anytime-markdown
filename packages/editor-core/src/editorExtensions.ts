@@ -118,7 +118,10 @@ export function getBaseExtensions(): Extensions {
     LinkExtension.configure({ openOnClick: false, validate: () => true }),
     CustomImage.configure({ inline: false, allowBase64: true }),
     TaskList,
-    TaskItem.configure({ nested: true }),
+    TaskItem.configure({
+      nested: true,
+      onReadOnlyChecked: () => true,
+    }),
     TaskListTight,
     ListTextCleanup,
     TableKit.configure({

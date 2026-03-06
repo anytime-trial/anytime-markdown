@@ -146,6 +146,35 @@ export function useEditorConfig({
         },
         click: (_view: EditorView, event: MouseEvent) => {
           const target = event.target as HTMLElement;
+          // ビューモード時のチェックボックス操作: ProseMirror ドキュメントに反映して保存
+          if (!_view.editable && target instanceof HTMLInputElement && target.type === "checkbox") {
+            const li = target.closest("li[data-checked]") as HTMLElement | null;
+            if (li) {
+              // onReadOnlyChecked(change イベント)が DOM を更新した後に ProseMirror を同期
+              setTimeout(() => {
+                const editor = editorRef.current;
+                if (!editor) return;
+                try {
+                  const checked = target.checked;
+                  const pos = editor.view.posAtDOM(li, 0);
+                  const nodePos = pos - 1;
+                  const node = editor.state.doc.nodeAt(nodePos);
+                  if (!node || node.type.name !== "taskItem") return;
+                  editor.setEditable(true);
+                  editor.view.dispatch(
+                    editor.state.tr.setNodeMarkup(nodePos, undefined, {
+                      ...node.attrs, checked,
+                    }),
+                  );
+                  saveContent(getMarkdownFromEditor(editor));
+                  editor.setEditable(false);
+                } catch {
+                  try { editor.setEditable(false); } catch { /* ignore */ }
+                }
+              }, 0);
+              return false;
+            }
+          }
           // #anchor リンク: 通常クリックは無効化、Ctrl/Cmd+Click で見出しにジャンプ
           const anchorEl = target.closest("a[href^='#']") as HTMLAnchorElement | null;
           if (anchorEl) {
