@@ -4,7 +4,7 @@ import EditBody from './EditBody';
 export const metadata: Metadata = {
   title: 'Edit Layout - Anytime Markdown',
   description: 'Edit card layout for document site',
-  alternates: { canonical: '/sites/edit' },
+  alternates: { canonical: '/docs/edit' },
 };
 
 export default function SitesEditPage() {

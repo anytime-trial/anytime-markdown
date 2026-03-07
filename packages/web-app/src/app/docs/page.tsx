@@ -2,9 +2,9 @@ import type { Metadata } from 'next';
 import SitesBody from './SitesBody';
 
 export const metadata: Metadata = {
-  title: 'Sites - Anytime Markdown',
+  title: 'Docs - Anytime Markdown',
   description: 'Document site powered by Anytime Markdown',
-  alternates: { canonical: '/sites' },
+  alternates: { canonical: '/docs' },
 };
 
 export default function SitesPage() {
