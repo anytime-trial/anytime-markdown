@@ -17,6 +17,10 @@ packages/web-app/public/swe-worker*
 .agents/skills/
 skills-lock.json
 
+# Environment variables
+.env.local
+.env*.local
+
 # Playwright
 playwright-report/
 test-results/
