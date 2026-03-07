@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { Alert, Box, CircularProgress, Container, Typography } from '@mui/material';
+import { Alert, Box, CircularProgress, Container, Link as MuiLink } from '@mui/material';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import NextLink from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useThemeMode } from '../../providers';
 import { useLocaleSwitch } from '../../LocaleProvider';
@@ -24,7 +26,7 @@ const MarkdownEditorPage = dynamic(
 
 export default function DocsViewPage() {
   const searchParams = useSearchParams();
-  const url = searchParams.get('url');
+  const key = searchParams.get('key');
   const t = useTranslations('Landing');
   const { themeMode, setThemeMode } = useThemeMode();
   const { setLocale } = useLocaleSwitch();
@@ -34,20 +36,31 @@ export default function DocsViewPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!url) {
+    if (!key) {
       setError(t('docsViewNoUrl'));
       setLoading(false);
       return;
     }
-    fetch(url)
+
+    let cancelled = false;
+
+    fetch(`/api/docs/content?key=${encodeURIComponent(key)}`)
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.text();
       })
-      .then(setContent)
-      .catch(() => setError(t('docsViewLoadError')))
-      .finally(() => setLoading(false));
-  }, [url, t]);
+      .then((text) => {
+        if (!cancelled) setContent(text);
+      })
+      .catch(() => {
+        if (!cancelled) setError(t('docsViewLoadError'));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [key, t]);
 
   if (loading) {
     return (
@@ -66,6 +79,22 @@ export default function DocsViewPage() {
       <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
         <LandingHeader />
         <Container maxWidth="md" sx={{ flex: 1, py: 6 }}>
+          <MuiLink
+            component={NextLink}
+            href="/docs"
+            sx={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 0.5,
+              mb: 3,
+              textDecoration: 'none',
+              color: 'text.secondary',
+              '&:hover': { color: 'primary.main' },
+            }}
+          >
+            <ArrowBackIcon sx={{ fontSize: 18 }} />
+            {t('docsPage')}
+          </MuiLink>
           <Alert severity="error">{error ?? t('docsViewLoadError')}</Alert>
         </Container>
         <SiteFooter />
@@ -74,18 +103,12 @@ export default function DocsViewPage() {
   }
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-      <LandingHeader />
-      <Box sx={{ flex: 1 }}>
-        <MarkdownEditorPage
-          externalContent={content}
-          readOnly
-          themeMode={themeMode}
-          onThemeModeChange={setThemeMode}
-          onLocaleChange={setLocale}
-        />
-      </Box>
-      <SiteFooter />
-    </Box>
+    <MarkdownEditorPage
+      externalContent={content}
+      readOnly
+      themeMode={themeMode}
+      onThemeModeChange={setThemeMode}
+      onLocaleChange={setLocale}
+    />
   );
 }
