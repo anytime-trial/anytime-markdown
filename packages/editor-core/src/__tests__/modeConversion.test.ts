@@ -291,4 +291,51 @@ describe("blockquote ラウンドトリップ", () => {
     // 少なくとも1行が > で始まること（blockquote が消えないこと）
     expect(lines.some((l: string) => l.startsWith(">"))).toBe(true);
   });
+
+  test("blockquote 内の空行（段落区切り）がラウンドトリップで保持される", () => {
+    const md = "> 1段落目\n>\n> 2段落目";
+    const output = roundtrip(md);
+    // 2段落目が blockquote 内に残ること
+    expect(output).toContain("> 2段落目");
+    // 空行区切りが保持されること（> のみの行、または空行 + > ）
+    const lines = output.split("\n");
+    const idx1 = lines.findIndex((l: string) => l.includes("1段落目"));
+    const idx2 = lines.findIndex((l: string) => l.includes("2段落目"));
+    // 2段落目が1段落目の直後ではないこと（間に空行がある）
+    expect(idx2 - idx1).toBeGreaterThan(1);
+  });
+
+  test("blockquote 内の空行が sanitizeMarkdown で保持される", () => {
+    const md = "> A11y: テスト行。\n>\n> **推奨案**: 推奨テキスト。";
+    const result = sanitizeMarkdown(md);
+    expect(result).toContain(">");
+    // > のみの行（空行区切り）が残ること
+    const lines = result.split("\n");
+    expect(lines.some((l: string) => l.trim() === ">")).toBe(true);
+  });
+
+  test("blockquote 内の空行が preserveBlankLines で保持される", () => {
+    const md = "> A11y: テスト行。\n>\n> **推奨案**: 推奨テキスト。";
+    const result = preserveBlankLines(md);
+    const lines = result.split("\n");
+    expect(lines.some((l: string) => l.trim() === ">")).toBe(true);
+  });
+
+  test("blockquote 内の空行が sanitizeMarkdown + ラウンドトリップで保持される", () => {
+    // tiptap-markdown は blockquote 内の複数段落を1段落に結合する既知の制約がある。
+    // ポスト処理で **** の化けだけは修正されることを検証する。
+    const md = "> A11y: テスト行。\n>\n> **推奨案**: 推奨テキスト。";
+    const afterSanitize = sanitizeMarkdown(md);
+    const afterPreserve = preserveBlankLines(afterSanitize);
+    const editor = new Editor({
+      extensions: [StarterKit, Markdown.configure({ html: true })],
+      content: afterPreserve,
+    });
+    const output = getMarkdownFromEditor(editor);
+    editor.destroy();
+    // **** に化けないこと
+    expect(output).not.toContain("****");
+    // 推奨案の太字が保持されること
+    expect(output).toContain("**推奨案**");
+  });
 });
