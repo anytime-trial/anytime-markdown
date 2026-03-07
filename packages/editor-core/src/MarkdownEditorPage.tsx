@@ -368,6 +368,11 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     // Tiptap ReactRenderer の flushSync の競合を回避する
     requestAnimationFrame(() => {
       editor.chain().focus().insertContent(preprocessed).run();
+      // テンプレート挿入後、カーソルを先頭に移動してスクロール
+      requestAnimationFrame(() => {
+        editor.commands.setTextSelection(0);
+        editor.view.dom.scrollTop = 0;
+      });
     });
   }, [editor, sourceMode, appendToSource]);
 

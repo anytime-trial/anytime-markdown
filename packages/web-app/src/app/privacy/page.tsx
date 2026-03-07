@@ -24,7 +24,7 @@ export default async function PrivacyPolicyPage() {
   const t = await getTranslations('Privacy');
 
   return (
-  <>
+  <div style={{ height: '100vh', overflow: 'auto' }}>
     <Container maxWidth="md" sx={{ py: 6 }}>
       <Link
         component={NextLink}
@@ -93,7 +93,7 @@ export default async function PrivacyPolicyPage() {
 
     </Container>
     <SiteFooter />
-  </>
+  </div>
   );
 }
 
