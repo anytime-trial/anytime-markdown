@@ -22,21 +22,7 @@ import NextLink from 'next/link';
 import { useTranslations } from 'next-intl';
 import LandingHeader from '../components/LandingHeader';
 import SiteFooter from '../components/SiteFooter';
-
-interface LayoutCard {
-  id: string;
-  docKey: string;
-  title: string;
-  description: string;
-  thumbnail: string;
-  tags?: string[];
-  order: number;
-}
-
-interface LayoutData {
-  cards: LayoutCard[];
-  siteDescription?: string;
-}
+import type { LayoutCard, LayoutData } from '../../types/layout';
 
 export default function SitesBody() {
   const t = useTranslations('Landing');

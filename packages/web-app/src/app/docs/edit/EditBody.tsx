@@ -52,23 +52,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import LandingHeader from '../../components/LandingHeader';
 import SiteFooter from '../../components/SiteFooter';
-
-interface DocFile {
-  key: string;
-  name: string;
-  lastModified: string;
-  size: number;
-}
-
-interface LayoutCard {
-  id: string;
-  docKey: string;
-  title: string;
-  description: string;
-  thumbnail: string;
-  tags: string[];
-  order: number;
-}
+import type { DocFile, LayoutCard } from '../../../types/layout';
 
 function generateId() {
   return crypto.randomUUID();

@@ -31,6 +31,7 @@ const SANITIZE_CONFIG = {
     'a', 'blockquote', 'img',
   ],
   ALLOWED_ATTR: ['href', 'target', 'rel', 'src', 'alt', 'title', 'id', 'class'],
+  FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover'],
   ALLOW_DATA_ATTR: false,
 };
 
