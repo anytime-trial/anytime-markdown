@@ -4,16 +4,113 @@
 
 **Goal:** S3 に保存された Markdown ファイルを一覧・閲覧できるページを web-app に追加する。\
 
-**Architecture:** ファイル一覧 API からファイルリストを取得し `/docs` に表示。\
-ファイル選択で `/docs/view?url=<S3-URL>` に遷移し、`MarkdownEditorPage` を読み取り専用モードで表示。\
+**Architecture:** Next.js サーバーサイド（Route Handler）から AWS SDK で S3 に直接アクセス。\
+`/api/docs` で S3 ListObjects、`/api/docs/content` で S3 GetObject を実行。\
+ファイル選択で `/docs/view?key=<S3-key>` に遷移し、`MarkdownEditorPage` を読み取り専用モードで表示。\
 `MarkdownEditorPage` に `externalContent` + `readOnly` props を追加して実現する。\
 
-**Tech Stack:** Next.js 15 (App Router), editor-core (Tiptap), MUI 7, next-intl
+**Tech Stack:** Next.js 15 (App Router), AWS SDK v3, editor-core (Tiptap), MUI 7, next-intl
 
 ---
 
 
-## Task 1: `MarkdownEditorPage` に `externalContent` / `readOnly` props を追加
+## Task 1: `@aws-sdk/client-s3` パッケージの追加
+
+
+### Files
+
+- Modify: `packages/web-app/package.json`
+
+### Step 1: パッケージをインストール
+
+```bash
+cd packages/web-app
+npm install @aws-sdk/client-s3@3.787.0
+```
+
+
+### Step 2: 環境変数の定義
+
+`packages/web-app/.env.local` に以下を設定（値はユーザーが設定）:
+
+```
+AWS_REGION=ap-northeast-1
+AWS_ACCESS_KEY_ID=<your-access-key>
+AWS_SECRET_ACCESS_KEY=<your-secret-key>
+S3_DOCS_BUCKET=<your-bucket-name>
+S3_DOCS_PREFIX=docs/
+```
+
+> これらはサーバーサイド専用のため `NEXT_PUBLIC_` プレフィックスは不要。\
+
+
+### Step 3: コミット
+
+```bash
+git add packages/web-app/package.json package-lock.json
+git commit -m "feat: @aws-sdk/client-s3 を web-app に追加"
+```
+
+---
+
+
+## Task 2: S3 アクセス用 Route Handler の作成
+
+
+### Files
+
+- Create: `packages/web-app/src/lib/s3Client.ts`
+- Create: `packages/web-app/src/app/api/docs/route.ts`
+- Create: `packages/web-app/src/app/api/docs/content/route.ts`
+
+### Step 1: S3 クライアントの共通モジュールを作成
+
+`packages/web-app/src/lib/s3Client.ts`:
+
+```typescript
+import { S3Client } from '@aws-sdk/client-s3';
+
+export const s3Client = new S3Client({
+  region: process.env.AWS_REGION ?? 'ap-northeast-1',
+});
+
+export const DOCS_BUCKET = process.env.S3_DOCS_BUCKET ?? '';
+export const DOCS_PREFIX = process.env.S3_DOCS_PREFIX ?? 'docs/';
+```
+
+
+### Step 2: ファイル一覧 API を作成
+
+`packages/web-app/src/app/api/docs/route.ts`:
+
+- `GET /api/docs` で `ListObjectsV2Command` を実行
+- `S3_DOCS_PREFIX` 配下の `.md` ファイルをフィルタ
+- レスポンス: `{ files: { key: string; name: string; lastModified: string; size: number }[] }`
+- バケット未設定時は 500 エラーを返す
+
+
+### Step 3: ファイル取得 API を作成
+
+`packages/web-app/src/app/api/docs/content/route.ts`:
+
+- `GET /api/docs/content?key=<S3-key>` で `GetObjectCommand` を実行
+- クエリパラメータ `key` が `S3_DOCS_PREFIX` で始まることを検証（パストラバーサル防止）
+- `.md` 拡張子であることを検証
+- レスポンス: `text/markdown; charset=utf-8` で md テキストを返す
+- key 未指定・不正時は 400、オブジェクト未存在時は 404 を返す
+
+
+### Step 4: コミット
+
+```bash
+git add packages/web-app/src/lib/s3Client.ts packages/web-app/src/app/api/docs/
+git commit -m "feat: S3 アクセス用 Route Handler を作成"
+```
+
+---
+
+
+## Task 3: `MarkdownEditorPage` に `externalContent` / `readOnly` props を追加
 
 
 ### Files
@@ -87,7 +184,7 @@ git commit -m "feat: MarkdownEditorPage に externalContent / readOnly props を
 ---
 
 
-## Task 2: i18n キーの追加
+## Task 4: i18n キーの追加
 
 
 ### Files
@@ -97,28 +194,18 @@ git commit -m "feat: MarkdownEditorPage に externalContent / readOnly props を
 
 ### Step 1: Landing セクションにキーを追加
 
-```json
-// ja.json の Landing セクション
-"docsPage": "ドキュメント",
-"docsDescription": "公開ドキュメントの一覧",
-"docsLoadError": "ドキュメント一覧の読み込みに失敗しました",
-"docsEmpty": "ドキュメントがありません",
-"docsViewLoadError": "ドキュメントの読み込みに失敗しました",
-"docsViewNoUrl": "表示するドキュメントが指定されていません"
-```
+i18n キーは既に追加済み。\
+以下のキーが存在することを確認:
 
 ```json
-// en.json の Landing セクション
-"docsPage": "Docs",
-"docsDescription": "Public documentation",
-"docsLoadError": "Failed to load document list",
-"docsEmpty": "No documents available",
-"docsViewLoadError": "Failed to load document",
-"docsViewNoUrl": "No document specified"
+"docsPage", "docsDescription", "docsLoadError",
+"docsEmpty", "docsViewLoadError", "docsViewNoUrl"
 ```
 
+既に追加済みの場合はスキップ。\
 
-### Step 2: コミット
+
+### Step 2: コミット（変更がある場合のみ）
 
 ```bash
 git add packages/editor-core/src/i18n/ja.json packages/editor-core/src/i18n/en.json
@@ -128,7 +215,7 @@ git commit -m "feat: ドキュメントページ用の i18n キーを追加"
 ---
 
 
-## Task 3: `/docs` 一覧ページの作成
+## Task 5: `/docs` 一覧ページの作成
 
 
 ### Files
@@ -156,18 +243,17 @@ export default function DocsPage() {
 
 ### Step 2: `DocsBody.tsx` を作成
 
-- 環境変数 `NEXT_PUBLIC_DOCS_API_URL` から API URL を取得
-- `useEffect` で API を fetch し、ファイル一覧を取得
-- レスポンス形式: `{ name: string; url: string }[]`（暫定）
-- 各ファイルを `List` + `ListItemButton` で表示
-- クリックで `/docs/view?url=<encoded-url>` に遷移
+- `useEffect` で `/api/docs` を fetch し、ファイル一覧を取得
+- レスポンス形式: `{ files: { key: string; name: string; lastModified: string; size: number }[] }`
+- 各ファイルを `List` + `ListItemButton` で表示（ファイル名、更新日時）
+- クリックで `/docs/view?key=<encoded-key>` に遷移
 - `LandingHeader` + `SiteFooter` で囲む
 - ローディング、エラー、空リストの状態を表示
 
 
 ### Step 3: 動作確認
 
-`/docs` にアクセスし、API が未設定の場合にエラーメッセージが表示されることを確認。\
+`/docs` にアクセスし、S3 が未設定の場合にエラーメッセージが表示されることを確認。\
 
 
 ### Step 4: コミット
@@ -180,7 +266,7 @@ git commit -m "feat: /docs ファイル一覧ページを作成"
 ---
 
 
-## Task 4: `/docs/view` 表示ページの作成
+## Task 6: `/docs/view` 表示ページの作成
 
 
 ### Files
@@ -189,16 +275,17 @@ git commit -m "feat: /docs ファイル一覧ページを作成"
 
 ### Step 1: `page.tsx` を作成
 
-- クエリパラメータ `url` から S3 URL を取得
-- `useEffect` で S3 URL を直接 fetch し md テキストを取得
+- クエリパラメータ `key` から S3 キーを取得
+- `useEffect` で `/api/docs/content?key=<encoded-key>` を fetch し md テキストを取得
 - 取得した md を `MarkdownEditorPage` の `externalContent` に渡す
 - `readOnly={true}` を設定
-- URL 未指定時、fetch エラー時のフォールバック表示
+- key 未指定時、fetch エラー時のフォールバック表示
+- 戻るリンク（`/docs` へ）を表示
 
 
 ### Step 2: 動作確認
 
-`/docs/view?url=https://example.com/test.md` にアクセスし、md が読み取り専用で表示されることを確認。\
+S3 にテスト用 md ファイルを配置し、`/docs/view?key=docs/test.md` でビューア表示を確認。\
 
 
 ### Step 3: コミット
@@ -211,7 +298,7 @@ git commit -m "feat: /docs/view Markdown ビューアページを作成"
 ---
 
 
-## Task 5: ナビゲーション統合
+## Task 7: ナビゲーション統合
 
 
 ### Files
@@ -245,7 +332,8 @@ git commit -m "feat: ヘッダー・フッターに Docs リンクを追加"
 ---
 
 
-## Task 6: 結合確認
+## Task 8: 結合確認
+
 
 ### Step 1: ビルド確認
 
@@ -257,6 +345,6 @@ cd packages/web-app && npm run build
 ### Step 2: 全体動線の確認
 
 1. ランディングページ → ヘッダーの Docs → `/docs` 一覧ページ
-2. ファイルクリック → `/docs/view?url=...` でビューア表示
+2. ファイルクリック → `/docs/view?key=...` でビューア表示
 3. ビューアが読み取り専用であること
 4. `/markdown` エディタが従来通り動作すること
