@@ -1,4 +1,5 @@
-import { S3Client } from '@aws-sdk/client-s3';
+import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import type { LayoutData } from '../types/layout';
 
 export const s3Client = new S3Client({
   region: process.env.AWS_REGION ?? 'ap-northeast-1',
@@ -6,3 +7,30 @@ export const s3Client = new S3Client({
 
 export const DOCS_BUCKET = process.env.S3_DOCS_BUCKET ?? '';
 export const DOCS_PREFIX = process.env.S3_DOCS_PREFIX ?? 'docs/';
+
+const LAYOUT_KEY = DOCS_PREFIX + '_layout.json';
+
+export async function fetchLayoutData(): Promise<LayoutData> {
+  if (!DOCS_BUCKET) {
+    return { cards: [] };
+  }
+
+  try {
+    const response = await s3Client.send(
+      new GetObjectCommand({ Bucket: DOCS_BUCKET, Key: LAYOUT_KEY }),
+    );
+    const body = await response.Body?.transformToString('utf-8');
+    if (!body) return { cards: [] };
+
+    const data = JSON.parse(body) as LayoutData;
+    return {
+      cards: (data.cards ?? []).sort((a, b) => a.order - b.order),
+      siteDescription: data.siteDescription,
+    };
+  } catch (e: unknown) {
+    if (e instanceof Error && e.name === 'NoSuchKey') {
+      return { cards: [] };
+    }
+    throw e;
+  }
+}

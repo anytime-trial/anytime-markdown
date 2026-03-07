@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { fetchLayoutData } from '../../lib/s3Client';
 import SitesBody from './SitesBody';
 
 export const metadata: Metadata = {
@@ -7,6 +8,15 @@ export const metadata: Metadata = {
   alternates: { canonical: '/docs' },
 };
 
-export default function SitesPage() {
-  return <SitesBody />;
+export const dynamic = 'force-dynamic';
+
+export default async function SitesPage() {
+  let initialData;
+  try {
+    initialData = await fetchLayoutData();
+  } catch {
+    initialData = { cards: [], error: true };
+  }
+
+  return <SitesBody initialData={initialData} />;
 }

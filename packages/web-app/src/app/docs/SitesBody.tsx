@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Alert,
   Avatar,
@@ -10,7 +10,6 @@ import {
   CardContent,
   CardMedia,
   Chip,
-  CircularProgress,
   Container,
   Grid,
   Typography,
@@ -22,31 +21,24 @@ import NextLink from 'next/link';
 import { useTranslations } from 'next-intl';
 import LandingHeader from '../components/LandingHeader';
 import SiteFooter from '../components/SiteFooter';
-import type { LayoutCard, LayoutData } from '../../types/layout';
+import type { LayoutCard } from '../../types/layout';
 
-export default function SitesBody() {
+interface SitesBodyProps {
+  initialData: {
+    cards: LayoutCard[];
+    siteDescription?: string;
+    error?: boolean;
+  };
+}
+
+export default function SitesBody({ initialData }: SitesBodyProps) {
   const t = useTranslations('Landing');
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
-  const [cards, setCards] = useState<LayoutCard[]>([]);
-  const [siteDescription, setSiteDescription] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [activeTag, setActiveTag] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetch('/api/sites/layout')
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json() as Promise<LayoutData>;
-      })
-      .then((data) => {
-        setCards(data.cards.sort((a, b) => a.order - b.order));
-        if (data.siteDescription) setSiteDescription(data.siteDescription);
-      })
-      .catch(() => setError(t('sitesLoadError')))
-      .finally(() => setLoading(false));
-  }, [t]);
+  const cards = initialData.cards;
+  const siteDescription = initialData.siteDescription ?? '';
 
   const allTags = useMemo(() => {
     const tagSet = new Set<string>();
@@ -85,15 +77,9 @@ export default function SitesBody() {
           </Typography>
         )}
 
-        {loading && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }} role="status">
-            <CircularProgress size={32} aria-label="Loading" />
-          </Box>
-        )}
+        {initialData.error && <Alert severity="error" sx={{ mb: 2 }}>{t('sitesLoadError')}</Alert>}
 
-        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-
-        {!loading && !error && cards.length === 0 && (
+        {!initialData.error && cards.length === 0 && (
           <Box sx={{ textAlign: 'center', py: 8 }}>
             <DescriptionIcon aria-hidden="true" sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
             <Typography variant="h6" color="text.secondary" sx={{ mb: 1 }}>
@@ -105,7 +91,7 @@ export default function SitesBody() {
           </Box>
         )}
 
-        {!loading && !error && cards.length > 0 && (
+        {!initialData.error && cards.length > 0 && (
           <>
             {allTags.length > 0 && (
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 3 }}>
