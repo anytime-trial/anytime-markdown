@@ -12,6 +12,7 @@ import {
   Dialog,
   DialogActions,
   DialogContent,
+  DialogContentText,
   DialogTitle,
   IconButton,
   List,
@@ -28,6 +29,7 @@ import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import DescriptionIcon from '@mui/icons-material/Description';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
 import { useTranslations } from 'next-intl';
 import {
   DndContext,
@@ -126,7 +128,9 @@ export default function EditBody() {
   const [loading, setLoading] = useState(true);
   const [snackbar, setSnackbar] = useState<{ message: string; severity: 'success' | 'error' } | null>(null);
   const [editCard, setEditCard] = useState<LayoutCard | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DocFile | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const editFormRef = useRef<{ title: string; description: string; thumbnail: string }>({
     title: '',
     description: '',
@@ -137,19 +141,63 @@ export default function EditBody() {
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
   );
 
+  const fetchFiles = useCallback(() => {
+    return fetch('/api/docs')
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json() as Promise<{ files: DocFile[] }>;
+      })
+      .then((data) => setFiles(data.files));
+  }, []);
+
   // ファイル一覧とレイアウトを並行取得
   useEffect(() => {
     Promise.all([
-      fetch('/api/docs').then((r) => r.json()) as Promise<{ files: DocFile[] }>,
+      fetchFiles(),
       fetch('/api/sites/layout').then((r) => r.json()) as Promise<{ cards: LayoutCard[] }>,
     ])
-      .then(([docsData, layoutData]) => {
-        setFiles(docsData.files);
+      .then(([, layoutData]) => {
         setCards(layoutData.cards.sort((a, b) => a.order - b.order));
       })
       .catch(() => setSnackbar({ message: t('sitesLoadError'), severity: 'error' }))
       .finally(() => setLoading(false));
-  }, [t]);
+  }, [t, fetchFiles]);
+
+  const handleUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch('/api/docs/upload', { method: 'POST', body: formData });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setSnackbar({ message: t('docsUploadSuccess'), severity: 'success' });
+      fetchFiles();
+    } catch {
+      setSnackbar({ message: t('docsUploadError'), severity: 'error' });
+    }
+
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }, [t, fetchFiles]);
+
+  const handleDeleteFile = useCallback(async () => {
+    if (!deleteTarget) return;
+
+    try {
+      const res = await fetch(`/api/docs/delete?key=${encodeURIComponent(deleteTarget.key)}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setSnackbar({ message: t('docsDeleteSuccess'), severity: 'success' });
+      // カード一覧からも該当ファイルを除去
+      setCards((prev) => prev.filter((c) => c.docKey !== deleteTarget.key));
+      fetchFiles();
+    } catch {
+      setSnackbar({ message: t('docsDeleteError'), severity: 'error' });
+    }
+
+    setDeleteTarget(null);
+  }, [deleteTarget, t, fetchFiles]);
 
   const handleAddCard = useCallback((file: DocFile) => {
     setCards((prev) => {
@@ -277,15 +325,40 @@ export default function EditBody() {
         <Box sx={{ display: 'flex', gap: 3, flexDirection: { xs: 'column', md: 'row' } }}>
           {/* 左パネル: ファイル一覧 */}
           <Box sx={{ width: { xs: '100%', md: 300 }, flexShrink: 0 }}>
-            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600, color: 'text.secondary' }}>
-              {t('sitesFileList')}
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'text.secondary' }}>
+                {t('sitesFileList')}
+              </Typography>
+              <Button
+                size="small"
+                startIcon={<UploadFileIcon />}
+                onClick={() => fileInputRef.current?.click()}
+                sx={{ textTransform: 'none', fontWeight: 600, fontSize: '0.8rem' }}
+              >
+                {t('docsUpload')}
+              </Button>
+            </Box>
+            <input ref={fileInputRef} type="file" accept=".md" hidden onChange={handleUpload} />
             <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 2, bgcolor: 'background.paper', maxHeight: 400, overflow: 'auto' }}>
               <List dense disablePadding>
                 {files.map((file) => {
                   const alreadyAdded = cards.some((c) => c.docKey === file.key);
                   return (
-                    <ListItem key={file.key} disablePadding>
+                    <ListItem
+                      key={file.key}
+                      disablePadding
+                      secondaryAction={
+                        <IconButton
+                          edge="end"
+                          size="small"
+                          aria-label={t('docsDelete')}
+                          onClick={() => setDeleteTarget(file)}
+                          sx={{ color: 'text.secondary', '&:hover': { color: 'error.main' } }}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      }
+                    >
                       <ListItemButton
                         onClick={() => handleAddCard(file)}
                         disabled={alreadyAdded}
@@ -362,6 +435,27 @@ export default function EditBody() {
         </Box>
       </Container>
       <SiteFooter />
+
+      {/* ファイル削除確認ダイアログ */}
+      <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)}>
+        <DialogTitle>{t('docsDelete')}</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            {t('docsDeleteConfirm')}
+            {deleteTarget && (
+              <Box component="span" sx={{ display: 'block', mt: 1, fontWeight: 600 }}>
+                {deleteTarget.name}
+              </Box>
+            )}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteTarget(null)}>{tCommon('cancel')}</Button>
+          <Button onClick={handleDeleteFile} color="error" variant="contained">
+            {t('docsDelete')}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* カード編集ダイアログ */}
       <Dialog open={!!editCard} onClose={() => setEditCard(null)} maxWidth="sm" fullWidth>
