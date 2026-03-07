@@ -294,7 +294,6 @@ Customize the editor appearance and behavior.
 
 - Adjustable settings: Line Height, Font Size, Table Width, Editor Min Width, Editor Background Color.
 - Section numbers: Toggle the "Section numbers" switch to auto-number headings (e.g. 1, 1.1, 1.1.1).
-- Page break guide: Toggle the "Page break guide" switch to show or hide page break indicators in the editor.
 
 ### Encoding & Line Ending
 

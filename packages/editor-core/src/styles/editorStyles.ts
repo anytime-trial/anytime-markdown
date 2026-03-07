@@ -40,7 +40,6 @@ export function getEditorPaperSx(
       color: theme.palette.mode === "dark"
         ? (settings.darkTextColor || theme.palette.text.primary)
         : (settings.lightTextColor || theme.palette.text.primary),
-      // A4 ページ区切りガイド（MarkdownEditorPage の useEffect で動的に設定）
       "@media print": {
         backgroundImage: "none !important",
       },

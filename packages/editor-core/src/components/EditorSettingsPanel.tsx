@@ -188,19 +188,6 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
         </ToggleButtonGroup>
       </Box>
 
-      {/* Page Break Guide */}
-      <Box sx={{ mb: 2, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary" }}>
-          {t("settingPageBreakGuide")}
-        </Typography>
-        <Switch
-          checked={settings.showPageBreakGuide}
-          onChange={(e) => updateSettings({ showPageBreakGuide: e.target.checked })}
-          size="small"
-          inputProps={{ "aria-label": t("settingPageBreakGuide") }}
-        />
-      </Box>
-
       <Divider sx={{ mb: 2 }} />
 
       {/* Reset */}

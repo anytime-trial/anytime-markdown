@@ -18,7 +18,6 @@ import { PrintStyles } from "./styles/printStyles";
 import { useEditor, EditorContent } from "@tiptap/react";
 import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { alpha } from "@mui/material/styles";
 
 import { useMarkdownEditor } from "./useMarkdownEditor";
 import { welcomeContent } from "./constants/welcomeContent";
@@ -249,88 +248,6 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   // Table toolbar is now embedded in TableNodeView
   // Mermaid toolbar is now embedded in MermaidNodeView
   const plantUmlFloating = useFloatingToolbar(editor, editorWrapperRef, "codeBlock", "plantuml");
-
-  // A4 ページ区切りガイド（page-break-inside: avoid を考慮した動的計算）
-  useEffect(() => {
-    if (!editor) return;
-    const contentEl = editorWrapperRef.current?.querySelector(".tiptap") as HTMLElement | null;
-    if (!contentEl) return;
-
-    if (!settings.showPageBreakGuide) {
-      contentEl.style.backgroundImage = "";
-      contentEl.style.backgroundAttachment = "";
-      return;
-    }
-
-    const PAGE_HEIGHT_PX = 267 * (96 / 25.4); // A4 297mm - margin 15mm*2
-    const lineColor = alpha(theme.palette.divider, 0.5);
-
-    const calculate = () => {
-      const blocks = Array.from(contentEl.children) as HTMLElement[];
-      const breaks: number[] = [];
-      let nextPageBreak = PAGE_HEIGHT_PX;
-
-      for (const block of blocks) {
-        const blockTop = block.offsetTop;
-        const blockHeight = block.offsetHeight;
-        const blockBottom = blockTop + blockHeight;
-
-        if (blockBottom <= nextPageBreak) continue;
-
-        const avoidsBreak =
-          block.matches("pre, blockquote, [data-node-view-wrapper]") ||
-          !!block.querySelector("img, svg");
-
-        if (avoidsBreak && blockTop < nextPageBreak && blockHeight < PAGE_HEIGHT_PX) {
-          breaks.push(blockTop);
-          nextPageBreak = blockTop + PAGE_HEIGHT_PX;
-        } else {
-          breaks.push(nextPageBreak);
-          nextPageBreak += PAGE_HEIGHT_PX;
-          while (blockBottom > nextPageBreak) {
-            breaks.push(nextPageBreak);
-            nextPageBreak += PAGE_HEIGHT_PX;
-          }
-        }
-      }
-
-      if (breaks.length === 0) {
-        contentEl.style.backgroundImage = "";
-        return;
-      }
-
-      const stops = breaks
-        .flatMap((pos) => [
-          `transparent ${pos - 0.5}px`,
-          `${lineColor} ${pos - 0.5}px`,
-          `${lineColor} ${pos + 0.5}px`,
-          `transparent ${pos + 0.5}px`,
-        ])
-        .join(", ");
-      contentEl.style.backgroundImage = `linear-gradient(to bottom, ${stops})`;
-      contentEl.style.backgroundAttachment = "local";
-    };
-
-    let rafId: number;
-    const scheduleCalculate = () => {
-      cancelAnimationFrame(rafId);
-      rafId = requestAnimationFrame(calculate);
-    };
-
-    scheduleCalculate();
-    const mutObs = new MutationObserver(scheduleCalculate);
-    mutObs.observe(contentEl, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["class", "data-type", "data-node-view-wrapper"] });
-    const resizeObs = new ResizeObserver(scheduleCalculate);
-    resizeObs.observe(contentEl);
-
-    return () => {
-      cancelAnimationFrame(rafId);
-      mutObs.disconnect();
-      resizeObs.disconnect();
-      contentEl.style.backgroundImage = "";
-      contentEl.style.backgroundAttachment = "";
-    };
-  }, [editor, theme, settings.fontSize, settings.lineHeight, settings.showPageBreakGuide]);
 
   // セクション自動番号の表示切替
   useEffect(() => {
