@@ -84,21 +84,25 @@ interface MarkdownEditorPageProps {
   onThemeModeChange?: (mode: 'light' | 'dark') => void;
   onLocaleChange?: (locale: string) => void;
   fileSystemProvider?: FileSystemProvider | null;
+  externalContent?: string;
+  readOnly?: boolean;
 }
 
-export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideHelp, hideVersionInfo, featuresUrl, onCompareModeChange, themeMode, onThemeModeChange, onLocaleChange, fileSystemProvider }: MarkdownEditorPageProps = {}) {
+export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideHelp, hideVersionInfo, featuresUrl, onCompareModeChange, themeMode, onThemeModeChange, onLocaleChange, fileSystemProvider, externalContent, readOnly }: MarkdownEditorPageProps = {}) {
   const theme = useTheme();
   const t = useTranslations("MarkdownEditor");
   const locale = useLocale() as "en" | "ja";
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const isMd = useMediaQuery(theme.breakpoints.up("md"));
+  const noopSave = useCallback(() => {}, []);
   const {
     initialContent,
     loading,
-    saveContent,
+    saveContent: _saveContent,
     downloadMarkdown,
     clearContent,
-  } = useMarkdownEditor(defaultContent);
+  } = useMarkdownEditor(externalContent ?? defaultContent);
+  const saveContent = readOnly ? noopSave : _saveContent;
 
   const [encoding, setEncoding] = useState<EncodingLabel>("UTF-8");
   const [commentOpen, setCommentOpen] = useState(false);
@@ -153,6 +157,12 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     handleSwitchToSource, handleSwitchToWysiwyg, handleSwitchToView, executeInViewMode,
     handleSourceChange, appendToSource,
   } = useSourceMode({ editor, saveContent, t });
+
+  useEffect(() => {
+    if (readOnly && editor) {
+      editor.setEditable(false);
+    }
+  }, [readOnly, editor]);
 
   const sourceSearch = useTextareaSearch(sourceTextareaRef, sourceText, handleSourceChange);
 
@@ -400,9 +410,10 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         onSaveAsFile={handleSaveAsFile}
         hasFileHandle={fileHandle !== null}
         supportsDirectAccess={supportsDirectAccess}
-        hideFileOps={hideFileOps}
-        hideUndoRedo={hideUndoRedo}
-        hideMoreMenu={hideHelp && hideVersionInfo && hideSettings}
+        hideFileOps={readOnly || hideFileOps}
+        hideUndoRedo={readOnly || hideUndoRedo}
+        hideMoreMenu={(readOnly || hideHelp) && (readOnly || hideVersionInfo) && (readOnly || hideSettings)}
+        hideModeToggle={readOnly}
         hideSettings={hideSettings}
         hideVersionInfo={hideVersionInfo}
         onOpenSettings={() => setSettingsOpen(true)}

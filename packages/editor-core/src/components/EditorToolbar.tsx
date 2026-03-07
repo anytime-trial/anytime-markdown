@@ -121,6 +121,7 @@ interface EditorToolbarProps {
   onAnnounce?: (message: string) => void;
   commentOpen?: boolean;
   onToggleComments?: () => void;
+  hideModeToggle?: boolean;
   t: TranslationFn;
 }
 
@@ -163,6 +164,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
   onExportPdf,
   commentOpen,
   onToggleComments,
+  hideModeToggle,
   t,
 }: EditorToolbarProps) {
   const [fileMenuAnchorEl, setFileMenuAnchorEl] = useState<HTMLElement | null>(null);
@@ -439,7 +441,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
       <Box sx={{ flexGrow: 1 }} />
 
       {/* Source / Edit / Review toggle */}
-      <ToggleButtonGroup
+      {!hideModeToggle && <ToggleButtonGroup
         value={viewMode ? "viewer" : sourceMode ? "source" : "wysiwyg"}
         exclusive
         size="small"
@@ -497,10 +499,10 @@ export const EditorToolbar = React.memo(function EditorToolbar({
           <CodeIcon sx={{ fontSize: "1rem" }} />
           <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>{t("source")}</Box>
         </ToggleButton>
-      </ToggleButtonGroup>
+      </ToggleButtonGroup>}
 
       {/* Compare toggle (md 以上のみ表示) */}
-      <ToggleButtonGroup
+      {!hideModeToggle && <ToggleButtonGroup
         value={inlineMergeOpen ? "compare" : "edit"}
         exclusive
         size="small"
@@ -553,7 +555,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
           <ViewStreamIcon sx={{ fontSize: "1rem", transform: "rotate(90deg)" }} />
           {t("compare")}
         </ToggleButton>
-      </ToggleButtonGroup>
+      </ToggleButtonGroup>}
 
       {/* More menu - desktop: help/settings, mobile: all hidden items */}
       {!hideMoreMenu && (
