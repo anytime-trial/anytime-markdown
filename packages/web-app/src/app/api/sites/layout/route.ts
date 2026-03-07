@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
+import { revalidatePath } from 'next/cache';
 import { s3Client, DOCS_BUCKET, DOCS_PREFIX, fetchLayoutData } from '../../../../lib/s3Client';
 import { checkBasicAuth } from '../../../../lib/basicAuth';
 import { layoutDataSchema } from '../../../../types/layout';
@@ -9,7 +10,9 @@ const LAYOUT_KEY = DOCS_PREFIX + '_layout.json';
 export async function GET() {
   try {
     const data = await fetchLayoutData();
-    return NextResponse.json(data);
+    return NextResponse.json(data, {
+      headers: { 'Cache-Control': 'public, max-age=60, stale-while-revalidate=300' },
+    });
   } catch (e) {
     console.error('Failed to get layout:', e);
     return NextResponse.json(
@@ -49,6 +52,7 @@ export async function PUT(request: NextRequest) {
     });
     await s3Client.send(command);
 
+    revalidatePath('/docs');
     return NextResponse.json({ saved: true });
   } catch (e) {
     console.error('Failed to save layout:', e);

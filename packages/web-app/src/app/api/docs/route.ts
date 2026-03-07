@@ -26,7 +26,9 @@ export async function GET() {
         size: obj.Size ?? 0,
       }));
 
-    return NextResponse.json({ files });
+    return NextResponse.json({ files }, {
+      headers: { 'Cache-Control': 'public, max-age=60, stale-while-revalidate=300' },
+    });
   } catch (e) {
     console.error('Failed to list S3 objects:', e);
     return NextResponse.json(
