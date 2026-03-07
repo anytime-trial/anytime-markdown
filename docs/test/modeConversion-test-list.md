@@ -7,7 +7,7 @@
 
 ## 概要
 
-ソースモード（生 Markdown）と WYSIWYG モード（ProseMirror エディタ）間の変換処理を検証する。
+ソースモード（生 Markdown）と WYSIWYG モード（ProseMirror エディタ）間の変換処理を検証する。\
 `sanitizeMarkdown` によるHTML安全性の確保、`preserveBlankLines` / `restoreBlankLines` による改行数の保持、`getMarkdownFromEditor` による出力の安定性を保証する。
 
 
