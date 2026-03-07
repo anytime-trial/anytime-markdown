@@ -2,7 +2,7 @@
 
 更新日: 2026-03-06
 
-[Claude Code Markdown フォーマット仕様](../../development_guidelines/claude-code-markdown-format-spec.md) の各セクションに対する anytime-markdown エディタの対応状況を比較する。
+[Claude Code Markdown フォーマット仕様](~/.claude/development_guidelines/claude-code-markdown-format-spec.md) の各セクションに対する anytime-markdown エディタの対応状況を比較する。
 
 ---
 
