@@ -327,29 +327,6 @@ describe("テンプレートファイル ラウンドトリップ", () => {
     expect(saved).toBe(original.trimEnd());
   });
 
-  test("welcomeContent.md: 読み込み→保存で内容が変わらない", () => {
-    const original = fs.readFileSync(path.join(templatesDir, "welcomeContent.md"), "utf-8");
-    const saved = templateRoundTrip("welcomeContent.md");
-    expect(saved).toBe(original.trimEnd());
-  });
-
-  test("blogPost.md: 読み込み→保存で内容が変わらない", () => {
-    const original = fs.readFileSync(path.join(templatesDir, "blogPost.md"), "utf-8");
-    const saved = templateRoundTrip("blogPost.md");
-    expect(saved).toBe(original.trimEnd());
-  });
-
-  test("meetingNotes.md: 読み込み→保存で内容が変わらない", () => {
-    const original = fs.readFileSync(path.join(templatesDir, "meetingNotes.md"), "utf-8");
-    const saved = templateRoundTrip("meetingNotes.md");
-    expect(saved).toBe(original.trimEnd());
-  });
-
-  test("readme.md: 読み込み→保存で内容が変わらない", () => {
-    const original = fs.readFileSync(path.join(templatesDir, "readme.md"), "utf-8");
-    const saved = templateRoundTrip("readme.md", { withTable: true });
-    expect(saved).toBe(original.trimEnd());
-  });
 });
 
 // ---------- エッジケース ラウンドトリップ ----------

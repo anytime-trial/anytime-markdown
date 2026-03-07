@@ -20,7 +20,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useMarkdownEditor } from "./useMarkdownEditor";
-import { welcomeContent } from "./constants/welcomeContent";
+import { defaultContent } from "./constants/defaultContent";
 import { EditorOutlineSection } from "./components/EditorOutlineSection";
 import { SourceModeEditor } from "./components/SourceModeEditor";
 import { StatusBar } from "./components/StatusBar";
@@ -98,7 +98,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     saveContent,
     downloadMarkdown,
     clearContent,
-  } = useMarkdownEditor(welcomeContent);
+  } = useMarkdownEditor(defaultContent);
 
   const [encoding, setEncoding] = useState<EncodingLabel>("UTF-8");
   const [commentOpen, setCommentOpen] = useState(false);
