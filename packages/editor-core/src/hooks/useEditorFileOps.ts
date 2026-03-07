@@ -119,7 +119,8 @@ export function useEditorFileOps({
   }, [sourceMode, sourceText, editor, confirm, t, handleImport]);
 
   const handleDownload = useCallback(() => {
-    const md = sourceMode ? sourceText : editor ? getMarkdownFromEditor(editor) : "";
+    let md = sourceMode ? sourceText : editor ? getMarkdownFromEditor(editor) : "";
+    if (md && !md.endsWith("\n")) md += "\n";
     downloadMarkdown(md, encoding);
   }, [sourceMode, sourceText, editor, downloadMarkdown, encoding]);
 
@@ -160,7 +161,8 @@ export function useEditorFileOps({
 
   const handleSaveFile = useCallback(async () => {
     if (!saveFile) return;
-    const md = sourceMode ? sourceText : editor ? getMarkdownFromEditor(editor) : "";
+    let md = sourceMode ? sourceText : editor ? getMarkdownFromEditor(editor) : "";
+    if (md && !md.endsWith("\n")) md += "\n";
     if (encoding && encoding !== "UTF-8" && fileHandle?.nativeHandle) {
       const nativeHandle = fileHandle.nativeHandle as FileSystemFileHandle;
       const Encoding = (await import("encoding-japanese")).default;
@@ -178,7 +180,8 @@ export function useEditorFileOps({
 
   const handleSaveAsFile = useCallback(async () => {
     if (!saveAsFile) return;
-    const md = sourceMode ? sourceText : editor ? getMarkdownFromEditor(editor) : "";
+    let md = sourceMode ? sourceText : editor ? getMarkdownFromEditor(editor) : "";
+    if (md && !md.endsWith("\n")) md += "\n";
     await saveAsFile(md);
     showNotification("fileSaved");
   }, [saveAsFile, editor, sourceMode, sourceText, showNotification]);

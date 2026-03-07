@@ -125,7 +125,7 @@ describe("useEditorFileOps", () => {
       await result.current.handleSaveFile();
     });
 
-    expect(saveFn).toHaveBeenCalledWith("# Test");
+    expect(saveFn).toHaveBeenCalledWith("# Test\n");
   });
 
   test("handleSaveFile: sourceMode 時は sourceText を保存する", async () => {
@@ -140,7 +140,7 @@ describe("useEditorFileOps", () => {
       await result.current.handleSaveFile();
     });
 
-    expect(saveFn).toHaveBeenCalledWith("# Source");
+    expect(saveFn).toHaveBeenCalledWith("# Source\n");
   });
 
   test("handleSaveFile: saveFile 未指定時は何もしない", async () => {
@@ -162,7 +162,7 @@ describe("useEditorFileOps", () => {
       await result.current.handleSaveAsFile();
     });
 
-    expect(saveAsFn).toHaveBeenCalledWith("# SaveAs");
+    expect(saveAsFn).toHaveBeenCalledWith("# SaveAs\n");
   });
 
   test("handleSaveAsFile: sourceMode 時は sourceText を保存する", async () => {
@@ -177,7 +177,7 @@ describe("useEditorFileOps", () => {
       await result.current.handleSaveAsFile();
     });
 
-    expect(saveAsFn).toHaveBeenCalledWith("# SourceSaveAs");
+    expect(saveAsFn).toHaveBeenCalledWith("# SourceSaveAs\n");
   });
 
   test("handleSaveAsFile: saveAsFile 未指定時は何もしない", async () => {
@@ -352,7 +352,7 @@ describe("useEditorFileOps", () => {
       result.current.handleDownload();
     });
 
-    expect(downloadMarkdown).toHaveBeenCalledWith("# Download", undefined);
+    expect(downloadMarkdown).toHaveBeenCalledWith("# Download\n", undefined);
   });
 
   test("handleDownload: sourceMode 時は sourceText を渡す", () => {
@@ -365,7 +365,7 @@ describe("useEditorFileOps", () => {
       result.current.handleDownload();
     });
 
-    expect(downloadMarkdown).toHaveBeenCalledWith("# SourceDL", undefined);
+    expect(downloadMarkdown).toHaveBeenCalledWith("# SourceDL\n", undefined);
   });
 
   // ---- handleCopy ----
