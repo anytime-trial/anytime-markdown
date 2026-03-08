@@ -52,5 +52,19 @@ export function useEditorBlockActions({ editor }: UseEditorBlockActionsParams) {
     editor.view.dispatch(tr);
   }, [editor]);
 
-  return { handleToggleAllBlocks, handleToggleDiagramCode };
+  /** すべてのブロックを展開（折りたたみ解除） */
+  const handleExpandAllBlocks = useCallback(() => {
+    if (!editor) return;
+    const tr = editor.state.tr;
+    let changed = false;
+    editor.state.doc.descendants((node, pos) => {
+      if ((node.type.name === "codeBlock" || node.type.name === "table" || node.type.name === "image") && node.attrs.collapsed) {
+        tr.setNodeMarkup(pos, undefined, { ...node.attrs, collapsed: false });
+        changed = true;
+      }
+    });
+    if (changed) editor.view.dispatch(tr);
+  }, [editor]);
+
+  return { handleToggleAllBlocks, handleToggleDiagramCode, handleExpandAllBlocks };
 }

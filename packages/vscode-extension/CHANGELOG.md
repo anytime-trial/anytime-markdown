@@ -4,6 +4,19 @@ All notable changes to the "anytime-markdown" extension will be documented in th
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.2.6] - 2026-03-08
+
+### Changed
+- 比較モードの右側エディタを常に readonly に変更
+- 比較モードの右側エディタでコメント入力を無効化
+- ツールバーからすべて折りたたむ/展開するボタンを削除
+- 比較モードでの mermaid/plantuml ブロック自動折りたたみを廃止（常に展開）
+- 比較モードの右ファイルエクスポートボタンを削除
+- 比較モード・readonly・review モードで行頭ホバーラベルを非表示に変更（左側編集エディタは表示維持）
+
+### Fixed
+- /docs/view ページの本番環境キャッシュ問題を修正（force-dynamic 追加）
+
 ## [0.2.5] - 2026-03-08
 
 ### Added

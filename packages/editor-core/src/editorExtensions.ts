@@ -103,8 +103,8 @@ const ListTextCleanup = Extension.create({
 });
 
 /** 共通 Extension（メインエディタ / 比較エディタで共有） */
-export function getBaseExtensions(): Extensions {
-  return [
+export function getBaseExtensions(options?: { disableComments?: boolean }): Extensions {
+  const extensions: Extensions = [
     StarterKit.configure({
       heading: { levels: [1, 2, 3, 4, 5] },
       codeBlock: false,
@@ -143,8 +143,9 @@ export function getBaseExtensions(): Extensions {
     MathInline,
     FootnoteRef,
     HeadingNumberExtension,
-    CommentHighlight,
-    CommentPoint,
-    CommentDataPlugin,
   ];
+  if (!options?.disableComments) {
+    extensions.push(CommentHighlight, CommentPoint, CommentDataPlugin);
+  }
+  return extensions;
 }

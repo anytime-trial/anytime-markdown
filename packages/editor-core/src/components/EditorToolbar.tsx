@@ -19,8 +19,6 @@ import ListAltIcon from "@mui/icons-material/ListAlt";
 import RedoIcon from "@mui/icons-material/Redo";
 
 import UndoIcon from "@mui/icons-material/Undo";
-import UnfoldLessIcon from "@mui/icons-material/UnfoldLess";
-import UnfoldMoreIcon from "@mui/icons-material/UnfoldMore";
 import CodeIcon from "@mui/icons-material/Code";
 import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
 import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
@@ -72,8 +70,6 @@ const TOOLTIP_SHORTCUTS: Record<string, string> = {
   sourceMode: `${modKey}+Alt+S`,
   normalMode: `${modKey}+Alt+M`,
   compareMode: `${modKey}+Alt+M`,
-  foldAll: `${modKey}+Alt+F`,
-  unfoldAll: `${modKey}+Alt+F`,
   outline: `${modKey}+Alt+O`,
 };
 
@@ -129,6 +125,7 @@ interface EditorToolbarProps {
   hideOutline?: boolean;
   hideComments?: boolean;
   hideTemplates?: boolean;
+  hideFoldAll?: boolean;
   t: TranslationFn;
 }
 
@@ -178,6 +175,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
   hideOutline,
   hideComments,
   hideTemplates,
+  hideFoldAll,
   t,
 }: EditorToolbarProps) {
   const [fileMenuAnchorEl, setFileMenuAnchorEl] = useState<HTMLElement | null>(null);
@@ -216,15 +214,9 @@ export const EditorToolbar = React.memo(function EditorToolbar({
   const editorState = useEditorState({
     editor,
     selector: (ctx) => {
-      let allCollapsed = true;
-      let hasBlocks = false;
       let allDiagramCodeCollapsed = true;
       let hasDiagrams = false;
       ctx.editor?.state.doc.descendants((node) => {
-        if (node.type.name === "codeBlock" || node.type.name === "table" || node.type.name === "image") {
-          hasBlocks = true;
-          if (!node.attrs.collapsed) allCollapsed = false;
-        }
         if (node.type.name === "codeBlock") {
           const lang = (node.attrs.language || "").toLowerCase();
           if (lang === "mermaid" || lang === "plantuml") {
@@ -241,8 +233,6 @@ export const EditorToolbar = React.memo(function EditorToolbar({
         canRedo: ctx.editor?.can().redo() ?? false,
         isCodeBlock: ctx.editor?.isActive("codeBlock") ?? false,
         isInDiagramCode,
-        allBlocksCollapsed: hasBlocks && allCollapsed,
-        hasBlocks,
         allDiagramCodeCollapsed: hasDiagrams && allDiagramCodeCollapsed,
         hasDiagrams,
       };
@@ -377,11 +367,6 @@ export const EditorToolbar = React.memo(function EditorToolbar({
                       <FolderOpenIcon fontSize="small" />
                     </Tooltip>
                   </ToggleButton>
-                  <ToggleButton value="saveAs" onClick={onExportRightFile} aria-label={t("exportCompareFile")} sx={{ px: 0.75, py: 0.25 }}>
-                    <Tooltip title={t("mergeExportRight")}>
-                      <SaveAsIcon fontSize="small" />
-                    </Tooltip>
-                  </ToggleButton>
                 </ToggleButtonGroup>
               </>
             )}
@@ -420,13 +405,6 @@ export const EditorToolbar = React.memo(function EditorToolbar({
       {/* Fold/Unfold, DiagramCode, Outline - hidden on mobile */}
       <Box sx={{ display: { xs: "none", md: "contents" } }}>
       <ToggleButtonGroup size="small" aria-label={t("view")} sx={{ height: 30 }}>
-        {editorState?.hasBlocks && (
-          <ToggleButton value="fold" onClick={onToggleAllBlocks} disabled={inlineMergeOpen || sourceMode || readonlyMode || reviewMode} aria-label={editorState.allBlocksCollapsed ? t("unfoldAll") : t("foldAll")} sx={{ px: 0.75, py: 0.25 }}>
-            <Tooltip title={editorState.allBlocksCollapsed ? tip(t, "unfoldAll") : tip(t, "foldAll")}>
-              <span style={{ display: "inline-flex" }}>{editorState.allBlocksCollapsed ? <UnfoldMoreIcon fontSize="small" /> : <UnfoldLessIcon fontSize="small" />}</span>
-            </Tooltip>
-          </ToggleButton>
-        )}
         {!hideOutline && <ToggleButton value="outline" selected={outlineOpen} onClick={onToggleOutline} disabled={inlineMergeOpen || sourceMode} aria-label={t("outline")} sx={{ px: 0.75, py: 0.25 }}>
           <Tooltip title={tip(t, "outline")}>
             <span style={{ display: "inline-flex" }}><ListAltIcon fontSize="small" /></span>
@@ -626,21 +604,6 @@ export const EditorToolbar = React.memo(function EditorToolbar({
         >
           <ListItemIcon><ChatBubbleOutlineIcon fontSize="small" color={commentOpen ? "primary" : "inherit"} /></ListItemIcon>
           <ListItemText>{t("commentPanel") || "Comments"}</ListItemText>
-        </MenuItem>
-      )}
-      {editorState?.hasBlocks && (
-        <MenuItem
-          onClick={() => { onToggleAllBlocks(); setMobileMenuAnchorEl(null); }}
-          disabled={inlineMergeOpen || sourceMode || readonlyMode || reviewMode}
-        >
-          <ListItemIcon>
-            {editorState.allBlocksCollapsed
-              ? <UnfoldMoreIcon fontSize="small" />
-              : <UnfoldLessIcon fontSize="small" />}
-          </ListItemIcon>
-          <ListItemText>
-            {editorState.allBlocksCollapsed ? t("unfoldAll") : t("foldAll")}
-          </ListItemText>
         </MenuItem>
       )}
       <MenuItem

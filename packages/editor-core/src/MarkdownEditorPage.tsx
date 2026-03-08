@@ -93,12 +93,13 @@ interface MarkdownEditorPageProps {
   hideOutline?: boolean;
   hideComments?: boolean;
   hideTemplates?: boolean;
+  hideFoldAll?: boolean;
   hideStatusBar?: boolean;
   onStatusChange?: (status: { line: number; col: number; charCount: number; lineCount: number; lineEnding: string; encoding: string }) => void;
   showReadonlyMode?: boolean;
 }
 
-export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideHelp, hideVersionInfo, featuresUrl, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, onLocaleChange, fileSystemProvider, externalContent, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideStatusBar, onStatusChange, showReadonlyMode }: MarkdownEditorPageProps = {}) {
+export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideHelp, hideVersionInfo, featuresUrl, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, onLocaleChange, fileSystemProvider, externalContent, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, showReadonlyMode }: MarkdownEditorPageProps = {}) {
   const theme = useTheme();
   const t = useTranslations("MarkdownEditor");
   const locale = useLocale() as "en" | "ja";
@@ -436,7 +437,12 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   // PlantUML/Mermaid 編集中はMarkdownツールバーを無効化
   const isInDiagramBlock = !!plantUmlFloating;
 
-  const { handleToggleAllBlocks } = useEditorBlockActions({ editor });
+  const { handleToggleAllBlocks, handleExpandAllBlocks } = useEditorBlockActions({ editor });
+
+  // hideFoldAll: エディタ準備完了時に全ブロックを展開
+  useEffect(() => {
+    if (hideFoldAll && editor) handleExpandAllBlocks();
+  }, [hideFoldAll, editor, handleExpandAllBlocks]);
 
   useEditorShortcuts({
     editor, sourceMode, readonlyMode, reviewMode, appendToSource,
@@ -539,6 +545,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         hideOutline={hideOutline}
         hideComments={hideComments}
         hideTemplates={hideTemplates}
+        hideFoldAll={hideFoldAll}
 
         mergeUndoRedo={inlineMergeOpen ? mergeUndoRedo : null}
         onOpenFile={handleOpenFile}
@@ -650,6 +657,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
                 bgGradient={leftBgGradient}
                 diffLines={leftDiffLines}
                 side="left"
+                showHoverLabels
                 onMerge={onMerge}
                 onHoverLine={onHoverLine}
               />

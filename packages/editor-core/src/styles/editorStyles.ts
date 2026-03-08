@@ -30,7 +30,7 @@ export function getEditorPaperSx(
       // readonly/レビューモード（contenteditable=false）時はホバーラベルを非表示
       '&[contenteditable="false"]': {
         "& h1::before, & h2::before, & h3::before, & h4::before, & h5::before, & > p::before, & > blockquote > p::before, & li::before": {
-          display: "none",
+          display: "none !important" as unknown as string,
         },
       },
       // readonlyモード時はチェックボックスを無効化

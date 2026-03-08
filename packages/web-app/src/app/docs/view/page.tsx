@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import { fetchLayoutData } from '../../../lib/s3Client';
 import DocsViewBody from './DocsViewBody';
 
+export const dynamic = 'force-dynamic';
+
 interface Props {
   searchParams: Promise<{ key?: string }>;
 }

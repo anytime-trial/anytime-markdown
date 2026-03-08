@@ -162,7 +162,7 @@ export function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <ConfirmProvider>
-        <MarkdownEditorPage hideFileOps hideUndoRedo hideSettings hideHelp hideVersionInfo hideOutline hideComments hideTemplates hideStatusBar onCompareModeChange={handleCompareModeChange} onHeadingsChange={handleHeadingsChange} onCommentsChange={handleCommentsChange} onStatusChange={handleStatusChange} />
+        <MarkdownEditorPage hideFileOps hideUndoRedo hideSettings hideHelp hideVersionInfo hideOutline hideComments hideTemplates hideFoldAll hideStatusBar onCompareModeChange={handleCompareModeChange} onHeadingsChange={handleHeadingsChange} onCommentsChange={handleCommentsChange} onStatusChange={handleStatusChange} />
       </ConfirmProvider>
     </ThemeProvider>
   );
