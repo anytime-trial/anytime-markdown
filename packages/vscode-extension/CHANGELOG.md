@@ -4,6 +4,22 @@ All notable changes to the "anytime-markdown" extension will be documented in th
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.2.1] - 2026-03-08
+
+### Added
+- システム設計書を docs/design/ に追加（全6ファイル）
+- モード別・プラットフォーム別機能一覧とインフラ構成図を追加
+- 毎日のビルドチェックと週次キャッシュクリーンアップの CI ワークフローを追加
+
+### Fixed
+- Mermaid レンダリング時の "Cannot read properties of null (reading 'firstChild')" エラーを修正
+- ドキュメント削除後に一覧が更新されない問題を修正
+- ドキュメント一覧 API の Next.js サーバー側キャッシュを無効化
+- ドキュメント API のキャッシュ制御を改善（Cache-Control ヘッダー追加）
+
+### Security
+- HSTS ヘッダーをセキュリティヘッダーに追加
+
 ## [0.2.0] - 2026-03-08
 
 ### Added
