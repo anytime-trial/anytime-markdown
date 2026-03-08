@@ -15,7 +15,7 @@ export default async function SitesPage() {
   try {
     initialData = await fetchLayoutData();
   } catch {
-    initialData = { cards: [], error: true };
+    initialData = { categories: [], error: true };
   }
 
   return <SitesBody initialData={initialData} />;
