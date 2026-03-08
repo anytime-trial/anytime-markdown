@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { s3Client, DOCS_BUCKET, DOCS_PREFIX } from '../../../lib/s3Client';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   if (!DOCS_BUCKET) {
     return NextResponse.json(
