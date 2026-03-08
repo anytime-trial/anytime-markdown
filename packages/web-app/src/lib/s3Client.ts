@@ -12,7 +12,7 @@ const LAYOUT_KEY = DOCS_PREFIX + '_layout.json';
 
 export async function fetchLayoutData(): Promise<LayoutData> {
   if (!DOCS_BUCKET) {
-    return { cards: [] };
+    return { categories: [] };
   }
 
   try {
@@ -20,16 +20,16 @@ export async function fetchLayoutData(): Promise<LayoutData> {
       new GetObjectCommand({ Bucket: DOCS_BUCKET, Key: LAYOUT_KEY }),
     );
     const body = await response.Body?.transformToString('utf-8');
-    if (!body) return { cards: [] };
+    if (!body) return { categories: [] };
 
     const data = JSON.parse(body) as LayoutData;
     return {
-      cards: (data.cards ?? []).sort((a, b) => a.order - b.order),
+      categories: (data.categories ?? []).sort((a, b) => a.order - b.order),
       siteDescription: data.siteDescription,
     };
   } catch (e: unknown) {
     if (e instanceof Error && e.name === 'NoSuchKey') {
-      return { cards: [] };
+      return { categories: [] };
     }
     throw e;
   }
