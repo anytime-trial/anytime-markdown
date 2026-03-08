@@ -64,23 +64,23 @@ export function useMermaidRender({ code, isMermaid, isDark }: UseMermaidRenderPa
       if (cancelled) return;
       const mermaid = await getMermaid();
       if (cancelled) return;
-      mermaid.initialize({
-        startOnLoad: false,
-        suppressErrorRendering: true,
-        theme: isDark ? "dark" : "default",
-        securityLevel: "strict",
-      });
-
-      try {
-        await mermaid.parse(code);
-      } catch (err) {
-        if (!cancelled) { setError(`Mermaid: ${err instanceof Error ? err.message : "syntax error"}`); setSvg(""); }
-        return;
-      }
-
-      if (cancelled) return;
       try {
         await enqueueRender(async () => {
+          if (cancelled) return;
+          mermaid.initialize({
+            startOnLoad: false,
+            suppressErrorRendering: true,
+            theme: isDark ? "dark" : "default",
+            securityLevel: "strict",
+          });
+
+          try {
+            await mermaid.parse(code);
+          } catch (err) {
+            if (!cancelled) { setError(`Mermaid: ${err instanceof Error ? err.message : "syntax error"}`); setSvg(""); }
+            return;
+          }
+
           if (cancelled) return;
           const id = `mermaid-${++mermaidIdCounter}`;
           const container = document.createElement("div");

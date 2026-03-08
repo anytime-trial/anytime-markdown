@@ -13,7 +13,7 @@ import { SearchReplaceExtension } from "../searchReplaceExtension";
 import { Details, DetailsSummary } from "../detailsExtension";
 import { SlashCommandExtension } from "../extensions/slashCommandExtension";
 import type { SlashCommandState } from "../extensions/slashCommandExtension";
-import { ReviewModeExtension } from "../extensions/reviewModeExtension";
+import { ReviewModeExtension, reviewModeStorage } from "../extensions/reviewModeExtension";
 import {
   getMarkdownFromEditor,
   extractHeadings,
@@ -150,7 +150,7 @@ export function useEditorConfig({
           const target = event.target as HTMLElement;
           // レビューモード時のチェックボックス操作: ProseMirror ドキュメントに反映して保存
           // (readonlyモードではCSSでpointerEvents:noneのためここに到達しない)
-          const isFilterActive = editorRef.current?.storage.reviewMode?.enabled;
+          const isFilterActive = editorRef.current ? reviewModeStorage(editorRef.current).enabled : false;
           if (isFilterActive && target instanceof HTMLInputElement && target.type === "checkbox") {
             const li = target.closest("li[data-checked]") as HTMLElement | null;
             if (li) {
@@ -163,18 +163,18 @@ export function useEditorConfig({
                   const nodePos = pos - 1;
                   const node = editor.state.doc.nodeAt(nodePos);
                   if (!node || node.type.name !== "taskItem") return;
-                  editor.storage.reviewMode.enabled = false;
+                  reviewModeStorage(editor).enabled = false;
                   editor.view.dispatch(
                     editor.state.tr.setNodeMarkup(nodePos, undefined, {
                       ...node.attrs, checked,
                     }),
                   );
                   saveContent(getMarkdownFromEditor(editor));
-                  editor.storage.reviewMode.enabled = true;
+                  reviewModeStorage(editor).enabled = true;
                 } catch {
                   const editor2 = editorRef.current;
-                  if (editor2?.storage.reviewMode) {
-                    editor2.storage.reviewMode.enabled = true;
+                  if (editor2) {
+                    reviewModeStorage(editor2).enabled = true;
                   }
                 }
               }, 0);

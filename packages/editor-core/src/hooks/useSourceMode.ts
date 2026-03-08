@@ -3,6 +3,7 @@ import type { Editor } from "@tiptap/react";
 import { getMarkdownFromEditor } from "../types";
 import { sanitizeMarkdown, preserveBlankLines } from "../utils/sanitizeMarkdown";
 import { parseCommentData } from "../utils/commentHelpers";
+import { reviewModeStorage } from "../extensions/reviewModeExtension";
 
 interface UseSourceModeParams {
   editor: Editor | null;
@@ -53,10 +54,10 @@ export function useSourceMode({ editor, saveContent, t }: UseSourceModeParams) {
   useEffect(() => {
     if (!editor) return;
     if (reviewMode) {
-      editor.storage.reviewMode.enabled = true;
+      reviewModeStorage(editor).enabled = true;
       editor.view.dom.setAttribute("data-review-mode", "true");
     } else if (readonlyMode) {
-      editor.storage.reviewMode.enabled = true;
+      reviewModeStorage(editor).enabled = true;
       editor.view.dom.setAttribute("data-readonly-mode", "true");
     }
   }, [editor]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -64,12 +65,12 @@ export function useSourceMode({ editor, saveContent, t }: UseSourceModeParams) {
   const handleSwitchToSource = useCallback(() => {
     if (!editor) return;
     if (reviewMode) {
-      editor.storage.reviewMode.enabled = false;
+      reviewModeStorage(editor).enabled = false;
       editor.view.dom.removeAttribute("data-review-mode");
       setReviewMode(false);
       try { localStorage.setItem(REVIEW_MODE_KEY, "false"); } catch { /* ignore */ }
     } else if (readonlyMode) {
-      editor.storage.reviewMode.enabled = false;
+      reviewModeStorage(editor).enabled = false;
       editor.view.dom.removeAttribute("data-readonly-mode");
       setReadonlyMode(false);
       try { localStorage.setItem(READONLY_MODE_KEY, "false"); } catch { /* ignore */ }
@@ -84,12 +85,12 @@ export function useSourceMode({ editor, saveContent, t }: UseSourceModeParams) {
   const handleSwitchToWysiwyg = useCallback(() => {
     if (editor) {
       if (reviewMode) {
-        editor.storage.reviewMode.enabled = false;
+        reviewModeStorage(editor).enabled = false;
         editor.view.dom.removeAttribute("data-review-mode");
         setReviewMode(false);
         try { localStorage.setItem(REVIEW_MODE_KEY, "false"); } catch { /* ignore */ }
       } else if (readonlyMode) {
-        editor.storage.reviewMode.enabled = false;
+        reviewModeStorage(editor).enabled = false;
         editor.view.dom.removeAttribute("data-readonly-mode");
         setReadonlyMode(false);
         try { localStorage.setItem(READONLY_MODE_KEY, "false"); } catch { /* ignore */ }
@@ -125,10 +126,10 @@ export function useSourceMode({ editor, saveContent, t }: UseSourceModeParams) {
     }
     // Readonly モードから切り替える場合、フィルタを解除
     if (readonlyMode) {
-      editor.storage.reviewMode.enabled = false;
+      reviewModeStorage(editor).enabled = false;
       editor.view.dom.removeAttribute("data-readonly-mode");
     }
-    editor.storage.reviewMode.enabled = true;
+    reviewModeStorage(editor).enabled = true;
     editor.view.dom.setAttribute("data-review-mode", "true");
     setReadonlyMode(false);
     setReviewMode(true);
@@ -155,7 +156,7 @@ export function useSourceMode({ editor, saveContent, t }: UseSourceModeParams) {
     if (reviewMode) {
       editor.view.dom.removeAttribute("data-review-mode");
     }
-    editor.storage.reviewMode.enabled = true;
+    reviewModeStorage(editor).enabled = true;
     editor.view.dom.setAttribute("data-readonly-mode", "true");
     setReadonlyMode(true);
     setReviewMode(false);
@@ -167,12 +168,12 @@ export function useSourceMode({ editor, saveContent, t }: UseSourceModeParams) {
   /** コメント操作用: 一時的にレビューモードのフィルタを解除してコマンド実行後に戻す */
   const executeInReviewMode = useCallback((fn: () => void) => {
     if (!editor) return;
-    editor.storage.reviewMode.enabled = false;
+    reviewModeStorage(editor).enabled = false;
     try {
       fn();
     } finally {
       queueMicrotask(() => {
-        editor.storage.reviewMode.enabled = true;
+        reviewModeStorage(editor).enabled = true;
       });
     }
   }, [editor]);

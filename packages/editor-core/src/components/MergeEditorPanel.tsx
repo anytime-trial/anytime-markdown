@@ -29,22 +29,19 @@ export function getMergeTiptapStyles(theme: Theme, fontSize = 14, lineHeight = 1
     transition: "opacity 0.15s",
   };
 
-  const hoverLabels = options?.showHoverLabels ? {
-    "& h1, & h2, & h3, & h4, & h5": {
-      position: "relative",
-      "&::before": {
-        ...hoverLabelBase,
-        right: "calc(100% + 8px)",
-        top: "50%",
-        transform: "translateY(-50%)",
-      },
-      "&:hover::before, &:focus-within::before": { opacity: 1 },
+  const hoverLabelHeadingBase = {
+    position: "relative" as const,
+    "&::before": {
+      ...hoverLabelBase,
+      right: "calc(100% + 8px)",
+      top: "50%",
+      transform: "translateY(-50%)",
     },
-    "& h1": { "&::before": { content: "'H1'" } },
-    "& h2": { "&::before": { content: "'H2'" } },
-    "& h3": { "&::before": { content: "'H3'" } },
-    "& h4": { "&::before": { content: "'H4'" } },
-    "& h5": { "&::before": { content: "'H5'" } },
+    "&:hover::before, &:focus-within::before": { opacity: 1 },
+  };
+
+  const hoverLabels = options?.showHoverLabels ? {
+    "& h1, & h2, & h3, & h4, & h5": hoverLabelHeadingBase,
     "& > p": {
       position: "relative",
       "&::before": {
@@ -67,25 +64,6 @@ export function getMergeTiptapStyles(theme: Theme, fontSize = 14, lineHeight = 1
       },
       "&:hover::before, &:focus-within::before": { opacity: 1 },
     },
-    "& li": {
-      position: "relative",
-      "&::before": {
-        ...hoverLabelBase,
-        right: "calc(100% + 32px)",
-        top: 2,
-        "&:hover": { bgcolor: theme.palette.action.selected },
-      },
-      "&:hover::before, &:focus-within::before": { opacity: 1 },
-    },
-    "& > ul:not([data-type='taskList']) > li": {
-      "&::before": { content: "'UL'" },
-    },
-    "& > ol > li": {
-      "&::before": { content: "'OL'" },
-    },
-    "& > ul[data-type='taskList'] > li": {
-      "&::before": { content: "'Task'", right: "calc(100% + 8px)" },
-    },
   } : {};
 
   return {
@@ -100,23 +78,47 @@ export function getMergeTiptapStyles(theme: Theme, fontSize = 14, lineHeight = 1
       color: theme.palette.text.primary,
       "& h1": {
         fontSize: "2em", fontWeight: 700, mt: 2, mb: 1,
+        ...(options?.showHoverLabels && { "&::before": { content: "'H1'" } }),
       },
       "& h2": {
         fontSize: "1.5em", fontWeight: 600, mt: 1.5, mb: 1,
+        ...(options?.showHoverLabels && { "&::before": { content: "'H2'" } }),
       },
       "& h3": {
         fontSize: "1.25em", fontWeight: 600, mt: 1, mb: 0.5,
+        ...(options?.showHoverLabels && { "&::before": { content: "'H3'" } }),
       },
       "& h4": {
         fontSize: "1.1em", fontWeight: 600, mt: 1, mb: 0.5,
+        ...(options?.showHoverLabels && { "&::before": { content: "'H4'" } }),
       },
       "& h5": {
         fontSize: "1em", fontWeight: 600, mt: 0.75, mb: 0.5,
+        ...(options?.showHoverLabels && { "&::before": { content: "'H5'" } }),
       },
       "& p": { mb: 1 },
       "& ul, & ol": { pl: 3, mb: 1 },
       "& li": {
         mb: 0.25,
+        ...(options?.showHoverLabels && {
+          position: "relative" as const,
+          "&::before": {
+            ...hoverLabelBase,
+            right: "calc(100% + 32px)",
+            top: 2,
+            "&:hover": { bgcolor: theme.palette.action.selected },
+          },
+          "&:hover::before, &:focus-within::before": { opacity: 1 },
+        }),
+      },
+      "& > ul:not([data-type='taskList']) > li": {
+        ...(options?.showHoverLabels && { "&::before": { content: "'UL'" } }),
+      },
+      "& > ol > li": {
+        ...(options?.showHoverLabels && { "&::before": { content: "'OL'" } }),
+      },
+      "& > ul[data-type='taskList'] > li": {
+        ...(options?.showHoverLabels && { "&::before": { content: "'Task'", right: "calc(100% + 8px)" } }),
       },
       ...hoverLabels,
       "& code": {

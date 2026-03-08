@@ -11,12 +11,17 @@ jest.mock("../types", () => ({
 const mockedGetMarkdown = getMarkdownFromEditor as jest.MockedFunction<typeof getMarkdownFromEditor>;
 
 function createMockEditor() {
+  const dom = document.createElement("div");
   return {
     commands: {
       closeSearch: jest.fn(),
       setContent: jest.fn(),
       initComments: jest.fn(),
     },
+    storage: {
+      reviewMode: { enabled: false },
+    },
+    view: { dom },
   } as unknown as Editor;
 }
 

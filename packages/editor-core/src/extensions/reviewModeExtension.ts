@@ -1,5 +1,11 @@
 import { Extension } from "@tiptap/core";
+import type { Editor } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
+
+/** Type-safe accessor for ReviewModeExtension storage */
+export function reviewModeStorage(editor: Editor): { enabled: boolean } {
+  return (editor.storage as unknown as Record<string, unknown>).reviewMode as { enabled: boolean };
+}
 
 const reviewModePluginKey = new PluginKey("reviewMode");
 

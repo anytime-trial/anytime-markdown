@@ -7,14 +7,15 @@ import { alpha, useTheme } from "@mui/material/styles";
 import { useEditor } from "@tiptap/react";
 import type { Editor } from "@tiptap/react";
 import { getBaseExtensions } from "../editorExtensions";
-import { ReviewModeExtension } from "../extensions/reviewModeExtension";
+import { CustomHardBreak } from "../extensions/customHardBreak";
+import { ReviewModeExtension, reviewModeStorage } from "../extensions/reviewModeExtension";
 import { useMergeDiff } from "../hooks/useMergeDiff";
 import { useDiffBackground } from "../hooks/useDiffBackground";
 import { useDiffHighlight } from "../hooks/useDiffHighlight";
 import { useScrollSync } from "../hooks/useScrollSync";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import { MergeEditorPanel } from "./MergeEditorPanel";
-import { preserveBlankLines } from "../utils/sanitizeMarkdown";
+import { sanitizeMarkdown, preserveBlankLines } from "../utils/sanitizeMarkdown";
 import { computeInlineDiff, type DiffLine, type DiffResult, type InlineSegment } from "../utils/diffEngine";
 
 export interface MergeUndoRedo {
@@ -265,7 +266,7 @@ export function InlineMergeView({
 
   // Right tiptap editor (for WYSIWYG mode) – readonly (cursor visible)
   const rightEditor = useEditor({
-    extensions: [...getBaseExtensions({ disableComments: true }), ReviewModeExtension],
+    extensions: [...getBaseExtensions({ disableComments: true }), CustomHardBreak, ReviewModeExtension],
     content: "",
     immediatelyRender: false,
     editorProps: {
@@ -279,7 +280,7 @@ export function InlineMergeView({
   // Enable transaction filter to block edits while keeping cursor visible
   useEffect(() => {
     if (rightEditor) {
-      rightEditor.storage.reviewMode.enabled = true;
+      reviewModeStorage(rightEditor).enabled = true;
     }
   }, [rightEditor]);
 
@@ -291,9 +292,9 @@ export function InlineMergeView({
   // rightText -> right tiptap editor sync
   useEffect(() => {
     if (rightEditor && !sourceMode) {
-      rightEditor.storage.reviewMode.enabled = false;
-      rightEditor.commands.setContent(preserveBlankLines(rightText));
-      rightEditor.storage.reviewMode.enabled = true;
+      reviewModeStorage(rightEditor).enabled = false;
+      rightEditor.commands.setContent(preserveBlankLines(sanitizeMarkdown(rightText)));
+      reviewModeStorage(rightEditor).enabled = true;
     }
   }, [rightText, rightEditor, sourceMode]);
 
@@ -301,9 +302,9 @@ export function InlineMergeView({
   const prevSourceMode = useRef(sourceMode);
   useEffect(() => {
     if (prevSourceMode.current && !sourceMode && rightEditor) {
-      rightEditor.storage.reviewMode.enabled = false;
-      rightEditor.commands.setContent(preserveBlankLines(rightText));
-      rightEditor.storage.reviewMode.enabled = true;
+      reviewModeStorage(rightEditor).enabled = false;
+      rightEditor.commands.setContent(preserveBlankLines(sanitizeMarkdown(rightText)));
+      reviewModeStorage(rightEditor).enabled = true;
     }
     prevSourceMode.current = sourceMode;
   }, [sourceMode, rightEditor, rightText]);
