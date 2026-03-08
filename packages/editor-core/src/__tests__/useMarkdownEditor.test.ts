@@ -68,7 +68,7 @@ describe("useMarkdownEditor", () => {
     expect(localStorage.getItem(STORAGE_KEY)).toBe("# Third");
   });
 
-  test("clearContentでlocalStorageから削除", () => {
+  test("clearContentでlocalStorageを空文字列にクリア", () => {
     localStorage.setItem(STORAGE_KEY, "# Saved");
     const { result } = renderHook(() => useMarkdownEditor("# Default"));
 
@@ -76,6 +76,6 @@ describe("useMarkdownEditor", () => {
       result.current.clearContent();
     });
 
-    expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
+    expect(localStorage.getItem(STORAGE_KEY)).toBe("");
   });
 });
