@@ -73,6 +73,10 @@ export function App() {
         window.dispatchEvent(new CustomEvent('vscode-scroll-to-heading', { detail: message.pos }));
         return;
       }
+      if (message?.type === 'toggleSectionNumbers' && typeof message.show === 'boolean') {
+        window.dispatchEvent(new CustomEvent('vscode-toggle-section-numbers', { detail: message.show }));
+        return;
+      }
       if (message?.type === 'setContent' && typeof message.content === 'string') {
         const isInitial = !ready;
         currentContent = message.content;
@@ -134,7 +138,7 @@ export function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <ConfirmProvider>
-        <MarkdownEditorPage hideFileOps hideUndoRedo hideSettings hideHelp hideVersionInfo onCompareModeChange={handleCompareModeChange} onHeadingsChange={handleHeadingsChange} />
+        <MarkdownEditorPage hideFileOps hideUndoRedo hideSettings hideHelp hideVersionInfo hideOutline onCompareModeChange={handleCompareModeChange} onHeadingsChange={handleHeadingsChange} />
       </ConfirmProvider>
     </ThemeProvider>
   );

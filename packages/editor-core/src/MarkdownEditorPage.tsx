@@ -88,10 +88,11 @@ interface MarkdownEditorPageProps {
   externalContent?: string;
   readOnly?: boolean;
   hideToolbar?: boolean;
+  hideOutline?: boolean;
   showReadonlyMode?: boolean;
 }
 
-export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideHelp, hideVersionInfo, featuresUrl, onCompareModeChange, onHeadingsChange, themeMode, onThemeModeChange, onLocaleChange, fileSystemProvider, externalContent, readOnly, hideToolbar, showReadonlyMode }: MarkdownEditorPageProps = {}) {
+export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideHelp, hideVersionInfo, featuresUrl, onCompareModeChange, onHeadingsChange, themeMode, onThemeModeChange, onLocaleChange, fileSystemProvider, externalContent, readOnly, hideToolbar, hideOutline, showReadonlyMode }: MarkdownEditorPageProps = {}) {
   const theme = useTheme();
   const t = useTranslations("MarkdownEditor");
   const locale = useLocale() as "en" | "ja";
@@ -306,6 +307,16 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     return () => window.removeEventListener('vscode-scroll-to-heading', handler);
   }, [editor]);
 
+  // VS Code TreeView からのセクション番号トグル
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const show = (e as CustomEvent<boolean>).detail;
+      updateSettings({ showHeadingNumbers: show });
+    };
+    window.addEventListener('vscode-toggle-section-numbers', handler);
+    return () => window.removeEventListener('vscode-toggle-section-numbers', handler);
+  }, [updateSettings]);
+
   const { editorContainerRef, editorHeight } = useEditorHeight(isMobile, isMd);
 
   const handleInsertTemplate = useCallback((template: MarkdownTemplate) => {
@@ -430,6 +441,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         onSwitchToReview={handleSwitchToReview}
         onSwitchToReadonly={handleSwitchToReadonly}
         hideReadonlyToggle={!showReadonlyMode}
+        hideOutline={hideOutline}
 
         mergeUndoRedo={inlineMergeOpen ? mergeUndoRedo : null}
         onOpenFile={handleOpenFile}

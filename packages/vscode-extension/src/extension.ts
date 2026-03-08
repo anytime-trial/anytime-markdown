@@ -117,9 +117,29 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	);
 
+	const toggleSectionNumbers = vscode.commands.registerCommand(
+		'anytime-markdown.toggleSectionNumbers',
+		() => {
+			outlineProvider.toggleSectionNumbers();
+			const p = MarkdownEditorProvider.getInstance();
+			p?.postMessageToActivePanel({
+				type: 'toggleSectionNumbers',
+				show: outlineProvider.showSectionNumbers,
+			});
+		}
+	);
+
+	const toggleBlockElements = vscode.commands.registerCommand(
+		'anytime-markdown.toggleBlockElements',
+		() => {
+			outlineProvider.toggleBlockElements();
+		}
+	);
+
 	context.subscriptions.push(
 		gitTreeView, outlineTreeView,
 		openEditorWithFile, compareCmd, compareWithCommit, scrollToHeading,
+		toggleSectionNumbers, toggleBlockElements,
 	);
 }
 

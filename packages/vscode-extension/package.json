@@ -59,6 +59,16 @@
         "command": "anytime-markdown.compareWithMarkdownEditor",
         "title": "Compare with Anytime",
         "enablement": "activeCustomEditorId == anytimeMarkdown"
+      },
+      {
+        "command": "anytime-markdown.toggleSectionNumbers",
+        "title": "Toggle Section Numbers",
+        "icon": "$(list-ordered)"
+      },
+      {
+        "command": "anytime-markdown.toggleBlockElements",
+        "title": "Toggle Block Elements",
+        "icon": "$(symbol-misc)"
       }
     ],
     "customEditors": [
@@ -103,6 +113,18 @@
       }
     },
     "menus": {
+      "view/title": [
+        {
+          "command": "anytime-markdown.toggleSectionNumbers",
+          "when": "view == anytimeMarkdown.outline",
+          "group": "navigation@1"
+        },
+        {
+          "command": "anytime-markdown.toggleBlockElements",
+          "when": "view == anytimeMarkdown.outline",
+          "group": "navigation@2"
+        }
+      ],
       "explorer/context": [
         {
           "command": "anytime-markdown.openEditorWithFile",

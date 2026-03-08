@@ -126,6 +126,7 @@ interface EditorToolbarProps {
   onToggleComments?: () => void;
   hideModeToggle?: boolean;
   hideReadonlyToggle?: boolean;
+  hideOutline?: boolean;
   t: TranslationFn;
 }
 
@@ -172,6 +173,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
   onToggleComments,
   hideModeToggle,
   hideReadonlyToggle,
+  hideOutline,
   t,
 }: EditorToolbarProps) {
   const [fileMenuAnchorEl, setFileMenuAnchorEl] = useState<HTMLElement | null>(null);
@@ -421,11 +423,11 @@ export const EditorToolbar = React.memo(function EditorToolbar({
             </Tooltip>
           </ToggleButton>
         )}
-        <ToggleButton value="outline" selected={outlineOpen} onClick={onToggleOutline} disabled={inlineMergeOpen || sourceMode} aria-label={t("outline")} sx={{ px: 0.75, py: 0.25 }}>
+        {!hideOutline && <ToggleButton value="outline" selected={outlineOpen} onClick={onToggleOutline} disabled={inlineMergeOpen || sourceMode} aria-label={t("outline")} sx={{ px: 0.75, py: 0.25 }}>
           <Tooltip title={tip(t, "outline")}>
             <span style={{ display: "inline-flex" }}><ListAltIcon fontSize="small" /></span>
           </Tooltip>
-        </ToggleButton>
+        </ToggleButton>}
         {onToggleComments && (
           <ToggleButton value="comments" selected={commentOpen} onClick={onToggleComments} disabled={inlineMergeOpen || sourceMode} aria-label={t("commentPanel") || "Comments"} sx={{ px: 0.75, py: 0.25 }}>
             <Tooltip title={t("commentPanel") || "Comments"}>
@@ -606,13 +608,13 @@ export const EditorToolbar = React.memo(function EditorToolbar({
       open={!!mobileMenuAnchorEl}
       onClose={() => setMobileMenuAnchorEl(null)}
     >
-      <MenuItem
+      {!hideOutline && <MenuItem
         onClick={() => { onToggleOutline(); setMobileMenuAnchorEl(null); }}
         disabled={inlineMergeOpen || sourceMode}
       >
         <ListItemIcon><ListAltIcon fontSize="small" color={outlineOpen ? "primary" : "inherit"} /></ListItemIcon>
         <ListItemText>{t("outline")}</ListItemText>
-      </MenuItem>
+      </MenuItem>}
       {onToggleComments && (
         <MenuItem
           onClick={() => { onToggleComments(); setMobileMenuAnchorEl(null); }}

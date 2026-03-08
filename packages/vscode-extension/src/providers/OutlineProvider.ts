@@ -21,9 +21,16 @@ export class OutlineItem extends vscode.TreeItem {
 
 	constructor(
 		public readonly heading: HeadingData,
+		sectionNumber?: string,
 	) {
-		super(heading.text || '(empty)', vscode.TreeItemCollapsibleState.None);
-		this.iconPath = new vscode.ThemeIcon(KIND_ICONS[heading.kind] ?? 'symbol-structure');
+		const text = heading.text || '(empty)';
+		const label = heading.kind === 'heading'
+			? (sectionNumber ? `${sectionNumber} ${text}` : text)
+			: text;
+		super(label, vscode.TreeItemCollapsibleState.None);
+		if (heading.kind !== 'heading') {
+			this.iconPath = new vscode.ThemeIcon(KIND_ICONS[heading.kind] ?? 'symbol-misc');
+		}
 		this.command = {
 			command: 'anytime-markdown.scrollToHeading',
 			title: 'Go to heading',
@@ -32,13 +39,50 @@ export class OutlineItem extends vscode.TreeItem {
 	}
 }
 
+function computeSectionNumbers(headings: HeadingData[]): Map<number, string> {
+	const map = new Map<number, string>();
+	const counters = [0, 0, 0, 0, 0]; // h1-h5
+	for (const h of headings) {
+		if (h.kind !== 'heading') continue;
+		const level = h.level - 1; // 0-indexed
+		counters[level]++;
+		for (let i = level + 1; i < 5; i++) counters[i] = 0;
+		map.set(h.pos, counters.slice(0, level + 1).join('.'));
+	}
+	return map;
+}
+
 export class OutlineProvider implements vscode.TreeDataProvider<OutlineItem> {
 	private _onDidChangeTreeData = new vscode.EventEmitter<void>();
 	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
 	private roots: OutlineItem[] = [];
+	private lastHeadings: HeadingData[] = [];
+	private _showSectionNumbers = true;
+	private _showBlockElements = true;
+
+	get showSectionNumbers(): boolean {
+		return this._showSectionNumbers;
+	}
+
+	get showBlockElements(): boolean {
+		return this._showBlockElements;
+	}
+
+	toggleSectionNumbers(): void {
+		this._showSectionNumbers = !this._showSectionNumbers;
+		this.roots = this.buildTree(this.lastHeadings);
+		this._onDidChangeTreeData.fire();
+	}
+
+	toggleBlockElements(): void {
+		this._showBlockElements = !this._showBlockElements;
+		this.roots = this.buildTree(this.lastHeadings);
+		this._onDidChangeTreeData.fire();
+	}
 
 	update(headings: HeadingData[]): void {
+		this.lastHeadings = headings;
 		this.roots = this.buildTree(headings);
 		this._onDidChangeTreeData.fire();
 	}
@@ -60,8 +104,11 @@ export class OutlineProvider implements vscode.TreeDataProvider<OutlineItem> {
 	}
 
 	private buildTree(headings: HeadingData[]): OutlineItem[] {
-		const items = headings.map(h => new OutlineItem(h));
-		// 見出しレベルに基づく階層構造を構築
+		const filtered = this._showBlockElements
+			? headings
+			: headings.filter(h => h.kind === 'heading');
+		const sectionNumbers = this._showSectionNumbers ? computeSectionNumbers(filtered) : new Map();
+		const items = filtered.map(h => new OutlineItem(h, sectionNumbers.get(h.pos)));
 		const roots: OutlineItem[] = [];
 		const stack: OutlineItem[] = [];
 
