@@ -4,6 +4,27 @@ All notable changes to the "anytime-markdown" extension will be documented in th
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.2.4] - 2026-03-08
+
+### Added
+- アクティビティバーにアウトラインパネルを追加（TreeView）
+- アクティビティバーにコメントパネルを追加（TreeView）
+- Git 履歴パネルを追加
+- 比較モード右パネルへのドラッグ&ドロップによるファイル読み込みを追加
+- レビューモードで比較モード切替を有効化
+
+### Changed
+- ステータスバーを VS Code ネイティブに移行（カーソル位置・文字数・行数・改行コード・エンコーディング）
+- アクティビティバーアイコンを Markdown 風 M 字アイコンに変更
+- Open Markdown Editor コマンドを削除
+- Compare with Git HEAD コマンドを削除
+
+### Fixed
+- VS Code Undo/Redo 時の空行消失を修正
+- Mermaid レンダリングの並行実行による firstChild null エラーを修正
+- エディタ高さ計算で DOM 実測値を使用し、ステータスバー非表示時の空白を解消
+- Git 履歴パネルのアクティビティバーアイコンを常時表示に変更
+
 ## [0.2.1] - 2026-03-08
 
 ### Added
