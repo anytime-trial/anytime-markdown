@@ -32,8 +32,7 @@
       "anytimeMarkdown": [
         {
           "id": "anytimeMarkdown.gitHistory",
-          "name": "Git History",
-          "when": "activeCustomEditorId == anytimeMarkdown"
+          "name": "Git History"
         }
       ]
     },
