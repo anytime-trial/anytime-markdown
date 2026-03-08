@@ -30,11 +30,13 @@ export default function LandingHeader() {
       <Toolbar sx={{ justifyContent: 'space-between', px: { xs: 2, md: 4 } }}>
         <Typography
           variant="h6"
-          component="div"
+          component={NextLink}
+          href="/"
           sx={{
             fontWeight: 700,
             letterSpacing: '-0.02em',
             color: 'text.primary',
+            textDecoration: 'none',
           }}
         >
           Anytime Markdown
