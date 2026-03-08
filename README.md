@@ -66,11 +66,29 @@ flowchart TD
 ### Dev Container を使う場合（推奨）
 
 1. WSL2 上でリポジトリをクローンする
-2. VS Code でリポジトリを開く
-3. コマンドパレット → 「Dev Containers: Reopen in Container」を実行
+2. GitHub Personal Access Token を WSL のシェルに設定する
+3. VS Code でリポジトリを開く
+4. コマンドパレット → 「Dev Containers: Reopen in Container」を実行
 
 > 初回はコンテナのビルドと `npm install` が自動実行される。\
 > ポート `3000` は自動フォワードされる。
+
+
+#### GitHub Personal Access Token の設定
+
+GitHub MCP サーバーや `gh` CLI で使用する。未設定でも開発は可能だが、PR 作成等の GitHub 操作が制限される。
+
+1. https://github.com/settings/tokens にアクセス
+2. 「Generate new token (classic)」をクリック
+3. スコープ: `repo` にチェックを入れてトークンを生成
+4. WSL のシェル設定ファイルに追加:
+
+```bash
+echo 'export GITHUB_PERSONAL_ACCESS_TOKEN=ghp_xxxxxxxxxxxxxxxx' >> ~/.bashrc
+source ~/.bashrc
+```
+
+Dev Container 起動時に `GITHUB_PERSONAL_ACCESS_TOKEN` が設定されていれば、GitHub MCP サーバーが自動登録される。
 
 ```bash
 # 開発サーバーを起動
