@@ -10,6 +10,9 @@
     "source=${localEnv:HOME}/.ssh,target=/home/node/.ssh,type=bind,consistency=cached",
     "source=${localEnv:HOME}/.claude,target=/home/node/.claude,type=bind,consistency=cached"
   ],
+  "containerEnv": {
+    "GITHUB_PERSONAL_ACCESS_TOKEN": "${localEnv:GITHUB_PERSONAL_ACCESS_TOKEN}"
+  },
   "customizations": {
     "vscode": {
       "extensions": [
@@ -21,5 +24,5 @@
     }
   },
   "forwardPorts": [3000],
-  "postCreateCommand": "sudo chown -R node:node /anytime-markdown/node_modules && npm install"
+  "postCreateCommand": "sudo chown -R node:node /anytime-markdown/node_modules && npm install && if [ -n \"$GITHUB_PERSONAL_ACCESS_TOKEN\" ]; then claude mcp add github --transport http --url https://api.githubcopilot.com/mcp/ --header \"Authorization: Bearer $GITHUB_PERSONAL_ACCESS_TOKEN\"; fi"
 }
