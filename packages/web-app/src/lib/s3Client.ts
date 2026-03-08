@@ -38,17 +38,7 @@ export async function fetchLayoutData(): Promise<LayoutData> {
   }
 
   try {
-    // CloudFront 経由で取得を試みる
-    const cdnBody = await fetchFromCdn(LAYOUT_KEY);
-    if (cdnBody !== null) {
-      const data = JSON.parse(cdnBody) as LayoutData;
-      return {
-        categories: (data.categories ?? []).sort((a, b) => a.order - b.order),
-        siteDescription: data.siteDescription,
-      };
-    }
-
-    // S3 SDK フォールバック
+    // _layout.json は頻繁に更新されるため CDN キャッシュをスキップし S3 から直接取得
     if (!DOCS_BUCKET) return { categories: [] };
     const response = await s3Client.send(
       new GetObjectCommand({ Bucket: DOCS_BUCKET, Key: LAYOUT_KEY }),
