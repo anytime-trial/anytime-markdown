@@ -7,6 +7,8 @@ import { layoutDataSchema } from '../../../../types/layout';
 
 const LAYOUT_KEY = DOCS_PREFIX + '_layout.json';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const data = await fetchLayoutData();

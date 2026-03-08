@@ -39,7 +39,10 @@ export async function GET(request: NextRequest) {
 
     return new NextResponse(body, {
       status: 200,
-      headers: { 'Content-Type': 'text/markdown; charset=utf-8' },
+      headers: {
+        'Content-Type': 'text/markdown; charset=utf-8',
+        'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
+      },
     });
   } catch (e: unknown) {
     if (e instanceof Error && e.name === 'NoSuchKey') {
