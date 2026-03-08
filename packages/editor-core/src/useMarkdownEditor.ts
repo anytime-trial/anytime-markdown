@@ -8,11 +8,12 @@ import type { EncodingLabel } from "./types";
 const STORAGE_KEY = "markdown-editor-content";
 const DEBOUNCE_MS = 500;
 
-export function useMarkdownEditor(defaultContent: string) {
+export function useMarkdownEditor(defaultContent: string, skipLocalStorage = false) {
   // localStorage から同期的に読み込み（HMR 時のローディングフラッシュを防止）
+  // skipLocalStorage が true の場合（readOnly / externalContent）は localStorage を参照しない
   const [initialContent] = useState<string>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
+      const saved = skipLocalStorage ? null : localStorage.getItem(STORAGE_KEY);
       const raw = saved ?? defaultContent;
       const { comments, body } = parseCommentData(raw);
       const sanitized = preserveBlankLines(sanitizeMarkdown(body));
