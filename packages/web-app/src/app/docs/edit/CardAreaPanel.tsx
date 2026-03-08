@@ -16,7 +16,6 @@ import {
   closestCenter,
   type DragStartEvent,
   type DragEndEvent,
-  type SensorDescriptor,
 } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -25,20 +24,20 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { useTranslations } from 'next-intl';
-import type { LayoutCard } from '../../../types/layout';
+import type { LayoutCategory } from '../../../types/layout';
 
-function SortableCard({
-  card,
+function SortableCategory({
+  category,
   onEdit,
   onDelete,
   t,
 }: {
-  card: LayoutCard;
-  onEdit: (card: LayoutCard) => void;
+  category: LayoutCategory;
+  onEdit: (category: LayoutCategory) => void;
   onDelete: (id: string) => void;
   t: ReturnType<typeof useTranslations>;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: category.id });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -49,24 +48,24 @@ function SortableCard({
   return (
     <Card ref={setNodeRef} style={style} sx={{ mb: 1 }}>
       <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, '&:last-child': { pb: 1 } }}>
-        <IconButton size="small" {...attributes} {...listeners} aria-roledescription="sortable" aria-label={`${card.title} - drag to reorder`} sx={{ cursor: 'grab', color: 'text.secondary' }}>
+        <IconButton size="small" {...attributes} {...listeners} aria-roledescription="sortable" aria-label={`${category.title || t('sitesCategoryAdd')} - drag to reorder`} sx={{ cursor: 'grab', color: 'text.secondary' }}>
           <DragIndicatorIcon fontSize="small" />
         </IconButton>
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>
-            {card.title}
+            {category.title || t('sitesCategoryAdd')}
           </Typography>
           <Typography variant="caption" color="text.secondary" noWrap>
-            {card.docKey}
+            {category.items.length} {t('sitesCategoryItems')}
           </Typography>
         </Box>
-        <IconButton size="small" onClick={() => onEdit(card)} aria-label={t('sitesEdit')}>
+        <IconButton size="small" onClick={() => onEdit(category)} aria-label={t('sitesEdit')}>
           <EditIcon fontSize="small" />
         </IconButton>
         <IconButton
           size="small"
-          onClick={() => onDelete(card.id)}
-          aria-label={t('sitesCardDelete')}
+          onClick={() => onDelete(category.id)}
+          aria-label={t('sitesCategoryDelete')}
           sx={{ '&:hover': { color: 'error.main' } }}
         >
           <DeleteIcon fontSize="small" />
@@ -76,32 +75,32 @@ function SortableCard({
   );
 }
 
-interface CardAreaPanelProps {
-  cards: LayoutCard[];
-  activeCard: LayoutCard | null;
+interface CategoryAreaPanelProps {
+  categories: LayoutCategory[];
+  activeCategory: LayoutCategory | null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   sensors: ReturnType<typeof import('@dnd-kit/core').useSensors>;
   onDragStart: (event: DragStartEvent) => void;
   onDragEnd: (event: DragEndEvent) => void;
-  onEdit: (card: LayoutCard) => void;
+  onEdit: (category: LayoutCategory) => void;
   onDelete: (id: string) => void;
   t: ReturnType<typeof useTranslations>;
 }
 
-export default function CardAreaPanel({
-  cards,
-  activeCard,
+export default function CategoryAreaPanel({
+  categories,
+  activeCategory,
   sensors,
   onDragStart,
   onDragEnd,
   onEdit,
   onDelete,
   t,
-}: CardAreaPanelProps) {
+}: CategoryAreaPanelProps) {
   return (
     <Box sx={{ flex: 1 }}>
       <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600, color: 'text.secondary' }}>
-        {t('sitesCardArea')}
+        {t('sitesCategoryArea')}
       </Typography>
       <Box
         sx={{
@@ -114,7 +113,7 @@ export default function CardAreaPanel({
           bgcolor: 'background.paper',
         }}
       >
-        {cards.length === 0 ? (
+        {categories.length === 0 ? (
           <Typography color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
             {t('sitesEmpty')}
           </Typography>
@@ -125,11 +124,11 @@ export default function CardAreaPanel({
             onDragStart={onDragStart}
             onDragEnd={onDragEnd}
           >
-            <SortableContext items={cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
-              {cards.map((card) => (
-                <SortableCard
-                  key={card.id}
-                  card={card}
+            <SortableContext items={categories.map((c) => c.id)} strategy={verticalListSortingStrategy}>
+              {categories.map((category) => (
+                <SortableCategory
+                  key={category.id}
+                  category={category}
                   onEdit={onEdit}
                   onDelete={onDelete}
                   t={t}
@@ -137,11 +136,11 @@ export default function CardAreaPanel({
               ))}
             </SortableContext>
             <DragOverlay>
-              {activeCard ? (
+              {activeCategory ? (
                 <Card sx={{ opacity: 0.8 }}>
                   <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      {activeCard.title}
+                      {activeCategory.title}
                     </Typography>
                   </CardContent>
                 </Card>
