@@ -97,8 +97,8 @@ flowchart LR
     Browser -.-> SW
 ```
 
-- `Next.js 15` の App Router でページとAPIルートを構成する。\
-- S3 に Markdown ファイルと `_layout.json`（サイト構造）を格納する。\
+- `Next.js 15` の App Router でページとAPIルートを構成する。
+- S3 に Markdown ファイルと `_layout.json`（サイト構造）を格納する。
 - Serwist によるオフライン対応（PWA）を提供する。
 
 
@@ -120,8 +120,8 @@ flowchart LR
     Ext --> Git
 ```
 
-- `CustomTextEditorProvider` でカスタムエディタを登録する。\
-- Extension Host と Webview 間は `postMessage` で双方向通信する。\
+- `CustomTextEditorProvider` でカスタムエディタを登録する。
+- Extension Host と Webview 間は `postMessage` で双方向通信する。
 - ファイル読み書きは Extension Host 側で VS Code API を使用する。
 
 
@@ -141,7 +141,7 @@ flowchart LR
     Cap --> Native
 ```
 
-- `web-app` を `next export` で静的ビルドし、Capacitor でラップする。\
+- `web-app` を `next export` で静的ビルドし、Capacitor でラップする。
 - ファイル操作は `CapacitorFileSystemProvider` 経由でネイティブ API を使用する。
 
 
@@ -194,8 +194,8 @@ flowchart TD
     SSH --> Container
 ```
 
-- ソースコードは bind mount でホストと共有する。\
-- `node_modules` は named volume で永続化する。\
+- ソースコードは bind mount でホストと共有する。
+- `node_modules` は named volume で永続化する。
 - ポート `3000` を自動フォワードする。
 
 
@@ -219,8 +219,8 @@ flowchart LR
     Push ==> Audit ==> Type ==> Lint ==> Unit ==> E2E ==> Build ==> Deploy
 ```
 
-- push to `master` / `develop` および PR で CI を実行する。\
-- `master` への push 時に VS Code Marketplace へ自動公開する。\
+- push to `master` / `develop` および PR で CI を実行する。
+- `master` への push 時に VS Code Marketplace へ自動公開する。
 - 毎日 JST 6:00 に日次ビルドチェックを実行する。
 
 
@@ -235,8 +235,8 @@ flowchart LR
 
 ## 9. セキュリティ
 
-- HTML サニタイズに DOMPurify を使用する。\
-- CMS 操作（アップロード / 削除）は Basic 認証で保護する。\
-- CSP ヘッダーを middleware で設定する（nonce ベース）。\
-- パストラバーサル防止チェックを API ルートに実装する。\
-- 検索・置換で ReDoS 防止を実装する。\
+- HTML サニタイズに DOMPurify を使用する。
+- CMS 操作（アップロード / 削除）は Basic 認証で保護する。
+- CSP ヘッダーを middleware で設定する（nonce ベース）。
+- パストラバーサル防止チェックを API ルートに実装する。
+- 検索・置換で ReDoS 防止を実装する。
