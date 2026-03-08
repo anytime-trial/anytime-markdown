@@ -367,11 +367,6 @@ export const EditorToolbar = React.memo(function EditorToolbar({
                       <FolderOpenIcon fontSize="small" />
                     </Tooltip>
                   </ToggleButton>
-                  <ToggleButton value="saveAs" onClick={onExportRightFile} aria-label={t("exportCompareFile")} sx={{ px: 0.75, py: 0.25 }}>
-                    <Tooltip title={t("mergeExportRight")}>
-                      <SaveAsIcon fontSize="small" />
-                    </Tooltip>
-                  </ToggleButton>
                 </ToggleButtonGroup>
               </>
             )}
