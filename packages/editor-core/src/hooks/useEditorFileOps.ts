@@ -229,12 +229,19 @@ export function useEditorFileOps({
           if (!code) continue;
           try {
             const id = `print-mermaid-${++renderIdx}`;
+            const container = document.createElement("div");
+            container.id = `d${id}`;
+            container.style.position = "absolute";
+            container.style.left = "-9999px";
+            container.style.top = "-9999px";
+            document.body.appendChild(container);
             const { svg: lightSvg } = await Promise.race([
-              mermaid.render(id, code),
+              mermaid.render(id, code, container),
               new Promise<never>((_, reject) =>
                 setTimeout(() => reject(new Error("mermaid render timeout")), 5000),
               ),
             ]);
+            container.remove();
             const innerDiv = imgBox.querySelector<HTMLElement>(":scope > div")
               || (imgBox.firstElementChild as HTMLElement | null);
             if (innerDiv) {

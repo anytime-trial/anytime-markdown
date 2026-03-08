@@ -13,6 +13,14 @@ async function getMermaid() {
 
 let mermaidIdCounter = 0;
 
+/** Mermaid レンダリングを直列化するキュー（並行実行による DOM 競合を防止） */
+let renderQueue: Promise<void> = Promise.resolve();
+function enqueueRender<T>(fn: () => Promise<T>): Promise<T> {
+  const task = renderQueue.then(fn, fn);
+  renderQueue = task.then(() => {}, () => {});
+  return task;
+}
+
 /** Mermaid SVG用のDOMPurify設定: foreignObject経由のXSSを防止 */
 export const SVG_SANITIZE_CONFIG = {
   USE_PROFILES: { svg: true, svgFilters: true, html: true },
@@ -72,24 +80,26 @@ export function useMermaidRender({ code, isMermaid, isDark }: UseMermaidRenderPa
 
       if (cancelled) return;
       try {
-        const id = `mermaid-${++mermaidIdCounter}`;
-        const container = document.createElement("div");
-        container.id = `d${id}`;
-        container.style.position = "absolute";
-        container.style.left = "-9999px";
-        container.style.top = "-9999px";
-        document.body.appendChild(container);
-        try {
-          const { svg: rendered } = await mermaid.render(id, code, container);
-          if (!cancelled) { setSvg(rendered); setError(""); }
-        } finally {
-          container.remove();
-        }
+        await enqueueRender(async () => {
+          if (cancelled) return;
+          const id = `mermaid-${++mermaidIdCounter}`;
+          const container = document.createElement("div");
+          container.id = `d${id}`;
+          container.style.position = "absolute";
+          container.style.left = "-9999px";
+          container.style.top = "-9999px";
+          document.body.appendChild(container);
+          try {
+            const { svg: rendered } = await mermaid.render(id, code, container);
+            if (!cancelled) { setSvg(rendered); setError(""); }
+          } finally {
+            container.remove();
+            document.getElementById(`d${id}`)?.remove();
+          }
+        });
       } catch (err) {
         if (!cancelled) { setError(`Mermaid: ${err instanceof Error ? err.message : "render error"}`); setSvg(""); }
       }
-
-      document.querySelectorAll('[id^="dmermaid-"]').forEach((el) => el.remove());
     }, 500);
 
     return () => { cancelled = true; clearTimeout(timer); };
