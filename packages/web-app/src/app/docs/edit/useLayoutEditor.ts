@@ -11,7 +11,7 @@ import {
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates, arrayMove } from '@dnd-kit/sortable';
 import { useTranslations } from 'next-intl';
-import type { DocFile, LayoutCard } from '../../../types/layout';
+import type { DocFile, LayoutCategory, LayoutCategoryItem } from '../../../types/layout';
 
 function generateId() {
   return crypto.randomUUID();
@@ -21,19 +21,18 @@ export function useLayoutEditor() {
   const t = useTranslations('Landing');
   const tCommon = useTranslations('Common');
   const [files, setFiles] = useState<DocFile[]>([]);
-  const [cards, setCards] = useState<LayoutCard[]>([]);
+  const [categories, setCategories] = useState<LayoutCategory[]>([]);
   const [siteDescription, setSiteDescription] = useState('');
   const [loading, setLoading] = useState(true);
   const [snackbar, setSnackbar] = useState<{ message: string; severity: 'success' | 'error' } | null>(null);
-  const [editCard, setEditCard] = useState<LayoutCard | null>(null);
+  const [editCategory, setEditCategory] = useState<LayoutCategory | null>(null);
+  const [editItems, setEditItems] = useState<LayoutCategoryItem[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<DocFile | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const editFormRef = useRef<{ title: string; description: string; thumbnail: string; tags: string }>({
+  const editFormRef = useRef<{ title: string; description: string }>({
     title: '',
     description: '',
-    thumbnail: '',
-    tags: '',
   });
 
   const sensors = useSensors(
@@ -53,10 +52,14 @@ export function useLayoutEditor() {
   useEffect(() => {
     Promise.all([
       fetchFiles(),
-      fetch('/api/sites/layout').then((r) => r.json()) as Promise<{ cards: LayoutCard[]; siteDescription?: string }>,
+      fetch('/api/sites/layout').then((r) => r.json()) as Promise<{ categories: LayoutCategory[]; siteDescription?: string }>,
     ])
       .then(([, layoutData]) => {
-        setCards(layoutData.cards.map((c) => ({ ...c, tags: c.tags ?? [] })).sort((a, b) => a.order - b.order));
+        setCategories(
+          (layoutData.categories ?? [])
+            .map((c) => ({ ...c, items: c.items ?? [] }))
+            .sort((a, b) => a.order - b.order),
+        );
         if (layoutData.siteDescription) setSiteDescription(layoutData.siteDescription);
       })
       .catch(() => setSnackbar({ message: t('sitesLoadError'), severity: 'error' }))
@@ -89,7 +92,12 @@ export function useLayoutEditor() {
       const res = await fetch(`/api/docs/delete?key=${encodeURIComponent(deleteTarget.key)}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setSnackbar({ message: t('docsDeleteSuccess'), severity: 'success' });
-      setCards((prev) => prev.filter((c) => c.docKey !== deleteTarget.key));
+      setCategories((prev) =>
+        prev.map((cat) => ({
+          ...cat,
+          items: cat.items.filter((item) => item.docKey !== deleteTarget.key),
+        })),
+      );
       fetchFiles();
     } catch {
       setSnackbar({ message: t('docsDeleteError'), severity: 'error' });
@@ -98,26 +106,21 @@ export function useLayoutEditor() {
     setDeleteTarget(null);
   }, [deleteTarget, t, fetchFiles]);
 
-  const handleAddCard = useCallback((file: DocFile) => {
-    setCards((prev) => {
-      if (prev.some((c) => c.docKey === file.key)) return prev;
-      return [
-        ...prev,
-        {
-          id: generateId(),
-          docKey: file.key,
-          title: file.name.replace(/\.md$/, ''),
-          description: '',
-          thumbnail: '',
-          tags: [],
-          order: prev.length,
-        },
-      ];
-    });
+  const handleAddCategory = useCallback(() => {
+    setCategories((prev) => [
+      ...prev,
+      {
+        id: generateId(),
+        title: '',
+        description: '',
+        items: [],
+        order: prev.length,
+      },
+    ]);
   }, []);
 
-  const handleDeleteCard = useCallback((id: string) => {
-    setCards((prev) => prev.filter((c) => c.id !== id));
+  const handleDeleteCategory = useCallback((id: string) => {
+    setCategories((prev) => prev.filter((c) => c.id !== id));
   }, []);
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
@@ -129,7 +132,7 @@ export function useLayoutEditor() {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
-    setCards((prev) => {
+    setCategories((prev) => {
       const oldIndex = prev.findIndex((c) => c.id === active.id);
       const newIndex = prev.findIndex((c) => c.id === over.id);
       if (oldIndex === -1 || newIndex === -1) return prev;
@@ -137,36 +140,52 @@ export function useLayoutEditor() {
     });
   }, []);
 
-  const handleEditOpen = useCallback((card: LayoutCard) => {
-    setEditCard(card);
+  const handleEditOpen = useCallback((category: LayoutCategory) => {
+    setEditCategory(category);
+    setEditItems([...category.items]);
     editFormRef.current = {
-      title: card.title,
-      description: card.description,
-      thumbnail: card.thumbnail,
-      tags: (card.tags ?? []).join(', '),
+      title: category.title,
+      description: category.description,
     };
   }, []);
 
+  const handleEditAddItem = useCallback((file: DocFile) => {
+    setEditItems((prev) => {
+      if (prev.some((item) => item.docKey === file.key)) return prev;
+      return [...prev, { docKey: file.key, displayName: file.name.replace(/\.md$/, '') }];
+    });
+  }, []);
+
+  const handleEditRemoveItem = useCallback((docKey: string) => {
+    setEditItems((prev) => prev.filter((item) => item.docKey !== docKey));
+  }, []);
+
+  const handleEditItemDisplayName = useCallback((docKey: string, displayName: string) => {
+    setEditItems((prev) =>
+      prev.map((item) => (item.docKey === docKey ? { ...item, displayName } : item)),
+    );
+  }, []);
+
   const handleEditSave = useCallback(() => {
-    if (!editCard) return;
-    setCards((prev) =>
+    if (!editCategory) return;
+    setCategories((prev) =>
       prev.map((c) =>
-        c.id === editCard.id
+        c.id === editCategory.id
           ? {
               ...c,
               title: editFormRef.current.title,
               description: editFormRef.current.description,
-              thumbnail: editFormRef.current.thumbnail,
-              tags: editFormRef.current.tags.split(',').map((s) => s.trim()).filter(Boolean),
+              items: editItems,
             }
           : c,
       ),
     );
-    setEditCard(null);
-  }, [editCard]);
+    setEditCategory(null);
+    setEditItems([]);
+  }, [editCategory, editItems]);
 
   const handleSave = useCallback(async () => {
-    const layout = { cards: cards.map((c, i) => ({ ...c, order: i })), siteDescription };
+    const layout = { categories: categories.map((c, i) => ({ ...c, order: i })), siteDescription };
 
     try {
       const res = await fetch('/api/sites/layout', {
@@ -179,35 +198,39 @@ export function useLayoutEditor() {
     } catch {
       setSnackbar({ message: t('sitesSaveError'), severity: 'error' });
     }
-  }, [cards, t]);
+  }, [categories, siteDescription, t]);
 
-  const activeCard = activeId ? cards.find((c) => c.id === activeId) ?? null : null;
+  const activeCategory = activeId ? categories.find((c) => c.id === activeId) ?? null : null;
 
   return {
     t,
     tCommon,
     files,
-    cards,
+    categories,
     siteDescription,
     setSiteDescription,
     loading,
     snackbar,
     setSnackbar,
-    editCard,
-    setEditCard,
+    editCategory,
+    setEditCategory,
+    editItems,
+    editFormRef,
     deleteTarget,
     setDeleteTarget,
     fileInputRef,
-    editFormRef,
     sensors,
-    activeCard,
+    activeCategory,
     handleUpload,
     handleDeleteFile,
-    handleAddCard,
-    handleDeleteCard,
+    handleAddCategory,
+    handleDeleteCategory,
     handleDragStart,
     handleDragEnd,
     handleEditOpen,
+    handleEditAddItem,
+    handleEditRemoveItem,
+    handleEditItemDisplayName,
     handleEditSave,
     handleSave,
   };
