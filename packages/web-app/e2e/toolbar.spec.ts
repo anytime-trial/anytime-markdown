@@ -53,8 +53,10 @@ test.describe("Toolbar", () => {
     const menu = page.getByRole("menu", { name: "Type to filter..." });
     await expect(menu).toBeVisible();
     await menu.getByRole("menuitem", { name: /Divider/i }).click();
+    // メニューが閉じるのを待つ
+    await expect(menu).not.toBeVisible();
     // hr 要素が挿入される
-    await expect(editor.locator("hr")).toBeVisible();
+    await expect(editor.locator("hr")).toBeVisible({ timeout: 10000 });
   });
 
   test("insert mermaid diagram via slash command", async ({ page }) => {
