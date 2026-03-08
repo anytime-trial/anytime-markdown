@@ -4,6 +4,12 @@ All notable changes to the "anytime-markdown" extension will be documented in th
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.2.7] - 2026-03-08
+
+### Fixed
+- /api/docs/content の本番環境キャッシュ問題を修正（force-dynamic 追加）
+- Dockerfile の重複・不要な記述を整理（Playwright ブラウザインストールを node ユーザーで実行）
+
 ## [0.2.6] - 2026-03-08
 
 ### Changed
