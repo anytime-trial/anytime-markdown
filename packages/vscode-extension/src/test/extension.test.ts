@@ -19,7 +19,6 @@ suite("Extension Test Suite", () => {
   test("Commands should be registered", async () => {
     const commands = await vscode.commands.getCommands(true);
     const expected = [
-      "anytime-markdown.openEditor",
       "anytime-markdown.openEditorWithFile",
       "anytime-markdown.compareWithMarkdownEditor",
     ];

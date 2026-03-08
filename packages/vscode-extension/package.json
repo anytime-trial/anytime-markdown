@@ -21,10 +21,6 @@
   "contributes": {
     "commands": [
       {
-        "command": "anytime-markdown.openEditor",
-        "title": "Open Markdown Editor"
-      },
-      {
         "command": "anytime-markdown.openEditorWithFile",
         "title": "Open with Anytime"
       },
