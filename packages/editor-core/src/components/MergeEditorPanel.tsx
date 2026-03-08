@@ -257,6 +257,7 @@ interface MergeEditorPanelProps {
   hideScrollbar?: boolean;
   diffLines?: DiffLine[];
   side?: "left" | "right";
+  readOnly?: boolean;
   onMerge?: (blockId: number, direction: "left-to-right" | "right-to-left") => void;
   onHoverLine?: (lineIndex: number | null) => void;
 }
@@ -277,6 +278,7 @@ export function MergeEditorPanel({
   hideScrollbar,
   diffLines,
   side,
+  readOnly,
   onMerge,
   onHoverLine,
 }: MergeEditorPanelProps) {
@@ -510,11 +512,12 @@ export function MergeEditorPanel({
             </Box>
           )}
 
-          {/* Textarea（編集可能） */}
+          {/* Textarea */}
           <Box
             component="textarea"
             ref={resolvedTextareaRef}
             aria-label={textareaAriaLabel}
+            readOnly={readOnly}
             value={displayText}
             onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
               const newText = e.target.value;

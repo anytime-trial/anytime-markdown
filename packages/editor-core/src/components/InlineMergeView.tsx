@@ -13,10 +13,7 @@ import { useDiffHighlight } from "../hooks/useDiffHighlight";
 import { useScrollSync } from "../hooks/useScrollSync";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import { MergeEditorPanel } from "./MergeEditorPanel";
-import { MergeRightBubbleMenu } from "./MergeRightBubbleMenu";
-import { RightEditorBlockMenu } from "./RightEditorBlockMenu";
-import { getMarkdownFromEditor } from "../types";
-import { preserveBlankLines, splitByCodeBlocks } from "../utils/sanitizeMarkdown";
+import { preserveBlankLines } from "../utils/sanitizeMarkdown";
 import { computeInlineDiff, type DiffLine, type DiffResult, type InlineSegment } from "../utils/diffEngine";
 
 export interface MergeUndoRedo {
@@ -258,70 +255,18 @@ export function InlineMergeView({
     return () => document.removeEventListener('keydown', handler);
   }, [rightText]);
 
-  const isRightEditorUpdate = useRef(false);
   const [, setRightMeta] = useState<FileMetadata>(DEFAULT_METADATA);
   const hoverSetterRef = useRef<((v: number | null) => void) | null>(null);
   const handleHoverLine = useCallback((idx: number | null) => {
     hoverSetterRef.current?.(idx);
   }, []);
   const [rightDragOver, setRightDragOver] = useState(false);
-  const [rightHeadingMenu, setRightHeadingMenu] = useState<{
-    anchorEl: HTMLElement; pos: number; currentLevel: number;
-  } | null>(null);
 
-  // Right tiptap editor (for WYSIWYG mode)
+  // Right tiptap editor (for WYSIWYG mode) – readonly
   const rightEditor = useEditor({
     extensions: getBaseExtensions({ disableComments: true }),
-    editorProps: {
-      handleDOMEvents: {
-        click: (_view, event) => {
-          const target = event.target as HTMLElement;
-          const headingEl = target.closest("h1, h2, h3, h4, h5") as HTMLElement | null;
-          let blockEl: HTMLElement | null = headingEl;
-          let level = 0;
-          if (headingEl) {
-            level = parseInt(headingEl.tagName.substring(1));
-          } else {
-            const candidates = ["li", "p", "blockquote"] as const;
-            for (const sel of candidates) {
-              const el = target.closest(sel) as HTMLElement | null;
-              if (el) {
-                let parent: HTMLElement | null = el;
-                while (parent && !parent.classList.contains("tiptap")) {
-                  parent = parent.parentElement;
-                }
-                if (parent) { blockEl = el; break; }
-              }
-            }
-          }
-          if (!blockEl) return false;
-          const rect = blockEl.getBoundingClientRect();
-          if (event.clientX < rect.left) {
-            event.preventDefault();
-            const posTarget = blockEl.tagName.toLowerCase() === "blockquote"
-              ? (blockEl.querySelector("p") ?? blockEl)
-              : blockEl;
-            const pos = _view.posAtDOM(posTarget, 0);
-            setRightHeadingMenu({ anchorEl: blockEl, pos, currentLevel: level });
-            return true;
-          }
-          return false;
-        },
-      },
-    },
+    editable: false,
     content: "",
-    onUpdate: ({ editor: e }) => {
-      isRightEditorUpdate.current = true;
-      // コードブロック内の HTML エンティティを復元
-      const md = splitByCodeBlocks(getMarkdownFromEditor(e))
-        .map((part) =>
-          /^```/.test(part)
-            ? part.replace(/&(amp|lt|gt);/g, (m) => ({ "&amp;": "&", "&lt;": "<", "&gt;": ">" })[m] ?? m)
-            : part,
-        )
-        .join("");
-      setRightText(md);
-    },
     immediatelyRender: false,
   });
 
@@ -330,12 +275,8 @@ export function InlineMergeView({
     setLeftText(editorContent);
   }, [editorContent, setLeftText]);
 
-  // rightText -> right tiptap editor sync (external changes only, e.g. file load)
+  // rightText -> right tiptap editor sync
   useEffect(() => {
-    if (isRightEditorUpdate.current) {
-      isRightEditorUpdate.current = false;
-      return;
-    }
     if (rightEditor && !sourceMode) {
       rightEditor.commands.setContent(preserveBlankLines(rightText));
     }
@@ -461,6 +402,7 @@ export function InlineMergeView({
             editor={rightEditor}
             diffLines={diffResult?.rightLines}
             side="right"
+            readOnly
             onMerge={mergeBlock}
             onHoverLine={handleHoverLine}
           />
@@ -474,22 +416,6 @@ export function InlineMergeView({
         hoverSetterRef={hoverSetterRef}
       />
 
-      {/* Right editor heading/block type popover */}
-      <RightEditorBlockMenu
-        headingMenu={rightHeadingMenu}
-        onClose={() => setRightHeadingMenu(null)}
-        editor={rightEditor}
-        t={t}
-      />
-
-      {/* BubbleMenu for right editor (text formatting) */}
-      {rightEditor && (
-        <MergeRightBubbleMenu
-          editor={rightEditor}
-          sourceMode={sourceMode}
-          t={t}
-        />
-      )}
 
     </Box>
   );
