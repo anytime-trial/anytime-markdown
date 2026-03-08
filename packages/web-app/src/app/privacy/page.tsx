@@ -3,9 +3,8 @@ import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
 import Typography from '@mui/material/Typography';
 import Link from '@mui/material/Link';
-import NextLink from 'next/link';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { getTranslations } from 'next-intl/server';
+import LandingHeader from '../components/LandingHeader';
 import SiteFooter from '../components/SiteFooter';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -20,20 +19,12 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function PrivacyPolicyPage() {
-  const tLanding = await getTranslations('Landing');
   const t = await getTranslations('Privacy');
 
   return (
-  <div style={{ height: '100vh', overflow: 'auto' }}>
-    <Container maxWidth="md" sx={{ py: 6 }}>
-      <Link
-        component={NextLink}
-        href="/"
-        sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, mb: 2, textDecoration: 'none', color: 'text.secondary', '&:hover': { color: 'primary.main' } }}
-      >
-        <ArrowBackIcon sx={{ fontSize: 18 }} />
-        {tLanding('backToHome')}
-      </Link>
+  <div style={{ height: '100vh', overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+    <LandingHeader />
+    <Container maxWidth="md" sx={{ py: 6, flex: 1 }}>
       <Typography variant="h3" component="h1" gutterBottom>
         {t('title')}
       </Typography>

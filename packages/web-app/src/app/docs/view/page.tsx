@@ -16,12 +16,13 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
 
   try {
     const layout = await fetchLayoutData();
-    const card = layout.cards.find((c) => c.docKey === key);
-    const title = card?.title ?? key.replace(/\.md$/, '').split('/').pop() ?? 'Document';
+    const item = layout.categories.flatMap((c) => c.items).find((i) => i.docKey === key);
+    const category = layout.categories.find((c) => c.items.some((i) => i.docKey === key));
+    const title = item?.displayName ?? key.replace(/\.md$/, '').split('/').pop() ?? 'Document';
 
     return {
       title: `${title} - Anytime Markdown`,
-      description: card?.description || undefined,
+      description: category?.description || undefined,
       alternates: { canonical: `/docs/view?key=${encodeURIComponent(key)}` },
     };
   } catch {

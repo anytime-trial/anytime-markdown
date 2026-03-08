@@ -103,7 +103,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     saveContent: _saveContent,
     downloadMarkdown,
     clearContent,
-  } = useMarkdownEditor(externalContent ?? defaultContent);
+  } = useMarkdownEditor(externalContent ?? defaultContent, !!externalContent);
   const saveContent = readOnly ? noopSave : _saveContent;
 
   const [encoding, setEncoding] = useState<EncodingLabel>("UTF-8");

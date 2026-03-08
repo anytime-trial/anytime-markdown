@@ -11,15 +11,20 @@ import {
   DialogContent,
   DialogContentText,
   DialogTitle,
+  IconButton,
+  List,
+  ListItem,
+  ListItemText,
   Snackbar,
   TextField,
   Typography,
 } from '@mui/material';
+import DeleteIcon from '@mui/icons-material/Delete';
 import SaveIcon from '@mui/icons-material/Save';
 import LandingHeader from '../../components/LandingHeader';
 import SiteFooter from '../../components/SiteFooter';
 import FileListPanel from './FileListPanel';
-import CardAreaPanel from './CardAreaPanel';
+import CategoryAreaPanel from './CardAreaPanel';
 import { useLayoutEditor } from './useLayoutEditor';
 
 export default function EditBody() {
@@ -28,27 +33,40 @@ export default function EditBody() {
     t,
     tCommon,
     files,
-    cards,
+    categories,
     siteDescription,
     setSiteDescription,
     loading,
     snackbar,
     setSnackbar,
-    editCard,
-    setEditCard,
+    editCategory,
+    setEditCategory,
+    editItems,
+    editFormRef,
     deleteTarget,
     setDeleteTarget,
     fileInputRef,
-    editFormRef,
     sensors,
-    activeCard,
+    activeCategory,
     handleUpload,
     handleDeleteFile,
-    handleAddCard,
-    handleDeleteCard,
+    handleAddCategory,
+    handleDeleteCategory,
+    handleRemoveItem,
+    handleUpdateField,
+    handleUpdateItemDisplayName,
+    handleReorderItems,
+    handleDropFile,
+    handleDropUrl,
+    urlLinks,
+    handleAddUrlLink,
+    handleDeleteUrlLink,
     handleDragStart,
     handleDragEnd,
     handleEditOpen,
+    handleEditAddItem,
+    handleEditRemoveItem,
+    handleEditItemDisplayName,
     handleEditSave,
     handleSave,
   } = editor;
@@ -81,21 +99,23 @@ export default function EditBody() {
           >
             {t('sitesEdit')}
           </Typography>
-          <Button
-            variant="contained"
-            startIcon={<SaveIcon />}
-            onClick={handleSave}
-            sx={{
-              textTransform: 'none',
-              fontWeight: 600,
-              borderRadius: 2,
-              bgcolor: 'secondary.main',
-              color: '#000000',
-              '&:hover': { bgcolor: 'secondary.dark' },
-            }}
-          >
-            {t('sitesSave')}
-          </Button>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Button
+              variant="contained"
+              startIcon={<SaveIcon />}
+              onClick={handleSave}
+              sx={{
+                textTransform: 'none',
+                fontWeight: 600,
+                borderRadius: 2,
+                bgcolor: 'secondary.main',
+                color: '#000000',
+                '&:hover': { bgcolor: 'secondary.dark' },
+              }}
+            >
+              {t('sitesSave')}
+            </Button>
+          </Box>
         </Box>
 
         <TextField
@@ -110,21 +130,28 @@ export default function EditBody() {
         <Box sx={{ display: 'flex', gap: 3, flexDirection: { xs: 'column', md: 'row' } }}>
           <FileListPanel
             files={files}
-            cards={cards}
             fileInputRef={fileInputRef}
             onUpload={handleUpload}
-            onAddCard={handleAddCard}
             onDeleteRequest={setDeleteTarget}
+            urlLinks={urlLinks}
+            onAddUrlLink={handleAddUrlLink}
+            onDeleteUrlLink={handleDeleteUrlLink}
             t={t}
           />
-          <CardAreaPanel
-            cards={cards}
-            activeCard={activeCard}
+          <CategoryAreaPanel
+            categories={categories}
+            activeCategory={activeCategory}
             sensors={sensors}
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
-            onEdit={handleEditOpen}
-            onDelete={handleDeleteCard}
+            onDelete={handleDeleteCategory}
+            onRemoveItem={handleRemoveItem}
+            onUpdateField={handleUpdateField}
+            onUpdateItemDisplayName={handleUpdateItemDisplayName}
+            onReorderItems={handleReorderItems}
+            onDropFile={handleDropFile}
+            onDropUrl={handleDropUrl}
+            onAdd={handleAddCategory}
             t={t}
           />
         </Box>
@@ -152,45 +179,98 @@ export default function EditBody() {
         </DialogActions>
       </Dialog>
 
-      {/* カード編集ダイアログ */}
-      <Dialog open={!!editCard} onClose={() => setEditCard(null)} maxWidth="sm" fullWidth aria-labelledby="edit-dialog-title">
+      {/* カテゴリ編集ダイアログ */}
+      <Dialog open={!!editCategory} onClose={() => setEditCategory(null)} maxWidth="sm" fullWidth aria-labelledby="edit-dialog-title">
         <DialogTitle id="edit-dialog-title">{t('sitesEdit')}</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '16px !important' }}>
           <TextField
-            label={t('sitesCardTitle')}
-            defaultValue={editCard?.title ?? ''}
+            label={t('sitesCategoryTitle')}
+            defaultValue={editCategory?.title ?? ''}
             onChange={(e) => { editFormRef.current.title = e.target.value; }}
             fullWidth
             size="small"
           />
           <TextField
-            label={t('sitesCardDescription')}
-            defaultValue={editCard?.description ?? ''}
+            label={t('sitesCategoryDescription')}
+            defaultValue={editCategory?.description ?? ''}
             onChange={(e) => { editFormRef.current.description = e.target.value; }}
             fullWidth
             size="small"
             multiline
             rows={3}
           />
-          <TextField
-            label={t('sitesCardThumbnail')}
-            defaultValue={editCard?.thumbnail ?? ''}
-            onChange={(e) => { editFormRef.current.thumbnail = e.target.value; }}
-            fullWidth
-            size="small"
-            placeholder="https://..."
-          />
-          <TextField
-            label={t('sitesCardTags')}
-            defaultValue={(editCard?.tags ?? []).join(', ')}
-            onChange={(e) => { editFormRef.current.tags = e.target.value; }}
-            fullWidth
-            size="small"
-            placeholder="tag1, tag2, tag3"
-          />
+
+          <Typography variant="subtitle2" sx={{ fontWeight: 600, mt: 1 }}>
+            {t('sitesCategoryItems')}
+          </Typography>
+
+          {editItems.length === 0 ? (
+            <Typography variant="body2" color="text.secondary">
+              {t('sitesCategoryEmpty')}
+            </Typography>
+          ) : (
+            <List dense disablePadding>
+              {editItems.map((item) => (
+                <ListItem
+                  key={item.docKey}
+                  disablePadding
+                  secondaryAction={
+                    <IconButton
+                      edge="end"
+                      size="small"
+                      aria-label={t('sitesCategoryRemoveItem')}
+                      onClick={() => handleEditRemoveItem(item.docKey)}
+                      sx={{ '&:hover': { color: 'error.main' } }}
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  }
+                  sx={{ pr: 5 }}
+                >
+                  <ListItemText
+                    primary={
+                      <TextField
+                        size="small"
+                        variant="standard"
+                        defaultValue={item.displayName}
+                        onChange={(e) => handleEditItemDisplayName(item.docKey, e.target.value)}
+                        fullWidth
+                        placeholder={t('sitesItemDisplayName')}
+                      />
+                    }
+                    secondary={item.docKey}
+                  />
+                </ListItem>
+              ))}
+            </List>
+          )}
+
+          <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>
+            {t('sitesCategoryAddItem')}
+          </Typography>
+          <Box sx={{ maxHeight: 200, overflow: 'auto', border: 1, borderColor: 'divider', borderRadius: 1 }}>
+            <List dense disablePadding>
+              {files.map((file) => {
+                const alreadyAdded = editItems.some((item) => item.docKey === file.key);
+                return (
+                  <ListItem key={file.key} disablePadding>
+                    <Button
+                      size="small"
+                      onClick={() => handleEditAddItem(file)}
+                      disabled={alreadyAdded}
+                      fullWidth
+                      sx={{ justifyContent: 'flex-start', textTransform: 'none', px: 2, opacity: alreadyAdded ? 0.5 : 1 }}
+                    >
+                      {file.name}
+                    </Button>
+                  </ListItem>
+                );
+              })}
+            </List>
+          </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setEditCard(null)}>{tCommon('cancel')}</Button>
+          <Button onClick={() => setEditCategory(null)}>{tCommon('cancel')}</Button>
           <Button onClick={handleEditSave} variant="contained">{tCommon('ok')}</Button>
         </DialogActions>
       </Dialog>

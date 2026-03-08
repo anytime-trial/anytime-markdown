@@ -5,14 +5,13 @@ import {
   Box,
   CircularProgress,
   Container,
-  Link as MuiLink,
+
   List,
   ListItemButton,
   ListItemText,
   Typography,
 } from '@mui/material';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import NextLink from 'next/link';
+
 import { useTranslations } from 'next-intl';
 import { useTheme } from '@mui/material/styles';
 import DOMPurify from 'dompurify';
@@ -138,23 +137,6 @@ export default function FeaturesBody() {
       <LandingHeader />
 
       <Container maxWidth="lg" sx={{ flex: 1, py: 4, px: { xs: 2, md: 4 } }}>
-        <MuiLink
-          component={NextLink}
-          href="/"
-          sx={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 0.5,
-            mb: 3,
-            textDecoration: 'none',
-            color: 'text.secondary',
-            '&:hover': { color: 'primary.main' },
-          }}
-        >
-          <ArrowBackIcon sx={{ fontSize: 18 }} />
-          {t('backToHome')}
-        </MuiLink>
-
         <Typography
           variant="h3"
           component="h1"

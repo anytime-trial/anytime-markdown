@@ -34,9 +34,9 @@ npm install @aws-sdk/client-s3@3.787.0
 `packages/web-app/.env.local` に以下を設定（値はユーザーが設定）:
 
 ```
-AWS_REGION=ap-northeast-1
-AWS_ACCESS_KEY_ID=<your-access-key>
-AWS_SECRET_ACCESS_KEY=<your-secret-key>
+ANYTIME_AWS_REGION=ap-northeast-1
+ANYTIME_AWS_ACCESS_KEY_ID=<your-access-key>
+ANYTIME_AWS_SECRET_ACCESS_KEY=<your-secret-key>
 S3_DOCS_BUCKET=<your-bucket-name>
 S3_DOCS_PREFIX=docs/
 ```

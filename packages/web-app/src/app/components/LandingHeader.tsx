@@ -30,24 +30,19 @@ export default function LandingHeader() {
       <Toolbar sx={{ justifyContent: 'space-between', px: { xs: 2, md: 4 } }}>
         <Typography
           variant="h6"
-          component="div"
+          component={NextLink}
+          href="/"
           sx={{
             fontWeight: 700,
             letterSpacing: '-0.02em',
             color: 'text.primary',
+            textDecoration: 'none',
           }}
         >
           Anytime Markdown
         </Typography>
 
         <Box component="nav" aria-label="Main navigation" sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 } }}>
-          <Button
-            component={NextLink}
-            href="/features"
-            sx={{ textTransform: 'none', color: 'text.secondary', fontWeight: 600, fontSize: '0.85rem', display: { xs: 'none', sm: 'inline-flex' } }}
-          >
-            {t('featuresPage')}
-          </Button>
           <Button
             component={NextLink}
             href="/docs"
@@ -121,9 +116,6 @@ export default function LandingHeader() {
       >
         <Box sx={{ width: 220, pt: 2 }} component="nav" aria-label="Mobile navigation">
           <List>
-            <ListItemButton component={NextLink} href="/features" onClick={() => setDrawerOpen(false)}>
-              <ListItemText primary={t('featuresPage')} />
-            </ListItemButton>
             <ListItemButton component={NextLink} href="/docs" onClick={() => setDrawerOpen(false)}>
               <ListItemText primary={t('sitesPage')} />
             </ListItemButton>

@@ -15,8 +15,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   try {
     const layout = await fetchLayoutData();
-    const docPages: MetadataRoute.Sitemap = layout.cards.map((card) => ({
-      url: `${BASE_URL}/docs/view?key=${encodeURIComponent(card.docKey)}`,
+    const docPages: MetadataRoute.Sitemap = layout.categories.flatMap((cat) => cat.items).map((item) => ({
+      url: `${BASE_URL}/docs/view?key=${encodeURIComponent(item.docKey)}`,
       lastModified: new Date(),
       changeFrequency: "weekly",
       priority: 0.5,
