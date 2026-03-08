@@ -1,22 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg"
-     viewBox="0 0 24 24"
-     fill="currentColor">
-
-  <path d="
-    M3 18
-    V6
-    L7.5 12
-    L12 7
-    L16.5 12
-    L21 6
-    V18
-    H18
-    V10.5
-    L14.2 15
-    H9.8
-    L6 10.5
-    V18
-    Z
-  "/>
-
+viewBox="0 0 24 24"
+fill="currentColor">
+<path d="
+M3 19
+V5
+L8.5 13
+L12 8.5
+L15.5 13
+L21 5
+V19
+H18.5
+V10.8
+L14.3 16
+H9.7
+L5.5 10.8
+V19
+Z
+"/>
 </svg>
