@@ -658,7 +658,6 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
                 diffLines={leftDiffLines}
                 side="left"
                 showHoverLabels
-                onMerge={onMerge}
                 onHoverLine={onHoverLine}
               />
             </Box>
