@@ -127,6 +127,13 @@ export function getMergeTiptapStyles(theme: Theme, fontSize = 14, lineHeight = 1
           display: "none !important" as unknown as string,
         },
       },
+      // readonly/レビューモード時はコードブロックツールバーとリサイズハンドルを非表示
+      '&[contenteditable="false"] [data-block-toolbar], &[data-review-mode="true"] [data-block-toolbar], &[data-readonly-mode="true"] [data-block-toolbar]': {
+        display: "none !important" as unknown as string,
+      },
+      '&[contenteditable="false"] [data-resize-handle], &[data-review-mode="true"] [data-resize-handle], &[data-readonly-mode="true"] [data-resize-handle]': {
+        display: "none !important" as unknown as string,
+      },
       "& code": {
         bgcolor: theme.palette.action.hover,
         color: theme.palette.mode === "dark" ? theme.palette.grey[300] : theme.palette.error.main,

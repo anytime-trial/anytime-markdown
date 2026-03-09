@@ -56,6 +56,9 @@ export function DiagramBlock(props: DiagramBlockProps) {
   } = props;
 
   const isEditable = editor?.isEditable ?? true;
+  // ReviewModeExtension では isEditable が true のままなので、DOM属性で判定
+  const isReviewOrReadonly = !!editor?.view.dom.dataset.reviewMode || !!editor?.view.dom.dataset.readonlyMode;
+  const canInteract = isEditable && !isReviewOrReadonly;
 
   const settings = useEditorSettingsContext();
   const { setSampleAnchorEl } = usePlantUmlToolbar();
@@ -212,6 +215,7 @@ export function DiagramBlock(props: DiagramBlockProps) {
 
   const resizeHandle = isSelected && isEditable && (
     <Box
+      data-resize-handle=""
       role="slider"
       tabIndex={0}
       aria-label={t("resizeDiagram")}
@@ -243,8 +247,8 @@ export function DiagramBlock(props: DiagramBlockProps) {
   const diagramContainerSx = {
     overflow: "hidden", bgcolor: "background.paper", position: "relative",
     width: diagramResize.displayWidth || "fit-content", maxWidth: "100%",
-    cursor: !isEditable ? "default" : diagramResize.resizing ? "nwse-resize" : "grab",
-    "&:active": { cursor: !isEditable ? "default" : diagramResize.resizing ? "nwse-resize" : "grabbing" },
+    cursor: !canInteract ? "default" : diagramResize.resizing ? "nwse-resize" : "grab",
+    "&:active": { cursor: !canInteract ? "default" : diagramResize.resizing ? "nwse-resize" : "grabbing" },
   };
 
   const panTransformSx = {
@@ -257,11 +261,11 @@ export function DiagramBlock(props: DiagramBlockProps) {
   };
 
   const handleDoubleClickFullscreen = useCallback(() => {
-    if (!isEditable && (svg || plantUmlUrl)) {
+    if (!canInteract && (svg || plantUmlUrl)) {
       fsZP.reset();
       setFullscreen(true);
     }
-  }, [isEditable, svg, plantUmlUrl, fsZP, setFullscreen]);
+  }, [canInteract, svg, plantUmlUrl, fsZP, setFullscreen]);
 
   return (
     <CodeBlockFrame
@@ -314,17 +318,17 @@ export function DiagramBlock(props: DiagramBlockProps) {
               contentEditable={false}
               onClick={selectNode}
               onDoubleClick={handleDoubleClickFullscreen}
-              onPointerDown={isEditable ? normalZP.handlePointerDown : undefined}
-              onPointerMove={isEditable ? (e) => diagramResize.resizing ? diagramResize.handlePointerMove(e) : normalZP.handlePointerMove(e) : undefined}
-              onPointerUp={isEditable ? () => diagramResize.resizing ? diagramResize.handlePointerUp() : normalZP.handlePointerUp() : undefined}
-              onWheel={isEditable ? normalZP.handleWheel : undefined}
+              onPointerDown={canInteract ? normalZP.handlePointerDown : undefined}
+              onPointerMove={canInteract ? (e) => diagramResize.resizing ? diagramResize.handlePointerMove(e) : normalZP.handlePointerMove(e) : undefined}
+              onPointerUp={canInteract ? () => diagramResize.resizing ? diagramResize.handlePointerUp() : normalZP.handlePointerUp() : undefined}
+              onWheel={canInteract ? normalZP.handleWheel : undefined}
             >
               <Box
                 sx={panTransformSx}
                 dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(displaySvg, SVG_SANITIZE_CONFIG) }}
               />
-              {isEditable && resizeHandle}
-              {isEditable && resizeIndicator}
+              {canInteract && resizeHandle}
+              {canInteract && resizeIndicator}
             </Box>
           )}
           {isPlantUml && plantUmlConsent !== "accepted" && (
@@ -352,16 +356,16 @@ export function DiagramBlock(props: DiagramBlockProps) {
               contentEditable={false}
               onClick={selectNode}
               onDoubleClick={handleDoubleClickFullscreen}
-              onPointerDown={isEditable ? normalZP.handlePointerDown : undefined}
-              onPointerMove={isEditable ? (e) => diagramResize.resizing ? diagramResize.handlePointerMove(e) : normalZP.handlePointerMove(e) : undefined}
-              onPointerUp={isEditable ? () => diagramResize.resizing ? diagramResize.handlePointerUp() : normalZP.handlePointerUp() : undefined}
-              onWheel={isEditable ? normalZP.handleWheel : undefined}
+              onPointerDown={canInteract ? normalZP.handlePointerDown : undefined}
+              onPointerMove={canInteract ? (e) => diagramResize.resizing ? diagramResize.handlePointerMove(e) : normalZP.handlePointerMove(e) : undefined}
+              onPointerUp={canInteract ? () => diagramResize.resizing ? diagramResize.handlePointerUp() : normalZP.handlePointerUp() : undefined}
+              onWheel={canInteract ? normalZP.handleWheel : undefined}
             >
               <Box sx={panTransformSx}>
                 <img src={plantUmlUrl} alt={extractDiagramAltText(code, "plantuml")} referrerPolicy="no-referrer" style={{ maxWidth: "100%", height: "auto" }} />
               </Box>
-              {isEditable && resizeHandle}
-              {isEditable && resizeIndicator}
+              {canInteract && resizeHandle}
+              {canInteract && resizeIndicator}
             </Box>
           )}
           {error && (

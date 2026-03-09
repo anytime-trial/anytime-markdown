@@ -33,6 +33,13 @@ export function getEditorPaperSx(
           display: "none !important" as unknown as string,
         },
       },
+      // readonly/レビューモード時はコードブロックツールバーとリサイズハンドルを非表示
+      '&[contenteditable="false"] [data-block-toolbar], &[data-review-mode="true"] [data-block-toolbar], &[data-readonly-mode="true"] [data-block-toolbar]': {
+        display: "none !important" as unknown as string,
+      },
+      '&[contenteditable="false"] [data-resize-handle], &[data-review-mode="true"] [data-resize-handle], &[data-readonly-mode="true"] [data-resize-handle]': {
+        display: "none !important" as unknown as string,
+      },
       // readonlyモード時はチェックボックスを無効化
       ...(options?.readonlyMode ? {
         '& input[type="checkbox"]': {
