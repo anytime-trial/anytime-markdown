@@ -1,8 +1,9 @@
 import React from "react";
-import { Box, Dialog, DialogTitle, Divider, IconButton, Tooltip, Typography, useTheme } from "@mui/material";
+import { Box, Dialog, DialogTitle, IconButton, Tooltip, useTheme } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import { FsSearchBar } from "./FsSearchBar";
+import { FullscreenDiffView } from "./FullscreenDiffView";
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
 
 interface CodeBlockFullscreenDialogProps {
@@ -15,7 +16,7 @@ interface CodeBlockFullscreenDialogProps {
   fsSearch: TextareaSearchState;
   isCompareMode?: boolean;
   compareCode?: string | null;
-  isRightPanel?: boolean;
+  onMergeApply?: (newThisCode: string, newOtherCode: string) => void;
   t: (key: string) => string;
 }
 
@@ -37,7 +38,7 @@ const textareaSx = (fontSize: number, lineHeight: number) => ({
 
 export function CodeBlockFullscreenDialog({
   open, onClose, label, fsCode, onFsCodeChange, fsTextareaRef, fsSearch,
-  isCompareMode, compareCode, isRightPanel,
+  isCompareMode, compareCode, onMergeApply,
   t,
 }: CodeBlockFullscreenDialogProps) {
   const theme = useTheme();
@@ -79,33 +80,12 @@ export function CodeBlockFullscreenDialog({
       </Box>
 
       {showCompareView ? (
-        <Box sx={{ flex: 1, display: "flex", overflow: "hidden" }}>
-          <Box sx={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-            <Typography variant="caption" sx={{ px: 2, py: 0.5, bgcolor: "action.hover", fontWeight: 600, color: "text.secondary", flexShrink: 0 }}>
-              {isRightPanel ? t("compareRight") : t("compareLeft")}
-            </Typography>
-            <Box
-              component="textarea"
-              value={fsCode}
-              readOnly
-              spellCheck={false}
-              sx={textareaSx(settings.fontSize, settings.lineHeight)}
-            />
-          </Box>
-          <Divider orientation="vertical" flexItem />
-          <Box sx={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-            <Typography variant="caption" sx={{ px: 2, py: 0.5, bgcolor: "action.hover", fontWeight: 600, color: "text.secondary", flexShrink: 0 }}>
-              {isRightPanel ? t("compareLeft") : t("compareRight")}
-            </Typography>
-            <Box
-              component="textarea"
-              value={compareCode}
-              readOnly
-              spellCheck={false}
-              sx={textareaSx(settings.fontSize, settings.lineHeight)}
-            />
-          </Box>
-        </Box>
+        <FullscreenDiffView
+          initialLeftCode={fsCode}
+          initialRightCode={compareCode}
+          onMergeApply={onMergeApply ?? (() => {})}
+          t={t}
+        />
       ) : (
         <Box
           component="textarea"

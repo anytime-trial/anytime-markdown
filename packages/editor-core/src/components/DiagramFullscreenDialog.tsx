@@ -9,6 +9,7 @@ import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import DOMPurify from "dompurify";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import { FsSearchBar } from "./FsSearchBar";
+import { FullscreenDiffView } from "./FullscreenDiffView";
 import { SVG_SANITIZE_CONFIG } from "../hooks/useMermaidRender";
 import { extractDiagramAltText } from "../utils/diagramAltText";
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
@@ -33,7 +34,7 @@ interface DiagramFullscreenDialogProps {
   readOnly?: boolean;
   isCompareMode?: boolean;
   compareCode?: string | null;
-  isRightPanel?: boolean;
+  onMergeApply?: (newThisCode: string, newOtherCode: string) => void;
   t: (key: string) => string;
 }
 
@@ -57,7 +58,7 @@ export function DiagramFullscreenDialog({
   open, onClose, label, isMermaid, isPlantUml, svg, plantUmlUrl, code,
   fsCode, onFsCodeChange, fsTextareaRef, fsSearch,
   fsCodeVisible, onToggleFsCodeVisible, fsZP, readOnly,
-  isCompareMode, compareCode, isRightPanel,
+  isCompareMode, compareCode, onMergeApply,
   t,
 }: DiagramFullscreenDialogProps) {
   const theme = useTheme();
@@ -145,35 +146,14 @@ export function DiagramFullscreenDialog({
         </Tooltip>
       </Box>
 
-      {/* Compare view: left code | right code */}
+      {/* Compare view: line-level diff with merge buttons */}
       {showCompareView ? (
-        <Box sx={{ flex: 1, display: "flex", overflow: "hidden" }}>
-          <Box sx={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-            <Typography variant="caption" sx={{ px: 2, py: 0.5, bgcolor: "action.hover", fontWeight: 600, color: "text.secondary", flexShrink: 0 }}>
-              {isRightPanel ? t("compareRight") : t("compareLeft")}
-            </Typography>
-            <Box
-              component="textarea"
-              value={fsCode}
-              readOnly
-              spellCheck={false}
-              sx={textareaSx(settings.fontSize, settings.lineHeight)}
-            />
-          </Box>
-          <Divider orientation="vertical" flexItem />
-          <Box sx={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-            <Typography variant="caption" sx={{ px: 2, py: 0.5, bgcolor: "action.hover", fontWeight: 600, color: "text.secondary", flexShrink: 0 }}>
-              {isRightPanel ? t("compareLeft") : t("compareRight")}
-            </Typography>
-            <Box
-              component="textarea"
-              value={compareCode}
-              readOnly
-              spellCheck={false}
-              sx={textareaSx(settings.fontSize, settings.lineHeight)}
-            />
-          </Box>
-        </Box>
+        <FullscreenDiffView
+          initialLeftCode={fsCode}
+          initialRightCode={compareCode}
+          onMergeApply={onMergeApply ?? (() => {})}
+          t={t}
+        />
       ) : (
         /* Normal view: Code + Divider + Preview */
         <Box

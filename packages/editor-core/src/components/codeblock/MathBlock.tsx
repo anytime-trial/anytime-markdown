@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Box, Divider, IconButton, Tooltip, Typography } from "@mui/material";
 import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
 import FullscreenIcon from "@mui/icons-material/Fullscreen";
@@ -12,7 +12,7 @@ import { useKatexRender, MATH_SANITIZE_CONFIG } from "../../hooks/useKatexRender
 import { CodeBlockFullscreenDialog } from "../CodeBlockFullscreenDialog";
 import { MathSamplePopover } from "../MathSamplePopover";
 import { CodeBlockFrame } from "./CodeBlockFrame";
-import { getMergeEditors, findCounterpartCode } from "../../contexts/MergeEditorsContext";
+import { getMergeEditors, findCounterpartCode, getCodeBlockIndex, findCodeBlockByIndex } from "../../contexts/MergeEditorsContext";
 import type { CodeBlockSharedProps } from "./types";
 
 type MathBlockProps = Pick<
@@ -47,6 +47,43 @@ export function MathBlock(props: MathBlockProps) {
     const otherEditor = isRight ? mergeEditors.leftEditor : mergeEditors.rightEditor;
     return findCounterpartCode(editor, otherEditor, "math", code);
   }, [fullscreen, mergeEditors, editor, code]);
+
+  const blockIndexRef = useRef(-1);
+  useEffect(() => {
+    if (fullscreen && mergeEditors && editor) {
+      blockIndexRef.current = getCodeBlockIndex(editor, "math", code);
+    }
+  }, [fullscreen, mergeEditors, editor, code]);
+
+  const handleMergeApply = useCallback((newThisCode: string, newOtherCode: string) => {
+    if (!mergeEditors || !editor || blockIndexRef.current === -1) return;
+    const isRight = !!editor.view?.dom?.dataset?.reviewMode;
+    const otherEditor = isRight ? mergeEditors.leftEditor : mergeEditors.rightEditor;
+
+    const thisBlock = findCodeBlockByIndex(editor, "math", blockIndexRef.current);
+    if (thisBlock) {
+      editor.chain().command(({ tr }) => {
+        const from = thisBlock.pos + 1;
+        const to = from + thisBlock.size;
+        if (newThisCode) tr.replaceWith(from, to, editor.schema.text(newThisCode));
+        else tr.delete(from, to);
+        return true;
+      }).run();
+    }
+
+    if (otherEditor) {
+      const otherBlock = findCodeBlockByIndex(otherEditor, "math", blockIndexRef.current);
+      if (otherBlock) {
+        otherEditor.chain().command(({ tr }) => {
+          const from = otherBlock.pos + 1;
+          const to = from + otherBlock.size;
+          if (newOtherCode) tr.replaceWith(from, to, otherEditor.schema.text(newOtherCode));
+          else tr.delete(from, to);
+          return true;
+        }).run();
+      }
+    }
+  }, [mergeEditors, editor]);
 
   const toolbar = (
     <Box
@@ -123,7 +160,7 @@ export function MathBlock(props: MathBlockProps) {
           fsSearch={fsSearch}
           isCompareMode={isCompareMode}
           compareCode={compareCode}
-          isRightPanel={!!editor?.view?.dom?.dataset?.reviewMode}
+          onMergeApply={handleMergeApply}
           t={t}
         />
         <MathSamplePopover

@@ -56,3 +56,57 @@ export function findCounterpartCode(
 
   return otherCode;
 }
+
+/**
+ * エディタ内の同言語コードブロックのインデックスを取得する。
+ */
+export function getCodeBlockIndex(editor: Editor, language: string, code: string): number {
+  let index = -1;
+  let count = 0;
+  editor.state.doc.descendants((node) => {
+    if (node.type.name === "codeBlock" && node.attrs.language === language) {
+      if (node.textContent === code && index === -1) {
+        index = count;
+      }
+      count++;
+    }
+  });
+  return index;
+}
+
+/**
+ * インデックスで指定したコードブロックの位置とサイズを取得する。
+ */
+export function findCodeBlockByIndex(
+  editor: Editor,
+  language: string,
+  index: number,
+): { pos: number; size: number } | null {
+  let count = 0;
+  let result: { pos: number; size: number } | null = null;
+  editor.state.doc.descendants((node, pos) => {
+    if (node.type.name === "codeBlock" && node.attrs.language === language) {
+      if (count === index && result === null) {
+        result = { pos, size: node.content.size };
+      }
+      count++;
+    }
+  });
+  return result;
+}
+
+/**
+ * 対応するコードブロックの位置とサイズを取得する。
+ * マージ時にトランザクションでブロック内容を置換するために使用。
+ */
+export function findCounterpartCodePos(
+  thisEditor: Editor,
+  otherEditor: Editor | null,
+  language: string,
+  thisCode: string,
+): { pos: number; size: number } | null {
+  if (!otherEditor) return null;
+  const thisIndex = getCodeBlockIndex(thisEditor, language, thisCode);
+  if (thisIndex === -1) return null;
+  return findCodeBlockByIndex(otherEditor, language, thisIndex);
+}

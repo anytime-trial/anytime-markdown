@@ -1,18 +1,18 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { Box, Divider, IconButton, Tooltip, Typography } from "@mui/material";
 import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
 import FullscreenIcon from "@mui/icons-material/Fullscreen";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
-import { getMergeEditors, findCounterpartCode } from "../../contexts/MergeEditorsContext";
+import { getMergeEditors, findCounterpartCode, getCodeBlockIndex, findCodeBlockByIndex } from "../../contexts/MergeEditorsContext";
 import { CodeBlockFullscreenDialog } from "../CodeBlockFullscreenDialog";
 import { CodeBlockFrame } from "./CodeBlockFrame";
 import type { CodeBlockSharedProps } from "./types";
 
 type RegularCodeBlockProps = Pick<
   CodeBlockSharedProps,
-  | "editor" | "node" | "code"
+  | "editor" | "node" | "getPos" | "code"
   | "allCollapsed" | "isSelected" | "toggleAllCollapsed" | "handleDragKeyDown"
   | "handleCopyCode" | "handleDeleteBlock" | "deleteDialogOpen" | "setDeleteDialogOpen"
   | "fullscreen" | "setFullscreen" | "fsCode" | "onFsCodeChange" | "fsTextareaRef" | "fsSearch"
@@ -21,7 +21,7 @@ type RegularCodeBlockProps = Pick<
 
 export function RegularCodeBlock(props: RegularCodeBlockProps) {
   const {
-    editor, node, code,
+    editor, node, getPos, code,
     allCollapsed, isSelected, toggleAllCollapsed, handleDragKeyDown,
     handleDeleteBlock, deleteDialogOpen, setDeleteDialogOpen,
     fullscreen, setFullscreen, fsCode, onFsCodeChange, fsTextareaRef, fsSearch,
@@ -40,6 +40,43 @@ export function RegularCodeBlock(props: RegularCodeBlockProps) {
     const otherEditor = isRight ? mergeEditors.leftEditor : mergeEditors.rightEditor;
     return findCounterpartCode(editor, otherEditor, language, code);
   }, [fullscreen, mergeEditors, editor, language, code]);
+
+  const blockIndexRef = useRef(-1);
+  useEffect(() => {
+    if (fullscreen && mergeEditors && editor) {
+      blockIndexRef.current = getCodeBlockIndex(editor, language, code);
+    }
+  }, [fullscreen, mergeEditors, editor, language, code]);
+
+  const handleMergeApply = useCallback((newThisCode: string, newOtherCode: string) => {
+    if (!mergeEditors || !editor || blockIndexRef.current === -1) return;
+    const isRight = !!editor.view?.dom?.dataset?.reviewMode;
+    const otherEditor = isRight ? mergeEditors.leftEditor : mergeEditors.rightEditor;
+
+    const thisBlock = findCodeBlockByIndex(editor, language, blockIndexRef.current);
+    if (thisBlock) {
+      editor.chain().command(({ tr }) => {
+        const from = thisBlock.pos + 1;
+        const to = from + thisBlock.size;
+        if (newThisCode) tr.replaceWith(from, to, editor.schema.text(newThisCode));
+        else tr.delete(from, to);
+        return true;
+      }).run();
+    }
+
+    if (otherEditor) {
+      const otherBlock = findCodeBlockByIndex(otherEditor, language, blockIndexRef.current);
+      if (otherBlock) {
+        otherEditor.chain().command(({ tr }) => {
+          const from = otherBlock.pos + 1;
+          const to = from + otherBlock.size;
+          if (newOtherCode) tr.replaceWith(from, to, otherEditor.schema.text(newOtherCode));
+          else tr.delete(from, to);
+          return true;
+        }).run();
+      }
+    }
+  }, [mergeEditors, editor, language]);
 
   const toolbar = (
     <Box
@@ -102,7 +139,7 @@ export function RegularCodeBlock(props: RegularCodeBlockProps) {
           fsSearch={fsSearch}
           isCompareMode={isCompareMode}
           compareCode={compareCode}
-          isRightPanel={!!editor?.view?.dom?.dataset?.reviewMode}
+          onMergeApply={handleMergeApply}
           t={t}
         />
       }

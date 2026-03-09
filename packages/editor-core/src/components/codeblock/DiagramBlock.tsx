@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Box, Button, Divider, IconButton, Tooltip, Typography } from "@mui/material";
 import FullscreenIcon from "@mui/icons-material/Fullscreen";
 import FullscreenExitIcon from "@mui/icons-material/FullscreenExit";
@@ -22,7 +22,7 @@ import { DiagramFullscreenDialog } from "../DiagramFullscreenDialog";
 import { MermaidSamplePopover } from "../MermaidSamplePopover";
 import { extractDiagramAltText } from "../../utils/diagramAltText";
 import { CodeBlockFrame } from "./CodeBlockFrame";
-import { getMergeEditors, findCounterpartCode } from "../../contexts/MergeEditorsContext";
+import { getMergeEditors, findCounterpartCode, getCodeBlockIndex, findCodeBlockByIndex } from "../../contexts/MergeEditorsContext";
 import type { CodeBlockSharedProps } from "./types";
 
 const pumlIconSx = { fontSize: 16 };
@@ -123,6 +123,49 @@ export function DiagramBlock(props: DiagramBlockProps) {
     const otherEditor = isRight ? mergeEditors.leftEditor : mergeEditors.rightEditor;
     return findCounterpartCode(editor, otherEditor, language, code);
   }, [fullscreen, mergeEditors, editor, language, code]);
+
+  // マージ適用時: インデックスベースで両エディタのコードブロックを更新
+  const blockIndexRef = useRef(-1);
+  useEffect(() => {
+    if (fullscreen && mergeEditors && editor) {
+      blockIndexRef.current = getCodeBlockIndex(editor, language, code);
+    }
+  }, [fullscreen, mergeEditors, editor, language, code]);
+
+  const handleMergeApply = useCallback((newThisCode: string, newOtherCode: string) => {
+    if (!mergeEditors || !editor || blockIndexRef.current === -1) return;
+    const isRight = !!editor.view?.dom?.dataset?.reviewMode;
+    const otherEditor = isRight ? mergeEditors.leftEditor : mergeEditors.rightEditor;
+
+    // Update this editor's block
+    const thisPos = _getPos();
+    if (thisPos != null) {
+      const thisBlock = findCodeBlockByIndex(editor, language, blockIndexRef.current);
+      if (thisBlock) {
+        editor.chain().command(({ tr }) => {
+          const from = thisBlock.pos + 1;
+          const to = from + thisBlock.size;
+          if (newThisCode) tr.replaceWith(from, to, editor.schema.text(newThisCode));
+          else tr.delete(from, to);
+          return true;
+        }).run();
+      }
+    }
+
+    // Update other editor's block
+    if (otherEditor) {
+      const otherBlock = findCodeBlockByIndex(otherEditor, language, blockIndexRef.current);
+      if (otherBlock) {
+        otherEditor.chain().command(({ tr }) => {
+          const from = otherBlock.pos + 1;
+          const to = from + otherBlock.size;
+          if (newOtherCode) tr.replaceWith(from, to, otherEditor.schema.text(newOtherCode));
+          else tr.delete(from, to);
+          return true;
+        }).run();
+      }
+    }
+  }, [mergeEditors, editor, language, _getPos]);
 
   const label = isMermaid ? t("mermaid") : t("plantuml");
 
@@ -303,7 +346,7 @@ export function DiagramBlock(props: DiagramBlockProps) {
           readOnly={!isEditable}
           isCompareMode={isCompareMode}
           compareCode={compareCode}
-          isRightPanel={!!editor?.view?.dom?.dataset?.reviewMode}
+          onMergeApply={handleMergeApply}
           t={t}
         />
         <MermaidSamplePopover

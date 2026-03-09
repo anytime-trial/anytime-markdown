@@ -52,6 +52,7 @@ function setup(overrides?: { allCollapsed?: boolean; isSelected?: boolean; langu
   const props = {
     editor: null as never,
     node: mockNode,
+    getPos: (() => 0) as never,
     code: mockNode.textContent,
     allCollapsed: overrides?.allCollapsed ?? false,
     isSelected: overrides?.isSelected ?? true,
