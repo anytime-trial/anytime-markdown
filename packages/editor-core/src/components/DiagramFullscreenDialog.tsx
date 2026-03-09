@@ -31,13 +31,34 @@ interface DiagramFullscreenDialogProps {
   onToggleFsCodeVisible: () => void;
   fsZP: UseZoomPanReturn;
   readOnly?: boolean;
+  isCompareMode?: boolean;
+  compareCode?: string | null;
+  isRightPanel?: boolean;
   t: (key: string) => string;
 }
+
+const textareaSx = (fontSize: number, lineHeight: number) => ({
+  flex: 1,
+  width: "100%",
+  border: "none",
+  outline: "none",
+  resize: "none",
+  fontFamily: "monospace",
+  fontSize: `${fontSize}px`,
+  lineHeight,
+  p: 2,
+  color: "text.primary",
+  bgcolor: "background.paper",
+  boxSizing: "border-box",
+  overflow: "auto",
+} as const);
 
 export function DiagramFullscreenDialog({
   open, onClose, label, isMermaid, isPlantUml, svg, plantUmlUrl, code,
   fsCode, onFsCodeChange, fsTextareaRef, fsSearch,
-  fsCodeVisible, onToggleFsCodeVisible, fsZP, readOnly, t,
+  fsCodeVisible, onToggleFsCodeVisible, fsZP, readOnly,
+  isCompareMode, compareCode, isRightPanel,
+  t,
 }: DiagramFullscreenDialogProps) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
@@ -47,6 +68,9 @@ export function DiagramFullscreenDialog({
   const [fsDragging, setFsDragging] = useState(false);
   const fsContainerRef = useRef<HTMLDivElement>(null);
 
+  // 比較モードかつ対応ブロックがある場合はコード比較表示
+  const showCompareView = isCompareMode && compareCode != null;
+
   return (
     <Dialog
       open={open}
@@ -55,6 +79,7 @@ export function DiagramFullscreenDialog({
       aria-labelledby="diagram-fullscreen-title"
       slotProps={{ paper: { sx: { bgcolor: settings.editorBg === "grey" && !isDark ? "grey.50" : undefined, display: "flex", flexDirection: "column" } } }}
       onKeyDown={(e: React.KeyboardEvent) => {
+        if (showCompareView) return;
         const mod = e.metaKey || e.ctrlKey;
         if (mod && (e.key === "f" || e.key === "h")) {
           e.preventDefault();
@@ -63,164 +88,188 @@ export function DiagramFullscreenDialog({
         }
       }}
     >
+      {/* Toolbar */}
       <Box sx={{ display: "flex", alignItems: "center", px: 2, py: 1, borderBottom: 1, borderColor: "divider", position: "relative" }}>
         <DialogTitle id="diagram-fullscreen-title" sx={{ p: 0, fontSize: "0.875rem", fontWeight: 600, mr: 1 }}>
-          {label}
+          {label}{showCompareView ? ` - ${t("compare")}` : ""}
         </DialogTitle>
-        <ToggleButtonGroup size="small" sx={{ height: 30 }}>
-          <ToggleButton value="zoomOut" aria-label={t("zoomOut")} sx={{ px: 0.75, py: 0.25 }} onClick={fsZP.zoomOut}>
-            <Tooltip title={t("zoomOut")} placement="bottom">
-              <ZoomOutIcon sx={{ fontSize: 18 }} />
-            </Tooltip>
-          </ToggleButton>
-          <ToggleButton value="zoomIn" aria-label={t("zoomIn")} sx={{ px: 0.75, py: 0.25 }} onClick={fsZP.zoomIn}>
-            <Tooltip title={t("zoomIn")} placement="bottom">
-              <ZoomInIcon sx={{ fontSize: 18 }} />
-            </Tooltip>
-          </ToggleButton>
-          {fsZP.isDirty && (
-            <ToggleButton value="zoomReset" aria-label={t("zoomReset")} sx={{ px: 0.75, py: 0.25 }} onClick={fsZP.reset}>
-              <Tooltip title={t("zoomReset")} placement="bottom">
-                <RestartAltIcon sx={{ fontSize: 18 }} />
-              </Tooltip>
-            </ToggleButton>
-          )}
-        </ToggleButtonGroup>
-        <Typography variant="caption" sx={{ minWidth: 40, textAlign: "center" }}>
-          {Math.round(fsZP.zoom * 100)}%
-        </Typography>
-        {/* Search & Replace bar */}
-        {fsCodeVisible && (
-          <FsSearchBar search={fsSearch} t={t} />
+        {!showCompareView && (
+          <>
+            <ToggleButtonGroup size="small" sx={{ height: 30 }}>
+              <ToggleButton value="zoomOut" aria-label={t("zoomOut")} sx={{ px: 0.75, py: 0.25 }} onClick={fsZP.zoomOut}>
+                <Tooltip title={t("zoomOut")} placement="bottom">
+                  <ZoomOutIcon sx={{ fontSize: 18 }} />
+                </Tooltip>
+              </ToggleButton>
+              <ToggleButton value="zoomIn" aria-label={t("zoomIn")} sx={{ px: 0.75, py: 0.25 }} onClick={fsZP.zoomIn}>
+                <Tooltip title={t("zoomIn")} placement="bottom">
+                  <ZoomInIcon sx={{ fontSize: 18 }} />
+                </Tooltip>
+              </ToggleButton>
+              {fsZP.isDirty && (
+                <ToggleButton value="zoomReset" aria-label={t("zoomReset")} sx={{ px: 0.75, py: 0.25 }} onClick={fsZP.reset}>
+                  <Tooltip title={t("zoomReset")} placement="bottom">
+                    <RestartAltIcon sx={{ fontSize: 18 }} />
+                  </Tooltip>
+                </ToggleButton>
+              )}
+            </ToggleButtonGroup>
+            <Typography variant="caption" sx={{ minWidth: 40, textAlign: "center" }}>
+              {Math.round(fsZP.zoom * 100)}%
+            </Typography>
+            {fsCodeVisible && (
+              <FsSearchBar search={fsSearch} t={t} />
+            )}
+          </>
         )}
         <Box sx={{ flex: 1 }} />
-        <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
-        {/* Code toggle */}
-        <Tooltip title={fsCodeVisible ? t("diagramCodeHide") : t("diagramCodeShow")} placement="bottom">
-          <IconButton
-            size="small"
-            onClick={onToggleFsCodeVisible}
-            aria-label={fsCodeVisible ? t("diagramCodeHide") : t("diagramCodeShow")}
-            aria-pressed={fsCodeVisible}
-          >
-            {fsCodeVisible ? <CodeOffIcon sx={{ fontSize: 18 }} /> : <CodeIcon sx={{ fontSize: 18 }} />}
-          </IconButton>
-        </Tooltip>
+        {!showCompareView && (
+          <>
+            <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+            <Tooltip title={fsCodeVisible ? t("diagramCodeHide") : t("diagramCodeShow")} placement="bottom">
+              <IconButton
+                size="small"
+                onClick={onToggleFsCodeVisible}
+                aria-label={fsCodeVisible ? t("diagramCodeHide") : t("diagramCodeShow")}
+                aria-pressed={fsCodeVisible}
+              >
+                {fsCodeVisible ? <CodeOffIcon sx={{ fontSize: 18 }} /> : <CodeIcon sx={{ fontSize: 18 }} />}
+              </IconButton>
+            </Tooltip>
+          </>
+        )}
         <Tooltip title={t("close")} placement="bottom">
           <IconButton size="small" onClick={onClose} sx={{ ml: 1 }} aria-label={t("close")}>
             <CloseIcon sx={{ fontSize: 20 }} />
           </IconButton>
         </Tooltip>
       </Box>
-      {/* Split view: Code + Divider + Preview */}
-      <Box
-        ref={fsContainerRef}
-        sx={{ flex: 1, display: "flex", overflow: "hidden", position: "relative" }}
-        onPointerMove={(e: React.PointerEvent) => {
-          if (fsDragging && fsContainerRef.current) {
-            const rect = fsContainerRef.current.getBoundingClientRect();
-            const pct = ((e.clientX - rect.left) / rect.width) * 100;
-            setFsSplitPct(Math.min(80, Math.max(15, pct)));
-          }
-          if (!fsDragging) fsZP.handlePointerMove(e);
-        }}
-        onPointerUp={(e: React.PointerEvent) => {
-          if (fsDragging) {
-            setFsDragging(false);
-            (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
-          } else {
-            fsZP.handlePointerUp();
-          }
-        }}
-      >
-        {/* Code editor */}
-        {fsCodeVisible && (
-          <Box sx={{ width: `${fsSplitPct}%`, minWidth: 120, display: "flex", flexDirection: "column", pointerEvents: fsDragging ? "none" : "auto" }}>
+
+      {/* Compare view: left code | right code */}
+      {showCompareView ? (
+        <Box sx={{ flex: 1, display: "flex", overflow: "hidden" }}>
+          <Box sx={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+            <Typography variant="caption" sx={{ px: 2, py: 0.5, bgcolor: "action.hover", fontWeight: 600, color: "text.secondary", flexShrink: 0 }}>
+              {isRightPanel ? t("compareRight") : t("compareLeft")}
+            </Typography>
             <Box
               component="textarea"
-              ref={fsTextareaRef}
               value={fsCode}
-              onChange={onFsCodeChange}
-              readOnly={readOnly}
+              readOnly
               spellCheck={false}
-              sx={{
-                flex: 1,
-                width: "100%",
-                border: "none",
-                outline: "none",
-                resize: "none",
-                fontFamily: "monospace",
-                fontSize: `${settings.fontSize}px`,
-                lineHeight: settings.lineHeight,
-                p: 2,
-                color: "text.primary",
-                bgcolor: "background.paper",
-                boxSizing: "border-box",
-                overflow: "auto",
-              }}
+              sx={textareaSx(settings.fontSize, settings.lineHeight)}
             />
           </Box>
-        )}
-        {/* Draggable divider */}
-        {fsCodeVisible && (
-          <Box
-            role="separator"
-            aria-orientation="vertical"
-            aria-label={t("resizeSplitter")}
-            aria-valuenow={fsSplitPct}
-            aria-valuemin={20}
-            aria-valuemax={80}
-            tabIndex={0}
-            onKeyDown={(e: React.KeyboardEvent) => {
-              if (e.key === "ArrowLeft") {
-                setFsSplitPct((v) => Math.max(20, v - 5));
-                e.preventDefault();
-              } else if (e.key === "ArrowRight") {
-                setFsSplitPct((v) => Math.min(80, v + 5));
-                e.preventDefault();
-              }
-            }}
-            onPointerDown={(e: React.PointerEvent) => {
-              setFsDragging(true);
-              (e.target as HTMLElement).setPointerCapture(e.pointerId);
-              e.preventDefault();
-            }}
-            sx={{
-              width: 4,
-              cursor: "col-resize",
-              bgcolor: "divider",
-              flexShrink: 0,
-              "&:hover": { bgcolor: "primary.main" },
-              "&:focus-visible": { bgcolor: "primary.main", outline: "2px solid", outlineColor: "primary.main" },
-              transition: "background-color 0.15s",
-              "@media (prefers-reduced-motion: reduce)": { transition: "none" },
-            }}
-          />
-        )}
-        {/* Preview */}
-        <Box
-          sx={{
-            flex: 1,
-            overflow: "hidden",
-            bgcolor: "background.paper",
-            cursor: fsDragging ? "col-resize" : "grab",
-            "&:active": { cursor: fsDragging ? "col-resize" : "grabbing" },
-            // Prevent iframe/textarea stealing pointer events during drag
-            pointerEvents: fsDragging ? "none" : "auto",
-          }}
-          onPointerDown={fsZP.handlePointerDown}
-          onWheel={fsZP.handleWheel}
-        >
-          <Box sx={{ width: "100%", height: "100%", display: "flex", justifyContent: "center", alignItems: "center", transform: `translate(${fsZP.pan.x}px, ${fsZP.pan.y}px) scale(${fsZP.zoom})`, transformOrigin: "center center", transition: fsZP.isPanningRef.current ? "none" : "transform 0.15s", "@media (prefers-reduced-motion: reduce)": { transition: "none" }, pointerEvents: "none" }}>
-            {isMermaid && svg && (
-              <Box role="img" aria-label={extractDiagramAltText(code, "mermaid")} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(svg, SVG_SANITIZE_CONFIG) }} sx={{ width: "100%", "& svg": { width: "100%", height: "auto" } }} />
-            )}
-            {isPlantUml && plantUmlUrl && (
-              <img src={plantUmlUrl} alt={extractDiagramAltText(code, "plantuml")} referrerPolicy="no-referrer" style={{ maxWidth: "90vw", maxHeight: "85vh" }} />
-            )}
+          <Divider orientation="vertical" flexItem />
+          <Box sx={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+            <Typography variant="caption" sx={{ px: 2, py: 0.5, bgcolor: "action.hover", fontWeight: 600, color: "text.secondary", flexShrink: 0 }}>
+              {isRightPanel ? t("compareLeft") : t("compareRight")}
+            </Typography>
+            <Box
+              component="textarea"
+              value={compareCode}
+              readOnly
+              spellCheck={false}
+              sx={textareaSx(settings.fontSize, settings.lineHeight)}
+            />
           </Box>
         </Box>
-      </Box>
+      ) : (
+        /* Normal view: Code + Divider + Preview */
+        <Box
+          ref={fsContainerRef}
+          sx={{ flex: 1, display: "flex", overflow: "hidden", position: "relative" }}
+          onPointerMove={(e: React.PointerEvent) => {
+            if (fsDragging && fsContainerRef.current) {
+              const rect = fsContainerRef.current.getBoundingClientRect();
+              const pct = ((e.clientX - rect.left) / rect.width) * 100;
+              setFsSplitPct(Math.min(80, Math.max(15, pct)));
+            }
+            if (!fsDragging) fsZP.handlePointerMove(e);
+          }}
+          onPointerUp={(e: React.PointerEvent) => {
+            if (fsDragging) {
+              setFsDragging(false);
+              (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
+            } else {
+              fsZP.handlePointerUp();
+            }
+          }}
+        >
+          {/* Code editor */}
+          {fsCodeVisible && (
+            <Box sx={{ width: `${fsSplitPct}%`, minWidth: 120, display: "flex", flexDirection: "column", pointerEvents: fsDragging ? "none" : "auto" }}>
+              <Box
+                component="textarea"
+                ref={fsTextareaRef}
+                value={fsCode}
+                onChange={onFsCodeChange}
+                readOnly={readOnly}
+                spellCheck={false}
+                sx={textareaSx(settings.fontSize, settings.lineHeight)}
+              />
+            </Box>
+          )}
+          {/* Draggable divider */}
+          {fsCodeVisible && (
+            <Box
+              role="separator"
+              aria-orientation="vertical"
+              aria-label={t("resizeSplitter")}
+              aria-valuenow={fsSplitPct}
+              aria-valuemin={20}
+              aria-valuemax={80}
+              tabIndex={0}
+              onKeyDown={(e: React.KeyboardEvent) => {
+                if (e.key === "ArrowLeft") {
+                  setFsSplitPct((v) => Math.max(20, v - 5));
+                  e.preventDefault();
+                } else if (e.key === "ArrowRight") {
+                  setFsSplitPct((v) => Math.min(80, v + 5));
+                  e.preventDefault();
+                }
+              }}
+              onPointerDown={(e: React.PointerEvent) => {
+                setFsDragging(true);
+                (e.target as HTMLElement).setPointerCapture(e.pointerId);
+                e.preventDefault();
+              }}
+              sx={{
+                width: 4,
+                cursor: "col-resize",
+                bgcolor: "divider",
+                flexShrink: 0,
+                "&:hover": { bgcolor: "primary.main" },
+                "&:focus-visible": { bgcolor: "primary.main", outline: "2px solid", outlineColor: "primary.main" },
+                transition: "background-color 0.15s",
+                "@media (prefers-reduced-motion: reduce)": { transition: "none" },
+              }}
+            />
+          )}
+          {/* Preview */}
+          <Box
+            sx={{
+              flex: 1,
+              overflow: "hidden",
+              bgcolor: "background.paper",
+              cursor: fsDragging ? "col-resize" : "grab",
+              "&:active": { cursor: fsDragging ? "col-resize" : "grabbing" },
+              pointerEvents: fsDragging ? "none" : "auto",
+            }}
+            onPointerDown={fsZP.handlePointerDown}
+            onWheel={fsZP.handleWheel}
+          >
+            <Box sx={{ width: "100%", height: "100%", display: "flex", justifyContent: "center", alignItems: "center", transform: `translate(${fsZP.pan.x}px, ${fsZP.pan.y}px) scale(${fsZP.zoom})`, transformOrigin: "center center", transition: fsZP.isPanningRef.current ? "none" : "transform 0.15s", "@media (prefers-reduced-motion: reduce)": { transition: "none" }, pointerEvents: "none" }}>
+              {isMermaid && svg && (
+                <Box role="img" aria-label={extractDiagramAltText(code, "mermaid")} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(svg, SVG_SANITIZE_CONFIG) }} sx={{ width: "100%", "& svg": { width: "100%", height: "auto" } }} />
+              )}
+              {isPlantUml && plantUmlUrl && (
+                <img src={plantUmlUrl} alt={extractDiagramAltText(code, "plantuml")} referrerPolicy="no-referrer" style={{ maxWidth: "90vw", maxHeight: "85vh" }} />
+              )}
+            </Box>
+          </Box>
+        </Box>
+      )}
     </Dialog>
   );
 }

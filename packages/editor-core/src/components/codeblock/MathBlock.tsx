@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Alert, Box, Divider, IconButton, Tooltip, Typography } from "@mui/material";
 import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
 import FullscreenIcon from "@mui/icons-material/Fullscreen";
@@ -12,6 +12,7 @@ import { useKatexRender, MATH_SANITIZE_CONFIG } from "../../hooks/useKatexRender
 import { CodeBlockFullscreenDialog } from "../CodeBlockFullscreenDialog";
 import { MathSamplePopover } from "../MathSamplePopover";
 import { CodeBlockFrame } from "./CodeBlockFrame";
+import { getMergeEditors, findCounterpartCode } from "../../contexts/MergeEditorsContext";
 import type { CodeBlockSharedProps } from "./types";
 
 type MathBlockProps = Pick<
@@ -36,6 +37,16 @@ export function MathBlock(props: MathBlockProps) {
 
   const [mathSampleAnchorEl, setMathSampleAnchorEl] = useState<HTMLElement | null>(null);
   const { html: mathHtml, error: mathError } = useKatexRender({ code, isMath: true });
+
+  // 比較モード: 対応するブロックのコードを取得
+  const mergeEditors = getMergeEditors();
+  const isCompareMode = !!mergeEditors;
+  const compareCode = useMemo(() => {
+    if (!fullscreen || !mergeEditors || !editor) return null;
+    const isRight = !!editor.view?.dom?.dataset?.reviewMode;
+    const otherEditor = isRight ? mergeEditors.leftEditor : mergeEditors.rightEditor;
+    return findCounterpartCode(editor, otherEditor, "math", code);
+  }, [fullscreen, mergeEditors, editor, code]);
 
   const toolbar = (
     <Box
@@ -110,6 +121,9 @@ export function MathBlock(props: MathBlockProps) {
           onFsCodeChange={onFsCodeChange}
           fsTextareaRef={fsTextareaRef}
           fsSearch={fsSearch}
+          isCompareMode={isCompareMode}
+          compareCode={compareCode}
+          isRightPanel={!!editor?.view?.dom?.dataset?.reviewMode}
           t={t}
         />
         <MathSamplePopover

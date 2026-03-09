@@ -1,31 +1,45 @@
 "use client";
 
+import { useMemo } from "react";
 import { Box, Divider, IconButton, Tooltip, Typography } from "@mui/material";
 import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
 import FullscreenIcon from "@mui/icons-material/Fullscreen";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import { getMergeEditors, findCounterpartCode } from "../../contexts/MergeEditorsContext";
 import { CodeBlockFullscreenDialog } from "../CodeBlockFullscreenDialog";
 import { CodeBlockFrame } from "./CodeBlockFrame";
 import type { CodeBlockSharedProps } from "./types";
 
 type RegularCodeBlockProps = Pick<
   CodeBlockSharedProps,
+  | "editor" | "node" | "code"
   | "allCollapsed" | "isSelected" | "toggleAllCollapsed" | "handleDragKeyDown"
   | "handleCopyCode" | "handleDeleteBlock" | "deleteDialogOpen" | "setDeleteDialogOpen"
   | "fullscreen" | "setFullscreen" | "fsCode" | "onFsCodeChange" | "fsTextareaRef" | "fsSearch"
-  | "t" | "isDark" | "node"
+  | "t" | "isDark"
 >;
 
 export function RegularCodeBlock(props: RegularCodeBlockProps) {
   const {
+    editor, node, code,
     allCollapsed, isSelected, toggleAllCollapsed, handleDragKeyDown,
     handleDeleteBlock, deleteDialogOpen, setDeleteDialogOpen,
     fullscreen, setFullscreen, fsCode, onFsCodeChange, fsTextareaRef, fsSearch,
-    t, isDark, node,
+    t, isDark,
   } = props;
 
   const language = node.attrs.language;
   const codeLabel = language ? `Code (${language})` : "Code";
+
+  // 比較モード: 対応するブロックのコードを取得
+  const mergeEditors = getMergeEditors();
+  const isCompareMode = !!mergeEditors;
+  const compareCode = useMemo(() => {
+    if (!fullscreen || !mergeEditors || !editor) return null;
+    const isRight = !!editor.view?.dom?.dataset?.reviewMode;
+    const otherEditor = isRight ? mergeEditors.leftEditor : mergeEditors.rightEditor;
+    return findCounterpartCode(editor, otherEditor, language, code);
+  }, [fullscreen, mergeEditors, editor, language, code]);
 
   const toolbar = (
     <Box
@@ -86,6 +100,9 @@ export function RegularCodeBlock(props: RegularCodeBlockProps) {
           onFsCodeChange={onFsCodeChange}
           fsTextareaRef={fsTextareaRef}
           fsSearch={fsSearch}
+          isCompareMode={isCompareMode}
+          compareCode={compareCode}
+          isRightPanel={!!editor?.view?.dom?.dataset?.reviewMode}
           t={t}
         />
       }

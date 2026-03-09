@@ -22,6 +22,7 @@ import { DiagramFullscreenDialog } from "../DiagramFullscreenDialog";
 import { MermaidSamplePopover } from "../MermaidSamplePopover";
 import { extractDiagramAltText } from "../../utils/diagramAltText";
 import { CodeBlockFrame } from "./CodeBlockFrame";
+import { getMergeEditors, findCounterpartCode } from "../../contexts/MergeEditorsContext";
 import type { CodeBlockSharedProps } from "./types";
 
 const pumlIconSx = { fontSize: 16 };
@@ -111,6 +112,17 @@ export function DiagramBlock(props: DiagramBlockProps) {
     ro.observe(container);
     return () => ro.disconnect();
   }, [svg, plantUmlUrl, allCollapsed]);
+
+  // 比較モード: 対応するブロックのコードを取得
+  const mergeEditors = getMergeEditors();
+  const isCompareMode = !!mergeEditors;
+  // fullscreen 開始時に再計算するため fullscreen を依存配列に含める
+  const compareCode = useMemo(() => {
+    if (!fullscreen || !mergeEditors || !editor) return null;
+    const isRight = !!editor.view?.dom?.dataset?.reviewMode;
+    const otherEditor = isRight ? mergeEditors.leftEditor : mergeEditors.rightEditor;
+    return findCounterpartCode(editor, otherEditor, language, code);
+  }, [fullscreen, mergeEditors, editor, language, code]);
 
   const label = isMermaid ? t("mermaid") : t("plantuml");
 
@@ -289,6 +301,9 @@ export function DiagramBlock(props: DiagramBlockProps) {
           onToggleFsCodeVisible={() => setFsCodeVisible((v) => !v)}
           fsZP={fsZP}
           readOnly={!isEditable}
+          isCompareMode={isCompareMode}
+          compareCode={compareCode}
+          isRightPanel={!!editor?.view?.dom?.dataset?.reviewMode}
           t={t}
         />
         <MermaidSamplePopover

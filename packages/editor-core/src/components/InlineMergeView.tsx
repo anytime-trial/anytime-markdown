@@ -17,6 +17,7 @@ import { useEditorSettingsContext } from "../useEditorSettings";
 import { MergeEditorPanel } from "./MergeEditorPanel";
 import { sanitizeMarkdown, preserveBlankLines } from "../utils/sanitizeMarkdown";
 import { computeInlineDiff, type DiffLine, type DiffResult, type InlineSegment } from "../utils/diffEngine";
+import { setMergeEditors } from "../contexts/MergeEditorsContext";
 
 export interface MergeUndoRedo {
   undo: () => void;
@@ -407,6 +408,12 @@ export function InlineMergeView({
     };
     reader.readAsArrayBuffer(file);
   };
+
+  // モジュールレベルストアに左右エディタを登録（NodeView ポータルからアクセス可能にする）
+  useEffect(() => {
+    setMergeEditors({ leftEditor: leftEditor ?? null, rightEditor: rightEditor ?? null });
+    return () => setMergeEditors(null);
+  }, [leftEditor, rightEditor]);
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: editorHeight, minWidth: 0, overflow: "hidden" }}>

@@ -245,6 +245,7 @@ export const EditorDialogs = React.memo(function EditorDialogs({
           <Typography variant="body2" sx={{ mt: 2 }}>{t("versionDescription")}</Typography>
           <Typography variant="caption" sx={{ display: "block", mt: 2, color: "text.secondary" }}>{t("versionTech")}</Typography>
           <Typography variant="caption" sx={{ display: "block", mt: 1, color: "text.secondary" }}>{t("versionCopyright")}</Typography>
+          <Typography variant="caption" sx={{ display: "block", mt: 0.5, color: "text.secondary" }}>{t("versionLicense")}</Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setVersionDialogOpen(false)} color="inherit">{t("close")}</Button>
