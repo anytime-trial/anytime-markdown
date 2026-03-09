@@ -554,6 +554,7 @@ export function MergeEditorPanel({
                 pl: 1,
                 border: "none",
                 outline: "none",
+                boxShadow: "none",
                 resize: "none",
                 ...(autoResize ? { overflow: "hidden" } : {}),
                 ...hideScrollbarSx,
@@ -563,6 +564,11 @@ export function MergeEditorPanel({
                 color: theme.palette.text.primary,
                 bgcolor: "transparent",
                 boxSizing: "border-box",
+                "&:focus": {
+                  border: "none",
+                  outline: "none",
+                  boxShadow: "none",
+                },
               }}
             />
           </Box>
