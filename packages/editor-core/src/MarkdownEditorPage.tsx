@@ -382,6 +382,11 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     editor.commands.setShowHeadingNumbers(settings.showHeadingNumbers);
   }, [editor, settings.showHeadingNumbers]);
 
+  useEffect(() => {
+    if (!editor) return;
+    editor.view.dom.setAttribute("spellcheck", String(settings.spellCheck));
+  }, [editor, settings.spellCheck]);
+
   const {
     inlineMergeOpen, setInlineMergeOpen: _setInlineMergeOpen,
     editorMarkdown, setEditorMarkdown,

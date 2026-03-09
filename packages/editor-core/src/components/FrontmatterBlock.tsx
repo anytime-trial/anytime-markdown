@@ -2,6 +2,7 @@
 
 import { Box, IconButton, Typography, useTheme } from "@mui/material";
 import { useCallback, useRef, useState } from "react";
+import useConfirm from "@/hooks/useConfirm";
 import { useEditorSettingsContext } from "../useEditorSettings";
 
 interface FrontmatterBlockProps {
@@ -17,6 +18,7 @@ export function FrontmatterBlock({ frontmatter, onChange, readOnly, t }: Frontma
   const settings = useEditorSettingsContext();
   const [collapsed, setCollapsed] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const confirm = useConfirm();
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -69,8 +71,18 @@ export function FrontmatterBlock({ frontmatter, onChange, readOnly, t }: Frontma
           <IconButton
             size="small"
             title={t("delete")}
-            onClick={(e) => {
+            onClick={async (e) => {
               e.stopPropagation();
+              try {
+                await confirm({
+                  open: true,
+                  title: t("delete"),
+                  icon: "alert",
+                  description: t("deleteFrontmatterConfirm"),
+                });
+              } catch {
+                return;
+              }
               onChange(null);
             }}
             sx={{ p: 0.25 }}
