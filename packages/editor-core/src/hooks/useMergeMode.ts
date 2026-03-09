@@ -42,7 +42,10 @@ export function useMergeMode({
   // マージモードが閉じたときにデコレーションをクリア
   useEffect(() => {
     if (!inlineMergeOpen && editor) {
-      editor.commands.clearDiffHighlight();
+      // React レンダリング中の flushSync 競合を回避するため次フレームに遅延
+      requestAnimationFrame(() => {
+        if (!editor.isDestroyed) editor.commands.clearDiffHighlight();
+      });
     }
   }, [inlineMergeOpen, editor]);
 

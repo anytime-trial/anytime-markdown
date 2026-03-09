@@ -61,28 +61,39 @@ export function SourceModeEditor({
   const theme = useTheme();
   const highlightRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const gutterRef = useRef<HTMLDivElement>(null);
+  const mirrorRef = useRef<HTMLDivElement>(null);
+  const textContainerRef = useRef<HTMLDivElement>(null);
 
   const hasMatches = searchMatches && searchMatches.length > 0;
 
   const lineCount = (sourceText || "").split("\n").length || 1;
+  const displayLines = (sourceText || "").split("\n");
+  const digits = String(lineCount).length;
 
-  // Sync textarea scroll to highlight layer
+  // Sync textarea scroll to highlight layer and gutter
   const handleScroll = useCallback(() => {
     const ta = textareaRef?.current;
     const hl = highlightRef.current;
-    if (ta && hl) {
-      hl.scrollTop = ta.scrollTop;
-      hl.scrollLeft = ta.scrollLeft;
+    const gutter = gutterRef.current;
+    if (ta) {
+      if (hl) {
+        hl.scrollTop = ta.scrollTop;
+        hl.scrollLeft = ta.scrollLeft;
+      }
+      if (gutter) {
+        gutter.scrollTop = ta.scrollTop;
+      }
     }
   }, [textareaRef]);
 
   // Also sync when the parent Paper scrolls (vertical overflow)
   useEffect(() => {
     const container = scrollContainerRef.current;
-    if (!container || !hasMatches) return;
+    if (!container) return;
     const syncScroll = () => {
       const hl = highlightRef.current;
-      if (hl) {
+      if (hl && hasMatches) {
         hl.scrollTop = container.scrollTop;
       }
     };
@@ -90,14 +101,33 @@ export function SourceModeEditor({
     return () => container.removeEventListener("scroll", syncScroll);
   }, [hasMatches]);
 
+  // ミラー要素で各行の描画高さを計測し、行番号ガターの高さに反映
+  useEffect(() => {
+    const applyHeights = () => {
+      const mirror = mirrorRef.current;
+      const gutter = gutterRef.current;
+      if (!mirror || !gutter) return;
+      for (let i = 0; i < mirror.children.length; i++) {
+        const h = (mirror.children[i] as HTMLElement).getBoundingClientRect().height;
+        if (i < gutter.children.length) {
+          (gutter.children[i] as HTMLElement).style.height = `${h}px`;
+        }
+      }
+    };
+    applyHeights();
+    const container = textContainerRef.current;
+    if (!container) return;
+    const ro = new ResizeObserver(applyHeights);
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, [sourceText, settings.fontSize, settings.lineHeight]);
+
   const sharedTextSx = {
     fontFamily: "monospace",
     fontSize: `${settings.fontSize}px`,
     lineHeight: settings.lineHeight,
     letterSpacing: "normal",
     tabSize: 4,
-    whiteSpace: "pre",
-    wordWrap: "normal" as const,
   };
 
   const sharedPaddingSx = {
@@ -124,15 +154,14 @@ export function SourceModeEditor({
     >
       <Box sx={{ display: "flex", minHeight: "100%" }}>
         <Box
-          component="pre"
+          ref={gutterRef}
           sx={{
-            width: "auto",
-            minWidth: "3ch",
+            width: `${Math.max(3, digits + 1)}ch`,
+            minWidth: `${Math.max(3, digits + 1)}ch`,
             py: 2,
             px: 1,
             m: 0,
             textAlign: "right",
-            whiteSpace: "pre",
             fontFamily: "monospace",
             fontSize: `${settings.fontSize}px`,
             lineHeight: settings.lineHeight,
@@ -143,9 +172,32 @@ export function SourceModeEditor({
             flexShrink: 0,
           }}
         >
-          {Array.from({ length: lineCount }, (_, i) => i + 1).join("\n")}
+          {Array.from({ length: lineCount }, (_, i) => (
+            <div key={i}>{i + 1}</div>
+          ))}
         </Box>
-        <Box sx={{ flex: 1, minWidth: 0, position: "relative" }}>
+        <Box ref={textContainerRef} sx={{ flex: 1, minWidth: 0, position: "relative" }}>
+          {/* ミラー: textarea と同じ幅・フォントで描画し、折り返し後の各行高さを計測 */}
+          <Box
+            ref={mirrorRef}
+            aria-hidden="true"
+            sx={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              visibility: "hidden",
+              pointerEvents: "none",
+              ...sharedTextSx,
+              whiteSpace: "pre-wrap",
+              overflowWrap: "break-word",
+              ...sharedPaddingSx,
+            }}
+          >
+            {displayLines.map((line, i) => (
+              <div key={i}>{line || "\u00A0"}</div>
+            ))}
+          </Box>
           {/* Highlight layer behind textarea */}
           {hasMatches && (
             <Box
@@ -156,6 +208,8 @@ export function SourceModeEditor({
                 inset: 0,
                 ...sharedPaddingSx,
                 ...sharedTextSx,
+                whiteSpace: "pre-wrap",
+                overflowWrap: "break-word",
                 overflow: "hidden",
                 pointerEvents: "none",
                 color: "transparent",
@@ -170,8 +224,7 @@ export function SourceModeEditor({
             aria-label={ariaLabel}
             value={sourceText}
             rows={Math.max(lineCount, Math.ceil((editorHeight - 36) / (settings.fontSize * settings.lineHeight)))}
-            wrap="off"
-            onScroll={hasMatches ? handleScroll : undefined}
+            onScroll={handleScroll}
             onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
               onSourceChange(e.target.value)
             }

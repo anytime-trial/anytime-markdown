@@ -10,12 +10,15 @@ export function useDiffHighlight(
   useEffect(() => {
     if (sourceMode) {
       // ソースモードではクリア（行単位ハイライトを使用）
-      if (leftEditor && !leftEditor.isDestroyed) {
-        leftEditor.commands.clearDiffHighlight();
-      }
-      if (rightEditor && !rightEditor.isDestroyed) {
-        rightEditor.commands.clearDiffHighlight();
-      }
+      // React レンダリング中の flushSync 競合を回避するため次フレームに遅延
+      requestAnimationFrame(() => {
+        if (leftEditor && !leftEditor.isDestroyed) {
+          leftEditor.commands.clearDiffHighlight();
+        }
+        if (rightEditor && !rightEditor.isDestroyed) {
+          rightEditor.commands.clearDiffHighlight();
+        }
+      });
       return;
     }
     if (!leftEditor || !rightEditor) return;
@@ -40,8 +43,11 @@ export function useDiffHighlight(
     return () => {
       leftEditor.off("update", updateHighlights);
       rightEditor.off("update", updateHighlights);
-      if (!leftEditor.isDestroyed) leftEditor.commands.clearDiffHighlight();
-      if (!rightEditor.isDestroyed) rightEditor.commands.clearDiffHighlight();
+      // React レンダリング中の flushSync 競合を回避するため次フレームに遅延
+      requestAnimationFrame(() => {
+        if (!leftEditor.isDestroyed) leftEditor.commands.clearDiffHighlight();
+        if (!rightEditor.isDestroyed) rightEditor.commands.clearDiffHighlight();
+      });
     };
   }, [sourceMode, leftEditor, rightEditor]);
 }

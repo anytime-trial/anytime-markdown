@@ -1,5 +1,20 @@
 "use client";
 
+// Tiptap の ReactRenderer が componentDidMount 内で flushSync を呼ぶ問題を抑制
+// @see https://github.com/ueberdosis/tiptap/issues/3764
+if (typeof window !== "undefined") {
+  const origError = console.error;
+  console.error = (...args: unknown[]) => {
+    if (
+      typeof args[0] === "string" &&
+      args[0].includes("flushSync was called from inside a lifecycle method")
+    ) {
+      return;
+    }
+    origError.apply(console, args);
+  };
+}
+
 import dynamic from "next/dynamic";
 import {
   Alert,

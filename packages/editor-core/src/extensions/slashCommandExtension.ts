@@ -1,5 +1,5 @@
 import { Extension } from "@tiptap/core";
-import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { Plugin, PluginKey, Selection } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 
 export interface SlashCommandState {
@@ -84,7 +84,7 @@ export const SlashCommandExtension = Extension.create<{
       tr.insert(insertPos, newParagraph);
 
       tr.setSelection(
-        state.selection.constructor.near(tr.doc.resolve(insertPos + 2)),
+        Selection.near(tr.doc.resolve(insertPos + 2)),
       );
 
       view.dispatch(tr);

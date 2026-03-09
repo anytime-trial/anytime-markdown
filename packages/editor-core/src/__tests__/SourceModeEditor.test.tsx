@@ -14,6 +14,14 @@ jest.mock("../useEditorSettings", () => ({
   }),
 }));
 
+beforeAll(() => {
+  global.ResizeObserver = jest.fn().mockImplementation(() => ({
+    observe: jest.fn(),
+    unobserve: jest.fn(),
+    disconnect: jest.fn(),
+  }));
+});
+
 const theme = createTheme();
 
 function renderWithTheme(ui: React.ReactElement) {
@@ -67,8 +75,12 @@ describe("SourceModeEditor", () => {
     const text = "line1\nline2\nline3";
     const props = createDefaultProps({ sourceText: text });
     const { container } = renderWithTheme(<SourceModeEditor {...props} />);
-    const lineNumbers = container.querySelector("pre");
-    expect(lineNumbers).toBeTruthy();
-    expect(lineNumbers!.textContent).toBe("1\n2\n3");
+    // 行番号は個別のdiv要素で表示される
+    const gutterDivs = container.querySelectorAll("div[class] > div:first-child > div");
+    // ガター内のdiv要素から行番号テキストを取得
+    const gutter = container.querySelector("div[class]")?.children[0]?.children[0] as HTMLElement | undefined;
+    expect(gutter).toBeTruthy();
+    const numbers = Array.from(gutter!.children).map(el => el.textContent);
+    expect(numbers).toEqual(["1", "2", "3"]);
   });
 });

@@ -57,7 +57,8 @@ export function DiagramBlock(props: DiagramBlockProps) {
 
   const isEditable = editor?.isEditable ?? true;
   // ReviewModeExtension では isEditable が true のままなので、DOM属性で判定
-  const isReviewOrReadonly = !!editor?.view.dom.dataset.reviewMode || !!editor?.view.dom.dataset.readonlyMode;
+  const domDataset = editor?.view?.dom?.dataset;
+  const isReviewOrReadonly = !!domDataset?.reviewMode || !!domDataset?.readonlyMode;
   const canInteract = isEditable && !isReviewOrReadonly;
 
   const settings = useEditorSettingsContext();

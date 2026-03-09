@@ -292,9 +292,13 @@ export function InlineMergeView({
   // rightText -> right tiptap editor sync
   useEffect(() => {
     if (rightEditor && !sourceMode) {
-      reviewModeStorage(rightEditor).enabled = false;
-      rightEditor.commands.setContent(preserveBlankLines(sanitizeMarkdown(rightText)));
-      reviewModeStorage(rightEditor).enabled = true;
+      // React レンダリング中の flushSync 競合を回避するため次フレームに遅延
+      requestAnimationFrame(() => {
+        if (rightEditor.isDestroyed) return;
+        reviewModeStorage(rightEditor).enabled = false;
+        rightEditor.commands.setContent(preserveBlankLines(sanitizeMarkdown(rightText)));
+        reviewModeStorage(rightEditor).enabled = true;
+      });
     }
   }, [rightText, rightEditor, sourceMode]);
 
@@ -302,9 +306,12 @@ export function InlineMergeView({
   const prevSourceMode = useRef(sourceMode);
   useEffect(() => {
     if (prevSourceMode.current && !sourceMode && rightEditor) {
-      reviewModeStorage(rightEditor).enabled = false;
-      rightEditor.commands.setContent(preserveBlankLines(sanitizeMarkdown(rightText)));
-      reviewModeStorage(rightEditor).enabled = true;
+      requestAnimationFrame(() => {
+        if (rightEditor.isDestroyed) return;
+        reviewModeStorage(rightEditor).enabled = false;
+        rightEditor.commands.setContent(preserveBlankLines(sanitizeMarkdown(rightText)));
+        reviewModeStorage(rightEditor).enabled = true;
+      });
     }
     prevSourceMode.current = sourceMode;
   }, [sourceMode, rightEditor, rightText]);

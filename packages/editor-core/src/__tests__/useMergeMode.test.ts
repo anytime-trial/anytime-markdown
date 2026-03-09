@@ -10,6 +10,17 @@ jest.mock("../types", () => ({
 
 const mockedGetMarkdown = getMarkdownFromEditor as jest.MockedFunction<typeof getMarkdownFromEditor>;
 
+beforeEach(() => {
+  jest.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
+    cb(0);
+    return 0;
+  });
+});
+
+afterEach(() => {
+  jest.restoreAllMocks();
+});
+
 function createMockEditor(overrides?: Record<string, unknown>): Editor {
   return {
     commands: {
