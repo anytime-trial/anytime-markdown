@@ -176,6 +176,7 @@
     "mmdClassName": "Class Name",
     "mmdParticipantAlias": "Alias",
     "cancel": "Cancel",
+    "requiredField": "This field is required",
     "editorSettings": "Editor Settings",
     "settingLineHeight": "Line Height",
     "settingFontSize": "Font Size",

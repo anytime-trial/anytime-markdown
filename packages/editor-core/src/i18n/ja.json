@@ -176,6 +176,7 @@
     "mmdClassName": "クラス名",
     "mmdParticipantAlias": "別名",
     "cancel": "キャンセル",
+    "requiredField": "この項目は必須です",
     "editorSettings": "エディタ設定",
     "settingLineHeight": "行間",
     "settingFontSize": "フォントサイズ",
