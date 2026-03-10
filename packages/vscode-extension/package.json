@@ -2,7 +2,7 @@
   "name": "anytime-markdown",
   "displayName": "Anytime Markdown",
   "description": "markdown editor featuring Claude Code",
-  "version": "0.2.9",
+  "version": "0.3.0",
   "license": "MIT",
   "publisher": "kiytaka-ueda",
   "repository": {
@@ -14,6 +14,13 @@
   },
   "categories": [
     "Other"
+  ],
+  "keywords": [
+    "markdown",
+    "merge",
+    "wysiwyg",
+    "mermaid",
+    "plantuml"
   ],
   "activationEvents": [],
   "icon": "images/camel_markdown.png",

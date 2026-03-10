@@ -1,3 +1,9 @@
+---
+title: Anytime Markdown
+date: 2026-03-09
+tags: [markdown, editor, WYSIWYG]
+---
+
 # Anytime Markdown
 
 **いつでも、どこでも、美しく書く** — ブラウザで完結するマークダウンエディタへようこそ。

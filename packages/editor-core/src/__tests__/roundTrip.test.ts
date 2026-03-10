@@ -4,6 +4,7 @@ import { sanitizeMarkdown, preserveBlankLines } from "../utils/sanitizeMarkdown"
 import { getMarkdownFromEditor } from "../types";
 import { createTestEditor } from "../testUtils/createTestEditor";
 import { Editor } from "@tiptap/core";
+import { parseFrontmatter, prependFrontmatter } from "../utils/frontmatterHelpers";
 
 // ---------- ラウンドトリップ: markdown → Editor → markdown ----------
 
@@ -315,10 +316,12 @@ describe("テンプレートファイル ラウンドトリップ", () => {
   /** テンプレートを読み込み→保存して比較するヘルパー */
   function templateRoundTrip(filename: string, opts?: { withTable?: boolean }): string {
     const original = fs.readFileSync(path.join(templatesDir, filename), "utf-8");
+    const { frontmatter, body } = parseFrontmatter(original);
     editor = createTestEditor({ withMarkdown: true, withTable: opts?.withTable });
-    const preprocessed = preserveBlankLines(sanitizeMarkdown(original));
+    const preprocessed = preserveBlankLines(sanitizeMarkdown(body));
     editor.commands.setContent(preprocessed);
-    return getMarkdownFromEditor(editor);
+    const md = getMarkdownFromEditor(editor);
+    return prependFrontmatter(md, frontmatter);
   }
 
   test("defaultContent.md: 読み込み→保存で内容が変わらない", () => {

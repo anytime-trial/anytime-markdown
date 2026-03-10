@@ -29,7 +29,7 @@ function setup(editor: Editor | null = createMockEditor()) {
   const saveContent = jest.fn();
   const t = jest.fn((key: string) => key);
   return {
-    hook: renderHook(() => useSourceMode({ editor, saveContent, t })),
+    hook: renderHook(() => useSourceMode({ editor, saveContent, t, frontmatterRef: { current: null } })),
     saveContent,
     t,
     editor,
@@ -74,14 +74,14 @@ describe("useSourceMode", () => {
     const { hook, saveContent } = setup();
     act(() => hook.result.current.handleSourceChange("new content"));
     expect(hook.result.current.sourceText).toBe("new content");
-    expect(saveContent).toHaveBeenCalledWith("new content");
+    expect(saveContent).toHaveBeenCalledWith("new content", false);
   });
 
   test("appendToSource 空テキスト → separator なしで追加", () => {
     const { hook, saveContent } = setup();
     act(() => hook.result.current.appendToSource("# Title"));
     expect(hook.result.current.sourceText).toBe("# Title");
-    expect(saveContent).toHaveBeenCalledWith("# Title");
+    expect(saveContent).toHaveBeenCalledWith("# Title", false);
   });
 
   test("appendToSource 末尾改行なし → separator 付きで追加", () => {
@@ -89,7 +89,7 @@ describe("useSourceMode", () => {
     act(() => hook.result.current.handleSourceChange("line1"));
     act(() => hook.result.current.appendToSource("line2"));
     expect(hook.result.current.sourceText).toBe("line1\nline2");
-    expect(saveContent).toHaveBeenLastCalledWith("line1\nline2");
+    expect(saveContent).toHaveBeenLastCalledWith("line1\nline2", false);
   });
 
   test("appendToSource 末尾改行あり → separator なしで追加", () => {

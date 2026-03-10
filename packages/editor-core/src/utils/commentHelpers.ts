@@ -8,11 +8,8 @@ export interface InlineComment {
   createdAt: string;
 }
 
-/**
- * コメントデータブロックの正規表現。
- * 末尾の `<!-- comments\n...\n-->` ブロックにマッチする。
- */
-const COMMENT_BLOCK_RE = /\n?\n<!-- comments\n([\s\S]*?)\n-->\s*$/;
+const COMMENT_BLOCK_START = "\n<!-- comments\n";
+const COMMENT_BLOCK_END = "\n-->";
 
 /**
  * コメントデータ行の正規表現。
@@ -24,6 +21,7 @@ const COMMENT_LINE_RE =
 
 /**
  * Markdown 末尾の `<!-- comments -->` ブロックからコメントデータを抽出する。
+ * indexOf ベースでブロックを検索し、ReDoS を回避する。
  *
  * @returns comments: コメント Map、body: コメントデータブロック除去後の本文
  */
@@ -32,12 +30,20 @@ export function parseCommentData(md: string): {
   body: string;
 } {
   const comments = new Map<string, InlineComment>();
-  const match = md.match(COMMENT_BLOCK_RE);
-  if (!match) {
-    return { comments, body: md };
-  }
 
-  const block = match[1];
+  // 末尾から最後の <!-- comments\n...\n--> を検索
+  const startIdx = md.lastIndexOf(COMMENT_BLOCK_START);
+  if (startIdx === -1) return { comments, body: md };
+
+  const contentStart = startIdx + COMMENT_BLOCK_START.length;
+  const endIdx = md.indexOf(COMMENT_BLOCK_END, contentStart);
+  if (endIdx === -1) return { comments, body: md };
+
+  // ブロック末尾以降が空白のみであることを確認
+  const after = md.slice(endIdx + COMMENT_BLOCK_END.length);
+  if (after.trim() !== "") return { comments, body: md };
+
+  const block = md.slice(contentStart, endIdx);
   for (const line of block.split("\n")) {
     const trimmed = line.trim();
     if (!trimmed) continue;
@@ -53,7 +59,9 @@ export function parseCommentData(md: string): {
     comments.set(id, { id, text, resolved, createdAt });
   }
 
-  const body = md.slice(0, match.index!).trimEnd();
+  // startIdx の前に改行がある場合はそれも除去
+  const bodyEnd = startIdx > 0 && md[startIdx - 1] === "\n" ? startIdx - 1 : startIdx;
+  const body = md.slice(0, bodyEnd).trimEnd();
   return { comments, body };
 }
 
@@ -76,10 +84,49 @@ export function preprocessComments(md: string): string {
 
 function convertCommentMarkers(text: string): string {
   // Range comments: <!-- comment-start:id -->content<!-- comment-end:id -->
-  let result = text.replace(
-    /<!-- comment-start:(\S+?) -->([\s\S]*?)<!-- comment-end:\1 -->/g,
-    '<span data-comment-id="$1">$2</span>',
-  );
+  // indexOf ベースで処理し ReDoS を回避
+  let result = "";
+  let pos = 0;
+  const START_PREFIX = "<!-- comment-start:";
+  const END_PREFIX = "<!-- comment-end:";
+  const MARKER_SUFFIX = " -->";
+
+  while (pos < text.length) {
+    const startIdx = text.indexOf(START_PREFIX, pos);
+    if (startIdx === -1) {
+      result += text.slice(pos);
+      break;
+    }
+
+    const idStart = startIdx + START_PREFIX.length;
+    const suffixIdx = text.indexOf(MARKER_SUFFIX, idStart);
+    if (suffixIdx === -1) {
+      result += text.slice(pos);
+      break;
+    }
+
+    const id = text.slice(idStart, suffixIdx);
+    if (!id || /\s/.test(id)) {
+      result += text.slice(pos, suffixIdx + MARKER_SUFFIX.length);
+      pos = suffixIdx + MARKER_SUFFIX.length;
+      continue;
+    }
+
+    const contentStart = suffixIdx + MARKER_SUFFIX.length;
+    const endMarker = `${END_PREFIX}${id}${MARKER_SUFFIX}`;
+    const endIdx = text.indexOf(endMarker, contentStart);
+    if (endIdx === -1) {
+      result += text.slice(pos, contentStart);
+      pos = contentStart;
+      continue;
+    }
+
+    const content = text.slice(contentStart, endIdx);
+    result += text.slice(pos, startIdx);
+    result += `<span data-comment-id="${id}">${content}</span>`;
+    pos = endIdx + endMarker.length;
+  }
+
   // Point comments: <!-- comment-point:id -->
   result = result.replace(
     /<!-- comment-point:(\S+?) -->/g,

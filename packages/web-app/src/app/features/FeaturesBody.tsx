@@ -43,10 +43,15 @@ function slugify(text: string): string {
     .replace(/^-|-$/g, '');
 }
 
+function stripHtmlTags(html: string): string {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  return doc.body.textContent ?? '';
+}
+
 function processHtml(raw: string): { html: string; headings: { id: string; text: string; level: number }[] } {
   const headings: { id: string; text: string; level: number }[] = [];
   const processed = raw.replace(/<h([23])>(.*?)<\/h\1>/g, (_match, level: string, text: string) => {
-    const plainText = text.replace(/<[^>]*>/g, '');
+    const plainText = stripHtmlTags(text);
     const id = slugify(plainText);
     headings.push({ id, text: plainText, level: parseInt(level) });
     return `<h${level} id="${id}">${text}</h${level}>`;

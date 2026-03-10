@@ -7,6 +7,7 @@ import useConfirm from "@/hooks/useConfirm";
 import { getMarkdownFromEditor, type EncodingLabel, type MarkdownStorage } from "../types";
 import type { FileHandle } from "../types/fileSystem";
 import { sanitizeMarkdown, preserveBlankLines } from "../utils/sanitizeMarkdown";
+import { prependFrontmatter } from "../utils/frontmatterHelpers";
 import DOMPurify from "dompurify";
 import { SVG_SANITIZE_CONFIG } from "./useMermaidRender";
 import { PLANTUML_SERVER } from "../utils/plantumlHelpers";
@@ -26,6 +27,7 @@ interface UseEditorFileOpsParams {
   resetFile?: () => void;
   encoding?: EncodingLabel;
   fileHandle?: FileHandle | null;
+  frontmatterRef: React.MutableRefObject<string | null>;
 }
 
 export type NotificationKey = "copiedToClipboard" | "fileSaved" | "pdfExportError" | "encodingError" | "saveError" | null;
@@ -44,6 +46,7 @@ export function useEditorFileOps({
   resetFile,
   encoding,
   fileHandle,
+  frontmatterRef,
 }: UseEditorFileOpsParams) {
   const [notification, setNotification] = useState<NotificationKey>(null);
   const [pdfExporting, setPdfExporting] = useState(false);
@@ -53,6 +56,12 @@ export function useEditorFileOps({
   const t = useTranslations("MarkdownEditor");
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
+
+  /** エディタからフロントマター付き Markdown を取得する */
+  const getFullMarkdown = useCallback(() => {
+    const md = sourceMode ? sourceText : editor ? getMarkdownFromEditor(editor) : "";
+    return sourceMode ? md : prependFrontmatter(md, frontmatterRef.current);
+  }, [sourceMode, sourceText, editor, frontmatterRef]);
 
   const showNotification = useCallback((key: NotificationKey) => {
     clearTimeout(notificationTimerRef.current);
@@ -76,9 +85,10 @@ export function useEditorFileOps({
     } else {
       editor?.commands.clearContent();
     }
+    frontmatterRef.current = null;
     clearContent();
     resetFile?.();
-  }, [confirm, t, sourceMode, setSourceText, editor, clearContent, resetFile]);
+  }, [confirm, t, sourceMode, setSourceText, editor, clearContent, resetFile, frontmatterRef]);
 
   const handleImport = useCallback(
     (file: File) => {
@@ -119,16 +129,16 @@ export function useEditorFileOps({
   }, [sourceMode, sourceText, editor, confirm, t, handleImport]);
 
   const handleDownload = useCallback(() => {
-    let md = sourceMode ? sourceText : editor ? getMarkdownFromEditor(editor) : "";
+    let md = getFullMarkdown();
     if (md && !md.endsWith("\n")) md += "\n";
     downloadMarkdown(md, encoding);
-  }, [sourceMode, sourceText, editor, downloadMarkdown, encoding]);
+  }, [getFullMarkdown, downloadMarkdown, encoding]);
 
   const handleCopy = useCallback(async () => {
-    const md = sourceMode ? sourceText : editor ? getMarkdownFromEditor(editor) : "";
+    const md = getFullMarkdown();
     await navigator.clipboard.writeText(md);
     showNotification("copiedToClipboard");
-  }, [sourceMode, sourceText, editor, showNotification]);
+  }, [getFullMarkdown, showNotification]);
 
   const handleOpenFile = useCallback(async () => {
     if (!openFile) return;
@@ -161,7 +171,7 @@ export function useEditorFileOps({
 
   const handleSaveFile = useCallback(async () => {
     if (!saveFile) return;
-    let md = sourceMode ? sourceText : editor ? getMarkdownFromEditor(editor) : "";
+    let md = getFullMarkdown();
     if (md && !md.endsWith("\n")) md += "\n";
     if (encoding && encoding !== "UTF-8" && fileHandle?.nativeHandle) {
       const nativeHandle = fileHandle.nativeHandle as FileSystemFileHandle;
@@ -176,15 +186,15 @@ export function useEditorFileOps({
       await saveFile(md);
     }
     showNotification("fileSaved");
-  }, [saveFile, editor, sourceMode, sourceText, showNotification, encoding, fileHandle]);
+  }, [saveFile, getFullMarkdown, showNotification, encoding, fileHandle]);
 
   const handleSaveAsFile = useCallback(async () => {
     if (!saveAsFile) return;
-    let md = sourceMode ? sourceText : editor ? getMarkdownFromEditor(editor) : "";
+    let md = getFullMarkdown();
     if (md && !md.endsWith("\n")) md += "\n";
     await saveAsFile(md);
     showNotification("fileSaved");
-  }, [saveAsFile, editor, sourceMode, sourceText, showNotification]);
+  }, [saveAsFile, getFullMarkdown, showNotification]);
 
   const handleExportPdf = useCallback(async () => {
     if (typeof window === "undefined" || !editor) {

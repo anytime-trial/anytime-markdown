@@ -4,8 +4,17 @@ import SitesBody from './SitesBody';
 
 export const metadata: Metadata = {
   title: 'Docs - Anytime Markdown',
-  description: 'Document site powered by Anytime Markdown',
+  description: 'Documentation and guides for Anytime Markdown. | Anytime Markdownのドキュメントとガイド。',
   alternates: { canonical: '/docs' },
+  openGraph: {
+    title: 'Docs - Anytime Markdown',
+    description: 'Documentation and guides for Anytime Markdown.',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Docs - Anytime Markdown',
+    description: 'Documentation and guides for Anytime Markdown.',
+  },
 };
 
 export const dynamic = 'force-dynamic';

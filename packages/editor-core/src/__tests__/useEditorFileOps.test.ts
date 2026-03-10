@@ -77,6 +77,7 @@ function setup(opts: SetupOptions = {}) {
       saveFile: opts.saveFile,
       saveAsFile: opts.saveAsFile,
       resetFile: opts.resetFile,
+      frontmatterRef: { current: null },
     }),
   );
 

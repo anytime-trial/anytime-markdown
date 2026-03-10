@@ -3,19 +3,21 @@ import type { Editor } from "@tiptap/react";
 import { getMarkdownFromEditor } from "../types";
 import { sanitizeMarkdown, preserveBlankLines } from "../utils/sanitizeMarkdown";
 import { parseCommentData } from "../utils/commentHelpers";
+import { parseFrontmatter, prependFrontmatter } from "../utils/frontmatterHelpers";
 import { reviewModeStorage } from "../extensions/reviewModeExtension";
 
 interface UseSourceModeParams {
   editor: Editor | null;
-  saveContent: (md: string) => void;
+  saveContent: (md: string, withFrontmatter?: boolean) => void;
   t: (key: string) => string;
+  frontmatterRef: React.MutableRefObject<string | null>;
 }
 
 const SOURCE_MODE_KEY = "markdown-editor-source-mode";
 const REVIEW_MODE_KEY = "markdown-editor-review-mode";
 const READONLY_MODE_KEY = "markdown-editor-readonly-mode";
 
-export function useSourceMode({ editor, saveContent, t }: UseSourceModeParams) {
+export function useSourceMode({ editor, saveContent, t, frontmatterRef }: UseSourceModeParams) {
   const [sourceMode, setSourceMode] = useState(() => {
     try {
       return localStorage.getItem(SOURCE_MODE_KEY) === "true";
@@ -46,7 +48,7 @@ export function useSourceMode({ editor, saveContent, t }: UseSourceModeParams) {
   // Restore sourceText from editor when reopening in source mode
   useEffect(() => {
     if (sourceMode && editor && !sourceText) {
-      setSourceText(getMarkdownFromEditor(editor));
+      setSourceText(prependFrontmatter(getMarkdownFromEditor(editor), frontmatterRef.current));
     }
   }, [editor]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -76,11 +78,11 @@ export function useSourceMode({ editor, saveContent, t }: UseSourceModeParams) {
       try { localStorage.setItem(READONLY_MODE_KEY, "false"); } catch { /* ignore */ }
     }
     editor.commands.closeSearch();
-    setSourceText(getMarkdownFromEditor(editor));
+    setSourceText(prependFrontmatter(getMarkdownFromEditor(editor), frontmatterRef.current));
     setSourceMode(true);
     try { localStorage.setItem(SOURCE_MODE_KEY, "true"); } catch { /* ignore */ }
     setLiveMessage(t("switchedToSource"));
-  }, [editor, readonlyMode, reviewMode, t]);
+  }, [editor, readonlyMode, reviewMode, t, frontmatterRef]);
 
   const handleSwitchToWysiwyg = useCallback(() => {
     if (editor) {
@@ -96,31 +98,35 @@ export function useSourceMode({ editor, saveContent, t }: UseSourceModeParams) {
         try { localStorage.setItem(READONLY_MODE_KEY, "false"); } catch { /* ignore */ }
       }
       if (sourceMode) {
-        const { comments, body } = parseCommentData(sourceText);
+        const { frontmatter, body: bodyWithoutFm } = parseFrontmatter(sourceText);
+        frontmatterRef.current = frontmatter;
+        const { comments, body } = parseCommentData(bodyWithoutFm);
         const sanitized = preserveBlankLines(sanitizeMarkdown(body));
         editor.commands.setContent(sanitized);
         if (comments.size > 0) {
           (editor.commands as any).initComments(comments);
         }
-        saveContent(sourceText);
+        saveContent(sourceText, false);
       }
     }
     setSourceMode(false);
     try { localStorage.setItem(SOURCE_MODE_KEY, "false"); } catch { /* ignore */ }
     setLiveMessage(t("switchedToWysiwyg"));
-  }, [editor, sourceMode, readonlyMode, reviewMode, sourceText, saveContent, t]);
+  }, [editor, sourceMode, readonlyMode, reviewMode, sourceText, saveContent, t, frontmatterRef]);
 
   const handleSwitchToReview = useCallback(() => {
     if (!editor) return;
     // Source モードから切り替える場合、まず WYSIWYG に同期
     if (sourceMode) {
-      const { comments, body } = parseCommentData(sourceText);
+      const { frontmatter, body: bodyWithoutFm } = parseFrontmatter(sourceText);
+      frontmatterRef.current = frontmatter;
+      const { comments, body } = parseCommentData(bodyWithoutFm);
       const sanitized = preserveBlankLines(sanitizeMarkdown(body));
       editor.commands.setContent(sanitized);
       if (comments.size > 0) {
         (editor.commands as any).initComments(comments);
       }
-      saveContent(sourceText);
+      saveContent(sourceText, false);
       setSourceMode(false);
       try { localStorage.setItem(SOURCE_MODE_KEY, "false"); } catch { /* ignore */ }
     }
@@ -136,19 +142,21 @@ export function useSourceMode({ editor, saveContent, t }: UseSourceModeParams) {
     try { localStorage.setItem(READONLY_MODE_KEY, "false"); } catch { /* ignore */ }
     try { localStorage.setItem(REVIEW_MODE_KEY, "true"); } catch { /* ignore */ }
     setLiveMessage(t("switchedToReview"));
-  }, [editor, sourceMode, readonlyMode, sourceText, saveContent, t]);
+  }, [editor, sourceMode, readonlyMode, sourceText, saveContent, t, frontmatterRef]);
 
   const handleSwitchToReadonly = useCallback(() => {
     if (!editor) return;
     // Source モードから切り替える場合、まず WYSIWYG に同期
     if (sourceMode) {
-      const { comments, body } = parseCommentData(sourceText);
+      const { frontmatter, body: bodyWithoutFm } = parseFrontmatter(sourceText);
+      frontmatterRef.current = frontmatter;
+      const { comments, body } = parseCommentData(bodyWithoutFm);
       const sanitized = preserveBlankLines(sanitizeMarkdown(body));
       editor.commands.setContent(sanitized);
       if (comments.size > 0) {
         (editor.commands as any).initComments(comments);
       }
-      saveContent(sourceText);
+      saveContent(sourceText, false);
       setSourceMode(false);
       try { localStorage.setItem(SOURCE_MODE_KEY, "false"); } catch { /* ignore */ }
     }
@@ -163,7 +171,7 @@ export function useSourceMode({ editor, saveContent, t }: UseSourceModeParams) {
     try { localStorage.setItem(READONLY_MODE_KEY, "true"); } catch { /* ignore */ }
     try { localStorage.setItem(REVIEW_MODE_KEY, "false"); } catch { /* ignore */ }
     setLiveMessage(t("switchedToReadonly"));
-  }, [editor, sourceMode, reviewMode, sourceText, saveContent, t]);
+  }, [editor, sourceMode, reviewMode, sourceText, saveContent, t, frontmatterRef]);
 
   /** コメント操作用: 一時的にレビューモードのフィルタを解除してコマンド実行後に戻す */
   const executeInReviewMode = useCallback((fn: () => void) => {
@@ -181,7 +189,7 @@ export function useSourceMode({ editor, saveContent, t }: UseSourceModeParams) {
   const handleSourceChange = useCallback(
     (value: string) => {
       setSourceText(value);
-      saveContent(value);
+      saveContent(value, false);
     },
     [saveContent],
   );
@@ -191,7 +199,7 @@ export function useSourceMode({ editor, saveContent, t }: UseSourceModeParams) {
       setSourceText((prev) => {
         const separator = prev.length > 0 && !prev.endsWith("\n") ? "\n" : "";
         const newText = prev + separator + markdown;
-        saveContent(newText);
+        saveContent(newText, false);
         return newText;
       });
     },

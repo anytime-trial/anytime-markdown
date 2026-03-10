@@ -181,6 +181,8 @@
     "settingTableWidth": "Table Width",
     "settingTableAuto": "Auto",
     "settingTableFull": "Full Width",
+    "settingSpellCheck": "Spell Check",
+    "deleteFrontmatterConfirm": "Are you sure you want to delete the frontmatter?",
     "settingEditorBg": "Editor Background",
     "settingBgWhite": "White",
     "settingBgGrey": "Grey",

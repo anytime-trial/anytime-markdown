@@ -82,7 +82,9 @@ import { useEditorConfig } from "./hooks/useEditorConfig";
 import { useEditorSideEffects } from "./hooks/useEditorSideEffects";
 import type { FileSystemProvider } from "./types/fileSystem";
 import { sanitizeMarkdown, preserveBlankLines } from "./utils/sanitizeMarkdown";
+import { parseFrontmatter } from "./utils/frontmatterHelpers";
 
+import { FrontmatterBlock } from "./components/FrontmatterBlock";
 import { CommentPanel } from "./components/CommentPanel";
 import { parseCommentData } from "./utils/commentHelpers";
 import type { InlineComment } from "./utils/commentHelpers";
@@ -128,11 +130,17 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     saveContent: _saveContent,
     downloadMarkdown,
     clearContent,
+    frontmatterRef,
   } = useMarkdownEditor(externalContent ?? defaultContent, !!externalContent);
   const saveContent = readOnly ? noopSave : _saveContent;
 
   const [encoding, setEncoding] = useState<EncodingLabel>("UTF-8");
   const [commentOpen, setCommentOpen] = useState(false);
+  const [frontmatterText, setFrontmatterText] = useState<string | null>(frontmatterRef.current);
+  const clearContentWithFrontmatter = useCallback(() => {
+    clearContent();
+    setFrontmatterText(null);
+  }, [clearContent]);
   const commentDataRef = useRef<Map<string, InlineComment>>(new Map());
 
   // initialContent からコメントデータを分離
@@ -197,7 +205,12 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     sourceMode, readonlyMode, reviewMode, sourceText, setSourceText, liveMessage, setLiveMessage,
     handleSwitchToSource, handleSwitchToWysiwyg, handleSwitchToReview, handleSwitchToReadonly,
     executeInReviewMode, handleSourceChange, appendToSource,
-  } = useSourceMode({ editor, saveContent, t });
+  } = useSourceMode({ editor, saveContent, t, frontmatterRef });
+
+  // Sync frontmatterText state when mode switches update frontmatterRef
+  useEffect(() => {
+    setFrontmatterText(frontmatterRef.current);
+  }, [sourceMode, frontmatterRef]);
 
   useEffect(() => {
     if (readOnly && editor) {
@@ -238,9 +251,9 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     handleExportPdf,
   } = useEditorFileOps({
     editor, sourceMode, sourceText, setSourceText,
-    saveContent, downloadMarkdown, clearContent,
+    saveContent, downloadMarkdown, clearContent: clearContentWithFrontmatter,
     openFile, saveFile, saveAsFile, resetFile,
-    encoding, fileHandle,
+    encoding, fileHandle, frontmatterRef,
   });
 
   const handleLineEndingChange = useCallback(
@@ -289,6 +302,17 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
       }
     },
     [fileHandle, sourceMode, setSourceText, editor, saveContent],
+  );
+
+  const handleFrontmatterChange = useCallback(
+    (value: string | null) => {
+      frontmatterRef.current = value;
+      setFrontmatterText(value);
+      if (editor) {
+        saveContent(getMarkdownFromEditor(editor));
+      }
+    },
+    [editor, saveContent, frontmatterRef],
   );
 
   // Update refs for useEditor callbacks
@@ -357,6 +381,11 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     if (!editor) return;
     editor.commands.setShowHeadingNumbers(settings.showHeadingNumbers);
   }, [editor, settings.showHeadingNumbers]);
+
+  useEffect(() => {
+    if (!editor) return;
+    editor.view.dom.setAttribute("spellcheck", String(settings.spellCheck));
+  }, [editor, settings.spellCheck]);
 
   const {
     inlineMergeOpen, setInlineMergeOpen: _setInlineMergeOpen,
@@ -451,7 +480,12 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
       return;
     }
     if (!editor) return;
-    const preprocessed = preserveBlankLines(sanitizeMarkdown(template.content));
+    const { frontmatter, body } = parseFrontmatter(template.content);
+    if (frontmatter !== null) {
+      frontmatterRef.current = frontmatter;
+      setFrontmatterText(frontmatter);
+    }
+    const preprocessed = preserveBlankLines(sanitizeMarkdown(body));
     // requestAnimationFrame で次フレームに遅延し、Popover 閉じ等の React レンダリングと
     // Tiptap ReactRenderer の flushSync の競合を回避する
     requestAnimationFrame(() => {
@@ -462,7 +496,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         editor.view.dom.scrollTop = 0;
       });
     });
-  }, [editor, sourceMode, appendToSource]);
+  }, [editor, sourceMode, appendToSource, frontmatterRef]);
 
   // PlantUML/Mermaid 編集中はMarkdownツールバーを無効化
   const isInDiagramBlock = !!plantUmlFloating;
@@ -748,6 +782,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
           sx={{ position: "relative", outline: "none" }}
         >
         {editor && <SearchReplaceBar editor={editor} t={t} />}
+        <FrontmatterBlock frontmatter={frontmatterText} onChange={handleFrontmatterChange} readOnly={readonlyMode || reviewMode} t={t} />
         <Paper
           id="md-editor-content"
           variant="outlined"

@@ -4,6 +4,18 @@ All notable changes to the "anytime-markdown" extension will be documented in th
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.3.0] - 2026-03-10
+
+### Added
+- YAML フロントマターの認識・保持・編集に対応（WYSIWYG モードでコードブロック風表示）
+- ブラウザスペルチェック設定を設定パネルに追加
+- フロントマター削除時の確認ダイアログ
+- SEO 改善: OG 画像動的生成、Twitter Card、JSON-LD 構造化データ、各ページ個別 meta
+- VS Code Marketplace 向け keywords フィールド追加
+
+### Changed
+- description をキーワード充実（Mermaid, PlantUML, diff, merge, 設計書等）
+
 ## [0.2.9] - 2026-03-09
 
 ### Fixed

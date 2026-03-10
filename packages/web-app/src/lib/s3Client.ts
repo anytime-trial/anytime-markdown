@@ -26,8 +26,11 @@ const LAYOUT_KEY = DOCS_PREFIX + '_layout.json';
 export async function fetchFromCdn(key: string): Promise<string | null> {
   if (!CLOUDFRONT_URL) return null;
 
-  const url = `${CLOUDFRONT_URL}/${key}`;
-  const res = await fetch(url, { cache: 'no-store' });
+  const base = new URL(CLOUDFRONT_URL);
+  const target = new URL(`${CLOUDFRONT_URL}/${key}`);
+  if (target.origin !== base.origin) return null;
+
+  const res = await fetch(target.href, { cache: 'no-store' });
   if (!res.ok) return null;
   return res.text();
 }

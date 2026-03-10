@@ -3,19 +3,25 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { sanitizeMarkdown, preserveBlankLines } from "./utils/sanitizeMarkdown";
 import { parseCommentData, appendCommentData } from "./utils/commentHelpers";
+import { parseFrontmatter, prependFrontmatter } from "./utils/frontmatterHelpers";
 import type { EncodingLabel } from "./types";
 
 const STORAGE_KEY = "markdown-editor-content";
 const DEBOUNCE_MS = 500;
 
 export function useMarkdownEditor(defaultContent: string, skipLocalStorage = false) {
+  // フロントマターをエディタ外で保持する ref
+  const frontmatterRef = useRef<string | null>(null);
+
   // localStorage から同期的に読み込み（HMR 時のローディングフラッシュを防止）
   // skipLocalStorage が true の場合（readOnly / externalContent）は localStorage を参照しない
   const [initialContent] = useState<string>(() => {
     try {
       const saved = skipLocalStorage ? null : localStorage.getItem(STORAGE_KEY);
       const raw = saved ?? defaultContent;
-      const { comments, body } = parseCommentData(raw);
+      const { frontmatter, body: bodyWithoutFm } = parseFrontmatter(raw);
+      frontmatterRef.current = frontmatter;
+      const { comments, body } = parseCommentData(bodyWithoutFm);
       const sanitized = preserveBlankLines(sanitizeMarkdown(body));
       return comments.size > 0 ? appendCommentData(sanitized, comments) : sanitized;
     } catch (e) {
@@ -27,11 +33,13 @@ export function useMarkdownEditor(defaultContent: string, skipLocalStorage = fal
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // debounce 自動保存（Tiptap の onUpdate から呼ばれる）
-  const saveContent = useCallback((markdown: string) => {
+  // withFrontmatter=true の場合、frontmatterRef の内容を先頭に付加して保存する
+  const saveContent = useCallback((markdown: string, withFrontmatter = true) => {
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
       try {
-        localStorage.setItem(STORAGE_KEY, markdown);
+        const toSave = withFrontmatter ? prependFrontmatter(markdown, frontmatterRef.current) : markdown;
+        localStorage.setItem(STORAGE_KEY, toSave);
       } catch (e) {
         if (e instanceof DOMException && e.name === "QuotaExceededError") {
           console.warn("localStorage quota exceeded. Content not saved.");
@@ -86,5 +94,6 @@ export function useMarkdownEditor(defaultContent: string, skipLocalStorage = fal
     saveContent,
     downloadMarkdown,
     clearContent,
+    frontmatterRef,
   };
 }

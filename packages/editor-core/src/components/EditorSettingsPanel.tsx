@@ -188,6 +188,19 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
         </ToggleButtonGroup>
       </Box>
 
+      {/* Spell Check */}
+      <Box sx={{ mb: 2, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary" }}>
+          {t("settingSpellCheck")}
+        </Typography>
+        <Switch
+          checked={settings.spellCheck}
+          onChange={(e) => updateSettings({ spellCheck: e.target.checked })}
+          size="small"
+          inputProps={{ "aria-label": t("settingSpellCheck") }}
+        />
+      </Box>
+
       <Divider sx={{ mb: 2 }} />
 
       {/* Reset */}

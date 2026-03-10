@@ -181,6 +181,8 @@
     "settingTableWidth": "テーブル幅",
     "settingTableAuto": "自動",
     "settingTableFull": "全幅",
+    "settingSpellCheck": "スペルチェック",
+    "deleteFrontmatterConfirm": "フロントマターを削除しますか？",
     "settingEditorBg": "エディタ背景",
     "settingBgWhite": "白",
     "settingBgGrey": "グレー",
