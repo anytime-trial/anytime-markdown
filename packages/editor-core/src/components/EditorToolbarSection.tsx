@@ -1,6 +1,7 @@
 import { Box } from "@mui/material";
 import type { Editor } from "@tiptap/react";
 import type React from "react";
+import type { MergeUndoRedo } from "./InlineMergeView";
 
 import { EditorToolbar } from "./EditorToolbar";
 
@@ -30,7 +31,7 @@ interface EditorToolbarSectionProps {
   hideComments?: boolean;
   hideTemplates?: boolean;
   hideFoldAll?: boolean;
-  mergeUndoRedo: { undo: () => void; redo: () => void } | null;
+  mergeUndoRedo: MergeUndoRedo | null;
   handleOpenFile: () => void;
   handleSaveFile: () => void;
   handleSaveAsFile: () => void;

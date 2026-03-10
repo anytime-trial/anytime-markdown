@@ -10,7 +10,6 @@ import type { Editor } from "@tiptap/react";
  */
 export function useVSCodeIntegration(
   editor: Editor | null,
-  updateSettings: (patch: { showHeadingNumbers: boolean }) => void,
 ): void {
   // 見出しスクロール要求
   useEffect(() => {
@@ -69,13 +68,14 @@ export function useVSCodeIntegration(
     };
   }, [editor]);
 
-  // セクション番号トグル
+  // セクション番号トグル（auto/on/off）
   useEffect(() => {
     const handler = (e: Event) => {
+      if (!editor || editor.isDestroyed) return;
       const show = (e as CustomEvent<boolean>).detail;
-      updateSettings({ showHeadingNumbers: show });
+      editor.commands.setShowHeadingNumbers(show ? "on" : "off");
     };
     window.addEventListener('vscode-toggle-section-numbers', handler);
     return () => window.removeEventListener('vscode-toggle-section-numbers', handler);
-  }, [updateSettings]);
+  }, [editor]);
 }

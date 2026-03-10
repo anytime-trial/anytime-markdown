@@ -237,7 +237,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
 
   setEditorMarkdownRef.current = setEditorMarkdown;
   useEditorSideEffects({ editor, isDirty, markDirty, setHeadingsRef, setEditorMarkdown });
-  useVSCodeIntegration(editor, updateSettings);
+  useVSCodeIntegration(editor);
 
   const statusBarHeight = hideStatusBar ? 0 : 33;
   const { editorContainerRef, editorHeight } = useEditorHeight(isMobile, isMd, statusBarHeight);
@@ -276,8 +276,6 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     handleOutlineClick, handleOutlineResizeStart,
     onHeadingDragEnd: (readonlyMode || reviewMode) ? undefined : handleHeadingDragEnd,
     onOutlineDelete: (readonlyMode || reviewMode) ? undefined : handleOutlineDelete,
-    showHeadingNumbers: settings.showHeadingNumbers,
-    onToggleHeadingNumbers: () => updateSettings({ showHeadingNumbers: !settings.showHeadingNumbers }),
     t,
   };
 

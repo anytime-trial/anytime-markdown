@@ -6,6 +6,8 @@ import {
   Typography,
 } from "@mui/material";
 import type { Editor } from "@tiptap/react";
+import type { MarkdownTemplate } from "../constants/templates";
+import type { NotificationKey } from "../hooks/useEditorFileOps";
 import { EditorContent } from "@tiptap/react";
 import { createPortal } from "react-dom";
 import type { SlashCommandState } from "../extensions/slashCommandExtension";
@@ -45,9 +47,9 @@ interface EditorFooterOverlaysProps {
   setSampleAnchorEl: (el: HTMLElement | null) => void;
   templateAnchorEl: HTMLElement | null;
   setTemplateAnchorEl: (el: HTMLElement | null) => void;
-  onInsertTemplate: (template: { content: string; label: string }) => void;
-  headingMenu: { anchorEl: HTMLElement; level: number } | null;
-  setHeadingMenu: (menu: { anchorEl: HTMLElement; level: number } | null) => void;
+  onInsertTemplate: (template: MarkdownTemplate) => void;
+  headingMenu: { anchorEl: HTMLElement; pos: number; currentLevel: number } | null;
+  setHeadingMenu: (menu: { anchorEl: HTMLElement; pos: number; currentLevel: number } | null) => void;
   setSettingsOpen: (open: boolean) => void;
   setVersionDialogOpen: (open: boolean) => void;
   setHelpDialogOpen: (open: boolean) => void;
@@ -60,8 +62,8 @@ interface EditorFooterOverlaysProps {
   appendToSource: (text: string) => void;
   // overlay state
   pdfExporting: boolean;
-  notification: string | null;
-  setNotification: (n: string | null) => void;
+  notification: NotificationKey;
+  setNotification: (n: NotificationKey) => void;
   t: (key: string) => string;
 }
 

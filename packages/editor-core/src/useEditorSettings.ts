@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 const SETTINGS_KEY = "markdown-editor-settings";
-const SETTINGS_VERSION = 5; // spellCheck 追加
+const SETTINGS_VERSION = 6; // showHeadingNumbers を auto 化（設定から除外）
 
 export interface EditorSettings {
   lineHeight: number;
@@ -13,7 +13,6 @@ export interface EditorSettings {
   lightTextColor: string;  // ライトモード文字色（空文字 = テーマデフォルト）
   darkBgColor: string;     // ダークモード背景色（空文字 = テーマデフォルト）
   darkTextColor: string;   // ダークモード文字色（空文字 = テーマデフォルト）
-  showHeadingNumbers: boolean;
   spellCheck: boolean;
 }
 
@@ -26,7 +25,6 @@ export const DEFAULT_SETTINGS: EditorSettings = {
   lightTextColor: "",
   darkBgColor: "",
   darkTextColor: "",
-  showHeadingNumbers: false,
   spellCheck: false,
 };
 

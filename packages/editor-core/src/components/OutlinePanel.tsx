@@ -16,7 +16,6 @@ import SchemaIcon from "@mui/icons-material/Schema";
 import MermaidIcon from "../icons/MermaidIcon";
 import CategoryIcon from "@mui/icons-material/Category";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
-import FormatListNumberedIcon from "@mui/icons-material/FormatListNumbered";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import UnfoldLessIcon from "@mui/icons-material/UnfoldLess";
 import UnfoldMoreIcon from "@mui/icons-material/UnfoldMore";
@@ -45,8 +44,6 @@ interface OutlinePanelProps {
   handleOutlineResizeStart: (e: React.MouseEvent) => void;
   onHeadingDragEnd?: (fromIdx: number, toIdx: number) => void;
   onOutlineDelete?: (pos: number, kind: string) => void;
-  showHeadingNumbers?: boolean;
-  onToggleHeadingNumbers?: () => void;
   t: TranslationFn;
 }
 
@@ -64,8 +61,6 @@ export function OutlinePanel({
   handleOutlineResizeStart,
   onHeadingDragEnd,
   onOutlineDelete,
-  showHeadingNumbers,
-  onToggleHeadingNumbers,
   t,
 }: OutlinePanelProps) {
   const theme = useTheme();
@@ -74,19 +69,23 @@ export function OutlinePanel({
   const [dropIdx, setDropIdx] = useState<number | null>(null);
 
   // セクション番号マップ（見出しの pos → "1.2.3. "）
+  // 自動判定: 見出しに手動番号が多い場合は非表示
+  const MANUAL_NUMBER_RE = /^\d+(\.\d+)*\.?\s/;
   const sectionNumberMap = useMemo(() => {
-    if (!showHeadingNumbers) return null;
+    const headingItems = headings.filter((h) => h.kind === "heading");
+    if (headingItems.length < 2) return null;
+    const numberedCount = headingItems.filter((h) => MANUAL_NUMBER_RE.test(h.text)).length;
+    if (numberedCount >= headingItems.length / 2) return null;
     const map = new Map<number, string>();
     const counters = [0, 0, 0, 0, 0]; // h1-h5
-    for (const h of headings) {
-      if (h.kind !== "heading") continue;
+    for (const h of headingItems) {
       const level = h.level - 1; // 0-indexed
       counters[level]++;
       for (let i = level + 1; i < 5; i++) counters[i] = 0;
       map.set(h.pos, counters.slice(0, level + 1).join(".") + ". ");
     }
     return map;
-  }, [showHeadingNumbers, headings]);
+  }, [headings]);
 
   // heading のみのインデックスマップ (headings 配列 idx → headingOnly idx)
   const headingOnlyIndices = useMemo(
@@ -174,19 +173,6 @@ export function OutlinePanel({
               {t("outline")}
             </Typography>
             <Box sx={{ display: "flex", gap: 0.25 }}>
-              {onToggleHeadingNumbers && (
-                <Tooltip title={t("settingHeadingNumbers")}>
-                  <IconButton
-                    aria-label={t("settingHeadingNumbers")}
-                    aria-pressed={!!showHeadingNumbers}
-                    size="small"
-                    onClick={onToggleHeadingNumbers}
-                    sx={{ p: 0.5, color: showHeadingNumbers ? "primary.main" : "text.secondary" }}
-                  >
-                    <FormatListNumberedIcon sx={{ fontSize: 16 }} />
-                  </IconButton>
-                </Tooltip>
-              )}
               <Tooltip title={t("outlineShowBlocks")}>
                 <IconButton
                   aria-label={t("outlineShowBlocks")}

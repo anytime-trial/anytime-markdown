@@ -4,7 +4,6 @@ import type { EditorSettings } from "../useEditorSettings";
 
 /**
  * エディタ設定の同期を行う副作用フック。
- * - セクション自動番号の表示切替
  * - スペルチェックの設定
  * - readonlyモード時のeditable制御
  * - hideFoldAll時の全ブロック展開
@@ -18,11 +17,6 @@ export function useEditorSettingsSync(
     handleExpandAllBlocks: () => void;
   },
 ): void {
-  useEffect(() => {
-    if (!editor) return;
-    editor.commands.setShowHeadingNumbers(settings.showHeadingNumbers);
-  }, [editor, settings.showHeadingNumbers]);
-
   useEffect(() => {
     if (!editor) return;
     editor.view.dom.setAttribute("spellcheck", String(settings.spellCheck));

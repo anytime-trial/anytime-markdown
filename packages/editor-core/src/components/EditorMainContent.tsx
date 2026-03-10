@@ -5,6 +5,7 @@ import type React from "react";
 
 import { getEditorPaperSx } from "../styles/editorStyles";
 import { useEditorSettingsContext } from "../useEditorSettings";
+import type { DiffLine } from "../utils/diffEngine";
 import { EditorOutlineSection } from "./EditorOutlineSection";
 import { SourceModeEditor } from "./SourceModeEditor";
 import { SourceSearchBar } from "./SourceSearchBar";
@@ -12,22 +13,28 @@ import { SearchReplaceBar } from "./SearchReplaceBar";
 import { FrontmatterBlock } from "./FrontmatterBlock";
 import { CommentPanel } from "./CommentPanel";
 import { MergeEditorPanel } from "./MergeEditorPanel";
-import { getMarkdownFromEditor } from "../types";
-import type { TextareaSearch } from "../hooks/useTextareaSearch";
+import { getMarkdownFromEditor, type HeadingItem } from "../types";
+import type { TextareaSearchState } from "../hooks/useTextareaSearch";
 
 // InlineMergeView は dynamic import のため親から渡す
+// InlineMergeViewProps と同じシグネチャにする
 type InlineMergeViewComponent = React.ComponentType<{
-  leftEditor: Editor | null;
+  leftEditor?: Editor | null;
   editorContent: string;
   sourceMode: boolean;
   editorHeight: number;
   t: (key: string) => string;
-  onUndoRedoReady: (v: { undo: () => void; redo: () => void } | null) => void;
-  onLeftTextChange: (text: string) => void;
-  externalRightContent: string | null;
-  onExternalRightContentConsumed: () => void;
-  onRightFileOpsReady: (ops: { loadFile: () => void; exportFile: () => void } | null) => void;
-  children: (leftBgGradient: string, leftDiffLines: Set<number>, onMerge: (direction: "left" | "right", lineIndex: number) => void, onHoverLine: (line: number | null) => void) => React.ReactNode;
+  onUndoRedoReady?: (ur: { undo: () => void; redo: () => void; canUndo: boolean; canRedo: boolean }) => void;
+  onLeftTextChange?: (text: string) => void;
+  externalRightContent?: string | null;
+  onExternalRightContentConsumed?: () => void;
+  onRightFileOpsReady?: (ops: { loadFile: () => void; exportFile: () => void }) => void;
+  children: (
+    leftBgGradient: string,
+    leftDiffLines?: DiffLine[],
+    onMerge?: (blockId: number, direction: "left-to-right" | "right-to-left") => void,
+    onHoverLine?: (lineIndex: number | null) => void,
+  ) => React.ReactNode;
 }>;
 
 interface OutlineProps {
@@ -35,9 +42,9 @@ interface OutlineProps {
   outlineOpen: boolean;
   handleToggleOutline: () => void;
   outlineWidth: number;
-  setOutlineWidth: (w: number) => void;
+  setOutlineWidth: React.Dispatch<React.SetStateAction<number>>;
   editorHeight: number;
-  headings: Array<{ level: number; text: string; pos: number }>;
+  headings: HeadingItem[];
   foldedIndices: Set<number>;
   hiddenByFold: Set<number>;
   foldAll: () => void;
@@ -45,10 +52,8 @@ interface OutlineProps {
   toggleFold: (index: number) => void;
   handleOutlineClick: (pos: number) => void;
   handleOutlineResizeStart: (e: React.MouseEvent) => void;
-  onHeadingDragEnd?: (event: { active: { id: string }; over: { id: string } | null }) => void;
-  onOutlineDelete?: (pos: number) => void;
-  showHeadingNumbers: boolean;
-  onToggleHeadingNumbers: () => void;
+  onHeadingDragEnd?: (fromIdx: number, toIdx: number) => void;
+  onOutlineDelete?: (pos: number, kind: string) => void;
   t: (key: string) => string;
 }
 
@@ -69,7 +74,7 @@ interface EditorMainContentProps {
   sourceTextareaRef: React.RefObject<HTMLTextAreaElement | null>;
   sourceSearchOpen: boolean;
   setSourceSearchOpen: (open: boolean) => void;
-  sourceSearch: TextareaSearch;
+  sourceSearch: TextareaSearchState;
   // frontmatter
   frontmatterText: string | null;
   handleFrontmatterChange: (value: string | null) => void;
@@ -81,7 +86,7 @@ interface EditorMainContentProps {
   outlineProps: OutlineProps;
   // merge mode
   editorMarkdown: string;
-  setMergeUndoRedo: (v: { undo: () => void; redo: () => void } | null) => void;
+  setMergeUndoRedo: (v: { undo: () => void; redo: () => void; canUndo: boolean; canRedo: boolean } | null) => void;
   compareFileContent: string | null;
   setCompareFileContent: (v: string | null) => void;
   setRightFileOps: (ops: { loadFile: () => void; exportFile: () => void } | null) => void;
