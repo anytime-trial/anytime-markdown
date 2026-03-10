@@ -17,52 +17,36 @@ if (typeof window !== "undefined") {
 
 import dynamic from "next/dynamic";
 import {
-  Alert,
-  Backdrop,
   Box,
   CircularProgress,
-  Paper,
-  Snackbar,
-  Typography,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
 
-import { getEditorPaperSx } from "./styles/editorStyles";
 import { PrintStyles } from "./styles/printStyles";
-import { useEditor, EditorContent } from "@tiptap/react";
+import { useEditor } from "@tiptap/react";
 import { useLocale, useTranslations } from "next-intl";
-import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useMarkdownEditor } from "./useMarkdownEditor";
 import { defaultContent } from "./constants/defaultContent";
-import { EditorOutlineSection } from "./components/EditorOutlineSection";
-import { SourceModeEditor } from "./components/SourceModeEditor";
-import { StatusBar } from "./components/StatusBar";
 import { EditorDialogs } from "./components/EditorDialogs";
 import { EditorSettingsPanel } from "./components/EditorSettingsPanel";
 import { useEditorSettings, EditorSettingsContext } from "./useEditorSettings";
 import { EditorToolbar } from "./components/EditorToolbar";
-import { SearchReplaceBar } from "./components/SearchReplaceBar";
-import { SourceSearchBar } from "./components/SourceSearchBar";
 import { useTextareaSearch } from "./hooks/useTextareaSearch";
-import { EditorMenuPopovers } from "./components/EditorMenuPopovers";
-import { EditorBubbleMenu } from "./components/EditorBubbleMenu";
-import { SlashCommandMenu } from "./components/SlashCommandMenu";
+import { EditorMainContent } from "./components/EditorMainContent";
+import { EditorFooterOverlays } from "./components/EditorFooterOverlays";
 import type { SlashCommandState } from "./extensions/slashCommandExtension";
-
 
 const InlineMergeView = dynamic(
   () => import("./components/InlineMergeView").then((m) => m.InlineMergeView),
   { loading: () => <CircularProgress size={32} sx={{ m: "auto" }} /> },
 );
-import { MergeEditorPanel } from "./components/MergeEditorPanel";
+
 import type { Editor } from "@tiptap/react";
 import {
-  type EncodingLabel,
   type HeadingItem,
-  type MarkdownStorage,
   PlantUmlToolbarContext,
   getMarkdownFromEditor,
 } from "./types";
@@ -80,15 +64,14 @@ import { useFloatingToolbar } from "./hooks/useFloatingToolbar";
 import { useEditorBlockActions } from "./hooks/useEditorBlockActions";
 import { useEditorConfig } from "./hooks/useEditorConfig";
 import { useEditorSideEffects } from "./hooks/useEditorSideEffects";
+import { useEditorFileHandling } from "./hooks/useEditorFileHandling";
+import { useVSCodeIntegration } from "./hooks/useVSCodeIntegration";
+import { useEditorCommentNotifications } from "./hooks/useEditorCommentNotifications";
 import type { FileSystemProvider } from "./types/fileSystem";
 import { sanitizeMarkdown, preserveBlankLines } from "./utils/sanitizeMarkdown";
 import { parseFrontmatter } from "./utils/frontmatterHelpers";
-
-import { FrontmatterBlock } from "./components/FrontmatterBlock";
-import { CommentPanel } from "./components/CommentPanel";
 import { parseCommentData } from "./utils/commentHelpers";
 import type { InlineComment } from "./utils/commentHelpers";
-import { commentDataPluginKey } from "./extensions/commentExtension";
 
 
 interface MarkdownEditorPageProps {
@@ -134,12 +117,11 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   } = useMarkdownEditor(externalContent ?? defaultContent, !!externalContent);
   const saveContent = readOnly ? noopSave : _saveContent;
 
-  const [encoding, setEncoding] = useState<EncodingLabel>("UTF-8");
   const [commentOpen, setCommentOpen] = useState(false);
-  const [frontmatterText, setFrontmatterText] = useState<string | null>(frontmatterRef.current);
   const clearContentWithFrontmatter = useCallback(() => {
     clearContent();
-    setFrontmatterText(null);
+    fileHandling.setFrontmatterText(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clearContent]);
   const commentDataRef = useRef<Map<string, InlineComment>>(new Map());
 
@@ -207,9 +189,21 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     executeInReviewMode, handleSourceChange, appendToSource,
   } = useSourceMode({ editor, saveContent, t, frontmatterRef });
 
+  const {
+    fileHandle, fileName, isDirty,
+    supportsDirectAccess,
+    openFile, saveFile, saveAsFile, markDirty, resetFile,
+  } = useFileSystem(fileSystemProvider ?? null);
+
+  const fileHandling = useEditorFileHandling({
+    editor, sourceMode, sourceText, handleSourceChange, setSourceText, saveContent,
+    fileHandle, frontmatterRef, initialFrontmatter: frontmatterRef.current,
+  });
+
   // Sync frontmatterText state when mode switches update frontmatterRef
   useEffect(() => {
-    setFrontmatterText(frontmatterRef.current);
+    fileHandling.setFrontmatterText(frontmatterRef.current);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceMode, frontmatterRef]);
 
   useEffect(() => {
@@ -238,12 +232,6 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   } = useOutline({ editor, sourceMode });
 
   const {
-    fileHandle, fileName, isDirty,
-    supportsDirectAccess,
-    openFile, saveFile, saveAsFile, markDirty, resetFile,
-  } = useFileSystem(fileSystemProvider ?? null);
-
-  const {
     notification, setNotification, pdfExporting,
     fileInputRef, handleClear, handleFileSelected,
     handleDownload, handleImport, handleCopy,
@@ -253,67 +241,8 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     editor, sourceMode, sourceText, setSourceText,
     saveContent, downloadMarkdown, clearContent: clearContentWithFrontmatter,
     openFile, saveFile, saveAsFile, resetFile,
-    encoding, fileHandle, frontmatterRef,
+    encoding: fileHandling.encoding, fileHandle, frontmatterRef,
   });
-
-  const handleLineEndingChange = useCallback(
-    (ending: "LF" | "CRLF") => {
-      const convert = (text: string) =>
-        ending === "CRLF"
-          ? text.replace(/\r\n/g, "\n").replace(/\n/g, "\r\n")
-          : text.replace(/\r\n/g, "\n");
-
-      if (sourceMode) {
-        handleSourceChange(convert(sourceText));
-      } else if (editor) {
-        const md = convert(getMarkdownFromEditor(editor));
-        setSourceText(md);
-        editor.commands.setContent(preserveBlankLines(sanitizeMarkdown(md)));
-        saveContent(md);
-      }
-    },
-    [sourceMode, sourceText, handleSourceChange, editor, setSourceText, saveContent],
-  );
-
-  const handleEncodingChange = useCallback(
-    async (newEncoding: EncodingLabel) => {
-      setEncoding(newEncoding);
-      // fileHandle がある場合、ファイルを新しいエンコーディングで再読み込み
-      if (fileHandle?.nativeHandle) {
-        try {
-          const nativeHandle = fileHandle.nativeHandle as FileSystemFileHandle;
-          const file = await nativeHandle.getFile();
-          const buffer = await file.arrayBuffer();
-          const decoder = new TextDecoder(newEncoding.toLowerCase());
-          const decoded = sanitizeMarkdown(decoder.decode(buffer));
-          if (sourceMode) {
-            setSourceText(decoded);
-          } else if (editor) {
-            editor.commands.setContent(
-              (editor.storage as unknown as MarkdownStorage).markdown.parser.parse(
-                preserveBlankLines(decoded),
-              ),
-            );
-          }
-          saveContent(decoded);
-        } catch (e) {
-          console.warn("Failed to re-read file with encoding:", newEncoding, e);
-        }
-      }
-    },
-    [fileHandle, sourceMode, setSourceText, editor, saveContent],
-  );
-
-  const handleFrontmatterChange = useCallback(
-    (value: string | null) => {
-      frontmatterRef.current = value;
-      setFrontmatterText(value);
-      if (editor) {
-        saveContent(getMarkdownFromEditor(editor));
-      }
-    },
-    [editor, saveContent, frontmatterRef],
-  );
 
   // Update refs for useEditor callbacks
   const onHeadingsChangeRef = useRef(onHeadingsChange);
@@ -324,56 +253,10 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   };
   handleImportRef.current = handleImport;
 
-  // コメント変更通知
-  const onCommentsChangeRef = useRef(onCommentsChange);
-  onCommentsChangeRef.current = onCommentsChange;
-  const commentsDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    if (!editor || !onCommentsChangeRef.current) return;
-    const extractComments = () => {
-      const pluginState = commentDataPluginKey.getState(editor.state) as { comments: Map<string, InlineComment> } | undefined;
-      const comments = pluginState?.comments ?? new Map<string, InlineComment>();
-      const result: Array<{ id: string; text: string; resolved: boolean; createdAt: string; targetText: string; pos: number; isPoint: boolean }> = [];
-      for (const [, c] of comments) {
-        let targetText = '';
-        let pos = 0;
-        let isPoint = false;
-        editor.state.doc.descendants((node, nodePos) => {
-          if (pos > 0 || isPoint) return false;
-          if (node.type.name === 'commentPoint' && node.attrs.commentId === c.id) {
-            pos = nodePos;
-            isPoint = true;
-            return false;
-          }
-          if (node.isText) {
-            const mark = node.marks.find(m => m.type.name === 'commentHighlight' && m.attrs.commentId === c.id);
-            if (mark) {
-              targetText = node.text || '';
-              pos = nodePos;
-              return false;
-            }
-          }
-        });
-        result.push({ id: c.id, text: c.text, resolved: c.resolved, createdAt: c.createdAt, targetText, pos, isPoint });
-      }
-      onCommentsChangeRef.current?.(result);
-    };
-    const handler = () => {
-      if (commentsDebounceRef.current) clearTimeout(commentsDebounceRef.current);
-      commentsDebounceRef.current = setTimeout(extractComments, 300);
-    };
-    // 初回送信
-    handler();
-    editor.on('update', handler);
-    return () => {
-      editor.off('update', handler);
-      if (commentsDebounceRef.current) clearTimeout(commentsDebounceRef.current);
-    };
-  }, [editor]);
+  // コメント変更通知（extracted hook）
+  useEditorCommentNotifications(editor, onCommentsChange);
 
-  // Floating toolbar positions (M-5: unified hook)
-  // Table toolbar is now embedded in TableNodeView
-  // Mermaid toolbar is now embedded in MermaidNodeView
+  // Floating toolbar positions
   const plantUmlFloating = useFloatingToolbar(editor, editorWrapperRef, "codeBlock", "plantuml");
 
   // セクション自動番号の表示切替
@@ -404,72 +287,8 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
 
   useEditorSideEffects({ editor, isDirty, markDirty, setHeadingsRef, setEditorMarkdown });
 
-  // VS Code TreeView からの見出しスクロール要求
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const pos = (e as CustomEvent<number>).detail;
-      if (!editor || editor.isDestroyed) return;
-      if (editor.isEditable) {
-        editor.chain().focus().setTextSelection(pos).run();
-      }
-      const domAtPos = editor.view.domAtPos(pos);
-      const node = domAtPos.node instanceof HTMLElement ? domAtPos.node : domAtPos.node.parentElement;
-      node?.scrollIntoView({ behavior: "smooth", block: "center" });
-    };
-    window.addEventListener('vscode-scroll-to-heading', handler);
-    return () => window.removeEventListener('vscode-scroll-to-heading', handler);
-  }, [editor]);
-
-  // VS Code TreeView からのコメントスクロール要求
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const pos = (e as CustomEvent<number>).detail;
-      if (!editor || editor.isDestroyed) return;
-      if (editor.isEditable) {
-        editor.chain().focus().setTextSelection(pos + 1).run();
-      }
-      const domAtPos = editor.view.domAtPos(pos + 1);
-      const node = domAtPos.node instanceof HTMLElement ? domAtPos.node : domAtPos.node.parentElement;
-      node?.scrollIntoView({ behavior: "smooth", block: "center" });
-    };
-    window.addEventListener('vscode-scroll-to-comment', handler);
-    return () => window.removeEventListener('vscode-scroll-to-comment', handler);
-  }, [editor]);
-
-  // VS Code TreeView からのコメント解決/再開
-  useEffect(() => {
-    if (!editor) return;
-    const handleResolve = (e: Event) => {
-      const id = (e as CustomEvent<string>).detail;
-      editor.commands.resolveComment(id);
-    };
-    const handleUnresolve = (e: Event) => {
-      const id = (e as CustomEvent<string>).detail;
-      editor.commands.unresolveComment(id);
-    };
-    const handleDelete = (e: Event) => {
-      const id = (e as CustomEvent<string>).detail;
-      editor.commands.removeComment(id);
-    };
-    window.addEventListener('vscode-resolve-comment', handleResolve);
-    window.addEventListener('vscode-unresolve-comment', handleUnresolve);
-    window.addEventListener('vscode-delete-comment', handleDelete);
-    return () => {
-      window.removeEventListener('vscode-resolve-comment', handleResolve);
-      window.removeEventListener('vscode-unresolve-comment', handleUnresolve);
-      window.removeEventListener('vscode-delete-comment', handleDelete);
-    };
-  }, [editor]);
-
-  // VS Code TreeView からのセクション番号トグル
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const show = (e as CustomEvent<boolean>).detail;
-      updateSettings({ showHeadingNumbers: show });
-    };
-    window.addEventListener('vscode-toggle-section-numbers', handler);
-    return () => window.removeEventListener('vscode-toggle-section-numbers', handler);
-  }, [updateSettings]);
+  // VS Code integration (extracted hook)
+  useVSCodeIntegration(editor, updateSettings);
 
   const statusBarHeight = hideStatusBar ? 0 : 33;
   const { editorContainerRef, editorHeight } = useEditorHeight(isMobile, isMd, statusBarHeight);
@@ -483,19 +302,17 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     const { frontmatter, body } = parseFrontmatter(template.content);
     if (frontmatter !== null) {
       frontmatterRef.current = frontmatter;
-      setFrontmatterText(frontmatter);
+      fileHandling.setFrontmatterText(frontmatter);
     }
     const preprocessed = preserveBlankLines(sanitizeMarkdown(body));
-    // requestAnimationFrame で次フレームに遅延し、Popover 閉じ等の React レンダリングと
-    // Tiptap ReactRenderer の flushSync の競合を回避する
     requestAnimationFrame(() => {
       editor.chain().focus().insertContent(preprocessed).run();
-      // テンプレート挿入後、カーソルを先頭に移動してスクロール
       requestAnimationFrame(() => {
         editor.commands.setTextSelection(0);
         editor.view.dom.scrollTop = 0;
       });
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor, sourceMode, appendToSource, frontmatterRef]);
 
   // PlantUML/Mermaid 編集中はMarkdownツールバーを無効化
@@ -558,18 +375,9 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
           position: "absolute",
           left: -9999,
           "&:focus": {
-            left: 16,
-            top: 16,
-            zIndex: 9999,
-            bgcolor: "background.paper",
-            color: "primary.main",
-            px: 2,
-            py: 1,
-            borderRadius: 1,
-            boxShadow: 3,
-            fontWeight: 600,
-            fontSize: "0.875rem",
-            textDecoration: "none",
+            left: 16, top: 16, zIndex: 9999, bgcolor: "background.paper",
+            color: "primary.main", px: 2, py: 1, borderRadius: 1, boxShadow: 3,
+            fontWeight: 600, fontSize: "0.875rem", textDecoration: "none",
           },
         }}
       >
@@ -584,6 +392,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
       >
         {liveMessage}
       </Box>
+
       {/* Toolbar */}
       {!hideToolbar && <EditorToolbar
         editor={editor}
@@ -610,7 +419,6 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         hideComments={hideComments}
         hideTemplates={hideTemplates}
         hideFoldAll={hideFoldAll}
-
         mergeUndoRedo={inlineMergeOpen ? mergeUndoRedo : null}
         onOpenFile={handleOpenFile}
         onSaveFile={handleSaveFile}
@@ -691,132 +499,54 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         />
       )}
 
-      {/* Editor + Outline */}
-      {inlineMergeOpen ? (
-        <InlineMergeView
-          leftEditor={editor}
-          editorContent={sourceMode ? sourceText : editorMarkdown}
-          sourceMode={sourceMode}
-          editorHeight={editorHeight}
-          t={t}
-          onUndoRedoReady={setMergeUndoRedo}
-          onLeftTextChange={handleSourceChange}
-          externalRightContent={compareFileContent}
-          onExternalRightContentConsumed={() => setCompareFileContent(null)}
-          onRightFileOpsReady={setRightFileOps}
-        >
-          {(leftBgGradient, leftDiffLines, onMerge, onHoverLine) => (
-          <Box component="main" ref={editorContainerRef} sx={{ display: "flex", gap: 0, height: "100%" }}>
-            <EditorOutlineSection {...outlineProps} />
-            <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-              <MergeEditorPanel
-                sourceMode={sourceMode}
-                sourceText={sourceText}
-                onSourceChange={handleSourceChange}
-                textareaAriaLabel={t("sourceEditor")}
-                editor={editor}
-                editorWrapperRef={editorWrapperRef}
-                editorMountRef={editorMountCallback}
-                autoResize
-                bgGradient={leftBgGradient}
-                diffLines={leftDiffLines}
-                side="left"
-                showHoverLabels
-                onHoverLine={onHoverLine}
-                paperSx={{
-                  "&::-webkit-scrollbar": { background: "transparent" },
-                  "&::-webkit-scrollbar-thumb": { background: "transparent" },
-                }}
-              />
-            </Box>
-          </Box>
-          )}
-        </InlineMergeView>
-      ) : (
-      <Box component="main" ref={editorContainerRef} sx={{ display: "flex", gap: 0 }}>
-        {!sourceMode && <EditorOutlineSection {...outlineProps} />}
-
-        {/* Editor */}
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-      {sourceMode ? (
-        <Box
-          sx={{ position: "relative" }}
-          onKeyDown={(e: React.KeyboardEvent) => {
-            if ((e.ctrlKey || e.metaKey) && e.key === "f") {
-              e.preventDefault();
-              setSourceSearchOpen(true);
-              setTimeout(() => sourceSearch.focusSearch(), 50);
-            } else if (e.key === "Escape" && sourceSearchOpen) {
-              e.preventDefault();
-              setSourceSearchOpen(false);
-              sourceSearch.reset();
-            }
-          }}
-        >
-          {sourceSearchOpen && (
-            <SourceSearchBar
-              search={sourceSearch}
-              onClose={() => { setSourceSearchOpen(false); sourceSearch.reset(); }}
-              t={t}
-            />
-          )}
-          <SourceModeEditor
-            sourceText={sourceText}
-            onSourceChange={handleSourceChange}
-            editorHeight={editorHeight}
-            ariaLabel={t("sourceEditor")}
-            textareaRef={sourceTextareaRef}
-            searchMatches={sourceSearchOpen ? sourceSearch.matches : undefined}
-            searchCurrentIndex={sourceSearchOpen ? sourceSearch.currentIndex : undefined}
-          />
-        </Box>
-      ) : (
-        <Box
-          ref={editorWrapperRef}
-          onKeyDown={(readonlyMode || reviewMode) ? (e: React.KeyboardEvent) => {
-            if ((e.ctrlKey || e.metaKey) && e.key === "f") {
-              e.preventDefault();
-              editor?.commands.openSearch();
-            }
-          } : undefined}
-          sx={{ position: "relative", outline: "none" }}
-        >
-        {editor && <SearchReplaceBar editor={editor} t={t} />}
-        <FrontmatterBlock frontmatter={frontmatterText} onChange={handleFrontmatterChange} readOnly={readonlyMode || reviewMode} t={t} />
-        <Paper
-          id="md-editor-content"
-          variant="outlined"
-          sx={getEditorPaperSx(theme, settings, editorHeight, { readonlyMode })}
-        >
-          <div ref={editorMountCallback} style={{ display: "contents" }} />
-        </Paper>
-        </Box>
-      )}
-        </Box>
-        {commentOpen && editor && !sourceMode && (
-          <CommentPanel editor={editor} open={commentOpen} onClose={() => setCommentOpen(false)} onSave={() => saveContent(getMarkdownFromEditor(editor))} t={t} />
-        )}
-      </Box>
-      )}
-
-      {/* EditorContent は常時マウント – ポータル経由で DOM を移動 */}
-      {editorPortalTarget && createPortal(<EditorContent editor={editor} />, editorPortalTarget)}
-
-      {/* BubbleMenu (text formatting) – rendered for both merge and non-merge modes */}
-      {editor && !sourceMode && (
-        <EditorBubbleMenu editor={editor} onLink={handleLink} readonlyMode={readonlyMode} reviewMode={reviewMode} executeInReviewMode={executeInReviewMode} t={t} />
-      )}
-
-      {/* Slash command menu */}
-      {editor && !sourceMode && !readonlyMode && !reviewMode && (
-        <SlashCommandMenu editor={editor} t={t} slashCommandCallbackRef={slashCommandCallbackRef} />
-      )}
-
-      {/* Status bar */}
-      {editor && <StatusBar editor={editor} sourceMode={sourceMode} sourceText={sourceText} t={t} fileName={fileName} isDirty={isDirty} onLineEndingChange={hideStatusBar ? undefined : handleLineEndingChange} encoding={encoding} onEncodingChange={hideStatusBar ? undefined : handleEncodingChange} onStatusChange={onStatusChange} hidden={hideStatusBar} />}
-
-      <EditorMenuPopovers
+      <EditorMainContent
+        inlineMergeOpen={inlineMergeOpen}
+        InlineMergeView={InlineMergeView}
         editor={editor}
+        sourceMode={sourceMode}
+        readonlyMode={readonlyMode}
+        reviewMode={reviewMode}
+        editorHeight={editorHeight}
+        editorContainerRef={editorContainerRef}
+        editorWrapperRef={editorWrapperRef}
+        editorMountCallback={editorMountCallback}
+        sourceText={sourceText}
+        handleSourceChange={handleSourceChange}
+        sourceTextareaRef={sourceTextareaRef}
+        sourceSearchOpen={sourceSearchOpen}
+        setSourceSearchOpen={setSourceSearchOpen}
+        sourceSearch={sourceSearch}
+        frontmatterText={fileHandling.frontmatterText}
+        handleFrontmatterChange={fileHandling.handleFrontmatterChange}
+        commentOpen={commentOpen}
+        setCommentOpen={setCommentOpen}
+        saveContent={saveContent}
+        outlineProps={outlineProps}
+        editorMarkdown={editorMarkdown}
+        setMergeUndoRedo={setMergeUndoRedo}
+        compareFileContent={compareFileContent}
+        setCompareFileContent={setCompareFileContent}
+        setRightFileOps={setRightFileOps}
+        t={t}
+      />
+
+      <EditorFooterOverlays
+        editor={editor}
+        editorPortalTarget={editorPortalTarget}
+        sourceMode={sourceMode}
+        readonlyMode={readonlyMode}
+        reviewMode={reviewMode}
+        handleLink={handleLink}
+        executeInReviewMode={executeInReviewMode}
+        slashCommandCallbackRef={slashCommandCallbackRef}
+        sourceText={sourceText}
+        fileName={fileName}
+        isDirty={isDirty}
+        handleLineEndingChange={hideStatusBar ? undefined : fileHandling.handleLineEndingChange}
+        encoding={fileHandling.encoding}
+        handleEncodingChange={hideStatusBar ? undefined : fileHandling.handleEncodingChange}
+        onStatusChange={onStatusChange}
+        hideStatusBar={hideStatusBar}
         helpAnchorEl={helpAnchorEl}
         setHelpAnchorEl={setHelpAnchorEl}
         diagramAnchorEl={diagramAnchorEl}
@@ -826,9 +556,6 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         templateAnchorEl={templateAnchorEl}
         setTemplateAnchorEl={setTemplateAnchorEl}
         onInsertTemplate={handleInsertTemplate}
-        sourceMode={sourceMode}
-        onSourceInsertMermaid={() => appendToSource("\n```mermaid\n\n```\n")}
-        onSourceInsertPlantUml={() => appendToSource("\n```plantuml\n\n```\n")}
         headingMenu={headingMenu}
         setHeadingMenu={setHeadingMenu}
         setSettingsOpen={setSettingsOpen}
@@ -838,29 +565,12 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         hideHelp={hideHelp}
         hideVersionInfo={hideVersionInfo}
         featuresUrl={featuresUrl}
+        appendToSource={appendToSource}
+        pdfExporting={pdfExporting}
+        notification={notification}
+        setNotification={setNotification}
         t={t}
       />
-
-      <Backdrop open={pdfExporting} sx={{ zIndex: (theme) => theme.zIndex.modal + 1, flexDirection: "column", gap: 2, "@media print": { display: "none" } }}>
-        <CircularProgress color="inherit" />
-        <Typography variant="body2" color="inherit">{t("pdfPreparing")}</Typography>
-      </Backdrop>
-
-      <Snackbar
-        open={notification !== null}
-        autoHideDuration={3000}
-        onClose={() => setNotification(null)}
-        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-      >
-        <Alert
-          onClose={() => setNotification(null)}
-          severity={notification?.endsWith("Error") ? "error" : "success"}
-          variant="filled"
-          sx={{ width: "100%" }}
-        >
-          {notification && t(notification)}
-        </Alert>
-      </Snackbar>
 
     </Box>
     </PlantUmlToolbarContext.Provider>
