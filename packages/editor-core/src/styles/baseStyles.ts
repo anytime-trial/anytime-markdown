@@ -23,7 +23,7 @@ export function getBaseStyles(
     ...(options?.readonlyMode ? {
       '& input[type="checkbox"]': {
         pointerEvents: "none",
-        opacity: 0.6,
+        opacity: 0.7,
       },
     } : {}),
     "&:focus-visible": {

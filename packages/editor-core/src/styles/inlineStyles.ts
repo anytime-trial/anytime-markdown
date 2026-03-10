@@ -22,7 +22,7 @@ export function getInlineStyles(theme: Theme): SxProps<Theme> {
       bottom: "100%",
       left: 0,
       marginBottom: "4px",
-      backgroundColor: theme.palette.grey[800],
+      backgroundColor: theme.palette.grey[900],
       color: theme.palette.common.white,
       padding: "2px 8px",
       borderRadius: "4px",
