@@ -123,7 +123,7 @@ export function FrontmatterBlock({ frontmatter, onChange, readOnly, t }: Frontma
             fontFamily: "monospace",
             fontSize: `${settings.fontSize}px`,
             lineHeight: settings.lineHeight,
-            bgcolor: isDark ? "grey.900" : "grey.50",
+            bgcolor: isDark ? "#161B22" : "#F1F5F9",
             color: isDark ? "grey.100" : "grey.900",
             maxHeight: 300,
             overflow: "auto",

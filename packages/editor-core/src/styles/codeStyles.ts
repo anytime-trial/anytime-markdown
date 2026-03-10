@@ -32,7 +32,7 @@ export function getCodeStyles(theme: Theme): SxProps<Theme> {
   const isDark = theme.palette.mode === "dark";
   return {
     "& code": {
-      bgcolor: theme.palette.action.hover,
+      bgcolor: isDark ? "#161B22" : "#F1F5F9",
       color: isDark ? theme.palette.grey[300] : theme.palette.error.main,
       px: 0.5,
       py: 0.25,
@@ -41,7 +41,7 @@ export function getCodeStyles(theme: Theme): SxProps<Theme> {
       fontSize: "0.875em",
     },
     "& pre": {
-      bgcolor: theme.palette.background.paper,
+      bgcolor: isDark ? "#0D1117" : "#F8F9FA",
       border: 1,
       borderColor: isDark ? theme.palette.action.hover : "transparent",
       borderRadius: 1,

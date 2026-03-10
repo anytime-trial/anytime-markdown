@@ -57,12 +57,12 @@ export function CodeBlockFrame({
       ? (codeCollapsed
         ? { ...hiddenSx, m: 0 }
         : {
-            m: 0, p: 1.5, fontSize: `${settings.fontSize}px`, lineHeight: settings.lineHeight, bgcolor: isDark ? "grey.900" : "grey.50",
+            m: 0, p: 1.5, fontSize: `${settings.fontSize}px`, lineHeight: settings.lineHeight, bgcolor: isDark ? "#161B22" : "#F1F5F9",
             maxHeight: maxH, overflow: "auto",
             transition: "max-height 0.2s, padding 0.2s, opacity 0.15s",
             "@media (prefers-reduced-motion: reduce)": { transition: "none" },
           })
-      : { m: 0, p: 1.5, fontSize: `${settings.fontSize}px`, lineHeight: settings.lineHeight, bgcolor: isDark ? "grey.900" : "grey.50", overflow: "auto", maxHeight: maxH };
+      : { m: 0, p: 1.5, fontSize: `${settings.fontSize}px`, lineHeight: settings.lineHeight, bgcolor: isDark ? "#161B22" : "#F1F5F9", overflow: "auto", maxHeight: maxH };
 
   const preElement = (
     <Box component="pre" spellCheck={false} sx={preSx}>

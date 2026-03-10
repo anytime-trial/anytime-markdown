@@ -292,7 +292,7 @@ export function DiagramBlock(props: DiagramBlockProps) {
   );
 
   const diagramContainerSx = {
-    overflow: "hidden", bgcolor: "background.paper", position: "relative",
+    overflow: "hidden", bgcolor: isDark ? "#0D1117" : "#F8F9FA", position: "relative",
     width: diagramResize.displayWidth || "fit-content", maxWidth: "100%",
     cursor: !canInteract ? "default" : diagramResize.resizing ? "nwse-resize" : "grab",
     "&:active": { cursor: !canInteract ? "default" : diagramResize.resizing ? "nwse-resize" : "grabbing" },

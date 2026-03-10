@@ -52,7 +52,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     updateStatusBar(themeMode);
   }, [themeMode]);
 
-  const theme = useMemo(() => createTheme({ palette: { mode: themeMode, secondary: { main: '#e8a012', contrastText: '#000000' } } }), [themeMode]);
+  const theme = useMemo(() => createTheme({ palette: { mode: themeMode, secondary: { main: '#e8a012', contrastText: '#000000' }, background: { default: themeMode === 'dark' ? '#0D1117' : '#F8F9FA' } } }), [themeMode]);
 
   const contextValue = useMemo(() => ({ themeMode, setThemeMode }), [themeMode, setThemeMode]);
 

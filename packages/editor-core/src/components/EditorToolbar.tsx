@@ -38,7 +38,7 @@ import {
   ToggleButton,
   ToggleButtonGroup,
   Tooltip,
-
+  useTheme,
 } from "@mui/material";
 import { useEditorState } from "@tiptap/react";
 import type { Editor } from "@tiptap/react";
@@ -177,6 +177,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
   hideFoldAll,
   t,
 }: EditorToolbarProps) {
+  const isDark = useTheme().palette.mode === "dark";
   const [fileMenuAnchorEl, setFileMenuAnchorEl] = useState<HTMLElement | null>(null);
 
   const [mobileMenuAnchorEl, setMobileMenuAnchorEl] = useState<HTMLElement | null>(null);
@@ -258,7 +259,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
         position: "sticky",
         top: 0,
         zIndex: 10,
-        bgcolor: "background.paper",
+        bgcolor: isDark ? "#0D1117" : "#F8F9FA",
       }}
     >
       {/* File actions */}

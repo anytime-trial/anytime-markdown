@@ -39,9 +39,10 @@ const hoverShow = {
 
 /** 見出し・ブロックラベルスタイル */
 export function getHeadingStyles(theme: Theme): SxProps<Theme> {
+  const isDark = theme.palette.mode === "dark";
   return {
     "& .heading-number": {
-      color: theme.palette.text.secondary,
+      color: isDark ? "#63B3ED" : "#3182CE",
       fontWeight: 400,
       marginRight: "0.25em",
       userSelect: "none" as const,
@@ -55,27 +56,35 @@ export function getHeadingStyles(theme: Theme): SxProps<Theme> {
     },
     "& h1, & h2, & h3, & h4, & h5": {
       position: "relative",
+      fontFamily: "monospace",
+      letterSpacing: "-0.01em",
       "&::before": blockLabel(theme),
       ...hoverShow,
     },
     "& h1": {
       fontSize: "2em", fontWeight: 700, mt: 2, mb: 1,
+      bgcolor: isDark ? "#1A202C" : "#EDF2F7",
+      py: 0.5, borderRadius: 1,
+      boxShadow: `-40px 0 0 ${isDark ? "#1A202C" : "#EDF2F7"}, 16px 0 0 ${isDark ? "#1A202C" : "#EDF2F7"}`,
       "&::before": { content: "'H1'" },
     },
     "& h2": {
-      fontSize: "1.5em", fontWeight: 600, mt: 1.5, mb: 1,
+      fontSize: "1.5em", fontWeight: 700, mt: 1.5, mb: 1,
+      bgcolor: isDark ? "#1A202C" : "#EDF2F7",
+      py: 0.5, borderRadius: 1,
+      boxShadow: `-40px 0 0 ${isDark ? "#1A202C" : "#EDF2F7"}, 16px 0 0 ${isDark ? "#1A202C" : "#EDF2F7"}`,
       "&::before": { content: "'H2'" },
     },
     "& h3": {
-      fontSize: "1.25em", fontWeight: 600, mt: 1, mb: 0.5,
+      fontSize: "1.25em", fontWeight: 700, mt: 1, mb: 0.5,
       "&::before": { content: "'H3'" },
     },
     "& h4": {
-      fontSize: "1.1em", fontWeight: 600, mt: 1, mb: 0.5,
+      fontSize: "1.1em", fontWeight: 700, mt: 1, mb: 0.5,
       "&::before": { content: "'H4'" },
     },
     "& h5": {
-      fontSize: "1em", fontWeight: 600, mt: 0.75, mb: 0.5,
+      fontSize: "1em", fontWeight: 700, mt: 0.75, mb: 0.5,
       "&::before": { content: "'H5'" },
     },
     "& > p": {

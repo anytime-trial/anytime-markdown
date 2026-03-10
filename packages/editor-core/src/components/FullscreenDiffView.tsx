@@ -384,7 +384,7 @@ function DiffPanel({
         minWidth: 0,
         borderLeft: side === "right" ? 1 : 0,
         borderColor: "divider",
-        bgcolor: settings.editorBg === "grey" && !isDark ? "grey.50" : "background.paper",
+        bgcolor: isDark ? "#0D1117" : "#F8F9FA",
       }}
     >
       <Box sx={{ flex: 1, display: "flex", overflow: "hidden", minHeight: 0 }}>

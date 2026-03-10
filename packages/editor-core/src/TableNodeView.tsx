@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import type { NodeViewProps } from "@tiptap/react";
 import { NodeViewWrapper, NodeViewContent, useEditorState } from "@tiptap/react";
-import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Divider, IconButton, ToggleButton, ToggleButtonGroup, Tooltip, Typography } from "@mui/material";
+import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Divider, IconButton, ToggleButton, ToggleButtonGroup, Tooltip, Typography, useTheme } from "@mui/material";
 import FocusTrap from "@mui/material/Unstable_TrapFocus";
 import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
 import ViewColumnIcon from "@mui/icons-material/ViewColumn";
@@ -24,6 +24,7 @@ const iconSx = { fontSize: 16 };
 
 export function TableNodeView({ editor, node, updateAttributes, getPos }: NodeViewProps) {
   const t = useTranslations("MarkdownEditor");
+  const isDark = useTheme().palette.mode === "dark";
   const [fullscreen, setFullscreen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const collapsed = !!node.attrs.collapsed;
@@ -66,7 +67,7 @@ export function TableNodeView({ editor, node, updateAttributes, getPos }: NodeVi
             position: "fixed",
             inset: 0,
             zIndex: 1300,
-            bgcolor: "background.paper",
+            bgcolor: isDark ? "#0D1117" : "#F8F9FA",
             display: "flex",
             flexDirection: "column",
           }),

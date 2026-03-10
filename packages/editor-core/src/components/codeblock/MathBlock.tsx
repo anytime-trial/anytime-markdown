@@ -182,7 +182,7 @@ export function MathBlock(props: MathBlockProps) {
           role="img"
           aria-label={t("mathFormula")}
           onClick={selectNode}
-          sx={{ pt: 0, px: 2, pb: 2, bgcolor: "background.paper", borderTop: codeCollapsed ? 0 : 1, borderColor: "divider", overflow: "auto", maxHeight: 400, display: "flex", justifyContent: "flex-start" }}
+          sx={{ pt: 0, px: 2, pb: 2, bgcolor: isDark ? "#0D1117" : "#F8F9FA", borderTop: codeCollapsed ? 0 : 1, borderColor: "divider", overflow: "auto", maxHeight: 400, display: "flex", justifyContent: "flex-start" }}
           dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(mathHtml, MATH_SANITIZE_CONFIG) }}
         />
       )}
