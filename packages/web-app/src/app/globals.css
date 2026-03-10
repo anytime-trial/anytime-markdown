@@ -3,6 +3,10 @@
 html, body {
   margin: 0;
   padding: 0;
+}
+
+/* エディタページのみビューポート固定（ランディング/docsページは通常スクロール） */
+body.editor-page {
   overflow: hidden;
   height: 100%;
 }

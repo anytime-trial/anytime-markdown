@@ -58,6 +58,7 @@ export default function LandingHeader() {
             size="small"
             aria-label="Language"
             sx={{
+              display: { xs: 'none', sm: 'inline-flex' },
               '& .MuiToggleButton-root': {
                 px: 1.5,
                 py: 0.25,
@@ -89,6 +90,7 @@ export default function LandingHeader() {
               px: 2.5,
               bgcolor: 'secondary.main',
               color: '#000000',
+              display: { xs: 'none', sm: 'inline-flex' },
               '&:hover': { bgcolor: 'secondary.dark' },
             }}
           >
@@ -123,6 +125,28 @@ export default function LandingHeader() {
               <ListItemText primary={t('openEditor')} />
             </ListItemButton>
           </List>
+          <Box sx={{ px: 2, pt: 1 }}>
+            <ToggleButtonGroup
+              value={locale}
+              exclusive
+              onChange={(_, val) => { if (val) setLocale(val); }}
+              size="small"
+              fullWidth
+              aria-label="Language"
+              sx={{
+                '& .MuiToggleButton-root': {
+                  px: 1.5,
+                  py: 0.5,
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  textTransform: 'none',
+                },
+              }}
+            >
+              <ToggleButton value="en" aria-label="English">EN</ToggleButton>
+              <ToggleButton value="ja" aria-label="Japanese">JA</ToggleButton>
+            </ToggleButtonGroup>
+          </Box>
         </Box>
       </Drawer>
     </AppBar>

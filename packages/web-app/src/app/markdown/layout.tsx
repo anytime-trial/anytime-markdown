@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { EditorPageBody } from './EditorPageBody';
 
 export const metadata: Metadata = {
   title: 'Editor - Anytime Markdown',
@@ -21,5 +22,10 @@ export const metadata: Metadata = {
 };
 
 export default function MarkdownLayout({ children }: { children: React.ReactNode }) {
-  return children;
+  return (
+    <>
+      <EditorPageBody />
+      {children}
+    </>
+  );
 }
