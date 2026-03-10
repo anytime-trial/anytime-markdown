@@ -50,14 +50,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     updateStatusBar(themeMode);
-    // ライトモード: CssBaselineのantialiasedを解除し文字のぼけを防止
-    if (themeMode === 'light') {
-      document.body.style.setProperty('-webkit-font-smoothing', 'auto');
-      document.body.style.setProperty('-moz-osx-font-smoothing', 'auto');
-    } else {
-      document.body.style.setProperty('-webkit-font-smoothing', 'antialiased');
-      document.body.style.setProperty('-moz-osx-font-smoothing', 'grayscale');
-    }
   }, [themeMode]);
 
   const theme = useMemo(() => createTheme({ palette: { mode: themeMode, secondary: { main: '#e8a012', contrastText: '#000000' }, background: { default: themeMode === 'dark' ? '#0D1117' : '#F8F9FA' } } }), [themeMode]);
