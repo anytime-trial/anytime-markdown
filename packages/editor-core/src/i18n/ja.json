@@ -125,6 +125,7 @@
     "unfoldAll": "すべて展開する",
     "collapseSection": "セクションを折りたたむ",
     "expandSection": "セクションを展開する",
+    "draggableHeading": "ドラッグ可能な見出し、Alt+矢印キーで並び替え",
     "diagramCodeHide": "ダイアグラムコードを隠す",
     "diagramCodeShow": "ダイアグラムコードを表示する",
     "diagramFlowchart": "フローチャート",

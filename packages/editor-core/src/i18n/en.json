@@ -125,6 +125,7 @@
     "unfoldAll": "Unfold All",
     "collapseSection": "Collapse section",
     "expandSection": "Expand section",
+    "draggableHeading": "Draggable heading, use Alt+Arrow to reorder",
     "diagramCodeHide": "Hide Diagram Code",
     "diagramCodeShow": "Show Diagram Code",
     "diagramFlowchart": "Flowchart",

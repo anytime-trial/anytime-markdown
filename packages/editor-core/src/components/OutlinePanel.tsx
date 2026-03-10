@@ -223,8 +223,6 @@ export function OutlinePanel({
                 const isHidden = hiddenByFold.has(idx) || (!isHeading && !showBlocks);
                 const isFolded = isHeading && foldedIndices.has(h.headingIndex ?? -1);
                 const hoIdx = isHeading ? toHeadingOnlyIdx(idx) : -1;
-                const _isFirst = isHeading && hoIdx === 0;
-                const _isLast = isHeading && hoIdx === headingOnlyIndices.length - 1;
                 const isDragging = isHeading && hoIdx === dragIdx;
                 const isDropTarget = isHeading && hoIdx === dropIdx && hoIdx !== dragIdx;
                 // ブロック要素は直近の見出しレベルに合わせてインデント
@@ -287,7 +285,17 @@ export function OutlinePanel({
                         role="button"
                         tabIndex={0}
                         onClick={() => handleOutlineClick(h.pos)}
-                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleOutlineClick(h.pos); } }}
+                        {...(isHeading && onHeadingDragEnd ? { "aria-roledescription": t("draggableHeading") } : {})}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleOutlineClick(h.pos); }
+                          if (isHeading && onHeadingDragEnd && e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+                            e.preventDefault();
+                            const targetIdx = e.key === "ArrowUp" ? hoIdx - 1 : hoIdx + 1;
+                            if (targetIdx >= 0 && targetIdx < headingOnlyIndices.length) {
+                              onHeadingDragEnd(hoIdx, targetIdx);
+                            }
+                          }
+                        }}
                         sx={{
                           cursor: "pointer",
                           fontSize: "0.8rem",
