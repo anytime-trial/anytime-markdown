@@ -8,6 +8,7 @@ import StarterKit from "@tiptap/starter-kit";
 import { Markdown } from "tiptap-markdown";
 import { FootnoteRef } from "../extensions/footnoteExtension";
 import { preprocessFootnoteRefs } from "../utils/footnoteHelpers";
+import { getMarkdownStorage } from "../types";
 
 function createFootnoteEditor(md = ""): Editor {
   const preprocessed = preprocessFootnoteRefs(md);
@@ -21,12 +22,8 @@ function createFootnoteEditor(md = ""): Editor {
   });
 }
 
-interface MarkdownStorage {
-  markdown: { getMarkdown: () => string };
-}
-
 function getMarkdown(editor: Editor): string {
-  return (editor.storage as unknown as MarkdownStorage).markdown.getMarkdown();
+  return getMarkdownStorage(editor).getMarkdown();
 }
 
 describe("preprocessFootnoteRefs", () => {

@@ -26,10 +26,11 @@ function getDecorations(editor: Editor): DecorationSet {
 
 describe("HeadingNumberExtension", () => {
   describe("初期状態", () => {
-    test("デフォルトでは Decoration が空", () => {
+    test("デフォルト(auto)では見出しに番号 Decoration が生成される", () => {
       const editor = createEditor("# Title\n\n## Sub");
       const decos = getDecorations(editor);
-      expect(decos).toBe(DecorationSet.empty);
+      const found = decos.find(0, editor.state.doc.content.size);
+      expect(found).toHaveLength(2);
       editor.destroy();
     });
   });
@@ -37,7 +38,7 @@ describe("HeadingNumberExtension", () => {
   describe("setShowHeadingNumbers コマンド", () => {
     test("true で Decoration が生成される", () => {
       const editor = createEditor("# Title\n\n## Sub");
-      editor.commands.setShowHeadingNumbers(true);
+      editor.commands.setShowHeadingNumbers("on");
       const decos = getDecorations(editor);
       expect(decos).not.toBe(DecorationSet.empty);
       editor.destroy();
@@ -45,8 +46,8 @@ describe("HeadingNumberExtension", () => {
 
     test("false で Decoration が空に戻る", () => {
       const editor = createEditor("# Title\n\n## Sub");
-      editor.commands.setShowHeadingNumbers(true);
-      editor.commands.setShowHeadingNumbers(false);
+      editor.commands.setShowHeadingNumbers("on");
+      editor.commands.setShowHeadingNumbers("off");
       const decos = getDecorations(editor);
       expect(decos).toBe(DecorationSet.empty);
       editor.destroy();
@@ -57,7 +58,7 @@ describe("HeadingNumberExtension", () => {
     test("H1 のみ: 1., 2., 3.", () => {
       const md = "# A\n\n# B\n\n# C";
       const editor = createEditor(md);
-      editor.commands.setShowHeadingNumbers(true);
+      editor.commands.setShowHeadingNumbers("on");
       const decos = getDecorations(editor);
       const found = decos.find(0, editor.state.doc.content.size);
       expect(found).toHaveLength(3);
@@ -67,7 +68,7 @@ describe("HeadingNumberExtension", () => {
     test("H1 + H2 の階層番号", () => {
       const md = "# Ch1\n\n## Sec1\n\n## Sec2\n\n# Ch2\n\n## Sec1";
       const editor = createEditor(md);
-      editor.commands.setShowHeadingNumbers(true);
+      editor.commands.setShowHeadingNumbers("on");
       const decos = getDecorations(editor);
       const found = decos.find(0, editor.state.doc.content.size);
       // 6 headings: 1., 1.1., 1.2., 2., 2.1. → but headings are H1, H2, H2, H1, H2
@@ -78,7 +79,7 @@ describe("HeadingNumberExtension", () => {
     test("H2 のカウンタが H1 でリセットされる", () => {
       const md = "# A\n\n## A1\n\n## A2\n\n# B\n\n## B1";
       const editor = createEditor(md);
-      editor.commands.setShowHeadingNumbers(true);
+      editor.commands.setShowHeadingNumbers("on");
       const decos = getDecorations(editor);
       const found = decos.find(0, editor.state.doc.content.size);
       expect(found).toHaveLength(5);
@@ -88,7 +89,7 @@ describe("HeadingNumberExtension", () => {
     test("H3 の深い階層", () => {
       const md = "# Ch\n\n## Sec\n\n### Sub";
       const editor = createEditor(md);
-      editor.commands.setShowHeadingNumbers(true);
+      editor.commands.setShowHeadingNumbers("on");
       const decos = getDecorations(editor);
       const found = decos.find(0, editor.state.doc.content.size);
       expect(found).toHaveLength(3);
@@ -99,7 +100,7 @@ describe("HeadingNumberExtension", () => {
   describe("ドキュメント変更追従", () => {
     test("表示中にドキュメントを変更すると Decoration が再構築される", () => {
       const editor = createEditor("# A");
-      editor.commands.setShowHeadingNumbers(true);
+      editor.commands.setShowHeadingNumbers("on");
 
       const before = getDecorations(editor);
       const countBefore = before.find(0, editor.state.doc.content.size).length;

@@ -26,9 +26,19 @@ export interface MarkdownStorage {
   };
 }
 
+/** editor.storage を汎用 Record として取得する型安全ヘルパー */
+export function getEditorStorage(editor: Editor): Record<string, Record<string, unknown>> {
+  return editor.storage as unknown as Record<string, Record<string, unknown>>;
+}
+
+/** editor.storage から tiptap-markdown の storage を取得する型安全ヘルパー */
+export function getMarkdownStorage(editor: Editor): MarkdownStorage["markdown"] {
+  return (editor.storage as unknown as MarkdownStorage).markdown;
+}
+
 /** tiptap-markdown の storage から markdown を取得するヘルパー */
 export function getMarkdownFromEditor(editor: Editor): string {
-  let md = (editor.storage as unknown as MarkdownStorage).markdown.getMarkdown();
+  let md = getMarkdownStorage(editor).getMarkdown();
   // ZWSP マーカー段落を除去し、元の空行を復元する
   // ※ コードフェンス修正より先に実行する（ZWSP が残っていると正規表現が一致しないため）
   md = restoreBlankLines(md);

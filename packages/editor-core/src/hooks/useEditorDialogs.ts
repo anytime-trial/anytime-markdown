@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Editor } from "@tiptap/react";
+import { getEditorStorage } from "../types";
 
 interface UseEditorDialogsParams {
   editor: Editor | null;
@@ -33,7 +34,7 @@ export function useEditorDialogs({
       setImageEditPos(data.pos);
       setImageDialogOpen(true);
     };
-    const storage = editor.storage as unknown as Record<string, Record<string, unknown>>;
+    const storage = getEditorStorage(editor);
     storage.image.onEditImage = handler;
     return () => {
       storage.image.onEditImage = null;
@@ -54,7 +55,7 @@ export function useEditorDialogs({
   // editor.storage 経由でコメントダイアログを開く（BubbleMenu / SlashCommand から利用）
   useEffect(() => {
     if (!editor) return;
-    const storage = editor.storage as unknown as Record<string, Record<string, unknown>>;
+    const storage = getEditorStorage(editor);
     if (!storage.commentDialog) storage.commentDialog = {};
     storage.commentDialog.open = handleCommentOpen;
     return () => {
@@ -81,7 +82,7 @@ export function useEditorDialogs({
   // editor.storage 経由でリンクダイアログを開く（MergeRightBubbleMenu から利用）
   useEffect(() => {
     if (!editor) return;
-    const storage = editor.storage as unknown as Record<string, Record<string, unknown>>;
+    const storage = getEditorStorage(editor);
     if (!storage.linkDialog) storage.linkDialog = {};
     storage.linkDialog.open = handleLink;
     return () => {

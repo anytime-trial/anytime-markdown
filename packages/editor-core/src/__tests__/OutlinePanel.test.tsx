@@ -67,8 +67,8 @@ describe("OutlinePanel", () => {
       (btn) => !btn.hasAttribute("aria-expanded") && /Introduction|Details/.test(btn.textContent || ""),
     );
     expect(textButtons.length).toBe(2);
-    expect(textButtons[0].textContent).toBe("Introduction");
-    expect(textButtons[1].textContent).toBe("Details");
+    expect(textButtons[0].textContent).toBe("1. Introduction");
+    expect(textButtons[1].textContent).toBe("1.1. Details");
   });
 
   // --- 3. 見出しクリックで onOutlineClick が呼ばれる ---

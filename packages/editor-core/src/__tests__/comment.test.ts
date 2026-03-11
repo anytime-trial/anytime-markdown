@@ -27,6 +27,7 @@ import {
   commentDataPluginKey,
   generateId,
 } from "../extensions/commentExtension";
+import { getMarkdownStorage } from "../types";
 
 describe("parseCommentData", () => {
   test("末尾の <!-- comments --> ブロックからコメント Map を生成する", () => {
@@ -229,12 +230,8 @@ function createCommentEditor(md = ""): Editor {
   });
 }
 
-interface MarkdownStorage {
-  markdown: { getMarkdown: () => string };
-}
-
 function getMarkdown(editor: Editor): string {
-  return (editor.storage as unknown as MarkdownStorage).markdown.getMarkdown();
+  return getMarkdownStorage(editor).getMarkdown();
 }
 
 interface CommentPluginState {

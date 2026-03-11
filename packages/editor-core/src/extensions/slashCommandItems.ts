@@ -1,7 +1,7 @@
 import React from "react";
 import type { Editor } from "@tiptap/core";
 import type { TranslationFn } from "../types";
-import { extractHeadings } from "../types";
+import { extractHeadings, getEditorStorage } from "../types";
 import { generateTocMarkdown } from "../utils/tocHelpers";
 
 import LooksOneIcon from "@mui/icons-material/LooksOne";
@@ -275,7 +275,7 @@ export const slashCommandItems: SlashCommandItem[] = [
     icon: React.createElement(ChatBubbleOutlineIcon, { fontSize: "small" }),
     keywords: ["comment", "annotation", "note", "コメント", "注釈", "メモ"],
     action: (editor) => {
-      const storage = editor.storage as unknown as Record<string, Record<string, unknown>>;
+      const storage = getEditorStorage(editor);
       const openDialog = storage.commentDialog?.open as (() => void) | undefined;
       if (openDialog) {
         openDialog();

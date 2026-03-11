@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import type { Editor } from "@tiptap/react";
-import type { EncodingLabel, MarkdownStorage } from "../types";
-import { getMarkdownFromEditor } from "../types";
+import type { EncodingLabel } from "../types";
+import { getMarkdownFromEditor, getMarkdownStorage } from "../types";
 import { sanitizeMarkdown, preserveBlankLines } from "../utils/sanitizeMarkdown";
 
 interface UseEditorFileHandlingArgs {
@@ -77,7 +77,7 @@ export function useEditorFileHandling({
             setSourceText(decoded);
           } else if (editor) {
             editor.commands.setContent(
-              (editor.storage as unknown as MarkdownStorage).markdown.parser.parse(
+              getMarkdownStorage(editor).parser.parse(
                 preserveBlankLines(decoded),
               ),
             );

@@ -4,7 +4,7 @@ import type { Editor } from "@tiptap/react";
 import { useTheme } from "@mui/material";
 import { useTranslations } from "next-intl";
 import useConfirm from "@/hooks/useConfirm";
-import { getMarkdownFromEditor, type EncodingLabel, type MarkdownStorage } from "../types";
+import { getMarkdownFromEditor, getMarkdownStorage, type EncodingLabel } from "../types";
 import type { FileHandle } from "../types/fileSystem";
 import { sanitizeMarkdown, preserveBlankLines } from "../utils/sanitizeMarkdown";
 import { prependFrontmatter } from "../utils/frontmatterHelpers";
@@ -101,7 +101,7 @@ export function useEditorFileOps({
           setSourceText(sanitizeMarkdown(reader.result));
         } else if (editor) {
           editor.commands.setContent(
-            (editor.storage as unknown as MarkdownStorage).markdown.parser.parse(
+            getMarkdownStorage(editor).parser.parse(
               preserveBlankLines(sanitizeMarkdown(reader.result)),
             ),
           );
@@ -163,7 +163,7 @@ export function useEditorFileOps({
       setSourceText(sanitized);
     } else if (editor) {
       editor.commands.setContent(
-        (editor.storage as unknown as MarkdownStorage).markdown.parser.parse(
+        getMarkdownStorage(editor).parser.parse(
           preserveBlankLines(sanitized),
         ),
       );

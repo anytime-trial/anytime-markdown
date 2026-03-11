@@ -11,7 +11,7 @@ import { IconButton, Paper, Tooltip } from "@mui/material";
 import type { Editor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import { modKey } from "../constants/shortcuts";
-import type { TranslationFn } from "../types";
+import { getEditorStorage, type TranslationFn } from "../types";
 
 /** ツールチップキー → ショートカットキー表示マッピング */
 const TOOLTIP_SHORTCUTS: Record<string, string> = {
@@ -176,7 +176,7 @@ export const EditorBubbleMenu = React.memo(function EditorBubbleMenu({ editor, o
               aria-label={t("comment")}
               onClick={() => {
                 const openComment = () => {
-                  const storage = editor.storage as unknown as Record<string, Record<string, unknown>>;
+                  const storage = getEditorStorage(editor);
                   const openDialog = storage.commentDialog?.open as (() => void) | undefined;
                   if (openDialog) openDialog();
                 };

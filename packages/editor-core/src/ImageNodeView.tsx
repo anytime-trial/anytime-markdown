@@ -11,6 +11,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import FullscreenIcon from "@mui/icons-material/Fullscreen";
 import CloseIcon from "@mui/icons-material/Close";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
+import { getEditorStorage } from "./types";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import { useTranslations } from "next-intl";
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "./constants/colors";
@@ -225,7 +226,7 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
                 if (typeof getPos !== "function") return;
                 const pos = getPos();
                 if (pos == null) return;
-                const storage = editor.storage as unknown as Record<string, Record<string, unknown>>;
+                const storage = getEditorStorage(editor);
                 const onEdit = storage.image?.onEditImage as ((data: { pos: number; src: string; alt: string }) => void) | undefined;
                 if (onEdit) onEdit({ pos, src: src || "", alt: alt || "" });
               }} aria-label={t("imageUrl")}>

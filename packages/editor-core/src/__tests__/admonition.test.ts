@@ -8,6 +8,7 @@ import StarterKit from "@tiptap/starter-kit";
 import { Markdown } from "tiptap-markdown";
 import { AdmonitionBlockquote } from "../extensions/admonitionExtension";
 import { preprocessAdmonition } from "../utils/admonitionHelpers";
+import { getMarkdownStorage } from "../types";
 
 function createAdmonitionEditor(md = ""): Editor {
   // sanitizeMarkdown と同様に前処理を適用してから setContent
@@ -23,12 +24,8 @@ function createAdmonitionEditor(md = ""): Editor {
   return editor;
 }
 
-interface MarkdownStorage {
-  markdown: { getMarkdown: () => string };
-}
-
 function getMarkdown(editor: Editor): string {
-  return (editor.storage as unknown as MarkdownStorage).markdown.getMarkdown();
+  return getMarkdownStorage(editor).getMarkdown();
 }
 
 describe("preprocessAdmonition", () => {

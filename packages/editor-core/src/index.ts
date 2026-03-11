@@ -59,6 +59,8 @@ export { HeadingFoldExtension, headingFoldPluginKey } from './extensions/heading
 // Types
 export {
   getMarkdownFromEditor,
+  getEditorStorage,
+  getMarkdownStorage,
   extractHeadings,
   PlantUmlToolbarContext,
   usePlantUmlToolbar,

@@ -10,6 +10,7 @@ import CodeIcon from "@mui/icons-material/Code";
 import InsertLinkIcon from "@mui/icons-material/InsertLink";
 import { BubbleMenu } from "@tiptap/react/menus";
 import type { Editor } from "@tiptap/react";
+import { getEditorStorage } from "../types";
 
 interface MergeRightBubbleMenuProps {
   editor: Editor;
@@ -113,7 +114,7 @@ export function MergeRightBubbleMenu({
                 editor.chain().focus().unsetLink().run();
                 return;
               }
-              const storage = editor.storage as unknown as Record<string, Record<string, unknown>>;
+              const storage = getEditorStorage(editor);
               const openDialog = storage.linkDialog?.open as (() => void) | undefined;
               if (openDialog) {
                 openDialog();
