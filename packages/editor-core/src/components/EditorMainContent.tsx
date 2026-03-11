@@ -2,6 +2,7 @@ import { Box, Paper } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import type { Editor } from "@tiptap/react";
 import type React from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 
 import { getEditorPaperSx } from "../styles/editorStyles";
 import { useEditorSettingsContext } from "../useEditorSettings";
@@ -126,6 +127,22 @@ export function EditorMainContent({
   const theme = useTheme();
   const settings = useEditorSettingsContext();
 
+  // Frontmatter パネルの高さを測定し editorHeight から差し引く
+  const frontmatterRef = useRef<HTMLDivElement>(null);
+  const [frontmatterHeight, setFrontmatterHeight] = useState(0);
+  useEffect(() => {
+    const el = frontmatterRef.current;
+    if (!el) { setFrontmatterHeight(0); return; }
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setFrontmatterHeight(entry.borderBoxSize?.[0]?.blockSize ?? entry.contentRect.height);
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [frontmatterText]);
+  const adjustedEditorHeight = editorHeight - frontmatterHeight;
+
   if (inlineMergeOpen) {
     return (
       <InlineMergeView
@@ -220,11 +237,13 @@ export function EditorMainContent({
             sx={{ position: "relative", outline: "none" }}
           >
             {editor && <SearchReplaceBar editor={editor} t={t} />}
-            <FrontmatterBlock frontmatter={frontmatterText} onChange={handleFrontmatterChange} readOnly={readonlyMode || reviewMode} t={t} />
+            <div ref={frontmatterRef}>
+              <FrontmatterBlock frontmatter={frontmatterText} onChange={handleFrontmatterChange} readOnly={readonlyMode || reviewMode} t={t} />
+            </div>
             <Paper
               id="md-editor-content"
               variant="outlined"
-              sx={getEditorPaperSx(theme, settings, editorHeight, { readonlyMode })}
+              sx={getEditorPaperSx(theme, settings, adjustedEditorHeight, { readonlyMode })}
             >
               <div ref={editorMountCallback} style={{ display: "contents" }} />
             </Paper>
