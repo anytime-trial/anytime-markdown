@@ -90,7 +90,7 @@ export function useSourceMode({ editor, saveContent, t, frontmatterRef }: UseSou
     const sanitized = preserveBlankLines(sanitizeMarkdown(body));
     ed.commands.setContent(sanitized);
     if (comments.size > 0) {
-      (ed.commands as any).initComments(comments);
+      ed.commands.initComments(comments);
     }
     saveContent(src, false);
     setSourceMode(false);
