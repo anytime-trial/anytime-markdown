@@ -1,6 +1,8 @@
 import type mermaidAPI from "mermaid";
 import { useEffect, useRef, useState } from "react";
 
+import { BoundedMap } from "../utils/BoundedMap";
+
 /** Lazy-load mermaid (~1.5 MB) only when needed */
 let mermaidInstance: typeof mermaidAPI | null = null;
 async function getMermaid() {
@@ -49,7 +51,7 @@ export function detectMermaidType(code: string): string {
  * 既に描画済みの SVG を即座に復元できる。
  * キー: `${code}\0${isDark}`
  */
-const svgCache = new Map<string, string>();
+const svgCache = new BoundedMap<string, string>(64);
 function cacheKey(code: string, isDark: boolean): string {
   return `${code}\0${isDark}`;
 }

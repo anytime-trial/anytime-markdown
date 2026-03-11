@@ -1,13 +1,14 @@
 import plantumlEncoder from "plantuml-encoder";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { BoundedMap } from "../utils/BoundedMap";
 import { buildPlantUmlUrl,PLANTUML_CONSENT_KEY, PLANTUML_DARK_SKINPARAMS } from "../utils/plantumlHelpers";
 
 /**
  * モジュールレベルの URL キャッシュ。
  * コンポーネントがアンマウント→再マウントを繰り返しても即座に復元。
  */
-const urlCache = new Map<string, string>();
+const urlCache = new BoundedMap<string, string>(128);
 function cacheKey(code: string, isDark: boolean): string {
   return `${code}\0${isDark}`;
 }
