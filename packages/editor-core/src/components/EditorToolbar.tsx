@@ -1,32 +1,17 @@
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import CodeIcon from "@mui/icons-material/Code";
-import DescriptionIcon from "@mui/icons-material/Description";
-import DownloadIcon from "@mui/icons-material/Download";
 import EditNoteIcon from "@mui/icons-material/EditNote";
-import FileUploadIcon from "@mui/icons-material/FileUpload";
-import FolderOpenIcon from "@mui/icons-material/FolderOpen";
-import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
-import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
 import ListAltIcon from "@mui/icons-material/ListAlt";
 import LockIcon from "@mui/icons-material/Lock";
 import MenuIcon from "@mui/icons-material/Menu";
-import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
 import RedoIcon from "@mui/icons-material/Redo";
-import SaveIcon from "@mui/icons-material/Save";
-import SaveAsIcon from "@mui/icons-material/SaveAs";
-import SettingsIcon from "@mui/icons-material/Settings";
 import UndoIcon from "@mui/icons-material/Undo";
 import ViewStreamIcon from "@mui/icons-material/ViewStream";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import WysiwygIcon from "@mui/icons-material/Wysiwyg";
 import {
   Box,
-  Divider,
   IconButton,
-  ListItemIcon,
-  ListItemText,
-  Menu,
-  MenuItem,
   Paper,
   ToggleButton,
   ToggleButtonGroup,
@@ -43,6 +28,8 @@ import { Z_TOOLBAR } from "../constants/zIndex";
 import type { TranslationFn } from "../types";
 import type { ToolbarFileCapabilities, ToolbarFileHandlers, ToolbarModeHandlers,ToolbarModeState, ToolbarVisibility } from "../types/toolbar";
 import type { MergeUndoRedo } from "./InlineMergeView";
+import { ToolbarFileActions } from "./ToolbarFileActions";
+import { ToolbarMobileMenu } from "./ToolbarMobileMenu";
 
 /** WAI-ARIA Toolbar パターン: 矢印キーでフォーカス移動 */
 const FOCUSABLE_SELECTOR = 'button:not([disabled]), [role="button"]:not([disabled]), input:not([disabled])';
@@ -72,6 +59,36 @@ function tip(t: TranslationFn, key: string): string {
   const shortcut = TOOLTIP_SHORTCUTS[key];
   return shortcut ? `${t(key)}  (${shortcut})` : t(key);
 }
+
+/** モード切替・比較切替の pill 型トグル共通スタイル */
+const PILL_TOGGLE_SX = {
+  height: 34,
+  borderRadius: "20px",
+  bgcolor: "action.hover",
+  p: 0.25,
+  "& .MuiToggleButton-root": {
+    border: "none",
+    borderRadius: "20px !important",
+    px: 2,
+    py: 0,
+    gap: 0.5,
+    fontSize: "0.8rem",
+    textTransform: "none",
+    lineHeight: 1,
+  },
+  "& .Mui-selected": {
+    bgcolor: "background.paper !important",
+    color: "text.primary !important",
+    boxShadow: "0 1px 2px rgba(0,0,0,0.15)",
+  },
+  "& .MuiToggleButton-root:not(.Mui-selected)": {
+    bgcolor: "transparent",
+    color: "text.secondary",
+    "&:hover": {
+      bgcolor: "action.selected",
+    },
+  },
+} as const;
 
 interface EditorToolbarProps {
   editor: Editor | null;
@@ -119,18 +136,11 @@ export const EditorToolbar = React.memo(function EditorToolbar({
     outline: hideOutline, comments: hideComments,
     templates: _hideTemplates, foldAll: _hideFoldAll,
   } = hide;
-  const {
-    onDownload, onImport, onClear, onOpenFile, onSaveFile, onSaveAsFile,
-    onExportPdf, onLoadRightFile, onExportRightFile: _onExportRightFile,
-  } = fileHandlers;
-  const { hasFileHandle, supportsDirectAccess } = fileCapabilities ?? {};
   const { sourceMode, readonlyMode, reviewMode, outlineOpen, inlineMergeOpen, commentOpen } = modeState;
   const { onSwitchToSource, onSwitchToWysiwyg, onSwitchToReview, onSwitchToReadonly, onToggleOutline, onToggleComments, onMerge } = modeHandlers;
   const isDark = useTheme().palette.mode === "dark";
-  const [fileMenuAnchorEl, setFileMenuAnchorEl] = useState<HTMLElement | null>(null);
 
   const [mobileMenuAnchorEl, setMobileMenuAnchorEl] = useState<HTMLElement | null>(null);
-
   const mobileMoreRef = useRef<HTMLButtonElement>(null);
 
   const handleToolbarKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -214,114 +224,16 @@ export const EditorToolbar = React.memo(function EditorToolbar({
     >
       {/* File actions */}
       {!hideFileOps && (
-        <>
-          {/* Mobile: single file menu button */}
-          <IconButton
-            size="small"
-            aria-label={t("fileActions")}
-            onClick={(e) => setFileMenuAnchorEl(e.currentTarget)}
-            sx={{ display: { xs: "inline-flex", md: "none" } }}
-          >
-            <InsertDriveFileIcon fontSize="small" />
-          </IconButton>
-          <Menu
-            anchorEl={fileMenuAnchorEl}
-            open={!!fileMenuAnchorEl}
-            onClose={() => setFileMenuAnchorEl(null)}
-          >
-            <MenuItem onClick={() => { onClear(); setFileMenuAnchorEl(null); }} disabled={readonlyMode || reviewMode}>
-              <ListItemIcon><DescriptionIcon fontSize="small" /></ListItemIcon>
-              <ListItemText>{t("createNew")}</ListItemText>
-            </MenuItem>
-            {supportsDirectAccess ? ([
-              <MenuItem key="open" onClick={() => { onOpenFile?.(); setFileMenuAnchorEl(null); }}>
-                <ListItemIcon><FolderOpenIcon fontSize="small" /></ListItemIcon>
-                <ListItemText>{t("openFile")}</ListItemText>
-              </MenuItem>,
-              <MenuItem key="save" onClick={() => { onSaveFile?.(); setFileMenuAnchorEl(null); }} disabled={!hasFileHandle}>
-                <ListItemIcon><SaveIcon fontSize="small" /></ListItemIcon>
-                <ListItemText>{t("saveFile")}</ListItemText>
-              </MenuItem>,
-              <MenuItem key="saveAs" onClick={() => { onSaveAsFile?.(); setFileMenuAnchorEl(null); }}>
-                <ListItemIcon><SaveAsIcon fontSize="small" /></ListItemIcon>
-                <ListItemText>{t("saveAsFile")}</ListItemText>
-              </MenuItem>,
-            ]) : ([
-              <MenuItem key="upload" onClick={() => { onImport(); setFileMenuAnchorEl(null); }} disabled={readonlyMode || reviewMode}>
-                <ListItemIcon><FileUploadIcon fontSize="small" /></ListItemIcon>
-                <ListItemText>{t("upload")}</ListItemText>
-              </MenuItem>,
-              <MenuItem key="download" onClick={() => { onDownload(); setFileMenuAnchorEl(null); }}>
-                <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>
-                <ListItemText>{t("download")}</ListItemText>
-              </MenuItem>,
-            ])}
-            {onExportPdf && (
-              <MenuItem onClick={() => { onExportPdf(); setFileMenuAnchorEl(null); }} disabled={sourceMode || inlineMergeOpen}>
-                <ListItemIcon><PictureAsPdfIcon fontSize="small" /></ListItemIcon>
-                <ListItemText>{t("exportPdf")}</ListItemText>
-              </MenuItem>
-            )}
-          </Menu>
-
-          {/* Desktop: individual file buttons */}
-          <Box sx={{ display: { xs: "none", md: "contents" } }}>
-            <ToggleButtonGroup size="small" aria-label={t("fileActions")} sx={{ height: 30 }}>
-              <ToggleButton value="new" onClick={onClear} disabled={readonlyMode || reviewMode} aria-label={t("createNew")} sx={{ px: 0.75, py: 0.25 }}>
-                <Tooltip title={tip(t, "createNew")}>
-                  <DescriptionIcon fontSize="small" />
-                </Tooltip>
-              </ToggleButton>
-            {supportsDirectAccess ? ([
-              <ToggleButton key="open" value="open" onClick={onOpenFile} aria-label={t("openFile")} sx={{ px: 0.75, py: 0.25 }}>
-                <Tooltip title={tip(t, "openFile")}>
-                  <FolderOpenIcon fontSize="small" />
-                </Tooltip>
-              </ToggleButton>,
-              <ToggleButton key="save" value="save" onClick={onSaveFile} disabled={!hasFileHandle} aria-label={t("saveFile")} sx={{ px: 0.75, py: 0.25 }}>
-                <Tooltip title={hasFileHandle ? tip(t, "saveFile") : t("saveFileNoHandle")}>
-                  <span style={{ display: "inline-flex" }}><SaveIcon fontSize="small" /></span>
-                </Tooltip>
-              </ToggleButton>,
-              <ToggleButton key="saveAs" value="saveAs" onClick={onSaveAsFile} aria-label={t("saveAsFile")} sx={{ px: 0.75, py: 0.25 }}>
-                <Tooltip title={tip(t, "saveAsFile")}>
-                  <SaveAsIcon fontSize="small" />
-                </Tooltip>
-              </ToggleButton>,
-            ]) : ([
-              <ToggleButton key="upload" value="upload" onClick={onImport} disabled={readonlyMode || reviewMode} aria-label={t("upload")} sx={{ px: 0.75, py: 0.25 }}>
-                <Tooltip title={tip(t, "upload")}>
-                  <FileUploadIcon fontSize="small" />
-                </Tooltip>
-              </ToggleButton>,
-              <ToggleButton key="download" value="download" onClick={onDownload} aria-label={t("download")} sx={{ px: 0.75, py: 0.25 }}>
-                <Tooltip title={tip(t, "download")}>
-                  <DownloadIcon fontSize="small" />
-                </Tooltip>
-              </ToggleButton>,
-            ])}
-            {onExportPdf && (
-              <ToggleButton value="exportPdf" onClick={onExportPdf} disabled={sourceMode || inlineMergeOpen} aria-label={t("exportPdf")} sx={{ px: 0.75, py: 0.25 }}>
-                <Tooltip title={t("exportPdf")}>
-                  <span style={{ display: "inline-flex" }}><PictureAsPdfIcon fontSize="small" /></span>
-                </Tooltip>
-              </ToggleButton>
-            )}
-            </ToggleButtonGroup>
-            {inlineMergeOpen && (
-              <>
-                <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
-                <ToggleButtonGroup size="small" aria-label={t("mergeRight")} sx={{ height: 30 }}>
-                  <ToggleButton value="open" onClick={onLoadRightFile} aria-label={t("loadCompareFile")} sx={{ px: 0.75, py: 0.25 }}>
-                    <Tooltip title={t("mergeLoadFileRight")}>
-                      <FolderOpenIcon fontSize="small" />
-                    </Tooltip>
-                  </ToggleButton>
-                </ToggleButtonGroup>
-              </>
-            )}
-          </Box>
-        </>
+        <ToolbarFileActions
+          fileHandlers={fileHandlers}
+          fileCapabilities={fileCapabilities}
+          sourceMode={sourceMode}
+          readonlyMode={readonlyMode}
+          reviewMode={reviewMode}
+          inlineMergeOpen={inlineMergeOpen}
+          tooltipShortcuts={TOOLTIP_SHORTCUTS}
+          t={t}
+        />
       )}
 
       {/* Undo/Redo */}
@@ -352,7 +264,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
         </ToggleButtonGroup>
       )}
 
-      {/* Fold/Unfold, DiagramCode, Outline - hidden on mobile */}
+      {/* Outline, Comments - hidden on mobile */}
       <Box sx={{ display: { xs: "none", md: "contents" } }}>
       <ToggleButtonGroup size="small" aria-label={t("view")} sx={{ height: 30 }}>
         {!hideOutline && <ToggleButton value="outline" selected={outlineOpen} onClick={onToggleOutline} disabled={inlineMergeOpen || sourceMode} aria-label={t("outline")} sx={{ px: 0.75, py: 0.25 }}>
@@ -378,66 +290,23 @@ export const EditorToolbar = React.memo(function EditorToolbar({
         exclusive
         size="small"
         aria-label={t("editMode")}
-        sx={{
-          height: 34,
-          borderRadius: "20px",
-          bgcolor: "action.hover",
-          p: 0.25,
-          "& .MuiToggleButton-root": {
-            border: "none",
-            borderRadius: "20px !important",
-            px: 2,
-            py: 0,
-            gap: 0.5,
-            fontSize: "0.8rem",
-            textTransform: "none",
-            lineHeight: 1,
-          },
-          "& .Mui-selected": {
-            bgcolor: "background.paper !important",
-            color: "text.primary !important",
-            boxShadow: "0 1px 2px rgba(0,0,0,0.15)",
-          },
-          "& .MuiToggleButton-root:not(.Mui-selected)": {
-            bgcolor: "transparent",
-            color: "text.secondary",
-            "&:hover": {
-              bgcolor: "action.selected",
-            },
-          },
-        }}
+        sx={PILL_TOGGLE_SX}
       >
         {!hideReadonlyToggle && (
-          <ToggleButton
-            value="readonly"
-            aria-label={t("readonly")}
-            onClick={onSwitchToReadonly}
-          >
+          <ToggleButton value="readonly" aria-label={t("readonly")} onClick={onSwitchToReadonly}>
             <LockIcon sx={{ fontSize: "1rem" }} />
             <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>{t("readonly")}</Box>
           </ToggleButton>
         )}
-        <ToggleButton
-          value="review"
-          aria-label={t("review")}
-          onClick={onSwitchToReview}
-        >
+        <ToggleButton value="review" aria-label={t("review")} onClick={onSwitchToReview}>
           <VisibilityIcon sx={{ fontSize: "1rem" }} />
           <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>{t("review")}</Box>
         </ToggleButton>
-        <ToggleButton
-          value="wysiwyg"
-          aria-label={t("wysiwyg")}
-          onClick={onSwitchToWysiwyg}
-        >
+        <ToggleButton value="wysiwyg" aria-label={t("wysiwyg")} onClick={onSwitchToWysiwyg}>
           <WysiwygIcon sx={{ fontSize: "1rem" }} />
           <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>{t("wysiwyg")}</Box>
         </ToggleButton>
-        <ToggleButton
-          value="source"
-          aria-label={t("source")}
-          onClick={onSwitchToSource}
-        >
+        <ToggleButton value="source" aria-label={t("source")} onClick={onSwitchToSource}>
           <CodeIcon sx={{ fontSize: "1rem" }} />
           <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>{t("source")}</Box>
         </ToggleButton>
@@ -449,35 +318,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
         exclusive
         size="small"
         aria-label={t("compareMode")}
-        sx={{
-          height: 34,
-          borderRadius: "20px",
-          bgcolor: "action.hover",
-          p: 0.25,
-          display: { xs: "none", md: "inline-flex" },
-          "& .MuiToggleButton-root": {
-            border: "none",
-            borderRadius: "20px !important",
-            px: 2,
-            py: 0,
-            gap: 0.5,
-            fontSize: "0.8rem",
-            textTransform: "none",
-            lineHeight: 1,
-          },
-          "& .Mui-selected": {
-            bgcolor: "background.paper !important",
-            color: "text.primary !important",
-            boxShadow: "0 1px 2px rgba(0,0,0,0.15)",
-          },
-          "& .MuiToggleButton-root:not(.Mui-selected)": {
-            bgcolor: "transparent",
-            color: "text.secondary",
-            "&:hover": {
-              bgcolor: "action.selected",
-            },
-          },
-        }}
+        sx={{ ...PILL_TOGGLE_SX, display: { xs: "none", md: "inline-flex" } }}
       >
         <ToggleButton
           value="edit"
@@ -499,7 +340,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
         </ToggleButton>
       </ToggleButtonGroup>}
 
-      {/* More menu - desktop: help/settings, mobile: all hidden items */}
+      {/* More menu */}
       {!hideMoreMenu && (
         <>
           <Box sx={{ display: { xs: "none", md: "contents" } }}>
@@ -526,63 +367,27 @@ export const EditorToolbar = React.memo(function EditorToolbar({
     </Paper>
 
     {/* Mobile More menu */}
-    <Menu
+    <ToolbarMobileMenu
       anchorEl={mobileMenuAnchorEl}
-      open={!!mobileMenuAnchorEl}
       onClose={() => setMobileMenuAnchorEl(null)}
-    >
-      {!hideOutline && <MenuItem
-        onClick={() => { onToggleOutline(); setMobileMenuAnchorEl(null); }}
-        disabled={inlineMergeOpen || sourceMode}
-      >
-        <ListItemIcon><ListAltIcon fontSize="small" color={outlineOpen ? "primary" : "inherit"} /></ListItemIcon>
-        <ListItemText>{t("outline")}</ListItemText>
-      </MenuItem>}
-      {!hideComments && onToggleComments && (
-        <MenuItem
-          onClick={() => { onToggleComments(); setMobileMenuAnchorEl(null); }}
-          disabled={inlineMergeOpen || sourceMode}
-        >
-          <ListItemIcon><ChatBubbleOutlineIcon fontSize="small" color={commentOpen ? "primary" : "inherit"} /></ListItemIcon>
-          <ListItemText>{t("commentPanel") || "Comments"}</ListItemText>
-        </MenuItem>
-      )}
-      <MenuItem
-        onClick={() => { onMerge(); setMobileMenuAnchorEl(null); }}
-        disabled={readonlyMode}
-      >
-        <ListItemIcon>
-          <ViewStreamIcon fontSize="small" sx={{ transform: "rotate(90deg)" }} color={inlineMergeOpen ? "primary" : "inherit"} />
-        </ListItemIcon>
-        <ListItemText>{inlineMergeOpen ? t("normalMode") : t("compare")}</ListItemText>
-      </MenuItem>
-      <Divider />
-      <MenuItem
-        onClick={() => {
-          setMobileMenuAnchorEl(null);
-          if (mobileMoreRef.current) onSetHelpAnchor(mobileMoreRef.current);
-        }}
-      >
-        <ListItemIcon><InfoOutlinedIcon fontSize="small" /></ListItemIcon>
-        <ListItemText>{t("helpMenu")}</ListItemText>
-      </MenuItem>
-      {!hideSettings && (
-        <MenuItem
-          onClick={() => { onOpenSettings?.(); setMobileMenuAnchorEl(null); }}
-        >
-          <ListItemIcon><SettingsIcon fontSize="small" /></ListItemIcon>
-          <ListItemText>{t("editorSettings")}</ListItemText>
-        </MenuItem>
-      )}
-      {!hideVersionInfo && (
-        <MenuItem
-          onClick={() => { onOpenVersionDialog?.(); setMobileMenuAnchorEl(null); }}
-        >
-          <ListItemIcon><InfoOutlinedIcon fontSize="small" /></ListItemIcon>
-          <ListItemText>{t("versionInfo")}</ListItemText>
-        </MenuItem>
-      )}
-    </Menu>
+      mobileMoreRef={mobileMoreRef}
+      outlineOpen={outlineOpen}
+      commentOpen={commentOpen}
+      inlineMergeOpen={inlineMergeOpen}
+      sourceMode={sourceMode}
+      readonlyMode={readonlyMode}
+      hideOutline={hideOutline}
+      hideComments={hideComments}
+      hideSettings={hideSettings}
+      hideVersionInfo={hideVersionInfo}
+      onToggleOutline={onToggleOutline}
+      onToggleComments={onToggleComments}
+      onMerge={onMerge}
+      onSetHelpAnchor={onSetHelpAnchor}
+      onOpenSettings={onOpenSettings}
+      onOpenVersionDialog={onOpenVersionDialog}
+      t={t}
+    />
     </>
   );
 });
