@@ -2,7 +2,7 @@
   "name": "anytime-markdown",
   "displayName": "Anytime Markdown",
   "description": "markdown editor featuring Claude Code",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "license": "MIT",
   "publisher": "kiytaka-ueda",
   "repository": {
@@ -76,11 +76,6 @@
         "enablement": "activeCustomEditorId == anytimeMarkdown"
       },
       {
-        "command": "anytime-markdown.toggleSectionNumbers",
-        "title": "Toggle Section Numbers",
-        "icon": "$(list-ordered)"
-      },
-      {
         "command": "anytime-markdown.resolveComment",
         "title": "Resolve",
         "icon": "$(check)"
@@ -111,6 +106,11 @@
         "command": "anytime-markdown.toggleBlockElements",
         "title": "Toggle Block Elements",
         "icon": "$(symbol-misc)"
+      },
+      {
+        "command": "anytime-markdown.toggleCollapseExpand",
+        "title": "Collapse All / Expand All",
+        "icon": "$(collapse-all)"
       }
     ],
     "customEditors": [
@@ -190,7 +190,7 @@
           "group": "navigation@1"
         },
         {
-          "command": "anytime-markdown.toggleSectionNumbers",
+          "command": "anytime-markdown.toggleCollapseExpand",
           "when": "view == anytimeMarkdown.outline",
           "group": "navigation@1"
         },
@@ -265,7 +265,7 @@
     "@emotion/styled": "11.14.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "dompurify": "3.3.1",
+    "dompurify": "3.3.3",
     "marked": "17.0.3",
     "diff": "8.0.3",
     "plantuml-encoder": "1.4.0",

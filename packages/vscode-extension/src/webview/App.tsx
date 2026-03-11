@@ -89,10 +89,6 @@ export function App() {
         window.dispatchEvent(new CustomEvent('vscode-delete-comment', { detail: message.id }));
         return;
       }
-      if (message?.type === 'toggleSectionNumbers' && typeof message.show === 'boolean') {
-        window.dispatchEvent(new CustomEvent('vscode-toggle-section-numbers', { detail: message.show }));
-        return;
-      }
       if (message?.type === 'setContent' && typeof message.content === 'string') {
         const isInitial = !ready;
         currentContent = message.content;

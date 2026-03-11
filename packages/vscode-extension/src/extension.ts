@@ -18,7 +18,6 @@ export function activate(context: vscode.ExtensionContext) {
 	const outlineProvider = new OutlineProvider();
 	const outlineTreeView = vscode.window.createTreeView('anytimeMarkdown.outline', {
 		treeDataProvider: outlineProvider,
-		showCollapseAll: true,
 	});
 
 	// コメントパネル
@@ -220,15 +219,10 @@ export function activate(context: vscode.ExtensionContext) {
 		'anytime-markdown.filterCommentsResolved', () => commentProvider.setFilter('resolved')
 	);
 
-	const toggleSectionNumbers = vscode.commands.registerCommand(
-		'anytime-markdown.toggleSectionNumbers',
+	const toggleCollapseExpand = vscode.commands.registerCommand(
+		'anytime-markdown.toggleCollapseExpand',
 		() => {
-			outlineProvider.toggleSectionNumbers();
-			const p = MarkdownEditorProvider.getInstance();
-			p?.postMessageToActivePanel({
-				type: 'toggleSectionNumbers',
-				show: outlineProvider.showSectionNumbers,
-			});
+			outlineProvider.toggleCollapseAll();
 		}
 	);
 
@@ -245,7 +239,7 @@ export function activate(context: vscode.ExtensionContext) {
 		openEditorWithFile, compareCmd, compareWithCommit, scrollToHeading,
 		scrollToComment, resolveComment, unresolveComment, deleteComment,
 		filterCommentsAll, filterCommentsOpen, filterCommentsResolved,
-		toggleSectionNumbers, toggleBlockElements,
+		toggleCollapseExpand, toggleBlockElements,
 	);
 }
 
