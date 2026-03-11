@@ -5,8 +5,9 @@ import { sanitizeMarkdown, preserveBlankLines } from "./utils/sanitizeMarkdown";
 import { parseCommentData, appendCommentData } from "./utils/commentHelpers";
 import { parseFrontmatter, prependFrontmatter } from "./utils/frontmatterHelpers";
 import type { EncodingLabel } from "./types";
+import { STORAGE_KEY_CONTENT } from "./constants/storageKeys";
 
-const STORAGE_KEY = "markdown-editor-content";
+const STORAGE_KEY = STORAGE_KEY_CONTENT;
 const DEBOUNCE_MS = 500;
 
 export function useMarkdownEditor(defaultContent: string, skipLocalStorage = false) {

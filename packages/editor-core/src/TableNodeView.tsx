@@ -19,6 +19,8 @@ import CloseIcon from "@mui/icons-material/Close";
 import { useTranslations } from "next-intl";
 import { moveTableRow, moveTableColumn } from "./utils/tableHelpers";
 import { SearchReplaceBar } from "./components/SearchReplaceBar";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "./constants/colors";
+import { Z_FULLSCREEN } from "./constants/zIndex";
 
 const iconSx = { fontSize: 16 };
 
@@ -66,8 +68,8 @@ export function TableNodeView({ editor, node, updateAttributes, getPos }: NodeVi
           ...(fullscreen && {
             position: "fixed",
             inset: 0,
-            zIndex: 1300,
-            bgcolor: isDark ? "#0D1117" : "#F8F9FA",
+            zIndex: Z_FULLSCREEN,
+            bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
             display: "flex",
             flexDirection: "column",
           }),

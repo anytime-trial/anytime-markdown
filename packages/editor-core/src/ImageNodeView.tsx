@@ -13,6 +13,8 @@ import CloseIcon from "@mui/icons-material/Close";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import { useTranslations } from "next-intl";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "./constants/colors";
+import { Z_FULLSCREEN } from "./constants/zIndex";
 
 const iconSx = { fontSize: 16 };
 const MIN_WIDTH = 50;
@@ -148,8 +150,8 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
         ...(fullscreen && {
           position: "fixed",
           inset: 0,
-          zIndex: 1300,
-          bgcolor: theme.palette.mode === "dark" ? "#0D1117" : "#F8F9FA",
+          zIndex: Z_FULLSCREEN,
+          bgcolor: theme.palette.mode === "dark" ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
           display: "flex",
           flexDirection: "column",
         }),

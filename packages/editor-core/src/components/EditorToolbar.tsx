@@ -46,6 +46,7 @@ import type { Editor } from "@tiptap/react";
 import React, { useCallback, useRef, useState } from "react";
 import type { TranslationFn } from "../types";
 import { modKey } from "../constants/shortcuts";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, DEFAULT_LIGHT_TEXT } from "../constants/colors";
 
 import type { MergeUndoRedo } from "./InlineMergeView";
 
@@ -259,8 +260,8 @@ export const EditorToolbar = React.memo(function EditorToolbar({
         position: "sticky",
         top: 0,
         zIndex: 10,
-        bgcolor: isDark ? "#0D1117" : "#F8F9FA",
-        color: isDark ? undefined : "#2D3748",
+        bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
+        color: isDark ? undefined : DEFAULT_LIGHT_TEXT,
       }}
     >
       {/* File actions */}

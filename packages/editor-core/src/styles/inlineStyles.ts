@@ -1,5 +1,6 @@
 import type { Theme, SxProps } from "@mui/material/styles";
 import { alpha } from "@mui/material/styles";
+import { Z_LINK_TOOLTIP } from "../constants/zIndex";
 
 /** リンク・コメント・検索マッチ・脚注スタイル */
 export function getInlineStyles(theme: Theme): SxProps<Theme> {
@@ -31,7 +32,7 @@ export function getInlineStyles(theme: Theme): SxProps<Theme> {
       maxWidth: "400px",
       overflow: "hidden",
       textOverflow: "ellipsis",
-      zIndex: 1000,
+      zIndex: Z_LINK_TOOLTIP,
       pointerEvents: "none",
     },
     '& a[href^="#"]:hover::after': {

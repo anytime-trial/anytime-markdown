@@ -24,6 +24,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useMarkdownEditor } from "./useMarkdownEditor";
 import { defaultContent } from "./constants/defaultContent";
+import { STATUSBAR_HEIGHT } from "./constants/dimensions";
 import { useEditorSettings, EditorSettingsContext } from "./useEditorSettings";
 import { useTextareaSearch } from "./hooks/useTextareaSearch";
 import { EditorToolbarSection } from "./components/EditorToolbarSection";
@@ -239,7 +240,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   useEditorSideEffects({ editor, isDirty, markDirty, setHeadingsRef, setEditorMarkdown });
   useVSCodeIntegration(editor);
 
-  const statusBarHeight = hideStatusBar ? 0 : 33;
+  const statusBarHeight = hideStatusBar ? 0 : STATUSBAR_HEIGHT;
   const { editorContainerRef, editorHeight } = useEditorHeight(isMobile, isMd, statusBarHeight);
 
   const handleInsertTemplate = useCallback((template: MarkdownTemplate) => {

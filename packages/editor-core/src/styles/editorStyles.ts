@@ -1,5 +1,6 @@
 import type { Theme, SxProps } from "@mui/material/styles";
 import type { EditorSettings } from "../useEditorSettings";
+import { getEditorBg, getEditorText } from "../constants/colors";
 import { getHeadingStyles } from "./headingStyles";
 import { getCodeStyles } from "./codeStyles";
 import { getBlockStyles } from "./blockStyles";
@@ -20,9 +21,7 @@ export function getEditorPaperSx(
     borderTopLeftRadius: 0,
     borderTopRightRadius: 0,
     overflow: "hidden",
-    bgcolor: theme.palette.mode === "dark"
-      ? (settings.darkBgColor || "#0D1117")
-      : (settings.lightBgColor || "#F8F9FA"),
+    bgcolor: getEditorBg(theme.palette.mode === "dark", settings),
     "& .tiptap": {
       minHeight: editorHeight - 36,
       maxHeight: editorHeight - 4,
@@ -34,9 +33,7 @@ export function getEditorPaperSx(
       fontFamily: "sans-serif",
       fontSize: `${settings.fontSize}px`,
       lineHeight: settings.lineHeight,
-      color: theme.palette.mode === "dark"
-        ? (settings.darkTextColor || "#E2E8F0")
-        : (settings.lightTextColor || "#2D3748"),
+      color: getEditorText(theme.palette.mode === "dark", settings),
       ...(getBaseStyles(theme, options) as Record<string, unknown>),
       ...(getHeadingStyles(theme) as Record<string, unknown>),
       ...(getCodeStyles(theme) as Record<string, unknown>),

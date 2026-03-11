@@ -13,6 +13,7 @@ import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import DOMPurify from "dompurify";
 import { usePlantUmlToolbar } from "../../types";
 import { useEditorSettingsContext } from "../../useEditorSettings";
+import { getEditorBg } from "../../constants/colors";
 import { useMermaidRender, SVG_SANITIZE_CONFIG } from "../../hooks/useMermaidRender";
 import { usePlantUmlRender } from "../../hooks/usePlantUmlRender";
 import { useDiagramCapture } from "../../hooks/useDiagramCapture";
@@ -291,8 +292,9 @@ export function DiagramBlock(props: DiagramBlockProps) {
     </Box>
   );
 
+  const editorBg = getEditorBg(isDark, settings);
   const diagramContainerSx = {
-    overflow: "hidden", bgcolor: isDark ? "#0D1117" : "#F8F9FA", position: "relative",
+    overflow: "hidden", bgcolor: editorBg, position: "relative",
     width: diagramResize.displayWidth || "fit-content", maxWidth: "100%",
     cursor: !canInteract ? "default" : diagramResize.resizing ? "nwse-resize" : "grab",
     "&:active": { cursor: !canInteract ? "default" : diagramResize.resizing ? "nwse-resize" : "grabbing" },

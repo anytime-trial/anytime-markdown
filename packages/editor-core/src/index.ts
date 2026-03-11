@@ -82,6 +82,28 @@ export { MERMAID_SAMPLES, PLANTUML_SAMPLES } from './constants/samples';
 export type { DiagramSample } from './constants/samples';
 export { BUILTIN_TEMPLATES } from './constants/templates';
 export type { MarkdownTemplate } from './constants/templates';
+export {
+  DEFAULT_DARK_BG, DEFAULT_LIGHT_BG,
+  DEFAULT_DARK_TEXT, DEFAULT_LIGHT_TEXT,
+  DEFAULT_DARK_CODE_BG, DEFAULT_LIGHT_CODE_BG,
+  DEFAULT_DARK_HEADING_BG, DEFAULT_LIGHT_HEADING_BG,
+  DEFAULT_DARK_HEADING_LINK, DEFAULT_LIGHT_HEADING_LINK,
+  ACCENT_COLOR, ACCENT_COLOR_ALPHA,
+  PLANTUML_DARK_FG, PLANTUML_DARK_BG, PLANTUML_DARK_SURFACE,
+  CAPTURE_BG,
+  getEditorBg, getEditorText,
+} from './constants/colors';
+export { Z_FULLSCREEN, Z_LINK_TOOLTIP } from './constants/zIndex';
+export {
+  EDITOR_HEIGHT_MD, EDITOR_HEIGHT_MOBILE, EDITOR_HEIGHT_DEFAULT, EDITOR_HEIGHT_MIN,
+  OUTLINE_WIDTH_DEFAULT, OUTLINE_WIDTH_MIN, OUTLINE_WIDTH_MAX,
+  PREVIEW_MAX_HEIGHT, STATUSBAR_HEIGHT,
+} from './constants/dimensions';
+export { NOTIFICATION_DURATION, MERMAID_RENDER_TIMEOUT } from './constants/timing';
+export {
+  STORAGE_KEY_SETTINGS, STORAGE_KEY_CONTENT,
+  STORAGE_KEY_SOURCE_MODE, STORAGE_KEY_REVIEW_MODE, STORAGE_KEY_READONLY_MODE,
+} from './constants/storageKeys';
 
 // Utils
 export { computeDiff, computeInlineDiff, applyMerge } from './utils/diffEngine';

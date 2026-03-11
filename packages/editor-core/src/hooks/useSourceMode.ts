@@ -5,6 +5,7 @@ import { sanitizeMarkdown, preserveBlankLines } from "../utils/sanitizeMarkdown"
 import { parseCommentData } from "../utils/commentHelpers";
 import { parseFrontmatter, prependFrontmatter } from "../utils/frontmatterHelpers";
 import { reviewModeStorage } from "../extensions/reviewModeExtension";
+import { STORAGE_KEY_SOURCE_MODE, STORAGE_KEY_REVIEW_MODE, STORAGE_KEY_READONLY_MODE } from "../constants/storageKeys";
 
 interface UseSourceModeParams {
   editor: Editor | null;
@@ -13,9 +14,9 @@ interface UseSourceModeParams {
   frontmatterRef: React.MutableRefObject<string | null>;
 }
 
-const SOURCE_MODE_KEY = "markdown-editor-source-mode";
-const REVIEW_MODE_KEY = "markdown-editor-review-mode";
-const READONLY_MODE_KEY = "markdown-editor-readonly-mode";
+const SOURCE_MODE_KEY = STORAGE_KEY_SOURCE_MODE;
+const REVIEW_MODE_KEY = STORAGE_KEY_REVIEW_MODE;
+const READONLY_MODE_KEY = STORAGE_KEY_READONLY_MODE;
 
 export function useSourceMode({ editor, saveContent, t, frontmatterRef }: UseSourceModeParams) {
   const [sourceMode, setSourceMode] = useState(() => {

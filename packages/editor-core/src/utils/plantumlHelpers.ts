@@ -1,3 +1,5 @@
+import { PLANTUML_DARK_FG, PLANTUML_DARK_BG, PLANTUML_DARK_SURFACE } from "../constants/colors";
+
 /** PlantUML 外部サーバー URL */
 export const PLANTUML_SERVER = "https://www.plantuml.com/plantuml";
 
@@ -18,7 +20,7 @@ export function buildPlantUmlUrl(encoded: string): string {
 }
 
 // PlantUML dark mode palette
-const PLANTUML_DARK = { fg: "#CCCCCC", bg: "#2D2D2D", surface: "#1E1E1E" } as const;
+const PLANTUML_DARK = { fg: PLANTUML_DARK_FG, bg: PLANTUML_DARK_BG, surface: PLANTUML_DARK_SURFACE } as const;
 
 // Elements with standard background (#2D2D2D)
 const PLANTUML_STD_ELEMENTS = [

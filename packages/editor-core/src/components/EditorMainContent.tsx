@@ -5,6 +5,7 @@ import type React from "react";
 import { useRef, useState, useEffect, useCallback } from "react";
 
 import { getEditorPaperSx } from "../styles/editorStyles";
+import { getEditorBg } from "../constants/colors";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import type { DiffLine } from "../utils/diffEngine";
 import { EditorOutlineSection } from "./EditorOutlineSection";
@@ -176,6 +177,7 @@ export function EditorMainContent({
               showHoverLabels
               onHoverLine={onHoverLine}
               paperSx={{
+                bgcolor: getEditorBg(theme.palette.mode === "dark", settings),
                 "&::-webkit-scrollbar": { background: "transparent" },
                 "&::-webkit-scrollbar-thumb": { background: "transparent" },
               }}

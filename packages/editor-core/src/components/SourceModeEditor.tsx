@@ -2,6 +2,7 @@ import { Box, Paper, useTheme } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import React, { useCallback, useEffect, useRef } from "react";
 import { useEditorSettingsContext } from "../useEditorSettings";
+import { ACCENT_COLOR, ACCENT_COLOR_ALPHA } from "../constants/colors";
 import type { TextareaSearchMatch } from "../hooks/useTextareaSearch";
 
 interface SourceModeEditorProps {
@@ -32,7 +33,7 @@ function buildHighlightSegments(
       <mark
         key={i}
         style={{
-          backgroundColor: i === currentIndex ? "#e8a012" : "rgba(232,160,18,0.35)",
+          backgroundColor: i === currentIndex ? ACCENT_COLOR : ACCENT_COLOR_ALPHA,
           color: "transparent",
           borderRadius: 2,
         }}

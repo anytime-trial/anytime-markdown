@@ -3,7 +3,7 @@
 import { createContext, useContext, useCallback, useEffect, useMemo, useState } from 'react';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
-import { ConfirmProvider } from '@anytime-markdown/editor-core';
+import { ConfirmProvider, DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, ACCENT_COLOR } from '@anytime-markdown/editor-core';
 import { Capacitor } from '@capacitor/core';
 import { StatusBar, Style } from '@capacitor/status-bar';
 
@@ -52,7 +52,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     updateStatusBar(themeMode);
   }, [themeMode]);
 
-  const theme = useMemo(() => createTheme({ palette: { mode: themeMode, secondary: { main: '#e8a012', contrastText: '#000000' }, background: { default: themeMode === 'dark' ? '#0D1117' : '#F8F9FA' } } }), [themeMode]);
+  const theme = useMemo(() => createTheme({ palette: { mode: themeMode, secondary: { main: ACCENT_COLOR, contrastText: '#000000' }, background: { default: themeMode === 'dark' ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG } } }), [themeMode]);
 
   const contextValue = useMemo(() => ({ themeMode, setThemeMode }), [themeMode, setThemeMode]);
 

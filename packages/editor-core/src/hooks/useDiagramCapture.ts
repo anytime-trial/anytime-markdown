@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import plantumlEncoder from "plantuml-encoder";
 import { buildPlantUmlUrl } from "../utils/plantumlHelpers";
+import { CAPTURE_BG } from "../constants/colors";
 
 interface UseDiagramCaptureParams {
   isMermaid: boolean;
@@ -73,7 +74,7 @@ function downloadSvgAsPng(svgText: string) {
     const ctx = canvas.getContext("2d");
     if (!ctx) { URL.revokeObjectURL(url); return; }
     ctx.scale(scale, scale);
-    ctx.fillStyle = "#ffffff";
+    ctx.fillStyle = CAPTURE_BG;
     ctx.fillRect(0, 0, w, h);
     ctx.drawImage(img, 0, 0, w, h);
     URL.revokeObjectURL(url);

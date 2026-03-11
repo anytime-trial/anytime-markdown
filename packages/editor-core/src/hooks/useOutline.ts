@@ -3,6 +3,7 @@ import type { Editor } from "@tiptap/react";
 import type { HeadingItem } from "../types";
 import { extractHeadings } from "../types";
 import { moveHeadingSection } from "../utils/sectionHelpers";
+import { OUTLINE_WIDTH_DEFAULT, OUTLINE_WIDTH_MIN, OUTLINE_WIDTH_MAX } from "../constants/dimensions";
 
 interface UseOutlineParams {
   editor: Editor | null;
@@ -13,7 +14,7 @@ export function useOutline({ editor, sourceMode }: UseOutlineParams) {
   const [outlineOpen, setOutlineOpen] = useState(false);
   const [headings, setHeadings] = useState<HeadingItem[]>([]);
   const [foldedIndices, setFoldedIndices] = useState<Set<number>>(new Set());
-  const [outlineWidth, setOutlineWidth] = useState(220);
+  const [outlineWidth, setOutlineWidth] = useState(OUTLINE_WIDTH_DEFAULT);
   const isResizingOutline = useRef(false);
 
   const handleToggleOutline = useCallback(() => {
@@ -144,7 +145,7 @@ export function useOutline({ editor, sourceMode }: UseOutlineParams) {
       const startWidth = outlineWidth;
       const onMouseMove = (ev: MouseEvent) => {
         if (!isResizingOutline.current) return;
-        const newWidth = Math.max(150, Math.min(500, startWidth + ev.clientX - startX));
+        const newWidth = Math.max(OUTLINE_WIDTH_MIN, Math.min(OUTLINE_WIDTH_MAX, startWidth + ev.clientX - startX));
         setOutlineWidth(newWidth);
       };
       const onMouseUp = () => {

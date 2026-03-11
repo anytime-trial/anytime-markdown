@@ -12,6 +12,8 @@ import { useKatexRender, MATH_SANITIZE_CONFIG } from "../../hooks/useKatexRender
 import { CodeBlockFullscreenDialog } from "../CodeBlockFullscreenDialog";
 import { MathSamplePopover } from "../MathSamplePopover";
 import { CodeBlockFrame } from "./CodeBlockFrame";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "../../constants/colors";
+import { PREVIEW_MAX_HEIGHT } from "../../constants/dimensions";
 import { getMergeEditors, findCounterpartCode, getCodeBlockIndex, findCodeBlockByIndex } from "../../contexts/MergeEditorsContext";
 import type { CodeBlockSharedProps } from "./types";
 
@@ -182,7 +184,7 @@ export function MathBlock(props: MathBlockProps) {
           role="img"
           aria-label={t("mathFormula")}
           onClick={selectNode}
-          sx={{ pt: 0, px: 2, pb: 2, bgcolor: isDark ? "#0D1117" : "#F8F9FA", borderTop: codeCollapsed ? 0 : 1, borderColor: "divider", overflow: "auto", maxHeight: 400, display: "flex", justifyContent: "flex-start" }}
+          sx={{ pt: 0, px: 2, pb: 2, bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG, borderTop: codeCollapsed ? 0 : 1, borderColor: "divider", overflow: "auto", maxHeight: PREVIEW_MAX_HEIGHT, display: "flex", justifyContent: "flex-start" }}
           dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(mathHtml, MATH_SANITIZE_CONFIG) }}
         />
       )}

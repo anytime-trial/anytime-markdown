@@ -4,6 +4,7 @@ import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import { computeDiff, applyMerge, type DiffLine, type DiffResult } from "../utils/diffEngine";
 import { useEditorSettingsContext } from "../useEditorSettings";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "../constants/colors";
 
 interface FullscreenDiffViewProps {
   initialLeftCode: string;
@@ -384,7 +385,7 @@ function DiffPanel({
         minWidth: 0,
         borderLeft: side === "right" ? 1 : 0,
         borderColor: "divider",
-        bgcolor: isDark ? "#0D1117" : "#F8F9FA",
+        bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
       }}
     >
       <Box sx={{ flex: 1, display: "flex", overflow: "hidden", minHeight: 0 }}>

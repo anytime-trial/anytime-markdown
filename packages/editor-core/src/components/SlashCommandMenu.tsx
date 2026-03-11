@@ -15,6 +15,7 @@ import {
 } from "../extensions/slashCommandItems";
 import type { VirtualElement } from "@popperjs/core";
 import type { TranslationFn } from "../types";
+import { Z_FULLSCREEN } from "../constants/zIndex";
 
 interface SlashCommandMenuProps {
   editor: Editor;
@@ -159,7 +160,7 @@ export const SlashCommandMenu = React.memo(function SlashCommandMenu({
       placement="bottom-start"
       role="menu"
       aria-label={t("slashCommandPlaceholder")}
-      style={{ zIndex: 1300 }}
+      style={{ zIndex: Z_FULLSCREEN }}
       modifiers={[
         { name: "offset", options: { offset: [0, 4] } },
         { name: "flip", enabled: true },

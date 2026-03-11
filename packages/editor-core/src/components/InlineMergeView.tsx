@@ -14,6 +14,7 @@ import { useDiffBackground } from "../hooks/useDiffBackground";
 import { useDiffHighlight } from "../hooks/useDiffHighlight";
 import { useScrollSync } from "../hooks/useScrollSync";
 import { useEditorSettingsContext } from "../useEditorSettings";
+import { getEditorBg } from "../constants/colors";
 import { MergeEditorPanel } from "./MergeEditorPanel";
 import { sanitizeMarkdown, preserveBlankLines } from "../utils/sanitizeMarkdown";
 import { computeInlineDiff, type DiffLine, type DiffResult, type InlineSegment } from "../utils/diffEngine";
@@ -98,6 +99,7 @@ const LinePreviewPanel = React.memo(function LinePreviewPanel({
   hoverSetterRef: React.MutableRefObject<((v: number | null) => void) | null>;
 }) {
   const theme = useTheme();
+  const isDark = theme.palette.mode === "dark";
   const settings = useEditorSettingsContext();
   const [hoveredLineIdx, setHoveredLineIdx] = useState<number | null>(null);
   const previewTopRef = useRef<HTMLDivElement>(null);
@@ -205,6 +207,9 @@ export function InlineMergeView({
   onRightFileOpsReady,
   children,
 }: InlineMergeViewProps) {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === "dark";
+  const settings = useEditorSettingsContext();
   const {
     rightText,
     setLeftText,
@@ -501,6 +506,7 @@ export function InlineMergeView({
             readOnly
             onMerge={mergeBlock}
             onHoverLine={handleHoverLine}
+            paperSx={{ bgcolor: getEditorBg(isDark, settings) }}
           />
         </Box>
       </Box>

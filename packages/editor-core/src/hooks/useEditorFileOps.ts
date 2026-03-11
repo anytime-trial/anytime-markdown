@@ -10,6 +10,7 @@ import { sanitizeMarkdown, preserveBlankLines } from "../utils/sanitizeMarkdown"
 import { prependFrontmatter } from "../utils/frontmatterHelpers";
 import DOMPurify from "dompurify";
 import { SVG_SANITIZE_CONFIG } from "./useMermaidRender";
+import { NOTIFICATION_DURATION, MERMAID_RENDER_TIMEOUT } from "../constants/timing";
 import { buildPlantUmlUrl } from "../utils/plantumlHelpers";
 import plantumlEncoder from "plantuml-encoder";
 
@@ -66,7 +67,7 @@ export function useEditorFileOps({
   const showNotification = useCallback((key: NotificationKey) => {
     clearTimeout(notificationTimerRef.current);
     setNotification(key);
-    notificationTimerRef.current = setTimeout(() => setNotification(null), 3000);
+    notificationTimerRef.current = setTimeout(() => setNotification(null), NOTIFICATION_DURATION);
   }, []);
 
   const handleClear = useCallback(async () => {
@@ -248,7 +249,7 @@ export function useEditorFileOps({
             const { svg: lightSvg } = await Promise.race([
               mermaid.render(id, code, container),
               new Promise<never>((_, reject) =>
-                setTimeout(() => reject(new Error("mermaid render timeout")), 5000),
+                setTimeout(() => reject(new Error("mermaid render timeout")), MERMAID_RENDER_TIMEOUT),
               ),
             ]);
             container.remove();

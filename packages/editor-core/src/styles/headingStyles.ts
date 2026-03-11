@@ -1,4 +1,5 @@
 import type { Theme, SxProps } from "@mui/material/styles";
+import { DEFAULT_DARK_HEADING_BG, DEFAULT_LIGHT_HEADING_BG, DEFAULT_DARK_HEADING_LINK, DEFAULT_LIGHT_HEADING_LINK } from "../constants/colors";
 
 /** ブロックラベル共通スタイル（::before 擬似要素） */
 function blockLabel(theme: Theme, right = "calc(100% + 8px)") {
@@ -42,7 +43,7 @@ export function getHeadingStyles(theme: Theme): SxProps<Theme> {
   const isDark = theme.palette.mode === "dark";
   return {
     "& .heading-number": {
-      color: isDark ? "#63B3ED" : "#3182CE",
+      color: isDark ? DEFAULT_DARK_HEADING_LINK : DEFAULT_LIGHT_HEADING_LINK,
       fontWeight: 400,
       marginRight: "0.25em",
       userSelect: "none" as const,
@@ -63,16 +64,16 @@ export function getHeadingStyles(theme: Theme): SxProps<Theme> {
     },
     "& h1": {
       fontSize: "2em", fontWeight: 700, mt: 2, mb: 1,
-      bgcolor: isDark ? "#1A202C" : "#EDF2F7",
+      bgcolor: isDark ? DEFAULT_DARK_HEADING_BG : DEFAULT_LIGHT_HEADING_BG,
       py: 0.5, borderRadius: 1,
-      boxShadow: `-40px 0 0 ${isDark ? "#1A202C" : "#EDF2F7"}, 16px 0 0 ${isDark ? "#1A202C" : "#EDF2F7"}`,
+      boxShadow: `-40px 0 0 ${isDark ? DEFAULT_DARK_HEADING_BG : DEFAULT_LIGHT_HEADING_BG}, 16px 0 0 ${isDark ? DEFAULT_DARK_HEADING_BG : DEFAULT_LIGHT_HEADING_BG}`,
       "&::before": { content: "'H1'" },
     },
     "& h2": {
       fontSize: "1.5em", fontWeight: 700, mt: 1.5, mb: 1,
-      bgcolor: isDark ? "#1A202C" : "#EDF2F7",
+      bgcolor: isDark ? DEFAULT_DARK_HEADING_BG : DEFAULT_LIGHT_HEADING_BG,
       py: 0.5, borderRadius: 1,
-      boxShadow: `-40px 0 0 ${isDark ? "#1A202C" : "#EDF2F7"}, 16px 0 0 ${isDark ? "#1A202C" : "#EDF2F7"}`,
+      boxShadow: `-40px 0 0 ${isDark ? DEFAULT_DARK_HEADING_BG : DEFAULT_LIGHT_HEADING_BG}, 16px 0 0 ${isDark ? DEFAULT_DARK_HEADING_BG : DEFAULT_LIGHT_HEADING_BG}`,
       "&::before": { content: "'H2'" },
     },
     "& h3": {

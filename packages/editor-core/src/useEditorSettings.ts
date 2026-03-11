@@ -1,7 +1,8 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
-const SETTINGS_KEY = "markdown-editor-settings";
+import { STORAGE_KEY_SETTINGS } from "./constants/storageKeys";
+const SETTINGS_KEY = STORAGE_KEY_SETTINGS;
 const SETTINGS_VERSION = 6; // showHeadingNumbers を auto 化（設定から除外）
 
 export interface EditorSettings {
