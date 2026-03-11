@@ -81,6 +81,21 @@ export function useSourceMode({ editor, saveContent, t, frontmatterRef }: UseSou
     setLiveMessage(t("switchedToSource"));
   }, [editor, readonlyMode, reviewMode, t, frontmatterRef]);
 
+  /** ソースモードのテキストをエディタに同期し、ソースモードを終了する */
+  const syncSourceToEditor = useCallback((ed: Editor, src: string) => {
+    const { frontmatter, body: bodyWithoutFm } = parseFrontmatter(src);
+    frontmatterRef.current = frontmatter;
+    const { comments, body } = parseCommentData(bodyWithoutFm);
+    const sanitized = preserveBlankLines(sanitizeMarkdown(body));
+    ed.commands.setContent(sanitized);
+    if (comments.size > 0) {
+      (ed.commands as any).initComments(comments);
+    }
+    saveContent(src, false);
+    setSourceMode(false);
+    try { localStorage.setItem(STORAGE_KEY_SOURCE_MODE, "false"); } catch { /* ignore */ }
+  }, [saveContent, frontmatterRef]);
+
   const handleSwitchToWysiwyg = useCallback(() => {
     if (editor) {
       if (reviewMode) {
@@ -95,37 +110,19 @@ export function useSourceMode({ editor, saveContent, t, frontmatterRef }: UseSou
         try { localStorage.setItem(STORAGE_KEY_READONLY_MODE, "false"); } catch { /* ignore */ }
       }
       if (sourceMode) {
-        const { frontmatter, body: bodyWithoutFm } = parseFrontmatter(sourceText);
-        frontmatterRef.current = frontmatter;
-        const { comments, body } = parseCommentData(bodyWithoutFm);
-        const sanitized = preserveBlankLines(sanitizeMarkdown(body));
-        editor.commands.setContent(sanitized);
-        if (comments.size > 0) {
-          (editor.commands as any).initComments(comments);
-        }
-        saveContent(sourceText, false);
+        syncSourceToEditor(editor, sourceText);
       }
     }
     setSourceMode(false);
     try { localStorage.setItem(STORAGE_KEY_SOURCE_MODE, "false"); } catch { /* ignore */ }
     setLiveMessage(t("switchedToWysiwyg"));
-  }, [editor, sourceMode, readonlyMode, reviewMode, sourceText, saveContent, t, frontmatterRef]);
+  }, [editor, sourceMode, readonlyMode, reviewMode, sourceText, syncSourceToEditor, t]);
 
   const handleSwitchToReview = useCallback(() => {
     if (!editor) return;
     // Source モードから切り替える場合、まず WYSIWYG に同期
     if (sourceMode) {
-      const { frontmatter, body: bodyWithoutFm } = parseFrontmatter(sourceText);
-      frontmatterRef.current = frontmatter;
-      const { comments, body } = parseCommentData(bodyWithoutFm);
-      const sanitized = preserveBlankLines(sanitizeMarkdown(body));
-      editor.commands.setContent(sanitized);
-      if (comments.size > 0) {
-        (editor.commands as any).initComments(comments);
-      }
-      saveContent(sourceText, false);
-      setSourceMode(false);
-      try { localStorage.setItem(STORAGE_KEY_SOURCE_MODE, "false"); } catch { /* ignore */ }
+      syncSourceToEditor(editor, sourceText);
     }
     // Readonly モードから切り替える場合、フィルタを解除
     if (readonlyMode) {
@@ -139,23 +136,13 @@ export function useSourceMode({ editor, saveContent, t, frontmatterRef }: UseSou
     try { localStorage.setItem(STORAGE_KEY_READONLY_MODE, "false"); } catch { /* ignore */ }
     try { localStorage.setItem(STORAGE_KEY_REVIEW_MODE, "true"); } catch { /* ignore */ }
     setLiveMessage(t("switchedToReview"));
-  }, [editor, sourceMode, readonlyMode, sourceText, saveContent, t, frontmatterRef]);
+  }, [editor, sourceMode, readonlyMode, sourceText, syncSourceToEditor, t]);
 
   const handleSwitchToReadonly = useCallback(() => {
     if (!editor) return;
     // Source モードから切り替える場合、まず WYSIWYG に同期
     if (sourceMode) {
-      const { frontmatter, body: bodyWithoutFm } = parseFrontmatter(sourceText);
-      frontmatterRef.current = frontmatter;
-      const { comments, body } = parseCommentData(bodyWithoutFm);
-      const sanitized = preserveBlankLines(sanitizeMarkdown(body));
-      editor.commands.setContent(sanitized);
-      if (comments.size > 0) {
-        (editor.commands as any).initComments(comments);
-      }
-      saveContent(sourceText, false);
-      setSourceMode(false);
-      try { localStorage.setItem(STORAGE_KEY_SOURCE_MODE, "false"); } catch { /* ignore */ }
+      syncSourceToEditor(editor, sourceText);
     }
     // Review モードから切り替える場合、属性を切り替え
     if (reviewMode) {
@@ -168,7 +155,7 @@ export function useSourceMode({ editor, saveContent, t, frontmatterRef }: UseSou
     try { localStorage.setItem(STORAGE_KEY_READONLY_MODE, "true"); } catch { /* ignore */ }
     try { localStorage.setItem(STORAGE_KEY_REVIEW_MODE, "false"); } catch { /* ignore */ }
     setLiveMessage(t("switchedToReadonly"));
-  }, [editor, sourceMode, reviewMode, sourceText, saveContent, t, frontmatterRef]);
+  }, [editor, sourceMode, reviewMode, sourceText, syncSourceToEditor, t]);
 
   /** コメント操作用: 一時的にレビューモードのフィルタを解除してコマンド実行後に戻す */
   const executeInReviewMode = useCallback((fn: () => void) => {
