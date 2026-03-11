@@ -50,6 +50,7 @@ import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, DEFAULT_LIGHT_TEXT } from "../consta
 import { Z_TOOLBAR } from "../constants/zIndex";
 
 import type { MergeUndoRedo } from "./InlineMergeView";
+import type { ToolbarVisibility } from "../types/toolbar";
 
 /** WAI-ARIA Toolbar パターン: 矢印キーでフォーカス移動 */
 const FOCUSABLE_SELECTOR = 'button:not([disabled]), [role="button"]:not([disabled]), input:not([disabled])';
@@ -103,11 +104,7 @@ interface EditorToolbarProps {
   onSwitchToReadonly?: () => void;
 
   mergeUndoRedo?: MergeUndoRedo | null;
-  hideFileOps?: boolean;
-  hideUndoRedo?: boolean;
-  hideMoreMenu?: boolean;
-  hideSettings?: boolean;
-  hideVersionInfo?: boolean;
+  hide?: ToolbarVisibility;
   onOpenSettings?: () => void;
   onOpenVersionDialog?: () => void;
   onLoadRightFile?: () => void;
@@ -121,12 +118,6 @@ interface EditorToolbarProps {
   onAnnounce?: (message: string) => void;
   commentOpen?: boolean;
   onToggleComments?: () => void;
-  hideModeToggle?: boolean;
-  hideReadonlyToggle?: boolean;
-  hideOutline?: boolean;
-  hideComments?: boolean;
-  hideTemplates?: boolean;
-  hideFoldAll?: boolean;
   t: TranslationFn;
 }
 
@@ -153,11 +144,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
   onSwitchToReadonly,
 
   mergeUndoRedo,
-  hideFileOps,
-  hideUndoRedo,
-  hideMoreMenu,
-  hideSettings,
-  hideVersionInfo,
+  hide = {},
   onOpenSettings,
   onOpenVersionDialog,
   onLoadRightFile,
@@ -171,14 +158,15 @@ export const EditorToolbar = React.memo(function EditorToolbar({
   onExportPdf,
   commentOpen,
   onToggleComments,
-  hideModeToggle,
-  hideReadonlyToggle,
-  hideOutline,
-  hideComments,
-  hideTemplates,
-  hideFoldAll,
   t,
 }: EditorToolbarProps) {
+  const {
+    fileOps: hideFileOps, undoRedo: hideUndoRedo, moreMenu: hideMoreMenu,
+    settings: hideSettings, versionInfo: hideVersionInfo,
+    modeToggle: hideModeToggle, readonlyToggle: hideReadonlyToggle,
+    outline: hideOutline, comments: hideComments,
+    templates: hideTemplates, foldAll: hideFoldAll,
+  } = hide;
   const isDark = useTheme().palette.mode === "dark";
   const [fileMenuAnchorEl, setFileMenuAnchorEl] = useState<HTMLElement | null>(null);
 

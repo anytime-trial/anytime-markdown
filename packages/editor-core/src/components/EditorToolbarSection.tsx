@@ -3,6 +3,7 @@ import type { Editor } from "@tiptap/react";
 import type React from "react";
 import type { MergeUndoRedo } from "./InlineMergeView";
 import { Z_SKIP_LINK } from "../constants/zIndex";
+import type { ToolbarVisibility } from "../types/toolbar";
 
 import { EditorToolbar } from "./EditorToolbar";
 
@@ -27,11 +28,7 @@ interface EditorToolbarSectionProps {
   handleSwitchToWysiwyg: () => void;
   handleSwitchToReview: () => void;
   handleSwitchToReadonly: () => void;
-  showReadonlyMode?: boolean;
-  hideOutline?: boolean;
-  hideComments?: boolean;
-  hideTemplates?: boolean;
-  hideFoldAll?: boolean;
+  hide?: ToolbarVisibility;
   mergeUndoRedo: MergeUndoRedo | null;
   handleOpenFile: () => void;
   handleSaveFile: () => void;
@@ -39,12 +36,6 @@ interface EditorToolbarSectionProps {
   fileHandle: unknown;
   supportsDirectAccess: boolean;
   readOnly?: boolean;
-  hideFileOps?: boolean;
-  hideUndoRedo?: boolean;
-  hideHelp?: boolean;
-  hideVersionInfo?: boolean;
-  hideSettings?: boolean;
-  hideToolbar?: boolean;
   setSettingsOpen: (open: boolean) => void;
   setVersionDialogOpen: (open: boolean) => void;
   rightFileOps: { loadFile: () => void; exportFile: () => void } | null;
@@ -77,11 +68,7 @@ export function EditorToolbarSection({
   handleSwitchToWysiwyg,
   handleSwitchToReview,
   handleSwitchToReadonly,
-  showReadonlyMode,
-  hideOutline,
-  hideComments,
-  hideTemplates,
-  hideFoldAll,
+  hide,
   mergeUndoRedo,
   handleOpenFile,
   handleSaveFile,
@@ -89,12 +76,6 @@ export function EditorToolbarSection({
   fileHandle,
   supportsDirectAccess,
   readOnly,
-  hideFileOps,
-  hideUndoRedo,
-  hideHelp,
-  hideVersionInfo,
-  hideSettings,
-  hideToolbar,
   setSettingsOpen,
   setVersionDialogOpen,
   rightFileOps,
@@ -133,7 +114,7 @@ export function EditorToolbarSection({
         {liveMessage}
       </Box>
 
-      {!hideToolbar && <EditorToolbar
+      {!hide?.toolbar && <EditorToolbar
         editor={editor}
         isInDiagramBlock={isInDiagramBlock}
         onToggleAllBlocks={handleToggleAllBlocks}
@@ -153,23 +134,25 @@ export function EditorToolbarSection({
         onSwitchToWysiwyg={handleSwitchToWysiwyg}
         onSwitchToReview={handleSwitchToReview}
         onSwitchToReadonly={handleSwitchToReadonly}
-        hideReadonlyToggle={!showReadonlyMode}
-        hideOutline={hideOutline}
-        hideComments={hideComments}
-        hideTemplates={hideTemplates}
-        hideFoldAll={hideFoldAll}
+        hide={{
+          fileOps: readOnly || hide?.fileOps,
+          undoRedo: readOnly || hide?.undoRedo,
+          moreMenu: (readOnly || hide?.help) && (readOnly || hide?.versionInfo) && (readOnly || hide?.settings),
+          modeToggle: readOnly,
+          readonlyToggle: hide?.readonlyToggle,
+          outline: hide?.outline,
+          comments: hide?.comments,
+          templates: hide?.templates,
+          foldAll: hide?.foldAll,
+          settings: hide?.settings,
+          versionInfo: hide?.versionInfo,
+        }}
         mergeUndoRedo={inlineMergeOpen ? mergeUndoRedo : null}
         onOpenFile={handleOpenFile}
         onSaveFile={handleSaveFile}
         onSaveAsFile={handleSaveAsFile}
         hasFileHandle={fileHandle !== null}
         supportsDirectAccess={supportsDirectAccess}
-        hideFileOps={readOnly || hideFileOps}
-        hideUndoRedo={readOnly || hideUndoRedo}
-        hideMoreMenu={(readOnly || hideHelp) && (readOnly || hideVersionInfo) && (readOnly || hideSettings)}
-        hideModeToggle={readOnly}
-        hideSettings={hideSettings}
-        hideVersionInfo={hideVersionInfo}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenVersionDialog={() => setVersionDialogOpen(true)}
         onLoadRightFile={rightFileOps?.loadFile}

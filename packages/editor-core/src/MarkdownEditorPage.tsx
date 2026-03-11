@@ -293,13 +293,18 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         outlineOpen={outlineOpen} handleToggleOutline={handleToggleOutline} handleMerge={handleMerge}
         inlineMergeOpen={inlineMergeOpen} handleSwitchToSource={handleSwitchToSource} handleSwitchToWysiwyg={handleSwitchToWysiwyg}
         handleSwitchToReview={handleSwitchToReview} handleSwitchToReadonly={handleSwitchToReadonly}
-        showReadonlyMode={showReadonlyMode} hideOutline={hideOutline} hideComments={hideComments}
-        hideTemplates={hideTemplates} hideFoldAll={hideFoldAll}
+        hide={{
+          outline: hideOutline, comments: hideComments,
+          templates: hideTemplates, foldAll: hideFoldAll,
+          fileOps: hideFileOps, undoRedo: hideUndoRedo,
+          help: hideHelp, versionInfo: hideVersionInfo,
+          settings: hideSettings, toolbar: hideToolbar,
+          readonlyToggle: !showReadonlyMode,
+        }}
         mergeUndoRedo={inlineMergeOpen ? mergeUndoRedo : null}
         handleOpenFile={handleOpenFile} handleSaveFile={handleSaveFile} handleSaveAsFile={handleSaveAsFile}
         fileHandle={fileHandle} supportsDirectAccess={supportsDirectAccess}
-        readOnly={readOnly} hideFileOps={hideFileOps} hideUndoRedo={hideUndoRedo}
-        hideHelp={hideHelp} hideVersionInfo={hideVersionInfo} hideSettings={hideSettings} hideToolbar={hideToolbar}
+        readOnly={readOnly}
         setSettingsOpen={setSettingsOpen} setVersionDialogOpen={setVersionDialogOpen}
         rightFileOps={rightFileOps} handleExportPdf={handleExportPdf}
         setLiveMessage={setLiveMessage} commentOpen={commentOpen} setCommentOpen={setCommentOpen}
