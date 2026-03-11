@@ -10,6 +10,7 @@ const config = {
     "^@anytime-markdown/editor-core/src/(.*)$": "<rootDir>/../editor-core/src/$1",
     "^@anytime-markdown/editor-core$": "<rootDir>/../editor-core/src/index.ts",
   },
+  maxWorkers: 4,
 };
 
 module.exports = config;
