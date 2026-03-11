@@ -295,9 +295,13 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         fileInputRef={fileInputRef}
         handleFileSelected={handleFileSelected} setTemplateAnchorEl={setTemplateAnchorEl} setHelpAnchorEl={setHelpAnchorEl}
         sourceMode={sourceMode} readonlyMode={readonlyMode} reviewMode={reviewMode}
-        outlineOpen={outlineOpen} handleToggleOutline={handleToggleOutline} handleMerge={handleMerge}
-        inlineMergeOpen={inlineMergeOpen} handleSwitchToSource={handleSwitchToSource} handleSwitchToWysiwyg={handleSwitchToWysiwyg}
-        handleSwitchToReview={handleSwitchToReview} handleSwitchToReadonly={handleSwitchToReadonly}
+        outlineOpen={outlineOpen}
+        modeHandlers={{
+          onSwitchToSource: handleSwitchToSource, onSwitchToWysiwyg: handleSwitchToWysiwyg,
+          onSwitchToReview: handleSwitchToReview, onSwitchToReadonly: handleSwitchToReadonly,
+          onToggleOutline: handleToggleOutline, onMerge: handleMerge,
+        }}
+        inlineMergeOpen={inlineMergeOpen}
         hide={{
           outline: hideOutline, comments: hideComments,
           templates: hideTemplates, foldAll: hideFoldAll,

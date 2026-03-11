@@ -33,6 +33,19 @@ const defaultFileHandlers = {
   onClear: jest.fn(),
 };
 
+const defaultModeState = {
+  sourceMode: false,
+  outlineOpen: false,
+  inlineMergeOpen: false,
+};
+
+const defaultModeHandlers = {
+  onSwitchToSource: jest.fn(),
+  onSwitchToWysiwyg: jest.fn(),
+  onToggleOutline: jest.fn(),
+  onMerge: jest.fn(),
+};
+
 /** テスト用の最小限 props を生成 */
 function createDefaultProps(overrides: Partial<Parameters<typeof EditorToolbar>[0]> = {}) {
   return {
@@ -41,13 +54,8 @@ function createDefaultProps(overrides: Partial<Parameters<typeof EditorToolbar>[
     onToggleAllBlocks: jest.fn(),
     onSetTemplateAnchor: jest.fn(),
     onSetHelpAnchor: jest.fn(),
-    sourceMode: false,
-    outlineOpen: false,
-    onToggleOutline: jest.fn(),
-    onMerge: jest.fn(),
-    inlineMergeOpen: false,
-    onSwitchToSource: jest.fn(),
-    onSwitchToWysiwyg: jest.fn(),
+    modeState: { ...defaultModeState },
+    modeHandlers: { ...defaultModeHandlers },
     fileHandlers: { ...defaultFileHandlers },
     t,
     ...overrides,
@@ -141,7 +149,7 @@ describe("EditorToolbar", () => {
     const onExportPdf = jest.fn();
     const props = createDefaultProps({
       fileHandlers: { ...defaultFileHandlers, onExportPdf },
-      sourceMode: true,
+      modeState: { ...defaultModeState, sourceMode: true },
     });
     render(<EditorToolbar {...props} />);
 
@@ -153,7 +161,7 @@ describe("EditorToolbar", () => {
     const onExportPdf = jest.fn();
     const props = createDefaultProps({
       fileHandlers: { ...defaultFileHandlers, onExportPdf },
-      inlineMergeOpen: true,
+      modeState: { ...defaultModeState, inlineMergeOpen: true },
     });
     render(<EditorToolbar {...props} />);
 

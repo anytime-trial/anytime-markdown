@@ -50,7 +50,7 @@ import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, DEFAULT_LIGHT_TEXT } from "../consta
 import { Z_TOOLBAR } from "../constants/zIndex";
 
 import type { MergeUndoRedo } from "./InlineMergeView";
-import type { ToolbarVisibility, ToolbarFileHandlers, ToolbarFileCapabilities } from "../types/toolbar";
+import type { ToolbarVisibility, ToolbarFileHandlers, ToolbarFileCapabilities, ToolbarModeState, ToolbarModeHandlers } from "../types/toolbar";
 
 /** WAI-ARIA Toolbar パターン: 矢印キーでフォーカス移動 */
 const FOCUSABLE_SELECTOR = 'button:not([disabled]), [role="button"]:not([disabled]), input:not([disabled])';
@@ -90,25 +90,14 @@ interface EditorToolbarProps {
   fileCapabilities?: ToolbarFileCapabilities;
   onSetTemplateAnchor: (el: HTMLElement) => void;
   onSetHelpAnchor: (el: HTMLElement) => void;
-  sourceMode: boolean;
-  readonlyMode?: boolean;
-  reviewMode?: boolean;
-  outlineOpen: boolean;
-  onToggleOutline: () => void;
-  onMerge: () => void;
-  inlineMergeOpen: boolean;
-  onSwitchToSource: () => void;
-  onSwitchToWysiwyg: () => void;
-  onSwitchToReview?: () => void;
-  onSwitchToReadonly?: () => void;
+  modeState: ToolbarModeState;
+  modeHandlers: ToolbarModeHandlers;
 
   mergeUndoRedo?: MergeUndoRedo | null;
   hide?: ToolbarVisibility;
   onOpenSettings?: () => void;
   onOpenVersionDialog?: () => void;
   onAnnounce?: (message: string) => void;
-  commentOpen?: boolean;
-  onToggleComments?: () => void;
   t: TranslationFn;
 }
 
@@ -121,25 +110,14 @@ export const EditorToolbar = React.memo(function EditorToolbar({
   fileCapabilities,
   onSetTemplateAnchor,
   onSetHelpAnchor,
-  sourceMode,
-  readonlyMode,
-  reviewMode,
-  outlineOpen,
-  onToggleOutline,
-  onMerge,
-  inlineMergeOpen,
-  onSwitchToSource,
-  onSwitchToWysiwyg,
-  onSwitchToReview,
-  onSwitchToReadonly,
+  modeState,
+  modeHandlers,
 
   mergeUndoRedo,
   hide = {},
   onOpenSettings,
   onOpenVersionDialog,
   onAnnounce: _onAnnounce,
-  commentOpen,
-  onToggleComments,
   t,
 }: EditorToolbarProps) {
   const {
@@ -154,6 +132,8 @@ export const EditorToolbar = React.memo(function EditorToolbar({
     onExportPdf, onLoadRightFile, onExportRightFile,
   } = fileHandlers;
   const { hasFileHandle, supportsDirectAccess } = fileCapabilities ?? {};
+  const { sourceMode, readonlyMode, reviewMode, outlineOpen, inlineMergeOpen, commentOpen } = modeState;
+  const { onSwitchToSource, onSwitchToWysiwyg, onSwitchToReview, onSwitchToReadonly, onToggleOutline, onToggleComments, onMerge } = modeHandlers;
   const isDark = useTheme().palette.mode === "dark";
   const [fileMenuAnchorEl, setFileMenuAnchorEl] = useState<HTMLElement | null>(null);
 

@@ -33,3 +33,24 @@ export interface ToolbarFileCapabilities {
   hasFileHandle?: boolean;
   supportsDirectAccess?: boolean;
 }
+
+/** エディタのモード状態 */
+export interface ToolbarModeState {
+  sourceMode: boolean;
+  readonlyMode?: boolean;
+  reviewMode?: boolean;
+  outlineOpen: boolean;
+  inlineMergeOpen: boolean;
+  commentOpen?: boolean;
+}
+
+/** モード切替ハンドラ */
+export interface ToolbarModeHandlers {
+  onSwitchToSource: () => void;
+  onSwitchToWysiwyg: () => void;
+  onSwitchToReview?: () => void;
+  onSwitchToReadonly?: () => void;
+  onToggleOutline: () => void;
+  onToggleComments?: () => void;
+  onMerge: () => void;
+}

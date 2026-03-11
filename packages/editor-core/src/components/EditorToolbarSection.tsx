@@ -27,13 +27,15 @@ interface EditorToolbarSectionProps {
   readonlyMode: boolean;
   reviewMode: boolean;
   outlineOpen: boolean;
-  handleToggleOutline: () => void;
-  handleMerge: () => void;
+  modeHandlers: {
+    onSwitchToSource: () => void;
+    onSwitchToWysiwyg: () => void;
+    onSwitchToReview: () => void;
+    onSwitchToReadonly: () => void;
+    onToggleOutline: () => void;
+    onMerge: () => void;
+  };
   inlineMergeOpen: boolean;
-  handleSwitchToSource: () => void;
-  handleSwitchToWysiwyg: () => void;
-  handleSwitchToReview: () => void;
-  handleSwitchToReadonly: () => void;
   hide?: ToolbarVisibility;
   mergeUndoRedo: MergeUndoRedo | null;
   fileHandle: unknown;
@@ -62,13 +64,8 @@ export function EditorToolbarSection({
   readonlyMode,
   reviewMode,
   outlineOpen,
-  handleToggleOutline,
-  handleMerge,
+  modeHandlers,
   inlineMergeOpen,
-  handleSwitchToSource,
-  handleSwitchToWysiwyg,
-  handleSwitchToReview,
-  handleSwitchToReadonly,
   hide,
   mergeUndoRedo,
   fileHandle,
@@ -132,17 +129,19 @@ export function EditorToolbarSection({
         }}
         onSetTemplateAnchor={setTemplateAnchorEl}
         onSetHelpAnchor={setHelpAnchorEl}
-        sourceMode={sourceMode}
-        readonlyMode={readonlyMode}
-        reviewMode={reviewMode}
-        outlineOpen={outlineOpen}
-        onToggleOutline={handleToggleOutline}
-        onMerge={handleMerge}
-        inlineMergeOpen={inlineMergeOpen}
-        onSwitchToSource={handleSwitchToSource}
-        onSwitchToWysiwyg={handleSwitchToWysiwyg}
-        onSwitchToReview={handleSwitchToReview}
-        onSwitchToReadonly={handleSwitchToReadonly}
+        modeState={{
+          sourceMode, readonlyMode, reviewMode,
+          outlineOpen, inlineMergeOpen, commentOpen,
+        }}
+        modeHandlers={{
+          onSwitchToSource: modeHandlers.onSwitchToSource,
+          onSwitchToWysiwyg: modeHandlers.onSwitchToWysiwyg,
+          onSwitchToReview: modeHandlers.onSwitchToReview,
+          onSwitchToReadonly: modeHandlers.onSwitchToReadonly,
+          onToggleOutline: modeHandlers.onToggleOutline,
+          onToggleComments: () => setCommentOpen((prev) => !prev),
+          onMerge: modeHandlers.onMerge,
+        }}
         hide={{
           fileOps: readOnly || hide?.fileOps,
           undoRedo: readOnly || hide?.undoRedo,
@@ -160,8 +159,6 @@ export function EditorToolbarSection({
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenVersionDialog={() => setVersionDialogOpen(true)}
         onAnnounce={setLiveMessage}
-        commentOpen={commentOpen}
-        onToggleComments={() => setCommentOpen((prev) => !prev)}
         t={t}
       />}
       <input
