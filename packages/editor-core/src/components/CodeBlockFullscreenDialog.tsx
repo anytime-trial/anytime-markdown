@@ -2,6 +2,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import { Box, Dialog, DialogTitle, IconButton, Tooltip, useTheme } from "@mui/material";
 import React from "react";
 
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "../constants/colors";
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import { FsSearchBar } from "./FsSearchBar";
@@ -21,7 +22,7 @@ interface CodeBlockFullscreenDialogProps {
   t: (key: string) => string;
 }
 
-const textareaSx = (fontSize: number, lineHeight: number) => ({
+const textareaSx = (fontSize: number, lineHeight: number, isDark: boolean) => ({
   flex: 1,
   width: "100%",
   border: "none",
@@ -32,7 +33,7 @@ const textareaSx = (fontSize: number, lineHeight: number) => ({
   lineHeight,
   p: 2,
   color: "text.primary",
-  bgcolor: "background.paper",
+  bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
   boxSizing: "border-box",
   overflow: "auto",
 } as const);
@@ -95,7 +96,7 @@ export function CodeBlockFullscreenDialog({
           onChange={onFsCodeChange}
           spellCheck={false}
           aria-label={t("codeBlock")}
-          sx={textareaSx(settings.fontSize, settings.lineHeight)}
+          sx={textareaSx(settings.fontSize, settings.lineHeight, isDark)}
         />
       )}
     </Dialog>

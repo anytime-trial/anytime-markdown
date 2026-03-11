@@ -8,6 +8,7 @@ import { Box, Dialog, DialogTitle, Divider, IconButton, ToggleButton, ToggleButt
 import DOMPurify from "dompurify";
 import React, { useRef, useState } from "react";
 
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "../constants/colors";
 import { SVG_SANITIZE_CONFIG } from "../hooks/useMermaidRender";
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
 import type { UseZoomPanReturn } from "../hooks/useZoomPan";
@@ -39,7 +40,7 @@ interface DiagramFullscreenDialogProps {
   t: (key: string) => string;
 }
 
-const textareaSx = (fontSize: number, lineHeight: number) => ({
+const textareaSx = (fontSize: number, lineHeight: number, isDark: boolean) => ({
   flex: 1,
   width: "100%",
   border: "none",
@@ -50,7 +51,7 @@ const textareaSx = (fontSize: number, lineHeight: number) => ({
   lineHeight,
   p: 2,
   color: "text.primary",
-  bgcolor: "background.paper",
+  bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
   boxSizing: "border-box",
   overflow: "auto",
 } as const);
@@ -188,7 +189,7 @@ export function DiagramFullscreenDialog({
                 onChange={onFsCodeChange}
                 readOnly={readOnly}
                 spellCheck={false}
-                sx={textareaSx(settings.fontSize, settings.lineHeight)}
+                sx={textareaSx(settings.fontSize, settings.lineHeight, isDark)}
               />
             </Box>
           )}
