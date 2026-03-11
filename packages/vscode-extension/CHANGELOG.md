@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ## [0.4.0] - 2026-03-11
 
 ### Added
+- アウトラインパネルの折りたたみ/展開トグルボタン
+- アウトラインにセクション番号の自動表示（web アプリと同じ自動判定ロジック）
 - sanitizeMarkdown のユニットテスト（50テスト）
 - BoundedMap ユーティリティ（FIFO eviction 付きサイズ上限 Map）
 - ESLint ルール追加（型アサーション制限、非ヌルアサーション警告、console 制限、import 整列）
@@ -14,6 +16,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - CHANGELOG（editor-core、web-app）
 
 ### Changed
+- パネル背景色を全体で統一（OutlinePanel, CommentPanel, LinePreviewPanel 等）
+- アウトラインからセクション番号トグルアイコンを削除（自動表示に統合）
 - ソースモード・全画面ダイアログの背景色をコードブロックと統一
 - EditorToolbar を 588→393 行に分割（ToolbarFileActions、ToolbarMobileMenu を抽出）
 - MergeEditorPanel・InlineMergeView を 500 行以下に分割
