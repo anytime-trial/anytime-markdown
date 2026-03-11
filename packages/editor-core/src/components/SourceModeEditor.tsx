@@ -2,7 +2,7 @@ import { Box, Paper, useTheme } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import React, { useCallback, useEffect, useRef } from "react";
 
-import { ACCENT_COLOR, ACCENT_COLOR_ALPHA } from "../constants/colors";
+import { ACCENT_COLOR, ACCENT_COLOR_ALPHA, DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "../constants/colors";
 import type { TextareaSearchMatch } from "../hooks/useTextareaSearch";
 import { useEditorSettingsContext } from "../useEditorSettings";
 
@@ -149,6 +149,7 @@ export function SourceModeEditor({
         borderTopRightRadius: 0,
         maxHeight: editorHeight,
         overflow: "auto",
+        bgcolor: theme.palette.mode === "dark" ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
         "&:focus-within": {
           outline: "none",
         },
