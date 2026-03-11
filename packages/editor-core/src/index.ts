@@ -73,6 +73,10 @@ export type {
   PlantUmlToolbarContextValue,
 } from './types';
 export type { FileHandle, FileOpenResult, FileSystemProvider } from './types/fileSystem';
+export type {
+  ToolbarVisibility, ToolbarFileHandlers, ToolbarFileCapabilities,
+  ToolbarModeState, ToolbarModeHandlers,
+} from './types/toolbar';
 
 // Version
 export { APP_VERSION } from './version';
