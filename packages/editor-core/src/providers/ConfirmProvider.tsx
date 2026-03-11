@@ -6,11 +6,13 @@ import React, { useCallback, useState } from 'react';
 import ConfirmDialog from './ConfirmDialog';
 import { DialogOptions } from './types';
 
-export const ConfirmContext = React.createContext(
-  {} as {
-    confirm: (options: DialogOptions) => Promise<void>
-  }
-);
+const defaultContextValue: {
+  confirm: (options: DialogOptions) => Promise<void>;
+} = {
+  confirm: () => Promise.resolve(),
+};
+
+export const ConfirmContext = React.createContext(defaultContextValue);
 
 const DEFAULT_OPTIONS: DialogOptions = {
   open: false,

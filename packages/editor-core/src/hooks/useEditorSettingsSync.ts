@@ -29,7 +29,8 @@ export function useEditorSettingsSync(
     }
   }, [options.readOnly, editor]);
 
+  const { hideFoldAll, handleExpandAllBlocks } = options;
   useEffect(() => {
-    if (options.hideFoldAll && editor) options.handleExpandAllBlocks();
-  }, [options.hideFoldAll, editor, options.handleExpandAllBlocks]);
+    if (hideFoldAll && editor) handleExpandAllBlocks();
+  }, [hideFoldAll, editor, handleExpandAllBlocks]);
 }

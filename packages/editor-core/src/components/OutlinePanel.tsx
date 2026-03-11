@@ -24,6 +24,8 @@ import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "../constants/colors";
 import MermaidIcon from "../icons/MermaidIcon";
 import type { HeadingItem, OutlineKind, TranslationFn } from "../types";
 
+const MANUAL_NUMBER_RE = /^\d+(\.\d+)*\.?\s/;
+
 const blockIcon: Record<Exclude<OutlineKind, "heading">, React.ReactElement> = {
   codeBlock: <CodeIcon sx={{ fontSize: 14 }} />,
   table: <GridOnIcon sx={{ fontSize: 14 }} />,
@@ -72,7 +74,6 @@ export function OutlinePanel({
 
   // セクション番号マップ（見出しの pos → "1.2.3. "）
   // 自動判定: 見出しに手動番号が多い場合は非表示
-  const MANUAL_NUMBER_RE = /^\d+(\.\d+)*\.?\s/;
   const sectionNumberMap = useMemo(() => {
     const headingItems = headings.filter((h) => h.kind === "heading");
     if (headingItems.length < 2) return null;

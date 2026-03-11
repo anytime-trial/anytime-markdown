@@ -23,8 +23,8 @@ export async function GET() {
     const files = (response.Contents ?? [])
       .filter((obj) => obj.Key && obj.Key.endsWith('.md') && obj.Key !== DOCS_PREFIX)
       .map((obj) => ({
-        key: obj.Key!,
-        name: obj.Key!.slice(DOCS_PREFIX.length),
+        key: obj.Key ?? "",
+        name: (obj.Key ?? "").slice(DOCS_PREFIX.length),
         lastModified: obj.LastModified?.toISOString() ?? '',
         size: obj.Size ?? 0,
       }));

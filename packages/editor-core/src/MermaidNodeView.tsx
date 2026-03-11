@@ -84,18 +84,22 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: No
   }, [handleBlockMove]);
 
   // Auto-collapse code when deselected
+  // codeCollapsed, updateAttributes は意図的に除外（選択解除時のみ発火させる）
   useEffect(() => {
     if (!isSelected && !codeCollapsed) {
       updateAttributes({ codeCollapsed: true });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSelected]);
 
   const code = node.textContent;
   const handleCopyCode = useCallback(() => { navigator.clipboard.writeText(code); }, [code]);
 
   // Sync code on fullscreen open
+  // code は意図的に除外（fullscreen 切替時のスナップショットのみ取得）
   useEffect(() => {
     if (fullscreen) setFsCode(code);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fullscreen]);
 
   /** Sync fullscreen code editor changes back to TipTap node */

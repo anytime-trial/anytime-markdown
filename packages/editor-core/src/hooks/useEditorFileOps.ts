@@ -335,6 +335,8 @@ export function useEditorFileOps({
       showNotification("pdfExportError");
       return;
     }
+    // showNotification は安定な関数のため依存配列から除外
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor, isDark]);
 
   return {

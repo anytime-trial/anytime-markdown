@@ -113,6 +113,8 @@ export function DiagramBlock(props: DiagramBlockProps) {
     const ro = new ResizeObserver(update);
     ro.observe(container);
     return () => ro.disconnect();
+    // diagramResize.containerRef は安定な ref オブジェクトのため依存配列から除外
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [svg, plantUmlUrl, allCollapsed]);
 
   // 比較モード: 対応するブロックのコードを取得

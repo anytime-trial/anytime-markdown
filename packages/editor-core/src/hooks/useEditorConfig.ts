@@ -54,10 +54,12 @@ export function useEditorConfig({
   slashCommandCallbackRef,
 }: UseEditorConfigParams) {
   // Clean up debounce timer on unmount
+  // headingsDebounceRef は安定な ref オブジェクトのため依存配列から除外
   useEffect(() => {
     return () => {
       if (headingsDebounceRef.current) clearTimeout(headingsDebounceRef.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return {
@@ -188,7 +190,7 @@ export function useEditorConfig({
             event.preventDefault();
             event.stopPropagation();
             if ((event.ctrlKey || event.metaKey) && editorRef.current) {
-              const slug = decodeURIComponent(anchorEl.getAttribute("href")!.slice(1));
+              const slug = decodeURIComponent((anchorEl.getAttribute("href") ?? "").slice(1));
               const headings = extractHeadings(editorRef.current).filter((h) => h.kind === "heading");
               const usedSlugs = new Map<string, number>();
               for (const h of headings) {
