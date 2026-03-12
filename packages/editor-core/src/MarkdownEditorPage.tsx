@@ -211,6 +211,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     saveContent, downloadMarkdown, clearContent: clearContentWithFrontmatter,
     openFile, saveFile, saveAsFile, resetFile,
     encoding: fileHandling.encoding, fileHandle, frontmatterRef,
+    onFrontmatterChange: fileHandling.setFrontmatterText,
   });
 
   // Update refs for useEditor callbacks

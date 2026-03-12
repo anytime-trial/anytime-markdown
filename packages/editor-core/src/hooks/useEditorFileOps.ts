@@ -11,7 +11,7 @@ import useConfirm from "@/hooks/useConfirm";
 import { MERMAID_RENDER_TIMEOUT, NOTIFICATION_DURATION, PRINT_DELAY } from "../constants/timing";
 import { type EncodingLabel,getMarkdownFromEditor, getMarkdownStorage } from "../types";
 import type { FileHandle } from "../types/fileSystem";
-import { prependFrontmatter } from "../utils/frontmatterHelpers";
+import { parseFrontmatter, prependFrontmatter } from "../utils/frontmatterHelpers";
 import { buildPlantUmlUrl } from "../utils/plantumlHelpers";
 import { preserveBlankLines,sanitizeMarkdown } from "../utils/sanitizeMarkdown";
 import { SVG_SANITIZE_CONFIG } from "./useMermaidRender";
@@ -31,6 +31,7 @@ interface UseEditorFileOpsParams {
   encoding?: EncodingLabel;
   fileHandle?: FileHandle | null;
   frontmatterRef: React.MutableRefObject<string | null>;
+  onFrontmatterChange?: (value: string | null) => void;
 }
 
 export type NotificationKey = "copiedToClipboard" | "fileSaved" | "pdfExportError" | "encodingError" | "saveError" | null;
@@ -50,6 +51,7 @@ export function useEditorFileOps({
   encoding,
   fileHandle,
   frontmatterRef,
+  onFrontmatterChange,
 }: UseEditorFileOpsParams) {
   const [notification, setNotification] = useState<NotificationKey>(null);
   const [pdfExporting, setPdfExporting] = useState(false);
@@ -101,17 +103,22 @@ export function useEditorFileOps({
         if (typeof reader.result !== "string") return;
         if (sourceMode) {
           setSourceText(sanitizeMarkdown(reader.result));
-        } else if (editor) {
-          editor.commands.setContent(
-            getMarkdownStorage(editor).parser.parse(
-              preserveBlankLines(sanitizeMarkdown(reader.result)),
-            ),
-          );
+        } else {
+          const { frontmatter, body } = parseFrontmatter(reader.result);
+          frontmatterRef.current = frontmatter;
+          onFrontmatterChange?.(frontmatter);
+          if (editor) {
+            editor.commands.setContent(
+              getMarkdownStorage(editor).parser.parse(
+                preserveBlankLines(sanitizeMarkdown(body)),
+              ),
+            );
+          }
         }
       };
       reader.readAsText(file, encoding?.toLowerCase());
     },
-    [sourceMode, setSourceText, editor, encoding],
+    [sourceMode, setSourceText, editor, encoding, frontmatterRef],
   );
 
   const handleFileSelected = useCallback(async (file: File) => {
