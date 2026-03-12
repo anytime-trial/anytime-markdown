@@ -2,7 +2,7 @@ import { Box, Paper } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import type { Editor } from "@tiptap/react";
 import type React from "react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getEditorBg } from "../constants/colors";
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
@@ -92,6 +92,7 @@ interface EditorMainContentProps {
   compareFileContent: string | null;
   setCompareFileContent: (v: string | null) => void;
   setRightFileOps: (ops: { loadFile: () => void; exportFile: () => void } | null) => void;
+  onFileDrop?: (file: File) => void;
   t: (key: string) => string;
 }
 
@@ -123,6 +124,7 @@ export function EditorMainContent({
   compareFileContent,
   setCompareFileContent,
   setRightFileOps,
+  onFileDrop,
   t,
 }: EditorMainContentProps) {
   const theme = useTheme();
@@ -143,6 +145,23 @@ export function EditorMainContent({
     return () => ro.disconnect();
   }, [frontmatterText]);
   const adjustedEditorHeight = editorHeight - frontmatterHeight;
+
+  const handleContainerDragOver = useCallback((e: React.DragEvent) => {
+    if (e.defaultPrevented) return;
+    if (!e.dataTransfer.types.includes("Files")) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  }, []);
+
+  const handleContainerDrop = useCallback((e: React.DragEvent) => {
+    if (e.defaultPrevented) return;
+    const file = Array.from(e.dataTransfer.files).find(
+      (f) => f.name.endsWith(".md") || f.name.endsWith(".markdown") || f.type.startsWith("text/"),
+    );
+    if (!file) return;
+    e.preventDefault();
+    onFileDrop?.(file);
+  }, [onFileDrop]);
 
   if (inlineMergeOpen) {
     return (
@@ -190,7 +209,7 @@ export function EditorMainContent({
   }
 
   return (
-    <Box component="main" ref={editorContainerRef} sx={{ display: "flex", gap: 0 }}>
+    <Box component="main" ref={editorContainerRef} sx={{ display: "flex", gap: 0 }} onDragOver={handleContainerDragOver} onDrop={handleContainerDrop}>
       {!sourceMode && <EditorOutlineSection {...outlineProps} />}
 
       {/* Editor */}
