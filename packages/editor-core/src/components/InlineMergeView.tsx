@@ -21,7 +21,6 @@ import { useEditorSettingsContext } from "../useEditorSettings";
 import { type DiffLine } from "../utils/diffEngine";
 import { readFileAsText } from "../utils/fileReading";
 import { preprocessMarkdown } from "../utils/frontmatterHelpers";
-import { sanitizeMarkdown } from "../utils/sanitizeMarkdown";
 import { FrontmatterBlock } from "./FrontmatterBlock";
 import { LinePreviewPanel } from "./LinePreviewPanel";
 import { MergeEditorPanel } from "./MergeEditorPanel";
@@ -109,7 +108,7 @@ export function InlineMergeView({
   // 外部から渡された比較ファイル内容を右パネルに反映（1回限り）
   useEffect(() => {
     if (externalRightContent != null) {
-      setRightText(sanitizeMarkdown(externalRightContent));
+      setRightText(externalRightContent);
       onExternalRightContentConsumed?.();
     }
   }, [externalRightContent, setRightText, onExternalRightContentConsumed]);
@@ -278,7 +277,7 @@ export function InlineMergeView({
   const loadFile = (setter: (text: string) => void, metaSetter: (meta: FileMetadata) => void) => (file: File) => {
     readFileAsText(file).then(({ text, encoding, lineEnding }) => {
       metaSetter({ encoding, lineEnding });
-      setter(sanitizeMarkdown(text));
+      setter(text);
     });
   };
 
