@@ -4,6 +4,30 @@ All notable changes to the "anytime-markdown" extension will be documented in th
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.4.1] - 2026-03-12
+
+### Added
+- ファイルハンドルの永続化（IndexedDB）によりリロード後も上書き保存とファイル名表示を維持
+- ドラッグ&ドロップ時に FileSystemFileHandle を取得し直接上書き保存に対応
+- ファイルドラッグ時のエディタ領域の背景色変更による視覚フィードバック
+- PlantUML コンテナに role="img" と aria-label を追加（アクセシビリティ改善）
+
+### Changed
+- 図ブロック（Mermaid/PlantUML）の選択時にツールバー・コード展開・リサイズハンドルを非表示に変更
+- 図ブロックのダブルクリックで常に全画面表示を有効化（モード問わず）
+- saveFile/saveAsFile の戻り値を boolean に変更しキャンセル時の通知を抑制
+- 比較モード右パネルのドラッグオーバースタイルをオーバーレイ方式に統一
+
+### Fixed
+- PDF エクスポート時の KaTeX 数式・SVG 図形の体裁崩れを修正
+- PDF エクスポート時に見出し背景色・セクション番号・ステータスバーを非表示に修正
+- PDF エクスポート時に通常コードブロックが非表示になる問題を修正
+- PDF エクスポート時の本文文字色を黒に統一
+- PDF エクスポート時に PlantUML のソースコードが縦表示される問題を修正
+- モード切替時の末尾改行消失を修正（editor.storage フラグ方式）
+- 比較モードのソースビューで末尾改行が表示されない問題を修正
+- ソースモードから戻った時にフロントマター高さが反映されない問題を修正
+
 ## [0.4.0] - 2026-03-11
 
 ### Added
