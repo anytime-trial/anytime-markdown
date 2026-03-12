@@ -14,7 +14,6 @@ import type { FileHandle } from "../types/fileSystem";
 import { readFileAsText } from "../utils/fileReading";
 import { preprocessMarkdown, prependFrontmatter } from "../utils/frontmatterHelpers";
 import { buildPlantUmlUrl } from "../utils/plantumlHelpers";
-import { sanitizeMarkdown } from "../utils/sanitizeMarkdown";
 import { SVG_SANITIZE_CONFIG } from "./useMermaidRender";
 
 interface UseEditorFileOpsParams {
@@ -100,7 +99,7 @@ export function useEditorFileOps({
   const applyMarkdownContent = useCallback(
     (text: string) => {
       if (sourceMode) {
-        setSourceText(sanitizeMarkdown(text));
+        setSourceText(text);
       } else {
         const { frontmatter, comments, body } = preprocessMarkdown(text);
         frontmatterRef.current = frontmatter;
