@@ -348,6 +348,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         outlineProps={outlineProps} editorMarkdown={editorMarkdown}
         setMergeUndoRedo={setMergeUndoRedo} compareFileContent={compareFileContent}
         setCompareFileContent={setCompareFileContent} setRightFileOps={setRightFileOps} t={t}
+        onFileDrop={handleFileSelected}
       />
 
       <EditorFooterOverlays
