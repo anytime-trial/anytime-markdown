@@ -43,7 +43,7 @@ export const PrintStyles: React.FC = () =>
          * Table は孫要素に overflow: auto を持つため
          * 全子孫要素を対象にする。
          */
-        "[data-node-view-wrapper], [data-node-view-wrapper] *": {
+        "[data-node-view-wrapper], [data-node-view-wrapper] *:not(svg *):not(svg)": {
           overflow: "visible !important",
           height: "auto !important",
           maxHeight: "none !important",
@@ -74,6 +74,15 @@ export const PrintStyles: React.FC = () =>
           outline: "none !important",
         },
         "[data-block-toolbar]": {
+          display: "none !important",
+        },
+        /* 見出しの背景色・影を除去 */
+        ".tiptap h1, .tiptap h2": {
+          background: "none !important",
+          boxShadow: "none !important",
+        },
+        /* セクション番号を非表示 */
+        ".heading-number": {
           display: "none !important",
         },
         "[data-drag-handle]": {
