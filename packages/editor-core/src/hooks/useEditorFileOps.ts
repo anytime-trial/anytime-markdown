@@ -96,27 +96,33 @@ export function useEditorFileOps({
     resetFile?.();
   }, [confirm, t, sourceMode, setSourceText, editor, clearContent, resetFile, frontmatterRef]);
 
+  /** Markdown テキストをエディタに適用する共通処理 */
+  const applyMarkdownContent = useCallback(
+    (text: string) => {
+      if (sourceMode) {
+        setSourceText(sanitizeMarkdown(text));
+      } else {
+        const { frontmatter, body } = parseFrontmatter(text);
+        frontmatterRef.current = frontmatter;
+        onFrontmatterChange?.(frontmatter);
+        if (editor) {
+          editor.commands.setContent(
+            getMarkdownStorage(editor).parser.parse(
+              preserveBlankLines(sanitizeMarkdown(body)),
+            ),
+          );
+        }
+      }
+    },
+    [sourceMode, setSourceText, editor, frontmatterRef, onFrontmatterChange],
+  );
+
   const handleImport = useCallback(
     (file: File) => {
       if (!file.name.endsWith(".md") && !file.type.startsWith("text/")) return;
-      readFileAsText(file).then(({ text }) => {
-        if (sourceMode) {
-          setSourceText(sanitizeMarkdown(text));
-        } else {
-          const { frontmatter, body } = parseFrontmatter(text);
-          frontmatterRef.current = frontmatter;
-          onFrontmatterChange?.(frontmatter);
-          if (editor) {
-            editor.commands.setContent(
-              getMarkdownStorage(editor).parser.parse(
-                preserveBlankLines(sanitizeMarkdown(body)),
-              ),
-            );
-          }
-        }
-      });
+      readFileAsText(file).then(({ text }) => applyMarkdownContent(text));
     },
-    [sourceMode, setSourceText, editor, frontmatterRef, onFrontmatterChange],
+    [applyMarkdownContent],
   );
 
   const handleFileSelected = useCallback(async (file: File) => {
@@ -165,17 +171,8 @@ export function useEditorFileOps({
     }
     const content = await openFile();
     if (content === null) return;
-    const sanitized = sanitizeMarkdown(content);
-    if (sourceMode) {
-      setSourceText(sanitized);
-    } else if (editor) {
-      editor.commands.setContent(
-        getMarkdownStorage(editor).parser.parse(
-          preserveBlankLines(sanitized),
-        ),
-      );
-    }
-  }, [openFile, editor, sourceMode, sourceText, setSourceText, confirm, t]);
+    applyMarkdownContent(content);
+  }, [openFile, applyMarkdownContent, sourceMode, sourceText, editor, confirm, t]);
 
   const handleSaveFile = useCallback(async () => {
     if (!saveFile) return;
