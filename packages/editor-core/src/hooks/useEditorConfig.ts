@@ -79,6 +79,8 @@ export function useEditorConfig({
     editorProps: {
       handleDrop: (view: EditorView, event: DragEvent, _slice: Slice, moved: boolean) => {
         if (moved || !event.dataTransfer?.files.length) return false;
+        const mdFile = Array.from(event.dataTransfer.files).find((f) => f.name.endsWith(".md") || f.name.endsWith(".markdown") || f.type === "text/markdown");
+        if (mdFile) { event.preventDefault(); handleImportRef.current(mdFile); return true; }
         const images = Array.from(event.dataTransfer.files).filter((f) => f.type.startsWith("image/"));
         if (!images.length) return false;
         event.preventDefault();

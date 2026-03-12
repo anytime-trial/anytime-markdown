@@ -147,14 +147,12 @@ export function EditorMainContent({
   const adjustedEditorHeight = editorHeight - frontmatterHeight;
 
   const handleContainerDragOver = useCallback((e: React.DragEvent) => {
-    if (e.defaultPrevented) return;
     if (!e.dataTransfer.types.includes("Files")) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = "copy";
   }, []);
 
   const handleContainerDrop = useCallback((e: React.DragEvent) => {
-    if (e.defaultPrevented) return;
     const file = Array.from(e.dataTransfer.files).find(
       (f) => f.name.endsWith(".md") || f.name.endsWith(".markdown") || f.type.startsWith("text/"),
     );
@@ -178,7 +176,7 @@ export function EditorMainContent({
         onRightFileOpsReady={setRightFileOps}
       >
         {(leftBgGradient, leftDiffLines, onMerge, onHoverLine) => (
-        <Box component="main" ref={editorContainerRef} sx={{ display: "flex", gap: 0, height: "100%" }}>
+        <Box component="main" ref={editorContainerRef} sx={{ display: "flex", gap: 0, height: "100%" }} onDragOver={handleContainerDragOver} onDrop={handleContainerDrop}>
           <EditorOutlineSection {...outlineProps} />
           <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
             <MergeEditorPanel

@@ -217,7 +217,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   const onHeadingsChangeRef = useRef(onHeadingsChange);
   onHeadingsChangeRef.current = onHeadingsChange;
   setHeadingsRef.current = (h: HeadingItem[]) => { setHeadings(h); onHeadingsChangeRef.current?.(h); };
-  handleImportRef.current = handleImport;
+  handleImportRef.current = handleFileSelected;
 
   useEditorCommentNotifications(editor, onCommentsChange);
 
