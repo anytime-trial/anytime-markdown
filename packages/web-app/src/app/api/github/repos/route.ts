@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getGitHubToken } from "@/lib/githubAuth";
+import { getGitHubToken } from "../../../../lib/githubAuth";
 
 export async function GET(): Promise<NextResponse> {
   const token = await getGitHubToken();
