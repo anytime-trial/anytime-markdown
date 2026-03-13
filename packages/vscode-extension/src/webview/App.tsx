@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import type { PaletteMode } from '@mui/material';
 import CssBaseline from '@mui/material/CssBaseline';
 import { getVsCodeApi } from './vscodeApi';
 import { ConfirmProvider, STORAGE_KEY_CONTENT, STORAGE_KEY_SETTINGS } from '@anytime-markdown/editor-core';
 import MarkdownEditorPage from '@anytime-markdown/editor-core/src/MarkdownEditorPage';
+import type { TimelineCommit, TimelineDataProvider } from '@anytime-markdown/editor-core/src/types/timeline';
 
 const vscode = getVsCodeApi();
 
@@ -49,10 +50,50 @@ try {
   originalSetItem(SETTINGS_KEY, JSON.stringify(obj));
 } catch { /* ignore */ }
 
+/**
+ * postMessage ベースの TimelineDataProvider。
+ * webview ↔ extension host 間の非同期通信を Promise で橋渡しする。
+ */
+class WebviewTimelineProvider implements TimelineDataProvider {
+  private pendingCommits: ((commits: TimelineCommit[]) => void) | null = null;
+  private pendingContent: Map<string, (content: string) => void> = new Map();
+
+  getCommits(_filePath: string): Promise<TimelineCommit[]> {
+    return new Promise((resolve) => {
+      this.pendingCommits = resolve;
+      vscode.postMessage({ type: 'loadTimeline' });
+    });
+  }
+
+  getFileContent(_filePath: string, sha: string): Promise<string> {
+    return new Promise((resolve) => {
+      this.pendingContent.set(sha, resolve);
+      vscode.postMessage({ type: 'selectTimelineCommit', sha });
+    });
+  }
+
+  /** extension host からのレスポンスを処理 */
+  handleCommitsResponse(commits: TimelineCommit[]): void {
+    if (this.pendingCommits) {
+      this.pendingCommits(commits);
+      this.pendingCommits = null;
+    }
+  }
+
+  handleContentResponse(sha: string, content: string): void {
+    const resolve = this.pendingContent.get(sha);
+    if (resolve) {
+      resolve(content);
+      this.pendingContent.delete(sha);
+    }
+  }
+}
+
 export function App() {
   const [ready, setReady] = useState(false);
   const [themeMode, setThemeMode] = useState<PaletteMode>('dark');
   const theme = useMemo(() => createTheme({ palette: { mode: themeMode } }), [themeMode]);
+  const timelineProviderRef = useRef(new WebviewTimelineProvider());
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -87,6 +128,17 @@ export function App() {
       }
       if (message?.type === 'deleteComment' && typeof message.id === 'string') {
         window.dispatchEvent(new CustomEvent('vscode-delete-comment', { detail: message.id }));
+        return;
+      }
+      if (message?.type === 'timelineCommits' && Array.isArray(message.commits)) {
+        const commits = (message.commits as Array<{ sha: string; message: string; author: string; date: string }>).map(
+          (c) => ({ ...c, date: new Date(c.date) }),
+        );
+        timelineProviderRef.current.handleCommitsResponse(commits);
+        return;
+      }
+      if (message?.type === 'timelineContent' && typeof message.sha === 'string') {
+        timelineProviderRef.current.handleContentResponse(message.sha, message.content ?? '');
         return;
       }
       if (message?.type === 'setContent' && typeof message.content === 'string') {
@@ -158,7 +210,7 @@ export function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <ConfirmProvider>
-        <MarkdownEditorPage hideFileOps hideUndoRedo hideSettings hideHelp hideVersionInfo hideOutline hideComments hideTemplates hideFoldAll hideStatusBar onCompareModeChange={handleCompareModeChange} onHeadingsChange={handleHeadingsChange} onCommentsChange={handleCommentsChange} onStatusChange={handleStatusChange} />
+        <MarkdownEditorPage hideFileOps hideUndoRedo hideSettings hideHelp hideVersionInfo hideOutline hideComments hideTemplates hideFoldAll hideStatusBar timelineProvider={timelineProviderRef.current} onCompareModeChange={handleCompareModeChange} onHeadingsChange={handleHeadingsChange} onCommentsChange={handleCommentsChange} onStatusChange={handleStatusChange} />
       </ConfirmProvider>
     </ThemeProvider>
   );
