@@ -256,23 +256,30 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
 
   // タイムライン: エディタ内容をコミットの Markdown で差し替え、終了時に復元
   const savedContentRef = useRef<string | null>(null);
+  const savedFrontmatterRef = useRef<string | null | undefined>(undefined);
   useEffect(() => {
     if (!editor || editor.isDestroyed) return;
     if (isTimelineActive) {
-      // 初回: 元の内容を保存
+      // 初回: 元の内容と frontmatter を保存
       if (savedContentRef.current === null) {
         savedContentRef.current = getMarkdownFromEditor(editor);
+        savedFrontmatterRef.current = fileHandling.frontmatterText;
       }
       // タイムラインのコンテンツをエディタに反映
       if (timeline.state.content !== null) {
         editor.setEditable(false, false);
-        applyMarkdownToEditor(editor, timeline.state.content);
+        const { frontmatter } = applyMarkdownToEditor(editor, timeline.state.content);
+        fileHandling.setFrontmatterText(frontmatter);
       }
     } else if (savedContentRef.current !== null) {
-      // タイムライン終了: 元の内容を復元
+      // タイムライン終了: 元の内容と frontmatter を復元
       applyMarkdownToEditor(editor, savedContentRef.current);
+      if (savedFrontmatterRef.current !== undefined) {
+        fileHandling.setFrontmatterText(savedFrontmatterRef.current);
+      }
       editor.setEditable(!readOnly, false);
       savedContentRef.current = null;
+      savedFrontmatterRef.current = undefined;
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isTimelineActive, timeline.state.content, timeline.state.selectedIndex]);
