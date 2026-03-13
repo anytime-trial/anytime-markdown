@@ -117,7 +117,7 @@ export const TimelineBar: FC<TimelineBarProps> = ({
         marks={marks}
         onChange={handleSliderChange}
         disabled={isPlaying || isLoading}
-        sx={{ flex: 1, mx: 1 }}
+        sx={{ width: "50%", flexShrink: 0, mx: 1 }}
       />
 
       {selectedCommit && (
