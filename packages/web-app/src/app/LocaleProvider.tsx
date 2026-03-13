@@ -46,7 +46,7 @@ export function LocaleProvider({ serverLocale, children }: LocaleProviderProps) 
     if (newLocale !== 'ja' && newLocale !== 'en') return;
     setLocaleState(newLocale);
     localStorage.setItem('NEXT_LOCALE', newLocale);
-    document.cookie = `NEXT_LOCALE=${newLocale};path=/;max-age=31536000`;
+    document.cookie = `NEXT_LOCALE=${newLocale};path=/;max-age=31536000;SameSite=Lax`;
   }, []);
 
   const ctx = useMemo(() => ({ locale, setLocale }), [locale, setLocale]);

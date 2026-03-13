@@ -209,7 +209,8 @@ describe("useSourceMode", () => {
       act(() => hook.result.current.handleSourceChange("# No comments here"));
       act(() => hook.result.current.handleSwitchToWysiwyg());
 
-      expect(initComments).not.toHaveBeenCalled();
+      // コメントがなくても initComments は空 Map で呼ばれる（前のコメントをクリアするため）
+      expect(initComments).toHaveBeenCalledWith(new Map());
     });
   });
 });

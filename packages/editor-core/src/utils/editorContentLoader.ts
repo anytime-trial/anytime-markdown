@@ -32,6 +32,8 @@ export function applyMarkdownToEditor(editor: Editor, text: string): ApplyResult
   setTrailingNewline(editor, text.endsWith("\n"));
   const { frontmatter, comments, body } = preprocessMarkdown(text);
   editor.commands.setContent(body);
-  editor.commands.initComments(comments);
+  if (typeof editor.commands.initComments === "function") {
+    editor.commands.initComments(comments);
+  }
   return { frontmatter, comments, body };
 }

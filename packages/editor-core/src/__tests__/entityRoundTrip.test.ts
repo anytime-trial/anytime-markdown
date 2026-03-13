@@ -17,32 +17,28 @@ describe("Entity roundtrip in code spans", () => {
   test("&lt; in code span - inline", () => {
     const md = "`&lt;` → `<`";
     const result = fullRoundTrip(md);
-    console.log("Input: ", md);
-    console.log("Output:", result);
+
     expect(result).toBe(md);
   });
 
   test("&gt; in code span - inline", () => {
     const md = "`&gt;` → `>`";
     const result = fullRoundTrip(md);
-    console.log("Input: ", md);
-    console.log("Output:", result);
+
     expect(result).toBe(md);
   });
 
   test("&amp; in code span - inline", () => {
     const md = "`&amp;` → `&`";
     const result = fullRoundTrip(md);
-    console.log("Input: ", md);
-    console.log("Output:", result);
+
     expect(result).toBe(md);
   });
 
   test("entities in table cell code spans", () => {
     const md = "| 種類 | 例 |\n| --- | --- |\n| HTML | `&amp;` → `&`, `&lt;` → `<`, `&gt;` → `>` |";
     const result = fullRoundTrip(md);
-    console.log("Input: ", md);
-    console.log("Output:", result);
+
     expect(result).toContain("`&amp;`");
     expect(result).toContain("`&lt;`");
     expect(result).toContain("`&gt;`");
@@ -51,8 +47,7 @@ describe("Entity roundtrip in code spans", () => {
   test("pipe in table cell code span is restored", () => {
     const md = "| col |\n| --- |\n| b `\\|` az |";
     const result = fullRoundTrip(md);
-    console.log("Input: ", md);
-    console.log("Output:", result);
+
     expect(result).toContain("`\\|`");
     expect(result).not.toContain("&#124;");
   });
@@ -64,7 +59,6 @@ describe("Entity roundtrip in code spans", () => {
 
     editor.state.doc.descendants((node) => {
       if (node.isText && node.marks.some((m) => m.type.name === "code")) {
-        console.log(`Code span text: "${node.text}"`);
         expect(node.text).not.toContain("&#124;");
         // markdown-it テーブルパーサーが \| の \ を消費するため | のみ格納される
         expect(node.text).toBe("|");
@@ -80,7 +74,7 @@ describe("Entity roundtrip in code spans", () => {
     editor.state.doc.descendants((node) => {
       if (node.isText && node.marks.some((m) => m.type.name === "code")) {
         const codes = [...node.text!].map((c) => c.charCodeAt(0));
-        console.log(`Inline code text: "${node.text}" charCodes: [${codes}]`);
+        expect(codes).toBeDefined();
       }
     });
   });
@@ -92,9 +86,8 @@ describe("Entity roundtrip in code spans", () => {
 
     editor.state.doc.descendants((node) => {
       if (node.isText) {
-        const marks = node.marks.map((m) => m.type.name);
         const codes = [...node.text!].map((c) => c.charCodeAt(0));
-        console.log(`Table text: "${node.text}" marks=[${marks}] charCodes: [${codes}]`);
+        expect(codes).toBeDefined();
       }
     });
   });
@@ -102,8 +95,7 @@ describe("Entity roundtrip in code spans", () => {
   test("multi-backtick code spans in table do not escape cell separators", () => {
     const md = "| 単独の `` ` `` あり | 2個 | ``` `` foo`bar `` ``` |";
     const result = fullRoundTrip(md);
-    console.log("Input: ", md);
-    console.log("Output:", result);
+
     // セル区切りの | がエスケープされないこと
     expect(result).not.toContain("あり \\|");
     expect(result).not.toContain("\\| 2個");

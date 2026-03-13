@@ -37,6 +37,7 @@ function createMockEditor(overrides?: Partial<{ isEmpty: boolean }>): Editor {
     commands: {
       clearContent: jest.fn(),
       setContent: jest.fn(),
+      initComments: jest.fn(),
     },
     storage: {
       markdown: {

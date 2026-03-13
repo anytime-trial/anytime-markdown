@@ -2,6 +2,7 @@
 
 // Tiptap の ReactRenderer が componentDidMount 内で flushSync を呼ぶ問題を抑制
 // @see https://github.com/ueberdosis/tiptap/issues/3764
+// TODO: tiptap v3 で修正される見込み。アップグレード時にこのパッチが不要か確認し除去する。
 if (typeof window !== "undefined") {
   const origError = console.error;
   console.error = (...args: unknown[]) => {
@@ -146,8 +147,12 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
 
   const editorConfig = useEditorConfig({
     t, initialContent: processedInitialContent, initialTrailingNewline, saveContent,
-    editorRef, setEditorMarkdownRef, setHeadingsRef,
-    headingsDebounceRef, handleImportRef, onFileDragOverRef, setHeadingMenu, slashCommandCallbackRef,
+    refs: {
+      editor: editorRef, setEditorMarkdown: setEditorMarkdownRef, setHeadings: setHeadingsRef,
+      headingsDebounce: headingsDebounceRef, handleImport: handleImportRef,
+      onFileDragOver: onFileDragOverRef, slashCommandCallback: slashCommandCallbackRef,
+    },
+    setHeadingMenu,
   });
   const editor = useEditor(editorConfig, [processedInitialContent]);
   editorRef.current = editor;
@@ -252,8 +257,13 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     const { frontmatter, body } = preprocessMarkdown(template.content);
     if (frontmatter !== null) { frontmatterRef.current = frontmatter; fileHandling.setFrontmatterText(frontmatter); }
     requestAnimationFrame(() => {
+      if (editor.isDestroyed) return;
       editor.chain().focus().insertContent(body).run();
-      requestAnimationFrame(() => { editor.commands.setTextSelection(0); editor.view.dom.scrollTop = 0; });
+      requestAnimationFrame(() => {
+        if (editor.isDestroyed) return;
+        editor.commands.setTextSelection(0);
+        editor.view.dom.scrollTop = 0;
+      });
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor, sourceMode, appendToSource, frontmatterRef]);

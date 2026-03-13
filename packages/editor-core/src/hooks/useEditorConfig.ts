@@ -7,6 +7,7 @@ import type { Editor } from "@tiptap/react";
 import type { RefObject } from "react";
 import { useEffect } from "react";
 
+import { DEBOUNCE_MEDIUM } from "../constants/timing";
 import { Details, DetailsSummary } from "../detailsExtension";
 import { getBaseExtensions } from "../editorExtensions";
 import { CustomHardBreak } from "../extensions/customHardBreak";
@@ -29,19 +30,133 @@ interface HeadingMenuArg {
   currentLevel: number;
 }
 
+interface EditorConfigRefs {
+  editor: RefObject<Editor | null>;
+  setEditorMarkdown: RefObject<(md: string) => void>;
+  setHeadings: RefObject<(h: HeadingItem[]) => void>;
+  headingsDebounce: RefObject<ReturnType<typeof setTimeout> | null>;
+  handleImport: RefObject<(file: File, nativeHandle?: FileSystemFileHandle) => void>;
+  onFileDragOver: RefObject<(over: boolean) => void>;
+  slashCommandCallback: RefObject<(state: SlashCommandState) => void>;
+}
+
 interface UseEditorConfigParams {
   t: (key: string) => string;
   initialContent: string | null;
   initialTrailingNewline?: boolean;
   saveContent: (md: string) => void;
-  editorRef: RefObject<Editor | null>;
-  setEditorMarkdownRef: RefObject<(md: string) => void>;
-  setHeadingsRef: RefObject<(h: HeadingItem[]) => void>;
-  headingsDebounceRef: RefObject<ReturnType<typeof setTimeout> | null>;
-  handleImportRef: RefObject<(file: File, nativeHandle?: FileSystemFileHandle) => void>;
-  onFileDragOverRef: RefObject<(over: boolean) => void>;
+  refs: EditorConfigRefs;
   setHeadingMenu: (menu: HeadingMenuArg) => void;
-  slashCommandCallbackRef: RefObject<(state: SlashCommandState) => void>;
+}
+
+/** レビューモード時のチェックボックス操作を ProseMirror ドキュメントに反映 */
+function handleReviewCheckboxClick(
+  target: HTMLElement,
+  editorRef: RefObject<Editor | null>,
+  saveContent: (md: string) => void,
+): boolean {
+  const isFilterActive = editorRef.current ? reviewModeStorage(editorRef.current).enabled : false;
+  if (!isFilterActive || !(target instanceof HTMLInputElement) || target.type !== "checkbox") return false;
+  const li = target.closest("li[data-checked]") as HTMLElement | null;
+  if (!li) return false;
+  setTimeout(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    try {
+      const checked = target.checked;
+      const pos = editor.view.posAtDOM(li, 0);
+      const nodePos = pos - 1;
+      const node = editor.state.doc.nodeAt(nodePos);
+      if (!node || node.type.name !== "taskItem") return;
+      reviewModeStorage(editor).enabled = false;
+      editor.view.dispatch(
+        editor.state.tr.setNodeMarkup(nodePos, undefined, {
+          ...node.attrs, checked,
+        }),
+      );
+      saveContent(getMarkdownFromEditor(editor));
+      reviewModeStorage(editor).enabled = true;
+    } catch {
+      const editor2 = editorRef.current;
+      if (editor2) reviewModeStorage(editor2).enabled = true;
+    }
+  }, 0);
+  return true;
+}
+
+/** #anchor リンク: 通常クリックは無効化、Ctrl/Cmd+Click で見出しにジャンプ */
+function handleAnchorLinkClick(
+  target: HTMLElement,
+  event: MouseEvent,
+  editorRef: RefObject<Editor | null>,
+): boolean {
+  const anchorEl = target.closest("a[href^='#']") as HTMLAnchorElement | null;
+  if (!anchorEl) return false;
+  event.preventDefault();
+  event.stopPropagation();
+  if ((event.ctrlKey || event.metaKey) && editorRef.current) {
+    const slug = decodeURIComponent((anchorEl.getAttribute("href") ?? "").slice(1));
+    const headings = extractHeadings(editorRef.current).filter((h) => h.kind === "heading");
+    const usedSlugs = new Map<string, number>();
+    for (const h of headings) {
+      const s = toGitHubSlug(h.text, usedSlugs);
+      if (s === slug) {
+        const editor = editorRef.current;
+        editor.chain().setTextSelection(h.pos + 1).run();
+        const domAtPos = editor.view.domAtPos(h.pos + 1);
+        const node = domAtPos.node instanceof HTMLElement
+          ? domAtPos.node : domAtPos.node.parentElement;
+        if (node) {
+          const dom = editor.view.dom;
+          const nodeTop = node.offsetTop - dom.offsetTop;
+          dom.scrollTo({ top: nodeTop, behavior: "smooth" });
+        }
+        break;
+      }
+    }
+  }
+  return true;
+}
+
+/** 見出し・ブロック要素の左余白クリックでコンテキストメニューを表示 */
+function handleBlockContextMenu(
+  target: HTMLElement,
+  event: MouseEvent,
+  view: EditorView,
+  editorRef: RefObject<Editor | null>,
+  setHeadingMenu: (menu: HeadingMenuArg) => void,
+): boolean {
+  const headingEl = target.closest("h1, h2, h3, h4, h5") as HTMLElement | null;
+  let blockEl: HTMLElement | null = headingEl;
+  let level = 0;
+  if (headingEl) {
+    level = parseInt(headingEl.tagName.substring(1));
+  } else {
+    const candidates = ["li", "p", "blockquote"] as const;
+    for (const sel of candidates) {
+      const el = target.closest(sel) as HTMLElement | null;
+      if (el) {
+        let parent: HTMLElement | null = el;
+        while (parent && !parent.classList.contains("tiptap")) {
+          parent = parent.parentElement;
+        }
+        if (parent) { blockEl = el; break; }
+      }
+    }
+  }
+  if (!blockEl) return false;
+  const rect = blockEl.getBoundingClientRect();
+  if (event.clientX < rect.left) {
+    event.preventDefault();
+    const posTarget = blockEl.tagName.toLowerCase() === "blockquote"
+      ? (blockEl.querySelector("p") ?? blockEl)
+      : blockEl;
+    const pos = view.posAtDOM(posTarget, 0);
+    editorRef.current?.chain().setTextSelection(pos).run();
+    setHeadingMenu({ anchorEl: blockEl, pos, currentLevel: level });
+    return true;
+  }
+  return false;
 }
 
 export function useEditorConfig({
@@ -49,14 +164,16 @@ export function useEditorConfig({
   initialContent,
   initialTrailingNewline,
   saveContent,
-  editorRef,
-  setEditorMarkdownRef,
-  setHeadingsRef,
-  headingsDebounceRef,
-  handleImportRef,
-  onFileDragOverRef,
+  refs: {
+    editor: editorRef,
+    setEditorMarkdown: setEditorMarkdownRef,
+    setHeadings: setHeadingsRef,
+    headingsDebounce: headingsDebounceRef,
+    handleImport: handleImportRef,
+    onFileDragOver: onFileDragOverRef,
+    slashCommandCallback: slashCommandCallbackRef,
+  },
   setHeadingMenu,
-  slashCommandCallbackRef,
 }: UseEditorConfigParams) {
   // Clean up debounce timer on unmount
   // headingsDebounceRef は安定な ref オブジェクトのため依存配列から除外
@@ -94,7 +211,10 @@ export function useEditorConfig({
           if (mdItemAny?.getAsFileSystemHandle) {
             mdItemAny.getAsFileSystemHandle().then((handle: FileSystemHandle | null) => {
               handleImportRef.current(mdFile, handle?.kind === "file" ? handle as FileSystemFileHandle : undefined);
-            }).catch(() => { handleImportRef.current(mdFile); });
+            }).catch(() => {
+              // getAsFileSystemHandle 未対応ブラウザでのフォールバック: ハンドルなしでインポート
+              handleImportRef.current(mdFile);
+            });
           } else {
             handleImportRef.current(mdFile);
           }
@@ -187,100 +307,11 @@ export function useEditorConfig({
         },
         click: (_view: EditorView, event: MouseEvent) => {
           const target = event.target as HTMLElement;
-          // レビューモード時のチェックボックス操作: ProseMirror ドキュメントに反映して保存
-          // (readonlyモードではCSSでpointerEvents:noneのためここに到達しない)
-          const isFilterActive = editorRef.current ? reviewModeStorage(editorRef.current).enabled : false;
-          if (isFilterActive && target instanceof HTMLInputElement && target.type === "checkbox") {
-            const li = target.closest("li[data-checked]") as HTMLElement | null;
-            if (li) {
-              setTimeout(() => {
-                const editor = editorRef.current;
-                if (!editor) return;
-                try {
-                  const checked = target.checked;
-                  const pos = editor.view.posAtDOM(li, 0);
-                  const nodePos = pos - 1;
-                  const node = editor.state.doc.nodeAt(nodePos);
-                  if (!node || node.type.name !== "taskItem") return;
-                  reviewModeStorage(editor).enabled = false;
-                  editor.view.dispatch(
-                    editor.state.tr.setNodeMarkup(nodePos, undefined, {
-                      ...node.attrs, checked,
-                    }),
-                  );
-                  saveContent(getMarkdownFromEditor(editor));
-                  reviewModeStorage(editor).enabled = true;
-                } catch {
-                  const editor2 = editorRef.current;
-                  if (editor2) {
-                    reviewModeStorage(editor2).enabled = true;
-                  }
-                }
-              }, 0);
-              return false;
-            }
-          }
-          // #anchor リンク: 通常クリックは無効化、Ctrl/Cmd+Click で見出しにジャンプ
-          const anchorEl = target.closest("a[href^='#']") as HTMLAnchorElement | null;
-          if (anchorEl) {
-            event.preventDefault();
-            event.stopPropagation();
-            if ((event.ctrlKey || event.metaKey) && editorRef.current) {
-              const slug = decodeURIComponent((anchorEl.getAttribute("href") ?? "").slice(1));
-              const headings = extractHeadings(editorRef.current).filter((h) => h.kind === "heading");
-              const usedSlugs = new Map<string, number>();
-              for (const h of headings) {
-                const s = toGitHubSlug(h.text, usedSlugs);
-                if (s === slug) {
-                  const editor = editorRef.current;
-                  editor.chain().setTextSelection(h.pos + 1).run();
-                  const domAtPos = editor.view.domAtPos(h.pos + 1);
-                  const node = domAtPos.node instanceof HTMLElement
-                    ? domAtPos.node : domAtPos.node.parentElement;
-                  if (node) {
-                    const dom = editor.view.dom; // .tiptap（スクロールコンテナ）
-                    const nodeTop = node.offsetTop - dom.offsetTop;
-                    dom.scrollTo({ top: nodeTop, behavior: "smooth" });
-                  }
-                  break;
-                }
-              }
-            }
-            return true;
-          }
-          const headingEl = target.closest("h1, h2, h3, h4, h5") as HTMLElement | null;
-          let blockEl: HTMLElement | null = headingEl;
-          let level = 0;
-          if (headingEl) {
-            level = parseInt(headingEl.tagName.substring(1));
-          } else {
-            // tiptap 直下の p, li, blockquote を検出
-            const candidates = ["li", "p", "blockquote"] as const;
-            for (const sel of candidates) {
-              const el = target.closest(sel) as HTMLElement | null;
-              if (el) {
-                // tiptap 直下、または直下の要素の子孫であること
-                let parent: HTMLElement | null = el;
-                while (parent && !parent.classList.contains("tiptap")) {
-                  parent = parent.parentElement;
-                }
-                if (parent) { blockEl = el; break; }
-              }
-            }
-          }
-          if (!blockEl) return false;
-          const rect = blockEl.getBoundingClientRect();
-          if (event.clientX < rect.left) {
-            event.preventDefault();
-            // blockquote の場合は内部の最初の p から位置を取得
-            const posTarget = blockEl.tagName.toLowerCase() === "blockquote"
-              ? (blockEl.querySelector("p") ?? blockEl)
-              : blockEl;
-            const pos = _view.posAtDOM(posTarget, 0);
-            editorRef.current?.chain().setTextSelection(pos).run();
-            setHeadingMenu({ anchorEl: blockEl, pos, currentLevel: level });
-            return true;
-          }
+
+          if (handleReviewCheckboxClick(target, editorRef, saveContent)) return false;
+          if (handleAnchorLinkClick(target, event, editorRef)) return true;
+          if (handleBlockContextMenu(target, event, _view, editorRef, setHeadingMenu)) return true;
+
           return false;
         },
         copy: (view: EditorView, event: ClipboardEvent) => {
@@ -314,7 +345,7 @@ export function useEditorConfig({
       if (headingsDebounceRef.current) clearTimeout(headingsDebounceRef.current);
       headingsDebounceRef.current = setTimeout(() => {
         setHeadingsRef.current(extractHeadings(e));
-      }, 300);
+      }, DEBOUNCE_MEDIUM);
     },
     onCreate: ({ editor: e }: { editor: Editor }) => {
       // 初期コンテンツの末尾改行フラグを storage に記録
