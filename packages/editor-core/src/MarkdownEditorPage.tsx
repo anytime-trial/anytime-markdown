@@ -84,6 +84,8 @@ interface MarkdownEditorPageProps {
   fileSystemProvider?: FileSystemProvider | null;
   timelineProvider?: TimelineDataProvider | null;
   externalContent?: string;
+  /** 外部コンテンツのファイル名（ステータスバー表示用） */
+  externalFileName?: string;
   readOnly?: boolean;
   hideToolbar?: boolean;
   hideOutline?: boolean;
@@ -105,7 +107,7 @@ interface MarkdownEditorPageProps {
   onToggleExplorer?: () => void;
 }
 
-export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideHelp, hideVersionInfo, featuresUrl, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, onLocaleChange, fileSystemProvider, timelineProvider, externalContent, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, showReadonlyMode, timelineRequested, onTimelineActiveChange, externalCompareContent, explorerOpen, onToggleExplorer }: MarkdownEditorPageProps = {}) {
+export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideHelp, hideVersionInfo, featuresUrl, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, onLocaleChange, fileSystemProvider, timelineProvider, externalContent, externalFileName, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, showReadonlyMode, timelineRequested, onTimelineActiveChange, externalCompareContent, explorerOpen, onToggleExplorer }: MarkdownEditorPageProps = {}) {
   const t = useTranslations("MarkdownEditor");
   const locale = useLocale() as "en" | "ja";
   const muiTheme = useTheme();
@@ -459,7 +461,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         sourceMode={sourceMode} readonlyMode={readonlyMode} reviewMode={reviewMode}
         handleLink={handleLink} executeInReviewMode={executeInReviewMode}
         slashCommandCallbackRef={slashCommandCallbackRef}
-        sourceText={sourceText} fileName={fileName} isDirty={isDirty}
+        sourceText={sourceText} fileName={fileName ?? externalFileName ?? null} isDirty={isDirty}
         handleLineEndingChange={hideStatusBar ? undefined : fileHandling.handleLineEndingChange}
         encoding={fileHandling.encoding} handleEncodingChange={hideStatusBar ? undefined : fileHandling.handleEncodingChange}
         onStatusChange={onStatusChange} hideStatusBar={hideStatusBar}

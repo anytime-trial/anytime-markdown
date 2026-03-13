@@ -50,6 +50,7 @@ export default function Page() {
   const [timelineRequested, setTimelineRequested] = useState(false);
   const [isTimelineActive, setIsTimelineActive] = useState(false);
   const [externalContent, setExternalContent] = useState<string | undefined>(undefined);
+  const [externalFileName, setExternalFileName] = useState<string | undefined>(undefined);
   const [externalCompareContent, setExternalCompareContent] = useState<string | null>(null);
   const [compareModeOpen, setCompareModeOpen] = useState(false);
   const [editorKey, setEditorKey] = useState(0);
@@ -83,6 +84,7 @@ export default function Page() {
     setTimelineProvider(new GitHubTimelineProvider(repo));
     const content = await fetchFileContent(repo, filePath, branch);
     setExternalContent(content);
+    setExternalFileName(filePath.split("/").pop() ?? filePath);
     setEditorKey((k) => k + 1);
   }, []);
 
@@ -125,6 +127,7 @@ export default function Page() {
           explorerOpen={explorerOpen}
           onToggleExplorer={handleToggleExplorer}
           externalContent={externalContent}
+          externalFileName={externalFileName}
           featuresUrl="/features"
           showReadonlyMode={process.env.NEXT_PUBLIC_SHOW_READONLY_MODE === "1"}
         />
