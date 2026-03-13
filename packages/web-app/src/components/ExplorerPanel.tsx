@@ -405,7 +405,11 @@ const TreeNode: FC<{
   creatingFolderInDir: string | null;
   onStartCreateFolder: (dirPath: string) => void;
   onCancelCreateFolder: () => void;
-}> = ({ entry, depth, repo, expanded, loadingDirs, childrenCache, hasMdCache, selectedFilePath, onToggle, onSelectFile, onCreateFile, onDeleteFile, onRename, onCreateFolder, renamingPath, onStartRename, onCancelRename, creatingInDir, onStartCreate, onCancelCreate, creatingFolderInDir, onStartCreateFolder, onCancelCreateFolder }) => {
+  dragOverPath: string | null;
+  onMoveEntry: (sourcePath: string, targetDir: string) => void;
+  onDragOverPath: (path: string | null) => void;
+  dragSourceRef: React.MutableRefObject<string | null>;
+}> = ({ entry, depth, repo, expanded, loadingDirs, childrenCache, hasMdCache, selectedFilePath, onToggle, onSelectFile, onCreateFile, onDeleteFile, onRename, onCreateFolder, renamingPath, onStartRename, onCancelRename, creatingInDir, onStartCreate, onCancelCreate, creatingFolderInDir, onStartCreateFolder, onCancelCreateFolder, dragOverPath, onMoveEntry, onDragOverPath, dragSourceRef }) => {
   const isDir = entry.type === "tree";
   const isOpen = expanded.has(entry.path);
   const isLoading = loadingDirs.has(entry.path);
@@ -415,10 +419,43 @@ const TreeNode: FC<{
   const emptyColor = "text.disabled";
   const isSelected = !isDir && entry.path === selectedFilePath;
   const isRenaming = renamingPath === entry.path;
+  const isDragOver = isDir && dragOverPath === entry.path;
 
   return (
     <>
       <ListItemButton
+        draggable={!isRenaming}
+        onDragStart={(e) => {
+          dragSourceRef.current = entry.path;
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", entry.path);
+        }}
+        onDragEnd={() => {
+          dragSourceRef.current = null;
+          onDragOverPath(null);
+        }}
+        onDragOver={(e) => {
+          if (!isDir) return;
+          const src = dragSourceRef.current;
+          if (!src || src === entry.path || src.startsWith(entry.path + "/")) return;
+          // 同じ親フォルダへのドロップは無意味
+          const srcDir = src.includes("/") ? src.slice(0, src.lastIndexOf("/")) : "";
+          if (srcDir === entry.path) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+          onDragOverPath(entry.path);
+        }}
+        onDragLeave={() => {
+          if (isDragOver) onDragOverPath(null);
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          onDragOverPath(null);
+          const src = dragSourceRef.current;
+          if (!src || !isDir) return;
+          dragSourceRef.current = null;
+          onMoveEntry(src, entry.path);
+        }}
         onClick={() => {
           if (isRenaming) return;
           if (isDir) { if (!empty) onToggle(entry); }
@@ -431,6 +468,12 @@ const TreeNode: FC<{
           pl: 1 + depth * (INDENT_PX / 8),
           minHeight: 28,
           "&.Mui-disabled": { opacity: 1 },
+          ...(isDragOver && {
+            bgcolor: "action.hover",
+            outline: "1px dashed",
+            outlineColor: "primary.main",
+            outlineOffset: -1,
+          }),
         }}
       >
         {isDir && (
@@ -581,6 +624,10 @@ const TreeNode: FC<{
                 creatingFolderInDir={creatingFolderInDir}
                 onStartCreateFolder={onStartCreateFolder}
                 onCancelCreateFolder={onCancelCreateFolder}
+                dragOverPath={dragOverPath}
+                onMoveEntry={onMoveEntry}
+                onDragOverPath={onDragOverPath}
+                dragSourceRef={dragSourceRef}
               />
             ))}
             {creatingFolderInDir === entry.path && (
@@ -697,6 +744,9 @@ export const ExplorerPanel: FC<ExplorerPanelProps> = ({
   const [creatingFolderInDir, setCreatingFolderInDir] = useState<string | null>(null);
   // リネーム
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
+  // ドラッグ&ドロップ
+  const [dragOverPath, setDragOverPath] = useState<string | null>(null);
+  const dragSourceRef = useRef<string | null>(null);
 
   const prefetchSubtree = useCallback(
     async (repo: GitHubRepo, branch: string, dirPath: string): Promise<boolean> => {
@@ -1078,6 +1128,102 @@ export const ExplorerPanel: FC<ExplorerPanelProps> = ({
     [selectedRepo, selectedBranch, selectedFilePath, bumpCache],
   );
 
+  const handleMoveEntry = useCallback(
+    async (sourcePath: string, targetDir: string) => {
+      if (!selectedRepo) return;
+
+      const srcDir = sourcePath.includes("/") ? sourcePath.slice(0, sourcePath.lastIndexOf("/")) : "";
+      if (srcDir === targetDir) return;
+
+      const srcEntries = childrenCacheRef.current.get(srcDir) ?? [];
+      const entry = srcEntries.find((e) => e.path === sourcePath);
+      if (!entry) return;
+
+      const name = entry.name;
+      const newPath = targetDir ? `${targetDir}/${name}` : name;
+      const isDir = entry.type === "tree";
+
+      if (isDir) {
+        const allFiles = await listAllFiles(
+          selectedRepo.fullName,
+          selectedBranch,
+          sourcePath,
+        );
+        if (allFiles.length === 0) return;
+        let allOk = true;
+        for (const filePath of allFiles) {
+          const suffix = filePath.slice(sourcePath.length);
+          const ok = await renameFile(
+            selectedRepo.fullName,
+            filePath,
+            newPath + suffix,
+            selectedBranch,
+          );
+          if (!ok) { allOk = false; break; }
+        }
+        if (!allOk) return;
+      } else {
+        const ok = await renameFile(
+          selectedRepo.fullName,
+          sourcePath,
+          newPath,
+          selectedBranch,
+        );
+        if (!ok) return;
+      }
+
+      // キャッシュ更新: ソースから削除
+      const updatedSrc = srcEntries.filter((e) => e.path !== sourcePath);
+      childrenCacheRef.current.set(srcDir, updatedSrc);
+      if (!updatedSrc.some((e) => e.type === "blob")) {
+        hasMdCacheRef.current.set(srcDir, updatedSrc.some((e) => e.type === "tree" && hasMdCacheRef.current.get(e.path) === true));
+      }
+
+      // ターゲットに追加
+      const movedEntry: TreeEntry = { ...entry, path: newPath };
+      const targetEntries = childrenCacheRef.current.get(targetDir) ?? [];
+      childrenCacheRef.current.set(targetDir, [...targetEntries, movedEntry].sort((a, b) => {
+        if (a.type !== b.type) return a.type === "tree" ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      }));
+      if (!isDir) {
+        hasMdCacheRef.current.set(targetDir, true);
+      }
+
+      // フォルダのサブキャッシュ移動
+      if (isDir) {
+        childrenCacheRef.current.delete(sourcePath);
+        hasMdCacheRef.current.delete(sourcePath);
+      }
+
+      // 選択中ファイルのパス更新
+      if (selectedFilePath === sourcePath) {
+        setSelectedFilePath(newPath);
+      } else if (isDir && selectedFilePath?.startsWith(sourcePath + "/")) {
+        setSelectedFilePath(newPath + selectedFilePath.slice(sourcePath.length));
+      }
+
+      // 展開状態の更新
+      if (isDir) {
+        setExpanded((prev) => {
+          const next = new Set<string>();
+          for (const p of prev) {
+            if (p === sourcePath) next.add(newPath);
+            else if (p.startsWith(sourcePath + "/")) next.add(newPath + p.slice(sourcePath.length));
+            else next.add(p);
+          }
+          return next;
+        });
+      }
+
+      if (srcDir === "" || targetDir === "") {
+        setRootEntries([...childrenCacheRef.current.get("") ?? []]);
+      }
+      bumpCache();
+    },
+    [selectedRepo, selectedBranch, selectedFilePath, bumpCache],
+  );
+
   if (!open) return null;
 
   void cacheVersion;
@@ -1234,7 +1380,38 @@ export const ExplorerPanel: FC<ExplorerPanelProps> = ({
             )}
           </List>
         ) : (
-          <List dense disablePadding>
+          <List
+            dense
+            disablePadding
+            onDragOver={(e) => {
+              const src = dragSourceRef.current;
+              if (!src) return;
+              const srcDir = src.includes("/") ? src.slice(0, src.lastIndexOf("/")) : "";
+              if (srcDir === "") return;
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+              setDragOverPath("__root__");
+            }}
+            onDragLeave={() => {
+              if (dragOverPath === "__root__") setDragOverPath(null);
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOverPath(null);
+              const src = dragSourceRef.current;
+              if (!src) return;
+              dragSourceRef.current = null;
+              // ルートへ移動
+              const srcDir = src.includes("/") ? src.slice(0, src.lastIndexOf("/")) : "";
+              if (srcDir === "") return;
+              handleMoveEntry(src, "");
+            }}
+            sx={{
+              ...(dragOverPath === "__root__" && {
+                bgcolor: "action.hover",
+              }),
+            }}
+          >
             {rootEntries.map((entry) => (
               <TreeNode
                 key={entry.path}
@@ -1261,6 +1438,10 @@ export const ExplorerPanel: FC<ExplorerPanelProps> = ({
                 creatingFolderInDir={creatingFolderInDir}
                 onStartCreateFolder={setCreatingFolderInDir}
                 onCancelCreateFolder={() => setCreatingFolderInDir(null)}
+                dragOverPath={dragOverPath}
+                onMoveEntry={handleMoveEntry}
+                onDragOverPath={setDragOverPath}
+                dragSourceRef={dragSourceRef}
               />
             ))}
             {creatingFolderInDir === "" && (
