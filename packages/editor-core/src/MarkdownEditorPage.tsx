@@ -58,9 +58,11 @@ import { useFloatingToolbar } from "./hooks/useFloatingToolbar";
 import { useMergeMode } from "./hooks/useMergeMode";
 import { useOutline } from "./hooks/useOutline";
 import { useSourceMode } from "./hooks/useSourceMode";
+import { useTimeline } from "./hooks/useTimeline";
 import { useVSCodeIntegration } from "./hooks/useVSCodeIntegration";
 import { type HeadingItem, PlantUmlToolbarContext } from "./types";
 import type { FileSystemProvider } from "./types/fileSystem";
+import type { TimelineDataProvider } from "./types/timeline";
 import type { InlineComment } from "./utils/commentHelpers";
 import { parseCommentData } from "./utils/commentHelpers";
 import { preprocessMarkdown } from "./utils/frontmatterHelpers";
@@ -79,6 +81,7 @@ interface MarkdownEditorPageProps {
   onThemeModeChange?: (mode: 'light' | 'dark') => void;
   onLocaleChange?: (locale: string) => void;
   fileSystemProvider?: FileSystemProvider | null;
+  timelineProvider?: TimelineDataProvider | null;
   externalContent?: string;
   readOnly?: boolean;
   hideToolbar?: boolean;
@@ -91,7 +94,7 @@ interface MarkdownEditorPageProps {
   showReadonlyMode?: boolean;
 }
 
-export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideHelp, hideVersionInfo, featuresUrl, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, onLocaleChange, fileSystemProvider, externalContent, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, showReadonlyMode }: MarkdownEditorPageProps = {}) {
+export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideHelp, hideVersionInfo, featuresUrl, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, onLocaleChange, fileSystemProvider, timelineProvider, externalContent, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, showReadonlyMode }: MarkdownEditorPageProps = {}) {
   const t = useTranslations("MarkdownEditor");
   const locale = useLocale() as "en" | "ja";
   const muiTheme = useTheme();
@@ -244,12 +247,18 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     onCompareModeChange, t, setLiveMessage,
   });
 
+  const timeline = useTimeline(timelineProvider ?? null, null);
+  const isTimelineActive = timeline.state.commits.length > 0;
+  const handleOpenTimeline = useCallback((fp: string) => { timeline.loadTimeline(fp); }, [timeline]);
+
   setEditorMarkdownRef.current = setEditorMarkdown;
   useEditorSideEffects({ editor, isDirty, markDirty, setHeadingsRef, setEditorMarkdown });
   useVSCodeIntegration(editor);
 
+  const TIMELINE_BAR_HEIGHT = 48;
   const statusBarHeight = hideStatusBar ? 0 : STATUSBAR_HEIGHT;
-  const { editorContainerRef, editorHeight } = useEditorHeight(isMobile, isMd, statusBarHeight);
+  const timelineBottomOffset = isTimelineActive ? TIMELINE_BAR_HEIGHT : 0;
+  const { editorContainerRef, editorHeight } = useEditorHeight(isMobile, isMd, statusBarHeight + timelineBottomOffset);
 
   const handleInsertTemplate = useCallback((template: MarkdownTemplate) => {
     if (sourceMode) { appendToSource(template.content); return; }
@@ -361,6 +370,12 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         setCompareFileContent={setCompareFileContent} setRightFileOps={setRightFileOps} t={t}
         onFileDrop={handleFileSelected}
         fileDragOver={fileDragOver} onFileDragOverChange={setFileDragOver}
+        timelineState={isTimelineActive ? timeline.state : null}
+        onTimelineSelectCommit={timeline.selectCommit}
+        onTimelineStartPlayback={timeline.startPlayback}
+        onTimelineStopPlayback={timeline.stopPlayback}
+        onTimelineSetPlaybackSpeed={timeline.setPlaybackSpeed}
+        onTimelineClose={timeline.close}
       />
 
       <EditorFooterOverlays

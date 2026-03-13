@@ -10,6 +10,7 @@ import { getEditorPaperSx } from "../styles/editorStyles";
 import { getMarkdownFromEditor, type HeadingItem } from "../types";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import type { DiffLine } from "../utils/diffEngine";
+import type { PlaybackSpeed, TimelineState } from "../types/timeline";
 import { CommentPanel } from "./CommentPanel";
 import { EditorOutlineSection } from "./EditorOutlineSection";
 import { FrontmatterBlock } from "./FrontmatterBlock";
@@ -17,6 +18,8 @@ import { MergeEditorPanel } from "./MergeEditorPanel";
 import { SearchReplaceBar } from "./SearchReplaceBar";
 import { SourceModeEditor } from "./SourceModeEditor";
 import { SourceSearchBar } from "./SourceSearchBar";
+import { TimelineBar } from "./TimelineBar";
+import { TimelineDiffView } from "./TimelineDiffView";
 
 // InlineMergeView は dynamic import のため親から渡す
 // InlineMergeViewProps と同じシグネチャにする
@@ -97,6 +100,13 @@ interface EditorMainContentProps {
   onFileDrop?: (file: File, nativeHandle?: FileSystemFileHandle) => void;
   fileDragOver?: boolean;
   onFileDragOverChange?: (over: boolean) => void;
+  // timeline
+  timelineState?: TimelineState | null;
+  onTimelineSelectCommit?: (index: number) => void;
+  onTimelineStartPlayback?: () => void;
+  onTimelineStopPlayback?: () => void;
+  onTimelineSetPlaybackSpeed?: (speed: PlaybackSpeed) => void;
+  onTimelineClose?: () => void;
   t: (key: string) => string;
 }
 
@@ -131,6 +141,12 @@ export function EditorMainContent({
   onFileDrop,
   fileDragOver,
   onFileDragOverChange,
+  timelineState,
+  onTimelineSelectCommit,
+  onTimelineStartPlayback,
+  onTimelineStopPlayback,
+  onTimelineSetPlaybackSpeed,
+  onTimelineClose,
   t,
 }: EditorMainContentProps) {
   const theme = useTheme();
@@ -230,6 +246,29 @@ export function EditorMainContent({
         </Box>
         )}
       </InlineMergeView>
+    );
+  }
+
+  const isTimelineActive = timelineState != null && timelineState.commits.length > 0;
+
+  if (isTimelineActive) {
+    return (
+      <Box component="main" ref={editorContainerRef} sx={{ display: "flex", flexDirection: "column", position: "relative" }}>
+        <TimelineDiffView
+          content={timelineState.content ?? ""}
+          previousContent={timelineState.previousContent}
+          height={editorHeight}
+        />
+        <TimelineBar
+          state={timelineState}
+          onSelectCommit={onTimelineSelectCommit!}
+          onStartPlayback={onTimelineStartPlayback!}
+          onStopPlayback={onTimelineStopPlayback!}
+          onSetPlaybackSpeed={onTimelineSetPlaybackSpeed!}
+          onClose={onTimelineClose!}
+          t={t}
+        />
+      </Box>
     );
   }
 

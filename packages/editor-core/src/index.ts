@@ -10,6 +10,7 @@ export { useSourceMode } from './hooks/useSourceMode';
 export type { TextareaSearchMatch, TextareaSearchState } from './hooks/useTextareaSearch';
 export { useTextareaSearch } from './hooks/useTextareaSearch';
 export type { UseZoomPanReturn } from './hooks/useZoomPan';
+export { useTimeline } from './hooks/useTimeline';
 export { useZoomPan } from './hooks/useZoomPan';
 export type { EditorSettings } from './useEditorSettings';
 export {
@@ -34,6 +35,8 @@ export { getMergeTiptapStyles,MergeEditorPanel } from './components/MergeEditorP
 export { OutlinePanel } from './components/OutlinePanel';
 export { SearchReplaceBar } from './components/SearchReplaceBar';
 export { StatusBar } from './components/StatusBar';
+export { TimelineBar } from './components/TimelineBar';
+export { TimelineDiffView } from './components/TimelineDiffView';
 
 // NodeView components
 export { DetailsNodeView } from './DetailsNodeView';
@@ -73,6 +76,12 @@ export {
   usePlantUmlToolbar,
 } from './types';
 export type { FileHandle, FileOpenResult, FileSystemProvider } from './types/fileSystem';
+export type {
+  TimelineCommit,
+  TimelineDataProvider,
+  PlaybackSpeed,
+  TimelineState,
+} from './types/timeline';
 export type {
 ToolbarFileCapabilities,
 ToolbarFileHandlers, ToolbarModeHandlers,

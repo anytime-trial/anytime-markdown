@@ -425,7 +425,15 @@
     "headingParagraph": "段落",
     "noComments": "コメントはありません",
     "noOpenComments": "未解決のコメントはありません",
-    "noResolvedComments": "解決済みのコメントはありません"
+    "noResolvedComments": "解決済みのコメントはありません",
+    "timeline": "タイムライン",
+    "timelinePlay": "再生",
+    "timelineStop": "停止",
+    "timelineSpeed": "再生速度",
+    "timelineClose": "タイムラインを閉じる",
+    "timelineNoCommits": "コミット履歴がありません",
+    "timelineError": "タイムラインの読み込みに失敗しました",
+    "timelineLoading": "読み込み中..."
   },
   "Landing": {
     "heroTitle": "美しくMarkdownを書こう",

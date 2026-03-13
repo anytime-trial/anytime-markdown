@@ -425,7 +425,15 @@
     "headingParagraph": "Paragraph",
     "noComments": "No comments",
     "noOpenComments": "No open comments",
-    "noResolvedComments": "No resolved comments"
+    "noResolvedComments": "No resolved comments",
+    "timeline": "Timeline",
+    "timelinePlay": "Play",
+    "timelineStop": "Stop",
+    "timelineSpeed": "Playback speed",
+    "timelineClose": "Close timeline",
+    "timelineNoCommits": "No commit history found",
+    "timelineError": "Failed to load timeline",
+    "timelineLoading": "Loading..."
   },
   "Landing": {
     "heroTitle": "Write Markdown, Beautifully",
