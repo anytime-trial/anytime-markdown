@@ -19,7 +19,6 @@ import { SearchReplaceBar } from "./SearchReplaceBar";
 import { SourceModeEditor } from "./SourceModeEditor";
 import { SourceSearchBar } from "./SourceSearchBar";
 import { TimelineBar } from "./TimelineBar";
-import { TimelineDiffView } from "./TimelineDiffView";
 
 // InlineMergeView は dynamic import のため親から渡す
 // InlineMergeViewProps と同じシグネチャにする
@@ -251,27 +250,6 @@ export function EditorMainContent({
 
   const isTimelineActive = timelineState != null && timelineState.commits.length > 0;
 
-  if (isTimelineActive) {
-    return (
-      <Box component="main" ref={editorContainerRef} sx={{ display: "flex", flexDirection: "column", position: "relative" }}>
-        <TimelineDiffView
-          content={timelineState.content ?? ""}
-          previousContent={timelineState.previousContent}
-          height={editorHeight}
-        />
-        <TimelineBar
-          state={timelineState}
-          onSelectCommit={onTimelineSelectCommit!}
-          onStartPlayback={onTimelineStartPlayback!}
-          onStopPlayback={onTimelineStopPlayback!}
-          onSetPlaybackSpeed={onTimelineSetPlaybackSpeed!}
-          onClose={onTimelineClose!}
-          t={t}
-        />
-      </Box>
-    );
-  }
-
   return (
     <Box component="main" ref={editorContainerRef} sx={{ display: "flex", gap: 0, position: "relative" }} onDragOver={handleContainerDragOver} onDragLeave={handleContainerDragLeave} onDrop={handleContainerDrop}>
       {fileDragOver && <Box sx={{ position: "absolute", inset: 0, bgcolor: FILE_DROP_OVERLAY_COLOR, zIndex: 10, pointerEvents: "none" }} />}
@@ -338,6 +316,17 @@ export function EditorMainContent({
       </Box>
       {commentOpen && editor && !sourceMode && (
         <CommentPanel editor={editor} open={commentOpen} onClose={() => setCommentOpen(false)} onSave={() => saveContent(getMarkdownFromEditor(editor))} t={t} />
+      )}
+      {isTimelineActive && (
+        <TimelineBar
+          state={timelineState}
+          onSelectCommit={onTimelineSelectCommit!}
+          onStartPlayback={onTimelineStartPlayback!}
+          onStopPlayback={onTimelineStopPlayback!}
+          onSetPlaybackSpeed={onTimelineSetPlaybackSpeed!}
+          onClose={onTimelineClose!}
+          t={t}
+        />
       )}
     </Box>
   );

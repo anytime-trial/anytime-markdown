@@ -65,6 +65,7 @@ import type { FileSystemProvider } from "./types/fileSystem";
 import type { TimelineDataProvider } from "./types/timeline";
 import type { InlineComment } from "./utils/commentHelpers";
 import { parseCommentData } from "./utils/commentHelpers";
+import { applyMarkdownToEditor } from "./utils/editorContentLoader";
 import { preprocessMarkdown } from "./utils/frontmatterHelpers";
 
 interface MarkdownEditorPageProps {
@@ -252,6 +253,29 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   const timeline = useTimeline(timelineProvider ?? null, null);
   const isTimelineActive = timeline.state.commits.length > 0;
   const handleOpenTimeline = useCallback((fp: string) => { timeline.loadTimeline(fp); }, [timeline]);
+
+  // タイムライン: エディタ内容をコミットの Markdown で差し替え、終了時に復元
+  const savedContentRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return;
+    if (isTimelineActive) {
+      // 初回: 元の内容を保存
+      if (savedContentRef.current === null) {
+        savedContentRef.current = editor.storage.markdown?.getMarkdown?.() ?? "";
+      }
+      // タイムラインのコンテンツをエディタに反映
+      if (timeline.state.content !== null) {
+        editor.setEditable(false, false);
+        applyMarkdownToEditor(editor, timeline.state.content);
+      }
+    } else if (savedContentRef.current !== null) {
+      // タイムライン終了: 元の内容を復元
+      applyMarkdownToEditor(editor, savedContentRef.current);
+      editor.setEditable(!readOnly, false);
+      savedContentRef.current = null;
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTimelineActive, timeline.state.content, timeline.state.selectedIndex]);
 
   setEditorMarkdownRef.current = setEditorMarkdown;
   useEditorSideEffects({ editor, isDirty, markDirty, setHeadingsRef, setEditorMarkdown });
