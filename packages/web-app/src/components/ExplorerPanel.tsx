@@ -97,24 +97,31 @@ const TreeNode: FC<{
   const isLoading = loadingDirs.has(entry.path);
   const children = childrenCache.get(entry.path);
   const hasMd = hasMdCache.get(entry.path);
-  // hasMd === false → 配下に md なし（薄く表示）
-  const dimmed = isDir && hasMd === false;
+  // hasMd === false → 配下に md なし（色を変えて展開不可）
+  const empty = isDir && hasMd === false;
+  const emptyColor = "text.disabled";
 
   return (
     <>
       <ListItemButton
-        onClick={() => (isDir ? onToggle(entry) : onSelectFile(entry.path))}
+        onClick={() => {
+          if (isDir) { if (!empty) onToggle(entry); }
+          else onSelectFile(entry.path);
+        }}
+        disabled={empty}
         sx={{
           py: 0.25,
           pl: 1 + depth * (INDENT_PX / 8),
           minHeight: 28,
-          opacity: dimmed ? 0.4 : 1,
+          "&.Mui-disabled": { opacity: 1 },
         }}
       >
         {isDir && (
           <ListItemIcon sx={{ minWidth: 20 }}>
             {isLoading ? (
               <CircularProgress size={14} />
+            ) : empty ? (
+              <ChevronRightIcon sx={{ fontSize: 18, color: emptyColor }} />
             ) : isOpen ? (
               <ExpandMoreIcon sx={{ fontSize: 18 }} />
             ) : (
@@ -126,9 +133,9 @@ const TreeNode: FC<{
         <ListItemIcon sx={{ minWidth: 24 }}>
           {isDir ? (
             isOpen ? (
-              <FolderOpenIcon sx={{ fontSize: 18, color: dimmed ? "text.disabled" : undefined }} />
+              <FolderOpenIcon sx={{ fontSize: 18, color: empty ? emptyColor : undefined }} />
             ) : (
-              <FolderIcon sx={{ fontSize: 18, color: dimmed ? "text.disabled" : undefined }} />
+              <FolderIcon sx={{ fontSize: 18, color: empty ? emptyColor : undefined }} />
             )
           ) : (
             <InsertDriveFileIcon sx={{ fontSize: 18 }} />
@@ -140,7 +147,7 @@ const TreeNode: FC<{
             variant: "body2",
             noWrap: true,
             fontSize: "0.8rem",
-            color: dimmed ? "text.disabled" : undefined,
+            color: empty ? emptyColor : undefined,
           }}
         />
       </ListItemButton>
