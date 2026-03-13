@@ -45,6 +45,12 @@ const INDENT_PX = 16;
 /** フォルダの子要素キャッシュ */
 type ChildrenCache = Map<string, TreeEntry[]>;
 
+/**
+ * md ファイル有無キャッシュ
+ * true = 配下に md あり, false = なし, undefined = 未確認
+ */
+type HasMdCache = Map<string, boolean>;
+
 async function fetchDirEntries(
   repo: string,
   branch: string,
@@ -82,19 +88,28 @@ const TreeNode: FC<{
   expanded: Set<string>;
   loadingDirs: Set<string>;
   childrenCache: ChildrenCache;
+  hasMdCache: HasMdCache;
   onToggle: (entry: TreeEntry) => void;
   onSelectFile: (path: string) => void;
-}> = ({ entry, depth, repo, expanded, loadingDirs, childrenCache, onToggle, onSelectFile }) => {
+}> = ({ entry, depth, repo, expanded, loadingDirs, childrenCache, hasMdCache, onToggle, onSelectFile }) => {
   const isDir = entry.type === "tree";
   const isOpen = expanded.has(entry.path);
   const isLoading = loadingDirs.has(entry.path);
   const children = childrenCache.get(entry.path);
+  const hasMd = hasMdCache.get(entry.path);
+  // hasMd === false → 配下に md なし（薄く表示）
+  const dimmed = isDir && hasMd === false;
 
   return (
     <>
       <ListItemButton
         onClick={() => (isDir ? onToggle(entry) : onSelectFile(entry.path))}
-        sx={{ py: 0.25, pl: 1 + depth * (INDENT_PX / 8), minHeight: 28 }}
+        sx={{
+          py: 0.25,
+          pl: 1 + depth * (INDENT_PX / 8),
+          minHeight: 28,
+          opacity: dimmed ? 0.4 : 1,
+        }}
       >
         {isDir && (
           <ListItemIcon sx={{ minWidth: 20 }}>
@@ -111,9 +126,9 @@ const TreeNode: FC<{
         <ListItemIcon sx={{ minWidth: 24 }}>
           {isDir ? (
             isOpen ? (
-              <FolderOpenIcon sx={{ fontSize: 18 }} />
+              <FolderOpenIcon sx={{ fontSize: 18, color: dimmed ? "text.disabled" : undefined }} />
             ) : (
-              <FolderIcon sx={{ fontSize: 18 }} />
+              <FolderIcon sx={{ fontSize: 18, color: dimmed ? "text.disabled" : undefined }} />
             )
           ) : (
             <InsertDriveFileIcon sx={{ fontSize: 18 }} />
@@ -121,7 +136,12 @@ const TreeNode: FC<{
         </ListItemIcon>
         <ListItemText
           primary={entry.name}
-          primaryTypographyProps={{ variant: "body2", noWrap: true, fontSize: "0.8rem" }}
+          primaryTypographyProps={{
+            variant: "body2",
+            noWrap: true,
+            fontSize: "0.8rem",
+            color: dimmed ? "text.disabled" : undefined,
+          }}
         />
       </ListItemButton>
       {isDir && (
@@ -136,6 +156,7 @@ const TreeNode: FC<{
                 expanded={expanded}
                 loadingDirs={loadingDirs}
                 childrenCache={childrenCache}
+                hasMdCache={hasMdCache}
                 onToggle={onToggle}
                 onSelectFile={onSelectFile}
               />
@@ -168,6 +189,53 @@ export const ExplorerPanel: FC<ExplorerPanelProps> = ({
   const [loading, setLoading] = useState(false);
   const [needsAuth, setNeedsAuth] = useState(false);
   const childrenCacheRef = useRef<ChildrenCache>(new Map());
+  const hasMdCacheRef = useRef<HasMdCache>(new Map());
+  // re-render トリガー（キャッシュ更新を反映するため）
+  const [cacheVersion, setCacheVersion] = useState(0);
+  const bumpCache = useCallback(() => setCacheVersion((v) => v + 1), []);
+
+  // バックグラウンドで再帰的にサブディレクトリを探索し hasMd を確定する
+  const prefetchSubtree = useCallback(
+    async (repo: GitHubRepo, dirPath: string): Promise<boolean> => {
+      // 既にキャッシュ済みならそれを返す
+      const cached = hasMdCacheRef.current.get(dirPath);
+      if (cached !== undefined) return cached;
+
+      let entries = childrenCacheRef.current.get(dirPath);
+      if (!entries) {
+        entries = await fetchDirEntries(repo.fullName, repo.defaultBranch, dirPath);
+        childrenCacheRef.current.set(dirPath, entries);
+      }
+
+      // 直下に md ファイルがあれば true
+      const hasDirectMd = entries.some((e) => e.type === "blob");
+      if (hasDirectMd) {
+        hasMdCacheRef.current.set(dirPath, true);
+        bumpCache();
+        // 子ディレクトリも並行して探索（結果更新のため）
+        const subDirs = entries.filter((e) => e.type === "tree");
+        await Promise.all(subDirs.map((d) => prefetchSubtree(repo, d.path)));
+        return true;
+      }
+
+      // サブディレクトリを並行探索
+      const subDirs = entries.filter((e) => e.type === "tree");
+      if (subDirs.length === 0) {
+        hasMdCacheRef.current.set(dirPath, false);
+        bumpCache();
+        return false;
+      }
+
+      const results = await Promise.all(
+        subDirs.map((d) => prefetchSubtree(repo, d.path)),
+      );
+      const hasMd = results.some(Boolean);
+      hasMdCacheRef.current.set(dirPath, hasMd);
+      bumpCache();
+      return hasMd;
+    },
+    [bumpCache],
+  );
 
   // Fetch repos on first open
   useEffect(() => {
@@ -193,12 +261,18 @@ export const ExplorerPanel: FC<ExplorerPanelProps> = ({
       setSelectedRepo(repo);
       setExpanded(new Set());
       childrenCacheRef.current = new Map();
+      hasMdCacheRef.current = new Map();
       setLoading(true);
       const entries = await fetchDirEntries(repo.fullName, repo.defaultBranch, "");
+      childrenCacheRef.current.set("", entries);
       setRootEntries(entries);
       setLoading(false);
+
+      // バックグラウンドでサブディレクトリを再帰探索
+      const subDirs = entries.filter((e) => e.type === "tree");
+      subDirs.forEach((d) => prefetchSubtree(repo, d.path));
     },
-    [],
+    [prefetchSubtree],
   );
 
   const handleBackToRepos = useCallback(() => {
@@ -206,6 +280,7 @@ export const ExplorerPanel: FC<ExplorerPanelProps> = ({
     setRootEntries([]);
     setExpanded(new Set());
     childrenCacheRef.current = new Map();
+    hasMdCacheRef.current = new Map();
   }, []);
 
   const handleToggle = useCallback(
@@ -214,7 +289,6 @@ export const ExplorerPanel: FC<ExplorerPanelProps> = ({
       const path = entry.path;
 
       if (expanded.has(path)) {
-        // Collapse
         setExpanded((prev) => {
           const next = new Set(prev);
           next.delete(path);
@@ -237,11 +311,14 @@ export const ExplorerPanel: FC<ExplorerPanelProps> = ({
           next.delete(path);
           return next;
         });
+        // 新たに取得した子ディレクトリをバックグラウンド探索
+        const subDirs = children.filter((e) => e.type === "tree");
+        subDirs.forEach((d) => prefetchSubtree(selectedRepo, d.path));
       }
 
       setExpanded((prev) => new Set(prev).add(path));
     },
-    [selectedRepo, expanded],
+    [selectedRepo, expanded, prefetchSubtree],
   );
 
   const handleFileSelect = useCallback(
@@ -254,6 +331,9 @@ export const ExplorerPanel: FC<ExplorerPanelProps> = ({
   );
 
   if (!open) return null;
+
+  // cacheVersion を参照して再描画を保証
+  void cacheVersion;
 
   return (
     <Box
@@ -355,6 +435,7 @@ export const ExplorerPanel: FC<ExplorerPanelProps> = ({
                 expanded={expanded}
                 loadingDirs={loadingDirs}
                 childrenCache={childrenCacheRef.current}
+                hasMdCache={hasMdCacheRef.current}
                 onToggle={handleToggle}
                 onSelectFile={handleFileSelect}
               />
