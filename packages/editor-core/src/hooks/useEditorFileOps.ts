@@ -92,6 +92,7 @@ export function useEditorFileOps({
       setSourceText("");
     } else {
       editor?.commands.clearContent();
+      editor?.commands.initComments(new Map());
     }
     frontmatterRef.current = null;
     clearContent();
