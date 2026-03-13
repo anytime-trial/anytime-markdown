@@ -18,6 +18,7 @@ import {
   ListItemText,
   Typography,
 } from "@mui/material";
+import { signIn } from "next-auth/react";
 import { type FC, useCallback, useEffect, useState } from "react";
 
 interface GitHubRepo {
@@ -173,7 +174,7 @@ export const GitHubRepoBrowser: FC<GitHubRepoBrowserProps> = ({
             <Typography sx={{ mb: 2 }}>
               GitHub authentication required
             </Typography>
-            <Button variant="contained" href="/api/auth/github">
+            <Button variant="contained" onClick={() => signIn("github")}>
               Sign in with GitHub
             </Button>
           </Box>

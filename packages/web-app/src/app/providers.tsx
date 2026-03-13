@@ -5,6 +5,7 @@ import { Capacitor } from '@capacitor/core';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import CssBaseline from '@mui/material/CssBaseline';
 import { createTheme,ThemeProvider } from '@mui/material/styles';
+import { SessionProvider } from 'next-auth/react';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 type ThemeMode = 'light' | 'dark';
@@ -57,6 +58,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const contextValue = useMemo(() => ({ themeMode, setThemeMode }), [themeMode, setThemeMode]);
 
   return (
+    <SessionProvider>
     <ThemeModeContext.Provider value={contextValue}>
       <ThemeProvider theme={theme}>
         <CssBaseline />
@@ -65,5 +67,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
         </ConfirmProvider>
       </ThemeProvider>
     </ThemeModeContext.Provider>
+    </SessionProvider>
   );
 }
