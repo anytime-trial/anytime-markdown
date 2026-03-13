@@ -35,8 +35,10 @@ interface EditorToolbarSectionProps {
     onToggleOutline: () => void;
     onMerge: () => void;
     onOpenTimeline?: () => void;
+    onToggleExplorer?: () => void;
   };
   isTimelineActive?: boolean;
+  explorerOpen?: boolean;
   inlineMergeOpen: boolean;
   hide?: ToolbarVisibility;
   mergeUndoRedo: MergeUndoRedo | null;
@@ -68,6 +70,7 @@ export function EditorToolbarSection({
   outlineOpen,
   modeHandlers,
   isTimelineActive,
+  explorerOpen,
   inlineMergeOpen,
   hide,
   mergeUndoRedo,
@@ -135,7 +138,7 @@ export function EditorToolbarSection({
         modeState={{
           sourceMode, readonlyMode, reviewMode,
           outlineOpen, inlineMergeOpen, commentOpen,
-          isTimelineActive,
+          isTimelineActive, explorerOpen,
         }}
         modeHandlers={{
           onSwitchToSource: modeHandlers.onSwitchToSource,
@@ -146,6 +149,7 @@ export function EditorToolbarSection({
           onToggleComments: () => setCommentOpen((prev) => !prev),
           onMerge: modeHandlers.onMerge,
           onOpenTimeline: modeHandlers.onOpenTimeline,
+          onToggleExplorer: modeHandlers.onToggleExplorer,
         }}
         hide={{
           fileOps: readOnly || hide?.fileOps,

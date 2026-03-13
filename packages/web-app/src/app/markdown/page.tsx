@@ -30,10 +30,16 @@ const GitHubRepoBrowser = dynamic(
   { ssr: false },
 );
 
+const ExplorerPanel = dynamic(
+  () => import('../../components/ExplorerPanel').then((m) => ({ default: m.ExplorerPanel })),
+  { ssr: false },
+);
+
 export default function Page() {
   const { themeMode, setThemeMode } = useThemeMode();
   const { setLocale } = useLocaleSwitch();
   const [repoBrowserOpen, setRepoBrowserOpen] = useState(false);
+  const [explorerOpen, setExplorerOpen] = useState(false);
   const [timelineProvider, setTimelineProvider] = useState<GitHubTimelineProvider | null>(null);
   const selectedFileRef = useRef<{ repo: string; filePath: string } | null>(null);
 
@@ -53,23 +59,40 @@ export default function Page() {
     setRepoBrowserOpen(false);
   }, []);
 
+  const handleToggleExplorer = useCallback(() => {
+    setExplorerOpen((prev) => !prev);
+  }, []);
+
+  const handleExplorerSelectFile = useCallback((repo: string, filePath: string) => {
+    selectedFileRef.current = { repo, filePath };
+    setTimelineProvider(new GitHubTimelineProvider(repo));
+  }, []);
+
   return (
-    <>
-      <MarkdownEditorPage
-        themeMode={themeMode}
-        onThemeModeChange={setThemeMode}
-        onLocaleChange={setLocale}
-        fileSystemProvider={fileSystemProvider}
-        timelineProvider={timelineProvider}
-        onRequestTimeline={handleRequestTimeline}
-        featuresUrl="/features"
-        showReadonlyMode={process.env.NEXT_PUBLIC_SHOW_READONLY_MODE === "1"}
+    <Box sx={{ display: "flex", height: "100vh", overflow: "hidden" }}>
+      <ExplorerPanel
+        open={explorerOpen}
+        onSelectFile={handleExplorerSelectFile}
       />
+      <Box sx={{ flex: 1, minWidth: 0, overflow: "auto" }}>
+        <MarkdownEditorPage
+          themeMode={themeMode}
+          onThemeModeChange={setThemeMode}
+          onLocaleChange={setLocale}
+          fileSystemProvider={fileSystemProvider}
+          timelineProvider={timelineProvider}
+          onRequestTimeline={handleRequestTimeline}
+          explorerOpen={explorerOpen}
+          onToggleExplorer={handleToggleExplorer}
+          featuresUrl="/features"
+          showReadonlyMode={process.env.NEXT_PUBLIC_SHOW_READONLY_MODE === "1"}
+        />
+      </Box>
       <GitHubRepoBrowser
         open={repoBrowserOpen}
         onClose={() => setRepoBrowserOpen(false)}
         onSelect={handleRepoSelect}
       />
-    </>
+    </Box>
   );
 }

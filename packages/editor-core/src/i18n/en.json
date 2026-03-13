@@ -433,7 +433,8 @@
     "timelineClose": "Close timeline",
     "timelineNoCommits": "No commit history found",
     "timelineError": "Failed to load timeline",
-    "timelineLoading": "Loading..."
+    "timelineLoading": "Loading...",
+    "explorer": "Explorer"
   },
   "Landing": {
     "heroTitle": "Write Markdown, Beautifully",

@@ -1,6 +1,7 @@
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import CodeIcon from "@mui/icons-material/Code";
 import EditNoteIcon from "@mui/icons-material/EditNote";
+import FolderOpenIcon from "@mui/icons-material/FolderOpen";
 import HistoryIcon from "@mui/icons-material/History";
 import ListAltIcon from "@mui/icons-material/ListAlt";
 import LockIcon from "@mui/icons-material/Lock";
@@ -137,8 +138,8 @@ export const EditorToolbar = React.memo(function EditorToolbar({
     outline: hideOutline, comments: hideComments,
     templates: _hideTemplates, foldAll: _hideFoldAll,
   } = hide;
-  const { sourceMode, readonlyMode, reviewMode, outlineOpen, inlineMergeOpen, commentOpen, isTimelineActive } = modeState;
-  const { onSwitchToSource, onSwitchToWysiwyg, onSwitchToReview, onSwitchToReadonly, onToggleOutline, onToggleComments, onMerge, onOpenTimeline } = modeHandlers;
+  const { sourceMode, readonlyMode, reviewMode, outlineOpen, inlineMergeOpen, commentOpen, isTimelineActive, explorerOpen } = modeState;
+  const { onSwitchToSource, onSwitchToWysiwyg, onSwitchToReview, onSwitchToReadonly, onToggleOutline, onToggleComments, onMerge, onOpenTimeline, onToggleExplorer } = modeHandlers;
   const isDark = useTheme().palette.mode === "dark";
 
   const [mobileMenuAnchorEl, setMobileMenuAnchorEl] = useState<HTMLElement | null>(null);
@@ -268,6 +269,13 @@ export const EditorToolbar = React.memo(function EditorToolbar({
       {/* Outline, Comments - hidden on mobile */}
       <Box sx={{ display: { xs: "none", md: "contents" } }}>
       <ToggleButtonGroup size="small" aria-label={t("view")} sx={{ height: 30 }}>
+        {onToggleExplorer && (
+          <ToggleButton value="explorer" selected={!!explorerOpen} onClick={onToggleExplorer} disabled={inlineMergeOpen} aria-label={t("explorer")} sx={{ px: 0.75, py: 0.25 }}>
+            <Tooltip title={t("explorer")}>
+              <span style={{ display: "inline-flex" }}><FolderOpenIcon fontSize="small" /></span>
+            </Tooltip>
+          </ToggleButton>
+        )}
         {!hideOutline && <ToggleButton value="outline" selected={outlineOpen} onClick={onToggleOutline} disabled={inlineMergeOpen || sourceMode} aria-label={t("outline")} sx={{ px: 0.75, py: 0.25 }}>
           <Tooltip title={tip(t, "outline")}>
             <span style={{ display: "inline-flex" }}><ListAltIcon fontSize="small" /></span>

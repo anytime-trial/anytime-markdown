@@ -95,9 +95,13 @@ interface MarkdownEditorPageProps {
   showReadonlyMode?: boolean;
   /** タイムライン表示リクエスト（provider 未設定時にリポジトリ選択等を促す） */
   onRequestTimeline?: () => void;
+  /** エクスプローラパネルの開閉状態 */
+  explorerOpen?: boolean;
+  /** エクスプローラパネルの開閉トグル */
+  onToggleExplorer?: () => void;
 }
 
-export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideHelp, hideVersionInfo, featuresUrl, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, onLocaleChange, fileSystemProvider, timelineProvider, externalContent, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, showReadonlyMode, onRequestTimeline }: MarkdownEditorPageProps = {}) {
+export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideHelp, hideVersionInfo, featuresUrl, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, onLocaleChange, fileSystemProvider, timelineProvider, externalContent, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, showReadonlyMode, onRequestTimeline, explorerOpen, onToggleExplorer }: MarkdownEditorPageProps = {}) {
   const t = useTranslations("MarkdownEditor");
   const locale = useLocale() as "en" | "ja";
   const muiTheme = useTheme();
@@ -357,8 +361,10 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
           onOpenTimeline: timelineProvider
             ? () => handleOpenTimeline(fileName ?? "untitled.md")
             : onRequestTimeline,
+          onToggleExplorer,
         }}
         isTimelineActive={isTimelineActive}
+        explorerOpen={explorerOpen}
         inlineMergeOpen={inlineMergeOpen}
         hide={{
           outline: hideOutline, comments: hideComments,
