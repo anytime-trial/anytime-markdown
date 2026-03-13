@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { randomBytes } from 'crypto';
 import * as path from 'path';
+import type { VscodeTimelineProvider } from './VscodeTimelineProvider';
 
 export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
   public static readonly viewType = 'anytimeMarkdown';
@@ -12,6 +13,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
   public onHeadingsChanged?: (headings: unknown[]) => void;
   public onCommentsChanged?: (comments: unknown[]) => void;
   public onStatusChanged?: (status: { line: number; col: number; charCount: number; lineCount: number; lineEnding: string; encoding: string }) => void;
+  public timelineProvider: VscodeTimelineProvider | null = null;
 
   private panels = new Map<string, vscode.WebviewPanel>();
   private readyPanels = new Set<string>();
@@ -304,6 +306,33 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
           break;
         }
 
+        case 'loadTimeline': {
+          if (!this.timelineProvider) { break; }
+          const relPath = await this.getRelativePath(document.uri);
+          if (!relPath) { break; }
+          try {
+            const commits = await this.timelineProvider.getCommits(document.uri, relPath);
+            webviewPanel.webview.postMessage({ type: 'timelineCommits', commits });
+          } catch {
+            webviewPanel.webview.postMessage({ type: 'timelineCommits', commits: [] });
+          }
+          break;
+        }
+
+        case 'selectTimelineCommit': {
+          const sha = (message as { type: string; sha?: string }).sha;
+          if (!this.timelineProvider || typeof sha !== 'string') { break; }
+          const relPath2 = await this.getRelativePath(document.uri);
+          if (!relPath2) { break; }
+          try {
+            const content = await this.timelineProvider.getFileContent(document.uri, relPath2, sha);
+            webviewPanel.webview.postMessage({ type: 'timelineContent', sha, content });
+          } catch {
+            webviewPanel.webview.postMessage({ type: 'timelineContent', sha, content: null });
+          }
+          break;
+        }
+
         case 'save':
           try {
             await document.save();
@@ -336,6 +365,15 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       fileWatcher.dispose();
       if (debounceTimer) { clearTimeout(debounceTimer); }
     });
+  }
+
+  private async getRelativePath(uri: vscode.Uri): Promise<string | null> {
+    const gitExtension = vscode.extensions.getExtension<{ getAPI(version: 1): { getRepository(uri: vscode.Uri): { rootUri: vscode.Uri } | null } }>('vscode.git');
+    if (!gitExtension) { return null; }
+    if (!gitExtension.isActive) { await gitExtension.activate(); }
+    const repo = gitExtension.exports.getAPI(1).getRepository(uri);
+    if (!repo) { return null; }
+    return path.relative(repo.rootUri.fsPath, uri.fsPath).replace(/\\/g, '/');
   }
 
   private getHtmlForWebview(webview: vscode.Webview): string {

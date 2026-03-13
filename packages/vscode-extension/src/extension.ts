@@ -1,12 +1,22 @@
 import * as vscode from 'vscode';
 import { MarkdownEditorProvider } from './providers/MarkdownEditorProvider';
 import { GitHistoryProvider, GitHistoryItem } from './providers/GitHistoryProvider';
+import { VscodeTimelineProvider } from './providers/VscodeTimelineProvider';
 import { OutlineProvider } from './providers/OutlineProvider';
 import { CommentProvider } from './providers/CommentProvider';
 import type { CommentData } from './providers/CommentProvider';
 
 export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(MarkdownEditorProvider.register(context));
+
+	// Git タイムライン（Webview 用）
+	const getRepository = async (uri: vscode.Uri) => {
+		const gitExtension = vscode.extensions.getExtension<{ getAPI(version: 1): { getRepository(uri: vscode.Uri): { rootUri: vscode.Uri; show(ref: string, filePath: string): Promise<string>; log(options?: { maxEntries?: number; path?: string }): Promise<Array<{ hash: string; message: string; authorName?: string; authorDate?: Date }>> } | null } }>('vscode.git');
+		if (!gitExtension) { return null; }
+		if (!gitExtension.isActive) { await gitExtension.activate(); }
+		return gitExtension.exports.getAPI(1).getRepository(uri);
+	};
+	const timelineProvider = new VscodeTimelineProvider(getRepository);
 
 	// Git 履歴パネル
 	const gitHistoryProvider = new GitHistoryProvider();
@@ -47,6 +57,12 @@ export function activate(context: vscode.ExtensionContext) {
 	const hideStatusBar = () => {
 		statusBarItems.forEach(item => item.hide());
 	};
+
+	// Timeline プロバイダーを MarkdownEditorProvider に設定
+	const editorProvider = MarkdownEditorProvider.getInstance();
+	if (editorProvider) {
+		editorProvider.timelineProvider = timelineProvider;
+	}
 
 	// Webview からの変更通知を各パネルに反映
 	const provider = MarkdownEditorProvider.getInstance();
