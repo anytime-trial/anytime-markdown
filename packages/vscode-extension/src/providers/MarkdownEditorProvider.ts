@@ -1,8 +1,6 @@
 import * as vscode from 'vscode';
 import { randomBytes } from 'crypto';
 import * as path from 'path';
-import type { VscodeTimelineProvider } from './VscodeTimelineProvider';
-
 export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
   public static readonly viewType = 'anytimeMarkdown';
 
@@ -13,8 +11,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
   public onHeadingsChanged?: (headings: unknown[]) => void;
   public onCommentsChanged?: (comments: unknown[]) => void;
   public onStatusChanged?: (status: { line: number; col: number; charCount: number; lineCount: number; lineEnding: string; encoding: string }) => void;
-  public timelineProvider: VscodeTimelineProvider | null = null;
-
+  public compareModeActive = false;
   private panels = new Map<string, vscode.WebviewPanel>();
   private readyPanels = new Set<string>();
   private readyResolvers = new Map<string, Array<() => void>>();
@@ -193,7 +190,8 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
         }
 
         case 'compareModeChanged':
-          vscode.commands.executeCommand('setContext', 'anytimeMarkdown.compareModeActive', !!message.active);
+          this.compareModeActive = !!message.active;
+          vscode.commands.executeCommand('setContext', 'anytimeMarkdown.compareModeActive', this.compareModeActive);
           break;
 
         case 'headingsChanged':
@@ -306,33 +304,6 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
           break;
         }
 
-        case 'loadTimeline': {
-          if (!this.timelineProvider) { break; }
-          const relPath = await this.getRelativePath(document.uri);
-          if (!relPath) { break; }
-          try {
-            const commits = await this.timelineProvider.getCommits(document.uri, relPath);
-            webviewPanel.webview.postMessage({ type: 'timelineCommits', commits });
-          } catch {
-            webviewPanel.webview.postMessage({ type: 'timelineCommits', commits: [] });
-          }
-          break;
-        }
-
-        case 'selectTimelineCommit': {
-          const sha = (message as { type: string; sha?: string }).sha;
-          if (!this.timelineProvider || typeof sha !== 'string') { break; }
-          const relPath2 = await this.getRelativePath(document.uri);
-          if (!relPath2) { break; }
-          try {
-            const content = await this.timelineProvider.getFileContent(document.uri, relPath2, sha);
-            webviewPanel.webview.postMessage({ type: 'timelineContent', sha, content });
-          } catch {
-            webviewPanel.webview.postMessage({ type: 'timelineContent', sha, content: null });
-          }
-          break;
-        }
-
         case 'save':
           try {
             await document.save();
@@ -357,6 +328,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
         this.activePanel = null;
         this.compareFileUri = null;
         this.activeDocumentUri = null;
+        this.compareModeActive = false;
         vscode.commands.executeCommand('setContext', 'anytimeMarkdown.compareModeActive', false);
       }
       docChangeSubscription.dispose();

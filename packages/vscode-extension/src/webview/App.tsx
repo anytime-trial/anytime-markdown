@@ -5,7 +5,6 @@ import CssBaseline from '@mui/material/CssBaseline';
 import { getVsCodeApi } from './vscodeApi';
 import { ConfirmProvider, STORAGE_KEY_CONTENT, STORAGE_KEY_SETTINGS } from '@anytime-markdown/editor-core';
 import MarkdownEditorPage from '@anytime-markdown/editor-core/src/MarkdownEditorPage';
-import type { TimelineCommit, TimelineDataProvider } from '@anytime-markdown/editor-core/src/types/timeline';
 
 const vscode = getVsCodeApi();
 
@@ -50,51 +49,14 @@ try {
   originalSetItem(SETTINGS_KEY, JSON.stringify(obj));
 } catch { /* ignore */ }
 
-/**
- * postMessage ベースの TimelineDataProvider。
- * webview ↔ extension host 間の非同期通信を Promise で橋渡しする。
- */
-class WebviewTimelineProvider implements TimelineDataProvider {
-  private pendingCommits: ((commits: TimelineCommit[]) => void) | null = null;
-  private pendingContent: Map<string, (content: string) => void> = new Map();
-
-  getCommits(_filePath: string): Promise<TimelineCommit[]> {
-    return new Promise((resolve) => {
-      this.pendingCommits = resolve;
-      vscode.postMessage({ type: 'loadTimeline' });
-    });
-  }
-
-  getFileContent(_filePath: string, sha: string): Promise<string> {
-    return new Promise((resolve) => {
-      this.pendingContent.set(sha, resolve);
-      vscode.postMessage({ type: 'selectTimelineCommit', sha });
-    });
-  }
-
-  /** extension host からのレスポンスを処理 */
-  handleCommitsResponse(commits: TimelineCommit[]): void {
-    if (this.pendingCommits) {
-      this.pendingCommits(commits);
-      this.pendingCommits = null;
-    }
-  }
-
-  handleContentResponse(sha: string, content: string): void {
-    const resolve = this.pendingContent.get(sha);
-    if (resolve) {
-      resolve(content);
-      this.pendingContent.delete(sha);
-    }
-  }
-}
-
 export function App() {
   const [ready, setReady] = useState(false);
   const [themeMode, setThemeMode] = useState<PaletteMode>('dark');
-  const [timelineRequested, setTimelineRequested] = useState(false);
+  const [editorKey, setEditorKey] = useState(0);
+  const [compareContent, setCompareContent] = useState<string | null>(null);
   const theme = useMemo(() => createTheme({ palette: { mode: themeMode } }), [themeMode]);
-  const timelineProviderRef = useRef(new WebviewTimelineProvider());
+  const latestContentRef = useRef<string | null>(null);
+  const historicalContentRef = useRef<string | null>(null);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -131,19 +93,12 @@ export function App() {
         window.dispatchEvent(new CustomEvent('vscode-delete-comment', { detail: message.id }));
         return;
       }
-      if (message?.type === 'toggleTimeline') {
-        setTimelineRequested((prev) => !prev);
-        return;
-      }
-      if (message?.type === 'timelineCommits' && Array.isArray(message.commits)) {
-        const commits = (message.commits as Array<{ sha: string; message: string; author: string; date: string }>).map(
-          (c) => ({ ...c, date: new Date(c.date) }),
-        );
-        timelineProviderRef.current.handleCommitsResponse(commits);
-        return;
-      }
-      if (message?.type === 'timelineContent' && typeof message.sha === 'string') {
-        timelineProviderRef.current.handleContentResponse(message.sha, message.content ?? '');
+      if (message?.type === 'loadHistoryContent' && typeof message.content === 'string') {
+        // 通常モード: 履歴コンテンツを表示（最新をキャッシュ）
+        latestContentRef.current = currentContent;
+        historicalContentRef.current = message.content;
+        currentContent = message.content;
+        window.dispatchEvent(new CustomEvent('vscode-set-content', { detail: message.content }));
         return;
       }
       if (message?.type === 'setContent' && typeof message.content === 'string') {
@@ -172,11 +127,17 @@ export function App() {
 
   const handleCompareModeChange = useCallback((active: boolean) => {
     vscode.postMessage({ type: 'compareModeChanged', active });
-  }, []);
-
-  const handleTimelineActiveChange = useCallback((active: boolean) => {
-    vscode.postMessage({ type: 'timelineActiveChanged', active });
-    if (!active) setTimelineRequested(false);
+    if (active && historicalContentRef.current != null && latestContentRef.current != null) {
+      // 比較モード切替: 左=最新、右=選択コミット
+      const latest = latestContentRef.current;
+      const commit = historicalContentRef.current;
+      // refs をクリアして remount 時の再トリガーを防止
+      historicalContentRef.current = null;
+      latestContentRef.current = null;
+      currentContent = latest;
+      setCompareContent(commit);
+      setEditorKey((k) => k + 1);
+    }
   }, []);
 
   const handleHeadingsChange = useCallback((headings: Array<{ level: number; text: string; pos: number; kind: string }>) => {
@@ -220,7 +181,7 @@ export function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <ConfirmProvider>
-        <MarkdownEditorPage hideFileOps hideUndoRedo hideSettings hideHelp hideVersionInfo hideOutline hideComments hideTemplates hideFoldAll hideStatusBar timelineProvider={timelineProviderRef.current} timelineRequested={timelineRequested} onTimelineActiveChange={handleTimelineActiveChange} onCompareModeChange={handleCompareModeChange} onHeadingsChange={handleHeadingsChange} onCommentsChange={handleCommentsChange} onStatusChange={handleStatusChange} />
+        <MarkdownEditorPage key={editorKey} hideFileOps hideUndoRedo hideSettings hideHelp hideVersionInfo hideOutline hideComments hideTemplates hideFoldAll hideStatusBar externalCompareContent={compareContent} onCompareModeChange={handleCompareModeChange} onHeadingsChange={handleHeadingsChange} onCommentsChange={handleCommentsChange} onStatusChange={handleStatusChange} />
       </ConfirmProvider>
     </ThemeProvider>
   );

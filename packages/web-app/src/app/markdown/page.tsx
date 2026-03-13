@@ -8,7 +8,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSession } from 'next-auth/react';
 
 import { FallbackFileSystemProvider } from '../../lib/FallbackFileSystemProvider';
-import { GitHubTimelineProvider } from '../../lib/GitHubTimelineProvider';
 import { WebFileSystemProvider } from '../../lib/WebFileSystemProvider';
 import { useLocaleSwitch } from '../LocaleProvider';
 import { useThemeMode } from '../providers';
@@ -51,9 +50,6 @@ export default function Page() {
     if (typeof window === 'undefined') return false;
     return sessionStorage.getItem('explorerOpen') === '1';
   });
-  const [timelineProvider, setTimelineProvider] = useState<GitHubTimelineProvider | null>(null);
-  const [timelineRequested, setTimelineRequested] = useState(false);
-  const [isTimelineActive, setIsTimelineActive] = useState(false);
   const [externalContent, setExternalContent] = useState<string | undefined>(undefined);
   const [externalFileName, setExternalFileName] = useState<string | undefined>(undefined);
   const [externalFilePath, setExternalFilePath] = useState<string | undefined>(undefined);
@@ -61,6 +57,8 @@ export default function Page() {
   const [compareModeOpen, setCompareModeOpen] = useState(false);
   const [editorKey, setEditorKey] = useState(0);
   const selectedFileRef = useRef<{ repo: string; filePath: string; branch: string } | null>(null);
+  const latestContentRef = useRef<string | null>(null);
+  const selectedCommitContentRef = useRef<string | null>(null);
 
   const fileSystemProvider = useMemo(() => {
     if (typeof window === 'undefined') return null;
@@ -81,7 +79,6 @@ export default function Page() {
     setExternalFileName(undefined);
     setExternalFilePath(undefined);
     setExternalCompareContent(null);
-    setTimelineProvider(null);
     setEditorKey((k) => k + 1);
     if (isNowLoggedIn && !wasLoggedIn) {
       setSsoSnackbar(t('githubConnected'));
@@ -98,19 +95,12 @@ export default function Page() {
     setExplorerOpen((prev) => !prev);
   }, []);
 
-  const handleToggleTimeline = useCallback(() => {
-    setTimelineRequested((prev) => !prev);
-  }, []);
-
-  const handleTimelineActiveChange = useCallback((active: boolean) => {
-    setIsTimelineActive(active);
-    if (!active) setTimelineRequested(false);
-  }, []);
 
   const handleExplorerSelectFile = useCallback(async (repo: string, filePath: string, branch: string) => {
     selectedFileRef.current = { repo, filePath, branch };
-    setTimelineProvider(new GitHubTimelineProvider(repo));
+    selectedCommitContentRef.current = null;
     const content = await fetchFileContent(repo, filePath, branch);
+    latestContentRef.current = content;
     setExternalContent(content);
     setExternalFileName(filePath.split("/").pop() ?? filePath);
     setExternalFilePath(filePath);
@@ -138,6 +128,17 @@ export default function Page() {
 
   const handleCompareModeChange = useCallback((active: boolean) => {
     setCompareModeOpen(active);
+    if (active && selectedCommitContentRef.current != null && latestContentRef.current != null) {
+      // 比較モード切替: 左=最新、右=選択コミット
+      const latest = latestContentRef.current;
+      const commit = selectedCommitContentRef.current;
+      // refs をクリアして remount 時の再トリガーを防止
+      selectedCommitContentRef.current = null;
+      latestContentRef.current = null;
+      setExternalContent(latest);
+      setExternalCompareContent(commit);
+      setEditorKey((k) => k + 1);
+    }
   }, []);
 
   const handleExplorerSelectCommit = useCallback(async (repo: string, filePath: string, sha: string) => {
@@ -147,9 +148,19 @@ export default function Page() {
     if (!res.ok) return;
     const data = await res.json();
     const content = data.content ?? '';
-    // 比較モードの右パネルにロード（比較モードが閉じていても自動で開く）
-    setExternalCompareContent(content);
-  }, []);
+    if (compareModeOpen) {
+      // 比較モード: 右パネルにロード
+      setExternalCompareContent(content);
+    } else {
+      // 通常モード: エディタに直接表示
+      selectedCommitContentRef.current = content;
+      setExternalContent(content);
+      setExternalFileName(filePath.split("/").pop() ?? filePath);
+      setExternalFilePath(filePath);
+      setExternalCompareContent(null);
+      setEditorKey((k) => k + 1);
+    }
+  }, [compareModeOpen]);
 
   return (
     <Box sx={{ display: "flex", height: "100vh", overflow: "hidden" }}>
@@ -157,8 +168,6 @@ export default function Page() {
         open={explorerOpen}
         onSelectFile={handleExplorerSelectFile}
         onSelectCommit={handleExplorerSelectCommit}
-        isTimelineActive={isTimelineActive}
-        onToggleTimeline={handleToggleTimeline}
       />
       <Box sx={{ flex: 1, minWidth: 0, overflow: "auto" }}>
         <MarkdownEditorPage
@@ -167,9 +176,6 @@ export default function Page() {
           onThemeModeChange={setThemeMode}
           onLocaleChange={setLocale}
           fileSystemProvider={fileSystemProvider}
-          timelineProvider={timelineProvider}
-          timelineRequested={timelineRequested}
-          onTimelineActiveChange={handleTimelineActiveChange}
           onCompareModeChange={handleCompareModeChange}
           externalCompareContent={externalCompareContent}
           explorerOpen={explorerOpen}

@@ -428,11 +428,6 @@
     "noComments": "コメントはありません",
     "noOpenComments": "未解決のコメントはありません",
     "noResolvedComments": "解決済みのコメントはありません",
-    "timeline": "タイムライン",
-    "timelineClose": "タイムラインを閉じる",
-    "timelineNoCommits": "コミット履歴がありません",
-    "timelineError": "タイムラインの読み込みに失敗しました",
-    "timelineLoading": "読み込み中...",
     "explorer": "エクスプローラ"
   },
   "Landing": {

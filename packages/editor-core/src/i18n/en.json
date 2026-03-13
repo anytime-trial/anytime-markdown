@@ -428,11 +428,6 @@
     "noComments": "No comments",
     "noOpenComments": "No open comments",
     "noResolvedComments": "No resolved comments",
-    "timeline": "Timeline",
-    "timelineClose": "Close timeline",
-    "timelineNoCommits": "No commit history found",
-    "timelineError": "Failed to load timeline",
-    "timelineLoading": "Loading...",
     "explorer": "Explorer"
   },
   "Landing": {

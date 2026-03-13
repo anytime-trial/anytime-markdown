@@ -111,11 +111,6 @@
         "command": "anytime-markdown.toggleCollapseExpand",
         "title": "Collapse All / Expand All",
         "icon": "$(collapse-all)"
-      },
-      {
-        "command": "anytime-markdown.toggleTimeline",
-        "title": "Toggle Timeline",
-        "icon": "$(history)"
       }
     ],
     "customEditors": [
@@ -203,11 +198,6 @@
           "command": "anytime-markdown.toggleBlockElements",
           "when": "view == anytimeMarkdown.outline",
           "group": "navigation@2"
-        },
-        {
-          "command": "anytime-markdown.toggleTimeline",
-          "when": "view == anytimeMarkdown.gitHistory",
-          "group": "navigation@1"
         }
       ],
       "explorer/context": [

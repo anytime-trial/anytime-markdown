@@ -8,7 +8,7 @@ import {
 } from "@mui/material";
 import type { VirtualElement } from "@popperjs/core";
 import type { Editor } from "@tiptap/react";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Z_FULLSCREEN } from "../constants/zIndex";
 import type { SlashCommandState } from "../extensions/slashCommandExtension";
@@ -41,7 +41,7 @@ export const SlashCommandMenu = React.memo(function SlashCommandMenu({
     selectedIndexRef.current = selectedIndex;
   }, [selectedIndex]);
 
-  const filteredItems = filterSlashItems(slashCommandItems, query, t);
+  const filteredItems = useMemo(() => filterSlashItems(slashCommandItems, query, t), [query, t]);
 
   const executeCommand = useCallback(
     (index: number) => {

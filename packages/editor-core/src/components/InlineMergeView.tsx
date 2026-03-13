@@ -207,8 +207,10 @@ export function InlineMergeView({
   // 左エディタのブロック展開/折りたたみ状態を右エディタに同期
   useEffect(() => {
     if (!leftEditor || !rightEditor || sourceMode) return;
+    let rafId: number | undefined;
     const syncCollapsed = () => {
       if (leftEditor.isDestroyed || rightEditor.isDestroyed) return;
+      if (rafId !== undefined) cancelAnimationFrame(rafId);
       const targetTypes = new Set(["codeBlock", "table", "image"]);
       // 左エディタの collapsed / codeCollapsed 状態を収集
       const leftStates: { type: string; index: number; collapsed?: boolean; codeCollapsed?: boolean }[] = [];
@@ -226,7 +228,7 @@ export function InlineMergeView({
         }
       });
       // rAF 内でトランザクションを作成して適用（stale state 回避）
-      requestAnimationFrame(() => {
+      rafId = requestAnimationFrame(() => {
         if (rightEditor.isDestroyed) return;
         const rightCounters: Record<string, number> = {};
         let changed = false;
@@ -265,6 +267,7 @@ export function InlineMergeView({
     leftEditor.on("update", syncCollapsed);
     return () => {
       leftEditor.off("update", syncCollapsed);
+      if (rafId !== undefined) cancelAnimationFrame(rafId);
     };
   }, [leftEditor, rightEditor, sourceMode]);
 

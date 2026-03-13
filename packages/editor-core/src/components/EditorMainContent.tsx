@@ -10,7 +10,6 @@ import { getEditorPaperSx } from "../styles/editorStyles";
 import { getMarkdownFromEditor, type HeadingItem } from "../types";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import type { DiffLine } from "../utils/diffEngine";
-import type { TimelineState } from "../types/timeline";
 import { CommentPanel } from "./CommentPanel";
 import { EditorOutlineSection } from "./EditorOutlineSection";
 import { FrontmatterBlock } from "./FrontmatterBlock";
@@ -18,7 +17,6 @@ import { MergeEditorPanel } from "./MergeEditorPanel";
 import { SearchReplaceBar } from "./SearchReplaceBar";
 import { SourceModeEditor } from "./SourceModeEditor";
 import { SourceSearchBar } from "./SourceSearchBar";
-import { TimelineBar } from "./TimelineBar";
 
 // InlineMergeView は dynamic import のため親から渡す
 // InlineMergeViewProps と同じシグネチャにする
@@ -99,10 +97,6 @@ interface EditorMainContentProps {
   onFileDrop?: (file: File, nativeHandle?: FileSystemFileHandle) => void;
   fileDragOver?: boolean;
   onFileDragOverChange?: (over: boolean) => void;
-  // timeline
-  timelineState?: TimelineState | null;
-  onTimelineSelectCommit?: (index: number) => void;
-  onTimelineClose?: () => void;
   t: (key: string) => string;
 }
 
@@ -137,9 +131,6 @@ export function EditorMainContent({
   onFileDrop,
   fileDragOver,
   onFileDragOverChange,
-  timelineState,
-  onTimelineSelectCommit,
-  onTimelineClose,
   t,
 }: EditorMainContentProps) {
   const theme = useTheme();
@@ -242,8 +233,6 @@ export function EditorMainContent({
     );
   }
 
-  const isTimelineActive = timelineState != null && timelineState.commits.length > 0;
-
   return (
     <Box component="main" ref={editorContainerRef} sx={{ display: "flex", flexDirection: "column", position: "relative" }} onDragOver={handleContainerDragOver} onDragLeave={handleContainerDragLeave} onDrop={handleContainerDrop}>
       <Box sx={{ display: "flex", gap: 0, flex: 1, minHeight: 0 }}>
@@ -313,14 +302,6 @@ export function EditorMainContent({
         <CommentPanel editor={editor} open={commentOpen} onClose={() => setCommentOpen(false)} onSave={() => saveContent(getMarkdownFromEditor(editor))} t={t} />
       )}
       </Box>
-      {isTimelineActive && (
-        <TimelineBar
-          state={timelineState}
-          onSelectCommit={onTimelineSelectCommit!}
-          onClose={onTimelineClose!}
-          t={t}
-        />
-      )}
     </Box>
   );
 }

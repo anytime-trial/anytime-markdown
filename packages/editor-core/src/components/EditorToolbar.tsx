@@ -138,8 +138,8 @@ export const EditorToolbar = React.memo(function EditorToolbar({
     outline: hideOutline, comments: hideComments,
     templates: _hideTemplates, foldAll: _hideFoldAll,
   } = hide;
-  const { sourceMode, readonlyMode, reviewMode, outlineOpen, inlineMergeOpen, commentOpen, isTimelineActive, explorerOpen } = modeState;
-  const { onSwitchToSource, onSwitchToWysiwyg, onSwitchToReview, onSwitchToReadonly, onToggleOutline, onToggleComments, onMerge, onOpenTimeline, onToggleExplorer } = modeHandlers;
+  const { sourceMode, readonlyMode, reviewMode, outlineOpen, inlineMergeOpen, commentOpen, explorerOpen } = modeState;
+  const { onSwitchToSource, onSwitchToWysiwyg, onSwitchToReview, onSwitchToReadonly, onToggleOutline, onToggleComments, onMerge, onToggleExplorer } = modeHandlers;
   const isDark = useTheme().palette.mode === "dark";
 
   const [mobileMenuAnchorEl, setMobileMenuAnchorEl] = useState<HTMLElement | null>(null);

@@ -160,7 +160,7 @@ export const GitHubRepoBrowser: FC<GitHubRepoBrowserProps> = ({
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
         {selectedRepo && (
-          <IconButton size="small" onClick={handleBack}>
+          <IconButton size="small" onClick={handleBack} aria-label="Go back">
             <ArrowBackIcon />
           </IconButton>
         )}

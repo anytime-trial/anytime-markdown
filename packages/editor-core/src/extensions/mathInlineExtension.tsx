@@ -46,7 +46,7 @@ function MathInlineView({ node, selected }: NodeViewProps) {
         setHtml(rendered);
       } catch {
         const safe = DOMPurify.sanitize(formula, { ALLOWED_TAGS: [] });
-        setHtml(`<span style="color:red">${safe}</span>`);
+        setHtml(`<span style="color:var(--vscode-errorForeground, #d32f2f)">${safe}</span>`);
       }
     });
     return () => { cancelled = true; };

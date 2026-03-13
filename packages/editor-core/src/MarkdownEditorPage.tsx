@@ -58,11 +58,9 @@ import { useFloatingToolbar } from "./hooks/useFloatingToolbar";
 import { useMergeMode } from "./hooks/useMergeMode";
 import { useOutline } from "./hooks/useOutline";
 import { useSourceMode } from "./hooks/useSourceMode";
-import { useTimeline } from "./hooks/useTimeline";
 import { useVSCodeIntegration } from "./hooks/useVSCodeIntegration";
 import { getMarkdownFromEditor, type HeadingItem, PlantUmlToolbarContext } from "./types";
 import type { FileSystemProvider } from "./types/fileSystem";
-import type { TimelineDataProvider } from "./types/timeline";
 import type { InlineComment } from "./utils/commentHelpers";
 import { parseCommentData } from "./utils/commentHelpers";
 import { applyMarkdownToEditor } from "./utils/editorContentLoader";
@@ -82,11 +80,10 @@ interface MarkdownEditorPageProps {
   onThemeModeChange?: (mode: 'light' | 'dark') => void;
   onLocaleChange?: (locale: string) => void;
   fileSystemProvider?: FileSystemProvider | null;
-  timelineProvider?: TimelineDataProvider | null;
   externalContent?: string;
   /** 外部コンテンツのファイル名（ステータスバー表示用） */
   externalFileName?: string;
-  /** 外部コンテンツのリポジトリ内フルパス（タイムライン用） */
+  /** 外部コンテンツのリポジトリ内フルパス */
   externalFilePath?: string;
   /** 外部コンテンツの上書き保存コールバック */
   onExternalSave?: (content: string) => void;
@@ -99,10 +96,6 @@ interface MarkdownEditorPageProps {
   hideStatusBar?: boolean;
   onStatusChange?: (status: { line: number; col: number; charCount: number; lineCount: number; lineEnding: string; encoding: string }) => void;
   showReadonlyMode?: boolean;
-  /** 外部からタイムラインの開閉を要求 */
-  timelineRequested?: boolean;
-  /** タイムラインの開閉状態が変化したとき */
-  onTimelineActiveChange?: (active: boolean) => void;
   /** 外部から比較モードの右パネルにコンテンツをロード */
   externalCompareContent?: string | null;
   /** エクスプローラパネルの開閉状態 */
@@ -111,7 +104,7 @@ interface MarkdownEditorPageProps {
   onToggleExplorer?: () => void;
 }
 
-export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideHelp, hideVersionInfo, featuresUrl, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, onLocaleChange, fileSystemProvider, timelineProvider, externalContent, externalFileName, externalFilePath, onExternalSave, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, showReadonlyMode, timelineRequested, onTimelineActiveChange, externalCompareContent, explorerOpen, onToggleExplorer }: MarkdownEditorPageProps = {}) {
+export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideHelp, hideVersionInfo, featuresUrl, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, onLocaleChange, fileSystemProvider, externalContent, externalFileName, externalFilePath, onExternalSave, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, showReadonlyMode, externalCompareContent, explorerOpen, onToggleExplorer }: MarkdownEditorPageProps = {}) {
   const t = useTranslations("MarkdownEditor");
   const locale = useLocale() as "en" | "ja";
   const muiTheme = useTheme();
@@ -279,65 +272,12 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     }
   }, [externalCompareContent, inlineMergeOpen, sourceMode, editor, setCompareFileContent, setEditorMarkdown, setInlineMergeOpen]);
 
-  const timeline = useTimeline(timelineProvider ?? null, null);
-  const isTimelineActive = timeline.state.commits.length > 0;
-  const handleOpenTimeline = useCallback((fp: string) => { timeline.loadTimeline(fp); }, [timeline]);
-
-  // 外部からのタイムライン開閉要求を処理
-  const prevTimelineRequestedRef = useRef(timelineRequested);
-  useEffect(() => {
-    if (timelineRequested === prevTimelineRequestedRef.current) return;
-    prevTimelineRequestedRef.current = timelineRequested;
-    if (timelineRequested && !isTimelineActive && timelineProvider) {
-      handleOpenTimeline(externalFilePath ?? fileName ?? "untitled.md");
-    } else if (!timelineRequested && isTimelineActive) {
-      timeline.close();
-    }
-  }, [timelineRequested, isTimelineActive, timelineProvider, handleOpenTimeline, timeline, fileName]);
-
-  // タイムライン状態の変化を外部に通知
-  useEffect(() => {
-    onTimelineActiveChange?.(isTimelineActive);
-  }, [isTimelineActive, onTimelineActiveChange]);
-
-  // タイムライン: エディタ内容をコミットの Markdown で差し替え、終了時に復元
-  const savedContentRef = useRef<string | null>(null);
-  const savedFrontmatterRef = useRef<string | null | undefined>(undefined);
-  useEffect(() => {
-    if (!editor || editor.isDestroyed) return;
-    if (isTimelineActive) {
-      // 初回: 元の内容と frontmatter を保存
-      if (savedContentRef.current === null) {
-        savedContentRef.current = getMarkdownFromEditor(editor);
-        savedFrontmatterRef.current = fileHandling.frontmatterText;
-      }
-      // タイムラインのコンテンツをエディタに反映
-      if (timeline.state.content !== null) {
-        editor.setEditable(false, false);
-        const { frontmatter } = applyMarkdownToEditor(editor, timeline.state.content);
-        fileHandling.setFrontmatterText(frontmatter);
-      }
-    } else if (savedContentRef.current !== null) {
-      // タイムライン終了: 元の内容と frontmatter を復元
-      applyMarkdownToEditor(editor, savedContentRef.current);
-      if (savedFrontmatterRef.current !== undefined) {
-        fileHandling.setFrontmatterText(savedFrontmatterRef.current);
-      }
-      editor.setEditable(!readOnly, false);
-      savedContentRef.current = null;
-      savedFrontmatterRef.current = undefined;
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isTimelineActive, timeline.state.content, timeline.state.selectedIndex]);
-
   setEditorMarkdownRef.current = setEditorMarkdown;
   useEditorSideEffects({ editor, isDirty, markDirty, setHeadingsRef, setEditorMarkdown });
   useVSCodeIntegration(editor);
 
-  const TIMELINE_BAR_HEIGHT = 48;
   const statusBarHeight = hideStatusBar ? 0 : STATUSBAR_HEIGHT;
-  const timelineBottomOffset = isTimelineActive ? TIMELINE_BAR_HEIGHT : 0;
-  const { editorContainerRef, editorHeight } = useEditorHeight(isMobile, isMd, statusBarHeight + timelineBottomOffset);
+  const { editorContainerRef, editorHeight } = useEditorHeight(isMobile, isMd, statusBarHeight);
 
   const handleInsertTemplate = useCallback((template: MarkdownTemplate) => {
     if (sourceMode) { appendToSource(template.content); return; }
@@ -400,16 +340,8 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
           onSwitchToSource: handleSwitchToSource, onSwitchToWysiwyg: handleSwitchToWysiwyg,
           onSwitchToReview: handleSwitchToReview, onSwitchToReadonly: handleSwitchToReadonly,
           onToggleOutline: handleToggleOutline, onMerge: handleMerge,
-          onOpenTimeline: timelineProvider ? () => {
-            if (isTimelineActive) {
-              timeline.close();
-            } else {
-              handleOpenTimeline(externalFilePath ?? fileName ?? "untitled.md");
-            }
-          } : undefined,
           onToggleExplorer,
         }}
-        isTimelineActive={isTimelineActive}
         explorerOpen={explorerOpen}
         inlineMergeOpen={inlineMergeOpen}
         hide={{
@@ -460,9 +392,6 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         setCompareFileContent={setCompareFileContent} setRightFileOps={setRightFileOps} t={t}
         onFileDrop={handleFileSelected}
         fileDragOver={fileDragOver} onFileDragOverChange={setFileDragOver}
-        timelineState={isTimelineActive ? timeline.state : null}
-        onTimelineSelectCommit={timeline.selectCommit}
-        onTimelineClose={timeline.close}
       />
 
       <EditorFooterOverlays

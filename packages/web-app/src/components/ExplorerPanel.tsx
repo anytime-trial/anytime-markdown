@@ -9,7 +9,6 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import FolderIcon from "@mui/icons-material/Folder";
 import FolderOpenIcon from "@mui/icons-material/FolderOpen";
 import GitHubIcon from "@mui/icons-material/GitHub";
-import HistoryIcon from "@mui/icons-material/History";
 import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
 import LockIcon from "@mui/icons-material/Lock";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
@@ -62,8 +61,6 @@ interface ExplorerPanelProps {
   width?: number;
   onSelectFile: (repo: string, filePath: string, branch: string) => void;
   onSelectCommit?: (repo: string, filePath: string, sha: string) => void;
-  isTimelineActive?: boolean;
-  onToggleTimeline?: () => void;
 }
 
 const PANEL_WIDTH = 260;
@@ -259,7 +256,7 @@ const NewFileInput: FC<{
           sx: { fontSize: "0.78rem", py: 0 },
           endAdornment: (
             <InputAdornment position="end">
-              <IconButton size="small" onClick={handleSubmit} sx={{ p: 0.25 }}>
+              <IconButton size="small" onClick={handleSubmit} sx={{ p: 0.25 }} aria-label="Create file">
                 <AddIcon sx={{ fontSize: 14 }} />
               </IconButton>
             </InputAdornment>
@@ -369,7 +366,7 @@ const NewFolderInput: FC<{
           sx: { fontSize: "0.78rem", py: 0 },
           endAdornment: (
             <InputAdornment position="end">
-              <IconButton size="small" onClick={handleSubmit} sx={{ p: 0.25 }}>
+              <IconButton size="small" onClick={handleSubmit} sx={{ p: 0.25 }} aria-label="Create folder">
                 <AddIcon sx={{ fontSize: 14 }} />
               </IconButton>
             </InputAdornment>
@@ -708,8 +705,6 @@ export const ExplorerPanel: FC<ExplorerPanelProps> = ({
   width = PANEL_WIDTH,
   onSelectFile,
   onSelectCommit,
-  isTimelineActive,
-  onToggleTimeline,
 }) => {
   const { data: session } = useSession();
   const [repos, setRepos] = useState<GitHubRepo[]>([]);
@@ -1502,20 +1497,6 @@ export const ExplorerPanel: FC<ExplorerPanelProps> = ({
             <Typography variant="caption" sx={{ ml: 0.5, color: "text.secondary", fontSize: "0.65rem", flex: 1 }} noWrap>
               {selectedFilePath.split("/").pop()}
             </Typography>
-            {onToggleTimeline && (
-              <Tooltip title="Timeline">
-                <IconButton
-                  size="small"
-                  onClick={onToggleTimeline}
-                  sx={{
-                    p: 0.5,
-                    color: isTimelineActive ? "primary.main" : "text.secondary",
-                  }}
-                >
-                  <HistoryIcon sx={{ fontSize: 16 }} />
-                </IconButton>
-              </Tooltip>
-            )}
           </Box>
           <Divider />
           <Box sx={{ flex: 1, overflow: "auto", minHeight: 100, maxHeight: "40%" }}>
