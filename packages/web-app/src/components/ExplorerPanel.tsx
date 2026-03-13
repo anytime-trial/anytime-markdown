@@ -3,6 +3,7 @@
 import AddIcon from "@mui/icons-material/Add";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import CommitIcon from "@mui/icons-material/Commit";
+import EditIcon from "@mui/icons-material/Edit";
 import CreateNewFolderIcon from "@mui/icons-material/CreateNewFolder";
 import DriveFileRenameOutlineIcon from "@mui/icons-material/DriveFileRenameOutline";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
@@ -61,6 +62,8 @@ interface ExplorerPanelProps {
   width?: number;
   onSelectFile: (repo: string, filePath: string, branch: string) => void;
   onSelectCommit?: (repo: string, filePath: string, sha: string) => void;
+  onSelectCurrent?: () => void;
+  isDirty?: boolean;
 }
 
 const PANEL_WIDTH = 260;
@@ -661,7 +664,9 @@ const GitHistorySection: FC<{
   loading: boolean;
   selectedSha: string | null;
   onSelectCommit: (sha: string) => void;
-}> = ({ commits, loading, selectedSha, onSelectCommit }) => {
+  isDirty?: boolean;
+  onSelectCurrent?: () => void;
+}> = ({ commits, loading, selectedSha, onSelectCommit, isDirty, onSelectCurrent }) => {
   if (loading) {
     return (
       <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
@@ -678,6 +683,21 @@ const GitHistorySection: FC<{
   }
   return (
     <List dense disablePadding>
+      {isDirty && onSelectCurrent && (
+        <ListItemButton
+          selected={selectedSha === null}
+          onClick={onSelectCurrent}
+          sx={{ py: 0.25, minHeight: 32, alignItems: "flex-start" }}
+        >
+          <ListItemIcon sx={{ minWidth: 24, mt: 0.5 }}>
+            <EditIcon sx={{ fontSize: 16, color: "warning.main" }} />
+          </ListItemIcon>
+          <ListItemText
+            primary="Editing..."
+            primaryTypographyProps={{ variant: "body2", fontSize: "0.78rem", fontStyle: "italic", color: "warning.main" }}
+          />
+        </ListItemButton>
+      )}
       {commits.map((c) => (
         <ListItemButton
           key={c.sha}
@@ -705,6 +725,8 @@ export const ExplorerPanel: FC<ExplorerPanelProps> = ({
   width = PANEL_WIDTH,
   onSelectFile,
   onSelectCommit,
+  onSelectCurrent: onSelectCurrentProp,
+  isDirty,
 }) => {
   const { data: session } = useSession();
   const [repos, setRepos] = useState<GitHubRepo[]>([]);
@@ -924,6 +946,16 @@ export const ExplorerPanel: FC<ExplorerPanelProps> = ({
     },
     [selectedRepo, selectedFilePath, onSelectCommit],
   );
+
+  const handleSelectCurrent = useCallback(() => {
+    if (!selectedRepo || !selectedFilePath) return;
+    setSelectedSha(null);
+    if (onSelectCurrentProp) {
+      onSelectCurrentProp();
+    } else {
+      onSelectFile(selectedRepo.fullName, selectedFilePath, selectedBranch);
+    }
+  }, [selectedRepo, selectedFilePath, selectedBranch, onSelectFile, onSelectCurrentProp]);
 
   const handleCreateFile = useCallback(
     async (dirPath: string, fileName: string) => {
@@ -1505,6 +1537,8 @@ export const ExplorerPanel: FC<ExplorerPanelProps> = ({
               loading={commitsLoading}
               selectedSha={selectedSha}
               onSelectCommit={handleCommitSelect}
+              isDirty={isDirty}
+              onSelectCurrent={handleSelectCurrent}
             />
           </Box>
         </>

@@ -33,7 +33,9 @@ export function useMarkdownEditor(defaultContent: string, skipLocalStorage = fal
 
   // debounce 自動保存（Tiptap の onUpdate から呼ばれる）
   // withFrontmatter=true の場合、frontmatterRef の内容を先頭に付加して保存する
+  // skipLocalStorage が true の場合（externalContent 表示中）は localStorage に書き込まない
   const saveContent = useCallback((markdown: string, withFrontmatter = true) => {
+    if (skipLocalStorage) return;
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
       try {
@@ -47,7 +49,7 @@ export function useMarkdownEditor(defaultContent: string, skipLocalStorage = fal
         }
       }
     }, DEBOUNCE_MS);
-  }, []);
+  }, [skipLocalStorage]);
 
   // .md ファイルダウンロード（markdown 文字列を受け取る）
   const downloadMarkdown = useCallback(async (markdown: string, encoding?: EncodingLabel) => {

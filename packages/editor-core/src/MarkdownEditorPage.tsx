@@ -114,7 +114,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   const noopSave = useCallback(() => {}, []);
   const {
     initialContent, loading, saveContent: _saveContent, downloadMarkdown, clearContent, frontmatterRef, initialTrailingNewline,
-  } = useMarkdownEditor(externalContent ?? (onExternalSave ? "" : defaultContent), externalContent !== undefined || !!onExternalSave);
+  } = useMarkdownEditor(externalContent ?? defaultContent, externalContent !== undefined);
   const saveContent = readOnly ? noopSave : _saveContent;
 
   const [commentOpen, setCommentOpen] = useState(false);
@@ -176,10 +176,12 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   }, [editor]);
 
   const {
-    sourceMode, readonlyMode, reviewMode, sourceText, setSourceText, liveMessage, setLiveMessage,
+    sourceMode, readonlyMode: _readonlyMode, reviewMode, sourceText, setSourceText, liveMessage, setLiveMessage,
     handleSwitchToSource, handleSwitchToWysiwyg, handleSwitchToReview, handleSwitchToReadonly,
     executeInReviewMode, handleSourceChange, appendToSource,
   } = useSourceMode({ editor, saveContent, t, frontmatterRef });
+  // readOnly prop が true の場合は常に readonlyMode を強制
+  const readonlyMode = readOnly || _readonlyMode;
 
   const {
     fileHandle, setFileHandle, fileName, isDirty, supportsDirectAccess,

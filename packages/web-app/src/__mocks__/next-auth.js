@@ -1,6 +1,5 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 // next-auth モック: テスト環境でモジュール初期化時の fetch エラーを回避
-const React = require("react");
-
 module.exports = {
   useSession: () => ({ data: null, status: "unauthenticated" }),
   getServerSession: async () => null,
