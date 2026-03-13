@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { fetchWithRetry } from "../../../../lib/fetchWithRetry";
 import { getGitHubToken } from "../../../../lib/githubAuth";
 
 export async function GET(): Promise<NextResponse> {
@@ -6,7 +7,7 @@ export async function GET(): Promise<NextResponse> {
   if (!token) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
-  const res = await fetch(
+  const res = await fetchWithRetry(
     "https://api.github.com/user/repos?sort=updated&per_page=30",
     {
       headers: {

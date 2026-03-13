@@ -101,6 +101,8 @@
     "imageNoAlt": "画像",
     "imageNoAltWarning": "代替テキスト未設定",
     "altText": "代替テキスト（任意）",
+    "altTextPlaceholder": "例: 設定画面のスクリーンショット",
+    "altTextGuidance": "画像の内容を簡潔に説明してください",
     "insertTable": "テーブルを挿入",
     "addColumn": "列を追加",
     "removeColumn": "列を削除",
@@ -440,6 +442,7 @@
     "heroTitle": "美しくMarkdownを書こう",
     "heroDescription": "ブラウザで完結する無料・オープンソースのマークダウンエディタ。アカウント不要、サーバー送信なし — あなたの言葉はあなたのもの。",
     "openEditor": "エディタを開く",
+    "noSignupRequired": "登録不要 — すぐに書き始められます",
     "features": "機能",
     "featureWysiwyg": "リッチテキストエディタ",
     "featureWysiwygDesc": "リッチな書式設定をリアルタイムで確認しながら執筆。太字、斜体、リンク、画像もワンタッチ。",
@@ -522,7 +525,9 @@
     "error": "エラーが発生しました",
     "retry": "もう一度試す",
     "loading": "読み込み中",
-    "loadingEditor": "エディタを読み込み中"
+    "loadingEditor": "エディタを読み込み中",
+    "githubConnected": "GitHub に接続しました",
+    "githubDisconnected": "GitHub から切断しました"
   },
   "Privacy": {
     "title": "プライバシーポリシー",

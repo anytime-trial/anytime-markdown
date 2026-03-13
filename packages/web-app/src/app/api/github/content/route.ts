@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { fetchWithRetry } from "../../../../lib/fetchWithRetry";
 import { getGitHubToken } from "../../../../lib/githubAuth";
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     .split("/")
     .map((seg) => encodeURIComponent(seg))
     .join("/");
-  const res = await fetch(
+  const res = await fetchWithRetry(
     `https://api.github.com/repos/${repo}/contents/${encodedPath}?ref=${ref}`,
     {
       headers: {
@@ -75,7 +76,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
   // 既存ファイル更新時: sha が未指定なら自動取得
   let fileSha = sha;
   if (!fileSha && content != null) {
-    const getRes = await fetch(
+    const getRes = await fetchWithRetry(
       `https://api.github.com/repos/${repo}/contents/${encodedPath}${branch ? `?ref=${branch}` : ""}`,
       {
         headers: {
@@ -90,7 +91,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     }
   }
 
-  const res = await fetch(
+  const res = await fetchWithRetry(
     `https://api.github.com/repos/${repo}/contents/${encodedPath}`,
     {
       method: "PUT",
@@ -143,7 +144,7 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
     .join("/");
 
   // ファイルの SHA を取得
-  const getRes = await fetch(
+  const getRes = await fetchWithRetry(
     `https://api.github.com/repos/${repo}/contents/${encodedPath}`,
     {
       headers: {
@@ -164,7 +165,7 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Cannot get file SHA" }, { status: 400 });
   }
 
-  const res = await fetch(
+  const res = await fetchWithRetry(
     `https://api.github.com/repos/${repo}/contents/${encodedPath}`,
     {
       method: "DELETE",
@@ -219,7 +220,7 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
       .join("/");
 
   // 1. GET old file (content + sha)
-  const getRes = await fetch(
+  const getRes = await fetchWithRetry(
     `https://api.github.com/repos/${repo}/contents/${encodeSegments(oldPath)}${branch ? `?ref=${branch}` : ""}`,
     { headers },
   );
@@ -241,7 +242,7 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
   }
 
   // 2. PUT new file (preserve raw base64 content)
-  const putRes = await fetch(
+  const putRes = await fetchWithRetry(
     `https://api.github.com/repos/${repo}/contents/${encodeSegments(newPath)}`,
     {
       method: "PUT",
@@ -262,7 +263,7 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
   }
 
   // 3. DELETE old file
-  const delRes = await fetch(
+  const delRes = await fetchWithRetry(
     `https://api.github.com/repos/${repo}/contents/${encodeSegments(oldPath)}`,
     {
       method: "DELETE",

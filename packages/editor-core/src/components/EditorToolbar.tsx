@@ -145,6 +145,22 @@ export const EditorToolbar = React.memo(function EditorToolbar({
   const [mobileMenuAnchorEl, setMobileMenuAnchorEl] = useState<HTMLElement | null>(null);
   const mobileMoreRef = useRef<HTMLButtonElement>(null);
 
+  /** Roving tabindex: 最後にフォーカスされたボタンのインデックス */
+  const [rovingIndex, setRovingIndex] = useState(0);
+
+  /** ツールバー内のフォーカス可能要素に roving tabindex を適用 */
+  const applyRovingTabindex = useCallback((toolbar: HTMLElement, activeIdx: number) => {
+    const items = Array.from(toolbar.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+    items.forEach((item, i) => {
+      item.setAttribute("tabindex", i === activeIdx ? "0" : "-1");
+    });
+  }, []);
+
+  /** ツールバーがマウントされたら初期 roving tabindex を適用 */
+  const toolbarRefCallback = useCallback((node: HTMLElement | null) => {
+    if (node) applyRovingTabindex(node, rovingIndex);
+  }, [applyRovingTabindex, rovingIndex]);
+
   const handleToolbarKeyDown = useCallback((e: React.KeyboardEvent) => {
     const toolbar = e.currentTarget;
     const items = Array.from(toolbar.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
@@ -169,6 +185,10 @@ export const EditorToolbar = React.memo(function EditorToolbar({
         return;
     }
     e.preventDefault();
+    items.forEach((item, i) => {
+      item.setAttribute("tabindex", i === nextIndex ? "0" : "-1");
+    });
+    setRovingIndex(nextIndex);
     items[nextIndex]?.focus();
   }, []);
 
@@ -204,6 +224,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
     <>
     <Paper
       id="md-editor-toolbar"
+      ref={toolbarRefCallback}
       variant="outlined"
       role="toolbar"
       aria-label={t("editorToolbar")}

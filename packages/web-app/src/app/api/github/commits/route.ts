@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { fetchWithRetry } from "../../../../lib/fetchWithRetry";
 import { getGitHubToken } from "../../../../lib/githubAuth";
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
@@ -15,7 +16,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       { status: 400 },
     );
   }
-  const res = await fetch(
+  const res = await fetchWithRetry(
     `https://api.github.com/repos/${repo}/commits?path=${encodeURIComponent(path)}&per_page=100`,
     {
       headers: {

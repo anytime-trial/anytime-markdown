@@ -183,7 +183,7 @@ export function MathBlock(props: MathBlockProps) {
         <Box
           contentEditable={false}
           role="img"
-          aria-label={t("mathFormula")}
+          aria-label={`${t("mathFormula")}: ${code}`}
           onClick={selectNode}
           sx={{ pt: 0, px: 2, pb: 2, bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG, borderTop: codeCollapsed ? 0 : 1, borderColor: "divider", overflow: "auto", maxHeight: PREVIEW_MAX_HEIGHT, display: "flex", justifyContent: "flex-start" }}
           dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(mathHtml, MATH_SANITIZE_CONFIG) }}

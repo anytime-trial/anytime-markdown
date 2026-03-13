@@ -96,7 +96,7 @@ export default function LandingBody({ headingFontFamily }: { headingFontFamily?:
             {t('heroDescription')}
           </Typography>
 
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 2 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5 }}>
             <Button
               component={NextLink}
               href="/markdown"
@@ -105,10 +105,10 @@ export default function LandingBody({ headingFontFamily }: { headingFontFamily?:
               sx={{
                 textTransform: 'none',
                 fontWeight: 700,
-                fontSize: '1.05rem',
-                borderRadius: 2.5,
-                px: 5,
-                py: 1.5,
+                fontSize: { xs: '1.1rem', md: '1.25rem' },
+                borderRadius: 3,
+                px: { xs: 5, md: 7 },
+                py: { xs: 1.5, md: 2 },
                 width: { xs: '100%', sm: 'auto' },
                 bgcolor: ACCENT_COLOR,
                 color: '#000000',
@@ -125,26 +125,28 @@ export default function LandingBody({ headingFontFamily }: { headingFontFamily?:
             >
               {t('openEditor')}
             </Button>
+            <Typography
+              variant="caption"
+              sx={{ color: 'text.secondary', fontSize: '0.8rem' }}
+            >
+              {t('noSignupRequired')}
+            </Typography>
             <Button
               component={MuiLink}
               href="https://github.com/kiyotaka-ueda/anytime-markdown"
               target="_blank"
               rel="noopener noreferrer"
-              variant="outlined"
-              size="large"
+              variant="text"
+              size="small"
               sx={{
                 textTransform: 'none',
-                fontWeight: 600,
-                fontSize: '1.05rem',
-                borderRadius: 2.5,
-                px: 4,
-                py: 1.5,
-                width: { xs: '100%', sm: 'auto' },
-                borderColor: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.23)',
-                color: 'text.primary',
+                fontWeight: 500,
+                fontSize: '0.85rem',
+                color: 'text.secondary',
                 '&:hover': {
-                  borderColor: isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.4)',
-                  bgcolor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
+                  color: 'text.primary',
+                  bgcolor: 'transparent',
+                  textDecoration: 'underline',
                 },
               }}
             >

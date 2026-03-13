@@ -101,6 +101,8 @@
     "imageNoAlt": "Image",
     "imageNoAltWarning": "No alt text",
     "altText": "Alt text (optional)",
+    "altTextPlaceholder": "e.g. Screenshot of settings page",
+    "altTextGuidance": "Briefly describe the image content for screen readers",
     "insertTable": "Insert Table",
     "addColumn": "Add Column",
     "removeColumn": "Remove Column",
@@ -440,6 +442,7 @@
     "heroTitle": "Write Markdown, Beautifully",
     "heroDescription": "A free, open-source markdown editor that works entirely in your browser. No sign-up, no server — your words stay yours.",
     "openEditor": "Open Editor",
+    "noSignupRequired": "No sign-up required — start writing instantly",
     "features": "Features",
     "featureWysiwyg": "Rich Text Editing",
     "featureWysiwygDesc": "Write with rich formatting that instantly renders as you type. Bold, italic, links, images — all at your fingertips.",
@@ -522,7 +525,9 @@
     "error": "Something went wrong",
     "retry": "Try again",
     "loading": "Loading",
-    "loadingEditor": "Loading editor"
+    "loadingEditor": "Loading editor",
+    "githubConnected": "Connected to GitHub",
+    "githubDisconnected": "Disconnected from GitHub"
   },
   "Privacy": {
     "title": "Privacy Policy",

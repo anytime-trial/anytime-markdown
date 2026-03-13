@@ -105,7 +105,7 @@ textarea:focus-visible {
     --vscode-panel-border: #e5e5e5;
     --vscode-toolbar-hoverBackground: rgba(0, 0, 0, 0.06);
     --vscode-toolbar-activeBackground: rgba(0, 0, 0, 0.1);
-    --vscode-focusBorder: #0078d4;
+    --vscode-focusBorder: #005a9e;
     --vscode-textCodeBlock-background: rgba(220, 220, 220, 0.4);
     --vscode-textBlockQuote-border: #0078d4;
     --vscode-textBlockQuote-foreground: #57606a;

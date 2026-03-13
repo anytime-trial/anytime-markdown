@@ -1,6 +1,6 @@
 'use client';
 
-import { Box, CircularProgress } from '@mui/material';
+import { Alert, Box, CircularProgress, Snackbar } from '@mui/material';
 import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -42,6 +42,7 @@ async function fetchFileContent(repo: string, filePath: string, branch: string):
 }
 
 export default function Page() {
+  const t = useTranslations('Common');
   const { themeMode, setThemeMode } = useThemeMode();
   const { setLocale } = useLocaleSwitch();
   const { data: session } = useSession();
@@ -69,8 +70,11 @@ export default function Page() {
 
   // SSO ログイン/ログアウト時にエディタを空の初期状態にリセット
   const prevSessionRef = useRef(session);
+  const [ssoSnackbar, setSsoSnackbar] = useState<string | null>(null);
   useEffect(() => {
     if (prevSessionRef.current === session) return;
+    const wasLoggedIn = !!prevSessionRef.current;
+    const isNowLoggedIn = !!session;
     prevSessionRef.current = session;
     selectedFileRef.current = null;
     setExternalContent(undefined);
@@ -79,7 +83,12 @@ export default function Page() {
     setExternalCompareContent(null);
     setTimelineProvider(null);
     setEditorKey((k) => k + 1);
-  }, [session]);
+    if (isNowLoggedIn && !wasLoggedIn) {
+      setSsoSnackbar(t('githubConnected'));
+    } else if (!isNowLoggedIn && wasLoggedIn) {
+      setSsoSnackbar(t('githubDisconnected'));
+    }
+  }, [session, t]);
 
   useEffect(() => {
     sessionStorage.setItem('explorerOpen', explorerOpen ? '1' : '0');
@@ -173,6 +182,22 @@ export default function Page() {
           showReadonlyMode={process.env.NEXT_PUBLIC_SHOW_READONLY_MODE === "1"}
         />
       </Box>
+      <Snackbar
+        open={!!ssoSnackbar}
+        autoHideDuration={4000}
+        onClose={() => setSsoSnackbar(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={() => setSsoSnackbar(null)}
+          severity="info"
+          variant="filled"
+          role="status"
+          sx={{ width: '100%' }}
+        >
+          {ssoSnackbar}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }
