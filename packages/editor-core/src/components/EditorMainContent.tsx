@@ -251,7 +251,8 @@ export function EditorMainContent({
   const isTimelineActive = timelineState != null && timelineState.commits.length > 0;
 
   return (
-    <Box component="main" ref={editorContainerRef} sx={{ display: "flex", gap: 0, position: "relative" }} onDragOver={handleContainerDragOver} onDragLeave={handleContainerDragLeave} onDrop={handleContainerDrop}>
+    <Box component="main" ref={editorContainerRef} sx={{ display: "flex", flexDirection: "column", position: "relative" }} onDragOver={handleContainerDragOver} onDragLeave={handleContainerDragLeave} onDrop={handleContainerDrop}>
+      <Box sx={{ display: "flex", gap: 0, flex: 1, minHeight: 0 }}>
       {fileDragOver && <Box sx={{ position: "absolute", inset: 0, bgcolor: FILE_DROP_OVERLAY_COLOR, zIndex: 10, pointerEvents: "none" }} />}
       {!sourceMode && <EditorOutlineSection {...outlineProps} />}
 
@@ -317,6 +318,7 @@ export function EditorMainContent({
       {commentOpen && editor && !sourceMode && (
         <CommentPanel editor={editor} open={commentOpen} onClose={() => setCommentOpen(false)} onSave={() => saveContent(getMarkdownFromEditor(editor))} t={t} />
       )}
+      </Box>
       {isTimelineActive && (
         <TimelineBar
           state={timelineState}
