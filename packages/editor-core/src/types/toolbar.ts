@@ -42,6 +42,7 @@ export interface ToolbarModeState {
   outlineOpen: boolean;
   inlineMergeOpen: boolean;
   commentOpen?: boolean;
+  isTimelineActive?: boolean;
 }
 
 /** モード切替ハンドラ */
@@ -53,4 +54,5 @@ export interface ToolbarModeHandlers {
   onToggleOutline: () => void;
   onToggleComments?: () => void;
   onMerge: () => void;
+  onOpenTimeline?: () => void;
 }

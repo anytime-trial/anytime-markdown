@@ -1,6 +1,7 @@
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import CodeIcon from "@mui/icons-material/Code";
 import EditNoteIcon from "@mui/icons-material/EditNote";
+import HistoryIcon from "@mui/icons-material/History";
 import ListAltIcon from "@mui/icons-material/ListAlt";
 import LockIcon from "@mui/icons-material/Lock";
 import MenuIcon from "@mui/icons-material/Menu";
@@ -136,8 +137,8 @@ export const EditorToolbar = React.memo(function EditorToolbar({
     outline: hideOutline, comments: hideComments,
     templates: _hideTemplates, foldAll: _hideFoldAll,
   } = hide;
-  const { sourceMode, readonlyMode, reviewMode, outlineOpen, inlineMergeOpen, commentOpen } = modeState;
-  const { onSwitchToSource, onSwitchToWysiwyg, onSwitchToReview, onSwitchToReadonly, onToggleOutline, onToggleComments, onMerge } = modeHandlers;
+  const { sourceMode, readonlyMode, reviewMode, outlineOpen, inlineMergeOpen, commentOpen, isTimelineActive } = modeState;
+  const { onSwitchToSource, onSwitchToWysiwyg, onSwitchToReview, onSwitchToReadonly, onToggleOutline, onToggleComments, onMerge, onOpenTimeline } = modeHandlers;
   const isDark = useTheme().palette.mode === "dark";
 
   const [mobileMenuAnchorEl, setMobileMenuAnchorEl] = useState<HTMLElement | null>(null);
@@ -276,6 +277,13 @@ export const EditorToolbar = React.memo(function EditorToolbar({
           <ToggleButton value="comments" selected={commentOpen} onClick={onToggleComments} disabled={inlineMergeOpen || sourceMode} aria-label={t("commentPanel") || "Comments"} sx={{ px: 0.75, py: 0.25 }}>
             <Tooltip title={t("commentPanel") || "Comments"}>
               <span style={{ display: "inline-flex" }}><ChatBubbleOutlineIcon fontSize="small" /></span>
+            </Tooltip>
+          </ToggleButton>
+        )}
+        {onOpenTimeline && (
+          <ToggleButton value="timeline" selected={!!isTimelineActive} onClick={onOpenTimeline} disabled={inlineMergeOpen} aria-label={t("timeline")} sx={{ px: 0.75, py: 0.25 }}>
+            <Tooltip title={t("timeline")}>
+              <span style={{ display: "inline-flex" }}><HistoryIcon fontSize="small" /></span>
             </Tooltip>
           </ToggleButton>
         )}

@@ -321,7 +321,9 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
           onSwitchToSource: handleSwitchToSource, onSwitchToWysiwyg: handleSwitchToWysiwyg,
           onSwitchToReview: handleSwitchToReview, onSwitchToReadonly: handleSwitchToReadonly,
           onToggleOutline: handleToggleOutline, onMerge: handleMerge,
+          onOpenTimeline: timelineProvider ? () => handleOpenTimeline(fileName ?? "untitled.md") : undefined,
         }}
+        isTimelineActive={isTimelineActive}
         inlineMergeOpen={inlineMergeOpen}
         hide={{
           outline: hideOutline, comments: hideComments,
