@@ -55,6 +55,7 @@ export default function Page() {
   const [isTimelineActive, setIsTimelineActive] = useState(false);
   const [externalContent, setExternalContent] = useState<string | undefined>(undefined);
   const [externalFileName, setExternalFileName] = useState<string | undefined>(undefined);
+  const [externalFilePath, setExternalFilePath] = useState<string | undefined>(undefined);
   const [externalCompareContent, setExternalCompareContent] = useState<string | null>(null);
   const [compareModeOpen, setCompareModeOpen] = useState(false);
   const [editorKey, setEditorKey] = useState(0);
@@ -74,6 +75,7 @@ export default function Page() {
     selectedFileRef.current = null;
     setExternalContent(undefined);
     setExternalFileName(undefined);
+    setExternalFilePath(undefined);
     setExternalCompareContent(null);
     setTimelineProvider(null);
     setEditorKey((k) => k + 1);
@@ -102,6 +104,7 @@ export default function Page() {
     const content = await fetchFileContent(repo, filePath, branch);
     setExternalContent(content);
     setExternalFileName(filePath.split("/").pop() ?? filePath);
+    setExternalFilePath(filePath);
     setEditorKey((k) => k + 1);
   }, []);
 
@@ -164,6 +167,7 @@ export default function Page() {
           onToggleExplorer={handleToggleExplorer}
           externalContent={externalContent}
           externalFileName={externalFileName}
+          externalFilePath={externalFilePath}
           onExternalSave={isGitHubLoggedIn ? handleExternalSave : undefined}
           featuresUrl="/features"
           showReadonlyMode={process.env.NEXT_PUBLIC_SHOW_READONLY_MODE === "1"}

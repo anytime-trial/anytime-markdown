@@ -1289,17 +1289,6 @@ export const ExplorerPanel: FC<ExplorerPanelProps> = ({
             EXPLORER
           </Typography>
         )}
-        {selectedRepo && (
-          <Tooltip title="New file">
-            <IconButton
-              size="small"
-              onClick={() => setCreatingInDir("")}
-              sx={{ p: 0.5 }}
-            >
-              <NoteAddIcon sx={{ fontSize: 16 }} />
-            </IconButton>
-          </Tooltip>
-        )}
         {session && (
           <Tooltip title="Sign out">
             <IconButton

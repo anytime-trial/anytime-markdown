@@ -288,13 +288,6 @@ export const EditorToolbar = React.memo(function EditorToolbar({
             </Tooltip>
           </ToggleButton>
         )}
-        {onOpenTimeline && (
-          <ToggleButton value="timeline" selected={!!isTimelineActive} onClick={onOpenTimeline} disabled={inlineMergeOpen} aria-label={t("timeline")} sx={{ px: 0.75, py: 0.25 }}>
-            <Tooltip title={t("timeline")}>
-              <span style={{ display: "inline-flex" }}><HistoryIcon fontSize="small" /></span>
-            </Tooltip>
-          </ToggleButton>
-        )}
       </ToggleButtonGroup>
       </Box>
 

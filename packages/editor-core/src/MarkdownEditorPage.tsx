@@ -86,6 +86,8 @@ interface MarkdownEditorPageProps {
   externalContent?: string;
   /** 外部コンテンツのファイル名（ステータスバー表示用） */
   externalFileName?: string;
+  /** 外部コンテンツのリポジトリ内フルパス（タイムライン用） */
+  externalFilePath?: string;
   /** 外部コンテンツの上書き保存コールバック */
   onExternalSave?: (content: string) => void;
   readOnly?: boolean;
@@ -109,7 +111,7 @@ interface MarkdownEditorPageProps {
   onToggleExplorer?: () => void;
 }
 
-export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideHelp, hideVersionInfo, featuresUrl, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, onLocaleChange, fileSystemProvider, timelineProvider, externalContent, externalFileName, onExternalSave, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, showReadonlyMode, timelineRequested, onTimelineActiveChange, externalCompareContent, explorerOpen, onToggleExplorer }: MarkdownEditorPageProps = {}) {
+export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideHelp, hideVersionInfo, featuresUrl, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, onLocaleChange, fileSystemProvider, timelineProvider, externalContent, externalFileName, externalFilePath, onExternalSave, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, showReadonlyMode, timelineRequested, onTimelineActiveChange, externalCompareContent, explorerOpen, onToggleExplorer }: MarkdownEditorPageProps = {}) {
   const t = useTranslations("MarkdownEditor");
   const locale = useLocale() as "en" | "ja";
   const muiTheme = useTheme();
@@ -287,7 +289,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     if (timelineRequested === prevTimelineRequestedRef.current) return;
     prevTimelineRequestedRef.current = timelineRequested;
     if (timelineRequested && !isTimelineActive && timelineProvider) {
-      handleOpenTimeline(fileName ?? "untitled.md");
+      handleOpenTimeline(externalFilePath ?? fileName ?? "untitled.md");
     } else if (!timelineRequested && isTimelineActive) {
       timeline.close();
     }
@@ -398,7 +400,13 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
           onSwitchToSource: handleSwitchToSource, onSwitchToWysiwyg: handleSwitchToWysiwyg,
           onSwitchToReview: handleSwitchToReview, onSwitchToReadonly: handleSwitchToReadonly,
           onToggleOutline: handleToggleOutline, onMerge: handleMerge,
-          onOpenTimeline: undefined,
+          onOpenTimeline: timelineProvider ? () => {
+            if (isTimelineActive) {
+              timeline.close();
+            } else {
+              handleOpenTimeline(externalFilePath ?? fileName ?? "untitled.md");
+            }
+          } : undefined,
           onToggleExplorer,
         }}
         isTimelineActive={isTimelineActive}
