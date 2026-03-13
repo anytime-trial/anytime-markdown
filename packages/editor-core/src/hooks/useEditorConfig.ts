@@ -338,6 +338,7 @@ export function useEditorConfig({
       },
     },
     content: initialContent ?? "",
+    autofocus: "start",
     onUpdate: ({ editor: e }: { editor: Editor }) => {
       const md = getMarkdownFromEditor(e);
       saveContent(md);
