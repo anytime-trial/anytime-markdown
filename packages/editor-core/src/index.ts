@@ -74,6 +74,12 @@ export {
 } from './types';
 export type { FileHandle, FileOpenResult, FileSystemProvider } from './types/fileSystem';
 export type {
+  TimelineCommit,
+  TimelineDataProvider,
+  PlaybackSpeed,
+  TimelineState,
+} from './types/timeline';
+export type {
 ToolbarFileCapabilities,
 ToolbarFileHandlers, ToolbarModeHandlers,
   ToolbarModeState,   ToolbarVisibility, } from './types/toolbar';
