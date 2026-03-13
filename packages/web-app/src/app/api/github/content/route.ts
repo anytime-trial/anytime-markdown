@@ -44,10 +44,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     );
   }
   // Single file: decode base64 content
-  const content = Buffer.from(
-    (data as { content: string }).content,
-    "base64",
-  ).toString("utf-8");
+  const raw = (data as { content?: string | null }).content;
+  const content = raw ? Buffer.from(raw, "base64").toString("utf-8") : "";
   return NextResponse.json({ content });
 }
 
