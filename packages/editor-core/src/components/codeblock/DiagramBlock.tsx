@@ -21,8 +21,9 @@ import { useZoomPan } from "../../hooks/useZoomPan";
 import { usePlantUmlToolbar } from "../../types";
 import { useEditorSettingsContext } from "../../useEditorSettings";
 import { extractDiagramAltText } from "../../utils/diagramAltText";
-import { DiagramFullscreenDialog } from "../DiagramFullscreenDialog";
+import { MermaidFullscreenDialog } from "../MermaidFullscreenDialog";
 import { MermaidSamplePopover } from "../MermaidSamplePopover";
+import { PlantUmlFullscreenDialog } from "../PlantUmlFullscreenDialog";
 import { CodeBlockFrame } from "./CodeBlockFrame";
 import type { CodeBlockSharedProps } from "./types";
 
@@ -198,45 +199,77 @@ export function DiagramBlock(props: DiagramBlockProps) {
       handleDeleteBlock={handleDeleteBlock}
       t={t}
       afterFrame={<>
-        <DiagramFullscreenDialog
-          open={fullscreen}
-          onClose={() => { fsSearch.reset(); setFullscreen(false); }}
-          label={label}
-          isMermaid={isMermaid}
-          isPlantUml={isPlantUml}
-          svg={svg}
-          plantUmlUrl={plantUmlUrl}
-          code={code}
-          fsCode={fsCode}
-          onFsCodeChange={onFsCodeChange}
-          fsTextareaRef={fsTextareaRef}
-          fsSearch={fsSearch}
-          fsCodeVisible={fsCodeVisible}
-          onToggleFsCodeVisible={() => setFsCodeVisible((v) => !v)}
-          fsZP={fsZP}
-          readOnly={!isEditable}
-          isCompareMode={isCompareMode}
-          compareCode={compareCode}
-          onMergeApply={handleMergeApply}
-          toolbarExtra={<>
-            {isEditable && (
-              <Tooltip title={t("insertSample")} placement="bottom">
-                <IconButton size="small" sx={{ p: 0.25 }} onClick={(e) => {
-                  if (isMermaid) setMermaidSampleAnchorEl(e.currentTarget);
-                  if (isPlantUml) setSampleAnchorEl(e.currentTarget);
-                }} aria-label={t("insertSample")}>
-                  <SchemaIcon sx={pumlIconSx} />
+        {isMermaid && (
+          <MermaidFullscreenDialog
+            open={fullscreen}
+            onClose={() => { fsSearch.reset(); setFullscreen(false); }}
+            label={label}
+            svg={svg}
+            code={code}
+            fsCode={fsCode}
+            onFsCodeChange={onFsCodeChange}
+            onFsTextChange={_handleFsTextChange}
+            fsTextareaRef={fsTextareaRef}
+            fsSearch={fsSearch}
+            fsCodeVisible={fsCodeVisible}
+            onToggleFsCodeVisible={() => setFsCodeVisible((v) => !v)}
+            fsZP={fsZP}
+            readOnly={!isEditable}
+            isCompareMode={isCompareMode}
+            compareCode={compareCode}
+            onMergeApply={handleMergeApply}
+            toolbarExtra={<>
+              {isEditable && (
+                <Tooltip title={t("insertSample")} placement="bottom">
+                  <IconButton size="small" sx={{ p: 0.25 }} onClick={(e) => setMermaidSampleAnchorEl(e.currentTarget)} aria-label={t("insertSample")}>
+                    <SchemaIcon sx={pumlIconSx} />
+                  </IconButton>
+                </Tooltip>
+              )}
+              <Tooltip title={t("copyCode")} placement="bottom">
+                <IconButton size="small" sx={{ p: 0.25 }} onClick={handleCopyCode} aria-label={t("copyCode")}>
+                  <ContentCopyIcon sx={{ fontSize: 16, color: "text.secondary" }} />
                 </IconButton>
               </Tooltip>
-            )}
-            <Tooltip title={t("copyCode")} placement="bottom">
-              <IconButton size="small" sx={{ p: 0.25 }} onClick={handleCopyCode} aria-label={t("copyCode")}>
-                <ContentCopyIcon sx={{ fontSize: 16, color: "text.secondary" }} />
-              </IconButton>
-            </Tooltip>
-          </>}
-          t={t}
-        />
+            </>}
+            t={t}
+          />
+        )}
+        {isPlantUml && (
+          <PlantUmlFullscreenDialog
+            open={fullscreen}
+            onClose={() => { fsSearch.reset(); setFullscreen(false); }}
+            label={label}
+            plantUmlUrl={plantUmlUrl}
+            code={code}
+            fsCode={fsCode}
+            onFsCodeChange={onFsCodeChange}
+            fsTextareaRef={fsTextareaRef}
+            fsSearch={fsSearch}
+            fsCodeVisible={fsCodeVisible}
+            onToggleFsCodeVisible={() => setFsCodeVisible((v) => !v)}
+            fsZP={fsZP}
+            readOnly={!isEditable}
+            isCompareMode={isCompareMode}
+            compareCode={compareCode}
+            onMergeApply={handleMergeApply}
+            toolbarExtra={<>
+              {isEditable && (
+                <Tooltip title={t("insertSample")} placement="bottom">
+                  <IconButton size="small" sx={{ p: 0.25 }} onClick={(e) => setSampleAnchorEl(e.currentTarget)} aria-label={t("insertSample")}>
+                    <SchemaIcon sx={pumlIconSx} />
+                  </IconButton>
+                </Tooltip>
+              )}
+              <Tooltip title={t("copyCode")} placement="bottom">
+                <IconButton size="small" sx={{ p: 0.25 }} onClick={handleCopyCode} aria-label={t("copyCode")}>
+                  <ContentCopyIcon sx={{ fontSize: 16, color: "text.secondary" }} />
+                </IconButton>
+              </Tooltip>
+            </>}
+            t={t}
+          />
+        )}
         <MermaidSamplePopover
           anchorEl={mermaidSampleAnchorEl}
           onClose={() => setMermaidSampleAnchorEl(null)}

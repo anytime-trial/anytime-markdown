@@ -72,8 +72,12 @@ jest.mock("dompurify", () => ({
   default: { sanitize: (html: string) => html },
 }));
 
-jest.mock("../../components/DiagramFullscreenDialog", () => ({
-  DiagramFullscreenDialog: ({ toolbarExtra }: { toolbarExtra?: React.ReactNode }) => <div data-testid="fs-dialog">{toolbarExtra}</div>,
+jest.mock("../../components/MermaidFullscreenDialog", () => ({
+  MermaidFullscreenDialog: ({ toolbarExtra }: { toolbarExtra?: React.ReactNode }) => <div data-testid="fs-dialog">{toolbarExtra}</div>,
+}));
+
+jest.mock("../../components/PlantUmlFullscreenDialog", () => ({
+  PlantUmlFullscreenDialog: ({ toolbarExtra }: { toolbarExtra?: React.ReactNode }) => <div data-testid="fs-dialog">{toolbarExtra}</div>,
 }));
 
 jest.mock("../../components/MermaidSamplePopover", () => ({

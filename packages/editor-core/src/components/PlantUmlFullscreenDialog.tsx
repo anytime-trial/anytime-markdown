@@ -1,0 +1,256 @@
+import CloseIcon from "@mui/icons-material/Close";
+import CodeIcon from "@mui/icons-material/Code";
+import CodeOffIcon from "@mui/icons-material/CodeOff";
+import RestartAltIcon from "@mui/icons-material/RestartAlt";
+import ZoomInIcon from "@mui/icons-material/ZoomIn";
+import ZoomOutIcon from "@mui/icons-material/ZoomOut";
+import { Box, Dialog, DialogTitle, Divider, IconButton, ToggleButton, ToggleButtonGroup, Tooltip, Typography, useMediaQuery, useTheme } from "@mui/material";
+import React, { useRef, useState } from "react";
+
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "../constants/colors";
+import type { TextareaSearchState } from "../hooks/useTextareaSearch";
+import type { UseZoomPanReturn } from "../hooks/useZoomPan";
+import { useEditorSettingsContext } from "../useEditorSettings";
+import { extractDiagramAltText } from "../utils/diagramAltText";
+import { FsSearchBar } from "./FsSearchBar";
+import { FullscreenDiffView } from "./FullscreenDiffView";
+
+interface PlantUmlFullscreenDialogProps {
+  open: boolean;
+  onClose: () => void;
+  label: string;
+  plantUmlUrl: string;
+  code: string;
+  fsCode: string;
+  onFsCodeChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+  fsTextareaRef: React.RefObject<HTMLTextAreaElement | null>;
+  fsSearch: TextareaSearchState;
+  fsCodeVisible: boolean;
+  onToggleFsCodeVisible: () => void;
+  fsZP: UseZoomPanReturn;
+  readOnly?: boolean;
+  isCompareMode?: boolean;
+  compareCode?: string | null;
+  onMergeApply?: (newThisCode: string, newOtherCode: string) => void;
+  toolbarExtra?: React.ReactNode;
+  t: (key: string) => string;
+}
+
+const textareaSx = (fontSize: number, lineHeight: number, isDark: boolean) => ({
+  flex: 1,
+  width: "100%",
+  border: "none",
+  outline: "none",
+  resize: "none",
+  fontFamily: "monospace",
+  fontSize: `${fontSize}px`,
+  lineHeight,
+  p: 2,
+  color: "text.primary",
+  bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
+  boxSizing: "border-box",
+  overflow: "auto",
+} as const);
+
+export function PlantUmlFullscreenDialog({
+  open, onClose, label, plantUmlUrl, code,
+  fsCode, onFsCodeChange, fsTextareaRef, fsSearch,
+  fsCodeVisible, onToggleFsCodeVisible, fsZP, readOnly,
+  isCompareMode, compareCode, onMergeApply, toolbarExtra,
+  t,
+}: PlantUmlFullscreenDialogProps) {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === "dark";
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+  const settings = useEditorSettingsContext();
+
+  const [fsSplitPct, setFsSplitPct] = useState(40);
+  const [fsDragging, setFsDragging] = useState(false);
+  const fsContainerRef = useRef<HTMLDivElement>(null);
+
+  const showCompareView = isCompareMode && compareCode != null;
+
+  return (
+    <Dialog
+      open={open}
+      onClose={onClose}
+      fullScreen
+      aria-labelledby="plantuml-fullscreen-title"
+      slotProps={{ paper: { sx: { bgcolor: settings.editorBg === "grey" && !isDark ? "grey.50" : undefined, display: "flex", flexDirection: "column" } } }}
+      onKeyDown={(e: React.KeyboardEvent) => {
+        if (showCompareView) return;
+        const mod = e.metaKey || e.ctrlKey;
+        if (mod && (e.key === "f" || e.key === "h")) {
+          e.preventDefault();
+          e.stopPropagation();
+          fsSearch.focusSearch();
+        }
+      }}
+    >
+      {/* Toolbar */}
+      <Box sx={{ display: "flex", alignItems: "center", px: 2, py: 1, borderBottom: 1, borderColor: "divider", position: "relative" }}>
+        <DialogTitle id="plantuml-fullscreen-title" sx={{ p: 0, fontSize: "0.875rem", fontWeight: 600, mr: 1 }}>
+          {label}{showCompareView ? ` - ${t("compare")}` : ""}
+        </DialogTitle>
+        {!showCompareView && (
+          <>
+            <ToggleButtonGroup size="small" sx={{ height: 30 }}>
+              <ToggleButton value="zoomOut" aria-label={t("zoomOut")} sx={{ px: 0.75, py: 0.25 }} onClick={fsZP.zoomOut}>
+                <Tooltip title={t("zoomOut")} placement="bottom">
+                  <ZoomOutIcon sx={{ fontSize: 18 }} />
+                </Tooltip>
+              </ToggleButton>
+              <ToggleButton value="zoomIn" aria-label={t("zoomIn")} sx={{ px: 0.75, py: 0.25 }} onClick={fsZP.zoomIn}>
+                <Tooltip title={t("zoomIn")} placement="bottom">
+                  <ZoomInIcon sx={{ fontSize: 18 }} />
+                </Tooltip>
+              </ToggleButton>
+              {fsZP.isDirty && (
+                <ToggleButton value="zoomReset" aria-label={t("zoomReset")} sx={{ px: 0.75, py: 0.25 }} onClick={fsZP.reset}>
+                  <Tooltip title={t("zoomReset")} placement="bottom">
+                    <RestartAltIcon sx={{ fontSize: 18 }} />
+                  </Tooltip>
+                </ToggleButton>
+              )}
+            </ToggleButtonGroup>
+            <Typography variant="caption" sx={{ minWidth: 40, textAlign: "center" }}>
+              {Math.round(fsZP.zoom * 100)}%
+            </Typography>
+            {fsCodeVisible && (
+              <FsSearchBar search={fsSearch} t={t} />
+            )}
+            {toolbarExtra}
+          </>
+        )}
+        <Box sx={{ flex: 1 }} />
+        {!showCompareView && (
+          <>
+            <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+            <Tooltip title={fsCodeVisible ? t("diagramCodeHide") : t("diagramCodeShow")} placement="bottom">
+              <IconButton
+                size="small"
+                onClick={onToggleFsCodeVisible}
+                aria-label={fsCodeVisible ? t("diagramCodeHide") : t("diagramCodeShow")}
+                aria-pressed={fsCodeVisible}
+              >
+                {fsCodeVisible ? <CodeOffIcon sx={{ fontSize: 18 }} /> : <CodeIcon sx={{ fontSize: 18 }} />}
+              </IconButton>
+            </Tooltip>
+          </>
+        )}
+        <Tooltip title={t("close")} placement="bottom">
+          <IconButton size="small" onClick={onClose} sx={{ ml: 1 }} aria-label={t("close")}>
+            <CloseIcon sx={{ fontSize: 20 }} />
+          </IconButton>
+        </Tooltip>
+      </Box>
+
+      {/* Compare view */}
+      {showCompareView ? (
+        <FullscreenDiffView
+          initialLeftCode={fsCode}
+          initialRightCode={compareCode}
+          onMergeApply={onMergeApply ?? (() => {})}
+          t={t}
+        />
+      ) : (
+        /* Normal view: Code + Divider + Preview */
+        <Box
+          ref={fsContainerRef}
+          sx={{ flex: 1, display: "flex", flexDirection: isMobile ? "column" : "row", overflow: "hidden", position: "relative" }}
+          onPointerMove={(e: React.PointerEvent) => {
+            if (fsDragging && fsContainerRef.current) {
+              const rect = fsContainerRef.current.getBoundingClientRect();
+              const pct = ((e.clientX - rect.left) / rect.width) * 100;
+              setFsSplitPct(Math.min(80, Math.max(15, pct)));
+            }
+            if (!fsDragging) fsZP.handlePointerMove(e);
+          }}
+          onPointerUp={(e: React.PointerEvent) => {
+            if (fsDragging) {
+              setFsDragging(false);
+              (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
+            } else {
+              fsZP.handlePointerUp();
+            }
+          }}
+        >
+          {/* Code editor */}
+          {fsCodeVisible && (
+            <Box sx={{ width: isMobile ? "100%" : `${fsSplitPct}%`, height: isMobile ? "40%" : "auto", minWidth: isMobile ? undefined : 120, display: "flex", flexDirection: "column", pointerEvents: fsDragging ? "none" : "auto" }}>
+              <Box
+                component="textarea"
+                ref={fsTextareaRef}
+                value={fsCode}
+                onChange={onFsCodeChange}
+                readOnly={readOnly}
+                spellCheck={false}
+                sx={textareaSx(settings.fontSize, settings.lineHeight, isDark)}
+              />
+            </Box>
+          )}
+          {/* Draggable divider (desktop only) */}
+          {fsCodeVisible && (
+            <Box
+              role="separator"
+              aria-orientation="vertical"
+              aria-label={t("resizeSplitter")}
+              aria-valuenow={fsSplitPct}
+              aria-valuemin={20}
+              aria-valuemax={80}
+              tabIndex={0}
+              onKeyDown={(e: React.KeyboardEvent) => {
+                if (e.key === "ArrowLeft") {
+                  setFsSplitPct((v) => Math.max(20, v - 5));
+                  e.preventDefault();
+                } else if (e.key === "ArrowRight") {
+                  setFsSplitPct((v) => Math.min(80, v + 5));
+                  e.preventDefault();
+                }
+              }}
+              onPointerDown={(e: React.PointerEvent) => {
+                setFsDragging(true);
+                (e.target as HTMLElement).setPointerCapture(e.pointerId);
+                e.preventDefault();
+              }}
+              sx={{
+                display: isMobile ? "none" : "block",
+                width: 4,
+                cursor: "col-resize",
+                bgcolor: "divider",
+                flexShrink: 0,
+                "&:hover": { bgcolor: "primary.main" },
+                "&:focus-visible": { bgcolor: "primary.main", outline: "2px solid", outlineColor: "primary.main" },
+                transition: "background-color 0.15s",
+                "@media (prefers-reduced-motion: reduce)": { transition: "none" },
+              }}
+            />
+          )}
+          {/* Horizontal divider (mobile only) */}
+          {fsCodeVisible && (
+            <Divider sx={{ display: isMobile ? "block" : "none" }} />
+          )}
+          {/* Preview */}
+          <Box
+            sx={{
+              flex: 1,
+              overflow: "hidden",
+              bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
+              cursor: fsDragging ? "col-resize" : "grab",
+              "&:active": { cursor: fsDragging ? "col-resize" : "grabbing" },
+              pointerEvents: fsDragging ? "none" : "auto",
+            }}
+            onPointerDown={fsZP.handlePointerDown}
+            onWheel={fsZP.handleWheel}
+          >
+            <Box sx={{ width: "100%", height: "100%", display: "flex", justifyContent: "center", alignItems: "center", transform: `translate(${fsZP.pan.x}px, ${fsZP.pan.y}px) scale(${fsZP.zoom})`, transformOrigin: "center center", transition: fsZP.isPanningRef.current ? "none" : "transform 0.15s", "@media (prefers-reduced-motion: reduce)": { transition: "none" }, pointerEvents: "none" }}>
+              {plantUmlUrl && (
+                <img src={plantUmlUrl} alt={extractDiagramAltText(code, "plantuml")} referrerPolicy="no-referrer" style={{ maxWidth: "90vw", maxHeight: "85vh" }} />
+              )}
+            </Box>
+          </Box>
+        </Box>
+      )}
+    </Dialog>
+  );
+}

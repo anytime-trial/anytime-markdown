@@ -4,9 +4,9 @@ import CodeOffIcon from "@mui/icons-material/CodeOff";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import ZoomInIcon from "@mui/icons-material/ZoomIn";
 import ZoomOutIcon from "@mui/icons-material/ZoomOut";
-import { Box, Dialog, DialogTitle, Divider, IconButton, ToggleButton, ToggleButtonGroup, Tooltip, Typography, useMediaQuery, useTheme } from "@mui/material";
+import { Box, Dialog, DialogTitle, Divider, IconButton, Tab, Tabs, ToggleButton, ToggleButtonGroup, Tooltip, Typography, useMediaQuery, useTheme } from "@mui/material";
 import DOMPurify from "dompurify";
-import React, { useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "../constants/colors";
 import { SVG_SANITIZE_CONFIG } from "../hooks/useMermaidRender";
@@ -14,20 +14,21 @@ import type { TextareaSearchState } from "../hooks/useTextareaSearch";
 import type { UseZoomPanReturn } from "../hooks/useZoomPan";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import { extractDiagramAltText } from "../utils/diagramAltText";
+import { extractMermaidConfig, mergeMermaidConfig } from "../utils/mermaidConfig";
 import { FsSearchBar } from "./FsSearchBar";
+import { LineNumberTextarea } from "./LineNumberTextarea";
 import { FullscreenDiffView } from "./FullscreenDiffView";
 
-interface DiagramFullscreenDialogProps {
+interface MermaidFullscreenDialogProps {
   open: boolean;
   onClose: () => void;
   label: string;
-  isMermaid: boolean;
-  isPlantUml: boolean;
   svg: string;
-  plantUmlUrl: string;
   code: string;
   fsCode: string;
   onFsCodeChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+  /** Direct text update (bypasses synthetic event) */
+  onFsTextChange: (newCode: string) => void;
   fsTextareaRef: React.RefObject<HTMLTextAreaElement | null>;
   fsSearch: TextareaSearchState;
   fsCodeVisible: boolean;
@@ -37,34 +38,17 @@ interface DiagramFullscreenDialogProps {
   isCompareMode?: boolean;
   compareCode?: string | null;
   onMergeApply?: (newThisCode: string, newOtherCode: string) => void;
-  /** Extra toolbar content (e.g. sample insert button) */
   toolbarExtra?: React.ReactNode;
   t: (key: string) => string;
 }
 
-const textareaSx = (fontSize: number, lineHeight: number, isDark: boolean) => ({
-  flex: 1,
-  width: "100%",
-  border: "none",
-  outline: "none",
-  resize: "none",
-  fontFamily: "monospace",
-  fontSize: `${fontSize}px`,
-  lineHeight,
-  p: 2,
-  color: "text.primary",
-  bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
-  boxSizing: "border-box",
-  overflow: "auto",
-} as const);
-
-export function DiagramFullscreenDialog({
-  open, onClose, label, isMermaid, isPlantUml, svg, plantUmlUrl, code,
-  fsCode, onFsCodeChange, fsTextareaRef, fsSearch,
+export function MermaidFullscreenDialog({
+  open, onClose, label, svg, code,
+  fsCode, onFsCodeChange, onFsTextChange, fsTextareaRef, fsSearch,
   fsCodeVisible, onToggleFsCodeVisible, fsZP, readOnly,
   isCompareMode, compareCode, onMergeApply, toolbarExtra,
   t,
-}: DiagramFullscreenDialogProps) {
+}: MermaidFullscreenDialogProps) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
@@ -74,7 +58,49 @@ export function DiagramFullscreenDialog({
   const [fsDragging, setFsDragging] = useState(false);
   const fsContainerRef = useRef<HTMLDivElement>(null);
 
-  // 比較モードかつ対応ブロックがある場合はコード比較表示
+  // --- Code / Config tab state ---
+  const [activeTab, setActiveTab] = useState<"code" | "config">("code");
+  const [configText, setConfigText] = useState("");
+  const [bodyText, setBodyText] = useState("");
+  const configTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Reset to Code tab and split fsCode only when dialog opens
+  const prevOpenRef = useRef(false);
+  useEffect(() => {
+    if (open && !prevOpenRef.current) {
+      setActiveTab("code");
+    }
+    prevOpenRef.current = open;
+  }, [open]);
+
+  // Extract config/body from fsCode when dialog opens (wait for non-empty fsCode)
+  const initializedRef = useRef(false);
+  useEffect(() => {
+    if (!open) { initializedRef.current = false; return; }
+    if (initializedRef.current) return;
+    if (!fsCode) return; // fsCode not yet synced
+    initializedRef.current = true;
+    const { config, body } = extractMermaidConfig(fsCode);
+    setConfigText(config);
+    setBodyText(body);
+  }, [open, fsCode]);
+
+  // Sync body when user edits Code tab via textarea onChange
+  const handleCodeTabChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newBody = e.target.value;
+    setBodyText(newBody);
+    const merged = mergeMermaidConfig(configText, newBody);
+    onFsTextChange(merged);
+  }, [configText, onFsTextChange]);
+
+  // Sync config when user edits Config tab
+  const handleConfigChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newConfig = e.target.value;
+    setConfigText(newConfig);
+    const merged = mergeMermaidConfig(newConfig, bodyText);
+    onFsTextChange(merged);
+  }, [bodyText, onFsTextChange]);
+
   const showCompareView = isCompareMode && compareCode != null;
 
   return (
@@ -82,7 +108,7 @@ export function DiagramFullscreenDialog({
       open={open}
       onClose={onClose}
       fullScreen
-      aria-labelledby="diagram-fullscreen-title"
+      aria-labelledby="mermaid-fullscreen-title"
       slotProps={{ paper: { sx: { bgcolor: settings.editorBg === "grey" && !isDark ? "grey.50" : undefined, display: "flex", flexDirection: "column" } } }}
       onKeyDown={(e: React.KeyboardEvent) => {
         if (showCompareView) return;
@@ -96,7 +122,7 @@ export function DiagramFullscreenDialog({
     >
       {/* Toolbar */}
       <Box sx={{ display: "flex", alignItems: "center", px: 2, py: 1, borderBottom: 1, borderColor: "divider", position: "relative" }}>
-        <DialogTitle id="diagram-fullscreen-title" sx={{ p: 0, fontSize: "0.875rem", fontWeight: 600, mr: 1 }}>
+        <DialogTitle id="mermaid-fullscreen-title" sx={{ p: 0, fontSize: "0.875rem", fontWeight: 600, mr: 1 }}>
           {label}{showCompareView ? ` - ${t("compare")}` : ""}
         </DialogTitle>
         {!showCompareView && (
@@ -123,7 +149,7 @@ export function DiagramFullscreenDialog({
             <Typography variant="caption" sx={{ minWidth: 40, textAlign: "center" }}>
               {Math.round(fsZP.zoom * 100)}%
             </Typography>
-            {fsCodeVisible && (
+            {fsCodeVisible && activeTab === "code" && (
               <FsSearchBar search={fsSearch} t={t} />
             )}
             {toolbarExtra}
@@ -152,7 +178,7 @@ export function DiagramFullscreenDialog({
         </Tooltip>
       </Box>
 
-      {/* Compare view: line-level diff with merge buttons */}
+      {/* Compare view */}
       {showCompareView ? (
         <FullscreenDiffView
           initialLeftCode={fsCode}
@@ -161,7 +187,7 @@ export function DiagramFullscreenDialog({
           t={t}
         />
       ) : (
-        /* Normal view: Code + Divider + Preview */
+        /* Normal view: Code/Config + Divider + Preview */
         <Box
           ref={fsContainerRef}
           sx={{ flex: 1, display: "flex", flexDirection: isMobile ? "column" : "row", overflow: "hidden", position: "relative" }}
@@ -182,18 +208,43 @@ export function DiagramFullscreenDialog({
             }
           }}
         >
-          {/* Code editor */}
+          {/* Code / Config editor */}
           {fsCodeVisible && (
             <Box sx={{ width: isMobile ? "100%" : `${fsSplitPct}%`, height: isMobile ? "40%" : "auto", minWidth: isMobile ? undefined : 120, display: "flex", flexDirection: "column", pointerEvents: fsDragging ? "none" : "auto" }}>
-              <Box
-                component="textarea"
-                ref={fsTextareaRef}
-                value={fsCode}
-                onChange={onFsCodeChange}
-                readOnly={readOnly}
-                spellCheck={false}
-                sx={textareaSx(settings.fontSize, settings.lineHeight, isDark)}
-              />
+              {/* Tabs */}
+              <Tabs
+                value={activeTab}
+                onChange={(_, v) => setActiveTab(v)}
+                sx={{ minHeight: 32, borderBottom: 1, borderColor: "divider", "& .MuiTab-root": { minHeight: 32, py: 0.5, px: 2, fontSize: "0.75rem", textTransform: "none" } }}
+              >
+                <Tab value="code" label={t("codeTab")} />
+                <Tab value="config" label={t("configTab")} />
+              </Tabs>
+              {/* Code textarea */}
+              {activeTab === "code" && (
+                <LineNumberTextarea
+                  textareaRef={fsTextareaRef}
+                  value={bodyText}
+                  onChange={handleCodeTabChange}
+                  readOnly={readOnly}
+                  fontSize={settings.fontSize}
+                  lineHeight={settings.lineHeight}
+                  isDark={isDark}
+                />
+              )}
+              {/* Config textarea */}
+              {activeTab === "config" && (
+                <LineNumberTextarea
+                  textareaRef={configTextareaRef}
+                  value={configText}
+                  onChange={handleConfigChange}
+                  readOnly={readOnly}
+                  placeholder={'{\n  "theme": "forest",\n  "themeVariables": {\n    "primaryColor": "#BB2528"\n  }\n}'}
+                  fontSize={settings.fontSize}
+                  lineHeight={settings.lineHeight}
+                  isDark={isDark}
+                />
+              )}
             </Box>
           )}
           {/* Draggable divider (desktop only) */}
@@ -251,11 +302,8 @@ export function DiagramFullscreenDialog({
             onWheel={fsZP.handleWheel}
           >
             <Box sx={{ width: "100%", height: "100%", display: "flex", justifyContent: "center", alignItems: "center", transform: `translate(${fsZP.pan.x}px, ${fsZP.pan.y}px) scale(${fsZP.zoom})`, transformOrigin: "center center", transition: fsZP.isPanningRef.current ? "none" : "transform 0.15s", "@media (prefers-reduced-motion: reduce)": { transition: "none" }, pointerEvents: "none" }}>
-              {isMermaid && svg && (
+              {svg && (
                 <Box role="img" aria-label={extractDiagramAltText(code, "mermaid")} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(svg, SVG_SANITIZE_CONFIG) }} sx={{ width: "100%", "& svg": { width: "100%", height: "auto" } }} />
-              )}
-              {isPlantUml && plantUmlUrl && (
-                <img src={plantUmlUrl} alt={extractDiagramAltText(code, "plantuml")} referrerPolicy="no-referrer" style={{ maxWidth: "90vw", maxHeight: "85vh" }} />
               )}
             </Box>
           </Box>

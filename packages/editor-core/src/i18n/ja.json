@@ -130,6 +130,8 @@
     "draggableHeading": "ドラッグ可能な見出し、Alt+矢印キーで並び替え",
     "diagramCodeHide": "ダイアグラムコードを隠す",
     "diagramCodeShow": "ダイアグラムコードを表示する",
+    "codeTab": "コード",
+    "configTab": "コンフィグ",
     "diagramFlowchart": "フローチャート",
     "diagramSequence": "シーケンス図",
     "diagramClass": "クラス図",

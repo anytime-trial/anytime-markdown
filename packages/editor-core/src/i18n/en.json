@@ -130,6 +130,8 @@
     "draggableHeading": "Draggable heading, use Alt+Arrow to reorder",
     "diagramCodeHide": "Hide Diagram Code",
     "diagramCodeShow": "Show Diagram Code",
+    "codeTab": "Code",
+    "configTab": "Config",
     "diagramFlowchart": "Flowchart",
     "diagramSequence": "Sequence diagram",
     "diagramClass": "Class diagram",
