@@ -83,15 +83,15 @@ export function MathFullscreenDialog({
     >
       {/* Toolbar */}
       <Box sx={{ display: "flex", alignItems: "center", px: 2, py: 1, borderBottom: 1, borderColor: "divider", position: "relative" }}>
+        <Tooltip title={t("close")} placement="bottom">
+          <IconButton size="small" onClick={onClose} sx={{ mr: 1 }} aria-label={t("close")}>
+            <CloseIcon sx={{ fontSize: 20 }} />
+          </IconButton>
+        </Tooltip>
         <DialogTitle id="math-fullscreen-title" sx={{ p: 0, fontSize: "0.875rem", fontWeight: 600, mr: 1 }}>
           {label}{showCompareView ? ` - ${t("compare")}` : ""}
         </DialogTitle>
         <Box sx={{ flex: 1 }} />
-        <Tooltip title={t("close")} placement="bottom">
-          <IconButton size="small" onClick={onClose} sx={{ ml: 1 }} aria-label={t("close")}>
-            <CloseIcon sx={{ fontSize: 20 }} />
-          </IconButton>
-        </Tooltip>
       </Box>
 
       {/* Compare view */}
