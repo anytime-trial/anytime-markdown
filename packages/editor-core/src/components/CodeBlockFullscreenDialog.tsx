@@ -56,12 +56,14 @@ interface CodeBlockFullscreenDialogProps {
   toolbarExtra?: React.ReactNode;
   /** Custom samples to use instead of Hello World samples */
   customSamples?: { label: string; i18nKey: string; code: string }[];
+  /** Custom preview renderer (replaces syntax highlight preview) */
+  renderPreview?: (code: string) => React.ReactNode;
   t: (key: string) => string;
 }
 
 export function CodeBlockFullscreenDialog({
   open, onClose, label, language, fsCode, onFsCodeChange, onFsTextChange, fsTextareaRef, fsSearch,
-  readOnly, isCompareMode, compareCode, onMergeApply, toolbarExtra, customSamples,
+  readOnly, isCompareMode, compareCode, onMergeApply, toolbarExtra, customSamples, renderPreview,
   t,
 }: CodeBlockFullscreenDialogProps) {
   const theme = useTheme();
@@ -276,46 +278,52 @@ export function CodeBlockFullscreenDialog({
               </Typography>
             </Box>
             {/* Preview */}
-            <Box
-              sx={{
-                flex: 1,
-                overflow: "hidden",
-                bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
-                cursor: fsDragging ? "col-resize" : "grab",
-                "&:active": { cursor: fsDragging ? "col-resize" : "grabbing" },
-                pointerEvents: fsDragging ? "none" : "auto",
-              }}
-              onPointerDown={fsZP.handlePointerDown}
-              onPointerMove={fsZP.handlePointerMove}
-              onPointerUp={fsZP.handlePointerUp}
-              onWheel={fsZP.handleWheel}
-            >
-              <Box sx={{ width: "100%", height: "100%", display: "flex", justifyContent: "flex-start", alignItems: "flex-start", transform: `translate(${fsZP.pan.x}px, ${fsZP.pan.y}px) scale(${fsZP.zoom})`, transformOrigin: "top left", transition: fsZP.isPanningRef.current ? "none" : `transform ${TRANSITION_FAST}`, ...REDUCED_MOTION_SX, pointerEvents: "none" }}>
-                <Box
-                  component="pre"
-                  sx={{
-                    fontFamily: "monospace",
-                    fontSize: `${settings.fontSize}px`,
-                    lineHeight: settings.lineHeight,
-                    p: 2,
-                    m: 0,
-                    whiteSpace: "pre-wrap",
-                    overflowWrap: "break-word",
-                    color: "text.primary",
-                    "& .hljs-keyword, & .hljs-selector-tag, & .hljs-built_in, & .hljs-type": { color: isDark ? "#ff7b72" : "#cf222e" },
-                    "& .hljs-string, & .hljs-attr, & .hljs-template-tag, & .hljs-template-variable": { color: isDark ? "#a5d6ff" : "#0a3069" },
-                    "& .hljs-comment, & .hljs-doctag": { color: isDark ? "#8b949e" : "#6e7781" },
-                    "& .hljs-number, & .hljs-literal, & .hljs-variable, & .hljs-regexp": { color: isDark ? "#79c0ff" : "#0550ae" },
-                    "& .hljs-title": { color: isDark ? "#d2a8ff" : "#8250df" },
-                    "& .hljs-params": { color: isDark ? "#c9d1d9" : "#24292f" },
-                    "& .hljs-meta": { color: isDark ? "#ffa657" : "#953800" },
-                    "& .hljs-symbol, & .hljs-bullet": { color: isDark ? "#ffa657" : "#953800" },
-                    "& .hljs-property, & .hljs-name": { color: isDark ? "#79c0ff" : "#0550ae" },
-                  }}
-                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(highlightedHtml, { ALLOWED_TAGS: ["span"], ALLOWED_ATTR: ["class"] }) }}
-                />
+            {renderPreview ? (
+              <Box sx={{ flex: 1, overflow: "auto", bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG, p: 2, pointerEvents: fsDragging ? "none" : "auto" }}>
+                {renderPreview(fsCode)}
               </Box>
-            </Box>
+            ) : (
+              <Box
+                sx={{
+                  flex: 1,
+                  overflow: "hidden",
+                  bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
+                  cursor: fsDragging ? "col-resize" : "grab",
+                  "&:active": { cursor: fsDragging ? "col-resize" : "grabbing" },
+                  pointerEvents: fsDragging ? "none" : "auto",
+                }}
+                onPointerDown={fsZP.handlePointerDown}
+                onPointerMove={fsZP.handlePointerMove}
+                onPointerUp={fsZP.handlePointerUp}
+                onWheel={fsZP.handleWheel}
+              >
+                <Box sx={{ width: "100%", height: "100%", display: "flex", justifyContent: "flex-start", alignItems: "flex-start", transform: `translate(${fsZP.pan.x}px, ${fsZP.pan.y}px) scale(${fsZP.zoom})`, transformOrigin: "top left", transition: fsZP.isPanningRef.current ? "none" : `transform ${TRANSITION_FAST}`, ...REDUCED_MOTION_SX, pointerEvents: "none" }}>
+                  <Box
+                    component="pre"
+                    sx={{
+                      fontFamily: "monospace",
+                      fontSize: `${settings.fontSize}px`,
+                      lineHeight: settings.lineHeight,
+                      p: 2,
+                      m: 0,
+                      whiteSpace: "pre-wrap",
+                      overflowWrap: "break-word",
+                      color: "text.primary",
+                      "& .hljs-keyword, & .hljs-selector-tag, & .hljs-built_in, & .hljs-type": { color: isDark ? "#ff7b72" : "#cf222e" },
+                      "& .hljs-string, & .hljs-attr, & .hljs-template-tag, & .hljs-template-variable": { color: isDark ? "#a5d6ff" : "#0a3069" },
+                      "& .hljs-comment, & .hljs-doctag": { color: isDark ? "#8b949e" : "#6e7781" },
+                      "& .hljs-number, & .hljs-literal, & .hljs-variable, & .hljs-regexp": { color: isDark ? "#79c0ff" : "#0550ae" },
+                      "& .hljs-title": { color: isDark ? "#d2a8ff" : "#8250df" },
+                      "& .hljs-params": { color: isDark ? "#c9d1d9" : "#24292f" },
+                      "& .hljs-meta": { color: isDark ? "#ffa657" : "#953800" },
+                      "& .hljs-symbol, & .hljs-bullet": { color: isDark ? "#ffa657" : "#953800" },
+                      "& .hljs-property, & .hljs-name": { color: isDark ? "#79c0ff" : "#0550ae" },
+                    }}
+                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(highlightedHtml, { ALLOWED_TAGS: ["span"], ALLOWED_ATTR: ["class"] }) }}
+                  />
+                </Box>
+              </Box>
+            )}
           </Box>
         </Box>
       )}

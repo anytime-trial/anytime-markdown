@@ -95,6 +95,12 @@ export function HtmlPreviewBlock(props: HtmlPreviewBlockProps) {
           fsSearch={fsSearch}
           readOnly={!editor.isEditable}
           customSamples={htmlSamples.filter((s) => s.enabled)}
+          renderPreview={(code) => (
+            <Box
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(code, HTML_SANITIZE_CONFIG) }}
+              sx={{ "& img": { maxWidth: "100%" } }}
+            />
+          )}
           toolbarExtra={
             <Tooltip title={t("copyCode")} placement="bottom">
               <IconButton size="small" sx={{ p: 0.25 }} onClick={handleCopyCode} aria-label={t("copyCode")}>
