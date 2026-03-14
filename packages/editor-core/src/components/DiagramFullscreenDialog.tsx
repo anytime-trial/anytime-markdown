@@ -37,6 +37,8 @@ interface DiagramFullscreenDialogProps {
   isCompareMode?: boolean;
   compareCode?: string | null;
   onMergeApply?: (newThisCode: string, newOtherCode: string) => void;
+  /** Extra toolbar content (e.g. sample insert button) */
+  toolbarExtra?: React.ReactNode;
   t: (key: string) => string;
 }
 
@@ -60,7 +62,7 @@ export function DiagramFullscreenDialog({
   open, onClose, label, isMermaid, isPlantUml, svg, plantUmlUrl, code,
   fsCode, onFsCodeChange, fsTextareaRef, fsSearch,
   fsCodeVisible, onToggleFsCodeVisible, fsZP, readOnly,
-  isCompareMode, compareCode, onMergeApply,
+  isCompareMode, compareCode, onMergeApply, toolbarExtra,
   t,
 }: DiagramFullscreenDialogProps) {
   const theme = useTheme();
@@ -124,6 +126,7 @@ export function DiagramFullscreenDialog({
             {fsCodeVisible && (
               <FsSearchBar search={fsSearch} t={t} />
             )}
+            {toolbarExtra}
           </>
         )}
         <Box sx={{ flex: 1 }} />

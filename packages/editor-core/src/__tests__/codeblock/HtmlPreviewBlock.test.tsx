@@ -37,7 +37,7 @@ jest.mock("dompurify", () => ({
 }));
 
 jest.mock("../../components/CodeBlockFullscreenDialog", () => ({
-  CodeBlockFullscreenDialog: () => null,
+  CodeBlockFullscreenDialog: ({ toolbarExtra }: { toolbarExtra?: React.ReactNode }) => <div data-testid="fs-dialog">{toolbarExtra}</div>,
 }));
 
 jest.mock("../../components/HtmlSamplePopover", () => ({

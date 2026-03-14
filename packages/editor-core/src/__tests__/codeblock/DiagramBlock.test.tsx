@@ -73,7 +73,7 @@ jest.mock("dompurify", () => ({
 }));
 
 jest.mock("../../components/DiagramFullscreenDialog", () => ({
-  DiagramFullscreenDialog: () => null,
+  DiagramFullscreenDialog: ({ toolbarExtra }: { toolbarExtra?: React.ReactNode }) => <div data-testid="fs-dialog">{toolbarExtra}</div>,
 }));
 
 jest.mock("../../components/MermaidSamplePopover", () => ({

@@ -143,26 +143,6 @@ export function DiagramBlock(props: DiagramBlockProps) {
       <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary", mr: 0.5 }}>
         {label}
       </Typography>
-      {isEditable && (
-        <>
-          <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
-          {isMermaid && (
-            <Tooltip title={t("insertSample")} placement="top">
-              <IconButton size="small" sx={{ p: 0.25 }} onClick={(e) => setMermaidSampleAnchorEl(e.currentTarget)} aria-label={t("insertSample")}>
-                <SchemaIcon sx={pumlIconSx} />
-              </IconButton>
-            </Tooltip>
-          )}
-          {isPlantUml && (
-            <Tooltip title={t("insertSample")}>
-              <IconButton size="small" sx={{ p: 0.25 }} onClick={(e) => setSampleAnchorEl(e.currentTarget)} aria-label={t("insertSample")}>
-                <SchemaIcon sx={pumlIconSx} />
-              </IconButton>
-            </Tooltip>
-          )}
-          <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
-        </>
-      )}
       <Box sx={{ flex: 1 }} />
       {diagramSize && (<>
         <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
@@ -170,12 +150,6 @@ export function DiagramBlock(props: DiagramBlockProps) {
           {diagramSize.w}&times;{diagramSize.h}
         </Typography>
       </>)}
-      <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
-      <Tooltip title={t("copyCode")} placement="top">
-        <IconButton size="small" sx={{ p: 0.25 }} onClick={handleCopyCode} aria-label={t("copyCode")}>
-          <ContentCopyIcon sx={{ fontSize: 16, color: "text.secondary" }} />
-        </IconButton>
-      </Tooltip>
       {(svg || plantUmlUrl) && (
         <Tooltip title={t("capture")} placement="top">
           <IconButton size="small" sx={{ p: 0.25 }} onClick={handleCapture} aria-label={t("capture")}>
@@ -245,6 +219,23 @@ export function DiagramBlock(props: DiagramBlockProps) {
           isCompareMode={isCompareMode}
           compareCode={compareCode}
           onMergeApply={handleMergeApply}
+          toolbarExtra={<>
+            {isEditable && (
+              <Tooltip title={t("insertSample")} placement="bottom">
+                <IconButton size="small" sx={{ p: 0.25 }} onClick={(e) => {
+                  if (isMermaid) setMermaidSampleAnchorEl(e.currentTarget);
+                  if (isPlantUml) setSampleAnchorEl(e.currentTarget);
+                }} aria-label={t("insertSample")}>
+                  <SchemaIcon sx={pumlIconSx} />
+                </IconButton>
+              </Tooltip>
+            )}
+            <Tooltip title={t("copyCode")} placement="bottom">
+              <IconButton size="small" sx={{ p: 0.25 }} onClick={handleCopyCode} aria-label={t("copyCode")}>
+                <ContentCopyIcon sx={{ fontSize: 16, color: "text.secondary" }} />
+              </IconButton>
+            </Tooltip>
+          </>}
           t={t}
         />
         <MermaidSamplePopover

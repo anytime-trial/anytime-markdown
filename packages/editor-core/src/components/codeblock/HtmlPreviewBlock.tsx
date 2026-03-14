@@ -64,20 +64,8 @@ export function HtmlPreviewBlock(props: HtmlPreviewBlockProps) {
       <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary" }}>
         {t("htmlPreview")}
       </Typography>
-      <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
-      <Tooltip title={t("insertSample")} placement="top">
-        <IconButton size="small" sx={{ p: 0.25 }} onClick={(e) => setHtmlSampleAnchorEl(e.currentTarget)} aria-label={t("insertSample")}>
-          <SchemaIcon sx={{ fontSize: 16, color: "text.secondary" }} />
-        </IconButton>
-      </Tooltip>
-      <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
       <Box sx={{ flex: 1 }} />
       <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
-      <Tooltip title={t("copyCode")} placement="top">
-        <IconButton size="small" sx={{ p: 0.25 }} onClick={handleCopyCode} aria-label={t("copyCode")}>
-          <ContentCopyIcon sx={{ fontSize: 16, color: "text.secondary" }} />
-        </IconButton>
-      </Tooltip>
       <Tooltip title={t("delete")} placement="top">
         <IconButton size="small" sx={{ p: 0.25 }} onClick={() => setDeleteDialogOpen(true)} aria-label={t("delete")}>
           <DeleteOutlineIcon sx={{ fontSize: 16 }} />
@@ -105,6 +93,18 @@ export function HtmlPreviewBlock(props: HtmlPreviewBlockProps) {
           onFsCodeChange={onFsCodeChange}
           fsTextareaRef={fsTextareaRef}
           fsSearch={fsSearch}
+          toolbarExtra={<>
+            <Tooltip title={t("insertSample")} placement="bottom">
+              <IconButton size="small" sx={{ p: 0.25 }} onClick={(e) => setHtmlSampleAnchorEl(e.currentTarget)} aria-label={t("insertSample")}>
+                <SchemaIcon sx={{ fontSize: 16, color: "text.secondary" }} />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title={t("copyCode")} placement="bottom">
+              <IconButton size="small" sx={{ p: 0.25 }} onClick={handleCopyCode} aria-label={t("copyCode")}>
+                <ContentCopyIcon sx={{ fontSize: 16, color: "text.secondary" }} />
+              </IconButton>
+            </Tooltip>
+          </>}
           t={t}
         />
         <HtmlSamplePopover

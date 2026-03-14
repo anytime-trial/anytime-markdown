@@ -19,6 +19,8 @@ interface CodeBlockFullscreenDialogProps {
   isCompareMode?: boolean;
   compareCode?: string | null;
   onMergeApply?: (newThisCode: string, newOtherCode: string) => void;
+  /** Extra toolbar content (e.g. sample insert button) */
+  toolbarExtra?: React.ReactNode;
   t: (key: string) => string;
 }
 
@@ -40,7 +42,7 @@ const textareaSx = (fontSize: number, lineHeight: number, isDark: boolean) => ({
 
 export function CodeBlockFullscreenDialog({
   open, onClose, label, fsCode, onFsCodeChange, fsTextareaRef, fsSearch,
-  isCompareMode, compareCode, onMergeApply,
+  isCompareMode, compareCode, onMergeApply, toolbarExtra,
   t,
 }: CodeBlockFullscreenDialogProps) {
   const theme = useTheme();
@@ -73,6 +75,7 @@ export function CodeBlockFullscreenDialog({
         {!showCompareView && (
           <FsSearchBar search={fsSearch} t={t} />
         )}
+        {!showCompareView && toolbarExtra}
         <Box sx={{ flex: 1 }} />
         <Tooltip title={t("close")} placement="bottom">
           <IconButton size="small" onClick={onClose} sx={{ ml: 1 }} aria-label={t("close")}>
