@@ -216,10 +216,9 @@ describe("ImageNodeView", () => {
   });
 
   // --- drag handle ---
-  test("fullscreen 時 → drag handle 非表示", () => {
+  test("fullscreen 時 → inline toolbar 非表示", () => {
     setup({ isSelected: true });
     fireEvent.click(screen.getByLabelText("fullscreen"));
-    const toolbar = screen.getByRole("toolbar");
-    expect(toolbar.querySelector("[data-drag-handle]")).toBeNull();
+    expect(screen.queryByRole("toolbar")).toBeNull();
   });
 });

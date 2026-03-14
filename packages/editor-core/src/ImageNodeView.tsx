@@ -150,28 +150,44 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
           },
         }),
       }}>
-        {isEditable && <Box
+        {/* Fullscreen toolbar (Mermaid-style header) */}
+        {fullscreen && (
+          <Box sx={{ display: "flex", alignItems: "center", px: 2, py: 1, borderBottom: 1, borderColor: "divider" }} contentEditable={false}>
+            <Tooltip title={t("close")} placement="bottom">
+              <IconButton size="small" onClick={() => setFullscreen(false)} sx={{ mr: 1 }} aria-label={t("close")}>
+                <CloseIcon sx={{ fontSize: 20 }} />
+              </IconButton>
+            </Tooltip>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, fontSize: "0.875rem" }}>
+              {t("image")}
+            </Typography>
+            <Box sx={{ flex: 1 }} />
+            {imgSize && (
+              <Typography variant="caption" sx={{ color: "text.disabled", fontSize: "0.65rem", fontFamily: "monospace", whiteSpace: "nowrap" }}>
+                {imgSize.w}×{imgSize.h} / {imgSize.nw}×{imgSize.nh}
+              </Typography>
+            )}
+          </Box>
+        )}
+        {/* Inline toolbar (non-fullscreen) */}
+        {!fullscreen && isEditable && <Box
           data-block-toolbar=""
           role="toolbar"
           aria-label={t("imageToolbar")}
           sx={{ bgcolor: "action.hover", px: 0.75, py: 0.25, display: "flex", alignItems: "center", gap: 0.25 }}
           contentEditable={false}
         >
-          {/* Drag handle (hidden in fullscreen or review mode) */}
-          {!fullscreen && isEditable && (
-            <Box
-              data-drag-handle=""
-              role="button"
-              tabIndex={0}
-              aria-roledescription="drag"
-              aria-label={t("dragHandle")}
-              sx={{ cursor: "grab", display: "flex", alignItems: "center", opacity: 0.7, "&:hover, &:focus-visible": { opacity: 1 }, "&:focus-visible": { outline: "2px solid", outlineColor: "primary.main", borderRadius: 0.5 } }}
-            >
-              <DragIndicatorIcon sx={iconSx} />
-            </Box>
-          )}
-          {/* Fullscreen enter (not shown in fullscreen or collapsed) */}
-          {!collapsed && !fullscreen && (
+          <Box
+            data-drag-handle=""
+            role="button"
+            tabIndex={0}
+            aria-roledescription="drag"
+            aria-label={t("dragHandle")}
+            sx={{ cursor: "grab", display: "flex", alignItems: "center", opacity: 0.7, "&:hover, &:focus-visible": { opacity: 1 }, "&:focus-visible": { outline: "2px solid", outlineColor: "primary.main", borderRadius: 0.5 } }}
+          >
+            <DragIndicatorIcon sx={iconSx} />
+          </Box>
+          {!collapsed && (
             <Tooltip title={t("fullscreen")} placement="top">
               <IconButton size="small" sx={{ p: 0.25 }} onClick={() => setFullscreen(true)} aria-label={t("fullscreen")}>
                 <FullscreenIcon sx={iconSx} />
@@ -206,9 +222,8 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
               {t("imageNotFound")}
             </Typography>
           )}
-          {!collapsed && isEditable && (<>
+          {!collapsed && (<>
             <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
-            {/* Edit URL */}
             <Tooltip title={t("imageUrl")} placement="top">
               <IconButton size="small" sx={{ p: 0.25 }} onClick={() => {
                 if (typeof getPos !== "function") return;
@@ -223,32 +238,20 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
             </Tooltip>
           </>)}
           <Box sx={{ flex: 1 }} />
-
-          {/* Size display */}
           {imgSize && !collapsed && (<>
             <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
             <Typography variant="caption" sx={{ color: "text.disabled", fontSize: "0.65rem", fontFamily: "monospace", whiteSpace: "nowrap", flexShrink: 0 }}>
               {imgSize.w}×{imgSize.h} / {t("imageOriginalSize")} {imgSize.nw}×{imgSize.nh}
             </Typography>
           </>)}
-
-          {!collapsed && !fullscreen && isEditable && (<>
+          {!collapsed && (<>
             <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
-            {/* Delete */}
             <Tooltip title={t("delete")} placement="top">
               <IconButton size="small" sx={{ p: 0.25 }} onClick={() => setDeleteDialogOpen(true)} aria-label={t("delete")}>
                 <DeleteOutlineIcon sx={iconSx} />
               </IconButton>
             </Tooltip>
           </>)}
-          {/* Close fullscreen (right end) */}
-          {fullscreen && (
-            <Tooltip title={t("close")} placement="top">
-              <IconButton size="small" sx={{ p: 0.25 }} onClick={() => setFullscreen(false)} aria-label={t("close")}>
-                <CloseIcon sx={iconSx} />
-              </IconButton>
-            </Tooltip>
-          )}
         </Box>}
         {/* Image with resize handle */}
         {!collapsed && imgError && (
