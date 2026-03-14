@@ -21,7 +21,7 @@ type HtmlPreviewBlockProps = Pick<
   CodeBlockSharedProps,
   | "editor"
   | "codeCollapsed" | "isSelected"
-  | "selectNode" | "handleDragKeyDown" | "code"
+  | "selectNode" | "code"
   | "handleCopyCode" | "handleDeleteBlock" | "deleteDialogOpen" | "setDeleteDialogOpen"
   | "fullscreen" | "setFullscreen" | "fsCode" | "onFsCodeChange" | "fsTextareaRef" | "fsSearch"
   | "t" | "isDark"
@@ -31,7 +31,7 @@ export function HtmlPreviewBlock(props: HtmlPreviewBlockProps) {
   const {
     editor,
     codeCollapsed, isSelected,
-    selectNode, handleDragKeyDown, code,
+    selectNode, code,
     handleCopyCode, handleDeleteBlock, deleteDialogOpen, setDeleteDialogOpen,
     fullscreen, setFullscreen, fsCode, onFsCodeChange, fsTextareaRef, fsSearch,
     t, isDark,
@@ -51,7 +51,6 @@ export function HtmlPreviewBlock(props: HtmlPreviewBlockProps) {
         tabIndex={0}
         aria-roledescription="draggable item"
         aria-label={t("dragHandle")}
-        onKeyDown={handleDragKeyDown}
         sx={{ cursor: "grab", display: "flex", alignItems: "center", opacity: 0.7, "&:hover, &:focus-visible": { opacity: 1 }, "&:focus-visible": { outline: "2px solid", outlineColor: "primary.main", borderRadius: 0.5 } }}
       >
         <DragIndicatorIcon sx={{ fontSize: 16, color: "text.secondary" }} />

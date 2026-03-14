@@ -55,7 +55,6 @@ function setup(overrides?: { isSelected?: boolean; language?: string }) {
     getPos: (() => 0) as never,
     code: mockNode.textContent,
     isSelected: overrides?.isSelected ?? true,
-    handleDragKeyDown: jest.fn(),
     handleCopyCode: jest.fn(),
     handleDeleteBlock: jest.fn(),
     deleteDialogOpen: false,

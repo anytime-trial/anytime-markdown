@@ -41,39 +41,6 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: No
     if (!isDiagram && !isMath && codeCollapsed) updateAttributes({ codeCollapsed: false });
   }, [editor, getPos, codeCollapsed, updateAttributes, isDiagram, isMath]);
 
-  const handleBlockMove = useCallback((direction: "up" | "down") => {
-    if (!editor || typeof getPos !== "function") return;
-    const pos = getPos();
-    if (pos == null) return;
-    const { doc, tr } = editor.state;
-    const $pos = doc.resolve(pos);
-    const depth = $pos.depth;
-    const index = $pos.index(depth);
-    const parent = $pos.node(depth);
-    if (direction === "up" && index === 0) return;
-    if (direction === "down" && index >= parent.childCount - 1) return;
-    const thisNode = parent.child(index);
-    if (direction === "up") {
-      const prevNode = parent.child(index - 1);
-      const from = pos - prevNode.nodeSize;
-      tr.delete(from, from + prevNode.nodeSize);
-      const insertPos = from + thisNode.nodeSize;
-      tr.insert(insertPos, prevNode);
-    } else {
-      const nextNode = parent.child(index + 1);
-      const nextStart = pos + thisNode.nodeSize;
-      tr.delete(nextStart, nextStart + nextNode.nodeSize);
-      tr.insert(pos, nextNode);
-    }
-    editor.view.dispatch(tr);
-  }, [editor, getPos]);
-
-  const handleDragKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (!e.altKey) return;
-    if (e.key === "ArrowUp") { e.preventDefault(); handleBlockMove("up"); }
-    if (e.key === "ArrowDown") { e.preventDefault(); handleBlockMove("down"); }
-  }, [handleBlockMove]);
-
   // Auto-collapse code when deselected
   // codeCollapsed, updateAttributes は意図的に除外（選択解除時のみ発火させる）
   useEffect(() => {
@@ -139,7 +106,7 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: No
   const shared = {
     editor, node, updateAttributes, getPos,
     isSelected, codeCollapsed,
-    selectNode, handleDragKeyDown, code,
+    selectNode, code,
     handleCopyCode, handleDeleteBlock, deleteDialogOpen, setDeleteDialogOpen,
     fullscreen, setFullscreen, fsCode, onFsCodeChange: handleFsCodeChange, fsTextareaRef, fsSearch,
     t, isDark,

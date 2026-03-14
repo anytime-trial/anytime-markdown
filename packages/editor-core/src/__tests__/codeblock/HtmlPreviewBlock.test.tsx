@@ -62,7 +62,6 @@ function setup(overrides?: { code?: string }) {
     codeCollapsed: true,
     isSelected: true,
     selectNode: jest.fn(),
-    handleDragKeyDown: jest.fn(),
     code: htmlCode,
     handleCopyCode: jest.fn(),
     handleDeleteBlock: jest.fn(),

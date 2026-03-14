@@ -12,7 +12,7 @@ import type { CodeBlockSharedProps } from "./types";
 type RegularCodeBlockProps = Pick<
   CodeBlockSharedProps,
   | "editor" | "node" | "getPos" | "code"
-  | "isSelected" | "handleDragKeyDown"
+  | "isSelected"
   | "handleCopyCode" | "handleDeleteBlock" | "deleteDialogOpen" | "setDeleteDialogOpen"
   | "fullscreen" | "setFullscreen" | "fsCode" | "onFsCodeChange" | "fsTextareaRef" | "fsSearch"
   | "t" | "isDark"
@@ -21,7 +21,7 @@ type RegularCodeBlockProps = Pick<
 export function RegularCodeBlock(props: RegularCodeBlockProps) {
   const {
     editor, node, getPos: _getPos, code,
-    isSelected, handleDragKeyDown,
+    isSelected,
     handleDeleteBlock, deleteDialogOpen, setDeleteDialogOpen,
     fullscreen, setFullscreen, fsCode, onFsCodeChange, fsTextareaRef, fsSearch,
     t, isDark,
@@ -46,7 +46,6 @@ export function RegularCodeBlock(props: RegularCodeBlockProps) {
         tabIndex={0}
         aria-roledescription="draggable item"
         aria-label={t("dragHandle")}
-        onKeyDown={handleDragKeyDown}
         sx={{ cursor: "grab", display: "flex", alignItems: "center", opacity: 0.7, "&:hover, &:focus-visible": { opacity: 1 }, "&:focus-visible": { outline: "2px solid", outlineColor: "primary.main", borderRadius: 0.5 } }}
       >
         <DragIndicatorIcon sx={{ fontSize: 16, color: "text.secondary" }} />

@@ -85,7 +85,6 @@ function setup(overrides?: { codeCollapsed?: boolean }) {
     codeCollapsed: overrides?.codeCollapsed ?? true,
     isSelected: true,
     selectNode: jest.fn(),
-    handleDragKeyDown: jest.fn(),
     code: "E=mc^2",
     updateAttributes: jest.fn(),
     handleCopyCode: jest.fn(),
@@ -128,7 +127,6 @@ describe("MathBlock", () => {
         codeCollapsed={true}
         isSelected={true}
         selectNode={jest.fn()}
-        handleDragKeyDown={jest.fn()}
         code="invalid"
         handleCopyCode={jest.fn()}
         handleDeleteBlock={jest.fn()}

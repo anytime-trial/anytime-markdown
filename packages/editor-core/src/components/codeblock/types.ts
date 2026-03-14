@@ -16,8 +16,6 @@ export interface CodeBlockSharedProps {
   codeCollapsed: boolean;
   /** Focus the node */
   selectNode: () => void;
-  /** Move block up/down */
-  handleDragKeyDown: (e: React.KeyboardEvent) => void;
   /** Current text content */
   code: string;
   /** Copy code to clipboard */

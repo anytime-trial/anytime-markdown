@@ -129,7 +129,6 @@ function setup(overrides?: { lang?: string; isSelected?: boolean; fullscreen?: b
     codeCollapsed: true,
     isSelected: overrides?.isSelected ?? true,
     selectNode: jest.fn(),
-    handleDragKeyDown: jest.fn(),
     code: "graph TD; A-->B",
     handleCopyCode: jest.fn(),
     handleDeleteBlock: jest.fn(),
@@ -184,7 +183,6 @@ describe("DiagramBlock", () => {
         codeCollapsed={true}
         isSelected={true}
         selectNode={jest.fn()}
-        handleDragKeyDown={jest.fn()}
         code="invalid"
         handleCopyCode={jest.fn()}
         handleDeleteBlock={jest.fn()}
@@ -231,7 +229,6 @@ describe("DiagramBlock", () => {
         codeCollapsed={true}
         isSelected={true}
         selectNode={jest.fn()}
-        handleDragKeyDown={jest.fn()}
         code="@startuml\nA->B\n@enduml"
         handleCopyCode={jest.fn()}
         handleDeleteBlock={jest.fn()}
