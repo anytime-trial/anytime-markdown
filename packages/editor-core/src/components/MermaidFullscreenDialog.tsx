@@ -132,32 +132,6 @@ export function MermaidFullscreenDialog({
         <DialogTitle id="mermaid-fullscreen-title" sx={{ p: 0, fontSize: "0.875rem", fontWeight: 600, mr: 1 }}>
           {label}{showCompareView ? ` - ${t("compare")}` : ""}
         </DialogTitle>
-        {!showCompareView && (
-          <>
-            <ToggleButtonGroup size="small" sx={{ height: 30 }}>
-              <ToggleButton value="zoomOut" aria-label={t("zoomOut")} sx={{ px: 0.75, py: 0.25 }} onClick={fsZP.zoomOut}>
-                <Tooltip title={t("zoomOut")} placement="bottom">
-                  <ZoomOutIcon sx={{ fontSize: 18 }} />
-                </Tooltip>
-              </ToggleButton>
-              <ToggleButton value="zoomIn" aria-label={t("zoomIn")} sx={{ px: 0.75, py: 0.25 }} onClick={fsZP.zoomIn}>
-                <Tooltip title={t("zoomIn")} placement="bottom">
-                  <ZoomInIcon sx={{ fontSize: 18 }} />
-                </Tooltip>
-              </ToggleButton>
-              {fsZP.isDirty && (
-                <ToggleButton value="zoomReset" aria-label={t("zoomReset")} sx={{ px: 0.75, py: 0.25 }} onClick={fsZP.reset}>
-                  <Tooltip title={t("zoomReset")} placement="bottom">
-                    <RestartAltIcon sx={{ fontSize: 18 }} />
-                  </Tooltip>
-                </ToggleButton>
-              )}
-            </ToggleButtonGroup>
-            <Typography variant="caption" sx={{ minWidth: 40, textAlign: "center" }}>
-              {Math.round(fsZP.zoom * 100)}%
-            </Typography>
-          </>
-        )}
         <Box sx={{ flex: 1 }} />
         <Tooltip title={t("close")} placement="bottom">
           <IconButton size="small" onClick={onClose} sx={{ ml: 1 }} aria-label={t("close")}>
@@ -301,23 +275,51 @@ export function MermaidFullscreenDialog({
             />
           {/* Horizontal divider (mobile only) */}
           <Divider sx={{ display: isMobile ? "block" : "none" }} />
-          {/* Preview */}
-          <Box
-            sx={{
-              flex: 1,
-              overflow: "hidden",
-              bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
-              cursor: fsDragging ? "col-resize" : "grab",
-              "&:active": { cursor: fsDragging ? "col-resize" : "grabbing" },
-              pointerEvents: fsDragging ? "none" : "auto",
-            }}
-            onPointerDown={fsZP.handlePointerDown}
-            onWheel={fsZP.handleWheel}
-          >
-            <Box sx={{ width: "100%", height: "100%", display: "flex", justifyContent: "center", alignItems: "center", transform: `translate(${fsZP.pan.x}px, ${fsZP.pan.y}px) scale(${fsZP.zoom})`, transformOrigin: "center center", transition: fsZP.isPanningRef.current ? "none" : "transform 0.15s", "@media (prefers-reduced-motion: reduce)": { transition: "none" }, pointerEvents: "none" }}>
-              {svg && (
-                <Box role="img" aria-label={extractDiagramAltText(code, "mermaid")} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(svg, SVG_SANITIZE_CONFIG) }} sx={{ width: "100%", "& svg": { width: "100%", height: "auto" } }} />
-              )}
+          {/* Preview area */}
+          <Box sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+            {/* Zoom toolbar */}
+            <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: "divider", px: 1, py: 0.25, minHeight: 32 }}>
+              <ToggleButtonGroup size="small" sx={{ height: 26 }}>
+                <ToggleButton value="zoomOut" aria-label={t("zoomOut")} sx={{ px: 0.5, py: 0 }} onClick={fsZP.zoomOut}>
+                  <Tooltip title={t("zoomOut")} placement="bottom">
+                    <ZoomOutIcon sx={{ fontSize: 16 }} />
+                  </Tooltip>
+                </ToggleButton>
+                <ToggleButton value="zoomIn" aria-label={t("zoomIn")} sx={{ px: 0.5, py: 0 }} onClick={fsZP.zoomIn}>
+                  <Tooltip title={t("zoomIn")} placement="bottom">
+                    <ZoomInIcon sx={{ fontSize: 16 }} />
+                  </Tooltip>
+                </ToggleButton>
+                {fsZP.isDirty && (
+                  <ToggleButton value="zoomReset" aria-label={t("zoomReset")} sx={{ px: 0.5, py: 0 }} onClick={fsZP.reset}>
+                    <Tooltip title={t("zoomReset")} placement="bottom">
+                      <RestartAltIcon sx={{ fontSize: 16 }} />
+                    </Tooltip>
+                  </ToggleButton>
+                )}
+              </ToggleButtonGroup>
+              <Typography variant="caption" sx={{ minWidth: 36, textAlign: "center", fontSize: "0.7rem" }}>
+                {Math.round(fsZP.zoom * 100)}%
+              </Typography>
+            </Box>
+            {/* Preview */}
+            <Box
+              sx={{
+                flex: 1,
+                overflow: "hidden",
+                bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
+                cursor: fsDragging ? "col-resize" : "grab",
+                "&:active": { cursor: fsDragging ? "col-resize" : "grabbing" },
+                pointerEvents: fsDragging ? "none" : "auto",
+              }}
+              onPointerDown={fsZP.handlePointerDown}
+              onWheel={fsZP.handleWheel}
+            >
+              <Box sx={{ width: "100%", height: "100%", display: "flex", justifyContent: "center", alignItems: "center", transform: `translate(${fsZP.pan.x}px, ${fsZP.pan.y}px) scale(${fsZP.zoom})`, transformOrigin: "center center", transition: fsZP.isPanningRef.current ? "none" : "transform 0.15s", "@media (prefers-reduced-motion: reduce)": { transition: "none" }, pointerEvents: "none" }}>
+                {svg && (
+                  <Box role="img" aria-label={extractDiagramAltText(code, "mermaid")} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(svg, SVG_SANITIZE_CONFIG) }} sx={{ width: "100%", "& svg": { width: "100%", height: "auto" } }} />
+                )}
+              </Box>
             </Box>
           </Box>
         </Box>
