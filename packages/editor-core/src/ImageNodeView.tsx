@@ -14,6 +14,7 @@ import { useTranslations } from "next-intl";
 import { useCallback, useEffect,useRef, useState } from "react";
 
 import { DeleteBlockDialog } from "./components/codeblock/DeleteBlockDialog";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "./constants/colors";
 import { useDeleteBlock } from "./hooks/useDeleteBlock";
 import { useEditorSettingsContext } from "./useEditorSettings";
 import { useNodeSelected } from "./hooks/useNodeSelected";
@@ -148,7 +149,7 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
             </Typography>
           )}
         </Box>
-        <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", overflow: "auto", p: 2 }}>
+        <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", overflow: "auto", p: 2, bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG }}>
           {src && !imgError && (
             <img
               src={src}
