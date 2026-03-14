@@ -5,7 +5,7 @@ import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import SchemaIcon from "@mui/icons-material/Schema";
 import ZoomInIcon from "@mui/icons-material/ZoomIn";
 import ZoomOutIcon from "@mui/icons-material/ZoomOut";
-import { Box, Chip, Dialog, DialogTitle, Divider, IconButton, Tab, Tabs, ToggleButton, ToggleButtonGroup, Tooltip, Typography, useMediaQuery, useTheme } from "@mui/material";
+import { Box, Chip, Dialog, DialogTitle, Divider, IconButton, Tab, Tabs, Tooltip, Typography, useMediaQuery, useTheme } from "@mui/material";
 import DOMPurify from "dompurify";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
@@ -279,25 +279,23 @@ export function MermaidFullscreenDialog({
           <Box sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
             {/* Zoom toolbar */}
             <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: "divider", px: 1, py: 0.25, minHeight: 32 }}>
-              <ToggleButtonGroup size="small" sx={{ height: 26 }}>
-                <ToggleButton value="zoomOut" aria-label={t("zoomOut")} sx={{ px: 0.5, py: 0 }} onClick={fsZP.zoomOut}>
-                  <Tooltip title={t("zoomOut")} placement="bottom">
-                    <ZoomOutIcon sx={{ fontSize: 16 }} />
-                  </Tooltip>
-                </ToggleButton>
-                <ToggleButton value="zoomIn" aria-label={t("zoomIn")} sx={{ px: 0.5, py: 0 }} onClick={fsZP.zoomIn}>
-                  <Tooltip title={t("zoomIn")} placement="bottom">
-                    <ZoomInIcon sx={{ fontSize: 16 }} />
-                  </Tooltip>
-                </ToggleButton>
-                {fsZP.isDirty && (
-                  <ToggleButton value="zoomReset" aria-label={t("zoomReset")} sx={{ px: 0.5, py: 0 }} onClick={fsZP.reset}>
-                    <Tooltip title={t("zoomReset")} placement="bottom">
-                      <RestartAltIcon sx={{ fontSize: 16 }} />
-                    </Tooltip>
-                  </ToggleButton>
-                )}
-              </ToggleButtonGroup>
+              <Tooltip title={t("zoomOut")} placement="bottom">
+                <IconButton size="small" sx={{ p: 0.25 }} onClick={fsZP.zoomOut} aria-label={t("zoomOut")}>
+                  <ZoomOutIcon sx={{ fontSize: 16, color: "text.secondary" }} />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title={t("zoomIn")} placement="bottom">
+                <IconButton size="small" sx={{ p: 0.25 }} onClick={fsZP.zoomIn} aria-label={t("zoomIn")}>
+                  <ZoomInIcon sx={{ fontSize: 16, color: "text.secondary" }} />
+                </IconButton>
+              </Tooltip>
+              {fsZP.isDirty && (
+                <Tooltip title={t("zoomReset")} placement="bottom">
+                  <IconButton size="small" sx={{ p: 0.25 }} onClick={fsZP.reset} aria-label={t("zoomReset")}>
+                    <RestartAltIcon sx={{ fontSize: 16, color: "text.secondary" }} />
+                  </IconButton>
+                </Tooltip>
+              )}
               <Typography variant="caption" sx={{ minWidth: 36, textAlign: "center", fontSize: "0.7rem" }}>
                 {Math.round(fsZP.zoom * 100)}%
               </Typography>
