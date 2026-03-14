@@ -7,8 +7,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import FullscreenIcon from "@mui/icons-material/Fullscreen";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
-import { Box, Divider, IconButton, Tooltip, Typography, useTheme } from "@mui/material";
-import FocusTrap from "@mui/material/Unstable_TrapFocus";
+import { Box, Dialog, DialogTitle, Divider, IconButton, Tooltip, Typography, useTheme } from "@mui/material";
 import type { NodeViewProps } from "@tiptap/react";
 import { NodeViewWrapper } from "@tiptap/react";
 import { useTranslations } from "next-intl";
@@ -18,7 +17,6 @@ import { DeleteBlockDialog } from "./components/codeblock/DeleteBlockDialog";
 import { useDeleteBlock } from "./hooks/useDeleteBlock";
 import { useEditorSettingsContext } from "./useEditorSettings";
 import { useNodeSelected } from "./hooks/useNodeSelected";
-import { Z_FULLSCREEN } from "./constants/zIndex";
 import { getEditorStorage } from "./types";
 
 const iconSx = { fontSize: 16 };
@@ -126,53 +124,54 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
 
   return (
     <NodeViewWrapper>
-      <FocusTrap open={fullscreen}>
-      <Box
-        {...(fullscreen && {
-          role: "dialog" as const,
-          "aria-modal": true,
-          "aria-label": t("image"),
-          onKeyDown: (e: React.KeyboardEvent) => { if (e.key === "Escape") setFullscreen(false); },
-        })}
-        tabIndex={fullscreen ? -1 : undefined}
-        sx={{
-        border: 1, borderRadius: fullscreen ? 0 : 1, overflow: "hidden", my: fullscreen ? 0 : 1,
-        borderColor: showToolbar && isEditable ? "divider" : "transparent",
-        ...(fullscreen && {
-          position: "fixed",
-          inset: 0,
-          zIndex: Z_FULLSCREEN,
-          bgcolor: settings.editorBg === "grey" && !isDark ? "grey.50" : "background.paper",
-          display: "flex",
-          flexDirection: "column",
-        }),
-        ...(!showToolbar && {
-          "& > [data-block-toolbar]": {
-            maxHeight: 0, opacity: 0, py: 0, overflow: "hidden",
-          },
-        }),
-      }}>
-        {/* Fullscreen toolbar (Mermaid-style header) */}
-        {fullscreen && (
-          <Box sx={{ display: "flex", alignItems: "center", px: 2, py: 1, borderBottom: 1, borderColor: "divider" }} contentEditable={false}>
-            <Tooltip title={t("close")} placement="bottom">
-              <IconButton size="small" onClick={() => setFullscreen(false)} sx={{ mr: 1 }} aria-label={t("close")}>
-                <CloseIcon sx={{ fontSize: 20 }} />
-              </IconButton>
-            </Tooltip>
-            <Typography variant="subtitle2" sx={{ fontWeight: 600, fontSize: "0.875rem" }}>
-              {t("image")}
+      {/* Fullscreen Dialog */}
+      <Dialog
+        open={fullscreen}
+        onClose={() => setFullscreen(false)}
+        fullScreen
+        aria-labelledby="image-fullscreen-title"
+        slotProps={{ paper: { sx: { bgcolor: settings.editorBg === "grey" && !isDark ? "grey.50" : undefined, display: "flex", flexDirection: "column" } } }}
+      >
+        <Box sx={{ display: "flex", alignItems: "center", px: 2, py: 1, borderBottom: 1, borderColor: "divider" }}>
+          <Tooltip title={t("close")} placement="bottom">
+            <IconButton size="small" onClick={() => setFullscreen(false)} sx={{ mr: 1 }} aria-label={t("close")}>
+              <CloseIcon sx={{ fontSize: 20 }} />
+            </IconButton>
+          </Tooltip>
+          <DialogTitle id="image-fullscreen-title" sx={{ p: 0, fontSize: "0.875rem", fontWeight: 600, mr: 1 }}>
+            {t("image")}
+          </DialogTitle>
+          <Box sx={{ flex: 1 }} />
+          {imgSize && (
+            <Typography variant="caption" sx={{ color: "text.disabled", fontSize: "0.65rem", fontFamily: "monospace", whiteSpace: "nowrap" }}>
+              {imgSize.w}×{imgSize.h} / {imgSize.nw}×{imgSize.nh}
             </Typography>
-            <Box sx={{ flex: 1 }} />
-            {imgSize && (
-              <Typography variant="caption" sx={{ color: "text.disabled", fontSize: "0.65rem", fontFamily: "monospace", whiteSpace: "nowrap" }}>
-                {imgSize.w}×{imgSize.h} / {imgSize.nw}×{imgSize.nh}
-              </Typography>
-            )}
-          </Box>
-        )}
-        {/* Inline toolbar (non-fullscreen) */}
-        {!fullscreen && isEditable && <Box
+          )}
+        </Box>
+        <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", overflow: "auto", p: 2 }}>
+          {src && !imgError && (
+            <img
+              src={src}
+              alt={alt || t("imageNoAlt")}
+              title={title || undefined}
+              style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", display: "block" }}
+            />
+          )}
+        </Box>
+      </Dialog>
+      {/* Inline view */}
+      <Box
+        sx={{
+          border: 1, borderRadius: 1, overflow: "hidden", my: 1,
+          borderColor: showToolbar && isEditable ? "divider" : "transparent",
+          ...(!showToolbar && {
+            "& > [data-block-toolbar]": {
+              maxHeight: 0, opacity: 0, py: 0, overflow: "hidden",
+            },
+          }),
+        }}
+      >
+        {isEditable && <Box
           data-block-toolbar=""
           role="toolbar"
           aria-label={t("imageToolbar")}
@@ -263,12 +262,7 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
           <Box
             ref={imgContainerRef}
             contentEditable={false}
-            sx={{
-              lineHeight: 0, position: "relative",
-              ...(fullscreen
-                ? { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", overflow: "auto", p: 2 }
-                : { display: "inline-block" }),
-            }}
+            sx={{ lineHeight: 0, position: "relative", display: "inline-block" }}
             onPointerMove={handleResizePointerMove}
             onPointerUp={handleResizePointerUp}
             onDoubleClick={!isEditable ? () => setFullscreen(true) : undefined}
@@ -278,12 +272,9 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
               src={src}
               alt={alt || t("imageNoAlt")}
               title={title || undefined}
-              style={fullscreen
-                ? { maxWidth: "100%", maxHeight: "100%", objectFit: "contain", display: "block" }
-                : { width: displayWidth, maxWidth: "100%", height: "auto", display: "block" }
-              }
+              style={{ width: displayWidth, maxWidth: "100%", height: "auto", display: "block" }}
             />
-            {/* Resize handle (bottom-right corner, hidden in review mode) */}
+            {/* Resize handle */}
             {isSelected && isEditable && (
               <Box
                 role="slider"
@@ -306,12 +297,10 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
                   borderTopLeftRadius: 4,
                   "&:hover": { opacity: 1 },
                   "&:focus-visible": { opacity: 1, outline: "2px solid", outlineColor: "primary.main", outlineOffset: 1 },
-                  // 三角形の視覚的ヒント
                   clipPath: "polygon(100% 0, 100% 100%, 0 100%)",
                 }}
               />
             )}
-            {/* リサイズ中のサイズ表示 */}
             {resizing && resizeWidth !== null && (
               <Box sx={{
                 position: "absolute",
@@ -333,7 +322,6 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
           </Box>
         )}
       </Box>
-      </FocusTrap>
       <DeleteBlockDialog
         open={deleteDialogOpen}
         onClose={() => setDeleteDialogOpen(false)}
