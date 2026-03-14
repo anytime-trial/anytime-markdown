@@ -2,7 +2,10 @@ import CloseIcon from "@mui/icons-material/Close";
 import DOMPurify from "dompurify";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import SchemaIcon from "@mui/icons-material/Schema";
+import ZoomInIcon from "@mui/icons-material/ZoomIn";
+import ZoomOutIcon from "@mui/icons-material/ZoomOut";
 import { Box, Chip, Dialog, DialogTitle, Divider, IconButton, Tooltip, Typography, useMediaQuery, useTheme } from "@mui/material";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { common, createLowlight } from "lowlight";
@@ -10,6 +13,7 @@ import { common, createLowlight } from "lowlight";
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "../constants/colors";
 import { CODE_HELLO_SAMPLES } from "../constants/codeHelloSamples";
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
+import { useZoomPan } from "../hooks/useZoomPan";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import { FullscreenDiffView } from "./FullscreenDiffView";
 import { LineNumberTextarea } from "./LineNumberTextarea";
@@ -61,6 +65,7 @@ export function CodeBlockFullscreenDialog({
   const isDark = theme.palette.mode === "dark";
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const settings = useEditorSettingsContext();
+  const fsZP = useZoomPan();
 
   const [fsSplitPx, setFsSplitPx] = useState(500);
   const [fsDragging, setFsDragging] = useState(false);
@@ -241,38 +246,72 @@ export function CodeBlockFullscreenDialog({
           />
           {/* Horizontal divider (mobile only) */}
           <Divider sx={{ display: isMobile ? "block" : "none" }} />
-          {/* Syntax-highlighted preview */}
-          <Box
-            sx={{
-              flex: 1,
-              overflow: "auto",
-              bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
-              pointerEvents: fsDragging ? "none" : "auto",
-            }}
-          >
+          {/* Preview area */}
+          <Box sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+            {/* Zoom toolbar */}
+            <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: "divider", px: 1, py: 0.25, minHeight: 32 }}>
+              <Tooltip title={t("zoomOut")} placement="bottom">
+                <IconButton size="small" sx={{ p: 0.25 }} onClick={fsZP.zoomOut} aria-label={t("zoomOut")}>
+                  <ZoomOutIcon sx={{ fontSize: 16, color: "text.secondary" }} />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title={t("zoomIn")} placement="bottom">
+                <IconButton size="small" sx={{ p: 0.25 }} onClick={fsZP.zoomIn} aria-label={t("zoomIn")}>
+                  <ZoomInIcon sx={{ fontSize: 16, color: "text.secondary" }} />
+                </IconButton>
+              </Tooltip>
+              {fsZP.isDirty && (
+                <Tooltip title={t("zoomReset")} placement="bottom">
+                  <IconButton size="small" sx={{ p: 0.25 }} onClick={fsZP.reset} aria-label={t("zoomReset")}>
+                    <RestartAltIcon sx={{ fontSize: 16, color: "text.secondary" }} />
+                  </IconButton>
+                </Tooltip>
+              )}
+              <Typography variant="caption" sx={{ minWidth: 36, textAlign: "center", fontSize: "0.7rem" }}>
+                {Math.round(fsZP.zoom * 100)}%
+              </Typography>
+            </Box>
+            {/* Preview */}
             <Box
-              component="pre"
               sx={{
-                fontFamily: "monospace",
-                fontSize: `${settings.fontSize}px`,
-                lineHeight: settings.lineHeight,
-                p: 2,
-                m: 0,
-                whiteSpace: "pre-wrap",
-                overflowWrap: "break-word",
-                color: "text.primary",
-                "& .hljs-keyword, & .hljs-selector-tag, & .hljs-built_in, & .hljs-type": { color: isDark ? "#ff7b72" : "#cf222e" },
-                "& .hljs-string, & .hljs-attr, & .hljs-template-tag, & .hljs-template-variable": { color: isDark ? "#a5d6ff" : "#0a3069" },
-                "& .hljs-comment, & .hljs-doctag": { color: isDark ? "#8b949e" : "#6e7781" },
-                "& .hljs-number, & .hljs-literal, & .hljs-variable, & .hljs-regexp": { color: isDark ? "#79c0ff" : "#0550ae" },
-                "& .hljs-title": { color: isDark ? "#d2a8ff" : "#8250df" },
-                "& .hljs-params": { color: isDark ? "#c9d1d9" : "#24292f" },
-                "& .hljs-meta": { color: isDark ? "#ffa657" : "#953800" },
-                "& .hljs-symbol, & .hljs-bullet": { color: isDark ? "#ffa657" : "#953800" },
-                "& .hljs-property, & .hljs-name": { color: isDark ? "#79c0ff" : "#0550ae" },
+                flex: 1,
+                overflow: "hidden",
+                bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
+                cursor: fsDragging ? "col-resize" : "grab",
+                "&:active": { cursor: fsDragging ? "col-resize" : "grabbing" },
+                pointerEvents: fsDragging ? "none" : "auto",
               }}
-              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(highlightedHtml, { ALLOWED_TAGS: ["span"], ALLOWED_ATTR: ["class"] }) }}
-            />
+              onPointerDown={fsZP.handlePointerDown}
+              onPointerMove={fsZP.handlePointerMove}
+              onPointerUp={fsZP.handlePointerUp}
+              onWheel={fsZP.handleWheel}
+            >
+              <Box sx={{ width: "100%", height: "100%", display: "flex", justifyContent: "flex-start", alignItems: "flex-start", transform: `translate(${fsZP.pan.x}px, ${fsZP.pan.y}px) scale(${fsZP.zoom})`, transformOrigin: "top left", transition: fsZP.isPanningRef.current ? "none" : "transform 0.15s", "@media (prefers-reduced-motion: reduce)": { transition: "none" }, pointerEvents: "none" }}>
+                <Box
+                  component="pre"
+                  sx={{
+                    fontFamily: "monospace",
+                    fontSize: `${settings.fontSize}px`,
+                    lineHeight: settings.lineHeight,
+                    p: 2,
+                    m: 0,
+                    whiteSpace: "pre-wrap",
+                    overflowWrap: "break-word",
+                    color: "text.primary",
+                    "& .hljs-keyword, & .hljs-selector-tag, & .hljs-built_in, & .hljs-type": { color: isDark ? "#ff7b72" : "#cf222e" },
+                    "& .hljs-string, & .hljs-attr, & .hljs-template-tag, & .hljs-template-variable": { color: isDark ? "#a5d6ff" : "#0a3069" },
+                    "& .hljs-comment, & .hljs-doctag": { color: isDark ? "#8b949e" : "#6e7781" },
+                    "& .hljs-number, & .hljs-literal, & .hljs-variable, & .hljs-regexp": { color: isDark ? "#79c0ff" : "#0550ae" },
+                    "& .hljs-title": { color: isDark ? "#d2a8ff" : "#8250df" },
+                    "& .hljs-params": { color: isDark ? "#c9d1d9" : "#24292f" },
+                    "& .hljs-meta": { color: isDark ? "#ffa657" : "#953800" },
+                    "& .hljs-symbol, & .hljs-bullet": { color: isDark ? "#ffa657" : "#953800" },
+                    "& .hljs-property, & .hljs-name": { color: isDark ? "#79c0ff" : "#0550ae" },
+                  }}
+                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(highlightedHtml, { ALLOWED_TAGS: ["span"], ALLOWED_ATTR: ["class"] }) }}
+                />
+              </Box>
+            </Box>
           </Box>
         </Box>
       )}
