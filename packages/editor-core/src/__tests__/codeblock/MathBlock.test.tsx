@@ -87,6 +87,7 @@ function setup(overrides?: { codeCollapsed?: boolean }) {
     selectNode: jest.fn(),
     handleDragKeyDown: jest.fn(),
     code: "E=mc^2",
+    updateAttributes: jest.fn(),
     handleCopyCode: jest.fn(),
     handleDeleteBlock: jest.fn(),
     deleteDialogOpen: false,
@@ -122,6 +123,7 @@ describe("MathBlock", () => {
       <MathBlock
         editor={createMockEditor()}
         node={createMockNode()}
+        updateAttributes={jest.fn()}
         getPos={jest.fn(() => 0) as unknown as NodeViewProps["getPos"]}
         codeCollapsed={true}
         isSelected={true}

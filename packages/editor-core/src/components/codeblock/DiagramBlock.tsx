@@ -219,7 +219,7 @@ export function DiagramBlock(props: DiagramBlockProps) {
       codeCollapsed={codeCollapsed}
       isDiagramLayout
       isDark={isDark}
-      showBorder={isEditable && fullscreen}
+      showBorder={isEditable && (isSelected || fullscreen)}
       deleteDialogOpen={deleteDialogOpen}
       setDeleteDialogOpen={setDeleteDialogOpen}
       handleDeleteBlock={handleDeleteBlock}
@@ -262,6 +262,7 @@ export function DiagramBlock(props: DiagramBlockProps) {
           aria-label={extractDiagramAltText(code, "mermaid")}
           sx={diagramContainerSx}
           contentEditable={false}
+          onClick={selectNode}
           onDoubleClick={handleDoubleClickFullscreen}
         >
           <Box
@@ -295,6 +296,7 @@ export function DiagramBlock(props: DiagramBlockProps) {
           aria-label={extractDiagramAltText(code, "plantuml")}
           sx={diagramContainerSx}
           contentEditable={false}
+          onClick={selectNode}
           onDoubleClick={handleDoubleClickFullscreen}
         >
           <Box sx={{ pt: 0, px: 2, pb: 2, display: "flex", justifyContent: "flex-start", pointerEvents: "none" }}>

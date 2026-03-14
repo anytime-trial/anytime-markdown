@@ -38,8 +38,8 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: No
     const pos = getPos();
     if (pos == null) return;
     editor.commands.setTextSelection(pos + 1);
-    if (!isDiagram && codeCollapsed) updateAttributes({ codeCollapsed: false });
-  }, [editor, getPos, codeCollapsed, updateAttributes, isDiagram]);
+    if (!isDiagram && !isMath && codeCollapsed) updateAttributes({ codeCollapsed: false });
+  }, [editor, getPos, codeCollapsed, updateAttributes, isDiagram, isMath]);
 
   const handleBlockMove = useCallback((direction: "up" | "down") => {
     if (!editor || typeof getPos !== "function") return;
