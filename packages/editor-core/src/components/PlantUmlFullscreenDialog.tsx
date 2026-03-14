@@ -1,6 +1,4 @@
 import CloseIcon from "@mui/icons-material/Close";
-import CodeIcon from "@mui/icons-material/Code";
-import CodeOffIcon from "@mui/icons-material/CodeOff";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
@@ -32,8 +30,6 @@ interface PlantUmlFullscreenDialogProps {
   onFsTextChange: (newCode: string) => void;
   fsTextareaRef: React.RefObject<HTMLTextAreaElement | null>;
   fsSearch: TextareaSearchState;
-  fsCodeVisible: boolean;
-  onToggleFsCodeVisible: () => void;
   fsZP: UseZoomPanReturn;
   readOnly?: boolean;
   isCompareMode?: boolean;
@@ -46,7 +42,7 @@ interface PlantUmlFullscreenDialogProps {
 export function PlantUmlFullscreenDialog({
   open, onClose, label, plantUmlUrl, code,
   fsCode, onFsCodeChange, onFsTextChange, fsTextareaRef, fsSearch,
-  fsCodeVisible, onToggleFsCodeVisible, fsZP, readOnly,
+  fsZP, readOnly,
   isCompareMode, compareCode, onMergeApply, toolbarExtra,
   t,
 }: PlantUmlFullscreenDialogProps) {
@@ -154,28 +150,13 @@ export function PlantUmlFullscreenDialog({
             <Typography variant="caption" sx={{ minWidth: 40, textAlign: "center" }}>
               {Math.round(fsZP.zoom * 100)}%
             </Typography>
-            {fsCodeVisible && activeTab === "code" && (
+            {activeTab === "code" && (
               <FsSearchBar search={fsSearch} t={t} />
             )}
             {toolbarExtra}
           </>
         )}
         <Box sx={{ flex: 1 }} />
-        {!showCompareView && (
-          <>
-            <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
-            <Tooltip title={fsCodeVisible ? t("diagramCodeHide") : t("diagramCodeShow")} placement="bottom">
-              <IconButton
-                size="small"
-                onClick={onToggleFsCodeVisible}
-                aria-label={fsCodeVisible ? t("diagramCodeHide") : t("diagramCodeShow")}
-                aria-pressed={fsCodeVisible}
-              >
-                {fsCodeVisible ? <CodeOffIcon sx={{ fontSize: 18 }} /> : <CodeIcon sx={{ fontSize: 18 }} />}
-              </IconButton>
-            </Tooltip>
-          </>
-        )}
         <Tooltip title={t("close")} placement="bottom">
           <IconButton size="small" onClick={onClose} sx={{ ml: 1 }} aria-label={t("close")}>
             <CloseIcon sx={{ fontSize: 20 }} />
@@ -214,8 +195,7 @@ export function PlantUmlFullscreenDialog({
           }}
         >
           {/* Code / Config editor */}
-          {fsCodeVisible && (
-            <Box sx={{ width: isMobile ? "100%" : `${fsSplitPx}px`, height: isMobile ? "40%" : "auto", minWidth: isMobile ? undefined : 120, display: "flex", flexDirection: "column", pointerEvents: fsDragging ? "none" : "auto" }}>
+          <Box sx={{ width: isMobile ? "100%" : `${fsSplitPx}px`, height: isMobile ? "40%" : "auto", minWidth: isMobile ? undefined : 120, display: "flex", flexDirection: "column", pointerEvents: fsDragging ? "none" : "auto" }}>
               {/* Tabs */}
               <Tabs
                 value={activeTab}
@@ -279,11 +259,9 @@ export function PlantUmlFullscreenDialog({
                 </Box>
               )}
             </Box>
-          )}
           {/* Draggable divider (desktop only) */}
-          {fsCodeVisible && (
-            <Box
-              role="separator"
+          <Box
+            role="separator"
               aria-orientation="vertical"
               aria-label={t("resizeSplitter")}
               aria-valuenow={fsSplitPx}
@@ -316,11 +294,8 @@ export function PlantUmlFullscreenDialog({
                 "@media (prefers-reduced-motion: reduce)": { transition: "none" },
               }}
             />
-          )}
           {/* Horizontal divider (mobile only) */}
-          {fsCodeVisible && (
-            <Divider sx={{ display: isMobile ? "block" : "none" }} />
-          )}
+          <Divider sx={{ display: isMobile ? "block" : "none" }} />
           {/* Preview */}
           <Box
             sx={{

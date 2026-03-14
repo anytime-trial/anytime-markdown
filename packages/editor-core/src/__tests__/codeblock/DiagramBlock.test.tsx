@@ -144,8 +144,7 @@ function setup(overrides?: { lang?: string; isSelected?: boolean; fullscreen?: b
     onFsCodeChange: jest.fn(),
     fsTextareaRef: { current: null },
     fsSearch: fsSearch as never,
-    fsCodeVisible: true,
-    setFsCodeVisible: jest.fn(),
+
     handleFsTextChange: jest.fn(),
     t: (key: string) => key,
     isDark: false,
@@ -198,8 +197,7 @@ describe("DiagramBlock", () => {
         onFsCodeChange={jest.fn()}
         fsTextareaRef={{ current: null }}
         fsSearch={fsSearch as never}
-        fsCodeVisible={true}
-        setFsCodeVisible={jest.fn()}
+
         handleFsTextChange={jest.fn()}
         t={(key: string) => key}
         isDark={false}
@@ -239,8 +237,7 @@ describe("DiagramBlock", () => {
         onFsCodeChange={jest.fn()}
         fsTextareaRef={{ current: null }}
         fsSearch={fsSearch as never}
-        fsCodeVisible={true}
-        setFsCodeVisible={jest.fn()}
+
         handleFsTextChange={jest.fn()}
         t={(key: string) => key}
         isDark={false}

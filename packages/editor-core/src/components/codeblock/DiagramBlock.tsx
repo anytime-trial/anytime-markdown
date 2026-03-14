@@ -35,9 +35,6 @@ type DiagramBlockProps = Pick<
   | "fullscreen" | "setFullscreen" | "fsCode" | "onFsCodeChange" | "fsTextareaRef" | "fsSearch"
   | "t" | "isDark"
 > & {
-  /** Fullscreen code editor visible toggle */
-  fsCodeVisible: boolean;
-  setFsCodeVisible: React.Dispatch<React.SetStateAction<boolean>>;
   /** Fullscreen code text sync */
   handleFsTextChange: (newCode: string) => void;
 };
@@ -49,7 +46,7 @@ export function DiagramBlock(props: DiagramBlockProps) {
     selectNode, code,
     handleCopyCode, handleDeleteBlock, deleteDialogOpen, setDeleteDialogOpen,
     fullscreen, setFullscreen, fsCode, onFsCodeChange, fsTextareaRef, fsSearch,
-    fsCodeVisible, setFsCodeVisible, handleFsTextChange: _handleFsTextChange,
+    handleFsTextChange: _handleFsTextChange,
     t, isDark,
   } = props;
 
@@ -198,8 +195,6 @@ export function DiagramBlock(props: DiagramBlockProps) {
             onFsTextChange={_handleFsTextChange}
             fsTextareaRef={fsTextareaRef}
             fsSearch={fsSearch}
-            fsCodeVisible={fsCodeVisible}
-            onToggleFsCodeVisible={() => setFsCodeVisible((v) => !v)}
             fsZP={fsZP}
             readOnly={!isEditable}
             isCompareMode={isCompareMode}
@@ -234,8 +229,6 @@ export function DiagramBlock(props: DiagramBlockProps) {
             onFsTextChange={_handleFsTextChange}
             fsTextareaRef={fsTextareaRef}
             fsSearch={fsSearch}
-            fsCodeVisible={fsCodeVisible}
-            onToggleFsCodeVisible={() => setFsCodeVisible((v) => !v)}
             fsZP={fsZP}
             readOnly={!isEditable}
             isCompareMode={isCompareMode}

@@ -27,7 +27,6 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: No
   const isEditable = useEditorState({ editor, selector: (ctx) => !!ctx.editor?.isEditable });
   const codeCollapsed = !!node.attrs.codeCollapsed || !isEditable;
   const [fullscreen, setFullscreen] = useState(false);
-  const [fsCodeVisible, setFsCodeVisible] = useState(true);
   const [fsCode, setFsCode] = useState("");
   const fsTextareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -118,8 +117,6 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: No
     return (
       <DiagramBlock
         {...shared}
-        fsCodeVisible={fsCodeVisible}
-        setFsCodeVisible={setFsCodeVisible}
         handleFsTextChange={handleFsTextChange}
       />
     );
