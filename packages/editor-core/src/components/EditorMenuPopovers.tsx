@@ -20,10 +20,11 @@ import {
   Typography,
 } from "@mui/material";
 import type { Editor } from "@tiptap/react";
-import React from "react";
+import { useLocale } from "next-intl";
+import React, { useMemo } from "react";
 
 import { PLANTUML_SAMPLES } from "../constants/samples";
-import { BUILTIN_TEMPLATES, type MarkdownTemplate } from "../constants/templates";
+import { getBuiltinTemplates, type MarkdownTemplate } from "../constants/templates";
 import MermaidIcon from "../icons/MermaidIcon";
 import type { TranslationFn } from "../types";
 
@@ -73,6 +74,8 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
   featuresUrl,
   t,
 }: EditorMenuPopoversProps) {
+  const locale = useLocale();
+  const builtinTemplates = useMemo(() => getBuiltinTemplates(locale), [locale]);
 
   return (
     <>
@@ -254,7 +257,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
         slotProps={{ paper: { role: "menu", "aria-label": t("templateMenu") } }}
       >
         <Box sx={{ py: 0.5, minWidth: 180 }}>
-          {BUILTIN_TEMPLATES.map((tmpl) => (
+          {builtinTemplates.map((tmpl) => (
             <MenuItem
               key={tmpl.id}
               onClick={() => { onInsertTemplate(tmpl); setTemplateAnchorEl(null); }}

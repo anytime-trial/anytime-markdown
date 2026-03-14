@@ -26,7 +26,7 @@ import { EditorDialogsSection } from "./components/EditorDialogsSection";
 import { EditorFooterOverlays } from "./components/EditorFooterOverlays";
 import { EditorMainContent } from "./components/EditorMainContent";
 import { EditorToolbarSection } from "./components/EditorToolbarSection";
-import { defaultContent } from "./constants/defaultContent";
+import { getDefaultContent } from "./constants/defaultContent";
 import { STATUSBAR_HEIGHT } from "./constants/dimensions";
 import type { SlashCommandState } from "./extensions/slashCommandExtension";
 import { useTextareaSearch } from "./hooks/useTextareaSearch";
@@ -114,7 +114,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   const noopSave = useCallback(() => {}, []);
   const {
     initialContent, loading, saveContent: _saveContent, downloadMarkdown, clearContent, frontmatterRef, initialTrailingNewline,
-  } = useMarkdownEditor(externalContent ?? defaultContent, externalContent !== undefined);
+  } = useMarkdownEditor(externalContent ?? getDefaultContent(locale), externalContent !== undefined);
   const saveContent = readOnly ? noopSave : _saveContent;
 
   const [commentOpen, setCommentOpen] = useState(false);
