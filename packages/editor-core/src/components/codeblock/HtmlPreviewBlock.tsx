@@ -4,15 +4,12 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
 import FullscreenIcon from "@mui/icons-material/Fullscreen";
-import SchemaIcon from "@mui/icons-material/Schema";
 import { Box, Divider, IconButton, Tooltip, Typography } from "@mui/material";
 import DOMPurify from "dompurify";
-import { useState } from "react";
 
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "../../constants/colors";
 import { PREVIEW_MAX_HEIGHT } from "../../constants/dimensions";
 import { CodeBlockFullscreenDialog } from "../CodeBlockFullscreenDialog";
-import { HtmlSamplePopover } from "../HtmlSamplePopover";
 import { CodeBlockFrame } from "./CodeBlockFrame";
 import type { CodeBlockSharedProps } from "./types";
 import { HTML_SANITIZE_CONFIG } from "./types";
@@ -25,7 +22,9 @@ type HtmlPreviewBlockProps = Pick<
   | "handleCopyCode" | "handleDeleteBlock" | "deleteDialogOpen" | "setDeleteDialogOpen"
   | "fullscreen" | "setFullscreen" | "fsCode" | "onFsCodeChange" | "fsTextareaRef" | "fsSearch"
   | "t" | "isDark"
->;
+> & {
+  handleFsTextChange: (newCode: string) => void;
+};
 
 export function HtmlPreviewBlock(props: HtmlPreviewBlockProps) {
   const {
@@ -34,10 +33,9 @@ export function HtmlPreviewBlock(props: HtmlPreviewBlockProps) {
     selectNode, code,
     handleCopyCode, handleDeleteBlock, deleteDialogOpen, setDeleteDialogOpen,
     fullscreen, setFullscreen, fsCode, onFsCodeChange, fsTextareaRef, fsSearch,
+    handleFsTextChange,
     t, isDark,
   } = props;
-
-  const [htmlSampleAnchorEl, setHtmlSampleAnchorEl] = useState<HTMLElement | null>(null);
 
   const toolbar = (
     <Box
@@ -83,36 +81,28 @@ export function HtmlPreviewBlock(props: HtmlPreviewBlockProps) {
       setDeleteDialogOpen={setDeleteDialogOpen}
       handleDeleteBlock={handleDeleteBlock}
       t={t}
-      afterFrame={<>
+      afterFrame={
         <CodeBlockFullscreenDialog
           open={fullscreen}
           onClose={() => { fsSearch.reset(); setFullscreen(false); }}
           label={t("htmlPreview")}
+          language="html"
           fsCode={fsCode}
           onFsCodeChange={onFsCodeChange}
+          onFsTextChange={handleFsTextChange}
           fsTextareaRef={fsTextareaRef}
           fsSearch={fsSearch}
-          toolbarExtra={<>
-            <Tooltip title={t("insertSample")} placement="bottom">
-              <IconButton size="small" sx={{ p: 0.25 }} onClick={(e) => setHtmlSampleAnchorEl(e.currentTarget)} aria-label={t("insertSample")}>
-                <SchemaIcon sx={{ fontSize: 16, color: "text.secondary" }} />
-              </IconButton>
-            </Tooltip>
+          readOnly={!editor.isEditable}
+          toolbarExtra={
             <Tooltip title={t("copyCode")} placement="bottom">
               <IconButton size="small" sx={{ p: 0.25 }} onClick={handleCopyCode} aria-label={t("copyCode")}>
                 <ContentCopyIcon sx={{ fontSize: 16, color: "text.secondary" }} />
               </IconButton>
             </Tooltip>
-          </>}
+          }
           t={t}
         />
-        <HtmlSamplePopover
-          anchorEl={htmlSampleAnchorEl}
-          onClose={() => setHtmlSampleAnchorEl(null)}
-          editor={editor}
-          t={t}
-        />
-      </>}
+      }
     >
       <Box
           role="document"

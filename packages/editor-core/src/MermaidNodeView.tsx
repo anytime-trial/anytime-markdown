@@ -112,8 +112,8 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: No
     t, isDark,
   };
 
-  if (isMath) return <MathBlock {...shared} />;
-  if (isHtml) return <HtmlPreviewBlock {...shared} />;
+  if (isMath) return <MathBlock {...shared} handleFsTextChange={handleFsTextChange} />;
+  if (isHtml) return <HtmlPreviewBlock {...shared} handleFsTextChange={handleFsTextChange} />;
   if (isDiagram) {
     return (
       <DiagramBlock
@@ -124,5 +124,5 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: No
       />
     );
   }
-  return <RegularCodeBlock {...shared} />;
+  return <RegularCodeBlock {...shared} handleFsTextChange={handleFsTextChange} />;
 }

@@ -1,14 +1,18 @@
 import CloseIcon from "@mui/icons-material/Close";
 import CodeIcon from "@mui/icons-material/Code";
 import CodeOffIcon from "@mui/icons-material/CodeOff";
+import ExpandLessIcon from "@mui/icons-material/ExpandLess";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
+import SchemaIcon from "@mui/icons-material/Schema";
 import ZoomInIcon from "@mui/icons-material/ZoomIn";
 import ZoomOutIcon from "@mui/icons-material/ZoomOut";
-import { Box, Dialog, DialogTitle, Divider, IconButton, Tab, Tabs, ToggleButton, ToggleButtonGroup, Tooltip, Typography, useMediaQuery, useTheme } from "@mui/material";
+import { Box, Chip, Dialog, DialogTitle, Divider, IconButton, Tab, Tabs, ToggleButton, ToggleButtonGroup, Tooltip, Typography, useMediaQuery, useTheme } from "@mui/material";
 import DOMPurify from "dompurify";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "../constants/colors";
+import { MERMAID_SAMPLES } from "../constants/samples";
 import { SVG_SANITIZE_CONFIG } from "../hooks/useMermaidRender";
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
 import type { UseZoomPanReturn } from "../hooks/useZoomPan";
@@ -54,7 +58,7 @@ export function MermaidFullscreenDialog({
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const settings = useEditorSettingsContext();
 
-  const [fsSplitPct, setFsSplitPct] = useState(40);
+  const [fsSplitPx, setFsSplitPx] = useState(500);
   const [fsDragging, setFsDragging] = useState(false);
   const fsContainerRef = useRef<HTMLDivElement>(null);
 
@@ -100,6 +104,14 @@ export function MermaidFullscreenDialog({
     const merged = mergeMermaidConfig(newConfig, bodyText);
     onFsTextChange(merged);
   }, [bodyText, onFsTextChange]);
+
+  // --- Sample panel ---
+  const [samplesOpen, setSamplesOpen] = useState(false);
+  const handleInsertSample = useCallback((sampleCode: string) => {
+    setBodyText(sampleCode);
+    onFsTextChange(mergeMermaidConfig(configText, sampleCode));
+    setActiveTab("code");
+  }, [configText, onFsTextChange]);
 
   const showCompareView = isCompareMode && compareCode != null;
 
@@ -194,8 +206,8 @@ export function MermaidFullscreenDialog({
           onPointerMove={(e: React.PointerEvent) => {
             if (fsDragging && fsContainerRef.current) {
               const rect = fsContainerRef.current.getBoundingClientRect();
-              const pct = ((e.clientX - rect.left) / rect.width) * 100;
-              setFsSplitPct(Math.min(80, Math.max(15, pct)));
+              const px = e.clientX - rect.left;
+              setFsSplitPx(Math.min(rect.width - 120, Math.max(120, px)));
             }
             if (!fsDragging) fsZP.handlePointerMove(e);
           }}
@@ -210,7 +222,7 @@ export function MermaidFullscreenDialog({
         >
           {/* Code / Config editor */}
           {fsCodeVisible && (
-            <Box sx={{ width: isMobile ? "100%" : `${fsSplitPct}%`, height: isMobile ? "40%" : "auto", minWidth: isMobile ? undefined : 120, display: "flex", flexDirection: "column", pointerEvents: fsDragging ? "none" : "auto" }}>
+            <Box sx={{ width: isMobile ? "100%" : `${fsSplitPx}px`, height: isMobile ? "40%" : "auto", minWidth: isMobile ? undefined : 120, display: "flex", flexDirection: "column", pointerEvents: fsDragging ? "none" : "auto" }}>
               {/* Tabs */}
               <Tabs
                 value={activeTab}
@@ -245,6 +257,34 @@ export function MermaidFullscreenDialog({
                   isDark={isDark}
                 />
               )}
+              {/* Sample Diagrams panel */}
+              {!readOnly && (
+                <Box sx={{ borderTop: 1, borderColor: "divider", flexShrink: 0 }}>
+                  <Box
+                    onClick={() => setSamplesOpen((v) => !v)}
+                    sx={{ display: "flex", alignItems: "center", px: 1.5, py: 0.5, cursor: "pointer", userSelect: "none", "&:hover": { bgcolor: "action.hover" } }}
+                  >
+                    <SchemaIcon sx={{ fontSize: 16, mr: 0.75, color: "text.secondary" }} />
+                    <Typography variant="caption" sx={{ fontWeight: 600, fontSize: "0.75rem", flex: 1 }}>
+                      {t("sampleDiagrams")}
+                    </Typography>
+                    {samplesOpen ? <ExpandLessIcon sx={{ fontSize: 16, color: "text.secondary" }} /> : <ExpandMoreIcon sx={{ fontSize: 16, color: "text.secondary" }} />}
+                  </Box>
+                  {samplesOpen && (
+                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, px: 1.5, pb: 1.5 }}>
+                      {MERMAID_SAMPLES.filter((s) => s.enabled).map((sample) => (
+                        <Chip
+                          key={sample.label}
+                          label={t(sample.i18nKey)}
+                          size="small"
+                          onClick={() => handleInsertSample(sample.code)}
+                          sx={{ fontSize: "0.7rem", height: 26 }}
+                        />
+                      ))}
+                    </Box>
+                  )}
+                </Box>
+              )}
             </Box>
           )}
           {/* Draggable divider (desktop only) */}
@@ -253,16 +293,16 @@ export function MermaidFullscreenDialog({
               role="separator"
               aria-orientation="vertical"
               aria-label={t("resizeSplitter")}
-              aria-valuenow={fsSplitPct}
-              aria-valuemin={20}
-              aria-valuemax={80}
+              aria-valuenow={fsSplitPx}
+              aria-valuemin={120}
+              aria-valuemax={1200}
               tabIndex={0}
               onKeyDown={(e: React.KeyboardEvent) => {
                 if (e.key === "ArrowLeft") {
-                  setFsSplitPct((v) => Math.max(20, v - 5));
+                  setFsSplitPx((v) => Math.max(120, v - 40));
                   e.preventDefault();
                 } else if (e.key === "ArrowRight") {
-                  setFsSplitPct((v) => Math.min(80, v + 5));
+                  setFsSplitPx((v) => v + 40);
                   e.preventDefault();
                 }
               }}

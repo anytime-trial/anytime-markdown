@@ -16,7 +16,9 @@ type RegularCodeBlockProps = Pick<
   | "handleCopyCode" | "handleDeleteBlock" | "deleteDialogOpen" | "setDeleteDialogOpen"
   | "fullscreen" | "setFullscreen" | "fsCode" | "onFsCodeChange" | "fsTextareaRef" | "fsSearch"
   | "t" | "isDark"
->;
+> & {
+  handleFsTextChange: (newCode: string) => void;
+};
 
 export function RegularCodeBlock(props: RegularCodeBlockProps) {
   const {
@@ -24,6 +26,7 @@ export function RegularCodeBlock(props: RegularCodeBlockProps) {
     isSelected,
     handleDeleteBlock, deleteDialogOpen, setDeleteDialogOpen,
     fullscreen, setFullscreen, fsCode, onFsCodeChange, fsTextareaRef, fsSearch,
+    handleFsTextChange,
     t, isDark,
   } = props;
 
@@ -83,10 +86,13 @@ export function RegularCodeBlock(props: RegularCodeBlockProps) {
           open={fullscreen}
           onClose={() => { fsSearch.reset(); setFullscreen(false); }}
           label={codeLabel}
+          language={language || "plaintext"}
           fsCode={fsCode}
           onFsCodeChange={onFsCodeChange}
+          onFsTextChange={handleFsTextChange}
           fsTextareaRef={fsTextareaRef}
           fsSearch={fsSearch}
+          readOnly={!editor.isEditable}
           isCompareMode={isCompareMode}
           compareCode={compareCode}
           onMergeApply={handleMergeApply}

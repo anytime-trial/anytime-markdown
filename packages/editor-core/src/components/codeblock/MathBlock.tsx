@@ -4,17 +4,14 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
 import FullscreenIcon from "@mui/icons-material/Fullscreen";
-import SchemaIcon from "@mui/icons-material/Schema";
 import { Alert, Box, Divider, IconButton, Tooltip, Typography } from "@mui/material";
 import DOMPurify from "dompurify";
-import { useState } from "react";
 
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "../../constants/colors";
 import { PREVIEW_MAX_HEIGHT } from "../../constants/dimensions";
 import { useBlockMergeCompare } from "../../hooks/useBlockMergeCompare";
 import { MATH_SANITIZE_CONFIG,useKatexRender } from "../../hooks/useKatexRender";
-import { CodeBlockFullscreenDialog } from "../CodeBlockFullscreenDialog";
-import { MathSamplePopover } from "../MathSamplePopover";
+import { MathFullscreenDialog } from "../MathFullscreenDialog";
 import { CodeBlockFrame } from "./CodeBlockFrame";
 import type { CodeBlockSharedProps } from "./types";
 
@@ -26,7 +23,9 @@ type MathBlockProps = Pick<
   | "handleCopyCode" | "handleDeleteBlock" | "deleteDialogOpen" | "setDeleteDialogOpen"
   | "fullscreen" | "setFullscreen" | "fsCode" | "onFsCodeChange" | "fsTextareaRef" | "fsSearch"
   | "t" | "isDark"
->;
+> & {
+  handleFsTextChange: (newCode: string) => void;
+};
 
 export function MathBlock(props: MathBlockProps) {
   const {
@@ -35,10 +34,10 @@ export function MathBlock(props: MathBlockProps) {
     selectNode, code,
     handleCopyCode, handleDeleteBlock, deleteDialogOpen, setDeleteDialogOpen,
     fullscreen, setFullscreen, fsCode, onFsCodeChange, fsTextareaRef, fsSearch,
+    handleFsTextChange,
     t, isDark,
   } = props;
 
-  const [mathSampleAnchorEl, setMathSampleAnchorEl] = useState<HTMLElement | null>(null);
   const { html: mathHtml, error: mathError } = useKatexRender({ code, isMath: true });
 
   const { isCompareMode, compareCode, handleMergeApply } = useBlockMergeCompare({
@@ -89,41 +88,30 @@ export function MathBlock(props: MathBlockProps) {
       setDeleteDialogOpen={setDeleteDialogOpen}
       handleDeleteBlock={handleDeleteBlock}
       t={t}
-      afterFrame={<>
-        <CodeBlockFullscreenDialog
+      afterFrame={
+        <MathFullscreenDialog
           open={fullscreen}
           onClose={() => { fsSearch.reset(); setFullscreen(false); }}
           label="Math"
           fsCode={fsCode}
           onFsCodeChange={onFsCodeChange}
+          onFsTextChange={handleFsTextChange}
           fsTextareaRef={fsTextareaRef}
           fsSearch={fsSearch}
+          readOnly={!editor.isEditable}
           isCompareMode={isCompareMode}
           compareCode={compareCode}
           onMergeApply={handleMergeApply}
-          toolbarExtra={<>
-            <Tooltip title={t("insertSample")} placement="bottom">
-              <IconButton size="small" sx={{ p: 0.25 }} onClick={(e) => setMathSampleAnchorEl(e.currentTarget)} aria-label={t("insertSample")}>
-                <SchemaIcon sx={{ fontSize: 16, color: "text.secondary" }} />
-              </IconButton>
-            </Tooltip>
+          toolbarExtra={
             <Tooltip title={t("copyCode")} placement="bottom">
               <IconButton size="small" sx={{ p: 0.25 }} onClick={handleCopyCode} aria-label={t("copyCode")}>
                 <ContentCopyIcon sx={{ fontSize: 16, color: "text.secondary" }} />
               </IconButton>
             </Tooltip>
-          </>}
+          }
           t={t}
         />
-        <MathSamplePopover
-          anchorEl={mathSampleAnchorEl}
-          onClose={() => setMathSampleAnchorEl(null)}
-          editor={editor}
-          t={t}
-          getPos={getPos}
-          nodeContentSize={node.content.size}
-        />
-      </>}
+      }
     >
       {mathError && (
         <Alert severity="warning" sx={{ borderRadius: 0 }}>{mathError}</Alert>
@@ -134,7 +122,8 @@ export function MathBlock(props: MathBlockProps) {
           role="img"
           aria-label={`${t("mathFormula")}: ${code}`}
           onClick={() => { selectNode(); if (!codeCollapsed) updateAttributes({ codeCollapsed: true }); }}
-          sx={{ pt: 0, px: 2, pb: 2, bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG, borderTop: codeCollapsed ? 0 : 1, borderColor: "divider", overflow: "auto", maxHeight: PREVIEW_MAX_HEIGHT, display: "flex", justifyContent: "flex-start" }}
+          onDoubleClick={() => setFullscreen(true)}
+          sx={{ pt: 0, px: 2, pb: 2, bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG, borderTop: codeCollapsed ? 0 : 1, borderColor: "divider", overflow: "auto", maxHeight: PREVIEW_MAX_HEIGHT, display: "flex", justifyContent: "flex-start", cursor: "pointer" }}
           dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(mathHtml, MATH_SANITIZE_CONFIG) }}
         />
       )}

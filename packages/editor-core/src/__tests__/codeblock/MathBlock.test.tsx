@@ -44,12 +44,8 @@ jest.mock("dompurify", () => ({
   default: { sanitize: (html: string) => html },
 }));
 
-jest.mock("../../components/CodeBlockFullscreenDialog", () => ({
-  CodeBlockFullscreenDialog: ({ toolbarExtra }: { toolbarExtra?: React.ReactNode }) => <div data-testid="fs-dialog">{toolbarExtra}</div>,
-}));
-
-jest.mock("../../components/MathSamplePopover", () => ({
-  MathSamplePopover: () => null,
+jest.mock("../../components/MathFullscreenDialog", () => ({
+  MathFullscreenDialog: ({ toolbarExtra }: { toolbarExtra?: React.ReactNode }) => <div data-testid="fs-dialog">{toolbarExtra}</div>,
 }));
 
 import { MathBlock } from "../../components/codeblock/MathBlock";
@@ -97,6 +93,7 @@ function setup(overrides?: { codeCollapsed?: boolean }) {
     onFsCodeChange: jest.fn(),
     fsTextareaRef: { current: null },
     fsSearch: fsSearch as never,
+    handleFsTextChange: jest.fn(),
     t: (key: string) => key,
     isDark: false,
   };
@@ -138,6 +135,7 @@ describe("MathBlock", () => {
         onFsCodeChange={jest.fn()}
         fsTextareaRef={{ current: null }}
         fsSearch={{ reset: jest.fn(), query: "", setQuery: jest.fn(), matches: [], currentIdx: 0, next: jest.fn(), prev: jest.fn(), replace: jest.fn(), replaceAll: jest.fn() } as never}
+        handleFsTextChange={jest.fn()}
         t={(key: string) => key}
         isDark={false}
       />
@@ -145,8 +143,4 @@ describe("MathBlock", () => {
     expect(screen.getByText("Parse error")).toBeTruthy();
   });
 
-  test("insertSample ボタン表示", () => {
-    setup();
-    expect(screen.getByLabelText("insertSample")).toBeTruthy();
-  });
 });

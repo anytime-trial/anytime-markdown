@@ -208,11 +208,6 @@ describe("DiagramBlock", () => {
     expect(screen.getByText("Syntax error in graph")).toBeTruthy();
   });
 
-  test("Mermaid: insertSample ボタン", () => {
-    setup({ lang: "mermaid" });
-    expect(screen.getByLabelText("insertSample")).toBeTruthy();
-  });
-
   // --- PlantUML ---
   test("PlantUML: ラベル表示", () => {
     setup({ lang: "plantuml" });

@@ -40,9 +40,6 @@ jest.mock("../../components/CodeBlockFullscreenDialog", () => ({
   CodeBlockFullscreenDialog: ({ toolbarExtra }: { toolbarExtra?: React.ReactNode }) => <div data-testid="fs-dialog">{toolbarExtra}</div>,
 }));
 
-jest.mock("../../components/HtmlSamplePopover", () => ({
-  HtmlSamplePopover: () => null,
-}));
 
 import { HtmlPreviewBlock } from "../../components/codeblock/HtmlPreviewBlock";
 
@@ -73,6 +70,7 @@ function setup(overrides?: { code?: string }) {
     onFsCodeChange: jest.fn(),
     fsTextareaRef: { current: null },
     fsSearch: fsSearch as never,
+    handleFsTextChange: jest.fn(),
     t: (key: string) => key,
     isDark: false,
   };
@@ -96,8 +94,4 @@ describe("HtmlPreviewBlock", () => {
     expect(screen.getByLabelText("copyCode")).toBeTruthy();
   });
 
-  test("insertSample ボタン表示", () => {
-    setup();
-    expect(screen.getByLabelText("insertSample")).toBeTruthy();
-  });
 });

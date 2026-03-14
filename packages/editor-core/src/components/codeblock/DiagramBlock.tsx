@@ -6,7 +6,6 @@ import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
 import FullscreenIcon from "@mui/icons-material/Fullscreen";
 import FullscreenExitIcon from "@mui/icons-material/FullscreenExit";
 import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
-import SchemaIcon from "@mui/icons-material/Schema";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { Alert, Box, Button, Divider, IconButton, Tooltip, Typography } from "@mui/material";
 import DOMPurify from "dompurify";
@@ -18,11 +17,9 @@ import { useDiagramCapture } from "../../hooks/useDiagramCapture";
 import { SVG_SANITIZE_CONFIG,useMermaidRender } from "../../hooks/useMermaidRender";
 import { usePlantUmlRender } from "../../hooks/usePlantUmlRender";
 import { useZoomPan } from "../../hooks/useZoomPan";
-import { usePlantUmlToolbar } from "../../types";
 import { useEditorSettingsContext } from "../../useEditorSettings";
 import { extractDiagramAltText } from "../../utils/diagramAltText";
 import { MermaidFullscreenDialog } from "../MermaidFullscreenDialog";
-import { MermaidSamplePopover } from "../MermaidSamplePopover";
 import { PlantUmlFullscreenDialog } from "../PlantUmlFullscreenDialog";
 import { CodeBlockFrame } from "./CodeBlockFrame";
 import type { CodeBlockSharedProps } from "./types";
@@ -58,8 +55,6 @@ export function DiagramBlock(props: DiagramBlockProps) {
 
   const isEditable = editor?.isEditable ?? true;
   const settings = useEditorSettingsContext();
-  const { setSampleAnchorEl } = usePlantUmlToolbar();
-
   const language = node.attrs.language;
   const isMermaid = language === "mermaid";
   const isPlantUml = language === "plantuml";
@@ -68,8 +63,6 @@ export function DiagramBlock(props: DiagramBlockProps) {
   const fsZP = useZoomPan();
   const containerRef = useRef<HTMLDivElement>(null);
   const [diagramSize, setDiagramSize] = useState<{ w: number; h: number } | null>(null);
-  const [mermaidSampleAnchorEl, setMermaidSampleAnchorEl] = useState<HTMLElement | null>(null);
-
   const { svg, error: mermaidError } = useMermaidRender({ code, isMermaid, isDark });
   const {
     plantUmlUrl, error: plantUmlError, plantUmlConsent,
@@ -150,13 +143,6 @@ export function DiagramBlock(props: DiagramBlockProps) {
           {diagramSize.w}&times;{diagramSize.h}
         </Typography>
       </>)}
-      {(svg || plantUmlUrl) && (
-        <Tooltip title={t("capture")} placement="top">
-          <IconButton size="small" sx={{ p: 0.25 }} onClick={handleCapture} aria-label={t("capture")}>
-            <PhotoCameraIcon sx={{ fontSize: 16, color: "text.secondary" }} />
-          </IconButton>
-        </Tooltip>
-      )}
       {isEditable && isMermaid && (
         <Tooltip title={t("delete")} placement="top">
           <IconButton size="small" sx={{ p: 0.25 }} onClick={() => setDeleteDialogOpen(true)} aria-label={t("delete")}>
@@ -178,6 +164,7 @@ export function DiagramBlock(props: DiagramBlockProps) {
   const diagramContainerSx = {
     overflow: "hidden", bgcolor: editorBg, position: "relative",
     width: node.attrs.width || "fit-content", maxWidth: "100%",
+    cursor: "pointer",
   };
 
   const handleDoubleClickFullscreen = useCallback(() => {
@@ -219,10 +206,10 @@ export function DiagramBlock(props: DiagramBlockProps) {
             compareCode={compareCode}
             onMergeApply={handleMergeApply}
             toolbarExtra={<>
-              {isEditable && (
-                <Tooltip title={t("insertSample")} placement="bottom">
-                  <IconButton size="small" sx={{ p: 0.25 }} onClick={(e) => setMermaidSampleAnchorEl(e.currentTarget)} aria-label={t("insertSample")}>
-                    <SchemaIcon sx={pumlIconSx} />
+              {(svg) && (
+                <Tooltip title={t("capture")} placement="bottom">
+                  <IconButton size="small" sx={{ p: 0.25 }} onClick={handleCapture} aria-label={t("capture")}>
+                    <PhotoCameraIcon sx={{ fontSize: 16, color: "text.secondary" }} />
                   </IconButton>
                 </Tooltip>
               )}
@@ -244,6 +231,7 @@ export function DiagramBlock(props: DiagramBlockProps) {
             code={code}
             fsCode={fsCode}
             onFsCodeChange={onFsCodeChange}
+            onFsTextChange={_handleFsTextChange}
             fsTextareaRef={fsTextareaRef}
             fsSearch={fsSearch}
             fsCodeVisible={fsCodeVisible}
@@ -254,10 +242,10 @@ export function DiagramBlock(props: DiagramBlockProps) {
             compareCode={compareCode}
             onMergeApply={handleMergeApply}
             toolbarExtra={<>
-              {isEditable && (
-                <Tooltip title={t("insertSample")} placement="bottom">
-                  <IconButton size="small" sx={{ p: 0.25 }} onClick={(e) => setSampleAnchorEl(e.currentTarget)} aria-label={t("insertSample")}>
-                    <SchemaIcon sx={pumlIconSx} />
+              {(plantUmlUrl) && (
+                <Tooltip title={t("capture")} placement="bottom">
+                  <IconButton size="small" sx={{ p: 0.25 }} onClick={handleCapture} aria-label={t("capture")}>
+                    <PhotoCameraIcon sx={{ fontSize: 16, color: "text.secondary" }} />
                   </IconButton>
                 </Tooltip>
               )}
@@ -270,12 +258,6 @@ export function DiagramBlock(props: DiagramBlockProps) {
             t={t}
           />
         )}
-        <MermaidSamplePopover
-          anchorEl={mermaidSampleAnchorEl}
-          onClose={() => setMermaidSampleAnchorEl(null)}
-          editor={editor}
-          t={t}
-        />
       </>}
     >
       {isMermaid && svg && (

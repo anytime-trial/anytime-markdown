@@ -3,42 +3,22 @@ import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import SchemaIcon from "@mui/icons-material/Schema";
 import { Box, Chip, Dialog, DialogTitle, Divider, IconButton, Tooltip, Typography, useMediaQuery, useTheme } from "@mui/material";
-import React, { useCallback, useMemo, useRef, useState } from "react";
-import { common, createLowlight } from "lowlight";
+import DOMPurify from "dompurify";
+import React, { useCallback, useRef, useState } from "react";
 
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "../constants/colors";
-import { CODE_HELLO_SAMPLES } from "../constants/codeHelloSamples";
+import { MATH_SAMPLES } from "../constants/samples";
+import { MATH_SANITIZE_CONFIG, useKatexRender } from "../hooks/useKatexRender";
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import { FsSearchBar } from "./FsSearchBar";
 import { FullscreenDiffView } from "./FullscreenDiffView";
 import { LineNumberTextarea } from "./LineNumberTextarea";
 
-const lowlight = createLowlight(common);
-
-/** Convert hast nodes to HTML string */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function hastToHtml(nodes: any[]): string {
-  return nodes.map((node) => {
-    if (node.type === "text") return escapeHtml(node.value);
-    if (node.type === "element") {
-      const cls = node.properties?.className?.join(" ") ?? "";
-      const inner = hastToHtml(node.children ?? []);
-      return cls ? `<span class="${cls}">${inner}</span>` : `<span>${inner}</span>`;
-    }
-    return "";
-  }).join("");
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
-interface CodeBlockFullscreenDialogProps {
+interface MathFullscreenDialogProps {
   open: boolean;
   onClose: () => void;
   label: string;
-  language: string;
   fsCode: string;
   onFsCodeChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
   onFsTextChange: (newCode: string) => void;
@@ -52,11 +32,12 @@ interface CodeBlockFullscreenDialogProps {
   t: (key: string) => string;
 }
 
-export function CodeBlockFullscreenDialog({
-  open, onClose, label, language, fsCode, onFsCodeChange, onFsTextChange, fsTextareaRef, fsSearch,
+export function MathFullscreenDialog({
+  open, onClose, label,
+  fsCode, onFsCodeChange, onFsTextChange, fsTextareaRef, fsSearch,
   readOnly, isCompareMode, compareCode, onMergeApply, toolbarExtra,
   t,
-}: CodeBlockFullscreenDialogProps) {
+}: MathFullscreenDialogProps) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
@@ -66,27 +47,14 @@ export function CodeBlockFullscreenDialog({
   const [fsDragging, setFsDragging] = useState(false);
   const fsContainerRef = useRef<HTMLDivElement>(null);
 
+  // Live math preview
+  const { html: mathHtml, error: mathError } = useKatexRender({ code: fsCode, isMath: open });
+
+  // --- Sample panel ---
   const [samplesOpen, setSamplesOpen] = useState(false);
-
-  const handleInsertSample = useCallback((code: string) => {
-    onFsTextChange(code);
+  const handleInsertSample = useCallback((sampleCode: string) => {
+    onFsTextChange(sampleCode);
   }, [onFsTextChange]);
-
-  // Syntax-highlighted HTML
-  const highlightedHtml = useMemo(() => {
-    if (!fsCode) return "";
-    try {
-      const tree = lowlight.listLanguages().includes(language)
-        ? lowlight.highlight(language, fsCode)
-        : lowlight.highlightAuto(fsCode);
-      return hastToHtml(tree.children);
-    } catch {
-      return fsCode.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    }
-  }, [fsCode, language]);
-
-  const currentLangSample = CODE_HELLO_SAMPLES[language];
-  const sampleEntries = Object.entries(CODE_HELLO_SAMPLES);
 
   const showCompareView = isCompareMode && compareCode != null;
 
@@ -95,7 +63,7 @@ export function CodeBlockFullscreenDialog({
       open={open}
       onClose={onClose}
       fullScreen
-      aria-labelledby="codeblock-fullscreen-title"
+      aria-labelledby="math-fullscreen-title"
       slotProps={{ paper: { sx: { bgcolor: settings.editorBg === "grey" && !isDark ? "grey.50" : undefined, display: "flex", flexDirection: "column" } } }}
       onKeyDown={(e: React.KeyboardEvent) => {
         if (showCompareView) return;
@@ -109,13 +77,15 @@ export function CodeBlockFullscreenDialog({
     >
       {/* Toolbar */}
       <Box sx={{ display: "flex", alignItems: "center", px: 2, py: 1, borderBottom: 1, borderColor: "divider", position: "relative" }}>
-        <DialogTitle id="codeblock-fullscreen-title" sx={{ p: 0, fontSize: "0.875rem", fontWeight: 600, mr: 1 }}>
+        <DialogTitle id="math-fullscreen-title" sx={{ p: 0, fontSize: "0.875rem", fontWeight: 600, mr: 1 }}>
           {label}{showCompareView ? ` - ${t("compare")}` : ""}
         </DialogTitle>
         {!showCompareView && (
-          <FsSearchBar search={fsSearch} t={t} />
+          <>
+            <FsSearchBar search={fsSearch} t={t} />
+            {toolbarExtra}
+          </>
         )}
-        {!showCompareView && toolbarExtra}
         <Box sx={{ flex: 1 }} />
         <Tooltip title={t("close")} placement="bottom">
           <IconButton size="small" onClick={onClose} sx={{ ml: 1 }} aria-label={t("close")}>
@@ -124,6 +94,7 @@ export function CodeBlockFullscreenDialog({
         </Tooltip>
       </Box>
 
+      {/* Compare view */}
       {showCompareView ? (
         <FullscreenDiffView
           initialLeftCode={fsCode}
@@ -132,6 +103,7 @@ export function CodeBlockFullscreenDialog({
           t={t}
         />
       ) : (
+        /* Normal view: Code + Divider + Preview */
         <Box
           ref={fsContainerRef}
           sx={{ flex: 1, display: "flex", flexDirection: isMobile ? "column" : "row", overflow: "hidden", position: "relative" }}
@@ -175,27 +147,15 @@ export function CodeBlockFullscreenDialog({
                 </Box>
                 {samplesOpen && (
                   <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, px: 1.5, pb: 1.5 }}>
-                    {currentLangSample && (
+                    {MATH_SAMPLES.filter((s) => s.enabled).map((sample) => (
                       <Chip
-                        label={`${language} (Hello World)`}
+                        key={sample.label}
+                        label={t(sample.i18nKey)}
                         size="small"
-                        color="primary"
-                        variant="outlined"
-                        onClick={() => handleInsertSample(currentLangSample)}
+                        onClick={() => handleInsertSample(sample.code)}
                         sx={{ fontSize: "0.7rem", height: 26 }}
                       />
-                    )}
-                    {sampleEntries
-                      .filter(([lang]) => lang !== language)
-                      .map(([lang, code]) => (
-                        <Chip
-                          key={lang}
-                          label={lang}
-                          size="small"
-                          onClick={() => handleInsertSample(code)}
-                          sx={{ fontSize: "0.7rem", height: 26 }}
-                        />
-                      ))}
+                    ))}
                   </Box>
                 )}
               </Box>
@@ -238,49 +198,32 @@ export function CodeBlockFullscreenDialog({
           />
           {/* Horizontal divider (mobile only) */}
           <Divider sx={{ display: isMobile ? "block" : "none" }} />
-          {/* Syntax-highlighted preview */}
+          {/* Math preview */}
           <Box
             sx={{
               flex: 1,
               overflow: "auto",
               bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              p: 4,
               pointerEvents: fsDragging ? "none" : "auto",
             }}
           >
-            <Box
-              component="pre"
-              sx={{
-                fontFamily: "monospace",
-                fontSize: `${settings.fontSize}px`,
-                lineHeight: settings.lineHeight,
-                p: 2,
-                m: 0,
-                whiteSpace: "pre-wrap",
-                overflowWrap: "break-word",
-                color: "text.primary",
-                "& .hljs-keyword": { color: isDark ? "#569cd6" : "#0000ff" },
-                "& .hljs-string": { color: isDark ? "#ce9178" : "#a31515" },
-                "& .hljs-number": { color: isDark ? "#b5cea8" : "#098658" },
-                "& .hljs-comment": { color: isDark ? "#6a9955" : "#008000" },
-                "& .hljs-function": { color: isDark ? "#dcdcaa" : "#795e26" },
-                "& .hljs-title": { color: isDark ? "#dcdcaa" : "#795e26" },
-                "& .hljs-class .hljs-title": { color: isDark ? "#4ec9b0" : "#267f99" },
-                "& .hljs-params": { color: isDark ? "#9cdcfe" : "#001080" },
-                "& .hljs-type": { color: isDark ? "#4ec9b0" : "#267f99" },
-                "& .hljs-built_in": { color: isDark ? "#4ec9b0" : "#267f99" },
-                "& .hljs-literal": { color: isDark ? "#569cd6" : "#0000ff" },
-                "& .hljs-attr": { color: isDark ? "#9cdcfe" : "#001080" },
-                "& .hljs-variable": { color: isDark ? "#9cdcfe" : "#001080" },
-                "& .hljs-tag": { color: isDark ? "#569cd6" : "#800000" },
-                "& .hljs-name": { color: isDark ? "#569cd6" : "#800000" },
-                "& .hljs-attribute": { color: isDark ? "#9cdcfe" : "#ff0000" },
-                "& .hljs-meta": { color: isDark ? "#c586c0" : "#af00db" },
-                "& .hljs-selector-tag": { color: isDark ? "#d7ba7d" : "#800000" },
-                "& .hljs-selector-class": { color: isDark ? "#d7ba7d" : "#267f99" },
-                "& .hljs-property": { color: isDark ? "#9cdcfe" : "#001080" },
-              }}
-              dangerouslySetInnerHTML={{ __html: highlightedHtml }}
-            />
+            {mathError && (
+              <Typography color="error" sx={{ fontFamily: "monospace", fontSize: "0.85rem" }}>
+                {mathError}
+              </Typography>
+            )}
+            {mathHtml && (
+              <Box
+                role="img"
+                aria-label={`${t("mathFormula")}: ${fsCode}`}
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(mathHtml, MATH_SANITIZE_CONFIG) }}
+                sx={{ "& .katex": { fontSize: "1.5em" } }}
+              />
+            )}
           </Box>
         </Box>
       )}

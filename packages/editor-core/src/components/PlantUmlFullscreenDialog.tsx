@@ -1,19 +1,25 @@
 import CloseIcon from "@mui/icons-material/Close";
 import CodeIcon from "@mui/icons-material/Code";
 import CodeOffIcon from "@mui/icons-material/CodeOff";
+import ExpandLessIcon from "@mui/icons-material/ExpandLess";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
+import SchemaIcon from "@mui/icons-material/Schema";
 import ZoomInIcon from "@mui/icons-material/ZoomIn";
 import ZoomOutIcon from "@mui/icons-material/ZoomOut";
-import { Box, Dialog, DialogTitle, Divider, IconButton, ToggleButton, ToggleButtonGroup, Tooltip, Typography, useMediaQuery, useTheme } from "@mui/material";
-import React, { useRef, useState } from "react";
+import { Box, Chip, Dialog, DialogTitle, Divider, IconButton, Tab, Tabs, ToggleButton, ToggleButtonGroup, Tooltip, Typography, useMediaQuery, useTheme } from "@mui/material";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "../constants/colors";
+import { PLANTUML_SAMPLES } from "../constants/samples";
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
 import type { UseZoomPanReturn } from "../hooks/useZoomPan";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import { extractDiagramAltText } from "../utils/diagramAltText";
+import { extractPlantUmlConfig, mergePlantUmlConfig } from "../utils/plantumlConfig";
 import { FsSearchBar } from "./FsSearchBar";
 import { FullscreenDiffView } from "./FullscreenDiffView";
+import { LineNumberTextarea } from "./LineNumberTextarea";
 
 interface PlantUmlFullscreenDialogProps {
   open: boolean;
@@ -23,6 +29,7 @@ interface PlantUmlFullscreenDialogProps {
   code: string;
   fsCode: string;
   onFsCodeChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+  onFsTextChange: (newCode: string) => void;
   fsTextareaRef: React.RefObject<HTMLTextAreaElement | null>;
   fsSearch: TextareaSearchState;
   fsCodeVisible: boolean;
@@ -36,25 +43,9 @@ interface PlantUmlFullscreenDialogProps {
   t: (key: string) => string;
 }
 
-const textareaSx = (fontSize: number, lineHeight: number, isDark: boolean) => ({
-  flex: 1,
-  width: "100%",
-  border: "none",
-  outline: "none",
-  resize: "none",
-  fontFamily: "monospace",
-  fontSize: `${fontSize}px`,
-  lineHeight,
-  p: 2,
-  color: "text.primary",
-  bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
-  boxSizing: "border-box",
-  overflow: "auto",
-} as const);
-
 export function PlantUmlFullscreenDialog({
   open, onClose, label, plantUmlUrl, code,
-  fsCode, onFsCodeChange, fsTextareaRef, fsSearch,
+  fsCode, onFsCodeChange, onFsTextChange, fsTextareaRef, fsSearch,
   fsCodeVisible, onToggleFsCodeVisible, fsZP, readOnly,
   isCompareMode, compareCode, onMergeApply, toolbarExtra,
   t,
@@ -64,9 +55,56 @@ export function PlantUmlFullscreenDialog({
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const settings = useEditorSettingsContext();
 
-  const [fsSplitPct, setFsSplitPct] = useState(40);
+  const [fsSplitPx, setFsSplitPx] = useState(500);
   const [fsDragging, setFsDragging] = useState(false);
   const fsContainerRef = useRef<HTMLDivElement>(null);
+
+  // --- Code / Config tab state ---
+  const [activeTab, setActiveTab] = useState<"code" | "config">("code");
+  const [configText, setConfigText] = useState("");
+  const [bodyText, setBodyText] = useState("");
+  const configTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Reset to Code tab when dialog opens
+  const prevOpenRef = useRef(false);
+  useEffect(() => {
+    if (open && !prevOpenRef.current) {
+      setActiveTab("code");
+    }
+    prevOpenRef.current = open;
+  }, [open]);
+
+  // Extract config/body from fsCode when dialog opens
+  const initializedRef = useRef(false);
+  useEffect(() => {
+    if (!open) { initializedRef.current = false; return; }
+    if (initializedRef.current) return;
+    if (!fsCode) return;
+    initializedRef.current = true;
+    const { config, body } = extractPlantUmlConfig(fsCode);
+    setConfigText(config);
+    setBodyText(body);
+  }, [open, fsCode]);
+
+  const handleCodeTabChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newBody = e.target.value;
+    setBodyText(newBody);
+    onFsTextChange(mergePlantUmlConfig(configText, newBody));
+  }, [configText, onFsTextChange]);
+
+  const handleConfigChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newConfig = e.target.value;
+    setConfigText(newConfig);
+    onFsTextChange(mergePlantUmlConfig(newConfig, bodyText));
+  }, [bodyText, onFsTextChange]);
+
+  // --- Sample panel ---
+  const [samplesOpen, setSamplesOpen] = useState(false);
+  const handleInsertSample = useCallback((sampleCode: string) => {
+    setBodyText(sampleCode);
+    onFsTextChange(mergePlantUmlConfig(configText, sampleCode));
+    setActiveTab("code");
+  }, [configText, onFsTextChange]);
 
   const showCompareView = isCompareMode && compareCode != null;
 
@@ -116,7 +154,7 @@ export function PlantUmlFullscreenDialog({
             <Typography variant="caption" sx={{ minWidth: 40, textAlign: "center" }}>
               {Math.round(fsZP.zoom * 100)}%
             </Typography>
-            {fsCodeVisible && (
+            {fsCodeVisible && activeTab === "code" && (
               <FsSearchBar search={fsSearch} t={t} />
             )}
             {toolbarExtra}
@@ -154,15 +192,15 @@ export function PlantUmlFullscreenDialog({
           t={t}
         />
       ) : (
-        /* Normal view: Code + Divider + Preview */
+        /* Normal view: Code/Config + Divider + Preview */
         <Box
           ref={fsContainerRef}
           sx={{ flex: 1, display: "flex", flexDirection: isMobile ? "column" : "row", overflow: "hidden", position: "relative" }}
           onPointerMove={(e: React.PointerEvent) => {
             if (fsDragging && fsContainerRef.current) {
               const rect = fsContainerRef.current.getBoundingClientRect();
-              const pct = ((e.clientX - rect.left) / rect.width) * 100;
-              setFsSplitPct(Math.min(80, Math.max(15, pct)));
+              const px = e.clientX - rect.left;
+              setFsSplitPx(Math.min(rect.width - 120, Math.max(120, px)));
             }
             if (!fsDragging) fsZP.handlePointerMove(e);
           }}
@@ -175,18 +213,71 @@ export function PlantUmlFullscreenDialog({
             }
           }}
         >
-          {/* Code editor */}
+          {/* Code / Config editor */}
           {fsCodeVisible && (
-            <Box sx={{ width: isMobile ? "100%" : `${fsSplitPct}%`, height: isMobile ? "40%" : "auto", minWidth: isMobile ? undefined : 120, display: "flex", flexDirection: "column", pointerEvents: fsDragging ? "none" : "auto" }}>
-              <Box
-                component="textarea"
-                ref={fsTextareaRef}
-                value={fsCode}
-                onChange={onFsCodeChange}
-                readOnly={readOnly}
-                spellCheck={false}
-                sx={textareaSx(settings.fontSize, settings.lineHeight, isDark)}
-              />
+            <Box sx={{ width: isMobile ? "100%" : `${fsSplitPx}px`, height: isMobile ? "40%" : "auto", minWidth: isMobile ? undefined : 120, display: "flex", flexDirection: "column", pointerEvents: fsDragging ? "none" : "auto" }}>
+              {/* Tabs */}
+              <Tabs
+                value={activeTab}
+                onChange={(_, v) => setActiveTab(v)}
+                sx={{ minHeight: 32, borderBottom: 1, borderColor: "divider", "& .MuiTab-root": { minHeight: 32, py: 0.5, px: 2, fontSize: "0.75rem", textTransform: "none" } }}
+              >
+                <Tab value="code" label={t("codeTab")} />
+                <Tab value="config" label={t("configTab")} />
+              </Tabs>
+              {/* Code textarea */}
+              {activeTab === "code" && (
+                <LineNumberTextarea
+                  textareaRef={fsTextareaRef}
+                  value={bodyText}
+                  onChange={handleCodeTabChange}
+                  readOnly={readOnly}
+                  fontSize={settings.fontSize}
+                  lineHeight={settings.lineHeight}
+                  isDark={isDark}
+                />
+              )}
+              {/* Config textarea */}
+              {activeTab === "config" && (
+                <LineNumberTextarea
+                  textareaRef={configTextareaRef}
+                  value={configText}
+                  onChange={handleConfigChange}
+                  readOnly={readOnly}
+                  placeholder={"skinparam backgroundColor #FEFECE\nskinparam handwritten true\n!theme cerulean"}
+                  fontSize={settings.fontSize}
+                  lineHeight={settings.lineHeight}
+                  isDark={isDark}
+                />
+              )}
+              {/* Sample Diagrams panel */}
+              {!readOnly && (
+                <Box sx={{ borderTop: 1, borderColor: "divider", flexShrink: 0 }}>
+                  <Box
+                    onClick={() => setSamplesOpen((v) => !v)}
+                    sx={{ display: "flex", alignItems: "center", px: 1.5, py: 0.5, cursor: "pointer", userSelect: "none", "&:hover": { bgcolor: "action.hover" } }}
+                  >
+                    <SchemaIcon sx={{ fontSize: 16, mr: 0.75, color: "text.secondary" }} />
+                    <Typography variant="caption" sx={{ fontWeight: 600, fontSize: "0.75rem", flex: 1 }}>
+                      {t("sampleDiagrams")}
+                    </Typography>
+                    {samplesOpen ? <ExpandLessIcon sx={{ fontSize: 16, color: "text.secondary" }} /> : <ExpandMoreIcon sx={{ fontSize: 16, color: "text.secondary" }} />}
+                  </Box>
+                  {samplesOpen && (
+                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, px: 1.5, pb: 1.5 }}>
+                      {PLANTUML_SAMPLES.filter((s) => s.enabled).map((sample) => (
+                        <Chip
+                          key={sample.label}
+                          label={t(sample.i18nKey)}
+                          size="small"
+                          onClick={() => handleInsertSample(sample.code)}
+                          sx={{ fontSize: "0.7rem", height: 26 }}
+                        />
+                      ))}
+                    </Box>
+                  )}
+                </Box>
+              )}
             </Box>
           )}
           {/* Draggable divider (desktop only) */}
@@ -195,16 +286,16 @@ export function PlantUmlFullscreenDialog({
               role="separator"
               aria-orientation="vertical"
               aria-label={t("resizeSplitter")}
-              aria-valuenow={fsSplitPct}
-              aria-valuemin={20}
-              aria-valuemax={80}
+              aria-valuenow={fsSplitPx}
+              aria-valuemin={120}
+              aria-valuemax={1200}
               tabIndex={0}
               onKeyDown={(e: React.KeyboardEvent) => {
                 if (e.key === "ArrowLeft") {
-                  setFsSplitPct((v) => Math.max(20, v - 5));
+                  setFsSplitPx((v) => Math.max(120, v - 40));
                   e.preventDefault();
                 } else if (e.key === "ArrowRight") {
-                  setFsSplitPct((v) => Math.min(80, v + 5));
+                  setFsSplitPx((v) => v + 40);
                   e.preventDefault();
                 }
               }}

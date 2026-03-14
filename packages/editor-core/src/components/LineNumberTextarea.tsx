@@ -102,6 +102,7 @@ export function LineNumberTextarea({
           width: "100%",
           border: "none",
           outline: "none",
+          "&:focus-visible": { outline: "none" },
           resize: "none",
           fontFamily: "monospace",
           fontSize: `${fontSize}px`,

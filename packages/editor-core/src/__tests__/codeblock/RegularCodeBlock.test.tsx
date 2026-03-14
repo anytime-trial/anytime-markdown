@@ -50,7 +50,7 @@ function setup(overrides?: { isSelected?: boolean; language?: string }) {
   const fsSearch = { reset: jest.fn(), query: "", setQuery: jest.fn(), matches: [], currentIdx: 0, next: jest.fn(), prev: jest.fn(), replace: jest.fn(), replaceAll: jest.fn() };
   const mockNode = createMockNode(overrides?.language);
   const props = {
-    editor: null as never,
+    editor: { isEditable: true } as never,
     node: mockNode,
     getPos: (() => 0) as never,
     code: mockNode.textContent,
@@ -65,6 +65,7 @@ function setup(overrides?: { isSelected?: boolean; language?: string }) {
     onFsCodeChange: jest.fn(),
     fsTextareaRef: { current: null },
     fsSearch: fsSearch as never,
+    handleFsTextChange: jest.fn(),
     t: (key: string) => key,
     isDark: false,
   };
