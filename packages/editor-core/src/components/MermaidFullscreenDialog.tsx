@@ -7,7 +7,7 @@ import ZoomInIcon from "@mui/icons-material/ZoomIn";
 import ZoomOutIcon from "@mui/icons-material/ZoomOut";
 import { Box, Chip, Dialog, DialogTitle, Divider, IconButton, Tab, Tabs, Tooltip, Typography, useMediaQuery, useTheme } from "@mui/material";
 import DOMPurify from "dompurify";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getFullscreenBg } from "../constants/colors";
 import { FS_CHIP_HEIGHT, FS_CODE_INITIAL_WIDTH, FS_CODE_MIN_WIDTH, FS_TOOLBAR_HEIGHT, FS_ZOOM_LABEL_WIDTH } from "../constants/dimensions";
@@ -110,6 +110,18 @@ export function MermaidFullscreenDialog({
     onFsTextChange(mergeMermaidConfig(configText, sampleCode));
     setActiveTab("code");
   }, [configText, onFsTextChange]);
+
+  // Scale SVG to match editor font size
+  const displaySvg = useMemo(() => {
+    if (!svg) return svg;
+    const viewBoxMatch = svg.match(/viewBox="[\d.]+ [\d.]+ ([\d.]+) [\d.]+"/);
+    if (!viewBoxMatch) return svg;
+    const viewBoxWidth = parseFloat(viewBoxMatch[1]);
+    const targetWidth = (settings.fontSize / 16) * viewBoxWidth;
+    return svg
+      .replace(/width="100%"/, `width="${targetWidth}"`)
+      .replace(/max-width:\s*[\d.]+px/, `max-width: 100%`);
+  }, [svg, settings.fontSize]);
 
   const showCompareView = isCompareMode && compareCode != null;
 
@@ -313,8 +325,8 @@ export function MermaidFullscreenDialog({
               onWheel={fsZP.handleWheel}
             >
               <Box sx={{ width: "100%", height: "100%", display: "flex", justifyContent: "center", alignItems: "center", transform: `translate(${fsZP.pan.x}px, ${fsZP.pan.y}px) scale(${fsZP.zoom})`, transformOrigin: "center center", transition: fsZP.isPanningRef.current ? "none" : `transform ${TRANSITION_FAST}`, ...REDUCED_MOTION_SX, pointerEvents: "none" }}>
-                {svg && (
-                  <Box role="img" aria-label={extractDiagramAltText(code, "mermaid")} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(svg, SVG_SANITIZE_CONFIG) }} sx={{ "& svg": { maxWidth: "100%", height: "auto" } }} />
+                {displaySvg && (
+                  <Box role="img" aria-label={extractDiagramAltText(code, "mermaid")} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(displaySvg, SVG_SANITIZE_CONFIG) }} sx={{ "& svg": { maxWidth: "100%", height: "auto" } }} />
                 )}
               </Box>
             </Box>
