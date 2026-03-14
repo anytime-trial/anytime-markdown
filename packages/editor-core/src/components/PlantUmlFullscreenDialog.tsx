@@ -307,7 +307,7 @@ export function PlantUmlFullscreenDialog({
             >
               <Box sx={{ width: "100%", height: "100%", display: "flex", justifyContent: "center", alignItems: "center", transform: `translate(${fsZP.pan.x}px, ${fsZP.pan.y}px) scale(${fsZP.zoom})`, transformOrigin: "center center", transition: fsZP.isPanningRef.current ? "none" : `transform ${TRANSITION_FAST}`, ...REDUCED_MOTION_SX, pointerEvents: "none" }}>
                 {plantUmlUrl && (
-                  <img src={plantUmlUrl} alt={extractDiagramAltText(code, "plantuml")} referrerPolicy="no-referrer" style={{ maxWidth: "90vw", maxHeight: "85vh" }} />
+                  <img src={plantUmlUrl} alt={extractDiagramAltText(code, "plantuml")} referrerPolicy="no-referrer" style={{ maxWidth: "90vw", maxHeight: "85vh", transform: `scale(${settings.fontSize / 16})`, transformOrigin: "center center" }} />
               )}
             </Box>
             </Box>
