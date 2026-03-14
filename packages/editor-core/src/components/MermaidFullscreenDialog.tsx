@@ -160,7 +160,6 @@ export function MermaidFullscreenDialog({
             {activeTab === "code" && (
               <FsSearchBar search={fsSearch} t={t} />
             )}
-            {toolbarExtra}
           </>
         )}
         <Box sx={{ flex: 1 }} />
@@ -203,15 +202,18 @@ export function MermaidFullscreenDialog({
         >
           {/* Code / Config editor */}
           <Box sx={{ width: isMobile ? "100%" : `${fsSplitPx}px`, height: isMobile ? "40%" : "auto", minWidth: isMobile ? undefined : 120, display: "flex", flexDirection: "column", pointerEvents: fsDragging ? "none" : "auto" }}>
-              {/* Tabs */}
-              <Tabs
-                value={activeTab}
-                onChange={(_, v) => setActiveTab(v)}
-                sx={{ minHeight: 32, borderBottom: 1, borderColor: "divider", "& .MuiTab-root": { minHeight: 32, py: 0.5, px: 2, fontSize: "0.75rem", textTransform: "none" } }}
-              >
-                <Tab value="code" label={t("codeTab")} />
-                <Tab value="config" label={t("configTab")} />
-              </Tabs>
+              {/* Tabs + toolbar */}
+              <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: "divider" }}>
+                <Tabs
+                  value={activeTab}
+                  onChange={(_, v) => setActiveTab(v)}
+                  sx={{ minHeight: 32, flex: 1, "& .MuiTab-root": { minHeight: 32, py: 0.5, px: 2, fontSize: "0.75rem", textTransform: "none" } }}
+                >
+                  <Tab value="code" label={t("codeTab")} />
+                  <Tab value="config" label={t("configTab")} />
+                </Tabs>
+                {toolbarExtra}
+              </Box>
               {/* Code textarea */}
               {activeTab === "code" && (
                 <LineNumberTextarea

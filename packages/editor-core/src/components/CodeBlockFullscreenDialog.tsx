@@ -116,7 +116,6 @@ export function CodeBlockFullscreenDialog({
         {!showCompareView && (
           <FsSearchBar search={fsSearch} t={t} />
         )}
-        {!showCompareView && toolbarExtra}
         <Box sx={{ flex: 1 }} />
         <Tooltip title={t("close")} placement="bottom">
           <IconButton size="small" onClick={onClose} sx={{ ml: 1 }} aria-label={t("close")}>
@@ -152,6 +151,13 @@ export function CodeBlockFullscreenDialog({
         >
           {/* Code editor */}
           <Box sx={{ width: isMobile ? "100%" : `${fsSplitPx}px`, height: isMobile ? "40%" : "auto", minWidth: isMobile ? undefined : 120, display: "flex", flexDirection: "column", pointerEvents: fsDragging ? "none" : "auto" }}>
+            {/* Code toolbar */}
+            <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: "divider", px: 1, py: 0.25, minHeight: 32 }}>
+              <Typography variant="caption" sx={{ fontWeight: 600, fontSize: "0.75rem", flex: 1 }}>
+                {t("codeTab")}
+              </Typography>
+              {toolbarExtra}
+            </Box>
             <LineNumberTextarea
               textareaRef={fsTextareaRef}
               value={fsCode}
