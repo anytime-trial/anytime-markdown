@@ -2,7 +2,6 @@ import CloseIcon from "@mui/icons-material/Close";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
-import SchemaIcon from "@mui/icons-material/Schema";
 import ZoomInIcon from "@mui/icons-material/ZoomIn";
 import ZoomOutIcon from "@mui/icons-material/ZoomOut";
 import { Box, Chip, Dialog, DialogTitle, Divider, IconButton, Tooltip, Typography, useMediaQuery, useTheme } from "@mui/material";
@@ -146,7 +145,6 @@ export function MathFullscreenDialog({
                   onClick={() => setSamplesOpen((v) => !v)}
                   sx={{ display: "flex", alignItems: "center", px: 1.5, py: 0.5, cursor: "pointer", userSelect: "none", "&:hover": { bgcolor: "action.hover" } }}
                 >
-                  <SchemaIcon sx={{ fontSize: 16, mr: 0.75, color: "text.secondary" }} />
                   <Typography variant="caption" sx={{ fontWeight: 600, fontSize: "0.75rem", flex: 1 }}>
                     {t("sampleContent")}
                   </Typography>
