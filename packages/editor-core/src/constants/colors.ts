@@ -44,6 +44,11 @@ export function getEditorBg(isDark: boolean, settings?: Pick<EditorSettings, "da
     : (settings?.lightBgColor || DEFAULT_LIGHT_BG);
 }
 
+/** 全画面ダイアログの Paper 背景色を返す */
+export function getFullscreenBg(isDark: boolean, settings?: Pick<EditorSettings, "editorBg">): string | undefined {
+  return settings?.editorBg === "grey" && !isDark ? "grey.50" : undefined;
+}
+
 /** ユーザー設定を考慮したエディタ文字色を返す */
 export function getEditorText(isDark: boolean, settings?: Pick<EditorSettings, "darkTextColor" | "lightTextColor">): string {
   return isDark

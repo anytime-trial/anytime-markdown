@@ -9,7 +9,7 @@ import { Box, Chip, Dialog, DialogTitle, Divider, IconButton, Tooltip, Typograph
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { common, createLowlight } from "lowlight";
 
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "../constants/colors";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getFullscreenBg } from "../constants/colors";
 import { CODE_HELLO_SAMPLES } from "../constants/codeHelloSamples";
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
 import { useZoomPan } from "../hooks/useZoomPan";
@@ -100,7 +100,7 @@ export function CodeBlockFullscreenDialog({
       onClose={onClose}
       fullScreen
       aria-labelledby="codeblock-fullscreen-title"
-      slotProps={{ paper: { sx: { bgcolor: settings.editorBg === "grey" && !isDark ? "grey.50" : undefined, display: "flex", flexDirection: "column" } } }}
+      slotProps={{ paper: { sx: { bgcolor: getFullscreenBg(isDark, settings), display: "flex", flexDirection: "column" } } }}
       onKeyDown={(e: React.KeyboardEvent) => {
         if (showCompareView) return;
         const mod = e.metaKey || e.ctrlKey;

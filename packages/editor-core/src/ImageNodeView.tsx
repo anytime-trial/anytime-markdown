@@ -14,7 +14,7 @@ import { useTranslations } from "next-intl";
 import { useCallback, useEffect,useRef, useState } from "react";
 
 import { DeleteBlockDialog } from "./components/codeblock/DeleteBlockDialog";
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "./constants/colors";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getFullscreenBg } from "./constants/colors";
 import { useDeleteBlock } from "./hooks/useDeleteBlock";
 import { useEditorSettingsContext } from "./useEditorSettings";
 import { useNodeSelected } from "./hooks/useNodeSelected";
@@ -131,7 +131,7 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
         onClose={() => setFullscreen(false)}
         fullScreen
         aria-labelledby="image-fullscreen-title"
-        slotProps={{ paper: { sx: { bgcolor: settings.editorBg === "grey" && !isDark ? "grey.50" : undefined, display: "flex", flexDirection: "column" } } }}
+        slotProps={{ paper: { sx: { bgcolor: getFullscreenBg(isDark, settings), display: "flex", flexDirection: "column" } } }}
       >
         <Box sx={{ display: "flex", alignItems: "center", px: 2, py: 1, borderBottom: 1, borderColor: "divider" }}>
           <Tooltip title={t("close")} placement="bottom">
