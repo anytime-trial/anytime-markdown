@@ -15,7 +15,6 @@ import { useTranslations } from "next-intl";
 import { useCallback, useEffect,useRef, useState } from "react";
 
 import { DeleteBlockDialog } from "./components/codeblock/DeleteBlockDialog";
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "./constants/colors";
 import { useDeleteBlock } from "./hooks/useDeleteBlock";
 import { useNodeSelected } from "./hooks/useNodeSelected";
 import { Z_FULLSCREEN } from "./constants/zIndex";
@@ -140,7 +139,7 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
           position: "fixed",
           inset: 0,
           zIndex: Z_FULLSCREEN,
-          bgcolor: theme.palette.mode === "dark" ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
+          bgcolor: "background.paper",
           display: "flex",
           flexDirection: "column",
         }),
@@ -152,7 +151,7 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
       }}>
         {/* Fullscreen toolbar (Mermaid-style header) */}
         {fullscreen && (
-          <Box sx={{ display: "flex", alignItems: "center", px: 2, py: 1, borderBottom: 1, borderColor: "divider", bgcolor: "background.paper" }} contentEditable={false}>
+          <Box sx={{ display: "flex", alignItems: "center", px: 2, py: 1, borderBottom: 1, borderColor: "divider" }} contentEditable={false}>
             <Tooltip title={t("close")} placement="bottom">
               <IconButton size="small" onClick={() => setFullscreen(false)} sx={{ mr: 1 }} aria-label={t("close")}>
                 <CloseIcon sx={{ fontSize: 20 }} />
