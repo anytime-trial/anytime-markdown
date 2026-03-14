@@ -16,6 +16,7 @@ import { useCallback, useEffect,useRef, useState } from "react";
 
 import { DeleteBlockDialog } from "./components/codeblock/DeleteBlockDialog";
 import { useDeleteBlock } from "./hooks/useDeleteBlock";
+import { useEditorSettingsContext } from "./useEditorSettings";
 import { useNodeSelected } from "./hooks/useNodeSelected";
 import { Z_FULLSCREEN } from "./constants/zIndex";
 import { getEditorStorage } from "./types";
@@ -26,6 +27,8 @@ const MIN_WIDTH = 50;
 export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeViewProps) {
   const t = useTranslations("MarkdownEditor");
   const theme = useTheme();
+  const isDark = theme.palette.mode === "dark";
+  const settings = useEditorSettingsContext();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const collapsed = !!node.attrs.collapsed;
@@ -139,7 +142,7 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
           position: "fixed",
           inset: 0,
           zIndex: Z_FULLSCREEN,
-          bgcolor: "background.paper",
+          bgcolor: settings.editorBg === "grey" && !isDark ? "grey.50" : "background.paper",
           display: "flex",
           flexDirection: "column",
         }),
