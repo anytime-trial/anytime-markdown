@@ -428,7 +428,7 @@
     "noComments": "No comments",
     "noOpenComments": "No open comments",
     "noResolvedComments": "No resolved comments",
-    "explorer": "Explorer"
+    "explorer": "GitHub"
   },
   "Landing": {
     "heroTitle": "Write Markdown, Beautifully",
@@ -521,7 +521,21 @@
     "githubConnected": "Connected to GitHub",
     "githubDisconnected": "Disconnected from GitHub",
     "fileSaved": "File saved",
-    "saveError": "Failed to save file"
+    "saveError": "Failed to save file",
+    "explorer": "EXPLORER",
+    "gitHistory": "GIT HISTORY",
+    "signInWithGitHub": "Sign in with GitHub",
+    "signOut": "Sign out",
+    "savingWillCommit": "Saving will commit to your GitHub repository",
+    "noRepositoriesFound": "No repositories found",
+    "noCommitHistory": "No commit history",
+    "editing": "Editing...",
+    "historyMayBeStale": "* History may not reflect the latest commits",
+    "createFile": "Create file",
+    "createFolder": "Create folder",
+    "filenamePlaceholder": "filename.md",
+    "folderNamePlaceholder": "folder name",
+    "defaultBranch": "default"
   },
   "Privacy": {
     "title": "Privacy Policy",

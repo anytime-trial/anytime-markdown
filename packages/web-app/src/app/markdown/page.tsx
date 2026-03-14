@@ -45,8 +45,9 @@ export default function Page() {
   const t = useTranslations('Common');
   const { themeMode, setThemeMode } = useThemeMode();
   const { setLocale } = useLocaleSwitch();
+  const enableGitHub = process.env.NEXT_PUBLIC_ENABLE_GITHUB === '1';
   const { data: session } = useSession();
-  const isGitHubLoggedIn = !!session;
+  const isGitHubLoggedIn = enableGitHub && !!session;
   const [explorerOpen, setExplorerOpen] = useState(() => {
     if (typeof window === 'undefined') return false;
     return sessionStorage.getItem('explorerOpen') === '1';
@@ -63,6 +64,24 @@ export default function Page() {
   const [isDirty, setIsDirty] = useState(false);
   const [newCommit, setNewCommit] = useState<{ sha: string; message: string; author: string; date: string } | null>(null);
   const [saveSnackbar, setSaveSnackbar] = useState<{ message: string; severity: 'success' | 'error' } | null>(null);
+
+  // SSO ログイン状態で初回アクセス時に localStorage をクリアしパネルを開く
+  useEffect(() => {
+    if (!isGitHubLoggedIn) return;
+    setExplorerOpen(true);
+    // ファイル未選択時は defaultContent を非表示にする
+    if (!selectedFileRef.current) {
+      setExternalContent("");
+      setEditorKey((k) => k + 1);
+    }
+    if (sessionStorage.getItem('ssoContentCleared') === '1') return;
+    sessionStorage.setItem('ssoContentCleared', '1');
+    try {
+      localStorage.removeItem(STORAGE_KEY_CONTENT);
+    } catch (e) {
+      console.warn('Failed to clear localStorage:', e);
+    }
+  }, [isGitHubLoggedIn]);
 
   // localStorage への書き込みを監視して dirty 判定
   useEffect(() => {
@@ -206,14 +225,16 @@ export default function Page() {
 
   return (
     <Box sx={{ display: "flex", height: "100vh", overflow: "hidden" }}>
-      <ExplorerPanel
-        open={explorerOpen}
-        onSelectFile={handleExplorerSelectFile}
-        onSelectCommit={handleExplorerSelectCommit}
-        onSelectCurrent={handleSelectCurrent}
-        isDirty={isDirty}
-        newCommit={newCommit}
-      />
+      {enableGitHub && (
+        <ExplorerPanel
+          open={explorerOpen}
+          onSelectFile={handleExplorerSelectFile}
+          onSelectCommit={handleExplorerSelectCommit}
+          onSelectCurrent={handleSelectCurrent}
+          isDirty={isDirty}
+          newCommit={newCommit}
+        />
+      )}
       <Box sx={{ flex: 1, minWidth: 0, overflow: "auto" }}>
         <MarkdownEditorPage
           key={editorKey}
@@ -223,8 +244,8 @@ export default function Page() {
           fileSystemProvider={fileSystemProvider}
           onCompareModeChange={handleCompareModeChange}
           externalCompareContent={externalCompareContent}
-          explorerOpen={explorerOpen}
-          onToggleExplorer={handleToggleExplorer}
+          explorerOpen={enableGitHub ? explorerOpen : false}
+          onToggleExplorer={enableGitHub ? handleToggleExplorer : undefined}
           externalContent={externalContent}
           externalFileName={externalFileName}
           externalFilePath={externalFilePath}

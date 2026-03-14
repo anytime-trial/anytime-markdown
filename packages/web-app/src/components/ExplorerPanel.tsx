@@ -36,6 +36,7 @@ import {
 import AccountTreeIcon from "@mui/icons-material/AccountTree";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { signIn, signOut, useSession } from "next-auth/react";
+import { useTranslations } from "next-intl";
 import { type FC, useCallback, useEffect, useRef, useState } from "react";
 
 interface GitHubRepo {
@@ -220,6 +221,7 @@ const NewFileInput: FC<{
   onSubmit: (name: string) => void;
   onCancel: () => void;
 }> = ({ depth, onSubmit, onCancel }) => {
+  const t = useTranslations("Common");
   const [value, setValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -256,7 +258,7 @@ const NewFileInput: FC<{
           if (e.key === "Escape") onCancel();
         }}
         onBlur={handleSubmit}
-        placeholder="filename.md"
+        placeholder={t("filenamePlaceholder")}
         variant="standard"
         size="small"
         fullWidth
@@ -265,7 +267,7 @@ const NewFileInput: FC<{
           sx: { fontSize: "0.78rem", py: 0 },
           endAdornment: (
             <InputAdornment position="end">
-              <IconButton size="small" onClick={handleSubmit} sx={{ p: 0.25 }} aria-label="Create file">
+              <IconButton size="small" onClick={handleSubmit} sx={{ p: 0.25 }} aria-label={t("createFile")}>
                 <AddIcon sx={{ fontSize: 14 }} />
               </IconButton>
             </InputAdornment>
@@ -331,6 +333,7 @@ const NewFolderInput: FC<{
   onSubmit: (name: string) => void;
   onCancel: () => void;
 }> = ({ depth, onSubmit, onCancel }) => {
+  const t = useTranslations("Common");
   const [value, setValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -366,7 +369,7 @@ const NewFolderInput: FC<{
           if (e.key === "Escape") onCancel();
         }}
         onBlur={handleSubmit}
-        placeholder="folder name"
+        placeholder={t("folderNamePlaceholder")}
         variant="standard"
         size="small"
         fullWidth
@@ -375,7 +378,7 @@ const NewFolderInput: FC<{
           sx: { fontSize: "0.78rem", py: 0 },
           endAdornment: (
             <InputAdornment position="end">
-              <IconButton size="small" onClick={handleSubmit} sx={{ p: 0.25 }} aria-label="Create folder">
+              <IconButton size="small" onClick={handleSubmit} sx={{ p: 0.25 }} aria-label={t("createFolder")}>
                 <AddIcon sx={{ fontSize: 14 }} />
               </IconButton>
             </InputAdornment>
@@ -674,6 +677,7 @@ const GitHistorySection: FC<{
   onSelectCurrent?: () => void;
   stale?: boolean;
 }> = ({ commits, loading, selectedSha, onSelectCommit, isDirty, onSelectCurrent, stale }) => {
+  const t = useTranslations("Common");
   if (loading) {
     return (
       <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
@@ -684,7 +688,7 @@ const GitHistorySection: FC<{
   if (commits.length === 0) {
     return (
       <Typography variant="caption" sx={{ py: 2, textAlign: "center", display: "block", color: "text.secondary" }}>
-        No commit history
+        {t("noCommitHistory")}
       </Typography>
     );
   }
@@ -700,7 +704,7 @@ const GitHistorySection: FC<{
             <EditIcon sx={{ fontSize: 16, color: "warning.main" }} />
           </ListItemIcon>
           <ListItemText
-            primary="Editing..."
+            primary={t("editing")}
             primaryTypographyProps={{ variant: "body2", fontSize: "0.78rem", fontStyle: "italic", color: "warning.main" }}
           />
         </ListItemButton>
@@ -710,7 +714,7 @@ const GitHistorySection: FC<{
           variant="caption"
           sx={{ display: "block", px: 2, py: 0.5, color: "warning.main", fontSize: "0.7rem" }}
         >
-          * History may not reflect the latest commits
+          {t("historyMayBeStale")}
         </Typography>
       )}
       {commits.map((c) => (
@@ -744,6 +748,7 @@ export const ExplorerPanel: FC<ExplorerPanelProps> = ({
   isDirty,
   newCommit,
 }) => {
+  const t = useTranslations("Common");
   const { data: session } = useSession();
   const [repos, setRepos] = useState<GitHubRepo[]>([]);
   const [selectedRepo, setSelectedRepo] = useState<GitHubRepo | null>(null);
@@ -849,6 +854,62 @@ export const ExplorerPanel: FC<ExplorerPanelProps> = ({
       .finally(() => setLoading(false));
   }, [open, repos.length, needsAuth]);
 
+  // リポジトリ取得後、sessionStorage から前回の選択状態を復元
+  const restoredRef = useRef(false);
+  useEffect(() => {
+    if (restoredRef.current || repos.length === 0 || selectedRepo) return;
+    let saved: { repo: string; branch: string; filePath: string } | null = null;
+    try {
+      const raw = sessionStorage.getItem("explorerSelection");
+      if (raw) saved = JSON.parse(raw);
+    } catch { /* ignore */ }
+    if (!saved) return;
+    const repo = repos.find((r) => r.fullName === saved!.repo);
+    if (!repo) return;
+    restoredRef.current = true;
+    // リポジトリ→ブランチ→ツリー→ファイル選択を自動実行
+    (async () => {
+      setSelectedRepo(repo);
+      setSelectedBranch(saved!.branch);
+      setExpanded(new Set());
+      setSelectedFilePath(null);
+      setCommits([]);
+      setSelectedSha(null);
+      childrenCacheRef.current = new Map();
+      hasMdCacheRef.current = new Map();
+      setLoading(true);
+      const entries = await fetchDirEntries(repo.fullName, saved!.branch, "");
+      childrenCacheRef.current.set("", entries);
+      setRootEntries(entries);
+      setLoading(false);
+
+      // ファイルパスの親ディレクトリを展開
+      const parts = saved!.filePath.split("/");
+      const dirsToExpand: string[] = [];
+      for (let i = 1; i < parts.length; i++) {
+        dirsToExpand.push(parts.slice(0, i).join("/"));
+      }
+      for (const dir of dirsToExpand) {
+        if (!childrenCacheRef.current.has(dir)) {
+          const children = await fetchDirEntries(repo.fullName, saved!.branch, dir);
+          childrenCacheRef.current.set(dir, children);
+          bumpCache();
+        }
+      }
+      setExpanded(new Set(dirsToExpand));
+
+      // ファイル選択を実行
+      setSelectedFilePath(saved!.filePath);
+      setSelectedSha(null);
+      onSelectFile(repo.fullName, saved!.filePath, saved!.branch);
+      setCommitsLoading(true);
+      const { commits: commitList, stale } = await fetchCommits(repo.fullName, saved!.filePath, saved!.branch);
+      setCommits(commitList);
+      setCommitsStale(stale);
+      setCommitsLoading(false);
+    })();
+  }, [repos, selectedRepo, onSelectFile, bumpCache]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const loadTree = useCallback(
     async (repo: GitHubRepo, branch: string) => {
       setExpanded(new Set());
@@ -912,6 +973,7 @@ export const ExplorerPanel: FC<ExplorerPanelProps> = ({
     setSelectedSha(null);
     childrenCacheRef.current = new Map();
     hasMdCacheRef.current = new Map();
+    try { sessionStorage.removeItem("explorerSelection"); } catch { /* ignore */ }
   }, []);
 
   const handleToggle = useCallback(
@@ -956,6 +1018,15 @@ export const ExplorerPanel: FC<ExplorerPanelProps> = ({
       setSelectedFilePath(filePath);
       setSelectedSha(null);
       onSelectFile(selectedRepo.fullName, filePath, selectedBranch);
+
+      // 選択状態を sessionStorage に保存
+      try {
+        sessionStorage.setItem("explorerSelection", JSON.stringify({
+          repo: selectedRepo.fullName,
+          branch: selectedBranch,
+          filePath,
+        }));
+      } catch { /* ignore */ }
 
       // コミット履歴を取得
       setCommitsLoading(true);
@@ -1342,11 +1413,11 @@ export const ExplorerPanel: FC<ExplorerPanelProps> = ({
           </Button>
         ) : (
           <Typography variant="caption" sx={{ fontWeight: 600, px: 0.5, flex: 1 }}>
-            EXPLORER
+            {t("explorer")}
           </Typography>
         )}
         {session && (
-          <Tooltip title="Sign out">
+          <Tooltip title={t("signOut")}>
             <IconButton
               size="small"
               onClick={() => {
@@ -1411,8 +1482,11 @@ export const ExplorerPanel: FC<ExplorerPanelProps> = ({
                 py: 0.75,
               }}
             >
-              Sign in with GitHub
+              {t("signInWithGitHub")}
             </Button>
+            <Typography variant="caption" sx={{ color: "text.secondary", textAlign: "center", mt: 1, px: 1 }}>
+              {t("savingWillCommit")}
+            </Typography>
           </Box>
         ) : loading ? (
           <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
@@ -1444,7 +1518,7 @@ export const ExplorerPanel: FC<ExplorerPanelProps> = ({
                 variant="body2"
                 sx={{ py: 2, textAlign: "center", color: "text.secondary" }}
               >
-                No repositories found
+                {t("noRepositoriesFound")}
               </Typography>
             )}
           </List>
@@ -1553,7 +1627,7 @@ export const ExplorerPanel: FC<ExplorerPanelProps> = ({
             }}
           >
             <Typography variant="caption" sx={{ fontWeight: 600, px: 0.5 }}>
-              GIT HISTORY
+              {t("gitHistory")}
             </Typography>
             <Typography variant="caption" sx={{ ml: 0.5, color: "text.secondary", fontSize: "0.65rem", flex: 1 }} noWrap>
               {selectedFilePath.split("/").pop()}
@@ -1618,7 +1692,7 @@ export const ExplorerPanel: FC<ExplorerPanelProps> = ({
                       variant="caption"
                       sx={{ color: "text.secondary", fontSize: "0.65rem" }}
                     >
-                      default
+                      {t("defaultBranch")}
                     </Typography>
                   )}
                 </ListItemButton>

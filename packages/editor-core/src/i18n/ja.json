@@ -428,7 +428,7 @@
     "noComments": "コメントはありません",
     "noOpenComments": "未解決のコメントはありません",
     "noResolvedComments": "解決済みのコメントはありません",
-    "explorer": "エクスプローラ"
+    "explorer": "GitHub"
   },
   "Landing": {
     "heroTitle": "美しくMarkdownを書こう",
@@ -521,7 +521,21 @@
     "githubConnected": "GitHub に接続しました",
     "githubDisconnected": "GitHub から切断しました",
     "fileSaved": "ファイルを保存しました",
-    "saveError": "ファイルの保存に失敗しました"
+    "saveError": "ファイルの保存に失敗しました",
+    "explorer": "エクスプローラー",
+    "gitHistory": "Git 履歴",
+    "signInWithGitHub": "GitHub でサインイン",
+    "signOut": "サインアウト",
+    "savingWillCommit": "保存すると GitHub リポジトリにコミットされます",
+    "noRepositoriesFound": "リポジトリが見つかりません",
+    "noCommitHistory": "コミット履歴がありません",
+    "editing": "編集中...",
+    "historyMayBeStale": "※ 最新のコミットが反映されていない可能性があります",
+    "createFile": "ファイルを作成",
+    "createFolder": "フォルダを作成",
+    "filenamePlaceholder": "filename.md",
+    "folderNamePlaceholder": "フォルダ名",
+    "defaultBranch": "デフォルト"
   },
   "Privacy": {
     "title": "プライバシーポリシー",
