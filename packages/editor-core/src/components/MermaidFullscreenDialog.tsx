@@ -17,7 +17,6 @@ import type { UseZoomPanReturn } from "../hooks/useZoomPan";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import { extractDiagramAltText } from "../utils/diagramAltText";
 import { extractMermaidConfig, mergeMermaidConfig } from "../utils/mermaidConfig";
-import { FsSearchBar } from "./FsSearchBar";
 import { LineNumberTextarea } from "./LineNumberTextarea";
 import { FullscreenDiffView } from "./FullscreenDiffView";
 
@@ -157,9 +156,6 @@ export function MermaidFullscreenDialog({
             <Typography variant="caption" sx={{ minWidth: 40, textAlign: "center" }}>
               {Math.round(fsZP.zoom * 100)}%
             </Typography>
-            {activeTab === "code" && (
-              <FsSearchBar search={fsSearch} t={t} />
-            )}
           </>
         )}
         <Box sx={{ flex: 1 }} />

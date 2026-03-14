@@ -15,7 +15,6 @@ import type { UseZoomPanReturn } from "../hooks/useZoomPan";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import { extractDiagramAltText } from "../utils/diagramAltText";
 import { extractPlantUmlConfig, mergePlantUmlConfig } from "../utils/plantumlConfig";
-import { FsSearchBar } from "./FsSearchBar";
 import { FullscreenDiffView } from "./FullscreenDiffView";
 import { LineNumberTextarea } from "./LineNumberTextarea";
 
@@ -150,9 +149,6 @@ export function PlantUmlFullscreenDialog({
             <Typography variant="caption" sx={{ minWidth: 40, textAlign: "center" }}>
               {Math.round(fsZP.zoom * 100)}%
             </Typography>
-            {activeTab === "code" && (
-              <FsSearchBar search={fsSearch} t={t} />
-            )}
           </>
         )}
         <Box sx={{ flex: 1 }} />

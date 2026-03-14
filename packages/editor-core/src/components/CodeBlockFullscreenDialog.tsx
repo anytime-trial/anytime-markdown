@@ -11,7 +11,6 @@ import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "../constants/colors";
 import { CODE_HELLO_SAMPLES } from "../constants/codeHelloSamples";
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
 import { useEditorSettingsContext } from "../useEditorSettings";
-import { FsSearchBar } from "./FsSearchBar";
 import { FullscreenDiffView } from "./FullscreenDiffView";
 import { LineNumberTextarea } from "./LineNumberTextarea";
 
@@ -113,9 +112,6 @@ export function CodeBlockFullscreenDialog({
         <DialogTitle id="codeblock-fullscreen-title" sx={{ p: 0, fontSize: "0.875rem", fontWeight: 600, mr: 1 }}>
           {label}{showCompareView ? ` - ${t("compare")}` : ""}
         </DialogTitle>
-        {!showCompareView && (
-          <FsSearchBar search={fsSearch} t={t} />
-        )}
         <Box sx={{ flex: 1 }} />
         <Tooltip title={t("close")} placement="bottom">
           <IconButton size="small" onClick={onClose} sx={{ ml: 1 }} aria-label={t("close")}>
