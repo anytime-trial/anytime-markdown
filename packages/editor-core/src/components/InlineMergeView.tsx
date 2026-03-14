@@ -46,6 +46,7 @@ interface InlineMergeViewProps {
   externalRightContent?: string | null;
   onExternalRightContentConsumed?: () => void;
   onRightFileOpsReady?: (ops: { loadFile: () => void; exportFile: () => void }) => void;
+  commentSlot?: React.ReactNode;
   children: (
     leftBgGradient: string,
     leftDiffLines?: DiffLine[],
@@ -84,6 +85,7 @@ export function InlineMergeView({
   externalRightContent,
   onExternalRightContentConsumed,
   onRightFileOpsReady,
+  commentSlot,
   children,
 }: InlineMergeViewProps) {
   const theme = useTheme();
@@ -419,6 +421,7 @@ export function InlineMergeView({
             />
           </Box>
         </Box>
+        {commentSlot}
       </Box>
 
       {/* Line preview: hovered line text with inline diff highlight (source mode only) */}

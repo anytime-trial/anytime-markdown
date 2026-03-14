@@ -291,7 +291,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
       <Box sx={{ display: { xs: "none", md: "contents" } }}>
       <ToggleButtonGroup size="small" aria-label={t("view")} sx={{ height: 30 }}>
         {onToggleExplorer && (
-          <ToggleButton value="explorer" selected={!!explorerOpen} onClick={onToggleExplorer} disabled={inlineMergeOpen} aria-label={t("explorer")} sx={{ px: 0.75, py: 0.25 }}>
+          <ToggleButton value="explorer" selected={!!explorerOpen} onClick={onToggleExplorer} aria-label={t("explorer")} sx={{ px: 0.75, py: 0.25 }}>
             <Tooltip title={t("explorer")}>
               <span style={{ display: "inline-flex" }}><GitHubIcon fontSize="small" /></span>
             </Tooltip>
@@ -303,7 +303,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
           </Tooltip>
         </ToggleButton>}
         {!hideComments && onToggleComments && (
-          <ToggleButton value="comments" selected={commentOpen} onClick={onToggleComments} disabled={inlineMergeOpen || sourceMode} aria-label={t("commentPanel") || "Comments"} sx={{ px: 0.75, py: 0.25 }}>
+          <ToggleButton value="comments" selected={commentOpen} onClick={onToggleComments} disabled={sourceMode} aria-label={t("commentPanel") || "Comments"} sx={{ px: 0.75, py: 0.25 }}>
             <Tooltip title={t("commentPanel") || "Comments"}>
               <span style={{ display: "inline-flex" }}><ChatBubbleOutlineIcon fontSize="small" /></span>
             </Tooltip>
@@ -412,7 +412,6 @@ export const EditorToolbar = React.memo(function EditorToolbar({
       hideVersionInfo={hideVersionInfo}
       onToggleOutline={onToggleOutline}
       onToggleComments={onToggleComments}
-      onMerge={onMerge}
       onSetHelpAnchor={onSetHelpAnchor}
       onOpenSettings={onOpenSettings}
       onOpenVersionDialog={onOpenVersionDialog}
