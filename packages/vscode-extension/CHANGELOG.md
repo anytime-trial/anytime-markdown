@@ -14,13 +14,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - 連続テキスト行にハードブレイク（\）を自動付加（改行の保持）
 - Excel/Google Sheets からの表の貼り付け対応（セル内改行は `<br>` に変換）
 - VS Code 拡張の多言語化（package.nls.json / package.nls.ja.json、README.ja.md）
-- `.md` ファイルをデフォルトで Anytime Markdown エディタで開く設定
 - feature-matrix.md に不足機能を追加（Excel/Sheets 貼り付け等）
+- ソース管理 diff 時にランディング画面を表示（GIT HISTORY パネルへの誘導メッセージ付き）
 
 ### Changed
 - セクション番号の自動表示機能を削除し、明示的な挿入/削除操作のみに変更
 - テキスト書式（Bold/Italic/Underline/Strikethrough/Highlight/InlineCode）のキーボードショートカットを無効化（バブルメニューから操作）
 - リスト（Ctrl+Shift+7/8/9）、リンク（Ctrl+K）、コメント（Ctrl+Shift+M）、アウトライン（Ctrl+Alt+O）のショートカットを無効化
+- customEditors の priority を `option` に変更（VS Code 標準テキストエディタがデフォルト）
 
 ### Fixed
 - Ctrl+S 保存時に外部変更通知が表示される問題を修正（onWillSaveTextDocument で抑制）
