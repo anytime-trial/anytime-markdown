@@ -4,6 +4,42 @@ All notable changes to the "anytime-markdown" extension will be documented in th
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.1] - 2026-03-15
+
+### Added
+- セクション番号の挿入/削除機能（アウトラインパネル・VS Code ツリービューにアイコン追加、H1〜H5 対応、ソースに直接書き込み）
+- 外部変更検知を VS Code 通知に変更（右下通知 + 再読込ボタン）
+- ツールバーに再読込ボタンを追加（VS Code 拡張のみ）
+- ファイル読込時にフォーマット整形が発生する場合の通知
+- 連続テキスト行にハードブレイク（\）を自動付加（改行の保持）
+- Excel/Google Sheets からの表の貼り付け対応（セル内改行は `<br>` に変換）
+- VS Code 拡張の多言語化（package.nls.json / package.nls.ja.json、README.ja.md）
+- `.md` ファイルをデフォルトで Anytime Markdown エディタで開く設定
+- feature-matrix.md に不足機能を追加（Excel/Sheets 貼り付け等）
+
+### Changed
+- セクション番号の自動表示機能を削除し、明示的な挿入/削除操作のみに変更
+- テキスト書式（Bold/Italic/Underline/Strikethrough/Highlight/InlineCode）のキーボードショートカットを無効化（バブルメニューから操作）
+- リスト（Ctrl+Shift+7/8/9）、リンク（Ctrl+K）、コメント（Ctrl+Shift+M）、アウトライン（Ctrl+Alt+O）のショートカットを無効化
+
+### Fixed
+- Ctrl+S 保存時に外部変更通知が表示される問題を修正（onWillSaveTextDocument で抑制）
+- 初回ロード時の TipTap 正規化によるファイル書き戻しを抑制
+- セクション番号挿入後に dirty 表示（●）されるよう初回ロード判定を改善
+- テーブルセル内のハードブレイクが `\\` で出力されテーブル行が壊れる問題を修正（`<br>` に変換）
+- Excel ペースト時に画像として貼り付けられる問題を修正（text/html 優先）
+- テーブル外側の背景色がテーブルセル内と異なる問題を修正（インライン・全画面・比較モード）
+
+### Removed
+- Details/Summary（折りたたみブロック）機能を削除
+- HelpDialog（キーボードショートカットダイアログ）を削除
+- /features ランディングページを削除
+- インライン数式（$...$）機能を削除
+- 未使用のヘルプ画像を削除
+
+### Security
+- fetchFromCdn の SSRF 対策を強化（URL 再構築方式）
+
 ## [0.5.0] - 2026-03-15
 
 ### Added
