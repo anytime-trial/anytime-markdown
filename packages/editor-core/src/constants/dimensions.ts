@@ -13,7 +13,8 @@ export const OUTLINE_WIDTH_MAX = 500;
 export const PREVIEW_MAX_HEIGHT = 400;
 
 // ── StatusBar 高さ ──
-export const STATUSBAR_HEIGHT = 33;
+/** StatusBar 高さ + border-top + Paper border 分のオフセット */
+export const STATUSBAR_HEIGHT = 39;
 
 // ── コメントパネル ──
 export const COMMENT_PANEL_WIDTH = 280;

@@ -10,12 +10,8 @@ export function useEditorHeight(isMobile: boolean, isMd: boolean, bottomOffset =
   const update = useCallback(() => {
     if (!editorContainerRef.current) return;
     const top = editorContainerRef.current.getBoundingClientRect().top;
-    const parent = editorContainerRef.current.closest("#main-content");
-    const paddingBottom = parent
-      ? parseFloat(getComputedStyle(parent).paddingBottom) || 0
-      : (isMobile ? 16 : 24);
-    setEditorHeight(Math.max(Math.floor(window.innerHeight - top - paddingBottom - bottomOffset), EDITOR_HEIGHT_MIN));
-  }, [isMobile, bottomOffset]);
+    setEditorHeight(Math.max(Math.floor(window.innerHeight - top - bottomOffset), EDITOR_HEIGHT_MIN));
+  }, [bottomOffset]);
 
   useEffect(() => {
     update();
