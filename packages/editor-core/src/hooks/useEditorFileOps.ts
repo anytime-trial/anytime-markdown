@@ -4,7 +4,7 @@ import DOMPurify from "dompurify";
 import { useTranslations } from "next-intl";
 import plantumlEncoder from "plantuml-encoder";
 import type { Dispatch, SetStateAction } from "react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import useConfirm from "@/hooks/useConfirm";
 
@@ -34,6 +34,7 @@ interface UseEditorFileOpsParams {
   setFileHandle?: (handle: FileHandle | null) => void;
   frontmatterRef: React.MutableRefObject<string | null>;
   onFrontmatterChange?: (value: string | null) => void;
+  onExternalSave?: (content: string) => void;
 }
 
 export type NotificationKey = "copiedToClipboard" | "fileSaved" | "pdfExportError" | "encodingError" | "saveError" | null;
@@ -55,6 +56,7 @@ export function useEditorFileOps({
   setFileHandle,
   frontmatterRef,
   onFrontmatterChange,
+  onExternalSave,
 }: UseEditorFileOpsParams) {
   const [notification, setNotification] = useState<NotificationKey>(null);
   const [pdfExporting, setPdfExporting] = useState(false);
@@ -70,6 +72,9 @@ export function useEditorFileOps({
     const md = sourceMode ? sourceText : editor ? getMarkdownFromEditor(editor) : "";
     return sourceMode ? md : prependFrontmatter(md, frontmatterRef.current);
   }, [sourceMode, sourceText, editor, frontmatterRef]);
+
+  // アンマウント時にタイマーをクリア
+  useEffect(() => () => clearTimeout(notificationTimerRef.current), []);
 
   const showNotification = useCallback((key: NotificationKey) => {
     clearTimeout(notificationTimerRef.current);
@@ -92,6 +97,7 @@ export function useEditorFileOps({
       setSourceText("");
     } else {
       editor?.commands.clearContent();
+      editor?.commands.initComments(new Map());
     }
     frontmatterRef.current = null;
     clearContent();
@@ -118,6 +124,8 @@ export function useEditorFileOps({
       readFileAsText(file).then(({ text }) => {
         setFileHandle?.(nativeHandle ? { name: file.name, nativeHandle } : { name: file.name });
         applyMarkdownContent(text);
+      }).catch((err) => {
+        console.warn("Failed to read file:", err);
       });
     },
     [applyMarkdownContent, setFileHandle],
@@ -173,24 +181,29 @@ export function useEditorFileOps({
   }, [openFile, applyMarkdownContent, sourceMode, sourceText, editor, confirm, t]);
 
   const handleSaveFile = useCallback(async () => {
-    if (!saveFile) return;
     let md = getFullMarkdown();
     if (md && !md.endsWith("\n")) md += "\n";
-    if (encoding && encoding !== "UTF-8" && fileHandle?.nativeHandle) {
-      const nativeHandle = fileHandle.nativeHandle as FileSystemFileHandle;
-      const Encoding = (await import("encoding-japanese")).default;
-      const unicodeArray = Encoding.stringToCode(md);
-      const toEnc = encoding === "Shift_JIS" ? "SJIS" : "EUCJP";
-      const converted = Encoding.convert(unicodeArray, { to: toEnc, from: "UNICODE" });
-      const writable = await nativeHandle.createWritable();
-      await writable.write(new Uint8Array(converted));
-      await writable.close();
+    if (onExternalSave) {
+      onExternalSave(md);
+    } else if (saveFile) {
+      if (encoding && encoding !== "UTF-8" && fileHandle?.nativeHandle) {
+        const nativeHandle = fileHandle.nativeHandle as FileSystemFileHandle;
+        const Encoding = (await import("encoding-japanese")).default;
+        const unicodeArray = Encoding.stringToCode(md);
+        const toEnc = encoding === "Shift_JIS" ? "SJIS" : "EUCJP";
+        const converted = Encoding.convert(unicodeArray, { to: toEnc, from: "UNICODE" });
+        const writable = await nativeHandle.createWritable();
+        await writable.write(new Uint8Array(converted));
+        await writable.close();
+      } else {
+        const saved = await saveFile(md);
+        if (!saved) return;
+      }
     } else {
-      const saved = await saveFile(md);
-      if (!saved) return;
+      return;
     }
     showNotification("fileSaved");
-  }, [saveFile, getFullMarkdown, showNotification, encoding, fileHandle]);
+  }, [saveFile, onExternalSave, getFullMarkdown, showNotification, encoding, fileHandle]);
 
   const handleSaveAsFile = useCallback(async () => {
     if (!saveAsFile) return;
@@ -321,7 +334,7 @@ export function useEditorFileOps({
       } finally {
         // 復元
         for (const restore of diagramRestores) restore();
-        if (collapsedPositions.length > 0) {
+        if (collapsedPositions.length > 0 && !editor.isDestroyed) {
           const tr = editor.state.tr;
           for (const pos of collapsedPositions) {
             tr.setNodeAttribute(pos, "collapsed", true);

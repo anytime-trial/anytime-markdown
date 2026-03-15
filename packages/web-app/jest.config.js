@@ -9,6 +9,7 @@ const config = {
   moduleNameMapper: {
     "^@anytime-markdown/editor-core/src/(.*)$": "<rootDir>/../editor-core/src/$1",
     "^@anytime-markdown/editor-core$": "<rootDir>/../editor-core/src/index.ts",
+    "^next-auth(.*)$": "<rootDir>/src/__mocks__/next-auth.js",
   },
   maxWorkers: 4,
 };

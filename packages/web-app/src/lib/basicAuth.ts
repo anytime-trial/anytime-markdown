@@ -1,7 +1,20 @@
+import { timingSafeEqual } from 'crypto';
+
 import { NextRequest, NextResponse } from 'next/server';
 
 const CMS_USER = process.env.CMS_BASIC_USER ?? '';
 const CMS_PASSWORD = process.env.CMS_BASIC_PASSWORD ?? '';
+
+function safeEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) {
+    // 長さが異なっても一定時間の比較を行う
+    timingSafeEqual(bufA, Buffer.alloc(bufA.length));
+    return false;
+  }
+  return timingSafeEqual(bufA, bufB);
+}
 
 /**
  * Basic 認証を検証する。
@@ -29,7 +42,7 @@ export function checkBasicAuth(request: NextRequest): NextResponse | null {
   const decoded = Buffer.from(authHeader.slice(6), 'base64').toString('utf-8');
   const [user, password] = decoded.split(':');
 
-  if (user !== CMS_USER || password !== CMS_PASSWORD) {
+  if (!safeEqual(user, CMS_USER) || !safeEqual(password, CMS_PASSWORD)) {
     return new NextResponse(JSON.stringify({ error: 'Invalid credentials' }), {
       status: 401,
       headers: {

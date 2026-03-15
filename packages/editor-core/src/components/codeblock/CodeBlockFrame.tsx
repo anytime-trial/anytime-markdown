@@ -1,17 +1,16 @@
 "use client";
 
 import type { SxProps, Theme } from "@mui/material";
-import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Typography } from "@mui/material";
+import { Box } from "@mui/material";
 import { NodeViewContent, NodeViewWrapper } from "@tiptap/react";
 
 import { DEFAULT_DARK_CODE_BG, DEFAULT_LIGHT_CODE_BG } from "../../constants/colors";
 import { useEditorSettingsContext } from "../../useEditorSettings";
+import { DeleteBlockDialog } from "./DeleteBlockDialog";
 
 interface CodeBlockFrameProps {
   /** Toolbar row rendered above the code editor */
   toolbar: React.ReactNode;
-  /** Whether the entire block is collapsed */
-  allCollapsed: boolean;
   /** Whether the code editor portion is collapsed (preview blocks only) */
   codeCollapsed?: boolean;
   /** Whether this is a diagram block (uses wrapper Box around pre) */
@@ -35,7 +34,6 @@ interface CodeBlockFrameProps {
 
 export function CodeBlockFrame({
   toolbar,
-  allCollapsed,
   codeCollapsed,
   isDiagramLayout,
   isDark,
@@ -53,9 +51,7 @@ export function CodeBlockFrame({
   const maxH = codeMaxHeight ?? (hasCodeCollapse ? 200 : 400);
 
   const hiddenSx = { position: "absolute", width: 0, height: 0, overflow: "hidden", opacity: 0, pointerEvents: "none" } as const;
-  const preSx: SxProps<Theme> = allCollapsed
-    ? hiddenSx
-    : hasCodeCollapse
+  const preSx: SxProps<Theme> = hasCodeCollapse
       ? (codeCollapsed
         ? { ...hiddenSx, m: 0 }
         : {
@@ -86,20 +82,18 @@ export function CodeBlockFrame({
       }}>
         {toolbar}
         {isDiagramLayout
-          ? <Box sx={(allCollapsed || codeCollapsed) ? { position: "absolute", width: 0, height: 0, overflow: "hidden", opacity: 0, pointerEvents: "none" } : {}}>{preElement}</Box>
+          ? <Box sx={codeCollapsed ? { position: "absolute", width: 0, height: 0, overflow: "hidden", opacity: 0, pointerEvents: "none" } : {}}>{preElement}</Box>
           : preElement
         }
         {children}
       </Box>
       {afterFrame}
-      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-        <DialogTitle>{t("delete")}</DialogTitle>
-        <DialogContent><Typography>{t("clearConfirm")}</Typography></DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>{t("cancel")}</Button>
-          <Button color="error" variant="contained" onClick={() => { setDeleteDialogOpen(false); handleDeleteBlock(); }}>{t("delete")}</Button>
-        </DialogActions>
-      </Dialog>
+      <DeleteBlockDialog
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+        onDelete={handleDeleteBlock}
+        t={t}
+      />
     </NodeViewWrapper>
   );
 }

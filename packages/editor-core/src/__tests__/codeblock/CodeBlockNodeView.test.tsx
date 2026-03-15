@@ -64,9 +64,6 @@ jest.mock("../../hooks/useZoomPan", () => ({
   useZoomPan: () => ({ zoom: 1, pan: { x: 0, y: 0 }, isPanningRef: { current: false }, handlePointerDown: jest.fn(), handlePointerMove: jest.fn(), handlePointerUp: jest.fn(), handleWheel: jest.fn(), reset: jest.fn() }),
 }));
 
-jest.mock("../../hooks/useDiagramResize", () => ({
-  useDiagramResize: () => ({ containerRef: { current: null }, displayWidth: null, resizing: false, resizeWidth: null, MIN_WIDTH: 100, handlePointerDown: jest.fn(), handlePointerMove: jest.fn(), handlePointerUp: jest.fn(), handleKeyDown: jest.fn() }),
-}));
 
 jest.mock("../../types", () => ({
   usePlantUmlToolbar: () => ({ setSampleAnchorEl: jest.fn() }),

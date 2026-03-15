@@ -32,6 +32,8 @@ export interface ToolbarFileHandlers {
 export interface ToolbarFileCapabilities {
   hasFileHandle?: boolean;
   supportsDirectAccess?: boolean;
+  /** 外部保存のみ（GitHub SSO 等）: 新規作成・開く・名前を付けて保存を非表示 */
+  externalSaveOnly?: boolean;
 }
 
 /** エディタのモード状態 */
@@ -42,6 +44,7 @@ export interface ToolbarModeState {
   outlineOpen: boolean;
   inlineMergeOpen: boolean;
   commentOpen?: boolean;
+  explorerOpen?: boolean;
 }
 
 /** モード切替ハンドラ */
@@ -53,4 +56,5 @@ export interface ToolbarModeHandlers {
   onToggleOutline: () => void;
   onToggleComments?: () => void;
   onMerge: () => void;
+  onToggleExplorer?: () => void;
 }

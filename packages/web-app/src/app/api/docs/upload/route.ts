@@ -32,7 +32,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Only .md files are allowed' }, { status: 400 });
     }
 
-    if (file.name.includes('..')) {
+    // ファイル名を英数字・ハイフン・アンダースコア・ドット・スペースに制限
+    if (!/^[a-zA-Z0-9\u3000-\u9FFF\uF900-\uFAFF\u{20000}-\u{2FA1F}\w\-. ]+$/u.test(file.name)) {
+      return NextResponse.json({ error: 'Invalid file name' }, { status: 400 });
+    }
+
+    if (file.name.includes('..') || file.name.includes('/') || file.name.includes('\\')) {
       return NextResponse.json({ error: 'Invalid file name' }, { status: 400 });
     }
 

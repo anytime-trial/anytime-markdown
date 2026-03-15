@@ -33,6 +33,7 @@ type InlineMergeViewComponent = React.ComponentType<{
   externalRightContent?: string | null;
   onExternalRightContentConsumed?: () => void;
   onRightFileOpsReady?: (ops: { loadFile: () => void; exportFile: () => void }) => void;
+  commentSlot?: React.ReactNode;
   children: (
     leftBgGradient: string,
     leftDiffLines?: DiffLine[],
@@ -200,6 +201,9 @@ export function EditorMainContent({
         externalRightContent={compareFileContent}
         onExternalRightContentConsumed={() => setCompareFileContent(null)}
         onRightFileOpsReady={setRightFileOps}
+        commentSlot={commentOpen && editor && !sourceMode ? (
+          <CommentPanel editor={editor} open={commentOpen} onClose={() => setCommentOpen(false)} onSave={() => saveContent(getMarkdownFromEditor(editor))} t={t} />
+        ) : undefined}
       >
         {(leftBgGradient, leftDiffLines, onMerge, onHoverLine) => (
         <Box component="main" ref={editorContainerRef} sx={{ display: "flex", gap: 0, height: "100%", position: "relative" }} onDragOver={handleContainerDragOver} onDragLeave={handleContainerDragLeave} onDrop={handleContainerDrop}>
@@ -234,7 +238,8 @@ export function EditorMainContent({
   }
 
   return (
-    <Box component="main" ref={editorContainerRef} sx={{ display: "flex", gap: 0, position: "relative" }} onDragOver={handleContainerDragOver} onDragLeave={handleContainerDragLeave} onDrop={handleContainerDrop}>
+    <Box component="main" ref={editorContainerRef} sx={{ display: "flex", flexDirection: "column", position: "relative" }} onDragOver={handleContainerDragOver} onDragLeave={handleContainerDragLeave} onDrop={handleContainerDrop}>
+      <Box sx={{ display: "flex", gap: 0, flex: 1, minHeight: 0 }}>
       {fileDragOver && <Box sx={{ position: "absolute", inset: 0, bgcolor: FILE_DROP_OVERLAY_COLOR, zIndex: 10, pointerEvents: "none" }} />}
       {!sourceMode && <EditorOutlineSection {...outlineProps} />}
 
@@ -300,6 +305,7 @@ export function EditorMainContent({
       {commentOpen && editor && !sourceMode && (
         <CommentPanel editor={editor} open={commentOpen} onClose={() => setCommentOpen(false)} onSave={() => saveContent(getMarkdownFromEditor(editor))} t={t} />
       )}
+      </Box>
     </Box>
   );
 }

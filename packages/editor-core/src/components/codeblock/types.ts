@@ -12,16 +12,10 @@ export interface CodeBlockSharedProps {
   getPos: NodeViewProps["getPos"];
   /** Whether node is selected in the editor */
   isSelected: boolean;
-  /** All-collapsed state from node attrs */
-  allCollapsed: boolean;
   /** Code-collapsed state from node attrs */
   codeCollapsed: boolean;
-  /** Toggle all-collapsed */
-  toggleAllCollapsed: () => void;
   /** Focus the node */
   selectNode: () => void;
-  /** Move block up/down */
-  handleDragKeyDown: (e: React.KeyboardEvent) => void;
   /** Current text content */
   code: string;
   /** Copy code to clipboard */
@@ -32,8 +26,8 @@ export interface CodeBlockSharedProps {
   deleteDialogOpen: boolean;
   setDeleteDialogOpen: (open: boolean) => void;
   /** Fullscreen state */
-  fullscreen: boolean;
-  setFullscreen: (open: boolean) => void;
+  editOpen: boolean;
+  setEditOpen: (open: boolean) => void;
   /** Fullscreen code state */
   fsCode: string;
   onFsCodeChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;

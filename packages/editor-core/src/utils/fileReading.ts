@@ -30,7 +30,7 @@ export function detectLineEnding(text: string): string {
 }
 
 export function readFileAsText(file: File): Promise<ReadFileResult> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
       if (!(reader.result instanceof ArrayBuffer)) return;
@@ -48,6 +48,7 @@ export function readFileAsText(file: File): Promise<ReadFileResult> {
       const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
       resolve({ text: normalized, encoding, lineEnding });
     };
+    reader.onerror = () => reject(reader.error ?? new Error("Failed to read file"));
     reader.readAsArrayBuffer(file);
   });
 }

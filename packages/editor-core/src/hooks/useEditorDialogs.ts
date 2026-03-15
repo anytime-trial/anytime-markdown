@@ -80,7 +80,7 @@ export function useEditorDialogs({
     setLinkDialogOpen(false);
   }, [editor, linkUrl]);
 
-  // editor.storage 経由でリンクダイアログを開く（MergeRightBubbleMenu から利用）
+  // editor.storage 経由でリンクダイアログを開く
   useEffect(() => {
     if (!editor) return;
     const storage = getEditorStorage(editor);

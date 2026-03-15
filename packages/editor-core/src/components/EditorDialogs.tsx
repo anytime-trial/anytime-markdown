@@ -109,6 +109,8 @@ export const EditorDialogs = React.memo(function EditorDialogs({
             onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) handleCommentInsert(); }}
             error={touched.has("comment") && !commentText.trim()}
             helperText={touched.has("comment") && !commentText.trim() ? t("requiredField") : undefined}
+            slotProps={{ formHelperText: { id: "comment-helper" } }}
+            aria-describedby={touched.has("comment") && !commentText.trim() ? "comment-helper" : undefined}
             fullWidth
             size="small"
             sx={{ mt: 1 }}
@@ -142,6 +144,8 @@ export const EditorDialogs = React.memo(function EditorDialogs({
             onKeyDown={(e) => { if (e.key === "Enter") handleLinkInsert(); }}
             error={touched.has("linkUrl") && !linkUrl.trim()}
             helperText={touched.has("linkUrl") && !linkUrl.trim() ? t("requiredField") : undefined}
+            slotProps={{ formHelperText: { id: "link-url-helper" } }}
+            aria-describedby={touched.has("linkUrl") && !linkUrl.trim() ? "link-url-helper" : undefined}
             fullWidth
             size="small"
             sx={{ mt: 1 }}
@@ -174,12 +178,16 @@ export const EditorDialogs = React.memo(function EditorDialogs({
             onBlur={() => markTouched("imageUrl")}
             error={touched.has("imageUrl") && !imageUrl.trim()}
             helperText={touched.has("imageUrl") && !imageUrl.trim() ? t("requiredField") : undefined}
+            slotProps={{ formHelperText: { id: "image-url-helper" } }}
+            aria-describedby={touched.has("imageUrl") && !imageUrl.trim() ? "image-url-helper" : undefined}
             fullWidth
             size="small"
             sx={{ mt: 1 }}
           />
           <TextField
             label={t("altText")}
+            placeholder={t("altTextPlaceholder")}
+            helperText={t("altTextGuidance")}
             value={imageAlt}
             onChange={(e) => setImageAlt(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") handleImageInsert(); }}

@@ -46,6 +46,7 @@ interface InlineMergeViewProps {
   externalRightContent?: string | null;
   onExternalRightContentConsumed?: () => void;
   onRightFileOpsReady?: (ops: { loadFile: () => void; exportFile: () => void }) => void;
+  commentSlot?: React.ReactNode;
   children: (
     leftBgGradient: string,
     leftDiffLines?: DiffLine[],
@@ -84,6 +85,7 @@ export function InlineMergeView({
   externalRightContent,
   onExternalRightContentConsumed,
   onRightFileOpsReady,
+  commentSlot,
   children,
 }: InlineMergeViewProps) {
   const theme = useTheme();
@@ -178,20 +180,22 @@ export function InlineMergeView({
   useEffect(() => {
     if (rightEditor && !sourceMode) {
       // React レンダリング中の flushSync 競合を回避するため次フレームに遅延
-      requestAnimationFrame(() => {
+      const id = requestAnimationFrame(() => {
         if (rightEditor.isDestroyed) return;
         reviewModeStorage(rightEditor).enabled = false;
         applyMarkdownToEditor(rightEditor, rightText);
         reviewModeStorage(rightEditor).enabled = true;
       });
+      return () => cancelAnimationFrame(id);
     }
   }, [rightText, rightEditor, sourceMode]);
 
   // When switching from source -> WYSIWYG, populate right editor
   const prevSourceMode = useRef(sourceMode);
   useEffect(() => {
+    let id: number | undefined;
     if (prevSourceMode.current && !sourceMode && rightEditor) {
-      requestAnimationFrame(() => {
+      id = requestAnimationFrame(() => {
         if (rightEditor.isDestroyed) return;
         reviewModeStorage(rightEditor).enabled = false;
         applyMarkdownToEditor(rightEditor, rightText);
@@ -199,13 +203,16 @@ export function InlineMergeView({
       });
     }
     prevSourceMode.current = sourceMode;
+    return () => { if (id !== undefined) cancelAnimationFrame(id); };
   }, [sourceMode, rightEditor, rightText]);
 
   // 左エディタのブロック展開/折りたたみ状態を右エディタに同期
   useEffect(() => {
     if (!leftEditor || !rightEditor || sourceMode) return;
+    let rafId: number | undefined;
     const syncCollapsed = () => {
       if (leftEditor.isDestroyed || rightEditor.isDestroyed) return;
+      if (rafId !== undefined) cancelAnimationFrame(rafId);
       const targetTypes = new Set(["codeBlock", "table", "image"]);
       // 左エディタの collapsed / codeCollapsed 状態を収集
       const leftStates: { type: string; index: number; collapsed?: boolean; codeCollapsed?: boolean }[] = [];
@@ -223,7 +230,7 @@ export function InlineMergeView({
         }
       });
       // rAF 内でトランザクションを作成して適用（stale state 回避）
-      requestAnimationFrame(() => {
+      rafId = requestAnimationFrame(() => {
         if (rightEditor.isDestroyed) return;
         const rightCounters: Record<string, number> = {};
         let changed = false;
@@ -262,6 +269,7 @@ export function InlineMergeView({
     leftEditor.on("update", syncCollapsed);
     return () => {
       leftEditor.off("update", syncCollapsed);
+      if (rafId !== undefined) cancelAnimationFrame(rafId);
     };
   }, [leftEditor, rightEditor, sourceMode]);
 
@@ -413,6 +421,7 @@ export function InlineMergeView({
             />
           </Box>
         </Box>
+        {commentSlot}
       </Box>
 
       {/* Line preview: hovered line text with inline diff highlight (source mode only) */}

@@ -2,6 +2,7 @@
 
 // Tiptap の ReactRenderer が componentDidMount 内で flushSync を呼ぶ問題を抑制
 // @see https://github.com/ueberdosis/tiptap/issues/3764
+// TODO: tiptap v3 で修正される見込み。アップグレード時にこのパッチが不要か確認し除去する。
 if (typeof window !== "undefined") {
   const origError = console.error;
   console.error = (...args: unknown[]) => {
@@ -25,7 +26,7 @@ import { EditorDialogsSection } from "./components/EditorDialogsSection";
 import { EditorFooterOverlays } from "./components/EditorFooterOverlays";
 import { EditorMainContent } from "./components/EditorMainContent";
 import { EditorToolbarSection } from "./components/EditorToolbarSection";
-import { defaultContent } from "./constants/defaultContent";
+import { getDefaultContent } from "./constants/defaultContent";
 import { STATUSBAR_HEIGHT } from "./constants/dimensions";
 import type { SlashCommandState } from "./extensions/slashCommandExtension";
 import { useTextareaSearch } from "./hooks/useTextareaSearch";
@@ -58,10 +59,11 @@ import { useMergeMode } from "./hooks/useMergeMode";
 import { useOutline } from "./hooks/useOutline";
 import { useSourceMode } from "./hooks/useSourceMode";
 import { useVSCodeIntegration } from "./hooks/useVSCodeIntegration";
-import { type HeadingItem, PlantUmlToolbarContext } from "./types";
+import { getMarkdownFromEditor, type HeadingItem, PlantUmlToolbarContext } from "./types";
 import type { FileSystemProvider } from "./types/fileSystem";
 import type { InlineComment } from "./utils/commentHelpers";
 import { parseCommentData } from "./utils/commentHelpers";
+import { applyMarkdownToEditor } from "./utils/editorContentLoader";
 import { preprocessMarkdown } from "./utils/frontmatterHelpers";
 
 interface MarkdownEditorPageProps {
@@ -79,6 +81,12 @@ interface MarkdownEditorPageProps {
   onLocaleChange?: (locale: string) => void;
   fileSystemProvider?: FileSystemProvider | null;
   externalContent?: string;
+  /** 外部コンテンツのファイル名（ステータスバー表示用） */
+  externalFileName?: string;
+  /** 外部コンテンツのリポジトリ内フルパス */
+  externalFilePath?: string;
+  /** 外部コンテンツの上書き保存コールバック */
+  onExternalSave?: (content: string) => void;
   readOnly?: boolean;
   hideToolbar?: boolean;
   hideOutline?: boolean;
@@ -88,9 +96,15 @@ interface MarkdownEditorPageProps {
   hideStatusBar?: boolean;
   onStatusChange?: (status: { line: number; col: number; charCount: number; lineCount: number; lineEnding: string; encoding: string }) => void;
   showReadonlyMode?: boolean;
+  /** 外部から比較モードの右パネルにコンテンツをロード */
+  externalCompareContent?: string | null;
+  /** エクスプローラパネルの開閉状態 */
+  explorerOpen?: boolean;
+  /** エクスプローラパネルの開閉トグル */
+  onToggleExplorer?: () => void;
 }
 
-export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideHelp, hideVersionInfo, featuresUrl, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, onLocaleChange, fileSystemProvider, externalContent, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, showReadonlyMode }: MarkdownEditorPageProps = {}) {
+export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideHelp, hideVersionInfo, featuresUrl, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, onLocaleChange, fileSystemProvider, externalContent, externalFileName, externalFilePath, onExternalSave, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, showReadonlyMode, externalCompareContent, explorerOpen, onToggleExplorer }: MarkdownEditorPageProps = {}) {
   const t = useTranslations("MarkdownEditor");
   const locale = useLocale() as "en" | "ja";
   const muiTheme = useTheme();
@@ -100,7 +114,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   const noopSave = useCallback(() => {}, []);
   const {
     initialContent, loading, saveContent: _saveContent, downloadMarkdown, clearContent, frontmatterRef, initialTrailingNewline,
-  } = useMarkdownEditor(externalContent ?? defaultContent, !!externalContent);
+  } = useMarkdownEditor(externalContent ?? getDefaultContent(locale), externalContent !== undefined);
   const saveContent = readOnly ? noopSave : _saveContent;
 
   const [commentOpen, setCommentOpen] = useState(false);
@@ -146,8 +160,12 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
 
   const editorConfig = useEditorConfig({
     t, initialContent: processedInitialContent, initialTrailingNewline, saveContent,
-    editorRef, setEditorMarkdownRef, setHeadingsRef,
-    headingsDebounceRef, handleImportRef, onFileDragOverRef, setHeadingMenu, slashCommandCallbackRef,
+    refs: {
+      editor: editorRef, setEditorMarkdown: setEditorMarkdownRef, setHeadings: setHeadingsRef,
+      headingsDebounce: headingsDebounceRef, handleImport: handleImportRef,
+      onFileDragOver: onFileDragOverRef, slashCommandCallback: slashCommandCallbackRef,
+    },
+    setHeadingMenu,
   });
   const editor = useEditor(editorConfig, [processedInitialContent]);
   editorRef.current = editor;
@@ -158,10 +176,12 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   }, [editor]);
 
   const {
-    sourceMode, readonlyMode, reviewMode, sourceText, setSourceText, liveMessage, setLiveMessage,
+    sourceMode, readonlyMode: _readonlyMode, reviewMode, sourceText, setSourceText, liveMessage, setLiveMessage,
     handleSwitchToSource, handleSwitchToWysiwyg, handleSwitchToReview, handleSwitchToReadonly,
     executeInReviewMode, handleSourceChange, appendToSource,
   } = useSourceMode({ editor, saveContent, t, frontmatterRef });
+  // readOnly prop が true の場合は常に readonlyMode を強制
+  const readonlyMode = readOnly || _readonlyMode;
 
   const {
     fileHandle, setFileHandle, fileName, isDirty, supportsDirectAccess,
@@ -213,6 +233,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     openFile, saveFile, saveAsFile, resetFile,
     encoding: fileHandling.encoding, fileHandle, setFileHandle, frontmatterRef,
     onFrontmatterChange: fileHandling.setFrontmatterText,
+    onExternalSave,
   });
 
   // Update refs for useEditor callbacks
@@ -230,7 +251,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   useEditorSettingsSync(editor, settings, { readOnly, hideFoldAll, handleExpandAllBlocks });
 
   const {
-    inlineMergeOpen, editorMarkdown, setEditorMarkdown,
+    inlineMergeOpen, setInlineMergeOpen, editorMarkdown, setEditorMarkdown,
     mergeUndoRedo, setMergeUndoRedo,
     compareFileContent, setCompareFileContent,
     rightFileOps, setRightFileOps, handleMerge,
@@ -239,8 +260,22 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     onCompareModeChange, t, setLiveMessage,
   });
 
+  // 外部から比較コンテンツを受け取ったら右パネルにロード＆比較モード自動オープン
+  const prevCompareContentRef = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (externalCompareContent == null || externalCompareContent === prevCompareContentRef.current) return;
+    prevCompareContentRef.current = externalCompareContent;
+    setCompareFileContent(externalCompareContent);
+    if (!inlineMergeOpen) {
+      if (!sourceMode && editor) {
+        setEditorMarkdown(getMarkdownFromEditor(editor));
+      }
+      setInlineMergeOpen(true);
+    }
+  }, [externalCompareContent, inlineMergeOpen, sourceMode, editor, setCompareFileContent, setEditorMarkdown, setInlineMergeOpen]);
+
   setEditorMarkdownRef.current = setEditorMarkdown;
-  useEditorSideEffects({ editor, isDirty, markDirty, setHeadingsRef, setEditorMarkdown });
+  useEditorSideEffects({ editor, isDirty, markDirty, setHeadingsRef, setEditorMarkdown, frontmatterRef, onFrontmatterChange: fileHandling.setFrontmatterText });
   useVSCodeIntegration(editor);
 
   const statusBarHeight = hideStatusBar ? 0 : STATUSBAR_HEIGHT;
@@ -252,8 +287,13 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     const { frontmatter, body } = preprocessMarkdown(template.content);
     if (frontmatter !== null) { frontmatterRef.current = frontmatter; fileHandling.setFrontmatterText(frontmatter); }
     requestAnimationFrame(() => {
+      if (editor.isDestroyed) return;
       editor.chain().focus().insertContent(body).run();
-      requestAnimationFrame(() => { editor.commands.setTextSelection(0); editor.view.dom.scrollTop = 0; });
+      requestAnimationFrame(() => {
+        if (editor.isDestroyed) return;
+        editor.commands.setTextSelection(0);
+        editor.view.dom.scrollTop = 0;
+      });
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor, sourceMode, appendToSource, frontmatterRef]);
@@ -302,7 +342,9 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
           onSwitchToSource: handleSwitchToSource, onSwitchToWysiwyg: handleSwitchToWysiwyg,
           onSwitchToReview: handleSwitchToReview, onSwitchToReadonly: handleSwitchToReadonly,
           onToggleOutline: handleToggleOutline, onMerge: handleMerge,
+          onToggleExplorer,
         }}
+        explorerOpen={explorerOpen}
         inlineMergeOpen={inlineMergeOpen}
         hide={{
           outline: hideOutline, comments: hideComments,
@@ -313,7 +355,8 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
           readonlyToggle: !showReadonlyMode,
         }}
         mergeUndoRedo={inlineMergeOpen ? mergeUndoRedo : null}
-        fileHandle={fileHandle} supportsDirectAccess={supportsDirectAccess}
+        fileHandle={fileHandle ?? (onExternalSave ? true : null)} supportsDirectAccess={supportsDirectAccess}
+        externalSaveOnly={!!onExternalSave}
         readOnly={readOnly}
         setSettingsOpen={setSettingsOpen} setVersionDialogOpen={setVersionDialogOpen}
         rightFileOps={rightFileOps}
@@ -358,7 +401,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         sourceMode={sourceMode} readonlyMode={readonlyMode} reviewMode={reviewMode}
         handleLink={handleLink} executeInReviewMode={executeInReviewMode}
         slashCommandCallbackRef={slashCommandCallbackRef}
-        sourceText={sourceText} fileName={fileName} isDirty={isDirty}
+        sourceText={sourceText} fileName={fileName ?? externalFileName ?? null} isDirty={isDirty}
         handleLineEndingChange={hideStatusBar ? undefined : fileHandling.handleLineEndingChange}
         encoding={fileHandling.encoding} handleEncodingChange={hideStatusBar ? undefined : fileHandling.handleEncodingChange}
         onStatusChange={onStatusChange} hideStatusBar={hideStatusBar}

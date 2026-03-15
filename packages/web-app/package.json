@@ -1,6 +1,6 @@
 {
   "name": "@anytime-markdown/web-app",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -8,7 +8,7 @@
     "build": "next build",
     "build:static": "CAPACITOR_BUILD=true next build",
     "start": "next start",
-    "test": "jest",
+    "test": "jest --passWithNoTests",
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui",
     "analyze": "ANALYZE=true next build"
@@ -33,6 +33,7 @@
     "marked": "17.0.3",
     "mermaid": "11.12.3",
     "next": "15.5.12",
+    "next-auth": "4.24.13",
     "next-intl": "4.8.3",
     "plantuml-encoder": "1.4.0",
     "react": "19.2.4",

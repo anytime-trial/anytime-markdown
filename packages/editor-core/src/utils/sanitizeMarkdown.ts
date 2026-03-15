@@ -232,13 +232,13 @@ export function sanitizeMarkdown(md: string): string {
       });
       // admonition blockquote を DOMPurify から保護
       const admBlocks: string[] = [];
-      inner = inner.replace(/<blockquote data-admonition-type="[^"]*">[\s\S]*?<\/blockquote>/g, (m) => {
+      inner = inner.replace(/<blockquote data-admonition-type="[^"]*">[^<]*(?:<(?!\/blockquote>)[^<]*)*<\/blockquote>/g, (m) => {
         admBlocks.push(m);
         return `\uE000ADM${admBlocks.length - 1}\uE000`;
       });
       // コメントハイライト span を保護
       const cmtBlocks: string[] = [];
-      inner = inner.replace(/<span data-comment-id="[^"]*">[\s\S]*?<\/span>/g, (m) => {
+      inner = inner.replace(/<span data-comment-id="[^"]*">[^<]*(?:<(?!\/span>)[^<]*)*<\/span>/g, (m) => {
         cmtBlocks.push(m); return `\uE000CMT${cmtBlocks.length - 1}\uE000`;
       });
       // コメントポイント span を保護

@@ -63,13 +63,6 @@ jest.mock("../../hooks/useZoomPan", () => ({
   }),
 }));
 
-jest.mock("../../hooks/useDiagramResize", () => ({
-  useDiagramResize: () => ({
-    containerRef: { current: null }, displayWidth: null, resizing: false, resizeWidth: null,
-    MIN_WIDTH: 100, handlePointerDown: jest.fn(), handlePointerMove: jest.fn(), handlePointerUp: jest.fn(), handleKeyDown: jest.fn(),
-  }),
-}));
-
 jest.mock("../../types", () => ({
   usePlantUmlToolbar: () => ({ setSampleAnchorEl: jest.fn() }),
 }));
@@ -79,13 +72,15 @@ jest.mock("dompurify", () => ({
   default: { sanitize: (html: string) => html },
 }));
 
-jest.mock("../../components/DiagramFullscreenDialog", () => ({
-  DiagramFullscreenDialog: () => null,
+jest.mock("../../components/MermaidEditDialog", () => ({
+  MermaidEditDialog: ({ toolbarExtra }: { toolbarExtra?: React.ReactNode }) => <div data-testid="fs-dialog">{toolbarExtra}</div>,
 }));
 
-jest.mock("../../components/MermaidSamplePopover", () => ({
-  MermaidSamplePopover: () => null,
+jest.mock("../../components/PlantUmlEditDialog", () => ({
+  PlantUmlEditDialog: ({ toolbarExtra }: { toolbarExtra?: React.ReactNode }) => <div data-testid="fs-dialog">{toolbarExtra}</div>,
 }));
+
+
 
 jest.mock("../../utils/diagramAltText", () => ({
   extractDiagramAltText: () => "diagram alt text",
@@ -114,7 +109,7 @@ function createMockNode(lang: string) {
   } as unknown as NodeViewProps["node"];
 }
 
-function setup(overrides?: { lang?: string; allCollapsed?: boolean; isSelected?: boolean; fullscreen?: boolean }) {
+function setup(overrides?: { lang?: string; isSelected?: boolean; editOpen?: boolean }) {
   mockSvg = '<svg viewBox="0 0 200 100" width="100%"><rect /></svg>';
   mockMermaidError = null;
   mockPlantUmlUrl = null;
@@ -133,25 +128,21 @@ function setup(overrides?: { lang?: string; allCollapsed?: boolean; isSelected?:
     node: createMockNode(lang),
     updateAttributes: jest.fn(),
     getPos: jest.fn(() => 0) as unknown as NodeViewProps["getPos"],
-    allCollapsed: overrides?.allCollapsed ?? false,
     codeCollapsed: true,
     isSelected: overrides?.isSelected ?? true,
-    toggleAllCollapsed: jest.fn(),
     selectNode: jest.fn(),
-    handleDragKeyDown: jest.fn(),
     code: "graph TD; A-->B",
     handleCopyCode: jest.fn(),
     handleDeleteBlock: jest.fn(),
     deleteDialogOpen: false,
     setDeleteDialogOpen: jest.fn(),
-    fullscreen: overrides?.fullscreen ?? false,
-    setFullscreen: jest.fn(),
+    editOpen: overrides?.editOpen ?? false,
+    setEditOpen: jest.fn(),
     fsCode: "",
     onFsCodeChange: jest.fn(),
     fsTextareaRef: { current: null },
     fsSearch: fsSearch as never,
-    fsCodeVisible: true,
-    setFsCodeVisible: jest.fn(),
+
     handleFsTextChange: jest.fn(),
     t: (key: string) => key,
     isDark: false,
@@ -180,11 +171,6 @@ describe("DiagramBlock", () => {
     expect(screen.getByRole("img")).toBeTruthy();
   });
 
-  test("Mermaid: collapsed -> SVG 非表示", () => {
-    setup({ lang: "mermaid", allCollapsed: true });
-    expect(screen.queryByRole("img")).toBeNull();
-  });
-
   test("Mermaid: エラー表示", () => {
     mockMermaidError = "Syntax error in graph";
     mockSvg = null;
@@ -195,36 +181,27 @@ describe("DiagramBlock", () => {
         node={createMockNode("mermaid")}
         updateAttributes={jest.fn()}
         getPos={jest.fn(() => 0) as unknown as NodeViewProps["getPos"]}
-        allCollapsed={false}
         codeCollapsed={true}
         isSelected={true}
-        toggleAllCollapsed={jest.fn()}
         selectNode={jest.fn()}
-        handleDragKeyDown={jest.fn()}
         code="invalid"
         handleCopyCode={jest.fn()}
         handleDeleteBlock={jest.fn()}
         deleteDialogOpen={false}
         setDeleteDialogOpen={jest.fn()}
-        fullscreen={false}
-        setFullscreen={jest.fn()}
+        editOpen={false}
+        setEditOpen={jest.fn()}
         fsCode=""
         onFsCodeChange={jest.fn()}
         fsTextareaRef={{ current: null }}
         fsSearch={fsSearch as never}
-        fsCodeVisible={true}
-        setFsCodeVisible={jest.fn()}
+
         handleFsTextChange={jest.fn()}
         t={(key: string) => key}
         isDark={false}
       />
     );
     expect(screen.getByText("Syntax error in graph")).toBeTruthy();
-  });
-
-  test("Mermaid: insertSample ボタン", () => {
-    setup({ lang: "mermaid" });
-    expect(screen.getByLabelText("insertSample")).toBeTruthy();
   });
 
   // --- PlantUML ---
@@ -244,25 +221,21 @@ describe("DiagramBlock", () => {
         node={createMockNode("plantuml")}
         updateAttributes={jest.fn()}
         getPos={jest.fn(() => 0) as unknown as NodeViewProps["getPos"]}
-        allCollapsed={false}
         codeCollapsed={true}
         isSelected={true}
-        toggleAllCollapsed={jest.fn()}
         selectNode={jest.fn()}
-        handleDragKeyDown={jest.fn()}
         code="@startuml\nA->B\n@enduml"
         handleCopyCode={jest.fn()}
         handleDeleteBlock={jest.fn()}
         deleteDialogOpen={false}
         setDeleteDialogOpen={jest.fn()}
-        fullscreen={false}
-        setFullscreen={jest.fn()}
+        editOpen={false}
+        setEditOpen={jest.fn()}
         fsCode=""
         onFsCodeChange={jest.fn()}
         fsTextareaRef={{ current: null }}
         fsSearch={fsSearch as never}
-        fsCodeVisible={true}
-        setFsCodeVisible={jest.fn()}
+
         handleFsTextChange={jest.fn()}
         t={(key: string) => key}
         isDark={false}
@@ -271,8 +244,4 @@ describe("DiagramBlock", () => {
     expect(screen.getByText("plantumlExternalWarning")).toBeTruthy();
   });
 
-  test("Mermaid: capture ボタン (SVG存在時)", () => {
-    setup({ lang: "mermaid" });
-    expect(screen.getByLabelText("capture")).toBeTruthy();
-  });
 });

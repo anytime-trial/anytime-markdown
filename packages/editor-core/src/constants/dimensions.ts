@@ -13,10 +13,23 @@ export const OUTLINE_WIDTH_MAX = 500;
 export const PREVIEW_MAX_HEIGHT = 400;
 
 // ── StatusBar 高さ ──
-export const STATUSBAR_HEIGHT = 33;
+/** StatusBar 高さ + border-top + Paper border 分のオフセット */
+export const STATUSBAR_HEIGHT = 39;
 
 // ── コメントパネル ──
 export const COMMENT_PANEL_WIDTH = 280;
+
+// ── 全画面ダイアログ ──
+/** コード側ツールバー・タブ行の高さ */
+export const FS_TOOLBAR_HEIGHT = 32;
+/** サンプルチップの高さ */
+export const FS_CHIP_HEIGHT = 26;
+/** ズーム倍率表示の最小幅 */
+export const FS_ZOOM_LABEL_WIDTH = 36;
+/** コードエリアの初期幅 (px) */
+export const FS_CODE_INITIAL_WIDTH = 500;
+/** コードエリアの最小幅 (px) */
+export const FS_CODE_MIN_WIDTH = 120;
 
 // ── エディタ内部オフセット ──
 /** .tiptap minHeight 算出用（上部パディング + ツールバー分） */

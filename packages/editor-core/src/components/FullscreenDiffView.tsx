@@ -1,5 +1,4 @@
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
-import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import { alpha, Box, IconButton, type Theme,Tooltip, useTheme } from "@mui/material";
 import React, { useCallback, useEffect,useMemo, useRef, useState } from "react";
 
@@ -334,7 +333,7 @@ function DiffPanel({
             }}
           >
             {"\u00A0"}
-            {blockId != null && (
+            {blockId != null && panelSide === "right" && (
               <Box
                 sx={{
                   position: "absolute",
@@ -348,22 +347,16 @@ function DiffPanel({
                 }}
               >
                 <Tooltip
-                  title={panelSide === "left" ? t("mergeLeftToRight") : t("mergeRightToLeft")}
-                  placement={panelSide === "left" ? "left" : "right"}
+                  title={t("mergeRightToLeft")}
+                  placement="right"
                 >
                   <IconButton
                     size="small"
-                    aria-label={panelSide === "left" ? t("mergeLeftToRight") : t("mergeRightToLeft")}
-                    onClick={() =>
-                      onMerge(blockId, panelSide === "left" ? "left-to-right" : "right-to-left")
-                    }
+                    aria-label={t("mergeRightToLeft")}
+                    onClick={() => onMerge(blockId, "right-to-left")}
                     sx={{ p: 0 }}
                   >
-                    {panelSide === "left" ? (
-                      <ChevronRightIcon sx={{ fontSize: 16 }} />
-                    ) : (
-                      <ChevronLeftIcon sx={{ fontSize: 16 }} />
-                    )}
+                    <ChevronLeftIcon sx={{ fontSize: 16 }} />
                   </IconButton>
                 </Tooltip>
               </Box>
@@ -479,8 +472,6 @@ function DiffPanel({
           />
         </Box>
 
-        {/* 左パネル: マージガター（→）を textarea の右に配置 */}
-        {side === "left" && hasMergeButtons && renderMergeGutter("left")}
       </Box>
     </Box>
   );

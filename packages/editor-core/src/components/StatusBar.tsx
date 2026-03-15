@@ -96,7 +96,7 @@ export const StatusBar = React.memo(function StatusBar({ editor, sourceMode, sou
   if (hidden) return null;
 
   return (
-    <Box id="md-editor-statusbar" role="region" aria-label={t("statusBar")} sx={{ display: "flex", alignItems: "center", gap: 2, px: 1.5, py: 0.75, borderTop: 1, borderColor: "divider", flexWrap: "wrap", overflow: "hidden" }} contentEditable={false}>
+    <Box id="md-editor-statusbar" role="region" aria-label={t("statusBar")} sx={{ display: "flex", alignItems: "center", gap: 2, px: 1.5, height: 33, minHeight: 33, maxHeight: 33, borderTop: 1, borderColor: "divider", overflow: "hidden", flexShrink: 0, position: "fixed", bottom: 0, left: 0, right: 0, bgcolor: "background.paper", zIndex: 1 }} contentEditable={false}>
       <Box aria-live="polite" aria-atomic="true" sx={{ display: "contents" }}>
         <Typography variant="body2" sx={{ color: "text.secondary" }}>
           {t("cursorLine")} {displayLine} {t("cursorCol")} {displayCol}

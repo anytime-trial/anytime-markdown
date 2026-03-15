@@ -2,7 +2,6 @@ import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import ListAltIcon from "@mui/icons-material/ListAlt";
 import SettingsIcon from "@mui/icons-material/Settings";
-import ViewStreamIcon from "@mui/icons-material/ViewStream";
 import {
   Divider,
   ListItemIcon,
@@ -32,7 +31,6 @@ interface ToolbarMobileMenuProps {
 
   onToggleOutline: () => void;
   onToggleComments?: () => void;
-  onMerge: () => void;
   onSetHelpAnchor: (el: HTMLElement) => void;
   onOpenSettings?: () => void;
   onOpenVersionDialog?: () => void;
@@ -54,7 +52,6 @@ export const ToolbarMobileMenu = React.memo(function ToolbarMobileMenu({
   hideVersionInfo,
   onToggleOutline,
   onToggleComments,
-  onMerge,
   onSetHelpAnchor,
   onOpenSettings,
   onOpenVersionDialog,
@@ -82,15 +79,6 @@ export const ToolbarMobileMenu = React.memo(function ToolbarMobileMenu({
           <ListItemText>{t("commentPanel") || "Comments"}</ListItemText>
         </MenuItem>
       )}
-      <MenuItem
-        onClick={() => { onMerge(); onClose(); }}
-        disabled={readonlyMode}
-      >
-        <ListItemIcon>
-          <ViewStreamIcon fontSize="small" sx={{ transform: "rotate(90deg)" }} color={inlineMergeOpen ? "primary" : "inherit"} />
-        </ListItemIcon>
-        <ListItemText>{inlineMergeOpen ? t("normalMode") : t("compare")}</ListItemText>
-      </MenuItem>
       <Divider />
       <MenuItem
         onClick={() => {

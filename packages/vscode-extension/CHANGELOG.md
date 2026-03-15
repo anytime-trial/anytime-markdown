@@ -4,6 +4,48 @@ All notable changes to the "anytime-markdown" extension will be documented in th
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.0] - 2026-03-15
+
+### Added
+- ブロック要素編集画面の統一強化: 全ブロック（コード/Mermaid/PlantUML/数式/HTML/テーブル/画像）に専用編集ダイアログを導入
+- Mermaid/PlantUML: Code / Config タブで設定を分離編集（`%%{init:...}%%` / `skinparam`）
+- 全ブロック編集画面にライブプレビュー追加（コード: シンタックスハイライト / Mermaid: SVG / PlantUML: 画像 / 数式: KaTeX / HTML: DOMPurify ライブレンダリング）
+- 全ブロック編集画面にズーム・パン機能追加（ボタン / ホイール / ドラッグ）
+- 全ブロック編集画面にサンプル挿入パネル追加（Mermaid 23種 / PlantUML 12種 / 数式 7種 / HTML 6種 / コード 24言語 Hello World）
+- 全ブロック編集画面に行番号表示・Tab インデント追加
+- ダイアグラム/数式/HTML のインラインプレビューにリサイズグリップ追加
+- テーブル編集画面で比較モード時に左右並列テーブル表示
+- HTML ブロック編集画面で比較モードのコード差分表示
+- ダイアグラム/数式/HTML のダブルクリックで編集画面を開く機能
+- ブロック要素編集画面のヘッダーにブロック固有アイコン表示
+- defaultContent の英語版を作成し言語に応じて使い分け
+- ランディングページにテーブル編集・数式・GitHub連携の機能カードを追加
+- defaultContent に HTML ブロックのサンプルを追加
+
+### Changed
+- 「全画面表示」を「ブロック要素編集画面」に名称変更
+- インラインツールバーのアイコンを全画面表示アイコンから編集アイコンに変更
+- テーブル操作アイコンをインラインからブロック要素編集画面に移動
+- キャプチャアイコンをインラインからブロック要素編集画面のプレビュー側に移動
+- コードコピーボタンをブロック要素編集画面のコード側ツールバーに移動
+- 閉じるボタンをラベル左側に統一
+- シンタックスハイライト色を GitHub 風に統一
+- マージ操作を右→左のみに制限
+- ブロック移動機能（Alt+Up/Down）を削除
+- README.md を英語に翻訳
+
+### Fixed
+- 印刷時の2ページ目以降クリップと PlantUML コード崩れを修正
+- ステータスバーを position:fixed で画面下端に固定
+- エディタページのブラウザ全体のスクロールバーを非表示に修正
+- フロントマター表示/非表示時のエディタ高さ再計算
+- コードブロックプレビューの highlightedHtml に DOMPurify サニタイズを追加
+
+### Refactored
+- 共通コンポーネント10件を抽出: EditDialogHeader, EditDialogWrapper, ZoomToolbar, SamplePanel, DraggableSplitLayout, ZoomablePreview, BlockInlineToolbar, ResizeGrip, useBlockResize, useBlockNodeState
+- マジックナンバーとスタイルパターンを定数化（dimensions.ts, uiPatterns.ts）
+- 不要コードの一括クリーンアップ（孤立コンポーネント削除、未使用エクスポート/i18n キー削除）
+
 ## [0.4.1] - 2026-03-12
 
 ### Added

@@ -34,12 +34,15 @@ interface EditorToolbarSectionProps {
     onSwitchToReadonly: () => void;
     onToggleOutline: () => void;
     onMerge: () => void;
+    onToggleExplorer?: () => void;
   };
+  explorerOpen?: boolean;
   inlineMergeOpen: boolean;
   hide?: ToolbarVisibility;
   mergeUndoRedo: MergeUndoRedo | null;
   fileHandle: unknown;
   supportsDirectAccess: boolean;
+  externalSaveOnly?: boolean;
   readOnly?: boolean;
   setSettingsOpen: (open: boolean) => void;
   setVersionDialogOpen: (open: boolean) => void;
@@ -65,11 +68,13 @@ export function EditorToolbarSection({
   reviewMode,
   outlineOpen,
   modeHandlers,
+  explorerOpen,
   inlineMergeOpen,
   hide,
   mergeUndoRedo,
   fileHandle,
   supportsDirectAccess,
+  externalSaveOnly,
   readOnly,
   setSettingsOpen,
   setVersionDialogOpen,
@@ -126,12 +131,14 @@ export function EditorToolbarSection({
         fileCapabilities={{
           hasFileHandle: fileHandle !== null,
           supportsDirectAccess,
+          externalSaveOnly,
         }}
         onSetTemplateAnchor={setTemplateAnchorEl}
         onSetHelpAnchor={setHelpAnchorEl}
         modeState={{
           sourceMode, readonlyMode, reviewMode,
           outlineOpen, inlineMergeOpen, commentOpen,
+          explorerOpen,
         }}
         modeHandlers={{
           onSwitchToSource: modeHandlers.onSwitchToSource,
@@ -141,6 +148,7 @@ export function EditorToolbarSection({
           onToggleOutline: modeHandlers.onToggleOutline,
           onToggleComments: () => setCommentOpen((prev) => !prev),
           onMerge: modeHandlers.onMerge,
+          onToggleExplorer: modeHandlers.onToggleExplorer,
         }}
         hide={{
           fileOps: readOnly || hide?.fileOps,

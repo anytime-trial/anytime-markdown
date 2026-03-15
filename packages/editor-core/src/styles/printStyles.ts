@@ -20,6 +20,12 @@ export const PrintStyles: React.FC = () =>
           height: "auto !important",
           maxHeight: "none !important",
         },
+        /* Next.js アプリラッパーの overflow/height 解除 */
+        "#main-content, #main-content > .MuiBox-root": {
+          overflow: "visible !important",
+          height: "auto !important",
+          maxHeight: "none !important",
+        },
 
         /* === 文字色を印刷用に統一 === */
         ".tiptap, .tiptap *": {
@@ -48,7 +54,7 @@ export const PrintStyles: React.FC = () =>
          * Table は孫要素に overflow: auto を持つため
          * 全子孫要素を対象にする。
          */
-        "[data-node-view-wrapper], [data-node-view-wrapper] *:not(svg *):not(svg):not(.katex *):not(.katex)": {
+        "[data-node-view-wrapper], [data-node-view-wrapper] *:not(svg *):not(svg):not(.katex *):not(.katex):not(pre):not(pre *)": {
           overflow: "visible !important",
           height: "auto !important",
           maxHeight: "none !important",

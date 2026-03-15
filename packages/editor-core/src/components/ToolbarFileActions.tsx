@@ -1,6 +1,4 @@
 import DescriptionIcon from "@mui/icons-material/Description";
-import DownloadIcon from "@mui/icons-material/Download";
-import FileUploadIcon from "@mui/icons-material/FileUpload";
 import FolderOpenIcon from "@mui/icons-material/FolderOpen";
 import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
 import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
@@ -54,7 +52,7 @@ export const ToolbarFileActions = React.memo(function ToolbarFileActions({
     onDownload, onImport, onClear, onOpenFile, onSaveFile, onSaveAsFile,
     onExportPdf, onLoadRightFile,
   } = fileHandlers;
-  const { hasFileHandle, supportsDirectAccess } = fileCapabilities ?? {};
+  const { hasFileHandle, supportsDirectAccess, externalSaveOnly } = fileCapabilities ?? {};
   const [fileMenuAnchorEl, setFileMenuAnchorEl] = useState<HTMLElement | null>(null);
 
   return (
@@ -73,11 +71,18 @@ export const ToolbarFileActions = React.memo(function ToolbarFileActions({
         open={!!fileMenuAnchorEl}
         onClose={() => setFileMenuAnchorEl(null)}
       >
-        <MenuItem onClick={() => { onClear(); setFileMenuAnchorEl(null); }} disabled={readonlyMode || reviewMode}>
-          <ListItemIcon><DescriptionIcon fontSize="small" /></ListItemIcon>
-          <ListItemText>{t("createNew")}</ListItemText>
-        </MenuItem>
-        {supportsDirectAccess ? ([
+        {!externalSaveOnly && (
+          <MenuItem onClick={() => { onClear(); setFileMenuAnchorEl(null); }} disabled={readonlyMode || reviewMode}>
+            <ListItemIcon><DescriptionIcon fontSize="small" /></ListItemIcon>
+            <ListItemText>{t("createNew")}</ListItemText>
+          </MenuItem>
+        )}
+        {externalSaveOnly ? ([
+          <MenuItem key="save" onClick={() => { onSaveFile?.(); setFileMenuAnchorEl(null); }} disabled={!hasFileHandle}>
+            <ListItemIcon><SaveIcon fontSize="small" /></ListItemIcon>
+            <ListItemText>{t("saveFile")}</ListItemText>
+          </MenuItem>,
+        ]) : supportsDirectAccess ? ([
           <MenuItem key="open" onClick={() => { onOpenFile?.(); setFileMenuAnchorEl(null); }}>
             <ListItemIcon><FolderOpenIcon fontSize="small" /></ListItemIcon>
             <ListItemText>{t("openFile")}</ListItemText>
@@ -91,13 +96,13 @@ export const ToolbarFileActions = React.memo(function ToolbarFileActions({
             <ListItemText>{t("saveAsFile")}</ListItemText>
           </MenuItem>,
         ]) : ([
-          <MenuItem key="upload" onClick={() => { onImport(); setFileMenuAnchorEl(null); }} disabled={readonlyMode || reviewMode}>
-            <ListItemIcon><FileUploadIcon fontSize="small" /></ListItemIcon>
-            <ListItemText>{t("upload")}</ListItemText>
+          <MenuItem key="open" onClick={() => { onImport(); setFileMenuAnchorEl(null); }}>
+            <ListItemIcon><FolderOpenIcon fontSize="small" /></ListItemIcon>
+            <ListItemText>{t("openFile")}</ListItemText>
           </MenuItem>,
-          <MenuItem key="download" onClick={() => { onDownload(); setFileMenuAnchorEl(null); }}>
-            <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>
-            <ListItemText>{t("download")}</ListItemText>
+          <MenuItem key="saveAs" onClick={() => { onDownload(); setFileMenuAnchorEl(null); }}>
+            <ListItemIcon><SaveAsIcon fontSize="small" /></ListItemIcon>
+            <ListItemText>{t("saveAsFile")}</ListItemText>
           </MenuItem>,
         ])}
         {onExportPdf && (
@@ -111,38 +116,46 @@ export const ToolbarFileActions = React.memo(function ToolbarFileActions({
       {/* Desktop: individual file buttons */}
       <Box sx={{ display: { xs: "none", md: "contents" } }}>
         <ToggleButtonGroup size="small" aria-label={t("fileActions")} sx={{ height: 30 }}>
-          <ToggleButton value="new" onClick={onClear} disabled={readonlyMode || reviewMode} aria-label={t("createNew")} sx={{ px: 0.75, py: 0.25 }}>
-            <Tooltip title={tip(t, "createNew", tooltipShortcuts)}>
-              <DescriptionIcon fontSize="small" />
-            </Tooltip>
-          </ToggleButton>
-        {supportsDirectAccess ? ([
-          <ToggleButton key="open" value="open" onClick={onOpenFile} aria-label={t("openFile")} sx={{ px: 0.75, py: 0.25 }}>
-            <Tooltip title={tip(t, "openFile", tooltipShortcuts)}>
-              <FolderOpenIcon fontSize="small" />
-            </Tooltip>
-          </ToggleButton>,
+        {externalSaveOnly ? ([
           <ToggleButton key="save" value="save" onClick={onSaveFile} disabled={!hasFileHandle} aria-label={t("saveFile")} sx={{ px: 0.75, py: 0.25 }}>
             <Tooltip title={hasFileHandle ? tip(t, "saveFile", tooltipShortcuts) : t("saveFileNoHandle")}>
               <span style={{ display: "inline-flex" }}><SaveIcon fontSize="small" /></span>
             </Tooltip>
           </ToggleButton>,
-          <ToggleButton key="saveAs" value="saveAs" onClick={onSaveAsFile} aria-label={t("saveAsFile")} sx={{ px: 0.75, py: 0.25 }}>
-            <Tooltip title={tip(t, "saveAsFile", tooltipShortcuts)}>
-              <SaveAsIcon fontSize="small" />
-            </Tooltip>
-          </ToggleButton>,
         ]) : ([
-          <ToggleButton key="upload" value="upload" onClick={onImport} disabled={readonlyMode || reviewMode} aria-label={t("upload")} sx={{ px: 0.75, py: 0.25 }}>
-            <Tooltip title={tip(t, "upload", tooltipShortcuts)}>
-              <FileUploadIcon fontSize="small" />
+          <ToggleButton key="new" value="new" onClick={onClear} disabled={readonlyMode || reviewMode} aria-label={t("createNew")} sx={{ px: 0.75, py: 0.25 }}>
+            <Tooltip title={tip(t, "createNew", tooltipShortcuts)}>
+              <DescriptionIcon fontSize="small" />
             </Tooltip>
           </ToggleButton>,
-          <ToggleButton key="download" value="download" onClick={onDownload} aria-label={t("download")} sx={{ px: 0.75, py: 0.25 }}>
-            <Tooltip title={tip(t, "download", tooltipShortcuts)}>
-              <DownloadIcon fontSize="small" />
-            </Tooltip>
-          </ToggleButton>,
+          ...(supportsDirectAccess ? [
+            <ToggleButton key="open" value="open" onClick={onOpenFile} aria-label={t("openFile")} sx={{ px: 0.75, py: 0.25 }}>
+              <Tooltip title={tip(t, "openFile", tooltipShortcuts)}>
+                <FolderOpenIcon fontSize="small" />
+              </Tooltip>
+            </ToggleButton>,
+            <ToggleButton key="save" value="save" onClick={onSaveFile} disabled={!hasFileHandle} aria-label={t("saveFile")} sx={{ px: 0.75, py: 0.25 }}>
+              <Tooltip title={hasFileHandle ? tip(t, "saveFile", tooltipShortcuts) : t("saveFileNoHandle")}>
+                <span style={{ display: "inline-flex" }}><SaveIcon fontSize="small" /></span>
+              </Tooltip>
+            </ToggleButton>,
+            <ToggleButton key="saveAs" value="saveAs" onClick={onSaveAsFile} aria-label={t("saveAsFile")} sx={{ px: 0.75, py: 0.25 }}>
+              <Tooltip title={tip(t, "saveAsFile", tooltipShortcuts)}>
+                <SaveAsIcon fontSize="small" />
+              </Tooltip>
+            </ToggleButton>,
+          ] : [
+            <ToggleButton key="open" value="open" onClick={onImport} aria-label={t("openFile")} sx={{ px: 0.75, py: 0.25 }}>
+              <Tooltip title={t("openFile")}>
+                <FolderOpenIcon fontSize="small" />
+              </Tooltip>
+            </ToggleButton>,
+            <ToggleButton key="saveAs" value="saveAs" onClick={onDownload} aria-label={t("saveAsFile")} sx={{ px: 0.75, py: 0.25 }}>
+              <Tooltip title={t("saveAsFile")}>
+                <SaveAsIcon fontSize="small" />
+              </Tooltip>
+            </ToggleButton>,
+          ]),
         ])}
         {onExportPdf && (
           <ToggleButton value="exportPdf" onClick={onExportPdf} disabled={sourceMode || inlineMergeOpen} aria-label={t("exportPdf")} sx={{ px: 0.75, py: 0.25 }}>

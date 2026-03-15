@@ -71,6 +71,7 @@ export function EditorOutlineSection({
       open={outlineOpen}
       onClose={handleToggleOutline}
       slotProps={{ paper: { sx: { width: COMMENT_PANEL_WIDTH } } }}
+      aria-labelledby="outline-panel-title"
     >
       <OutlinePanel
         outlineWidth={280}

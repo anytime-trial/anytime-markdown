@@ -165,6 +165,7 @@ export function OutlinePanel({
         <Box sx={{ p: 1.5 }}>
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 0.5 }}>
             <Typography
+              id="outline-panel-title"
               variant="caption"
               component="h2"
               sx={{

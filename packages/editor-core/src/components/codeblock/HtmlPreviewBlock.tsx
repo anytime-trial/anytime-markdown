@@ -1,137 +1,121 @@
 "use client";
 
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
-import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
-import FullscreenIcon from "@mui/icons-material/Fullscreen";
-import SchemaIcon from "@mui/icons-material/Schema";
-import { Box, Divider, IconButton, Tooltip, Typography } from "@mui/material";
+import { Box, IconButton, Tooltip } from "@mui/material";
 import DOMPurify from "dompurify";
-import { useState } from "react";
+import { useRef } from "react";
 
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "../../constants/colors";
 import { PREVIEW_MAX_HEIGHT } from "../../constants/dimensions";
-import { CodeBlockFullscreenDialog } from "../CodeBlockFullscreenDialog";
-import { HtmlSamplePopover } from "../HtmlSamplePopover";
+import htmlSamples from "../../constants/htmlSamples.json";
+import { useBlockMergeCompare } from "../../hooks/useBlockMergeCompare";
+import { useBlockResize } from "../../hooks/useBlockResize";
+import { CodeBlockEditDialog } from "../CodeBlockEditDialog";
+import { BlockInlineToolbar } from "./BlockInlineToolbar";
 import { CodeBlockFrame } from "./CodeBlockFrame";
+import { ResizeGrip } from "./ResizeGrip";
 import type { CodeBlockSharedProps } from "./types";
 import { HTML_SANITIZE_CONFIG } from "./types";
 
 type HtmlPreviewBlockProps = Pick<
   CodeBlockSharedProps,
-  | "editor"
-  | "allCollapsed" | "codeCollapsed" | "isSelected" | "toggleAllCollapsed"
-  | "selectNode" | "handleDragKeyDown" | "code"
+  | "editor" | "node" | "updateAttributes" | "getPos"
+  | "codeCollapsed" | "isSelected"
+  | "selectNode" | "code"
   | "handleCopyCode" | "handleDeleteBlock" | "deleteDialogOpen" | "setDeleteDialogOpen"
-  | "fullscreen" | "setFullscreen" | "fsCode" | "onFsCodeChange" | "fsTextareaRef" | "fsSearch"
+  | "editOpen" | "setEditOpen" | "fsCode" | "onFsCodeChange" | "fsTextareaRef" | "fsSearch"
   | "t" | "isDark"
->;
+> & {
+  handleFsTextChange: (newCode: string) => void;
+};
 
 export function HtmlPreviewBlock(props: HtmlPreviewBlockProps) {
   const {
-    editor,
-    allCollapsed, codeCollapsed, isSelected, toggleAllCollapsed: _toggleAllCollapsed,
-    selectNode, handleDragKeyDown, code,
+    editor, node, updateAttributes, getPos,
+    codeCollapsed, isSelected,
+    selectNode, code,
     handleCopyCode, handleDeleteBlock, deleteDialogOpen, setDeleteDialogOpen,
-    fullscreen, setFullscreen, fsCode, onFsCodeChange, fsTextareaRef, fsSearch,
+    editOpen, setEditOpen, fsCode, onFsCodeChange, fsTextareaRef, fsSearch,
+    handleFsTextChange,
     t, isDark,
   } = props;
 
-  const [htmlSampleAnchorEl, setHtmlSampleAnchorEl] = useState<HTMLElement | null>(null);
+  const { isCompareMode, compareCode, handleMergeApply } = useBlockMergeCompare({
+    editor, getPos, language: "html", code, editOpen,
+  });
+
+  const htmlContainerRef = useRef<HTMLDivElement>(null);
+  const { resizing, resizeWidth, displayWidth, handleResizePointerDown, handleResizePointerMove, handleResizePointerUp } = useBlockResize({ containerRef: htmlContainerRef, updateAttributes, currentWidth: node.attrs.width });
 
   const toolbar = (
-    <Box
-      data-block-toolbar=""
-      sx={{ bgcolor: "action.hover", px: 0.75, py: 0.25, display: "flex", alignItems: "center", gap: 0.25 }}
-      contentEditable={false}
-    >
-      <Box
-        data-drag-handle=""
-        role="button"
-        tabIndex={0}
-        aria-roledescription="draggable item"
-        aria-label={t("dragHandle")}
-        onKeyDown={handleDragKeyDown}
-        sx={{ cursor: "grab", display: "flex", alignItems: "center", opacity: 0.7, "&:hover, &:focus-visible": { opacity: 1 }, "&:focus-visible": { outline: "2px solid", outlineColor: "primary.main", borderRadius: 0.5 } }}
-      >
-        <DragIndicatorIcon sx={{ fontSize: 16, color: "text.secondary" }} />
-      </Box>
-      {!allCollapsed && (
-        <Tooltip title={t("fullscreen")} placement="top">
-          <IconButton size="small" sx={{ p: 0.25 }} onClick={() => setFullscreen(true)} aria-label={t("fullscreen")}>
-            <FullscreenIcon sx={{ fontSize: 16, color: "text.secondary" }} />
-          </IconButton>
-        </Tooltip>
-      )}
-      <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary" }}>
-        {t("htmlPreview")}
-      </Typography>
-      {!allCollapsed && (<>
-        <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
-        <Tooltip title={t("insertSample")} placement="top">
-          <IconButton size="small" sx={{ p: 0.25 }} onClick={(e) => setHtmlSampleAnchorEl(e.currentTarget)} aria-label={t("insertSample")}>
-            <SchemaIcon sx={{ fontSize: 16, color: "text.secondary" }} />
-          </IconButton>
-        </Tooltip>
-        <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
-      </>)}
-      <Box sx={{ flex: 1 }} />
-      {!allCollapsed && (<>
-        <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
-        <Tooltip title={t("copyCode")} placement="top">
-          <IconButton size="small" sx={{ p: 0.25 }} onClick={handleCopyCode} aria-label={t("copyCode")}>
-            <ContentCopyIcon sx={{ fontSize: 16, color: "text.secondary" }} />
-          </IconButton>
-        </Tooltip>
-        <Tooltip title={t("delete")} placement="top">
-          <IconButton size="small" sx={{ p: 0.25 }} onClick={() => setDeleteDialogOpen(true)} aria-label={t("delete")}>
-            <DeleteOutlineIcon sx={{ fontSize: 16 }} />
-          </IconButton>
-        </Tooltip>
-      </>)}
-    </Box>
+    <BlockInlineToolbar
+      label={t("htmlPreview")}
+      onEdit={() => setEditOpen(true)}
+      onDelete={() => setDeleteDialogOpen(true)}
+      t={t}
+    />
   );
 
   return (
     <CodeBlockFrame
       toolbar={toolbar}
-      allCollapsed={allCollapsed}
       codeCollapsed={codeCollapsed}
       isDark={isDark}
-      showBorder={allCollapsed || isSelected}
+      showBorder={isSelected}
       deleteDialogOpen={deleteDialogOpen}
       setDeleteDialogOpen={setDeleteDialogOpen}
       handleDeleteBlock={handleDeleteBlock}
       t={t}
-      afterFrame={<>
-        <CodeBlockFullscreenDialog
-          open={fullscreen}
-          onClose={() => { fsSearch.reset(); setFullscreen(false); }}
+      afterFrame={
+        <CodeBlockEditDialog
+          open={editOpen}
+          onClose={() => { fsSearch.reset(); setEditOpen(false); }}
           label={t("htmlPreview")}
+          language="html"
           fsCode={fsCode}
           onFsCodeChange={onFsCodeChange}
+          onFsTextChange={handleFsTextChange}
           fsTextareaRef={fsTextareaRef}
           fsSearch={fsSearch}
+          readOnly={!editor.isEditable}
+          isCompareMode={isCompareMode}
+          compareCode={compareCode}
+          onMergeApply={handleMergeApply}
+          customSamples={htmlSamples.filter((s) => s.enabled)}
+          renderPreview={(code) => (
+            <Box
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(code, HTML_SANITIZE_CONFIG) }}
+              sx={{ "& img": { maxWidth: "100%" } }}
+            />
+          )}
+          toolbarExtra={
+            <Tooltip title={t("copyCode")} placement="bottom">
+              <IconButton size="small" sx={{ p: 0.25 }} onClick={handleCopyCode} aria-label={t("copyCode")}>
+                <ContentCopyIcon sx={{ fontSize: 16, color: "text.secondary" }} />
+              </IconButton>
+            </Tooltip>
+          }
           t={t}
         />
-        <HtmlSamplePopover
-          anchorEl={htmlSampleAnchorEl}
-          onClose={() => setHtmlSampleAnchorEl(null)}
-          editor={editor}
-          t={t}
-        />
-      </>}
+      }
     >
-      {!allCollapsed && (
-        <Box
+      <Box
+          ref={htmlContainerRef}
           role="document"
           aria-label={t("htmlPreview")}
           contentEditable={false}
           onClick={selectNode}
-          sx={{ pt: 0, px: 2, pb: 2, bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG, borderTop: codeCollapsed ? 0 : 1, borderColor: "divider", overflow: "auto", maxHeight: PREVIEW_MAX_HEIGHT, "& img": { maxWidth: "100%" } }}
-          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(code, HTML_SANITIZE_CONFIG) }}
-        />
-      )}
+          onDoubleClick={() => setEditOpen(true)}
+          onPointerMove={handleResizePointerMove}
+          onPointerUp={handleResizePointerUp}
+          sx={{ pt: 0, px: 2, pb: 2, bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG, borderTop: codeCollapsed ? 0 : 1, borderColor: "divider", overflow: "auto", maxHeight: PREVIEW_MAX_HEIGHT, cursor: "pointer", position: "relative", width: displayWidth || "fit-content", maxWidth: "100%", "& img": { maxWidth: "100%" } }}
+        >
+          <Box
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(code, HTML_SANITIZE_CONFIG) }}
+            sx={{ pointerEvents: "none" }}
+          />
+          <ResizeGrip visible={isSelected && editor.isEditable} resizing={resizing} resizeWidth={resizeWidth} onPointerDown={handleResizePointerDown} />
+        </Box>
     </CodeBlockFrame>
   );
 }

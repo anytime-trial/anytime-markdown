@@ -102,19 +102,18 @@ describe("EditorToolbar", () => {
     expect(screen.queryByLabelText("download")).toBeNull();
   });
 
-  test("supportsDirectAccess=false のとき、レガシーボタン（upload/download）を表示する", () => {
+  test("supportsDirectAccess=false のとき、開く/名前を付けて保存ボタンを表示する（保存ボタンは非表示）", () => {
     const props = createDefaultProps({
       fileCapabilities: { supportsDirectAccess: false },
     });
     render(<EditorToolbar {...props} />);
 
-    expect(screen.getByLabelText("upload")).toBeTruthy();
-    expect(screen.getByLabelText("download")).toBeTruthy();
+    // ファイルを開く・名前を付けて保存は表示される（フォールバック、PC/SP 両方描画）
+    expect(screen.getAllByLabelText("openFile").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByLabelText("saveAsFile").length).toBeGreaterThanOrEqual(1);
 
-    // ファイルシステムボタンは表示されない
-    expect(screen.queryByLabelText("openFile")).toBeNull();
+    // 上書き保存は表示されない（DirectAccess 専用）
     expect(screen.queryByLabelText("saveFile")).toBeNull();
-    expect(screen.queryByLabelText("saveAsFile")).toBeNull();
   });
 
   test("hasFileHandle=false のとき、保存ボタンが無効化される", () => {

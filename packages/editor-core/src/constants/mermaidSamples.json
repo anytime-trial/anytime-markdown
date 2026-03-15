@@ -7,13 +7,6 @@
     "code": "graph TD\n    A[Start] --> B{Condition}\n    B -->|Yes| C[Process A]\n    B -->|No| D[Process B]\n    C --> E[End]\n    D --> E"
   },
   {
-    "label": "Sequence",
-    "i18nKey": "sampleSequence",
-    "icon": "sd",
-    "enabled": true,
-    "code": "sequenceDiagram\n    participant U as User\n    participant S as Server\n    participant DB as Database\n    U->>S: Request\n    S->>DB: Query\n    DB-->>S: Result\n    S-->>U: Response"
-  },
-  {
     "label": "Class",
     "i18nKey": "sampleClass",
     "icon": "cls",
@@ -21,7 +14,14 @@
     "code": "classDiagram\n    class Animal {\n        +String name\n        +int age\n        +makeSound()\n    }\n    class Dog {\n        +fetch()\n    }\n    class Cat {\n        +purr()\n    }\n    Animal <|-- Dog\n    Animal <|-- Cat"
   },
   {
-    "label": "ER",
+    "label": "Sequence",
+    "i18nKey": "sampleSequence",
+    "icon": "sd",
+    "enabled": true,
+    "code": "sequenceDiagram\n    participant U as User\n    participant S as Server\n    participant DB as Database\n    U->>S: Request\n    S->>DB: Query\n    DB-->>S: Result\n    S-->>U: Response"
+  },
+  {
+    "label": "Entity Relationship",
     "i18nKey": "sampleER",
     "icon": "er",
     "enabled": true,
@@ -38,28 +38,126 @@
     "label": "Mindmap",
     "i18nKey": "sampleMindmap",
     "icon": "mind",
-    "enabled": false,
+    "enabled": true,
     "code": "mindmap\n  root((Project))\n    Planning\n      Requirements\n      Schedule\n    Development\n      Frontend\n      Backend\n      Database\n    Testing\n      Unit Test\n      E2E Test"
   },
   {
     "label": "Architecture",
     "i18nKey": "sampleArchitecture",
     "icon": "arch",
-    "enabled": false,
+    "enabled": true,
     "code": "architecture-beta\n    group api(cloud)[API]\n    group client(cloud)[Client]\n\n    service db(database)[Database] in api\n    service server(server)[Server] in api\n    service web(internet)[Web App] in client\n\n    web:R --> L:server\n    server:R --> L:db"
+  },
+  {
+    "label": "Block",
+    "i18nKey": "sampleBlock",
+    "icon": "blk",
+    "enabled": true,
+    "code": "block-beta\n    columns 3\n    Frontend blockArrowId6<[\" \"]>(right) Backend\n    space:2 down<[\" \"]>(down)\n    DB[(\"Database\")]"
+  },
+  {
+    "label": "C4",
+    "i18nKey": "sampleC4",
+    "icon": "c4",
+    "enabled": true,
+    "code": "C4Context\n    title System Context\n    Person(user, \"User\", \"A user of the system\")\n    System(sys, \"System\", \"The main system\")\n    System_Ext(ext, \"External\", \"External service\")\n    Rel(user, sys, \"Uses\")\n    Rel(sys, ext, \"Calls\")"
   },
   {
     "label": "Gantt",
     "i18nKey": "sampleGantt",
     "icon": "gantt",
-    "enabled": false,
+    "enabled": true,
     "code": "gantt\n    title Project Plan\n    dateFormat YYYY-MM-DD\n    section Design\n    Requirements :a1, 2026-03-01, 7d\n    UI Design    :a2, after a1, 5d\n    section Development\n    Implement    :b1, after a2, 10d\n    Test         :b2, after b1, 5d"
-  },  
+  },
   {
     "label": "Git",
     "i18nKey": "sampleGit",
     "icon": "git",
-    "enabled": false,
+    "enabled": true,
     "code": "gitGraph\n    commit\n    commit\n    branch develop\n    checkout develop\n    commit\n    commit\n    checkout main\n    merge develop\n    commit\n    branch feature\n    checkout feature\n    commit\n    checkout develop\n    merge feature\n    checkout main\n    merge develop"
+  },
+  {
+    "label": "Kanban",
+    "i18nKey": "sampleKanban",
+    "icon": "kan",
+    "enabled": true,
+    "code": "kanban\n    Todo\n        id1[\"Task A\"]\n        id2[\"Task B\"]\n    In Progress\n        id3[\"Task C\"]\n    Done\n        id4[\"Task D\"]"
+  },
+  {
+    "label": "Packet",
+    "i18nKey": "samplePacket",
+    "icon": "pkt",
+    "enabled": true,
+    "code": "packet-beta\n    0-15: \"Source Port\"\n    16-31: \"Destination Port\"\n    32-63: \"Sequence Number\"\n    64-95: \"Acknowledgment Number\"\n    96-99: \"Data Offset\"\n    100-105: \"Reserved\"\n    106-111: \"Flags\"\n    112-127: \"Window Size\""
+  },
+  {
+    "label": "Pie",
+    "i18nKey": "samplePie",
+    "icon": "pie",
+    "enabled": true,
+    "code": "pie title Browser Share\n    \"Chrome\" : 65\n    \"Safari\" : 19\n    \"Firefox\" : 4\n    \"Edge\" : 4\n    \"Other\" : 8"
+  },
+  {
+    "label": "Quadrant",
+    "i18nKey": "sampleQuadrant",
+    "icon": "quad",
+    "enabled": true,
+    "code": "quadrantChart\n    title Priority Matrix\n    x-axis Low Effort --> High Effort\n    y-axis Low Impact --> High Impact\n    quadrant-1 Do First\n    quadrant-2 Schedule\n    quadrant-3 Delegate\n    quadrant-4 Eliminate\n    Task A: [0.3, 0.8]\n    Task B: [0.7, 0.9]\n    Task C: [0.2, 0.3]\n    Task D: [0.8, 0.2]"
+  },
+  {
+    "label": "Radar",
+    "i18nKey": "sampleRadar",
+    "icon": "rdr",
+    "enabled": true,
+    "code": "radar-beta\n    title Skills\n    axis1 \"Frontend\"\n    axis2 \"Backend\"\n    axis3 \"DevOps\"\n    axis4 \"Design\"\n    axis5 \"Testing\"\n    \"Alice\" : [4, 5, 3, 2, 4]\n    \"Bob\" : [3, 3, 5, 4, 3]"
+  },
+  {
+    "label": "Requirement",
+    "i18nKey": "sampleRequirement",
+    "icon": "req",
+    "enabled": true,
+    "code": "requirementDiagram\n    requirement req1 {\n        id: 1\n        text: User authentication\n        risk: high\n        verifymethod: test\n    }\n    element app {\n        type: application\n    }\n    app - satisfies -> req1"
+  },
+  {
+    "label": "Sankey",
+    "i18nKey": "sampleSankey",
+    "icon": "snk",
+    "enabled": true,
+    "code": "sankey-beta\n\nSource A,Target X,30\nSource A,Target Y,20\nSource B,Target X,15\nSource B,Target Z,25\nTarget X,Final,45\nTarget Y,Final,20\nTarget Z,Final,25"
+  },
+  {
+    "label": "Timeline",
+    "i18nKey": "sampleTimeline",
+    "icon": "time",
+    "enabled": true,
+    "code": "timeline\n    title Project Timeline\n    2026-Q1 : Design\n           : Prototyping\n    2026-Q2 : Development\n           : Alpha Release\n    2026-Q3 : Testing\n           : Beta Release\n    2026-Q4 : Launch"
+  },
+  {
+    "label": "Treemap",
+    "i18nKey": "sampleTreemap",
+    "icon": "tree",
+    "enabled": true,
+    "code": "treemap-beta\n    root\n        A::100\n            A1::40\n            A2::60\n        B::80\n            B1::30\n            B2::50\n        C::50"
+  },
+  {
+    "label": "User Journey",
+    "i18nKey": "sampleJourney",
+    "icon": "jour",
+    "enabled": true,
+    "code": "journey\n    title User Purchase Journey\n    section Browse\n      Visit site: 5: User\n      Search product: 3: User\n    section Purchase\n      Add to cart: 4: User\n      Checkout: 3: User, System\n      Payment: 2: User, System\n    section Post\n      Receive order: 5: User"
+  },
+  {
+    "label": "XY",
+    "i18nKey": "sampleXY",
+    "icon": "xy",
+    "enabled": true,
+    "code": "xychart-beta\n    title \"Sales Revenue\"\n    x-axis [Jan, Feb, Mar, Apr, May, Jun]\n    y-axis \"Revenue (k$)\" 0 --> 120\n    bar [50, 60, 75, 80, 95, 110]\n    line [50, 60, 75, 80, 95, 110]"
+  },
+  {
+    "label": "ZenUML",
+    "i18nKey": "sampleZenUML",
+    "icon": "zen",
+    "enabled": true,
+    "code": "zenuml\n    title Order Service\n    Client->OrderService.create(order) {\n      OrderService->DB.save(order)\n      OrderService->PaymentService.charge(order) {\n        PaymentService->Gateway.process(payment)\n        return result\n      }\n      return confirmation\n    }"
   }
 ]

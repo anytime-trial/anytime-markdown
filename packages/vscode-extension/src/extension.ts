@@ -154,11 +154,20 @@ export function activate(context: vscode.ExtensionContext) {
 				vscode.window.showWarningMessage('Could not load file content for this commit.');
 				return;
 			}
-			p.compareFileUri = null;
-			p.postMessageToActivePanel({
-				type: 'loadCompareFile',
-				content,
-			});
+			if (p.compareModeActive) {
+				// 比較モード: 右パネルにロード
+				p.compareFileUri = null;
+				p.postMessageToActivePanel({
+					type: 'loadCompareFile',
+					content,
+				});
+			} else {
+				// 通常モード: エディタに直接表示（履歴コンテンツとして記録）
+				p.postMessageToActivePanel({
+					type: 'loadHistoryContent',
+					content,
+				});
+			}
 		}
 	);
 

@@ -39,6 +39,9 @@ export default function PrivacyBody() {
           <P>{t('section4Intro')}</P>
           <Box component="ul" sx={{ pl: 3 }}>
             <li>
+              <P>{t.rich('section4GitHub', { strong: (chunks) => <strong>{chunks}</strong> })}</P>
+            </li>
+            <li>
               <P>{t.rich('section4Plantuml', { strong: (chunks) => <strong>{chunks}</strong> })}</P>
             </li>
           </Box>

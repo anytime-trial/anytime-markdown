@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import type { PaletteMode } from '@mui/material';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -52,7 +52,11 @@ try {
 export function App() {
   const [ready, setReady] = useState(false);
   const [themeMode, setThemeMode] = useState<PaletteMode>('dark');
+  const [editorKey, setEditorKey] = useState(0);
+  const [compareContent, setCompareContent] = useState<string | null>(null);
   const theme = useMemo(() => createTheme({ palette: { mode: themeMode } }), [themeMode]);
+  const latestContentRef = useRef<string | null>(null);
+  const historicalContentRef = useRef<string | null>(null);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -89,6 +93,14 @@ export function App() {
         window.dispatchEvent(new CustomEvent('vscode-delete-comment', { detail: message.id }));
         return;
       }
+      if (message?.type === 'loadHistoryContent' && typeof message.content === 'string') {
+        // 通常モード: 履歴コンテンツを表示（最新をキャッシュ）
+        latestContentRef.current = currentContent;
+        historicalContentRef.current = message.content;
+        currentContent = message.content;
+        window.dispatchEvent(new CustomEvent('vscode-set-content', { detail: message.content }));
+        return;
+      }
       if (message?.type === 'setContent' && typeof message.content === 'string') {
         const isInitial = !ready;
         currentContent = message.content;
@@ -115,6 +127,17 @@ export function App() {
 
   const handleCompareModeChange = useCallback((active: boolean) => {
     vscode.postMessage({ type: 'compareModeChanged', active });
+    if (active && historicalContentRef.current != null && latestContentRef.current != null) {
+      // 比較モード切替: 左=最新、右=選択コミット
+      const latest = latestContentRef.current;
+      const commit = historicalContentRef.current;
+      // refs をクリアして remount 時の再トリガーを防止
+      historicalContentRef.current = null;
+      latestContentRef.current = null;
+      currentContent = latest;
+      setCompareContent(commit);
+      setEditorKey((k) => k + 1);
+    }
   }, []);
 
   const handleHeadingsChange = useCallback((headings: Array<{ level: number; text: string; pos: number; kind: string }>) => {
@@ -158,7 +181,7 @@ export function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <ConfirmProvider>
-        <MarkdownEditorPage hideFileOps hideUndoRedo hideSettings hideHelp hideVersionInfo hideOutline hideComments hideTemplates hideFoldAll hideStatusBar onCompareModeChange={handleCompareModeChange} onHeadingsChange={handleHeadingsChange} onCommentsChange={handleCommentsChange} onStatusChange={handleStatusChange} />
+        <MarkdownEditorPage key={editorKey} hideFileOps hideUndoRedo hideSettings hideHelp hideVersionInfo hideOutline hideComments hideTemplates hideFoldAll hideStatusBar externalCompareContent={compareContent} onCompareModeChange={handleCompareModeChange} onHeadingsChange={handleHeadingsChange} onCommentsChange={handleCommentsChange} onStatusChange={handleStatusChange} />
       </ConfirmProvider>
     </ThemeProvider>
   );

@@ -1,6 +1,8 @@
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import CodeIcon from "@mui/icons-material/Code";
 import EditNoteIcon from "@mui/icons-material/EditNote";
+import GitHubIcon from "@mui/icons-material/GitHub";
+import HistoryIcon from "@mui/icons-material/History";
 import ListAltIcon from "@mui/icons-material/ListAlt";
 import LockIcon from "@mui/icons-material/Lock";
 import MenuIcon from "@mui/icons-material/Menu";
@@ -136,12 +138,28 @@ export const EditorToolbar = React.memo(function EditorToolbar({
     outline: hideOutline, comments: hideComments,
     templates: _hideTemplates, foldAll: _hideFoldAll,
   } = hide;
-  const { sourceMode, readonlyMode, reviewMode, outlineOpen, inlineMergeOpen, commentOpen } = modeState;
-  const { onSwitchToSource, onSwitchToWysiwyg, onSwitchToReview, onSwitchToReadonly, onToggleOutline, onToggleComments, onMerge } = modeHandlers;
+  const { sourceMode, readonlyMode, reviewMode, outlineOpen, inlineMergeOpen, commentOpen, explorerOpen } = modeState;
+  const { onSwitchToSource, onSwitchToWysiwyg, onSwitchToReview, onSwitchToReadonly, onToggleOutline, onToggleComments, onMerge, onToggleExplorer } = modeHandlers;
   const isDark = useTheme().palette.mode === "dark";
 
   const [mobileMenuAnchorEl, setMobileMenuAnchorEl] = useState<HTMLElement | null>(null);
   const mobileMoreRef = useRef<HTMLButtonElement>(null);
+
+  /** Roving tabindex: 最後にフォーカスされたボタンのインデックス */
+  const [rovingIndex, setRovingIndex] = useState(0);
+
+  /** ツールバー内のフォーカス可能要素に roving tabindex を適用 */
+  const applyRovingTabindex = useCallback((toolbar: HTMLElement, activeIdx: number) => {
+    const items = Array.from(toolbar.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+    items.forEach((item, i) => {
+      item.setAttribute("tabindex", i === activeIdx ? "0" : "-1");
+    });
+  }, []);
+
+  /** ツールバーがマウントされたら初期 roving tabindex を適用 */
+  const toolbarRefCallback = useCallback((node: HTMLElement | null) => {
+    if (node) applyRovingTabindex(node, rovingIndex);
+  }, [applyRovingTabindex, rovingIndex]);
 
   const handleToolbarKeyDown = useCallback((e: React.KeyboardEvent) => {
     const toolbar = e.currentTarget;
@@ -167,6 +185,10 @@ export const EditorToolbar = React.memo(function EditorToolbar({
         return;
     }
     e.preventDefault();
+    items.forEach((item, i) => {
+      item.setAttribute("tabindex", i === nextIndex ? "0" : "-1");
+    });
+    setRovingIndex(nextIndex);
     items[nextIndex]?.focus();
   }, []);
 
@@ -202,6 +224,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
     <>
     <Paper
       id="md-editor-toolbar"
+      ref={toolbarRefCallback}
       variant="outlined"
       role="toolbar"
       aria-label={t("editorToolbar")}
@@ -267,13 +290,20 @@ export const EditorToolbar = React.memo(function EditorToolbar({
       {/* Outline, Comments - hidden on mobile */}
       <Box sx={{ display: { xs: "none", md: "contents" } }}>
       <ToggleButtonGroup size="small" aria-label={t("view")} sx={{ height: 30 }}>
+        {onToggleExplorer && (
+          <ToggleButton value="explorer" selected={!!explorerOpen} onClick={onToggleExplorer} aria-label={t("explorer")} sx={{ px: 0.75, py: 0.25 }}>
+            <Tooltip title={t("explorer")}>
+              <span style={{ display: "inline-flex" }}><GitHubIcon fontSize="small" /></span>
+            </Tooltip>
+          </ToggleButton>
+        )}
         {!hideOutline && <ToggleButton value="outline" selected={outlineOpen} onClick={onToggleOutline} disabled={inlineMergeOpen || sourceMode} aria-label={t("outline")} sx={{ px: 0.75, py: 0.25 }}>
           <Tooltip title={tip(t, "outline")}>
             <span style={{ display: "inline-flex" }}><ListAltIcon fontSize="small" /></span>
           </Tooltip>
         </ToggleButton>}
         {!hideComments && onToggleComments && (
-          <ToggleButton value="comments" selected={commentOpen} onClick={onToggleComments} disabled={inlineMergeOpen || sourceMode} aria-label={t("commentPanel") || "Comments"} sx={{ px: 0.75, py: 0.25 }}>
+          <ToggleButton value="comments" selected={commentOpen} onClick={onToggleComments} disabled={sourceMode} aria-label={t("commentPanel") || "Comments"} sx={{ px: 0.75, py: 0.25 }}>
             <Tooltip title={t("commentPanel") || "Comments"}>
               <span style={{ display: "inline-flex" }}><ChatBubbleOutlineIcon fontSize="small" /></span>
             </Tooltip>
@@ -382,7 +412,6 @@ export const EditorToolbar = React.memo(function EditorToolbar({
       hideVersionInfo={hideVersionInfo}
       onToggleOutline={onToggleOutline}
       onToggleComments={onToggleComments}
-      onMerge={onMerge}
       onSetHelpAnchor={onSetHelpAnchor}
       onOpenSettings={onOpenSettings}
       onOpenVersionDialog={onOpenVersionDialog}

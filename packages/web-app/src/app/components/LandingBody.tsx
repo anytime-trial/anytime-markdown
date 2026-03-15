@@ -6,9 +6,12 @@ import CodeIcon from '@mui/icons-material/Code';
 import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
 import EditNoteIcon from '@mui/icons-material/EditNote';
 import FlashOnIcon from '@mui/icons-material/FlashOn';
+import FunctionsIcon from '@mui/icons-material/Functions';
+import GitHubIcon from '@mui/icons-material/GitHub';
 import InstallDesktopIcon from '@mui/icons-material/InstallDesktop';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import RateReviewIcon from '@mui/icons-material/RateReview';
+import TableChartIcon from '@mui/icons-material/TableChart';
 import TocIcon from '@mui/icons-material/Toc';
 import { Box, Button, Card, CardContent, Container, Grid, Link as MuiLink,Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
@@ -25,6 +28,9 @@ const featureItems = [
   { titleKey: 'featureDiff' as const, descKey: 'featureDiffDesc' as const, Icon: CompareArrowsIcon },
   { titleKey: 'featureDiagram' as const, descKey: 'featureDiagramDesc' as const, Icon: AccountTreeIcon },
   { titleKey: 'featurePdf' as const, descKey: 'featurePdfDesc' as const, Icon: PictureAsPdfIcon },
+  { titleKey: 'featureTable' as const, descKey: 'featureTableDesc' as const, Icon: TableChartIcon },
+  { titleKey: 'featureMath' as const, descKey: 'featureMathDesc' as const, Icon: FunctionsIcon },
+  { titleKey: 'featureGithub' as const, descKey: 'featureGithubDesc' as const, Icon: GitHubIcon },
   { titleKey: 'featurePwa' as const, descKey: 'featurePwaDesc' as const, Icon: InstallDesktopIcon },
   { titleKey: 'featureOutline' as const, descKey: 'featureOutlineDesc' as const, Icon: TocIcon },
   { titleKey: 'featureSlash' as const, descKey: 'featureSlashDesc' as const, Icon: FlashOnIcon },
@@ -96,7 +102,7 @@ export default function LandingBody({ headingFontFamily }: { headingFontFamily?:
             {t('heroDescription')}
           </Typography>
 
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 2 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5 }}>
             <Button
               component={NextLink}
               href="/markdown"
@@ -105,10 +111,10 @@ export default function LandingBody({ headingFontFamily }: { headingFontFamily?:
               sx={{
                 textTransform: 'none',
                 fontWeight: 700,
-                fontSize: '1.05rem',
-                borderRadius: 2.5,
-                px: 5,
-                py: 1.5,
+                fontSize: { xs: '1.1rem', md: '1.25rem' },
+                borderRadius: 3,
+                px: { xs: 5, md: 7 },
+                py: { xs: 1.5, md: 2 },
                 width: { xs: '100%', sm: 'auto' },
                 bgcolor: ACCENT_COLOR,
                 color: '#000000',
@@ -125,26 +131,28 @@ export default function LandingBody({ headingFontFamily }: { headingFontFamily?:
             >
               {t('openEditor')}
             </Button>
+            <Typography
+              variant="caption"
+              sx={{ color: 'text.secondary', fontSize: '0.8rem' }}
+            >
+              {t('noSignupRequired')}
+            </Typography>
             <Button
               component={MuiLink}
               href="https://github.com/kiyotaka-ueda/anytime-markdown"
               target="_blank"
               rel="noopener noreferrer"
-              variant="outlined"
-              size="large"
+              variant="text"
+              size="small"
               sx={{
                 textTransform: 'none',
-                fontWeight: 600,
-                fontSize: '1.05rem',
-                borderRadius: 2.5,
-                px: 4,
-                py: 1.5,
-                width: { xs: '100%', sm: 'auto' },
-                borderColor: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.23)',
-                color: 'text.primary',
+                fontWeight: 500,
+                fontSize: '0.85rem',
+                color: 'text.secondary',
                 '&:hover': {
-                  borderColor: isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.4)',
-                  bgcolor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
+                  color: 'text.primary',
+                  bgcolor: 'transparent',
+                  textDecoration: 'underline',
                 },
               }}
             >

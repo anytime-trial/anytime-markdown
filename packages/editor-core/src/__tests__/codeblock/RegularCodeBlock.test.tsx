@@ -31,8 +31,8 @@ jest.mock("../../useEditorSettings", () => ({
   useEditorSettingsContext: () => ({ fontSize: 16, lineHeight: 1.6 }),
 }));
 
-jest.mock("../../components/CodeBlockFullscreenDialog", () => ({
-  CodeBlockFullscreenDialog: () => null,
+jest.mock("../../components/CodeBlockEditDialog", () => ({
+  CodeBlockEditDialog: () => null,
 }));
 
 import { RegularCodeBlock } from "../../components/codeblock/RegularCodeBlock";
@@ -46,28 +46,26 @@ function createMockNode(lang?: string) {
   } as unknown as NodeViewProps["node"];
 }
 
-function setup(overrides?: { allCollapsed?: boolean; isSelected?: boolean; language?: string }) {
+function setup(overrides?: { isSelected?: boolean; language?: string }) {
   const fsSearch = { reset: jest.fn(), query: "", setQuery: jest.fn(), matches: [], currentIdx: 0, next: jest.fn(), prev: jest.fn(), replace: jest.fn(), replaceAll: jest.fn() };
   const mockNode = createMockNode(overrides?.language);
   const props = {
-    editor: null as never,
+    editor: { isEditable: true } as never,
     node: mockNode,
     getPos: (() => 0) as never,
     code: mockNode.textContent,
-    allCollapsed: overrides?.allCollapsed ?? false,
     isSelected: overrides?.isSelected ?? true,
-    toggleAllCollapsed: jest.fn(),
-    handleDragKeyDown: jest.fn(),
     handleCopyCode: jest.fn(),
     handleDeleteBlock: jest.fn(),
     deleteDialogOpen: false,
     setDeleteDialogOpen: jest.fn(),
-    fullscreen: false,
-    setFullscreen: jest.fn(),
+    editOpen: false,
+    setEditOpen: jest.fn(),
     fsCode: "",
     onFsCodeChange: jest.fn(),
     fsTextareaRef: { current: null },
     fsSearch: fsSearch as never,
+    handleFsTextChange: jest.fn(),
     t: (key: string) => key,
     isDark: false,
   };
@@ -84,11 +82,6 @@ describe("RegularCodeBlock", () => {
   test("language なし -> Code 表示", () => {
     setup({ language: "" });
     expect(screen.getByText("Code")).toBeTruthy();
-  });
-
-  test("collapsed=true -> delete ボタン非表示", () => {
-    setup({ allCollapsed: true });
-    expect(screen.queryByLabelText("delete")).toBeNull();
   });
 
   test("delete ボタン -> setDeleteDialogOpen 呼び出し", () => {

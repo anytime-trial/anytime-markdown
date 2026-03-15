@@ -20,11 +20,13 @@ export function useFileSystem(provider: FileSystemProvider | null | undefined) {
     if (typeof window === 'undefined') return;
     const name = fileHandle?.name;
     if (!name || fileHandle?.nativeHandle) return;
+    let cancelled = false;
     loadNativeHandle().then((native) => {
-      if (native && native.name === name) {
+      if (!cancelled && native && native.name === name) {
         setFileHandleRaw({ name, nativeHandle: native });
       }
     }).catch(() => { /* IndexedDB 読み込み失敗は無視 */ });
+    return () => { cancelled = true; };
     // 初回マウント時のみ実行
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

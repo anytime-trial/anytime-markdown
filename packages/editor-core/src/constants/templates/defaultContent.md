@@ -129,6 +129,18 @@ Editor --> User: Display
 ---
 
 
+## HTML ブロック
+
+```html
+<div style="padding: 16px; border-radius: 8px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; font-family: sans-serif;">
+  <h3 style="margin: 0 0 8px 0;">お知らせ</h3>
+  <p style="margin: 0;">HTML ブロックでは、自由なレイアウトやスタイルを直接記述できます。</p>
+</div>
+```
+
+---
+
+
 ## 画像
 
 ![画像](help/camel_markdown.png)さあ、書き始めましょう。
