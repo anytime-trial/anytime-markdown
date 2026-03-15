@@ -35,7 +35,6 @@ import { DiffHighlight } from "./extensions/diffHighlight";
 import { FootnoteRef } from "./extensions/footnoteExtension";
 import { HeadingFoldExtension } from "./extensions/headingFoldExtension";
 import { HeadingNumberExtension } from "./extensions/headingNumberExtension";
-import { MathInline } from "./extensions/mathInlineExtension";
 import { CustomImage } from "./imageExtension";
 import { CustomTable } from "./tableExtension";
 
@@ -143,7 +142,6 @@ export function getBaseExtensions(options?: { disableComments?: boolean }): Exte
     DiffHighlight,
     HeadingFoldExtension,
     CodeBlockNavigation,
-    MathInline,
     FootnoteRef,
     HeadingNumberExtension,
   ];

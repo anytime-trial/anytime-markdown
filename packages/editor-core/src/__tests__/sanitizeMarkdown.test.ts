@@ -117,12 +117,6 @@ describe("sanitizeMarkdown", () => {
     expect(result).toContain("```math");
   });
 
-  test("インライン数式 ($.$) をデータ属性スパンに変換する", () => {
-    const md = "inline $x^2$ math";
-    const result = sanitizeMarkdown(md);
-    expect(result).toContain('data-math-inline');
-  });
-
   // ── エッジケース ──
 
   test("空文字列を処理できる", () => {

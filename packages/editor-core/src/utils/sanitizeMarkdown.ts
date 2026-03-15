@@ -3,7 +3,7 @@ import DOMPurify from "dompurify";
 import { preprocessAdmonition } from "./admonitionHelpers";
 import { preprocessComments } from "./commentHelpers";
 import { preprocessFootnoteRefs } from "./footnoteHelpers";
-import { preprocessMathBlock, preprocessMathInline } from "./mathHelpers";
+import { preprocessMathBlock } from "./mathHelpers";
 
 const ALLOWED_TAGS = ["details", "summary", "br", "hr", "sub", "sup", "mark", "kbd", "u"];
 const ALLOWED_ATTR = ["open"];
@@ -158,9 +158,8 @@ export function splitByCodeBlocks(md: string): string[] {
  * DOMPurify による &gt; 等のエスケープを防ぐ。
  */
 export function sanitizeMarkdown(md: string): string {
-  // Math 前処理: $$...$$ → ```math, $...$ → <span data-math-inline>
+  // Math 前処理: $$...$$ → ```math
   md = preprocessMathBlock(md);
-  md = preprocessMathInline(md);
   // Admonition 前処理: > [!TYPE] → <blockquote data-admonition-type>
   md = preprocessAdmonition(md);
   // テーブル行内コードスパンのパイプをエスケープ（セル区切りとの誤認防止）
