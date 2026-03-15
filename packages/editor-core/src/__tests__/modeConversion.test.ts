@@ -238,6 +238,16 @@ describe("preserveBlankLines", () => {
     expect(preserveBlankLines(input)).toBe(input);
   });
 
+  test("タブ区切りデータには <br> を付加する", () => {
+    const input = "列1\t列2\t列3\nデータ1\tデータ2\tデータ3";
+    expect(preserveBlankLines(input)).toBe("列1\t列2\t列3<br>\nデータ1\tデータ2\tデータ3");
+  });
+
+  test("マークダウンテーブル行にはハードブレイクを付加しない", () => {
+    const input = "| Header1 | Header2 |\n| --- | --- |\n| Cell1 | Cell2 |";
+    expect(preserveBlankLines(input)).toBe(input);
+  });
+
   test("バックスラッシュ改行（ハードブレイク）を tight transition と誤判定しない", () => {
     // リスト内のバックスラッシュ改行は同一ブロックの継続
     const input = "- テキスト。\\\n継続行1\\\n継続行2";

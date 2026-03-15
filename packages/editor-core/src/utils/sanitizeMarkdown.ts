@@ -103,7 +103,13 @@ function addHardBreaksToConsecutiveLines(text: string): string {
     if (isHeading(cur) || isHR(cur)) continue;
     if (isListStart(cur) || isListStart(nxt)) continue;
     if (isBlockquoteStart(cur) || isBlockquoteStart(nxt)) continue;
+    // マークダウンテーブル行はスキップ（行が完結しているため改行不要）
     if (isTableRow(cur) || isTableRow(nxt)) continue;
+    // タブ区切りデータ（スプレッドシートからのコピー等）は <br> を付加
+    if (cur.includes("\t") || nxt.includes("\t")) {
+      result[i] = cur + "<br>";
+      continue;
+    }
     if (isBlockStart(nxt)) continue;
     // インデント行（リスト継続等）はスキップ
     if (isIndented(cur) || isIndented(nxt)) continue;

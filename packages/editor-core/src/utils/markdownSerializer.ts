@@ -31,6 +31,8 @@ export function getMarkdownFromEditor(editor: Editor): string {
   // 元の \n が \n\n に変わる場合がある。これは ProseMirror の仕様として許容する。
   // ```math フェンスが残っている場合に $$...$$ に変換する（フォールバック）
   md = postprocessMathBlock(md);
+  // NOTE: テーブルセル内のハードブレイクは CustomHardBreak の serialize で
+  // <br> として出力されるため、後処理は不要
   // テーブル行内で prosemirror-markdown がエスケープした文字を復元する
   // (例: "1\." → "1.", "\#" → "#")
   // + コードスパンのバッククォート区切りをテーブル行内のみ最小限に正規化
