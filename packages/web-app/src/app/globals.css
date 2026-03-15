@@ -6,6 +6,7 @@ html, body {
 }
 
 /* エディタページのみビューポート固定（ランディング/docsページは通常スクロール） */
+html:has(body.editor-page),
 body.editor-page {
   overflow: hidden;
   height: 100%;
