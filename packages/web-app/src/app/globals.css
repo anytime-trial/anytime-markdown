@@ -12,11 +12,14 @@ body.editor-page {
   height: 100%;
 }
 
-/* エディタページのアプリラッパーのスクロールバーを抑制 */
+/* エディタページのアプリラッパーのスクロールバーを抑制 & padding 除去 */
 body.editor-page > #main-content,
 body.editor-page > #main-content > .MuiBox-root,
 body.editor-page > #main-content > .MuiBox-root > .MuiBox-root {
   overflow: hidden !important;
+}
+body.editor-page > #main-content > .MuiBox-root > .MuiBox-root > #main-content {
+  padding-bottom: 0 !important;
 }
 
 /* ========== Dark Theme (default) ========== */
