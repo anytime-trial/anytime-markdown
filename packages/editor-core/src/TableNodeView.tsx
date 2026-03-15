@@ -21,7 +21,7 @@ import { DeleteBlockDialog } from "./components/codeblock/DeleteBlockDialog";
 import { SearchReplaceBar } from "./components/SearchReplaceBar";
 import { useDeleteBlock } from "./hooks/useDeleteBlock";
 import { useNodeSelected } from "./hooks/useNodeSelected";
-import { getFullscreenBg } from "./constants/colors";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getFullscreenBg } from "./constants/colors";
 import { useEditorSettingsContext } from "./useEditorSettings";
 import { moveTableColumn,moveTableRow } from "./utils/tableHelpers";
 
@@ -166,7 +166,7 @@ export function TableNodeView({ editor, node, getPos }: NodeViewProps) {
         </Box>
 
         {/* Table body (fullscreen) */}
-        <Box sx={{ flex: 1, overflow: "auto" }}>
+        <Box sx={{ flex: 1, overflow: "auto", bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG }}>
           <NodeViewContent<"table"> as="table" />
         </Box>
       </Dialog>
