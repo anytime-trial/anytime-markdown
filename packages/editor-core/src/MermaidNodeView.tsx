@@ -38,7 +38,7 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: No
     if (pos == null) return;
     editor.commands.setTextSelection(pos + 1);
     if (!isDiagram && !isMath && !isHtml && codeCollapsed) updateAttributes({ codeCollapsed: false });
-  }, [editor, getPos, codeCollapsed, updateAttributes, isDiagram, isMath]);
+  }, [editor, getPos, codeCollapsed, updateAttributes, isDiagram, isMath, isHtml]);
 
   // Auto-collapse code when deselected
   // codeCollapsed, updateAttributes は意図的に除外（選択解除時のみ発火させる）

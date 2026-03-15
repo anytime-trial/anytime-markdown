@@ -1,8 +1,8 @@
 "use client";
 
 import EditIcon from "@mui/icons-material/Edit";
-import ImageIcon from "@mui/icons-material/Image";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
+import ImageIcon from "@mui/icons-material/Image";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { Box, Divider, IconButton, Tooltip, Typography, useTheme } from "@mui/material";
 import type { NodeViewProps } from "@tiptap/react";
@@ -14,9 +14,9 @@ import { BlockInlineToolbar } from "./components/codeblock/BlockInlineToolbar";
 import { DeleteBlockDialog } from "./components/codeblock/DeleteBlockDialog";
 import { EditDialogHeader } from "./components/EditDialogHeader";
 import { EditDialogWrapper } from "./components/EditDialogWrapper";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "./constants/colors";
 import { useBlockNodeState } from "./hooks/useBlockNodeState";
 import { useBlockResize } from "./hooks/useBlockResize";
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "./constants/colors";
 import { getEditorStorage } from "./types";
 
 const MIN_WIDTH = 50;

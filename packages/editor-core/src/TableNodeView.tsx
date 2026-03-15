@@ -15,14 +15,14 @@ import { useTranslations } from "next-intl";
 import { useMemo } from "react";
 
 import { BlockInlineToolbar } from "./components/codeblock/BlockInlineToolbar";
-import { EditDialogHeader } from "./components/EditDialogHeader";
 import { DeleteBlockDialog } from "./components/codeblock/DeleteBlockDialog";
+import { EditDialogHeader } from "./components/EditDialogHeader";
 import { SearchReplaceBar } from "./components/SearchReplaceBar";
-import { useBlockNodeState } from "./hooks/useBlockNodeState";
-import { findCounterpartTableHtml, getMergeEditors } from "./contexts/MergeEditorsContext";
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "./constants/colors";
-import { useEditorSettingsContext } from "./useEditorSettings";
 import { Z_FULLSCREEN } from "./constants/zIndex";
+import { findCounterpartTableHtml, getMergeEditors } from "./contexts/MergeEditorsContext";
+import { useBlockNodeState } from "./hooks/useBlockNodeState";
+import { useEditorSettingsContext } from "./useEditorSettings";
 import { moveTableColumn,moveTableRow } from "./utils/tableHelpers";
 
 const iconSx = { fontSize: 16 };
@@ -33,7 +33,7 @@ export function TableNodeView({ editor, node, getPos }: NodeViewProps) {
   const settings = useEditorSettingsContext();
   const {
     deleteDialogOpen, setDeleteDialogOpen, editOpen, setEditOpen,
-    collapsed, isEditable, isSelected, handleDeleteBlock, showToolbar,
+    collapsed, isEditable, isSelected: _isSelected, handleDeleteBlock, showToolbar,
   } = useBlockNodeState(editor, node, getPos);
 
   // Compare mode

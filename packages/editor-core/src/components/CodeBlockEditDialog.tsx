@@ -1,11 +1,11 @@
 import CodeIcon from "@mui/icons-material/Code";
-import DOMPurify from "dompurify";
 import { Box, Chip, Typography, useTheme } from "@mui/material";
-import React, { useCallback, useMemo, useState } from "react";
+import DOMPurify from "dompurify";
 import { common, createLowlight } from "lowlight";
+import React, { useCallback, useMemo, useState } from "react";
 
-import { FS_CHIP_HEIGHT, FS_TOOLBAR_HEIGHT } from "../constants/dimensions";
 import { CODE_HELLO_SAMPLES } from "../constants/codeHelloSamples";
+import { FS_CHIP_HEIGHT, FS_TOOLBAR_HEIGHT } from "../constants/dimensions";
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
 import { useZoomPan } from "../hooks/useZoomPan";
 import { useEditorSettingsContext } from "../useEditorSettings";
@@ -61,7 +61,7 @@ interface CodeBlockEditDialogProps {
 }
 
 export function CodeBlockEditDialog({
-  open, onClose, label, language, fsCode, onFsCodeChange, onFsTextChange, fsTextareaRef, fsSearch,
+  open, onClose, label, language, fsCode, onFsCodeChange, onFsTextChange, fsTextareaRef, fsSearch: _fsSearch,
   readOnly, isCompareMode, compareCode, onMergeApply, toolbarExtra, customSamples, renderPreview,
   t,
 }: CodeBlockEditDialogProps) {

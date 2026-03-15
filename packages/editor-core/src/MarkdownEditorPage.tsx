@@ -63,7 +63,6 @@ import { getMarkdownFromEditor, type HeadingItem, PlantUmlToolbarContext } from 
 import type { FileSystemProvider } from "./types/fileSystem";
 import type { InlineComment } from "./utils/commentHelpers";
 import { parseCommentData } from "./utils/commentHelpers";
-import { applyMarkdownToEditor } from "./utils/editorContentLoader";
 import { preprocessMarkdown } from "./utils/frontmatterHelpers";
 
 interface MarkdownEditorPageProps {
@@ -104,7 +103,7 @@ interface MarkdownEditorPageProps {
   onToggleExplorer?: () => void;
 }
 
-export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideHelp, hideVersionInfo, featuresUrl, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, onLocaleChange, fileSystemProvider, externalContent, externalFileName, externalFilePath, onExternalSave, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, showReadonlyMode, externalCompareContent, explorerOpen, onToggleExplorer }: MarkdownEditorPageProps = {}) {
+export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideHelp, hideVersionInfo, featuresUrl, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, onLocaleChange, fileSystemProvider, externalContent, externalFileName, externalFilePath: _externalFilePath, onExternalSave, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, showReadonlyMode, externalCompareContent, explorerOpen, onToggleExplorer }: MarkdownEditorPageProps = {}) {
   const t = useTranslations("MarkdownEditor");
   const locale = useLocale() as "en" | "ja";
   const muiTheme = useTheme();
@@ -225,7 +224,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   const {
     notification, setNotification, pdfExporting,
     fileInputRef, handleClear, handleFileSelected,
-    handleDownload, handleImport, handleCopy,
+    handleDownload, handleCopy,
     handleOpenFile, handleSaveFile, handleSaveAsFile, handleExportPdf,
   } = useEditorFileOps({
     editor, sourceMode, sourceText, setSourceText,

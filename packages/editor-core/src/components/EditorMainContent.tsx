@@ -184,7 +184,7 @@ export function EditorMainContent({
     } else {
       onFileDrop?.(file);
     }
-  }, [onFileDrop]);
+  }, [onFileDrop, onFileDragOverChange]);
 
   if (inlineMergeOpen) {
     return (
