@@ -1,12 +1,9 @@
 "use client";
 
 import CloseIcon from "@mui/icons-material/Close";
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
-import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
 import FormatAlignCenterIcon from "@mui/icons-material/FormatAlignCenter";
 import FormatAlignLeftIcon from "@mui/icons-material/FormatAlignLeft";
 import FormatAlignRightIcon from "@mui/icons-material/FormatAlignRight";
-import FullscreenIcon from "@mui/icons-material/Fullscreen";
 import MoveDownIcon from "@mui/icons-material/MoveDown";
 import MoveUpIcon from "@mui/icons-material/MoveUp";
 import TableRowsIcon from "@mui/icons-material/TableRows";

@@ -20,8 +20,6 @@ import { BlockInlineToolbar } from "./BlockInlineToolbar";
 import { CodeBlockFrame } from "./CodeBlockFrame";
 import type { CodeBlockSharedProps } from "./types";
 
-const pumlIconSx = { fontSize: 16 };
-
 type DiagramBlockProps = Pick<
   CodeBlockSharedProps,
   | "editor" | "node" | "updateAttributes" | "getPos"

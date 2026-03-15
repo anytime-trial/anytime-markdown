@@ -18,7 +18,6 @@ import { useEditorSettingsContext } from "./useEditorSettings";
 import { useNodeSelected } from "./hooks/useNodeSelected";
 import { getEditorStorage } from "./types";
 
-const iconSx = { fontSize: 16 };
 const MIN_WIDTH = 50;
 
 export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeViewProps) {
