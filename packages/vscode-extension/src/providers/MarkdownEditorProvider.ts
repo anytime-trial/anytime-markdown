@@ -244,9 +244,13 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
           // POSIX 準拠: テキストファイルは末尾改行で終わる
           if (newContent && !newContent.endsWith("\n")) { newContent += "\n"; }
           if (newContent === document.getText()) { return; }
-          // 初回ロード後の TipTap 正規化による変更を無視
+          // 初回ロード後の TipTap 正規化による変更を無視（書き戻しはしない）
           if (!initialLoadComplete) {
             initialLoadComplete = true;
+            const fileName = path.basename(document.uri.fsPath);
+            vscode.window.showInformationMessage(
+              `${fileName}: 保存時にフォーマット整形が行われます`
+            );
             return;
           }
 
