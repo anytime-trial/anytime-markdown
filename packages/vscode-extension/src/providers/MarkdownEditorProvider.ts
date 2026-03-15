@@ -13,6 +13,8 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
   public onStatusChanged?: (status: { line: number; col: number; charCount: number; lineCount: number; lineEnding: string; encoding: string }) => void;
   public compareModeActive = false;
   private panels = new Map<string, vscode.WebviewPanel>();
+  /** diff ビュー検出用: 最後にパネルが開かれた時刻 */
+  private lastPanelOpenTime = 0;
   private readyPanels = new Set<string>();
   private readyResolvers = new Map<string, Array<() => void>>();
 
@@ -87,6 +89,11 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     this.activePanel = webviewPanel;
     this.activeDocumentUri = document.uri;
     this.panels.set(document.uri.toString(), webviewPanel);
+
+    // diff ビュー検出: 1秒以内に2つ目のパネルが開かれた場合
+    const now = Date.now();
+    const isDiffView = now - this.lastPanelOpenTime < 1000;
+    this.lastPanelOpenTime = now;
 
     let isApplyingWebviewEdit = false;
     let debounceTimer: ReturnType<typeof setTimeout> | undefined;
@@ -204,6 +211,12 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
           updateWebview();
           sendSettings();
           sendTheme();
+          // diff ビューの場合は全パネルにランディング画面を表示するよう通知
+          if (isDiffView) {
+            for (const [, panel] of this.panels) {
+              panel.webview.postMessage({ type: 'setLanding', landing: true });
+            }
+          }
           const key = document.uri.toString();
           this.readyPanels.add(key);
           const resolvers = this.readyResolvers.get(key);

@@ -54,7 +54,7 @@ try {
 
 export function App() {
   const [ready, setReady] = useState(false);
-  const [landing, setLanding] = useState(true);
+  const [landing, setLanding] = useState(false);
   const [themeMode, setThemeMode] = useState<PaletteMode>('dark');
   const [editorKey, setEditorKey] = useState(0);
   const [compareContent, setCompareContent] = useState<string | null>(null);
@@ -67,6 +67,10 @@ export function App() {
       const message = event.data;
       if (message?.type === 'setTheme' && (message.mode === 'dark' || message.mode === 'light')) {
         setThemeMode(message.mode);
+        return;
+      }
+      if (message?.type === 'setLanding' && message.landing === true) {
+        setLanding(true);
         return;
       }
       if (message?.type === 'loadCompareFile' && typeof message.content === 'string') {
