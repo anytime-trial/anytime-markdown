@@ -225,10 +225,15 @@ export function TableNodeView({ editor, node, getPos }: NodeViewProps) {
             <Box sx={{ flex: 1, overflow: "auto", bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG, p: 2 }}>
               <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "0.7rem", mb: 1, display: "block" }}>{t("compare")}</Typography>
               <Box
+                ref={(el: HTMLDivElement | null) => {
+                  if (!el) return;
+                  const table = el.querySelector("table");
+                  if (table) table.style.width = settings.tableWidth;
+                }}
                 dangerouslySetInnerHTML={{ __html: compareTableHtml }}
                 sx={{
-                  "& table": { borderCollapse: "collapse", width: settings.tableWidth },
-                  "& th, & td": { border: "1px solid", borderColor: "divider", px: 1, py: 0.5, textAlign: "left", minWidth: 80 },
+                  "& table": { borderCollapse: "collapse" },
+                  "& th, & td": { border: "1px solid", borderColor: "divider", padding: "4px 8px", textAlign: "left", minWidth: 80 },
                   "& th": { bgcolor: "action.hover", fontWeight: 600 },
                 }}
               />
