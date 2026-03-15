@@ -111,7 +111,8 @@ To open with the standard VS Code text editor, right-click the file → select *
 
 - Drag & drop images are embedded as base64. Large images will increase the Markdown file size.
 - Markdown round-trip through TipTap may reformat content on load. A notification is shown on first load.
-- **Source Control diff**: VS Code's standard diff view is not available when Anytime Markdown is the default editor. Use the **GIT HISTORY** panel in the "Anytime Markdown" sidebar to view diffs.
+- **Source Control diff**: VS Code's standard diff view is not available when Anytime Markdown is the default editor. \
+Use the **GIT HISTORY** panel in the "Anytime Markdown" sidebar to view diffs.
 
 ## 1.7. License
 
