@@ -53,6 +53,7 @@ export function getBlockStyles(theme: Theme, settings: EditorSettings): SxProps<
         minWidth: 80,
         fontSize: "inherit",
         lineHeight: "inherit",
+        bgcolor: theme.palette.background.paper,
       },
       "& th": {
         bgcolor: theme.palette.action.hover,

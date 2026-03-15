@@ -51,7 +51,7 @@ export function TableNodeView({ editor, node, getPos }: NodeViewProps) {
   const tableSx = {
     borderCollapse: "collapse",
     width: settings.tableWidth,
-    "& th, & td": { border: 1, borderColor: "divider", px: 1, py: 0.5, textAlign: "left", minWidth: 80 },
+    "& th, & td": { border: 1, borderColor: "divider", px: 1, py: 0.5, textAlign: "left", minWidth: 80, bgcolor: "background.paper" },
     "& th": { bgcolor: "action.hover", fontWeight: 600 },
     "& .selectedCell": { bgcolor: "action.selected" },
   };
@@ -74,12 +74,14 @@ export function TableNodeView({ editor, node, getPos }: NodeViewProps) {
           borderRadius: editOpen ? 0 : 1,
           overflow: "hidden",
           my: editOpen ? 0 : 1,
+          ...(!editOpen && { bgcolor: "transparent" }),
           ...(editOpen && {
             position: "fixed",
             inset: 0,
             zIndex: Z_FULLSCREEN,
             display: "flex",
             flexDirection: "column",
+            bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
           }),
           ...(!showToolbar && {
             borderColor: "transparent",
@@ -233,7 +235,7 @@ export function TableNodeView({ editor, node, getPos }: NodeViewProps) {
                 dangerouslySetInnerHTML={{ __html: compareTableHtml }}
                 sx={{
                   "& table": { borderCollapse: "collapse" },
-                  "& th, & td": { border: "1px solid", borderColor: "divider", padding: "4px 8px", textAlign: "left", minWidth: 80 },
+                  "& th, & td": { border: "1px solid", borderColor: "divider", padding: "4px 8px", textAlign: "left", minWidth: 80, bgcolor: "background.paper" },
                   "& th": { bgcolor: "action.hover", fontWeight: 600 },
                 }}
               />
