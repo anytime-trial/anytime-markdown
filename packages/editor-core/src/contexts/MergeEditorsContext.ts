@@ -130,6 +130,9 @@ export function findCounterpartTableHtml(
         const dom = serializer.serializeNode(node);
         const div = document.createElement("div");
         div.appendChild(dom);
+        // Remove inline style/width attributes to let CSS take control
+        div.querySelectorAll("[style]").forEach((el) => el.removeAttribute("style"));
+        div.querySelectorAll("[width]").forEach((el) => el.removeAttribute("width"));
         html = div.innerHTML;
       }
       otherCount++;
