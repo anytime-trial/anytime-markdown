@@ -17,9 +17,20 @@ export function useEditorHeight(isMobile: boolean, isMd: boolean, bottomOffset =
     update();
     const timer = setTimeout(update, DEBOUNCE_SHORT);
     window.addEventListener("resize", update);
+
+    // Observe position changes (e.g. frontmatter show/hide)
+    const container = editorContainerRef.current;
+    let ro: ResizeObserver | undefined;
+    if (container?.parentElement) {
+      ro = new ResizeObserver(update);
+      // Observe the parent so that sibling size changes (frontmatter) trigger recalculation
+      ro.observe(container.parentElement);
+    }
+
     return () => {
       clearTimeout(timer);
       window.removeEventListener("resize", update);
+      ro?.disconnect();
     };
   }, [update]);
 
