@@ -1,21 +1,21 @@
-import { Box, Divider, Typography, useMediaQuery, useTheme } from "@mui/material";
+import { Box, Typography, useTheme } from "@mui/material";
 import DOMPurify from "dompurify";
 import React, { useCallback, useRef, useState } from "react";
 
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "../constants/colors";
-import { FS_CODE_INITIAL_WIDTH, FS_CODE_MIN_WIDTH, FS_TOOLBAR_HEIGHT } from "../constants/dimensions";
-import { REDUCED_MOTION_SX, SPLITTER_SX, TRANSITION_FAST } from "../constants/uiPatterns";
+import { FS_TOOLBAR_HEIGHT } from "../constants/dimensions";
 import { MATH_SAMPLES } from "../constants/samples";
 import { MATH_SANITIZE_CONFIG, useKatexRender } from "../hooks/useKatexRender";
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
 import { useZoomPan } from "../hooks/useZoomPan";
 import { useEditorSettingsContext } from "../useEditorSettings";
+import { DraggableSplitLayout } from "./DraggableSplitLayout";
 import { EditDialogHeader } from "./EditDialogHeader";
 import { EditDialogWrapper } from "./EditDialogWrapper";
 import { FullscreenDiffView } from "./FullscreenDiffView";
 import { LineNumberTextarea } from "./LineNumberTextarea";
 import { SamplePanel } from "./SamplePanel";
 import { ZoomToolbar } from "./ZoomToolbar";
+import { ZoomablePreview } from "./ZoomablePreview";
 
 interface MathEditDialogProps {
   open: boolean;
@@ -42,12 +42,7 @@ export function MathEditDialog({
 }: MathEditDialogProps) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
-  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const settings = useEditorSettingsContext();
-
-  const [fsSplitPx, setFsSplitPx] = useState(FS_CODE_INITIAL_WIDTH);
-  const [fsDragging, setFsDragging] = useState(false);
-  const fsContainerRef = useRef<HTMLDivElement>(null);
 
   // Zoom/pan for preview
   const fsZP = useZoomPan();
@@ -76,89 +71,33 @@ export function MathEditDialog({
         />
       ) : (
         /* Normal view: Code + Divider + Preview */
-        <Box
-          ref={fsContainerRef}
-          sx={{ flex: 1, display: "flex", flexDirection: isMobile ? "column" : "row", overflow: "hidden", position: "relative" }}
-          onPointerMove={(e: React.PointerEvent) => {
-            if (fsDragging && fsContainerRef.current) {
-              const rect = fsContainerRef.current.getBoundingClientRect();
-              const px = e.clientX - rect.left;
-              setFsSplitPx(Math.min(rect.width - FS_CODE_MIN_WIDTH, Math.max(FS_CODE_MIN_WIDTH, px)));
-            }
-          }}
-          onPointerUp={(e: React.PointerEvent) => {
-            if (fsDragging) {
-              setFsDragging(false);
-              (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
-            }
-          }}
-        >
-          {/* Code editor */}
-          <Box sx={{ width: isMobile ? "100%" : `${fsSplitPx}px`, height: isMobile ? "40%" : "auto", minWidth: isMobile ? undefined : FS_CODE_MIN_WIDTH, display: "flex", flexDirection: "column", pointerEvents: fsDragging ? "none" : "auto" }}>
-            {/* Code toolbar */}
-            <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: "divider", px: 1, py: 0.25, minHeight: FS_TOOLBAR_HEIGHT }}>
-              <Typography variant="caption" sx={{ fontWeight: 600, fontSize: "0.75rem", flex: 1 }}>
-                {t("codeTab")}
-              </Typography>
-              {toolbarExtra}
-            </Box>
-            <LineNumberTextarea
-              textareaRef={fsTextareaRef}
-              value={fsCode}
-              onChange={onFsCodeChange}
-              readOnly={readOnly}
-              fontSize={settings.fontSize}
-              lineHeight={settings.lineHeight}
-              isDark={isDark}
-            />
-            <SamplePanel samples={MATH_SAMPLES.filter(s => s.enabled)} onInsert={handleInsertSample} readOnly={readOnly} t={t} />
-          </Box>
-          {/* Draggable divider (desktop only) */}
-          <Box
-            role="separator"
-            aria-orientation="vertical"
-            aria-label={t("resizeSplitter")}
-            aria-valuenow={fsSplitPx}
-            aria-valuemin={FS_CODE_MIN_WIDTH}
-            aria-valuemax={1200}
-            tabIndex={0}
-            onKeyDown={(e: React.KeyboardEvent) => {
-              if (e.key === "ArrowLeft") {
-                setFsSplitPx((v) => Math.max(FS_CODE_MIN_WIDTH, v - 40));
-                e.preventDefault();
-              } else if (e.key === "ArrowRight") {
-                setFsSplitPx((v) => v + 40);
-                e.preventDefault();
-              }
-            }}
-            onPointerDown={(e: React.PointerEvent) => {
-              setFsDragging(true);
-              (e.target as HTMLElement).setPointerCapture(e.pointerId);
-              e.preventDefault();
-            }}
-            sx={{ display: isMobile ? "none" : "block", ...SPLITTER_SX }}
-          />
-          {/* Horizontal divider (mobile only) */}
-          <Divider sx={{ display: isMobile ? "block" : "none" }} />
-          {/* Preview area */}
-          <Box sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-            <ZoomToolbar fsZP={fsZP} t={t} />
-            {/* Preview */}
-            <Box
-              sx={{
-                flex: 1,
-                overflow: "hidden",
-                bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
-                cursor: fsDragging ? "col-resize" : "grab",
-                "&:active": { cursor: fsDragging ? "col-resize" : "grabbing" },
-                pointerEvents: fsDragging ? "none" : "auto",
-              }}
-              onPointerDown={fsZP.handlePointerDown}
-              onPointerMove={fsZP.handlePointerMove}
-              onPointerUp={fsZP.handlePointerUp}
-              onWheel={fsZP.handleWheel}
-            >
-              <Box sx={{ width: "100%", height: "100%", display: "flex", justifyContent: "center", alignItems: "center", transform: `translate(${fsZP.pan.x}px, ${fsZP.pan.y}px) scale(${fsZP.zoom})`, transformOrigin: "center center", transition: fsZP.isPanningRef.current ? "none" : `transform ${TRANSITION_FAST}`, ...REDUCED_MOTION_SX, pointerEvents: "none" }}>
+        <DraggableSplitLayout
+          t={t}
+          left={
+            <>
+              {/* Code toolbar */}
+              <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: "divider", px: 1, py: 0.25, minHeight: FS_TOOLBAR_HEIGHT }}>
+                <Typography variant="caption" sx={{ fontWeight: 600, fontSize: "0.75rem", flex: 1 }}>
+                  {t("codeTab")}
+                </Typography>
+                {toolbarExtra}
+              </Box>
+              <LineNumberTextarea
+                textareaRef={fsTextareaRef}
+                value={fsCode}
+                onChange={onFsCodeChange}
+                readOnly={readOnly}
+                fontSize={settings.fontSize}
+                lineHeight={settings.lineHeight}
+                isDark={isDark}
+              />
+              <SamplePanel samples={MATH_SAMPLES.filter(s => s.enabled)} onInsert={handleInsertSample} readOnly={readOnly} t={t} />
+            </>
+          }
+          right={
+            <>
+              <ZoomToolbar fsZP={fsZP} t={t} />
+              <ZoomablePreview fsZP={fsZP}>
                 {mathError && (
                   <Typography color="error" sx={{ fontFamily: "monospace", fontSize: "0.85rem" }}>
                     {mathError}
@@ -172,10 +111,10 @@ export function MathEditDialog({
                     sx={{ "& .katex": { fontSize: "1.5em" } }}
                   />
                 )}
-              </Box>
-            </Box>
-          </Box>
-        </Box>
+              </ZoomablePreview>
+            </>
+          }
+        />
       )}
     </EditDialogWrapper>
   );

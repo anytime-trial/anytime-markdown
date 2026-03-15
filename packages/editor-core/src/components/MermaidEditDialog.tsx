@@ -1,10 +1,8 @@
-import { Box, Divider, Tab, Tabs, useMediaQuery, useTheme } from "@mui/material";
+import { Box, Tab, Tabs, useTheme } from "@mui/material";
 import DOMPurify from "dompurify";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "../constants/colors";
-import { FS_CODE_INITIAL_WIDTH, FS_CODE_MIN_WIDTH, FS_TOOLBAR_HEIGHT } from "../constants/dimensions";
-import { REDUCED_MOTION_SX, SPLITTER_SX, TRANSITION_FAST } from "../constants/uiPatterns";
+import { FS_TOOLBAR_HEIGHT } from "../constants/dimensions";
 import { MERMAID_SAMPLES } from "../constants/samples";
 import { SVG_SANITIZE_CONFIG } from "../hooks/useMermaidRender";
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
@@ -12,12 +10,14 @@ import type { UseZoomPanReturn } from "../hooks/useZoomPan";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import { extractDiagramAltText } from "../utils/diagramAltText";
 import { extractMermaidConfig, mergeMermaidConfig } from "../utils/mermaidConfig";
+import { DraggableSplitLayout } from "./DraggableSplitLayout";
 import { EditDialogHeader } from "./EditDialogHeader";
 import { EditDialogWrapper } from "./EditDialogWrapper";
 import { FullscreenDiffView } from "./FullscreenDiffView";
 import { LineNumberTextarea } from "./LineNumberTextarea";
 import { SamplePanel } from "./SamplePanel";
 import { ZoomToolbar } from "./ZoomToolbar";
+import { ZoomablePreview } from "./ZoomablePreview";
 
 interface MermaidEditDialogProps {
   open: boolean;
@@ -50,12 +50,7 @@ export function MermaidEditDialog({
 }: MermaidEditDialogProps) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
-  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const settings = useEditorSettingsContext();
-
-  const [fsSplitPx, setFsSplitPx] = useState(FS_CODE_INITIAL_WIDTH);
-  const [fsDragging, setFsDragging] = useState(false);
-  const fsContainerRef = useRef<HTMLDivElement>(null);
 
   // --- Code / Config tab state ---
   const [activeTab, setActiveTab] = useState<"code" | "config">("code");
@@ -135,28 +130,12 @@ export function MermaidEditDialog({
         />
       ) : (
         /* Normal view: Code/Config + Divider + Preview */
-        <Box
-          ref={fsContainerRef}
-          sx={{ flex: 1, display: "flex", flexDirection: isMobile ? "column" : "row", overflow: "hidden", position: "relative" }}
-          onPointerMove={(e: React.PointerEvent) => {
-            if (fsDragging && fsContainerRef.current) {
-              const rect = fsContainerRef.current.getBoundingClientRect();
-              const px = e.clientX - rect.left;
-              setFsSplitPx(Math.min(rect.width - FS_CODE_MIN_WIDTH, Math.max(FS_CODE_MIN_WIDTH, px)));
-            }
-            if (!fsDragging) fsZP.handlePointerMove(e);
-          }}
-          onPointerUp={(e: React.PointerEvent) => {
-            if (fsDragging) {
-              setFsDragging(false);
-              (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
-            } else {
-              fsZP.handlePointerUp();
-            }
-          }}
-        >
-          {/* Code / Config editor */}
-          <Box sx={{ width: isMobile ? "100%" : `${fsSplitPx}px`, height: isMobile ? "40%" : "auto", minWidth: isMobile ? undefined : FS_CODE_MIN_WIDTH, display: "flex", flexDirection: "column", pointerEvents: fsDragging ? "none" : "auto" }}>
+        <DraggableSplitLayout
+          onPointerMove={fsZP.handlePointerMove}
+          onPointerUp={fsZP.handlePointerUp}
+          t={t}
+          left={
+            <>
               {/* Tabs + toolbar */}
               <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: "divider" }}>
                 <Tabs
@@ -195,58 +174,19 @@ export function MermaidEditDialog({
                 />
               )}
               <SamplePanel samples={MERMAID_SAMPLES.filter(s => s.enabled)} onInsert={handleInsertSample} readOnly={readOnly} t={t} />
-            </Box>
-          {/* Draggable divider (desktop only) */}
-          <Box
-            role="separator"
-              aria-orientation="vertical"
-              aria-label={t("resizeSplitter")}
-              aria-valuenow={fsSplitPx}
-              aria-valuemin={FS_CODE_MIN_WIDTH}
-              aria-valuemax={1200}
-              tabIndex={0}
-              onKeyDown={(e: React.KeyboardEvent) => {
-                if (e.key === "ArrowLeft") {
-                  setFsSplitPx((v) => Math.max(FS_CODE_MIN_WIDTH, v - 40));
-                  e.preventDefault();
-                } else if (e.key === "ArrowRight") {
-                  setFsSplitPx((v) => v + 40);
-                  e.preventDefault();
-                }
-              }}
-              onPointerDown={(e: React.PointerEvent) => {
-                setFsDragging(true);
-                (e.target as HTMLElement).setPointerCapture(e.pointerId);
-                e.preventDefault();
-              }}
-              sx={{ display: isMobile ? "none" : "block", ...SPLITTER_SX }}
-            />
-          {/* Horizontal divider (mobile only) */}
-          <Divider sx={{ display: isMobile ? "block" : "none" }} />
-          {/* Preview area */}
-          <Box sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-            <ZoomToolbar fsZP={fsZP} onCapture={onCapture} t={t} />
-            {/* Preview */}
-            <Box
-              sx={{
-                flex: 1,
-                overflow: "hidden",
-                bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
-                cursor: fsDragging ? "col-resize" : "grab",
-                "&:active": { cursor: fsDragging ? "col-resize" : "grabbing" },
-                pointerEvents: fsDragging ? "none" : "auto",
-              }}
-              onPointerDown={fsZP.handlePointerDown}
-              onWheel={fsZP.handleWheel}
-            >
-              <Box sx={{ width: "100%", height: "100%", display: "flex", justifyContent: "center", alignItems: "center", transform: `translate(${fsZP.pan.x}px, ${fsZP.pan.y}px) scale(${fsZP.zoom})`, transformOrigin: "center center", transition: fsZP.isPanningRef.current ? "none" : `transform ${TRANSITION_FAST}`, ...REDUCED_MOTION_SX, pointerEvents: "none" }}>
+            </>
+          }
+          right={
+            <>
+              <ZoomToolbar fsZP={fsZP} onCapture={onCapture} t={t} />
+              <ZoomablePreview fsZP={fsZP}>
                 {displaySvg && (
                   <Box role="img" aria-label={extractDiagramAltText(code, "mermaid")} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(displaySvg, SVG_SANITIZE_CONFIG) }} sx={{ "& svg": { maxWidth: "100%", height: "auto" } }} />
                 )}
-              </Box>
-            </Box>
-          </Box>
-        </Box>
+              </ZoomablePreview>
+            </>
+          }
+        />
       )}
     </EditDialogWrapper>
   );
