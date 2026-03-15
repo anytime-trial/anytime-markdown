@@ -222,7 +222,24 @@ export function TableNodeView({ editor, node, getPos }: NodeViewProps) {
               <NodeViewContent<"table"> as="table" />
             </Box>
             {/* Right: comparison table (read-only) */}
-            <Box sx={{ flex: 1, overflow: "auto", bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG, p: 2, "& table": tableSx }}>
+            <Box sx={{
+              flex: 1, overflow: "auto", bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG, p: 2,
+              "& table": {
+                borderCollapse: "collapse",
+                width: settings.tableWidth,
+              },
+              "& th, & td": {
+                border: "1px solid",
+                borderColor: "divider",
+                px: 1, py: 0.5,
+                textAlign: "left",
+                minWidth: 80,
+              },
+              "& th": {
+                bgcolor: "action.hover",
+                fontWeight: 600,
+              },
+            }}>
               <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "0.7rem", mb: 1, display: "block" }}>{t("compare")}</Typography>
               <Box dangerouslySetInnerHTML={{ __html: compareTableHtml }} />
             </Box>
