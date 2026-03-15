@@ -1,21 +1,21 @@
 "use client";
 
-import CloseIcon from "@mui/icons-material/Close";
 import EditIcon from "@mui/icons-material/Edit";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
-import { Box, Dialog, DialogTitle, Divider, IconButton, Tooltip, Typography, useTheme } from "@mui/material";
+import { Box, Divider, IconButton, Tooltip, Typography, useTheme } from "@mui/material";
 import type { NodeViewProps } from "@tiptap/react";
 import { NodeViewWrapper } from "@tiptap/react";
 import { useTranslations } from "next-intl";
-import { useCallback, useEffect,useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { BlockInlineToolbar } from "./components/codeblock/BlockInlineToolbar";
 import { DeleteBlockDialog } from "./components/codeblock/DeleteBlockDialog";
+import { EditDialogHeader } from "./components/EditDialogHeader";
+import { EditDialogWrapper } from "./components/EditDialogWrapper";
 import { useBlockResize } from "./hooks/useBlockResize";
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getEditDialogBg } from "./constants/colors";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "./constants/colors";
 import { useDeleteBlock } from "./hooks/useDeleteBlock";
-import { useEditorSettingsContext } from "./useEditorSettings";
 import { useNodeSelected } from "./hooks/useNodeSelected";
 import { getEditorStorage } from "./types";
 
@@ -25,7 +25,6 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
   const t = useTranslations("MarkdownEditor");
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
-  const settings = useEditorSettingsContext();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const collapsed = !!node.attrs.collapsed;
@@ -98,29 +97,17 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
   return (
     <NodeViewWrapper>
       {/* Edit Dialog */}
-      <Dialog
-        open={editOpen}
-        onClose={() => setEditOpen(false)}
-        fullScreen
-        aria-labelledby="image-edit-title"
-        slotProps={{ paper: { sx: { bgcolor: getEditDialogBg(isDark, settings), display: "flex", flexDirection: "column" } } }}
-      >
-        <Box sx={{ display: "flex", alignItems: "center", px: 2, py: 1, borderBottom: 1, borderColor: "divider" }}>
-          <Tooltip title={t("close")} placement="bottom">
-            <IconButton size="small" onClick={() => setEditOpen(false)} sx={{ mr: 1 }} aria-label={t("close")}>
-              <CloseIcon sx={{ fontSize: 20 }} />
-            </IconButton>
-          </Tooltip>
-          <DialogTitle id="image-edit-title" sx={{ p: 0, fontSize: "0.875rem", fontWeight: 600, mr: 1 }}>
-            {t("image")}
-          </DialogTitle>
-          <Box sx={{ flex: 1 }} />
-          {imgSize && (
+      <EditDialogWrapper open={editOpen} onClose={() => setEditOpen(false)} ariaLabelledBy="image-edit-title">
+        <EditDialogHeader
+          label={t("image")}
+          onClose={() => setEditOpen(false)}
+          t={t}
+          extra={imgSize ? (
             <Typography variant="caption" sx={{ color: "text.disabled", fontSize: "0.65rem", fontFamily: "monospace", whiteSpace: "nowrap" }}>
               {imgSize.w}×{imgSize.h} / {imgSize.nw}×{imgSize.nh}
             </Typography>
-          )}
-        </Box>
+          ) : undefined}
+        />
         {/* Image toolbar (second row) */}
         {isEditable && (
           <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: "divider", px: 1, py: 0.25, minHeight: 32 }}>
@@ -141,7 +128,7 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
             />
           )}
         </Box>
-      </Dialog>
+      </EditDialogWrapper>
       {/* Inline view */}
       <Box
         sx={{

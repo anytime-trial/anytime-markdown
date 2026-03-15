@@ -1,16 +1,9 @@
-import CloseIcon from "@mui/icons-material/Close";
-import ExpandLessIcon from "@mui/icons-material/ExpandLess";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
-import RestartAltIcon from "@mui/icons-material/RestartAlt";
-import ZoomInIcon from "@mui/icons-material/ZoomIn";
-import ZoomOutIcon from "@mui/icons-material/ZoomOut";
-import { Box, Chip, Dialog, DialogTitle, Divider, IconButton, Tab, Tabs, Tooltip, Typography, useMediaQuery, useTheme } from "@mui/material";
+import { Box, Divider, Tab, Tabs, useMediaQuery, useTheme } from "@mui/material";
 import DOMPurify from "dompurify";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getEditDialogBg } from "../constants/colors";
-import { FS_CHIP_HEIGHT, FS_CODE_INITIAL_WIDTH, FS_CODE_MIN_WIDTH, FS_TOOLBAR_HEIGHT, FS_ZOOM_LABEL_WIDTH } from "../constants/dimensions";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "../constants/colors";
+import { FS_CODE_INITIAL_WIDTH, FS_CODE_MIN_WIDTH, FS_TOOLBAR_HEIGHT } from "../constants/dimensions";
 import { REDUCED_MOTION_SX, SPLITTER_SX, TRANSITION_FAST } from "../constants/uiPatterns";
 import { MERMAID_SAMPLES } from "../constants/samples";
 import { SVG_SANITIZE_CONFIG } from "../hooks/useMermaidRender";
@@ -19,8 +12,12 @@ import type { UseZoomPanReturn } from "../hooks/useZoomPan";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import { extractDiagramAltText } from "../utils/diagramAltText";
 import { extractMermaidConfig, mergeMermaidConfig } from "../utils/mermaidConfig";
-import { LineNumberTextarea } from "./LineNumberTextarea";
+import { EditDialogHeader } from "./EditDialogHeader";
+import { EditDialogWrapper } from "./EditDialogWrapper";
 import { FullscreenDiffView } from "./FullscreenDiffView";
+import { LineNumberTextarea } from "./LineNumberTextarea";
+import { SamplePanel } from "./SamplePanel";
+import { ZoomToolbar } from "./ZoomToolbar";
 
 interface MermaidEditDialogProps {
   open: boolean;
@@ -104,7 +101,6 @@ export function MermaidEditDialog({
   }, [bodyText, onFsTextChange]);
 
   // --- Sample panel ---
-  const [samplesOpen, setSamplesOpen] = useState(false);
   const handleInsertSample = useCallback((sampleCode: string) => {
     setBodyText(sampleCode);
     onFsTextChange(mergeMermaidConfig(configText, sampleCode));
@@ -126,34 +122,8 @@ export function MermaidEditDialog({
   const showCompareView = isCompareMode && compareCode != null;
 
   return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      fullScreen
-      aria-labelledby="mermaid-edit-title"
-      slotProps={{ paper: { sx: { bgcolor: getEditDialogBg(isDark, settings), display: "flex", flexDirection: "column" } } }}
-      onKeyDown={(e: React.KeyboardEvent) => {
-        if (showCompareView) return;
-        const mod = e.metaKey || e.ctrlKey;
-        if (mod && (e.key === "f" || e.key === "h")) {
-          e.preventDefault();
-          e.stopPropagation();
-          fsSearch.focusSearch();
-        }
-      }}
-    >
-      {/* Toolbar */}
-      <Box sx={{ display: "flex", alignItems: "center", px: 2, py: 1, borderBottom: 1, borderColor: "divider", position: "relative" }}>
-        <Tooltip title={t("close")} placement="bottom">
-          <IconButton size="small" onClick={onClose} sx={{ mr: 1 }} aria-label={t("close")}>
-            <CloseIcon sx={{ fontSize: 20 }} />
-          </IconButton>
-        </Tooltip>
-        <DialogTitle id="mermaid-edit-title" sx={{ p: 0, fontSize: "0.875rem", fontWeight: 600, mr: 1 }}>
-          {label}{showCompareView ? ` - ${t("compare")}` : ""}
-        </DialogTitle>
-        <Box sx={{ flex: 1 }} />
-      </Box>
+    <EditDialogWrapper open={open} onClose={onClose} ariaLabelledBy="mermaid-edit-title">
+      <EditDialogHeader label={label} onClose={onClose} showCompareView={showCompareView} t={t} />
 
       {/* Compare view */}
       {showCompareView ? (
@@ -224,33 +194,7 @@ export function MermaidEditDialog({
                   isDark={isDark}
                 />
               )}
-              {/* Sample Diagrams panel */}
-              {!readOnly && (
-                <Box sx={{ borderTop: 1, borderColor: "divider", flexShrink: 0 }}>
-                  <Box
-                    onClick={() => setSamplesOpen((v) => !v)}
-                    sx={{ display: "flex", alignItems: "center", px: 1.5, py: 0.5, cursor: "pointer", userSelect: "none", "&:hover": { bgcolor: "action.hover" } }}
-                  >
-                    <Typography variant="caption" sx={{ fontWeight: 600, fontSize: "0.75rem", flex: 1 }}>
-                      {t("sampleContent")}
-                    </Typography>
-                    {samplesOpen ? <ExpandLessIcon sx={{ fontSize: 16, color: "text.secondary" }} /> : <ExpandMoreIcon sx={{ fontSize: 16, color: "text.secondary" }} />}
-                  </Box>
-                  {samplesOpen && (
-                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, px: 1.5, pb: 1.5 }}>
-                      {MERMAID_SAMPLES.filter((s) => s.enabled).map((sample) => (
-                        <Chip
-                          key={sample.label}
-                          label={t(sample.i18nKey)}
-                          size="small"
-                          onClick={() => handleInsertSample(sample.code)}
-                          sx={{ fontSize: "0.7rem", height: FS_CHIP_HEIGHT }}
-                        />
-                      ))}
-                    </Box>
-                  )}
-                </Box>
-              )}
+              <SamplePanel samples={MERMAID_SAMPLES.filter(s => s.enabled)} onInsert={handleInsertSample} readOnly={readOnly} t={t} />
             </Box>
           {/* Draggable divider (desktop only) */}
           <Box
@@ -281,36 +225,7 @@ export function MermaidEditDialog({
           <Divider sx={{ display: isMobile ? "block" : "none" }} />
           {/* Preview area */}
           <Box sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-            {/* Preview toolbar */}
-            <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: "divider", px: 1, py: 0.25, minHeight: FS_TOOLBAR_HEIGHT }}>
-              {onCapture && (
-                <Tooltip title={t("capture")} placement="bottom">
-                  <IconButton size="small" sx={{ p: 0.25, mr: 0.5 }} onClick={onCapture} aria-label={t("capture")}>
-                    <PhotoCameraIcon sx={{ fontSize: 16, color: "text.secondary" }} />
-                  </IconButton>
-                </Tooltip>
-              )}
-              <Tooltip title={t("zoomOut")} placement="bottom">
-                <IconButton size="small" sx={{ p: 0.25 }} onClick={fsZP.zoomOut} aria-label={t("zoomOut")}>
-                  <ZoomOutIcon sx={{ fontSize: 16, color: "text.secondary" }} />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title={t("zoomIn")} placement="bottom">
-                <IconButton size="small" sx={{ p: 0.25 }} onClick={fsZP.zoomIn} aria-label={t("zoomIn")}>
-                  <ZoomInIcon sx={{ fontSize: 16, color: "text.secondary" }} />
-                </IconButton>
-              </Tooltip>
-              {fsZP.isDirty && (
-                <Tooltip title={t("zoomReset")} placement="bottom">
-                  <IconButton size="small" sx={{ p: 0.25 }} onClick={fsZP.reset} aria-label={t("zoomReset")}>
-                    <RestartAltIcon sx={{ fontSize: 16, color: "text.secondary" }} />
-                  </IconButton>
-                </Tooltip>
-              )}
-              <Typography variant="caption" sx={{ minWidth: FS_ZOOM_LABEL_WIDTH, textAlign: "center", fontSize: "0.7rem" }}>
-                {Math.round(fsZP.zoom * 100)}%
-              </Typography>
-            </Box>
+            <ZoomToolbar fsZP={fsZP} onCapture={onCapture} t={t} />
             {/* Preview */}
             <Box
               sx={{
@@ -333,6 +248,6 @@ export function MermaidEditDialog({
           </Box>
         </Box>
       )}
-    </Dialog>
+    </EditDialogWrapper>
   );
 }
