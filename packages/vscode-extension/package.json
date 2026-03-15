@@ -97,6 +97,11 @@
         "command": "anytime-markdown.specDocsRefresh",
         "title": "%command.specDocsRefresh%",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "anytime-markdown.toggleMdOnly",
+        "title": "%command.toggleMdOnly%",
+        "icon": "$(filter)"
       }
     ],
     "customEditors": [
@@ -136,14 +141,19 @@
     "menus": {
       "view/title": [
         {
+          "command": "anytime-markdown.toggleMdOnly",
+          "when": "view == anytimeMarkdown.specDocs",
+          "group": "navigation@1"
+        },
+        {
           "command": "anytime-markdown.specDocsRefresh",
           "when": "view == anytimeMarkdown.specDocs && anytimeMarkdown.specDocsHasRoot",
-          "group": "navigation@1"
+          "group": "navigation@2"
         },
         {
           "command": "anytime-markdown.specDocsClose",
           "when": "view == anytimeMarkdown.specDocs && anytimeMarkdown.specDocsHasRoot",
-          "group": "navigation@2"
+          "group": "navigation@3"
         }
       ],
       "explorer/context": [

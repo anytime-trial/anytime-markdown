@@ -15,5 +15,6 @@
   "command.specDocsOpenFolder": "Open Folder",
   "command.specDocsCloneRepo": "Clone Repository",
   "command.specDocsClose": "Close Folder",
-  "command.specDocsRefresh": "Refresh"
+  "command.specDocsRefresh": "Refresh",
+  "command.toggleMdOnly": "Toggle Markdown Only Filter"
 }

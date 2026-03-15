@@ -1,7 +1,7 @@
 # Anytime Markdown
 
 Tiptap ベースのリッチマークダウンエディタ。\
-Web アプリ、VS Code 拡張機能、Android アプリの3つのプラットフォームで動作する。
+Web アプリ、VS Code 拡張機能、Android アプリの3つのプラットフォームで動作する。１１
 
 
 ## 主な機能

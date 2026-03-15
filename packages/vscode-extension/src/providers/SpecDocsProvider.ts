@@ -3,6 +3,12 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 const STORAGE_KEY = 'anytimeMarkdown.specDocsRoot';
+const MD_ONLY_KEY = 'anytimeMarkdown.mdOnly';
+
+function isMarkdownFile(name: string): boolean {
+	const lower = name.toLowerCase();
+	return lower.endsWith('.md') || lower.endsWith('.markdown');
+}
 
 export class SpecDocsItem extends vscode.TreeItem {
 	constructor(
@@ -32,6 +38,7 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsItem> {
 	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
 	private rootPath: string | null = null;
+	private _mdOnly: boolean;
 
 	constructor(private readonly context: vscode.ExtensionContext) {
 		const saved = context.globalState.get<string>(STORAGE_KEY);
@@ -39,7 +46,11 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsItem> {
 			this.rootPath = saved;
 			vscode.commands.executeCommand('setContext', 'anytimeMarkdown.specDocsHasRoot', true);
 		}
+		this._mdOnly = context.globalState.get<boolean>(MD_ONLY_KEY, true);
+		vscode.commands.executeCommand('setContext', 'anytimeMarkdown.mdOnly', this._mdOnly);
 	}
+
+	get mdOnly(): boolean { return this._mdOnly; }
 
 	getTreeItem(element: SpecDocsItem): vscode.TreeItem {
 		return element;
@@ -58,26 +69,25 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsItem> {
 		const entries = fs.readdirSync(dirPath, { withFileTypes: true });
 		const items: SpecDocsItem[] = [];
 
-		// ディレクトリ（.md を含むもののみ）
+		// ディレクトリ
 		for (const entry of entries) {
 			if (!entry.isDirectory()) continue;
 			if (entry.name.startsWith('.') || entry.name === 'node_modules') continue;
 			const fullPath = path.join(dirPath, entry.name);
-			if (this.containsMarkdown(fullPath)) {
-				items.push(new SpecDocsItem(
-					entry.name,
-					vscode.Uri.file(fullPath),
-					true,
-					vscode.TreeItemCollapsibleState.Collapsed,
-				));
-			}
+			if (this._mdOnly && !this.containsMarkdown(fullPath)) continue;
+			items.push(new SpecDocsItem(
+				entry.name,
+				vscode.Uri.file(fullPath),
+				true,
+				vscode.TreeItemCollapsibleState.Collapsed,
+			));
 		}
 
-		// .md ファイル
+		// ファイル
 		for (const entry of entries) {
 			if (!entry.isFile()) continue;
-			const lower = entry.name.toLowerCase();
-			if (!lower.endsWith('.md') && !lower.endsWith('.markdown')) continue;
+			if (entry.name.startsWith('.')) continue;
+			if (this._mdOnly && !isMarkdownFile(entry.name)) continue;
 			items.push(new SpecDocsItem(
 				entry.name,
 				vscode.Uri.file(path.join(dirPath, entry.name)),
@@ -163,6 +173,13 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsItem> {
 	}
 
 	refresh(): void {
+		this._onDidChangeTreeData.fire(undefined);
+	}
+
+	toggleMdOnly(): void {
+		this._mdOnly = !this._mdOnly;
+		this.context.globalState.update(MD_ONLY_KEY, this._mdOnly);
+		vscode.commands.executeCommand('setContext', 'anytimeMarkdown.mdOnly', this._mdOnly);
 		this._onDidChangeTreeData.fire(undefined);
 	}
 

@@ -15,5 +15,6 @@
   "command.specDocsOpenFolder": "フォルダーを開く",
   "command.specDocsCloneRepo": "リポジトリをクローンする",
   "command.specDocsClose": "フォルダーを閉じる",
-  "command.specDocsRefresh": "更新"
+  "command.specDocsRefresh": "更新",
+  "command.toggleMdOnly": "Markdownファイルのみ表示を切替"
 }

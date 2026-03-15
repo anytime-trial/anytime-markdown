@@ -169,13 +169,16 @@ export function activate(context: vscode.ExtensionContext) {
 	const specDocsRefresh = vscode.commands.registerCommand(
 		'anytime-markdown.specDocsRefresh', () => specDocsProvider.refresh()
 	);
+	const toggleMdOnly = vscode.commands.registerCommand(
+		'anytime-markdown.toggleMdOnly', () => specDocsProvider.toggleMdOnly()
+	);
 
 	context.subscriptions.push(
 		gitTreeView, specDocsTreeView,
 		...statusBarItems,
 		openEditorWithFile, compareCmd, compareWithCommit,
 		insertSectionNumbers, removeSectionNumbers,
-		specDocsOpenFolder, specDocsCloneRepo, specDocsClose, specDocsRefresh,
+		specDocsOpenFolder, specDocsCloneRepo, specDocsClose, specDocsRefresh, toggleMdOnly,
 	);
 }
 
