@@ -117,7 +117,8 @@ export function HtmlPreviewBlock(props: HtmlPreviewBlockProps) {
           aria-label={t("htmlPreview")}
           contentEditable={false}
           onClick={selectNode}
-          sx={{ pt: 0, px: 2, pb: 2, bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG, borderTop: codeCollapsed ? 0 : 1, borderColor: "divider", overflow: "auto", maxHeight: PREVIEW_MAX_HEIGHT, "& img": { maxWidth: "100%" } }}
+          onDoubleClick={() => setFullscreen(true)}
+          sx={{ pt: 0, px: 2, pb: 2, bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG, borderTop: codeCollapsed ? 0 : 1, borderColor: "divider", overflow: "auto", maxHeight: PREVIEW_MAX_HEIGHT, cursor: "pointer", "& img": { maxWidth: "100%" } }}
           dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(code, HTML_SANITIZE_CONFIG) }}
         />
     </CodeBlockFrame>
