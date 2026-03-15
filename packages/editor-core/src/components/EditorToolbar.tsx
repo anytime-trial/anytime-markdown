@@ -7,6 +7,7 @@ import ListAltIcon from "@mui/icons-material/ListAlt";
 import LockIcon from "@mui/icons-material/Lock";
 import MenuIcon from "@mui/icons-material/Menu";
 import RedoIcon from "@mui/icons-material/Redo";
+import RefreshIcon from "@mui/icons-material/Refresh";
 import UndoIcon from "@mui/icons-material/Undo";
 import ViewStreamIcon from "@mui/icons-material/ViewStream";
 import VisibilityIcon from "@mui/icons-material/Visibility";
@@ -109,6 +110,7 @@ interface EditorToolbarProps {
   onOpenSettings?: () => void;
   onOpenVersionDialog?: () => void;
   onAnnounce?: (message: string) => void;
+  onReload?: () => void;
   t: TranslationFn;
 }
 
@@ -129,6 +131,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
   onOpenSettings,
   onOpenVersionDialog,
   onAnnounce: _onAnnounce,
+  onReload,
   t,
 }: EditorToolbarProps) {
   const {
@@ -285,6 +288,15 @@ export const EditorToolbar = React.memo(function EditorToolbar({
             </Tooltip>
           </ToggleButton>
         </ToggleButtonGroup>
+      )}
+
+      {/* Reload (VS Code extension only) */}
+      {onReload && (
+        <Tooltip title={t("reload")}>
+          <IconButton size="small" aria-label={t("reload")} onClick={onReload}>
+            <RefreshIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
       )}
 
       {/* Outline, Comments - hidden on mobile */}

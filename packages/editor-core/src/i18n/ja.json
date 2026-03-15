@@ -87,6 +87,8 @@
     "searchResults": "{current} / {total}",
     "undo": "元に戻す",
     "redo": "やり直し",
+    "reload": "再読込",
+    "externalChangeNotification": "ファイルが外部で変更されました",
     "bold": "太字",
     "italic": "斜体",
     "underline": "下線",

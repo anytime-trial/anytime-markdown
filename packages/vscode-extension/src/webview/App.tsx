@@ -69,10 +69,7 @@ export function App() {
         window.dispatchEvent(new CustomEvent('vscode-load-compare-file', { detail: message.content }));
         return;
       }
-      if (message?.type === 'externalChange' && typeof message.content === 'string') {
-        window.dispatchEvent(new CustomEvent('vscode-external-change', { detail: message.content }));
-        return;
-      }
+      // externalChange は VS Code 通知で処理するため webview では不要
       if (message?.type === 'scrollToHeading' && typeof message.pos === 'number') {
         window.dispatchEvent(new CustomEvent('vscode-scroll-to-heading', { detail: message.pos }));
         return;
@@ -152,6 +149,10 @@ export function App() {
     vscode.postMessage({ type: 'statusChanged', status });
   }, []);
 
+  const handleReload = useCallback(() => {
+    vscode.postMessage({ type: 'requestReload' });
+  }, []);
+
   useEffect(() => {
     const openLink = (e: MouseEvent) => {
       const anchor = (e.target as HTMLElement).closest('a');
@@ -181,7 +182,7 @@ export function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <ConfirmProvider>
-        <MarkdownEditorPage key={editorKey} hideFileOps hideUndoRedo hideSettings hideVersionInfo hideOutline hideComments hideTemplates hideFoldAll hideStatusBar externalCompareContent={compareContent} onCompareModeChange={handleCompareModeChange} onHeadingsChange={handleHeadingsChange} onCommentsChange={handleCommentsChange} onStatusChange={handleStatusChange} />
+        <MarkdownEditorPage key={editorKey} hideFileOps hideUndoRedo hideSettings hideVersionInfo hideOutline hideComments hideTemplates hideFoldAll hideStatusBar externalCompareContent={compareContent} onCompareModeChange={handleCompareModeChange} onHeadingsChange={handleHeadingsChange} onCommentsChange={handleCommentsChange} onStatusChange={handleStatusChange} onReload={handleReload} />
       </ConfirmProvider>
     </ThemeProvider>
   );

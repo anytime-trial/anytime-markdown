@@ -87,6 +87,8 @@
     "searchResults": "{current} / {total}",
     "undo": "Undo",
     "redo": "Redo",
+    "reload": "Reload",
+    "externalChangeNotification": "File has been modified externally",
     "bold": "Bold",
     "italic": "Italic",
     "underline": "Underline",
