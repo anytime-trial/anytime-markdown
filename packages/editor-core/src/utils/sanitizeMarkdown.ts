@@ -19,6 +19,7 @@ const isListStart = (line: string) => /^[-*+]\s|^\d+[.)]\s/.test(line);
 const isBlockquoteStart = (line: string) => /^>\s?/.test(line);
 const isHR = (line: string) => /^(?:---+|___+|\*\*\*+)\s*$/.test(line);
 const isIndented = (line: string) => /^[ \t]/.test(line);
+const isTableRow = (line: string) => /^\|/.test(line.trimStart());
 /** 新しいブロックを開始する行か */
 const isBlockStart = (line: string) =>
   isHeading(line) || isListStart(line) || isBlockquoteStart(line) || isHR(line);
@@ -76,6 +77,42 @@ function markTightBlockTransitions(text: string): string {
   }
 
   return marked.join("\n");
+}
+
+/**
+ * 同一段落内の連続プレーンテキスト行にハードブレイク（\）を付加する。
+ * CommonMark では連続行は1段落に結合されるが、元の改行を保持するためバックスラッシュを追加する。
+ * コードブロック外のテキストに対して markTightBlockTransitions の後に呼び出すこと。
+ */
+function addHardBreaksToConsecutiveLines(text: string): string {
+  const lines = text.split("\n");
+  if (lines.length < 2) return text;
+
+  const result = [...lines];
+  for (let i = 0; i < lines.length - 1; i++) {
+    const cur = lines[i];
+    const nxt = lines[i + 1];
+
+    // 空行はスキップ
+    if (cur === "" || nxt === "") continue;
+    // 既にハードブレイクがある行はスキップ
+    if (cur.endsWith("\\") || cur.endsWith("  ")) continue;
+    // tight transition マーカー付きの行はスキップ（別ブロック遷移として処理済み）
+    if (cur.endsWith(TIGHT_TRANSITION_MARKER) || cur.endsWith(" " + TIGHT_TRANSITION_MARKER)) continue;
+    // ブロック要素はスキップ
+    if (isHeading(cur) || isHR(cur)) continue;
+    if (isListStart(cur) || isListStart(nxt)) continue;
+    if (isBlockquoteStart(cur) || isBlockquoteStart(nxt)) continue;
+    if (isTableRow(cur) || isTableRow(nxt)) continue;
+    if (isBlockStart(nxt)) continue;
+    // インデント行（リスト継続等）はスキップ
+    if (isIndented(cur) || isIndented(nxt)) continue;
+
+    // 両方がプレーンテキスト → ハードブレイクを付加
+    result[i] = cur + "\\";
+  }
+
+  return result.join("\n");
 }
 
 /**
@@ -291,6 +328,7 @@ export function preserveBlankLines(md: string): string {
     // tiptap が blockquote ノードを結合する挙動を利用して元に戻す。
     part = part.replace(/^(>[ \t]*)\n(> \*\*)/gm, "$1\n\n$2");
     part = markTightBlockTransitions(part);
+    part = addHardBreaksToConsecutiveLines(part);
     return part.replace(/\n{3,}/g, (match) => {
       const extra = match.length - 2;
       return "\n\n" + `${BLANK_LINE_MARKER}\n\n`.repeat(extra);

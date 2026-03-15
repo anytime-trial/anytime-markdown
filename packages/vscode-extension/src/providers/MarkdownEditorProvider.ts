@@ -91,6 +91,9 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     let isApplyingWebviewEdit = false;
     let debounceTimer: ReturnType<typeof setTimeout> | undefined;
     let disposed = false;
+    // 初回ロード後の TipTap 正規化による contentChanged を無視するフラグ
+    // ユーザーが実際に編集するまでファイルへの書き戻しを抑制
+    let initialLoadComplete = false;
 
     const isLargeFile = () => document.getText().length > 100 * 1024;
 
@@ -241,6 +244,11 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
           // POSIX 準拠: テキストファイルは末尾改行で終わる
           if (newContent && !newContent.endsWith("\n")) { newContent += "\n"; }
           if (newContent === document.getText()) { return; }
+          // 初回ロード後の TipTap 正規化による変更を無視
+          if (!initialLoadComplete) {
+            initialLoadComplete = true;
+            return;
+          }
 
           if (debounceTimer) { clearTimeout(debounceTimer); }
           const delay = isLargeFile() ? 800 : 300;

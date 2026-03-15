@@ -223,11 +223,19 @@ describe("preserveBlankLines", () => {
     const cases = [
       "テキスト\n\n- リスト",
       "- 項目A\n\n1. 項目B",
-      "行1\n行2\n行3",
     ];
     for (const input of cases) {
       expect(preserveBlankLines(input)).toBe(input);
     }
+  });
+
+  test("連続プレーンテキスト行にハードブレイクを付加する", () => {
+    expect(preserveBlankLines("行1\n行2\n行3")).toBe("行1\\\n行2\\\n行3");
+  });
+
+  test("既にハードブレイクがある行はそのまま保持する", () => {
+    const input = "行1\\\n行2\\\n行3";
+    expect(preserveBlankLines(input)).toBe(input);
   });
 
   test("バックスラッシュ改行（ハードブレイク）を tight transition と誤判定しない", () => {
