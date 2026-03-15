@@ -3,6 +3,8 @@
 import CategoryIcon from "@mui/icons-material/Category";
 import CodeIcon from "@mui/icons-material/Code";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import FormatListNumberedIcon from "@mui/icons-material/FormatListNumbered";
+import FormatListBulletedIcon from "@mui/icons-material/FormatListBulleted";
 import GridOnIcon from "@mui/icons-material/GridOn";
 import ImageIcon from "@mui/icons-material/Image";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
@@ -23,8 +25,6 @@ import React, { useCallback, useMemo,useState } from "react";
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "../constants/colors";
 import MermaidIcon from "../icons/MermaidIcon";
 import type { HeadingItem, OutlineKind, TranslationFn } from "../types";
-
-const MANUAL_NUMBER_RE = /^\d+(\.\d+)*\.?\s/;
 
 const blockIcon: Record<Exclude<OutlineKind, "heading">, React.ReactElement> = {
   codeBlock: <CodeIcon sx={{ fontSize: 14 }} />,
@@ -48,6 +48,8 @@ interface OutlinePanelProps {
   handleOutlineResizeStart: (e: React.MouseEvent) => void;
   onHeadingDragEnd?: (fromIdx: number, toIdx: number) => void;
   onOutlineDelete?: (pos: number, kind: string) => void;
+  onInsertSectionNumbers?: () => void;
+  onRemoveSectionNumbers?: () => void;
   t: TranslationFn;
 }
 
@@ -65,30 +67,14 @@ export function OutlinePanel({
   handleOutlineResizeStart,
   onHeadingDragEnd,
   onOutlineDelete,
+  onInsertSectionNumbers,
+  onRemoveSectionNumbers,
   t,
 }: OutlinePanelProps) {
   const theme = useTheme();
   const [showBlocks, setShowBlocks] = useState(false);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dropIdx, setDropIdx] = useState<number | null>(null);
-
-  // セクション番号マップ（見出しの pos → "1.2.3. "）
-  // 自動判定: 見出しに手動番号が多い場合は非表示
-  const sectionNumberMap = useMemo(() => {
-    const headingItems = headings.filter((h) => h.kind === "heading");
-    if (headingItems.length < 2) return null;
-    const numberedCount = headingItems.filter((h) => MANUAL_NUMBER_RE.test(h.text)).length;
-    if (numberedCount >= headingItems.length / 2) return null;
-    const map = new Map<number, string>();
-    const counters = [0, 0, 0, 0, 0]; // h1-h5
-    for (const h of headingItems) {
-      const level = h.level - 1; // 0-indexed
-      counters[level]++;
-      for (let i = level + 1; i < 5; i++) counters[i] = 0;
-      map.set(h.pos, counters.slice(0, level + 1).join(".") + ". ");
-    }
-    return map;
-  }, [headings]);
 
   // heading のみのインデックスマップ (headings 配列 idx → headingOnly idx)
   const headingOnlyIndices = useMemo(
@@ -178,6 +164,30 @@ export function OutlinePanel({
               {t("outline")}
             </Typography>
             <Box sx={{ display: "flex", gap: 0.25 }}>
+              {onInsertSectionNumbers && (
+                <Tooltip title={t("insertSectionNumbers")}>
+                  <IconButton
+                    aria-label={t("insertSectionNumbers")}
+                    size="small"
+                    onClick={onInsertSectionNumbers}
+                    sx={{ p: 0.5 }}
+                  >
+                    <FormatListNumberedIcon sx={{ fontSize: 16 }} />
+                  </IconButton>
+                </Tooltip>
+              )}
+              {onRemoveSectionNumbers && (
+                <Tooltip title={t("removeSectionNumbers")}>
+                  <IconButton
+                    aria-label={t("removeSectionNumbers")}
+                    size="small"
+                    onClick={onRemoveSectionNumbers}
+                    sx={{ p: 0.5 }}
+                  >
+                    <FormatListBulletedIcon sx={{ fontSize: 16 }} />
+                  </IconButton>
+                </Tooltip>
+              )}
               <Tooltip title={t("outlineShowBlocks")}>
                 <IconButton
                   aria-label={t("outlineShowBlocks")}
@@ -301,7 +311,7 @@ export function OutlinePanel({
                           "&:focus-visible": { outline: "2px solid", outlineColor: "primary.main", outlineOffset: 1 },
                         }}
                       >
-                        {sectionNumberMap?.get(h.pos) ?? ""}{h.text || "(empty)"}
+                        {h.text || "(empty)"}
                       </Box>
                     </Tooltip>
                     <Box className="outline-move-btns" sx={{ display: "flex", flexShrink: 0, transition: "opacity 0.15s", "@media (prefers-reduced-motion: reduce)": { transition: "none" } }}>

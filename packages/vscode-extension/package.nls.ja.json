@@ -1,0 +1,21 @@
+{
+  "displayName": "Anytime Markdown",
+  "description": "ライブプレビュー・ダイアグラム・比較モード付き WYSIWYG Markdown エディタ",
+  "customEditor.displayName": "Markdown エディタ",
+  "configuration.title": "Anytime Markdown",
+  "configuration.fontSize.description": "エディタのフォントサイズ（px）。0 で VS Code のデフォルトを使用します。",
+  "configuration.editorMaxWidth.description": "エディタコンテンツの最大幅（px）。0 で制限なし。",
+  "command.openEditorWithFile": "Anytime で開く",
+  "command.compareWithMarkdownEditor": "Anytime で比較",
+  "command.resolveComment": "解決",
+  "command.unresolveComment": "再オープン",
+  "command.deleteComment": "削除",
+  "command.filterCommentsAll": "すべて",
+  "command.filterCommentsOpen": "未解決",
+  "command.filterCommentsResolved": "解決済み",
+  "command.toggleBlockElements": "ブロック要素の表示切替",
+  "command.toggleCollapseExpand": "すべて折りたたみ / すべて展開",
+  "command.insertSectionNumbers": "セクション番号を挿入",
+  "command.removeSectionNumbers": "セクション番号を削除",
+  "viewsContainer.title": "Anytime Markdown"
+}

@@ -312,12 +312,83 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     return <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}><CircularProgress /></Box>;
   }
 
+  const SECTION_NUMBER_RE = /^\d+(\.\d+)*\.?\s/;
+  const handleInsertSectionNumbers = useCallback(() => {
+    if (!editor) return;
+    // 1. すべての対象見出しを収集
+    const targets: { pos: number; level: number; text: string }[] = [];
+    editor.state.doc.descendants((node, pos) => {
+      if (node.type.name !== "heading") return;
+      const level = node.attrs.level as number;
+      if (level > 5) return;
+      targets.push({ pos, level, text: node.textContent });
+    });
+    if (targets.length === 0) return;
+    // 2. セクション番号を計算（前から順に）
+    const counters = [0, 0, 0, 0, 0];
+    const prefixes: string[] = [];
+    for (const h of targets) {
+      const idx = h.level - 1;
+      counters[idx]++;
+      for (let i = idx + 1; i < 5; i++) counters[i] = 0;
+      prefixes.push(counters.slice(0, idx + 1).join(".") + ". ");
+    }
+    // 3. 後ろから適用してポジションのずれを防止
+    const { tr } = editor.state;
+    for (let i = targets.length - 1; i >= 0; i--) {
+      const contentStart = targets[i].pos + 1;
+      const existingMatch = targets[i].text.match(SECTION_NUMBER_RE);
+      if (existingMatch) {
+        tr.replaceWith(contentStart, contentStart + existingMatch[0].length, editor.schema.text(prefixes[i]));
+      } else {
+        tr.insertText(prefixes[i], contentStart);
+      }
+    }
+    editor.view.dispatch(tr);
+  }, [editor]);
+  const handleRemoveSectionNumbers = useCallback(() => {
+    if (!editor) return;
+    const { tr } = editor.state;
+    // 後ろから処理してポジションのずれを防止
+    const removals: { from: number; to: number }[] = [];
+    editor.state.doc.descendants((node, pos) => {
+      if (node.type.name !== "heading") return;
+      const level = (node.attrs.level as number);
+      if (level > 5) return;
+      const text = node.textContent;
+      const match = text.match(SECTION_NUMBER_RE);
+      if (match) {
+        removals.push({ from: pos + 1, to: pos + 1 + match[0].length });
+      }
+    });
+    for (let i = removals.length - 1; i >= 0; i--) {
+      tr.delete(removals[i].from, removals[i].to);
+    }
+    editor.view.dispatch(tr);
+  }, [editor]);
+
+  // VS Code からのセクション番号挿入/削除イベント
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const show = (e as CustomEvent<boolean>).detail;
+      if (show) {
+        handleInsertSectionNumbers();
+      } else {
+        handleRemoveSectionNumbers();
+      }
+    };
+    window.addEventListener('vscode-toggle-section-numbers', handler);
+    return () => window.removeEventListener('vscode-toggle-section-numbers', handler);
+  }, [handleInsertSectionNumbers, handleRemoveSectionNumbers]);
+
   const outlineProps = {
     isMd, outlineOpen, handleToggleOutline, outlineWidth, setOutlineWidth, editorHeight,
     headings, foldedIndices, hiddenByFold, foldAll, unfoldAll, toggleFold,
     handleOutlineClick, handleOutlineResizeStart,
     onHeadingDragEnd: (readonlyMode || reviewMode) ? undefined : handleHeadingDragEnd,
     onOutlineDelete: (readonlyMode || reviewMode) ? undefined : handleOutlineDelete,
+    onInsertSectionNumbers: handleInsertSectionNumbers,
+    onRemoveSectionNumbers: handleRemoveSectionNumbers,
     t,
   };
 

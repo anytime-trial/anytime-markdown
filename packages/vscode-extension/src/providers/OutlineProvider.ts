@@ -7,8 +7,6 @@ interface HeadingData {
 	kind: string;
 }
 
-const MANUAL_NUMBER_RE = /^\d+(\.\d+)*\.?\s/;
-
 const KIND_ICONS: Record<string, string> = {
 	heading: 'symbol-structure',
 	mermaid: 'graph',
@@ -94,31 +92,7 @@ export class OutlineProvider implements vscode.TreeDataProvider<OutlineItem> {
 			? headings
 			: headings.filter(h => h.kind === 'heading');
 
-		// セクション番号マップ（web アプリの OutlinePanel と同じ自動判定）
-		const headingItems = headings.filter(h => h.kind === 'heading');
-		let sectionNumberMap: Map<number, string> | null = null;
-		if (headingItems.length >= 2) {
-			const numberedCount = headingItems.filter(h => MANUAL_NUMBER_RE.test(h.text)).length;
-			if (numberedCount < headingItems.length / 2) {
-				sectionNumberMap = new Map();
-				const counters = [0, 0, 0, 0, 0];
-				for (const h of headingItems) {
-					const level = h.level - 1;
-					counters[level]++;
-					for (let i = level + 1; i < 5; i++) counters[i] = 0;
-					sectionNumberMap.set(h.pos, counters.slice(0, level + 1).join('.') + '. ');
-				}
-			}
-		}
-
-		const items = filtered.map(h => {
-			const item = new OutlineItem(h);
-			const prefix = sectionNumberMap?.get(h.pos);
-			if (prefix) {
-				item.label = prefix + (h.text || '(empty)');
-			}
-			return item;
-		});
+		const items = filtered.map(h => new OutlineItem(h));
 		const roots: OutlineItem[] = [];
 		const stack: OutlineItem[] = [];
 

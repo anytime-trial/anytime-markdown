@@ -59,6 +59,8 @@ interface OutlineProps {
   handleOutlineResizeStart: (e: React.MouseEvent) => void;
   onHeadingDragEnd?: (fromIdx: number, toIdx: number) => void;
   onOutlineDelete?: (pos: number, kind: string) => void;
+  onInsertSectionNumbers?: () => void;
+  onRemoveSectionNumbers?: () => void;
   t: (key: string) => string;
 }
 

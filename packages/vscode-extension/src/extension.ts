@@ -242,6 +242,22 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	);
 
+	const insertSectionNumbers = vscode.commands.registerCommand(
+		'anytime-markdown.insertSectionNumbers',
+		() => {
+			const p = MarkdownEditorProvider.getInstance();
+			p?.postMessageToActivePanel({ type: 'toggleSectionNumbers', show: true });
+		}
+	);
+
+	const removeSectionNumbers = vscode.commands.registerCommand(
+		'anytime-markdown.removeSectionNumbers',
+		() => {
+			const p = MarkdownEditorProvider.getInstance();
+			p?.postMessageToActivePanel({ type: 'toggleSectionNumbers', show: false });
+		}
+	);
+
 	context.subscriptions.push(
 		gitTreeView, outlineTreeView, commentTreeView,
 		...statusBarItems,
@@ -249,6 +265,7 @@ export function activate(context: vscode.ExtensionContext) {
 		scrollToComment, resolveComment, unresolveComment, deleteComment,
 		filterCommentsAll, filterCommentsOpen, filterCommentsResolved,
 		toggleCollapseExpand, toggleBlockElements,
+		insertSectionNumbers, removeSectionNumbers,
 	);
 }
 

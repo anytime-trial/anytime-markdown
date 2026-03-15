@@ -26,11 +26,10 @@ function getDecorations(editor: Editor): DecorationSet {
 
 describe("HeadingNumberExtension", () => {
   describe("初期状態", () => {
-    test("デフォルト(auto)では見出しに番号 Decoration が生成される", () => {
+    test("デフォルト(off)では Decoration が生成されない", () => {
       const editor = createEditor("# Title\n\n## Sub");
       const decos = getDecorations(editor);
-      const found = decos.find(0, editor.state.doc.content.size);
-      expect(found).toHaveLength(2);
+      expect(decos).toBe(DecorationSet.empty);
       editor.destroy();
     });
   });

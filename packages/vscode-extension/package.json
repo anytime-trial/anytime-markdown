@@ -1,7 +1,7 @@
 {
   "name": "anytime-markdown",
-  "displayName": "Anytime Markdown",
-  "description": "markdown editor featuring Claude Code",
+  "displayName": "%displayName%",
+  "description": "%description%",
   "version": "0.5.0",
   "license": "MIT",
   "publisher": "kiytaka-ueda",
@@ -30,7 +30,7 @@
       "activitybar": [
         {
           "id": "anytimeMarkdown",
-          "title": "Anytime Markdown",
+          "title": "%viewsContainer.title%",
           "icon": "images/camel-activitybar.svg"
         }
       ]
@@ -68,55 +68,65 @@
     "commands": [
       {
         "command": "anytime-markdown.openEditorWithFile",
-        "title": "Open with Anytime"
+        "title": "%command.openEditorWithFile%"
       },
       {
         "command": "anytime-markdown.compareWithMarkdownEditor",
-        "title": "Compare with Anytime",
+        "title": "%command.compareWithMarkdownEditor%",
         "enablement": "activeCustomEditorId == anytimeMarkdown"
       },
       {
         "command": "anytime-markdown.resolveComment",
-        "title": "Resolve",
+        "title": "%command.resolveComment%",
         "icon": "$(check)"
       },
       {
         "command": "anytime-markdown.unresolveComment",
-        "title": "Reopen",
+        "title": "%command.unresolveComment%",
         "icon": "$(circle-outline)"
       },
       {
         "command": "anytime-markdown.deleteComment",
-        "title": "Delete",
+        "title": "%command.deleteComment%",
         "icon": "$(trash)"
       },
       {
         "command": "anytime-markdown.filterCommentsAll",
-        "title": "All"
+        "title": "%command.filterCommentsAll%"
       },
       {
         "command": "anytime-markdown.filterCommentsOpen",
-        "title": "Open"
+        "title": "%command.filterCommentsOpen%"
       },
       {
         "command": "anytime-markdown.filterCommentsResolved",
-        "title": "Resolved"
+        "title": "%command.filterCommentsResolved%"
       },
       {
         "command": "anytime-markdown.toggleBlockElements",
-        "title": "Toggle Block Elements",
+        "title": "%command.toggleBlockElements%",
         "icon": "$(symbol-misc)"
       },
       {
         "command": "anytime-markdown.toggleCollapseExpand",
-        "title": "Collapse All / Expand All",
+        "title": "%command.toggleCollapseExpand%",
         "icon": "$(collapse-all)"
+      },
+      {
+        "command": "anytime-markdown.insertSectionNumbers",
+        "title": "%command.insertSectionNumbers%",
+        "icon": "$(list-ordered)"
+      },
+      {
+        "command": "anytime-markdown.removeSectionNumbers",
+        "title": "%command.removeSectionNumbers%",
+        "icon": "$(list-flat)"
       }
     ],
     "customEditors": [
       {
         "viewType": "anytimeMarkdown",
-        "displayName": "Markdown Editor",
+        "displayName": "%customEditor.displayName%",
         "selector": [
           {
             "filenamePattern": "*.md"
@@ -129,21 +139,21 @@
       }
     ],
     "configuration": {
-      "title": "Anytime Markdown",
+      "title": "%configuration.title%",
       "properties": {
         "anytimeMarkdown.fontSize": {
           "type": "number",
           "default": 0,
           "minimum": 0,
           "maximum": 72,
-          "description": "Font size in pixels for the editor. 0 uses the VS Code default."
+          "description": "%configuration.fontSize.description%"
         },
         "anytimeMarkdown.editorMaxWidth": {
           "type": "number",
           "default": 0,
           "minimum": 0,
           "maximum": 10000,
-          "description": "Maximum width of the editor content in pixels. 0 means no limit."
+          "description": "%configuration.editorMaxWidth.description%"
         }
       }
     },
@@ -190,14 +200,24 @@
           "group": "navigation@1"
         },
         {
-          "command": "anytime-markdown.toggleCollapseExpand",
+          "command": "anytime-markdown.insertSectionNumbers",
           "when": "view == anytimeMarkdown.outline",
           "group": "navigation@1"
         },
         {
-          "command": "anytime-markdown.toggleBlockElements",
+          "command": "anytime-markdown.removeSectionNumbers",
           "when": "view == anytimeMarkdown.outline",
           "group": "navigation@2"
+        },
+        {
+          "command": "anytime-markdown.toggleCollapseExpand",
+          "when": "view == anytimeMarkdown.outline",
+          "group": "navigation@3"
+        },
+        {
+          "command": "anytime-markdown.toggleBlockElements",
+          "when": "view == anytimeMarkdown.outline",
+          "group": "navigation@4"
         }
       ],
       "explorer/context": [

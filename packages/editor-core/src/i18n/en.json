@@ -24,6 +24,8 @@
     "importConfirm": "Current content will be replaced. Import file?",
     "outline": "Outline",
     "outlineShowBlocks": "Show blocks",
+    "insertSectionNumbers": "Insert Section Numbers",
+    "removeSectionNumbers": "Remove Section Numbers",
     "noHeadings": "No headings",
     "noPermission": "You do not have permission to view this page.",
     "skipToEditor": "Skip to editor",

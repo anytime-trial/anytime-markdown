@@ -70,6 +70,10 @@ export function App() {
         return;
       }
       // externalChange は VS Code 通知で処理するため webview では不要
+      if (message?.type === 'toggleSectionNumbers' && typeof message.show === 'boolean') {
+        window.dispatchEvent(new CustomEvent('vscode-toggle-section-numbers', { detail: message.show }));
+        return;
+      }
       if (message?.type === 'scrollToHeading' && typeof message.pos === 'number') {
         window.dispatchEvent(new CustomEvent('vscode-scroll-to-heading', { detail: message.pos }));
         return;

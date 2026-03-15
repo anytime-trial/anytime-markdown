@@ -1,0 +1,21 @@
+{
+  "displayName": "Anytime Markdown",
+  "description": "WYSIWYG Markdown editor for VS Code with live preview, diagrams, and comparison mode",
+  "customEditor.displayName": "Markdown Editor",
+  "configuration.title": "Anytime Markdown",
+  "configuration.fontSize.description": "Font size in pixels for the editor. 0 uses the VS Code default.",
+  "configuration.editorMaxWidth.description": "Maximum width of the editor content in pixels. 0 means no limit.",
+  "command.openEditorWithFile": "Open with Anytime",
+  "command.compareWithMarkdownEditor": "Compare with Anytime",
+  "command.resolveComment": "Resolve",
+  "command.unresolveComment": "Reopen",
+  "command.deleteComment": "Delete",
+  "command.filterCommentsAll": "All",
+  "command.filterCommentsOpen": "Open",
+  "command.filterCommentsResolved": "Resolved",
+  "command.toggleBlockElements": "Toggle Block Elements",
+  "command.toggleCollapseExpand": "Collapse All / Expand All",
+  "command.insertSectionNumbers": "Insert Section Numbers",
+  "command.removeSectionNumbers": "Remove Section Numbers",
+  "viewsContainer.title": "Anytime Markdown"
+}

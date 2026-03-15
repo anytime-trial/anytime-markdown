@@ -24,6 +24,8 @@
     "importConfirm": "現在の内容を破棄してファイルをインポートしますか？",
     "outline": "アウトライン",
     "outlineShowBlocks": "ブロック要素を表示",
+    "insertSectionNumbers": "セクション番号を挿入",
+    "removeSectionNumbers": "セクション番号を削除",
     "noHeadings": "見出しがありません",
     "noPermission": "この画面を表示する権限がありません。",
     "skipToEditor": "エディタへスキップ",

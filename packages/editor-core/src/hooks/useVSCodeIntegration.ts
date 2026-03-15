@@ -68,14 +68,6 @@ export function useVSCodeIntegration(
     };
   }, [editor]);
 
-  // セクション番号トグル（auto/on/off）
-  useEffect(() => {
-    const handler = (e: Event) => {
-      if (!editor || editor.isDestroyed) return;
-      const show = (e as CustomEvent<boolean>).detail;
-      editor.commands.setShowHeadingNumbers(show ? "on" : "off");
-    };
-    window.addEventListener('vscode-toggle-section-numbers', handler);
-    return () => window.removeEventListener('vscode-toggle-section-numbers', handler);
-  }, [editor]);
+  // セクション番号の挿入/削除は MarkdownEditorPage 側で
+  // vscode-toggle-section-numbers イベントを処理する
 }

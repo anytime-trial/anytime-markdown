@@ -21,6 +21,8 @@ interface EditorOutlineSectionProps {
   handleOutlineResizeStart: (e: React.MouseEvent) => void;
   onHeadingDragEnd?: (fromIdx: number, toIdx: number) => void;
   onOutlineDelete?: (pos: number, kind: string) => void;
+  onInsertSectionNumbers?: () => void;
+  onRemoveSectionNumbers?: () => void;
   t: TranslationFn;
 }
 
@@ -41,6 +43,8 @@ export function EditorOutlineSection({
   handleOutlineResizeStart,
   onHeadingDragEnd,
   onOutlineDelete,
+  onInsertSectionNumbers,
+  onRemoveSectionNumbers,
   t,
 }: EditorOutlineSectionProps) {
   if (isMd) {
@@ -60,6 +64,8 @@ export function EditorOutlineSection({
         handleOutlineResizeStart={handleOutlineResizeStart}
         onHeadingDragEnd={onHeadingDragEnd}
         onOutlineDelete={onOutlineDelete}
+        onInsertSectionNumbers={onInsertSectionNumbers}
+        onRemoveSectionNumbers={onRemoveSectionNumbers}
         t={t}
       />
     );
@@ -87,6 +93,8 @@ export function EditorOutlineSection({
         handleOutlineResizeStart={handleOutlineResizeStart}
         onHeadingDragEnd={onHeadingDragEnd}
         onOutlineDelete={onOutlineDelete}
+        onInsertSectionNumbers={onInsertSectionNumbers}
+        onRemoveSectionNumbers={onRemoveSectionNumbers}
         t={t}
       />
     </Drawer>
