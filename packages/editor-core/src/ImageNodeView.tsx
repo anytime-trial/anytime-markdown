@@ -1,6 +1,7 @@
 "use client";
 
 import EditIcon from "@mui/icons-material/Edit";
+import ImageIcon from "@mui/icons-material/Image";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { Box, Divider, IconButton, Tooltip, Typography, useTheme } from "@mui/material";
@@ -95,6 +96,7 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
         <EditDialogHeader
           label={t("image")}
           onClose={() => setEditOpen(false)}
+          icon={<ImageIcon sx={{ fontSize: 18 }} />}
           t={t}
           extra={imgSize ? (
             <Typography variant="caption" sx={{ color: "text.disabled", fontSize: "0.65rem", fontFamily: "monospace", whiteSpace: "nowrap" }}>

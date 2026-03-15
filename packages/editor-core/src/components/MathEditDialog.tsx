@@ -1,3 +1,4 @@
+import FunctionsIcon from "@mui/icons-material/Functions";
 import { Box, Typography, useTheme } from "@mui/material";
 import DOMPurify from "dompurify";
 import React, { useCallback, useRef, useState } from "react";
@@ -59,7 +60,7 @@ export function MathEditDialog({
 
   return (
     <EditDialogWrapper open={open} onClose={onClose} ariaLabelledBy="math-edit-title">
-      <EditDialogHeader label={label} onClose={onClose} showCompareView={showCompareView} t={t} />
+      <EditDialogHeader label={label} onClose={onClose} showCompareView={showCompareView} icon={<FunctionsIcon sx={{ fontSize: 18 }} />} t={t} />
 
       {/* Compare view */}
       {showCompareView ? (

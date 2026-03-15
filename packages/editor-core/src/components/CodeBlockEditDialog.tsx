@@ -1,3 +1,4 @@
+import CodeIcon from "@mui/icons-material/Code";
 import DOMPurify from "dompurify";
 import { Box, Chip, Typography, useTheme } from "@mui/material";
 import React, { useCallback, useMemo, useState } from "react";
@@ -192,7 +193,7 @@ export function CodeBlockEditDialog({
 
   return (
     <EditDialogWrapper open={open} onClose={onClose} ariaLabelledBy="codeblock-edit-title">
-      <EditDialogHeader label={label} onClose={onClose} showCompareView={showCompareView} t={t} />
+      <EditDialogHeader label={label} onClose={onClose} showCompareView={showCompareView} icon={<CodeIcon sx={{ fontSize: 18 }} />} t={t} />
 
       {showCompareView ? (
         <FullscreenDiffView

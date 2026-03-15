@@ -1,3 +1,4 @@
+import AccountTreeIcon from "@mui/icons-material/AccountTree";
 import { Box, Tab, Tabs, useTheme } from "@mui/material";
 import DOMPurify from "dompurify";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -118,7 +119,7 @@ export function MermaidEditDialog({
 
   return (
     <EditDialogWrapper open={open} onClose={onClose} ariaLabelledBy="mermaid-edit-title">
-      <EditDialogHeader label={label} onClose={onClose} showCompareView={showCompareView} t={t} />
+      <EditDialogHeader label={label} onClose={onClose} showCompareView={showCompareView} icon={<AccountTreeIcon sx={{ fontSize: 18 }} />} t={t} />
 
       {/* Compare view */}
       {showCompareView ? (

@@ -5,6 +5,7 @@ import FormatAlignLeftIcon from "@mui/icons-material/FormatAlignLeft";
 import FormatAlignRightIcon from "@mui/icons-material/FormatAlignRight";
 import MoveDownIcon from "@mui/icons-material/MoveDown";
 import MoveUpIcon from "@mui/icons-material/MoveUp";
+import TableChartIcon from "@mui/icons-material/TableChart";
 import TableRowsIcon from "@mui/icons-material/TableRows";
 import ViewColumnIcon from "@mui/icons-material/ViewColumn";
 import { Box, Divider, Paper, ToggleButton, ToggleButtonGroup, Tooltip, useTheme } from "@mui/material";
@@ -70,6 +71,7 @@ export function TableNodeView({ editor, node, getPos }: NodeViewProps) {
             <EditDialogHeader
               label={t("tableLabel")}
               onClose={() => setEditOpen(false)}
+              icon={<TableChartIcon sx={{ fontSize: 18 }} />}
               t={t}
             />
             {/* Table operations toolbar (second row) */}
