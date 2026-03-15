@@ -9,5 +9,11 @@
   "command.compareWithMarkdownEditor": "Compare with Anytime Markdown",
   "command.insertSectionNumbers": "セクション番号を挿入",
   "command.removeSectionNumbers": "セクション番号を削除",
-  "viewsContainer.title": "Anytime Markdown"
+  "viewsContainer.title": "Anytime Markdown",
+  "view.specDocs": "仕様書管理",
+  "viewsWelcome.specDocs": "仕様書を管理するには、フォルダーを開くか、リポジトリをクローンしてください。\n[フォルダーを開く](command:anytime-markdown.specDocsOpenFolder)\n[リポジトリをクローンする](command:anytime-markdown.specDocsCloneRepo)",
+  "command.specDocsOpenFolder": "フォルダーを開く",
+  "command.specDocsCloneRepo": "リポジトリをクローンする",
+  "command.specDocsClose": "フォルダーを閉じる",
+  "command.specDocsRefresh": "更新"
 }

@@ -38,12 +38,21 @@
     "views": {
       "anytimeMarkdown": [
         {
+          "id": "anytimeMarkdown.specDocs",
+          "name": "%view.specDocs%"
+        },
+        {
           "id": "anytimeMarkdown.gitHistory",
           "name": "Git History"
         }
       ]
     },
     "viewsWelcome": [
+      {
+        "view": "anytimeMarkdown.specDocs",
+        "contents": "%viewsWelcome.specDocs%",
+        "when": "!anytimeMarkdown.specDocsHasRoot"
+      },
       {
         "view": "anytimeMarkdown.gitHistory",
         "contents": "No items."
@@ -68,6 +77,26 @@
         "command": "anytime-markdown.removeSectionNumbers",
         "title": "%command.removeSectionNumbers%",
         "icon": "$(list-flat)"
+      },
+      {
+        "command": "anytime-markdown.specDocsOpenFolder",
+        "title": "%command.specDocsOpenFolder%",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "command": "anytime-markdown.specDocsCloneRepo",
+        "title": "%command.specDocsCloneRepo%",
+        "icon": "$(repo-clone)"
+      },
+      {
+        "command": "anytime-markdown.specDocsClose",
+        "title": "%command.specDocsClose%",
+        "icon": "$(close)"
+      },
+      {
+        "command": "anytime-markdown.specDocsRefresh",
+        "title": "%command.specDocsRefresh%",
+        "icon": "$(refresh)"
       }
     ],
     "customEditors": [
@@ -105,6 +134,18 @@
       }
     },
     "menus": {
+      "view/title": [
+        {
+          "command": "anytime-markdown.specDocsRefresh",
+          "when": "view == anytimeMarkdown.specDocs && anytimeMarkdown.specDocsHasRoot",
+          "group": "navigation@1"
+        },
+        {
+          "command": "anytime-markdown.specDocsClose",
+          "when": "view == anytimeMarkdown.specDocs && anytimeMarkdown.specDocsHasRoot",
+          "group": "navigation@2"
+        }
+      ],
       "explorer/context": [
         {
           "command": "anytime-markdown.openEditorWithFile",

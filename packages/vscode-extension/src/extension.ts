@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { MarkdownEditorProvider } from './providers/MarkdownEditorProvider';
 import { GitHistoryProvider, GitHistoryItem } from './providers/GitHistoryProvider';
+import { SpecDocsProvider } from './providers/SpecDocsProvider';
 
 export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(MarkdownEditorProvider.register(context));
@@ -151,11 +152,30 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	);
 
+	// 仕様書管理パネル
+	const specDocsProvider = new SpecDocsProvider(context);
+	const specDocsTreeView = vscode.window.createTreeView('anytimeMarkdown.specDocs', {
+		treeDataProvider: specDocsProvider,
+	});
+	const specDocsOpenFolder = vscode.commands.registerCommand(
+		'anytime-markdown.specDocsOpenFolder', () => specDocsProvider.openFolder()
+	);
+	const specDocsCloneRepo = vscode.commands.registerCommand(
+		'anytime-markdown.specDocsCloneRepo', () => specDocsProvider.cloneRepository()
+	);
+	const specDocsClose = vscode.commands.registerCommand(
+		'anytime-markdown.specDocsClose', () => specDocsProvider.closeFolder()
+	);
+	const specDocsRefresh = vscode.commands.registerCommand(
+		'anytime-markdown.specDocsRefresh', () => specDocsProvider.refresh()
+	);
+
 	context.subscriptions.push(
-		gitTreeView,
+		gitTreeView, specDocsTreeView,
 		...statusBarItems,
 		openEditorWithFile, compareCmd, compareWithCommit,
 		insertSectionNumbers, removeSectionNumbers,
+		specDocsOpenFolder, specDocsCloneRepo, specDocsClose, specDocsRefresh,
 	);
 }
 
