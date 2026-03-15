@@ -275,7 +275,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   }, [externalCompareContent, inlineMergeOpen, sourceMode, editor, setCompareFileContent, setEditorMarkdown, setInlineMergeOpen]);
 
   setEditorMarkdownRef.current = setEditorMarkdown;
-  useEditorSideEffects({ editor, isDirty, markDirty, setHeadingsRef, setEditorMarkdown });
+  useEditorSideEffects({ editor, isDirty, markDirty, setHeadingsRef, setEditorMarkdown, frontmatterRef, onFrontmatterChange: fileHandling.setFrontmatterText });
   useVSCodeIntegration(editor);
 
   const statusBarHeight = hideStatusBar ? 0 : STATUSBAR_HEIGHT;

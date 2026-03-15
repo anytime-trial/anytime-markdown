@@ -4,6 +4,7 @@ import type { RefObject } from "react";
 import { useEffect, useRef } from "react";
 
 import { extractHeadings, getMarkdownFromEditor, type HeadingItem } from "../types";
+import { parseFrontmatter } from "../utils/frontmatterHelpers";
 import { preserveBlankLines,sanitizeMarkdown } from "../utils/sanitizeMarkdown";
 import useConfirm from "./useConfirm";
 
@@ -13,6 +14,8 @@ interface UseEditorSideEffectsParams {
   markDirty: (() => void) | undefined;
   setHeadingsRef: RefObject<(h: HeadingItem[]) => void>;
   setEditorMarkdown: (md: string) => void;
+  frontmatterRef?: RefObject<string | null>;
+  onFrontmatterChange?: (fm: string | null) => void;
 }
 
 export function useEditorSideEffects({
@@ -21,6 +24,8 @@ export function useEditorSideEffects({
   markDirty,
   setHeadingsRef,
   setEditorMarkdown,
+  frontmatterRef,
+  onFrontmatterChange,
 }: UseEditorSideEffectsParams): void {
   const confirm = useConfirm();
   const t = useTranslations("MarkdownEditor");
@@ -45,15 +50,25 @@ export function useEditorSideEffects({
     return () => window.removeEventListener("beforeunload", handler);
   }, [isDirty]);
 
-  // VS Code 拡張からの外部コンテンツ更新（メニュー Undo/Redo など）
+  // VS Code 拡張からの外部コンテンツ更新（メニュー Undo/Redo、Git History など）
+  const onFrontmatterChangeRef = useRef(onFrontmatterChange);
+  onFrontmatterChangeRef.current = onFrontmatterChange;
   useEffect(() => {
     const handler = (e: Event) => {
       const content = (e as CustomEvent<string>).detail;
       if (!editor || editor.isDestroyed) return;
+
+      // フロントマターを分離し、本文のみエディタに設定
+      const { frontmatter, body } = parseFrontmatter(content);
+      if (frontmatterRef) {
+        frontmatterRef.current = frontmatter;
+      }
+      onFrontmatterChangeRef.current?.(frontmatter);
+
       const currentMd = getMarkdownFromEditor(editor);
-      if (content === currentMd) return;
+      if (body === currentMd) return;
       // emitUpdate=false でループを防止（onUpdate → saveContent → contentChanged を抑制）
-      editor.commands.setContent(preserveBlankLines(sanitizeMarkdown(content)), { emitUpdate: false });
+      editor.commands.setContent(preserveBlankLines(sanitizeMarkdown(body)), { emitUpdate: false });
       setHeadingsRef.current(extractHeadings(editor));
       setEditorMarkdown(getMarkdownFromEditor(editor));
     };
@@ -61,7 +76,7 @@ export function useEditorSideEffects({
     return () => window.removeEventListener('vscode-set-content', handler);
     // setHeadingsRef, setEditorMarkdown は安定な ref/関数のため依存配列から除外
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editor]);
+  }, [editor, frontmatterRef]);
 
   // 外部変更の確認ダイアログ（Claude Code、git 操作など）
   useEffect(() => {
