@@ -8,16 +8,18 @@ import MoveUpIcon from "@mui/icons-material/MoveUp";
 import TableChartIcon from "@mui/icons-material/TableChart";
 import TableRowsIcon from "@mui/icons-material/TableRows";
 import ViewColumnIcon from "@mui/icons-material/ViewColumn";
-import { Box, Divider, Paper, ToggleButton, ToggleButtonGroup, Tooltip, useTheme } from "@mui/material";
+import { Box, Divider, Paper, ToggleButton, ToggleButtonGroup, Tooltip, Typography, useTheme } from "@mui/material";
 import type { NodeViewProps } from "@tiptap/react";
 import { NodeViewContent, NodeViewWrapper } from "@tiptap/react";
 import { useTranslations } from "next-intl";
+import { useMemo } from "react";
 
 import { BlockInlineToolbar } from "./components/codeblock/BlockInlineToolbar";
 import { EditDialogHeader } from "./components/EditDialogHeader";
 import { DeleteBlockDialog } from "./components/codeblock/DeleteBlockDialog";
 import { SearchReplaceBar } from "./components/SearchReplaceBar";
 import { useBlockNodeState } from "./hooks/useBlockNodeState";
+import { findCounterpartTableHtml, getMergeEditors } from "./contexts/MergeEditorsContext";
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "./constants/colors";
 import { Z_FULLSCREEN } from "./constants/zIndex";
 import { moveTableColumn,moveTableRow } from "./utils/tableHelpers";
@@ -31,6 +33,26 @@ export function TableNodeView({ editor, node, getPos }: NodeViewProps) {
     deleteDialogOpen, setDeleteDialogOpen, editOpen, setEditOpen,
     collapsed, isEditable, isSelected, handleDeleteBlock, showToolbar,
   } = useBlockNodeState(editor, node, getPos);
+
+  // Compare mode
+  const mergeEditors = getMergeEditors();
+  const isCompareMode = !!mergeEditors;
+  const compareTableHtml = useMemo(() => {
+    if (!editOpen || !mergeEditors || !editor || typeof getPos !== "function") return null;
+    const pos = getPos();
+    if (pos == null) return null;
+    const isRight = !!editor.view?.dom?.dataset?.reviewMode;
+    const otherEditor = isRight ? mergeEditors.leftEditor : mergeEditors.rightEditor;
+    return findCounterpartTableHtml(editor, otherEditor, pos);
+  }, [editOpen, mergeEditors, editor, getPos]);
+
+  const tableSx = {
+    borderCollapse: "collapse",
+    width: "100%",
+    "& th, & td": { border: 1, borderColor: "divider", px: 1, py: 0.5, textAlign: "left", minWidth: 80 },
+    "& th": { bgcolor: "action.hover", fontWeight: 600 },
+    "& .selectedCell": { bgcolor: "action.selected" },
+  };
 
   return (
     <NodeViewWrapper>
@@ -188,30 +210,41 @@ export function TableNodeView({ editor, node, getPos }: NodeViewProps) {
           />
         )}
 
-        {/* Table body (single instance, shared between inline and edit) */}
-        <Box
-          sx={collapsed
-            ? { height: 0, overflow: "hidden" }
-            : {
-                overflow: "auto",
-                ...(editOpen && {
-                  flex: 1,
-                  bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
-                  p: 2,
-                  "& table": {
-                    borderCollapse: "collapse",
-                    width: "100%",
-                    "& th, & td": { border: 1, borderColor: "divider", px: 1, py: 0.5, textAlign: "left", minWidth: 80 },
-                    "& th": { bgcolor: "action.hover", fontWeight: 600 },
-                    "& .selectedCell": { bgcolor: "action.selected" },
-                  },
-                }),
-              }
-          }
-          onDoubleClick={!isEditable ? () => setEditOpen(true) : undefined}
-        >
-          <NodeViewContent<"table"> as="table" />
-        </Box>
+        {/* Table body */}
+        {editOpen && isCompareMode && compareTableHtml ? (
+          /* Compare mode: side-by-side tables */
+          <Box sx={{ flex: 1, display: "flex", overflow: "hidden" }}>
+            {/* Left: current table (editable) */}
+            <Box sx={{ flex: 1, overflow: "auto", bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG, p: 2, borderRight: 1, borderColor: "divider", "& table": tableSx }}>
+              <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "0.7rem", mb: 1, display: "block" }}>{t("compare")} - {t("edit")}</Typography>
+              <NodeViewContent<"table"> as="table" />
+            </Box>
+            {/* Right: comparison table (read-only) */}
+            <Box sx={{ flex: 1, overflow: "auto", bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG, p: 2, "& table": tableSx }}>
+              <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "0.7rem", mb: 1, display: "block" }}>{t("compare")}</Typography>
+              <Box dangerouslySetInnerHTML={{ __html: compareTableHtml }} />
+            </Box>
+          </Box>
+        ) : (
+          /* Normal mode */
+          <Box
+            sx={collapsed
+              ? { height: 0, overflow: "hidden" }
+              : {
+                  overflow: "auto",
+                  ...(editOpen && {
+                    flex: 1,
+                    bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
+                    p: 2,
+                    "& table": tableSx,
+                  }),
+                }
+            }
+            onDoubleClick={!isEditable ? () => setEditOpen(true) : undefined}
+          >
+            <NodeViewContent<"table"> as="table" />
+          </Box>
+        )}
       </Paper>
       <DeleteBlockDialog
         open={deleteDialogOpen}

@@ -1,3 +1,4 @@
+import { DOMSerializer } from "@tiptap/pm/model";
 import type { Editor } from "@tiptap/react";
 
 interface MergeEditorsValue {
@@ -93,6 +94,48 @@ export function findCodeBlockByIndex(
     }
   });
   return result;
+}
+
+/**
+ * 対応するテーブルノードの HTML を取得する。
+ * テーブルノードのインデックスでマッチングし、DOMSerializer で HTML に変換。
+ */
+export function findCounterpartTableHtml(
+  thisEditor: Editor,
+  otherEditor: Editor | null,
+  thisPos: number,
+): string | null {
+  if (!otherEditor) return null;
+
+  // thisEditor 内のテーブルインデックスを特定
+  let thisIndex = -1;
+  let count = 0;
+  thisEditor.state.doc.descendants((node, pos) => {
+    if (node.type.name === "table") {
+      if (pos === thisPos && thisIndex === -1) {
+        thisIndex = count;
+      }
+      count++;
+    }
+  });
+  if (thisIndex === -1) return null;
+
+  // otherEditor 内の同インデックスのテーブルを取得し HTML に変換
+  let otherCount = 0;
+  let html: string | null = null;
+  const serializer = DOMSerializer.fromSchema(otherEditor.schema);
+  otherEditor.state.doc.descendants((node) => {
+    if (node.type.name === "table") {
+      if (otherCount === thisIndex && html === null) {
+        const dom = serializer.serializeNode(node);
+        const div = document.createElement("div");
+        div.appendChild(dom);
+        html = div.innerHTML;
+      }
+      otherCount++;
+    }
+  });
+  return html;
 }
 
 /**
