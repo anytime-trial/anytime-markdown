@@ -21,15 +21,16 @@ test.describe("Editor Basic", () => {
     await expect(editor).toContainText("Hello Playwright");
   });
 
-  test("can apply bold formatting via toolbar", async ({ page }) => {
+  test("can apply bold formatting via bubble menu", async ({ page }) => {
     await openEmptyEditor(page);
     const editor = page.locator(".tiptap");
     await editor.click();
     await page.keyboard.type("bold text");
     // テキスト選択
     await page.keyboard.press("Control+a");
-    // Bold ショートカット
-    await page.keyboard.press("Control+b");
+    // バブルメニューの Bold ボタンをクリック
+    const boldButton = page.locator('[aria-label="Bold"]');
+    await boldButton.click();
     // <strong> が適用されている
     await expect(editor.locator("strong")).toContainText("bold text");
   });
