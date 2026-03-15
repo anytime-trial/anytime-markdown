@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { getEditorBg } from "../../constants/colors";
 import { useBlockMergeCompare } from "../../hooks/useBlockMergeCompare";
+import { useBlockResize } from "../../hooks/useBlockResize";
 import { useDiagramCapture } from "../../hooks/useDiagramCapture";
 import { SVG_SANITIZE_CONFIG,useMermaidRender } from "../../hooks/useMermaidRender";
 import { usePlantUmlRender } from "../../hooks/usePlantUmlRender";
@@ -18,6 +19,7 @@ import { MermaidEditDialog } from "../MermaidEditDialog";
 import { PlantUmlEditDialog } from "../PlantUmlEditDialog";
 import { BlockInlineToolbar } from "./BlockInlineToolbar";
 import { CodeBlockFrame } from "./CodeBlockFrame";
+import { ResizeGrip } from "./ResizeGrip";
 import type { CodeBlockSharedProps } from "./types";
 
 type DiagramBlockProps = Pick<
@@ -109,41 +111,7 @@ export function DiagramBlock(props: DiagramBlockProps) {
     />
   );
 
-  // --- Resize ---
-  const [resizing, setResizing] = useState(false);
-  const [resizeWidth, setResizeWidth] = useState<number | null>(null);
-  const startXRef = useRef(0);
-  const startWidthRef = useRef(0);
-  const MIN_WIDTH = 50;
-
-  const handleResizePointerDown = useCallback((e: React.PointerEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const container = containerRef.current;
-    if (!container) return;
-    startXRef.current = e.clientX;
-    startWidthRef.current = container.getBoundingClientRect().width;
-    setResizing(true);
-    setResizeWidth(startWidthRef.current);
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
-  }, []);
-
-  const handleResizePointerMove = useCallback((e: React.PointerEvent) => {
-    if (!resizing) return;
-    const delta = e.clientX - startXRef.current;
-    setResizeWidth(Math.max(MIN_WIDTH, Math.round(startWidthRef.current + delta)));
-  }, [resizing]);
-
-  const handleResizePointerUp = useCallback(() => {
-    if (!resizing) return;
-    setResizing(false);
-    if (resizeWidth !== null) {
-      updateAttributes({ width: `${resizeWidth}px` });
-    }
-    setResizeWidth(null);
-  }, [resizing, resizeWidth, updateAttributes]);
-
-  const displayWidth = resizeWidth !== null ? `${resizeWidth}px` : node.attrs.width || undefined;
+  const { resizing, resizeWidth, displayWidth, handleResizePointerDown, handleResizePointerMove, handleResizePointerUp } = useBlockResize({ containerRef, updateAttributes, currentWidth: node.attrs.width });
 
   const editorBg = getEditorBg(isDark, settings);
   const diagramContainerSx = {
@@ -245,22 +213,7 @@ export function DiagramBlock(props: DiagramBlockProps) {
             sx={{ pt: 0, px: 2, pb: 2, display: "flex", justifyContent: "flex-start", pointerEvents: "none" }}
             dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(displaySvg, SVG_SANITIZE_CONFIG) }}
           />
-          {isSelected && isEditable && (
-            <Box
-              onPointerDown={handleResizePointerDown}
-              sx={{
-                position: "absolute", right: 0, bottom: 0, width: 16, height: 16,
-                cursor: "nwse-resize", bgcolor: "primary.main", opacity: 0.7, borderTopLeftRadius: 4,
-                "&:hover": { opacity: 1 },
-                clipPath: "polygon(100% 0, 100% 100%, 0 100%)",
-              }}
-            />
-          )}
-          {resizing && resizeWidth !== null && (
-            <Box sx={{ position: "absolute", bottom: 4, left: "50%", transform: "translateX(-50%)", bgcolor: "rgba(0,0,0,0.7)", color: "white", px: 1, py: 0.25, borderRadius: 1, fontSize: "0.7rem", fontFamily: "monospace", pointerEvents: "none" }}>
-              {resizeWidth}px
-            </Box>
-          )}
+          <ResizeGrip visible={isSelected && isEditable} resizing={resizing} resizeWidth={resizeWidth} onPointerDown={handleResizePointerDown} />
         </Box>
       )}
       {isPlantUml && plantUmlConsent !== "accepted" && (
@@ -296,22 +249,7 @@ export function DiagramBlock(props: DiagramBlockProps) {
           <Box sx={{ pt: 0, px: 2, pb: 2, display: "flex", justifyContent: "flex-start", pointerEvents: "none" }}>
             <img src={plantUmlUrl} alt={extractDiagramAltText(code, "plantuml")} referrerPolicy="no-referrer" style={{ maxWidth: "100%", height: "auto" }} />
           </Box>
-          {isSelected && isEditable && (
-            <Box
-              onPointerDown={handleResizePointerDown}
-              sx={{
-                position: "absolute", right: 0, bottom: 0, width: 16, height: 16,
-                cursor: "nwse-resize", bgcolor: "primary.main", opacity: 0.7, borderTopLeftRadius: 4,
-                "&:hover": { opacity: 1 },
-                clipPath: "polygon(100% 0, 100% 100%, 0 100%)",
-              }}
-            />
-          )}
-          {resizing && resizeWidth !== null && (
-            <Box sx={{ position: "absolute", bottom: 4, left: "50%", transform: "translateX(-50%)", bgcolor: "rgba(0,0,0,0.7)", color: "white", px: 1, py: 0.25, borderRadius: 1, fontSize: "0.7rem", fontFamily: "monospace", pointerEvents: "none" }}>
-              {resizeWidth}px
-            </Box>
-          )}
+          <ResizeGrip visible={isSelected && isEditable} resizing={resizing} resizeWidth={resizeWidth} onPointerDown={handleResizePointerDown} />
         </Box>
       )}
       {error && (

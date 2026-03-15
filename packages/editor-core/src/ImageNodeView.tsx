@@ -12,6 +12,7 @@ import { useCallback, useEffect,useRef, useState } from "react";
 
 import { BlockInlineToolbar } from "./components/codeblock/BlockInlineToolbar";
 import { DeleteBlockDialog } from "./components/codeblock/DeleteBlockDialog";
+import { useBlockResize } from "./hooks/useBlockResize";
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getEditDialogBg } from "./constants/colors";
 import { useDeleteBlock } from "./hooks/useDeleteBlock";
 import { useEditorSettingsContext } from "./useEditorSettings";
@@ -69,40 +70,7 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
 
   // --- Resize ---
   const imgContainerRef = useRef<HTMLDivElement>(null);
-  const [resizing, setResizing] = useState(false);
-  const [resizeWidth, setResizeWidth] = useState<number | null>(null);
-  const startXRef = useRef(0);
-  const startWidthRef = useRef(0);
-
-  const handleResizePointerDown = useCallback((e: React.PointerEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const container = imgContainerRef.current;
-    if (!container) return;
-    const img = container.querySelector("img");
-    if (!img) return;
-    startXRef.current = e.clientX;
-    startWidthRef.current = img.getBoundingClientRect().width;
-    setResizing(true);
-    setResizeWidth(startWidthRef.current);
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
-  }, []);
-
-  const handleResizePointerMove = useCallback((e: React.PointerEvent) => {
-    if (!resizing) return;
-    const delta = e.clientX - startXRef.current;
-    const newWidth = Math.max(MIN_WIDTH, Math.round(startWidthRef.current + delta));
-    setResizeWidth(newWidth);
-  }, [resizing]);
-
-  const handleResizePointerUp = useCallback(() => {
-    if (!resizing) return;
-    setResizing(false);
-    if (resizeWidth !== null) {
-      updateAttributes({ width: `${resizeWidth}px` });
-    }
-    setResizeWidth(null);
-  }, [resizing, resizeWidth, updateAttributes]);
+  const { resizing, resizeWidth, displayWidth, handleResizePointerDown, handleResizePointerMove, handleResizePointerUp } = useBlockResize({ containerRef: imgContainerRef, updateAttributes, currentWidth: width });
 
   const handleResizeKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
@@ -117,8 +85,6 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
     const newWidth = Math.max(MIN_WIDTH, Math.round(currentWidth + delta));
     updateAttributes({ width: `${newWidth}px` });
   }, [width, updateAttributes]);
-
-  const displayWidth = resizeWidth !== null ? `${resizeWidth}px` : width || undefined;
 
   const handleEditUrl = useCallback(() => {
     if (typeof getPos !== "function") return;
