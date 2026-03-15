@@ -4,7 +4,7 @@ export default function robots(): MetadataRoute.Robots {
   return {
     rules: {
       userAgent: "*",
-      allow: ["/", "/markdown", "/features", "/privacy"],
+      allow: ["/", "/markdown", "/privacy"],
       disallow: ["/api/"],
     },
     sitemap: `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://anytime-markdown.vercel.app"}/sitemap.xml`,

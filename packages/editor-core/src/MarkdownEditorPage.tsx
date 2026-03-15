@@ -71,7 +71,6 @@ interface MarkdownEditorPageProps {
   hideSettings?: boolean;
   hideHelp?: boolean;
   hideVersionInfo?: boolean;
-  featuresUrl?: string;
   onCompareModeChange?: (active: boolean) => void;
   onHeadingsChange?: (headings: HeadingItem[]) => void;
   onCommentsChange?: (comments: Array<{ id: string; text: string; resolved: boolean; createdAt: string; targetText: string; pos: number; isPoint: boolean }>) => void;
@@ -103,7 +102,7 @@ interface MarkdownEditorPageProps {
   onToggleExplorer?: () => void;
 }
 
-export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideHelp, hideVersionInfo, featuresUrl, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, onLocaleChange, fileSystemProvider, externalContent, externalFileName, externalFilePath: _externalFilePath, onExternalSave, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, showReadonlyMode, externalCompareContent, explorerOpen, onToggleExplorer }: MarkdownEditorPageProps = {}) {
+export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideHelp, hideVersionInfo, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, onLocaleChange, fileSystemProvider, externalContent, externalFileName, externalFilePath: _externalFilePath, onExternalSave, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, showReadonlyMode, externalCompareContent, explorerOpen, onToggleExplorer }: MarkdownEditorPageProps = {}) {
   const t = useTranslations("MarkdownEditor");
   const locale = useLocale() as "en" | "ja";
   const muiTheme = useTheme();
@@ -412,7 +411,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         setSettingsOpen={setSettingsOpen} setVersionDialogOpen={setVersionDialogOpen} setHelpDialogOpen={setHelpDialogOpen}
         hideSettings={hideSettings} hideHelp={hideHelp} hideVersionInfo={hideVersionInfo}
         hideTemplates={hideTemplates} inlineMergeOpen={inlineMergeOpen}
-        featuresUrl={featuresUrl} appendToSource={appendToSource}
+        appendToSource={appendToSource}
         pdfExporting={pdfExporting} notification={notification} setNotification={setNotification} t={t}
       />
     </Box>

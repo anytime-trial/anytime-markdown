@@ -52,14 +52,6 @@ export default function SiteFooter() {
         </MuiLink>
         <MuiLink
           component={NextLink}
-          href="/features"
-          underline="hover"
-          sx={{ color: 'text.secondary', fontSize: '0.85rem' }}
-        >
-          {t('featuresPage')}
-        </MuiLink>
-        <MuiLink
-          component={NextLink}
           href="/docs"
           underline="hover"
           sx={{ color: 'text.secondary', fontSize: '0.85rem' }}

@@ -59,7 +59,6 @@ interface EditorFooterOverlaysProps {
   hideVersionInfo?: boolean;
   hideTemplates?: boolean;
   inlineMergeOpen?: boolean;
-  featuresUrl?: string;
   appendToSource: (text: string) => void;
   // overlay state
   pdfExporting: boolean;
@@ -104,7 +103,6 @@ export function EditorFooterOverlays({
   hideVersionInfo,
   hideTemplates,
   inlineMergeOpen,
-  featuresUrl,
   appendToSource,
   pdfExporting,
   notification,
@@ -153,7 +151,6 @@ export function EditorFooterOverlays({
         hideVersionInfo={hideVersionInfo}
         hideTemplates={hideTemplates}
         templateDisabled={readonlyMode || reviewMode || !!inlineMergeOpen}
-        featuresUrl={featuresUrl}
         t={t}
       />
 

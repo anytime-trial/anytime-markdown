@@ -5,7 +5,6 @@ import FormatListNumberedIcon from "@mui/icons-material/FormatListNumbered";
 import FormatQuoteIcon from "@mui/icons-material/FormatQuote";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import KeyboardIcon from "@mui/icons-material/Keyboard";
-import MenuBookIcon from "@mui/icons-material/MenuBook";
 import SchemaIcon from "@mui/icons-material/Schema";
 import SettingsIcon from "@mui/icons-material/Settings";
 import {
@@ -53,7 +52,6 @@ interface EditorMenuPopoversProps {
   hideVersionInfo?: boolean;
   hideTemplates?: boolean;
   templateDisabled?: boolean;
-  featuresUrl?: string;
   t: TranslationFn;
 }
 
@@ -71,7 +69,6 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
   hideVersionInfo,
   hideTemplates,
   templateDisabled,
-  featuresUrl,
   t,
 }: EditorMenuPopoversProps) {
   const locale = useLocale();
@@ -104,19 +101,6 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
             </MenuItem>
           )}
           {!hideTemplates && <Divider />}
-          {featuresUrl && (
-            <MenuItem
-              component="a"
-              href={featuresUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => setHelpAnchorEl(null)}
-              sx={{ fontSize: "0.85rem", minHeight: 36 }}
-            >
-              <ListItemIcon><MenuBookIcon fontSize="small" /></ListItemIcon>
-              <ListItemText>{t("featuresPage")}</ListItemText>
-            </MenuItem>
-          )}
           {!hideHelp && (
             <MenuItem
               onClick={() => { setHelpDialogOpen(true); setHelpAnchorEl(null); }}

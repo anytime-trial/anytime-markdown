@@ -251,7 +251,6 @@ export default function Page() {
           externalFilePath={externalFilePath}
           onExternalSave={isGitHubLoggedIn ? handleExternalSave : undefined}
           readOnly={externalContent !== undefined}
-          featuresUrl="/features"
           showReadonlyMode={process.env.NEXT_PUBLIC_SHOW_READONLY_MODE === "1"}
         />
       </Box>
