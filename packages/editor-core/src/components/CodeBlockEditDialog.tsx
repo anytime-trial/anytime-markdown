@@ -52,6 +52,7 @@ interface CodeBlockEditDialogProps {
   isCompareMode?: boolean;
   compareCode?: string | null;
   onMergeApply?: (newThisCode: string, newOtherCode: string) => void;
+  thisCode?: string;
   toolbarExtra?: React.ReactNode;
   /** Custom samples to use instead of Hello World samples */
   customSamples?: { label: string; i18nKey: string; code: string }[];
@@ -62,7 +63,7 @@ interface CodeBlockEditDialogProps {
 
 export function CodeBlockEditDialog({
   open, onClose, label, language, fsCode, onFsCodeChange, onFsTextChange, fsTextareaRef, fsSearch: _fsSearch,
-  readOnly, isCompareMode, compareCode, onMergeApply, toolbarExtra, customSamples, renderPreview,
+  readOnly, isCompareMode, compareCode, onMergeApply, thisCode, toolbarExtra, customSamples, renderPreview,
   t,
 }: CodeBlockEditDialogProps) {
   const isDark = useTheme().palette.mode === "dark";
@@ -197,7 +198,7 @@ export function CodeBlockEditDialog({
 
       {showCompareView ? (
         <FullscreenDiffView
-          initialLeftCode={fsCode}
+          initialLeftCode={thisCode ?? fsCode}
           initialRightCode={compareCode}
           onMergeApply={onMergeApply ?? (() => {})}
           t={t}

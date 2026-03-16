@@ -90,7 +90,7 @@ export function DiagramBlock(props: DiagramBlockProps) {
     return () => ro.disconnect();
   }, [svg, plantUmlUrl]);
 
-  const { isCompareMode, compareCode, handleMergeApply } = useBlockMergeCompare({
+  const { isCompareMode, compareCode, thisCode, handleMergeApply } = useBlockMergeCompare({
     editor, getPos: _getPos, language, code, editOpen,
   });
 
@@ -156,6 +156,7 @@ export function DiagramBlock(props: DiagramBlockProps) {
             isCompareMode={isCompareMode}
             compareCode={compareCode}
             onMergeApply={handleMergeApply}
+            thisCode={thisCode}
             onCapture={handleCapture}
             toolbarExtra={
               <Tooltip title={t("copyCode")} placement="bottom">
@@ -184,6 +185,7 @@ export function DiagramBlock(props: DiagramBlockProps) {
             isCompareMode={isCompareMode}
             compareCode={compareCode}
             onMergeApply={handleMergeApply}
+            thisCode={thisCode}
             onCapture={handleCapture}
             toolbarExtra={
               <Tooltip title={t("copyCode")} placement="bottom">

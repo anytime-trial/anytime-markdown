@@ -92,9 +92,9 @@ export function InlineMergeView({
   const isDark = theme.palette.mode === "dark";
   const settings = useEditorSettingsContext();
   const {
-    rightText,
-    setLeftText,
-    setRightText,
+    compareText,
+    setEditText,
+    setCompareText,
     diffResult,
     mergeBlock,
     undo,
@@ -120,14 +120,14 @@ export function InlineMergeView({
   // 外部から渡された比較ファイル内容を右パネルに反映（1回限り）
   useEffect(() => {
     if (externalRightContent != null) {
-      setRightText(externalRightContent);
+      setCompareText(externalRightContent);
       onExternalRightContentConsumed?.();
     }
-  }, [externalRightContent, setRightText, onExternalRightContentConsumed]);
+  }, [externalRightContent, setCompareText, onExternalRightContentConsumed]);
 
   const leftContainerRef = useRef<HTMLDivElement>(null);
   const rightScrollRef = useRef<HTMLDivElement>(null);
-  const rightTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const compareTextareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRightRef = useRef<HTMLInputElement>(null);
 
   // 右パネルのファイル操作を親に公開
@@ -137,21 +137,21 @@ export function InlineMergeView({
       exportFile: () => {
         const n = new Date();
         const ts = `${n.getFullYear()}${String(n.getMonth() + 1).padStart(2, "0")}${String(n.getDate()).padStart(2, "0")}_${String(n.getHours()).padStart(2, "0")}${String(n.getMinutes()).padStart(2, "0")}${String(n.getSeconds()).padStart(2, "0")}`;
-        downloadText(rightText, `document_right_${ts}.md`);
+        downloadText(compareText, `document_right_${ts}.md`);
       },
     });
-  }, [onRightFileOpsReady, rightText]);
+  }, [onRightFileOpsReady, compareText]);
 
   // Ctrl+S で右パネル内容も保存
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        window.dispatchEvent(new CustomEvent('vscode-save-compare-file', { detail: rightText }));
+        window.dispatchEvent(new CustomEvent('vscode-save-compare-file', { detail: compareText }));
       }
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [rightText]);
+  }, [compareText]);
 
   const [, setRightMeta] = useState<FileMetadata>(DEFAULT_METADATA);
   const hoverSetterRef = useRef<((v: number | null) => void) | null>(null);
@@ -182,22 +182,22 @@ export function InlineMergeView({
 
   // editorContent -> leftText sync
   useEffect(() => {
-    setLeftText(editorContent);
-  }, [editorContent, setLeftText]);
+    setEditText(editorContent);
+  }, [editorContent, setEditText]);
 
-  // rightText -> right tiptap editor sync
+  // compareText -> right tiptap editor sync
   useEffect(() => {
     if (rightEditor && !sourceMode) {
       // React レンダリング中の flushSync 競合を回避するため次フレームに遅延
       const id = requestAnimationFrame(() => {
         if (rightEditor.isDestroyed) return;
         reviewModeStorage(rightEditor).enabled = false;
-        applyMarkdownToEditor(rightEditor, rightText);
+        applyMarkdownToEditor(rightEditor, compareText);
         reviewModeStorage(rightEditor).enabled = true;
       });
       return () => cancelAnimationFrame(id);
     }
-  }, [rightText, rightEditor, sourceMode]);
+  }, [compareText, rightEditor, sourceMode]);
 
   // When switching from source -> WYSIWYG, populate right editor
   const prevSourceMode = useRef(sourceMode);
@@ -207,13 +207,13 @@ export function InlineMergeView({
       id = requestAnimationFrame(() => {
         if (rightEditor.isDestroyed) return;
         reviewModeStorage(rightEditor).enabled = false;
-        applyMarkdownToEditor(rightEditor, rightText);
+        applyMarkdownToEditor(rightEditor, compareText);
         reviewModeStorage(rightEditor).enabled = true;
       });
     }
     prevSourceMode.current = sourceMode;
     return () => { if (id !== undefined) cancelAnimationFrame(id); };
-  }, [sourceMode, rightEditor, rightText]);
+  }, [sourceMode, rightEditor, compareText]);
 
   // 左エディタのブロック展開/折りたたみ状態を右エディタに同期
   useEffect(() => {
@@ -286,7 +286,7 @@ export function InlineMergeView({
 
   useScrollSync(leftContainerRef, rightScrollRef);
 
-  const rightFrontmatter = useMemo(() => preprocessMarkdown(rightText).frontmatter, [rightText]);
+  const rightFrontmatter = useMemo(() => preprocessMarkdown(compareText).frontmatter, [compareText]);
 
   const { leftBgGradient, rightBgGradient } = useDiffBackground(diffResult, sourceMode);
 
@@ -313,7 +313,7 @@ export function InlineMergeView({
         hidden
         onChange={(e) => {
           const f = e.target.files?.[0];
-          if (f) loadFile(setRightText, setRightMeta)(f);
+          if (f) loadFile(setCompareText, setRightMeta)(f);
           e.target.value = "";
         }}
       />
@@ -391,16 +391,16 @@ export function InlineMergeView({
             setRightDragOver(false);
             const file = e.dataTransfer.files?.[0];
             if (file && (file.name.endsWith(".md") || file.name.endsWith(".markdown") || file.type.startsWith("text/"))) {
-              loadFile(setRightText, setRightMeta)(file);
+              loadFile(setCompareText, setRightMeta)(file);
             }
           }}
         >
           <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
             <MergeEditorPanel
               sourceMode={sourceMode}
-              sourceText={rightText}
-              onSourceChange={setRightText}
-              textareaRef={rightTextareaRef}
+              sourceText={compareText}
+              onSourceChange={setCompareText}
+              textareaRef={compareTextareaRef}
               autoResize
               scrollRef={rightScrollRef}
               bgGradient={rightBgGradient}

@@ -3,23 +3,23 @@ import { useCallback, useMemo, useRef,useState } from "react";
 import { applyMerge, computeDiff, type DiffOptions, type DiffResult } from "../utils/diffEngine";
 
 interface TextSnapshot {
-  left: string;
-  right: string;
+  edit: string;
+  compare: string;
 }
 
-export function useMergeDiff(onLeftTextChange?: (text: string) => void) {
-  const [leftText, setLeftText] = useState("");
-  const [rightText, setRightText] = useState("");
-  const onLeftTextChangeRef = useRef(onLeftTextChange);
-  onLeftTextChangeRef.current = onLeftTextChange;
+export function useMergeDiff(onEditTextChange?: (text: string) => void) {
+  const [editText, setEditText] = useState("");
+  const [compareText, setCompareText] = useState("");
+  const onEditTextChangeRef = useRef(onEditTextChange);
+  onEditTextChangeRef.current = onEditTextChange;
   const [currentBlockIndex, setCurrentBlockIndex] = useState(0);
   const [diffOptions, setDiffOptions] = useState<DiffOptions>({});
 
   // Refs for latest values (enables stable callbacks without stale closures)
-  const leftTextRef = useRef(leftText);
-  leftTextRef.current = leftText;
-  const rightTextRef = useRef(rightText);
-  rightTextRef.current = rightText;
+  const editTextRef = useRef(editText);
+  editTextRef.current = editText;
+  const compareTextRef = useRef(compareText);
+  compareTextRef.current = compareText;
 
   // Undo/Redo history
   const undoStack = useRef<TextSnapshot[]>([]);
@@ -27,9 +27,9 @@ export function useMergeDiff(onLeftTextChange?: (text: string) => void) {
   const [historyVersion, setHistoryVersion] = useState(0); // trigger re-render on history change
 
   const diffResult: DiffResult | null = useMemo(() => {
-    if (leftText === "" && rightText === "") return null;
-    return computeDiff(leftText, rightText, diffOptions);
-  }, [leftText, rightText, diffOptions]);
+    if (editText === "" && compareText === "") return null;
+    return computeDiff(editText, compareText, diffOptions);
+  }, [editText, compareText, diffOptions]);
 
   const diffResultRef = useRef<DiffResult | null>(diffResult);
   diffResultRef.current = diffResult;
@@ -64,7 +64,7 @@ export function useMergeDiff(onLeftTextChange?: (text: string) => void) {
   );
 
   const pushUndo = useCallback(() => {
-    undoStack.current.push({ left: leftTextRef.current, right: rightTextRef.current });
+    undoStack.current.push({ edit: editTextRef.current, compare: compareTextRef.current });
     redoStack.current = [];
     setHistoryVersion((v) => v + 1);
   }, []);
@@ -76,10 +76,10 @@ export function useMergeDiff(onLeftTextChange?: (text: string) => void) {
       const block = dr.blocks.find((b) => b.id === blockId);
       if (!block) return;
       pushUndo();
-      const { newLeftText, newRightText } = applyMerge(leftTextRef.current, rightTextRef.current, block, direction);
-      setLeftText(newLeftText);
-      setRightText(newRightText);
-      if (newLeftText !== leftTextRef.current) onLeftTextChangeRef.current?.(newLeftText);
+      const { newLeftText, newRightText } = applyMerge(editTextRef.current, compareTextRef.current, block, direction);
+      setEditText(newLeftText);
+      setCompareText(newRightText);
+      if (newLeftText !== editTextRef.current) onEditTextChangeRef.current?.(newLeftText);
     },
     [pushUndo],
   );
@@ -88,11 +88,11 @@ export function useMergeDiff(onLeftTextChange?: (text: string) => void) {
     (direction: "left-to-right" | "right-to-left") => {
       pushUndo();
       if (direction === "left-to-right") {
-        setRightText(leftTextRef.current);
+        setCompareText(editTextRef.current);
       } else {
-        const newLeft = rightTextRef.current;
-        setLeftText(newLeft);
-        if (newLeft !== leftTextRef.current) onLeftTextChangeRef.current?.(newLeft);
+        const newEdit = compareTextRef.current;
+        setEditText(newEdit);
+        if (newEdit !== editTextRef.current) onEditTextChangeRef.current?.(newEdit);
       }
     },
     [pushUndo],
@@ -101,21 +101,21 @@ export function useMergeDiff(onLeftTextChange?: (text: string) => void) {
   const undo = useCallback(() => {
     const snapshot = undoStack.current.pop();
     if (!snapshot) return;
-    redoStack.current.push({ left: leftTextRef.current, right: rightTextRef.current });
-    setLeftText(snapshot.left);
-    setRightText(snapshot.right);
+    redoStack.current.push({ edit: editTextRef.current, compare: compareTextRef.current });
+    setEditText(snapshot.edit);
+    setCompareText(snapshot.compare);
     setHistoryVersion((v) => v + 1);
-    if (snapshot.left !== leftTextRef.current) onLeftTextChangeRef.current?.(snapshot.left);
+    if (snapshot.edit !== editTextRef.current) onEditTextChangeRef.current?.(snapshot.edit);
   }, []);
 
   const redo = useCallback(() => {
     const snapshot = redoStack.current.pop();
     if (!snapshot) return;
-    undoStack.current.push({ left: leftTextRef.current, right: rightTextRef.current });
-    setLeftText(snapshot.left);
-    setRightText(snapshot.right);
+    undoStack.current.push({ edit: editTextRef.current, compare: compareTextRef.current });
+    setEditText(snapshot.edit);
+    setCompareText(snapshot.compare);
     setHistoryVersion((v) => v + 1);
-    if (snapshot.left !== leftTextRef.current) onLeftTextChangeRef.current?.(snapshot.left);
+    if (snapshot.edit !== editTextRef.current) onEditTextChangeRef.current?.(snapshot.edit);
   }, []);
 
   const canUndo = undoStack.current.length > 0;
@@ -123,10 +123,10 @@ export function useMergeDiff(onLeftTextChange?: (text: string) => void) {
   const _hv = historyVersion; // ensure re-render on history change
 
   return {
-    leftText,
-    rightText,
-    setLeftText,
-    setRightText,
+    editText,
+    compareText,
+    setEditText,
+    setCompareText,
     diffResult,
     diffOptions,
     setDiffOptions,

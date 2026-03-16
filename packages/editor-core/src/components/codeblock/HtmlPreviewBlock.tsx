@@ -40,7 +40,7 @@ export function HtmlPreviewBlock(props: HtmlPreviewBlockProps) {
     t, isDark,
   } = props;
 
-  const { isCompareMode, compareCode, handleMergeApply } = useBlockMergeCompare({
+  const { isCompareMode, compareCode, thisCode, handleMergeApply } = useBlockMergeCompare({
     editor, getPos, language: "html", code, editOpen,
   });
 
@@ -81,6 +81,7 @@ export function HtmlPreviewBlock(props: HtmlPreviewBlockProps) {
           isCompareMode={isCompareMode}
           compareCode={compareCode}
           onMergeApply={handleMergeApply}
+          thisCode={thisCode}
           customSamples={htmlSamples.filter((s) => s.enabled)}
           renderPreview={(code) => (
             <Box

@@ -34,6 +34,7 @@ interface PlantUmlEditDialogProps {
   isCompareMode?: boolean;
   compareCode?: string | null;
   onMergeApply?: (newThisCode: string, newOtherCode: string) => void;
+  thisCode?: string;
   onCapture?: () => void;
   toolbarExtra?: React.ReactNode;
   t: (key: string) => string;
@@ -43,7 +44,7 @@ export function PlantUmlEditDialog({
   open, onClose, label, plantUmlUrl, code,
   fsCode, onFsCodeChange, onFsTextChange, fsTextareaRef, fsSearch,
   fsZP, readOnly,
-  isCompareMode, compareCode, onMergeApply, onCapture, toolbarExtra,
+  isCompareMode, compareCode, onMergeApply, thisCode, onCapture, toolbarExtra,
   t,
 }: PlantUmlEditDialogProps) {
   const theme = useTheme();
@@ -105,7 +106,7 @@ export function PlantUmlEditDialog({
       {/* Compare view */}
       {showCompareView ? (
         <FullscreenDiffView
-          initialLeftCode={fsCode}
+          initialLeftCode={thisCode ?? fsCode}
           initialRightCode={compareCode}
           onMergeApply={onMergeApply ?? (() => {})}
           t={t}

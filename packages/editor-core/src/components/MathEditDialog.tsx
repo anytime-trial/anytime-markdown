@@ -31,6 +31,7 @@ interface MathEditDialogProps {
   isCompareMode?: boolean;
   compareCode?: string | null;
   onMergeApply?: (newThisCode: string, newOtherCode: string) => void;
+  thisCode?: string;
   toolbarExtra?: React.ReactNode;
   t: (key: string) => string;
 }
@@ -38,7 +39,7 @@ interface MathEditDialogProps {
 export function MathEditDialog({
   open, onClose, label,
   fsCode, onFsCodeChange, onFsTextChange, fsTextareaRef, fsSearch,
-  readOnly, isCompareMode, compareCode, onMergeApply, toolbarExtra,
+  readOnly, isCompareMode, compareCode, onMergeApply, thisCode, toolbarExtra,
   t,
 }: MathEditDialogProps) {
   const theme = useTheme();
@@ -65,7 +66,7 @@ export function MathEditDialog({
       {/* Compare view */}
       {showCompareView ? (
         <FullscreenDiffView
-          initialLeftCode={fsCode}
+          initialLeftCode={thisCode ?? fsCode}
           initialRightCode={compareCode}
           onMergeApply={onMergeApply ?? (() => {})}
           t={t}

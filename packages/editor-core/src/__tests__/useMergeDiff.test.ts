@@ -7,104 +7,104 @@ describe("useMergeDiff", () => {
     expect(result.current.diffResult).toBeNull();
     expect(result.current.canUndo).toBe(false);
     expect(result.current.canRedo).toBe(false);
-    expect(result.current.leftText).toBe("");
-    expect(result.current.rightText).toBe("");
+    expect(result.current.editText).toBe("");
+    expect(result.current.compareText).toBe("");
   });
 
   test("テキスト設定 → diffResult 生成", () => {
     const { result } = renderHook(() => useMergeDiff());
     act(() => {
-      result.current.setLeftText("line1\nold\n");
-      result.current.setRightText("line1\nnew\n");
+      result.current.setEditText("line1\nold\n");
+      result.current.setCompareText("line1\nnew\n");
     });
     expect(result.current.diffResult).not.toBeNull();
     expect(result.current.diffResult!.blocks.length).toBeGreaterThan(0);
     expect(result.current.totalBlocks).toBeGreaterThan(0);
   });
 
-  test("mergeBlock left-to-right → 右テキスト更新", () => {
+  test("mergeBlock left-to-right → compareText 更新", () => {
     const { result } = renderHook(() => useMergeDiff());
     act(() => {
-      result.current.setLeftText("line1\nold\n");
-      result.current.setRightText("line1\nnew\n");
+      result.current.setEditText("line1\nold\n");
+      result.current.setCompareText("line1\nnew\n");
     });
     const blockId = result.current.diffResult!.blocks[0].id;
     act(() => result.current.mergeBlock(blockId, "left-to-right"));
-    expect(result.current.rightText).toBe(result.current.leftText);
+    expect(result.current.compareText).toBe(result.current.editText);
   });
 
-  test("mergeBlock right-to-left → 左テキスト更新 + コールバック", () => {
-    const onLeftTextChange = jest.fn();
-    const { result } = renderHook(() => useMergeDiff(onLeftTextChange));
+  test("mergeBlock right-to-left → editText 更新 + コールバック", () => {
+    const onEditTextChange = jest.fn();
+    const { result } = renderHook(() => useMergeDiff(onEditTextChange));
     act(() => {
-      result.current.setLeftText("line1\nold\n");
-      result.current.setRightText("line1\nnew\n");
+      result.current.setEditText("line1\nold\n");
+      result.current.setCompareText("line1\nnew\n");
     });
     const blockId = result.current.diffResult!.blocks[0].id;
     act(() => result.current.mergeBlock(blockId, "right-to-left"));
-    expect(result.current.leftText).toBe("line1\nnew\n");
-    expect(onLeftTextChange).toHaveBeenCalledWith("line1\nnew\n");
+    expect(result.current.editText).toBe("line1\nnew\n");
+    expect(onEditTextChange).toHaveBeenCalledWith("line1\nnew\n");
   });
 
-  test("mergeAllBlocks left-to-right → 右テキストが左と同一に", () => {
+  test("mergeAllBlocks left-to-right → compareText が editText と同一に", () => {
     const { result } = renderHook(() => useMergeDiff());
     act(() => {
-      result.current.setLeftText("aaa\n");
-      result.current.setRightText("bbb\n");
+      result.current.setEditText("aaa\n");
+      result.current.setCompareText("bbb\n");
     });
     act(() => result.current.mergeAllBlocks("left-to-right"));
-    expect(result.current.rightText).toBe("aaa\n");
+    expect(result.current.compareText).toBe("aaa\n");
   });
 
-  test("mergeAllBlocks right-to-left → 左テキストが右と同一に", () => {
-    const onLeftTextChange = jest.fn();
-    const { result } = renderHook(() => useMergeDiff(onLeftTextChange));
+  test("mergeAllBlocks right-to-left → editText が compareText と同一に", () => {
+    const onEditTextChange = jest.fn();
+    const { result } = renderHook(() => useMergeDiff(onEditTextChange));
     act(() => {
-      result.current.setLeftText("aaa\n");
-      result.current.setRightText("bbb\n");
+      result.current.setEditText("aaa\n");
+      result.current.setCompareText("bbb\n");
     });
     act(() => result.current.mergeAllBlocks("right-to-left"));
-    expect(result.current.leftText).toBe("bbb\n");
-    expect(onLeftTextChange).toHaveBeenCalledWith("bbb\n");
+    expect(result.current.editText).toBe("bbb\n");
+    expect(onEditTextChange).toHaveBeenCalledWith("bbb\n");
   });
 
   test("undo → 前の状態に戻る", () => {
     const { result } = renderHook(() => useMergeDiff());
     act(() => {
-      result.current.setLeftText("line1\nold\n");
-      result.current.setRightText("line1\nnew\n");
+      result.current.setEditText("line1\nold\n");
+      result.current.setCompareText("line1\nnew\n");
     });
     const blockId = result.current.diffResult!.blocks[0].id;
     act(() => result.current.mergeBlock(blockId, "left-to-right"));
     expect(result.current.canUndo).toBe(true);
 
     act(() => result.current.undo());
-    expect(result.current.leftText).toBe("line1\nold\n");
-    expect(result.current.rightText).toBe("line1\nnew\n");
+    expect(result.current.editText).toBe("line1\nold\n");
+    expect(result.current.compareText).toBe("line1\nnew\n");
   });
 
   test("redo → undo を取り消す", () => {
     const { result } = renderHook(() => useMergeDiff());
     act(() => {
-      result.current.setLeftText("line1\nold\n");
-      result.current.setRightText("line1\nnew\n");
+      result.current.setEditText("line1\nold\n");
+      result.current.setCompareText("line1\nnew\n");
     });
     const blockId = result.current.diffResult!.blocks[0].id;
     act(() => result.current.mergeBlock(blockId, "left-to-right"));
-    const mergedRight = result.current.rightText;
+    const mergedCompare = result.current.compareText;
 
     act(() => result.current.undo());
     expect(result.current.canRedo).toBe(true);
 
     act(() => result.current.redo());
-    expect(result.current.rightText).toBe(mergedRight);
+    expect(result.current.compareText).toBe(mergedCompare);
   });
 
   test("undo 後に新しいマージ → redo スタッククリア", () => {
     const { result } = renderHook(() => useMergeDiff());
     act(() => {
-      result.current.setLeftText("a\nb\n");
-      result.current.setRightText("a\nc\n");
+      result.current.setEditText("a\nb\n");
+      result.current.setCompareText("a\nc\n");
     });
     const blockId = result.current.diffResult!.blocks[0].id;
 
@@ -122,8 +122,8 @@ describe("useMergeDiff", () => {
   test("goToNextBlock / goToPrevBlock → インデックス制御", () => {
     const { result } = renderHook(() => useMergeDiff());
     act(() => {
-      result.current.setLeftText("a\nb\nc\n");
-      result.current.setRightText("A\nB\nC\n");
+      result.current.setEditText("a\nb\nc\n");
+      result.current.setCompareText("A\nB\nC\n");
     });
     // 全行が異なるので少なくとも1ブロック
     expect(result.current.totalBlocks).toBeGreaterThanOrEqual(1);

@@ -44,7 +44,7 @@ export function MathBlock(props: MathBlockProps) {
   const mathContainerRef = useRef<HTMLDivElement>(null);
   const { resizing, resizeWidth, displayWidth, handleResizePointerDown, handleResizePointerMove, handleResizePointerUp } = useBlockResize({ containerRef: mathContainerRef, updateAttributes, currentWidth: node.attrs.width });
 
-  const { isCompareMode, compareCode, handleMergeApply } = useBlockMergeCompare({
+  const { isCompareMode, compareCode, thisCode, handleMergeApply } = useBlockMergeCompare({
     editor, getPos, language: "math", code, editOpen,
   });
 
@@ -81,6 +81,7 @@ export function MathBlock(props: MathBlockProps) {
           isCompareMode={isCompareMode}
           compareCode={compareCode}
           onMergeApply={handleMergeApply}
+          thisCode={thisCode}
           toolbarExtra={
             <Tooltip title={t("copyCode")} placement="bottom">
               <IconButton size="small" sx={{ p: 0.25 }} onClick={handleCopyCode} aria-label={t("copyCode")}>

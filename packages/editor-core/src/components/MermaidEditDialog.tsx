@@ -37,6 +37,7 @@ interface MermaidEditDialogProps {
   isCompareMode?: boolean;
   compareCode?: string | null;
   onMergeApply?: (newThisCode: string, newOtherCode: string) => void;
+  thisCode?: string;
   onCapture?: () => void;
   toolbarExtra?: React.ReactNode;
   t: (key: string) => string;
@@ -46,7 +47,7 @@ export function MermaidEditDialog({
   open, onClose, label, svg, code,
   fsCode, onFsCodeChange, onFsTextChange, fsTextareaRef, fsSearch,
   fsZP, readOnly,
-  isCompareMode, compareCode, onMergeApply, onCapture, toolbarExtra,
+  isCompareMode, compareCode, onMergeApply, thisCode, onCapture, toolbarExtra,
   t,
 }: MermaidEditDialogProps) {
   const theme = useTheme();
@@ -124,7 +125,7 @@ export function MermaidEditDialog({
       {/* Compare view */}
       {showCompareView ? (
         <FullscreenDiffView
-          initialLeftCode={fsCode}
+          initialLeftCode={thisCode ?? fsCode}
           initialRightCode={compareCode}
           onMergeApply={onMergeApply ?? (() => {})}
           t={t}

@@ -30,7 +30,7 @@ export function RegularCodeBlock(props: RegularCodeBlockProps) {
   const language = node.attrs.language;
   const codeLabel = language ? `Code (${language})` : "Code";
 
-  const { isCompareMode, compareCode, handleMergeApply } = useBlockMergeCompare({
+  const { isCompareMode, compareCode, thisCode, handleMergeApply } = useBlockMergeCompare({
     editor, getPos: _getPos, language, code, editOpen,
   });
 
@@ -68,6 +68,7 @@ export function RegularCodeBlock(props: RegularCodeBlockProps) {
           isCompareMode={isCompareMode}
           compareCode={compareCode}
           onMergeApply={handleMergeApply}
+          thisCode={thisCode}
           t={t}
         />
       }

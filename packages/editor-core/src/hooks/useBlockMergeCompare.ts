@@ -18,6 +18,8 @@ export function useBlockMergeCompare(params: {
 }): {
   isCompareMode: boolean;
   compareCode: string | null;
+  /** このエディタのコード（比較エディタから開いた場合は相手のコードを返す） */
+  thisCode: string;
   handleMergeApply: (newThisCode: string, newOtherCode: string) => void;
 } {
   const { editor, language, code, editOpen } = params;
@@ -25,12 +27,22 @@ export function useBlockMergeCompare(params: {
   const mergeEditors = getMergeEditors();
   const isCompareMode = !!mergeEditors;
 
-  const compareCode = useMemo(() => {
+  // 比較エディタ（画面左 = mergeEditors.rightEditor）かどうかを判定
+  const isCompareEditor = useMemo(() => {
+    if (!editor || !mergeEditors) return false;
+    return editor === mergeEditors.rightEditor;
+  }, [editor, mergeEditors]);
+
+  const counterpartCode = useMemo(() => {
     if (!editOpen || !mergeEditors || !editor) return null;
-    const isRight = !!editor.view?.dom?.dataset?.reviewMode;
-    const otherEditor = isRight ? mergeEditors.leftEditor : mergeEditors.rightEditor;
+    const otherEditor = isCompareEditor ? mergeEditors.leftEditor : mergeEditors.rightEditor;
     return findCounterpartCode(editor, otherEditor, language, code);
-  }, [editOpen, mergeEditors, editor, language, code]);
+  }, [editOpen, mergeEditors, editor, isCompareEditor, language, code]);
+
+  // 比較エディタから開いた場合: thisCode=相手(編集側), compareCode=自分(比較側)
+  // 編集エディタから開いた場合: thisCode=自分(編集側), compareCode=相手(比較側)
+  const thisCode = isCompareEditor && counterpartCode != null ? counterpartCode : code;
+  const compareCode = isCompareEditor && counterpartCode != null ? code : counterpartCode;
 
   const blockIndexRef = useRef(-1);
   useEffect(() => {
@@ -39,29 +51,38 @@ export function useBlockMergeCompare(params: {
     }
   }, [editOpen, mergeEditors, editor, language, code]);
 
-  const handleMergeApply = useCallback((newThisCode: string, newOtherCode: string) => {
+  const handleMergeApply = useCallback((newEditCode: string, newCompareCode: string) => {
     if (!mergeEditors || !editor || blockIndexRef.current === -1) return;
-    const isRight = !!editor.view?.dom?.dataset?.reviewMode;
-    const otherEditor = isRight ? mergeEditors.leftEditor : mergeEditors.rightEditor;
+    const isCompare = mergeEditors ? editor === mergeEditors.rightEditor : false;
+    const otherEditor = isCompare ? mergeEditors.leftEditor : mergeEditors.rightEditor;
 
-    const thisBlock = findCodeBlockByIndex(editor, language, blockIndexRef.current);
-    if (thisBlock) {
-      editor.chain().command(({ tr }) => {
-        const from = thisBlock.pos + 1;
-        const to = from + thisBlock.size;
-        if (newThisCode) tr.replaceWith(from, to, editor.schema.text(newThisCode));
-        else tr.delete(from, to);
-        return true;
-      }).run();
+    // 比較エディタから開いた場合: editCode → 相手(leftEditor), compareCode → 自分(editor)
+    // 編集エディタから開いた場合: editCode → 自分(editor), compareCode → 相手(rightEditor)
+    const thisEditor = isCompare ? otherEditor : editor;
+    const compareEditor = isCompare ? editor : otherEditor;
+    const thisNewCode = newEditCode;
+    const compareNewCode = newCompareCode;
+
+    if (thisEditor) {
+      const thisBlock = findCodeBlockByIndex(thisEditor, language, blockIndexRef.current);
+      if (thisBlock) {
+        thisEditor.chain().command(({ tr }) => {
+          const from = thisBlock.pos + 1;
+          const to = from + thisBlock.size;
+          if (thisNewCode) tr.replaceWith(from, to, thisEditor.schema.text(thisNewCode));
+          else tr.delete(from, to);
+          return true;
+        }).run();
+      }
     }
 
-    if (otherEditor) {
-      const otherBlock = findCodeBlockByIndex(otherEditor, language, blockIndexRef.current);
-      if (otherBlock) {
-        otherEditor.chain().command(({ tr }) => {
-          const from = otherBlock.pos + 1;
-          const to = from + otherBlock.size;
-          if (newOtherCode) tr.replaceWith(from, to, otherEditor.schema.text(newOtherCode));
+    if (compareEditor) {
+      const compareBlock = findCodeBlockByIndex(compareEditor, language, blockIndexRef.current);
+      if (compareBlock) {
+        compareEditor.chain().command(({ tr }) => {
+          const from = compareBlock.pos + 1;
+          const to = from + compareBlock.size;
+          if (compareNewCode) tr.replaceWith(from, to, compareEditor.schema.text(compareNewCode));
           else tr.delete(from, to);
           return true;
         }).run();
@@ -69,5 +90,5 @@ export function useBlockMergeCompare(params: {
     }
   }, [mergeEditors, editor, language]);
 
-  return { isCompareMode, compareCode, handleMergeApply };
+  return { isCompareMode, compareCode, thisCode, handleMergeApply };
 }

@@ -1,4 +1,5 @@
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
+import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import { alpha, Box, IconButton, type Theme,Tooltip, useTheme } from "@mui/material";
 import React, { useCallback, useEffect,useMemo, useRef, useState } from "react";
 
@@ -114,8 +115,8 @@ export function FullscreenDiffView({
   const settings = useEditorSettingsContext();
   const { fontSize, lineHeight } = settings;
 
-  const [leftText, setLeftText] = useState(initialLeftCode);
-  const [rightText, setRightText] = useState(initialRightCode);
+  const [editText, setEditText] = useState(initialLeftCode);
+  const [compareText, setCompareText] = useState(initialRightCode);
 
   // Sync with props when dialog re-opens
   const prevInitialLeft = useRef(initialLeftCode);
@@ -123,11 +124,11 @@ export function FullscreenDiffView({
   if (prevInitialLeft.current !== initialLeftCode || prevInitialRight.current !== initialRightCode) {
     prevInitialLeft.current = initialLeftCode;
     prevInitialRight.current = initialRightCode;
-    setLeftText(initialLeftCode);
-    setRightText(initialRightCode);
+    setEditText(initialLeftCode);
+    setCompareText(initialRightCode);
   }
 
-  const diffResult = useMemo(() => computeDiff(leftText, rightText), [leftText, rightText]);
+  const diffResult = useMemo(() => computeDiff(editText, compareText), [editText, compareText]);
 
   const mergeButtonIndices = useMemo(
     () => buildMergeButtonIndices(diffResult.leftLines),
@@ -138,14 +139,14 @@ export function FullscreenDiffView({
     (blockId: number, direction: "left-to-right" | "right-to-left") => {
       const block = diffResult.blocks.find((b) => b.id === blockId);
       if (!block) return;
-      // 画面上の左=rightText, 右=leftText なので direction を反転
+      // 画面上の左=compareText, 右=editText なので direction を反転
       const flipped = direction === "left-to-right" ? "right-to-left" : "left-to-right";
-      const { newLeftText, newRightText } = applyMerge(leftText, rightText, block, flipped);
-      setLeftText(newLeftText);
-      setRightText(newRightText);
+      const { newLeftText, newRightText } = applyMerge(editText, compareText, block, flipped);
+      setEditText(newLeftText);
+      setCompareText(newRightText);
       onMergeApply(newLeftText, newRightText);
     },
-    [diffResult, leftText, rightText, onMergeApply],
+    [diffResult, editText, compareText, onMergeApply],
   );
 
   const hasMergeButtons = mergeButtonIndices.size > 0;
@@ -180,10 +181,10 @@ export function FullscreenDiffView({
         }
         realText = realLines.join("\n");
       }
-      setLeftText(realText);
-      onMergeApply(realText, rightText);
+      setEditText(realText);
+      onMergeApply(realText, compareText);
     },
-    [leftData.paddingIndices, onMergeApply, rightText],
+    [leftData.paddingIndices, onMergeApply, compareText],
   );
 
   return (
@@ -209,8 +210,8 @@ export function FullscreenDiffView({
         diffLines={diffResult.leftLines}
         displayData={leftData}
         gradient={leftGradient}
-        mergeButtonIndices={mergeButtonIndices}
-        hasMergeButtons={hasMergeButtons}
+        mergeButtonIndices={new Map()}
+        hasMergeButtons={false}
         side="right"
         readOnly={false}
         onChange={handleLeftChange}
@@ -338,7 +339,7 @@ function DiffPanel({
             }}
           >
             {"\u00A0"}
-            {blockId != null && panelSide === "right" && (
+            {blockId != null && (
               <Box
                 sx={{
                   position: "absolute",
@@ -352,16 +353,18 @@ function DiffPanel({
                 }}
               >
                 <Tooltip
-                  title={t("mergeRightToLeft")}
-                  placement="right"
+                  title={panelSide === "left" ? t("mergeLeftToRight") : t("mergeRightToLeft")}
+                  placement={panelSide === "left" ? "right" : "left"}
                 >
                   <IconButton
                     size="small"
-                    aria-label={t("mergeRightToLeft")}
-                    onClick={() => onMerge(blockId, "right-to-left")}
+                    aria-label={panelSide === "left" ? t("mergeLeftToRight") : t("mergeRightToLeft")}
+                    onClick={() => onMerge(blockId, panelSide === "left" ? "left-to-right" : "right-to-left")}
                     sx={{ p: 0 }}
                   >
-                    <ChevronLeftIcon sx={{ fontSize: 16 }} />
+                    {panelSide === "left"
+                      ? <ChevronRightIcon sx={{ fontSize: 16 }} />
+                      : <ChevronLeftIcon sx={{ fontSize: 16 }} />}
                   </IconButton>
                 </Tooltip>
               </Box>
@@ -476,6 +479,9 @@ function DiffPanel({
             }}
           />
         </Box>
+
+        {/* 左パネル: マージガター（→）をテキストの右に配置 */}
+        {side === "left" && hasMergeButtons && renderMergeGutter("left")}
 
       </Box>
     </Box>
