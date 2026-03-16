@@ -16,6 +16,7 @@
   "command.specDocsCloneRepo": "リポジトリをクローンする",
   "command.specDocsClose": "フォルダーを閉じる",
   "command.specDocsRefresh": "更新",
+  "command.switchBranch": "ブランチを切替",
   "command.toggleMdOnly": "Markdownファイルのみ表示を切替",
   "view.changes": "変更",
   "viewsWelcome.changes": "変更はありません。",

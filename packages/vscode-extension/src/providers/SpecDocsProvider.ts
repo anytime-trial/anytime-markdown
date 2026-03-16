@@ -51,6 +51,34 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsItem> {
 	}
 
 	get mdOnly(): boolean { return this._mdOnly; }
+	get root(): string | null { return this.rootPath; }
+
+	/** リポジトリ名とブランチ名を返す */
+	getRepoInfo(): { repoName: string; branchName: string } | null {
+		if (!this.rootPath) { return null; }
+		// .git ディレクトリまたはファイルを探す
+		let dir = this.rootPath;
+		while (dir !== path.dirname(dir)) {
+			const gitPath = path.join(dir, '.git');
+			if (fs.existsSync(gitPath)) {
+				const repoName = path.basename(dir);
+				let branchName = 'HEAD';
+				try {
+					const headPath = fs.statSync(gitPath).isDirectory()
+						? path.join(gitPath, 'HEAD')
+						: gitPath;
+					if (fs.statSync(gitPath).isDirectory()) {
+						const head = fs.readFileSync(headPath, 'utf-8').trim();
+						const match = head.match(/^ref: refs\/heads\/(.+)$/);
+						branchName = match ? match[1] : head.substring(0, 7);
+					}
+				} catch { /* ignore */ }
+				return { repoName, branchName };
+			}
+			dir = path.dirname(dir);
+		}
+		return { repoName: path.basename(this.rootPath), branchName: '' };
+	}
 
 	getTreeItem(element: SpecDocsItem): vscode.TreeItem {
 		return element;
@@ -174,6 +202,64 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsItem> {
 
 	refresh(): void {
 		this._onDidChangeTreeData.fire(undefined);
+	}
+
+	/** git リポジトリのルートディレクトリを返す */
+	private findGitRoot(): string | null {
+		if (!this.rootPath) { return null; }
+		let dir = this.rootPath;
+		while (dir !== path.dirname(dir)) {
+			if (fs.existsSync(path.join(dir, '.git'))) { return dir; }
+			dir = path.dirname(dir);
+		}
+		return null;
+	}
+
+	async switchBranch(): Promise<void> {
+		const gitRoot = this.findGitRoot();
+		if (!gitRoot) {
+			vscode.window.showWarningMessage('Git repository not found.');
+			return;
+		}
+
+		const { execSync } = await import('child_process');
+
+		// ローカル＋リモートブランチ一覧を取得
+		let branches: string[];
+		try {
+			const output = execSync('git branch -a --no-color', { cwd: gitRoot, encoding: 'utf-8' });
+			branches = output.split('\n')
+				.map(b => b.replace(/^\*?\s+/, '').trim())
+				.filter(b => b && !b.includes('HEAD'))
+				.map(b => b.replace(/^remotes\/origin\//, ''))
+				.filter((b, i, arr) => arr.indexOf(b) === i); // 重複排除
+		} catch {
+			vscode.window.showErrorMessage('Failed to list branches.');
+			return;
+		}
+
+		// 現在のブランチ
+		const info = this.getRepoInfo();
+		const currentBranch = info?.branchName ?? '';
+
+		const items = branches.map(b => ({
+			label: b,
+			description: b === currentBranch ? '(current)' : '',
+		}));
+
+		const selected = await vscode.window.showQuickPick(items, {
+			placeHolder: 'Select branch to checkout',
+		});
+		if (!selected || selected.label === currentBranch) { return; }
+
+		try {
+			execSync(`git checkout ${selected.label}`, { cwd: gitRoot, encoding: 'utf-8' });
+			this._onDidChangeTreeData.fire(undefined);
+			vscode.window.showInformationMessage(`Switched to branch: ${selected.label}`);
+		} catch (e: unknown) {
+			const msg = e instanceof Error ? e.message : String(e);
+			vscode.window.showErrorMessage(`Checkout failed: ${msg}`);
+		}
 	}
 
 	toggleMdOnly(): void {

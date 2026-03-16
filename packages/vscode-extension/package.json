@@ -112,6 +112,11 @@
         "icon": "$(filter)"
       },
       {
+        "command": "anytime-markdown.switchBranch",
+        "title": "%command.switchBranch%",
+        "icon": "$(git-branch)"
+      },
+      {
         "command": "anytime-markdown.changesRefresh",
         "title": "%command.changesRefresh%",
         "icon": "$(refresh)"
@@ -169,19 +174,24 @@
     "menus": {
       "view/title": [
         {
+          "command": "anytime-markdown.switchBranch",
+          "when": "view == anytimeMarkdown.specDocs && anytimeMarkdown.specDocsHasRoot",
+          "group": "navigation@1"
+        },
+        {
           "command": "anytime-markdown.toggleMdOnly",
           "when": "view == anytimeMarkdown.specDocs",
-          "group": "navigation@1"
+          "group": "navigation@2"
         },
         {
           "command": "anytime-markdown.specDocsRefresh",
           "when": "view == anytimeMarkdown.specDocs && anytimeMarkdown.specDocsHasRoot",
-          "group": "navigation@2"
+          "group": "navigation@3"
         },
         {
           "command": "anytime-markdown.specDocsClose",
           "when": "view == anytimeMarkdown.specDocs && anytimeMarkdown.specDocsHasRoot",
-          "group": "navigation@3"
+          "group": "navigation@4"
         },
         {
           "command": "anytime-markdown.changesRefresh",

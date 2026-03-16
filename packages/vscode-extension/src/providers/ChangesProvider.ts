@@ -18,6 +18,8 @@ interface Repository {
 	checkout(paths: string[]): Promise<void>;
 }
 interface RepositoryState {
+	HEAD?: { name?: string; commit?: string };
+	remotes: { name: string; fetchUrl?: string; pushUrl?: string }[];
 	indexChanges: Change[];
 	workingTreeChanges: Change[];
 }
@@ -182,6 +184,18 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem>
 
 	refresh(): void {
 		this._onDidChangeTreeData.fire();
+	}
+
+	/** リポジトリ名とブランチ名を返す */
+	getRepoInfo(): { repoName: string; branchName: string } | null {
+		if (!this.repo) { return null; }
+		const branchName = this.repo.state.HEAD?.name ?? 'HEAD';
+		const remote = this.repo.state.remotes.find(r => r.name === 'origin');
+		const url = remote?.fetchUrl ?? remote?.pushUrl ?? '';
+		const repoName = url
+			? path.basename(url, '.git').replace(/\.git$/, '')
+			: path.basename(this.repo.rootUri.fsPath);
+		return { repoName, branchName };
 	}
 
 	getTreeItem(element: ChangesTreeItem): vscode.TreeItem {

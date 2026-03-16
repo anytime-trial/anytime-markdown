@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { MarkdownEditorProvider } from './providers/MarkdownEditorProvider';
 import { GitHistoryProvider, GitHistoryItem } from './providers/GitHistoryProvider';
 import { ChangesProvider, ChangesFileItem } from './providers/ChangesProvider';
@@ -12,6 +13,17 @@ export function activate(context: vscode.ExtensionContext) {
 	const changesTreeView = vscode.window.createTreeView('anytimeMarkdown.changes', {
 		treeDataProvider: changesProvider,
 	});
+
+	// リポジトリ情報を TreeView の description に表示
+	const updateChangesDescription = () => {
+		const info = changesProvider.getRepoInfo();
+		if (info) {
+			changesTreeView.description = `${info.repoName} / ${info.branchName}`;
+		}
+	};
+	changesProvider.onDidChangeTreeData(() => updateChangesDescription());
+	// 初回は少し遅延してgit初期化を待つ
+	setTimeout(updateChangesDescription, 2000);
 
 	// Git 履歴パネル
 	const gitHistoryProvider = new GitHistoryProvider();
@@ -164,6 +176,21 @@ export function activate(context: vscode.ExtensionContext) {
 	const specDocsTreeView = vscode.window.createTreeView('anytimeMarkdown.specDocs', {
 		treeDataProvider: specDocsProvider,
 	});
+	const updateSpecDocsDescription = () => {
+		const info = specDocsProvider.getRepoInfo();
+		if (info) {
+			specDocsTreeView.title = info.branchName
+				? `${info.repoName} / ${info.branchName}`
+				: info.repoName;
+			specDocsTreeView.description = '';
+		} else {
+			specDocsTreeView.title = undefined as unknown as string;
+			specDocsTreeView.description = '';
+		}
+	};
+	specDocsProvider.onDidChangeTreeData(() => updateSpecDocsDescription());
+	updateSpecDocsDescription();
+
 	const specDocsOpenFolder = vscode.commands.registerCommand(
 		'anytime-markdown.specDocsOpenFolder', () => specDocsProvider.openFolder()
 	);
@@ -175,6 +202,9 @@ export function activate(context: vscode.ExtensionContext) {
 	);
 	const specDocsRefresh = vscode.commands.registerCommand(
 		'anytime-markdown.specDocsRefresh', () => specDocsProvider.refresh()
+	);
+	const switchBranch = vscode.commands.registerCommand(
+		'anytime-markdown.switchBranch', () => specDocsProvider.switchBranch()
 	);
 	const toggleMdOnly = vscode.commands.registerCommand(
 		'anytime-markdown.toggleMdOnly', () => {
@@ -231,7 +261,7 @@ export function activate(context: vscode.ExtensionContext) {
 		openEditorWithFile, compareCmd, compareWithCommit,
 		insertSectionNumbers, removeSectionNumbers,
 		changesRefresh, stageFile, unstageFile, discardChanges, openChangeDiff,
-		specDocsOpenFolder, specDocsCloneRepo, specDocsClose, specDocsRefresh, toggleMdOnly,
+		specDocsOpenFolder, specDocsCloneRepo, specDocsClose, specDocsRefresh, switchBranch, toggleMdOnly,
 	);
 }
 
