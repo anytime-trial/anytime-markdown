@@ -197,7 +197,7 @@ export function TableNodeView({ editor, node, getPos }: NodeViewProps) {
 
                 <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
 
-                <SearchReplaceBar editor={editor} t={t} />
+                {editor.storage.searchReplace && <SearchReplaceBar editor={editor} t={t} />}
               </Box>
             )}
           </Box>
