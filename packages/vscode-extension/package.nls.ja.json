@@ -21,6 +21,8 @@
   "command.specDocsCreateFolder": "新しいフォルダー",
   "command.specDocsDelete": "削除",
   "command.specDocsRename": "名前の変更",
+  "view.graph": "グラフ",
+  "command.graphRefresh": "グラフを更新",
   "command.toggleMdOnly": "Markdownファイルのみ表示を切替",
   "view.changes": "変更",
   "viewsWelcome.changes": "変更はありません。",

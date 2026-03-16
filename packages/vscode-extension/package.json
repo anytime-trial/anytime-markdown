@@ -46,8 +46,12 @@
           "name": "%view.changes%"
         },
         {
-          "id": "anytimeMarkdown.gitHistory",
-          "name": "Git History"
+          "id": "anytimeMarkdown.graph",
+          "name": "%view.graph%"
+        },
+        {
+          "id": "anytimeMarkdown.timeline",
+          "name": "Timeline"
         }
       ]
     },
@@ -62,7 +66,11 @@
         "contents": "%viewsWelcome.changes%"
       },
       {
-        "view": "anytimeMarkdown.gitHistory",
+        "view": "anytimeMarkdown.timeline",
+        "contents": "No items."
+      },
+      {
+        "view": "anytimeMarkdown.graph",
         "contents": "No items."
       }
     ],
@@ -134,6 +142,11 @@
       {
         "command": "anytime-markdown.specDocsRename",
         "title": "%command.specDocsRename%"
+      },
+      {
+        "command": "anytime-markdown.graphRefresh",
+        "title": "%command.graphRefresh%",
+        "icon": "$(refresh)"
       },
       {
         "command": "anytime-markdown.changesRefresh",
@@ -246,6 +259,11 @@
           "command": "anytime-markdown.specDocsClose",
           "when": "view == anytimeMarkdown.specDocs && anytimeMarkdown.specDocsHasRoot",
           "group": "navigation@6"
+        },
+        {
+          "command": "anytime-markdown.graphRefresh",
+          "when": "view == anytimeMarkdown.graph",
+          "group": "navigation@1"
         },
         {
           "command": "anytime-markdown.changesRefresh",

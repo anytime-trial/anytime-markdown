@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { MarkdownEditorProvider } from './providers/MarkdownEditorProvider';
-import { GitHistoryProvider, GitHistoryItem } from './providers/GitHistoryProvider';
+import { TimelineProvider, TimelineItem } from './providers/TimelineProvider';
+import { GraphProvider } from './providers/GraphProvider';
 import { ChangesProvider, ChangesFileItem } from './providers/ChangesProvider';
 import { SpecDocsProvider, SpecDocsItem, SpecDocsDragAndDrop } from './providers/SpecDocsProvider';
 
@@ -32,9 +33,15 @@ export function activate(context: vscode.ExtensionContext) {
 	}, 2000);
 
 	// Git 履歴パネル
-	const gitHistoryProvider = new GitHistoryProvider();
-	const gitTreeView = vscode.window.createTreeView('anytimeMarkdown.gitHistory', {
-		treeDataProvider: gitHistoryProvider,
+	const timelineProvider = new TimelineProvider();
+	const timelineTreeView = vscode.window.createTreeView('anytimeMarkdown.timeline', {
+		treeDataProvider: timelineProvider,
+	});
+
+	// Git グラフパネル
+	const graphProvider = new GraphProvider();
+	const graphTreeView = vscode.window.createTreeView('anytimeMarkdown.graph', {
+		treeDataProvider: graphProvider,
 	});
 
 	// ステータスバーアイテム（右側、テキストエディタと同等の位置）
@@ -68,16 +75,16 @@ export function activate(context: vscode.ExtensionContext) {
 	}
 
 	// アクティブドキュメント変更時に履歴を更新（外部リポジトリモード中はスキップ）
-	const updateGitHistory = () => {
-		if (gitHistoryProvider.isExternalMode) return;
+	const updateTimeline = () => {
+		if (timelineProvider.isExternalMode) return;
 		const p = MarkdownEditorProvider.getInstance();
-		gitHistoryProvider.refresh(p?.activeDocumentUri ?? null);
+		timelineProvider.refresh(p?.activeDocumentUri ?? null);
 	};
 
 	// カスタムエディタのアクティブ変更を監視
 	context.subscriptions.push(
 		vscode.window.onDidChangeActiveTextEditor(() => {
-			updateGitHistory();
+			updateTimeline();
 			// テキストエディタがアクティブになった場合、Anytime のステータスバーを非表示
 			if (vscode.window.activeTextEditor) {
 				hideStatusBar();
@@ -92,7 +99,7 @@ export function activate(context: vscode.ExtensionContext) {
 		const currentUri = p?.activeDocumentUri?.toString() ?? null;
 		if (currentUri !== lastActiveUri) {
 			lastActiveUri = currentUri;
-			updateGitHistory();
+			updateTimeline();
 			if (!currentUri) {
 				hideStatusBar();
 			}
@@ -139,10 +146,10 @@ export function activate(context: vscode.ExtensionContext) {
 
 	const compareWithCommit = vscode.commands.registerCommand(
 		'anytime-markdown.compareWithCommit',
-		async (item: GitHistoryItem) => {
+		async (item: TimelineItem) => {
 			const p = MarkdownEditorProvider.getInstance();
 			if (!p) { return; }
-			const content = await gitHistoryProvider.getCommitContent(item);
+			const content = await timelineProvider.getCommitContent(item);
 			if (content == null) {
 				vscode.window.showWarningMessage('Could not load file content for this commit.');
 				return;
@@ -193,10 +200,14 @@ export function activate(context: vscode.ExtensionContext) {
 	specDocsProvider.onDidChangeTreeData(() => {
 		updateSpecDocsDescription();
 		changesProvider.setTargetRoot(specDocsProvider.root);
+		graphProvider.setTargetRoot(specDocsProvider.root);
 	});
 	updateSpecDocsDescription();
 	// 初回: git 初期化を待ってからターゲットを設定
-	setTimeout(() => changesProvider.setTargetRoot(specDocsProvider.root), 2000);
+	setTimeout(() => {
+		changesProvider.setTargetRoot(specDocsProvider.root);
+		graphProvider.setTargetRoot(specDocsProvider.root);
+	}, 2000);
 
 	// 仕様書管理: シングルクリックでプレビュー、ダブルクリックで固定タブ（常に通常モード）
 	let lastSpecClickUri: string | null = null;
@@ -225,7 +236,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 			// git history を更新
 			if (changesProvider.targetGitRoot) {
-				gitHistoryProvider.refreshWithGitRoot(uri.fsPath, changesProvider.targetGitRoot);
+				timelineProvider.refreshWithGitRoot(uri.fsPath, changesProvider.targetGitRoot);
 			}
 		}
 	);
@@ -244,6 +255,9 @@ export function activate(context: vscode.ExtensionContext) {
 	);
 	const switchBranch = vscode.commands.registerCommand(
 		'anytime-markdown.switchBranch', () => specDocsProvider.switchBranch()
+	);
+	const graphRefresh = vscode.commands.registerCommand(
+		'anytime-markdown.graphRefresh', () => graphProvider.refresh()
 	);
 	const toggleMdOnly = vscode.commands.registerCommand(
 		'anytime-markdown.toggleMdOnly', () => {
@@ -307,8 +321,9 @@ export function activate(context: vscode.ExtensionContext) {
 				}
 				if (p) { p.pendingCompareContent = originalContent; }
 				await vscode.commands.executeCommand('vscode.openWith', currentUri, MarkdownEditorProvider.viewType, { preview: !isDoubleClick });
-				// 既に開いているタブの場合、比較モードを強制設定
-				if (p && p.pendingCompareContent === null) {
+				// 既に開いているタブの場合、pendingCompareContent が消費されていない → 直接送信
+				if (p && p.pendingCompareContent !== null) {
+					p.pendingCompareContent = null;
 					await p.waitForReady(currentUri);
 					p.postMessageToPanel(currentUri, { type: 'loadCompareFile', content: originalContent });
 				}
@@ -318,7 +333,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 			// git history を更新
 			if (gitRoot) {
-				gitHistoryProvider.refreshWithGitRoot(currentUri.fsPath, gitRoot);
+				timelineProvider.refreshWithGitRoot(currentUri.fsPath, gitRoot);
 			}
 		}
 	);
@@ -368,7 +383,7 @@ export function activate(context: vscode.ExtensionContext) {
 	);
 
 	context.subscriptions.push(
-		changesTreeView, gitTreeView, specDocsTreeView,
+		changesTreeView, timelineTreeView, specDocsTreeView,
 		{ dispose: () => changesProvider.dispose() },
 		...statusBarItems,
 		openEditorWithFile, compareCmd, compareWithCommit,
@@ -376,6 +391,7 @@ export function activate(context: vscode.ExtensionContext) {
 		changesRefresh, stageFile, unstageFile, discardChanges, commitChanges, pushChanges, syncChanges, changesOpenFile, openChangeDiff,
 		specDocsOpenFile, specDocsOpenFolder, specDocsCloneRepo, specDocsClose, specDocsRefresh, switchBranch, toggleMdOnly,
 		specDocsCreateFile, specDocsCreateFolder, specDocsDelete, specDocsRename,
+		graphTreeView, graphRefresh,
 	);
 }
 

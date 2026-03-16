@@ -21,6 +21,8 @@
   "command.specDocsCreateFolder": "New Folder",
   "command.specDocsDelete": "Delete",
   "command.specDocsRename": "Rename",
+  "view.graph": "Graph",
+  "command.graphRefresh": "Refresh Graph",
   "command.toggleMdOnly": "Toggle Markdown Only Filter",
   "view.changes": "Changes",
   "viewsWelcome.changes": "No changes detected.",
