@@ -4,7 +4,7 @@ import { MarkdownEditorProvider } from './providers/MarkdownEditorProvider';
 import { TimelineProvider, TimelineItem } from './providers/TimelineProvider';
 import { GraphProvider } from './providers/GraphProvider';
 import { ChangesProvider, ChangesFileItem } from './providers/ChangesProvider';
-import { SpecDocsProvider, SpecDocsItem, SpecDocsDragAndDrop } from './providers/SpecDocsProvider';
+import { SpecDocsProvider, SpecDocsItem, SpecDocsRootItem, SpecDocsDragAndDrop } from './providers/SpecDocsProvider';
 
 export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(MarkdownEditorProvider.register(context));
@@ -185,28 +185,51 @@ export function activate(context: vscode.ExtensionContext) {
 		treeDataProvider: specDocsProvider,
 		dragAndDropController: specDocsDragAndDrop,
 	});
-	const updateSpecDocsDescription = () => {
-		const info = specDocsProvider.getRepoInfo();
-		if (info) {
-			specDocsTreeView.title = info.branchName
-				? `${info.repoName} / ${info.branchName}`
-				: info.repoName;
-			specDocsTreeView.description = '';
+
+	// アクティブルート追跡
+	let activeRoot: string | null = specDocsProvider.roots[0] ?? null;
+
+	const updateSpecDocsTitle = () => {
+		const roots = specDocsProvider.roots;
+		if (roots.length === 1) {
+			// 単一リポジトリ: タイトルにリポ名/ブランチ名を表示
+			const info = specDocsProvider.getRepoInfo(roots[0]);
+			if (info) {
+				specDocsTreeView.title = info.branchName
+					? `${info.repoName} / ${info.branchName}`
+					: info.repoName;
+			} else {
+				specDocsTreeView.title = undefined as unknown as string;
+			}
 		} else {
+			// 0個 or 複数: デフォルトタイトル
 			specDocsTreeView.title = undefined as unknown as string;
-			specDocsTreeView.description = '';
 		}
+		specDocsTreeView.description = '';
 	};
+
+	const setActiveRoot = (rootPath: string | null) => {
+		activeRoot = rootPath;
+		changesProvider.setTargetRoot(rootPath);
+		graphProvider.setTargetRoot(rootPath);
+	};
+
 	specDocsProvider.onDidChangeTreeData(() => {
-		updateSpecDocsDescription();
-		changesProvider.setTargetRoot(specDocsProvider.root);
-		graphProvider.setTargetRoot(specDocsProvider.root);
+		updateSpecDocsTitle();
+		const roots = specDocsProvider.roots;
+		if (roots.length === 0) {
+			setActiveRoot(null);
+		} else if (activeRoot && !roots.includes(activeRoot)) {
+			// activeRoot が削除された場合: 最初のルートにフォールバック
+			setActiveRoot(roots[0]);
+		} else if (!activeRoot) {
+			setActiveRoot(roots[0]);
+		}
 	});
-	updateSpecDocsDescription();
+	updateSpecDocsTitle();
 	// 初回: git 初期化を待ってからターゲットを設定
 	setTimeout(() => {
-		changesProvider.setTargetRoot(specDocsProvider.root);
-		graphProvider.setTargetRoot(specDocsProvider.root);
+		setActiveRoot(activeRoot);
 	}, 2000);
 
 	// 仕様書管理: シングルクリックでプレビュー、ダブルクリックで固定タブ（常に通常モード）
@@ -234,6 +257,12 @@ export function activate(context: vscode.ExtensionContext) {
 				p.postMessageToPanel(uri, { type: 'exitCompareMode' });
 			}
 
+			// ファイルのルートを判定して activeRoot を更新
+			const fileRoot = specDocsProvider.findRootForPath(uri.fsPath);
+			if (fileRoot && fileRoot !== activeRoot) {
+				setActiveRoot(fileRoot);
+			}
+
 			// git history を更新
 			if (changesProvider.targetGitRoot) {
 				timelineProvider.refreshWithGitRoot(uri.fsPath, changesProvider.targetGitRoot);
@@ -254,7 +283,9 @@ export function activate(context: vscode.ExtensionContext) {
 		'anytime-markdown.specDocsRefresh', () => specDocsProvider.refresh()
 	);
 	const switchBranch = vscode.commands.registerCommand(
-		'anytime-markdown.switchBranch', () => specDocsProvider.switchBranch()
+		'anytime-markdown.switchBranch', (item?: SpecDocsRootItem) => {
+			specDocsProvider.switchBranch(item?.rootPath);
+		}
 	);
 	const graphRefresh = vscode.commands.registerCommand(
 		'anytime-markdown.graphRefresh', () => graphProvider.refresh()
@@ -269,16 +300,19 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// 仕様書管理: ファイル/フォルダ操作
 	const specDocsCreateFile = vscode.commands.registerCommand(
-		'anytime-markdown.specDocsCreateFile', (item?: SpecDocsItem) => specDocsProvider.createFile(item)
+		'anytime-markdown.specDocsCreateFile', (item?: SpecDocsRootItem | SpecDocsItem) => specDocsProvider.createFile(item)
 	);
 	const specDocsCreateFolder = vscode.commands.registerCommand(
-		'anytime-markdown.specDocsCreateFolder', (item?: SpecDocsItem) => specDocsProvider.createFolder(item)
+		'anytime-markdown.specDocsCreateFolder', (item?: SpecDocsRootItem | SpecDocsItem) => specDocsProvider.createFolder(item)
 	);
 	const specDocsDelete = vscode.commands.registerCommand(
 		'anytime-markdown.specDocsDelete', (item: SpecDocsItem) => specDocsProvider.deleteItem(item)
 	);
 	const specDocsRename = vscode.commands.registerCommand(
 		'anytime-markdown.specDocsRename', (item: SpecDocsItem) => specDocsProvider.renameItem(item)
+	);
+	const specDocsRemoveRoot = vscode.commands.registerCommand(
+		'anytime-markdown.specDocsRemoveRoot', (item: SpecDocsRootItem) => specDocsProvider.removeRoot(item.rootPath)
 	);
 
 	// Git 変更コマンド
@@ -390,7 +424,7 @@ export function activate(context: vscode.ExtensionContext) {
 		insertSectionNumbers, removeSectionNumbers,
 		changesRefresh, stageFile, unstageFile, discardChanges, commitChanges, pushChanges, syncChanges, changesOpenFile, openChangeDiff,
 		specDocsOpenFile, specDocsOpenFolder, specDocsCloneRepo, specDocsClose, specDocsRefresh, switchBranch, toggleMdOnly,
-		specDocsCreateFile, specDocsCreateFolder, specDocsDelete, specDocsRename,
+		specDocsCreateFile, specDocsCreateFolder, specDocsDelete, specDocsRename, specDocsRemoveRoot,
 		graphTreeView, graphRefresh,
 	);
 }

@@ -3,11 +3,21 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 const STORAGE_KEY = 'anytimeMarkdown.specDocsRoot';
+const STORAGE_KEY_MULTI = 'anytimeMarkdown.specDocsRoots';
 const MD_ONLY_KEY = 'anytimeMarkdown.mdOnly';
 
 function isMarkdownFile(name: string): boolean {
 	const lower = name.toLowerCase();
 	return lower.endsWith('.md') || lower.endsWith('.markdown');
+}
+
+export class SpecDocsRootItem extends vscode.TreeItem {
+	constructor(public readonly rootPath: string, repoName: string) {
+		super(repoName, vscode.TreeItemCollapsibleState.Expanded);
+		this.contextValue = 'specDocsRoot';
+		this.iconPath = new vscode.ThemeIcon('repo');
+		this.resourceUri = vscode.Uri.file(rootPath);
+	}
 }
 
 export class SpecDocsItem extends vscode.TreeItem {
@@ -41,20 +51,23 @@ export class SpecDocsItem extends vscode.TreeItem {
 	}
 }
 
-export class SpecDocsDragAndDrop implements vscode.TreeDragAndDropController<SpecDocsItem> {
+export class SpecDocsDragAndDrop implements vscode.TreeDragAndDropController<SpecDocsRootItem | SpecDocsItem> {
 	readonly dropMimeTypes = ['application/vnd.code.tree.anytimemarkdown.specdocs'];
 	readonly dragMimeTypes = ['application/vnd.code.tree.anytimemarkdown.specdocs'];
 
 	constructor(private readonly provider: SpecDocsProvider) {}
 
-	handleDrag(source: readonly SpecDocsItem[], dataTransfer: vscode.DataTransfer): void {
+	handleDrag(source: readonly (SpecDocsRootItem | SpecDocsItem)[], dataTransfer: vscode.DataTransfer): void {
+		// SpecDocsRootItem はドラッグ対象外
+		const items = source.filter((s): s is SpecDocsItem => s instanceof SpecDocsItem);
+		if (items.length === 0) return;
 		dataTransfer.set(
 			'application/vnd.code.tree.anytimemarkdown.specdocs',
-			new vscode.DataTransferItem(source.map(s => s.resourceUri.fsPath)),
+			new vscode.DataTransferItem(items.map(s => s.resourceUri.fsPath)),
 		);
 	}
 
-	async handleDrop(target: SpecDocsItem | undefined, dataTransfer: vscode.DataTransfer): Promise<void> {
+	async handleDrop(target: SpecDocsRootItem | SpecDocsItem | undefined, dataTransfer: vscode.DataTransfer): Promise<void> {
 		const raw = dataTransfer.get('application/vnd.code.tree.anytimemarkdown.specdocs');
 		if (!raw) return;
 		const sourcePaths: string[] = raw.value;
@@ -62,15 +75,23 @@ export class SpecDocsDragAndDrop implements vscode.TreeDragAndDropController<Spe
 
 		// ドロップ先のディレクトリを決定
 		let destDir: string;
-		if (target && target.isDirectory) {
+		if (target instanceof SpecDocsRootItem) {
+			destDir = target.rootPath;
+		} else if (target && target.isDirectory) {
 			destDir = target.resourceUri.fsPath;
 		} else if (target && !target.isDirectory) {
 			destDir = path.dirname(target.resourceUri.fsPath);
 		} else {
-			// ルートにドロップ
-			const root = this.provider.root;
-			if (!root) return;
-			destDir = root;
+			// ルートにドロップ（複数ルートの場合はソースのルートを使用）
+			const roots = this.provider.roots;
+			if (roots.length === 0) return;
+			// ソースファイルが属するルートを判定
+			const srcRoot = roots.find(r => {
+				const nr = r.endsWith(path.sep) ? r : r + path.sep;
+				return sourcePaths[0] === r || sourcePaths[0].startsWith(nr);
+			});
+			if (!srcRoot) return;
+			destDir = srcRoot;
 		}
 
 		for (const srcPath of sourcePaths) {
@@ -88,17 +109,28 @@ export class SpecDocsDragAndDrop implements vscode.TreeDragAndDropController<Spe
 	}
 }
 
-export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsItem> {
-	private _onDidChangeTreeData = new vscode.EventEmitter<SpecDocsItem | undefined>();
+export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsRootItem | SpecDocsItem> {
+	private _onDidChangeTreeData = new vscode.EventEmitter<SpecDocsRootItem | SpecDocsItem | undefined>();
 	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
-	private rootPath: string | null = null;
+	private rootPaths: string[] = [];
 	private _mdOnly: boolean;
 
 	constructor(private readonly context: vscode.ExtensionContext) {
-		const saved = context.globalState.get<string>(STORAGE_KEY);
-		if (saved && fs.existsSync(saved)) {
-			this.rootPath = saved;
+		// マイグレーション: 旧 string → 新 string[]
+		const savedMulti = context.globalState.get<string[]>(STORAGE_KEY_MULTI);
+		if (savedMulti) {
+			this.rootPaths = savedMulti.filter(p => fs.existsSync(p));
+		} else {
+			const savedSingle = context.globalState.get<string>(STORAGE_KEY);
+			if (savedSingle && fs.existsSync(savedSingle)) {
+				this.rootPaths = [savedSingle];
+				// 新キーに保存してから旧キーをクリア
+				context.globalState.update(STORAGE_KEY_MULTI, this.rootPaths);
+			}
+			context.globalState.update(STORAGE_KEY, undefined);
+		}
+		if (this.rootPaths.length > 0) {
 			vscode.commands.executeCommand('setContext', 'anytimeMarkdown.specDocsHasRoot', true);
 		}
 		this._mdOnly = context.globalState.get<boolean>(MD_ONLY_KEY, true);
@@ -106,13 +138,19 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsItem> {
 	}
 
 	get mdOnly(): boolean { return this._mdOnly; }
-	get root(): string | null { return this.rootPath; }
+	get roots(): string[] { return [...this.rootPaths]; }
 
-	/** リポジトリ名とブランチ名を返す */
-	getRepoInfo(): { repoName: string; branchName: string } | null {
-		if (!this.rootPath) { return null; }
+	private saveRootPaths(): void {
+		this.context.globalState.update(STORAGE_KEY_MULTI, this.rootPaths.length > 0 ? this.rootPaths : undefined);
+		vscode.commands.executeCommand('setContext', 'anytimeMarkdown.specDocsHasRoot', this.rootPaths.length > 0);
+	}
+
+	/** 指定ルートパスのリポジトリ名とブランチ名を返す */
+	getRepoInfo(rootPath?: string): { repoName: string; branchName: string } | null {
+		const target = rootPath ?? this.rootPaths[0];
+		if (!target) { return null; }
 		// .git ディレクトリまたはファイルを探す
-		let dir = this.rootPath;
+		let dir = target;
 		while (dir !== path.dirname(dir)) {
 			const gitPath = path.join(dir, '.git');
 			if (fs.existsSync(gitPath)) {
@@ -132,19 +170,53 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsItem> {
 			}
 			dir = path.dirname(dir);
 		}
-		return { repoName: path.basename(this.rootPath), branchName: '' };
+		return { repoName: path.basename(target), branchName: '' };
 	}
 
-	getTreeItem(element: SpecDocsItem): vscode.TreeItem {
+	/** ファイルパスが属するルートを返す */
+	findRootForPath(filePath: string): string | null {
+		// 最も長いマッチを返す（ネストしたルート対応）
+		let best: string | null = null;
+		for (const root of this.rootPaths) {
+			const normalizedRoot = root.endsWith(path.sep) ? root : root + path.sep;
+			if ((filePath === root || filePath.startsWith(normalizedRoot)) && (!best || root.length > best.length)) {
+				best = root;
+			}
+		}
+		return best;
+	}
+
+	getTreeItem(element: SpecDocsRootItem | SpecDocsItem): vscode.TreeItem {
 		return element;
 	}
 
-	getChildren(element?: SpecDocsItem): SpecDocsItem[] {
-		if (!this.rootPath) {
-			return [];
+	getChildren(element?: SpecDocsRootItem | SpecDocsItem): (SpecDocsRootItem | SpecDocsItem)[] {
+		if (!element) {
+			// トップレベル: ルートが1つならファイルツリーを直接表示、複数ならRootItem
+			if (this.rootPaths.length === 0) {
+				return [];
+			}
+			if (this.rootPaths.length === 1) {
+				return this.getFileChildren(this.rootPaths[0]);
+			}
+			return this.rootPaths.map(rootPath => {
+				const info = this.getRepoInfo(rootPath);
+				const label = info
+					? (info.branchName ? `${info.repoName} / ${info.branchName}` : info.repoName)
+					: path.basename(rootPath);
+				return new SpecDocsRootItem(rootPath, label);
+			});
 		}
 
-		const dirPath = element ? element.resourceUri.fsPath : this.rootPath;
+		if (element instanceof SpecDocsRootItem) {
+			return this.getFileChildren(element.rootPath);
+		}
+
+		// SpecDocsItem (directory)
+		return this.getFileChildren(element.resourceUri.fsPath);
+	}
+
+	private getFileChildren(dirPath: string): SpecDocsItem[] {
 		if (!fs.existsSync(dirPath)) {
 			return [];
 		}
@@ -207,7 +279,7 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsItem> {
 			openLabel: 'Select Folder',
 		});
 		if (uris && uris.length > 0) {
-			this.setRoot(uris[0].fsPath);
+			this.addRoot(uris[0].fsPath);
 		}
 	}
 
@@ -232,9 +304,9 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsItem> {
 		await vscode.window.withProgress(
 			{ location: vscode.ProgressLocation.Notification, title: 'Cloning repository...' },
 			async () => {
-				const { exec } = await import('child_process');
+				const { execFile } = await import('child_process');
 				await new Promise<void>((resolve, reject) => {
-					exec(`git clone ${url} "${clonePath}"`, (error) => {
+					execFile('git', ['clone', url, clonePath], (error) => {
 						if (error) {
 							reject(error);
 						} else {
@@ -245,13 +317,30 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsItem> {
 			}
 		);
 
-		this.setRoot(clonePath);
+		this.addRoot(clonePath);
 	}
 
 	closeFolder(): void {
-		this.rootPath = null;
-		this.context.globalState.update(STORAGE_KEY, undefined);
-		vscode.commands.executeCommand('setContext', 'anytimeMarkdown.specDocsHasRoot', false);
+		this.rootPaths = [];
+		this.saveRootPaths();
+		this._onDidChangeTreeData.fire(undefined);
+	}
+
+	addRoot(dirPath: string): void {
+		// 重複チェック
+		if (this.rootPaths.includes(dirPath)) {
+			return;
+		}
+		this.rootPaths.push(dirPath);
+		this.saveRootPaths();
+		this._onDidChangeTreeData.fire(undefined);
+	}
+
+	removeRoot(rootPath: string): void {
+		const idx = this.rootPaths.indexOf(rootPath);
+		if (idx === -1) return;
+		this.rootPaths.splice(idx, 1);
+		this.saveRootPaths();
 		this._onDidChangeTreeData.fire(undefined);
 	}
 
@@ -259,8 +348,17 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsItem> {
 		this._onDidChangeTreeData.fire(undefined);
 	}
 
-	async createFile(item?: SpecDocsItem): Promise<void> {
-		const dir = item?.isDirectory ? item.resourceUri.fsPath : item ? path.dirname(item.resourceUri.fsPath) : this.rootPath;
+	async createFile(item?: SpecDocsRootItem | SpecDocsItem): Promise<void> {
+		let dir: string | undefined;
+		if (item instanceof SpecDocsRootItem) {
+			dir = item.rootPath;
+		} else if (item?.isDirectory) {
+			dir = item.resourceUri.fsPath;
+		} else if (item) {
+			dir = path.dirname(item.resourceUri.fsPath);
+		} else {
+			dir = this.rootPaths[0];
+		}
 		if (!dir) return;
 		const name = await vscode.window.showInputBox({ prompt: 'File name', placeHolder: 'newfile.md' });
 		if (!name) return;
@@ -305,8 +403,17 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsItem> {
 		}
 	}
 
-	async createFolder(item?: SpecDocsItem): Promise<void> {
-		const dir = item?.isDirectory ? item.resourceUri.fsPath : item ? path.dirname(item.resourceUri.fsPath) : this.rootPath;
+	async createFolder(item?: SpecDocsRootItem | SpecDocsItem): Promise<void> {
+		let dir: string | undefined;
+		if (item instanceof SpecDocsRootItem) {
+			dir = item.rootPath;
+		} else if (item?.isDirectory) {
+			dir = item.resourceUri.fsPath;
+		} else if (item) {
+			dir = path.dirname(item.resourceUri.fsPath);
+		} else {
+			dir = this.rootPaths[0];
+		}
 		if (!dir) return;
 		const name = await vscode.window.showInputBox({ prompt: 'Folder name', placeHolder: 'newfolder' });
 		if (!name) return;
@@ -320,9 +427,10 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsItem> {
 	}
 
 	/** git リポジトリのルートディレクトリを返す */
-	private findGitRoot(): string | null {
-		if (!this.rootPath) { return null; }
-		let dir = this.rootPath;
+	private findGitRoot(rootPath?: string): string | null {
+		const target = rootPath ?? this.rootPaths[0];
+		if (!target) { return null; }
+		let dir = target;
 		while (dir !== path.dirname(dir)) {
 			if (fs.existsSync(path.join(dir, '.git'))) { return dir; }
 			dir = path.dirname(dir);
@@ -330,8 +438,8 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsItem> {
 		return null;
 	}
 
-	async switchBranch(): Promise<void> {
-		const gitRoot = this.findGitRoot();
+	async switchBranch(rootPath?: string): Promise<void> {
+		const gitRoot = this.findGitRoot(rootPath);
 		if (!gitRoot) {
 			vscode.window.showWarningMessage('Git repository not found.');
 			return;
@@ -354,7 +462,7 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsItem> {
 		}
 
 		// 現在のブランチ
-		const info = this.getRepoInfo();
+		const info = this.getRepoInfo(rootPath);
 		const currentBranch = info?.branchName ?? '';
 
 		const items = branches.map(b => ({
@@ -381,13 +489,6 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsItem> {
 		this._mdOnly = !this._mdOnly;
 		this.context.globalState.update(MD_ONLY_KEY, this._mdOnly);
 		vscode.commands.executeCommand('setContext', 'anytimeMarkdown.mdOnly', this._mdOnly);
-		this._onDidChangeTreeData.fire(undefined);
-	}
-
-	private setRoot(dirPath: string): void {
-		this.rootPath = dirPath;
-		this.context.globalState.update(STORAGE_KEY, dirPath);
-		vscode.commands.executeCommand('setContext', 'anytimeMarkdown.specDocsHasRoot', true);
 		this._onDidChangeTreeData.fire(undefined);
 	}
 }

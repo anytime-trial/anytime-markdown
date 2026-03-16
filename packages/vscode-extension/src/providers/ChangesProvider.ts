@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as fs from 'fs';
 import { execSync } from 'child_process';
 
 const enum GitStatus {
@@ -399,7 +400,15 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem>
 		);
 		if (answer !== 'Discard') { return; }
 		try {
-			execSync(`git checkout -- "${item.filePath}"`, { cwd: this.gitRoot });
+			// untracked ファイルは git 管理外なので直接削除
+			const isUntracked = item.group === 'changes' &&
+				fs.existsSync(item.absPath) &&
+				(() => { try { execSync(`git ls-files --error-unmatch "${item.filePath}"`, { cwd: this.gitRoot!, stdio: 'pipe' }); return false; } catch { return true; } })();
+			if (isUntracked) {
+				fs.unlinkSync(item.absPath);
+			} else {
+				execSync(`git checkout -- "${item.filePath}"`, { cwd: this.gitRoot });
+			}
 			await this.closeTab(item.absPath);
 			this.refresh();
 		} catch (e: unknown) {

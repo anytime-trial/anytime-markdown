@@ -31,5 +31,6 @@
   "command.unstageFile": "Unstage Changes",
   "command.discardChanges": "Discard Changes",
   "command.commitChanges": "Commit",
-  "command.pushChanges": "Push"
+  "command.pushChanges": "Push",
+  "command.specDocsRemoveRoot": "Close Repository"
 }

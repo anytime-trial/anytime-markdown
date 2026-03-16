@@ -31,5 +31,6 @@
   "command.unstageFile": "ステージを解除",
   "command.discardChanges": "変更を破棄",
   "command.commitChanges": "コミット",
-  "command.pushChanges": "プッシュ"
+  "command.pushChanges": "プッシュ",
+  "command.specDocsRemoveRoot": "リポジトリを閉じる"
 }

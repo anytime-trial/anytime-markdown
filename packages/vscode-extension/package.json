@@ -175,6 +175,11 @@
       {
         "command": "anytime-markdown.pushChanges",
         "title": "%command.pushChanges%"
+      },
+      {
+        "command": "anytime-markdown.specDocsRemoveRoot",
+        "title": "%command.specDocsRemoveRoot%",
+        "icon": "$(close)"
       }
     ],
     "customEditors": [
@@ -256,9 +261,14 @@
           "group": "navigation@5"
         },
         {
-          "command": "anytime-markdown.specDocsClose",
+          "command": "anytime-markdown.specDocsOpenFolder",
           "when": "view == anytimeMarkdown.specDocs && anytimeMarkdown.specDocsHasRoot",
           "group": "navigation@6"
+        },
+        {
+          "command": "anytime-markdown.specDocsCloneRepo",
+          "when": "view == anytimeMarkdown.specDocs && anytimeMarkdown.specDocsHasRoot",
+          "group": "navigation@7"
         },
         {
           "command": "anytime-markdown.graphRefresh",
@@ -288,14 +298,29 @@
           "group": "1_new@2"
         },
         {
+          "command": "anytime-markdown.specDocsCreateFile",
+          "when": "view == anytimeMarkdown.specDocs && viewItem == specDocsRoot",
+          "group": "1_new@1"
+        },
+        {
+          "command": "anytime-markdown.specDocsCreateFolder",
+          "when": "view == anytimeMarkdown.specDocs && viewItem == specDocsRoot",
+          "group": "1_new@2"
+        },
+        {
           "command": "anytime-markdown.specDocsRename",
-          "when": "view == anytimeMarkdown.specDocs",
+          "when": "view == anytimeMarkdown.specDocs && viewItem != specDocsRoot",
           "group": "2_edit@1"
         },
         {
           "command": "anytime-markdown.specDocsDelete",
-          "when": "view == anytimeMarkdown.specDocs",
+          "when": "view == anytimeMarkdown.specDocs && viewItem != specDocsRoot",
           "group": "2_edit@2"
+        },
+        {
+          "command": "anytime-markdown.specDocsRemoveRoot",
+          "when": "view == anytimeMarkdown.specDocs && viewItem == specDocsRoot",
+          "group": "3_root@1"
         },
         {
           "command": "anytime-markdown.stageFile",
