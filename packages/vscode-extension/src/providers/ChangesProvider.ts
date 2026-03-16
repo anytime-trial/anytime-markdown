@@ -19,7 +19,22 @@ interface ParsedChange {
 	group: 'staged' | 'changes';
 }
 
-type ChangesTreeItem = ChangesGroupItem | ChangesFileItem;
+type ChangesTreeItem = ChangesGroupItem | ChangesFileItem | ChangesSyncItem;
+
+export class ChangesSyncItem extends vscode.TreeItem {
+	constructor(ahead: number, behind: number) {
+		const parts: string[] = [];
+		if (ahead > 0) { parts.push(`${ahead}↑`); }
+		if (behind > 0) { parts.push(`${behind}↓`); }
+		super(`Sync Changes (${parts.join(' ')})`, vscode.TreeItemCollapsibleState.None);
+		this.iconPath = new vscode.ThemeIcon('sync');
+		this.contextValue = 'changesSync';
+		this.command = {
+			command: 'anytime-markdown.syncChanges',
+			title: 'Sync Changes',
+		};
+	}
+}
 
 export class ChangesGroupItem extends vscode.TreeItem {
 	constructor(
@@ -150,6 +165,8 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem>
 	private gitRoot: string | null = null;
 	private _mdOnlyGetter: (() => boolean) | null = null;
 	private watcher: vscode.FileSystemWatcher | null = null;
+
+	get targetGitRoot(): string | null { return this.gitRoot; }
 	private refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
 	setMdOnlyGetter(getter: () => boolean): void {
@@ -240,6 +257,22 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem>
 		return { staged, unstaged };
 	}
 
+	/** リモートとの差分（ahead/behind）を取得 */
+	private getSyncInfo(): { ahead: number; behind: number } {
+		if (!this.gitRoot) { return { ahead: 0, behind: 0 }; }
+		let ahead = 0;
+		let behind = 0;
+		try {
+			const aheadOut = execSync('git rev-list @{u}..HEAD --count', { cwd: this.gitRoot, encoding: 'utf-8' }).trim();
+			ahead = parseInt(aheadOut, 10) || 0;
+		} catch { /* no upstream or error */ }
+		try {
+			const behindOut = execSync('git rev-list HEAD..@{u} --count', { cwd: this.gitRoot, encoding: 'utf-8' }).trim();
+			behind = parseInt(behindOut, 10) || 0;
+		} catch { /* no upstream or error */ }
+		return { ahead, behind };
+	}
+
 	getTreeItem(element: ChangesTreeItem): vscode.TreeItem {
 		return element;
 	}
@@ -260,6 +293,13 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem>
 			}
 			if (filteredUnstaged.length > 0) {
 				items.push(new ChangesGroupItem('changes', filteredUnstaged.length));
+			}
+			// ローカル変更がない場合、リモートとの差分を表示
+			if (items.length === 0) {
+				const { ahead, behind } = this.getSyncInfo();
+				if (ahead > 0 || behind > 0) {
+					items.push(new ChangesSyncItem(ahead, behind));
+				}
 			}
 			return items;
 		}
@@ -334,6 +374,24 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem>
 		} catch (e: unknown) {
 			const msg = e instanceof Error ? e.message : String(e);
 			vscode.window.showErrorMessage(`Push failed: ${msg}`);
+		}
+	}
+
+	async sync(): Promise<void> {
+		if (!this.gitRoot) { return; }
+		try {
+			const { ahead, behind } = this.getSyncInfo();
+			if (behind > 0) {
+				execSync('git pull', { cwd: this.gitRoot });
+			}
+			if (ahead > 0) {
+				execSync('git push', { cwd: this.gitRoot });
+			}
+			vscode.window.showInformationMessage('Sync completed.');
+			this.refresh();
+		} catch (e: unknown) {
+			const msg = e instanceof Error ? e.message : String(e);
+			vscode.window.showErrorMessage(`Sync failed: ${msg}`);
 		}
 	}
 

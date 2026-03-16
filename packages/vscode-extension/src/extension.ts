@@ -50,8 +50,9 @@ export function activate(context: vscode.ExtensionContext) {
 		};
 	}
 
-	// アクティブドキュメント変更時に履歴を更新
+	// アクティブドキュメント変更時に履歴を更新（外部リポジトリモード中はスキップ）
 	const updateGitHistory = () => {
+		if (gitHistoryProvider.isExternalMode) return;
 		const p = MarkdownEditorProvider.getInstance();
 		gitHistoryProvider.refresh(p?.activeDocumentUri ?? null);
 	};
@@ -185,13 +186,53 @@ export function activate(context: vscode.ExtensionContext) {
 	// 初回: git 初期化を待ってからターゲットを設定
 	setTimeout(() => changesProvider.setTargetRoot(specDocsProvider.root), 2000);
 
-	// エクスプローラと変更の選択を排他制御
-	specDocsTreeView.onDidChangeSelection(e => {
-		if (e.selection.length > 0) { changesProvider.refresh(); }
-	});
-	changesTreeView.onDidChangeSelection(e => {
-		if (e.selection.length > 0) { specDocsProvider.refresh(); }
-	});
+	// 仕様書管理: シングルクリックでプレビュー、ダブルクリックで固定タブ
+	let lastSpecClickUri: string | null = null;
+	let lastSpecClickTime = 0;
+	const specDocsOpenFile = vscode.commands.registerCommand(
+		'anytime-markdown.specDocsOpenFile',
+		async (uri: vscode.Uri) => {
+			const now = Date.now();
+			const isDoubleClick = lastSpecClickUri === uri.toString() && (now - lastSpecClickTime) < 500;
+			lastSpecClickUri = uri.toString();
+			lastSpecClickTime = now;
+
+			const p = MarkdownEditorProvider.getInstance();
+			const wasCompareMode = p?.compareModeActive ?? false;
+
+			if (p) { p.skipDiffDetection = true; }
+
+			// 比較モード中: HEAD コンテンツを右パネルに設定
+			if (wasCompareMode && p && changesProvider.targetGitRoot) {
+				const relativePath = path.relative(changesProvider.targetGitRoot, uri.fsPath).replace(/\\/g, '/');
+				let headContent = '';
+				try {
+					const { execSync } = await import('child_process');
+					headContent = execSync(`git show HEAD:"${relativePath}"`, { cwd: changesProvider.targetGitRoot, encoding: 'utf-8' });
+				} catch { /* new file or no HEAD */ }
+				p.pendingCompareContent = headContent;
+			}
+
+			await vscode.commands.executeCommand('vscode.openWith', uri, MarkdownEditorProvider.viewType, { preview: !isDoubleClick });
+
+			// 既に開いているタブの場合、waitForReady + postMessage で比較モードを設定
+			if (wasCompareMode && p && changesProvider.targetGitRoot && p.pendingCompareContent === null) {
+				const relativePath = path.relative(changesProvider.targetGitRoot, uri.fsPath).replace(/\\/g, '/');
+				let headContent = '';
+				try {
+					const { execSync } = await import('child_process');
+					headContent = execSync(`git show HEAD:"${relativePath}"`, { cwd: changesProvider.targetGitRoot, encoding: 'utf-8' });
+				} catch { /* new file or no HEAD */ }
+				await p.waitForReady(uri);
+				p.postMessageToPanel(uri, { type: 'loadCompareFile', content: headContent });
+			}
+
+			// git history を更新
+			if (changesProvider.targetGitRoot) {
+				gitHistoryProvider.refreshWithGitRoot(uri.fsPath, changesProvider.targetGitRoot);
+			}
+		}
+	);
 
 	const specDocsOpenFolder = vscode.commands.registerCommand(
 		'anytime-markdown.specDocsOpenFolder', () => specDocsProvider.openFolder()
@@ -232,6 +273,9 @@ export function activate(context: vscode.ExtensionContext) {
 	const commitChanges = vscode.commands.registerCommand(
 		'anytime-markdown.commitChanges', () => changesProvider.commit()
 	);
+	const syncChanges = vscode.commands.registerCommand(
+		'anytime-markdown.syncChanges', () => changesProvider.sync()
+	);
 	const pushChanges = vscode.commands.registerCommand(
 		'anytime-markdown.pushChanges', () => changesProvider.push()
 	);
@@ -254,6 +298,7 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 			const p = MarkdownEditorProvider.getInstance();
 			if (p) {
+				p.skipDiffDetection = true;
 				p.pendingCompareContent = originalContent;
 			}
 			await vscode.commands.executeCommand(
@@ -275,8 +320,8 @@ export function activate(context: vscode.ExtensionContext) {
 		...statusBarItems,
 		openEditorWithFile, compareCmd, compareWithCommit,
 		insertSectionNumbers, removeSectionNumbers,
-		changesRefresh, stageFile, unstageFile, discardChanges, commitChanges, pushChanges, openChangeDiff,
-		specDocsOpenFolder, specDocsCloneRepo, specDocsClose, specDocsRefresh, switchBranch, toggleMdOnly,
+		changesRefresh, stageFile, unstageFile, discardChanges, commitChanges, pushChanges, syncChanges, openChangeDiff,
+		specDocsOpenFile, specDocsOpenFolder, specDocsCloneRepo, specDocsClose, specDocsRefresh, switchBranch, toggleMdOnly,
 	);
 }
 

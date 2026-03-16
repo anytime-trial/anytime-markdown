@@ -25,9 +25,9 @@ export class SpecDocsItem extends vscode.TreeItem {
 			this.contextValue = 'file';
 			this.iconPath = vscode.ThemeIcon.File;
 			this.command = {
-				command: 'vscode.openWith',
+				command: 'anytime-markdown.specDocsOpenFile',
 				title: 'Open',
-				arguments: [resourceUri, 'anytimeMarkdown'],
+				arguments: [resourceUri],
 			};
 		}
 	}
