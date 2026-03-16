@@ -23,5 +23,7 @@
   "command.changesRefresh": "Refresh Changes",
   "command.stageFile": "Stage Changes",
   "command.unstageFile": "Unstage Changes",
-  "command.discardChanges": "Discard Changes"
+  "command.discardChanges": "Discard Changes",
+  "command.commitChanges": "Commit",
+  "command.pushChanges": "Push"
 }

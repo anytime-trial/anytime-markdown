@@ -1,43 +1,22 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-
-// vscode.git 拡張機能の型定義
-interface GitExtension {
-	getAPI(version: 1): GitAPI;
-}
-interface GitAPI {
-	repositories: Repository[];
-	onDidOpenRepository: vscode.Event<Repository>;
-}
-interface Repository {
-	rootUri: vscode.Uri;
-	state: RepositoryState;
-	onDidChange: vscode.Event<void>;
-	add(resources: vscode.Uri[]): Promise<void>;
-	revert(resources: vscode.Uri[]): Promise<void>;
-	checkout(paths: string[]): Promise<void>;
-}
-interface RepositoryState {
-	HEAD?: { name?: string; commit?: string };
-	remotes: { name: string; fetchUrl?: string; pushUrl?: string }[];
-	indexChanges: Change[];
-	workingTreeChanges: Change[];
-}
-interface Change {
-	uri: vscode.Uri;
-	originalUri: vscode.Uri;
-	status: number;
-}
+import { execSync } from 'child_process';
 
 const enum GitStatus {
 	INDEX_MODIFIED = 0,
 	INDEX_ADDED = 1,
 	INDEX_DELETED = 2,
 	INDEX_RENAMED = 3,
-	INDEX_COPIED = 4,
 	MODIFIED = 5,
 	DELETED = 6,
 	UNTRACKED = 7,
+}
+
+interface ParsedChange {
+	filePath: string;
+	absPath: string;
+	status: number;
+	group: 'staged' | 'changes';
 }
 
 type ChangesTreeItem = ChangesGroupItem | ChangesFileItem;
@@ -56,39 +35,53 @@ export class ChangesGroupItem extends vscode.TreeItem {
 }
 
 export class ChangesFileItem extends vscode.TreeItem {
+	public readonly filePath: string;
+	public readonly absPath: string;
+	public readonly group: 'staged' | 'changes';
+
 	constructor(
-		public readonly change: Change,
-		public readonly group: 'staged' | 'changes',
-		repoRootUri: vscode.Uri,
+		change: ParsedChange,
+		private readonly gitRoot: string,
 	) {
-		const relativePath = path.relative(repoRootUri.fsPath, change.uri.fsPath).replace(/\\/g, '/');
-		const fileName = path.basename(relativePath);
+		const fileName = path.basename(change.filePath);
 		super(fileName, vscode.TreeItemCollapsibleState.None);
 
-		const dir = path.dirname(relativePath);
-		const statusLabel = getStatusLabel(change.status, group);
+		this.filePath = change.filePath;
+		this.absPath = change.absPath;
+		this.group = change.group;
+
+		const dir = path.dirname(change.filePath);
+		const statusLabel = getStatusLabel(change.status, change.group);
 
 		this.description = dir === '.' ? statusLabel : `${dir}  ${statusLabel}`;
-		this.tooltip = relativePath;
-		this.resourceUri = change.uri;
-		this.contextValue = group === 'staged' ? 'changesFileStaged' : 'changesFileUnstaged';
+		this.tooltip = change.filePath;
+		this.resourceUri = vscode.Uri.file(change.absPath);
+		this.contextValue = change.group === 'staged' ? 'changesFileStaged' : 'changesFileUnstaged';
 		this.iconPath = new vscode.ThemeIcon(
-			getStatusIcon(change.status, group),
-			getStatusColor(change.status, group),
+			getStatusIcon(change.status, change.group),
+			getStatusColor(change.status, change.group),
 		);
 
 		const lower = fileName.toLowerCase();
 		if (lower.endsWith('.md') || lower.endsWith('.markdown')) {
+			// staged の場合: HEAD との diff URI を生成
+			const originalUri = change.group === 'staged'
+				? vscode.Uri.parse(`git-show:${change.filePath}`).with({ query: `${gitRoot}:HEAD` })
+				: vscode.Uri.file(change.absPath);
 			this.command = {
 				command: 'anytime-markdown.openChangeDiff',
 				title: 'Show Changes in Anytime Markdown',
-				arguments: [change.originalUri, change.uri],
+				arguments: [originalUri, vscode.Uri.file(change.absPath)],
 			};
 		} else {
 			this.command = {
 				command: 'vscode.diff',
 				title: 'Show Changes',
-				arguments: [change.originalUri, change.uri, `${fileName} (${statusLabel})`],
+				arguments: [
+					vscode.Uri.file(change.absPath),
+					vscode.Uri.file(change.absPath),
+					`${fileName} (${statusLabel})`,
+				],
 			};
 		}
 	}
@@ -101,7 +94,6 @@ function getStatusLabel(status: number, group: 'staged' | 'changes'): string {
 			case GitStatus.INDEX_ADDED: return 'A';
 			case GitStatus.INDEX_DELETED: return 'D';
 			case GitStatus.INDEX_RENAMED: return 'R';
-			case GitStatus.INDEX_COPIED: return 'C';
 			default: return 'M';
 		}
 	}
@@ -137,17 +129,32 @@ function getStatusColor(status: number, group: 'staged' | 'changes'): vscode.The
 	return new vscode.ThemeColor('gitDecoration.modifiedResourceForeground');
 }
 
+function parseStatusCode(code: string, group: 'staged' | 'changes'): number {
+	if (group === 'staged') {
+		switch (code) {
+			case 'M': return GitStatus.INDEX_MODIFIED;
+			case 'A': return GitStatus.INDEX_ADDED;
+			case 'D': return GitStatus.INDEX_DELETED;
+			case 'R': return GitStatus.INDEX_RENAMED;
+			default: return GitStatus.INDEX_MODIFIED;
+		}
+	}
+	switch (code) {
+		case 'M': return GitStatus.MODIFIED;
+		case 'D': return GitStatus.DELETED;
+		case '?': return GitStatus.UNTRACKED;
+		default: return GitStatus.MODIFIED;
+	}
+}
+
 export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem> {
 	private _onDidChangeTreeData = new vscode.EventEmitter<void>();
 	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
-	private disposables: vscode.Disposable[] = [];
-	private repo: Repository | null = null;
+	private gitRoot: string | null = null;
 	private _mdOnlyGetter: (() => boolean) | null = null;
-
-	constructor() {
-		this.initGit();
-	}
+	private watcher: vscode.FileSystemWatcher | null = null;
+	private refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
 	setMdOnlyGetter(getter: () => boolean): void {
 		this._mdOnlyGetter = getter;
@@ -157,28 +164,39 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem>
 		return this._mdOnlyGetter ? this._mdOnlyGetter() : false;
 	}
 
-	private async initGit(): Promise<void> {
-		const gitExtension = vscode.extensions.getExtension<GitExtension>('vscode.git');
-		if (!gitExtension) { return; }
-		if (!gitExtension.isActive) {
-			await gitExtension.activate();
+	/** 仕様書管理のルートパスに基づく git リポジトリを設定 */
+	setTargetRoot(rootPath: string | null): void {
+		if (this.watcher) {
+			this.watcher.dispose();
+			this.watcher = null;
 		}
-		const api = gitExtension.exports.getAPI(1);
+		this.gitRoot = null;
 
-		if (api.repositories.length > 0) {
-			this.watchRepository(api.repositories[0]);
-		} else {
-			const disposable = api.onDidOpenRepository((repo) => {
-				this.watchRepository(repo);
-				disposable.dispose();
-			});
-			this.disposables.push(disposable);
+		if (!rootPath) {
+			this.refresh();
+			return;
 		}
-	}
 
-	private watchRepository(repo: Repository): void {
-		this.repo = repo;
-		this.disposables.push(repo.onDidChange(() => this.refresh()));
+		// git root を探す
+		try {
+			this.gitRoot = execSync('git rev-parse --show-toplevel', { cwd: rootPath, encoding: 'utf-8' }).trim();
+		} catch {
+			this.gitRoot = null;
+		}
+
+		if (this.gitRoot) {
+			// ファイル変更を監視して自動リフレッシュ
+			const pattern = new vscode.RelativePattern(this.gitRoot, '**/*');
+			this.watcher = vscode.workspace.createFileSystemWatcher(pattern);
+			const debouncedRefresh = () => {
+				if (this.refreshTimer) { clearTimeout(this.refreshTimer); }
+				this.refreshTimer = setTimeout(() => this.refresh(), 500);
+			};
+			this.watcher.onDidChange(debouncedRefresh);
+			this.watcher.onDidCreate(debouncedRefresh);
+			this.watcher.onDidDelete(debouncedRefresh);
+		}
+
 		this.refresh();
 	}
 
@@ -186,16 +204,44 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem>
 		this._onDidChangeTreeData.fire();
 	}
 
-	/** リポジトリ名とブランチ名を返す */
-	getRepoInfo(): { repoName: string; branchName: string } | null {
-		if (!this.repo) { return null; }
-		const branchName = this.repo.state.HEAD?.name ?? 'HEAD';
-		const remote = this.repo.state.remotes.find(r => r.name === 'origin');
-		const url = remote?.fetchUrl ?? remote?.pushUrl ?? '';
-		const repoName = url
-			? path.basename(url, '.git').replace(/\.git$/, '')
-			: path.basename(this.repo.rootUri.fsPath);
-		return { repoName, branchName };
+	private getChanges(): { staged: ParsedChange[]; unstaged: ParsedChange[] } {
+		if (!this.gitRoot) { return { staged: [], unstaged: [] }; }
+
+		let output: string;
+		try {
+			output = execSync('git status --porcelain', { cwd: this.gitRoot, encoding: 'utf-8' });
+		} catch {
+			return { staged: [], unstaged: [] };
+		}
+
+		const staged: ParsedChange[] = [];
+		const unstaged: ParsedChange[] = [];
+
+		for (const line of output.split('\n')) {
+			if (!line || line.length < 4) continue;
+			const x = line[0]; // index status
+			const y = line[1]; // working tree status
+			const filePath = line.substring(3).trim();
+
+			if (x !== ' ' && x !== '?') {
+				staged.push({
+					filePath,
+					absPath: path.join(this.gitRoot!, filePath),
+					status: parseStatusCode(x, 'staged'),
+					group: 'staged',
+				});
+			}
+			if (y !== ' ' || x === '?') {
+				unstaged.push({
+					filePath,
+					absPath: path.join(this.gitRoot!, filePath),
+					status: x === '?' ? parseStatusCode('?', 'changes') : parseStatusCode(y, 'changes'),
+					group: 'changes',
+				});
+			}
+		}
+
+		return { staged, unstaged };
 	}
 
 	getTreeItem(element: ChangesTreeItem): vscode.TreeItem {
@@ -203,59 +249,117 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem>
 	}
 
 	async getChildren(element?: ChangesTreeItem): Promise<ChangesTreeItem[]> {
-		if (!this.repo) { return []; }
+		if (!this.gitRoot) { return []; }
 
 		if (!element) {
-			const items: ChangesTreeItem[] = [];
+			const { staged, unstaged } = this.getChanges();
 			const filterFn = this.mdOnly
-				? (c: Change) => { const l = path.basename(c.uri.fsPath).toLowerCase(); return l.endsWith('.md') || l.endsWith('.markdown'); }
+				? (c: ParsedChange) => { const l = c.filePath.toLowerCase(); return l.endsWith('.md') || l.endsWith('.markdown'); }
 				: () => true;
-			const staged = this.repo.state.indexChanges.filter(filterFn);
-			const unstaged = this.repo.state.workingTreeChanges.filter(filterFn);
-			if (staged.length > 0) {
-				items.push(new ChangesGroupItem('staged', staged.length));
+			const filteredStaged = staged.filter(filterFn);
+			const filteredUnstaged = unstaged.filter(filterFn);
+			const items: ChangesTreeItem[] = [];
+			if (filteredStaged.length > 0) {
+				items.push(new ChangesGroupItem('staged', filteredStaged.length));
 			}
-			if (unstaged.length > 0) {
-				items.push(new ChangesGroupItem('changes', unstaged.length));
+			if (filteredUnstaged.length > 0) {
+				items.push(new ChangesGroupItem('changes', filteredUnstaged.length));
 			}
 			return items;
 		}
 
 		if (element instanceof ChangesGroupItem) {
-			let changes = element.group === 'staged'
-				? this.repo.state.indexChanges
-				: this.repo.state.workingTreeChanges;
+			const { staged, unstaged } = this.getChanges();
+			let changes = element.group === 'staged' ? staged : unstaged;
 			if (this.mdOnly) {
-				changes = changes.filter(c => { const l = path.basename(c.uri.fsPath).toLowerCase(); return l.endsWith('.md') || l.endsWith('.markdown'); });
+				changes = changes.filter(c => { const l = c.filePath.toLowerCase(); return l.endsWith('.md') || l.endsWith('.markdown'); });
 			}
-			return changes.map(c => new ChangesFileItem(c, element.group, this.repo!.rootUri));
+			return changes.map(c => new ChangesFileItem(c, this.gitRoot!));
 		}
 
 		return [];
 	}
 
 	async stageFile(item: ChangesFileItem): Promise<void> {
-		if (!this.repo) { return; }
-		await this.repo.add([item.change.uri]);
+		if (!this.gitRoot) { return; }
+		try {
+			execSync(`git add "${item.filePath}"`, { cwd: this.gitRoot });
+			this.refresh();
+		} catch (e: unknown) {
+			const msg = e instanceof Error ? e.message : String(e);
+			vscode.window.showErrorMessage(`Stage failed: ${msg}`);
+		}
 	}
 
 	async unstageFile(item: ChangesFileItem): Promise<void> {
-		if (!this.repo) { return; }
-		await this.repo.revert([item.change.uri]);
+		if (!this.gitRoot) { return; }
+		try {
+			execSync(`git reset HEAD "${item.filePath}"`, { cwd: this.gitRoot });
+			this.refresh();
+		} catch (e: unknown) {
+			const msg = e instanceof Error ? e.message : String(e);
+			vscode.window.showErrorMessage(`Unstage failed: ${msg}`);
+		}
+	}
+
+	async commit(): Promise<void> {
+		if (!this.gitRoot) {
+			vscode.window.showWarningMessage('No Git repository found.');
+			return;
+		}
+		const { staged } = this.getChanges();
+		if (staged.length === 0) {
+			vscode.window.showWarningMessage('No staged changes to commit.');
+			return;
+		}
+		const message = await vscode.window.showInputBox({
+			prompt: 'Commit message',
+			placeHolder: 'Enter commit message',
+		});
+		if (!message) return;
+		try {
+			execSync(`git commit -m "${message.replace(/"/g, '\\"')}"`, { cwd: this.gitRoot });
+			vscode.window.showInformationMessage(`Committed: ${message}`);
+			this.refresh();
+		} catch (e: unknown) {
+			const msg = e instanceof Error ? e.message : String(e);
+			vscode.window.showErrorMessage(`Commit failed: ${msg}`);
+		}
+	}
+
+	async push(): Promise<void> {
+		if (!this.gitRoot) {
+			vscode.window.showWarningMessage('No Git repository found.');
+			return;
+		}
+		try {
+			execSync('git push', { cwd: this.gitRoot });
+			vscode.window.showInformationMessage('Push completed.');
+		} catch (e: unknown) {
+			const msg = e instanceof Error ? e.message : String(e);
+			vscode.window.showErrorMessage(`Push failed: ${msg}`);
+		}
 	}
 
 	async discardChanges(item: ChangesFileItem): Promise<void> {
-		if (!this.repo) { return; }
+		if (!this.gitRoot) { return; }
 		const answer = await vscode.window.showWarningMessage(
-			`Are you sure you want to discard changes in "${path.basename(item.change.uri.fsPath)}"?`,
+			`Are you sure you want to discard changes in "${path.basename(item.filePath)}"?`,
 			{ modal: true },
 			'Discard',
 		);
 		if (answer !== 'Discard') { return; }
-		await this.repo.checkout([item.change.uri.fsPath]);
+		try {
+			execSync(`git checkout -- "${item.filePath}"`, { cwd: this.gitRoot });
+			this.refresh();
+		} catch (e: unknown) {
+			const msg = e instanceof Error ? e.message : String(e);
+			vscode.window.showErrorMessage(`Discard failed: ${msg}`);
+		}
 	}
 
 	dispose(): void {
-		this.disposables.forEach(d => d.dispose());
+		if (this.watcher) { this.watcher.dispose(); }
+		if (this.refreshTimer) { clearTimeout(this.refreshTimer); }
 	}
 }

@@ -14,17 +14,6 @@ export function activate(context: vscode.ExtensionContext) {
 		treeDataProvider: changesProvider,
 	});
 
-	// リポジトリ情報を TreeView の description に表示
-	const updateChangesDescription = () => {
-		const info = changesProvider.getRepoInfo();
-		if (info) {
-			changesTreeView.description = `${info.repoName} / ${info.branchName}`;
-		}
-	};
-	changesProvider.onDidChangeTreeData(() => updateChangesDescription());
-	// 初回は少し遅延してgit初期化を待つ
-	setTimeout(updateChangesDescription, 2000);
-
 	// Git 履歴パネル
 	const gitHistoryProvider = new GitHistoryProvider();
 	const gitTreeView = vscode.window.createTreeView('anytimeMarkdown.gitHistory', {
@@ -188,8 +177,13 @@ export function activate(context: vscode.ExtensionContext) {
 			specDocsTreeView.description = '';
 		}
 	};
-	specDocsProvider.onDidChangeTreeData(() => updateSpecDocsDescription());
+	specDocsProvider.onDidChangeTreeData(() => {
+		updateSpecDocsDescription();
+		changesProvider.setTargetRoot(specDocsProvider.root);
+	});
 	updateSpecDocsDescription();
+	// 初回: git 初期化を待ってからターゲットを設定
+	setTimeout(() => changesProvider.setTargetRoot(specDocsProvider.root), 2000);
 
 	const specDocsOpenFolder = vscode.commands.registerCommand(
 		'anytime-markdown.specDocsOpenFolder', () => specDocsProvider.openFolder()
@@ -227,6 +221,12 @@ export function activate(context: vscode.ExtensionContext) {
 	const discardChanges = vscode.commands.registerCommand(
 		'anytime-markdown.discardChanges', (item: ChangesFileItem) => changesProvider.discardChanges(item)
 	);
+	const commitChanges = vscode.commands.registerCommand(
+		'anytime-markdown.commitChanges', () => changesProvider.commit()
+	);
+	const pushChanges = vscode.commands.registerCommand(
+		'anytime-markdown.pushChanges', () => changesProvider.push()
+	);
 	const openChangeDiff = vscode.commands.registerCommand(
 		'anytime-markdown.openChangeDiff',
 		async (originalUri: vscode.Uri, currentUri: vscode.Uri) => {
@@ -260,7 +260,7 @@ export function activate(context: vscode.ExtensionContext) {
 		...statusBarItems,
 		openEditorWithFile, compareCmd, compareWithCommit,
 		insertSectionNumbers, removeSectionNumbers,
-		changesRefresh, stageFile, unstageFile, discardChanges, openChangeDiff,
+		changesRefresh, stageFile, unstageFile, discardChanges, commitChanges, pushChanges, openChangeDiff,
 		specDocsOpenFolder, specDocsCloneRepo, specDocsClose, specDocsRefresh, switchBranch, toggleMdOnly,
 	);
 }

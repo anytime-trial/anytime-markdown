@@ -135,6 +135,14 @@
         "command": "anytime-markdown.discardChanges",
         "title": "%command.discardChanges%",
         "icon": "$(discard)"
+      },
+      {
+        "command": "anytime-markdown.commitChanges",
+        "title": "%command.commitChanges%"
+      },
+      {
+        "command": "anytime-markdown.pushChanges",
+        "title": "%command.pushChanges%"
       }
     ],
     "customEditors": [
@@ -171,7 +179,24 @@
         }
       }
     },
+    "submenus": [
+      {
+        "id": "anytimeMarkdown.changesMore",
+        "label": "More Actions...",
+        "icon": "$(ellipsis)"
+      }
+    ],
     "menus": {
+      "anytimeMarkdown.changesMore": [
+        {
+          "command": "anytime-markdown.commitChanges",
+          "group": "1_commit@1"
+        },
+        {
+          "command": "anytime-markdown.pushChanges",
+          "group": "1_commit@2"
+        }
+      ],
       "view/title": [
         {
           "command": "anytime-markdown.switchBranch",
@@ -197,6 +222,11 @@
           "command": "anytime-markdown.changesRefresh",
           "when": "view == anytimeMarkdown.changes",
           "group": "navigation@1"
+        },
+        {
+          "submenu": "anytimeMarkdown.changesMore",
+          "when": "view == anytimeMarkdown.changes",
+          "group": "navigation@2"
         }
       ],
       "view/item/context": [
