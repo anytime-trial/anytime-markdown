@@ -185,6 +185,14 @@ export function activate(context: vscode.ExtensionContext) {
 	// 初回: git 初期化を待ってからターゲットを設定
 	setTimeout(() => changesProvider.setTargetRoot(specDocsProvider.root), 2000);
 
+	// エクスプローラと変更の選択を排他制御
+	specDocsTreeView.onDidChangeSelection(e => {
+		if (e.selection.length > 0) { changesProvider.refresh(); }
+	});
+	changesTreeView.onDidChangeSelection(e => {
+		if (e.selection.length > 0) { specDocsProvider.refresh(); }
+	});
+
 	const specDocsOpenFolder = vscode.commands.registerCommand(
 		'anytime-markdown.specDocsOpenFolder', () => specDocsProvider.openFolder()
 	);
@@ -229,11 +237,18 @@ export function activate(context: vscode.ExtensionContext) {
 	);
 	const openChangeDiff = vscode.commands.registerCommand(
 		'anytime-markdown.openChangeDiff',
-		async (originalUri: vscode.Uri, currentUri: vscode.Uri) => {
-			// 比較コンテンツを先に読み込む
+		async (gitRoot: string, filePath: string, group: 'staged' | 'changes', currentUri: vscode.Uri) => {
+			// git コマンドで変更前コンテンツを取得
 			let originalContent: string;
 			try {
-				originalContent = new TextDecoder().decode(await vscode.workspace.fs.readFile(originalUri));
+				const { execSync } = await import('child_process');
+				if (group === 'staged') {
+					// ステージ済み: HEAD のコンテンツ
+					originalContent = execSync(`git show HEAD:"${filePath}"`, { cwd: gitRoot, encoding: 'utf-8' });
+				} else {
+					// 未ステージ: インデックス（ステージ済み or HEAD）のコンテンツ
+					originalContent = execSync(`git show :"${filePath}"`, { cwd: gitRoot, encoding: 'utf-8' });
+				}
 			} catch {
 				originalContent = '';
 			}

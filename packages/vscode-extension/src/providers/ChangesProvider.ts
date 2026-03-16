@@ -64,14 +64,10 @@ export class ChangesFileItem extends vscode.TreeItem {
 
 		const lower = fileName.toLowerCase();
 		if (lower.endsWith('.md') || lower.endsWith('.markdown')) {
-			// staged の場合: HEAD との diff URI を生成
-			const originalUri = change.group === 'staged'
-				? vscode.Uri.parse(`git-show:${change.filePath}`).with({ query: `${gitRoot}:HEAD` })
-				: vscode.Uri.file(change.absPath);
 			this.command = {
 				command: 'anytime-markdown.openChangeDiff',
 				title: 'Show Changes in Anytime Markdown',
-				arguments: [originalUri, vscode.Uri.file(change.absPath)],
+				arguments: [gitRoot, change.filePath, change.group, vscode.Uri.file(change.absPath)],
 			};
 		} else {
 			this.command = {
