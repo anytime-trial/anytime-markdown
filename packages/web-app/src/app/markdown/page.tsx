@@ -138,14 +138,12 @@ export default function Page() {
     const isSameFile = prev && prev.repo === repo && prev.filePath === filePath && prev.branch === branch;
     selectedFileRef.current = { repo, filePath, branch };
     selectedCommitContentRef.current = null;
-    if (!isSameFile) {
-      // 別ファイル: 即座に dirty をリセット
-      setIsDirty(false);
-      const content = await fetchFileContent(repo, filePath, branch);
-      originalContentRef.current = content;
-      localStorage.setItem(STORAGE_KEY_CONTENT, content);
-    }
-    // 同じファイル: localStorage の編集中データをそのまま使用
+    if (isSameFile) return;
+    // 別ファイル: 即座に dirty をリセット
+    setIsDirty(false);
+    const content = await fetchFileContent(repo, filePath, branch);
+    originalContentRef.current = content;
+    localStorage.setItem(STORAGE_KEY_CONTENT, content);
     setExternalContent(undefined);
     setExternalFileName(filePath.split("/").pop() ?? filePath);
     setExternalFilePath(filePath);
