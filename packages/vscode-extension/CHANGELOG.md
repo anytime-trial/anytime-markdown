@@ -4,6 +4,29 @@ All notable changes to the "anytime-markdown" extension will be documented in th
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.2] - 2026-03-17
+
+### Added
+- 仕様書管理の複数リポジトリ対応（フォルダー追加で2つ以上のルートを同時表示）
+- 変更パネルの複数リポジトリ対応（リポジトリごとにグループ表示）
+- Git グラフのカスタムアイコン（ローカル=青、リモート済み=赤で色分け表示）
+- リポジトリノード右クリックメニューにブランチ切替・リポジトリを閉じる
+- 全画面テーブル比較の左パネルにセル単位の差分ハイライト
+- 比較モードの左側（比較元）ブロック要素で編集アイコンを非表示
+
+### Changed
+- モード切替アイコンをOutlinedバリアントに変更（VS Codeデザインに統一）
+- パネルヘッダー高さを統一（アウトライン・コメント・エクスプローラ）
+- 縦ツールバーに固定幅・罫線を追加しハンバーガーメニューと中心位置を合わせ
+- ハードコーディング値を定数化（PANEL_HEADER_MIN_HEIGHT等）
+- leftEditor/rightEditorの変数名を入れ替え（左=比較、右=編集の意味に統一）
+
+### Fixed
+- 全画面テーブル比較の左右判定をeditorインスタンス比較に修正
+- 比較モードトグルをVS Code拡張のみ非表示にする（webアプリでは表示）
+- git cloneのコマンドインジェクション防止（exec→execFile）
+- グラフの分岐なし行から先頭の*を除去
+
 ## [0.5.1] - 2026-03-15
 
 ### Added
