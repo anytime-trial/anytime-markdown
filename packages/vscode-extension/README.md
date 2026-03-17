@@ -1,11 +1,6 @@
 # Anytime Markdown Editor
 
-[![VS Marketplace](https://img.shields.io/visual-studio-marketplace/v/kiytaka-ueda.anytime-markdown?label=VS%20Marketplace&logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=kiytaka-ueda.anytime-markdown)
-[![Installs](https://img.shields.io/visual-studio-marketplace/i/kiytaka-ueda.anytime-markdown?logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=kiytaka-ueda.anytime-markdown)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![GitHub](https://img.shields.io/github/stars/kiyotaka-ueda/anytime-markdown?style=social)](https://github.com/kiyotaka-ueda/anytime-markdown)
-
-**Review AI-generated docs while you code — all inside VS Code.**
+![VS Marketplace](https://img.shields.io/visual-studio-marketplace/v/kiytaka-ueda.anytime-markdown?label=VS%20Marketplace&logo=visual-studio-code)![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)**Review AI-generated docs while you code — all inside VS Code.**
 
 AI assistants are great at writing specs, designs, and notes in Markdown. But reviewing them in plain text is painful, and switching between your editor and a Git GUI breaks your flow.
 
