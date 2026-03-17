@@ -48,6 +48,38 @@ export function TableNodeView({ editor, node, getPos }: NodeViewProps) {
     return findCounterpartTableHtml(editor, otherEditor, pos);
   }, [editOpen, mergeEditors, editor, getPos]);
 
+  // 差分ハイライト付き compareTableHtml を生成
+  const highlightedCompareHtml = useMemo(() => {
+    if (!compareTableHtml) return null;
+    // 現在のテーブルのセルテキストを取得
+    const currentCells: string[][] = [];
+    node.content.forEach((row) => {
+      const cells: string[] = [];
+      row.content.forEach((cell) => { cells.push(cell.textContent); });
+      currentCells.push(cells);
+    });
+    // DOM パーサーでテーブル幅設定 + セル比較で差分スタイルを埋め込む
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(compareTableHtml, "text/html");
+    const table = doc.querySelector("table");
+    if (table) {
+      table.style.width = settings.tableWidth;
+      table.style.borderCollapse = "collapse";
+    }
+    const trs = doc.querySelectorAll("tr");
+    trs.forEach((tr, rowIdx) => {
+      const cells = tr.querySelectorAll("th, td");
+      cells.forEach((cell, colIdx) => {
+        const currentText = currentCells[rowIdx]?.[colIdx];
+        const compareText = (cell as HTMLElement).textContent ?? "";
+        if (currentText !== undefined && currentText !== compareText) {
+          (cell as HTMLElement).style.backgroundColor = "rgba(46, 160, 67, 0.18)";
+        }
+      });
+    });
+    return doc.body.innerHTML;
+  }, [compareTableHtml, node.content, settings.tableWidth]);
+
   const tableSx = {
     borderCollapse: "collapse",
     width: settings.tableWidth,
@@ -215,24 +247,15 @@ export function TableNodeView({ editor, node, getPos }: NodeViewProps) {
         )}
 
         {/* Table body */}
-        {editOpen && isCompareMode && compareTableHtml ? (
+        {editOpen && isCompareMode && highlightedCompareHtml ? (
           /* Compare mode: side-by-side tables */
           <Box sx={{ flex: 1, display: "flex", overflow: "hidden" }}>
             {/* Left: comparison table (read-only) */}
             <Box sx={{ flex: 1, overflow: "auto", bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG, p: 2, borderRight: 1, borderColor: "divider" }}>
               <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "0.7rem", mb: 1, display: "block" }}>{t("compare")}</Typography>
               <Box
-                ref={(el: HTMLDivElement | null) => {
-                  if (!el) return;
-                  const table = el.querySelector("table");
-                  if (table) table.style.width = settings.tableWidth;
-                }}
-                dangerouslySetInnerHTML={{ __html: compareTableHtml }}
-                sx={{
-                  "& table": { borderCollapse: "collapse" },
-                  "& th, & td": { border: "1px solid", borderColor: "divider", padding: "4px 8px", textAlign: "left", minWidth: 80, bgcolor: "background.paper" },
-                  "& th": { bgcolor: "action.hover", fontWeight: 600 },
-                }}
+                dangerouslySetInnerHTML={{ __html: highlightedCompareHtml }}
+                sx={{ "& table": tableSx }}
               />
             </Box>
             {/* Right: current table (editable) */}
