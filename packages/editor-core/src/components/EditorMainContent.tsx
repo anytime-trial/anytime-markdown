@@ -210,9 +210,12 @@ export function EditorMainContent({
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
+        width: 46,
         py: 1,
         gap: 0.5,
         borderLeft: 1,
+        borderRight: 1,
+        borderTop: 1,
         borderColor: "divider",
         flexShrink: 0,
       }}
@@ -343,6 +346,7 @@ export function EditorMainContent({
           toggleFold={outlineProps.toggleFold}
           handleOutlineClick={outlineProps.handleOutlineClick}
           handleOutlineResizeStart={outlineProps.handleOutlineResizeStart}
+          hideResize={sideToolbar}
           onHeadingDragEnd={outlineProps.onHeadingDragEnd}
           onOutlineDelete={outlineProps.onOutlineDelete}
           onInsertSectionNumbers={outlineProps.onInsertSectionNumbers}
@@ -438,6 +442,7 @@ export function EditorMainContent({
           toggleFold={outlineProps.toggleFold}
           handleOutlineClick={outlineProps.handleOutlineClick}
           handleOutlineResizeStart={outlineProps.handleOutlineResizeStart}
+          hideResize={sideToolbar}
           onHeadingDragEnd={outlineProps.onHeadingDragEnd}
           onOutlineDelete={outlineProps.onOutlineDelete}
           onInsertSectionNumbers={outlineProps.onInsertSectionNumbers}

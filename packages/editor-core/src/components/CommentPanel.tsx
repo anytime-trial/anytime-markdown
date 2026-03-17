@@ -152,7 +152,8 @@ export const CommentPanel = React.memo(function CommentPanel({
         sx={{
           display: "flex",
           alignItems: "center",
-          p: 1,
+          px: 1,
+          minHeight: 40,
           borderBottom: 1,
           borderColor: "divider",
         }}

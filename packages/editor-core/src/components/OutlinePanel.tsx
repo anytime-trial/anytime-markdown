@@ -46,6 +46,7 @@ interface OutlinePanelProps {
   toggleFold: (idx: number) => void;
   handleOutlineClick: (pos: number) => void;
   handleOutlineResizeStart: (e: React.MouseEvent) => void;
+  hideResize?: boolean;
   onHeadingDragEnd?: (fromIdx: number, toIdx: number) => void;
   onOutlineDelete?: (pos: number, kind: string) => void;
   onInsertSectionNumbers?: () => void;
@@ -65,6 +66,7 @@ export function OutlinePanel({
   toggleFold,
   handleOutlineClick,
   handleOutlineResizeStart,
+  hideResize,
   onHeadingDragEnd,
   onOutlineDelete,
   onInsertSectionNumbers,
@@ -148,17 +150,15 @@ export function OutlinePanel({
           bgcolor: theme.palette.mode === "dark" ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
         }}
       >
-        <Box sx={{ p: 1.5 }}>
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 0.5 }}>
+        <Box>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", px: 1, minHeight: 40, borderBottom: 1, borderColor: "divider" }}>
             <Typography
               id="outline-panel-title"
-              variant="caption"
+              variant="subtitle2"
               component="h2"
               sx={{
                 fontWeight: 700,
-                color: theme.palette.text.secondary,
-                textTransform: "uppercase",
-                letterSpacing: 0.5,
+                flex: 1,
               }}
             >
               {t("outline")}
@@ -213,6 +213,7 @@ export function OutlinePanel({
               )}
             </Box>
           </Box>
+          <Box sx={{ p: 1 }}>
           {headings.length === 0 ? (
             <Typography variant="body2" sx={{ color: theme.palette.text.disabled, fontSize: "0.8rem" }}>
               {t("noHeadings")}
@@ -344,10 +345,11 @@ export function OutlinePanel({
               />
             </>
           )}
+          </Box>
         </Box>
       </Paper>
       {/* Resize handle */}
-      <Box
+      {!hideResize && <Box
         role="separator"
         tabIndex={0}
         aria-orientation="vertical"
@@ -377,7 +379,7 @@ export function OutlinePanel({
             bgcolor: "divider",
           },
         }}
-      />
+      />}
     </>
   );
 }

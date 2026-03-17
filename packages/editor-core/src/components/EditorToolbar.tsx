@@ -1,17 +1,17 @@
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
-import CodeIcon from "@mui/icons-material/Code";
+import CodeOutlinedIcon from "@mui/icons-material/CodeOutlined";
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import EditNoteIcon from "@mui/icons-material/EditNote";
 import GitHubIcon from "@mui/icons-material/GitHub";
 import HistoryIcon from "@mui/icons-material/History";
 import ListAltIcon from "@mui/icons-material/ListAlt";
-import LockIcon from "@mui/icons-material/Lock";
+import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import MenuIcon from "@mui/icons-material/Menu";
 import RedoIcon from "@mui/icons-material/Redo";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import UndoIcon from "@mui/icons-material/Undo";
 import ViewStreamIcon from "@mui/icons-material/ViewStream";
-import VisibilityIcon from "@mui/icons-material/Visibility";
-import WysiwygIcon from "@mui/icons-material/Wysiwyg";
+import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import {
   Box,
   IconButton,
@@ -337,20 +337,20 @@ export const EditorToolbar = React.memo(function EditorToolbar({
       >
         {!hideReadonlyToggle && (
           <ToggleButton value="readonly" aria-label={t("readonly")} onClick={onSwitchToReadonly}>
-            <LockIcon sx={{ fontSize: "1rem" }} />
+            <LockOutlinedIcon sx={{ fontSize: "1rem" }} />
             <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>{t("readonly")}</Box>
           </ToggleButton>
         )}
         <ToggleButton value="review" aria-label={t("review")} onClick={onSwitchToReview}>
-          <VisibilityIcon sx={{ fontSize: "1rem" }} />
+          <VisibilityOutlinedIcon sx={{ fontSize: "1rem" }} />
           <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>{t("review")}</Box>
         </ToggleButton>
         <ToggleButton value="wysiwyg" aria-label={t("wysiwyg")} onClick={onSwitchToWysiwyg}>
-          <WysiwygIcon sx={{ fontSize: "1rem" }} />
+          <EditOutlinedIcon sx={{ fontSize: "1rem" }} />
           <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>{t("wysiwyg")}</Box>
         </ToggleButton>
         <ToggleButton value="source" aria-label={t("source")} onClick={onSwitchToSource}>
-          <CodeIcon sx={{ fontSize: "1rem" }} />
+          <CodeOutlinedIcon sx={{ fontSize: "1rem" }} />
           <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>{t("source")}</Box>
         </ToggleButton>
       </ToggleButtonGroup>}

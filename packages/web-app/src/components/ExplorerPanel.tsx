@@ -1384,7 +1384,8 @@ export const ExplorerPanel: FC<ExplorerPanelProps> = ({
       sx={{
         width,
         minWidth: width,
-        borderRight: 1,
+        borderLeft: 1,
+        borderTop: 1,
         borderColor: "divider",
         display: "flex",
         flexDirection: "column",
@@ -1399,8 +1400,9 @@ export const ExplorerPanel: FC<ExplorerPanelProps> = ({
           alignItems: "center",
           gap: 0.5,
           px: 1,
-          py: 0.5,
-          minHeight: 32,
+          minHeight: 40,
+          borderBottom: 1,
+          borderColor: "divider",
         }}
       >
         {selectedRepo ? (
@@ -1412,7 +1414,7 @@ export const ExplorerPanel: FC<ExplorerPanelProps> = ({
             ← {selectedRepo.fullName}
           </Button>
         ) : (
-          <Typography variant="caption" sx={{ fontWeight: 600, px: 0.5, flex: 1 }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, flex: 1 }}>
             {t("explorer")}
           </Typography>
         )}
@@ -1441,7 +1443,6 @@ export const ExplorerPanel: FC<ExplorerPanelProps> = ({
           </Tooltip>
         )}
       </Box>
-      <Divider />
 
       {selectedRepo && selectedBranch && (
         <Box sx={{ px: 1, py: 0.25 }}>
