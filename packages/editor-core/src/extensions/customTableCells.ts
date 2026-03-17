@@ -17,7 +17,7 @@ export const CustomTableCell = TableCell.extend({
   },
 });
 
-/** textAlign 属性付きの TableHeader 拡張 */
+/** textAlign 属性 + scope="col" 付きの TableHeader 拡張 */
 export const CustomTableHeader = TableHeader.extend({
   addAttributes() {
     return {
@@ -31,5 +31,8 @@ export const CustomTableHeader = TableHeader.extend({
         },
       },
     };
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ["th", { ...HTMLAttributes, scope: "col" }, 0];
   },
 });

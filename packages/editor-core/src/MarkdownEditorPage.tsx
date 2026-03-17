@@ -23,6 +23,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { EditorDialogsSection } from "./components/EditorDialogsSection";
+import { EditorErrorBoundary } from "./components/EditorErrorBoundary";
 import { EditorFooterOverlays } from "./components/EditorFooterOverlays";
 import { EditorMainContent } from "./components/EditorMainContent";
 import { EditorToolbarSection } from "./components/EditorToolbarSection";
@@ -339,6 +340,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   };
 
   return (
+    <EditorErrorBoundary>
     <EditorSettingsContext.Provider value={settingsValue}>
     <PlantUmlToolbarContext.Provider value={plantUmlToolbarCtx}>
     <PrintStyles />
@@ -442,5 +444,6 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     </Box>
     </PlantUmlToolbarContext.Provider>
     </EditorSettingsContext.Provider>
+    </EditorErrorBoundary>
   );
 }
