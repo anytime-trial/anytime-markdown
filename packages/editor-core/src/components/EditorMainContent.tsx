@@ -1,31 +1,21 @@
-import { Box, Paper } from "@mui/material";
-import { useTheme } from "@mui/material/styles";
+import { Box } from "@mui/material";
 import type { Editor } from "@tiptap/react";
 import type React from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback } from "react";
 
-import { FILE_DROP_OVERLAY_COLOR, getEditorBg } from "../constants/colors";
-import { COMMENT_PANEL_WIDTH, PANEL_HEADER_MIN_HEIGHT, SIDE_TOOLBAR_WIDTH, SIDE_TOOLBAR_ICON_SIZE } from "../constants/dimensions";
+import { FILE_DROP_OVERLAY_COLOR } from "../constants/colors";
+import { COMMENT_PANEL_WIDTH } from "../constants/dimensions";
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
-import { getEditorPaperSx } from "../styles/editorStyles";
 import { getMarkdownFromEditor, type HeadingItem } from "../types";
-import { useEditorSettingsContext } from "../useEditorSettings";
 import type { DiffLine } from "../utils/diffEngine";
-import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
-import GitHubIcon from "@mui/icons-material/GitHub";
-import ListAltIcon from "@mui/icons-material/ListAlt";
-import { IconButton, Tooltip } from "@mui/material";
 import { CommentPanel } from "./CommentPanel";
+import { EditorContentArea } from "./EditorContentArea";
+import { EditorMergeContent } from "./EditorMergeContent";
 import { EditorOutlineSection } from "./EditorOutlineSection";
+import { EditorSideToolbar } from "./EditorSideToolbar";
 import { OutlinePanel } from "./OutlinePanel";
-import { FrontmatterBlock } from "./FrontmatterBlock";
-import { MergeEditorPanel } from "./MergeEditorPanel";
-import { SearchReplaceBar } from "./SearchReplaceBar";
-import { SourceModeEditor } from "./SourceModeEditor";
-import { SourceSearchBar } from "./SourceSearchBar";
 
 // InlineMergeView は dynamic import のため親から渡す
-// InlineMergeViewProps と同じシグネチャにする
 type InlineMergeViewComponent = React.ComponentType<{
   rightEditor?: Editor | null;
   editorContent: string;
@@ -48,7 +38,7 @@ type InlineMergeViewComponent = React.ComponentType<{
   ) => React.ReactNode;
 }>;
 
-interface OutlineProps {
+export interface OutlineProps {
   isMd: boolean;
   outlineOpen: boolean;
   handleToggleOutline: () => void;
@@ -81,23 +71,18 @@ interface EditorMainContentProps {
   editorContainerRef: React.RefObject<HTMLDivElement | null>;
   editorWrapperRef: React.RefObject<HTMLDivElement | null>;
   editorMountCallback: (node: HTMLDivElement | null) => void;
-  // source mode
   sourceText: string;
   handleSourceChange: (text: string) => void;
   sourceTextareaRef: React.RefObject<HTMLTextAreaElement | null>;
   sourceSearchOpen: boolean;
   setSourceSearchOpen: (open: boolean) => void;
   sourceSearch: TextareaSearchState;
-  // frontmatter
   frontmatterText: string | null;
   handleFrontmatterChange: (value: string | null) => void;
-  // comments
   commentOpen: boolean;
   setCommentOpen: (open: boolean) => void;
   saveContent: (md: string) => void;
-  // outline
   outlineProps: OutlineProps;
-  // merge mode
   editorMarkdown: string;
   setMergeUndoRedo: (v: { undo: () => void; redo: () => void; canUndo: boolean; canRedo: boolean } | null) => void;
   compareFileContent: string | null;
@@ -152,25 +137,7 @@ export function EditorMainContent({
   explorerSlot,
   t,
 }: EditorMainContentProps) {
-  const theme = useTheme();
-  const settings = useEditorSettingsContext();
-
-  // Frontmatter パネルの高さを測定し editorHeight から差し引く
-  const frontmatterRef = useRef<HTMLDivElement>(null);
-  const [frontmatterHeight, setFrontmatterHeight] = useState(0);
-  useEffect(() => {
-    const el = frontmatterRef.current;
-    if (!el) { setFrontmatterHeight(0); return; }
-    const ro = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        setFrontmatterHeight(entry.borderBoxSize?.[0]?.blockSize ?? entry.contentRect.height);
-      }
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [frontmatterText, sourceMode]);
-  const adjustedEditorHeight = editorHeight - frontmatterHeight;
-
+  // --- ドラッグ＆ドロップ ---
   const handleContainerDragOver = useCallback((e: React.DragEvent) => {
     if (!e.dataTransfer.types.includes("Files")) return;
     e.preventDefault();
@@ -191,7 +158,6 @@ export function EditorMainContent({
     );
     if (!file) return;
     e.preventDefault();
-    // File System Access API でネイティブハンドルを取得（対応ブラウザのみ）
     const items = e.dataTransfer.items;
     const mdItem = items ? Array.from(items).find((item) => item.kind === "file" && (file.name.endsWith(".md") || file.name.endsWith(".markdown"))) : null;
     const mdItemAny = mdItem as (DataTransferItem & { getAsFileSystemHandle?: () => Promise<FileSystemHandle | null> }) | null;
@@ -204,84 +170,7 @@ export function EditorMainContent({
     }
   }, [onFileDrop, onFileDragOverChange]);
 
-  const sideToolbarNode = sideToolbar ? (
-    <Box
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        width: SIDE_TOOLBAR_WIDTH,
-        py: 1,
-        gap: 0.5,
-        borderLeft: 1,
-        borderRight: 1,
-        borderTop: 1,
-        borderColor: "divider",
-        flexShrink: 0,
-      }}
-    >
-      <Tooltip title={t("outline")} placement="left">
-        <IconButton
-          size="small"
-          onClick={() => {
-            if (outlineProps.outlineOpen) {
-              onToggleOutline?.();
-            } else {
-              setCommentOpen(false);
-              if (explorerOpen) onToggleExplorer?.();
-              onToggleOutline?.();
-            }
-          }}
-          disabled={sourceMode}
-          color={outlineProps.outlineOpen ? "primary" : "default"}
-          sx={{ width: SIDE_TOOLBAR_ICON_SIZE, height: SIDE_TOOLBAR_ICON_SIZE }}
-        >
-          <ListAltIcon fontSize="small" />
-        </IconButton>
-      </Tooltip>
-      <Tooltip title={t("commentPanel")} placement="left">
-        <IconButton
-          size="small"
-          onClick={() => {
-            if (commentOpen) {
-              setCommentOpen(false);
-            } else {
-              if (outlineProps.outlineOpen) onToggleOutline?.();
-              if (explorerOpen) onToggleExplorer?.();
-              setCommentOpen(true);
-            }
-          }}
-          disabled={sourceMode}
-          color={commentOpen ? "primary" : "default"}
-          sx={{ width: SIDE_TOOLBAR_ICON_SIZE, height: SIDE_TOOLBAR_ICON_SIZE }}
-        >
-          <ChatBubbleOutlineIcon fontSize="small" />
-        </IconButton>
-      </Tooltip>
-      {onToggleExplorer && (
-        <Tooltip title={t("explorer")} placement="left">
-          <IconButton
-            size="small"
-            onClick={() => {
-              if (explorerOpen) {
-                onToggleExplorer?.();
-              } else {
-                if (outlineProps.outlineOpen) onToggleOutline?.();
-                setCommentOpen(false);
-                onToggleExplorer?.();
-              }
-            }}
-            color={explorerOpen ? "primary" : "default"}
-            sx={{ width: SIDE_TOOLBAR_ICON_SIZE, height: SIDE_TOOLBAR_ICON_SIZE }}
-          >
-            <GitHubIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-      )}
-    </Box>
-  ) : null;
-
-  // サイドツールバー使用時の OutlinePanel / CommentPanel（比較モード・通常モード共通）
+  // --- 共通スロット ---
   const sideOutlineSlot = sideToolbar && outlineProps.outlineOpen && !sourceMode ? (
     <OutlinePanel
       outlineWidth={COMMENT_PANEL_WIDTH}
@@ -308,52 +197,49 @@ export function EditorMainContent({
     <CommentPanel editor={editor} open={commentOpen} onClose={() => setCommentOpen(false)} onSave={() => saveContent(getMarkdownFromEditor(editor))} t={t} />
   ) : null;
 
+  const sideToolbarNode = sideToolbar ? (
+    <EditorSideToolbar
+      sourceMode={sourceMode}
+      outlineOpen={outlineProps.outlineOpen}
+      commentOpen={commentOpen}
+      explorerOpen={explorerOpen}
+      onToggleOutline={onToggleOutline}
+      onToggleComment={setCommentOpen}
+      onToggleExplorer={onToggleExplorer}
+      t={t}
+    />
+  ) : null;
+
+  // --- 比較モード ---
   if (inlineMergeOpen) {
     return (
       <Box ref={editorContainerRef} sx={{ display: "flex", flexDirection: "row", height: editorHeight }}>
       <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-      <InlineMergeView
-        rightEditor={editor}
-        editorContent={sourceMode ? sourceText : editorMarkdown}
-        sourceMode={sourceMode}
-        editorHeight={editorHeight}
-        t={t}
-        leftFrontmatter={frontmatterText}
-        onLeftFrontmatterChange={handleFrontmatterChange}
-        onUndoRedoReady={setMergeUndoRedo}
-        onLeftTextChange={handleSourceChange}
-        externalRightContent={compareFileContent}
-        onExternalRightContentConsumed={() => setCompareFileContent(null)}
-        onRightFileOpsReady={setRightFileOps}
-        commentSlot={!sideToolbar ? commentSlot : undefined}
-      >
-        {(leftBgGradient, leftDiffLines, onMerge, onHoverLine) => (
-        <Box component="main" sx={{ display: "flex", gap: 0, height: "100%", position: "relative" }} onDragOver={handleContainerDragOver} onDragLeave={handleContainerDragLeave} onDrop={handleContainerDrop}>
-          {fileDragOver && <Box sx={{ position: "absolute", inset: 0, bgcolor: FILE_DROP_OVERLAY_COLOR, zIndex: 10, pointerEvents: "none" }} />}
-          {!sideToolbar && <EditorOutlineSection {...outlineProps} />}
-          <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-            <MergeEditorPanel
-              sourceMode={sourceMode}
-              sourceText={sourceText}
-              onSourceChange={handleSourceChange}
-              textareaAriaLabel={t("sourceEditor")}
-              editor={editor}
-              editorWrapperRef={editorWrapperRef}
-              editorMountRef={editorMountCallback}
-              autoResize
-              bgGradient={leftBgGradient}
-              diffLines={leftDiffLines}
-              side="right"
-              showHoverLabels
-              onHoverLine={onHoverLine}
-              paperSx={{
-                bgcolor: getEditorBg(theme.palette.mode === "dark", settings),
-              }}
-            />
-          </Box>
-        </Box>
-        )}
-      </InlineMergeView>
+        <EditorMergeContent
+          InlineMergeView={InlineMergeView}
+          editor={editor}
+          sourceMode={sourceMode}
+          editorHeight={editorHeight}
+          editorWrapperRef={editorWrapperRef}
+          editorMountCallback={editorMountCallback}
+          sourceText={sourceText}
+          handleSourceChange={handleSourceChange}
+          frontmatterText={frontmatterText}
+          handleFrontmatterChange={handleFrontmatterChange}
+          editorMarkdown={editorMarkdown}
+          setMergeUndoRedo={setMergeUndoRedo}
+          compareFileContent={compareFileContent}
+          setCompareFileContent={setCompareFileContent}
+          setRightFileOps={setRightFileOps}
+          outlineProps={outlineProps}
+          sideToolbar={sideToolbar}
+          commentSlot={commentSlot}
+          fileDragOver={fileDragOver}
+          onDragOver={handleContainerDragOver}
+          onDragLeave={handleContainerDragLeave}
+          onDrop={handleContainerDrop}
+          t={t}
+        />
       </Box>
       {sideToolbar && commentSlot}
       {sideOutlineSlot}
@@ -363,6 +249,7 @@ export function EditorMainContent({
     );
   }
 
+  // --- 通常モード ---
   return (
     <Box component="main" ref={editorContainerRef} sx={{ display: "flex", flexDirection: "row", position: "relative" }} onDragOver={handleContainerDragOver} onDragLeave={handleContainerDragLeave} onDrop={handleContainerDrop}>
       <Box sx={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0, minHeight: 0 }}>
@@ -370,65 +257,25 @@ export function EditorMainContent({
       {fileDragOver && <Box sx={{ position: "absolute", inset: 0, bgcolor: FILE_DROP_OVERLAY_COLOR, zIndex: 10, pointerEvents: "none" }} />}
       {!sourceMode && !sideToolbar && <EditorOutlineSection {...outlineProps} />}
 
-      {/* Editor */}
-      <Box sx={{ flex: 1, minWidth: 0 }}>
-        {sourceMode ? (
-          <Box
-            sx={{ position: "relative" }}
-            onKeyDown={(e: React.KeyboardEvent) => {
-              if ((e.ctrlKey || e.metaKey) && e.key === "f") {
-                e.preventDefault();
-                setSourceSearchOpen(true);
-                setTimeout(() => sourceSearch.focusSearch(), 50);
-              } else if (e.key === "Escape" && sourceSearchOpen) {
-                e.preventDefault();
-                setSourceSearchOpen(false);
-                sourceSearch.reset();
-              }
-            }}
-          >
-            {sourceSearchOpen && (
-              <SourceSearchBar
-                search={sourceSearch}
-                onClose={() => { setSourceSearchOpen(false); sourceSearch.reset(); }}
-                t={t}
-              />
-            )}
-            <SourceModeEditor
-              sourceText={sourceText}
-              onSourceChange={handleSourceChange}
-              editorHeight={editorHeight}
-              ariaLabel={t("sourceEditor")}
-              textareaRef={sourceTextareaRef}
-              searchMatches={sourceSearchOpen ? sourceSearch.matches : undefined}
-              searchCurrentIndex={sourceSearchOpen ? sourceSearch.currentIndex : undefined}
-            />
-          </Box>
-        ) : (
-          <Box
-            ref={editorWrapperRef}
-            onKeyDown={(readonlyMode || reviewMode) ? (e: React.KeyboardEvent) => {
-              if ((e.ctrlKey || e.metaKey) && e.key === "f") {
-                e.preventDefault();
-                editor?.commands.openSearch();
-              }
-            } : undefined}
-            sx={{ position: "relative", outline: "none" }}
-          >
-            {editor && <SearchReplaceBar editor={editor} t={t} />}
-            <div ref={frontmatterRef}>
-              <FrontmatterBlock frontmatter={frontmatterText} onChange={handleFrontmatterChange} readOnly={readonlyMode || reviewMode} t={t} />
-            </div>
-            <Paper
-              id="md-editor-content"
-              variant="outlined"
-              sx={getEditorPaperSx(theme, settings, adjustedEditorHeight, { readonlyMode })}
-            >
-              <div ref={editorMountCallback} style={{ display: "contents" }} />
-            </Paper>
-          </Box>
-        )}
-      </Box>
+      <EditorContentArea
+        editor={editor}
+        sourceMode={sourceMode}
+        readonlyMode={readonlyMode}
+        reviewMode={reviewMode}
+        editorHeight={editorHeight}
+        editorWrapperRef={editorWrapperRef}
+        editorMountCallback={editorMountCallback}
+        sourceText={sourceText}
+        handleSourceChange={handleSourceChange}
+        sourceTextareaRef={sourceTextareaRef}
+        sourceSearchOpen={sourceSearchOpen}
+        setSourceSearchOpen={setSourceSearchOpen}
+        sourceSearch={sourceSearch}
+        frontmatterText={frontmatterText}
+        handleFrontmatterChange={handleFrontmatterChange}
+        t={t}
+      />
+
       {commentSlot}
       {sideOutlineSlot}
       {sideToolbar && explorerOpen && explorerSlot}

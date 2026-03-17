@@ -2,8 +2,9 @@ import { readFileSync } from "fs";
 import { resolve } from "path";
 
 describe("EditorMainContent", () => {
+  // EditorContentArea は EditorMainContent から分離されたエディタ本体コンポーネント
   const src = readFileSync(
-    resolve(__dirname, "../components/EditorMainContent.tsx"),
+    resolve(__dirname, "../components/EditorContentArea.tsx"),
     "utf-8",
   );
 
