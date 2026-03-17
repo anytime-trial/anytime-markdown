@@ -1,12 +1,17 @@
 # Anytime Markdown Editor
 
+[![VS Marketplace](https://img.shields.io/visual-studio-marketplace/v/kiytaka-ueda.anytime-markdown?label=VS%20Marketplace&logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=kiytaka-ueda.anytime-markdown)
+[![Installs](https://img.shields.io/visual-studio-marketplace/i/kiytaka-ueda.anytime-markdown?logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=kiytaka-ueda.anytime-markdown)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![GitHub](https://img.shields.io/github/stars/kiyotaka-ueda/anytime-markdown?style=social)](https://github.com/kiyotaka-ueda/anytime-markdown)
+
 **AIが書いたドキュメントを、コーディングしながらレビュー — VS Code だけで完結。**
 
 AIアシスタントは仕様書や設計書をMarkdownで書いてくれますが、プレーンテキストでのレビューは読みにくく、GitクライアントとエディタのVS Code との行き来で集中が途切れがちです。
 
 Anytime Markdown なら、リッチエディタとGit機能が一体になっているので、**ドキュメント用のリポジトリをコードの隣で開いて**、すべてひとつのウィンドウで済ませられます。
 
-## できること
+## 1. できること
 
 - **複数のドキュメントリポジトリ**をサイドバーでソースコードと並べて表示
 - **AIの出力**をテーブル・ダイアグラム（Mermaid / PlantUML）・数式付きでプレビュー
@@ -14,7 +19,7 @@ Anytime Markdown なら、リッチエディタとGit機能が一体になって
 - **コミット・プッシュ**をVS Code から直接実行
 - **履歴追跡**をビジュアルなGitグラフとファイル単位のタイムラインで
 
-## 使い方の流れ
+## 2. 使い方の流れ
 
 1. AIがMarkdownドキュメントを生成
 2. **マークダウン管理**パネルでドキュメントリポジトリを開く
@@ -22,7 +27,7 @@ Anytime Markdown なら、リッチエディタとGit機能が一体になって
 4. 以前のバージョンと比較
 5. 編集・コミット・プッシュ — 完了
 
-## エディタモード
+## 3. エディタモード
 
 | モード | 内容 |
 | --- | --- |
@@ -32,30 +37,30 @@ Anytime Markdown なら、リッチエディタとGit機能が一体になって
 
 ツールバーのトグルまたは `Ctrl+Alt+S`（Macは `Cmd+Alt+S`）で切り替え。
 
-## サイドバーパネル
+## 4. サイドバーパネル
 
 - **マークダウン管理** — 複数リポジトリ対応のファイルツリー、ブランチ切替、Markdownフィルター
 - **変更** — ステージ・コミット・プッシュ（リポジトリごと）
 - **グラフ** — ビジュアルなコミット履歴（青=ローカル、赤=リモート）
 - **タイムライン** — ファイル単位の履歴、クリックで比較
 
-## スラッシュコマンド
+## 5. スラッシュコマンド
 
 `/` を入力して挿入: 見出し、リスト、テーブル、コードブロック、Mermaid / PlantUML ダイアグラム、数式（KaTeX）、HTML、目次、脚注、アドモニション、コメントなど。
 
-## 設定
+## 6. 設定
 
 | 設定 | デフォルト | 説明 |
 | --- | --- | --- |
 | `anytimeMarkdown.fontSize` | `0` | フォントサイズ（px）。0 = VS Code デフォルト |
 | `anytimeMarkdown.editorMaxWidth` | `0` | エディタの最大幅（px）。0 = 制限なし |
 
-## はじめかた
+## 7. はじめかた
 
 `.md` / `.markdown` ファイルを開くと自動的に Anytime Markdown で表示されます。VS Code 標準エディタで開きたい場合は、右クリック → **「Open With...」** → **「Text Editor」** を選択。
 
 VS Code 1.109.0 以上が必要です。
 
-## ライセンス
+## 8. ライセンス
 
 MIT

@@ -1,12 +1,17 @@
 # Anytime Markdown Editor
 
+[![VS Marketplace](https://img.shields.io/visual-studio-marketplace/v/kiytaka-ueda.anytime-markdown?label=VS%20Marketplace&logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=kiytaka-ueda.anytime-markdown)
+[![Installs](https://img.shields.io/visual-studio-marketplace/i/kiytaka-ueda.anytime-markdown?logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=kiytaka-ueda.anytime-markdown)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![GitHub](https://img.shields.io/github/stars/kiyotaka-ueda/anytime-markdown?style=social)](https://github.com/kiyotaka-ueda/anytime-markdown)
+
 **Review AI-generated docs while you code — all inside VS Code.**
 
 AI assistants are great at writing specs, designs, and notes in Markdown. But reviewing them in plain text is painful, and switching between your editor and a Git GUI breaks your flow.
 
 Anytime Markdown gives you a rich WYSIWYG editor with built-in Git support, so you can **open a docs repository right next to your code** and keep everything in one window.
 
-## What You Can Do
+## 1. What You Can Do
 
 - **Open multiple doc repos** in the sidebar alongside your source code
 - **Review AI output** with live-rendered tables, diagrams (Mermaid / PlantUML), and math
@@ -14,7 +19,7 @@ Anytime Markdown gives you a rich WYSIWYG editor with built-in Git support, so y
 - **Commit and push** docs without leaving VS Code
 - **Track history** with a visual Git graph and per-file timeline
 
-## How It Works
+## 2. How It Works
 
 1. AI generates a Markdown document
 2. Open the docs repo in the **Markdown Docs** panel
@@ -22,7 +27,7 @@ Anytime Markdown gives you a rich WYSIWYG editor with built-in Git support, so y
 4. Compare with previous versions
 5. Edit, commit, push — done
 
-## Editor Modes
+## 3. Editor Modes
 
 | Mode | What it does |
 | --- | --- |
@@ -32,30 +37,30 @@ Anytime Markdown gives you a rich WYSIWYG editor with built-in Git support, so y
 
 Switch with the toolbar toggles or `Ctrl+Alt+S` (`Cmd+Alt+S` on Mac).
 
-## Sidebar Panels
+## 4. Sidebar Panels
 
 - **Markdown Docs** — file tree with multi-repo support, branch switching, Markdown filter
 - **Changes** — stage, unstage, discard, commit, push (per repo)
 - **Graph** — visual commit log (blue = local, red = remote)
 - **Timeline** — file history, click to compare
 
-## Slash Commands
+## 5. Slash Commands
 
 Type `/` to insert: headings, lists, tables, code blocks, Mermaid / PlantUML diagrams, math (KaTeX), HTML, TOC, footnotes, admonitions, comments, and more.
 
-## Settings
+## 6. Settings
 
 | Setting | Default | Description |
 | --- | --- | --- |
 | `anytimeMarkdown.fontSize` | `0` | Font size (px). 0 = VS Code default |
 | `anytimeMarkdown.editorMaxWidth` | `0` | Max editor width (px). 0 = no limit |
 
-## Getting Started
+## 7. Getting Started
 
-`.md` / `.markdown` files open with Anytime Markdown automatically. To use the standard text editor instead, right-click a file and choose **"Open With..."** > **"Text Editor"**.
+`.md` / `.markdown` files open with Anytime Markdown automatically. To use the standard text editor instead, right-click a file and choose **"Open With..."** &gt; **"Text Editor"**.
 
 Requires VS Code 1.109.0 or later.
 
-## License
+## 8. License
 
 MIT
