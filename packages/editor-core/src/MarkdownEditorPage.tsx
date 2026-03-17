@@ -107,11 +107,13 @@ interface MarkdownEditorPageProps {
   onToggleExplorer?: () => void;
   /** 右端に縦ツールバーを表示（アウトライン/コメント切替） */
   sideToolbar?: boolean;
+  /** 比較モードトグルを非表示 */
+  hideCompareToggle?: boolean;
   /** エクスプローラパネルのスロット（コメントパネルと同じ位置に表示） */
   explorerSlot?: React.ReactNode;
 }
 
-export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideVersionInfo, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, onLocaleChange, fileSystemProvider, externalContent, externalFileName, externalFilePath: _externalFilePath, onExternalSave, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, onReload, defaultSourceMode, showReadonlyMode, externalCompareContent, explorerOpen, onToggleExplorer, sideToolbar, explorerSlot }: MarkdownEditorPageProps = {}) {
+export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideVersionInfo, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, onLocaleChange, fileSystemProvider, externalContent, externalFileName, externalFilePath: _externalFilePath, onExternalSave, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, onReload, defaultSourceMode, showReadonlyMode, externalCompareContent, explorerOpen, onToggleExplorer, sideToolbar, hideCompareToggle, explorerSlot }: MarkdownEditorPageProps = {}) {
   const t = useTranslations("MarkdownEditor");
   const locale = useLocale() as "en" | "ja";
   const muiTheme = useTheme();
@@ -421,7 +423,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         inlineMergeOpen={inlineMergeOpen}
         hide={{
           outline: hideOutline || sideToolbar, comments: hideComments || sideToolbar,
-          explorer: sideToolbar, compareToggle: sideToolbar,
+          explorer: sideToolbar, compareToggle: hideCompareToggle,
           templates: hideTemplates, foldAll: hideFoldAll,
           fileOps: hideFileOps, undoRedo: hideUndoRedo,
           versionInfo: hideVersionInfo,
