@@ -5,6 +5,7 @@ import {
   MenuList,
   Paper,
   Popper,
+  Typography,
 } from "@mui/material";
 import type { VirtualElement } from "@popperjs/core";
 import type { Editor } from "@tiptap/react";
@@ -153,7 +154,7 @@ export const SlashCommandMenu = React.memo(function SlashCommandMenu({
     }
   }, [active, from, editor?.view]);
 
-  if (!active || !virtualAnchor || filteredItems.length === 0) return null;
+  if (!active || !virtualAnchor) return null;
 
   return (
     <Popper
@@ -173,6 +174,11 @@ export const SlashCommandMenu = React.memo(function SlashCommandMenu({
         elevation={8}
         sx={{ maxHeight: 300, overflow: "auto", minWidth: 200, maxWidth: 280 }}
       >
+        {filteredItems.length === 0 ? (
+          <Typography role="status" aria-live="polite" variant="body2" sx={{ px: 2, py: 1.5, color: "text.secondary", fontSize: "0.85rem" }}>
+            {t("slashCommandNoResults")}
+          </Typography>
+        ) : (
         <MenuList ref={menuListRef} dense>
           {filteredItems.map((item, i) => (
             <MenuItem
@@ -188,6 +194,7 @@ export const SlashCommandMenu = React.memo(function SlashCommandMenu({
             </MenuItem>
           ))}
         </MenuList>
+        )}
       </Paper>
     </Popper>
   );

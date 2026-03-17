@@ -390,6 +390,7 @@
     "resizeImage": "Resize image",
     "resizeDiagram": "Resize diagram",
     "slashCommandPlaceholder": "Type to filter...",
+    "slashCommandNoResults": "No matching commands",
     "slashH1": "Heading 1",
     "slashH2": "Heading 2",
     "slashH3": "Heading 3",

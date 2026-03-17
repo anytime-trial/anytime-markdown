@@ -13,6 +13,7 @@ import UnfoldLessIcon from "@mui/icons-material/UnfoldLess";
 import UnfoldMoreIcon from "@mui/icons-material/UnfoldMore";
 import {
   Box,
+  ButtonBase,
   Collapse,
   IconButton,
   Paper,
@@ -284,13 +285,11 @@ export function OutlinePanel({
                       </Box>
                     )}
                     <Tooltip title={h.text || ""} enterDelay={400} placement="bottom-start">
-                      <Box
-                        role="button"
-                        tabIndex={0}
+                      <ButtonBase
+                        component="div"
                         onClick={() => handleOutlineClick(h.pos)}
                         {...(isHeading && onHeadingDragEnd ? { "aria-roledescription": t("draggableHeading") } : {})}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleOutlineClick(h.pos); }
+                        onKeyDown={(e: React.KeyboardEvent) => {
                           if (isHeading && onHeadingDragEnd && e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
                             e.preventDefault();
                             const targetIdx = e.key === "ArrowUp" ? hoIdx - 1 : hoIdx + 1;
@@ -310,11 +309,12 @@ export function OutlinePanel({
                           flex: 1,
                           minWidth: 0,
                           borderRadius: 0.5,
+                          justifyContent: "flex-start",
                           "&:focus-visible": { outline: "2px solid", outlineColor: "primary.main", outlineOffset: 1 },
                         }}
                       >
                         {h.text || "(empty)"}
-                      </Box>
+                      </ButtonBase>
                     </Tooltip>
                     <Box className="outline-move-btns" sx={{ display: "flex", flexShrink: 0, transition: "opacity 0.15s", "@media (prefers-reduced-motion: reduce)": { transition: "none" } }}>
                       {onOutlineDelete && (

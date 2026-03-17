@@ -3,6 +3,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import {
   Box,
   Button,
+  ButtonBase,
   IconButton,
   Paper,
   TextField,
@@ -158,7 +159,7 @@ export const CommentPanel = React.memo(function CommentPanel({
           borderColor: "divider",
         }}
       >
-        <Typography variant="subtitle2" sx={{ flex: 1, fontWeight: 700 }}>
+        <Typography variant="subtitle2" aria-live="polite" aria-atomic="true" sx={{ flex: 1, fontWeight: 700 }}>
           {t("commentPanel") || "Comments"} ({unresolvedCount}/
           {allComments.length})
         </Typography>
@@ -222,18 +223,14 @@ export const CommentPanel = React.memo(function CommentPanel({
         {filtered.map((comment) => {
           const found = findCommentInDoc(editor, comment.id);
           return (
-            <Box
+            <ButtonBase
               key={comment.id}
-              role="button"
-              tabIndex={0}
+              component="div"
               onClick={() => handleClick(comment.id)}
-              onKeyDown={(e: React.KeyboardEvent) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  handleClick(comment.id);
-                }
-              }}
               sx={{
+                display: "block",
+                textAlign: "left",
+                width: "100%",
                 mb: 1,
                 p: 1,
                 border: 1,
@@ -337,7 +334,7 @@ export const CommentPanel = React.memo(function CommentPanel({
                   {t("commentDelete") || "Delete"}
                 </Button>
               </Box>
-            </Box>
+            </ButtonBase>
           );
         })}
       </Box>
