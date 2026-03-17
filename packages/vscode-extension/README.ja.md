@@ -1,11 +1,6 @@
 # Anytime Markdown Editor
 
-[![VS Marketplace](https://img.shields.io/visual-studio-marketplace/v/kiytaka-ueda.anytime-markdown?label=VS%20Marketplace&logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=kiytaka-ueda.anytime-markdown)
-[![Installs](https://img.shields.io/visual-studio-marketplace/i/kiytaka-ueda.anytime-markdown?logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=kiytaka-ueda.anytime-markdown)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![GitHub](https://img.shields.io/github/stars/kiyotaka-ueda/anytime-markdown?style=social)](https://github.com/kiyotaka-ueda/anytime-markdown)
-
-**AIが書いたドキュメントを、コーディングしながらレビュー — VS Code だけで完結。**
+![VS Marketplace](https://img.shields.io/visual-studio-marketplace/v/kiytaka-ueda.anytime-markdown?label=VS%20Marketplace&logo=visual-studio-code)![Installs](https://img.shields.io/visual-studio-marketplace/i/kiytaka-ueda.anytime-markdown?logo=visual-studio-code)![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)![GitHub](https://img.shields.io/github/stars/kiyotaka-ueda/anytime-markdown?style=social)**AIが書いたドキュメントを、コーディングしながらレビュー — VS Code だけで完結。**
 
 AIアシスタントは仕様書や設計書をMarkdownで書いてくれますが、プレーンテキストでのレビューは読みにくく、GitクライアントとエディタのVS Code との行き来で集中が途切れがちです。
 
