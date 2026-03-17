@@ -178,7 +178,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	);
 
-	// 仕様書管理パネル
+	// マークダウン管理パネル
 	const specDocsProvider = new SpecDocsProvider(context);
 	const specDocsDragAndDrop = new SpecDocsDragAndDrop(specDocsProvider);
 	const specDocsTreeView = vscode.window.createTreeView('anytimeMarkdown.specDocs', {
@@ -240,7 +240,7 @@ export function activate(context: vscode.ExtensionContext) {
 		setActiveRoot(activeRoot);
 	}, 2000);
 
-	// 仕様書管理: シングルクリックでプレビュー、ダブルクリックで固定タブ（常に通常モード）
+	// マークダウン管理: シングルクリックでプレビュー、ダブルクリックで固定タブ（常に通常モード）
 	let lastSpecClickUri: string | null = null;
 	let lastSpecClickTime = 0;
 	const specDocsOpenFile = vscode.commands.registerCommand(
@@ -307,7 +307,7 @@ export function activate(context: vscode.ExtensionContext) {
 	);
 	changesProvider.setMdOnlyGetter(() => specDocsProvider.mdOnly);
 
-	// 仕様書管理: ファイル/フォルダ操作
+	// マークダウン管理: ファイル/フォルダ操作
 	const specDocsCreateFile = vscode.commands.registerCommand(
 		'anytime-markdown.specDocsCreateFile', (item?: SpecDocsRootItem | SpecDocsItem) => specDocsProvider.createFile(item)
 	);

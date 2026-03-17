@@ -61,7 +61,7 @@ export class TimelineProvider implements vscode.TreeDataProvider<TimelineItem> {
 
 	private gitRoot: string | null = null;
 
-	/** 外部リポジトリ（仕様書管理）の履歴表示中かどうか */
+	/** 外部リポジトリ（マークダウン管理）の履歴表示中かどうか */
 	get isExternalMode(): boolean { return this.gitRoot !== null; }
 
 	refresh(uri: vscode.Uri | null): void {

@@ -187,7 +187,7 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem>
 		return this._mdOnlyGetter ? this._mdOnlyGetter() : false;
 	}
 
-	/** 仕様書管理のルートパス一覧に基づく git リポジトリを設定 */
+	/** マークダウン管理のルートパス一覧に基づく git リポジトリを設定 */
 	setTargetRoots(rootPaths: string[]): void {
 		// 既存の watcher を破棄
 		for (const w of this.watchers) { w.dispose(); }
