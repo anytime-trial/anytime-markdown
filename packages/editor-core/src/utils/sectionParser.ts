@@ -107,6 +107,59 @@ function buildSections(lines: string[], start: number, end: number, parentLevel:
   return sections;
 }
 
+// --- セクション LCS マッチング ---
+
+export interface SectionMatch {
+  type: "matched" | "left-only" | "right-only";
+  left: MarkdownSection | null;
+  right: MarkdownSection | null;
+}
+
+export function matchSections(
+  leftSections: MarkdownSection[],
+  rightSections: MarkdownSection[],
+): SectionMatch[] {
+  const leftHeadings = leftSections.map(s => s.heading ?? "");
+  const rightHeadings = rightSections.map(s => s.heading ?? "");
+  const lcsIndices = computeStringLCS(leftHeadings, rightHeadings);
+
+  const result: SectionMatch[] = [];
+  let li = 0;
+  let ri = 0;
+
+  for (const [lIdx, rIdx] of lcsIndices) {
+    while (li < lIdx) { result.push({ type: "left-only", left: leftSections[li++], right: null }); }
+    while (ri < rIdx) { result.push({ type: "right-only", left: null, right: rightSections[ri++] }); }
+    result.push({ type: "matched", left: leftSections[lIdx], right: rightSections[rIdx] });
+    li = lIdx + 1;
+    ri = rIdx + 1;
+  }
+  while (li < leftSections.length) { result.push({ type: "left-only", left: leftSections[li++], right: null }); }
+  while (ri < rightSections.length) { result.push({ type: "right-only", left: null, right: rightSections[ri++] }); }
+
+  return result;
+}
+
+/** 文字列配列の LCS インデックスペアを返す */
+function computeStringLCS(a: string[], b: string[]): [number, number][] {
+  const m = a.length;
+  const n = b.length;
+  const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1]);
+    }
+  }
+  const pairs: [number, number][] = [];
+  let i = m, j = n;
+  while (i > 0 && j > 0) {
+    if (a[i - 1] === b[j - 1]) { pairs.push([i - 1, j - 1]); i--; j--; }
+    else if (dp[i - 1][j] >= dp[i][j - 1]) { i--; }
+    else { j--; }
+  }
+  return pairs.reverse();
+}
+
 /** サブ見出しより前の行を bodyLines に格納し、サブ見出しを再帰的に解析 */
 function extractChildren(
   lines: string[], start: number, end: number, parentLevel: number, bodyLines: string[],

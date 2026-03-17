@@ -1,4 +1,4 @@
-import { parseMarkdownSections, type MarkdownSection } from "../utils/sectionParser";
+import { matchSections, parseMarkdownSections, type MarkdownSection } from "../utils/sectionParser";
 
 describe("parseMarkdownSections", () => {
   test("見出しなしテキストはルートセクション1つ", () => {
@@ -67,5 +67,57 @@ describe("parseMarkdownSections", () => {
     expect(result).toHaveLength(2);
     expect(result[0].bodyLines).toEqual([]);
     expect(result[1].bodyLines).toEqual([]);
+  });
+});
+
+describe("matchSections", () => {
+  const sec = (heading: string): MarkdownSection => ({
+    heading, level: 2, headingLine: `## ${heading}`,
+    bodyLines: [], children: [],
+  });
+
+  test("同一見出しがマッチする", () => {
+    const left = [sec("A"), sec("B")];
+    const right = [sec("A"), sec("B")];
+    const result = matchSections(left, right);
+    expect(result).toEqual([
+      { type: "matched", left: left[0], right: right[0] },
+      { type: "matched", left: left[1], right: right[1] },
+    ]);
+  });
+
+  test("左にのみ存在するセクション", () => {
+    const left = [sec("A"), sec("B")];
+    const right = [sec("A")];
+    const result = matchSections(left, right);
+    expect(result[0].type).toBe("matched");
+    expect(result[1]).toEqual({ type: "left-only", left: left[1], right: null });
+  });
+
+  test("右にのみ存在するセクション", () => {
+    const left = [sec("A")];
+    const right = [sec("A"), sec("C")];
+    const result = matchSections(left, right);
+    expect(result[0].type).toBe("matched");
+    expect(result[1]).toEqual({ type: "right-only", left: null, right: right[1] });
+  });
+
+  test("順序が変わった場合は LCS でマッチ", () => {
+    const left = [sec("A"), sec("B"), sec("C")];
+    const right = [sec("B"), sec("A"), sec("C")];
+    const result = matchSections(left, right);
+    const matched = result.filter(r => r.type === "matched");
+    expect(matched.length).toBe(2); // LCS: B,C or A,C (length 2)
+  });
+
+  test("空配列同士は空結果", () => {
+    expect(matchSections([], [])).toEqual([]);
+  });
+
+  test("片側が空の場合はすべて left-only / right-only", () => {
+    const left = [sec("A"), sec("B")];
+    const result = matchSections(left, []);
+    expect(result).toHaveLength(2);
+    expect(result.every(r => r.type === "left-only")).toBe(true);
   });
 });
