@@ -1,6 +1,9 @@
+import AccountTreeOutlinedIcon from "@mui/icons-material/AccountTreeOutlined";
 import {
   Box,
   Divider,
+  IconButton,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
@@ -96,6 +99,8 @@ export function InlineMergeView({
     setEditText,
     setCompareText,
     diffResult,
+    diffOptions,
+    setDiffOptions,
     mergeBlock,
     undo,
     redo,
@@ -356,6 +361,22 @@ export function InlineMergeView({
           </Box>
         </Box>
       )}
+
+      {/* Semantic diff toggle */}
+      <Box sx={{ display: "flex", justifyContent: "flex-end", px: 1, py: 0.5, flexShrink: 0 }}>
+        <Tooltip title={t("semanticDiff")}>
+          <IconButton
+            size="small"
+            onClick={() => setDiffOptions((prev) => ({ ...prev, semantic: !prev.semantic }))}
+            color={diffOptions.semantic ? "primary" : "default"}
+            aria-label={t("semanticDiff")}
+            aria-pressed={!!diffOptions.semantic}
+            sx={{ p: 0.5 }}
+          >
+            <AccountTreeOutlinedIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      </Box>
 
       {/* Content area: left = compare (read-only), right = editor (children) */}
       <Box sx={{ display: "flex", flex: 1, overflow: "hidden" }}>
