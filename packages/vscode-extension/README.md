@@ -71,17 +71,46 @@ Type `/` in the editor to open the command menu.
 - **Compare with Markdown Editor**: Load an external file into the right panel via explorer context menu
 - **Git History**: View past versions in the right panel by selecting a commit
 
-### 1.2.4. Outline Panel
+### 1.2.4. Spec Docs Panel
+
+- Manage spec documents from the VS Code sidebar
+- Open folders or clone Git repositories
+- Support for multiple repositories (each displayed as a top-level node)
+- File/folder operations: create, rename, delete, drag & drop
+- Branch switching per repository (via right-click menu)
+- Markdown-only filter toggle
+
+### 1.2.5. Changes Panel
+
+- Show Git changes grouped by repository (staged / unstaged)
+- Stage, unstage, and discard changes per file
+- Commit and push operations
+- Auto-refresh on file save with file system watcher
+- Badge showing total change count
+
+### 1.2.6. Git Graph
+
+- Visual commit history with branch graph
+- Custom icons: local commits (blue), remote commits (red)
+- Branch head indicators with colored icons
+- Branch refs displayed alongside commit messages
+
+### 1.2.7. Outline Panel
 
 - Display heading list in the VS Code sidebar
 - Click to scroll to the corresponding position
 
-### 1.2.5. Comment Panel
+### 1.2.8. Comment Panel
 
 - Display document comments in the VS Code sidebar
 - Resolve comments, filter by status (unresolved / resolved)
 
-### 1.2.6. Keyboard Shortcuts
+### 1.2.9. Timeline Panel
+
+- Show Git commit history for the currently selected file
+- Select a commit to load that version into the compare panel
+
+### 1.2.10. Keyboard Shortcuts
 
 | Shortcut | Action |
 | --- | --- |
