@@ -7,6 +7,9 @@
   "types": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./extensions": "./src/exports/extensions.ts",
+    "./constants": "./src/exports/constants.ts",
+    "./types": "./src/exports/types.ts",
     "./src/*": "./src/*"
   },
   "scripts": {

@@ -1,5 +1,6 @@
 "use client";
 
+import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { STORAGE_KEY_CONTENT } from "./constants/storageKeys";
@@ -8,7 +9,17 @@ import { appendCommentData } from "./utils/commentHelpers";
 import { preprocessMarkdown, prependFrontmatter } from "./utils/frontmatterHelpers";
 const DEBOUNCE_MS = 500;
 
-export function useMarkdownEditor(defaultContent: string, skipLocalStorage = false) {
+export interface UseMarkdownEditorReturn {
+  initialContent: string;
+  loading: boolean;
+  saveContent: (markdown: string, withFrontmatter?: boolean) => void;
+  downloadMarkdown: (markdown: string, encoding?: EncodingLabel) => Promise<void>;
+  clearContent: () => void;
+  frontmatterRef: React.RefObject<string | null>;
+  initialTrailingNewline: boolean;
+}
+
+export function useMarkdownEditor(defaultContent: string, skipLocalStorage = false): UseMarkdownEditorReturn {
   // フロントマターをエディタ外で保持する ref
   const frontmatterRef = useRef<string | null>(null);
   // 元テキストの末尾改行の有無（エディタの onCreate で storage に記録するため）

@@ -403,6 +403,7 @@ export const SearchReplaceBar = React.memo(function SearchReplaceBar({ editor, t
                 aria-label={t("replaceAll")}
                 onClick={() => editor.commands.replaceAllMatches()}
                 disabled={resultCount === 0}
+                color="warning"
                 sx={{ p: 0.25, minWidth: 24, minHeight: 24 }}
               >
                 <DoneAllIcon sx={{ fontSize: 16 }} />

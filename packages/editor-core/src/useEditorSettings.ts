@@ -29,7 +29,14 @@ export const DEFAULT_SETTINGS: EditorSettings = {
   spellCheck: false,
 };
 
-export function useEditorSettings() {
+export interface UseEditorSettingsReturn {
+  settings: EditorSettings;
+  loaded: boolean;
+  updateSettings: (patch: Partial<EditorSettings>) => void;
+  resetSettings: () => void;
+}
+
+export function useEditorSettings(): UseEditorSettingsReturn {
   const [settings, setSettings] = useState<EditorSettings>(DEFAULT_SETTINGS);
   const [loaded, setLoaded] = useState(false);
 
