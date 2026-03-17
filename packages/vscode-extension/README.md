@@ -71,9 +71,9 @@ Type `/` in the editor to open the command menu.
 - **Compare with Markdown Editor**: Load an external file into the right panel via explorer context menu
 - **Git History**: View past versions in the right panel by selecting a commit
 
-### 1.2.4. Spec Docs Panel
+### 1.2.4. Markdown Docs Panel
 
-- Manage spec documents from the VS Code sidebar
+- Manage markdown documents from the VS Code sidebar
 - Open folders or clone Git repositories
 - Support for multiple repositories (each displayed as a top-level node)
 - File/folder operations: create, rename, delete, drag & drop
