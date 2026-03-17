@@ -32,5 +32,7 @@
   "command.discardChanges": "変更を破棄",
   "command.commitChanges": "コミット",
   "command.pushChanges": "プッシュ",
-  "command.specDocsRemoveRoot": "リポジトリを閉じる"
+  "command.specDocsRemoveRoot": "リポジトリを閉じる",
+  "command.specDocsCopyPath": "パスのコピー",
+  "command.specDocsImportFiles": "ファイルをインポート"
 }

@@ -32,5 +32,7 @@
   "command.discardChanges": "Discard Changes",
   "command.commitChanges": "Commit",
   "command.pushChanges": "Push",
-  "command.specDocsRemoveRoot": "Close Repository"
+  "command.specDocsRemoveRoot": "Close Repository",
+  "command.specDocsCopyPath": "Copy Path",
+  "command.specDocsImportFiles": "Import Files"
 }

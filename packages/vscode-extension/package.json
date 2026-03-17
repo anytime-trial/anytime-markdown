@@ -180,6 +180,15 @@
         "command": "anytime-markdown.specDocsRemoveRoot",
         "title": "%command.specDocsRemoveRoot%",
         "icon": "$(close)"
+      },
+      {
+        "command": "anytime-markdown.specDocsCopyPath",
+        "title": "%command.specDocsCopyPath%"
+      },
+      {
+        "command": "anytime-markdown.specDocsImportFiles",
+        "title": "%command.specDocsImportFiles%",
+        "icon": "$(file-add)"
       }
     ],
     "customEditors": [
@@ -293,6 +302,11 @@
           "group": "1_new@2"
         },
         {
+          "command": "anytime-markdown.specDocsImportFiles",
+          "when": "view == anytimeMarkdown.specDocs && viewItem == folder",
+          "group": "1_new@3"
+        },
+        {
           "command": "anytime-markdown.specDocsCreateFile",
           "when": "view == anytimeMarkdown.specDocs && viewItem == specDocsRoot",
           "group": "1_new@1"
@@ -303,6 +317,11 @@
           "group": "1_new@2"
         },
         {
+          "command": "anytime-markdown.specDocsImportFiles",
+          "when": "view == anytimeMarkdown.specDocs && viewItem == specDocsRoot",
+          "group": "1_new@3"
+        },
+        {
           "command": "anytime-markdown.specDocsRename",
           "when": "view == anytimeMarkdown.specDocs && viewItem != specDocsRoot",
           "group": "2_edit@1"
@@ -311,6 +330,11 @@
           "command": "anytime-markdown.specDocsDelete",
           "when": "view == anytimeMarkdown.specDocs && viewItem != specDocsRoot",
           "group": "2_edit@2"
+        },
+        {
+          "command": "anytime-markdown.specDocsCopyPath",
+          "when": "view == anytimeMarkdown.specDocs && viewItem != specDocsRoot",
+          "group": "2_edit@3"
         },
         {
           "command": "anytime-markdown.switchBranch",

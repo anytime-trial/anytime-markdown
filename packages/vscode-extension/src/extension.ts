@@ -323,6 +323,16 @@ export function activate(context: vscode.ExtensionContext) {
 	const specDocsRemoveRoot = vscode.commands.registerCommand(
 		'anytime-markdown.specDocsRemoveRoot', (item: SpecDocsRootItem) => specDocsProvider.removeRoot(item.rootPath)
 	);
+	const specDocsCopyPath = vscode.commands.registerCommand(
+		'anytime-markdown.specDocsCopyPath', (item: SpecDocsItem) => {
+			if (item?.resourceUri) {
+				vscode.env.clipboard.writeText(item.resourceUri.fsPath);
+			}
+		}
+	);
+	const specDocsImportFiles = vscode.commands.registerCommand(
+		'anytime-markdown.specDocsImportFiles', (item?: SpecDocsRootItem | SpecDocsItem) => specDocsProvider.importFiles(item)
+	);
 
 	// Git 変更コマンド
 	const changesRefresh = vscode.commands.registerCommand(
@@ -433,7 +443,7 @@ export function activate(context: vscode.ExtensionContext) {
 		insertSectionNumbers, removeSectionNumbers,
 		changesRefresh, stageFile, unstageFile, discardChanges, commitChanges, pushChanges, syncChanges, changesOpenFile, openChangeDiff,
 		specDocsOpenFile, specDocsOpenFolder, specDocsCloneRepo, specDocsClose, specDocsRefresh, switchBranch, toggleMdOnly,
-		specDocsCreateFile, specDocsCreateFolder, specDocsDelete, specDocsRename, specDocsRemoveRoot,
+		specDocsCreateFile, specDocsCreateFolder, specDocsDelete, specDocsRename, specDocsRemoveRoot, specDocsCopyPath, specDocsImportFiles,
 		graphTreeView, graphRefresh,
 	);
 }
