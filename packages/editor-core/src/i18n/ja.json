@@ -392,7 +392,7 @@
     "slashCommandPlaceholder": "コマンドを検索...",
     "slashCommandNoResults": "一致するコマンドがありません",
     "semanticDiff": "セマンティック比較",
-    "copyAsMarkdown": "Markdownでコピー",
+    "pasteAsMarkdown": "Markdownで貼り付け",
     "slashH1": "見出し 1",
     "slashH2": "見出し 2",
     "slashH3": "見出し 3",

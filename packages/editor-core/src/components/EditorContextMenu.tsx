@@ -1,11 +1,11 @@
 "use client";
 
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import ContentPasteIcon from "@mui/icons-material/ContentPaste";
 import { ListItemIcon, ListItemText, Menu, MenuItem } from "@mui/material";
 import type { Editor } from "@tiptap/react";
 import { useCallback, useEffect, useState } from "react";
 
-import { getMarkdownFromEditor } from "../types";
+import { getMarkdownStorage } from "../types";
 
 interface EditorContextMenuProps {
   editor: Editor | null;
@@ -24,8 +24,6 @@ export function EditorContextMenu({ editor, t }: EditorContextMenuProps) {
     if (!editor) return;
     const dom = editor.view.dom;
     const handler = (event: MouseEvent) => {
-      const { from, to } = editor.state.selection;
-      if (from === to) return; // 選択なしはブラウザデフォルト
       event.preventDefault();
       setMenuPos({ mouseX: event.clientX, mouseY: event.clientY });
     };
@@ -37,24 +35,21 @@ export function EditorContextMenu({ editor, t }: EditorContextMenuProps) {
     setMenuPos(null);
   }, []);
 
-  const handleCopyAsMarkdown = useCallback(async () => {
-    if (!editor) return;
-    const { from, to } = editor.state.selection;
-    let markdown: string;
-    if (from === to) {
-      markdown = getMarkdownFromEditor(editor);
-    } else {
-      markdown = editor.state.doc.textBetween(from, to, "\n\n", "\n");
-    }
+  const handlePasteAsMarkdown = useCallback(async () => {
+    if (!editor || !editor.isEditable) { handleClose(); return; }
     try {
-      await navigator.clipboard.writeText(markdown);
+      const text = await navigator.clipboard.readText();
+      if (!text) { handleClose(); return; }
+      // Markdown パーサーで ProseMirror ノードに変換して挿入
+      const { parser } = getMarkdownStorage(editor);
+      const parsed = parser.parse(text);
+      if (parsed) {
+        const { from, to } = editor.state.selection;
+        const tr = editor.state.tr.replaceWith(from, to, parsed.content);
+        editor.view.dispatch(tr);
+      }
     } catch {
-      const textarea = document.createElement("textarea");
-      textarea.value = markdown;
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textarea);
+      // clipboard API 未対応の場合はフォールバック不可
     }
     handleClose();
   }, [editor, handleClose]);
@@ -73,11 +68,11 @@ export function EditorContextMenu({ editor, t }: EditorContextMenuProps) {
         paper: { sx: { minWidth: 180 } },
       }}
     >
-      <MenuItem onClick={handleCopyAsMarkdown}>
+      <MenuItem onClick={handlePasteAsMarkdown} disabled={!editor?.isEditable}>
         <ListItemIcon>
-          <ContentCopyIcon fontSize="small" />
+          <ContentPasteIcon fontSize="small" />
         </ListItemIcon>
-        <ListItemText>{t("copyAsMarkdown")}</ListItemText>
+        <ListItemText>{t("pasteAsMarkdown")}</ListItemText>
       </MenuItem>
     </Menu>
   );

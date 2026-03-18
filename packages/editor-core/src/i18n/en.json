@@ -392,7 +392,7 @@
     "slashCommandPlaceholder": "Type to filter...",
     "slashCommandNoResults": "No matching commands",
     "semanticDiff": "Semantic comparison",
-    "copyAsMarkdown": "Copy as Markdown",
+    "pasteAsMarkdown": "Paste as Markdown",
     "slashH1": "Heading 1",
     "slashH2": "Heading 2",
     "slashH3": "Heading 3",
