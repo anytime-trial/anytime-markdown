@@ -4,6 +4,7 @@
  * メインエディタと比較エディタで共有する Extension リストを一元管理する。
  * エディタ固有の Extension（検索、削除行ショートカット等）は各エディタで追加する。
  */
+import { Fragment } from "@tiptap/pm/model";
 import { TextSelection } from "@tiptap/pm/state";
 import Highlight from "@tiptap/extension-highlight";
 import LinkExtension from "@tiptap/extension-link";
@@ -154,34 +155,30 @@ export function getBaseExtensions(options?: { disableComments?: boolean; disable
           // Alt+Up/Down: ブロックを上下に移動
           "Alt-ArrowUp": ({ editor }) => {
             const { $from } = editor.state.selection;
-            const pos = $from.before(1); // トップレベルノードの開始位置
-            if (pos <= 0) return true; // 先頭ノード
+            const curStart = $from.before(1);
+            if (curStart <= 0) return true;
+            const curNode = $from.node(1);
+            const $prev = editor.state.doc.resolve(curStart - 1);
+            const prevStart = $prev.before(1);
+            const prevNode = $prev.node(1);
             const { tr } = editor.state;
-            const node = $from.node(1);
-            const $posBefore = tr.doc.resolve(pos);
-            const prevPos = $posBefore.before(1);
-            // 現在のノードを削除して前のノードの前に挿入
-            tr.delete(pos, pos + node.nodeSize);
-            tr.insert(prevPos, node);
-            tr.setSelection(TextSelection.near(tr.doc.resolve(prevPos + 1)));
+            tr.replaceWith(prevStart, curStart + curNode.nodeSize, Fragment.from([curNode, prevNode]));
+            tr.setSelection(TextSelection.near(tr.doc.resolve(prevStart + 1)));
             editor.view.dispatch(tr.scrollIntoView());
             return true;
           },
           "Alt-ArrowDown": ({ editor }) => {
             const { $from } = editor.state.selection;
-            const pos = $from.before(1);
-            const node = $from.node(1);
-            const afterPos = pos + node.nodeSize;
-            if (afterPos >= editor.state.doc.content.size) return true; // 末尾ノード
+            const curStart = $from.before(1);
+            const curNode = $from.node(1);
+            const curEnd = curStart + curNode.nodeSize;
+            if (curEnd >= editor.state.doc.content.size) return true;
+            const $next = editor.state.doc.resolve(curEnd + 1);
+            const nextNode = $next.node(1);
+            const nextEnd = curEnd + nextNode.nodeSize;
             const { tr } = editor.state;
-            const $afterPos = tr.doc.resolve(afterPos);
-            const nextNode = $afterPos.nodeAfter;
-            if (!nextNode) return true;
-            const nextEnd = afterPos + nextNode.nodeSize;
-            // 次のノードを削除して現在のノードの前に挿入
-            tr.delete(afterPos, nextEnd);
-            tr.insert(pos, nextNode);
-            const newPos = pos + nextNode.nodeSize + 1;
+            tr.replaceWith(curStart, nextEnd, Fragment.from([nextNode, curNode]));
+            const newPos = curStart + nextNode.nodeSize + 1;
             tr.setSelection(TextSelection.near(tr.doc.resolve(Math.min(newPos, tr.doc.content.size))));
             editor.view.dispatch(tr.scrollIntoView());
             return true;
