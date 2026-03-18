@@ -194,6 +194,27 @@ export function InlineMergeView({
     }
   }, [leftEditor]);
 
+  // 左側エディタのチェックボックスクリックをキャプチャフェーズでブロック
+  useEffect(() => {
+    if (!leftEditor) return;
+    const dom = leftEditor.view.dom;
+    const handler = (e: Event) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === "INPUT" && (target as HTMLInputElement).type === "checkbox") {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+      }
+    };
+    dom.addEventListener("click", handler, true);
+    dom.addEventListener("change", handler, true);
+    dom.addEventListener("mousedown", handler, true);
+    return () => {
+      dom.removeEventListener("click", handler, true);
+      dom.removeEventListener("change", handler, true);
+      dom.removeEventListener("mousedown", handler, true);
+    };
+  }, [leftEditor]);
+
   // editorContent -> leftText sync
   useEffect(() => {
     setEditText(editorContent);
