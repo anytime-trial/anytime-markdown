@@ -52,7 +52,7 @@ export function MathBlock(props: MathBlockProps) {
     <BlockInlineToolbar
       label="Math"
       onEdit={props.isCompareLeft ? undefined : () => setEditOpen(true)}
-      onDelete={() => setDeleteDialogOpen(true)}
+      onDelete={props.isCompareLeft ? undefined : () => setDeleteDialogOpen(true)}
       t={t}
     />
   );

@@ -38,7 +38,7 @@ export function RegularCodeBlock(props: RegularCodeBlockProps) {
     <BlockInlineToolbar
       label={codeLabel}
       onEdit={props.isCompareLeft ? undefined : () => setEditOpen(true)}
-      onDelete={() => setDeleteDialogOpen(true)}
+      onDelete={props.isCompareLeft ? undefined : () => setDeleteDialogOpen(true)}
       t={t}
     />
   );

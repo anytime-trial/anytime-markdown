@@ -141,7 +141,7 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
           <BlockInlineToolbar
             label={t("image")}
             onEdit={!collapsed && !isCompareLeft ? () => setEditOpen(true) : undefined}
-            onDelete={!collapsed ? () => setDeleteDialogOpen(true) : undefined}
+            onDelete={!collapsed && !isCompareLeft ? () => setDeleteDialogOpen(true) : undefined}
             collapsed={collapsed}
             extra={<>
               <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />

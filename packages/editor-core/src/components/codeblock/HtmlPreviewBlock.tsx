@@ -51,7 +51,7 @@ export function HtmlPreviewBlock(props: HtmlPreviewBlockProps) {
     <BlockInlineToolbar
       label={t("htmlPreview")}
       onEdit={props.isCompareLeft ? undefined : () => setEditOpen(true)}
-      onDelete={() => setDeleteDialogOpen(true)}
+      onDelete={props.isCompareLeft ? undefined : () => setDeleteDialogOpen(true)}
       t={t}
     />
   );

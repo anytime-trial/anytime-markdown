@@ -100,7 +100,7 @@ export function DiagramBlock(props: DiagramBlockProps) {
     <BlockInlineToolbar
       label={label}
       onEdit={props.isCompareLeft ? undefined : (svg || plantUmlUrl) ? () => { fsZP.reset(); setEditOpen(true); } : undefined}
-      onDelete={isEditable ? () => setDeleteDialogOpen(true) : undefined}
+      onDelete={isEditable && !props.isCompareLeft ? () => setDeleteDialogOpen(true) : undefined}
       extra={diagramSize ? (<>
         <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
         <Typography variant="caption" sx={{ color: "text.disabled", fontSize: "0.65rem", fontFamily: "monospace", whiteSpace: "nowrap", flexShrink: 0 }}>
