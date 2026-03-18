@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
 import { getEditorPaperSx } from "../styles/editorStyles";
 import { useEditorSettingsContext } from "../useEditorSettings";
+import { EditorContextMenu } from "./EditorContextMenu";
 import { FrontmatterBlock } from "./FrontmatterBlock";
 import { SearchReplaceBar } from "./SearchReplaceBar";
 import { SourceModeEditor } from "./SourceModeEditor";
@@ -119,6 +120,7 @@ export function EditorContentArea({
         sx={{ position: "relative", outline: "none" }}
       >
         {editor && <SearchReplaceBar editor={editor} t={t} />}
+        {editor && <EditorContextMenu editor={editor} t={t} />}
         <div ref={frontmatterRef}>
           <FrontmatterBlock frontmatter={frontmatterText} onChange={handleFrontmatterChange} readOnly={readonlyMode || reviewMode} t={t} />
         </div>
