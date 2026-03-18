@@ -30,10 +30,27 @@ export function getTrailingNewline(editor: Editor): boolean {
 export function applyMarkdownToEditor(editor: Editor, text: string): ApplyResult {
   // 元テキストの末尾改行を記録（getMarkdownFromEditor で復元するため）
   setTrailingNewline(editor, text.endsWith("\n"));
-  const { frontmatter, comments, body } = preprocessMarkdown(text);
+  const { frontmatter, comments, body, imageAnnotations } = preprocessMarkdown(text);
   editor.commands.setContent(body);
   if (typeof editor.commands.initComments === "function") {
     editor.commands.initComments(comments);
+  }
+  // 画像アノテーションを復元
+  if (imageAnnotations && imageAnnotations.size > 0) {
+    let imgIndex = 0;
+    editor.state.doc.descendants((node, pos) => {
+      if (node.type.name === "image") {
+        const src = (node.attrs.src as string) ?? "";
+        const key = src.length > 100 ? `img${imgIndex}:${src.slice(0, 20)}` : `img${imgIndex}:${src}`;
+        const data = imageAnnotations.get(key);
+        if (data) {
+          const { tr } = editor.state;
+          tr.setNodeMarkup(pos, undefined, { ...node.attrs, annotations: data });
+          editor.view.dispatch(tr);
+        }
+        imgIndex++;
+      }
+    });
   }
   return { frontmatter, comments, body };
 }

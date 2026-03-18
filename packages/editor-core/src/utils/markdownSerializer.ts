@@ -8,32 +8,30 @@ import { getTrailingNewline } from "./editorContentLoader";
 import { postprocessMathBlock } from "./mathHelpers";
 import { normalizeCodeSpanDelimitersInLine, restoreBlankLines } from "./sanitizeMarkdown";
 
-/** 画像アノテーションを Markdown の画像行直後に HTML コメントとして埋め込む */
+/**
+ * 画像アノテーションを Markdown 末尾に `<!-- image-annotations -->` ブロックとして埋め込む。
+ * 各画像は src のハッシュ（先頭20文字）で識別する。
+ */
 function embedImageAnnotations(editor: Editor, md: string): string {
   if (!editor.state?.doc) return md;
-  // ドキュメント内の画像ノードからアノテーションを収集
-  const imageAnnotations: { src: string; alt: string; annotations: string }[] = [];
+  const entries: { key: string; data: string }[] = [];
+  let imgIndex = 0;
   editor.state.doc.descendants((node) => {
-    if (node.type.name === "image" && node.attrs.annotations) {
-      imageAnnotations.push({
-        src: node.attrs.src as string,
-        alt: (node.attrs.alt as string) ?? "",
-        annotations: node.attrs.annotations as string,
-      });
+    if (node.type.name === "image") {
+      if (node.attrs.annotations) {
+        const src = (node.attrs.src as string) ?? "";
+        // src が長い場合（Base64）は先頭20文字 + インデックスで識別
+        const key = src.length > 100 ? `img${imgIndex}:${src.slice(0, 20)}` : `img${imgIndex}:${src}`;
+        entries.push({ key, data: node.attrs.annotations as string });
+      }
+      imgIndex++;
     }
   });
-  if (imageAnnotations.length === 0) return md;
-
-  // 各画像の Markdown 行 (![alt](src)) の直後にコメントを挿入
-  // 正規表現を使わず indexOf で検索（Base64 src の特殊文字を回避）
-  for (const img of imageAnnotations) {
-    const needle = `](${img.src})`;
-    const idx = md.indexOf(needle);
-    if (idx === -1) continue;
-    const insertPos = idx + needle.length;
-    md = md.slice(0, insertPos) + `\n<!-- img-annotations: ${img.annotations} -->` + md.slice(insertPos);
-  }
-  return md;
+  if (entries.length === 0) return md;
+  const block = "\n<!-- image-annotations\n" +
+    entries.map(e => `${e.key}=${e.data}`).join("\n") +
+    "\n-->";
+  return md + block;
 }
 
 /** tiptap-markdown の storage から markdown を取得するヘルパー */
