@@ -2,6 +2,8 @@
 
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import { Alert, Box, IconButton, Tooltip } from "@mui/material";
+
+import { shouldShowBorder, shouldShowToolbar } from "./compareHelpers";
 import DOMPurify from "dompurify";
 import { useRef } from "react";
 
@@ -60,10 +62,10 @@ export function MathBlock(props: MathBlockProps) {
 
   return (
     <CodeBlockFrame
-      toolbar={(props.isCompareLeft && !props.isCompareLeftEditable) ? null : toolbar}
+      toolbar={shouldShowToolbar({ isCompareLeft: props.isCompareLeft, isCompareLeftEditable: props.isCompareLeftEditable, isEditable: editor.isEditable }) ? toolbar : null}
       codeCollapsed={codeCollapsed}
       isDark={isDark}
-      showBorder={(props.isCompareLeft && !props.isCompareLeftEditable) ? false : isSelected && (props.isCompareLeftEditable || editor.isEditable)}
+      showBorder={shouldShowBorder({ isSelected, isCompareLeft: props.isCompareLeft, isCompareLeftEditable: props.isCompareLeftEditable, isEditable: editor.isEditable })}
       deleteDialogOpen={deleteDialogOpen}
       setDeleteDialogOpen={setDeleteDialogOpen}
       handleDeleteBlock={handleDeleteBlock}

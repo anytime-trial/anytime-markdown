@@ -3,6 +3,8 @@
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { Alert, Box, Button, Divider, IconButton, Tooltip, Typography } from "@mui/material";
+
+import { shouldShowBorder, shouldShowToolbar } from "./compareHelpers";
 import DOMPurify from "dompurify";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -130,11 +132,11 @@ export function DiagramBlock(props: DiagramBlockProps) {
 
   return (
     <CodeBlockFrame
-      toolbar={(props.isCompareLeft && !props.isCompareLeftEditable) ? null : (isEditable || props.isCompareLeftEditable) ? toolbar : null}
+      toolbar={shouldShowToolbar({ isCompareLeft: props.isCompareLeft, isCompareLeftEditable: props.isCompareLeftEditable, isEditable }) ? toolbar : null}
       codeCollapsed={codeCollapsed}
       isDiagramLayout
       isDark={isDark}
-      showBorder={(props.isCompareLeft && !props.isCompareLeftEditable) ? false : (isSelected && (props.isCompareLeftEditable || isEditable)) || (!props.isCompareLeft && isEditable && editOpen)}
+      showBorder={shouldShowBorder({ isSelected, isCompareLeft: props.isCompareLeft, isCompareLeftEditable: props.isCompareLeftEditable, isEditable, editOpen })}
       deleteDialogOpen={deleteDialogOpen}
       setDeleteDialogOpen={setDeleteDialogOpen}
       handleDeleteBlock={handleDeleteBlock}

@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 
+import { showError } from '../utils/errorHelpers';
+
 const STORAGE_KEY = 'anytimeMarkdown.specDocsRoot';
 const STORAGE_KEY_MULTI = 'anytimeMarkdown.specDocsRoots';
 const MD_ONLY_KEY = 'anytimeMarkdown.mdOnly';
@@ -109,8 +111,7 @@ export class SpecDocsDragAndDrop implements vscode.TreeDragAndDropController<Spe
 			try {
 				fs.renameSync(srcPath, dest);
 			} catch (e: unknown) {
-				const msg = e instanceof Error ? e.message : String(e);
-				vscode.window.showErrorMessage(`Move failed: ${msg}`);
+				showError('Move failed', e);
 			}
 		}
 		this.provider.refresh();
@@ -164,8 +165,7 @@ export class SpecDocsDragAndDrop implements vscode.TreeDragAndDropController<Spe
 			try {
 				fs.copyFileSync(srcPath, dest);
 			} catch (e: unknown) {
-				const msg = e instanceof Error ? e.message : String(e);
-				vscode.window.showErrorMessage(`Copy failed: ${msg}`);
+				showError('Copy failed', e);
 			}
 		}
 		this.provider.refresh();
@@ -411,17 +411,16 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsRootIte
 		this._onDidChangeTreeData.fire(undefined);
 	}
 
+	/** アイテムからドロップ先/作成先ディレクトリを解決する */
+	private resolveDestDir(item?: SpecDocsRootItem | SpecDocsItem): string | undefined {
+		if (item instanceof SpecDocsRootItem) return item.rootPath;
+		if (item?.isDirectory) return item.resourceUri.fsPath;
+		if (item) return path.dirname(item.resourceUri.fsPath);
+		return this.rootPaths[0];
+	}
+
 	async createFile(item?: SpecDocsRootItem | SpecDocsItem): Promise<void> {
-		let dir: string | undefined;
-		if (item instanceof SpecDocsRootItem) {
-			dir = item.rootPath;
-		} else if (item?.isDirectory) {
-			dir = item.resourceUri.fsPath;
-		} else if (item) {
-			dir = path.dirname(item.resourceUri.fsPath);
-		} else {
-			dir = this.rootPaths[0];
-		}
+		const dir = this.resolveDestDir(item);
 		if (!dir) return;
 		const name = await vscode.window.showInputBox({ prompt: 'File name', placeHolder: 'newfile.md' });
 		if (!name) return;
@@ -430,7 +429,7 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsRootIte
 			fs.writeFileSync(filePath, '', 'utf-8');
 			this.refresh();
 		} catch (e: unknown) {
-			vscode.window.showErrorMessage(`Create file failed: ${e instanceof Error ? e.message : String(e)}`);
+			showError('Create file failed', e);
 		}
 	}
 
@@ -449,7 +448,7 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsRootIte
 			}
 			this.refresh();
 		} catch (e: unknown) {
-			vscode.window.showErrorMessage(`Delete failed: ${e instanceof Error ? e.message : String(e)}`);
+			showError('Delete failed', e);
 		}
 	}
 
@@ -462,21 +461,12 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsRootIte
 			fs.renameSync(item.resourceUri.fsPath, newPath);
 			this.refresh();
 		} catch (e: unknown) {
-			vscode.window.showErrorMessage(`Rename failed: ${e instanceof Error ? e.message : String(e)}`);
+			showError('Rename failed', e);
 		}
 	}
 
 	async createFolder(item?: SpecDocsRootItem | SpecDocsItem): Promise<void> {
-		let dir: string | undefined;
-		if (item instanceof SpecDocsRootItem) {
-			dir = item.rootPath;
-		} else if (item?.isDirectory) {
-			dir = item.resourceUri.fsPath;
-		} else if (item) {
-			dir = path.dirname(item.resourceUri.fsPath);
-		} else {
-			dir = this.rootPaths[0];
-		}
+		const dir = this.resolveDestDir(item);
 		if (!dir) return;
 		const name = await vscode.window.showInputBox({ prompt: 'Folder name', placeHolder: 'newfolder' });
 		if (!name) return;
@@ -485,7 +475,7 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsRootIte
 			fs.mkdirSync(folderPath, { recursive: true });
 			this.refresh();
 		} catch (e: unknown) {
-			vscode.window.showErrorMessage(`Create folder failed: ${e instanceof Error ? e.message : String(e)}`);
+			showError('Create folder failed', e);
 		}
 	}
 
@@ -549,16 +539,7 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsRootIte
 	}
 
 	async importFiles(item?: SpecDocsRootItem | SpecDocsItem): Promise<void> {
-		let destDir: string | undefined;
-		if (item instanceof SpecDocsRootItem) {
-			destDir = item.rootPath;
-		} else if (item?.isDirectory) {
-			destDir = item.resourceUri.fsPath;
-		} else if (item) {
-			destDir = path.dirname(item.resourceUri.fsPath);
-		} else {
-			destDir = this.rootPaths[0];
-		}
+		const destDir = this.resolveDestDir(item);
 		if (!destDir) return;
 
 		const uris = await vscode.window.showOpenDialog({
@@ -584,8 +565,7 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsRootIte
 			try {
 				fs.copyFileSync(uri.fsPath, dest);
 			} catch (e: unknown) {
-				const msg = e instanceof Error ? e.message : String(e);
-				vscode.window.showErrorMessage(`Import failed: ${msg}`);
+				showError('Import failed', e);
 			}
 		}
 		this.refresh();

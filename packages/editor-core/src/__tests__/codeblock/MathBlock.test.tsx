@@ -58,6 +58,7 @@ function createMockEditor(): NodeViewProps["editor"] {
     commands: { setTextSelection: jest.fn() },
     state: { selection: { from: 0 } },
     schema: { text: jest.fn((t: string) => t) },
+    isEditable: true,
   } as unknown as NodeViewProps["editor"];
 }
 
