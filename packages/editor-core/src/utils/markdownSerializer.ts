@@ -9,7 +9,7 @@ import { postprocessMathBlock } from "./mathHelpers";
 import { normalizeCodeSpanDelimitersInLine, restoreBlankLines } from "./sanitizeMarkdown";
 
 /**
- * 画像アノテーションを Markdown 末尾に `<!-- image-annotations -->` ブロックとして埋め込む。
+ * 画像アノテーションを Markdown 末尾に `<!-- image-comments -->` ブロックとして埋め込む。
  * 各画像は src のハッシュ（先頭20文字）で識別する。
  */
 function embedImageAnnotations(editor: Editor, md: string): string {
@@ -28,7 +28,7 @@ function embedImageAnnotations(editor: Editor, md: string): string {
     }
   });
   if (entries.length === 0) return md;
-  const block = "\n<!-- image-annotations\n" +
+  const block = "\n<!-- image-comments\n" +
     entries.map(e => `${e.key}=${e.data}`).join("\n") +
     "\n-->";
   return md + block;

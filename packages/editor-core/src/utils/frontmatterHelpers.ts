@@ -61,14 +61,14 @@ export function preprocessMarkdown(text: string): {
 }
 
 /**
- * Markdown 末尾の `<!-- image-annotations -->` ブロックを抽出する。
+ * Markdown 末尾の `<!-- image-comments -->` ブロックを抽出する。
  */
 function extractImageAnnotations(md: string): {
   imageAnnotations: Map<string, string>;
   body: string;
 } {
   const result = new Map<string, string>();
-  const marker = "\n<!-- image-annotations\n";
+  const marker = "\n<!-- image-comments\n";
   const markerEnd = "\n-->";
   const idx = md.indexOf(marker);
   if (idx === -1) return { imageAnnotations: result, body: md };
