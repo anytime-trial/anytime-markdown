@@ -61,7 +61,7 @@ export function HtmlPreviewBlock(props: HtmlPreviewBlockProps) {
       toolbar={toolbar}
       codeCollapsed={codeCollapsed}
       isDark={isDark}
-      showBorder={isSelected}
+      showBorder={isSelected && !props.isCompareLeft}
       deleteDialogOpen={deleteDialogOpen}
       setDeleteDialogOpen={setDeleteDialogOpen}
       handleDeleteBlock={handleDeleteBlock}
