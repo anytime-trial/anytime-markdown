@@ -3,7 +3,7 @@
 import ContentPasteIcon from "@mui/icons-material/ContentPaste";
 import { ListItemIcon, ListItemText, Menu, MenuItem } from "@mui/material";
 import type { Editor } from "@tiptap/react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getMarkdownStorage } from "../types";
 import { boxTableToMarkdown, containsBoxTable } from "../utils/boxTableToMarkdown";
@@ -16,6 +16,23 @@ interface EditorContextMenuProps {
 interface MenuPosition {
   mouseX: number;
   mouseY: number;
+}
+
+/** VS Code ウェブビューの API が利用可能か */
+function getVscodeApi(): { postMessage: (msg: unknown) => void } | null {
+  try {
+    // VS Code webview では acquireVsCodeApi() がグローバルに存在する
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const w = window as any;
+    if (w.__vscode_api) return w.__vscode_api;
+    if (typeof w.acquireVsCodeApi === "function") {
+      // acquireVsCodeApi は1回しか呼べないため、App.tsx で既に呼ばれている
+      // window に保存されている vscode オブジェクトを探す
+    }
+    // App.tsx が window.postMessage 経由ではなく vscode.postMessage を使う場合
+    // ここでは直接アクセスできない可能性がある
+  } catch { /* ignore */ }
+  return null;
 }
 
 /** クリップボードテキストを Markdown として解析しエディタに挿入 */
@@ -35,6 +52,7 @@ function insertMarkdownText(editor: Editor, text: string): void {
 
 export function EditorContextMenu({ editor, t }: EditorContextMenuProps) {
   const [menuPos, setMenuPos] = useState<MenuPosition | null>(null);
+  const pendingPasteRef = useRef(false);
 
   // 右クリックメニュー表示
   useEffect(() => {
@@ -48,57 +66,56 @@ export function EditorContextMenu({ editor, t }: EditorContextMenuProps) {
     return () => dom.removeEventListener("contextmenu", handler);
   }, [editor]);
 
-  // Ctrl+Shift+V: Markdown として貼り付け（paste イベント経由でクリップボードにアクセス）
+  // VS Code からのクリップボードテキスト応答をリッスン
   useEffect(() => {
-    if (!editor) return;
-    const dom = editor.view.dom;
-    const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "V") {
-        e.preventDefault();
-        // paste イベントを発火させて clipboardData 経由でアクセス
-        // execCommand('paste') はブラウザ制限で動かない場合がある
-        // → navigator.clipboard.readText を試行し、失敗時は通知
-        if (editor.isEditable) {
-          navigator.clipboard.readText().then((text) => {
-            if (text) insertMarkdownText(editor, text);
-          }).catch(() => {
-            // Clipboard API 不可の場合: ユーザーに右クリックメニューを使うよう案内
-            console.warn("Clipboard API not available. Use the context menu instead.");
-          });
+    const handler = (event: MessageEvent) => {
+      const msg = event.data;
+      if (msg?.type === "clipboardText" && typeof msg.text === "string" && pendingPasteRef.current) {
+        pendingPasteRef.current = false;
+        if (editor && editor.isEditable && msg.text) {
+          insertMarkdownText(editor, msg.text);
         }
       }
     };
-    dom.addEventListener("keydown", handler);
-    return () => dom.removeEventListener("keydown", handler);
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
   }, [editor]);
 
   const handleClose = useCallback(() => {
     setMenuPos(null);
   }, []);
 
-  const handlePasteAsMarkdown = useCallback(async () => {
-    if (!editor || !editor.isEditable) { handleClose(); return; }
+  const readClipboardText = useCallback(async (): Promise<string | null> => {
+    // 1. Clipboard API を試行
     try {
       const text = await navigator.clipboard.readText();
-      if (!text) { handleClose(); return; }
-      insertMarkdownText(editor, text);
-    } catch {
-      // VS Code ウェブビュー等で Clipboard API が使えない場合
-      // input 要素経由のフォールバック
-      const textarea = document.createElement("textarea");
-      textarea.style.position = "fixed";
-      textarea.style.opacity = "0";
-      document.body.appendChild(textarea);
-      textarea.focus();
-      document.execCommand("paste");
-      const text = textarea.value;
-      document.body.removeChild(textarea);
-      if (text) {
-        insertMarkdownText(editor, text);
+      if (text) return text;
+    } catch { /* Clipboard API 不可 */ }
+
+    // 2. VS Code メッセージパッシング
+    // postMessage で readClipboard を送り、clipboardText 応答を待つ
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const w = window as any;
+      if (w.__vscode) {
+        pendingPasteRef.current = true;
+        w.__vscode.postMessage({ type: "readClipboard" });
+        return null; // 応答は message イベントで処理
       }
+    } catch { /* ignore */ }
+
+    return null;
+  }, []);
+
+  const handlePasteAsMarkdown = useCallback(async () => {
+    if (!editor || !editor.isEditable) { handleClose(); return; }
+    const text = await readClipboardText();
+    if (text) {
+      insertMarkdownText(editor, text);
     }
+    // text が null の場合は VS Code メッセージパッシング待ち（応答は message イベントで処理）
     handleClose();
-  }, [editor, handleClose]);
+  }, [editor, handleClose, readClipboardText]);
 
   return (
     <Menu
