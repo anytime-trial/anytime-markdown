@@ -130,11 +130,11 @@ export function DiagramBlock(props: DiagramBlockProps) {
 
   return (
     <CodeBlockFrame
-      toolbar={isEditable || props.isCompareLeftEditable ? toolbar : null}
+      toolbar={(props.isCompareLeft && !props.isCompareLeftEditable) ? null : (isEditable || props.isCompareLeftEditable) ? toolbar : null}
       codeCollapsed={codeCollapsed}
       isDiagramLayout
       isDark={isDark}
-      showBorder={(isSelected && (props.isCompareLeftEditable || isEditable)) || (!props.isCompareLeft && isEditable && editOpen)}
+      showBorder={(props.isCompareLeft && !props.isCompareLeftEditable) ? false : (isSelected && (props.isCompareLeftEditable || isEditable)) || (!props.isCompareLeft && isEditable && editOpen)}
       deleteDialogOpen={deleteDialogOpen}
       setDeleteDialogOpen={setDeleteDialogOpen}
       handleDeleteBlock={handleDeleteBlock}
