@@ -432,7 +432,7 @@ export function InlineMergeView({
               hideScrollbar
               onMerge={flippedMergeBlock}
               onHoverLine={handleHoverLine}
-              paperSx={{ bgcolor: getEditorBg(isDark, settings) }}
+              paperSx={{ bgcolor: getEditorBg(isDark, settings), '& input[type="checkbox"]': { pointerEvents: "none" } }}
             />
           </Box>
         </Box>
