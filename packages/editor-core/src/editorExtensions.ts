@@ -207,6 +207,61 @@ export function getBaseExtensions(options?: { disableComments?: boolean; disable
             editor.view.dispatch(tr.scrollIntoView());
             return true;
           },
+          // Ctrl+Enter: カーソル位置の下に空行を挿入
+          "Mod-Enter": ({ editor }) => {
+            const { $from } = editor.state.selection;
+            const endOfBlock = $from.end(1);
+            const { tr } = editor.state;
+            const emptyParagraph = editor.state.schema.nodes.paragraph.create();
+            tr.insert(endOfBlock + 1, emptyParagraph);
+            tr.setSelection(TextSelection.near(tr.doc.resolve(endOfBlock + 2)));
+            editor.view.dispatch(tr.scrollIntoView());
+            return true;
+          },
+          // Ctrl+Shift+Enter: カーソル位置の上に空行を挿入
+          "Mod-Shift-Enter": ({ editor }) => {
+            const { $from } = editor.state.selection;
+            const startOfBlock = $from.before(1);
+            const { tr } = editor.state;
+            const emptyParagraph = editor.state.schema.nodes.paragraph.create();
+            tr.insert(startOfBlock, emptyParagraph);
+            tr.setSelection(TextSelection.near(tr.doc.resolve(startOfBlock + 1)));
+            editor.view.dispatch(tr.scrollIntoView());
+            return true;
+          },
+          // Ctrl+L: 現在の行（ブロック）を選択
+          "Mod-l": ({ editor }) => {
+            const { $from } = editor.state.selection;
+            const start = $from.before(1);
+            const node = $from.node(1);
+            const end = start + node.nodeSize;
+            const { tr } = editor.state;
+            tr.setSelection(TextSelection.create(tr.doc, start, end));
+            editor.view.dispatch(tr);
+            return true;
+          },
+          // Ctrl+D: カーソル位置の単語を選択
+          "Mod-d": ({ editor }) => {
+            const { $from, from, to } = editor.state.selection;
+            if (from !== to) return false; // 既に選択がある場合はデフォルト動作
+            const text = $from.parent.textContent;
+            const offset = $from.parentOffset;
+            // 単語の境界を検出
+            const wordRe = /[\w\u3000-\u9FFF\uF900-\uFAFF]+/g;
+            let match: RegExpExecArray | null;
+            while ((match = wordRe.exec(text)) !== null) {
+              if (match.index <= offset && match.index + match[0].length >= offset) {
+                const parentStart = from - offset;
+                const wordStart = parentStart + match.index;
+                const wordEnd = parentStart + match.index + match[0].length;
+                const { tr } = editor.state;
+                tr.setSelection(TextSelection.create(tr.doc, wordStart, wordEnd));
+                editor.view.dispatch(tr);
+                return true;
+              }
+            }
+            return true;
+          },
         };
       },
     }),
