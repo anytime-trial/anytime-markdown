@@ -8,6 +8,32 @@ import { getTrailingNewline } from "./editorContentLoader";
 import { postprocessMathBlock } from "./mathHelpers";
 import { normalizeCodeSpanDelimitersInLine, restoreBlankLines } from "./sanitizeMarkdown";
 
+/** 画像アノテーションを Markdown の画像行直後に HTML コメントとして埋め込む */
+function embedImageAnnotations(editor: Editor, md: string): string {
+  if (!editor.state?.doc) return md;
+  // ドキュメント内の画像ノードからアノテーションを収集
+  const imageAnnotations: { src: string; alt: string; annotations: string }[] = [];
+  editor.state.doc.descendants((node) => {
+    if (node.type.name === "image" && node.attrs.annotations) {
+      imageAnnotations.push({
+        src: node.attrs.src as string,
+        alt: (node.attrs.alt as string) ?? "",
+        annotations: node.attrs.annotations as string,
+      });
+    }
+  });
+  if (imageAnnotations.length === 0) return md;
+
+  // 各画像の Markdown 行 (![alt](src)) の直後にコメントを挿入
+  for (const img of imageAnnotations) {
+    // ![alt](src) パターンを探す（src のエスケープを考慮）
+    const escapedSrc = img.src.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(`(!\\[[^\\]]*\\]\\(${escapedSrc}[^)]*\\))`, "g");
+    md = md.replace(re, `$1\n<!-- img-annotations: ${img.annotations} -->`);
+  }
+  return md;
+}
+
 /** tiptap-markdown の storage から markdown を取得するヘルパー */
 export function getMarkdownFromEditor(editor: Editor): string {
   let md = getMarkdownStorage(editor).getMarkdown();
@@ -51,6 +77,8 @@ export function getMarkdownFromEditor(editor: Editor): string {
     line = line.replace(/\| {2,}(?=\|)/g, "| ");
     return normalizeCodeSpanDelimitersInLine(line);
   });
+  // 画像アノテーションを HTML コメントとして画像の直後に埋め込む
+  md = embedImageAnnotations(editor, md);
   // Plugin State からコメントデータを取得し、末尾に付加
   const commentState = editor.state
     ? commentDataPluginKey.getState(editor.state) as { comments: Map<string, InlineComment> } | undefined

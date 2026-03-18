@@ -54,7 +54,22 @@ export function preprocessMarkdown(text: string): {
 } {
   const { frontmatter, body: bodyWithoutFm } = parseFrontmatter(text);
   const { comments, body } = parseCommentData(bodyWithoutFm);
-  return { frontmatter, comments, body: preserveBlankLines(sanitizeMarkdown(body)) };
+  const sanitized = preserveBlankLines(sanitizeMarkdown(body));
+  return { frontmatter, comments, body: restoreImageAnnotations(sanitized) };
+}
+
+/**
+ * Markdown 内の `<!-- img-annotations: [...] -->` を直前の `![]()`  を
+ * `<img>` タグに変換して `data-annotations` 属性を付与する。
+ */
+function restoreImageAnnotations(md: string): string {
+  return md.replace(
+    /(!\[([^\]]*)\]\(([^)]+)\))\n<!-- img-annotations: (.+?) -->/g,
+    (_match, _full, alt: string, src: string, json: string) => {
+      const escapedJson = json.replace(/"/g, "&quot;");
+      return `<img src="${src}" alt="${alt}" data-annotations="${escapedJson}" />`;
+    },
+  );
 }
 
 /**
