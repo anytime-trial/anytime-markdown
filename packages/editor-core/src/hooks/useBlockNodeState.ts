@@ -34,9 +34,9 @@ export function useBlockNodeState(
   const isEditable = editor?.isEditable ?? true;
   const isSelected = useNodeSelected(editor, getPos, node.nodeSize);
   const handleDeleteBlock = useDeleteBlock(editor, getPos, node.nodeSize);
-  const showToolbar = isEditable && (collapsed || editOpen || isSelected);
   const mergeEditors = getMergeEditors();
   const isCompareLeft = !!mergeEditors && editor === mergeEditors.leftEditor;
+  const showToolbar = isEditable && !isCompareLeft && (collapsed || editOpen || isSelected);
 
   return {
     deleteDialogOpen, setDeleteDialogOpen,
