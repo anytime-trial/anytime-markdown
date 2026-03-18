@@ -61,15 +61,50 @@ export function preprocessMarkdown(text: string): {
 /**
  * Markdown 内の `<!-- img-annotations: [...] -->` を直前の `![]()`  を
  * `<img>` タグに変換して `data-annotations` 属性を付与する。
+ * Base64 src の特殊文字を考慮し、正規表現ではなく文字列操作で処理する。
  */
 function restoreImageAnnotations(md: string): string {
-  return md.replace(
-    /(!\[([^\]]*)\]\(([^)]+)\))\n<!-- img-annotations: (.+?) -->/g,
-    (_match, _full, alt: string, src: string, json: string) => {
-      const escapedJson = json.replace(/"/g, "&quot;");
-      return `<img src="${src}" alt="${alt}" data-annotations="${escapedJson}" />`;
-    },
-  );
+  const marker = "\n<!-- img-annotations: ";
+  const markerEnd = " -->";
+  let result = md;
+  let searchStart = 0;
+
+  while (true) {
+    const mIdx = result.indexOf(marker, searchStart);
+    if (mIdx === -1) break;
+
+    const jsonStart = mIdx + marker.length;
+    const jsonEnd = result.indexOf(markerEnd, jsonStart);
+    if (jsonEnd === -1) break;
+
+    const json = result.slice(jsonStart, jsonEnd);
+
+    // マーカーの直前が ![alt](src) かチェック（閉じ括弧を逆方向に探す）
+    const beforeMarker = result.slice(0, mIdx);
+    const closeParen = beforeMarker.lastIndexOf(")");
+    if (closeParen === -1) { searchStart = jsonEnd + markerEnd.length; continue; }
+
+    // src の開始括弧を逆方向に探す（ネスト非対応、最後の ]( を検索）
+    const openBracket = beforeMarker.lastIndexOf("](");
+    if (openBracket === -1 || openBracket >= closeParen) { searchStart = jsonEnd + markerEnd.length; continue; }
+
+    const src = beforeMarker.slice(openBracket + 2, closeParen);
+
+    // alt テキストを取得: ![ から ] まで
+    const imgStart = beforeMarker.lastIndexOf("![", openBracket);
+    if (imgStart === -1) { searchStart = jsonEnd + markerEnd.length; continue; }
+
+    const alt = beforeMarker.slice(imgStart + 2, openBracket);
+
+    const escapedJson = json.replace(/"/g, "&quot;");
+    const imgTag = `<img src="${src}" alt="${alt}" data-annotations="${escapedJson}" />`;
+
+    // ![alt](src)\n<!-- img-annotations: ... --> を <img> タグに置換
+    result = result.slice(0, imgStart) + imgTag + result.slice(jsonEnd + markerEnd.length);
+    searchStart = imgStart + imgTag.length;
+  }
+
+  return result;
 }
 
 /**
