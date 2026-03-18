@@ -10,14 +10,18 @@ import { NodeViewWrapper } from "@tiptap/react";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import { BlockInlineToolbar } from "./components/codeblock/BlockInlineToolbar";
 import { DeleteBlockDialog } from "./components/codeblock/DeleteBlockDialog";
+import { AnnotationOverlay } from "./components/AnnotationOverlay";
+import { ImageAnnotationDialog } from "./components/ImageAnnotationDialog";
 import { EditDialogHeader } from "./components/EditDialogHeader";
 import { EditDialogWrapper } from "./components/EditDialogWrapper";
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "./constants/colors";
 import { useBlockNodeState } from "./hooks/useBlockNodeState";
 import { useBlockResize } from "./hooks/useBlockResize";
 import { getEditorStorage } from "./types";
+import { parseAnnotations, serializeAnnotations } from "./types/imageAnnotation";
 
 const MIN_WIDTH = 50;
 
@@ -29,7 +33,9 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
     deleteDialogOpen, setDeleteDialogOpen, editOpen, setEditOpen,
     collapsed, isEditable, isSelected, handleDeleteBlock, showToolbar, isCompareLeft, isCompareLeftEditable,
   } = useBlockNodeState(editor, node, getPos);
-  const { src, alt, title, width } = node.attrs;
+  const { src, alt, title, width, annotations: annotationsJson } = node.attrs;
+  const [annotationOpen, setAnnotationOpen] = useState(false);
+  const annotations = parseAnnotations(annotationsJson as string | null);
 
   // --- Image size display ---
   const imgRef = useRef<HTMLImageElement>(null);
@@ -164,6 +170,16 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
                   {t("imageNotFound")}
                 </Typography>
               )}
+              {!isCompareLeft && isEditable && !collapsed && (
+                <>
+                  <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
+                  <Tooltip title={t("annotate")} placement="top">
+                    <IconButton size="small" sx={{ p: 0.25 }} onClick={() => setAnnotationOpen(true)} aria-label={t("annotate")}>
+                      <ChatBubbleOutlineIcon sx={{ fontSize: 16, color: annotations.length > 0 ? "primary.main" : "text.secondary" }} />
+                    </IconButton>
+                  </Tooltip>
+                </>
+              )}
             </>}
             t={t}
           />
@@ -188,6 +204,7 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
               title={title || undefined}
               style={{ width: displayWidth, maxWidth: "100%", height: "auto", display: "block" }}
             />
+            <AnnotationOverlay annotations={annotations} />
             {/* Resize handle */}
             {isSelected && isEditable && (
               <Box
@@ -242,6 +259,16 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
         onDelete={handleDeleteBlock}
         t={t}
       />
+      {annotationOpen && (
+        <ImageAnnotationDialog
+          open={annotationOpen}
+          onClose={() => setAnnotationOpen(false)}
+          src={src}
+          annotations={annotations}
+          onSave={(items) => updateAttributes({ annotations: serializeAnnotations(items) })}
+          t={t}
+        />
+      )}
     </NodeViewWrapper>
   );
 }

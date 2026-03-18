@@ -63,7 +63,7 @@ export function ImageAnnotationDialog({
   open, onClose, src, annotations, onSave, t,
 }: ImageAnnotationDialogProps) {
   const [tool, setTool] = useState<AnnotationTool>("rect");
-  const [color, setColor] = useState(ANNOTATION_COLORS[0].value);
+  const [color, setColor] = useState<string>(ANNOTATION_COLORS[0].value);
   const [items, setItems] = useState<ImageAnnotation[]>(annotations);
   const [drawing, setDrawing] = useState<{ x1: number; y1: number } | null>(null);
   const [preview, setPreview] = useState<{ x2: number; y2: number } | null>(null);
