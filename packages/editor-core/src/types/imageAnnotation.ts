@@ -7,6 +7,7 @@ export interface ImageAnnotation {
   y2: number;  // 終了 Y（画像に対する %）
   color: string;
   comment?: string;
+  resolved?: boolean;
 }
 
 export type AnnotationTool = "rect" | "circle" | "line" | "eraser";
