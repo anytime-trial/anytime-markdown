@@ -15,7 +15,7 @@ import { BlockInlineToolbar } from "./codeblock/BlockInlineToolbar";
 import { DeleteBlockDialog } from "./codeblock/DeleteBlockDialog";
 import { GifRecorderDialog } from "./GifRecorderDialog";
 import { GifPlayerDialog } from "./GifPlayerDialog";
-import { useBlockCapture } from "../hooks/useBlockCapture";
+import { useBlockCapture, saveBlob } from "../hooks/useBlockCapture";
 import { useBlockNodeState } from "../hooks/useBlockNodeState";
 import type { GifSettings } from "../utils/gifEncoder";
 
@@ -28,9 +28,27 @@ export function GifNodeView({ editor, node, updateAttributes, getPos }: NodeView
     editOpen, setEditOpen,
     collapsed, isEditable, isSelected, handleDeleteBlock, showToolbar, isCompareLeft, isCompareLeftEditable,
   } = useBlockNodeState(editor, node, getPos);
-  const handleCapture = useBlockCapture(editor, getPos, "gif-block.png");
-
+  const pngCapture = useBlockCapture(editor, getPos, "gif-block.png");
   const { src, alt, width } = node.attrs;
+
+  // GIF の場合は元ファイルをそのまま GIF として保存、それ以外は PNG キャプチャ
+  const handleCapture = useCallback(async () => {
+    const imgSrc = src as string;
+    if (imgSrc) {
+      try {
+        const res = await fetch(imgSrc);
+        const blob = await res.blob();
+        if (blob.type === "image/gif" || imgSrc.endsWith(".gif")) {
+          const name = (alt as string) || "animation";
+          await saveBlob(blob, name.endsWith(".gif") ? name : `${name}.gif`);
+          return;
+        }
+      } catch {
+        // fetch 失敗時は PNG キャプチャにフォールバック
+      }
+    }
+    await pngCapture();
+  }, [src, alt, pngCapture]);
   const [recorderOpen, setRecorderOpen] = useState(false);
   const [playerOpen, setPlayerOpen] = useState(false);
   const [playing, setPlaying] = useState(true);

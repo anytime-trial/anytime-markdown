@@ -300,7 +300,7 @@ async function downloadCanvas(canvas: HTMLCanvasElement, fileName: string) {
 }
 
 /** showSaveFilePicker が使えればネイティブ保存ダイアログ、なければ従来のダウンロード */
-async function saveBlob(blob: Blob, suggestedName: string) {
+export async function saveBlob(blob: Blob, suggestedName: string) {
   if ("showSaveFilePicker" in window) {
     try {
       const isSvg = suggestedName.endsWith(".svg");
