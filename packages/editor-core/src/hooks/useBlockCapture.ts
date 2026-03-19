@@ -105,65 +105,53 @@ async function captureImgElement(imgEl: HTMLImageElement, w: number, h: number, 
   }
 }
 
-/** HTML 要素を PNG としてキャプチャ（foreignObject 方式） */
-async function captureHtmlElement(el: HTMLElement, w: number, h: number, scale: number, fileName: string) {
+/**
+ * HTML/コード要素を PNG としてキャプチャ。
+ * Canvas 2D API でテキストを直接描画する方式（foreignObject 不使用）。
+ */
+async function captureHtmlElement(el: HTMLElement, _w: number, _h: number, scale: number, fileName: string) {
+  const text = el.innerText || el.textContent || "";
+  if (!text.trim()) return;
+
+  const lines = text.split("\n");
+  const fontSize = 14;
+  const lineHeight = fontSize * 1.5;
+  const padding = 16;
+  const maxWidth = Math.max(_w, 600);
+
+  // Canvas でテキストの実際の幅を計測
+  const measureCanvas = document.createElement("canvas");
+  const measureCtx = measureCanvas.getContext("2d")!;
+  measureCtx.font = `${fontSize}px monospace`;
+
+  let textMaxWidth = 0;
+  for (const line of lines) {
+    const m = measureCtx.measureText(line);
+    if (m.width > textMaxWidth) textMaxWidth = m.width;
+  }
+
+  const w = Math.min(Math.max(textMaxWidth + padding * 2, 300), maxWidth);
+  const h = lines.length * lineHeight + padding * 2;
+
   const canvas = createScaledCanvas(w, h, scale);
   const ctx = canvas.getContext("2d")!;
   ctx.scale(scale, scale);
-  ctx.fillStyle = CAPTURE_BG;
+
+  // 背景
+  const computed = getComputedStyle(el);
+  ctx.fillStyle = computed.backgroundColor || CAPTURE_BG;
   ctx.fillRect(0, 0, w, h);
 
-  // 全要素の computed styles をインライン化したクローンを作成
-  const clone = deepCloneWithStyles(el);
-  // img 要素を除去（taint 防止）
-  clone.querySelectorAll("img").forEach((img) => img.remove());
-  // script, link, style タグも除去（外部リソース参照を防止）
-  clone.querySelectorAll("script, link, style").forEach((e) => e.remove());
-  clone.style.width = `${w}px`;
-  clone.style.height = `${h}px`;
-  clone.style.overflow = "hidden";
+  // テキスト描画
+  ctx.font = `${fontSize}px monospace`;
+  ctx.fillStyle = computed.color || "#333";
+  ctx.textBaseline = "top";
 
-  const svgNs = "http://www.w3.org/2000/svg";
-  const xhtml = "http://www.w3.org/1999/xhtml";
-  const serialized = new XMLSerializer().serializeToString(clone);
-  const svgStr = [
-    `<svg xmlns="${svgNs}" width="${w}" height="${h}">`,
-    `<foreignObject width="100%" height="100%">`,
-    `<div xmlns="${xhtml}" style="width:${w}px;height:${h}px;background:${CAPTURE_BG};overflow:hidden">`,
-    serialized,
-    `</div></foreignObject></svg>`,
-  ].join("");
-
-  const svgBlob = new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" });
-  const url = URL.createObjectURL(svgBlob);
-  try {
-    const img = await loadImage(url);
-    ctx.drawImage(img, 0, 0, w, h);
-    await downloadCanvas(canvas, fileName);
-  } catch {
-    // foreignObject 失敗時: SVG 自体をファイルとして保存
-    URL.revokeObjectURL(url);
-    await saveBlob(svgBlob, fileName.replace(/\.png$/, ".svg"));
-  } finally {
-    URL.revokeObjectURL(url);
+  for (let i = 0; i < lines.length; i++) {
+    ctx.fillText(lines[i], padding, padding + i * lineHeight);
   }
-}
 
-/** 全子要素の computed styles をインラインに焼き込んだ deep clone */
-function deepCloneWithStyles(el: HTMLElement): HTMLElement {
-  const clone = el.cloneNode(false) as HTMLElement;
-  const computed = getComputedStyle(el);
-  clone.style.cssText = computed.cssText;
-  clone.style.margin = "0";
-  clone.style.position = "static";
-  for (const child of el.childNodes) {
-    if (child instanceof HTMLElement) {
-      clone.appendChild(deepCloneWithStyles(child));
-    } else {
-      clone.appendChild(child.cloneNode(true));
-    }
-  }
-  return clone;
+  await downloadCanvas(canvas, fileName);
 }
 
 function createScaledCanvas(w: number, h: number, scale: number): HTMLCanvasElement {
