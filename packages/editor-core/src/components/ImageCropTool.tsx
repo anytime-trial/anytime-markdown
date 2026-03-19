@@ -4,10 +4,8 @@ import CropIcon from "@mui/icons-material/Crop";
 import CheckIcon from "@mui/icons-material/Check";
 import CloseIcon from "@mui/icons-material/Close";
 import PhotoSizeSelectLargeIcon from "@mui/icons-material/PhotoSizeSelectLarge";
-import { Box, Button, Chip, IconButton, Tooltip, Typography } from "@mui/material";
+import { Box, Button, IconButton, InputAdornment, TextField, Tooltip, Typography } from "@mui/material";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-
-const SCALE_PRESETS = [25, 50, 75, 100, 150, 200] as const;
 
 interface ImageCropToolProps {
   src: string;
@@ -27,6 +25,7 @@ export function ImageCropTool({ src, onCrop, t }: ImageCropToolProps) {
   const [cropRect, setCropRect] = useState<CropRect | null>(null);
   const [drawing, setDrawing] = useState(false);
   const [startPos, setStartPos] = useState<{ x: number; y: number } | null>(null);
+  const [scaleInput, setScaleInput] = useState("100");
   const imgRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -136,16 +135,38 @@ export function ImageCropTool({ src, onCrop, t }: ImageCropToolProps) {
             <Tooltip title={t("imageResize")}>
               <PhotoSizeSelectLargeIcon sx={{ fontSize: 16, color: "text.secondary", ml: 0.5 }} />
             </Tooltip>
-            {SCALE_PRESETS.map(s => (
-              <Chip
-                key={s}
-                label={`${s}%`}
-                size="small"
-                variant="outlined"
-                onClick={() => handleResize(s)}
-                sx={{ height: 22, fontSize: "0.7rem", cursor: "pointer" }}
-              />
-            ))}
+            <TextField
+              size="small"
+              type="number"
+              value={scaleInput}
+              onChange={(e) => setScaleInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  const v = parseInt(scaleInput, 10);
+                  if (v > 0 && v <= 1000) handleResize(v);
+                }
+              }}
+              slotProps={{
+                input: {
+                  endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                  sx: { fontSize: "0.75rem", py: 0, height: 26 },
+                },
+                htmlInput: { min: 1, max: 1000, style: { width: 50, textAlign: "right", padding: "2px 4px" } },
+              }}
+              sx={{ width: 100 }}
+            />
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => {
+                const v = parseInt(scaleInput, 10);
+                if (v > 0 && v <= 1000) handleResize(v);
+              }}
+              sx={{ textTransform: "none", fontSize: "0.7rem", py: 0, minWidth: 0, minHeight: 26, px: 1 }}
+            >
+              {t("imageCropApply")}
+            </Button>
             {imgNatural && (
               <Typography variant="caption" sx={{ ml: "auto", color: "text.disabled", fontSize: "0.65rem", fontFamily: "monospace" }}>
                 {imgNatural.w} × {imgNatural.h}
