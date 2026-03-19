@@ -16,7 +16,6 @@ import { useMemo } from "react";
 
 import { BlockInlineToolbar } from "./components/codeblock/BlockInlineToolbar";
 import { DeleteBlockDialog } from "./components/codeblock/DeleteBlockDialog";
-import { useBlockCapture } from "./hooks/useBlockCapture";
 import { EditDialogHeader } from "./components/EditDialogHeader";
 import { SearchReplaceBar } from "./components/SearchReplaceBar";
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "./constants/colors";
@@ -36,8 +35,6 @@ export function TableNodeView({ editor, node, getPos }: NodeViewProps) {
     deleteDialogOpen, setDeleteDialogOpen, editOpen, setEditOpen,
     collapsed, isEditable, isSelected: _isSelected, handleDeleteBlock, showToolbar, isCompareLeft,
   } = useBlockNodeState(editor, node, getPos);
-
-  const handleCapture = useBlockCapture(editor, getPos, "table.png");
 
   // Compare mode
   const mergeEditors = getMergeEditors();
@@ -244,7 +241,6 @@ export function TableNodeView({ editor, node, getPos }: NodeViewProps) {
             label={t("tableLabel")}
             onEdit={!collapsed && !isCompareLeft ? () => setEditOpen(true) : undefined}
             onDelete={!collapsed && !isCompareLeft ? () => setDeleteDialogOpen(true) : undefined}
-            onCapture={handleCapture}
             collapsed={collapsed}
             t={t}
           />
