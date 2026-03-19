@@ -128,13 +128,17 @@ export function App() {
         return;
       }
       if (message?.type === 'setBaseUri' && typeof message.baseUri === 'string') {
-        // <base href> を設定して相対パスの画像を解決可能にする
+        // baseUri のバリデーション: vscode-webview-resource スキームのみ許可
+        const uri = message.baseUri;
+        if (!uri.startsWith('https://') && !uri.startsWith('vscode-webview-resource:')) {
+          return; // 不正な URI を拒否
+        }
         let baseEl = document.querySelector('base');
         if (!baseEl) {
           baseEl = document.createElement('base');
           document.head.appendChild(baseEl);
         }
-        baseEl.setAttribute('href', message.baseUri + '/');
+        baseEl.setAttribute('href', uri + '/');
         return;
       }
       if (message?.type === 'imageSaved' && typeof message.path === 'string') {

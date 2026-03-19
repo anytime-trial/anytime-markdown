@@ -83,8 +83,13 @@ export function ImageCropTool({ src, onCrop, t }: ImageCropToolProps) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
-    const dataUrl = canvas.toDataURL("image/png");
-    onCrop(dataUrl);
+    try {
+      const dataUrl = canvas.toDataURL("image/png");
+      onCrop(dataUrl);
+    } catch {
+      // Canvas tainted by CORS-restricted image
+      console.warn("Cannot crop: image source is CORS-restricted");
+    }
     setCropping(false);
     setCropRect(null);
   }, [cropRect, onCrop]);
@@ -107,7 +112,11 @@ export function ImageCropTool({ src, onCrop, t }: ImageCropToolProps) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.drawImage(img, 0, 0, newW, newH);
-    onCrop(canvas.toDataURL("image/png"));
+    try {
+      onCrop(canvas.toDataURL("image/png"));
+    } catch {
+      console.warn("Cannot resize: image source is CORS-restricted");
+    }
   }, [onCrop]);
 
   const [imgNatural, setImgNatural] = useState<{ w: number; h: number } | null>(null);
