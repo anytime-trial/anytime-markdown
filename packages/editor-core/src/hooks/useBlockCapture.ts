@@ -188,9 +188,9 @@ async function renderTextToPngBlob(el: HTMLElement, w: number, h: number, scale:
   const ctx = canvas.getContext("2d")!;
   ctx.scale(scale, scale);
 
-  const bgColor = findBackgroundColor(el);
   const computed = getComputedStyle(el);
-  ctx.fillStyle = bgColor;
+  // PNG はテキスト描画のみのため、背景は白(ライト)/暗色(ダーク)に統一
+  ctx.fillStyle = CAPTURE_BG;
   ctx.fillRect(0, 0, Math.max(w, 300), canvasH);
 
   ctx.font = `${fontSize}px monospace`;
