@@ -53,8 +53,15 @@ export function GifNodeView({ editor, node, updateAttributes, getPos }: NodeView
       }
       setPlaying(false);
     } else {
-      // Resume: restore original src with cache-bust
-      img.src = src + (src.includes("?") ? "&" : "?") + "_t=" + Date.now();
+      // Resume: restore original src
+      // blob: URL にはクエリパラメータを付けられないため、
+      // blob: の場合はそのまま、通常 URL の場合はキャッシュバスト付き
+      const originalSrc = src as string;
+      if (originalSrc.startsWith("blob:")) {
+        img.src = originalSrc;
+      } else {
+        img.src = originalSrc + (originalSrc.includes("?") ? "&" : "?") + "_t=" + Date.now();
+      }
       pausedSrcRef.current = null;
       setPlaying(true);
     }
