@@ -515,7 +515,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src ${webview.cspSource} https: data:;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src ${webview.cspSource} https: data:; worker-src blob:;">
     <title>Markdown Editor</title>
     <style>
       html, body, #root { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }

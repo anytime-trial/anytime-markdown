@@ -115,14 +115,19 @@ export async function encodeGif(
         quality: 10,
         width,
         height,
-        ...(workerUrl ? { workerScript: workerUrl } : {}),
+        workerScript: workerUrl,
       });
 
-      for (const frame of frames) {
-        gif.addFrame(frame, { delay, copy: true });
-      }
+      // タイムアウト: 60秒でハング検知
+      const timeout = setTimeout(() => {
+        gif.abort();
+        reject(new Error("GIF encoding timed out"));
+      }, 60000);
 
-      gif.on("finished", (blob: Blob) => resolve(blob));
+      gif.on("finished", (blob: Blob) => {
+        clearTimeout(timeout);
+        resolve(blob);
+      });
       gif.on("progress", (p: number) => onProgress?.(p));
       gif.render();
     } catch (err) {

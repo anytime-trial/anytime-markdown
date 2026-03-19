@@ -261,7 +261,8 @@ export function GifRecorderDialog({ open, onClose, onComplete }: GifRecorderDial
       setResultBlob(blob);
       setResultUrl(url);
       setPhase("done");
-    } catch {
+    } catch (err) {
+      console.error("GIF encoding failed:", err);
       setPhase("ready");
     }
   }, []);

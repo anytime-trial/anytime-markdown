@@ -12,7 +12,7 @@ export function middleware(request: NextRequest) {
     "img-src 'self' data: blob: https://www.plantuml.com https://www.google-analytics.com https://www.googletagmanager.com",
     "font-src 'self' data:",
     "connect-src 'self' https://www.plantuml.com https://www.google-analytics.com https://www.googletagmanager.com",
-    "worker-src 'self'",
+    "worker-src 'self' blob:",
     "frame-src 'none'",
     "object-src 'none'",
     "base-uri 'self'",
