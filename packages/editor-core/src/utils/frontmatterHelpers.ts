@@ -52,12 +52,14 @@ export function preprocessMarkdown(text: string): {
   comments: Map<string, InlineComment>;
   body: string;
   imageAnnotations: Map<string, string>;
+  gifSettings: Map<string, string>;
 } {
   const { frontmatter, body: bodyWithoutFm } = parseFrontmatter(text);
   const { comments, body } = parseCommentData(bodyWithoutFm);
   const { imageAnnotations, body: bodyWithoutAnnotations } = extractImageAnnotations(body);
-  const sanitized = preserveBlankLines(sanitizeMarkdown(bodyWithoutAnnotations));
-  return { frontmatter, comments, body: sanitized, imageAnnotations };
+  const { gifSettings, body: bodyWithoutGifSettings } = extractGifSettings(bodyWithoutAnnotations);
+  const sanitized = preserveBlankLines(sanitizeMarkdown(bodyWithoutGifSettings));
+  return { frontmatter, comments, body: sanitized, imageAnnotations, gifSettings };
 }
 
 /**
@@ -88,6 +90,31 @@ function extractImageAnnotations(md: string): {
 
   const body = md.slice(0, idx) + md.slice(dataEnd + markerEnd.length);
   return { imageAnnotations: result, body };
+}
+
+/**
+ * Markdown 本文から `<!-- gif-settings: {...} -->` コメントを抽出し、
+ * 直前の GIF 画像の src と紐付ける。
+ */
+export function extractGifSettings(md: string): {
+  gifSettings: Map<string, string>;
+  body: string;
+} {
+  const result = new Map<string, string>();
+  // <!-- gif-settings: {...} --> を検出し、直前の ![...](....gif) の src をキーにする
+  const pattern = /!\[([^\]]*)\]\(([^)]+\.gif)\)\s*\n<!-- gif-settings:\s*(\{.*?\})\s*-->/g;
+  const body = md.replace(pattern, (match, alt: string, src: string, json: string) => {
+    try {
+      // JSON として妥当か検証
+      JSON.parse(json);
+      result.set(src, json);
+    } catch {
+      // パース失敗時はコメントを残す
+      return match;
+    }
+    return `![${alt}](${src})`;
+  });
+  return { gifSettings: result, body };
 }
 
 /**

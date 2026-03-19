@@ -34,6 +34,35 @@ function embedImageAnnotations(editor: Editor, md: string): string {
   return md + block;
 }
 
+/**
+ * gifBlock ノードの gifSettings を `<!-- gif-settings: {...} -->` コメントとして
+ * 対応する `![alt](src.gif)` 行の直後に埋め込む。
+ */
+function embedGifSettings(editor: Editor, md: string): string {
+  if (!editor.state?.doc) return md;
+  const entries: { src: string; alt: string; settings: string }[] = [];
+  editor.state.doc.descendants((node) => {
+    if (node.type.name === "gifBlock" && node.attrs.gifSettings) {
+      entries.push({
+        src: (node.attrs.src as string) ?? "",
+        alt: (node.attrs.alt as string) ?? "",
+        settings: node.attrs.gifSettings as string,
+      });
+    }
+  });
+  if (entries.length === 0) return md;
+  let result = md;
+  for (const entry of entries) {
+    // ![alt](src.gif) の行を見つけて直後に gif-settings コメントを挿入
+    const escapedSrc = entry.src.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const imgPattern = new RegExp(
+      `(!\\[[^\\]]*\\]\\(${escapedSrc}\\))(?!\\s*\\n<!-- gif-settings:)`,
+    );
+    result = result.replace(imgPattern, `$1\n<!-- gif-settings: ${entry.settings} -->`);
+  }
+  return result;
+}
+
 /** tiptap-markdown の storage から markdown を取得するヘルパー */
 export function getMarkdownFromEditor(editor: Editor): string {
   let md = getMarkdownStorage(editor).getMarkdown();
@@ -81,6 +110,8 @@ export function getMarkdownFromEditor(editor: Editor): string {
   md = md.replace(/(!\[[^\]]*\]\([^)?]+)\?t=\d+(\))/g, "$1$2");
   // 画像アノテーションを HTML コメントとして画像の直後に埋め込む
   md = embedImageAnnotations(editor, md);
+  // GIF 設定を HTML コメントとして GIF 画像の直後に埋め込む
+  md = embedGifSettings(editor, md);
   // Plugin State からコメントデータを取得し、末尾に付加
   const commentState = editor.state
     ? commentDataPluginKey.getState(editor.state) as { comments: Map<string, InlineComment> } | undefined

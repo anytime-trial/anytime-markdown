@@ -1,4 +1,5 @@
 import AccountTreeIcon from "@mui/icons-material/AccountTree";
+import GifBoxIcon from "@mui/icons-material/GifBox";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import CheckBoxIcon from "@mui/icons-material/CheckBox";
@@ -280,6 +281,15 @@ export const slashCommandItems: SlashCommandItem[] = [
       if (openDialog) {
         openDialog();
       }
+    },
+  },
+  {
+    id: "gif",
+    labelKey: "slashGif",
+    icon: React.createElement(GifBoxIcon, { fontSize: "small" }),
+    keywords: ["gif", "record", "screen", "capture", "録画", "キャプチャ", "アニメーション"],
+    action: (editor) => {
+      editor.chain().focus().insertContent({ type: "gifBlock" }).run();
     },
   },
 ];

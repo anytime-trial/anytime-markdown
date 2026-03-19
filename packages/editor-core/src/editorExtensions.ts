@@ -37,6 +37,7 @@ import { DiffHighlight } from "./extensions/diffHighlight";
 import { FootnoteRef } from "./extensions/footnoteExtension";
 import { HeadingFoldExtension } from "./extensions/headingFoldExtension";
 import { HeadingNumberExtension } from "./extensions/headingNumberExtension";
+import { GifBlock } from "./extensions/gifExtension";
 import { CustomImage } from "./imageExtension";
 import { CustomTable } from "./tableExtension";
 
@@ -296,6 +297,7 @@ export function getBaseExtensions(options?: { disableComments?: boolean; disable
     CodeBlockNavigation,
     FootnoteRef,
     HeadingNumberExtension,
+    GifBlock,
   ];
   if (!options?.disableComments) {
     extensions.push(CommentHighlight, CommentPoint, CommentDataPlugin);
