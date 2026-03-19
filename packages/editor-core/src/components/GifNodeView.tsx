@@ -33,16 +33,18 @@ export function GifNodeView({ editor, node, updateAttributes, getPos }: NodeView
 
   // GIF の場合は元ファイルをそのまま GIF として保存、それ以外は PNG キャプチャ
   const handleCapture = useCallback(async () => {
-    const imgSrc = src as string;
-    if (imgSrc) {
+    const imgSrc = (src as string) || "";
+    const gifFileName = ((alt as string) || "animation").replace(/\.gif$/, "") + ".gif";
+
+    // src が .gif または blob: URL（GIF ブロック内なので GIF とみなす）の場合
+    if (imgSrc && (imgSrc.endsWith(".gif") || imgSrc.startsWith("blob:"))) {
       try {
         const res = await fetch(imgSrc);
         const blob = await res.blob();
-        if (blob.type === "image/gif" || imgSrc.endsWith(".gif")) {
-          const name = (alt as string) || "animation";
-          await saveBlob(blob, name.endsWith(".gif") ? name : `${name}.gif`);
-          return;
-        }
+        // blob の type が不正でも GIF として保存
+        const gifBlob = blob.type === "image/gif" ? blob : new Blob([blob], { type: "image/gif" });
+        await saveBlob(gifBlob, gifFileName);
+        return;
       } catch {
         // fetch 失敗時は PNG キャプチャにフォールバック
       }
