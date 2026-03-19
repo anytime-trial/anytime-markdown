@@ -113,25 +113,24 @@ async function captureHtmlElement(el: HTMLElement, w: number, h: number, scale: 
   ctx.fillStyle = CAPTURE_BG;
   ctx.fillRect(0, 0, w, h);
 
-  // 要素のクローンを作成し、外部リソース参照を除去
-  const clone = el.cloneNode(true) as HTMLElement;
+  // 全要素の computed styles をインライン化したクローンを作成
+  const clone = deepCloneWithStyles(el);
   // img 要素を除去（taint 防止）
   clone.querySelectorAll("img").forEach((img) => img.remove());
-  // インラインスタイルをコピー
-  const computed = getComputedStyle(el);
-  clone.style.cssText = computed.cssText;
-  clone.style.margin = "0";
-  clone.style.position = "static";
+  // script, link, style タグも除去（外部リソース参照を防止）
+  clone.querySelectorAll("script, link, style").forEach((e) => e.remove());
   clone.style.width = `${w}px`;
   clone.style.height = `${h}px`;
+  clone.style.overflow = "hidden";
 
   const svgNs = "http://www.w3.org/2000/svg";
   const xhtml = "http://www.w3.org/1999/xhtml";
+  const serialized = new XMLSerializer().serializeToString(clone);
   const svgStr = [
     `<svg xmlns="${svgNs}" width="${w}" height="${h}">`,
     `<foreignObject width="100%" height="100%">`,
     `<div xmlns="${xhtml}" style="width:${w}px;height:${h}px;background:${CAPTURE_BG};overflow:hidden">`,
-    new XMLSerializer().serializeToString(clone),
+    serialized,
     `</div></foreignObject></svg>`,
   ].join("");
 
@@ -142,10 +141,29 @@ async function captureHtmlElement(el: HTMLElement, w: number, h: number, scale: 
     ctx.drawImage(img, 0, 0, w, h);
     await downloadCanvas(canvas, fileName);
   } catch {
-    console.warn("HTML capture via foreignObject failed");
+    // foreignObject 失敗時: SVG 自体をファイルとして保存
+    URL.revokeObjectURL(url);
+    await saveBlob(svgBlob, fileName.replace(/\.png$/, ".svg"));
   } finally {
     URL.revokeObjectURL(url);
   }
+}
+
+/** 全子要素の computed styles をインラインに焼き込んだ deep clone */
+function deepCloneWithStyles(el: HTMLElement): HTMLElement {
+  const clone = el.cloneNode(false) as HTMLElement;
+  const computed = getComputedStyle(el);
+  clone.style.cssText = computed.cssText;
+  clone.style.margin = "0";
+  clone.style.position = "static";
+  for (const child of el.childNodes) {
+    if (child instanceof HTMLElement) {
+      clone.appendChild(deepCloneWithStyles(child));
+    } else {
+      clone.appendChild(child.cloneNode(true));
+    }
+  }
+  return clone;
 }
 
 function createScaledCanvas(w: number, h: number, scale: number): HTMLCanvasElement {
