@@ -18,11 +18,11 @@ export function useBlockCapture(editor: NodeViewProps["editor"], getPos: NodeVie
     if (!el) return;
 
     try {
-      // キャプチャ対象を決定
-      const svg = el.querySelector("svg");
+      // キャプチャ対象を決定（img を svg より優先: AnnotationOverlay の SVG を避ける）
       const img = el.querySelector("img:not([data-block-toolbar] img)");
       const pre = el.querySelector("pre");
-      const target = svg ?? img ?? pre ?? el;
+      const svg = el.querySelector("svg");
+      const target = img ?? pre ?? svg ?? el;
 
       const rect = target.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) return;
