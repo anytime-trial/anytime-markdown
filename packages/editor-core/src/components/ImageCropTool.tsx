@@ -3,8 +3,11 @@
 import CropIcon from "@mui/icons-material/Crop";
 import CheckIcon from "@mui/icons-material/Check";
 import CloseIcon from "@mui/icons-material/Close";
-import { Box, Button, IconButton, Tooltip, Typography } from "@mui/material";
+import PhotoSizeSelectLargeIcon from "@mui/icons-material/PhotoSizeSelectLarge";
+import { Box, Button, Chip, IconButton, Tooltip, Typography } from "@mui/material";
 import React, { useCallback, useEffect, useRef, useState } from "react";
+
+const SCALE_PRESETS = [25, 50, 75, 100, 150, 200] as const;
 
 interface ImageCropToolProps {
   src: string;
@@ -87,6 +90,28 @@ export function ImageCropTool({ src, onCrop, t }: ImageCropToolProps) {
     setCropRect(null);
   }, []);
 
+  /** 倍率指定でリサイズ */
+  const handleResize = useCallback((scale: number) => {
+    const img = imgRef.current;
+    if (!img) return;
+    const newW = Math.round(img.naturalWidth * scale / 100);
+    const newH = Math.round(img.naturalHeight * scale / 100);
+    if (newW < 1 || newH < 1) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = newW;
+    canvas.height = newH;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(img, 0, 0, newW, newH);
+    onCrop(canvas.toDataURL("image/png"));
+  }, [onCrop]);
+
+  const [imgNatural, setImgNatural] = useState<{ w: number; h: number } | null>(null);
+  const handleImgLoad = useCallback(() => {
+    const img = imgRef.current;
+    if (img) setImgNatural({ w: img.naturalWidth, h: img.naturalHeight });
+  }, []);
+
   // Escape でキャンセル
   useEffect(() => {
     if (!cropping) return;
@@ -102,11 +127,31 @@ export function ImageCropTool({ src, onCrop, t }: ImageCropToolProps) {
       {/* Crop toolbar */}
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 1, py: 0.5, borderBottom: 1, borderColor: "divider", minHeight: 32 }}>
         {!cropping ? (
-          <Tooltip title={t("imageCrop")}>
-            <IconButton size="small" onClick={() => setCropping(true)} aria-label={t("imageCrop")}>
-              <CropIcon sx={{ fontSize: 18 }} />
-            </IconButton>
-          </Tooltip>
+          <>
+            <Tooltip title={t("imageCrop")}>
+              <IconButton size="small" onClick={() => setCropping(true)} aria-label={t("imageCrop")}>
+                <CropIcon sx={{ fontSize: 18 }} />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title={t("imageResize")}>
+              <PhotoSizeSelectLargeIcon sx={{ fontSize: 16, color: "text.secondary", ml: 0.5 }} />
+            </Tooltip>
+            {SCALE_PRESETS.map(s => (
+              <Chip
+                key={s}
+                label={`${s}%`}
+                size="small"
+                variant="outlined"
+                onClick={() => handleResize(s)}
+                sx={{ height: 22, fontSize: "0.7rem", cursor: "pointer" }}
+              />
+            ))}
+            {imgNatural && (
+              <Typography variant="caption" sx={{ ml: "auto", color: "text.disabled", fontSize: "0.65rem", fontFamily: "monospace" }}>
+                {imgNatural.w} × {imgNatural.h}
+              </Typography>
+            )}
+          </>
         ) : (
           <>
             <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary" }}>
@@ -155,6 +200,7 @@ export function ImageCropTool({ src, onCrop, t }: ImageCropToolProps) {
             alt=""
             draggable={false}
             crossOrigin="anonymous"
+            onLoad={handleImgLoad}
             style={{
               display: "block",
               maxWidth: "100%",
