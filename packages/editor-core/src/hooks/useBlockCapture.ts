@@ -194,8 +194,9 @@ async function renderTextToPngBlob(el: HTMLElement, w: number, h: number, scale:
   ctx.scale(scale, scale);
 
   const computed = getComputedStyle(el);
-  // PNG はテキスト描画のみのため、背景は白(ライト)/暗色(ダーク)に統一
-  ctx.fillStyle = CAPTURE_BG;
+  // 背景色: 要素自身 → 子要素 → 親要素の順で探索
+  const bgColor = findContentBackgroundColor(el);
+  ctx.fillStyle = bgColor;
   ctx.fillRect(0, 0, Math.max(w, 300), canvasH);
 
   ctx.font = `${fontSize}px monospace`;
@@ -220,6 +221,37 @@ async function captureHtmlElement(el: HTMLElement, w: number, _h: number, scale:
     return;
   }
   await saveBlob(blob, fileName);
+}
+
+/** 要素の背景色を取得。自身 → 子要素 → 親要素の順で探索 */
+function findContentBackgroundColor(el: HTMLElement): string {
+  // 自身をチェック
+  const own = getEffectiveBackground(el);
+  if (own) return own;
+  // 子要素をチェック（HTML プレビューの内側にスタイルがある場合）
+  for (const child of el.children) {
+    if (child instanceof HTMLElement) {
+      const childBg = getEffectiveBackground(child);
+      if (childBg) return childBg;
+    }
+  }
+  // 親要素を遡る
+  return findBackgroundColor(el);
+}
+
+/** 要素の background-color または background（グラデーション開始色）を取得 */
+function getEffectiveBackground(el: HTMLElement): string | null {
+  const style = getComputedStyle(el);
+  // background-color が不透明ならそれを使う
+  const bg = style.backgroundColor;
+  if (bg && bg !== "rgba(0, 0, 0, 0)" && bg !== "transparent") return bg;
+  // background-image（グラデーション）から最初の色を抽出
+  const bgImage = style.backgroundImage;
+  if (bgImage && bgImage !== "none") {
+    const colorMatch = bgImage.match(/#[0-9a-fA-F]{3,8}|rgba?\([^)]+\)/);
+    if (colorMatch) return colorMatch[0];
+  }
+  return null;
 }
 
 /** 要素の背景色を取得。透明の場合は親要素を遡る */
