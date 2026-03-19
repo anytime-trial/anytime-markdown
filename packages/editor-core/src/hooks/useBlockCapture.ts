@@ -48,8 +48,13 @@ export function useBlockCapture(editor: NodeViewProps["editor"], getPos: NodeVie
         return;
       }
 
-      // --- その他 (pre, div 等): html2canvas 代替として
-      //     対象要素のスクリーンショットを Canvas で取得 ---
+      // --- HTML プレビュー: インラインスタイル付き HTML を foreignObject でキャプチャ ---
+      if (target === htmlPreview && target instanceof HTMLElement) {
+        await captureHtmlPreview(target, w, h, scale, fileName);
+        return;
+      }
+
+      // --- その他 (pre 等): テキスト直接描画 ---
       await captureHtmlElement(target as HTMLElement, w, h, scale, fileName);
     } catch (err) {
       console.error("Block capture failed:", err);
@@ -107,6 +112,45 @@ async function captureImgElement(imgEl: HTMLImageElement, w: number, h: number, 
     } catch {
       console.warn("Image capture: unable to fetch image for save");
     }
+  }
+}
+
+/**
+ * HTML プレビュー要素を foreignObject 経由で PNG としてキャプチャ。
+ * プレビューにはインラインスタイルが含まれているため、外部CSS不要で動作する。
+ */
+async function captureHtmlPreview(el: HTMLElement, w: number, h: number, scale: number, fileName: string) {
+  // innerHTML を取得（インラインスタイル付き）
+  const html = el.innerHTML;
+
+  // 背景色を要素から取得
+  const bgColor = findBackgroundColor(el);
+
+  const svgNs = "http://www.w3.org/2000/svg";
+  const xhtml = "http://www.w3.org/1999/xhtml";
+  const svgStr = `<svg xmlns="${svgNs}" width="${w}" height="${h}">
+    <foreignObject width="100%" height="100%">
+      <div xmlns="${xhtml}" style="width:${w}px;height:${h}px;background:${bgColor};overflow:hidden;font-family:sans-serif;font-size:14px;color:inherit;padding:0;margin:0">
+        ${html}
+      </div>
+    </foreignObject>
+  </svg>`;
+
+  const svgBlob = new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" });
+  const url = URL.createObjectURL(svgBlob);
+
+  try {
+    const img = await loadImage(url);
+    const canvas = createScaledCanvas(w, h, scale);
+    const ctx = canvas.getContext("2d")!;
+    ctx.scale(scale, scale);
+    ctx.drawImage(img, 0, 0, w, h);
+    URL.revokeObjectURL(url);
+    await downloadCanvas(canvas, fileName);
+  } catch {
+    URL.revokeObjectURL(url);
+    // foreignObject 失敗時: テキスト描画方式にフォールバック
+    await captureHtmlElement(el, w, h, scale, fileName);
   }
 }
 
