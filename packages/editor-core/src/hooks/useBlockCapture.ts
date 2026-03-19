@@ -121,15 +121,18 @@ async function captureImgElement(imgEl: HTMLImageElement, w: number, h: number, 
  */
 async function captureHtmlPreview(el: HTMLElement, w: number, h: number, scale: number, fileName: string) {
   // el は div[role="document"] コンテナ。CSS クラスのスタイルは SVG に含まれないため、
-  // 内側の HTML コンテンツ（ユーザーが書いたインラインスタイル付き HTML）を直接使う
-  const innerHTML = el.innerHTML;
+  // 子要素を XMLSerializer で valid XHTML にシリアライズして使う
+  const serializer = new XMLSerializer();
+  const childrenXhtml = Array.from(el.childNodes)
+    .map((child) => serializer.serializeToString(child))
+    .join("");
   const bgColor = findBackgroundColor(el);
 
   const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
   <rect width="100%" height="100%" fill="${bgColor}"/>
   <foreignObject width="100%" height="100%">
     <div xmlns="http://www.w3.org/1999/xhtml" style="width:${w}px;height:${h}px;overflow:hidden;padding:0;margin:0">
-      ${innerHTML}
+      ${childrenXhtml}
     </div>
   </foreignObject>
 </svg>`;
