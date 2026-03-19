@@ -30,6 +30,7 @@
     "@tiptap/react": "3.20.0",
     "@tiptap/starter-kit": "3.20.0",
     "encoding-japanese": "2.2.0",
+    "gif.js": "0.2.0",
     "lowlight": "3.3.0",
     "tiptap-markdown": "0.9.0"
   },
