@@ -18,11 +18,16 @@ export function useBlockCapture(editor: NodeViewProps["editor"], getPos: NodeVie
     if (!el) return;
 
     try {
-      // キャプチャ対象を決定（img を svg より優先: AnnotationOverlay の SVG を避ける）
+      // キャプチャ対象を決定
+      // img: 画像ブロック（AnnotationOverlay の SVG より優先）
+      // [role="document"]: HTML プレビュー（pre コードより優先）
+      // pre: コードブロック
+      // svg: ダイアグラム
       const img = el.querySelector("img:not([data-block-toolbar] img)");
+      const htmlPreview = el.querySelector('[role="document"]');
       const pre = el.querySelector("pre");
       const svg = el.querySelector("svg");
-      const target = img ?? pre ?? svg ?? el;
+      const target = img ?? htmlPreview ?? pre ?? svg ?? el;
 
       const rect = target.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) return;
