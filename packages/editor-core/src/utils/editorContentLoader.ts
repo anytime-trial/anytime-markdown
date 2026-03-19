@@ -52,19 +52,29 @@ export function applyMarkdownToEditor(editor: Editor, text: string): ApplyResult
       }
     });
   }
-  // GIF 設定を復元
+  // GIF 設定を復元: tiptap-markdown は ![](*.gif) を image ノードとしてパースするため、
+  // gifSettings にマッチする image ノードを gifBlock ノードに変換する
   if (gifSettings && gifSettings.size > 0) {
-    editor.state.doc.descendants((node, pos) => {
-      if (node.type.name === "gifBlock") {
-        const src = (node.attrs.src as string) ?? "";
-        const data = gifSettings.get(src);
-        if (data) {
-          const { tr } = editor.state;
-          tr.setNodeMarkup(pos, undefined, { ...node.attrs, gifSettings: data });
-          editor.view.dispatch(tr);
+    const gifBlockType = editor.schema.nodes.gifBlock;
+    if (gifBlockType) {
+      const { tr } = editor.state;
+      let offset = 0;
+      editor.state.doc.descendants((node, pos) => {
+        if (node.type.name === "image" || node.type.name === "gifBlock") {
+          const src = (node.attrs.src as string) ?? "";
+          const data = gifSettings.get(src);
+          if (data) {
+            const adjustedPos = pos + offset;
+            const newNode = gifBlockType.create({ src, alt: node.attrs.alt ?? "", gifSettings: data });
+            tr.replaceWith(adjustedPos, adjustedPos + node.nodeSize, newNode);
+            offset += newNode.nodeSize - node.nodeSize;
+          }
         }
+      });
+      if (tr.docChanged) {
+        editor.view.dispatch(tr);
       }
-    });
+    }
   }
   return { frontmatter, comments, body };
 }
