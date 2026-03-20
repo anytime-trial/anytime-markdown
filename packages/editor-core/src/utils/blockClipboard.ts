@@ -6,13 +6,18 @@ import { DOMSerializer, type Node as PMNode } from "@tiptap/pm/model";
 import type { EditorState } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 
-import { copyTextToClipboard } from "./clipboardHelpers";
-
 /** クリップボード操作の対象となるブロックノードタイプ */
 export const BLOCK_NODE_TYPES = new Set(["codeBlock", "table", "gifBlock", "image"]);
 
 /** コンテキストメニュー経由でコピーしたブロックノードの保持 */
 let _copiedBlockNode: PMNode | null = null;
+
+/** keydown ハンドラで copy/cut 処理済みフラグ（VS Code WebView の二重処理防止） */
+let _handledByKeydown = false;
+
+export function setHandledByKeydown(value: boolean): void {
+  _handledByKeydown = value;
+}
 
 export function getCopiedBlockNode(): PMNode | null {
   return _copiedBlockNode;
@@ -117,31 +122,29 @@ function isInsideBlockNode(state: EditorState): boolean {
  * ブロックノード外のテキスト選択は ProseMirror のデフォルト処理に委譲する。
  */
 export function handleBlockClipboardEvent(view: EditorView, event: ClipboardEvent, isCut: boolean): boolean {
+  // keydown ハンドラで処理済み（VS Code WebView の二重処理防止）
+  if (_handledByKeydown) {
+    _handledByKeydown = false;
+    return true;
+  }
+  // VS Code WebView では clipboardData が null — keydown ハンドラで処理済みのため skip
+  if (!event.clipboardData) return false;
+
   // ブロックノード外のテキスト選択は ProseMirror に委譲
   const { from, to } = view.state.selection;
   if (from !== to && !isInsideBlockNode(view.state)) return false;
 
-  if (event.clipboardData) {
-    // ブラウザ環境: ClipboardEvent API を使用
-    const clipboardData = event.clipboardData;
-    const result = performBlockCopy(view, isCut, (text, block) => {
-      clipboardData.setData("text/plain", text);
-      if (block) {
-        const domSerializer = DOMSerializer.fromSchema(view.state.schema);
-        const htmlFragment = domSerializer.serializeNode(block.node);
-        const wrapper = document.createElement("div");
-        wrapper.appendChild(htmlFragment);
-        wrapper.firstElementChild?.setAttribute("data-pm-slice", "0 0 []");
-        clipboardData.setData("text/html", wrapper.innerHTML);
-      }
-    });
-    if (result) event.preventDefault();
-    return result;
-  }
-
-  // VS Code WebView: clipboardData が null のため execCommand フォールバック
-  const result = performBlockCopy(view, isCut, (text) => {
-    copyTextToClipboard(text);
+  const clipboardData = event.clipboardData;
+  const result = performBlockCopy(view, isCut, (text, block) => {
+    clipboardData.setData("text/plain", text);
+    if (block) {
+      const domSerializer = DOMSerializer.fromSchema(view.state.schema);
+      const htmlFragment = domSerializer.serializeNode(block.node);
+      const wrapper = document.createElement("div");
+      wrapper.appendChild(htmlFragment);
+      wrapper.firstElementChild?.setAttribute("data-pm-slice", "0 0 []");
+      clipboardData.setData("text/html", wrapper.innerHTML);
+    }
   });
   if (result) event.preventDefault();
   return result;

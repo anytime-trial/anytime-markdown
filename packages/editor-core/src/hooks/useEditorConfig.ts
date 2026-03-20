@@ -20,7 +20,7 @@ import {
   getMarkdownFromEditor,
   type HeadingItem,
 } from "../types";
-import { handleBlockClipboardEvent, performBlockCopy } from "../utils/blockClipboard";
+import { handleBlockClipboardEvent, performBlockCopy, setHandledByKeydown } from "../utils/blockClipboard";
 import { setTrailingNewline } from "../utils/editorContentLoader";
 import { toGitHubSlug } from "../utils/tocHelpers";
 
@@ -332,6 +332,7 @@ export function useEditorConfig({
               window.__vscode!.postMessage({ type: "writeClipboard", text });
             });
             if (handled) {
+              setHandledByKeydown(true);
               event.preventDefault();
               return true;
             }
