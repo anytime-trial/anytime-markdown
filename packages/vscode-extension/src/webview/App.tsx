@@ -162,7 +162,7 @@ export function App() {
 
       switch (message.type) {
         case 'setTheme':
-          if (message.mode === 'dark' || message.mode === 'light') setThemeMode(message.mode);
+          // テーマはエディタ設定でのみ変更（VS Code テーマ同期を無効化）
           return;
         case 'setLanding':
           if (message.landing === true) setLanding(true);

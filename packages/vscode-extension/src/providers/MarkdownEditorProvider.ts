@@ -110,12 +110,8 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
 
     const isLargeFile = () => document.getText().length > 100 * 1024;
 
-    const sendTheme = () => {
-      if (disposed) { return; }
-      const kind = vscode.window.activeColorTheme.kind;
-      const mode = (kind === vscode.ColorThemeKind.Light || kind === vscode.ColorThemeKind.HighContrastLight) ? 'light' : 'dark';
-      webviewPanel.webview.postMessage({ type: 'setTheme', mode });
-    };
+    // テーマはエディタ設定でのみ変更（VS Code テーマ同期を無効化）
+    const sendTheme = () => {};
 
     const sendSettings = () => {
       if (disposed) { return; }
