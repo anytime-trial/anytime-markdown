@@ -19,7 +19,7 @@ test.describe("Mode Switch", () => {
     await expect(textarea).toHaveValue(/Test content for mode switch/);
 
     // 編集モードに戻す
-    await page.getByRole("button", { name: /edit/i }).click();
+    await page.getByRole("button", { name: "Edit", exact: true }).click();
     await expect(page.locator(".tiptap")).toContainText("Test content for mode switch");
   });
 
@@ -33,7 +33,7 @@ test.describe("Mode Switch", () => {
     await textarea.fill("# Heading from Source\n\nParagraph text");
 
     // 編集モードに戻す
-    await page.getByRole("button", { name: /edit/i }).click();
+    await page.getByRole("button", { name: "Edit", exact: true }).click();
     const editor = page.locator(".tiptap");
     await expect(editor.locator("h1")).toContainText("Heading from Source");
     await expect(editor).toContainText("Paragraph text");

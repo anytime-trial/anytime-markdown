@@ -27,7 +27,7 @@ test.describe("Outline", () => {
     await textarea.fill(MARKDOWN_WITH_HEADINGS);
 
     // 編集モードに戻す
-    await page.getByRole("button", { name: /edit/i }).click();
+    await page.getByRole("button", { name: "Edit", exact: true }).click();
     await expect(page.locator(".tiptap")).toBeVisible();
     // Tooltip がボタンを遮蔽しないよう、エディタ領域にマウスを移動
     await page.locator(".tiptap").hover();

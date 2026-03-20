@@ -2,17 +2,12 @@ import { test, expect } from "@playwright/test";
 
 /**
  * 設定パネルを開くヘルパー
- * デスクトップ: More ボタン → ヘルプメニュー内「Editor Settings」
+ * サイドツールバーの設定アイコンをクリック
  */
 async function openSettingsPanel(page: import("@playwright/test").Page) {
-  // More ボタンをクリック（デスクトップ用）
-  const moreBtn = page.getByRole("button", { name: "More" });
-  await expect(moreBtn).toBeVisible();
-  await moreBtn.click();
-  // ヘルプメニュー（Popover）内の「Editor Settings」をクリック
-  const menuItem = page.getByRole("menuitem", { name: "Editor Settings" });
-  await expect(menuItem).toBeVisible({ timeout: 5000 });
-  await menuItem.click();
+  const settingsBtn = page.getByRole("button", { name: "Editor Settings" });
+  await expect(settingsBtn).toBeVisible();
+  await settingsBtn.click();
   // 設定パネルの Drawer が表示されるまで待機
   await expect(page.locator("#settings-panel-title")).toBeVisible({ timeout: 10000 });
 }
