@@ -37,9 +37,9 @@ export function useSourceMode({ editor, saveContent, t, frontmatterRef, defaultS
       const stored = localStorage.getItem(STORAGE_KEY_REVIEW_MODE);
       // readonlyMode が有効な場合は reviewMode を無効化
       if (localStorage.getItem(STORAGE_KEY_READONLY_MODE) === "true") return false;
-      return stored === null ? true : stored === "true";
+      return stored === null ? false : stored === "true";
     } catch {
-      return true;
+      return false;
     }
   });
   const [sourceText, setSourceText] = useState("");
