@@ -97,30 +97,78 @@ export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProp
     setMenuPos(null);
   }, []);
 
+  const BLOCK_NODE_TYPES = new Set(["codeBlock", "table", "gifBlock"]);
+
+  // テキスト選択またはブロック内にカーソルがある場合にコピー/切り取りを有効化
   const hasSelection = editor ? editor.state.selection.from !== editor.state.selection.to : false;
+  const isInBlock = editor ? (() => {
+    const { $from } = editor.state.selection;
+    for (let d = $from.depth; d >= 1; d--) {
+      if (BLOCK_NODE_TYPES.has($from.node(d).type.name)) return true;
+    }
+    return false;
+  })() : false;
+  const canCopy = hasSelection || isInBlock;
+
+  /** ブロック全体のテキストを取得（カーソルがブロック内にある場合） */
+  const getBlockText = useCallback((): { text: string; blockStart: number; blockEnd: number } | null => {
+    if (!editor) return null;
+    const { $from } = editor.state.selection;
+    for (let d = $from.depth; d >= 1; d--) {
+      const node = $from.node(d);
+      if (BLOCK_NODE_TYPES.has(node.type.name)) {
+        const blockStart = $from.before(d);
+        const blockEnd = blockStart + node.nodeSize;
+        const text = editor.state.doc.textBetween(blockStart, blockEnd, "\n");
+        return { text, blockStart, blockEnd };
+      }
+    }
+    return null;
+  }, [editor]);
 
   const handleCut = useCallback(() => {
     if (!editor || !editor.isEditable) return;
     const { from, to } = editor.state.selection;
-    if (from === to) { handleClose(); return; }
-    const text = editor.state.doc.textBetween(from, to, "\n");
-    navigator.clipboard.writeText(text).catch(() => {
-      document.execCommand("copy");
-    });
-    editor.chain().focus().deleteSelection().run();
+
+    // テキスト選択がある場合
+    if (from !== to) {
+      const text = editor.state.doc.textBetween(from, to, "\n");
+      navigator.clipboard.writeText(text).catch(() => { document.execCommand("copy"); });
+      editor.chain().focus().deleteSelection().run();
+      handleClose();
+      return;
+    }
+
+    // ブロック要素全体を切り取り
+    const block = getBlockText();
+    if (block) {
+      navigator.clipboard.writeText(block.text).catch(() => { document.execCommand("copy"); });
+      const { tr } = editor.state;
+      tr.delete(block.blockStart, block.blockEnd);
+      editor.view.dispatch(tr);
+    }
     handleClose();
-  }, [editor, handleClose]);
+  }, [editor, handleClose, getBlockText]);
 
   const handleCopy = useCallback(() => {
     if (!editor) return;
     const { from, to } = editor.state.selection;
-    if (from === to) { handleClose(); return; }
-    const text = editor.state.doc.textBetween(from, to, "\n");
-    navigator.clipboard.writeText(text).catch(() => {
-      document.execCommand("copy");
-    });
+
+    // テキスト選択がある場合
+    if (from !== to) {
+      const text = editor.state.doc.textBetween(from, to, "\n");
+      navigator.clipboard.writeText(text).catch(() => { document.execCommand("copy"); });
+      handleClose();
+      return;
+    }
+
+    // ブロック要素全体をコピー
+    const block = getBlockText();
+    if (block) {
+      navigator.clipboard.writeText(block.text).catch(() => { document.execCommand("copy"); });
+    }
     handleClose();
-  }, [editor, handleClose]);
+  }, [editor, handleClose, getBlockText]);
 
   const handlePaste = useCallback(async () => {
     if (!editor || !!readOnly) { handleClose(); return; }
@@ -190,7 +238,7 @@ export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProp
       }
       slotProps={{ paper: { sx: menuPaperSx } }}
     >
-      <MenuItem onClick={handleCut} disabled={!!readOnly || !hasSelection}>
+      <MenuItem onClick={handleCut} disabled={!!readOnly || !canCopy}>
         <ListItemIcon>
           <ContentCutIcon sx={{ fontSize: 16 }} />
         </ListItemIcon>
@@ -201,7 +249,7 @@ export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProp
           Ctrl+X
         </Typography>
       </MenuItem>
-      <MenuItem onClick={handleCopy} disabled={!hasSelection}>
+      <MenuItem onClick={handleCopy} disabled={!canCopy}>
         <ListItemIcon>
           <ContentCopyIcon sx={{ fontSize: 16 }} />
         </ListItemIcon>
