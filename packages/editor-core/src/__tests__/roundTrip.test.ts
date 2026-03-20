@@ -324,9 +324,9 @@ describe("テンプレートファイル ラウンドトリップ", () => {
     return prependFrontmatter(md, frontmatter);
   }
 
-  test("defaultContent.md: 読み込み→保存で内容が変わらない", () => {
-    const original = fs.readFileSync(path.join(templatesDir, "defaultContent.md"), "utf-8");
-    const saved = templateRoundTrip("defaultContent.md", { withTable: true });
+  test("welcome.md: 読み込み→保存で内容が変わらない", () => {
+    const original = fs.readFileSync(path.join(templatesDir, "welcome.md"), "utf-8");
+    const saved = templateRoundTrip("welcome.md", { withTable: true });
     expect(saved).toBe(original.trimEnd());
   });
 

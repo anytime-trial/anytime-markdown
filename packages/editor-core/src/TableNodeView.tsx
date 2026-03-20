@@ -9,7 +9,7 @@ import TableChartIcon from "@mui/icons-material/TableChart";
 import TableRowsIcon from "@mui/icons-material/TableRows";
 import ViewColumnIcon from "@mui/icons-material/ViewColumn";
 import { Box, Divider, Paper, ToggleButton, ToggleButtonGroup, Tooltip, Typography, useTheme } from "@mui/material";
-import type { Fragment, Node as ProseMirrorNode } from "@tiptap/pm/model";
+import type { Fragment } from "@tiptap/pm/model";
 import type { Editor } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
 import { NodeViewContent, NodeViewWrapper } from "@tiptap/react";

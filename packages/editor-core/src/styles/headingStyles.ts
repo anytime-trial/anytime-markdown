@@ -1,6 +1,6 @@
 import type { SxProps,Theme } from "@mui/material/styles";
 
-import { DEFAULT_DARK_HEADING_BG, DEFAULT_DARK_HEADING_LINK, DEFAULT_LIGHT_HEADING_BG, DEFAULT_LIGHT_HEADING_LINK } from "../constants/colors";
+import { DEFAULT_DARK_HEADING_LINK, DEFAULT_LIGHT_HEADING_LINK } from "../constants/colors";
 
 /** ブロックラベル共通スタイル（::before 擬似要素） */
 function blockLabel(theme: Theme, right = "calc(100% + 8px)") {

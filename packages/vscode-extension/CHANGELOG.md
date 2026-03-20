@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.3] - 2026-03-20
+
+### Security
+- base URI 設定の XSS 脆弱性を修正（URL オブジェクトで正規化 + スキームホワイトリスト、CodeQL CWE-79）
+- gif-settings 抽出の ReDoS 脆弱性を修正（正規表現 → indexOf ベース線形時間パーサー）
+- 見出しパーサーの ReDoS 脆弱性を修正（`\s+` → 単一スペース）
+- git コマンドを execFileSync に置換（コマンドインジェクション防止、CodeQL CWE-116）
+- sonarcloud ジョブに permissions を追加（最小権限原則、CodeQL CWE-275）
+
+### Changed
+- テンプレートファイル名変更（defaultContent → welcome）、markdownAll テンプレート追加
+- 見出しスタイルを左ボーダー + グラデーション背景に変更
+- publish ワークフローに SonarCloud スキャン・coverage 連携を追加
+- e2e テストを expect ベース待機に変更（CI フレーキーテスト解消）
+
 ## [0.6.2] - 2026-03-20
 
 ### Changed
@@ -699,7 +714,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - エラーハンドリング: 保存失敗時のメッセージ表示
 - 大ファイル (100KB超) のデバウンス最適化
 
-[Unreleased]: https://github.com/anytime-trial/anytime-markdown/compare/v0.6.2...HEAD
+[Unreleased]: https://github.com/anytime-trial/anytime-markdown/compare/v0.6.3...HEAD
+[0.6.3]: https://github.com/anytime-trial/anytime-markdown/compare/v0.6.2...v0.6.3
 [0.6.2]: https://github.com/anytime-trial/anytime-markdown/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/anytime-trial/anytime-markdown/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/anytime-trial/anytime-markdown/compare/v0.5.2...v0.6.0

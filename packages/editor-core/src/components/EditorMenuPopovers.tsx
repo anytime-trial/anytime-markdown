@@ -58,11 +58,11 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
   templateAnchorEl, setTemplateAnchorEl, onInsertTemplate,
   sourceMode, onSourceInsertMermaid, onSourceInsertPlantUml,
   headingMenu, setHeadingMenu,
-  setSettingsOpen, setVersionDialogOpen,
-  hideSettings,
+  setSettingsOpen: _setSettingsOpen, setVersionDialogOpen,
+  hideSettings: _hideSettings,
   hideVersionInfo,
-  hideTemplates,
-  templateDisabled,
+  hideTemplates: _hideTemplates,
+  templateDisabled: _templateDisabled,
   t,
 }: EditorMenuPopoversProps) {
   const locale = useLocale();
