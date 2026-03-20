@@ -109,7 +109,7 @@ export const EditorSideToolbar = React.memo(function EditorSideToolbar({
           <IconButton
             size="small"
             onClick={onOpenSettings}
-            sx={{ width: SIDE_TOOLBAR_ICON_SIZE, height: SIDE_TOOLBAR_ICON_SIZE, mt: "auto" }}
+            sx={{ width: SIDE_TOOLBAR_ICON_SIZE, height: SIDE_TOOLBAR_ICON_SIZE }}
           >
             <SettingsIcon fontSize="small" />
           </IconButton>

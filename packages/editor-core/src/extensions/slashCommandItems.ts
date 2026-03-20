@@ -30,9 +30,12 @@ import WebIcon from "@mui/icons-material/Web";
 import type { Editor } from "@tiptap/core";
 import React from "react";
 
-import { getDefaultContent } from "../constants/defaultContent";
 import apiSpec from "../constants/templates/apiSpec.md";
 import basicDesign from "../constants/templates/basicDesign.md";
+import markdownAllJa from "../constants/templates/markdownAll.md";
+import markdownAllEn from "../constants/templates/markdownAll-en.md";
+import welcomeJa from "../constants/templates/welcome.md";
+import welcomeEn from "../constants/templates/welcome-en.md";
 import type { TranslationFn } from "../types";
 import { extractHeadings, getEditorStorage } from "../types";
 import { preprocessMarkdown } from "../utils/frontmatterHelpers";
@@ -371,10 +374,23 @@ export const slashCommandItems: SlashCommandItem[] = [
     id: "template-welcome",
     labelKey: "slashTemplateWelcome",
     icon: React.createElement(ArticleIcon, { fontSize: "small" }),
-    keywords: ["template", "welcome", "テンプレート", "ウェルカム"],
+    keywords: ["template", "welcome", "テンプレート", "ウェルカム", "操作", "ガイド"],
     action: (editor) => {
       const locale = document.cookie.match(/NEXT_LOCALE=(\w+)/)?.[1] ?? "ja";
-      const { body } = preprocessMarkdown(getDefaultContent(locale));
+      const content = locale === "ja" ? welcomeJa : welcomeEn;
+      const { body } = preprocessMarkdown(content);
+      editor.chain().focus().insertContent(body).run();
+    },
+  },
+  {
+    id: "template-markdown-all",
+    labelKey: "slashTemplateMarkdownAll",
+    icon: React.createElement(ArticleIcon, { fontSize: "small" }),
+    keywords: ["template", "markdown", "all", "テンプレート", "マークダウン"],
+    action: (editor) => {
+      const locale = document.cookie.match(/NEXT_LOCALE=(\w+)/)?.[1] ?? "ja";
+      const content = locale === "ja" ? markdownAllJa : markdownAllEn;
+      const { body } = preprocessMarkdown(content);
       editor.chain().focus().insertContent(body).run();
     },
   },

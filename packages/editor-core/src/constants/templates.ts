@@ -1,6 +1,7 @@
-import { getDefaultContent } from "./defaultContent";
 import apiSpec from "./templates/apiSpec.md";
 import basicDesign from "./templates/basicDesign.md";
+import markdownAllJa from "./templates/markdownAll.md";
+import markdownAllEn from "./templates/markdownAll-en.md";
 
 export interface MarkdownTemplate {
   id: string;
@@ -13,9 +14,9 @@ export interface MarkdownTemplate {
 export function getBuiltinTemplates(locale: string): MarkdownTemplate[] {
   return [
     {
-      id: "welcome",
-      name: "welcome",
-      content: getDefaultContent(locale),
+      id: "markdown-all",
+      name: "markdownAll",
+      content: locale === "ja" ? markdownAllJa : markdownAllEn,
       builtin: true,
     },
     {
