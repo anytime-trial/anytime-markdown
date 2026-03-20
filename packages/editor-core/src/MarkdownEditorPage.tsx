@@ -445,6 +445,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         onToggleOutline={handleToggleOutline}
         explorerOpen={explorerOpen}
         onToggleExplorer={onToggleExplorer}
+        onOpenSettings={() => setSettingsOpen(true)}
         explorerSlot={explorerSlot}
       />
 

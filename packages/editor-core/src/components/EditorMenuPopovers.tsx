@@ -1,11 +1,9 @@
-import ArticleIcon from "@mui/icons-material/Article";
 import CheckBoxIcon from "@mui/icons-material/CheckBox";
 import FormatListBulletedIcon from "@mui/icons-material/FormatListBulleted";
 import FormatListNumberedIcon from "@mui/icons-material/FormatListNumbered";
 import FormatQuoteIcon from "@mui/icons-material/FormatQuote";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import SchemaIcon from "@mui/icons-material/Schema";
-import SettingsIcon from "@mui/icons-material/Settings";
 import {
   Box,
   Divider,
@@ -82,30 +80,6 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
         slotProps={{ paper: { role: "menu", "aria-label": t("helpMenu") } }}
       >
         <Box sx={{ py: 0.5, minWidth: 160 }}>
-          {!hideTemplates && (
-            <MenuItem
-              onClick={() => {
-                const anchor = helpAnchorEl;
-                setHelpAnchorEl(null);
-                if (anchor) setTemplateAnchorEl(anchor);
-              }}
-              disabled={templateDisabled}
-              sx={{ fontSize: "0.85rem", minHeight: 36 }}
-            >
-              <ListItemIcon><ArticleIcon fontSize="small" /></ListItemIcon>
-              <ListItemText>{t("templates")}</ListItemText>
-            </MenuItem>
-          )}
-          {!hideTemplates && <Divider />}
-          {!hideSettings && (
-            <MenuItem
-              onClick={() => { setSettingsOpen(true); setHelpAnchorEl(null); }}
-              sx={{ fontSize: "0.85rem", minHeight: 36 }}
-            >
-              <ListItemIcon><SettingsIcon fontSize="small" /></ListItemIcon>
-              <ListItemText>{t("editorSettings")}</ListItemText>
-            </MenuItem>
-          )}
           {!hideVersionInfo && (
             <MenuItem
               onClick={() => { setVersionDialogOpen(true); setHelpAnchorEl(null); }}

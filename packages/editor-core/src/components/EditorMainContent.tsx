@@ -95,6 +95,7 @@ interface EditorMainContentProps {
   onToggleOutline?: () => void;
   explorerOpen?: boolean;
   onToggleExplorer?: () => void;
+  onOpenSettings?: () => void;
   explorerSlot?: React.ReactNode;
   t: (key: string) => string;
 }
@@ -134,6 +135,7 @@ export function EditorMainContent({
   onToggleOutline,
   explorerOpen,
   onToggleExplorer,
+  onOpenSettings,
   explorerSlot,
   t,
 }: EditorMainContentProps) {
@@ -206,6 +208,7 @@ export function EditorMainContent({
       onToggleOutline={onToggleOutline}
       onToggleComment={setCommentOpen}
       onToggleExplorer={onToggleExplorer}
+      onOpenSettings={onOpenSettings}
       t={t}
     />
   ) : null;

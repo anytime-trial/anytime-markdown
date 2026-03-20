@@ -1,7 +1,6 @@
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import ListAltIcon from "@mui/icons-material/ListAlt";
-import SettingsIcon from "@mui/icons-material/Settings";
 import {
   Divider,
   ListItemIcon,
@@ -40,7 +39,7 @@ interface ToolbarMobileMenuProps {
 export const ToolbarMobileMenu = React.memo(function ToolbarMobileMenu({
   anchorEl,
   onClose,
-  mobileMoreRef,
+  mobileMoreRef: _mobileMoreRef,
   outlineOpen,
   commentOpen,
   inlineMergeOpen,
@@ -52,7 +51,7 @@ export const ToolbarMobileMenu = React.memo(function ToolbarMobileMenu({
   hideVersionInfo,
   onToggleOutline,
   onToggleComments,
-  onSetHelpAnchor,
+  onSetHelpAnchor: _onSetHelpAnchor,
   onOpenSettings,
   onOpenVersionDialog,
   t,
@@ -80,23 +79,6 @@ export const ToolbarMobileMenu = React.memo(function ToolbarMobileMenu({
         </MenuItem>
       )}
       <Divider />
-      <MenuItem
-        onClick={() => {
-          onClose();
-          if (mobileMoreRef.current) onSetHelpAnchor(mobileMoreRef.current);
-        }}
-      >
-        <ListItemIcon><InfoOutlinedIcon fontSize="small" /></ListItemIcon>
-        <ListItemText>{t("helpMenu")}</ListItemText>
-      </MenuItem>
-      {!hideSettings && (
-        <MenuItem
-          onClick={() => { onOpenSettings?.(); onClose(); }}
-        >
-          <ListItemIcon><SettingsIcon fontSize="small" /></ListItemIcon>
-          <ListItemText>{t("editorSettings")}</ListItemText>
-        </MenuItem>
-      )}
       {!hideVersionInfo && (
         <MenuItem
           onClick={() => { onOpenVersionDialog?.(); onClose(); }}

@@ -1,6 +1,7 @@
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import GitHubIcon from "@mui/icons-material/GitHub";
 import ListAltIcon from "@mui/icons-material/ListAlt";
+import SettingsIcon from "@mui/icons-material/Settings";
 import { Box, IconButton, Tooltip } from "@mui/material";
 import React from "react";
 
@@ -14,6 +15,7 @@ interface EditorSideToolbarProps {
   onToggleOutline?: () => void;
   onToggleComment: (open: boolean) => void;
   onToggleExplorer?: () => void;
+  onOpenSettings?: () => void;
   t: (key: string) => string;
 }
 
@@ -25,6 +27,7 @@ export const EditorSideToolbar = React.memo(function EditorSideToolbar({
   onToggleOutline,
   onToggleComment,
   onToggleExplorer,
+  onOpenSettings,
   t,
 }: EditorSideToolbarProps) {
   return (
@@ -98,6 +101,17 @@ export const EditorSideToolbar = React.memo(function EditorSideToolbar({
             sx={{ width: SIDE_TOOLBAR_ICON_SIZE, height: SIDE_TOOLBAR_ICON_SIZE }}
           >
             <GitHubIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      )}
+      {onOpenSettings && (
+        <Tooltip title={t("editorSettings")} placement="left">
+          <IconButton
+            size="small"
+            onClick={onOpenSettings}
+            sx={{ width: SIDE_TOOLBAR_ICON_SIZE, height: SIDE_TOOLBAR_ICON_SIZE, mt: "auto" }}
+          >
+            <SettingsIcon fontSize="small" />
           </IconButton>
         </Tooltip>
       )}
