@@ -10,8 +10,12 @@ import FormatListNumberedIcon from "@mui/icons-material/FormatListNumbered";
 import FormatQuoteIcon from "@mui/icons-material/FormatQuote";
 import FunctionsIcon from "@mui/icons-material/Functions";
 import HorizontalRuleIcon from "@mui/icons-material/HorizontalRule";
+import ImageIcon from "@mui/icons-material/Image";
 import InfoIcon from "@mui/icons-material/Info";
+import IntegrationInstructionsIcon from "@mui/icons-material/IntegrationInstructions";
 import Looks3Icon from "@mui/icons-material/Looks3";
+import Looks4Icon from "@mui/icons-material/Looks4";
+import Looks5Icon from "@mui/icons-material/Looks5";
 import LooksOneIcon from "@mui/icons-material/LooksOne";
 import LooksTwoIcon from "@mui/icons-material/LooksTwo";
 import PriorityHighIcon from "@mui/icons-material/PriorityHigh";
@@ -63,6 +67,24 @@ export const slashCommandItems: SlashCommandItem[] = [
     keywords: ["h3", "heading", "見出し"],
     action: (editor) => {
       editor.chain().focus().setHeading({ level: 3 }).run();
+    },
+  },
+  {
+    id: "heading4",
+    labelKey: "slashH4",
+    icon: React.createElement(Looks4Icon, { fontSize: "small" }),
+    keywords: ["h4", "heading", "見出し"],
+    action: (editor) => {
+      editor.chain().focus().setHeading({ level: 4 }).run();
+    },
+  },
+  {
+    id: "heading5",
+    labelKey: "slashH5",
+    icon: React.createElement(Looks5Icon, { fontSize: "small" }),
+    keywords: ["h5", "heading", "見出し"],
+    action: (editor) => {
+      editor.chain().focus().setHeading({ level: 5 }).run();
     },
   },
   {
@@ -281,6 +303,54 @@ export const slashCommandItems: SlashCommandItem[] = [
       if (openDialog) {
         openDialog();
       }
+    },
+  },
+  {
+    id: "image",
+    labelKey: "slashImage",
+    icon: React.createElement(ImageIcon, { fontSize: "small" }),
+    keywords: ["image", "picture", "photo", "画像", "写真", "イメージ"],
+    action: (editor) => {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "image/*";
+      input.onchange = () => {
+        const file = input.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (typeof reader.result === "string") {
+            editor.chain().focus().setImage({ src: reader.result, alt: file.name }).run();
+          }
+        };
+        reader.readAsDataURL(file);
+      };
+      input.click();
+    },
+  },
+  {
+    id: "frontmatter",
+    labelKey: "slashFrontmatter",
+    icon: React.createElement(IntegrationInstructionsIcon, { fontSize: "small" }),
+    keywords: ["frontmatter", "yaml", "metadata", "メタデータ", "フロントマター"],
+    action: (editor) => {
+      // フロントマターが既に存在するか確認
+      const doc = editor.state.doc;
+      const firstNode = doc.firstChild;
+      if (firstNode?.type.name === "codeBlock" && firstNode.attrs.language === "yaml") {
+        // 既存のフロントマターにフォーカス
+        editor.chain().focus().setTextSelection(1).run();
+        return;
+      }
+      // 先頭に空のフロントマターブロックを挿入
+      const { tr } = editor.state;
+      const yamlBlock = editor.schema.nodes.codeBlock.create(
+        { language: "yaml" },
+        editor.schema.text("title: "),
+      );
+      tr.insert(0, yamlBlock);
+      editor.view.dispatch(tr);
+      editor.chain().focus().setTextSelection(1).run();
     },
   },
   {
