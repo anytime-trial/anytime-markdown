@@ -3,7 +3,7 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import { alpha, Box, IconButton, type Theme,Tooltip, useTheme } from "@mui/material";
 import React, { useCallback, useEffect,useMemo, useRef, useState } from "react";
 
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getDivider, getTextPrimary, getTextSecondary } from "../constants/colors";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getDivider, getErrorMain, getSuccessMain, getTextPrimary, getTextSecondary } from "../constants/colors";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import { applyMerge, computeDiff, type DiffLine } from "../utils/diffEngine";
 
@@ -21,18 +21,18 @@ function buildBgGradient(
   lines: DiffLine[],
   fontSize: number,
   lineHeight: number,
-  theme: Theme,
+  isDark: boolean,
 ): string {
   const lineColors: (string | null)[] = [];
   for (const line of lines) {
     switch (line.type) {
       case "added":
       case "modified-new":
-        lineColors.push(alpha(theme.palette.success.main, 0.18));
+        lineColors.push(alpha(getSuccessMain(isDark), 0.18));
         break;
       case "removed":
       case "modified-old":
-        lineColors.push(alpha(theme.palette.error.main, 0.18));
+        lineColors.push(alpha(getErrorMain(isDark), 0.18));
         break;
       default:
         lineColors.push(null);
@@ -112,6 +112,7 @@ export function FullscreenDiffView({
   t,
 }: FullscreenDiffViewProps) {
   const theme = useTheme();
+  const isDark = theme.palette.mode === "dark";
   const settings = useEditorSettingsContext();
   const { fontSize, lineHeight } = settings;
 
@@ -154,15 +155,15 @@ export function FullscreenDiffView({
   // Left panel data
   const leftData = useMemo(() => buildDisplayData(diffResult.leftLines), [diffResult]);
   const leftGradient = useMemo(
-    () => buildBgGradient(diffResult.leftLines, fontSize, lineHeight, theme),
-    [diffResult, fontSize, lineHeight, theme],
+    () => buildBgGradient(diffResult.leftLines, fontSize, lineHeight, isDark),
+    [diffResult, fontSize, lineHeight, isDark],
   );
 
   // Right panel data
   const rightData = useMemo(() => buildDisplayData(diffResult.rightLines), [diffResult]);
   const rightGradient = useMemo(
-    () => buildBgGradient(diffResult.rightLines, fontSize, lineHeight, theme),
-    [diffResult, fontSize, lineHeight, theme],
+    () => buildBgGradient(diffResult.rightLines, fontSize, lineHeight, isDark),
+    [diffResult, fontSize, lineHeight, isDark],
   );
 
   const handleLeftChange = useCallback(

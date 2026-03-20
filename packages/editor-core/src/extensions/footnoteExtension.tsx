@@ -10,6 +10,8 @@
  * - serialize: [^id] を出力
  */
 import { Box, useTheme } from "@mui/material";
+
+import { getPrimaryMain } from "../constants/colors";
 import { InputRule,Node } from "@tiptap/core";
 import type { NodeViewProps } from "@tiptap/react";
 import { NodeViewWrapper,ReactNodeViewRenderer } from "@tiptap/react";
@@ -17,6 +19,7 @@ import { NodeViewWrapper,ReactNodeViewRenderer } from "@tiptap/react";
 /** FootnoteRef NodeView コンポーネント */
 function FootnoteRefView({ node, selected }: NodeViewProps) {
   const theme = useTheme();
+  const isDark = theme.palette.mode === "dark";
   const noteId = node.attrs.noteId as string;
 
   return (
@@ -29,12 +32,12 @@ function FootnoteRefView({ node, selected }: NodeViewProps) {
           fontSize: "0.75em",
           verticalAlign: "super",
           lineHeight: 1,
-          color: theme.palette.primary.main,
+          color: getPrimaryMain(isDark),
           fontWeight: 600,
           borderRadius: 0.5,
           px: 0.25,
           ...(selected && {
-            outline: `2px solid ${theme.palette.primary.main}`,
+            outline: `2px solid ${getPrimaryMain(isDark)}`,
             outlineOffset: 1,
           }),
         }}

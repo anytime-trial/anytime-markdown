@@ -1,6 +1,6 @@
 import type { Theme } from "@mui/material/styles";
 
-import { getActionHover, getActionSelected, getDivider, getTextPrimary, getTextSecondary } from "../constants/colors";
+import { getActionHover, getActionSelected, getDivider, getErrorMain, getGrey, getPrimaryMain, getTextPrimary, getTextSecondary } from "../constants/colors";
 
 /** マージエディタ共通のtiptapスタイル */
 export function getMergeTiptapStyles(theme: Theme, fontSize = 14, lineHeight = 1.6, options?: { showHoverLabels?: boolean }) {
@@ -129,7 +129,7 @@ export function getMergeTiptapStyles(theme: Theme, fontSize = 14, lineHeight = 1
       },
       "& code": {
         bgcolor: getActionHover(isDark),
-        color: theme.palette.mode === "dark" ? theme.palette.grey[300] : theme.palette.error.main,
+        color: isDark ? getGrey(isDark, 300) : getErrorMain(isDark),
         px: 0.5,
         py: 0.25,
         borderRadius: 0.5,
@@ -137,7 +137,7 @@ export function getMergeTiptapStyles(theme: Theme, fontSize = 14, lineHeight = 1
         fontSize: "0.875em",
       },
       "& pre": {
-        bgcolor: theme.palette.mode === "dark" ? theme.palette.grey[900] : theme.palette.grey[100],
+        bgcolor: isDark ? getGrey(isDark, 900) : getGrey(isDark, 100),
         borderRadius: 1,
         p: 2,
         my: 1,
@@ -177,7 +177,7 @@ export function getMergeTiptapStyles(theme: Theme, fontSize = 14, lineHeight = 1
         borderRadius: 1,
         my: 1,
       },
-      "& a": { color: theme.palette.primary.main, textDecoration: "underline" },
+      "& a": { color: getPrimaryMain(isDark), textDecoration: "underline" },
       "& hr": { border: "none", borderTop: `1px solid ${getDivider(isDark)}`, my: 2 },
       "& ul[data-type='taskList']": {
         listStyle: "none",

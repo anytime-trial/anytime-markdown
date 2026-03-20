@@ -11,7 +11,7 @@ import { Box, IconButton, TextField, ToggleButton, ToggleButtonGroup, Tooltip, T
 import { useTheme } from "@mui/material/styles";
 import React, { useCallback, useRef, useState } from "react";
 
-import { getActionHover, getBgPaper, getDivider, getTextSecondary } from "../constants/colors";
+import { getActionHover, getBgPaper, getDivider, getPrimaryMain, getTextSecondary } from "../constants/colors";
 
 import type { AnnotationTool,ImageAnnotation } from "../types/imageAnnotation";
 import { ANNOTATION_COLORS, generateAnnotationId } from "../types/imageAnnotation";
@@ -204,8 +204,8 @@ export function ImageAnnotationDialog({
                 width: 24, height: 24, p: 0,
                 bgcolor: c.value,
                 border: 2,
-                borderColor: color === c.value ? "primary.main" : getDivider(isDark),
-                "&:hover": { borderColor: "primary.main" },
+                borderColor: color === c.value ? getPrimaryMain(isDark) : getDivider(isDark),
+                "&:hover": { borderColor: getPrimaryMain(isDark) },
               }}
             />
           ))}
@@ -292,7 +292,7 @@ export function ImageAnnotationDialog({
                 sx={{
                   mb: 1, p: 1,
                   border: 1,
-                  borderColor: a.id === selectedId ? "primary.main" : getDivider(isDark),
+                  borderColor: a.id === selectedId ? getPrimaryMain(isDark) : getDivider(isDark),
                   borderRadius: 1,
                   cursor: "pointer",
                   "&:hover": { bgcolor: getActionHover(isDark) },

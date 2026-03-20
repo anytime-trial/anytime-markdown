@@ -18,7 +18,7 @@ import {
 } from "@mui/material";
 import React, { useCallback, useState } from "react";
 
-import { getActionHover, getDivider, getTextPrimary, getTextSecondary } from "../constants/colors";
+import { getActionHover, getDivider, getErrorMain, getPrimaryContrast, getPrimaryDark, getPrimaryLight, getPrimaryMain, getTextPrimary, getTextSecondary } from "../constants/colors";
 import { Z_TOOLBAR } from "../constants/zIndex";
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
 
@@ -78,18 +78,18 @@ export const SourceSearchBar = React.memo(function SourceSearchBar({
     fontWeight: 700,
     fontFamily: "monospace",
     bgcolor: active
-      ? theme.palette.mode === "dark"
-        ? "primary.dark"
-        : "primary.light"
+      ? isDark
+        ? getPrimaryDark(isDark)
+        : getPrimaryLight(isDark)
       : "transparent",
-    color: active ? "primary.contrastText" : "inherit",
+    color: active ? getPrimaryContrast(isDark) : "inherit",
     border: 1,
-    borderColor: active ? "primary.main" : "transparent",
+    borderColor: active ? getPrimaryMain(isDark) : "transparent",
     "&:hover": {
       bgcolor: active
-        ? theme.palette.mode === "dark"
-          ? "primary.dark"
-          : "primary.light"
+        ? isDark
+          ? getPrimaryDark(isDark)
+          : getPrimaryLight(isDark)
         : getActionHover(isDark),
     },
   });
@@ -106,7 +106,7 @@ export const SourceSearchBar = React.memo(function SourceSearchBar({
     color: getTextPrimary(isDark),
     fontFamily: "inherit",
     "&:focus": {
-      borderColor: "primary.main",
+      borderColor: getPrimaryMain(isDark),
     },
   };
 
@@ -185,7 +185,7 @@ export const SourceSearchBar = React.memo(function SourceSearchBar({
             sx={{
               whiteSpace: "nowrap",
               fontSize: "0.65rem",
-              color: resultCount === 0 ? "error.main" : getTextSecondary(isDark),
+              color: resultCount === 0 ? getErrorMain(isDark) : getTextSecondary(isDark),
               mx: 0.25,
             }}
           >

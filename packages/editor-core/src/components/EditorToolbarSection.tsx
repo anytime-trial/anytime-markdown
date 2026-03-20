@@ -3,7 +3,7 @@ import { useTheme } from "@mui/material/styles";
 import type { Editor } from "@tiptap/react";
 import type React from "react";
 
-import { getBgPaper } from "../constants/colors";
+import { getBgPaper, getPrimaryMain } from "../constants/colors";
 import { Z_SKIP_LINK } from "../constants/zIndex";
 import type { ToolbarVisibility } from "../types/toolbar";
 import { EditorToolbar } from "./EditorToolbar";
@@ -101,7 +101,7 @@ export function EditorToolbarSection({
           left: -9999,
           "&:focus": {
             left: 16, top: 16, zIndex: Z_SKIP_LINK, bgcolor: getBgPaper(isDark),
-            color: "primary.main", px: 2, py: 1, borderRadius: 1, boxShadow: 3,
+            color: getPrimaryMain(isDark), px: 2, py: 1, borderRadius: 1, boxShadow: 3,
             fontWeight: 600, fontSize: "0.875rem", textDecoration: "none",
           },
         }}

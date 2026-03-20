@@ -6,7 +6,7 @@ import { useTheme } from "@mui/material/styles";
 import type { Editor } from "@tiptap/react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
-import { getBgPaper, getDivider, getTextSecondary } from "../constants/colors";
+import { getBgPaper, getDivider, getTextSecondary, getWarningMain } from "../constants/colors";
 import useConfirm from "../hooks/useConfirm";
 import type { EncodingLabel, TranslationFn } from "../types";
 
@@ -116,7 +116,7 @@ export const StatusBar = React.memo(function StatusBar({ editor, sourceMode, sou
           {fileName}
           {isDirty && (
             <Tooltip title={t("unsavedChanges")}>
-              <FiberManualRecordIcon sx={{ fontSize: 8, color: "warning.main", ml: 0.5 }} />
+              <FiberManualRecordIcon sx={{ fontSize: 8, color: getWarningMain(isDark), ml: 0.5 }} />
             </Tooltip>
           )}
         </Typography>

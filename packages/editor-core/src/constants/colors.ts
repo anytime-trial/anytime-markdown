@@ -105,3 +105,63 @@ export function getActionSelected(isDark: boolean): string {
 export function getDivider(isDark: boolean): string {
   return isDark ? DARK_DIVIDER : LIGHT_DIVIDER;
 }
+
+// ── UI アクセント色（MUI テーマ準拠） ──
+export const DARK_PRIMARY_MAIN = "#90caf9";
+export const DARK_PRIMARY_DARK = "#42a5f5";
+export const DARK_PRIMARY_LIGHT = "#e3f2fd";
+export const DARK_PRIMARY_CONTRAST = "rgba(0,0,0,0.87)";
+export const LIGHT_PRIMARY_MAIN = "#1976d2";
+export const LIGHT_PRIMARY_DARK = "#1565c0";
+export const LIGHT_PRIMARY_LIGHT = "#42a5f5";
+export const LIGHT_PRIMARY_CONTRAST = "#fff";
+
+export const DARK_ERROR_MAIN = "#f44336";
+export const LIGHT_ERROR_MAIN = "#d32f2f";
+
+export const DARK_WARNING_MAIN = "#ffa726";
+export const DARK_WARNING_LIGHT = "#ffb74d";
+export const LIGHT_WARNING_MAIN = "#ed6c02";
+export const LIGHT_WARNING_LIGHT = "#ff9800";
+
+export const DARK_SUCCESS_MAIN = "#66bb6a";
+export const LIGHT_SUCCESS_MAIN = "#2e7d32";
+
+export const DARK_GREY_100 = "#f5f5f5";
+export const DARK_GREY_300 = "#e0e0e0";
+export const DARK_GREY_900 = "#212121";
+export const LIGHT_GREY_100 = "#f5f5f5";
+export const LIGHT_GREY_300 = "#e0e0e0";
+export const LIGHT_GREY_900 = "#212121";
+
+export const COMMON_WHITE = "#fff";
+
+/** ダーク/ライトモードに応じた UI アクセント色を返すヘルパー */
+export function getPrimaryMain(isDark: boolean): string {
+  return isDark ? DARK_PRIMARY_MAIN : LIGHT_PRIMARY_MAIN;
+}
+export function getPrimaryDark(isDark: boolean): string {
+  return isDark ? DARK_PRIMARY_DARK : LIGHT_PRIMARY_DARK;
+}
+export function getPrimaryLight(isDark: boolean): string {
+  return isDark ? DARK_PRIMARY_LIGHT : LIGHT_PRIMARY_LIGHT;
+}
+export function getPrimaryContrast(isDark: boolean): string {
+  return isDark ? DARK_PRIMARY_CONTRAST : LIGHT_PRIMARY_CONTRAST;
+}
+export function getErrorMain(isDark: boolean): string {
+  return isDark ? DARK_ERROR_MAIN : LIGHT_ERROR_MAIN;
+}
+export function getWarningMain(isDark: boolean): string {
+  return isDark ? DARK_WARNING_MAIN : LIGHT_WARNING_MAIN;
+}
+export function getWarningLight(isDark: boolean): string {
+  return isDark ? DARK_WARNING_LIGHT : LIGHT_WARNING_LIGHT;
+}
+export function getSuccessMain(isDark: boolean): string {
+  return isDark ? DARK_SUCCESS_MAIN : LIGHT_SUCCESS_MAIN;
+}
+export function getGrey(isDark: boolean, shade: 100 | 300 | 900): string {
+  const greys = { 100: "#f5f5f5", 300: "#e0e0e0", 900: "#212121" };
+  return greys[shade];
+}

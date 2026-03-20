@@ -7,7 +7,7 @@ import { useTheme } from "@mui/material/styles";
 import DOMPurify from "dompurify";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { getEditorBg, getTextDisabled, getTextSecondary } from "../../constants/colors";
+import { getEditorBg, getErrorMain, getTextDisabled, getTextSecondary } from "../../constants/colors";
 import { useBlockMergeCompare } from "../../hooks/useBlockMergeCompare";
 import { useBlockResize } from "../../hooks/useBlockResize";
 import { useDiagramCapture } from "../../hooks/useDiagramCapture";
@@ -305,7 +305,7 @@ export function DiagramBlock(props: DiagramBlockProps) {
         </DiagramPreviewContainer>
       )}
       {error && (
-        <Typography variant="caption" sx={{ p: 1.5, color: "error.main", display: "block" }} contentEditable={false}>
+        <Typography variant="caption" sx={{ p: 1.5, color: getErrorMain(isDark), display: "block" }} contentEditable={false}>
           {error}
         </Typography>
       )}

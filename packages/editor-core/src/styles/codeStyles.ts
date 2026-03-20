@@ -1,6 +1,6 @@
 import type { SxProps,Theme } from "@mui/material/styles";
 
-import { DEFAULT_DARK_BG, DEFAULT_DARK_CODE_BG, DEFAULT_LIGHT_BG, DEFAULT_LIGHT_CODE_BG, getActionHover } from "../constants/colors";
+import { DEFAULT_DARK_BG, DEFAULT_DARK_CODE_BG, DEFAULT_LIGHT_BG, DEFAULT_LIGHT_CODE_BG, getActionHover, getGrey } from "../constants/colors";
 
 /** シンタックスハイライト（hljs）カラー定義 */
 const hljsDark = {
@@ -35,7 +35,7 @@ export function getCodeStyles(theme: Theme): SxProps<Theme> {
   return {
     "& code": {
       bgcolor: isDark ? DEFAULT_DARK_CODE_BG : DEFAULT_LIGHT_CODE_BG,
-      color: isDark ? theme.palette.grey[300] : "#c62828",
+      color: isDark ? getGrey(isDark, 300) : "#c62828",
       px: 0.5,
       py: 0.25,
       borderRadius: 0.5,
@@ -50,7 +50,7 @@ export function getCodeStyles(theme: Theme): SxProps<Theme> {
       p: 2,
       my: 1,
       overflow: "auto",
-      "& code": { bgcolor: "transparent", color: isDark ? theme.palette.grey[300] : "inherit", p: 0, borderRadius: 0 },
+      "& code": { bgcolor: "transparent", color: isDark ? getGrey(isDark, 300) : "inherit", p: 0, borderRadius: 0 },
       ...(isDark ? hljsDark : hljsLight),
     },
   };

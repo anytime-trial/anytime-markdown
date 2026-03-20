@@ -18,7 +18,7 @@ import { EditDialogHeader } from "./components/EditDialogHeader";
 import { EditDialogWrapper } from "./components/EditDialogWrapper";
 import { ImageAnnotationDialog } from "./components/ImageAnnotationDialog";
 import { ImageCropTool } from "./components/ImageCropTool";
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getActionHover, getDivider, getTextDisabled, getTextSecondary } from "./constants/colors";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getActionHover, getDivider, getErrorMain, getPrimaryMain, getTextDisabled, getTextSecondary, getWarningMain } from "./constants/colors";
 import { useBlockCapture } from "./hooks/useBlockCapture";
 import { useBlockNodeState } from "./hooks/useBlockNodeState";
 import { useBlockResize } from "./hooks/useBlockResize";
@@ -100,14 +100,14 @@ function ImageToolbarExtra({
         </Typography>
       ) : (
         <Tooltip title={t("imageNoAltWarning")} placement="top">
-          <WarningAmberIcon sx={{ fontSize: 14, color: "warning.main" }} />
+          <WarningAmberIcon sx={{ fontSize: 14, color: getWarningMain(isDark) }} />
         </Tooltip>
       )}
       <Typography variant="caption" sx={{ color: getTextDisabled(isDark), fontSize: "0.65rem", fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
         {src?.startsWith("data:") ? "(base64)" : src ? `(${src})` : ""}
       </Typography>
       {imgError && (
-        <Typography variant="caption" sx={{ color: "error.main", fontSize: "0.65rem", fontWeight: 600, flexShrink: 0, display: "flex", alignItems: "center", gap: 0.25 }}>
+        <Typography variant="caption" sx={{ color: getErrorMain(isDark), fontSize: "0.65rem", fontWeight: 600, flexShrink: 0, display: "flex", alignItems: "center", gap: 0.25 }}>
           <ErrorOutlineIcon sx={{ fontSize: 14 }} />
           {t("imageNotFound")}
         </Typography>
@@ -117,7 +117,7 @@ function ImageToolbarExtra({
           <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
           <Tooltip title={t("annotate")} placement="top">
             <IconButton size="small" sx={{ p: 0.25 }} onClick={onAnnotationOpen} aria-label={t("annotate")}>
-              <ChatBubbleOutlineIcon sx={{ fontSize: 16, color: annotations.length > 0 ? "primary.main" : getTextSecondary(isDark) }} />
+              <ChatBubbleOutlineIcon sx={{ fontSize: 16, color: annotations.length > 0 ? getPrimaryMain(isDark) : getTextSecondary(isDark) }} />
             </IconButton>
           </Tooltip>
         </>
@@ -131,7 +131,7 @@ function ImageWithResize({
   imgRef, imgContainerRef, src, alt, title, displayWidth, annotations,
   isSelected, isEditable, resizing, resizeWidth,
   handleResizePointerDown, handleResizePointerMove, handleResizePointerUp, handleResizeKeyDown,
-  onDoubleClick, width, t,
+  onDoubleClick, width, isDark, t,
 }: {
   imgRef: React.RefObject<HTMLImageElement | null>;
   imgContainerRef: React.RefObject<HTMLDivElement | null>;
@@ -144,7 +144,7 @@ function ImageWithResize({
   handleResizePointerUp: (e: React.PointerEvent) => void;
   handleResizeKeyDown: (e: React.KeyboardEvent) => void;
   onDoubleClick: (() => void) | undefined;
-  width: string; t: (key: string) => string;
+  width: string; isDark: boolean; t: (key: string) => string;
 }) {
   return (
     <Box
@@ -180,11 +180,11 @@ function ImageWithResize({
             width: 16,
             height: 16,
             cursor: "nwse-resize",
-            bgcolor: "primary.main",
+            bgcolor: getPrimaryMain(isDark),
             opacity: 0.7,
             borderTopLeftRadius: 4,
             "&:hover": { opacity: 1 },
-            "&:focus-visible": { opacity: 1, outline: "2px solid", outlineColor: "primary.main", outlineOffset: 1 },
+            "&:focus-visible": { opacity: 1, outline: "2px solid", outlineColor: getPrimaryMain(isDark), outlineOffset: 1 },
             clipPath: "polygon(100% 0, 100% 100%, 0 100%)",
           }}
         />
@@ -353,6 +353,7 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
             handleResizeKeyDown={handleResizeKeyDown}
             onDoubleClick={!isEditable ? () => setEditOpen(true) : undefined}
             width={width}
+            isDark={isDark}
             t={t}
           />
         )}

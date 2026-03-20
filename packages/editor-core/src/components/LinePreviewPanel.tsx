@@ -5,7 +5,7 @@ import {
 import { alpha, useTheme } from "@mui/material/styles";
 import React, { useEffect, useRef, useState } from "react";
 
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getDivider, getTextPrimary } from "../constants/colors";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getDivider, getErrorMain, getSuccessMain, getTextPrimary } from "../constants/colors";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import { computeInlineDiff, type DiffResult, type InlineSegment } from "../utils/diffEngine";
 
@@ -64,8 +64,8 @@ export const LinePreviewPanel = React.memo(function LinePreviewPanel({
             ? {
                 backgroundColor: alpha(
                   highlightType === "removed"
-                    ? theme.palette.error.main
-                    : theme.palette.success.main,
+                    ? getErrorMain(isDark)
+                    : getSuccessMain(isDark),
                   0.35,
                 ),
                 textDecoration: highlightType === "removed" ? "line-through" : "underline",

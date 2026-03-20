@@ -8,7 +8,7 @@ import { Box, Divider, IconButton, Tooltip, Typography } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import React from "react";
 
-import { getActionHover, getTextSecondary } from "../../constants/colors";
+import { getActionHover, getPrimaryMain, getTextSecondary } from "../../constants/colors";
 
 interface BlockInlineToolbarProps {
   /** Block label (e.g. "Mermaid", "Math", "Table") */
@@ -62,7 +62,7 @@ export function BlockInlineToolbar({
         tabIndex={0}
         aria-roledescription="draggable item"
         aria-label={t("dragHandle")}
-        sx={{ cursor: "grab", display: "flex", alignItems: "center", opacity: 0.7, "&:hover, &:focus-visible": { opacity: 1 }, "&:focus-visible": { outline: "2px solid", outlineColor: "primary.main", borderRadius: 0.5 } }}
+        sx={{ cursor: "grab", display: "flex", alignItems: "center", opacity: 0.7, "&:hover, &:focus-visible": { opacity: 1 }, "&:focus-visible": { outline: "2px solid", outlineColor: getPrimaryMain(isDark), borderRadius: 0.5 } }}
       >
         <DragIndicatorIcon sx={iconSx} />
       </Box>

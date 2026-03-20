@@ -20,7 +20,7 @@ import { BlockInlineToolbar } from "./components/codeblock/BlockInlineToolbar";
 import { DeleteBlockDialog } from "./components/codeblock/DeleteBlockDialog";
 import { EditDialogHeader } from "./components/EditDialogHeader";
 import { SearchReplaceBar } from "./components/SearchReplaceBar";
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getActionHover, getActionSelected, getBgPaper, getDivider, getTextSecondary } from "./constants/colors";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getActionHover, getActionSelected, getBgPaper, getDivider, getErrorMain, getTextSecondary } from "./constants/colors";
 import { Z_FULLSCREEN } from "./constants/zIndex";
 import { findCounterpartTableHtml, getMergeEditors } from "./contexts/MergeEditorsContext";
 import { useBlockNodeState } from "./hooks/useBlockNodeState";
@@ -80,7 +80,7 @@ function TableOperationsToolbar({ editor, isDark, t }: { editor: Editor; isDark:
           <Tooltip title={t("removeColumn")} placement="top">
             <Box sx={{ position: "relative", display: "inline-flex" }}>
               <ViewColumnIcon sx={iconSx} />
-              <Box component="span" sx={{ position: "absolute", right: -4, top: -4, fontSize: 10, fontWeight: "bold", lineHeight: 1, color: "error.main" }}>x</Box>
+              <Box component="span" sx={{ position: "absolute", right: -4, top: -4, fontSize: 10, fontWeight: "bold", lineHeight: 1, color: getErrorMain(isDark) }}>x</Box>
             </Box>
           </Tooltip>
         </ToggleButton>
@@ -100,7 +100,7 @@ function TableOperationsToolbar({ editor, isDark, t }: { editor: Editor; isDark:
           <Tooltip title={t("removeRow")} placement="top">
             <Box sx={{ position: "relative", display: "inline-flex" }}>
               <TableRowsIcon sx={iconSx} />
-              <Box component="span" sx={{ position: "absolute", right: -4, top: -4, fontSize: 10, fontWeight: "bold", lineHeight: 1, color: "error.main" }}>x</Box>
+              <Box component="span" sx={{ position: "absolute", right: -4, top: -4, fontSize: 10, fontWeight: "bold", lineHeight: 1, color: getErrorMain(isDark) }}>x</Box>
             </Box>
           </Tooltip>
         </ToggleButton>

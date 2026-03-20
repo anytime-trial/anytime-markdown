@@ -8,7 +8,7 @@ import { EditorContent } from "@tiptap/react";
 import { useTranslations } from "next-intl";
 import React, { useEffect, useRef } from "react";
 
-import { getActionHover, getTextPrimary, getTextSecondary } from "../constants/colors";
+import { getActionHover, getErrorMain, getSuccessMain, getTextPrimary, getTextSecondary } from "../constants/colors";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import type { DiffLine } from "../utils/diffEngine";
 import { getMergeTiptapStyles } from "./mergeTiptapStyles";
@@ -20,10 +20,10 @@ function _getLineBgColor(type: DiffLine["type"], theme: Theme) {
   switch (type) {
     case "added":
     case "modified-new":
-      return alpha(theme.palette.success.main, 0.15);
+      return alpha(getSuccessMain(isDark), 0.15);
     case "removed":
     case "modified-old":
-      return alpha(theme.palette.error.main, 0.15);
+      return alpha(getErrorMain(isDark), 0.15);
     case "padding":
       return alpha(getActionHover(isDark), 0.05);
     default:

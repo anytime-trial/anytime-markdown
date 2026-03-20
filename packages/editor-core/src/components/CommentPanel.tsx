@@ -18,7 +18,7 @@ import type { Editor } from "@tiptap/react";
 import { useEditorState } from "@tiptap/react";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getActionHover, getDivider, getTextDisabled, getTextSecondary } from "../constants/colors";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getActionHover, getDivider, getPrimaryMain, getTextDisabled, getTextSecondary } from "../constants/colors";
 import { COMMENT_PANEL_WIDTH, PANEL_HEADER_MIN_HEIGHT } from "../constants/dimensions";
 import { commentDataPluginKey } from "../extensions/commentExtension";
 import type { TranslationFn } from "../types";
@@ -295,7 +295,7 @@ export const CommentPanel = React.memo(function CommentPanel({
                 cursor: "pointer",
                 opacity: comment.resolved ? 0.5 : 1,
                 "&:hover, &:focus-visible": { bgcolor: getActionHover(isDark) },
-                "&:focus-visible": { outline: "2px solid", outlineColor: "primary.main", outlineOffset: -2 },
+                "&:focus-visible": { outline: "2px solid", outlineColor: getPrimaryMain(isDark), outlineOffset: -2 },
               }}
             >
               {/* Target text */}

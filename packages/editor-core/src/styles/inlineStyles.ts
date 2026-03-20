@@ -1,13 +1,15 @@
 import type { SxProps,Theme } from "@mui/material/styles";
 import { alpha } from "@mui/material/styles";
 
+import { COMMON_WHITE, getGrey, getPrimaryMain, getWarningLight, getWarningMain } from "../constants/colors";
 import { Z_LINK_TOOLTIP } from "../constants/zIndex";
 
 /** リンク・コメント・検索マッチ・脚注スタイル */
 export function getInlineStyles(theme: Theme): SxProps<Theme> {
+  const isDark = theme.palette.mode === "dark";
   return {
     "& a": {
-      color: theme.palette.primary.main,
+      color: getPrimaryMain(isDark),
       textDecoration: "underline",
       position: "relative",
       cursor: "pointer",
@@ -24,8 +26,8 @@ export function getInlineStyles(theme: Theme): SxProps<Theme> {
       bottom: "100%",
       left: 0,
       marginBottom: "4px",
-      backgroundColor: theme.palette.grey[900],
-      color: theme.palette.common.white,
+      backgroundColor: getGrey(isDark, 900),
+      color: COMMON_WHITE,
       padding: "2px 8px",
       borderRadius: "4px",
       fontSize: "12px",
@@ -66,18 +68,18 @@ export function getInlineStyles(theme: Theme): SxProps<Theme> {
     },
     // 検索マッチ
     "& .search-match": {
-      bgcolor: alpha(theme.palette.warning.light, theme.palette.mode === "dark" ? 0.3 : 0.5),
+      bgcolor: alpha(getWarningLight(isDark), isDark ? 0.3 : 0.5),
       borderRadius: "2px",
     },
     "& .search-match-current": {
-      bgcolor: alpha(theme.palette.warning.main, theme.palette.mode === "dark" ? 0.5 : 0.4),
+      bgcolor: alpha(getWarningMain(isDark), isDark ? 0.5 : 0.4),
       borderRadius: "2px",
-      outline: `2px solid ${theme.palette.primary.main}`,
+      outline: `2px solid ${getPrimaryMain(isDark)}`,
     },
     // 脚注定義行
     "& p:has(> sup[data-footnote-ref])": {
       "& sup[data-footnote-ref]": {
-        color: theme.palette.primary.main,
+        color: getPrimaryMain(isDark),
         fontWeight: 600,
         cursor: "default",
       },

@@ -10,7 +10,7 @@ import { NodeViewWrapper } from "@tiptap/react";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { getDivider, getTextDisabled } from "../constants/colors";
+import { getDivider, getErrorMain, getTextDisabled } from "../constants/colors";
 import { saveBlob,useBlockCapture } from "../hooks/useBlockCapture";
 import { useBlockNodeState } from "../hooks/useBlockNodeState";
 import type { GifSettings } from "../utils/gifEncoder";
@@ -254,7 +254,7 @@ export function GifNodeView({ editor, node, updateAttributes, getPos }: NodeView
                     <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
                     <Tooltip title="Record GIF" placement="top">
                       <IconButton size="small" sx={{ p: 0.25 }} onClick={() => setRecorderOpen(true)} aria-label="Record GIF">
-                        <FiberManualRecordIcon sx={{ fontSize: 16, color: "error.main" }} />
+                        <FiberManualRecordIcon sx={{ fontSize: 16, color: getErrorMain(isDark) }} />
                       </IconButton>
                     </Tooltip>
                   </>
