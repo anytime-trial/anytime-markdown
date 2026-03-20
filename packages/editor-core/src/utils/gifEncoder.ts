@@ -62,7 +62,8 @@ export function extractFrameFromCanvas(
   const canvas = document.createElement("canvas");
   canvas.width = targetWidth;
   canvas.height = targetHeight;
-  const ctx = canvas.getContext("2d")!;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return canvas;
   ctx.drawImage(
     source,
     rect.x,
@@ -238,7 +239,7 @@ class NeuQuant {
     let bestd = ~(1 << 31), bestbiasd = bestd, bestpos = -1, bestbiaspos = -1;
     for (let i = 0; i < 256; i++) {
       const n = this.network[i];
-      let dist = Math.abs(n[0] - b) + Math.abs(n[1] - g) + Math.abs(n[2] - r);
+      const dist = Math.abs(n[0] - b) + Math.abs(n[1] - g) + Math.abs(n[2] - r);
       if (dist < bestd) { bestd = dist; bestpos = i; }
       const biasdist = dist - (this.bias[i] >> 12);
       if (biasdist < bestbiasd) { bestbiasd = biasdist; bestbiaspos = i; }
@@ -289,7 +290,7 @@ function lzwEncode(width: number, height: number, pixels: Uint8Array, colorDepth
   const accum = new Uint8Array(256);
   let cur_accum = 0, cur_bits = 0, a_count = 0;
   let free_ent: number, n_bits: number, maxcode: number;
-  let clear_flg = false, g_init_bits: number;
+  let clear_flg = false; const g_init_bits = initCodeSize + 1;
   let remaining = width * height, curPixel = 0;
 
   function MAXCODE(nb: number) { return (1 << nb) - 1; }
@@ -317,7 +318,6 @@ function lzwEncode(width: number, height: number, pixels: Uint8Array, colorDepth
   // compress
   const ClearCode = 1 << initCodeSize;
   const EOFCode = ClearCode + 1;
-  g_init_bits = initCodeSize + 1;
   n_bits = g_init_bits;
   maxcode = MAXCODE(n_bits);
   free_ent = ClearCode + 2;
