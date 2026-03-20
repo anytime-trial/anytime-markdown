@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { execSync } from 'child_process';
+import { execFileSync, execSync } from 'child_process';
 
 const REFRESH_DEBOUNCE_MS = 500;
 
@@ -380,7 +380,7 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem>
 
 	async stageFile(item: ChangesFileItem): Promise<void> {
 		try {
-			execSync(`git add "${item.filePath}"`, { cwd: item.gitRoot });
+			execFileSync('git', ['add', item.filePath], { cwd: item.gitRoot });
 			this.refresh();
 		} catch (e: unknown) {
 			const msg = e instanceof Error ? e.message : String(e);
@@ -390,7 +390,7 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem>
 
 	async unstageFile(item: ChangesFileItem): Promise<void> {
 		try {
-			execSync(`git reset HEAD "${item.filePath}"`, { cwd: item.gitRoot });
+			execFileSync('git', ['reset', 'HEAD', item.filePath], { cwd: item.gitRoot });
 			this.refresh();
 		} catch (e: unknown) {
 			const msg = e instanceof Error ? e.message : String(e);
@@ -415,7 +415,7 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem>
 		});
 		if (!message) return;
 		try {
-			execSync(`git commit -m "${message.replace(/"/g, '\\"')}"`, { cwd: target });
+			execFileSync('git', ['commit', '-m', message], { cwd: target });
 			vscode.window.showInformationMessage(`Committed: ${message}`);
 			this.refresh();
 		} catch (e: unknown) {
@@ -469,11 +469,11 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem>
 			// untracked ファイルは git 管理外なので直接削除
 			const isUntracked = item.group === 'changes' &&
 				fs.existsSync(item.absPath) &&
-				(() => { try { execSync(`git ls-files --error-unmatch "${item.filePath}"`, { cwd: item.gitRoot, stdio: 'pipe' }); return false; } catch { return true; } })();
+				(() => { try { execFileSync('git', ['ls-files', '--error-unmatch', item.filePath], { cwd: item.gitRoot, stdio: 'pipe' }); return false; } catch { return true; } })();
 			if (isUntracked) {
 				fs.unlinkSync(item.absPath);
 			} else {
-				execSync(`git checkout -- "${item.filePath}"`, { cwd: item.gitRoot });
+				execFileSync('git', ['checkout', '--', item.filePath], { cwd: item.gitRoot });
 			}
 			await this.closeTab(item.absPath);
 			this.refresh();
