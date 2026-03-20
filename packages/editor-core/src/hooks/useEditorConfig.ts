@@ -172,8 +172,7 @@ function insertImageFromFile(
   view: EditorView,
   pos: number,
 ): void {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const vscodeApi = (window as any).__vscode;
+  const vscodeApi = window.__vscode;
   if (vscodeApi) {
     const ext = file.type.split("/")[1] || "png";
     const baseName = file.name && !file.name.startsWith("image") ? file.name : `drop-${generateTimestamp()}.${ext}`;
@@ -190,8 +189,7 @@ function insertPastedImage(
   dataUrl: string,
   view: EditorView,
 ): void {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const vscodeApi = (window as any).__vscode;
+  const vscodeApi = window.__vscode;
   if (vscodeApi) {
     const ext = file.type.split("/")[1] || "png";
     const fileName = `paste-${generateTimestamp()}.${ext}`;

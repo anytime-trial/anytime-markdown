@@ -91,8 +91,7 @@ function onRecordComplete(
 ): void {
   setRecorderOpen(false);
   gifBlobRef.current = blob;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const vscodeApi = (window as any).__vscode;
+  const vscodeApi = window.__vscode;
   if (vscodeApi) {
     const reader = new FileReader();
     reader.onload = () => {

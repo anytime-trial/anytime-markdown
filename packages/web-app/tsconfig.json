@@ -27,7 +27,8 @@
     "src/**/*",
     "next-env.d.ts",
     ".next/types/**/*.ts",
-    "../editor-core/src/md.d.ts"
+    "../editor-core/src/md.d.ts",
+    "../editor-core/src/types/vscode.d.ts"
   ],
   "exclude": [
     "node_modules",

@@ -181,10 +181,8 @@ export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProp
     const text = await readTextFromClipboard();
     if (text) { pasteIntoCodeBlock(text); handleClose(); return; }
     // VS Code 環境: vscode-paste-codeblock イベントで処理
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const w = window as any;
-    if (w.__vscode) {
-      w.__vscode.postMessage({ type: "readClipboardForCodeBlock" });
+    if (window.__vscode) {
+      window.__vscode.postMessage({ type: "readClipboardForCodeBlock" });
     }
     handleClose();
   }, [editor, readOnly, handleClose]);
@@ -198,10 +196,8 @@ export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProp
       return;
     }
     // VS Code 環境: 拡張側にクリップボード読み取りを依頼
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const w = window as any;
-    if (w.__vscode) {
-      w.__vscode.postMessage({ type: "readClipboard" });
+    if (window.__vscode) {
+      window.__vscode.postMessage({ type: "readClipboard" });
     }
     handleClose();
   }, [editor, handleClose]);

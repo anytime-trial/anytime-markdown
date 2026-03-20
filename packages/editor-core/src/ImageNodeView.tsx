@@ -72,8 +72,7 @@ function handleCropComplete(
     updateAttributes({ src: croppedDataUrl });
     return;
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const vscodeApi = (window as any).__vscode;
+  const vscodeApi = window.__vscode;
   if (vscodeApi) {
     vscodeApi.postMessage({ type: "overwriteImage", path: src, dataUrl: croppedDataUrl });
     updateAttributes({ src: src.split("?")[0] + "?t=" + Date.now() });
