@@ -2,6 +2,7 @@ import AccountTreeIcon from "@mui/icons-material/AccountTree";
 import { Box, Tab, Tabs, useTheme } from "@mui/material";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
+import { getDivider } from "../constants/colors";
 import { FS_TOOLBAR_HEIGHT } from "../constants/dimensions";
 import { PLANTUML_SAMPLES } from "../constants/samples";
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
@@ -120,7 +121,7 @@ export function PlantUmlEditDialog({
           left={
             <>
               {/* Tabs */}
-              <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: "divider" }}>
+              <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: getDivider(isDark) }}>
                 <Tabs
                   value={activeTab}
                   onChange={(_, v) => setActiveTab(v)}

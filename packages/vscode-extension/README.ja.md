@@ -3,9 +3,12 @@
 ![VS Marketplace](https://img.shields.io/visual-studio-marketplace/v/kiytaka-ueda.anytime-markdown?label=VS%20Marketplace&logo=visual-studio-code)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=anytime-trial_anytime-markdown)
+[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=bugs)](https://sonarcloud.io/summary/new_code?id=anytime-trial_anytime-markdown)
+[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=anytime-trial_anytime-markdown)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=coverage)](https://sonarcloud.io/summary/new_code?id=anytime-trial_anytime-markdown)
-[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=anytime-trial_anytime-markdown)
-[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=anytime-trial_anytime-markdown)**AIが書いたドキュメントを、コーディングしながらレビュー — VS Code だけで完結。**
+[![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=duplicated_lines_density)](https://sonarcloud.io/summary/new_code?id=anytime-trial_anytime-markdown)
+
+**AIが書いたドキュメントを、コーディングしながらレビュー — VS Code だけで完結。**
 
 AIアシスタントは仕様書や設計書をMarkdownで書いてくれますが、プレーンテキストでのレビューは読みにくく、GitクライアントとエディタのVS Code との行き来で集中が途切れがちです。
 

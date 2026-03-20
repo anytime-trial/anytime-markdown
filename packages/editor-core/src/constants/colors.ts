@@ -8,6 +8,14 @@ export const DEFAULT_LIGHT_BG = "#F8F9FA";
 export const DEFAULT_DARK_TEXT = "#E2E8F0";
 export const DEFAULT_LIGHT_TEXT = "#2D3748";
 
+// ── UI テキスト色（MUI テーマ準拠） ──
+export const DARK_TEXT_PRIMARY = "#ffffffde";
+export const DARK_TEXT_SECONDARY = "#ffffff99";
+export const DARK_TEXT_DISABLED = "#ffffff61";
+export const LIGHT_TEXT_PRIMARY = "#000000de";
+export const LIGHT_TEXT_SECONDARY = "#00000099";
+export const LIGHT_TEXT_DISABLED = "#00000061";
+
 // ── コードブロック背景色 ──
 export const DEFAULT_DARK_CODE_BG = "#161B22";
 export const DEFAULT_LIGHT_CODE_BG = "#F1F5F9";
@@ -19,6 +27,13 @@ export const DEFAULT_LIGHT_HEADING_BG = "#EDF2F7";
 // ── 見出しリンク色 ──
 export const DEFAULT_DARK_HEADING_LINK = "#63B3ED";
 export const DEFAULT_LIGHT_HEADING_LINK = "#3182CE";
+
+// ── Admonition（GitHub 準拠） ──
+export const ADMONITION_NOTE = "#1f6feb";
+export const ADMONITION_TIP = "#238636";
+export const ADMONITION_IMPORTANT = "#8957e5";
+export const ADMONITION_WARNING = "#d29922";
+export const ADMONITION_CAUTION = "#da3633";
 
 // ── アクセントカラー（検索ハイライト等） ──
 export const ACCENT_COLOR = "#e8a012";
@@ -54,4 +69,99 @@ export function getEditorText(isDark: boolean, settings?: Pick<EditorSettings, "
   return isDark
     ? (settings?.darkTextColor || DEFAULT_DARK_TEXT)
     : (settings?.lightTextColor || DEFAULT_LIGHT_TEXT);
+}
+
+/** ダーク/ライトモードに応じた UI テキスト色を返すヘルパー */
+export function getTextPrimary(isDark: boolean): string {
+  return isDark ? DARK_TEXT_PRIMARY : LIGHT_TEXT_PRIMARY;
+}
+export function getTextSecondary(isDark: boolean): string {
+  return isDark ? DARK_TEXT_SECONDARY : LIGHT_TEXT_SECONDARY;
+}
+export function getTextDisabled(isDark: boolean): string {
+  return isDark ? DARK_TEXT_DISABLED : LIGHT_TEXT_DISABLED;
+}
+
+// ── UI 背景色（MUI テーマ準拠） ──
+export const DARK_BG_PAPER = "#121212";
+export const LIGHT_BG_PAPER = "#fff";
+export const DARK_ACTION_HOVER = "rgba(255,255,255,0.08)";
+export const LIGHT_ACTION_HOVER = "rgba(0,0,0,0.04)";
+export const DARK_ACTION_SELECTED = "rgba(255,255,255,0.16)";
+export const LIGHT_ACTION_SELECTED = "rgba(0,0,0,0.08)";
+export const DARK_DIVIDER = "rgba(255,255,255,0.12)";
+export const LIGHT_DIVIDER = "rgba(0,0,0,0.12)";
+
+/** ダーク/ライトモードに応じた UI 背景色を返すヘルパー */
+export function getBgPaper(isDark: boolean): string {
+  return isDark ? DARK_BG_PAPER : LIGHT_BG_PAPER;
+}
+export function getActionHover(isDark: boolean): string {
+  return isDark ? DARK_ACTION_HOVER : LIGHT_ACTION_HOVER;
+}
+export function getActionSelected(isDark: boolean): string {
+  return isDark ? DARK_ACTION_SELECTED : LIGHT_ACTION_SELECTED;
+}
+export function getDivider(isDark: boolean): string {
+  return isDark ? DARK_DIVIDER : LIGHT_DIVIDER;
+}
+
+// ── UI アクセント色（MUI テーマ準拠） ──
+export const DARK_PRIMARY_MAIN = "#90caf9";
+export const DARK_PRIMARY_DARK = "#42a5f5";
+export const DARK_PRIMARY_LIGHT = "#e3f2fd";
+export const DARK_PRIMARY_CONTRAST = "rgba(0,0,0,0.87)";
+export const LIGHT_PRIMARY_MAIN = "#1976d2";
+export const LIGHT_PRIMARY_DARK = "#1565c0";
+export const LIGHT_PRIMARY_LIGHT = "#42a5f5";
+export const LIGHT_PRIMARY_CONTRAST = "#fff";
+
+export const DARK_ERROR_MAIN = "#f44336";
+export const LIGHT_ERROR_MAIN = "#d32f2f";
+
+export const DARK_WARNING_MAIN = "#ffa726";
+export const DARK_WARNING_LIGHT = "#ffb74d";
+export const LIGHT_WARNING_MAIN = "#ed6c02";
+export const LIGHT_WARNING_LIGHT = "#ff9800";
+
+export const DARK_SUCCESS_MAIN = "#66bb6a";
+export const LIGHT_SUCCESS_MAIN = "#2e7d32";
+
+export const DARK_GREY_100 = "#f5f5f5";
+export const DARK_GREY_300 = "#e0e0e0";
+export const DARK_GREY_900 = "#212121";
+export const LIGHT_GREY_100 = "#f5f5f5";
+export const LIGHT_GREY_300 = "#e0e0e0";
+export const LIGHT_GREY_900 = "#212121";
+
+export const COMMON_WHITE = "#fff";
+
+/** ダーク/ライトモードに応じた UI アクセント色を返すヘルパー */
+export function getPrimaryMain(isDark: boolean): string {
+  return isDark ? DARK_PRIMARY_MAIN : LIGHT_PRIMARY_MAIN;
+}
+export function getPrimaryDark(isDark: boolean): string {
+  return isDark ? DARK_PRIMARY_DARK : LIGHT_PRIMARY_DARK;
+}
+export function getPrimaryLight(isDark: boolean): string {
+  return isDark ? DARK_PRIMARY_LIGHT : LIGHT_PRIMARY_LIGHT;
+}
+export function getPrimaryContrast(isDark: boolean): string {
+  return isDark ? DARK_PRIMARY_CONTRAST : LIGHT_PRIMARY_CONTRAST;
+}
+export function getErrorMain(isDark: boolean): string {
+  return isDark ? DARK_ERROR_MAIN : LIGHT_ERROR_MAIN;
+}
+export function getWarningMain(isDark: boolean): string {
+  return isDark ? DARK_WARNING_MAIN : LIGHT_WARNING_MAIN;
+}
+export function getWarningLight(isDark: boolean): string {
+  return isDark ? DARK_WARNING_LIGHT : LIGHT_WARNING_LIGHT;
+}
+export function getSuccessMain(isDark: boolean): string {
+  return isDark ? DARK_SUCCESS_MAIN : LIGHT_SUCCESS_MAIN;
+}
+export function getGrey(isDark: boolean, shade: 100 | 300 | 900): string {
+  const greys = { 100: "#f5f5f5", 300: "#e0e0e0", 900: "#212121" };
+  return greys[shade];
 }

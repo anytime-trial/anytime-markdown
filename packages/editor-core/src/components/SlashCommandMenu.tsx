@@ -7,10 +7,12 @@ import {
   Popper,
   Typography,
 } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 import type { VirtualElement } from "@popperjs/core";
 import type { Editor } from "@tiptap/react";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { getTextSecondary } from "../constants/colors";
 import { Z_FULLSCREEN } from "../constants/zIndex";
 import type { SlashCommandState } from "../extensions/slashCommandExtension";
 import {
@@ -30,6 +32,7 @@ export const SlashCommandMenu = React.memo(function SlashCommandMenu({
   t,
   slashCommandCallbackRef,
 }: SlashCommandMenuProps) {
+  const isDark = useTheme().palette.mode === "dark";
   const [active, setActive] = useState(false);
   const [query, setQuery] = useState("");
   const [from, setFrom] = useState(0);
@@ -182,7 +185,7 @@ export const SlashCommandMenu = React.memo(function SlashCommandMenu({
           variant="body2"
           sx={filteredItems.length > 0
             ? { position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0,0,0,0)" }
-            : { px: 2, py: 1.5, color: "text.secondary", fontSize: "0.85rem", textAlign: "center" }
+            : { px: 2, py: 1.5, color: getTextSecondary(isDark), fontSize: "0.85rem", textAlign: "center" }
           }
         >
           {filteredItems.length > 0

@@ -4,6 +4,8 @@ import { Box, Button, Typography } from "@mui/material";
 import type { ErrorInfo, ReactNode } from "react";
 import { Component } from "react";
 
+import { getTextSecondary } from "../constants/colors";
+
 interface Props {
   children: ReactNode;
   onError?: (error: Error, errorInfo: ErrorInfo) => void;
@@ -50,7 +52,7 @@ export class EditorErrorBoundary extends Component<Props, State> {
           <Typography variant="h6" component="h2" sx={{ fontWeight: 700 }}>
             エディタでエラーが発生しました
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 480, textAlign: "center" }}>
+          <Typography variant="body2" sx={{ maxWidth: 480, textAlign: "center", color: (theme) => getTextSecondary(theme.palette.mode === "dark") }}>
             {this.state.error?.message}
           </Typography>
           <Button

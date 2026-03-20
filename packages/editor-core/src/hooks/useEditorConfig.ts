@@ -20,7 +20,7 @@ import {
   getMarkdownFromEditor,
   type HeadingItem,
 } from "../types";
-import { handleBlockClipboardEvent } from "../utils/blockClipboard";
+import { handleBlockClipboardEvent, performBlockCopy, setHandledByKeydown } from "../utils/blockClipboard";
 import { setTrailingNewline } from "../utils/editorContentLoader";
 import { toGitHubSlug } from "../utils/tocHelpers";
 
@@ -324,6 +324,18 @@ export function useEditorConfig({
         keydown: (_view: EditorView, event: KeyboardEvent) => {
           if (event.key === "Control" || event.key === "Meta") {
             _view.dom.classList.add("ctrl-held");
+          }
+          // VS Code WebView: copy イベントが到達しないため keydown で処理
+          if (window.__vscode && (event.ctrlKey || event.metaKey) && (event.key === "c" || event.key === "x")) {
+            const isCut = event.key === "x";
+            const handled = performBlockCopy(_view, isCut, (text) => {
+              window.__vscode!.postMessage({ type: "writeClipboard", text });
+            });
+            if (handled) {
+              setHandledByKeydown(true);
+              event.preventDefault();
+              return true;
+            }
           }
           return false;
         },

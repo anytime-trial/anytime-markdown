@@ -18,15 +18,42 @@ export interface SearchReplaceStorage {
 
 const searchReplacePluginKey = new PluginKey("searchReplace");
 
-/** Detect ReDoS-prone patterns:
+/** Detect ReDoS-prone patterns using linear-time string scan:
  * - nested quantifiers: (a+)+, (a*)+, (a+)*, (a{2,})+
  * - quantified groups with alternation: (a|b)+ where branches may overlap
  * - star/plus after optional groups: (a?)+ , (a?b*)+ */
-const REDOS_RE =
-  /(\([^()]*[+*}][^()]*\))[+*{]|(\([^()]*\|[^()]*\))[+*{]|(\([^()]*\?\)?)[+*{]/;
+export function isRedosRisk(pattern: string): boolean {
+  const QUANTIFIERS = new Set(["+", "*", "{"]);
+  let depth = 0;
+  let groupHasQuantifier = false;
+  let groupHasAlternation = false;
+  let groupHasOptional = false;
+  for (let i = 0; i < pattern.length; i++) {
+    const c = pattern[i];
+    if (c === "\\" ) { i++; continue; } // skip escaped char
+    if (c === "(") {
+      depth++;
+      groupHasQuantifier = false;
+      groupHasAlternation = false;
+      groupHasOptional = false;
+    } else if (c === ")") {
+      depth--;
+      const next = pattern[i + 1];
+      if (next && QUANTIFIERS.has(next)) {
+        if (groupHasQuantifier || groupHasAlternation || groupHasOptional) return true;
+      }
+    } else if (depth > 0) {
+      if (c === "+" || c === "*") groupHasQuantifier = true;
+      else if (c === "}") groupHasQuantifier = true;
+      else if (c === "|") groupHasAlternation = true;
+      else if (c === "?") groupHasOptional = true;
+    }
+  }
+  return false;
+}
 
 /** Escape all regex special characters so the string matches literally. */
-function escapeRegExp(s: string): string {
+export function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
@@ -41,7 +68,7 @@ function getRegex(storage: SearchReplaceStorage): RegExp | null {
     const flags = caseSensitive ? "g" : "gi";
     let pattern: string;
     if (useRegex) {
-      if (REDOS_RE.test(searchTerm)) return null;
+      if (isRedosRisk(searchTerm)) return null;
       pattern = searchTerm;
     } else {
       // All special regex characters are escaped; the resulting pattern is

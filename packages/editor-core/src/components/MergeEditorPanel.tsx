@@ -8,6 +8,7 @@ import { EditorContent } from "@tiptap/react";
 import { useTranslations } from "next-intl";
 import React, { useEffect, useRef } from "react";
 
+import { getActionHover, getErrorMain, getSuccessMain, getTextPrimary, getTextSecondary } from "../constants/colors";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import type { DiffLine } from "../utils/diffEngine";
 import { getMergeTiptapStyles } from "./mergeTiptapStyles";
@@ -15,15 +16,16 @@ import { getMergeTiptapStyles } from "./mergeTiptapStyles";
 export { getMergeTiptapStyles } from "./mergeTiptapStyles";
 
 function _getLineBgColor(type: DiffLine["type"], theme: Theme) {
+  const isDark = theme.palette.mode === "dark";
   switch (type) {
     case "added":
     case "modified-new":
-      return alpha(theme.palette.success.main, 0.15);
+      return alpha(getSuccessMain(isDark), 0.15);
     case "removed":
     case "modified-old":
-      return alpha(theme.palette.error.main, 0.15);
+      return alpha(getErrorMain(isDark), 0.15);
     case "padding":
-      return alpha(theme.palette.action.hover, 0.05);
+      return alpha(getActionHover(isDark), 0.05);
     default:
       return "transparent";
   }
@@ -75,6 +77,7 @@ export function MergeEditorPanel({
   onHoverLine,
 }: MergeEditorPanelProps) {
   const theme = useTheme();
+  const isDark = theme.palette.mode === "dark";
   const t = useTranslations("MarkdownEditor");
   const editorSettings = useEditorSettingsContext();
   const fallbackTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -296,7 +299,7 @@ export function MergeEditorPanel({
               fontFamily: "monospace",
               fontSize: `${editorSettings.fontSize}px`,
               lineHeight: editorSettings.lineHeight,
-              color: alpha(theme.palette.text.secondary, 0.6),
+              color: alpha(getTextSecondary(isDark), 0.6),
               userSelect: "none",
               overflow: "hidden",
               boxSizing: "border-box",
@@ -382,7 +385,7 @@ export function MergeEditorPanel({
                 fontFamily: "monospace",
                 fontSize: `${editorSettings.fontSize}px`,
                 lineHeight: editorSettings.lineHeight,
-                color: theme.palette.text.primary,
+                color: getTextPrimary(isDark),
                 bgcolor: "transparent",
                 boxSizing: "border-box",
                 "&:focus": {

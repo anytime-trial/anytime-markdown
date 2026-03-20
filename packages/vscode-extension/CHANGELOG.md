@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.5] - 2026-03-20
+
+### Added
+- Changes パネルに「すべてステージ」「すべて解除」「すべて破棄」コマンドを追加
+- Markdown All テンプレートにアニメーション GIF セクションを追加
+
+### Changed
+- Admonition スタイルを GitHub 準拠に変更
+- サイドバーのツリー表示を常にリポジトリノードから開始するよう統一
+- サイドバー「マークダウン管理」を「リポジトリ」に名称変更
+- MUI テーマ色参照を定数ヘルパーに置換（テキスト・背景・アクセント色、253箇所）
+
+### Fixed
+- テーブル内テキスト選択時に Ctrl+C/X で表全体がコピー/カットされる問題を修正
+- VS Code WebView でのテーブル内コピー/カットが動作しない問題を修正
+- Admonition の連続表示・テンプレート挿入時の不具合を修正
+
+### Security
+- ReDoS 脆弱性のある正規表現を線形時間パーサーに置換
+- 全 execSync を execFileSync に置換（コマンドインジェクション防止）
+- git コマンドのファイルパス引数に `--` セパレーターを追加
+
 ## [0.6.4] - 2026-03-20
 
 ### Added

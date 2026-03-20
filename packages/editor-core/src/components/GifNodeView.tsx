@@ -10,6 +10,7 @@ import { NodeViewWrapper } from "@tiptap/react";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { getDivider, getErrorMain, getTextDisabled } from "../constants/colors";
 import { saveBlob,useBlockCapture } from "../hooks/useBlockCapture";
 import { useBlockNodeState } from "../hooks/useBlockNodeState";
 import type { GifSettings } from "../utils/gifEncoder";
@@ -122,12 +123,12 @@ function GifPlaceholder({ isEditable, isDark, onClick }: { isEditable: boolean; 
         display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
         py: 4, cursor: isEditable ? "pointer" : "default",
         bgcolor: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)",
-        borderTop: 1, borderColor: "divider",
+        borderTop: 1, borderColor: getDivider(isDark),
         "&:hover": isEditable ? { bgcolor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)" } : {},
       }}
     >
-      <GifIcon sx={{ fontSize: 36, color: "text.disabled", mb: 0.5 }} />
-      <Typography variant="caption" sx={{ color: "text.disabled" }}>
+      <GifIcon sx={{ fontSize: 36, color: getTextDisabled(isDark), mb: 0.5 }} />
+      <Typography variant="caption" sx={{ color: getTextDisabled(isDark) }}>
         Click to record GIF
       </Typography>
     </Box>
@@ -230,7 +231,7 @@ export function GifNodeView({ editor, node, updateAttributes, getPos }: NodeView
       <Box
         sx={{
           border: 1, borderRadius: 1, overflow: "hidden", my: 1,
-          borderColor: (showToolbar || (isCompareLeftEditable && isSelected)) ? "divider" : "transparent",
+          borderColor: (showToolbar || (isCompareLeftEditable && isSelected)) ? getDivider(isDark) : "transparent",
           ...(!(showToolbar || (isCompareLeftEditable && isSelected)) && {
             "& > [data-block-toolbar]": {
               maxHeight: 0, opacity: 0, py: 0, overflow: "hidden",
@@ -253,7 +254,7 @@ export function GifNodeView({ editor, node, updateAttributes, getPos }: NodeView
                     <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
                     <Tooltip title="Record GIF" placement="top">
                       <IconButton size="small" sx={{ p: 0.25 }} onClick={() => setRecorderOpen(true)} aria-label="Record GIF">
-                        <FiberManualRecordIcon sx={{ fontSize: 16, color: "error.main" }} />
+                        <FiberManualRecordIcon sx={{ fontSize: 16, color: getErrorMain(isDark) }} />
                       </IconButton>
                     </Tooltip>
                   </>
@@ -261,7 +262,7 @@ export function GifNodeView({ editor, node, updateAttributes, getPos }: NodeView
                 {src && (
                   <>
                     <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
-                    <Typography variant="caption" sx={{ color: "text.disabled", fontSize: "0.65rem", fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
+                    <Typography variant="caption" sx={{ color: getTextDisabled(isDark), fontSize: "0.65rem", fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
                       {src.startsWith("data:") || src.startsWith("blob:") ? "(embedded)" : `(${src})`}
                     </Typography>
                   </>

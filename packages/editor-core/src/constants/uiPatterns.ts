@@ -2,20 +2,26 @@
  * 繰り返し使用される UI スタイルパターンの定数定義
  */
 
+import { getDivider, getPrimaryMain } from "./colors";
+
 // ── フォーカスアウトライン ──
 
 /** focus-visible 時のアウトラインスタイル（ブロック要素のドラッグハンドル等） */
-export const FOCUS_OUTLINE = {
-  outline: "2px solid",
-  outlineColor: "primary.main",
-  borderRadius: 0.5,
-} as const;
+export function getFocusOutlineSx(isDark: boolean) {
+  return {
+    outline: "2px solid",
+    outlineColor: getPrimaryMain(isDark),
+    borderRadius: 0.5,
+  } as const;
+}
 
 /** focus-visible 時のアウトラインスタイル（スプリッター等、borderRadius なし） */
-export const FOCUS_OUTLINE_BARE = {
-  outline: "2px solid",
-  outlineColor: "primary.main",
-} as const;
+export function getFocusOutlineBare(isDark: boolean) {
+  return {
+    outline: "2px solid",
+    outlineColor: getPrimaryMain(isDark),
+  } as const;
+}
 
 // ── トランジション ──
 
@@ -33,25 +39,29 @@ export const REDUCED_MOTION_SX = {
 // ── ドラッグハンドル共通スタイル ──
 
 /** ブロック要素のドラッグハンドル sx */
-export const DRAG_HANDLE_SX = {
-  cursor: "grab",
-  display: "flex",
-  alignItems: "center",
-  opacity: 0.7,
-  "&:hover, &:focus-visible": { opacity: 1 },
-  "&:focus-visible": FOCUS_OUTLINE,
-} as const;
+export function getDragHandleSx(isDark: boolean) {
+  return {
+    cursor: "grab",
+    display: "flex",
+    alignItems: "center",
+    opacity: 0.7,
+    "&:hover, &:focus-visible": { opacity: 1 },
+    "&:focus-visible": getFocusOutlineSx(isDark),
+  } as const;
+}
 
 // ── スプリッター共通スタイル ──
 
 /** 全画面ダイアログのドラッグスプリッター sx */
-export const SPLITTER_SX = {
-  width: 4,
-  cursor: "col-resize",
-  bgcolor: "divider",
-  flexShrink: 0,
-  "&:hover": { bgcolor: "primary.main" },
-  "&:focus-visible": { ...FOCUS_OUTLINE_BARE, bgcolor: "primary.main" },
-  transition: `background-color ${TRANSITION_FAST}`,
-  ...REDUCED_MOTION_SX,
-} as const;
+export function getSplitterSx(isDark: boolean) {
+  return {
+    width: 4,
+    cursor: "col-resize",
+    bgcolor: getDivider(isDark),
+    flexShrink: 0,
+    "&:hover": { bgcolor: getPrimaryMain(isDark) },
+    "&:focus-visible": { ...getFocusOutlineBare(isDark), bgcolor: getPrimaryMain(isDark) },
+    transition: `background-color ${TRANSITION_FAST}`,
+    ...REDUCED_MOTION_SX,
+  } as const;
+}

@@ -2,7 +2,7 @@
   "name": "anytime-markdown",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.6.4",
+  "version": "0.6.5",
   "license": "MIT",
   "publisher": "kiytaka-ueda",
   "repository": {
@@ -167,6 +167,21 @@
         "command": "anytime-markdown.unstageFile",
         "title": "%command.unstageFile%",
         "icon": "$(remove)"
+      },
+      {
+        "command": "anytime-markdown.stageAll",
+        "title": "%command.stageAll%",
+        "icon": "$(add)"
+      },
+      {
+        "command": "anytime-markdown.unstageAll",
+        "title": "%command.unstageAll%",
+        "icon": "$(close-all)"
+      },
+      {
+        "command": "anytime-markdown.discardAll",
+        "title": "%command.discardAll%",
+        "icon": "$(discard)"
       },
       {
         "command": "anytime-markdown.discardChanges",
@@ -354,6 +369,21 @@
           "command": "anytime-markdown.specDocsRemoveRoot",
           "when": "view == anytimeMarkdown.specDocs && viewItem == specDocsRoot",
           "group": "3_root@2"
+        },
+        {
+          "command": "anytime-markdown.discardAll",
+          "when": "view == anytimeMarkdown.changes && viewItem == changesGroupChanges",
+          "group": "inline@1"
+        },
+        {
+          "command": "anytime-markdown.stageAll",
+          "when": "view == anytimeMarkdown.changes && viewItem == changesGroupChanges",
+          "group": "inline@2"
+        },
+        {
+          "command": "anytime-markdown.unstageAll",
+          "when": "view == anytimeMarkdown.changes && viewItem == changesGroupStaged",
+          "group": "inline@1"
         },
         {
           "command": "anytime-markdown.stageFile",

@@ -1,7 +1,7 @@
 import { Box } from "@mui/material";
 import React, { useCallback, useRef } from "react";
 
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "../constants/colors";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getDivider, getTextDisabled, getTextPrimary } from "../constants/colors";
 
 interface LineNumberTextareaProps {
   value: string;
@@ -67,7 +67,7 @@ export function LineNumberTextarea({
           fontFamily: "monospace",
           fontSize: `${fontSize}px`,
           lineHeight,
-          color: "text.disabled",
+          color: getTextDisabled(isDark),
           bgcolor: bg,
           pt: 2,
           pr: 0.5,
@@ -76,7 +76,7 @@ export function LineNumberTextarea({
           minWidth: `${gutterWidth}ch`,
           boxSizing: "border-box",
           borderRight: 1,
-          borderColor: "divider",
+          borderColor: getDivider(isDark),
           flexShrink: 0,
         }}
       >
@@ -110,7 +110,7 @@ export function LineNumberTextarea({
           py: 2,
           pl: 1,
           pr: 2,
-          color: "text.primary",
+          color: getTextPrimary(isDark),
           bgcolor: bg,
           boxSizing: "border-box",
           overflow: "auto",

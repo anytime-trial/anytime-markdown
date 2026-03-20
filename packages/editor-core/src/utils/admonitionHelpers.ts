@@ -37,9 +37,12 @@ function processAdmonitions(text: string): string {
 
     const type = match[1].toLowerCase();
     // [!TYPE] 行の次から、blockquote の内容行（> で始まる行）を収集
+    // 次の Admonition 行（> [!TYPE]）に遭遇したら停止する
     i++;
     const contentLines: string[] = [];
     while (i < lines.length && /^>\s?/.test(lines[i])) {
+      // 次の Admonition 開始行なら収集を終了
+      if (ADMONITION_LINE_RE.test(lines[i])) break;
       // > プレフィックスを除去
       contentLines.push(lines[i].replace(/^>\s?/, ""));
       i++;

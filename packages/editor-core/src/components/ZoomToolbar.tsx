@@ -3,8 +3,10 @@ import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import ZoomInIcon from "@mui/icons-material/ZoomIn";
 import ZoomOutIcon from "@mui/icons-material/ZoomOut";
 import { Box, IconButton, Tooltip, Typography } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 import React from "react";
 
+import { getDivider, getTextSecondary } from "../constants/colors";
 import { FS_TOOLBAR_HEIGHT, FS_ZOOM_LABEL_WIDTH } from "../constants/dimensions";
 import type { UseZoomPanReturn } from "../hooks/useZoomPan";
 
@@ -15,12 +17,12 @@ interface ZoomToolbarProps {
   t: (key: string) => string;
 }
 
-const iconSx = { fontSize: 16, color: "text.secondary" };
-
 /** プレビュー側のズーム・パン操作ツールバー */
 export function ZoomToolbar({ fsZP, onCapture, t }: ZoomToolbarProps) {
+  const isDark = useTheme().palette.mode === "dark";
+  const iconSx = { fontSize: 16, color: getTextSecondary(isDark) };
   return (
-    <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: "divider", px: 1, py: 0.25, minHeight: FS_TOOLBAR_HEIGHT }}>
+    <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: getDivider(isDark), px: 1, py: 0.25, minHeight: FS_TOOLBAR_HEIGHT }}>
       {onCapture && (
         <Tooltip title={t("capture")} placement="bottom">
           <IconButton size="small" sx={{ p: 0.25, mr: 0.5 }} onClick={onCapture} aria-label={t("capture")}>

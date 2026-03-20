@@ -20,7 +20,7 @@ import { BlockInlineToolbar } from "./components/codeblock/BlockInlineToolbar";
 import { DeleteBlockDialog } from "./components/codeblock/DeleteBlockDialog";
 import { EditDialogHeader } from "./components/EditDialogHeader";
 import { SearchReplaceBar } from "./components/SearchReplaceBar";
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "./constants/colors";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getActionHover, getActionSelected, getBgPaper, getDivider, getErrorMain, getTextSecondary } from "./constants/colors";
 import { Z_FULLSCREEN } from "./constants/zIndex";
 import { findCounterpartTableHtml, getMergeEditors } from "./contexts/MergeEditorsContext";
 import { useBlockNodeState } from "./hooks/useBlockNodeState";
@@ -63,9 +63,9 @@ function buildHighlightedCompareHtml(
 }
 
 // --- Extracted sub-component: Table operations toolbar ---
-function TableOperationsToolbar({ editor, t }: { editor: Editor; t: (key: string) => string }) {
+function TableOperationsToolbar({ editor, isDark, t }: { editor: Editor; isDark: boolean; t: (key: string) => string }) {
   return (
-    <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: "divider", px: 1, py: 0.25, gap: 0.5, flexWrap: "wrap" }}>
+    <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: getDivider(isDark), px: 1, py: 0.25, gap: 0.5, flexWrap: "wrap" }}>
       {/* Column add/remove */}
       <ToggleButtonGroup size="small" sx={{ height: 24 }}>
         <ToggleButton value="addCol" aria-label={t("addColumn")} sx={{ px: 0.5, py: 0.125 }} onClick={() => editor.chain().focus().addColumnAfter().run()}>
@@ -80,7 +80,7 @@ function TableOperationsToolbar({ editor, t }: { editor: Editor; t: (key: string
           <Tooltip title={t("removeColumn")} placement="top">
             <Box sx={{ position: "relative", display: "inline-flex" }}>
               <ViewColumnIcon sx={iconSx} />
-              <Box component="span" sx={{ position: "absolute", right: -4, top: -4, fontSize: 10, fontWeight: "bold", lineHeight: 1, color: "error.main" }}>x</Box>
+              <Box component="span" sx={{ position: "absolute", right: -4, top: -4, fontSize: 10, fontWeight: "bold", lineHeight: 1, color: getErrorMain(isDark) }}>x</Box>
             </Box>
           </Tooltip>
         </ToggleButton>
@@ -100,7 +100,7 @@ function TableOperationsToolbar({ editor, t }: { editor: Editor; t: (key: string
           <Tooltip title={t("removeRow")} placement="top">
             <Box sx={{ position: "relative", display: "inline-flex" }}>
               <TableRowsIcon sx={iconSx} />
-              <Box component="span" sx={{ position: "absolute", right: -4, top: -4, fontSize: 10, fontWeight: "bold", lineHeight: 1, color: "error.main" }}>x</Box>
+              <Box component="span" sx={{ position: "absolute", right: -4, top: -4, fontSize: 10, fontWeight: "bold", lineHeight: 1, color: getErrorMain(isDark) }}>x</Box>
             </Box>
           </Tooltip>
         </ToggleButton>
@@ -176,15 +176,15 @@ function TableCompareView({
 }) {
   return (
     <Box sx={{ flex: 1, display: "flex", overflow: "hidden" }}>
-      <Box sx={{ flex: 1, overflow: "auto", bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG, p: 2, borderRight: 1, borderColor: "divider" }}>
-        <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "0.7rem", mb: 1, display: "block" }}>{t("compare")}</Typography>
+      <Box sx={{ flex: 1, overflow: "auto", bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG, p: 2, borderRight: 1, borderColor: getDivider(isDark) }}>
+        <Typography variant="caption" sx={{ color: getTextSecondary(isDark), fontSize: "0.7rem", mb: 1, display: "block" }}>{t("compare")}</Typography>
         <Box
           dangerouslySetInnerHTML={{ __html: highlightedCompareHtml }}
           sx={{ "& table": tableSx }}
         />
       </Box>
       <Box sx={{ flex: 1, overflow: "auto", bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG, p: 2, "& table": tableSx }}>
-        <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "0.7rem", mb: 1, display: "block" }}>{t("compare")} - {t("edit")}</Typography>
+        <Typography variant="caption" sx={{ color: getTextSecondary(isDark), fontSize: "0.7rem", mb: 1, display: "block" }}>{t("compare")} - {t("edit")}</Typography>
         <NodeViewContent<"table"> as="table" />
       </Box>
     </Box>
@@ -220,9 +220,9 @@ export function TableNodeView({ editor, node, getPos }: NodeViewProps) {
   const tableSx = {
     borderCollapse: "collapse",
     width: settings.tableWidth,
-    "& th, & td": { border: 1, borderColor: "divider", px: 1, py: 0.5, textAlign: "left", minWidth: 80, bgcolor: "background.paper" },
-    "& th": { bgcolor: "action.hover", fontWeight: 600 },
-    "& .selectedCell": { bgcolor: "action.selected" },
+    "& th, & td": { border: 1, borderColor: getDivider(isDark), px: 1, py: 0.5, textAlign: "left", minWidth: 80, bgcolor: getBgPaper(isDark) },
+    "& th": { bgcolor: getActionHover(isDark), fontWeight: 600 },
+    "& .selectedCell": { bgcolor: getActionSelected(isDark) },
   };
 
   return (
@@ -239,7 +239,7 @@ export function TableNodeView({ editor, node, getPos }: NodeViewProps) {
         tabIndex={editOpen ? -1 : undefined}
         sx={{
           border: editOpen ? 0 : 1,
-          borderColor: isEditable ? "divider" : "transparent",
+          borderColor: isEditable ? getDivider(isDark) : "transparent",
           borderRadius: editOpen ? 0 : 1,
           overflow: "hidden",
           my: editOpen ? 0 : 1,
@@ -269,7 +269,7 @@ export function TableNodeView({ editor, node, getPos }: NodeViewProps) {
               icon={<TableChartIcon sx={{ fontSize: 18 }} />}
               t={t}
             />
-            {isEditable && <TableOperationsToolbar editor={editor} t={t} />}
+            {isEditable && <TableOperationsToolbar editor={editor} isDark={isDark} t={t} />}
           </Box>
         )}
 

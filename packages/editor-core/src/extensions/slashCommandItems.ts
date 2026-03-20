@@ -39,7 +39,29 @@ import welcomeEn from "../constants/templates/welcome-en.md";
 import type { TranslationFn } from "../types";
 import { extractHeadings, getEditorStorage } from "../types";
 import { preprocessMarkdown } from "../utils/frontmatterHelpers";
+import { preserveBlankLines, sanitizeMarkdown } from "../utils/sanitizeMarkdown";
 import { generateTocMarkdown } from "../utils/tocHelpers";
+
+/** テンプレート Markdown をエディタのカーソル位置に挿入する。
+ *  sanitizeMarkdown + preserveBlankLines を通した上で、
+ *  一度 setContent でパースし ProseMirror Fragment として直接挿入する。 */
+function insertTemplate(editor: Editor, md: string): void {
+  const processed = preserveBlankLines(sanitizeMarkdown(md));
+  // 現在のドキュメントとカーソル位置を退避
+  const savedDoc = editor.state.doc.toJSON();
+  const savedFrom = editor.state.selection.from;
+  // 一時的に setContent でパース（Markdown 拡張 + Admonition が正しく動作する）
+  editor.commands.setContent(processed);
+  const parsedFragment = editor.state.doc.content;
+  // 退避したドキュメントを復元
+  editor.commands.setContent(savedDoc);
+  // ProseMirror トランザクションでフラグメントを直接挿入（ノード構造を保持）
+  const insertPos = Math.min(savedFrom, editor.state.doc.content.size);
+  const { tr } = editor.state;
+  tr.insert(insertPos, parsedFragment);
+  editor.view.dispatch(tr);
+  editor.commands.focus();
+}
 
 export interface SlashCommandItem {
   id: string;
@@ -379,7 +401,7 @@ export const slashCommandItems: SlashCommandItem[] = [
       const locale = document.cookie.match(/NEXT_LOCALE=(\w+)/)?.[1] ?? "ja";
       const content = locale === "ja" ? welcomeJa : welcomeEn;
       const { body } = preprocessMarkdown(content);
-      editor.chain().focus().insertContent(body).run();
+      insertTemplate(editor, body);
     },
   },
   {
@@ -391,7 +413,7 @@ export const slashCommandItems: SlashCommandItem[] = [
       const locale = document.cookie.match(/NEXT_LOCALE=(\w+)/)?.[1] ?? "ja";
       const content = locale === "ja" ? markdownAllJa : markdownAllEn;
       const { body } = preprocessMarkdown(content);
-      editor.chain().focus().insertContent(body).run();
+      insertTemplate(editor, body);
     },
   },
   {
@@ -401,7 +423,7 @@ export const slashCommandItems: SlashCommandItem[] = [
     keywords: ["template", "design", "テンプレート", "設計", "設計書"],
     action: (editor) => {
       const { body } = preprocessMarkdown(basicDesign);
-      editor.chain().focus().insertContent(body).run();
+      insertTemplate(editor, body);
     },
   },
   {
@@ -411,7 +433,7 @@ export const slashCommandItems: SlashCommandItem[] = [
     keywords: ["template", "api", "spec", "テンプレート", "API", "仕様", "仕様書"],
     action: (editor) => {
       const { body } = preprocessMarkdown(apiSpec);
-      editor.chain().focus().insertContent(body).run();
+      insertTemplate(editor, body);
     },
   },
 ];

@@ -12,8 +12,10 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 import React from "react";
 
+import { getActionHover, getActionSelected, getDivider, getTextSecondary } from "../constants/colors";
 import { KEYBOARD_SHORTCUTS } from "../constants/shortcuts";
 import type { TranslationFn } from "../types";
 import { APP_VERSION } from "../version";
@@ -71,6 +73,7 @@ export const EditorDialogs = React.memo(function EditorDialogs({
   locale: _locale,
   t,
 }: EditorDialogsProps) {
+  const isDark = useTheme().palette.mode === "dark";
   const [touched, setTouched] = React.useState<Set<string>>(new Set());
   const markTouched = React.useCallback((field: string) => setTouched((prev) => new Set(prev).add(field)), []);
 
@@ -208,19 +211,19 @@ export const EditorDialogs = React.memo(function EditorDialogs({
         fullWidth
       >
         <DialogTitle id="shortcuts-dialog-title" sx={{ display: "flex", alignItems: "center", gap: 1, pb: 1 }}>
-          <HelpCenterIcon aria-hidden="true" sx={{ color: "text.secondary" }} />
+          <HelpCenterIcon aria-hidden="true" sx={{ color: getTextSecondary(isDark) }} />
           {t("shortcuts")}
         </DialogTitle>
         <DialogContent dividers>
           {KEYBOARD_SHORTCUTS.map((group) => (
             <Box key={group.categoryKey} sx={{ mb: 2, "&:last-child": { mb: 0 } }}>
-              <Typography variant="subtitle2" sx={{ color: "text.secondary", mb: 0.5 }}>
+              <Typography variant="subtitle2" sx={{ color: getTextSecondary(isDark), mb: 0.5 }}>
                 {t(group.categoryKey)}
               </Typography>
               {group.items.map((item) => (
                 <Box
                   key={item.keys}
-                  sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", py: 0.5, px: 1, borderRadius: 0.5, "&:hover": { bgcolor: "action.hover" } }}
+                  sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", py: 0.5, px: 1, borderRadius: 0.5, "&:hover": { bgcolor: getActionHover(isDark) } }}
                 >
                   <Typography variant="body2">{t(item.descKey)}</Typography>
                   <Box sx={{ display: "flex", gap: 0.5 }}>
@@ -233,13 +236,13 @@ export const EditorDialogs = React.memo(function EditorDialogs({
                           py: 0.25,
                           minWidth: 28,
                           textAlign: "center",
-                          bgcolor: "action.selected",
+                          bgcolor: getActionSelected(isDark),
                           borderRadius: 0.5,
                           fontFamily: "monospace",
                           fontSize: "0.75rem",
                           fontWeight: 600,
                           border: 1,
-                          borderColor: "divider",
+                          borderColor: getDivider(isDark),
                           lineHeight: 1.4,
                         }}
                       >
@@ -257,7 +260,7 @@ export const EditorDialogs = React.memo(function EditorDialogs({
       {/* Version info dialog */}
       <Dialog open={versionDialogOpen} onClose={() => setVersionDialogOpen(false)} aria-labelledby="version-dialog-title" maxWidth="xs" fullWidth>
         <DialogTitle id="version-dialog-title" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          <InfoOutlinedIcon sx={{ color: "text.secondary" }} />
+          <InfoOutlinedIcon sx={{ color: getTextSecondary(isDark) }} />
           {t("versionInfo")}
         </DialogTitle>
         <DialogContent dividers>
@@ -265,11 +268,11 @@ export const EditorDialogs = React.memo(function EditorDialogs({
             <Box component="img" src={(window as unknown as Record<string, unknown>).__LOGO_URI__ as string || "/help/camel_markdown.png"} alt="Anytime Markdown" sx={{ width: 40, height: 40 }} />
             <Typography variant="h6" sx={{ fontWeight: 700 }}>{t("versionName")}</Typography>
           </Box>
-          <Typography variant="caption" sx={{ color: "text.secondary" }}>v{APP_VERSION}</Typography>
+          <Typography variant="caption" sx={{ color: getTextSecondary(isDark) }}>v{APP_VERSION}</Typography>
           <Typography variant="body2" sx={{ mt: 2 }}>{t("versionDescription")}</Typography>
-          <Typography variant="caption" sx={{ display: "block", mt: 2, color: "text.secondary" }}>{t("versionTech")}</Typography>
-          <Typography variant="caption" sx={{ display: "block", mt: 1, color: "text.secondary" }}>{t("versionCopyright")}</Typography>
-          <Typography variant="caption" sx={{ display: "block", mt: 0.5, color: "text.secondary" }}>{t("versionLicense")}</Typography>
+          <Typography variant="caption" sx={{ display: "block", mt: 2, color: getTextSecondary(isDark) }}>{t("versionTech")}</Typography>
+          <Typography variant="caption" sx={{ display: "block", mt: 1, color: getTextSecondary(isDark) }}>{t("versionCopyright")}</Typography>
+          <Typography variant="caption" sx={{ display: "block", mt: 0.5, color: getTextSecondary(isDark) }}>{t("versionLicense")}</Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setVersionDialogOpen(false)} color="inherit">{t("close")}</Button>

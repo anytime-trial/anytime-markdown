@@ -19,6 +19,7 @@ import {
 import type { Editor } from "@tiptap/react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
+import { getActionHover, getDivider, getErrorMain, getPrimaryContrast, getPrimaryDark, getPrimaryLight, getPrimaryMain, getTextPrimary, getTextSecondary } from "../constants/colors";
 import { Z_TOOLBAR } from "../constants/zIndex";
 import type { TranslationFn } from "../types";
 
@@ -30,6 +31,7 @@ interface SearchReplaceBarProps {
 
 export const SearchReplaceBar = React.memo(function SearchReplaceBar({ editor, t }: SearchReplaceBarProps) {
   const theme = useTheme();
+  const isDark = theme.palette.mode === "dark";
   const storage = editor.storage.searchReplace;
 
   const [isVisible, setIsVisible] = useState(false);
@@ -159,19 +161,19 @@ export const SearchReplaceBar = React.memo(function SearchReplaceBar({ editor, t
     fontWeight: 700,
     fontFamily: "monospace",
     bgcolor: active
-      ? theme.palette.mode === "dark"
-        ? "primary.dark"
-        : "primary.light"
+      ? isDark
+        ? getPrimaryDark(isDark)
+        : getPrimaryLight(isDark)
       : "transparent",
-    color: active ? "primary.contrastText" : "inherit",
+    color: active ? getPrimaryContrast(isDark) : "inherit",
     border: 1,
-    borderColor: active ? "primary.main" : "transparent",
+    borderColor: active ? getPrimaryMain(isDark) : "transparent",
     "&:hover": {
       bgcolor: active
-        ? theme.palette.mode === "dark"
-          ? "primary.dark"
-          : "primary.light"
-        : "action.hover",
+        ? isDark
+          ? getPrimaryDark(isDark)
+          : getPrimaryLight(isDark)
+        : getActionHover(isDark),
     },
   });
 
@@ -179,15 +181,15 @@ export const SearchReplaceBar = React.memo(function SearchReplaceBar({ editor, t
     minHeight: 24,
     px: 0.75,
     border: 1,
-    borderColor: "divider",
+    borderColor: getDivider(isDark),
     borderRadius: 0.5,
     fontSize: "0.78rem",
     outline: "none",
     bgcolor: "transparent",
-    color: "text.primary",
+    color: getTextPrimary(isDark),
     fontFamily: "inherit",
     "&:focus": {
-      borderColor: "primary.main",
+      borderColor: getPrimaryMain(isDark),
     },
   };
 
@@ -269,7 +271,7 @@ export const SearchReplaceBar = React.memo(function SearchReplaceBar({ editor, t
             sx={{
               whiteSpace: "nowrap",
               fontSize: "0.65rem",
-              color: resultCount === 0 ? "error.main" : "text.secondary",
+              color: resultCount === 0 ? getErrorMain(isDark) : getTextSecondary(isDark),
               mx: 0.25,
             }}
           >

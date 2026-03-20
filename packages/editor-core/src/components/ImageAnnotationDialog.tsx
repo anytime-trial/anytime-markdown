@@ -8,7 +8,10 @@ import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import HorizontalRuleIcon from "@mui/icons-material/HorizontalRule";
 import RectangleOutlinedIcon from "@mui/icons-material/RectangleOutlined";
 import { Box, IconButton, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 import React, { useCallback, useRef, useState } from "react";
+
+import { getActionHover, getBgPaper, getDivider, getPrimaryMain, getTextSecondary } from "../constants/colors";
 
 import type { AnnotationTool,ImageAnnotation } from "../types/imageAnnotation";
 import { ANNOTATION_COLORS, generateAnnotationId } from "../types/imageAnnotation";
@@ -85,6 +88,7 @@ function renderAnnotation(
 export function ImageAnnotationDialog({
   open, onClose, src, annotations, onSave, t,
 }: ImageAnnotationDialogProps) {
+  const isDark = useTheme().palette.mode === "dark";
   const [tool, setTool] = useState<AnnotationTool>("rect");
   const [color, setColor] = useState<string>(ANNOTATION_COLORS[0].value);
   const [items, setItems] = useState<ImageAnnotation[]>(annotations);
@@ -169,11 +173,11 @@ export function ImageAnnotationDialog({
         zIndex: 1300,
         display: "flex",
         flexDirection: "column",
-        bgcolor: "background.default",
+        bgcolor: getBgPaper(isDark),
       }}
     >
       {/* Toolbar */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 2, py: 1, borderBottom: 1, borderColor: "divider", flexShrink: 0 }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 2, py: 1, borderBottom: 1, borderColor: getDivider(isDark), flexShrink: 0 }}>
         <ToggleButtonGroup value={tool} exclusive onChange={(_, v) => { if (v) setTool(v); }} size="small">
           <ToggleButton value="rect" aria-label={t("annotationRect")}>
             <Tooltip title={t("annotationRect")}><RectangleOutlinedIcon fontSize="small" /></Tooltip>
@@ -200,8 +204,8 @@ export function ImageAnnotationDialog({
                 width: 24, height: 24, p: 0,
                 bgcolor: c.value,
                 border: 2,
-                borderColor: color === c.value ? "primary.main" : "divider",
-                "&:hover": { borderColor: "primary.main" },
+                borderColor: color === c.value ? getPrimaryMain(isDark) : getDivider(isDark),
+                "&:hover": { borderColor: getPrimaryMain(isDark) },
               }}
             />
           ))}
@@ -263,21 +267,21 @@ export function ImageAnnotationDialog({
           sx={{
             width: 280,
             borderLeft: 1,
-            borderColor: "divider",
+            borderColor: getDivider(isDark),
             display: "flex",
             flexDirection: "column",
             overflow: "hidden",
             flexShrink: 0,
           }}
         >
-          <Box sx={{ px: 1.5, py: 1, borderBottom: 1, borderColor: "divider" }}>
+          <Box sx={{ px: 1.5, py: 1, borderBottom: 1, borderColor: getDivider(isDark) }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
               {t("commentPanel")} ({items.length})
             </Typography>
           </Box>
           <Box sx={{ flex: 1, overflow: "auto", p: 1 }}>
             {items.length === 0 && (
-              <Typography variant="caption" sx={{ color: "text.secondary", display: "block", textAlign: "center", py: 4 }}>
+              <Typography variant="caption" sx={{ color: getTextSecondary(isDark), display: "block", textAlign: "center", py: 4 }}>
                 {t("annotate")}
               </Typography>
             )}
@@ -288,17 +292,17 @@ export function ImageAnnotationDialog({
                 sx={{
                   mb: 1, p: 1,
                   border: 1,
-                  borderColor: a.id === selectedId ? "primary.main" : "divider",
+                  borderColor: a.id === selectedId ? getPrimaryMain(isDark) : getDivider(isDark),
                   borderRadius: 1,
                   cursor: "pointer",
-                  "&:hover": { bgcolor: "action.hover" },
+                  "&:hover": { bgcolor: getActionHover(isDark) },
                 }}
               >
                 <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mb: 0.5 }}>
                   <Box sx={{ width: 18, height: 18, borderRadius: "50%", bgcolor: a.color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                     <Typography variant="caption" sx={{ color: "white", fontSize: "0.6rem", fontWeight: 700 }}>{i + 1}</Typography>
                   </Box>
-                  <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "0.7rem" }}>
+                  <Typography variant="caption" sx={{ color: getTextSecondary(isDark), fontSize: "0.7rem" }}>
                     {a.type === "rect" ? t("annotationRect") : a.type === "circle" ? t("annotationCircle") : t("annotationLine")}
                   </Typography>
                   <Box sx={{ flex: 1 }} />

@@ -78,14 +78,18 @@ Nested quotes can express dialogue or structured discussion.
 > [!NOTE]
 > Supplementary information or helpful hints.
 
+
 > [!TIP]
 > Efficient workflows or useful shortcuts.
+
 
 > [!IMPORTANT]
 > Critical information that shouldn't be overlooked.
 
+
 > [!WARNING]
 > Operations requiring caution or known limitations.
+
 
 > [!CAUTION]
 > Alerts about data loss or irreversible actions.
@@ -213,6 +217,14 @@ They're well suited for technical details and citations[^2].
 A picture is worth a thousand words. Screenshots and diagrams convey far more than text alone.
 
 ![Anytime Markdown](help/camel_markdown.png)
+
+## Animated GIFs — Communicate with Motion
+
+Some things are hard to show in a still image — workflows, interactions, step-by-step processes.\
+With GIF blocks, you can record and play animations directly in the editor.\
+Use the slash command `/gif` to insert a GIF block, then click to start recording.
+
+![Anytime Markdown demo](images/anytime-markdown.gif)
 
 ---
 

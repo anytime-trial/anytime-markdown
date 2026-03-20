@@ -1,6 +1,7 @@
 import { alpha, useTheme } from "@mui/material/styles";
 import { useCallback, useMemo } from "react";
 
+import { getErrorMain, getSuccessMain } from "../constants/colors";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import type { DiffResult } from "../utils/diffEngine";
 
@@ -9,6 +10,7 @@ export function useDiffBackground(
   sourceMode: boolean,
 ): { leftBgGradient: string; rightBgGradient: string } {
   const theme = useTheme();
+  const isDark = theme.palette.mode === "dark";
   const settings = useEditorSettingsContext();
 
   // Build a CSS gradient from diff lines for source-mode textarea coloring
@@ -21,11 +23,11 @@ export function useDiffBackground(
         switch (line.type) {
           case "added":
           case "modified-new":
-            lineColors.push(alpha(theme.palette.success.main, 0.18));
+            lineColors.push(alpha(getSuccessMain(isDark), 0.18));
             break;
           case "removed":
           case "modified-old":
-            lineColors.push(alpha(theme.palette.error.main, 0.18));
+            lineColors.push(alpha(getErrorMain(isDark), 0.18));
             break;
           default:
             lineColors.push(null);
@@ -52,7 +54,7 @@ export function useDiffBackground(
       }
       return `linear-gradient(to bottom, ${stops.join(", ")})`;
     },
-    [sourceMode, theme, settings.fontSize, settings.lineHeight],
+    [sourceMode, isDark, settings.fontSize, settings.lineHeight],
   );
 
   const leftBgGradient = useMemo(

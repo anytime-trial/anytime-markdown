@@ -34,32 +34,67 @@ function unique(arr: string[]): string[] {
   });
 }
 
+/** Check if char is a valid node ID character */
+function isNodeIdChar(c: string): boolean {
+  return /[A-Za-z0-9_]/.test(c);
+}
+
 function extractMermaidFlowchartNames(code: string): string[] {
   const labels: string[] = [];
   const nodeIds: string[] = [];
-  let match: RegExpExecArray | null;
 
-  // Extract nodes with labels: A[Label], B{Label}, C(Label), D>Label]
-  const labeledNodeRegex = /([A-Za-z0-9_]+)\s*(?:\[([^\]]+)\]|\{([^}]+)\}|\(([^)]+)\))/g;
-  while ((match = labeledNodeRegex.exec(code)) !== null) {
-    const label = match[2] || match[3] || match[4];
+  // Linear scan: find ID followed by [, {, or (
+  for (let i = 0; i < code.length; i++) {
+    if (!isNodeIdChar(code[i])) continue;
+    const idStart = i;
+    while (i < code.length && isNodeIdChar(code[i])) i++;
+    const id = code.slice(idStart, i);
+
+    // Skip whitespace
+    while (i < code.length && (code[i] === " " || code[i] === "\t")) i++;
+
+    const bracket = code[i];
+    const closeBracket = bracket === "[" ? "]" : bracket === "{" ? "}" : bracket === "(" ? ")" : null;
+    if (!closeBracket) { i--; continue; }
+
+    const labelStart = i + 1;
+    const closeIdx = code.indexOf(closeBracket, labelStart);
+    if (closeIdx === -1) { i--; continue; }
+
+    const label = code.slice(labelStart, closeIdx).trim();
     if (label && !label.includes("-->") && !label.includes("---")) {
-      labels.push(label.trim());
+      labels.push(label);
     }
-    nodeIds.push(match[1]);
+    nodeIds.push(id);
+    i = closeIdx;
   }
 
   if (labels.length > 0) return unique(labels);
 
   // Fallback: extract bare node IDs from arrow patterns (A --> B)
-  const srcRegex = /([A-Za-z0-9_]+)\s*-->/g;
-  const dstRegex = /-->\s*(?:\|[^|]*\|\s*)?([A-Za-z0-9_]+)/g;
   const bareIds: string[] = [];
-  while ((match = srcRegex.exec(code)) !== null) {
-    bareIds.push(match[1]);
-  }
-  while ((match = dstRegex.exec(code)) !== null) {
-    bareIds.push(match[1]);
+  let arrowIdx = code.indexOf("-->");
+  while (arrowIdx !== -1) {
+    // Source: scan backward from arrow
+    let s = arrowIdx - 1;
+    while (s >= 0 && (code[s] === " " || code[s] === "\t")) s--;
+    const srcEnd = s + 1;
+    while (s >= 0 && isNodeIdChar(code[s])) s--;
+    if (srcEnd > s + 1) bareIds.push(code.slice(s + 1, srcEnd));
+
+    // Destination: scan forward from arrow
+    let d = arrowIdx + 3;
+    while (d < code.length && (code[d] === " " || code[d] === "\t")) d++;
+    // Skip optional |label|
+    if (code[d] === "|") {
+      const pipeEnd = code.indexOf("|", d + 1);
+      if (pipeEnd !== -1) { d = pipeEnd + 1; while (d < code.length && (code[d] === " " || code[d] === "\t")) d++; }
+    }
+    const dstStart = d;
+    while (d < code.length && isNodeIdChar(code[d])) d++;
+    if (d > dstStart) bareIds.push(code.slice(dstStart, d));
+
+    arrowIdx = code.indexOf("-->", arrowIdx + 3);
   }
 
   return unique(bareIds.length > 0 ? bareIds : nodeIds);
@@ -67,25 +102,41 @@ function extractMermaidFlowchartNames(code: string): string[] {
 
 function extractMermaidSequenceNames(code: string): string[] {
   const names: string[] = [];
-  const regex = /(?:participant|actor)\s+(\S+)/gi;
-  let match: RegExpExecArray | null;
-  while ((match = regex.exec(code)) !== null) {
-    names.push(match[1]);
+  const keywords = ["participant", "actor"];
+  for (const line of code.split("\n")) {
+    const trimmed = line.trim().toLowerCase();
+    for (const kw of keywords) {
+      if (trimmed.startsWith(kw) && trimmed.length > kw.length && (trimmed[kw.length] === " " || trimmed[kw.length] === "\t")) {
+        const name = line.trim().slice(kw.length).trim().split(/\s/)[0];
+        if (name) names.push(name);
+      }
+    }
   }
   return unique(names);
 }
 
 function extractPlantUmlNames(code: string): string[] {
   const names: string[] = [];
-  const regex = /(?:actor|participant|entity|database|collections)\s+(?:"([^"]+)"|(\S+))/gi;
-  let match: RegExpExecArray | null;
-  while ((match = regex.exec(code)) !== null) {
-    let name = match[1] || match[2];
-    // Strip "as Alias" suffix if present in unquoted form
-    if (name && !match[1]) {
-      name = name.replace(/\s+as\s+\S+$/i, "");
+  const keywords = ["actor", "participant", "entity", "database", "collections"];
+  for (const line of code.split("\n")) {
+    const trimmed = line.trim();
+    const lower = trimmed.toLowerCase();
+    for (const kw of keywords) {
+      if (lower.startsWith(kw) && trimmed.length > kw.length && (trimmed[kw.length] === " " || trimmed[kw.length] === "\t")) {
+        const rest = trimmed.slice(kw.length).trim();
+        let name: string;
+        if (rest.startsWith('"')) {
+          const closeQuote = rest.indexOf('"', 1);
+          name = closeQuote > 0 ? rest.slice(1, closeQuote) : "";
+        } else {
+          name = rest.split(/\s/)[0];
+          // Strip "as Alias" — find " as " and truncate
+          const asIdx = name.toLowerCase().indexOf(" as ");
+          if (asIdx !== -1) name = name.slice(0, asIdx);
+        }
+        if (name) names.push(name);
+      }
     }
-    if (name) names.push(name);
   }
   return unique(names);
 }

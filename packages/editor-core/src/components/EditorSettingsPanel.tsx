@@ -17,11 +17,13 @@ import {
   ToggleButtonGroup,
   Typography,
 } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 import { useLocale } from "next-intl";
 import React from "react";
 
 import useConfirm from "@/hooks/useConfirm";
 
+import { getTextSecondary } from "../constants/colors";
 import { PAPER_MARGIN_MAX, PAPER_MARGIN_MIN, PAPER_MARGIN_STEP, PAPER_SIZE_OPTIONS } from "../constants/dimensions";
 import type { TranslationFn } from "../types";
 import type { EditorSettings } from "../useEditorSettings";
@@ -49,6 +51,7 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
   onThemeModeChange,
   onLocaleChange,
 }: EditorSettingsPanelProps) {
+  const isDark = useTheme().palette.mode === "dark";
   const confirm = useConfirm();
   const currentLocale = useLocale();
 
@@ -97,7 +100,7 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
       {themeMode !== undefined && onThemeModeChange && (
         <>
           <Box sx={{ mb: 2, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary" }}>
+            <Typography variant="caption" sx={{ fontWeight: 600, color: getTextSecondary(isDark) }}>
               {t("settingDarkMode")}
             </Typography>
             <Switch
@@ -110,7 +113,7 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
 
           {/* Language */}
           <Box sx={{ mb: 3 }}>
-            <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary", mb: 0.5, display: "block" }}>
+            <Typography variant="caption" sx={{ fontWeight: 600, color: getTextSecondary(isDark), mb: 0.5, display: "block" }}>
               {t("settingLanguage")}
             </Typography>
             <ToggleButtonGroup
@@ -132,7 +135,7 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
 
       {/* Font Size */}
       <Box sx={{ mb: 3 }}>
-        <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary" }}>
+        <Typography variant="caption" sx={{ fontWeight: 600, color: getTextSecondary(isDark) }}>
           {t("settingFontSize")}
         </Typography>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 0.5 }}>
@@ -156,7 +159,7 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
 
       {/* Table Width */}
       <Box sx={{ mb: 3 }}>
-        <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary", mb: 0.5, display: "block" }}>
+        <Typography variant="caption" sx={{ fontWeight: 600, color: getTextSecondary(isDark), mb: 0.5, display: "block" }}>
           {t("settingTableWidth")}
         </Typography>
         <ToggleButtonGroup
@@ -174,7 +177,7 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
 
       {/* Paper Size */}
       <Box sx={{ mb: 3 }}>
-        <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary", mb: 0.5, display: "block" }}>
+        <Typography variant="caption" sx={{ fontWeight: 600, color: getTextSecondary(isDark), mb: 0.5, display: "block" }}>
           {t("settingPaperSize")}
         </Typography>
         <FormControl size="small" fullWidth>
@@ -195,7 +198,7 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
       {/* Paper Margin */}
       {settings.paperSize !== "off" && (
         <Box sx={{ mb: 3 }}>
-          <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary" }}>
+          <Typography variant="caption" sx={{ fontWeight: 600, color: getTextSecondary(isDark) }}>
             {t("settingPaperMargin")}
           </Typography>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 0.5 }}>
@@ -220,7 +223,7 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
 
       {/* Spell Check */}
       <Box sx={{ mb: 2, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary" }}>
+        <Typography variant="caption" sx={{ fontWeight: 600, color: getTextSecondary(isDark) }}>
           {t("settingSpellCheck")}
         </Typography>
         <Switch

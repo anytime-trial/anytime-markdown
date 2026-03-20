@@ -3,6 +3,7 @@ import { Box, Tab, Tabs, useTheme } from "@mui/material";
 import DOMPurify from "dompurify";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { getDivider } from "../constants/colors";
 import { FS_TOOLBAR_HEIGHT } from "../constants/dimensions";
 import { MERMAID_SAMPLES } from "../constants/samples";
 import { SVG_SANITIZE_CONFIG } from "../hooks/useMermaidRender";
@@ -139,7 +140,7 @@ export function MermaidEditDialog({
           left={
             <>
               {/* Tabs + toolbar */}
-              <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: "divider" }}>
+              <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: getDivider(isDark) }}>
                 <Tabs
                   value={activeTab}
                   onChange={(_, v) => setActiveTab(v)}

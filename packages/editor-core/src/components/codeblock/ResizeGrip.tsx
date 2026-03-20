@@ -1,5 +1,7 @@
-import { Box } from "@mui/material";
+import { Box, useTheme } from "@mui/material";
 import React from "react";
+
+import { getPrimaryMain } from "../../constants/colors";
 
 interface ResizeGripProps {
   visible: boolean;
@@ -10,6 +12,7 @@ interface ResizeGripProps {
 
 /** ブロック要素右下のリサイズグリップ + リサイズ中のサイズ表示 */
 export function ResizeGrip({ visible, resizing, resizeWidth, onPointerDown }: ResizeGripProps) {
+  const isDark = useTheme().palette.mode === "dark";
   return (
     <>
       {visible && (
@@ -17,7 +20,7 @@ export function ResizeGrip({ visible, resizing, resizeWidth, onPointerDown }: Re
           onPointerDown={onPointerDown}
           sx={{
             position: "absolute", right: 0, bottom: 0, width: 16, height: 16,
-            cursor: "nwse-resize", bgcolor: "primary.main", opacity: 0.7, borderTopLeftRadius: 4,
+            cursor: "nwse-resize", bgcolor: getPrimaryMain(isDark), opacity: 0.7, borderTopLeftRadius: 4,
             "&:hover": { opacity: 1 },
             clipPath: "polygon(100% 0, 100% 100%, 0 100%)",
           }}

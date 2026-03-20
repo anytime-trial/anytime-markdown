@@ -12,12 +12,30 @@ const COMMENT_BLOCK_START = "\n<!-- comments\n";
 const COMMENT_BLOCK_END = "\n-->";
 
 /**
- * コメントデータ行の正規表現。
- * `[resolved] id: text | createdAt` または `id: text | createdAt` にマッチ。
- * テキスト内のパイプ文字に対応するため、最後の `|` で分割する（`(.*)` 貪欲）。
+ * コメントデータ行を線形時間でパースする。
+ * 形式: `[resolved] id: text | createdAt` または `id: text | createdAt`
+ * テキスト内のパイプ文字に対応するため、最後の `|` で分割する。
  */
-const COMMENT_LINE_RE =
-  /^(?:\[resolved\]\s+)?([^:]+):\s*(.*)\s*\|\s*(\S+)\s*$/;
+function parseCommentLine(line: string): { resolved: boolean; id: string; text: string; createdAt: string } | null {
+  let s = line;
+  const resolved = s.startsWith("[resolved]");
+  if (resolved) s = s.slice("[resolved]".length).trimStart();
+
+  const colonIdx = s.indexOf(":");
+  if (colonIdx === -1) return null;
+  const id = s.slice(0, colonIdx).trim();
+  if (!id) return null;
+
+  const rest = s.slice(colonIdx + 1);
+  const pipeIdx = rest.lastIndexOf("|");
+  if (pipeIdx === -1) return null;
+
+  const text = rest.slice(0, pipeIdx).trim();
+  const createdAt = rest.slice(pipeIdx + 1).trim();
+  if (!createdAt) return null;
+
+  return { resolved, id, text, createdAt };
+}
 
 /**
  * Markdown 末尾の `<!-- comments -->` ブロックからコメントデータを抽出する。
@@ -48,15 +66,11 @@ export function parseCommentData(md: string): {
     const trimmed = line.trim();
     if (!trimmed) continue;
 
-    const lineMatch = trimmed.match(COMMENT_LINE_RE);
-    if (!lineMatch) continue;
+    const parsed = parseCommentLine(trimmed);
+    if (!parsed) continue;
 
-    const resolved = trimmed.startsWith("[resolved]");
-    const id = lineMatch[1].trim();
-    const text = lineMatch[2].trim().replace(/\\n/g, "\n").replace(/\\\\/g, "\\");
-    const createdAt = lineMatch[3].trim();
-
-    comments.set(id, { id, text, resolved, createdAt });
+    const unescaped = parsed.text.replace(/\\n/g, "\n").replace(/\\\\/g, "\\");
+    comments.set(parsed.id, { id: parsed.id, text: unescaped, resolved: parsed.resolved, createdAt: parsed.createdAt });
   }
 
   // startIdx の前に改行がある場合はそれも除去

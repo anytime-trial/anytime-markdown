@@ -4,8 +4,10 @@ import GifIcon from "@mui/icons-material/Gif";
 import PauseIcon from "@mui/icons-material/Pause";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { Box, ToggleButton, ToggleButtonGroup, Typography } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 import { useCallback, useRef, useState } from "react";
 
+import { getDivider, getTextSecondary } from "../constants/colors";
 import type { GifSettings } from "../utils/gifEncoder";
 import { EditDialogHeader } from "./EditDialogHeader";
 import { EditDialogWrapper } from "./EditDialogWrapper";
@@ -19,6 +21,7 @@ interface GifPlayerDialogProps {
 
 /** GIF 再生・情報表示ダイアログ */
 export function GifPlayerDialog({ open, onClose, src, settings }: GifPlayerDialogProps) {
+  const isDark = useTheme().palette.mode === "dark";
   const t = (key: string) => key;
 
   const imgRef = useRef<HTMLImageElement>(null);
@@ -90,7 +93,7 @@ export function GifPlayerDialog({ open, onClose, src, settings }: GifPlayerDialo
           px: 2,
           py: 1.5,
           borderTop: 1,
-          borderColor: "divider",
+          borderColor: getDivider(isDark),
           display: "flex",
           flexDirection: "column",
           gap: 1,
@@ -104,7 +107,7 @@ export function GifPlayerDialog({ open, onClose, src, settings }: GifPlayerDialo
             onChange={togglePlayback}
             size="small"
             aria-label={playing ? "Pause" : "Play"}
-            sx={{ border: 1, borderColor: "divider" }}
+            sx={{ border: 1, borderColor: getDivider(isDark) }}
           >
             {playing ? <PauseIcon sx={{ fontSize: 20 }} /> : <PlayArrowIcon sx={{ fontSize: 20 }} />}
           </ToggleButton>
@@ -131,18 +134,18 @@ export function GifPlayerDialog({ open, onClose, src, settings }: GifPlayerDialo
         {/* Info row */}
         {settings && (
           <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" sx={{ color: getTextSecondary(isDark) }}>
               Duration: {settings.duration.toFixed(1)}s
             </Typography>
             {frames !== null && (
-              <Typography variant="caption" color="text.secondary">
+              <Typography variant="caption" sx={{ color: getTextSecondary(isDark) }}>
                 Frames: {frames}
               </Typography>
             )}
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" sx={{ color: getTextSecondary(isDark) }}>
               {settings.fps} fps
             </Typography>
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" sx={{ color: getTextSecondary(isDark) }}>
               Width: {settings.width}px
             </Typography>
           </Box>

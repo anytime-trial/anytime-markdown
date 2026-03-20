@@ -7,7 +7,10 @@ import GridOnIcon from "@mui/icons-material/GridOn";
 import PhotoSizeSelectLargeIcon from "@mui/icons-material/PhotoSizeSelectLarge";
 import StraightenIcon from "@mui/icons-material/Straighten";
 import { Box, Button, Chip, IconButton, Tooltip, Typography } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 import React, { useCallback, useEffect, useRef, useState } from "react";
+
+import { getDivider, getTextDisabled, getTextSecondary } from "../constants/colors";
 
 const SCALE_PRESETS = [25, 50, 75, 100, 150, 200] as const;
 
@@ -25,6 +28,7 @@ interface CropRect {
 }
 
 export function ImageCropTool({ src, onCrop, t }: ImageCropToolProps) {
+  const isDark = useTheme().palette.mode === "dark";
   const [cropping, setCropping] = useState(false);
   const [cropRect, setCropRect] = useState<CropRect | null>(null);
   const [drawing, setDrawing] = useState(false);
@@ -138,7 +142,7 @@ export function ImageCropTool({ src, onCrop, t }: ImageCropToolProps) {
   return (
     <Box sx={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
       {/* Crop toolbar */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 1, py: 0.5, borderBottom: 1, borderColor: "divider", minHeight: 32 }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 1, py: 0.5, borderBottom: 1, borderColor: getDivider(isDark), minHeight: 32 }}>
         {!cropping ? (
           <>
             <Tooltip title={t("imageCrop")}>
@@ -147,7 +151,7 @@ export function ImageCropTool({ src, onCrop, t }: ImageCropToolProps) {
               </IconButton>
             </Tooltip>
             <Tooltip title={t("imageResize")}>
-              <PhotoSizeSelectLargeIcon sx={{ fontSize: 16, color: "text.secondary", ml: 0.5 }} />
+              <PhotoSizeSelectLargeIcon sx={{ fontSize: 16, color: getTextSecondary(isDark), ml: 0.5 }} />
             </Tooltip>
             {SCALE_PRESETS.map(s => (
               <Chip
@@ -183,7 +187,7 @@ export function ImageCropTool({ src, onCrop, t }: ImageCropToolProps) {
                 </IconButton>
               </Tooltip>
               {imgNatural && (
-                <Typography variant="caption" sx={{ color: "text.disabled", fontSize: "0.65rem", fontFamily: "monospace", ml: 0.5 }}>
+                <Typography variant="caption" sx={{ color: getTextDisabled(isDark), fontSize: "0.65rem", fontFamily: "monospace", ml: 0.5 }}>
                   {imgNatural.w} × {imgNatural.h}
                 </Typography>
               )}
@@ -191,7 +195,7 @@ export function ImageCropTool({ src, onCrop, t }: ImageCropToolProps) {
           </>
         ) : (
           <>
-            <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary" }}>
+            <Typography variant="caption" sx={{ fontWeight: 600, color: getTextSecondary(isDark) }}>
               {t("imageCropSelect")}
             </Typography>
             <Box sx={{ flex: 1 }} />

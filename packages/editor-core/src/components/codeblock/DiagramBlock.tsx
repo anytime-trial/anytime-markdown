@@ -3,10 +3,11 @@
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { Alert, Box, Button, Divider, IconButton, Tooltip, Typography } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 import DOMPurify from "dompurify";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { getEditorBg } from "../../constants/colors";
+import { getEditorBg, getErrorMain, getTextDisabled, getTextSecondary } from "../../constants/colors";
 import { useBlockMergeCompare } from "../../hooks/useBlockMergeCompare";
 import { useBlockResize } from "../../hooks/useBlockResize";
 import { useDiagramCapture } from "../../hooks/useDiagramCapture";
@@ -38,10 +39,11 @@ type DiagramBlockProps = Pick<
 
 /** Copy-code button shared between Mermaid and PlantUML edit dialogs */
 function CopyCodeButton({ handleCopyCode, t }: { handleCopyCode: () => void; t: DiagramBlockProps["t"] }) {
+  const isDark = useTheme().palette.mode === "dark";
   return (
     <Tooltip title={t("copyCode")} placement="bottom">
       <IconButton size="small" sx={{ p: 0.25 }} onClick={handleCopyCode} aria-label={t("copyCode")}>
-        <ContentCopyIcon sx={{ fontSize: 16, color: "text.secondary" }} />
+        <ContentCopyIcon sx={{ fontSize: 16, color: getTextSecondary(isDark) }} />
       </IconButton>
     </Tooltip>
   );
@@ -187,7 +189,7 @@ export function DiagramBlock(props: DiagramBlockProps) {
       labelOnly={props.isCompareLeftEditable}
       extra={diagramSize ? (<>
         <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
-        <Typography variant="caption" sx={{ color: "text.disabled", fontSize: "0.65rem", fontFamily: "monospace", whiteSpace: "nowrap", flexShrink: 0 }}>
+        <Typography variant="caption" sx={{ color: getTextDisabled(isDark), fontSize: "0.65rem", fontFamily: "monospace", whiteSpace: "nowrap", flexShrink: 0 }}>
           {diagramSize.w}&times;{diagramSize.h}
         </Typography>
       </>) : undefined}
@@ -303,7 +305,7 @@ export function DiagramBlock(props: DiagramBlockProps) {
         </DiagramPreviewContainer>
       )}
       {error && (
-        <Typography variant="caption" sx={{ p: 1.5, color: "error.main", display: "block" }} contentEditable={false}>
+        <Typography variant="caption" sx={{ p: 1.5, color: getErrorMain(isDark), display: "block" }} contentEditable={false}>
           {error}
         </Typography>
       )}

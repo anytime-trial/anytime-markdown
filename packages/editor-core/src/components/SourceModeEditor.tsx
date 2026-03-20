@@ -2,7 +2,7 @@ import { Box, Paper, useTheme } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import React, { useCallback, useEffect, useRef } from "react";
 
-import { ACCENT_COLOR, ACCENT_COLOR_ALPHA, DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "../constants/colors";
+import { ACCENT_COLOR, ACCENT_COLOR_ALPHA, DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getTextPrimary, getTextSecondary } from "../constants/colors";
 import type { TextareaSearchMatch } from "../hooks/useTextareaSearch";
 import { useEditorSettingsContext } from "../useEditorSettings";
 
@@ -61,6 +61,7 @@ export function SourceModeEditor({
 }: SourceModeEditorProps) {
   const settings = useEditorSettingsContext();
   const theme = useTheme();
+  const isDark = theme.palette.mode === "dark";
   const highlightRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const gutterRef = useRef<HTMLDivElement>(null);
@@ -149,7 +150,7 @@ export function SourceModeEditor({
         borderTopRightRadius: 0,
         maxHeight: editorHeight,
         overflow: "auto",
-        bgcolor: theme.palette.mode === "dark" ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
+        bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
         "&:focus-within": {
           outline: "none",
         },
@@ -168,7 +169,7 @@ export function SourceModeEditor({
             fontFamily: "monospace",
             fontSize: `${settings.fontSize}px`,
             lineHeight: settings.lineHeight,
-            color: alpha(theme.palette.text.secondary, 0.6),
+            color: alpha(getTextSecondary(isDark), 0.6),
             userSelect: "none",
             overflow: "hidden",
             boxSizing: "border-box",
@@ -241,9 +242,9 @@ export function SourceModeEditor({
               resize: "none",
               overflow: "hidden",
               ...sharedTextSx,
-              color: theme.palette.text.primary,
+              color: getTextPrimary(isDark),
               bgcolor: "transparent",
-              caretColor: theme.palette.text.primary,
+              caretColor: getTextPrimary(isDark),
               "&:focus": {
                 border: "none",
                 outline: "none",

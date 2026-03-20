@@ -5,7 +5,10 @@ import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
 import EditIcon from "@mui/icons-material/Edit";
 import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
 import { Box, Divider, IconButton, Tooltip, Typography } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 import React from "react";
+
+import { getActionHover, getPrimaryMain, getTextSecondary } from "../../constants/colors";
 
 interface BlockInlineToolbarProps {
   /** Block label (e.g. "Mermaid", "Math", "Table") */
@@ -26,20 +29,20 @@ interface BlockInlineToolbarProps {
   t: (key: string) => string;
 }
 
-const iconSx = { fontSize: 16, color: "text.secondary" };
-
 export function BlockInlineToolbar({
   label, onEdit, onDelete, onCapture, collapsed, extra, labelOnly, t,
 }: BlockInlineToolbarProps) {
+  const isDark = useTheme().palette.mode === "dark";
+  const iconSx = { fontSize: 16, color: getTextSecondary(isDark) };
   if (labelOnly) {
     return (
       <Box
         data-block-toolbar=""
         aria-label={label}
-        sx={{ bgcolor: "action.hover", px: 0.75, py: 0.25, display: "flex", alignItems: "center", gap: 0.25 }}
+        sx={{ bgcolor: getActionHover(isDark), px: 0.75, py: 0.25, display: "flex", alignItems: "center", gap: 0.25 }}
         contentEditable={false}
       >
-        <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary", flexShrink: 0 }}>
+        <Typography variant="caption" sx={{ fontWeight: 600, color: getTextSecondary(isDark), flexShrink: 0 }}>
           {label}
         </Typography>
       </Box>
@@ -50,7 +53,7 @@ export function BlockInlineToolbar({
       data-block-toolbar=""
       role="toolbar"
       aria-label={label}
-      sx={{ bgcolor: "action.hover", px: 0.75, py: 0.25, display: "flex", alignItems: "center", gap: 0.25 }}
+      sx={{ bgcolor: getActionHover(isDark), px: 0.75, py: 0.25, display: "flex", alignItems: "center", gap: 0.25 }}
       contentEditable={false}
     >
       <Box
@@ -59,11 +62,11 @@ export function BlockInlineToolbar({
         tabIndex={0}
         aria-roledescription="draggable item"
         aria-label={t("dragHandle")}
-        sx={{ cursor: "grab", display: "flex", alignItems: "center", opacity: 0.7, "&:hover, &:focus-visible": { opacity: 1 }, "&:focus-visible": { outline: "2px solid", outlineColor: "primary.main", borderRadius: 0.5 } }}
+        sx={{ cursor: "grab", display: "flex", alignItems: "center", opacity: 0.7, "&:hover, &:focus-visible": { opacity: 1 }, "&:focus-visible": { outline: "2px solid", outlineColor: getPrimaryMain(isDark), borderRadius: 0.5 } }}
       >
         <DragIndicatorIcon sx={iconSx} />
       </Box>
-      <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary", flexShrink: 0 }}>
+      <Typography variant="caption" sx={{ fontWeight: 600, color: getTextSecondary(isDark), flexShrink: 0 }}>
         {label}
       </Typography>
       {onEdit && !collapsed && (

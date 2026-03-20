@@ -23,7 +23,7 @@ import type { Editor } from "@tiptap/react";
 import { useEditorState } from "@tiptap/react";
 import React, { useCallback, useRef, useState } from "react";
 
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, DEFAULT_LIGHT_TEXT } from "../constants/colors";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, DEFAULT_LIGHT_TEXT, getActionHover, getActionSelected, getBgPaper, getTextSecondary } from "../constants/colors";
 import { modKey } from "../constants/shortcuts";
 import { Z_TOOLBAR } from "../constants/zIndex";
 import AppIcon from "../icons/AppIcon";
@@ -63,34 +63,36 @@ function tip(t: TranslationFn, key: string): string {
 }
 
 /** モード切替・比較切替の pill 型トグル共通スタイル */
-const PILL_TOGGLE_SX = {
-  height: 34,
-  borderRadius: "20px",
-  bgcolor: "action.hover",
-  p: 0.25,
-  "& .MuiToggleButton-root": {
-    border: "none",
-    borderRadius: "20px !important",
-    px: 2,
-    py: 0,
-    gap: 0.5,
-    fontSize: "0.8rem",
-    textTransform: "none",
-    lineHeight: 1,
-  },
-  "& .Mui-selected": {
-    bgcolor: "background.paper !important",
-    color: "text.primary !important",
-    boxShadow: "0 1px 2px rgba(0,0,0,0.15)",
-  },
-  "& .MuiToggleButton-root:not(.Mui-selected)": {
-    bgcolor: "transparent",
-    color: "text.secondary",
-    "&:hover": {
-      bgcolor: "action.selected",
+function getPillToggleSx(isDark: boolean) {
+  return {
+    height: 34,
+    borderRadius: "20px",
+    bgcolor: getActionHover(isDark),
+    p: 0.25,
+    "& .MuiToggleButton-root": {
+      border: "none",
+      borderRadius: "20px !important",
+      px: 2,
+      py: 0,
+      gap: 0.5,
+      fontSize: "0.8rem",
+      textTransform: "none",
+      lineHeight: 1,
     },
-  },
-} as const;
+    "& .Mui-selected": {
+      bgcolor: `${getBgPaper(isDark)} !important`,
+      color: "text.primary !important",
+      boxShadow: "0 1px 2px rgba(0,0,0,0.15)",
+    },
+    "& .MuiToggleButton-root:not(.Mui-selected)": {
+      bgcolor: "transparent",
+      color: getTextSecondary(isDark),
+      "&:hover": {
+        bgcolor: getActionSelected(isDark),
+      },
+    },
+  } as const;
+}
 
 interface EditorToolbarProps {
   editor: Editor | null;
@@ -336,7 +338,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
         exclusive
         size="small"
         aria-label={t("editMode")}
-        sx={PILL_TOGGLE_SX}
+        sx={getPillToggleSx(isDark)}
       >
         {!hideReadonlyToggle && (
           <ToggleButton value="readonly" aria-label={t("readonly")} onClick={onSwitchToReadonly}>
@@ -364,7 +366,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
         exclusive
         size="small"
         aria-label={t("compareMode")}
-        sx={{ ...PILL_TOGGLE_SX, display: { xs: "none", md: "inline-flex" } }}
+        sx={{ ...getPillToggleSx(isDark), display: { xs: "none", md: "inline-flex" } }}
       >
         <ToggleButton
           value="edit"

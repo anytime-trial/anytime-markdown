@@ -3,6 +3,7 @@ import { Box, Typography, useTheme } from "@mui/material";
 import DOMPurify from "dompurify";
 import React, { useCallback } from "react";
 
+import { getDivider } from "../constants/colors";
 import { FS_TOOLBAR_HEIGHT } from "../constants/dimensions";
 import { MATH_SAMPLES } from "../constants/samples";
 import { MATH_SANITIZE_CONFIG, useKatexRender } from "../hooks/useKatexRender";
@@ -78,7 +79,7 @@ export function MathEditDialog({
           left={
             <>
               {/* Code toolbar */}
-              <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: "divider", px: 1, py: 0.25, minHeight: FS_TOOLBAR_HEIGHT }}>
+              <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: getDivider(isDark), px: 1, py: 0.25, minHeight: FS_TOOLBAR_HEIGHT }}>
                 <Typography variant="caption" sx={{ fontWeight: 600, fontSize: "0.75rem", flex: 1 }}>
                   {t("codeTab")}
                 </Typography>

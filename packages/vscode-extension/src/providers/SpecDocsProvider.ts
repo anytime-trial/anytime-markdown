@@ -262,12 +262,9 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsRootIte
 
 	getChildren(element?: SpecDocsRootItem | SpecDocsItem): (SpecDocsRootItem | SpecDocsItem)[] {
 		if (!element) {
-			// トップレベル: ルートが1つならファイルツリーを直接表示、複数ならRootItem
+			// トップレベル: 常にリポジトリノードを表示
 			if (this.rootPaths.length === 0) {
 				return [];
-			}
-			if (this.rootPaths.length === 1) {
-				return this.getFileChildren(this.rootPaths[0]);
 			}
 			return this.rootPaths.map(rootPath => {
 				const info = this.getRepoInfo(rootPath);
@@ -505,12 +502,12 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsRootIte
 			return;
 		}
 
-		const { execSync } = await import('child_process');
+		const { execFileSync } = await import('child_process');
 
 		// ローカル＋リモートブランチ一覧を取得
 		let branches: string[];
 		try {
-			const output = execSync('git branch -a --no-color', { cwd: gitRoot, encoding: 'utf-8' });
+			const output = execFileSync('git', ['branch', '-a', '--no-color'], { cwd: gitRoot, encoding: 'utf-8' });
 			branches = output.split('\n')
 				.map(b => b.replace(/^\*?\s+/, '').trim())
 				.filter(b => b && !b.includes('HEAD'))
@@ -536,7 +533,7 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsRootIte
 		if (!selected || selected.label === currentBranch) { return; }
 
 		try {
-			execSync(`git checkout ${selected.label}`, { cwd: gitRoot, encoding: 'utf-8' });
+			execFileSync('git', ['checkout', selected.label], { cwd: gitRoot, encoding: 'utf-8' });
 			this._onDidChangeTreeData.fire(undefined);
 			vscode.window.showInformationMessage(`Switched to branch: ${selected.label}`);
 		} catch (e: unknown) {

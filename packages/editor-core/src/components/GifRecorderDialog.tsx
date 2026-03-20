@@ -8,7 +8,10 @@ import SaveIcon from "@mui/icons-material/Save";
 import ScreenShareIcon from "@mui/icons-material/ScreenShare";
 import StopIcon from "@mui/icons-material/Stop";
 import { Box, Button, LinearProgress, TextField, Typography } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 import { useCallback, useEffect, useRef, useState } from "react";
+
+import { getDivider, getTextSecondary } from "../constants/colors";
 
 import {
   type CropRect,
@@ -42,6 +45,7 @@ function defaultFileName(): string {
 }
 
 export function GifRecorderDialog({ open, onClose, onComplete }: GifRecorderDialogProps) {
+  const isDark = useTheme().palette.mode === "dark";
   const [phase, setPhase] = useState<RecordingPhase>("idle");
   const [cropRect, setCropRect] = useState<CropRect | null>(null);
   const [elapsed, setElapsed] = useState(0);
@@ -350,7 +354,7 @@ export function GifRecorderDialog({ open, onClose, onComplete }: GifRecorderDial
         </Box>
 
         {/* Bottom bar */}
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 2, py: 1, borderTop: 1, borderColor: "divider" }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 2, py: 1, borderTop: 1, borderColor: getDivider(isDark) }}>
           {phase === "idle" && (
             <Button size="small" variant="outlined" startIcon={<ScreenShareIcon />} onClick={handleSelectScreen}>
               Select Screen
@@ -361,7 +365,7 @@ export function GifRecorderDialog({ open, onClose, onComplete }: GifRecorderDial
               <Button size="small" variant="outlined" startIcon={<CropFreeIcon />} disabled>
                 Select Area
               </Button>
-              <Typography variant="caption" sx={{ color: "text.secondary" }}>
+              <Typography variant="caption" sx={{ color: getTextSecondary(isDark) }}>
                 Drag on the preview to select recording area
               </Typography>
             </>

@@ -5,7 +5,7 @@ import {
 import { alpha, useTheme } from "@mui/material/styles";
 import React, { useEffect, useRef, useState } from "react";
 
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "../constants/colors";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getDivider, getErrorMain, getSuccessMain, getTextPrimary } from "../constants/colors";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import { computeInlineDiff, type DiffResult, type InlineSegment } from "../utils/diffEngine";
 
@@ -20,6 +20,7 @@ export const LinePreviewPanel = React.memo(function LinePreviewPanel({
   hoverSetterRef: React.MutableRefObject<((v: number | null) => void) | null>;
 }) {
   const theme = useTheme();
+  const isDark = theme.palette.mode === "dark";
   const settings = useEditorSettingsContext();
   const [hoveredLineIdx, setHoveredLineIdx] = useState<number | null>(null);
   const previewTopRef = useRef<HTMLDivElement>(null);
@@ -51,7 +52,7 @@ export const LinePreviewPanel = React.memo(function LinePreviewPanel({
     whiteSpace: "pre",
     overflowX: "auto",
     overflowY: "hidden",
-    color: theme.palette.text.primary,
+    color: getTextPrimary(isDark),
   };
 
   const renderSegments = (segments: InlineSegment[], highlightType: "removed" | "added") =>
@@ -63,8 +64,8 @@ export const LinePreviewPanel = React.memo(function LinePreviewPanel({
             ? {
                 backgroundColor: alpha(
                   highlightType === "removed"
-                    ? theme.palette.error.main
-                    : theme.palette.success.main,
+                    ? getErrorMain(isDark)
+                    : getSuccessMain(isDark),
                   0.35,
                 ),
                 textDecoration: highlightType === "removed" ? "line-through" : "underline",
@@ -86,7 +87,7 @@ export const LinePreviewPanel = React.memo(function LinePreviewPanel({
   };
 
   return (
-    <Box sx={{ borderTop: 1, borderColor: "divider", bgcolor: theme.palette.mode === "dark" ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG, flexShrink: 0 }}>
+    <Box sx={{ borderTop: 1, borderColor: getDivider(isDark), bgcolor: theme.palette.mode === "dark" ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG, flexShrink: 0 }}>
       <div
         ref={previewTopRef}
         style={previewStyle}

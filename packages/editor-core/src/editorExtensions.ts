@@ -85,7 +85,8 @@ const ListTextCleanup = Extension.create({
             for (let d = $pos.depth; d > 0; d--) {
               if ($pos.node(d).type.name === "listItem") {
                 const text = node.text ?? "";
-                const trimmed = text.replace(/\n+$/, "");
+                let trimmed = text;
+                while (trimmed.endsWith("\n")) { trimmed = trimmed.slice(0, -1); }
                 changes.push({ from: pos, to: pos + text.length, text: trimmed, marks: [...node.marks] });
                 break;
               }

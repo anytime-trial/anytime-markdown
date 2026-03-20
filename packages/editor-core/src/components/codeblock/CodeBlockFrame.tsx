@@ -4,7 +4,7 @@ import type { SxProps, Theme } from "@mui/material";
 import { Box } from "@mui/material";
 import { NodeViewContent, NodeViewWrapper } from "@tiptap/react";
 
-import { DEFAULT_DARK_CODE_BG, DEFAULT_LIGHT_CODE_BG } from "../../constants/colors";
+import { DEFAULT_DARK_CODE_BG, DEFAULT_LIGHT_CODE_BG, getDivider } from "../../constants/colors";
 import { useEditorSettingsContext } from "../../useEditorSettings";
 import { DeleteBlockDialog } from "./DeleteBlockDialog";
 
@@ -73,7 +73,7 @@ export function CodeBlockFrame({
     <NodeViewWrapper>
       <Box sx={{
         border: 1, borderRadius: 1, overflow: "hidden", my: 1,
-        borderColor: showBorder ? "divider" : "transparent",
+        borderColor: showBorder ? getDivider(isDark) : "transparent",
         ...(!showBorder && {
           "& > [data-block-toolbar]": {
             maxHeight: 0, opacity: 0, py: 0, overflow: "hidden",

@@ -3,14 +3,21 @@
  * useEditorConfig.ts（Ctrl+C/X）と EditorContextMenu.tsx（右クリック）で共用。
  */
 import { DOMSerializer, type Node as PMNode } from "@tiptap/pm/model";
+import type { EditorState } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
-import type { Editor } from "@tiptap/react";
 
 /** クリップボード操作の対象となるブロックノードタイプ */
 export const BLOCK_NODE_TYPES = new Set(["codeBlock", "table", "gifBlock", "image"]);
 
 /** コンテキストメニュー経由でコピーしたブロックノードの保持 */
 let _copiedBlockNode: PMNode | null = null;
+
+/** keydown ハンドラで copy/cut 処理済みフラグ（VS Code WebView の二重処理防止） */
+let _handledByKeydown = false;
+
+export function setHandledByKeydown(value: boolean): void {
+  _handledByKeydown = value;
+}
 
 export function getCopiedBlockNode(): PMNode | null {
   return _copiedBlockNode;
@@ -30,31 +37,31 @@ export interface BlockInfo {
  * カーソル位置周辺のブロックノードを探す。
  * 4パターンで探索: 祖先 → カーソル位置 → 直前ノード → トップレベル
  */
-export function findBlockNode(editor: Editor): BlockInfo | null {
-  const { $from, from } = editor.state.selection;
+export function findBlockNode(state: EditorState): BlockInfo | null {
+  const { $from, from } = state.selection;
 
   // 1. 祖先ノードをチェック
   for (let d = $from.depth; d >= 1; d--) {
     const node = $from.node(d);
     if (BLOCK_NODE_TYPES.has(node.type.name)) {
       const pos = $from.before(d);
-      return { node, pos, text: editor.state.doc.textBetween(pos, pos + node.nodeSize, "\n") };
+      return { node, pos, text: state.doc.textBetween(pos, pos + node.nodeSize, "\n") };
     }
   }
 
   // 2. カーソル位置のノード（NodeView の外にカーソルがある場合）
-  const nodeAt = editor.state.doc.nodeAt(from);
+  const nodeAt = state.doc.nodeAt(from);
   if (nodeAt && BLOCK_NODE_TYPES.has(nodeAt.type.name)) {
-    return { node: nodeAt, pos: from, text: editor.state.doc.textBetween(from, from + nodeAt.nodeSize, "\n") };
+    return { node: nodeAt, pos: from, text: state.doc.textBetween(from, from + nodeAt.nodeSize, "\n") };
   }
 
   // 3. カーソルの直前のノード
   if (from > 0) {
-    const $pos = editor.state.doc.resolve(from);
+    const $pos = state.doc.resolve(from);
     const before = $pos.nodeBefore;
     if (before && BLOCK_NODE_TYPES.has(before.type.name)) {
       const pos = from - before.nodeSize;
-      return { node: before, pos, text: editor.state.doc.textBetween(pos, from, "\n") };
+      return { node: before, pos, text: state.doc.textBetween(pos, from, "\n") };
     }
   }
 
@@ -63,7 +70,7 @@ export function findBlockNode(editor: Editor): BlockInfo | null {
     const topNode = $from.node(1);
     if (BLOCK_NODE_TYPES.has(topNode.type.name)) {
       const pos = $from.before(1);
-      return { node: topNode, pos, text: editor.state.doc.textBetween(pos, pos + topNode.nodeSize, "\n") };
+      return { node: topNode, pos, text: state.doc.textBetween(pos, pos + topNode.nodeSize, "\n") };
     }
   }
 
@@ -71,53 +78,74 @@ export function findBlockNode(editor: Editor): BlockInfo | null {
 }
 
 /**
- * ブロックノードを HTML としてシリアライズし、クリップボードに設定する。
- * data-pm-slice 属性を付与して ProseMirror がペースト時にブロック構造を復元できるようにする。
+ * コピー/カット共通処理。
+ * テキスト選択があれば選択テキスト、なければブロックノード全体を対象とし、
+ * クリップボード書き込みはコールバックに委譲する。
  */
-export function copyBlockToClipboard(view: EditorView, block: BlockInfo, clipboardData: DataTransfer): void {
-  clipboardData.setData("text/plain", block.text);
+export function performBlockCopy(
+  view: EditorView,
+  isCut: boolean,
+  writeClipboard: (text: string, block: BlockInfo | null) => void,
+): boolean {
+  const { from, to } = view.state.selection;
 
-  const domSerializer = DOMSerializer.fromSchema(view.state.schema);
-  const htmlFragment = domSerializer.serializeNode(block.node);
-  const wrapper = document.createElement("div");
-  wrapper.appendChild(htmlFragment);
-  wrapper.firstElementChild?.setAttribute("data-pm-slice", "0 0 []");
-  clipboardData.setData("text/html", wrapper.innerHTML);
-
-  setCopiedBlockNode(block.node);
-}
-
-/**
- * DOM イベントの copy/cut ハンドラ。
- * ブロック要素全体またはコードブロック内テキスト選択をクリップボードにコピーする。
- */
-export function handleBlockClipboardEvent(view: EditorView, event: ClipboardEvent, isCut: boolean): boolean {
-  if (!event.clipboardData) return false;
-  const { $from, $to, from, to } = view.state.selection;
-
-  // テキスト選択がある場合: コードブロック内のテキストコピー
-  if (from !== to && $from.parent.type.name === "codeBlock" && $from.sameParent($to)) {
-    event.clipboardData.setData("text/plain", view.state.doc.textBetween(from, to));
-    event.preventDefault();
+  if (from !== to) {
+    const text = view.state.doc.textBetween(from, to, "\n");
     setCopiedBlockNode(null);
+    writeClipboard(text, null);
     if (isCut) view.dispatch(view.state.tr.deleteSelection());
     return true;
   }
 
-  // ブロックノード全体のコピー/カット
-  const depth = $from.depth;
-  for (let d = depth; d >= 1; d--) {
-    const node = $from.node(d);
-    if (BLOCK_NODE_TYPES.has(node.type.name)) {
-      const pos = $from.before(d);
-      const text = view.state.doc.textBetween(pos, pos + node.nodeSize, "\n");
-      copyBlockToClipboard(view, { node, pos, text }, event.clipboardData);
-      event.preventDefault();
-      if (isCut) {
-        view.dispatch(view.state.tr.delete(pos, pos + node.nodeSize));
-      }
-      return true;
-    }
+  const block = findBlockNode(view.state);
+  if (block) {
+    setCopiedBlockNode(block.node);
+    writeClipboard(block.text, block);
+    if (isCut) view.dispatch(view.state.tr.delete(block.pos, block.pos + block.node.nodeSize));
+    return true;
   }
   return false;
+}
+
+/** カーソルがブロックノード内にあるか判定する */
+function isInsideBlockNode(state: EditorState): boolean {
+  const { $from } = state.selection;
+  for (let d = $from.depth; d >= 1; d--) {
+    if (BLOCK_NODE_TYPES.has($from.node(d).type.name)) return true;
+  }
+  return false;
+}
+
+/**
+ * DOM イベントの copy/cut ハンドラ（Ctrl+C/X 用）。
+ * performBlockCopy を使い、ClipboardEvent にテキスト/HTML を書き込む。
+ * ブロックノード外のテキスト選択は ProseMirror のデフォルト処理に委譲する。
+ */
+export function handleBlockClipboardEvent(view: EditorView, event: ClipboardEvent, isCut: boolean): boolean {
+  // keydown ハンドラで処理済み（VS Code WebView の二重処理防止）
+  if (_handledByKeydown) {
+    _handledByKeydown = false;
+    return true;
+  }
+  // VS Code WebView では clipboardData が null — keydown ハンドラで処理済みのため skip
+  if (!event.clipboardData) return false;
+
+  // ブロックノード外のテキスト選択は ProseMirror に委譲
+  const { from, to } = view.state.selection;
+  if (from !== to && !isInsideBlockNode(view.state)) return false;
+
+  const clipboardData = event.clipboardData;
+  const result = performBlockCopy(view, isCut, (text, block) => {
+    clipboardData.setData("text/plain", text);
+    if (block) {
+      const domSerializer = DOMSerializer.fromSchema(view.state.schema);
+      const htmlFragment = domSerializer.serializeNode(block.node);
+      const wrapper = document.createElement("div");
+      wrapper.appendChild(htmlFragment);
+      wrapper.firstElementChild?.setAttribute("data-pm-slice", "0 0 []");
+      clipboardData.setData("text/html", wrapper.innerHTML);
+    }
+  });
+  if (result) event.preventDefault();
+  return result;
 }

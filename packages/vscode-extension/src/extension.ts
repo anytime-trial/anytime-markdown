@@ -194,21 +194,7 @@ export function activate(context: vscode.ExtensionContext) {
 	let activeRoot: string | null = specDocsProvider.roots[0] ?? null;
 
 	const updateSpecDocsTitle = () => {
-		const roots = specDocsProvider.roots;
-		if (roots.length === 1) {
-			// 単一リポジトリ: タイトルにリポ名/ブランチ名を表示
-			const info = specDocsProvider.getRepoInfo(roots[0]);
-			if (info) {
-				specDocsTreeView.title = info.branchName
-					? `${info.repoName} / ${info.branchName}`
-					: info.repoName;
-			} else {
-				specDocsTreeView.title = undefined as unknown as string;
-			}
-		} else {
-			// 0個 or 複数: デフォルトタイトル
-			specDocsTreeView.title = undefined as unknown as string;
-		}
+		// ツリーのトップは常にリポジトリノードを表示するため、タイトルはデフォルトのまま
 		specDocsTreeView.description = '';
 	};
 
@@ -360,6 +346,15 @@ export function activate(context: vscode.ExtensionContext) {
 	const unstageFile = vscode.commands.registerCommand(
 		'anytime-markdown.unstageFile', (item: ChangesFileItem) => changesProvider.unstageFile(item)
 	);
+	const stageAll = vscode.commands.registerCommand(
+		'anytime-markdown.stageAll', (gitRoot?: string) => changesProvider.stageAll(gitRoot)
+	);
+	const unstageAll = vscode.commands.registerCommand(
+		'anytime-markdown.unstageAll', (gitRoot?: string) => changesProvider.unstageAll(gitRoot)
+	);
+	const discardAll = vscode.commands.registerCommand(
+		'anytime-markdown.discardAll', (gitRoot?: string) => changesProvider.discardAll(gitRoot)
+	);
 	const discardChanges = vscode.commands.registerCommand(
 		'anytime-markdown.discardChanges', (item: ChangesFileItem) => changesProvider.discardChanges(item)
 	);
@@ -381,10 +376,10 @@ export function activate(context: vscode.ExtensionContext) {
 				// git コマンドで変更前コンテンツを取得
 				let originalContent: string;
 				try {
-					const { execSync } = await import('child_process');
+					const { execFileSync } = await import('child_process');
 					originalContent = group === 'staged'
-						? execSync(`git show HEAD:"${filePath}"`, { cwd: gitRoot, encoding: 'utf-8' })
-						: execSync(`git show :"${filePath}"`, { cwd: gitRoot, encoding: 'utf-8' });
+						? execFileSync('git', ['show', `HEAD:${filePath}`], { cwd: gitRoot, encoding: 'utf-8' })
+						: execFileSync('git', ['show', `:${filePath}`], { cwd: gitRoot, encoding: 'utf-8' });
 				} catch {
 					originalContent = '';
 				}
@@ -422,13 +417,13 @@ export function activate(context: vscode.ExtensionContext) {
 			// git コマンドで変更前コンテンツを取得
 			let originalContent: string;
 			try {
-				const { execSync } = await import('child_process');
+				const { execFileSync } = await import('child_process');
 				if (group === 'staged') {
 					// ステージ済み: HEAD のコンテンツ
-					originalContent = execSync(`git show HEAD:"${filePath}"`, { cwd: gitRoot, encoding: 'utf-8' });
+					originalContent = execFileSync('git', ['show', `HEAD:${filePath}`], { cwd: gitRoot, encoding: 'utf-8' });
 				} else {
 					// 未ステージ: インデックス（ステージ済み or HEAD）のコンテンツ
-					originalContent = execSync(`git show :"${filePath}"`, { cwd: gitRoot, encoding: 'utf-8' });
+					originalContent = execFileSync('git', ['show', `:${filePath}`], { cwd: gitRoot, encoding: 'utf-8' });
 				}
 			} catch {
 				originalContent = '';
@@ -457,7 +452,7 @@ export function activate(context: vscode.ExtensionContext) {
 		...statusBarItems,
 		openEditorWithFile, compareCmd, compareWithCommit,
 		insertSectionNumbers, removeSectionNumbers,
-		changesRefresh, stageFile, unstageFile, discardChanges, commitChanges, pushChanges, syncChanges, changesOpenFile, openChangeDiff,
+		changesRefresh, stageFile, unstageFile, stageAll, unstageAll, discardAll, discardChanges, commitChanges, pushChanges, syncChanges, changesOpenFile, openChangeDiff,
 		specDocsOpenFile, specDocsOpenFolder, specDocsCloneRepo, specDocsClose, specDocsRefresh, switchBranch, toggleMdOnly,
 		specDocsCreateFile, specDocsCreateFolder, specDocsDelete, specDocsRename, specDocsRemoveRoot, specDocsCopyPath, specDocsImportFiles, pasteAsMarkdown,
 		graphTreeView, graphRefresh,

@@ -105,6 +105,8 @@ function addHardBreaksToConsecutiveLines(text: string): string {
     if (isBlockquoteStart(cur) || isBlockquoteStart(nxt)) continue;
     // マークダウンテーブル行はスキップ（行が完結しているため改行不要）
     if (isTableRow(cur) || isTableRow(nxt)) continue;
+    // HTML タグ行はスキップ（Admonition blockquote 等の前処理済み HTML）
+    if (cur.startsWith("<") || nxt.startsWith("<") || cur.startsWith("</") || nxt.startsWith("</")) continue;
     // タブ区切りデータ（スプレッドシートからのコピー等）は <br> を付加
     if (cur.includes("\t") || nxt.includes("\t")) {
       result[i] = cur + "<br>";
@@ -335,6 +337,8 @@ export function preserveBlankLines(md: string): string {
     part = part.replace(/^(>[ \t]*)\n(> \*\*)/gm, "$1\n\n$2");
     part = markTightBlockTransitions(part);
     part = addHardBreaksToConsecutiveLines(part);
+    // Admonition blockquote 間の余分な空行を正規化（シリアライザの出力で \n\n\n になる場合がある）
+    part = part.replace(/(<\/blockquote>)\n{3,}/g, "$1\n\n");
     return part.replace(/\n{3,}/g, (match) => {
       const extra = match.length - 2;
       return "\n\n" + `${BLANK_LINE_MARKER}\n\n`.repeat(extra);

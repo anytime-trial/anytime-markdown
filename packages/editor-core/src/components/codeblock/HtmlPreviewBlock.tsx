@@ -5,7 +5,7 @@ import { Box, IconButton, Tooltip } from "@mui/material";
 import DOMPurify from "dompurify";
 import { useRef } from "react";
 
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "../../constants/colors";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getDivider, getTextSecondary } from "../../constants/colors";
 import { PREVIEW_MAX_HEIGHT } from "../../constants/dimensions";
 import htmlSamples from "../../constants/htmlSamples.json";
 import { useBlockMergeCompare } from "../../hooks/useBlockMergeCompare";
@@ -95,7 +95,7 @@ export function HtmlPreviewBlock(props: HtmlPreviewBlockProps) {
           toolbarExtra={
             <Tooltip title={t("copyCode")} placement="bottom">
               <IconButton size="small" sx={{ p: 0.25 }} onClick={handleCopyCode} aria-label={t("copyCode")}>
-                <ContentCopyIcon sx={{ fontSize: 16, color: "text.secondary" }} />
+                <ContentCopyIcon sx={{ fontSize: 16, color: getTextSecondary(isDark) }} />
               </IconButton>
             </Tooltip>
           }
@@ -112,7 +112,7 @@ export function HtmlPreviewBlock(props: HtmlPreviewBlockProps) {
           onDoubleClick={() => setEditOpen(true)}
           onPointerMove={handleResizePointerMove}
           onPointerUp={handleResizePointerUp}
-          sx={{ pt: 0, px: 2, pb: 2, bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG, borderTop: codeCollapsed ? 0 : 1, borderColor: "divider", overflow: "auto", maxHeight: PREVIEW_MAX_HEIGHT, cursor: "pointer", position: "relative", width: displayWidth || "fit-content", maxWidth: "100%", "& img": { maxWidth: "100%" } }}
+          sx={{ pt: 0, px: 2, pb: 2, bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG, borderTop: codeCollapsed ? 0 : 1, borderColor: getDivider(isDark), overflow: "auto", maxHeight: PREVIEW_MAX_HEIGHT, cursor: "pointer", position: "relative", width: displayWidth || "fit-content", maxWidth: "100%", "& img": { maxWidth: "100%" } }}
         >
           <Box
             dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(code, HTML_SANITIZE_CONFIG) }}

@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { execFileSync, execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 
 const REFRESH_DEBOUNCE_MS = 500;
 
@@ -196,7 +196,7 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem>
 
 		for (const rootPath of rootPaths) {
 			try {
-				const gitRoot = execSync('git rev-parse --show-toplevel', { cwd: rootPath, encoding: 'utf-8' }).trim();
+				const gitRoot = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: rootPath, encoding: 'utf-8' }).trim();
 				// gitRoot の重複排除
 				if (!this.gitRootEntries.some(e => e.gitRoot === gitRoot)) {
 					this.gitRootEntries.push({ rootPath, gitRoot });
@@ -259,7 +259,7 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem>
 	private getChanges(gitRoot: string): { staged: ParsedChange[]; unstaged: ParsedChange[] } {
 		let output: string;
 		try {
-			output = execSync('git status --porcelain', { cwd: gitRoot, encoding: 'utf-8' });
+			output = execFileSync('git', ['status', '--porcelain'], { cwd: gitRoot, encoding: 'utf-8' });
 		} catch {
 			return { staged: [], unstaged: [] };
 		}
@@ -272,6 +272,26 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem>
 			const x = line[0]; // index status
 			const y = line[1]; // working tree status
 			const filePath = line.substring(3).trim();
+			// 未追跡ディレクトリ（?? dir/）は中のファイルを個別に展開
+			if (filePath.endsWith('/') && x === '?') {
+				try {
+					const files = execFileSync(
+						'git', ['ls-files', '--others', '--exclude-standard', '--', filePath],
+						{ cwd: gitRoot, encoding: 'utf-8' },
+					);
+					for (const f of files.split('\n')) {
+						const trimmed = f.trim();
+						if (!trimmed) continue;
+						unstaged.push({
+							filePath: trimmed,
+							absPath: path.join(gitRoot, trimmed),
+							status: parseStatusCode('?', 'changes'),
+							group: 'changes',
+						});
+					}
+				} catch { /* ignore */ }
+				continue;
+			}
 
 			if (x !== ' ' && x !== '?') {
 				staged.push({
@@ -299,11 +319,11 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem>
 		let ahead = 0;
 		let behind = 0;
 		try {
-			const aheadOut = execSync('git rev-list @{u}..HEAD --count', { cwd: gitRoot, encoding: 'utf-8' }).trim();
+			const aheadOut = execFileSync('git', ['rev-list', '@{u}..HEAD', '--count'], { cwd: gitRoot, encoding: 'utf-8' }).trim();
 			ahead = parseInt(aheadOut, 10) || 0;
 		} catch { /* no upstream or error */ }
 		try {
-			const behindOut = execSync('git rev-list HEAD..@{u} --count', { cwd: gitRoot, encoding: 'utf-8' }).trim();
+			const behindOut = execFileSync('git', ['rev-list', 'HEAD..@{u}', '--count'], { cwd: gitRoot, encoding: 'utf-8' }).trim();
 			behind = parseInt(behindOut, 10) || 0;
 		} catch { /* no upstream or error */ }
 		return { ahead, behind };
@@ -314,7 +334,7 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem>
 		const repoName = path.basename(gitRoot);
 		let branchName = '';
 		try {
-			branchName = execSync('git rev-parse --abbrev-ref HEAD', { cwd: gitRoot, encoding: 'utf-8' }).trim();
+			branchName = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: gitRoot, encoding: 'utf-8' }).trim();
 		} catch { /* ignore */ }
 		return { repoName, branchName };
 	}
@@ -327,11 +347,7 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem>
 		if (this.gitRootEntries.length === 0) { return []; }
 
 		if (!element) {
-			if (this.gitRootEntries.length === 1) {
-				// 単一リポジトリ: フラット表示
-				return this.getGroupItems(this.gitRootEntries[0].gitRoot);
-			}
-			// 複数リポジトリ: リポジトリノードを表示
+			// 常にリポジトリノードを表示
 			return this.gitRootEntries.map(entry => {
 				const info = this.getRepoInfo(entry.gitRoot);
 				return new ChangesRepoItem(entry.gitRoot, info.repoName, info.branchName);
@@ -380,7 +396,7 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem>
 
 	async stageFile(item: ChangesFileItem): Promise<void> {
 		try {
-			execFileSync('git', ['add', item.filePath], { cwd: item.gitRoot });
+			execFileSync('git', ['add', '--', item.filePath], { cwd: item.gitRoot });
 			this.refresh();
 		} catch (e: unknown) {
 			const msg = e instanceof Error ? e.message : String(e);
@@ -390,11 +406,55 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem>
 
 	async unstageFile(item: ChangesFileItem): Promise<void> {
 		try {
-			execFileSync('git', ['reset', 'HEAD', item.filePath], { cwd: item.gitRoot });
+			execFileSync('git', ['reset', 'HEAD', '--', item.filePath], { cwd: item.gitRoot });
 			this.refresh();
 		} catch (e: unknown) {
 			const msg = e instanceof Error ? e.message : String(e);
 			vscode.window.showErrorMessage(`Unstage failed: ${msg}`);
+		}
+	}
+
+	async stageAll(gitRoot?: string): Promise<void> {
+		const target = gitRoot ?? this.primaryGitRoot;
+		if (!target) return;
+		try {
+			execFileSync('git', ['add', '-A'], { cwd: target });
+			this.refresh();
+		} catch (e: unknown) {
+			const msg = e instanceof Error ? e.message : String(e);
+			vscode.window.showErrorMessage(`Stage all failed: ${msg}`);
+		}
+	}
+
+	async unstageAll(gitRoot?: string): Promise<void> {
+		const target = gitRoot ?? this.primaryGitRoot;
+		if (!target) return;
+		try {
+			execFileSync('git', ['reset', 'HEAD'], { cwd: target });
+			this.refresh();
+		} catch (e: unknown) {
+			const msg = e instanceof Error ? e.message : String(e);
+			vscode.window.showErrorMessage(`Unstage all failed: ${msg}`);
+		}
+	}
+
+	async discardAll(gitRoot?: string): Promise<void> {
+		const target = gitRoot ?? this.primaryGitRoot;
+		if (!target) return;
+		const answer = await vscode.window.showWarningMessage(
+			'Discard all changes? This cannot be undone.',
+			{ modal: true },
+			'Discard All',
+		);
+		if (answer !== 'Discard All') return;
+		try {
+			execFileSync('git', ['checkout', '--', '.'], { cwd: target });
+			// 未追跡ファイルも削除
+			execFileSync('git', ['clean', '-fd'], { cwd: target });
+			this.refresh();
+		} catch (e: unknown) {
+			const msg = e instanceof Error ? e.message : String(e);
+			vscode.window.showErrorMessage(`Discard all failed: ${msg}`);
 		}
 	}
 
@@ -431,7 +491,7 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem>
 			return;
 		}
 		try {
-			execSync('git push', { cwd: target });
+			execFileSync('git', ['push'], { cwd: target });
 			vscode.window.showInformationMessage('Push completed.');
 		} catch (e: unknown) {
 			const msg = e instanceof Error ? e.message : String(e);
@@ -445,10 +505,10 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem>
 		try {
 			const { ahead, behind } = this.getSyncInfo(target);
 			if (behind > 0) {
-				execSync('git pull', { cwd: target });
+				execFileSync('git', ['pull'], { cwd: target });
 			}
 			if (ahead > 0) {
-				execSync('git push', { cwd: target });
+				execFileSync('git', ['push'], { cwd: target });
 			}
 			vscode.window.showInformationMessage('Sync completed.');
 			this.refresh();
@@ -469,11 +529,11 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem>
 			// untracked ファイルは git 管理外なので直接削除
 			const isUntracked = item.group === 'changes' &&
 				fs.existsSync(item.absPath) &&
-				(() => { try { execFileSync('git', ['ls-files', '--error-unmatch', item.filePath], { cwd: item.gitRoot, stdio: 'pipe' }); return false; } catch { return true; } })();
+				(() => { try { execFileSync('git', ['ls-files', '--error-unmatch', '--', item.filePath], { cwd: item.gitRoot, stdio: 'pipe' }); return false; } catch { return true; } })();
 			if (isUntracked) {
 				fs.unlinkSync(item.absPath);
 			} else {
-				execFileSync('git', ['checkout', '--', item.filePath], { cwd: item.gitRoot });
+				execFileSync('git', ['checkout', 'HEAD', '--', item.filePath], { cwd: item.gitRoot });
 			}
 			await this.closeTab(item.absPath);
 			this.refresh();

@@ -1,10 +1,13 @@
 import type { SxProps,Theme } from "@mui/material/styles";
 
+import { getTextDisabled } from "../constants/colors";
+
 /** readonly/レビューモード制御・プレースホルダー・基本設定スタイル */
 export function getBaseStyles(
   theme: Theme,
   options?: { readonlyMode?: boolean },
 ): SxProps<Theme> {
+  const isDark = theme.palette.mode === "dark";
   return {
     // readonly/レビューモード時はホバーラベルを非表示
     '&[contenteditable="false"], &[data-review-mode="true"], &[data-readonly-mode="true"]': {
@@ -35,7 +38,7 @@ export function getBaseStyles(
     // プレースホルダー
     "& p.is-editor-empty:first-of-type::before": {
       content: "attr(data-placeholder)",
-      color: theme.palette.text.disabled,
+      color: getTextDisabled(isDark),
       float: "left",
       height: 0,
       pointerEvents: "none",

@@ -5,10 +5,12 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import ContentCutIcon from "@mui/icons-material/ContentCut";
 import ContentPasteIcon from "@mui/icons-material/ContentPaste";
 import { Divider, ListItemIcon, ListItemText, Menu, MenuItem, Typography } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 import type { Editor } from "@tiptap/react";
 import { useCallback, useEffect, useState } from "react";
 
-import { findBlockNode, getCopiedBlockNode, setCopiedBlockNode } from "../utils/blockClipboard";
+import { getBgPaper, getDivider, getTextSecondary } from "../constants/colors";
+import { findBlockNode, getCopiedBlockNode, performBlockCopy } from "../utils/blockClipboard";
 import { boxTableToMarkdown, containsBoxTable } from "../utils/boxTableToMarkdown";
 import { copyTextToClipboard, readTextFromClipboard } from "../utils/clipboardHelpers";
 
@@ -32,11 +34,11 @@ function insertMarkdownText(editor: Editor, text: string): void {
   editor.chain().focus().insertContent(md).run();
 }
 
-const menuPaperSx = {
+function getMenuPaperSx(isDark: boolean) { return {
   minWidth: 180,
-  bgcolor: "background.paper",
+  bgcolor: getBgPaper(isDark),
   border: 1,
-  borderColor: "divider",
+  borderColor: getDivider(isDark),
   borderRadius: 1,
   boxShadow: "0 2px 8px rgba(0,0,0,0.25)",
   py: 0.5,
@@ -49,9 +51,10 @@ const menuPaperSx = {
   "& .MuiListItemIcon-root": {
     minWidth: 28,
   },
-};
+} as const; }
 
 export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProps) {
+  const isDark = useTheme().palette.mode === "dark";
   const [menuPos, setMenuPos] = useState<MenuPosition | null>(null);
 
   useEffect(() => {
@@ -100,50 +103,18 @@ export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProp
   }, []);
 
   const hasSelection = editor ? editor.state.selection.from !== editor.state.selection.to : false;
-  const blockInfo = editor ? findBlockNode(editor) : null;
+  const blockInfo = editor ? findBlockNode(editor.state) : null;
   const canCopy = hasSelection || !!blockInfo;
 
   const handleCut = useCallback(() => {
     if (!editor || !editor.isEditable) return;
-    const { from, to } = editor.state.selection;
-
-    if (from !== to) {
-      setCopiedBlockNode(null);
-      const text = editor.state.doc.textBetween(from, to, "\n");
-      copyTextToClipboard(text);
-      editor.chain().focus().deleteSelection().run();
-      handleClose();
-      return;
-    }
-
-    const block = findBlockNode(editor);
-    if (block) {
-      setCopiedBlockNode(block.node);
-      copyTextToClipboard(block.text);
-      const { tr } = editor.state;
-      tr.delete(block.pos, block.pos + block.node.nodeSize);
-      editor.view.dispatch(tr);
-    }
+    performBlockCopy(editor.view, true, (text) => copyTextToClipboard(text));
     handleClose();
   }, [editor, handleClose]);
 
   const handleCopy = useCallback(() => {
     if (!editor) return;
-    const { from, to } = editor.state.selection;
-
-    if (from !== to) {
-      setCopiedBlockNode(null);
-      const text = editor.state.doc.textBetween(from, to, "\n");
-      copyTextToClipboard(text);
-      handleClose();
-      return;
-    }
-
-    const block = findBlockNode(editor);
-    if (block) {
-      setCopiedBlockNode(block.node);
-      copyTextToClipboard(block.text);
-    }
+    performBlockCopy(editor.view, false, (text) => copyTextToClipboard(text));
     handleClose();
   }, [editor, handleClose]);
 
@@ -212,7 +183,7 @@ export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProp
           ? { top: menuPos.mouseY, left: menuPos.mouseX }
           : undefined
       }
-      slotProps={{ paper: { sx: menuPaperSx } }}
+      slotProps={{ paper: { sx: getMenuPaperSx(isDark) } }}
     >
       <MenuItem onClick={handleCut} disabled={!!readOnly || !canCopy}>
         <ListItemIcon>
@@ -221,7 +192,7 @@ export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProp
         <ListItemText primaryTypographyProps={{ fontSize: "0.8125rem" }}>
           {t("cut")}
         </ListItemText>
-        <Typography variant="body2" sx={{ color: "text.secondary", fontSize: "0.75rem", ml: 2 }}>
+        <Typography variant="body2" sx={{ color: getTextSecondary(isDark), fontSize: "0.75rem", ml: 2 }}>
           Ctrl+X
         </Typography>
       </MenuItem>
@@ -232,7 +203,7 @@ export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProp
         <ListItemText primaryTypographyProps={{ fontSize: "0.8125rem" }}>
           {t("copy")}
         </ListItemText>
-        <Typography variant="body2" sx={{ color: "text.secondary", fontSize: "0.75rem", ml: 2 }}>
+        <Typography variant="body2" sx={{ color: getTextSecondary(isDark), fontSize: "0.75rem", ml: 2 }}>
           Ctrl+C
         </Typography>
       </MenuItem>
@@ -243,7 +214,7 @@ export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProp
         <ListItemText primaryTypographyProps={{ fontSize: "0.8125rem" }}>
           {t("paste")}
         </ListItemText>
-        <Typography variant="body2" sx={{ color: "text.secondary", fontSize: "0.75rem", ml: 2 }}>
+        <Typography variant="body2" sx={{ color: getTextSecondary(isDark), fontSize: "0.75rem", ml: 2 }}>
           Ctrl+V
         </Typography>
       </MenuItem>
@@ -255,7 +226,7 @@ export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProp
         <ListItemText primaryTypographyProps={{ fontSize: "0.8125rem" }}>
           {t("pasteAsMarkdown")}
         </ListItemText>
-        <Typography variant="body2" sx={{ color: "text.secondary", fontSize: "0.75rem", ml: 2 }}>
+        <Typography variant="body2" sx={{ color: getTextSecondary(isDark), fontSize: "0.75rem", ml: 2 }}>
           Ctrl+Shift+V
         </Typography>
       </MenuItem>

@@ -6,6 +6,7 @@ import type { DiffResult } from "../utils/diffEngine";
 jest.mock("@mui/material/styles", () => ({
   useTheme: () => ({
     palette: {
+      mode: "light",
       success: { main: "#4caf50" },
       error: { main: "#f44336" },
     },
@@ -18,8 +19,8 @@ jest.mock("../useEditorSettings", () => ({
 }));
 
 // --- Helpers ---
-const GREEN = "rgba(#4caf50,0.18)";
-const RED = "rgba(#f44336,0.18)";
+const GREEN = "rgba(#2e7d32,0.18)";
+const RED = "rgba(#d32f2f,0.18)";
 const LINE_H = 16 * 1.5; // 24
 const PAD = 16;
 
