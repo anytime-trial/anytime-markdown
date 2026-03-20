@@ -1,7 +1,7 @@
 import type { AnyExtension } from "@tiptap/core";
 import Placeholder from "@tiptap/extension-placeholder";
 import type { MarkdownSerializerState } from "@tiptap/pm/markdown";
-import type { Node as ProseMirrorNode,Slice } from "@tiptap/pm/model";
+import { DOMSerializer, type Node as ProseMirrorNode, type Slice } from "@tiptap/pm/model";
 import type { EditorView } from "@tiptap/pm/view";
 import type { Editor } from "@tiptap/react";
 import type { RefObject } from "react";
@@ -109,17 +109,12 @@ function handleBlockClipboard(view: EditorView, event: ClipboardEvent, isCut: bo
       // ブロック全体のテキストコンテンツをクリップボードに設定
       const text = view.state.doc.textBetween(blockStart, blockEnd, "\n");
       event.clipboardData.setData("text/plain", text);
-      // ProseMirror の HTML シリアライズもクリップボードに設定（ペースト時にブロック構造を維持）
-      const slice = view.state.doc.slice(blockStart, blockEnd);
-      const serializer = view.dom.ownerDocument.defaultView
-        ? (view as unknown as { clipboardSerializer?: { serializeFragment: (f: typeof slice.content) => DocumentFragment } }).clipboardSerializer
-        : undefined;
-      if (serializer) {
-        const fragment = serializer.serializeFragment(slice.content);
-        const div = document.createElement("div");
-        div.appendChild(fragment);
-        event.clipboardData.setData("text/html", div.innerHTML);
-      }
+      // DOMSerializer でブロックノードを HTML に変換（ペースト時にブロック構造を維持）
+      const domSerializer = DOMSerializer.fromSchema(view.state.schema);
+      const htmlFragment = domSerializer.serializeNode(node);
+      const wrapper = document.createElement("div");
+      wrapper.appendChild(htmlFragment);
+      event.clipboardData.setData("text/html", wrapper.innerHTML);
       event.preventDefault();
       if (isCut) {
         view.dispatch(view.state.tr.delete(blockStart, blockEnd));
