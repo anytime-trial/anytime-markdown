@@ -5,7 +5,7 @@ import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import GitHubIcon from "@mui/icons-material/GitHub";
 import ListAltIcon from "@mui/icons-material/ListAlt";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
-import MenuIcon from "@mui/icons-material/Menu";
+import AppIcon from "../icons/AppIcon";
 import RedoIcon from "@mui/icons-material/Redo";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import UndoIcon from "@mui/icons-material/Undo";
@@ -237,7 +237,11 @@ export const EditorToolbar = React.memo(function EditorToolbar({
         alignItems: "center",
         flexWrap: "wrap",
         gap: 0.5,
-        p: 1,
+        py: 0.5,
+        pr: 0.5,
+        pl: "2px",
+        minHeight: 44,
+        maxHeight: 44,
         borderBottomLeftRadius: 0,
         borderBottomRightRadius: 0,
         borderBottom: inlineMergeOpen ? undefined : "none",
@@ -390,8 +394,9 @@ export const EditorToolbar = React.memo(function EditorToolbar({
               <IconButton aria-label={t("more")}
                 size="small"
                 onClick={(e) => onSetHelpAnchor(e.currentTarget)}
+                sx={{ mr: 0, p: 0 }}
               >
-                <MenuIcon fontSize="small" />
+                <AppIcon fontSize="small" />
               </IconButton>
             </Tooltip>
           </Box>
@@ -400,9 +405,9 @@ export const EditorToolbar = React.memo(function EditorToolbar({
             aria-label={t("more")}
             size="small"
             onClick={(e) => setMobileMenuAnchorEl(e.currentTarget)}
-            sx={{ display: { xs: "inline-flex", md: "none" } }}
+            sx={{ display: { xs: "inline-flex", md: "none" }, mr: 0, p: 0 }}
           >
-            <MenuIcon fontSize="small" />
+            <AppIcon fontSize="small" />
           </IconButton>
         </>
       )}
