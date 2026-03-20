@@ -2,4 +2,4 @@
 
 **Write beautifully, anytime, anywhere.**
 
-Type `/` to try slash commands.
+Try the slash command template "markdownAll".
