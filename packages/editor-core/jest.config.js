@@ -9,7 +9,7 @@ const config = {
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/src/$1",
   },
-  maxWorkers: 1,
+  maxWorkers: 2,
 };
 
 module.exports = config;

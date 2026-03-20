@@ -11,7 +11,7 @@ const config = {
     "^@anytime-markdown/editor-core$": "<rootDir>/../editor-core/src/index.ts",
     "^next-auth(.*)$": "<rootDir>/src/__mocks__/next-auth.js",
   },
-  maxWorkers: 4,
+  maxWorkers: 2,
 };
 
 module.exports = config;
