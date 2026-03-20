@@ -9,6 +9,7 @@ import type { Editor } from "@tiptap/react";
 import { useCallback, useEffect, useState } from "react";
 
 import { findBlockNode, getCopiedBlockNode, setCopiedBlockNode } from "../utils/blockClipboard";
+import { copyTextToClipboard, readTextFromClipboard } from "../utils/clipboardHelpers";
 import { boxTableToMarkdown, containsBoxTable } from "../utils/boxTableToMarkdown";
 
 interface EditorContextMenuProps {
@@ -109,7 +110,7 @@ export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProp
     if (from !== to) {
       setCopiedBlockNode(null);
       const text = editor.state.doc.textBetween(from, to, "\n");
-      navigator.clipboard.writeText(text).catch(() => { document.execCommand("copy"); });
+      copyTextToClipboard(text);
       editor.chain().focus().deleteSelection().run();
       handleClose();
       return;
@@ -118,7 +119,7 @@ export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProp
     const block = findBlockNode(editor);
     if (block) {
       setCopiedBlockNode(block.node);
-      navigator.clipboard.writeText(block.text).catch(() => { document.execCommand("copy"); });
+      copyTextToClipboard(block.text);
       const { tr } = editor.state;
       tr.delete(block.pos, block.pos + block.node.nodeSize);
       editor.view.dispatch(tr);
@@ -133,7 +134,7 @@ export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProp
     if (from !== to) {
       setCopiedBlockNode(null);
       const text = editor.state.doc.textBetween(from, to, "\n");
-      navigator.clipboard.writeText(text).catch(() => { document.execCommand("copy"); });
+      copyTextToClipboard(text);
       handleClose();
       return;
     }
@@ -141,7 +142,7 @@ export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProp
     const block = findBlockNode(editor);
     if (block) {
       setCopiedBlockNode(block.node);
-      navigator.clipboard.writeText(block.text).catch(() => { document.execCommand("copy"); });
+      copyTextToClipboard(block.text);
     }
     handleClose();
   }, [editor, handleClose]);
@@ -161,14 +162,10 @@ export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProp
       return;
     }
 
-    try {
-      const text = await navigator.clipboard.readText();
-      if (text) {
-        editor.chain().focus().insertContent(text, { parseOptions: { preserveWhitespace: true } }).run();
-        handleClose();
-        return;
-      }
-    } catch { /* Clipboard API 不可 */ }
+    const text = await readTextFromClipboard();
+    if (text) {
+      editor.chain().focus().insertContent(text, { parseOptions: { preserveWhitespace: true } }).run();
+    }
     handleClose();
   }, [editor, readOnly, handleClose]);
 
@@ -181,10 +178,8 @@ export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProp
         content: [{ type: "text", text }],
       }).run();
     };
-    try {
-      const text = await navigator.clipboard.readText();
-      if (text) { pasteIntoCodeBlock(text); handleClose(); return; }
-    } catch { /* Clipboard API 不可 */ }
+    const text = await readTextFromClipboard();
+    if (text) { pasteIntoCodeBlock(text); handleClose(); return; }
     // VS Code 環境: vscode-paste-codeblock イベントで処理
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const w = window as any;
@@ -196,15 +191,12 @@ export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProp
 
   const handlePasteAsMarkdown = useCallback(async () => {
     if (!editor || !editor.isEditable) { handleClose(); return; }
-    try {
-      const text = await navigator.clipboard.readText();
-      if (text) {
-        insertMarkdownText(editor, text);
-        handleClose();
-        return;
-      }
-    } catch { /* Clipboard API 不可 */ }
-
+    const text = await readTextFromClipboard();
+    if (text) {
+      insertMarkdownText(editor, text);
+      handleClose();
+      return;
+    }
     // VS Code 環境: 拡張側にクリップボード読み取りを依頼
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const w = window as any;

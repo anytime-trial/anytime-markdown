@@ -3,6 +3,7 @@ import { useCallback } from "react";
 
 import { CAPTURE_BG } from "../constants/colors";
 import { FETCH_TIMEOUT } from "../constants/timing";
+import { saveBlob } from "../utils/clipboardHelpers";
 import { buildPlantUmlUrl } from "../utils/plantumlHelpers";
 
 interface UseDiagramCaptureParams {
@@ -87,32 +88,6 @@ async function downloadSvgAsPng(svgText: string, fileName = "diagram.png") {
   const pngBlob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
   if (!pngBlob) return;
   await saveBlob(pngBlob, fileName);
-}
-
-/** showSaveFilePicker が使えればネイティブ保存ダイアログ、なければ従来のダウンロード */
-async function saveBlob(blob: Blob, suggestedName: string) {
-  if ("showSaveFilePicker" in window) {
-    try {
-      const handle = await (window as unknown as { showSaveFilePicker: (opts: unknown) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
-        suggestedName,
-        types: [{
-          description: "PNG Image",
-          accept: { "image/png": [".png"] },
-        }],
-      });
-      const writable = await handle.createWritable();
-      await writable.write(blob);
-      await writable.close();
-      return;
-    } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") return;
-    }
-  }
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = suggestedName;
-  a.click();
-  URL.revokeObjectURL(a.href);
 }
 
 /** Render Mermaid code as light-mode SVG */

@@ -2,6 +2,9 @@ import type { NodeViewProps } from "@tiptap/react";
 import { useCallback } from "react";
 
 import { CAPTURE_BG } from "../constants/colors";
+import { saveBlob } from "../utils/clipboardHelpers";
+
+export { saveBlob } from "../utils/clipboardHelpers";
 
 /**
  * ブロック要素を PNG としてキャプチャしてダウンロードするフック。
@@ -299,36 +302,3 @@ async function downloadCanvas(canvas: HTMLCanvasElement, fileName: string) {
   await saveBlob(blob, fileName);
 }
 
-/** showSaveFilePicker が使えればネイティブ保存ダイアログ、なければ従来のダウンロード */
-export async function saveBlob(blob: Blob, suggestedName: string) {
-  if ("showSaveFilePicker" in window) {
-    try {
-      const ext = suggestedName.match(/\.(\w+)$/)?.[1]?.toLowerCase() ?? "png";
-      const allTypes = [
-        { ext: "gif", type: { description: "GIF Image", accept: { "image/gif": [".gif"] } } },
-        { ext: "png", type: { description: "PNG Image", accept: { "image/png": [".png"] } } },
-        { ext: "svg", type: { description: "SVG Image", accept: { "image/svg+xml": [".svg"] } } },
-      ];
-      // suggestedName の拡張子を先頭にし、残りを後ろに並べる
-      const types = [
-        ...allTypes.filter((t) => t.ext === ext).map((t) => t.type),
-        ...allTypes.filter((t) => t.ext !== ext).map((t) => t.type),
-      ];
-      const handle = await (window as unknown as { showSaveFilePicker: (opts: unknown) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
-        suggestedName,
-        types,
-      });
-      const writable = await handle.createWritable();
-      await writable.write(blob);
-      await writable.close();
-      return;
-    } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") return;
-    }
-  }
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = suggestedName;
-  a.click();
-  URL.revokeObjectURL(a.href);
-}
