@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 
 const GIT_LOG_LIMIT = 100;
 const GIT_LOG_MAX_BUFFER = 1024 * 1024;
@@ -64,8 +64,8 @@ export class GraphItem extends vscode.TreeItem {
 function collectLocalOnlyHashes(gitRoot: string): Set<string> {
 	const hashes = new Set<string>();
 	try {
-		const output = execSync(
-			'git log --format=%h --branches --not --remotes',
+		const output = execFileSync(
+			'git', ['log', '--format=%h', '--branches', '--not', '--remotes'],
 			{ cwd: gitRoot, encoding: 'utf-8' },
 		);
 		for (const h of output.split('\n')) {
@@ -130,7 +130,7 @@ export class GraphProvider implements vscode.TreeDataProvider<GraphItem> {
 		this.gitRoot = null;
 		if (rootPath) {
 			try {
-				this.gitRoot = execSync('git rev-parse --show-toplevel', { cwd: rootPath, encoding: 'utf-8' }).trim();
+				this.gitRoot = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: rootPath, encoding: 'utf-8' }).trim();
 			} catch { /* ignore */ }
 		}
 		this.items = [];
@@ -152,8 +152,8 @@ export class GraphProvider implements vscode.TreeDataProvider<GraphItem> {
 
 		try {
 			const localOnlyHashes = collectLocalOnlyHashes(this.gitRoot);
-			const output = execSync(
-				`git log --graph --all --oneline --decorate --format="%h%x00%s%x00%d%x00%ar%x00%an" -${GIT_LOG_LIMIT}`,
+			const output = execFileSync(
+				'git', ['log', '--graph', '--all', '--oneline', '--decorate', `--format=%h%x00%s%x00%d%x00%ar%x00%an`, `-${GIT_LOG_LIMIT}`],
 				{ cwd: this.gitRoot, encoding: 'utf-8', maxBuffer: GIT_LOG_MAX_BUFFER },
 			);
 			this.items = parseGitLogOutput(output, localOnlyHashes);

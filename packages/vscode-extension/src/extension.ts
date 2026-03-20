@@ -381,10 +381,10 @@ export function activate(context: vscode.ExtensionContext) {
 				// git コマンドで変更前コンテンツを取得
 				let originalContent: string;
 				try {
-					const { execSync } = await import('child_process');
+					const { execFileSync } = await import('child_process');
 					originalContent = group === 'staged'
-						? execSync(`git show HEAD:"${filePath}"`, { cwd: gitRoot, encoding: 'utf-8' })
-						: execSync(`git show :"${filePath}"`, { cwd: gitRoot, encoding: 'utf-8' });
+						? execFileSync('git', ['show', `HEAD:${filePath}`], { cwd: gitRoot, encoding: 'utf-8' })
+						: execFileSync('git', ['show', `:${filePath}`], { cwd: gitRoot, encoding: 'utf-8' });
 				} catch {
 					originalContent = '';
 				}
@@ -422,13 +422,13 @@ export function activate(context: vscode.ExtensionContext) {
 			// git コマンドで変更前コンテンツを取得
 			let originalContent: string;
 			try {
-				const { execSync } = await import('child_process');
+				const { execFileSync } = await import('child_process');
 				if (group === 'staged') {
 					// ステージ済み: HEAD のコンテンツ
-					originalContent = execSync(`git show HEAD:"${filePath}"`, { cwd: gitRoot, encoding: 'utf-8' });
+					originalContent = execFileSync('git', ['show', `HEAD:${filePath}`], { cwd: gitRoot, encoding: 'utf-8' });
 				} else {
 					// 未ステージ: インデックス（ステージ済み or HEAD）のコンテンツ
-					originalContent = execSync(`git show :"${filePath}"`, { cwd: gitRoot, encoding: 'utf-8' });
+					originalContent = execFileSync('git', ['show', `:${filePath}`], { cwd: gitRoot, encoding: 'utf-8' });
 				}
 			} catch {
 				originalContent = '';

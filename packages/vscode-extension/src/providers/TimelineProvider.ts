@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 
 interface GitExtension {
 	getAPI(version: 1): GitAPI;
@@ -116,8 +116,8 @@ export class TimelineProvider implements vscode.TreeDataProvider<TimelineItem> {
 		if (!this.gitRoot || !this.fileUri) { return []; }
 		const relativePath = path.relative(this.gitRoot, this.fileUri.fsPath).replace(/\\/g, '/');
 		try {
-			const output = execSync(
-				`git log --format="%H%n%s%n%an%n%aI" -50 -- "${relativePath}"`,
+			const output = execFileSync(
+				'git', ['log', '--format=%H%n%s%n%an%n%aI', '-50', '--', relativePath],
 				{ cwd: this.gitRoot, encoding: 'utf-8' },
 			);
 			const lines = output.trim().split('\n');
@@ -144,7 +144,7 @@ export class TimelineProvider implements vscode.TreeDataProvider<TimelineItem> {
 		if (this.gitRoot) {
 			const relativePath = path.relative(this.gitRoot, item.fileUri.fsPath).replace(/\\/g, '/');
 			try {
-				return execSync(`git show ${item.commit.hash}:"${relativePath}"`, { cwd: this.gitRoot, encoding: 'utf-8' });
+				return execFileSync('git', ['show', `${item.commit.hash}:${relativePath}`], { cwd: this.gitRoot, encoding: 'utf-8' });
 			} catch {
 				return null;
 			}

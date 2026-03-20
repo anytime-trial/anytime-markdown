@@ -334,6 +334,11 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       }, delay);
     };
 
+    const handleWriteClipboard = async (message: Record<string, unknown>) => {
+      const text = typeof message.text === 'string' ? message.text : '';
+      await vscode.env.clipboard.writeText(text);
+    };
+
     const handleReadClipboard = async () => {
       const text = await vscode.env.clipboard.readText();
       ctx.webviewPanel.webview.postMessage({ type: 'pasteMarkdown', text });
@@ -476,6 +481,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
         case 'statusChanged': handleStatusChanged(message); break;
         case 'saveCompareFile': await handleSaveCompareFile(message); break;
         case 'contentChanged': handleContentChanged(message); break;
+        case 'writeClipboard': await handleWriteClipboard(message); break;
         case 'readClipboard': await handleReadClipboard(); break;
         case 'readClipboardForCodeBlock': await handleReadClipboardForCodeBlock(); break;
         case 'saveClipboardImage': handleSaveClipboardImage(message); break;
