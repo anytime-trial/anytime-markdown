@@ -159,6 +159,70 @@ function handleBlockContextMenu(
   return false;
 }
 
+/** Generate a timestamp string for file naming */
+function generateTimestamp(): string {
+  const now = new Date();
+  return `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}`;
+}
+
+/** Insert image via VS Code API (save to file) or as base64 */
+function insertImageFromFile(
+  file: File,
+  dataUrl: string,
+  view: EditorView,
+  pos: number,
+): void {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const vscodeApi = (window as any).__vscode;
+  if (vscodeApi) {
+    const ext = file.type.split("/")[1] || "png";
+    const baseName = file.name && !file.name.startsWith("image") ? file.name : `drop-${generateTimestamp()}.${ext}`;
+    vscodeApi.postMessage({ type: "saveClipboardImage", dataUrl, fileName: baseName });
+  } else {
+    const tr = view.state.tr.insert(pos, view.state.schema.nodes.image.create({ src: dataUrl, alt: file.name }));
+    view.dispatch(tr);
+  }
+}
+
+/** Insert pasted image via VS Code API or as base64 */
+function insertPastedImage(
+  file: File,
+  dataUrl: string,
+  view: EditorView,
+): void {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const vscodeApi = (window as any).__vscode;
+  if (vscodeApi) {
+    const ext = file.type.split("/")[1] || "png";
+    const fileName = `paste-${generateTimestamp()}.${ext}`;
+    vscodeApi.postMessage({ type: "saveClipboardImage", dataUrl, fileName });
+  } else {
+    const { from } = view.state.selection;
+    const tr = view.state.tr.insert(from, view.state.schema.nodes.image.create({ src: dataUrl, alt: file.name }));
+    view.dispatch(tr);
+  }
+}
+
+/** Try to import a markdown file from a drop event, with optional File System Access API handle */
+function tryImportDroppedMdFile(
+  mdFile: File,
+  event: DragEvent,
+  handleImportRef: RefObject<(file: File, nativeHandle?: FileSystemFileHandle) => void>,
+): void {
+  const items = event.dataTransfer?.items;
+  const mdItem = items ? Array.from(items).find((item) => item.kind === "file" && (mdFile.name.endsWith(".md") || mdFile.name.endsWith(".markdown"))) : null;
+  const mdItemAny = mdItem as (DataTransferItem & { getAsFileSystemHandle?: () => Promise<FileSystemHandle | null> }) | null;
+  if (mdItemAny?.getAsFileSystemHandle) {
+    mdItemAny.getAsFileSystemHandle().then((handle: FileSystemHandle | null) => {
+      handleImportRef.current(mdFile, handle?.kind === "file" ? handle as FileSystemFileHandle : undefined);
+    }).catch(() => {
+      handleImportRef.current(mdFile);
+    });
+  } else {
+    handleImportRef.current(mdFile);
+  }
+}
+
 export function useEditorConfig({
   t,
   initialContent,
@@ -202,47 +266,18 @@ export function useEditorConfig({
         const mdFile = Array.from(event.dataTransfer.files).find((f) => f.name.endsWith(".md") || f.name.endsWith(".markdown") || f.type === "text/markdown");
         if (mdFile) {
           event.preventDefault();
-          // File System Access API でネイティブハンドルを取得（対応ブラウザのみ）
-          const items = event.dataTransfer.items;
-          const mdItem = items ? Array.from(items).find((item) => item.kind === "file" && (mdFile.name.endsWith(".md") || mdFile.name.endsWith(".markdown"))) : null;
-          const mdItemAny = mdItem as (DataTransferItem & { getAsFileSystemHandle?: () => Promise<FileSystemHandle | null> }) | null;
-          if (mdItemAny?.getAsFileSystemHandle) {
-            mdItemAny.getAsFileSystemHandle().then((handle: FileSystemHandle | null) => {
-              handleImportRef.current(mdFile, handle?.kind === "file" ? handle as FileSystemFileHandle : undefined);
-            }).catch(() => {
-              // getAsFileSystemHandle 未対応ブラウザでのフォールバック: ハンドルなしでインポート
-              handleImportRef.current(mdFile);
-            });
-          } else {
-            handleImportRef.current(mdFile);
-          }
+          tryImportDroppedMdFile(mdFile, event, handleImportRef);
           return true;
         }
         const images = Array.from(event.dataTransfer.files).filter((f) => f.type.startsWith("image/"));
         if (!images.length) return false;
         event.preventDefault();
         const pos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos ?? view.state.selection.from;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const vscodeApi = (window as any).__vscode;
         images.forEach((file: File) => {
           const reader = new FileReader();
           reader.onload = () => {
             if (typeof reader.result !== "string") return;
-            if (vscodeApi) {
-              // VS Code 環境: ファイルに保存して相対パスで挿入
-              const ext = file.type.split("/")[1] || "png";
-              // 元のファイル名があればそれを使用、なければタイムスタンプ
-              const baseName = file.name && !file.name.startsWith("image") ? file.name : (() => {
-                const now = new Date();
-                const ts = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}`;
-                return `drop-${ts}.${ext}`;
-              })();
-              vscodeApi.postMessage({ type: "saveClipboardImage", dataUrl: reader.result, fileName: baseName });
-            } else {
-              // Web アプリ: Base64 データ URL として直接挿入
-              const tr = view.state.tr.insert(pos, view.state.schema.nodes.image.create({ src: reader.result, alt: file.name }));
-              view.dispatch(tr);
-            }
+            insertImageFromFile(file, reader.result, view, pos);
           };
           reader.readAsDataURL(file);
         });
@@ -258,27 +293,13 @@ export function useEditorConfig({
         const hasText = Array.from(items).some((item) => item.type === "text/plain" || item.type === "text/html");
         if (hasText) return false;
         event.preventDefault();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const vscodeApi = (window as any).__vscode;
         images.forEach((item) => {
           const file = item.getAsFile();
           if (!file) return;
           const reader = new FileReader();
           reader.onload = () => {
             if (typeof reader.result !== "string") return;
-            if (vscodeApi) {
-              // VS Code 環境: ファイルに保存して相対パスで挿入
-              const now = new Date();
-              const ts = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}`;
-              const ext = file.type.split("/")[1] || "png";
-              const fileName = `paste-${ts}.${ext}`;
-              vscodeApi.postMessage({ type: "saveClipboardImage", dataUrl: reader.result, fileName });
-            } else {
-              // Web アプリ: Base64 データ URL として直接挿入
-              const { from } = view.state.selection;
-              const tr = view.state.tr.insert(from, view.state.schema.nodes.image.create({ src: reader.result, alt: file.name }));
-              view.dispatch(tr);
-            }
+            insertPastedImage(file, reader.result, view);
           };
           reader.readAsDataURL(file);
         });

@@ -15,6 +15,8 @@ import { FILE_DROP_OVERLAY_COLOR, getEditorBg } from "../constants/colors";
 import { setMergeEditors } from "../contexts/MergeEditorsContext";
 import { getBaseExtensions } from "../editorExtensions";
 import { CustomHardBreak } from "../extensions/customHardBreak";
+import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
+import type { Transaction } from "@tiptap/pm/state";
 import { ReviewModeExtension, reviewModeStorage } from "../extensions/reviewModeExtension";
 import { useDiffBackground } from "../hooks/useDiffBackground";
 import { useDiffHighlight } from "../hooks/useDiffHighlight";
@@ -64,6 +66,68 @@ interface FileMetadata {
 }
 
 const DEFAULT_METADATA: FileMetadata = { encoding: "UTF-8", lineEnding: "LF" };
+
+const SYNC_TARGET_TYPES = new Set(["codeBlock", "table", "image"]);
+
+interface CollapsedState {
+  type: string;
+  index: number;
+  collapsed?: boolean;
+  codeCollapsed?: boolean;
+}
+
+/** Collect collapsed/codeCollapsed states from a ProseMirror doc */
+function collectCollapsedStates(doc: ProseMirrorNode): CollapsedState[] {
+  const states: CollapsedState[] = [];
+  const counters: Record<string, number> = {};
+  doc.descendants((node) => {
+    if (SYNC_TARGET_TYPES.has(node.type.name)) {
+      const key = node.type.name;
+      counters[key] = (counters[key] || 0) + 1;
+      states.push({
+        type: key,
+        index: counters[key] - 1,
+        collapsed: node.attrs.collapsed,
+        codeCollapsed: node.attrs.codeCollapsed,
+      });
+    }
+  });
+  return states;
+}
+
+/** Apply collected collapsed states to a target doc via transaction */
+function applyCollapsedStates(
+  doc: ProseMirrorNode,
+  tr: Transaction,
+  sourceStates: CollapsedState[],
+): boolean {
+  const counters: Record<string, number> = {};
+  let changed = false;
+  doc.descendants((node, pos) => {
+    if (SYNC_TARGET_TYPES.has(node.type.name)) {
+      const key = node.type.name;
+      counters[key] = (counters[key] || 0) + 1;
+      const idx = counters[key] - 1;
+      const srcState = sourceStates.find(s => s.type === key && s.index === idx);
+      if (!srcState) return;
+      let nodeChanged = false;
+      const newAttrs: Record<string, unknown> = { ...node.attrs };
+      if (srcState.collapsed !== undefined && node.attrs.collapsed !== srcState.collapsed) {
+        newAttrs.collapsed = srcState.collapsed;
+        nodeChanged = true;
+      }
+      if (srcState.codeCollapsed !== undefined && node.attrs.codeCollapsed !== srcState.codeCollapsed) {
+        newAttrs.codeCollapsed = srcState.codeCollapsed;
+        nodeChanged = true;
+      }
+      if (nodeChanged) {
+        tr.setNodeMarkup(pos, undefined, newAttrs);
+        changed = true;
+      }
+    }
+  });
+  return changed;
+}
 
 function downloadText(text: string, filename: string) {
   const blob = new Blob([text], { type: "text/markdown;charset=utf-8" });
@@ -257,52 +321,11 @@ export function InlineMergeView({
     const syncCollapsed = () => {
       if (rightEditor.isDestroyed || leftEditor.isDestroyed) return;
       if (rafId !== undefined) cancelAnimationFrame(rafId);
-      const targetTypes = new Set(["codeBlock", "table", "image"]);
-      // 左エディタの collapsed / codeCollapsed 状態を収集
-      const leftStates: { type: string; index: number; collapsed?: boolean; codeCollapsed?: boolean }[] = [];
-      const counters: Record<string, number> = {};
-      rightEditor.state.doc.descendants((node) => {
-        if (targetTypes.has(node.type.name)) {
-          const key = node.type.name;
-          counters[key] = (counters[key] || 0) + 1;
-          leftStates.push({
-            type: key,
-            index: counters[key] - 1,
-            collapsed: node.attrs.collapsed,
-            codeCollapsed: node.attrs.codeCollapsed,
-          });
-        }
-      });
-      // rAF 内でトランザクションを作成して適用（stale state 回避）
+      const sourceStates = collectCollapsedStates(rightEditor.state.doc);
       rafId = requestAnimationFrame(() => {
         if (leftEditor.isDestroyed) return;
-        const rightCounters: Record<string, number> = {};
-        let changed = false;
         const tr = leftEditor.state.tr;
-        leftEditor.state.doc.descendants((node, pos) => {
-          if (targetTypes.has(node.type.name)) {
-            const key = node.type.name;
-            rightCounters[key] = (rightCounters[key] || 0) + 1;
-            const idx = rightCounters[key] - 1;
-            const leftState = leftStates.find(s => s.type === key && s.index === idx);
-            if (leftState) {
-              let nodeChanged = false;
-              const newAttrs: Record<string, unknown> = { ...node.attrs };
-              if (leftState.collapsed !== undefined && node.attrs.collapsed !== leftState.collapsed) {
-                newAttrs.collapsed = leftState.collapsed;
-                nodeChanged = true;
-              }
-              if (leftState.codeCollapsed !== undefined && node.attrs.codeCollapsed !== leftState.codeCollapsed) {
-                newAttrs.codeCollapsed = leftState.codeCollapsed;
-                nodeChanged = true;
-              }
-              if (nodeChanged) {
-                tr.setNodeMarkup(pos, undefined, newAttrs);
-                changed = true;
-              }
-            }
-          }
-        });
+        const changed = applyCollapsedStates(leftEditor.state.doc, tr, sourceStates);
         if (changed) {
           reviewModeStorage(leftEditor).enabled = false;
           leftEditor.view.dispatch(tr);

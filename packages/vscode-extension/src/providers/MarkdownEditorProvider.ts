@@ -213,256 +213,276 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       sendTheme();
     });
 
-    webviewPanel.webview.onDidReceiveMessage(async (message: { type: string; content?: string; active?: boolean; headings?: unknown[]; comments?: unknown[]; status?: { line: number; col: number; charCount: number; lineCount: number; lineEnding: string; encoding: string }; dataUrl?: string; fileName?: string; path?: string }) => {
+    // --- Message handler context shared by all handlers ---
+    interface MessageHandlerContext {
+      webviewPanel: vscode.WebviewPanel;
+      document: vscode.TextDocument;
+      baseUri: string;
+      isDiffView: boolean;
+      updateWebview: () => void;
+      sendSettings: () => void;
+      sendTheme: () => void;
+      isLargeFile: () => boolean;
+      getDisposed: () => boolean;
+    }
+
+    const ctx: MessageHandlerContext = {
+      webviewPanel,
+      document,
+      baseUri,
+      isDiffView,
+      updateWebview,
+      sendSettings,
+      sendTheme,
+      isLargeFile,
+      getDisposed: () => disposed,
+    };
+
+    const handleReady = (message: Record<string, unknown>) => {
+      initialLoadTime = Date.now();
+      initialNormalizationSkipped = false;
+      ctx.updateWebview();
+      ctx.sendSettings();
+      ctx.sendTheme();
+      if (ctx.isDiffView) {
+        for (const [, panel] of this.panels) {
+          panel.webview.postMessage({ type: 'setLanding', landing: true });
+        }
+      }
+      const key = ctx.document.uri.toString();
+      this.readyPanels.add(key);
+      const resolvers = this.readyResolvers.get(key);
+      if (resolvers) {
+        this.readyResolvers.delete(key);
+        resolvers.forEach(r => r());
+      }
+    };
+
+    const handleScrollChanged = (message: Record<string, unknown>) => {
+      const ratio = (message as { type: string; ratio: number }).ratio;
+      for (const [, panel] of this.panels) {
+        if (panel !== ctx.webviewPanel) {
+          panel.webview.postMessage({ type: 'syncScroll', ratio });
+        }
+      }
+    };
+
+    const handleCompareModeChanged = (message: Record<string, unknown>) => {
+      this.compareModeActive = !!message.active;
+      vscode.commands.executeCommand('setContext', 'anytimeMarkdown.compareModeActive', this.compareModeActive);
+    };
+
+    const handleHeadingsChanged = (message: Record<string, unknown>) => {
+      if (message.headings) { this.onHeadingsChanged?.(message.headings as unknown[]); }
+    };
+
+    const handleCommentsChanged = (message: Record<string, unknown>) => {
+      if (message.comments) { this.onCommentsChanged?.(message.comments as unknown[]); }
+    };
+
+    const handleStatusChanged = (message: Record<string, unknown>) => {
+      if (message.status) { this.onStatusChanged?.(message.status as { line: number; col: number; charCount: number; lineCount: number; lineEnding: string; encoding: string }); }
+    };
+
+    const handleSaveCompareFile = async (message: Record<string, unknown>) => {
+      if (this.compareFileUri && typeof message.content === 'string') {
+        try {
+          await vscode.workspace.fs.writeFile(this.compareFileUri, new TextEncoder().encode(message.content));
+        } catch (err) {
+          vscode.window.showErrorMessage(`Error saving compare file: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+    };
+
+    const handleContentChanged = (message: Record<string, unknown>) => {
+      let newContent = message.content;
+      if (typeof newContent !== 'string') { return; }
+      if (newContent && !newContent.endsWith("\n")) { newContent += "\n"; }
+      if (newContent === ctx.document.getText()) { return; }
+      if (!initialNormalizationSkipped && Date.now() - initialLoadTime < 3000) {
+        initialNormalizationSkipped = true;
+        const fileName = path.basename(ctx.document.uri.fsPath);
+        vscode.window.showInformationMessage(
+          `${fileName}: 保存時にフォーマット整形が行われます`
+        );
+        return;
+      }
+
+      if (debounceTimer) { clearTimeout(debounceTimer); }
+      const delay = ctx.isLargeFile() ? 800 : 300;
+      debounceTimer = setTimeout(async () => {
+        if (ctx.getDisposed()) { return; }
+        if (newContent === ctx.document.getText()) { return; }
+        const edit = new vscode.WorkspaceEdit();
+        const fullRange = new vscode.Range(
+          ctx.document.positionAt(0),
+          ctx.document.positionAt(ctx.document.getText().length)
+        );
+        edit.replace(ctx.document.uri, fullRange, newContent as string);
+        lastApplyTime = Date.now();
+        isApplyingWebviewEdit = true;
+        try {
+          const success = await vscode.workspace.applyEdit(edit);
+          if (!success) {
+            vscode.window.showWarningMessage('Failed to apply edit to the document.');
+          }
+        } catch (err) {
+          vscode.window.showErrorMessage(`Error saving changes: ${err instanceof Error ? err.message : String(err)}`);
+        } finally {
+          isApplyingWebviewEdit = false;
+        }
+      }, delay);
+    };
+
+    const handleReadClipboard = async () => {
+      const text = await vscode.env.clipboard.readText();
+      ctx.webviewPanel.webview.postMessage({ type: 'pasteMarkdown', text });
+    };
+
+    const handleReadClipboardForCodeBlock = async () => {
+      const cbText = await vscode.env.clipboard.readText();
+      ctx.webviewPanel.webview.postMessage({ type: 'pasteCodeBlock', text: cbText });
+    };
+
+    const handleSaveClipboardImage = (message: Record<string, unknown>) => {
+      const imgData = typeof message.dataUrl === 'string' ? message.dataUrl : '';
+      const imgFileName = typeof message.fileName === 'string' ? message.fileName : '';
+      if (!imgData || !imgFileName) return;
+      if (imgFileName.includes('/') || imgFileName.includes('\\') || imgFileName.startsWith('.')) {
+        vscode.window.showErrorMessage('Invalid filename');
+        return;
+      }
+      const docDir = path.dirname(ctx.document.uri.fsPath);
+      const imagesDir = path.join(docDir, 'images');
+      try {
+        if (!fs.existsSync(imagesDir)) {
+          fs.mkdirSync(imagesDir, { recursive: true });
+        }
+        const match = imgData.match(/^data:image\/\w+;base64,(.+)$/);
+        if (!match) return;
+        const buffer = Buffer.from(match[1], 'base64');
+        const filePath = path.join(imagesDir, imgFileName);
+        if (!filePath.startsWith(imagesDir + path.sep) && filePath !== imagesDir) {
+          vscode.window.showErrorMessage('Path traversal detected');
+          return;
+        }
+        fs.writeFileSync(filePath, buffer);
+        const relativePath = `images/${imgFileName}`;
+        const webviewUri = ctx.webviewPanel.webview.asWebviewUri(vscode.Uri.file(filePath)).toString();
+        ctx.webviewPanel.webview.postMessage({ type: 'imageSaved', path: relativePath, webviewUri });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        vscode.window.showErrorMessage(`Image save failed: ${msg}`);
+      }
+    };
+
+    const handleOverwriteImage = (message: Record<string, unknown>) => {
+      const imgPath = typeof message.path === 'string' ? message.path : '';
+      const imgDataUrl = typeof message.dataUrl === 'string' ? message.dataUrl : '';
+      if (!imgPath || !imgDataUrl) return;
+      try {
+        const match = imgDataUrl.match(/^data:image\/\w+;base64,(.+)$/);
+        if (!match) return;
+        const buffer = Buffer.from(match[1], 'base64');
+        const cleanPath = imgPath.split('?')[0];
+        const docDir = path.dirname(ctx.document.uri.fsPath);
+        const absPath = path.resolve(docDir, cleanPath);
+        if (!absPath.startsWith(docDir + path.sep) && absPath !== docDir) {
+          vscode.window.showErrorMessage('Path traversal detected');
+          return;
+        }
+        fs.writeFileSync(absPath, buffer);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        vscode.window.showErrorMessage(`Image overwrite failed: ${msg}`);
+      }
+    };
+
+    const handleOpenLink = async (message: Record<string, unknown>) => {
+      const rawHref = (message as { type: string; href?: string }).href;
+      if (typeof rawHref !== 'string') { return; }
+      const href = decodeURIComponent(rawHref);
+      const lineMatch = href.match(/#L(\d+)$/);
+      const filePath = lineMatch ? href.replace(/#L\d+$/, '') : href;
+      if (path.isAbsolute(filePath)) {
+        vscode.window.showWarningMessage(`Invalid file path: ${filePath}`);
+        return;
+      }
+      const docDir = path.dirname(ctx.document.uri.fsPath);
+      const targetPath = path.resolve(docDir, filePath);
+      const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      if (workspaceRoot && !targetPath.startsWith(workspaceRoot + path.sep) && targetPath !== workspaceRoot) {
+        const fromRoot = path.resolve(workspaceRoot, filePath);
+        if (!fromRoot.startsWith(workspaceRoot + path.sep)) {
+          vscode.window.showWarningMessage(`Invalid file path: ${filePath}`);
+          return;
+        }
+      }
+      const candidates = [targetPath];
+      if (workspaceRoot) {
+        const fromRoot = path.resolve(workspaceRoot, filePath);
+        if (fromRoot !== targetPath) { candidates.push(fromRoot); }
+      }
+      let opened = false;
+      for (const candidate of candidates) {
+        const uri = vscode.Uri.file(candidate);
+        try {
+          if (lineMatch) {
+            const line = Math.max(0, parseInt(lineMatch[1], 10) - 1);
+            const doc = await vscode.workspace.openTextDocument(uri);
+            await vscode.window.showTextDocument(doc, {
+              selection: new vscode.Range(line, 0, line, 0),
+            });
+          } else {
+            await vscode.commands.executeCommand('vscode.open', uri);
+          }
+          opened = true;
+          break;
+        } catch {
+          // 次の候補を試す
+        }
+      }
+      if (!opened) {
+        vscode.window.showWarningMessage(`Cannot open file: ${href}`);
+      }
+    };
+
+    const handleRequestReload = async () => {
+      try {
+        const bytes = await vscode.workspace.fs.readFile(ctx.document.uri);
+        const diskContent = new TextDecoder().decode(bytes);
+        ctx.webviewPanel.webview.postMessage({ type: 'setBaseUri', baseUri: ctx.baseUri });
+        ctx.webviewPanel.webview.postMessage({ type: 'setContent', content: diskContent });
+      } catch (err) {
+        vscode.window.showErrorMessage(`Error reloading file: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    };
+
+    const handleSave = async () => {
+      try {
+        await ctx.document.save();
+      } catch (err) {
+        vscode.window.showErrorMessage(`Error saving file: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    };
+
+    webviewPanel.webview.onDidReceiveMessage(async (message: { type: string; [key: string]: unknown }) => {
       switch (message.type) {
-        case 'ready': {
-          initialLoadTime = Date.now();
-          initialNormalizationSkipped = false;
-          updateWebview();
-          sendSettings();
-          sendTheme();
-          // diff ビューの場合は全パネルにランディング画面を表示するよう通知
-          if (isDiffView) {
-            for (const [, panel] of this.panels) {
-              panel.webview.postMessage({ type: 'setLanding', landing: true });
-            }
-          }
-          const key = document.uri.toString();
-          this.readyPanels.add(key);
-          const resolvers = this.readyResolvers.get(key);
-          if (resolvers) {
-            this.readyResolvers.delete(key);
-            resolvers.forEach(r => r());
-          }
-          break;
-        }
-
-        case 'scrollChanged': {
-          // 自分以外の全パネルにスクロール位置を中継
-          const ratio = (message as { type: string; ratio: number }).ratio;
-          for (const [, panel] of this.panels) {
-            if (panel !== webviewPanel) {
-              panel.webview.postMessage({ type: 'syncScroll', ratio });
-            }
-          }
-          break;
-        }
-
-        case 'compareModeChanged':
-          this.compareModeActive = !!message.active;
-          vscode.commands.executeCommand('setContext', 'anytimeMarkdown.compareModeActive', this.compareModeActive);
-          break;
-
-        case 'headingsChanged':
-          if (message.headings) { this.onHeadingsChanged?.(message.headings); }
-          break;
-
-        case 'commentsChanged':
-          if (message.comments) { this.onCommentsChanged?.(message.comments); }
-          break;
-
-        case 'statusChanged':
-          if (message.status) { this.onStatusChanged?.(message.status); }
-          break;
-
-        case 'saveCompareFile':
-          if (this.compareFileUri && typeof message.content === 'string') {
-            try {
-              await vscode.workspace.fs.writeFile(this.compareFileUri, new TextEncoder().encode(message.content));
-            } catch (err) {
-              vscode.window.showErrorMessage(`Error saving compare file: ${err instanceof Error ? err.message : String(err)}`);
-            }
-          }
-          break;
-
-        case 'contentChanged': {
-          let newContent = message.content;
-          if (typeof newContent !== 'string') { return; }
-          // POSIX 準拠: テキストファイルは末尾改行で終わる
-          if (newContent && !newContent.endsWith("\n")) { newContent += "\n"; }
-          if (newContent === document.getText()) { return; }
-          // 初回ロード後 3 秒以内の最初の contentChanged は TipTap 正規化として無視
-          if (!initialNormalizationSkipped && Date.now() - initialLoadTime < 3000) {
-            initialNormalizationSkipped = true;
-            const fileName = path.basename(document.uri.fsPath);
-            vscode.window.showInformationMessage(
-              `${fileName}: 保存時にフォーマット整形が行われます`
-            );
-            return;
-          }
-
-          if (debounceTimer) { clearTimeout(debounceTimer); }
-          const delay = isLargeFile() ? 800 : 300;
-          debounceTimer = setTimeout(async () => {
-            if (disposed) { return; }
-            if (newContent === document.getText()) { return; }
-            const edit = new vscode.WorkspaceEdit();
-            const fullRange = new vscode.Range(
-              document.positionAt(0),
-              document.positionAt(document.getText().length)
-            );
-            edit.replace(document.uri, fullRange, newContent);
-            lastApplyTime = Date.now();
-            isApplyingWebviewEdit = true;
-            try {
-              const success = await vscode.workspace.applyEdit(edit);
-              if (!success) {
-                vscode.window.showWarningMessage('Failed to apply edit to the document.');
-              }
-            } catch (err) {
-              vscode.window.showErrorMessage(`Error saving changes: ${err instanceof Error ? err.message : String(err)}`);
-            } finally {
-              isApplyingWebviewEdit = false;
-            }
-          }, delay);
-          break;
-        }
-
-        case 'readClipboard': {
-          const text = await vscode.env.clipboard.readText();
-          webviewPanel.webview.postMessage({ type: 'pasteMarkdown', text });
-          break;
-        }
-
-        case 'readClipboardForCodeBlock': {
-          const cbText = await vscode.env.clipboard.readText();
-          webviewPanel.webview.postMessage({ type: 'pasteCodeBlock', text: cbText });
-          break;
-        }
-
-        case 'saveClipboardImage': {
-          const imgData = typeof message.dataUrl === 'string' ? message.dataUrl : '';
-          const imgFileName = typeof message.fileName === 'string' ? message.fileName : '';
-          if (!imgData || !imgFileName) break;
-          // ファイル名のバリデーション: パス区切りや相対パスを拒否
-          if (imgFileName.includes('/') || imgFileName.includes('\\') || imgFileName.startsWith('.')) {
-            vscode.window.showErrorMessage('Invalid filename');
-            break;
-          }
-          const docDir = path.dirname(document.uri.fsPath);
-          const imagesDir = path.join(docDir, 'images');
-          try {
-            if (!fs.existsSync(imagesDir)) {
-              fs.mkdirSync(imagesDir, { recursive: true });
-            }
-            // data:image/png;base64,... → Buffer
-            const match = imgData.match(/^data:image\/\w+;base64,(.+)$/);
-            if (!match) break;
-            const buffer = Buffer.from(match[1], 'base64');
-            const filePath = path.join(imagesDir, imgFileName);
-            // パストラバーサル防止: images ディレクトリ内に限定
-            if (!filePath.startsWith(imagesDir + path.sep) && filePath !== imagesDir) {
-              vscode.window.showErrorMessage('Path traversal detected');
-              break;
-            }
-            fs.writeFileSync(filePath, buffer);
-            const relativePath = `images/${imgFileName}`;
-            const webviewUri = webviewPanel.webview.asWebviewUri(vscode.Uri.file(filePath)).toString();
-            webviewPanel.webview.postMessage({ type: 'imageSaved', path: relativePath, webviewUri });
-          } catch (err) {
-            const msg = err instanceof Error ? err.message : String(err);
-            vscode.window.showErrorMessage(`Image save failed: ${msg}`);
-          }
-          break;
-        }
-
-        case 'overwriteImage': {
-          const imgPath = typeof message.path === 'string' ? message.path : '';
-          const imgDataUrl = typeof message.dataUrl === 'string' ? message.dataUrl : '';
-          if (!imgPath || !imgDataUrl) break;
-          try {
-            const match = imgDataUrl.match(/^data:image\/\w+;base64,(.+)$/);
-            if (!match) break;
-            const buffer = Buffer.from(match[1], 'base64');
-            // 相対パスを絶対パスに解決（query string を除去）
-            const cleanPath = imgPath.split('?')[0];
-            const docDir = path.dirname(document.uri.fsPath);
-            const absPath = path.resolve(docDir, cleanPath);
-            // パストラバーサル防止: ドキュメントディレクトリ内に限定
-            if (!absPath.startsWith(docDir + path.sep) && absPath !== docDir) {
-              vscode.window.showErrorMessage('Path traversal detected');
-              break;
-            }
-            fs.writeFileSync(absPath, buffer);
-          } catch (err) {
-            const msg = err instanceof Error ? err.message : String(err);
-            vscode.window.showErrorMessage(`Image overwrite failed: ${msg}`);
-          }
-          break;
-        }
-
-        case 'openLink': {
-          const rawHref = (message as { type: string; href?: string }).href;
-          if (typeof rawHref !== 'string') { return; }
-          const href = decodeURIComponent(rawHref);
-          // #L行番号 フラグメントを解析
-          const lineMatch = href.match(/#L(\d+)$/);
-          const filePath = lineMatch ? href.replace(/#L\d+$/, '') : href;
-          // パストラバーサル防止: 絶対パスを拒否
-          if (path.isAbsolute(filePath)) {
-            vscode.window.showWarningMessage(`Invalid file path: ${filePath}`);
-            return;
-          }
-          const docDir = path.dirname(document.uri.fsPath);
-          const targetPath = path.resolve(docDir, filePath);
-          const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-          // resolve 後のパスがワークスペースルート配下であることを検証
-          if (workspaceRoot && !targetPath.startsWith(workspaceRoot + path.sep) && targetPath !== workspaceRoot) {
-            // ワークスペースルートからの相対パスもフォールバックとして試す
-            const fromRoot = path.resolve(workspaceRoot, filePath);
-            if (!fromRoot.startsWith(workspaceRoot + path.sep)) {
-              vscode.window.showWarningMessage(`Invalid file path: ${filePath}`);
-              return;
-            }
-          }
-          const candidates = [targetPath];
-          if (workspaceRoot) {
-            const fromRoot = path.resolve(workspaceRoot, filePath);
-            if (fromRoot !== targetPath) { candidates.push(fromRoot); }
-          }
-          let opened = false;
-          for (const candidate of candidates) {
-            const uri = vscode.Uri.file(candidate);
-            try {
-              if (lineMatch) {
-                const line = Math.max(0, parseInt(lineMatch[1], 10) - 1);
-                const doc = await vscode.workspace.openTextDocument(uri);
-                await vscode.window.showTextDocument(doc, {
-                  selection: new vscode.Range(line, 0, line, 0),
-                });
-              } else {
-                await vscode.commands.executeCommand('vscode.open', uri);
-              }
-              opened = true;
-              break;
-            } catch {
-              // 次の候補を試す
-            }
-          }
-          if (!opened) {
-            vscode.window.showWarningMessage(`Cannot open file: ${href}`);
-          }
-          break;
-        }
-
-        case 'requestReload':
-          try {
-            const bytes = await vscode.workspace.fs.readFile(document.uri);
-            const diskContent = new TextDecoder().decode(bytes);
-            webviewPanel.webview.postMessage({ type: 'setBaseUri', baseUri });
-            webviewPanel.webview.postMessage({ type: 'setContent', content: diskContent });
-          } catch (err) {
-            vscode.window.showErrorMessage(`Error reloading file: ${err instanceof Error ? err.message : String(err)}`);
-          }
-          break;
-
-        case 'save':
-          try {
-            await document.save();
-          } catch (err) {
-            vscode.window.showErrorMessage(`Error saving file: ${err instanceof Error ? err.message : String(err)}`);
-          }
-          break;
+        case 'ready': handleReady(message); break;
+        case 'scrollChanged': handleScrollChanged(message); break;
+        case 'compareModeChanged': handleCompareModeChanged(message); break;
+        case 'headingsChanged': handleHeadingsChanged(message); break;
+        case 'commentsChanged': handleCommentsChanged(message); break;
+        case 'statusChanged': handleStatusChanged(message); break;
+        case 'saveCompareFile': await handleSaveCompareFile(message); break;
+        case 'contentChanged': handleContentChanged(message); break;
+        case 'readClipboard': await handleReadClipboard(); break;
+        case 'readClipboardForCodeBlock': await handleReadClipboardForCodeBlock(); break;
+        case 'saveClipboardImage': handleSaveClipboardImage(message); break;
+        case 'overwriteImage': handleOverwriteImage(message); break;
+        case 'openLink': await handleOpenLink(message); break;
+        case 'requestReload': await handleRequestReload(); break;
+        case 'save': await handleSave(); break;
       }
     });
 

@@ -18,6 +18,159 @@ import { DeleteBlockDialog } from "./codeblock/DeleteBlockDialog";
 import { GifPlayerDialog } from "./GifPlayerDialog";
 import { GifRecorderDialog } from "./GifRecorderDialog";
 
+// --- Extracted helper: capture GIF blob from ref or fetch ---
+async function captureGifBlob(
+  gifBlobRef: React.RefObject<Blob | null>,
+  src: string,
+  alt: string,
+  pngCapture: () => Promise<void>,
+): Promise<void> {
+  const gifFileName = (alt || "animation").replace(/\.gif$/, "") + ".gif";
+
+  if (gifBlobRef.current) {
+    await saveBlob(gifBlobRef.current, gifFileName);
+    return;
+  }
+
+  const imgSrc = src || "";
+  if (imgSrc && (imgSrc.endsWith(".gif") || imgSrc.startsWith("blob:"))) {
+    try {
+      const res = await fetch(imgSrc);
+      const blob = await res.blob();
+      const gifBlob = blob.type === "image/gif" ? blob : new Blob([blob], { type: "image/gif" });
+      await saveBlob(gifBlob, gifFileName);
+      return;
+    } catch {
+      // フォールバック
+    }
+  }
+  await pngCapture();
+}
+
+// --- Extracted helper: toggle GIF playback ---
+function toggleGifPlayback(
+  imgRef: React.RefObject<HTMLImageElement | null>,
+  src: string,
+  playing: boolean,
+  pausedSrcRef: React.MutableRefObject<string | null>,
+  setPlaying: (v: boolean) => void,
+): void {
+  const img = imgRef.current;
+  if (!img || !src) return;
+  if (playing) {
+    const canvas = document.createElement("canvas");
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      ctx.drawImage(img, 0, 0);
+      pausedSrcRef.current = canvas.toDataURL("image/png");
+      img.src = pausedSrcRef.current;
+    }
+    setPlaying(false);
+  } else {
+    const originalSrc = src;
+    if (originalSrc.startsWith("blob:")) {
+      img.src = originalSrc;
+    } else {
+      img.src = originalSrc + (originalSrc.includes("?") ? "&" : "?") + "_t=" + Date.now();
+    }
+    pausedSrcRef.current = null;
+    setPlaying(true);
+  }
+}
+
+// --- Extracted helper: handle record complete ---
+function onRecordComplete(
+  blob: Blob,
+  fileName: string,
+  settings: GifSettings,
+  gifBlobRef: React.MutableRefObject<Blob | null>,
+  setRecorderOpen: (v: boolean) => void,
+  updateAttributes: (attrs: Record<string, unknown>) => void,
+): void {
+  setRecorderOpen(false);
+  gifBlobRef.current = blob;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const vscodeApi = (window as any).__vscode;
+  if (vscodeApi) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      vscodeApi.postMessage({
+        type: "saveClipboardImage",
+        dataUrl: reader.result,
+        fileName,
+      });
+    };
+    reader.readAsDataURL(blob);
+    updateAttributes({ gifSettings: JSON.stringify(settings) });
+  } else {
+    const url = URL.createObjectURL(blob);
+    updateAttributes({
+      src: url,
+      alt: fileName,
+      gifSettings: JSON.stringify(settings),
+    });
+  }
+}
+
+// --- Extracted sub-component: GIF placeholder ---
+function GifPlaceholder({ isEditable, isDark, onClick }: { isEditable: boolean; isDark: boolean; onClick: () => void }) {
+  return (
+    <Box
+      onClick={onClick}
+      sx={{
+        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+        py: 4, cursor: isEditable ? "pointer" : "default",
+        bgcolor: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)",
+        borderTop: 1, borderColor: "divider",
+        "&:hover": isEditable ? { bgcolor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)" } : {},
+      }}
+    >
+      <GifIcon sx={{ fontSize: 36, color: "text.disabled", mb: 0.5 }} />
+      <Typography variant="caption" sx={{ color: "text.disabled" }}>
+        Click to record GIF
+      </Typography>
+    </Box>
+  );
+}
+
+// --- Extracted sub-component: GIF playback image with overlay ---
+function GifPlaybackImage({
+  imgRef, src, alt, width, isSelected, playing, onToggle,
+}: {
+  imgRef: React.RefObject<HTMLImageElement | null>;
+  src: string;
+  alt: string;
+  width: string | undefined;
+  isSelected: boolean;
+  playing: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <>
+      <img
+        ref={imgRef}
+        src={src}
+        alt={alt || "GIF"}
+        style={{ width: width || undefined, maxWidth: "100%", height: "auto", display: "block" }}
+      />
+      {isSelected && (
+        <Box
+          sx={{
+            position: "absolute", bottom: 8, right: 8,
+            display: "flex", gap: 0.5, bgcolor: "rgba(0,0,0,0.6)", borderRadius: 1, px: 0.5,
+          }}
+        >
+          <IconButton size="small" onClick={onToggle} sx={{ color: "white", p: 0.25 }} aria-label={playing ? "Pause" : "Play"}>
+            {playing ? <PauseIcon sx={{ fontSize: 18 }} /> : <PlayArrowIcon sx={{ fontSize: 18 }} />}
+          </IconButton>
+        </Box>
+      )}
+    </>
+  );
+}
+
 export function GifNodeView({ editor, node, updateAttributes, getPos }: NodeViewProps) {
   const t = useTranslations("MarkdownEditor");
   const theme = useTheme();
@@ -29,105 +182,29 @@ export function GifNodeView({ editor, node, updateAttributes, getPos }: NodeView
   } = useBlockNodeState(editor, node, getPos);
   const pngCapture = useBlockCapture(editor, getPos, "gif-block.png");
   const { src, alt, width } = node.attrs;
-  // 録画完了時の元 Blob を保持（fetch 経由だとアニメーションが失われる可能性がある）
   const gifBlobRef = useRef<Blob | null>(null);
 
   const handleCapture = useCallback(async () => {
-    const gifFileName = ((alt as string) || "animation").replace(/\.gif$/, "") + ".gif";
-
-    // 元 Blob が保持されていればそれを直接保存
-    if (gifBlobRef.current) {
-      await saveBlob(gifBlobRef.current, gifFileName);
-      return;
-    }
-
-    // Blob がない場合（ファイルから読み込んだ GIF 等）は fetch で取得
-    const imgSrc = (src as string) || "";
-    if (imgSrc && (imgSrc.endsWith(".gif") || imgSrc.startsWith("blob:"))) {
-      try {
-        const res = await fetch(imgSrc);
-        const blob = await res.blob();
-        const gifBlob = blob.type === "image/gif" ? blob : new Blob([blob], { type: "image/gif" });
-        await saveBlob(gifBlob, gifFileName);
-        return;
-      } catch {
-        // フォールバック
-      }
-    }
-    await pngCapture();
+    await captureGifBlob(gifBlobRef, src as string, alt as string, pngCapture);
   }, [src, alt, pngCapture]);
+
   const [recorderOpen, setRecorderOpen] = useState(false);
   const [playerOpen, setPlayerOpen] = useState(false);
   const [playing, setPlaying] = useState(true);
   const imgRef = useRef<HTMLImageElement>(null);
-
-  // --- Playback toggle (pause/play by swapping src) ---
   const pausedSrcRef = useRef<string | null>(null);
 
   const togglePlayback = useCallback(() => {
-    const img = imgRef.current;
-    if (!img || !src) return;
-    if (playing) {
-      // Pause: replace with static canvas snapshot
-      const canvas = document.createElement("canvas");
-      canvas.width = img.naturalWidth;
-      canvas.height = img.naturalHeight;
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        ctx.drawImage(img, 0, 0);
-        pausedSrcRef.current = canvas.toDataURL("image/png");
-        img.src = pausedSrcRef.current;
-      }
-      setPlaying(false);
-    } else {
-      // Resume: restore original src
-      // blob: URL にはクエリパラメータを付けられないため、
-      // blob: の場合はそのまま、通常 URL の場合はキャッシュバスト付き
-      const originalSrc = src as string;
-      if (originalSrc.startsWith("blob:")) {
-        img.src = originalSrc;
-      } else {
-        img.src = originalSrc + (originalSrc.includes("?") ? "&" : "?") + "_t=" + Date.now();
-      }
-      pausedSrcRef.current = null;
-      setPlaying(true);
-    }
+    toggleGifPlayback(imgRef, src as string, playing, pausedSrcRef, setPlaying);
   }, [playing, src]);
 
-  // --- Record complete handler ---
   const handleRecordComplete = useCallback(
     (blob: Blob, fileName: string, settings: GifSettings) => {
-      setRecorderOpen(false);
-      // 元 Blob を保持（キャプチャ保存時にそのまま使う）
-      gifBlobRef.current = blob;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const vscodeApi = (window as any).__vscode;
-      if (vscodeApi) {
-        // VS Code: send as data URL
-        const reader = new FileReader();
-        reader.onload = () => {
-          vscodeApi.postMessage({
-            type: "saveClipboardImage",
-            dataUrl: reader.result,
-            fileName,
-          });
-        };
-        reader.readAsDataURL(blob);
-        updateAttributes({ gifSettings: JSON.stringify(settings) });
-      } else {
-        // Web: set as object URL
-        const url = URL.createObjectURL(blob);
-        updateAttributes({
-          src: url,
-          alt: fileName,
-          gifSettings: JSON.stringify(settings),
-        });
-      }
+      onRecordComplete(blob, fileName, settings, gifBlobRef, setRecorderOpen, updateAttributes);
     },
     [updateAttributes],
   );
 
-  // --- Listen for imageSaved from VS Code ---
   useEffect(() => {
     const handler = (event: MessageEvent) => {
       const data = event.data;
@@ -199,43 +276,17 @@ export function GifNodeView({ editor, node, updateAttributes, getPos }: NodeView
         {!collapsed && (
           <Box contentEditable={false} sx={{ position: "relative", lineHeight: 0 }}>
             {src ? (
-              <>
-                <img
-                  ref={imgRef}
-                  src={src}
-                  alt={alt || "GIF"}
-                  style={{ width: width || undefined, maxWidth: "100%", height: "auto", display: "block" }}
-                />
-                {/* Playback overlay */}
-                {isSelected && (
-                  <Box
-                    sx={{
-                      position: "absolute", bottom: 8, right: 8,
-                      display: "flex", gap: 0.5, bgcolor: "rgba(0,0,0,0.6)", borderRadius: 1, px: 0.5,
-                    }}
-                  >
-                    <IconButton size="small" onClick={togglePlayback} sx={{ color: "white", p: 0.25 }} aria-label={playing ? "Pause" : "Play"}>
-                      {playing ? <PauseIcon sx={{ fontSize: 18 }} /> : <PlayArrowIcon sx={{ fontSize: 18 }} />}
-                    </IconButton>
-                  </Box>
-                )}
-              </>
+              <GifPlaybackImage
+                imgRef={imgRef}
+                src={src}
+                alt={alt}
+                width={width}
+                isSelected={isSelected}
+                playing={playing}
+                onToggle={togglePlayback}
+              />
             ) : (
-              <Box
-                onClick={handlePlaceholderClick}
-                sx={{
-                  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-                  py: 4, cursor: isEditable ? "pointer" : "default",
-                  bgcolor: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)",
-                  borderTop: 1, borderColor: "divider",
-                  "&:hover": isEditable ? { bgcolor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)" } : {},
-                }}
-              >
-                <GifIcon sx={{ fontSize: 36, color: "text.disabled", mb: 0.5 }} />
-                <Typography variant="caption" sx={{ color: "text.disabled" }}>
-                  Click to record GIF
-                </Typography>
-              </Box>
+              <GifPlaceholder isEditable={isEditable} isDark={isDark} onClick={handlePlaceholderClick} />
             )}
           </Box>
         )}

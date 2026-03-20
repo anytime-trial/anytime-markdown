@@ -55,6 +55,71 @@ try {
   originalSetItem(SETTINGS_KEY, JSON.stringify(obj));
 } catch { /* ignore */ }
 
+// --- Message handler helpers (extracted to reduce cognitive complexity) ---
+
+function handleSetBaseUri(message: { baseUri: string }) {
+  const uri = message.baseUri;
+  if (!uri.startsWith('https://') && !uri.startsWith('vscode-webview-resource:')) {
+    return;
+  }
+  let baseEl = document.querySelector('base');
+  if (!baseEl) {
+    baseEl = document.createElement('base');
+    document.head.appendChild(baseEl);
+  }
+  baseEl.setAttribute('href', uri + '/');
+}
+
+function handleSyncScroll(message: { ratio: number }) {
+  isSyncingScroll = true;
+  const el = document.querySelector('textarea') ?? document.querySelector('.tiptap');
+  if (el) {
+    el.scrollTop = message.ratio * (el.scrollHeight - el.clientHeight);
+  }
+  requestAnimationFrame(() => { isSyncingScroll = false; });
+}
+
+function dispatchCustomEvent(eventName: string, detail: unknown) {
+  window.dispatchEvent(new CustomEvent(eventName, { detail }));
+}
+
+interface MessageState {
+  ready: boolean;
+  setLanding: (v: boolean) => void;
+  setThemeMode: (v: PaletteMode) => void;
+  setReady: (v: boolean) => void;
+  setCompareContent: (v: string | null) => void;
+  setEditorKey: (fn: (k: number) => number) => void;
+  latestContentRef: React.MutableRefObject<string | null>;
+  historicalContentRef: React.MutableRefObject<string | null>;
+}
+
+function handleSetContent(
+  message: { content: string; compareContent?: string },
+  state: MessageState,
+) {
+  const isInitial = !state.ready;
+  currentContent = message.content;
+  if (isInitial) {
+    if (typeof message.compareContent === 'string') {
+      state.setCompareContent(message.compareContent);
+    }
+    state.setReady(true);
+  } else {
+    dispatchCustomEvent('vscode-set-content', message.content);
+  }
+}
+
+function handleLoadHistoryContent(
+  message: { content: string },
+  state: MessageState,
+) {
+  state.latestContentRef.current = currentContent;
+  state.historicalContentRef.current = message.content;
+  currentContent = message.content;
+  dispatchCustomEvent('vscode-set-content', message.content);
+}
+
 export function App() {
   const [ready, setReady] = useState(false);
   const [landing, setLanding] = useState(false);
@@ -66,106 +131,73 @@ export function App() {
   const historicalContentRef = useRef<string | null>(null);
 
   useEffect(() => {
+    const msgState: MessageState = {
+      ready,
+      setLanding,
+      setThemeMode,
+      setReady,
+      setCompareContent,
+      setEditorKey,
+      latestContentRef,
+      historicalContentRef,
+    };
+
     const handleMessage = (event: MessageEvent) => {
       const message = event.data;
-      if (message?.type === 'setTheme' && (message.mode === 'dark' || message.mode === 'light')) {
-        setThemeMode(message.mode);
-        return;
-      }
-      if (message?.type === 'setLanding' && message.landing === true) {
-        setLanding(true);
-        return;
-      }
-      if (message?.type === 'loadCompareFile' && typeof message.content === 'string') {
-        window.dispatchEvent(new CustomEvent('vscode-load-compare-file', { detail: message.content }));
-        return;
-      }
-      if (message?.type === 'exitCompareMode') {
-        window.dispatchEvent(new CustomEvent('vscode-exit-compare-mode'));
-        return;
-      }
-      if (message?.type === 'syncScroll' && typeof message.ratio === 'number') {
-        // 他パネルからのスクロール同期（無限ループ防止フラグ付き）
-        isSyncingScroll = true;
-        const el = document.querySelector('textarea') ?? document.querySelector('.tiptap');
-        if (el) {
-          el.scrollTop = message.ratio * (el.scrollHeight - el.clientHeight);
-        }
-        requestAnimationFrame(() => { isSyncingScroll = false; });
-        return;
-      }
-      // externalChange は VS Code 通知で処理するため webview では不要
-      if (message?.type === 'toggleSectionNumbers' && typeof message.show === 'boolean') {
-        window.dispatchEvent(new CustomEvent('vscode-toggle-section-numbers', { detail: message.show }));
-        return;
-      }
-      if (message?.type === 'scrollToHeading' && typeof message.pos === 'number') {
-        window.dispatchEvent(new CustomEvent('vscode-scroll-to-heading', { detail: message.pos }));
-        return;
-      }
-      if (message?.type === 'scrollToComment' && typeof message.pos === 'number') {
-        window.dispatchEvent(new CustomEvent('vscode-scroll-to-comment', { detail: message.pos }));
-        return;
-      }
-      if (message?.type === 'resolveComment' && typeof message.id === 'string') {
-        window.dispatchEvent(new CustomEvent('vscode-resolve-comment', { detail: message.id }));
-        return;
-      }
-      if (message?.type === 'unresolveComment' && typeof message.id === 'string') {
-        window.dispatchEvent(new CustomEvent('vscode-unresolve-comment', { detail: message.id }));
-        return;
-      }
-      if (message?.type === 'deleteComment' && typeof message.id === 'string') {
-        window.dispatchEvent(new CustomEvent('vscode-delete-comment', { detail: message.id }));
-        return;
-      }
-      if (message?.type === 'loadHistoryContent' && typeof message.content === 'string') {
-        // 通常モード: 履歴コンテンツを表示（最新をキャッシュ）
-        latestContentRef.current = currentContent;
-        historicalContentRef.current = message.content;
-        currentContent = message.content;
-        window.dispatchEvent(new CustomEvent('vscode-set-content', { detail: message.content }));
-        return;
-      }
-      if (message?.type === 'setBaseUri' && typeof message.baseUri === 'string') {
-        // baseUri のバリデーション: vscode-webview-resource スキームのみ許可
-        const uri = message.baseUri;
-        if (!uri.startsWith('https://') && !uri.startsWith('vscode-webview-resource:')) {
-          return; // 不正な URI を拒否
-        }
-        let baseEl = document.querySelector('base');
-        if (!baseEl) {
-          baseEl = document.createElement('base');
-          document.head.appendChild(baseEl);
-        }
-        baseEl.setAttribute('href', uri + '/');
-        return;
-      }
-      if (message?.type === 'imageSaved' && typeof message.path === 'string') {
-        window.dispatchEvent(new CustomEvent('vscode-image-saved', { detail: message.path }));
-        return;
-      }
-      if (message?.type === 'pasteMarkdown' && typeof message.text === 'string') {
-        window.dispatchEvent(new CustomEvent('vscode-paste-markdown', { detail: message.text }));
-        return;
-      }
-      if (message?.type === 'pasteCodeBlock' && typeof message.text === 'string') {
-        window.dispatchEvent(new CustomEvent('vscode-paste-codeblock', { detail: message.text }));
-        return;
-      }
-      if (message?.type === 'setContent' && typeof message.content === 'string') {
-        const isInitial = !ready;
-        currentContent = message.content;
-        if (isInitial) {
-          // 初回ロード時に compareContent があれば比較モードで直接開始
-          if (typeof message.compareContent === 'string') {
-            setCompareContent(message.compareContent);
-          }
-          setReady(true);
-        } else {
-          // VS Code からの外部更新（メニュー Undo/Redo など）→ Tiptap エディタに反映
-          window.dispatchEvent(new CustomEvent('vscode-set-content', { detail: message.content }));
-        }
+      if (!message?.type) return;
+
+      switch (message.type) {
+        case 'setTheme':
+          if (message.mode === 'dark' || message.mode === 'light') setThemeMode(message.mode);
+          return;
+        case 'setLanding':
+          if (message.landing === true) setLanding(true);
+          return;
+        case 'loadCompareFile':
+          if (typeof message.content === 'string') dispatchCustomEvent('vscode-load-compare-file', message.content);
+          return;
+        case 'exitCompareMode':
+          dispatchCustomEvent('vscode-exit-compare-mode', undefined);
+          return;
+        case 'syncScroll':
+          if (typeof message.ratio === 'number') handleSyncScroll(message);
+          return;
+        case 'toggleSectionNumbers':
+          if (typeof message.show === 'boolean') dispatchCustomEvent('vscode-toggle-section-numbers', message.show);
+          return;
+        case 'scrollToHeading':
+          if (typeof message.pos === 'number') dispatchCustomEvent('vscode-scroll-to-heading', message.pos);
+          return;
+        case 'scrollToComment':
+          if (typeof message.pos === 'number') dispatchCustomEvent('vscode-scroll-to-comment', message.pos);
+          return;
+        case 'resolveComment':
+          if (typeof message.id === 'string') dispatchCustomEvent('vscode-resolve-comment', message.id);
+          return;
+        case 'unresolveComment':
+          if (typeof message.id === 'string') dispatchCustomEvent('vscode-unresolve-comment', message.id);
+          return;
+        case 'deleteComment':
+          if (typeof message.id === 'string') dispatchCustomEvent('vscode-delete-comment', message.id);
+          return;
+        case 'loadHistoryContent':
+          if (typeof message.content === 'string') handleLoadHistoryContent(message, msgState);
+          return;
+        case 'setBaseUri':
+          if (typeof message.baseUri === 'string') handleSetBaseUri(message);
+          return;
+        case 'imageSaved':
+          if (typeof message.path === 'string') dispatchCustomEvent('vscode-image-saved', message.path);
+          return;
+        case 'pasteMarkdown':
+          if (typeof message.text === 'string') dispatchCustomEvent('vscode-paste-markdown', message.text);
+          return;
+        case 'pasteCodeBlock':
+          if (typeof message.text === 'string') dispatchCustomEvent('vscode-paste-codeblock', message.text);
+          return;
+        case 'setContent':
+          if (typeof message.content === 'string') handleSetContent(message, msgState);
+          return;
       }
     };
     const handleSaveCompare = (e: Event) => {
@@ -265,45 +297,7 @@ export function App() {
   if (!ready) return null;
 
   if (landing) {
-    const isDark = themeMode === 'dark';
-    const logoUri = (window as unknown as { __LOGO_URI__?: string }).__LOGO_URI__;
-    const isJa = (document.documentElement.lang || navigator.language || '').startsWith('ja');
-    return (
-      <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '100vh',
-        backgroundColor: isDark ? '#1e1e1e' : '#ffffff',
-        color: isDark ? '#cccccc' : '#333333',
-        fontFamily: 'var(--vscode-font-family, sans-serif)',
-        gap: '24px',
-      }}>
-        {logoUri && <img src={logoUri} alt="Anytime Markdown" style={{ width: 64, height: 64, opacity: 0.8 }} />}
-        <div style={{ fontSize: '14px', textAlign: 'center', lineHeight: 1.8 }}>
-          {isJa ? (
-            <>差分は、サイドバー「Anytime Markdown」の<br />GIT HISTORY で確認してください。</>
-          ) : (
-            <>To view diffs, use <strong>GIT HISTORY</strong> in the<br />&quot;Anytime Markdown&quot; sidebar.</>
-          )}
-        </div>
-        <button
-          onClick={() => setLanding(false)}
-          style={{
-            padding: '8px 24px',
-            fontSize: '13px',
-            cursor: 'pointer',
-            border: 'none',
-            borderRadius: '4px',
-            backgroundColor: isDark ? '#0e639c' : '#007acc',
-            color: '#ffffff',
-          }}
-        >
-          {isJa ? 'Anytime Markdown で編集' : 'Open in Anytime Markdown'}
-        </button>
-      </div>
-    );
+    return <LandingPage themeMode={themeMode} onContinue={() => setLanding(false)} />;
   }
 
   return (
@@ -313,5 +307,48 @@ export function App() {
         <MarkdownEditorPage key={editorKey} hideFileOps hideUndoRedo hideSettings hideVersionInfo hideTemplates hideFoldAll hideStatusBar sideToolbar hideCompareToggle externalCompareContent={compareContent} onCompareModeChange={handleCompareModeChange} onHeadingsChange={handleHeadingsChange} onCommentsChange={handleCommentsChange} onStatusChange={handleStatusChange} onReload={handleReload} />
       </ConfirmProvider>
     </ThemeProvider>
+  );
+}
+
+// --- Extracted sub-component for landing page ---
+function LandingPage({ themeMode, onContinue }: { themeMode: PaletteMode; onContinue: () => void }) {
+  const isDark = themeMode === 'dark';
+  const logoUri = (window as unknown as { __LOGO_URI__?: string }).__LOGO_URI__;
+  const isJa = (document.documentElement.lang || navigator.language || '').startsWith('ja');
+  return (
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      height: '100vh',
+      backgroundColor: isDark ? '#1e1e1e' : '#ffffff',
+      color: isDark ? '#cccccc' : '#333333',
+      fontFamily: 'var(--vscode-font-family, sans-serif)',
+      gap: '24px',
+    }}>
+      {logoUri && <img src={logoUri} alt="Anytime Markdown" style={{ width: 64, height: 64, opacity: 0.8 }} />}
+      <div style={{ fontSize: '14px', textAlign: 'center', lineHeight: 1.8 }}>
+        {isJa ? (
+          <>差分は、サイドバー「Anytime Markdown」の<br />GIT HISTORY で確認してください。</>
+        ) : (
+          <>To view diffs, use <strong>GIT HISTORY</strong> in the<br />&quot;Anytime Markdown&quot; sidebar.</>
+        )}
+      </div>
+      <button
+        onClick={onContinue}
+        style={{
+          padding: '8px 24px',
+          fontSize: '13px',
+          cursor: 'pointer',
+          border: 'none',
+          borderRadius: '4px',
+          backgroundColor: isDark ? '#0e639c' : '#007acc',
+          color: '#ffffff',
+        }}
+      >
+        {isJa ? 'Anytime Markdown で編集' : 'Open in Anytime Markdown'}
+      </button>
+    </div>
   );
 }

@@ -23,25 +23,12 @@ import { useBlockCapture } from "./hooks/useBlockCapture";
 import { useBlockNodeState } from "./hooks/useBlockNodeState";
 import { useBlockResize } from "./hooks/useBlockResize";
 import { getEditorStorage } from "./types";
-import { parseAnnotations, serializeAnnotations } from "./types/imageAnnotation";
+import { type ImageAnnotation, parseAnnotations, serializeAnnotations } from "./types/imageAnnotation";
 
 const MIN_WIDTH = 50;
 
-export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeViewProps) {
-  const t = useTranslations("MarkdownEditor");
-  const theme = useTheme();
-  const isDark = theme.palette.mode === "dark";
-  const {
-    deleteDialogOpen, setDeleteDialogOpen, editOpen, setEditOpen,
-    collapsed, isEditable, isSelected, handleDeleteBlock, showToolbar, isCompareLeft, isCompareLeftEditable,
-  } = useBlockNodeState(editor, node, getPos);
-  const handleCapture = useBlockCapture(editor, getPos, "image.png");
-  const { src, alt, title, width, annotations: annotationsJson } = node.attrs;
-  const [annotationOpen, setAnnotationOpen] = useState(false);
-  const annotations = parseAnnotations(annotationsJson as string | null);
-
-  // --- Image size display ---
-  const imgRef = useRef<HTMLImageElement>(null);
+// --- Extracted: image size tracking hook ---
+function useImageSize(imgRef: React.RefObject<HTMLImageElement | null>, src: string, collapsed: boolean) {
   const [imgError, setImgError] = useState(false);
   const [imgSize, setImgSize] = useState<{ w: number; h: number; nw: number; nh: number } | null>(null);
 
@@ -49,7 +36,7 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
     const img = imgRef.current;
     if (!img || !img.complete || img.naturalWidth === 0) return;
     setImgSize({ w: Math.round(img.getBoundingClientRect().width), h: Math.round(img.getBoundingClientRect().height), nw: img.naturalWidth, nh: img.naturalHeight });
-  }, []);
+  }, [imgRef]);
 
   useEffect(() => {
     setImgError(false);
@@ -69,7 +56,176 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
     const ro = new ResizeObserver(updateImgSize);
     ro.observe(img);
     return () => { img.removeEventListener("load", updateImgSize); img.removeEventListener("error", handleError); ro.disconnect(); };
-  }, [collapsed, updateImgSize, src]);
+  }, [collapsed, updateImgSize, src, imgRef]);
+
+  return { imgError, imgSize };
+}
+
+// --- Extracted: crop callback factory ---
+function handleCropComplete(
+  src: string,
+  updateAttributes: (attrs: Record<string, unknown>) => void,
+  croppedDataUrl: string,
+): void {
+  const isDataUrl = src.startsWith("data:");
+  if (isDataUrl) {
+    updateAttributes({ src: croppedDataUrl });
+    return;
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const vscodeApi = (window as any).__vscode;
+  if (vscodeApi) {
+    vscodeApi.postMessage({ type: "overwriteImage", path: src, dataUrl: croppedDataUrl });
+    updateAttributes({ src: src.split("?")[0] + "?t=" + Date.now() });
+  } else {
+    updateAttributes({ src: croppedDataUrl });
+  }
+}
+
+// --- Extracted sub-component: Image toolbar extra info ---
+function ImageToolbarExtra({
+  alt, src, imgError, isCompareLeft, isEditable, collapsed, annotations, onAnnotationOpen, t,
+}: {
+  alt: string; src: string; imgError: boolean;
+  isCompareLeft: boolean; isEditable: boolean; collapsed: boolean;
+  annotations: ImageAnnotation[]; onAnnotationOpen: () => void;
+  t: (key: string) => string;
+}) {
+  return (
+    <>
+      <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
+      {alt ? (
+        <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "0.65rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, flexShrink: 1 }}>
+          {alt}
+        </Typography>
+      ) : (
+        <Tooltip title={t("imageNoAltWarning")} placement="top">
+          <WarningAmberIcon sx={{ fontSize: 14, color: "warning.main" }} />
+        </Tooltip>
+      )}
+      <Typography variant="caption" sx={{ color: "text.disabled", fontSize: "0.65rem", fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
+        {src?.startsWith("data:") ? "(base64)" : src ? `(${src})` : ""}
+      </Typography>
+      {imgError && (
+        <Typography variant="caption" sx={{ color: "error.main", fontSize: "0.65rem", fontWeight: 600, flexShrink: 0, display: "flex", alignItems: "center", gap: 0.25 }}>
+          <ErrorOutlineIcon sx={{ fontSize: 14 }} />
+          {t("imageNotFound")}
+        </Typography>
+      )}
+      {!isCompareLeft && isEditable && !collapsed && (
+        <>
+          <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
+          <Tooltip title={t("annotate")} placement="top">
+            <IconButton size="small" sx={{ p: 0.25 }} onClick={onAnnotationOpen} aria-label={t("annotate")}>
+              <ChatBubbleOutlineIcon sx={{ fontSize: 16, color: annotations.length > 0 ? "primary.main" : "text.secondary" }} />
+            </IconButton>
+          </Tooltip>
+        </>
+      )}
+    </>
+  );
+}
+
+// --- Extracted sub-component: Image with resize handle ---
+function ImageWithResize({
+  imgRef, imgContainerRef, src, alt, title, displayWidth, annotations,
+  isSelected, isEditable, resizing, resizeWidth,
+  handleResizePointerDown, handleResizePointerMove, handleResizePointerUp, handleResizeKeyDown,
+  onDoubleClick, width, t,
+}: {
+  imgRef: React.RefObject<HTMLImageElement | null>;
+  imgContainerRef: React.RefObject<HTMLDivElement | null>;
+  src: string; alt: string; title: string; displayWidth: string | undefined;
+  annotations: ImageAnnotation[];
+  isSelected: boolean; isEditable: boolean;
+  resizing: boolean; resizeWidth: number | null;
+  handleResizePointerDown: (e: React.PointerEvent) => void;
+  handleResizePointerMove: (e: React.PointerEvent) => void;
+  handleResizePointerUp: (e: React.PointerEvent) => void;
+  handleResizeKeyDown: (e: React.KeyboardEvent) => void;
+  onDoubleClick: (() => void) | undefined;
+  width: string; t: (key: string) => string;
+}) {
+  return (
+    <Box
+      ref={imgContainerRef}
+      contentEditable={false}
+      sx={{ lineHeight: 0, position: "relative", display: "inline-block" }}
+      onPointerMove={handleResizePointerMove}
+      onPointerUp={handleResizePointerUp}
+      onDoubleClick={onDoubleClick}
+    >
+      <img
+        ref={imgRef}
+        src={src}
+        alt={alt || t("imageNoAlt")}
+        title={title || undefined}
+        style={{ width: displayWidth, maxWidth: "100%", height: "auto", display: "block" }}
+      />
+      <AnnotationOverlay annotations={annotations} />
+      {isSelected && isEditable && (
+        <Box
+          role="slider"
+          tabIndex={0}
+          aria-label={t("resizeImage")}
+          aria-valuemin={MIN_WIDTH}
+          aria-valuemax={800}
+          aria-valuenow={width ? parseInt(width, 10) || undefined : undefined}
+          onPointerDown={handleResizePointerDown}
+          onKeyDown={handleResizeKeyDown}
+          sx={{
+            position: "absolute",
+            right: 0,
+            bottom: 0,
+            width: 16,
+            height: 16,
+            cursor: "nwse-resize",
+            bgcolor: "primary.main",
+            opacity: 0.7,
+            borderTopLeftRadius: 4,
+            "&:hover": { opacity: 1 },
+            "&:focus-visible": { opacity: 1, outline: "2px solid", outlineColor: "primary.main", outlineOffset: 1 },
+            clipPath: "polygon(100% 0, 100% 100%, 0 100%)",
+          }}
+        />
+      )}
+      {resizing && resizeWidth !== null && (
+        <Box sx={{
+          position: "absolute",
+          bottom: 4,
+          left: "50%",
+          transform: "translateX(-50%)",
+          bgcolor: "rgba(0,0,0,0.7)",
+          color: "white",
+          px: 1,
+          py: 0.25,
+          borderRadius: 1,
+          fontSize: "0.7rem",
+          fontFamily: "monospace",
+          pointerEvents: "none",
+        }}>
+          {resizeWidth}px
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeViewProps) {
+  const t = useTranslations("MarkdownEditor");
+  const theme = useTheme();
+  const isDark = theme.palette.mode === "dark";
+  const {
+    deleteDialogOpen, setDeleteDialogOpen, editOpen, setEditOpen,
+    collapsed, isEditable, isSelected, handleDeleteBlock, showToolbar, isCompareLeft, isCompareLeftEditable,
+  } = useBlockNodeState(editor, node, getPos);
+  const handleCapture = useBlockCapture(editor, getPos, "image.png");
+  const { src, alt, title, width, annotations: annotationsJson } = node.attrs;
+  const [annotationOpen, setAnnotationOpen] = useState(false);
+  const annotations = parseAnnotations(annotationsJson as string | null);
+
+  const imgRef = useRef<HTMLImageElement>(null);
+  const { imgError, imgSize } = useImageSize(imgRef, src, collapsed);
 
   // --- Resize ---
   const imgContainerRef = useRef<HTMLDivElement>(null);
@@ -98,6 +254,10 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
     if (onEdit) onEdit({ pos, src: src || "", alt: alt || "" });
   }, [editor, getPos, src, alt]);
 
+  const onCrop = useCallback((croppedDataUrl: string) => {
+    handleCropComplete(src, updateAttributes, croppedDataUrl);
+  }, [src, updateAttributes]);
+
   return (
     <NodeViewWrapper>
       {/* Edit Dialog */}
@@ -109,7 +269,7 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
           t={t}
           extra={imgSize ? (
             <Typography variant="caption" sx={{ color: "text.disabled", fontSize: "0.65rem", fontFamily: "monospace", whiteSpace: "nowrap" }}>
-              {imgSize.w}×{imgSize.h} / {imgSize.nw}×{imgSize.nh}
+              {imgSize.w}x{imgSize.h} / {imgSize.nw}x{imgSize.nh}
             </Typography>
           ) : undefined}
         />
@@ -127,25 +287,7 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
           {src && !imgError && (
             <ImageCropTool
               src={src}
-              onCrop={(croppedDataUrl) => {
-                const isDataUrl = src.startsWith("data:");
-                if (isDataUrl) {
-                  // Base64 画像: そのまま src を更新
-                  updateAttributes({ src: croppedDataUrl });
-                } else {
-                  // リンク画像: VS Code にファイル上書き保存を依頼
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  const vscodeApi = (window as any).__vscode;
-                  if (vscodeApi) {
-                    vscodeApi.postMessage({ type: "overwriteImage", path: src, dataUrl: croppedDataUrl });
-                    // src は変更しない（同じパスのまま）。ブラウザキャッシュを破棄するため query を付与
-                    updateAttributes({ src: src.split("?")[0] + "?t=" + Date.now() });
-                  } else {
-                    // Web アプリ: Base64 に変換
-                    updateAttributes({ src: croppedDataUrl });
-                  }
-                }
-              }}
+              onCrop={onCrop}
               t={t}
             />
           )}
@@ -171,37 +313,19 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
             onCapture={handleCapture}
             labelOnly={isCompareLeftEditable}
             collapsed={collapsed}
-            extra={<>
-              <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
-              {alt ? (
-                <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "0.65rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, flexShrink: 1 }}>
-                  {alt}
-                </Typography>
-              ) : (
-                <Tooltip title={t("imageNoAltWarning")} placement="top">
-                  <WarningAmberIcon sx={{ fontSize: 14, color: "warning.main" }} />
-                </Tooltip>
-              )}
-              <Typography variant="caption" sx={{ color: "text.disabled", fontSize: "0.65rem", fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
-                {src?.startsWith("data:") ? "(base64)" : src ? `(${src})` : ""}
-              </Typography>
-              {imgError && (
-                <Typography variant="caption" sx={{ color: "error.main", fontSize: "0.65rem", fontWeight: 600, flexShrink: 0, display: "flex", alignItems: "center", gap: 0.25 }}>
-                  <ErrorOutlineIcon sx={{ fontSize: 14 }} />
-                  {t("imageNotFound")}
-                </Typography>
-              )}
-              {!isCompareLeft && isEditable && !collapsed && (
-                <>
-                  <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
-                  <Tooltip title={t("annotate")} placement="top">
-                    <IconButton size="small" sx={{ p: 0.25 }} onClick={() => setAnnotationOpen(true)} aria-label={t("annotate")}>
-                      <ChatBubbleOutlineIcon sx={{ fontSize: 16, color: annotations.length > 0 ? "primary.main" : "text.secondary" }} />
-                    </IconButton>
-                  </Tooltip>
-                </>
-              )}
-            </>}
+            extra={
+              <ImageToolbarExtra
+                alt={alt}
+                src={src}
+                imgError={imgError}
+                isCompareLeft={isCompareLeft}
+                isEditable={isEditable}
+                collapsed={collapsed}
+                annotations={annotations}
+                onAnnotationOpen={() => setAnnotationOpen(true)}
+                t={t}
+              />
+            }
             t={t}
           />
         )}
@@ -210,68 +334,26 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
           <Box contentEditable={false} sx={{ height: "2em", borderTop: 1, borderColor: "divider", bgcolor: "action.hover" }} />
         )}
         {!collapsed && !imgError && (
-          <Box
-            ref={imgContainerRef}
-            contentEditable={false}
-            sx={{ lineHeight: 0, position: "relative", display: "inline-block" }}
-            onPointerMove={handleResizePointerMove}
-            onPointerUp={handleResizePointerUp}
+          <ImageWithResize
+            imgRef={imgRef}
+            imgContainerRef={imgContainerRef}
+            src={src}
+            alt={alt}
+            title={title}
+            displayWidth={displayWidth}
+            annotations={annotations}
+            isSelected={isSelected}
+            isEditable={isEditable}
+            resizing={resizing}
+            resizeWidth={resizeWidth}
+            handleResizePointerDown={handleResizePointerDown}
+            handleResizePointerMove={handleResizePointerMove}
+            handleResizePointerUp={handleResizePointerUp}
+            handleResizeKeyDown={handleResizeKeyDown}
             onDoubleClick={!isEditable ? () => setEditOpen(true) : undefined}
-          >
-            <img
-              ref={imgRef}
-              src={src}
-              alt={alt || t("imageNoAlt")}
-              title={title || undefined}
-              style={{ width: displayWidth, maxWidth: "100%", height: "auto", display: "block" }}
-            />
-            <AnnotationOverlay annotations={annotations} />
-            {/* Resize handle */}
-            {isSelected && isEditable && (
-              <Box
-                role="slider"
-                tabIndex={0}
-                aria-label={t("resizeImage")}
-                aria-valuemin={MIN_WIDTH}
-                aria-valuemax={800}
-                aria-valuenow={width ? parseInt(width, 10) || undefined : undefined}
-                onPointerDown={handleResizePointerDown}
-                onKeyDown={handleResizeKeyDown}
-                sx={{
-                  position: "absolute",
-                  right: 0,
-                  bottom: 0,
-                  width: 16,
-                  height: 16,
-                  cursor: "nwse-resize",
-                  bgcolor: "primary.main",
-                  opacity: 0.7,
-                  borderTopLeftRadius: 4,
-                  "&:hover": { opacity: 1 },
-                  "&:focus-visible": { opacity: 1, outline: "2px solid", outlineColor: "primary.main", outlineOffset: 1 },
-                  clipPath: "polygon(100% 0, 100% 100%, 0 100%)",
-                }}
-              />
-            )}
-            {resizing && resizeWidth !== null && (
-              <Box sx={{
-                position: "absolute",
-                bottom: 4,
-                left: "50%",
-                transform: "translateX(-50%)",
-                bgcolor: "rgba(0,0,0,0.7)",
-                color: "white",
-                px: 1,
-                py: 0.25,
-                borderRadius: 1,
-                fontSize: "0.7rem",
-                fontFamily: "monospace",
-                pointerEvents: "none",
-              }}>
-                {resizeWidth}px
-              </Box>
-            )}
-          </Box>
+            width={width}
+            t={t}
+          />
         )}
       </Box>
       <DeleteBlockDialog
