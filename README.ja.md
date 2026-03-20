@@ -1,5 +1,10 @@
 # Anytime Markdown
 
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=kiyotaka-ueda_anytime-markdown&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=kiyotaka-ueda_anytime-markdown)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=kiyotaka-ueda_anytime-markdown&metric=coverage)](https://sonarcloud.io/summary/new_code?id=kiyotaka-ueda_anytime-markdown)
+[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=kiyotaka-ueda_anytime-markdown&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=kiyotaka-ueda_anytime-markdown)
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=kiyotaka-ueda_anytime-markdown&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=kiyotaka-ueda_anytime-markdown)
+
 Tiptap ベースのリッチマークダウンエディタ。\
 Web アプリ、VS Code 拡張機能、Android アプリの3つのプラットフォームで動作する。１１
 

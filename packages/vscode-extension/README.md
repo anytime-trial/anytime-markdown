@@ -1,6 +1,11 @@
 # Anytime Markdown Editor
 
-![VS Marketplace](https://img.shields.io/visual-studio-marketplace/v/kiytaka-ueda.anytime-markdown?label=VS%20Marketplace&logo=visual-studio-code)![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)**Review AI-generated docs while you code — all inside VS Code.**
+![VS Marketplace](https://img.shields.io/visual-studio-marketplace/v/kiytaka-ueda.anytime-markdown?label=VS%20Marketplace&logo=visual-studio-code)
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=kiyotaka-ueda_anytime-markdown&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=kiyotaka-ueda_anytime-markdown)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=kiyotaka-ueda_anytime-markdown&metric=coverage)](https://sonarcloud.io/summary/new_code?id=kiyotaka-ueda_anytime-markdown)
+[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=kiyotaka-ueda_anytime-markdown&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=kiyotaka-ueda_anytime-markdown)
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=kiyotaka-ueda_anytime-markdown&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=kiyotaka-ueda_anytime-markdown)**Review AI-generated docs while you code — all inside VS Code.**
 
 AI assistants are great at writing specs, designs, and notes in Markdown. But reviewing them in plain text is painful, and switching between your editor and a Git GUI breaks your flow.
 
