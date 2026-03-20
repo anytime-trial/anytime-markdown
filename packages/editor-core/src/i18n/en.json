@@ -146,7 +146,7 @@
     "diagramMindmap": "Mindmap",
     "diagramGeneric": "Diagram",
     "plantUmlDiagram": "PlantUML diagram",
-    "capture": "Capture as image",
+    "capture": "Export as image",
     "copyCode": "Copy code",
     "delete": "Delete",
     "insert": "Insert",

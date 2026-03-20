@@ -1,4 +1,4 @@
-import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
+import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import ZoomInIcon from "@mui/icons-material/ZoomIn";
 import ZoomOutIcon from "@mui/icons-material/ZoomOut";
@@ -12,21 +12,21 @@ import type { UseZoomPanReturn } from "../hooks/useZoomPan";
 
 interface ZoomToolbarProps {
   fsZP: UseZoomPanReturn;
-  /** Capture button callback (diagram only) */
-  onCapture?: () => void;
+  /** Export button callback (diagram only) */
+  onExport?: () => void;
   t: (key: string) => string;
 }
 
 /** プレビュー側のズーム・パン操作ツールバー */
-export function ZoomToolbar({ fsZP, onCapture, t }: ZoomToolbarProps) {
+export function ZoomToolbar({ fsZP, onExport, t }: ZoomToolbarProps) {
   const isDark = useTheme().palette.mode === "dark";
   const iconSx = { fontSize: 16, color: getTextSecondary(isDark) };
   return (
     <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: getDivider(isDark), px: 1, py: 0.25, minHeight: FS_TOOLBAR_HEIGHT }}>
-      {onCapture && (
+      {onExport && (
         <Tooltip title={t("capture")} placement="bottom">
-          <IconButton size="small" sx={{ p: 0.25, mr: 0.5 }} onClick={onCapture} aria-label={t("capture")}>
-            <PhotoCameraIcon sx={iconSx} />
+          <IconButton size="small" sx={{ p: 0.25, mr: 0.5 }} onClick={onExport} aria-label={t("capture")}>
+            <FileDownloadIcon sx={iconSx} />
           </IconButton>
         </Tooltip>
       )}

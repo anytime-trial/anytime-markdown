@@ -44,7 +44,7 @@ export interface CodeBlockSharedProps {
   /** 比較モードの左側で編集モード（レビューモードではない） */
   isCompareLeftEditable?: boolean;
   /** ブロック要素を画像としてキャプチャ */
-  onCapture?: () => void;
+  onExport?: () => void;
 }
 
 /** DOMPurify config for HTML preview blocks */

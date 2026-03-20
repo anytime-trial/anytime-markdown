@@ -317,7 +317,7 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
           <BlockInlineToolbar
             label={t("image")}
             onDelete={!collapsed && !isCompareLeft ? () => setDeleteDialogOpen(true) : undefined}
-            onCapture={handleCapture}
+            onExport={handleCapture}
             labelOnly={isCompareLeftEditable}
             collapsed={collapsed}
             extra={

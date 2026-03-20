@@ -25,7 +25,7 @@ type HtmlPreviewBlockProps = Pick<
   | "selectNode" | "code"
   | "handleCopyCode" | "handleDeleteBlock" | "deleteDialogOpen" | "setDeleteDialogOpen"
   | "editOpen" | "setEditOpen" | "fsCode" | "onFsCodeChange" | "fsTextareaRef" | "fsSearch"
-  | "t" | "isDark" | "isEditable" | "isCompareLeft" | "isCompareLeftEditable" | "onCapture"
+  | "t" | "isDark" | "isEditable" | "isCompareLeft" | "isCompareLeftEditable" | "onExport"
 > & {
   handleFsTextChange: (newCode: string) => void;
 };
@@ -53,7 +53,7 @@ export function HtmlPreviewBlock(props: HtmlPreviewBlockProps) {
       label={t("htmlPreview")}
       onEdit={props.isCompareLeft ? undefined : () => setEditOpen(true)}
       onDelete={props.isCompareLeft ? undefined : () => setDeleteDialogOpen(true)}
-      /* onCapture: HTMLブロックのキャプチャは一時停止中 */
+      /* onExport: HTMLブロックのキャプチャは一時停止中 */
       labelOnly={props.isCompareLeftEditable}
       labelDivider
       t={t}

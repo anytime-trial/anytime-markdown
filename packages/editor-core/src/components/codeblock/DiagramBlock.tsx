@@ -170,7 +170,7 @@ export function DiagramBlock(props: DiagramBlockProps) {
       label={label}
       onEdit={props.isCompareLeft ? undefined : (svg || plantUmlUrl) ? () => { fsZP.reset(); setEditOpen(true); } : undefined}
       onDelete={isEditable && !props.isCompareLeft ? () => setDeleteDialogOpen(true) : undefined}
-      onCapture={(svg || plantUmlUrl) ? handleCapture : undefined}
+      onExport={(svg || plantUmlUrl) ? handleCapture : undefined}
       labelOnly={props.isCompareLeftEditable}
       labelDivider
       t={t}
@@ -231,7 +231,7 @@ export function DiagramBlock(props: DiagramBlockProps) {
             compareCode={compareCode}
             onMergeApply={handleMergeApply}
             thisCode={thisCode}
-            onCapture={handleCapture}
+            onExport={handleCapture}
             toolbarExtra={<CopyCodeButton handleCopyCode={handleCopyCode} t={t} />}
             t={t}
           />
@@ -254,7 +254,7 @@ export function DiagramBlock(props: DiagramBlockProps) {
             compareCode={compareCode}
             onMergeApply={handleMergeApply}
             thisCode={thisCode}
-            onCapture={handleCapture}
+            onExport={handleCapture}
             toolbarExtra={<CopyCodeButton handleCopyCode={handleCopyCode} t={t} />}
             t={t}
           />

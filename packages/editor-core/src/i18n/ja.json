@@ -146,7 +146,7 @@
     "diagramMindmap": "マインドマップ",
     "diagramGeneric": "ダイアグラム",
     "plantUmlDiagram": "PlantUMLダイアグラム",
-    "capture": "画像としてキャプチャ",
+    "capture": "画像エクスポート",
     "copyCode": "コードをコピー",
     "delete": "削除",
     "insert": "挿入",

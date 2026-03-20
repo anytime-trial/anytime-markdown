@@ -244,7 +244,7 @@ export function GifNodeView({ editor, node, updateAttributes, getPos }: NodeView
             label="GIF"
             onEdit={!collapsed && !isCompareLeft ? handleEditClick : undefined}
             onDelete={!collapsed && !isCompareLeft ? () => setDeleteDialogOpen(true) : undefined}
-            onCapture={handleCapture}
+            onExport={handleCapture}
             labelOnly={isCompareLeftEditable}
             collapsed={collapsed}
             extra={

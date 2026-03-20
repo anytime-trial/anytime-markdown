@@ -168,14 +168,15 @@ export const EditorDialogs = React.memo(function EditorDialogs({
         <DialogTitle id="image-dialog-title">{t("image")}</DialogTitle>
         <DialogContent>
           <TextField
-            autoFocus
+            autoFocus={!imageUrl.startsWith("data:")}
             required
             label={t("imageUrl")}
-            value={imageUrl}
+            value={imageUrl.startsWith("data:") ? "(base64)" : imageUrl}
             onChange={(e) => setImageUrl(e.target.value)}
             onBlur={() => markTouched("imageUrl")}
             error={touched.has("imageUrl") && !imageUrl.trim()}
             helperText={touched.has("imageUrl") && !imageUrl.trim() ? t("requiredField") : undefined}
+            disabled={imageUrl.startsWith("data:")}
             slotProps={{ formHelperText: { id: "image-url-helper" } }}
             aria-describedby={touched.has("imageUrl") && !imageUrl.trim() ? "image-url-helper" : undefined}
             fullWidth

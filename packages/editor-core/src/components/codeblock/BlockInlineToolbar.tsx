@@ -3,7 +3,7 @@
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
 import EditIcon from "@mui/icons-material/Edit";
-import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
+import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import { Box, Divider, IconButton, Tooltip, Typography } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import React from "react";
@@ -17,8 +17,8 @@ interface BlockInlineToolbarProps {
   onEdit?: () => void;
   /** Show delete button */
   onDelete?: () => void;
-  /** Show capture as image button */
-  onCapture?: () => void;
+  /** Show export as image button */
+  onExport?: () => void;
   /** Whether code/content is collapsed */
   collapsed?: boolean;
   /** Extra content between edit button and spacer */
@@ -32,7 +32,7 @@ interface BlockInlineToolbarProps {
 }
 
 export function BlockInlineToolbar({
-  label, onEdit, onDelete, onCapture, collapsed, extra, labelDivider, labelOnly, t,
+  label, onEdit, onDelete, onExport, collapsed, extra, labelDivider, labelOnly, t,
 }: BlockInlineToolbarProps) {
   const isDark = useTheme().palette.mode === "dark";
   const iconSx = { fontSize: 16, color: getTextSecondary(isDark) };
@@ -83,10 +83,10 @@ export function BlockInlineToolbar({
       )}
       {extra}
       <Box sx={{ flex: 1 }} />
-      {onCapture && !collapsed && (
+      {onExport && !collapsed && (
         <Tooltip title={t("capture")} placement="top">
-          <IconButton size="small" sx={{ p: 0.25 }} onClick={onCapture} aria-label={t("capture")}>
-            <PhotoCameraIcon sx={iconSx} />
+          <IconButton size="small" sx={{ p: 0.25 }} onClick={onExport} aria-label={t("capture")}>
+            <FileDownloadIcon sx={iconSx} />
           </IconButton>
         </Tooltip>
       )}
