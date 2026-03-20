@@ -2,4 +2,6 @@
 
 **Write beautifully, anytime, anywhere.**
 
-Try the slash command template "markdownAll".
+Type `/` to try slash commands.
+
+Example: Type `/markdownAll` to insert a template.
