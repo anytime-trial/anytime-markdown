@@ -81,3 +81,27 @@ export function getTextSecondary(isDark: boolean): string {
 export function getTextDisabled(isDark: boolean): string {
   return isDark ? DARK_TEXT_DISABLED : LIGHT_TEXT_DISABLED;
 }
+
+// ── UI 背景色（MUI テーマ準拠） ──
+export const DARK_BG_PAPER = "#121212";
+export const LIGHT_BG_PAPER = "#fff";
+export const DARK_ACTION_HOVER = "rgba(255,255,255,0.08)";
+export const LIGHT_ACTION_HOVER = "rgba(0,0,0,0.04)";
+export const DARK_ACTION_SELECTED = "rgba(255,255,255,0.16)";
+export const LIGHT_ACTION_SELECTED = "rgba(0,0,0,0.08)";
+export const DARK_DIVIDER = "rgba(255,255,255,0.12)";
+export const LIGHT_DIVIDER = "rgba(0,0,0,0.12)";
+
+/** ダーク/ライトモードに応じた UI 背景色を返すヘルパー */
+export function getBgPaper(isDark: boolean): string {
+  return isDark ? DARK_BG_PAPER : LIGHT_BG_PAPER;
+}
+export function getActionHover(isDark: boolean): string {
+  return isDark ? DARK_ACTION_HOVER : LIGHT_ACTION_HOVER;
+}
+export function getActionSelected(isDark: boolean): string {
+  return isDark ? DARK_ACTION_SELECTED : LIGHT_ACTION_SELECTED;
+}
+export function getDivider(isDark: boolean): string {
+  return isDark ? DARK_DIVIDER : LIGHT_DIVIDER;
+}

@@ -18,7 +18,7 @@ import { EditDialogHeader } from "./components/EditDialogHeader";
 import { EditDialogWrapper } from "./components/EditDialogWrapper";
 import { ImageAnnotationDialog } from "./components/ImageAnnotationDialog";
 import { ImageCropTool } from "./components/ImageCropTool";
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getTextDisabled, getTextSecondary } from "./constants/colors";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getActionHover, getDivider, getTextDisabled, getTextSecondary } from "./constants/colors";
 import { useBlockCapture } from "./hooks/useBlockCapture";
 import { useBlockNodeState } from "./hooks/useBlockNodeState";
 import { useBlockResize } from "./hooks/useBlockResize";
@@ -275,7 +275,7 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
         />
         {/* Image toolbar (second row) */}
         {isEditable && (
-          <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: "divider", px: 1, py: 0.25, minHeight: 32 }}>
+          <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: getDivider(isDark), px: 1, py: 0.25, minHeight: 32 }}>
             <Tooltip title={t("imageUrl")} placement="bottom">
               <IconButton size="small" sx={{ p: 0.25 }} onClick={handleEditUrl} aria-label={t("imageUrl")}>
                 <EditIcon sx={{ fontSize: 16, color: getTextSecondary(isDark) }} />
@@ -297,7 +297,7 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
       <Box
         sx={{
           border: 1, borderRadius: 1, overflow: "hidden", my: 1,
-          borderColor: (showToolbar || (isCompareLeftEditable && isSelected)) ? "divider" : "transparent",
+          borderColor: (showToolbar || (isCompareLeftEditable && isSelected)) ? getDivider(isDark) : "transparent",
           ...(!(showToolbar || (isCompareLeftEditable && isSelected)) && {
             "& > [data-block-toolbar]": {
               maxHeight: 0, opacity: 0, py: 0, overflow: "hidden",
@@ -332,7 +332,7 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
         )}
         {/* Image with resize handle */}
         {!collapsed && imgError && (
-          <Box contentEditable={false} sx={{ height: "2em", borderTop: 1, borderColor: "divider", bgcolor: "action.hover" }} />
+          <Box contentEditable={false} sx={{ height: "2em", borderTop: 1, borderColor: getDivider(isDark), bgcolor: getActionHover(isDark) }} />
         )}
         {!collapsed && !imgError && (
           <ImageWithResize

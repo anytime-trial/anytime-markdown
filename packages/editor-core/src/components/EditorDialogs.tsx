@@ -15,7 +15,7 @@ import {
 import { useTheme } from "@mui/material/styles";
 import React from "react";
 
-import { getTextSecondary } from "../constants/colors";
+import { getActionHover, getActionSelected, getDivider, getTextSecondary } from "../constants/colors";
 import { KEYBOARD_SHORTCUTS } from "../constants/shortcuts";
 import type { TranslationFn } from "../types";
 import { APP_VERSION } from "../version";
@@ -223,7 +223,7 @@ export const EditorDialogs = React.memo(function EditorDialogs({
               {group.items.map((item) => (
                 <Box
                   key={item.keys}
-                  sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", py: 0.5, px: 1, borderRadius: 0.5, "&:hover": { bgcolor: "action.hover" } }}
+                  sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", py: 0.5, px: 1, borderRadius: 0.5, "&:hover": { bgcolor: getActionHover(isDark) } }}
                 >
                   <Typography variant="body2">{t(item.descKey)}</Typography>
                   <Box sx={{ display: "flex", gap: 0.5 }}>
@@ -236,13 +236,13 @@ export const EditorDialogs = React.memo(function EditorDialogs({
                           py: 0.25,
                           minWidth: 28,
                           textAlign: "center",
-                          bgcolor: "action.selected",
+                          bgcolor: getActionSelected(isDark),
                           borderRadius: 0.5,
                           fontFamily: "monospace",
                           fontSize: "0.75rem",
                           fontWeight: 600,
                           border: 1,
-                          borderColor: "divider",
+                          borderColor: getDivider(isDark),
                           lineHeight: 1.4,
                         }}
                       >

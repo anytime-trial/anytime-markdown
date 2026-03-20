@@ -1,6 +1,6 @@
 import type { SxProps,Theme } from "@mui/material/styles";
 
-import { DEFAULT_DARK_HEADING_LINK, DEFAULT_LIGHT_HEADING_LINK, getTextDisabled, getTextSecondary } from "../constants/colors";
+import { DEFAULT_DARK_HEADING_LINK, DEFAULT_LIGHT_HEADING_LINK, getActionHover, getActionSelected, getTextDisabled, getTextSecondary } from "../constants/colors";
 
 /** ブロックラベル共通スタイル（::before 擬似要素） */
 function blockLabel(theme: Theme, right = "calc(100% + 8px)") {
@@ -16,7 +16,7 @@ function blockLabel(theme: Theme, right = "calc(100% + 8px)") {
     px: 0.5,
     py: 0.25,
     borderRadius: 0.5,
-    bgcolor: theme.palette.action.hover,
+    bgcolor: getActionHover(isDark),
     color: getTextSecondary(isDark),
     fontFamily: "monospace",
     whiteSpace: "nowrap",
@@ -28,11 +28,12 @@ function blockLabel(theme: Theme, right = "calc(100% + 8px)") {
 
 /** ブロックラベル（top 基準版、Quote/UL/OL 用） */
 function blockLabelTop(theme: Theme, right = "calc(100% + 30px)") {
+  const isDark = theme.palette.mode === "dark";
   return {
     ...blockLabel(theme, right),
     top: 2,
     transform: undefined,
-    "&:hover": { bgcolor: theme.palette.action.selected },
+    "&:hover": { bgcolor: getActionSelected(isDark) },
   } as const;
 }
 

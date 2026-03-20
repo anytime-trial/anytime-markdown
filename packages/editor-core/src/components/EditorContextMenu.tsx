@@ -9,7 +9,7 @@ import { useTheme } from "@mui/material/styles";
 import type { Editor } from "@tiptap/react";
 import { useCallback, useEffect, useState } from "react";
 
-import { getTextSecondary } from "../constants/colors";
+import { getBgPaper, getDivider, getTextSecondary } from "../constants/colors";
 import { findBlockNode, getCopiedBlockNode, performBlockCopy } from "../utils/blockClipboard";
 import { boxTableToMarkdown, containsBoxTable } from "../utils/boxTableToMarkdown";
 import { copyTextToClipboard, readTextFromClipboard } from "../utils/clipboardHelpers";
@@ -34,11 +34,11 @@ function insertMarkdownText(editor: Editor, text: string): void {
   editor.chain().focus().insertContent(md).run();
 }
 
-const menuPaperSx = {
+function getMenuPaperSx(isDark: boolean) { return {
   minWidth: 180,
-  bgcolor: "background.paper",
+  bgcolor: getBgPaper(isDark),
   border: 1,
-  borderColor: "divider",
+  borderColor: getDivider(isDark),
   borderRadius: 1,
   boxShadow: "0 2px 8px rgba(0,0,0,0.25)",
   py: 0.5,
@@ -51,7 +51,7 @@ const menuPaperSx = {
   "& .MuiListItemIcon-root": {
     minWidth: 28,
   },
-};
+} as const; }
 
 export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProps) {
   const isDark = useTheme().palette.mode === "dark";
@@ -183,7 +183,7 @@ export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProp
           ? { top: menuPos.mouseY, left: menuPos.mouseX }
           : undefined
       }
-      slotProps={{ paper: { sx: menuPaperSx } }}
+      slotProps={{ paper: { sx: getMenuPaperSx(isDark) } }}
     >
       <MenuItem onClick={handleCut} disabled={!!readOnly || !canCopy}>
         <ListItemIcon>

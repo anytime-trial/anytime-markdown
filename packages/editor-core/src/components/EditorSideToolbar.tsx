@@ -3,8 +3,10 @@ import GitHubIcon from "@mui/icons-material/GitHub";
 import ListAltIcon from "@mui/icons-material/ListAlt";
 import SettingsIcon from "@mui/icons-material/Settings";
 import { Box, IconButton, Tooltip } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 import React from "react";
 
+import { getDivider } from "../constants/colors";
 import { SIDE_TOOLBAR_ICON_SIZE, SIDE_TOOLBAR_WIDTH } from "../constants/dimensions";
 
 interface EditorSideToolbarProps {
@@ -30,6 +32,7 @@ export const EditorSideToolbar = React.memo(function EditorSideToolbar({
   onOpenSettings,
   t,
 }: EditorSideToolbarProps) {
+  const isDark = useTheme().palette.mode === "dark";
   return (
     <Box
       sx={{
@@ -42,7 +45,7 @@ export const EditorSideToolbar = React.memo(function EditorSideToolbar({
         borderLeft: 1,
         borderRight: 1,
         borderTop: 1,
-        borderColor: "divider",
+        borderColor: getDivider(isDark),
         flexShrink: 0,
       }}
     >

@@ -18,7 +18,7 @@ import type { Editor } from "@tiptap/react";
 import { useEditorState } from "@tiptap/react";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getTextDisabled, getTextSecondary } from "../constants/colors";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getActionHover, getDivider, getTextDisabled, getTextSecondary } from "../constants/colors";
 import { COMMENT_PANEL_WIDTH, PANEL_HEADER_MIN_HEIGHT } from "../constants/dimensions";
 import { commentDataPluginKey } from "../extensions/commentExtension";
 import type { TranslationFn } from "../types";
@@ -198,7 +198,7 @@ export const CommentPanel = React.memo(function CommentPanel({
         width: COMMENT_PANEL_WIDTH,
         minWidth: COMMENT_PANEL_WIDTH,
         borderLeft: 1,
-        borderColor: "divider",
+        borderColor: getDivider(isDark),
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
@@ -213,7 +213,7 @@ export const CommentPanel = React.memo(function CommentPanel({
           px: 1,
           minHeight: PANEL_HEADER_MIN_HEIGHT,
           borderBottom: 1,
-          borderColor: "divider",
+          borderColor: getDivider(isDark),
         }}
       >
         <Typography variant="subtitle2" aria-live="polite" aria-atomic="true" sx={{ flex: 1, fontWeight: 700 }}>
@@ -290,11 +290,11 @@ export const CommentPanel = React.memo(function CommentPanel({
                 mb: 1,
                 p: 1,
                 border: 1,
-                borderColor: "divider",
+                borderColor: getDivider(isDark),
                 borderRadius: 1,
                 cursor: "pointer",
                 opacity: comment.resolved ? 0.5 : 1,
-                "&:hover, &:focus-visible": { bgcolor: "action.hover" },
+                "&:hover, &:focus-visible": { bgcolor: getActionHover(isDark) },
                 "&:focus-visible": { outline: "2px solid", outlineColor: "primary.main", outlineOffset: -2 },
               }}
             >
@@ -308,7 +308,7 @@ export const CommentPanel = React.memo(function CommentPanel({
                     fontStyle: "italic",
                     color: getTextSecondary(isDark),
                     borderLeft: 2,
-                    borderColor: "divider",
+                    borderColor: getDivider(isDark),
                     pl: 1,
                     maxHeight: "2.8em",
                     overflow: "hidden",
@@ -351,7 +351,7 @@ export const CommentPanel = React.memo(function CommentPanel({
                     mb: 0.5,
                     cursor: "text",
                     minHeight: "1.4em",
-                    "&:hover": { bgcolor: "action.hover", borderRadius: 0.5 },
+                    "&:hover": { bgcolor: getActionHover(isDark), borderRadius: 0.5 },
                   }}
                 >
                   {comment.text || <Box component="span" sx={{ color: getTextDisabled(isDark), fontStyle: "italic" }}>{t("commentPlaceholder") || "Add comment..."}</Box>}
@@ -417,7 +417,7 @@ export const CommentPanel = React.memo(function CommentPanel({
                     sx={{
                       mb: 0.5, p: 0.75,
                       border: 1,
-                      borderColor: "divider",
+                      borderColor: getDivider(isDark),
                       borderRadius: 1,
                       opacity: a.resolved ? 0.5 : 1,
                     }}

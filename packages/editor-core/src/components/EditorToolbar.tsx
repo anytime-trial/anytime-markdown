@@ -23,7 +23,7 @@ import type { Editor } from "@tiptap/react";
 import { useEditorState } from "@tiptap/react";
 import React, { useCallback, useRef, useState } from "react";
 
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, DEFAULT_LIGHT_TEXT, getTextSecondary } from "../constants/colors";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, DEFAULT_LIGHT_TEXT, getActionHover, getActionSelected, getBgPaper, getTextSecondary } from "../constants/colors";
 import { modKey } from "../constants/shortcuts";
 import { Z_TOOLBAR } from "../constants/zIndex";
 import AppIcon from "../icons/AppIcon";
@@ -67,7 +67,7 @@ function getPillToggleSx(isDark: boolean) {
   return {
     height: 34,
     borderRadius: "20px",
-    bgcolor: "action.hover",
+    bgcolor: getActionHover(isDark),
     p: 0.25,
     "& .MuiToggleButton-root": {
       border: "none",
@@ -80,7 +80,7 @@ function getPillToggleSx(isDark: boolean) {
       lineHeight: 1,
     },
     "& .Mui-selected": {
-      bgcolor: "background.paper !important",
+      bgcolor: `${getBgPaper(isDark)} !important`,
       color: "text.primary !important",
       boxShadow: "0 1px 2px rgba(0,0,0,0.15)",
     },
@@ -88,7 +88,7 @@ function getPillToggleSx(isDark: boolean) {
       bgcolor: "transparent",
       color: getTextSecondary(isDark),
       "&:hover": {
-        bgcolor: "action.selected",
+        bgcolor: getActionSelected(isDark),
       },
     },
   } as const;

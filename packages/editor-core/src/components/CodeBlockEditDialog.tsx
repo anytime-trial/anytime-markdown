@@ -4,7 +4,7 @@ import DOMPurify from "dompurify";
 import { common, createLowlight } from "lowlight";
 import React, { useCallback, useMemo, useState } from "react";
 
-import { getTextPrimary } from "../constants/colors";
+import { getActionHover, getDivider, getTextPrimary } from "../constants/colors";
 import { CODE_HELLO_SAMPLES } from "../constants/codeHelloSamples";
 import { FS_CHIP_HEIGHT, FS_TOOLBAR_HEIGHT } from "../constants/dimensions";
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
@@ -98,7 +98,7 @@ export function CodeBlockEditDialog({
   const codePanel = (
     <>
       {/* Code toolbar */}
-      <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: "divider", px: 1, py: 0.25, minHeight: FS_TOOLBAR_HEIGHT }}>
+      <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: getDivider(isDark), px: 1, py: 0.25, minHeight: FS_TOOLBAR_HEIGHT }}>
         <Typography variant="caption" sx={{ fontWeight: 600, fontSize: "0.75rem", flex: 1 }}>
           {t("codeTab")}
         </Typography>
@@ -117,10 +117,10 @@ export function CodeBlockEditDialog({
       {customSamples ? (
         <SamplePanel samples={customSamples} onInsert={handleInsertSample} readOnly={readOnly} t={t} />
       ) : !readOnly && (
-        <Box sx={{ borderTop: 1, borderColor: "divider", flexShrink: 0 }}>
+        <Box sx={{ borderTop: 1, borderColor: getDivider(isDark), flexShrink: 0 }}>
           <Box
             onClick={() => setSamplesOpen((v) => !v)}
-            sx={{ display: "flex", alignItems: "center", px: 1.5, py: 0.5, cursor: "pointer", userSelect: "none", "&:hover": { bgcolor: "action.hover" } }}
+            sx={{ display: "flex", alignItems: "center", px: 1.5, py: 0.5, cursor: "pointer", userSelect: "none", "&:hover": { bgcolor: getActionHover(isDark) } }}
           >
             <Typography variant="caption" sx={{ fontWeight: 600, fontSize: "0.75rem", flex: 1 }}>
               {t("sampleContent")}

@@ -4,7 +4,7 @@ import { Box, Chip, Typography } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import React, { useState } from "react";
 
-import { getTextSecondary } from "../constants/colors";
+import { getActionHover, getDivider, getTextSecondary } from "../constants/colors";
 import { FS_CHIP_HEIGHT } from "../constants/dimensions";
 
 interface SampleItem {
@@ -28,10 +28,10 @@ export function SamplePanel({ samples, onInsert, readOnly, t }: SamplePanelProps
   if (readOnly || samples.length === 0) return null;
 
   return (
-    <Box sx={{ borderTop: 1, borderColor: "divider", flexShrink: 0 }}>
+    <Box sx={{ borderTop: 1, borderColor: getDivider(isDark), flexShrink: 0 }}>
       <Box
         onClick={() => setOpen((v) => !v)}
-        sx={{ display: "flex", alignItems: "center", px: 1.5, py: 0.5, cursor: "pointer", userSelect: "none", "&:hover": { bgcolor: "action.hover" } }}
+        sx={{ display: "flex", alignItems: "center", px: 1.5, py: 0.5, cursor: "pointer", userSelect: "none", "&:hover": { bgcolor: getActionHover(isDark) } }}
       >
         <Typography variant="caption" sx={{ fontWeight: 600, fontSize: "0.75rem", flex: 1 }}>
           {t("sampleContent")}

@@ -23,7 +23,7 @@ import {
 } from "@mui/material";
 import React, { useCallback, useMemo,useState } from "react";
 
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getTextDisabled, getTextPrimary, getTextSecondary } from "../constants/colors";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getActionHover, getDivider, getTextDisabled, getTextPrimary, getTextSecondary } from "../constants/colors";
 import { PANEL_HEADER_MIN_HEIGHT } from "../constants/dimensions";
 import MermaidIcon from "../icons/MermaidIcon";
 import type { HeadingItem, OutlineKind, TranslationFn } from "../types";
@@ -154,7 +154,7 @@ export function OutlinePanel({
         }}
       >
         <Box>
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", px: 1, minHeight: PANEL_HEADER_MIN_HEIGHT, borderBottom: 1, borderColor: "divider" }}>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", px: 1, minHeight: PANEL_HEADER_MIN_HEIGHT, borderBottom: 1, borderColor: getDivider(isDark) }}>
             <Typography
               id="outline-panel-title"
               variant="subtitle2"
@@ -258,7 +258,7 @@ export function OutlinePanel({
                       opacity: isDragging ? 0.4 : 1,
                       borderTop: isDropTarget ? `2px solid ${theme.palette.primary.main}` : "2px solid transparent",
                       "&:hover": {
-                        bgcolor: theme.palette.action.hover,
+                        bgcolor: getActionHover(isDark),
                       },
                       "& .outline-move-btns": { opacity: 0 },
                       "&:hover .outline-move-btns, & .outline-move-btns:focus-within": { opacity: 1 },
@@ -371,14 +371,14 @@ export function OutlinePanel({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          "&:hover": { bgcolor: "action.hover" },
+          "&:hover": { bgcolor: getActionHover(isDark) },
           "&:focus-visible": { outline: "2px solid", outlineColor: "primary.main" },
           "&::after": {
             content: '""',
             width: 2,
             height: 32,
             borderRadius: 1,
-            bgcolor: "divider",
+            bgcolor: getDivider(isDark),
           },
         }}
       />}

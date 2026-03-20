@@ -5,7 +5,7 @@ import { Alert, Box, IconButton, Tooltip } from "@mui/material";
 import DOMPurify from "dompurify";
 import { useRef } from "react";
 
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getTextSecondary } from "../../constants/colors";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getDivider, getTextSecondary } from "../../constants/colors";
 import { PREVIEW_MAX_HEIGHT } from "../../constants/dimensions";
 import { useBlockMergeCompare } from "../../hooks/useBlockMergeCompare";
 import { useBlockResize } from "../../hooks/useBlockResize";
@@ -108,7 +108,7 @@ export function MathBlock(props: MathBlockProps) {
           onDoubleClick={() => setEditOpen(true)}
           onPointerMove={handleResizePointerMove}
           onPointerUp={handleResizePointerUp}
-          sx={{ pt: 0, px: 2, pb: 2, bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG, borderTop: codeCollapsed ? 0 : 1, borderColor: "divider", overflow: "auto", maxHeight: PREVIEW_MAX_HEIGHT, display: "flex", justifyContent: "flex-start", cursor: "pointer", position: "relative", width: displayWidth || "fit-content", maxWidth: "100%" }}
+          sx={{ pt: 0, px: 2, pb: 2, bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG, borderTop: codeCollapsed ? 0 : 1, borderColor: getDivider(isDark), overflow: "auto", maxHeight: PREVIEW_MAX_HEIGHT, display: "flex", justifyContent: "flex-start", cursor: "pointer", position: "relative", width: displayWidth || "fit-content", maxWidth: "100%" }}
         >
           <Box
             dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(mathHtml, MATH_SANITIZE_CONFIG) }}

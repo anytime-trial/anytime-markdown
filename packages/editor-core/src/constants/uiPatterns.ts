@@ -2,6 +2,8 @@
  * 繰り返し使用される UI スタイルパターンの定数定義
  */
 
+import { getDivider } from "./colors";
+
 // ── フォーカスアウトライン ──
 
 /** focus-visible 時のアウトラインスタイル（ブロック要素のドラッグハンドル等） */
@@ -45,13 +47,15 @@ export const DRAG_HANDLE_SX = {
 // ── スプリッター共通スタイル ──
 
 /** 全画面ダイアログのドラッグスプリッター sx */
-export const SPLITTER_SX = {
-  width: 4,
-  cursor: "col-resize",
-  bgcolor: "divider",
-  flexShrink: 0,
-  "&:hover": { bgcolor: "primary.main" },
-  "&:focus-visible": { ...FOCUS_OUTLINE_BARE, bgcolor: "primary.main" },
-  transition: `background-color ${TRANSITION_FAST}`,
-  ...REDUCED_MOTION_SX,
-} as const;
+export function getSplitterSx(isDark: boolean) {
+  return {
+    width: 4,
+    cursor: "col-resize",
+    bgcolor: getDivider(isDark),
+    flexShrink: 0,
+    "&:hover": { bgcolor: "primary.main" },
+    "&:focus-visible": { ...FOCUS_OUTLINE_BARE, bgcolor: "primary.main" },
+    transition: `background-color ${TRANSITION_FAST}`,
+    ...REDUCED_MOTION_SX,
+  } as const;
+}

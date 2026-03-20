@@ -6,7 +6,7 @@ import { Box, IconButton, Tooltip, Typography } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import React from "react";
 
-import { getTextSecondary } from "../constants/colors";
+import { getDivider, getTextSecondary } from "../constants/colors";
 import { FS_TOOLBAR_HEIGHT, FS_ZOOM_LABEL_WIDTH } from "../constants/dimensions";
 import type { UseZoomPanReturn } from "../hooks/useZoomPan";
 
@@ -22,7 +22,7 @@ export function ZoomToolbar({ fsZP, onCapture, t }: ZoomToolbarProps) {
   const isDark = useTheme().palette.mode === "dark";
   const iconSx = { fontSize: 16, color: getTextSecondary(isDark) };
   return (
-    <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: "divider", px: 1, py: 0.25, minHeight: FS_TOOLBAR_HEIGHT }}>
+    <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: getDivider(isDark), px: 1, py: 0.25, minHeight: FS_TOOLBAR_HEIGHT }}>
       {onCapture && (
         <Tooltip title={t("capture")} placement="bottom">
           <IconButton size="small" sx={{ p: 0.25, mr: 0.5 }} onClick={onCapture} aria-label={t("capture")}>

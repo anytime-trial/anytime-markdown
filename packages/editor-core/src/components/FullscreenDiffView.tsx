@@ -3,7 +3,7 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import { alpha, Box, IconButton, type Theme,Tooltip, useTheme } from "@mui/material";
 import React, { useCallback, useEffect,useMemo, useRef, useState } from "react";
 
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getTextPrimary, getTextSecondary } from "../constants/colors";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getDivider, getTextPrimary, getTextSecondary } from "../constants/colors";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import { applyMerge, computeDiff, type DiffLine } from "../utils/diffEngine";
 
@@ -385,7 +385,7 @@ function DiffPanel({
         flexDirection: "column",
         minWidth: 0,
         borderLeft: side === "right" ? 1 : 0,
-        borderColor: "divider",
+        borderColor: getDivider(isDark),
         bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
       }}
     >

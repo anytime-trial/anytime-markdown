@@ -1,6 +1,6 @@
 import type { Theme } from "@mui/material/styles";
 
-import { getTextPrimary, getTextSecondary } from "../constants/colors";
+import { getActionHover, getActionSelected, getDivider, getTextPrimary, getTextSecondary } from "../constants/colors";
 
 /** マージエディタ共通のtiptapスタイル */
 export function getMergeTiptapStyles(theme: Theme, fontSize = 14, lineHeight = 1.6, options?: { showHoverLabels?: boolean }) {
@@ -13,7 +13,7 @@ export function getMergeTiptapStyles(theme: Theme, fontSize = 14, lineHeight = 1
     px: 0.5,
     py: 0.25,
     borderRadius: 0.5,
-    bgcolor: theme.palette.action.hover,
+    bgcolor: getActionHover(isDark),
     color: getTextSecondary(isDark),
     fontFamily: "monospace",
     whiteSpace: "nowrap" as const,
@@ -53,7 +53,7 @@ export function getMergeTiptapStyles(theme: Theme, fontSize = 14, lineHeight = 1
         ...hoverLabelBase,
         right: "calc(100% + 30px)",
         top: 2,
-        "&:hover": { bgcolor: theme.palette.action.selected },
+        "&:hover": { bgcolor: getActionSelected(isDark) },
       },
       "&:hover::before, &:focus-within::before": { opacity: 1 },
     },
@@ -99,7 +99,7 @@ export function getMergeTiptapStyles(theme: Theme, fontSize = 14, lineHeight = 1
             ...hoverLabelBase,
             right: "calc(100% + 32px)",
             top: 2,
-            "&:hover": { bgcolor: theme.palette.action.selected },
+            "&:hover": { bgcolor: getActionSelected(isDark) },
           },
           "&:hover::before, &:focus-within::before": { opacity: 1 },
         }),
@@ -128,7 +128,7 @@ export function getMergeTiptapStyles(theme: Theme, fontSize = 14, lineHeight = 1
         display: "none !important" as unknown as string,
       },
       "& code": {
-        bgcolor: theme.palette.action.hover,
+        bgcolor: getActionHover(isDark),
         color: theme.palette.mode === "dark" ? theme.palette.grey[300] : theme.palette.error.main,
         px: 0.5,
         py: 0.25,
@@ -145,7 +145,7 @@ export function getMergeTiptapStyles(theme: Theme, fontSize = 14, lineHeight = 1
         "& code": { bgcolor: "transparent", color: "inherit", p: 0, borderRadius: 0 },
       },
       "& blockquote": {
-        borderLeft: `3px solid ${theme.palette.divider}`,
+        borderLeft: `3px solid ${getDivider(isDark)}`,
         pl: 2,
         ml: 0,
         my: 1,
@@ -155,7 +155,7 @@ export function getMergeTiptapStyles(theme: Theme, fontSize = 14, lineHeight = 1
         borderCollapse: "collapse",
         width: "100%",
         "& th, & td": {
-          border: `1px solid ${theme.palette.divider}`,
+          border: `1px solid ${getDivider(isDark)}`,
           px: 1,
           py: 0.5,
           textAlign: "left",
@@ -164,11 +164,11 @@ export function getMergeTiptapStyles(theme: Theme, fontSize = 14, lineHeight = 1
           lineHeight: "inherit",
         },
         "& th": {
-          bgcolor: theme.palette.action.hover,
+          bgcolor: getActionHover(isDark),
           fontWeight: 600,
         },
         "& .selectedCell": {
-          bgcolor: theme.palette.action.selected,
+          bgcolor: getActionSelected(isDark),
         },
       },
       "& img": {
@@ -178,7 +178,7 @@ export function getMergeTiptapStyles(theme: Theme, fontSize = 14, lineHeight = 1
         my: 1,
       },
       "& a": { color: theme.palette.primary.main, textDecoration: "underline" },
-      "& hr": { border: "none", borderTop: `1px solid ${theme.palette.divider}`, my: 2 },
+      "& hr": { border: "none", borderTop: `1px solid ${getDivider(isDark)}`, my: 2 },
       "& ul[data-type='taskList']": {
         listStyle: "none",
         pl: 0,

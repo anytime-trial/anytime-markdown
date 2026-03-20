@@ -13,7 +13,7 @@ import type { Editor } from "@tiptap/react";
 import { useEditor } from "@tiptap/react";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { FILE_DROP_OVERLAY_COLOR, getEditorBg, getTextDisabled } from "../constants/colors";
+import { FILE_DROP_OVERLAY_COLOR, getDivider, getEditorBg, getTextDisabled } from "../constants/colors";
 import { setMergeEditors } from "../contexts/MergeEditorsContext";
 import { getBaseExtensions } from "../editorExtensions";
 import { CustomHardBreak } from "../extensions/customHardBreak";
@@ -389,7 +389,7 @@ export function InlineMergeView({
                 t={t}
               />
             ) : (
-              <Box sx={{ border: 1, borderColor: "divider", borderRadius: 1, mb: 1, opacity: 0.4, p: 1, height: "calc(100% - 8px)", boxSizing: "border-box" }}>
+              <Box sx={{ border: 1, borderColor: getDivider(isDark), borderRadius: 1, mb: 1, opacity: 0.4, p: 1, height: "calc(100% - 8px)", boxSizing: "border-box" }}>
                 <Typography variant="caption" sx={{ fontFamily: "monospace", color: getTextDisabled(isDark), fontSize: "0.75rem" }}>
                   No Frontmatter
                 </Typography>
@@ -405,7 +405,7 @@ export function InlineMergeView({
                 t={t}
               />
             ) : (
-              <Box sx={{ border: 1, borderColor: "divider", borderRadius: 1, mb: 1, opacity: 0.4, p: 1, height: "calc(100% - 8px)", boxSizing: "border-box" }}>
+              <Box sx={{ border: 1, borderColor: getDivider(isDark), borderRadius: 1, mb: 1, opacity: 0.4, p: 1, height: "calc(100% - 8px)", boxSizing: "border-box" }}>
                 <Typography variant="caption" sx={{ fontFamily: "monospace", color: getTextDisabled(isDark), fontSize: "0.75rem" }}>
                   No Frontmatter
                 </Typography>

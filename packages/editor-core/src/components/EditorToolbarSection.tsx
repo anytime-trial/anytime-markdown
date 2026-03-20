@@ -1,7 +1,9 @@
 import { Box } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 import type { Editor } from "@tiptap/react";
 import type React from "react";
 
+import { getBgPaper } from "../constants/colors";
 import { Z_SKIP_LINK } from "../constants/zIndex";
 import type { ToolbarVisibility } from "../types/toolbar";
 import { EditorToolbar } from "./EditorToolbar";
@@ -87,6 +89,7 @@ export function EditorToolbarSection({
   t,
   onReload,
 }: EditorToolbarSectionProps) {
+  const isDark = useTheme().palette.mode === "dark";
   return (
     <>
       {/* Skip link (WCAG 2.4.1) */}
@@ -97,7 +100,7 @@ export function EditorToolbarSection({
           position: "absolute",
           left: -9999,
           "&:focus": {
-            left: 16, top: 16, zIndex: Z_SKIP_LINK, bgcolor: "background.paper",
+            left: 16, top: 16, zIndex: Z_SKIP_LINK, bgcolor: getBgPaper(isDark),
             color: "primary.main", px: 2, py: 1, borderRadius: 1, boxShadow: 3,
             fontWeight: 600, fontSize: "0.875rem", textDecoration: "none",
           },

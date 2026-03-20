@@ -2,7 +2,7 @@ import { Box, Divider, useMediaQuery, useTheme } from "@mui/material";
 import React, { useEffect, useRef, useState } from "react";
 
 import { FS_CODE_INITIAL_WIDTH, FS_CODE_MIN_WIDTH } from "../constants/dimensions";
-import { SPLITTER_SX } from "../constants/uiPatterns";
+import { getSplitterSx } from "../constants/uiPatterns";
 
 interface DraggableSplitLayoutProps {
   /** Initial code panel width in px (default: FS_CODE_INITIAL_WIDTH) */
@@ -28,6 +28,7 @@ export function DraggableSplitLayout({
   initialWidth, initialPercent, left, right, onPointerMove, onPointerUp, t,
 }: DraggableSplitLayoutProps) {
   const theme = useTheme();
+  const isDark = theme.palette.mode === "dark";
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
 
   const [splitPx, setSplitPx] = useState(initialWidth ?? FS_CODE_INITIAL_WIDTH);
@@ -93,7 +94,7 @@ export function DraggableSplitLayout({
           (e.target as HTMLElement).setPointerCapture(e.pointerId);
           e.preventDefault();
         }}
-        sx={{ display: isMobile ? "none" : "block", ...SPLITTER_SX }}
+        sx={{ display: isMobile ? "none" : "block", ...getSplitterSx(isDark) }}
       />
       {/* Horizontal divider (mobile only) */}
       <Divider sx={{ display: isMobile ? "block" : "none" }} />

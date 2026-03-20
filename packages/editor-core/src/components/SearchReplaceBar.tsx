@@ -19,7 +19,7 @@ import {
 import type { Editor } from "@tiptap/react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
-import { getTextPrimary, getTextSecondary } from "../constants/colors";
+import { getActionHover, getDivider, getTextPrimary, getTextSecondary } from "../constants/colors";
 import { Z_TOOLBAR } from "../constants/zIndex";
 import type { TranslationFn } from "../types";
 
@@ -173,7 +173,7 @@ export const SearchReplaceBar = React.memo(function SearchReplaceBar({ editor, t
         ? theme.palette.mode === "dark"
           ? "primary.dark"
           : "primary.light"
-        : "action.hover",
+        : getActionHover(isDark),
     },
   });
 
@@ -181,7 +181,7 @@ export const SearchReplaceBar = React.memo(function SearchReplaceBar({ editor, t
     minHeight: 24,
     px: 0.75,
     border: 1,
-    borderColor: "divider",
+    borderColor: getDivider(isDark),
     borderRadius: 0.5,
     fontSize: "0.78rem",
     outline: "none",

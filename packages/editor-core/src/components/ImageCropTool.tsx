@@ -10,7 +10,7 @@ import { Box, Button, Chip, IconButton, Tooltip, Typography } from "@mui/materia
 import { useTheme } from "@mui/material/styles";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
-import { getTextDisabled, getTextSecondary } from "../constants/colors";
+import { getDivider, getTextDisabled, getTextSecondary } from "../constants/colors";
 
 const SCALE_PRESETS = [25, 50, 75, 100, 150, 200] as const;
 
@@ -142,7 +142,7 @@ export function ImageCropTool({ src, onCrop, t }: ImageCropToolProps) {
   return (
     <Box sx={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
       {/* Crop toolbar */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 1, py: 0.5, borderBottom: 1, borderColor: "divider", minHeight: 32 }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 1, py: 0.5, borderBottom: 1, borderColor: getDivider(isDark), minHeight: 32 }}>
         {!cropping ? (
           <>
             <Tooltip title={t("imageCrop")}>

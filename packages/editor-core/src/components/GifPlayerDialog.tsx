@@ -7,7 +7,7 @@ import { Box, ToggleButton, ToggleButtonGroup, Typography } from "@mui/material"
 import { useTheme } from "@mui/material/styles";
 import { useCallback, useRef, useState } from "react";
 
-import { getTextSecondary } from "../constants/colors";
+import { getDivider, getTextSecondary } from "../constants/colors";
 import type { GifSettings } from "../utils/gifEncoder";
 import { EditDialogHeader } from "./EditDialogHeader";
 import { EditDialogWrapper } from "./EditDialogWrapper";
@@ -93,7 +93,7 @@ export function GifPlayerDialog({ open, onClose, src, settings }: GifPlayerDialo
           px: 2,
           py: 1.5,
           borderTop: 1,
-          borderColor: "divider",
+          borderColor: getDivider(isDark),
           display: "flex",
           flexDirection: "column",
           gap: 1,
@@ -107,7 +107,7 @@ export function GifPlayerDialog({ open, onClose, src, settings }: GifPlayerDialo
             onChange={togglePlayback}
             size="small"
             aria-label={playing ? "Pause" : "Play"}
-            sx={{ border: 1, borderColor: "divider" }}
+            sx={{ border: 1, borderColor: getDivider(isDark) }}
           >
             {playing ? <PauseIcon sx={{ fontSize: 20 }} /> : <PlayArrowIcon sx={{ fontSize: 20 }} />}
           </ToggleButton>

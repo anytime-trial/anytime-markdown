@@ -10,7 +10,7 @@ import { NodeViewWrapper } from "@tiptap/react";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { getTextDisabled } from "../constants/colors";
+import { getDivider, getTextDisabled } from "../constants/colors";
 import { saveBlob,useBlockCapture } from "../hooks/useBlockCapture";
 import { useBlockNodeState } from "../hooks/useBlockNodeState";
 import type { GifSettings } from "../utils/gifEncoder";
@@ -123,7 +123,7 @@ function GifPlaceholder({ isEditable, isDark, onClick }: { isEditable: boolean; 
         display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
         py: 4, cursor: isEditable ? "pointer" : "default",
         bgcolor: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)",
-        borderTop: 1, borderColor: "divider",
+        borderTop: 1, borderColor: getDivider(isDark),
         "&:hover": isEditable ? { bgcolor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)" } : {},
       }}
     >
@@ -231,7 +231,7 @@ export function GifNodeView({ editor, node, updateAttributes, getPos }: NodeView
       <Box
         sx={{
           border: 1, borderRadius: 1, overflow: "hidden", my: 1,
-          borderColor: (showToolbar || (isCompareLeftEditable && isSelected)) ? "divider" : "transparent",
+          borderColor: (showToolbar || (isCompareLeftEditable && isSelected)) ? getDivider(isDark) : "transparent",
           ...(!(showToolbar || (isCompareLeftEditable && isSelected)) && {
             "& > [data-block-toolbar]": {
               maxHeight: 0, opacity: 0, py: 0, overflow: "hidden",

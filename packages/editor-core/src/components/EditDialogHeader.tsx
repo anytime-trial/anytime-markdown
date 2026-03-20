@@ -3,7 +3,7 @@ import { Box, IconButton, Tooltip, Typography } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import React from "react";
 
-import { getTextSecondary } from "../constants/colors";
+import { getDivider, getTextSecondary } from "../constants/colors";
 
 interface EditDialogHeaderProps {
   label: string;
@@ -20,7 +20,7 @@ interface EditDialogHeaderProps {
 export function EditDialogHeader({ label, onClose, showCompareView, icon, extra, t }: EditDialogHeaderProps) {
   const isDark = useTheme().palette.mode === "dark";
   return (
-    <Box sx={{ display: "flex", alignItems: "center", px: 2, py: 1, borderBottom: 1, borderColor: "divider" }}>
+    <Box sx={{ display: "flex", alignItems: "center", px: 2, py: 1, borderBottom: 1, borderColor: getDivider(isDark) }}>
       <Tooltip title={t("close")} placement="bottom">
         <IconButton size="small" onClick={onClose} sx={{ mr: 1 }} aria-label={t("close")}>
           <CloseIcon sx={{ fontSize: 20 }} />

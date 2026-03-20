@@ -1,7 +1,7 @@
 import type { SxProps,Theme } from "@mui/material/styles";
 import { alpha } from "@mui/material/styles";
 
-import { ADMONITION_CAUTION, ADMONITION_IMPORTANT, ADMONITION_NOTE, ADMONITION_TIP, ADMONITION_WARNING, getTextPrimary, getTextSecondary } from "../constants/colors";
+import { ADMONITION_CAUTION, ADMONITION_IMPORTANT, ADMONITION_NOTE, ADMONITION_TIP, ADMONITION_WARNING, getActionHover, getActionSelected, getBgPaper, getDivider, getTextPrimary, getTextSecondary } from "../constants/colors";
 import type { EditorSettings } from "../useEditorSettings";
 
 /** blockquote・admonition・table・list・taskList・hr・img スタイル */
@@ -10,7 +10,7 @@ export function getBlockStyles(theme: Theme, settings: EditorSettings): SxProps<
   return {
     "& ul, & ol": { pl: 3, mb: 1 },
     "& blockquote": {
-      borderLeft: `3px solid ${theme.palette.divider}`,
+      borderLeft: `3px solid ${getDivider(isDark)}`,
       pl: 2,
       ml: 0,
       my: 1,
@@ -63,21 +63,21 @@ export function getBlockStyles(theme: Theme, settings: EditorSettings): SxProps<
       borderCollapse: "collapse",
       width: settings.tableWidth,
       "& th, & td": {
-        border: `1px solid ${theme.palette.divider}`,
+        border: `1px solid ${getDivider(isDark)}`,
         px: 1,
         py: 0.5,
         textAlign: "left",
         minWidth: 80,
         fontSize: "inherit",
         lineHeight: "inherit",
-        bgcolor: theme.palette.background.paper,
+        bgcolor: getBgPaper(isDark),
       },
       "& th": {
-        bgcolor: theme.palette.action.hover,
+        bgcolor: getActionHover(isDark),
         fontWeight: 600,
       },
       "& .selectedCell": {
-        bgcolor: theme.palette.action.selected,
+        bgcolor: getActionSelected(isDark),
       },
     },
     "& img": {
@@ -112,7 +112,7 @@ export function getBlockStyles(theme: Theme, settings: EditorSettings): SxProps<
     },
     "& hr": {
       border: "none",
-      borderTop: `1px solid ${theme.palette.divider}`,
+      borderTop: `1px solid ${getDivider(isDark)}`,
       my: 2,
     },
     "& hr.ProseMirror-selectednode": {

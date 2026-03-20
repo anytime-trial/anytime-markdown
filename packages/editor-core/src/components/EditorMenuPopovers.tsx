@@ -14,11 +14,13 @@ import {
   Popover,
   Tooltip,
   Typography,
+  useTheme,
 } from "@mui/material";
 import type { Editor } from "@tiptap/react";
 import { useLocale } from "next-intl";
 import React, { useMemo } from "react";
 
+import { getDivider } from "../constants/colors";
 import { PLANTUML_SAMPLES } from "../constants/samples";
 import { getBuiltinTemplates, type MarkdownTemplate } from "../constants/templates";
 import MermaidIcon from "../icons/MermaidIcon";
@@ -66,6 +68,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
   t,
 }: EditorMenuPopoversProps) {
   const locale = useLocale();
+  const isDark = useTheme().palette.mode === "dark";
   const builtinTemplates = useMemo(() => getBuiltinTemplates(locale), [locale]);
 
   return (
@@ -184,7 +187,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
                   }}
                   sx={{ minWidth: 32, minHeight: 32 }}
                 >
-                  <Typography aria-hidden="true" sx={{ fontSize: 9, fontFamily: "monospace", fontWeight: 700, lineHeight: 1, border: 1, borderColor: "divider", borderRadius: 0.5, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center" }}>{sample.icon}</Typography>
+                  <Typography aria-hidden="true" sx={{ fontSize: 9, fontFamily: "monospace", fontWeight: 700, lineHeight: 1, border: 1, borderColor: getDivider(isDark), borderRadius: 0.5, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center" }}>{sample.icon}</Typography>
                 </IconButton>
               </Tooltip>
             );

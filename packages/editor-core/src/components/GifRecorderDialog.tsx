@@ -11,7 +11,7 @@ import { Box, Button, LinearProgress, TextField, Typography } from "@mui/materia
 import { useTheme } from "@mui/material/styles";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { getTextSecondary } from "../constants/colors";
+import { getDivider, getTextSecondary } from "../constants/colors";
 
 import {
   type CropRect,
@@ -354,7 +354,7 @@ export function GifRecorderDialog({ open, onClose, onComplete }: GifRecorderDial
         </Box>
 
         {/* Bottom bar */}
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 2, py: 1, borderTop: 1, borderColor: "divider" }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 2, py: 1, borderTop: 1, borderColor: getDivider(isDark) }}>
           {phase === "idle" && (
             <Button size="small" variant="outlined" startIcon={<ScreenShareIcon />} onClick={handleSelectScreen}>
               Select Screen

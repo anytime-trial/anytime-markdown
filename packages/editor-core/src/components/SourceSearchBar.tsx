@@ -18,7 +18,7 @@ import {
 } from "@mui/material";
 import React, { useCallback, useState } from "react";
 
-import { getTextPrimary, getTextSecondary } from "../constants/colors";
+import { getActionHover, getDivider, getTextPrimary, getTextSecondary } from "../constants/colors";
 import { Z_TOOLBAR } from "../constants/zIndex";
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
 
@@ -90,7 +90,7 @@ export const SourceSearchBar = React.memo(function SourceSearchBar({
         ? theme.palette.mode === "dark"
           ? "primary.dark"
           : "primary.light"
-        : "action.hover",
+        : getActionHover(isDark),
     },
   });
 
@@ -98,7 +98,7 @@ export const SourceSearchBar = React.memo(function SourceSearchBar({
     minHeight: 24,
     px: 0.75,
     border: 1,
-    borderColor: "divider",
+    borderColor: getDivider(isDark),
     borderRadius: 0.5,
     fontSize: "0.78rem",
     outline: "none",

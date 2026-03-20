@@ -8,7 +8,7 @@ import { Box, Divider, IconButton, Tooltip, Typography } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import React from "react";
 
-import { getTextSecondary } from "../../constants/colors";
+import { getActionHover, getTextSecondary } from "../../constants/colors";
 
 interface BlockInlineToolbarProps {
   /** Block label (e.g. "Mermaid", "Math", "Table") */
@@ -39,7 +39,7 @@ export function BlockInlineToolbar({
       <Box
         data-block-toolbar=""
         aria-label={label}
-        sx={{ bgcolor: "action.hover", px: 0.75, py: 0.25, display: "flex", alignItems: "center", gap: 0.25 }}
+        sx={{ bgcolor: getActionHover(isDark), px: 0.75, py: 0.25, display: "flex", alignItems: "center", gap: 0.25 }}
         contentEditable={false}
       >
         <Typography variant="caption" sx={{ fontWeight: 600, color: getTextSecondary(isDark), flexShrink: 0 }}>
@@ -53,7 +53,7 @@ export function BlockInlineToolbar({
       data-block-toolbar=""
       role="toolbar"
       aria-label={label}
-      sx={{ bgcolor: "action.hover", px: 0.75, py: 0.25, display: "flex", alignItems: "center", gap: 0.25 }}
+      sx={{ bgcolor: getActionHover(isDark), px: 0.75, py: 0.25, display: "flex", alignItems: "center", gap: 0.25 }}
       contentEditable={false}
     >
       <Box
