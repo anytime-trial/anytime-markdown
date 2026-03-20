@@ -41,6 +41,7 @@ export function RegularCodeBlock(props: RegularCodeBlockProps) {
       onEdit={props.isCompareLeft ? undefined : () => setEditOpen(true)}
       onDelete={props.isCompareLeft ? undefined : () => setDeleteDialogOpen(true)}
       labelOnly={props.isCompareLeftEditable}
+      labelDivider
       t={t}
     />
   );

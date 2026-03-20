@@ -23,6 +23,8 @@ interface BlockInlineToolbarProps {
   collapsed?: boolean;
   /** Extra content between edit button and spacer */
   extra?: React.ReactNode;
+  /** Show divider between label and edit button */
+  labelDivider?: boolean;
   /** Show label only (no buttons) */
   labelOnly?: boolean;
   /** Translation function */
@@ -30,7 +32,7 @@ interface BlockInlineToolbarProps {
 }
 
 export function BlockInlineToolbar({
-  label, onEdit, onDelete, onCapture, collapsed, extra, labelOnly, t,
+  label, onEdit, onDelete, onCapture, collapsed, extra, labelDivider, labelOnly, t,
 }: BlockInlineToolbarProps) {
   const isDark = useTheme().palette.mode === "dark";
   const iconSx = { fontSize: 16, color: getTextSecondary(isDark) };
@@ -69,6 +71,9 @@ export function BlockInlineToolbar({
       <Typography variant="caption" sx={{ fontWeight: 600, color: getTextSecondary(isDark), flexShrink: 0 }}>
         {label}
       </Typography>
+      {labelDivider && onEdit && !collapsed && (
+        <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
+      )}
       {onEdit && !collapsed && (
         <Tooltip title={t("edit")} placement="top">
           <IconButton size="small" sx={{ p: 0.25 }} onClick={onEdit} aria-label={t("edit")}>

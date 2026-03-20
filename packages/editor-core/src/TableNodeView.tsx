@@ -280,6 +280,7 @@ export function TableNodeView({ editor, node, getPos }: NodeViewProps) {
             onEdit={!collapsed && !isCompareLeft ? () => setEditOpen(true) : undefined}
             onDelete={!collapsed && !isCompareLeft ? () => setDeleteDialogOpen(true) : undefined}
             collapsed={collapsed}
+            labelDivider
             t={t}
           />
         )}

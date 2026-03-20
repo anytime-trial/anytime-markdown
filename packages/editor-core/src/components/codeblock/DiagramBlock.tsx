@@ -2,10 +2,10 @@
 
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
-import { Alert, Box, Button, Divider, IconButton, Tooltip, Typography } from "@mui/material";
+import { Alert, Box, Button, IconButton, Tooltip, Typography } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import DOMPurify from "dompurify";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef } from "react";
 
 import { getEditorBg, getErrorMain, getTextDisabled, getTextSecondary } from "../../constants/colors";
 import { useBlockMergeCompare } from "../../hooks/useBlockMergeCompare";
@@ -139,7 +139,6 @@ export function DiagramBlock(props: DiagramBlockProps) {
   // Diagram-specific hooks
   const fsZP = useZoomPan();
   const containerRef = useRef<HTMLDivElement>(null);
-  const [diagramSize, setDiagramSize] = useState<{ w: number; h: number } | null>(null);
   const { svg, error: mermaidError } = useMermaidRender({ code, isMermaid, isDark });
   const {
     plantUmlUrl, error: plantUmlError, plantUmlConsent,
@@ -160,20 +159,6 @@ export function DiagramBlock(props: DiagramBlockProps) {
       .replace(/max-width:\s*[\d.]+px/, `max-width: 100%`);
   }, [svg, settings.fontSize]);
 
-  // Track diagram container size
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) { setDiagramSize(null); return; }
-    const update = () => {
-      const rect = container.getBoundingClientRect();
-      setDiagramSize({ w: Math.round(rect.width), h: Math.round(rect.height) });
-    };
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(container);
-    return () => ro.disconnect();
-  }, [svg, plantUmlUrl]);
-
   const { isCompareMode, compareCode, thisCode, handleMergeApply } = useBlockMergeCompare({
     editor, getPos: _getPos, language, code, editOpen,
   });
@@ -187,12 +172,7 @@ export function DiagramBlock(props: DiagramBlockProps) {
       onDelete={isEditable && !props.isCompareLeft ? () => setDeleteDialogOpen(true) : undefined}
       onCapture={(svg || plantUmlUrl) ? handleCapture : undefined}
       labelOnly={props.isCompareLeftEditable}
-      extra={diagramSize ? (<>
-        <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
-        <Typography variant="caption" sx={{ color: getTextDisabled(isDark), fontSize: "0.65rem", fontFamily: "monospace", whiteSpace: "nowrap", flexShrink: 0 }}>
-          {diagramSize.w}&times;{diagramSize.h}
-        </Typography>
-      </>) : undefined}
+      labelDivider
       t={t}
     />
   );

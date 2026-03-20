@@ -55,6 +55,7 @@ export function HtmlPreviewBlock(props: HtmlPreviewBlockProps) {
       onDelete={props.isCompareLeft ? undefined : () => setDeleteDialogOpen(true)}
       /* onCapture: HTMLブロックのキャプチャは一時停止中 */
       labelOnly={props.isCompareLeftEditable}
+      labelDivider
       t={t}
     />
   );

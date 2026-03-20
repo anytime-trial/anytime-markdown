@@ -3,6 +3,7 @@
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import EditIcon from "@mui/icons-material/Edit";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
+import LinkIcon from "@mui/icons-material/Link";
 import ImageIcon from "@mui/icons-material/Image";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { Box, Divider, IconButton, Tooltip, Typography, useTheme } from "@mui/material";
@@ -83,14 +84,17 @@ function handleCropComplete(
 
 // --- Extracted sub-component: Image toolbar extra info ---
 function ImageToolbarExtra({
-  alt, src, imgError, isCompareLeft, isEditable, collapsed, annotations, onAnnotationOpen, isDark, t,
+  alt, src, imgError, isCompareLeft, isEditable, collapsed, annotations, onAnnotationOpen, onEdit, onEditUrl, isDark, t,
 }: {
   alt: string; src: string; imgError: boolean;
   isCompareLeft: boolean; isEditable: boolean; collapsed: boolean;
   annotations: ImageAnnotation[]; onAnnotationOpen: () => void;
+  onEdit?: () => void;
+  onEditUrl?: () => void;
   isDark: boolean;
   t: (key: string) => string;
 }) {
+  const iconSx = { fontSize: 16, color: getTextSecondary(isDark) };
   return (
     <>
       <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
@@ -115,6 +119,20 @@ function ImageToolbarExtra({
       {!isCompareLeft && isEditable && !collapsed && (
         <>
           <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
+          {onEdit && (
+            <Tooltip title={t("edit")} placement="top">
+              <IconButton size="small" sx={{ p: 0.25 }} onClick={onEdit} aria-label={t("edit")}>
+                <EditIcon sx={iconSx} />
+              </IconButton>
+            </Tooltip>
+          )}
+          {onEditUrl && (
+            <Tooltip title={t("imageUrl")} placement="top">
+              <IconButton size="small" sx={{ p: 0.25 }} onClick={onEditUrl} aria-label={t("imageUrl")}>
+                <LinkIcon sx={iconSx} />
+              </IconButton>
+            </Tooltip>
+          )}
           <Tooltip title={t("annotate")} placement="top">
             <IconButton size="small" sx={{ p: 0.25 }} onClick={onAnnotationOpen} aria-label={t("annotate")}>
               <ChatBubbleOutlineIcon sx={{ fontSize: 16, color: annotations.length > 0 ? getPrimaryMain(isDark) : getTextSecondary(isDark) }} />
@@ -273,16 +291,6 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
             </Typography>
           ) : undefined}
         />
-        {/* Image toolbar (second row) */}
-        {isEditable && (
-          <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: getDivider(isDark), px: 1, py: 0.25, minHeight: 32 }}>
-            <Tooltip title={t("imageUrl")} placement="bottom">
-              <IconButton size="small" sx={{ p: 0.25 }} onClick={handleEditUrl} aria-label={t("imageUrl")}>
-                <EditIcon sx={{ fontSize: 16, color: getTextSecondary(isDark) }} />
-              </IconButton>
-            </Tooltip>
-          </Box>
-        )}
         <Box sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG }}>
           {src && !imgError && (
             <ImageCropTool
@@ -308,7 +316,6 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
         {(isEditable || isCompareLeftEditable) && (
           <BlockInlineToolbar
             label={t("image")}
-            onEdit={!collapsed && !isCompareLeft ? () => setEditOpen(true) : undefined}
             onDelete={!collapsed && !isCompareLeft ? () => setDeleteDialogOpen(true) : undefined}
             onCapture={handleCapture}
             labelOnly={isCompareLeftEditable}
@@ -323,6 +330,8 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
                 collapsed={collapsed}
                 annotations={annotations}
                 onAnnotationOpen={() => setAnnotationOpen(true)}
+                onEdit={!collapsed && !isCompareLeft ? () => setEditOpen(true) : undefined}
+                onEditUrl={!collapsed && !isCompareLeft ? handleEditUrl : undefined}
                 isDark={isDark}
                 t={t}
               />
