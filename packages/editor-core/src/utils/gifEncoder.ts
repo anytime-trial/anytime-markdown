@@ -83,6 +83,69 @@ export function extractFrameFromCanvas(
 // GIF89a 仕様に従い、NeuQuant 色量子化 + LZW 圧縮で生成
 // ============================================================
 
+/** 色成分の絶対値距離を計算する */
+function colorDistance(p: Float64Array, b: number, g: number, r: number): number {
+  return Math.abs(p[0] - b) + Math.abs(p[1] - g) + Math.abs(p[2] - r);
+}
+
+/** NeuQuant の learn() で使用するステップ幅を決定する */
+function determineLearnStep(lengthcount: number): number {
+  if (lengthcount < 3 * 503) return 3;
+  if (lengthcount % (3 * 499) !== 0) return 3 * 499;
+  if (lengthcount % (3 * 491) !== 0) return 3 * 491;
+  if (lengthcount % (3 * 487) !== 0) return 3 * 487;
+  return 3 * 503;
+}
+
+/** ラジアスパワーテーブルを更新する */
+function updateRadpower(radpower: Int32Array, alpha: number, rad: number): void {
+  for (let i = 0; i < rad; i++) {
+    radpower[i] = (alpha * ((rad * rad - i * i) * 256 / (rad * rad))) | 0;
+  }
+}
+
+/** lookupRGB の前方探索 */
+function searchForward(
+  network: Float64Array[], startIdx: number,
+  r: number, g: number, b: number, bestd: number,
+): { bestd: number; best: number } {
+  let bd = bestd;
+  let best = -1;
+  for (let i = startIdx; i < 256; i++) {
+    const p = network[i];
+    let dist = (p[1] | 0) - g;
+    if (dist >= bd) break;
+    if (dist < 0) dist = -dist;
+    let a = (p[0] | 0) - b; if (a < 0) a = -a; dist += a;
+    if (dist < bd) {
+      a = (p[2] | 0) - r; if (a < 0) a = -a; dist += a;
+      if (dist < bd) { bd = dist; best = p[3] | 0; }
+    }
+  }
+  return { bestd: bd, best };
+}
+
+/** lookupRGB の後方探索 */
+function searchBackward(
+  network: Float64Array[], startIdx: number,
+  r: number, g: number, b: number, bestd: number,
+): { bestd: number; best: number } {
+  let bd = bestd;
+  let best = -1;
+  for (let j = startIdx; j >= 0; j--) {
+    const p = network[j];
+    let dist = g - (p[1] | 0);
+    if (dist >= bd) break;
+    if (dist < 0) dist = -dist;
+    let a = (p[0] | 0) - b; if (a < 0) a = -a; dist += a;
+    if (dist < bd) {
+      a = (p[2] | 0) - r; if (a < 0) a = -a; dist += a;
+      if (dist < bd) { bd = dist; best = p[3] | 0; }
+    }
+  }
+  return { bestd: bd, best };
+}
+
 /** NeuQuant Neural-Net quantization algorithm (Anthony Dekker, 1994) */
 class NeuQuant {
   private network: Float64Array[];
@@ -125,38 +188,14 @@ class NeuQuant {
   lookupRGB(r: number, g: number, b: number): number {
     let bestd = 1000;
     let best = -1;
-    let i = this.netindex[g] | 0;
-    let j = i - 1;
-    while (i < 256 || j >= 0) {
-      if (i < 256) {
-        const p = this.network[i];
-        let dist = (p[1] | 0) - g;
-        if (dist >= bestd) { i = 256; }
-        else {
-          i++;
-          if (dist < 0) dist = -dist;
-          let a = (p[0] | 0) - b; if (a < 0) a = -a; dist += a;
-          if (dist < bestd) {
-            a = (p[2] | 0) - r; if (a < 0) a = -a; dist += a;
-            if (dist < bestd) { bestd = dist; best = p[3] | 0; }
-          }
-        }
-      }
-      if (j >= 0) {
-        const p = this.network[j];
-        let dist = g - (p[1] | 0);
-        if (dist >= bestd) { j = -1; }
-        else {
-          j--;
-          if (dist < 0) dist = -dist;
-          let a = (p[0] | 0) - b; if (a < 0) a = -a; dist += a;
-          if (dist < bestd) {
-            a = (p[2] | 0) - r; if (a < 0) a = -a; dist += a;
-            if (dist < bestd) { bestd = dist; best = p[3] | 0; }
-          }
-        }
-      }
-    }
+    const startIdx = this.netindex[g] | 0;
+
+    const fwd = searchForward(this.network, startIdx, r, g, b, bestd);
+    if (fwd.best >= 0) { bestd = fwd.bestd; best = fwd.best; }
+
+    const bwd = searchBackward(this.network, startIdx - 1, r, g, b, bestd);
+    if (bwd.best >= 0) { bestd = bwd.bestd; best = bwd.best; }
+
     return best;
   }
 
@@ -170,14 +209,10 @@ class NeuQuant {
     let radius = (256 >> 3) * 64;
     let rad = radius >> 6;
     if (rad <= 1) rad = 0;
-    for (let i = 0; i < rad; i++)
-      this.radpower[i] = (alpha * ((rad * rad - i * i) * 256 / (rad * rad))) | 0;
+    updateRadpower(this.radpower, alpha, rad);
     let step: number;
     if (lengthcount < 3 * 503) { this.samplefac = 1; step = 3; }
-    else if (lengthcount % (3 * 499) !== 0) step = 3 * 499;
-    else if (lengthcount % (3 * 491) !== 0) step = 3 * 491;
-    else if (lengthcount % (3 * 487) !== 0) step = 3 * 487;
-    else step = 3 * 503;
+    else { step = determineLearnStep(lengthcount); }
     let pix = 0;
     for (let i = 0; i < samplepixels; i++) {
       const b = (this.pixels[pix] & 0xff) << 4;
@@ -193,8 +228,7 @@ class NeuQuant {
         radius -= (radius / 30) | 0;
         rad = radius >> 6;
         if (rad <= 1) rad = 0;
-        for (let k = 0; k < rad; k++)
-          this.radpower[k] = (alpha * ((rad * rad - k * k) * 256 / (rad * rad))) | 0;
+        updateRadpower(this.radpower, alpha, rad);
       }
     }
   }
@@ -239,7 +273,7 @@ class NeuQuant {
     let bestd = ~(1 << 31), bestbiasd = bestd, bestpos = -1, bestbiaspos = -1;
     for (let i = 0; i < 256; i++) {
       const n = this.network[i];
-      const dist = Math.abs(n[0] - b) + Math.abs(n[1] - g) + Math.abs(n[2] - r);
+      const dist = colorDistance(n, b, g, r);
       if (dist < bestd) { bestd = dist; bestpos = i; }
       const biasdist = dist - (this.bias[i] >> 12);
       if (biasdist < bestbiasd) { bestbiasd = biasdist; bestbiaspos = i; }
@@ -277,76 +311,220 @@ class NeuQuant {
   }
 }
 
-/** LZW encoder for GIF */
-function lzwEncode(width: number, height: number, pixels: Uint8Array, colorDepth: number): Uint8Array {
-  const initCodeSize = Math.max(2, colorDepth);
-  const out: number[] = [];
-  out.push(initCodeSize);
+// ============================================================
+// LZW encoder for GIF
+// ============================================================
 
-  const HSIZE = 5003;
-  const masks = [0, 1, 3, 7, 15, 31, 63, 127, 255, 511, 1023, 2047, 4095, 8191, 16383, 32767, 65535];
-  const htab = new Int32Array(HSIZE);
-  const codetab = new Int32Array(HSIZE);
-  const accum = new Uint8Array(256);
-  let cur_accum = 0, cur_bits = 0, a_count = 0;
-  let free_ent: number, n_bits: number, maxcode: number;
-  let clear_flg = false; const g_init_bits = initCodeSize + 1;
-  let remaining = width * height, curPixel = 0;
+const LZW_HSIZE = 5003;
+const LZW_MASKS = [0, 1, 3, 7, 15, 31, 63, 127, 255, 511, 1023, 2047, 4095, 8191, 16383, 32767, 65535];
 
-  function MAXCODE(nb: number) { return (1 << nb) - 1; }
-  function flush_char() {
-    if (a_count > 0) { out.push(a_count); for (let i = 0; i < a_count; i++) out.push(accum[i]); a_count = 0; }
+interface LzwState {
+  htab: Int32Array;
+  codetab: Int32Array;
+  accum: Uint8Array;
+  out: number[];
+  cur_accum: number;
+  cur_bits: number;
+  a_count: number;
+  free_ent: number;
+  n_bits: number;
+  maxcode: number;
+  clear_flg: boolean;
+  g_init_bits: number;
+  remaining: number;
+  curPixel: number;
+  pixels: Uint8Array;
+  initCodeSize: number;
+}
+
+function lzwMaxcode(nb: number): number { return (1 << nb) - 1; }
+
+function lzwFlushChar(s: LzwState): void {
+  if (s.a_count > 0) {
+    s.out.push(s.a_count);
+    for (let i = 0; i < s.a_count; i++) s.out.push(s.accum[i]);
+    s.a_count = 0;
   }
-  function char_out(c: number) { accum[a_count++] = c; if (a_count >= 254) flush_char(); }
-  function cl_hash() { for (let i = 0; i < HSIZE; ++i) htab[i] = -1; }
-  function nextPixel() { if (remaining === 0) return -1; --remaining; return pixels[curPixel++] & 0xff; }
-  function output(code: number) {
-    cur_accum &= masks[cur_bits];
-    cur_accum = cur_bits > 0 ? cur_accum | (code << cur_bits) : code;
-    cur_bits += n_bits;
-    while (cur_bits >= 8) { char_out(cur_accum & 0xff); cur_accum >>= 8; cur_bits -= 8; }
-    if (free_ent > maxcode || clear_flg) {
-      if (clear_flg) { maxcode = MAXCODE(n_bits = g_init_bits); clear_flg = false; }
-      else { ++n_bits; maxcode = n_bits === 12 ? (1 << 12) : MAXCODE(n_bits); }
-    }
-    if (code === (1 << (initCodeSize)) + 1) { // EOFCode
-      while (cur_bits > 0) { char_out(cur_accum & 0xff); cur_accum >>= 8; cur_bits -= 8; }
-      flush_char();
-    }
-  }
+}
 
-  // compress
-  const ClearCode = 1 << initCodeSize;
+function lzwCharOut(s: LzwState, c: number): void {
+  s.accum[s.a_count++] = c;
+  if (s.a_count >= 254) lzwFlushChar(s);
+}
+
+function lzwClHash(htab: Int32Array): void {
+  for (let i = 0; i < LZW_HSIZE; ++i) htab[i] = -1;
+}
+
+function lzwNextPixel(s: LzwState): number {
+  if (s.remaining === 0) return -1;
+  --s.remaining;
+  return s.pixels[s.curPixel++] & 0xff;
+}
+
+function lzwOutput(s: LzwState, code: number): void {
+  s.cur_accum &= LZW_MASKS[s.cur_bits];
+  s.cur_accum = s.cur_bits > 0 ? s.cur_accum | (code << s.cur_bits) : code;
+  s.cur_bits += s.n_bits;
+  while (s.cur_bits >= 8) { lzwCharOut(s, s.cur_accum & 0xff); s.cur_accum >>= 8; s.cur_bits -= 8; }
+  if (s.free_ent > s.maxcode || s.clear_flg) {
+    if (s.clear_flg) { s.maxcode = lzwMaxcode(s.n_bits = s.g_init_bits); s.clear_flg = false; }
+    else { ++s.n_bits; s.maxcode = s.n_bits === 12 ? (1 << 12) : lzwMaxcode(s.n_bits); }
+  }
+  if (code === (1 << s.initCodeSize) + 1) { // EOFCode
+    while (s.cur_bits > 0) { lzwCharOut(s, s.cur_accum & 0xff); s.cur_accum >>= 8; s.cur_bits -= 8; }
+    lzwFlushChar(s);
+  }
+}
+
+/** ハッシュテーブルを探索して既存エントリを検索する */
+function lzwProbe(s: LzwState, fcode: number, startIdx: number): { found: boolean; ent: number; idx: number } {
+  let i = startIdx;
+  let disp = LZW_HSIZE - i;
+  if (i === 0) disp = 1;
+  do {
+    i -= disp;
+    if (i < 0) i += LZW_HSIZE;
+    if (s.htab[i] === fcode) return { found: true, ent: s.codetab[i], idx: i };
+  } while (s.htab[i] >= 0);
+  return { found: false, ent: 0, idx: i };
+}
+
+/** LZW 圧縮のメインループ */
+function lzwCompress(s: LzwState): void {
+  const ClearCode = 1 << s.initCodeSize;
   const EOFCode = ClearCode + 1;
-  n_bits = g_init_bits;
-  maxcode = MAXCODE(n_bits);
-  free_ent = ClearCode + 2;
-  a_count = 0;
-  cl_hash();
-  let ent = nextPixel();
-  output(ClearCode);
-  let c: number;
-   
+  s.n_bits = s.g_init_bits;
+  s.maxcode = lzwMaxcode(s.n_bits);
+  s.free_ent = ClearCode + 2;
+  s.a_count = 0;
+  lzwClHash(s.htab);
+  let ent = lzwNextPixel(s);
+  lzwOutput(s, ClearCode);
+
   while (true) {
-    c = nextPixel();
+    const c = lzwNextPixel(s);
     if (c === -1) break;
     const fcode = (c << 12) + ent;
     let i = (c << 4) ^ ent;
-    if (htab[i] === fcode) { ent = codetab[i]; continue; }
-    if (htab[i] >= 0) {
-      let disp = HSIZE - i; if (i === 0) disp = 1;
-      let found = false;
-      do { i -= disp; if (i < 0) i += HSIZE; if (htab[i] === fcode) { ent = codetab[i]; found = true; break; } } while (htab[i] >= 0);
-      if (found) continue;
+    if (s.htab[i] === fcode) { ent = s.codetab[i]; continue; }
+    if (s.htab[i] >= 0) {
+      const probe = lzwProbe(s, fcode, i);
+      if (probe.found) { ent = probe.ent; continue; }
+      i = probe.idx;
     }
-    output(ent); ent = c;
-    if (free_ent < (1 << 12)) { codetab[i] = free_ent++; htab[i] = fcode; }
-    else { cl_hash(); free_ent = ClearCode + 2; clear_flg = true; output(ClearCode); }
+    lzwOutput(s, ent);
+    ent = c;
+    if (s.free_ent < (1 << 12)) { s.codetab[i] = s.free_ent++; s.htab[i] = fcode; }
+    else { lzwClHash(s.htab); s.free_ent = ClearCode + 2; s.clear_flg = true; lzwOutput(s, ClearCode); }
   }
-  output(ent);
-  output(EOFCode);
-  out.push(0); // block terminator
-  return new Uint8Array(out);
+  lzwOutput(s, ent);
+  lzwOutput(s, EOFCode);
+}
+
+/** LZW encoder for GIF */
+function lzwEncode(width: number, height: number, pixels: Uint8Array, colorDepth: number): Uint8Array {
+  const initCodeSize = Math.max(2, colorDepth);
+  const s: LzwState = {
+    htab: new Int32Array(LZW_HSIZE),
+    codetab: new Int32Array(LZW_HSIZE),
+    accum: new Uint8Array(256),
+    out: [initCodeSize],
+    cur_accum: 0,
+    cur_bits: 0,
+    a_count: 0,
+    free_ent: 0,
+    n_bits: 0,
+    maxcode: 0,
+    clear_flg: false,
+    g_init_bits: initCodeSize + 1,
+    remaining: width * height,
+    curPixel: 0,
+    pixels,
+    initCodeSize,
+  };
+
+  lzwCompress(s);
+  s.out.push(0); // block terminator
+  return new Uint8Array(s.out);
+}
+
+// ============================================================
+// GIF encoder helpers
+// ============================================================
+
+/** RGBA ImageData を RGB Uint8Array に変換する */
+function imageDataToRgb(frame: ImageData): Uint8Array {
+  const rgb = new Uint8Array(frame.width * frame.height * 3);
+  for (let p = 0, q = 0; p < frame.data.length; p += 4, q += 3) {
+    rgb[q] = frame.data[p];
+    rgb[q + 1] = frame.data[p + 1];
+    rgb[q + 2] = frame.data[p + 2];
+  }
+  return rgb;
+}
+
+/** パレットをカラーテーブルとして parts に書き込む */
+function writeColorTable(parts: Uint8Array[], colorTab: number[]): void {
+  parts.push(new Uint8Array(colorTab));
+  const pad = 3 * 256 - colorTab.length;
+  if (pad > 0) parts.push(new Uint8Array(pad));
+}
+
+/** GIF ヘッダーとグローバルカラーテーブルを書き込む */
+function writeGifHeader(
+  parts: Uint8Array[], width: number, height: number, colorTab: number[],
+  writeBytes: (...bytes: number[]) => void, writeShort: (val: number) => void,
+): void {
+  // Logical Screen Descriptor (already has GIF89a header)
+  writeShort(width);
+  writeShort(height);
+  writeBytes(0x87, 0, 0); // GCT flag, color res 8, sort=0, GCT size 256
+
+  // Write Global Color Table
+  writeColorTable(parts, colorTab);
+
+  // Netscape Extension (loop forever)
+  writeBytes(0x21, 0xff, 0x0b);
+  parts.push(new TextEncoder().encode("NETSCAPE2.0"));
+  writeBytes(0x03, 0x01);
+  writeShort(0); // loop count = 0 (infinite)
+  writeBytes(0x00);
+}
+
+/** 1フレーム分の GIF イメージデータを書き込む */
+function writeFrameData(
+  parts: Uint8Array[], frame: ImageData, rgb: Uint8Array, nq: NeuQuant,
+  colorTab: number[], width: number, height: number, delay: number,
+  isFirst: boolean,
+  writeBytes: (...bytes: number[]) => void, writeShort: (val: number) => void,
+): void {
+  // Graphic Control Extension
+  writeBytes(0x21, 0xf9, 0x04, 0x00);
+  writeShort(delay);
+  writeBytes(0x00, 0x00);
+
+  // Image Descriptor
+  writeBytes(0x2c);
+  writeShort(0); writeShort(0);
+  writeShort(width); writeShort(height);
+  if (isFirst) {
+    writeBytes(0x00); // use global color table
+  } else {
+    writeBytes(0x87); // local color table, 256 colors
+    writeColorTable(parts, colorTab);
+  }
+
+  // Index pixels
+  const nPix = frame.width * frame.height;
+  const indexedPixels = new Uint8Array(nPix);
+  for (let p = 0, k = 0; p < nPix; p++, k += 3) {
+    indexedPixels[p] = nq.lookupRGB(rgb[k + 2], rgb[k + 1], rgb[k]);
+  }
+
+  // LZW encode
+  const lzwData = lzwEncode(width, height, indexedPixels, 8);
+  parts.push(lzwData);
 }
 
 /** メインスレッドで GIF バイナリを生成する */
@@ -365,23 +543,11 @@ export async function encodeGif(
 
   // --- Header ---
   parts.push(new TextEncoder().encode("GIF89a"));
-  // Logical Screen Descriptor
-  writeShort(width);
-  writeShort(height);
-  writeBytes(0x87, 0, 0); // GCT flag, color res 8, sort=0, GCT size 256
 
   // --- Process frames ---
-  let globalPalette: number[] | null = null;
-
   for (let i = 0; i < frames.length; i++) {
     const frame = frames[i];
-    // RGBA → RGB
-    const rgb = new Uint8Array(frame.width * frame.height * 3);
-    for (let p = 0, q = 0; p < frame.data.length; p += 4, q += 3) {
-      rgb[q] = frame.data[p];
-      rgb[q + 1] = frame.data[p + 1];
-      rgb[q + 2] = frame.data[p + 2];
-    }
+    const rgb = imageDataToRgb(frame);
 
     // Quantize colors
     const nq = new NeuQuant(rgb, 10);
@@ -389,50 +555,10 @@ export async function encodeGif(
     const colorTab = nq.getColormap();
 
     if (i === 0) {
-      // Write Global Color Table
-      globalPalette = colorTab;
-      parts.push(new Uint8Array(colorTab));
-      const pad = 3 * 256 - colorTab.length;
-      if (pad > 0) parts.push(new Uint8Array(pad));
-
-      // Netscape Extension (loop forever)
-      writeBytes(0x21, 0xff, 0x0b);
-      parts.push(new TextEncoder().encode("NETSCAPE2.0"));
-      writeBytes(0x03, 0x01);
-      writeShort(0); // loop count = 0 (infinite)
-      writeBytes(0x00);
+      writeGifHeader(parts, width, height, colorTab, writeBytes, writeShort);
     }
 
-    // Graphic Control Extension
-    writeBytes(0x21, 0xf9, 0x04, 0x00);
-    writeShort(delay);
-    writeBytes(0x00, 0x00);
-
-    // Image Descriptor
-    writeBytes(0x2c);
-    writeShort(0); writeShort(0);
-    writeShort(width); writeShort(height);
-    if (i === 0) {
-      writeBytes(0x00); // use global color table
-    } else {
-      writeBytes(0x87); // local color table, 256 colors
-      parts.push(new Uint8Array(colorTab));
-      const pad = 3 * 256 - colorTab.length;
-      if (pad > 0) parts.push(new Uint8Array(pad));
-    }
-
-    // Index pixels
-    const nPix = frame.width * frame.height;
-    const indexedPixels = new Uint8Array(nPix);
-    const _palette = (i === 0 && globalPalette) ? globalPalette : colorTab;
-    const useNq = nq;
-    for (let p = 0, k = 0; p < nPix; p++, k += 3) {
-      indexedPixels[p] = useNq.lookupRGB(rgb[k + 2], rgb[k + 1], rgb[k]);
-    }
-
-    // LZW encode
-    const lzwData = lzwEncode(width, height, indexedPixels, 8);
-    parts.push(lzwData);
+    writeFrameData(parts, frame, rgb, nq, colorTab, width, height, delay, i === 0, writeBytes, writeShort);
 
     onProgress?.((i + 1) / frames.length);
 
