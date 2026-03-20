@@ -1,7 +1,7 @@
 import type { AnyExtension } from "@tiptap/core";
 import Placeholder from "@tiptap/extension-placeholder";
 import type { MarkdownSerializerState } from "@tiptap/pm/markdown";
-import { DOMSerializer, type Node as ProseMirrorNode, type Slice } from "@tiptap/pm/model";
+import type { Node as ProseMirrorNode, Slice } from "@tiptap/pm/model";
 import type { EditorView } from "@tiptap/pm/view";
 import type { Editor } from "@tiptap/react";
 import type { RefObject } from "react";
@@ -9,6 +9,7 @@ import { useEffect } from "react";
 
 import { DEBOUNCE_MEDIUM } from "../constants/timing";
 import { getBaseExtensions } from "../editorExtensions";
+import { handleBlockClipboardEvent } from "../utils/blockClipboard";
 import { CustomHardBreak } from "../extensions/customHardBreak";
 import { DeleteLineExtension } from "../extensions/deleteLineExtension";
 import { ReviewModeExtension, reviewModeStorage } from "../extensions/reviewModeExtension";
@@ -81,51 +82,6 @@ function handleReviewCheckboxClick(
     }
   }, 0);
   return true;
-}
-
-/** ブロック要素の Ctrl+C/Ctrl+X ハンドラ */
-const BLOCK_NODE_TYPES = new Set(["codeBlock", "table", "gifBlock"]);
-
-function handleBlockClipboard(view: EditorView, event: ClipboardEvent, isCut: boolean): boolean {
-  if (!event.clipboardData) return false;
-  const { $from, $to, from, to } = view.state.selection;
-
-  // テキスト選択がある場合: コードブロック内のテキストコピー（既存動作）
-  if (from !== to && $from.parent.type.name === "codeBlock" && $from.sameParent($to)) {
-    event.clipboardData.setData("text/plain", view.state.doc.textBetween(from, to));
-    event.preventDefault();
-    if (isCut) view.dispatch(view.state.tr.deleteSelection());
-    return true;
-  }
-
-  // ブロックノード全体のコピー/カット
-  // カーソルがブロックノード内にある場合、ブロック全体を対象にする
-  const depth = $from.depth;
-  for (let d = depth; d >= 1; d--) {
-    const node = $from.node(d);
-    if (BLOCK_NODE_TYPES.has(node.type.name)) {
-      const blockStart = $from.before(d);
-      const blockEnd = blockStart + node.nodeSize;
-      // ブロック全体のテキストコンテンツをクリップボードに設定
-      const text = view.state.doc.textBetween(blockStart, blockEnd, "\n");
-      event.clipboardData.setData("text/plain", text);
-      // DOMSerializer でブロックノードを HTML に変換
-      // data-pm-slice 属性を付与して ProseMirror がペースト時にブロック構造を復元できるようにする
-      const domSerializer = DOMSerializer.fromSchema(view.state.schema);
-      const htmlFragment = domSerializer.serializeNode(node);
-      const wrapper = document.createElement("div");
-      wrapper.appendChild(htmlFragment);
-      // data-pm-slice="openStart openEnd [schemaVersion]" — 0 0 はブロック全体のスライス
-      wrapper.firstElementChild?.setAttribute("data-pm-slice", "0 0 []");
-      event.clipboardData.setData("text/html", wrapper.innerHTML);
-      event.preventDefault();
-      if (isCut) {
-        view.dispatch(view.state.tr.delete(blockStart, blockEnd));
-      }
-      return true;
-    }
-  }
-  return false;
 }
 
 /** #anchor リンク: 通常クリックは無効化、Ctrl/Cmd+Click で見出しにジャンプ */
@@ -388,11 +344,11 @@ export function useEditorConfig({
           return false;
         },
         copy: (view: EditorView, event: ClipboardEvent) => {
-          if (handleBlockClipboard(view, event, false)) return true;
+          if (handleBlockClipboardEvent(view, event, false)) return true;
           return false;
         },
         cut: (view: EditorView, event: ClipboardEvent) => {
-          if (handleBlockClipboard(view, event, true)) return true;
+          if (handleBlockClipboardEvent(view, event, true)) return true;
           return false;
         },
       },

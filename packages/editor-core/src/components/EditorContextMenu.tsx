@@ -5,14 +5,11 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import ContentCutIcon from "@mui/icons-material/ContentCut";
 import ContentPasteIcon from "@mui/icons-material/ContentPaste";
 import { Divider, ListItemIcon, ListItemText, Menu, MenuItem, Typography } from "@mui/material";
-import type { Node as PMNode } from "@tiptap/pm/model";
 import type { Editor } from "@tiptap/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
+import { findBlockNode, getCopiedBlockNode, setCopiedBlockNode } from "../utils/blockClipboard";
 import { boxTableToMarkdown, containsBoxTable } from "../utils/boxTableToMarkdown";
-
-/** コンテキストメニューでコピーしたブロックノードを保持 */
-let copiedBlockNode: PMNode | null = null;
 
 interface EditorContextMenuProps {
   editor: Editor | null;
@@ -101,67 +98,16 @@ export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProp
     setMenuPos(null);
   }, []);
 
-  const BLOCK_NODE_TYPES = new Set(["codeBlock", "table", "gifBlock", "image"]);
-
-  /** カーソル位置周辺のブロックノードを探す */
-  const findBlockNode = useCallback((): { node: PMNode; pos: number } | null => {
-    if (!editor) return null;
-    const { $from, from } = editor.state.selection;
-
-    // 1. 祖先ノードをチェック
-    for (let d = $from.depth; d >= 1; d--) {
-      const node = $from.node(d);
-      if (BLOCK_NODE_TYPES.has(node.type.name)) {
-        return { node, pos: $from.before(d) };
-      }
-    }
-
-    // 2. カーソル位置のノード（NodeView の外にカーソルがある場合）
-    const nodeAt = editor.state.doc.nodeAt(from);
-    if (nodeAt && BLOCK_NODE_TYPES.has(nodeAt.type.name)) {
-      return { node: nodeAt, pos: from };
-    }
-
-    // 3. カーソルの直前のノード（カーソルがノードの直後にある場合）
-    if (from > 0) {
-      const $pos = editor.state.doc.resolve(from);
-      const before = $pos.nodeBefore;
-      if (before && BLOCK_NODE_TYPES.has(before.type.name)) {
-        return { node: before, pos: from - before.nodeSize };
-      }
-    }
-
-    // 4. トップレベルノードをチェック（depth=1）
-    if ($from.depth >= 1) {
-      const topNode = $from.node(1);
-      if (BLOCK_NODE_TYPES.has(topNode.type.name)) {
-        return { node: topNode, pos: $from.before(1) };
-      }
-    }
-
-    return null;
-  }, [editor]);
-
   const hasSelection = editor ? editor.state.selection.from !== editor.state.selection.to : false;
-  const isInBlock = !!findBlockNode();
-  const canCopy = hasSelection || isInBlock;
-
-  /** ブロック全体の情報を取得 */
-  const getBlockInfo = useCallback((): { text: string; node: PMNode; blockStart: number; blockEnd: number } | null => {
-    const found = findBlockNode();
-    if (!found || !editor) return null;
-    const { node, pos: blockStart } = found;
-    const blockEnd = blockStart + node.nodeSize;
-    const text = editor.state.doc.textBetween(blockStart, blockEnd, "\n");
-    return { text, node, blockStart, blockEnd };
-  }, [editor, findBlockNode]);
+  const blockInfo = editor ? findBlockNode(editor) : null;
+  const canCopy = hasSelection || !!blockInfo;
 
   const handleCut = useCallback(() => {
     if (!editor || !editor.isEditable) return;
     const { from, to } = editor.state.selection;
 
     if (from !== to) {
-      copiedBlockNode = null;
+      setCopiedBlockNode(null);
       const text = editor.state.doc.textBetween(from, to, "\n");
       navigator.clipboard.writeText(text).catch(() => { document.execCommand("copy"); });
       editor.chain().focus().deleteSelection().run();
@@ -169,46 +115,47 @@ export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProp
       return;
     }
 
-    const block = getBlockInfo();
+    const block = findBlockNode(editor);
     if (block) {
-      copiedBlockNode = block.node;
+      setCopiedBlockNode(block.node);
       navigator.clipboard.writeText(block.text).catch(() => { document.execCommand("copy"); });
       const { tr } = editor.state;
-      tr.delete(block.blockStart, block.blockEnd);
+      tr.delete(block.pos, block.pos + block.node.nodeSize);
       editor.view.dispatch(tr);
     }
     handleClose();
-  }, [editor, handleClose, getBlockInfo]);
+  }, [editor, handleClose]);
 
   const handleCopy = useCallback(() => {
     if (!editor) return;
     const { from, to } = editor.state.selection;
 
     if (from !== to) {
-      copiedBlockNode = null;
+      setCopiedBlockNode(null);
       const text = editor.state.doc.textBetween(from, to, "\n");
       navigator.clipboard.writeText(text).catch(() => { document.execCommand("copy"); });
       handleClose();
       return;
     }
 
-    const block = getBlockInfo();
+    const block = findBlockNode(editor);
     if (block) {
-      copiedBlockNode = block.node;
+      setCopiedBlockNode(block.node);
       navigator.clipboard.writeText(block.text).catch(() => { document.execCommand("copy"); });
     }
     handleClose();
-  }, [editor, handleClose, getBlockInfo]);
+  }, [editor, handleClose]);
 
   const handlePaste = useCallback(async () => {
     if (!editor || !!readOnly) { handleClose(); return; }
 
-    // コンテキストメニューでコピーしたブロックノードがある場合はそれを挿入
-    if (copiedBlockNode) {
+    // コンテキストメニューまたは Ctrl+C でコピーしたブロックノードがある場合はそれを挿入
+    const copied = getCopiedBlockNode();
+    if (copied) {
       const { $from } = editor.state.selection;
       const insertPos = $from.after(1); // 現在のブロックの末尾に挿入
       const { tr } = editor.state;
-      tr.insert(Math.min(insertPos, tr.doc.content.size), copiedBlockNode.copy(copiedBlockNode.content));
+      tr.insert(Math.min(insertPos, tr.doc.content.size), copied.copy(copied.content));
       editor.view.dispatch(tr.scrollIntoView());
       handleClose();
       return;
