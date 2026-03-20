@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-03-20
+
+### Added
+- GIF レコーダーブロック: 画面キャプチャで矩形選択→録画→アニメーション GIF 生成（`/gif` スラッシュコマンド、再生/停止コントロール）
+- ブロック要素のキャプチャ保存: ハンドルバーのカメラアイコンから PNG/SVG/GIF として保存（`showSaveFilePicker` でファイル名・保存先指定可能）
+- ブロック要素の Ctrl+C/Ctrl+X: コードブロック・テーブル・GIF 等をブロック単位でコピー/カット（`data-pm-slice` でブロック構造を保持してペースト）
+- 右クリックメニューのブロック対応: ブロック要素内でも切り取り・コピーを有効化、貼り付けでブロック構造を復元
+- スラッシュコマンド追加: `/h4`, `/h5`（見出し H4/H5）、`/image`（ファイル選択から画像挿入）、`/frontmatter`（YAML フロントマター挿入）
+
+### Changed
+- GitHub ユーザー名を `kiyotaka-ueda` から `anytime-trial` に変更
+- クリップボード操作を `clipboardHelpers.ts` に共通化（copyTextToClipboard / readTextFromClipboard / saveBlob）
+- ブロッククリップボード操作を `blockClipboard.ts` に共通化（ショートカットとポップアップメニューで共用）
+
+### Fixed
+- GIF エンコーダーを自前実装に変更（gif.js の Web Worker が CSP でブロックされる問題を解消）
+- blob: URL の GIF 再生再開でエラーになる問題を修正
+- ソースモード切替で GIF ブロック・gif-settings が消える問題を修正
+- 画像キャプチャで AnnotationOverlay（SVG）が取得される問題を修正
+- HTMLプレビューキャプチャを SVG 直接保存方式に変更（foreignObject + Canvas の tainted canvas 問題を回避）
+
 ## [0.6.0] - 2026-03-19
 
 ### Added
@@ -662,7 +683,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - エラーハンドリング: 保存失敗時のメッセージ表示
 - 大ファイル (100KB超) のデバウンス最適化
 
-[Unreleased]: https://github.com/anytime-trial/anytime-markdown/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/anytime-trial/anytime-markdown/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/anytime-trial/anytime-markdown/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/anytime-trial/anytime-markdown/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/anytime-trial/anytime-markdown/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/anytime-trial/anytime-markdown/compare/v0.5.0...v0.5.1
