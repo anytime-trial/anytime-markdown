@@ -9,7 +9,7 @@ import TableChartIcon from "@mui/icons-material/TableChart";
 import TableRowsIcon from "@mui/icons-material/TableRows";
 import ViewColumnIcon from "@mui/icons-material/ViewColumn";
 import { Box, Divider, Paper, ToggleButton, ToggleButtonGroup, Tooltip, Typography, useTheme } from "@mui/material";
-import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
+import type { Fragment, Node as ProseMirrorNode } from "@tiptap/pm/model";
 import type { Editor } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
 import { NodeViewContent, NodeViewWrapper } from "@tiptap/react";
@@ -32,7 +32,7 @@ const iconSx = { fontSize: 16 };
 // --- Extracted: build highlighted compare HTML ---
 function buildHighlightedCompareHtml(
   compareTableHtml: string,
-  nodeContent: ProseMirrorNode,
+  nodeContent: Fragment,
   tableWidth: string,
 ): string {
   const currentCells: string[][] = [];

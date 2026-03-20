@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-03-20
+
+### Changed
+- SonarCloud CRITICAL 23件を解消: Cognitive Complexity 超過の関数をヘルパー関数・サブコンポーネントに分割
+- lint warning 36件を解消（未使用 import 削除、non-null assertion 除去、console.log → warn）
+- サイト URL を `www.anytime-trial.com` に変更
+- GitHub ユーザー名を `anytime-trial` に変更
+
+### Fixed
+- SonarCloud BUG: `error.tsx` の関数名 `Error` → `ErrorPage`（予約語衝突回避）
+- flatted Prototype Pollution 脆弱性を修正（npm audit fix）
+- `renderTextToPngBlob` の return 型エラーを修正
+
+### Security
+- GitHub Actions の permissions をワークフローレベルからジョブレベルに移動（最小権限原則）
+
 ## [0.6.1] - 2026-03-20
 
 ### Added
@@ -683,7 +699,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - エラーハンドリング: 保存失敗時のメッセージ表示
 - 大ファイル (100KB超) のデバウンス最適化
 
-[Unreleased]: https://github.com/anytime-trial/anytime-markdown/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/anytime-trial/anytime-markdown/compare/v0.6.2...HEAD
+[0.6.2]: https://github.com/anytime-trial/anytime-markdown/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/anytime-trial/anytime-markdown/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/anytime-trial/anytime-markdown/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/anytime-trial/anytime-markdown/compare/v0.5.1...v0.5.2
