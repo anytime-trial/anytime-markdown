@@ -214,6 +214,14 @@ A picture is worth a thousand words. Screenshots and diagrams convey far more th
 
 ![Anytime Markdown](help/camel_markdown.png)
 
+## Animated GIFs — Communicate with Motion
+
+Some things are hard to show in a still image — workflows, interactions, step-by-step processes.\
+With GIF blocks, you can record and play animations directly in the editor.\
+Use the slash command `/gif` to insert a GIF block, then click to start recording.
+
+![Anytime Markdown demo](images/anytime-markdown.gif)
+
 ---
 
 You now have every expression at your fingertips. Start writing your document.
