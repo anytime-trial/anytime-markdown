@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 
 import { STORAGE_KEY_SETTINGS } from "./constants/storageKeys";
+import { safeRemoveItem, safeSetItem } from "./utils/storage";
 const SETTINGS_VERSION = 7; // 用紙サイズ表示を追加
 
 export interface EditorSettings {
@@ -61,7 +62,7 @@ export function useEditorSettings(): UseEditorSettingsReturn {
         const merged = { ...DEFAULT_SETTINGS, ...parsed };
         setSettings(merged);
         // バージョンを保存
-        try { localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify({ ...merged, _version: SETTINGS_VERSION })); } catch { /* */ }
+        safeSetItem(STORAGE_KEY_SETTINGS, JSON.stringify({ ...merged, _version: SETTINGS_VERSION }));
       }
     } catch {
       // ignore
@@ -73,22 +74,14 @@ export function useEditorSettings(): UseEditorSettingsReturn {
   const updateSettings = useCallback((patch: Partial<EditorSettings>) => {
     setSettings((prev) => {
       const next = { ...prev, ...patch };
-      try {
-        localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify({ ...next, _version: SETTINGS_VERSION }));
-      } catch {
-        // storage full
-      }
+      safeSetItem(STORAGE_KEY_SETTINGS, JSON.stringify({ ...next, _version: SETTINGS_VERSION }));
       return next;
     });
   }, []);
 
   const resetSettings = useCallback(() => {
     setSettings(DEFAULT_SETTINGS);
-    try {
-      localStorage.removeItem(STORAGE_KEY_SETTINGS);
-    } catch {
-      // ignore
-    }
+    safeRemoveItem(STORAGE_KEY_SETTINGS);
   }, []);
 
   return { settings, loaded, updateSettings, resetSettings };

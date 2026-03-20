@@ -6,6 +6,7 @@ import { reviewModeStorage } from "../extensions/reviewModeExtension";
 import { getMarkdownFromEditor } from "../types";
 import { applyMarkdownToEditor } from "../utils/editorContentLoader";
 import { prependFrontmatter } from "../utils/frontmatterHelpers";
+import { safeSetItem } from "../utils/storage";
 
 interface UseSourceModeParams {
   editor: Editor | null;
@@ -69,17 +70,17 @@ export function useSourceMode({ editor, saveContent, t, frontmatterRef, defaultS
       reviewModeStorage(editor).enabled = false;
       editor.view.dom.removeAttribute("data-review-mode");
       setReviewMode(false);
-      try { localStorage.setItem(STORAGE_KEY_REVIEW_MODE, "false"); } catch { /* ignore */ }
+      safeSetItem(STORAGE_KEY_REVIEW_MODE, "false");
     } else if (readonlyMode) {
       reviewModeStorage(editor).enabled = false;
       editor.view.dom.removeAttribute("data-readonly-mode");
       setReadonlyMode(false);
-      try { localStorage.setItem(STORAGE_KEY_READONLY_MODE, "false"); } catch { /* ignore */ }
+      safeSetItem(STORAGE_KEY_READONLY_MODE, "false");
     }
     editor.commands.closeSearch();
     setSourceText(prependFrontmatter(getMarkdownFromEditor(editor), frontmatterRef.current));
     setSourceMode(true);
-    try { localStorage.setItem(STORAGE_KEY_SOURCE_MODE, "true"); } catch { /* ignore */ }
+    safeSetItem(STORAGE_KEY_SOURCE_MODE, "true");
     setLiveMessage(t("switchedToSource"));
   }, [editor, readonlyMode, reviewMode, t, frontmatterRef]);
 
@@ -89,7 +90,7 @@ export function useSourceMode({ editor, saveContent, t, frontmatterRef, defaultS
     frontmatterRef.current = frontmatter;
     saveContent(src, false);
     setSourceMode(false);
-    try { localStorage.setItem(STORAGE_KEY_SOURCE_MODE, "false"); } catch { /* ignore */ }
+    safeSetItem(STORAGE_KEY_SOURCE_MODE, "false");
   }, [saveContent, frontmatterRef]);
 
   const handleSwitchToWysiwyg = useCallback(() => {
@@ -98,19 +99,19 @@ export function useSourceMode({ editor, saveContent, t, frontmatterRef, defaultS
         reviewModeStorage(editor).enabled = false;
         editor.view.dom.removeAttribute("data-review-mode");
         setReviewMode(false);
-        try { localStorage.setItem(STORAGE_KEY_REVIEW_MODE, "false"); } catch { /* ignore */ }
+        safeSetItem(STORAGE_KEY_REVIEW_MODE, "false");
       } else if (readonlyMode) {
         reviewModeStorage(editor).enabled = false;
         editor.view.dom.removeAttribute("data-readonly-mode");
         setReadonlyMode(false);
-        try { localStorage.setItem(STORAGE_KEY_READONLY_MODE, "false"); } catch { /* ignore */ }
+        safeSetItem(STORAGE_KEY_READONLY_MODE, "false");
       }
       if (sourceMode) {
         syncSourceToEditor(editor, sourceText);
       }
     }
     setSourceMode(false);
-    try { localStorage.setItem(STORAGE_KEY_SOURCE_MODE, "false"); } catch { /* ignore */ }
+    safeSetItem(STORAGE_KEY_SOURCE_MODE, "false");
     setLiveMessage(t("switchedToWysiwyg"));
   }, [editor, sourceMode, readonlyMode, reviewMode, sourceText, syncSourceToEditor, t]);
 
@@ -129,8 +130,8 @@ export function useSourceMode({ editor, saveContent, t, frontmatterRef, defaultS
     editor.view.dom.setAttribute("data-review-mode", "true");
     setReadonlyMode(false);
     setReviewMode(true);
-    try { localStorage.setItem(STORAGE_KEY_READONLY_MODE, "false"); } catch { /* ignore */ }
-    try { localStorage.setItem(STORAGE_KEY_REVIEW_MODE, "true"); } catch { /* ignore */ }
+    safeSetItem(STORAGE_KEY_READONLY_MODE, "false");
+    safeSetItem(STORAGE_KEY_REVIEW_MODE, "true");
     setLiveMessage(t("switchedToReview"));
   }, [editor, sourceMode, readonlyMode, sourceText, syncSourceToEditor, t]);
 
@@ -148,8 +149,8 @@ export function useSourceMode({ editor, saveContent, t, frontmatterRef, defaultS
     editor.view.dom.setAttribute("data-readonly-mode", "true");
     setReadonlyMode(true);
     setReviewMode(false);
-    try { localStorage.setItem(STORAGE_KEY_READONLY_MODE, "true"); } catch { /* ignore */ }
-    try { localStorage.setItem(STORAGE_KEY_REVIEW_MODE, "false"); } catch { /* ignore */ }
+    safeSetItem(STORAGE_KEY_READONLY_MODE, "true");
+    safeSetItem(STORAGE_KEY_REVIEW_MODE, "false");
     setLiveMessage(t("switchedToReadonly"));
   }, [editor, sourceMode, reviewMode, sourceText, syncSourceToEditor, t]);
 

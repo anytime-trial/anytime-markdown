@@ -7,6 +7,7 @@ import { STORAGE_KEY_CONTENT } from "./constants/storageKeys";
 import type { EncodingLabel } from "./types";
 import { appendCommentData } from "./utils/commentHelpers";
 import { prependFrontmatter,preprocessMarkdown } from "./utils/frontmatterHelpers";
+import { safeSetItem } from "./utils/storage";
 const DEBOUNCE_MS = 500;
 
 export interface UseMarkdownEditorReturn {
@@ -88,11 +89,7 @@ export function useMarkdownEditor(defaultContent: string, skipLocalStorage = fal
 
   // クリア（空文字列を保存して HMR 時に defaultContent にフォールバックしないようにする）
   const clearContent = useCallback(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_CONTENT, "");
-    } catch (e) {
-      console.warn("Failed to clear localStorage:", e);
-    }
+    safeSetItem(STORAGE_KEY_CONTENT, "");
   }, []);
 
   // cleanup
