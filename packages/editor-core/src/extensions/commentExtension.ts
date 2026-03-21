@@ -225,7 +225,7 @@ export const CommentDataPlugin = Extension.create({
       removeComment:
         (id: string) =>
         ({ tr, dispatch, state }) => {
-          if (!dispatch) return true;
+          if (!dispatch) return false;
 
           const doc = state.doc;
 
@@ -272,7 +272,7 @@ export const CommentDataPlugin = Extension.create({
       resolveComment:
         (id: string) =>
         ({ tr, dispatch }) => {
-          if (!dispatch) return true;
+          if (!dispatch) return false;
           const action: CommentAction = { type: "resolve", id };
           tr.setMeta(commentDataPluginKey, action);
           dispatch(tr);
@@ -282,7 +282,7 @@ export const CommentDataPlugin = Extension.create({
       unresolveComment:
         (id: string) =>
         ({ tr, dispatch }) => {
-          if (!dispatch) return true;
+          if (!dispatch) return false;
           const action: CommentAction = { type: "unresolve", id };
           tr.setMeta(commentDataPluginKey, action);
           dispatch(tr);
@@ -292,7 +292,7 @@ export const CommentDataPlugin = Extension.create({
       updateCommentText:
         (id: string, text: string) =>
         ({ tr, dispatch }) => {
-          if (!dispatch) return true;
+          if (!dispatch) return false;
           const action: CommentAction = { type: "updateText", id, text };
           tr.setMeta(commentDataPluginKey, action);
           dispatch(tr);
@@ -302,7 +302,7 @@ export const CommentDataPlugin = Extension.create({
       initComments:
         (comments: Map<string, InlineComment>) =>
         ({ tr, dispatch }) => {
-          if (!dispatch) return true;
+          if (!dispatch) return false;
           const action: CommentAction = { type: "init", comments };
           tr.setMeta(commentDataPluginKey, action);
           dispatch(tr);
