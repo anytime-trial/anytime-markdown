@@ -15,10 +15,10 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
   public compareModeActive = false;
   public pendingCompareContent: string | null = null;
   public skipDiffDetection = false;
-  private panels = new Map<string, vscode.WebviewPanel>();
+  private readonly panels = new Map<string, vscode.WebviewPanel>();
   /** diff ビュー検出用: 最後にパネルが開かれた時刻 */
   private lastPanelOpenTime = 0;
-  private readyPanels = new Set<string>();
+  private readonly readyPanels = new Set<string>();
   private readyResolvers = new Map<string, Array<() => void>>();
 
   public static getInstance(): MarkdownEditorProvider | null {

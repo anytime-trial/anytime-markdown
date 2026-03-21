@@ -39,7 +39,7 @@ export class CommentItem extends vscode.TreeItem {
 export type CommentFilter = 'all' | 'open' | 'resolved';
 
 export class CommentProvider implements vscode.TreeDataProvider<CommentItem> {
-	private _onDidChangeTreeData = new vscode.EventEmitter<void>();
+	private readonly _onDidChangeTreeData = new vscode.EventEmitter<void>();
 	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
 	private allItems: CommentData[] = [];

@@ -195,7 +195,7 @@ export class SpecDocsDragAndDrop implements vscode.TreeDragAndDropController<Spe
 }
 
 export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsRootItem | SpecDocsItem> {
-	private _onDidChangeTreeData = new vscode.EventEmitter<SpecDocsRootItem | SpecDocsItem | undefined>();
+	private readonly _onDidChangeTreeData = new vscode.EventEmitter<SpecDocsRootItem | SpecDocsItem | undefined>();
 	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
 	private rootPaths: string[] = [];

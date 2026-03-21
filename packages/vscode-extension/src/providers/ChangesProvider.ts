@@ -168,7 +168,7 @@ function parseStatusCode(code: string, group: 'staged' | 'changes'): number {
 }
 
 export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem> {
-	private _onDidChangeTreeData = new vscode.EventEmitter<void>();
+	private readonly _onDidChangeTreeData = new vscode.EventEmitter<void>();
 	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
 	private gitRootEntries: { rootPath: string; gitRoot: string }[] = [];

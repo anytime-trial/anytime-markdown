@@ -91,8 +91,8 @@ function validateHeadingLink(
  * - 外部 URL: スキップ（http/https）
  */
 export class LinkValidationProvider implements vscode.Disposable {
-	private diagnosticCollection: vscode.DiagnosticCollection;
-	private disposables: vscode.Disposable[] = [];
+	private readonly diagnosticCollection: vscode.DiagnosticCollection;
+	private readonly disposables: vscode.Disposable[] = [];
 
 	constructor() {
 		this.diagnosticCollection = vscode.languages.createDiagnosticCollection('anytime-markdown-links');

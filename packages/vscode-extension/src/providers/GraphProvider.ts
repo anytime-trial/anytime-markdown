@@ -116,7 +116,7 @@ function parseGitLogOutput(output: string, localOnlyHashes: Set<string>): GraphI
 }
 
 export class GraphProvider implements vscode.TreeDataProvider<GraphItem> {
-	private _onDidChangeTreeData = new vscode.EventEmitter<void>();
+	private readonly _onDidChangeTreeData = new vscode.EventEmitter<void>();
 	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
 	private gitRoot: string | null = null;

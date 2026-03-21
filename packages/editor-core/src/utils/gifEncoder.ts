@@ -150,10 +150,10 @@ function searchBackward(
 class NeuQuant {
   private network: Float64Array[];
   private netindex = new Int32Array(256);
-  private bias = new Int32Array(256);
-  private freq = new Int32Array(256);
-  private radpower = new Int32Array(32);
-  private pixels: Uint8Array;
+  private readonly bias = new Int32Array(256);
+  private readonly freq = new Int32Array(256);
+  private readonly radpower = new Int32Array(32);
+  private readonly pixels: Uint8Array;
   private samplefac: number;
 
   constructor(pixels: Uint8Array, samplefac: number) {

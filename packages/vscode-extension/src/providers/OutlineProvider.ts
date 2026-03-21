@@ -37,7 +37,7 @@ export class OutlineItem extends vscode.TreeItem {
 }
 
 export class OutlineProvider implements vscode.TreeDataProvider<OutlineItem> {
-	private _onDidChangeTreeData = new vscode.EventEmitter<void>();
+	private readonly _onDidChangeTreeData = new vscode.EventEmitter<void>();
 	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
 	private roots: OutlineItem[] = [];

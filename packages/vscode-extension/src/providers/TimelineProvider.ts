@@ -53,7 +53,7 @@ function formatDate(date: Date): string {
 }
 
 export class TimelineProvider implements vscode.TreeDataProvider<TimelineItem> {
-	private _onDidChangeTreeData = new vscode.EventEmitter<void>();
+	private readonly _onDidChangeTreeData = new vscode.EventEmitter<void>();
 	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
 	private fileUri: vscode.Uri | null = null;
