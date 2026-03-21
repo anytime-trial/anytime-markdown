@@ -31,6 +31,7 @@ import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Extension, type Extensions } from "@tiptap/react";
 
 import { AdmonitionBlockquote } from "./extensions/admonitionExtension";
+import { BlockGapCursorExtension } from "./extensions/blockGapCursorExtension";
 import { CodeBlockNavigation } from "./extensions/codeBlockNavigationExtension";
 import { CommentDataPlugin,CommentHighlight, CommentPoint } from "./extensions/commentExtension";
 import { CustomTableCell, CustomTableHeader } from "./extensions/customTableCells";
@@ -300,6 +301,7 @@ export function getBaseExtensions(options?: { disableComments?: boolean; disable
     FootnoteRef,
     HeadingNumberExtension,
     GifBlock,
+    BlockGapCursorExtension,
   ];
   if (!options?.disableComments) {
     extensions.push(CommentHighlight, CommentPoint, CommentDataPlugin);
