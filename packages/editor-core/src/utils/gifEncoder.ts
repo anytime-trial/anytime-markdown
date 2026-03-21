@@ -498,13 +498,27 @@ function writeGifHeader(
   writeBytes(0x00);
 }
 
+interface WriteFrameDataParams {
+  parts: Uint8Array[];
+  frame: ImageData;
+  rgb: Uint8Array;
+  nq: NeuQuant;
+  colorTab: number[];
+  width: number;
+  height: number;
+  delay: number;
+  isFirst: boolean;
+  writeBytes: (...bytes: number[]) => void;
+  writeShort: (val: number) => void;
+}
+
 /** 1フレーム分の GIF イメージデータを書き込む */
-function writeFrameData(
-  parts: Uint8Array[], frame: ImageData, rgb: Uint8Array, nq: NeuQuant,
-  colorTab: number[], width: number, height: number, delay: number,
-  isFirst: boolean,
-  writeBytes: (...bytes: number[]) => void, writeShort: (val: number) => void,
-): void {
+function writeFrameData({
+  parts, frame, rgb, nq,
+  colorTab, width, height, delay,
+  isFirst,
+  writeBytes, writeShort,
+}: WriteFrameDataParams): void {
   // Graphic Control Extension
   writeBytes(0x21, 0xf9, 0x04, 0x00);
   writeShort(delay);
@@ -564,7 +578,7 @@ export async function encodeGif(
       writeGifHeader(parts, width, height, colorTab, writeBytes, writeShort);
     }
 
-    writeFrameData(parts, frame, rgb, nq, colorTab, width, height, delay, i === 0, writeBytes, writeShort);
+    writeFrameData({ parts, frame, rgb, nq, colorTab, width, height, delay, isFirst: i === 0, writeBytes, writeShort });
 
     onProgress?.((i + 1) / frames.length);
 

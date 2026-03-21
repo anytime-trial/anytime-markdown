@@ -282,8 +282,8 @@ function computeSemanticBlockDiff(
   rightDoc.forEach((node) => rightNodes.push(node));
 
   // pre-section の比較（フラットブロック diff）
-  diffBlockRange(leftBlocks, rightBlocks, leftNodes, rightNodes,
-    leftSec.preSections, rightSec.preSections, leftResult, rightResult);
+  diffBlockRange({ leftBlocks, rightBlocks, leftNodes, rightNodes,
+    leftIndices: leftSec.preSections, rightIndices: rightSec.preSections, leftResult, rightResult });
 
   // セクション LCS マッチング
   const { matched, leftOnly, rightOnly } = matchBlockSections(leftSec.sections, rightSec.sections);
@@ -292,7 +292,7 @@ function computeSemanticBlockDiff(
   for (const [ls, rs] of matched) {
     const leftRange = Array.from({ length: ls.endIndex - ls.startIndex }, (_, i) => ls.startIndex + i);
     const rightRange = Array.from({ length: rs.endIndex - rs.startIndex }, (_, i) => rs.startIndex + i);
-    diffBlockRange(leftBlocks, rightBlocks, leftNodes, rightNodes, leftRange, rightRange, leftResult, rightResult);
+    diffBlockRange({ leftBlocks, rightBlocks, leftNodes, rightNodes, leftIndices: leftRange, rightIndices: rightRange, leftResult, rightResult });
   }
 
   // 片側のみのセクションを処理
@@ -350,14 +350,27 @@ function computeBlockLcsPairs(lb: BlockInfo[], rb: BlockInfo[]): [number, number
   return pairs;
 }
 
+interface ApplyUnmatchedPairsParams {
+  unmL: number[];
+  unmR: number[];
+  leftBlocks: BlockInfo[];
+  rightBlocks: BlockInfo[];
+  leftNodes: PMNode[];
+  rightNodes: PMNode[];
+  leftIndices: number[];
+  rightIndices: number[];
+  leftResult: BlockDiffResult;
+  rightResult: BlockDiffResult;
+}
+
 /** アンマッチブロックのペアを差分結果に適用する */
-function applyUnmatchedPairs(
-  unmL: number[], unmR: number[],
-  leftBlocks: BlockInfo[], rightBlocks: BlockInfo[],
-  leftNodes: PMNode[], rightNodes: PMNode[],
-  leftIndices: number[], rightIndices: number[],
-  leftResult: BlockDiffResult, rightResult: BlockDiffResult,
-): void {
+function applyUnmatchedPairs({
+  unmL, unmR,
+  leftBlocks, rightBlocks,
+  leftNodes, rightNodes,
+  leftIndices, rightIndices,
+  leftResult, rightResult,
+}: ApplyUnmatchedPairsParams): void {
   const pairLen = Math.min(unmL.length, unmR.length);
   for (let k = 0; k < pairLen; k++) {
     const li = leftIndices[unmL[k]];
@@ -375,13 +388,24 @@ function applyUnmatchedPairs(
   for (let k = pairLen; k < unmR.length; k++) rightResult.changedBlocks.add(rightIndices[unmR[k]]);
 }
 
+interface DiffBlockRangeParams {
+  leftBlocks: BlockInfo[];
+  rightBlocks: BlockInfo[];
+  leftNodes: PMNode[];
+  rightNodes: PMNode[];
+  leftIndices: number[];
+  rightIndices: number[];
+  leftResult: BlockDiffResult;
+  rightResult: BlockDiffResult;
+}
+
 /** ブロック範囲内のフラット diff（既存ロジック） */
-function diffBlockRange(
-  leftBlocks: BlockInfo[], rightBlocks: BlockInfo[],
-  leftNodes: PMNode[], rightNodes: PMNode[],
-  leftIndices: number[], rightIndices: number[],
-  leftResult: BlockDiffResult, rightResult: BlockDiffResult,
-): void {
+function diffBlockRange({
+  leftBlocks, rightBlocks,
+  leftNodes, rightNodes,
+  leftIndices, rightIndices,
+  leftResult, rightResult,
+}: DiffBlockRangeParams): void {
   const lb = leftIndices.map(i => leftBlocks[i]);
   const rb = rightIndices.map(i => rightBlocks[i]);
   const n = lb.length;
@@ -396,7 +420,7 @@ function diffBlockRange(
     const unmR: number[] = [];
     for (let k = prevR + 1; k < mr; k++) unmR.push(k);
 
-    applyUnmatchedPairs(unmL, unmR, leftBlocks, rightBlocks, leftNodes, rightNodes, leftIndices, rightIndices, leftResult, rightResult);
+    applyUnmatchedPairs({ unmL, unmR, leftBlocks, rightBlocks, leftNodes, rightNodes, leftIndices, rightIndices, leftResult, rightResult });
 
     prevL = ml; prevR = mr;
   }
@@ -417,7 +441,7 @@ function computeFlatBlockDiff(
 
   const allLeft = leftBlocks.map((_, i) => i);
   const allRight = rightBlocks.map((_, i) => i);
-  diffBlockRange(leftBlocks, rightBlocks, leftNodes, rightNodes, allLeft, allRight, leftResult, rightResult);
+  diffBlockRange({ leftBlocks, rightBlocks, leftNodes, rightNodes, leftIndices: allLeft, rightIndices: allRight, leftResult, rightResult });
 
   return { left: leftResult, right: rightResult };
 }
