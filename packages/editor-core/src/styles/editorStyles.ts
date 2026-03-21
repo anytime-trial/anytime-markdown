@@ -59,8 +59,22 @@ export function getEditorPaperSx(
       lineHeight: settings.lineHeight,
       color: getEditorText(theme.palette.mode === "dark", settings),
       ...(settings.blockAlign !== "left" && {
-        "& img, & .tableWrapper, & blockquote, & .admonition, & hr, & .code-block-wrapper, & [data-type='gifBlock']": {
-          ...(settings.blockAlign === "center" ? { marginLeft: "auto", marginRight: "auto" } : { marginLeft: "auto", marginRight: 0 }),
+        // テキスト・インライン要素（img 等）の配置
+        textAlign: settings.blockAlign,
+        // ブロック要素の配置（display: block なので margin で制御）
+        "& blockquote, & blockquote[data-admonition-type], & .code-block-wrapper, & [data-type='gifBlock']": {
+          ...(settings.blockAlign === "center"
+            ? { marginLeft: "auto", marginRight: "auto", maxWidth: "90%" }
+            : { marginLeft: "auto", marginRight: 0, maxWidth: "90%" }),
+        },
+        "& .tableWrapper": {
+          display: "flex",
+          justifyContent: settings.blockAlign === "center" ? "center" : "flex-end",
+        },
+        "& hr": {
+          ...(settings.blockAlign === "center"
+            ? { marginLeft: "auto", marginRight: "auto", width: "80%" }
+            : { marginLeft: "auto", marginRight: 0, width: "80%" }),
         },
       }),
       ...(getBaseStyles(theme, options) as Record<string, unknown>),
