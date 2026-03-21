@@ -1,6 +1,7 @@
 'use client';
 
 import { ACCENT_COLOR } from '@anytime-markdown/editor-core';
+import ListAltIcon from '@mui/icons-material/ListAlt';
 import { Box, Button, Container, IconButton, Link as MuiLink, Tooltip, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import NextLink from 'next/link';
@@ -25,6 +26,7 @@ export default function LandingBody({ headingFontFamily }: { headingFontFamily?:
 
   type FontSize = 'small' | 'medium' | 'large';
   const [viewerFontSize, setViewerFontSize] = useState<FontSize>('medium');
+  const [showOutline, setShowOutline] = useState(true);
   const fontSizeOptions: { value: FontSize; iconSize: number; label: string }[] = [
     { value: 'small', iconSize: 12, label: t('fontSmall') },
     { value: 'medium', iconSize: 15, label: t('fontMedium') },
@@ -178,7 +180,23 @@ export default function LandingBody({ headingFontFamily }: { headingFontFamily?:
       {/* ---- Features (Markdown) ---- */}
       <Box sx={{ py: { xs: 4, md: 6 }, px: 3 }}>
         <Container maxWidth="lg">
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1, gap: 0.5 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1, gap: 0.5, alignItems: 'center' }}>
+            <Tooltip title={t('toggleOutline')}>
+              <IconButton
+                size="small"
+                onClick={() => setShowOutline((v) => !v)}
+                sx={{
+                  width: 28,
+                  height: 28,
+                  color: showOutline ? 'primary.main' : 'text.secondary',
+                  bgcolor: showOutline ? (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)') : 'transparent',
+                }}
+                aria-label={t('toggleOutline')}
+                aria-pressed={showOutline}
+              >
+                <ListAltIcon sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Tooltip>
             {fontSizeOptions.map(({ value, iconSize, label }) => (
               <Tooltip key={value} title={label}>
                 <IconButton
@@ -198,7 +216,7 @@ export default function LandingBody({ headingFontFamily }: { headingFontFamily?:
               </Tooltip>
             ))}
           </Box>
-          <MarkdownViewer docKey="docs/markdownAll/markdownAll.ja.md" docKeyByLocale={{ en: "docs/markdownAll/markdownAll.en.md" }} editorHeight={viewerHeight} showOutline fontSize={viewerFontSize} />
+          <MarkdownViewer docKey="docs/markdownAll/markdownAll.ja.md" docKeyByLocale={{ en: "docs/markdownAll/markdownAll.en.md" }} editorHeight={viewerHeight} showOutline={showOutline} fontSize={viewerFontSize} />
         </Container>
       </Box>
 

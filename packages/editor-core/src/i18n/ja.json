@@ -505,6 +505,7 @@
     "heroDescription": "ブラウザで完結する無料・オープンソースのマークダウンエディタ。アカウント不要、サーバー送信なし — あなたの言葉はあなたのもの。",
     "openEditor": "エディタを開く",
     "noSignupRequired": "登録不要 — すぐに書き始められます",
+    "toggleOutline": "目次の表示/非表示",
     "fontSmall": "小",
     "fontMedium": "中",
     "fontLarge": "大",

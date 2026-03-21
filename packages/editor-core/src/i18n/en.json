@@ -505,6 +505,7 @@
     "heroDescription": "A free, open-source markdown editor that works entirely in your browser. No sign-up, no server — your words stay yours.",
     "openEditor": "Open Editor",
     "noSignupRequired": "No sign-up required — start writing instantly",
+    "toggleOutline": "Toggle Outline",
     "fontSmall": "Small",
     "fontMedium": "Medium",
     "fontLarge": "Large",
