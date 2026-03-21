@@ -21,7 +21,7 @@ function adjustGapCursorPosition(dom: HTMLElement) {
     if (!sibling) return;
     el.style.position = "absolute";
     el.style.top = `${sibling.offsetTop}px`;
-    el.style.left = "0";
+    el.style.left = `${sibling.offsetLeft - 4}px`;
     el.style.height = `${sibling.offsetHeight}px`;
     el.style.width = "0";
   });
