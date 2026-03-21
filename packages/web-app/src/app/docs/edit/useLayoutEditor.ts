@@ -53,6 +53,7 @@ export function useLayoutEditor() {
   const [editCategory, setEditCategory] = useState<LayoutCategory | null>(null);
   const [editItems, setEditItems] = useState<LayoutCategoryItem[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
+  const [uploadConfirm, setUploadConfirm] = useState<{ folder: string; existingFiles: DocFile[]; newFiles: File[] } | null>(null);
   const [urlLinks, setUrlLinks] = useState<{ url: string; displayName: string }[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -104,14 +105,13 @@ export function useLayoutEditor() {
     return () => { cancelled = true; };
   }, [t, fetchFiles]);
 
-  const handleUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const fileList = e.target.files;
-    if (!fileList || fileList.length === 0) return;
-
+  /** フォルダ内ファイルをアップロードする共通処理 */
+  const uploadFiles = useCallback(async (folder: string, filesToUpload: File[]) => {
     let hasError = false;
-    for (const file of Array.from(fileList)) {
+    for (const file of filesToUpload) {
       const formData = new FormData();
       formData.append('file', file);
+      formData.append('folder', folder);
 
       try {
         const res = await fetch('/api/docs/upload', { method: 'POST', body: formData });
@@ -127,9 +127,74 @@ export function useLayoutEditor() {
       setSnackbar({ message: t('docsUploadSuccess'), severity: 'success' });
     }
     fetchFiles();
-
-    if (fileInputRef.current) fileInputRef.current.value = '';
   }, [t, fetchFiles]);
+
+  const handleUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
+
+    const fileArray = Array.from(fileList);
+
+    // webkitRelativePath からフォルダ名を取得（最初のセグメント）
+    const firstPath = fileArray[0].webkitRelativePath;
+    const folder = firstPath ? firstPath.split('/')[0] : '';
+
+    if (!folder) {
+      setSnackbar({ message: t('docsUploadError'), severity: 'error' });
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    // S3 上に同名フォルダが存在するかチェック
+    try {
+      const res = await fetch('/api/docs', { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as { files: DocFile[] };
+      const prefix = `docs/${folder}/`;
+      const existing = data.files.filter((f) => f.key.startsWith(prefix));
+
+      if (existing.length > 0) {
+        // 上書き確認が必要
+        setUploadConfirm({ folder, existingFiles: existing, newFiles: fileArray });
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+    } catch {
+      // チェック失敗時はそのままアップロードを試みる
+    }
+
+    await uploadFiles(folder, fileArray);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }, [t, fetchFiles, uploadFiles]);
+
+  /** 上書き確認後: 既存ファイルを削除してからアップロード */
+  const handleConfirmOverwrite = useCallback(async () => {
+    if (!uploadConfirm) return;
+    const { folder, existingFiles, newFiles } = uploadConfirm;
+
+    // 既存ファイルを削除
+    await Promise.allSettled(
+      existingFiles.map((f) =>
+        fetch(`/api/docs/delete?key=${encodeURIComponent(f.key)}`, { method: 'DELETE' }),
+      ),
+    );
+
+    // カテゴリから既存ファイルの参照を除去
+    setCategories((prev) => {
+      let cats = prev;
+      for (const f of existingFiles) {
+        cats = cats.map((cat) => removeItemFromCategory(cat, f.key));
+      }
+      return cats;
+    });
+
+    await uploadFiles(folder, newFiles);
+    setUploadConfirm(null);
+  }, [uploadConfirm, uploadFiles]);
+
+  const handleCancelOverwrite = useCallback(() => {
+    setUploadConfirm(null);
+  }, []);
 
   const handleDeleteFile = useCallback(async () => {
     if (!deleteTarget) return;
@@ -336,6 +401,9 @@ export function useLayoutEditor() {
     sensors,
     activeCategory,
     handleUpload,
+    uploadConfirm,
+    handleConfirmOverwrite,
+    handleCancelOverwrite,
     handleDeleteFile,
     handleAddCategory,
     handleDeleteCategory,

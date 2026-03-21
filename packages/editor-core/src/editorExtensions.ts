@@ -157,7 +157,7 @@ export function getBaseExtensions(options?: { disableComments?: boolean; disable
             return editor.chain().focus().setHeading({ level: (level - 1) as 1|2|3|4|5 }).run();
           },
           // Alt+Up/Down: ブロックを上下に移動（VS Code のみ有効、Web は Chromium 競合のため無効）
-          ...(window.__vscode ? {
+          ...(globalThis.__vscode ? {
             "Alt-ArrowUp": ({ editor }: { editor: Editor }) => {
               const { $from } = editor.state.selection;
               const curStart = $from.before(1);

@@ -562,6 +562,7 @@
     "docsDelete": "Delete",
     "docsDeleteConfirm": "Delete this document?",
     "docsDeleteFolderConfirm": "Delete this folder and all {count} file(s) inside?",
+    "docsUploadFolderOverwrite": "Folder \"{folder}\" already exists ({count} file(s)). Delete existing files and overwrite?",
     "docsUploadSuccess": "Uploaded successfully",
     "docsDeleteSuccess": "Deleted successfully",
     "docsUploadError": "Failed to upload",

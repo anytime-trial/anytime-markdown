@@ -22,7 +22,7 @@ interface ScreenCaptureDialogProps {
   t: (key: string) => string;
 }
 
-export function ScreenCaptureDialog({ open, onClose, onCapture, t }: ScreenCaptureDialogProps) {
+export function ScreenCaptureDialog({ open, onClose, onCapture, t }: Readonly<ScreenCaptureDialogProps>) {
   const isDark = useTheme().palette.mode === "dark";
   const [phase, setPhase] = useState<CapturePhase>("idle");
   const [capturedDataUrl, setCapturedDataUrl] = useState<string | null>(null);

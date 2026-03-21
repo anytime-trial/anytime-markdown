@@ -54,7 +54,7 @@ function getMenuPaperSx(isDark: boolean) { return {
   },
 } as const; }
 
-export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProps) {
+export function EditorContextMenu({ editor, readOnly, t }: Readonly<EditorContextMenuProps>) {
   const isDark = useTheme().palette.mode === "dark";
   const [menuPos, setMenuPos] = useState<MenuPosition | null>(null);
 
@@ -78,8 +78,8 @@ export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProp
         insertMarkdownText(editor, text);
       }
     };
-    window.addEventListener("vscode-paste-markdown", handler);
-    return () => window.removeEventListener("vscode-paste-markdown", handler);
+    globalThis.addEventListener("vscode-paste-markdown", handler);
+    return () => globalThis.removeEventListener("vscode-paste-markdown", handler);
   }, [editor]);
 
   // VS Code 拡張からのコードブロック貼り付けイベント
@@ -95,8 +95,8 @@ export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProp
         }).run();
       }
     };
-    window.addEventListener("vscode-paste-codeblock", handler);
-    return () => window.removeEventListener("vscode-paste-codeblock", handler);
+    globalThis.addEventListener("vscode-paste-codeblock", handler);
+    return () => globalThis.removeEventListener("vscode-paste-codeblock", handler);
   }, [editor]);
 
   const handleClose = useCallback(() => {
@@ -153,8 +153,8 @@ export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProp
     const text = await readTextFromClipboard();
     if (text) { pasteIntoCodeBlock(text); handleClose(); return; }
     // VS Code 環境: vscode-paste-codeblock イベントで処理
-    if (window.__vscode) {
-      window.__vscode.postMessage({ type: "readClipboardForCodeBlock" });
+    if (globalThis.__vscode) {
+      globalThis.__vscode.postMessage({ type: "readClipboardForCodeBlock" });
     }
     handleClose();
   }, [editor, readOnly, handleClose]);
@@ -168,8 +168,8 @@ export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProp
       return;
     }
     // VS Code 環境: 拡張側にクリップボード読み取りを依頼
-    if (window.__vscode) {
-      window.__vscode.postMessage({ type: "readClipboard" });
+    if (globalThis.__vscode) {
+      globalThis.__vscode.postMessage({ type: "readClipboard" });
     }
     handleClose();
   }, [editor, handleClose]);

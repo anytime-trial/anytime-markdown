@@ -45,14 +45,14 @@ export function transformMarkdownImageUrls(
   cloudfrontUrl: string,
 ): string {
   // Markdown: ![alt](src) — src 部分のみ置換
-  let result = markdown.replace(
+  let result = markdown.replaceAll(
     /(!\[[^\]]*\]\()([^)]+)(\))/g,
     (_match, prefix, src, suffix) =>
       prefix + resolveImageUrl(src, baseDir, cloudfrontUrl) + suffix,
   );
 
   // HTML: <img src="src"> — src 属性のみ置換（ダブルクオート・シングルクオート両対応）
-  result = result.replace(
+  result = result.replaceAll(
     /(<img\s[^>]*src=)(["'])([^"']+)\2/g,
     (_match, prefix, quote, src) =>
       prefix + quote + resolveImageUrl(src, baseDir, cloudfrontUrl) + quote,

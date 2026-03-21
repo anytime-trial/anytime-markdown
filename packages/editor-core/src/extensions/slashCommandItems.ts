@@ -366,7 +366,7 @@ export const slashCommandItems: SlashCommandItem[] = [
     keywords: ["screenshot", "screen", "capture", "スクリーンショット", "スクリーンキャプチャ", "画面"],
     action: (editor) => {
       if (typeof navigator === "undefined" || !navigator.mediaDevices?.getDisplayMedia) return;
-      window.dispatchEvent(new CustomEvent("open-screen-capture", { detail: { editor } }));
+      globalThis.dispatchEvent(new CustomEvent("open-screen-capture", { detail: { editor } }));
     },
   },
   {

@@ -30,7 +30,7 @@ export async function readTextFromClipboard(): Promise<string | null> {
 
 /** showSaveFilePicker でファイルを保存する。非対応ブラウザではダウンロードにフォールバック */
 export async function saveBlob(blob: Blob, suggestedName: string): Promise<void> {
-  if ("showSaveFilePicker" in window) {
+  if ("showSaveFilePicker" in globalThis) {
     try {
       const ext = suggestedName.match(/\.(\w+)$/)?.[1]?.toLowerCase() ?? "png";
       const allTypes = [
@@ -43,7 +43,7 @@ export async function saveBlob(blob: Blob, suggestedName: string): Promise<void>
         ...allTypes.filter((t) => t.ext === ext).map((t) => t.type),
         ...allTypes.filter((t) => t.ext !== ext).map((t) => t.type),
       ];
-      const handle = await (window as unknown as { showSaveFilePicker: (opts: unknown) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
+      const handle = await (globalThis as unknown as { showSaveFilePicker: (opts: unknown) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
         suggestedName,
         types,
       });

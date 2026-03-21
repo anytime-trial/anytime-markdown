@@ -17,7 +17,7 @@ import type { NodeViewProps } from "@tiptap/react";
 import { NodeViewWrapper,ReactNodeViewRenderer } from "@tiptap/react";
 
 /** FootnoteRef NodeView コンポーネント */
-function FootnoteRefView({ node, selected }: NodeViewProps) {
+function FootnoteRefView({ node, selected }: Readonly<NodeViewProps>) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const noteId = node.attrs.noteId as string;

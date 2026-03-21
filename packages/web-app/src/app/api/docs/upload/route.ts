@@ -34,6 +34,7 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
+    const folder = formData.get('folder') as string | null;
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
@@ -58,7 +59,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid file name' }, { status: 400 });
     }
 
-    const key = DOCS_PREFIX + file.name;
+    if (folder) {
+      if (/[\x00-\x1f\x7f<>:"|?*;`${}[\]#!~&()'\\/]/.test(folder) || folder.includes('..')) {
+        return NextResponse.json({ error: 'Invalid folder name' }, { status: 400 });
+      }
+    }
+
+    const key = folder ? DOCS_PREFIX + folder + '/' + file.name : DOCS_PREFIX + file.name;
     const isText = contentType.startsWith('text/');
     const body = isText ? await file.text() : Buffer.from(await file.arrayBuffer());
 
@@ -70,7 +77,8 @@ export async function POST(request: NextRequest) {
     });
     await s3Client.send(command);
 
-    return NextResponse.json({ key, name: file.name });
+    const name = folder ? folder + '/' + file.name : file.name;
+    return NextResponse.json({ key, name });
   } catch (e) {
     console.error('Failed to upload to S3:', e);
     return NextResponse.json(

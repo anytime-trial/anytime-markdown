@@ -155,7 +155,7 @@ export function InlineMergeView({
   onRightFileOpsReady,
   commentSlot,
   children,
-}: InlineMergeViewProps) {
+}: Readonly<InlineMergeViewProps>) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const settings = useEditorSettingsContext();
@@ -216,7 +216,7 @@ export function InlineMergeView({
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        window.dispatchEvent(new CustomEvent('vscode-save-compare-file', { detail: compareText }));
+        globalThis.dispatchEvent(new CustomEvent('vscode-save-compare-file', { detail: compareText }));
       }
     };
     document.addEventListener('keydown', handler);

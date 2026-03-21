@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
+import * as path from 'node:path';
 import { MarkdownEditorProvider } from './providers/MarkdownEditorProvider';
 import { TimelineProvider, TimelineItem } from './providers/TimelineProvider';
 import { GraphProvider } from './providers/GraphProvider';
@@ -385,7 +385,7 @@ export function activate(context: vscode.ExtensionContext) {
 				// git コマンドで変更前コンテンツを取得
 				let originalContent: string;
 				try {
-					const { execFileSync } = await import('child_process');
+					const { execFileSync } = await import('node:child_process');
 					originalContent = group === 'staged'
 						? execFileSync('git', ['show', `HEAD:${filePath}`], { cwd: gitRoot, encoding: 'utf-8' })
 						: execFileSync('git', ['show', `:${filePath}`], { cwd: gitRoot, encoding: 'utf-8' });
@@ -426,7 +426,7 @@ export function activate(context: vscode.ExtensionContext) {
 			// git コマンドで変更前コンテンツを取得
 			let originalContent: string;
 			try {
-				const { execFileSync } = await import('child_process');
+				const { execFileSync } = await import('node:child_process');
 				if (group === 'staged') {
 					// ステージ済み: HEAD のコンテンツ
 					originalContent = execFileSync('git', ['show', `HEAD:${filePath}`], { cwd: gitRoot, encoding: 'utf-8' });

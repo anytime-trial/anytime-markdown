@@ -197,7 +197,7 @@ export function protectSpans(text: string, pattern: RegExp, prefix: string): { r
 
 /** プレースホルダを元のスパンに復元する */
 export function restoreSpans(text: string, prefix: string, spans: string[]): string {
-  return text.replace(new RegExp(`\uE000${prefix}(\\d+)\uE000`, "g"), (_, i) => spans[Number(i)]);
+  return text.replaceAll(new RegExp(`\uE000${prefix}(\\d+)\uE000`, "g"), (_, i) => spans[Number(i)]);
 }
 
 /** 行頭が ``` で始まり、残りが空白のみかチェック */
@@ -346,8 +346,8 @@ export function preserveBlankLines(md: string): string {
     part = markTightBlockTransitions(part);
     part = addHardBreaksToConsecutiveLines(part);
     // Admonition blockquote 間の余分な空行を正規化（シリアライザの出力で \n\n\n になる場合がある）
-    part = part.replace(/(<\/blockquote>)\n{3,}/g, "$1\n\n");
-    return part.replace(/\n{3,}/g, (match) => {
+    part = part.replaceAll(/(<\/blockquote>)\n{3,}/g, "$1\n\n");
+    return part.replaceAll(/\n{3,}/g, (match) => {
       const extra = match.length - 2;
       return "\n\n" + `${BLANK_LINE_MARKER}\n\n`.repeat(extra);
     });
@@ -386,15 +386,15 @@ export function preserveBlankLines(md: string): string {
  */
 export function restoreBlankLines(md: string): string {
   // tight transition（強調末尾）: *|_ + space + ZWNJ + \n\n → *|_ + \n
-  md = md.replace(/([*_]) \u200C\n\n/g, "$1\n");
+  md = md.replaceAll(/([*_]) \u200C\n\n/g, "$1\n");
   // tight transition（通常）: ZWNJ + \n\n → \n
-  md = md.replace(/\u200C\n\n/g, "\n");
+  md = md.replaceAll(/\u200C\n\n/g, "\n");
   // tight transition（コードフェンス後）: \n\n + ZWNJ → \n
-  md = md.replace(/\n\n\u200C/g, "\n");
+  md = md.replaceAll(/\n\n\u200C/g, "\n");
   // 残存 ZWNJ を除去
-  md = md.replace(/\u200C/g, "");
+  md = md.replaceAll(/\u200C/g, "");
   // ZWSP マーカー除去で元の空行を復元
-  return md.replace(/\u200B\n/g, "");
+  return md.replaceAll(/\u200B\n/g, "");
 }
 
 /**

@@ -50,7 +50,7 @@ export function MermaidEditDialog({
   fsZP, readOnly,
   isCompareMode, compareCode, onMergeApply, thisCode, onExport, toolbarExtra,
   t,
-}: MermaidEditDialogProps) {
+}: Readonly<MermaidEditDialogProps>) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const settings = useEditorSettingsContext();

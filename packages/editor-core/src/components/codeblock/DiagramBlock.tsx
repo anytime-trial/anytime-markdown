@@ -38,7 +38,7 @@ type DiagramBlockProps = Pick<
 };
 
 /** Copy-code button shared between Mermaid and PlantUML edit dialogs */
-function CopyCodeButton({ handleCopyCode, t }: { handleCopyCode: () => void; t: DiagramBlockProps["t"] }) {
+function CopyCodeButton({ handleCopyCode, t }: Readonly<{ handleCopyCode: () => void; t: DiagramBlockProps["t"] }>) {
   const isDark = useTheme().palette.mode === "dark";
   return (
     <Tooltip title={t("copyCode")} placement="bottom">
@@ -56,7 +56,7 @@ function DiagramPreviewContainer({
   handleResizePointerMove, handleResizePointerUp,
   isSelected, isEditable, resizing, resizeWidth, handleResizePointerDown,
   children,
-}: {
+}: Readonly<{
   containerRef: React.RefObject<HTMLDivElement | null>;
   code: string;
   language: "mermaid" | "plantuml";
@@ -71,7 +71,7 @@ function DiagramPreviewContainer({
   resizeWidth: number | null;
   handleResizePointerDown: (e: React.PointerEvent) => void;
   children: React.ReactNode;
-}) {
+}>) {
   return (
     <Box
       ref={containerRef}
@@ -93,12 +93,12 @@ function DiagramPreviewContainer({
 /** PlantUML consent alert */
 function PlantUmlConsentAlert({
   plantUmlConsent, handlePlantUmlReject, handlePlantUmlAccept, t,
-}: {
+}: Readonly<{
   plantUmlConsent: string;
   handlePlantUmlReject: () => void;
   handlePlantUmlAccept: () => void;
   t: DiagramBlockProps["t"];
-}) {
+}>) {
   return (
     <Alert
       severity="warning"
@@ -119,13 +119,13 @@ function PlantUmlConsentAlert({
   );
 }
 
-function DiagramContent({ isMermaid, isPlantUml, svg, displaySvg, plantUmlUrl, plantUmlConsent, handlePlantUmlReject, handlePlantUmlAccept, code, error, isDark, sharedContainerProps, t }: {
+function DiagramContent({ isMermaid, isPlantUml, svg, displaySvg, plantUmlUrl, plantUmlConsent, handlePlantUmlReject, handlePlantUmlAccept, code, error, isDark, sharedContainerProps, t }: Readonly<{
   isMermaid: boolean; isPlantUml: boolean; svg: string | undefined; displaySvg: string | undefined;
   plantUmlUrl: string | null; plantUmlConsent: string;
   handlePlantUmlReject: () => void; handlePlantUmlAccept: () => void;
   code: string; error: string | null; isDark: boolean;
   sharedContainerProps: Omit<React.ComponentProps<typeof DiagramPreviewContainer>, "language" | "children">; t: (key: string) => string;
-}) {
+}>) {
   return (
     <>
       {isMermaid && svg && displaySvg && (

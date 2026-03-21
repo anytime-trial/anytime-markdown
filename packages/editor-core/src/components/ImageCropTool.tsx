@@ -104,7 +104,7 @@ function applyResizing(startPos: { x: number; y: number }, pos: { x: number; y: 
   return { x, y, width, height };
 }
 
-export function ImageCropTool({ src, onCrop, t }: ImageCropToolProps) {
+export function ImageCropTool({ src, onCrop, t }: Readonly<ImageCropToolProps>) {
   const isDark = useTheme().palette.mode === "dark";
   const [cropping, setCropping] = useState(false);
   const [cropRect, setCropRect] = useState<CropRect | null>(null);
@@ -288,8 +288,8 @@ export function ImageCropTool({ src, onCrop, t }: ImageCropToolProps) {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") handleCancelCrop();
     };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+    globalThis.addEventListener("keydown", handler);
+    return () => globalThis.removeEventListener("keydown", handler);
   }, [cropping, handleCancelCrop]);
 
   return (

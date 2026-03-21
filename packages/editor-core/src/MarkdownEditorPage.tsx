@@ -74,7 +74,7 @@ import { preprocessMarkdown } from "./utils/frontmatterHelpers";
 function insertTemplateIntoEditor(
   editor: Editor | null,
   content: string,
-  frontmatterRef: React.MutableRefObject<string | null>,
+  frontmatterRef: React.RefObject<string | null>,
   setFrontmatterText: (fm: string | null) => void,
 ) {
   if (!editor) return;
@@ -371,8 +371,8 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   useEffect(() => {
     if (!editor || !autoReload) return;
     const handler = (e: KeyboardEvent) => handleChangeGutterKeydown(e, editor);
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+    globalThis.addEventListener("keydown", handler);
+    return () => globalThis.removeEventListener("keydown", handler);
   }, [editor, autoReload]);
 
   // VS Code Undo/Redo: ソースモード時は vscode-set-content で sourceText を更新
@@ -385,8 +385,8 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
       const { body } = preprocessMarkdown(content);
       setSourceText(body);
     };
-    window.addEventListener("vscode-set-content", handler);
-    return () => window.removeEventListener("vscode-set-content", handler);
+    globalThis.addEventListener("vscode-set-content", handler);
+    return () => globalThis.removeEventListener("vscode-set-content", handler);
   }, [sourceMode, setSourceText]);
 
   // VS Code: クリップボード画像の保存完了 → エディタに相対パスで画像挿入
@@ -398,15 +398,15 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
       if (typeof detail !== "string") return;
       editor.chain().focus().setImage({ src: detail, alt: "" }).run();
     };
-    window.addEventListener("vscode-image-saved", handler);
-    return () => window.removeEventListener("vscode-image-saved", handler);
+    globalThis.addEventListener("vscode-image-saved", handler);
+    return () => globalThis.removeEventListener("vscode-image-saved", handler);
   }, [editor]);
 
   // Screen capture slash command event
   useEffect(() => {
     const handler = () => setScreenCaptureOpen(true);
-    window.addEventListener("open-screen-capture", handler);
-    return () => window.removeEventListener("open-screen-capture", handler);
+    globalThis.addEventListener("open-screen-capture", handler);
+    return () => globalThis.removeEventListener("open-screen-capture", handler);
   }, []);
 
   const statusBarHeight = hideStatusBar ? 0 : STATUSBAR_HEIGHT;

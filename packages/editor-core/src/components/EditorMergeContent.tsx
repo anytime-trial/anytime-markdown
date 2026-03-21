@@ -87,7 +87,7 @@ export function EditorMergeContent({
   onDragLeave,
   onDrop,
   t,
-}: EditorMergeContentProps) {
+}: Readonly<EditorMergeContentProps>) {
   const theme = useTheme();
 
   // reviewMode を MergeEditorsContext に反映

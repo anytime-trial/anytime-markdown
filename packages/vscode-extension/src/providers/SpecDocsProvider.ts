@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
-import * as fs from 'fs';
+import * as path from 'node:path';
+import * as fs from 'node:fs';
 
 import { showError } from '../utils/errorHelpers';
 
@@ -378,7 +378,7 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsRootIte
 		await vscode.window.withProgress(
 			{ location: vscode.ProgressLocation.Notification, title: 'Cloning repository...' },
 			async () => {
-				const { execFile } = await import('child_process');
+				const { execFile } = await import('node:child_process');
 				await new Promise<void>((resolve, reject) => {
 					execFile('git', ['clone', url, clonePath], (error) => {
 						if (error) {
@@ -509,7 +509,7 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsRootIte
 			return;
 		}
 
-		const { execFileSync } = await import('child_process');
+		const { execFileSync } = await import('node:child_process');
 
 		// ローカル＋リモートブランチ一覧を取得
 		let branches: string[];

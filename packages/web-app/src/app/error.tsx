@@ -3,7 +3,7 @@
 import { Box, Button, Typography } from '@mui/material';
 import { useTranslations } from 'next-intl';
 
-export default function ErrorPage({ reset }: { error: globalThis.Error; reset: () => void }) {
+export default function ErrorPage({ reset }: Readonly<{ error: globalThis.Error; reset: () => void }>) {
   const t = useTranslations('Common');
 
   return (

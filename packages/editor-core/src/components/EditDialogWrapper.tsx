@@ -12,7 +12,7 @@ interface EditDialogWrapperProps {
 }
 
 /** ブロック要素編集ダイアログの共通ラッパー */
-export function EditDialogWrapper({ open, onClose, ariaLabelledBy, children }: EditDialogWrapperProps) {
+export function EditDialogWrapper({ open, onClose, ariaLabelledBy, children }: Readonly<EditDialogWrapperProps>) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const settings = useEditorSettingsContext();

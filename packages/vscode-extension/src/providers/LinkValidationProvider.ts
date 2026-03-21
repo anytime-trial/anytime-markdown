@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
-import * as fs from 'fs';
+import * as path from 'node:path';
+import * as fs from 'node:fs';
 
 const LINK_RE = /\[([^\]]{0,500})\]\(([^)\s]{1,2000})\)/g;
 const HEADING_ID_RE = /^#{1,6}\s+([^\n]+)$/gm;
@@ -14,8 +14,8 @@ function collectHeadings(text: string): Set<string> {
 		// GitHub 風の anchor ID 生成
 		const id = headingText
 			.toLowerCase()
-			.replace(/[^\w\s\u3000-\u9FFF\uF900-\uFAFF-]/g, '')
-			.replace(/\s+/g, '-');
+			.replaceAll(/[^\w\s\u3000-\u9FFF\uF900-\uFAFF-]/g, '')
+			.replaceAll(/\s+/g, '-');
 		headings.add(id);
 		// 元のテキストもそのまま追加（完全一致用）
 		headings.add(headingText.toLowerCase());
@@ -68,7 +68,7 @@ function validateHeadingLink(
 	fragment: string, headings: Set<string>, document: vscode.TextDocument,
 	linkStart: number, linkEnd: number,
 ): vscode.Diagnostic | null {
-	const normalizedFragment = fragment.toLowerCase().replace(/\s+/g, '-');
+	const normalizedFragment = fragment.toLowerCase().replaceAll(/\s+/g, '-');
 	if (headings.has(normalizedFragment) || headings.has(fragment.toLowerCase())) return null;
 	const range = new vscode.Range(
 		document.positionAt(linkStart),

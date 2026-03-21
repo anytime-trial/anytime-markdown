@@ -69,8 +69,8 @@ export function useSectionNumbers(editor: Editor | null) {
         handleRemoveSectionNumbers();
       }
     };
-    window.addEventListener('vscode-toggle-section-numbers', handler);
-    return () => window.removeEventListener('vscode-toggle-section-numbers', handler);
+    globalThis.addEventListener('vscode-toggle-section-numbers', handler);
+    return () => globalThis.removeEventListener('vscode-toggle-section-numbers', handler);
   }, [handleInsertSectionNumbers, handleRemoveSectionNumbers]);
 
   return { handleInsertSectionNumbers, handleRemoveSectionNumbers };

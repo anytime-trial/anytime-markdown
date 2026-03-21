@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
-import { randomBytes } from 'crypto';
-import * as fs from 'fs';
-import * as path from 'path';
+import { randomBytes } from 'node:crypto';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
   public static readonly viewType = 'anytimeMarkdown';
 
@@ -322,7 +322,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
           ctx.document.positionAt(0),
           ctx.document.positionAt(ctx.document.getText().length)
         );
-        edit.replace(ctx.document.uri, fullRange, newContent as string);
+        edit.replace(ctx.document.uri, fullRange, newContent);
         lastApplyTime = Date.now();
         isApplyingWebviewEdit = true;
         try {
@@ -522,7 +522,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     if (!gitExtension.isActive) { await gitExtension.activate(); }
     const repo = gitExtension.exports.getAPI(1).getRepository(uri);
     if (!repo) { return null; }
-    return path.relative(repo.rootUri.fsPath, uri.fsPath).replace(/\\/g, '/');
+    return path.relative(repo.rootUri.fsPath, uri.fsPath).replaceAll("\\", '/');
   }
 
   private getHtmlForWebview(webview: vscode.Webview): string {

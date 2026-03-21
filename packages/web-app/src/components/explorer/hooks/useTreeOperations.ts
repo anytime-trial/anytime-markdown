@@ -113,8 +113,8 @@ interface UseTreeOperationsArgs {
   setCreatingInDir: (path: string | null) => void;
   setCreatingFolderInDir: (path: string | null) => void;
   setRenamingPath: (path: string | null) => void;
-  childrenCacheRef: React.MutableRefObject<ChildrenCache>;
-  hasMdCacheRef: React.MutableRefObject<HasMdCache>;
+  childrenCacheRef: React.RefObject<ChildrenCache>;
+  hasMdCacheRef: React.RefObject<HasMdCache>;
   bumpCache: () => void;
   handleFileSelect: (filePath: string) => void;
 }
@@ -382,7 +382,7 @@ export function useTreeOperations({
       const isDir = entry?.type === "tree";
 
       const name = targetPath.split("/").pop();
-      if (!window.confirm(isDir ? `Delete folder "${name}" and all its contents?` : `Delete "${name}"?`)) return;
+      if (!globalThis.confirm(isDir ? `Delete folder "${name}" and all its contents?` : `Delete "${name}"?`)) return;
 
       if (isDir) {
         const allOk = await deleteFolderContents(

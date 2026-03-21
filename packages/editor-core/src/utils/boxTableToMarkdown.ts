@@ -63,7 +63,7 @@ export function boxTableToMarkdown(text: string): string {
 /** 罫線のみで構成された行か */
 function isBorderLine(line: string): boolean {
   // │ が含まれていてもセル内容がなければボーダー
-  const stripped = line.replace(/[┌┐└┘├┤┬┴┼─═╔╗╚╝╠╣╦╩╬║│\s]/g, "");
+  const stripped = line.replaceAll(/[┌┐└┘├┤┬┴┼─═╔╗╚╝╠╣╦╩╬║│\s]/g, "");
   return stripped.length === 0 && BOX_CHARS.test(line);
 }
 

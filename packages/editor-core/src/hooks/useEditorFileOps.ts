@@ -142,7 +142,7 @@ interface UseEditorFileOpsParams {
   encoding?: EncodingLabel;
   fileHandle?: FileHandle | null;
   setFileHandle?: (handle: FileHandle | null) => void;
-  frontmatterRef: React.MutableRefObject<string | null>;
+  frontmatterRef: React.RefObject<string | null>;
   onFrontmatterChange?: (value: string | null) => void;
   onExternalSave?: (content: string) => void;
 }

@@ -18,7 +18,7 @@ interface EditDialogHeaderProps {
 }
 
 /** ブロック要素編集ダイアログの共通ヘッダー */
-export function EditDialogHeader({ label, onClose, showCompareView, icon, extra, t }: EditDialogHeaderProps) {
+export function EditDialogHeader({ label, onClose, showCompareView, icon, extra, t }: Readonly<EditDialogHeaderProps>) {
   const isDark = useTheme().palette.mode === "dark";
   return (
     <Box sx={{ display: "flex", alignItems: "center", px: 2, py: 1, borderBottom: 1, borderColor: getDivider(isDark) }}>

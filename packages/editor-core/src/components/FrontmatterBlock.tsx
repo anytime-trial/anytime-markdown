@@ -17,7 +17,7 @@ interface FrontmatterBlockProps {
   t: (key: string) => string;
 }
 
-export function FrontmatterBlock({ frontmatter, onChange, readOnly, defaultCollapsed, t }: FrontmatterBlockProps) {
+export function FrontmatterBlock({ frontmatter, onChange, readOnly, defaultCollapsed, t }: Readonly<FrontmatterBlockProps>) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const settings = useEditorSettingsContext();

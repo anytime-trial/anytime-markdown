@@ -18,7 +18,7 @@ interface LineNumberTextareaProps {
 export function LineNumberTextarea({
   value, onChange, textareaRef, readOnly, spellCheck = false,
   placeholder, fontSize, lineHeight, isDark,
-}: LineNumberTextareaProps) {
+}: Readonly<LineNumberTextareaProps>) {
   const gutterRef = useRef<HTMLDivElement>(null);
   const internalRef = useRef<HTMLTextAreaElement>(null);
   const ref = textareaRef ?? internalRef;

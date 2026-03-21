@@ -87,7 +87,7 @@ function handleCropComplete(
     updateAttributes({ src: croppedDataUrl });
     return;
   }
-  const vscodeApi = window.__vscode;
+  const vscodeApi = globalThis.__vscode;
   if (vscodeApi) {
     vscodeApi.postMessage({ type: "overwriteImage", path: src, dataUrl: croppedDataUrl });
     updateAttributes({ src: src.split("?")[0] + "?t=" + Date.now() });
@@ -99,7 +99,7 @@ function handleCropComplete(
 // --- Extracted sub-component: Image toolbar extra info ---
 function ImageToolbarExtra({
   alt, src, imgError, isCompareLeft, isEditable, collapsed, annotations, onAnnotationOpen, onEdit, onEditUrl, onScreenCapture, isDark, t,
-}: {
+}: Readonly<{
   alt: string; src: string; imgError: boolean;
   isCompareLeft: boolean; isEditable: boolean; collapsed: boolean;
   annotations: ImageAnnotation[]; onAnnotationOpen: () => void;
@@ -108,7 +108,7 @@ function ImageToolbarExtra({
   onScreenCapture?: () => void;
   isDark: boolean;
   t: (key: string) => string;
-}) {
+}>) {
   const iconSx = { fontSize: 16, color: getTextSecondary(isDark) };
   let srcDisplay: string;
   if (src?.startsWith("data:")) srcDisplay = "(base64)";
@@ -176,7 +176,7 @@ function ImageWithResize({
   isSelected, isEditable, resizing, resizeWidth,
   handleResizePointerDown, handleResizePointerMove, handleResizePointerUp, handleResizeKeyDown,
   onDoubleClick, width, isDark, t,
-}: {
+}: Readonly<{
   imgRef: React.RefObject<HTMLImageElement | null>;
   imgContainerRef: React.RefObject<HTMLDivElement | null>;
   src: string; alt: string; title: string; displayWidth: string | undefined;
@@ -189,7 +189,7 @@ function ImageWithResize({
   handleResizeKeyDown: (e: React.KeyboardEvent) => void;
   onDoubleClick: (() => void) | undefined;
   width: string; isDark: boolean; t: (key: string) => string;
-}) {
+}>) {
   return (
     <Box
       ref={imgContainerRef}
@@ -255,11 +255,11 @@ function ImageWithResize({
   );
 }
 
-function ImageEditDialog({ editOpen, setEditOpen, src, imgError, imgSize, onCrop, isDark, t }: {
+function ImageEditDialog({ editOpen, setEditOpen, src, imgError, imgSize, onCrop, isDark, t }: Readonly<{
   editOpen: boolean; setEditOpen: (v: boolean) => void;
   src: string; imgError: boolean; imgSize: { w: number; h: number; nw: number; nh: number } | null;
   onCrop: (croppedDataUrl: string) => void; isDark: boolean; t: (key: string) => string;
-}) {
+}>) {
   return (
     <EditDialogWrapper open={editOpen} onClose={() => setEditOpen(false)} ariaLabelledBy="image-edit-title">
       <EditDialogHeader

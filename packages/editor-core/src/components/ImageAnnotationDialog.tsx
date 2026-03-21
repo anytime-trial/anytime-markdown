@@ -88,7 +88,7 @@ function renderAnnotation(
 
 export function ImageAnnotationDialog({
   open, onClose, src, annotations, onSave, t,
-}: ImageAnnotationDialogProps) {
+}: Readonly<ImageAnnotationDialogProps>) {
   const isDark = useTheme().palette.mode === "dark";
   const [tool, setTool] = useState<AnnotationTool>("rect");
   const [color, setColor] = useState<string>(ANNOTATION_COLORS[0].value);
@@ -121,7 +121,7 @@ export function ImageAnnotationDialog({
     const id = generateAnnotationId();
     const newItem: ImageAnnotation = {
       id,
-      type: tool as "rect" | "circle" | "line",
+      type: tool,
       x1: drawing.x1, y1: drawing.y1,
       x2: pt.x, y2: pt.y,
       color,

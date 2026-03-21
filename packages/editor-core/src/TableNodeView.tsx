@@ -64,7 +64,7 @@ function buildHighlightedCompareHtml(
 }
 
 // --- Extracted sub-component: Table operations toolbar ---
-function TableOperationsToolbar({ editor, isDark, t }: { editor: Editor; isDark: boolean; t: (key: string) => string }) {
+function TableOperationsToolbar({ editor, isDark, t }: Readonly<{ editor: Editor; isDark: boolean; t: (key: string) => string }>) {
   return (
     <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: getDivider(isDark), px: 1, py: 0.25, gap: 0.5, flexWrap: "wrap" }}>
       {/* Column add/remove */}
@@ -169,12 +169,12 @@ function TableOperationsToolbar({ editor, isDark, t }: { editor: Editor; isDark:
 // --- Extracted sub-component: Compare mode side-by-side view ---
 function TableCompareView({
   highlightedCompareHtml, tableSx, isDark, t,
-}: {
+}: Readonly<{
   highlightedCompareHtml: string;
   tableSx: Record<string, unknown>;
   isDark: boolean;
   t: (key: string) => string;
-}) {
+}>) {
   return (
     <Box sx={{ flex: 1, display: "flex", overflow: "hidden" }}>
       <Box sx={{ flex: 1, overflow: "auto", bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG, p: 2, borderRight: 1, borderColor: getDivider(isDark) }}>
@@ -234,10 +234,10 @@ function buildTableBodySx(collapsed: boolean, editOpen: boolean, isDark: boolean
 }
 
 /** 編集ヘッダーツールバー */
-function TableEditHeader({ editor, isDark, isEditable, setEditOpen, t }: {
+function TableEditHeader({ editor, isDark, isEditable, setEditOpen, t }: Readonly<{
   editor: Editor; isDark: boolean; isEditable: boolean;
   setEditOpen: (v: boolean) => void; t: (key: string) => string;
-}) {
+}>) {
   return (
     <Box contentEditable={false}>
       <EditDialogHeader

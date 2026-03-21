@@ -14,11 +14,11 @@ export const LinePreviewPanel = React.memo(function LinePreviewPanel({
   diffResult,
   sourceMode,
   hoverSetterRef,
-}: {
+}: Readonly<{
   diffResult: DiffResult | null;
   sourceMode: boolean;
-  hoverSetterRef: React.MutableRefObject<((v: number | null) => void) | null>;
-}) {
+  hoverSetterRef: React.RefObject<((v: number | null) => void) | null>;
+}>) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const settings = useEditorSettingsContext();

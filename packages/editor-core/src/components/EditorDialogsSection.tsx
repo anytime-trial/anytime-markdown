@@ -57,7 +57,7 @@ export function EditorDialogsSection({
   themeMode, onThemeModeChange, onLocaleChange,
   presetName, onPresetChange,
   t,
-}: EditorDialogsSectionProps) {
+}: Readonly<EditorDialogsSectionProps>) {
   return (
     <>
       <EditorDialogs

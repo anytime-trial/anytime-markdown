@@ -108,5 +108,5 @@ export function restoreBase64(
   displayText: string,
   tokenMap: Map<string, string>,
 ): string {
-  return displayText.replace(TOKEN_RE, (token) => tokenMap.get(token) ?? token);
+  return displayText.replaceAll(TOKEN_RE, (token) => tokenMap.get(token) ?? token);
 }

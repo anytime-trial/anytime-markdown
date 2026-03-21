@@ -145,9 +145,9 @@ async function captureHtmlPreview(el: HTMLElement, w: number, h: number, scale: 
   const svgBlob = new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" });
 
   // showSaveFilePicker で SVG / PNG を選択可能にする
-  if ("showSaveFilePicker" in window) {
+  if ("showSaveFilePicker" in globalThis) {
     try {
-      const handle = await (window as unknown as { showSaveFilePicker: (opts: unknown) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
+      const handle = await (globalThis as unknown as { showSaveFilePicker: (opts: unknown) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
         suggestedName: fileName.replace(/\.png$/, ".svg"),
         types: [
           { description: "SVG Image (styled)", accept: { "image/svg+xml": [".svg"] } },

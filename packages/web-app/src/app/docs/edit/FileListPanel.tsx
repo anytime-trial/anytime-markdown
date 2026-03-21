@@ -89,7 +89,8 @@ export default function FileListPanel({
           {t('docsUpload')}
         </Button>
       </Box>
-      <input ref={fileInputRef} type="file" accept=".md,.png,.jpg,.jpeg,.gif,.svg,.webp" multiple hidden onChange={onUpload} />
+      {/* @ts-expect-error webkitdirectory is not in React's type definitions */}
+      <input ref={fileInputRef} type="file" webkitdirectory="" hidden onChange={onUpload} />
       <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 2, bgcolor: bgColor, maxHeight: 400, overflow: 'auto' }}>
         <List dense disablePadding>
           {[...folderGroups.entries()].map(([folder, folderFiles]) => (

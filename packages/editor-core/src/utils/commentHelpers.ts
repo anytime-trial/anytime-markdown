@@ -69,7 +69,7 @@ export function parseCommentData(md: string): {
     const parsed = parseCommentLine(trimmed);
     if (!parsed) continue;
 
-    const unescaped = parsed.text.replace(/\\n/g, "\n").replace(/\\\\/g, "\\");
+    const unescaped = parsed.text.replaceAll("\\n", "\n").replaceAll("\\\\", "\\");
     comments.set(parsed.id, { id: parsed.id, text: unescaped, resolved: parsed.resolved, createdAt: parsed.createdAt });
   }
 

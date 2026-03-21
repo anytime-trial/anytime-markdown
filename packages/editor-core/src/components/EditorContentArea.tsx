@@ -51,7 +51,7 @@ export function EditorContentArea({
   handleFrontmatterChange,
   noScroll,
   t,
-}: EditorContentAreaProps) {
+}: Readonly<EditorContentAreaProps>) {
   const theme = useTheme();
   const settings = useEditorSettingsContext();
 

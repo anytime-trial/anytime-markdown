@@ -13,7 +13,7 @@ interface UseEditorFileHandlingArgs {
   setSourceText: (text: string) => void;
   saveContent: (md: string) => void;
   fileHandle: { nativeHandle?: unknown } | null;
-  frontmatterRef: React.MutableRefObject<string | null>;
+  frontmatterRef: React.RefObject<string | null>;
   initialFrontmatter: string | null;
 }
 
@@ -48,8 +48,8 @@ export function useEditorFileHandling({
     (ending: "LF" | "CRLF") => {
       const convert = (text: string) =>
         ending === "CRLF"
-          ? text.replace(/\r\n/g, "\n").replace(/\n/g, "\r\n")
-          : text.replace(/\r\n/g, "\n");
+          ? text.replaceAll("\r\n", "\n").replaceAll("\n", "\r\n")
+          : text.replaceAll("\r\n", "\n");
 
       if (sourceMode) {
         handleSourceChange(convert(sourceText));

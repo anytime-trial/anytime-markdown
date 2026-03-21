@@ -23,8 +23,8 @@ export function useVSCodeIntegration(
       const node = domAtPos.node instanceof HTMLElement ? domAtPos.node : domAtPos.node.parentElement;
       node?.scrollIntoView({ behavior: "smooth", block: "center" });
     };
-    window.addEventListener('vscode-scroll-to-heading', handler);
-    return () => window.removeEventListener('vscode-scroll-to-heading', handler);
+    globalThis.addEventListener('vscode-scroll-to-heading', handler);
+    return () => globalThis.removeEventListener('vscode-scroll-to-heading', handler);
   }, [editor]);
 
   // コメントスクロール要求
@@ -39,8 +39,8 @@ export function useVSCodeIntegration(
       const node = domAtPos.node instanceof HTMLElement ? domAtPos.node : domAtPos.node.parentElement;
       node?.scrollIntoView({ behavior: "smooth", block: "center" });
     };
-    window.addEventListener('vscode-scroll-to-comment', handler);
-    return () => window.removeEventListener('vscode-scroll-to-comment', handler);
+    globalThis.addEventListener('vscode-scroll-to-comment', handler);
+    return () => globalThis.removeEventListener('vscode-scroll-to-comment', handler);
   }, [editor]);
 
   // コメント解決/再開/削除
@@ -58,13 +58,13 @@ export function useVSCodeIntegration(
       const id = (e as CustomEvent<string>).detail;
       editor.commands.removeComment(id);
     };
-    window.addEventListener('vscode-resolve-comment', handleResolve);
-    window.addEventListener('vscode-unresolve-comment', handleUnresolve);
-    window.addEventListener('vscode-delete-comment', handleDelete);
+    globalThis.addEventListener('vscode-resolve-comment', handleResolve);
+    globalThis.addEventListener('vscode-unresolve-comment', handleUnresolve);
+    globalThis.addEventListener('vscode-delete-comment', handleDelete);
     return () => {
-      window.removeEventListener('vscode-resolve-comment', handleResolve);
-      window.removeEventListener('vscode-unresolve-comment', handleUnresolve);
-      window.removeEventListener('vscode-delete-comment', handleDelete);
+      globalThis.removeEventListener('vscode-resolve-comment', handleResolve);
+      globalThis.removeEventListener('vscode-unresolve-comment', handleUnresolve);
+      globalThis.removeEventListener('vscode-delete-comment', handleDelete);
     };
   }, [editor]);
 

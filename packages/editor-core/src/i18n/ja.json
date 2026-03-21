@@ -562,6 +562,7 @@
     "docsDelete": "削除",
     "docsDeleteConfirm": "このドキュメントを削除しますか？",
     "docsDeleteFolderConfirm": "このフォルダとその中のファイル({count}件)をすべて削除しますか？",
+    "docsUploadFolderOverwrite": "フォルダ「{folder}」はすでに存在します（{count}件のファイル）。既存のファイルを削除して上書きしますか？",
     "docsUploadSuccess": "アップロードしました",
     "docsDeleteSuccess": "削除しました",
     "docsUploadError": "アップロードに失敗しました",

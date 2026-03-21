@@ -33,7 +33,7 @@ interface BlockInlineToolbarProps {
 
 export function BlockInlineToolbar({
   label, onEdit, onDelete, onExport, collapsed, extra, labelDivider, labelOnly, t,
-}: BlockInlineToolbarProps) {
+}: Readonly<BlockInlineToolbarProps>) {
   const isDark = useTheme().palette.mode === "dark";
   const iconSx = { fontSize: 16, color: getTextSecondary(isDark) };
   if (labelOnly) {

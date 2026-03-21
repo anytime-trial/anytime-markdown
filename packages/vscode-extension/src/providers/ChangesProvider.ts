@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
-import * as fs from 'fs';
-import { execFileSync } from 'child_process';
+import * as path from 'node:path';
+import * as fs from 'node:fs';
+import { execFileSync } from 'node:child_process';
 
 const REFRESH_DEBOUNCE_MS = 500;
 

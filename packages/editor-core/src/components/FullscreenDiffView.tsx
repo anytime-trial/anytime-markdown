@@ -110,7 +110,7 @@ export function FullscreenDiffView({
   initialRightCode,
   onMergeApply,
   t,
-}: FullscreenDiffViewProps) {
+}: Readonly<FullscreenDiffViewProps>) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const settings = useEditorSettingsContext();
@@ -258,7 +258,7 @@ function DiffPanel({
   lineHeight,
   theme,
   t,
-}: DiffPanelProps) {
+}: Readonly<DiffPanelProps>) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const gutterRef = useRef<HTMLDivElement>(null);
   const mergeGutterRef = useRef<HTMLDivElement>(null);

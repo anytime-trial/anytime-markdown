@@ -42,7 +42,7 @@ function renderAnnotation(a: ImageAnnotation, index: number) {
 }
 
 /** 画像上に SVG でアノテーションを描画する読み取り専用オーバーレイ */
-export function AnnotationOverlay({ annotations, style }: AnnotationOverlayProps) {
+export function AnnotationOverlay({ annotations, style }: Readonly<AnnotationOverlayProps>) {
   if (annotations.length === 0) return null;
   return (
     <svg

@@ -33,7 +33,7 @@ interface TreeViewSectionProps {
   dragOverPath: string | null;
   onMoveEntry: (sourcePath: string, targetDir: string) => void;
   onDragOverPath: (path: string | null) => void;
-  dragSourceRef: React.MutableRefObject<string | null>;
+  dragSourceRef: React.RefObject<string | null>;
 }
 
 export const TreeViewSection: FC<TreeViewSectionProps> = ({

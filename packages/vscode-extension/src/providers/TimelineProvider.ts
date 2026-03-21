@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
-import { execFileSync } from 'child_process';
+import * as path from 'node:path';
+import { execFileSync } from 'node:child_process';
 
 interface GitExtension {
 	getAPI(version: 1): GitAPI;
@@ -102,7 +102,7 @@ export class TimelineProvider implements vscode.TreeDataProvider<TimelineItem> {
 			return [];
 		}
 
-		const relativePath = path.relative(repo.rootUri.fsPath, this.fileUri.fsPath).replace(/\\/g, '/');
+		const relativePath = path.relative(repo.rootUri.fsPath, this.fileUri.fsPath).replaceAll("\\", '/');
 		try {
 			const commits = await repo.log({ path: relativePath });
 			this.items = commits.map(c => new TimelineItem(c, this.fileUri!));
@@ -114,7 +114,7 @@ export class TimelineProvider implements vscode.TreeDataProvider<TimelineItem> {
 
 	private getChildrenFromGitCommand(): TimelineItem[] {
 		if (!this.gitRoot || !this.fileUri) { return []; }
-		const relativePath = path.relative(this.gitRoot, this.fileUri.fsPath).replace(/\\/g, '/');
+		const relativePath = path.relative(this.gitRoot, this.fileUri.fsPath).replaceAll("\\", '/');
 		try {
 			const output = execFileSync(
 				'git', ['log', '--format=%H%n%s%n%an%n%aI', '-50', '--', relativePath],
@@ -129,7 +129,7 @@ export class TimelineProvider implements vscode.TreeDataProvider<TimelineItem> {
 				const authorDate = new Date(lines[i + 3]);
 				commits.push(new TimelineItem(
 					{ hash, message, authorName, authorDate },
-					this.fileUri!,
+					this.fileUri,
 				));
 			}
 			this.items = commits;
@@ -142,7 +142,7 @@ export class TimelineProvider implements vscode.TreeDataProvider<TimelineItem> {
 	async getCommitContent(item: TimelineItem): Promise<string | null> {
 		// git コマンドベース
 		if (this.gitRoot) {
-			const relativePath = path.relative(this.gitRoot, item.fileUri.fsPath).replace(/\\/g, '/');
+			const relativePath = path.relative(this.gitRoot, item.fileUri.fsPath).replaceAll("\\", '/');
 			try {
 				return execFileSync('git', ['show', `${item.commit.hash}:${relativePath}`], { cwd: this.gitRoot, encoding: 'utf-8' });
 			} catch {
@@ -152,7 +152,7 @@ export class TimelineProvider implements vscode.TreeDataProvider<TimelineItem> {
 		// vscode.git API
 		const repo = await this.getRepository(item.fileUri);
 		if (!repo) { return null; }
-		const relativePath = path.relative(repo.rootUri.fsPath, item.fileUri.fsPath).replace(/\\/g, '/');
+		const relativePath = path.relative(repo.rootUri.fsPath, item.fileUri.fsPath).replaceAll("\\", '/');
 		try {
 			return await repo.show(item.commit.hash, relativePath);
 		} catch {

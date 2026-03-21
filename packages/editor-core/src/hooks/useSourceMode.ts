@@ -12,7 +12,7 @@ interface UseSourceModeParams {
   editor: Editor | null;
   saveContent: (md: string, withFrontmatter?: boolean) => void;
   t: (key: string) => string;
-  frontmatterRef: React.MutableRefObject<string | null>;
+  frontmatterRef: React.RefObject<string | null>;
   defaultSourceMode?: boolean;
 }
 

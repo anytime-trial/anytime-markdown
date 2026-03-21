@@ -45,7 +45,7 @@ export function readFileAsText(file: File): Promise<ReadFileResult> {
         text = new TextDecoder("utf-8").decode(buffer.slice(bomLength));
       }
       const lineEnding = detectLineEnding(text);
-      const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+      const normalized = text.replaceAll("\r\n", "\n").replaceAll("\r", "\n");
       resolve({ text: normalized, encoding, lineEnding });
     };
     reader.onerror = () => reject(reader.error ?? new Error("Failed to read file"));
