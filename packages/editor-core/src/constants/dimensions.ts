@@ -129,3 +129,20 @@ export function calcPaperContentWidth(paperSize: Exclude<PaperSize, "off">, marg
   const contentMm = PAPER_WIDTHS_MM[paperSize] - marginMm * 2;
   return Math.round(contentMm * (96 / 25.4));
 }
+
+// ── スペーシングトークン（4px 倍数体系） ──
+export const SPACING_3XS = 4;
+export const SPACING_XXS = 8;
+export const SPACING_XS = 12;
+export const SPACING_SM = 16;
+export const SPACING_MD = 24;
+export const SPACING_LG = 32;
+export const SPACING_XL = 40;
+export const SPACING_XXL = 48;
+
+// ── 角丸トークン ──
+export const RADIUS_NONE = 0;
+export const RADIUS_SM = 4;    // バッジ、タグ、ツールチップ
+export const RADIUS_MD = 8;    // ボタン、入力フィールド、ドロップダウン
+export const RADIUS_LG = 12;   // カード、モーダル、トースト
+export const RADIUS_FULL = "50%"; // アバター、アイコンボタン
