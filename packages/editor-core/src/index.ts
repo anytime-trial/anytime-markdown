@@ -129,6 +129,10 @@ STORAGE_KEY_READONLY_MODE,
 STORAGE_KEY_REVIEW_MODE,   STORAGE_KEY_SETTINGS,   STORAGE_KEY_SOURCE_MODE, } from './constants/storageKeys';
 export type { MarkdownTemplate } from './constants/templates';
 export { BUILTIN_TEMPLATES } from './constants/templates';
+export type { ThemePreset, ThemePresetName } from './constants/themePresets';
+export {
+  DEFAULT_PRESET_NAME, getPreset, isPresetName, PRESET_NAMES, THEME_PRESETS,
+} from './constants/themePresets';
 export { DEBOUNCE_MEDIUM,DEBOUNCE_SHORT, MERMAID_RENDER_TIMEOUT, NOTIFICATION_DURATION, PRINT_DELAY } from './constants/timing';
 export { Z_FULLSCREEN, Z_LINK_TOOLTIP, Z_SKIP_LINK,Z_TOOLBAR } from './constants/zIndex';
 
