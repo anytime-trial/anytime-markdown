@@ -27,6 +27,93 @@ function adjustGapCursorPosition(dom: HTMLElement) {
   });
 }
 
+import type { EditorView } from "@tiptap/pm/view";
+import type { EditorState } from "@tiptap/pm/state";
+
+/** GapCursor 状態での ArrowDown 処理 */
+function handleGapArrowDown(view: EditorView, state: EditorState, pos: number): boolean {
+  const nodeAfter = state.doc.nodeAt(pos);
+  if (nodeAfter) {
+    const afterBlock = pos + nodeAfter.nodeSize;
+    if (afterBlock <= state.doc.content.size) {
+      const tr = state.tr.setSelection(TextSelection.near(state.doc.resolve(afterBlock), 1));
+      view.dispatch(tr);
+    }
+  }
+  return true;
+}
+
+/** GapCursor 状態での ArrowRight 処理 */
+function handleGapArrowRight(view: EditorView, state: EditorState, pos: number): boolean {
+  const nodeAfter = state.doc.nodeAt(pos);
+  if (!nodeAfter) return true;
+  const lang = nodeAfter.attrs.language as string | undefined;
+  const canEnter = !nodeAfter.isAtom && !(nodeAfter.type.name === "codeBlock" && lang && PREVIEW_LANGUAGES.has(lang));
+  if (canEnter) {
+    const tr = state.tr.setSelection(TextSelection.near(state.doc.resolve(pos + 1), 1));
+    view.dispatch(tr);
+  } else {
+    const afterBlock = pos + nodeAfter.nodeSize;
+    if (afterBlock <= state.doc.content.size) {
+      const tr = state.tr.setSelection(TextSelection.near(state.doc.resolve(afterBlock), 1));
+      view.dispatch(tr);
+    }
+  }
+  return true;
+}
+
+/** GapCursor 状態での Enter 処理 */
+function handleGapEnter(view: EditorView, state: EditorState, pos: number): boolean {
+  const paragraphType = state.schema.nodes.paragraph;
+  if (paragraphType) {
+    const { tr } = state;
+    tr.insert(pos, paragraphType.create());
+    tr.setSelection(TextSelection.create(tr.doc, pos + 1));
+    view.dispatch(tr);
+  }
+  return true;
+}
+
+/** 通常カーソルからブロック下方向への GapCursor 設定 */
+function handleNormalArrowDown(view: EditorView, state: EditorState): boolean {
+  const { $from, empty } = state.selection;
+  if (!empty || $from.depth < 1) return false;
+  if ($from.parent.type.name === "codeBlock") return false;
+  if (!view.endOfTextblock("down")) return false;
+  const pos = $from.after($from.depth);
+  if (pos >= state.doc.content.size) return false;
+  const nodeAfter = state.doc.nodeAt(pos);
+  if (!nodeAfter || !BLOCK_NODE_TYPES.has(nodeAfter.type.name)) return false;
+
+  const tr = state.tr.setSelection(new GapCursor(state.doc.resolve(pos)));
+  view.dispatch(tr.scrollIntoView());
+  adjustGapCursorPosition(view.dom);
+  return true;
+}
+
+/** 通常カーソルからブロック上方向への GapCursor 設定 */
+function handleNormalArrowUpLeft(view: EditorView, state: EditorState, key: string): boolean {
+  const { $from, empty } = state.selection;
+  if (!empty || $from.depth < 1) return false;
+  if ($from.parent.type.name === "codeBlock") return false;
+  if (key === "ArrowLeft" && $from.parentOffset > 0) return false;
+
+  const currentIndex = $from.index(0);
+  if (currentIndex <= 0) return false;
+  const prevNode = state.doc.child(currentIndex - 1);
+  if (!BLOCK_NODE_TYPES.has(prevNode.type.name)) return false;
+
+  let prevStart = 0;
+  for (let i = 0; i < currentIndex - 1; i++) {
+    prevStart += state.doc.child(i).nodeSize;
+  }
+
+  const tr = state.tr.setSelection(new GapCursor(state.doc.resolve(prevStart)));
+  view.dispatch(tr.scrollIntoView());
+  adjustGapCursorPosition(view.dom);
+  return true;
+}
+
 const BLOCK_GAP_KEY = new PluginKey("blockGapCursor");
 
 export const BlockGapCursorExtension = Extension.create({
@@ -48,106 +135,32 @@ export const BlockGapCursorExtension = Extension.create({
               // --- GapCursor 状態でのキー操作 ---
               if (isGap) {
                 const pos = selection.from;
-
-                if (event.key === "ArrowDown") {
+                const key = event.key;
+                if (key === "ArrowDown" || key === "ArrowUp" || key === "ArrowRight" || key === "Enter") {
                   event.preventDefault();
-                  const nodeAfter = state.doc.nodeAt(pos);
-                  if (nodeAfter) {
-                    const afterBlock = pos + nodeAfter.nodeSize;
-                    if (afterBlock <= state.doc.content.size) {
-                      const tr = state.tr.setSelection(TextSelection.near(state.doc.resolve(afterBlock), 1));
-                      view.dispatch(tr);
-                    }
-                  }
-                  return true;
                 }
-
-                if (event.key === "ArrowUp") {
-                  event.preventDefault();
+                if (key === "ArrowDown") return handleGapArrowDown(view, state, pos);
+                if (key === "ArrowUp") {
                   if (pos > 0) {
                     const tr = state.tr.setSelection(TextSelection.near(state.doc.resolve(pos), -1));
                     view.dispatch(tr);
                   }
                   return true;
                 }
-
-                if (event.key === "ArrowRight") {
-                  event.preventDefault();
-                  const nodeAfter = state.doc.nodeAt(pos);
-                  if (nodeAfter) {
-                    const lang = nodeAfter.attrs.language as string | undefined;
-                    const canEnter = !nodeAfter.isAtom && !(nodeAfter.type.name === "codeBlock" && lang && PREVIEW_LANGUAGES.has(lang));
-                    if (canEnter) {
-                      // コード編集可能なブロック（通常コードブロック、テーブル）は内部に入る
-                      const tr = state.tr.setSelection(TextSelection.near(state.doc.resolve(pos + 1), 1));
-                      view.dispatch(tr);
-                    } else {
-                      // atom ノードやプレビュー系ブロックはスキップ
-                      const afterBlock = pos + nodeAfter.nodeSize;
-                      if (afterBlock <= state.doc.content.size) {
-                        const tr = state.tr.setSelection(TextSelection.near(state.doc.resolve(afterBlock), 1));
-                        view.dispatch(tr);
-                      }
-                    }
-                  }
-                  return true;
-                }
-
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  const paragraphType = state.schema.nodes.paragraph;
-                  if (paragraphType) {
-                    const { tr } = state;
-                    tr.insert(pos, paragraphType.create());
-                    tr.setSelection(TextSelection.create(tr.doc, pos + 1));
-                    view.dispatch(tr);
-                  }
-                  return true;
-                }
-
+                if (key === "ArrowRight") return handleGapArrowRight(view, state, pos);
+                if (key === "Enter") return handleGapEnter(view, state, pos);
                 return false;
               }
 
               // --- 通常カーソルからブロック横に GapCursor を設定 ---
-              if (event.key !== "ArrowDown" && event.key !== "ArrowUp" && event.key !== "ArrowLeft") return false;
-
-              const { $from, empty } = selection;
-              if (!empty || $from.depth < 1) return false;
-              if ($from.parent.type.name === "codeBlock") return false;
-
               if (event.key === "ArrowDown") {
-                if (!view.endOfTextblock("down")) return false;
-                const pos = $from.after($from.depth);
-                if (pos >= state.doc.content.size) return false;
-                const nodeAfter = state.doc.nodeAt(pos);
-                if (!nodeAfter || !BLOCK_NODE_TYPES.has(nodeAfter.type.name)) return false;
-
+                if (!handleNormalArrowDown(view, state)) return false;
                 event.preventDefault();
-                const tr = state.tr.setSelection(new GapCursor(state.doc.resolve(pos)));
-                view.dispatch(tr.scrollIntoView());
-                adjustGapCursorPosition(view.dom);
                 return true;
               }
-
               if (event.key === "ArrowUp" || event.key === "ArrowLeft") {
-                // ArrowLeft はカーソルが段落の先頭にあるときのみ
-                if (event.key === "ArrowLeft" && $from.parentOffset > 0) return false;
-
-                const currentIndex = $from.index(0);
-                if (currentIndex <= 0) return false;
-                const prevNode = state.doc.child(currentIndex - 1);
-                if (!BLOCK_NODE_TYPES.has(prevNode.type.name)) return false;
-
-                // ブロックの開始位置 = 前のブロックノードまでのサイズ合計
-                let prevStart = 0;
-                for (let i = 0; i < currentIndex - 1; i++) {
-                  prevStart += state.doc.child(i).nodeSize;
-                }
-
+                if (!handleNormalArrowUpLeft(view, state, event.key)) return false;
                 event.preventDefault();
-                const tr = state.tr.setSelection(new GapCursor(state.doc.resolve(prevStart)));
-                view.dispatch(tr.scrollIntoView());
-                adjustGapCursorPosition(view.dom);
                 return true;
               }
 

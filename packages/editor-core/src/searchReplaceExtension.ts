@@ -22,31 +22,44 @@ const searchReplacePluginKey = new PluginKey("searchReplace");
  * - nested quantifiers: (a+)+, (a*)+, (a+)*, (a{2,})+
  * - quantified groups with alternation: (a|b)+ where branches may overlap
  * - star/plus after optional groups: (a?)+ , (a?b*)+ */
+/** Track per-group state for ReDoS detection */
+interface GroupState {
+  hasQuantifier: boolean;
+  hasAlternation: boolean;
+  hasOptional: boolean;
+}
+
+const QUANTIFIER_CHARS = new Set(["+", "*", "{"]);
+
+function initGroupState(): GroupState {
+  return { hasQuantifier: false, hasAlternation: false, hasOptional: false };
+}
+
+function isRiskyGroup(g: GroupState): boolean {
+  return g.hasQuantifier || g.hasAlternation || g.hasOptional;
+}
+
+function updateGroupState(g: GroupState, c: string): void {
+  if (c === "+" || c === "*" || c === "}") g.hasQuantifier = true;
+  else if (c === "|") g.hasAlternation = true;
+  else if (c === "?") g.hasOptional = true;
+}
+
 export function isRedosRisk(pattern: string): boolean {
-  const QUANTIFIERS = new Set(["+", "*", "{"]);
   let depth = 0;
-  let groupHasQuantifier = false;
-  let groupHasAlternation = false;
-  let groupHasOptional = false;
+  let group = initGroupState();
   for (let i = 0; i < pattern.length; i++) {
     const c = pattern[i];
-    if (c === "\\" ) { i++; continue; } // skip escaped char
+    if (c === "\\") { i++; continue; }
     if (c === "(") {
       depth++;
-      groupHasQuantifier = false;
-      groupHasAlternation = false;
-      groupHasOptional = false;
+      group = initGroupState();
     } else if (c === ")") {
       depth--;
       const next = pattern[i + 1];
-      if (next && QUANTIFIERS.has(next)) {
-        if (groupHasQuantifier || groupHasAlternation || groupHasOptional) return true;
-      }
+      if (next && QUANTIFIER_CHARS.has(next) && isRiskyGroup(group)) return true;
     } else if (depth > 0) {
-      if (c === "+" || c === "*") groupHasQuantifier = true;
-      else if (c === "}") groupHasQuantifier = true;
-      else if (c === "|") groupHasAlternation = true;
-      else if (c === "?") groupHasOptional = true;
+      updateGroupState(group, c);
     }
   }
   return false;

@@ -87,6 +87,17 @@ export class OutlineProvider implements vscode.TreeDataProvider<OutlineItem> {
 		return element.children;
 	}
 
+	private collapsibleState(): vscode.TreeItemCollapsibleState {
+		return this._allCollapsed
+			? vscode.TreeItemCollapsibleState.Collapsed
+			: vscode.TreeItemCollapsibleState.Expanded;
+	}
+
+	private addChild(parent: OutlineItem, child: OutlineItem): void {
+		parent.children.push(child);
+		parent.collapsibleState = this.collapsibleState();
+	}
+
 	private buildTree(headings: HeadingData[]): OutlineItem[] {
 		const filtered = this._showBlockElements
 			? headings
@@ -97,34 +108,20 @@ export class OutlineProvider implements vscode.TreeDataProvider<OutlineItem> {
 		const stack: OutlineItem[] = [];
 
 		for (const item of items) {
-			// 非見出し項目（level 6: mermaid, table 等）は直前の見出しの子にする
 			if (item.heading.kind !== 'heading') {
-				if (stack.length > 0) {
-					const parent = stack[stack.length - 1];
-					parent.children.push(item);
-					parent.collapsibleState = this._allCollapsed
-					? vscode.TreeItemCollapsibleState.Collapsed
-					: vscode.TreeItemCollapsibleState.Expanded;
-				} else {
-					roots.push(item);
-				}
+				const parent = stack[stack.length - 1];
+				if (parent) this.addChild(parent, item);
+				else roots.push(item);
 				continue;
 			}
 
-			// スタックから現在レベル以上の項目を除去
 			while (stack.length > 0 && stack[stack.length - 1].heading.level >= item.heading.level) {
 				stack.pop();
 			}
 
-			if (stack.length > 0) {
-				const parent = stack[stack.length - 1];
-				parent.children.push(item);
-				parent.collapsibleState = this._allCollapsed
-					? vscode.TreeItemCollapsibleState.Collapsed
-					: vscode.TreeItemCollapsibleState.Expanded;
-			} else {
-				roots.push(item);
-			}
+			const parent = stack[stack.length - 1];
+			if (parent) this.addChild(parent, item);
+			else roots.push(item);
 
 			stack.push(item);
 		}

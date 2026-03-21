@@ -21,26 +21,48 @@ function getTopLevelBlocks(doc: PMNode): BlockInfo[] {
   return blocks;
 }
 
+/** テーブルノードから行×列のテキスト配列を取得 */
+function getTableRows(table: PMNode): string[][] {
+  const rows: string[][] = [];
+  table.forEach((row) => {
+    const cells: string[] = [];
+    row.forEach((cell) => {
+      cells.push(cell.textContent);
+    });
+    rows.push(cells);
+  });
+  return rows;
+}
+
+/** 片側のみに存在する行の全セルを変更セットに追加 */
+function markAllCells(row: string[], flatIdx: number, changed: Set<number>): void {
+  for (let c = 0; c < row.length; c++) changed.add(flatIdx + c);
+}
+
+/** 両側に存在する行を列単位で比較 */
+function compareRowCells(
+  lRow: string[], rRow: string[],
+  leftFlatIdx: number, rightFlatIdx: number,
+  leftChanged: Set<number>, rightChanged: Set<number>,
+): void {
+  const maxCol = Math.max(lRow.length, rRow.length);
+  for (let c = 0; c < maxCol; c++) {
+    if (c >= lRow.length) rightChanged.add(rightFlatIdx + c);
+    else if (c >= rRow.length) leftChanged.add(leftFlatIdx + c);
+    else if (lRow[c] !== rRow[c]) {
+      leftChanged.add(leftFlatIdx + c);
+      rightChanged.add(rightFlatIdx + c);
+    }
+  }
+}
+
 /** セル単位でテーブルを比較する */
 function compareTableCells(
   leftTable: PMNode,
   rightTable: PMNode,
 ): { leftCells: Set<number>; rightCells: Set<number> } {
-  // 行×列構造で取得（行数・列数が異なる場合に対応）
-  const getRows = (table: PMNode): string[][] => {
-    const rows: string[][] = [];
-    table.forEach((row) => {
-      const cells: string[] = [];
-      row.forEach((cell) => {
-        cells.push(cell.textContent);
-      });
-      rows.push(cells);
-    });
-    return rows;
-  };
-
-  const leftRows = getRows(leftTable);
-  const rightRows = getRows(rightTable);
+  const leftRows = getTableRows(leftTable);
+  const rightRows = getTableRows(rightTable);
   const leftChanged = new Set<number>();
   const rightChanged = new Set<number>();
 
@@ -53,32 +75,16 @@ function compareTableCells(
     const rRow = rightRows[r];
 
     if (!lRow) {
-      // 右側のみに存在する行 → 全セルを変更マーク
-      if (rRow) {
-        for (let c = 0; c < rRow.length; c++) rightChanged.add(rightFlatIdx + c);
-        rightFlatIdx += rRow.length;
-      }
+      if (rRow) { markAllCells(rRow, rightFlatIdx, rightChanged); rightFlatIdx += rRow.length; }
       continue;
     }
     if (!rRow) {
-      // 左側のみに存在する行 → 全セルを変更マーク
-      for (let c = 0; c < lRow.length; c++) leftChanged.add(leftFlatIdx + c);
+      markAllCells(lRow, leftFlatIdx, leftChanged);
       leftFlatIdx += lRow.length;
       continue;
     }
 
-    // 両方に行が存在 → 列単位で比較
-    const maxColLen = Math.max(lRow.length, rRow.length);
-    for (let c = 0; c < maxColLen; c++) {
-      if (c >= lRow.length) {
-        rightChanged.add(rightFlatIdx + c);
-      } else if (c >= rRow.length) {
-        leftChanged.add(leftFlatIdx + c);
-      } else if (lRow[c] !== rRow[c]) {
-        leftChanged.add(leftFlatIdx + c);
-        rightChanged.add(rightFlatIdx + c);
-      }
-    }
+    compareRowCells(lRow, rRow, leftFlatIdx, rightFlatIdx, leftChanged, rightChanged);
     leftFlatIdx += lRow.length;
     rightFlatIdx += rRow.length;
   }

@@ -256,6 +256,51 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem>
 		return count;
 	}
 
+	/** 未追跡ディレクトリ内のファイルを個別に展開する */
+	private expandUntrackedDir(gitRoot: string, dirPath: string): ParsedChange[] {
+		try {
+			const files = execFileSync(
+				'git', ['ls-files', '--others', '--exclude-standard', '--', dirPath],
+				{ cwd: gitRoot, encoding: 'utf-8' },
+			);
+			return files.split('\n')
+				.map(f => f.trim())
+				.filter(f => f.length > 0)
+				.map(f => ({
+					filePath: f,
+					absPath: path.join(gitRoot, f),
+					status: parseStatusCode('?', 'changes'),
+					group: 'changes' as const,
+				}));
+		} catch { return []; }
+	}
+
+	/** git status の1行をパースして staged/unstaged に振り分ける */
+	private parseStatusLine(line: string, gitRoot: string): { staged?: ParsedChange; unstaged?: ParsedChange } {
+		const x = line[0]; // index status
+		const y = line[1]; // working tree status
+		const filePath = line.substring(3).trim();
+		const result: { staged?: ParsedChange; unstaged?: ParsedChange } = {};
+
+		if (x !== ' ' && x !== '?') {
+			result.staged = {
+				filePath,
+				absPath: path.join(gitRoot, filePath),
+				status: parseStatusCode(x, 'staged'),
+				group: 'staged',
+			};
+		}
+		if (y !== ' ' || x === '?') {
+			result.unstaged = {
+				filePath,
+				absPath: path.join(gitRoot, filePath),
+				status: x === '?' ? parseStatusCode('?', 'changes') : parseStatusCode(y, 'changes'),
+				group: 'changes',
+			};
+		}
+		return result;
+	}
+
 	private getChanges(gitRoot: string): { staged: ParsedChange[]; unstaged: ParsedChange[] } {
 		let output: string;
 		try {
@@ -269,46 +314,17 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem>
 
 		for (const line of output.split('\n')) {
 			if (!line || line.length < 4) continue;
-			const x = line[0]; // index status
-			const y = line[1]; // working tree status
 			const filePath = line.substring(3).trim();
+
 			// 未追跡ディレクトリ（?? dir/）は中のファイルを個別に展開
-			if (filePath.endsWith('/') && x === '?') {
-				try {
-					const files = execFileSync(
-						'git', ['ls-files', '--others', '--exclude-standard', '--', filePath],
-						{ cwd: gitRoot, encoding: 'utf-8' },
-					);
-					for (const f of files.split('\n')) {
-						const trimmed = f.trim();
-						if (!trimmed) continue;
-						unstaged.push({
-							filePath: trimmed,
-							absPath: path.join(gitRoot, trimmed),
-							status: parseStatusCode('?', 'changes'),
-							group: 'changes',
-						});
-					}
-				} catch { /* ignore */ }
+			if (filePath.endsWith('/') && line[0] === '?') {
+				unstaged.push(...this.expandUntrackedDir(gitRoot, filePath));
 				continue;
 			}
 
-			if (x !== ' ' && x !== '?') {
-				staged.push({
-					filePath,
-					absPath: path.join(gitRoot, filePath),
-					status: parseStatusCode(x, 'staged'),
-					group: 'staged',
-				});
-			}
-			if (y !== ' ' || x === '?') {
-				unstaged.push({
-					filePath,
-					absPath: path.join(gitRoot, filePath),
-					status: x === '?' ? parseStatusCode('?', 'changes') : parseStatusCode(y, 'changes'),
-					group: 'changes',
-				});
-			}
+			const parsed = this.parseStatusLine(line, gitRoot);
+			if (parsed.staged) staged.push(parsed.staged);
+			if (parsed.unstaged) unstaged.push(parsed.unstaged);
 		}
 
 		return { staged, unstaged };

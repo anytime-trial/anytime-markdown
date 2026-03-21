@@ -96,47 +96,54 @@ function extractImageAnnotations(md: string): {
  * Markdown 本文から `<!-- gif-settings: {...} -->` コメントを抽出し、
  * 直前の GIF 画像の src と紐付ける。
  */
+const GIF_COMMENT_START = "<!-- gif-settings:";
+const GIF_COMMENT_END = "-->";
+
+/** 直前行から画像 src を抽出。見つからなければ null。 */
+function extractImageSrc(prevLine: string): string | null {
+  const imgStart = prevLine.indexOf("![");
+  if (imgStart < 0) return null;
+  const bracketEnd = prevLine.indexOf("](", imgStart + 2);
+  if (bracketEnd < 0) return null;
+  const parenEnd = prevLine.indexOf(")", bracketEnd + 2);
+  if (parenEnd < 0) return null;
+  return prevLine.slice(bracketEnd + 2, parenEnd);
+}
+
+/** gif-settings コメントから有効な JSON を抽出。無効なら null。 */
+function extractValidJson(trimmed: string): string | null {
+  const jsonStart = trimmed.indexOf("{");
+  const jsonEnd = trimmed.lastIndexOf("}");
+  if (jsonStart < 0 || jsonEnd <= jsonStart) return null;
+  const json = trimmed.slice(jsonStart, jsonEnd + 1);
+  try {
+    JSON.parse(json);
+    return json;
+  } catch {
+    return null;
+  }
+}
+
 export function extractGifSettings(md: string): {
   gifSettings: Map<string, string>;
   body: string;
 } {
   const result = new Map<string, string>();
-  // indexOf ベースの線形時間パーサー（ReDoS 防止）
-  const GIF_COMMENT_START = "<!-- gif-settings:";
-  const GIF_COMMENT_END = "-->";
   const lines = md.split("\n");
   const outputLines: string[] = [];
   let i = 0;
   while (i < lines.length) {
-    const line = lines[i];
-    const trimmed = line.trim();
-    // gif-settings コメント行を検出
+    const trimmed = lines[i].trim();
     if (trimmed.startsWith(GIF_COMMENT_START) && trimmed.endsWith(GIF_COMMENT_END) && i > 0) {
-      // 直前の行が ![alt](src) 形式か確認
-      const prevLine = lines[i - 1];
-      const imgStart = prevLine.indexOf("![");
-      const bracketEnd = imgStart >= 0 ? prevLine.indexOf("](", imgStart + 2) : -1;
-      const parenEnd = bracketEnd >= 0 ? prevLine.indexOf(")", bracketEnd + 2) : -1;
-      if (imgStart >= 0 && bracketEnd >= 0 && parenEnd >= 0) {
-        const src = prevLine.slice(bracketEnd + 2, parenEnd);
-        // JSON 部分を抽出
-        const jsonStart = trimmed.indexOf("{");
-        const jsonEnd = trimmed.lastIndexOf("}");
-        if (jsonStart >= 0 && jsonEnd > jsonStart) {
-          const json = trimmed.slice(jsonStart, jsonEnd + 1);
-          try {
-            JSON.parse(json);
-            result.set(src, json);
-            // コメント行をスキップ（直前の画像行は既に出力済み）
-            i++;
-            continue;
-          } catch {
-            // パース失敗時はコメント行を残す
-          }
-        }
+      const src = extractImageSrc(lines[i - 1]);
+      const json = src != null ? extractValidJson(trimmed) : null;
+      if (src != null && json != null) {
+        result.set(src, json);
+        i++;
+        continue;
       }
     }
-    outputLines.push(line);
+    outputLines.push(lines[i]);
     i++;
   }
   return { gifSettings: result, body: outputLines.join("\n") };

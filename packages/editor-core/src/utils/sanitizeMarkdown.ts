@@ -32,6 +32,32 @@ function appendMarker(line: string): string {
   return line + TIGHT_TRANSITION_MARKER;
 }
 
+/** 同一ブロックの継続行ペアか判定する */
+function isSameBlockContinuation(cur: string, nxt: string): boolean {
+  // バックスラッシュ改行（ハードブレイク）は同一ブロックの継続
+  if (cur.endsWith("\\")) return true;
+  // 同じ blockquote 内
+  if (isBlockquoteStart(cur) && isBlockquoteStart(nxt)) return true;
+  // 同一リスト内（同種のリストマーカー）
+  if (isListStart(cur) && isListStart(nxt)) {
+    const curOrd = /^\d+[.)]\s/.test(cur);
+    const nxtOrd = /^\d+[.)]\s/.test(nxt);
+    if (curOrd === nxtOrd) return true;
+  }
+  // インデント行は前ブロックの継続
+  const curBlockRelated = isBlockStart(cur) || isIndented(cur);
+  if (curBlockRelated && isIndented(nxt)) return true;
+  return false;
+}
+
+/** 行ペアが tight transition（マーカー付与が必要）か判定する */
+function needsTightMark(cur: string, nxt: string): boolean {
+  if (isOneLineBlock(cur)) return true;
+  if (isBlockStart(nxt)) return true;
+  const curBlockRelated = isBlockStart(cur) || isIndented(cur);
+  return curBlockRelated && !isBlockStart(nxt) && !isIndented(nxt);
+}
+
 /**
  * ブロック間の tight transition（空行なし）を ZWNJ マーカーで記録する。
  * ProseMirror はブロック間を \n\n に正規化するため、元の \n を保持するために使用。
@@ -48,32 +74,8 @@ function markTightBlockTransitions(text: string): string {
     const nxt = lines[i + 1];
 
     if (cur === "" || nxt === "") continue;
-    // バックスラッシュ改行（ハードブレイク）は同一ブロックの継続
-    if (cur.endsWith("\\")) continue;
-
-    // 同一ブロックの継続をスキップ
-    // - 同じ blockquote 内
-    if (isBlockquoteStart(cur) && isBlockquoteStart(nxt)) continue;
-    // - 同一リスト内（同種のリストマーカー）
-    if (isListStart(cur) && isListStart(nxt)) {
-      const curOrd = /^\d+[.)]\s/.test(cur);
-      const nxtOrd = /^\d+[.)]\s/.test(nxt);
-      if (curOrd === nxtOrd) continue;
-    }
-    // - インデント行は前ブロックの継続
-    const curBlockRelated = isBlockStart(cur) || isIndented(cur);
-    if (curBlockRelated && isIndented(nxt)) continue;
-
-    let needsMark = false;
-    // 1行完結ブロック（見出し・HR）→ 次は必ず別ブロック
-    if (isOneLineBlock(cur)) needsMark = true;
-    // 次行がブロック開始
-    else if (isBlockStart(nxt)) needsMark = true;
-    // ブロック関連行 → 通常テキスト（ブロック脱出）
-    else if (curBlockRelated && !isBlockStart(nxt) && !isIndented(nxt))
-      needsMark = true;
-
-    if (needsMark) marked[i] = appendMarker(cur);
+    if (isSameBlockContinuation(cur, nxt)) continue;
+    if (needsTightMark(cur, nxt)) marked[i] = appendMarker(cur);
   }
 
   return marked.join("\n");
@@ -84,6 +86,25 @@ function markTightBlockTransitions(text: string): string {
  * CommonMark では連続行は1段落に結合されるが、元の改行を保持するためバックスラッシュを追加する。
  * コードブロック外のテキストに対して markTightBlockTransitions の後に呼び出すこと。
  */
+/** ハードブレイク付加をスキップすべき行ペアか判定する */
+function shouldSkipHardBreak(cur: string, nxt: string): boolean {
+  // 空行
+  if (cur === "" || nxt === "") return true;
+  // 既にハードブレイクがある行
+  if (cur.endsWith("\\") || cur.endsWith("  ")) return true;
+  // tight transition マーカー付きの行（別ブロック遷移として処理済み）
+  if (cur.endsWith(TIGHT_TRANSITION_MARKER) || cur.endsWith(" " + TIGHT_TRANSITION_MARKER)) return true;
+  // ブロック要素
+  if (isHeading(cur) || isHR(cur)) return true;
+  if (isListStart(cur) || isListStart(nxt)) return true;
+  if (isBlockquoteStart(cur) || isBlockquoteStart(nxt)) return true;
+  // マークダウンテーブル行
+  if (isTableRow(cur) || isTableRow(nxt)) return true;
+  // HTML タグ行
+  if (cur.startsWith("<") || nxt.startsWith("<") || cur.startsWith("</") || nxt.startsWith("</")) return true;
+  return false;
+}
+
 function addHardBreaksToConsecutiveLines(text: string): string {
   const lines = text.split("\n");
   if (lines.length < 2) return text;
@@ -93,20 +114,7 @@ function addHardBreaksToConsecutiveLines(text: string): string {
     const cur = lines[i];
     const nxt = lines[i + 1];
 
-    // 空行はスキップ
-    if (cur === "" || nxt === "") continue;
-    // 既にハードブレイクがある行はスキップ
-    if (cur.endsWith("\\") || cur.endsWith("  ")) continue;
-    // tight transition マーカー付きの行はスキップ（別ブロック遷移として処理済み）
-    if (cur.endsWith(TIGHT_TRANSITION_MARKER) || cur.endsWith(" " + TIGHT_TRANSITION_MARKER)) continue;
-    // ブロック要素はスキップ
-    if (isHeading(cur) || isHR(cur)) continue;
-    if (isListStart(cur) || isListStart(nxt)) continue;
-    if (isBlockquoteStart(cur) || isBlockquoteStart(nxt)) continue;
-    // マークダウンテーブル行はスキップ（行が完結しているため改行不要）
-    if (isTableRow(cur) || isTableRow(nxt)) continue;
-    // HTML タグ行はスキップ（Admonition blockquote 等の前処理済み HTML）
-    if (cur.startsWith("<") || nxt.startsWith("<") || cur.startsWith("</") || nxt.startsWith("</")) continue;
+    if (shouldSkipHardBreak(cur, nxt)) continue;
     // タブ区切りデータ（スプレッドシートからのコピー等）は <br> を付加
     if (cur.includes("\t") || nxt.includes("\t")) {
       result[i] = cur + "<br>";

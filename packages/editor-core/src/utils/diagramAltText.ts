@@ -115,28 +115,36 @@ function extractMermaidSequenceNames(code: string): string[] {
   return unique(names);
 }
 
+/** PlantUML キーワード行から名前を抽出する */
+function extractNameFromPlantUmlLine(rest: string): string {
+  if (rest.startsWith('"')) {
+    const closeQuote = rest.indexOf('"', 1);
+    return closeQuote > 0 ? rest.slice(1, closeQuote) : "";
+  }
+  const name = rest.split(/\s/)[0];
+  const asIdx = name.toLowerCase().indexOf(" as ");
+  return asIdx !== -1 ? name.slice(0, asIdx) : name;
+}
+
+/** PlantUML キーワードに一致する行からキーワード後の rest 部分を返す。一致しなければ null。 */
+function matchPlantUmlKeyword(trimmed: string, lower: string): string | null {
+  const keywords = ["actor", "participant", "entity", "database", "collections"];
+  for (const kw of keywords) {
+    if (lower.startsWith(kw) && trimmed.length > kw.length && (trimmed[kw.length] === " " || trimmed[kw.length] === "\t")) {
+      return trimmed.slice(kw.length).trim();
+    }
+  }
+  return null;
+}
+
 function extractPlantUmlNames(code: string): string[] {
   const names: string[] = [];
-  const keywords = ["actor", "participant", "entity", "database", "collections"];
   for (const line of code.split("\n")) {
     const trimmed = line.trim();
-    const lower = trimmed.toLowerCase();
-    for (const kw of keywords) {
-      if (lower.startsWith(kw) && trimmed.length > kw.length && (trimmed[kw.length] === " " || trimmed[kw.length] === "\t")) {
-        const rest = trimmed.slice(kw.length).trim();
-        let name: string;
-        if (rest.startsWith('"')) {
-          const closeQuote = rest.indexOf('"', 1);
-          name = closeQuote > 0 ? rest.slice(1, closeQuote) : "";
-        } else {
-          name = rest.split(/\s/)[0];
-          // Strip "as Alias" — find " as " and truncate
-          const asIdx = name.toLowerCase().indexOf(" as ");
-          if (asIdx !== -1) name = name.slice(0, asIdx);
-        }
-        if (name) names.push(name);
-      }
-    }
+    const rest = matchPlantUmlKeyword(trimmed, trimmed.toLowerCase());
+    if (!rest) continue;
+    const name = extractNameFromPlantUmlLine(rest);
+    if (name) names.push(name);
   }
   return unique(names);
 }

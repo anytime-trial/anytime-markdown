@@ -21,10 +21,62 @@ import {
   Typography,
 } from "@mui/material";
 import type { FC } from "react";
+import { memo } from "react";
 
 import { NewFileInput, NewFolderInput, RenameInput } from "./inputs";
 import type { TreeNodeProps } from "./types";
 import { INDENT_PX } from "./types";
+
+/** フォルダの展開/折りたたみアイコン */
+const DirExpandIcon: FC<{ isLoading: boolean; empty: boolean; isOpen: boolean; emptyColor: string }> = ({ isLoading, empty, isOpen, emptyColor }) => {
+  if (isLoading) return <CircularProgress size={14} />;
+  if (empty) return <ChevronRightIcon sx={{ fontSize: 18, color: emptyColor }} />;
+  if (isOpen) return <ExpandMoreIcon sx={{ fontSize: 18 }} />;
+  return <ChevronRightIcon sx={{ fontSize: 18 }} />;
+};
+
+/** フォルダ/ファイルのアイコン */
+const EntryIcon: FC<{ isDir: boolean; isOpen: boolean; empty: boolean; emptyColor: string }> = ({ isDir, isOpen, empty, emptyColor }) => {
+  if (!isDir) return <InsertDriveFileIcon sx={{ fontSize: 18 }} />;
+  if (isOpen) return <FolderOpenIcon sx={{ fontSize: 18, color: empty ? emptyColor : undefined }} />;
+  return <FolderIcon sx={{ fontSize: 18, color: empty ? emptyColor : undefined }} />;
+};
+
+/** ホバー時表示のアクションボタン群 */
+const ActionButtons: FC<{
+  isDir: boolean; empty: boolean; isOpen: boolean;
+  entryPath: string;
+  onToggle: () => void; onStartRename: (p: string) => void;
+  onStartCreateFolder: (p: string) => void; onStartCreate: (p: string) => void;
+  onDeleteFile: (p: string) => void;
+}> = memo(({ isDir, empty, isOpen, entryPath, onToggle, onStartRename, onStartCreateFolder, onStartCreate, onDeleteFile }) => {
+  const hoverSx = { p: 0.25, opacity: 0, ".MuiListItemButton-root:hover &": { opacity: 1 } };
+  return (
+    <>
+      {!empty && (
+        <IconButton size="small" onClick={(e) => { e.stopPropagation(); onStartRename(entryPath); }} sx={hoverSx}>
+          <DriveFileRenameOutlineIcon sx={{ fontSize: 14 }} />
+        </IconButton>
+      )}
+      {isDir && (
+        <IconButton size="small" onClick={(e) => { e.stopPropagation(); if (!isOpen) onToggle(); onStartCreateFolder(entryPath); }} sx={hoverSx}>
+          <CreateNewFolderIcon sx={{ fontSize: 14 }} />
+        </IconButton>
+      )}
+      {isDir && (
+        <IconButton size="small" onClick={(e) => { e.stopPropagation(); if (!isOpen) onToggle(); onStartCreate(entryPath); }} sx={hoverSx}>
+          <AddIcon sx={{ fontSize: 14 }} />
+        </IconButton>
+      )}
+      {!empty && (
+        <IconButton size="small" onClick={(e) => { e.stopPropagation(); onDeleteFile(entryPath); }} sx={{ ...hoverSx, color: "error.main" }}>
+          <DeleteOutlineIcon sx={{ fontSize: 14 }} />
+        </IconButton>
+      )}
+    </>
+  );
+});
+ActionButtons.displayName = "ActionButtons";
 
 /** 再帰ツリーノード */
 export const TreeNode: FC<TreeNodeProps> = ({ entry, depth, repo, expanded, loadingDirs, childrenCache, hasMdCache, selectedFilePath, onToggle, onSelectFile, onCreateFile, onDeleteFile, onRename, onCreateFolder, renamingPath, onStartRename, onCancelRename, creatingInDir, onStartCreate, onCancelCreate, creatingFolderInDir, onStartCreateFolder, onCancelCreateFolder, dragOverPath, onMoveEntry, onDragOverPath, dragSourceRef }) => {
@@ -93,30 +145,15 @@ export const TreeNode: FC<TreeNodeProps> = ({ entry, depth, repo, expanded, load
           }),
         }}
       >
-        {isDir && (
+        {isDir ? (
           <ListItemIcon sx={{ minWidth: 20 }}>
-            {isLoading ? (
-              <CircularProgress size={14} />
-            ) : empty ? (
-              <ChevronRightIcon sx={{ fontSize: 18, color: emptyColor }} />
-            ) : isOpen ? (
-              <ExpandMoreIcon sx={{ fontSize: 18 }} />
-            ) : (
-              <ChevronRightIcon sx={{ fontSize: 18 }} />
-            )}
+            <DirExpandIcon isLoading={isLoading} empty={empty} isOpen={isOpen} emptyColor={emptyColor} />
           </ListItemIcon>
+        ) : (
+          <Box sx={{ width: 20 }} />
         )}
-        {!isDir && <Box sx={{ width: 20 }} />}
         <ListItemIcon sx={{ minWidth: 24 }}>
-          {isDir ? (
-            isOpen ? (
-              <FolderOpenIcon sx={{ fontSize: 18, color: empty ? emptyColor : undefined }} />
-            ) : (
-              <FolderIcon sx={{ fontSize: 18, color: empty ? emptyColor : undefined }} />
-            )
-          ) : (
-            <InsertDriveFileIcon sx={{ fontSize: 18 }} />
-          )}
+          <EntryIcon isDir={isDir} isOpen={isOpen} empty={empty} emptyColor={emptyColor} />
         </ListItemIcon>
         {isRenaming ? (
           <RenameInput
@@ -137,79 +174,15 @@ export const TreeNode: FC<TreeNodeProps> = ({ entry, depth, repo, expanded, load
           />
         )}
         {!isRenaming && (
-          <>
-            {/* Rename icon (file & folder, hidden for empty folders) */}
-            {!empty && (
-              <IconButton
-                size="small"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onStartRename(entry.path);
-                }}
-                sx={{
-                  p: 0.25,
-                  opacity: 0,
-                  ".MuiListItemButton-root:hover &": { opacity: 1 },
-                }}
-              >
-                <DriveFileRenameOutlineIcon sx={{ fontSize: 14 }} />
-              </IconButton>
-            )}
-            {/* Folder: new folder icon */}
-            {isDir && (
-              <IconButton
-                size="small"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (!isOpen) onToggle(entry);
-                  onStartCreateFolder(entry.path);
-                }}
-                sx={{
-                  p: 0.25,
-                  opacity: 0,
-                  ".MuiListItemButton-root:hover &": { opacity: 1 },
-                }}
-              >
-                <CreateNewFolderIcon sx={{ fontSize: 14 }} />
-              </IconButton>
-            )}
-            {/* Folder: new file icon */}
-            {isDir && (
-              <IconButton
-                size="small"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (!isOpen) onToggle(entry);
-                  onStartCreate(entry.path);
-                }}
-                sx={{
-                  p: 0.25,
-                  opacity: 0,
-                  ".MuiListItemButton-root:hover &": { opacity: 1 },
-                }}
-              >
-                <AddIcon sx={{ fontSize: 14 }} />
-              </IconButton>
-            )}
-            {/* Delete icon (file & folder, hidden for empty folders) */}
-            {!empty && (
-              <IconButton
-                size="small"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDeleteFile(entry.path);
-                }}
-                sx={{
-                  p: 0.25,
-                  opacity: 0,
-                  ".MuiListItemButton-root:hover &": { opacity: 1 },
-                  color: "error.main",
-                }}
-              >
-                <DeleteOutlineIcon sx={{ fontSize: 14 }} />
-              </IconButton>
-            )}
-          </>
+          <ActionButtons
+            isDir={isDir} empty={empty} isOpen={isOpen}
+            entryPath={entry.path}
+            onToggle={() => onToggle(entry)}
+            onStartRename={onStartRename}
+            onStartCreateFolder={onStartCreateFolder}
+            onStartCreate={onStartCreate}
+            onDeleteFile={onDeleteFile}
+          />
         )}
       </ListItemButton>
       {isDir && (

@@ -3,6 +3,33 @@ import { useCallback } from "react";
 import { createFile, deleteFile, fetchDirEntries, listAllFiles, renameFile } from "../helpers";
 import type { ChildrenCache, GitHubRepo, HasMdCache, TreeEntry } from "../types";
 
+/** エントリ配列内のパスを差し替えてソートする */
+function replaceAndSortEntries(entries: TreeEntry[], oldPath: string, newPath: string, newName: string): TreeEntry[] {
+  return entries.map((e) =>
+    e.path === oldPath ? { ...e, path: newPath, name: newName } : e,
+  ).sort((a, b) => {
+    if (a.type !== b.type) return a.type === "tree" ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+}
+
+/** 展開状態のパスを旧パスから新パスに更新する */
+function updateExpandedPaths(
+  setExpanded: React.Dispatch<React.SetStateAction<Set<string>>>,
+  oldPath: string,
+  newPath: string,
+): void {
+  setExpanded((prev) => {
+    const next = new Set<string>();
+    for (const p of prev) {
+      if (p === oldPath) next.add(newPath);
+      else if (p.startsWith(oldPath + "/")) next.add(newPath + p.slice(oldPath.length));
+      else next.add(p);
+    }
+    return next;
+  });
+}
+
 interface UseTreeOperationsArgs {
   selectedRepo: GitHubRepo | null;
   selectedBranch: string;
@@ -295,77 +322,29 @@ export function useTreeOperations({
 
       if (isDir) {
         // フォルダリネーム: 全ファイルを再帰取得してリネーム
-        const allFiles = await listAllFiles(
-          selectedRepo.fullName,
-          selectedBranch,
-          oldPath,
-        );
+        const allFiles = await listAllFiles(selectedRepo.fullName, selectedBranch, oldPath);
         if (allFiles.length === 0) return;
 
         let allOk = true;
         for (const filePath of allFiles) {
-          const relativeSuffix = filePath.slice(oldPath.length);
-          const newFilePath = newPath + relativeSuffix;
-          const ok = await renameFile(
-            selectedRepo.fullName,
-            filePath,
-            newFilePath,
-            selectedBranch,
-          );
+          const ok = await renameFile(selectedRepo.fullName, filePath, newPath + filePath.slice(oldPath.length), selectedBranch);
           if (!ok) { allOk = false; break; }
         }
         if (!allOk) return;
 
-        // キャッシュ更新: 古いエントリを新しいパスに差し替え
-        const updated = entries.map((e) =>
-          e.path === oldPath ? { ...e, path: newPath, name: newName } : e,
-        ).sort((a, b) => {
-          if (a.type !== b.type) return a.type === "tree" ? -1 : 1;
-          return a.name.localeCompare(b.name);
-        });
+        const updated = replaceAndSortEntries(entries, oldPath, newPath, newName);
         childrenCacheRef.current.set(dirPath, updated);
-
-        // 古いキャッシュを削除し、サブツリーを再取得
         childrenCacheRef.current.delete(oldPath);
         hasMdCacheRef.current.delete(oldPath);
-
-        if (dirPath === "") {
-          setRootEntries([...updated]);
-        }
-
-        // 展開状態を更新
-        setExpanded((prev) => {
-          const next = new Set<string>();
-          for (const p of prev) {
-            if (p === oldPath) next.add(newPath);
-            else if (p.startsWith(oldPath + "/")) next.add(newPath + p.slice(oldPath.length));
-            else next.add(p);
-          }
-          return next;
-        });
+        if (dirPath === "") setRootEntries([...updated]);
+        updateExpandedPaths(setExpanded, oldPath, newPath);
       } else {
-        // ファイルリネーム
-        const ok = await renameFile(
-          selectedRepo.fullName,
-          oldPath,
-          newPath,
-          selectedBranch,
-        );
+        const ok = await renameFile(selectedRepo.fullName, oldPath, newPath, selectedBranch);
         if (!ok) return;
 
-        // キャッシュ更新
-        const updated = entries.map((e) =>
-          e.path === oldPath ? { ...e, path: newPath, name: newName } : e,
-        ).sort((a, b) => {
-          if (a.type !== b.type) return a.type === "tree" ? -1 : 1;
-          return a.name.localeCompare(b.name);
-        });
+        const updated = replaceAndSortEntries(entries, oldPath, newPath, newName);
         childrenCacheRef.current.set(dirPath, updated);
-
-        // 選択中のファイルパスを更新
-        if (selectedFilePath === oldPath) {
-          setSelectedFilePath(newPath);
-        }
+        if (selectedFilePath === oldPath) setSelectedFilePath(newPath);
       }
 
       if (dirPath === "") {
@@ -453,15 +432,7 @@ export function useTreeOperations({
 
       // 展開状態の更新
       if (isDir) {
-        setExpanded((prev) => {
-          const next = new Set<string>();
-          for (const p of prev) {
-            if (p === sourcePath) next.add(newPath);
-            else if (p.startsWith(sourcePath + "/")) next.add(newPath + p.slice(sourcePath.length));
-            else next.add(p);
-          }
-          return next;
-        });
+        updateExpandedPaths(setExpanded, sourcePath, newPath);
       }
 
       if (srcDir === "" || targetDir === "") {
