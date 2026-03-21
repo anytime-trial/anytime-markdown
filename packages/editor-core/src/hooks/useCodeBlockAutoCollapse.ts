@@ -33,9 +33,8 @@ export function useCodeBlockAutoCollapse(
 
     // 展開操作されたら再折りたたみ
     const handlers = editors.map((ed) => {
-      const handler = () => {
-        requestAnimationFrame(() => collapseIfNeeded(ed));
-      };
+      const scheduleCollapse = () => collapseIfNeeded(ed);
+      const handler = () => { requestAnimationFrame(scheduleCollapse); };
       ed.on("update", handler);
       return () => ed.off("update", handler);
     });

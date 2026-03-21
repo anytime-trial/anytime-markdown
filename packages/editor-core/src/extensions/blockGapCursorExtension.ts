@@ -52,14 +52,15 @@ function handleGapArrowRight(view: EditorView, state: EditorState, pos: number):
   if (canEnter) {
     const tr = state.tr.setSelection(TextSelection.near(state.doc.resolve(pos + 1), 1));
     view.dispatch(tr);
-  } else {
-    const afterBlock = pos + nodeAfter.nodeSize;
-    if (afterBlock <= state.doc.content.size) {
-      const tr = state.tr.setSelection(TextSelection.near(state.doc.resolve(afterBlock), 1));
-      view.dispatch(tr);
-    }
+    return true;
   }
-  return true;
+  const afterBlock = pos + nodeAfter.nodeSize;
+  if (afterBlock <= state.doc.content.size) {
+    const tr = state.tr.setSelection(TextSelection.near(state.doc.resolve(afterBlock), 1));
+    view.dispatch(tr);
+    return true;
+  }
+  return false;
 }
 
 /** GapCursor 状態での Enter 処理 */
@@ -116,6 +117,49 @@ function handleNormalArrowUpLeft(view: EditorView, state: EditorState, key: stri
 
 const BLOCK_GAP_KEY = new PluginKey("blockGapCursor");
 
+const GAP_PREVENTABLE_KEYS = new Set(["ArrowDown", "ArrowUp", "ArrowRight", "Enter"]);
+
+/** Handle keydown when GapCursor is active */
+function handleGapKeydown(
+  view: import("@tiptap/pm/view").EditorView,
+  state: import("@tiptap/pm/state").EditorState,
+  pos: number,
+  event: KeyboardEvent,
+): boolean {
+  const key = event.key;
+  if (GAP_PREVENTABLE_KEYS.has(key)) event.preventDefault();
+  if (key === "ArrowDown") return handleGapArrowDown(view, state, pos);
+  if (key === "ArrowUp") {
+    if (pos > 0) {
+      const tr = state.tr.setSelection(TextSelection.near(state.doc.resolve(pos), -1));
+      view.dispatch(tr);
+    }
+    return true;
+  }
+  if (key === "ArrowRight") return handleGapArrowRight(view, state, pos);
+  if (key === "Enter") return handleGapEnter(view, state, pos);
+  return false;
+}
+
+/** Handle keydown from normal (non-gap) cursor for block navigation */
+function handleNormalKeydown(
+  view: import("@tiptap/pm/view").EditorView,
+  state: import("@tiptap/pm/state").EditorState,
+  event: KeyboardEvent,
+): boolean {
+  if (event.key === "ArrowDown") {
+    if (!handleNormalArrowDown(view, state)) return false;
+    event.preventDefault();
+    return true;
+  }
+  if (event.key === "ArrowUp" || event.key === "ArrowLeft") {
+    if (!handleNormalArrowUpLeft(view, state, event.key)) return false;
+    event.preventDefault();
+    return true;
+  }
+  return false;
+}
+
 export const BlockGapCursorExtension = Extension.create({
   name: "blockGapCursor",
 
@@ -130,41 +174,11 @@ export const BlockGapCursorExtension = Extension.create({
             keydown(view, event) {
               const { state } = view;
               const { selection } = state;
-              const isGap = selection instanceof GapCursor;
 
-              // --- GapCursor 状態でのキー操作 ---
-              if (isGap) {
-                const pos = selection.from;
-                const key = event.key;
-                if (key === "ArrowDown" || key === "ArrowUp" || key === "ArrowRight" || key === "Enter") {
-                  event.preventDefault();
-                }
-                if (key === "ArrowDown") return handleGapArrowDown(view, state, pos);
-                if (key === "ArrowUp") {
-                  if (pos > 0) {
-                    const tr = state.tr.setSelection(TextSelection.near(state.doc.resolve(pos), -1));
-                    view.dispatch(tr);
-                  }
-                  return true;
-                }
-                if (key === "ArrowRight") return handleGapArrowRight(view, state, pos);
-                if (key === "Enter") return handleGapEnter(view, state, pos);
-                return false;
+              if (selection instanceof GapCursor) {
+                return handleGapKeydown(view, state, selection.from, event);
               }
-
-              // --- 通常カーソルからブロック横に GapCursor を設定 ---
-              if (event.key === "ArrowDown") {
-                if (!handleNormalArrowDown(view, state)) return false;
-                event.preventDefault();
-                return true;
-              }
-              if (event.key === "ArrowUp" || event.key === "ArrowLeft") {
-                if (!handleNormalArrowUpLeft(view, state, event.key)) return false;
-                event.preventDefault();
-                return true;
-              }
-
-              return false;
+              return handleNormalKeydown(view, state, event);
             },
           },
         },

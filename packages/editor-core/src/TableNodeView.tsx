@@ -286,18 +286,21 @@ export function TableNodeView({ editor, node, getPos }: NodeViewProps) {
   };
 
   const showCompare = editOpen && isCompareMode && !!highlightedCompareHtml;
+  const canInteract = !collapsed && !isCompareLeft;
+
+  const dialogProps = editOpen ? {
+    role: "dialog" as const,
+    "aria-modal": true as const,
+    "aria-label": t("tableLabel"),
+    onKeyDown: (e: React.KeyboardEvent) => { if (e.key === "Escape") setEditOpen(false); },
+  } : {};
 
   return (
     <NodeViewWrapper>
       <Paper
         component={editOpen ? "div" : Box}
         elevation={editOpen ? 24 : 0}
-        {...(editOpen && {
-          role: "dialog" as const,
-          "aria-modal": true,
-          "aria-label": t("tableLabel"),
-          onKeyDown: (e: React.KeyboardEvent) => { if (e.key === "Escape") setEditOpen(false); },
-        })}
+        {...dialogProps}
         tabIndex={editOpen ? -1 : undefined}
         sx={buildPaperSx(editOpen, isEditable, isDark, showToolbar)}
       >
@@ -306,8 +309,8 @@ export function TableNodeView({ editor, node, getPos }: NodeViewProps) {
         {!editOpen && isEditable && (
           <BlockInlineToolbar
             label={t("tableLabel")}
-            onEdit={!collapsed && !isCompareLeft ? () => setEditOpen(true) : undefined}
-            onDelete={!collapsed && !isCompareLeft ? () => setDeleteDialogOpen(true) : undefined}
+            onEdit={canInteract ? () => setEditOpen(true) : undefined}
+            onDelete={canInteract ? () => setDeleteDialogOpen(true) : undefined}
             collapsed={collapsed}
             labelDivider
             t={t}

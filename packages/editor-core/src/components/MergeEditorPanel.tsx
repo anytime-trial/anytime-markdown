@@ -140,6 +140,40 @@ function MergeGutterCell({
   );
 }
 
+/** Compute derived display state for SourceModePanel */
+function computeSourcePanelState(
+  sourceText: string | undefined,
+  diffLines: DiffLine[] | undefined,
+  side: "left" | "right" | undefined,
+  onMerge: ((blockId: number, direction: "left-to-right" | "right-to-left") => void) | undefined,
+  bgGradient: string | undefined,
+) {
+  const rawText = sourceText ?? "";
+  const rawLineCount = rawText === "" ? 1 : rawText.split("\n").length;
+  const digits = String(rawLineCount).length;
+
+  const { displayText, paddingIndices } = diffLines
+    ? buildDisplayText(diffLines, rawText)
+    : { displayText: rawText, paddingIndices: new Set<number>() };
+
+  const alignedCount = diffLines ? diffLines.length : rawLineCount;
+  const lineNumbersArray = diffLines
+    ? diffLines.map(dl => dl.lineNumber != null ? String(dl.lineNumber) : "")
+    : Array.from({ length: rawLineCount }, (_, i) => String(i + 1));
+
+  const displayLines = displayText.split("\n");
+
+  const mergeButtonIndices = diffLines && side && onMerge ? buildMergeButtonMap(diffLines) : new Map<number, number>();
+  const hasMergeButtons = mergeButtonIndices.size > 0 && !!side && !!onMerge;
+
+  const gradientStyle: React.CSSProperties | undefined =
+    bgGradient && bgGradient !== "none"
+      ? { backgroundImage: bgGradient, backgroundAttachment: "local" }
+      : undefined;
+
+  return { rawText, digits, displayText, paddingIndices, alignedCount, lineNumbersArray, displayLines, mergeButtonIndices, hasMergeButtons, gradientStyle };
+}
+
 /** Source mode textarea panel with line numbers, diff gutter, and merge buttons */
 function SourceModePanel({
   sourceText, onSourceChange, resolvedTextareaRef, autoResize, textareaAriaLabel,
@@ -168,28 +202,10 @@ function SourceModePanel({
   textContainerRef: React.RefObject<HTMLDivElement | null>;
   t: ReturnType<typeof useTranslations<"MarkdownEditor">>;
 }) {
-  const rawText = sourceText ?? "";
-  const rawLineCount = rawText === "" ? 1 : rawText.split("\n").length;
-  const digits = String(rawLineCount).length;
-
-  const { displayText, paddingIndices } = diffLines
-    ? buildDisplayText(diffLines, rawText)
-    : { displayText: rawText, paddingIndices: new Set<number>() };
-
-  const alignedCount = diffLines ? diffLines.length : rawLineCount;
-  const lineNumbersArray = diffLines
-    ? diffLines.map(dl => dl.lineNumber != null ? String(dl.lineNumber) : "")
-    : Array.from({ length: rawLineCount }, (_, i) => String(i + 1));
-
-  const displayLines = displayText.split("\n");
-
-  const mergeButtonIndices = diffLines && side && onMerge ? buildMergeButtonMap(diffLines) : new Map<number, number>();
-  const hasMergeButtons = mergeButtonIndices.size > 0 && !!side && !!onMerge;
-
-  const gradientStyle: React.CSSProperties | undefined =
-    bgGradient && bgGradient !== "none"
-      ? { backgroundImage: bgGradient, backgroundAttachment: "local" }
-      : undefined;
+  const {
+    digits, displayText, paddingIndices, alignedCount, lineNumbersArray,
+    displayLines, mergeButtonIndices, hasMergeButtons, gradientStyle,
+  } = computeSourcePanelState(sourceText, diffLines, side, onMerge, bgGradient);
 
   return (
     <Paper

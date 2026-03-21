@@ -118,6 +118,31 @@ interface EditorToolbarProps {
   t: TranslationFn;
 }
 
+function selectToolbarEditorState(ctx: { editor: Editor | null }) {
+  let allDiagramCodeCollapsed = true;
+  let hasDiagrams = false;
+  ctx.editor?.state.doc.descendants((node) => {
+    if (node.type.name === "codeBlock") {
+      const lang = (node.attrs.language || "").toLowerCase();
+      if (lang === "mermaid" || lang === "plantuml") {
+        hasDiagrams = true;
+        if (!node.attrs.codeCollapsed) allDiagramCodeCollapsed = false;
+      }
+    }
+  });
+  const activeLang = (ctx.editor?.getAttributes("codeBlock")?.language || "").toLowerCase();
+  const isInDiagramCode = (ctx.editor?.isActive("codeBlock") ?? false)
+    && (activeLang === "mermaid" || activeLang === "plantuml");
+  return {
+    canUndo: ctx.editor?.can().undo() ?? false,
+    canRedo: ctx.editor?.can().redo() ?? false,
+    isCodeBlock: ctx.editor?.isActive("codeBlock") ?? false,
+    isInDiagramCode,
+    allDiagramCodeCollapsed: hasDiagrams && allDiagramCodeCollapsed,
+    hasDiagrams,
+  };
+}
+
 export const EditorToolbar = React.memo(function EditorToolbar({
   editor,
   isInDiagramBlock: _isInDiagramBlock,
@@ -203,30 +228,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
 
   const editorState = useEditorState({
     editor,
-    selector: (ctx) => {
-      let allDiagramCodeCollapsed = true;
-      let hasDiagrams = false;
-      ctx.editor?.state.doc.descendants((node) => {
-        if (node.type.name === "codeBlock") {
-          const lang = (node.attrs.language || "").toLowerCase();
-          if (lang === "mermaid" || lang === "plantuml") {
-            hasDiagrams = true;
-            if (!node.attrs.codeCollapsed) allDiagramCodeCollapsed = false;
-          }
-        }
-      });
-      const activeLang = (ctx.editor?.getAttributes("codeBlock")?.language || "").toLowerCase();
-      const isInDiagramCode = (ctx.editor?.isActive("codeBlock") ?? false)
-        && (activeLang === "mermaid" || activeLang === "plantuml");
-      return {
-        canUndo: ctx.editor?.can().undo() ?? false,
-        canRedo: ctx.editor?.can().redo() ?? false,
-        isCodeBlock: ctx.editor?.isActive("codeBlock") ?? false,
-        isInDiagramCode,
-        allDiagramCodeCollapsed: hasDiagrams && allDiagramCodeCollapsed,
-        hasDiagrams,
-      };
-    },
+    selector: selectToolbarEditorState,
   });
 
   return (
