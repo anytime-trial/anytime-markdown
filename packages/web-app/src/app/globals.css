@@ -113,9 +113,9 @@ button:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 3px solid var(--vscode-focusBorder);
+  outline: 2px solid var(--vscode-focusBorder);
   outline-offset: 2px;
-  border-radius: 2px;
+  border-radius: 4px;
 }
 
 /* ========== Light Theme ========== */
