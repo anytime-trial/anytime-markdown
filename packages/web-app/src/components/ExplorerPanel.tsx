@@ -270,7 +270,7 @@ export const ExplorerPanel: FC<ExplorerPanelProps> = ({
   if (!open) return null;
 
   // cacheVersion is read here to trigger re-renders when cache is bumped
-  const _cacheVersion = cacheVersion; // eslint-disable-line @typescript-eslint/no-unused-vars
+  const _cacheVersion = cacheVersion;  
 
   return (
     <Box

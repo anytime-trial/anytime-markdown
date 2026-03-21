@@ -44,23 +44,25 @@ describe("GET /api/docs", () => {
     return mod.GET();
   }
 
-  it("S3 からドキュメント一覧を取得し、.md ファイルのみ返す", async () => {
+  it("S3 からドキュメント一覧を取得し、ディレクトリと .json を除外して返す", async () => {
     const lastModified = new Date("2026-01-01T00:00:00Z");
     mockSend.mockResolvedValue({
       Contents: [
         { Key: "docs/hello.md", LastModified: lastModified, Size: 1024 },
         { Key: "docs/world.md", LastModified: lastModified, Size: 2048 },
         { Key: "docs/image.png", LastModified: lastModified, Size: 512 },
+        { Key: "docs/meta.json", LastModified: lastModified, Size: 128 },
         { Key: "docs/", LastModified: lastModified, Size: 0 },
       ],
     });
 
     const res = (await callGET()) as { body: { files: unknown[] }; status: number };
     expect(res.status).toBe(200);
-    expect(res.body.files).toHaveLength(2);
+    expect(res.body.files).toHaveLength(3);
     expect(res.body.files).toEqual([
       { key: "docs/hello.md", name: "hello.md", lastModified: "2026-01-01T00:00:00.000Z", size: 1024 },
       { key: "docs/world.md", name: "world.md", lastModified: "2026-01-01T00:00:00.000Z", size: 2048 },
+      { key: "docs/image.png", name: "image.png", lastModified: "2026-01-01T00:00:00.000Z", size: 512 },
     ]);
   });
 

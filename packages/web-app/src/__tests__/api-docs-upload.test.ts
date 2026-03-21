@@ -139,13 +139,13 @@ describe("POST /api/docs/upload", () => {
     expect(JSON.parse(res.body)).toEqual({ error: "File size exceeds 5MB limit" });
   });
 
-  it("拡張子が .md 以外の場合は 400 を返す", async () => {
-    const file = createFile("hello.txt", "# Hello");
+  it("許可されていない拡張子の場合は 400 を返す", async () => {
+    const file = createFile("hello.exe", "binary content");
     const req = createRequest(file);
 
     const res = (await callPOST(req)) as { body: string; status: number };
     expect(res.status).toBe(400);
-    expect(JSON.parse(res.body)).toEqual({ error: "Only .md files are allowed" });
+    expect(JSON.parse(res.body)).toEqual({ error: "Only .md and image files (.png, .jpg, .jpeg, .gif, .svg, .webp) are allowed" });
   });
 
   it("ファイル名に不正な文字が含まれる場合は 400 を返す", async () => {

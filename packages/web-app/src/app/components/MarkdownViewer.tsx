@@ -92,7 +92,7 @@ export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60
           severity="error"
           action={
             <Button color="inherit" size="small" onClick={fetchContent}>
-              {t('retry')}
+              {t('docsViewRetry')}
             </Button>
           }
         >

@@ -121,12 +121,13 @@ describe("DELETE /api/docs/delete", () => {
     expect(JSON.parse(res.body)).toEqual({ error: "Invalid key" });
   });
 
-  it(".md で終わらないキーは 400 を返す", async () => {
+  it("任意の拡張子のファイルを削除できる", async () => {
+    mockSend.mockResolvedValue({});
     const req = createRequest({ key: "docs/hello.txt" });
 
     const res = (await callDELETE(req)) as { body: string; status: number };
-    expect(res.status).toBe(400);
-    expect(JSON.parse(res.body)).toEqual({ error: "Invalid key" });
+    expect(res.status).toBe(200);
+    expect(JSON.parse(res.body)).toEqual({ deleted: true });
   });
 
   it("パストラバーサルを含むキーは 400 を返す", async () => {

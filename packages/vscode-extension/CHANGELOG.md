@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-03-21
+
+### Added
+- ブロック要素の左側に GapCursor を表示（ArrowUp/Down/Left/Right + Enter 対応）
+- スクリーンキャプチャ機能（Screen Capture API + ImageCropTool トリミング）
+- /screenshot スラッシュコマンド（Web 版のみ）
+- 画像ハンドルバーにスクリーンキャプチャ・リンク編集アイコン追加
+- 画像全画面編集画面にステータスバー（原寸サイズ・容量表示）
+- ImageCropTool: トリム範囲の移動・リサイズ（8方向ハンドル）対応
+- ImageCropTool: トリム範囲のサイズ・推定容量リアルタイム表示
+- ソースモードで base64 画像データの折りたたみ表示
+- 外部変更の自動再読み込みトグル
+- 変更ガターハイライト（自動再読み込み時）
+- Alt+F5 で変更箇所への順次ジャンプ
+- ESC キーで変更ガターの起点リセット
+- MarkdownViewer コンポーネント（S3 ドキュメント readOnly 表示、ロケール切替、フォントサイズ切替）
+- ランディングページ: Markdown ドキュメント表示、フォントサイズ切替アイコン
+- CMS: 画像ファイルアップロード対応（png/jpg/gif/svg/webp）
+- CMS: ファイル一覧に日英 md ペアの JA/EN バッジ表示
+
+### Changed
+- ブロックハンドルバー: ラベルと編集アイコン間に区切り線追加（全ブロック要素）
+- 画像ハンドルバー: 編集アイコンをアノテーションの左に移動
+- キャプチャアイコンをエクスポートアイコン（FileDownload）にリネーム
+- ツールチップを「画像エクスポート」に変更
+- Readonly モードで縦サイドツールバー非表示、アウトラインパネル表示
+- フォントサイズを constants/dimensions.ts に定数集約（28 定数）
+- ランディングページ: feature cards セクション削除、Markdown 表示に置換
+
+### Fixed
+- GapCursor をブロック要素のすぐ左側に配置
+- 初期モードをレビューから編集に変更
+- テーマをエディタ設定でのみ制御するよう変更
+- 残存テーマ色参照を定数に置換
+
+### Security
+- 正規表現のバックトラッキング脆弱性を修正（SonarQube Hotspots MEDIUM 7 件）
+- async 関数の型を Promise<void> に修正（SonarQube Reliability 1 件）
+- SonarQube BLOCKER: 常に同じ値を返す関数を修正（7 件）
+- SonarQube CRITICAL: void 演算子・コンストラクタ async・関数ネスト修正（12 件）
+- SonarQube CRITICAL: Cognitive Complexity 削減（34 関数をリファクタリング）
+
+### Tests
+- リファクタリングで抽出したヘルパー関数のユニットテスト 104 件追加（909→1013 件）
+
 ## [0.6.5] - 2026-03-20
 
 ### Added

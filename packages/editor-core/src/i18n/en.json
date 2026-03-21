@@ -548,6 +548,7 @@
     "docsEmpty": "No documents available",
     "docsViewLoadError": "Failed to load document",
     "docsViewNoUrl": "No document specified",
+    "docsViewRetry": "Try again",
     "docsUpload": "Upload",
     "docsDelete": "Delete",
     "docsDeleteConfirm": "Delete this document?",

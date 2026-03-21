@@ -548,6 +548,7 @@
     "docsEmpty": "ドキュメントがありません",
     "docsViewLoadError": "ドキュメントの読み込みに失敗しました",
     "docsViewNoUrl": "表示するドキュメントが指定されていません",
+    "docsViewRetry": "再読み込み",
     "docsUpload": "アップロード",
     "docsDelete": "削除",
     "docsDeleteConfirm": "このドキュメントを削除しますか？",
