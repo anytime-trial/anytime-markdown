@@ -153,8 +153,8 @@ export function EditorContextMenu({ editor, readOnly, t }: Readonly<EditorContex
     const text = await readTextFromClipboard();
     if (text) { pasteIntoCodeBlock(text); handleClose(); return; }
     // VS Code 環境: vscode-paste-codeblock イベントで処理
-    if (globalThis.__vscode) {
-      globalThis.__vscode.postMessage({ type: "readClipboardForCodeBlock" });
+    if ((window as any).__vscode) {
+      (window as any).__vscode.postMessage({ type: "readClipboardForCodeBlock" });
     }
     handleClose();
   }, [editor, readOnly, handleClose]);
@@ -168,8 +168,8 @@ export function EditorContextMenu({ editor, readOnly, t }: Readonly<EditorContex
       return;
     }
     // VS Code 環境: 拡張側にクリップボード読み取りを依頼
-    if (globalThis.__vscode) {
-      globalThis.__vscode.postMessage({ type: "readClipboard" });
+    if ((window as any).__vscode) {
+      (window as any).__vscode.postMessage({ type: "readClipboard" });
     }
     handleClose();
   }, [editor, handleClose]);

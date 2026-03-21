@@ -87,7 +87,7 @@ function handleCropComplete(
     updateAttributes({ src: croppedDataUrl });
     return;
   }
-  const vscodeApi = globalThis.__vscode;
+  const vscodeApi = (window as any).__vscode;
   if (vscodeApi) {
     vscodeApi.postMessage({ type: "overwriteImage", path: src, dataUrl: croppedDataUrl });
     updateAttributes({ src: src.split("?")[0] + "?t=" + Date.now() });

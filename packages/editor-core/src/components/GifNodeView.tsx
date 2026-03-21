@@ -93,7 +93,7 @@ function onRecordComplete(
 ): void {
   setRecorderOpen(false);
   gifBlobRef.current = blob;
-  const vscodeApi = globalThis.__vscode;
+  const vscodeApi = (window as any).__vscode;
   if (vscodeApi) {
     const reader = new FileReader();
     reader.onload = () => {
