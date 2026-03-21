@@ -70,7 +70,7 @@ export function CodeBlockFrame({
   );
 
   return (
-    <NodeViewWrapper>
+    <NodeViewWrapper className="block-node-wrapper">
       <Box sx={{
         border: 1, borderRadius: 1, overflow: "hidden", my: 1,
         borderColor: showBorder ? getDivider(isDark) : "transparent",

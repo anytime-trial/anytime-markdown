@@ -67,8 +67,8 @@ export function getEditorPaperSx(
       ...(settings.blockAlign !== "left" && (() => {
         const isCenter = settings.blockAlign === "center";
         return {
-          // 画像・GIF: ラッパーを text-align で配置、中の Box を inline-block にして幅をコンテンツに合わせる
-          "& .image-node-wrapper": {
+          // 画像・GIF・図・数式: ラッパーを text-align で配置、中の Box を inline-block にして幅をコンテンツに合わせる
+          "& .image-node-wrapper, & .block-node-wrapper": {
             textAlign: settings.blockAlign,
             "& > .MuiBox-root": {
               display: "inline-block",
