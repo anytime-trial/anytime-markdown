@@ -23,6 +23,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { EditorDialogsSection } from "./components/EditorDialogsSection";
+import { ScreenCaptureDialog } from "./components/ScreenCaptureDialog";
 import { EditorErrorBoundary } from "./components/EditorErrorBoundary";
 import { EditorFooterOverlays } from "./components/EditorFooterOverlays";
 import { EditorMainContent } from "./components/EditorMainContent";
@@ -96,6 +97,10 @@ interface MarkdownEditorPageProps {
   onStatusChange?: (status: { line: number; col: number; charCount: number; lineCount: number; lineEnding: string; encoding: string }) => void;
   /** ファイル再読込コールバック（VS Code 拡張用） */
   onReload?: () => void;
+  /** 自動再読み込み状態（VS Code 拡張用） */
+  autoReload?: boolean;
+  /** 自動再読み込みトグルコールバック（VS Code 拡張用） */
+  onToggleAutoReload?: () => void;
   /** 初期表示をソースモードにする */
   defaultSourceMode?: boolean;
   showReadonlyMode?: boolean;
@@ -113,7 +118,7 @@ interface MarkdownEditorPageProps {
   explorerSlot?: React.ReactNode;
 }
 
-export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideVersionInfo, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, onLocaleChange, fileSystemProvider, externalContent, externalFileName, externalFilePath: _externalFilePath, onExternalSave, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, onReload, defaultSourceMode, showReadonlyMode, externalCompareContent, explorerOpen, onToggleExplorer, sideToolbar, hideCompareToggle, explorerSlot }: MarkdownEditorPageProps = {}) {
+export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideVersionInfo, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, onLocaleChange, fileSystemProvider, externalContent, externalFileName, externalFilePath: _externalFilePath, onExternalSave, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, onReload, autoReload, onToggleAutoReload, defaultSourceMode, showReadonlyMode, externalCompareContent, explorerOpen, onToggleExplorer, sideToolbar, hideCompareToggle, explorerSlot }: MarkdownEditorPageProps = {}) {
   const t = useTranslations("MarkdownEditor");
   const locale = useLocale() as "en" | "ja";
   const muiTheme = useTheme();
@@ -164,6 +169,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   const headingsDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleImportRef = useRef<(f: File, nativeHandle?: FileSystemFileHandle) => void>(() => {});
   const [fileDragOver, setFileDragOver] = useState(false);
+  const [screenCaptureOpen, setScreenCaptureOpen] = useState(false);
   const onFileDragOverRef = useRef<(over: boolean) => void>((over) => setFileDragOver(over));
   const slashCommandCallbackRef = useRef<(state: SlashCommandState) => void>(() => {});
 
@@ -314,6 +320,13 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     return () => window.removeEventListener("vscode-image-saved", handler);
   }, [editor]);
 
+  // Screen capture slash command event
+  useEffect(() => {
+    const handler = () => setScreenCaptureOpen(true);
+    window.addEventListener("open-screen-capture", handler);
+    return () => window.removeEventListener("open-screen-capture", handler);
+  }, []);
+
   const statusBarHeight = hideStatusBar ? 0 : STATUSBAR_HEIGHT;
   const { editorContainerRef, editorHeight } = useEditorHeight(isMobile, isMd, statusBarHeight);
 
@@ -407,6 +420,8 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         setLiveMessage={setLiveMessage} commentOpen={commentOpen} setCommentOpen={setCommentOpen}
         liveMessage={liveMessage} t={t}
         onReload={onReload}
+        autoReload={autoReload}
+        onToggleAutoReload={onToggleAutoReload}
       />
 
       <EditorDialogsSection
@@ -422,6 +437,15 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         hideSettings={hideSettings} settingsOpen={settingsOpen} setSettingsOpen={setSettingsOpen}
         settings={settings} updateSettings={updateSettings} resetSettings={resetSettings}
         themeMode={themeMode} onThemeModeChange={onThemeModeChange} onLocaleChange={onLocaleChange} t={t}
+      />
+
+      <ScreenCaptureDialog
+        open={screenCaptureOpen}
+        onClose={() => setScreenCaptureOpen(false)}
+        onCapture={(dataUrl) => {
+          editor?.chain().focus().setImage({ src: dataUrl, alt: "" }).run();
+        }}
+        t={t}
       />
 
       <EditorMainContent

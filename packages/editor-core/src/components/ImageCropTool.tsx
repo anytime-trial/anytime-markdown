@@ -11,6 +11,7 @@ import { useTheme } from "@mui/material/styles";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { getDivider, getTextDisabled, getTextSecondary } from "../constants/colors";
+import { STATUSBAR_FONT_SIZE } from "../constants/dimensions";
 
 const SCALE_PRESETS = [25, 50, 75, 100, 150, 200] as const;
 
@@ -31,12 +32,19 @@ export function ImageCropTool({ src, onCrop, t }: ImageCropToolProps) {
   const isDark = useTheme().palette.mode === "dark";
   const [cropping, setCropping] = useState(false);
   const [cropRect, setCropRect] = useState<CropRect | null>(null);
-  const [drawing, setDrawing] = useState(false);
+  type DragMode = "none" | "drawing" | "moving" | "resizing";
+  type ResizeHandle = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
+  const [dragMode, setDragMode] = useState<DragMode>("none");
+  const [resizeHandle, setResizeHandle] = useState<ResizeHandle | null>(null);
   const [startPos, setStartPos] = useState<{ x: number; y: number } | null>(null);
+  const [startRect, setStartRect] = useState<CropRect | null>(null);
+  const [hoverCursor, setHoverCursor] = useState<string>("crosshair");
   const [showRuler, setShowRuler] = useState(false);
   const [showGrid, setShowGrid] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const EDGE_THRESHOLD = 0.02; // 2% of image for edge detection
 
   const getRelativePos = useCallback((e: React.MouseEvent): { x: number; y: number } | null => {
     const img = imgRef.current;
@@ -48,30 +56,131 @@ export function ImageCropTool({ src, onCrop, t }: ImageCropToolProps) {
     };
   }, []);
 
+  /** cropRect の端・内部・外部を判定 */
+  const hitTest = useCallback((pos: { x: number; y: number }, cr: CropRect): { mode: DragMode; handle: ResizeHandle | null; cursor: string } => {
+    const t = EDGE_THRESHOLD;
+    const nearLeft = Math.abs(pos.x - cr.x) < t;
+    const nearRight = Math.abs(pos.x - (cr.x + cr.width)) < t;
+    const nearTop = Math.abs(pos.y - cr.y) < t;
+    const nearBottom = Math.abs(pos.y - (cr.y + cr.height)) < t;
+    const inX = pos.x > cr.x + t && pos.x < cr.x + cr.width - t;
+    const inY = pos.y > cr.y + t && pos.y < cr.y + cr.height - t;
+    const inRangeX = pos.x >= cr.x - t && pos.x <= cr.x + cr.width + t;
+    const inRangeY = pos.y >= cr.y - t && pos.y <= cr.y + cr.height + t;
+
+    if (nearTop && nearLeft && inRangeX && inRangeY) return { mode: "resizing", handle: "nw", cursor: "nwse-resize" };
+    if (nearTop && nearRight && inRangeX && inRangeY) return { mode: "resizing", handle: "ne", cursor: "nesw-resize" };
+    if (nearBottom && nearLeft && inRangeX && inRangeY) return { mode: "resizing", handle: "sw", cursor: "nesw-resize" };
+    if (nearBottom && nearRight && inRangeX && inRangeY) return { mode: "resizing", handle: "se", cursor: "nwse-resize" };
+    if (nearTop && inX) return { mode: "resizing", handle: "n", cursor: "ns-resize" };
+    if (nearBottom && inX) return { mode: "resizing", handle: "s", cursor: "ns-resize" };
+    if (nearLeft && inY) return { mode: "resizing", handle: "w", cursor: "ew-resize" };
+    if (nearRight && inY) return { mode: "resizing", handle: "e", cursor: "ew-resize" };
+    if (inX && inY) return { mode: "moving", handle: null, cursor: "move" };
+    return { mode: "drawing", handle: null, cursor: "crosshair" };
+  }, []);
+
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (!cropping) return;
     const pos = getRelativePos(e);
     if (!pos) return;
-    setDrawing(true);
+
+    if (cropRect && cropRect.width > 0.01 && cropRect.height > 0.01) {
+      const hit = hitTest(pos, cropRect);
+      if (hit.mode === "moving") {
+        setDragMode("moving");
+        setStartPos(pos);
+        setStartRect({ ...cropRect });
+        return;
+      }
+      if (hit.mode === "resizing") {
+        setDragMode("resizing");
+        setResizeHandle(hit.handle);
+        setStartPos(pos);
+        setStartRect({ ...cropRect });
+        return;
+      }
+    }
+    // New drawing
+    setDragMode("drawing");
     setStartPos(pos);
     setCropRect(null);
-  }, [cropping, getRelativePos]);
+  }, [cropping, cropRect, getRelativePos, hitTest]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!drawing || !startPos) return;
     const pos = getRelativePos(e);
     if (!pos) return;
-    setCropRect({
-      x: Math.min(startPos.x, pos.x),
-      y: Math.min(startPos.y, pos.y),
-      width: Math.abs(pos.x - startPos.x),
-      height: Math.abs(pos.y - startPos.y),
-    });
-  }, [drawing, startPos, getRelativePos]);
+
+    // Update cursor on hover
+    if (dragMode === "none" && cropping && cropRect && cropRect.width > 0.01 && cropRect.height > 0.01) {
+      const hit = hitTest(pos, cropRect);
+      setHoverCursor(hit.cursor);
+    }
+
+    if (dragMode === "none" || !startPos) return;
+
+    if (dragMode === "drawing") {
+      setCropRect({
+        x: Math.min(startPos.x, pos.x),
+        y: Math.min(startPos.y, pos.y),
+        width: Math.abs(pos.x - startPos.x),
+        height: Math.abs(pos.y - startPos.y),
+      });
+    } else if (dragMode === "moving" && startRect) {
+      const dx = pos.x - startPos.x;
+      const dy = pos.y - startPos.y;
+      let nx = startRect.x + dx;
+      let ny = startRect.y + dy;
+      nx = Math.max(0, Math.min(1 - startRect.width, nx));
+      ny = Math.max(0, Math.min(1 - startRect.height, ny));
+      setCropRect({ x: nx, y: ny, width: startRect.width, height: startRect.height });
+    } else if (dragMode === "resizing" && startRect && resizeHandle) {
+      const dx = pos.x - startPos.x;
+      const dy = pos.y - startPos.y;
+      let { x, y, width, height } = startRect;
+      if (resizeHandle.includes("w")) { x = Math.max(0, x + dx); width = Math.max(0.01, startRect.x + startRect.width - x); }
+      if (resizeHandle.includes("e")) { width = Math.max(0.01, Math.min(1 - x, startRect.width + dx)); }
+      if (resizeHandle.includes("n")) { y = Math.max(0, y + dy); height = Math.max(0.01, startRect.y + startRect.height - y); }
+      if (resizeHandle.includes("s")) { height = Math.max(0.01, Math.min(1 - y, startRect.height + dy)); }
+      setCropRect({ x, y, width, height });
+    }
+  }, [dragMode, startPos, startRect, resizeHandle, getRelativePos, cropping, cropRect, hitTest]);
 
   const handleMouseUp = useCallback(() => {
-    setDrawing(false);
+    setDragMode("none");
+    setResizeHandle(null);
+    setStartRect(null);
   }, []);
+
+  const drawing = dragMode !== "none";
+
+  // トリム範囲のサイズ・容量を推定
+  const [cropEstimate, setCropEstimate] = useState<string | null>(null);
+  useEffect(() => {
+    if (!cropRect || cropRect.width < 0.01 || cropRect.height < 0.01 || drawing) {
+      setCropEstimate(null);
+      return;
+    }
+    const img = imgRef.current;
+    if (!img) return;
+    const w = Math.round(cropRect.width * img.naturalWidth);
+    const h = Math.round(cropRect.height * img.naturalHeight);
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) { setCropEstimate(`${w}x${h}`); return; }
+    ctx.drawImage(img, Math.round(cropRect.x * img.naturalWidth), Math.round(cropRect.y * img.naturalHeight), w, h, 0, 0, w, h);
+    try {
+      const dataUrl = canvas.toDataURL("image/png");
+      const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+      const bytes = Math.ceil(base64.length * 3 / 4);
+      const sizeStr = bytes < 1024 ? `${bytes}B` : bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)}KB` : `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+      setCropEstimate(`${w}x${h} / ${sizeStr}`);
+    } catch {
+      setCropEstimate(`${w}x${h}`);
+    }
+  }, [cropRect, drawing]);
 
   const handleApplyCrop = useCallback(() => {
     if (!cropRect || !imgRef.current) return;
@@ -101,6 +210,10 @@ export function ImageCropTool({ src, onCrop, t }: ImageCropToolProps) {
   const handleCancelCrop = useCallback(() => {
     setCropping(false);
     setCropRect(null);
+    setDragMode("none");
+    setResizeHandle(null);
+    setStartRect(null);
+    setHoverCursor("crosshair");
   }, []);
 
   /** 倍率指定でリサイズ */
@@ -186,11 +299,6 @@ export function ImageCropTool({ src, onCrop, t }: ImageCropToolProps) {
                   <GridOnIcon sx={{ fontSize: 16 }} />
                 </IconButton>
               </Tooltip>
-              {imgNatural && (
-                <Typography variant="caption" sx={{ color: getTextDisabled(isDark), fontSize: "0.65rem", fontFamily: "monospace", ml: 0.5 }}>
-                  {imgNatural.w} × {imgNatural.h}
-                </Typography>
-              )}
             </Box>
           </>
         ) : (
@@ -198,6 +306,11 @@ export function ImageCropTool({ src, onCrop, t }: ImageCropToolProps) {
             <Typography variant="caption" sx={{ fontWeight: 600, color: getTextSecondary(isDark) }}>
               {t("imageCropSelect")}
             </Typography>
+            {cropEstimate && (
+              <Typography variant="caption" sx={{ color: getTextDisabled(isDark), fontSize: STATUSBAR_FONT_SIZE, fontFamily: "monospace", whiteSpace: "nowrap" }}>
+                {cropEstimate}
+              </Typography>
+            )}
             <Box sx={{ flex: 1 }} />
             {cropRect && cropRect.width > 0.01 && cropRect.height > 0.01 && (
               <Button
@@ -228,7 +341,7 @@ export function ImageCropTool({ src, onCrop, t }: ImageCropToolProps) {
           overflow: "auto",
           p: 2,
           position: "relative",
-          cursor: cropping ? "crosshair" : "default",
+          cursor: cropping ? hoverCursor : "default",
         }}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}

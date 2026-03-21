@@ -7,6 +7,7 @@ import type { Editor } from "@tiptap/react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import { getBgPaper, getDivider, getTextSecondary, getWarningMain } from "../constants/colors";
+import { STATUSBAR_FONT_SIZE } from "../constants/dimensions";
 import useConfirm from "../hooks/useConfirm";
 import type { EncodingLabel, TranslationFn } from "../types";
 
@@ -128,7 +129,7 @@ export const StatusBar = React.memo(function StatusBar({ editor, sourceMode, sou
             <Button
               size="small"
               onClick={(e) => setLineEndingAnchor(e.currentTarget)}
-              sx={{ color: getTextSecondary(isDark), textTransform: "none", minWidth: 0, px: 0.5, py: 0, fontSize: "0.875rem", lineHeight: 1.43 }}
+              sx={{ color: getTextSecondary(isDark), textTransform: "none", minWidth: 0, px: 0.5, py: 0, fontSize: STATUSBAR_FONT_SIZE, lineHeight: 1.43 }}
             >
               {lineEnding}
             </Button>
@@ -161,7 +162,7 @@ export const StatusBar = React.memo(function StatusBar({ editor, sourceMode, sou
             <Button
               size="small"
               onClick={(e) => setEncodingAnchor(e.currentTarget)}
-              sx={{ color: getTextSecondary(isDark), textTransform: "none", minWidth: 0, px: 0.5, py: 0, fontSize: "0.875rem", lineHeight: 1.43 }}
+              sx={{ color: getTextSecondary(isDark), textTransform: "none", minWidth: 0, px: 0.5, py: 0, fontSize: STATUSBAR_FONT_SIZE, lineHeight: 1.43 }}
             >
               {encoding ?? "UTF-8"}
             </Button>

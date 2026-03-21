@@ -21,6 +21,7 @@ import LooksOneIcon from "@mui/icons-material/LooksOne";
 import LooksTwoIcon from "@mui/icons-material/LooksTwo";
 import PriorityHighIcon from "@mui/icons-material/PriorityHigh";
 import SchemaIcon from "@mui/icons-material/Schema";
+import ScreenshotMonitorIcon from "@mui/icons-material/ScreenshotMonitor";
 import SuperscriptIcon from "@mui/icons-material/Superscript";
 import TableChartIcon from "@mui/icons-material/TableChart";
 import TipsAndUpdatesIcon from "@mui/icons-material/TipsAndUpdates";
@@ -356,6 +357,16 @@ export const slashCommandItems: SlashCommandItem[] = [
         reader.readAsDataURL(file);
       };
       input.click();
+    },
+  },
+  {
+    id: "screenshot",
+    labelKey: "slashScreenshot",
+    icon: React.createElement(ScreenshotMonitorIcon, { fontSize: "small" }),
+    keywords: ["screenshot", "screen", "capture", "スクリーンショット", "スクリーンキャプチャ", "画面"],
+    action: (editor) => {
+      if (typeof navigator === "undefined" || !navigator.mediaDevices?.getDisplayMedia) return;
+      window.dispatchEvent(new CustomEvent("open-screen-capture", { detail: { editor } }));
     },
   },
   {

@@ -143,6 +143,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
               <SchemaIcon fontSize="small" />
             </IconButton>
           </Tooltip>
+
         </Box>
       </Popover>
 
