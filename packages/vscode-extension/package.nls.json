@@ -19,7 +19,7 @@
   "command.switchBranch": "Switch Branch",
   "command.specDocsCreateFile": "New File",
   "command.specDocsCreateFolder": "New Folder",
-  "command.specDocsDelete": "Delete",
+  "command.specDocsDelete": "Delete Permanently",
   "command.specDocsRename": "Rename",
   "view.graph": "Graph",
   "command.graphRefresh": "Refresh Graph",

@@ -19,7 +19,7 @@
   "command.switchBranch": "ブランチを切替",
   "command.specDocsCreateFile": "新しいファイル",
   "command.specDocsCreateFolder": "新しいフォルダー",
-  "command.specDocsDelete": "削除",
+  "command.specDocsDelete": "完全に削除",
   "command.specDocsRename": "名前の変更",
   "view.graph": "グラフ",
   "command.graphRefresh": "グラフを更新",

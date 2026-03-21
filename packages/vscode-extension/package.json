@@ -365,32 +365,32 @@
         {
           "command": "anytime-markdown.specDocsCut",
           "when": "view == anytimeMarkdown.specDocs && viewItem != specDocsRoot",
-          "group": "2_edit@0a"
+          "group": "2_clipboard@1"
         },
         {
           "command": "anytime-markdown.specDocsCopy",
           "when": "view == anytimeMarkdown.specDocs && viewItem != specDocsRoot",
-          "group": "2_edit@0b"
+          "group": "2_clipboard@2"
         },
         {
           "command": "anytime-markdown.specDocsPaste",
           "when": "view == anytimeMarkdown.specDocs && viewItem != specDocsRoot",
-          "group": "2_edit@0c"
-        },
-        {
-          "command": "anytime-markdown.specDocsRename",
-          "when": "view == anytimeMarkdown.specDocs && viewItem != specDocsRoot",
-          "group": "2_edit@1"
-        },
-        {
-          "command": "anytime-markdown.specDocsDelete",
-          "when": "view == anytimeMarkdown.specDocs && viewItem != specDocsRoot",
-          "group": "2_edit@2"
+          "group": "2_clipboard@3"
         },
         {
           "command": "anytime-markdown.specDocsCopyPath",
           "when": "view == anytimeMarkdown.specDocs && viewItem != specDocsRoot",
-          "group": "2_edit@3"
+          "group": "3_path@1"
+        },
+        {
+          "command": "anytime-markdown.specDocsRename",
+          "when": "view == anytimeMarkdown.specDocs && viewItem != specDocsRoot",
+          "group": "4_modify@1"
+        },
+        {
+          "command": "anytime-markdown.specDocsDelete",
+          "when": "view == anytimeMarkdown.specDocs && viewItem != specDocsRoot",
+          "group": "4_modify@2"
         },
         {
           "command": "anytime-markdown.switchBranch",
