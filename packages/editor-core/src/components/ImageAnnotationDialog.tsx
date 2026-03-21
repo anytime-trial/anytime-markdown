@@ -12,6 +12,7 @@ import { useTheme } from "@mui/material/styles";
 import React, { useCallback, useRef, useState } from "react";
 
 import { getActionHover, getBgPaper, getDivider, getPrimaryMain, getTextSecondary } from "../constants/colors";
+import { BADGE_NUMBER_FONT_SIZE, PANEL_INPUT_FONT_SIZE, SMALL_CAPTION_FONT_SIZE } from "../constants/dimensions";
 
 import type { AnnotationTool,ImageAnnotation } from "../types/imageAnnotation";
 import { ANNOTATION_COLORS, generateAnnotationId } from "../types/imageAnnotation";
@@ -300,9 +301,9 @@ export function ImageAnnotationDialog({
               >
                 <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mb: 0.5 }}>
                   <Box sx={{ width: 18, height: 18, borderRadius: "50%", bgcolor: a.color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <Typography variant="caption" sx={{ color: "white", fontSize: "0.6rem", fontWeight: 700 }}>{i + 1}</Typography>
+                    <Typography variant="caption" sx={{ color: "white", fontSize: BADGE_NUMBER_FONT_SIZE, fontWeight: 700 }}>{i + 1}</Typography>
                   </Box>
-                  <Typography variant="caption" sx={{ color: getTextSecondary(isDark), fontSize: "0.7rem" }}>
+                  <Typography variant="caption" sx={{ color: getTextSecondary(isDark), fontSize: SMALL_CAPTION_FONT_SIZE }}>
                     {a.type === "rect" ? t("annotationRect") : a.type === "circle" ? t("annotationCircle") : t("annotationLine")}
                   </Typography>
                   <Box sx={{ flex: 1 }} />
@@ -320,7 +321,7 @@ export function ImageAnnotationDialog({
                   value={a.comment ?? ""}
                   onChange={(e) => handleCommentChange(a.id, e.target.value)}
                   onClick={(e) => e.stopPropagation()}
-                  sx={{ "& .MuiInputBase-input": { fontSize: "0.8rem", py: 0.5 } }}
+                  sx={{ "& .MuiInputBase-input": { fontSize: PANEL_INPUT_FONT_SIZE, py: 0.5 } }}
                 />
               </Box>
             ))}

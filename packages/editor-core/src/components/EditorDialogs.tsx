@@ -16,6 +16,7 @@ import { useTheme } from "@mui/material/styles";
 import React from "react";
 
 import { getActionHover, getActionSelected, getDivider, getTextSecondary } from "../constants/colors";
+import { SHORTCUT_HINT_FONT_SIZE } from "../constants/dimensions";
 import { KEYBOARD_SHORTCUTS } from "../constants/shortcuts";
 import type { TranslationFn } from "../types";
 import { APP_VERSION } from "../version";
@@ -240,7 +241,7 @@ export const EditorDialogs = React.memo(function EditorDialogs({
                           bgcolor: getActionSelected(isDark),
                           borderRadius: 0.5,
                           fontFamily: "monospace",
-                          fontSize: "0.75rem",
+                          fontSize: SHORTCUT_HINT_FONT_SIZE,
                           fontWeight: 600,
                           border: 1,
                           borderColor: getDivider(isDark),

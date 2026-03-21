@@ -19,6 +19,7 @@ import {
 import React, { useCallback, useState } from "react";
 
 import { getActionHover, getDivider, getErrorMain, getPrimaryContrast, getPrimaryDark, getPrimaryLight, getPrimaryMain, getTextPrimary, getTextSecondary } from "../constants/colors";
+import { SEARCH_COUNTER_FONT_SIZE, SEARCH_INPUT_FONT_SIZE } from "../constants/dimensions";
 import { Z_TOOLBAR } from "../constants/zIndex";
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
 
@@ -74,7 +75,7 @@ export const SourceSearchBar = React.memo(function SourceSearchBar({
     borderRadius: 0.5,
     minWidth: 28,
     minHeight: 28,
-    fontSize: "0.65rem",
+    fontSize: SEARCH_COUNTER_FONT_SIZE,
     fontWeight: 700,
     fontFamily: "monospace",
     bgcolor: active
@@ -100,7 +101,7 @@ export const SourceSearchBar = React.memo(function SourceSearchBar({
     border: 1,
     borderColor: getDivider(isDark),
     borderRadius: 0.5,
-    fontSize: "0.78rem",
+    fontSize: SEARCH_INPUT_FONT_SIZE,
     outline: "none",
     bgcolor: "transparent",
     color: getTextPrimary(isDark),
@@ -184,7 +185,7 @@ export const SourceSearchBar = React.memo(function SourceSearchBar({
             aria-atomic="true"
             sx={{
               whiteSpace: "nowrap",
-              fontSize: "0.65rem",
+              fontSize: SEARCH_COUNTER_FONT_SIZE,
               color: resultCount === 0 ? getErrorMain(isDark) : getTextSecondary(isDark),
               mx: 0.25,
             }}

@@ -10,6 +10,7 @@ import type { Editor } from "@tiptap/react";
 import { useCallback, useEffect, useState } from "react";
 
 import { getBgPaper, getDivider, getTextSecondary } from "../constants/colors";
+import { CONTEXT_MENU_FONT_SIZE, SHORTCUT_HINT_FONT_SIZE } from "../constants/dimensions";
 import { findBlockNode, getCopiedBlockNode, performBlockCopy } from "../utils/blockClipboard";
 import { boxTableToMarkdown, containsBoxTable } from "../utils/boxTableToMarkdown";
 import { copyTextToClipboard, readTextFromClipboard } from "../utils/clipboardHelpers";
@@ -43,7 +44,7 @@ function getMenuPaperSx(isDark: boolean) { return {
   boxShadow: "0 2px 8px rgba(0,0,0,0.25)",
   py: 0.5,
   "& .MuiMenuItem-root": {
-    fontSize: "0.8125rem",
+    fontSize: CONTEXT_MENU_FONT_SIZE,
     minHeight: 28,
     px: 2,
     py: 0.25,
@@ -189,10 +190,10 @@ export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProp
         <ListItemIcon>
           <ContentCutIcon sx={{ fontSize: 16 }} />
         </ListItemIcon>
-        <ListItemText primaryTypographyProps={{ fontSize: "0.8125rem" }}>
+        <ListItemText primaryTypographyProps={{ fontSize: CONTEXT_MENU_FONT_SIZE }}>
           {t("cut")}
         </ListItemText>
-        <Typography variant="body2" sx={{ color: getTextSecondary(isDark), fontSize: "0.75rem", ml: 2 }}>
+        <Typography variant="body2" sx={{ color: getTextSecondary(isDark), fontSize: SHORTCUT_HINT_FONT_SIZE, ml: 2 }}>
           Ctrl+X
         </Typography>
       </MenuItem>
@@ -200,10 +201,10 @@ export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProp
         <ListItemIcon>
           <ContentCopyIcon sx={{ fontSize: 16 }} />
         </ListItemIcon>
-        <ListItemText primaryTypographyProps={{ fontSize: "0.8125rem" }}>
+        <ListItemText primaryTypographyProps={{ fontSize: CONTEXT_MENU_FONT_SIZE }}>
           {t("copy")}
         </ListItemText>
-        <Typography variant="body2" sx={{ color: getTextSecondary(isDark), fontSize: "0.75rem", ml: 2 }}>
+        <Typography variant="body2" sx={{ color: getTextSecondary(isDark), fontSize: SHORTCUT_HINT_FONT_SIZE, ml: 2 }}>
           Ctrl+C
         </Typography>
       </MenuItem>
@@ -211,10 +212,10 @@ export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProp
         <ListItemIcon>
           <ContentPasteIcon sx={{ fontSize: 16 }} />
         </ListItemIcon>
-        <ListItemText primaryTypographyProps={{ fontSize: "0.8125rem" }}>
+        <ListItemText primaryTypographyProps={{ fontSize: CONTEXT_MENU_FONT_SIZE }}>
           {t("paste")}
         </ListItemText>
-        <Typography variant="body2" sx={{ color: getTextSecondary(isDark), fontSize: "0.75rem", ml: 2 }}>
+        <Typography variant="body2" sx={{ color: getTextSecondary(isDark), fontSize: SHORTCUT_HINT_FONT_SIZE, ml: 2 }}>
           Ctrl+V
         </Typography>
       </MenuItem>
@@ -223,10 +224,10 @@ export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProp
         <ListItemIcon>
           <ContentPasteIcon sx={{ fontSize: 16 }} />
         </ListItemIcon>
-        <ListItemText primaryTypographyProps={{ fontSize: "0.8125rem" }}>
+        <ListItemText primaryTypographyProps={{ fontSize: CONTEXT_MENU_FONT_SIZE }}>
           {t("pasteAsMarkdown")}
         </ListItemText>
-        <Typography variant="body2" sx={{ color: getTextSecondary(isDark), fontSize: "0.75rem", ml: 2 }}>
+        <Typography variant="body2" sx={{ color: getTextSecondary(isDark), fontSize: SHORTCUT_HINT_FONT_SIZE, ml: 2 }}>
           Ctrl+Shift+V
         </Typography>
       </MenuItem>
@@ -234,7 +235,7 @@ export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProp
         <ListItemIcon>
           <CodeIcon sx={{ fontSize: 16 }} />
         </ListItemIcon>
-        <ListItemText primaryTypographyProps={{ fontSize: "0.8125rem" }}>
+        <ListItemText primaryTypographyProps={{ fontSize: CONTEXT_MENU_FONT_SIZE }}>
           {t("pasteAsCodeBlock")}
         </ListItemText>
       </MenuItem>

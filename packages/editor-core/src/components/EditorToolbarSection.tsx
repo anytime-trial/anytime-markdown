@@ -4,6 +4,7 @@ import type { Editor } from "@tiptap/react";
 import type React from "react";
 
 import { getBgPaper, getPrimaryMain } from "../constants/colors";
+import { SKIP_LINK_FONT_SIZE } from "../constants/dimensions";
 import { Z_SKIP_LINK } from "../constants/zIndex";
 import type { ToolbarVisibility } from "../types/toolbar";
 import { EditorToolbar } from "./EditorToolbar";
@@ -106,7 +107,7 @@ export function EditorToolbarSection({
           "&:focus": {
             left: 16, top: 16, zIndex: Z_SKIP_LINK, bgcolor: getBgPaper(isDark),
             color: getPrimaryMain(isDark), px: 2, py: 1, borderRadius: 1, boxShadow: 3,
-            fontWeight: 600, fontSize: "0.875rem", textDecoration: "none",
+            fontWeight: 600, fontSize: SKIP_LINK_FONT_SIZE, textDecoration: "none",
           },
         }}
       >

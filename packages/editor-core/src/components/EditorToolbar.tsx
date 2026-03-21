@@ -27,6 +27,7 @@ import React, { useCallback, useRef, useState } from "react";
 
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, DEFAULT_LIGHT_TEXT, getActionHover, getActionSelected, getBgPaper, getTextPrimary, getTextSecondary } from "../constants/colors";
 import { modKey } from "../constants/shortcuts";
+import { TOOLBAR_FONT_SIZE } from "../constants/dimensions";
 import { Z_TOOLBAR } from "../constants/zIndex";
 import AppIcon from "../icons/AppIcon";
 import type { TranslationFn } from "../types";
@@ -77,7 +78,7 @@ function getPillToggleSx(isDark: boolean) {
       px: 2,
       py: 0,
       gap: 0.5,
-      fontSize: "0.8rem",
+      fontSize: TOOLBAR_FONT_SIZE,
       textTransform: "none",
       lineHeight: 1,
     },

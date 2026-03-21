@@ -3,7 +3,7 @@ import { Box, Tab, Tabs, useTheme } from "@mui/material";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { getDivider } from "../constants/colors";
-import { FS_TOOLBAR_HEIGHT } from "../constants/dimensions";
+import { FS_TAB_FONT_SIZE, FS_TOOLBAR_HEIGHT } from "../constants/dimensions";
 import { PLANTUML_SAMPLES } from "../constants/samples";
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
 import type { UseZoomPanReturn } from "../hooks/useZoomPan";
@@ -125,7 +125,7 @@ export function PlantUmlEditDialog({
                 <Tabs
                   value={activeTab}
                   onChange={(_, v) => setActiveTab(v)}
-                  sx={{ minHeight: FS_TOOLBAR_HEIGHT, flex: 1, "& .MuiTab-root": { minHeight: FS_TOOLBAR_HEIGHT, py: 0.5, px: 2, fontSize: "0.75rem", textTransform: "none" } }}
+                  sx={{ minHeight: FS_TOOLBAR_HEIGHT, flex: 1, "& .MuiTab-root": { minHeight: FS_TOOLBAR_HEIGHT, py: 0.5, px: 2, fontSize: FS_TAB_FONT_SIZE, textTransform: "none" } }}
                 >
                   <Tab value="code" label={t("codeTab")} />
                   <Tab value="config" label={t("configTab")} />

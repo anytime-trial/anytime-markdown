@@ -21,6 +21,7 @@ import { useLocale } from "next-intl";
 import React, { useMemo } from "react";
 
 import { getDivider } from "../constants/colors";
+import { MENU_ITEM_FONT_SIZE } from "../constants/dimensions";
 import { PLANTUML_SAMPLES } from "../constants/samples";
 import { getBuiltinTemplates, type MarkdownTemplate } from "../constants/templates";
 import MermaidIcon from "../icons/MermaidIcon";
@@ -86,7 +87,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
           {!hideVersionInfo && (
             <MenuItem
               onClick={() => { setVersionDialogOpen(true); setHelpAnchorEl(null); }}
-              sx={{ fontSize: "0.85rem", minHeight: 36 }}
+              sx={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36 }}
             >
               <ListItemIcon><InfoOutlinedIcon fontSize="small" /></ListItemIcon>
               <ListItemText>{t("versionInfo")}</ListItemText>
@@ -210,7 +211,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
             <MenuItem
               key={tmpl.id}
               onClick={() => { onInsertTemplate(tmpl); setTemplateAnchorEl(null); }}
-              sx={{ fontSize: "0.85rem", minHeight: 36 }}
+              sx={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36 }}
             >
               {t(tmpl.name)}
             </MenuItem>
@@ -278,7 +279,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
                 }
                 setHeadingMenu(null);
               }}
-              sx={{ fontSize: "0.85rem", minHeight: 36 }}
+              sx={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36 }}
             >
               {label}
             </MenuItem>
@@ -291,7 +292,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
               setHeadingMenu(null);
             }}
             selected={editor?.isActive("bulletList")}
-            sx={{ fontSize: "0.85rem", minHeight: 36, gap: 1 }}
+            sx={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36, gap: 1 }}
           >
             <FormatListBulletedIcon sx={{ fontSize: 18 }} />
             {t("bulletList")}
@@ -303,7 +304,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
               setHeadingMenu(null);
             }}
             selected={editor?.isActive("orderedList")}
-            sx={{ fontSize: "0.85rem", minHeight: 36, gap: 1 }}
+            sx={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36, gap: 1 }}
           >
             <FormatListNumberedIcon sx={{ fontSize: 18 }} />
             {t("orderedList")}
@@ -315,7 +316,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
               setHeadingMenu(null);
             }}
             selected={editor?.isActive("taskList")}
-            sx={{ fontSize: "0.85rem", minHeight: 36, gap: 1 }}
+            sx={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36, gap: 1 }}
           >
             <CheckBoxIcon sx={{ fontSize: 18 }} />
             {t("taskList")}
@@ -328,7 +329,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
               setHeadingMenu(null);
             }}
             selected={editor?.isActive("blockquote")}
-            sx={{ fontSize: "0.85rem", minHeight: 36, gap: 1 }}
+            sx={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36, gap: 1 }}
           >
             <FormatQuoteIcon sx={{ fontSize: 18 }} />
             {t("blockquote")}

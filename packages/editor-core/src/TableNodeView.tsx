@@ -21,6 +21,7 @@ import { DeleteBlockDialog } from "./components/codeblock/DeleteBlockDialog";
 import { EditDialogHeader } from "./components/EditDialogHeader";
 import { SearchReplaceBar } from "./components/SearchReplaceBar";
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getActionHover, getActionSelected, getBgPaper, getDivider, getErrorMain, getTextSecondary } from "./constants/colors";
+import { SMALL_CAPTION_FONT_SIZE } from "./constants/dimensions";
 import { Z_FULLSCREEN } from "./constants/zIndex";
 import { findCounterpartTableHtml, getMergeEditors } from "./contexts/MergeEditorsContext";
 import { useBlockNodeState } from "./hooks/useBlockNodeState";
@@ -177,14 +178,14 @@ function TableCompareView({
   return (
     <Box sx={{ flex: 1, display: "flex", overflow: "hidden" }}>
       <Box sx={{ flex: 1, overflow: "auto", bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG, p: 2, borderRight: 1, borderColor: getDivider(isDark) }}>
-        <Typography variant="caption" sx={{ color: getTextSecondary(isDark), fontSize: "0.7rem", mb: 1, display: "block" }}>{t("compare")}</Typography>
+        <Typography variant="caption" sx={{ color: getTextSecondary(isDark), fontSize: SMALL_CAPTION_FONT_SIZE, mb: 1, display: "block" }}>{t("compare")}</Typography>
         <Box
           dangerouslySetInnerHTML={{ __html: highlightedCompareHtml }}
           sx={{ "& table": tableSx }}
         />
       </Box>
       <Box sx={{ flex: 1, overflow: "auto", bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG, p: 2, "& table": tableSx }}>
-        <Typography variant="caption" sx={{ color: getTextSecondary(isDark), fontSize: "0.7rem", mb: 1, display: "block" }}>{t("compare")} - {t("edit")}</Typography>
+        <Typography variant="caption" sx={{ color: getTextSecondary(isDark), fontSize: SMALL_CAPTION_FONT_SIZE, mb: 1, display: "block" }}>{t("compare")} - {t("edit")}</Typography>
         <NodeViewContent<"table"> as="table" />
       </Box>
     </Box>

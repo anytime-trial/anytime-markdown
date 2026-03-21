@@ -24,7 +24,7 @@ import {
 import React, { useCallback, useMemo,useState } from "react";
 
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getActionHover, getDivider, getPrimaryMain, getTextDisabled, getTextPrimary, getTextSecondary } from "../constants/colors";
-import { PANEL_HEADER_MIN_HEIGHT } from "../constants/dimensions";
+import { OUTLINE_FONT_SIZE, PANEL_HEADER_MIN_HEIGHT } from "../constants/dimensions";
 import MermaidIcon from "../icons/MermaidIcon";
 import type { HeadingItem, OutlineKind, TranslationFn } from "../types";
 
@@ -218,7 +218,7 @@ export function OutlinePanel({
           </Box>
           <Box sx={{ p: 1 }}>
           {headings.length === 0 ? (
-            <Typography variant="body2" sx={{ color: getTextDisabled(isDark), fontSize: "0.8rem" }}>
+            <Typography variant="body2" sx={{ color: getTextDisabled(isDark), fontSize: OUTLINE_FONT_SIZE }}>
               {t("noHeadings")}
             </Typography>
           ) : (
@@ -301,7 +301,7 @@ export function OutlinePanel({
                         }}
                         sx={{
                           cursor: "pointer",
-                          fontSize: "0.8rem",
+                          fontSize: OUTLINE_FONT_SIZE,
                           fontWeight: 400,
                           color: isFolded ? getTextDisabled(isDark) : getTextPrimary(isDark),
                           whiteSpace: "nowrap",

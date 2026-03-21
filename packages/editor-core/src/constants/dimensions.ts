@@ -17,6 +17,62 @@ export const PREVIEW_MAX_HEIGHT = 400;
 export const STATUSBAR_HEIGHT = 39;
 /** StatusBar フォントサイズ */
 export const STATUSBAR_FONT_SIZE = "0.875rem";
+/** ハンドルバーキャプションのフォントサイズ */
+export const HANDLEBAR_CAPTION_FONT_SIZE = "0.65rem";
+/** スラッシュコマンドメニューのフォントサイズ */
+export const SLASH_COMMAND_FONT_SIZE = "0.85rem";
+/** バッジ番号のフォントサイズ（コメント・アノテーション） */
+export const BADGE_NUMBER_FONT_SIZE = "0.55rem";
+/** 見出しレベルバッジのフォントサイズ */
+export const HEADING_BADGE_FONT_SIZE = "0.6rem";
+/** マージ差分バッジのフォントサイズ */
+export const MERGE_BADGE_FONT_SIZE = "0.6rem";
+/** コンテキストメニュー本文のフォントサイズ */
+export const CONTEXT_MENU_FONT_SIZE = "0.8125rem";
+/** メニュー項目のフォントサイズ */
+export const MENU_ITEM_FONT_SIZE = "0.85rem";
+/** ダイアログヘッダーのフォントサイズ */
+export const DIALOG_HEADER_FONT_SIZE = "0.875rem";
+/** ツールバーボタンのフォントサイズ */
+export const TOOLBAR_FONT_SIZE = "0.8rem";
+/** アウトラインパネルのフォントサイズ */
+export const OUTLINE_FONT_SIZE = "0.8rem";
+/** ブロックスタイル（折りたたみラベル等）のフォントサイズ */
+export const BLOCK_STYLE_FONT_SIZE = "0.8rem";
+/** コメント本文のフォントサイズ */
+export const COMMENT_BODY_FONT_SIZE = "0.8rem";
+/** パネル内入力欄のフォントサイズ */
+export const PANEL_INPUT_FONT_SIZE = "0.8rem";
+/** 検索バーカウンターのフォントサイズ */
+export const SEARCH_COUNTER_FONT_SIZE = "0.65rem";
+/** 検索バー入力欄のフォントサイズ */
+export const SEARCH_INPUT_FONT_SIZE = "0.78rem";
+/** スキップリンクのフォントサイズ */
+export const SKIP_LINK_FONT_SIZE = "0.875rem";
+/** コメント入力欄のフォントサイズ */
+export const COMMENT_INPUT_FONT_SIZE = "0.875rem";
+/** チップのフォントサイズ */
+export const CHIP_FONT_SIZE = "0.7rem";
+/** 小ボタンのフォントサイズ */
+export const SMALL_BUTTON_FONT_SIZE = "0.7rem";
+/** 小キャプションのフォントサイズ */
+export const SMALL_CAPTION_FONT_SIZE = "0.7rem";
+/** パネルボタン・トグルボタンのフォントサイズ */
+export const PANEL_BUTTON_FONT_SIZE = "0.75rem";
+/** ショートカット表示のフォントサイズ */
+export const SHORTCUT_HINT_FONT_SIZE = "0.75rem";
+/** 全画面ダイアログ パネルヘッダーのフォントサイズ */
+export const FS_PANEL_HEADER_FONT_SIZE = "0.75rem";
+/** 全画面ダイアログ タブのフォントサイズ */
+export const FS_TAB_FONT_SIZE = "0.75rem";
+/** 見出しアンカーリンクのフォントサイズ */
+export const HEADING_ANCHOR_FONT_SIZE = "0.75rem";
+/** フロントマターコードのフォントサイズ */
+export const FRONTMATTER_CODE_FONT_SIZE = "0.75rem";
+/** マージ情報キャプションのフォントサイズ */
+export const MERGE_INFO_FONT_SIZE = "0.75rem";
+/** ツールチップのフォントサイズ */
+export const TOOLTIP_FONT_SIZE = "12px";
 
 // ── コメントパネル ──
 export const COMMENT_PANEL_WIDTH = 280;

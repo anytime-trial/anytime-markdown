@@ -2,6 +2,7 @@ import type { SxProps,Theme } from "@mui/material/styles";
 import { alpha } from "@mui/material/styles";
 
 import { COMMON_WHITE, getGrey, getPrimaryMain, getWarningLight, getWarningMain } from "../constants/colors";
+import { TOOLTIP_FONT_SIZE } from "../constants/dimensions";
 import { Z_LINK_TOOLTIP } from "../constants/zIndex";
 
 /** リンク・コメント・検索マッチ・脚注スタイル */
@@ -30,7 +31,7 @@ export function getInlineStyles(theme: Theme): SxProps<Theme> {
       color: COMMON_WHITE,
       padding: "2px 8px",
       borderRadius: "4px",
-      fontSize: "12px",
+      fontSize: TOOLTIP_FONT_SIZE,
       whiteSpace: "nowrap",
       maxWidth: "400px",
       overflow: "hidden",

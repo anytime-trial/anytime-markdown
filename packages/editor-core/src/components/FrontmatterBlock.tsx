@@ -6,6 +6,7 @@ import { useCallback, useRef, useState } from "react";
 import useConfirm from "@/hooks/useConfirm";
 
 import { DEFAULT_DARK_CODE_BG, DEFAULT_LIGHT_CODE_BG, getActionHover, getDivider, getTextSecondary } from "../constants/colors";
+import { FRONTMATTER_CODE_FONT_SIZE, SMALL_CAPTION_FONT_SIZE } from "../constants/dimensions";
 import { useEditorSettingsContext } from "../useEditorSettings";
 
 interface FrontmatterBlockProps {
@@ -64,7 +65,7 @@ export function FrontmatterBlock({ frontmatter, onChange, readOnly, t }: Frontma
             fontFamily: "monospace",
             fontWeight: 600,
             color: getTextSecondary(isDark),
-            fontSize: "0.75rem",
+            fontSize: FRONTMATTER_CODE_FONT_SIZE,
           }}
         >
           {collapsed ? "▶" : "▼"} Frontmatter
@@ -90,7 +91,7 @@ export function FrontmatterBlock({ frontmatter, onChange, readOnly, t }: Frontma
             }}
             sx={{ p: 0.25 }}
           >
-            <Typography variant="caption" sx={{ fontSize: "0.7rem", color: getTextSecondary(isDark) }}>
+            <Typography variant="caption" sx={{ fontSize: SMALL_CAPTION_FONT_SIZE, color: getTextSecondary(isDark) }}>
               ✕
             </Typography>
           </IconButton>

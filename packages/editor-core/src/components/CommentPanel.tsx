@@ -19,7 +19,7 @@ import { useEditorState } from "@tiptap/react";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getActionHover, getDivider, getPrimaryMain, getTextDisabled, getTextSecondary } from "../constants/colors";
-import { COMMENT_PANEL_WIDTH, PANEL_HEADER_MIN_HEIGHT } from "../constants/dimensions";
+import { BADGE_NUMBER_FONT_SIZE, COMMENT_BODY_FONT_SIZE, COMMENT_INPUT_FONT_SIZE, COMMENT_PANEL_WIDTH, PANEL_BUTTON_FONT_SIZE, PANEL_HEADER_MIN_HEIGHT, SMALL_BUTTON_FONT_SIZE, SMALL_CAPTION_FONT_SIZE } from "../constants/dimensions";
 import { commentDataPluginKey } from "../extensions/commentExtension";
 import type { TranslationFn } from "../types";
 import type { ImageAnnotation } from "../types/imageAnnotation";
@@ -243,19 +243,19 @@ export const CommentPanel = React.memo(function CommentPanel({
         >
           <ToggleButton
             value="all"
-            sx={{ py: 0.25, fontSize: "0.75rem" }}
+            sx={{ py: 0.25, fontSize: PANEL_BUTTON_FONT_SIZE }}
           >
             {t("commentFilterAll") || "All"}
           </ToggleButton>
           <ToggleButton
             value="open"
-            sx={{ py: 0.25, fontSize: "0.75rem" }}
+            sx={{ py: 0.25, fontSize: PANEL_BUTTON_FONT_SIZE }}
           >
             {t("commentFilterOpen") || "Open"}
           </ToggleButton>
           <ToggleButton
             value="resolved"
-            sx={{ py: 0.25, fontSize: "0.75rem" }}
+            sx={{ py: 0.25, fontSize: PANEL_BUTTON_FONT_SIZE }}
           >
             {t("commentFilterResolved") || "Resolved"}
           </ToggleButton>
@@ -341,7 +341,7 @@ export const CommentPanel = React.memo(function CommentPanel({
                   multiline
                   size="small"
                   fullWidth
-                  sx={{ mb: 0.5, "& .MuiInputBase-input": { fontSize: "0.875rem", p: 0.75 } }}
+                  sx={{ mb: 0.5, "& .MuiInputBase-input": { fontSize: COMMENT_INPUT_FONT_SIZE, p: 0.75 } }}
                 />
               ) : (
                 <Typography
@@ -362,7 +362,7 @@ export const CommentPanel = React.memo(function CommentPanel({
                 <Button
                   size="small"
                   variant="text"
-                  sx={{ fontSize: "0.7rem", minWidth: 0, px: 0.5 }}
+                  sx={{ fontSize: SMALL_BUTTON_FONT_SIZE, minWidth: 0, px: 0.5 }}
                   onClick={(e) => {
                     e.stopPropagation();
                     if (comment.resolved) {
@@ -381,7 +381,7 @@ export const CommentPanel = React.memo(function CommentPanel({
                   size="small"
                   variant="text"
                   color="error"
-                  sx={{ fontSize: "0.7rem", minWidth: 0, px: 0.5 }}
+                  sx={{ fontSize: SMALL_BUTTON_FONT_SIZE, minWidth: 0, px: 0.5 }}
                   onClick={(e) => {
                     e.stopPropagation();
                     editor.commands.removeComment(comment.id);
@@ -437,13 +437,13 @@ export const CommentPanel = React.memo(function CommentPanel({
                           width: 16, height: 16, borderRadius: "50%", bgcolor: a.color,
                           display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
                         }}>
-                          <Typography variant="caption" sx={{ color: "white", fontSize: "0.55rem", fontWeight: 700 }}>{i + 1}</Typography>
+                          <Typography variant="caption" sx={{ color: "white", fontSize: BADGE_NUMBER_FONT_SIZE, fontWeight: 700 }}>{i + 1}</Typography>
                         </Box>
-                        <Typography variant="caption" sx={{ color: getTextSecondary(isDark), fontSize: "0.7rem" }}>
+                        <Typography variant="caption" sx={{ color: getTextSecondary(isDark), fontSize: SMALL_CAPTION_FONT_SIZE }}>
                           {a.type === "rect" ? t("annotationRect") : a.type === "circle" ? t("annotationCircle") : t("annotationLine")}
                         </Typography>
                       </Box>
-                      <Typography variant="body2" sx={{ fontSize: "0.8rem", mb: 0.5 }}>
+                      <Typography variant="body2" sx={{ fontSize: COMMENT_BODY_FONT_SIZE, mb: 0.5 }}>
                         {a.comment}
                       </Typography>
                     </ButtonBase>
@@ -451,7 +451,7 @@ export const CommentPanel = React.memo(function CommentPanel({
                       <Button
                         size="small"
                         variant="text"
-                        sx={{ fontSize: "0.7rem", minWidth: 0, px: 0.5 }}
+                        sx={{ fontSize: SMALL_BUTTON_FONT_SIZE, minWidth: 0, px: 0.5 }}
                         onClick={() => toggleAnnotationResolved(img.pos, a.id)}
                       >
                         {a.resolved
@@ -462,7 +462,7 @@ export const CommentPanel = React.memo(function CommentPanel({
                         size="small"
                         variant="text"
                         color="error"
-                        sx={{ fontSize: "0.7rem", minWidth: 0, px: 0.5 }}
+                        sx={{ fontSize: SMALL_BUTTON_FONT_SIZE, minWidth: 0, px: 0.5 }}
                         onClick={() => deleteAnnotation(img.pos, a.id)}
                       >
                         {t("commentDelete") || "Delete"}

@@ -7,7 +7,7 @@ import { useTheme } from "@mui/material/styles";
 import React from "react";
 
 import { getDivider, getTextSecondary } from "../constants/colors";
-import { FS_TOOLBAR_HEIGHT, FS_ZOOM_LABEL_WIDTH } from "../constants/dimensions";
+import { FS_TOOLBAR_HEIGHT, FS_ZOOM_LABEL_WIDTH, SMALL_CAPTION_FONT_SIZE } from "../constants/dimensions";
 import type { UseZoomPanReturn } from "../hooks/useZoomPan";
 
 interface ZoomToolbarProps {
@@ -47,7 +47,7 @@ export function ZoomToolbar({ fsZP, onExport, t }: ZoomToolbarProps) {
           </IconButton>
         </Tooltip>
       )}
-      <Typography variant="caption" sx={{ minWidth: FS_ZOOM_LABEL_WIDTH, textAlign: "center", fontSize: "0.7rem" }}>
+      <Typography variant="caption" sx={{ minWidth: FS_ZOOM_LABEL_WIDTH, textAlign: "center", fontSize: SMALL_CAPTION_FONT_SIZE }}>
         {Math.round(fsZP.zoom * 100)}%
       </Typography>
     </Box>

@@ -5,7 +5,7 @@ import { useTheme } from "@mui/material/styles";
 import React, { useState } from "react";
 
 import { getActionHover, getDivider, getTextSecondary } from "../constants/colors";
-import { FS_CHIP_HEIGHT } from "../constants/dimensions";
+import { CHIP_FONT_SIZE, FS_CHIP_HEIGHT, FS_PANEL_HEADER_FONT_SIZE } from "../constants/dimensions";
 
 interface SampleItem {
   label: string;
@@ -33,7 +33,7 @@ export function SamplePanel({ samples, onInsert, readOnly, t }: SamplePanelProps
         onClick={() => setOpen((v) => !v)}
         sx={{ display: "flex", alignItems: "center", px: 1.5, py: 0.5, cursor: "pointer", userSelect: "none", "&:hover": { bgcolor: getActionHover(isDark) } }}
       >
-        <Typography variant="caption" sx={{ fontWeight: 600, fontSize: "0.75rem", flex: 1 }}>
+        <Typography variant="caption" sx={{ fontWeight: 600, fontSize: FS_PANEL_HEADER_FONT_SIZE, flex: 1 }}>
           {t("sampleContent")}
         </Typography>
         {open ? <ExpandLessIcon sx={{ fontSize: 16, color: getTextSecondary(isDark) }} /> : <ExpandMoreIcon sx={{ fontSize: 16, color: getTextSecondary(isDark) }} />}
@@ -46,7 +46,7 @@ export function SamplePanel({ samples, onInsert, readOnly, t }: SamplePanelProps
               label={t(sample.i18nKey)}
               size="small"
               onClick={() => onInsert(sample.code)}
-              sx={{ fontSize: "0.7rem", height: FS_CHIP_HEIGHT }}
+              sx={{ fontSize: CHIP_FONT_SIZE, height: FS_CHIP_HEIGHT }}
             />
           ))}
         </Box>

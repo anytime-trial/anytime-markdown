@@ -22,7 +22,7 @@ import { ImageAnnotationDialog } from "./components/ImageAnnotationDialog";
 import { ImageCropTool } from "./components/ImageCropTool";
 import { ScreenCaptureDialog } from "./components/ScreenCaptureDialog";
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getActionHover, getDivider, getErrorMain, getPrimaryMain, getTextDisabled, getTextSecondary, getWarningMain } from "./constants/colors";
-import { STATUSBAR_FONT_SIZE } from "./constants/dimensions";
+import { HANDLEBAR_CAPTION_FONT_SIZE, SMALL_CAPTION_FONT_SIZE, STATUSBAR_FONT_SIZE } from "./constants/dimensions";
 import { useBlockCapture } from "./hooks/useBlockCapture";
 import { useBlockNodeState } from "./hooks/useBlockNodeState";
 import { useBlockResize } from "./hooks/useBlockResize";
@@ -114,7 +114,7 @@ function ImageToolbarExtra({
     <>
       <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
       {alt ? (
-        <Typography variant="caption" sx={{ color: getTextSecondary(isDark), fontSize: "0.65rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, flexShrink: 1 }}>
+        <Typography variant="caption" sx={{ color: getTextSecondary(isDark), fontSize: HANDLEBAR_CAPTION_FONT_SIZE, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, flexShrink: 1 }}>
           {alt}
         </Typography>
       ) : (
@@ -122,11 +122,11 @@ function ImageToolbarExtra({
           <WarningAmberIcon sx={{ fontSize: 14, color: getWarningMain(isDark) }} />
         </Tooltip>
       )}
-      <Typography variant="caption" sx={{ color: getTextDisabled(isDark), fontSize: "0.65rem", fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
+      <Typography variant="caption" sx={{ color: getTextDisabled(isDark), fontSize: HANDLEBAR_CAPTION_FONT_SIZE, fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
         {src?.startsWith("data:") ? "(base64)" : src ? `(${src})` : ""}
       </Typography>
       {imgError && (
-        <Typography variant="caption" sx={{ color: getErrorMain(isDark), fontSize: "0.65rem", fontWeight: 600, flexShrink: 0, display: "flex", alignItems: "center", gap: 0.25 }}>
+        <Typography variant="caption" sx={{ color: getErrorMain(isDark), fontSize: HANDLEBAR_CAPTION_FONT_SIZE, fontWeight: 600, flexShrink: 0, display: "flex", alignItems: "center", gap: 0.25 }}>
           <ErrorOutlineIcon sx={{ fontSize: 14 }} />
           {t("imageNotFound")}
         </Typography>
@@ -240,7 +240,7 @@ function ImageWithResize({
           px: 1,
           py: 0.25,
           borderRadius: 1,
-          fontSize: "0.7rem",
+          fontSize: SMALL_CAPTION_FONT_SIZE,
           fontFamily: "monospace",
           pointerEvents: "none",
         }}>

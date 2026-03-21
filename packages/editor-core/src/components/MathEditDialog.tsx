@@ -4,7 +4,7 @@ import DOMPurify from "dompurify";
 import React, { useCallback } from "react";
 
 import { getDivider } from "../constants/colors";
-import { FS_TOOLBAR_HEIGHT } from "../constants/dimensions";
+import { FS_PANEL_HEADER_FONT_SIZE, FS_TOOLBAR_HEIGHT, MENU_ITEM_FONT_SIZE } from "../constants/dimensions";
 import { MATH_SAMPLES } from "../constants/samples";
 import { MATH_SANITIZE_CONFIG, useKatexRender } from "../hooks/useKatexRender";
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
@@ -80,7 +80,7 @@ export function MathEditDialog({
             <>
               {/* Code toolbar */}
               <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: getDivider(isDark), px: 1, py: 0.25, minHeight: FS_TOOLBAR_HEIGHT }}>
-                <Typography variant="caption" sx={{ fontWeight: 600, fontSize: "0.75rem", flex: 1 }}>
+                <Typography variant="caption" sx={{ fontWeight: 600, fontSize: FS_PANEL_HEADER_FONT_SIZE, flex: 1 }}>
                   {t("codeTab")}
                 </Typography>
                 {toolbarExtra}
@@ -102,7 +102,7 @@ export function MathEditDialog({
               <ZoomToolbar fsZP={fsZP} t={t} />
               <ZoomablePreview fsZP={fsZP}>
                 {mathError && (
-                  <Typography color="error" sx={{ fontFamily: "monospace", fontSize: "0.85rem" }}>
+                  <Typography color="error" sx={{ fontFamily: "monospace", fontSize: MENU_ITEM_FONT_SIZE }}>
                     {mathError}
                   </Typography>
                 )}

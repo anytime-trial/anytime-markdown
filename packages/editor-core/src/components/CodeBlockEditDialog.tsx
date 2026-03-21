@@ -6,7 +6,7 @@ import React, { useCallback, useMemo, useState } from "react";
 
 import { getActionHover, getDivider, getTextPrimary } from "../constants/colors";
 import { CODE_HELLO_SAMPLES } from "../constants/codeHelloSamples";
-import { FS_CHIP_HEIGHT, FS_TOOLBAR_HEIGHT } from "../constants/dimensions";
+import { CHIP_FONT_SIZE, FS_CHIP_HEIGHT, FS_PANEL_HEADER_FONT_SIZE, FS_TOOLBAR_HEIGHT } from "../constants/dimensions";
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
 import { useZoomPan } from "../hooks/useZoomPan";
 import { useEditorSettingsContext } from "../useEditorSettings";
@@ -99,7 +99,7 @@ export function CodeBlockEditDialog({
     <>
       {/* Code toolbar */}
       <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: getDivider(isDark), px: 1, py: 0.25, minHeight: FS_TOOLBAR_HEIGHT }}>
-        <Typography variant="caption" sx={{ fontWeight: 600, fontSize: "0.75rem", flex: 1 }}>
+        <Typography variant="caption" sx={{ fontWeight: 600, fontSize: FS_PANEL_HEADER_FONT_SIZE, flex: 1 }}>
           {t("codeTab")}
         </Typography>
         {toolbarExtra}
@@ -122,7 +122,7 @@ export function CodeBlockEditDialog({
             onClick={() => setSamplesOpen((v) => !v)}
             sx={{ display: "flex", alignItems: "center", px: 1.5, py: 0.5, cursor: "pointer", userSelect: "none", "&:hover": { bgcolor: getActionHover(isDark) } }}
           >
-            <Typography variant="caption" sx={{ fontWeight: 600, fontSize: "0.75rem", flex: 1 }}>
+            <Typography variant="caption" sx={{ fontWeight: 600, fontSize: FS_PANEL_HEADER_FONT_SIZE, flex: 1 }}>
               {t("sampleContent")}
             </Typography>
           </Box>
@@ -135,7 +135,7 @@ export function CodeBlockEditDialog({
                   color="primary"
                   variant="outlined"
                   onClick={() => handleInsertSample(currentLangSample)}
-                  sx={{ fontSize: "0.7rem", height: FS_CHIP_HEIGHT }}
+                  sx={{ fontSize: CHIP_FONT_SIZE, height: FS_CHIP_HEIGHT }}
                 />
               )}
               {sampleEntries
@@ -146,7 +146,7 @@ export function CodeBlockEditDialog({
                     label={lang}
                     size="small"
                     onClick={() => handleInsertSample(code)}
-                    sx={{ fontSize: "0.7rem", height: FS_CHIP_HEIGHT }}
+                    sx={{ fontSize: CHIP_FONT_SIZE, height: FS_CHIP_HEIGHT }}
                   />
                 ))}
             </Box>

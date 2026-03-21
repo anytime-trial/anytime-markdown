@@ -11,6 +11,7 @@ import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getDivider, getErrorMain, getTextDisabled } from "../constants/colors";
+import { HANDLEBAR_CAPTION_FONT_SIZE } from "../constants/dimensions";
 import { saveBlob,useBlockCapture } from "../hooks/useBlockCapture";
 import { useBlockNodeState } from "../hooks/useBlockNodeState";
 import type { GifSettings } from "../utils/gifEncoder";
@@ -262,7 +263,7 @@ export function GifNodeView({ editor, node, updateAttributes, getPos }: NodeView
                 {src && (
                   <>
                     <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
-                    <Typography variant="caption" sx={{ color: getTextDisabled(isDark), fontSize: "0.65rem", fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
+                    <Typography variant="caption" sx={{ color: getTextDisabled(isDark), fontSize: HANDLEBAR_CAPTION_FONT_SIZE, fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
                       {src.startsWith("data:") || src.startsWith("blob:") ? "(embedded)" : `(${src})`}
                     </Typography>
                   </>

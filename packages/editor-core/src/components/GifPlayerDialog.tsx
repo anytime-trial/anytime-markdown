@@ -8,6 +8,7 @@ import { useTheme } from "@mui/material/styles";
 import { useCallback, useRef, useState } from "react";
 
 import { getDivider, getTextSecondary } from "../constants/colors";
+import { PANEL_BUTTON_FONT_SIZE } from "../constants/dimensions";
 import type { GifSettings } from "../utils/gifEncoder";
 import { EditDialogHeader } from "./EditDialogHeader";
 import { EditDialogWrapper } from "./EditDialogWrapper";
@@ -119,13 +120,13 @@ export function GifPlayerDialog({ open, onClose, src, settings }: GifPlayerDialo
             size="small"
             aria-label="Playback speed"
           >
-            <ToggleButton value="0.5" sx={{ px: 1.5, fontSize: "0.75rem" }}>
+            <ToggleButton value="0.5" sx={{ px: 1.5, fontSize: PANEL_BUTTON_FONT_SIZE }}>
               0.5x
             </ToggleButton>
-            <ToggleButton value="1" sx={{ px: 1.5, fontSize: "0.75rem" }}>
+            <ToggleButton value="1" sx={{ px: 1.5, fontSize: PANEL_BUTTON_FONT_SIZE }}>
               1x
             </ToggleButton>
-            <ToggleButton value="2" sx={{ px: 1.5, fontSize: "0.75rem" }}>
+            <ToggleButton value="2" sx={{ px: 1.5, fontSize: PANEL_BUTTON_FONT_SIZE }}>
               2x
             </ToggleButton>
           </ToggleButtonGroup>

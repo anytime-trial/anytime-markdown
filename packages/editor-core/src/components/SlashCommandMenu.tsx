@@ -13,6 +13,7 @@ import type { Editor } from "@tiptap/react";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { getTextSecondary } from "../constants/colors";
+import { SLASH_COMMAND_FONT_SIZE } from "../constants/dimensions";
 import { Z_FULLSCREEN } from "../constants/zIndex";
 import type { SlashCommandState } from "../extensions/slashCommandExtension";
 import {
@@ -185,7 +186,7 @@ export const SlashCommandMenu = React.memo(function SlashCommandMenu({
           variant="body2"
           sx={filteredItems.length > 0
             ? { position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0,0,0,0)" }
-            : { px: 2, py: 1.5, color: getTextSecondary(isDark), fontSize: "0.85rem", textAlign: "center" }
+            : { px: 2, py: 1.5, color: getTextSecondary(isDark), fontSize: SLASH_COMMAND_FONT_SIZE, textAlign: "center" }
           }
         >
           {filteredItems.length > 0
@@ -201,7 +202,7 @@ export const SlashCommandMenu = React.memo(function SlashCommandMenu({
               selected={i === selectedIndex}
               aria-selected={i === selectedIndex}
               onClick={() => executeCommand(i)}
-              sx={{ fontSize: "0.85rem", minHeight: 36 }}
+              sx={{ fontSize: SLASH_COMMAND_FONT_SIZE, minHeight: 36 }}
             >
               <ListItemIcon>{item.icon}</ListItemIcon>
               <ListItemText>{t(item.labelKey)}</ListItemText>

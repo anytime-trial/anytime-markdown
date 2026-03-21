@@ -1,6 +1,7 @@
 import type { SxProps,Theme } from "@mui/material/styles";
 
 import { DEFAULT_DARK_HEADING_LINK, DEFAULT_LIGHT_HEADING_LINK, getActionHover, getActionSelected, getTextDisabled, getTextSecondary } from "../constants/colors";
+import { HEADING_ANCHOR_FONT_SIZE, HEADING_BADGE_FONT_SIZE } from "../constants/dimensions";
 
 /** ブロックラベル共通スタイル（::before 擬似要素） */
 function blockLabel(theme: Theme, right = "calc(100% + 8px)") {
@@ -10,7 +11,7 @@ function blockLabel(theme: Theme, right = "calc(100% + 8px)") {
     right,
     top: "50%",
     transform: "translateY(-50%)",
-    fontSize: "0.6rem",
+    fontSize: HEADING_BADGE_FONT_SIZE,
     fontWeight: 700,
     lineHeight: 1,
     px: 0.5,
@@ -53,7 +54,7 @@ export function getHeadingStyles(theme: Theme): SxProps<Theme> {
     },
     "& .heading-folded::after": {
       content: "' ...'",
-      fontSize: "0.75rem",
+      fontSize: HEADING_ANCHOR_FONT_SIZE,
       color: getTextDisabled(isDark),
       fontWeight: 400,
       fontStyle: "italic",

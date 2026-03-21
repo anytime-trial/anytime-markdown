@@ -1,13 +1,14 @@
 import type { Theme } from "@mui/material/styles";
 
 import { getActionHover, getActionSelected, getDivider, getErrorMain, getGrey, getPrimaryMain, getTextPrimary, getTextSecondary } from "../constants/colors";
+import { MERGE_BADGE_FONT_SIZE } from "../constants/dimensions";
 
 /** マージエディタ共通のtiptapスタイル */
 export function getMergeTiptapStyles(theme: Theme, fontSize = 14, lineHeight = 1.6, options?: { showHoverLabels?: boolean }) {
   const isDark = theme.palette.mode === "dark";
   const hoverLabelBase = {
     position: "absolute" as const,
-    fontSize: "0.6rem",
+    fontSize: MERGE_BADGE_FONT_SIZE,
     fontWeight: 700,
     lineHeight: 1,
     px: 0.5,

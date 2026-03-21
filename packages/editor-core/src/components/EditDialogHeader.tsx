@@ -4,6 +4,7 @@ import { useTheme } from "@mui/material/styles";
 import React from "react";
 
 import { getDivider, getTextSecondary } from "../constants/colors";
+import { DIALOG_HEADER_FONT_SIZE } from "../constants/dimensions";
 
 interface EditDialogHeaderProps {
   label: string;
@@ -27,7 +28,7 @@ export function EditDialogHeader({ label, onClose, showCompareView, icon, extra,
         </IconButton>
       </Tooltip>
       {icon && <Box sx={{ display: "flex", alignItems: "center", mr: 0.75, color: getTextSecondary(isDark) }}>{icon}</Box>}
-      <Typography variant="subtitle2" sx={{ p: 0, fontSize: "0.875rem", fontWeight: 600, mr: 1 }}>
+      <Typography variant="subtitle2" sx={{ p: 0, fontSize: DIALOG_HEADER_FONT_SIZE, fontWeight: 600, mr: 1 }}>
         {label}{showCompareView ? ` - ${t("compare")}` : ""}
       </Typography>
       <Box sx={{ flex: 1 }} />

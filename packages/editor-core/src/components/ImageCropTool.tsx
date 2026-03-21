@@ -11,7 +11,7 @@ import { useTheme } from "@mui/material/styles";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { getDivider, getTextDisabled, getTextSecondary } from "../constants/colors";
-import { STATUSBAR_FONT_SIZE } from "../constants/dimensions";
+import { CHIP_FONT_SIZE, PANEL_BUTTON_FONT_SIZE, STATUSBAR_FONT_SIZE } from "../constants/dimensions";
 
 const SCALE_PRESETS = [25, 50, 75, 100, 150, 200] as const;
 
@@ -273,7 +273,7 @@ export function ImageCropTool({ src, onCrop, t }: ImageCropToolProps) {
                 size="small"
                 variant="outlined"
                 onClick={() => handleResize(s)}
-                sx={{ height: 22, fontSize: "0.7rem", cursor: "pointer" }}
+                sx={{ height: 22, fontSize: CHIP_FONT_SIZE, cursor: "pointer" }}
               />
             ))}
             <Box sx={{ ml: "auto", display: "flex", alignItems: "center", gap: 0.5 }}>
@@ -318,7 +318,7 @@ export function ImageCropTool({ src, onCrop, t }: ImageCropToolProps) {
                 variant="contained"
                 startIcon={<CheckIcon sx={{ fontSize: 14 }} />}
                 onClick={handleApplyCrop}
-                sx={{ textTransform: "none", fontSize: "0.75rem", py: 0.25 }}
+                sx={{ textTransform: "none", fontSize: PANEL_BUTTON_FONT_SIZE, py: 0.25 }}
               >
                 {t("imageCropApply")}
               </Button>

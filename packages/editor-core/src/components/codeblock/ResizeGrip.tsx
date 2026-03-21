@@ -2,6 +2,7 @@ import { Box, useTheme } from "@mui/material";
 import React from "react";
 
 import { getPrimaryMain } from "../../constants/colors";
+import { SMALL_CAPTION_FONT_SIZE } from "../../constants/dimensions";
 
 interface ResizeGripProps {
   visible: boolean;
@@ -30,7 +31,7 @@ export function ResizeGrip({ visible, resizing, resizeWidth, onPointerDown }: Re
         <Box sx={{
           position: "absolute", bottom: 4, left: "50%", transform: "translateX(-50%)",
           bgcolor: "rgba(0,0,0,0.7)", color: "white", px: 1, py: 0.25,
-          borderRadius: 1, fontSize: "0.7rem", fontFamily: "monospace", pointerEvents: "none",
+          borderRadius: 1, fontSize: SMALL_CAPTION_FONT_SIZE, fontFamily: "monospace", pointerEvents: "none",
         }}>
           {resizeWidth}px
         </Box>

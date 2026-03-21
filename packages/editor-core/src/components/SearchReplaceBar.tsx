@@ -20,6 +20,7 @@ import type { Editor } from "@tiptap/react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { getActionHover, getDivider, getErrorMain, getPrimaryContrast, getPrimaryDark, getPrimaryLight, getPrimaryMain, getTextPrimary, getTextSecondary } from "../constants/colors";
+import { SEARCH_COUNTER_FONT_SIZE, SEARCH_INPUT_FONT_SIZE } from "../constants/dimensions";
 import { Z_TOOLBAR } from "../constants/zIndex";
 import type { TranslationFn } from "../types";
 
@@ -157,7 +158,7 @@ export const SearchReplaceBar = React.memo(function SearchReplaceBar({ editor, t
     borderRadius: 0.5,
     minWidth: 28,
     minHeight: 28,
-    fontSize: "0.65rem",
+    fontSize: SEARCH_COUNTER_FONT_SIZE,
     fontWeight: 700,
     fontFamily: "monospace",
     bgcolor: active
@@ -183,7 +184,7 @@ export const SearchReplaceBar = React.memo(function SearchReplaceBar({ editor, t
     border: 1,
     borderColor: getDivider(isDark),
     borderRadius: 0.5,
-    fontSize: "0.78rem",
+    fontSize: SEARCH_INPUT_FONT_SIZE,
     outline: "none",
     bgcolor: "transparent",
     color: getTextPrimary(isDark),
@@ -270,7 +271,7 @@ export const SearchReplaceBar = React.memo(function SearchReplaceBar({ editor, t
             aria-atomic="true"
             sx={{
               whiteSpace: "nowrap",
-              fontSize: "0.65rem",
+              fontSize: SEARCH_COUNTER_FONT_SIZE,
               color: resultCount === 0 ? getErrorMain(isDark) : getTextSecondary(isDark),
               mx: 0.25,
             }}
