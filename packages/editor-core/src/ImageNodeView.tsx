@@ -110,6 +110,10 @@ function ImageToolbarExtra({
   t: (key: string) => string;
 }) {
   const iconSx = { fontSize: 16, color: getTextSecondary(isDark) };
+  let srcDisplay: string;
+  if (src?.startsWith("data:")) srcDisplay = "(base64)";
+  else if (src) srcDisplay = `(${src})`;
+  else srcDisplay = "";
   return (
     <>
       <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
@@ -123,7 +127,7 @@ function ImageToolbarExtra({
         </Tooltip>
       )}
       <Typography variant="caption" sx={{ color: getTextDisabled(isDark), fontSize: HANDLEBAR_CAPTION_FONT_SIZE, fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
-        {src?.startsWith("data:") ? "(base64)" : src ? `(${src})` : ""}
+        {srcDisplay}
       </Typography>
       {imgError && (
         <Typography variant="caption" sx={{ color: getErrorMain(isDark), fontSize: HANDLEBAR_CAPTION_FONT_SIZE, fontWeight: 600, flexShrink: 0, display: "flex", alignItems: "center", gap: 0.25 }}>

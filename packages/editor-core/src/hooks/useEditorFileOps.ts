@@ -179,7 +179,8 @@ export function useEditorFileOps({
 
   /** エディタからフロントマター付き Markdown を取得する */
   const getFullMarkdown = useCallback(() => {
-    const md = sourceMode ? sourceText : editor ? getMarkdownFromEditor(editor) : "";
+    const editorMd = editor ? getMarkdownFromEditor(editor) : "";
+    const md = sourceMode ? sourceText : editorMd;
     return sourceMode ? md : prependFrontmatter(md, frontmatterRef.current);
   }, [sourceMode, sourceText, editor, frontmatterRef]);
 

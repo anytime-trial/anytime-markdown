@@ -231,6 +231,12 @@ export const EditorToolbar = React.memo(function EditorToolbar({
     selector: selectToolbarEditorState,
   });
 
+  let currentMode: string;
+  if (readonlyMode) currentMode = "readonly";
+  else if (reviewMode) currentMode = "review";
+  else if (sourceMode) currentMode = "source";
+  else currentMode = "wysiwyg";
+
   return (
     <>
     <Paper
@@ -342,7 +348,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
 
       {/* Source / Edit / Review toggle */}
       {!hideModeToggle && <ToggleButtonGroup
-        value={readonlyMode ? "readonly" : reviewMode ? "review" : sourceMode ? "source" : "wysiwyg"}
+        value={currentMode}
         exclusive
         size="small"
         aria-label={t("editMode")}

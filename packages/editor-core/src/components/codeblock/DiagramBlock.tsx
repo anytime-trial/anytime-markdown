@@ -252,11 +252,12 @@ export function DiagramBlock(props: DiagramBlockProps) {
     toolbarExtra: <CopyCodeButton handleCopyCode={handleCopyCode} t={t} />, t,
   };
 
+  const plantUmlDialog = isPlantUml
+    ? <PlantUmlEditDialog {...commonDialogProps} plantUmlUrl={plantUmlUrl} />
+    : null;
   const editDialog = isMermaid
     ? <MermaidEditDialog {...commonDialogProps} svg={svg} />
-    : isPlantUml
-      ? <PlantUmlEditDialog {...commonDialogProps} plantUmlUrl={plantUmlUrl} />
-      : null;
+    : plantUmlDialog;
 
   const showToolbar = shouldShowToolbar({ isCompareLeft: props.isCompareLeft, isCompareLeftEditable: props.isCompareLeftEditable, isEditable });
   const showBorder = shouldShowBorder({ isSelected, isCompareLeft: props.isCompareLeft, isCompareLeftEditable: props.isCompareLeftEditable, isEditable, editOpen });

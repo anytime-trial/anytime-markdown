@@ -212,7 +212,10 @@ export function ImageCropTool({ src, onCrop, t }: ImageCropToolProps) {
       const dataUrl = canvas.toDataURL("image/png");
       const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
       const bytes = Math.ceil(base64.length * 3 / 4);
-      const sizeStr = bytes < 1024 ? `${bytes}B` : bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)}KB` : `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+      let sizeStr: string;
+      if (bytes < 1024) sizeStr = `${bytes}B`;
+      else if (bytes < 1024 * 1024) sizeStr = `${(bytes / 1024).toFixed(1)}KB`;
+      else sizeStr = `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
       setCropEstimate(`${w}x${h} / ${sizeStr}`);
     } catch {
       setCropEstimate(`${w}x${h}`);

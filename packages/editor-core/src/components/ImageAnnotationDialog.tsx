@@ -286,7 +286,12 @@ export function ImageAnnotationDialog({
                 {t("annotate")}
               </Typography>
             )}
-            {items.map((a, i) => (
+            {items.map((a, i) => {
+              let annotationLabel: string;
+              if (a.type === "rect") annotationLabel = t("annotationRect");
+              else if (a.type === "circle") annotationLabel = t("annotationCircle");
+              else annotationLabel = t("annotationLine");
+              return (
               <Box
                 key={a.id}
                 onClick={() => setSelectedId(a.id)}
@@ -304,7 +309,7 @@ export function ImageAnnotationDialog({
                     <Typography variant="caption" sx={{ color: "white", fontSize: BADGE_NUMBER_FONT_SIZE, fontWeight: 700 }}>{i + 1}</Typography>
                   </Box>
                   <Typography variant="caption" sx={{ color: getTextSecondary(isDark), fontSize: SMALL_CAPTION_FONT_SIZE }}>
-                    {a.type === "rect" ? t("annotationRect") : a.type === "circle" ? t("annotationCircle") : t("annotationLine")}
+                    {annotationLabel}
                   </Typography>
                   <Box sx={{ flex: 1 }} />
                   <IconButton size="small" sx={{ p: 0.25 }} onClick={(e) => { e.stopPropagation(); handleDeleteItem(a.id); }}>
@@ -324,7 +329,8 @@ export function ImageAnnotationDialog({
                   sx={{ "& .MuiInputBase-input": { fontSize: PANEL_INPUT_FONT_SIZE, py: 0.5 } }}
                 />
               </Box>
-            ))}
+              );
+            })}
           </Box>
         </Box>
       </Box>

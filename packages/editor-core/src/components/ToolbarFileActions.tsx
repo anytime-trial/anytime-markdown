@@ -55,6 +55,42 @@ export const ToolbarFileActions = React.memo(function ToolbarFileActions({
   const { hasFileHandle, supportsDirectAccess, externalSaveOnly } = fileCapabilities ?? {};
   const [fileMenuAnchorEl, setFileMenuAnchorEl] = useState<HTMLElement | null>(null);
 
+  let fileMenuItems: React.ReactNode[];
+  if (externalSaveOnly) {
+    fileMenuItems = [
+      <MenuItem key="save" onClick={() => { onSaveFile?.(); setFileMenuAnchorEl(null); }} disabled={readonlyMode || !hasFileHandle}>
+        <ListItemIcon><SaveIcon fontSize="small" /></ListItemIcon>
+        <ListItemText>{t("saveFile")}</ListItemText>
+      </MenuItem>,
+    ];
+  } else if (supportsDirectAccess) {
+    fileMenuItems = [
+      <MenuItem key="open" onClick={() => { onOpenFile?.(); setFileMenuAnchorEl(null); }}>
+        <ListItemIcon><FolderOpenIcon fontSize="small" /></ListItemIcon>
+        <ListItemText>{t("openFile")}</ListItemText>
+      </MenuItem>,
+      <MenuItem key="save" onClick={() => { onSaveFile?.(); setFileMenuAnchorEl(null); }} disabled={readonlyMode || !hasFileHandle}>
+        <ListItemIcon><SaveIcon fontSize="small" /></ListItemIcon>
+        <ListItemText>{t("saveFile")}</ListItemText>
+      </MenuItem>,
+      <MenuItem key="saveAs" onClick={() => { onSaveAsFile?.(); setFileMenuAnchorEl(null); }} disabled={readonlyMode}>
+        <ListItemIcon><SaveAsIcon fontSize="small" /></ListItemIcon>
+        <ListItemText>{t("saveAsFile")}</ListItemText>
+      </MenuItem>,
+    ];
+  } else {
+    fileMenuItems = [
+      <MenuItem key="open" onClick={() => { onImport(); setFileMenuAnchorEl(null); }}>
+        <ListItemIcon><FolderOpenIcon fontSize="small" /></ListItemIcon>
+        <ListItemText>{t("openFile")}</ListItemText>
+      </MenuItem>,
+      <MenuItem key="saveAs" onClick={() => { onDownload(); setFileMenuAnchorEl(null); }} disabled={readonlyMode}>
+        <ListItemIcon><SaveAsIcon fontSize="small" /></ListItemIcon>
+        <ListItemText>{t("saveAsFile")}</ListItemText>
+      </MenuItem>,
+    ];
+  }
+
   return (
     <>
       {/* Mobile: single file menu button */}
@@ -77,34 +113,7 @@ export const ToolbarFileActions = React.memo(function ToolbarFileActions({
             <ListItemText>{t("createNew")}</ListItemText>
           </MenuItem>
         )}
-        {externalSaveOnly ? ([
-          <MenuItem key="save" onClick={() => { onSaveFile?.(); setFileMenuAnchorEl(null); }} disabled={readonlyMode || !hasFileHandle}>
-            <ListItemIcon><SaveIcon fontSize="small" /></ListItemIcon>
-            <ListItemText>{t("saveFile")}</ListItemText>
-          </MenuItem>,
-        ]) : supportsDirectAccess ? ([
-          <MenuItem key="open" onClick={() => { onOpenFile?.(); setFileMenuAnchorEl(null); }}>
-            <ListItemIcon><FolderOpenIcon fontSize="small" /></ListItemIcon>
-            <ListItemText>{t("openFile")}</ListItemText>
-          </MenuItem>,
-          <MenuItem key="save" onClick={() => { onSaveFile?.(); setFileMenuAnchorEl(null); }} disabled={readonlyMode || !hasFileHandle}>
-            <ListItemIcon><SaveIcon fontSize="small" /></ListItemIcon>
-            <ListItemText>{t("saveFile")}</ListItemText>
-          </MenuItem>,
-          <MenuItem key="saveAs" onClick={() => { onSaveAsFile?.(); setFileMenuAnchorEl(null); }} disabled={readonlyMode}>
-            <ListItemIcon><SaveAsIcon fontSize="small" /></ListItemIcon>
-            <ListItemText>{t("saveAsFile")}</ListItemText>
-          </MenuItem>,
-        ]) : ([
-          <MenuItem key="open" onClick={() => { onImport(); setFileMenuAnchorEl(null); }}>
-            <ListItemIcon><FolderOpenIcon fontSize="small" /></ListItemIcon>
-            <ListItemText>{t("openFile")}</ListItemText>
-          </MenuItem>,
-          <MenuItem key="saveAs" onClick={() => { onDownload(); setFileMenuAnchorEl(null); }} disabled={readonlyMode}>
-            <ListItemIcon><SaveAsIcon fontSize="small" /></ListItemIcon>
-            <ListItemText>{t("saveAsFile")}</ListItemText>
-          </MenuItem>,
-        ])}
+        {fileMenuItems}
         {onExportPdf && (
           <MenuItem onClick={() => { onExportPdf(); setFileMenuAnchorEl(null); }} disabled={sourceMode || inlineMergeOpen}>
             <ListItemIcon><PictureAsPdfIcon fontSize="small" /></ListItemIcon>
