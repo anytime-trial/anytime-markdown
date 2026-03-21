@@ -54,7 +54,7 @@ function toggleGifPlayback(
   imgRef: React.RefObject<HTMLImageElement | null>,
   src: string,
   playing: boolean,
-  pausedSrcRef: React.MutableRefObject<string | null>,
+  pausedSrcRef: React.RefObject<string | null>,
   setPlaying: (v: boolean) => void,
 ): void {
   const img = imgRef.current;
@@ -87,13 +87,13 @@ function onRecordComplete(
   blob: Blob,
   fileName: string,
   settings: GifSettings,
-  gifBlobRef: React.MutableRefObject<Blob | null>,
+  gifBlobRef: React.RefObject<Blob | null>,
   setRecorderOpen: (v: boolean) => void,
   updateAttributes: (attrs: Record<string, unknown>) => void,
 ): void {
   setRecorderOpen(false);
   gifBlobRef.current = blob;
-  const vscodeApi = window.__vscode;
+  const vscodeApi = (window as any).__vscode;
   if (vscodeApi) {
     const reader = new FileReader();
     reader.onload = () => {
@@ -116,7 +116,7 @@ function onRecordComplete(
 }
 
 // --- Extracted sub-component: GIF placeholder ---
-function GifPlaceholder({ isEditable, isDark, onClick }: { isEditable: boolean; isDark: boolean; onClick: () => void }) {
+function GifPlaceholder({ isEditable, isDark, onClick }: Readonly<{ isEditable: boolean; isDark: boolean; onClick: () => void }>) {
   return (
     <Box
       onClick={onClick}
@@ -139,7 +139,7 @@ function GifPlaceholder({ isEditable, isDark, onClick }: { isEditable: boolean; 
 // --- Extracted sub-component: GIF playback image with overlay ---
 function GifPlaybackImage({
   imgRef, src, alt, width, isSelected, playing, onToggle,
-}: {
+}: Readonly<{
   imgRef: React.RefObject<HTMLImageElement | null>;
   src: string;
   alt: string;
@@ -147,7 +147,7 @@ function GifPlaybackImage({
   isSelected: boolean;
   playing: boolean;
   onToggle: () => void;
-}) {
+}>) {
   return (
     <>
       <img
@@ -172,7 +172,7 @@ function GifPlaybackImage({
   );
 }
 
-export function GifNodeView({ editor, node, updateAttributes, getPos }: NodeViewProps) {
+export function GifNodeView({ editor, node, updateAttributes, getPos }: Readonly<NodeViewProps>) {
   const t = useTranslations("MarkdownEditor");
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
@@ -227,7 +227,7 @@ export function GifNodeView({ editor, node, updateAttributes, getPos }: NodeView
   }, [src]);
 
   return (
-    <NodeViewWrapper data-drag-handle>
+    <NodeViewWrapper data-drag-handle className="image-node-wrapper">
       {/* Inline view */}
       <Box
         sx={{

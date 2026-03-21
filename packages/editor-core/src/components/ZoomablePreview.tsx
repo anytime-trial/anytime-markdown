@@ -13,7 +13,7 @@ interface ZoomablePreviewProps {
 }
 
 /** ズーム・パン対応のプレビューコンテナ */
-export function ZoomablePreview({ fsZP, children, origin = "center" }: ZoomablePreviewProps) {
+export function ZoomablePreview({ fsZP, children, origin = "center" }: Readonly<ZoomablePreviewProps>) {
   const isDark = useTheme().palette.mode === "dark";
   const transformOrigin = origin === "top-left" ? "top left" : "center center";
   const justify = origin === "top-left" ? "flex-start" : "center";

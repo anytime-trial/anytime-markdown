@@ -59,7 +59,7 @@ export interface TreeNodeProps {
   dragOverPath: string | null;
   onMoveEntry: (sourcePath: string, targetDir: string) => void;
   onDragOverPath: (path: string | null) => void;
-  dragSourceRef: React.MutableRefObject<string | null>;
+  dragSourceRef: React.RefObject<string | null>;
 }
 
 export const PANEL_WIDTH = 260;

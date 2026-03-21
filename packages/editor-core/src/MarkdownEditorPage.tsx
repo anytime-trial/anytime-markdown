@@ -28,8 +28,10 @@ import { EditorErrorBoundary } from "./components/EditorErrorBoundary";
 import { EditorFooterOverlays } from "./components/EditorFooterOverlays";
 import { EditorMainContent } from "./components/EditorMainContent";
 import { EditorToolbarSection } from "./components/EditorToolbarSection";
+import { ReadonlyToolbar } from "./components/ReadonlyToolbar";
 import { getDefaultContent } from "./constants/defaultContent";
 import { STATUSBAR_HEIGHT } from "./constants/dimensions";
+import type { ThemePresetName } from "./constants/themePresets";
 import type { SlashCommandState } from "./extensions/slashCommandExtension";
 import { useTextareaSearch } from "./hooks/useTextareaSearch";
 import { PrintStyles } from "./styles/printStyles";
@@ -72,7 +74,7 @@ import { preprocessMarkdown } from "./utils/frontmatterHelpers";
 function insertTemplateIntoEditor(
   editor: Editor | null,
   content: string,
-  frontmatterRef: React.MutableRefObject<string | null>,
+  frontmatterRef: React.RefObject<string | null>,
   setFrontmatterText: (fm: string | null) => void,
 ) {
   if (!editor) return;
@@ -115,6 +117,8 @@ interface MarkdownEditorPageProps {
   onCommentsChange?: (comments: Array<{ id: string; text: string; resolved: boolean; createdAt: string; targetText: string; pos: number; isPoint: boolean }>) => void;
   themeMode?: 'light' | 'dark';
   onThemeModeChange?: (mode: 'light' | 'dark') => void;
+  presetName?: ThemePresetName;
+  onPresetChange?: (name: ThemePresetName) => void;
   onLocaleChange?: (locale: string) => void;
   fileSystemProvider?: FileSystemProvider | null;
   externalContent?: string;
@@ -159,9 +163,30 @@ interface MarkdownEditorPageProps {
   fixedEditorHeight?: number;
   /** フォントサイズの上書き（px） */
   defaultFontSize?: number;
+  /** ブロック要素の配置の上書き */
+  defaultBlockAlign?: "left" | "center" | "right";
 }
 
-export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideVersionInfo, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, onLocaleChange, fileSystemProvider, externalContent, externalFileName, externalFilePath: _externalFilePath, onExternalSave, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, autoReload, onToggleAutoReload, defaultSourceMode, showReadonlyMode, externalCompareContent, explorerOpen, onToggleExplorer, sideToolbar, hideCompareToggle, explorerSlot, noScroll, defaultOutlineOpen, fixedEditorHeight, defaultFontSize }: MarkdownEditorPageProps = {}) {
+/** Apply external compare content and open merge mode if needed (extracted to reduce component complexity). */
+function applyExternalCompareContent(
+  content: string,
+  inlineMergeOpen: boolean,
+  sourceMode: boolean,
+  editor: ReturnType<typeof useEditor>,
+  setCompareFileContent: (v: string) => void,
+  setEditorMarkdown: (v: string) => void,
+  setInlineMergeOpen: (v: boolean) => void,
+): void {
+  setCompareFileContent(content);
+  if (!inlineMergeOpen) {
+    if (!sourceMode && editor) {
+      setEditorMarkdown(getMarkdownFromEditor(editor));
+    }
+    setInlineMergeOpen(true);
+  }
+}
+
+export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideVersionInfo, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, presetName, onPresetChange, onLocaleChange, fileSystemProvider, externalContent, externalFileName, externalFilePath: _externalFilePath, onExternalSave, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, autoReload, onToggleAutoReload, defaultSourceMode, showReadonlyMode, externalCompareContent, explorerOpen, onToggleExplorer, sideToolbar, hideCompareToggle, explorerSlot, noScroll, defaultOutlineOpen, fixedEditorHeight, defaultFontSize, defaultBlockAlign }: MarkdownEditorPageProps = {}) {
   const t = useTranslations("MarkdownEditor");
   const locale = useLocale() as "en" | "ja";
   const muiTheme = useTheme();
@@ -184,7 +209,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   }, [initialContent]);
 
   const { settings: rawSettings, updateSettings, resetSettings } = useEditorSettings();
-  const settings = defaultFontSize ? { ...rawSettings, fontSize: defaultFontSize } : rawSettings;
+  const settings = { ...rawSettings, ...(defaultFontSize && { fontSize: defaultFontSize }), ...(defaultBlockAlign && { blockAlign: defaultBlockAlign }) };
   const {
     settingsOpen, setSettingsOpen, sampleAnchorEl, setSampleAnchorEl,
     diagramAnchorEl, setDiagramAnchorEl, helpAnchorEl, setHelpAnchorEl,
@@ -325,13 +350,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   useEffect(() => {
     if (externalCompareContent == null || externalCompareContent === prevCompareContentRef.current) return;
     prevCompareContentRef.current = externalCompareContent;
-    setCompareFileContent(externalCompareContent);
-    if (!inlineMergeOpen) {
-      if (!sourceMode && editor) {
-        setEditorMarkdown(getMarkdownFromEditor(editor));
-      }
-      setInlineMergeOpen(true);
-    }
+    applyExternalCompareContent(externalCompareContent, inlineMergeOpen, sourceMode, editor, setCompareFileContent, setEditorMarkdown, setInlineMergeOpen);
   }, [externalCompareContent, inlineMergeOpen, sourceMode, editor, setCompareFileContent, setEditorMarkdown, setInlineMergeOpen]);
 
   setEditorMarkdownRef.current = setEditorMarkdown;
@@ -352,8 +371,8 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   useEffect(() => {
     if (!editor || !autoReload) return;
     const handler = (e: KeyboardEvent) => handleChangeGutterKeydown(e, editor);
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+    globalThis.addEventListener("keydown", handler);
+    return () => globalThis.removeEventListener("keydown", handler);
   }, [editor, autoReload]);
 
   // VS Code Undo/Redo: ソースモード時は vscode-set-content で sourceText を更新
@@ -366,8 +385,8 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
       const { body } = preprocessMarkdown(content);
       setSourceText(body);
     };
-    window.addEventListener("vscode-set-content", handler);
-    return () => window.removeEventListener("vscode-set-content", handler);
+    globalThis.addEventListener("vscode-set-content", handler);
+    return () => globalThis.removeEventListener("vscode-set-content", handler);
   }, [sourceMode, setSourceText]);
 
   // VS Code: クリップボード画像の保存完了 → エディタに相対パスで画像挿入
@@ -379,15 +398,15 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
       if (typeof detail !== "string") return;
       editor.chain().focus().setImage({ src: detail, alt: "" }).run();
     };
-    window.addEventListener("vscode-image-saved", handler);
-    return () => window.removeEventListener("vscode-image-saved", handler);
+    globalThis.addEventListener("vscode-image-saved", handler);
+    return () => globalThis.removeEventListener("vscode-image-saved", handler);
   }, [editor]);
 
   // Screen capture slash command event
   useEffect(() => {
     const handler = () => setScreenCaptureOpen(true);
-    window.addEventListener("open-screen-capture", handler);
-    return () => window.removeEventListener("open-screen-capture", handler);
+    globalThis.addEventListener("open-screen-capture", handler);
+    return () => globalThis.removeEventListener("open-screen-capture", handler);
   }, []);
 
   const statusBarHeight = hideStatusBar ? 0 : STATUSBAR_HEIGHT;
@@ -488,7 +507,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         locale={locale}
         hideSettings={hideSettings} settingsOpen={settingsOpen} setSettingsOpen={setSettingsOpen}
         settings={settings} updateSettings={updateSettings} resetSettings={resetSettings}
-        themeMode={themeMode} onThemeModeChange={onThemeModeChange} onLocaleChange={onLocaleChange} t={t}
+        themeMode={themeMode} onThemeModeChange={onThemeModeChange} presetName={presetName} onPresetChange={onPresetChange} onLocaleChange={onLocaleChange} t={t}
       />
 
       <ScreenCaptureDialog
@@ -499,6 +518,16 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         }}
         t={t}
       />
+
+      {readonlyMode && (
+        <ReadonlyToolbar
+          outlineOpen={outlineOpen}
+          onToggleOutline={handleToggleOutline}
+          fontSize={settings.fontSize}
+          onFontSizeChange={(size) => updateSettings({ fontSize: size })}
+          t={t}
+        />
+      )}
 
       <EditorMainContent
         inlineMergeOpen={inlineMergeOpen} InlineMergeView={InlineMergeView}

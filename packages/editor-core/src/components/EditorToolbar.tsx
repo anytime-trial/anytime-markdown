@@ -38,6 +38,14 @@ import { ToolbarMobileMenu } from "./ToolbarMobileMenu";
 /** WAI-ARIA Toolbar パターン: 矢印キーでフォーカス移動 */
 const FOCUSABLE_SELECTOR = 'button:not([disabled]), [role="button"]:not([disabled]), input:not([disabled])';
 
+/** Key→action map for roving tabindex keyboard navigation */
+const KEY_ACTIONS: Record<string, (items: HTMLElement[], current: number) => number> = {
+  ArrowRight: (items, c) => (c < items.length - 1 ? c + 1 : 0),
+  ArrowLeft: (items, c) => (c > 0 ? c - 1 : items.length - 1),
+  Home: () => 0,
+  End: (items) => items.length - 1,
+};
+
 /** ツールチップキー → ショートカットキー表示マッピング */
 const TOOLTIP_SHORTCUTS: Record<string, string> = {
   undo: `${modKey}+Z`,
@@ -201,23 +209,9 @@ export const EditorToolbar = React.memo(function EditorToolbar({
     const currentIndex = items.indexOf(document.activeElement as HTMLElement);
     if (currentIndex === -1) return;
 
-    let nextIndex: number | null = null;
-    switch (e.key) {
-      case "ArrowRight":
-        nextIndex = currentIndex < items.length - 1 ? currentIndex + 1 : 0;
-        break;
-      case "ArrowLeft":
-        nextIndex = currentIndex > 0 ? currentIndex - 1 : items.length - 1;
-        break;
-      case "Home":
-        nextIndex = 0;
-        break;
-      case "End":
-        nextIndex = items.length - 1;
-        break;
-      default:
-        return;
-    }
+    const action = KEY_ACTIONS[e.key];
+    if (!action) return;
+    const nextIndex = action(items, currentIndex);
     e.preventDefault();
     items.forEach((item, i) => {
       item.setAttribute("tabindex", i === nextIndex ? "0" : "-1");
@@ -230,6 +224,12 @@ export const EditorToolbar = React.memo(function EditorToolbar({
     editor,
     selector: selectToolbarEditorState,
   });
+
+  let currentMode: string;
+  if (readonlyMode) currentMode = "readonly";
+  else if (reviewMode) currentMode = "review";
+  else if (sourceMode) currentMode = "source";
+  else currentMode = "wysiwyg";
 
   return (
     <>
@@ -342,7 +342,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
 
       {/* Source / Edit / Review toggle */}
       {!hideModeToggle && <ToggleButtonGroup
-        value={readonlyMode ? "readonly" : reviewMode ? "review" : sourceMode ? "source" : "wysiwyg"}
+        value={currentMode}
         exclusive
         size="small"
         aria-label={t("editMode")}

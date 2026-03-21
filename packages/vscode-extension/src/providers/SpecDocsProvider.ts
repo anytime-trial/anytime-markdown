@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
-import * as fs from 'fs';
+import * as path from 'node:path';
+import * as fs from 'node:fs';
 
 import { showError } from '../utils/errorHelpers';
 
@@ -77,13 +77,16 @@ export class SpecDocsItem extends vscode.TreeItem {
 	}
 }
 
-export class SpecDocsDragAndDrop implements vscode.TreeDragAndDropController<SpecDocsRootItem | SpecDocsItem> {
+/** SpecDocs ツリーで扱うノード型 */
+export type SpecDocsNode = SpecDocsRootItem | SpecDocsItem;
+
+export class SpecDocsDragAndDrop implements vscode.TreeDragAndDropController<SpecDocsNode> {
 	readonly dropMimeTypes = ['application/vnd.code.tree.anytimemarkdown.specdocs', 'text/uri-list'];
 	readonly dragMimeTypes = ['application/vnd.code.tree.anytimemarkdown.specdocs'];
 
 	constructor(private readonly provider: SpecDocsProvider) {}
 
-	handleDrag(source: readonly (SpecDocsRootItem | SpecDocsItem)[], dataTransfer: vscode.DataTransfer): void {
+	handleDrag(source: readonly SpecDocsNode[], dataTransfer: vscode.DataTransfer): void {
 		// SpecDocsRootItem はドラッグ対象外
 		const items = source.filter((s): s is SpecDocsItem => s instanceof SpecDocsItem);
 		if (items.length === 0) return;
@@ -94,14 +97,14 @@ export class SpecDocsDragAndDrop implements vscode.TreeDragAndDropController<Spe
 	}
 
 	/** ドロップターゲットからディレクトリパスを解決する */
-	private resolveDropDir(target: SpecDocsRootItem | SpecDocsItem | undefined, fallbackRoots?: string[]): string | undefined {
+	private resolveDropDir(target: SpecDocsNode | undefined, fallbackRoots?: string[]): string | undefined {
 		if (target instanceof SpecDocsRootItem) return target.rootPath;
-		if (target && target.isDirectory) return target.resourceUri.fsPath;
+		if (target?.isDirectory) return target.resourceUri.fsPath;
 		if (target && !target.isDirectory) return path.dirname(target.resourceUri.fsPath);
 		return fallbackRoots?.[0];
 	}
 
-	async handleDrop(target: SpecDocsRootItem | SpecDocsItem | undefined, dataTransfer: vscode.DataTransfer): Promise<void> {
+	async handleDrop(target: SpecDocsNode | undefined, dataTransfer: vscode.DataTransfer): Promise<void> {
 		// 外部ファイルのドロップ（コピー）
 		const uriList = dataTransfer.get('text/uri-list');
 		if (uriList) {
@@ -132,7 +135,7 @@ export class SpecDocsDragAndDrop implements vscode.TreeDragAndDropController<Spe
 	}
 
 	/** 内部ドラッグのドロップ先ディレクトリを決定する */
-	private resolveInternalDropDir(target: SpecDocsRootItem | SpecDocsItem | undefined, sourcePaths: string[]): string | undefined {
+	private resolveInternalDropDir(target: SpecDocsNode | undefined, sourcePaths: string[]): string | undefined {
 		const resolved = this.resolveDropDir(target);
 		if (resolved) return resolved;
 
@@ -146,7 +149,7 @@ export class SpecDocsDragAndDrop implements vscode.TreeDragAndDropController<Spe
 		return srcRoot;
 	}
 
-	private async handleExternalDrop(target: SpecDocsRootItem | SpecDocsItem | undefined, uriList: vscode.DataTransferItem): Promise<void> {
+	private async handleExternalDrop(target: SpecDocsNode | undefined, uriList: vscode.DataTransferItem): Promise<void> {
 		const destDir = this.resolveDropDir(target, this.provider.roots);
 		if (!destDir) return;
 
@@ -194,8 +197,8 @@ export class SpecDocsDragAndDrop implements vscode.TreeDragAndDropController<Spe
 	}
 }
 
-export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsRootItem | SpecDocsItem> {
-	private _onDidChangeTreeData = new vscode.EventEmitter<SpecDocsRootItem | SpecDocsItem | undefined>();
+export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsNode> {
+	private readonly _onDidChangeTreeData = new vscode.EventEmitter<SpecDocsNode | undefined>();
 	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
 	private rootPaths: string[] = [];
@@ -267,7 +270,7 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsRootIte
 		return best;
 	}
 
-	getTreeItem(element: SpecDocsRootItem | SpecDocsItem): vscode.TreeItem {
+	getTreeItem(element: SpecDocsNode): vscode.TreeItem {
 		return element;
 	}
 
@@ -277,7 +280,7 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsRootIte
 		return info.branchName ? `${info.repoName} / ${info.branchName}` : info.repoName;
 	}
 
-	getChildren(element?: SpecDocsRootItem | SpecDocsItem): (SpecDocsRootItem | SpecDocsItem)[] {
+	getChildren(element?: SpecDocsNode): SpecDocsNode[] {
 		if (!element) {
 			return this.rootPaths.map(rootPath => new SpecDocsRootItem(rootPath, this.getRootLabel(rootPath)));
 		}
@@ -378,7 +381,7 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsRootIte
 		await vscode.window.withProgress(
 			{ location: vscode.ProgressLocation.Notification, title: 'Cloning repository...' },
 			async () => {
-				const { execFile } = await import('child_process');
+				const { execFile } = await import('node:child_process');
 				await new Promise<void>((resolve, reject) => {
 					execFile('git', ['clone', url, clonePath], (error) => {
 						if (error) {
@@ -423,14 +426,14 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsRootIte
 	}
 
 	/** アイテムからドロップ先/作成先ディレクトリを解決する */
-	private resolveDestDir(item?: SpecDocsRootItem | SpecDocsItem): string | undefined {
+	private resolveDestDir(item?: SpecDocsNode): string | undefined {
 		if (item instanceof SpecDocsRootItem) return item.rootPath;
 		if (item?.isDirectory) return item.resourceUri.fsPath;
 		if (item) return path.dirname(item.resourceUri.fsPath);
 		return this.rootPaths[0];
 	}
 
-	async createFile(item?: SpecDocsRootItem | SpecDocsItem): Promise<void> {
+	async createFile(item?: SpecDocsNode): Promise<void> {
 		const dir = this.resolveDestDir(item);
 		if (!dir) return;
 		const name = await vscode.window.showInputBox({ prompt: 'File name', placeHolder: 'newfile.md' });
@@ -476,7 +479,7 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsRootIte
 		}
 	}
 
-	async createFolder(item?: SpecDocsRootItem | SpecDocsItem): Promise<void> {
+	async createFolder(item?: SpecDocsNode): Promise<void> {
 		const dir = this.resolveDestDir(item);
 		if (!dir) return;
 		const name = await vscode.window.showInputBox({ prompt: 'Folder name', placeHolder: 'newfolder' });
@@ -509,7 +512,7 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsRootIte
 			return;
 		}
 
-		const { execFileSync } = await import('child_process');
+		const { execFileSync } = await import('node:child_process');
 
 		// ローカル＋リモートブランチ一覧を取得
 		let branches: string[];
@@ -549,7 +552,7 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsRootIte
 		}
 	}
 
-	async importFiles(item?: SpecDocsRootItem | SpecDocsItem): Promise<void> {
+	async importFiles(item?: SpecDocsNode): Promise<void> {
 		const destDir = this.resolveDestDir(item);
 		if (!destDir) return;
 
@@ -597,7 +600,28 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsRootIte
 		this.clipboard = { paths: [item.resourceUri.fsPath], isCut: false };
 	}
 
-	async paste(item?: SpecDocsRootItem | SpecDocsItem): Promise<void> {
+	private async confirmOverwrite(name: string): Promise<boolean> {
+		const answer = await vscode.window.showWarningMessage(
+			`"${name}" already exists. Overwrite?`,
+			{ modal: true },
+			'Overwrite',
+		);
+		return answer === 'Overwrite';
+	}
+
+	private copyOrMoveFile(srcPath: string, dest: string, isCut: boolean): void {
+		if (isCut) {
+			fs.renameSync(srcPath, dest);
+			return;
+		}
+		if (fs.statSync(srcPath).isDirectory()) {
+			fs.cpSync(srcPath, dest, { recursive: true });
+		} else {
+			fs.copyFileSync(srcPath, dest);
+		}
+	}
+
+	async paste(item?: SpecDocsNode): Promise<void> {
 		if (!this.clipboard || this.clipboard.paths.length === 0) return;
 
 		const destDir = this.resolveDestDir(item);
@@ -608,25 +632,10 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsRootIte
 			const dest = path.join(destDir, name);
 			if (srcPath === dest) continue;
 
-			if (fs.existsSync(dest)) {
-				const answer = await vscode.window.showWarningMessage(
-					`"${name}" already exists. Overwrite?`,
-					{ modal: true },
-					'Overwrite',
-				);
-				if (answer !== 'Overwrite') continue;
-			}
+			if (fs.existsSync(dest) && !(await this.confirmOverwrite(name))) continue;
 
 			try {
-				if (this.clipboard.isCut) {
-					fs.renameSync(srcPath, dest);
-				} else {
-					if (fs.statSync(srcPath).isDirectory()) {
-						fs.cpSync(srcPath, dest, { recursive: true });
-					} else {
-						fs.copyFileSync(srcPath, dest);
-					}
-				}
+				this.copyOrMoveFile(srcPath, dest, this.clipboard.isCut);
 			} catch (e: unknown) {
 				showError(this.clipboard.isCut ? 'Move failed' : 'Copy failed', e);
 			}

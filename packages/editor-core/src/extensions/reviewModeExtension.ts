@@ -27,12 +27,11 @@ export const ReviewModeExtension = Extension.create({
   },
 
   addProseMirrorPlugins() {
-    const ext = this;
     return [
       new Plugin({
         key: reviewModePluginKey,
-        filterTransaction(tr) {
-          if (!ext.storage.enabled) return true;
+        filterTransaction: (tr) => {
+          if (!this.storage.enabled) return true;
           // Allow selection-only transactions (cursor movement, focus, etc.)
           if (!tr.docChanged) return true;
           // Block content changes

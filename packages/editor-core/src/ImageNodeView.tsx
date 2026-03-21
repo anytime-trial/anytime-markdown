@@ -87,7 +87,7 @@ function handleCropComplete(
     updateAttributes({ src: croppedDataUrl });
     return;
   }
-  const vscodeApi = window.__vscode;
+  const vscodeApi = (window as any).__vscode;
   if (vscodeApi) {
     vscodeApi.postMessage({ type: "overwriteImage", path: src, dataUrl: croppedDataUrl });
     updateAttributes({ src: src.split("?")[0] + "?t=" + Date.now() });
@@ -99,7 +99,7 @@ function handleCropComplete(
 // --- Extracted sub-component: Image toolbar extra info ---
 function ImageToolbarExtra({
   alt, src, imgError, isCompareLeft, isEditable, collapsed, annotations, onAnnotationOpen, onEdit, onEditUrl, onScreenCapture, isDark, t,
-}: {
+}: Readonly<{
   alt: string; src: string; imgError: boolean;
   isCompareLeft: boolean; isEditable: boolean; collapsed: boolean;
   annotations: ImageAnnotation[]; onAnnotationOpen: () => void;
@@ -108,8 +108,12 @@ function ImageToolbarExtra({
   onScreenCapture?: () => void;
   isDark: boolean;
   t: (key: string) => string;
-}) {
+}>) {
   const iconSx = { fontSize: 16, color: getTextSecondary(isDark) };
+  let srcDisplay: string;
+  if (src?.startsWith("data:")) srcDisplay = "(base64)";
+  else if (src) srcDisplay = `(${src})`;
+  else srcDisplay = "";
   return (
     <>
       <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
@@ -123,7 +127,7 @@ function ImageToolbarExtra({
         </Tooltip>
       )}
       <Typography variant="caption" sx={{ color: getTextDisabled(isDark), fontSize: HANDLEBAR_CAPTION_FONT_SIZE, fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
-        {src?.startsWith("data:") ? "(base64)" : src ? `(${src})` : ""}
+        {srcDisplay}
       </Typography>
       {imgError && (
         <Typography variant="caption" sx={{ color: getErrorMain(isDark), fontSize: HANDLEBAR_CAPTION_FONT_SIZE, fontWeight: 600, flexShrink: 0, display: "flex", alignItems: "center", gap: 0.25 }}>
@@ -172,7 +176,7 @@ function ImageWithResize({
   isSelected, isEditable, resizing, resizeWidth,
   handleResizePointerDown, handleResizePointerMove, handleResizePointerUp, handleResizeKeyDown,
   onDoubleClick, width, isDark, t,
-}: {
+}: Readonly<{
   imgRef: React.RefObject<HTMLImageElement | null>;
   imgContainerRef: React.RefObject<HTMLDivElement | null>;
   src: string; alt: string; title: string; displayWidth: string | undefined;
@@ -185,7 +189,7 @@ function ImageWithResize({
   handleResizeKeyDown: (e: React.KeyboardEvent) => void;
   onDoubleClick: (() => void) | undefined;
   width: string; isDark: boolean; t: (key: string) => string;
-}) {
+}>) {
   return (
     <Box
       ref={imgContainerRef}
@@ -251,11 +255,11 @@ function ImageWithResize({
   );
 }
 
-function ImageEditDialog({ editOpen, setEditOpen, src, imgError, imgSize, onCrop, isDark, t }: {
+function ImageEditDialog({ editOpen, setEditOpen, src, imgError, imgSize, onCrop, isDark, t }: Readonly<{
   editOpen: boolean; setEditOpen: (v: boolean) => void;
   src: string; imgError: boolean; imgSize: { w: number; h: number; nw: number; nh: number } | null;
   onCrop: (croppedDataUrl: string) => void; isDark: boolean; t: (key: string) => string;
-}) {
+}>) {
   return (
     <EditDialogWrapper open={editOpen} onClose={() => setEditOpen(false)} ariaLabelledBy="image-edit-title">
       <EditDialogHeader
@@ -279,6 +283,41 @@ function ImageEditDialog({ editOpen, setEditOpen, src, imgError, imgSize, onCrop
   );
 }
 
+/** Trigger external image URL edit callback (extracted to reduce component complexity). */
+function triggerImageEditUrl(
+  editor: NodeViewProps["editor"],
+  getPos: NodeViewProps["getPos"],
+  src: string,
+  alt: string,
+): void {
+  if (typeof getPos !== "function") return;
+  const pos = getPos();
+  if (pos == null) return;
+  const storage = getEditorStorage(editor);
+  const onEdit = storage.image?.onEditImage as ((data: { pos: number; src: string; alt: string }) => void) | undefined;
+  if (onEdit) onEdit({ pos, src: src || "", alt: alt || "" });
+}
+
+/** Handle arrow-key resizing of the image block (extracted to reduce component complexity). */
+function handleResizeKeyDownImpl(
+  e: React.KeyboardEvent,
+  imgContainerRef: React.RefObject<HTMLDivElement | null>,
+  width: string,
+  updateAttributes: (attrs: Record<string, unknown>) => void,
+): void {
+  if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+  e.preventDefault();
+  const step = e.shiftKey ? 50 : 10;
+  const container = imgContainerRef.current;
+  if (!container) return;
+  const img = container.querySelector("img");
+  if (!img) return;
+  const currentWidth = parseInt(width, 10) || img.getBoundingClientRect().width;
+  const delta = e.key === "ArrowRight" ? step : -step;
+  const newWidth = Math.max(MIN_WIDTH, Math.round(currentWidth + delta));
+  updateAttributes({ width: `${newWidth}px` });
+}
+
 export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeViewProps) {
   const t = useTranslations("MarkdownEditor");
   const theme = useTheme();
@@ -300,28 +339,15 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
   const imgContainerRef = useRef<HTMLDivElement>(null);
   const { resizing, resizeWidth, displayWidth, handleResizePointerDown, handleResizePointerMove, handleResizePointerUp } = useBlockResize({ containerRef: imgContainerRef, updateAttributes, currentWidth: width });
 
-  const handleResizeKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
-    e.preventDefault();
-    const step = e.shiftKey ? 50 : 10;
-    const container = imgContainerRef.current;
-    if (!container) return;
-    const img = container.querySelector("img");
-    if (!img) return;
-    const currentWidth = parseInt(width, 10) || img.getBoundingClientRect().width;
-    const delta = e.key === "ArrowRight" ? step : -step;
-    const newWidth = Math.max(MIN_WIDTH, Math.round(currentWidth + delta));
-    updateAttributes({ width: `${newWidth}px` });
-  }, [width, updateAttributes]);
+  const handleResizeKeyDown = useCallback(
+    (e: React.KeyboardEvent) => handleResizeKeyDownImpl(e, imgContainerRef, width, updateAttributes),
+    [width, updateAttributes],
+  );
 
-  const handleEditUrl = useCallback(() => {
-    if (typeof getPos !== "function") return;
-    const pos = getPos();
-    if (pos == null) return;
-    const storage = getEditorStorage(editor);
-    const onEdit = storage.image?.onEditImage as ((data: { pos: number; src: string; alt: string }) => void) | undefined;
-    if (onEdit) onEdit({ pos, src: src || "", alt: alt || "" });
-  }, [editor, getPos, src, alt]);
+  const handleEditUrl = useCallback(
+    () => triggerImageEditUrl(editor, getPos, src, alt),
+    [editor, getPos, src, alt],
+  );
 
   const onCrop = useCallback((croppedDataUrl: string) => {
     handleCropComplete(src, updateAttributes, croppedDataUrl);
@@ -332,7 +358,7 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
   const showBorder = showToolbar || (isCompareLeftEditable && isSelected);
 
   return (
-    <NodeViewWrapper>
+    <NodeViewWrapper className="image-node-wrapper">
       {/* Edit Dialog */}
       <ImageEditDialog
         editOpen={editOpen}

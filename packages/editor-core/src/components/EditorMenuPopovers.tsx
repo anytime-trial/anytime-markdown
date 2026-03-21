@@ -55,8 +55,8 @@ interface EditorMenuPopoversProps {
 
 function stripListAndBlockquote(editor: Editor, anchorEl: HTMLElement): { chain: ReturnType<ReturnType<Editor["chain"]>["focus"]>; inBlockquote: boolean } {
   const inBlockquote = anchorEl.tagName.toLowerCase() === "blockquote" || !!anchorEl.closest("blockquote");
-  const parentList = anchorEl.closest("ul, ol");
-  const inTaskList = !!parentList?.getAttribute("data-type")?.includes("taskList");
+  const parentList = anchorEl.closest("ul, ol") as HTMLElement | null;
+  const inTaskList = !!parentList?.dataset.type?.includes("taskList");
   const inBulletList = !inTaskList && parentList?.tagName.toLowerCase() === "ul";
   const inOrderedList = parentList?.tagName.toLowerCase() === "ol";
   const chain = editor.chain().focus();

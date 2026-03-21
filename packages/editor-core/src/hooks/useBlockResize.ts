@@ -56,7 +56,7 @@ export function useBlockResize({
     setResizeWidth(null);
   }, [resizing, resizeWidth, updateAttributes]);
 
-  const displayWidth = resizeWidth !== null ? `${resizeWidth}px` : currentWidth || undefined;
+  const displayWidth = resizeWidth === null ? currentWidth || undefined : `${resizeWidth}px`;
 
   return { resizing, resizeWidth, displayWidth, handleResizePointerDown, handleResizePointerMove, handleResizePointerUp };
 }

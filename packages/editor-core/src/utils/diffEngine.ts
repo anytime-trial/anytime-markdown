@@ -467,15 +467,15 @@ function appendSubDiff(
   for (const line of sub.leftLines) {
     allLeftLines.push({
       ...line,
-      blockId: line.blockId !== null ? line.blockId + blockIdCounter : null,
-      lineNumber: line.lineNumber !== null ? line.lineNumber + leftLineNumOffset : null,
+      blockId: line.blockId === null ? null : line.blockId + blockIdCounter,
+      lineNumber: line.lineNumber === null ? null : line.lineNumber + leftLineNumOffset,
     });
   }
   for (const line of sub.rightLines) {
     allRightLines.push({
       ...line,
-      blockId: line.blockId !== null ? line.blockId + blockIdCounter : null,
-      lineNumber: line.lineNumber !== null ? line.lineNumber + rightLineNumOffset : null,
+      blockId: line.blockId === null ? null : line.blockId + blockIdCounter,
+      lineNumber: line.lineNumber === null ? null : line.lineNumber + rightLineNumOffset,
     });
   }
   for (const block of sub.blocks) {

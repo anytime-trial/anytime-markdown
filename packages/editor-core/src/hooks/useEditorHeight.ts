@@ -5,7 +5,11 @@ import { DEBOUNCE_SHORT } from "../constants/timing";
 
 export function useEditorHeight(isMobile: boolean, isMd: boolean, bottomOffset = 0) {
   const editorContainerRef = useRef<HTMLDivElement>(null);
-  const [editorHeight, setEditorHeight] = useState(isMd ? EDITOR_HEIGHT_MD : isMobile ? EDITOR_HEIGHT_MOBILE : EDITOR_HEIGHT_DEFAULT);
+  let initialHeight: number;
+  if (isMd) initialHeight = EDITOR_HEIGHT_MD;
+  else if (isMobile) initialHeight = EDITOR_HEIGHT_MOBILE;
+  else initialHeight = EDITOR_HEIGHT_DEFAULT;
+  const [editorHeight, setEditorHeight] = useState(initialHeight);
 
   const update = useCallback(() => {
     if (!editorContainerRef.current) return;

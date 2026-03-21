@@ -77,11 +77,11 @@ export function useMergeMode({
         setInlineMergeOpen(false);
       }
     };
-    window.addEventListener('vscode-load-compare-file', handler);
-    window.addEventListener('vscode-exit-compare-mode', exitHandler);
+    globalThis.addEventListener('vscode-load-compare-file', handler);
+    globalThis.addEventListener('vscode-exit-compare-mode', exitHandler);
     return () => {
-      window.removeEventListener('vscode-load-compare-file', handler);
-      window.removeEventListener('vscode-exit-compare-mode', exitHandler);
+      globalThis.removeEventListener('vscode-load-compare-file', handler);
+      globalThis.removeEventListener('vscode-exit-compare-mode', exitHandler);
     };
   }, [editor, sourceMode, inlineMergeOpen]);
 

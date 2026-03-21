@@ -25,6 +25,8 @@ import useConfirm from "@/hooks/useConfirm";
 
 import { getTextSecondary } from "../constants/colors";
 import { PAPER_MARGIN_MAX, PAPER_MARGIN_MIN, PAPER_MARGIN_STEP, PAPER_SIZE_OPTIONS } from "../constants/dimensions";
+import { PRESET_NAMES, THEME_PRESETS } from "../constants/themePresets";
+import type { ThemePresetName } from "../constants/themePresets";
 import type { TranslationFn } from "../types";
 import type { EditorSettings } from "../useEditorSettings";
 
@@ -38,6 +40,8 @@ interface EditorSettingsPanelProps {
   themeMode?: 'light' | 'dark';
   onThemeModeChange?: (mode: 'light' | 'dark') => void;
   onLocaleChange?: (locale: string) => void;
+  presetName?: ThemePresetName;
+  onPresetChange?: (name: ThemePresetName) => void;
 }
 
 export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
@@ -50,6 +54,8 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
   themeMode,
   onThemeModeChange,
   onLocaleChange,
+  presetName,
+  onPresetChange,
 }: EditorSettingsPanelProps) {
   const isDark = useTheme().palette.mode === "dark";
   const confirm = useConfirm();
@@ -129,6 +135,29 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
             </ToggleButtonGroup>
           </Box>
 
+          {/* Theme Preset */}
+          {presetName !== undefined && onPresetChange && (
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="caption" sx={{ fontWeight: 600, color: getTextSecondary(isDark), mb: 0.5, display: "block" }}>
+                {t("settingThemePreset")}
+              </Typography>
+              <ToggleButtonGroup
+                value={presetName}
+                exclusive
+                onChange={(_, v) => { if (v) onPresetChange(v); }}
+                size="small"
+                fullWidth
+                aria-label={t("settingThemePreset")}
+              >
+                {PRESET_NAMES.map((name) => (
+                  <ToggleButton key={name} value={name}>
+                    {THEME_PRESETS[name].label}
+                  </ToggleButton>
+                ))}
+              </ToggleButtonGroup>
+            </Box>
+          )}
+
           <Divider sx={{ mb: 2 }} />
         </>
       )}
@@ -141,7 +170,7 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 0.5 }}>
           <Slider
             value={settings.fontSize}
-            onChange={(_, v) => updateSettings({ fontSize: v as number })}
+            onChange={(_, v) => updateSettings({ fontSize: v })}
             min={12}
             max={20}
             step={1}
@@ -175,6 +204,25 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
         </ToggleButtonGroup>
       </Box>
 
+      {/* Block Align */}
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="caption" sx={{ fontWeight: 600, color: getTextSecondary(isDark), mb: 0.5, display: "block" }}>
+          {t("settingBlockAlign")}
+        </Typography>
+        <ToggleButtonGroup
+          value={settings.blockAlign}
+          exclusive
+          onChange={(_, v) => { if (v) updateSettings({ blockAlign: v }); }}
+          size="small"
+          fullWidth
+          aria-label={t("settingBlockAlign")}
+        >
+          <ToggleButton value="left">{t("settingAlignLeft")}</ToggleButton>
+          <ToggleButton value="center">{t("settingAlignCenter")}</ToggleButton>
+          <ToggleButton value="right">{t("settingAlignRight")}</ToggleButton>
+        </ToggleButtonGroup>
+      </Box>
+
       {/* Paper Size */}
       <Box sx={{ mb: 3 }}>
         <Typography variant="caption" sx={{ fontWeight: 600, color: getTextSecondary(isDark), mb: 0.5, display: "block" }}>
@@ -183,7 +231,7 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
         <FormControl size="small" fullWidth>
           <Select
             value={settings.paperSize}
-            onChange={(e) => updateSettings({ paperSize: e.target.value as EditorSettings["paperSize"] })}
+            onChange={(e) => updateSettings({ paperSize: e.target.value })}
             aria-label={t("settingPaperSize")}
           >
             {PAPER_SIZE_OPTIONS.map((size) => (
@@ -204,7 +252,7 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
           <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 0.5 }}>
             <Slider
               value={settings.paperMargin}
-              onChange={(_, v) => updateSettings({ paperMargin: v as number })}
+              onChange={(_, v) => updateSettings({ paperMargin: v })}
               min={PAPER_MARGIN_MIN}
               max={PAPER_MARGIN_MAX}
               step={PAPER_MARGIN_STEP}

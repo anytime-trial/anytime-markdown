@@ -7,4 +7,4 @@ export function getDefaultContent(locale: string): string {
 }
 
 /** 後方互換: 日本語版をデフォルトとしてエクスポート */
-export const defaultContent = welcomeJa;
+export { default as defaultContent } from "./templates/welcome.md";

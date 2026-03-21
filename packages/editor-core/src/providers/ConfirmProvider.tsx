@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from 'next-intl';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 
 import ConfirmDialog from './ConfirmDialog';
 import { DialogOptions } from './types';
@@ -44,7 +44,7 @@ export const ConfirmProvider = ({
       });
       setResolverFunctions([
         () => resolve(),
-        () => reject()
+        () => reject(new Error("cancelled"))
       ]);
     });
   }, [tc]);
@@ -68,9 +68,11 @@ export const ConfirmProvider = ({
     handleClose();
   }, [resolve, handleClose]);
 
+  const contextValue = useMemo(() => ({ confirm }), [confirm]);
+
   return (
     <>
-      <ConfirmContext.Provider value={{ confirm }}>
+      <ConfirmContext.Provider value={contextValue}>
         {children}
       </ConfirmContext.Provider>
       {options.open && (

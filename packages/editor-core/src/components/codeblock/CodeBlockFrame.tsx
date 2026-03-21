@@ -51,16 +51,20 @@ export function CodeBlockFrame({
   const maxH = codeMaxHeight ?? (hasCodeCollapse ? 200 : 400);
 
   const hiddenSx = { position: "absolute", width: 0, height: 0, overflow: "hidden", opacity: 0, pointerEvents: "none" } as const;
-  const preSx: SxProps<Theme> = hasCodeCollapse
-      ? (codeCollapsed
-        ? { ...hiddenSx, m: 0 }
-        : {
-            m: 0, p: 1.5, fontSize: `${settings.fontSize}px`, lineHeight: settings.lineHeight, bgcolor: isDark ? DEFAULT_DARK_CODE_BG : DEFAULT_LIGHT_CODE_BG,
-            maxHeight: maxH, overflow: "auto",
-            transition: "max-height 0.2s, padding 0.2s, opacity 0.15s",
-            "@media (prefers-reduced-motion: reduce)": { transition: "none" },
-          })
-      : { m: 0, p: 1.5, fontSize: `${settings.fontSize}px`, lineHeight: settings.lineHeight, bgcolor: isDark ? DEFAULT_DARK_CODE_BG : DEFAULT_LIGHT_CODE_BG, overflow: "auto", maxHeight: maxH };
+  const codeBg = isDark ? DEFAULT_DARK_CODE_BG : DEFAULT_LIGHT_CODE_BG;
+  const baseSx = { m: 0, p: 1.5, fontSize: `${settings.fontSize}px`, lineHeight: settings.lineHeight, bgcolor: codeBg, overflow: "auto", maxHeight: maxH };
+  let preSx: SxProps<Theme>;
+  if (hasCodeCollapse && codeCollapsed) {
+    preSx = { ...hiddenSx, m: 0 };
+  } else if (hasCodeCollapse) {
+    preSx = {
+      ...baseSx,
+      transition: "max-height 0.2s, padding 0.2s, opacity 0.15s",
+      "@media (prefers-reduced-motion: reduce)": { transition: "none" },
+    };
+  } else {
+    preSx = baseSx;
+  }
 
   const preElement = (
     <Box component="pre" spellCheck={false} sx={preSx}>
@@ -70,7 +74,7 @@ export function CodeBlockFrame({
   );
 
   return (
-    <NodeViewWrapper>
+    <NodeViewWrapper className="block-node-wrapper">
       <Box sx={{
         border: 1, borderRadius: 1, overflow: "hidden", my: 1,
         borderColor: showBorder ? getDivider(isDark) : "transparent",

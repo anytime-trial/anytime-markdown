@@ -18,45 +18,45 @@ export const STATUSBAR_HEIGHT = 39;
 /** StatusBar フォントサイズ */
 export const STATUSBAR_FONT_SIZE = "0.875rem";
 /** ハンドルバーキャプションのフォントサイズ */
-export const HANDLEBAR_CAPTION_FONT_SIZE = "0.65rem";
+export const HANDLEBAR_CAPTION_FONT_SIZE = "0.625rem";
 /** スラッシュコマンドメニューのフォントサイズ */
-export const SLASH_COMMAND_FONT_SIZE = "0.85rem";
+export const SLASH_COMMAND_FONT_SIZE = "0.875rem";
 /** バッジ番号のフォントサイズ（コメント・アノテーション） */
-export const BADGE_NUMBER_FONT_SIZE = "0.55rem";
+export const BADGE_NUMBER_FONT_SIZE = "0.625rem";
 /** 見出しレベルバッジのフォントサイズ */
-export const HEADING_BADGE_FONT_SIZE = "0.6rem";
+export const HEADING_BADGE_FONT_SIZE = "0.625rem";
 /** マージ差分バッジのフォントサイズ */
-export const MERGE_BADGE_FONT_SIZE = "0.6rem";
+export const MERGE_BADGE_FONT_SIZE = "0.625rem";
 /** コンテキストメニュー本文のフォントサイズ */
 export const CONTEXT_MENU_FONT_SIZE = "0.8125rem";
 /** メニュー項目のフォントサイズ */
-export const MENU_ITEM_FONT_SIZE = "0.85rem";
+export const MENU_ITEM_FONT_SIZE = "0.875rem";
 /** ダイアログヘッダーのフォントサイズ */
 export const DIALOG_HEADER_FONT_SIZE = "0.875rem";
 /** ツールバーボタンのフォントサイズ */
-export const TOOLBAR_FONT_SIZE = "0.8rem";
+export const TOOLBAR_FONT_SIZE = "0.8125rem";
 /** アウトラインパネルのフォントサイズ */
-export const OUTLINE_FONT_SIZE = "0.8rem";
+export const OUTLINE_FONT_SIZE = "0.8125rem";
 /** ブロックスタイル（折りたたみラベル等）のフォントサイズ */
-export const BLOCK_STYLE_FONT_SIZE = "0.8rem";
+export const BLOCK_STYLE_FONT_SIZE = "0.8125rem";
 /** コメント本文のフォントサイズ */
-export const COMMENT_BODY_FONT_SIZE = "0.8rem";
+export const COMMENT_BODY_FONT_SIZE = "0.8125rem";
 /** パネル内入力欄のフォントサイズ */
-export const PANEL_INPUT_FONT_SIZE = "0.8rem";
+export const PANEL_INPUT_FONT_SIZE = "0.8125rem";
 /** 検索バーカウンターのフォントサイズ */
-export const SEARCH_COUNTER_FONT_SIZE = "0.65rem";
+export const SEARCH_COUNTER_FONT_SIZE = "0.625rem";
 /** 検索バー入力欄のフォントサイズ */
-export const SEARCH_INPUT_FONT_SIZE = "0.78rem";
+export const SEARCH_INPUT_FONT_SIZE = "0.8125rem";
 /** スキップリンクのフォントサイズ */
 export const SKIP_LINK_FONT_SIZE = "0.875rem";
 /** コメント入力欄のフォントサイズ */
 export const COMMENT_INPUT_FONT_SIZE = "0.875rem";
 /** チップのフォントサイズ */
-export const CHIP_FONT_SIZE = "0.7rem";
+export const CHIP_FONT_SIZE = "0.75rem";
 /** 小ボタンのフォントサイズ */
-export const SMALL_BUTTON_FONT_SIZE = "0.7rem";
+export const SMALL_BUTTON_FONT_SIZE = "0.75rem";
 /** 小キャプションのフォントサイズ */
-export const SMALL_CAPTION_FONT_SIZE = "0.7rem";
+export const SMALL_CAPTION_FONT_SIZE = "0.75rem";
 /** パネルボタン・トグルボタンのフォントサイズ */
 export const PANEL_BUTTON_FONT_SIZE = "0.75rem";
 /** ショートカット表示のフォントサイズ */
@@ -129,3 +129,20 @@ export function calcPaperContentWidth(paperSize: Exclude<PaperSize, "off">, marg
   const contentMm = PAPER_WIDTHS_MM[paperSize] - marginMm * 2;
   return Math.round(contentMm * (96 / 25.4));
 }
+
+// ── スペーシングトークン（4px 倍数体系） ──
+export const SPACING_3XS = 4;
+export const SPACING_XXS = 8;
+export const SPACING_XS = 12;
+export const SPACING_SM = 16;
+export const SPACING_MD = 24;
+export const SPACING_LG = 32;
+export const SPACING_XL = 40;
+export const SPACING_XXL = 48;
+
+// ── 角丸トークン ──
+export const RADIUS_NONE = 0;
+export const RADIUS_SM = 4;    // バッジ、タグ、ツールチップ
+export const RADIUS_MD = 8;    // ボタン、入力フィールド、ドロップダウン
+export const RADIUS_LG = 12;   // カード、モーダル、トースト
+export const RADIUS_FULL = "50%"; // アバター、アイコンボタン

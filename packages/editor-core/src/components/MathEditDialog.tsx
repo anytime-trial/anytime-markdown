@@ -42,7 +42,7 @@ export function MathEditDialog({
   fsCode, onFsCodeChange, onFsTextChange, fsTextareaRef, fsSearch: _fsSearch,
   readOnly, isCompareMode, compareCode, onMergeApply, thisCode, toolbarExtra,
   t,
-}: MathEditDialogProps) {
+}: Readonly<MathEditDialogProps>) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const settings = useEditorSettingsContext();

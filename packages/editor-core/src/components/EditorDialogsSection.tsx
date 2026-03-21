@@ -1,3 +1,4 @@
+import type { ThemePresetName } from "../constants/themePresets";
 import type { EditorSettings } from "../useEditorSettings";
 import { EditorDialogs } from "./EditorDialogs";
 import { EditorSettingsPanel } from "./EditorSettingsPanel";
@@ -40,6 +41,8 @@ interface EditorDialogsSectionProps {
   themeMode?: 'light' | 'dark';
   onThemeModeChange?: (mode: 'light' | 'dark') => void;
   onLocaleChange?: (locale: string) => void;
+  presetName?: ThemePresetName;
+  onPresetChange?: (name: ThemePresetName) => void;
   t: (key: string) => string;
 }
 
@@ -52,8 +55,9 @@ export function EditorDialogsSection({
   locale,
   hideSettings, settingsOpen, setSettingsOpen, settings, updateSettings, resetSettings,
   themeMode, onThemeModeChange, onLocaleChange,
+  presetName, onPresetChange,
   t,
-}: EditorDialogsSectionProps) {
+}: Readonly<EditorDialogsSectionProps>) {
   return (
     <>
       <EditorDialogs
@@ -94,6 +98,8 @@ export function EditorDialogsSection({
           themeMode={themeMode}
           onThemeModeChange={onThemeModeChange}
           onLocaleChange={onLocaleChange}
+          presetName={presetName}
+          onPresetChange={onPresetChange}
         />
       )}
     </>

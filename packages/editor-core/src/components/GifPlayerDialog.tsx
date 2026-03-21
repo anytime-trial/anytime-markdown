@@ -21,7 +21,7 @@ interface GifPlayerDialogProps {
 }
 
 /** GIF 再生・情報表示ダイアログ */
-export function GifPlayerDialog({ open, onClose, src, settings }: GifPlayerDialogProps) {
+export function GifPlayerDialog({ open, onClose, src, settings }: Readonly<GifPlayerDialogProps>) {
   const isDark = useTheme().palette.mode === "dark";
   const t = (key: string) => key;
 

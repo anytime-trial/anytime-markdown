@@ -70,30 +70,25 @@ export const SourceSearchBar = React.memo(function SourceSearchBar({
     [onClose],
   );
 
-  const toggleBtnSx = (active: boolean) => ({
-    p: 0.25,
-    borderRadius: 0.5,
-    minWidth: 28,
-    minHeight: 28,
-    fontSize: SEARCH_COUNTER_FONT_SIZE,
-    fontWeight: 700,
-    fontFamily: "monospace",
-    bgcolor: active
-      ? isDark
-        ? getPrimaryDark(isDark)
-        : getPrimaryLight(isDark)
-      : "transparent",
-    color: active ? getPrimaryContrast(isDark) : "inherit",
-    border: 1,
-    borderColor: active ? getPrimaryMain(isDark) : "transparent",
-    "&:hover": {
-      bgcolor: active
-        ? isDark
-          ? getPrimaryDark(isDark)
-          : getPrimaryLight(isDark)
-        : getActionHover(isDark),
-    },
-  });
+  const toggleBtnSx = (active: boolean) => {
+    const activeBg = isDark ? getPrimaryDark(isDark) : getPrimaryLight(isDark);
+    return {
+      p: 0.25,
+      borderRadius: 0.5,
+      minWidth: 28,
+      minHeight: 28,
+      fontSize: SEARCH_COUNTER_FONT_SIZE,
+      fontWeight: 700,
+      fontFamily: "monospace",
+      bgcolor: active ? activeBg : "transparent",
+      color: active ? getPrimaryContrast(isDark) : "inherit",
+      border: 1,
+      borderColor: active ? getPrimaryMain(isDark) : "transparent",
+      "&:hover": {
+        bgcolor: active ? activeBg : getActionHover(isDark),
+      },
+    };
+  };
 
   const inputSx = {
     minHeight: 24,

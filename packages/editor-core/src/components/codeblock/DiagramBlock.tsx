@@ -7,7 +7,7 @@ import { useTheme } from "@mui/material/styles";
 import DOMPurify from "dompurify";
 import React, { useCallback, useMemo, useRef } from "react";
 
-import { getEditorBg, getErrorMain, getTextDisabled, getTextSecondary } from "../../constants/colors";
+import { getEditorBg, getErrorMain, getTextSecondary } from "../../constants/colors";
 import { useBlockMergeCompare } from "../../hooks/useBlockMergeCompare";
 import { useBlockResize } from "../../hooks/useBlockResize";
 import { useDiagramCapture } from "../../hooks/useDiagramCapture";
@@ -38,7 +38,7 @@ type DiagramBlockProps = Pick<
 };
 
 /** Copy-code button shared between Mermaid and PlantUML edit dialogs */
-function CopyCodeButton({ handleCopyCode, t }: { handleCopyCode: () => void; t: DiagramBlockProps["t"] }) {
+function CopyCodeButton({ handleCopyCode, t }: Readonly<{ handleCopyCode: () => void; t: DiagramBlockProps["t"] }>) {
   const isDark = useTheme().palette.mode === "dark";
   return (
     <Tooltip title={t("copyCode")} placement="bottom">
@@ -56,7 +56,7 @@ function DiagramPreviewContainer({
   handleResizePointerMove, handleResizePointerUp,
   isSelected, isEditable, resizing, resizeWidth, handleResizePointerDown,
   children,
-}: {
+}: Readonly<{
   containerRef: React.RefObject<HTMLDivElement | null>;
   code: string;
   language: "mermaid" | "plantuml";
@@ -71,7 +71,7 @@ function DiagramPreviewContainer({
   resizeWidth: number | null;
   handleResizePointerDown: (e: React.PointerEvent) => void;
   children: React.ReactNode;
-}) {
+}>) {
   return (
     <Box
       ref={containerRef}
@@ -93,12 +93,12 @@ function DiagramPreviewContainer({
 /** PlantUML consent alert */
 function PlantUmlConsentAlert({
   plantUmlConsent, handlePlantUmlReject, handlePlantUmlAccept, t,
-}: {
+}: Readonly<{
   plantUmlConsent: string;
   handlePlantUmlReject: () => void;
   handlePlantUmlAccept: () => void;
   t: DiagramBlockProps["t"];
-}) {
+}>) {
   return (
     <Alert
       severity="warning"
@@ -119,13 +119,13 @@ function PlantUmlConsentAlert({
   );
 }
 
-function DiagramContent({ isMermaid, isPlantUml, svg, displaySvg, plantUmlUrl, plantUmlConsent, handlePlantUmlReject, handlePlantUmlAccept, code, error, isDark, sharedContainerProps, t }: {
+function DiagramContent({ isMermaid, isPlantUml, svg, displaySvg, plantUmlUrl, plantUmlConsent, handlePlantUmlReject, handlePlantUmlAccept, code, error, isDark, sharedContainerProps, t }: Readonly<{
   isMermaid: boolean; isPlantUml: boolean; svg: string | undefined; displaySvg: string | undefined;
   plantUmlUrl: string | null; plantUmlConsent: string;
   handlePlantUmlReject: () => void; handlePlantUmlAccept: () => void;
   code: string; error: string | null; isDark: boolean;
   sharedContainerProps: Omit<React.ComponentProps<typeof DiagramPreviewContainer>, "language" | "children">; t: (key: string) => string;
-}) {
+}>) {
   return (
     <>
       {isMermaid && svg && displaySvg && (
@@ -160,6 +160,13 @@ function DiagramContent({ isMermaid, isPlantUml, svg, displaySvg, plantUmlUrl, p
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- internal helper, props vary by diagram type
+function getEditDialog(isMermaid: boolean, isPlantUml: boolean, commonDialogProps: any, svg: string | null, plantUmlUrl: string | null) {
+  if (isMermaid) return <MermaidEditDialog {...commonDialogProps} svg={svg} />;
+  if (isPlantUml) return <PlantUmlEditDialog {...commonDialogProps} plantUmlUrl={plantUmlUrl} />;
+  return null;
+}
+
 export function DiagramBlock(props: DiagramBlockProps) {
   const {
     editor, node, updateAttributes, getPos: _getPos,
@@ -191,7 +198,7 @@ export function DiagramBlock(props: DiagramBlockProps) {
 
   const displaySvg = useMemo(() => {
     if (!svg) return svg;
-    const viewBoxMatch = svg.match(/viewBox="[\d.]+ [\d.]+ ([\d.]+) [\d.]+"/);
+    const viewBoxMatch = /viewBox="[\d.]+ [\d.]+ ([\d.]+) [\d.]+"/.exec(svg);
     if (!viewBoxMatch) return svg;
     const viewBoxWidth = parseFloat(viewBoxMatch[1]);
     const targetWidth = (settings.fontSize / 16) * viewBoxWidth;
@@ -252,11 +259,7 @@ export function DiagramBlock(props: DiagramBlockProps) {
     toolbarExtra: <CopyCodeButton handleCopyCode={handleCopyCode} t={t} />, t,
   };
 
-  const editDialog = isMermaid
-    ? <MermaidEditDialog {...commonDialogProps} svg={svg} />
-    : isPlantUml
-      ? <PlantUmlEditDialog {...commonDialogProps} plantUmlUrl={plantUmlUrl} />
-      : null;
+  const editDialog = getEditDialog(isMermaid, isPlantUml, commonDialogProps, svg, plantUmlUrl);
 
   const showToolbar = shouldShowToolbar({ isCompareLeft: props.isCompareLeft, isCompareLeftEditable: props.isCompareLeftEditable, isEditable });
   const showBorder = shouldShowBorder({ isSelected, isCompareLeft: props.isCompareLeft, isCompareLeftEditable: props.isCompareLeftEditable, isEditable, editOpen });

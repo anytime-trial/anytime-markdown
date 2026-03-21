@@ -261,7 +261,7 @@ export function SourceModeEditor({
             }}
           >
             {displayLines.map((line, i) => (
-              <div key={i}>{line || "\u00A0"}</div>
+              <div key={`line-${i}`}>{line || "\u00A0"}</div>
             ))}
           </Box>
           {/* Base64 token badge layer */}

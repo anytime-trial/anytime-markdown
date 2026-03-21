@@ -8,9 +8,9 @@ export function middleware(request: NextRequest) {
   const cspHeader = [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}'${isDev ? " 'unsafe-eval'" : ""} https://www.googletagmanager.com`,
-    "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob: https://www.plantuml.com https://www.google-analytics.com https://www.googletagmanager.com",
-    "font-src 'self' data:",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "img-src 'self' data: blob: https://www.plantuml.com https://www.google-analytics.com https://www.googletagmanager.com https://*.cloudfront.net",
+    "font-src 'self' data: https://fonts.gstatic.com",
     "connect-src 'self' https://www.plantuml.com https://www.google-analytics.com https://www.googletagmanager.com",
     "worker-src 'self' blob:",
     "frame-src 'none'",

@@ -142,7 +142,7 @@ interface UseEditorFileOpsParams {
   encoding?: EncodingLabel;
   fileHandle?: FileHandle | null;
   setFileHandle?: (handle: FileHandle | null) => void;
-  frontmatterRef: React.MutableRefObject<string | null>;
+  frontmatterRef: React.RefObject<string | null>;
   onFrontmatterChange?: (value: string | null) => void;
   onExternalSave?: (content: string) => void;
 }
@@ -179,7 +179,8 @@ export function useEditorFileOps({
 
   /** エディタからフロントマター付き Markdown を取得する */
   const getFullMarkdown = useCallback(() => {
-    const md = sourceMode ? sourceText : editor ? getMarkdownFromEditor(editor) : "";
+    const editorMd = editor ? getMarkdownFromEditor(editor) : "";
+    const md = sourceMode ? sourceText : editorMd;
     return sourceMode ? md : prependFrontmatter(md, frontmatterRef.current);
   }, [sourceMode, sourceText, editor, frontmatterRef]);
 

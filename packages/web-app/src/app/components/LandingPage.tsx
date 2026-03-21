@@ -9,7 +9,7 @@ const headingFontFamily = `${playfair.style.fontFamily}, Georgia, "Times New Rom
 
 export default function LandingPage() {
   return (
-    <div className="landing-scroll" style={{ height: '100vh', overflow: 'auto' }}>
+    <div className="landing-scroll" style={{ minHeight: '100vh', overflow: 'auto' }}>
       <LandingHeader />
       <LandingBody headingFontFamily={headingFontFamily} />
     </div>

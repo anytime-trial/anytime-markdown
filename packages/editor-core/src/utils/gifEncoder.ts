@@ -100,7 +100,7 @@ function determineLearnStep(lengthcount: number): number {
 /** ラジアスパワーテーブルを更新する */
 function updateRadpower(radpower: Int32Array, alpha: number, rad: number): void {
   for (let i = 0; i < rad; i++) {
-    radpower[i] = (alpha * ((rad * rad - i * i) * 256 / (rad * rad))) | 0;
+    radpower[i] = Math.trunc(alpha * ((rad * rad - i * i) * 256 / (rad * rad)));
   }
 }
 
@@ -113,13 +113,13 @@ function searchForward(
   let best = -1;
   for (let i = startIdx; i < 256; i++) {
     const p = network[i];
-    let dist = (p[1] | 0) - g;
+    let dist = Math.trunc(p[1]) - g;
     if (dist >= bd) break;
     if (dist < 0) dist = -dist;
-    let a = (p[0] | 0) - b; if (a < 0) a = -a; dist += a;
+    let a = Math.trunc(p[0]) - b; if (a < 0) a = -a; dist += a;
     if (dist < bd) {
-      a = (p[2] | 0) - r; if (a < 0) a = -a; dist += a;
-      if (dist < bd) { bd = dist; best = p[3] | 0; }
+      a = Math.trunc(p[2]) - r; if (a < 0) a = -a; dist += a;
+      if (dist < bd) { bd = dist; best = Math.trunc(p[3]); }
     }
   }
   return { bestd: bd, best };
@@ -134,13 +134,13 @@ function searchBackward(
   let best = -1;
   for (let j = startIdx; j >= 0; j--) {
     const p = network[j];
-    let dist = g - (p[1] | 0);
+    let dist = g - Math.trunc(p[1]);
     if (dist >= bd) break;
     if (dist < 0) dist = -dist;
-    let a = (p[0] | 0) - b; if (a < 0) a = -a; dist += a;
+    let a = Math.trunc(p[0]) - b; if (a < 0) a = -a; dist += a;
     if (dist < bd) {
-      a = (p[2] | 0) - r; if (a < 0) a = -a; dist += a;
-      if (dist < bd) { bd = dist; best = p[3] | 0; }
+      a = Math.trunc(p[2]) - r; if (a < 0) a = -a; dist += a;
+      if (dist < bd) { bd = dist; best = Math.trunc(p[3]); }
     }
   }
   return { bestd: bd, best };
@@ -150,10 +150,10 @@ function searchBackward(
 class NeuQuant {
   private network: Float64Array[];
   private netindex = new Int32Array(256);
-  private bias = new Int32Array(256);
-  private freq = new Int32Array(256);
-  private radpower = new Int32Array(32);
-  private pixels: Uint8Array;
+  private readonly bias = new Int32Array(256);
+  private readonly freq = new Int32Array(256);
+  private readonly radpower = new Int32Array(32);
+  private readonly pixels: Uint8Array;
   private samplefac: number;
 
   constructor(pixels: Uint8Array, samplefac: number) {
@@ -161,9 +161,9 @@ class NeuQuant {
     this.samplefac = samplefac;
     this.network = [];
     for (let i = 0; i < 256; i++) {
-      const v = ((i << 12) / 256) | 0;
+      const v = Math.trunc((i << 12) / 256);
       this.network[i] = new Float64Array([v, v, v, 0]);
-      this.freq[i] = (65536 / 256) | 0;
+      this.freq[i] = Math.trunc(65536 / 256);
       this.bias[i] = 0;
     }
   }
@@ -177,10 +177,10 @@ class NeuQuant {
   getColormap(): number[] {
     const map: number[] = [];
     const index: number[] = [];
-    for (let i = 0; i < 256; i++) index[this.network[i][3] | 0] = i;
+    for (let i = 0; i < 256; i++) index[Math.trunc(this.network[i][3])] = i;
     for (let l = 0; l < 256; l++) {
       const j = index[l];
-      map.push(this.network[j][0] | 0, this.network[j][1] | 0, this.network[j][2] | 0);
+      map.push(Math.trunc(this.network[j][0]), Math.trunc(this.network[j][1]), Math.trunc(this.network[j][2]));
     }
     return map;
   }
@@ -188,22 +188,22 @@ class NeuQuant {
   lookupRGB(r: number, g: number, b: number): number {
     let bestd = 1000;
     let best = -1;
-    const startIdx = this.netindex[g] | 0;
+    const startIdx = Math.trunc(this.netindex[g]);
 
     const fwd = searchForward(this.network, startIdx, r, g, b, bestd);
     if (fwd.best >= 0) { bestd = fwd.bestd; best = fwd.best; }
 
     const bwd = searchBackward(this.network, startIdx - 1, r, g, b, bestd);
-    if (bwd.best >= 0) { bestd = bwd.bestd; best = bwd.best; }
+    if (bwd.best >= 0) { best = bwd.best; }
 
     return best;
   }
 
   private learn(): void {
     const lengthcount = this.pixels.length;
-    const alphadec = 30 + ((this.samplefac - 1) / 3) | 0;
-    const samplepixels = (lengthcount / (3 * this.samplefac)) | 0;
-    let delta = (samplepixels / 100) | 0;
+    const alphadec = Math.trunc(30 + (this.samplefac - 1) / 3);
+    const samplepixels = Math.trunc(lengthcount / (3 * this.samplefac));
+    let delta = Math.trunc(samplepixels / 100);
     if (delta === 0) delta = 1;
     let alpha = 1024;
     let radius = (256 >> 3) * 64;
@@ -224,8 +224,8 @@ class NeuQuant {
       pix += step;
       if (pix >= lengthcount) pix -= lengthcount;
       if (i % delta === 0) {
-        alpha -= (alpha / alphadec) | 0;
-        radius -= (radius / 30) | 0;
+        alpha -= Math.trunc(alpha / alphadec);
+        radius -= Math.trunc(radius / 30);
         rad = radius >> 6;
         if (rad <= 1) rad = 0;
         updateRadpower(this.radpower, alpha, rad);
@@ -288,9 +288,9 @@ class NeuQuant {
 
   /** Selection-sort network by green channel and find the entry with smallest green value from position i onward */
   private findSmallest(i: number): { pos: number; val: number } {
-    let smallpos = i, smallval = this.network[i][1] | 0;
+    let smallpos = i, smallval = Math.trunc(this.network[i][1]);
     for (let j = i + 1; j < 256; j++) {
-      const v = this.network[j][1] | 0;
+      const v = Math.trunc(this.network[j][1]);
       if (v < smallval) { smallpos = j; smallval = v; }
     }
     return { pos: smallpos, val: smallval };
@@ -306,13 +306,13 @@ class NeuQuant {
         this.network[i] = tmp;
       }
       if (smallval !== previouscol) {
-        this.netindex[previouscol] = ((previouscol === startpos ? i : (startpos + i)) >> 1) | 0;
+        this.netindex[previouscol] = Math.trunc((previouscol === startpos ? i : (startpos + i)) >> 1);
         for (let j = previouscol + 1; j < smallval; j++) this.netindex[j] = i;
         previouscol = smallval;
         startpos = i;
       }
     }
-    this.netindex[previouscol] = ((startpos + 255) >> 1) | 0;
+    this.netindex[previouscol] = Math.trunc((startpos + 255) >> 1);
     for (let j = previouscol + 1; j < 256; j++) this.netindex[j] = 255;
   }
 }
@@ -374,7 +374,7 @@ function lzwOutput(s: LzwState, code: number): void {
   s.cur_bits += s.n_bits;
   while (s.cur_bits >= 8) { lzwCharOut(s, s.cur_accum & 0xff); s.cur_accum >>= 8; s.cur_bits -= 8; }
   if (s.free_ent > s.maxcode || s.clear_flg) {
-    if (s.clear_flg) { s.maxcode = lzwMaxcode(s.n_bits = s.g_init_bits); s.clear_flg = false; }
+    if (s.clear_flg) { s.n_bits = s.g_init_bits; s.maxcode = lzwMaxcode(s.n_bits); s.clear_flg = false; }
     else { ++s.n_bits; s.maxcode = s.n_bits === 12 ? (1 << 12) : lzwMaxcode(s.n_bits); }
   }
   if (code === (1 << s.initCodeSize) + 1) { // EOFCode
@@ -498,13 +498,27 @@ function writeGifHeader(
   writeBytes(0x00);
 }
 
+interface WriteFrameDataParams {
+  parts: Uint8Array[];
+  frame: ImageData;
+  rgb: Uint8Array;
+  nq: NeuQuant;
+  colorTab: number[];
+  width: number;
+  height: number;
+  delay: number;
+  isFirst: boolean;
+  writeBytes: (...bytes: number[]) => void;
+  writeShort: (val: number) => void;
+}
+
 /** 1フレーム分の GIF イメージデータを書き込む */
-function writeFrameData(
-  parts: Uint8Array[], frame: ImageData, rgb: Uint8Array, nq: NeuQuant,
-  colorTab: number[], width: number, height: number, delay: number,
-  isFirst: boolean,
-  writeBytes: (...bytes: number[]) => void, writeShort: (val: number) => void,
-): void {
+function writeFrameData({
+  parts, frame, rgb, nq,
+  colorTab, width, height, delay,
+  isFirst,
+  writeBytes, writeShort,
+}: WriteFrameDataParams): void {
   // Graphic Control Extension
   writeBytes(0x21, 0xf9, 0x04, 0x00);
   writeShort(delay);
@@ -564,7 +578,7 @@ export async function encodeGif(
       writeGifHeader(parts, width, height, colorTab, writeBytes, writeShort);
     }
 
-    writeFrameData(parts, frame, rgb, nq, colorTab, width, height, delay, i === 0, writeBytes, writeShort);
+    writeFrameData({ parts, frame, rgb, nq, colorTab, width, height, delay, isFirst: i === 0, writeBytes, writeShort });
 
     onProgress?.((i + 1) / frames.length);
 

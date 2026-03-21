@@ -87,7 +87,7 @@ const HeadingFoldButton = React.memo(function HeadingFoldButton({
 });
 
 /** Block element icon indicator */
-function BlockIconIndicator({ kind, isDark }: { kind: string; isDark: boolean }) {
+function BlockIconIndicator({ kind, isDark }: Readonly<{ kind: string; isDark: boolean }>) {
   return (
     <Box sx={{ display: "flex", alignItems: "center", mr: 0.5, color: getTextDisabled(isDark), flexShrink: 0 }}>
       {blockIcon[kind as keyof typeof blockIcon]}
@@ -302,7 +302,7 @@ export function OutlinePanel({
   onInsertSectionNumbers,
   onRemoveSectionNumbers,
   t,
-}: OutlinePanelProps) {
+}: Readonly<OutlinePanelProps>) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const [showBlocks, setShowBlocks] = useState(false);

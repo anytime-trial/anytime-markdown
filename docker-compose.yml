@@ -11,6 +11,7 @@ services:
       - ${HOME}/.ssh:/home/node/.ssh:cached                    # SSH鍵を共有（git push/pull 用）
       - ${HOME}/.claude:/home/node/.claude:cached              # Claude Code 設定を共有（CLAUDE.md など）
       - ${HOME}/anytime-markdown-docs:/anytime-markdown-docs   # Docs
+      - ${HOME}/prompt:/prompt                                 # prompt
 
 # 名前付きボリューム: コンテナ削除後も node_modules を保持
 volumes:

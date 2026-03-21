@@ -21,7 +21,7 @@ const TaskListTight = Extension.create({
         tight: {
           default: true,
           parseHTML: (el: HTMLElement) =>
-            el.getAttribute("data-tight") === "true" || !el.querySelector("p"),
+            el.dataset.tight === "true" || !el.querySelector("p"),
           renderHTML: (attrs: Record<string, unknown>) =>
             attrs.tight ? { class: "tight", "data-tight": "true" } : {},
         },
@@ -46,8 +46,8 @@ const ListTextCleanup = Extension.create({
             if ($pos.parent.type.name !== "paragraph") return;
             for (let d = $pos.depth; d > 0; d--) {
               if ($pos.node(d).type.name === "listItem") {
-                const trimmed = node.text!.trimEnd();
-                changes.push({ from: pos, to: pos + node.text!.length, text: trimmed, marks: [...node.marks] });
+                const trimmed = node.text.trimEnd();
+                changes.push({ from: pos, to: pos + node.text.length, text: trimmed, marks: [...node.marks] });
                 break;
               }
             }

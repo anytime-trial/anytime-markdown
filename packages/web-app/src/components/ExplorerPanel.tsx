@@ -359,14 +359,7 @@ export const ExplorerPanel: FC<ExplorerPanelProps> = ({
       )}
 
       <Box sx={{ flex: 1, overflow: "auto", minHeight: 0 }}>
-        {!selectedRepo ? (
-          <RepoListSection
-            needsAuth={needsAuth}
-            loading={loading}
-            repos={repos}
-            onSelectRepo={handleSelectRepo}
-          />
-        ) : (
+        {selectedRepo ? (
           <TreeViewSection
             repo={selectedRepo}
             rootEntries={rootEntries}
@@ -394,6 +387,13 @@ export const ExplorerPanel: FC<ExplorerPanelProps> = ({
             onMoveEntry={handleMoveEntry}
             onDragOverPath={setDragOverPath}
             dragSourceRef={dragSourceRef}
+          />
+        ) : (
+          <RepoListSection
+            needsAuth={needsAuth}
+            loading={loading}
+            repos={repos}
+            onSelectRepo={handleSelectRepo}
           />
         )}
       </Box>

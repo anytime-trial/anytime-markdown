@@ -145,9 +145,9 @@ async function captureHtmlPreview(el: HTMLElement, w: number, h: number, scale: 
   const svgBlob = new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" });
 
   // showSaveFilePicker で SVG / PNG を選択可能にする
-  if ("showSaveFilePicker" in window) {
+  if ("showSaveFilePicker" in globalThis) {
     try {
-      const handle = await (window as unknown as { showSaveFilePicker: (opts: unknown) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
+      const handle = await (globalThis as unknown as { showSaveFilePicker: (opts: unknown) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
         suggestedName: fileName.replace(/\.png$/, ".svg"),
         types: [
           { description: "SVG Image (styled)", accept: { "image/svg+xml": [".svg"] } },
@@ -254,7 +254,7 @@ function getEffectiveBackground(el: HTMLElement): string | null {
   // background-image（グラデーション）から最初の色を抽出
   const bgImage = style.backgroundImage;
   if (bgImage && bgImage !== "none") {
-    const colorMatch = bgImage.match(/#[0-9a-fA-F]{3,8}|rgba?\([^)]+\)/);
+    const colorMatch = /#[0-9a-fA-F]{3,8}|rgba?\([^)]+\)/.exec(bgImage);
     if (colorMatch) return colorMatch[0];
   }
   return null;

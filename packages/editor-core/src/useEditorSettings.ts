@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from "rea
 
 import { STORAGE_KEY_SETTINGS } from "./constants/storageKeys";
 import { safeRemoveItem, safeSetItem } from "./utils/storage";
-const SETTINGS_VERSION = 7; // 用紙サイズ表示を追加
+const SETTINGS_VERSION = 8; // blockAlign を追加
 
 export interface EditorSettings {
   lineHeight: number;
@@ -18,6 +18,7 @@ export interface EditorSettings {
   spellCheck: boolean;
   paperSize: "off" | "A3" | "A4" | "B4" | "B5";
   paperMargin: number; // mm単位、10-40
+  blockAlign: "left" | "center" | "right";
 }
 
 export const DEFAULT_SETTINGS: EditorSettings = {
@@ -32,6 +33,7 @@ export const DEFAULT_SETTINGS: EditorSettings = {
   spellCheck: false,
   paperSize: "off",
   paperMargin: 20,
+  blockAlign: "left",
 };
 
 export interface UseEditorSettingsReturn {

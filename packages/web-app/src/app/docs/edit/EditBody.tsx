@@ -50,6 +50,9 @@ export default function EditBody() {
     sensors,
     activeCategory,
     handleUpload,
+    uploadConfirm,
+    handleConfirmOverwrite,
+    handleCancelOverwrite,
     handleDeleteFile,
     handleAddCategory,
     handleDeleteCategory,
@@ -132,7 +135,7 @@ export default function EditBody() {
             files={files}
             fileInputRef={fileInputRef}
             onUpload={handleUpload}
-            onDeleteRequest={setDeleteTarget}
+            onDeleteFolderRequest={(folder, folderFiles) => setDeleteTarget({ kind: 'folder', folder, files: folderFiles })}
             urlLinks={urlLinks}
             onAddUrlLink={handleAddUrlLink}
             onDeleteUrlLink={handleDeleteUrlLink}
@@ -163,10 +166,12 @@ export default function EditBody() {
         <DialogTitle id="delete-dialog-title">{t('docsDelete')}</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            {t('docsDeleteConfirm')}
+            {deleteTarget?.kind === 'folder'
+              ? t('docsDeleteFolderConfirm', { count: deleteTarget.files.length })
+              : t('docsDeleteConfirm')}
             {deleteTarget && (
               <Box component="span" sx={{ display: 'block', mt: 1, fontWeight: 600 }}>
-                {deleteTarget.name}
+                {deleteTarget.kind === 'folder' ? `${deleteTarget.folder}/` : deleteTarget.file.name}
               </Box>
             )}
           </DialogContentText>
@@ -175,6 +180,22 @@ export default function EditBody() {
           <Button onClick={() => setDeleteTarget(null)}>{tCommon('cancel')}</Button>
           <Button onClick={handleDeleteFile} color="error" variant="contained">
             {t('docsDelete')}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* フォルダ上書き確認ダイアログ */}
+      <Dialog open={!!uploadConfirm} onClose={handleCancelOverwrite} aria-labelledby="overwrite-dialog-title">
+        <DialogTitle id="overwrite-dialog-title">{t('docsUpload')}</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            {uploadConfirm && t('docsUploadFolderOverwrite', { folder: uploadConfirm.folder, count: uploadConfirm.existingFiles.length })}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCancelOverwrite}>{tCommon('cancel')}</Button>
+          <Button onClick={handleConfirmOverwrite} color="error" variant="contained">
+            {t('docsUpload')}
           </Button>
         </DialogActions>
       </Dialog>

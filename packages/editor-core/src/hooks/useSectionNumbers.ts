@@ -29,7 +29,7 @@ export function useSectionNumbers(editor: Editor | null) {
     const { tr } = editor.state;
     for (let i = targets.length - 1; i >= 0; i--) {
       const contentStart = targets[i].pos + 1;
-      const existingMatch = targets[i].text.match(SECTION_NUMBER_RE);
+      const existingMatch = SECTION_NUMBER_RE.exec(targets[i].text);
       if (existingMatch) {
         tr.replaceWith(contentStart, contentStart + existingMatch[0].length, editor.schema.text(prefixes[i]));
       } else {
@@ -48,7 +48,7 @@ export function useSectionNumbers(editor: Editor | null) {
       const level = (node.attrs.level as number);
       if (level > 5) return;
       const text = node.textContent;
-      const match = text.match(SECTION_NUMBER_RE);
+      const match = SECTION_NUMBER_RE.exec(text);
       if (match) {
         removals.push({ from: pos + 1, to: pos + 1 + match[0].length });
       }
@@ -69,8 +69,8 @@ export function useSectionNumbers(editor: Editor | null) {
         handleRemoveSectionNumbers();
       }
     };
-    window.addEventListener('vscode-toggle-section-numbers', handler);
-    return () => window.removeEventListener('vscode-toggle-section-numbers', handler);
+    globalThis.addEventListener('vscode-toggle-section-numbers', handler);
+    return () => globalThis.removeEventListener('vscode-toggle-section-numbers', handler);
   }, [handleInsertSectionNumbers, handleRemoveSectionNumbers]);
 
   return { handleInsertSectionNumbers, handleRemoveSectionNumbers };

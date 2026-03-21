@@ -182,24 +182,7 @@ export const GitHubRepoBrowser: FC<GitHubRepoBrowserProps> = ({
           <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
             <CircularProgress />
           </Box>
-        ) : !selectedRepo ? (
-          <List>
-            {repos.map((repo) => (
-              <ListItemButton
-                key={repo.fullName}
-                onClick={() => handleSelectRepo(repo)}
-              >
-                <ListItemIcon>
-                  {repo.private ? <LockIcon /> : <FolderIcon />}
-                </ListItemIcon>
-                <ListItemText
-                  primary={repo.fullName}
-                  secondary={`Default: ${repo.defaultBranch}`}
-                />
-              </ListItemButton>
-            ))}
-          </List>
-        ) : (
+        ) : selectedRepo ? (
           <List>
             {tree.map((entry) => (
               <ListItemButton
@@ -223,6 +206,23 @@ export const GitHubRepoBrowser: FC<GitHubRepoBrowserProps> = ({
                 No Markdown files found
               </Typography>
             )}
+          </List>
+        ) : (
+          <List>
+            {repos.map((repo) => (
+              <ListItemButton
+                key={repo.fullName}
+                onClick={() => handleSelectRepo(repo)}
+              >
+                <ListItemIcon>
+                  {repo.private ? <LockIcon /> : <FolderIcon />}
+                </ListItemIcon>
+                <ListItemText
+                  primary={repo.fullName}
+                  secondary={`Default: ${repo.defaultBranch}`}
+                />
+              </ListItemButton>
+            ))}
           </List>
         )}
       </DialogContent>

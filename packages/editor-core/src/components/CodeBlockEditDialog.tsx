@@ -36,7 +36,7 @@ function hastToHtml(nodes: any[]): string {
 }
 
 function escapeHtml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return s.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 }
 
 interface CodeBlockEditDialogProps {
@@ -65,14 +65,14 @@ interface CodeBlockEditDialogProps {
 /** Built-in Hello World sample panel (shown when no customSamples provided) */
 function BuiltInSamplePanel({
   language, samplesOpen, setSamplesOpen, handleInsertSample, isDark, t,
-}: {
+}: Readonly<{
   language: string;
   samplesOpen: boolean;
   setSamplesOpen: React.Dispatch<React.SetStateAction<boolean>>;
   handleInsertSample: (code: string) => void;
   isDark: boolean;
   t: (key: string) => string;
-}) {
+}>) {
   const currentLangSample = CODE_HELLO_SAMPLES[language];
   const sampleEntries = Object.entries(CODE_HELLO_SAMPLES);
   return (
@@ -117,14 +117,14 @@ function BuiltInSamplePanel({
 /** Syntax-highlighted code preview panel */
 function SyntaxPreviewPanel({
   fsZP, renderPreview, fsCode, isDark, settings, highlightedHtml,
-}: {
+}: Readonly<{
   fsZP: ReturnType<typeof useZoomPan>;
   renderPreview?: (code: string) => React.ReactNode;
   fsCode: string;
   isDark: boolean;
   settings: ReturnType<typeof useEditorSettingsContext>;
   highlightedHtml: string;
-}) {
+}>) {
   if (renderPreview) {
     return (
       <>
@@ -171,7 +171,7 @@ export function CodeBlockEditDialog({
   open, onClose, label, language, fsCode, onFsCodeChange, onFsTextChange, fsTextareaRef, fsSearch: _fsSearch,
   readOnly, isCompareMode, compareCode, onMergeApply, thisCode, toolbarExtra, customSamples, renderPreview,
   t,
-}: CodeBlockEditDialogProps) {
+}: Readonly<CodeBlockEditDialogProps>) {
   const isDark = useTheme().palette.mode === "dark";
   const settings = useEditorSettingsContext();
   const fsZP = useZoomPan();
@@ -191,17 +191,18 @@ export function CodeBlockEditDialog({
         : lowlight.highlightAuto(fsCode);
       return hastToHtml(tree.children);
     } catch {
-      return fsCode.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      return fsCode.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
     }
   }, [fsCode, language]);
 
   const showCompareView = isCompareMode && compareCode != null;
 
+  const builtInPanel = readOnly
+    ? null
+    : <BuiltInSamplePanel language={language} samplesOpen={samplesOpen} setSamplesOpen={setSamplesOpen} handleInsertSample={handleInsertSample} isDark={isDark} t={t} />;
   const samplePanel = customSamples
     ? <SamplePanel samples={customSamples} onInsert={handleInsertSample} readOnly={readOnly} t={t} />
-    : !readOnly
-      ? <BuiltInSamplePanel language={language} samplesOpen={samplesOpen} setSamplesOpen={setSamplesOpen} handleInsertSample={handleInsertSample} isDark={isDark} t={t} />
-      : null;
+    : builtInPanel;
 
   const codePanel = (
     <>

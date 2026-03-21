@@ -97,10 +97,10 @@ DEFAULT_LIGHT_TEXT,
   FILE_DROP_OVERLAY_COLOR,
   getActionHover, getActionSelected, getBgPaper, getDivider,
 getEditDialogBg,   getEditorBg, getEditorText,
-  getErrorMain, getGrey,
+  getErrorBg, getErrorMain, getGrey, getInfoBg, getInfoMain,
   getPrimaryContrast, getPrimaryDark, getPrimaryLight, getPrimaryMain,
-  getSuccessMain, getTextDisabled, getTextPrimary, getTextSecondary,
-  getWarningLight, getWarningMain,
+  getSuccessBg, getSuccessMain, getTextDisabled, getTextPrimary, getTextSecondary,
+  getWarningBg, getWarningLight, getWarningMain,
   LIGHT_ACTION_HOVER, LIGHT_ACTION_SELECTED, LIGHT_BG_PAPER, LIGHT_DIVIDER,
 LIGHT_ERROR_MAIN,
 LIGHT_GREY_100, LIGHT_GREY_300, LIGHT_GREY_900,
@@ -115,7 +115,10 @@ export {
   COMMENT_PANEL_WIDTH, EDITOR_HEIGHT_DEFAULT,   EDITOR_HEIGHT_MD, EDITOR_HEIGHT_MIN,
 EDITOR_HEIGHT_MOBILE, EDITOR_PADDING_BORDER,
 EDITOR_PADDING_TOP,   OUTLINE_WIDTH_DEFAULT, OUTLINE_WIDTH_MAX,
-OUTLINE_WIDTH_MIN,   PREVIEW_MAX_HEIGHT, STATUSBAR_HEIGHT,
+OUTLINE_WIDTH_MIN,   PREVIEW_MAX_HEIGHT,
+RADIUS_FULL, RADIUS_LG, RADIUS_MD, RADIUS_NONE, RADIUS_SM,
+SPACING_3XS, SPACING_LG, SPACING_MD, SPACING_SM, SPACING_XL, SPACING_XS, SPACING_XXL, SPACING_XXS,
+STATUSBAR_HEIGHT,
 } from './constants/dimensions';
 export type { DiagramSample } from './constants/samples';
 export { MERMAID_SAMPLES, PLANTUML_SAMPLES } from './constants/samples';
@@ -126,6 +129,10 @@ STORAGE_KEY_READONLY_MODE,
 STORAGE_KEY_REVIEW_MODE,   STORAGE_KEY_SETTINGS,   STORAGE_KEY_SOURCE_MODE, } from './constants/storageKeys';
 export type { MarkdownTemplate } from './constants/templates';
 export { BUILTIN_TEMPLATES } from './constants/templates';
+export type { ThemePreset, ThemePresetName } from './constants/themePresets';
+export {
+  DEFAULT_PRESET_NAME, getPreset, isPresetName, PRESET_NAMES, THEME_PRESETS,
+} from './constants/themePresets';
 export { DEBOUNCE_MEDIUM,DEBOUNCE_SHORT, MERMAID_RENDER_TIMEOUT, NOTIFICATION_DURATION, PRINT_DELAY } from './constants/timing';
 export { Z_FULLSCREEN, Z_LINK_TOOLTIP, Z_SKIP_LINK,Z_TOOLBAR } from './constants/zIndex';
 

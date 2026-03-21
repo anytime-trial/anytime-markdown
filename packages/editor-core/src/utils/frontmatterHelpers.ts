@@ -136,7 +136,7 @@ export function extractGifSettings(md: string): {
     const trimmed = lines[i].trim();
     if (trimmed.startsWith(GIF_COMMENT_START) && trimmed.endsWith(GIF_COMMENT_END) && i > 0) {
       const src = extractImageSrc(lines[i - 1]);
-      const json = src != null ? extractValidJson(trimmed) : null;
+      const json = src == null ? null : extractValidJson(trimmed);
       if (src != null && json != null) {
         result.set(src, json);
         i++;

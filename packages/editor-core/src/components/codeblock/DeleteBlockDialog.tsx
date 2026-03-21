@@ -9,7 +9,7 @@ interface DeleteBlockDialogProps {
   t: (key: string) => string;
 }
 
-export function DeleteBlockDialog({ open, onClose, onDelete, t }: DeleteBlockDialogProps) {
+export function DeleteBlockDialog({ open, onClose, onDelete, t }: Readonly<DeleteBlockDialogProps>) {
   return (
     <Dialog open={open} onClose={onClose}>
       <DialogTitle>{t("delete")}</DialogTitle>

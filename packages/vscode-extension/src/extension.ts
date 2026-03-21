@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
 import { MarkdownEditorProvider } from './providers/MarkdownEditorProvider';
 import { TimelineProvider, TimelineItem } from './providers/TimelineProvider';
 import { GraphProvider } from './providers/GraphProvider';
@@ -8,10 +7,11 @@ import { SpecDocsProvider, SpecDocsItem, SpecDocsRootItem, SpecDocsDragAndDrop }
 import { LinkValidationProvider } from './providers/LinkValidationProvider';
 
 export function activate(context: vscode.ExtensionContext) {
-	context.subscriptions.push(MarkdownEditorProvider.register(context));
-
-	// リンク検証（壊れたリンクの波線警告）
-	context.subscriptions.push(new LinkValidationProvider());
+	context.subscriptions.push(
+		MarkdownEditorProvider.register(context),
+		// リンク検証（壊れたリンクの波線警告）
+		new LinkValidationProvider(),
+	);
 
 	// Git 変更パネル
 	const changesProvider = new ChangesProvider();
@@ -385,7 +385,7 @@ export function activate(context: vscode.ExtensionContext) {
 				// git コマンドで変更前コンテンツを取得
 				let originalContent: string;
 				try {
-					const { execFileSync } = await import('child_process');
+					const { execFileSync } = await import('node:child_process');
 					originalContent = group === 'staged'
 						? execFileSync('git', ['show', `HEAD:${filePath}`], { cwd: gitRoot, encoding: 'utf-8' })
 						: execFileSync('git', ['show', `:${filePath}`], { cwd: gitRoot, encoding: 'utf-8' });
@@ -426,7 +426,7 @@ export function activate(context: vscode.ExtensionContext) {
 			// git コマンドで変更前コンテンツを取得
 			let originalContent: string;
 			try {
-				const { execFileSync } = await import('child_process');
+				const { execFileSync } = await import('node:child_process');
 				if (group === 'staged') {
 					// ステージ済み: HEAD のコンテンツ
 					originalContent = execFileSync('git', ['show', `HEAD:${filePath}`], { cwd: gitRoot, encoding: 'utf-8' });

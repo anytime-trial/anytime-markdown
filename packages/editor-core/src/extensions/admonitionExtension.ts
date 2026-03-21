@@ -34,7 +34,7 @@ export const AdmonitionBlockquote = Blockquote.extend({
     return {
       admonitionType: {
         default: null,
-        parseHTML: (el: HTMLElement) => el.getAttribute("data-admonition-type"),
+        parseHTML: (el: HTMLElement) => el.dataset.admonitionType,
         renderHTML: (attrs: Record<string, unknown>) =>
           attrs.admonitionType
             ? { "data-admonition-type": attrs.admonitionType }
@@ -61,9 +61,9 @@ export const AdmonitionBlockquote = Blockquote.extend({
           newState.doc.descendants((node, pos) => {
             if (node.type.name !== "blockquote" || node.attrs.admonitionType) return;
             const first = node.firstChild;
-            if (!first || first.type.name !== "paragraph") return;
+            if (first?.type.name !== "paragraph") return;
             const text = first.textContent;
-            const match = text.match(ADMONITION_RE);
+            const match = ADMONITION_RE.exec(text);
             if (!match) return;
             const textStart = pos + 2; // blockquote(1) + paragraph(1)
             modifications.push({

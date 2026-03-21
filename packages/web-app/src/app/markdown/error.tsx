@@ -5,7 +5,7 @@ import { Box, Button, Typography } from '@mui/material';
 import { useTranslations } from 'next-intl';
 import { useEffect } from 'react';
 
-export default function MarkdownError({ error, reset }: { error: Error; reset: () => void }) {
+export default function MarkdownError({ error, reset }: Readonly<{ error: Error; reset: () => void }>) {
   const t = useTranslations('Common');
 
   useEffect(() => {

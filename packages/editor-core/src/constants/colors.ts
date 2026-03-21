@@ -11,7 +11,7 @@ export const DEFAULT_LIGHT_TEXT = "#2D3748";
 // ── UI テキスト色（MUI テーマ準拠） ──
 export const DARK_TEXT_PRIMARY = "#ffffffde";
 export const DARK_TEXT_SECONDARY = "#ffffff99";
-export const DARK_TEXT_DISABLED = "#ffffff61";
+export const DARK_TEXT_DISABLED = "#ffffff73";
 export const LIGHT_TEXT_PRIMARY = "#000000de";
 export const LIGHT_TEXT_SECONDARY = "#00000099";
 export const LIGHT_TEXT_DISABLED = "#00000061";
@@ -127,6 +127,18 @@ export const LIGHT_WARNING_LIGHT = "#ff9800";
 export const DARK_SUCCESS_MAIN = "#66bb6a";
 export const LIGHT_SUCCESS_MAIN = "#2e7d32";
 
+// ── セマンティックカラー背景（alpha） ──
+export const DARK_ERROR_BG = "rgba(239,83,80,0.12)";
+export const DARK_WARNING_BG = "rgba(255,167,38,0.12)";
+export const DARK_SUCCESS_BG = "rgba(102,187,106,0.12)";
+export const DARK_INFO_MAIN = "#42a5f5";
+export const DARK_INFO_BG = "rgba(66,165,245,0.12)";
+export const LIGHT_ERROR_BG = "rgba(211,47,47,0.08)";
+export const LIGHT_WARNING_BG = "rgba(237,108,2,0.08)";
+export const LIGHT_SUCCESS_BG = "rgba(46,125,50,0.08)";
+export const LIGHT_INFO_MAIN = "#0288d1";
+export const LIGHT_INFO_BG = "rgba(2,136,209,0.08)";
+
 export const DARK_GREY_100 = "#f5f5f5";
 export const DARK_GREY_300 = "#e0e0e0";
 export const DARK_GREY_900 = "#212121";
@@ -164,4 +176,19 @@ export function getSuccessMain(isDark: boolean): string {
 export function getGrey(isDark: boolean, shade: 100 | 300 | 900): string {
   const greys = { 100: "#f5f5f5", 300: "#e0e0e0", 900: "#212121" };
   return greys[shade];
+}
+export function getInfoMain(isDark: boolean): string {
+  return isDark ? DARK_INFO_MAIN : LIGHT_INFO_MAIN;
+}
+export function getErrorBg(isDark: boolean): string {
+  return isDark ? DARK_ERROR_BG : LIGHT_ERROR_BG;
+}
+export function getWarningBg(isDark: boolean): string {
+  return isDark ? DARK_WARNING_BG : LIGHT_WARNING_BG;
+}
+export function getSuccessBg(isDark: boolean): string {
+  return isDark ? DARK_SUCCESS_BG : LIGHT_SUCCESS_BG;
+}
+export function getInfoBg(isDark: boolean): string {
+  return isDark ? DARK_INFO_BG : LIGHT_INFO_BG;
 }

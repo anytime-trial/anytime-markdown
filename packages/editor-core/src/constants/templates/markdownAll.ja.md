@@ -223,7 +223,7 @@ Markdown の表現力を超えたレイアウトが必要なときは、HTML ブ
 百聞は一見にしかず。スクリーンショットや図解は、文章の何倍もの情報を伝えます。\
 `/image` でファイル選択、`/screenshot` で画面キャプチャ＆トリミングが可能です。挿入した画像には矢印・矩形などのアノテーションも追加できます。
 
-![Anytime Markdown](help/camel_markdown.png)
+![Anytime Markdown](images/camel_markdown.png)
 
 ## アニメーション GIF — 動きで伝える
 

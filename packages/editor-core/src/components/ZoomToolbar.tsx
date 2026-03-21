@@ -18,7 +18,7 @@ interface ZoomToolbarProps {
 }
 
 /** プレビュー側のズーム・パン操作ツールバー */
-export function ZoomToolbar({ fsZP, onExport, t }: ZoomToolbarProps) {
+export function ZoomToolbar({ fsZP, onExport, t }: Readonly<ZoomToolbarProps>) {
   const isDark = useTheme().palette.mode === "dark";
   const iconSx = { fontSize: 16, color: getTextSecondary(isDark) };
   return (

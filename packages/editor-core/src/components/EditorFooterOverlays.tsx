@@ -29,7 +29,7 @@ interface EditorFooterOverlaysProps {
   handleLink: () => void;
   executeInReviewMode: (fn: () => void) => void;
   // slash command
-  slashCommandCallbackRef: React.MutableRefObject<(state: SlashCommandState) => void>;
+  slashCommandCallbackRef: React.RefObject<(state: SlashCommandState) => void>;
   // status bar
   sourceText: string;
   fileName: string | null;
@@ -104,7 +104,7 @@ export function EditorFooterOverlays({
   notification,
   setNotification,
   t,
-}: EditorFooterOverlaysProps) {
+}: Readonly<EditorFooterOverlaysProps>) {
   return (
     <>
       {/* EditorContent は常時マウント – ポータル経由で DOM を移動 */}

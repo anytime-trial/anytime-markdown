@@ -30,7 +30,7 @@ export class EditorErrorBoundary extends Component<Props, State> {
     this.props.onError?.(error, errorInfo);
   }
 
-  private handleReload = () => {
+  private readonly handleReload = () => {
     this.setState({ hasError: false, error: null });
   };
 

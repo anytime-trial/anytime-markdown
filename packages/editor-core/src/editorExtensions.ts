@@ -12,7 +12,8 @@ import TaskList from "@tiptap/extension-task-list";
 import Underline from "@tiptap/extension-underline";
 import type { Editor } from "@tiptap/core";
 import { Fragment } from "@tiptap/pm/model";
-import { TextSelection } from "@tiptap/pm/state";
+import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
+import { Extension, type Extensions } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { common, createLowlight } from "lowlight";
 import { Markdown } from "tiptap-markdown";
@@ -27,8 +28,6 @@ const noopGrammar = () => ({ name: "noop", contains: [] as never[] });
 for (const lang of ["math", "mermaid", "plantuml"]) {
   lowlight.register(lang, noopGrammar);
 }
-import { Plugin, PluginKey } from "@tiptap/pm/state";
-import { Extension, type Extensions } from "@tiptap/react";
 
 import { AdmonitionBlockquote } from "./extensions/admonitionExtension";
 import { BlockGapCursorExtension } from "./extensions/blockGapCursorExtension";
@@ -56,7 +55,7 @@ const TaskListTight = Extension.create({
         tight: {
           default: true,
           parseHTML: (el: HTMLElement) =>
-            el.getAttribute("data-tight") === "true" || !el.querySelector("p"),
+            el.dataset.tight === "true" || !el.querySelector("p"),
           renderHTML: (attrs: Record<string, unknown>) =>
             attrs.tight ? { class: "tight", "data-tight": "true" } : {},
         },
@@ -157,7 +156,7 @@ export function getBaseExtensions(options?: { disableComments?: boolean; disable
             return editor.chain().focus().setHeading({ level: (level - 1) as 1|2|3|4|5 }).run();
           },
           // Alt+Up/Down: ブロックを上下に移動（VS Code のみ有効、Web は Chromium 競合のため無効）
-          ...(window.__vscode ? {
+          ...((window as any).__vscode ? {
             "Alt-ArrowUp": ({ editor }: { editor: Editor }) => {
               const { $from } = editor.state.selection;
               const curStart = $from.before(1);

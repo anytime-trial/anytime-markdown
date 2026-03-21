@@ -26,7 +26,7 @@ interface DraggableSplitLayoutProps {
  */
 export function DraggableSplitLayout({
   initialWidth, initialPercent, left, right, onPointerMove, onPointerUp, t,
-}: DraggableSplitLayoutProps) {
+}: Readonly<DraggableSplitLayoutProps>) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));

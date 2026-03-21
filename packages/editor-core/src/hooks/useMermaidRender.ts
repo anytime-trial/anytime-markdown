@@ -33,7 +33,7 @@ export const SVG_SANITIZE_CONFIG = {
 
 /** Detect Mermaid diagram type from code content for aria-label */
 export function detectMermaidType(code: string): string {
-  const first = code.trimStart().split(/[\s\n{]/)[0].toLowerCase();
+  const first = code.trimStart().split(/[\s{]/)[0].toLowerCase();
   if (first === "graph" || first === "flowchart") return "diagramFlowchart";
   if (first === "sequencediagram") return "diagramSequence";
   if (first === "classdiagram") return "diagramClass";

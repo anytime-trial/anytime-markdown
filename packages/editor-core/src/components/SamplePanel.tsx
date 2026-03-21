@@ -21,7 +21,7 @@ interface SamplePanelProps {
 }
 
 /** 折りたたみ式サンプル挿入チップパネル */
-export function SamplePanel({ samples, onInsert, readOnly, t }: SamplePanelProps) {
+export function SamplePanel({ samples, onInsert, readOnly, t }: Readonly<SamplePanelProps>) {
   const isDark = useTheme().palette.mode === "dark";
   const [open, setOpen] = useState(false);
 

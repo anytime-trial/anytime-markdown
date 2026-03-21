@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
-import * as fs from 'fs';
-import { execFileSync } from 'child_process';
+import * as path from 'node:path';
+import * as fs from 'node:fs';
+import { execFileSync } from 'node:child_process';
 
 const REFRESH_DEBOUNCE_MS = 500;
 
@@ -168,7 +168,7 @@ function parseStatusCode(code: string, group: 'staged' | 'changes'): number {
 }
 
 export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem> {
-	private _onDidChangeTreeData = new vscode.EventEmitter<void>();
+	private readonly _onDidChangeTreeData = new vscode.EventEmitter<void>();
 	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
 	private gitRootEntries: { rootPath: string; gitRoot: string }[] = [];
@@ -317,7 +317,7 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem>
 			const filePath = line.substring(3).trim();
 
 			// 未追跡ディレクトリ（?? dir/）は中のファイルを個別に展開
-			if (filePath.endsWith('/') && line[0] === '?') {
+			if (filePath.endsWith('/') && line.startsWith('?')) {
 				unstaged.push(...this.expandUntrackedDir(gitRoot, filePath));
 				continue;
 			}
@@ -336,11 +336,11 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem>
 		let behind = 0;
 		try {
 			const aheadOut = execFileSync('git', ['rev-list', '@{u}..HEAD', '--count'], { cwd: gitRoot, encoding: 'utf-8' }).trim();
-			ahead = parseInt(aheadOut, 10) || 0;
+			ahead = Number.parseInt(aheadOut, 10) || 0;
 		} catch { /* no upstream or error */ }
 		try {
 			const behindOut = execFileSync('git', ['rev-list', 'HEAD..@{u}', '--count'], { cwd: gitRoot, encoding: 'utf-8' }).trim();
-			behind = parseInt(behindOut, 10) || 0;
+			behind = Number.parseInt(behindOut, 10) || 0;
 		} catch { /* no upstream or error */ }
 		return { ahead, behind };
 	}
