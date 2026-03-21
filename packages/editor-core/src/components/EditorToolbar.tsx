@@ -7,6 +7,8 @@ import ListAltIcon from "@mui/icons-material/ListAlt";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import RedoIcon from "@mui/icons-material/Redo";
 import RefreshIcon from "@mui/icons-material/Refresh";
+import SyncIcon from "@mui/icons-material/Sync";
+import SyncDisabledIcon from "@mui/icons-material/SyncDisabled";
 import UndoIcon from "@mui/icons-material/Undo";
 import ViewStreamIcon from "@mui/icons-material/ViewStream";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
@@ -112,6 +114,8 @@ interface EditorToolbarProps {
   onOpenVersionDialog?: () => void;
   onAnnounce?: (message: string) => void;
   onReload?: () => void;
+  autoReload?: boolean;
+  onToggleAutoReload?: () => void;
   t: TranslationFn;
 }
 
@@ -133,6 +137,8 @@ export const EditorToolbar = React.memo(function EditorToolbar({
   onOpenVersionDialog,
   onAnnounce: _onAnnounce,
   onReload,
+  autoReload,
+  onToggleAutoReload,
   t,
 }: EditorToolbarProps) {
   const {
@@ -296,13 +302,24 @@ export const EditorToolbar = React.memo(function EditorToolbar({
         </ToggleButtonGroup>
       )}
 
-      {/* Reload (VS Code extension only) */}
+      {/* Reload & Auto-reload toggle (VS Code extension only) */}
       {onReload && (
-        <Tooltip title={t("reload")}>
-          <IconButton size="small" aria-label={t("reload")} onClick={onReload}>
-            <RefreshIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
+        <>
+          <Tooltip title={t("reload")}>
+            <IconButton size="small" aria-label={t("reload")} onClick={onReload}>
+              <RefreshIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          {onToggleAutoReload && (
+            <Tooltip title={autoReload ? t("autoReloadOn") : t("autoReloadOff")}>
+              <IconButton size="small" aria-label={autoReload ? t("autoReloadOn") : t("autoReloadOff")} onClick={onToggleAutoReload}
+                sx={{ color: autoReload ? "primary.main" : undefined }}
+              >
+                {autoReload ? <SyncIcon fontSize="small" /> : <SyncDisabledIcon fontSize="small" />}
+              </IconButton>
+            </Tooltip>
+          )}
+        </>
       )}
 
       {/* Outline, Comments - hidden on mobile */}

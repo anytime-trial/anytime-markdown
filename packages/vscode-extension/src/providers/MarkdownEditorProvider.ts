@@ -166,8 +166,16 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
 
     // 外部変更検知（Claude Code、git 操作、他のエディタなど）
     let notificationVisible = false;
+    let autoReload = false;
     const showExternalChangeNotification = (content: string) => {
-      if (disposed || notificationVisible) { return; }
+      if (disposed) { return; }
+      // 自動再読み込みモード: 通知なしで即座にコンテンツを更新
+      if (autoReload) {
+        webviewPanel.webview.postMessage({ type: 'setBaseUri', baseUri });
+        webviewPanel.webview.postMessage({ type: 'setContent', content });
+        return;
+      }
+      if (notificationVisible) { return; }
       notificationVisible = true;
       const fileName = path.basename(document.uri.fsPath);
       vscode.window.showInformationMessage(
@@ -484,6 +492,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
         case 'overwriteImage': handleOverwriteImage(message); break;
         case 'openLink': await handleOpenLink(message); break;
         case 'requestReload': await handleRequestReload(); break;
+        case 'setAutoReload': autoReload = !!message.enabled; break;
         case 'save': await handleSave(); break;
       }
     });

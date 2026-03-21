@@ -258,6 +258,15 @@ export function App() {
     vscode.postMessage({ type: 'requestReload' });
   }, []);
 
+  const [autoReload, setAutoReload] = useState(false);
+  const handleToggleAutoReload = useCallback(() => {
+    setAutoReload((prev) => {
+      const next = !prev;
+      vscode.postMessage({ type: 'setAutoReload', enabled: next });
+      return next;
+    });
+  }, []);
+
   // スクロール同期: スクロール位置を extension host に送信
   useEffect(() => {
     let currentEl: Element | null = null;
@@ -318,7 +327,7 @@ export function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <ConfirmProvider>
-        <MarkdownEditorPage key={editorKey} hideFileOps hideUndoRedo hideSettings hideVersionInfo hideTemplates hideFoldAll hideStatusBar sideToolbar hideCompareToggle externalCompareContent={compareContent} onCompareModeChange={handleCompareModeChange} onHeadingsChange={handleHeadingsChange} onCommentsChange={handleCommentsChange} onStatusChange={handleStatusChange} onReload={handleReload} />
+        <MarkdownEditorPage key={editorKey} hideFileOps hideUndoRedo hideSettings hideVersionInfo hideTemplates hideFoldAll hideStatusBar sideToolbar hideCompareToggle externalCompareContent={compareContent} onCompareModeChange={handleCompareModeChange} onHeadingsChange={handleHeadingsChange} onCommentsChange={handleCommentsChange} onStatusChange={handleStatusChange} onReload={handleReload} autoReload={autoReload} onToggleAutoReload={handleToggleAutoReload} />
       </ConfirmProvider>
     </ThemeProvider>
   );
