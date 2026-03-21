@@ -1,5 +1,5 @@
 import { Extension } from "@tiptap/core";
-import { Plugin, PluginKey, Selection } from "@tiptap/pm/state";
+import { type EditorState, Plugin, PluginKey, Selection } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 
 export interface SlashCommandState {
@@ -91,6 +91,30 @@ export const SlashCommandExtension = Extension.create<{
       return true;
     };
 
+    /** Check if "/" was typed and activate slash command mode */
+    const tryActivate = (view: EditorView, prevState: EditorState, state: EditorState): void => {
+      if (prevState.doc.eq(state.doc)) return;
+
+      const cursorPos = state.selection.from;
+      const $cursor = state.doc.resolve(cursorPos);
+      if ($cursor.depth !== 1) return;
+
+      const parentText = stripZWS($cursor.parent.textContent);
+
+      if ($cursor.parent.type.name === "paragraph" && parentText === "/") {
+        const slashPos = cursorPos - 1;
+        ext.storage.active = true;
+        ext.storage.from = slashPos;
+        ext.storage.query = "";
+        notify();
+        return;
+      }
+
+      if ($cursor.parent.type.name === "heading" && parentText.endsWith("/")) {
+        handleHeadingSlash(view);
+      }
+    };
+
     return [
       new Plugin({
         key: slashCommandPluginKey,
@@ -136,37 +160,7 @@ export const SlashCommandExtension = Extension.create<{
 
               // --- Activation ---
               if (!ext.storage.active) {
-                if (prevState.doc.eq(state.doc)) return;
-
-                const cursorPos = state.selection.from;
-                const $cursor = state.doc.resolve(cursorPos);
-
-                if ($cursor.depth !== 1) return;
-
-                const parentText = stripZWS($cursor.parent.textContent);
-
-                // Standard case: "/" in a top-level paragraph that was empty
-                if (
-                  $cursor.parent.type.name === "paragraph" &&
-                  parentText === "/"
-                ) {
-                  const slashPos = cursorPos - 1;
-                  ext.storage.active = true;
-                  ext.storage.from = slashPos;
-                  ext.storage.query = "";
-                  notify();
-                  return;
-                }
-
-                // Heading case: "/" typed at end of a heading
-                if (
-                  $cursor.parent.type.name === "heading" &&
-                  parentText.endsWith("/")
-                ) {
-                  handleHeadingSlash(view);
-                  return;
-                }
-
+                tryActivate(view, prevState, state);
                 return;
               }
 

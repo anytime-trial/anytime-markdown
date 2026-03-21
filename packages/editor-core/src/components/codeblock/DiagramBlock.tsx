@@ -201,6 +201,20 @@ export function DiagramBlock(props: DiagramBlockProps) {
     isSelected, isEditable, resizing, resizeWidth, handleResizePointerDown,
   };
 
+  const commonDialogProps = {
+    open: editOpen, onClose: handleCloseDialog, label, code, fsCode,
+    onFsCodeChange, onFsTextChange: _handleFsTextChange, fsTextareaRef, fsSearch, fsZP,
+    readOnly: !isEditable, isCompareMode, compareCode, onMergeApply: handleMergeApply,
+    thisCode, onExport: handleCapture,
+    toolbarExtra: <CopyCodeButton handleCopyCode={handleCopyCode} t={t} />, t,
+  };
+
+  const editDialog = isMermaid
+    ? <MermaidEditDialog {...commonDialogProps} svg={svg} />
+    : isPlantUml
+      ? <PlantUmlEditDialog {...commonDialogProps} plantUmlUrl={plantUmlUrl} />
+      : null;
+
   return (
     <CodeBlockFrame
       toolbar={shouldShowToolbar({ isCompareLeft: props.isCompareLeft, isCompareLeftEditable: props.isCompareLeftEditable, isEditable }) ? toolbar : null}
@@ -212,54 +226,7 @@ export function DiagramBlock(props: DiagramBlockProps) {
       setDeleteDialogOpen={setDeleteDialogOpen}
       handleDeleteBlock={handleDeleteBlock}
       t={t}
-      afterFrame={<>
-        {isMermaid && (
-          <MermaidEditDialog
-            open={editOpen}
-            onClose={handleCloseDialog}
-            label={label}
-            svg={svg}
-            code={code}
-            fsCode={fsCode}
-            onFsCodeChange={onFsCodeChange}
-            onFsTextChange={_handleFsTextChange}
-            fsTextareaRef={fsTextareaRef}
-            fsSearch={fsSearch}
-            fsZP={fsZP}
-            readOnly={!isEditable}
-            isCompareMode={isCompareMode}
-            compareCode={compareCode}
-            onMergeApply={handleMergeApply}
-            thisCode={thisCode}
-            onExport={handleCapture}
-            toolbarExtra={<CopyCodeButton handleCopyCode={handleCopyCode} t={t} />}
-            t={t}
-          />
-        )}
-        {isPlantUml && (
-          <PlantUmlEditDialog
-            open={editOpen}
-            onClose={handleCloseDialog}
-            label={label}
-            plantUmlUrl={plantUmlUrl}
-            code={code}
-            fsCode={fsCode}
-            onFsCodeChange={onFsCodeChange}
-            onFsTextChange={_handleFsTextChange}
-            fsTextareaRef={fsTextareaRef}
-            fsSearch={fsSearch}
-            fsZP={fsZP}
-            readOnly={!isEditable}
-            isCompareMode={isCompareMode}
-            compareCode={compareCode}
-            onMergeApply={handleMergeApply}
-            thisCode={thisCode}
-            onExport={handleCapture}
-            toolbarExtra={<CopyCodeButton handleCopyCode={handleCopyCode} t={t} />}
-            t={t}
-          />
-        )}
-      </>}
+      afterFrame={editDialog}
     >
       {isMermaid && svg && (
         <DiagramPreviewContainer {...sharedContainerProps} language="mermaid">

@@ -407,49 +407,54 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       }
     };
 
-    const handleOpenLink = async (message: Record<string, unknown>) => {
-      const rawHref = (message as { type: string; href?: string }).href;
-      if (typeof rawHref !== 'string') { return; }
-      const href = decodeURIComponent(rawHref);
-      const lineMatch = href.match(/#L(\d+)$/);
-      const filePath = lineMatch ? href.replace(/#L\d+$/, '') : href;
-      if (path.isAbsolute(filePath)) {
-        vscode.window.showWarningMessage(`Invalid file path: ${filePath}`);
-        return;
-      }
+    const buildLinkCandidates = (filePath: string): string[] | null => {
+      if (path.isAbsolute(filePath)) return null;
       const docDir = path.dirname(ctx.document.uri.fsPath);
       const targetPath = path.resolve(docDir, filePath);
       const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
       if (workspaceRoot && !targetPath.startsWith(workspaceRoot + path.sep) && targetPath !== workspaceRoot) {
         const fromRoot = path.resolve(workspaceRoot, filePath);
-        if (!fromRoot.startsWith(workspaceRoot + path.sep)) {
-          vscode.window.showWarningMessage(`Invalid file path: ${filePath}`);
-          return;
-        }
+        if (!fromRoot.startsWith(workspaceRoot + path.sep)) return null;
       }
       const candidates = [targetPath];
       if (workspaceRoot) {
         const fromRoot = path.resolve(workspaceRoot, filePath);
-        if (fromRoot !== targetPath) { candidates.push(fromRoot); }
+        if (fromRoot !== targetPath) candidates.push(fromRoot);
+      }
+      return candidates;
+    };
+
+    const tryOpenCandidate = async (candidate: string, lineMatch: RegExpMatchArray | null): Promise<boolean> => {
+      const uri = vscode.Uri.file(candidate);
+      try {
+        if (lineMatch) {
+          const line = Math.max(0, parseInt(lineMatch[1], 10) - 1);
+          const doc = await vscode.workspace.openTextDocument(uri);
+          await vscode.window.showTextDocument(doc, { selection: new vscode.Range(line, 0, line, 0) });
+        } else {
+          await vscode.commands.executeCommand('vscode.open', uri);
+        }
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    const handleOpenLink = async (message: Record<string, unknown>) => {
+      const rawHref = (message as { type: string; href?: string }).href;
+      if (typeof rawHref !== 'string') return;
+      const href = decodeURIComponent(rawHref);
+      const lineMatch = href.match(/#L(\d+)$/);
+      const filePath = lineMatch ? href.replace(/#L\d+$/, '') : href;
+      const candidates = buildLinkCandidates(filePath);
+      if (!candidates) {
+        vscode.window.showWarningMessage(`Invalid file path: ${filePath}`);
+        return;
       }
       let opened = false;
       for (const candidate of candidates) {
-        const uri = vscode.Uri.file(candidate);
-        try {
-          if (lineMatch) {
-            const line = Math.max(0, parseInt(lineMatch[1], 10) - 1);
-            const doc = await vscode.workspace.openTextDocument(uri);
-            await vscode.window.showTextDocument(doc, {
-              selection: new vscode.Range(line, 0, line, 0),
-            });
-          } else {
-            await vscode.commands.executeCommand('vscode.open', uri);
-          }
-          opened = true;
-          break;
-        } catch {
-          // 次の候補を試す
-        }
+        opened = await tryOpenCandidate(candidate, lineMatch);
+        if (opened) break;
       }
       if (!opened) {
         vscode.window.showWarningMessage(`Cannot open file: ${href}`);

@@ -85,6 +85,27 @@ function handleReviewCheckboxClick(
   return true;
 }
 
+/** Ctrl/Cmd+Click 時に対応する見出しへジャンプ */
+function jumpToAnchorHeading(editor: Editor, anchorEl: HTMLAnchorElement): void {
+  const slug = decodeURIComponent((anchorEl.getAttribute("href") ?? "").slice(1));
+  const headings = extractHeadings(editor).filter((h) => h.kind === "heading");
+  const usedSlugs = new Map<string, number>();
+  for (const h of headings) {
+    const s = toGitHubSlug(h.text, usedSlugs);
+    if (s !== slug) continue;
+    editor.chain().setTextSelection(h.pos + 1).run();
+    const domAtPos = editor.view.domAtPos(h.pos + 1);
+    const node = domAtPos.node instanceof HTMLElement
+      ? domAtPos.node : domAtPos.node.parentElement;
+    if (node) {
+      const dom = editor.view.dom;
+      const nodeTop = node.offsetTop - dom.offsetTop;
+      dom.scrollTo({ top: nodeTop, behavior: "smooth" });
+    }
+    break;
+  }
+}
+
 /** #anchor リンク: 通常クリックは無効化、Ctrl/Cmd+Click で見出しにジャンプ */
 function handleAnchorLinkClick(
   target: HTMLElement,
@@ -96,27 +117,24 @@ function handleAnchorLinkClick(
   event.preventDefault();
   event.stopPropagation();
   if ((event.ctrlKey || event.metaKey) && editorRef.current) {
-    const slug = decodeURIComponent((anchorEl.getAttribute("href") ?? "").slice(1));
-    const headings = extractHeadings(editorRef.current).filter((h) => h.kind === "heading");
-    const usedSlugs = new Map<string, number>();
-    for (const h of headings) {
-      const s = toGitHubSlug(h.text, usedSlugs);
-      if (s === slug) {
-        const editor = editorRef.current;
-        editor.chain().setTextSelection(h.pos + 1).run();
-        const domAtPos = editor.view.domAtPos(h.pos + 1);
-        const node = domAtPos.node instanceof HTMLElement
-          ? domAtPos.node : domAtPos.node.parentElement;
-        if (node) {
-          const dom = editor.view.dom;
-          const nodeTop = node.offsetTop - dom.offsetTop;
-          dom.scrollTo({ top: nodeTop, behavior: "smooth" });
-        }
-        break;
-      }
-    }
+    jumpToAnchorHeading(editorRef.current, anchorEl);
   }
   return true;
+}
+
+/** ブロック要素の候補（li, p, blockquote）から tiptap 内の要素を検索 */
+function findBlockCandidate(target: HTMLElement): HTMLElement | null {
+  const candidates = ["li", "p", "blockquote"] as const;
+  for (const sel of candidates) {
+    const el = target.closest(sel) as HTMLElement | null;
+    if (!el) continue;
+    let parent: HTMLElement | null = el;
+    while (parent && !parent.classList.contains("tiptap")) {
+      parent = parent.parentElement;
+    }
+    if (parent) return el;
+  }
+  return null;
 }
 
 /** 見出し・ブロック要素の左余白クリックでコンテキストメニューを表示 */
@@ -128,23 +146,8 @@ function handleBlockContextMenu(
   setHeadingMenu: (menu: HeadingMenuArg) => void,
 ): boolean {
   const headingEl = target.closest("h1, h2, h3, h4, h5") as HTMLElement | null;
-  let blockEl: HTMLElement | null = headingEl;
-  let level = 0;
-  if (headingEl) {
-    level = parseInt(headingEl.tagName.substring(1));
-  } else {
-    const candidates = ["li", "p", "blockquote"] as const;
-    for (const sel of candidates) {
-      const el = target.closest(sel) as HTMLElement | null;
-      if (el) {
-        let parent: HTMLElement | null = el;
-        while (parent && !parent.classList.contains("tiptap")) {
-          parent = parent.parentElement;
-        }
-        if (parent) { blockEl = el; break; }
-      }
-    }
-  }
+  const blockEl = headingEl ?? findBlockCandidate(target);
+  const level = headingEl ? parseInt(headingEl.tagName.substring(1)) : 0;
   if (!blockEl) return false;
   const rect = blockEl.getBoundingClientRect();
   if (event.clientX < rect.left) {

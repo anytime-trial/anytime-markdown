@@ -13,6 +13,27 @@ function cacheKey(code: string, isDark: boolean): string {
   return `${code}\0${isDark}`;
 }
 
+/** Build the PlantUML source with appropriate skin params applied */
+function buildPlantUmlSource(code: string, isDark: boolean): string {
+  const startMatch = code.match(/@start(uml|mindmap|wbs|json|yaml)/);
+  const diagramType = startMatch ? startMatch[1] : null;
+  const needsSkinParam = diagramType === "uml" || diagramType === null;
+  const lightSkinParam = "skinparam backgroundColor transparent";
+
+  if (diagramType && needsSkinParam && isDark) {
+    return code.replace(/@startuml/, `@startuml\n${PLANTUML_DARK_SKINPARAMS}`);
+  }
+  if (diagramType && needsSkinParam) {
+    return code.replace(/@startuml/, `@startuml\n${lightSkinParam}`);
+  }
+  if (diagramType) {
+    return code;
+  }
+  return isDark
+    ? `@startuml\n${PLANTUML_DARK_SKINPARAMS}\n${code}\n@enduml`
+    : `@startuml\n${lightSkinParam}\n${code}\n@enduml`;
+}
+
 interface UsePlantUmlRenderParams {
   code: string;
   isPlantUml: boolean;
@@ -54,24 +75,7 @@ export function usePlantUmlRender({ code, isPlantUml, isDark }: UsePlantUmlRende
 
     const timer = setTimeout(() => {
       try {
-        const startMatch = code.match(/@start(uml|mindmap|wbs|json|yaml)/);
-        const diagramType = startMatch ? startMatch[1] : null;
-        const needsSkinParam = diagramType === "uml" || diagramType === null;
-        const lightSkinParam = "skinparam backgroundColor transparent";
-        let src: string;
-        if (diagramType) {
-          if (needsSkinParam && isDark) {
-            src = code.replace(/@startuml/, `@startuml\n${PLANTUML_DARK_SKINPARAMS}`);
-          } else if (needsSkinParam) {
-            src = code.replace(/@startuml/, `@startuml\n${lightSkinParam}`);
-          } else {
-            src = code;
-          }
-        } else {
-          src = isDark
-            ? `@startuml\n${PLANTUML_DARK_SKINPARAMS}\n${code}\n@enduml`
-            : `@startuml\n${lightSkinParam}\n${code}\n@enduml`;
-        }
+        const src = buildPlantUmlSource(code, isDark);
         const encoded = plantumlEncoder.encode(src);
         const url = buildPlantUmlUrl(encoded);
         urlCache.set(key, url);

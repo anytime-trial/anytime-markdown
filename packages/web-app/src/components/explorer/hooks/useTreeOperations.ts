@@ -24,6 +24,51 @@ interface UseTreeOperationsArgs {
   handleFileSelect: (filePath: string) => void;
 }
 
+/** フォルダ内の全ファイルを削除し、キャッシュと展開状態をクリーンアップ */
+async function deleteFolderContents(
+  repoFullName: string,
+  branch: string,
+  targetPath: string,
+  childrenCache: ChildrenCache,
+  hasMdCache: HasMdCache,
+  setExpanded: React.Dispatch<React.SetStateAction<Set<string>>>,
+): Promise<boolean> {
+  const allFiles = await listAllFiles(repoFullName, branch, targetPath);
+  for (const fp of allFiles) {
+    const ok = await deleteFile(repoFullName, fp, branch);
+    if (!ok) return false;
+  }
+  childrenCache.delete(targetPath);
+  hasMdCache.delete(targetPath);
+  setExpanded((prev) => {
+    const next = new Set<string>();
+    for (const p of prev) {
+      if (p !== targetPath && !p.startsWith(targetPath + "/")) next.add(p);
+    }
+    return next;
+  });
+  return true;
+}
+
+/** 親キャッシュからエントリを削除して hasMd を再計算 */
+function removeEntryFromCache(
+  dirPath: string,
+  targetPath: string,
+  parentEntries: TreeEntry[],
+  childrenCache: ChildrenCache,
+  hasMdCache: HasMdCache,
+  setRootEntries: (entries: TreeEntry[]) => void,
+): void {
+  const updated = parentEntries.filter((e) => e.path !== targetPath);
+  childrenCache.set(dirPath, updated);
+  if (!updated.some((e) => e.type === "blob")) {
+    hasMdCache.set(dirPath, updated.some((e) => e.type === "tree" && hasMdCache.get(e.path) === true));
+  }
+  if (dirPath === "") {
+    setRootEntries([...updated]);
+  }
+}
+
 export function useTreeOperations({
   selectedRepo,
   selectedBranch,
@@ -180,44 +225,17 @@ export function useTreeOperations({
       if (!window.confirm(isDir ? `Delete folder "${name}" and all its contents?` : `Delete "${name}"?`)) return;
 
       if (isDir) {
-        // フォルダ内の全ファイルを再帰取得して削除
-        const allFiles = await listAllFiles(
-          selectedRepo.fullName,
-          selectedBranch,
-          targetPath,
+        const allOk = await deleteFolderContents(
+          selectedRepo.fullName, selectedBranch, targetPath,
+          childrenCacheRef.current, hasMdCacheRef.current, setExpanded,
         );
-        let allOk = true;
-        for (const fp of allFiles) {
-          const ok = await deleteFile(selectedRepo.fullName, fp, selectedBranch);
-          if (!ok) { allOk = false; break; }
-        }
         if (!allOk) return;
-
-        // キャッシュからフォルダとサブキャッシュを削除
-        childrenCacheRef.current.delete(targetPath);
-        hasMdCacheRef.current.delete(targetPath);
-        // 展開状態からも削除
-        setExpanded((prev) => {
-          const next = new Set<string>();
-          for (const p of prev) {
-            if (p !== targetPath && !p.startsWith(targetPath + "/")) next.add(p);
-          }
-          return next;
-        });
       } else {
         const ok = await deleteFile(selectedRepo.fullName, targetPath, selectedBranch);
         if (!ok) return;
       }
 
-      // 親キャッシュからエントリを削除
-      const updated = parentEntries.filter((e) => e.path !== targetPath);
-      childrenCacheRef.current.set(dirPath, updated);
-      if (!updated.some((e) => e.type === "blob")) {
-        hasMdCacheRef.current.set(dirPath, updated.some((e) => e.type === "tree" && hasMdCacheRef.current.get(e.path) === true));
-      }
-      if (dirPath === "") {
-        setRootEntries([...updated]);
-      }
+      removeEntryFromCache(dirPath, targetPath, parentEntries, childrenCacheRef.current, hasMdCacheRef.current, setRootEntries);
       bumpCache();
 
       // 削除対象が選択中なら選択解除

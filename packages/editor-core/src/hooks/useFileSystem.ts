@@ -4,6 +4,16 @@ import { STORAGE_KEY_FILENAME } from '../constants/storageKeys';
 import type { FileHandle, FileSystemProvider } from '../types/fileSystem';
 import { clearNativeHandle, loadNativeHandle, saveNativeHandle } from '../utils/fileHandleStore';
 
+/** nativeHandle の書き込み権限を確認・要求し、拒否された場合 true を返す */
+async function hasWritePermissionDenied(handle: FileSystemFileHandle): Promise<boolean> {
+  const h = handle as unknown as { queryPermission?(d: { mode: string }): Promise<string>; requestPermission?(d: { mode: string }): Promise<string> };
+  if (typeof h.queryPermission !== 'function') return false;
+  const perm = await h.queryPermission({ mode: 'readwrite' });
+  if (perm === 'granted') return false;
+  const req = await h.requestPermission!({ mode: 'readwrite' });
+  return req !== 'granted';
+}
+
 export function useFileSystem(provider: FileSystemProvider | null | undefined) {
   const [fileHandle, setFileHandleRaw] = useState<FileHandle | null>(() => {
     try {
@@ -68,21 +78,14 @@ export function useFileSystem(provider: FileSystemProvider | null | undefined) {
   const saveFile = useCallback(async (content: string): Promise<boolean> => {
     if (!provider) return false;
     if (fileHandle?.nativeHandle) {
-      // nativeHandle の書き込み権限を確認・要求
-      const handle = fileHandle.nativeHandle as FileSystemFileHandle;
-      if (typeof (handle as unknown as { queryPermission: unknown }).queryPermission === 'function') {
-        const perm = await (handle as unknown as { queryPermission(d: { mode: string }): Promise<string> }).queryPermission({ mode: 'readwrite' });
-        if (perm !== 'granted') {
-          const req = await (handle as unknown as { requestPermission(d: { mode: string }): Promise<string> }).requestPermission({ mode: 'readwrite' });
-          if (req !== 'granted') {
-            // 権限拒否時は saveAs にフォールバック
-            const newHandle = await provider.saveAs(content);
-            if (!newHandle) return false;
-            setFileHandleRaw(newHandle);
-            setIsDirty(false);
-            return true;
-          }
-        }
+      const denied = await hasWritePermissionDenied(fileHandle.nativeHandle as FileSystemFileHandle);
+      if (denied) {
+        // 権限拒否時は saveAs にフォールバック
+        const newHandle = await provider.saveAs(content);
+        if (!newHandle) return false;
+        setFileHandleRaw(newHandle);
+        setIsDirty(false);
+        return true;
       }
       await provider.save(fileHandle, content);
     } else {

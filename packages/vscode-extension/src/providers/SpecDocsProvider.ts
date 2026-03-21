@@ -270,27 +270,24 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsRootIte
 		return element;
 	}
 
+	private getRootLabel(rootPath: string): string {
+		const info = this.getRepoInfo(rootPath);
+		if (!info) return path.basename(rootPath);
+		return info.branchName ? `${info.repoName} / ${info.branchName}` : info.repoName;
+	}
+
 	getChildren(element?: SpecDocsRootItem | SpecDocsItem): (SpecDocsRootItem | SpecDocsItem)[] {
 		if (!element) {
-			// トップレベル: 常にリポジトリノードを表示
-			if (this.rootPaths.length === 0) {
-				return [];
-			}
-			return this.rootPaths.map(rootPath => {
-				const info = this.getRepoInfo(rootPath);
-				const label = info
-					? (info.branchName ? `${info.repoName} / ${info.branchName}` : info.repoName)
-					: path.basename(rootPath);
-				return new SpecDocsRootItem(rootPath, label);
-			});
+			return this.rootPaths.map(rootPath => new SpecDocsRootItem(rootPath, this.getRootLabel(rootPath)));
 		}
-
 		if (element instanceof SpecDocsRootItem) {
 			return this.getFileChildren(element.rootPath);
 		}
-
-		// SpecDocsItem (directory)
 		return this.getFileChildren(element.resourceUri.fsPath);
+	}
+
+	private isVisibleDir(entry: fs.Dirent): boolean {
+		return entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules';
 	}
 
 	private getFileChildren(dirPath: string): SpecDocsItem[] {
@@ -299,52 +296,51 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsRootIte
 		}
 
 		const entries = fs.readdirSync(dirPath, { withFileTypes: true });
-		const items: SpecDocsItem[] = [];
+		const dirs = this.getDirItems(entries, dirPath);
+		const files = this.getFileItems(entries, dirPath);
+		return [...dirs, ...files];
+	}
 
-		// ディレクトリ
+	private getDirItems(entries: fs.Dirent[], dirPath: string): SpecDocsItem[] {
+		const items: SpecDocsItem[] = [];
 		for (const entry of entries) {
-			if (!entry.isDirectory()) continue;
-			if (entry.name.startsWith('.') || entry.name === 'node_modules') continue;
+			if (!this.isVisibleDir(entry)) continue;
 			const fullPath = path.join(dirPath, entry.name);
 			if (this._mdOnly && !this.containsMarkdown(fullPath)) continue;
 			items.push(new SpecDocsItem(
-				entry.name,
-				vscode.Uri.file(fullPath),
-				true,
-				vscode.TreeItemCollapsibleState.Collapsed,
+				entry.name, vscode.Uri.file(fullPath), true, vscode.TreeItemCollapsibleState.Collapsed,
 			));
 		}
+		return items;
+	}
 
-		// ファイル
+	private getFileItems(entries: fs.Dirent[], dirPath: string): SpecDocsItem[] {
+		const items: SpecDocsItem[] = [];
 		for (const entry of entries) {
-			if (!entry.isFile()) continue;
-			if (entry.name.startsWith('.')) continue;
+			if (!entry.isFile() || entry.name.startsWith('.')) continue;
 			if (this._mdOnly && !isMarkdownFile(entry.name)) continue;
 			items.push(new SpecDocsItem(
-				entry.name,
-				vscode.Uri.file(path.join(dirPath, entry.name)),
-				false,
-				vscode.TreeItemCollapsibleState.None,
+				entry.name, vscode.Uri.file(path.join(dirPath, entry.name)), false, vscode.TreeItemCollapsibleState.None,
 			));
 		}
-
 		return items;
 	}
 
 	private containsMarkdown(dirPath: string): boolean {
 		try {
 			const entries = fs.readdirSync(dirPath, { withFileTypes: true });
-			for (const entry of entries) {
-				if (entry.isFile() && (entry.name.toLowerCase().endsWith('.md') || entry.name.toLowerCase().endsWith('.markdown'))) {
-					return true;
-				}
-				if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
-					if (this.containsMarkdown(path.join(dirPath, entry.name))) {
-						return true;
-					}
-				}
-			}
+			return entries.some(entry => this.isMarkdownEntry(entry, dirPath));
 		} catch { /* ignore */ }
+		return false;
+	}
+
+	private isMarkdownEntry(entry: fs.Dirent, dirPath: string): boolean {
+		if (entry.isFile()) {
+			return isMarkdownFile(entry.name);
+		}
+		if (this.isVisibleDir(entry)) {
+			return this.containsMarkdown(path.join(dirPath, entry.name));
+		}
 		return false;
 	}
 

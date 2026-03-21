@@ -286,15 +286,21 @@ class NeuQuant {
     return bestbiaspos;
   }
 
+  /** Selection-sort network by green channel and find the entry with smallest green value from position i onward */
+  private findSmallest(i: number): { pos: number; val: number } {
+    let smallpos = i, smallval = this.network[i][1] | 0;
+    for (let j = i + 1; j < 256; j++) {
+      const v = this.network[j][1] | 0;
+      if (v < smallval) { smallpos = j; smallval = v; }
+    }
+    return { pos: smallpos, val: smallval };
+  }
+
   private inxbuild(): void {
     let previouscol = 0, startpos = 0;
     for (let i = 0; i < 256; i++) {
-      let smallpos = i, smallval = this.network[i][1] | 0;
-      for (let j = i + 1; j < 256; j++) {
-        if ((this.network[j][1] | 0) < smallval) { smallpos = j; smallval = this.network[j][1] | 0; }
-      }
+      const { pos: smallpos, val: smallval } = this.findSmallest(i);
       if (i !== smallpos) {
-        // swap
         const tmp = this.network[smallpos];
         this.network[smallpos] = this.network[i];
         this.network[i] = tmp;
