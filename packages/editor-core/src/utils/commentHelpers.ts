@@ -90,7 +90,7 @@ export function preprocessComments(md: string): string {
   const parts = splitByCodeBlocks(md);
   return parts
     .map((part) => {
-      if (/^```/.test(part)) return part;
+      if (part.startsWith("```")) return part;
       return convertCommentMarkers(part);
     })
     .join("");
