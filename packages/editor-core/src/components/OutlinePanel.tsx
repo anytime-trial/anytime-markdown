@@ -36,6 +36,187 @@ const blockIcon: Record<Exclude<OutlineKind, "heading">, React.ReactElement> = {
   mermaid: <MermaidIcon sx={{ fontSize: 14 }} />,
 };
 
+/** Compute left padding for block (non-heading) items based on nearest preceding heading */
+function computeBlockPadding(idx: number, headings: HeadingItem[]): number {
+  for (let i = idx - 1; i >= 0; i--) {
+    if (headings[i].kind === "heading") {
+      return (headings[i].level - 1) * 1.5 + 3.25;
+    }
+  }
+  return 1;
+}
+
+/** Individual outline item (heading or block element) */
+const OutlineItem = React.memo(function OutlineItem({
+  h, idx, isHeading, isFolded, hoIdx, isDragging, isDropTarget, blockPl, isDark,
+  toggleFold, handleOutlineClick, onHeadingDragEnd, onOutlineDelete,
+  handleDragStart, handleDragOver, handleDrop, handleDragEnd,
+  headingOnlyIndices, t,
+}: {
+  h: HeadingItem;
+  idx: number;
+  isHeading: boolean;
+  isFolded: boolean;
+  hoIdx: number;
+  isDragging: boolean;
+  isDropTarget: boolean;
+  blockPl: number;
+  isDark: boolean;
+  toggleFold: (idx: number) => void;
+  handleOutlineClick: (pos: number) => void;
+  onHeadingDragEnd?: (fromIdx: number, toIdx: number) => void;
+  onOutlineDelete?: (pos: number, kind: string) => void;
+  handleDragStart: (e: React.DragEvent, idx: number) => void;
+  handleDragOver: (e: React.DragEvent, idx: number) => void;
+  handleDrop: (e: React.DragEvent, idx: number) => void;
+  handleDragEnd: () => void;
+  headingOnlyIndices: number[];
+  t: TranslationFn;
+}) {
+  return (
+    <Box
+      draggable={isHeading && !!onHeadingDragEnd}
+      onDragStart={isHeading && onHeadingDragEnd ? (e) => handleDragStart(e, idx) : undefined}
+      onDragOver={isHeading && onHeadingDragEnd ? (e) => handleDragOver(e, idx) : undefined}
+      onDrop={isHeading && onHeadingDragEnd ? (e) => handleDrop(e, idx) : undefined}
+      onDragEnd={isHeading && onHeadingDragEnd ? handleDragEnd : undefined}
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        pl: isHeading ? (h.level - 1) * 1.5 : blockPl,
+        py: 0.25,
+        borderRadius: 0.5,
+        opacity: isDragging ? 0.4 : 1,
+        borderTop: isDropTarget ? `2px solid ${getPrimaryMain(isDark)}` : "2px solid transparent",
+        "&:hover": { bgcolor: getActionHover(isDark) },
+        "& .outline-move-btns": { opacity: 0 },
+        "&:hover .outline-move-btns, & .outline-move-btns:focus-within": { opacity: 1 },
+        cursor: isHeading && onHeadingDragEnd ? "grab" : undefined,
+      }}
+    >
+      {isHeading ? (
+        <IconButton
+          size="small"
+          onClick={(e) => { e.stopPropagation(); toggleFold(h.headingIndex ?? -1); }}
+          aria-expanded={!isFolded}
+          aria-label={`${isFolded ? t("expandSection") : t("collapseSection")} ${h.text || "(empty)"}`}
+          sx={{ p: 0.5, mr: 0.25, color: getTextSecondary(isDark), flexShrink: 0 }}
+        >
+          <KeyboardArrowDownIcon sx={{ fontSize: 16, transition: "transform 0.15s", "@media (prefers-reduced-motion: reduce)": { transition: "none" }, transform: isFolded ? "rotate(-90deg)" : "rotate(0deg)" }} />
+        </IconButton>
+      ) : (
+        <Box sx={{ display: "flex", alignItems: "center", mr: 0.5, color: getTextDisabled(isDark), flexShrink: 0 }}>
+          {blockIcon[h.kind as keyof typeof blockIcon]}
+        </Box>
+      )}
+      <Tooltip title={h.text || ""} enterDelay={400} placement="bottom-start">
+        <ButtonBase
+          component="div"
+          onClick={() => handleOutlineClick(h.pos)}
+          {...(isHeading && onHeadingDragEnd ? { "aria-roledescription": t("draggableHeading") } : {})}
+          onKeyDown={(e: React.KeyboardEvent) => {
+            if (isHeading && onHeadingDragEnd && e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+              e.preventDefault();
+              const targetIdx = e.key === "ArrowUp" ? hoIdx - 1 : hoIdx + 1;
+              if (targetIdx >= 0 && targetIdx < headingOnlyIndices.length) {
+                onHeadingDragEnd(hoIdx, targetIdx);
+              }
+            }
+          }}
+          sx={{
+            cursor: "pointer", fontSize: OUTLINE_FONT_SIZE, fontWeight: 400,
+            color: isFolded ? getTextDisabled(isDark) : getTextPrimary(isDark),
+            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+            flex: 1, minWidth: 0, borderRadius: 0.5, justifyContent: "flex-start",
+            "&:focus-visible": { outline: "2px solid", outlineColor: getPrimaryMain(isDark), outlineOffset: 1 },
+          }}
+        >
+          {h.text || "(empty)"}
+        </ButtonBase>
+      </Tooltip>
+      <Box className="outline-move-btns" sx={{ display: "flex", flexShrink: 0, transition: "opacity 0.15s", "@media (prefers-reduced-motion: reduce)": { transition: "none" } }}>
+        {onOutlineDelete && (
+          <Tooltip title={t("delete")} placement="top">
+            <IconButton
+              size="small"
+              onClick={(e) => { e.stopPropagation(); onOutlineDelete(h.pos, h.kind); }}
+              aria-label={`${t("delete")} ${h.text || ""}`}
+              sx={{ p: 0.5 }}
+            >
+              <DeleteOutlineIcon sx={{ fontSize: 14 }} />
+            </IconButton>
+          </Tooltip>
+        )}
+      </Box>
+    </Box>
+  );
+});
+
+/** Outline heading list with fold/unfold, drag & drop, and block element display */
+const OutlineItemList = React.memo(function OutlineItemList({
+  headings, foldedIndices, hiddenByFold, showBlocks, isDark,
+  toggleFold, handleOutlineClick, onHeadingDragEnd, onOutlineDelete,
+  handleDragStart, handleDragOver, handleDrop, handleDragEnd,
+  headingOnlyIndices, toHeadingOnlyIdx, dragIdx, dropIdx, t,
+}: {
+  headings: HeadingItem[];
+  foldedIndices: Set<number>;
+  hiddenByFold: Set<number>;
+  showBlocks: boolean;
+  isDark: boolean;
+  toggleFold: (idx: number) => void;
+  handleOutlineClick: (pos: number) => void;
+  onHeadingDragEnd?: (fromIdx: number, toIdx: number) => void;
+  onOutlineDelete?: (pos: number, kind: string) => void;
+  handleDragStart: (e: React.DragEvent, idx: number) => void;
+  handleDragOver: (e: React.DragEvent, idx: number) => void;
+  handleDrop: (e: React.DragEvent, idx: number) => void;
+  handleDragEnd: () => void;
+  headingOnlyIndices: number[];
+  toHeadingOnlyIdx: (arrIdx: number) => number;
+  dragIdx: number | null;
+  dropIdx: number | null;
+  t: TranslationFn;
+}) {
+  return (
+    <>
+      {headings.map((h, idx) => {
+        const isHeading = h.kind === "heading";
+        const isHidden = hiddenByFold.has(idx) || (!isHeading && !showBlocks);
+        const isFolded = isHeading && foldedIndices.has(h.headingIndex ?? -1);
+        const hoIdx = isHeading ? toHeadingOnlyIdx(idx) : -1;
+        const isDragging = isHeading && hoIdx === dragIdx;
+        const isDropTarget = isHeading && hoIdx === dropIdx && hoIdx !== dragIdx;
+        const blockPl = isHeading ? 0 : computeBlockPadding(idx, headings);
+        return (
+          <Collapse key={`${h.pos}-${idx}`} in={!isHidden} unmountOnExit timeout={150} sx={{ "@media (prefers-reduced-motion: reduce)": { transition: "none !important" } }}>
+            <OutlineItem
+              h={h} idx={idx} isHeading={isHeading} isFolded={isFolded}
+              hoIdx={hoIdx} isDragging={isDragging} isDropTarget={isDropTarget}
+              blockPl={blockPl} isDark={isDark}
+              toggleFold={toggleFold} handleOutlineClick={handleOutlineClick}
+              onHeadingDragEnd={onHeadingDragEnd} onOutlineDelete={onOutlineDelete}
+              handleDragStart={handleDragStart} handleDragOver={handleDragOver}
+              handleDrop={handleDrop} handleDragEnd={handleDragEnd}
+              headingOnlyIndices={headingOnlyIndices} t={t}
+            />
+          </Collapse>
+        );
+      })}
+      {/* 末尾ドロップゾーン */}
+      <Box
+        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
+        onDragLeave={() => { /* handled by parent */ }}
+        onDrop={(e) => handleDrop(e, -1)}
+        sx={{
+          height: 16,
+          borderTop: dropIdx === -1 && dragIdx !== null ? `2px solid ${getPrimaryMain(isDark)}` : "2px solid transparent",
+        }}
+      />
+    </>
+  );
+});
+
 interface OutlinePanelProps {
   outlineWidth: number;
   setOutlineWidth: React.Dispatch<React.SetStateAction<number>>;
@@ -222,130 +403,15 @@ export function OutlinePanel({
               {t("noHeadings")}
             </Typography>
           ) : (
-            <>
-              {headings.map((h, idx) => {
-                const isHeading = h.kind === "heading";
-                const isHidden = hiddenByFold.has(idx) || (!isHeading && !showBlocks);
-                const isFolded = isHeading && foldedIndices.has(h.headingIndex ?? -1);
-                const hoIdx = isHeading ? toHeadingOnlyIdx(idx) : -1;
-                const isDragging = isHeading && hoIdx === dragIdx;
-                const isDropTarget = isHeading && hoIdx === dropIdx && hoIdx !== dragIdx;
-                // ブロック要素は直近の見出しレベルに合わせてインデント
-                let blockPl = 1;
-                if (!isHeading) {
-                  for (let i = idx - 1; i >= 0; i--) {
-                    if (headings[i].kind === "heading") {
-                      // 見出しのpl + 折りたたみボタン幅(p:0.5*2 + icon16px + mr:0.25 ≈ 3.25)
-                      blockPl = (headings[i].level - 1) * 1.5 + 3.25;
-                      break;
-                    }
-                  }
-                }
-                return (
-                  <Collapse key={`${h.pos}-${idx}`} in={!isHidden} unmountOnExit timeout={150} sx={{ "@media (prefers-reduced-motion: reduce)": { transition: "none !important" } }}>
-                  <Box
-                    draggable={isHeading && !!onHeadingDragEnd}
-                    onDragStart={isHeading && onHeadingDragEnd ? (e) => handleDragStart(e, idx) : undefined}
-                    onDragOver={isHeading && onHeadingDragEnd ? (e) => handleDragOver(e, idx) : undefined}
-                    onDrop={isHeading && onHeadingDragEnd ? (e) => handleDrop(e, idx) : undefined}
-                    onDragEnd={isHeading && onHeadingDragEnd ? handleDragEnd : undefined}
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      pl: isHeading ? (h.level - 1) * 1.5 : blockPl,
-                      py: 0.25,
-                      borderRadius: 0.5,
-                      opacity: isDragging ? 0.4 : 1,
-                      borderTop: isDropTarget ? `2px solid ${getPrimaryMain(isDark)}` : "2px solid transparent",
-                      "&:hover": {
-                        bgcolor: getActionHover(isDark),
-                      },
-                      "& .outline-move-btns": { opacity: 0 },
-                      "&:hover .outline-move-btns, & .outline-move-btns:focus-within": { opacity: 1 },
-                      cursor: isHeading && onHeadingDragEnd ? "grab" : undefined,
-                    }}
-                  >
-                    {isHeading ? (
-                      <IconButton
-                        size="small"
-                        onClick={(e) => { e.stopPropagation(); toggleFold(h.headingIndex ?? -1); }}
-                        aria-expanded={!isFolded}
-                        aria-label={`${isFolded ? t("expandSection") : t("collapseSection")} ${h.text || "(empty)"}`}
-                        sx={{
-                          p: 0.5,
-                          mr: 0.25,
-                          color: getTextSecondary(isDark),
-                          flexShrink: 0,
-                        }}
-                      >
-                        <KeyboardArrowDownIcon sx={{ fontSize: 16, transition: "transform 0.15s", "@media (prefers-reduced-motion: reduce)": { transition: "none" }, transform: isFolded ? "rotate(-90deg)" : "rotate(0deg)" }} />
-                      </IconButton>
-                    ) : (
-                      <Box sx={{ display: "flex", alignItems: "center", mr: 0.5, color: getTextDisabled(isDark), flexShrink: 0 }}>
-                        {blockIcon[h.kind as keyof typeof blockIcon]}
-                      </Box>
-                    )}
-                    <Tooltip title={h.text || ""} enterDelay={400} placement="bottom-start">
-                      <ButtonBase
-                        component="div"
-                        onClick={() => handleOutlineClick(h.pos)}
-                        {...(isHeading && onHeadingDragEnd ? { "aria-roledescription": t("draggableHeading") } : {})}
-                        onKeyDown={(e: React.KeyboardEvent) => {
-                          if (isHeading && onHeadingDragEnd && e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
-                            e.preventDefault();
-                            const targetIdx = e.key === "ArrowUp" ? hoIdx - 1 : hoIdx + 1;
-                            if (targetIdx >= 0 && targetIdx < headingOnlyIndices.length) {
-                              onHeadingDragEnd(hoIdx, targetIdx);
-                            }
-                          }
-                        }}
-                        sx={{
-                          cursor: "pointer",
-                          fontSize: OUTLINE_FONT_SIZE,
-                          fontWeight: 400,
-                          color: isFolded ? getTextDisabled(isDark) : getTextPrimary(isDark),
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          flex: 1,
-                          minWidth: 0,
-                          borderRadius: 0.5,
-                          justifyContent: "flex-start",
-                          "&:focus-visible": { outline: "2px solid", outlineColor: getPrimaryMain(isDark), outlineOffset: 1 },
-                        }}
-                      >
-                        {h.text || "(empty)"}
-                      </ButtonBase>
-                    </Tooltip>
-                    <Box className="outline-move-btns" sx={{ display: "flex", flexShrink: 0, transition: "opacity 0.15s", "@media (prefers-reduced-motion: reduce)": { transition: "none" } }}>
-                      {onOutlineDelete && (
-                        <Tooltip title={t("delete")} placement="top">
-                          <IconButton
-                            size="small"
-                            onClick={(e) => { e.stopPropagation(); onOutlineDelete(h.pos, h.kind); }}
-                            aria-label={`${t("delete")} ${h.text || ""}`}
-                            sx={{ p: 0.5 }}
-                          >
-                            <DeleteOutlineIcon sx={{ fontSize: 14 }} />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-                    </Box>
-                  </Box>
-                  </Collapse>
-                );
-              })}
-              {/* 末尾ドロップゾーン */}
-              <Box
-                onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setDropIdx(-1); }}
-                onDragLeave={() => { if (dropIdx === -1) setDropIdx(null); }}
-                onDrop={(e) => handleDrop(e, -1)}
-                sx={{
-                  height: 16,
-                  borderTop: dropIdx === -1 && dragIdx !== null ? `2px solid ${getPrimaryMain(isDark)}` : "2px solid transparent",
-                }}
-              />
-            </>
+            <OutlineItemList
+              headings={headings} foldedIndices={foldedIndices} hiddenByFold={hiddenByFold}
+              showBlocks={showBlocks} isDark={isDark} toggleFold={toggleFold}
+              handleOutlineClick={handleOutlineClick} onHeadingDragEnd={onHeadingDragEnd}
+              onOutlineDelete={onOutlineDelete} handleDragStart={handleDragStart}
+              handleDragOver={handleDragOver} handleDrop={handleDrop} handleDragEnd={handleDragEnd}
+              headingOnlyIndices={headingOnlyIndices} toHeadingOnlyIdx={toHeadingOnlyIdx}
+              dragIdx={dragIdx} dropIdx={dropIdx} t={t}
+            />
           )}
           </Box>
         </Box>

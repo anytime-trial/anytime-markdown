@@ -54,6 +54,237 @@ interface MergeEditorPanelProps {
   onHoverLine?: (lineIndex: number | null) => void;
 }
 
+/** Build display text and padding indices from diffLines */
+function buildDisplayText(diffLines: DiffLine[], rawText: string): { displayText: string; paddingIndices: Set<number> } {
+  const displayLines: string[] = [];
+  const paddingIndices = new Set<number>();
+  for (let i = 0; i < diffLines.length; i++) {
+    if (diffLines[i].type === "padding") {
+      displayLines.push("");
+      paddingIndices.add(i);
+    } else {
+      displayLines.push(diffLines[i].text);
+    }
+  }
+  let displayText = displayLines.join("\n");
+  if (rawText.endsWith("\n") && !displayText.endsWith("\n")) {
+    displayText += "\n";
+  }
+  return { displayText, paddingIndices };
+}
+
+/** Build merge button map: diffLines index -> blockId (first line of each diff block only) */
+function buildMergeButtonMap(diffLines: DiffLine[]): Map<number, number> {
+  const map = new Map<number, number>();
+  const renderedBlocks = new Set<number>();
+  for (let i = 0; i < diffLines.length; i++) {
+    const dl = diffLines[i];
+    if (dl.blockId !== null && dl.type !== "equal" && dl.type !== "padding" && !renderedBlocks.has(dl.blockId)) {
+      renderedBlocks.add(dl.blockId);
+      map.set(i, dl.blockId);
+    }
+  }
+  return map;
+}
+
+/** Merge gutter column with directional buttons */
+function MergeGutter({
+  panelSide, alignedCount, mergeButtonIndices, fontSize, lineHeight, mergeGutterRef, onMerge, t,
+}: {
+  panelSide: "left" | "right";
+  alignedCount: number;
+  mergeButtonIndices: Map<number, number>;
+  fontSize: number;
+  lineHeight: number;
+  mergeGutterRef: React.RefObject<HTMLDivElement | null>;
+  onMerge: (blockId: number, direction: "left-to-right" | "right-to-left") => void;
+  t: ReturnType<typeof useTranslations<"MarkdownEditor">>;
+}) {
+  return (
+    <Box ref={mergeGutterRef} sx={{ width: 24, minWidth: 24, py: 2, m: 0, overflow: "hidden", flexShrink: 0 }}>
+      {Array.from({ length: alignedCount }, (_, i) => {
+        const blockId = mergeButtonIndices.get(i);
+        return (
+          <MergeGutterCell key={i} blockId={blockId ?? null} panelSide={panelSide} fontSize={fontSize} lineHeight={lineHeight} onMerge={onMerge} t={t} />
+        );
+      })}
+    </Box>
+  );
+}
+
+function MergeGutterCell({
+  blockId, panelSide, fontSize, lineHeight, onMerge, t,
+}: {
+  blockId: number | null;
+  panelSide: "left" | "right";
+  fontSize: number;
+  lineHeight: number;
+  onMerge: (blockId: number, direction: "left-to-right" | "right-to-left") => void;
+  t: ReturnType<typeof useTranslations<"MarkdownEditor">>;
+}) {
+  const label = panelSide === "left" ? t("mergeLeftToRight") : t("mergeRightToLeft");
+  const direction = panelSide === "left" ? "left-to-right" as const : "right-to-left" as const;
+  return (
+    <Box sx={{ position: "relative", fontFamily: "monospace", fontSize: `${fontSize}px`, lineHeight, textAlign: "center" }}>
+      {"\u00A0"}
+      {blockId != null && (
+        <Box sx={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Tooltip title={label} placement={panelSide === "left" ? "left" : "right"}>
+            <IconButton size="small" aria-label={label} onClick={() => onMerge(blockId, direction)} sx={{ p: 0 }}>
+              {panelSide === "left" ? <ChevronRightIcon sx={{ fontSize: 16 }} /> : <ChevronLeftIcon sx={{ fontSize: 16 }} />}
+            </IconButton>
+          </Tooltip>
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+/** Source mode textarea panel with line numbers, diff gutter, and merge buttons */
+function SourceModePanel({
+  sourceText, onSourceChange, resolvedTextareaRef, autoResize, textareaAriaLabel,
+  scrollRef, bgGradient, paperSx, hideScrollbarSx, diffLines, side, readOnly,
+  onMerge, onHoverLine, isDark, editorSettings, gutterRef, mergeGutterRef, mirrorRef, textContainerRef, t,
+}: {
+  sourceText: string | undefined;
+  onSourceChange: ((value: string) => void) | undefined;
+  resolvedTextareaRef: React.RefObject<HTMLTextAreaElement | null>;
+  autoResize: boolean | undefined;
+  textareaAriaLabel: string | undefined;
+  scrollRef: React.RefObject<HTMLDivElement | null> | undefined;
+  bgGradient: string | undefined;
+  paperSx: SxProps<Theme> | undefined;
+  hideScrollbarSx: Record<string, unknown>;
+  diffLines: DiffLine[] | undefined;
+  side: "left" | "right" | undefined;
+  readOnly: boolean | undefined;
+  onMerge: ((blockId: number, direction: "left-to-right" | "right-to-left") => void) | undefined;
+  onHoverLine: ((lineIndex: number | null) => void) | undefined;
+  isDark: boolean;
+  editorSettings: { fontSize: number; lineHeight: number };
+  gutterRef: React.RefObject<HTMLDivElement | null>;
+  mergeGutterRef: React.RefObject<HTMLDivElement | null>;
+  mirrorRef: React.RefObject<HTMLDivElement | null>;
+  textContainerRef: React.RefObject<HTMLDivElement | null>;
+  t: ReturnType<typeof useTranslations<"MarkdownEditor">>;
+}) {
+  const rawText = sourceText ?? "";
+  const rawLineCount = rawText === "" ? 1 : rawText.split("\n").length;
+  const digits = String(rawLineCount).length;
+
+  const { displayText, paddingIndices } = diffLines
+    ? buildDisplayText(diffLines, rawText)
+    : { displayText: rawText, paddingIndices: new Set<number>() };
+
+  const alignedCount = diffLines ? diffLines.length : rawLineCount;
+  const lineNumbersArray = diffLines
+    ? diffLines.map(dl => dl.lineNumber != null ? String(dl.lineNumber) : "")
+    : Array.from({ length: rawLineCount }, (_, i) => String(i + 1));
+
+  const displayLines = displayText.split("\n");
+
+  const mergeButtonIndices = diffLines && side && onMerge ? buildMergeButtonMap(diffLines) : new Map<number, number>();
+  const hasMergeButtons = mergeButtonIndices.size > 0 && !!side && !!onMerge;
+
+  const gradientStyle: React.CSSProperties | undefined =
+    bgGradient && bgGradient !== "none"
+      ? { backgroundImage: bgGradient, backgroundAttachment: "local" }
+      : undefined;
+
+  return (
+    <Paper
+      variant="outlined"
+      ref={scrollRef as React.RefObject<HTMLDivElement> | undefined}
+      sx={[
+        { flex: 1, overflow: autoResize ? "auto" : "hidden", borderRadius: 0, border: 0, ...hideScrollbarSx },
+        ...(Array.isArray(paperSx) ? paperSx : paperSx ? [paperSx] : []),
+      ]}
+    >
+      <Box sx={{ display: "flex", minHeight: "100%" }}>
+        {side === "right" && hasMergeButtons && (
+          <MergeGutter panelSide="right" alignedCount={alignedCount} mergeButtonIndices={mergeButtonIndices} fontSize={editorSettings.fontSize} lineHeight={editorSettings.lineHeight} mergeGutterRef={mergeGutterRef} onMerge={onMerge!} t={t} />
+        )}
+
+        <Box
+          ref={gutterRef}
+          sx={{
+            width: `${Math.max(3, digits + 1)}ch`, minWidth: `${Math.max(3, digits + 1)}ch`,
+            py: 2, px: 1, m: 0, textAlign: "right", fontFamily: "monospace",
+            fontSize: `${editorSettings.fontSize}px`, lineHeight: editorSettings.lineHeight,
+            color: alpha(getTextSecondary(isDark), 0.6), userSelect: "none",
+            overflow: "hidden", boxSizing: "border-box", flexShrink: 0,
+          }}
+        >
+          {lineNumbersArray.map((num, i) => (
+            <div key={i}>{num || "\u00A0"}</div>
+          ))}
+        </Box>
+
+        <Box ref={textContainerRef} sx={{ flex: 1, minWidth: 0, position: "relative" }}>
+          <Box
+            ref={mirrorRef}
+            aria-hidden="true"
+            sx={{
+              position: "absolute", top: 0, left: 0, right: 0, visibility: "hidden", pointerEvents: "none",
+              fontFamily: "monospace", fontSize: `${editorSettings.fontSize}px`, lineHeight: editorSettings.lineHeight,
+              whiteSpace: "pre-wrap", overflowWrap: "break-word", pt: 2, pb: 2,
+              pr: side === "left" && hasMergeButtons ? 0 : 2, pl: 1, boxSizing: "border-box",
+            }}
+          >
+            {displayLines.map((line, i) => (
+              <div key={i}>{line || "\u00A0"}</div>
+            ))}
+          </Box>
+          <Box
+            component="textarea"
+            ref={resolvedTextareaRef}
+            aria-label={textareaAriaLabel}
+            readOnly={readOnly}
+            value={displayText}
+            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
+              const newText = e.target.value;
+              if (paddingIndices.size === 0) {
+                onSourceChange?.(newText);
+                return;
+              }
+              const lines = newText.split("\n");
+              const realLines: string[] = [];
+              for (let i = 0; i < lines.length; i++) {
+                if (paddingIndices.has(i) && lines[i] === "") continue;
+                realLines.push(lines[i]);
+              }
+              onSourceChange?.(realLines.join("\n"));
+            }}
+            onSelect={(e: React.SyntheticEvent<HTMLTextAreaElement>) => {
+              if (!onHoverLine || !diffLines) return;
+              const ta = e.currentTarget;
+              const pos = ta.selectionStart ?? 0;
+              const lineIdx = (ta.value.slice(0, pos).match(/\n/g) || []).length;
+              onHoverLine(lineIdx < diffLines.length ? lineIdx : null);
+            }}
+            style={gradientStyle}
+            sx={{
+              width: "100%", minHeight: "100%", pt: 2, pb: 2,
+              pr: side === "left" && hasMergeButtons ? 0 : 2, pl: 1,
+              border: "none", outline: "none", boxShadow: "none", resize: "none",
+              ...(autoResize ? { overflow: "hidden" } : {}),
+              ...hideScrollbarSx,
+              fontFamily: "monospace", fontSize: `${editorSettings.fontSize}px`,
+              lineHeight: editorSettings.lineHeight, color: getTextPrimary(isDark),
+              bgcolor: "transparent", boxSizing: "border-box",
+              "&:focus": { border: "none", outline: "none", boxShadow: "none" },
+            }}
+          />
+        </Box>
+
+        {side === "left" && hasMergeButtons && (
+          <MergeGutter panelSide="left" alignedCount={alignedCount} mergeButtonIndices={mergeButtonIndices} fontSize={editorSettings.fontSize} lineHeight={editorSettings.lineHeight} mergeGutterRef={mergeGutterRef} onMerge={onMerge!} t={t} />
+        )}
+      </Box>
+    </Paper>
+  );
+}
+
 export function MergeEditorPanel({
   sourceMode,
   sourceText,
@@ -120,12 +351,6 @@ export function MergeEditorPanel({
     return () => textarea.removeEventListener("scroll", syncScroll);
   }, [autoResize, sourceMode, resolvedTextareaRef]);
 
-  // グラデーション背景のインラインスタイル（textareaに直接適用）
-  const gradientStyle: React.CSSProperties | undefined =
-    sourceMode && bgGradient && bgGradient !== "none"
-      ? { backgroundImage: bgGradient, backgroundAttachment: "local" }
-      : undefined;
-
   // ミラー要素で各行の描画高さを計測し、行番号・マージボタンの高さに反映
   useEffect(() => {
     if (!sourceMode) return;
@@ -153,254 +378,18 @@ export function MergeEditorPanel({
   }, [sourceMode, sourceText, editorSettings.fontSize, editorSettings.lineHeight]);
 
   if (sourceMode) {
-    // textarea（編集可能）+ マージボタン列（diffLines提供時）
-    const rawText = sourceText ?? "";
-    const rawLineCount = rawText === "" ? 1 : rawText.split("\n").length;
-    const digits = String(rawLineCount).length;
-
-    // diffLines がある場合、パディング行を含めた表示テキストを構築
-    let displayText = rawText;
-    const paddingIndices = new Set<number>();
-    if (diffLines) {
-      const displayLines: string[] = [];
-      for (let i = 0; i < diffLines.length; i++) {
-        if (diffLines[i].type === "padding") {
-          displayLines.push("");
-          paddingIndices.add(i);
-        } else {
-          displayLines.push(diffLines[i].text);
-        }
-      }
-      displayText = displayLines.join("\n");
-      // diff エンジンが末尾空行を除去するため、元テキストの末尾改行を復元
-      if (rawText.endsWith("\n") && !displayText.endsWith("\n")) {
-        displayText += "\n";
-      }
-    }
-    const alignedCount = diffLines ? diffLines.length : rawLineCount;
-
-    // 行番号: diffLines があれば diffLines ベース（パディング行は空欄）、なければ連番
-    const lineNumbersArray = diffLines
-      ? diffLines.map(dl => dl.lineNumber != null ? String(dl.lineNumber) : "")
-      : Array.from({ length: rawLineCount }, (_, i) => String(i + 1));
-
-    const displayLines = displayText.split("\n");
-
-    // Build merge button map: diffLines index -> blockId (first line of each diff block only)
-    const mergeButtonIndices = new Map<number, number>();
-    if (diffLines && side && onMerge) {
-      const renderedBlocks = new Set<number>();
-      for (let i = 0; i < diffLines.length; i++) {
-        const dl = diffLines[i];
-        if (
-          dl.blockId !== null &&
-          dl.type !== "equal" &&
-          dl.type !== "padding" &&
-          !renderedBlocks.has(dl.blockId)
-        ) {
-          renderedBlocks.add(dl.blockId);
-          mergeButtonIndices.set(i, dl.blockId);
-        }
-      }
-    }
-    const hasMergeButtons = mergeButtonIndices.size > 0 && !!side && !!onMerge;
-
-    const renderMergeGutter = (panelSide: "left" | "right") => (
-      <Box
-        ref={mergeGutterRef}
-        sx={{
-          width: 24,
-          minWidth: 24,
-          py: 2,
-          m: 0,
-          overflow: "hidden",
-          flexShrink: 0,
-        }}
-      >
-        {Array.from({ length: alignedCount }, (_, i) => {
-          const blockId = mergeButtonIndices.get(i);
-          return (
-            <Box
-              key={i}
-              sx={{
-                position: "relative",
-                fontFamily: "monospace",
-                fontSize: `${editorSettings.fontSize}px`,
-                lineHeight: editorSettings.lineHeight,
-                textAlign: "center",
-              }}
-            >
-              {"\u00A0"}
-              {blockId != null && (
-                <Box
-                  sx={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Tooltip
-                    title={panelSide === "left" ? t("mergeLeftToRight") : t("mergeRightToLeft")}
-                    placement={panelSide === "left" ? "left" : "right"}
-                  >
-                    <IconButton
-                      size="small"
-                      aria-label={panelSide === "left" ? t("mergeLeftToRight") : t("mergeRightToLeft")}
-                      onClick={() => onMerge?.(blockId, panelSide === "left" ? "left-to-right" : "right-to-left")}
-                      sx={{ p: 0 }}
-                    >
-                      {panelSide === "left"
-                        ? <ChevronRightIcon sx={{ fontSize: 16 }} />
-                        : <ChevronLeftIcon sx={{ fontSize: 16 }} />}
-                    </IconButton>
-                  </Tooltip>
-                </Box>
-              )}
-            </Box>
-          );
-        })}
-      </Box>
-    );
-
     return (
-      <Paper
-        variant="outlined"
-        ref={scrollRef as React.RefObject<HTMLDivElement> | undefined}
-        sx={[
-          {
-            flex: 1,
-            overflow: autoResize ? "auto" : "hidden",
-            borderRadius: 0,
-            border: 0,
-            ...hideScrollbarSx,
-          },
-          ...(Array.isArray(paperSx) ? paperSx : paperSx ? [paperSx] : []),
-        ]}
-      >
-        <Box sx={{ display: "flex", minHeight: "100%" }}>
-          {/* 右パネル: 行番号ガター左にマージボタン列 */}
-          {side === "right" && hasMergeButtons && renderMergeGutter("right")}
-
-          {/* 行番号ガター（各行の高さはミラー計測値で設定） */}
-          <Box
-            ref={gutterRef}
-            sx={{
-              width: `${Math.max(3, digits + 1)}ch`,
-              minWidth: `${Math.max(3, digits + 1)}ch`,
-              py: 2,
-              px: 1,
-              m: 0,
-              textAlign: "right",
-              fontFamily: "monospace",
-              fontSize: `${editorSettings.fontSize}px`,
-              lineHeight: editorSettings.lineHeight,
-              color: alpha(getTextSecondary(isDark), 0.6),
-              userSelect: "none",
-              overflow: "hidden",
-              boxSizing: "border-box",
-              flexShrink: 0,
-            }}
-          >
-            {lineNumbersArray.map((num, i) => (
-              <div key={i}>{num || "\u00A0"}</div>
-            ))}
-          </Box>
-          {/* Textarea + hidden mirror for line height measurement */}
-          <Box ref={textContainerRef} sx={{ flex: 1, minWidth: 0, position: "relative" }}>
-            {/* ミラー: textarea と同じ幅・フォントで描画し、折り返し後の各行高さを計測 */}
-            <Box
-              ref={mirrorRef}
-              aria-hidden="true"
-              sx={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                visibility: "hidden",
-                pointerEvents: "none",
-                fontFamily: "monospace",
-                fontSize: `${editorSettings.fontSize}px`,
-                lineHeight: editorSettings.lineHeight,
-                whiteSpace: "pre-wrap",
-                overflowWrap: "break-word",
-                pt: 2,
-                pb: 2,
-                pr: side === "left" && hasMergeButtons ? 0 : 2,
-                pl: 1,
-                boxSizing: "border-box",
-              }}
-            >
-              {displayLines.map((line, i) => (
-                <div key={i}>{line || "\u00A0"}</div>
-              ))}
-            </Box>
-            <Box
-              component="textarea"
-              ref={resolvedTextareaRef}
-              aria-label={textareaAriaLabel}
-              readOnly={readOnly}
-              value={displayText}
-              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
-                const newText = e.target.value;
-                if (paddingIndices.size === 0) {
-                  onSourceChange?.(newText);
-                  return;
-                }
-                // padding行（既知のインデックスで空行のまま）を除去して実テキストに変換
-                const lines = newText.split("\n");
-                const realLines: string[] = [];
-                for (let i = 0; i < lines.length; i++) {
-                  if (paddingIndices.has(i) && lines[i] === "") continue;
-                  realLines.push(lines[i]);
-                }
-                onSourceChange?.(realLines.join("\n"));
-              }}
-              onSelect={(e: React.SyntheticEvent<HTMLTextAreaElement>) => {
-                if (!onHoverLine || !diffLines) return;
-                const ta = e.currentTarget;
-                const pos = ta.selectionStart ?? 0;
-                // padded text ではカーソル行インデックスが diffLines インデックスに直接対応
-                const lineIdx = (ta.value.slice(0, pos).match(/\n/g) || []).length;
-                onHoverLine(lineIdx < diffLines.length ? lineIdx : null);
-              }}
-              style={gradientStyle}
-              sx={{
-                width: "100%",
-                minHeight: "100%",
-                pt: 2,
-                pb: 2,
-                pr: side === "left" && hasMergeButtons ? 0 : 2,
-                pl: 1,
-                border: "none",
-                outline: "none",
-                boxShadow: "none",
-                resize: "none",
-                ...(autoResize ? { overflow: "hidden" } : {}),
-                ...hideScrollbarSx,
-                fontFamily: "monospace",
-                fontSize: `${editorSettings.fontSize}px`,
-                lineHeight: editorSettings.lineHeight,
-                color: getTextPrimary(isDark),
-                bgcolor: "transparent",
-                boxSizing: "border-box",
-                "&:focus": {
-                  border: "none",
-                  outline: "none",
-                  boxShadow: "none",
-                },
-              }}
-            />
-          </Box>
-
-          {/* 左パネル: textarea右にマージボタン列 */}
-          {side === "left" && hasMergeButtons && renderMergeGutter("left")}
-        </Box>
-      </Paper>
+      <SourceModePanel
+        sourceText={sourceText} onSourceChange={onSourceChange}
+        resolvedTextareaRef={resolvedTextareaRef} autoResize={autoResize}
+        textareaAriaLabel={textareaAriaLabel} scrollRef={scrollRef}
+        bgGradient={bgGradient} paperSx={paperSx} hideScrollbarSx={hideScrollbarSx}
+        diffLines={diffLines} side={side} readOnly={readOnly}
+        onMerge={onMerge} onHoverLine={onHoverLine}
+        isDark={isDark} editorSettings={editorSettings}
+        gutterRef={gutterRef} mergeGutterRef={mergeGutterRef}
+        mirrorRef={mirrorRef} textContainerRef={textContainerRef} t={t}
+      />
     );
   }
 

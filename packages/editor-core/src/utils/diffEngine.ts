@@ -50,36 +50,28 @@ function splitLines(text: string): string[] {
 
 // --- Core functions ---
 
-export function computeDiff(leftText: string, rightText: string, options?: DiffOptions): DiffResult {
-  const opts = options ?? {};
+interface MergedChange {
+  type: "equal" | "added" | "removed" | "modified";
+  leftLines: string[];
+  rightLines: string[];
+}
 
-  // Normalize text for comparison (E-3: filtering)
-  let compareLeft = leftText;
-  let compareRight = rightText;
-  if (opts.ignoreWhitespace || opts.ignoreCase) {
-    const normalize = (text: string) => {
-      let lines = text.split("\n");
-      if (opts.ignoreWhitespace) lines = lines.map((l) => l.trimEnd());
-      if (opts.ignoreCase) lines = lines.map((l) => l.toLowerCase());
-      return lines.join("\n");
-    };
-    compareLeft = normalize(leftText);
-    compareRight = normalize(rightText);
+/** Normalize text for comparison based on diff options */
+function normalizeForComparison(leftText: string, rightText: string, opts: DiffOptions): { compareLeft: string; compareRight: string } {
+  if (!opts.ignoreWhitespace && !opts.ignoreCase) {
+    return { compareLeft: leftText, compareRight: rightText };
   }
+  const normalize = (text: string) => {
+    let lines = text.split("\n");
+    if (opts.ignoreWhitespace) lines = lines.map((l) => l.trimEnd());
+    if (opts.ignoreCase) lines = lines.map((l) => l.toLowerCase());
+    return lines.join("\n");
+  };
+  return { compareLeft: normalize(leftText), compareRight: normalize(rightText) };
+}
 
-  const changes: Change[] = diffLines(compareLeft, compareRight);
-
-  // Original lines for display (use original text, not normalized)
-  const origLeftLines = splitLines(leftText);
-  const origRightLines = splitLines(rightText);
-
-  // Step 1: Merge adjacent removed+added into modified, mapping back to original lines via count
-  interface MergedChange {
-    type: "equal" | "added" | "removed" | "modified";
-    leftLines: string[];
-    rightLines: string[];
-  }
-
+/** Merge adjacent removed+added changes into modified, mapping back to original lines */
+function mergeAdjacentChanges(changes: Change[], origLeftLines: string[], origRightLines: string[]): MergedChange[] {
   const merged: MergedChange[] = [];
   let leftIdx = 0;
   let rightIdx = 0;
@@ -98,49 +90,113 @@ export function computeDiff(leftText: string, rightText: string, options?: DiffO
       rightIdx += nextCount;
       i++; // skip next
     } else if (c.added) {
-      merged.push({
-        type: "added",
-        leftLines: [],
-        rightLines: origRightLines.slice(rightIdx, rightIdx + count),
-      });
+      merged.push({ type: "added", leftLines: [], rightLines: origRightLines.slice(rightIdx, rightIdx + count) });
       rightIdx += count;
     } else if (c.removed) {
-      merged.push({
-        type: "removed",
-        leftLines: origLeftLines.slice(leftIdx, leftIdx + count),
-        rightLines: [],
-      });
+      merged.push({ type: "removed", leftLines: origLeftLines.slice(leftIdx, leftIdx + count), rightLines: [] });
       leftIdx += count;
     } else {
-      merged.push({
-        type: "equal",
-        leftLines: origLeftLines.slice(leftIdx, leftIdx + count),
-        rightLines: origRightLines.slice(rightIdx, rightIdx + count),
-      });
+      merged.push({ type: "equal", leftLines: origLeftLines.slice(leftIdx, leftIdx + count), rightLines: origRightLines.slice(rightIdx, rightIdx + count) });
       leftIdx += count;
       rightIdx += count;
     }
   }
+  return merged;
+}
 
-  // Step 1.5: Post-process — ignore blank-line-only diffs
-  if (opts.ignoreBlankLines) {
-    for (let i = 0; i < merged.length; i++) {
-      const m = merged[i];
-      if (m.type === "equal") continue;
+/** Post-process: convert blank-line-only diffs to equal */
+function neutralizeBlankLineDiffs(merged: MergedChange[]): void {
+  for (let i = 0; i < merged.length; i++) {
+    const m = merged[i];
+    if (m.type === "equal") continue;
+    const allBlank = [...m.leftLines, ...m.rightLines].every((l) => l.trim() === "");
+    if (!allBlank) continue;
+    const maxLen = Math.max(m.leftLines.length, m.rightLines.length);
+    const paddedLeft = [...m.leftLines];
+    const paddedRight = [...m.rightLines];
+    while (paddedLeft.length < maxLen) paddedLeft.push("");
+    while (paddedRight.length < maxLen) paddedRight.push("");
+    merged[i] = { type: "equal", leftLines: paddedLeft, rightLines: paddedRight };
+  }
+}
 
-      const allBlank = [...m.leftLines, ...m.rightLines].every((l) => l.trim() === "");
-      if (allBlank) {
-        const maxLen = Math.max(m.leftLines.length, m.rightLines.length);
-        const paddedLeft = [...m.leftLines];
-        const paddedRight = [...m.rightLines];
-        while (paddedLeft.length < maxLen) paddedLeft.push("");
-        while (paddedRight.length < maxLen) paddedRight.push("");
-        merged[i] = { type: "equal", leftLines: paddedLeft, rightLines: paddedRight };
-      }
+/** Append equal lines to DiffLine arrays */
+function appendEqualLines(
+  m: MergedChange, leftLines: DiffLine[], rightLines: DiffLine[],
+  leftLineNum: number, rightLineNum: number,
+): { leftLineNum: number; rightLineNum: number } {
+  for (let ei = 0; ei < m.leftLines.length; ei++) {
+    leftLines.push({ text: m.leftLines[ei], type: "equal", blockId: null, lineNumber: leftLineNum + 1 });
+    rightLines.push({ text: m.rightLines[ei] ?? m.leftLines[ei], type: "equal", blockId: null, lineNumber: rightLineNum + 1 });
+    leftLineNum++;
+    rightLineNum++;
+  }
+  return { leftLineNum, rightLineNum };
+}
+
+/** Append modified block lines (modified/added/removed) to DiffLine arrays */
+function appendModifiedBlock(
+  m: MergedChange, blockId: number, leftLines: DiffLine[], rightLines: DiffLine[],
+  leftLineNum: number, rightLineNum: number,
+): { leftLineNum: number; rightLineNum: number } {
+  if (m.type === "modified") {
+    return appendModifiedLines(m, blockId, leftLines, rightLines, leftLineNum, rightLineNum);
+  }
+  if (m.type === "added") {
+    return appendAddedLines(m, blockId, leftLines, rightLines, rightLineNum);
+  }
+  // removed
+  return appendRemovedLines(m, blockId, leftLines, rightLines, leftLineNum);
+}
+
+function appendModifiedLines(
+  m: MergedChange, blockId: number, leftLines: DiffLine[], rightLines: DiffLine[],
+  leftLineNum: number, rightLineNum: number,
+): { leftLineNum: number; rightLineNum: number } {
+  const maxLen = Math.max(m.leftLines.length, m.rightLines.length);
+  for (let i = 0; i < maxLen; i++) {
+    if (i < m.leftLines.length) {
+      leftLines.push({ text: m.leftLines[i], type: "modified-old", blockId, lineNumber: leftLineNum + 1 });
+      leftLineNum++;
+    } else {
+      leftLines.push({ text: "", type: "padding", blockId, lineNumber: null });
+    }
+    if (i < m.rightLines.length) {
+      rightLines.push({ text: m.rightLines[i], type: "modified-new", blockId, lineNumber: rightLineNum + 1 });
+      rightLineNum++;
+    } else {
+      rightLines.push({ text: "", type: "padding", blockId, lineNumber: null });
     }
   }
+  return { leftLineNum, rightLineNum };
+}
 
-  // Step 2: Build DiffLine arrays and DiffBlock list
+function appendAddedLines(
+  m: MergedChange, blockId: number, leftLines: DiffLine[], rightLines: DiffLine[],
+  rightLineNum: number,
+): { leftLineNum: number; rightLineNum: number } {
+  for (const line of m.rightLines) {
+    leftLines.push({ text: "", type: "padding", blockId, lineNumber: null });
+    rightLines.push({ text: line, type: "added", blockId, lineNumber: rightLineNum + 1 });
+    rightLineNum++;
+  }
+  return { leftLineNum: -1, rightLineNum }; // leftLineNum unused by caller for "added"
+}
+
+function appendRemovedLines(
+  m: MergedChange, blockId: number, leftLines: DiffLine[], rightLines: DiffLine[],
+  leftLineNum: number,
+): { leftLineNum: number; rightLineNum: number } {
+  for (const line of m.leftLines) {
+    leftLines.push({ text: line, type: "removed", blockId, lineNumber: leftLineNum + 1 });
+    rightLines.push({ text: "", type: "padding", blockId, lineNumber: null });
+    leftLineNum++;
+  }
+  return { leftLineNum, rightLineNum: -1 }; // rightLineNum unused by caller for "removed"
+}
+
+/** Build DiffLine arrays and DiffBlock list from merged changes */
+function buildDiffResult(merged: MergedChange[]): DiffResult {
   const leftLines: DiffLine[] = [];
   const rightLines: DiffLine[] = [];
   const blocks: DiffBlock[] = [];
@@ -150,47 +206,15 @@ export function computeDiff(leftText: string, rightText: string, options?: DiffO
 
   for (const m of merged) {
     if (m.type === "equal") {
-      for (let ei = 0; ei < m.leftLines.length; ei++) {
-        leftLines.push({ text: m.leftLines[ei], type: "equal", blockId: null, lineNumber: leftLineNum + 1 });
-        rightLines.push({ text: m.rightLines[ei] ?? m.leftLines[ei], type: "equal", blockId: null, lineNumber: rightLineNum + 1 });
-        leftLineNum++;
-        rightLineNum++;
-      }
+      ({ leftLineNum, rightLineNum } = appendEqualLines(m, leftLines, rightLines, leftLineNum, rightLineNum));
     } else {
       const currentBlockId = blockId++;
       const leftStart = leftLineNum;
       const rightStart = rightLineNum;
 
-      if (m.type === "modified") {
-        const maxLen = Math.max(m.leftLines.length, m.rightLines.length);
-        for (let i = 0; i < maxLen; i++) {
-          if (i < m.leftLines.length) {
-            leftLines.push({ text: m.leftLines[i], type: "modified-old", blockId: currentBlockId, lineNumber: leftLineNum + 1 });
-            leftLineNum++;
-          } else {
-            leftLines.push({ text: "", type: "padding", blockId: currentBlockId, lineNumber: null });
-          }
-          if (i < m.rightLines.length) {
-            rightLines.push({ text: m.rightLines[i], type: "modified-new", blockId: currentBlockId, lineNumber: rightLineNum + 1 });
-            rightLineNum++;
-          } else {
-            rightLines.push({ text: "", type: "padding", blockId: currentBlockId, lineNumber: null });
-          }
-        }
-      } else if (m.type === "added") {
-        for (const line of m.rightLines) {
-          leftLines.push({ text: "", type: "padding", blockId: currentBlockId, lineNumber: null });
-          rightLines.push({ text: line, type: "added", blockId: currentBlockId, lineNumber: rightLineNum + 1 });
-          rightLineNum++;
-        }
-      } else {
-        // removed
-        for (const line of m.leftLines) {
-          leftLines.push({ text: line, type: "removed", blockId: currentBlockId, lineNumber: leftLineNum + 1 });
-          rightLines.push({ text: "", type: "padding", blockId: currentBlockId, lineNumber: null });
-          leftLineNum++;
-        }
-      }
+      const result = appendModifiedBlock(m, currentBlockId, leftLines, rightLines, leftLineNum, rightLineNum);
+      if (m.type !== "added") leftLineNum = result.leftLineNum;
+      if (m.type !== "removed") rightLineNum = result.rightLineNum;
 
       blocks.push({
         id: currentBlockId,
@@ -206,6 +230,24 @@ export function computeDiff(leftText: string, rightText: string, options?: DiffO
   }
 
   return { leftLines, rightLines, blocks };
+}
+
+export function computeDiff(leftText: string, rightText: string, options?: DiffOptions): DiffResult {
+  const opts = options ?? {};
+
+  const { compareLeft, compareRight } = normalizeForComparison(leftText, rightText, opts);
+  const changes: Change[] = diffLines(compareLeft, compareRight);
+
+  const origLeftLines = splitLines(leftText);
+  const origRightLines = splitLines(rightText);
+
+  const merged = mergeAdjacentChanges(changes, origLeftLines, origRightLines);
+
+  if (opts.ignoreBlankLines) {
+    neutralizeBlankLineDiffs(merged);
+  }
+
+  return buildDiffResult(merged);
 }
 
 // --- Inline diff ---
