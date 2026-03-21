@@ -100,7 +100,7 @@ const GIF_COMMENT_START = "<!-- gif-settings:";
 const GIF_COMMENT_END = "-->";
 
 /** 直前行から画像 src を抽出。見つからなければ null。 */
-function extractImageSrc(prevLine: string): string | null {
+export function extractImageSrc(prevLine: string): string | null {
   const imgStart = prevLine.indexOf("![");
   if (imgStart < 0) return null;
   const bracketEnd = prevLine.indexOf("](", imgStart + 2);
@@ -111,7 +111,7 @@ function extractImageSrc(prevLine: string): string | null {
 }
 
 /** gif-settings コメントから有効な JSON を抽出。無効なら null。 */
-function extractValidJson(trimmed: string): string | null {
+export function extractValidJson(trimmed: string): string | null {
   const jsonStart = trimmed.indexOf("{");
   const jsonEnd = trimmed.lastIndexOf("}");
   if (jsonStart < 0 || jsonEnd <= jsonStart) return null;

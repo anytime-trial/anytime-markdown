@@ -40,7 +40,7 @@ function isNodeIdChar(c: string): boolean {
 }
 
 /** ブラケット開閉文字のマッピング */
-function closingBracket(ch: string): string | null {
+export function closingBracket(ch: string): string | null {
   if (ch === "[") return "]";
   if (ch === "{") return "}";
   if (ch === "(") return ")";
@@ -48,7 +48,7 @@ function closingBracket(ch: string): string | null {
 }
 
 /** ノードID + ブラケットラベルを線形スキャンで抽出する */
-function extractFlowchartLabelsAndIds(code: string): { labels: string[]; nodeIds: string[] } {
+export function extractFlowchartLabelsAndIds(code: string): { labels: string[]; nodeIds: string[] } {
   const labels: string[] = [];
   const nodeIds: string[] = [];
   for (let i = 0; i < code.length; i++) {
@@ -70,7 +70,7 @@ function extractFlowchartLabelsAndIds(code: string): { labels: string[]; nodeIds
 }
 
 /** 矢印パターン (A --> B) から bare ノードIDを抽出する */
-function extractBareArrowIds(code: string): string[] {
+export function extractBareArrowIds(code: string): string[] {
   const bareIds: string[] = [];
   let arrowIdx = code.indexOf("-->");
   while (arrowIdx !== -1) {
@@ -118,7 +118,7 @@ function extractMermaidSequenceNames(code: string): string[] {
 }
 
 /** PlantUML キーワード行から名前を抽出する */
-function extractNameFromPlantUmlLine(rest: string): string {
+export function extractNameFromPlantUmlLine(rest: string): string {
   if (rest.startsWith('"')) {
     const closeQuote = rest.indexOf('"', 1);
     return closeQuote > 0 ? rest.slice(1, closeQuote) : "";
@@ -129,7 +129,7 @@ function extractNameFromPlantUmlLine(rest: string): string {
 }
 
 /** PlantUML キーワードに一致する行からキーワード後の rest 部分を返す。一致しなければ null。 */
-function matchPlantUmlKeyword(trimmed: string, lower: string): string | null {
+export function matchPlantUmlKeyword(trimmed: string, lower: string): string | null {
   const keywords = ["actor", "participant", "entity", "database", "collections"];
   for (const kw of keywords) {
     if (lower.startsWith(kw) && trimmed.length > kw.length && (trimmed[kw.length] === " " || trimmed[kw.length] === "\t")) {

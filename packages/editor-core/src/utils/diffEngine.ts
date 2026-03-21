@@ -50,14 +50,14 @@ function splitLines(text: string): string[] {
 
 // --- Core functions ---
 
-interface MergedChange {
+export interface MergedChange {
   type: "equal" | "added" | "removed" | "modified";
   leftLines: string[];
   rightLines: string[];
 }
 
 /** Normalize text for comparison based on diff options */
-function normalizeForComparison(leftText: string, rightText: string, opts: DiffOptions): { compareLeft: string; compareRight: string } {
+export function normalizeForComparison(leftText: string, rightText: string, opts: DiffOptions): { compareLeft: string; compareRight: string } {
   if (!opts.ignoreWhitespace && !opts.ignoreCase) {
     return { compareLeft: leftText, compareRight: rightText };
   }
@@ -71,7 +71,7 @@ function normalizeForComparison(leftText: string, rightText: string, opts: DiffO
 }
 
 /** Merge adjacent removed+added changes into modified, mapping back to original lines */
-function mergeAdjacentChanges(changes: Change[], origLeftLines: string[], origRightLines: string[]): MergedChange[] {
+export function mergeAdjacentChanges(changes: Change[], origLeftLines: string[], origRightLines: string[]): MergedChange[] {
   const merged: MergedChange[] = [];
   let leftIdx = 0;
   let rightIdx = 0;
@@ -105,7 +105,7 @@ function mergeAdjacentChanges(changes: Change[], origLeftLines: string[], origRi
 }
 
 /** Post-process: convert blank-line-only diffs to equal */
-function neutralizeBlankLineDiffs(merged: MergedChange[]): void {
+export function neutralizeBlankLineDiffs(merged: MergedChange[]): void {
   for (let i = 0; i < merged.length; i++) {
     const m = merged[i];
     if (m.type === "equal") continue;

@@ -33,7 +33,7 @@ function appendMarker(line: string): string {
 }
 
 /** 同一ブロックの継続行ペアか判定する */
-function isSameBlockContinuation(cur: string, nxt: string): boolean {
+export function isSameBlockContinuation(cur: string, nxt: string): boolean {
   // バックスラッシュ改行（ハードブレイク）は同一ブロックの継続
   if (cur.endsWith("\\")) return true;
   // 同じ blockquote 内
@@ -51,7 +51,7 @@ function isSameBlockContinuation(cur: string, nxt: string): boolean {
 }
 
 /** 行ペアが tight transition（マーカー付与が必要）か判定する */
-function needsTightMark(cur: string, nxt: string): boolean {
+export function needsTightMark(cur: string, nxt: string): boolean {
   if (isOneLineBlock(cur)) return true;
   if (isBlockStart(nxt)) return true;
   const curBlockRelated = isBlockStart(cur) || isIndented(cur);
@@ -87,7 +87,7 @@ function markTightBlockTransitions(text: string): string {
  * コードブロック外のテキストに対して markTightBlockTransitions の後に呼び出すこと。
  */
 /** ハードブレイク付加をスキップすべき行ペアか判定する */
-function shouldSkipHardBreak(cur: string, nxt: string): boolean {
+export function shouldSkipHardBreak(cur: string, nxt: string): boolean {
   // 空行
   if (cur === "" || nxt === "") return true;
   // 既にハードブレイクがある行
@@ -151,7 +151,7 @@ function escapeTableCodeSpanPipes(md: string): string {
 }
 
 /** コードスパン内の閉じバッククォートを探す。見つからなければ -1 を返す */
-function findClosingTicks(text: string, openTicks: string, tickCount: number, from: number): number {
+export function findClosingTicks(text: string, openTicks: string, tickCount: number, from: number): number {
   let searchFrom = from;
   while (searchFrom < text.length) {
     const closePos = text.indexOf(openTicks, searchFrom);
@@ -165,7 +165,7 @@ function findClosingTicks(text: string, openTicks: string, tickCount: number, fr
 }
 
 /** インラインコードスパンをプレースホルダに退避し、退避リストを返す */
-function protectInlineCodeSpans(text: string): { result: string; codes: string[] } {
+export function protectInlineCodeSpans(text: string): { result: string; codes: string[] } {
   const codes: string[] = [];
   let out = "";
   let j = 0;
@@ -186,7 +186,7 @@ function protectInlineCodeSpans(text: string): { result: string; codes: string[]
 }
 
 /** DOMPurify から保護するためにタグをプレースホルダに退避する汎用関数 */
-function protectSpans(text: string, pattern: RegExp, prefix: string): { result: string; spans: string[] } {
+export function protectSpans(text: string, pattern: RegExp, prefix: string): { result: string; spans: string[] } {
   const spans: string[] = [];
   const result = text.replace(pattern, (m) => {
     spans.push(m);
@@ -196,7 +196,7 @@ function protectSpans(text: string, pattern: RegExp, prefix: string): { result: 
 }
 
 /** プレースホルダを元のスパンに復元する */
-function restoreSpans(text: string, prefix: string, spans: string[]): string {
+export function restoreSpans(text: string, prefix: string, spans: string[]): string {
   return text.replace(new RegExp(`\uE000${prefix}(\\d+)\uE000`, "g"), (_, i) => spans[Number(i)]);
 }
 
