@@ -28,6 +28,7 @@ import { EditorErrorBoundary } from "./components/EditorErrorBoundary";
 import { EditorFooterOverlays } from "./components/EditorFooterOverlays";
 import { EditorMainContent } from "./components/EditorMainContent";
 import { EditorToolbarSection } from "./components/EditorToolbarSection";
+import { ReadonlyToolbar } from "./components/ReadonlyToolbar";
 import { getDefaultContent } from "./constants/defaultContent";
 import { STATUSBAR_HEIGHT } from "./constants/dimensions";
 import type { ThemePresetName } from "./constants/themePresets";
@@ -502,6 +503,16 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         }}
         t={t}
       />
+
+      {readonlyMode && (
+        <ReadonlyToolbar
+          outlineOpen={outlineOpen}
+          onToggleOutline={handleToggleOutline}
+          fontSize={settings.fontSize}
+          onFontSizeChange={(size) => updateSettings({ fontSize: size })}
+          t={t}
+        />
+      )}
 
       <EditorMainContent
         inlineMergeOpen={inlineMergeOpen} InlineMergeView={InlineMergeView}
