@@ -16,7 +16,7 @@ export const s3Client = new S3Client({
 
 export const DOCS_BUCKET = process.env.S3_DOCS_BUCKET ?? '';
 export const DOCS_PREFIX = process.env.S3_DOCS_PREFIX ?? 'docs/';
-const CLOUDFRONT_URL = process.env.CLOUDFRONT_DOCS_URL ?? '';
+export const CLOUDFRONT_URL = process.env.CLOUDFRONT_DOCS_URL ?? '';
 
 const LAYOUT_KEY = DOCS_PREFIX + '_layout.json';
 

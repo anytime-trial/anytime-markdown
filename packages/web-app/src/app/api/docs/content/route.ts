@@ -1,7 +1,8 @@
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { NextRequest, NextResponse } from 'next/server';
 
-import { DOCS_BUCKET, DOCS_PREFIX, fetchFromCdn,s3Client } from '../../../../lib/s3Client';
+import { getBaseDir, transformMarkdownImageUrls } from '../../../../lib/docsImageUrl';
+import { CLOUDFRONT_URL, DOCS_BUCKET, DOCS_PREFIX, fetchFromCdn, s3Client } from '../../../../lib/s3Client';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,30 +30,35 @@ export async function GET(request: NextRequest) {
   };
 
   try {
+    let body: string | null = null;
+
     // CloudFront 経由で取得を試みる
-    const cdnBody = await fetchFromCdn(key);
-    if (cdnBody !== null) {
-      return new NextResponse(cdnBody, { status: 200, headers: cacheHeaders });
-    }
+    body = await fetchFromCdn(key);
 
     // S3 SDK フォールバック
-    if (!DOCS_BUCKET) {
-      return NextResponse.json(
-        { error: 'S3_DOCS_BUCKET is not configured' },
-        { status: 500 },
-      );
-    }
+    if (body === null) {
+      if (!DOCS_BUCKET) {
+        return NextResponse.json(
+          { error: 'S3_DOCS_BUCKET is not configured' },
+          { status: 500 },
+        );
+      }
 
-    const command = new GetObjectCommand({
-      Bucket: DOCS_BUCKET,
-      Key: key,
-    });
-    const response = await s3Client.send(command);
-    const body = await response.Body?.transformToString('utf-8');
+      const command = new GetObjectCommand({
+        Bucket: DOCS_BUCKET,
+        Key: key,
+      });
+      const response = await s3Client.send(command);
+      body = (await response.Body?.transformToString('utf-8')) ?? null;
+    }
 
     if (!body) {
       return NextResponse.json({ error: 'Empty document' }, { status: 404 });
     }
+
+    // 画像の相対パスを絶対URLに変換
+    const baseDir = getBaseDir(key);
+    body = transformMarkdownImageUrls(body, baseDir, CLOUDFRONT_URL);
 
     return new NextResponse(body, { status: 200, headers: cacheHeaders });
   } catch (e: unknown) {
