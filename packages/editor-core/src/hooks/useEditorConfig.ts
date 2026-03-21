@@ -36,7 +36,7 @@ interface EditorConfigRefs {
   setEditorMarkdown: RefObject<(md: string) => void>;
   setHeadings: RefObject<(h: HeadingItem[]) => void>;
   headingsDebounce: RefObject<ReturnType<typeof setTimeout> | null>;
-  handleImport: RefObject<(file: File, nativeHandle?: FileSystemFileHandle) => void>;
+  handleImport: RefObject<(file: File, nativeHandle?: FileSystemFileHandle) => void | Promise<void>>;
   onFileDragOver: RefObject<(over: boolean) => void>;
   slashCommandCallback: RefObject<(state: SlashCommandState) => void>;
 }
@@ -209,7 +209,7 @@ function insertPastedImage(
 function tryImportDroppedMdFile(
   mdFile: File,
   event: DragEvent,
-  handleImportRef: RefObject<(file: File, nativeHandle?: FileSystemFileHandle) => void>,
+  handleImportRef: RefObject<(file: File, nativeHandle?: FileSystemFileHandle) => void | Promise<void>>,
 ): void {
   const items = event.dataTransfer?.items;
   const mdItem = items ? Array.from(items).find((item) => item.kind === "file" && (mdFile.name.endsWith(".md") || mdFile.name.endsWith(".markdown"))) : null;

@@ -68,6 +68,43 @@ import type { InlineComment } from "./utils/commentHelpers";
 import { parseCommentData } from "./utils/commentHelpers";
 import { preprocessMarkdown } from "./utils/frontmatterHelpers";
 
+/** Insert template content into the WYSIWYG editor (extracted to reduce component CC) */
+function insertTemplateIntoEditor(
+  editor: Editor | null,
+  content: string,
+  frontmatterRef: React.MutableRefObject<string | null>,
+  setFrontmatterText: (fm: string | null) => void,
+) {
+  if (!editor) return;
+  const { frontmatter, body } = preprocessMarkdown(content);
+  if (frontmatter !== null) { frontmatterRef.current = frontmatter; setFrontmatterText(frontmatter); }
+  requestAnimationFrame(() => {
+    if (editor.isDestroyed) return;
+    editor.chain().focus().insertContent(body).run();
+    requestAnimationFrame(() => {
+      if (editor.isDestroyed) return;
+      editor.commands.setTextSelection(0);
+      editor.view.dom.scrollTop = 0;
+    });
+  });
+}
+
+/** Handle change gutter keyboard shortcuts (extracted to reduce component CC) */
+function handleChangeGutterKeydown(e: KeyboardEvent, editor: Editor) {
+  if (e.key === "Escape") {
+    editor.commands.setChangeGutterBaseline();
+    return;
+  }
+  if (e.key === "F5" && e.altKey) {
+    e.preventDefault();
+    if (e.shiftKey) {
+      editor.commands.goToPrevChange();
+    } else {
+      editor.commands.goToNextChange();
+    }
+  }
+}
+
 interface MarkdownEditorPageProps {
   hideFileOps?: boolean;
   hideUndoRedo?: boolean;
@@ -174,7 +211,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   const setEditorMarkdownRef = useRef<(md: string) => void>(() => {});
   const setHeadingsRef = useRef<(h: HeadingItem[]) => void>(() => {});
   const headingsDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const handleImportRef = useRef<(f: File, nativeHandle?: FileSystemFileHandle) => void>(() => {});
+  const handleImportRef = useRef<(f: File, nativeHandle?: FileSystemFileHandle) => void | Promise<void>>(() => {});
   const [fileDragOver, setFileDragOver] = useState(false);
   const [screenCaptureOpen, setScreenCaptureOpen] = useState(false);
   const onFileDragOverRef = useRef<(over: boolean) => void>((over) => setFileDragOver(over));
@@ -311,21 +348,10 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     }
   }, [editor, autoReload]);
 
-  // ESC: 変更ガター起点リセット、Alt+F3/Shift+Alt+F3: 変更箇所ナビ（autoReload ON 時のみ）
+  // ESC: 変更ガター起点リセット、Alt+F5/Shift+Alt+F5: 変更箇所ナビ（autoReload ON 時のみ）
   useEffect(() => {
     if (!editor || !autoReload) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        editor.commands.setChangeGutterBaseline();
-      } else if (e.key === "F5" && e.altKey) {
-        e.preventDefault();
-        if (e.shiftKey) {
-          editor.commands.goToPrevChange();
-        } else {
-          editor.commands.goToNextChange();
-        }
-      }
-    };
+    const handler = (e: KeyboardEvent) => handleChangeGutterKeydown(e, editor);
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [editor, autoReload]);
@@ -370,18 +396,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
 
   const handleInsertTemplate = useCallback((template: MarkdownTemplate) => {
     if (sourceMode) { appendToSource(template.content); return; }
-    if (!editor) return;
-    const { frontmatter, body } = preprocessMarkdown(template.content);
-    if (frontmatter !== null) { frontmatterRef.current = frontmatter; fileHandling.setFrontmatterText(frontmatter); }
-    requestAnimationFrame(() => {
-      if (editor.isDestroyed) return;
-      editor.chain().focus().insertContent(body).run();
-      requestAnimationFrame(() => {
-        if (editor.isDestroyed) return;
-        editor.commands.setTextSelection(0);
-        editor.view.dom.scrollTop = 0;
-      });
-    });
+    insertTemplateIntoEditor(editor, template.content, frontmatterRef, fileHandling.setFrontmatterText);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor, sourceMode, appendToSource, frontmatterRef]);
 

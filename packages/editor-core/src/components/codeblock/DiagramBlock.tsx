@@ -5,7 +5,7 @@ import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { Alert, Box, Button, IconButton, Tooltip, Typography } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import DOMPurify from "dompurify";
-import { useCallback, useMemo, useRef } from "react";
+import React, { useCallback, useMemo, useRef } from "react";
 
 import { getEditorBg, getErrorMain, getTextDisabled, getTextSecondary } from "../../constants/colors";
 import { useBlockMergeCompare } from "../../hooks/useBlockMergeCompare";
@@ -119,6 +119,47 @@ function PlantUmlConsentAlert({
   );
 }
 
+function DiagramContent({ isMermaid, isPlantUml, svg, displaySvg, plantUmlUrl, plantUmlConsent, handlePlantUmlReject, handlePlantUmlAccept, code, error, isDark, sharedContainerProps, t }: {
+  isMermaid: boolean; isPlantUml: boolean; svg: string | undefined; displaySvg: string | undefined;
+  plantUmlUrl: string | null; plantUmlConsent: string;
+  handlePlantUmlReject: () => void; handlePlantUmlAccept: () => void;
+  code: string; error: string | null; isDark: boolean;
+  sharedContainerProps: Omit<React.ComponentProps<typeof DiagramPreviewContainer>, "language" | "children">; t: (key: string) => string;
+}) {
+  return (
+    <>
+      {isMermaid && svg && displaySvg && (
+        <DiagramPreviewContainer {...sharedContainerProps} language="mermaid">
+          <Box
+            sx={{ pt: 0, px: 2, pb: 2, display: "flex", justifyContent: "flex-start", pointerEvents: "none" }}
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(displaySvg, SVG_SANITIZE_CONFIG) }}
+          />
+        </DiagramPreviewContainer>
+      )}
+      {isPlantUml && plantUmlConsent !== "accepted" && (
+        <PlantUmlConsentAlert
+          plantUmlConsent={plantUmlConsent}
+          handlePlantUmlReject={handlePlantUmlReject}
+          handlePlantUmlAccept={handlePlantUmlAccept}
+          t={t}
+        />
+      )}
+      {isPlantUml && plantUmlUrl && (
+        <DiagramPreviewContainer {...sharedContainerProps} language="plantuml">
+          <Box sx={{ pt: 0, px: 2, pb: 2, display: "flex", justifyContent: "flex-start", pointerEvents: "none" }}>
+            <img src={plantUmlUrl} alt={extractDiagramAltText(code, "plantuml")} referrerPolicy="no-referrer" style={{ maxWidth: "100%", height: "auto" }} />
+          </Box>
+        </DiagramPreviewContainer>
+      )}
+      {error && (
+        <Typography variant="caption" sx={{ p: 1.5, color: getErrorMain(isDark), display: "block" }} contentEditable={false}>
+          {error}
+        </Typography>
+      )}
+    </>
+  );
+}
+
 export function DiagramBlock(props: DiagramBlockProps) {
   const {
     editor, node, updateAttributes, getPos: _getPos,
@@ -164,13 +205,15 @@ export function DiagramBlock(props: DiagramBlockProps) {
   });
 
   const label = isMermaid ? t("mermaid") : t("plantuml");
+  const hasDiagramOutput = !!(svg || plantUmlUrl);
+  const canInteract = !props.isCompareLeft;
 
   const toolbar = (
     <BlockInlineToolbar
       label={label}
-      onEdit={props.isCompareLeft ? undefined : (svg || plantUmlUrl) ? () => { fsZP.reset(); setEditOpen(true); } : undefined}
-      onDelete={isEditable && !props.isCompareLeft ? () => setDeleteDialogOpen(true) : undefined}
-      onExport={(svg || plantUmlUrl) ? handleCapture : undefined}
+      onEdit={canInteract && hasDiagramOutput ? () => { fsZP.reset(); setEditOpen(true); } : undefined}
+      onDelete={isEditable && canInteract ? () => setDeleteDialogOpen(true) : undefined}
+      onExport={hasDiagramOutput ? handleCapture : undefined}
       labelOnly={props.isCompareLeftEditable}
       labelDivider
       t={t}
@@ -187,11 +230,11 @@ export function DiagramBlock(props: DiagramBlockProps) {
   };
 
   const handleDoubleClickFullscreen = useCallback(() => {
-    if (svg || plantUmlUrl) {
+    if (hasDiagramOutput) {
       fsZP.reset();
       setEditOpen(true);
     }
-  }, [svg, plantUmlUrl, fsZP, setEditOpen]);
+  }, [hasDiagramOutput, fsZP, setEditOpen]);
 
   const handleCloseDialog = useCallback(() => { fsSearch.reset(); setEditOpen(false); }, [fsSearch, setEditOpen]);
 
@@ -215,47 +258,37 @@ export function DiagramBlock(props: DiagramBlockProps) {
       ? <PlantUmlEditDialog {...commonDialogProps} plantUmlUrl={plantUmlUrl} />
       : null;
 
+  const showToolbar = shouldShowToolbar({ isCompareLeft: props.isCompareLeft, isCompareLeftEditable: props.isCompareLeftEditable, isEditable });
+  const showBorder = shouldShowBorder({ isSelected, isCompareLeft: props.isCompareLeft, isCompareLeftEditable: props.isCompareLeftEditable, isEditable, editOpen });
+
   return (
     <CodeBlockFrame
-      toolbar={shouldShowToolbar({ isCompareLeft: props.isCompareLeft, isCompareLeftEditable: props.isCompareLeftEditable, isEditable }) ? toolbar : null}
+      toolbar={showToolbar ? toolbar : null}
       codeCollapsed={codeCollapsed}
       isDiagramLayout
       isDark={isDark}
-      showBorder={shouldShowBorder({ isSelected, isCompareLeft: props.isCompareLeft, isCompareLeftEditable: props.isCompareLeftEditable, isEditable, editOpen })}
+      showBorder={showBorder}
       deleteDialogOpen={deleteDialogOpen}
       setDeleteDialogOpen={setDeleteDialogOpen}
       handleDeleteBlock={handleDeleteBlock}
       t={t}
       afterFrame={editDialog}
     >
-      {isMermaid && svg && (
-        <DiagramPreviewContainer {...sharedContainerProps} language="mermaid">
-          <Box
-            sx={{ pt: 0, px: 2, pb: 2, display: "flex", justifyContent: "flex-start", pointerEvents: "none" }}
-            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(displaySvg, SVG_SANITIZE_CONFIG) }}
-          />
-        </DiagramPreviewContainer>
-      )}
-      {isPlantUml && plantUmlConsent !== "accepted" && (
-        <PlantUmlConsentAlert
-          plantUmlConsent={plantUmlConsent}
-          handlePlantUmlReject={handlePlantUmlReject}
-          handlePlantUmlAccept={handlePlantUmlAccept}
-          t={t}
-        />
-      )}
-      {isPlantUml && plantUmlUrl && (
-        <DiagramPreviewContainer {...sharedContainerProps} language="plantuml">
-          <Box sx={{ pt: 0, px: 2, pb: 2, display: "flex", justifyContent: "flex-start", pointerEvents: "none" }}>
-            <img src={plantUmlUrl} alt={extractDiagramAltText(code, "plantuml")} referrerPolicy="no-referrer" style={{ maxWidth: "100%", height: "auto" }} />
-          </Box>
-        </DiagramPreviewContainer>
-      )}
-      {error && (
-        <Typography variant="caption" sx={{ p: 1.5, color: getErrorMain(isDark), display: "block" }} contentEditable={false}>
-          {error}
-        </Typography>
-      )}
+      <DiagramContent
+        isMermaid={isMermaid}
+        isPlantUml={isPlantUml}
+        svg={svg}
+        displaySvg={displaySvg}
+        plantUmlUrl={plantUmlUrl}
+        plantUmlConsent={plantUmlConsent}
+        handlePlantUmlReject={handlePlantUmlReject}
+        handlePlantUmlAccept={handlePlantUmlAccept}
+        code={code}
+        error={error}
+        isDark={isDark}
+        sharedContainerProps={sharedContainerProps}
+        t={t}
+      />
     </CodeBlockFrame>
   );
 }

@@ -251,6 +251,34 @@ function ImageWithResize({
   );
 }
 
+function ImageEditDialog({ editOpen, setEditOpen, src, imgError, imgSize, onCrop, isDark, t }: {
+  editOpen: boolean; setEditOpen: (v: boolean) => void;
+  src: string; imgError: boolean; imgSize: { w: number; h: number; nw: number; nh: number } | null;
+  onCrop: (croppedDataUrl: string) => void; isDark: boolean; t: (key: string) => string;
+}) {
+  return (
+    <EditDialogWrapper open={editOpen} onClose={() => setEditOpen(false)} ariaLabelledBy="image-edit-title">
+      <EditDialogHeader
+        label={t("image")}
+        onClose={() => setEditOpen(false)}
+        icon={<ImageIcon sx={{ fontSize: 18 }} />}
+        t={t}
+      />
+      <Box sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG }}>
+        {src && !imgError && (
+          <ImageCropTool src={src} onCrop={onCrop} t={t} />
+        )}
+      </Box>
+      <Box sx={{ display: "flex", alignItems: "center", px: 2, py: 0.5, borderTop: 1, borderColor: getDivider(isDark), gap: 1 }}>
+        <Box sx={{ flex: 1 }} />
+        <Typography variant="caption" sx={{ color: getTextDisabled(isDark), fontSize: STATUSBAR_FONT_SIZE, fontFamily: "monospace", whiteSpace: "nowrap" }}>
+          {imgSize ? `${imgSize.nw}x${imgSize.nh}` : ""}{imgSize && src?.startsWith("data:") ? " / " : ""}{src?.startsWith("data:") ? formatDataUrlSize(src) : ""}
+        </Typography>
+      </Box>
+    </EditDialogWrapper>
+  );
+}
+
 export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeViewProps) {
   const t = useTranslations("MarkdownEditor");
   const theme = useTheme();
@@ -299,38 +327,29 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
     handleCropComplete(src, updateAttributes, croppedDataUrl);
   }, [src, updateAttributes]);
 
+  const canInteract = !collapsed && !isCompareLeft;
+  const hasScreenCapture = canInteract && typeof navigator !== "undefined" && !!navigator.mediaDevices?.getDisplayMedia;
+  const showBorder = showToolbar || (isCompareLeftEditable && isSelected);
+
   return (
     <NodeViewWrapper>
       {/* Edit Dialog */}
-      <EditDialogWrapper open={editOpen} onClose={() => setEditOpen(false)} ariaLabelledBy="image-edit-title">
-        <EditDialogHeader
-          label={t("image")}
-          onClose={() => setEditOpen(false)}
-          icon={<ImageIcon sx={{ fontSize: 18 }} />}
-          t={t}
-        />
-        <Box sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG }}>
-          {src && !imgError && (
-            <ImageCropTool
-              src={src}
-              onCrop={onCrop}
-              t={t}
-            />
-          )}
-        </Box>
-        <Box sx={{ display: "flex", alignItems: "center", px: 2, py: 0.5, borderTop: 1, borderColor: getDivider(isDark), gap: 1 }}>
-          <Box sx={{ flex: 1 }} />
-          <Typography variant="caption" sx={{ color: getTextDisabled(isDark), fontSize: STATUSBAR_FONT_SIZE, fontFamily: "monospace", whiteSpace: "nowrap" }}>
-            {imgSize ? `${imgSize.nw}x${imgSize.nh}` : ""}{imgSize && src?.startsWith("data:") ? " / " : ""}{src?.startsWith("data:") ? formatDataUrlSize(src) : ""}
-          </Typography>
-        </Box>
-      </EditDialogWrapper>
+      <ImageEditDialog
+        editOpen={editOpen}
+        setEditOpen={setEditOpen}
+        src={src}
+        imgError={imgError}
+        imgSize={imgSize}
+        onCrop={onCrop}
+        isDark={isDark}
+        t={t}
+      />
       {/* Inline view */}
       <Box
         sx={{
           border: 1, borderRadius: 1, overflow: "hidden", my: 1,
-          borderColor: (showToolbar || (isCompareLeftEditable && isSelected)) ? getDivider(isDark) : "transparent",
-          ...(!(showToolbar || (isCompareLeftEditable && isSelected)) && {
+          borderColor: showBorder ? getDivider(isDark) : "transparent",
+          ...(!showBorder && {
             "& > [data-block-toolbar]": {
               maxHeight: 0, opacity: 0, py: 0, overflow: "hidden",
             },
@@ -340,7 +359,7 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
         {(isEditable || isCompareLeftEditable) && (
           <BlockInlineToolbar
             label={t("image")}
-            onDelete={!collapsed && !isCompareLeft ? () => setDeleteDialogOpen(true) : undefined}
+            onDelete={canInteract ? () => setDeleteDialogOpen(true) : undefined}
             onExport={handleCapture}
             labelOnly={isCompareLeftEditable}
             collapsed={collapsed}
@@ -354,9 +373,9 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
                 collapsed={collapsed}
                 annotations={annotations}
                 onAnnotationOpen={() => setAnnotationOpen(true)}
-                onEdit={!collapsed && !isCompareLeft ? () => setEditOpen(true) : undefined}
-                onEditUrl={!collapsed && !isCompareLeft ? handleEditUrl : undefined}
-                onScreenCapture={!collapsed && !isCompareLeft && typeof navigator !== "undefined" && !!navigator.mediaDevices?.getDisplayMedia ? () => setScreenCaptureOpen(true) : undefined}
+                onEdit={canInteract ? () => setEditOpen(true) : undefined}
+                onEditUrl={canInteract ? handleEditUrl : undefined}
+                onScreenCapture={hasScreenCapture ? () => setScreenCaptureOpen(true) : undefined}
                 isDark={isDark}
                 t={t}
               />

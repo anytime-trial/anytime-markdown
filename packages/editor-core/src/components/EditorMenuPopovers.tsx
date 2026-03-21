@@ -53,6 +53,31 @@ interface EditorMenuPopoversProps {
   t: TranslationFn;
 }
 
+function stripListAndBlockquote(editor: Editor, anchorEl: HTMLElement): { chain: ReturnType<ReturnType<Editor["chain"]>["focus"]>; inBlockquote: boolean } {
+  const inBlockquote = anchorEl.tagName.toLowerCase() === "blockquote" || !!anchorEl.closest("blockquote");
+  const parentList = anchorEl.closest("ul, ol");
+  const inTaskList = !!parentList?.getAttribute("data-type")?.includes("taskList");
+  const inBulletList = !inTaskList && parentList?.tagName.toLowerCase() === "ul";
+  const inOrderedList = parentList?.tagName.toLowerCase() === "ol";
+  const chain = editor.chain().focus();
+  if (inBulletList) chain.toggleBulletList();
+  else if (inOrderedList) chain.toggleOrderedList();
+  else if (inTaskList) chain.toggleTaskList();
+  if (inBlockquote) chain.lift("blockquote");
+  return { chain, inBlockquote };
+}
+
+function applyHeadingLevel(editor: Editor, headingMenu: { anchorEl: HTMLElement; pos: number }, level: number) {
+  editor.chain().focus().setTextSelection(headingMenu.pos).run();
+  const { chain, inBlockquote } = stripListAndBlockquote(editor, headingMenu.anchorEl);
+  if (level === 0) {
+    if (!inBlockquote) chain.setParagraph();
+  } else {
+    chain.setHeading({ level: level as 1 | 2 | 3 | 4 | 5 });
+  }
+  chain.run();
+}
+
 export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
   editor,
   helpAnchorEl, setHelpAnchorEl,
@@ -247,36 +272,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
               }
               onClick={() => {
                 if (!editor || !headingMenu) return;
-                if (level === 0) {
-                  const el = headingMenu.anchorEl;
-                  const inBlockquote = el.tagName.toLowerCase() === "blockquote" || !!el.closest("blockquote");
-                  const parentList = el.closest("ul, ol");
-                  const inTaskList = !!parentList?.getAttribute("data-type")?.includes("taskList");
-                  const inBulletList = !inTaskList && parentList?.tagName.toLowerCase() === "ul";
-                  const inOrderedList = parentList?.tagName.toLowerCase() === "ol";
-                  editor.chain().focus().setTextSelection(headingMenu.pos).run();
-                  const chain = editor.chain().focus();
-                  if (inBulletList) chain.toggleBulletList();
-                  else if (inOrderedList) chain.toggleOrderedList();
-                  else if (inTaskList) chain.toggleTaskList();
-                  if (inBlockquote) chain.lift("blockquote");
-                  else chain.setParagraph();
-                  chain.run();
-                } else {
-                  const el = headingMenu.anchorEl;
-                  const inBlockquote = el.tagName.toLowerCase() === "blockquote" || !!el.closest("blockquote");
-                  const parentList = el.closest("ul, ol");
-                  const inTaskList = !!parentList?.getAttribute("data-type")?.includes("taskList");
-                  const inBulletList = !inTaskList && parentList?.tagName.toLowerCase() === "ul";
-                  const inOrderedList = parentList?.tagName.toLowerCase() === "ol";
-                  editor.chain().focus().setTextSelection(headingMenu.pos).run();
-                  const chain = editor.chain().focus();
-                  if (inBulletList) chain.toggleBulletList();
-                  else if (inOrderedList) chain.toggleOrderedList();
-                  else if (inTaskList) chain.toggleTaskList();
-                  if (inBlockquote) chain.lift("blockquote");
-                  chain.setHeading({ level: level as 1 | 2 | 3 | 4 | 5 }).run();
-                }
+                applyHeadingLevel(editor, headingMenu, level);
                 setHeadingMenu(null);
               }}
               sx={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36 }}

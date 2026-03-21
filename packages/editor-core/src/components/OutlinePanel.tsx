@@ -46,6 +46,72 @@ function computeBlockPadding(idx: number, headings: HeadingItem[]): number {
   return 1;
 }
 
+/** Build drag event handlers for a heading item (returns empty object for non-headings) */
+function buildDragProps(
+  isHeading: boolean,
+  onHeadingDragEnd: ((fromIdx: number, toIdx: number) => void) | undefined,
+  idx: number,
+  handleDragStart: (e: React.DragEvent, idx: number) => void,
+  handleDragOver: (e: React.DragEvent, idx: number) => void,
+  handleDrop: (e: React.DragEvent, idx: number) => void,
+  handleDragEnd: () => void,
+): Record<string, unknown> {
+  if (!isHeading || !onHeadingDragEnd) return {};
+  return {
+    draggable: true,
+    onDragStart: (e: React.DragEvent) => handleDragStart(e, idx),
+    onDragOver: (e: React.DragEvent) => handleDragOver(e, idx),
+    onDrop: (e: React.DragEvent) => handleDrop(e, idx),
+    onDragEnd: handleDragEnd,
+  };
+}
+
+/** Fold toggle button for heading items */
+const HeadingFoldButton = React.memo(function HeadingFoldButton({
+  isFolded, headingIndex, text, isDark, toggleFold, t,
+}: {
+  isFolded: boolean; headingIndex: number; text: string; isDark: boolean;
+  toggleFold: (idx: number) => void; t: TranslationFn;
+}) {
+  return (
+    <IconButton
+      size="small"
+      onClick={(e) => { e.stopPropagation(); toggleFold(headingIndex); }}
+      aria-expanded={!isFolded}
+      aria-label={`${isFolded ? t("expandSection") : t("collapseSection")} ${text || "(empty)"}`}
+      sx={{ p: 0.5, mr: 0.25, color: getTextSecondary(isDark), flexShrink: 0 }}
+    >
+      <KeyboardArrowDownIcon sx={{ fontSize: 16, transition: "transform 0.15s", "@media (prefers-reduced-motion: reduce)": { transition: "none" }, transform: isFolded ? "rotate(-90deg)" : "rotate(0deg)" }} />
+    </IconButton>
+  );
+});
+
+/** Block element icon indicator */
+function BlockIconIndicator({ kind, isDark }: { kind: string; isDark: boolean }) {
+  return (
+    <Box sx={{ display: "flex", alignItems: "center", mr: 0.5, color: getTextDisabled(isDark), flexShrink: 0 }}>
+      {blockIcon[kind as keyof typeof blockIcon]}
+    </Box>
+  );
+}
+
+/** Handle Alt+Arrow keyboard shortcut for reordering headings */
+function handleHeadingKeyDown(
+  e: React.KeyboardEvent,
+  isHeading: boolean,
+  onHeadingDragEnd: ((fromIdx: number, toIdx: number) => void) | undefined,
+  hoIdx: number,
+  headingOnlyIndices: number[],
+) {
+  if (!isHeading || !onHeadingDragEnd || !e.altKey) return;
+  if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+  e.preventDefault();
+  const targetIdx = e.key === "ArrowUp" ? hoIdx - 1 : hoIdx + 1;
+  if (targetIdx >= 0 && targetIdx < headingOnlyIndices.length) {
+    onHeadingDragEnd(hoIdx, targetIdx);
+  }
+}
+
 /** Individual outline item (heading or block element) */
 const OutlineItem = React.memo(function OutlineItem({
   h, idx, isHeading, isFolded, hoIdx, isDragging, isDropTarget, blockPl, isDark,
@@ -73,13 +139,12 @@ const OutlineItem = React.memo(function OutlineItem({
   headingOnlyIndices: number[];
   t: TranslationFn;
 }) {
+  const dragProps = buildDragProps(isHeading, onHeadingDragEnd, idx, handleDragStart, handleDragOver, handleDrop, handleDragEnd);
+  const isDraggable = isHeading && !!onHeadingDragEnd;
+
   return (
     <Box
-      draggable={isHeading && !!onHeadingDragEnd}
-      onDragStart={isHeading && onHeadingDragEnd ? (e) => handleDragStart(e, idx) : undefined}
-      onDragOver={isHeading && onHeadingDragEnd ? (e) => handleDragOver(e, idx) : undefined}
-      onDrop={isHeading && onHeadingDragEnd ? (e) => handleDrop(e, idx) : undefined}
-      onDragEnd={isHeading && onHeadingDragEnd ? handleDragEnd : undefined}
+      {...dragProps}
       sx={{
         display: "flex",
         alignItems: "center",
@@ -91,38 +156,20 @@ const OutlineItem = React.memo(function OutlineItem({
         "&:hover": { bgcolor: getActionHover(isDark) },
         "& .outline-move-btns": { opacity: 0 },
         "&:hover .outline-move-btns, & .outline-move-btns:focus-within": { opacity: 1 },
-        cursor: isHeading && onHeadingDragEnd ? "grab" : undefined,
+        cursor: isDraggable ? "grab" : undefined,
       }}
     >
       {isHeading ? (
-        <IconButton
-          size="small"
-          onClick={(e) => { e.stopPropagation(); toggleFold(h.headingIndex ?? -1); }}
-          aria-expanded={!isFolded}
-          aria-label={`${isFolded ? t("expandSection") : t("collapseSection")} ${h.text || "(empty)"}`}
-          sx={{ p: 0.5, mr: 0.25, color: getTextSecondary(isDark), flexShrink: 0 }}
-        >
-          <KeyboardArrowDownIcon sx={{ fontSize: 16, transition: "transform 0.15s", "@media (prefers-reduced-motion: reduce)": { transition: "none" }, transform: isFolded ? "rotate(-90deg)" : "rotate(0deg)" }} />
-        </IconButton>
+        <HeadingFoldButton isFolded={isFolded} headingIndex={h.headingIndex ?? -1} text={h.text} isDark={isDark} toggleFold={toggleFold} t={t} />
       ) : (
-        <Box sx={{ display: "flex", alignItems: "center", mr: 0.5, color: getTextDisabled(isDark), flexShrink: 0 }}>
-          {blockIcon[h.kind as keyof typeof blockIcon]}
-        </Box>
+        <BlockIconIndicator kind={h.kind} isDark={isDark} />
       )}
       <Tooltip title={h.text || ""} enterDelay={400} placement="bottom-start">
         <ButtonBase
           component="div"
           onClick={() => handleOutlineClick(h.pos)}
-          {...(isHeading && onHeadingDragEnd ? { "aria-roledescription": t("draggableHeading") } : {})}
-          onKeyDown={(e: React.KeyboardEvent) => {
-            if (isHeading && onHeadingDragEnd && e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
-              e.preventDefault();
-              const targetIdx = e.key === "ArrowUp" ? hoIdx - 1 : hoIdx + 1;
-              if (targetIdx >= 0 && targetIdx < headingOnlyIndices.length) {
-                onHeadingDragEnd(hoIdx, targetIdx);
-              }
-            }
-          }}
+          {...(isDraggable ? { "aria-roledescription": t("draggableHeading") } : {})}
+          onKeyDown={(e: React.KeyboardEvent) => handleHeadingKeyDown(e, isHeading, onHeadingDragEnd, hoIdx, headingOnlyIndices)}
           sx={{
             cursor: "pointer", fontSize: OUTLINE_FONT_SIZE, fontWeight: 400,
             color: isFolded ? getTextDisabled(isDark) : getTextPrimary(isDark),

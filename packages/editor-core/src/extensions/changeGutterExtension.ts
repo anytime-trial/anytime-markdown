@@ -61,38 +61,35 @@ interface DiffResult {
   deletionBefore: number[];
 }
 
-/**
- * LCS ベースの差分検出: baseline と current のコンテンツノードを比較し、
- * 変更/追加と削除を検出する。空段落はスキップ。
- */
-function diffContentNodes(
-  baseline: string[],
-  current: NodeEntry[],
-): DiffResult {
-  const currentFps = current.map((e) => e.fingerprint);
-  const m = baseline.length;
-  const n = currentFps.length;
-
-  // LCS DP テーブル
+/** Build LCS DP table for two string arrays */
+function buildLcsTable(a: string[], b: string[]): number[][] {
+  const m = a.length;
+  const n = b.length;
   const dp: number[][] = [];
   for (let i = 0; i <= m; i++) {
     dp[i] = [];
     for (let j = 0; j <= n; j++) {
       if (i === 0 || j === 0) dp[i][j] = 0;
-      else if (baseline[i - 1] === currentFps[j - 1])
-        dp[i][j] = dp[i - 1][j - 1] + 1;
+      else if (a[i - 1] === b[j - 1]) dp[i][j] = dp[i - 1][j - 1] + 1;
       else dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
     }
   }
+  return dp;
+}
 
-  // バックトラックでマッチペアを取得
-  const matchPairs: { bi: number; ci: number }[] = [];
+/** Backtrack LCS DP table to extract match pairs (baseline index, current index) */
+function backtrackLcs(
+  dp: number[][],
+  a: string[],
+  b: string[],
+): { pairs: { bi: number; ci: number }[]; matchedCurrent: Set<number> } {
+  const pairs: { bi: number; ci: number }[] = [];
   const matchedCurrent = new Set<number>();
-  let i = m;
-  let j = n;
+  let i = a.length;
+  let j = b.length;
   while (i > 0 && j > 0) {
-    if (baseline[i - 1] === currentFps[j - 1]) {
-      matchPairs.push({ bi: i - 1, ci: j - 1 });
+    if (a[i - 1] === b[j - 1]) {
+      pairs.push({ bi: i - 1, ci: j - 1 });
       matchedCurrent.add(j - 1);
       i--;
       j--;
@@ -102,42 +99,33 @@ function diffContentNodes(
       j--;
     }
   }
-  matchPairs.reverse();
+  pairs.reverse();
+  return { pairs, matchedCurrent };
+}
 
-  // 変更/追加: current でマッチしなかったノード
-  const changed = new Set<number>();
-  for (let k = 0; k < n; k++) {
-    if (!matchedCurrent.has(k)) changed.add(current[k].docIndex);
-  }
-
-  // 削除検出: baseline でマッチしなかったノードの位置を特定
+/** Detect deletion positions by finding unmatched baseline nodes */
+function detectDeletions(
+  baselineLen: number,
+  matchPairs: { bi: number; ci: number }[],
+  current: NodeEntry[],
+  changed: Set<number>,
+): number[] {
   const matchedBaseline = new Set(matchPairs.map((p) => p.bi));
   const deletionBefore: number[] = [];
   const seen = new Set<number>();
+  const n = current.length;
 
-  for (let bi = 0; bi < m; bi++) {
+  for (let bi = 0; bi < baselineLen; bi++) {
     if (matchedBaseline.has(bi)) continue;
 
-    // この baseline ノードは削除された。
-    // 直後のマッチペアを探して、current 側の対応位置を特定する。
-    let targetDocIndex: number;
-    let foundNext = false;
-    for (const pair of matchPairs) {
-      if (pair.bi > bi) {
-        // 削除は current[pair.ci] の直前に表示
-        targetDocIndex = current[pair.ci].docIndex;
-        foundNext = true;
-        // 変更済みノードの直前には削除インジケータを出さない
-        if (!seen.has(targetDocIndex) && !changed.has(targetDocIndex)) {
-          seen.add(targetDocIndex);
-          deletionBefore.push(targetDocIndex);
-        }
-        break;
+    const nextPair = matchPairs.find((p) => p.bi > bi);
+    if (nextPair) {
+      const targetDocIndex = current[nextPair.ci].docIndex;
+      if (!seen.has(targetDocIndex) && !changed.has(targetDocIndex)) {
+        seen.add(targetDocIndex);
+        deletionBefore.push(targetDocIndex);
       }
-    }
-    if (!foundNext) {
-      // baseline の末尾の削除: -1 で doc 末尾を示す
-      // 末尾のコンテンツノードが変更済みなら削除インジケータは不要
+    } else {
       const lastCurrentDocIdx = n > 0 ? current[n - 1].docIndex : -1;
       const endIsChanged = lastCurrentDocIdx >= 0 && changed.has(lastCurrentDocIdx);
       if (!seen.has(-1) && !endIsChanged) {
@@ -146,6 +134,30 @@ function diffContentNodes(
       }
     }
   }
+  return deletionBefore;
+}
+
+/**
+ * LCS ベースの差分検出: baseline と current のコンテンツノードを比較し、
+ * 変更/追加と削除を検出する。空段落はスキップ。
+ */
+function diffContentNodes(
+  baseline: string[],
+  current: NodeEntry[],
+): DiffResult {
+  const currentFps = current.map((e) => e.fingerprint);
+  const n = currentFps.length;
+
+  const dp = buildLcsTable(baseline, currentFps);
+  const { pairs: matchPairs, matchedCurrent } = backtrackLcs(dp, baseline, currentFps);
+
+  // 変更/追加: current でマッチしなかったノード
+  const changed = new Set<number>();
+  for (let k = 0; k < n; k++) {
+    if (!matchedCurrent.has(k)) changed.add(current[k].docIndex);
+  }
+
+  const deletionBefore = detectDeletions(baseline.length, matchPairs, current, changed);
 
   return { changed, deletionBefore };
 }

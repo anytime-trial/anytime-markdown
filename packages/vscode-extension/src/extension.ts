@@ -459,4 +459,6 @@ export function activate(context: vscode.ExtensionContext) {
 	);
 }
 
-export function deactivate() {}
+export function deactivate() {
+  // Intentionally empty – VS Code requires this export but no cleanup is needed.
+}

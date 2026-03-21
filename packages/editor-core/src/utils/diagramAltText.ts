@@ -47,26 +47,69 @@ export function closingBracket(ch: string): string | null {
   return null;
 }
 
+/** Skip whitespace from position i, return new position */
+function skipWhitespace(code: string, i: number): number {
+  while (i < code.length && (code[i] === " " || code[i] === "\t")) i++;
+  return i;
+}
+
+/** Read a contiguous node ID starting at position i, return [id, newPos] */
+function readNodeId(code: string, i: number): [string, number] {
+  const start = i;
+  while (i < code.length && isNodeIdChar(code[i])) i++;
+  return [code.slice(start, i), i];
+}
+
+/** Try to extract a bracketed label at position i. Returns [label, nodeEndPos] or null. */
+function tryExtractBracketedLabel(code: string, i: number): { label: string; endPos: number } | null {
+  const close = closingBracket(code[i]);
+  if (!close) return null;
+  const closeIdx = code.indexOf(close, i + 1);
+  if (closeIdx === -1) return null;
+  const label = code.slice(i + 1, closeIdx).trim();
+  const isValidLabel = label !== "" && !label.includes("-->") && !label.includes("---");
+  return { label: isValidLabel ? label : "", endPos: closeIdx };
+}
+
 /** ノードID + ブラケットラベルを線形スキャンで抽出する */
 export function extractFlowchartLabelsAndIds(code: string): { labels: string[]; nodeIds: string[] } {
   const labels: string[] = [];
   const nodeIds: string[] = [];
   for (let i = 0; i < code.length; i++) {
     if (!isNodeIdChar(code[i])) continue;
-    const idStart = i;
-    while (i < code.length && isNodeIdChar(code[i])) i++;
-    const id = code.slice(idStart, i);
-    while (i < code.length && (code[i] === " " || code[i] === "\t")) i++;
-    const close = closingBracket(code[i]);
-    if (!close) { i--; continue; }
-    const closeIdx = code.indexOf(close, i + 1);
-    if (closeIdx === -1) { i--; continue; }
-    const label = code.slice(i + 1, closeIdx).trim();
-    if (label && !label.includes("-->") && !label.includes("---")) labels.push(label);
+    const [id, afterId] = readNodeId(code, i);
+    i = skipWhitespace(code, afterId);
+    const bracket = tryExtractBracketedLabel(code, i);
+    if (!bracket) { i = afterId - 1; continue; }
+    if (bracket.label) labels.push(bracket.label);
     nodeIds.push(id);
-    i = closeIdx;
+    i = bracket.endPos;
   }
   return { labels, nodeIds };
+}
+
+/** Scan backwards to extract a node ID ending just before `pos` */
+function extractSourceId(code: string, pos: number): string {
+  let s = pos;
+  while (s >= 0 && (code[s] === " " || code[s] === "\t")) s--;
+  const srcEnd = s + 1;
+  while (s >= 0 && isNodeIdChar(code[s])) s--;
+  return srcEnd > s + 1 ? code.slice(s + 1, srcEnd) : "";
+}
+
+/** Skip past a pipe-delimited label (e.g. |label|) if present, return new position */
+function skipPipeLabel(code: string, pos: number): number {
+  if (code[pos] !== "|") return pos;
+  const pipeEnd = code.indexOf("|", pos + 1);
+  return pipeEnd !== -1 ? skipWhitespace(code, pipeEnd + 1) : pos;
+}
+
+/** Extract a forward node ID starting at `pos`, return the ID or "" */
+function extractDestId(code: string, pos: number): string {
+  const start = pos;
+  let end = pos;
+  while (end < code.length && isNodeIdChar(code[end])) end++;
+  return end > start ? code.slice(start, end) : "";
 }
 
 /** 矢印パターン (A --> B) から bare ノードIDを抽出する */
@@ -74,21 +117,13 @@ export function extractBareArrowIds(code: string): string[] {
   const bareIds: string[] = [];
   let arrowIdx = code.indexOf("-->");
   while (arrowIdx !== -1) {
-    let s = arrowIdx - 1;
-    while (s >= 0 && (code[s] === " " || code[s] === "\t")) s--;
-    const srcEnd = s + 1;
-    while (s >= 0 && isNodeIdChar(code[s])) s--;
-    if (srcEnd > s + 1) bareIds.push(code.slice(s + 1, srcEnd));
+    const srcId = extractSourceId(code, arrowIdx - 1);
+    if (srcId) bareIds.push(srcId);
 
-    let d = arrowIdx + 3;
-    while (d < code.length && (code[d] === " " || code[d] === "\t")) d++;
-    if (code[d] === "|") {
-      const pipeEnd = code.indexOf("|", d + 1);
-      if (pipeEnd !== -1) { d = pipeEnd + 1; while (d < code.length && (code[d] === " " || code[d] === "\t")) d++; }
-    }
-    const dstStart = d;
-    while (d < code.length && isNodeIdChar(code[d])) d++;
-    if (d > dstStart) bareIds.push(code.slice(dstStart, d));
+    const afterArrow = skipWhitespace(code, arrowIdx + 3);
+    const afterPipe = skipPipeLabel(code, afterArrow);
+    const dstId = extractDestId(code, afterPipe);
+    if (dstId) bareIds.push(dstId);
 
     arrowIdx = code.indexOf("-->", arrowIdx + 3);
   }

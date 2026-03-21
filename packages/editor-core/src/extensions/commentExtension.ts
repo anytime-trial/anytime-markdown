@@ -232,13 +232,11 @@ export const CommentDataPlugin = Extension.create({
           // Mark 除去: doc 全体を走査して対象 Mark を除去
           const markType = state.schema.marks.commentHighlight;
           if (markType) {
+            const isTargetMark = (m: { type: { name: string }; attrs: Record<string, unknown> }) =>
+              m.type.name === "commentHighlight" && m.attrs.commentId === id;
             doc.descendants((node, pos) => {
               if (node.isText) {
-                const mark = node.marks.find(
-                  (m) =>
-                    m.type.name === "commentHighlight" &&
-                    m.attrs.commentId === id,
-                );
+                const mark = node.marks.find(isTargetMark);
                 if (mark) {
                   tr.removeMark(pos, pos + node.nodeSize, mark);
                 }
