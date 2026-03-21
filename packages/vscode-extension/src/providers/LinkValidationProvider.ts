@@ -2,8 +2,8 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 
-const LINK_RE = /\[([^\]]*)\]\(([^)]+)\)/g;
-const HEADING_ID_RE = /^#{1,6}\s+(.+)$/gm;
+const LINK_RE = /\[([^\]]{0,500})\]\(([^)\s]{1,2000})\)/g;
+const HEADING_ID_RE = /^#{1,6}\s+([^\n]+)$/gm;
 
 /** Markdown テキストから見出し ID のセットを収集する */
 function collectHeadings(text: string): Set<string> {

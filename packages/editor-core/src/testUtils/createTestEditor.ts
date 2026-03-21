@@ -46,7 +46,7 @@ const ListTextCleanup = Extension.create({
             if ($pos.parent.type.name !== "paragraph") return;
             for (let d = $pos.depth; d > 0; d--) {
               if ($pos.node(d).type.name === "listItem") {
-                const trimmed = node.text!.replace(/\n+$/, "");
+                const trimmed = node.text!.trimEnd();
                 changes.push({ from: pos, to: pos + node.text!.length, text: trimmed, marks: [...node.marks] });
                 break;
               }

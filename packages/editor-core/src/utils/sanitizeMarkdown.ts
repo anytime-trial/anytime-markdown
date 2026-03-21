@@ -219,8 +219,10 @@ export function sanitizeMarkdown(md: string): string {
     .map((part) => {
       if (/^```/.test(part)) return part;
       // DOMPurify は前後の改行を除去するため、退避して復元する
-      const leadingNL = part.match(/^\n*/)?.[0] ?? "";
-      const trailingNL = part.match(/\n*$/)?.[0] ?? "";
+      let leadingNL = "";
+      for (let i = 0; i < part.length && part[i] === "\n"; i++) leadingNL += "\n";
+      let trailingNL = "";
+      for (let i = part.length - 1; i >= 0 && part[i] === "\n"; i--) trailingNL += "\n";
       let inner = part.slice(leadingNL.length, part.length - (trailingNL.length || 0));
       if (!inner) return part;
       // インラインコード（任意長バッククォートのコードスパン）を DOMPurify から保護

@@ -94,7 +94,7 @@ function parseGitLogLine(line: string, localOnlyHashes: Set<string>): GraphItem 
 	const author = parts[4] ?? '';
 
 	// グラフ文字とハッシュを分離
-	const hashMatch = graphAndHash.match(/([0-9a-f]{7,})\s*$/);
+	const hashMatch = graphAndHash.trimEnd().match(/([0-9a-f]{7,})$/);
 	const hash = hashMatch ? hashMatch[1] : '';
 	let graph = hashMatch ? graphAndHash.substring(0, hashMatch.index).trimEnd() : graphAndHash;
 	if (graph.replace(/\s/g, '') === '*') {

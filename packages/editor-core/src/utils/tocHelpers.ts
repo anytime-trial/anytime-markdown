@@ -14,7 +14,7 @@ export function toGitHubSlug(
     .toLowerCase()
     .replace(/\s+/g, "-")
     .replace(/[^\p{L}\p{N}\-_]/gu, "")
-    .replace(/^-+|-+$/g, "");
+    .replace(/^-+/, "").replace(/-+$/, "");
 
   const count = usedSlugs.get(slug);
   if (count === undefined) {
