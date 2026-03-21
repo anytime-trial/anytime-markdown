@@ -32,7 +32,7 @@ export function useFileSystem(provider: FileSystemProvider | null | undefined) {
     if (!name || fileHandle?.nativeHandle) return;
     let cancelled = false;
     loadNativeHandle().then((native) => {
-      if (!cancelled && native && native.name === name) {
+      if (!cancelled && native?.name === name) {
         setFileHandleRaw({ name, nativeHandle: native });
       }
     }).catch(() => { /* IndexedDB 読み込み失敗は無視 */ });

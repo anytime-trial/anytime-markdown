@@ -96,7 +96,7 @@ export class SpecDocsDragAndDrop implements vscode.TreeDragAndDropController<Spe
 	/** ドロップターゲットからディレクトリパスを解決する */
 	private resolveDropDir(target: SpecDocsRootItem | SpecDocsItem | undefined, fallbackRoots?: string[]): string | undefined {
 		if (target instanceof SpecDocsRootItem) return target.rootPath;
-		if (target && target.isDirectory) return target.resourceUri.fsPath;
+		if (target?.isDirectory) return target.resourceUri.fsPath;
 		if (target && !target.isDirectory) return path.dirname(target.resourceUri.fsPath);
 		return fallbackRoots?.[0];
 	}

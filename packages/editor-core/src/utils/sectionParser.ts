@@ -47,7 +47,7 @@ function collectRootBody(
     if (isCodeFence(lines[i])) inCodeBlock = !inCodeBlock;
     if (!inCodeBlock) {
       const h = matchHeading(lines[i]);
-      if (h && h.level === splitLevel) break;
+      if (h?.level === splitLevel) break;
     }
     rootBodyLines.push(lines[i]);
     i++;
@@ -104,7 +104,7 @@ function buildSections(lines: string[], start: number, end: number, parentLevel:
     if (inCodeBlock) { i++; continue; }
 
     const h = matchHeading(lines[i]);
-    if (!h || h.level !== splitLevel) { i++; continue; }
+    if (h?.level !== splitLevel) { i++; continue; }
 
     const headingLine = lines[i];
     const heading = h.text;

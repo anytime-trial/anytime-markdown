@@ -108,7 +108,7 @@ export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProp
   const canCopy = hasSelection || !!blockInfo;
 
   const handleCut = useCallback(() => {
-    if (!editor || !editor.isEditable) return;
+    if (!editor?.isEditable) return;
     performBlockCopy(editor.view, true, (text) => copyTextToClipboard(text));
     handleClose();
   }, [editor, handleClose]);
@@ -160,7 +160,7 @@ export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProp
   }, [editor, readOnly, handleClose]);
 
   const handlePasteAsMarkdown = useCallback(async () => {
-    if (!editor || !editor.isEditable) { handleClose(); return; }
+    if (!editor?.isEditable) { handleClose(); return; }
     const text = await readTextFromClipboard();
     if (text) {
       insertMarkdownText(editor, text);

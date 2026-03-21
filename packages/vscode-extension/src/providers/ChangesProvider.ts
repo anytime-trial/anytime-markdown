@@ -317,7 +317,7 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem>
 			const filePath = line.substring(3).trim();
 
 			// 未追跡ディレクトリ（?? dir/）は中のファイルを個別に展開
-			if (filePath.endsWith('/') && line[0] === '?') {
+			if (filePath.endsWith('/') && line.startsWith('?')) {
 				unstaged.push(...this.expandUntrackedDir(gitRoot, filePath));
 				continue;
 			}

@@ -21,7 +21,7 @@ export function preprocessMathBlock(md: string): string {
     const line = lines[i];
 
     // コードフェンスのトグル（```で始まる行）
-    if (!inMathBlock && /^```/.test(line)) {
+    if (!inMathBlock && line.startsWith("```")) {
       inCodeFence = !inCodeFence;
       result.push(line);
       continue;

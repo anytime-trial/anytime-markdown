@@ -19,7 +19,7 @@ const isListStart = (line: string) => /^[-*+]\s|^\d+[.)]\s/.test(line);
 const isBlockquoteStart = (line: string) => /^>\s?/.test(line);
 const isHR = (line: string) => /^(?:---+|___+|\*\*\*+)\s*$/.test(line);
 const isIndented = (line: string) => /^[ \t]/.test(line);
-const isTableRow = (line: string) => /^\|/.test(line.trimStart());
+const isTableRow = (line: string) => line.trimStart().startsWith("|");
 /** 新しいブロックを開始する行か */
 const isBlockStart = (line: string) =>
   isHeading(line) || isListStart(line) || isBlockquoteStart(line) || isHR(line);
@@ -316,7 +316,7 @@ export function sanitizeMarkdown(md: string): string {
   md = preprocessComments(md);
   const parts = splitByCodeBlocks(md);
   return parts
-    .map((part) => (/^```/.test(part) ? part : sanitizeNonCodePart(part)))
+    .map((part) => (part.startsWith("```") ? part : sanitizeNonCodePart(part)))
     .join("");
 }
 
@@ -333,7 +333,7 @@ export function preserveBlankLines(md: string): string {
 
   // 1. 非コード部分: tight transition マーキング + ZWSP 処理
   const processed = parts.map((part) => {
-    if (/^```/.test(part)) return part;
+    if (part.startsWith("```")) return part;
     // テーブルセル内のバックスラッシュ改行を <br> に変換する。
     // GFM テーブルは \+改行 をセル内改行として扱わないため、
     // <br> に変換して tiptap がセル内改行として認識できるようにする。
@@ -357,8 +357,8 @@ export function preserveBlankLines(md: string): string {
   for (let j = 0; j < processed.length - 1; j++) {
     const cur = processed[j];
     const nxt = processed[j + 1];
-    const curIsCode = /^```/.test(cur);
-    const nxtIsCode = /^```/.test(nxt);
+    const curIsCode = cur.startsWith("```");
+    const nxtIsCode = nxt.startsWith("```");
 
     // 非コード → コード: フェンス前が \n（空行なし）ならマーク
     if (!curIsCode && nxtIsCode && cur.endsWith("\n") && !cur.endsWith("\n\n")) {

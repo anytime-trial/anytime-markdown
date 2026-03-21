@@ -143,7 +143,7 @@ export const CommentPanel = React.memo(function CommentPanel({
   /** 画像アノテーションの resolved を切替 */
   const toggleAnnotationResolved = useCallback((imgPos: number, annotationId: string) => {
     const node = editor.state.doc.nodeAt(imgPos);
-    if (!node || node.type.name !== "image") return;
+    if (node?.type.name !== "image") return;
     const all = parseAnnotations(node.attrs.annotations as string);
     const updated = all.map(a => a.id === annotationId ? { ...a, resolved: !a.resolved } : a);
     const { tr } = editor.state;
@@ -155,7 +155,7 @@ export const CommentPanel = React.memo(function CommentPanel({
   /** 画像アノテーションを削除 */
   const deleteAnnotation = useCallback((imgPos: number, annotationId: string) => {
     const node = editor.state.doc.nodeAt(imgPos);
-    if (!node || node.type.name !== "image") return;
+    if (node?.type.name !== "image") return;
     const all = parseAnnotations(node.attrs.annotations as string);
     const updated = all.filter(a => a.id !== annotationId);
     const { tr } = editor.state;
