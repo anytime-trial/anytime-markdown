@@ -296,7 +296,7 @@ export function TableNodeView({ editor, node, getPos }: NodeViewProps) {
   } : {};
 
   return (
-    <NodeViewWrapper>
+    <NodeViewWrapper className="block-node-wrapper">
       <Paper
         component={editOpen ? "div" : Box}
         elevation={editOpen ? 24 : 0}
