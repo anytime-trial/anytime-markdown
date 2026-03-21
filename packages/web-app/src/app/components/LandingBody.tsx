@@ -1,40 +1,14 @@
 'use client';
 
 import { ACCENT_COLOR } from '@anytime-markdown/editor-core';
-import AccountTreeIcon from '@mui/icons-material/AccountTree';
-import CodeIcon from '@mui/icons-material/Code';
-import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
-import EditNoteIcon from '@mui/icons-material/EditNote';
-import FlashOnIcon from '@mui/icons-material/FlashOn';
-import FunctionsIcon from '@mui/icons-material/Functions';
-import GitHubIcon from '@mui/icons-material/GitHub';
-import InstallDesktopIcon from '@mui/icons-material/InstallDesktop';
-import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
-import RateReviewIcon from '@mui/icons-material/RateReview';
-import TableChartIcon from '@mui/icons-material/TableChart';
-import TocIcon from '@mui/icons-material/Toc';
-import { Box, Button, Card, CardContent, Container, Grid, Link as MuiLink,Typography } from '@mui/material';
+import { Box, Button, Container, Link as MuiLink, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import Image from 'next/image';
 import NextLink from 'next/link';
 import { useTranslations } from 'next-intl';
 
+import MarkdownViewer from './MarkdownViewer';
 import SiteFooter from './SiteFooter';
-
-const featureItems = [
-  { titleKey: 'featureWysiwyg' as const, descKey: 'featureWysiwygDesc' as const, Icon: EditNoteIcon },
-  { titleKey: 'featureComment' as const, descKey: 'featureCommentDesc' as const, Icon: RateReviewIcon },
-  { titleKey: 'featureSource' as const, descKey: 'featureSourceDesc' as const, Icon: CodeIcon },
-  { titleKey: 'featureDiff' as const, descKey: 'featureDiffDesc' as const, Icon: CompareArrowsIcon },
-  { titleKey: 'featureDiagram' as const, descKey: 'featureDiagramDesc' as const, Icon: AccountTreeIcon },
-  { titleKey: 'featurePdf' as const, descKey: 'featurePdfDesc' as const, Icon: PictureAsPdfIcon },
-  { titleKey: 'featureTable' as const, descKey: 'featureTableDesc' as const, Icon: TableChartIcon },
-  { titleKey: 'featureMath' as const, descKey: 'featureMathDesc' as const, Icon: FunctionsIcon },
-  { titleKey: 'featureGithub' as const, descKey: 'featureGithubDesc' as const, Icon: GitHubIcon },
-  { titleKey: 'featurePwa' as const, descKey: 'featurePwaDesc' as const, Icon: InstallDesktopIcon },
-  { titleKey: 'featureOutline' as const, descKey: 'featureOutlineDesc' as const, Icon: TocIcon },
-  { titleKey: 'featureSlash' as const, descKey: 'featureSlashDesc' as const, Icon: FlashOnIcon },
-];
 
 export default function LandingBody({ headingFontFamily }: { headingFontFamily?: string }) {
   const t = useTranslations('Landing');
@@ -212,69 +186,10 @@ export default function LandingBody({ headingFontFamily }: { headingFontFamily?:
         </Container>
       </Box>
 
-      {/* ---- Features ---- */}
-      <Box sx={{ py: { xs: 8, md: 12 }, px: 3 }}>
+      {/* ---- Features (Markdown) ---- */}
+      <Box sx={{ py: { xs: 4, md: 6 }, px: 3 }}>
         <Container maxWidth="lg">
-          <Typography
-            variant="overline"
-            component="h2"
-            sx={{
-              display: 'block',
-              textAlign: 'center',
-              letterSpacing: '0.2em',
-              color: isDark ? ACCENT_COLOR : '#9a6b00',
-              fontWeight: 700,
-              fontSize: '0.85rem',
-              mb: 6,
-            }}
-          >
-            {t('features')}
-          </Typography>
-
-          <Grid container spacing={3}>
-            {featureItems.map(({ titleKey, descKey, Icon }) => (
-              <Grid key={titleKey} size={{ xs: 12, sm: 6, md: 4 }}>
-                <Card
-                  elevation={0}
-                  sx={{
-                    height: '100%',
-                    bgcolor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
-                    border: 1,
-                    borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
-                    borderRadius: 3,
-                    transition: 'border-color 0.2s, box-shadow 0.2s',
-                    '&:hover': {
-                      borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)',
-                    },
-                  }}
-                >
-                  <CardContent sx={{ p: 3.5 }}>
-                    <Icon
-                      aria-hidden="true"
-                      sx={{
-                        fontSize: 32,
-                        color: ACCENT_COLOR,
-                        mb: 1.5,
-                      }}
-                    />
-                    <Typography
-                      variant="subtitle1"
-                      component="h3"
-                      sx={{ fontWeight: 700, mb: 1, color: 'text.primary' }}
-                    >
-                      {t(titleKey)}
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      sx={{ color: 'text.secondary', lineHeight: 1.7 }}
-                    >
-                      {t(descKey)}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-            ))}
-          </Grid>
+          <MarkdownViewer docKey="docs%2Finfrastructure.md" />
         </Container>
       </Box>
 
