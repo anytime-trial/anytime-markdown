@@ -303,6 +303,18 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     }
   }, [editor, autoReload]);
 
+  // ESC キーで変更ガターの起点をリセット（autoReload ON 時のみ）
+  useEffect(() => {
+    if (!editor || !autoReload) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        editor.commands.setChangeGutterBaseline();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [editor, autoReload]);
+
   // VS Code Undo/Redo: ソースモード時は vscode-set-content で sourceText を更新
   // saveContent は呼ばない（contentChanged ループ防止）
   useEffect(() => {
@@ -477,7 +489,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         onToggleOutline={handleToggleOutline}
         explorerOpen={explorerOpen}
         onToggleExplorer={onToggleExplorer}
-        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenSettings={hideSettings ? undefined : () => setSettingsOpen(true)}
         explorerSlot={explorerSlot}
       />
 
