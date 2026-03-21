@@ -192,6 +192,65 @@ function TableCompareView({
   );
 }
 
+/** Paper の sx スタイルを構築する */
+function buildPaperSx(editOpen: boolean, isEditable: boolean, isDark: boolean, showToolbar: boolean) {
+  const base = {
+    border: editOpen ? 0 : 1,
+    borderColor: isEditable ? getDivider(isDark) : "transparent",
+    borderRadius: editOpen ? 0 : 1,
+    overflow: "hidden",
+    my: editOpen ? 0 : 1,
+  };
+  const editClosedSx = !editOpen ? { bgcolor: "transparent" } : {};
+  const editOpenSx = editOpen ? {
+    position: "fixed" as const,
+    inset: 0,
+    zIndex: Z_FULLSCREEN,
+    display: "flex",
+    flexDirection: "column" as const,
+    bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
+  } : {};
+  const hiddenToolbarSx = !showToolbar ? {
+    borderColor: "transparent",
+    "& > [data-block-toolbar]": {
+      maxHeight: 0, opacity: 0, py: 0, overflow: "hidden",
+    },
+  } : {};
+  return { ...base, ...editClosedSx, ...editOpenSx, ...hiddenToolbarSx };
+}
+
+/** テーブル本体の sx スタイルを構築する */
+function buildTableBodySx(collapsed: boolean, editOpen: boolean, isDark: boolean, tableSx: Record<string, unknown>) {
+  if (collapsed) return { height: 0, overflow: "hidden" };
+  return {
+    overflow: "auto",
+    ...(editOpen && {
+      flex: 1,
+      bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
+      p: 2,
+      "& table": tableSx,
+    }),
+  };
+}
+
+/** 編集ヘッダーツールバー */
+function TableEditHeader({ editor, isDark, isEditable, setEditOpen, t }: {
+  editor: Editor; isDark: boolean; isEditable: boolean;
+  setEditOpen: (v: boolean) => void; t: (key: string) => string;
+}) {
+  return (
+    <Box contentEditable={false}>
+      <EditDialogHeader
+        label={t("tableLabel")}
+        onClose={() => setEditOpen(false)}
+        icon={<TableChartIcon sx={{ fontSize: 18 }} />}
+        t={t}
+      />
+      {isEditable && <TableOperationsToolbar editor={editor} isDark={isDark} t={t} />}
+    </Box>
+  );
+}
+
 export function TableNodeView({ editor, node, getPos }: NodeViewProps) {
   const t = useTranslations("MarkdownEditor");
   const isDark = useTheme().palette.mode === "dark";
@@ -226,6 +285,8 @@ export function TableNodeView({ editor, node, getPos }: NodeViewProps) {
     "& .selectedCell": { bgcolor: getActionSelected(isDark) },
   };
 
+  const showCompare = editOpen && isCompareMode && !!highlightedCompareHtml;
+
   return (
     <NodeViewWrapper>
       <Paper
@@ -238,43 +299,10 @@ export function TableNodeView({ editor, node, getPos }: NodeViewProps) {
           onKeyDown: (e: React.KeyboardEvent) => { if (e.key === "Escape") setEditOpen(false); },
         })}
         tabIndex={editOpen ? -1 : undefined}
-        sx={{
-          border: editOpen ? 0 : 1,
-          borderColor: isEditable ? getDivider(isDark) : "transparent",
-          borderRadius: editOpen ? 0 : 1,
-          overflow: "hidden",
-          my: editOpen ? 0 : 1,
-          ...(!editOpen && { bgcolor: "transparent" }),
-          ...(editOpen && {
-            position: "fixed",
-            inset: 0,
-            zIndex: Z_FULLSCREEN,
-            display: "flex",
-            flexDirection: "column",
-            bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
-          }),
-          ...(!showToolbar && {
-            borderColor: "transparent",
-            "& > [data-block-toolbar]": {
-              maxHeight: 0, opacity: 0, py: 0, overflow: "hidden",
-            },
-          }),
-        }}
+        sx={buildPaperSx(editOpen, isEditable, isDark, showToolbar)}
       >
-        {/* Edit header toolbar */}
-        {editOpen && (
-          <Box contentEditable={false}>
-            <EditDialogHeader
-              label={t("tableLabel")}
-              onClose={() => setEditOpen(false)}
-              icon={<TableChartIcon sx={{ fontSize: 18 }} />}
-              t={t}
-            />
-            {isEditable && <TableOperationsToolbar editor={editor} isDark={isDark} t={t} />}
-          </Box>
-        )}
+        {editOpen && <TableEditHeader editor={editor} isDark={isDark} isEditable={isEditable} setEditOpen={setEditOpen} t={t} />}
 
-        {/* Inline toolbar (non-edit) */}
         {!editOpen && isEditable && (
           <BlockInlineToolbar
             label={t("tableLabel")}
@@ -286,8 +314,7 @@ export function TableNodeView({ editor, node, getPos }: NodeViewProps) {
           />
         )}
 
-        {/* Table body */}
-        {editOpen && isCompareMode && highlightedCompareHtml ? (
+        {showCompare ? (
           <TableCompareView
             highlightedCompareHtml={highlightedCompareHtml}
             tableSx={tableSx}
@@ -296,18 +323,7 @@ export function TableNodeView({ editor, node, getPos }: NodeViewProps) {
           />
         ) : (
           <Box
-            sx={collapsed
-              ? { height: 0, overflow: "hidden" }
-              : {
-                  overflow: "auto",
-                  ...(editOpen && {
-                    flex: 1,
-                    bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
-                    p: 2,
-                    "& table": tableSx,
-                  }),
-                }
-            }
+            sx={buildTableBodySx(collapsed, editOpen, isDark, tableSx)}
             onDoubleClick={!isEditable ? () => setEditOpen(true) : undefined}
           >
             <NodeViewContent<"table"> as="table" />

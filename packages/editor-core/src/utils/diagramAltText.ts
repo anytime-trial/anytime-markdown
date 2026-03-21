@@ -39,53 +39,49 @@ function isNodeIdChar(c: string): boolean {
   return /[A-Za-z0-9_]/.test(c);
 }
 
-function extractMermaidFlowchartNames(code: string): string[] {
+/** ブラケット開閉文字のマッピング */
+function closingBracket(ch: string): string | null {
+  if (ch === "[") return "]";
+  if (ch === "{") return "}";
+  if (ch === "(") return ")";
+  return null;
+}
+
+/** ノードID + ブラケットラベルを線形スキャンで抽出する */
+function extractFlowchartLabelsAndIds(code: string): { labels: string[]; nodeIds: string[] } {
   const labels: string[] = [];
   const nodeIds: string[] = [];
-
-  // Linear scan: find ID followed by [, {, or (
   for (let i = 0; i < code.length; i++) {
     if (!isNodeIdChar(code[i])) continue;
     const idStart = i;
     while (i < code.length && isNodeIdChar(code[i])) i++;
     const id = code.slice(idStart, i);
-
-    // Skip whitespace
     while (i < code.length && (code[i] === " " || code[i] === "\t")) i++;
-
-    const bracket = code[i];
-    const closeBracket = bracket === "[" ? "]" : bracket === "{" ? "}" : bracket === "(" ? ")" : null;
-    if (!closeBracket) { i--; continue; }
-
-    const labelStart = i + 1;
-    const closeIdx = code.indexOf(closeBracket, labelStart);
+    const close = closingBracket(code[i]);
+    if (!close) { i--; continue; }
+    const closeIdx = code.indexOf(close, i + 1);
     if (closeIdx === -1) { i--; continue; }
-
-    const label = code.slice(labelStart, closeIdx).trim();
-    if (label && !label.includes("-->") && !label.includes("---")) {
-      labels.push(label);
-    }
+    const label = code.slice(i + 1, closeIdx).trim();
+    if (label && !label.includes("-->") && !label.includes("---")) labels.push(label);
     nodeIds.push(id);
     i = closeIdx;
   }
+  return { labels, nodeIds };
+}
 
-  if (labels.length > 0) return unique(labels);
-
-  // Fallback: extract bare node IDs from arrow patterns (A --> B)
+/** 矢印パターン (A --> B) から bare ノードIDを抽出する */
+function extractBareArrowIds(code: string): string[] {
   const bareIds: string[] = [];
   let arrowIdx = code.indexOf("-->");
   while (arrowIdx !== -1) {
-    // Source: scan backward from arrow
     let s = arrowIdx - 1;
     while (s >= 0 && (code[s] === " " || code[s] === "\t")) s--;
     const srcEnd = s + 1;
     while (s >= 0 && isNodeIdChar(code[s])) s--;
     if (srcEnd > s + 1) bareIds.push(code.slice(s + 1, srcEnd));
 
-    // Destination: scan forward from arrow
     let d = arrowIdx + 3;
     while (d < code.length && (code[d] === " " || code[d] === "\t")) d++;
-    // Skip optional |label|
     if (code[d] === "|") {
       const pipeEnd = code.indexOf("|", d + 1);
       if (pipeEnd !== -1) { d = pipeEnd + 1; while (d < code.length && (code[d] === " " || code[d] === "\t")) d++; }
@@ -96,7 +92,13 @@ function extractMermaidFlowchartNames(code: string): string[] {
 
     arrowIdx = code.indexOf("-->", arrowIdx + 3);
   }
+  return bareIds;
+}
 
+function extractMermaidFlowchartNames(code: string): string[] {
+  const { labels, nodeIds } = extractFlowchartLabelsAndIds(code);
+  if (labels.length > 0) return unique(labels);
+  const bareIds = extractBareArrowIds(code);
   return unique(bareIds.length > 0 ? bareIds : nodeIds);
 }
 

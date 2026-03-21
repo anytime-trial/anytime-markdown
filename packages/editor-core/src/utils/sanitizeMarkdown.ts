@@ -143,14 +143,95 @@ function addHardBreaksToConsecutiveLines(text: string): string {
  */
 function escapeTableCodeSpanPipes(md: string): string {
   return md.replace(/^(\|.+\|)$/gm, (line) => {
-    // コードスパンを検出し、その中のエスケープされていないパイプを \| でエスケープ
-    // markdown-it テーブルパーサーが \| をエスケープ済みパイプとして処理し、
-    // コードスパンのパースでは \ が消費されて | のみが残る
     return line.replace(/(?<!`)(`+)(?!`)(.*?)(?<!`)\1(?!`)/g, (m, ticks: string, content: string) => {
       if (!content.includes("|")) return m;
       return ticks + content.replace(/(?<!\\)\|/g, "\\|") + ticks;
     });
   });
+}
+
+/** コードスパン内の閉じバッククォートを探す。見つからなければ -1 を返す */
+function findClosingTicks(text: string, openTicks: string, tickCount: number, from: number): number {
+  let searchFrom = from;
+  while (searchFrom < text.length) {
+    const closePos = text.indexOf(openTicks, searchFrom);
+    if (closePos === -1) return -1;
+    const before = closePos > 0 ? text[closePos - 1] : "";
+    const after = closePos + tickCount < text.length ? text[closePos + tickCount] : "";
+    if (before !== "`" && after !== "`") return closePos;
+    searchFrom = closePos + 1;
+  }
+  return -1;
+}
+
+/** インラインコードスパンをプレースホルダに退避し、退避リストを返す */
+function protectInlineCodeSpans(text: string): { result: string; codes: string[] } {
+  const codes: string[] = [];
+  let out = "";
+  let j = 0;
+  while (j < text.length) {
+    if (text[j] !== "`") { out += text[j]; j++; continue; }
+    const tickStart = j;
+    while (j < text.length && text[j] === "`") j++;
+    const tickCount = j - tickStart;
+    const openTicks = "`".repeat(tickCount);
+    const closePos = findClosingTicks(text, openTicks, tickCount, j);
+    if (closePos === -1) { out += openTicks; continue; }
+    const fullCode = text.slice(tickStart, closePos + tickCount);
+    codes.push(fullCode);
+    out += `\uE000IC${codes.length - 1}\uE000`;
+    j = closePos + tickCount;
+  }
+  return { result: out, codes };
+}
+
+/** DOMPurify から保護するためにタグをプレースホルダに退避する汎用関数 */
+function protectSpans(text: string, pattern: RegExp, prefix: string): { result: string; spans: string[] } {
+  const spans: string[] = [];
+  const result = text.replace(pattern, (m) => {
+    spans.push(m);
+    return `\uE000${prefix}${spans.length - 1}\uE000`;
+  });
+  return { result, spans };
+}
+
+/** プレースホルダを元のスパンに復元する */
+function restoreSpans(text: string, prefix: string, spans: string[]): string {
+  return text.replace(new RegExp(`\uE000${prefix}(\\d+)\uE000`, "g"), (_, i) => spans[Number(i)]);
+}
+
+/** 行頭が ``` で始まり、残りが空白のみかチェック */
+function isClosingFenceLine(md: string, k: number, len: number): boolean {
+  if (!((k === 0 || md[k - 1] === "\n") && k + 2 < len && md[k] === "`" && md[k + 1] === "`" && md[k + 2] === "`")) {
+    return false;
+  }
+  let m = k + 3;
+  while (m < len && md[m] !== "\n") {
+    if (md[m] !== " " && md[m] !== "\t") return false;
+    m++;
+  }
+  return true;
+}
+
+/** 閉じフェンス（行頭 ``` + 空白のみ）の開始位置を探す。見つからなければ -1 */
+function findClosingFence(md: string, from: number): number {
+  const len = md.length;
+  let k = from;
+  while (k < len) {
+    if (isClosingFenceLine(md, k, len)) return k;
+    k = md.indexOf("\n", k);
+    if (k === -1) break;
+    k++;
+  }
+  return -1;
+}
+
+/** 閉じフェンスの末尾位置（trailing whitespace を含む）を返す */
+function findFenceEnd(md: string, closeStart: number): number {
+  const len = md.length;
+  let closeEnd = closeStart + 3;
+  while (closeEnd < len && md[closeEnd] !== "\n" && (md[closeEnd] === " " || md[closeEnd] === "\t")) closeEnd++;
+  return closeEnd;
 }
 
 export function splitByCodeBlocks(md: string): string[] {
@@ -160,45 +241,22 @@ export function splitByCodeBlocks(md: string): string[] {
   let i = 0;
 
   while (i < len) {
-    // 行頭の ``` を探す
     const atLineStart = i === 0 || md[i - 1] === "\n";
-    if (atLineStart && i + 2 < len && md[i] === "`" && md[i + 1] === "`" && md[i + 2] === "`") {
-      // 開きフェンス行の末尾を探す
-      const eol = md.indexOf("\n", i);
-      if (eol === -1) { i = len; break; } // 最終行に開きフェンスのみ → コードブロックなし
-      // 閉じフェンスを行単位で探す
-      let closeStart = -1;
-      let k = eol + 1;
-      while (k < len) {
-        if ((k === 0 || md[k - 1] === "\n") && k + 2 < len && md[k] === "`" && md[k + 1] === "`" && md[k + 2] === "`") {
-          // 残りが空白のみか確認
-          let m = k + 3;
-          while (m < len && md[m] !== "\n") { if (md[m] !== " " && md[m] !== "\t") break; m++; }
-          if (m === len || md[m] === "\n") { closeStart = k; break; }
-        }
-        k = md.indexOf("\n", k);
-        if (k === -1) break;
-        k++; // 次の行頭へ
-      }
-      if (closeStart === -1) {
-        // 閉じフェンスなし → スキップして次の行へ
-        i = eol + 1;
-        continue;
-      }
-      // 閉じフェンス行の末尾（``` + trailing whitespace）
-      let closeEnd = closeStart + 3;
-      while (closeEnd < len && md[closeEnd] !== "\n" && (md[closeEnd] === " " || md[closeEnd] === "\t")) closeEnd++;
-      // コードブロック前のテキストを push
-      if (i > lastEnd) parts.push(md.slice(lastEnd, i));
-      // コードブロック本体を push
-      parts.push(md.slice(i, closeEnd));
-      lastEnd = closeEnd;
-      i = closeEnd;
-    } else {
-      // 次の行頭へ移動
+    const isTripleBacktick = atLineStart && i + 2 < len && md[i] === "`" && md[i + 1] === "`" && md[i + 2] === "`";
+    if (!isTripleBacktick) {
       const nl = md.indexOf("\n", i);
       i = nl === -1 ? len : nl + 1;
+      continue;
     }
+    const eol = md.indexOf("\n", i);
+    if (eol === -1) { i = len; break; }
+    const closeStart = findClosingFence(md, eol + 1);
+    if (closeStart === -1) { i = eol + 1; continue; }
+    const closeEnd = findFenceEnd(md, closeStart);
+    if (i > lastEnd) parts.push(md.slice(lastEnd, i));
+    parts.push(md.slice(i, closeEnd));
+    lastEnd = closeEnd;
+    i = closeEnd;
   }
   if (lastEnd < len) parts.push(md.slice(lastEnd));
   return parts;
@@ -210,115 +268,55 @@ export function splitByCodeBlocks(md: string): string[] {
  * コードブロック（```...```）内はサニタイズ対象外とし、
  * DOMPurify による &gt; 等のエスケープを防ぐ。
  */
+/** 非コード部分をサニタイズする */
+function sanitizeNonCodePart(part: string): string {
+  // DOMPurify は前後の改行を除去するため、退避して復元する
+  let leadingNL = "";
+  for (let i = 0; i < part.length && part[i] === "\n"; i++) leadingNL += "\n";
+  let trailingNL = "";
+  for (let i = part.length - 1; i >= 0 && part[i] === "\n"; i--) trailingNL += "\n";
+  let inner = part.slice(leadingNL.length, part.length - (trailingNL.length || 0));
+  if (!inner) return part;
+
+  // インラインコードを保護
+  const { result: withoutCode, codes: inlineCodes } = protectInlineCodeSpans(inner);
+  inner = withoutCode;
+
+  // 各種 HTML スパンをプレースホルダに退避
+  const math = protectSpans(inner, /<span data-math-inline="[^"]*"><\/span>/g, "MATH");
+  inner = math.result;
+  const fn = protectSpans(inner, /<sup data-footnote-ref="[^"]*">[^<]*<\/sup>/g, "FN");
+  inner = fn.result;
+  const adm = protectSpans(inner, /<blockquote data-admonition-type="[^"]*">[^<]*(?:<(?!\/blockquote>)[^<]*)*<\/blockquote>/g, "ADM");
+  inner = adm.result;
+  const cmt = protectSpans(inner, /<span data-comment-id="[^"]*">[^<]*(?:<(?!\/span>)[^<]*)*<\/span>/g, "CMT");
+  inner = cmt.result;
+  const cmtp = protectSpans(inner, /<span data-comment-point="[^"]*"><\/span>/g, "CMTP");
+  inner = cmtp.result;
+
+  // DOMPurify でサニタイズ
+  let sanitized = DOMPurify.sanitize(inner, { ALLOWED_TAGS, ALLOWED_ATTR, KEEP_CONTENT: true })
+    .replace(/&(amp|lt|gt);/g, (m) => ({ "&amp;": "&", "&lt;": "<", "&gt;": ">" })[m] ?? m);
+
+  // プレースホルダを復元
+  sanitized = restoreSpans(sanitized, "MATH", math.spans);
+  sanitized = restoreSpans(sanitized, "ADM", adm.spans);
+  sanitized = restoreSpans(sanitized, "FN", fn.spans);
+  sanitized = restoreSpans(sanitized, "CMTP", cmtp.spans);
+  sanitized = restoreSpans(sanitized, "CMT", cmt.spans);
+  sanitized = restoreSpans(sanitized, "IC", inlineCodes);
+  return leadingNL + sanitized + trailingNL;
+}
+
 export function sanitizeMarkdown(md: string): string {
-  // Math 前処理: $$...$$ → ```math
   md = preprocessMathBlock(md);
-  // Admonition 前処理: > [!TYPE] → <blockquote data-admonition-type>
   md = preprocessAdmonition(md);
-  // テーブル行内コードスパンのパイプをエスケープ（セル区切りとの誤認防止）
   md = escapeTableCodeSpanPipes(md);
-  // 脚注参照前処理: [^id] → <sup data-footnote-ref>
   md = preprocessFootnoteRefs(md);
-  // コメント前処理: <!-- comment-start/end/point --> → <span data-comment-id/point>
   md = preprocessComments(md);
-  // コードブロック境界で分割し、コードブロック外のみサニタイズ
   const parts = splitByCodeBlocks(md);
   return parts
-    .map((part) => {
-      if (/^```/.test(part)) return part;
-      // DOMPurify は前後の改行を除去するため、退避して復元する
-      let leadingNL = "";
-      for (let i = 0; i < part.length && part[i] === "\n"; i++) leadingNL += "\n";
-      let trailingNL = "";
-      for (let i = part.length - 1; i >= 0 && part[i] === "\n"; i--) trailingNL += "\n";
-      let inner = part.slice(leadingNL.length, part.length - (trailingNL.length || 0));
-      if (!inner) return part;
-      // インラインコード（任意長バッククォートのコードスパン）を DOMPurify から保護
-      // 注意: \x00 (NUL) はブラウザの DOMPurify が HTML 仕様に従い除去するため、
-      // Unicode Private Use Area 文字 \uE000 をデリミタとして使用する。
-      // CommonMark 仕様: コードスパンは同数のバッククォートで開閉する（1〜N個）
-      const inlineCodes: string[] = [];
-      {
-        let out = "";
-        let j = 0;
-        while (j < inner.length) {
-          if (inner[j] === "`") {
-            const tickStart = j;
-            while (j < inner.length && inner[j] === "`") j++;
-            const tickCount = j - tickStart;
-            const openTicks = "`".repeat(tickCount);
-            let found = false;
-            let searchFrom = j;
-            while (searchFrom < inner.length) {
-              const closePos = inner.indexOf(openTicks, searchFrom);
-              if (closePos === -1) break;
-              const before = closePos > 0 ? inner[closePos - 1] : "";
-              const after = closePos + tickCount < inner.length ? inner[closePos + tickCount] : "";
-              if (before !== "`" && after !== "`") {
-                const fullCode = inner.slice(tickStart, closePos + tickCount);
-                inlineCodes.push(fullCode);
-                out += `\uE000IC${inlineCodes.length - 1}\uE000`;
-                j = closePos + tickCount;
-                found = true;
-                break;
-              }
-              searchFrom = closePos + 1;
-            }
-            if (!found) out += openTicks;
-          } else {
-            out += inner[j];
-            j++;
-          }
-        }
-        inner = out;
-      }
-      // math inline スパンを DOMPurify から保護するため、一時プレースホルダに退避
-      const mathSpans: string[] = [];
-      inner = inner.replace(/<span data-math-inline="[^"]*"><\/span>/g, (m) => {
-        mathSpans.push(m);
-        return `\uE000MATH${mathSpans.length - 1}\uE000`;
-      });
-      // 脚注参照 sup を DOMPurify から保護
-      const fnSpans: string[] = [];
-      inner = inner.replace(/<sup data-footnote-ref="[^"]*">[^<]*<\/sup>/g, (m) => {
-        fnSpans.push(m);
-        return `\uE000FN${fnSpans.length - 1}\uE000`;
-      });
-      // admonition blockquote を DOMPurify から保護
-      const admBlocks: string[] = [];
-      inner = inner.replace(/<blockquote data-admonition-type="[^"]*">[^<]*(?:<(?!\/blockquote>)[^<]*)*<\/blockquote>/g, (m) => {
-        admBlocks.push(m);
-        return `\uE000ADM${admBlocks.length - 1}\uE000`;
-      });
-      // コメントハイライト span を保護
-      const cmtBlocks: string[] = [];
-      inner = inner.replace(/<span data-comment-id="[^"]*">[^<]*(?:<(?!\/span>)[^<]*)*<\/span>/g, (m) => {
-        cmtBlocks.push(m); return `\uE000CMT${cmtBlocks.length - 1}\uE000`;
-      });
-      // コメントポイント span を保護
-      const cmtPoints: string[] = [];
-      inner = inner.replace(/<span data-comment-point="[^"]*"><\/span>/g, (m) => {
-        cmtPoints.push(m); return `\uE000CMTP${cmtPoints.length - 1}\uE000`;
-      });
-      // DOMPurify でサニタイズ後、マークダウンで意味を持つ文字の
-      // HTMLエンティティを元に戻す
-      let sanitized = DOMPurify.sanitize(inner, { ALLOWED_TAGS, ALLOWED_ATTR, KEEP_CONTENT: true })
-        .replace(/&(amp|lt|gt);/g, (m) => ({ "&amp;": "&", "&lt;": "<", "&gt;": ">" })[m] ?? m);
-      // math inline スパンを復元
-      sanitized = sanitized.replace(/\uE000MATH(\d+)\uE000/g, (_, i) => mathSpans[Number(i)]);
-      // admonition blockquote を復元
-      sanitized = sanitized.replace(/\uE000ADM(\d+)\uE000/g, (_, i) => admBlocks[Number(i)]);
-      // 脚注参照 sup を復元
-      sanitized = sanitized.replace(/\uE000FN(\d+)\uE000/g, (_, i) => fnSpans[Number(i)]);
-      // コメントポイント span を復元
-      sanitized = sanitized.replace(/\uE000CMTP(\d+)\uE000/g, (_, i) => cmtPoints[Number(i)]);
-      // コメントハイライト span を復元
-      sanitized = sanitized.replace(/\uE000CMT(\d+)\uE000/g, (_, i) => cmtBlocks[Number(i)]);
-      // インラインコードを復元（プレースホルダーから元のコードに戻す）
-      // DOMPurify はプレースホルダーしか見ないため、コード内の HTML は変更されない
-      sanitized = sanitized.replace(/\uE000IC(\d+)\uE000/g, (_, i) => inlineCodes[Number(i)]);
-      return leadingNL + sanitized + trailingNL;
-    })
+    .map((part) => (/^```/.test(part) ? part : sanitizeNonCodePart(part)))
     .join("");
 }
 
@@ -405,52 +403,35 @@ export function restoreBlankLines(md: string): string {
  * 区切り数を増やすが、CommonMark 仕様では同数のバッククォートのみが
  * 閉じ区切りとなるため、より少ない区切りで安全にデリミットできる場合がある。
  */
+/** content 内のバッククォート連続長の集合を返す */
+function collectTickRuns(content: string): Set<number> {
+  const runs = new Set<number>();
+  let r = 0;
+  for (let c = 0; c < content.length; c++) {
+    if (content[c] === "`") { r++; }
+    else { if (r > 0) runs.add(r); r = 0; }
+  }
+  if (r > 0) runs.add(r);
+  return runs;
+}
+
 export function normalizeCodeSpanDelimitersInLine(line: string): string {
   let out = "";
   let i = 0;
   while (i < line.length) {
-    if (line[i] === "`") {
-      const tickStart = i;
-      while (i < line.length && line[i] === "`") i++;
-      const tickCount = i - tickStart;
-      const openTicks = "`".repeat(tickCount);
-
-      // 閉じ区切り（同数のバッククォート）を探す
-      let found = false;
-      let searchFrom = i;
-      while (searchFrom < line.length) {
-        const closePos = line.indexOf(openTicks, searchFrom);
-        if (closePos === -1) break;
-        const before = closePos > 0 ? line[closePos - 1] : "";
-        const after = closePos + tickCount < line.length ? line[closePos + tickCount] : "";
-        if (before !== "`" && after !== "`") {
-          const content = line.slice(i, closePos);
-          // content 内のバッククォート連続長を集める
-          const runs = new Set<number>();
-          let r = 0;
-          for (let c = 0; c < content.length; c++) {
-            if (content[c] === "`") { r++; }
-            else { if (r > 0) runs.add(r); r = 0; }
-          }
-          if (r > 0) runs.add(r);
-          // 最小の安全な区切り数を求める（runs に含まれない最小正整数）
-          let minTicks = 1;
-          while (runs.has(minTicks)) minTicks++;
-
-          out += "`".repeat(minTicks) + content + "`".repeat(minTicks);
-          i = closePos + tickCount;
-          found = true;
-          break;
-        }
-        searchFrom = closePos + 1;
-      }
-      if (!found) {
-        out += openTicks;
-      }
-    } else {
-      out += line[i];
-      i++;
-    }
+    if (line[i] !== "`") { out += line[i]; i++; continue; }
+    const tickStart = i;
+    while (i < line.length && line[i] === "`") i++;
+    const tickCount = i - tickStart;
+    const openTicks = "`".repeat(tickCount);
+    const closePos = findClosingTicks(line, openTicks, tickCount, i);
+    if (closePos === -1) { out += openTicks; continue; }
+    const content = line.slice(i, closePos);
+    const runs = collectTickRuns(content);
+    let minTicks = 1;
+    while (runs.has(minTicks)) minTicks++;
+    out += "`".repeat(minTicks) + content + "`".repeat(minTicks);
+    i = closePos + tickCount;
   }
   return out;
 }

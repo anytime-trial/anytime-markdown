@@ -62,6 +62,111 @@ interface CodeBlockEditDialogProps {
   t: (key: string) => string;
 }
 
+/** Built-in Hello World sample panel (shown when no customSamples provided) */
+function BuiltInSamplePanel({
+  language, samplesOpen, setSamplesOpen, handleInsertSample, isDark, t,
+}: {
+  language: string;
+  samplesOpen: boolean;
+  setSamplesOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  handleInsertSample: (code: string) => void;
+  isDark: boolean;
+  t: (key: string) => string;
+}) {
+  const currentLangSample = CODE_HELLO_SAMPLES[language];
+  const sampleEntries = Object.entries(CODE_HELLO_SAMPLES);
+  return (
+    <Box sx={{ borderTop: 1, borderColor: getDivider(isDark), flexShrink: 0 }}>
+      <Box
+        onClick={() => setSamplesOpen((v) => !v)}
+        sx={{ display: "flex", alignItems: "center", px: 1.5, py: 0.5, cursor: "pointer", userSelect: "none", "&:hover": { bgcolor: getActionHover(isDark) } }}
+      >
+        <Typography variant="caption" sx={{ fontWeight: 600, fontSize: FS_PANEL_HEADER_FONT_SIZE, flex: 1 }}>
+          {t("sampleContent")}
+        </Typography>
+      </Box>
+      {samplesOpen && (
+        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, px: 1.5, pb: 1.5 }}>
+          {currentLangSample && (
+            <Chip
+              label={`${language} (Hello World)`}
+              size="small"
+              color="primary"
+              variant="outlined"
+              onClick={() => handleInsertSample(currentLangSample)}
+              sx={{ fontSize: CHIP_FONT_SIZE, height: FS_CHIP_HEIGHT }}
+            />
+          )}
+          {sampleEntries
+            .filter(([lang]) => lang !== language)
+            .map(([lang, code]) => (
+              <Chip
+                key={lang}
+                label={lang}
+                size="small"
+                onClick={() => handleInsertSample(code)}
+                sx={{ fontSize: CHIP_FONT_SIZE, height: FS_CHIP_HEIGHT }}
+              />
+            ))}
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+/** Syntax-highlighted code preview panel */
+function SyntaxPreviewPanel({
+  fsZP, renderPreview, fsCode, isDark, settings, highlightedHtml,
+}: {
+  fsZP: ReturnType<typeof useZoomPan>;
+  renderPreview?: (code: string) => React.ReactNode;
+  fsCode: string;
+  isDark: boolean;
+  settings: ReturnType<typeof useEditorSettingsContext>;
+  highlightedHtml: string;
+}) {
+  if (renderPreview) {
+    return (
+      <>
+        <ZoomToolbar fsZP={fsZP} t={() => ""} />
+        <Box sx={{ flex: 1, overflow: "auto", bgcolor: isDark ? "#F8F9FA" : undefined, p: 2 }}>
+          {renderPreview(fsCode)}
+        </Box>
+      </>
+    );
+  }
+  return (
+    <>
+      <ZoomToolbar fsZP={fsZP} t={() => ""} />
+      <ZoomablePreview fsZP={fsZP} origin="top-left">
+        <Box
+          component="pre"
+          sx={{
+            fontFamily: "monospace",
+            fontSize: `${settings.fontSize}px`,
+            lineHeight: settings.lineHeight,
+            p: 2,
+            m: 0,
+            whiteSpace: "pre-wrap",
+            overflowWrap: "break-word",
+            color: getTextPrimary(isDark),
+            "& .hljs-keyword, & .hljs-selector-tag, & .hljs-built_in, & .hljs-type": { color: isDark ? "#ff7b72" : "#cf222e" },
+            "& .hljs-string, & .hljs-attr, & .hljs-template-tag, & .hljs-template-variable": { color: isDark ? "#a5d6ff" : "#0a3069" },
+            "& .hljs-comment, & .hljs-doctag": { color: isDark ? "#8b949e" : "#6e7781" },
+            "& .hljs-number, & .hljs-literal, & .hljs-variable, & .hljs-regexp": { color: isDark ? "#79c0ff" : "#0550ae" },
+            "& .hljs-title": { color: isDark ? "#d2a8ff" : "#8250df" },
+            "& .hljs-params": { color: isDark ? "#c9d1d9" : "#24292f" },
+            "& .hljs-meta": { color: isDark ? "#ffa657" : "#953800" },
+            "& .hljs-symbol, & .hljs-bullet": { color: isDark ? "#ffa657" : "#953800" },
+            "& .hljs-property, & .hljs-name": { color: isDark ? "#79c0ff" : "#0550ae" },
+          }}
+          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(highlightedHtml, { ALLOWED_TAGS: ["span"], ALLOWED_ATTR: ["class"] }) }}
+        />
+      </ZoomablePreview>
+    </>
+  );
+}
+
 export function CodeBlockEditDialog({
   open, onClose, label, language, fsCode, onFsCodeChange, onFsTextChange, fsTextareaRef, fsSearch: _fsSearch,
   readOnly, isCompareMode, compareCode, onMergeApply, thisCode, toolbarExtra, customSamples, renderPreview,
@@ -90,14 +195,16 @@ export function CodeBlockEditDialog({
     }
   }, [fsCode, language]);
 
-  const currentLangSample = CODE_HELLO_SAMPLES[language];
-  const sampleEntries = Object.entries(CODE_HELLO_SAMPLES);
-
   const showCompareView = isCompareMode && compareCode != null;
+
+  const samplePanel = customSamples
+    ? <SamplePanel samples={customSamples} onInsert={handleInsertSample} readOnly={readOnly} t={t} />
+    : !readOnly
+      ? <BuiltInSamplePanel language={language} samplesOpen={samplesOpen} setSamplesOpen={setSamplesOpen} handleInsertSample={handleInsertSample} isDark={isDark} t={t} />
+      : null;
 
   const codePanel = (
     <>
-      {/* Code toolbar */}
       <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: getDivider(isDark), px: 1, py: 0.25, minHeight: FS_TOOLBAR_HEIGHT }}>
         <Typography variant="caption" sx={{ fontWeight: 600, fontSize: FS_PANEL_HEADER_FONT_SIZE, flex: 1 }}>
           {t("codeTab")}
@@ -113,84 +220,12 @@ export function CodeBlockEditDialog({
         lineHeight={settings.lineHeight}
         isDark={isDark}
       />
-      {/* Sample panel */}
-      {customSamples ? (
-        <SamplePanel samples={customSamples} onInsert={handleInsertSample} readOnly={readOnly} t={t} />
-      ) : !readOnly && (
-        <Box sx={{ borderTop: 1, borderColor: getDivider(isDark), flexShrink: 0 }}>
-          <Box
-            onClick={() => setSamplesOpen((v) => !v)}
-            sx={{ display: "flex", alignItems: "center", px: 1.5, py: 0.5, cursor: "pointer", userSelect: "none", "&:hover": { bgcolor: getActionHover(isDark) } }}
-          >
-            <Typography variant="caption" sx={{ fontWeight: 600, fontSize: FS_PANEL_HEADER_FONT_SIZE, flex: 1 }}>
-              {t("sampleContent")}
-            </Typography>
-          </Box>
-          {samplesOpen && (
-            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, px: 1.5, pb: 1.5 }}>
-              {currentLangSample && (
-                <Chip
-                  label={`${language} (Hello World)`}
-                  size="small"
-                  color="primary"
-                  variant="outlined"
-                  onClick={() => handleInsertSample(currentLangSample)}
-                  sx={{ fontSize: CHIP_FONT_SIZE, height: FS_CHIP_HEIGHT }}
-                />
-              )}
-              {sampleEntries
-                .filter(([lang]) => lang !== language)
-                .map(([lang, code]) => (
-                  <Chip
-                    key={lang}
-                    label={lang}
-                    size="small"
-                    onClick={() => handleInsertSample(code)}
-                    sx={{ fontSize: CHIP_FONT_SIZE, height: FS_CHIP_HEIGHT }}
-                  />
-                ))}
-            </Box>
-          )}
-        </Box>
-      )}
+      {samplePanel}
     </>
   );
 
   const previewPanel = (
-    <>
-      <ZoomToolbar fsZP={fsZP} t={t} />
-      {renderPreview ? (
-        <Box sx={{ flex: 1, overflow: "auto", bgcolor: isDark ? "#F8F9FA" : undefined, p: 2 }}>
-          {renderPreview(fsCode)}
-        </Box>
-      ) : (
-        <ZoomablePreview fsZP={fsZP} origin="top-left">
-          <Box
-            component="pre"
-            sx={{
-              fontFamily: "monospace",
-              fontSize: `${settings.fontSize}px`,
-              lineHeight: settings.lineHeight,
-              p: 2,
-              m: 0,
-              whiteSpace: "pre-wrap",
-              overflowWrap: "break-word",
-              color: getTextPrimary(isDark),
-              "& .hljs-keyword, & .hljs-selector-tag, & .hljs-built_in, & .hljs-type": { color: isDark ? "#ff7b72" : "#cf222e" },
-              "& .hljs-string, & .hljs-attr, & .hljs-template-tag, & .hljs-template-variable": { color: isDark ? "#a5d6ff" : "#0a3069" },
-              "& .hljs-comment, & .hljs-doctag": { color: isDark ? "#8b949e" : "#6e7781" },
-              "& .hljs-number, & .hljs-literal, & .hljs-variable, & .hljs-regexp": { color: isDark ? "#79c0ff" : "#0550ae" },
-              "& .hljs-title": { color: isDark ? "#d2a8ff" : "#8250df" },
-              "& .hljs-params": { color: isDark ? "#c9d1d9" : "#24292f" },
-              "& .hljs-meta": { color: isDark ? "#ffa657" : "#953800" },
-              "& .hljs-symbol, & .hljs-bullet": { color: isDark ? "#ffa657" : "#953800" },
-              "& .hljs-property, & .hljs-name": { color: isDark ? "#79c0ff" : "#0550ae" },
-            }}
-            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(highlightedHtml, { ALLOWED_TAGS: ["span"], ALLOWED_ATTR: ["class"] }) }}
-          />
-        </ZoomablePreview>
-      )}
-    </>
+    <SyntaxPreviewPanel fsZP={fsZP} renderPreview={renderPreview} fsCode={fsCode} isDark={isDark} settings={settings} highlightedHtml={highlightedHtml} />
   );
 
   return (

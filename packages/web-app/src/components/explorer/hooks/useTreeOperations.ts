@@ -30,6 +30,63 @@ function updateExpandedPaths(
   });
 }
 
+/** ディレクトリ内の全ファイルを新パスにリネームする */
+async function renameDirFiles(repoFullName: string, branch: string, oldDir: string, newDir: string): Promise<boolean> {
+  const allFiles = await listAllFiles(repoFullName, branch, oldDir);
+  if (allFiles.length === 0) return false;
+  for (const filePath of allFiles) {
+    const suffix = filePath.slice(oldDir.length);
+    const ok = await renameFile(repoFullName, filePath, newDir + suffix, branch);
+    if (!ok) return false;
+  }
+  return true;
+}
+
+/** 移動後のキャッシュを更新する */
+function updateCacheAfterMove(
+  childrenCache: Map<string, TreeEntry[]>,
+  hasMdCache: Map<string, boolean>,
+  srcDir: string,
+  targetDir: string,
+  sourcePath: string,
+  entry: TreeEntry,
+  newPath: string,
+  isDir: boolean,
+): void {
+  const srcEntries = childrenCache.get(srcDir) ?? [];
+  const updatedSrc = srcEntries.filter((e) => e.path !== sourcePath);
+  childrenCache.set(srcDir, updatedSrc);
+  if (!updatedSrc.some((e) => e.type === "blob")) {
+    hasMdCache.set(srcDir, updatedSrc.some((e) => e.type === "tree" && hasMdCache.get(e.path) === true));
+  }
+  const movedEntry: TreeEntry = { ...entry, path: newPath };
+  const targetEntries = childrenCache.get(targetDir) ?? [];
+  childrenCache.set(targetDir, [...targetEntries, movedEntry].sort((a, b) => {
+    if (a.type !== b.type) return a.type === "tree" ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  }));
+  if (!isDir) hasMdCache.set(targetDir, true);
+  if (isDir) {
+    childrenCache.delete(sourcePath);
+    hasMdCache.delete(sourcePath);
+  }
+}
+
+/** 移動後の選択中ファイルパスを更新する */
+function updateSelectedPathAfterMove(
+  selectedFilePath: string | null,
+  sourcePath: string,
+  newPath: string,
+  isDir: boolean,
+  setSelectedFilePath: (path: string | null) => void,
+): void {
+  if (selectedFilePath === sourcePath) {
+    setSelectedFilePath(newPath);
+  } else if (isDir && selectedFilePath?.startsWith(sourcePath + "/")) {
+    setSelectedFilePath(newPath + selectedFilePath.slice(sourcePath.length));
+  }
+}
+
 interface UseTreeOperationsArgs {
   selectedRepo: GitHubRepo | null;
   selectedBranch: string;
@@ -370,70 +427,14 @@ export function useTreeOperations({
       const newPath = targetDir ? `${targetDir}/${name}` : name;
       const isDir = entry.type === "tree";
 
-      if (isDir) {
-        const allFiles = await listAllFiles(
-          selectedRepo.fullName,
-          selectedBranch,
-          sourcePath,
-        );
-        if (allFiles.length === 0) return;
-        let allOk = true;
-        for (const filePath of allFiles) {
-          const suffix = filePath.slice(sourcePath.length);
-          const ok = await renameFile(
-            selectedRepo.fullName,
-            filePath,
-            newPath + suffix,
-            selectedBranch,
-          );
-          if (!ok) { allOk = false; break; }
-        }
-        if (!allOk) return;
-      } else {
-        const ok = await renameFile(
-          selectedRepo.fullName,
-          sourcePath,
-          newPath,
-          selectedBranch,
-        );
-        if (!ok) return;
-      }
+      const renameOk = isDir
+        ? await renameDirFiles(selectedRepo.fullName, selectedBranch, sourcePath, newPath)
+        : await renameFile(selectedRepo.fullName, sourcePath, newPath, selectedBranch);
+      if (!renameOk) return;
 
-      // キャッシュ更新: ソースから削除
-      const updatedSrc = srcEntries.filter((e) => e.path !== sourcePath);
-      childrenCacheRef.current.set(srcDir, updatedSrc);
-      if (!updatedSrc.some((e) => e.type === "blob")) {
-        hasMdCacheRef.current.set(srcDir, updatedSrc.some((e) => e.type === "tree" && hasMdCacheRef.current.get(e.path) === true));
-      }
-
-      // ターゲットに追加
-      const movedEntry: TreeEntry = { ...entry, path: newPath };
-      const targetEntries = childrenCacheRef.current.get(targetDir) ?? [];
-      childrenCacheRef.current.set(targetDir, [...targetEntries, movedEntry].sort((a, b) => {
-        if (a.type !== b.type) return a.type === "tree" ? -1 : 1;
-        return a.name.localeCompare(b.name);
-      }));
-      if (!isDir) {
-        hasMdCacheRef.current.set(targetDir, true);
-      }
-
-      // フォルダのサブキャッシュ移動
-      if (isDir) {
-        childrenCacheRef.current.delete(sourcePath);
-        hasMdCacheRef.current.delete(sourcePath);
-      }
-
-      // 選択中ファイルのパス更新
-      if (selectedFilePath === sourcePath) {
-        setSelectedFilePath(newPath);
-      } else if (isDir && selectedFilePath?.startsWith(sourcePath + "/")) {
-        setSelectedFilePath(newPath + selectedFilePath.slice(sourcePath.length));
-      }
-
-      // 展開状態の更新
-      if (isDir) {
-        updateExpandedPaths(setExpanded, sourcePath, newPath);
-      }
+      updateCacheAfterMove(childrenCacheRef.current, hasMdCacheRef.current, srcDir, targetDir, sourcePath, entry, newPath, isDir);
+      updateSelectedPathAfterMove(selectedFilePath, sourcePath, newPath, isDir, setSelectedFilePath);
+      if (isDir) updateExpandedPaths(setExpanded, sourcePath, newPath);
 
       if (srcDir === "" || targetDir === "") {
         setRootEntries([...childrenCacheRef.current.get("") ?? []]);

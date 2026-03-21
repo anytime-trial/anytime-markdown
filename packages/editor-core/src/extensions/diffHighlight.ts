@@ -200,6 +200,13 @@ function computeLcsPairs(leftTexts: string[], rightTexts: string[]): [number, nu
   return pairs;
 }
 
+/** 指定 Set に含まれないアイテムを収集する */
+function collectUnmatched<T>(items: T[], from: number, to: number, matchedSet: Set<number>, out: T[]): void {
+  for (let i = from; i < to; i++) {
+    if (!matchedSet.has(i)) out.push(items[i]);
+  }
+}
+
 /** LCS ペアからマッチ/左のみ/右のみに分類する */
 function classifyByPairs<T>(
   leftItems: T[], rightItems: T[], pairs: [number, number][],
@@ -210,20 +217,16 @@ function classifyByPairs<T>(
   const matchedLeftSet = new Set(pairs.map(p => p[0]));
   const matchedRightSet = new Set(pairs.map(p => p[1]));
 
-  let lp = 0, rp = 0, pp = 0;
-  while (pp < pairs.length || lp < leftItems.length || rp < rightItems.length) {
-    if (pp < pairs.length) {
-      const [lIdx, rIdx] = pairs[pp];
-      while (lp < lIdx) { if (!matchedLeftSet.has(lp)) leftOnly.push(leftItems[lp]); lp++; }
-      while (rp < rIdx) { if (!matchedRightSet.has(rp)) rightOnly.push(rightItems[rp]); rp++; }
-      matched.push([leftItems[lIdx], rightItems[rIdx]]);
-      lp = lIdx + 1; rp = rIdx + 1; pp++;
-    } else {
-      while (lp < leftItems.length) { if (!matchedLeftSet.has(lp)) leftOnly.push(leftItems[lp]); lp++; }
-      while (rp < rightItems.length) { if (!matchedRightSet.has(rp)) rightOnly.push(rightItems[rp]); rp++; }
-      break;
-    }
+  let lp = 0, rp = 0;
+  for (const [lIdx, rIdx] of pairs) {
+    collectUnmatched(leftItems, lp, lIdx, matchedLeftSet, leftOnly);
+    collectUnmatched(rightItems, rp, rIdx, matchedRightSet, rightOnly);
+    matched.push([leftItems[lIdx], rightItems[rIdx]]);
+    lp = lIdx + 1;
+    rp = rIdx + 1;
   }
+  collectUnmatched(leftItems, lp, leftItems.length, matchedLeftSet, leftOnly);
+  collectUnmatched(rightItems, rp, rightItems.length, matchedRightSet, rightOnly);
 
   return { matched, leftOnly, rightOnly };
 }
@@ -236,6 +239,24 @@ function matchBlockSections(
   const rightTexts = rightSections.map(s => s.headingText);
   const pairs = computeLcsPairs(leftTexts, rightTexts);
   return classifyByPairs(leftSections, rightSections, pairs);
+}
+
+/** 片側のみのセクションを changed に追加し、反対側にプレースホルダーを挿入する */
+function markUnmatchedSections(
+  sections: BlockSection[],
+  ownResult: BlockDiffResult,
+  otherResult: BlockDiffResult,
+  otherNodes: PMNode[],
+  matched: [BlockSection, BlockSection][],
+  side: "left" | "right",
+): void {
+  for (const sec of sections) {
+    for (let k = sec.startIndex; k < sec.endIndex; k++) {
+      ownResult.changedBlocks.add(k);
+    }
+    const afterPos = findInsertPosition(otherNodes, sec, matched, side);
+    otherResult.placeholderPositions.push({ pos: afterPos, lineCount: sec.endIndex - sec.startIndex });
+  }
 }
 
 /** セマンティック（見出しベース）ブロック差分 */
@@ -274,24 +295,9 @@ function computeSemanticBlockDiff(
     diffBlockRange(leftBlocks, rightBlocks, leftNodes, rightNodes, leftRange, rightRange, leftResult, rightResult);
   }
 
-  // 左にのみ存在するセクション: 全ブロックを changed + 右にプレースホルダー
-  for (const sec of leftOnly) {
-    for (let k = sec.startIndex; k < sec.endIndex; k++) {
-      leftResult.changedBlocks.add(k);
-    }
-    // 右側のプレースホルダー位置: このセクションの直前のマッチセクションの終端
-    const afterPos = findInsertPosition(rightNodes, sec, matched, "right");
-    rightResult.placeholderPositions.push({ pos: afterPos, lineCount: sec.endIndex - sec.startIndex });
-  }
-
-  // 右にのみ存在するセクション: 全ブロックを changed + 左にプレースホルダー
-  for (const sec of rightOnly) {
-    for (let k = sec.startIndex; k < sec.endIndex; k++) {
-      rightResult.changedBlocks.add(k);
-    }
-    const afterPos = findInsertPosition(leftNodes, sec, matched, "left");
-    leftResult.placeholderPositions.push({ pos: afterPos, lineCount: sec.endIndex - sec.startIndex });
-  }
+  // 片側のみのセクションを処理
+  markUnmatchedSections(leftOnly, leftResult, rightResult, rightNodes, matched, "right");
+  markUnmatchedSections(rightOnly, rightResult, leftResult, leftNodes, matched, "left");
 
   return { left: leftResult, right: rightResult };
 }
