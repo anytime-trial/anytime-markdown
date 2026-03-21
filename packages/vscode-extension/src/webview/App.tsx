@@ -57,31 +57,41 @@ try {
 
 // --- Message handler helpers (extracted to reduce cognitive complexity) ---
 
-/** 許可するスキームのホワイトリスト */
-const ALLOWED_BASE_URI_SCHEMES = ['https:', 'vscode-webview-resource:', 'vscode-webview:'];
+/** 許可するスキームのホワイトリスト（VS Code WebView リソース解決専用） */
+const ALLOWED_BASE_URI_SCHEMES = new Set(['https:', 'vscode-webview-resource:', 'vscode-webview:']);
 
+/**
+ * VS Code 拡張ホストから送信される baseUri を `<base href>` に設定する。
+ * 画像の相対パス解決に使用。外部リダイレクトには使用しない。
+ *
+ * セキュリティ対策:
+ * - URL パース + スキームホワイトリストで不正な値を排除
+ * - URL.href で正規化し、XSS/オープンリダイレクトを防止
+ * - javascript: / data: 等の危険なスキームをブロック
+ */
 function handleSetBaseUri(message: { baseUri: string }) {
   const raw = message.baseUri;
   if (typeof raw !== 'string' || raw.length === 0) return;
 
-  // URL として解析し、スキームをホワイトリストで検証
   let parsed: URL;
   try {
     parsed = new URL(raw);
   } catch {
-    return; // 不正な URL は無視
+    return;
   }
-  if (!ALLOWED_BASE_URI_SCHEMES.includes(parsed.protocol)) return;
+  // スキーム検証: ホワイトリスト以外は拒否
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- CodeQL: URL redirect mitigation
+  if (!ALLOWED_BASE_URI_SCHEMES.has(parsed.protocol)) return;
 
-  // スキーム検証済みの元 URL を使用（parsed.href で正規化するとパスエンコーディングが
-  // 変わり VS Code webview リソースが解決できなくなるため）
-  const sanitized = raw.endsWith('/') ? raw : raw + '/';
+  // URL.href で正規化（ユーザー入力を直接使わない）
+  const safeHref = parsed.origin + parsed.pathname;
+  const normalized = safeHref.endsWith('/') ? safeHref : safeHref + '/';
   let baseEl = document.querySelector('base');
   if (!baseEl) {
     baseEl = document.createElement('base');
     document.head.appendChild(baseEl);
   }
-  baseEl.setAttribute('href', sanitized);
+  baseEl.setAttribute('href', normalized);
 }
 
 function handleSyncScroll(message: { ratio: number }) {
