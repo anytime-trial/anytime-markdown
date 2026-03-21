@@ -106,6 +106,7 @@ export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60
         hideStatusBar
         noScroll={noScroll}
         fixedEditorHeight={editorHeight}
+        defaultBlockAlign="center"
         themeMode={themeMode}
         onThemeModeChange={setThemeMode}
         onLocaleChange={setLocale}
