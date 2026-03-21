@@ -35,11 +35,13 @@ interface MarkdownViewerProps {
   showOutline?: boolean;
   /** フォントサイズ（デフォルト: "medium"） */
   fontSize?: "small" | "medium" | "large";
+  /** ビューア上部に表示するスロット（アイコンバー等） */
+  topSlot?: React.ReactNode;
 }
 
 const FONT_SIZE_MAP = { small: 14, medium: 16, large: 18 } as const;
 
-export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60vh', editorHeight, noScroll, showOutline, fontSize = 'medium' }: MarkdownViewerProps) {
+export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60vh', editorHeight, noScroll, showOutline, fontSize = 'medium', topSlot }: MarkdownViewerProps) {
   const t = useTranslations('Landing');
   const { themeMode, setThemeMode } = useThemeMode();
   const { locale, setLocale } = useLocaleSwitch();
@@ -104,6 +106,7 @@ export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60
 
   return (
     <Box sx={{ minHeight, overflow: 'hidden' }}>
+      {topSlot}
       <MarkdownEditorPage
         key={`${editorKeyRef.current}-${showOutline}`}
         externalContent={content}

@@ -180,45 +180,53 @@ export default function LandingBody({ headingFontFamily }: { headingFontFamily?:
       {/* ---- Features (Markdown) ---- */}
       <Box sx={{ py: { xs: 4, md: 6 }, px: 3 }}>
         <Container maxWidth="lg">
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1, alignItems: 'center', px: 0.5 }}>
-            <Tooltip title={t('toggleOutline')}>
-              <IconButton
-                size="small"
-                onClick={() => setShowOutline((v) => !v)}
-                sx={{
-                  width: 28,
-                  height: 28,
-                  color: showOutline ? 'primary.main' : 'text.secondary',
-                  bgcolor: showOutline ? (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)') : 'transparent',
-                }}
-                aria-label={t('toggleOutline')}
-                aria-pressed={showOutline}
-              >
-                <ListAltIcon sx={{ fontSize: 16 }} />
-              </IconButton>
-            </Tooltip>
-            <Box sx={{ display: 'flex', gap: 0.5 }}>
-            {fontSizeOptions.map(({ value, iconSize, label }) => (
-              <Tooltip key={value} title={label}>
-                <IconButton
-                  size="small"
-                  onClick={() => setViewerFontSize(value)}
-                  sx={{
-                    width: 28,
-                    height: 28,
-                    color: viewerFontSize === value ? 'primary.main' : 'text.secondary',
-                    bgcolor: viewerFontSize === value ? (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)') : 'transparent',
-                  }}
-                  aria-label={label}
-                  aria-pressed={viewerFontSize === value}
-                >
-                  <Typography sx={{ fontSize: iconSize, fontWeight: 700, lineHeight: 1 }}>A</Typography>
-                </IconButton>
-              </Tooltip>
-            ))}
-            </Box>
-          </Box>
-          <MarkdownViewer docKey="docs/markdownAll/markdownAll.ja.md" docKeyByLocale={{ en: "docs/markdownAll/markdownAll.en.md" }} editorHeight={viewerHeight} showOutline={showOutline} fontSize={viewerFontSize} />
+          <MarkdownViewer
+            docKey="docs/markdownAll/markdownAll.ja.md"
+            docKeyByLocale={{ en: "docs/markdownAll/markdownAll.en.md" }}
+            editorHeight={viewerHeight}
+            showOutline={showOutline}
+            fontSize={viewerFontSize}
+            topSlot={
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1, alignItems: 'center' }}>
+                <Tooltip title={t('toggleOutline')}>
+                  <IconButton
+                    size="small"
+                    onClick={() => setShowOutline((v) => !v)}
+                    sx={{
+                      width: 28,
+                      height: 28,
+                      color: showOutline ? 'primary.main' : 'text.secondary',
+                      bgcolor: showOutline ? (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)') : 'transparent',
+                    }}
+                    aria-label={t('toggleOutline')}
+                    aria-pressed={showOutline}
+                  >
+                    <ListAltIcon sx={{ fontSize: 16 }} />
+                  </IconButton>
+                </Tooltip>
+                <Box sx={{ display: 'flex', gap: 0.5 }}>
+                  {fontSizeOptions.map(({ value, iconSize, label }) => (
+                    <Tooltip key={value} title={label}>
+                      <IconButton
+                        size="small"
+                        onClick={() => setViewerFontSize(value)}
+                        sx={{
+                          width: 28,
+                          height: 28,
+                          color: viewerFontSize === value ? 'primary.main' : 'text.secondary',
+                          bgcolor: viewerFontSize === value ? (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)') : 'transparent',
+                        }}
+                        aria-label={label}
+                        aria-pressed={viewerFontSize === value}
+                      >
+                        <Typography sx={{ fontSize: iconSize, fontWeight: 700, lineHeight: 1 }}>A</Typography>
+                      </IconButton>
+                    </Tooltip>
+                  ))}
+                </Box>
+              </Box>
+            }
+          />
         </Container>
       </Box>
 
