@@ -26,7 +26,7 @@ export default function LandingBody({ headingFontFamily }: { headingFontFamily?:
 
   type FontSize = 'small' | 'medium' | 'large';
   const [viewerFontSize, setViewerFontSize] = useState<FontSize>('medium');
-  const [showOutline, setShowOutline] = useState(true);
+  const [showOutline, setShowOutline] = useState(false);
   const fontSizeOptions: { value: FontSize; iconSize: number; label: string }[] = [
     { value: 'small', iconSize: 12, label: t('fontSmall') },
     { value: 'medium', iconSize: 15, label: t('fontMedium') },
@@ -180,7 +180,7 @@ export default function LandingBody({ headingFontFamily }: { headingFontFamily?:
       {/* ---- Features (Markdown) ---- */}
       <Box sx={{ py: { xs: 4, md: 6 }, px: 3 }}>
         <Container maxWidth="lg">
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1, gap: 0.5, alignItems: 'center' }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1, alignItems: 'center' }}>
             <Tooltip title={t('toggleOutline')}>
               <IconButton
                 size="small"
@@ -197,6 +197,7 @@ export default function LandingBody({ headingFontFamily }: { headingFontFamily?:
                 <ListAltIcon sx={{ fontSize: 16 }} />
               </IconButton>
             </Tooltip>
+            <Box sx={{ display: 'flex', gap: 0.5 }}>
             {fontSizeOptions.map(({ value, iconSize, label }) => (
               <Tooltip key={value} title={label}>
                 <IconButton
@@ -215,6 +216,7 @@ export default function LandingBody({ headingFontFamily }: { headingFontFamily?:
                 </IconButton>
               </Tooltip>
             ))}
+            </Box>
           </Box>
           <MarkdownViewer docKey="docs/markdownAll/markdownAll.ja.md" docKeyByLocale={{ en: "docs/markdownAll/markdownAll.en.md" }} editorHeight={viewerHeight} showOutline={showOutline} fontSize={viewerFontSize} />
         </Container>
