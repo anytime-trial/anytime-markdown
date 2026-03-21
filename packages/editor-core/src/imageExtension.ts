@@ -26,7 +26,7 @@ export const CustomImage = Image.extend({
       },
       annotations: {
         default: null,
-        parseHTML: (element: HTMLElement) => element.getAttribute("data-annotations") || null,
+        parseHTML: (element: HTMLElement) => element.dataset.annotations ?? null,
         renderHTML: (attributes: Record<string, unknown>) => {
           if (!attributes.annotations) return {};
           return { "data-annotations": attributes.annotations };

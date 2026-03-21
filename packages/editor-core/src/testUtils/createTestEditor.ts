@@ -21,7 +21,7 @@ const TaskListTight = Extension.create({
         tight: {
           default: true,
           parseHTML: (el: HTMLElement) =>
-            el.getAttribute("data-tight") === "true" || !el.querySelector("p"),
+            el.dataset.tight === "true" || !el.querySelector("p"),
           renderHTML: (attrs: Record<string, unknown>) =>
             attrs.tight ? { class: "tight", "data-tight": "true" } : {},
         },

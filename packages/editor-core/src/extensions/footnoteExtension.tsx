@@ -66,7 +66,7 @@ export const FootnoteRef = Node.create({
         tag: "sup[data-footnote-ref]",
         getAttrs: (el) => {
           if (typeof el === "string") return false;
-          return { noteId: el.getAttribute("data-footnote-ref") || "" };
+          return { noteId: el.dataset.footnoteRef ?? "" };
         },
       },
     ];
