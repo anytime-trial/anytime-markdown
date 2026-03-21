@@ -25,12 +25,28 @@ export function getFocusOutlineBare(isDark: boolean) {
   } as const;
 }
 
-// ── トランジション ──
+// ── イージングトークン ──
+/** 出現用: 勢いよく現れ、ゆっくり着地 */
+export const EASE_DECELERATE = "cubic-bezier(0, 0, 0.2, 1)";
+/** 標準: なめらかで自然な加減速 */
+export const EASE_STANDARD = "cubic-bezier(0.4, 0, 0.2, 1)";
+/** 退場用: ゆっくり始まり、素早く去る */
+export const EASE_ACCELERATE = "cubic-bezier(0.4, 0, 1, 1)";
 
-/** 標準トランジション（背景色、opacity、transform） */
-export const TRANSITION_FAST = "0.15s";
+// ── 速度トークン ──
+/** 150ms: アイコン、トグル、リップル */
+export const DURATION_FAST = "0.15s";
+/** 250ms: ボタンホバー、フォーカスリング、背景色変化 */
+export const DURATION_NORMAL = "0.25s";
+/** 300ms: シャドウ、モーダル開閉、レイアウトシフト */
+export const DURATION_SLOW = "0.3s";
 
-/** 展開・折りたたみ用トランジション */
+// ── トランジション（deprecated） ──
+
+/** @deprecated DURATION_FAST + EASE_STANDARD を使用 */
+export const TRANSITION_FAST = DURATION_FAST;
+
+/** @deprecated DURATION_NORMAL + EASE_STANDARD を使用 */
 export const TRANSITION_EXPAND = "0.2s";
 
 /** prefers-reduced-motion 対応の sx ルール */
