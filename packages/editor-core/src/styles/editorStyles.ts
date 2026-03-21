@@ -67,12 +67,13 @@ export function getEditorPaperSx(
       ...(settings.blockAlign !== "left" && (() => {
         const isCenter = settings.blockAlign === "center";
         return {
-          // 画像: NodeViewWrapper 内の Box を inline-block にして親の text-align で配置
-          "& [data-node-view-wrapper] > .MuiBox-root": {
-            display: "inline-block",
-          },
-          "& [data-node-view-wrapper]": {
+          // 画像・GIF: ラッパーを text-align で配置、中の Box を inline-block にして幅をコンテンツに合わせる
+          "& .image-node-wrapper": {
             textAlign: settings.blockAlign,
+            "& > .MuiBox-root": {
+              display: "inline-block",
+              textAlign: "left",
+            },
           },
           "& table": {
             marginLeft: isCenter ? "auto" : "auto",

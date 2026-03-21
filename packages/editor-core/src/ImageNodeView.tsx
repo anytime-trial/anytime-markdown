@@ -332,7 +332,7 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
   const showBorder = showToolbar || (isCompareLeftEditable && isSelected);
 
   return (
-    <NodeViewWrapper>
+    <NodeViewWrapper className="image-node-wrapper">
       {/* Edit Dialog */}
       <ImageEditDialog
         editOpen={editOpen}

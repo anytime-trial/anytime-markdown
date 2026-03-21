@@ -227,7 +227,7 @@ export function GifNodeView({ editor, node, updateAttributes, getPos }: NodeView
   }, [src]);
 
   return (
-    <NodeViewWrapper data-drag-handle>
+    <NodeViewWrapper data-drag-handle className="image-node-wrapper">
       {/* Inline view */}
       <Box
         sx={{
