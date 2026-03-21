@@ -124,7 +124,7 @@ export function EditorContentArea({
         {editor && <SearchReplaceBar editor={editor} t={t} />}
         {editor && <EditorContextMenu editor={editor} readOnly={readonlyMode || reviewMode} t={t} />}
         <div ref={frontmatterRef}>
-          <FrontmatterBlock frontmatter={frontmatterText} onChange={handleFrontmatterChange} readOnly={readonlyMode || reviewMode} t={t} />
+          <FrontmatterBlock frontmatter={frontmatterText} onChange={handleFrontmatterChange} readOnly={readonlyMode || reviewMode} defaultCollapsed={readonlyMode} t={t} />
         </div>
         <Paper
           id="md-editor-content"

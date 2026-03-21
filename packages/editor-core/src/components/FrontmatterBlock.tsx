@@ -13,14 +13,15 @@ interface FrontmatterBlockProps {
   frontmatter: string | null;
   onChange: (value: string | null) => void;
   readOnly?: boolean;
+  defaultCollapsed?: boolean;
   t: (key: string) => string;
 }
 
-export function FrontmatterBlock({ frontmatter, onChange, readOnly, t }: FrontmatterBlockProps) {
+export function FrontmatterBlock({ frontmatter, onChange, readOnly, defaultCollapsed, t }: FrontmatterBlockProps) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const settings = useEditorSettingsContext();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(defaultCollapsed ?? false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const confirm = useConfirm();
 
