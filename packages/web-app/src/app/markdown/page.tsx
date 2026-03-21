@@ -39,6 +39,7 @@ export default function Page() {
   const { presetName, setPresetName } = usePreset();
   const { setLocale } = useLocaleSwitch();
   const enableGitHub = process.env.NEXT_PUBLIC_ENABLE_GITHUB === '1';
+  const showThemePreset = process.env.NEXT_PUBLIC_SHOW_THEME_PRESET === '1';
   const { data: session } = useSession();
   const isGitHubLoggedIn = enableGitHub && !!session;
   const [explorerOpen, setExplorerOpen] = useState(() => {
@@ -229,8 +230,8 @@ export default function Page() {
           key={editorKey}
           themeMode={themeMode}
           onThemeModeChange={setThemeMode}
-          presetName={presetName}
-          onPresetChange={setPresetName}
+          presetName={showThemePreset ? presetName : undefined}
+          onPresetChange={showThemePreset ? setPresetName : undefined}
           onLocaleChange={setLocale}
           fileSystemProvider={fileSystemProvider}
           onCompareModeChange={handleCompareModeChange}
