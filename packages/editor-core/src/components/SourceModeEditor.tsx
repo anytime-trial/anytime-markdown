@@ -1,10 +1,12 @@
 import { Box, Paper, useTheme } from "@mui/material";
 import { alpha } from "@mui/material/styles";
-import React, { useCallback, useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { ACCENT_COLOR, ACCENT_COLOR_ALPHA, DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getTextPrimary, getTextSecondary } from "../constants/colors";
 import type { TextareaSearchMatch } from "../hooks/useTextareaSearch";
 import { useEditorSettingsContext } from "../useEditorSettings";
+import { collapseBase64, restoreBase64 } from "../utils/base64Collapse";
+import type { Base64TokenSpan } from "../utils/base64Collapse";
 
 interface SourceModeEditorProps {
   sourceText: string;
@@ -50,6 +52,47 @@ function buildHighlightSegments(
   return segments;
 }
 
+const BASE64_BADGE_DARK = "rgba(139, 92, 246, 0.25)";
+const BASE64_BADGE_LIGHT = "rgba(139, 92, 246, 0.18)";
+const BASE64_BORDER_DARK = "rgba(139, 92, 246, 0.5)";
+const BASE64_BORDER_LIGHT = "rgba(139, 92, 246, 0.4)";
+
+/** base64トークン位置にバッジ風の背景を付与するセグメントを構築 */
+function buildBase64Segments(
+  text: string,
+  spans: Base64TokenSpan[],
+  isDark: boolean,
+): React.ReactNode[] {
+  if (spans.length === 0) return [text];
+  const segments: React.ReactNode[] = [];
+  let lastEnd = 0;
+  for (let i = 0; i < spans.length; i++) {
+    const s = spans[i];
+    if (s.start > lastEnd) {
+      segments.push(text.substring(lastEnd, s.start));
+    }
+    segments.push(
+      <mark
+        key={`b64-${i}`}
+        style={{
+          backgroundColor: isDark ? BASE64_BADGE_DARK : BASE64_BADGE_LIGHT,
+          border: `1px solid ${isDark ? BASE64_BORDER_DARK : BASE64_BORDER_LIGHT}`,
+          borderRadius: 3,
+          color: "transparent",
+          padding: "0 1px",
+        }}
+      >
+        {text.substring(s.start, s.end)}
+      </mark>,
+    );
+    lastEnd = s.end;
+  }
+  if (lastEnd < text.length) {
+    segments.push(text.substring(lastEnd));
+  }
+  return segments;
+}
+
 export function SourceModeEditor({
   sourceText,
   onSourceChange,
@@ -63,6 +106,7 @@ export function SourceModeEditor({
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const highlightRef = useRef<HTMLDivElement>(null);
+  const base64OverlayRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const gutterRef = useRef<HTMLDivElement>(null);
   const mirrorRef = useRef<HTMLDivElement>(null);
@@ -70,19 +114,33 @@ export function SourceModeEditor({
 
   const hasMatches = searchMatches && searchMatches.length > 0;
 
-  const lineCount = (sourceText || "").split("\n").length || 1;
-  const displayLines = (sourceText || "").split("\n");
+  // base64 データを短いトークンに置換して表示
+  const { displayText, tokenMap, tokenSpans } = useMemo(
+    () => collapseBase64(sourceText || ""),
+    [sourceText],
+  );
+  const tokenMapRef = useRef(tokenMap);
+  tokenMapRef.current = tokenMap;
+  const hasBase64Tokens = tokenSpans.length > 0;
+
+  const lineCount = displayText.split("\n").length || 1;
+  const displayLines = displayText.split("\n");
   const digits = String(lineCount).length;
 
   // Sync textarea scroll to highlight layer and gutter
   const handleScroll = useCallback(() => {
     const ta = textareaRef?.current;
     const hl = highlightRef.current;
+    const b64 = base64OverlayRef.current;
     const gutter = gutterRef.current;
     if (ta) {
       if (hl) {
         hl.scrollTop = ta.scrollTop;
         hl.scrollLeft = ta.scrollLeft;
+      }
+      if (b64) {
+        b64.scrollTop = ta.scrollTop;
+        b64.scrollLeft = ta.scrollLeft;
       }
       if (gutter) {
         gutter.scrollTop = ta.scrollTop;
@@ -96,13 +154,17 @@ export function SourceModeEditor({
     if (!container) return;
     const syncScroll = () => {
       const hl = highlightRef.current;
+      const b64 = base64OverlayRef.current;
       if (hl && hasMatches) {
         hl.scrollTop = container.scrollTop;
+      }
+      if (b64 && hasBase64Tokens) {
+        b64.scrollTop = container.scrollTop;
       }
     };
     container.addEventListener("scroll", syncScroll);
     return () => container.removeEventListener("scroll", syncScroll);
-  }, [hasMatches]);
+  }, [hasMatches, hasBase64Tokens]);
 
   // ミラー要素で各行の描画高さを計測し、行番号ガターの高さに反映
   useEffect(() => {
@@ -123,7 +185,7 @@ export function SourceModeEditor({
     const ro = new ResizeObserver(applyHeights);
     ro.observe(container);
     return () => ro.disconnect();
-  }, [sourceText, settings.fontSize, settings.lineHeight]);
+  }, [displayText, settings.fontSize, settings.lineHeight]);
 
   const sharedTextSx = {
     fontFamily: "monospace",
@@ -202,6 +264,26 @@ export function SourceModeEditor({
               <div key={i}>{line || "\u00A0"}</div>
             ))}
           </Box>
+          {/* Base64 token badge layer */}
+          {hasBase64Tokens && (
+            <Box
+              ref={base64OverlayRef}
+              aria-hidden
+              sx={{
+                position: "absolute",
+                inset: 0,
+                ...sharedPaddingSx,
+                ...sharedTextSx,
+                whiteSpace: "pre-wrap",
+                overflowWrap: "break-word",
+                overflow: "hidden",
+                pointerEvents: "none",
+                color: "transparent",
+              }}
+            >
+              {buildBase64Segments(displayText, tokenSpans, isDark)}
+            </Box>
+          )}
           {/* Highlight layer behind textarea */}
           {hasMatches && (
             <Box
@@ -219,19 +301,45 @@ export function SourceModeEditor({
                 color: "transparent",
               }}
             >
-              {buildHighlightSegments(sourceText, searchMatches, searchCurrentIndex ?? 0)}
+              {buildHighlightSegments(displayText, searchMatches, searchCurrentIndex ?? 0)}
             </Box>
           )}
           <Box
             component="textarea"
             ref={textareaRef}
             aria-label={ariaLabel}
-            value={sourceText}
+            value={displayText}
             rows={Math.max(lineCount, Math.ceil((editorHeight - 36) / (settings.fontSize * settings.lineHeight)))}
             onScroll={handleScroll}
             onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-              onSourceChange(e.target.value)
+              onSourceChange(restoreBase64(e.target.value, tokenMapRef.current))
             }
+            onCopy={(e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+              const ta = e.currentTarget;
+              const selected = ta.value.substring(ta.selectionStart, ta.selectionEnd);
+              if (selected && tokenMapRef.current.size > 0) {
+                const restored = restoreBase64(selected, tokenMapRef.current);
+                if (restored !== selected) {
+                  e.preventDefault();
+                  e.clipboardData.setData("text/plain", restored);
+                }
+              }
+            }}
+            onCut={(e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+              const ta = e.currentTarget;
+              const selected = ta.value.substring(ta.selectionStart, ta.selectionEnd);
+              if (selected && tokenMapRef.current.size > 0) {
+                const restored = restoreBase64(selected, tokenMapRef.current);
+                if (restored !== selected) {
+                  e.preventDefault();
+                  e.clipboardData.setData("text/plain", restored);
+                  // カット: 選択範囲を削除して onChange を発火
+                  const before = ta.value.substring(0, ta.selectionStart);
+                  const after = ta.value.substring(ta.selectionEnd);
+                  onSourceChange(restoreBase64(before + after, tokenMapRef.current));
+                }
+              }
+            }}
             sx={{
               position: "relative",
               width: "100%",
