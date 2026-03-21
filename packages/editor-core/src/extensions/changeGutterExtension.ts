@@ -1,5 +1,5 @@
 import { Extension } from "@tiptap/core";
-import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
 import type { Node as PmNode } from "@tiptap/pm/model";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 
@@ -164,6 +164,15 @@ interface ChangeGutterState {
   /** baseline のコンテンツノード fingerprints（空段落除外、比較用） */
   baselineContent: string[] | null;
   decorations: DecorationSet;
+  /** 変更ノードの開始位置リスト（昇順、ナビゲーション用） */
+  changedPositions: number[];
+}
+
+/** プラグイン state から変更位置リストを取得 */
+export function getChangedPositions(
+  editorState: import("@tiptap/pm/state").EditorState,
+): number[] {
+  return changeGutterKey.getState(editorState)?.changedPositions ?? [];
 }
 
 /** CSS 注入済みフラグ */
@@ -196,6 +205,10 @@ declare module "@tiptap/core" {
       setChangeGutterBaseline: () => ReturnType;
       /** baseline と装飾をクリア */
       clearChangeGutter: () => ReturnType;
+      /** 次の変更箇所へ移動 */
+      goToNextChange: () => ReturnType;
+      /** 前の変更箇所へ移動 */
+      goToPrevChange: () => ReturnType;
     };
   }
 }
@@ -221,6 +234,44 @@ export const ChangeGutterExtension = Extension.create({
           }
           return true;
         },
+      goToNextChange:
+        () =>
+        ({ state, dispatch, view }) => {
+          const positions = getChangedPositions(state);
+          if (positions.length === 0) return false;
+          const cursor = state.selection.from;
+          // カーソルより後の最初の変更位置、なければ先頭に巡回
+          const next = positions.find((p) => p > cursor) ?? positions[0];
+          if (dispatch) {
+            const tr = state.tr.setSelection(
+              TextSelection.create(state.doc, next),
+            );
+            dispatch(tr.scrollIntoView());
+          }
+          view?.focus();
+          return true;
+        },
+      goToPrevChange:
+        () =>
+        ({ state, dispatch, view }) => {
+          const positions = getChangedPositions(state);
+          if (positions.length === 0) return false;
+          const cursor = state.selection.from;
+          // カーソルより前の最後の変更位置、なければ末尾に巡回
+          let prev: number | undefined;
+          for (let i = positions.length - 1; i >= 0; i--) {
+            if (positions[i] < cursor) { prev = positions[i]; break; }
+          }
+          const target = prev ?? positions[positions.length - 1];
+          if (dispatch) {
+            const tr = state.tr.setSelection(
+              TextSelection.create(state.doc, target),
+            );
+            dispatch(tr.scrollIntoView());
+          }
+          view?.focus();
+          return true;
+        },
     };
   },
 
@@ -232,7 +283,7 @@ export const ChangeGutterExtension = Extension.create({
         key: changeGutterKey,
         state: {
           init(): ChangeGutterState {
-            return { allFingerprints: null, baselineContent: null, decorations: DecorationSet.empty };
+            return { allFingerprints: null, baselineContent: null, decorations: DecorationSet.empty, changedPositions: [] };
           },
           apply(tr, state, _oldEditorState, newEditorState): ChangeGutterState {
             const meta = tr.getMeta(changeGutterKey) as
@@ -248,11 +299,12 @@ export const ChangeGutterExtension = Extension.create({
                 allFingerprints: allFps,
                 baselineContent: contentFps,
                 decorations: DecorationSet.empty,
+                changedPositions: [],
               };
             }
 
             if (meta?.action === "clear") {
-              return { allFingerprints: null, baselineContent: null, decorations: DecorationSet.empty };
+              return { allFingerprints: null, baselineContent: null, decorations: DecorationSet.empty, changedPositions: [] };
             }
 
             if (!state.baselineContent) return state;
@@ -261,6 +313,7 @@ export const ChangeGutterExtension = Extension.create({
               return {
                 ...state,
                 decorations: state.decorations.map(tr.mapping, tr.doc),
+                changedPositions: state.changedPositions.map((p) => tr.mapping.map(p)),
               };
             }
 
@@ -273,6 +326,7 @@ export const ChangeGutterExtension = Extension.create({
             );
 
             const decorations: Decoration[] = [];
+            const positions: number[] = [];
 
             // ノード位置マップを構築
             const nodePositions: { offset: number; size: number }[] = [];
@@ -280,6 +334,9 @@ export const ChangeGutterExtension = Extension.create({
             doc.forEach((node, offset) => {
               nodePositions.push({ offset, size: node.nodeSize });
               if (changed.has(index)) {
+                // ノード内の最初のテキスト位置（カーソル配置可能な位置）
+                const textPos = offset + 1;
+                positions.push(textPos);
                 decorations.push(
                   Decoration.node(offset, offset + node.nodeSize, {
                     class: "change-gutter-mark",
@@ -309,6 +366,7 @@ export const ChangeGutterExtension = Extension.create({
               allFingerprints: state.allFingerprints,
               baselineContent: state.baselineContent,
               decorations: DecorationSet.create(doc, decorations),
+              changedPositions: positions,
             };
           },
         },

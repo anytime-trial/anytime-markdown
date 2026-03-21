@@ -303,12 +303,19 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     }
   }, [editor, autoReload]);
 
-  // ESC キーで変更ガターの起点をリセット（autoReload ON 時のみ）
+  // ESC: 変更ガター起点リセット、Alt+F3/Shift+Alt+F3: 変更箇所ナビ（autoReload ON 時のみ）
   useEffect(() => {
     if (!editor || !autoReload) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         editor.commands.setChangeGutterBaseline();
+      } else if (e.key === "F5" && e.altKey) {
+        e.preventDefault();
+        if (e.shiftKey) {
+          editor.commands.goToPrevChange();
+        } else {
+          editor.commands.goToNextChange();
+        }
       }
     };
     window.addEventListener("keydown", handler);
