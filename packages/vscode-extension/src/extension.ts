@@ -323,6 +323,15 @@ export function activate(context: vscode.ExtensionContext) {
 	const specDocsImportFiles = vscode.commands.registerCommand(
 		'anytime-markdown.specDocsImportFiles', (item?: SpecDocsRootItem | SpecDocsItem) => specDocsProvider.importFiles(item)
 	);
+	const specDocsCut = vscode.commands.registerCommand(
+		'anytime-markdown.specDocsCut', (item: SpecDocsItem) => specDocsProvider.cut(item)
+	);
+	const specDocsCopy = vscode.commands.registerCommand(
+		'anytime-markdown.specDocsCopy', (item: SpecDocsItem) => specDocsProvider.copy(item)
+	);
+	const specDocsPaste = vscode.commands.registerCommand(
+		'anytime-markdown.specDocsPaste', (item?: SpecDocsRootItem | SpecDocsItem) => specDocsProvider.paste(item)
+	);
 
 	// Markdown で貼り付け
 	const pasteAsMarkdown = vscode.commands.registerCommand(
@@ -454,7 +463,7 @@ export function activate(context: vscode.ExtensionContext) {
 		insertSectionNumbers, removeSectionNumbers,
 		changesRefresh, stageFile, unstageFile, stageAll, unstageAll, discardAll, discardChanges, commitChanges, pushChanges, syncChanges, changesOpenFile, openChangeDiff,
 		specDocsOpenFile, specDocsOpenFolder, specDocsCloneRepo, specDocsClose, specDocsRefresh, switchBranch, toggleMdOnly,
-		specDocsCreateFile, specDocsCreateFolder, specDocsDelete, specDocsRename, specDocsRemoveRoot, specDocsCopyPath, specDocsImportFiles, pasteAsMarkdown,
+		specDocsCreateFile, specDocsCreateFolder, specDocsDelete, specDocsRename, specDocsRemoveRoot, specDocsCopyPath, specDocsImportFiles, specDocsCut, specDocsCopy, specDocsPaste, pasteAsMarkdown,
 		graphTreeView, graphRefresh,
 	);
 }
