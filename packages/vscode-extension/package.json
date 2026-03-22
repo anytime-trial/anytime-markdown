@@ -53,6 +53,11 @@
           "initialSize": 2
         },
         {
+          "id": "anytimeMarkdown.aiMemory",
+          "name": "AI Memory",
+          "initialSize": 2
+        },
+        {
           "id": "anytimeMarkdown.specDocs",
           "name": "%view.specDocs%"
         },
@@ -259,6 +264,11 @@
         "command": "anytime-markdown.aiLogRefresh",
         "title": "%command.aiLogRefresh%",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "anytime-markdown.aiMemoryRefresh",
+        "title": "%command.aiMemoryRefresh%",
+        "icon": "$(refresh)"
       }
     ],
     "customEditors": [
@@ -322,6 +332,11 @@
         {
           "command": "anytime-markdown.aiLogRefresh",
           "when": "view == anytimeMarkdown.aiLog",
+          "group": "navigation@1"
+        },
+        {
+          "command": "anytime-markdown.aiMemoryRefresh",
+          "when": "view == anytimeMarkdown.aiMemory",
           "group": "navigation@1"
         },
         {

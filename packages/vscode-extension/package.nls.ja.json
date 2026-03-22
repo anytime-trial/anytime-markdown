@@ -46,5 +46,6 @@
   "command.copyContextPath": "AI ノートのパスをコピー",
   "command.clearContext": "AI ノートをクリア",
   "command.aiLogRefresh": "AI Log を更新",
+  "command.aiMemoryRefresh": "AI Memory を更新",
   "viewsWelcome.aiNote": "[$(edit) AI ノートを編集](command:anytime-markdown.openContext)\n画像や表など、AIツールに視覚情報を共有できます。"
 }

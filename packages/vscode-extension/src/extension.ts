@@ -8,6 +8,7 @@ import { ChangesProvider, ChangesFileItem } from './providers/ChangesProvider';
 import { SpecDocsProvider, SpecDocsItem, SpecDocsRootItem, SpecDocsDragAndDrop } from './providers/SpecDocsProvider';
 import { LinkValidationProvider } from './providers/LinkValidationProvider';
 import { AiLogProvider, AiLogItem } from './providers/AiLogProvider';
+import { AiMemoryProvider, AiMemoryItem } from './providers/AiMemoryProvider';
 
 export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
@@ -499,6 +500,25 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	);
 
+	// AI Memory ビュー
+	const memoryDir = path.join(projectSessionsDir, 'memory');
+	const aiMemoryProvider = new AiMemoryProvider(memoryDir);
+	const aiMemoryTreeView = vscode.window.createTreeView('anytimeMarkdown.aiMemory', {
+		treeDataProvider: aiMemoryProvider,
+	});
+
+	const aiMemoryRefresh = vscode.commands.registerCommand(
+		'anytime-markdown.aiMemoryRefresh', () => aiMemoryProvider.refresh()
+	);
+
+	const openAiMemory = vscode.commands.registerCommand(
+		'anytime-markdown.openAiMemory',
+		async (item: AiMemoryItem) => {
+			const uri = vscode.Uri.file(item.filePath);
+			await vscode.commands.executeCommand('vscode.openWith', uri, MarkdownEditorProvider.viewType);
+		}
+	);
+
 	// AI Note ファイルを開く
 	const openContext = vscode.commands.registerCommand(
 		'anytime-markdown.openContext',
@@ -561,6 +581,7 @@ export function activate(context: vscode.ExtensionContext) {
 		graphTreeView, graphRefresh,
 		openContext, copyContextPath, clearContext,
 		aiLogTreeView, aiLogRefresh, openAiLog,
+		aiMemoryTreeView, aiMemoryRefresh, openAiMemory,
 	);
 }
 
