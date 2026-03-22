@@ -14,8 +14,25 @@ describe("SlashCommandExtension", () => {
     expect(config.addOptions).toBeDefined();
   });
 
+  it("addOptions returns an object with onStateChange function", () => {
+    const addOptions = SlashCommandExtension.config.addOptions as () => { onStateChange: (s: SlashCommandState) => void };
+    const options = addOptions();
+    expect(options.onStateChange).toBeInstanceOf(Function);
+    // Default onStateChange should be a no-op
+    expect(() => options.onStateChange({ active: false, query: "", from: 0, navigationKey: null })).not.toThrow();
+  });
+
   it("defines addStorage", () => {
     expect(SlashCommandExtension.config.addStorage).toBeDefined();
+  });
+
+  it("addStorage returns correct default values", () => {
+    const addStorage = SlashCommandExtension.config.addStorage as () => Record<string, unknown>;
+    const storage = addStorage();
+    expect(storage.active).toBe(false);
+    expect(storage.query).toBe("");
+    expect(storage.from).toBe(0);
+    expect(storage.composing).toBe(false);
   });
 
   it("defines addProseMirrorPlugins", () => {

@@ -16,6 +16,15 @@ describe("ChangeGutterExtension", () => {
   it("defines addProseMirrorPlugins", () => {
     expect(ChangeGutterExtension.config.addProseMirrorPlugins).toBeDefined();
   });
+
+  it("addCommands returns expected command names", () => {
+    const addCommands = ChangeGutterExtension.config.addCommands as () => Record<string, unknown>;
+    const commands = addCommands.call({ storage: {}, editor: {} });
+    expect(commands).toHaveProperty("setChangeGutterBaseline");
+    expect(commands).toHaveProperty("clearChangeGutter");
+    expect(commands).toHaveProperty("goToNextChange");
+    expect(commands).toHaveProperty("goToPrevChange");
+  });
 });
 
 describe("getChangedPositions", () => {

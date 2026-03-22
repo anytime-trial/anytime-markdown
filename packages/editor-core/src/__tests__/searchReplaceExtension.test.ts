@@ -15,8 +15,34 @@ describe("SearchReplaceExtension", () => {
   });
 
   it("defines default storage", () => {
-    // The extension config should define addStorage
     expect(SearchReplaceExtension.config.addStorage).toBeDefined();
+  });
+
+  it("addStorage returns correct default values", () => {
+    const addStorage = SearchReplaceExtension.config.addStorage as () => SearchReplaceStorage;
+    const storage = addStorage();
+    expect(storage.searchTerm).toBe("");
+    expect(storage.replaceTerm).toBe("");
+    expect(storage.results).toEqual([]);
+    expect(storage.currentIndex).toBe(0);
+    expect(storage.caseSensitive).toBe(false);
+    expect(storage.wholeWord).toBe(false);
+    expect(storage.useRegex).toBe(false);
+    expect(storage.isOpen).toBe(false);
+    expect(storage.showReplace).toBe(false);
+    expect(storage.onSearchStateChange).toBeUndefined();
+  });
+
+  it("defines addCommands", () => {
+    expect(SearchReplaceExtension.config.addCommands).toBeDefined();
+  });
+
+  it("defines addKeyboardShortcuts", () => {
+    expect(SearchReplaceExtension.config.addKeyboardShortcuts).toBeDefined();
+  });
+
+  it("defines addProseMirrorPlugins", () => {
+    expect(SearchReplaceExtension.config.addProseMirrorPlugins).toBeDefined();
   });
 });
 

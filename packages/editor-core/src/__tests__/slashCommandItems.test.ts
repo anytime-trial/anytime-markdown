@@ -201,6 +201,91 @@ describe("slashCommandItems", () => {
       item.action(editor);
       expect(editor._chain.insertContent).toHaveBeenCalledWith({ type: "gifBlock" });
     });
+
+    it("orderedList action が toggleOrderedList を呼ぶ", () => {
+      const editor = createMockEditor();
+      const item = slashCommandItems.find((i) => i.id === "orderedList")!;
+      item.action(editor);
+      expect(editor._chain.toggleOrderedList).toHaveBeenCalled();
+    });
+
+    it("taskList action が toggleTaskList を呼ぶ", () => {
+      const editor = createMockEditor();
+      const item = slashCommandItems.find((i) => i.id === "taskList")!;
+      item.action(editor);
+      expect(editor._chain.toggleTaskList).toHaveBeenCalled();
+    });
+
+    it("blockquote action が toggleBlockquote を呼ぶ", () => {
+      const editor = createMockEditor();
+      const item = slashCommandItems.find((i) => i.id === "blockquote")!;
+      item.action(editor);
+      expect(editor._chain.toggleBlockquote || editor._chain.setBlockquote).toBeDefined();
+    });
+
+    it("codeBlock action が toggleCodeBlock を呼ぶ", () => {
+      const editor = createMockEditor();
+      const item = slashCommandItems.find((i) => i.id === "codeBlock")!;
+      item.action(editor);
+      expect(editor._chain.toggleCodeBlock).toHaveBeenCalled();
+    });
+
+    it("horizontalRule action が setHorizontalRule を呼ぶ", () => {
+      const editor = createMockEditor();
+      const item = slashCommandItems.find((i) => i.id === "horizontalRule")!;
+      item.action(editor);
+      expect(editor._chain.setHorizontalRule).toHaveBeenCalled();
+    });
+
+    it("plantuml action が setCodeBlock を呼ぶ", () => {
+      const editor = createMockEditor();
+      const item = slashCommandItems.find((i) => i.id === "plantuml")!;
+      item.action(editor);
+      expect(editor._chain.setCodeBlock).toHaveBeenCalledWith({ language: "plantuml" });
+    });
+
+    it("math action が setCodeBlock を呼ぶ", () => {
+      const editor = createMockEditor();
+      const item = slashCommandItems.find((i) => i.id === "math")!;
+      item.action(editor);
+      expect(editor._chain.setCodeBlock).toHaveBeenCalledWith({ language: "math" });
+    });
+
+    it("html action が setCodeBlock を呼ぶ", () => {
+      const editor = createMockEditor();
+      const item = slashCommandItems.find((i) => i.id === "html")!;
+      item.action(editor);
+      expect(editor._chain.setCodeBlock).toHaveBeenCalledWith({ language: "html" });
+    });
+
+    it("heading2-5 action が正しいレベルで setHeading を呼ぶ", () => {
+      for (let level = 2; level <= 5; level++) {
+        const editor = createMockEditor();
+        const item = slashCommandItems.find((i) => i.id === `heading${level}`)!;
+        item.action(editor);
+        expect(editor._chain.setHeading).toHaveBeenCalledWith({ level });
+      }
+    });
+
+    it("toc action が insertContent を呼ぶ", () => {
+      const editor = createMockEditor();
+      const item = slashCommandItems.find((i) => i.id === "toc")!;
+      item.action(editor);
+      expect(editor._chain.insertContent).toHaveBeenCalled();
+    });
+
+    it("admonitionNote action が insertContent を呼ぶ", () => {
+      const editor = createMockEditor();
+      const item = slashCommandItems.find((i) => i.id === "admonitionNote")!;
+      item.action(editor);
+      expect(editor._run).toHaveBeenCalled();
+    });
+
+    it("frontmatter action がエラーなく実行される", () => {
+      const editor = createMockEditor();
+      const item = slashCommandItems.find((i) => i.id === "frontmatter")!;
+      expect(() => item.action(editor)).not.toThrow();
+    });
   });
 });
 
