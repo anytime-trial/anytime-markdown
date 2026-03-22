@@ -89,7 +89,7 @@ export default function VsCodeBody() {
         }}
       >
         <Container maxWidth="md" sx={{ position: 'relative', zIndex: 1 }}>
-          <Box component="h1" sx={{ m: 0, mb: 3 }}>
+          <Box component="h1" sx={{ m: 0, mb: 3, display: 'inline-block', textAlign: 'left' }}>
             <Typography
               variant="h2"
               component="span"
@@ -116,7 +116,7 @@ export default function VsCodeBody() {
                 lineHeight: 1.15,
                 letterSpacing: '-0.02em',
                 color: 'text.primary',
-                pl: { xs: 2, sm: 4, md: 6 },
+                pl: '1em',
               }}
             >
               {t('heroTitle2')}
