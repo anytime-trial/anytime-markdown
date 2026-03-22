@@ -93,15 +93,17 @@ export function createTestEditor({
   }
 
   if (withMarkdown) {
-    extensions.push(Markdown.configure({ html: true }));
-    extensions.push(Image);
-    extensions.push(Link.configure({ openOnClick: false, isAllowedUri: () => true }));
-    extensions.push(Highlight);
-    extensions.push(Underline);
-    extensions.push(TaskList);
-    extensions.push(TaskItem.configure({ nested: true }));
-    extensions.push(TaskListTight);
-    extensions.push(ListTextCleanup);
+    extensions.push(
+      Markdown.configure({ html: true }),
+      Image,
+      Link.configure({ openOnClick: false, isAllowedUri: () => true }),
+      Highlight,
+      Underline,
+      TaskList,
+      TaskItem.configure({ nested: true }),
+      TaskListTight,
+      ListTextCleanup,
+    );
   }
 
   return new Editor({ extensions, content });

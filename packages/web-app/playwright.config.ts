@@ -21,7 +21,17 @@ export default defineConfig({
     },
     {
       name: "firefox",
-      use: { browserName: "firefox" },
+      use: {
+        browserName: "firefox",
+        launchOptions: {
+          firefoxUserPrefs: {
+            "layers.acceleration.disabled": true,
+            "gfx.canvas.accelerated": false,
+            "gfx.webrender.all": false,
+            "media.hardware-video-decoding.enabled": false,
+          },
+        },
+      },
     },
     {
       name: "webkit",

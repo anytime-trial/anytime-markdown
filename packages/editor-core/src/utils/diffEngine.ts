@@ -42,7 +42,7 @@ function splitLines(text: string): string[] {
   // Keep trailing empty line if text ends with newline
   const lines = text.split("\n");
   // diffLines operates on text with trailing newlines, so we trim the last empty entry
-  if (lines.length > 0 && lines[lines.length - 1] === "") {
+  if (lines.length > 0 && lines.at(-1) === "") {
     lines.pop();
   }
   return lines;
@@ -218,7 +218,7 @@ function buildDiffResult(merged: MergedChange[]): DiffResult {
 
       blocks.push({
         id: currentBlockId,
-        type: m.type as "added" | "removed" | "modified",
+        type: m.type,
         leftStartLine: leftStart,
         leftEndLine: leftLineNum,
         rightStartLine: rightStart,

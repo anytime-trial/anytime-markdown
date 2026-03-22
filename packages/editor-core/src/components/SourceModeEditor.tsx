@@ -101,7 +101,7 @@ export function SourceModeEditor({
   textareaRef,
   searchMatches,
   searchCurrentIndex,
-}: SourceModeEditorProps) {
+}: Readonly<SourceModeEditorProps>) {
   const settings = useEditorSettingsContext();
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";

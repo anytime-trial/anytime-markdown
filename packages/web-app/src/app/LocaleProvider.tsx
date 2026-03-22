@@ -39,7 +39,7 @@ interface LocaleProviderProps {
   children: React.ReactNode;
 }
 
-export function LocaleProvider({ serverLocale, children }: LocaleProviderProps) {
+export function LocaleProvider({ serverLocale, children }: Readonly<LocaleProviderProps>) {
   const [locale, setLocaleState] = useState<Locale>(() => getInitialLocale(serverLocale));
 
   const setLocale = useCallback((newLocale: string) => {

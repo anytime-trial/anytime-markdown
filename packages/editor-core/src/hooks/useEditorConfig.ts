@@ -68,7 +68,7 @@ function handleReviewCheckboxClick(
       const pos = editor.view.posAtDOM(li, 0);
       const nodePos = pos - 1;
       const node = editor.state.doc.nodeAt(nodePos);
-      if (!node || node.type.name !== "taskItem") return;
+      if (node?.type.name !== "taskItem") return;
       reviewModeStorage(editor).enabled = false;
       editor.view.dispatch(
         editor.state.tr.setNodeMarkup(nodePos, undefined, {

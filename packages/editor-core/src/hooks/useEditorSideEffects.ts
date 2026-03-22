@@ -40,8 +40,8 @@ export function useEditorSideEffects({
         e.preventDefault();
       }
     };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
+    globalThis.addEventListener("beforeunload", handler);
+    return () => globalThis.removeEventListener("beforeunload", handler);
   }, [isDirty]);
 
   // VS Code 拡張からの外部コンテンツ更新（メニュー Undo/Redo、Git History など）
@@ -66,8 +66,8 @@ export function useEditorSideEffects({
       setHeadingsRef.current(extractHeadings(editor));
       setEditorMarkdown(getMarkdownFromEditor(editor));
     };
-    window.addEventListener('vscode-set-content', handler);
-    return () => window.removeEventListener('vscode-set-content', handler);
+    globalThis.addEventListener('vscode-set-content', handler);
+    return () => globalThis.removeEventListener('vscode-set-content', handler);
     // setHeadingsRef, setEditorMarkdown は安定な ref/関数のため依存配列から除外
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor, frontmatterRef]);

@@ -27,10 +27,10 @@ function sanitizeSvgForCanvas(svgText: string): string {
     const text = (fo.textContent || "").trim();
     if (!text) { fo.remove(); return; }
 
-    const x = parseFloat(fo.getAttribute("x") || "0");
-    const y = parseFloat(fo.getAttribute("y") || "0");
-    const w = parseFloat(fo.getAttribute("width") || "0");
-    const h = parseFloat(fo.getAttribute("height") || "0");
+    const x = Number.parseFloat(fo.getAttribute("x") || "0");
+    const y = Number.parseFloat(fo.getAttribute("y") || "0");
+    const w = Number.parseFloat(fo.getAttribute("width") || "0");
+    const h = Number.parseFloat(fo.getAttribute("height") || "0");
 
     const textEl = doc.createElementNS(SVG_NS, "text");
     textEl.setAttribute("x", String(x + w / 2));
@@ -57,8 +57,8 @@ function getSvgDimensions(svgEl: Element): { w: number; h: number } {
   }
   const wAttr = svgEl.getAttribute("width");
   const hAttr = svgEl.getAttribute("height");
-  const w = wAttr && !wAttr.includes("%") ? parseFloat(wAttr) : 800;
-  const h = hAttr && !hAttr.includes("%") ? parseFloat(hAttr) : 600;
+  const w = wAttr && !wAttr.includes("%") ? Number.parseFloat(wAttr) : 800;
+  const h = hAttr && !hAttr.includes("%") ? Number.parseFloat(hAttr) : 600;
   return { w: w || 800, h: h || 600 };
 }
 
@@ -113,7 +113,7 @@ async function renderMermaidLight(code: string): Promise<string> {
 
 /** Build light-mode PlantUML SVG URL */
 function buildPlantUmlLightUrl(code: string): string {
-  const startMatch = code.match(/@start(uml|mindmap|wbs|json|yaml)/);
+  const startMatch = /@start(uml|mindmap|wbs|json|yaml)/.exec(code);
   const diagramType = startMatch ? startMatch[1] : null;
   const src = diagramType ? code : `@startuml\n${code}\n@enduml`;
   return buildPlantUmlUrl(plantumlEncoder.encode(src));

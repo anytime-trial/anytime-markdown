@@ -17,9 +17,7 @@ export function preprocessMathBlock(md: string): string {
   let inCodeFence = false;
   let inMathBlock = false;
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-
+  for (const line of lines) {
     // コードフェンスのトグル（```で始まる行）
     if (!inMathBlock && line.startsWith("```")) {
       inCodeFence = !inCodeFence;
@@ -35,14 +33,14 @@ export function preprocessMathBlock(md: string): string {
 
     // $$ 行の検出（行頭、前後の空白は許容）
     if (line.trim() === "$$") {
-      if (!inMathBlock) {
-        // 開始
-        inMathBlock = true;
-        result.push("```math");
-      } else {
+      if (inMathBlock) {
         // 終了
         inMathBlock = false;
         result.push("```");
+      } else {
+        // 開始
+        inMathBlock = true;
+        result.push("```math");
       }
       continue;
     }
@@ -61,9 +59,7 @@ export function postprocessMathBlock(md: string): string {
   const result: string[] = [];
   let inMathFence = false;
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-
+  for (const line of lines) {
     if (!inMathFence && /^```math\s*$/.test(line)) {
       inMathFence = true;
       result.push("$$");

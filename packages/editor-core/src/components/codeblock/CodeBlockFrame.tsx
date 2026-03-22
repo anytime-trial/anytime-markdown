@@ -45,7 +45,7 @@ export function CodeBlockFrame({
   t,
   children,
   afterFrame,
-}: CodeBlockFrameProps) {
+}: Readonly<CodeBlockFrameProps>) {
   const settings = useEditorSettingsContext();
   const hasCodeCollapse = codeCollapsed !== undefined;
   const maxH = codeMaxHeight ?? (hasCodeCollapse ? 200 : 400);

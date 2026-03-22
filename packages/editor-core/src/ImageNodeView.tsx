@@ -214,7 +214,7 @@ function ImageWithResize({
           aria-label={t("resizeImage")}
           aria-valuemin={MIN_WIDTH}
           aria-valuemax={800}
-          aria-valuenow={width ? parseInt(width, 10) || undefined : undefined}
+          aria-valuenow={width ? Number.parseInt(width, 10) || undefined : undefined}
           onPointerDown={handleResizePointerDown}
           onKeyDown={handleResizeKeyDown}
           sx={{
@@ -312,7 +312,7 @@ function handleResizeKeyDownImpl(
   if (!container) return;
   const img = container.querySelector("img");
   if (!img) return;
-  const currentWidth = parseInt(width, 10) || img.getBoundingClientRect().width;
+  const currentWidth = Number.parseInt(width, 10) || img.getBoundingClientRect().width;
   const delta = e.key === "ArrowRight" ? step : -step;
   const newWidth = Math.max(MIN_WIDTH, Math.round(currentWidth + delta));
   updateAttributes({ width: `${newWidth}px` });
@@ -356,6 +356,20 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
   const canInteract = !collapsed && !isCompareLeft;
   const hasScreenCapture = canInteract && typeof navigator !== "undefined" && !!navigator.mediaDevices?.getDisplayMedia;
   const showBorder = showToolbar || (isCompareLeftEditable && isSelected);
+  const showBlockToolbar = isEditable || isCompareLeftEditable;
+
+  const onDeleteAction = canInteract ? () => setDeleteDialogOpen(true) : undefined;
+  const onEditAction = canInteract ? () => setEditOpen(true) : undefined;
+  const onEditUrlAction = canInteract ? handleEditUrl : undefined;
+  const onScreenCaptureAction = hasScreenCapture ? () => setScreenCaptureOpen(true) : undefined;
+  const onImageDoubleClick = !isEditable ? () => setEditOpen(true) : undefined;
+
+  const borderColor = showBorder ? getDivider(isDark) : "transparent";
+  const hiddenToolbarSx = !showBorder ? {
+    "& > [data-block-toolbar]": {
+      maxHeight: 0, opacity: 0, py: 0, overflow: "hidden",
+    },
+  } : {};
 
   return (
     <NodeViewWrapper className="image-node-wrapper">
@@ -374,18 +388,14 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
       <Box
         sx={{
           border: 1, borderRadius: 1, overflow: "hidden", my: 1,
-          borderColor: showBorder ? getDivider(isDark) : "transparent",
-          ...(!showBorder && {
-            "& > [data-block-toolbar]": {
-              maxHeight: 0, opacity: 0, py: 0, overflow: "hidden",
-            },
-          }),
+          borderColor,
+          ...hiddenToolbarSx,
         }}
       >
-        {(isEditable || isCompareLeftEditable) && (
+        {showBlockToolbar && (
           <BlockInlineToolbar
             label={t("image")}
-            onDelete={canInteract ? () => setDeleteDialogOpen(true) : undefined}
+            onDelete={onDeleteAction}
             onExport={handleCapture}
             labelOnly={isCompareLeftEditable}
             collapsed={collapsed}
@@ -399,9 +409,9 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
                 collapsed={collapsed}
                 annotations={annotations}
                 onAnnotationOpen={() => setAnnotationOpen(true)}
-                onEdit={canInteract ? () => setEditOpen(true) : undefined}
-                onEditUrl={canInteract ? handleEditUrl : undefined}
-                onScreenCapture={hasScreenCapture ? () => setScreenCaptureOpen(true) : undefined}
+                onEdit={onEditAction}
+                onEditUrl={onEditUrlAction}
+                onScreenCapture={onScreenCaptureAction}
                 isDark={isDark}
                 t={t}
               />
@@ -430,7 +440,7 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
             handleResizePointerMove={handleResizePointerMove}
             handleResizePointerUp={handleResizePointerUp}
             handleResizeKeyDown={handleResizeKeyDown}
-            onDoubleClick={!isEditable ? () => setEditOpen(true) : undefined}
+            onDoubleClick={onImageDoubleClick}
             width={width}
             isDark={isDark}
             t={t}

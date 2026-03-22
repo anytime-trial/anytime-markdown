@@ -200,7 +200,7 @@ export function DiagramBlock(props: DiagramBlockProps) {
     if (!svg) return svg;
     const viewBoxMatch = /viewBox="[\d.]+ [\d.]+ ([\d.]+) [\d.]+"/.exec(svg);
     if (!viewBoxMatch) return svg;
-    const viewBoxWidth = parseFloat(viewBoxMatch[1]);
+    const viewBoxWidth = Number.parseFloat(viewBoxMatch[1]);
     const targetWidth = (settings.fontSize / 16) * viewBoxWidth;
     return svg
       .replace(/width="100%"/, `width="${targetWidth}"`)

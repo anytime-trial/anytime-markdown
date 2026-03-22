@@ -36,7 +36,7 @@ function unique(arr: string[]): string[] {
 
 /** Check if char is a valid node ID character */
 function isNodeIdChar(c: string): boolean {
-  return /[A-Za-z0-9_]/.test(c);
+  return /\w/.test(c);
 }
 
 /** ブラケット開閉文字のマッピング */

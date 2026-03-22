@@ -29,13 +29,13 @@ interface FileSystemAccessWindow {
 
 export class WebFileSystemProvider implements FileSystemProvider {
   get supportsDirectAccess(): boolean {
-    return typeof window !== 'undefined' && 'showOpenFilePicker' in window;
+    return typeof globalThis !== 'undefined' && 'showOpenFilePicker' in globalThis;
   }
 
   async open(): Promise<FileOpenResult | null> {
     if (!this.supportsDirectAccess) return null;
     try {
-      const [nativeHandle] = await (window as unknown as FileSystemAccessWindow).showOpenFilePicker({
+      const [nativeHandle] = await (globalThis as unknown as FileSystemAccessWindow).showOpenFilePicker({
         types: [{ description: 'Markdown', accept: { 'text/markdown': ['.md'] } }],
         multiple: false,
       });
@@ -57,7 +57,7 @@ export class WebFileSystemProvider implements FileSystemProvider {
   async saveAs(content: string): Promise<FileHandle | null> {
     if (!this.supportsDirectAccess) return null;
     try {
-      const nativeHandle = await (window as unknown as FileSystemAccessWindow).showSaveFilePicker({
+      const nativeHandle = await (globalThis as unknown as FileSystemAccessWindow).showSaveFilePicker({
         suggestedName: 'document.md',
         types: [{ description: 'Markdown', accept: { 'text/markdown': ['.md'] } }],
       });

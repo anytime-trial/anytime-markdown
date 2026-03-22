@@ -9,8 +9,6 @@ declare function acquireVsCodeApi(): VsCodeApi;
 let api: VsCodeApi | undefined;
 
 export function getVsCodeApi(): VsCodeApi {
-  if (!api) {
-    api = acquireVsCodeApi();
-  }
+  api ??= acquireVsCodeApi();
   return api;
 }

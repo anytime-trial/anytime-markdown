@@ -7,13 +7,13 @@ const messages = {
 
 function detectLocale(): 'en' | 'ja' {
   if (typeof document !== 'undefined') {
-    const match = document.cookie.match(/(?:^|;\s*)NEXT_LOCALE=(\w+)/);
+    const match = /(?:^|;\s*)NEXT_LOCALE=(\w+)/.exec(document.cookie);
     if (match?.[1] === 'ja') return 'ja';
   }
   return 'en';
 }
 
-export default function GlobalError({ reset }: { error: Error; reset: () => void }) {
+export default function GlobalError({ error: _error, reset }: Readonly<{ error: Error; reset: () => void }>) {
   const locale = detectLocale();
   const t = messages[locale];
 

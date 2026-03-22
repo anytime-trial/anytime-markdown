@@ -15,7 +15,7 @@ function cacheKey(code: string, isDark: boolean): string {
 
 /** Build the PlantUML source with appropriate skin params applied */
 function buildPlantUmlSource(code: string, isDark: boolean): string {
-  const startMatch = code.match(/@start(uml|mindmap|wbs|json|yaml)/);
+  const startMatch = /@start(uml|mindmap|wbs|json|yaml)/.exec(code);
   const diagramType = startMatch ? startMatch[1] : null;
   const needsSkinParam = diagramType === "uml" || diagramType === null;
   const lightSkinParam = "skinparam backgroundColor transparent";
@@ -47,7 +47,7 @@ export function usePlantUmlRender({ code, isPlantUml, isDark }: UsePlantUmlRende
   });
   const [error, setError] = useState("");
   const [plantUmlConsent, setPlantUmlConsent] = useState<"pending" | "accepted" | "rejected">(() => {
-    if (typeof window === "undefined") return "pending";
+    if (typeof globalThis === "undefined") return "pending";
     const v = sessionStorage.getItem(PLANTUML_CONSENT_KEY);
     return v === "accepted" || v === "rejected" ? v : "pending";
   });
