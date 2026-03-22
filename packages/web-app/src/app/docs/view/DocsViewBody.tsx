@@ -19,7 +19,7 @@ import SiteFooter from '../../components/SiteFooter';
 function resolveDocKeys(docKey: string, locale: string): { resolved: string; localeMap?: Partial<Record<string, string>> } {
   // フォルダキー（末尾スラッシュ）の場合
   if (docKey.endsWith('/')) {
-    const folderName = docKey.split('/').filter(Boolean).at(-1) ?? '';
+    const folderName = docKey.split('/').findLast(Boolean) ?? '';
     const resolved = `${docKey}${folderName}.${locale}.md`;
     const otherLocale = locale === 'ja' ? 'en' : 'ja';
     return { resolved, localeMap: { [otherLocale]: `${docKey}${folderName}.${otherLocale}.md` } };

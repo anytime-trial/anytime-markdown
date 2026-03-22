@@ -305,7 +305,7 @@ function SortableCategory({
               // フォルダのトップレベル名を取得し、フォルダ単位で1アイテムとして追加
               const firstKey = droppedFiles[0].key;
               const folderPrefix = firstKey.substring(0, firstKey.lastIndexOf('/') + 1);
-              const folderName = folderPrefix.split('/').filter(Boolean).at(-1) ?? folderPrefix;
+              const folderName = folderPrefix.split('/').findLast(Boolean) ?? folderPrefix;
               onDropFile(category.id, folderPrefix, folderName);
             }
             return;
