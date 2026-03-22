@@ -4,7 +4,7 @@ import DOMPurify from "dompurify";
 import { common, createLowlight } from "lowlight";
 import React, { useCallback, useMemo, useState } from "react";
 
-import { getActionHover, getDivider, getTextPrimary } from "../constants/colors";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getActionHover, getDivider, getTextPrimary } from "../constants/colors";
 import { CODE_HELLO_SAMPLES } from "../constants/codeHelloSamples";
 import { CHIP_FONT_SIZE, FS_CHIP_HEIGHT, FS_PANEL_HEADER_FONT_SIZE, FS_TOOLBAR_HEIGHT } from "../constants/dimensions";
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
@@ -129,7 +129,7 @@ function SyntaxPreviewPanel({
     return (
       <>
         <ZoomToolbar fsZP={fsZP} t={() => ""} />
-        <Box sx={{ flex: 1, overflow: "auto", bgcolor: isDark ? "#F8F9FA" : undefined, p: 2 }}>
+        <Box sx={{ flex: 1, overflow: "auto", bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG, p: 2 }}>
           {renderPreview(fsCode)}
         </Box>
       </>
