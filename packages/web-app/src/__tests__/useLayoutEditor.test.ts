@@ -73,7 +73,7 @@ function setupFetchMock(overrides?: { filesOk?: boolean; layoutOk?: boolean }) {
 
 describe("useLayoutEditor", () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    setupFetchMock();
   });
 
   afterEach(() => {
@@ -321,11 +321,20 @@ describe("useLayoutEditor", () => {
     expect(result.current.editCategory).toBeNull();
   });
 
-  test.skip("handleSave: レイアウトを保存する", async () => {
-    global.fetch = jest.fn((url: string, opts?: RequestInit) => {
-      if (opts?.method === "PUT" && typeof url === "string" && url.includes("/api/sites/layout")) {
+  test("handleSave: レイアウトを保存する", async () => {
+    setupFetchMock();
+    const { result } = renderHook(() => useLayoutEditor());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    act(() => result.current.setSnackbar(null));
+
+    // PUT にだけ応答を変える。GET は引き続き正常に返す。
+    (global.fetch as jest.Mock).mockImplementation((url: string, opts?: RequestInit) => {
+      if (opts?.method === "PUT") {
         return Promise.resolve({ ok: true } as Response);
       }
+      // 初期ロード用の fetch が再度呼ばれても正常に返す
       if (typeof url === "string" && url.includes("/api/docs")) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve({ files: mockFiles }) } as Response);
       }
@@ -333,23 +342,27 @@ describe("useLayoutEditor", () => {
         return Promise.resolve({ ok: true, json: () => Promise.resolve({ categories: mockCategories, siteDescription: "Test site" }) } as Response);
       }
       return Promise.resolve({ ok: true, json: () => Promise.resolve({}) } as Response);
-    }) as jest.Mock;
+    });
+
+    act(() => { result.current.handleSave(); });
+
+    await waitFor(() => {
+      expect(result.current.snackbar).toEqual({
+        message: "sitesSaveSuccess",
+        severity: "success",
+      });
+    });
+  });
+
+  test("handleSave: 保存失敗時にエラーを表示する", async () => {
+    setupFetchMock();
     const { result } = renderHook(() => useLayoutEditor());
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    await act(async () => {
-      await result.current.handleSave();
-    });
+    act(() => result.current.setSnackbar(null));
 
-    expect(result.current.snackbar).toEqual({
-      message: "sitesSaveSuccess",
-      severity: "success",
-    });
-  });
-
-  test.skip("handleSave: 保存失敗時にエラーを表示する", async () => {
-    global.fetch = jest.fn((url: string, opts?: RequestInit) => {
+    (global.fetch as jest.Mock).mockImplementation((url: string, opts?: RequestInit) => {
       if (opts?.method === "PUT") {
         return Promise.resolve({ ok: false, status: 500 } as Response);
       }
@@ -360,74 +373,49 @@ describe("useLayoutEditor", () => {
         return Promise.resolve({ ok: true, json: () => Promise.resolve({ categories: mockCategories, siteDescription: "Test site" }) } as Response);
       }
       return Promise.resolve({ ok: true, json: () => Promise.resolve({}) } as Response);
-    }) as jest.Mock;
-    const { result } = renderHook(() => useLayoutEditor());
-
-    await waitFor(() => expect(result.current.loading).toBe(false));
-
-    await act(async () => {
-      await result.current.handleSave();
     });
 
-    expect(result.current.snackbar).toEqual({
-      message: "sitesSaveError",
-      severity: "error",
+    act(() => { result.current.handleSave(); });
+
+    await waitFor(() => {
+      expect(result.current.snackbar).toEqual({
+        message: "sitesSaveError",
+        severity: "error",
+      });
     });
   });
 
-  test.skip("handleDeleteFile: ファイルを削除する", async () => {
-    global.fetch = jest.fn((url: string, opts?: RequestInit) => {
-      if (opts?.method === "DELETE") {
-        return Promise.resolve({ ok: true } as Response);
-      }
-      if (typeof url === "string" && url.includes("/api/docs") && !url.includes("delete")) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ files: mockFiles }) } as Response);
-      }
-      if (typeof url === "string" && url.includes("/api/sites/layout")) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ categories: mockCategories }) } as Response);
-      }
-      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) } as Response);
-    }) as jest.Mock;
+  test("handleDeleteFile: ファイルを削除する", async () => {
+    setupFetchMock();
     const { result } = renderHook(() => useLayoutEditor());
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     act(() => result.current.setDeleteTarget({ kind: "file", file: mockFiles[0] }));
 
-    await act(async () => {
-      await result.current.handleDeleteFile();
-    });
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ files: [] }) });
 
-    expect(result.current.deleteTarget).toBeNull();
+    act(() => { result.current.handleDeleteFile(); });
+
+    await waitFor(() => {
+      expect(result.current.deleteTarget).toBeNull();
+    });
     expect(result.current.snackbar?.severity).toBe("success");
   });
 
-  test.skip("handleDeleteFile: deleteTarget が null の場合何もしない", async () => {
+  test("handleDeleteFile: deleteTarget が null の場合何もしない", async () => {
     setupFetchMock();
     const { result } = renderHook(() => useLayoutEditor());
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    await act(async () => {
-      await result.current.handleDeleteFile();
-    });
+    act(() => { result.current.handleDeleteFile(); });
     // エラーなく完了
     expect(result.current.deleteTarget).toBeNull();
   });
 
-  test.skip("handleDeleteFile: フォルダ削除", async () => {
-    global.fetch = jest.fn((url: string, opts?: RequestInit) => {
-      if (opts?.method === "DELETE") {
-        return Promise.resolve({ ok: true } as Response);
-      }
-      if (typeof url === "string" && url.includes("/api/docs") && !url.includes("delete")) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ files: mockFiles }) } as Response);
-      }
-      if (typeof url === "string" && url.includes("/api/sites/layout")) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ categories: mockCategories }) } as Response);
-      }
-      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) } as Response);
-    }) as jest.Mock;
+  test("handleDeleteFile: フォルダ削除", async () => {
+    setupFetchMock();
     const { result } = renderHook(() => useLayoutEditor());
 
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -438,38 +426,33 @@ describe("useLayoutEditor", () => {
       files: mockFiles,
     }));
 
-    await act(async () => {
-      await result.current.handleDeleteFile();
-    });
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ files: [] }) });
 
-    expect(result.current.deleteTarget).toBeNull();
+    act(() => { result.current.handleDeleteFile(); });
+
+    await waitFor(() => {
+      expect(result.current.deleteTarget).toBeNull();
+    });
     expect(result.current.snackbar?.severity).toBe("success");
   });
 
-  test.skip("handleDeleteFile: 削除失敗時にエラーを表示する", async () => {
-    global.fetch = jest.fn((url: string, opts?: RequestInit) => {
-      if (opts?.method === "DELETE") {
-        return Promise.resolve({ ok: false, status: 500 } as Response);
-      }
-      if (typeof url === "string" && url.includes("/api/docs") && !url.includes("delete")) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ files: mockFiles }) } as Response);
-      }
-      if (typeof url === "string" && url.includes("/api/sites/layout")) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ categories: mockCategories }) } as Response);
-      }
-      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) } as Response);
-    }) as jest.Mock;
+  test("handleDeleteFile: 削除失敗時にエラーを表示する", async () => {
+    setupFetchMock();
     const { result } = renderHook(() => useLayoutEditor());
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     act(() => result.current.setDeleteTarget({ kind: "file", file: mockFiles[0] }));
 
-    await act(async () => {
-      await result.current.handleDeleteFile();
-    });
+    global.fetch = jest.fn()
+      .mockResolvedValueOnce({ ok: false, status: 500 })
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve({ files: mockFiles }) });
 
-    expect(result.current.snackbar?.severity).toBe("error");
+    act(() => { result.current.handleDeleteFile(); });
+
+    await waitFor(() => {
+      expect(result.current.snackbar?.severity).toBe("error");
+    });
   });
 
   test("handleCancelOverwrite: uploadConfirm をクリアする", async () => {
