@@ -3,24 +3,24 @@ import type { Metadata } from 'next';
 import VsCodeBody from './vscode/VsCodeBody';
 
 export const metadata: Metadata = {
-  title: 'Anytime Markdown - Code and docs with AI, in one editor',
+  title: 'Anytime Markdown - SDD × AI Markdown Editor',
   description:
-    'Rich Markdown editing in Visual Studio Code. WYSIWYG, AI diff highlighting, image annotation, and Git integration. | Visual Studio Code で Markdown をリッチに編集。AI 差分ハイライト、画像アノテーション、Git 連携。',
+    'Spec-Driven Development (SDD) Markdown editor for AI collaboration. AI diff highlighting, image annotation, image prompt. Visual Studio Code extension available. | 仕様駆動開発(SDD)対応 AI コラボレーション マークダウンエディタ。AI差分ハイライト、画像アノテーション、イメージプロンプト対応。Visual Studio Code拡張。',
   alternates: {
     canonical: '/',
   },
   openGraph: {
-    title: 'Anytime Markdown - Code and docs with AI, in one editor',
+    title: 'Anytime Markdown - SDD × AI Markdown Editor',
     description:
-      'Rich Markdown editing in Visual Studio Code. WYSIWYG, AI diff highlighting, image annotation, and Git integration.',
+      'Spec-Driven Development (SDD) Markdown editor with AI diff highlighting, image annotation, and image prompt. Visual Studio Code extension.',
     type: 'website',
     siteName: 'Anytime Markdown',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Anytime Markdown - Code and docs with AI, in one editor',
+    title: 'Anytime Markdown - SDD × AI Markdown Editor',
     description:
-      'Rich Markdown editing in Visual Studio Code. WYSIWYG, AI diff highlighting, image annotation, and Git integration.',
+      'Spec-Driven Development (SDD) Markdown editor with AI diff highlighting, image annotation, and image prompt. Visual Studio Code extension.',
   },
 };
 
