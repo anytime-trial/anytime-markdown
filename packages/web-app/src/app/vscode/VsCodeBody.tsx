@@ -75,7 +75,7 @@ export default function VsCodeBody() {
         }}
       >
         <Container maxWidth="md" sx={{ position: 'relative', zIndex: 1 }}>
-          <Box component="h1" sx={{ m: 0, mb: 3 }}>
+          <Box component="h1" sx={{ m: 0, mb: 3, pl: '1em', pr: '1em' }}>
             <Typography
               variant="h2"
               component="span"
