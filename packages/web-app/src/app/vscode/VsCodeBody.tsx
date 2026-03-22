@@ -25,6 +25,7 @@ import {
   Typography,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
+import NextLink from 'next/link';
 import { useTranslations } from 'next-intl';
 
 import LandingHeader from '../components/LandingHeader';
@@ -151,6 +152,26 @@ export default function VsCodeBody() {
             }}
           >
             {t('installButton')}
+          </Button>
+          <Button
+            component={NextLink}
+            href="/markdown"
+            variant="text"
+            size="small"
+            sx={{
+              mt: 2,
+              textTransform: 'none',
+              fontWeight: 500,
+              fontSize: '0.85rem',
+              color: 'text.secondary',
+              '&:hover': {
+                color: 'text.primary',
+                bgcolor: 'transparent',
+                textDecoration: 'underline',
+              },
+            }}
+          >
+            {t('tryOnline')}
           </Button>
         </Container>
       </Box>
