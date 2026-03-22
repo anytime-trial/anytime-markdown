@@ -7,7 +7,7 @@ import { renderHook, act } from "@testing-library/react";
 import { useSourceMode } from "../hooks/useSourceMode";
 import { getMarkdownFromEditor } from "../types";
 import type { Editor } from "@tiptap/react";
-import { STORAGE_KEY_READONLY_MODE, STORAGE_KEY_REVIEW_MODE, STORAGE_KEY_SOURCE_MODE } from "../constants/storageKeys";
+import { STORAGE_KEY_EDITOR_MODE, STORAGE_KEY_READONLY_MODE, STORAGE_KEY_REVIEW_MODE, STORAGE_KEY_SOURCE_MODE } from "../constants/storageKeys";
 
 jest.mock("../types", () => ({
   ...jest.requireActual("../types"),
@@ -190,18 +190,35 @@ describe("useSourceMode - extra", () => {
     expect(hook.result.current.sourceMode).toBe(true);
   });
 
-  test("localStorage に sourceMode=true → 初期値 sourceMode=true", () => {
-    localStorage.setItem(STORAGE_KEY_SOURCE_MODE, "true");
+  test("localStorage に mode=source → 初期値 sourceMode=true", () => {
+    localStorage.setItem(STORAGE_KEY_EDITOR_MODE, "source");
     const { hook } = setup();
     expect(hook.result.current.sourceMode).toBe(true);
   });
 
-  test("localStorage に readonlyMode=true → reviewMode は false", () => {
+  test("localStorage に mode=readonly → readonlyMode=true, reviewMode=false", () => {
+    localStorage.setItem(STORAGE_KEY_EDITOR_MODE, "readonly");
+    const { hook } = setup();
+    expect(hook.result.current.readonlyMode).toBe(true);
+    expect(hook.result.current.reviewMode).toBe(false);
+  });
+
+  test("旧キーからのマイグレーション: sourceMode=true → mode=source", () => {
+    localStorage.setItem(STORAGE_KEY_SOURCE_MODE, "true");
+    const { hook } = setup();
+    expect(hook.result.current.sourceMode).toBe(true);
+    // 旧キーが削除されていること
+    expect(localStorage.getItem(STORAGE_KEY_SOURCE_MODE)).toBeNull();
+  });
+
+  test("旧キーからのマイグレーション: readonlyMode=true が優先", () => {
     localStorage.setItem(STORAGE_KEY_READONLY_MODE, "true");
     localStorage.setItem(STORAGE_KEY_REVIEW_MODE, "true");
     const { hook } = setup();
     expect(hook.result.current.readonlyMode).toBe(true);
     expect(hook.result.current.reviewMode).toBe(false);
+    expect(localStorage.getItem(STORAGE_KEY_READONLY_MODE)).toBeNull();
+    expect(localStorage.getItem(STORAGE_KEY_REVIEW_MODE)).toBeNull();
   });
 
   test("liveMessage が切り替え時に設定される", () => {

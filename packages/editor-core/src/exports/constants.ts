@@ -18,8 +18,9 @@ export type { DiagramSample } from '../constants/samples';
 export { MERMAID_SAMPLES, PLANTUML_SAMPLES } from '../constants/samples';
 export { isMac, KEYBOARD_SHORTCUTS, modKey } from '../constants/shortcuts';
 export {
-  STORAGE_KEY_CONTENT, STORAGE_KEY_READONLY_MODE,
-  STORAGE_KEY_REVIEW_MODE, STORAGE_KEY_SETTINGS, STORAGE_KEY_SOURCE_MODE,
+  STORAGE_KEY_CONTENT, STORAGE_KEY_EDITOR_MODE,
+  STORAGE_KEY_READONLY_MODE, STORAGE_KEY_REVIEW_MODE,
+  STORAGE_KEY_SETTINGS, STORAGE_KEY_SOURCE_MODE,
 } from '../constants/storageKeys';
 export type { MarkdownTemplate } from '../constants/templates';
 export { BUILTIN_TEMPLATES } from '../constants/templates';

@@ -1,12 +1,44 @@
 import type { Editor } from "@tiptap/react";
 import { useCallback, useEffect, useState } from "react";
 
-import { STORAGE_KEY_READONLY_MODE,STORAGE_KEY_REVIEW_MODE, STORAGE_KEY_SOURCE_MODE } from "../constants/storageKeys";
+import { STORAGE_KEY_EDITOR_MODE, STORAGE_KEY_READONLY_MODE, STORAGE_KEY_REVIEW_MODE, STORAGE_KEY_SOURCE_MODE } from "../constants/storageKeys";
 import { reviewModeStorage } from "../extensions/reviewModeExtension";
 import { getMarkdownFromEditor } from "../types";
 import { applyMarkdownToEditor } from "../utils/editorContentLoader";
 import { prependFrontmatter } from "../utils/frontmatterHelpers";
 import { safeSetItem } from "../utils/storage";
+
+type EditorMode = "wysiwyg" | "source" | "review" | "readonly";
+
+/** 旧3キーから新キーへマイグレーション。旧キーを削除し新キーに書き込む */
+function migrateEditorMode(): EditorMode {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY_EDITOR_MODE);
+    if (stored) return stored as EditorMode;
+
+    // 旧キーからマイグレーション
+    let mode: EditorMode = "wysiwyg";
+    if (localStorage.getItem(STORAGE_KEY_SOURCE_MODE) === "true") {
+      mode = "source";
+    } else if (localStorage.getItem(STORAGE_KEY_READONLY_MODE) === "true") {
+      mode = "readonly";
+    } else if (localStorage.getItem(STORAGE_KEY_REVIEW_MODE) === "true") {
+      mode = "review";
+    }
+
+    // 旧キーを削除
+    localStorage.removeItem(STORAGE_KEY_SOURCE_MODE);
+    localStorage.removeItem(STORAGE_KEY_REVIEW_MODE);
+    localStorage.removeItem(STORAGE_KEY_READONLY_MODE);
+
+    if (mode !== "wysiwyg") {
+      safeSetItem(STORAGE_KEY_EDITOR_MODE, mode);
+    }
+    return mode;
+  } catch {
+    return "wysiwyg";
+  }
+}
 
 interface UseSourceModeParams {
   editor: Editor | null;
@@ -17,31 +49,13 @@ interface UseSourceModeParams {
 }
 
 export function useSourceMode({ editor, saveContent, t, frontmatterRef, defaultSourceMode }: UseSourceModeParams) {
-  const [sourceMode, setSourceMode] = useState(() => {
-    if (defaultSourceMode !== undefined) return defaultSourceMode;
-    try {
-      return localStorage.getItem(STORAGE_KEY_SOURCE_MODE) === "true";
-    } catch {
-      return false;
-    }
+  const [initialMode] = useState(() => {
+    if (defaultSourceMode) return "source" as EditorMode;
+    return migrateEditorMode();
   });
-  const [readonlyMode, setReadonlyMode] = useState(() => {
-    try {
-      return localStorage.getItem(STORAGE_KEY_READONLY_MODE) === "true";
-    } catch {
-      return false;
-    }
-  });
-  const [reviewMode, setReviewMode] = useState(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY_REVIEW_MODE);
-      // readonlyMode が有効な場合は reviewMode を無効化
-      if (localStorage.getItem(STORAGE_KEY_READONLY_MODE) === "true") return false;
-      return stored === null ? false : stored === "true";
-    } catch {
-      return false;
-    }
-  });
+  const [sourceMode, setSourceMode] = useState(defaultSourceMode ?? initialMode === "source");
+  const [readonlyMode, setReadonlyMode] = useState(initialMode === "readonly");
+  const [reviewMode, setReviewMode] = useState(initialMode === "review");
   const [sourceText, setSourceText] = useState("");
   const [liveMessage, setLiveMessage] = useState("");
 
@@ -64,56 +78,56 @@ export function useSourceMode({ editor, saveContent, t, frontmatterRef, defaultS
     }
   }, [editor]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const setEditorMode = useCallback((mode: EditorMode) => {
+    setSourceMode(mode === "source");
+    setReviewMode(mode === "review");
+    setReadonlyMode(mode === "readonly");
+    if (mode === "wysiwyg") {
+      localStorage.removeItem(STORAGE_KEY_EDITOR_MODE);
+    } else {
+      safeSetItem(STORAGE_KEY_EDITOR_MODE, mode);
+    }
+  }, []);
+
   const handleSwitchToSource = useCallback(() => {
     if (!editor) return;
     if (reviewMode) {
       reviewModeStorage(editor).enabled = false;
       delete editor.view.dom.dataset.reviewMode;
-      setReviewMode(false);
-      safeSetItem(STORAGE_KEY_REVIEW_MODE, "false");
     } else if (readonlyMode) {
       reviewModeStorage(editor).enabled = false;
       delete editor.view.dom.dataset.readonlyMode;
-      setReadonlyMode(false);
-      safeSetItem(STORAGE_KEY_READONLY_MODE, "false");
     }
     editor.commands.closeSearch();
     setSourceText(prependFrontmatter(getMarkdownFromEditor(editor), frontmatterRef.current));
-    setSourceMode(true);
-    safeSetItem(STORAGE_KEY_SOURCE_MODE, "true");
+    setEditorMode("source");
     setLiveMessage(t("switchedToSource"));
-  }, [editor, readonlyMode, reviewMode, t, frontmatterRef]);
+  }, [editor, readonlyMode, reviewMode, t, frontmatterRef, setEditorMode]);
 
   /** ソースモードのテキストをエディタに同期し、ソースモードを終了する */
   const syncSourceToEditor = useCallback((ed: Editor, src: string) => {
     const { frontmatter } = applyMarkdownToEditor(ed, src);
     frontmatterRef.current = frontmatter;
     saveContent(src, false);
-    setSourceMode(false);
-    safeSetItem(STORAGE_KEY_SOURCE_MODE, "false");
-  }, [saveContent, frontmatterRef]);
+    setEditorMode("wysiwyg");
+  }, [saveContent, frontmatterRef, setEditorMode]);
 
   const handleSwitchToWysiwyg = useCallback(() => {
     if (editor) {
       if (reviewMode) {
         reviewModeStorage(editor).enabled = false;
         delete editor.view.dom.dataset.reviewMode;
-        setReviewMode(false);
-        safeSetItem(STORAGE_KEY_REVIEW_MODE, "false");
       } else if (readonlyMode) {
         reviewModeStorage(editor).enabled = false;
         delete editor.view.dom.dataset.readonlyMode;
-        setReadonlyMode(false);
-        safeSetItem(STORAGE_KEY_READONLY_MODE, "false");
       }
       if (sourceMode) {
         syncSourceToEditor(editor, sourceText);
       }
     }
-    setSourceMode(false);
-    safeSetItem(STORAGE_KEY_SOURCE_MODE, "false");
+    setEditorMode("wysiwyg");
     setLiveMessage(t("switchedToWysiwyg"));
-  }, [editor, sourceMode, readonlyMode, reviewMode, sourceText, syncSourceToEditor, t]);
+  }, [editor, sourceMode, readonlyMode, reviewMode, sourceText, syncSourceToEditor, t, setEditorMode]);
 
   const handleSwitchToReview = useCallback(() => {
     if (!editor) return;
@@ -128,12 +142,9 @@ export function useSourceMode({ editor, saveContent, t, frontmatterRef, defaultS
     }
     reviewModeStorage(editor).enabled = true;
     editor.view.dom.dataset.reviewMode = "true";
-    setReadonlyMode(false);
-    setReviewMode(true);
-    safeSetItem(STORAGE_KEY_READONLY_MODE, "false");
-    safeSetItem(STORAGE_KEY_REVIEW_MODE, "true");
+    setEditorMode("review");
     setLiveMessage(t("switchedToReview"));
-  }, [editor, sourceMode, readonlyMode, sourceText, syncSourceToEditor, t]);
+  }, [editor, sourceMode, readonlyMode, sourceText, syncSourceToEditor, t, setEditorMode]);
 
   const handleSwitchToReadonly = useCallback(() => {
     if (!editor) return;
@@ -147,12 +158,9 @@ export function useSourceMode({ editor, saveContent, t, frontmatterRef, defaultS
     }
     reviewModeStorage(editor).enabled = true;
     editor.view.dom.dataset.readonlyMode = "true";
-    setReadonlyMode(true);
-    setReviewMode(false);
-    safeSetItem(STORAGE_KEY_READONLY_MODE, "true");
-    safeSetItem(STORAGE_KEY_REVIEW_MODE, "false");
+    setEditorMode("readonly");
     setLiveMessage(t("switchedToReadonly"));
-  }, [editor, sourceMode, reviewMode, sourceText, syncSourceToEditor, t]);
+  }, [editor, sourceMode, reviewMode, sourceText, syncSourceToEditor, t, setEditorMode]);
 
   /** コメント操作用: 一時的にレビューモードのフィルタを解除してコマンド実行後に戻す */
   const executeInReviewMode = useCallback((fn: () => void) => {
