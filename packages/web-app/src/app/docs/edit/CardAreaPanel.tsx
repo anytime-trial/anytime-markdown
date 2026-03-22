@@ -59,12 +59,12 @@ function InlineEditField({
   placeholder,
   onSave,
   variant,
-}: {
+}: Readonly<{
   value: string;
   placeholder: string;
   onSave: (value: string) => void;
   variant: 'title' | 'description' | 'item';
-}) {
+}>) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
 
@@ -149,13 +149,13 @@ function SortableItem({
   onRemoveItem,
   onUpdateItemDisplayName,
   t,
-}: {
+}: Readonly<{
   item: { docKey: string; displayName: string };
   categoryId: string;
   onRemoveItem: (categoryId: string, docKey: string) => void;
   onUpdateItemDisplayName: (categoryId: string, docKey: string, displayName: string) => void;
   t: ReturnType<typeof useTranslations>;
-}) {
+}>) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.docKey });
   const style = {
     transform: CSS.Transform.toString(transform),

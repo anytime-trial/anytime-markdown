@@ -36,8 +36,8 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
-function createMockRequest(): { headers: Headers } {
-  return { headers: new Headers() };
+function createMockRequest(pathname = "/"): { headers: Headers; nextUrl: { pathname: string }; url: string } {
+  return { headers: new Headers(), nextUrl: { pathname }, url: `http://localhost:3000${pathname}` };
 }
 
 describe("middleware", () => {

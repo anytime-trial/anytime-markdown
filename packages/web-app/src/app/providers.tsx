@@ -88,7 +88,7 @@ export function Providers({ children }: Readonly<{ children: React.ReactNode }>)
     const p = getPreset(presetName);
     const families = [p.fontFamily, p.displayFont]
       .flatMap(s => s.split(','))
-      .map(s => s.trim().replace(/^["']|["']$/g, ''))
+      .map(s => s.trim().replaceAll(/^["']|["']$/g, ''))
       .filter(f => !['Helvetica', 'Helvetica Neue', 'Arial', 'sans-serif', 'serif',
         'Georgia', 'Times New Roman', 'Arial Rounded MT Bold', 'Roboto'].includes(f));
     if (families.length === 0) return;

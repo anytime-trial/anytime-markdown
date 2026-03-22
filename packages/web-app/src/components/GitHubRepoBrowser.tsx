@@ -86,9 +86,7 @@ export const GitHubRepoBrowser: FC<GitHubRepoBrowserProps> = ({
           )
             .map((item) => ({
               path: item.path,
-              type: (item.type === "dir" ? "tree" : "blob") as
-                | "tree"
-                | "blob",
+              type: item.type === "dir" ? "tree" as const : "blob" as const,
               name: item.name,
             }))
             .filter(
@@ -139,11 +137,9 @@ export const GitHubRepoBrowser: FC<GitHubRepoBrowserProps> = ({
       if (entry.type === "tree") {
         setCurrentPath(entry.path);
         if (selectedRepo) fetchDirectory(selectedRepo, entry.path);
-      } else {
-        if (selectedRepo) {
-          onSelect(selectedRepo.fullName, entry.path);
-          onClose();
-        }
+      } else if (selectedRepo) {
+        onSelect(selectedRepo.fullName, entry.path);
+        onClose();
       }
     },
     [selectedRepo, onSelect, onClose, fetchDirectory],
@@ -169,7 +165,7 @@ export const GitHubRepoBrowser: FC<GitHubRepoBrowserProps> = ({
           : "Select Repository"}
       </DialogTitle>
       <DialogContent>
-        {needsAuth ? (
+        {needsAuth && (
           <Box sx={{ textAlign: "center", py: 4 }}>
             <Typography sx={{ mb: 2 }}>
               GitHub authentication required
@@ -178,11 +174,13 @@ export const GitHubRepoBrowser: FC<GitHubRepoBrowserProps> = ({
               Sign in with GitHub
             </Button>
           </Box>
-        ) : loading ? (
+        )}
+        {!needsAuth && loading && (
           <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
             <CircularProgress />
           </Box>
-        ) : selectedRepo ? (
+        )}
+        {!needsAuth && !loading && selectedRepo && (
           <List>
             {tree.map((entry) => (
               <ListItemButton
@@ -207,7 +205,8 @@ export const GitHubRepoBrowser: FC<GitHubRepoBrowserProps> = ({
               </Typography>
             )}
           </List>
-        ) : (
+        )}
+        {!needsAuth && !loading && !selectedRepo && (
           <List>
             {repos.map((repo) => (
               <ListItemButton

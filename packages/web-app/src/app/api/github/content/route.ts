@@ -81,8 +81,9 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
   // 既存ファイル更新時: sha が未指定なら自動取得
   let fileSha = sha;
   if (!fileSha && content != null) {
+    const branchQuery = branch ? `?ref=${branch}` : "";
     const getRes = await fetchWithRetry(
-      `https://api.github.com/repos/${repo}/contents/${encodedPath}${branch ? `?ref=${branch}` : ""}`,
+      `https://api.github.com/repos/${repo}/contents/${encodedPath}${branchQuery}`,
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -235,8 +236,9 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
       .join("/");
 
   // 1. GET old file (content + sha)
+  const oldBranchQuery = branch ? `?ref=${branch}` : "";
   const getRes = await fetchWithRetry(
-    `https://api.github.com/repos/${repo}/contents/${encodeSegments(oldPath)}${branch ? `?ref=${branch}` : ""}`,
+    `https://api.github.com/repos/${repo}/contents/${encodeSegments(oldPath)}${oldBranchQuery}`,
     { headers },
   );
   if (!getRes.ok) {
@@ -265,7 +267,7 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
         headers: { ...headers, "Content-Type": "application/json" },
         body: JSON.stringify({
           message: `Rename ${oldPath} → ${newPath}`,
-          content: fileData.content.replace(/\n/g, ""),
+          content: fileData.content.replaceAll("\n", ""),
           ...(branch ? { branch } : {}),
         }),
       },

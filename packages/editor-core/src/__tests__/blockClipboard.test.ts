@@ -3,6 +3,9 @@ import {
   setHandledByKeydown,
   getCopiedBlockNode,
   setCopiedBlockNode,
+  findBlockNode,
+  performBlockCopy,
+  handleBlockClipboardEvent,
 } from "../utils/blockClipboard";
 
 describe("blockClipboard ユーティリティ", () => {
@@ -52,6 +55,92 @@ describe("blockClipboard ユーティリティ", () => {
 
     test("false を渡しても例外が発生しない", () => {
       expect(() => setHandledByKeydown(false)).not.toThrow();
+    });
+  });
+
+  describe("findBlockNode", () => {
+    test("ブロックノードが見つからない場合は null を返す", () => {
+      const mockState = {
+        selection: {
+          $from: {
+            depth: 0,
+            node: () => ({ type: { name: "paragraph" } }),
+            before: () => 0,
+          },
+          from: 0,
+        },
+        doc: {
+          nodeAt: () => null,
+          resolve: () => ({ nodeBefore: null }),
+        },
+      } as any;
+      expect(findBlockNode(mockState)).toBeNull();
+    });
+
+    test("カーソル位置にブロックノードがある場合はそれを返す", () => {
+      const mockNode = { type: { name: "codeBlock" }, nodeSize: 10 };
+      const mockState = {
+        selection: {
+          $from: {
+            depth: 0,
+            node: () => ({ type: { name: "doc" } }),
+          },
+          from: 5,
+        },
+        doc: {
+          nodeAt: () => mockNode,
+          textBetween: () => "some code",
+        },
+      } as any;
+      const result = findBlockNode(mockState);
+      expect(result).not.toBeNull();
+      expect(result!.node).toBe(mockNode);
+      expect(result!.text).toBe("some code");
+    });
+  });
+
+  describe("performBlockCopy", () => {
+    test("テキスト選択がある場合はテキストをコピーする", () => {
+      const writeClipboard = jest.fn();
+      const mockView = {
+        state: {
+          selection: { from: 5, to: 10 },
+          doc: {
+            textBetween: () => "hello",
+          },
+          tr: {
+            deleteSelection: jest.fn().mockReturnThis(),
+          },
+        },
+        dispatch: jest.fn(),
+      } as any;
+
+      const result = performBlockCopy(mockView, false, writeClipboard);
+      expect(result).toBe(true);
+      expect(writeClipboard).toHaveBeenCalledWith("hello", null);
+      expect(getCopiedBlockNode()).toBeNull();
+    });
+
+    test("テキスト選択がありカットの場合は削除も実行する", () => {
+      const writeClipboard = jest.fn();
+      const deleteSel = jest.fn().mockReturnThis();
+      const mockView = {
+        state: {
+          selection: { from: 5, to: 10 },
+          doc: {
+            textBetween: () => "hello",
+          },
+          tr: {
+            deleteSelection: deleteSel,
+          },
+        },
+        dispatch: jest.fn(),
+      } as any;
+
+      const result = performBlockCopy(mockView, true, writeClipboard);
+      expect(result).toBe(true);
+      expect(deleteSel).toHaveBeenCalled();
+      expect(mockView.dispatch).toHaveBeenCalled();
     });
   });
 });

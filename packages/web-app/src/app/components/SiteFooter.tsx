@@ -42,15 +42,6 @@ export default function SiteFooter() {
           {t('footerGithub')}
         </MuiLink>
         <MuiLink
-          href="https://marketplace.visualstudio.com/items?itemName=kiytaka-ueda.anytime-markdown"
-          target="_blank"
-          rel="noopener noreferrer"
-          underline="hover"
-          sx={{ color: 'text.secondary', fontSize: '0.85rem' }}
-        >
-          {t('footerVscode')}
-        </MuiLink>
-        <MuiLink
           component={NextLink}
           href="/docs"
           underline="hover"
@@ -58,14 +49,16 @@ export default function SiteFooter() {
         >
           {t('sitesPage')}
         </MuiLink>
-        <MuiLink
-          component={NextLink}
-          href="/docs/edit"
-          underline="hover"
-          sx={{ color: 'text.secondary', fontSize: '0.85rem' }}
-        >
-          {t('docsEditPage')}
-        </MuiLink>
+        {process.env.NEXT_PUBLIC_ENABLE_DOCS_EDIT === 'true' && (
+          <MuiLink
+            component={NextLink}
+            href="/docs/edit"
+            underline="hover"
+            sx={{ color: 'text.secondary', fontSize: '0.85rem' }}
+          >
+            {t('docsEditPage')}
+          </MuiLink>
+        )}
         <MuiLink
           component={NextLink}
           href="/privacy"

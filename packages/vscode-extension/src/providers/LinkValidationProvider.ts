@@ -104,10 +104,6 @@ export class LinkValidationProvider implements vscode.Disposable {
 					this.validate(doc);
 				}
 			}),
-		);
-
-		// ファイルを開いた時に検証、閉じた時に Diagnostic をクリア
-		this.disposables.push(
 			vscode.workspace.onDidOpenTextDocument((doc) => {
 				if (doc.languageId === 'markdown') {
 					this.validate(doc);

@@ -265,7 +265,7 @@ function getCompareTableHtml(
   return findCounterpartTableHtml(editor, otherEditor, pos);
 }
 
-export function TableNodeView({ editor, node, getPos }: NodeViewProps) {
+export function TableNodeView({ editor, node, getPos }: Readonly<NodeViewProps>) {
   const t = useTranslations("MarkdownEditor");
   const isDark = useTheme().palette.mode === "dark";
   const settings = useEditorSettingsContext();

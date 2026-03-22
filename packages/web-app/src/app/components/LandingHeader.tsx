@@ -79,25 +79,6 @@ export default function LandingHeader() {
             <ToggleButton value="ja" aria-label="Japanese">JA</ToggleButton>
           </ToggleButtonGroup>
 
-          <Button
-            component={NextLink}
-            href="/markdown"
-            variant="contained"
-            size="small"
-            sx={{
-              textTransform: 'none',
-              fontWeight: 600,
-              borderRadius: 2,
-              px: 2.5,
-              bgcolor: 'secondary.main',
-              color: '#000000',
-              display: { xs: 'none', sm: 'inline-flex' },
-              '&:hover': { bgcolor: 'secondary.dark' },
-            }}
-          >
-            {t('openEditor')}
-          </Button>
-
           <IconButton
             aria-label={t('ariaMenu')}
             aria-expanded={drawerOpen}
@@ -121,9 +102,6 @@ export default function LandingHeader() {
           <List>
             <ListItemButton component={NextLink} href="/docs" onClick={() => setDrawerOpen(false)}>
               <ListItemText primary={t('sitesPage')} />
-            </ListItemButton>
-            <ListItemButton component={NextLink} href="/markdown" onClick={() => setDrawerOpen(false)}>
-              <ListItemText primary={t('openEditor')} />
             </ListItemButton>
           </List>
           <Box sx={{ px: 2, pt: 1 }}>

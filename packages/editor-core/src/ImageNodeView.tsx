@@ -318,7 +318,7 @@ function handleResizeKeyDownImpl(
   updateAttributes({ width: `${newWidth}px` });
 }
 
-export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeViewProps) {
+export function ImageNodeView({ editor, node, updateAttributes, getPos }: Readonly<NodeViewProps>) {
   const t = useTranslations("MarkdownEditor");
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
@@ -362,14 +362,14 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: NodeVi
   const onEditAction = canInteract ? () => setEditOpen(true) : undefined;
   const onEditUrlAction = canInteract ? handleEditUrl : undefined;
   const onScreenCaptureAction = hasScreenCapture ? () => setScreenCaptureOpen(true) : undefined;
-  const onImageDoubleClick = !isEditable ? () => setEditOpen(true) : undefined;
+  const onImageDoubleClick = isEditable ? undefined : () => setEditOpen(true);
 
   const borderColor = showBorder ? getDivider(isDark) : "transparent";
-  const hiddenToolbarSx = !showBorder ? {
+  const hiddenToolbarSx = showBorder ? {} : {
     "& > [data-block-toolbar]": {
       maxHeight: 0, opacity: 0, py: 0, overflow: "hidden",
     },
-  } : {};
+  };
 
   return (
     <NodeViewWrapper className="image-node-wrapper">

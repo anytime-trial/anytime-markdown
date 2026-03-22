@@ -109,17 +109,17 @@ export class OutlineProvider implements vscode.TreeDataProvider<OutlineItem> {
 
 		for (const item of items) {
 			if (item.heading.kind !== 'heading') {
-				const parent = stack[stack.length - 1];
+				const parent = stack.at(-1);
 				if (parent) this.addChild(parent, item);
 				else roots.push(item);
 				continue;
 			}
 
-			while (stack.length > 0 && stack[stack.length - 1].heading.level >= item.heading.level) {
+			while (stack.length > 0 && stack.at(-1)!.heading.level >= item.heading.level) {
 				stack.pop();
 			}
 
-			const parent = stack[stack.length - 1];
+			const parent = stack.at(-1);
 			if (parent) this.addChild(parent, item);
 			else roots.push(item);
 

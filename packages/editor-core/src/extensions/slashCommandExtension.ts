@@ -13,7 +13,7 @@ export interface SlashCommandState {
 const slashCommandPluginKey = new PluginKey("slashCommand");
 
 /** Strip zero-width spaces (U+200B) that Tiptap inserts as cursor placeholders */
-const stripZWS = (s: string) => s.replace(/\u200B/g, "");
+const stripZWS = (s: string) => s.replaceAll("\u200B", "");
 
 export const SlashCommandExtension = Extension.create<{
   onStateChange: (state: SlashCommandState) => void;

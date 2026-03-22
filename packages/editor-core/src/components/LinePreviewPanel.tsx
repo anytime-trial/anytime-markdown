@@ -58,7 +58,7 @@ export const LinePreviewPanel = React.memo(function LinePreviewPanel({
   const renderSegments = (segments: InlineSegment[], highlightType: "removed" | "added") =>
     segments.map((seg, i) => (
       <span
-        key={`seg-${i}`}
+        key={`seg-${seg.type}-${i}-${seg.text.slice(0, 16)}`}
         style={
           seg.type === highlightType
             ? {

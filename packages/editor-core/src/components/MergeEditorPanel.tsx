@@ -165,7 +165,7 @@ function computeSourcePanelState(
 
   const alignedCount = diffLines ? diffLines.length : rawLineCount;
   const lineNumbersArray = diffLines
-    ? diffLines.map(dl => dl.lineNumber != null ? String(dl.lineNumber) : "")
+    ? diffLines.map(dl => dl.lineNumber == null ? "" : String(dl.lineNumber))
     : Array.from({ length: rawLineCount }, (_, i) => String(i + 1));
 
   const displayLines = displayText.split("\n");

@@ -1,29 +1,29 @@
 import type { Metadata } from 'next';
 
-import LandingPage from './components/LandingPage';
+import VsCodeBody from './vscode/VsCodeBody';
 
 export const metadata: Metadata = {
-  title: 'Anytime Markdown - Write Markdown, Beautifully',
+  title: 'Anytime Markdown - SDD × AI Markdown Editor',
   description:
-    'Free browser-based WYSIWYG Markdown editor. Mermaid diagrams, PlantUML preview, KaTeX math, diff comparison, merge, table editor, and code blocks. VSCode extension available. No sign-up, no install required. | 無料のブラウザ対応 WYSIWYG マークダウン エディタ。Mermaid/PlantUML図解作成、KaTeX数式、マークダウン差分(diff)、マージ(merge)、表編集、コードブロック、VSCode拡張対応。設計書・仕様書作成に最適なエンジニア ツール。登録不要・インストール不要。',
+    'Spec-Driven Development (SDD) Markdown editor for AI collaboration. AI diff highlighting, image annotation, image prompt. Visual Studio Code extension available. | 仕様駆動開発(SDD)対応 AI コラボレーション マークダウンエディタ。AI差分ハイライト、画像アノテーション、イメージプロンプト対応。Visual Studio Code拡張。',
   alternates: {
     canonical: '/',
   },
   openGraph: {
-    title: 'Anytime Markdown - Write Markdown, Beautifully',
+    title: 'Anytime Markdown - SDD × AI Markdown Editor',
     description:
-      'Free WYSIWYG Markdown editor with Mermaid, PlantUML, KaTeX, diff, merge, table editor. No sign-up required.',
+      'Spec-Driven Development (SDD) Markdown editor with AI diff highlighting, image annotation, and image prompt. Visual Studio Code extension.',
     type: 'website',
     siteName: 'Anytime Markdown',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Anytime Markdown - Write Markdown, Beautifully',
+    title: 'Anytime Markdown - SDD × AI Markdown Editor',
     description:
-      'Free WYSIWYG Markdown editor with Mermaid, PlantUML, KaTeX, diff, merge, table editor. No sign-up required.',
+      'Spec-Driven Development (SDD) Markdown editor with AI diff highlighting, image annotation, and image prompt. Visual Studio Code extension.',
   },
 };
 
 export default function Page() {
-  return <LandingPage />;
+  return <VsCodeBody />;
 }

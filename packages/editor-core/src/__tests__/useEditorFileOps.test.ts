@@ -388,6 +388,68 @@ describe("useEditorFileOps", () => {
     expect(writeText).toHaveBeenCalledWith("# Copy");
     expect(result.current.notification).toBe("copiedToClipboard");
   });
+
+  // ---- handleImport ----
+
+  test("handleImport: .md ファイルを読み込む", async () => {
+    const { result, setSourceText } = setup({ sourceMode: true });
+    const file = new File(["# Import"], "test.md", { type: "text/markdown" });
+
+    await act(async () => {
+      result.current.handleImport(file);
+    });
+    // handleImport は内部で readFileAsText を呼ぶが、mock されている
+  });
+
+  test("handleImport: テキスト以外のファイルは無視する", () => {
+    const { result } = setup({ sourceMode: true });
+    const file = new File(["binary"], "test.png", { type: "image/png" });
+
+    act(() => {
+      result.current.handleImport(file);
+    });
+    // No error should be thrown
+  });
+
+  // ---- handleFileSelected ----
+
+  test("handleFileSelected: エディタが空のとき確認なしでインポート", async () => {
+    const editor = createMockEditor({ isEmpty: true });
+    const { result } = setup({ editor });
+    const file = new File(["# Test"], "test.md", { type: "text/markdown" });
+
+    await act(async () => {
+      await result.current.handleFileSelected(file);
+    });
+
+    expect(mockConfirm).not.toHaveBeenCalled();
+  });
+
+  test("handleFileSelected: コンテンツありの場合は確認ダイアログを表示", async () => {
+    mockConfirm.mockResolvedValue(undefined);
+    const editor = createMockEditor({ isEmpty: false });
+    const { result } = setup({ editor });
+    const file = new File(["# Test"], "test.md", { type: "text/markdown" });
+
+    await act(async () => {
+      await result.current.handleFileSelected(file);
+    });
+
+    expect(mockConfirm).toHaveBeenCalled();
+  });
+
+  // ---- handleDownload with frontmatter ----
+
+  test("handleDownload: frontmatterRef ありの場合も正常動作", () => {
+    mockedGetMarkdown.mockReturnValue("# Download");
+    const { result, downloadMarkdown } = setup();
+
+    act(() => {
+      result.current.handleDownload();
+    });
+
+    expect(downloadMarkdown).toHaveBeenCalled();
+  });
 });
 
 describe("handleExportPdf: エラー時の状態リセット", () => {

@@ -129,7 +129,7 @@ export default function Page() {
 
   const handleExplorerSelectFile = useCallback(async (repo: string, filePath: string, branch: string) => {
     const prev = selectedFileRef.current;
-    const isSameFile = prev && prev.repo === repo && prev.filePath === filePath && prev.branch === branch;
+    const isSameFile = prev?.repo === repo && prev?.filePath === filePath && prev?.branch === branch;
     selectedFileRef.current = { repo, filePath, branch };
     selectedCommitContentRef.current = null;
     if (isSameFile) return;

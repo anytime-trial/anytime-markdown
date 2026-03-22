@@ -12,7 +12,7 @@ export async function fetchDirEntries(
   return (data as { path: string; type: string; name: string }[])
     .map((item) => ({
       path: item.path,
-      type: (item.type === "dir" ? "tree" : "blob") as "tree" | "blob",
+      type: item.type === "dir" ? "tree" as const : "blob" as const,
       name: item.name,
     }))
     .filter(

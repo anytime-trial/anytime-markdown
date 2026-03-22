@@ -62,9 +62,7 @@ function buildPlantUmlDarkSkinparams(): string {
     `skinparam sequenceReferenceFontColor ${fg}`,
     `skinparam sequenceReferenceHeaderBackgroundColor ${bg}`,
     `skinparam sequenceMessageAlignment left`,
-  );
-  // Activity / State
-  lines.push(
+    // Activity / State
     `skinparam activityBarColor ${fg}`,
     `skinparam activityStartColor ${fg}`,
     `skinparam activityEndColor ${fg}`,

@@ -44,7 +44,7 @@ export default function FileListPanel({
   onAddUrlLink,
   onDeleteUrlLink,
   t,
-}: FileListPanelProps) {
+}: Readonly<FileListPanelProps>) {
   const theme = useTheme();
   const bgColor = theme.palette.mode === 'dark' ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG;
   const [urlDraft, setUrlDraft] = useState('');
@@ -121,7 +121,7 @@ export default function FileListPanel({
               <ListItemText
                 primary={
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <Typography sx={{ flex: 1, fontSize: '0.85rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {folder}/
                     </Typography>
                     <FolderLanguageBadges files={folderFiles} />

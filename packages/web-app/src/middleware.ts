@@ -2,6 +2,14 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 export function middleware(request: NextRequest) {
+  // 本番環境では /docs/edit へのアクセスを /docs にリダイレクト
+  if (
+    request.nextUrl.pathname.startsWith("/docs/edit") &&
+    process.env.NEXT_PUBLIC_ENABLE_DOCS_EDIT !== "true"
+  ) {
+    return NextResponse.redirect(new URL("/docs", request.url));
+  }
+
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
 
   const isDev = process.env.NODE_ENV === "development";

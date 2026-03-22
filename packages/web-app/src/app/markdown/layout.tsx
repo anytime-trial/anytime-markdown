@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   },
 };
 
-export default function MarkdownLayout({ children }: { children: React.ReactNode }) {
+export default function MarkdownLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <>
       <EditorPageBody />

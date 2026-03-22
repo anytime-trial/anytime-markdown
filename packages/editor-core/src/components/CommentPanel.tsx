@@ -191,9 +191,10 @@ export const CommentPanel = React.memo(function CommentPanel({
     }
   };
 
+  const filterMessageKey = filter === "open" ? "noOpenComments" : "noResolvedComments";
   const emptyMessage = filter === "all"
     ? t("noComments")
-    : t(filter === "open" ? "noOpenComments" : "noResolvedComments");
+    : t(filterMessageKey);
 
   return (
     <Paper

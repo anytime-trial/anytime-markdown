@@ -453,9 +453,6 @@ export function activate(context: vscode.ExtensionContext) {
 	// ファイル保存時にリフレッシュ
 	context.subscriptions.push(
 		vscode.workspace.onDidSaveTextDocument(() => changesProvider.refresh()),
-	);
-
-	context.subscriptions.push(
 		changesTreeView, timelineTreeView, specDocsTreeView,
 		{ dispose: () => changesProvider.dispose() },
 		...statusBarItems,

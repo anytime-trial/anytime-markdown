@@ -115,10 +115,14 @@ function searchForward(
     const p = network[i];
     let dist = Math.trunc(p[1]) - g;
     if (dist >= bd) break;
-    if (dist < 0) dist = -dist;
-    let a = Math.trunc(p[0]) - b; if (a < 0) a = -a; dist += a;
+    if (dist < 0) { dist = -dist; }
+    let a = Math.trunc(p[0]) - b;
+    if (a < 0) { a = -a; }
+    dist += a;
     if (dist < bd) {
-      a = Math.trunc(p[2]) - r; if (a < 0) a = -a; dist += a;
+      a = Math.trunc(p[2]) - r;
+      if (a < 0) { a = -a; }
+      dist += a;
       if (dist < bd) { bd = dist; best = Math.trunc(p[3]); }
     }
   }
@@ -136,10 +140,14 @@ function searchBackward(
     const p = network[j];
     let dist = g - Math.trunc(p[1]);
     if (dist >= bd) break;
-    if (dist < 0) dist = -dist;
-    let a = Math.trunc(p[0]) - b; if (a < 0) a = -a; dist += a;
+    if (dist < 0) { dist = -dist; }
+    let a = Math.trunc(p[0]) - b;
+    if (a < 0) { a = -a; }
+    dist += a;
     if (dist < bd) {
-      a = Math.trunc(p[2]) - r; if (a < 0) a = -a; dist += a;
+      a = Math.trunc(p[2]) - r;
+      if (a < 0) { a = -a; }
+      dist += a;
       if (dist < bd) { bd = dist; best = Math.trunc(p[3]); }
     }
   }
