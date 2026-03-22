@@ -43,6 +43,11 @@
     "views": {
       "anytimeMarkdown": [
         {
+          "id": "anytimeMarkdown.aiNote",
+          "name": "AI Note",
+          "initialSize": 1
+        },
+        {
           "id": "anytimeMarkdown.specDocs",
           "name": "%view.specDocs%"
         },
@@ -61,6 +66,10 @@
       ]
     },
     "viewsWelcome": [
+      {
+        "view": "anytimeMarkdown.aiNote",
+        "contents": "%viewsWelcome.aiNote%"
+      },
       {
         "view": "anytimeMarkdown.specDocs",
         "contents": "%viewsWelcome.specDocs%",
@@ -225,6 +234,16 @@
       {
         "command": "anytime-markdown.pasteAsMarkdown",
         "title": "%command.pasteAsMarkdown%"
+      },
+      {
+        "command": "anytime-markdown.openContext",
+        "title": "%command.openContext%",
+        "icon": "$(note)"
+      },
+      {
+        "command": "anytime-markdown.copyContextPath",
+        "title": "%command.copyContextPath%",
+        "icon": "$(clippy)"
       }
     ],
     "customEditors": [
@@ -280,6 +299,11 @@
         }
       ],
       "view/title": [
+        {
+          "command": "anytime-markdown.copyContextPath",
+          "when": "view == anytimeMarkdown.aiNote",
+          "group": "navigation@1"
+        },
         {
           "command": "anytime-markdown.toggleMdOnly",
           "when": "view == anytimeMarkdown.specDocs",

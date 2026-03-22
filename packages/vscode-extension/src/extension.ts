@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { MarkdownEditorProvider } from './providers/MarkdownEditorProvider';
 import { TimelineProvider, TimelineItem } from './providers/TimelineProvider';
 import { GraphProvider } from './providers/GraphProvider';
@@ -450,6 +452,38 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	);
 
+	// AI Note ビュー（空のツリーで Welcome Content を表示）
+	vscode.window.createTreeView('anytimeMarkdown.aiNote', {
+		treeDataProvider: { getTreeItem: (e: never) => e, getChildren: () => [] },
+	});
+
+	// AI Note ファイルを開く
+	const openContext = vscode.commands.registerCommand(
+		'anytime-markdown.openContext',
+		async () => {
+			const dir = context.globalStorageUri.fsPath;
+			const filePath = path.join(dir, 'anytime-context.md');
+			if (!fs.existsSync(dir)) {
+				fs.mkdirSync(dir, { recursive: true });
+			}
+			if (!fs.existsSync(filePath)) {
+				fs.writeFileSync(filePath, '# Anytime Context\n\n', 'utf-8');
+			}
+			const uri = vscode.Uri.file(filePath);
+			await vscode.commands.executeCommand('vscode.openWith', uri, MarkdownEditorProvider.viewType);
+		}
+	);
+
+	// AI Note ファイルパスをクリップボードにコピー
+	const copyContextPath = vscode.commands.registerCommand(
+		'anytime-markdown.copyContextPath',
+		async () => {
+			const filePath = path.join(context.globalStorageUri.fsPath, 'anytime-context.md');
+			await vscode.env.clipboard.writeText(filePath);
+			vscode.window.showInformationMessage(`Copied: ${filePath}`);
+		}
+	);
+
 	// ファイル保存時にリフレッシュ
 	context.subscriptions.push(
 		vscode.workspace.onDidSaveTextDocument(() => changesProvider.refresh()),
@@ -462,6 +496,7 @@ export function activate(context: vscode.ExtensionContext) {
 		specDocsOpenFile, specDocsOpenFolder, specDocsCloneRepo, specDocsClose, specDocsRefresh, switchBranch, toggleMdOnly,
 		specDocsCreateFile, specDocsCreateFolder, specDocsDelete, specDocsRename, specDocsRemoveRoot, specDocsCopyPath, specDocsImportFiles, specDocsCut, specDocsCopy, specDocsPaste, pasteAsMarkdown,
 		graphTreeView, graphRefresh,
+		openContext, copyContextPath,
 	);
 }
 

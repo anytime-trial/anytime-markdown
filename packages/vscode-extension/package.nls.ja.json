@@ -41,5 +41,8 @@
   "command.specDocsCut": "切り取り",
   "command.specDocsCopy": "コピー",
   "command.specDocsPaste": "貼り付け",
-  "command.pasteAsMarkdown": "Markdownで貼り付け"
+  "command.pasteAsMarkdown": "Markdownで貼り付け",
+  "command.openContext": "AI ノートを開く",
+  "command.copyContextPath": "AI ノートのパスをコピー",
+  "viewsWelcome.aiNote": "[$(edit) AI ノートを編集](command:anytime-markdown.openContext)\n画像や表など、AIツールに視覚情報を共有できます。"
 }
