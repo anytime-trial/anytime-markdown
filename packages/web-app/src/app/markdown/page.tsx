@@ -43,7 +43,7 @@ export default function Page() {
   const { data: session } = useSession();
   const isGitHubLoggedIn = enableGitHub && !!session;
   const [explorerOpen, setExplorerOpen] = useState(() => {
-    if (typeof globalThis === 'undefined') return false;
+    if (typeof window === 'undefined') return false;
     return sessionStorage.getItem('explorerOpen') === '1';
   });
   const [externalContent, setExternalContent] = useState<string | undefined>(undefined);
@@ -92,7 +92,7 @@ export default function Page() {
   }, []);
 
   const fileSystemProvider = useMemo(() => {
-    if (typeof globalThis === 'undefined') return null;
+    if (typeof window === 'undefined') return null;
     const web = new WebFileSystemProvider();
     return web.supportsDirectAccess ? web : new FallbackFileSystemProvider();
   }, []);
