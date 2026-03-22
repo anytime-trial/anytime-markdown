@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import React from "react";
 
 jest.mock("next-intl", () => ({
@@ -60,5 +60,57 @@ describe("TreeViewSection", () => {
   it("shows NewFolderInput when creatingFolderInDir is root", () => {
     render(<TreeViewSection {...baseProps} creatingFolderInDir="" />);
     expect(screen.getByPlaceholderText("folderNamePlaceholder")).toBeTruthy();
+  });
+
+  it("does not show empty message when creatingInDir is root", () => {
+    render(<TreeViewSection {...baseProps} creatingInDir="" />);
+    expect(screen.queryByText("No Markdown files found")).toBeNull();
+  });
+
+  it("handles dragOver on root list", () => {
+    const onDragOverPath = jest.fn();
+    const dragSourceRef = { current: "some/file.md" };
+    render(<TreeViewSection {...baseProps} onDragOverPath={onDragOverPath} dragSourceRef={dragSourceRef} />);
+    const list = screen.getByRole("list");
+    fireEvent.dragOver(list, { dataTransfer: { dropEffect: "" } });
+    expect(onDragOverPath).toHaveBeenCalledWith("__root__");
+  });
+
+  it("ignores dragOver from root-level source", () => {
+    const onDragOverPath = jest.fn();
+    const dragSourceRef = { current: "file.md" }; // root level = no slash
+    render(<TreeViewSection {...baseProps} onDragOverPath={onDragOverPath} dragSourceRef={dragSourceRef} />);
+    const list = screen.getByRole("list");
+    fireEvent.dragOver(list, { dataTransfer: { dropEffect: "" } });
+    expect(onDragOverPath).not.toHaveBeenCalled();
+  });
+
+  it("handles drop on root to move entry", () => {
+    const onMoveEntry = jest.fn();
+    const onDragOverPath = jest.fn();
+    const dragSourceRef = { current: "subdir/file.md" };
+    render(<TreeViewSection {...baseProps} onMoveEntry={onMoveEntry} onDragOverPath={onDragOverPath} dragSourceRef={dragSourceRef} />);
+    const list = screen.getByRole("list");
+    fireEvent.drop(list, { dataTransfer: {} });
+    expect(onMoveEntry).toHaveBeenCalledWith("subdir/file.md", "");
+    expect(onDragOverPath).toHaveBeenCalledWith(null);
+  });
+
+  it("ignores drop from root-level source", () => {
+    const onMoveEntry = jest.fn();
+    const onDragOverPath = jest.fn();
+    const dragSourceRef = { current: "file.md" };
+    render(<TreeViewSection {...baseProps} onMoveEntry={onMoveEntry} onDragOverPath={onDragOverPath} dragSourceRef={dragSourceRef} />);
+    const list = screen.getByRole("list");
+    fireEvent.drop(list, { dataTransfer: {} });
+    expect(onMoveEntry).not.toHaveBeenCalled();
+  });
+
+  it("handles dragLeave on root", () => {
+    const onDragOverPath = jest.fn();
+    render(<TreeViewSection {...baseProps} dragOverPath="__root__" onDragOverPath={onDragOverPath} />);
+    const list = screen.getByRole("list");
+    fireEvent.dragLeave(list);
+    expect(onDragOverPath).toHaveBeenCalledWith(null);
   });
 });

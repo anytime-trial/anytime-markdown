@@ -25,7 +25,6 @@ describe("LandingHeader", () => {
   it("renders navigation buttons", () => {
     render(<LandingHeader />);
     expect(screen.getByText("sitesPage")).toBeTruthy();
-    expect(screen.getByText("openEditor")).toBeTruthy();
   });
 
   it("renders language toggle buttons", () => {

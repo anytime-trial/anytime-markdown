@@ -56,3 +56,15 @@ describe("DocsViewBody with locale map", () => {
     expect(viewer.getAttribute("data-doc-key")).toBe("docs/test/test.ja.md");
   });
 });
+
+// resolveDocKeys のロジックテスト（コンポーネントを通さずに直接テスト）
+describe("DocsViewBody resolveDocKeys logic", () => {
+  // resolveDocKeys はモジュール内部の関数なので、レンダリング結果から間接的にテスト
+  // ja locale の場合、test.ja.md → localeMap: { en: "test.en.md" }
+  it("passes correct doc key for ja.md file", () => {
+    render(<DocsViewBody />);
+    const viewer = screen.getByTestId("markdown-viewer");
+    // useSearchParams returns "key=docs/test/test.ja.md", locale=ja
+    expect(viewer.getAttribute("data-doc-key")).toBe("docs/test/test.ja.md");
+  });
+});

@@ -65,4 +65,52 @@ describe("SitesBody", () => {
     render(<SitesBody initialData={{ categories: [], siteDescription: "My Site" }} />);
     expect(screen.getByText("My Site")).toBeTruthy();
   });
+
+  it("renders external links with target=_blank", () => {
+    const categories = [
+      {
+        id: "cat1",
+        title: "Links",
+        description: "",
+        items: [
+          { docKey: "url:https://example.com", displayName: "External Link", url: "https://example.com" },
+        ],
+        order: 0,
+      },
+    ];
+    render(<SitesBody initialData={{ categories }} />);
+    expect(screen.getByText("External Link")).toBeTruthy();
+    const linkEl = screen.getByText("External Link").closest("a");
+    expect(linkEl?.getAttribute("target")).toBe("_blank");
+    expect(linkEl?.getAttribute("rel")).toContain("noopener");
+  });
+
+  it("renders internal links without target=_blank", () => {
+    const categories = [
+      {
+        id: "cat1",
+        title: "Docs",
+        description: "",
+        items: [
+          { docKey: "docs/test.md", displayName: "Internal Doc" },
+        ],
+        order: 0,
+      },
+    ];
+    render(<SitesBody initialData={{ categories }} />);
+    expect(screen.getByText("Internal Doc")).toBeTruthy();
+    const linkEl = screen.getByText("Internal Doc").closest("a");
+    expect(linkEl?.getAttribute("target")).toBeNull();
+  });
+
+  it("renders multiple categories", () => {
+    const categories = [
+      { id: "cat1", title: "Cat 1", description: "", items: [], order: 0 },
+      { id: "cat2", title: "Cat 2", description: "Cat 2 desc", items: [], order: 1 },
+    ];
+    render(<SitesBody initialData={{ categories }} />);
+    expect(screen.getByText("Cat 1")).toBeTruthy();
+    expect(screen.getByText("Cat 2")).toBeTruthy();
+    expect(screen.getByText("Cat 2 desc")).toBeTruthy();
+  });
 });

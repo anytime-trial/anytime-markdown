@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import React from "react";
 
 jest.mock("@dnd-kit/core", () => ({
@@ -97,5 +97,114 @@ describe("CardAreaPanel", () => {
     ];
     render(<CardAreaPanel {...baseProps} categories={categories} />);
     expect(screen.getByText("Doc 1")).toBeTruthy();
+  });
+
+  it("renders category description", () => {
+    const categories = [
+      {
+        id: "cat1",
+        title: "Cat",
+        description: "Some description here",
+        items: [],
+        order: 0,
+      },
+    ];
+    render(<CardAreaPanel {...baseProps} categories={categories} />);
+    expect(screen.getByText("Some description here")).toBeTruthy();
+  });
+
+  it("shows empty category message", () => {
+    const categories = [
+      {
+        id: "cat1",
+        title: "Empty Cat",
+        description: "",
+        items: [],
+        order: 0,
+      },
+    ];
+    render(<CardAreaPanel {...baseProps} categories={categories} />);
+    expect(screen.getByText("sitesCategoryEmpty")).toBeTruthy();
+  });
+
+  it("renders multiple categories", () => {
+    const categories = [
+      { id: "cat1", title: "First", description: "", items: [], order: 0 },
+      { id: "cat2", title: "Second", description: "", items: [], order: 1 },
+    ];
+    render(<CardAreaPanel {...baseProps} categories={categories} />);
+    expect(screen.getByText("First")).toBeTruthy();
+    expect(screen.getByText("Second")).toBeTruthy();
+  });
+
+  it("renders drag overlay when activeCategory is set", () => {
+    const activeCategory = {
+      id: "active",
+      title: "Active Category",
+      description: "",
+      items: [],
+      order: 0,
+    };
+    const categories = [activeCategory];
+    render(<CardAreaPanel {...baseProps} categories={categories} activeCategory={activeCategory} />);
+    // The DragOverlay renders the active category title
+    const titles = screen.getAllByText("Active Category");
+    expect(titles.length).toBeGreaterThanOrEqual(2); // One in card, one in overlay
+  });
+
+  it("renders placeholder texts for untitled categories", () => {
+    const categories = [
+      {
+        id: "cat1",
+        title: "",
+        description: "",
+        items: [],
+        order: 0,
+      },
+    ];
+    render(<CardAreaPanel {...baseProps} categories={categories} />);
+    expect(screen.getByText("sitesCategoryTitle")).toBeTruthy();
+    expect(screen.getByText("sitesCategoryDescription")).toBeTruthy();
+  });
+
+  it("calls onAdd when add button clicked", () => {
+    const onAdd = jest.fn();
+    render(<CardAreaPanel {...baseProps} onAdd={onAdd} />);
+    fireEvent.click(screen.getByText("sitesCategoryAdd"));
+    expect(onAdd).toHaveBeenCalled();
+  });
+
+  it("renders delete button for categories", () => {
+    const categories = [
+      { id: "cat1", title: "Cat", description: "", items: [], order: 0 },
+    ];
+    render(<CardAreaPanel {...baseProps} categories={categories} />);
+    const deleteBtn = screen.getByLabelText("sitesCategoryDelete");
+    expect(deleteBtn).toBeTruthy();
+  });
+
+  it("calls onDelete when delete button clicked", () => {
+    const onDelete = jest.fn();
+    const categories = [
+      { id: "cat1", title: "Cat", description: "", items: [], order: 0 },
+    ];
+    render(<CardAreaPanel {...baseProps} categories={categories} onDelete={onDelete} />);
+    fireEvent.click(screen.getByLabelText("sitesCategoryDelete"));
+    expect(onDelete).toHaveBeenCalledWith("cat1");
+  });
+
+  it("renders remove button for items", () => {
+    const categories = [
+      {
+        id: "cat1",
+        title: "Cat",
+        description: "",
+        items: [{ docKey: "doc1", displayName: "Doc 1" }],
+        order: 0,
+      },
+    ];
+    render(<CardAreaPanel {...baseProps} categories={categories} />);
+    const removeBtn = screen.getByLabelText("sitesCategoryRemoveItem");
+    expect(removeBtn).toBeTruthy();
   });
 });
