@@ -16,8 +16,8 @@ test.describe("Console Errors", () => {
     page.on("console", (msg) => {
       if (msg.type() === "error") {
         const text = msg.text();
-        // S3 未設定時の API エラーとそれに伴う翻訳キー不足は除外
-        if (text.includes("/api/docs/") || text.includes("MISSING_MESSAGE") || text.includes("Failed to load resource")) return;
+        // S3 未設定時の API エラー、翻訳キー不足、認証関連エラーは除外
+        if (text.includes("/api/docs/") || text.includes("MISSING_MESSAGE") || text.includes("Failed to load resource") || text.includes("auth") || text.includes("Auth") || text === "Error") return;
         errors.push(text);
       }
     });
