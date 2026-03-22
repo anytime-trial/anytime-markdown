@@ -167,6 +167,8 @@ interface MarkdownEditorPageProps {
   initialFontSize?: number;
   /** ブロック要素の配置の上書き */
   defaultBlockAlign?: "left" | "center" | "right";
+  /** コンテンツ保存時のコールバック（localStorage 書き込み後に呼ばれる） */
+  onContentChange?: (content: string) => void;
 }
 
 /** Apply external compare content and open merge mode if needed (extracted to reduce component complexity). */
@@ -188,7 +190,7 @@ function applyExternalCompareContent(
   }
 }
 
-export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideVersionInfo, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, presetName, onPresetChange, onLocaleChange, fileSystemProvider, externalContent, externalFileName, externalFilePath: _externalFilePath, onExternalSave, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, autoReload, onToggleAutoReload, defaultSourceMode, showReadonlyMode, externalCompareContent, explorerOpen, onToggleExplorer, sideToolbar, hideCompareToggle, explorerSlot, noScroll, defaultOutlineOpen, fixedEditorHeight, defaultFontSize, initialFontSize, defaultBlockAlign }: MarkdownEditorPageProps = {}) {
+export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideVersionInfo, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, presetName, onPresetChange, onLocaleChange, fileSystemProvider, externalContent, externalFileName, externalFilePath: _externalFilePath, onExternalSave, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, autoReload, onToggleAutoReload, defaultSourceMode, showReadonlyMode, externalCompareContent, explorerOpen, onToggleExplorer, sideToolbar, hideCompareToggle, explorerSlot, noScroll, defaultOutlineOpen, fixedEditorHeight, defaultFontSize, initialFontSize, defaultBlockAlign, onContentChange }: MarkdownEditorPageProps = {}) {
   const t = useTranslations("MarkdownEditor");
   const locale = useLocale() as "en" | "ja";
   const muiTheme = useTheme();
@@ -198,7 +200,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   const noopSave = useCallback(() => {}, []);
   const {
     initialContent, loading, saveContent: _saveContent, downloadMarkdown, clearContent, frontmatterRef, initialTrailingNewline,
-  } = useMarkdownEditor(externalContent ?? getDefaultContent(locale), externalContent !== undefined);
+  } = useMarkdownEditor(externalContent ?? getDefaultContent(locale), externalContent !== undefined, onContentChange);
   const saveContent = readOnly ? noopSave : _saveContent;
 
   const [commentOpen, setCommentOpen] = useState(false);

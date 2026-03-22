@@ -20,7 +20,7 @@ export interface UseMarkdownEditorReturn {
   initialTrailingNewline: boolean;
 }
 
-export function useMarkdownEditor(defaultContent: string, skipLocalStorage = false): UseMarkdownEditorReturn {
+export function useMarkdownEditor(defaultContent: string, skipLocalStorage = false, onContentChange?: (content: string) => void): UseMarkdownEditorReturn {
   // フロントマターをエディタ外で保持する ref
   const frontmatterRef = useRef<string | null>(null);
   // 元テキストの末尾改行の有無（エディタの onCreate で storage に記録するため）
@@ -46,6 +46,9 @@ export function useMarkdownEditor(defaultContent: string, skipLocalStorage = fal
   // debounce 自動保存（Tiptap の onUpdate から呼ばれる）
   // withFrontmatter=true の場合、frontmatterRef の内容を先頭に付加して保存する
   // skipLocalStorage が true の場合（externalContent 表示中）は localStorage に書き込まない
+  const onContentChangeRef = useRef(onContentChange);
+  onContentChangeRef.current = onContentChange;
+
   const saveContent = useCallback((markdown: string, withFrontmatter = true) => {
     if (skipLocalStorage) return;
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -53,6 +56,7 @@ export function useMarkdownEditor(defaultContent: string, skipLocalStorage = fal
       try {
         const toSave = withFrontmatter ? prependFrontmatter(markdown, frontmatterRef.current) : markdown;
         localStorage.setItem(STORAGE_KEY_CONTENT, toSave);
+        onContentChangeRef.current?.(toSave);
       } catch (e) {
         if (e instanceof DOMException && e.name === "QuotaExceededError") {
           console.warn("localStorage quota exceeded. Content not saved.");
