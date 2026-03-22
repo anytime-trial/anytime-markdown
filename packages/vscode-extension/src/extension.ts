@@ -531,6 +531,28 @@ export function activate(context: vscode.ExtensionContext) {
 			if (!fs.existsSync(filePath)) {
 				fs.writeFileSync(filePath, '# Anytime Context\n\n', 'utf-8');
 			}
+
+			// CLAUDE.local.md に AI Note のパスを自動追記（未記載の場合のみ）
+			const claudeLocalMdPath = path.join(projectSessionsDir, 'CLAUDE.local.md');
+			if (fs.existsSync(path.dirname(claudeLocalMdPath))) {
+				const existing = fs.existsSync(claudeLocalMdPath)
+					? fs.readFileSync(claudeLocalMdPath, 'utf-8')
+					: '';
+				if (!existing.includes('anytime-context.md')) {
+					const section = [
+						existing ? '' : '# Project Local Settings',
+						'',
+						'## AI Note',
+						'',
+						'拡張機能の AI Note パネルに視覚情報（画像・表）がある場合は以下を参照:',
+						`\`${filePath}\``,
+						'',
+					].join('\n');
+					fs.appendFileSync(claudeLocalMdPath, section, 'utf-8');
+					vscode.window.showInformationMessage('CLAUDE.local.md に AI Note のパスを追記しました。');
+				}
+			}
+
 			const uri = vscode.Uri.file(filePath);
 			await vscode.commands.executeCommand('vscode.openWith', uri, MarkdownEditorProvider.viewType);
 		}
