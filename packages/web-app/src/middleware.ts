@@ -5,7 +5,7 @@ export function middleware(request: NextRequest) {
   // 本番環境では /docs/edit へのアクセスを /docs にリダイレクト
   if (
     request.nextUrl.pathname.startsWith("/docs/edit") &&
-    process.env.ENABLE_DOCS_EDIT !== "true"
+    process.env.NEXT_PUBLIC_ENABLE_DOCS_EDIT !== "true"
   ) {
     return NextResponse.redirect(new URL("/docs", request.url));
   }
