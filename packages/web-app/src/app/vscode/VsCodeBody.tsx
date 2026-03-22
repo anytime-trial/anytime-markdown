@@ -95,12 +95,11 @@ export default function VsCodeBody() {
             sx={{
               fontFamily: 'Georgia, "Times New Roman", serif',
               fontWeight: 700,
-              fontSize: { xs: '1.6rem', sm: '2.5rem', md: '3.8rem' },
+              fontSize: { xs: '2.2rem', sm: '3rem', md: '3.8rem' },
               lineHeight: 1.15,
               letterSpacing: '-0.02em',
               mb: 3,
               color: 'text.primary',
-              whiteSpace: 'nowrap',
             }}
           >
             {t('heroTitle')}
