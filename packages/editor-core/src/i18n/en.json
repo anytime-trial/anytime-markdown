@@ -634,6 +634,8 @@
     "heroTitle2": "in one editor.",
     "heroDescription": "In Visual Studio Code™, preview AI-generated Markdown in WYSIWYG and instantly spot changes with diff highlighting. Image annotation and Git integration make AI collaboration seamless.",
     "installButton": "Get the Extension",
+    "installCaption": "Visual Studio Code Marketplace",
+    "editorCaption": "No sign-up — start instantly in browser",
     "tryOnline": "Web App",
     "benefitsTitle": "Why use it in Visual Studio Code™",
     "benefit1Title": "Code and docs in one place",

@@ -634,6 +634,8 @@
     "heroTitle2": "AI と一つの画面で",
     "heroDescription": "Visual Studio Code™ で、AI が生成した Markdown を WYSIWYG でプレビューし、\n変更箇所をハイライトで即確認。画像アノテーションと Git 連携で、AI との共同作業をスムーズに。",
     "installButton": "拡張機能を入手",
+    "installCaption": "Visual Studio Code Marketplace",
+    "editorCaption": "登録不要・ブラウザで即開始",
     "tryOnline": "Web アプリはこちら",
     "benefitsTitle": "Visual Studio Code™ で使う効果",
     "benefit1Title": "コードと文書を同じ環境で",
