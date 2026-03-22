@@ -4,7 +4,7 @@
   "description": "%description%",
   "version": "0.7.3",
   "license": "MIT",
-  "publisher": "kiytaka-ueda",
+  "publisher": "anytime-trial",
   "repository": {
     "type": "git",
     "url": "https://github.com/anytime-trial/anytime-markdown.git"

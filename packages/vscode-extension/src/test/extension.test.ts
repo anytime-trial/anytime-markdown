@@ -1,7 +1,7 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
 
-const EXTENSION_ID = "kiytaka-ueda.anytime-markdown";
+const EXTENSION_ID = "anytime-trial.anytime-markdown";
 
 suite("Extension Test Suite", () => {
   test("Extension should be present", () => {

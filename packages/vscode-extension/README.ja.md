@@ -1,6 +1,6 @@
 # Anytime Markdown Editor
 
-![VS Marketplace](https://img.shields.io/visual-studio-marketplace/v/kiytaka-ueda.anytime-markdown?label=VS%20Marketplace&logo=visual-studio-code)
+![VS Marketplace](https://img.shields.io/visual-studio-marketplace/v/anytime-trial.anytime-markdown?label=VS%20Marketplace&logo=visual-studio-code)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=anytime-trial_anytime-markdown)
 [![Bugs](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=bugs)](https://sonarcloud.io/summary/new_code?id=anytime-trial_anytime-markdown)
