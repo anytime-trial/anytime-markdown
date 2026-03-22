@@ -7,6 +7,7 @@ import { GraphProvider } from './providers/GraphProvider';
 import { ChangesProvider, ChangesFileItem } from './providers/ChangesProvider';
 import { SpecDocsProvider, SpecDocsItem, SpecDocsRootItem, SpecDocsDragAndDrop } from './providers/SpecDocsProvider';
 import { LinkValidationProvider } from './providers/LinkValidationProvider';
+import { AiLogProvider, AiLogItem } from './providers/AiLogProvider';
 
 export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
@@ -457,6 +458,47 @@ export function activate(context: vscode.ExtensionContext) {
 		treeDataProvider: { getTreeItem: (e: never) => e, getChildren: () => [] },
 	});
 
+	// AI Log ビュー（セッション一覧）
+	const sessionsDir = path.join(
+		process.env.HOME || process.env.USERPROFILE || '',
+		'.claude', 'projects',
+	);
+	// ワークスペースのパスからプロジェクトディレクトリを特定
+	const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
+	const projectDirName = workspaceRoot.replace(/\//g, '-') || '-';
+	const projectSessionsDir = path.join(sessionsDir, projectDirName);
+
+	const aiLogProvider = new AiLogProvider(projectSessionsDir);
+	const aiLogTreeView = vscode.window.createTreeView('anytimeMarkdown.aiLog', {
+		treeDataProvider: aiLogProvider,
+	});
+
+	const aiLogRefresh = vscode.commands.registerCommand(
+		'anytime-markdown.aiLogRefresh', () => aiLogProvider.refresh()
+	);
+
+	const openAiLog = vscode.commands.registerCommand(
+		'anytime-markdown.openAiLog',
+		async (item: AiLogItem) => {
+			const dir = context.globalStorageUri.fsPath;
+			if (!fs.existsSync(dir)) {
+				fs.mkdirSync(dir, { recursive: true });
+			}
+			const outPath = path.join(dir, `ai-log-${item.sessionId}.md`);
+
+			await vscode.window.withProgress(
+				{ location: vscode.ProgressLocation.Notification, title: 'Converting AI Log...' },
+				async () => {
+					const md = await AiLogProvider.convertToMarkdown(item.filePath);
+					fs.writeFileSync(outPath, md, 'utf-8');
+				}
+			);
+
+			const uri = vscode.Uri.file(outPath);
+			await vscode.commands.executeCommand('vscode.openWith', uri, MarkdownEditorProvider.viewType);
+		}
+	);
+
 	// AI Note ファイルを開く
 	const openContext = vscode.commands.registerCommand(
 		'anytime-markdown.openContext',
@@ -484,6 +526,27 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	);
 
+	// AI Note ストレージをクリア
+	const clearContext = vscode.commands.registerCommand(
+		'anytime-markdown.clearContext',
+		async () => {
+			const answer = await vscode.window.showWarningMessage(
+				'AI Note のファイルをすべて削除しますか？',
+				{ modal: true },
+				'Delete'
+			);
+			if (answer !== 'Delete') { return; }
+			const dir = context.globalStorageUri.fsPath;
+			if (fs.existsSync(dir)) {
+				for (const entry of fs.readdirSync(dir)) {
+					const full = path.join(dir, entry);
+					fs.rmSync(full, { recursive: true, force: true });
+				}
+			}
+			vscode.window.showInformationMessage('AI Note をクリアしました。');
+		}
+	);
+
 	// ファイル保存時にリフレッシュ
 	context.subscriptions.push(
 		vscode.workspace.onDidSaveTextDocument(() => changesProvider.refresh()),
@@ -496,7 +559,8 @@ export function activate(context: vscode.ExtensionContext) {
 		specDocsOpenFile, specDocsOpenFolder, specDocsCloneRepo, specDocsClose, specDocsRefresh, switchBranch, toggleMdOnly,
 		specDocsCreateFile, specDocsCreateFolder, specDocsDelete, specDocsRename, specDocsRemoveRoot, specDocsCopyPath, specDocsImportFiles, specDocsCut, specDocsCopy, specDocsPaste, pasteAsMarkdown,
 		graphTreeView, graphRefresh,
-		openContext, copyContextPath,
+		openContext, copyContextPath, clearContext,
+		aiLogTreeView, aiLogRefresh, openAiLog,
 	);
 }
 

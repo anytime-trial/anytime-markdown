@@ -48,6 +48,11 @@
           "initialSize": 1
         },
         {
+          "id": "anytimeMarkdown.aiLog",
+          "name": "AI Log",
+          "initialSize": 2
+        },
+        {
           "id": "anytimeMarkdown.specDocs",
           "name": "%view.specDocs%"
         },
@@ -244,6 +249,16 @@
         "command": "anytime-markdown.copyContextPath",
         "title": "%command.copyContextPath%",
         "icon": "$(clippy)"
+      },
+      {
+        "command": "anytime-markdown.clearContext",
+        "title": "%command.clearContext%",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "anytime-markdown.aiLogRefresh",
+        "title": "%command.aiLogRefresh%",
+        "icon": "$(refresh)"
       }
     ],
     "customEditors": [
@@ -299,6 +314,16 @@
         }
       ],
       "view/title": [
+        {
+          "command": "anytime-markdown.clearContext",
+          "when": "view == anytimeMarkdown.aiNote",
+          "group": "navigation@2"
+        },
+        {
+          "command": "anytime-markdown.aiLogRefresh",
+          "when": "view == anytimeMarkdown.aiLog",
+          "group": "navigation@1"
+        },
         {
           "command": "anytime-markdown.copyContextPath",
           "when": "view == anytimeMarkdown.aiNote",

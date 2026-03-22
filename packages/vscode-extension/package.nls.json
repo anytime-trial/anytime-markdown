@@ -44,5 +44,7 @@
   "command.pasteAsMarkdown": "Paste as Markdown",
   "command.openContext": "Open AI Note",
   "command.copyContextPath": "Copy AI Note Path",
+  "command.clearContext": "Clear AI Note",
+  "command.aiLogRefresh": "Refresh AI Log",
   "viewsWelcome.aiNote": "[$(edit) Edit AI Note](command:anytime-markdown.openContext)\nShare visual information (images, tables) with AI tools."
 }
