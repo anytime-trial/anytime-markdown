@@ -155,7 +155,7 @@ export default function VsCodeBody() {
           </Button>
           <Button
             component={NextLink}
-            href="/markdown"
+            href="/"
             variant="text"
             size="small"
             sx={{
