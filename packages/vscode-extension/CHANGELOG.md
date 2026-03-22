@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.4] - 2026-03-22
+
+### Fixed
+- middleware.ts の config.matcher で String.raw を使用すると Next.js ビルドが失敗する問題を修正
+- SiteFooter から VS Code リンクが消失していた問題を修正
+- LinePreviewPanel の InlineSegment プロパティ名を value → text に修正
+- e2e テストのランディングページ待機ロケーターを修正
+
 ## [0.7.3] - 2026-03-22
 
 ### Added
