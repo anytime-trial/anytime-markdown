@@ -24,7 +24,7 @@ test.describe("Console Errors", () => {
 
     await page.goto("/");
     // ページの描画完了を待機
-    await page.getByRole("link", { name: /open editor/i }).first().waitFor({ state: "visible" });
+    await page.getByRole("heading", { level: 1 }).first().waitFor({ state: "visible" });
     // hydration 後のエラーも捕捉するため少し待つ
     await page.waitForTimeout(1000);
 

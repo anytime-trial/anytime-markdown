@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.3] - 2026-03-22
+
+### Added
+- VS Code 拡張機能のランディングページ（/vscode）を追加（効果・機能一覧・Marketplace リンク）
+- トップページと VS Code ページの相互ナビゲーションリンク
+- プライバシーポリシーをエディタ機能に特化した内容に更新
+- /docs/edit ページを本番環境で非表示にする NEXT_PUBLIC_ENABLE_DOCS_EDIT フラグ
+
+### Changed
+- ランディングページのヒーローセクションからエディタを開くボタンを削除
+- docs/view のブロック要素を左寄せに変更
+- フッターの VS Code リンクを Marketplace から /vscode ページに変更
+- SonarQube 残存 CODE_SMELL を追加修正（S2681, S6479, S3358, S6478, S4624 等）
+- コード品質ガイドラインを SonarQube 29 ルールに基づき大幅拡充
+
+### Fixed
+- ファイルリスト言語バッジの英語版判定を .en.md サフィックスに修正
+- commentHelpers の String.raw バッククォート競合を修正
+- Firefox CI e2e テストに GPU 無効化と xvfb-run を追加
+
 ## [0.7.2] - 2026-03-22
 
 ### Changed

@@ -21,7 +21,7 @@ describe("SiteFooter", () => {
   it("renders navigation links", () => {
     render(<SiteFooter />);
     expect(screen.getByText("footerGithub")).toBeTruthy();
-    expect(screen.getByText("footerVscode")).toBeTruthy();
+    expect(screen.getByText("sitesPage")).toBeTruthy();
     expect(screen.getByText("footerPrivacy")).toBeTruthy();
     expect(screen.getByText("footerRights")).toBeTruthy();
   });
