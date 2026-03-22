@@ -51,7 +51,10 @@ export default function PrivacyBody() {
         </Section>
 
         <Section title={t('section3Title')}>
-          <P>{t('section3Body')}</P>
+          <P>{t('section3Body1')}</P>
+          <P>{t('section3Body2')}</P>
+          <P>{t('section3Body3')}</P>
+          <P>{t('section3Body4')}</P>
         </Section>
 
         <Section title={t('section4Title')}>
@@ -62,6 +65,12 @@ export default function PrivacyBody() {
             </li>
             <li>
               <P>{t.rich('section4Plantuml', { strong: (chunks) => <strong>{chunks}</strong> })}</P>
+            </li>
+            <li>
+              <P>{t.rich('section4Mermaid', { strong: (chunks) => <strong>{chunks}</strong> })}</P>
+            </li>
+            <li>
+              <P>{t.rich('section4Aws', { strong: (chunks) => <strong>{chunks}</strong> })}</P>
             </li>
           </Box>
         </Section>
