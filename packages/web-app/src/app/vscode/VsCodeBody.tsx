@@ -89,22 +89,39 @@ export default function VsCodeBody() {
         }}
       >
         <Container maxWidth="md" sx={{ position: 'relative', zIndex: 1 }}>
-          <Typography
-            variant="h2"
-            component="h1"
-            sx={{
-              fontFamily: 'Georgia, "Times New Roman", serif',
-              fontWeight: 700,
-              fontSize: { xs: '2.2rem', sm: '3rem', md: '3.8rem' },
-              lineHeight: 1.15,
-              letterSpacing: '-0.02em',
-              mb: 3,
-              color: 'text.primary',
-              whiteSpace: 'pre-line',
-            }}
-          >
-            {t('heroTitle')}
-          </Typography>
+          <Box component="h1" sx={{ m: 0, mb: 3 }}>
+            <Typography
+              variant="h2"
+              component="span"
+              sx={{
+                display: 'block',
+                fontFamily: 'Georgia, "Times New Roman", serif',
+                fontWeight: 700,
+                fontSize: { xs: '2.2rem', sm: '3rem', md: '3.8rem' },
+                lineHeight: 1.15,
+                letterSpacing: '-0.02em',
+                color: 'text.primary',
+              }}
+            >
+              {t('heroTitle1')}
+            </Typography>
+            <Typography
+              variant="h2"
+              component="span"
+              sx={{
+                display: 'block',
+                fontFamily: 'Georgia, "Times New Roman", serif',
+                fontWeight: 700,
+                fontSize: { xs: '2.2rem', sm: '3rem', md: '3.8rem' },
+                lineHeight: 1.15,
+                letterSpacing: '-0.02em',
+                color: 'text.primary',
+                pl: { xs: 2, sm: 4, md: 6 },
+              }}
+            >
+              {t('heroTitle2')}
+            </Typography>
+          </Box>
 
           <Typography
             variant="h6"
