@@ -69,7 +69,7 @@ export function parseCommentData(md: string): {
     const parsed = parseCommentLine(trimmed);
     if (!parsed) continue;
 
-    const unescaped = parsed.text.replaceAll("\\n", "\n").replaceAll("\\\\", "\\");
+    const unescaped = parsed.text.replaceAll(String.raw`\n`, "\n").replaceAll(String.raw`\\`, "\\");
     comments.set(parsed.id, { id: parsed.id, text: unescaped, resolved: parsed.resolved, createdAt: parsed.createdAt });
   }
 
@@ -142,7 +142,7 @@ function convertCommentMarkers(text: string): string {
   }
 
   // Point comments: <!-- comment-point:id -->
-  result = result.replace(
+  result = result.replaceAll(
     /<!-- comment-point:(\S+?) -->/g,
     '<span data-comment-point="$1"></span>',
   );
@@ -162,7 +162,7 @@ export function appendCommentData(
   const lines: string[] = [];
   for (const comment of comments.values()) {
     const prefix = comment.resolved ? "[resolved] " : "";
-    const escapedText = comment.text.replace(/\\/g, "\\\\").replace(/\n/g, "\\n");
+    const escapedText = comment.text.replaceAll("\\", "\\\\").replaceAll("\n", "\\n");
     lines.push(`${prefix}${comment.id}: ${escapedText} | ${comment.createdAt}`);
   }
 

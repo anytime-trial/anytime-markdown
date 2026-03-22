@@ -67,7 +67,7 @@ export function isRedosRisk(pattern: string): boolean {
 
 /** Escape all regex special characters so the string matches literally. */
 export function escapeRegExp(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return s.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 }
 
 /** Maximum allowed pattern length to prevent excessive backtracking. */
@@ -89,7 +89,7 @@ function getRegex(storage: SearchReplaceStorage): RegExp | null {
       pattern = escapeRegExp(searchTerm);
     }
     if (wholeWord && !useRegex) {
-      pattern = `\\b${pattern}\\b`;
+      pattern = String.raw`\b${pattern}\b`;
     }
     return new RegExp(pattern, flags);
   } catch {

@@ -325,8 +325,8 @@ export function useEditorFileOps({
   }, [saveAsFile, getFullMarkdown, showNotification]);
 
   const handleExportPdf = useCallback(async () => {
-    if (typeof window === "undefined" || !editor) {
-      if (typeof window !== "undefined") window.print();
+    if (typeof globalThis === "undefined" || !editor) {
+      if (typeof globalThis !== "undefined") globalThis.print();
       return;
     }
     setPdfExporting(true);
@@ -350,7 +350,7 @@ export function useEditorFileOps({
           innerDiv.innerHTML = lightHtml;
           diagramRestores.push(() => { imgBox.innerHTML = originalHTML; });
         }
-        window.print();
+        globalThis.print();
       } finally {
         for (const restore of diagramRestores) restore();
         restoreCollapsedBlocks(editor, collapsedPositions);

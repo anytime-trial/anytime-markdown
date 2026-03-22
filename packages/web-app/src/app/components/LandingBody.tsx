@@ -5,12 +5,25 @@ import { Box, Button, Container, Link as MuiLink, Typography } from '@mui/materi
 import { useTheme } from '@mui/material/styles';
 import NextLink from 'next/link';
 import { useTranslations } from 'next-intl';
-import { useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 
 import MarkdownViewer from './MarkdownViewer';
 import SiteFooter from './SiteFooter';
 
-export default function LandingBody({ headingFontFamily }: { headingFontFamily?: string }) {
+function GithubLink(chunks: ReactNode) {
+  return (
+    <MuiLink
+      href="https://github.com/anytime-trial/anytime-markdown"
+      target="_blank"
+      rel="noopener noreferrer"
+      sx={{ color: 'text.secondary', textDecorationColor: 'inherit' }}
+    >
+      {chunks}
+    </MuiLink>
+  );
+}
+
+export default function LandingBody({ headingFontFamily }: Readonly<{ headingFontFamily?: string }>) {
   const t = useTranslations('Landing');
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -152,16 +165,7 @@ export default function LandingBody({ headingFontFamily }: { headingFontFamily?:
             }}
           >
             {t.rich('experimentalNotice', {
-              github: (chunks) => (
-                <MuiLink
-                  href="https://github.com/anytime-trial/anytime-markdown"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  sx={{ color: 'text.secondary', textDecorationColor: 'inherit' }}
-                >
-                  {chunks}
-                </MuiLink>
-              ),
+              github: GithubLink,
             })}
           </Typography>
         </Container>

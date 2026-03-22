@@ -191,6 +191,10 @@ export const CommentPanel = React.memo(function CommentPanel({
     }
   };
 
+  const emptyMessage = filter === "all"
+    ? t("noComments")
+    : t(filter === "open" ? "noOpenComments" : "noResolvedComments");
+
   return (
     <Paper
       variant="outlined"
@@ -269,9 +273,7 @@ export const CommentPanel = React.memo(function CommentPanel({
             variant="body2"
             sx={{ textAlign: "center", mt: 2, color: getTextSecondary(isDark) }}
           >
-            {filter === "all"
-              ? t("noComments")
-              : t(filter === "open" ? "noOpenComments" : "noResolvedComments")}
+            {emptyMessage}
           </Typography>
         )}
         {filtered.map((comment) => {

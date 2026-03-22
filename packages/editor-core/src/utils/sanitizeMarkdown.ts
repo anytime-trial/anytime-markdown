@@ -142,10 +142,10 @@ function addHardBreaksToConsecutiveLines(text: string): string {
  * tiptap-markdown がコードスパン認識前にパイプでセル分割するのを防ぐ。
  */
 function escapeTableCodeSpanPipes(md: string): string {
-  return md.replace(/^(\|.+\|)$/gm, (line) => {
-    return line.replace(/(?<!`)(`+)(?!`)(.*?)(?<!`)\1(?!`)/g, (m, ticks: string, content: string) => {
+  return md.replaceAll(/^(\|.+\|)$/gm, (line) => {
+    return line.replaceAll(/(?<!`)(`+)(?!`)(.*?)(?<!`)\1(?!`)/g, (m, ticks: string, content: string) => {
       if (!content.includes("|")) return m;
-      return ticks + content.replace(/(?<!\\)\|/g, "\\|") + ticks;
+      return ticks + content.replaceAll(/(?<!\\)\|/g, String.raw`\|`) + ticks;
     });
   });
 }
@@ -296,7 +296,7 @@ function sanitizeNonCodePart(part: string): string {
 
   // DOMPurify でサニタイズ
   let sanitized = DOMPurify.sanitize(inner, { ALLOWED_TAGS, ALLOWED_ATTR, KEEP_CONTENT: true })
-    .replace(/&(amp|lt|gt);/g, (m) => ({ "&amp;": "&", "&lt;": "<", "&gt;": ">" })[m] ?? m);
+    .replaceAll(/&(amp|lt|gt);/g, (m) => ({ "&amp;": "&", "&lt;": "<", "&gt;": ">" })[m] ?? m);
 
   // プレースホルダを復元
   sanitized = restoreSpans(sanitized, "MATH", math.spans);
@@ -337,12 +337,12 @@ export function preserveBlankLines(md: string): string {
     // テーブルセル内のバックスラッシュ改行を <br> に変換する。
     // GFM テーブルは \+改行 をセル内改行として扱わないため、
     // <br> に変換して tiptap がセル内改行として認識できるようにする。
-    part = part.replace(/^(\|.+)\\\n(?!\|)(.+\|)$/gm, "$1<br>$2");
+    part = part.replaceAll(/^(\|.+)\\\n(?!\|)(.+\|)$/gm, "$1<br>$2");
     // blockquote 内の空行区切り（> のみの行）の後に > ** が続く場合、
     // tiptap-markdown が段落をマージする不具合がある。
     // 空行区切りを二重改行に変換して別ブロックとして解析させ、
     // tiptap が blockquote ノードを結合する挙動を利用して元に戻す。
-    part = part.replace(/^(>[ \t]*)\n(> \*\*)/gm, "$1\n\n$2");
+    part = part.replaceAll(/^(>[ \t]*)\n(> \*\*)/gm, "$1\n\n$2");
     part = markTightBlockTransitions(part);
     part = addHardBreaksToConsecutiveLines(part);
     // Admonition blockquote 間の余分な空行を正規化（シリアライザの出力で \n\n\n になる場合がある）
@@ -407,9 +407,13 @@ export function restoreBlankLines(md: string): string {
 function collectTickRuns(content: string): Set<number> {
   const runs = new Set<number>();
   let r = 0;
-  for (let c = 0; c < content.length; c++) {
-    if (content[c] === "`") { r++; }
-    else { if (r > 0) runs.add(r); r = 0; }
+  for (const ch of content) {
+    if (ch === "`") {
+      r++;
+    } else {
+      if (r > 0) { runs.add(r); }
+      r = 0;
+    }
   }
   if (r > 0) runs.add(r);
   return runs;

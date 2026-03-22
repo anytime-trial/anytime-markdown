@@ -40,14 +40,10 @@ function buildPlantUmlDarkSkinparams(): string {
     `skinparam stereotypeFontColor ${fg}`,
   ];
   for (const el of PLANTUML_STD_ELEMENTS) {
-    lines.push(`skinparam ${el}BorderColor ${fg}`);
-    lines.push(`skinparam ${el}BackgroundColor ${bg}`);
-    lines.push(`skinparam ${el}FontColor ${fg}`);
+    lines.push(`skinparam ${el}BorderColor ${fg}`, `skinparam ${el}BackgroundColor ${bg}`, `skinparam ${el}FontColor ${fg}`);
   }
   for (const el of PLANTUML_CONTAINER_ELEMENTS) {
-    lines.push(`skinparam ${el}BorderColor ${fg}`);
-    lines.push(`skinparam ${el}BackgroundColor ${surface}`);
-    lines.push(`skinparam ${el}FontColor ${fg}`);
+    lines.push(`skinparam ${el}BorderColor ${fg}`, `skinparam ${el}BackgroundColor ${surface}`, `skinparam ${el}FontColor ${fg}`);
   }
   // Sequence diagram
   lines.push(

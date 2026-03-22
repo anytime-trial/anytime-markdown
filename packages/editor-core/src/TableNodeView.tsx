@@ -297,6 +297,11 @@ export function TableNodeView({ editor, node, getPos }: NodeViewProps) {
 
   const showCompare = editOpen && isCompareMode && !!highlightedCompareHtml;
   const canInteract = !collapsed && !isCompareLeft;
+  const showInlineToolbar = !editOpen && isEditable;
+
+  const onEditAction = canInteract ? () => setEditOpen(true) : undefined;
+  const onDeleteAction = canInteract ? () => setDeleteDialogOpen(true) : undefined;
+  const onTableDoubleClick = isEditable ? undefined : () => setEditOpen(true);
 
   const dialogProps = editOpen ? {
     role: "dialog" as const,
@@ -316,11 +321,11 @@ export function TableNodeView({ editor, node, getPos }: NodeViewProps) {
       >
         {editOpen && <TableEditHeader editor={editor} isDark={isDark} isEditable={isEditable} setEditOpen={setEditOpen} t={t} />}
 
-        {!editOpen && isEditable && (
+        {showInlineToolbar && (
           <BlockInlineToolbar
             label={t("tableLabel")}
-            onEdit={canInteract ? () => setEditOpen(true) : undefined}
-            onDelete={canInteract ? () => setDeleteDialogOpen(true) : undefined}
+            onEdit={onEditAction}
+            onDelete={onDeleteAction}
             collapsed={collapsed}
             labelDivider
             t={t}
@@ -337,7 +342,7 @@ export function TableNodeView({ editor, node, getPos }: NodeViewProps) {
         ) : (
           <Box
             sx={buildTableBodySx(collapsed, editOpen, isDark, tableSx)}
-            onDoubleClick={isEditable ? undefined : () => setEditOpen(true)}
+            onDoubleClick={onTableDoubleClick}
           >
             <NodeViewContent<"table"> as="table" />
           </Box>

@@ -107,7 +107,9 @@ export function useEditorDialogs({
       return;
     }
     if (!editor) return;
-    if (imageEditPos !== null) {
+    if (imageEditPos === null) {
+      editor.chain().focus().setImage({ src: imageUrl.trim(), alt: imageAlt }).run();
+    } else {
       const tr = editor.state.tr;
       const node = tr.doc.nodeAt(imageEditPos);
       if (node?.type.name === "image") {
@@ -118,8 +120,6 @@ export function useEditorDialogs({
         });
         editor.view.dispatch(tr);
       }
-    } else {
-      editor.chain().focus().setImage({ src: imageUrl.trim(), alt: imageAlt }).run();
     }
     setImageDialogOpen(false);
     setImageEditPos(null);

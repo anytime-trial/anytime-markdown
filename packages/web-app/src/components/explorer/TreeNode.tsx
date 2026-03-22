@@ -59,12 +59,12 @@ const ActionButtons: FC<{
         </IconButton>
       )}
       {isDir && (
-        <IconButton size="small" onClick={(e) => { e.stopPropagation(); if (!isOpen) onToggle(); onStartCreateFolder(entryPath); }} sx={hoverSx}>
+        <IconButton size="small" onClick={(e) => { e.stopPropagation(); if (!isOpen) { onToggle(); } onStartCreateFolder(entryPath); }} sx={hoverSx}>
           <CreateNewFolderIcon sx={{ fontSize: 14 }} />
         </IconButton>
       )}
       {isDir && (
-        <IconButton size="small" onClick={(e) => { e.stopPropagation(); if (!isOpen) onToggle(); onStartCreate(entryPath); }} sx={hoverSx}>
+        <IconButton size="small" onClick={(e) => { e.stopPropagation(); if (!isOpen) { onToggle(); } onStartCreate(entryPath); }} sx={hoverSx}>
           <AddIcon sx={{ fontSize: 14 }} />
         </IconButton>
       )}

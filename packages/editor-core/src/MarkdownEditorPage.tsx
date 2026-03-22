@@ -289,7 +289,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     linkDialogOpen, setLinkDialogOpen, linkUrl, setLinkUrl,
     handleLink, handleLinkInsert, imageDialogOpen, setImageDialogOpen,
     imageUrl, setImageUrl, imageAlt, setImageAlt, imageEditPos,
-    handleImage, handleImageInsert, shortcutDialogOpen, setShortcutDialogOpen,
+    handleImage: _handleImage, handleImageInsert, shortcutDialogOpen, setShortcutDialogOpen,
     versionDialogOpen, setVersionDialogOpen,
   } = useEditorDialogs({ editor, sourceMode, appendToSource });
 
@@ -360,11 +360,8 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   // 自動再読み込みトグル: ON で baseline を保存、OFF でクリア
   useEffect(() => {
     if (!editor) return;
-    if (autoReload) {
-      editor.commands.setChangeGutterBaseline();
-    } else {
-      editor.commands.clearChangeGutter();
-    }
+    const command = autoReload ? editor.commands.setChangeGutterBaseline : editor.commands.clearChangeGutter;
+    command.call(editor.commands);
   }, [editor, autoReload]);
 
   // ESC: 変更ガター起点リセット、Alt+F5/Shift+Alt+F5: 変更箇所ナビ（autoReload ON 時のみ）
@@ -438,14 +435,15 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     return <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}><CircularProgress /></Box>;
   }
 
+  const isRestrictedMode = readonlyMode || reviewMode;
   const outlineProps = {
     isMd, outlineOpen, handleToggleOutline, outlineWidth, setOutlineWidth, editorHeight,
     headings, foldedIndices, hiddenByFold, foldAll, unfoldAll, toggleFold,
     handleOutlineClick, handleOutlineResizeStart,
-    onHeadingDragEnd: (readonlyMode || reviewMode) ? undefined : handleHeadingDragEnd,
-    onOutlineDelete: (readonlyMode || reviewMode) ? undefined : handleOutlineDelete,
-    onInsertSectionNumbers: (readonlyMode || reviewMode) ? undefined : handleInsertSectionNumbers,
-    onRemoveSectionNumbers: (readonlyMode || reviewMode) ? undefined : handleRemoveSectionNumbers,
+    onHeadingDragEnd: isRestrictedMode ? undefined : handleHeadingDragEnd,
+    onOutlineDelete: isRestrictedMode ? undefined : handleOutlineDelete,
+    onInsertSectionNumbers: isRestrictedMode ? undefined : handleInsertSectionNumbers,
+    onRemoveSectionNumbers: isRestrictedMode ? undefined : handleRemoveSectionNumbers,
     t,
   };
 

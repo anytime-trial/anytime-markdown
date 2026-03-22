@@ -85,7 +85,7 @@ export function useTextareaSearch(
     // Scroll textarea to bring selection into view
     const textBefore = textRef.current.substring(0, match.start);
     const linesBefore = textBefore.split("\n").length;
-    const lineHeight = parseFloat(getComputedStyle(ta).lineHeight) || 20;
+    const lineHeight = Number.parseFloat(getComputedStyle(ta).lineHeight) || 20;
     const targetScroll = (linesBefore - 3) * lineHeight;
     ta.scrollTop = Math.max(0, targetScroll);
   }, [textareaRef]);

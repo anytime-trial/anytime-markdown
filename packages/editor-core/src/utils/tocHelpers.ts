@@ -12,8 +12,8 @@ export function toGitHubSlug(
 
   const slug = text
     .toLowerCase()
-    .replace(/\s+/g, "-")
-    .replace(/[^\p{L}\p{N}\-_]/gu, "")
+    .replaceAll(/\s+/g, "-")
+    .replaceAll(/[^\p{L}\p{N}\-_]/gu, "")
     .replace(/^-+/, "").replace(/-+$/, "");
 
   const count = usedSlugs.get(slug);

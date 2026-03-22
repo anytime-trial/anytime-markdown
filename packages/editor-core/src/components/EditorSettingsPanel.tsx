@@ -81,7 +81,7 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
       onLocaleChange(newLocale);
     } else {
       document.cookie = `NEXT_LOCALE=${newLocale};path=/;max-age=31536000;SameSite=Lax`;
-      window.location.reload();
+      globalThis.location.reload();
     }
   };
 

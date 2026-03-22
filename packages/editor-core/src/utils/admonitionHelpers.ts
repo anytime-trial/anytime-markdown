@@ -28,7 +28,7 @@ function processAdmonitions(text: string): string {
   let i = 0;
 
   while (i < lines.length) {
-    const match = lines[i].match(ADMONITION_LINE_RE);
+    const match = ADMONITION_LINE_RE.exec(lines[i]);
     if (!match) {
       result.push(lines[i]);
       i++;
@@ -50,9 +50,7 @@ function processAdmonitions(text: string): string {
 
     // HTML blockquote に変換
     const content = contentLines.join("\n");
-    result.push(`<blockquote data-admonition-type="${type}">`);
-    result.push(content);
-    result.push("</blockquote>");
+    result.push(`<blockquote data-admonition-type="${type}">`, content, "</blockquote>");
   }
 
   return result.join("\n");

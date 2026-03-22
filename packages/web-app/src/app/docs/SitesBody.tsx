@@ -28,7 +28,7 @@ interface SitesBodyProps {
   };
 }
 
-export default function SitesBody({ initialData }: SitesBodyProps) {
+export default function SitesBody({ initialData }: Readonly<SitesBodyProps>) {
   const t = useTranslations('Landing');
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';

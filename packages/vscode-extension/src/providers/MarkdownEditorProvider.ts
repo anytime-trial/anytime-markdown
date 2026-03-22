@@ -19,7 +19,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
   /** diff ビュー検出用: 最後にパネルが開かれた時刻 */
   private lastPanelOpenTime = 0;
   private readonly readyPanels = new Set<string>();
-  private readyResolvers = new Map<string, Array<() => void>>();
+  private readonly readyResolvers = new Map<string, Array<() => void>>();
 
   public static getInstance(): MarkdownEditorProvider | null {
     return MarkdownEditorProvider.instance;
@@ -428,7 +428,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       const uri = vscode.Uri.file(candidate);
       try {
         if (lineMatch) {
-          const line = Math.max(0, parseInt(lineMatch[1], 10) - 1);
+          const line = Math.max(0, Number.parseInt(lineMatch[1], 10) - 1);
           const doc = await vscode.workspace.openTextDocument(uri);
           await vscode.window.showTextDocument(doc, { selection: new vscode.Range(line, 0, line, 0) });
         } else {

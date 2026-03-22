@@ -215,7 +215,7 @@ function SortableCategory({
   onDropFile,
   onDropUrl,
   t,
-}: {
+}: Readonly<{
   category: LayoutCategory;
   isDark: boolean;
   onDelete: (id: string) => void;
@@ -226,7 +226,7 @@ function SortableCategory({
   onDropFile: (categoryId: string, fileKey: string, fileName: string) => void;
   onDropUrl: (categoryId: string, url: string, displayName: string) => void;
   t: ReturnType<typeof useTranslations>;
-}) {
+}>) {
   const [dragOver, setDragOver] = useState(false);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: category.id });
   const itemSensors = useSensors(
@@ -418,7 +418,7 @@ export default function CategoryAreaPanel({
   onDropUrl,
   onAdd,
   t,
-}: CategoryAreaPanelProps) {
+}: Readonly<CategoryAreaPanelProps>) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
 

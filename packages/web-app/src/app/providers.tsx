@@ -52,7 +52,7 @@ function updateStatusBar(mode: ThemeMode) {
   StatusBar.setBackgroundColor({ color: isLight ? '#FFFFFF' : '#121212' });
 }
 
-export function Providers({ children }: { children: React.ReactNode }) {
+export function Providers({ children }: Readonly<{ children: React.ReactNode }>) {
   const [themeMode, setThemeModeState] = useState<ThemeMode>(() => {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem(THEME_STORAGE_KEY);
@@ -96,7 +96,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     if (document.getElementById(id)) {
       document.getElementById(id)!.remove();
     }
-    const params = families.map(f => `family=${f.replace(/ /g, '+')}:wght@400;600;700`).join('&');
+    const params = families.map(f => `family=${f.replaceAll(' ', '+')}:wght@400;600;700`).join('&');
     const link = document.createElement('link');
     link.id = id;
     link.rel = 'stylesheet';
