@@ -124,7 +124,7 @@ export default function VsCodeBody() {
             {t('heroDescription')}
           </Typography>
 
-          <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: { xs: 'center', md: 'flex-start' }, gap: 3 }}>
+          <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'center', gap: 3 }}>
             <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5 }}>
               <Button
                 component={MuiLink}
