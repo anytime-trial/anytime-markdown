@@ -164,8 +164,6 @@ export const BlockGapCursorExtension = Extension.create({
   name: "blockGapCursor",
 
   addProseMirrorPlugins() {
-    const editor = this.editor;
-
     return [
       new Plugin({
         key: BLOCK_GAP_KEY,

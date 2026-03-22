@@ -19,7 +19,7 @@ const isListStart = (line: string) => /^[-*+]\s|^\d+[.)]\s/.test(line);
 const isBlockquoteStart = (line: string) => /^>\s?/.test(line);
 const isHR = (line: string) => /^(?:---+|___+|\*\*\*+)\s*$/.test(line);
 const isIndented = (line: string) => /^[ \t]/.test(line);
-const isTableRow = (line: string) => /^\|/.test(line.trimStart());
+const isTableRow = (line: string) => line.trimStart().startsWith("|");
 /** 新しいブロックを開始する行か */
 const isBlockStart = (line: string) =>
   isHeading(line) || isListStart(line) || isBlockquoteStart(line) || isHR(line);
@@ -197,7 +197,7 @@ export function protectSpans(text: string, pattern: RegExp, prefix: string): { r
 
 /** プレースホルダを元のスパンに復元する */
 export function restoreSpans(text: string, prefix: string, spans: string[]): string {
-  return text.replace(new RegExp(`\uE000${prefix}(\\d+)\uE000`, "g"), (_, i) => spans[Number(i)]);
+  return text.replaceAll(new RegExp(`\uE000${prefix}(\\d+)\uE000`, "g"), (_, i) => spans[Number(i)]);
 }
 
 /** 行頭が ``` で始まり、残りが空白のみかチェック */
@@ -249,7 +249,7 @@ export function splitByCodeBlocks(md: string): string[] {
       continue;
     }
     const eol = md.indexOf("\n", i);
-    if (eol === -1) { i = len; break; }
+    if (eol === -1) { break; }
     const closeStart = findClosingFence(md, eol + 1);
     if (closeStart === -1) { i = eol + 1; continue; }
     const closeEnd = findFenceEnd(md, closeStart);
@@ -316,7 +316,7 @@ export function sanitizeMarkdown(md: string): string {
   md = preprocessComments(md);
   const parts = splitByCodeBlocks(md);
   return parts
-    .map((part) => (/^```/.test(part) ? part : sanitizeNonCodePart(part)))
+    .map((part) => (part.startsWith("```") ? part : sanitizeNonCodePart(part)))
     .join("");
 }
 
@@ -333,7 +333,7 @@ export function preserveBlankLines(md: string): string {
 
   // 1. 非コード部分: tight transition マーキング + ZWSP 処理
   const processed = parts.map((part) => {
-    if (/^```/.test(part)) return part;
+    if (part.startsWith("```")) return part;
     // テーブルセル内のバックスラッシュ改行を <br> に変換する。
     // GFM テーブルは \+改行 をセル内改行として扱わないため、
     // <br> に変換して tiptap がセル内改行として認識できるようにする。
@@ -346,8 +346,8 @@ export function preserveBlankLines(md: string): string {
     part = markTightBlockTransitions(part);
     part = addHardBreaksToConsecutiveLines(part);
     // Admonition blockquote 間の余分な空行を正規化（シリアライザの出力で \n\n\n になる場合がある）
-    part = part.replace(/(<\/blockquote>)\n{3,}/g, "$1\n\n");
-    return part.replace(/\n{3,}/g, (match) => {
+    part = part.replaceAll(/(<\/blockquote>)\n{3,}/g, "$1\n\n");
+    return part.replaceAll(/\n{3,}/g, (match) => {
       const extra = match.length - 2;
       return "\n\n" + `${BLANK_LINE_MARKER}\n\n`.repeat(extra);
     });
@@ -357,8 +357,8 @@ export function preserveBlankLines(md: string): string {
   for (let j = 0; j < processed.length - 1; j++) {
     const cur = processed[j];
     const nxt = processed[j + 1];
-    const curIsCode = /^```/.test(cur);
-    const nxtIsCode = /^```/.test(nxt);
+    const curIsCode = cur.startsWith("```");
+    const nxtIsCode = nxt.startsWith("```");
 
     // 非コード → コード: フェンス前が \n（空行なし）ならマーク
     if (!curIsCode && nxtIsCode && cur.endsWith("\n") && !cur.endsWith("\n\n")) {
@@ -386,15 +386,15 @@ export function preserveBlankLines(md: string): string {
  */
 export function restoreBlankLines(md: string): string {
   // tight transition（強調末尾）: *|_ + space + ZWNJ + \n\n → *|_ + \n
-  md = md.replace(/([*_]) \u200C\n\n/g, "$1\n");
+  md = md.replaceAll(/([*_]) \u200C\n\n/g, "$1\n");
   // tight transition（通常）: ZWNJ + \n\n → \n
-  md = md.replace(/\u200C\n\n/g, "\n");
+  md = md.replaceAll(/\u200C\n\n/g, "\n");
   // tight transition（コードフェンス後）: \n\n + ZWNJ → \n
-  md = md.replace(/\n\n\u200C/g, "\n");
+  md = md.replaceAll(/\n\n\u200C/g, "\n");
   // 残存 ZWNJ を除去
-  md = md.replace(/\u200C/g, "");
+  md = md.replaceAll(/\u200C/g, "");
   // ZWSP マーカー除去で元の空行を復元
-  return md.replace(/\u200B\n/g, "");
+  return md.replaceAll(/\u200B\n/g, "");
 }
 
 /**

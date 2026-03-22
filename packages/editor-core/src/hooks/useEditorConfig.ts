@@ -147,7 +147,7 @@ function handleBlockContextMenu(
 ): boolean {
   const headingEl = target.closest("h1, h2, h3, h4, h5") as HTMLElement | null;
   const blockEl = headingEl ?? findBlockCandidate(target);
-  const level = headingEl ? parseInt(headingEl.tagName.substring(1)) : 0;
+  const level = headingEl ? Number.parseInt(headingEl.tagName.substring(1)) : 0;
   if (!blockEl) return false;
   const rect = blockEl.getBoundingClientRect();
   if (event.clientX < rect.left) {
@@ -176,7 +176,7 @@ function insertImageFromFile(
   view: EditorView,
   pos: number,
 ): void {
-  const vscodeApi = window.__vscode;
+  const vscodeApi = (window as any).__vscode;
   if (vscodeApi) {
     const ext = file.type.split("/")[1] || "png";
     const baseName = file.name && !file.name.startsWith("image") ? file.name : `drop-${generateTimestamp()}.${ext}`;
@@ -193,7 +193,7 @@ function insertPastedImage(
   dataUrl: string,
   view: EditorView,
 ): void {
-  const vscodeApi = window.__vscode;
+  const vscodeApi = (window as any).__vscode;
   if (vscodeApi) {
     const ext = file.type.split("/")[1] || "png";
     const fileName = `paste-${generateTimestamp()}.${ext}`;
@@ -331,10 +331,10 @@ export function useEditorConfig({
             _view.dom.classList.add("ctrl-held");
           }
           // VS Code WebView: copy イベントが到達しないため keydown で処理
-          if (window.__vscode && (event.ctrlKey || event.metaKey) && (event.key === "c" || event.key === "x")) {
+          if ((window as any).__vscode && (event.ctrlKey || event.metaKey) && (event.key === "c" || event.key === "x")) {
             const isCut = event.key === "x";
             const handled = performBlockCopy(_view, isCut, (text) => {
-              window.__vscode!.postMessage({ type: "writeClipboard", text });
+              (window as any).__vscode!.postMessage({ type: "writeClipboard", text });
             });
             if (handled) {
               setHandledByKeydown(true);

@@ -22,6 +22,31 @@ export interface Base64TokenSpan {
  * text 中の data:image/...;base64,... を線形スキャンで検出し、トークンに置換する。
  * 正規表現のバックトラッキングを回避するためインデックスベースで実装。
  */
+function isValidMimeChar(c: number): boolean {
+  return (
+    (c >= 97 && c <= 122) ||
+    (c >= 65 && c <= 90) ||
+    (c >= 48 && c <= 57) ||
+    c === 43 ||
+    c === 45 ||
+    c === 46
+  );
+}
+
+function validateMimeType(text: string, start: number, end: number): boolean {
+  if (end - start <= 0 || end - start > 30) return false;
+  for (let i = start; i < end; i++) {
+    if (!isValidMimeChar(text.codePointAt(i)!)) return false;
+  }
+  return true;
+}
+
+function scanBase64Data(text: string, start: number): number {
+  let end = start;
+  while (end < text.length && BASE64_CHARS.has(text[end])) end++;
+  return end;
+}
+
 export function collapseBase64(text: string): {
   displayText: string;
   tokenMap: Map<string, string>;
@@ -47,25 +72,14 @@ export function collapseBase64(text: string): {
 
     // MIME タイプ部分の検証（image/ と ;base64, の間）
     const mimeStart = prefixPos + DATA_IMAGE_PREFIX.length;
-    const mimeEnd = markerPos;
-    let validMime = mimeEnd - mimeStart > 0 && mimeEnd - mimeStart <= 30;
-    for (let i = mimeStart; validMime && i < mimeEnd; i++) {
-      const c = text.charCodeAt(i);
-      if (!((c >= 97 && c <= 122) || (c >= 65 && c <= 90) || (c >= 48 && c <= 57) || c === 43 || c === 45 || c === 46)) {
-        validMime = false;
-      }
-    }
-    if (!validMime) {
+    if (!validateMimeType(text, mimeStart, markerPos)) {
       searchFrom = prefixPos + DATA_IMAGE_PREFIX.length;
       continue;
     }
 
     // base64 データ部分を線形スキャン
     const dataStart = markerPos + BASE64_MARKER.length;
-    let dataEnd = dataStart;
-    while (dataEnd < text.length && BASE64_CHARS.has(text[dataEnd])) {
-      dataEnd++;
-    }
+    const dataEnd = scanBase64Data(text, dataStart);
     if (dataEnd === dataStart) {
       searchFrom = dataEnd;
       continue;
@@ -94,5 +108,5 @@ export function restoreBase64(
   displayText: string,
   tokenMap: Map<string, string>,
 ): string {
-  return displayText.replace(TOKEN_RE, (token) => tokenMap.get(token) ?? token);
+  return displayText.replaceAll(TOKEN_RE, (token) => tokenMap.get(token) ?? token);
 }

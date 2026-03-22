@@ -143,7 +143,7 @@ export const CommentPanel = React.memo(function CommentPanel({
   /** 画像アノテーションの resolved を切替 */
   const toggleAnnotationResolved = useCallback((imgPos: number, annotationId: string) => {
     const node = editor.state.doc.nodeAt(imgPos);
-    if (!node || node.type.name !== "image") return;
+    if (node?.type.name !== "image") return;
     const all = parseAnnotations(node.attrs.annotations as string);
     const updated = all.map(a => a.id === annotationId ? { ...a, resolved: !a.resolved } : a);
     const { tr } = editor.state;
@@ -155,7 +155,7 @@ export const CommentPanel = React.memo(function CommentPanel({
   /** 画像アノテーションを削除 */
   const deleteAnnotation = useCallback((imgPos: number, annotationId: string) => {
     const node = editor.state.doc.nodeAt(imgPos);
-    if (!node || node.type.name !== "image") return;
+    if (node?.type.name !== "image") return;
     const all = parseAnnotations(node.attrs.annotations as string);
     const updated = all.filter(a => a.id !== annotationId);
     const { tr } = editor.state;
@@ -271,9 +271,7 @@ export const CommentPanel = React.memo(function CommentPanel({
           >
             {filter === "all"
               ? t("noComments")
-              : filter === "open"
-                ? t("noOpenComments")
-                : t("noResolvedComments")}
+              : t(filter === "open" ? "noOpenComments" : "noResolvedComments")}
           </Typography>
         )}
         {filtered.map((comment) => {
@@ -411,7 +409,12 @@ export const CommentPanel = React.memo(function CommentPanel({
               if (filteredAnnotations.length === 0) return null;
               return (
               <Box key={img.pos}>
-                {filteredAnnotations.map((a, i) => (
+                {filteredAnnotations.map((a, i) => {
+                  let annotationLabel: string;
+                  if (a.type === "rect") annotationLabel = t("annotationRect");
+                  else if (a.type === "circle") annotationLabel = t("annotationCircle");
+                  else annotationLabel = t("annotationLine");
+                  return (
                   <Box
                     key={a.id}
                     sx={{
@@ -440,7 +443,7 @@ export const CommentPanel = React.memo(function CommentPanel({
                           <Typography variant="caption" sx={{ color: "white", fontSize: BADGE_NUMBER_FONT_SIZE, fontWeight: 700 }}>{i + 1}</Typography>
                         </Box>
                         <Typography variant="caption" sx={{ color: getTextSecondary(isDark), fontSize: SMALL_CAPTION_FONT_SIZE }}>
-                          {a.type === "rect" ? t("annotationRect") : a.type === "circle" ? t("annotationCircle") : t("annotationLine")}
+                          {annotationLabel}
                         </Typography>
                       </Box>
                       <Typography variant="body2" sx={{ fontSize: COMMENT_BODY_FONT_SIZE, mb: 0.5 }}>
@@ -469,7 +472,8 @@ export const CommentPanel = React.memo(function CommentPanel({
                       </Button>
                     </Box>
                   </Box>
-                ))}
+                  );
+                })}
               </Box>
               );
             })}

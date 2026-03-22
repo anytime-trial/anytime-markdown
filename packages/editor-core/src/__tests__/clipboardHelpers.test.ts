@@ -28,16 +28,15 @@ describe("copyTextToClipboard", () => {
     document.execCommand = jest.fn().mockReturnValue(true);
     const execCommand = document.execCommand as jest.Mock;
     const appendChild = jest.spyOn(document.body, "appendChild");
-    const removeChild = jest.spyOn(document.body, "removeChild");
 
     await copyTextToClipboard("fallback text");
 
     expect(execCommand).toHaveBeenCalledWith("copy");
     expect(appendChild).toHaveBeenCalled();
-    expect(removeChild).toHaveBeenCalled();
 
-    // textarea に正しい値がセットされていることを確認
+    // textarea.remove() が呼ばれて DOM から除去されていること
     const textarea = appendChild.mock.calls[0][0] as HTMLTextAreaElement;
+    expect(textarea.parentNode).toBeNull();
     expect(textarea.value).toBe("fallback text");
   });
 });

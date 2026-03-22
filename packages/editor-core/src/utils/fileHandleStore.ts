@@ -17,7 +17,7 @@ function openDB(): Promise<IDBDatabase> {
       }
     };
     req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
+    req.onerror = () => reject(req.error ?? new Error("Failed to open IndexedDB"));
   });
 }
 
@@ -28,7 +28,7 @@ export async function saveNativeHandle(handle: FileSystemFileHandle): Promise<vo
       const tx = db.transaction(STORE_NAME, "readwrite");
       tx.objectStore(STORE_NAME).put(handle, KEY);
       tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
+      tx.onerror = () => reject(tx.error ?? new Error("Failed to save file handle"));
     });
   } finally {
     db.close();
@@ -42,7 +42,7 @@ export async function loadNativeHandle(): Promise<FileSystemFileHandle | null> {
       const tx = db.transaction(STORE_NAME, "readonly");
       const req = tx.objectStore(STORE_NAME).get(KEY);
       req.onsuccess = () => resolve(req.result ?? null);
-      req.onerror = () => reject(req.error);
+      req.onerror = () => reject(req.error ?? new Error("Failed to load file handle"));
     });
   } finally {
     db.close();
@@ -56,7 +56,7 @@ export async function clearNativeHandle(): Promise<void> {
       const tx = db.transaction(STORE_NAME, "readwrite");
       tx.objectStore(STORE_NAME).delete(KEY);
       tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
+      tx.onerror = () => reject(tx.error ?? new Error("Failed to clear file handle"));
     });
   } finally {
     db.close();

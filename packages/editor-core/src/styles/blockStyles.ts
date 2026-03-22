@@ -38,27 +38,27 @@ export function getBlockStyles(theme: Theme, settings: EditorSettings): SxProps<
     "& blockquote[data-admonition-type='note']": {
       borderLeftColor: ADMONITION_NOTE,
       bgcolor: alpha(ADMONITION_NOTE, 0.06),
-      "&::before": { content: '"\\24D8  Note"', color: ADMONITION_NOTE },
+      "&::before": { content: String.raw`"\24D8  Note"`, color: ADMONITION_NOTE },
     },
     "& blockquote[data-admonition-type='tip']": {
       borderLeftColor: ADMONITION_TIP,
       bgcolor: alpha(ADMONITION_TIP, 0.06),
-      "&::before": { content: '"\\2618  Tip"', color: ADMONITION_TIP },
+      "&::before": { content: String.raw`"\2618  Tip"`, color: ADMONITION_TIP },
     },
     "& blockquote[data-admonition-type='important']": {
       borderLeftColor: ADMONITION_IMPORTANT,
       bgcolor: alpha(ADMONITION_IMPORTANT, 0.06),
-      "&::before": { content: '"\\2709  Important"', color: ADMONITION_IMPORTANT },
+      "&::before": { content: String.raw`"\2709  Important"`, color: ADMONITION_IMPORTANT },
     },
     "& blockquote[data-admonition-type='warning']": {
       borderLeftColor: ADMONITION_WARNING,
       bgcolor: alpha(ADMONITION_WARNING, 0.06),
-      "&::before": { content: '"\\26A0  Warning"', color: ADMONITION_WARNING },
+      "&::before": { content: String.raw`"\26A0  Warning"`, color: ADMONITION_WARNING },
     },
     "& blockquote[data-admonition-type='caution']": {
       borderLeftColor: ADMONITION_CAUTION,
       bgcolor: alpha(ADMONITION_CAUTION, 0.06),
-      "&::before": { content: '"\\2299  Caution"', color: ADMONITION_CAUTION },
+      "&::before": { content: String.raw`"\2299  Caution"`, color: ADMONITION_CAUTION },
     },
     "& table": {
       borderCollapse: "collapse",

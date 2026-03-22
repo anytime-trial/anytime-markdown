@@ -87,7 +87,7 @@ export function EditorMergeContent({
   onDragLeave,
   onDrop,
   t,
-}: EditorMergeContentProps) {
+}: Readonly<EditorMergeContentProps>) {
   const theme = useTheme();
 
   // reviewMode を MergeEditorsContext に反映
@@ -113,7 +113,7 @@ export function EditorMergeContent({
       externalRightContent={compareFileContent}
       onExternalRightContentConsumed={() => setCompareFileContent(null)}
       onRightFileOpsReady={setRightFileOps}
-      commentSlot={!sideToolbar ? commentSlot : undefined}
+      commentSlot={sideToolbar ? undefined : commentSlot}
     >
       {(leftBgGradient, leftDiffLines, _onMerge, onHoverLine) => (
       <Box component="main" sx={{ display: "flex", gap: 0, height: "100%", position: "relative" }} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>

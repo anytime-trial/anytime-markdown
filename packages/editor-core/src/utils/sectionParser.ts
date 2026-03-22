@@ -15,7 +15,7 @@ export function parseMarkdownSections(text: string): MarkdownSection[] {
 }
 
 function matchHeading(line: string): { level: number; text: string } | null {
-  const m = line.match(HEADING_RE);
+  const m = HEADING_RE.exec(line);
   if (!m) return null;
   return { level: m[1].length, text: m[2].trim() };
 }
@@ -47,7 +47,7 @@ function collectRootBody(
     if (isCodeFence(lines[i])) inCodeBlock = !inCodeBlock;
     if (!inCodeBlock) {
       const h = matchHeading(lines[i]);
-      if (h && h.level === splitLevel) break;
+      if (h?.level === splitLevel) break;
     }
     rootBodyLines.push(lines[i]);
     i++;
@@ -104,7 +104,7 @@ function buildSections(lines: string[], start: number, end: number, parentLevel:
     if (inCodeBlock) { i++; continue; }
 
     const h = matchHeading(lines[i]);
-    if (!h || h.level !== splitLevel) { i++; continue; }
+    if (h?.level !== splitLevel) { i++; continue; }
 
     const headingLine = lines[i];
     const heading = h.text;
@@ -161,7 +161,7 @@ export function matchSections(
 function computeStringLCS(a: string[], b: string[]): [number, number][] {
   const m = a.length;
   const n = b.length;
-  const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
   for (let i = 1; i <= m; i++) {
     for (let j = 1; j <= n; j++) {
       dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1]);

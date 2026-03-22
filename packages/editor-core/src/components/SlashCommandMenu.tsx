@@ -200,7 +200,7 @@ export const SlashCommandMenu = React.memo(function SlashCommandMenu({
               key={item.id}
               role="menuitem"
               selected={i === selectedIndex}
-              aria-selected={i === selectedIndex}
+              aria-current={i === selectedIndex || undefined}
               onClick={() => executeCommand(i)}
               sx={{ fontSize: SLASH_COMMAND_FONT_SIZE, minHeight: 36 }}
             >

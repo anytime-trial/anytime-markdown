@@ -9,7 +9,7 @@ export function preprocessFootnoteRefs(md: string): string {
   const parts = splitByCodeBlocks(md);
   return parts
     .map((part) => {
-      if (/^```/.test(part)) return part;
+      if (part.startsWith("```")) return part;
       // コードスパン内の [^id] を保護してから変換する
       // バッククォートで囲まれた部分をプレースホルダに退避
       const codeSpans: string[] = [];

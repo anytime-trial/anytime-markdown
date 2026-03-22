@@ -54,7 +54,7 @@ function getMenuPaperSx(isDark: boolean) { return {
   },
 } as const; }
 
-export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProps) {
+export function EditorContextMenu({ editor, readOnly, t }: Readonly<EditorContextMenuProps>) {
   const isDark = useTheme().palette.mode === "dark";
   const [menuPos, setMenuPos] = useState<MenuPosition | null>(null);
 
@@ -78,8 +78,8 @@ export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProp
         insertMarkdownText(editor, text);
       }
     };
-    window.addEventListener("vscode-paste-markdown", handler);
-    return () => window.removeEventListener("vscode-paste-markdown", handler);
+    globalThis.addEventListener("vscode-paste-markdown", handler);
+    return () => globalThis.removeEventListener("vscode-paste-markdown", handler);
   }, [editor]);
 
   // VS Code 拡張からのコードブロック貼り付けイベント
@@ -95,8 +95,8 @@ export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProp
         }).run();
       }
     };
-    window.addEventListener("vscode-paste-codeblock", handler);
-    return () => window.removeEventListener("vscode-paste-codeblock", handler);
+    globalThis.addEventListener("vscode-paste-codeblock", handler);
+    return () => globalThis.removeEventListener("vscode-paste-codeblock", handler);
   }, [editor]);
 
   const handleClose = useCallback(() => {
@@ -108,7 +108,7 @@ export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProp
   const canCopy = hasSelection || !!blockInfo;
 
   const handleCut = useCallback(() => {
-    if (!editor || !editor.isEditable) return;
+    if (!editor?.isEditable) return;
     performBlockCopy(editor.view, true, (text) => copyTextToClipboard(text));
     handleClose();
   }, [editor, handleClose]);
@@ -153,14 +153,14 @@ export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProp
     const text = await readTextFromClipboard();
     if (text) { pasteIntoCodeBlock(text); handleClose(); return; }
     // VS Code 環境: vscode-paste-codeblock イベントで処理
-    if (window.__vscode) {
-      window.__vscode.postMessage({ type: "readClipboardForCodeBlock" });
+    if ((window as any).__vscode) {
+      (window as any).__vscode.postMessage({ type: "readClipboardForCodeBlock" });
     }
     handleClose();
   }, [editor, readOnly, handleClose]);
 
   const handlePasteAsMarkdown = useCallback(async () => {
-    if (!editor || !editor.isEditable) { handleClose(); return; }
+    if (!editor?.isEditable) { handleClose(); return; }
     const text = await readTextFromClipboard();
     if (text) {
       insertMarkdownText(editor, text);
@@ -168,8 +168,8 @@ export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProp
       return;
     }
     // VS Code 環境: 拡張側にクリップボード読み取りを依頼
-    if (window.__vscode) {
-      window.__vscode.postMessage({ type: "readClipboard" });
+    if ((window as any).__vscode) {
+      (window as any).__vscode.postMessage({ type: "readClipboard" });
     }
     handleClose();
   }, [editor, handleClose]);
@@ -180,9 +180,9 @@ export function EditorContextMenu({ editor, readOnly, t }: EditorContextMenuProp
       onClose={handleClose}
       anchorReference="anchorPosition"
       anchorPosition={
-        menuPos !== null
-          ? { top: menuPos.mouseY, left: menuPos.mouseX }
-          : undefined
+        menuPos === null
+          ? undefined
+          : { top: menuPos.mouseY, left: menuPos.mouseX }
       }
       slotProps={{ paper: { sx: getMenuPaperSx(isDark) } }}
     >

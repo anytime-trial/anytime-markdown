@@ -10,8 +10,7 @@ import TableRowsIcon from "@mui/icons-material/TableRows";
 import ViewColumnIcon from "@mui/icons-material/ViewColumn";
 import { Box, Divider, Paper, ToggleButton, ToggleButtonGroup, Tooltip, Typography, useTheme } from "@mui/material";
 import type { Fragment } from "@tiptap/pm/model";
-import type { Editor } from "@tiptap/react";
-import type { NodeViewProps } from "@tiptap/react";
+import type { Editor, NodeViewProps } from "@tiptap/react";
 import { NodeViewContent, NodeViewWrapper } from "@tiptap/react";
 import { useTranslations } from "next-intl";
 import { useMemo } from "react";
@@ -64,7 +63,7 @@ function buildHighlightedCompareHtml(
 }
 
 // --- Extracted sub-component: Table operations toolbar ---
-function TableOperationsToolbar({ editor, isDark, t }: { editor: Editor; isDark: boolean; t: (key: string) => string }) {
+function TableOperationsToolbar({ editor, isDark, t }: Readonly<{ editor: Editor; isDark: boolean; t: (key: string) => string }>) {
   return (
     <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: getDivider(isDark), px: 1, py: 0.25, gap: 0.5, flexWrap: "wrap" }}>
       {/* Column add/remove */}
@@ -169,12 +168,12 @@ function TableOperationsToolbar({ editor, isDark, t }: { editor: Editor; isDark:
 // --- Extracted sub-component: Compare mode side-by-side view ---
 function TableCompareView({
   highlightedCompareHtml, tableSx, isDark, t,
-}: {
+}: Readonly<{
   highlightedCompareHtml: string;
   tableSx: Record<string, unknown>;
   isDark: boolean;
   t: (key: string) => string;
-}) {
+}>) {
   return (
     <Box sx={{ flex: 1, display: "flex", overflow: "hidden" }}>
       <Box sx={{ flex: 1, overflow: "auto", bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG, p: 2, borderRight: 1, borderColor: getDivider(isDark) }}>
@@ -201,7 +200,7 @@ function buildPaperSx(editOpen: boolean, isEditable: boolean, isDark: boolean, s
     overflow: "hidden",
     my: editOpen ? 0 : 1,
   };
-  const editClosedSx = !editOpen ? { bgcolor: "transparent" } : {};
+  const editClosedSx = editOpen ? {} : { bgcolor: "transparent" };
   const editOpenSx = editOpen ? {
     position: "fixed" as const,
     inset: 0,
@@ -210,12 +209,12 @@ function buildPaperSx(editOpen: boolean, isEditable: boolean, isDark: boolean, s
     flexDirection: "column" as const,
     bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
   } : {};
-  const hiddenToolbarSx = !showToolbar ? {
+  const hiddenToolbarSx = showToolbar ? {} : {
     borderColor: "transparent",
     "& > [data-block-toolbar]": {
       maxHeight: 0, opacity: 0, py: 0, overflow: "hidden",
     },
-  } : {};
+  };
   return { ...base, ...editClosedSx, ...editOpenSx, ...hiddenToolbarSx };
 }
 
@@ -234,10 +233,10 @@ function buildTableBodySx(collapsed: boolean, editOpen: boolean, isDark: boolean
 }
 
 /** 編集ヘッダーツールバー */
-function TableEditHeader({ editor, isDark, isEditable, setEditOpen, t }: {
+function TableEditHeader({ editor, isDark, isEditable, setEditOpen, t }: Readonly<{
   editor: Editor; isDark: boolean; isEditable: boolean;
   setEditOpen: (v: boolean) => void; t: (key: string) => string;
-}) {
+}>) {
   return (
     <Box contentEditable={false}>
       <EditDialogHeader
@@ -249,6 +248,21 @@ function TableEditHeader({ editor, isDark, isEditable, setEditOpen, t }: {
       {isEditable && <TableOperationsToolbar editor={editor} isDark={isDark} t={t} />}
     </Box>
   );
+}
+
+/** Extract compare-table HTML lookup from the useMemo to reduce component complexity. */
+function getCompareTableHtml(
+  editOpen: boolean,
+  mergeEditors: ReturnType<typeof getMergeEditors>,
+  editor: NodeViewProps["editor"] | null,
+  getPos: NodeViewProps["getPos"],
+): string | null {
+  if (!editOpen || !mergeEditors || !editor || typeof getPos !== "function") return null;
+  const pos = getPos();
+  if (pos == null) return null;
+  const isRight = !!editor.view?.dom?.dataset?.reviewMode;
+  const otherEditor = isRight ? mergeEditors.rightEditor : mergeEditors.leftEditor;
+  return findCounterpartTableHtml(editor, otherEditor, pos);
 }
 
 export function TableNodeView({ editor, node, getPos }: NodeViewProps) {
@@ -263,14 +277,10 @@ export function TableNodeView({ editor, node, getPos }: NodeViewProps) {
   // Compare mode
   const mergeEditors = getMergeEditors();
   const isCompareMode = !!mergeEditors;
-  const compareTableHtml = useMemo(() => {
-    if (!editOpen || !mergeEditors || !editor || typeof getPos !== "function") return null;
-    const pos = getPos();
-    if (pos == null) return null;
-    const isRight = !!editor.view?.dom?.dataset?.reviewMode;
-    const otherEditor = isRight ? mergeEditors.rightEditor : mergeEditors.leftEditor;
-    return findCounterpartTableHtml(editor, otherEditor, pos);
-  }, [editOpen, mergeEditors, editor, getPos]);
+  const compareTableHtml = useMemo(
+    () => getCompareTableHtml(editOpen, mergeEditors, editor, getPos),
+    [editOpen, mergeEditors, editor, getPos],
+  );
 
   const highlightedCompareHtml = useMemo(() => {
     if (!compareTableHtml) return null;
@@ -296,7 +306,7 @@ export function TableNodeView({ editor, node, getPos }: NodeViewProps) {
   } : {};
 
   return (
-    <NodeViewWrapper>
+    <NodeViewWrapper className="block-node-wrapper">
       <Paper
         component={editOpen ? "div" : Box}
         elevation={editOpen ? 24 : 0}
@@ -327,7 +337,7 @@ export function TableNodeView({ editor, node, getPos }: NodeViewProps) {
         ) : (
           <Box
             sx={buildTableBodySx(collapsed, editOpen, isDark, tableSx)}
-            onDoubleClick={!isEditable ? () => setEditOpen(true) : undefined}
+            onDoubleClick={isEditable ? undefined : () => setEditOpen(true)}
           >
             <NodeViewContent<"table"> as="table" />
           </Box>

@@ -2,8 +2,7 @@ import type { SxProps,Theme } from "@mui/material/styles";
 
 import { getEditorBg, getEditorText } from "../constants/colors";
 import type { PaperSize } from "../constants/dimensions";
-import { calcPaperContentWidth } from "../constants/dimensions";
-import { EDITOR_PADDING_BORDER,EDITOR_PADDING_TOP } from "../constants/dimensions";
+import { calcPaperContentWidth, EDITOR_PADDING_BORDER,EDITOR_PADDING_TOP } from "../constants/dimensions";
 import type { EditorSettings } from "../useEditorSettings";
 import { getBaseStyles } from "./baseStyles";
 import { getBlockStyles } from "./blockStyles";
@@ -25,9 +24,8 @@ export function getEditorPaperSx(
   const editorBg = getEditorBg(isDark, settings);
   const hasPaper = settings.paperSize !== "off";
   // 用紙サイズ有効時: 外側を少し暗く/明るくして用紙境界を示す
-  const outerBg = hasPaper
-    ? (isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.04)")
-    : editorBg;
+  const paperBg = isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.04)";
+  const outerBg = hasPaper ? paperBg : editorBg;
 
   return {
     borderTopLeftRadius: 0,
@@ -63,6 +61,17 @@ export function getEditorPaperSx(
       ...(getCodeStyles(theme) as Record<string, unknown>),
       ...(getBlockStyles(theme, settings) as Record<string, unknown>),
       ...(getInlineStyles(theme) as Record<string, unknown>),
+      // blockAlign: 全ブロック要素を統一パターンで配置
+      // NodeViewWrapper に text-align を設定し、直下の子要素を inline-block にして幅をコンテンツに合わせる
+      ...(settings.blockAlign !== "left" && {
+        "& .image-node-wrapper, & .block-node-wrapper": {
+          textAlign: settings.blockAlign,
+          "& > .MuiBox-root, & > .MuiPaper-root": {
+            display: "inline-block",
+            textAlign: "left",
+          },
+        },
+      }),
       // 用紙サイズ制限
       ...(hasPaper && {
         maxWidth: calcPaperContentWidth(settings.paperSize as Exclude<PaperSize, "off">, settings.paperMargin),

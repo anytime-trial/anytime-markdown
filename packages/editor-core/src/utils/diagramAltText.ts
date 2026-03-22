@@ -75,15 +75,16 @@ function tryExtractBracketedLabel(code: string, i: number): { label: string; end
 export function extractFlowchartLabelsAndIds(code: string): { labels: string[]; nodeIds: string[] } {
   const labels: string[] = [];
   const nodeIds: string[] = [];
-  for (let i = 0; i < code.length; i++) {
-    if (!isNodeIdChar(code[i])) continue;
+  let i = 0;
+  while (i < code.length) {
+    if (!isNodeIdChar(code[i])) { i++; continue; }
     const [id, afterId] = readNodeId(code, i);
-    i = skipWhitespace(code, afterId);
-    const bracket = tryExtractBracketedLabel(code, i);
-    if (!bracket) { i = afterId - 1; continue; }
+    const ws = skipWhitespace(code, afterId);
+    const bracket = tryExtractBracketedLabel(code, ws);
+    if (!bracket) { i = afterId; continue; }
     if (bracket.label) labels.push(bracket.label);
     nodeIds.push(id);
-    i = bracket.endPos;
+    i = bracket.endPos + 1;
   }
   return { labels, nodeIds };
 }
@@ -101,7 +102,7 @@ function extractSourceId(code: string, pos: number): string {
 function skipPipeLabel(code: string, pos: number): number {
   if (code[pos] !== "|") return pos;
   const pipeEnd = code.indexOf("|", pos + 1);
-  return pipeEnd !== -1 ? skipWhitespace(code, pipeEnd + 1) : pos;
+  return pipeEnd === -1 ? pos : skipWhitespace(code, pipeEnd + 1);
 }
 
 /** Extract a forward node ID starting at `pos`, return the ID or "" */
@@ -160,7 +161,7 @@ export function extractNameFromPlantUmlLine(rest: string): string {
   }
   const name = rest.split(/\s/)[0];
   const asIdx = name.toLowerCase().indexOf(" as ");
-  return asIdx !== -1 ? name.slice(0, asIdx) : name;
+  return asIdx === -1 ? name : name.slice(0, asIdx);
 }
 
 /** PlantUML キーワードに一致する行からキーワード後の rest 部分を返す。一致しなければ null。 */

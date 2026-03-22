@@ -36,22 +36,20 @@ export const SlashCommandExtension = Extension.create<{
   },
 
   addProseMirrorPlugins() {
-    const ext = this;
-
     const notify = (navKey: SlashCommandState["navigationKey"] = null) => {
-      ext.options.onStateChange({
-        active: ext.storage.active,
-        query: ext.storage.query,
-        from: ext.storage.from,
+      this.options.onStateChange({
+        active: this.storage.active,
+        query: this.storage.query,
+        from: this.storage.from,
         navigationKey: navKey,
       });
     };
 
     const deactivate = () => {
-      if (!ext.storage.active) return;
-      ext.storage.active = false;
-      ext.storage.query = "";
-      ext.storage.from = 0;
+      if (!this.storage.active) return;
+      this.storage.active = false;
+      this.storage.query = "";
+      this.storage.from = 0;
       notify();
     };
 
@@ -103,9 +101,9 @@ export const SlashCommandExtension = Extension.create<{
 
       if ($cursor.parent.type.name === "paragraph" && parentText === "/") {
         const slashPos = cursorPos - 1;
-        ext.storage.active = true;
-        ext.storage.from = slashPos;
-        ext.storage.query = "";
+        this.storage.active = true;
+        this.storage.from = slashPos;
+        this.storage.query = "";
         notify();
         return;
       }
@@ -121,17 +119,17 @@ export const SlashCommandExtension = Extension.create<{
         props: {
           handleDOMEvents: {
             compositionstart: () => {
-              ext.storage.composing = true;
+              this.storage.composing = true;
               return false;
             },
             compositionend: () => {
-              ext.storage.composing = false;
+              this.storage.composing = false;
               return false;
             },
           },
 
-          handleKeyDown(_view, event) {
-            if (!ext.storage.active) return false;
+          handleKeyDown: (_view, event) => {
+            if (!this.storage.active) return false;
 
             const { key } = event;
 
@@ -151,21 +149,20 @@ export const SlashCommandExtension = Extension.create<{
           },
         },
 
-        view() {
-          return {
+        view: () => ({
             update: (view: EditorView, prevState) => {
-              if (ext.storage.composing) return;
+              if (this.storage.composing) return;
 
               const { state } = view;
 
               // --- Activation ---
-              if (!ext.storage.active) {
+              if (!this.storage.active) {
                 tryActivate(view, prevState, state);
                 return;
               }
 
               // --- Active: track query or deactivate ---
-              const { from } = ext.storage;
+              const { from } = this.storage;
               const cursorPos = state.selection.from;
 
               if (cursorPos <= from) {
@@ -186,13 +183,12 @@ export const SlashCommandExtension = Extension.create<{
               }
 
               const newQuery = text.slice(1);
-              if (newQuery !== ext.storage.query) {
-                ext.storage.query = newQuery;
+              if (newQuery !== this.storage.query) {
+                this.storage.query = newQuery;
                 notify();
               }
             },
-          };
-        },
+          }),
       }),
     ];
   },

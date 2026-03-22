@@ -35,7 +35,7 @@ export const GifBlock = Node.create({
       width: { default: null },
       gifSettings: {
         default: null,
-        parseHTML: (element: HTMLElement) => element.getAttribute("data-gif-settings") || null,
+        parseHTML: (element: HTMLElement) => element.dataset.gifSettings ?? null,
         renderHTML: (attributes: Record<string, unknown>) => {
           if (!attributes.gifSettings) return {};
           return { "data-gif-settings": attributes.gifSettings as string };
@@ -53,7 +53,7 @@ export const GifBlock = Node.create({
           src: element.getAttribute("src") || "",
           alt: element.getAttribute("alt") || "",
           width: element.getAttribute("width") || null,
-          gifSettings: element.getAttribute("data-gif-settings") || null,
+          gifSettings: element.dataset.gifSettings ?? null,
         }),
       },
       {

@@ -12,7 +12,7 @@ interface UseSourceModeParams {
   editor: Editor | null;
   saveContent: (md: string, withFrontmatter?: boolean) => void;
   t: (key: string) => string;
-  frontmatterRef: React.MutableRefObject<string | null>;
+  frontmatterRef: React.RefObject<string | null>;
   defaultSourceMode?: boolean;
 }
 
@@ -57,10 +57,10 @@ export function useSourceMode({ editor, saveContent, t, frontmatterRef, defaultS
     if (!editor) return;
     if (reviewMode) {
       reviewModeStorage(editor).enabled = true;
-      editor.view.dom.setAttribute("data-review-mode", "true");
+      editor.view.dom.dataset.reviewMode = "true";
     } else if (readonlyMode) {
       reviewModeStorage(editor).enabled = true;
-      editor.view.dom.setAttribute("data-readonly-mode", "true");
+      editor.view.dom.dataset.readonlyMode = "true";
     }
   }, [editor]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -68,12 +68,12 @@ export function useSourceMode({ editor, saveContent, t, frontmatterRef, defaultS
     if (!editor) return;
     if (reviewMode) {
       reviewModeStorage(editor).enabled = false;
-      editor.view.dom.removeAttribute("data-review-mode");
+      delete editor.view.dom.dataset.reviewMode;
       setReviewMode(false);
       safeSetItem(STORAGE_KEY_REVIEW_MODE, "false");
     } else if (readonlyMode) {
       reviewModeStorage(editor).enabled = false;
-      editor.view.dom.removeAttribute("data-readonly-mode");
+      delete editor.view.dom.dataset.readonlyMode;
       setReadonlyMode(false);
       safeSetItem(STORAGE_KEY_READONLY_MODE, "false");
     }
@@ -97,12 +97,12 @@ export function useSourceMode({ editor, saveContent, t, frontmatterRef, defaultS
     if (editor) {
       if (reviewMode) {
         reviewModeStorage(editor).enabled = false;
-        editor.view.dom.removeAttribute("data-review-mode");
+        delete editor.view.dom.dataset.reviewMode;
         setReviewMode(false);
         safeSetItem(STORAGE_KEY_REVIEW_MODE, "false");
       } else if (readonlyMode) {
         reviewModeStorage(editor).enabled = false;
-        editor.view.dom.removeAttribute("data-readonly-mode");
+        delete editor.view.dom.dataset.readonlyMode;
         setReadonlyMode(false);
         safeSetItem(STORAGE_KEY_READONLY_MODE, "false");
       }
@@ -124,10 +124,10 @@ export function useSourceMode({ editor, saveContent, t, frontmatterRef, defaultS
     // Readonly モードから切り替える場合、フィルタを解除
     if (readonlyMode) {
       reviewModeStorage(editor).enabled = false;
-      editor.view.dom.removeAttribute("data-readonly-mode");
+      delete editor.view.dom.dataset.readonlyMode;
     }
     reviewModeStorage(editor).enabled = true;
-    editor.view.dom.setAttribute("data-review-mode", "true");
+    editor.view.dom.dataset.reviewMode = "true";
     setReadonlyMode(false);
     setReviewMode(true);
     safeSetItem(STORAGE_KEY_READONLY_MODE, "false");
@@ -143,10 +143,10 @@ export function useSourceMode({ editor, saveContent, t, frontmatterRef, defaultS
     }
     // Review モードから切り替える場合、属性を切り替え
     if (reviewMode) {
-      editor.view.dom.removeAttribute("data-review-mode");
+      delete editor.view.dom.dataset.reviewMode;
     }
     reviewModeStorage(editor).enabled = true;
-    editor.view.dom.setAttribute("data-readonly-mode", "true");
+    editor.view.dom.dataset.readonlyMode = "true";
     setReadonlyMode(true);
     setReviewMode(false);
     safeSetItem(STORAGE_KEY_READONLY_MODE, "true");

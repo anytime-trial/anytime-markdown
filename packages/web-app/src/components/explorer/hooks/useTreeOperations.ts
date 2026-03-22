@@ -42,17 +42,28 @@ async function renameDirFiles(repoFullName: string, branch: string, oldDir: stri
   return true;
 }
 
+interface UpdateCacheAfterMoveParams {
+  childrenCache: Map<string, TreeEntry[]>;
+  hasMdCache: Map<string, boolean>;
+  srcDir: string;
+  targetDir: string;
+  sourcePath: string;
+  entry: TreeEntry;
+  newPath: string;
+  isDir: boolean;
+}
+
 /** 移動後のキャッシュを更新する */
-function updateCacheAfterMove(
-  childrenCache: Map<string, TreeEntry[]>,
-  hasMdCache: Map<string, boolean>,
-  srcDir: string,
-  targetDir: string,
-  sourcePath: string,
-  entry: TreeEntry,
-  newPath: string,
-  isDir: boolean,
-): void {
+function updateCacheAfterMove({
+  childrenCache,
+  hasMdCache,
+  srcDir,
+  targetDir,
+  sourcePath,
+  entry,
+  newPath,
+  isDir,
+}: UpdateCacheAfterMoveParams): void {
   const srcEntries = childrenCache.get(srcDir) ?? [];
   const updatedSrc = srcEntries.filter((e) => e.path !== sourcePath);
   childrenCache.set(srcDir, updatedSrc);
@@ -102,8 +113,8 @@ interface UseTreeOperationsArgs {
   setCreatingInDir: (path: string | null) => void;
   setCreatingFolderInDir: (path: string | null) => void;
   setRenamingPath: (path: string | null) => void;
-  childrenCacheRef: React.MutableRefObject<ChildrenCache>;
-  hasMdCacheRef: React.MutableRefObject<HasMdCache>;
+  childrenCacheRef: React.RefObject<ChildrenCache>;
+  hasMdCacheRef: React.RefObject<HasMdCache>;
   bumpCache: () => void;
   handleFileSelect: (filePath: string) => void;
 }
@@ -153,12 +164,26 @@ function removeEntryFromCache(
   }
 }
 
-async function renameDirEntries(
-  repoFullName: string, branch: string, oldPath: string, newPath: string,
-  dirPath: string, newName: string, entries: TreeEntry[],
-  childrenCache: ChildrenCache, hasMdCache: HasMdCache,
-  setRootEntries: (e: TreeEntry[]) => void, setExpanded: React.Dispatch<React.SetStateAction<Set<string>>>,
-): Promise<boolean> {
+interface RenameDirEntriesParams {
+  repoFullName: string;
+  branch: string;
+  oldPath: string;
+  newPath: string;
+  dirPath: string;
+  newName: string;
+  entries: TreeEntry[];
+  childrenCache: ChildrenCache;
+  hasMdCache: HasMdCache;
+  setRootEntries: (e: TreeEntry[]) => void;
+  setExpanded: React.Dispatch<React.SetStateAction<Set<string>>>;
+}
+
+async function renameDirEntries({
+  repoFullName, branch, oldPath, newPath,
+  dirPath, newName, entries,
+  childrenCache, hasMdCache,
+  setRootEntries, setExpanded,
+}: RenameDirEntriesParams): Promise<boolean> {
   const allFiles = await listAllFiles(repoFullName, branch, oldPath);
   if (allFiles.length === 0) return false;
 
@@ -176,12 +201,25 @@ async function renameDirEntries(
   return true;
 }
 
-async function renameFileEntry(
-  repoFullName: string, branch: string, oldPath: string, newPath: string,
-  dirPath: string, newName: string, entries: TreeEntry[],
-  childrenCache: ChildrenCache, selectedFilePath: string | null,
-  setSelectedFilePath: (p: string) => void,
-): Promise<boolean> {
+interface RenameFileEntryParams {
+  repoFullName: string;
+  branch: string;
+  oldPath: string;
+  newPath: string;
+  dirPath: string;
+  newName: string;
+  entries: TreeEntry[];
+  childrenCache: ChildrenCache;
+  selectedFilePath: string | null;
+  setSelectedFilePath: (p: string) => void;
+}
+
+async function renameFileEntry({
+  repoFullName, branch, oldPath, newPath,
+  dirPath, newName, entries,
+  childrenCache, selectedFilePath,
+  setSelectedFilePath,
+}: RenameFileEntryParams): Promise<boolean> {
   const ok = await renameFile(repoFullName, oldPath, newPath, branch);
   if (!ok) return false;
 
@@ -344,7 +382,7 @@ export function useTreeOperations({
       const isDir = entry?.type === "tree";
 
       const name = targetPath.split("/").pop();
-      if (!window.confirm(isDir ? `Delete folder "${name}" and all its contents?` : `Delete "${name}"?`)) return;
+      if (!globalThis.confirm(isDir ? `Delete folder "${name}" and all its contents?` : `Delete "${name}"?`)) return;
 
       if (isDir) {
         const allOk = await deleteFolderContents(
@@ -416,8 +454,8 @@ export function useTreeOperations({
       const newPath = dirPath ? `${dirPath}/${newName}` : newName;
 
       const ok = isDir
-        ? await renameDirEntries(selectedRepo.fullName, selectedBranch, oldPath, newPath, dirPath, newName, entries, childrenCacheRef.current, hasMdCacheRef.current, setRootEntries, setExpanded)
-        : await renameFileEntry(selectedRepo.fullName, selectedBranch, oldPath, newPath, dirPath, newName, entries, childrenCacheRef.current, selectedFilePath, setSelectedFilePath);
+        ? await renameDirEntries({ repoFullName: selectedRepo.fullName, branch: selectedBranch, oldPath, newPath, dirPath, newName, entries, childrenCache: childrenCacheRef.current, hasMdCache: hasMdCacheRef.current, setRootEntries, setExpanded })
+        : await renameFileEntry({ repoFullName: selectedRepo.fullName, branch: selectedBranch, oldPath, newPath, dirPath, newName, entries, childrenCache: childrenCacheRef.current, selectedFilePath, setSelectedFilePath });
       if (!ok) return;
 
       if (dirPath === "") {
@@ -448,7 +486,7 @@ export function useTreeOperations({
         : await renameFile(selectedRepo.fullName, sourcePath, newPath, selectedBranch);
       if (!renameOk) return;
 
-      updateCacheAfterMove(childrenCacheRef.current, hasMdCacheRef.current, srcDir, targetDir, sourcePath, entry, newPath, isDir);
+      updateCacheAfterMove({ childrenCache: childrenCacheRef.current, hasMdCache: hasMdCacheRef.current, srcDir, targetDir, sourcePath, entry, newPath, isDir });
       updateSelectedPathAfterMove(selectedFilePath, sourcePath, newPath, isDir, setSelectedFilePath);
       if (isDir) updateExpandedPaths(setExpanded, sourcePath, newPath);
 

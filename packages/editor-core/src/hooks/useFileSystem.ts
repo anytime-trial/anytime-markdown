@@ -17,7 +17,7 @@ async function hasWritePermissionDenied(handle: FileSystemFileHandle): Promise<b
 export function useFileSystem(provider: FileSystemProvider | null | undefined) {
   const [fileHandle, setFileHandleRaw] = useState<FileHandle | null>(() => {
     try {
-      const saved = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY_FILENAME) : null;
+      const saved = typeof globalThis === 'undefined' ? null : localStorage.getItem(STORAGE_KEY_FILENAME);
       return saved ? { name: saved } : null;
     } catch {
       return null;
@@ -27,12 +27,12 @@ export function useFileSystem(provider: FileSystemProvider | null | undefined) {
 
   // リロード時に IndexedDB から nativeHandle を復元
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof globalThis === 'undefined') return;
     const name = fileHandle?.name;
     if (!name || fileHandle?.nativeHandle) return;
     let cancelled = false;
     loadNativeHandle().then((native) => {
-      if (!cancelled && native && native.name === name) {
+      if (!cancelled && native?.name === name) {
         setFileHandleRaw({ name, nativeHandle: native });
       }
     }).catch(() => { /* IndexedDB 読み込み失敗は無視 */ });

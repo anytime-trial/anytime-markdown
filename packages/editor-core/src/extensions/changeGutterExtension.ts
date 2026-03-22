@@ -103,6 +103,18 @@ function backtrackLcs(
   return { pairs, matchedCurrent };
 }
 
+function addDeletionTarget(
+  docIndex: number,
+  seen: Set<number>,
+  changed: Set<number>,
+  result: number[],
+): void {
+  if (!seen.has(docIndex) && !changed.has(docIndex)) {
+    seen.add(docIndex);
+    result.push(docIndex);
+  }
+}
+
 /** Detect deletion positions by finding unmatched baseline nodes */
 function detectDeletions(
   baselineLen: number,
@@ -120,11 +132,7 @@ function detectDeletions(
 
     const nextPair = matchPairs.find((p) => p.bi > bi);
     if (nextPair) {
-      const targetDocIndex = current[nextPair.ci].docIndex;
-      if (!seen.has(targetDocIndex) && !changed.has(targetDocIndex)) {
-        seen.add(targetDocIndex);
-        deletionBefore.push(targetDocIndex);
-      }
+      addDeletionTarget(current[nextPair.ci].docIndex, seen, changed, deletionBefore);
     } else {
       const lastCurrentDocIdx = n > 0 ? current[n - 1].docIndex : -1;
       const endIsChanged = lastCurrentDocIdx >= 0 && changed.has(lastCurrentDocIdx);
@@ -274,7 +282,7 @@ export const ChangeGutterExtension = Extension.create({
           for (let i = positions.length - 1; i >= 0; i--) {
             if (positions[i] < cursor) { prev = positions[i]; break; }
           }
-          const target = prev ?? positions[positions.length - 1];
+          const target = prev ?? positions.at(-1)!;
           if (dispatch) {
             const tr = state.tr.setSelection(
               TextSelection.create(state.doc, target),

@@ -110,7 +110,7 @@ export function useEditorDialogs({
     if (imageEditPos !== null) {
       const tr = editor.state.tr;
       const node = tr.doc.nodeAt(imageEditPos);
-      if (node && node.type.name === "image") {
+      if (node?.type.name === "image") {
         tr.setNodeMarkup(imageEditPos, undefined, {
           ...node.attrs,
           src: imageUrl.trim(),

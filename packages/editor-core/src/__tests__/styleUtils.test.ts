@@ -22,6 +22,7 @@ const defaultSettings: EditorSettings = {
   lightBgColor: "",
   darkTextColor: "",
   lightTextColor: "",
+  blockAlign: "left" as const,
 };
 
 describe("getBaseStyles", () => {

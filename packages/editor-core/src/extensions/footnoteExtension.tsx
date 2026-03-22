@@ -17,7 +17,7 @@ import type { NodeViewProps } from "@tiptap/react";
 import { NodeViewWrapper,ReactNodeViewRenderer } from "@tiptap/react";
 
 /** FootnoteRef NodeView コンポーネント */
-function FootnoteRefView({ node, selected }: NodeViewProps) {
+function FootnoteRefView({ node, selected }: Readonly<NodeViewProps>) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const noteId = node.attrs.noteId as string;
@@ -66,7 +66,7 @@ export const FootnoteRef = Node.create({
         tag: "sup[data-footnote-ref]",
         getAttrs: (el) => {
           if (typeof el === "string") return false;
-          return { noteId: el.getAttribute("data-footnote-ref") || "" };
+          return { noteId: el.dataset.footnoteRef ?? "" };
         },
       },
     ];

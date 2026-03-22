@@ -43,8 +43,8 @@ function buildBgGradient(
   const runs: { color: string; count: number }[] = [];
   for (const c of lineColors) {
     const color = c ?? "transparent";
-    if (runs.length > 0 && runs[runs.length - 1].color === color) {
-      runs[runs.length - 1].count++;
+    if (runs.length > 0 && runs.at(-1)!.color === color) {
+      runs.at(-1)!.count++;
     } else {
       runs.push({ color, count: 1 });
     }
@@ -74,7 +74,7 @@ function buildDisplayData(diffLines: DiffLine[]) {
     } else {
       displayLines.push(dl.text);
     }
-    lineNumbers.push(dl.lineNumber != null ? String(dl.lineNumber) : "");
+    lineNumbers.push(dl.lineNumber == null ? "" : String(dl.lineNumber));
   }
 
   return {
@@ -110,7 +110,7 @@ export function FullscreenDiffView({
   initialRightCode,
   onMergeApply,
   t,
-}: FullscreenDiffViewProps) {
+}: Readonly<FullscreenDiffViewProps>) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const settings = useEditorSettingsContext();
@@ -258,7 +258,7 @@ function DiffPanel({
   lineHeight,
   theme,
   t,
-}: DiffPanelProps) {
+}: Readonly<DiffPanelProps>) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const gutterRef = useRef<HTMLDivElement>(null);
   const mergeGutterRef = useRef<HTMLDivElement>(null);
@@ -415,7 +415,7 @@ function DiffPanel({
           }}
         >
           {lineNumbers.map((num, i) => (
-            <div key={i}>{num || "\u00A0"}</div>
+            <div key={`line-${i}`}>{num || "\u00A0"}</div>
           ))}
         </Box>
 
@@ -444,7 +444,7 @@ function DiffPanel({
             }}
           >
             {displayLines.map((line, i) => (
-              <div key={i}>{line || "\u00A0"}</div>
+              <div key={`line-${i}`}>{line || "\u00A0"}</div>
             ))}
           </Box>
 

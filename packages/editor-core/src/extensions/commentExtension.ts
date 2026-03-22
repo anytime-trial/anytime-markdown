@@ -57,7 +57,7 @@ export const CommentHighlight = Mark.create({
         tag: "span[data-comment-id]",
         getAttrs: (el) => {
           if (typeof el === "string") return false;
-          return { commentId: el.getAttribute("data-comment-id") || "" };
+          return { commentId: el.dataset.commentId ?? "" };
         },
       },
     ];
@@ -115,7 +115,7 @@ export const CommentPoint = Node.create({
         tag: "span[data-comment-point]",
         getAttrs: (el) => {
           if (typeof el === "string") return false;
-          return { commentId: el.getAttribute("data-comment-point") || "" };
+          return { commentId: el.dataset.commentPoint ?? "" };
         },
       },
     ];

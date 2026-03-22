@@ -63,7 +63,7 @@ export function boxTableToMarkdown(text: string): string {
 /** 罫線のみで構成された行か */
 function isBorderLine(line: string): boolean {
   // │ が含まれていてもセル内容がなければボーダー
-  const stripped = line.replace(/[┌┐└┘├┤┬┴┼─═╔╗╚╝╠╣╦╩╬║│\s]/g, "");
+  const stripped = line.replaceAll(/[┌┐└┘├┤┬┴┼─═╔╗╚╝╠╣╦╩╬║│\s]/g, "");
   return stripped.length === 0 && BOX_CHARS.test(line);
 }
 
@@ -78,7 +78,7 @@ function extractCells(line: string): string[] {
   const parts = line.split(/[│║]/);
   // 先頭と末尾が空（罫線の外側）なら除去
   if (parts.length > 0 && parts[0].trim() === "") parts.shift();
-  if (parts.length > 0 && parts[parts.length - 1].trim() === "") parts.pop();
+  if (parts.length > 0 && parts.at(-1)!.trim() === "") parts.pop();
   return parts.map(cell => cell.trim());
 }
 
@@ -98,11 +98,12 @@ function formatTable(rows: string[][]): string[] {
     Math.max(3, ...normalized.map(r => r[c].length)),
   );
 
-  const output: string[] = [];
-  // ヘッダー行
-  output.push("| " + normalized[0].map((cell, i) => cell.padEnd(widths[i])).join(" | ") + " |");
-  // セパレーター
-  output.push("| " + widths.map(w => "-".repeat(w)).join(" | ") + " |");
+  const output: string[] = [
+    // ヘッダー行
+    "| " + normalized[0].map((cell, i) => cell.padEnd(widths[i])).join(" | ") + " |",
+    // セパレーター
+    "| " + widths.map(w => "-".repeat(w)).join(" | ") + " |",
+  ];
   // データ行
   for (let r = 1; r < normalized.length; r++) {
     output.push("| " + normalized[r].map((cell, i) => cell.padEnd(widths[i])).join(" | ") + " |");

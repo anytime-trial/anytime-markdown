@@ -47,7 +47,7 @@ export function PlantUmlEditDialog({
   fsZP, readOnly,
   isCompareMode, compareCode, onMergeApply, thisCode, onExport, toolbarExtra,
   t,
-}: PlantUmlEditDialogProps) {
+}: Readonly<PlantUmlEditDialogProps>) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const settings = useEditorSettingsContext();

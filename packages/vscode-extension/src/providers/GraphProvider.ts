@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
-import { execFileSync } from 'child_process';
+import * as path from 'node:path';
+import { execFileSync } from 'node:child_process';
 
 const GIT_LOG_LIMIT = 100;
 const GIT_LOG_MAX_BUFFER = 1024 * 1024;
@@ -89,15 +89,15 @@ function parseGitLogLine(line: string, localOnlyHashes: Set<string>): GraphItem 
 	const parts = line.split('\0');
 	const graphAndHash = parts[0];
 	const message = parts[1] ?? '';
-	const refs = (parts[2] ?? '').trim().replace(/^\(|\)$/g, '');
+	const refs = (parts[2] ?? '').trim().replaceAll(/^\(|\)$/g, '');
 	const date = parts[3] ?? '';
 	const author = parts[4] ?? '';
 
 	// グラフ文字とハッシュを分離
-	const hashMatch = graphAndHash.trimEnd().match(/([0-9a-f]{7,})$/);
+	const hashMatch = /([0-9a-f]{7,})$/.exec(graphAndHash.trimEnd());
 	const hash = hashMatch ? hashMatch[1] : '';
 	let graph = hashMatch ? graphAndHash.substring(0, hashMatch.index).trimEnd() : graphAndHash;
-	if (graph.replace(/\s/g, '') === '*') {
+	if (graph.replaceAll(/\s/g, '') === '*') {
 		graph = '';
 	}
 
@@ -116,7 +116,7 @@ function parseGitLogOutput(output: string, localOnlyHashes: Set<string>): GraphI
 }
 
 export class GraphProvider implements vscode.TreeDataProvider<GraphItem> {
-	private _onDidChangeTreeData = new vscode.EventEmitter<void>();
+	private readonly _onDidChangeTreeData = new vscode.EventEmitter<void>();
 	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
 	private gitRoot: string | null = null;

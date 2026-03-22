@@ -16,7 +16,7 @@ import { useDeleteBlock } from "./hooks/useDeleteBlock";
 import { useNodeSelected } from "./hooks/useNodeSelected";
 import { useTextareaSearch } from "./hooks/useTextareaSearch";
 
-export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: NodeViewProps) {
+export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: Readonly<NodeViewProps>) {
   const theme = useTheme();
   const t = useTranslations("MarkdownEditor");
   const isDark = theme.palette.mode === "dark";

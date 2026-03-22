@@ -16,6 +16,15 @@ jest.mock("@anytime-markdown/editor-core", () => ({
   ACCENT_COLOR: "#e8a012",
   DEFAULT_DARK_BG: "#0D1117",
   DEFAULT_LIGHT_BG: "#F8F9FA",
+  DEFAULT_PRESET_NAME: "professional",
+  getPreset: () => ({
+    label: "Professional",
+    fontFamily: '"Roboto", sans-serif',
+    displayFont: '"Playfair Display", serif',
+    borderRadius: { sm: 4, md: 8, lg: 12 },
+    easing: { enter: "ease-in", standard: "ease", exit: "ease-out" },
+  }),
+  isPresetName: () => true,
 }));
 
 import { Providers, useThemeMode } from "../app/providers";

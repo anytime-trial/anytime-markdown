@@ -12,7 +12,7 @@ interface ResizeGripProps {
 }
 
 /** ブロック要素右下のリサイズグリップ + リサイズ中のサイズ表示 */
-export function ResizeGrip({ visible, resizing, resizeWidth, onPointerDown }: ResizeGripProps) {
+export function ResizeGrip({ visible, resizing, resizeWidth, onPointerDown }: Readonly<ResizeGripProps>) {
   const isDark = useTheme().palette.mode === "dark";
   return (
     <>

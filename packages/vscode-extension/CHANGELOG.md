@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-03-22
+
+### Added
+- /docs/view: ロケール対応言語切替（.ja.md/.en.md を自動検出、フォルダキー対応）
+- /docs/edit: フォルダ D&D 改善（全ファイル展開ではなくフォルダ名 1 つで表示）
+- /docs/edit: フォルダアップロード時の上書き確認ダイアログ
+- /docs/edit: フォルダ一覧表示に言語バッジ（JA/EN）
+
+### Changed
+- ブロック要素（画像・PlantUML・Mermaid・数式）のアライメントを text-align + inline-block パターンに統一
+- SonarQube 全 588 件の CODE_SMELL を修正（CRITICAL 8 + MAJOR ~160 + MINOR ~420）
+  - Cognitive Complexity 削減（8 関数）
+  - readonly 追加、optional chaining、nested ternary 展開、パラメータオブジェクト化 等
+  - Readonly props、deprecated API 置換、globalThis、replaceAll、node: prefix 等
+
+### Fixed
+- closest() の戻り値を HTMLElement にキャストして dataset アクセスの型エラーを解消
+- globalThis のカスタムプロパティ（__vscode）アクセスで window を維持
+
 ## [0.7.0] - 2026-03-21
 
 ### Added

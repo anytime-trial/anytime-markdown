@@ -77,7 +77,7 @@ const jsonLd = {
   ],
 };
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const locale = await getLocale();
   const t = await getTranslations('Landing');
   const nonce = (await headers()).get('x-nonce') ?? undefined;

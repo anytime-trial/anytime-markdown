@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FallbackFileSystemProvider } from '../../lib/FallbackFileSystemProvider';
 import { WebFileSystemProvider } from '../../lib/WebFileSystemProvider';
 import { useLocaleSwitch } from '../LocaleProvider';
-import { useThemeMode } from '../providers';
+import { usePreset, useThemeMode } from '../providers';
 
 function EditorLoading() {
   const t = useTranslations('Common');
@@ -36,8 +36,10 @@ import { fetchFileContent } from '../../lib/githubApi';
 export default function Page() {
   const t = useTranslations('Common');
   const { themeMode, setThemeMode } = useThemeMode();
+  const { presetName, setPresetName } = usePreset();
   const { setLocale } = useLocaleSwitch();
   const enableGitHub = process.env.NEXT_PUBLIC_ENABLE_GITHUB === '1';
+  const showThemePreset = process.env.NEXT_PUBLIC_SHOW_THEME_PRESET === '1';
   const { data: session } = useSession();
   const isGitHubLoggedIn = enableGitHub && !!session;
   const [explorerOpen, setExplorerOpen] = useState(() => {
@@ -228,6 +230,8 @@ export default function Page() {
           key={editorKey}
           themeMode={themeMode}
           onThemeModeChange={setThemeMode}
+          presetName={showThemePreset ? presetName : undefined}
+          onPresetChange={showThemePreset ? setPresetName : undefined}
           onLocaleChange={setLocale}
           fileSystemProvider={fileSystemProvider}
           onCompareModeChange={handleCompareModeChange}

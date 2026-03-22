@@ -54,9 +54,9 @@ function embedGifSettings(editor: Editor, md: string): string {
   let result = md;
   for (const entry of entries) {
     // ![alt](src.gif) の行を見つけて直後に gif-settings コメントを挿入
-    const escapedSrc = entry.src.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const escapedSrc = entry.src.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
     const imgPattern = new RegExp(
-      `(!\\[[^\\]]*\\]\\(${escapedSrc}\\))(?!\\s*\\n<!-- gif-settings:)`,
+      String.raw`(!\[[^\]]*\]\(${escapedSrc}\))(?!\s*\n<!-- gif-settings:)`,
     );
     result = result.replace(imgPattern, `$1\n<!-- gif-settings: ${entry.settings} -->`);
   }
@@ -71,17 +71,17 @@ export function getMarkdownFromEditor(editor: Editor): string {
   md = restoreBlankLines(md);
   // blockquote 内のハードブレイク（\↩）後に > が欠落する tiptap-markdown の不具合を補正
   // 例: "> line1\\\nline2" → "> line1\\\n> line2"
-  md = md.replace(/^(> .+)\\\n(?!>)/gm, "$1\\\n> ");
+  md = md.replaceAll(/^(> .+)\\\n(?!>)/gm, "$1\\\n> ");
   // blockquote 内のハードブレイクで bold 閉じ ** と次行の bold 開き ** が連結して
   // **** になる tiptap-markdown の不具合を補正
   // 例: "> ****text**" → "> **text**"
-  md = md.replace(/^(> )\*{4}/gm, "$1**");
+  md = md.replaceAll(/^(> )\*{4}/gm, "$1**");
   // preserveBlankLines で分離された連続 blockquote を1つに結合する
   // 例: "> text1\n\n> text2" → "> text1\n>\n> text2"
-  md = md.replace(/^(> .+)\n\n(?=> )/gm, "$1\n>\n");
+  md = md.replaceAll(/^(> .+)\n\n(?=> )/gm, "$1\n>\n");
   // リスト内ハードブレイク後の継続行に tiptap-markdown が付与する
   // 2スペースインデントを除去する（元のインデントなしを保持）
-  md = md.replace(/\\\n {2}(?! )/gm, "\\\n");
+  md = md.replaceAll(/\\\n {2}(?! )/gm, "\\\n");
   // NOTE: ProseMirror はブロック間を \n\n に正規化するため、
   // 元の \n が \n\n に変わる場合がある。これは ProseMirror の仕様として許容する。
   // ```math フェンスが残っている場合に $$...$$ に変換する（フォールバック）
@@ -91,23 +91,23 @@ export function getMarkdownFromEditor(editor: Editor): string {
   // テーブル行内で prosemirror-markdown がエスケープした文字を復元する
   // (例: "1\." → "1.", "\#" → "#")
   // + コードスパンのバッククォート区切りをテーブル行内のみ最小限に正規化
-  md = md.replace(/^(\|.+\|)$/gm, (line) => {
-    line = line.replace(/\\([.#>+\-*])/g, "$1");
+  md = md.replaceAll(/^(\|.+\|)$/gm, (line) => {
+    line = line.replaceAll(/\\([.#>+\-*])/g, "$1");
     // コードスパンを保護: &lt;/&gt; 復元の対象外 + 内部の | を \| にエスケープ
     const codeSpans: string[] = [];
-    line = line.replace(/(?<!`)(`+)(?!`)(.*?)(?<!`)\1(?!`)/g, (m) => {
+    line = line.replaceAll(/(?<!`)(`+)(?!`)(.*?)(?<!`)\1(?!`)/g, (m) => {
       // コードスパン内の | を \| にエスケープ（テーブルセル区切りとの衝突防止）
-      codeSpans.push(m.replace(/(?<!\\)\|/g, "\\|"));
+      codeSpans.push(m.replaceAll(/(?<!\\)\|/g, String.raw`\|`));
       return `\uE001CS${codeSpans.length - 1}\uE001`;
     });
-    line = line.replace(/&gt;/g, ">").replace(/&lt;/g, "<");
-    line = line.replace(/\uE001CS(\d+)\uE001/g, (_, i) => codeSpans[Number(i)]);
+    line = line.replaceAll("&gt;", ">").replaceAll("&lt;", "<");
+    line = line.replaceAll(/\uE001CS(\d+)\uE001/g, (_, i) => codeSpans[Number(i)]);
     // 空セルの余分なスペースを正規化: "|  |" → "| |"
-    line = line.replace(/\| {2,}(?=\|)/g, "| ");
+    line = line.replaceAll(/\| {2,}(?=\|)/g, "| ");
     return normalizeCodeSpanDelimitersInLine(line);
   });
   // 画像 src のキャッシュバスター（?t=...）を除去
-  md = md.replace(/(!\[[^\]]*\]\([^)?]+)\?t=\d+(\))/g, "$1$2");
+  md = md.replaceAll(/(!\[[^\]]*\]\([^)?]+)\?t=\d+(\))/g, "$1$2");
   // 画像アノテーションを HTML コメントとして画像の直後に埋め込む
   md = embedImageAnnotations(editor, md);
   // GIF 設定を HTML コメントとして GIF 画像の直後に埋め込む

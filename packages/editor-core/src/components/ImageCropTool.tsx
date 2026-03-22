@@ -104,7 +104,7 @@ function applyResizing(startPos: { x: number; y: number }, pos: { x: number; y: 
   return { x, y, width, height };
 }
 
-export function ImageCropTool({ src, onCrop, t }: ImageCropToolProps) {
+export function ImageCropTool({ src, onCrop, t }: Readonly<ImageCropToolProps>) {
   const isDark = useTheme().palette.mode === "dark";
   const [cropping, setCropping] = useState(false);
   const [cropRect, setCropRect] = useState<CropRect | null>(null);
@@ -212,7 +212,10 @@ export function ImageCropTool({ src, onCrop, t }: ImageCropToolProps) {
       const dataUrl = canvas.toDataURL("image/png");
       const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
       const bytes = Math.ceil(base64.length * 3 / 4);
-      const sizeStr = bytes < 1024 ? `${bytes}B` : bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)}KB` : `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+      let sizeStr: string;
+      if (bytes < 1024) sizeStr = `${bytes}B`;
+      else if (bytes < 1024 * 1024) sizeStr = `${(bytes / 1024).toFixed(1)}KB`;
+      else sizeStr = `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
       setCropEstimate(`${w}x${h} / ${sizeStr}`);
     } catch {
       setCropEstimate(`${w}x${h}`);
@@ -285,15 +288,41 @@ export function ImageCropTool({ src, onCrop, t }: ImageCropToolProps) {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") handleCancelCrop();
     };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+    globalThis.addEventListener("keydown", handler);
+    return () => globalThis.removeEventListener("keydown", handler);
   }, [cropping, handleCancelCrop]);
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
       {/* Crop toolbar */}
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 1, py: 0.5, borderBottom: 1, borderColor: getDivider(isDark), minHeight: 32 }}>
-        {!cropping ? (
+        {cropping ? (
+          <>
+            <Typography variant="caption" sx={{ fontWeight: 600, color: getTextSecondary(isDark) }}>
+              {t("imageCropSelect")}
+            </Typography>
+            {cropEstimate && (
+              <Typography variant="caption" sx={{ color: getTextDisabled(isDark), fontSize: STATUSBAR_FONT_SIZE, fontFamily: "monospace", whiteSpace: "nowrap" }}>
+                {cropEstimate}
+              </Typography>
+            )}
+            <Box sx={{ flex: 1 }} />
+            {cropRect && cropRect.width > 0.01 && cropRect.height > 0.01 && (
+              <Button
+                size="small"
+                variant="contained"
+                startIcon={<CheckIcon sx={{ fontSize: 14 }} />}
+                onClick={handleApplyCrop}
+                sx={{ textTransform: "none", fontSize: PANEL_BUTTON_FONT_SIZE, py: 0.25 }}
+              >
+                {t("imageCropApply")}
+              </Button>
+            )}
+            <IconButton size="small" onClick={handleCancelCrop} aria-label={t("close")}>
+              <CloseIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          </>
+        ) : (
           <>
             <Tooltip title={t("imageCrop")}>
               <IconButton size="small" onClick={() => setCropping(true)} aria-label={t("imageCrop")}>
@@ -337,32 +366,6 @@ export function ImageCropTool({ src, onCrop, t }: ImageCropToolProps) {
                 </IconButton>
               </Tooltip>
             </Box>
-          </>
-        ) : (
-          <>
-            <Typography variant="caption" sx={{ fontWeight: 600, color: getTextSecondary(isDark) }}>
-              {t("imageCropSelect")}
-            </Typography>
-            {cropEstimate && (
-              <Typography variant="caption" sx={{ color: getTextDisabled(isDark), fontSize: STATUSBAR_FONT_SIZE, fontFamily: "monospace", whiteSpace: "nowrap" }}>
-                {cropEstimate}
-              </Typography>
-            )}
-            <Box sx={{ flex: 1 }} />
-            {cropRect && cropRect.width > 0.01 && cropRect.height > 0.01 && (
-              <Button
-                size="small"
-                variant="contained"
-                startIcon={<CheckIcon sx={{ fontSize: 14 }} />}
-                onClick={handleApplyCrop}
-                sx={{ textTransform: "none", fontSize: PANEL_BUTTON_FONT_SIZE, py: 0.25 }}
-              >
-                {t("imageCropApply")}
-              </Button>
-            )}
-            <IconButton size="small" onClick={handleCancelCrop} aria-label={t("close")}>
-              <CloseIcon sx={{ fontSize: 16 }} />
-            </IconButton>
           </>
         )}
       </Box>
@@ -422,18 +425,23 @@ export function ImageCropTool({ src, onCrop, t }: ImageCropToolProps) {
               {/* Ruler - top */}
               {showRuler && (() => {
                 const step = Math.max(50, Math.round(Math.max(imgNatural.w, imgNatural.h) / 10 / 50) * 50);
-                const ticks: React.ReactNode[] = [];
-                // Top ruler background
-                ticks.push(<rect key="rtbg" x={0} y={-20} width={imgNatural.w} height={20} fill="rgba(0,0,0,0.6)" />);
+                const ticks: React.ReactNode[] = [
+                  // Top ruler background
+                  <rect key="rtbg" x={0} y={-20} width={imgNatural.w} height={20} fill="rgba(0,0,0,0.6)" />,
+                ];
                 for (let x = 0; x <= imgNatural.w; x += step) {
-                  ticks.push(<line key={`rt${x}`} x1={x} y1={-20} x2={x} y2={0} stroke="rgba(255,255,255,0.6)" strokeWidth={1} />);
-                  ticks.push(<text key={`rtl${x}`} x={x + 3} y={-6} fontSize={10} fill="rgba(255,255,255,0.7)">{x}</text>);
+                  ticks.push(
+                    <line key={`rt${x}`} x1={x} y1={-20} x2={x} y2={0} stroke="rgba(255,255,255,0.6)" strokeWidth={1} />,
+                    <text key={`rtl${x}`} x={x + 3} y={-6} fontSize={10} fill="rgba(255,255,255,0.7)">{x}</text>,
+                  );
                 }
                 // Left ruler background
                 ticks.push(<rect key="rlbg" x={-20} y={0} width={20} height={imgNatural.h} fill="rgba(0,0,0,0.6)" />);
                 for (let y = 0; y <= imgNatural.h; y += step) {
-                  ticks.push(<line key={`rl${y}`} x1={-20} y1={y} x2={0} y2={y} stroke="rgba(255,255,255,0.6)" strokeWidth={1} />);
-                  ticks.push(<text key={`rll${y}`} x={-18} y={y + 12} fontSize={10} fill="rgba(255,255,255,0.7)">{y}</text>);
+                  ticks.push(
+                    <line key={`rl${y}`} x1={-20} y1={y} x2={0} y2={y} stroke="rgba(255,255,255,0.6)" strokeWidth={1} />,
+                    <text key={`rll${y}`} x={-18} y={y + 12} fontSize={10} fill="rgba(255,255,255,0.7)">{y}</text>,
+                  );
                 }
                 return ticks;
               })()}

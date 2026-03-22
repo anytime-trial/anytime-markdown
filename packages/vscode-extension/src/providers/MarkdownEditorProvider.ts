@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
-import { randomBytes } from 'crypto';
-import * as fs from 'fs';
-import * as path from 'path';
+import { randomBytes } from 'node:crypto';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
   public static readonly viewType = 'anytimeMarkdown';
 
@@ -15,10 +15,10 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
   public compareModeActive = false;
   public pendingCompareContent: string | null = null;
   public skipDiffDetection = false;
-  private panels = new Map<string, vscode.WebviewPanel>();
+  private readonly panels = new Map<string, vscode.WebviewPanel>();
   /** diff ビュー検出用: 最後にパネルが開かれた時刻 */
   private lastPanelOpenTime = 0;
-  private readyPanels = new Set<string>();
+  private readonly readyPanels = new Set<string>();
   private readyResolvers = new Map<string, Array<() => void>>();
 
   public static getInstance(): MarkdownEditorProvider | null {
@@ -322,7 +322,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
           ctx.document.positionAt(0),
           ctx.document.positionAt(ctx.document.getText().length)
         );
-        edit.replace(ctx.document.uri, fullRange, newContent as string);
+        edit.replace(ctx.document.uri, fullRange, newContent);
         lastApplyTime = Date.now();
         isApplyingWebviewEdit = true;
         try {
@@ -367,7 +367,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
         if (!fs.existsSync(imagesDir)) {
           fs.mkdirSync(imagesDir, { recursive: true });
         }
-        const match = imgData.match(/^data:image\/\w+;base64,(.+)$/);
+        const match = /^data:image\/\w+;base64,(.+)$/.exec(imgData);
         if (!match) return;
         const buffer = Buffer.from(match[1], 'base64');
         const filePath = path.join(imagesDir, imgFileName);
@@ -390,7 +390,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       const imgDataUrl = typeof message.dataUrl === 'string' ? message.dataUrl : '';
       if (!imgPath || !imgDataUrl) return;
       try {
-        const match = imgDataUrl.match(/^data:image\/\w+;base64,(.+)$/);
+        const match = /^data:image\/\w+;base64,(.+)$/.exec(imgDataUrl);
         if (!match) return;
         const buffer = Buffer.from(match[1], 'base64');
         const cleanPath = imgPath.split('?')[0];
@@ -444,7 +444,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       const rawHref = (message as { type: string; href?: string }).href;
       if (typeof rawHref !== 'string') return;
       const href = decodeURIComponent(rawHref);
-      const lineMatch = href.match(/#L(\d+)$/);
+      const lineMatch = /#L(\d+)$/.exec(href);
       const filePath = lineMatch ? href.replace(/#L\d+$/, '') : href;
       const candidates = buildLinkCandidates(filePath);
       if (!candidates) {
@@ -522,7 +522,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     if (!gitExtension.isActive) { await gitExtension.activate(); }
     const repo = gitExtension.exports.getAPI(1).getRepository(uri);
     if (!repo) { return null; }
-    return path.relative(repo.rootUri.fsPath, uri.fsPath).replace(/\\/g, '/');
+    return path.relative(repo.rootUri.fsPath, uri.fsPath).replaceAll("\\", '/');
   }
 
   private getHtmlForWebview(webview: vscode.Webview): string {

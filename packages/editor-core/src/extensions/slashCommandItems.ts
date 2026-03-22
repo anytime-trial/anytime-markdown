@@ -33,8 +33,8 @@ import React from "react";
 
 import apiSpec from "../constants/templates/apiSpec.md";
 import basicDesign from "../constants/templates/basicDesign.md";
-import markdownAllJa from "../constants/templates/markdownAll.md";
-import markdownAllEn from "../constants/templates/markdownAll-en.md";
+import markdownAllJa from "../constants/templates/markdownAll.ja.md";
+import markdownAllEn from "../constants/templates/markdownAll.en.md";
 import welcomeJa from "../constants/templates/welcome.md";
 import welcomeEn from "../constants/templates/welcome-en.md";
 import type { TranslationFn } from "../types";
@@ -366,7 +366,7 @@ export const slashCommandItems: SlashCommandItem[] = [
     keywords: ["screenshot", "screen", "capture", "スクリーンショット", "スクリーンキャプチャ", "画面"],
     action: (editor) => {
       if (typeof navigator === "undefined" || !navigator.mediaDevices?.getDisplayMedia) return;
-      window.dispatchEvent(new CustomEvent("open-screen-capture", { detail: { editor } }));
+      globalThis.dispatchEvent(new CustomEvent("open-screen-capture", { detail: { editor } }));
     },
   },
   {
@@ -409,7 +409,7 @@ export const slashCommandItems: SlashCommandItem[] = [
     icon: React.createElement(ArticleIcon, { fontSize: "small" }),
     keywords: ["template", "welcome", "テンプレート", "ウェルカム", "操作", "ガイド"],
     action: (editor) => {
-      const locale = document.cookie.match(/NEXT_LOCALE=(\w+)/)?.[1] ?? "ja";
+      const locale = /NEXT_LOCALE=(\w+)/.exec(document.cookie)?.[1] ?? "ja";
       const content = locale === "ja" ? welcomeJa : welcomeEn;
       const { body } = preprocessMarkdown(content);
       insertTemplate(editor, body);
@@ -421,7 +421,7 @@ export const slashCommandItems: SlashCommandItem[] = [
     icon: React.createElement(ArticleIcon, { fontSize: "small" }),
     keywords: ["template", "markdown", "all", "テンプレート", "マークダウン"],
     action: (editor) => {
-      const locale = document.cookie.match(/NEXT_LOCALE=(\w+)/)?.[1] ?? "ja";
+      const locale = /NEXT_LOCALE=(\w+)/.exec(document.cookie)?.[1] ?? "ja";
       const content = locale === "ja" ? markdownAllJa : markdownAllEn;
       const { body } = preprocessMarkdown(content);
       insertTemplate(editor, body);

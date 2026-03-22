@@ -46,7 +46,7 @@ export function EditorOutlineSection({
   onInsertSectionNumbers,
   onRemoveSectionNumbers,
   t,
-}: EditorOutlineSectionProps) {
+}: Readonly<EditorOutlineSectionProps>) {
   if (isMd) {
     if (!outlineOpen) return null;
     return (

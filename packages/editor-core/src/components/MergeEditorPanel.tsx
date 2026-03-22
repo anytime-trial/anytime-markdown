@@ -15,6 +15,13 @@ import { getMergeTiptapStyles } from "./mergeTiptapStyles";
 
 export { getMergeTiptapStyles } from "./mergeTiptapStyles";
 
+/** Normalize optional SxProps into a spreadable array (avoids nested ternary). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- sx array type is complex; matches MUI's internal spread pattern
+function normalizeSx(sx: SxProps<Theme> | undefined): any[] {
+  if (!sx) return [];
+  return Array.isArray(sx) ? sx : [sx];
+}
+
 function _getLineBgColor(type: DiffLine["type"], theme: Theme) {
   const isDark = theme.palette.mode === "dark";
   switch (type) {
@@ -90,7 +97,7 @@ function buildMergeButtonMap(diffLines: DiffLine[]): Map<number, number> {
 /** Merge gutter column with directional buttons */
 function MergeGutter({
   panelSide, alignedCount, mergeButtonIndices, fontSize, lineHeight, mergeGutterRef, onMerge, t,
-}: {
+}: Readonly<{
   panelSide: "left" | "right";
   alignedCount: number;
   mergeButtonIndices: Map<number, number>;
@@ -99,7 +106,7 @@ function MergeGutter({
   mergeGutterRef: React.RefObject<HTMLDivElement | null>;
   onMerge: (blockId: number, direction: "left-to-right" | "right-to-left") => void;
   t: ReturnType<typeof useTranslations<"MarkdownEditor">>;
-}) {
+}>) {
   return (
     <Box ref={mergeGutterRef} sx={{ width: 24, minWidth: 24, py: 2, m: 0, overflow: "hidden", flexShrink: 0 }}>
       {Array.from({ length: alignedCount }, (_, i) => {
@@ -114,14 +121,14 @@ function MergeGutter({
 
 function MergeGutterCell({
   blockId, panelSide, fontSize, lineHeight, onMerge, t,
-}: {
+}: Readonly<{
   blockId: number | null;
   panelSide: "left" | "right";
   fontSize: number;
   lineHeight: number;
   onMerge: (blockId: number, direction: "left-to-right" | "right-to-left") => void;
   t: ReturnType<typeof useTranslations<"MarkdownEditor">>;
-}) {
+}>) {
   const label = panelSide === "left" ? t("mergeLeftToRight") : t("mergeRightToLeft");
   const direction = panelSide === "left" ? "left-to-right" as const : "right-to-left" as const;
   return (
@@ -179,7 +186,7 @@ function SourceModePanel({
   sourceText, onSourceChange, resolvedTextareaRef, autoResize, textareaAriaLabel,
   scrollRef, bgGradient, paperSx, hideScrollbarSx, diffLines, side, readOnly,
   onMerge, onHoverLine, isDark, editorSettings, gutterRef, mergeGutterRef, mirrorRef, textContainerRef, t,
-}: {
+}: Readonly<{
   sourceText: string | undefined;
   onSourceChange: ((value: string) => void) | undefined;
   resolvedTextareaRef: React.RefObject<HTMLTextAreaElement | null>;
@@ -201,7 +208,7 @@ function SourceModePanel({
   mirrorRef: React.RefObject<HTMLDivElement | null>;
   textContainerRef: React.RefObject<HTMLDivElement | null>;
   t: ReturnType<typeof useTranslations<"MarkdownEditor">>;
-}) {
+}>) {
   const {
     digits, displayText, paddingIndices, alignedCount, lineNumbersArray,
     displayLines, mergeButtonIndices, hasMergeButtons, gradientStyle,
@@ -213,7 +220,7 @@ function SourceModePanel({
       ref={scrollRef as React.RefObject<HTMLDivElement> | undefined}
       sx={[
         { flex: 1, overflow: autoResize ? "auto" : "hidden", borderRadius: 0, border: 0, ...hideScrollbarSx },
-        ...(Array.isArray(paperSx) ? paperSx : paperSx ? [paperSx] : []),
+        ...normalizeSx(paperSx),
       ]}
     >
       <Box sx={{ display: "flex", minHeight: "100%" }}>
@@ -232,7 +239,7 @@ function SourceModePanel({
           }}
         >
           {lineNumbersArray.map((num, i) => (
-            <div key={i}>{num || "\u00A0"}</div>
+            <div key={`line-${i}`}>{num || "\u00A0"}</div>
           ))}
         </Box>
 
@@ -248,7 +255,7 @@ function SourceModePanel({
             }}
           >
             {displayLines.map((line, i) => (
-              <div key={i}>{line || "\u00A0"}</div>
+              <div key={`line-${i}`}>{line || "\u00A0"}</div>
             ))}
           </Box>
           <Box
@@ -322,7 +329,7 @@ export function MergeEditorPanel({
   showHoverLabels,
   onMerge,
   onHoverLine,
-}: MergeEditorPanelProps) {
+}: Readonly<MergeEditorPanelProps>) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const t = useTranslations("MarkdownEditor");
@@ -424,7 +431,7 @@ export function MergeEditorPanel({
           ...tiptapStyles,
           ...hideScrollbarSx,
         },
-        ...(Array.isArray(paperSx) ? paperSx : paperSx ? [paperSx] : []),
+        ...normalizeSx(paperSx),
       ]}
     >
       {editorMountRef

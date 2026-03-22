@@ -276,7 +276,7 @@ export const SearchReplaceExtension = Extension.create<Record<string, never>, Se
         return true;
       },
       Escape: () => {
-        const s = this.storage as SearchReplaceStorage;
+        const s = this.storage;
         if (s.searchTerm || s.replaceTerm) {
           this.editor.commands.closeSearch();
           return true;
@@ -311,7 +311,7 @@ export const SearchReplaceExtension = Extension.create<Record<string, never>, Se
         view: () => {
           return {
             update: (view, prevState) => {
-              const storage = this.storage as SearchReplaceStorage;
+              const storage = this.storage;
               if (!storage.isOpen || !storage.searchTerm) return;
               if (view.state.doc.eq(prevState.doc)) return;
               const regex = getRegex(storage);

@@ -140,7 +140,7 @@ export function EditorMainContent({
   explorerSlot,
   noScroll,
   t,
-}: EditorMainContentProps) {
+}: Readonly<EditorMainContentProps>) {
   // --- ドラッグ＆ドロップ ---
   const handleContainerDragOver = useCallback((e: React.DragEvent) => {
     if (!e.dataTransfer.types.includes("Files")) return;

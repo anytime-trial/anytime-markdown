@@ -23,10 +23,10 @@ print(greet("World"))`,
     }
 }`,
 
-  c: `#include <stdio.h>
+  c: String.raw`#include <stdio.h>
 
 int main() {
-    printf("Hello, World!\\n");
+    printf("Hello, World!\n");
     return 0;
 }`,
 
@@ -70,8 +70,8 @@ function greet(string $name): string {
 
 echo greet("World");`,
 
-  swift: `func greet(_ name: String) -> String {
-    return "Hello, \\(name)!"
+  swift: String.raw`func greet(_ name: String) -> String {
+    return "Hello, \(name)!"
 }
 
 print(greet("World"))`,
@@ -155,16 +155,16 @@ end
 
 print(greet("World"))`,
 
-  r: `greet <- function(name) {
+  r: String.raw`greet <- function(name) {
   paste("Hello,", name, "!")
 }
 
-cat(greet("World"), "\\n")`,
+cat(greet("World"), "\n")`,
 
-  perl: `sub greet {
+  perl: String.raw`sub greet {
     my ($name) = @_;
     return "Hello, $name!";
 }
 
-print greet("World"), "\\n";`,
+print greet("World"), "\n";`,
 };

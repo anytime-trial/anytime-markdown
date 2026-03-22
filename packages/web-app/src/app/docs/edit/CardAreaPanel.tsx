@@ -49,6 +49,11 @@ const hoverShowSx = {
   '.category-card:hover &': { opacity: 1 },
 } as const;
 
+function getBorderColor(dragOver: boolean, isDark: boolean): string {
+  if (dragOver) return ACCENT_COLOR;
+  return isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+}
+
 function InlineEditField({
   value,
   placeholder,
@@ -69,7 +74,8 @@ function InlineEditField({
   };
 
   const fontSize = variant === 'title' ? '1.25rem' : '0.875rem';
-  const fontWeight = variant === 'title' ? 700 : variant === 'item' ? 500 : 400;
+  const fontWeightMap = { title: 700, item: 500, description: 400 } as const;
+  const fontWeight = fontWeightMap[variant];
 
   if (editing) {
     return (
@@ -276,15 +282,13 @@ function SortableCategory({
           height: '100%',
           bgcolor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
           border: 1,
-          borderColor: dragOver
-            ? ACCENT_COLOR
-            : isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
+          borderColor: getBorderColor(dragOver, isDark),
           borderRadius: 3,
           outline: dragOver ? '1px solid' : 'none',
           outlineColor: ACCENT_COLOR,
         }}
         onDragOver={(e) => {
-          if (e.dataTransfer.types.includes('application/x-doc-file') || e.dataTransfer.types.includes('application/x-url-link')) {
+          if (e.dataTransfer.types.includes('application/x-doc-file') || e.dataTransfer.types.includes('application/x-doc-folder') || e.dataTransfer.types.includes('application/x-url-link')) {
             e.preventDefault();
             e.dataTransfer.dropEffect = 'copy';
             setDragOver(true);
@@ -293,6 +297,19 @@ function SortableCategory({
         onDragLeave={() => setDragOver(false)}
         onDrop={(e) => {
           setDragOver(false);
+          const folderRaw = e.dataTransfer.getData('application/x-doc-folder');
+          if (folderRaw) {
+            e.preventDefault();
+            const droppedFiles = JSON.parse(folderRaw) as { key: string; name: string }[];
+            if (droppedFiles.length > 0) {
+              // フォルダのトップレベル名を取得し、フォルダ単位で1アイテムとして追加
+              const firstKey = droppedFiles[0].key;
+              const folderPrefix = firstKey.substring(0, firstKey.lastIndexOf('/') + 1);
+              const folderName = folderPrefix.split('/').filter(Boolean).at(-1) ?? folderPrefix;
+              onDropFile(category.id, folderPrefix, folderName);
+            }
+            return;
+          }
           const fileRaw = e.dataTransfer.getData('application/x-doc-file');
           if (fileRaw) {
             e.preventDefault();

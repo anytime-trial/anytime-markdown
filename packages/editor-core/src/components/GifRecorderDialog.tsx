@@ -44,7 +44,7 @@ function defaultFileName(): string {
   return `recording-${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.gif`;
 }
 
-export function GifRecorderDialog({ open, onClose, onComplete }: GifRecorderDialogProps) {
+export function GifRecorderDialog({ open, onClose, onComplete }: Readonly<GifRecorderDialogProps>) {
   const isDark = useTheme().palette.mode === "dark";
   const [phase, setPhase] = useState<RecordingPhase>("idle");
   const [cropRect, setCropRect] = useState<CropRect | null>(null);
@@ -330,9 +330,9 @@ export function GifRecorderDialog({ open, onClose, onComplete }: GifRecorderDial
                 height: "100%",
                 cursor: phase === "recording" ? "default" : "crosshair",
               }}
-              onMouseDown={phase !== "recording" ? handleCanvasMouseDown : undefined}
-              onMouseMove={phase !== "recording" ? handleCanvasMouseMove : undefined}
-              onMouseUp={phase !== "recording" ? handleCanvasMouseUp : undefined}
+              onMouseDown={phase === "recording" ? undefined : handleCanvasMouseDown}
+              onMouseMove={phase === "recording" ? undefined : handleCanvasMouseMove}
+              onMouseUp={phase === "recording" ? undefined : handleCanvasMouseUp}
             />
           )}
           {phase === "idle" && (

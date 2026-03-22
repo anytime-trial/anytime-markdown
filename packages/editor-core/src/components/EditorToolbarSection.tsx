@@ -91,7 +91,7 @@ export function EditorToolbarSection({
   t,
   autoReload,
   onToggleAutoReload,
-}: EditorToolbarSectionProps) {
+}: Readonly<EditorToolbarSectionProps>) {
   const isDark = useTheme().palette.mode === "dark";
   return (
     <>
