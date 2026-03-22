@@ -323,7 +323,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
             </Tooltip>
           </ToggleButton>
         )}
-        {!hideOutline && <ToggleButton value="outline" selected={outlineOpen} onClick={onToggleOutline} disabled={inlineMergeOpen || sourceMode} aria-label={t("outline")} sx={{ px: 0.75, py: 0.25 }}>
+        {!hideOutline && <ToggleButton value="outline" selected={outlineOpen} onClick={onToggleOutline} disabled={sourceMode} aria-label={t("outline")} sx={{ px: 0.75, py: 0.25 }}>
           <Tooltip title={tip(t, "outline")}>
             <span style={{ display: "inline-flex" }}><ListAltIcon fontSize="small" /></span>
           </Tooltip>
