@@ -102,7 +102,7 @@ export default function VsCodeBody() {
                 lineHeight: 1.15,
                 letterSpacing: '-0.02em',
                 color: 'text.primary',
-                pl: '2em',
+                textAlign: 'right',
               }}
             >
               {t('heroTitle2')}
@@ -123,7 +123,7 @@ export default function VsCodeBody() {
             {t('heroDescription')}
           </Typography>
 
-          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: { xs: 'center', md: 'flex-start' }, gap: 1.5 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5 }}>
             <Button
               component={MuiLink}
               href={MARKETPLACE_URL}
