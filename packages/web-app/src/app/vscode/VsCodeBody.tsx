@@ -117,6 +117,7 @@ export default function VsCodeBody() {
               fontSize: { xs: '1rem', md: '1.15rem' },
               lineHeight: 1.7,
               fontWeight: 400,
+              whiteSpace: 'pre-line',
               mb: 5,
             }}
           >

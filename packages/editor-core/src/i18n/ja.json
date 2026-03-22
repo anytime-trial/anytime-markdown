@@ -632,7 +632,7 @@
     "metaDescription": "Visual Studio Code で Markdown をリッチに編集。WYSIWYG、AI差分ハイライト、画像アノテーション、Git連携を統合。",
     "heroTitle1": "コードも文書も、",
     "heroTitle2": "AI と一つの画面で",
-    "heroDescription": "Visual Studio Code™ で、AI が生成した Markdown を WYSIWYG でプレビューし、変更箇所をハイライトで即確認。画像アノテーションと Git 連携で、AI との共同作業をスムーズに。",
+    "heroDescription": "Visual Studio Code™ で、AI が生成した Markdown を WYSIWYG でプレビューし、\n変更箇所をハイライトで即確認。画像アノテーションと Git 連携で、AI との共同作業をスムーズに。",
     "installButton": "拡張機能を入手",
     "tryOnline": "Web アプリはこちら",
     "benefitsTitle": "Visual Studio Code™ で使う効果",
