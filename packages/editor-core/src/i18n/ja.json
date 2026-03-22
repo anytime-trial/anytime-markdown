@@ -631,7 +631,7 @@
     "metaDescription": "VS Code で Markdown をリッチに編集。WYSIWYG、AI差分ハイライト、画像アノテーション、Git連携を統合。",
     "heroTitle": "コードも文書も、\nAI と一つの画面で。",
     "heroDescription": "AI が生成した Markdown を WYSIWYG でプレビューし、変更箇所をハイライトで即確認。画像アノテーションと Git 連携で、AI との共同作業をスムーズに。",
-    "installButton": "Marketplace からインストール",
+    "installButton": "拡張機能を入手",
     "tryOnline": "Web アプリはこちら",
     "benefitsTitle": "VS Code で使う効果",
     "benefit1Title": "コードと文書を同じ環境で",
