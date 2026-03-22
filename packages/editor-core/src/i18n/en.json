@@ -628,14 +628,14 @@
     "defaultBranch": "default"
   },
   "VsCode": {
-    "metaTitle": "VS Code Extension - Anytime Markdown",
-    "metaDescription": "Rich Markdown editing in VS Code. WYSIWYG, AI diff highlighting, image annotation, and Git integration.",
+    "metaTitle": "Visual Studio Code™ Extension - Anytime Markdown",
+    "metaDescription": "Rich Markdown editing in Visual Studio Code. WYSIWYG, AI diff highlighting, image annotation, and Git integration.",
     "heroTitle1": "Code and docs with AI,",
     "heroTitle2": "in one editor.",
     "heroDescription": "Preview AI-generated Markdown in WYSIWYG and instantly spot changes with diff highlighting. Image annotation and Git integration make AI collaboration seamless.",
     "installButton": "Get the Extension",
     "tryOnline": "Web App",
-    "benefitsTitle": "Why use it in VS Code",
+    "benefitsTitle": "Why use it in Visual Studio Code™",
     "benefit1Title": "Code and docs in one place",
     "benefit1Body": "Edit Markdown in WYSIWYG without leaving VS Code. No more context switching between editors — stay focused on your development flow.",
     "benefit2Title": "See AI changes at a glance",

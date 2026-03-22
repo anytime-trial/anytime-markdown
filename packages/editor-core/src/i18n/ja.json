@@ -628,14 +628,14 @@
     "defaultBranch": "デフォルト"
   },
   "VsCode": {
-    "metaTitle": "VS Code 拡張機能 - Anytime Markdown",
-    "metaDescription": "VS Code で Markdown をリッチに編集。WYSIWYG、AI差分ハイライト、画像アノテーション、Git連携を統合。",
+    "metaTitle": "Visual Studio Code™ 拡張機能 - Anytime Markdown",
+    "metaDescription": "Visual Studio Code で Markdown をリッチに編集。WYSIWYG、AI差分ハイライト、画像アノテーション、Git連携を統合。",
     "heroTitle1": "コードも文書も、",
     "heroTitle2": "AI と一つの画面で",
     "heroDescription": "AI が生成した Markdown を WYSIWYG でプレビューし、変更箇所をハイライトで即確認。画像アノテーションと Git 連携で、AI との共同作業をスムーズに。",
     "installButton": "拡張機能を入手",
     "tryOnline": "Web アプリはこちら",
-    "benefitsTitle": "VS Code で使う効果",
+    "benefitsTitle": "Visual Studio Code™ で使う効果",
     "benefit1Title": "コードと文書を同じ環境で",
     "benefit1Body": "VS Code から離れずに Markdown を WYSIWYG で編集。エディタを切り替えるコンテキストスイッチが不要になり、開発フローに集中できます。",
     "benefit2Title": "AI の変更箇所を一目で確認",
