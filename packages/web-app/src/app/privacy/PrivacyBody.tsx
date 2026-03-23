@@ -9,6 +9,22 @@ import { useTranslations } from 'next-intl';
 import LandingHeader from '../components/LandingHeader';
 import SiteFooter from '../components/SiteFooter';
 
+function StrongText(chunks: React.ReactNode) {
+  return <strong>{chunks}</strong>;
+}
+
+function GitHubIssuesLink(chunks: React.ReactNode) {
+  return (
+    <Link
+      href="https://github.com/anytime-trial/anytime-markdown/issues"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      {chunks}
+    </Link>
+  );
+}
+
 function Section({ title, children }: Readonly<{ title: string; children: React.ReactNode }>) {
   return (
     <Box sx={{ mt: 4 }}>
@@ -47,7 +63,7 @@ export default function PrivacyBody() {
         </Section>
 
         <Section title={t('section2Title')}>
-          <P>{t.rich('section2Body', { strong: (chunks) => <strong>{chunks}</strong> })}</P>
+          <P>{t.rich('section2Body', { strong: StrongText })}</P>
         </Section>
 
         <Section title={t('section3Title')}>
@@ -58,10 +74,10 @@ export default function PrivacyBody() {
           <P>{t('section4Intro')}</P>
           <Box component="ul" sx={{ pl: 3 }}>
             <li>
-              <P>{t.rich('section4Plantuml', { strong: (chunks) => <strong>{chunks}</strong> })}</P>
+              <P>{t.rich('section4Plantuml', { strong: StrongText })}</P>
             </li>
             <li>
-              <P>{t.rich('section4Mermaid', { strong: (chunks) => <strong>{chunks}</strong> })}</P>
+              <P>{t.rich('section4Mermaid', { strong: StrongText })}</P>
             </li>
           </Box>
         </Section>
@@ -82,15 +98,7 @@ export default function PrivacyBody() {
         <Section title={t('section8Title')}>
           <P>
             {t.rich('section8Body', {
-              link: (chunks) => (
-                <Link
-                  href="https://github.com/anytime-trial/anytime-markdown/issues"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {chunks}
-                </Link>
-              ),
+              link: GitHubIssuesLink,
             })}
           </P>
         </Section>
