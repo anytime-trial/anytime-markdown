@@ -264,7 +264,7 @@ export function App() {
     vscode.postMessage({ type: 'statusChanged', status });
   }, []);
 
-  const [autoReload, setAutoReload] = useState(false);
+  const [autoReload, setAutoReload] = useState(true);
   const handleToggleAutoReload = useCallback(() => {
     setAutoReload((prev) => {
       const next = !prev;
