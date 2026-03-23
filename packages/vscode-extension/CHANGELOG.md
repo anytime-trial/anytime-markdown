@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.7] - 2026-03-23
+
+### Added
+- "Copy File Name" context menu item in treeview explorer
+- Auto-reload enabled by default when opening files
+
+### Changed
+- CI: reuse VSIX artifact from CI job in publish (eliminates duplicate build)
+- CI: auto-create GitHub Release with VSIX attachment on publish
+- CI: use `.node-version` file for consistent Node.js version across local and CI
+- CI: add `.gitattributes` for consistent line endings (`eol=lf`)
+- CI: change daily build schedule to JST 5:00
+
+### Fixed
+- Treeview drag-and-drop now moves files instead of copying
+
 ## [0.7.6] - 2026-03-22
 
 ### Added
