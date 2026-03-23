@@ -218,8 +218,12 @@ Three or more hyphens `---` create a visual break.
 When you want to add context without disrupting the flow, footnotes[^1] are the answer.\
 They're well suited for technical details and citations[^2].
 
-[^1]: Footnotes are collected and displayed at the end of the document.
-[^2]: Readers consult footnotes only when needed, keeping the main text readable.
+Hover over a footnote reference to see its definition in a tooltip.\
+If the definition contains a URL, click the reference to open the page in a new tab.
+
+[^1]: Footnotes in Markdown separate supplementary details from the main text to improve readability.
+
+[^2]: https://commonmark.org/help/
 
 
 ## Images — Visual Communication

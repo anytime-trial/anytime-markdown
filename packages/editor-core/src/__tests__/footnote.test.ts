@@ -6,7 +6,11 @@
 import { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import { Markdown } from "tiptap-markdown";
-import { FootnoteRef } from "../extensions/footnoteExtension";
+import {
+  FootnoteRef,
+  findFootnoteDefinition,
+  extractUrlFromText,
+} from "../extensions/footnoteExtension";
 import { preprocessFootnoteRefs } from "../utils/footnoteHelpers";
 import { getMarkdownStorage } from "../types";
 
@@ -39,10 +43,11 @@ describe("preprocessFootnoteRefs", () => {
     expect(result).toContain('<sup data-footnote-ref="note1">note1</sup>');
   });
 
-  test("脚注定義 [^id]: はスキップする", () => {
+  test("脚注定義 [^id]: はエスケープして保持する", () => {
     const input = "[^1]: This is the footnote content.";
     const result = preprocessFootnoteRefs(input);
-    expect(result).toBe(input);
+    // [ をエスケープして markdown-it のリンク参照定義として消費されるのを防止
+    expect(result).toBe("\\[^1]: This is the footnote content.");
   });
 
   test("コードブロック内の [^id] はスキップする", () => {
@@ -63,7 +68,7 @@ describe("preprocessFootnoteRefs", () => {
     const result = preprocessFootnoteRefs(input);
     expect(result).toContain('<sup data-footnote-ref="1">1</sup>');
     // 定義行はそのまま
-    expect(result).toContain("[^1]: Definition.");
+    expect(result).toContain("\\[^1]: Definition.");
   });
 });
 
@@ -108,6 +113,73 @@ describe("FootnoteRef Extension", () => {
 
       expect(output).toContain("[^1]");
       editor.destroy();
+    });
+  });
+
+  describe("findFootnoteDefinition", () => {
+    test("ドキュメントから脚注定義テキストを取得する", () => {
+      const md = "Text[^1].\n\n[^1]: This is the footnote definition.";
+      const editor = createFootnoteEditor(md);
+      const result = findFootnoteDefinition(editor.state.doc, "1");
+      expect(result).toBe("This is the footnote definition.");
+      editor.destroy();
+    });
+
+    test("存在しない脚注IDの場合 null を返す", () => {
+      const md = "Text[^1].\n\n[^1]: Definition.";
+      const editor = createFootnoteEditor(md);
+      const result = findFootnoteDefinition(editor.state.doc, "2");
+      expect(result).toBeNull();
+      editor.destroy();
+    });
+
+    test("URLを含む脚注定義テキストを取得する", () => {
+      const md = "Text[^1].\n\n[^1]: https://example.com";
+      const editor = createFootnoteEditor(md);
+      const result = findFootnoteDefinition(editor.state.doc, "1");
+      expect(result).toBe("https://example.com");
+      editor.destroy();
+    });
+
+    test("説明文付きURLの脚注定義テキストを取得する", () => {
+      const md = "Text[^1].\n\n[^1]: See https://example.com for details";
+      const editor = createFootnoteEditor(md);
+      const result = findFootnoteDefinition(editor.state.doc, "1");
+      expect(result).toBe("See https://example.com for details");
+      editor.destroy();
+    });
+
+    test("同一段落に複数定義がある場合、対象のみ返す", () => {
+      // 空行なしで連続した定義行は1段落に結合される
+      const md = "Text[^1] and[^2].\n\n[^1]: Def1\n[^2]: Def2";
+      const editor = createFootnoteEditor(md);
+      expect(findFootnoteDefinition(editor.state.doc, "1")).toBe("Def1");
+      expect(findFootnoteDefinition(editor.state.doc, "2")).toBe("Def2");
+      editor.destroy();
+    });
+  });
+
+  describe("extractUrlFromText", () => {
+    test("HTTPSのURLを抽出する", () => {
+      expect(extractUrlFromText("https://example.com")).toBe("https://example.com");
+    });
+
+    test("HTTPのURLを抽出する", () => {
+      expect(extractUrlFromText("http://example.com/path")).toBe("http://example.com/path");
+    });
+
+    test("テキスト中のURLを抽出する", () => {
+      expect(extractUrlFromText("See https://example.com/page for details")).toBe(
+        "https://example.com/page",
+      );
+    });
+
+    test("URLが無い場合 null を返す", () => {
+      expect(extractUrlFromText("No URL here")).toBeNull();
+    });
+
+    test("括弧内のURLを抽出する（末尾の括弧は除外）", () => {
+      expect(extractUrlFromText("(https://example.com)")).toBe("https://example.com");
     });
   });
 

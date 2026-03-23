@@ -66,6 +66,8 @@ export const EditorBubbleMenu = React.memo(function EditorBubbleMenu({ editor, o
         const { selection } = state;
         if (selection.empty) return false;
         if (e.isActive("codeBlock")) return false;
+        // 脚注参照（atom ノード）選択時はバブルメニューを表示しない
+        if (e.isActive("footnoteRef")) return false;
         return true;
       }}
     >

@@ -17,16 +17,16 @@ describe("preprocessFootnoteRefs", () => {
     expect(preprocessFootnoteRefs(input)).toBe(expected);
   });
 
-  test("脚注定義行 [^id]: は変換しない", () => {
+  test("脚注定義行 [^id]: はエスケープして保持する", () => {
     const input = "[^1]: This is a footnote definition.";
-    expect(preprocessFootnoteRefs(input)).toBe(input);
+    expect(preprocessFootnoteRefs(input)).toBe("\\[^1]: This is a footnote definition.");
   });
 
   test("脚注参照と定義が混在する場合", () => {
     const input = "Text [^note].\n\n[^note]: Definition here.";
     const result = preprocessFootnoteRefs(input);
     expect(result).toContain('<sup data-footnote-ref="note">note</sup>');
-    expect(result).toContain("[^note]: Definition here.");
+    expect(result).toContain("\\[^note]: Definition here.");
   });
 
   test("コードブロック内の [^id] はスキップする", () => {
