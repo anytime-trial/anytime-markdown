@@ -105,33 +105,34 @@ export class SpecDocsDragAndDrop implements vscode.TreeDragAndDropController<Spe
 	}
 
 	async handleDrop(target: SpecDocsNode | undefined, dataTransfer: vscode.DataTransfer): Promise<void> {
-		// 外部ファイルのドロップ（コピー）
-		const uriList = dataTransfer.get('text/uri-list');
-		if (uriList) {
-			await this.handleExternalDrop(target, uriList);
-			return;
-		}
-
-		// 内部ドラッグ（移動）
+		// 内部ドラッグ（移動）— 外部ドロップより先に判定する
+		// VS Code はツリー内ドラッグでも text/uri-list を含めるため、カスタム MIME を優先する
 		const raw = dataTransfer.get('application/vnd.code.tree.anytimemarkdown.specdocs');
-		if (!raw) return;
-		const sourcePaths: string[] = raw.value;
-		if (!sourcePaths || sourcePaths.length === 0) return;
+		if (raw) {
+			const sourcePaths: string[] = raw.value;
+			if (sourcePaths && sourcePaths.length > 0) {
+				const destDir = this.resolveInternalDropDir(target, sourcePaths);
+				if (!destDir) return;
 
-		const destDir = this.resolveInternalDropDir(target, sourcePaths);
-		if (!destDir) return;
-
-		for (const srcPath of sourcePaths) {
-			const name = path.basename(srcPath);
-			const dest = path.join(destDir, name);
-			if (srcPath === dest) continue;
-			try {
-				fs.renameSync(srcPath, dest);
-			} catch (e: unknown) {
-				showError('Move failed', e);
+				for (const srcPath of sourcePaths) {
+					const name = path.basename(srcPath);
+					const dest = path.join(destDir, name);
+					if (srcPath === dest) continue;
+					try {
+						fs.renameSync(srcPath, dest);
+					} catch (e: unknown) {
+						showError('Move failed', e);
+					}
+				}
+				this.provider.refresh();
+				return;
 			}
 		}
-		this.provider.refresh();
+
+		// 外部ファイルのドロップ（コピー）
+		const uriList = dataTransfer.get('text/uri-list');
+		if (!uriList) return;
+		await this.handleExternalDrop(target, uriList);
 	}
 
 	/** 内部ドラッグのドロップ先ディレクトリを決定する */

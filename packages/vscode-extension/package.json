@@ -2,7 +2,7 @@
   "name": "anytime-markdown",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.7.6",
+  "version": "0.7.7",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {
@@ -225,6 +225,10 @@
         "title": "%command.specDocsCopyPath%"
       },
       {
+        "command": "anytime-markdown.specDocsCopyFileName",
+        "title": "%command.specDocsCopyFileName%"
+      },
+      {
         "command": "anytime-markdown.specDocsImportFiles",
         "title": "%command.specDocsImportFiles%",
         "icon": "$(file-add)"
@@ -445,6 +449,11 @@
           "command": "anytime-markdown.specDocsCopyPath",
           "when": "view == anytimeMarkdown.specDocs && viewItem != specDocsRoot",
           "group": "3_path@1"
+        },
+        {
+          "command": "anytime-markdown.specDocsCopyFileName",
+          "when": "view == anytimeMarkdown.specDocs && viewItem != specDocsRoot",
+          "group": "3_path@2"
         },
         {
           "command": "anytime-markdown.specDocsRename",

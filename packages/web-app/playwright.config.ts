@@ -7,7 +7,7 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 1,
-  workers: process.env.CI ? 1 : 4,
+  workers: process.env.CI ? 1 : 2,
   reporter: process.env.CI ? "github" : "html",
   use: {
     baseURL: "http://localhost:3000",
@@ -19,24 +19,28 @@ export default defineConfig({
       name: "chromium",
       use: { browserName: "chromium" },
     },
-    {
-      name: "firefox",
-      use: {
-        browserName: "firefox",
-        launchOptions: {
-          firefoxUserPrefs: {
-            "layers.acceleration.disabled": true,
-            "gfx.canvas.accelerated": false,
-            "gfx.webrender.all": false,
-            "media.hardware-video-decoding.enabled": false,
+    ...(process.env.CI
+      ? [
+          {
+            name: "firefox",
+            use: {
+              browserName: "firefox" as const,
+              launchOptions: {
+                firefoxUserPrefs: {
+                  "layers.acceleration.disabled": true,
+                  "gfx.canvas.accelerated": false,
+                  "gfx.webrender.all": false,
+                  "media.hardware-video-decoding.enabled": false,
+                },
+              },
+            },
           },
-        },
-      },
-    },
-    {
-      name: "webkit",
-      use: { browserName: "webkit" },
-    },
+          {
+            name: "webkit",
+            use: { browserName: "webkit" as const },
+          },
+        ]
+      : []),
   ],
   webServer: {
     command: "npm run dev",

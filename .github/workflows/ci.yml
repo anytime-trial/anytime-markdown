@@ -22,7 +22,7 @@ jobs:
 
       - uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version-file: '.node-version'
           cache: 'npm'
 
       - name: Install dependencies
@@ -102,6 +102,14 @@ jobs:
         run: npx vsce package --no-dependencies
         working-directory: packages/vscode-extension
 
+      - name: Upload VSIX artifact
+        if: github.ref == 'refs/heads/master'
+        uses: actions/upload-artifact@v4
+        with:
+          name: vsix-ci
+          path: packages/vscode-extension/*.vsix
+          retention-days: 1
+
   publish:
     if: github.ref == 'refs/heads/master'
     needs: ci
@@ -130,29 +138,21 @@ jobs:
         if: steps.tag_check.outputs.exists == 'true'
         run: echo "Tag ${{ steps.version.outputs.version }} already exists. Skipping release."
 
+      - name: Download VSIX from CI
+        if: steps.tag_check.outputs.exists == 'false'
+        uses: actions/download-artifact@v4
+        with:
+          name: vsix-ci
+          path: packages/vscode-extension
+
       - uses: actions/setup-node@v5
         if: steps.tag_check.outputs.exists == 'false'
         with:
-          node-version: 22
-          cache: 'npm'
-
-      - name: Install dependencies
-        if: steps.tag_check.outputs.exists == 'false'
-        run: npm ci
-
-      - name: Build extension
-        if: steps.tag_check.outputs.exists == 'false'
-        run: npm run package
-        working-directory: packages/vscode-extension
-
-      - name: Package VSIX
-        if: steps.tag_check.outputs.exists == 'false'
-        run: npx vsce package --no-dependencies
-        working-directory: packages/vscode-extension
+          node-version-file: '.node-version'
 
       - name: Publish to Marketplace
         if: steps.tag_check.outputs.exists == 'false'
-        run: npx vsce publish --no-dependencies --pat "$VSCE_PAT"
+        run: npx vsce publish --packagePath *.vsix --pat "$VSCE_PAT"
         working-directory: packages/vscode-extension
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
@@ -163,9 +163,11 @@ jobs:
           git tag ${{ steps.version.outputs.version }}
           git push origin ${{ steps.version.outputs.version }}
 
-      - name: Upload VSIX artifact
+      - name: Create GitHub Release
         if: steps.tag_check.outputs.exists == 'false'
-        uses: actions/upload-artifact@v4
+        uses: softprops/action-gh-release@v2
         with:
-          name: vsix
-          path: packages/vscode-extension/*.vsix
+          tag_name: ${{ steps.version.outputs.version }}
+          name: ${{ steps.version.outputs.version }}
+          files: packages/vscode-extension/*.vsix
+          generate_release_notes: true

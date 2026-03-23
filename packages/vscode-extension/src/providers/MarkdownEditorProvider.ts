@@ -166,7 +166,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
 
     // 外部変更検知（Claude Code、git 操作、他のエディタなど）
     let notificationVisible = false;
-    let autoReload = false;
+    let autoReload = true;
     const showExternalChangeNotification = (content: string) => {
       if (disposed) { return; }
       // 自動再読み込みモード: 通知なしで即座にコンテンツを更新
