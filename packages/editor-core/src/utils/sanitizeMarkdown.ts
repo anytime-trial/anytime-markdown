@@ -388,13 +388,13 @@ export function restoreBlankLines(md: string): string {
   // tight transition（強調末尾）: *|_ + space + ZWNJ + \n\n → *|_ + \n
   md = md.replaceAll(/([*_]) \u200C\n\n/g, "$1\n");
   // tight transition（通常）: ZWNJ + \n\n → \n
-  md = md.replaceAll(/\u200C\n\n/g, "\n");
+  md = md.replaceAll("\u200C\n\n", "\n");
   // tight transition（コードフェンス後）: \n\n + ZWNJ → \n
-  md = md.replaceAll(/\n\n\u200C/g, "\n");
+  md = md.replaceAll("\n\n\u200C", "\n");
   // 残存 ZWNJ を除去
-  md = md.replaceAll(/\u200C/g, "");
+  md = md.replaceAll("\u200C", "");
   // ZWSP マーカー除去で元の空行を復元
-  return md.replaceAll(/\u200B\n/g, "");
+  return md.replaceAll("\u200B\n", "");
 }
 
 /**
