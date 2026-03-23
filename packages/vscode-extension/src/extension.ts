@@ -334,6 +334,13 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 		}
 	);
+	const specDocsCopyFileName = vscode.commands.registerCommand(
+		'anytime-markdown.specDocsCopyFileName', (item: SpecDocsItem) => {
+			if (item?.resourceUri) {
+				vscode.env.clipboard.writeText(path.basename(item.resourceUri.fsPath));
+			}
+		}
+	);
 	const specDocsImportFiles = vscode.commands.registerCommand(
 		'anytime-markdown.specDocsImportFiles', (item?: SpecDocsRootItem | SpecDocsItem) => specDocsProvider.importFiles(item)
 	);
@@ -632,7 +639,7 @@ export function activate(context: vscode.ExtensionContext) {
 		insertSectionNumbers, removeSectionNumbers,
 		changesRefresh, stageFile, unstageFile, stageAll, unstageAll, discardAll, discardChanges, commitChanges, pushChanges, syncChanges, changesOpenFile, openChangeDiff,
 		specDocsOpenFile, specDocsOpenFolder, specDocsCloneRepo, specDocsClose, specDocsRefresh, switchBranch, toggleMdOnly,
-		specDocsCreateFile, specDocsCreateFolder, specDocsDelete, specDocsRename, specDocsRemoveRoot, specDocsCopyPath, specDocsImportFiles, specDocsCut, specDocsCopy, specDocsPaste, pasteAsMarkdown,
+		specDocsCreateFile, specDocsCreateFolder, specDocsDelete, specDocsRename, specDocsRemoveRoot, specDocsCopyPath, specDocsCopyFileName, specDocsImportFiles, specDocsCut, specDocsCopy, specDocsPaste, pasteAsMarkdown,
 		...(graphTreeView ? [graphTreeView] : []), graphRefresh,
 		openContext, copyContextPath, clearContext,
 		aiLogTreeView, aiLogRefresh, openAiLog,

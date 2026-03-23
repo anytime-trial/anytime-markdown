@@ -37,6 +37,7 @@
   "command.pushChanges": "Push",
   "command.specDocsRemoveRoot": "Close Repository",
   "command.specDocsCopyPath": "Copy Path",
+  "command.specDocsCopyFileName": "Copy File Name",
   "command.specDocsImportFiles": "Import Files",
   "command.specDocsCut": "Cut",
   "command.specDocsCopy": "Copy",
