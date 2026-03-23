@@ -254,8 +254,8 @@ export const slashCommandItems: SlashCommandItem[] = [
       let maxId = 0;
       editor.state.doc.descendants((node) => {
         if (node.type.name === "footnoteRef") {
-          const n = parseInt(node.attrs.noteId, 10);
-          if (!isNaN(n) && n > maxId) maxId = n;
+          const n = Number.parseInt(node.attrs.noteId, 10);
+          if (!Number.isNaN(n) && n > maxId) maxId = n;
         }
       });
       const noteId = String(maxId + 1);
