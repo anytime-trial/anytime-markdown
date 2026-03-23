@@ -22,7 +22,7 @@ jobs:
 
       - uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version-file: '.node-version'
           cache: 'npm'
 
       - name: Install dependencies
@@ -148,7 +148,7 @@ jobs:
       - uses: actions/setup-node@v5
         if: steps.tag_check.outputs.exists == 'false'
         with:
-          node-version: 22
+          node-version-file: '.node-version'
 
       - name: Publish to Marketplace
         if: steps.tag_check.outputs.exists == 'false'
@@ -163,9 +163,11 @@ jobs:
           git tag ${{ steps.version.outputs.version }}
           git push origin ${{ steps.version.outputs.version }}
 
-      - name: Upload VSIX artifact
+      - name: Create GitHub Release
         if: steps.tag_check.outputs.exists == 'false'
-        uses: actions/upload-artifact@v4
+        uses: softprops/action-gh-release@v2
         with:
-          name: vsix
-          path: packages/vscode-extension/*.vsix
+          tag_name: ${{ steps.version.outputs.version }}
+          name: ${{ steps.version.outputs.version }}
+          files: packages/vscode-extension/*.vsix
+          generate_release_notes: true
