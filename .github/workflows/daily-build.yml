@@ -2,8 +2,8 @@ name: Daily Build Check
 
 on:
   schedule:
-    # 毎日 UTC 21:00（JST 6:00）に実行
-    - cron: '0 21 * * *'
+    # 毎日 UTC 20:00（JST 5:00）に実行
+    - cron: '0 20 * * *'
   workflow_dispatch:
 
 jobs:
