@@ -9,8 +9,8 @@ export const CustomTableCell = TableCell.extend({
         default: null,
         parseHTML: (element: HTMLElement) => element.style.textAlign || null,
         renderHTML: (attributes: Record<string, unknown>) => {
-          if (!attributes.textAlign) return {};
-          return { style: `text-align: ${String(attributes.textAlign)}` };
+          if (!attributes.textAlign || typeof attributes.textAlign !== "string") return {};
+          return { style: `text-align: ${attributes.textAlign}` };
         },
       },
     };
@@ -26,8 +26,8 @@ export const CustomTableHeader = TableHeader.extend({
         default: null,
         parseHTML: (element: HTMLElement) => element.style.textAlign || null,
         renderHTML: (attributes: Record<string, unknown>) => {
-          if (!attributes.textAlign) return {};
-          return { style: `text-align: ${String(attributes.textAlign)}` };
+          if (!attributes.textAlign || typeof attributes.textAlign !== "string") return {};
+          return { style: `text-align: ${attributes.textAlign}` };
         },
       },
     };
