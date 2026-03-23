@@ -265,6 +265,78 @@ function getCompareTableHtml(
   return findCounterpartTableHtml(editor, otherEditor, pos);
 }
 
+/** Compute derived interaction flags for TableNodeView (extracted to reduce CC). */
+function computeTableInteraction(
+  collapsed: boolean,
+  isCompareLeft: boolean,
+  editOpen: boolean,
+  isEditable: boolean,
+  isCompareMode: boolean,
+  highlightedCompareHtml: string | null,
+) {
+  const showCompare = editOpen && isCompareMode && !!highlightedCompareHtml;
+  const canInteract = !collapsed && !isCompareLeft;
+  const showInlineToolbar = !editOpen && isEditable;
+  return { showCompare, canInteract, showInlineToolbar };
+}
+
+/** Build table cell styles (extracted to reduce CC). */
+function buildTableSx(isDark: boolean, tableWidth: string) {
+  return {
+    borderCollapse: "collapse",
+    width: tableWidth,
+    "& th, & td": { border: 1, borderColor: getDivider(isDark), px: 1, py: 0.5, textAlign: "left", minWidth: 80, bgcolor: getBgPaper(isDark) },
+    "& th": { bgcolor: getActionHover(isDark), fontWeight: 600 },
+    "& .selectedCell": { bgcolor: getActionSelected(isDark) },
+  };
+}
+
+/** Build dialog a11y props when table is in edit mode (extracted to reduce CC). */
+function buildDialogProps(
+  editOpen: boolean,
+  label: string,
+  setEditOpen: (v: boolean) => void,
+): Record<string, unknown> {
+  if (!editOpen) return {};
+  return {
+    role: "dialog",
+    "aria-modal": true,
+    "aria-label": label,
+    onKeyDown: (e: React.KeyboardEvent) => { if (e.key === "Escape") setEditOpen(false); },
+  };
+}
+
+/** Table content area: compare view or editable table (extracted to reduce CC). */
+function TableContent({ showCompare, highlightedCompareHtml, tableSx, isDark, collapsed, editOpen, onTableDoubleClick, t }: Readonly<{
+  showCompare: boolean;
+  highlightedCompareHtml: string | null;
+  tableSx: Record<string, unknown>;
+  isDark: boolean;
+  collapsed: boolean;
+  editOpen: boolean;
+  onTableDoubleClick: (() => void) | undefined;
+  t: (key: string) => string;
+}>) {
+  if (showCompare) {
+    return (
+      <TableCompareView
+        highlightedCompareHtml={highlightedCompareHtml!}
+        tableSx={tableSx}
+        isDark={isDark}
+        t={t}
+      />
+    );
+  }
+  return (
+    <Box
+      sx={buildTableBodySx(collapsed, editOpen, isDark, tableSx)}
+      onDoubleClick={onTableDoubleClick}
+    >
+      <NodeViewContent<"table"> as="table" />
+    </Box>
+  );
+}
+
 export function TableNodeView({ editor, node, getPos }: Readonly<NodeViewProps>) {
   const t = useTranslations("MarkdownEditor");
   const isDark = useTheme().palette.mode === "dark";
@@ -282,33 +354,22 @@ export function TableNodeView({ editor, node, getPos }: Readonly<NodeViewProps>)
     [editOpen, mergeEditors, editor, getPos],
   );
 
-  const highlightedCompareHtml = useMemo(() => {
-    if (!compareTableHtml) return null;
-    return buildHighlightedCompareHtml(compareTableHtml, node.content, settings.tableWidth);
-  }, [compareTableHtml, node.content, settings.tableWidth]);
+  const highlightedCompareHtml = useMemo(
+    () => compareTableHtml ? buildHighlightedCompareHtml(compareTableHtml, node.content, settings.tableWidth) : null,
+    [compareTableHtml, node.content, settings.tableWidth],
+  );
 
-  const tableSx = {
-    borderCollapse: "collapse",
-    width: settings.tableWidth,
-    "& th, & td": { border: 1, borderColor: getDivider(isDark), px: 1, py: 0.5, textAlign: "left", minWidth: 80, bgcolor: getBgPaper(isDark) },
-    "& th": { bgcolor: getActionHover(isDark), fontWeight: 600 },
-    "& .selectedCell": { bgcolor: getActionSelected(isDark) },
-  };
+  const tableSx = buildTableSx(isDark, settings.tableWidth);
 
-  const showCompare = editOpen && isCompareMode && !!highlightedCompareHtml;
-  const canInteract = !collapsed && !isCompareLeft;
-  const showInlineToolbar = !editOpen && isEditable;
+  const { showCompare, canInteract, showInlineToolbar } = computeTableInteraction(
+    collapsed, isCompareLeft, editOpen, isEditable, isCompareMode, highlightedCompareHtml,
+  );
 
   const onEditAction = canInteract ? () => setEditOpen(true) : undefined;
   const onDeleteAction = canInteract ? () => setDeleteDialogOpen(true) : undefined;
   const onTableDoubleClick = isEditable ? undefined : () => setEditOpen(true);
 
-  const dialogProps = editOpen ? {
-    role: "dialog" as const,
-    "aria-modal": true as const,
-    "aria-label": t("tableLabel"),
-    onKeyDown: (e: React.KeyboardEvent) => { if (e.key === "Escape") setEditOpen(false); },
-  } : {};
+  const dialogProps = buildDialogProps(editOpen, t("tableLabel"), setEditOpen);
 
   return (
     <NodeViewWrapper className="block-node-wrapper">
@@ -332,21 +393,16 @@ export function TableNodeView({ editor, node, getPos }: Readonly<NodeViewProps>)
           />
         )}
 
-        {showCompare ? (
-          <TableCompareView
-            highlightedCompareHtml={highlightedCompareHtml}
-            tableSx={tableSx}
-            isDark={isDark}
-            t={t}
-          />
-        ) : (
-          <Box
-            sx={buildTableBodySx(collapsed, editOpen, isDark, tableSx)}
-            onDoubleClick={onTableDoubleClick}
-          >
-            <NodeViewContent<"table"> as="table" />
-          </Box>
-        )}
+        <TableContent
+          showCompare={showCompare}
+          highlightedCompareHtml={highlightedCompareHtml}
+          tableSx={tableSx}
+          isDark={isDark}
+          collapsed={collapsed}
+          editOpen={editOpen}
+          onTableDoubleClick={onTableDoubleClick}
+          t={t}
+        />
       </Paper>
       <DeleteBlockDialog
         open={deleteDialogOpen}
