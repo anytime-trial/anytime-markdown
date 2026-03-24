@@ -1,6 +1,6 @@
-export type NodeType = 'rect' | 'ellipse' | 'sticky' | 'text';
+export type NodeType = 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder';
 export type EdgeType = 'line' | 'arrow' | 'connector';
-export type ToolType = 'select' | 'rect' | 'ellipse' | 'sticky' | 'text' | 'line' | 'arrow' | 'connector' | 'pan';
+export type ToolType = 'select' | 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder' | 'line' | 'arrow' | 'connector' | 'pan';
 
 export interface NodeStyle {
   fill: string;
@@ -98,7 +98,13 @@ export const DEFAULT_VIEWPORT: Viewport = {
 
 export function createNode(type: NodeType, x: number, y: number, overrides?: Partial<GraphNode>): GraphNode {
   const baseStyle = type === 'sticky' ? { ...DEFAULT_STICKY_STYLE } : { ...DEFAULT_NODE_STYLE };
-  const size = type === 'text' ? { width: 150, height: 30 } : { width: 150, height: 100 };
+  const sizeMap: Partial<Record<NodeType, { width: number; height: number }>> = {
+    text: { width: 150, height: 30 },
+    diamond: { width: 120, height: 120 },
+    parallelogram: { width: 160, height: 80 },
+    cylinder: { width: 100, height: 120 },
+  };
+  const size = sizeMap[type] ?? { width: 150, height: 100 };
   return {
     id: crypto.randomUUID(),
     type,

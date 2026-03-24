@@ -103,6 +103,35 @@ export function drawNode(
       ctx.strokeRect(x, y, width, height);
       ctx.setLineDash([]);
     }
+  } else if (type === 'diamond') {
+    ctx.fillStyle = style.fill;
+    drawDiamond(ctx, x, y, width, height);
+    ctx.fill();
+    ctx.strokeStyle = selected ? SELECTION_COLOR : style.stroke;
+    ctx.lineWidth = selected ? 2 : style.strokeWidth;
+    drawDiamond(ctx, x, y, width, height);
+    ctx.stroke();
+  } else if (type === 'parallelogram') {
+    ctx.fillStyle = style.fill;
+    drawParallelogram(ctx, x, y, width, height);
+    ctx.fill();
+    ctx.strokeStyle = selected ? SELECTION_COLOR : style.stroke;
+    ctx.lineWidth = selected ? 2 : style.strokeWidth;
+    drawParallelogram(ctx, x, y, width, height);
+    ctx.stroke();
+  } else if (type === 'cylinder') {
+    ctx.fillStyle = style.fill;
+    drawCylinderBody(ctx, x, y, width, height);
+    ctx.fill();
+    ctx.strokeStyle = selected ? SELECTION_COLOR : style.stroke;
+    ctx.lineWidth = selected ? 2 : style.strokeWidth;
+    drawCylinderBody(ctx, x, y, width, height);
+    ctx.stroke();
+    // Draw top ellipse on top (stroke only)
+    ctx.strokeStyle = selected ? SELECTION_COLOR : style.stroke;
+    ctx.lineWidth = selected ? 2 : style.strokeWidth;
+    drawCylinderTop(ctx, x, y, width, height);
+    ctx.stroke();
   } else {
     // rect
     ctx.fillStyle = style.fill;
@@ -131,6 +160,43 @@ export function drawNode(
   }
 
   ctx.restore();
+}
+
+function drawDiamond(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): void {
+  ctx.beginPath();
+  ctx.moveTo(x + w / 2, y);
+  ctx.lineTo(x + w, y + h / 2);
+  ctx.lineTo(x + w / 2, y + h);
+  ctx.lineTo(x, y + h / 2);
+  ctx.closePath();
+}
+
+function drawParallelogram(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): void {
+  const offset = w * 0.2;
+  ctx.beginPath();
+  ctx.moveTo(x + offset, y);
+  ctx.lineTo(x + w, y);
+  ctx.lineTo(x + w - offset, y + h);
+  ctx.lineTo(x, y + h);
+  ctx.closePath();
+}
+
+function drawCylinderBody(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): void {
+  const ry = h * 0.12;
+  ctx.beginPath();
+  ctx.moveTo(x, y + ry);
+  ctx.lineTo(x, y + h - ry);
+  ctx.ellipse(x + w / 2, y + h - ry, w / 2, ry, 0, Math.PI, 0, true);
+  ctx.lineTo(x + w, y + ry);
+  ctx.ellipse(x + w / 2, y + ry, w / 2, ry, 0, 0, Math.PI, true);
+  ctx.closePath();
+}
+
+function drawCylinderTop(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): void {
+  const ry = h * 0.12;
+  ctx.beginPath();
+  ctx.ellipse(x + w / 2, y + ry, w / 2, ry, 0, 0, Math.PI * 2);
+  ctx.closePath();
 }
 
 export function drawRoundedRect(
@@ -367,7 +433,7 @@ export function drawShapePreview(
   ctx: CanvasRenderingContext2D,
   fromX: number, fromY: number,
   toX: number, toY: number,
-  shapeType: 'rect' | 'ellipse' | 'sticky' | 'text',
+  shapeType: 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder',
 ): void {
   const x = Math.min(fromX, toX);
   const y = Math.min(fromY, toY);
@@ -385,6 +451,20 @@ export function drawShapePreview(
     ctx.beginPath();
     ctx.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
     ctx.fill();
+    ctx.stroke();
+  } else if (shapeType === 'diamond') {
+    drawDiamond(ctx, x, y, w, h);
+    ctx.fill();
+    ctx.stroke();
+  } else if (shapeType === 'parallelogram') {
+    drawParallelogram(ctx, x, y, w, h);
+    ctx.fill();
+    ctx.stroke();
+  } else if (shapeType === 'cylinder') {
+    drawCylinderBody(ctx, x, y, w, h);
+    ctx.fill();
+    ctx.stroke();
+    drawCylinderTop(ctx, x, y, w, h);
     ctx.stroke();
   } else {
     ctx.fillRect(x, y, w, h);
