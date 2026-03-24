@@ -1,4 +1,4 @@
-import { escapeXml, toHexColor } from '../../io/utils';
+import { escapeXml, toHexColor, toAlpha } from '../../io/utils';
 
 describe('escapeXml', () => {
   it('should escape &, <, >, ", \'', () => {
@@ -30,5 +30,20 @@ describe('toHexColor', () => {
   });
   it('should return original for unrecognized formats', () => {
     expect(toHexColor('transparent')).toBe('transparent');
+  });
+});
+
+describe('toAlpha', () => {
+  it('should extract alpha from rgba', () => {
+    expect(toAlpha('rgba(255, 255, 255, 0.5)')).toBe(50);
+  });
+  it('should return 100 for rgb without alpha', () => {
+    expect(toAlpha('rgb(255, 0, 0)')).toBe(100);
+  });
+  it('should return 100 for hex colors', () => {
+    expect(toAlpha('#FF0000')).toBe(100);
+  });
+  it('should handle alpha 0.03', () => {
+    expect(toAlpha('rgba(255, 255, 255, 0.03)')).toBe(3);
   });
 });

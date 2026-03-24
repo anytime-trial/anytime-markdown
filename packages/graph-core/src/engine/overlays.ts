@@ -1,4 +1,4 @@
-import { GraphNode, GraphEdge } from '../types';
+import { GraphNode, GraphEdge, NodeType } from '../types';
 import type { GuideLine } from './smartGuide';
 import {
   CANVAS_SELECTION, CANVAS_SELECTION_FILL, CANVAS_SNAP, CANVAS_SNAP_INNER,
@@ -203,7 +203,7 @@ export function drawShapePreview(
   ctx: CanvasRenderingContext2D,
   fromX: number, fromY: number,
   toX: number, toY: number,
-  shapeType: 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder' | 'insight' | 'doc' | 'frame',
+  shapeType: Exclude<NodeType, 'image'>,
 ): void {
   const x = Math.min(fromX, toX);
   const y = Math.min(fromY, toY);

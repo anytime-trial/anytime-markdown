@@ -11,7 +11,12 @@ const imageCache = new Map<string, HTMLImageElement>();
 
 function getOrLoadImage(dataUrl: string): HTMLImageElement | null {
   const cached = imageCache.get(dataUrl);
-  if (cached) return cached.complete ? cached : null;
+  if (cached) {
+    // LRU: ヒット時にエントリを末尾に移動
+    imageCache.delete(dataUrl);
+    imageCache.set(dataUrl, cached);
+    return cached.complete ? cached : null;
+  }
   if (typeof Image === 'undefined') return null;
   const img = new Image();
   img.src = dataUrl;

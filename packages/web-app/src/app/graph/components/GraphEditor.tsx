@@ -16,7 +16,7 @@ import { TextEditOverlay } from './TextEditOverlay';
 import { DocEditorModal } from './DocEditorModal';
 import { ShapeHoverBar } from './ShapeHoverBar';
 import { pan as panViewport, zoom as zoomViewport, fitToContent } from '../engine/viewport';
-import { interpolateViewport, ViewportAnimation } from '@anytime-markdown/graph-core/engine';
+import { interpolateViewport, ViewportAnimation, clearImageCache } from '@anytime-markdown/graph-core/engine';
 import { alignLeft, alignRight, alignTop, alignBottom, alignCenterH, alignCenterV, distributeH, distributeV } from '../engine/alignment';
 import { loadDocument, getLastDocumentId } from '../store/graphStorage';
 import { exportToSvg, exportToDrawio, importFromDrawio } from '@anytime-markdown/graph-core';
@@ -49,6 +49,11 @@ export function GraphEditor() {
       });
     }
   }, [dispatch]);
+
+  // ドキュメント切替時に画像キャッシュをクリア
+  useEffect(() => {
+    clearImageCache();
+  }, [state.document.id]);
 
   const saveStatus = useAutoSave(state.document);
 
