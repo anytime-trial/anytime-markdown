@@ -9,7 +9,6 @@ import {
 import {
   NearMe as SelectIcon,
   CropSquare as RectIcon,
-  CircleOutlined as EllipseIcon,
   StickyNote2Outlined as StickyIcon,
   TextFields as TextIcon,
   Remove as LineIcon,
@@ -31,9 +30,6 @@ import {
   AlignVerticalCenter as AlignVerticalCenterIcon,
   ViewColumn as ViewColumnIcon,
   TableRows as TableRowsIcon,
-  Diamond as DiamondIcon,
-  Hexagon as ParallelogramIcon,
-  Storage as CylinderIcon,
   Lightbulb as InsightIcon,
   Description as DocIcon,
 } from '@mui/icons-material';
@@ -91,23 +87,11 @@ export function GraphToolBar({
           <ToggleButton value="rect" aria-label="Rectangle">
             <Tooltip title="Rectangle (R)"><RectIcon fontSize="small" /></Tooltip>
           </ToggleButton>
-          <ToggleButton value="ellipse" aria-label="Ellipse">
-            <Tooltip title="Ellipse (O)"><EllipseIcon fontSize="small" /></Tooltip>
-          </ToggleButton>
           <ToggleButton value="sticky" aria-label="Sticky Note">
             <Tooltip title="Sticky Note (S)"><StickyIcon fontSize="small" /></Tooltip>
           </ToggleButton>
           <ToggleButton value="text" aria-label="Text">
             <Tooltip title="Text (T)"><TextIcon fontSize="small" /></Tooltip>
-          </ToggleButton>
-          <ToggleButton value="diamond" aria-label="Diamond">
-            <Tooltip title="Diamond (D)"><DiamondIcon fontSize="small" /></Tooltip>
-          </ToggleButton>
-          <ToggleButton value="parallelogram" aria-label="Parallelogram">
-            <Tooltip title="Parallelogram (P)"><ParallelogramIcon fontSize="small" /></Tooltip>
-          </ToggleButton>
-          <ToggleButton value="cylinder" aria-label="Cylinder">
-            <Tooltip title="Cylinder (Y)"><CylinderIcon fontSize="small" /></Tooltip>
           </ToggleButton>
           <ToggleButton value="insight" aria-label="Insight">
             <Tooltip title="Insight (I)"><InsightIcon fontSize="small" /></Tooltip>
