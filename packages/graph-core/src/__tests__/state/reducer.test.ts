@@ -126,6 +126,47 @@ describe('graphReducer', () => {
     expect(s.selection.nodeIds).toEqual([]);
   });
 
+  it('DELETE_SELECTED skips locked nodes but deletes unlocked ones', () => {
+    const state = makeState();
+    // Lock n1
+    let s = graphReducer(state, { type: 'UPDATE_NODE', id: 'n1', changes: { locked: true } });
+    // Add an edge from n1 to n2
+    const edge = createEdge('arrow', { nodeId: 'n1', x: 0, y: 0 }, { nodeId: 'n2', x: 0, y: 0 }, { id: 'e1' });
+    s = graphReducer(s, { type: 'ADD_EDGE', edge });
+    // Select both nodes
+    s = graphReducer(s, { type: 'SET_SELECTION', selection: { nodeIds: ['n1', 'n2'], edgeIds: [] } });
+    s = graphReducer(s, { type: 'DELETE_SELECTED' });
+    // n1 should survive (locked), n2 should be deleted
+    expect(s.document.nodes.find(n => n.id === 'n1')).toBeDefined();
+    expect(s.document.nodes.find(n => n.id === 'n2')).toBeUndefined();
+    // Edge connected to deleted n2 should also be removed
+    expect(s.document.edges.find(e => e.id === 'e1')).toBeUndefined();
+  });
+
+  it('DELETE_SELECTED preserves edges connected only to locked nodes', () => {
+    const doc = createDocument('Test');
+    const node1 = createNode('rect', 10, 20, { id: 'n1', text: 'A' });
+    const node2 = createNode('rect', 200, 100, { id: 'n2', text: 'B' });
+    const node3 = createNode('rect', 400, 100, { id: 'n3', text: 'C' });
+    doc.nodes = [node1, node2, node3];
+    let s = createInitialState(doc);
+    // Lock n1 and n2
+    s = graphReducer(s, { type: 'UPDATE_NODE', id: 'n1', changes: { locked: true } });
+    s = graphReducer(s, { type: 'UPDATE_NODE', id: 'n2', changes: { locked: true } });
+    // Edge between two locked nodes
+    const edge = createEdge('arrow', { nodeId: 'n1', x: 0, y: 0 }, { nodeId: 'n2', x: 0, y: 0 }, { id: 'e1' });
+    s = graphReducer(s, { type: 'ADD_EDGE', edge });
+    // Select all and delete
+    s = graphReducer(s, { type: 'SET_SELECTION', selection: { nodeIds: ['n1', 'n2', 'n3'], edgeIds: [] } });
+    s = graphReducer(s, { type: 'DELETE_SELECTED' });
+    // Locked nodes survive
+    expect(s.document.nodes).toHaveLength(2);
+    // Edge between locked nodes survives
+    expect(s.document.edges.find(e => e.id === 'e1')).toBeDefined();
+    // n3 deleted
+    expect(s.document.nodes.find(n => n.id === 'n3')).toBeUndefined();
+  });
+
   it('should restore selection on REDO', () => {
     const state = createInitialState();
 

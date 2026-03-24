@@ -95,15 +95,20 @@ export function graphReducer(state: GraphState, action: Action): GraphState {
     case 'DELETE_SELECTED': {
       const s = pushHistory(state);
       const { nodeIds, edgeIds } = state.selection;
+      // Filter out locked nodes — they must not be deleted
+      const deletableNodeIds = nodeIds.filter(id => {
+        const node = state.document.nodes.find(n => n.id === id);
+        return node && !node.locked;
+      });
       return {
         ...s,
         document: {
           ...s.document,
-          nodes: s.document.nodes.filter(n => !nodeIds.includes(n.id)),
+          nodes: s.document.nodes.filter(n => !deletableNodeIds.includes(n.id)),
           edges: s.document.edges.filter(e =>
             !edgeIds.includes(e.id) &&
-            !nodeIds.includes(e.from.nodeId ?? '') &&
-            !nodeIds.includes(e.to.nodeId ?? ''),
+            !deletableNodeIds.includes(e.from.nodeId ?? '') &&
+            !deletableNodeIds.includes(e.to.nodeId ?? ''),
           ),
         },
         selection: { nodeIds: [], edgeIds: [] },
