@@ -203,11 +203,12 @@ export function useCanvasInteraction({
     if (drag.type === 'resize' && drag.nodeId && drag.handle && drag.initialNodes) {
       const world = screenToWorld(viewport, sx, sy);
       const init = drag.initialNodes.get(drag.nodeId)!;
+      const MIN = 20;
       const resized = computeResize(init, drag.handle, world.x, world.y, drag.startWorldX, drag.startWorldY);
       const x = showGrid ? snapToGrid(resized.x) : resized.x;
       const y = showGrid ? snapToGrid(resized.y) : resized.y;
-      const width = showGrid ? snapToGrid(resized.width) : resized.width;
-      const height = showGrid ? snapToGrid(resized.height) : resized.height;
+      const width = showGrid ? Math.max(MIN, snapToGrid(resized.width)) : resized.width;
+      const height = showGrid ? Math.max(MIN, snapToGrid(resized.height)) : resized.height;
       dispatch({ type: 'RESIZE_NODE', id: drag.nodeId, x, y, width, height });
       return;
     }
@@ -322,6 +323,37 @@ export function useCanvasInteraction({
     }
   }, [getWorldPos, nodes, edges, viewport, selection, onTextEdit]);
 
+  const copySelected = useCallback(() => {
+    if (selection.nodeIds.length === 0) return;
+    const selectedSet = new Set(selection.nodeIds);
+    const copiedNodes: GraphNode[] = JSON.parse(JSON.stringify(nodes.filter(n => selectedSet.has(n.id))));
+    const copiedEdges: GraphEdge[] = JSON.parse(JSON.stringify(
+      edges.filter(edge => selectedSet.has(edge.from.nodeId ?? '') && selectedSet.has(edge.to.nodeId ?? '')),
+    ));
+    clipboardRef.current = { nodes: copiedNodes, edges: copiedEdges };
+  }, [selection.nodeIds, nodes, edges]);
+
+  const pasteFromClipboard = useCallback(() => {
+    if (!clipboardRef.current) return;
+    const idMap = new Map<string, string>();
+    const newNodes = clipboardRef.current.nodes.map(n => {
+      const newId = crypto.randomUUID();
+      idMap.set(n.id, newId);
+      return { ...n, id: newId, x: n.x + 20, y: n.y + 20 };
+    });
+    const newEdges = clipboardRef.current.edges.map(edge => ({
+      ...edge,
+      id: crypto.randomUUID(),
+      from: { ...edge.from, nodeId: edge.from.nodeId ? idMap.get(edge.from.nodeId) : undefined },
+      to: { ...edge.to, nodeId: edge.to.nodeId ? idMap.get(edge.to.nodeId) : undefined },
+    }));
+    dispatch({ type: 'PASTE_NODES', nodes: newNodes, edges: newEdges });
+    clipboardRef.current = {
+      nodes: clipboardRef.current.nodes.map(n => ({ ...n, x: n.x + 20, y: n.y + 20 })),
+      edges: clipboardRef.current.edges,
+    };
+  }, [dispatch]);
+
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.code === 'Space' && !e.repeat) {
       spaceRef.current = true;
@@ -342,42 +374,10 @@ export function useCanvasInteraction({
         dispatch({ type: 'SET_SELECTION', selection: { nodeIds: nodes.map(n => n.id), edgeIds: [] } });
         return;
       }
-      if (e.key === 'c') {
-        e.preventDefault();
-        if (selection.nodeIds.length === 0) return;
-        const selectedSet = new Set(selection.nodeIds);
-        const copiedNodes: GraphNode[] = JSON.parse(JSON.stringify(nodes.filter(n => selectedSet.has(n.id))));
-        const copiedEdges: GraphEdge[] = JSON.parse(JSON.stringify(
-          edges.filter(edge => selectedSet.has(edge.from.nodeId ?? '') && selectedSet.has(edge.to.nodeId ?? '')),
-        ));
-        clipboardRef.current = { nodes: copiedNodes, edges: copiedEdges };
-        return;
-      }
-      if (e.key === 'v') {
-        e.preventDefault();
-        if (!clipboardRef.current) return;
-        const idMap = new Map<string, string>();
-        const newNodes = clipboardRef.current.nodes.map(n => {
-          const newId = crypto.randomUUID();
-          idMap.set(n.id, newId);
-          return { ...n, id: newId, x: n.x + 20, y: n.y + 20 };
-        });
-        const newEdges = clipboardRef.current.edges.map(edge => ({
-          ...edge,
-          id: crypto.randomUUID(),
-          from: { ...edge.from, nodeId: edge.from.nodeId ? idMap.get(edge.from.nodeId) : undefined },
-          to: { ...edge.to, nodeId: edge.to.nodeId ? idMap.get(edge.to.nodeId) : undefined },
-        }));
-        dispatch({ type: 'PASTE_NODES', nodes: newNodes, edges: newEdges });
-        // Update clipboard positions so next paste offsets further
-        clipboardRef.current = {
-          nodes: clipboardRef.current.nodes.map(n => ({ ...n, x: n.x + 20, y: n.y + 20 })),
-          edges: clipboardRef.current.edges,
-        };
-        return;
-      }
+      if (e.key === 'c') { e.preventDefault(); copySelected(); return; }
+      if (e.key === 'v') { e.preventDefault(); pasteFromClipboard(); return; }
     }
-  }, [selection, nodes, edges, dispatch]);
+  }, [selection, nodes, dispatch, copySelected, pasteFromClipboard]);
 
   const handleKeyUp = useCallback((e: KeyboardEvent) => {
     if (e.code === 'Space') spaceRef.current = false;
@@ -400,6 +400,9 @@ export function useCanvasInteraction({
     handleDoubleClick,
     dragRef,
     previewRef,
+    clipboardRef,
+    copySelected,
+    pasteFromClipboard,
   };
 }
 

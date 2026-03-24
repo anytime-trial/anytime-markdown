@@ -63,41 +63,13 @@ export function GraphEditor() {
     setContextMenu({ position: { top: e.clientY, left: e.clientX }, targetType });
   }, [state.document.viewport, state.document.nodes, state.document.edges, state.selection.nodeIds, dispatch]);
 
-  const handleContextAction = useCallback((action: string) => {
-    switch (action) {
-      case 'copy':
-        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'c', ctrlKey: true }));
-        break;
-      case 'paste':
-        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'v', ctrlKey: true }));
-        break;
-      case 'delete':
-        dispatch({ type: 'DELETE_SELECTED' });
-        break;
-      case 'bringToFront':
-        dispatch({ type: 'BRING_TO_FRONT', nodeIds: state.selection.nodeIds });
-        break;
-      case 'sendToBack':
-        dispatch({ type: 'SEND_TO_BACK', nodeIds: state.selection.nodeIds });
-        break;
-      case 'group':
-        dispatch({ type: 'GROUP_SELECTED', groupId: crypto.randomUUID() });
-        break;
-      case 'ungroup':
-        dispatch({ type: 'UNGROUP_SELECTED' });
-        break;
-      case 'selectAll':
-        dispatch({ type: 'SELECT_ALL' });
-        break;
-    }
-  }, [dispatch, state.selection.nodeIds]);
-
   const handleTextEdit = useCallback((nodeId: string) => {
     setEditingNodeId(nodeId);
   }, []);
 
   const {
     handleMouseDown, handleMouseMove, handleMouseUp, handleWheel, handleDoubleClick, previewRef,
+    clipboardRef, copySelected, pasteFromClipboard,
   } = useCanvasInteraction({
     canvasRef, tool,
     nodes: state.document.nodes,
@@ -124,6 +96,35 @@ export function GraphEditor() {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [editingNodeId]);
+
+  const handleContextAction = useCallback((action: string) => {
+    switch (action) {
+      case 'copy':
+        copySelected();
+        break;
+      case 'paste':
+        pasteFromClipboard();
+        break;
+      case 'delete':
+        dispatch({ type: 'DELETE_SELECTED' });
+        break;
+      case 'bringToFront':
+        dispatch({ type: 'BRING_TO_FRONT', nodeIds: state.selection.nodeIds });
+        break;
+      case 'sendToBack':
+        dispatch({ type: 'SEND_TO_BACK', nodeIds: state.selection.nodeIds });
+        break;
+      case 'group':
+        dispatch({ type: 'GROUP_SELECTED', groupId: crypto.randomUUID() });
+        break;
+      case 'ungroup':
+        dispatch({ type: 'UNGROUP_SELECTED' });
+        break;
+      case 'selectAll':
+        dispatch({ type: 'SELECT_ALL' });
+        break;
+    }
+  }, [dispatch, state.selection.nodeIds, copySelected, pasteFromClipboard]);
 
   const handleTextCommit = useCallback((id: string, text: string) => {
     dispatch({ type: 'UPDATE_NODE', id, changes: { text } });
@@ -236,7 +237,7 @@ export function GraphEditor() {
           targetType={contextMenu?.targetType ?? 'canvas'}
           onAction={handleContextAction}
           onClose={() => setContextMenu(null)}
-          hasClipboard={true}
+          hasClipboard={clipboardRef.current !== null}
         />
         {showProperty && (selectedNode || selectedEdge) && (
           <PropertyPanel

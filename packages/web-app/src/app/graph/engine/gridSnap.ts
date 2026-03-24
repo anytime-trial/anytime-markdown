@@ -2,7 +2,8 @@ const DEFAULT_GRID = 20;
 
 /** 値を最も近いグリッド倍数にスナップ */
 export function snapToGrid(value: number, gridSize: number = DEFAULT_GRID): number {
-  return Math.round(value / gridSize) * gridSize || 0;
+  const result = Math.round(value / gridSize) * gridSize;
+  return result === 0 ? 0 : result; // avoid -0
 }
 
 /** 矩形の位置（とオプションでサイズ）をグリッドにスナップ */
