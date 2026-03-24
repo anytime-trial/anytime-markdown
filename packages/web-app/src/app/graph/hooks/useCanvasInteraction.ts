@@ -35,6 +35,7 @@ interface DragState {
   edgeId?: string;
   segmentDirection?: 'horizontal' | 'vertical';
   endpointEnd?: 'from' | 'to';
+  fromConnectionPoint?: boolean;
   initialMidpoint?: number;
   initialNodes?: Map<string, { x: number; y: number; width: number; height: number }>;
 }
@@ -129,6 +130,7 @@ export function useCanvasInteraction({
           dragRef.current = {
             type: 'create-edge', startWorldX: cp.x, startWorldY: cp.y,
             startScreenX: sx, startScreenY: sy, nodeId: hit.id,
+            fromConnectionPoint: true,
           };
         }
         return;
@@ -436,8 +438,8 @@ export function useCanvasInteraction({
             { nodeId: hit.id, x: world.x, y: world.y },
           );
           dispatch({ type: 'ADD_EDGE', edge });
-        } else {
-          // 空白にドロップ → 子ノード自動作成 + コネクタ接続
+        } else if (drag.fromConnectionPoint) {
+          // 接続ポイント起点 + 空白にドロップ → 子ノード自動作成 + コネクタ接続
           const parentNode = drag.nodeId ? nodes.find(n => n.id === drag.nodeId) : undefined;
           const childType = parentNode?.type === 'sticky' ? 'sticky'
             : parentNode?.type === 'insight' ? 'insight'
