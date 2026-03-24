@@ -94,6 +94,7 @@ export interface SelectionState {
 export interface HistoryEntry {
   nodes: GraphNode[];
   edges: GraphEdge[];
+  selection?: SelectionState;
 }
 
 import {

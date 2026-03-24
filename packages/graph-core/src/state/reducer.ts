@@ -40,6 +40,7 @@ function pushHistory(state: GraphState): GraphState {
   const entry: HistoryEntry = {
     nodes: structuredClone(state.document.nodes),
     edges: structuredClone(state.document.edges),
+    selection: { ...state.selection },
   };
   const history = state.history.slice(0, state.historyIndex + 1);
   history.push(entry);
@@ -52,7 +53,7 @@ export function createInitialState(doc?: GraphDocument): GraphState {
   return {
     document: d,
     selection: { nodeIds: [], edgeIds: [] },
-    history: [{ nodes: structuredClone(d.nodes), edges: structuredClone(d.edges) }],
+    history: [{ nodes: structuredClone(d.nodes), edges: structuredClone(d.edges), selection: { nodeIds: [], edgeIds: [] } }],
     historyIndex: 0,
   };
 }
@@ -63,7 +64,7 @@ export function graphReducer(state: GraphState, action: Action): GraphState {
       return {
         ...state,
         document: action.doc,
-        history: [{ nodes: structuredClone(action.doc.nodes), edges: structuredClone(action.doc.edges) }],
+        history: [{ nodes: structuredClone(action.doc.nodes), edges: structuredClone(action.doc.edges), selection: { nodeIds: [], edgeIds: [] } }],
         historyIndex: 0,
         selection: { nodeIds: [], edgeIds: [] },
       };
@@ -256,7 +257,7 @@ export function graphReducer(state: GraphState, action: Action): GraphState {
           nodes: structuredClone(entry.nodes),
           edges: structuredClone(entry.edges),
         },
-        selection: { nodeIds: [], edgeIds: [] },
+        selection: entry.selection ?? { nodeIds: [], edgeIds: [] },
       };
     }
 
@@ -272,7 +273,7 @@ export function graphReducer(state: GraphState, action: Action): GraphState {
           nodes: structuredClone(entry.nodes),
           edges: structuredClone(entry.edges),
         },
-        selection: { nodeIds: [], edgeIds: [] },
+        selection: entry.selection ?? { nodeIds: [], edgeIds: [] },
       };
     }
 

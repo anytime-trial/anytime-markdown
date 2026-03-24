@@ -86,4 +86,68 @@ describe('graphReducer', () => {
     const next = graphReducer(state, { type: 'SELECT_ALL' });
     expect(next.selection.nodeIds).toEqual(['n1', 'n2']);
   });
+
+  it('should restore selection from history on UNDO', () => {
+    // Initial state has empty selection
+    const state = createInitialState();
+    expect(state.selection.nodeIds).toEqual([]);
+
+    // ADD_NODE: pushHistory saves selection=[] (before), then sets selection=['sel-node']
+    const node = createNode('rect', 50, 50, { id: 'sel-node' });
+    const afterAdd = graphReducer(state, { type: 'ADD_NODE', node });
+    expect(afterAdd.selection.nodeIds).toEqual(['sel-node']);
+
+    // UNDO: restores history entry at index 0 which has selection=[] (initial)
+    const afterUndo = graphReducer(afterAdd, { type: 'UNDO' });
+    expect(afterUndo.document.nodes).toHaveLength(0);
+    expect(afterUndo.selection.nodeIds).toEqual([]);
+  });
+
+  it('should restore selection across multiple undo steps', () => {
+    const state = makeState(); // nodes=[n1,n2], selection=[]
+
+    // Select n1, then update it (pushHistory saves selection=['n1'])
+    let s = graphReducer(state, { type: 'SET_SELECTION', selection: { nodeIds: ['n1'], edgeIds: [] } });
+    s = graphReducer(s, { type: 'UPDATE_NODE', id: 'n1', changes: { text: 'Updated' } });
+    expect(s.selection.nodeIds).toEqual(['n1']); // UPDATE_NODE doesn't change selection
+
+    // Select n2, then update it (pushHistory saves selection=['n1'] — current at that point)
+    s = graphReducer(s, { type: 'SET_SELECTION', selection: { nodeIds: ['n2'], edgeIds: [] } });
+    s = graphReducer(s, { type: 'UPDATE_NODE', id: 'n2', changes: { text: 'Updated B' } });
+    expect(s.selection.nodeIds).toEqual(['n2']);
+
+    // UNDO: goes to historyIndex-1, which is the entry saved by the first UPDATE_NODE
+    // That entry captured selection=['n1'] (the selection at the time of first UPDATE_NODE)
+    s = graphReducer(s, { type: 'UNDO' });
+    expect(s.selection.nodeIds).toEqual(['n1']);
+
+    // UNDO again: goes to historyIndex-1 (initial entry), which has selection=[]
+    s = graphReducer(s, { type: 'UNDO' });
+    expect(s.selection.nodeIds).toEqual([]);
+  });
+
+  it('should restore selection on REDO', () => {
+    const state = createInitialState();
+
+    // ADD_NODE(r1): pushHistory saves selection=[], then sets selection=['r1']
+    const node1 = createNode('rect', 10, 10, { id: 'r1' });
+    let s = graphReducer(state, { type: 'ADD_NODE', node: node1 });
+
+    // ADD_NODE(r2): pushHistory saves selection=['r1'], then sets selection=['r2']
+    const node2 = createNode('rect', 100, 100, { id: 'r2' });
+    s = graphReducer(s, { type: 'ADD_NODE', node: node2 });
+
+    // UNDO twice to go back to initial
+    s = graphReducer(s, { type: 'UNDO' });
+    s = graphReducer(s, { type: 'UNDO' });
+    expect(s.selection.nodeIds).toEqual([]);
+
+    // REDO: restores entry with selection=[] (saved before first ADD_NODE)
+    s = graphReducer(s, { type: 'REDO' });
+    expect(s.selection.nodeIds).toEqual([]);
+
+    // REDO again: restores entry with selection=['r1'] (saved before second ADD_NODE)
+    s = graphReducer(s, { type: 'REDO' });
+    expect(s.selection.nodeIds).toEqual(['r1']);
+  });
 });
