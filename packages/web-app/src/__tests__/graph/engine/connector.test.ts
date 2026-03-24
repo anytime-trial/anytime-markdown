@@ -1,0 +1,81 @@
+import {
+  nodeCenter,
+  rectIntersection,
+  ellipseIntersection,
+  resolveConnectorEndpoints,
+} from '../../../app/graph/engine/connector';
+import { GraphNode, GraphEdge, DEFAULT_NODE_STYLE, DEFAULT_EDGE_STYLE } from '../../../app/graph/types';
+
+const rectNode: GraphNode = {
+  id: 'r1',
+  type: 'rect',
+  x: 0,
+  y: 0,
+  width: 200,
+  height: 100,
+  text: '',
+  style: DEFAULT_NODE_STYLE,
+};
+const ellipseNode: GraphNode = {
+  id: 'e1',
+  type: 'ellipse',
+  x: 400,
+  y: 0,
+  width: 200,
+  height: 100,
+  text: '',
+  style: DEFAULT_NODE_STYLE,
+};
+
+describe('nodeCenter', () => {
+  it('should return center of node', () => {
+    expect(nodeCenter(rectNode)).toEqual({ x: 100, y: 50 });
+  });
+});
+
+describe('rectIntersection', () => {
+  it('should intersect right edge when target is to the right', () => {
+    const pt = rectIntersection(rectNode, 500, 50);
+    expect(pt.x).toBe(200);
+    expect(pt.y).toBe(50);
+  });
+  it('should intersect top edge when target is above', () => {
+    const pt = rectIntersection(rectNode, 100, -200);
+    expect(pt.y).toBe(0);
+  });
+});
+
+describe('ellipseIntersection', () => {
+  it('should intersect at right when target is directly right', () => {
+    const pt = ellipseIntersection(ellipseNode, 900, 50);
+    expect(pt.x).toBeCloseTo(600);
+    expect(pt.y).toBeCloseTo(50);
+  });
+});
+
+describe('resolveConnectorEndpoints', () => {
+  it('should resolve endpoints between two nodes', () => {
+    const edge: GraphEdge = {
+      id: 'c1',
+      type: 'connector',
+      from: { nodeId: 'r1', x: 0, y: 0 },
+      to: { nodeId: 'e1', x: 0, y: 0 },
+      style: DEFAULT_EDGE_STYLE,
+    };
+    const result = resolveConnectorEndpoints(edge, [rectNode, ellipseNode]);
+    expect(result.from.x).toBe(200);
+    expect(result.to.x).toBeCloseTo(400);
+  });
+  it('should use raw coordinates when no node attached', () => {
+    const edge: GraphEdge = {
+      id: 'c2',
+      type: 'line',
+      from: { x: 10, y: 20 },
+      to: { x: 30, y: 40 },
+      style: DEFAULT_EDGE_STYLE,
+    };
+    const result = resolveConnectorEndpoints(edge, []);
+    expect(result.from).toEqual({ x: 10, y: 20 });
+    expect(result.to).toEqual({ x: 30, y: 40 });
+  });
+});
