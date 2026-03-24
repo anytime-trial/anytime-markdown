@@ -3,6 +3,8 @@
 import React, { useRef, useEffect, useCallback } from 'react';
 import { GraphNode, GraphEdge, Viewport, SelectionState } from '../types';
 import { render, drawSelectionRect, drawEdgePreview, drawShapePreview, drawSnapHighlight, drawSmartGuides } from '../engine/renderer';
+import { interpolateViewport } from '@anytime-markdown/graph-core/engine';
+import type { ViewportAnimation } from '@anytime-markdown/graph-core/engine';
 import { resolveConnectorEndpoints, computeOrthogonalPath } from '../engine/connector';
 import type { DragPreview } from '../hooks/useCanvasInteraction';
 
@@ -22,12 +24,15 @@ interface GraphCanvasProps {
   previewRef: React.RefObject<DragPreview>;
   hoverNodeIdRef: React.RefObject<string | undefined>;
   mouseWorldRef: React.RefObject<{ x: number; y: number }>;
+  viewportAnimRef?: React.RefObject<ViewportAnimation | null>;
+  onViewportUpdate?: (viewport: Viewport) => void;
 }
 
 export function GraphCanvas({
   nodes, edges, viewport, selection, showGrid, canvasRef,
   onMouseDown, onMouseMove, onMouseUp, onWheel, onDoubleClick, onContextMenu,
   previewRef, hoverNodeIdRef, mouseWorldRef,
+  viewportAnimRef, onViewportUpdate,
 }: GraphCanvasProps) {
   const rafRef = useRef<number>(0);
 
@@ -36,6 +41,18 @@ export function GraphCanvas({
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+
+    // アニメーション中なら補間したviewportを使用
+    let activeViewport = viewport;
+    const anim = viewportAnimRef?.current;
+    if (anim) {
+      const { viewport: interpolated, done } = interpolateViewport(anim, performance.now());
+      activeViewport = interpolated;
+      onViewportUpdate?.(interpolated);
+      if (done) {
+        viewportAnimRef.current = null;
+      }
+    }
 
     const resolvedEdges = edges.map(e => {
       if (e.type === 'connector' && e.from.nodeId && e.to.nodeId) {
@@ -55,14 +72,14 @@ export function GraphCanvas({
       return e;
     });
 
-    render(ctx, canvas.width, canvas.height, nodes, resolvedEdges, viewport, selection, showGrid, hoverNodeIdRef.current, mouseWorldRef.current.x, mouseWorldRef.current.y);
+    render(ctx, canvas.width, canvas.height, nodes, resolvedEdges, activeViewport, selection, showGrid, hoverNodeIdRef.current, mouseWorldRef.current.x, mouseWorldRef.current.y);
 
     // ドラッグプレビュー描画
     const preview = previewRef.current;
     if (preview.type !== 'none') {
       ctx.save();
-      ctx.translate(viewport.offsetX, viewport.offsetY);
-      ctx.scale(viewport.scale, viewport.scale);
+      ctx.translate(activeViewport.offsetX, activeViewport.offsetY);
+      ctx.scale(activeViewport.scale, activeViewport.scale);
       if (preview.type === 'edge' && preview.edgeType) {
         if (preview.snapNodeId) {
           const snapNode = nodes.find(n => n.id === preview.snapNodeId);
@@ -84,12 +101,12 @@ export function GraphCanvas({
     // スマートガイド描画
     if (preview.guides && preview.guides.length > 0) {
       ctx.save();
-      ctx.translate(viewport.offsetX, viewport.offsetY);
-      ctx.scale(viewport.scale, viewport.scale);
+      ctx.translate(activeViewport.offsetX, activeViewport.offsetY);
+      ctx.scale(activeViewport.scale, activeViewport.scale);
       drawSmartGuides(ctx, preview.guides);
       ctx.restore();
     }
-  }, [canvasRef, nodes, edges, viewport, selection, showGrid, previewRef, hoverNodeIdRef, mouseWorldRef]);
+  }, [canvasRef, nodes, edges, viewport, selection, showGrid, previewRef, hoverNodeIdRef, mouseWorldRef, viewportAnimRef, onViewportUpdate]);
 
   useEffect(() => {
     const loop = () => {
