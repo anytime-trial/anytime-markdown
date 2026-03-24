@@ -36,7 +36,7 @@ export function isNodeVisible(node: GraphNode, bounds: VisibleBounds): boolean {
 
 /** Check if an edge (or any of its waypoints) intersects the visible bounds */
 export function isEdgeVisible(
-  edge: GraphEdge & { waypoints?: { x: number; y: number }[] },
+  edge: GraphEdge,
   bounds: VisibleBounds,
 ): boolean {
   const points: { x: number; y: number }[] = [

@@ -97,7 +97,7 @@ export function hitTestNode(node: GraphNode, wx: number, wy: number): boolean {
   return pointInRect(wx, wy, node.x, node.y, node.width, node.height);
 }
 
-export function hitTestEdge(edge: GraphEdge & { waypoints?: { x: number; y: number }[] }, wx: number, wy: number, scale: number): boolean {
+export function hitTestEdge(edge: GraphEdge, wx: number, wy: number, scale: number): boolean {
   const tolerance = EDGE_TOLERANCE / scale;
   if (edge.waypoints && edge.waypoints.length >= 2) {
     for (let i = 0; i < edge.waypoints.length - 1; i++) {
@@ -112,7 +112,7 @@ export function hitTestEdge(edge: GraphEdge & { waypoints?: { x: number; y: numb
 
 /** 折れ線コネクタの中間セグメントhit判定。ドラッグ方向を返す */
 export function hitTestEdgeSegment(
-  edge: GraphEdge & { waypoints?: { x: number; y: number }[] },
+  edge: GraphEdge,
   wx: number, wy: number, scale: number,
 ): { segmentDirection: 'horizontal' | 'vertical' } | null {
   if (!edge.waypoints || edge.waypoints.length < 4) return null;
@@ -149,7 +149,7 @@ function hitTestConnectionPoints(node: GraphNode, wx: number, wy: number, scale:
 const ENDPOINT_HANDLE_RADIUS = 10;
 
 function hitTestEdgeEndpoints(
-  edge: GraphEdge & { waypoints?: { x: number; y: number }[] },
+  edge: GraphEdge,
   wx: number, wy: number, scale: number,
 ): EdgeEndpointEnd | null {
   const r = ENDPOINT_HANDLE_RADIUS / scale;
@@ -162,7 +162,7 @@ function hitTestEdgeEndpoints(
 }
 
 export function hitTest(
-  nodes: GraphNode[], edges: (GraphEdge & { waypoints?: { x: number; y: number }[] })[], wx: number, wy: number, scale: number, selectedNodeIds: string[],
+  nodes: GraphNode[], edges: GraphEdge[], wx: number, wy: number, scale: number, selectedNodeIds: string[],
   hoverNodeId?: string, selectedEdgeIds?: string[],
 ): HitResult {
   // 選択中エッジのエンドポイントハンドル判定
@@ -196,7 +196,7 @@ export function hitTest(
     if (hitTestNode(nodes[i], wx, wy)) return { type: 'node', id: nodes[i].id };
   }
   for (let i = edges.length - 1; i >= 0; i--) {
-    const seg = hitTestEdgeSegment(edges[i] as GraphEdge & { waypoints?: { x: number; y: number }[] }, wx, wy, scale);
+    const seg = hitTestEdgeSegment(edges[i], wx, wy, scale);
     if (seg) return { type: 'edge-segment', id: edges[i].id, segmentDirection: seg.segmentDirection };
     if (hitTestEdge(edges[i], wx, wy, scale)) return { type: 'edge', id: edges[i].id };
   }

@@ -5,7 +5,7 @@ import {
 
 export function drawEdge(
   ctx: CanvasRenderingContext2D,
-  edge: GraphEdge & { waypoints?: { x: number; y: number }[]; bezierPath?: { x: number; y: number }[] },
+  edge: GraphEdge,
   selected: boolean,
 ): void {
   ctx.save();

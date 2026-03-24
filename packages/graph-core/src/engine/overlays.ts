@@ -90,7 +90,7 @@ export function drawBoundingBox(
 /** 選択中エッジの両端にドラッグ可能なハンドルを描画 */
 export function drawEdgeEndpointHandles(
   ctx: CanvasRenderingContext2D,
-  edge: GraphEdge & { waypoints?: { x: number; y: number }[] },
+  edge: GraphEdge,
   scale: number,
 ): void {
   const r = 7 / scale;
