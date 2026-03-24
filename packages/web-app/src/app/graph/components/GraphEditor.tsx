@@ -23,6 +23,7 @@ export function GraphEditor() {
   const [showGrid, setShowGrid] = useState(true);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [showProperty, setShowProperty] = useState(true);
+  const [isDragging, setIsDragging] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [contextMenu, setContextMenu] = useState<{
     position: { top: number; left: number };
@@ -76,7 +77,7 @@ export function GraphEditor() {
   }, [state.document.nodes]);
 
   const {
-    handleMouseDown, handleMouseMove, handleMouseUp, handleWheel, handleDoubleClick, previewRef,
+    handleMouseDown, handleMouseMove, handleMouseUp, handleWheel, handleDoubleClick, previewRef, dragRef,
     clipboardRef, copySelected, pasteFromClipboard, hoverNodeIdRef,
   } = useCanvasInteraction({
     canvasRef, tool,
@@ -233,16 +234,16 @@ export function GraphEditor() {
           selection={state.selection}
           showGrid={showGrid}
           canvasRef={canvasRef}
-          onMouseDown={handleMouseDown}
+          onMouseDown={(e) => { setIsDragging(true); handleMouseDown(e); }}
           onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
+          onMouseUp={(e) => { setIsDragging(false); handleMouseUp(e); }}
           onWheel={handleWheel}
           onDoubleClick={handleDoubleClick}
           onContextMenu={handleContextMenu}
           previewRef={previewRef}
           hoverNodeIdRef={hoverNodeIdRef}
         />
-        {selectedNode && !editingNodeId && !docEditNodeId && (
+        {selectedNode && !editingNodeId && !docEditNodeId && !isDragging && (
           <ShapeHoverBar
             node={selectedNode}
             viewport={state.document.viewport}
