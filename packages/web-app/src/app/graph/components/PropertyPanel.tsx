@@ -3,6 +3,7 @@
 import React from 'react';
 import {
   Box, Typography, TextField, Slider, Divider, IconButton, ToggleButton, ToggleButtonGroup,
+  Switch, FormControlLabel, Select, MenuItem as MuiMenuItem, FormControl,
 } from '@mui/material';
 import { Close as CloseIcon } from '@mui/icons-material';
 import { useTranslations } from 'next-intl';
@@ -94,6 +95,68 @@ export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpda
             size="small"
             sx={{ mb: 2, color: COLOR_ICE_BLUE }}
           />
+
+          <Typography variant="caption" sx={{ color: COLOR_TEXT_SECONDARY }}>{t('borderRadius')}</Typography>
+          <Slider
+            value={selectedNode.style.borderRadius ?? 0}
+            min={0} max={30} step={1}
+            onChange={(_, v) => onUpdateNode(selectedNode.id, { style: { ...selectedNode.style, borderRadius: v as number } })}
+            size="small"
+            sx={{ mb: 2, color: COLOR_ICE_BLUE }}
+          />
+
+          <FormControlLabel
+            control={
+              <Switch
+                checked={selectedNode.style.shadow ?? false}
+                onChange={(_, v) => onUpdateNode(selectedNode.id, { style: { ...selectedNode.style, shadow: v } })}
+                size="small"
+                sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: COLOR_ICE_BLUE }, '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: COLOR_ICE_BLUE } }}
+              />
+            }
+            label={<Typography variant="caption" sx={{ color: COLOR_TEXT_SECONDARY }}>{t('shadow')}</Typography>}
+            sx={{ mb: 1 }}
+          />
+
+          <Typography variant="caption" sx={{ color: COLOR_TEXT_SECONDARY }}>{t('gradientTo')}</Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1 }}>
+            <Box
+              onClick={() => onUpdateNode(selectedNode.id, { style: { ...selectedNode.style, gradientTo: undefined } })}
+              sx={{
+                width: 24, height: 24, borderRadius: '4px', cursor: 'pointer',
+                background: 'linear-gradient(135deg, #666 25%, transparent 25%, transparent 75%, #666 75%)',
+                backgroundSize: '8px 8px',
+                border: !selectedNode.style.gradientTo ? `2px solid ${COLOR_ICE_BLUE}` : `1px solid ${COLOR_BORDER}`,
+              }}
+            />
+            {COLORS.slice(0, 10).map(c => (
+              <Box
+                key={c}
+                onClick={() => onUpdateNode(selectedNode.id, { style: { ...selectedNode.style, gradientTo: c } })}
+                sx={{
+                  width: 24, height: 24, backgroundColor: c, borderRadius: '4px', cursor: 'pointer',
+                  border: selectedNode.style.gradientTo === c ? `2px solid ${COLOR_ICE_BLUE}` : `1px solid ${COLOR_BORDER}`,
+                }}
+              />
+            ))}
+          </Box>
+
+          {selectedNode.style.gradientTo && (
+            <>
+              <Typography variant="caption" sx={{ color: COLOR_TEXT_SECONDARY }}>{t('gradientDirection')}</Typography>
+              <ToggleButtonGroup
+                value={selectedNode.style.gradientDirection ?? 'vertical'}
+                exclusive
+                onChange={(_, v) => v && onUpdateNode(selectedNode.id, { style: { ...selectedNode.style, gradientDirection: v } })}
+                size="small"
+                sx={{ mb: 2, display: 'flex', '& .MuiToggleButton-root': { flex: 1, fontSize: '0.65rem', py: 0.3, color: COLOR_TEXT_SECONDARY, borderColor: COLOR_BORDER, '&.Mui-selected': { color: COLOR_ICE_BLUE, backgroundColor: 'rgba(144,202,249,0.12)' } } }}
+              >
+                <ToggleButton value="vertical">↕</ToggleButton>
+                <ToggleButton value="horizontal">↔</ToggleButton>
+                <ToggleButton value="diagonal">↗</ToggleButton>
+              </ToggleButtonGroup>
+            </>
+          )}
 
           {selectedNode.type === 'insight' && (
             <>

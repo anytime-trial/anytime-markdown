@@ -8,6 +8,10 @@ export interface NodeStyle {
   strokeWidth: number;
   fontSize: number;
   fontFamily: string;
+  borderRadius?: number;
+  shadow?: boolean;
+  gradientTo?: string;
+  gradientDirection?: 'vertical' | 'horizontal' | 'diagonal';
 }
 
 export type EndpointShape = 'none' | 'arrow' | 'circle' | 'diamond' | 'bar';

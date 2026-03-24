@@ -93,6 +93,36 @@ export function drawGrid(
   ctx.restore();
 }
 
+/** グラデーション fill を生成 */
+function makeFill(ctx: CanvasRenderingContext2D, style: GraphNode['style'], x: number, y: number, w: number, h: number): string | CanvasGradient {
+  if (!style.gradientTo) return style.fill;
+  const dir = style.gradientDirection ?? 'vertical';
+  let grd: CanvasGradient;
+  if (dir === 'horizontal') grd = ctx.createLinearGradient(x, y, x + w, y);
+  else if (dir === 'diagonal') grd = ctx.createLinearGradient(x, y, x + w, y + h);
+  else grd = ctx.createLinearGradient(x, y, x, y + h);
+  grd.addColorStop(0, style.fill);
+  grd.addColorStop(1, style.gradientTo);
+  return grd;
+}
+
+/** 影を適用 */
+function applyShadow(ctx: CanvasRenderingContext2D, style: GraphNode['style']): void {
+  if (style.shadow) {
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.35)';
+    ctx.shadowBlur = 12;
+    ctx.shadowOffsetX = 3;
+    ctx.shadowOffsetY = 3;
+  }
+}
+
+function clearShadow(ctx: CanvasRenderingContext2D): void {
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 0;
+}
+
 export function drawNode(
   ctx: CanvasRenderingContext2D,
   node: GraphNode,
@@ -101,21 +131,25 @@ export function drawNode(
   ctx.save();
 
   const { x, y, width, height, type, style, text } = node;
+  const radius = style.borderRadius ?? 0;
+  const fill = makeFill(ctx, style, x, y, width, height);
 
   if (type === 'sticky') {
+    // sticky は常に影・角丸
     ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
     ctx.shadowBlur = 8;
     ctx.shadowOffsetX = 2;
     ctx.shadowOffsetY = 2;
+    if (style.shadow) { ctx.shadowBlur = 12; ctx.shadowOffsetX = 3; ctx.shadowOffsetY = 3; }
 
-    ctx.fillStyle = style.fill;
-    drawRoundedRect(ctx, x, y, width, height, 4);
+    ctx.fillStyle = fill;
+    drawRoundedRect(ctx, x, y, width, height, Math.max(4, radius));
     ctx.fill();
 
-    ctx.shadowColor = 'transparent';
+    clearShadow(ctx);
     ctx.strokeStyle = selected ? SELECTION_COLOR : style.stroke;
     ctx.lineWidth = selected ? 2 : style.strokeWidth;
-    drawRoundedRect(ctx, x, y, width, height, 4);
+    drawRoundedRect(ctx, x, y, width, height, Math.max(4, radius));
     ctx.stroke();
   } else if (type === 'ellipse') {
     const cx = x + width / 2;
@@ -123,10 +157,12 @@ export function drawNode(
     const rx = width / 2;
     const ry = height / 2;
 
+    applyShadow(ctx, style);
     ctx.beginPath();
     ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
-    ctx.fillStyle = style.fill;
+    ctx.fillStyle = fill;
     ctx.fill();
+    clearShadow(ctx);
     ctx.strokeStyle = selected ? SELECTION_COLOR : style.stroke;
     ctx.lineWidth = selected ? 2 : style.strokeWidth;
     ctx.stroke();
@@ -139,41 +175,48 @@ export function drawNode(
       ctx.setLineDash([]);
     }
   } else if (type === 'diamond') {
-    ctx.fillStyle = style.fill;
+    applyShadow(ctx, style);
+    ctx.fillStyle = fill;
     drawDiamond(ctx, x, y, width, height);
     ctx.fill();
+    clearShadow(ctx);
     ctx.strokeStyle = selected ? SELECTION_COLOR : style.stroke;
     ctx.lineWidth = selected ? 2 : style.strokeWidth;
     drawDiamond(ctx, x, y, width, height);
     ctx.stroke();
   } else if (type === 'parallelogram') {
-    ctx.fillStyle = style.fill;
+    applyShadow(ctx, style);
+    ctx.fillStyle = fill;
     drawParallelogram(ctx, x, y, width, height);
     ctx.fill();
+    clearShadow(ctx);
     ctx.strokeStyle = selected ? SELECTION_COLOR : style.stroke;
     ctx.lineWidth = selected ? 2 : style.strokeWidth;
     drawParallelogram(ctx, x, y, width, height);
     ctx.stroke();
   } else if (type === 'cylinder') {
-    ctx.fillStyle = style.fill;
+    applyShadow(ctx, style);
+    ctx.fillStyle = fill;
     drawCylinderBody(ctx, x, y, width, height);
     ctx.fill();
+    clearShadow(ctx);
     ctx.strokeStyle = selected ? SELECTION_COLOR : style.stroke;
     ctx.lineWidth = selected ? 2 : style.strokeWidth;
     drawCylinderBody(ctx, x, y, width, height);
     ctx.stroke();
-    // Draw top ellipse on top (stroke only)
     ctx.strokeStyle = selected ? SELECTION_COLOR : style.stroke;
     ctx.lineWidth = selected ? 2 : style.strokeWidth;
     drawCylinderTop(ctx, x, y, width, height);
     ctx.stroke();
   } else if (type === 'insight') {
-    drawRoundedRect(ctx, x, y, width, height, 8);
-    ctx.fillStyle = style.fill;
+    applyShadow(ctx, style);
+    drawRoundedRect(ctx, x, y, width, height, Math.max(8, radius));
+    ctx.fillStyle = fill;
     ctx.fill();
+    clearShadow(ctx);
     ctx.strokeStyle = selected ? SELECTION_COLOR : style.stroke;
     ctx.lineWidth = selected ? 2 : style.strokeWidth;
-    drawRoundedRect(ctx, x, y, width, height, 8);
+    drawRoundedRect(ctx, x, y, width, height, Math.max(8, radius));
     ctx.stroke();
     // Label badge
     if (node.label) {
@@ -200,12 +243,14 @@ export function drawNode(
       ctx.fillText(text, x + 10, y + 34, width - 20);
     }
   } else if (type === 'doc') {
-    drawRoundedRect(ctx, x, y, width, height, 8);
-    ctx.fillStyle = style.fill;
+    applyShadow(ctx, style);
+    drawRoundedRect(ctx, x, y, width, height, Math.max(8, radius));
+    ctx.fillStyle = fill;
     ctx.fill();
+    clearShadow(ctx);
     ctx.strokeStyle = selected ? SELECTION_COLOR : style.stroke;
     ctx.lineWidth = selected ? 2 : style.strokeWidth;
-    drawRoundedRect(ctx, x, y, width, height, 8);
+    drawRoundedRect(ctx, x, y, width, height, Math.max(8, radius));
     ctx.stroke();
     // Doc icon
     ctx.fillStyle = DOC_ICON_COLOR;
@@ -234,11 +279,23 @@ export function drawNode(
     }
   } else {
     // rect
-    ctx.fillStyle = style.fill;
-    ctx.fillRect(x, y, width, height);
-    ctx.strokeStyle = selected ? SELECTION_COLOR : style.stroke;
-    ctx.lineWidth = selected ? 2 : style.strokeWidth;
-    ctx.strokeRect(x, y, width, height);
+    applyShadow(ctx, style);
+    ctx.fillStyle = fill;
+    if (radius > 0) {
+      drawRoundedRect(ctx, x, y, width, height, radius);
+      ctx.fill();
+      clearShadow(ctx);
+      ctx.strokeStyle = selected ? SELECTION_COLOR : style.stroke;
+      ctx.lineWidth = selected ? 2 : style.strokeWidth;
+      drawRoundedRect(ctx, x, y, width, height, radius);
+      ctx.stroke();
+    } else {
+      ctx.fillRect(x, y, width, height);
+      clearShadow(ctx);
+      ctx.strokeStyle = selected ? SELECTION_COLOR : style.stroke;
+      ctx.lineWidth = selected ? 2 : style.strokeWidth;
+      ctx.strokeRect(x, y, width, height);
+    }
   }
 
   if (text && type !== 'insight' && type !== 'doc') {
