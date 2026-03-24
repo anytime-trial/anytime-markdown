@@ -31,7 +31,7 @@ flowchart TD
     subgraph mono ["anytime-markdown (npm workspaces monorepo)"]
         EC["markdown-core<br/>共有エディタライブラリ"]
         WA["web-app<br/>Next.js Web アプリ"]
-        VE["vscode-extension<br/>VS Code 拡張機能"]
+        VE["vscode-markdown-extension<br/>VS Code 拡張機能"]
         MA["mobile-app<br/>Capacitor Android アプリ"]
     end
 
@@ -173,8 +173,8 @@ npm run e2e
 # 1. リポジトリルートで依存パッケージをインストール
 npm install
 
-# 2. vscode-extension ディレクトリに移動
-cd packages/vscode-extension
+# 2. vscode-markdown-extension ディレクトリに移動
+cd packages/vscode-markdown-extension
 
 # 3. VSIX ファイルを生成
 npx vsce package --no-dependencies
@@ -195,7 +195,7 @@ code --install-extension anytime-markdown-<version>.vsix
 ### Marketplace への公開
 
 ```bash
-cd packages/vscode-extension
+cd packages/vscode-markdown-extension
 npx vsce publish --no-dependencies --pat <your-token>
 ```
 

@@ -33,7 +33,7 @@ flowchart TD
     subgraph mono ["anytime-markdown (npm workspaces monorepo)"]
         EC["markdown-core<br/>Shared editor library"]
         WA["web-app<br/>Next.js Web app"]
-        VE["vscode-extension<br/>VS Code extension"]
+        VE["vscode-markdown-extension<br/>VS Code extension"]
         MA["mobile-app<br/>Capacitor Android app"]
     end
 
@@ -175,8 +175,8 @@ Steps to create a `.vsix` file for local installation or test distribution.
 # 1. Install dependencies from the repository root
 npm install
 
-# 2. Navigate to the vscode-extension directory
-cd packages/vscode-extension
+# 2. Navigate to the vscode-markdown-extension directory
+cd packages/vscode-markdown-extension
 
 # 3. Generate the VSIX file
 npx vsce package --no-dependencies
@@ -197,7 +197,7 @@ Or use the VS Code Command Palette → "Extensions: Install from VSIX..." and se
 ### Publishing to Marketplace
 
 ```bash
-cd packages/vscode-extension
+cd packages/vscode-markdown-extension
 npx vsce publish --no-dependencies --pat <your-token>
 ```
 

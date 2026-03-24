@@ -833,7 +833,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - デフォルト値の改善と未使用 i18n キーの削除 (L-01, L-02, L-04, L-05)
 - global-error ページの i18n 対応とスタイリング (M-15)
 - not-found / error ページの追加 (L-07)
-- npm test --workspaces のエラー解消 (mobile-app, vscode-extension)
+- npm test --workspaces のエラー解消 (mobile-app, vscode-markdown-extension)
 - providers.test.tsx の window.matchMedia モック追加
 
 ## [0.0.5] - 2026-02-28
@@ -861,7 +861,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - ヘッダーの空ボックスを除去
 
 ### Added
-- markdown-core / web-app / vscode-extension のテストスイートを追加
+- markdown-core / web-app / vscode-markdown-extension のテストスイートを追加
 
 ## [0.0.3] - 2026-02-27
 
@@ -872,7 +872,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - GitHub Actions の公開トリガーをタグ push から master マージに変更
 
 ### Fixed
-- vscode-extension package.json に repository フィールドを追加（vsce 警告解消）
+- vscode-markdown-extension package.json に repository フィールドを追加（vsce 警告解消）
 
 ## [0.0.2] - 2026-02-26
 

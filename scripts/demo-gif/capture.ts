@@ -19,7 +19,7 @@ import * as fs from "fs";
 
 // VS Code の実行パス（環境に応じて変更）
 const VSCODE_PATH = process.env.VSCODE_PATH || "/usr/bin/code";
-const EXTENSION_PATH = path.resolve(__dirname, "../../packages/vscode-extension");
+const EXTENSION_PATH = path.resolve(__dirname, "../../packages/vscode-markdown-extension");
 const OUTPUT_DIR = path.resolve(__dirname, "output");
 
 interface CaptureStep {

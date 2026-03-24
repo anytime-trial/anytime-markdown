@@ -255,7 +255,7 @@ describe("ラウンドトリップ: 複合要素", () => {
   });
 
   test("見出し + リスト（ProseMirror が \\n\\n に正規化する）", () => {
-    const md = "### 構成\n\n- markdown-core\n- web-app\n- vscode-extension";
+    const md = "### 構成\n\n- markdown-core\n- web-app\n- vscode-markdown-extension";
     const result = roundTrip(md);
     // ProseMirror はブロック間を \n\n に正規化する
     expect(result).toMatch(/### 構成\n\n- markdown-core/);
@@ -374,12 +374,12 @@ describe("エッジケース ラウンドトリップ", () => {
   });
 
   test("見出し直後のリスト（空行なし）が保持される", () => {
-    const md = "### 構成\n- markdown-core\n- web-app\n- vscode-extension";
+    const md = "### 構成\n- markdown-core\n- web-app\n- vscode-markdown-extension";
     expect(fullRoundTrip(md)).toBe(md);
   });
 
   test("見出し + 空行 + リスト（空行が保持される）", () => {
-    const md = "### 構成\n\n- markdown-core\n- web-app\n- vscode-extension";
+    const md = "### 構成\n\n- markdown-core\n- web-app\n- vscode-markdown-extension";
     expect(fullRoundTrip(md)).toBe(md);
   });
 

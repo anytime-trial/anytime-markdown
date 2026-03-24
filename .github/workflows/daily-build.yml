@@ -71,7 +71,7 @@ jobs:
 
       - name: Build extension
         run: npm run package
-        working-directory: packages/vscode-extension
+        working-directory: packages/vscode-markdown-extension
 
   codeql:
     runs-on: ubuntu-latest

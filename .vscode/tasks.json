@@ -5,7 +5,7 @@
 		{
 			"type": "npm",
 			"script": "watch",
-			"path": "packages/vscode-extension",
+			"path": "packages/vscode-markdown-extension",
 			"problemMatcher": "$ts-webpack-watch",
 			"isBackground": true,
 			"presentation": {

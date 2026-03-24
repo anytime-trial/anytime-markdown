@@ -13,7 +13,7 @@
     "packages/graph-core",
     "packages/mcp-editor",
     "packages/mcp-graph",
-    "packages/vscode-extension",
+    "packages/vscode-markdown-extension",
     "packages/vscode-graph-extension",
     "packages/web-app",
     "packages/mobile-app"

@@ -104,18 +104,18 @@ jobs:
 
       - name: Build extension
         run: npm run package
-        working-directory: packages/vscode-extension
+        working-directory: packages/vscode-markdown-extension
 
       - name: Package VSIX
         run: npx vsce package --no-dependencies
-        working-directory: packages/vscode-extension
+        working-directory: packages/vscode-markdown-extension
 
       - name: Upload VSIX artifact
         if: github.ref == 'refs/heads/master'
         uses: actions/upload-artifact@v4
         with:
           name: vsix-ci
-          path: packages/vscode-extension/*.vsix
+          path: packages/vscode-markdown-extension/*.vsix
           retention-days: 1
 
   publish:
@@ -131,7 +131,7 @@ jobs:
 
       - name: Get version from package.json
         id: version
-        run: echo "version=v$(node -p "require('./packages/vscode-extension/package.json').version")" >> "$GITHUB_OUTPUT"
+        run: echo "version=v$(node -p "require('./packages/vscode-markdown-extension/package.json').version")" >> "$GITHUB_OUTPUT"
 
       - name: Check if tag already exists
         id: tag_check
@@ -151,7 +151,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: vsix-ci
-          path: packages/vscode-extension
+          path: packages/vscode-markdown-extension
 
       - uses: actions/setup-node@v5
         if: steps.tag_check.outputs.exists == 'false'
@@ -161,7 +161,7 @@ jobs:
       - name: Publish to Marketplace
         if: steps.tag_check.outputs.exists == 'false'
         run: npx vsce publish --packagePath *.vsix --pat "$VSCE_PAT"
-        working-directory: packages/vscode-extension
+        working-directory: packages/vscode-markdown-extension
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
 
@@ -177,5 +177,5 @@ jobs:
         with:
           tag_name: ${{ steps.version.outputs.version }}
           name: ${{ steps.version.outputs.version }}
-          files: packages/vscode-extension/*.vsix
+          files: packages/vscode-markdown-extension/*.vsix
           generate_release_notes: true
