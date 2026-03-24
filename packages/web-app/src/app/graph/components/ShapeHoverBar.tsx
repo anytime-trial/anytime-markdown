@@ -58,6 +58,12 @@ export function ShapeHoverBar({ node, viewport, onChangeType }: ShapeHoverBarPro
         zIndex: 25,
         boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
         pointerEvents: 'auto',
+        opacity: 0,
+        animation: 'shapeBarFadeIn 300ms cubic-bezier(0, 0, 0.2, 1) 400ms forwards',
+        '@keyframes shapeBarFadeIn': {
+          from: { opacity: 0, transform: 'translateY(6px)' },
+          to: { opacity: 1, transform: 'translateY(0)' },
+        },
       }}
       onMouseDown={(e) => e.stopPropagation()}
     >
