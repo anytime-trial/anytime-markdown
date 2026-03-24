@@ -20,7 +20,9 @@
     "paths": {
       "@/*": ["../editor-core/src/*"],
       "@anytime-markdown/editor-core/src/*": ["../editor-core/src/*"],
-      "@anytime-markdown/editor-core": ["../editor-core/src/index.ts"]
+      "@anytime-markdown/editor-core": ["../editor-core/src/index.ts"],
+      "@anytime-markdown/graph-core": ["../graph-core/src/index.ts"],
+      "@anytime-markdown/graph-core/*": ["../graph-core/src/*"]
     }
   },
   "include": [

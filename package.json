@@ -10,6 +10,7 @@
   },
   "workspaces": [
     "packages/editor-core",
+    "packages/graph-core",
     "packages/vscode-extension",
     "packages/web-app",
     "packages/mobile-app"
