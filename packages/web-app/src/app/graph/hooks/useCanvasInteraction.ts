@@ -440,6 +440,14 @@ export function useCanvasInteraction({
             { nodeId: hit.id, x: world.x, y: world.y },
           );
           dispatch({ type: 'ADD_EDGE', edge });
+        } else if (!drag.fromConnectionPoint && (tool === 'line' || tool === 'arrow' || tool === 'connector')) {
+          // 線ツールで空白→空白: フリーなエッジを作成
+          const edge = createEdge(
+            edgeType,
+            { nodeId: drag.nodeId, x: drag.startWorldX, y: drag.startWorldY },
+            { x: world.x, y: world.y },
+          );
+          dispatch({ type: 'ADD_EDGE', edge });
         } else if (drag.fromConnectionPoint) {
           // 接続ポイント起点 + 空白にドロップ → 子ノード自動作成 + コネクタ接続
           const parentNode = drag.nodeId ? nodes.find(n => n.id === drag.nodeId) : undefined;
