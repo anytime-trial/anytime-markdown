@@ -752,7 +752,11 @@
     "importDrawio": "Import draw.io",
     "export": "Export",
     "import": "Import",
-    "url": "URL"
+    "url": "URL",
+    "clearAllConfirm": "All nodes and edges will be deleted. This action cannot be undone. Continue?",
+    "importConfirm": "The current document will be replaced. Continue?",
+    "confirm": "Confirm",
+    "cancel": "Cancel"
   },
   "Privacy": {
     "title": "Privacy Policy",

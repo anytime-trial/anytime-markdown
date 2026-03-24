@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Box } from '@mui/material';
+import { Box, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button } from '@mui/material';
+import { useTranslations } from 'next-intl';
 import { ToolType, GraphDocument, Viewport, createDocument, createNode } from '../types';
 import { screenToWorld } from '../engine/viewport';
 import { useGraphState } from '../hooks/useGraphState';
@@ -29,6 +30,13 @@ export function GraphEditor() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [docEditNodeId, setDocEditNodeId] = useState<string | null>(null);
   const { state, dispatch } = useGraphState();
+  const t = useTranslations('Graph');
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({ open: false, title: '', message: '', onConfirm: () => {} });
 
   useEffect(() => {
     const lastId = getLastDocumentId();
@@ -164,8 +172,13 @@ export function GraphEditor() {
   }, [state.document.viewport, dispatch]);
 
   const handleClearAll = useCallback(() => {
-    dispatch({ type: 'SET_DOCUMENT', doc: createDocument('Untitled') });
-  }, [dispatch]);
+    setConfirmDialog({
+      open: true,
+      title: t('clearAll'),
+      message: t('clearAllConfirm'),
+      onConfirm: () => dispatch({ type: 'SET_DOCUMENT', doc: createDocument('Untitled') }),
+    });
+  }, [dispatch, t]);
 
   const handleExportSvg = useCallback(() => {
     const svg = exportToSvg(state.document);
@@ -199,8 +212,15 @@ export function GraphEditor() {
       const reader = new FileReader();
       reader.onload = () => {
         const xml = reader.result as string;
-        const doc = importFromDrawio(xml);
-        dispatch({ type: 'SET_DOCUMENT', doc });
+        setConfirmDialog({
+          open: true,
+          title: t('import'),
+          message: t('importConfirm'),
+          onConfirm: () => {
+            const doc = importFromDrawio(xml);
+            dispatch({ type: 'SET_DOCUMENT', doc });
+          },
+        });
       };
       reader.readAsText(file);
     };
@@ -329,6 +349,25 @@ export function GraphEditor() {
         }}
         onClose={() => setDocEditNodeId(null)}
       />
+      <Dialog open={confirmDialog.open} onClose={() => setConfirmDialog(prev => ({ ...prev, open: false }))}>
+        <DialogTitle>{confirmDialog.title}</DialogTitle>
+        <DialogContent>
+          <DialogContentText>{confirmDialog.message}</DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmDialog(prev => ({ ...prev, open: false }))}>{t('cancel')}</Button>
+          <Button
+            onClick={() => {
+              confirmDialog.onConfirm();
+              setConfirmDialog(prev => ({ ...prev, open: false }));
+            }}
+            color="error"
+            autoFocus
+          >
+            {t('confirm')}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

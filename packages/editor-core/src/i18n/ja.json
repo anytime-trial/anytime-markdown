@@ -752,7 +752,11 @@
     "importDrawio": "draw.ioインポート",
     "export": "エクスポート",
     "import": "インポート",
-    "url": "URL"
+    "url": "URL",
+    "clearAllConfirm": "すべてのノードとエッジが削除されます。この操作は元に戻せません。続行しますか？",
+    "importConfirm": "現在のドキュメントが置き換えられます。続行しますか？",
+    "confirm": "確認",
+    "cancel": "キャンセル"
   },
   "Privacy": {
     "title": "プライバシーポリシー",
