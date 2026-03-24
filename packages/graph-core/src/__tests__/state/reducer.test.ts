@@ -72,13 +72,17 @@ describe('graphReducer', () => {
     expect(next).toBe(state);
   });
 
-  it('BRING_TO_FRONT / SEND_TO_BACK reorders nodes', () => {
+  it('BRING_TO_FRONT / SEND_TO_BACK sets zIndex', () => {
     const state = makeState();
     const s = graphReducer(state, { type: 'BRING_TO_FRONT', nodeIds: ['n1'] });
-    expect(s.document.nodes[s.document.nodes.length - 1].id).toBe('n1');
+    const n1 = s.document.nodes.find(n => n.id === 'n1')!;
+    const n2 = s.document.nodes.find(n => n.id === 'n2')!;
+    expect(n1.zIndex).toBeGreaterThan(n2.zIndex ?? 0);
 
     const s2 = graphReducer(s, { type: 'SEND_TO_BACK', nodeIds: ['n1'] });
-    expect(s2.document.nodes[0].id).toBe('n1');
+    const n1b = s2.document.nodes.find(n => n.id === 'n1')!;
+    const n2b = s2.document.nodes.find(n => n.id === 'n2')!;
+    expect(n1b.zIndex).toBeLessThan(n2b.zIndex ?? 0);
   });
 
   it('SELECT_ALL selects all nodes', () => {

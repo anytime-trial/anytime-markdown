@@ -225,22 +225,30 @@ export function graphReducer(state: GraphState, action: Action): GraphState {
     case 'BRING_TO_FRONT': {
       const s = pushHistory(state);
       const targetSet = new Set(action.nodeIds);
-      const rest = s.document.nodes.filter(n => !targetSet.has(n.id));
-      const targets = s.document.nodes.filter(n => targetSet.has(n.id));
+      const maxZ = s.document.nodes.reduce((m, n) => Math.max(m, n.zIndex ?? 0), 0);
       return {
         ...s,
-        document: { ...s.document, nodes: [...rest, ...targets] },
+        document: {
+          ...s.document,
+          nodes: s.document.nodes.map(n =>
+            targetSet.has(n.id) ? { ...n, zIndex: maxZ + 1 } : n,
+          ),
+        },
       };
     }
 
     case 'SEND_TO_BACK': {
       const s = pushHistory(state);
       const targetSet = new Set(action.nodeIds);
-      const rest = s.document.nodes.filter(n => !targetSet.has(n.id));
-      const targets = s.document.nodes.filter(n => targetSet.has(n.id));
+      const minZ = s.document.nodes.reduce((m, n) => Math.min(m, n.zIndex ?? 0), 0);
       return {
         ...s,
-        document: { ...s.document, nodes: [...targets, ...rest] },
+        document: {
+          ...s.document,
+          nodes: s.document.nodes.map(n =>
+            targetSet.has(n.id) ? { ...n, zIndex: minZ - 1 } : n,
+          ),
+        },
       };
     }
 
