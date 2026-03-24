@@ -37,6 +37,8 @@ export interface GraphNode {
   label?: string;
   labelColor?: string;
   docContent?: string;
+  locked?: boolean;
+  zIndex?: number;
 }
 
 export interface EdgeEndpoint {

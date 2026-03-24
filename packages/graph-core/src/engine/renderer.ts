@@ -37,10 +37,22 @@ export function render(
 
   if (showGrid) drawGrid(ctx, viewport, width, height);
 
-  // フレームを先に描画（背面）
-  nodes.filter(n => n.type === 'frame').forEach(n => drawNode(ctx, n, selection.nodeIds.includes(n.id)));
+  // zIndex順にソートして描画（フレームは常に背面）
+  const sortedNodes = [...nodes].sort((a, b) => {
+    const aIsFrame = a.type === 'frame' ? 0 : 1;
+    const bIsFrame = b.type === 'frame' ? 0 : 1;
+    if (aIsFrame !== bIsFrame) return aIsFrame - bIsFrame;
+    return (a.zIndex ?? 0) - (b.zIndex ?? 0);
+  });
+  const frameNodes = sortedNodes.filter(n => n.type === 'frame');
+  const nonFrameNodes = sortedNodes.filter(n => n.type !== 'frame');
+  frameNodes.forEach(n => drawNode(ctx, n, selection.nodeIds.includes(n.id)));
   edges.forEach(e => drawEdge(ctx, e, selection.edgeIds.includes(e.id)));
-  nodes.filter(n => n.type !== 'frame').forEach(n => drawNode(ctx, n, selection.nodeIds.includes(n.id)));
+  nonFrameNodes.forEach(n => {
+    drawNode(ctx, n, selection.nodeIds.includes(n.id));
+    // ロック中ノードにロックインジケータ
+    if (n.locked) drawLockIndicator(ctx, n, viewport.scale);
+  });
   // 単一選択時のみ個別リサイズハンドル表示
   if (selection.nodeIds.length === 1) {
     const sn = nodes.find(n => n.id === selection.nodeIds[0]);
@@ -575,6 +587,20 @@ function drawEndpointShape(
     ctx.lineTo(tipX + len * Math.cos(angle - Math.PI / 2), tipY + len * Math.sin(angle - Math.PI / 2));
     ctx.stroke();
   }
+  ctx.restore();
+}
+
+/** ロック中ノードに南京錠アイコンを描画 */
+function drawLockIndicator(ctx: CanvasRenderingContext2D, node: GraphNode, scale: number): void {
+  const size = 14 / scale;
+  const px = node.x + node.width - size - 4 / scale;
+  const py = node.y + 4 / scale;
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.font = `${size}px ${FONT_FAMILY}`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText('\u{1F512}', px, py);
   ctx.restore();
 }
 

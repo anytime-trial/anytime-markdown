@@ -189,6 +189,23 @@ export function GraphEditor() {
     });
   }, [state.document.nodes, state.selection.nodeIds, dispatch]);
 
+  const handleLayerAction = useCallback((action: 'up' | 'down' | 'top' | 'bottom') => {
+    if (state.selection.nodeIds.length !== 1) return;
+    const nodeId = state.selection.nodeIds[0];
+    const node = state.document.nodes.find(n => n.id === nodeId);
+    if (!node) return;
+    const currentZ = node.zIndex ?? 0;
+    const allZ = state.document.nodes.filter(n => n.id !== nodeId).map(n => n.zIndex ?? 0);
+    const maxZ = allZ.length > 0 ? Math.max(...allZ) : 0;
+    const minZ = allZ.length > 0 ? Math.min(...allZ) : 0;
+    let newZ = currentZ;
+    if (action === 'up') newZ = currentZ + 1;
+    else if (action === 'down') newZ = currentZ - 1;
+    else if (action === 'top') newZ = maxZ + 1;
+    else if (action === 'bottom') newZ = minZ - 1;
+    dispatch({ type: 'UPDATE_NODE', id: nodeId, changes: { zIndex: newZ } });
+  }, [state.selection.nodeIds, state.document.nodes, dispatch]);
+
   const selectedNode = state.selection.nodeIds.length === 1
     ? state.document.nodes.find(n => n.id === state.selection.nodeIds[0]) ?? null : null;
   const selectedEdge = state.selection.edgeIds.length === 1
@@ -255,6 +272,7 @@ export function GraphEditor() {
             selectedEdge={selectedEdge}
             onUpdateNode={(id, changes) => dispatch({ type: 'UPDATE_NODE', id, changes })}
             onUpdateEdge={(id, changes) => dispatch({ type: 'UPDATE_EDGE', id, changes })}
+            onLayerAction={handleLayerAction}
             onClose={() => setShowProperty(false)}
           />
         )}

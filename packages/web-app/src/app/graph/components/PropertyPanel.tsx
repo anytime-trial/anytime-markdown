@@ -5,7 +5,15 @@ import {
   Box, Typography, TextField, Slider, Divider, IconButton, ToggleButton, ToggleButtonGroup,
   Switch, FormControlLabel, Select, MenuItem as MuiMenuItem, FormControl,
 } from '@mui/material';
-import { Close as CloseIcon } from '@mui/icons-material';
+import {
+  Close as CloseIcon,
+  Lock as LockIcon,
+  LockOpen as LockOpenIcon,
+  ArrowUpward as UpIcon,
+  ArrowDownward as DownIcon,
+  VerticalAlignTop as TopIcon,
+  VerticalAlignBottom as BottomIcon,
+} from '@mui/icons-material';
 import { useTranslations } from 'next-intl';
 import { GraphNode, GraphEdge, EndpointShape } from '../types';
 import {
@@ -26,10 +34,11 @@ interface PropertyPanelProps {
   selectedEdge: GraphEdge | null;
   onUpdateNode: (id: string, changes: Partial<GraphNode>) => void;
   onUpdateEdge: (id: string, changes: Partial<GraphEdge>) => void;
+  onLayerAction?: (action: 'up' | 'down' | 'top' | 'bottom') => void;
   onClose: () => void;
 }
 
-export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpdateEdge, onClose }: PropertyPanelProps) {
+export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpdateEdge, onLayerAction, onClose }: PropertyPanelProps) {
   const t = useTranslations('Graph');
   if (!selectedNode && !selectedEdge) return null;
 
@@ -50,6 +59,32 @@ export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpda
 
       {selectedNode && (
         <>
+          {/* ロック & レイヤー */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 2 }}>
+            <IconButton
+              size="small"
+              onClick={() => onUpdateNode(selectedNode.id, { locked: !selectedNode.locked })}
+              sx={{ color: selectedNode.locked ? COLOR_ICE_BLUE : COLOR_TEXT_SECONDARY }}
+            >
+              {selectedNode.locked ? <LockIcon fontSize="small" /> : <LockOpenIcon fontSize="small" />}
+            </IconButton>
+            <Typography variant="caption" sx={{ color: COLOR_TEXT_SECONDARY, flex: 1 }}>
+              {selectedNode.locked ? t('locked') : t('unlocked')}
+            </Typography>
+            <IconButton size="small" onClick={() => onLayerAction?.('top')} sx={{ color: COLOR_TEXT_SECONDARY }}>
+              <TopIcon fontSize="small" />
+            </IconButton>
+            <IconButton size="small" onClick={() => onLayerAction?.('up')} sx={{ color: COLOR_TEXT_SECONDARY }}>
+              <UpIcon fontSize="small" />
+            </IconButton>
+            <IconButton size="small" onClick={() => onLayerAction?.('down')} sx={{ color: COLOR_TEXT_SECONDARY }}>
+              <DownIcon fontSize="small" />
+            </IconButton>
+            <IconButton size="small" onClick={() => onLayerAction?.('bottom')} sx={{ color: COLOR_TEXT_SECONDARY }}>
+              <BottomIcon fontSize="small" />
+            </IconButton>
+          </Box>
+
           <Typography variant="caption" sx={{ color: COLOR_TEXT_SECONDARY }}>{t('fillColor')}</Typography>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 2 }}>
             {COLORS.map(c => (

@@ -139,6 +139,7 @@ export function useCanvasInteraction({
 
       if (hit.type === 'resize-handle' && hit.id && hit.handle) {
         const node = nodes.find(n => n.id === hit.id)!;
+        if (node.locked) return;
         dragRef.current = {
           type: 'resize', startWorldX: world.x, startWorldY: world.y,
           startScreenX: sx, startScreenY: sy, handle: hit.handle, nodeId: hit.id,
@@ -177,10 +178,13 @@ export function useCanvasInteraction({
         }
         selectedIds = [...new Set(selectedIds)];
         dispatch({ type: 'SET_SELECTION', selection: { nodeIds: selectedIds, edgeIds: [] } });
+        // ロック中ノードが含まれる場合は移動しない
+        const hitNode = nodes.find(n => n.id === hit.id);
+        if (hitNode?.locked) return;
         const initialNodes = new Map<string, { x: number; y: number; width: number; height: number }>();
         selectedIds.forEach(id => {
           const n = nodes.find(nd => nd.id === id);
-          if (n) initialNodes.set(id, { x: n.x, y: n.y, width: n.width, height: n.height });
+          if (n && !n.locked) initialNodes.set(id, { x: n.x, y: n.y, width: n.width, height: n.height });
         });
         dragRef.current = {
           type: 'move', startWorldX: world.x, startWorldY: world.y,
@@ -565,6 +569,12 @@ export function useCanvasInteraction({
     }
     if ((e.key === 'Delete' || e.key === 'Backspace') && (selection.nodeIds.length > 0 || selection.edgeIds.length > 0)) {
       e.preventDefault();
+      // ロック中ノードは削除から除外
+      const hasLocked = selection.nodeIds.some(id => nodes.find(n => n.id === id)?.locked);
+      if (hasLocked) {
+        const unlocked = selection.nodeIds.filter(id => !nodes.find(n => n.id === id)?.locked);
+        dispatch({ type: 'SET_SELECTION', selection: { nodeIds: unlocked, edgeIds: selection.edgeIds } });
+      }
       dispatch({ type: 'DELETE_SELECTED' });
       return;
     }
