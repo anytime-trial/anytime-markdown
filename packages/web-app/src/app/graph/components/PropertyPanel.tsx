@@ -2,15 +2,38 @@
 
 import React from 'react';
 import {
-  Box, Typography, TextField, Slider, Divider, IconButton,
+  Box, Typography, TextField, Slider, Divider, IconButton, Tooltip,
 } from '@mui/material';
-import { Close as CloseIcon } from '@mui/icons-material';
-import { GraphNode, GraphEdge } from '../types';
+import {
+  Close as CloseIcon,
+  CropSquare as RectIcon,
+  CircleOutlined as EllipseIcon,
+  StickyNote2Outlined as StickyIcon,
+  TextFields as TextIcon,
+  Diamond as DiamondIcon,
+  Hexagon as ParallelogramIcon,
+  Storage as CylinderIcon,
+  Lightbulb as InsightIcon,
+  Description as DocIcon,
+} from '@mui/icons-material';
+import { GraphNode, GraphEdge, NodeType } from '../types';
 import {
   COLOR_CHARCOAL, COLOR_BORDER, COLOR_ICE_BLUE,
   COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY,
   INSIGHT_LABEL_COLORS,
 } from '@anytime-markdown/graph-core';
+
+const SHAPE_OPTIONS: { type: NodeType; icon: React.ReactNode; label: string }[] = [
+  { type: 'rect', icon: <RectIcon fontSize="small" />, label: 'Rectangle' },
+  { type: 'ellipse', icon: <EllipseIcon fontSize="small" />, label: 'Ellipse' },
+  { type: 'diamond', icon: <DiamondIcon fontSize="small" />, label: 'Diamond' },
+  { type: 'parallelogram', icon: <ParallelogramIcon fontSize="small" />, label: 'Parallelogram' },
+  { type: 'cylinder', icon: <CylinderIcon fontSize="small" />, label: 'Cylinder' },
+  { type: 'sticky', icon: <StickyIcon fontSize="small" />, label: 'Sticky' },
+  { type: 'text', icon: <TextIcon fontSize="small" />, label: 'Text' },
+  { type: 'insight', icon: <InsightIcon fontSize="small" />, label: 'Insight' },
+  { type: 'doc', icon: <DocIcon fontSize="small" />, label: 'Document' },
+];
 
 const COLORS = [
   '#ffffff', '#f44336', '#e91e63', '#9c27b0', '#673ab7',
@@ -47,6 +70,26 @@ export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpda
 
       {selectedNode && (
         <>
+          <Typography variant="caption" sx={{ color: COLOR_TEXT_SECONDARY }}>Shape</Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 2 }}>
+            {SHAPE_OPTIONS.map(s => (
+              <Tooltip key={s.type} title={s.label}>
+                <IconButton
+                  size="small"
+                  onClick={() => onUpdateNode(selectedNode.id, { type: s.type })}
+                  sx={{
+                    color: selectedNode.type === s.type ? COLOR_ICE_BLUE : COLOR_TEXT_SECONDARY,
+                    border: selectedNode.type === s.type ? `1px solid ${COLOR_ICE_BLUE}` : `1px solid ${COLOR_BORDER}`,
+                    borderRadius: '6px',
+                    width: 32, height: 32,
+                  }}
+                >
+                  {s.icon}
+                </IconButton>
+              </Tooltip>
+            ))}
+          </Box>
+
           <Typography variant="caption" sx={{ color: COLOR_TEXT_SECONDARY }}>Fill Color</Typography>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 2 }}>
             {COLORS.map(c => (
