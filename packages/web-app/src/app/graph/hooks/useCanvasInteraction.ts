@@ -244,7 +244,7 @@ export function useCanvasInteraction({
         type: 'edge',
         fromX: drag.startWorldX, fromY: drag.startWorldY,
         toX: world.x, toY: world.y,
-        edgeType: tool as 'line' | 'arrow' | 'connector',
+        edgeType: (tool === 'line' || tool === 'arrow' || tool === 'connector') ? tool : 'connector',
         snapNodeId: hit.type === 'node' ? hit.id : undefined,
       };
       return;
@@ -302,7 +302,8 @@ export function useCanvasInteraction({
 
     if (drag.type === 'create-edge') {
       const hit = hitTest(nodes, edges, world.x, world.y, viewport.scale, []);
-      const edgeType = tool as 'line' | 'arrow' | 'connector';
+      const edgeType: 'line' | 'arrow' | 'connector' =
+        (tool === 'line' || tool === 'arrow' || tool === 'connector') ? tool : 'connector';
       const edge = createEdge(
         edgeType,
         { nodeId: drag.nodeId, x: drag.startWorldX, y: drag.startWorldY },
