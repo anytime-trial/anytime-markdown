@@ -45,6 +45,14 @@ jobs:
         run: npx jest --coverage --coverageReporters=lcov
         working-directory: packages/web-app
 
+      - name: Run mcp-editor tests
+        run: npx jest --maxWorkers=1
+        working-directory: packages/mcp-editor
+
+      - name: Run mcp-graph tests
+        run: npx jest --maxWorkers=1
+        working-directory: packages/mcp-graph
+
       - name: SonarCloud Scan
         continue-on-error: true
         uses: SonarSource/sonarqube-scan-action@v6

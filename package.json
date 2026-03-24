@@ -11,6 +11,8 @@
   "workspaces": [
     "packages/editor-core",
     "packages/graph-core",
+    "packages/mcp-editor",
+    "packages/mcp-graph",
     "packages/vscode-extension",
     "packages/vscode-graph-extension",
     "packages/web-app",

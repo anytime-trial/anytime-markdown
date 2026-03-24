@@ -2,6 +2,8 @@
 	"files": [],
 	"references": [
 		{ "path": "packages/editor-core" },
+		{ "path": "packages/mcp-editor" },
+		{ "path": "packages/mcp-graph" },
 		{ "path": "packages/vscode-extension" }
 	]
 }

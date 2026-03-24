@@ -36,10 +36,34 @@ function colorFromHex(hex: string | undefined, fallback: string): string {
   return hex.startsWith('#') ? hex : `#${hex}`;
 }
 
+/** Convert NodeList/HTMLCollection to array for cross-platform compatibility (browser + xmldom) */
+function toArray(nodeList: NodeListOf<Element> | HTMLCollectionOf<Element>): Element[] {
+  const result: Element[] = [];
+  for (let i = 0; i < nodeList.length; i++) {
+    result.push(nodeList[i]);
+  }
+  return result;
+}
+
+/** Find first child element matching tag name (xmldom-compatible replacement for querySelector) */
+function findChildByTag(parent: Element, tagName: string): Element | null {
+  const children = parent.getElementsByTagName(tagName);
+  return children.length > 0 ? children[0] : null;
+}
+
+/** Find child mxPoint with specific 'as' attribute */
+function findMxPoint(parent: Element, asValue: string): Element | null {
+  const points = parent.getElementsByTagName('mxPoint');
+  for (let i = 0; i < points.length; i++) {
+    if (points[i].getAttribute('as') === asValue) return points[i];
+  }
+  return null;
+}
+
 export function importFromDrawio(xmlString: string): GraphDocument {
   const parser = new DOMParser();
   const xmlDoc = parser.parseFromString(xmlString, 'text/xml');
-  const cells = xmlDoc.querySelectorAll('mxCell');
+  const cells = toArray(xmlDoc.getElementsByTagName('mxCell'));
 
   const nodes: GraphNode[] = [];
   const edges: GraphEdge[] = [];
@@ -56,7 +80,7 @@ export function importFromDrawio(xmlString: string): GraphDocument {
     const isEdge = cell.getAttribute('edge') === '1';
 
     if (isVertex) {
-      const geo = cell.querySelector('mxGeometry');
+      const geo = findChildByTag(cell, 'mxGeometry');
       const x = parseFloat(geo?.getAttribute('x') ?? '0');
       const y = parseFloat(geo?.getAttribute('y') ?? '0');
       const width = parseFloat(geo?.getAttribute('width') ?? '120');
@@ -83,9 +107,9 @@ export function importFromDrawio(xmlString: string): GraphDocument {
       const source = cell.getAttribute('source') ?? undefined;
       const target = cell.getAttribute('target') ?? undefined;
 
-      const geo = cell.querySelector('mxGeometry');
-      const srcPt = geo?.querySelector('mxPoint[as="sourcePoint"]');
-      const tgtPt = geo?.querySelector('mxPoint[as="targetPoint"]');
+      const geo = findChildByTag(cell, 'mxGeometry');
+      const srcPt = geo ? findMxPoint(geo, 'sourcePoint') : null;
+      const tgtPt = geo ? findMxPoint(geo, 'targetPoint') : null;
 
       const fromX = parseFloat(srcPt?.getAttribute('x') ?? '0');
       const fromY = parseFloat(srcPt?.getAttribute('y') ?? '0');
