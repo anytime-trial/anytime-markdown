@@ -31,7 +31,7 @@ async function getSanitizeFunction(): Promise<(md: string) => string> {
   setupDomGlobals();
   // Import directly from the util file to avoid pulling in React/Next.js dependencies
   const mod = await import('@anytime-markdown/editor-core/src/utils/sanitizeMarkdown');
-  sanitizeMarkdownFn = mod.sanitizeMarkdown;
+  sanitizeMarkdownFn = mod.sanitizeMarkdown as (md: string) => string;
   return sanitizeMarkdownFn;
 }
 

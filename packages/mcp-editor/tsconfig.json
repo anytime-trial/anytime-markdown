@@ -6,7 +6,11 @@
     "lib": ["ES2023"],
     "noEmit": true,
     "isolatedModules": true,
-    "declaration": true
+    "declaration": true,
+    "baseUrl": ".",
+    "paths": {
+      "@anytime-markdown/editor-core/src/*": ["../editor-core/src/*"]
+    }
   },
   "include": ["src/**/*"]
 }
