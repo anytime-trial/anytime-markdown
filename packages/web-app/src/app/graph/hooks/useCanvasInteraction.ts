@@ -350,17 +350,29 @@ export function useCanvasInteraction({
       const dy = world.y - drag.startWorldY;
       const ids = [...drag.initialNodes.keys()];
 
-      if (!showGrid && ids.length === 1) {
+      if (!showGrid && ids.length > 0) {
         // Smart guides: snap to other nodes when grid is off
-        const id = ids[0];
-        const init = drag.initialNodes.get(id)!;
-        const rawX = init.x + dx;
-        const rawY = init.y + dy;
+        // Compute bounding box of all dragged nodes (works for single and multi-node)
+        const draggedInits = ids.map(id => ({ id, init: drag.initialNodes!.get(id)! }));
+        const bboxX = Math.min(...draggedInits.map(d => d.init.x + dx));
+        const bboxY = Math.min(...draggedInits.map(d => d.init.y + dy));
+        const bboxRight = Math.max(...draggedInits.map(d => d.init.x + dx + d.init.width));
+        const bboxBottom = Math.max(...draggedInits.map(d => d.init.y + dy + d.init.height));
+        const bboxWidth = bboxRight - bboxX;
+        const bboxHeight = bboxBottom - bboxY;
+
         const otherRects = nodes
           .filter(n => !drag.initialNodes!.has(n.id))
           .map(n => ({ id: n.id, x: n.x, y: n.y, width: n.width, height: n.height }));
-        const result = computeSmartGuides(rawX, rawY, init.width, init.height, otherRects, 5);
-        dispatch({ type: 'RESIZE_NODE', id, x: result.snappedX, y: result.snappedY, width: init.width, height: init.height });
+        const result = computeSmartGuides(bboxX, bboxY, bboxWidth, bboxHeight, otherRects, 5);
+
+        // Apply snap offset uniformly to all dragged nodes
+        const snapDx = result.snappedX - bboxX;
+        const snapDy = result.snappedY - bboxY;
+        ids.forEach(id => {
+          const init = drag.initialNodes!.get(id)!;
+          dispatch({ type: 'RESIZE_NODE', id, x: init.x + dx + snapDx, y: init.y + dy + snapDy, width: init.width, height: init.height });
+        });
         previewRef.current = { type: 'none', fromX: 0, fromY: 0, toX: 0, toY: 0, guides: result.guides };
       } else {
         ids.forEach(id => {
