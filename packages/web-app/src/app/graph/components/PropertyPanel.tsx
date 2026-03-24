@@ -124,6 +124,7 @@ export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpda
             <IconButton
               size="small"
               onClick={() => onUpdateNode(selectedNode.id, { locked: !selectedNode.locked })}
+              aria-label={selectedNode.locked ? t('unlock') : t('lock')}
               sx={{ color: selectedNode.locked ? COLOR_ICE_BLUE : COLOR_TEXT_SECONDARY }}
             >
               {selectedNode.locked ? <LockIcon fontSize="small" /> : <LockOpenIcon fontSize="small" />}
@@ -131,16 +132,16 @@ export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpda
             <Typography variant="caption" sx={{ color: COLOR_TEXT_SECONDARY, flex: 1 }}>
               {selectedNode.locked ? t('locked') : t('unlocked')}
             </Typography>
-            <IconButton size="small" onClick={() => onLayerAction?.('top')} sx={{ color: COLOR_TEXT_SECONDARY }}>
+            <IconButton size="small" onClick={() => onLayerAction?.('top')} aria-label={t('layerTop')} sx={{ color: COLOR_TEXT_SECONDARY }}>
               <TopIcon fontSize="small" />
             </IconButton>
-            <IconButton size="small" onClick={() => onLayerAction?.('up')} sx={{ color: COLOR_TEXT_SECONDARY }}>
+            <IconButton size="small" onClick={() => onLayerAction?.('up')} aria-label={t('layerUp')} sx={{ color: COLOR_TEXT_SECONDARY }}>
               <UpIcon fontSize="small" />
             </IconButton>
-            <IconButton size="small" onClick={() => onLayerAction?.('down')} sx={{ color: COLOR_TEXT_SECONDARY }}>
+            <IconButton size="small" onClick={() => onLayerAction?.('down')} aria-label={t('layerDown')} sx={{ color: COLOR_TEXT_SECONDARY }}>
               <DownIcon fontSize="small" />
             </IconButton>
-            <IconButton size="small" onClick={() => onLayerAction?.('bottom')} sx={{ color: COLOR_TEXT_SECONDARY }}>
+            <IconButton size="small" onClick={() => onLayerAction?.('bottom')} aria-label={t('layerBottom')} sx={{ color: COLOR_TEXT_SECONDARY }}>
               <BottomIcon fontSize="small" />
             </IconButton>
           </Box>
@@ -167,6 +168,7 @@ export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpda
             min={0} max={10} step={0.5}
             onChange={(_, v) => onUpdateNode(selectedNode.id, { style: { ...selectedNode.style, strokeWidth: v as number } })}
             size="small"
+            aria-label={t('strokeWidth')}
             sx={{ mb: 2, color: COLOR_ICE_BLUE }}
           />
 
@@ -176,6 +178,7 @@ export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpda
             min={8} max={48} step={1}
             onChange={(_, v) => onUpdateNode(selectedNode.id, { style: { ...selectedNode.style, fontSize: v as number } })}
             size="small"
+            aria-label={t('fontSize')}
             sx={{ mb: 2, color: COLOR_ICE_BLUE }}
           />
 
@@ -185,6 +188,7 @@ export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpda
             min={0} max={30} step={1}
             onChange={(_, v) => onUpdateNode(selectedNode.id, { style: { ...selectedNode.style, borderRadius: v as number } })}
             size="small"
+            aria-label={t('borderRadius')}
             sx={{ mb: 2, color: COLOR_ICE_BLUE }}
           />
 
@@ -234,9 +238,9 @@ export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpda
                 size="small"
                 sx={{ mb: 2, display: 'flex', '& .MuiToggleButton-root': { flex: 1, fontSize: '0.65rem', py: 0.3, color: COLOR_TEXT_SECONDARY, borderColor: COLOR_BORDER, '&.Mui-selected': { color: COLOR_ICE_BLUE, backgroundColor: 'rgba(144,202,249,0.12)' } } }}
               >
-                <ToggleButton value="vertical">↕</ToggleButton>
-                <ToggleButton value="horizontal">↔</ToggleButton>
-                <ToggleButton value="diagonal">↗</ToggleButton>
+                <ToggleButton value="vertical" aria-label={t('gradientVertical')}>↕</ToggleButton>
+                <ToggleButton value="horizontal" aria-label={t('gradientHorizontal')}>↔</ToggleButton>
+                <ToggleButton value="diagonal" aria-label={t('gradientDiagonal')}>↗</ToggleButton>
               </ToggleButtonGroup>
             </>
           )}
@@ -305,6 +309,7 @@ export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpda
                 ].filter(np => !current.some(cp => cp.x === np.x && cp.y === np.y));
                 onUpdateNode(selectedNode.id, { extraConnectionPoints: [...current, ...newPoints] });
               }}
+              aria-label={t('addConnectionPoints')}
               sx={{ color: COLOR_TEXT_SECONDARY, fontSize: '0.7rem' }}
             >
               <Typography variant="caption">+8</Typography>
@@ -313,6 +318,7 @@ export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpda
               <IconButton
                 size="small"
                 onClick={() => onUpdateNode(selectedNode.id, { extraConnectionPoints: undefined })}
+                aria-label={t('resetConnectionPoints')}
                 sx={{ color: COLOR_TEXT_SECONDARY, fontSize: '0.7rem' }}
               >
                 <Typography variant="caption">{t('reset')}</Typography>
@@ -344,6 +350,7 @@ export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpda
             min={1} max={10} step={0.5}
             onChange={(_, v) => onUpdateEdge(selectedEdge.id, { style: { ...selectedEdge.style, strokeWidth: v as number } })}
             size="small"
+            aria-label={t('strokeWidth')}
             sx={{ mb: 2, color: COLOR_ICE_BLUE }}
           />
 

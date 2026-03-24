@@ -762,7 +762,18 @@
     "edgesSelected": "edges selected",
     "saved": "Saved",
     "saving": "Saving...",
-    "saveError": "Save Error"
+    "saveError": "Save Error",
+    "lock": "Lock",
+    "unlock": "Unlock",
+    "layerTop": "Bring to Top",
+    "layerUp": "Bring Forward",
+    "layerDown": "Send Backward",
+    "layerBottom": "Send to Bottom",
+    "addConnectionPoints": "Add Connection Points",
+    "resetConnectionPoints": "Reset Connection Points",
+    "gradientVertical": "Vertical",
+    "gradientHorizontal": "Horizontal",
+    "gradientDiagonal": "Diagonal"
   },
   "Privacy": {
     "title": "Privacy Policy",

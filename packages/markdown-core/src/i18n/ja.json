@@ -762,7 +762,18 @@
     "edgesSelected": "エッジ選択中",
     "saved": "保存済み",
     "saving": "保存中...",
-    "saveError": "保存エラー"
+    "saveError": "保存エラー",
+    "lock": "ロック",
+    "unlock": "ロック解除",
+    "layerTop": "最前面へ",
+    "layerUp": "1つ前面へ",
+    "layerDown": "1つ背面へ",
+    "layerBottom": "最背面へ",
+    "addConnectionPoints": "接続ポイントを追加",
+    "resetConnectionPoints": "接続ポイントをリセット",
+    "gradientVertical": "縦方向",
+    "gradientHorizontal": "横方向",
+    "gradientDiagonal": "斜め方向"
   },
   "Privacy": {
     "title": "プライバシーポリシー",
