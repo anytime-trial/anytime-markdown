@@ -105,6 +105,18 @@ export function GraphEditor() {
       const tag = document.activeElement?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.getAttribute('contenteditable') === 'true') return;
       if (editingNodeId) return;
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+        const ids = state.selection.nodeIds;
+        if (ids.length === 0) return;
+        const step = e.shiftKey ? 10 : 1;
+        const dx = e.key === 'ArrowRight' ? step : e.key === 'ArrowLeft' ? -step : 0;
+        const dy = e.key === 'ArrowDown' ? step : e.key === 'ArrowUp' ? -step : 0;
+        if (dx !== 0 || dy !== 0) {
+          dispatch({ type: 'MOVE_NODES', ids, dx, dy });
+          e.preventDefault();
+        }
+        return;
+      }
       const map: Record<string, ToolType> = {
         v: 'select', r: 'rect', o: 'ellipse', s: 'sticky',
         t: 'text', d: 'diamond', p: 'parallelogram', y: 'cylinder',
@@ -117,7 +129,7 @@ export function GraphEditor() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [editingNodeId]);
+  }, [editingNodeId, state.selection.nodeIds, dispatch]);
 
   const handleTextCommit = useCallback((id: string, text: string) => {
     dispatch({ type: 'UPDATE_NODE', id, changes: { text } });
