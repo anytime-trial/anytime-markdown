@@ -46,9 +46,22 @@ export function render(options: RenderOptions): void {
     if (aIsFrame !== bIsFrame) return aIsFrame - bIsFrame;
     return (a.zIndex ?? 0) - (b.zIndex ?? 0);
   });
-  const frameNodes = sortedNodes.filter(n => n.type === 'frame' && isNodeVisible(n, visibleBounds));
-  const nonFrameNodes = sortedNodes.filter(n => n.type !== 'frame' && isNodeVisible(n, visibleBounds));
-  const visibleEdges = edges.filter(e => isEdgeVisible(e, visibleBounds));
+  const frameNodes: GraphNode[] = [];
+  const nonFrameNodes: GraphNode[] = [];
+  for (const n of sortedNodes) {
+    if (!isNodeVisible(n, visibleBounds)) continue;
+    if (n.type === 'frame') {
+      frameNodes.push(n);
+    } else {
+      nonFrameNodes.push(n);
+    }
+  }
+  const visibleEdges: GraphEdge[] = [];
+  for (const e of edges) {
+    if (isEdgeVisible(e, visibleBounds)) {
+      visibleEdges.push(e);
+    }
+  }
   frameNodes.forEach(n => drawNode(ctx, n, selection.nodeIds.includes(n.id)));
   visibleEdges.forEach(e => drawEdge(ctx, e, selection.edgeIds.includes(e.id)));
   nonFrameNodes.forEach(n => {
