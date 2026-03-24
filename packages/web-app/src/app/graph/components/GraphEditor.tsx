@@ -31,6 +31,7 @@ export function GraphEditor() {
   const [docEditNodeId, setDocEditNodeId] = useState<string | null>(null);
   const { state, dispatch } = useGraphState();
   const t = useTranslations('Graph');
+  const [liveMessage, setLiveMessage] = useState('');
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
     title: string;
@@ -48,6 +49,17 @@ export function GraphEditor() {
   }, [dispatch]);
 
   useAutoSave(state.document);
+
+  const canvasAriaLabel = `${t('graphCanvas')}: ${state.document.nodes.length} nodes, ${state.document.edges.length} edges`;
+
+  useEffect(() => {
+    const { nodeIds, edgeIds } = state.selection;
+    if (nodeIds.length > 0 || edgeIds.length > 0) {
+      setLiveMessage(`${nodeIds.length} ${t('nodesSelected')}, ${edgeIds.length} ${t('edgesSelected')}`);
+    } else {
+      setLiveMessage('');
+    }
+  }, [state.selection, t]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -313,6 +325,7 @@ export function GraphEditor() {
           velocityRef={velocityRef}
           onPanInertia={handlePanInertia}
           draggingNodeIds={isDragging && dragRef.current.type === 'move' ? state.selection.nodeIds : undefined}
+          ariaLabel={canvasAriaLabel}
         />
         {selectedNode && !editingNodeId && !docEditNodeId && !isDragging && (
           <ShapeHoverBar
@@ -337,6 +350,21 @@ export function GraphEditor() {
             onClose={() => setShowProperty(false)}
           />
         )}
+        <div
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          style={{
+            position: 'absolute',
+            width: 1,
+            height: 1,
+            overflow: 'hidden',
+            clip: 'rect(0, 0, 0, 0)',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {liveMessage}
+        </div>
       </Box>
       <DocEditorModal
         open={docEditNodeId !== null}

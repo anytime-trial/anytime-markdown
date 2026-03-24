@@ -756,7 +756,10 @@
     "clearAllConfirm": "All nodes and edges will be deleted. This action cannot be undone. Continue?",
     "importConfirm": "The current document will be replaced. Continue?",
     "confirm": "Confirm",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "graphCanvas": "Graph canvas",
+    "nodesSelected": "nodes selected",
+    "edgesSelected": "edges selected"
   },
   "Privacy": {
     "title": "Privacy Policy",

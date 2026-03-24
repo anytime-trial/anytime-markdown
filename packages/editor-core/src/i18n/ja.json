@@ -756,7 +756,10 @@
     "clearAllConfirm": "すべてのノードとエッジが削除されます。この操作は元に戻せません。続行しますか？",
     "importConfirm": "現在のドキュメントが置き換えられます。続行しますか？",
     "confirm": "確認",
-    "cancel": "キャンセル"
+    "cancel": "キャンセル",
+    "graphCanvas": "グラフキャンバス",
+    "nodesSelected": "ノード選択中",
+    "edgesSelected": "エッジ選択中"
   },
   "Privacy": {
     "title": "プライバシーポリシー",

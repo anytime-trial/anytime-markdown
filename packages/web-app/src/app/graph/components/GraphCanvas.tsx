@@ -30,6 +30,7 @@ interface GraphCanvasProps {
   velocityRef?: React.RefObject<{ vx: number; vy: number }>;
   onPanInertia?: (dx: number, dy: number) => void;
   draggingNodeIds?: string[];
+  ariaLabel?: string;
 }
 
 export function GraphCanvas({
@@ -39,6 +40,7 @@ export function GraphCanvas({
   viewportAnimRef, onViewportUpdate,
   velocityRef, onPanInertia,
   draggingNodeIds,
+  ariaLabel,
 }: GraphCanvasProps) {
   const rafRef = useRef<number>(0);
 
@@ -232,6 +234,9 @@ export function GraphCanvas({
   return (
     <canvas
       ref={canvasRef}
+      role="application"
+      tabIndex={0}
+      aria-label={ariaLabel}
       style={{ display: 'block', width: '100%', height: '100%' }}
       onMouseDown={onMouseDown}
       onMouseMove={onMouseMove}
