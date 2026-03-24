@@ -5,6 +5,7 @@ import { ToolType, GraphNode, GraphEdge, Viewport, SelectionState, createNode, c
 import { screenToWorld } from '../engine/viewport';
 import { hitTest, HitResult, ResizeHandle } from '../engine/hitTest';
 import { pan as panViewport, zoom as zoomViewport } from '../engine/viewport';
+import { snapToGrid } from '../engine/gridSnap';
 
 interface DragState {
   type: 'none' | 'pan' | 'move' | 'resize' | 'create-shape' | 'select-rect' | 'create-edge';
@@ -26,6 +27,7 @@ interface UseCanvasInteractionProps {
   selection: SelectionState;
   dispatch: React.Dispatch<any>;
   onTextEdit: (nodeId: string) => void;
+  showGrid: boolean;
 }
 
 export interface DragPreview {
@@ -43,7 +45,7 @@ export interface DragPreview {
 const EMPTY_PREVIEW: DragPreview = { type: 'none', fromX: 0, fromY: 0, toX: 0, toY: 0 };
 
 export function useCanvasInteraction({
-  canvasRef, tool, nodes, edges, viewport, selection, dispatch, onTextEdit,
+  canvasRef, tool, nodes, edges, viewport, selection, dispatch, onTextEdit, showGrid,
 }: UseCanvasInteractionProps) {
   const dragRef = useRef<DragState>({
     type: 'none', startWorldX: 0, startWorldY: 0, startScreenX: 0, startScreenY: 0,
@@ -171,7 +173,9 @@ export function useCanvasInteraction({
       const ids = [...drag.initialNodes.keys()];
       ids.forEach(id => {
         const init = drag.initialNodes!.get(id)!;
-        dispatch({ type: 'RESIZE_NODE', id, x: init.x + dx, y: init.y + dy, width: init.width, height: init.height });
+        const nx = showGrid ? snapToGrid(init.x + dx) : init.x + dx;
+        const ny = showGrid ? snapToGrid(init.y + dy) : init.y + dy;
+        dispatch({ type: 'RESIZE_NODE', id, x: nx, y: ny, width: init.width, height: init.height });
       });
       return;
     }
@@ -179,7 +183,11 @@ export function useCanvasInteraction({
     if (drag.type === 'resize' && drag.nodeId && drag.handle && drag.initialNodes) {
       const world = screenToWorld(viewport, sx, sy);
       const init = drag.initialNodes.get(drag.nodeId)!;
-      const { x, y, width, height } = computeResize(init, drag.handle, world.x, world.y, drag.startWorldX, drag.startWorldY);
+      const resized = computeResize(init, drag.handle, world.x, world.y, drag.startWorldX, drag.startWorldY);
+      const x = showGrid ? snapToGrid(resized.x) : resized.x;
+      const y = showGrid ? snapToGrid(resized.y) : resized.y;
+      const width = showGrid ? snapToGrid(resized.width) : resized.width;
+      const height = showGrid ? snapToGrid(resized.height) : resized.height;
       dispatch({ type: 'RESIZE_NODE', id: drag.nodeId, x, y, width, height });
       return;
     }
@@ -217,7 +225,7 @@ export function useCanvasInteraction({
       };
       return;
     }
-  }, [canvasRef, viewport, tool, dispatch]);
+  }, [canvasRef, viewport, tool, dispatch, showGrid]);
 
   const handleMouseUp = useCallback((e: React.MouseEvent) => {
     const canvas = canvasRef.current;
@@ -231,13 +239,18 @@ export function useCanvasInteraction({
     if (drag.type === 'create-shape') {
       const w = Math.abs(world.x - drag.startWorldX);
       const h = Math.abs(world.y - drag.startWorldY);
-      const x = Math.min(world.x, drag.startWorldX);
-      const y = Math.min(world.y, drag.startWorldY);
+      let x = Math.min(world.x, drag.startWorldX);
+      let y = Math.min(world.y, drag.startWorldY);
+      let fw = Math.max(w, 80);
+      let fh = Math.max(h, (tool as string) === 'text' ? 30 : 50);
+      if (showGrid) {
+        x = snapToGrid(x);
+        y = snapToGrid(y);
+        fw = snapToGrid(fw);
+        fh = snapToGrid(fh);
+      }
       const nodeType = tool as 'rect' | 'ellipse' | 'sticky' | 'text';
-      const node = createNode(nodeType, x, y, {
-        width: Math.max(w, 80),
-        height: Math.max(h, nodeType === 'text' ? 30 : 50),
-      });
+      const node = createNode(nodeType, x, y, { width: fw, height: fh });
       dispatch({ type: 'ADD_NODE', node });
     }
 
@@ -269,7 +282,7 @@ export function useCanvasInteraction({
 
     dragRef.current = { type: 'none', startWorldX: 0, startWorldY: 0, startScreenX: 0, startScreenY: 0 };
     previewRef.current = { ...EMPTY_PREVIEW };
-  }, [canvasRef, viewport, tool, nodes, edges, dispatch]);
+  }, [canvasRef, viewport, tool, nodes, edges, dispatch, showGrid]);
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();

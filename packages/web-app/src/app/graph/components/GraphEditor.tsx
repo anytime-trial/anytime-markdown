@@ -46,6 +46,7 @@ export function GraphEditor() {
     selection: state.selection,
     dispatch,
     onTextEdit: handleTextEdit,
+    showGrid,
   });
 
   useEffect(() => {
