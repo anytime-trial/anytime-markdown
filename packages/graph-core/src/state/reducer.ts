@@ -34,7 +34,7 @@ export type Action =
   | { type: 'REDO' }
   | { type: 'SNAPSHOT' };
 
-export const MAX_HISTORY = 100;
+export const MAX_HISTORY = 50;
 
 function pushHistory(state: GraphState): GraphState {
   const entry: HistoryEntry = {
