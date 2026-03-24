@@ -1,6 +1,6 @@
-export type NodeType = 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder';
+export type NodeType = 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder' | 'insight' | 'doc';
 export type EdgeType = 'line' | 'arrow' | 'connector';
-export type ToolType = 'select' | 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder' | 'line' | 'arrow' | 'connector' | 'pan';
+export type ToolType = 'select' | 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder' | 'insight' | 'doc' | 'line' | 'arrow' | 'connector' | 'pan';
 
 export interface NodeStyle {
   fill: string;
@@ -26,6 +26,9 @@ export interface GraphNode {
   style: NodeStyle;
   groupId?: string;
   rotation?: number;
+  label?: string;
+  labelColor?: string;
+  docContent?: string;
 }
 
 export interface EdgeEndpoint {
@@ -72,6 +75,8 @@ export interface HistoryEntry {
 import {
   COLOR_CHARCOAL, COLOR_BORDER_ACTIVE, FONT_FAMILY,
   STICKY_FILL, STICKY_STROKE,
+  INSIGHT_FILL, INSIGHT_STROKE, INSIGHT_LABEL_COLORS,
+  DOC_FILL, DOC_STROKE,
 } from './theme';
 
 export const DEFAULT_NODE_STYLE: NodeStyle = {
@@ -90,6 +95,22 @@ export const DEFAULT_STICKY_STYLE: NodeStyle = {
   fontFamily: FONT_FAMILY,
 };
 
+export const DEFAULT_INSIGHT_STYLE: NodeStyle = {
+  fill: INSIGHT_FILL,
+  stroke: INSIGHT_STROKE,
+  strokeWidth: 1,
+  fontSize: 13,
+  fontFamily: FONT_FAMILY,
+};
+
+export const DEFAULT_DOC_STYLE: NodeStyle = {
+  fill: DOC_FILL,
+  stroke: DOC_STROKE,
+  strokeWidth: 1,
+  fontSize: 13,
+  fontFamily: FONT_FAMILY,
+};
+
 export const DEFAULT_EDGE_STYLE: EdgeStyle = {
   stroke: COLOR_BORDER_ACTIVE,
   strokeWidth: 2,
@@ -102,14 +123,29 @@ export const DEFAULT_VIEWPORT: Viewport = {
 };
 
 export function createNode(type: NodeType, x: number, y: number, overrides?: Partial<GraphNode>): GraphNode {
-  const baseStyle = type === 'sticky' ? { ...DEFAULT_STICKY_STYLE } : { ...DEFAULT_NODE_STYLE };
+  const styleMap: Partial<Record<NodeType, NodeStyle>> = {
+    sticky: { ...DEFAULT_STICKY_STYLE },
+    insight: { ...DEFAULT_INSIGHT_STYLE },
+    doc: { ...DEFAULT_DOC_STYLE },
+  };
+  const baseStyle = styleMap[type] ?? { ...DEFAULT_NODE_STYLE };
   const sizeMap: Partial<Record<NodeType, { width: number; height: number }>> = {
     text: { width: 150, height: 30 },
     diamond: { width: 120, height: 120 },
     parallelogram: { width: 160, height: 80 },
     cylinder: { width: 100, height: 120 },
+    insight: { width: 220, height: 140 },
+    doc: { width: 200, height: 120 },
   };
   const size = sizeMap[type] ?? { width: 150, height: 100 };
+  const extra: Partial<GraphNode> = {};
+  if (type === 'insight') {
+    extra.label = 'Insight';
+    extra.labelColor = INSIGHT_LABEL_COLORS[0];
+  }
+  if (type === 'doc') {
+    extra.docContent = '';
+  }
   return {
     id: crypto.randomUUID(),
     type,
@@ -118,6 +154,7 @@ export function createNode(type: NodeType, x: number, y: number, overrides?: Par
     ...size,
     text: '',
     style: baseStyle,
+    ...extra,
     ...overrides,
   };
 }

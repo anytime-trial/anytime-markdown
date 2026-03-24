@@ -4,6 +4,7 @@ import {
   CANVAS_BG, CANVAS_GRID, CANVAS_SELECTION, CANVAS_SELECTION_FILL,
   CANVAS_SNAP, CANVAS_SNAP_INNER, CANVAS_SMART_GUIDE,
   COLOR_TEXT_PRIMARY, COLOR_CHARCOAL, COLOR_TEXT_SECONDARY, FONT_FAMILY,
+  DOC_ICON_COLOR,
 } from '../theme';
 
 const GRID_SIZE = 20;
@@ -144,6 +145,71 @@ export function drawNode(
     ctx.lineWidth = selected ? 2 : style.strokeWidth;
     drawCylinderTop(ctx, x, y, width, height);
     ctx.stroke();
+  } else if (type === 'insight') {
+    drawRoundedRect(ctx, x, y, width, height, 8);
+    ctx.fillStyle = style.fill;
+    ctx.fill();
+    ctx.strokeStyle = selected ? SELECTION_COLOR : style.stroke;
+    ctx.lineWidth = selected ? 2 : style.strokeWidth;
+    drawRoundedRect(ctx, x, y, width, height, 8);
+    ctx.stroke();
+    // Label badge
+    if (node.label) {
+      const labelFont = `bold 10px ${FONT_FAMILY}`;
+      ctx.font = labelFont;
+      const labelW = ctx.measureText(node.label).width + 12;
+      const badgeH = 18;
+      const badgeX = x + 10;
+      const badgeY = y + 10;
+      drawRoundedRect(ctx, badgeX, badgeY, labelW, badgeH, 4);
+      ctx.fillStyle = node.labelColor ?? '#90CAF9';
+      ctx.fill();
+      ctx.fillStyle = 'rgba(0,0,0,0.87)';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(node.label, badgeX + 6, badgeY + badgeH / 2);
+    }
+    // Title (bold)
+    if (text) {
+      ctx.fillStyle = TEXT_ON_SHAPE_COLOR;
+      ctx.font = `bold ${style.fontSize}px ${style.fontFamily}`;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText(text, x + 10, y + 34, width - 20);
+    }
+  } else if (type === 'doc') {
+    drawRoundedRect(ctx, x, y, width, height, 8);
+    ctx.fillStyle = style.fill;
+    ctx.fill();
+    ctx.strokeStyle = selected ? SELECTION_COLOR : style.stroke;
+    ctx.lineWidth = selected ? 2 : style.strokeWidth;
+    drawRoundedRect(ctx, x, y, width, height, 8);
+    ctx.stroke();
+    // Doc icon
+    ctx.fillStyle = DOC_ICON_COLOR;
+    ctx.font = `18px ${FONT_FAMILY}`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('\u{1F4C4}', x + 10, y + 10);
+    // Title
+    if (text) {
+      ctx.fillStyle = TEXT_ON_SHAPE_COLOR;
+      ctx.font = `bold ${style.fontSize}px ${style.fontFamily}`;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText(text, x + 34, y + 14, width - 44);
+    }
+    // Preview text
+    if (node.docContent) {
+      ctx.fillStyle = COLOR_TEXT_SECONDARY;
+      ctx.font = `11px ${FONT_FAMILY}`;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      const preview = node.docContent.slice(0, 100).split('\n').slice(0, 3);
+      preview.forEach((line, i) => {
+        ctx.fillText(line.slice(0, 30), x + 10, y + 40 + i * 15, width - 20);
+      });
+    }
   } else {
     // rect
     ctx.fillStyle = style.fill;
@@ -153,7 +219,7 @@ export function drawNode(
     ctx.strokeRect(x, y, width, height);
   }
 
-  if (text) {
+  if (text && type !== 'insight' && type !== 'doc') {
     ctx.fillStyle = TEXT_ON_SHAPE_COLOR;
     ctx.font = `${style.fontSize}px ${style.fontFamily}`;
     ctx.textAlign = 'center';
@@ -445,7 +511,7 @@ export function drawShapePreview(
   ctx: CanvasRenderingContext2D,
   fromX: number, fromY: number,
   toX: number, toY: number,
-  shapeType: 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder',
+  shapeType: 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder' | 'insight' | 'doc',
 ): void {
   const x = Math.min(fromX, toX);
   const y = Math.min(fromY, toY);

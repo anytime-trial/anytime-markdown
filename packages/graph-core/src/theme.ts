@@ -43,5 +43,15 @@ export const CANVAS_SMART_GUIDE = COLOR_ICE_BLUE;
 export const STICKY_FILL = COLOR_AMBER_GOLD;
 export const STICKY_STROKE = 'rgba(232,160,18,0.6)';
 
+// ── Insight node ──
+export const INSIGHT_FILL = '#1A1F2E';
+export const INSIGHT_STROKE = 'rgba(144,202,249,0.3)';
+export const INSIGHT_LABEL_COLORS = ['#90CAF9', '#E8A012', '#66BB6A', '#EF5350', '#CE93D8', '#4DD0E1'];
+
+// ── Doc node ──
+export const DOC_FILL = '#1A1A2E';
+export const DOC_STROKE = 'rgba(206,147,216,0.3)';
+export const DOC_ICON_COLOR = '#CE93D8';
+
 // ── Typography ──
 export const FONT_FAMILY = 'Roboto, Helvetica, Arial, sans-serif';

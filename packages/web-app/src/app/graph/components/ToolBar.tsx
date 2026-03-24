@@ -35,6 +35,8 @@ import {
   Diamond as DiamondIcon,
   Hexagon as ParallelogramIcon,
   Storage as CylinderIcon,
+  Lightbulb as InsightIcon,
+  Description as DocIcon,
 } from '@mui/icons-material';
 import { ToolType } from '../types';
 import { COLOR_CHARCOAL, COLOR_BORDER } from '@anytime-markdown/graph-core';
@@ -107,6 +109,12 @@ export function GraphToolBar({
           </ToggleButton>
           <ToggleButton value="cylinder" aria-label="Cylinder">
             <Tooltip title="Cylinder (Y)"><CylinderIcon fontSize="small" /></Tooltip>
+          </ToggleButton>
+          <ToggleButton value="insight" aria-label="Insight">
+            <Tooltip title="Insight (I)"><InsightIcon fontSize="small" /></Tooltip>
+          </ToggleButton>
+          <ToggleButton value="doc" aria-label="Document">
+            <Tooltip title="Document (M)"><DocIcon fontSize="small" /></Tooltip>
           </ToggleButton>
           <ToggleButton value="line" aria-label="Line">
             <Tooltip title="Line (L)"><LineIcon fontSize="small" /></Tooltip>

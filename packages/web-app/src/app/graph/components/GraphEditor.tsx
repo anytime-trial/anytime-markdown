@@ -11,6 +11,7 @@ import { GraphCanvas } from './GraphCanvas';
 import { PropertyPanel } from './PropertyPanel';
 import { TextEditOverlay } from './TextEditOverlay';
 import { ContextMenu, ContextTarget } from './ContextMenu';
+import { DocEditorModal } from './DocEditorModal';
 import { zoom as zoomViewport, fitToContent, screenToWorld } from '../engine/viewport';
 import { hitTest } from '../engine/hitTest';
 import { alignLeft, alignRight, alignTop, alignBottom, alignCenterH, alignCenterV, distributeH, distributeV } from '../engine/alignment';
@@ -26,6 +27,7 @@ export function GraphEditor() {
     position: { top: number; left: number };
     targetType: ContextTarget;
   } | null>(null);
+  const [docEditNodeId, setDocEditNodeId] = useState<string | null>(null);
   const { state, dispatch } = useGraphState();
 
   useEffect(() => {
@@ -64,8 +66,13 @@ export function GraphEditor() {
   }, [state.document.viewport, state.document.nodes, state.document.edges, state.selection.nodeIds, dispatch]);
 
   const handleTextEdit = useCallback((nodeId: string) => {
-    setEditingNodeId(nodeId);
-  }, []);
+    const node = state.document.nodes.find(n => n.id === nodeId);
+    if (node?.type === 'doc') {
+      setDocEditNodeId(nodeId);
+    } else {
+      setEditingNodeId(nodeId);
+    }
+  }, [state.document.nodes]);
 
   const {
     handleMouseDown, handleMouseMove, handleMouseUp, handleWheel, handleDoubleClick, previewRef,
@@ -88,6 +95,7 @@ export function GraphEditor() {
       const map: Record<string, ToolType> = {
         v: 'select', r: 'rect', o: 'ellipse', s: 'sticky',
         t: 'text', d: 'diamond', p: 'parallelogram', y: 'cylinder',
+        i: 'insight', m: 'doc',
         l: 'line', a: 'arrow', c: 'connector',
       };
       if (map[e.key] && !e.ctrlKey && !e.metaKey) {
@@ -255,6 +263,17 @@ export function GraphEditor() {
           />
         )}
       </Box>
+      <DocEditorModal
+        open={docEditNodeId !== null}
+        title={state.document.nodes.find(n => n.id === docEditNodeId)?.text ?? ''}
+        content={state.document.nodes.find(n => n.id === docEditNodeId)?.docContent ?? ''}
+        onSave={(content) => {
+          if (docEditNodeId) {
+            dispatch({ type: 'UPDATE_NODE', id: docEditNodeId, changes: { docContent: content } });
+          }
+        }}
+        onClose={() => setDocEditNodeId(null)}
+      />
     </Box>
   );
 }

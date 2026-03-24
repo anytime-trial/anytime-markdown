@@ -9,6 +9,7 @@ import { GraphNode, GraphEdge } from '../types';
 import {
   COLOR_CHARCOAL, COLOR_BORDER, COLOR_ICE_BLUE,
   COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY,
+  INSIGHT_LABEL_COLORS,
 } from '@anytime-markdown/graph-core';
 
 const COLORS = [
@@ -91,6 +92,36 @@ export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpda
             size="small"
             sx={{ mb: 2, color: COLOR_ICE_BLUE }}
           />
+
+          {selectedNode.type === 'insight' && (
+            <>
+              <Typography variant="caption" sx={{ color: COLOR_TEXT_SECONDARY }}>Label</Typography>
+              <TextField
+                value={selectedNode.label ?? ''}
+                onChange={(e) => onUpdateNode(selectedNode.id, { label: e.target.value })}
+                size="small"
+                fullWidth
+                sx={{
+                  mb: 2,
+                  '& .MuiInputBase-input': { color: COLOR_TEXT_PRIMARY, fontSize: '0.8rem', py: 0.5 },
+                  '& .MuiOutlinedInput-notchedOutline': { borderColor: COLOR_BORDER },
+                }}
+              />
+              <Typography variant="caption" sx={{ color: COLOR_TEXT_SECONDARY }}>Label Color</Typography>
+              <Box sx={{ display: 'flex', gap: 0.5, mb: 2 }}>
+                {INSIGHT_LABEL_COLORS.map(c => (
+                  <Box
+                    key={c}
+                    onClick={() => onUpdateNode(selectedNode.id, { labelColor: c })}
+                    sx={{
+                      width: 28, height: 28, backgroundColor: c, borderRadius: '50%', cursor: 'pointer',
+                      border: selectedNode.labelColor === c ? `2px solid ${COLOR_TEXT_PRIMARY}` : `1px solid ${COLOR_BORDER}`,
+                    }}
+                  />
+                ))}
+              </Box>
+            </>
+          )}
         </>
       )}
 
