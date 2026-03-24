@@ -777,7 +777,9 @@
     "nodeAdded": "ノードを追加しました",
     "nodeDeleted": "ノードを削除しました",
     "undone": "元に戻しました",
-    "redone": "やり直しました"
+    "redone": "やり直しました",
+    "emptyCanvasTitle": "キャンバスが空です",
+    "emptyCanvasHint": "ツールバーから図形を選択してドラッグで作成"
   },
   "Privacy": {
     "title": "プライバシーポリシー",
