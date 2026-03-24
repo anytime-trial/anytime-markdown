@@ -63,6 +63,10 @@ function findMxPoint(parent: Element, asValue: string): Element | null {
 export function importFromDrawio(xmlString: string): GraphDocument {
   const parser = new DOMParser();
   const xmlDoc = parser.parseFromString(xmlString, 'text/xml');
+  const errorNode = xmlDoc.querySelector('parsererror');
+  if (errorNode) {
+    throw new Error(`Invalid XML: ${errorNode.textContent?.slice(0, 200)}`);
+  }
   const cells = toArray(xmlDoc.getElementsByTagName('mxCell'));
 
   const nodes: GraphNode[] = [];

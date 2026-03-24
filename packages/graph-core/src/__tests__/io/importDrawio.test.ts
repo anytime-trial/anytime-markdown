@@ -119,4 +119,8 @@ describe('importFromDrawio', () => {
     expect(doc.nodes[0].text).toContain('Line2');
     expect(doc.nodes[0].text).not.toContain('<br');
   });
+
+  it('should throw on malformed XML', () => {
+    expect(() => importFromDrawio('<not valid xml<>')).toThrow('Invalid XML');
+  });
 });
