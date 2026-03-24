@@ -9,7 +9,8 @@
     ".": "./src/index.ts",
     "./engine": "./src/engine/index.ts",
     "./state": "./src/state/index.ts",
-    "./types": "./src/types.ts"
+    "./types": "./src/types.ts",
+    "./src/*": "./src/*"
   },
   "scripts": {
     "test": "jest"
