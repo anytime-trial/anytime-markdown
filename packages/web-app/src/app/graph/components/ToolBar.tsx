@@ -37,6 +37,7 @@ import {
   Storage as CylinderIcon,
 } from '@mui/icons-material';
 import { ToolType } from '../types';
+import { COLOR_CHARCOAL, COLOR_BORDER } from '@anytime-markdown/graph-core';
 
 interface ToolBarProps {
   tool: ToolType;
@@ -70,8 +71,8 @@ export function GraphToolBar({
       color="default"
       elevation={1}
       sx={{
-        backgroundColor: '#121212',
-        borderBottom: '1px solid rgba(255,255,255,0.12)',
+        backgroundColor: COLOR_CHARCOAL,
+        borderBottom: `1px solid ${COLOR_BORDER}`,
         backdropFilter: 'blur(12px)',
         zIndex: 10,
       }}

@@ -69,24 +69,29 @@ export interface HistoryEntry {
   edges: GraphEdge[];
 }
 
+import {
+  COLOR_CHARCOAL, COLOR_BORDER_ACTIVE, FONT_FAMILY,
+  STICKY_FILL, STICKY_STROKE,
+} from './theme';
+
 export const DEFAULT_NODE_STYLE: NodeStyle = {
-  fill: '#121212',
-  stroke: 'rgba(255,255,255,0.24)',
+  fill: COLOR_CHARCOAL,
+  stroke: COLOR_BORDER_ACTIVE,
   strokeWidth: 2,
   fontSize: 14,
-  fontFamily: 'Roboto, Helvetica, Arial, sans-serif',
+  fontFamily: FONT_FAMILY,
 };
 
 export const DEFAULT_STICKY_STYLE: NodeStyle = {
-  fill: '#E8A012',
-  stroke: 'rgba(232,160,18,0.6)',
+  fill: STICKY_FILL,
+  stroke: STICKY_STROKE,
   strokeWidth: 1,
   fontSize: 14,
-  fontFamily: 'Roboto, Helvetica, Arial, sans-serif',
+  fontFamily: FONT_FAMILY,
 };
 
 export const DEFAULT_EDGE_STYLE: EdgeStyle = {
-  stroke: 'rgba(255,255,255,0.24)',
+  stroke: COLOR_BORDER_ACTIVE,
   strokeWidth: 2,
 };
 

@@ -1,15 +1,19 @@
 import { GraphNode, GraphEdge, Viewport, SelectionState } from '../types';
 import type { GuideLine } from './smartGuide';
+import {
+  CANVAS_BG, CANVAS_GRID, CANVAS_SELECTION, CANVAS_SELECTION_FILL,
+  CANVAS_SNAP, CANVAS_SNAP_INNER, CANVAS_SMART_GUIDE,
+  COLOR_TEXT_PRIMARY, COLOR_CHARCOAL, COLOR_TEXT_SECONDARY, FONT_FAMILY,
+} from '../theme';
 
 const GRID_SIZE = 20;
 const HANDLE_SIZE = 8;
-// Anytime Trial Design System
-const SELECTION_COLOR = '#90CAF9'; // アイスブルー
-const BG_COLOR = '#0D1117'; // ミッドナイトネイビー
-const GRID_COLOR = 'rgba(255, 255, 255, 0.06)';
-const TEXT_ON_SHAPE_COLOR = '#FFFFFF';
-const LABEL_BG_COLOR = '#121212'; // チャコール
-const LABEL_TEXT_COLOR = 'rgba(255, 255, 255, 0.70)';
+const SELECTION_COLOR = CANVAS_SELECTION;
+const BG_COLOR = CANVAS_BG;
+const GRID_COLOR = CANVAS_GRID;
+const TEXT_ON_SHAPE_COLOR = COLOR_TEXT_PRIMARY;
+const LABEL_BG_COLOR = COLOR_CHARCOAL;
+const LABEL_TEXT_COLOR = COLOR_TEXT_SECONDARY;
 
 export function render(
   ctx: CanvasRenderingContext2D,
@@ -295,7 +299,7 @@ export function drawEdge(
       16 + padding * 2,
     );
     ctx.fillStyle = LABEL_TEXT_COLOR;
-    ctx.font = '12px Roboto, Helvetica, Arial, sans-serif';
+    ctx.font = `12px ${FONT_FAMILY}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(edge.label, midX, midY);
@@ -388,7 +392,7 @@ export function drawEdgePreview(
   ctx.restore();
 }
 
-const SNAP_HIGHLIGHT_COLOR = '#E8A012'; // アンバーゴールド
+const SNAP_HIGHLIGHT_COLOR = CANVAS_SNAP;
 const SNAP_INDICATOR_RADIUS = 6;
 
 /** スナップ対象ノードのハイライト枠を描画 */
@@ -426,7 +430,7 @@ export function drawSnapHighlight(
     ctx.fill();
   }
   // 内円
-  ctx.fillStyle = BG_COLOR;
+  ctx.fillStyle = CANVAS_SNAP_INNER;
   for (const { px, py } of points) {
     ctx.beginPath();
     ctx.arc(px, py, SNAP_INDICATOR_RADIUS - 2, 0, Math.PI * 2);
@@ -453,7 +457,7 @@ export function drawShapePreview(
   ctx.strokeStyle = SELECTION_COLOR;
   ctx.lineWidth = 1.5;
   ctx.setLineDash([6, 4]);
-  ctx.fillStyle = 'rgba(144, 202, 249, 0.08)';
+  ctx.fillStyle = CANVAS_SELECTION_FILL;
 
   if (shapeType === 'ellipse') {
     ctx.beginPath();
@@ -485,7 +489,7 @@ export function drawShapePreview(
 
 export function drawSmartGuides(ctx: CanvasRenderingContext2D, guides: GuideLine[]): void {
   ctx.save();
-  ctx.strokeStyle = '#90CAF9';
+  ctx.strokeStyle = CANVAS_SMART_GUIDE;
   ctx.lineWidth = 0.5;
   ctx.setLineDash([4, 4]);
   for (const g of guides) {
@@ -512,7 +516,7 @@ export function drawSelectionRect(
 ): void {
   ctx.save();
 
-  ctx.fillStyle = 'rgba(144, 202, 249, 0.08)';
+  ctx.fillStyle = CANVAS_SELECTION_FILL;
   ctx.fillRect(x, y, width, height);
 
   ctx.strokeStyle = SELECTION_COLOR;
