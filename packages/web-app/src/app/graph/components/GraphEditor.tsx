@@ -78,6 +78,7 @@ export function GraphEditor() {
     selection: state.selection,
     dispatch,
     onTextEdit: handleTextEdit,
+    onToolChange: setTool,
     showGrid,
   });
 

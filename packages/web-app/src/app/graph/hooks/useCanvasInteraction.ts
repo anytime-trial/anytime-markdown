@@ -28,6 +28,7 @@ interface UseCanvasInteractionProps {
   selection: SelectionState;
   dispatch: React.Dispatch<any>;
   onTextEdit: (nodeId: string) => void;
+  onToolChange: (tool: ToolType) => void;
   showGrid: boolean;
 }
 
@@ -48,7 +49,7 @@ export interface DragPreview {
 const EMPTY_PREVIEW: DragPreview = { type: 'none', fromX: 0, fromY: 0, toX: 0, toY: 0 };
 
 export function useCanvasInteraction({
-  canvasRef, tool, nodes, edges, viewport, selection, dispatch, onTextEdit, showGrid,
+  canvasRef, tool, nodes, edges, viewport, selection, dispatch, onTextEdit, onToolChange, showGrid,
 }: UseCanvasInteractionProps) {
   const dragRef = useRef<DragState>({
     type: 'none', startWorldX: 0, startWorldY: 0, startScreenX: 0, startScreenY: 0,
@@ -273,6 +274,7 @@ export function useCanvasInteraction({
       const nodeType = tool as 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder';
       const node = createNode(nodeType, x, y, { width: fw, height: fh });
       dispatch({ type: 'ADD_NODE', node });
+      onToolChange('select');
     }
 
     if (drag.type === 'create-edge') {
@@ -286,6 +288,7 @@ export function useCanvasInteraction({
       if (Math.hypot(world.x - drag.startWorldX, world.y - drag.startWorldY) > 5) {
         dispatch({ type: 'ADD_EDGE', edge });
       }
+      onToolChange('select');
     }
 
     if (drag.type === 'select-rect') {
