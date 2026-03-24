@@ -6,6 +6,7 @@ import {
 } from '../theme';
 import { drawRoundedRect, drawDiamond, drawParallelogram, drawCylinderBody, drawCylinderTop } from './shapes';
 import { HANDLE_SIZE, SNAP_INDICATOR_RADIUS } from './constants';
+import { getConnectionPoints } from './connector';
 
 export function drawResizeHandles(
   ctx: CanvasRenderingContext2D,
@@ -121,14 +122,8 @@ export function drawConnectionPoints(
   mouseWX?: number,
   mouseWY?: number,
 ): void {
-  const { x, y, width: w, height: h } = node;
   const r = 6 / scale;
-  const points = [
-    { px: x + w / 2, py: y },
-    { px: x + w, py: y + h / 2 },
-    { px: x + w / 2, py: y + h },
-    { px: x, py: y + h / 2 },
-  ];
+  const points = getConnectionPoints(node);
 
   // マウス座標が渡された場合、最も近い1点のみ表示
   let visiblePoints = points;
@@ -136,14 +131,14 @@ export function drawConnectionPoints(
     let best = points[0];
     let bestDist = Infinity;
     for (const p of points) {
-      const d = Math.hypot(p.px - mouseWX, p.py - mouseWY);
+      const d = Math.hypot(p.x - mouseWX, p.y - mouseWY);
       if (d < bestDist) { bestDist = d; best = p; }
     }
     visiblePoints = [best];
   }
 
   ctx.save();
-  for (const { px, py } of visiblePoints) {
+  for (const { x: px, y: py } of visiblePoints) {
     // 外円
     ctx.beginPath();
     ctx.arc(px, py, r, 0, Math.PI * 2);

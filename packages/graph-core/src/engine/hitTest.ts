@@ -1,5 +1,6 @@
 import { GraphNode, GraphEdge } from '../types';
 import { HANDLE_SIZE, EDGE_TOLERANCE, CONNECTION_POINT_RADIUS, ENDPOINT_HANDLE_RADIUS } from './constants';
+import { getConnectionPoints } from './connector';
 
 export type ResizeHandle = 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w';
 
@@ -129,14 +130,8 @@ export function hitTestEdgeSegment(
 
 function hitTestConnectionPoints(node: GraphNode, wx: number, wy: number, scale: number): ConnectionSide | null {
   const r = CONNECTION_POINT_RADIUS / scale;
-  const { x, y, width: w, height: h } = node;
-  const points: { side: ConnectionSide; px: number; py: number }[] = [
-    { side: 'top', px: x + w / 2, py: y },
-    { side: 'right', px: x + w, py: y + h / 2 },
-    { side: 'bottom', px: x + w / 2, py: y + h },
-    { side: 'left', px: x, py: y + h / 2 },
-  ];
-  for (const { side, px, py } of points) {
+  const points = getConnectionPoints(node);
+  for (const { side, x: px, y: py } of points) {
     if (Math.hypot(wx - px, wy - py) <= r) return side;
   }
   return null;
