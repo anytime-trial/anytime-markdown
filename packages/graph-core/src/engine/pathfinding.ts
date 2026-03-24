@@ -98,6 +98,51 @@ function computeDirectPath(fromPt: Point, fromSide: Side, toPt: Point, toSide: S
   }
 }
 
+/** バイナリ最小ヒープ（A*探索用） */
+class MinHeap {
+  private data: { key: string; c: number; r: number; g: number; f: number }[] = [];
+
+  get size() { return this.data.length; }
+
+  push(item: { key: string; c: number; r: number; g: number; f: number }) {
+    this.data.push(item);
+    this._siftUp(this.data.length - 1);
+  }
+
+  pop() {
+    const top = this.data[0];
+    const last = this.data.pop();
+    if (this.data.length > 0 && last) {
+      this.data[0] = last;
+      this._siftDown(0);
+    }
+    return top;
+  }
+
+  private _siftUp(i: number) {
+    while (i > 0) {
+      const parent = (i - 1) >> 1;
+      if (this.data[i].f >= this.data[parent].f) break;
+      [this.data[i], this.data[parent]] = [this.data[parent], this.data[i]];
+      i = parent;
+    }
+  }
+
+  private _siftDown(i: number) {
+    const n = this.data.length;
+    while (true) {
+      let smallest = i;
+      const left = 2 * i + 1;
+      const right = 2 * i + 2;
+      if (left < n && this.data[left].f < this.data[smallest].f) smallest = left;
+      if (right < n && this.data[right].f < this.data[smallest].f) smallest = right;
+      if (smallest === i) break;
+      [this.data[i], this.data[smallest]] = [this.data[smallest], this.data[i]];
+      i = smallest;
+    }
+  }
+}
+
 /** A* 探索（直交移動のみ） */
 function astar(
   startC: number, startR: number,
@@ -108,13 +153,16 @@ function astar(
   const key = (c: number, r: number) => `${c},${r}`;
   const heuristic = (c: number, r: number) => Math.abs(c - endC) + Math.abs(r - endR);
 
-  const openSet = new Map<string, { c: number; r: number; g: number; f: number }>();
+  const openHeap = new MinHeap();
+  const openKeys = new Set<string>();
+  const closedKeys = new Set<string>();
   const cameFrom = new Map<string, string>();
   const gScore = new Map<string, number>();
 
   const startKey = key(startC, startR);
   const endKey = key(endC, endR);
-  openSet.set(startKey, { c: startC, r: startR, g: 0, f: heuristic(startC, startR) });
+  openHeap.push({ key: startKey, c: startC, r: startR, g: 0, f: heuristic(startC, startR) });
+  openKeys.add(startKey);
   gScore.set(startKey, 0);
 
   const dirs: [number, number][] = [[0, -1], [1, 0], [0, 1], [-1, 0]];
@@ -122,17 +170,17 @@ function astar(
   let iterations = 0;
   const maxIterations = cols * rows * 2; // 安全弁
 
-  while (openSet.size > 0 && iterations < maxIterations) {
+  while (openHeap.size > 0 && iterations < maxIterations) {
     iterations++;
 
-    // 最小 f のノードを取得
-    let bestKey = '';
-    let bestF = Infinity;
-    for (const [k, v] of openSet) {
-      if (v.f < bestF) { bestF = v.f; bestKey = k; }
-    }
-    const current = openSet.get(bestKey)!;
-    openSet.delete(bestKey);
+    // 最小 f のノードを取得（O(log n)）
+    const current = openHeap.pop()!;
+    const bestKey = current.key;
+
+    // ヒープに残った古いエントリをスキップ（より良いパスで既に処理済み）
+    if (closedKeys.has(bestKey)) continue;
+    closedKeys.add(bestKey);
+    openKeys.delete(bestKey);
 
     if (bestKey === endKey) {
       // パスを再構築
@@ -151,13 +199,14 @@ function astar(
       const nr = current.r + dr;
       if (nc < 0 || nc >= cols || nr < 0 || nr >= rows) continue;
       const nk = key(nc, nr);
-      if (blocked.has(nk)) continue;
+      if (blocked.has(nk) || closedKeys.has(nk)) continue;
 
       const tentG = current.g + 1;
       if (tentG < (gScore.get(nk) ?? Infinity)) {
         gScore.set(nk, tentG);
         cameFrom.set(nk, bestKey);
-        openSet.set(nk, { c: nc, r: nr, g: tentG, f: tentG + heuristic(nc, nr) });
+        openHeap.push({ key: nk, c: nc, r: nr, g: tentG, f: tentG + heuristic(nc, nr) });
+        openKeys.add(nk);
       }
     }
   }
