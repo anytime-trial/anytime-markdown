@@ -52,6 +52,7 @@ export function useCanvasInteraction({
   });
   const spaceRef = useRef(false);
   const previewRef = useRef<DragPreview>({ ...EMPTY_PREVIEW });
+  const clipboardRef = useRef<{ nodes: GraphNode[]; edges: GraphEdge[] } | null>(null);
 
   const getWorldPos = useCallback((e: MouseEvent | React.MouseEvent) => {
     const canvas = canvasRef.current;
@@ -317,8 +318,47 @@ export function useCanvasInteraction({
       if ((e.key === 'y') || (e.key === 'z' && e.shiftKey)) { e.preventDefault(); dispatch({ type: 'REDO' }); return; }
       if (e.key === 'g' && !e.shiftKey) { e.preventDefault(); dispatch({ type: 'GROUP_SELECTED', groupId: crypto.randomUUID() }); return; }
       if (e.key === 'g' && e.shiftKey) { e.preventDefault(); dispatch({ type: 'UNGROUP_SELECTED' }); return; }
+      if (e.key === 'a') {
+        e.preventDefault();
+        dispatch({ type: 'SET_SELECTION', selection: { nodeIds: nodes.map(n => n.id), edgeIds: [] } });
+        return;
+      }
+      if (e.key === 'c') {
+        e.preventDefault();
+        if (selection.nodeIds.length === 0) return;
+        const selectedSet = new Set(selection.nodeIds);
+        const copiedNodes: GraphNode[] = JSON.parse(JSON.stringify(nodes.filter(n => selectedSet.has(n.id))));
+        const copiedEdges: GraphEdge[] = JSON.parse(JSON.stringify(
+          edges.filter(edge => selectedSet.has(edge.from.nodeId ?? '') && selectedSet.has(edge.to.nodeId ?? '')),
+        ));
+        clipboardRef.current = { nodes: copiedNodes, edges: copiedEdges };
+        return;
+      }
+      if (e.key === 'v') {
+        e.preventDefault();
+        if (!clipboardRef.current) return;
+        const idMap = new Map<string, string>();
+        const newNodes = clipboardRef.current.nodes.map(n => {
+          const newId = crypto.randomUUID();
+          idMap.set(n.id, newId);
+          return { ...n, id: newId, x: n.x + 20, y: n.y + 20 };
+        });
+        const newEdges = clipboardRef.current.edges.map(edge => ({
+          ...edge,
+          id: crypto.randomUUID(),
+          from: { ...edge.from, nodeId: edge.from.nodeId ? idMap.get(edge.from.nodeId) : undefined },
+          to: { ...edge.to, nodeId: edge.to.nodeId ? idMap.get(edge.to.nodeId) : undefined },
+        }));
+        dispatch({ type: 'PASTE_NODES', nodes: newNodes, edges: newEdges });
+        // Update clipboard positions so next paste offsets further
+        clipboardRef.current = {
+          nodes: clipboardRef.current.nodes.map(n => ({ ...n, x: n.x + 20, y: n.y + 20 })),
+          edges: clipboardRef.current.edges,
+        };
+        return;
+      }
     }
-  }, [selection, dispatch]);
+  }, [selection, nodes, edges, dispatch]);
 
   const handleKeyUp = useCallback((e: KeyboardEvent) => {
     if (e.code === 'Space') spaceRef.current = false;
