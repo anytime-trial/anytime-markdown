@@ -98,7 +98,7 @@ export function GraphEditor() {
     const rect = canvas.getBoundingClientRect();
     dispatch({
       type: 'SET_VIEWPORT',
-      viewport: zoomViewport(state.document.viewport, rect.width / 2, rect.height / 2, -1),
+      viewport: zoomViewport(state.document.viewport, rect.width / 2, rect.height / 2, -300),
     });
   }, [state.document.viewport, dispatch]);
 
@@ -108,7 +108,7 @@ export function GraphEditor() {
     const rect = canvas.getBoundingClientRect();
     dispatch({
       type: 'SET_VIEWPORT',
-      viewport: zoomViewport(state.document.viewport, rect.width / 2, rect.height / 2, 1),
+      viewport: zoomViewport(state.document.viewport, rect.width / 2, rect.height / 2, 300),
     });
   }, [state.document.viewport, dispatch]);
 

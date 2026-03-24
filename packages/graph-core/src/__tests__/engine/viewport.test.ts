@@ -46,6 +46,23 @@ describe('zoom', () => {
     expect(worldAfter.x).toBeCloseTo(worldBefore.x);
     expect(worldAfter.y).toBeCloseTo(worldBefore.y);
   });
+  it('should produce continuous scale proportional to delta', () => {
+    const vp: Viewport = { offsetX: 0, offsetY: 0, scale: 1 };
+    const smallDelta = zoom(vp, 400, 300, 50);
+    const largeDelta = zoom(vp, 400, 300, 200);
+    // Larger delta should produce more zoom change
+    expect(Math.abs(1 - largeDelta.scale)).toBeGreaterThan(Math.abs(1 - smallDelta.scale));
+  });
+  it('should zoom in with negative delta', () => {
+    const vp: Viewport = { offsetX: 0, offsetY: 0, scale: 1 };
+    const zoomed = zoom(vp, 400, 300, -100);
+    expect(zoomed.scale).toBeGreaterThan(1);
+  });
+  it('should zoom out with positive delta', () => {
+    const vp: Viewport = { offsetX: 0, offsetY: 0, scale: 1 };
+    const zoomed = zoom(vp, 400, 300, 100);
+    expect(zoomed.scale).toBeLessThan(1);
+  });
 });
 
 describe('fitToContent', () => {

@@ -21,9 +21,10 @@ export function pan(viewport: Viewport, dx: number, dy: number): Viewport {
   return { ...viewport, offsetX: viewport.offsetX + dx, offsetY: viewport.offsetY + dy };
 }
 
-/** Zoom centered on screen point */
+/** Zoom centered on screen point — continuous scale proportional to delta */
 export function zoom(viewport: Viewport, screenX: number, screenY: number, delta: number): Viewport {
-  const factor = delta > 0 ? 0.9 : 1.1;
+  const sensitivity = 0.001;
+  const factor = Math.pow(2, -delta * sensitivity);
   const newScale = Math.min(Math.max(viewport.scale * factor, 0.1), 10);
   const worldBeforeZoom = screenToWorld(viewport, screenX, screenY);
   const newOffsetX = screenX - worldBeforeZoom.x * newScale;
