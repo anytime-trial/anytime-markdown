@@ -773,7 +773,11 @@
     "resetConnectionPoints": "接続ポイントをリセット",
     "gradientVertical": "縦方向",
     "gradientHorizontal": "横方向",
-    "gradientDiagonal": "斜め方向"
+    "gradientDiagonal": "斜め方向",
+    "nodeAdded": "ノードを追加しました",
+    "nodeDeleted": "ノードを削除しました",
+    "undone": "元に戻しました",
+    "redone": "やり直しました"
   },
   "Privacy": {
     "title": "プライバシーポリシー",

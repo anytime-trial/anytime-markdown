@@ -54,6 +54,19 @@ export function GraphEditor() {
 
   const canvasAriaLabel = `${t('graphCanvas')}: ${state.document.nodes.length} nodes, ${state.document.edges.length} edges`;
 
+  const prevNodeCountRef = useRef(state.document.nodes.length);
+
+  useEffect(() => {
+    const currentCount = state.document.nodes.length;
+    const prevCount = prevNodeCountRef.current;
+    if (currentCount > prevCount) {
+      setLiveMessage(t('nodeAdded'));
+    } else if (currentCount < prevCount) {
+      setLiveMessage(t('nodeDeleted'));
+    }
+    prevNodeCountRef.current = currentCount;
+  }, [state.document.nodes.length, t]);
+
   useEffect(() => {
     const { nodeIds, edgeIds } = state.selection;
     if (nodeIds.length > 0 || edgeIds.length > 0) {
@@ -93,6 +106,10 @@ export function GraphEditor() {
     onTextEdit: handleTextEdit,
     onToolChange: setTool,
     showGrid,
+    onLiveMessage: useCallback((key: string) => {
+      if (key === 'undo') setLiveMessage(t('undone'));
+      else if (key === 'redo') setLiveMessage(t('redone'));
+    }, [t]),
   });
 
   useTouchInteraction({
@@ -298,8 +315,8 @@ export function GraphEditor() {
       <GraphToolBar
         tool={tool}
         onToolChange={setTool}
-        onUndo={() => dispatch({ type: 'UNDO' })}
-        onRedo={() => dispatch({ type: 'REDO' })}
+        onUndo={() => { dispatch({ type: 'UNDO' }); setLiveMessage(t('undone')); }}
+        onRedo={() => { dispatch({ type: 'REDO' }); setLiveMessage(t('redone')); }}
         canUndo={state.historyIndex > 0}
         canRedo={state.historyIndex < state.history.length - 1}
         showGrid={showGrid}

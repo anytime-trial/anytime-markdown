@@ -773,7 +773,11 @@
     "resetConnectionPoints": "Reset Connection Points",
     "gradientVertical": "Vertical",
     "gradientHorizontal": "Horizontal",
-    "gradientDiagonal": "Diagonal"
+    "gradientDiagonal": "Diagonal",
+    "nodeAdded": "Node added",
+    "nodeDeleted": "Node deleted",
+    "undone": "Undone",
+    "redone": "Redone"
   },
   "Privacy": {
     "title": "Privacy Policy",

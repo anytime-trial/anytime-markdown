@@ -51,6 +51,7 @@ interface UseCanvasInteractionProps {
   onTextEdit: (nodeId: string) => void;
   onToolChange: (tool: ToolType) => void;
   showGrid: boolean;
+  onLiveMessage?: (message: string) => void;
 }
 
 export interface DragPreview {
@@ -70,7 +71,7 @@ export interface DragPreview {
 const EMPTY_PREVIEW: DragPreview = { type: 'none', fromX: 0, fromY: 0, toX: 0, toY: 0 };
 
 export function useCanvasInteraction({
-  canvasRef, tool, nodes, edges, viewport, selection, dispatch, onTextEdit, onToolChange, showGrid,
+  canvasRef, tool, nodes, edges, viewport, selection, dispatch, onTextEdit, onToolChange, showGrid, onLiveMessage,
 }: UseCanvasInteractionProps) {
   const dragRef = useRef<DragState>({
     type: 'none', startWorldX: 0, startWorldY: 0, startScreenX: 0, startScreenY: 0,
@@ -627,8 +628,8 @@ export function useCanvasInteraction({
       return;
     }
     if (e.ctrlKey || e.metaKey) {
-      if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); dispatch({ type: 'UNDO' }); return; }
-      if ((e.key === 'y') || (e.key === 'z' && e.shiftKey)) { e.preventDefault(); dispatch({ type: 'REDO' }); return; }
+      if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); dispatch({ type: 'UNDO' }); onLiveMessage?.('undo'); return; }
+      if ((e.key === 'y') || (e.key === 'z' && e.shiftKey)) { e.preventDefault(); dispatch({ type: 'REDO' }); onLiveMessage?.('redo'); return; }
       if (e.key === 'g' && !e.shiftKey) { e.preventDefault(); dispatch({ type: 'GROUP_SELECTED', groupId: crypto.randomUUID() }); return; }
       if (e.key === 'g' && e.shiftKey) { e.preventDefault(); dispatch({ type: 'UNGROUP_SELECTED' }); return; }
       if (e.key === 'a') {
