@@ -101,4 +101,24 @@ describe('exportToSvg', () => {
     expect(svg).toContain('x2="100%"');
     expect(svg).toContain('y2="0%"');
   });
+
+  it('should add shadow filter when node has shadow enabled', () => {
+    const doc = createDocument('Test');
+    const node = createNode('rect', 0, 0, { id: 's1', text: 'Shadow' });
+    node.style.shadow = true;
+    doc.nodes = [node];
+    const svg = exportToSvg(doc);
+    expect(svg).toContain('<filter id="shadow"');
+    expect(svg).toContain('feDropShadow');
+    expect(svg).toContain('filter="url(#shadow)"');
+  });
+
+  it('should not add shadow filter when no node has shadow', () => {
+    const doc = createDocument('Test');
+    const node = createNode('rect', 0, 0, { id: 'ns1', text: 'NoShadow' });
+    doc.nodes = [node];
+    const svg = exportToSvg(doc);
+    expect(svg).not.toContain('<filter id="shadow"');
+    expect(svg).not.toContain('filter="url(#shadow)"');
+  });
 });
