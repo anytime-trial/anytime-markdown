@@ -732,6 +732,7 @@
     "shapeCircle": "Circle",
     "shapeDiamond": "Diamond",
     "shapeBar": "Bar",
+    "frame": "Frame",
     "borderRadius": "Border Radius",
     "shadow": "Shadow",
     "gradientTo": "Gradient",

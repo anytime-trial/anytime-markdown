@@ -32,6 +32,7 @@ import {
   TableRows as TableRowsIcon,
   Lightbulb as InsightIcon,
   Description as DocIcon,
+  Dashboard as FrameIcon,
 } from '@mui/icons-material';
 import { useTranslations } from 'next-intl';
 import { ToolType } from '../types';
@@ -103,6 +104,9 @@ export function GraphToolBar({
           </ToggleButton>
           <ToggleButton value="doc" aria-label={t('doc')}>
             <Tooltip title={`${t('doc')} (M)`}><DocIcon fontSize="small" /></Tooltip>
+          </ToggleButton>
+          <ToggleButton value="frame" aria-label={t('frame')}>
+            <Tooltip title={`${t('frame')} (F)`}><FrameIcon fontSize="small" /></Tooltip>
           </ToggleButton>
           <ToggleButton value="line" aria-label={t('line')}>
             <Tooltip title={`${t('line')} (L)`}><LineIcon fontSize="small" /></Tooltip>

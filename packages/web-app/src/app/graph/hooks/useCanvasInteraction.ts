@@ -59,7 +59,7 @@ export interface DragPreview {
   fromY: number;
   toX: number;
   toY: number;
-  shapeType?: 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder' | 'insight' | 'doc';
+  shapeType?: 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder' | 'insight' | 'doc' | 'frame';
   edgeType?: 'line' | 'arrow' | 'connector';
   /** ドラッグ中にスナップしているノードID */
   snapNodeId?: string;
@@ -163,6 +163,19 @@ export function useCanvasInteraction({
           nodes.forEach(n => { if (n.groupId && groupIds.has(n.groupId)) selectedIds.push(n.id); });
           selectedIds = [...new Set(selectedIds)];
         }
+        // フレーム選択時: 内部ノードも移動対象に含める
+        const frameNodes = nodes.filter(n => selectedIds.includes(n.id) && n.type === 'frame');
+        for (const frame of frameNodes) {
+          nodes.forEach(n => {
+            if (n.id !== frame.id && n.type !== 'frame' &&
+                n.x >= frame.x && n.y >= frame.y &&
+                n.x + n.width <= frame.x + frame.width &&
+                n.y + n.height <= frame.y + frame.height) {
+              selectedIds.push(n.id);
+            }
+          });
+        }
+        selectedIds = [...new Set(selectedIds)];
         dispatch({ type: 'SET_SELECTION', selection: { nodeIds: selectedIds, edgeIds: [] } });
         const initialNodes = new Map<string, { x: number; y: number; width: number; height: number }>();
         selectedIds.forEach(id => {
@@ -205,7 +218,7 @@ export function useCanvasInteraction({
       return;
     }
 
-    if (['rect', 'ellipse', 'sticky', 'text', 'diamond', 'parallelogram', 'cylinder', 'insight', 'doc'].includes(tool)) {
+    if (['rect', 'ellipse', 'sticky', 'text', 'diamond', 'parallelogram', 'cylinder', 'insight', 'doc', 'frame'].includes(tool)) {
       dragRef.current = {
         type: 'create-shape', startWorldX: world.x, startWorldY: world.y,
         startScreenX: sx, startScreenY: sy,
@@ -365,7 +378,7 @@ export function useCanvasInteraction({
         type: 'shape',
         fromX: drag.startWorldX, fromY: drag.startWorldY,
         toX: world.x, toY: world.y,
-        shapeType: tool as 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder' | 'insight' | 'doc',
+        shapeType: tool as 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder' | 'insight' | 'doc' | 'frame',
       };
       return;
     }
@@ -403,7 +416,7 @@ export function useCanvasInteraction({
         fw = snapToGrid(fw);
         fh = snapToGrid(fh);
       }
-      const nodeType = tool as 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder' | 'insight' | 'doc';
+      const nodeType = tool as 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder' | 'insight' | 'doc' | 'frame';
       const node = createNode(nodeType, x, y, { width: fw, height: fh });
       dispatch({ type: 'ADD_NODE', node });
       onToolChange('select');

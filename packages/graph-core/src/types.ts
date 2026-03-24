@@ -1,6 +1,6 @@
-export type NodeType = 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder' | 'insight' | 'doc';
+export type NodeType = 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder' | 'insight' | 'doc' | 'frame';
 export type EdgeType = 'line' | 'arrow' | 'connector';
-export type ToolType = 'select' | 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder' | 'insight' | 'doc' | 'line' | 'arrow' | 'connector' | 'pan';
+export type ToolType = 'select' | 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder' | 'insight' | 'doc' | 'frame' | 'line' | 'arrow' | 'connector' | 'pan';
 
 export interface NodeStyle {
   fill: string;
@@ -87,6 +87,7 @@ import {
   STICKY_FILL, STICKY_STROKE,
   INSIGHT_FILL, INSIGHT_STROKE, INSIGHT_LABEL_COLORS,
   DOC_FILL, DOC_STROKE,
+  FRAME_FILL, FRAME_STROKE,
 } from './theme';
 
 export const DEFAULT_NODE_STYLE: NodeStyle = {
@@ -121,6 +122,15 @@ export const DEFAULT_DOC_STYLE: NodeStyle = {
   fontFamily: FONT_FAMILY,
 };
 
+export const DEFAULT_FRAME_STYLE: NodeStyle = {
+  fill: FRAME_FILL,
+  stroke: FRAME_STROKE,
+  strokeWidth: 1,
+  fontSize: 14,
+  fontFamily: FONT_FAMILY,
+  borderRadius: 8,
+};
+
 export const DEFAULT_EDGE_STYLE: EdgeStyle = {
   stroke: COLOR_BORDER_ACTIVE,
   strokeWidth: 2,
@@ -137,6 +147,7 @@ export function createNode(type: NodeType, x: number, y: number, overrides?: Par
     sticky: { ...DEFAULT_STICKY_STYLE },
     insight: { ...DEFAULT_INSIGHT_STYLE },
     doc: { ...DEFAULT_DOC_STYLE },
+    frame: { ...DEFAULT_FRAME_STYLE },
   };
   const baseStyle = styleMap[type] ?? { ...DEFAULT_NODE_STYLE };
   const sizeMap: Partial<Record<NodeType, { width: number; height: number }>> = {
@@ -146,6 +157,7 @@ export function createNode(type: NodeType, x: number, y: number, overrides?: Par
     cylinder: { width: 100, height: 120 },
     insight: { width: 220, height: 140 },
     doc: { width: 200, height: 120 },
+    frame: { width: 400, height: 300 },
   };
   const size = sizeMap[type] ?? { width: 150, height: 100 };
   const extra: Partial<GraphNode> = {};

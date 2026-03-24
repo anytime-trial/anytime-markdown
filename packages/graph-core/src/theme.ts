@@ -53,5 +53,10 @@ export const DOC_FILL = '#1A1A2E';
 export const DOC_STROKE = 'rgba(206,147,216,0.3)';
 export const DOC_ICON_COLOR = '#CE93D8';
 
+// ── Frame node ──
+export const FRAME_FILL = 'rgba(255,255,255,0.03)';
+export const FRAME_STROKE = 'rgba(255,255,255,0.15)';
+export const FRAME_TITLE_BG = 'rgba(255,255,255,0.08)';
+
 // ── Typography ──
 export const FONT_FAMILY = 'Roboto, Helvetica, Arial, sans-serif';

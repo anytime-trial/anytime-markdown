@@ -4,7 +4,7 @@ import {
   CANVAS_BG, CANVAS_GRID, CANVAS_SELECTION, CANVAS_SELECTION_FILL,
   CANVAS_SNAP, CANVAS_SNAP_INNER, CANVAS_SMART_GUIDE,
   COLOR_TEXT_PRIMARY, COLOR_CHARCOAL, COLOR_TEXT_SECONDARY, FONT_FAMILY,
-  DOC_ICON_COLOR,
+  DOC_ICON_COLOR, FRAME_TITLE_BG,
 } from '../theme';
 
 const GRID_SIZE = 20;
@@ -37,8 +37,10 @@ export function render(
 
   if (showGrid) drawGrid(ctx, viewport, width, height);
 
+  // フレームを先に描画（背面）
+  nodes.filter(n => n.type === 'frame').forEach(n => drawNode(ctx, n, selection.nodeIds.includes(n.id)));
   edges.forEach(e => drawEdge(ctx, e, selection.edgeIds.includes(e.id)));
-  nodes.forEach(n => drawNode(ctx, n, selection.nodeIds.includes(n.id)));
+  nodes.filter(n => n.type !== 'frame').forEach(n => drawNode(ctx, n, selection.nodeIds.includes(n.id)));
   // 単一選択時のみ個別リサイズハンドル表示
   if (selection.nodeIds.length === 1) {
     const sn = nodes.find(n => n.id === selection.nodeIds[0]);
@@ -277,6 +279,33 @@ export function drawNode(
         ctx.fillText(line.slice(0, 30), x + 10, y + 40 + i * 15, width - 20);
       });
     }
+  } else if (type === 'frame') {
+    // フレーム背景
+    const fr = radius > 0 ? radius : 8;
+    ctx.fillStyle = fill;
+    drawRoundedRect(ctx, x, y, width, height, fr);
+    ctx.fill();
+    ctx.strokeStyle = selected ? SELECTION_COLOR : style.stroke;
+    ctx.lineWidth = selected ? 2 : style.strokeWidth;
+    ctx.setLineDash([6, 3]);
+    drawRoundedRect(ctx, x, y, width, height, fr);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // タイトルバー
+    const titleH = 28;
+    ctx.fillStyle = FRAME_TITLE_BG;
+    drawRoundedRect(ctx, x, y, width, titleH, fr);
+    ctx.fill();
+    // 下の角を矩形で埋める
+    ctx.fillRect(x, y + titleH - fr, width, fr);
+    // タイトルテキスト
+    if (text) {
+      ctx.fillStyle = COLOR_TEXT_SECONDARY;
+      ctx.font = `bold ${style.fontSize}px ${style.fontFamily}`;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, x + 12, y + titleH / 2, width - 24);
+    }
   } else {
     // rect
     applyShadow(ctx, style);
@@ -298,7 +327,7 @@ export function drawNode(
     }
   }
 
-  if (text && type !== 'insight' && type !== 'doc') {
+  if (text && type !== 'insight' && type !== 'doc' && type !== 'frame') {
     ctx.fillStyle = TEXT_ON_SHAPE_COLOR;
     ctx.font = `${style.fontSize}px ${style.fontFamily}`;
     ctx.textAlign = 'center';
@@ -776,7 +805,7 @@ export function drawShapePreview(
   ctx: CanvasRenderingContext2D,
   fromX: number, fromY: number,
   toX: number, toY: number,
-  shapeType: 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder' | 'insight' | 'doc',
+  shapeType: 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder' | 'insight' | 'doc' | 'frame',
 ): void {
   const x = Math.min(fromX, toX);
   const y = Math.min(fromY, toY);
