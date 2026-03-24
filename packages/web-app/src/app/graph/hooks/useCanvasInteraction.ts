@@ -234,6 +234,15 @@ export function useCanvasInteraction({
     const sy = e.clientY - rect.top;
     const drag = dragRef.current;
 
+    // ツール別デフォルトカーソル（ドラッグ中でないとき）
+    if (drag.type === 'none') {
+      if (tool === 'pan') {
+        cursorRef.current = 'grab';
+      } else if (['rect', 'ellipse', 'sticky', 'text', 'diamond', 'parallelogram', 'cylinder', 'insight', 'doc', 'line', 'arrow', 'connector'].includes(tool)) {
+        cursorRef.current = 'crosshair';
+      }
+    }
+
     // ホバーノード検出 + カーソル更新（ドラッグ中でないとき）
     if (drag.type === 'none' && tool === 'select') {
       const world = screenToWorld(viewport, sx, sy);
@@ -260,7 +269,7 @@ export function useCanvasInteraction({
       } else if (fullHit.type === 'edge-segment') {
         cursorRef.current = fullHit.segmentDirection === 'vertical' ? 'ew-resize' : 'ns-resize';
       } else if (fullHit.type === 'node') {
-        cursorRef.current = 'default';
+        cursorRef.current = 'move';
       } else if (fullHit.type === 'edge') {
         cursorRef.current = 'pointer';
       } else {
@@ -567,6 +576,7 @@ export function useCanvasInteraction({
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.code === 'Space' && !e.repeat) {
       spaceRef.current = true;
+      if (canvasRef.current) canvasRef.current.style.cursor = 'grab';
       return;
     }
     if (e.key === 'Escape') {
@@ -592,11 +602,14 @@ export function useCanvasInteraction({
       if (e.key === 'c') { e.preventDefault(); copySelected(); return; }
       if (e.key === 'v') { e.preventDefault(); pasteFromClipboard(); return; }
     }
-  }, [selection, nodes, dispatch, copySelected, pasteFromClipboard]);
+  }, [canvasRef, selection, nodes, dispatch, copySelected, pasteFromClipboard]);
 
   const handleKeyUp = useCallback((e: KeyboardEvent) => {
-    if (e.code === 'Space') spaceRef.current = false;
-  }, []);
+    if (e.code === 'Space') {
+      spaceRef.current = false;
+      if (canvasRef.current) canvasRef.current.style.cursor = 'default';
+    }
+  }, [canvasRef]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
