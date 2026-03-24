@@ -62,7 +62,7 @@ function clearShadow(ctx: CanvasRenderingContext2D): void {
 /** 選択状態に応じた stroke スタイルを設定 */
 function setupStroke(ctx: CanvasRenderingContext2D, style: GraphNode['style'], selected: boolean): void {
   ctx.strokeStyle = selected ? CANVAS_SELECTION : style.stroke;
-  ctx.lineWidth = selected ? 2 : style.strokeWidth;
+  ctx.lineWidth = selected ? 3 : style.strokeWidth;
 }
 
 // ---------------------------------------------------------------------------

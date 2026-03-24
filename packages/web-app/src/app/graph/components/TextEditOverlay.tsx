@@ -3,7 +3,7 @@
 import React, { useEffect, useRef } from 'react';
 import { GraphNode, Viewport } from '../types';
 import { worldToScreen } from '../engine/viewport';
-import { COLOR_ICE_BLUE } from '@anytime-markdown/graph-core';
+import { COLOR_ICE_BLUE, COLOR_TEXT_PRIMARY } from '@anytime-markdown/graph-core';
 
 interface TextEditOverlayProps {
   node: GraphNode | null;
@@ -69,7 +69,7 @@ export function TextEditOverlay({ node, viewport, onCommit, onCancel }: TextEdit
         padding: '4px 8px',
         boxSizing: 'border-box',
         background: 'transparent',
-        color: node.style.stroke,
+        color: COLOR_TEXT_PRIMARY,
         zIndex: 30,
         overflow: 'hidden',
       }}

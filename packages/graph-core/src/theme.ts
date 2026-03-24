@@ -12,7 +12,7 @@ export const COLOR_CHARCOAL = '#121212';
 
 // ── Text ──
 export const COLOR_TEXT_PRIMARY = '#FFFFFF';
-export const COLOR_TEXT_SECONDARY = 'rgba(255,255,255,0.70)';
+export const COLOR_TEXT_SECONDARY = 'rgba(255,255,255,0.78)';
 export const COLOR_TEXT_DISABLED = 'rgba(255,255,255,0.45)';
 export const COLOR_TEXT_ON_LIGHT = 'rgba(0,0,0,0.87)';
 
