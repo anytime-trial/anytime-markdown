@@ -76,6 +76,7 @@ export function GraphEditor() {
     const { nodeIds, edgeIds } = state.selection;
     if (nodeIds.length > 0 || edgeIds.length > 0) {
       setLiveMessage(`${nodeIds.length} ${t('nodesSelected')}, ${edgeIds.length} ${t('edgesSelected')}`);
+      setShowProperty(true);
     } else {
       setLiveMessage('');
     }
@@ -418,7 +419,10 @@ export function GraphEditor() {
             onUpdateNode={(id, changes) => dispatch({ type: 'UPDATE_NODE', id, changes })}
             onUpdateEdge={(id, changes) => dispatch({ type: 'UPDATE_EDGE', id, changes })}
             onLayerAction={handleLayerAction}
-            onClose={() => setShowProperty(false)}
+            onClose={() => {
+              setShowProperty(false);
+              canvasRef.current?.focus();
+            }}
           />
         )}
         <div
