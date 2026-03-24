@@ -168,7 +168,6 @@ export function GraphEditor() {
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
         onFitContent={handleFitContent}
-        onDelete={() => dispatch({ type: 'DELETE_SELECTED' })}
         onClearAll={handleClearAll}
         onAlign={handleAlign}
         selectionCount={state.selection.nodeIds.length}

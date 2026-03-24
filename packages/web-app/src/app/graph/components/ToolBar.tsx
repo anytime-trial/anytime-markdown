@@ -20,7 +20,6 @@ import {
   ZoomIn as ZoomInIcon,
   ZoomOut as ZoomOutIcon,
   FitScreen as FitIcon,
-  Delete as DeleteIcon,
   LayersClear as ClearAllIcon,
   AlignHorizontalLeft as AlignHorizontalLeftIcon,
   AlignHorizontalRight as AlignHorizontalRightIcon,
@@ -49,7 +48,6 @@ interface ToolBarProps {
   onZoomIn: () => void;
   onZoomOut: () => void;
   onFitContent: () => void;
-  onDelete: () => void;
   onClearAll: () => void;
   onAlign: (type: string) => void;
   selectionCount: number;
@@ -60,7 +58,7 @@ interface ToolBarProps {
 export function GraphToolBar({
   tool, onToolChange, onUndo, onRedo, canUndo, canRedo,
   showGrid, onToggleGrid, onZoomIn, onZoomOut, onFitContent,
-  onDelete, onClearAll, onAlign, selectionCount, hasSelection, scale,
+  onClearAll, onAlign, selectionCount, hasSelection, scale,
 }: ToolBarProps) {
   const t = useTranslations('Graph');
   const [alignAnchor, setAlignAnchor] = React.useState<null | HTMLElement>(null);
@@ -123,9 +121,6 @@ export function GraphToolBar({
 
         <Divider orientation="vertical" flexItem />
 
-        <Tooltip title={`${t('delete')} (Del)`}>
-          <span><IconButton size="small" onClick={onDelete} disabled={!hasSelection}><DeleteIcon fontSize="small" /></IconButton></span>
-        </Tooltip>
         <Tooltip title={t('clearAll')}>
           <IconButton size="small" onClick={onClearAll}><ClearAllIcon fontSize="small" /></IconButton>
         </Tooltip>
