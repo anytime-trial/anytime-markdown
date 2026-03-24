@@ -12,6 +12,7 @@ import { PropertyPanel } from './PropertyPanel';
 import { TextEditOverlay } from './TextEditOverlay';
 import { ContextMenu, ContextTarget } from './ContextMenu';
 import { DocEditorModal } from './DocEditorModal';
+import { ShapeHoverBar } from './ShapeHoverBar';
 import { zoom as zoomViewport, fitToContent, screenToWorld } from '../engine/viewport';
 import { hitTest } from '../engine/hitTest';
 import { alignLeft, alignRight, alignTop, alignBottom, alignCenterH, alignCenterV, distributeH, distributeV } from '../engine/alignment';
@@ -241,6 +242,13 @@ export function GraphEditor() {
           previewRef={previewRef}
           hoverNodeIdRef={hoverNodeIdRef}
         />
+        {selectedNode && !editingNodeId && !docEditNodeId && (
+          <ShapeHoverBar
+            node={selectedNode}
+            viewport={state.document.viewport}
+            onChangeType={(id, type) => dispatch({ type: 'UPDATE_NODE', id, changes: { type } })}
+          />
+        )}
         <TextEditOverlay
           node={editingNode}
           viewport={state.document.viewport}
