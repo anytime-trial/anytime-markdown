@@ -11,7 +11,7 @@
   "workspaces": [
     "packages/markdown-core",
     "packages/graph-core",
-    "packages/mcp-editor",
+    "packages/mcp-markdown",
     "packages/mcp-graph",
     "packages/vscode-markdown-extension",
     "packages/vscode-graph-extension",

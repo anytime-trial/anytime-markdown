@@ -5,7 +5,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
 
-describe('mcp-editor integration', () => {
+describe('mcp-markdown integration', () => {
   let tmpDir: string;
   let client: Client;
 

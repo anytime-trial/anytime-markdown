@@ -50,7 +50,7 @@ export function GraphEditor() {
     }
   }, [dispatch]);
 
-  useAutoSave(state.document);
+  const saveStatus = useAutoSave(state.document);
 
   const canvasAriaLabel = `${t('graphCanvas')}: ${state.document.nodes.length} nodes, ${state.document.edges.length} edges`;
 
@@ -315,6 +315,7 @@ export function GraphEditor() {
         selectionCount={state.selection.nodeIds.length}
         hasSelection={state.selection.nodeIds.length > 0 || state.selection.edgeIds.length > 0}
         scale={state.document.viewport.scale}
+        saveStatus={saveStatus}
       />
       <Box sx={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
         <GraphCanvas

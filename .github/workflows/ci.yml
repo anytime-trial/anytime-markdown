@@ -45,9 +45,9 @@ jobs:
         run: npx jest --coverage --coverageReporters=lcov
         working-directory: packages/web-app
 
-      - name: Run mcp-editor tests
+      - name: Run mcp-markdown tests
         run: npx jest --maxWorkers=1
-        working-directory: packages/mcp-editor
+        working-directory: packages/mcp-markdown
 
       - name: Run mcp-graph tests
         run: npx jest --maxWorkers=1

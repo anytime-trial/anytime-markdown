@@ -33,9 +33,13 @@ import {
   Lightbulb as InsightIcon,
   Description as DocIcon,
   Dashboard as FrameIcon,
+  CloudDone as CloudDoneIcon,
+  CloudSync as CloudSyncIcon,
+  CloudOff as CloudOffIcon,
 } from '@mui/icons-material';
 import { useTranslations } from 'next-intl';
 import { ToolType } from '../types';
+import { SaveStatus } from '../hooks/useAutoSave';
 import { COLOR_CHARCOAL, COLOR_BORDER } from '@anytime-markdown/graph-core';
 
 interface ToolBarProps {
@@ -58,12 +62,13 @@ interface ToolBarProps {
   selectionCount: number;
   hasSelection: boolean;
   scale: number;
+  saveStatus: SaveStatus;
 }
 
 export function GraphToolBar({
   tool, onToolChange, onUndo, onRedo, canUndo, canRedo,
   showGrid, onToggleGrid, onZoomIn, onZoomOut, onFitContent,
-  onClearAll, onExportSvg, onExportDrawio, onImportDrawio, onAlign, selectionCount, hasSelection, scale,
+  onClearAll, onExportSvg, onExportDrawio, onImportDrawio, onAlign, selectionCount, hasSelection, scale, saveStatus,
 }: ToolBarProps) {
   const t = useTranslations('Graph');
   const [alignAnchor, setAlignAnchor] = React.useState<null | HTMLElement>(null);
@@ -163,6 +168,14 @@ export function GraphToolBar({
         </Tooltip>
         <Tooltip title={t('fitContent')}>
           <IconButton size="small" onClick={onFitContent}><FitIcon fontSize="small" /></IconButton>
+        </Tooltip>
+
+        <Tooltip title={saveStatus === 'saved' ? t('saved') : saveStatus === 'saving' ? t('saving') : t('saveError')}>
+          <Box sx={{ display: 'flex', alignItems: 'center', ml: 0.5 }}>
+            {saveStatus === 'saved' && <CloudDoneIcon fontSize="small" sx={{ color: 'text.secondary' }} />}
+            {saveStatus === 'saving' && <CloudSyncIcon fontSize="small" sx={{ color: 'text.secondary' }} />}
+            {saveStatus === 'error' && <CloudOffIcon fontSize="small" sx={{ color: '#f44336' }} />}
+          </Box>
         </Tooltip>
 
         <Divider orientation="vertical" flexItem />

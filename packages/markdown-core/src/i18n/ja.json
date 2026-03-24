@@ -759,7 +759,10 @@
     "cancel": "キャンセル",
     "graphCanvas": "グラフキャンバス",
     "nodesSelected": "ノード選択中",
-    "edgesSelected": "エッジ選択中"
+    "edgesSelected": "エッジ選択中",
+    "saved": "保存済み",
+    "saving": "保存中...",
+    "saveError": "保存エラー"
   },
   "Privacy": {
     "title": "プライバシーポリシー",

@@ -759,7 +759,10 @@
     "cancel": "Cancel",
     "graphCanvas": "Graph canvas",
     "nodesSelected": "nodes selected",
-    "edgesSelected": "edges selected"
+    "edgesSelected": "edges selected",
+    "saved": "Saved",
+    "saving": "Saving...",
+    "saveError": "Save Error"
   },
   "Privacy": {
     "title": "Privacy Policy",
