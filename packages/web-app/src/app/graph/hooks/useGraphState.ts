@@ -26,6 +26,7 @@ type Action =
   | { type: 'RESIZE_NODE'; id: string; x: number; y: number; width: number; height: number }
   | { type: 'GROUP_SELECTED'; groupId: string }
   | { type: 'UNGROUP_SELECTED' }
+  | { type: 'PASTE_NODES'; nodes: GraphNode[]; edges: GraphEdge[] }
   | { type: 'UNDO' }
   | { type: 'REDO' }
   | { type: 'SNAPSHOT' };
@@ -171,6 +172,19 @@ function reducer(state: GraphState, action: Action): GraphState {
             n.groupId && groupIds.has(n.groupId) ? { ...n, groupId: undefined } : n,
           ),
         },
+      };
+    }
+
+    case 'PASTE_NODES': {
+      const s = pushHistory(state);
+      return {
+        ...s,
+        document: {
+          ...s.document,
+          nodes: [...s.document.nodes, ...action.nodes],
+          edges: [...s.document.edges, ...action.edges],
+        },
+        selection: { nodeIds: action.nodes.map(n => n.id), edgeIds: [] },
       };
     }
 
