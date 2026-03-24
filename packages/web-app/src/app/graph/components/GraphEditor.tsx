@@ -261,6 +261,7 @@ export function GraphEditor() {
           onViewportUpdate={handleViewportUpdate}
           velocityRef={velocityRef}
           onPanInertia={handlePanInertia}
+          draggingNodeIds={isDragging && dragRef.current.type === 'move' ? state.selection.nodeIds : undefined}
         />
         {selectedNode && !editingNodeId && !docEditNodeId && !isDragging && (
           <ShapeHoverBar

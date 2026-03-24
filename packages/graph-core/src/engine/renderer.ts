@@ -28,6 +28,7 @@ export function render(
   hoverNodeId?: string,
   mouseWorldX?: number,
   mouseWorldY?: number,
+  draggingNodeIds?: string[],
 ): void {
   ctx.fillStyle = BG_COLOR;
   ctx.fillRect(0, 0, width, height);
@@ -38,7 +39,10 @@ export function render(
   if (showGrid) drawGrid(ctx, viewport, width, height);
 
   edges.forEach(e => drawEdge(ctx, e, selection.edgeIds.includes(e.id)));
-  nodes.forEach(n => drawNode(ctx, n, selection.nodeIds.includes(n.id)));
+  nodes.forEach(n => {
+    const isDragging = draggingNodeIds?.includes(n.id) ?? false;
+    drawNode(ctx, n, selection.nodeIds.includes(n.id), isDragging);
+  });
   // 単一選択時のみ個別リサイズハンドル表示
   if (selection.nodeIds.length === 1) {
     const sn = nodes.find(n => n.id === selection.nodeIds[0]);
@@ -127,20 +131,31 @@ export function drawNode(
   ctx: CanvasRenderingContext2D,
   node: GraphNode,
   selected: boolean,
+  isDragging: boolean = false,
 ): void {
   ctx.save();
+
+  // ドラッグ中の浮き上がりエフェクト
+  if (isDragging) {
+    ctx.shadowColor = 'rgba(144, 202, 249, 0.3)';
+    ctx.shadowBlur = 16;
+    ctx.shadowOffsetX = 4;
+    ctx.shadowOffsetY = 4;
+  }
 
   const { x, y, width, height, type, style, text } = node;
   const radius = style.borderRadius ?? 0;
   const fill = makeFill(ctx, style, x, y, width, height);
 
   if (type === 'sticky') {
-    // sticky は常に影・角丸
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
-    ctx.shadowBlur = 8;
-    ctx.shadowOffsetX = 2;
-    ctx.shadowOffsetY = 2;
-    if (style.shadow) { ctx.shadowBlur = 12; ctx.shadowOffsetX = 3; ctx.shadowOffsetY = 3; }
+    // sticky は常に影・角丸（ドラッグ中は上で設定済み）
+    if (!isDragging) {
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
+      ctx.shadowBlur = 8;
+      ctx.shadowOffsetX = 2;
+      ctx.shadowOffsetY = 2;
+    }
+    if (!isDragging && style.shadow) { ctx.shadowBlur = 12; ctx.shadowOffsetX = 3; ctx.shadowOffsetY = 3; }
 
     ctx.fillStyle = fill;
     drawRoundedRect(ctx, x, y, width, height, Math.max(4, radius));

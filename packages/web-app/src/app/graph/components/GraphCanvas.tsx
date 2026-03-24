@@ -28,6 +28,7 @@ interface GraphCanvasProps {
   onViewportUpdate?: (viewport: Viewport) => void;
   velocityRef?: React.RefObject<{ vx: number; vy: number }>;
   onPanInertia?: (dx: number, dy: number) => void;
+  draggingNodeIds?: string[];
 }
 
 export function GraphCanvas({
@@ -36,6 +37,7 @@ export function GraphCanvas({
   previewRef, hoverNodeIdRef, mouseWorldRef,
   viewportAnimRef, onViewportUpdate,
   velocityRef, onPanInertia,
+  draggingNodeIds,
 }: GraphCanvasProps) {
   const rafRef = useRef<number>(0);
 
@@ -87,7 +89,7 @@ export function GraphCanvas({
       return e;
     });
 
-    render(ctx, canvas.width, canvas.height, nodes, resolvedEdges, activeViewport, selection, showGrid, hoverNodeIdRef.current, mouseWorldRef.current.x, mouseWorldRef.current.y);
+    render(ctx, canvas.width, canvas.height, nodes, resolvedEdges, activeViewport, selection, showGrid, hoverNodeIdRef.current, mouseWorldRef.current.x, mouseWorldRef.current.y, draggingNodeIds);
 
     // ドラッグプレビュー描画
     const preview = previewRef.current;
@@ -121,7 +123,7 @@ export function GraphCanvas({
       drawSmartGuides(ctx, preview.guides);
       ctx.restore();
     }
-  }, [canvasRef, nodes, edges, viewport, selection, showGrid, previewRef, hoverNodeIdRef, mouseWorldRef, viewportAnimRef, onViewportUpdate, velocityRef, onPanInertia]);
+  }, [canvasRef, nodes, edges, viewport, selection, showGrid, previewRef, hoverNodeIdRef, mouseWorldRef, viewportAnimRef, onViewportUpdate, velocityRef, onPanInertia, draggingNodeIds]);
 
   useEffect(() => {
     const loop = () => {
