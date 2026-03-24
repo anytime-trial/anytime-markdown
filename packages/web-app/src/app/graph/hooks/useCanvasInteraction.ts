@@ -594,27 +594,60 @@ export function useCanvasInteraction({
       edges.filter(edge => selectedSet.has(edge.from.nodeId ?? '') && selectedSet.has(edge.to.nodeId ?? '')),
     ));
     clipboardRef.current = { nodes: copiedNodes, edges: copiedEdges };
+    // Also write to system clipboard for cross-tab support
+    try {
+      const data = JSON.stringify({ type: 'anytime-graph', nodes: copiedNodes, edges: copiedEdges });
+      navigator.clipboard.writeText(data).catch(() => {/* ignore clipboard errors */});
+    } catch {
+      // Clipboard API not available, internal clipboard still works
+    }
   }, [selection.nodeIds, nodes, edges]);
 
-  const pasteFromClipboard = useCallback(() => {
-    if (!clipboardRef.current) return;
-    const idMap = new Map<string, string>();
-    const newNodes = clipboardRef.current.nodes.map(n => {
-      const newId = crypto.randomUUID();
-      idMap.set(n.id, newId);
-      return { ...n, id: newId, x: n.x + 20, y: n.y + 20 };
-    });
-    const newEdges = clipboardRef.current.edges.map(edge => ({
-      ...edge,
-      id: crypto.randomUUID(),
-      from: { ...edge.from, nodeId: edge.from.nodeId ? idMap.get(edge.from.nodeId) : undefined },
-      to: { ...edge.to, nodeId: edge.to.nodeId ? idMap.get(edge.to.nodeId) : undefined },
-    }));
-    dispatch({ type: 'PASTE_NODES', nodes: newNodes, edges: newEdges });
-    clipboardRef.current = {
-      nodes: clipboardRef.current.nodes.map(n => ({ ...n, x: n.x + 20, y: n.y + 20 })),
-      edges: clipboardRef.current.edges,
+  const pasteFromClipboard = useCallback(async () => {
+    const doPaste = (sourceNodes: GraphNode[], sourceEdges: GraphEdge[]) => {
+      const idMap = new Map<string, string>();
+      const newNodes = sourceNodes.map(n => {
+        const newId = crypto.randomUUID();
+        idMap.set(n.id, newId);
+        return { ...n, id: newId, x: n.x + 20, y: n.y + 20 };
+      });
+      const newEdges = sourceEdges.map(edge => ({
+        ...edge,
+        id: crypto.randomUUID(),
+        from: { ...edge.from, nodeId: edge.from.nodeId ? idMap.get(edge.from.nodeId) : undefined },
+        to: { ...edge.to, nodeId: edge.to.nodeId ? idMap.get(edge.to.nodeId) : undefined },
+      }));
+      dispatch({ type: 'PASTE_NODES', nodes: newNodes, edges: newEdges });
+      // Update source positions for subsequent pastes
+      return {
+        nodes: sourceNodes.map(n => ({ ...n, x: n.x + 20, y: n.y + 20 })),
+        edges: sourceEdges,
+      };
     };
+
+    // Try system clipboard first for cross-tab support
+    try {
+      const text = await navigator.clipboard.readText();
+      const parsed = JSON.parse(text);
+      if (parsed?.type === 'anytime-graph' && Array.isArray(parsed.nodes)) {
+        const updated = doPaste(parsed.nodes, parsed.edges ?? []);
+        // Update system clipboard with offset positions for subsequent pastes
+        clipboardRef.current = updated;
+        try {
+          const data = JSON.stringify({ type: 'anytime-graph', nodes: updated.nodes, edges: updated.edges });
+          navigator.clipboard.writeText(data).catch(() => {/* ignore */});
+        } catch {
+          // ignore
+        }
+        return;
+      }
+    } catch {
+      // Fall through to internal clipboard
+    }
+
+    // Fall back to internal clipboard
+    if (!clipboardRef.current) return;
+    clipboardRef.current = doPaste(clipboardRef.current.nodes, clipboardRef.current.edges);
   }, [dispatch]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
