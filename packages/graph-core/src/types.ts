@@ -35,7 +35,6 @@ export interface GraphNode {
   text: string;
   style: NodeStyle;
   groupId?: string;
-  rotation?: number;
   label?: string;
   labelColor?: string;
   docContent?: string;

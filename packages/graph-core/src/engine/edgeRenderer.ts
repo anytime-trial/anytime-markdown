@@ -1,6 +1,6 @@
 import { GraphEdge, EndpointShape } from '../types';
 import {
-  CANVAS_SELECTION, COLOR_CHARCOAL, COLOR_TEXT_SECONDARY, FONT_FAMILY,
+  CANVAS_BG, CANVAS_SELECTION, COLOR_TEXT_SECONDARY, FONT_FAMILY,
 } from '../theme';
 
 export function drawEdge(
@@ -89,7 +89,7 @@ function drawEdgeLabel(ctx: CanvasRenderingContext2D, label: string, x: number, 
   ctx.font = `12px ${FONT_FAMILY}`;
   const metrics = ctx.measureText(label);
   const padding = 4;
-  ctx.fillStyle = COLOR_CHARCOAL;
+  ctx.fillStyle = CANVAS_BG;
   ctx.fillRect(
     x - metrics.width / 2 - padding,
     y - 8 - padding,
