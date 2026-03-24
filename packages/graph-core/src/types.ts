@@ -15,12 +15,14 @@ export interface NodeStyle {
 }
 
 export type EndpointShape = 'none' | 'arrow' | 'circle' | 'diamond' | 'bar';
+export type RoutingMode = 'orthogonal' | 'bezier';
 
 export interface EdgeStyle {
   stroke: string;
   strokeWidth: number;
   startShape?: EndpointShape;
   endShape?: EndpointShape;
+  routing?: RoutingMode;
 }
 
 export interface GraphNode {
@@ -41,6 +43,8 @@ export interface GraphNode {
   zIndex?: number;
   /** 画像ノード用: data URL */
   imageData?: string;
+  /** 追加の接続ポイント（正規化座標 0-1） */
+  extraConnectionPoints?: { x: number; y: number }[];
 }
 
 export interface EdgeEndpoint {
