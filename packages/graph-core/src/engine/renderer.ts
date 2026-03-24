@@ -3,7 +3,13 @@ import type { GuideLine } from './smartGuide';
 
 const GRID_SIZE = 20;
 const HANDLE_SIZE = 8;
-const SELECTION_COLOR = '#2196f3';
+// Anytime Trial Design System
+const SELECTION_COLOR = '#90CAF9'; // アイスブルー
+const BG_COLOR = '#0D1117'; // ミッドナイトネイビー
+const GRID_COLOR = 'rgba(255, 255, 255, 0.06)';
+const TEXT_ON_SHAPE_COLOR = '#FFFFFF';
+const LABEL_BG_COLOR = '#121212'; // チャコール
+const LABEL_TEXT_COLOR = 'rgba(255, 255, 255, 0.70)';
 
 export function render(
   ctx: CanvasRenderingContext2D,
@@ -15,7 +21,8 @@ export function render(
   selection: SelectionState,
   showGrid: boolean,
 ): void {
-  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = BG_COLOR;
+  ctx.fillRect(0, 0, width, height);
   ctx.save();
   ctx.translate(viewport.offsetX, viewport.offsetY);
   ctx.scale(viewport.scale, viewport.scale);
@@ -38,7 +45,7 @@ export function drawGrid(
   height: number,
 ): void {
   ctx.save();
-  ctx.strokeStyle = '#e0e0e0';
+  ctx.strokeStyle = GRID_COLOR;
   ctx.lineWidth = 0.5 / viewport.scale;
 
   const startX = Math.floor(-viewport.offsetX / viewport.scale / GRID_SIZE) * GRID_SIZE;
@@ -143,7 +150,7 @@ export function drawNode(
   }
 
   if (text) {
-    ctx.fillStyle = '#333333';
+    ctx.fillStyle = TEXT_ON_SHAPE_COLOR;
     ctx.font = `${style.fontSize}px ${style.fontFamily}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -278,7 +285,7 @@ export function drawEdge(
   if (edge.label) {
     const midX = (from.x + to.x) / 2;
     const midY = (from.y + to.y) / 2;
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = LABEL_BG_COLOR;
     const labelMetrics = ctx.measureText(edge.label);
     const padding = 4;
     ctx.fillRect(
@@ -287,8 +294,8 @@ export function drawEdge(
       labelMetrics.width + padding * 2,
       16 + padding * 2,
     );
-    ctx.fillStyle = '#333333';
-    ctx.font = '12px sans-serif';
+    ctx.fillStyle = LABEL_TEXT_COLOR;
+    ctx.font = '12px Roboto, Helvetica, Arial, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(edge.label, midX, midY);
@@ -346,7 +353,7 @@ export function drawResizeHandles(
   ];
 
   ctx.save();
-  ctx.fillStyle = '#ffffff';
+  ctx.fillStyle = LABEL_BG_COLOR;
   ctx.strokeStyle = SELECTION_COLOR;
   ctx.lineWidth = 1.5 / scale;
 
@@ -381,7 +388,7 @@ export function drawEdgePreview(
   ctx.restore();
 }
 
-const SNAP_HIGHLIGHT_COLOR = '#4caf50';
+const SNAP_HIGHLIGHT_COLOR = '#E8A012'; // アンバーゴールド
 const SNAP_INDICATOR_RADIUS = 6;
 
 /** スナップ対象ノードのハイライト枠を描画 */
@@ -418,8 +425,8 @@ export function drawSnapHighlight(
     ctx.arc(px, py, SNAP_INDICATOR_RADIUS, 0, Math.PI * 2);
     ctx.fill();
   }
-  // 白い内円
-  ctx.fillStyle = '#ffffff';
+  // 内円
+  ctx.fillStyle = BG_COLOR;
   for (const { px, py } of points) {
     ctx.beginPath();
     ctx.arc(px, py, SNAP_INDICATOR_RADIUS - 2, 0, Math.PI * 2);
@@ -446,7 +453,7 @@ export function drawShapePreview(
   ctx.strokeStyle = SELECTION_COLOR;
   ctx.lineWidth = 1.5;
   ctx.setLineDash([6, 4]);
-  ctx.fillStyle = 'rgba(33, 150, 243, 0.05)';
+  ctx.fillStyle = 'rgba(144, 202, 249, 0.08)';
 
   if (shapeType === 'ellipse') {
     ctx.beginPath();
@@ -478,7 +485,7 @@ export function drawShapePreview(
 
 export function drawSmartGuides(ctx: CanvasRenderingContext2D, guides: GuideLine[]): void {
   ctx.save();
-  ctx.strokeStyle = '#f44336';
+  ctx.strokeStyle = '#90CAF9';
   ctx.lineWidth = 0.5;
   ctx.setLineDash([4, 4]);
   for (const g of guides) {
@@ -505,7 +512,7 @@ export function drawSelectionRect(
 ): void {
   ctx.save();
 
-  ctx.fillStyle = 'rgba(33, 150, 243, 0.1)';
+  ctx.fillStyle = 'rgba(144, 202, 249, 0.08)';
   ctx.fillRect(x, y, width, height);
 
   ctx.strokeStyle = SELECTION_COLOR;

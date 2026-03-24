@@ -69,7 +69,12 @@ export function GraphToolBar({
       position="static"
       color="default"
       elevation={1}
-      sx={{ backgroundColor: 'background.paper', zIndex: 10 }}
+      sx={{
+        backgroundColor: '#121212',
+        borderBottom: '1px solid rgba(255,255,255,0.12)',
+        backdropFilter: 'blur(12px)',
+        zIndex: 10,
+      }}
     >
       <Toolbar variant="dense" sx={{ gap: 1, minHeight: 48 }}>
         <ToggleButtonGroup

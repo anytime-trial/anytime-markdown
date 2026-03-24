@@ -70,23 +70,23 @@ export interface HistoryEntry {
 }
 
 export const DEFAULT_NODE_STYLE: NodeStyle = {
-  fill: '#ffffff',
-  stroke: '#333333',
+  fill: '#121212',
+  stroke: 'rgba(255,255,255,0.24)',
   strokeWidth: 2,
   fontSize: 14,
-  fontFamily: 'sans-serif',
+  fontFamily: 'Roboto, Helvetica, Arial, sans-serif',
 };
 
 export const DEFAULT_STICKY_STYLE: NodeStyle = {
-  fill: '#fff9c4',
-  stroke: '#f9a825',
+  fill: '#E8A012',
+  stroke: 'rgba(232,160,18,0.6)',
   strokeWidth: 1,
   fontSize: 14,
-  fontFamily: 'sans-serif',
+  fontFamily: 'Roboto, Helvetica, Arial, sans-serif',
 };
 
 export const DEFAULT_EDGE_STYLE: EdgeStyle = {
-  stroke: '#333333',
+  stroke: 'rgba(255,255,255,0.24)',
   strokeWidth: 2,
 };
 
