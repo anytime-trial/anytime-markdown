@@ -318,6 +318,56 @@ function handleResizeKeyDownImpl(
   updateAttributes({ width: `${newWidth}px` });
 }
 
+/** Compute derived interaction flags for ImageNodeView (extracted to reduce CC). */
+function computeImageInteraction(
+  collapsed: boolean,
+  isCompareLeft: boolean,
+  isEditable: boolean,
+  isCompareLeftEditable: boolean,
+  showToolbar: boolean,
+  isSelected: boolean,
+) {
+  const canInteract = !collapsed && !isCompareLeft;
+  const hasScreenCapture = canInteract && typeof navigator !== "undefined" && !!navigator.mediaDevices?.getDisplayMedia;
+  const showBorder = showToolbar || (isCompareLeftEditable && isSelected);
+  const showBlockToolbar = isEditable || isCompareLeftEditable;
+  return { canInteract, hasScreenCapture, showBorder, showBlockToolbar };
+}
+
+/** Build border/toolbar-hide styles for image inline view (extracted to reduce CC). */
+function buildImageBorderSx(showBorder: boolean, isDark: boolean) {
+  const borderColor = showBorder ? getDivider(isDark) : "transparent";
+  const hiddenToolbarSx = showBorder ? {} : {
+    "& > [data-block-toolbar]": {
+      maxHeight: 0, opacity: 0, py: 0, overflow: "hidden",
+    },
+  };
+  return { borderColor, hiddenToolbarSx };
+}
+
+/** Render image body: error placeholder or ImageWithResize (extracted to reduce CC). */
+function ImageBody({ collapsed, imgError, isDark, ...resizeProps }: Readonly<{
+  collapsed: boolean; imgError: boolean; isDark: boolean;
+  imgRef: React.RefObject<HTMLImageElement | null>;
+  imgContainerRef: React.RefObject<HTMLDivElement | null>;
+  src: string; alt: string; title: string; displayWidth: string | undefined;
+  annotations: ImageAnnotation[];
+  isSelected: boolean; isEditable: boolean;
+  resizing: boolean; resizeWidth: number | null;
+  handleResizePointerDown: (e: React.PointerEvent) => void;
+  handleResizePointerMove: (e: React.PointerEvent) => void;
+  handleResizePointerUp: (e: React.PointerEvent) => void;
+  handleResizeKeyDown: (e: React.KeyboardEvent) => void;
+  onDoubleClick: (() => void) | undefined;
+  width: string; t: (key: string) => string;
+}>) {
+  if (collapsed) return null;
+  if (imgError) {
+    return <Box contentEditable={false} sx={{ height: "2em", borderTop: 1, borderColor: getDivider(isDark), bgcolor: getActionHover(isDark) }} />;
+  }
+  return <ImageWithResize {...resizeProps} isDark={isDark} />;
+}
+
 export function ImageNodeView({ editor, node, updateAttributes, getPos }: Readonly<NodeViewProps>) {
   const t = useTranslations("MarkdownEditor");
   const theme = useTheme();
@@ -353,10 +403,9 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: Readon
     handleCropComplete(src, updateAttributes, croppedDataUrl);
   }, [src, updateAttributes]);
 
-  const canInteract = !collapsed && !isCompareLeft;
-  const hasScreenCapture = canInteract && typeof navigator !== "undefined" && !!navigator.mediaDevices?.getDisplayMedia;
-  const showBorder = showToolbar || (isCompareLeftEditable && isSelected);
-  const showBlockToolbar = isEditable || isCompareLeftEditable;
+  const { canInteract, hasScreenCapture, showBorder, showBlockToolbar } = computeImageInteraction(
+    collapsed, isCompareLeft, isEditable, isCompareLeftEditable, showToolbar, isSelected,
+  );
 
   const onDeleteAction = canInteract ? () => setDeleteDialogOpen(true) : undefined;
   const onEditAction = canInteract ? () => setEditOpen(true) : undefined;
@@ -364,16 +413,10 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: Readon
   const onScreenCaptureAction = hasScreenCapture ? () => setScreenCaptureOpen(true) : undefined;
   const onImageDoubleClick = isEditable ? undefined : () => setEditOpen(true);
 
-  const borderColor = showBorder ? getDivider(isDark) : "transparent";
-  const hiddenToolbarSx = showBorder ? {} : {
-    "& > [data-block-toolbar]": {
-      maxHeight: 0, opacity: 0, py: 0, overflow: "hidden",
-    },
-  };
+  const { borderColor, hiddenToolbarSx } = buildImageBorderSx(showBorder, isDark);
 
   return (
     <NodeViewWrapper className="image-node-wrapper">
-      {/* Edit Dialog */}
       <ImageEditDialog
         editOpen={editOpen}
         setEditOpen={setEditOpen}
@@ -384,7 +427,6 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: Readon
         isDark={isDark}
         t={t}
       />
-      {/* Inline view */}
       <Box
         sx={{
           border: 1, borderRadius: 1, overflow: "hidden", my: 1,
@@ -419,33 +461,29 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: Readon
             t={t}
           />
         )}
-        {/* Image with resize handle */}
-        {!collapsed && imgError && (
-          <Box contentEditable={false} sx={{ height: "2em", borderTop: 1, borderColor: getDivider(isDark), bgcolor: getActionHover(isDark) }} />
-        )}
-        {!collapsed && !imgError && (
-          <ImageWithResize
-            imgRef={imgRef}
-            imgContainerRef={imgContainerRef}
-            src={src}
-            alt={alt}
-            title={title}
-            displayWidth={displayWidth}
-            annotations={annotations}
-            isSelected={isSelected}
-            isEditable={isEditable}
-            resizing={resizing}
-            resizeWidth={resizeWidth}
-            handleResizePointerDown={handleResizePointerDown}
-            handleResizePointerMove={handleResizePointerMove}
-            handleResizePointerUp={handleResizePointerUp}
-            handleResizeKeyDown={handleResizeKeyDown}
-            onDoubleClick={onImageDoubleClick}
-            width={width}
-            isDark={isDark}
-            t={t}
-          />
-        )}
+        <ImageBody
+          collapsed={collapsed}
+          imgError={imgError}
+          isDark={isDark}
+          imgRef={imgRef}
+          imgContainerRef={imgContainerRef}
+          src={src}
+          alt={alt}
+          title={title}
+          displayWidth={displayWidth}
+          annotations={annotations}
+          isSelected={isSelected}
+          isEditable={isEditable}
+          resizing={resizing}
+          resizeWidth={resizeWidth}
+          handleResizePointerDown={handleResizePointerDown}
+          handleResizePointerMove={handleResizePointerMove}
+          handleResizePointerUp={handleResizePointerUp}
+          handleResizeKeyDown={handleResizeKeyDown}
+          onDoubleClick={onImageDoubleClick}
+          width={width}
+          t={t}
+        />
       </Box>
       <DeleteBlockDialog
         open={deleteDialogOpen}
