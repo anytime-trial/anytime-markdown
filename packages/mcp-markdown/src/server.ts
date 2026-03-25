@@ -17,7 +17,7 @@ export function createMcpServer(options: McpEditorOptions): McpServer {
 
   const server = new McpServer({
     name: 'anytime-markdown-editor',
-    version: '0.7.7',
+    version: '0.8.0',
   });
 
   server.tool(

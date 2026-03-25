@@ -30,7 +30,7 @@ export function createMcpServer(options: McpGraphOptions): McpServer {
 
   const server = new McpServer({
     name: 'anytime-markdown-graph',
-    version: '0.7.7',
+    version: '0.8.0',
   });
 
   server.tool(

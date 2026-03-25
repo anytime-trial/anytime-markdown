@@ -63,7 +63,7 @@ function findMxPoint(parent: Element, asValue: string): Element | null {
 export function importFromDrawio(xmlString: string): GraphDocument {
   const parser = new DOMParser();
   const xmlDoc = parser.parseFromString(xmlString, 'text/xml');
-  const errorNode = xmlDoc.querySelector('parsererror');
+  const errorNode = xmlDoc.getElementsByTagName('parsererror')[0] ?? null;
   if (errorNode) {
     throw new Error(`Invalid XML: ${errorNode.textContent?.slice(0, 200)}`);
   }

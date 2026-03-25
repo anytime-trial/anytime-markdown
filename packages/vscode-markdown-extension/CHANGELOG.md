@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-03-25
+
+### Added
+- MCP Server: `mcp-markdown` package with 7 tools (read/write, outline, section, sanitize, diff)
+
+### Changed
+- Renamed `editor-core` package to `markdown-core`
+- Renamed `vscode-extension` package to `vscode-markdown-extension`
+
 ## [0.7.7] - 2026-03-23
 
 ### Added

@@ -7,6 +7,15 @@
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-03-25
+
+### 追加
+- MCP サーバー: `mcp-markdown`（7ツール: 読み書き、アウトライン、セクション、正規化、差分）
+
+### 変更
+- `editor-core` パッケージを `markdown-core` にリネーム
+- `vscode-extension` パッケージを `vscode-markdown-extension` にリネーム
+
 ## [0.7.7] - 2026-03-23
 
 ### 追加
