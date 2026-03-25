@@ -3,7 +3,7 @@
 import React from 'react';
 import {
   Box, Typography, TextField, Slider, Divider, IconButton, ToggleButton, ToggleButtonGroup,
-  Switch, FormControlLabel, Select, MenuItem as MuiMenuItem, FormControl,
+  Switch, FormControlLabel,
 } from '@mui/material';
 import {
   Close as CloseIcon,
@@ -34,14 +34,14 @@ function ColorPalette({
   selectedColor,
   onSelect,
   label,
-}: {
+}: Readonly<{
   colors: string[];
   selectedColor: string;
   onSelect: (color: string) => void;
   label: string;
-}) {
+}>) {
   const handleKeyDown = (e: React.KeyboardEvent, index: number) => {
-    let nextIndex = index;
+    let nextIndex: number;
     if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
       nextIndex = (index + 1) % colors.length;
       e.preventDefault();
@@ -98,7 +98,7 @@ interface PropertyPanelProps {
   onClose: () => void;
 }
 
-export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpdateEdge, onLayerAction, onClose }: PropertyPanelProps) {
+export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpdateEdge, onLayerAction, onClose }: Readonly<PropertyPanelProps>) {
   const t = useTranslations('Graph');
   if (!selectedNode && !selectedEdge) return null;
 
@@ -166,7 +166,7 @@ export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpda
           <Slider
             value={selectedNode.style.strokeWidth}
             min={0} max={10} step={0.5}
-            onChange={(_, v) => onUpdateNode(selectedNode.id, { style: { ...selectedNode.style, strokeWidth: v as number } })}
+            onChange={(_, v) => onUpdateNode(selectedNode.id, { style: { ...selectedNode.style, strokeWidth: v } })}
             size="small"
             aria-label={t('strokeWidth')}
             sx={{ mb: 2, color: COLOR_ICE_BLUE }}
@@ -176,7 +176,7 @@ export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpda
           <Slider
             value={selectedNode.style.fontSize}
             min={8} max={48} step={1}
-            onChange={(_, v) => onUpdateNode(selectedNode.id, { style: { ...selectedNode.style, fontSize: v as number } })}
+            onChange={(_, v) => onUpdateNode(selectedNode.id, { style: { ...selectedNode.style, fontSize: v } })}
             size="small"
             aria-label={t('fontSize')}
             sx={{ mb: 2, color: COLOR_ICE_BLUE }}
@@ -186,7 +186,7 @@ export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpda
           <Slider
             value={selectedNode.style.borderRadius ?? 0}
             min={0} max={30} step={1}
-            onChange={(_, v) => onUpdateNode(selectedNode.id, { style: { ...selectedNode.style, borderRadius: v as number } })}
+            onChange={(_, v) => onUpdateNode(selectedNode.id, { style: { ...selectedNode.style, borderRadius: v } })}
             size="small"
             aria-label={t('borderRadius')}
             sx={{ mb: 2, color: COLOR_ICE_BLUE }}
@@ -213,7 +213,7 @@ export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpda
                 width: 24, height: 24, borderRadius: '4px', cursor: 'pointer',
                 background: 'linear-gradient(135deg, #666 25%, transparent 25%, transparent 75%, #666 75%)',
                 backgroundSize: '8px 8px',
-                border: !selectedNode.style.gradientTo ? `2px solid ${COLOR_ICE_BLUE}` : `1px solid ${COLOR_BORDER}`,
+                border: selectedNode.style.gradientTo ? `1px solid ${COLOR_BORDER}` : `2px solid ${COLOR_ICE_BLUE}`,
               }}
             />
             {COLORS.slice(0, 10).map(c => (
@@ -348,7 +348,7 @@ export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpda
           <Slider
             value={selectedEdge.style.strokeWidth}
             min={1} max={10} step={0.5}
-            onChange={(_, v) => onUpdateEdge(selectedEdge.id, { style: { ...selectedEdge.style, strokeWidth: v as number } })}
+            onChange={(_, v) => onUpdateEdge(selectedEdge.id, { style: { ...selectedEdge.style, strokeWidth: v } })}
             size="small"
             aria-label={t('strokeWidth')}
             sx={{ mb: 2, color: COLOR_ICE_BLUE }}
