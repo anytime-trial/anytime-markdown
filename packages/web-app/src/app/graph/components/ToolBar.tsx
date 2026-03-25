@@ -79,6 +79,7 @@ export function GraphToolBar({
   const [alignAnchor, setAlignAnchor] = React.useState<null | HTMLElement>(null);
   const [exportAnchor, setExportAnchor] = React.useState<null | HTMLElement>(null);
   const [zoomAnchor, setZoomAnchor] = useState<null | HTMLElement>(null);
+  const saveStatusLabels: Record<SaveStatus, string> = { saved: t('saved'), saving: t('saving'), error: t('saveError') };
   return (
     <AppBar
       position="static"
@@ -198,7 +199,7 @@ export function GraphToolBar({
           <IconButton size="small" onClick={onFitContent}><FitIcon fontSize="small" /></IconButton>
         </Tooltip>
 
-        <Tooltip title={saveStatus === 'saved' ? t('saved') : saveStatus === 'saving' ? t('saving') : t('saveError')}>
+        <Tooltip title={saveStatusLabels[saveStatus]}>
           <Box sx={{ display: 'flex', alignItems: 'center', ml: 0.5 }}>
             {saveStatus === 'saved' && <CloudDoneIcon fontSize="small" sx={{ color: 'text.secondary' }} />}
             {saveStatus === 'saving' && <CloudSyncIcon fontSize="small" sx={{ color: 'text.secondary' }} />}
