@@ -71,7 +71,7 @@ describe("GET /api/github/commits", () => {
     });
 
     const req = createRequest({ repo: "user/repo", path: "README.md" });
-    const res = (await callGET(req)) as { body: string; status: number };
+    const res = (await callGET(req)) as unknown as { body: string; status: number };
     expect(res.status).toBe(200);
     const body = JSON.parse(res.body);
     expect(body.commits).toEqual([
@@ -100,7 +100,7 @@ describe("GET /api/github/commits", () => {
     });
 
     const req = createRequest({ repo: "user/repo", path: "README.md", branch: "main" });
-    const res = (await callGET(req)) as { body: string; status: number };
+    const res = (await callGET(req)) as unknown as { body: string; status: number };
     const body = JSON.parse(res.body);
     expect(body.stale).toBe(false);
   });
@@ -121,7 +121,7 @@ describe("GET /api/github/commits", () => {
     });
 
     const req = createRequest({ repo: "user/repo", path: "README.md", branch: "main" });
-    const res = (await callGET(req)) as { body: string; status: number };
+    const res = (await callGET(req)) as unknown as { body: string; status: number };
     const body = JSON.parse(res.body);
     expect(body.stale).toBe(true);
   });
@@ -130,7 +130,7 @@ describe("GET /api/github/commits", () => {
     mockGetGitHubToken.mockResolvedValue(null);
 
     const req = createRequest({ repo: "user/repo", path: "README.md" });
-    const res = (await callGET(req)) as { body: string; status: number };
+    const res = (await callGET(req)) as unknown as { body: string; status: number };
     expect(res.status).toBe(401);
     expect(JSON.parse(res.body)).toEqual({ error: "Not authenticated" });
   });
@@ -139,7 +139,7 @@ describe("GET /api/github/commits", () => {
     mockGetGitHubToken.mockResolvedValue("test-token");
 
     const req = createRequest({ repo: "user/repo" });
-    const res = (await callGET(req)) as { body: string; status: number };
+    const res = (await callGET(req)) as unknown as { body: string; status: number };
     expect(res.status).toBe(400);
     expect(JSON.parse(res.body)).toEqual({ error: "Invalid or missing params" });
   });
@@ -149,7 +149,7 @@ describe("GET /api/github/commits", () => {
     mockValidateGitHubRepo.mockReturnValue(false);
 
     const req = createRequest({ repo: "invalid", path: "README.md" });
-    const res = (await callGET(req)) as { body: string; status: number };
+    const res = (await callGET(req)) as unknown as { body: string; status: number };
     expect(res.status).toBe(400);
     expect(JSON.parse(res.body)).toEqual({ error: "Invalid or missing params" });
   });
@@ -159,8 +159,10 @@ describe("GET /api/github/commits", () => {
     mockFetchWithRetry.mockResolvedValue({ ok: false, status: 500 });
 
     const req = createRequest({ repo: "user/repo", path: "README.md" });
-    const res = (await callGET(req)) as { body: string; status: number };
+    const res = (await callGET(req)) as unknown as { body: string; status: number };
     expect(res.status).toBe(500);
     expect(JSON.parse(res.body)).toEqual({ error: "GitHub API error" });
   });
 });
+
+export {};

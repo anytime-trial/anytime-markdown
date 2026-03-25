@@ -72,7 +72,7 @@ describe("GET /api/github/branches", () => {
     });
 
     const req = createRequest({ repo: "user/repo" });
-    const res = (await callGET(req)) as { body: string; status: number; headers: Record<string, string> };
+    const res = (await callGET(req)) as unknown as { body: string; status: number; headers: Record<string, string> };
     expect(res.status).toBe(200);
     expect(JSON.parse(res.body)).toEqual(["main", "develop", "feature/test"]);
     expect(res.headers["Cache-Control"]).toContain("max-age=300");
@@ -82,7 +82,7 @@ describe("GET /api/github/branches", () => {
     mockGetGitHubToken.mockResolvedValue(null);
 
     const req = createRequest({ repo: "user/repo" });
-    const res = (await callGET(req)) as { body: string; status: number };
+    const res = (await callGET(req)) as unknown as { body: string; status: number };
     expect(res.status).toBe(401);
     expect(JSON.parse(res.body)).toEqual({ error: "Not authenticated" });
   });
@@ -91,7 +91,7 @@ describe("GET /api/github/branches", () => {
     mockGetGitHubToken.mockResolvedValue("test-token");
 
     const req = createRequest();
-    const res = (await callGET(req)) as { body: string; status: number };
+    const res = (await callGET(req)) as unknown as { body: string; status: number };
     expect(res.status).toBe(400);
     expect(JSON.parse(res.body)).toEqual({ error: "Invalid or missing repo param" });
   });
@@ -101,7 +101,7 @@ describe("GET /api/github/branches", () => {
     mockValidateGitHubRepo.mockReturnValue(false);
 
     const req = createRequest({ repo: "invalid" });
-    const res = (await callGET(req)) as { body: string; status: number };
+    const res = (await callGET(req)) as unknown as { body: string; status: number };
     expect(res.status).toBe(400);
     expect(JSON.parse(res.body)).toEqual({ error: "Invalid or missing repo param" });
   });
@@ -111,8 +111,10 @@ describe("GET /api/github/branches", () => {
     mockFetchWithRetry.mockResolvedValue({ ok: false, status: 404 });
 
     const req = createRequest({ repo: "user/repo" });
-    const res = (await callGET(req)) as { body: string; status: number };
+    const res = (await callGET(req)) as unknown as { body: string; status: number };
     expect(res.status).toBe(404);
     expect(JSON.parse(res.body)).toEqual({ error: "GitHub API error" });
   });
 });
+
+export {};

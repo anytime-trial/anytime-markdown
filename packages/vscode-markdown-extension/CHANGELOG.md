@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-03-25
+
+### Added
+- Graph Editor: Dark/light theme support
+- Graph Editor: Settings panel with theme and language switching
+- Graph Editor: Start text editing by typing when node is selected
+
+### Changed
+- Graph Editor: Replaced settings popover with right side panel
+
+### Removed
+- Graph Editor: Removed insight node type entirely
+
+### Fixed
+- Graph Editor: Theme-aware colors for toolbar, nodes, and UI components
+- Graph Editor: Hide shape hover bar for non-basic shapes
+- Graph Editor: Prioritize text editing over tool shortcuts when node selected
+- Mermaid: Clear stale SVG on theme change before re-rendering
+- Light mode color scheme and PDF export improvements
+- Next.js version mismatch prevention
+
+## [0.8.1] - 2026-03-25
+
+### Changed
+- Updated Next.js to 15.5.14 (security fix)
+- Updated @modelcontextprotocol/sdk to 1.27.1 (security fix)
+
+### Fixed
+- Fixed test type errors for Next.js 15.5.14 compatibility
+
 ## [0.8.0] - 2026-03-25
 
 ### Added

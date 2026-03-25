@@ -1,5 +1,5 @@
 import { GraphNode, GraphEdge, Viewport, SelectionState } from '../types';
-import { CANVAS_BG, CANVAS_GRID, COLOR_ICE_BLUE, FONT_FAMILY, COLOR_TOOLTIP_BG, COLOR_TOOLTIP_BORDER } from '../theme';
+import { CanvasColors, getCanvasColors, FONT_FAMILY } from '../theme';
 import { FONT_SIZE_TOOLTIP, URL_TRUNCATE_LENGTH } from './constants';
 import { getVisibleBounds, isNodeVisible, isEdgeVisible } from './culling';
 import { drawNode, drawLockIndicator, drawRoundedRect } from './shapes';
@@ -21,21 +21,25 @@ export interface RenderOptions {
   mouseWorldX?: number;
   mouseWorldY?: number;
   draggingNodeIds?: string[];
+  isDark?: boolean;
 }
 
 export function render(options: RenderOptions): void {
   const {
     ctx, width, height, nodes, edges, viewport, selection,
     showGrid, hoverNodeId, mouseWorldX, mouseWorldY, draggingNodeIds,
+    isDark = true,
   } = options;
 
-  ctx.fillStyle = CANVAS_BG;
+  const colors = getCanvasColors(isDark);
+
+  ctx.fillStyle = colors.canvasBg;
   ctx.fillRect(0, 0, width, height);
   ctx.save();
   ctx.translate(viewport.offsetX, viewport.offsetY);
   ctx.scale(viewport.scale, viewport.scale);
 
-  if (showGrid) drawGrid(ctx, viewport, width, height);
+  if (showGrid) drawGrid(ctx, viewport, width, height, colors);
 
   // ビューポートカリング
   const visibleBounds = getVisibleBounds(viewport, width, height);
@@ -63,34 +67,34 @@ export function render(options: RenderOptions): void {
       visibleEdges.push(e);
     }
   }
-  frameNodes.forEach(n => drawNode(ctx, n, selection.nodeIds.includes(n.id)));
-  visibleEdges.forEach(e => drawEdge(ctx, e, selection.edgeIds.includes(e.id)));
+  frameNodes.forEach(n => drawNode(ctx, n, selection.nodeIds.includes(n.id), false, colors));
+  visibleEdges.forEach(e => drawEdge(ctx, e, selection.edgeIds.includes(e.id), colors));
   nonFrameNodes.forEach(n => {
     const isDragging = draggingNodeIds?.includes(n.id) ?? false;
-    drawNode(ctx, n, selection.nodeIds.includes(n.id), isDragging);
-    if (n.locked) drawLockIndicator(ctx, n, viewport.scale);
+    drawNode(ctx, n, selection.nodeIds.includes(n.id), isDragging, colors);
+    if (n.locked) drawLockIndicator(ctx, n, viewport.scale, colors);
   });
   // 単一選択時のみ個別リサイズハンドル表示
   if (selection.nodeIds.length === 1) {
     const sn = nodes.find(n => n.id === selection.nodeIds[0]);
-    if (sn) drawResizeHandles(ctx, sn, viewport.scale);
+    if (sn) drawResizeHandles(ctx, sn, viewport.scale, colors);
   }
 
   // マルチ選択バウンディングボックス
   const selectedNodes = nodes.filter(n => selection.nodeIds.includes(n.id));
   if (selectedNodes.length >= 2) {
-    drawBoundingBox(ctx, selectedNodes, viewport.scale);
+    drawBoundingBox(ctx, selectedNodes, viewport.scale, colors);
   }
 
   // 選択中エッジのエンドポイントハンドル
   edges
     .filter(e => selection.edgeIds.includes(e.id))
-    .forEach(e => drawEdgeEndpointHandles(ctx, e, viewport.scale));
+    .forEach(e => drawEdgeEndpointHandles(ctx, e, viewport.scale, colors));
 
   // ホバー接続ポイント
   if (hoverNodeId) {
     const hoverNode = nodes.find(n => n.id === hoverNodeId);
-    if (hoverNode) drawConnectionPoints(ctx, hoverNode, viewport.scale, mouseWorldX, mouseWorldY);
+    if (hoverNode) drawConnectionPoints(ctx, hoverNode, viewport.scale, mouseWorldX, mouseWorldY, colors);
   }
 
   // ホバー中ノードのURL表示
@@ -106,16 +110,16 @@ export function render(options: RenderOptions): void {
       const tipY = mouseWorldY + 16;
 
       // 背景
-      ctx.fillStyle = COLOR_TOOLTIP_BG;
+      ctx.fillStyle = colors.tooltipBg;
       drawRoundedRect(ctx, tipX - pad, tipY - pad, metrics.width + pad * 2, 16 + pad * 2, 4);
       ctx.fill();
       // 枠線
-      ctx.strokeStyle = COLOR_TOOLTIP_BORDER;
+      ctx.strokeStyle = colors.tooltipBorder;
       ctx.lineWidth = 1;
       drawRoundedRect(ctx, tipX - pad, tipY - pad, metrics.width + pad * 2, 16 + pad * 2, 4);
       ctx.stroke();
       // テキスト
-      ctx.fillStyle = COLOR_ICE_BLUE;
+      ctx.fillStyle = colors.tooltipText;
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
       ctx.fillText(urlText, tipX, tipY);
@@ -131,9 +135,10 @@ export function drawGrid(
   viewport: Viewport,
   width: number,
   height: number,
+  colors?: CanvasColors,
 ): void {
   ctx.save();
-  ctx.strokeStyle = CANVAS_GRID;
+  ctx.strokeStyle = colors?.canvasGrid ?? 'rgba(255,255,255,0.06)';
   ctx.lineWidth = 0.5 / viewport.scale;
 
   const startX = Math.floor(-viewport.offsetX / viewport.scale / GRID_SIZE) * GRID_SIZE;

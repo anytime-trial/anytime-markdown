@@ -37,7 +37,7 @@ function setupFetchMock() {
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ categories: mockCategories }) } as Response);
     }
     return Promise.resolve({ ok: true, json: () => Promise.resolve({}) } as Response);
-  });
+  }) as typeof fetch;
 }
 
 describe("useLayoutEditor coverage", () => {

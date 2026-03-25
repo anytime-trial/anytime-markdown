@@ -28,6 +28,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Check for duplicate core dependencies
+        run: |
+          for pkg in next react typescript; do
+            count=$(npm ls "$pkg" 2>/dev/null | grep -c "$pkg@" || true)
+            if [ "$count" -gt 1 ]; then
+              echo "::warning::Multiple versions of $pkg detected"
+              npm ls "$pkg" 2>/dev/null
+            fi
+          done
+
       - name: Security audit
         run: npm audit --audit-level=high
 

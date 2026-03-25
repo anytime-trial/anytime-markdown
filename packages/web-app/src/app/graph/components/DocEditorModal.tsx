@@ -4,10 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { Box, IconButton, Typography } from '@mui/material';
 import { Close as CloseIcon } from '@mui/icons-material';
 import { useTranslations } from 'next-intl';
-import {
-  COLOR_MIDNIGHT_NAVY, COLOR_BORDER, COLOR_TEXT_PRIMARY,
-  COLOR_TEXT_SECONDARY, COLOR_CHARCOAL,
-} from '@anytime-markdown/graph-core';
+import { getCanvasColors } from '@anytime-markdown/graph-core';
+import { useThemeMode } from '../../providers';
 
 interface DocEditorModalProps {
   open: boolean;
@@ -19,6 +17,9 @@ interface DocEditorModalProps {
 
 export function DocEditorModal({ open, title, content, onSave, onClose }: DocEditorModalProps) {
   const t = useTranslations('Graph');
+  const { themeMode } = useThemeMode();
+  const isDark = themeMode === 'dark';
+  const colors = getCanvasColors(isDark);
   const [editorContent, setEditorContent] = useState(content);
 
   useEffect(() => {
@@ -51,8 +52,8 @@ export function DocEditorModal({ open, title, content, onSave, onClose }: DocEdi
           width: '90vw',
           maxWidth: 1000,
           height: '85vh',
-          backgroundColor: COLOR_MIDNIGHT_NAVY,
-          border: `1px solid ${COLOR_BORDER}`,
+          backgroundColor: colors.modalBg,
+          border: `1px solid ${colors.panelBorder}`,
           borderRadius: '12px',
           display: 'flex',
           flexDirection: 'column',
@@ -67,14 +68,14 @@ export function DocEditorModal({ open, title, content, onSave, onClose }: DocEdi
             justifyContent: 'space-between',
             px: 2,
             py: 1,
-            borderBottom: `1px solid ${COLOR_BORDER}`,
-            backgroundColor: COLOR_CHARCOAL,
+            borderBottom: `1px solid ${colors.panelBorder}`,
+            backgroundColor: colors.panelBg,
           }}
         >
-          <Typography variant="subtitle1" sx={{ color: COLOR_TEXT_PRIMARY, fontWeight: 600 }}>
+          <Typography variant="subtitle1" sx={{ color: colors.textPrimary, fontWeight: 600 }}>
             {title || t('untitledDocument')}
           </Typography>
-          <IconButton size="small" onClick={handleClose} sx={{ color: COLOR_TEXT_SECONDARY }}>
+          <IconButton size="small" onClick={handleClose} sx={{ color: colors.textSecondary }}>
             <CloseIcon />
           </IconButton>
         </Box>
@@ -88,8 +89,8 @@ export function DocEditorModal({ open, title, content, onSave, onClose }: DocEdi
             sx={{
               width: '100%',
               height: '100%',
-              backgroundColor: COLOR_MIDNIGHT_NAVY,
-              color: COLOR_TEXT_PRIMARY,
+              backgroundColor: colors.modalBg,
+              color: colors.textPrimary,
               border: 'none',
               outline: 'none',
               resize: 'none',
@@ -98,7 +99,7 @@ export function DocEditorModal({ open, title, content, onSave, onClose }: DocEdi
               fontFamily: 'Roboto Mono, monospace',
               lineHeight: 1.6,
               '&::placeholder': {
-                color: COLOR_TEXT_SECONDARY,
+                color: colors.textSecondary,
               },
             }}
             placeholder={t('writePlaceholder')}

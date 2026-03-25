@@ -61,7 +61,7 @@ export default function Page() {
   ) : undefined;
 
   return (
-    <Box sx={{ display: "flex", height: "100vh", overflow: "hidden" }}>
+    <Box id="md-page-wrapper" sx={{ display: "flex", height: "100vh", overflow: "hidden" }}>
       <Box sx={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
         <MarkdownEditorPage
           key={editorKey}

@@ -91,7 +91,26 @@ function requestMermaidRender(code: string, isDark: boolean, callback: (svg: str
         mermaid.initialize({
           startOnLoad: false,
           suppressErrorRendering: true,
-          theme: isDark ? "dark" : "default",
+          theme: isDark ? "dark" : "base",
+          themeVariables: isDark ? undefined : {
+            primaryColor: "#F5F5F0",
+            primaryBorderColor: "#888888",
+            primaryTextColor: "#1A1A1A",
+            secondaryColor: "#EAEAE5",
+            secondaryBorderColor: "#999999",
+            secondaryTextColor: "#1A1A1A",
+            tertiaryColor: "#E0E0DB",
+            tertiaryBorderColor: "#AAAAAA",
+            tertiaryTextColor: "#1A1A1A",
+            lineColor: "#555555",
+            textColor: "#1A1A1A",
+            mainBkg: "#F5F5F0",
+            nodeBorder: "#888888",
+            clusterBkg: "#EAEAE5",
+            clusterBorder: "#999999",
+            titleColor: "#1A1A1A",
+            edgeLabelBackground: "#E8E6E1",
+          },
           securityLevel: "strict",
         });
 
@@ -170,6 +189,10 @@ export function useMermaidRender({ code, isMermaid, isDark }: UseMermaidRenderPa
       setError("");
       return;
     }
+
+    // キャッシュミス: 古いテーマの SVG をクリアして再レンダリングを待つ
+    setSvg("");
+    setError("");
 
     // モジュールレベルのレンダリングをリクエスト
     const cancel = requestMermaidRender(code, isDark, (renderedSvg, renderedError) => {

@@ -28,12 +28,19 @@ jest.mock("lowlight", () => ({
   }),
 }));
 
-jest.mock("../constants/colors", () => ({
-  getDivider: () => "#ccc",
-  getTextSecondary: () => "#666",
-  getTextPrimary: () => "#333",
-  getActionHover: () => "rgba(0,0,0,0.04)",
-}));
+jest.mock("../constants/colors", () => {
+  const hljs = { keyword: "#000", string: "#000", comment: "#000", number: "#000", title: "#000", params: "#000", meta: "#000", addition: "#000", additionBg: "transparent", deletion: "#000", deletionBg: "transparent" };
+  return {
+    getDivider: () => "#ccc",
+    getTextSecondary: () => "#666",
+    getTextPrimary: () => "#333",
+    getActionHover: () => "rgba(0,0,0,0.04)",
+    DEFAULT_DARK_BG: "#0D1117",
+    DEFAULT_LIGHT_BG: "#E8E6E1",
+    HLJS_DARK: hljs,
+    HLJS_LIGHT: hljs,
+  };
+});
 
 jest.mock("../constants/dimensions", () => ({
   FS_TAB_FONT_SIZE: 12,

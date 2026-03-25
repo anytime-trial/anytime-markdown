@@ -2,7 +2,7 @@ import type { EditorSettings } from "../useEditorSettings";
 
 // ── エディタ背景色 ──
 export const DEFAULT_DARK_BG = "#0D1117";
-export const DEFAULT_LIGHT_BG = "#F8F9FA";
+export const DEFAULT_LIGHT_BG = "#E8E6E1";
 
 // ── エディタ文字色 ──
 export const DEFAULT_DARK_TEXT = "#E2E8F0";
@@ -18,15 +18,66 @@ export const LIGHT_TEXT_DISABLED = "#00000061";
 
 // ── コードブロック背景色 ──
 export const DEFAULT_DARK_CODE_BG = "#161B22";
-export const DEFAULT_LIGHT_CODE_BG = "#F1F5F9";
+export const DEFAULT_LIGHT_CODE_BG = "#F5F5F0";
 
 // ── 見出しセクション背景色 ──
 export const DEFAULT_DARK_HEADING_BG = "#1A202C";
-export const DEFAULT_LIGHT_HEADING_BG = "#EDF2F7";
+export const DEFAULT_LIGHT_HEADING_BG = "#DDDCD8";
 
 // ── 見出しリンク色 ──
 export const DEFAULT_DARK_HEADING_LINK = "#63B3ED";
-export const DEFAULT_LIGHT_HEADING_LINK = "#3182CE";
+export const DEFAULT_LIGHT_HEADING_LINK = "#1A1A1A";
+
+// ── 見出し装飾色（ボーダー・背景グラデーション） ──
+export const DEFAULT_DARK_H1_BORDER = "rgba(99,179,237,0.12)";
+export const DEFAULT_DARK_H2_BORDER = "rgba(99,179,237,0.6)";
+export const DEFAULT_DARK_H3_BORDER = "rgba(99,179,237,0.35)";
+export const DEFAULT_DARK_H1_GRADIENT = "rgba(99,179,237,0.12)";
+export const DEFAULT_DARK_H2_GRADIENT = "rgba(99,179,237,0.08)";
+export const DEFAULT_LIGHT_H1_BORDER = "rgba(0,0,0,0.06)";
+export const DEFAULT_LIGHT_H2_BORDER = "rgba(0,0,0,0.25)";
+export const DEFAULT_LIGHT_H3_BORDER = "rgba(0,0,0,0.15)";
+export const DEFAULT_LIGHT_H1_GRADIENT = "rgba(0,0,0,0.06)";
+export const DEFAULT_LIGHT_H2_GRADIENT = "rgba(0,0,0,0.04)";
+
+// ── シンタックスハイライト色（GitHub テーマ準拠） ──
+export const HLJS_DARK = {
+  keyword: "#ff7b72",
+  string: "#a5d6ff",
+  comment: "#8b949e",
+  number: "#79c0ff",
+  title: "#d2a8ff",
+  params: "#c9d1d9",
+  meta: "#ffa657",
+  addition: "#aff5b4",
+  additionBg: "rgba(46,160,67,0.15)",
+  deletion: "#ffdcd7",
+  deletionBg: "rgba(248,81,73,0.15)",
+} as const;
+
+export const HLJS_LIGHT = {
+  keyword: "#cf222e",
+  string: "#0a3069",
+  comment: "#6e7781",
+  number: "#0550ae",
+  title: "#8250df",
+  params: "#24292f",
+  meta: "#953800",
+  addition: "#116329",
+  additionBg: "rgba(46,160,67,0.15)",
+  deletion: "#82071e",
+  deletionBg: "rgba(248,81,73,0.15)",
+} as const;
+
+// ── テーブルセル背景色 ──
+export const DEFAULT_DARK_TABLE_CELL_BG = "#161B22";
+export const DEFAULT_LIGHT_TABLE_CELL_BG = "#E8E6E1";
+export const DEFAULT_DARK_TABLE_HEADER_BG = "#1A202C";
+export const DEFAULT_LIGHT_TABLE_HEADER_BG = "#DDDCD8";
+
+// ── インラインコード色 ──
+export const DEFAULT_DARK_INLINE_CODE = undefined; // getGrey で動的取得
+export const DEFAULT_LIGHT_INLINE_CODE = "#c62828";
 
 // ── Admonition（GitHub 準拠） ──
 export const ADMONITION_NOTE = "#1f6feb";
@@ -43,6 +94,10 @@ export const ACCENT_COLOR_ALPHA = "rgba(232,160,18,0.35)";
 export const PLANTUML_DARK_FG = "#CCCCCC";
 export const PLANTUML_DARK_BG = "#2D2D2D";
 export const PLANTUML_DARK_SURFACE = "#1E1E1E";
+export const PLANTUML_LIGHT_FG = "#1A1A1A";
+export const PLANTUML_LIGHT_BG = "#F5F5F0";
+export const PLANTUML_LIGHT_SURFACE = "#EAEAE5";
+export const PLANTUML_LIGHT_BORDER = "#888888";
 
 // ── 図キャプチャ Canvas 背景 ──
 export const CAPTURE_BG = "#ffffff";

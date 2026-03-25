@@ -1,8 +1,5 @@
 import { GraphEdge, EndpointShape } from '../types';
-import {
-  CANVAS_BG, CANVAS_SELECTION, COLOR_TEXT_SECONDARY, FONT_FAMILY,
-  COLOR_INVALID_TARGET,
-} from '../theme';
+import { CanvasColors, getCanvasColors, FONT_FAMILY } from '../theme';
 import {
   FONT_SIZE_EDGE_LABEL, DASH_OVERLAY,
   ARROW_HEAD_LENGTH, ENDPOINT_CIRCLE_RADIUS, ENDPOINT_DIAMOND_SIZE, ENDPOINT_BAR_LENGTH,
@@ -12,15 +9,17 @@ export function drawEdge(
   ctx: CanvasRenderingContext2D,
   edge: GraphEdge,
   selected: boolean,
+  colors?: CanvasColors,
 ): void {
+  const c = colors ?? getCanvasColors(true);
   ctx.save();
 
   const { from, to, style, type } = edge;
 
-  ctx.strokeStyle = selected ? CANVAS_SELECTION : style.stroke;
+  ctx.strokeStyle = selected ? c.canvasSelection : style.stroke;
   ctx.lineWidth = selected ? style.strokeWidth + 1 : style.strokeWidth;
 
-  const color = selected ? CANVAS_SELECTION : style.stroke;
+  const color = selected ? c.canvasSelection : style.stroke;
   // 端点形状（未設定の場合、arrow/connectorタイプは endShape='arrow' をデフォルトにする）
   const startShape: EndpointShape = style.startShape ?? 'none';
   const endShape: EndpointShape = style.endShape ?? ((type === 'arrow' || type === 'connector') ? 'arrow' : 'none');
@@ -43,7 +42,7 @@ export function drawEdge(
       const mt = 1 - t;
       const labelX = mt*mt*mt*start.x + 3*mt*mt*t*cp1.x + 3*mt*t*t*cp2.x + t*t*t*end.x;
       const labelY = mt*mt*mt*start.y + 3*mt*mt*t*cp1.y + 3*mt*t*t*cp2.y + t*t*t*end.y;
-      drawEdgeLabel(ctx, edge.label, labelX, labelY);
+      drawEdgeLabel(ctx, edge.label, labelX, labelY, c);
     }
   } else if (edge.waypoints && edge.waypoints.length >= 2) {
     // 既存の直交パス描画
@@ -67,7 +66,7 @@ export function drawEdge(
       const prevPt = edge.waypoints[midIdx - 1] ?? midPt;
       const labelX = (midPt.x + prevPt.x) / 2;
       const labelY = (midPt.y + prevPt.y) / 2;
-      drawEdgeLabel(ctx, edge.label, labelX, labelY);
+      drawEdgeLabel(ctx, edge.label, labelX, labelY, c);
     }
   } else {
     // 直線描画
@@ -81,7 +80,7 @@ export function drawEdge(
     if (edge.label) {
       const labelX = (from.x + to.x) / 2;
       const labelY = (from.y + to.y) / 2;
-      drawEdgeLabel(ctx, edge.label, labelX, labelY);
+      drawEdgeLabel(ctx, edge.label, labelX, labelY, c);
     }
   }
 
@@ -89,19 +88,20 @@ export function drawEdge(
 }
 
 /** エッジラベルを背景付きで描画 */
-function drawEdgeLabel(ctx: CanvasRenderingContext2D, label: string, x: number, y: number): void {
+function drawEdgeLabel(ctx: CanvasRenderingContext2D, label: string, x: number, y: number, colors?: CanvasColors): void {
+  const c = colors ?? getCanvasColors(true);
   ctx.save();
   ctx.font = `${FONT_SIZE_EDGE_LABEL}px ${FONT_FAMILY}`;
   const metrics = ctx.measureText(label);
   const padding = 4;
-  ctx.fillStyle = CANVAS_BG;
+  ctx.fillStyle = c.edgeLabelBg;
   ctx.fillRect(
     x - metrics.width / 2 - padding,
     y - 8 - padding,
     metrics.width + padding * 2,
     16 + padding * 2,
   );
-  ctx.fillStyle = COLOR_TEXT_SECONDARY;
+  ctx.fillStyle = c.textSecondary;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(label, x, y);
@@ -115,6 +115,7 @@ export function drawArrowHead(
   toX: number,
   toY: number,
   color: string,
+  _colors?: CanvasColors,
 ): void {
   const headLength = ARROW_HEAD_LENGTH;
   const angle = Math.atan2(toY - fromY, toX - fromX);
@@ -193,8 +194,10 @@ export function drawEdgePreview(
   toX: number, toY: number,
   edgeType: 'line' | 'arrow' | 'connector',
   isValid: boolean = true,
+  colors?: CanvasColors,
 ): void {
-  const color = isValid ? CANVAS_SELECTION : COLOR_INVALID_TARGET;
+  const c = colors ?? getCanvasColors(true);
+  const color = isValid ? c.canvasSelection : c.invalidTarget;
   ctx.save();
   ctx.strokeStyle = color;
   ctx.lineWidth = 2;

@@ -197,6 +197,28 @@ describe('graphReducer', () => {
     expect(node.height).toBe(150);
   });
 
+  it('SET_NODE_POSITIONS updates multiple node positions in a single action', () => {
+    const state = makeState();
+    const next = graphReducer(state, {
+      type: 'SET_NODE_POSITIONS',
+      updates: [
+        { id: 'n1', x: 100, y: 200 },
+        { id: 'n2', x: 300, y: 400 },
+      ],
+    });
+    const n1 = next.document.nodes.find(n => n.id === 'n1')!;
+    const n2 = next.document.nodes.find(n => n.id === 'n2')!;
+    expect(n1.x).toBe(100);
+    expect(n1.y).toBe(200);
+    expect(n2.x).toBe(300);
+    expect(n2.y).toBe(400);
+    // width/height は変更されない
+    expect(n1.width).toBe(state.document.nodes[0].width);
+    expect(n2.height).toBe(state.document.nodes[1].height);
+    // 履歴は記録しない
+    expect(next.historyIndex).toBe(state.historyIndex);
+  });
+
   it('SNAPSHOT creates a history entry without modifying document', () => {
     const state = makeState();
     const before = state.historyIndex;

@@ -32,6 +32,23 @@ body.editor-page > #main-content > .MuiBox-root > .MuiBox-root > #main-content {
   padding-bottom: 0 !important;
 }
 
+/* === 印刷時: エディタページのビューポート固定を全解除 === */
+@media print {
+  html:has(body.editor-page),
+  body.editor-page {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+  body.editor-page > #main-content,
+  body.editor-page > #main-content > .MuiBox-root,
+  body.editor-page > #main-content > .MuiBox-root > .MuiBox-root {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+}
+
 /* ========== Dark Theme (default) ========== */
 :root {
   --vscode-editor-background: #1e1e1e;

@@ -106,7 +106,7 @@ describe("POST /api/docs/upload", () => {
     const file = createFile("hello.md", "# Hello");
     const req = createRequest(file);
 
-    const res = (await callPOST(req)) as { body: string; status: number };
+    const res = (await callPOST(req)) as unknown as { body: string; status: number };
     expect(res.status).toBe(200);
     const body = JSON.parse(res.body);
     expect(body).toEqual({ key: "docs/hello.md", name: "hello.md" });
@@ -134,7 +134,7 @@ describe("POST /api/docs/upload", () => {
     const file = createFile("big.md", "x", 6 * 1024 * 1024);
     const req = createRequest(file);
 
-    const res = (await callPOST(req)) as { body: string; status: number };
+    const res = (await callPOST(req)) as unknown as { body: string; status: number };
     expect(res.status).toBe(400);
     expect(JSON.parse(res.body)).toEqual({ error: "File size exceeds 5MB limit" });
   });
@@ -143,7 +143,7 @@ describe("POST /api/docs/upload", () => {
     const file = createFile("hello.exe", "binary content");
     const req = createRequest(file);
 
-    const res = (await callPOST(req)) as { body: string; status: number };
+    const res = (await callPOST(req)) as unknown as { body: string; status: number };
     expect(res.status).toBe(400);
     expect(JSON.parse(res.body)).toEqual({ error: "Only .md and image files (.png, .jpg, .jpeg, .gif, .svg, .webp) are allowed" });
   });
@@ -152,7 +152,7 @@ describe("POST /api/docs/upload", () => {
     const file = createFile("he;llo.md", "# Hello");
     const req = createRequest(file);
 
-    const res = (await callPOST(req)) as { body: string; status: number };
+    const res = (await callPOST(req)) as unknown as { body: string; status: number };
     expect(res.status).toBe(400);
     expect(JSON.parse(res.body)).toEqual({ error: "Invalid file name" });
   });
@@ -160,8 +160,10 @@ describe("POST /api/docs/upload", () => {
   it("ファイルが未送信の場合は 400 を返す", async () => {
     const req = createRequest(null);
 
-    const res = (await callPOST(req)) as { body: string; status: number };
+    const res = (await callPOST(req)) as unknown as { body: string; status: number };
     expect(res.status).toBe(400);
     expect(JSON.parse(res.body)).toEqual({ error: "No file provided" });
   });
 });
+
+export {};

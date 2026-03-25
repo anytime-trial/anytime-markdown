@@ -1,9 +1,6 @@
 import { GraphNode, GraphEdge, NodeType } from '../types';
 import type { GuideLine } from './smartGuide';
-import {
-  CANVAS_SELECTION, CANVAS_SELECTION_FILL, CANVAS_SNAP, CANVAS_SNAP_INNER,
-  CANVAS_SMART_GUIDE, CANVAS_BG, COLOR_CHARCOAL,
-} from '../theme';
+import { CanvasColors, getCanvasColors } from '../theme';
 import { drawRoundedRect, drawDiamond, drawParallelogram, drawCylinderBody, drawCylinderTop } from './shapes';
 import { HANDLE_SIZE, SNAP_INDICATOR_RADIUS, DASH_DEFAULT, DASH_OVERLAY } from './constants';
 import { getConnectionPoints } from './connector';
@@ -12,7 +9,9 @@ export function drawResizeHandles(
   ctx: CanvasRenderingContext2D,
   node: GraphNode,
   scale: number,
+  colors?: CanvasColors,
 ): void {
+  colors = colors ?? getCanvasColors(true);
   const { x, y, width, height } = node;
   const handleSize = HANDLE_SIZE / scale;
   const half = handleSize / 2;
@@ -29,8 +28,8 @@ export function drawResizeHandles(
   ];
 
   ctx.save();
-  ctx.fillStyle = COLOR_CHARCOAL;
-  ctx.strokeStyle = CANVAS_SELECTION;
+  ctx.fillStyle = colors.handleFill;
+  ctx.strokeStyle = colors.canvasSelection;
   ctx.lineWidth = 1.5 / scale;
 
   handles.forEach(({ hx, hy }) => {
@@ -46,7 +45,9 @@ export function drawBoundingBox(
   ctx: CanvasRenderingContext2D,
   selectedNodes: GraphNode[],
   scale: number,
+  colors?: CanvasColors,
 ): void {
+  colors = colors ?? getCanvasColors(true);
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (const n of selectedNodes) {
     minX = Math.min(minX, n.x);
@@ -62,7 +63,7 @@ export function drawBoundingBox(
 
   ctx.save();
   // 破線枠
-  ctx.strokeStyle = CANVAS_SELECTION;
+  ctx.strokeStyle = colors.canvasSelection;
   ctx.lineWidth = 1 / scale;
   ctx.setLineDash(DASH_OVERLAY.map(v => v / scale));
   ctx.strokeRect(bx, by, bw, bh);
@@ -77,8 +78,8 @@ export function drawBoundingBox(
     { hx: bx + bw, hy: by + bh }, { hx: bx + bw / 2, hy: by + bh }, { hx: bx, hy: by + bh },
     { hx: bx, hy: by + bh / 2 },
   ];
-  ctx.fillStyle = COLOR_CHARCOAL;
-  ctx.strokeStyle = CANVAS_SELECTION;
+  ctx.fillStyle = colors.handleFill;
+  ctx.strokeStyle = colors.canvasSelection;
   ctx.lineWidth = 1.5 / scale;
   for (const { hx, hy } of handles) {
     ctx.fillRect(hx - half, hy - half, hs, hs);
@@ -92,7 +93,9 @@ export function drawEdgeEndpointHandles(
   ctx: CanvasRenderingContext2D,
   edge: GraphEdge,
   scale: number,
+  colors?: CanvasColors,
 ): void {
+  colors = colors ?? getCanvasColors(true);
   const r = 7 / scale;
   const pts = edge.waypoints && edge.waypoints.length >= 2
     ? [edge.waypoints[0], edge.waypoints[edge.waypoints.length - 1]]
@@ -103,12 +106,12 @@ export function drawEdgeEndpointHandles(
     // 外円
     ctx.beginPath();
     ctx.arc(pt.x, pt.y, r, 0, Math.PI * 2);
-    ctx.fillStyle = CANVAS_SELECTION;
+    ctx.fillStyle = colors.canvasSelection;
     ctx.fill();
     // 内円
     ctx.beginPath();
     ctx.arc(pt.x, pt.y, r * 0.45, 0, Math.PI * 2);
-    ctx.fillStyle = CANVAS_BG;
+    ctx.fillStyle = colors.canvasBg;
     ctx.fill();
   }
   ctx.restore();
@@ -121,7 +124,9 @@ export function drawConnectionPoints(
   scale: number,
   mouseWX?: number,
   mouseWY?: number,
+  colors?: CanvasColors,
 ): void {
+  colors = colors ?? getCanvasColors(true);
   const r = 6 / scale;
   const points = getConnectionPoints(node);
 
@@ -142,12 +147,12 @@ export function drawConnectionPoints(
     // 外円
     ctx.beginPath();
     ctx.arc(px, py, r, 0, Math.PI * 2);
-    ctx.fillStyle = CANVAS_SELECTION;
+    ctx.fillStyle = colors.canvasSelection;
     ctx.fill();
     // 内円
     ctx.beginPath();
     ctx.arc(px, py, r * 0.5, 0, Math.PI * 2);
-    ctx.fillStyle = CANVAS_BG;
+    ctx.fillStyle = colors.canvasBg;
     ctx.fill();
   }
   ctx.restore();
@@ -157,9 +162,11 @@ export function drawConnectionPoints(
 export function drawSnapHighlight(
   ctx: CanvasRenderingContext2D,
   node: GraphNode,
+  colors?: CanvasColors,
 ): void {
+  colors = colors ?? getCanvasColors(true);
   ctx.save();
-  ctx.strokeStyle = CANVAS_SNAP;
+  ctx.strokeStyle = colors.canvasSnap;
   ctx.lineWidth = 3;
   ctx.setLineDash([]);
 
@@ -175,7 +182,7 @@ export function drawSnapHighlight(
   }
 
   // 接続点インジケータ（ノードの4辺中央に丸を表示）
-  ctx.fillStyle = CANVAS_SNAP;
+  ctx.fillStyle = colors.canvasSnap;
   const points = [
     { px: x + width / 2, py: y },             // top
     { px: x + width, py: y + height / 2 },    // right
@@ -188,7 +195,7 @@ export function drawSnapHighlight(
     ctx.fill();
   }
   // 内円
-  ctx.fillStyle = CANVAS_SNAP_INNER;
+  ctx.fillStyle = colors.canvasSnapInner;
   for (const { px, py } of points) {
     ctx.beginPath();
     ctx.arc(px, py, SNAP_INDICATOR_RADIUS - 2, 0, Math.PI * 2);
@@ -204,7 +211,9 @@ export function drawShapePreview(
   fromX: number, fromY: number,
   toX: number, toY: number,
   shapeType: Exclude<NodeType, 'image'>,
+  colors?: CanvasColors,
 ): void {
+  colors = colors ?? getCanvasColors(true);
   const x = Math.min(fromX, toX);
   const y = Math.min(fromY, toY);
   const w = Math.abs(toX - fromX);
@@ -212,10 +221,10 @@ export function drawShapePreview(
   if (w < 2 && h < 2) return;
 
   ctx.save();
-  ctx.strokeStyle = CANVAS_SELECTION;
+  ctx.strokeStyle = colors.canvasSelection;
   ctx.lineWidth = 1.5;
   ctx.setLineDash([...DASH_OVERLAY]);
-  ctx.fillStyle = CANVAS_SELECTION_FILL;
+  ctx.fillStyle = colors.canvasSelectionFill;
 
   if (shapeType === 'ellipse') {
     ctx.beginPath();
@@ -245,9 +254,14 @@ export function drawShapePreview(
   ctx.restore();
 }
 
-export function drawSmartGuides(ctx: CanvasRenderingContext2D, guides: GuideLine[]): void {
+export function drawSmartGuides(
+  ctx: CanvasRenderingContext2D,
+  guides: GuideLine[],
+  colors?: CanvasColors,
+): void {
+  colors = colors ?? getCanvasColors(true);
   ctx.save();
-  ctx.strokeStyle = CANVAS_SMART_GUIDE;
+  ctx.strokeStyle = colors.canvasSmartGuide;
   ctx.lineWidth = 0.5;
   ctx.setLineDash([...DASH_DEFAULT]);
   for (const g of guides) {
@@ -271,13 +285,15 @@ export function drawSelectionRect(
   y: number,
   width: number,
   height: number,
+  colors?: CanvasColors,
 ): void {
+  colors = colors ?? getCanvasColors(true);
   ctx.save();
 
-  ctx.fillStyle = CANVAS_SELECTION_FILL;
+  ctx.fillStyle = colors.canvasSelectionFill;
   ctx.fillRect(x, y, width, height);
 
-  ctx.strokeStyle = CANVAS_SELECTION;
+  ctx.strokeStyle = colors.canvasSelection;
   ctx.lineWidth = 1;
   ctx.setLineDash([...DASH_DEFAULT]);
   ctx.strokeRect(x, y, width, height);

@@ -3,6 +3,7 @@
 import React, { useRef, useEffect, useCallback, useMemo } from 'react';
 import { GraphNode, GraphEdge, Viewport, SelectionState } from '../types';
 import { render, drawSelectionRect, drawEdgePreview, drawShapePreview, drawSnapHighlight, drawSmartGuides } from '@anytime-markdown/graph-core/engine';
+import { getCanvasColors } from '@anytime-markdown/graph-core';
 import { resolveConnectorEndpoints, computeOrthogonalPath, computeBezierPath, bestSides, getConnectionPoints } from '../engine/connector';
 import { interpolateViewport, computeAvoidancePath } from '@anytime-markdown/graph-core/engine';
 import type { ViewportAnimation } from '@anytime-markdown/graph-core/engine';
@@ -31,6 +32,7 @@ interface GraphCanvasProps {
   onPanInertia?: (dx: number, dy: number) => void;
   draggingNodeIds?: string[];
   ariaLabel?: string;
+  isDark?: boolean;
 }
 
 export function GraphCanvas({
@@ -41,6 +43,7 @@ export function GraphCanvas({
   velocityRef, onPanInertia,
   draggingNodeIds,
   ariaLabel,
+  isDark = true,
 }: GraphCanvasProps) {
   const rafRef = useRef<number>(0);
 
@@ -139,6 +142,7 @@ export function GraphCanvas({
       hoverNodeId: hoverNodeIdRef.current,
       mouseWorldX: mouseWorldRef.current.x, mouseWorldY: mouseWorldRef.current.y,
       draggingNodeIds,
+      isDark,
     });
 
     // ドラッグプレビュー描画
@@ -150,18 +154,18 @@ export function GraphCanvas({
       if (preview.type === 'edge' && preview.edgeType) {
         if (preview.snapNodeId) {
           const snapNode = nodes.find(n => n.id === preview.snapNodeId);
-          if (snapNode) drawSnapHighlight(ctx, snapNode);
+          if (snapNode) drawSnapHighlight(ctx, snapNode, getCanvasColors(isDark));
         }
         const isValidTarget = !!preview.snapNodeId;
-        drawEdgePreview(ctx, preview.fromX, preview.fromY, preview.toX, preview.toY, preview.edgeType, isValidTarget);
+        drawEdgePreview(ctx, preview.fromX, preview.fromY, preview.toX, preview.toY, preview.edgeType, isValidTarget, getCanvasColors(isDark));
       } else if (preview.type === 'shape' && preview.shapeType) {
-        drawShapePreview(ctx, preview.fromX, preview.fromY, preview.toX, preview.toY, preview.shapeType);
+        drawShapePreview(ctx, preview.fromX, preview.fromY, preview.toX, preview.toY, preview.shapeType, getCanvasColors(isDark));
       } else if (preview.type === 'select-rect') {
         const x = Math.min(preview.fromX, preview.toX);
         const y = Math.min(preview.fromY, preview.toY);
         const w = Math.abs(preview.toX - preview.fromX);
         const h = Math.abs(preview.toY - preview.fromY);
-        drawSelectionRect(ctx, x, y, w, h);
+        drawSelectionRect(ctx, x, y, w, h, getCanvasColors(isDark));
       }
       ctx.restore();
     }
@@ -171,10 +175,10 @@ export function GraphCanvas({
       ctx.save();
       ctx.translate(activeViewport.offsetX, activeViewport.offsetY);
       ctx.scale(activeViewport.scale, activeViewport.scale);
-      drawSmartGuides(ctx, preview.guides);
+      drawSmartGuides(ctx, preview.guides, getCanvasColors(isDark));
       ctx.restore();
     }
-  }, [canvasRef, nodes, resolvedEdges, viewport, selection, showGrid, previewRef, hoverNodeIdRef, mouseWorldRef, viewportAnimRef, onViewportUpdate, velocityRef, onPanInertia, draggingNodeIds]);
+  }, [canvasRef, nodes, resolvedEdges, viewport, selection, showGrid, previewRef, hoverNodeIdRef, mouseWorldRef, viewportAnimRef, onViewportUpdate, velocityRef, onPanInertia, draggingNodeIds, isDark]);
 
   useEffect(() => {
     const loop = () => {

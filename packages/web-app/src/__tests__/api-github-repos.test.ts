@@ -46,7 +46,7 @@ describe("GET /api/github/repos", () => {
       ]),
     });
 
-    const res = (await callGET()) as { body: string; status: number; headers: Record<string, string> };
+    const res = (await callGET()) as unknown as { body: string; status: number; headers: Record<string, string> };
     expect(res.status).toBe(200);
     expect(JSON.parse(res.body)).toEqual([
       { fullName: "user/repo1", private: false, defaultBranch: "main" },
@@ -58,7 +58,7 @@ describe("GET /api/github/repos", () => {
   it("未認証の場合は 401 を返す", async () => {
     mockGetGitHubToken.mockResolvedValue(null);
 
-    const res = (await callGET()) as { body: string; status: number };
+    const res = (await callGET()) as unknown as { body: string; status: number };
     expect(res.status).toBe(401);
     expect(JSON.parse(res.body)).toEqual({ error: "Not authenticated" });
   });
@@ -67,8 +67,10 @@ describe("GET /api/github/repos", () => {
     mockGetGitHubToken.mockResolvedValue("test-token");
     mockFetchWithRetry.mockResolvedValue({ ok: false, status: 403 });
 
-    const res = (await callGET()) as { body: string; status: number };
+    const res = (await callGET()) as unknown as { body: string; status: number };
     expect(res.status).toBe(403);
     expect(JSON.parse(res.body)).toEqual({ error: "GitHub API error" });
   });
 });
+
+export {};

@@ -23,6 +23,8 @@ export type Action =
   | { type: 'MOVE_NODES'; ids: string[]; dx: number; dy: number }
   /** リサイズ中に毎フレーム発行。履歴は記録しない。リサイズ完了時に SNAPSHOT を発行すること */
   | { type: 'RESIZE_NODE'; id: string; x: number; y: number; width: number; height: number }
+  /** 複数ノードの位置を一括更新。ドラッグ中に毎フレーム発行。履歴は記録しない */
+  | { type: 'SET_NODE_POSITIONS'; updates: Array<{ id: string; x: number; y: number }> }
   | { type: 'GROUP_SELECTED'; groupId: string }
   | { type: 'UNGROUP_SELECTED' }
   | { type: 'PASTE_NODES'; nodes: GraphNode[]; edges: GraphEdge[] }
@@ -161,6 +163,20 @@ export function graphReducer(state: GraphState, action: Action): GraphState {
           nodes: state.document.nodes.map(n =>
             n.id === action.id ? { ...n, x: action.x, y: action.y, width: action.width, height: action.height } : n,
           ),
+        },
+      };
+    }
+
+    case 'SET_NODE_POSITIONS': {
+      const map = new Map(action.updates.map(u => [u.id, u]));
+      return {
+        ...state,
+        document: {
+          ...state.document,
+          nodes: state.document.nodes.map(n => {
+            const u = map.get(n.id);
+            return u ? { ...n, x: u.x, y: u.y } : n;
+          }),
         },
       };
     }

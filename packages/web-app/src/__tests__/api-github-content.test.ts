@@ -102,7 +102,7 @@ describe("GET /api/github/content", () => {
     });
 
     const req = createRequest({ repo: "user/repo", path: "", ref: "main" });
-    const res = (await callGET(req)) as MockRes;
+    const res = (await callGET(req)) as unknown as MockRes;
     expect(res.status).toBe(200);
     const body = JSON.parse(res.body);
     expect(body).toHaveLength(2);
@@ -118,7 +118,7 @@ describe("GET /api/github/content", () => {
     });
 
     const req = createRequest({ repo: "user/repo", path: "README.md", ref: "main" });
-    const res = (await callGET(req)) as MockRes;
+    const res = (await callGET(req)) as unknown as MockRes;
     expect(res.status).toBe(200);
     expect(JSON.parse(res.body)).toEqual({ content: "Hello World" });
   });
@@ -131,7 +131,7 @@ describe("GET /api/github/content", () => {
     });
 
     const req = createRequest({ repo: "user/repo", path: "empty.md", ref: "main" });
-    const res = (await callGET(req)) as MockRes;
+    const res = (await callGET(req)) as unknown as MockRes;
     expect(res.status).toBe(200);
     expect(JSON.parse(res.body)).toEqual({ content: "" });
   });
@@ -139,14 +139,14 @@ describe("GET /api/github/content", () => {
   it("未認証の場合は 401 を返す", async () => {
     mockGetGitHubToken.mockResolvedValue(null);
     const req = createRequest({ repo: "user/repo", path: "", ref: "main" });
-    const res = (await callGET(req)) as MockRes;
+    const res = (await callGET(req)) as unknown as MockRes;
     expect(res.status).toBe(401);
   });
 
   it("パラメータ不足の場合は 400 を返す", async () => {
     mockGetGitHubToken.mockResolvedValue("test-token");
     const req = createRequest({ repo: "user/repo" }); // path, ref 不足
-    const res = (await callGET(req)) as MockRes;
+    const res = (await callGET(req)) as unknown as MockRes;
     expect(res.status).toBe(400);
   });
 
@@ -154,7 +154,7 @@ describe("GET /api/github/content", () => {
     mockGetGitHubToken.mockResolvedValue("test-token");
     mockValidateGitHubRepo.mockReturnValue(false);
     const req = createRequest({ repo: "invalid", path: "", ref: "main" });
-    const res = (await callGET(req)) as MockRes;
+    const res = (await callGET(req)) as unknown as MockRes;
     expect(res.status).toBe(400);
   });
 
@@ -162,7 +162,7 @@ describe("GET /api/github/content", () => {
     mockGetGitHubToken.mockResolvedValue("test-token");
     mockFetchWithRetry.mockResolvedValue({ ok: false, status: 404 });
     const req = createRequest({ repo: "user/repo", path: "missing.md", ref: "main" });
-    const res = (await callGET(req)) as MockRes;
+    const res = (await callGET(req)) as unknown as MockRes;
     expect(res.status).toBe(404);
   });
 
@@ -202,7 +202,7 @@ describe("PUT /api/github/content", () => {
       content: "Hello",
       branch: "main",
     });
-    const res = (await callPUT(req)) as MockRes;
+    const res = (await callPUT(req)) as unknown as MockRes;
     expect(res.status).toBe(200);
     const body = JSON.parse(res.body);
     expect(body.path).toBe("new.md");
@@ -232,7 +232,7 @@ describe("PUT /api/github/content", () => {
       content: "Updated",
       branch: "main",
     });
-    const res = (await callPUT(req)) as MockRes;
+    const res = (await callPUT(req)) as unknown as MockRes;
     expect(res.status).toBe(200);
 
     // PUT リクエストに sha が含まれることを確認
@@ -244,14 +244,14 @@ describe("PUT /api/github/content", () => {
   it("未認証の場合は 401 を返す", async () => {
     mockGetGitHubToken.mockResolvedValue(null);
     const req = createBodyRequest({ repo: "user/repo", path: "test.md" });
-    const res = (await callPUT(req)) as MockRes;
+    const res = (await callPUT(req)) as unknown as MockRes;
     expect(res.status).toBe(401);
   });
 
   it("パラメータ不足の場合は 400 を返す", async () => {
     mockGetGitHubToken.mockResolvedValue("test-token");
     const req = createBodyRequest({ repo: "user/repo" }); // path 不足
-    const res = (await callPUT(req)) as MockRes;
+    const res = (await callPUT(req)) as unknown as MockRes;
     expect(res.status).toBe(400);
   });
 
@@ -270,7 +270,7 @@ describe("PUT /api/github/content", () => {
       content: "x",
       branch: "main",
     });
-    const res = (await callPUT(req)) as MockRes;
+    const res = (await callPUT(req)) as unknown as MockRes;
     expect(res.status).toBe(422);
     expect(JSON.parse(res.body)).toEqual({ error: "Validation Failed" });
   });
@@ -297,7 +297,7 @@ describe("DELETE /api/github/content", () => {
       path: "delete-me.md",
       branch: "main",
     });
-    const res = (await callDELETE(req)) as MockRes;
+    const res = (await callDELETE(req)) as unknown as MockRes;
     expect(res.status).toBe(200);
     expect(JSON.parse(res.body)).toEqual({ deleted: true });
   });
@@ -305,14 +305,14 @@ describe("DELETE /api/github/content", () => {
   it("未認証の場合は 401 を返す", async () => {
     mockGetGitHubToken.mockResolvedValue(null);
     const req = createBodyRequest({ repo: "user/repo", path: "x.md" });
-    const res = (await callDELETE(req)) as MockRes;
+    const res = (await callDELETE(req)) as unknown as MockRes;
     expect(res.status).toBe(401);
   });
 
   it("パラメータ不足の場合は 400 を返す", async () => {
     mockGetGitHubToken.mockResolvedValue("test-token");
     const req = createBodyRequest({ repo: "user/repo" });
-    const res = (await callDELETE(req)) as MockRes;
+    const res = (await callDELETE(req)) as unknown as MockRes;
     expect(res.status).toBe(400);
   });
 
@@ -325,7 +325,7 @@ describe("DELETE /api/github/content", () => {
       path: "missing.md",
       branch: "main",
     });
-    const res = (await callDELETE(req)) as MockRes;
+    const res = (await callDELETE(req)) as unknown as MockRes;
     expect(res.status).toBe(404);
   });
 
@@ -341,7 +341,7 @@ describe("DELETE /api/github/content", () => {
       path: "no-sha.md",
       branch: "main",
     });
-    const res = (await callDELETE(req)) as MockRes;
+    const res = (await callDELETE(req)) as unknown as MockRes;
     expect(res.status).toBe(400);
     expect(JSON.parse(res.body)).toEqual({ error: "Cannot get file SHA" });
   });
@@ -363,7 +363,7 @@ describe("DELETE /api/github/content", () => {
       path: "error.md",
       branch: "main",
     });
-    const res = (await callDELETE(req)) as MockRes;
+    const res = (await callDELETE(req)) as unknown as MockRes;
     expect(res.status).toBe(500);
   });
 });
@@ -388,7 +388,7 @@ describe("PATCH /api/github/content", () => {
       newPath: "new.md",
       branch: "main",
     });
-    const res = (await callPATCH(req)) as MockRes;
+    const res = (await callPATCH(req)) as unknown as MockRes;
     expect(res.status).toBe(200);
     expect(JSON.parse(res.body)).toEqual({ renamed: true });
   });
@@ -396,14 +396,14 @@ describe("PATCH /api/github/content", () => {
   it("未認証の場合は 401 を返す", async () => {
     mockGetGitHubToken.mockResolvedValue(null);
     const req = createBodyRequest({ repo: "user/repo", oldPath: "a.md", newPath: "b.md" });
-    const res = (await callPATCH(req)) as MockRes;
+    const res = (await callPATCH(req)) as unknown as MockRes;
     expect(res.status).toBe(401);
   });
 
   it("パラメータ不足の場合は 400 を返す", async () => {
     mockGetGitHubToken.mockResolvedValue("test-token");
     const req = createBodyRequest({ repo: "user/repo", oldPath: "a.md" });
-    const res = (await callPATCH(req)) as MockRes;
+    const res = (await callPATCH(req)) as unknown as MockRes;
     expect(res.status).toBe(400);
   });
 
@@ -417,7 +417,7 @@ describe("PATCH /api/github/content", () => {
       newPath: "new.md",
       branch: "main",
     });
-    const res = (await callPATCH(req)) as MockRes;
+    const res = (await callPATCH(req)) as unknown as MockRes;
     expect(res.status).toBe(404);
   });
 
@@ -434,7 +434,7 @@ describe("PATCH /api/github/content", () => {
       newPath: "b.md",
       branch: "main",
     });
-    const res = (await callPATCH(req)) as MockRes;
+    const res = (await callPATCH(req)) as unknown as MockRes;
     expect(res.status).toBe(400);
     expect(JSON.parse(res.body)).toEqual({ error: "Cannot read file" });
   });
@@ -458,7 +458,9 @@ describe("PATCH /api/github/content", () => {
       newPath: "b.md",
       branch: "main",
     });
-    const res = (await callPATCH(req)) as MockRes;
+    const res = (await callPATCH(req)) as unknown as MockRes;
     expect(res.status).toBe(422);
   });
 });
+
+export {};

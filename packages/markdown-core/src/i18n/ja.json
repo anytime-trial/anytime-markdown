@@ -701,6 +701,7 @@
     "diamond": "菱形",
     "parallelogram": "平行四辺形",
     "cylinder": "円柱",
+    "longPressForMore": "長押しで他の図形",
     "copy": "コピー",
     "paste": "貼り付け",
     "selectAll": "全選択",
@@ -718,7 +719,6 @@
     "distributeV": "垂直均等配置",
     "alignment": "整列",
     "navLabel": "グラフ",
-    "insight": "インサイト",
     "doc": "ドキュメント",
     "clearAll": "全消去",
     "label": "ラベル",
@@ -779,7 +779,10 @@
     "undone": "元に戻しました",
     "redone": "やり直しました",
     "emptyCanvasTitle": "キャンバスが空です",
-    "emptyCanvasHint": "ツールバーから図形を選択してドラッグで作成"
+    "emptyCanvasHint": "ツールバーから図形を選択してドラッグで作成",
+    "settings": "設定",
+    "themeMode": "テーマ",
+    "language": "言語"
   },
   "Privacy": {
     "title": "プライバシーポリシー",

@@ -68,7 +68,7 @@ function setupFetchMock(overrides?: { filesOk?: boolean; layoutOk?: boolean }) {
       } as Response);
     }
     return Promise.resolve({ ok: true, json: () => Promise.resolve({}) } as Response);
-  });
+  }) as typeof fetch;
 }
 
 describe("useLayoutEditor", () => {

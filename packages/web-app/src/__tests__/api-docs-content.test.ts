@@ -89,7 +89,7 @@ describe("GET /api/docs/content", () => {
     mockFetchFromCdn.mockResolvedValue("# Hello World");
     const req = createRequest({ key: "docs/hello.md" });
 
-    const res = (await callGET(req)) as { body: unknown; status: number };
+    const res = (await callGET(req)) as unknown as { body: unknown; status: number };
     expect(res.status).toBe(200);
     expect(res.body).toBe("# Hello World");
     expect(mockFetchFromCdn).toHaveBeenCalledWith("docs/hello.md");
@@ -102,7 +102,7 @@ describe("GET /api/docs/content", () => {
     });
     const req = createRequest({ key: "docs/hello.md" });
 
-    const res = (await callGET(req)) as { body: unknown; status: number };
+    const res = (await callGET(req)) as unknown as { body: unknown; status: number };
     expect(res.status).toBe(200);
     expect(res.body).toBe("# Fallback Content");
   });
@@ -114,7 +114,7 @@ describe("GET /api/docs/content", () => {
     });
     const req = createRequest({ key: "docs/hello.md" });
 
-    const res = (await callGET(req)) as { body: string; status: number };
+    const res = (await callGET(req)) as unknown as { body: string; status: number };
     expect(res.status).toBe(404);
     expect(JSON.parse(res.body)).toEqual({ error: "Empty document" });
   });
@@ -122,7 +122,7 @@ describe("GET /api/docs/content", () => {
   it("key パラメータが未指定の場合は 400 を返す", async () => {
     const req = createRequest({});
 
-    const res = (await callGET(req)) as { body: string; status: number };
+    const res = (await callGET(req)) as unknown as { body: string; status: number };
     expect(res.status).toBe(400);
     expect(JSON.parse(res.body)).toEqual({ error: "key parameter is required" });
   });
@@ -130,7 +130,7 @@ describe("GET /api/docs/content", () => {
   it("DOCS_PREFIX で始まらないキーは 400 を返す", async () => {
     const req = createRequest({ key: "other/hello.md" });
 
-    const res = (await callGET(req)) as { body: string; status: number };
+    const res = (await callGET(req)) as unknown as { body: string; status: number };
     expect(res.status).toBe(400);
     expect(JSON.parse(res.body)).toEqual({ error: "Invalid key" });
   });
@@ -138,7 +138,7 @@ describe("GET /api/docs/content", () => {
   it(".md で終わらないキーは 400 を返す", async () => {
     const req = createRequest({ key: "docs/hello.txt" });
 
-    const res = (await callGET(req)) as { body: string; status: number };
+    const res = (await callGET(req)) as unknown as { body: string; status: number };
     expect(res.status).toBe(400);
     expect(JSON.parse(res.body)).toEqual({ error: "Invalid key" });
   });
@@ -146,7 +146,7 @@ describe("GET /api/docs/content", () => {
   it("パストラバーサルを含むキーは 400 を返す", async () => {
     const req = createRequest({ key: "docs/../etc/passwd.md" });
 
-    const res = (await callGET(req)) as { body: string; status: number };
+    const res = (await callGET(req)) as unknown as { body: string; status: number };
     expect(res.status).toBe(400);
     expect(JSON.parse(res.body)).toEqual({ error: "Invalid key" });
   });
@@ -158,7 +158,7 @@ describe("GET /api/docs/content", () => {
     mockSend.mockRejectedValue(err);
     const req = createRequest({ key: "docs/notfound.md" });
 
-    const res = (await callGET(req)) as { body: string; status: number };
+    const res = (await callGET(req)) as unknown as { body: string; status: number };
     expect(res.status).toBe(404);
     expect(JSON.parse(res.body)).toEqual({ error: "Document not found" });
   });
@@ -168,8 +168,10 @@ describe("GET /api/docs/content", () => {
     mockSend.mockRejectedValue(new Error("S3 error"));
     const req = createRequest({ key: "docs/hello.md" });
 
-    const res = (await callGET(req)) as { body: string; status: number };
+    const res = (await callGET(req)) as unknown as { body: string; status: number };
     expect(res.status).toBe(500);
     expect(JSON.parse(res.body)).toEqual({ error: "Failed to load document" });
   });
 });
+
+export {};

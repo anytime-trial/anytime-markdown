@@ -56,7 +56,7 @@ describe("GET /api/docs", () => {
       ],
     });
 
-    const res = (await callGET()) as { body: { files: unknown[] }; status: number };
+    const res = (await callGET()) as unknown as { body: { files: unknown[] }; status: number };
     expect(res.status).toBe(200);
     expect(res.body.files).toHaveLength(3);
     expect(res.body.files).toEqual([
@@ -69,7 +69,7 @@ describe("GET /api/docs", () => {
   it("Contents が空の場合は空配列を返す", async () => {
     mockSend.mockResolvedValue({ Contents: [] });
 
-    const res = (await callGET()) as { body: { files: unknown[] }; status: number };
+    const res = (await callGET()) as unknown as { body: { files: unknown[] }; status: number };
     expect(res.status).toBe(200);
     expect(res.body.files).toEqual([]);
   });
@@ -77,7 +77,7 @@ describe("GET /api/docs", () => {
   it("Contents が undefined の場合は空配列を返す", async () => {
     mockSend.mockResolvedValue({});
 
-    const res = (await callGET()) as { body: { files: unknown[] }; status: number };
+    const res = (await callGET()) as unknown as { body: { files: unknown[] }; status: number };
     expect(res.status).toBe(200);
     expect(res.body.files).toEqual([]);
   });
@@ -85,7 +85,7 @@ describe("GET /api/docs", () => {
   it("S3 エラー時は 500 を返す", async () => {
     mockSend.mockRejectedValue(new Error("S3 connection failed"));
 
-    const res = (await callGET()) as { body: { error: string }; status: number };
+    const res = (await callGET()) as unknown as { body: { error: string }; status: number };
     expect(res.status).toBe(500);
     expect(res.body.error).toBe("Failed to list documents");
   });
@@ -93,8 +93,10 @@ describe("GET /api/docs", () => {
   it("DOCS_BUCKET が未設定の場合は 500 を返す", async () => {
     process.env.S3_DOCS_BUCKET = "";
 
-    const res = (await callGET()) as { body: { error: string }; status: number };
+    const res = (await callGET()) as unknown as { body: { error: string }; status: number };
     expect(res.status).toBe(500);
     expect(res.body.error).toBe("S3_DOCS_BUCKET is not configured");
   });
 });
+
+export {};

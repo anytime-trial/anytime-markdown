@@ -56,6 +56,8 @@ export function getEditorPaperSx(
       fontSize: `${settings.fontSize}px`,
       lineHeight: settings.lineHeight,
       color: getEditorText(theme.palette.mode === "dark", settings),
+      WebkitFontSmoothing: isDark ? "antialiased" : "auto",
+      MozOsxFontSmoothing: isDark ? "grayscale" : "auto",
       ...(getBaseStyles(theme, options) as Record<string, unknown>),
       ...(getHeadingStyles(theme) as Record<string, unknown>),
       ...(getCodeStyles(theme) as Record<string, unknown>),

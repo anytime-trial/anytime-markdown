@@ -365,7 +365,7 @@ describe("ExplorerPanel - coverage tests", () => {
     mockSelectedBranch = "main";
     mockSelectedFilePath = "docs/test.md";
 
-    const newCommit = { sha: "new123", message: "new commit", date: "2026-01-01" };
+    const newCommit = { sha: "new123", message: "new commit", author: "test", date: "2026-01-01" };
 
     await act(async () => {
       render(

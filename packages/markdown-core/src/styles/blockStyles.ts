@@ -1,7 +1,11 @@
 import type { SxProps,Theme } from "@mui/material/styles";
 import { alpha } from "@mui/material/styles";
 
-import { ADMONITION_CAUTION, ADMONITION_IMPORTANT, ADMONITION_NOTE, ADMONITION_TIP, ADMONITION_WARNING, getActionHover, getActionSelected, getBgPaper, getDivider, getPrimaryMain, getTextPrimary, getTextSecondary } from "../constants/colors";
+import {
+  ADMONITION_CAUTION, ADMONITION_IMPORTANT, ADMONITION_NOTE, ADMONITION_TIP, ADMONITION_WARNING,
+  DEFAULT_DARK_TABLE_CELL_BG, DEFAULT_DARK_TABLE_HEADER_BG, DEFAULT_LIGHT_TABLE_CELL_BG, DEFAULT_LIGHT_TABLE_HEADER_BG,
+  getActionSelected, getDivider, getPrimaryMain, getTextPrimary, getTextSecondary,
+} from "../constants/colors";
 import { BLOCK_STYLE_FONT_SIZE } from "../constants/dimensions";
 import type { EditorSettings } from "../useEditorSettings";
 
@@ -71,10 +75,10 @@ export function getBlockStyles(theme: Theme, settings: EditorSettings): SxProps<
         minWidth: 80,
         fontSize: "inherit",
         lineHeight: "inherit",
-        bgcolor: getBgPaper(isDark),
+        bgcolor: isDark ? DEFAULT_DARK_TABLE_CELL_BG : DEFAULT_LIGHT_TABLE_CELL_BG,
       },
       "& th": {
-        bgcolor: getActionHover(isDark),
+        bgcolor: isDark ? DEFAULT_DARK_TABLE_HEADER_BG : DEFAULT_LIGHT_TABLE_HEADER_BG,
         fontWeight: 600,
       },
       "& .selectedCell": {

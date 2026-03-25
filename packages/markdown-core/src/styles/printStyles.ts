@@ -14,21 +14,38 @@ export const PrintStyles: React.FC = () =>
         margin: "15mm",
       },
       "@media print": {
-        /* === ページ全体のクリッピング解除 === */
-        "html, body": {
+        /* === ページ全体のクリッピング解除 ===
+         * html から .tiptap までの全中間コンテナの
+         * overflow/height/minHeight を解除する。
+         * 個別セレクタではなく、全 Box を対象にして確実に解除する。
+         */
+        "html, body, body > div, body > div > div": {
           overflow: "visible !important",
           height: "auto !important",
           maxHeight: "none !important",
+          minHeight: "0 !important",
         },
-        /* Next.js アプリラッパーの overflow/height 解除 */
-        "#main-content, #main-content > .MuiBox-root": {
+        /* web-app ページラッパー + 全子孫 Box のクリッピング解除 */
+        "#md-page-wrapper, #md-page-wrapper *:not(.tiptap *):not([data-node-view-wrapper] *)": {
           overflow: "visible !important",
           height: "auto !important",
           maxHeight: "none !important",
+          minHeight: "0 !important",
+        },
+        /* Next.js / MarkdownEditorPage ラッパーの解除 */
+        "#main-content, #main-content *:not(.tiptap *):not([data-node-view-wrapper] *)": {
+          overflow: "visible !important",
+          height: "auto !important",
+          maxHeight: "none !important",
+          minHeight: "0 !important",
+        },
+        /* flex レイアウトを block に変更（flex が高さを制限するのを防止） */
+        "#md-page-wrapper, #md-page-wrapper > .MuiBox-root": {
+          display: "block !important",
         },
 
-        /* === 文字色を印刷用に統一 === */
-        ".tiptap, .tiptap *": {
+        /* === 文字色を印刷用に統一（SVG 内は除外） === */
+        ".tiptap, .tiptap *:not(svg *):not(svg)": {
           color: "#000 !important",
         },
 
@@ -68,7 +85,11 @@ export const PrintStyles: React.FC = () =>
         "#md-editor-statusbar": {
           display: "none !important",
         },
+        /* サイドパネル（コメント、アウトライン、エクスプローラ、サイドツールバー）を非表示 */
         ".MuiDrawer-root": {
+          display: "none !important",
+        },
+        "[data-print-hide]": {
           display: "none !important",
         },
         ".MuiPopper-root, .MuiPopover-root, .MuiModal-root": {
@@ -100,6 +121,10 @@ export const PrintStyles: React.FC = () =>
           display: "none !important",
         },
         "[data-drag-handle]": {
+          display: "none !important",
+        },
+        /* サイドツールバーを非表示 */
+        "[data-side-toolbar]": {
           display: "none !important",
         },
         /* Mermaid/PlantUML/Math: 図プレビューがある場合のみコードを非表示 */

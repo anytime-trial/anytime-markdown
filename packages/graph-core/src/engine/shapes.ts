@@ -1,9 +1,5 @@
 import { GraphNode, NodeType } from '../types';
-import {
-  CANVAS_SELECTION, COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY, FONT_FAMILY,
-  DOC_ICON_COLOR, FRAME_TITLE_BG, COLOR_ICE_BLUE, COLOR_TEXT_ON_LIGHT,
-  COLOR_LOCK_ICON,
-} from '../theme';
+import { CanvasColors, FONT_FAMILY, getCanvasColors } from '../theme';
 import {
   SHADOW_DEFAULT, SHADOW_STICKY, SHADOW_DRAGGING,
   FONT_SIZE_BADGE, FONT_SIZE_PREVIEW, FONT_SIZE_LINK_ICON,
@@ -11,6 +7,9 @@ import {
   TEXT_PREVIEW_MAX_CHARS, TEXT_PREVIEW_MAX_LINES, TEXT_LINE_MAX_CHARS,
 } from './constants';
 import type { ShadowStyle } from './constants';
+
+/** drawNode 呼び出し中に有効な色設定（モジュールスコープ） */
+let currentColors: CanvasColors = getCanvasColors(true);
 
 const MAX_IMAGE_CACHE = 50;
 
@@ -99,7 +98,7 @@ function clearShadow(ctx: CanvasRenderingContext2D): void {
 
 /** 選択状態に応じた stroke スタイルを設定 */
 function setupStroke(ctx: CanvasRenderingContext2D, style: GraphNode['style'], selected: boolean): void {
-  ctx.strokeStyle = selected ? CANVAS_SELECTION : style.stroke;
+  ctx.strokeStyle = selected ? currentColors.canvasSelection : style.stroke;
   ctx.lineWidth = selected ? STROKE_WIDTH_SELECTED : style.strokeWidth;
 }
 
@@ -195,7 +194,7 @@ const renderSticky: SpecialShapeRenderer = (ctx, node, selected, isDragging, fil
 
 const renderText: SpecialShapeRenderer = (ctx, node, selected) => {
   if (selected) {
-    ctx.strokeStyle = CANVAS_SELECTION;
+    ctx.strokeStyle = currentColors.canvasSelection;
     ctx.lineWidth = 1;
     ctx.setLineDash([...DASH_DEFAULT]);
     ctx.strokeRect(node.x, node.y, node.width, node.height);
@@ -218,44 +217,16 @@ const renderCylinder: SpecialShapeRenderer = (ctx, node, selected, _isDragging, 
   ctx.stroke();
 };
 
-const renderInsight: SpecialShapeRenderer = (ctx, node, selected, _isDragging, fill) => {
-  const { x, y, width, style, text } = node;
-  renderRoundedShape(ctx, node, selected, fill, 8);
-  // Label badge
-  if (node.label) {
-    ctx.font = `bold ${FONT_SIZE_BADGE}px ${FONT_FAMILY}`;
-    const labelW = ctx.measureText(node.label).width + 12;
-    const badgeH = 18;
-    const badgeX = x + 10;
-    const badgeY = y + 10;
-    drawRoundedRect(ctx, badgeX, badgeY, labelW, badgeH, 4);
-    ctx.fillStyle = node.labelColor ?? COLOR_ICE_BLUE;
-    ctx.fill();
-    ctx.fillStyle = COLOR_TEXT_ON_LIGHT;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(node.label, badgeX + 6, badgeY + badgeH / 2);
-  }
-  // Title (bold)
-  if (text) {
-    ctx.fillStyle = COLOR_TEXT_PRIMARY;
-    ctx.font = `bold ${style.fontSize}px ${style.fontFamily}`;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    ctx.fillText(text, x + 10, y + 34, width - 20);
-  }
-};
-
 const renderDoc: SpecialShapeRenderer = (ctx, node, selected, _isDragging, fill) => {
   const { x, y, width, style, text } = node;
   renderRoundedShape(ctx, node, selected, fill, 8);
   // Doc icon (path-based)
-  ctx.fillStyle = DOC_ICON_COLOR;
-  ctx.strokeStyle = DOC_ICON_COLOR;
+  ctx.fillStyle = currentColors.docIconColor;
+  ctx.strokeStyle = currentColors.docIconColor;
   drawDocIcon(ctx, x + 18, y + 18, 18);
   // Title
   if (text) {
-    ctx.fillStyle = COLOR_TEXT_PRIMARY;
+    ctx.fillStyle = currentColors.textPrimary;
     ctx.font = `bold ${style.fontSize}px ${style.fontFamily}`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
@@ -263,7 +234,7 @@ const renderDoc: SpecialShapeRenderer = (ctx, node, selected, _isDragging, fill)
   }
   // Preview text
   if (node.docContent) {
-    ctx.fillStyle = COLOR_TEXT_SECONDARY;
+    ctx.fillStyle = currentColors.textSecondary;
     ctx.font = `${FONT_SIZE_PREVIEW}px ${FONT_FAMILY}`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
@@ -316,14 +287,14 @@ const renderFrame: SpecialShapeRenderer = (ctx, node, selected, _isDragging, fil
   ctx.setLineDash([]);
   // タイトルバー
   const titleH = 28;
-  ctx.fillStyle = FRAME_TITLE_BG;
+  ctx.fillStyle = currentColors.frameTitleBg;
   drawRoundedRect(ctx, x, y, width, titleH, fr);
   ctx.fill();
   // 下の角を矩形で埋める
   ctx.fillRect(x, y + titleH - fr, width, fr);
   // タイトルテキスト
   if (text) {
-    ctx.fillStyle = COLOR_TEXT_SECONDARY;
+    ctx.fillStyle = currentColors.textSecondary;
     ctx.font = `bold ${style.fontSize}px ${style.fontFamily}`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
@@ -360,7 +331,6 @@ const specialShapes: Partial<Record<NodeType, SpecialShapeRenderer>> = {
   sticky: renderSticky,
   text: renderText,
   cylinder: renderCylinder,
-  insight: renderInsight,
   doc: renderDoc,
   image: renderImage,
   frame: renderFrame,
@@ -369,7 +339,7 @@ const specialShapes: Partial<Record<NodeType, SpecialShapeRenderer>> = {
 
 /** テキスト描画をスキップするタイプ */
 const skipTextTypes: ReadonlySet<NodeType> = new Set([
-  'insight', 'doc', 'frame', 'image',
+  'doc', 'frame', 'image',
 ]);
 
 // ---------------------------------------------------------------------------
@@ -381,7 +351,9 @@ export function drawNode(
   node: GraphNode,
   selected: boolean,
   isDragging: boolean = false,
+  colors?: CanvasColors,
 ): void {
+  currentColors = colors ?? getCanvasColors(true);
   ctx.save();
 
   // ドラッグ中の浮き上がりエフェクト
@@ -409,7 +381,7 @@ export function drawNode(
 
   // 共通テキスト描画（特殊タイプは個別にテキストを処理済み）
   if (text && !skipTextTypes.has(type)) {
-    ctx.fillStyle = COLOR_TEXT_PRIMARY;
+    ctx.fillStyle = currentColors.textPrimary;
     ctx.font = `${style.fontSize}px ${style.fontFamily}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -435,7 +407,7 @@ export function drawNode(
   if (node.url) {
     ctx.save();
     ctx.font = `${FONT_SIZE_LINK_ICON}px ${FONT_FAMILY}`;
-    ctx.fillStyle = COLOR_ICE_BLUE;
+    ctx.fillStyle = currentColors.accentColor;
     ctx.textAlign = 'right';
     ctx.textBaseline = 'top';
     ctx.fillText('\u{1F517}', x + width - 4, y + 4);
@@ -563,8 +535,8 @@ export function wrapText(
 function drawLockIcon(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number): void {
   const s = size;
   ctx.save();
-  ctx.fillStyle = COLOR_LOCK_ICON;
-  ctx.strokeStyle = COLOR_LOCK_ICON;
+  ctx.fillStyle = currentColors.lockIcon;
+  ctx.strokeStyle = currentColors.lockIcon;
   ctx.lineWidth = 1.5;
   // Lock body (rectangle)
   ctx.fillRect(cx - s * 0.35, cy, s * 0.7, s * 0.5);
@@ -601,7 +573,8 @@ function drawDocIcon(ctx: CanvasRenderingContext2D, cx: number, cy: number, size
 }
 
 /** ロック中ノードに南京錠アイコンを描画 */
-export function drawLockIndicator(ctx: CanvasRenderingContext2D, node: GraphNode, scale: number): void {
+export function drawLockIndicator(ctx: CanvasRenderingContext2D, node: GraphNode, scale: number, colors?: CanvasColors): void {
+  currentColors = colors ?? getCanvasColors(true);
   const size = 14 / scale;
   const px = node.x + node.width - size - 4 / scale;
   const py = node.y + 4 / scale;

@@ -171,9 +171,9 @@ describe("ExplorerPanel - coverage3", () => {
     mockSelectedRepo = { fullName: "owner/repo", defaultBranch: "main" };
     mockSelectedBranch = "main";
     mockSelectedFilePath = "docs/test.md";
-    mockCommits = [{ sha: "old-sha", message: "old commit", date: "2026-01-01" }];
+    mockCommits = [{ sha: "old-sha", message: "old commit", author: "test", date: "2026-01-01" }];
 
-    const newCommit = { sha: "new-sha-123", message: "new commit", date: "2026-03-22" };
+    const newCommit = { sha: "new-sha-123", message: "new commit", author: "test", date: "2026-03-22" };
 
     (global.fetch as jest.Mock) = jest.fn().mockResolvedValue({
       status: 200, ok: true, json: () => Promise.resolve([]),
@@ -194,10 +194,10 @@ describe("ExplorerPanel - coverage3", () => {
     const updaterFn = mockSetCommits.mock.calls[0][0];
     if (typeof updaterFn === "function") {
       // Call with existing commits that do NOT contain newCommit's sha
-      const result = updaterFn([{ sha: "old-sha", message: "old commit", date: "2026-01-01" }]);
+      const result = updaterFn([{ sha: "old-sha", message: "old commit", author: "test", date: "2026-01-01" }]);
       expect(result).toEqual([
         newCommit,
-        { sha: "old-sha", message: "old commit", date: "2026-01-01" },
+        { sha: "old-sha", message: "old commit", author: "test", date: "2026-01-01" },
       ]);
     }
 
@@ -231,7 +231,7 @@ describe("ExplorerPanel - coverage3", () => {
 
     // Mock fetchCommits for file selection
     mockFetchCommits.mockResolvedValue({
-      commits: [{ sha: "abc123", message: "init", date: "2026-01-01" }],
+      commits: [{ sha: "abc123", message: "init", author: "test", date: "2026-01-01" }],
       stale: false,
     });
 
@@ -336,7 +336,7 @@ describe("ExplorerPanel - coverage3", () => {
     mockSelectedRepo = { fullName: "owner/repo", defaultBranch: "main" };
     mockSelectedBranch = "main";
     mockSelectedFilePath = "docs/test.md";
-    mockCommits = [{ sha: "sha123", message: "commit", date: "2026-01-01" }];
+    mockCommits = [{ sha: "sha123", message: "commit", author: "test", date: "2026-01-01" }];
 
     const onSelectCommit = jest.fn();
 
@@ -365,7 +365,7 @@ describe("ExplorerPanel - coverage3", () => {
     mockSelectedRepo = { fullName: "owner/repo", defaultBranch: "main" };
     mockSelectedBranch = "main";
     mockSelectedFilePath = "docs/test.md";
-    mockCommits = [{ sha: "sha123", message: "commit", date: "2026-01-01" }];
+    mockCommits = [{ sha: "sha123", message: "commit", author: "test", date: "2026-01-01" }];
 
     const onSelectCurrent = jest.fn();
 

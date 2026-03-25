@@ -5,23 +5,17 @@ import { Box, IconButton, Tooltip } from '@mui/material';
 import {
   CropSquare as RectIcon,
   CircleOutlined as EllipseIcon,
-  StickyNote2Outlined as StickyIcon,
-  TextFields as TextIcon,
-  Diamond as DiamondIcon,
-  Hexagon as ParallelogramIcon,
-  Storage as CylinderIcon,
-  Lightbulb as InsightIcon,
-  Description as DocIcon,
-  Dashboard as FrameIcon,
-  Image as ImageIcon,
 } from '@mui/icons-material';
+import {
+  DiamondShapeIcon as DiamondIcon,
+  ParallelogramShapeIcon as ParallelogramIcon,
+  CylinderShapeIcon as CylinderIcon,
+} from './ShapeIcons';
 import { useTranslations } from 'next-intl';
 import { GraphNode, NodeType, Viewport } from '../types';
 import { worldToScreen } from '../engine/viewport';
-import {
-  COLOR_CHARCOAL, COLOR_BORDER, COLOR_ICE_BLUE,
-  COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY,
-} from '@anytime-markdown/graph-core';
+import { getCanvasColors } from '@anytime-markdown/graph-core';
+import { useThemeMode } from '../../providers';
 
 const SHAPES: { type: NodeType; icon: React.ReactNode; i18nKey: string }[] = [
   { type: 'rect', icon: <RectIcon sx={{ fontSize: 18 }} />, i18nKey: 'rect' },
@@ -29,12 +23,6 @@ const SHAPES: { type: NodeType; icon: React.ReactNode; i18nKey: string }[] = [
   { type: 'diamond', icon: <DiamondIcon sx={{ fontSize: 18 }} />, i18nKey: 'diamond' },
   { type: 'parallelogram', icon: <ParallelogramIcon sx={{ fontSize: 18 }} />, i18nKey: 'parallelogram' },
   { type: 'cylinder', icon: <CylinderIcon sx={{ fontSize: 18 }} />, i18nKey: 'cylinder' },
-  { type: 'sticky', icon: <StickyIcon sx={{ fontSize: 18 }} />, i18nKey: 'sticky' },
-  { type: 'text', icon: <TextIcon sx={{ fontSize: 18 }} />, i18nKey: 'text' },
-  { type: 'insight', icon: <InsightIcon sx={{ fontSize: 18 }} />, i18nKey: 'insight' },
-  { type: 'doc', icon: <DocIcon sx={{ fontSize: 18 }} />, i18nKey: 'doc' },
-  { type: 'frame', icon: <FrameIcon sx={{ fontSize: 18 }} />, i18nKey: 'frame' },
-  { type: 'image', icon: <ImageIcon sx={{ fontSize: 18 }} />, i18nKey: 'image' },
 ];
 
 interface ShapeHoverBarProps {
@@ -43,8 +31,17 @@ interface ShapeHoverBarProps {
   onChangeType: (id: string, type: NodeType) => void;
 }
 
+const SHAPE_TYPES = new Set(SHAPES.map(s => s.type));
+
 export function ShapeHoverBar({ node, viewport, onChangeType }: ShapeHoverBarProps) {
   const t = useTranslations('Graph');
+  const { themeMode } = useThemeMode();
+  const isDark = themeMode === 'dark';
+  const colors = getCanvasColors(isDark);
+
+  // 基本図形以外はホバーバーを表示しない
+  if (!SHAPE_TYPES.has(node.type)) return null;
+
   const screen = worldToScreen(viewport, node.x + node.width / 2, node.y);
   const barWidth = SHAPES.length * 30 + 16;
 
@@ -56,8 +53,8 @@ export function ShapeHoverBar({ node, viewport, onChangeType }: ShapeHoverBarPro
         top: screen.y - 44,
         display: 'flex',
         gap: '2px',
-        backgroundColor: COLOR_CHARCOAL,
-        border: `1px solid ${COLOR_BORDER}`,
+        backgroundColor: colors.panelBg,
+        border: `1px solid ${colors.panelBorder}`,
         borderRadius: '8px',
         px: 1,
         py: 0.5,
@@ -85,12 +82,12 @@ export function ShapeHoverBar({ node, viewport, onChangeType }: ShapeHoverBarPro
             sx={{
               width: 28,
               height: 28,
-              color: node.type === s.type ? COLOR_ICE_BLUE : COLOR_TEXT_SECONDARY,
-              backgroundColor: node.type === s.type ? 'rgba(144,202,249,0.12)' : 'transparent',
+              color: node.type === s.type ? colors.accentColor : colors.textSecondary,
+              backgroundColor: node.type === s.type ? `${colors.accentColor}1F` : 'transparent',
               borderRadius: '6px',
               '&:hover': {
-                backgroundColor: 'rgba(255,255,255,0.08)',
-                color: COLOR_TEXT_PRIMARY,
+                backgroundColor: colors.hoverBg,
+                color: colors.textPrimary,
               },
             }}
           >

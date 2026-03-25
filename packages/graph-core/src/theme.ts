@@ -58,11 +58,6 @@ export const CANVAS_SMART_GUIDE = COLOR_ICE_BLUE;
 export const STICKY_FILL = COLOR_AMBER_GOLD;
 export const STICKY_STROKE = 'rgba(232,160,18,0.6)';
 
-// ── Insight node ──
-export const INSIGHT_FILL = '#1A1F2E';
-export const INSIGHT_STROKE = 'rgba(144,202,249,0.3)';
-export const INSIGHT_LABEL_COLORS = ['#90CAF9', '#E8A012', '#66BB6A', '#EF5350', '#CE93D8', '#4DD0E1'];
-
 // ── Doc node ──
 export const DOC_FILL = '#1A1A2E';
 export const DOC_STROKE = 'rgba(206,147,216,0.3)';
@@ -75,3 +70,103 @@ export const FRAME_TITLE_BG = 'rgba(255,255,255,0.08)';
 
 // ── Typography ──
 export const FONT_FAMILY = 'Roboto, Helvetica, Arial, sans-serif';
+
+// ── Theme-aware color set ──
+export interface CanvasColors {
+  canvasBg: string;
+  canvasGrid: string;
+  canvasSelection: string;
+  canvasSelectionFill: string;
+  canvasSnap: string;
+  canvasSnapInner: string;
+  canvasSmartGuide: string;
+  textPrimary: string;
+  textSecondary: string;
+  textOnLight: string;
+  lockIcon: string;
+  tooltipBg: string;
+  tooltipBorder: string;
+  tooltipText: string;
+  invalidTarget: string;
+  handleFill: string;
+  edgeLabelBg: string;
+  docFill: string;
+  docStroke: string;
+  docIconColor: string;
+  frameFill: string;
+  frameStroke: string;
+  frameTitleBg: string;
+  // UI panel colors
+  panelBg: string;
+  panelBorder: string;
+  modalBg: string;
+  accentColor: string;
+  hoverBg: string;
+}
+
+const DARK_COLORS: CanvasColors = {
+  canvasBg: COLOR_MIDNIGHT_NAVY,
+  canvasGrid: 'rgba(255,255,255,0.06)',
+  canvasSelection: COLOR_ICE_BLUE,
+  canvasSelectionFill: 'rgba(144,202,249,0.08)',
+  canvasSnap: COLOR_AMBER_GOLD,
+  canvasSnapInner: COLOR_MIDNIGHT_NAVY,
+  canvasSmartGuide: COLOR_ICE_BLUE,
+  textPrimary: '#FFFFFF',
+  textSecondary: 'rgba(255,255,255,0.78)',
+  textOnLight: 'rgba(0,0,0,0.87)',
+  lockIcon: 'rgba(255,255,255,0.7)',
+  tooltipBg: 'rgba(13, 17, 23, 0.9)',
+  tooltipBorder: 'rgba(144, 202, 249, 0.3)',
+  tooltipText: COLOR_ICE_BLUE,
+  invalidTarget: 'rgba(244, 67, 54, 0.6)',
+  handleFill: COLOR_CHARCOAL,
+  edgeLabelBg: COLOR_MIDNIGHT_NAVY,
+  docFill: '#1A1A2E',
+  docStroke: 'rgba(206,147,216,0.3)',
+  docIconColor: '#CE93D8',
+  frameFill: 'rgba(255,255,255,0.03)',
+  frameStroke: 'rgba(255,255,255,0.15)',
+  frameTitleBg: 'rgba(255,255,255,0.08)',
+  panelBg: COLOR_CHARCOAL,
+  panelBorder: 'rgba(255,255,255,0.12)',
+  modalBg: COLOR_MIDNIGHT_NAVY,
+  accentColor: COLOR_ICE_BLUE,
+  hoverBg: 'rgba(255,255,255,0.16)',
+};
+
+const LIGHT_COLORS: CanvasColors = {
+  canvasBg: '#F5F5F0',
+  canvasGrid: 'rgba(0,0,0,0.08)',
+  canvasSelection: '#1976D2',
+  canvasSelectionFill: 'rgba(25,118,210,0.08)',
+  canvasSnap: '#C77C00',
+  canvasSnapInner: '#F5F5F0',
+  canvasSmartGuide: '#1976D2',
+  textPrimary: '#1A1A1A',
+  textSecondary: 'rgba(0,0,0,0.6)',
+  textOnLight: 'rgba(0,0,0,0.87)',
+  lockIcon: 'rgba(0,0,0,0.5)',
+  tooltipBg: 'rgba(255,255,255,0.95)',
+  tooltipBorder: 'rgba(0,0,0,0.15)',
+  tooltipText: '#1976D2',
+  invalidTarget: 'rgba(211, 47, 47, 0.5)',
+  handleFill: '#FFFFFF',
+  edgeLabelBg: '#F5F5F0',
+  docFill: '#F5F0FF',
+  docStroke: 'rgba(142,68,173,0.3)',
+  docIconColor: '#8E44AD',
+  frameFill: 'rgba(0,0,0,0.02)',
+  frameStroke: 'rgba(0,0,0,0.12)',
+  frameTitleBg: 'rgba(0,0,0,0.05)',
+  panelBg: '#FFFFFF',
+  panelBorder: 'rgba(0,0,0,0.12)',
+  modalBg: '#FFFFFF',
+  accentColor: '#1976D2',
+  hoverBg: 'rgba(0,0,0,0.06)',
+};
+
+/** Get theme-aware color set */
+export function getCanvasColors(isDark: boolean): CanvasColors {
+  return isDark ? DARK_COLORS : LIGHT_COLORS;
+}

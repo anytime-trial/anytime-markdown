@@ -1,6 +1,12 @@
 import type { SxProps,Theme } from "@mui/material/styles";
 
-import { DEFAULT_DARK_HEADING_LINK, DEFAULT_LIGHT_HEADING_LINK, getActionHover, getActionSelected, getTextDisabled, getTextSecondary } from "../constants/colors";
+import {
+  DEFAULT_DARK_H1_BORDER, DEFAULT_DARK_H1_GRADIENT, DEFAULT_DARK_H2_BORDER, DEFAULT_DARK_H2_GRADIENT, DEFAULT_DARK_H3_BORDER,
+  DEFAULT_DARK_HEADING_LINK,
+  DEFAULT_LIGHT_H1_BORDER, DEFAULT_LIGHT_H1_GRADIENT, DEFAULT_LIGHT_H2_BORDER, DEFAULT_LIGHT_H2_GRADIENT, DEFAULT_LIGHT_H3_BORDER,
+  DEFAULT_LIGHT_HEADING_LINK,
+  getActionHover, getActionSelected, getTextDisabled, getTextSecondary,
+} from "../constants/colors";
 import { HEADING_ANCHOR_FONT_SIZE, HEADING_BADGE_FONT_SIZE } from "../constants/dimensions";
 
 /** ブロックラベル共通スタイル（::before 擬似要素） */
@@ -71,20 +77,20 @@ export function getHeadingStyles(theme: Theme): SxProps<Theme> {
       py: 0.5, borderRadius: 1,
       borderLeft: `4px solid ${isDark ? DEFAULT_DARK_HEADING_LINK : DEFAULT_LIGHT_HEADING_LINK}`,
       pl: 1.5,
-      background: `linear-gradient(90deg, ${isDark ? "rgba(99,179,237,0.12)" : "rgba(49,130,206,0.08)"}, transparent 70%)`,
+      background: `linear-gradient(90deg, ${isDark ? DEFAULT_DARK_H1_GRADIENT : DEFAULT_LIGHT_H1_GRADIENT}, transparent 70%)`,
       "&::before": { content: "'H1'" },
     },
     "& h2": {
       fontSize: "1.5em", fontWeight: 700, mt: 1.5, mb: 1,
       py: 0.5, borderRadius: 1,
-      borderLeft: `3px solid ${isDark ? "rgba(99,179,237,0.6)" : "rgba(49,130,206,0.5)"}`,
+      borderLeft: `3px solid ${isDark ? DEFAULT_DARK_H2_BORDER : DEFAULT_LIGHT_H2_BORDER}`,
       pl: 1.5,
-      background: `linear-gradient(90deg, ${isDark ? "rgba(99,179,237,0.08)" : "rgba(49,130,206,0.05)"}, transparent 60%)`,
+      background: `linear-gradient(90deg, ${isDark ? DEFAULT_DARK_H2_GRADIENT : DEFAULT_LIGHT_H2_GRADIENT}, transparent 60%)`,
       "&::before": { content: "'H2'" },
     },
     "& h3": {
       fontSize: "1.25em", fontWeight: 700, mt: 1, mb: 0.5,
-      borderLeft: `2px solid ${isDark ? "rgba(99,179,237,0.35)" : "rgba(49,130,206,0.3)"}`,
+      borderLeft: `2px solid ${isDark ? DEFAULT_DARK_H3_BORDER : DEFAULT_LIGHT_H3_BORDER}`,
       pl: 1,
       "&::before": { content: "'H3'" },
     },

@@ -141,16 +141,6 @@ describe('exportToSvg', () => {
     expect(svg).not.toContain('<rect x="0"');
   });
 
-  it('should export an insight node with label', () => {
-    const doc = createDocument('Test');
-    const node = createNode('insight', 0, 0, { id: 'i1', text: 'Finding', label: 'Insight' });
-    doc.nodes = [node];
-    const svg = exportToSvg(doc);
-    expect(svg).toContain('Finding');
-    expect(svg).toContain('Insight');
-    expect(svg).toContain('font-weight="bold"');
-  });
-
   it('should export a line edge', () => {
     const doc = createDocument('Test');
     const node1 = createNode('rect', 0, 0, { id: 'n1', text: 'A' });

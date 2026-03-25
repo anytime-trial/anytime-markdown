@@ -15,17 +15,23 @@ import { PropertyPanel } from './PropertyPanel';
 import { TextEditOverlay } from './TextEditOverlay';
 import { DocEditorModal } from './DocEditorModal';
 import { ShapeHoverBar } from './ShapeHoverBar';
+import { SettingsPanel } from './SettingsPanel';
 import { pan as panViewport, zoom as zoomViewport, fitToContent } from '../engine/viewport';
 import { interpolateViewport, ViewportAnimation, clearImageCache } from '@anytime-markdown/graph-core/engine';
 import { alignLeft, alignRight, alignTop, alignBottom, alignCenterH, alignCenterV, distributeH, distributeV } from '../engine/alignment';
 import { loadDocument, getLastDocumentId } from '../store/graphStorage';
-import { exportToSvg, exportToDrawio, importFromDrawio } from '@anytime-markdown/graph-core';
+import { exportToSvg, exportToDrawio, importFromDrawio, getCanvasColors } from '@anytime-markdown/graph-core';
+import { useThemeMode } from '../../providers';
 
 export function GraphEditor() {
+  const { themeMode } = useThemeMode();
+  const isDark = themeMode === 'dark';
   const [tool, setTool] = useState<ToolType>('select');
   const [showGrid, setShowGrid] = useState(true);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
+  const [textEditAppendMode, setTextEditAppendMode] = useState(false);
   const [showProperty, setShowProperty] = useState(true);
+  const [showSettings, setShowSettings] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const { state, dispatch } = useGraphState();
@@ -95,6 +101,7 @@ export function GraphEditor() {
     if (node?.type === 'doc') {
       setDocEditNodeId(nodeId);
     } else {
+      setTextEditAppendMode(false);
       setEditingNodeId(nodeId);
     }
   }, [state.document.nodes]);
@@ -112,6 +119,7 @@ export function GraphEditor() {
     onTextEdit: handleTextEdit,
     onToolChange: setTool,
     showGrid,
+    isDark,
     onLiveMessage: useCallback((key: string) => {
       if (key === 'undo') setLiveMessage(t('undone'));
       else if (key === 'redo') setLiveMessage(t('redone'));
@@ -142,10 +150,21 @@ export function GraphEditor() {
         }
         return;
       }
+      // 単一ノード選択中に印字可能キーを押したらテキスト編集開始（ショートカットより優先）
+      const ids = selectionRef.current.nodeIds;
+      if (ids.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1) {
+        const node = state.document.nodes.find(n => n.id === ids[0]);
+        if (node && node.type !== 'image' && node.type !== 'doc' && !node.locked) {
+          e.preventDefault();
+          setTextEditAppendMode(true);
+          handleTextEdit(ids[0]);
+          return;
+        }
+      }
       const map: Record<string, ToolType> = {
         v: 'select', r: 'rect', o: 'ellipse', s: 'sticky',
         t: 'text', d: 'diamond', p: 'parallelogram', y: 'cylinder',
-        i: 'insight', m: 'doc', f: 'frame',
+        m: 'doc', f: 'frame',
         l: 'line', a: 'arrow', c: 'connector',
       };
       if (map[e.key] && !e.ctrlKey && !e.metaKey) {
@@ -154,7 +173,7 @@ export function GraphEditor() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [editingNodeId, dispatch]);
+  }, [editingNodeId, dispatch, state.document.nodes, handleTextEdit]);
 
   const handleTextCommit = useCallback((id: string, text: string) => {
     dispatch({ type: 'UPDATE_NODE', id, changes: { text } });
@@ -234,9 +253,9 @@ export function GraphEditor() {
       width: w,
       height: h,
       imageData: dataUrl,
-    });
+    }, isDark);
     dispatch({ type: 'ADD_NODE', node });
-  }, [state.document.viewport, dispatch]);
+  }, [state.document.viewport, dispatch, isDark]);
 
   const handleClearAll = useCallback(() => {
     setConfirmDialog({
@@ -358,7 +377,9 @@ export function GraphEditor() {
         hasSelection={state.selection.nodeIds.length > 0 || state.selection.edgeIds.length > 0}
         scale={state.document.viewport.scale}
         saveStatus={saveStatus}
+        onToggleSettings={() => setShowSettings(v => !v)}
       />
+      <Box sx={{ flex: 1, display: 'flex', position: 'relative', overflow: 'hidden' }}>
       <Box sx={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
         <GraphCanvas
           nodes={state.document.nodes}
@@ -383,6 +404,7 @@ export function GraphEditor() {
           onPanInertia={handlePanInertia}
           draggingNodeIds={isDragging && dragRef.current.type === 'move' ? state.selection.nodeIds : undefined}
           ariaLabel={canvasAriaLabel}
+          isDark={isDark}
         />
         {state.document.nodes.length === 0 && (
           <Box sx={{
@@ -390,7 +412,7 @@ export function GraphEditor() {
             top: '50%',
             left: '50%',
             transform: 'translate(-50%, -50%)',
-            color: 'rgba(255,255,255,0.45)',
+            color: isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.35)',
             textAlign: 'center',
             pointerEvents: 'none',
             zIndex: 10,
@@ -411,6 +433,7 @@ export function GraphEditor() {
           viewport={state.document.viewport}
           onCommit={handleTextCommit}
           onCancel={() => setEditingNodeId(null)}
+          appendMode={textEditAppendMode}
         />
         {showProperty && (selectedNode || selectedEdge) && (
           <PropertyPanel
@@ -440,6 +463,8 @@ export function GraphEditor() {
         >
           {liveMessage}
         </div>
+      </Box>
+      <SettingsPanel open={showSettings} width={260} onClose={() => setShowSettings(false)} />
       </Box>
       <DocEditorModal
         open={docEditNodeId !== null}

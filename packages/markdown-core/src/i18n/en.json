@@ -701,6 +701,7 @@
     "diamond": "Diamond",
     "parallelogram": "Parallelogram",
     "cylinder": "Cylinder",
+    "longPressForMore": "Long press for more shapes",
     "copy": "Copy",
     "paste": "Paste",
     "selectAll": "Select All",
@@ -718,7 +719,6 @@
     "distributeV": "Distribute Vertically",
     "alignment": "Alignment",
     "navLabel": "Graph",
-    "insight": "Insight",
     "doc": "Document",
     "clearAll": "Clear All",
     "label": "Label",
@@ -779,7 +779,10 @@
     "undone": "Undone",
     "redone": "Redone",
     "emptyCanvasTitle": "Canvas is empty",
-    "emptyCanvasHint": "Select a shape from the toolbar and drag to create"
+    "emptyCanvasHint": "Select a shape from the toolbar and drag to create",
+    "settings": "Settings",
+    "themeMode": "Theme",
+    "language": "Language"
   },
   "Privacy": {
     "title": "Privacy Policy",

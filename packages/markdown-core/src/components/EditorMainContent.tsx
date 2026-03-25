@@ -247,10 +247,10 @@ export function EditorMainContent({
           t={t}
         />
       </Box>
-      {sideToolbar && commentSlot}
-      {sideOutlineSlot}
-      {sideToolbar && explorerOpen && explorerSlot}
-      {sideToolbarNode}
+      <Box data-print-hide="">{sideToolbar && commentSlot}</Box>
+      <Box data-print-hide="">{sideOutlineSlot}</Box>
+      <Box data-print-hide="">{sideToolbar && explorerOpen && explorerSlot}</Box>
+      <Box data-print-hide="">{sideToolbarNode}</Box>
       </Box>
     );
   }
@@ -283,12 +283,12 @@ export function EditorMainContent({
         t={t}
       />
 
-      {commentSlot}
-      {sideOutlineSlot}
-      {sideToolbar && explorerOpen && explorerSlot}
+      <Box data-print-hide="">{commentSlot}</Box>
+      <Box data-print-hide="">{sideOutlineSlot}</Box>
+      <Box data-print-hide="">{sideToolbar && explorerOpen && explorerSlot}</Box>
       </Box>
       </Box>
-      {sideToolbarNode}
+      <Box data-print-hide="">{sideToolbarNode}</Box>
     </Box>
   );
 }

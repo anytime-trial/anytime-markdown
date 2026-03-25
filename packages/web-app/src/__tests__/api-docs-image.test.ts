@@ -76,7 +76,7 @@ describe("GET /api/docs/image", () => {
     });
 
     const req = createRequest({ key: "docs/folder/image.png" });
-    const res = (await callGET(req)) as { body: unknown; status: number; headers: Record<string, string> };
+    const res = (await callGET(req)) as unknown as { body: unknown; status: number; headers: Record<string, string> };
     expect(res.status).toBe(200);
     expect(res.headers["Content-Type"]).toBe("image/png");
     expect(res.headers["Cache-Control"]).toContain("max-age=86400");
@@ -84,28 +84,28 @@ describe("GET /api/docs/image", () => {
 
   it("key パラメータが未指定の場合は 400 を返す", async () => {
     const req = createRequest();
-    const res = (await callGET(req)) as { body: string; status: number };
+    const res = (await callGET(req)) as unknown as { body: string; status: number };
     expect(res.status).toBe(400);
     expect(JSON.parse(res.body)).toEqual({ error: "key parameter is required" });
   });
 
   it("key が docs/ で始まらない場合は 400 を返す", async () => {
     const req = createRequest({ key: "other/image.png" });
-    const res = (await callGET(req)) as { body: string; status: number };
+    const res = (await callGET(req)) as unknown as { body: string; status: number };
     expect(res.status).toBe(400);
     expect(JSON.parse(res.body)).toEqual({ error: "Invalid key" });
   });
 
   it("パストラバーサルを含む key は 400 を返す", async () => {
     const req = createRequest({ key: "docs/../etc/passwd.png" });
-    const res = (await callGET(req)) as { body: string; status: number };
+    const res = (await callGET(req)) as unknown as { body: string; status: number };
     expect(res.status).toBe(400);
     expect(JSON.parse(res.body)).toEqual({ error: "Invalid key" });
   });
 
   it("許可されていない拡張子の場合は 400 を返す", async () => {
     const req = createRequest({ key: "docs/file.pdf" });
-    const res = (await callGET(req)) as { body: string; status: number };
+    const res = (await callGET(req)) as unknown as { body: string; status: number };
     expect(res.status).toBe(400);
     expect(JSON.parse(res.body)).toEqual({ error: "Unsupported image format" });
   });
@@ -114,7 +114,7 @@ describe("GET /api/docs/image", () => {
     mockSend.mockResolvedValue({ Body: { transformToByteArray: () => Promise.resolve(undefined) } });
 
     const req = createRequest({ key: "docs/missing.png" });
-    const res = (await callGET(req)) as { body: string; status: number };
+    const res = (await callGET(req)) as unknown as { body: string; status: number };
     expect(res.status).toBe(404);
     expect(JSON.parse(res.body)).toEqual({ error: "Image not found" });
   });
@@ -125,7 +125,7 @@ describe("GET /api/docs/image", () => {
     mockSend.mockRejectedValue(err);
 
     const req = createRequest({ key: "docs/notfound.png" });
-    const res = (await callGET(req)) as { body: string; status: number };
+    const res = (await callGET(req)) as unknown as { body: string; status: number };
     expect(res.status).toBe(404);
     expect(JSON.parse(res.body)).toEqual({ error: "Image not found" });
   });
@@ -134,7 +134,7 @@ describe("GET /api/docs/image", () => {
     mockSend.mockRejectedValue(new Error("S3 connection failed"));
 
     const req = createRequest({ key: "docs/image.jpg" });
-    const res = (await callGET(req)) as { body: string; status: number };
+    const res = (await callGET(req)) as unknown as { body: string; status: number };
     expect(res.status).toBe(500);
     expect(JSON.parse(res.body)).toEqual({ error: "Failed to load image" });
   });
@@ -152,7 +152,9 @@ describe("GET /api/docs/image", () => {
     });
 
     const req = createRequest({ key });
-    const res = (await callGET(req)) as { headers: Record<string, string> };
+    const res = (await callGET(req)) as unknown as { headers: Record<string, string> };
     expect(res.headers["Content-Type"]).toBe(expectedType);
   });
 });
+
+export {};

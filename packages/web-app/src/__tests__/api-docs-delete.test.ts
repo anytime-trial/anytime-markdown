@@ -86,7 +86,7 @@ describe("DELETE /api/docs/delete", () => {
     mockSend.mockResolvedValue({});
     const req = createRequest({ key: "docs/hello.md" });
 
-    const res = (await callDELETE(req)) as { body: string; status: number };
+    const res = (await callDELETE(req)) as unknown as { body: string; status: number };
     expect(res.status).toBe(200);
     expect(JSON.parse(res.body)).toEqual({ deleted: true });
     expect(mockSend).toHaveBeenCalledWith(
@@ -108,7 +108,7 @@ describe("DELETE /api/docs/delete", () => {
   it("key パラメータが未指定の場合は 400 を返す", async () => {
     const req = createRequest({});
 
-    const res = (await callDELETE(req)) as { body: string; status: number };
+    const res = (await callDELETE(req)) as unknown as { body: string; status: number };
     expect(res.status).toBe(400);
     expect(JSON.parse(res.body)).toEqual({ error: "key parameter is required" });
   });
@@ -116,7 +116,7 @@ describe("DELETE /api/docs/delete", () => {
   it("DOCS_PREFIX で始まらないキーは 400 を返す", async () => {
     const req = createRequest({ key: "other/hello.md" });
 
-    const res = (await callDELETE(req)) as { body: string; status: number };
+    const res = (await callDELETE(req)) as unknown as { body: string; status: number };
     expect(res.status).toBe(400);
     expect(JSON.parse(res.body)).toEqual({ error: "Invalid key" });
   });
@@ -125,7 +125,7 @@ describe("DELETE /api/docs/delete", () => {
     mockSend.mockResolvedValue({});
     const req = createRequest({ key: "docs/hello.txt" });
 
-    const res = (await callDELETE(req)) as { body: string; status: number };
+    const res = (await callDELETE(req)) as unknown as { body: string; status: number };
     expect(res.status).toBe(200);
     expect(JSON.parse(res.body)).toEqual({ deleted: true });
   });
@@ -133,7 +133,7 @@ describe("DELETE /api/docs/delete", () => {
   it("パストラバーサルを含むキーは 400 を返す", async () => {
     const req = createRequest({ key: "docs/../secret.md" });
 
-    const res = (await callDELETE(req)) as { body: string; status: number };
+    const res = (await callDELETE(req)) as unknown as { body: string; status: number };
     expect(res.status).toBe(400);
     expect(JSON.parse(res.body)).toEqual({ error: "Invalid key" });
   });
@@ -142,8 +142,10 @@ describe("DELETE /api/docs/delete", () => {
     mockSend.mockRejectedValue(new Error("S3 delete failed"));
     const req = createRequest({ key: "docs/hello.md" });
 
-    const res = (await callDELETE(req)) as { body: string; status: number };
+    const res = (await callDELETE(req)) as unknown as { body: string; status: number };
     expect(res.status).toBe(500);
     expect(JSON.parse(res.body)).toEqual({ error: "Failed to delete document" });
   });
 });
+
+export {};

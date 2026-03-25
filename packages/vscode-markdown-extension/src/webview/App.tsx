@@ -150,7 +150,19 @@ export function App() {
   const [themeMode, setThemeMode] = useState<PaletteMode>('dark');
   const [editorKey, setEditorKey] = useState(0);
   const [compareContent, setCompareContent] = useState<string | null>(null);
-  const theme = useMemo(() => createTheme({ palette: { mode: themeMode } }), [themeMode]);
+  const theme = useMemo(() => createTheme({
+    palette: { mode: themeMode },
+    components: {
+      MuiCssBaseline: {
+        styleOverrides: themeMode === 'light' ? {
+          body: {
+            WebkitFontSmoothing: 'auto',
+            MozOsxFontSmoothing: 'auto',
+          },
+        } : undefined,
+      },
+    },
+  }), [themeMode]);
   const latestContentRef = useRef<string | null>(null);
   const historicalContentRef = useRef<string | null>(null);
 

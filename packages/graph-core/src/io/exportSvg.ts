@@ -2,7 +2,7 @@ import { GraphDocument, GraphNode, GraphEdge } from '../types';
 import { computeOrthogonalPath, getConnectionPoints, nodeCenter } from '../engine/connector';
 import {
   CANVAS_BG, COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY,
-  FONT_FAMILY, DOC_ICON_COLOR, COLOR_ICE_BLUE,
+  FONT_FAMILY, DOC_ICON_COLOR,
 } from '../theme';
 import { escapeXml } from './utils';
 
@@ -46,10 +46,6 @@ function renderNodeSvg(node: GraphNode, gradFill?: string): string {
 
   if (text) {
     lines.push(`<text x="${x + w / 2}" y="${y + h / 2}" text-anchor="middle" dominant-baseline="central" fill="${COLOR_TEXT_PRIMARY}" font-size="${style.fontSize}" font-family="${FONT_FAMILY}">${escapeXml(text)}</text>`);
-  }
-
-  if (type === 'insight' && node.label) {
-    lines.push(`<text x="${x + 16}" y="${y + 20}" fill="${escapeXml(node.labelColor ?? COLOR_ICE_BLUE)}" font-size="10" font-weight="bold" font-family="${FONT_FAMILY}">${escapeXml(node.label)}</text>`);
   }
 
   lines.push('</g>');

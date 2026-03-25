@@ -2,7 +2,7 @@ import plantumlEncoder from "plantuml-encoder";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { BoundedMap } from "../utils/BoundedMap";
-import { buildPlantUmlUrl,PLANTUML_CONSENT_KEY, PLANTUML_DARK_SKINPARAMS } from "../utils/plantumlHelpers";
+import { buildPlantUmlUrl, PLANTUML_CONSENT_KEY, PLANTUML_DARK_SKINPARAMS, PLANTUML_LIGHT_SKINPARAMS } from "../utils/plantumlHelpers";
 
 /**
  * モジュールレベルの URL キャッシュ。
@@ -18,20 +18,15 @@ function buildPlantUmlSource(code: string, isDark: boolean): string {
   const startMatch = /@start(uml|mindmap|wbs|json|yaml)/.exec(code);
   const diagramType = startMatch ? startMatch[1] : null;
   const needsSkinParam = diagramType === "uml" || diagramType === null;
-  const lightSkinParam = "skinparam backgroundColor transparent";
+  const skinParams = isDark ? PLANTUML_DARK_SKINPARAMS : PLANTUML_LIGHT_SKINPARAMS;
 
-  if (diagramType && needsSkinParam && isDark) {
-    return code.replace(/@startuml/, `@startuml\n${PLANTUML_DARK_SKINPARAMS}`);
-  }
   if (diagramType && needsSkinParam) {
-    return code.replace(/@startuml/, `@startuml\n${lightSkinParam}`);
+    return code.replace(/@startuml/, `@startuml\n${skinParams}`);
   }
   if (diagramType) {
     return code;
   }
-  return isDark
-    ? `@startuml\n${PLANTUML_DARK_SKINPARAMS}\n${code}\n@enduml`
-    : `@startuml\n${lightSkinParam}\n${code}\n@enduml`;
+  return `@startuml\n${skinParams}\n${code}\n@enduml`;
 }
 
 interface UsePlantUmlRenderParams {

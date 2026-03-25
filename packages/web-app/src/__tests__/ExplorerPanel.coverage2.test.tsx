@@ -205,9 +205,9 @@ describe("ExplorerPanel - coverage2", () => {
     mockSelectedRepo = { fullName: "owner/repo", defaultBranch: "main" };
     mockSelectedBranch = "main";
     mockSelectedFilePath = "docs/test.md";
-    mockCommits = [{ sha: "existing123", message: "old commit", date: "2026-01-01" }];
+    mockCommits = [{ sha: "existing123", message: "old commit", author: "test", date: "2026-01-01" }];
 
-    const newCommit = { sha: "existing123", message: "old commit", date: "2026-01-01" };
+    const newCommit = { sha: "existing123", message: "old commit", author: "test", date: "2026-01-01" };
 
     await act(async () => {
       render(
@@ -222,8 +222,8 @@ describe("ExplorerPanel - coverage2", () => {
     expect(mockSetCommits).toHaveBeenCalled();
     const updaterFn = mockSetCommits.mock.calls[0][0];
     if (typeof updaterFn === "function") {
-      const result = updaterFn([{ sha: "existing123", message: "old commit", date: "2026-01-01" }]);
-      expect(result).toEqual([{ sha: "existing123", message: "old commit", date: "2026-01-01" }]);
+      const result = updaterFn([{ sha: "existing123", message: "old commit", author: "test", date: "2026-01-01" }]);
+      expect(result).toEqual([{ sha: "existing123", message: "old commit", author: "test", date: "2026-01-01" }]);
     }
   });
 

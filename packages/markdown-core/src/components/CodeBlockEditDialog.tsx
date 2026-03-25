@@ -5,7 +5,8 @@ import { common, createLowlight } from "lowlight";
 import React, { useCallback, useMemo, useState } from "react";
 
 import { CODE_HELLO_SAMPLES } from "../constants/codeHelloSamples";
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getActionHover, getDivider, getTextPrimary } from "../constants/colors";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, HLJS_DARK, HLJS_LIGHT, getActionHover, getDivider, getTextPrimary } from "../constants/colors";
+import { getHljsStyles } from "../styles/codeStyles";
 import { CHIP_FONT_SIZE, FS_CHIP_HEIGHT, FS_PANEL_HEADER_FONT_SIZE, FS_TOOLBAR_HEIGHT } from "../constants/dimensions";
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
 import { useZoomPan } from "../hooks/useZoomPan";
@@ -150,15 +151,8 @@ function SyntaxPreviewPanel({
             whiteSpace: "pre-wrap",
             overflowWrap: "break-word",
             color: getTextPrimary(isDark),
-            "& .hljs-keyword, & .hljs-selector-tag, & .hljs-built_in, & .hljs-type": { color: isDark ? "#ff7b72" : "#cf222e" },
-            "& .hljs-string, & .hljs-attr, & .hljs-template-tag, & .hljs-template-variable": { color: isDark ? "#a5d6ff" : "#0a3069" },
-            "& .hljs-comment, & .hljs-doctag": { color: isDark ? "#8b949e" : "#6e7781" },
-            "& .hljs-number, & .hljs-literal, & .hljs-variable, & .hljs-regexp": { color: isDark ? "#79c0ff" : "#0550ae" },
-            "& .hljs-title": { color: isDark ? "#d2a8ff" : "#8250df" },
-            "& .hljs-params": { color: isDark ? "#c9d1d9" : "#24292f" },
-            "& .hljs-meta": { color: isDark ? "#ffa657" : "#953800" },
-            "& .hljs-symbol, & .hljs-bullet": { color: isDark ? "#ffa657" : "#953800" },
-            "& .hljs-property, & .hljs-name": { color: isDark ? "#79c0ff" : "#0550ae" },
+            ...getHljsStyles(isDark),
+            "& .hljs-property, & .hljs-name": { color: isDark ? HLJS_DARK.number : HLJS_LIGHT.number },
           }}
           dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(highlightedHtml, { ALLOWED_TAGS: ["span"], ALLOWED_ATTR: ["class"] }) }}
         />
