@@ -1,6 +1,6 @@
-export type NodeType = 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder' | 'insight' | 'doc' | 'frame' | 'image';
+export type NodeType = 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder' | 'doc' | 'frame' | 'image';
 export type EdgeType = 'line' | 'arrow' | 'connector';
-export type ToolType = 'select' | 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder' | 'insight' | 'doc' | 'frame' | 'line' | 'arrow' | 'connector' | 'pan';
+export type ToolType = 'select' | 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder' | 'doc' | 'frame' | 'line' | 'arrow' | 'connector' | 'pan';
 
 export interface NodeStyle {
   fill: string;
@@ -99,7 +99,6 @@ export interface HistoryEntry {
 import {
   COLOR_CHARCOAL, COLOR_BORDER_ACTIVE, FONT_FAMILY,
   STICKY_FILL, STICKY_STROKE,
-  INSIGHT_FILL, INSIGHT_STROKE, INSIGHT_LABEL_COLORS,
   DOC_FILL, DOC_STROKE,
   FRAME_FILL, FRAME_STROKE,
   getCanvasColors,
@@ -118,14 +117,6 @@ export const DEFAULT_STICKY_STYLE: NodeStyle = {
   stroke: STICKY_STROKE,
   strokeWidth: 1,
   fontSize: 14,
-  fontFamily: FONT_FAMILY,
-};
-
-export const DEFAULT_INSIGHT_STYLE: NodeStyle = {
-  fill: INSIGHT_FILL,
-  stroke: INSIGHT_STROKE,
-  strokeWidth: 1,
-  fontSize: 13,
   fontFamily: FONT_FAMILY,
 };
 
@@ -163,7 +154,6 @@ function getStyleMap(isDark: boolean): Partial<Record<NodeType, NodeStyle>> {
   if (isDark) {
     return {
       sticky: { ...DEFAULT_STICKY_STYLE },
-      insight: { ...DEFAULT_INSIGHT_STYLE },
       doc: { ...DEFAULT_DOC_STYLE },
       frame: { ...DEFAULT_FRAME_STYLE },
     };
@@ -171,7 +161,6 @@ function getStyleMap(isDark: boolean): Partial<Record<NodeType, NodeStyle>> {
   const colors = getCanvasColors(false);
   return {
     sticky: { ...DEFAULT_STICKY_STYLE },
-    insight: { fill: colors.insightFill, stroke: colors.insightStroke, strokeWidth: 1, fontSize: 13, fontFamily: FONT_FAMILY },
     doc: { fill: colors.docFill, stroke: colors.docStroke, strokeWidth: 1, fontSize: 13, fontFamily: FONT_FAMILY },
     frame: { fill: colors.frameFill, stroke: colors.frameStroke, strokeWidth: 1, fontSize: 14, fontFamily: FONT_FAMILY, borderRadius: 8 },
   };
@@ -196,17 +185,12 @@ export function createNode(type: NodeType, x: number, y: number, overrides?: Par
     diamond: { width: 120, height: 120 },
     parallelogram: { width: 160, height: 80 },
     cylinder: { width: 100, height: 120 },
-    insight: { width: 220, height: 140 },
     doc: { width: 200, height: 120 },
     frame: { width: 400, height: 300 },
     image: { width: 200, height: 150 },
   };
   const size = sizeMap[type] ?? { width: 150, height: 100 };
   const extra: Partial<GraphNode> = {};
-  if (type === 'insight') {
-    extra.label = 'Insight';
-    extra.labelColor = INSIGHT_LABEL_COLORS[0];
-  }
   if (type === 'doc') {
     extra.docContent = '';
   }

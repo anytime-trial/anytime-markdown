@@ -164,7 +164,7 @@ export function GraphEditor() {
       const map: Record<string, ToolType> = {
         v: 'select', r: 'rect', o: 'ellipse', s: 'sticky',
         t: 'text', d: 'diamond', p: 'parallelogram', y: 'cylinder',
-        i: 'insight', m: 'doc', f: 'frame',
+        m: 'doc', f: 'frame',
         l: 'line', a: 'arrow', c: 'connector',
       };
       if (map[e.key] && !e.ctrlKey && !e.metaKey) {

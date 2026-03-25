@@ -1,15 +1,16 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
   AppBar, Toolbar, ToggleButton, ToggleButtonGroup,
   IconButton, Tooltip, Divider, Box, Menu, MenuItem,
-  ListItemIcon, ListItemText,
+  ListItemIcon, ListItemText, Popover,
 } from '@mui/material';
+import { ArrowDropDown as ArrowDropDownIcon } from '@mui/icons-material';
 import {
   NearMe as SelectIcon,
   CropSquare as RectIcon,
-  StickyNote2Outlined as StickyIcon,
+  // StickyNote2Outlined replaced by custom StickyNoteShapeIcon
   TextFields as TextIcon,
   Remove as LineIcon,
   PanTool as PanIcon,
@@ -30,16 +31,14 @@ import {
   AlignVerticalCenter as AlignVerticalCenterIcon,
   ViewColumn as ViewColumnIcon,
   TableRows as TableRowsIcon,
-  Lightbulb as InsightIcon,
   Description as DocIcon,
   Dashboard as FrameIcon,
   CloudDone as CloudDoneIcon,
   CloudSync as CloudSyncIcon,
   CloudOff as CloudOffIcon,
   CircleOutlined as EllipseIcon,
-  DiamondOutlined as DiamondIcon,
-  ChangeHistoryOutlined as ParallelogramIcon,
-  StorageOutlined as CylinderIcon,
+  // DiamondOutlined replaced by custom SVG diamond icon below
+  // ParallelogramIcon, CylinderIcon replaced by custom SVG icons below
   Settings as SettingsIcon,
 } from '@mui/icons-material';
 import { useTranslations } from 'next-intl';
@@ -47,6 +46,12 @@ import { ToolType } from '../types';
 import { SaveStatus } from '../hooks/useAutoSave';
 import { getCanvasColors } from '@anytime-markdown/graph-core';
 import { useThemeMode } from '../../providers';
+import {
+  DiamondShapeIcon as DiamondIcon,
+  ParallelogramShapeIcon as ParallelogramIcon,
+  CylinderShapeIcon as CylinderIcon,
+  StickyNoteShapeIcon as StickyIcon,
+} from './ShapeIcons';
 
 interface ToolBarProps {
   tool: ToolType;
@@ -85,6 +90,65 @@ export function GraphToolBar({
   const [alignAnchor, setAlignAnchor] = React.useState<null | HTMLElement>(null);
   const [exportAnchor, setExportAnchor] = React.useState<null | HTMLElement>(null);
   const [zoomAnchor, setZoomAnchor] = useState<null | HTMLElement>(null);
+
+  // Shape group: long press to show dropdown, click to activate last shape
+  const SHAPE_TOOLS = ['rect', 'ellipse', 'diamond', 'parallelogram', 'cylinder'] as const;
+  type ShapeToolType = typeof SHAPE_TOOLS[number];
+  const [lastShape, setLastShape] = useState<ShapeToolType>('rect');
+  const [shapeAnchor, setShapeAnchor] = useState<null | HTMLElement>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isLongPress = useRef(false);
+  const LONG_PRESS_DURATION = 400;
+
+  const isShapeTool = (t: ToolType): t is ShapeToolType => SHAPE_TOOLS.includes(t as ShapeToolType);
+  const isShapeSelected = isShapeTool(tool);
+
+  // Update lastShape when a shape tool is selected (including via keyboard shortcut)
+  React.useEffect(() => {
+    if (isShapeTool(tool)) {
+      setLastShape(tool as ShapeToolType);
+    }
+  }, [tool]);
+
+  const shapeIconMap: Record<ShapeToolType, React.ReactElement> = {
+    rect: <RectIcon fontSize="small" />,
+    ellipse: <EllipseIcon fontSize="small" />,
+    diamond: <DiamondIcon fontSize="small" />,
+    parallelogram: <ParallelogramIcon fontSize="small" />,
+    cylinder: <CylinderIcon fontSize="small" />,
+  };
+
+  const handleShapeMouseDown = useCallback((e: React.MouseEvent<HTMLElement>) => {
+    const target = e.currentTarget;
+    isLongPress.current = false;
+    longPressTimer.current = setTimeout(() => {
+      isLongPress.current = true;
+      setShapeAnchor(target);
+    }, LONG_PRESS_DURATION);
+  }, []);
+
+  const handleShapeMouseUp = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+    if (!isLongPress.current) {
+      onToolChange(lastShape);
+    }
+  }, [lastShape, onToolChange]);
+
+  const handleShapeMouseLeave = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }, []);
+
+  const handleShapeSelect = useCallback((shape: ShapeToolType) => {
+    setLastShape(shape);
+    onToolChange(shape);
+    setShapeAnchor(null);
+  }, [onToolChange]);
   return (
     <AppBar
       position="static"
@@ -99,29 +163,38 @@ export function GraphToolBar({
     >
       <Toolbar variant="dense" sx={{ gap: 1, minHeight: 48, '& .MuiIconButton-root': { color: colors.textSecondary }, '& .MuiDivider-root': { borderColor: colors.panelBorder } }}>
         <ToggleButtonGroup
-          value={tool}
+          value={isShapeSelected ? lastShape : tool}
           exclusive
-          onChange={(_, val) => val && onToolChange(val)}
+          onChange={(_, val) => {
+            if (!val) return;
+            // Shape button handles its own click/long-press logic
+            if (isShapeTool(val as ToolType)) return;
+            onToolChange(val);
+          }}
           size="small"
           sx={{ '& .MuiToggleButton-root': { color: colors.textSecondary, '&.Mui-selected': { color: colors.accentColor, backgroundColor: `${colors.accentColor}1F` } } }}
         >
           <ToggleButton value="select" aria-label={t('select')}>
             <Tooltip title={`${t('select')} (V)`}><SelectIcon fontSize="small" /></Tooltip>
           </ToggleButton>
-          <ToggleButton value="rect" aria-label={t('rect')}>
-            <Tooltip title={`${t('rect')} (R)`}><RectIcon fontSize="small" /></Tooltip>
+          <ToggleButton
+            value={lastShape}
+            selected={isShapeSelected}
+            aria-label={t(lastShape)}
+            onMouseDown={handleShapeMouseDown}
+            onMouseUp={handleShapeMouseUp}
+            onMouseLeave={handleShapeMouseLeave}
+            sx={{ position: 'relative', pr: 2.5 }}
+          >
+            <Tooltip title={`${t(lastShape)} (${t('longPressForMore')})`}>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                {shapeIconMap[lastShape]}
+                <ArrowDropDownIcon sx={{ fontSize: 14, position: 'absolute', right: 2, bottom: 2, opacity: 0.6 }} />
+              </Box>
+            </Tooltip>
           </ToggleButton>
-          <ToggleButton value="ellipse" aria-label={t('ellipse')}>
-            <Tooltip title={t('ellipse')}><EllipseIcon fontSize="small" /></Tooltip>
-          </ToggleButton>
-          <ToggleButton value="diamond" aria-label={t('diamond')}>
-            <Tooltip title={t('diamond')}><DiamondIcon fontSize="small" /></Tooltip>
-          </ToggleButton>
-          <ToggleButton value="parallelogram" aria-label={t('parallelogram')}>
-            <Tooltip title={t('parallelogram')}><ParallelogramIcon fontSize="small" sx={{ transform: 'rotate(90deg) skewX(-15deg)' }} /></Tooltip>
-          </ToggleButton>
-          <ToggleButton value="cylinder" aria-label={t('cylinder')}>
-            <Tooltip title={t('cylinder')}><CylinderIcon fontSize="small" /></Tooltip>
+          <ToggleButton value="line" aria-label={t('line')}>
+            <Tooltip title={`${t('line')} (L)`}><LineIcon fontSize="small" /></Tooltip>
           </ToggleButton>
           <ToggleButton value="sticky" aria-label={t('sticky')}>
             <Tooltip title={`${t('sticky')} (S)`}><StickyIcon fontSize="small" /></Tooltip>
@@ -129,22 +202,53 @@ export function GraphToolBar({
           <ToggleButton value="text" aria-label={t('text')}>
             <Tooltip title={`${t('text')} (T)`}><TextIcon fontSize="small" /></Tooltip>
           </ToggleButton>
-          <ToggleButton value="insight" aria-label={t('insight')}>
-            <Tooltip title={`${t('insight')} (I)`}><InsightIcon fontSize="small" /></Tooltip>
-          </ToggleButton>
           <ToggleButton value="doc" aria-label={t('doc')}>
             <Tooltip title={`${t('doc')} (M)`}><DocIcon fontSize="small" /></Tooltip>
           </ToggleButton>
           <ToggleButton value="frame" aria-label={t('frame')}>
             <Tooltip title={`${t('frame')} (F)`}><FrameIcon fontSize="small" /></Tooltip>
           </ToggleButton>
-          <ToggleButton value="line" aria-label={t('line')}>
-            <Tooltip title={`${t('line')} (L)`}><LineIcon fontSize="small" /></Tooltip>
-          </ToggleButton>
           <ToggleButton value="pan" aria-label={t('pan')}>
             <Tooltip title={`${t('pan')} (Space)`}><PanIcon fontSize="small" /></Tooltip>
           </ToggleButton>
         </ToggleButtonGroup>
+
+        <Popover
+          open={Boolean(shapeAnchor)}
+          anchorEl={shapeAnchor}
+          onClose={() => setShapeAnchor(null)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+          slotProps={{ paper: {
+            sx: {
+              backgroundColor: colors.panelBg,
+              border: `1px solid ${colors.panelBorder}`,
+              backdropFilter: 'blur(12px)',
+              display: 'flex',
+              flexDirection: 'column',
+              p: 0.5,
+              gap: 0.25,
+            },
+          } }}
+        >
+          {SHAPE_TOOLS.map((shape) => (
+            <IconButton
+              key={shape}
+              size="small"
+              onClick={() => handleShapeSelect(shape)}
+              sx={{
+                color: tool === shape ? colors.accentColor : colors.textSecondary,
+                backgroundColor: tool === shape ? `${colors.accentColor}1F` : 'transparent',
+                '&:hover': { backgroundColor: colors.hoverBg },
+                borderRadius: 1,
+              }}
+            >
+              <Tooltip title={t(shape)} placement="right">
+                {shapeIconMap[shape]}
+              </Tooltip>
+            </IconButton>
+          ))}
+        </Popover>
 
         <Divider orientation="vertical" flexItem />
 

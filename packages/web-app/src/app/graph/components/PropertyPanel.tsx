@@ -17,7 +17,6 @@ import {
 import { useTranslations } from 'next-intl';
 import { GraphNode, GraphEdge, EndpointShape } from '../types';
 import {
-  INSIGHT_LABEL_COLORS,
   getCanvasColors,
 } from '@anytime-markdown/graph-core';
 import { useThemeMode } from '../../providers';
@@ -265,36 +264,6 @@ export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpda
               '& .MuiOutlinedInput-notchedOutline': { borderColor: colors.panelBorder },
             }}
           />
-
-          {selectedNode.type === 'insight' && (
-            <>
-              <Typography variant="caption" sx={{ color: colors.textSecondary }}>{t('label')}</Typography>
-              <TextField
-                value={selectedNode.label ?? ''}
-                onChange={(e) => onUpdateNode(selectedNode.id, { label: e.target.value })}
-                size="small"
-                fullWidth
-                sx={{
-                  mb: 2,
-                  '& .MuiInputBase-input': { color: colors.textPrimary, fontSize: '0.8rem', py: 0.5 },
-                  '& .MuiOutlinedInput-notchedOutline': { borderColor: colors.panelBorder },
-                }}
-              />
-              <Typography variant="caption" sx={{ color: colors.textSecondary }}>{t('labelColor')}</Typography>
-              <Box sx={{ display: 'flex', gap: 0.5, mb: 2 }}>
-                {INSIGHT_LABEL_COLORS.map(c => (
-                  <Box
-                    key={c}
-                    onClick={() => onUpdateNode(selectedNode.id, { labelColor: c })}
-                    sx={{
-                      width: 28, height: 28, backgroundColor: c, borderRadius: '50%', cursor: 'pointer',
-                      border: selectedNode.labelColor === c ? `2px solid ${colors.textPrimary}` : `1px solid ${colors.panelBorder}`,
-                    }}
-                  />
-                ))}
-              </Box>
-            </>
-          )}
 
           {/* 接続点 */}
           <Divider sx={{ my: 1 }} />

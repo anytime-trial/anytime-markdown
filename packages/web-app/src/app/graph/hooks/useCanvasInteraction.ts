@@ -61,7 +61,7 @@ export interface DragPreview {
   fromY: number;
   toX: number;
   toY: number;
-  shapeType?: 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder' | 'insight' | 'doc' | 'frame';
+  shapeType?: 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder' | 'doc' | 'frame';
   edgeType?: 'line' | 'arrow' | 'connector';
   /** ドラッグ中にスナップしているノードID */
   snapNodeId?: string;
@@ -235,7 +235,7 @@ export function useCanvasInteraction({
       return;
     }
 
-    if (['rect', 'ellipse', 'sticky', 'text', 'diamond', 'parallelogram', 'cylinder', 'insight', 'doc', 'frame'].includes(tool)) {
+    if (['rect', 'ellipse', 'sticky', 'text', 'diamond', 'parallelogram', 'cylinder', 'doc', 'frame'].includes(tool)) {
       dragRef.current = {
         type: 'create-shape', startWorldX: world.x, startWorldY: world.y,
         startScreenX: sx, startScreenY: sy,
@@ -266,7 +266,7 @@ export function useCanvasInteraction({
     if (drag.type === 'none') {
       if (tool === 'pan') {
         cursorRef.current = 'grab';
-      } else if (['rect', 'ellipse', 'sticky', 'text', 'diamond', 'parallelogram', 'cylinder', 'insight', 'doc', 'line', 'arrow', 'connector'].includes(tool)) {
+      } else if (['rect', 'ellipse', 'sticky', 'text', 'diamond', 'parallelogram', 'cylinder', 'doc', 'line', 'arrow', 'connector'].includes(tool)) {
         cursorRef.current = 'crosshair';
       }
     }
@@ -430,7 +430,7 @@ export function useCanvasInteraction({
         type: 'shape',
         fromX: drag.startWorldX, fromY: drag.startWorldY,
         toX: world.x, toY: world.y,
-        shapeType: tool as 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder' | 'insight' | 'doc' | 'frame',
+        shapeType: tool as 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder' | 'doc' | 'frame',
       };
       return;
     }
@@ -468,7 +468,7 @@ export function useCanvasInteraction({
         fw = snapToGrid(fw);
         fh = snapToGrid(fh);
       }
-      const nodeType = tool as 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder' | 'insight' | 'doc' | 'frame';
+      const nodeType = tool as 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder' | 'doc' | 'frame';
       const node = createNode(nodeType, x, y, { width: fw, height: fh }, isDark);
       dispatch({ type: 'ADD_NODE', node });
       onToolChange('select');
@@ -519,11 +519,10 @@ export function useCanvasInteraction({
           // 接続ポイント起点 + 空白にドロップ → 子ノード自動作成 + コネクタ接続
           const parentNode = drag.nodeId ? nodes.find(n => n.id === drag.nodeId) : undefined;
           const childType = parentNode?.type === 'sticky' ? 'sticky'
-            : parentNode?.type === 'insight' ? 'insight'
             : parentNode?.type === 'ellipse' ? 'ellipse'
             : 'rect';
           const childW = 150;
-          const childH = childType === 'insight' ? 140 : 100;
+          const childH = 100;
           const child = createNode(childType, world.x - childW / 2, world.y - childH / 2, {
             width: childW,
             height: childH,

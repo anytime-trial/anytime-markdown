@@ -1,4 +1,4 @@
-import { PLANTUML_DARK_BG, PLANTUML_DARK_FG, PLANTUML_DARK_SURFACE } from "../constants/colors";
+import { PLANTUML_DARK_BG, PLANTUML_DARK_FG, PLANTUML_DARK_SURFACE, PLANTUML_LIGHT_BG, PLANTUML_LIGHT_BORDER, PLANTUML_LIGHT_FG, PLANTUML_LIGHT_SURFACE } from "../constants/colors";
 
 /** PlantUML 外部サーバー URL */
 export const PLANTUML_SERVER = "https://www.plantuml.com/plantuml";
@@ -75,3 +75,51 @@ function buildPlantUmlDarkSkinparams(): string {
 
 /** ダークモード用 skinparam (事前計算済み) */
 export const PLANTUML_DARK_SKINPARAMS = buildPlantUmlDarkSkinparams();
+
+// PlantUML light mode palette
+const PLANTUML_LIGHT = { fg: PLANTUML_LIGHT_FG, bg: PLANTUML_LIGHT_BG, surface: PLANTUML_LIGHT_SURFACE, border: PLANTUML_LIGHT_BORDER } as const;
+
+function buildPlantUmlLightSkinparams(): string {
+  const { fg, bg, surface, border } = PLANTUML_LIGHT;
+  const lines: string[] = [
+    "skinparam backgroundColor transparent",
+    `skinparam defaultFontColor ${fg}`,
+    `skinparam arrowColor #555555`,
+    `skinparam stereotypeFontColor ${fg}`,
+  ];
+  for (const el of PLANTUML_STD_ELEMENTS) {
+    lines.push(`skinparam ${el}BorderColor ${border}`, `skinparam ${el}BackgroundColor ${bg}`, `skinparam ${el}FontColor ${fg}`);
+  }
+  for (const el of PLANTUML_CONTAINER_ELEMENTS) {
+    lines.push(`skinparam ${el}BorderColor ${border}`, `skinparam ${el}BackgroundColor ${surface}`, `skinparam ${el}FontColor ${fg}`);
+  }
+  // Sequence diagram
+  lines.push(
+    `skinparam sequenceArrowColor #555555`,
+    `skinparam sequenceLifeLineBorderColor ${border}`,
+    `skinparam sequenceLifeLineBackgroundColor ${bg}`,
+    `skinparam sequenceGroupBorderColor ${border}`,
+    `skinparam sequenceGroupBodyBackgroundColor ${surface}`,
+    `skinparam sequenceGroupFontColor ${fg}`,
+    `skinparam sequenceGroupHeaderFontColor ${fg}`,
+    `skinparam sequenceDividerBorderColor ${border}`,
+    `skinparam sequenceDividerBackgroundColor ${bg}`,
+    `skinparam sequenceDividerFontColor ${fg}`,
+    `skinparam sequenceReferenceBorderColor ${border}`,
+    `skinparam sequenceReferenceBackgroundColor ${surface}`,
+    `skinparam sequenceReferenceFontColor ${fg}`,
+    `skinparam sequenceReferenceHeaderBackgroundColor ${bg}`,
+    `skinparam sequenceMessageAlignment left`,
+    // Activity / State
+    `skinparam activityBarColor ${fg}`,
+    `skinparam activityStartColor ${fg}`,
+    `skinparam activityEndColor ${fg}`,
+    "skinparam conditionStyle diamond",
+    `skinparam stateStartColor ${fg}`,
+    `skinparam stateEndColor ${fg}`,
+  );
+  return lines.join("\n");
+}
+
+/** ライトモード用 skinparam (事前計算済み) */
+export const PLANTUML_LIGHT_SKINPARAMS = buildPlantUmlLightSkinparams();

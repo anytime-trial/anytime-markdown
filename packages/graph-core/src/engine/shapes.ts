@@ -217,34 +217,6 @@ const renderCylinder: SpecialShapeRenderer = (ctx, node, selected, _isDragging, 
   ctx.stroke();
 };
 
-const renderInsight: SpecialShapeRenderer = (ctx, node, selected, _isDragging, fill) => {
-  const { x, y, width, style, text } = node;
-  renderRoundedShape(ctx, node, selected, fill, 8);
-  // Label badge
-  if (node.label) {
-    ctx.font = `bold ${FONT_SIZE_BADGE}px ${FONT_FAMILY}`;
-    const labelW = ctx.measureText(node.label).width + 12;
-    const badgeH = 18;
-    const badgeX = x + 10;
-    const badgeY = y + 10;
-    drawRoundedRect(ctx, badgeX, badgeY, labelW, badgeH, 4);
-    ctx.fillStyle = node.labelColor ?? currentColors.accentColor;
-    ctx.fill();
-    ctx.fillStyle = currentColors.textOnLight;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(node.label, badgeX + 6, badgeY + badgeH / 2);
-  }
-  // Title (bold)
-  if (text) {
-    ctx.fillStyle = currentColors.textPrimary;
-    ctx.font = `bold ${style.fontSize}px ${style.fontFamily}`;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    ctx.fillText(text, x + 10, y + 34, width - 20);
-  }
-};
-
 const renderDoc: SpecialShapeRenderer = (ctx, node, selected, _isDragging, fill) => {
   const { x, y, width, style, text } = node;
   renderRoundedShape(ctx, node, selected, fill, 8);
@@ -359,7 +331,6 @@ const specialShapes: Partial<Record<NodeType, SpecialShapeRenderer>> = {
   sticky: renderSticky,
   text: renderText,
   cylinder: renderCylinder,
-  insight: renderInsight,
   doc: renderDoc,
   image: renderImage,
   frame: renderFrame,
@@ -368,7 +339,7 @@ const specialShapes: Partial<Record<NodeType, SpecialShapeRenderer>> = {
 
 /** テキスト描画をスキップするタイプ */
 const skipTextTypes: ReadonlySet<NodeType> = new Set([
-  'insight', 'doc', 'frame', 'image',
+  'doc', 'frame', 'image',
 ]);
 
 // ---------------------------------------------------------------------------

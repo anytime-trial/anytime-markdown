@@ -18,7 +18,7 @@ export const LIGHT_TEXT_DISABLED = "#00000061";
 
 // ── コードブロック背景色 ──
 export const DEFAULT_DARK_CODE_BG = "#161B22";
-export const DEFAULT_LIGHT_CODE_BG = "#DDDCD8";
+export const DEFAULT_LIGHT_CODE_BG = "#F5F5F0";
 
 // ── 見出しセクション背景色 ──
 export const DEFAULT_DARK_HEADING_BG = "#1A202C";
@@ -94,6 +94,10 @@ export const ACCENT_COLOR_ALPHA = "rgba(232,160,18,0.35)";
 export const PLANTUML_DARK_FG = "#CCCCCC";
 export const PLANTUML_DARK_BG = "#2D2D2D";
 export const PLANTUML_DARK_SURFACE = "#1E1E1E";
+export const PLANTUML_LIGHT_FG = "#1A1A1A";
+export const PLANTUML_LIGHT_BG = "#F5F5F0";
+export const PLANTUML_LIGHT_SURFACE = "#EAEAE5";
+export const PLANTUML_LIGHT_BORDER = "#888888";
 
 // ── 図キャプチャ Canvas 背景 ──
 export const CAPTURE_BG = "#ffffff";

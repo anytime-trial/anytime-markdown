@@ -58,11 +58,6 @@ export const CANVAS_SMART_GUIDE = COLOR_ICE_BLUE;
 export const STICKY_FILL = COLOR_AMBER_GOLD;
 export const STICKY_STROKE = 'rgba(232,160,18,0.6)';
 
-// ── Insight node ──
-export const INSIGHT_FILL = '#1A1F2E';
-export const INSIGHT_STROKE = 'rgba(144,202,249,0.3)';
-export const INSIGHT_LABEL_COLORS = ['#90CAF9', '#E8A012', '#66BB6A', '#EF5350', '#CE93D8', '#4DD0E1'];
-
 // ── Doc node ──
 export const DOC_FILL = '#1A1A2E';
 export const DOC_STROKE = 'rgba(206,147,216,0.3)';
@@ -95,8 +90,6 @@ export interface CanvasColors {
   invalidTarget: string;
   handleFill: string;
   edgeLabelBg: string;
-  insightFill: string;
-  insightStroke: string;
   docFill: string;
   docStroke: string;
   docIconColor: string;
@@ -129,8 +122,6 @@ const DARK_COLORS: CanvasColors = {
   invalidTarget: 'rgba(244, 67, 54, 0.6)',
   handleFill: COLOR_CHARCOAL,
   edgeLabelBg: COLOR_MIDNIGHT_NAVY,
-  insightFill: '#1A1F2E',
-  insightStroke: 'rgba(144,202,249,0.3)',
   docFill: '#1A1A2E',
   docStroke: 'rgba(206,147,216,0.3)',
   docIconColor: '#CE93D8',
@@ -162,8 +153,6 @@ const LIGHT_COLORS: CanvasColors = {
   invalidTarget: 'rgba(211, 47, 47, 0.5)',
   handleFill: '#FFFFFF',
   edgeLabelBg: '#F5F5F0',
-  insightFill: '#F0F4FF',
-  insightStroke: 'rgba(25,118,210,0.3)',
   docFill: '#F5F0FF',
   docStroke: 'rgba(142,68,173,0.3)',
   docIconColor: '#8E44AD',
