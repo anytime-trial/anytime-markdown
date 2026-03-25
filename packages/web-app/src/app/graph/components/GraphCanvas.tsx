@@ -178,7 +178,7 @@ export function GraphCanvas({
       drawSmartGuides(ctx, preview.guides, getCanvasColors(isDark));
       ctx.restore();
     }
-  }, [canvasRef, nodes, resolvedEdges, viewport, selection, showGrid, previewRef, hoverNodeIdRef, mouseWorldRef, viewportAnimRef, onViewportUpdate, velocityRef, onPanInertia, draggingNodeIds]);
+  }, [canvasRef, nodes, resolvedEdges, viewport, selection, showGrid, previewRef, hoverNodeIdRef, mouseWorldRef, viewportAnimRef, onViewportUpdate, velocityRef, onPanInertia, draggingNodeIds, isDark]);
 
   useEffect(() => {
     const loop = () => {
