@@ -11,9 +11,11 @@ interface TextEditOverlayProps {
   viewport: Viewport;
   onCommit: (id: string, text: string) => void;
   onCancel: () => void;
+  /** キー入力で編集開始した場合、既存テキストをクリアして入力開始 */
+  appendMode?: boolean;
 }
 
-export function TextEditOverlay({ node, viewport, onCommit, onCancel }: TextEditOverlayProps) {
+export function TextEditOverlay({ node, viewport, onCommit, onCancel, appendMode }: TextEditOverlayProps) {
   const { themeMode } = useThemeMode();
   const isDark = themeMode === 'dark';
   const colors = getCanvasColors(isDark);
@@ -21,11 +23,18 @@ export function TextEditOverlay({ node, viewport, onCommit, onCancel }: TextEdit
 
   useEffect(() => {
     if (node && textareaRef.current) {
-      textareaRef.current.focus();
-      textareaRef.current.value = node.text;
-      textareaRef.current.select();
+      if (appendMode) {
+        textareaRef.current.value = node.text ?? '';
+        textareaRef.current.focus();
+        const len = textareaRef.current.value.length;
+        textareaRef.current.setSelectionRange(len, len);
+      } else {
+        textareaRef.current.value = node.text ?? '';
+        textareaRef.current.focus();
+        textareaRef.current.select();
+      }
     }
-  }, [node]);
+  }, [node, appendMode]);
 
   if (!node) return null;
 

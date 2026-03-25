@@ -29,6 +29,7 @@ export function GraphEditor() {
   const [tool, setTool] = useState<ToolType>('select');
   const [showGrid, setShowGrid] = useState(true);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
+  const [textEditAppendMode, setTextEditAppendMode] = useState(false);
   const [showProperty, setShowProperty] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -100,6 +101,7 @@ export function GraphEditor() {
     if (node?.type === 'doc') {
       setDocEditNodeId(nodeId);
     } else {
+      setTextEditAppendMode(false);
       setEditingNodeId(nodeId);
     }
   }, [state.document.nodes]);
@@ -156,11 +158,22 @@ export function GraphEditor() {
       };
       if (map[e.key] && !e.ctrlKey && !e.metaKey) {
         setTool(map[e.key]);
+        return;
+      }
+      // 単一ノード選択中に印字可能キーを押したらテキスト編集開始
+      const ids = selectionRef.current.nodeIds;
+      if (ids.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1) {
+        const node = state.document.nodes.find(n => n.id === ids[0]);
+        if (node && node.type !== 'image' && node.type !== 'doc' && !node.locked) {
+          e.preventDefault();
+          setTextEditAppendMode(true);
+          handleTextEdit(ids[0]);
+        }
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [editingNodeId, dispatch]);
+  }, [editingNodeId, dispatch, state.document.nodes, handleTextEdit]);
 
   const handleTextCommit = useCallback((id: string, text: string) => {
     dispatch({ type: 'UPDATE_NODE', id, changes: { text } });
@@ -420,6 +433,7 @@ export function GraphEditor() {
           viewport={state.document.viewport}
           onCommit={handleTextCommit}
           onCancel={() => setEditingNodeId(null)}
+          appendMode={textEditAppendMode}
         />
         {showProperty && (selectedNode || selectedEdge) && (
           <PropertyPanel
