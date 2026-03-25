@@ -53,7 +53,7 @@ function setAdmonition(editor: Editor, type: string): void {
         return true;
       }
     }
-    return true;
+    return false;
   }).run();
 }
 
