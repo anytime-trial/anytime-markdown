@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import {
   AppBar, Toolbar, ToggleButton, ToggleButtonGroup,
   IconButton, Tooltip, Divider, Box, Menu, MenuItem,
-  ListItemIcon, ListItemText,
+  ListItemIcon, ListItemText, Popover, Typography, Switch,
 } from '@mui/material';
 import {
   NearMe as SelectIcon,
@@ -40,12 +40,16 @@ import {
   DiamondOutlined as DiamondIcon,
   ChangeHistoryOutlined as ParallelogramIcon,
   StorageOutlined as CylinderIcon,
+  Settings as SettingsIcon,
+  DarkMode as DarkModeIcon,
+  LightMode as LightModeIcon,
 } from '@mui/icons-material';
 import { useTranslations } from 'next-intl';
 import { ToolType } from '../types';
 import { SaveStatus } from '../hooks/useAutoSave';
 import { getCanvasColors } from '@anytime-markdown/graph-core';
 import { useThemeMode } from '../../providers';
+import { useLocaleSwitch } from '../../LocaleProvider';
 
 interface ToolBarProps {
   tool: ToolType;
@@ -77,11 +81,14 @@ export function GraphToolBar({
   onClearAll, onExportSvg, onExportDrawio, onImportDrawio, onAlign, onSetScale, selectionCount, hasSelection, scale, saveStatus,
 }: ToolBarProps) {
   const t = useTranslations('Graph');
-  const { themeMode } = useThemeMode();
-  const colors = getCanvasColors(themeMode === 'dark');
+  const { themeMode, setThemeMode } = useThemeMode();
+  const { locale, setLocale } = useLocaleSwitch();
+  const isDark = themeMode === 'dark';
+  const colors = getCanvasColors(isDark);
   const [alignAnchor, setAlignAnchor] = React.useState<null | HTMLElement>(null);
   const [exportAnchor, setExportAnchor] = React.useState<null | HTMLElement>(null);
   const [zoomAnchor, setZoomAnchor] = useState<null | HTMLElement>(null);
+  const [settingsAnchor, setSettingsAnchor] = useState<null | HTMLElement>(null);
   return (
     <AppBar
       position="static"
@@ -235,6 +242,55 @@ export function GraphToolBar({
             <ImportIcon fontSize="small" />
           </IconButton>
         </Tooltip>
+
+        <Divider orientation="vertical" flexItem />
+
+        <Tooltip title={t('settings')}>
+          <IconButton size="small" onClick={e => setSettingsAnchor(e.currentTarget)}>
+            <SettingsIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+        <Popover
+          open={Boolean(settingsAnchor)}
+          anchorEl={settingsAnchor}
+          onClose={() => setSettingsAnchor(null)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+          slotProps={{ paper: { sx: { bgcolor: colors.panelBg, border: `1px solid ${colors.panelBorder}`, p: 2, minWidth: 200 } } }}
+        >
+          <Typography variant="subtitle2" sx={{ color: colors.textPrimary, mb: 2, fontWeight: 700 }}>{t('settings')}</Typography>
+
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              {isDark ? <DarkModeIcon fontSize="small" sx={{ color: colors.textSecondary }} /> : <LightModeIcon fontSize="small" sx={{ color: colors.textSecondary }} />}
+              <Typography variant="body2" sx={{ color: colors.textPrimary }}>{t('themeMode')}</Typography>
+            </Box>
+            <ToggleButtonGroup
+              value={themeMode}
+              exclusive
+              onChange={(_, v) => v && setThemeMode(v)}
+              size="small"
+              sx={{ '& .MuiToggleButton-root': { px: 1, py: 0.25, fontSize: '0.7rem', color: colors.textSecondary, borderColor: colors.panelBorder, '&.Mui-selected': { color: colors.accentColor, backgroundColor: `${colors.accentColor}1F` } } }}
+            >
+              <ToggleButton value="light">Light</ToggleButton>
+              <ToggleButton value="dark">Dark</ToggleButton>
+            </ToggleButtonGroup>
+          </Box>
+
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Typography variant="body2" sx={{ color: colors.textPrimary }}>{t('language')}</Typography>
+            <ToggleButtonGroup
+              value={locale}
+              exclusive
+              onChange={(_, v) => v && setLocale(v)}
+              size="small"
+              sx={{ '& .MuiToggleButton-root': { px: 1, py: 0.25, fontSize: '0.7rem', color: colors.textSecondary, borderColor: colors.panelBorder, '&.Mui-selected': { color: colors.accentColor, backgroundColor: `${colors.accentColor}1F` } } }}
+            >
+              <ToggleButton value="en">EN</ToggleButton>
+              <ToggleButton value="ja">JA</ToggleButton>
+            </ToggleButtonGroup>
+          </Box>
+        </Popover>
       </Toolbar>
     </AppBar>
   );
