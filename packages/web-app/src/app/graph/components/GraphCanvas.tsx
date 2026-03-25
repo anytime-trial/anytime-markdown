@@ -8,6 +8,80 @@ import { interpolateViewport, computeAvoidancePath } from '@anytime-markdown/gra
 import type { ViewportAnimation } from '@anytime-markdown/graph-core/engine';
 import type { DragPreview } from '../hooks/useCanvasInteraction';
 
+function resolveActiveViewport(
+  viewport: Viewport,
+  viewportAnimRef: React.RefObject<ViewportAnimation | null> | undefined,
+  onViewportUpdate: ((viewport: Viewport) => void) | undefined,
+): Viewport {
+  const anim = viewportAnimRef?.current;
+  if (!anim) return viewport;
+  const { viewport: interpolated, done } = interpolateViewport(anim, performance.now());
+  onViewportUpdate?.(interpolated);
+  if (done && viewportAnimRef) {
+    viewportAnimRef.current = null;
+  }
+  return interpolated;
+}
+
+function applyPanInertia(
+  velocityRef: React.RefObject<{ vx: number; vy: number }> | undefined,
+  onPanInertia: ((dx: number, dy: number) => void) | undefined,
+): void {
+  if (!velocityRef || !onPanInertia) return;
+  const vel = velocityRef.current;
+  const prefersReducedMotion = typeof window !== 'undefined'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (prefersReducedMotion) {
+    vel.vx = 0;
+    vel.vy = 0;
+    return;
+  }
+  if (Math.abs(vel.vx) > 0.5 || Math.abs(vel.vy) > 0.5) {
+    onPanInertia(vel.vx, vel.vy);
+    vel.vx *= 0.92;
+    vel.vy *= 0.92;
+    if (Math.abs(vel.vx) < 0.5) vel.vx = 0;
+    if (Math.abs(vel.vy) < 0.5) vel.vy = 0;
+  }
+}
+
+function drawDragPreview(
+  ctx: CanvasRenderingContext2D,
+  activeViewport: Viewport,
+  preview: DragPreview,
+  nodes: GraphNode[],
+): void {
+  if (preview.type === 'none') return;
+  ctx.save();
+  ctx.translate(activeViewport.offsetX, activeViewport.offsetY);
+  ctx.scale(activeViewport.scale, activeViewport.scale);
+
+  if (preview.type === 'edge' && preview.edgeType) {
+    if (preview.snapNodeId) {
+      const snapNode = nodes.find(n => n.id === preview.snapNodeId);
+      if (snapNode) drawSnapHighlight(ctx, snapNode);
+    }
+    drawEdgePreview(ctx, preview.fromX, preview.fromY, preview.toX, preview.toY, preview.edgeType, !!preview.snapNodeId);
+  } else if (preview.type === 'shape' && preview.shapeType) {
+    drawShapePreview(ctx, preview.fromX, preview.fromY, preview.toX, preview.toY, preview.shapeType);
+  } else if (preview.type === 'select-rect') {
+    const x = Math.min(preview.fromX, preview.toX);
+    const y = Math.min(preview.fromY, preview.toY);
+    const w = Math.abs(preview.toX - preview.fromX);
+    const h = Math.abs(preview.toY - preview.fromY);
+    drawSelectionRect(ctx, x, y, w, h);
+  }
+  ctx.restore();
+
+  if (preview.guides && preview.guides.length > 0) {
+    ctx.save();
+    ctx.translate(activeViewport.offsetX, activeViewport.offsetY);
+    ctx.scale(activeViewport.scale, activeViewport.scale);
+    drawSmartGuides(ctx, preview.guides);
+    ctx.restore();
+  }
+}
+
 interface GraphCanvasProps {
   nodes: GraphNode[];
   edges: GraphEdge[];
@@ -104,34 +178,8 @@ export function GraphCanvas({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // アニメーション中なら補間したviewportを使用
-    let activeViewport = viewport;
-    const anim = viewportAnimRef?.current;
-    if (anim) {
-      const { viewport: interpolated, done } = interpolateViewport(anim, performance.now());
-      activeViewport = interpolated;
-      onViewportUpdate?.(interpolated);
-      if (done) {
-        viewportAnimRef.current = null;
-      }
-    }
-
-    // 慣性スクロール（reduced-motion 時は即停止）
-    if (velocityRef && onPanInertia) {
-      const vel = velocityRef.current;
-      const prefersReducedMotion = typeof window !== 'undefined'
-        && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      if (prefersReducedMotion) {
-        vel.vx = 0;
-        vel.vy = 0;
-      } else if (Math.abs(vel.vx) > 0.5 || Math.abs(vel.vy) > 0.5) {
-        onPanInertia(vel.vx, vel.vy);
-        vel.vx *= 0.92;
-        vel.vy *= 0.92;
-        if (Math.abs(vel.vx) < 0.5) vel.vx = 0;
-        if (Math.abs(vel.vy) < 0.5) vel.vy = 0;
-      }
-    }
+    const activeViewport = resolveActiveViewport(viewport, viewportAnimRef, onViewportUpdate);
+    applyPanInertia(velocityRef, onPanInertia);
 
     render({
       ctx, width: canvas.width, height: canvas.height,
@@ -141,39 +189,7 @@ export function GraphCanvas({
       draggingNodeIds,
     });
 
-    // ドラッグプレビュー描画
-    const preview = previewRef.current;
-    if (preview.type !== 'none') {
-      ctx.save();
-      ctx.translate(activeViewport.offsetX, activeViewport.offsetY);
-      ctx.scale(activeViewport.scale, activeViewport.scale);
-      if (preview.type === 'edge' && preview.edgeType) {
-        if (preview.snapNodeId) {
-          const snapNode = nodes.find(n => n.id === preview.snapNodeId);
-          if (snapNode) drawSnapHighlight(ctx, snapNode);
-        }
-        const isValidTarget = !!preview.snapNodeId;
-        drawEdgePreview(ctx, preview.fromX, preview.fromY, preview.toX, preview.toY, preview.edgeType, isValidTarget);
-      } else if (preview.type === 'shape' && preview.shapeType) {
-        drawShapePreview(ctx, preview.fromX, preview.fromY, preview.toX, preview.toY, preview.shapeType);
-      } else if (preview.type === 'select-rect') {
-        const x = Math.min(preview.fromX, preview.toX);
-        const y = Math.min(preview.fromY, preview.toY);
-        const w = Math.abs(preview.toX - preview.fromX);
-        const h = Math.abs(preview.toY - preview.fromY);
-        drawSelectionRect(ctx, x, y, w, h);
-      }
-      ctx.restore();
-    }
-
-    // スマートガイド描画
-    if (preview.guides && preview.guides.length > 0) {
-      ctx.save();
-      ctx.translate(activeViewport.offsetX, activeViewport.offsetY);
-      ctx.scale(activeViewport.scale, activeViewport.scale);
-      drawSmartGuides(ctx, preview.guides);
-      ctx.restore();
-    }
+    drawDragPreview(ctx, activeViewport, previewRef.current, nodes);
   }, [canvasRef, nodes, resolvedEdges, viewport, selection, showGrid, previewRef, hoverNodeIdRef, mouseWorldRef, viewportAnimRef, onViewportUpdate, velocityRef, onPanInertia, draggingNodeIds]);
 
   useEffect(() => {
