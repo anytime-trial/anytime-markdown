@@ -30,7 +30,8 @@
     "next-env.d.ts",
     ".next/types/**/*.ts",
     "../markdown-core/src/md.d.ts",
-    "../markdown-core/src/types/vscode.d.ts"
+    "../markdown-core/src/types/vscode.d.ts",
+    "../markdown-core/src/plotly-gl3d.d.ts"
   ],
   "exclude": [
     "node_modules",

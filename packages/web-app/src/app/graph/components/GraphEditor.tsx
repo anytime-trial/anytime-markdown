@@ -22,6 +22,7 @@ import { alignLeft, alignRight, alignTop, alignBottom, alignCenterH, alignCenter
 import { loadDocument, getLastDocumentId } from '../store/graphStorage';
 import { exportToSvg, exportToDrawio, importFromDrawio, getCanvasColors } from '@anytime-markdown/graph-core';
 import { useThemeMode } from '../../providers';
+import { physics } from '@anytime-markdown/graph-core/engine';
 
 export function GraphEditor() {
   const { themeMode } = useThemeMode();
@@ -33,6 +34,9 @@ export function GraphEditor() {
   const [showProperty, setShowProperty] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [layoutRunning, setLayoutRunning] = useState(false);
+  const [collisionEnabled, setCollisionEnabled] = useState(false);
+  const physicsRef = useRef<physics.PhysicsEngine | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const { state, dispatch } = useGraphState();
   const selectionRef = useRef(state.selection);
@@ -88,6 +92,38 @@ export function GraphEditor() {
     }
   }, [state.selection, t]);
 
+  const handleAutoLayout = useCallback(() => {
+    if (layoutRunning) return;
+    setLayoutRunning(true);
+    dispatch({ type: 'SNAPSHOT' });
+
+    let lastUpdateTime = Date.now();
+
+    const engine = new physics.PhysicsEngine(
+      { collisionEnabled: true },
+      (positions) => {
+        lastUpdateTime = Date.now();
+        const updates: Array<{ id: string; x: number; y: number }> = [];
+        for (const [id, pos] of positions) {
+          updates.push({ id, x: pos.x, y: pos.y });
+        }
+        dispatch({ type: 'SET_NODE_POSITIONS', updates });
+      },
+    );
+
+    engine.startLayout(state.document.nodes, state.document.edges);
+    physicsRef.current = engine;
+
+    // Check for convergence (engine stops calling onUpdate when converged)
+    const checkDone = setInterval(() => {
+      if (Date.now() - lastUpdateTime > 200) {
+        clearInterval(checkDone);
+        setLayoutRunning(false);
+        dispatch({ type: 'SNAPSHOT' });
+      }
+    }, 100);
+  }, [layoutRunning, state.document.nodes, state.document.edges, dispatch]);
+
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     // 右クリック = 選択解除（ESCと同じ動作）
@@ -120,6 +156,8 @@ export function GraphEditor() {
     onToolChange: setTool,
     showGrid,
     isDark,
+    collisionEnabled,
+    physicsRef,
     onLiveMessage: useCallback((key: string) => {
       if (key === 'undo') setLiveMessage(t('undone'));
       else if (key === 'redo') setLiveMessage(t('redone'));
@@ -378,6 +416,10 @@ export function GraphEditor() {
         scale={state.document.viewport.scale}
         saveStatus={saveStatus}
         onToggleSettings={() => setShowSettings(v => !v)}
+        layoutRunning={layoutRunning}
+        collisionEnabled={collisionEnabled}
+        onAutoLayout={handleAutoLayout}
+        onToggleCollision={setCollisionEnabled}
       />
       <Box sx={{ flex: 1, display: 'flex', position: 'relative', overflow: 'hidden' }}>
       <Box sx={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
@@ -405,6 +447,7 @@ export function GraphEditor() {
           draggingNodeIds={isDragging && dragRef.current.type === 'move' ? state.selection.nodeIds : undefined}
           ariaLabel={canvasAriaLabel}
           isDark={isDark}
+          layoutRunning={layoutRunning}
         />
         {state.document.nodes.length === 0 && (
           <Box sx={{

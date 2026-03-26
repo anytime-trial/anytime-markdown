@@ -1,9 +1,10 @@
 import FunctionsIcon from "@mui/icons-material/Functions";
-import { Box, Typography, useTheme } from "@mui/material";
+import ShowChartIcon from "@mui/icons-material/ShowChart";
+import { Box, IconButton, Tooltip, Typography, useTheme } from "@mui/material";
 import DOMPurify from "dompurify";
-import React, { useCallback } from "react";
+import React, { useCallback, useState } from "react";
 
-import { getDivider } from "../constants/colors";
+import { getDivider, getPrimaryMain, getTextSecondary } from "../constants/colors";
 import { FS_PANEL_HEADER_FONT_SIZE, FS_TOOLBAR_HEIGHT, MENU_ITEM_FONT_SIZE } from "../constants/dimensions";
 import { MATH_SAMPLES } from "../constants/samples";
 import { MATH_SANITIZE_CONFIG, useKatexRender } from "../hooks/useKatexRender";
@@ -17,6 +18,7 @@ import { FullscreenDiffView } from "./FullscreenDiffView";
 import { LineNumberTextarea } from "./LineNumberTextarea";
 import { SamplePanel } from "./SamplePanel";
 import { ZoomablePreview } from "./ZoomablePreview";
+import { GraphView } from "./codeblock/GraphView";
 import { ZoomToolbar } from "./ZoomToolbar";
 
 interface MathEditDialogProps {
@@ -46,6 +48,7 @@ export function MathEditDialog({
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const settings = useEditorSettingsContext();
+  const [graphEnabled, setGraphEnabled] = useState(false);
 
   // Zoom/pan for preview
   const fsZP = useZoomPan();
@@ -98,24 +101,44 @@ export function MathEditDialog({
             </>
           }
           right={
-            <>
-              <ZoomToolbar fsZP={fsZP} t={t} />
-              <ZoomablePreview fsZP={fsZP}>
-                {mathError && (
-                  <Typography color="error" sx={{ fontFamily: "monospace", fontSize: MENU_ITEM_FONT_SIZE }}>
-                    {mathError}
-                  </Typography>
-                )}
-                {mathHtml && (
-                  <Box
-                    role="img"
-                    aria-label={`${t("mathFormula")}: ${fsCode}`}
-                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(mathHtml, MATH_SANITIZE_CONFIG) }}
-                    sx={{ "& .katex": { fontSize: "1.5em" } }}
-                  />
-                )}
-              </ZoomablePreview>
-            </>
+            <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
+              <Box sx={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
+                <Box sx={{ flex: 1 }}>
+                  <ZoomToolbar fsZP={fsZP} t={t} />
+                </Box>
+                <Tooltip title={graphEnabled ? t("hideGraph") : t("showGraph")} placement="bottom">
+                  <IconButton
+                    size="small"
+                    sx={{ p: 0.25, mr: 1 }}
+                    onClick={() => setGraphEnabled(prev => !prev)}
+                    aria-label={graphEnabled ? t("hideGraph") : t("showGraph")}
+                  >
+                    <ShowChartIcon sx={{ fontSize: 16, color: graphEnabled ? getPrimaryMain(isDark) : getTextSecondary(isDark) }} />
+                  </IconButton>
+                </Tooltip>
+              </Box>
+              {graphEnabled ? (
+                <Box sx={{ flex: 1, overflow: "hidden", minHeight: 0 }}>
+                  <GraphView code={fsCode} enabled={graphEnabled} isDark={isDark} fill />
+                </Box>
+              ) : (
+                <ZoomablePreview fsZP={fsZP}>
+                  {mathError && (
+                    <Typography color="error" sx={{ fontFamily: "monospace", fontSize: MENU_ITEM_FONT_SIZE }}>
+                      {mathError}
+                    </Typography>
+                  )}
+                  {mathHtml && (
+                    <Box
+                      role="img"
+                      aria-label={`${t("mathFormula")}: ${fsCode}`}
+                      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(mathHtml, MATH_SANITIZE_CONFIG) }}
+                      sx={{ "& .katex": { fontSize: "1.5em" } }}
+                    />
+                  )}
+                </ZoomablePreview>
+              )}
+            </Box>
           }
         />
       )}

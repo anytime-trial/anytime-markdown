@@ -40,7 +40,10 @@ import {
   // DiamondOutlined replaced by custom SVG diamond icon below
   // ParallelogramIcon, CylinderIcon replaced by custom SVG icons below
   Settings as SettingsIcon,
+  AccountTree as AccountTreeIcon,
+  Layers as LayersIcon,
 } from '@mui/icons-material';
+import { CircularProgress } from '@mui/material';
 import { useTranslations } from 'next-intl';
 import { ToolType } from '../types';
 import { SaveStatus } from '../hooks/useAutoSave';
@@ -76,12 +79,17 @@ interface ToolBarProps {
   scale: number;
   saveStatus: SaveStatus;
   onToggleSettings?: () => void;
+  layoutRunning?: boolean;
+  collisionEnabled?: boolean;
+  onAutoLayout?: () => void;
+  onToggleCollision?: (enabled: boolean) => void;
 }
 
 export function GraphToolBar({
   tool, onToolChange, onUndo, onRedo, canUndo, canRedo,
   showGrid, onToggleGrid, onZoomIn, onZoomOut, onFitContent,
   onClearAll, onExportSvg, onExportDrawio, onImportDrawio, onAlign, onSetScale, selectionCount, hasSelection, scale, saveStatus, onToggleSettings,
+  layoutRunning, collisionEnabled, onAutoLayout, onToggleCollision,
 }: ToolBarProps) {
   const t = useTranslations('Graph');
   const { themeMode } = useThemeMode();
@@ -283,6 +291,27 @@ export function GraphToolBar({
           <MenuItem onClick={() => { onAlign('distributeH'); setAlignAnchor(null); }} disabled={selectionCount < 3}><ListItemIcon><ViewColumnIcon fontSize="small" /></ListItemIcon><ListItemText>{t('distributeH')}</ListItemText></MenuItem>
           <MenuItem onClick={() => { onAlign('distributeV'); setAlignAnchor(null); }} disabled={selectionCount < 3}><ListItemIcon><TableRowsIcon fontSize="small" /></ListItemIcon><ListItemText>{t('distributeV')}</ListItemText></MenuItem>
         </Menu>
+
+        <Tooltip title={t('autoLayout')}>
+          <span>
+            <IconButton
+              onClick={onAutoLayout}
+              disabled={layoutRunning}
+              size="small"
+            >
+              {layoutRunning ? <CircularProgress size={18} /> : <AccountTreeIcon fontSize="small" />}
+            </IconButton>
+          </span>
+        </Tooltip>
+        <Tooltip title={t('collisionDetection')}>
+          <IconButton
+            onClick={() => onToggleCollision?.(!collisionEnabled)}
+            size="small"
+            sx={{ color: collisionEnabled ? 'primary.main' : 'inherit' }}
+          >
+            <LayersIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
 
         <Box sx={{ flex: 1 }} />
 

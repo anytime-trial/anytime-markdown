@@ -8,6 +8,7 @@ import { pan as panViewport, zoom as zoomViewport } from '../engine/viewport';
 import { snapToGrid } from '../engine/gridSnap';
 import { computeSmartGuides, GuideLine } from '../engine/smartGuide';
 import { computeOrthogonalPath } from '../engine/connector';
+import { physics } from '@anytime-markdown/graph-core/engine';
 
 /** edges に waypoints を付与して hitTest で使えるようにする */
 function resolveEdgesWithWaypoints(edges: GraphEdge[], nodes: GraphNode[]): (GraphEdge & { waypoints?: { x: number; y: number }[] })[] {
@@ -53,6 +54,8 @@ interface UseCanvasInteractionProps {
   showGrid: boolean;
   onLiveMessage?: (message: string) => void;
   isDark?: boolean;
+  collisionEnabled?: boolean;
+  physicsRef?: React.RefObject<physics.PhysicsEngine | null>;
 }
 
 export interface DragPreview {
@@ -72,7 +75,7 @@ export interface DragPreview {
 const EMPTY_PREVIEW: DragPreview = { type: 'none', fromX: 0, fromY: 0, toX: 0, toY: 0 };
 
 export function useCanvasInteraction({
-  canvasRef, tool, nodes, edges, viewport, selection, dispatch, onTextEdit, onToolChange, showGrid, onLiveMessage, isDark = true,
+  canvasRef, tool, nodes, edges, viewport, selection, dispatch, onTextEdit, onToolChange, showGrid, onLiveMessage, isDark = true, collisionEnabled, physicsRef,
 }: UseCanvasInteractionProps) {
   const dragRef = useRef<DragState>({
     type: 'none', startWorldX: 0, startWorldY: 0, startScreenX: 0, startScreenY: 0,
@@ -203,6 +206,9 @@ export function useCanvasInteraction({
           type: 'move', startWorldX: world.x, startWorldY: world.y,
           startScreenX: sx, startScreenY: sy, initialNodes,
         };
+        if (physicsRef?.current) {
+          physicsRef.current.syncFromNodes(nodes);
+        }
         dispatch({ type: 'SNAPSHOT' });
         return;
       }
@@ -252,7 +258,7 @@ export function useCanvasInteraction({
       };
       return;
     }
-  }, [canvasRef, viewport, tool, nodes, edges, selection, dispatch]);
+  }, [canvasRef, viewport, tool, nodes, edges, selection, dispatch, physicsRef]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     const canvas = canvasRef.current;
@@ -375,6 +381,18 @@ export function useCanvasInteraction({
           return { id, x: init.x + dx + snapDx, y: init.y + dy + snapDy };
         });
         dispatch({ type: 'SET_NODE_POSITIONS', updates: snapUpdates });
+        if (collisionEnabled && physicsRef?.current) {
+          for (const u of snapUpdates) {
+            physicsRef.current.updateBody(u.id, { x: u.x, y: u.y });
+          }
+          const draggedIds = [...drag.initialNodes!.keys()];
+          if (draggedIds.length > 0) {
+            const pushed = physicsRef.current.resolveCollisions(draggedIds[0]);
+            if (pushed.length > 0) {
+              dispatch({ type: 'SET_NODE_POSITIONS', updates: pushed });
+            }
+          }
+        }
         previewRef.current = { type: 'none', fromX: 0, fromY: 0, toX: 0, toY: 0, guides: result.guides };
       } else {
         const moveUpdates = ids.map(id => {
@@ -386,6 +404,18 @@ export function useCanvasInteraction({
           };
         });
         dispatch({ type: 'SET_NODE_POSITIONS', updates: moveUpdates });
+        if (collisionEnabled && physicsRef?.current) {
+          for (const u of moveUpdates) {
+            physicsRef.current.updateBody(u.id, { x: u.x, y: u.y });
+          }
+          const draggedIds = [...drag.initialNodes!.keys()];
+          if (draggedIds.length > 0) {
+            const pushed = physicsRef.current.resolveCollisions(draggedIds[0]);
+            if (pushed.length > 0) {
+              dispatch({ type: 'SET_NODE_POSITIONS', updates: pushed });
+            }
+          }
+        }
         previewRef.current = { type: 'none', fromX: 0, fromY: 0, toX: 0, toY: 0 };
       }
       return;
@@ -444,7 +474,7 @@ export function useCanvasInteraction({
       };
       return;
     }
-  }, [canvasRef, viewport, tool, nodes, edges, selection, dispatch, showGrid]);
+  }, [canvasRef, viewport, tool, nodes, edges, selection, dispatch, showGrid, collisionEnabled, physicsRef]);
 
   const handleMouseUp = useCallback((e: React.MouseEvent) => {
     const canvas = canvasRef.current;

@@ -33,6 +33,7 @@ interface GraphCanvasProps {
   draggingNodeIds?: string[];
   ariaLabel?: string;
   isDark?: boolean;
+  layoutRunning?: boolean;
 }
 
 export function GraphCanvas({
@@ -44,11 +45,41 @@ export function GraphCanvas({
   draggingNodeIds,
   ariaLabel,
   isDark = true,
+  layoutRunning,
 }: GraphCanvasProps) {
   const rafRef = useRef<number>(0);
 
   // コネクタパス計算をメモ化（edges/nodes変更時のみ再計算）
   const resolvedEdges = useMemo(() => {
+    // フォースレイアウト中は高速パス：中心間の直線描画
+    if (layoutRunning) {
+      return edges.map(e => {
+        if (e.type === 'connector' && e.from.nodeId && e.to.nodeId) {
+          const fromNode = nodes.find(n => n.id === e.from.nodeId);
+          const toNode = nodes.find(n => n.id === e.to.nodeId);
+          if (fromNode && toNode) {
+            return {
+              ...e,
+              type: 'line' as const,
+              waypoints: undefined,
+              bezierPath: undefined,
+              from: {
+                ...e.from,
+                x: fromNode.x + fromNode.width / 2,
+                y: fromNode.y + fromNode.height / 2,
+              },
+              to: {
+                ...e.to,
+                x: toNode.x + toNode.width / 2,
+                y: toNode.y + toNode.height / 2,
+              },
+            };
+          }
+        }
+        return e;
+      });
+    }
+
     return edges.map(e => {
       if (e.type === 'connector' && e.from.nodeId && e.to.nodeId) {
         const fromNode = nodes.find(n => n.id === e.from.nodeId);
@@ -99,7 +130,7 @@ export function GraphCanvas({
       }
       return e;
     });
-  }, [edges, nodes]);
+  }, [edges, nodes, layoutRunning]);
 
   const renderFrame = useCallback(() => {
     const canvas = canvasRef.current;

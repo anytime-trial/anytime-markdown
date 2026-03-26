@@ -47,5 +47,47 @@
     "icon": "{",
     "enabled": true,
     "code": "f(x) = \\begin{cases} x^2 & \\text{if } x \\geq 0 \\\\ -x^2 & \\text{if } x < 0 \\end{cases}"
+  },
+  {
+    "label": "Parabola",
+    "i18nKey": "sampleMathParabola",
+    "icon": "📈",
+    "enabled": true,
+    "code": "y = x^{2} - 3x + 1"
+  },
+  {
+    "label": "Trigonometric",
+    "i18nKey": "sampleMathTrigGraph",
+    "icon": "📈",
+    "enabled": true,
+    "code": "y = a \\cdot \\sin(x) + \\cos(2x)"
+  },
+  {
+    "label": "Circle",
+    "i18nKey": "sampleMathCircle",
+    "icon": "📈",
+    "enabled": true,
+    "code": "x^{2} + y^{2} = 4"
+  },
+  {
+    "label": "Polar",
+    "i18nKey": "sampleMathPolar",
+    "icon": "📈",
+    "enabled": true,
+    "code": "r = 1 + \\cos(\\theta)"
+  },
+  {
+    "label": "Parametric",
+    "i18nKey": "sampleMathParametric",
+    "icon": "📈",
+    "enabled": true,
+    "code": "\\begin{cases} x = \\cos(t) \\\\ y = \\sin(t) \\end{cases}"
+  },
+  {
+    "label": "3D Surface",
+    "i18nKey": "sampleMath3DSurface",
+    "icon": "📈",
+    "enabled": true,
+    "code": "z = \\sin(x) \\cdot \\cos(y)"
   }
 ]
