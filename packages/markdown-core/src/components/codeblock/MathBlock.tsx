@@ -1,11 +1,12 @@
 "use client";
 
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import ShowChartIcon from "@mui/icons-material/ShowChart";
 import { Alert, Box, IconButton, Tooltip } from "@mui/material";
 import DOMPurify from "dompurify";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getDivider, getTextSecondary } from "../../constants/colors";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getDivider, getPrimaryMain, getTextSecondary } from "../../constants/colors";
 import { PREVIEW_MAX_HEIGHT } from "../../constants/dimensions";
 import { useBlockMergeCompare } from "../../hooks/useBlockMergeCompare";
 import { useBlockResize } from "../../hooks/useBlockResize";
@@ -13,6 +14,7 @@ import { MATH_SANITIZE_CONFIG,useKatexRender } from "../../hooks/useKatexRender"
 import { MathEditDialog } from "../MathEditDialog";
 import { BlockInlineToolbar } from "./BlockInlineToolbar";
 import { CodeBlockFrame } from "./CodeBlockFrame";
+import { GraphView } from "./GraphView";
 import { shouldShowBorder, shouldShowToolbar } from "./compareHelpers";
 import { ResizeGrip } from "./ResizeGrip";
 import type { CodeBlockSharedProps } from "./types";
@@ -40,6 +42,7 @@ export function MathBlock(props: MathBlockProps) {
     t, isDark,
   } = props;
 
+  const [graphEnabled, setGraphEnabled] = useState(false);
   const { html: mathHtml, error: mathError } = useKatexRender({ code, isMath: true });
 
   const mathContainerRef = useRef<HTMLDivElement>(null);
@@ -56,6 +59,20 @@ export function MathBlock(props: MathBlockProps) {
       onDelete={props.isCompareLeft ? undefined : () => setDeleteDialogOpen(true)}
       labelOnly={props.isCompareLeftEditable}
       labelDivider
+      extra={
+        !props.isCompareLeft && !props.isCompareLeftEditable ? (
+          <Tooltip title={graphEnabled ? t("hideGraph") : t("showGraph")} placement="top">
+            <IconButton
+              size="small"
+              sx={{ p: 0.25 }}
+              onClick={() => setGraphEnabled(prev => !prev)}
+              aria-label={graphEnabled ? t("hideGraph") : t("showGraph")}
+            >
+              <ShowChartIcon sx={{ fontSize: 16, color: graphEnabled ? getPrimaryMain(isDark) : getTextSecondary(isDark) }} />
+            </IconButton>
+          </Tooltip>
+        ) : undefined
+      }
       t={t}
     />
   );
@@ -118,6 +135,7 @@ export function MathBlock(props: MathBlockProps) {
           <ResizeGrip visible={isSelected && props.isEditable} resizing={resizing} resizeWidth={resizeWidth} onPointerDown={handleResizePointerDown} />
         </Box>
       )}
+      <GraphView code={code} enabled={graphEnabled} isDark={isDark} />
     </CodeBlockFrame>
   );
 }

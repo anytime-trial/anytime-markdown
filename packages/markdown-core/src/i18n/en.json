@@ -498,6 +498,8 @@
     "gifDuration": "Duration",
     "gifFrames": "Frames",
     "mathFormula": "Formula",
+    "showGraph": "Show Graph",
+    "hideGraph": "Hide Graph",
     "templateMenu": "Template menu",
     "headingMenu": "Heading menu",
     "resizeSplitter": "Resize splitter",

@@ -498,6 +498,8 @@
     "gifDuration": "録画時間",
     "gifFrames": "フレーム数",
     "mathFormula": "数式",
+    "showGraph": "グラフ表示",
+    "hideGraph": "グラフを閉じる",
     "templateMenu": "テンプレートメニュー",
     "headingMenu": "見出しメニュー",
     "resizeSplitter": "スプリッタを調整",
