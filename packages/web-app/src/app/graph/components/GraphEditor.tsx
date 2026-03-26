@@ -118,6 +118,15 @@ export function GraphEditor() {
       if (running) {
         requestAnimationFrame(loop);
       } else {
+        // Apply minimum gap between connected nodes after layout converges
+        const spreadPositions = engine.spreadConnected(
+          nodesRef.current, edgesRef.current, 100,
+        );
+        const spreadUpdates: Array<{ id: string; x: number; y: number }> = [];
+        for (const [id, pos] of spreadPositions) {
+          spreadUpdates.push({ id, x: pos.x, y: pos.y });
+        }
+        dispatch({ type: 'SET_NODE_POSITIONS', updates: spreadUpdates });
         setLayoutRunning(false);
         dispatch({ type: 'SNAPSHOT' });
       }
