@@ -119,8 +119,9 @@ export function GraphEditor() {
         requestAnimationFrame(loop);
       } else {
         // Apply minimum gap between connected nodes after layout converges
+        // Pass null to use engine's internal body positions (layout result)
         const spreadPositions = engine.spreadConnected(
-          nodesRef.current, edgesRef.current, 100,
+          null, edgesRef.current, 100,
         );
         const spreadUpdates: Array<{ id: string; x: number; y: number }> = [];
         for (const [id, pos] of spreadPositions) {

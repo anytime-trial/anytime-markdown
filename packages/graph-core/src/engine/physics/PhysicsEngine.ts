@@ -241,11 +241,13 @@ export class PhysicsEngine {
    * Returns the new positions of all moved nodes.
    */
   spreadConnected(
-    nodes: GraphNode[],
+    nodes: GraphNode[] | null,
     edges: GraphEdge[],
     minGap: number,
   ): Map<string, { x: number; y: number }> {
-    this.syncFromNodes(nodes);
+    if (nodes) {
+      this.syncFromNodes(nodes);
+    }
     this.edges = edges;
 
     for (let iter = 0; iter < 10; iter++) {
