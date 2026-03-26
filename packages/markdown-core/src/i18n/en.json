@@ -727,6 +727,7 @@
     "distributeV": "Distribute Vertically",
     "alignment": "Alignment",
     "autoLayout": "Auto Layout",
+    "switchAlgorithm": "Switch Algorithm",
     "collisionDetection": "Collision Detection",
     "navLabel": "Graph",
     "doc": "Document",

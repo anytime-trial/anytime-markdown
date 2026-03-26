@@ -25,6 +25,15 @@ describe('PhysicsConfig defaults', () => {
     expect(DEFAULT_PHYSICS_CONFIG.velocityThreshold).toBe(0.5);
     expect(DEFAULT_PHYSICS_CONFIG.maxIterations).toBe(300);
   });
+
+  it('should default to eades algorithm', () => {
+    expect(DEFAULT_PHYSICS_CONFIG.algorithm).toBe('eades');
+  });
+
+  it('should have FR parameters', () => {
+    expect(DEFAULT_PHYSICS_CONFIG.frAreaMultiplier).toBe(1.0);
+    expect(DEFAULT_PHYSICS_CONFIG.frCooling).toBe(0.95);
+  });
 });
 
 describe('PhysicsBody type', () => {

@@ -74,4 +74,30 @@ describe('PhysicsEngine', () => {
       expect(tickCount).toBeLessThan(20);
     });
   });
+
+  describe('Fruchterman-Reingold algorithm', () => {
+    it('should move connected nodes closer together', () => {
+      const engine = new PhysicsEngine({ algorithm: 'fruchterman-reingold' });
+      engine.initLayout(nodes, edges);
+      for (let i = 0; i < 50; i++) {
+        if (!engine.tick()) break;
+      }
+      const positions = engine.getPositions();
+      const p1 = positions.get(nodes[0].id)!;
+      const p2 = positions.get(nodes[1].id)!;
+      const finalDist = Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2);
+      expect(finalDist).toBeLessThan(500); // initial distance
+    });
+
+    it('should converge via temperature cooling', () => {
+      const engine = new PhysicsEngine({ algorithm: 'fruchterman-reingold', maxIterations: 500 });
+      engine.initLayout(nodes, edges);
+      let tickCount = 0;
+      while (engine.tick()) {
+        tickCount++;
+        if (tickCount > 500) break;
+      }
+      expect(tickCount).toBeLessThan(500);
+    });
+  });
 });

@@ -1,4 +1,4 @@
-import { applySpring, applyRepulsion, applyCenterGravity } from '../../../engine/physics/forces';
+import { applySpring, applyRepulsion, applyCenterGravity, applyFRAttraction, applyFRRepulsion } from '../../../engine/physics/forces';
 import type { PhysicsBody } from '../../../engine/physics/types';
 
 function makeBody(id: string, x: number, y: number): PhysicsBody {
@@ -83,5 +83,58 @@ describe('applyCenterGravity', () => {
     applyCenterGravity(body, 100, 100, 0.01);
     expect(body.fx).toBe(0);
     expect(body.fy).toBe(0);
+  });
+});
+
+describe('applyFRAttraction', () => {
+  it('should attract connected nodes (force = d²/k)', () => {
+    const a = makeBody('a', 0, 0);
+    const b = makeBody('b', 300, 0);
+    applyFRAttraction(a, b, 100);
+    // a pulled right, b pulled left
+    expect(a.fx).toBeGreaterThan(0);
+    expect(b.fx).toBeLessThan(0);
+  });
+
+  it('should apply stronger force at greater distance', () => {
+    const a1 = makeBody('a1', 0, 0);
+    const b1 = makeBody('b1', 100, 0);
+    applyFRAttraction(a1, b1, 100);
+
+    const a2 = makeBody('a2', 0, 0);
+    const b2 = makeBody('b2', 300, 0);
+    applyFRAttraction(a2, b2, 100);
+
+    // d²/k grows with distance
+    expect(Math.abs(a2.fx)).toBeGreaterThan(Math.abs(a1.fx));
+  });
+});
+
+describe('applyFRRepulsion', () => {
+  it('should push bodies apart (force = k²/d)', () => {
+    const a = makeBody('a', 0, 0);
+    const b = makeBody('b', 100, 0);
+    applyFRRepulsion(a, b, 100);
+    expect(a.fx).toBeLessThan(0);
+    expect(b.fx).toBeGreaterThan(0);
+  });
+
+  it('should apply stronger force when closer', () => {
+    const a1 = makeBody('a1', 0, 0);
+    const b1 = makeBody('b1', 50, 0);
+    applyFRRepulsion(a1, b1, 100);
+
+    const a2 = makeBody('a2', 0, 0);
+    const b2 = makeBody('b2', 200, 0);
+    applyFRRepulsion(a2, b2, 100);
+
+    expect(Math.abs(a1.fx)).toBeGreaterThan(Math.abs(a2.fx));
+  });
+
+  it('should handle overlapping bodies without NaN', () => {
+    const a = makeBody('a', 100, 100);
+    const b = makeBody('b', 100, 100);
+    applyFRRepulsion(a, b, 100);
+    expect(Number.isFinite(a.fx)).toBe(true);
   });
 });

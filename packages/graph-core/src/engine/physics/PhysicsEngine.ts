@@ -3,7 +3,7 @@ import type { PhysicsBody, PhysicsConfig } from './types';
 import { DEFAULT_PHYSICS_CONFIG } from './types';
 import { createBody, syncBodies } from './PhysicsBody';
 import { SpatialGrid } from './SpatialGrid';
-import { applySpring, applyRepulsion, applyCenterGravity } from './forces';
+import { applySpring, applyRepulsion, applyCenterGravity, applyFRAttraction, applyFRRepulsion } from './forces';
 import { detectCollision, resolveCollision } from './collision';
 
 export class PhysicsEngine {
@@ -12,6 +12,8 @@ export class PhysicsEngine {
   private grid: SpatialGrid;
   private config: PhysicsConfig;
   private iteration = 0;
+  private temperature = 0;
+  private frK = 0;
 
   constructor(config: Partial<PhysicsConfig> = {}) {
     this.config = { ...DEFAULT_PHYSICS_CONFIG, ...config };
@@ -41,6 +43,13 @@ export class PhysicsEngine {
     this.syncFromNodes(nodes);
     this.edges = edges;
     this.iteration = 0;
+
+    if (this.config.algorithm === 'fruchterman-reingold') {
+      const n = this.bodies.size || 1;
+      const area = n * 200 * 200 * this.config.frAreaMultiplier;
+      this.frK = Math.sqrt(area / n);
+      this.temperature = this.frK * 2;
+    }
   }
 
   /** Run one simulation step. Returns true if still running, false if converged. */
@@ -59,21 +68,26 @@ export class PhysicsEngine {
   }
 
   private step(): void {
+    if (this.config.algorithm === 'fruchterman-reingold') {
+      this.stepFR();
+    } else {
+      this.stepEades();
+    }
+  }
+
+  private stepEades(): void {
     const bodies = Array.from(this.bodies.values());
 
-    // Reset forces
     for (const body of bodies) {
       body.fx = 0;
       body.fy = 0;
     }
 
-    // Rebuild spatial grid
     this.grid.clear();
     for (const body of bodies) {
       this.grid.insert(body);
     }
 
-    // Spring forces for edges
     for (const edge of this.edges) {
       const fromId = edge.from.nodeId;
       const toId = edge.to.nodeId;
@@ -85,7 +99,6 @@ export class PhysicsEngine {
       }
     }
 
-    // Repulsion forces between nearby bodies
     for (const body of bodies) {
       const nearby = this.grid.getNearby(body);
       for (const other of nearby) {
@@ -95,7 +108,6 @@ export class PhysicsEngine {
       }
     }
 
-    // Center gravity
     let cx = 0;
     let cy = 0;
     for (const body of bodies) {
@@ -108,7 +120,6 @@ export class PhysicsEngine {
       applyCenterGravity(body, cx, cy, this.config.centerGravity);
     }
 
-    // Integrate velocities and positions
     for (const body of bodies) {
       if (body.fixed) continue;
       body.vx = (body.vx + body.fx / body.mass) * this.config.damping;
@@ -117,7 +128,63 @@ export class PhysicsEngine {
       body.y += body.vy;
     }
 
-    // Collision resolution during layout
+    this.resolveLayoutCollisions();
+  }
+
+  private stepFR(): void {
+    const bodies = Array.from(this.bodies.values());
+    const k = this.frK;
+
+    for (const body of bodies) {
+      body.fx = 0;
+      body.fy = 0;
+    }
+
+    // Repulsive forces (all pairs via spatial grid)
+    this.grid.clear();
+    for (const body of bodies) {
+      this.grid.insert(body);
+    }
+    for (const body of bodies) {
+      const nearby = this.grid.getNearby(body);
+      for (const other of nearby) {
+        if (body.id < other.id) {
+          applyFRRepulsion(body, other, k);
+        }
+      }
+    }
+
+    // Attractive forces (edges only)
+    for (const edge of this.edges) {
+      const fromId = edge.from.nodeId;
+      const toId = edge.to.nodeId;
+      if (!fromId || !toId) continue;
+      const a = this.bodies.get(fromId);
+      const b = this.bodies.get(toId);
+      if (a && b) {
+        applyFRAttraction(a, b, k);
+      }
+    }
+
+    // Displacement clamped by temperature
+    for (const body of bodies) {
+      if (body.fixed) continue;
+      const disp = Math.sqrt(body.fx * body.fx + body.fy * body.fy) || 1;
+      const clamp = Math.min(disp, this.temperature) / disp;
+      body.vx = body.fx * clamp;
+      body.vy = body.fy * clamp;
+      body.x += body.vx;
+      body.y += body.vy;
+    }
+
+    // Cool temperature
+    this.temperature *= this.config.frCooling;
+
+    this.resolveLayoutCollisions();
+  }
+
+  private resolveLayoutCollisions(): void {
+    const bodies = Array.from(this.bodies.values());
     for (let i = 0; i < bodies.length; i++) {
       for (let j = i + 1; j < bodies.length; j++) {
         if (detectCollision(bodies[i], bodies[j], this.config.collisionPadding)) {
@@ -128,6 +195,9 @@ export class PhysicsEngine {
   }
 
   private isConverged(): boolean {
+    if (this.config.algorithm === 'fruchterman-reingold') {
+      return this.temperature < 0.5;
+    }
     for (const body of this.bodies.values()) {
       if (body.fixed) continue;
       const speed = Math.sqrt(body.vx * body.vx + body.vy * body.vy);

@@ -36,6 +36,7 @@ export function GraphEditor() {
   const [isDragging, setIsDragging] = useState(false);
   const [layoutRunning, setLayoutRunning] = useState(false);
   const [collisionEnabled, setCollisionEnabled] = useState(false);
+  const [layoutAlgorithm, setLayoutAlgorithm] = useState<'eades' | 'fruchterman-reingold'>('eades');
   const physicsRef = useRef<physics.PhysicsEngine | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const { state, dispatch } = useGraphState();
@@ -101,7 +102,7 @@ export function GraphEditor() {
     setLayoutRunning(true);
     dispatch({ type: 'SNAPSHOT' });
 
-    const engine = new physics.PhysicsEngine({ collisionEnabled: true });
+    const engine = new physics.PhysicsEngine({ collisionEnabled: true, algorithm: layoutAlgorithm });
     engine.initLayout(nodesRef.current, edgesRef.current);
     physicsRef.current = engine;
 
@@ -122,7 +123,7 @@ export function GraphEditor() {
       }
     };
     requestAnimationFrame(loop);
-  }, [layoutRunning, dispatch]);
+  }, [layoutRunning, layoutAlgorithm, dispatch]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -420,6 +421,8 @@ export function GraphEditor() {
         collisionEnabled={collisionEnabled}
         onAutoLayout={handleAutoLayout}
         onToggleCollision={setCollisionEnabled}
+        layoutAlgorithm={layoutAlgorithm}
+        onChangeAlgorithm={setLayoutAlgorithm}
       />
       <Box sx={{ flex: 1, display: 'flex', position: 'relative', overflow: 'hidden' }}>
       <Box sx={{ flex: 1, position: 'relative', overflow: 'hidden' }}>

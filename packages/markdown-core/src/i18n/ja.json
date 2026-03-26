@@ -727,6 +727,7 @@
     "distributeV": "垂直均等配置",
     "alignment": "整列",
     "autoLayout": "自動レイアウト",
+    "switchAlgorithm": "アルゴリズム切替",
     "collisionDetection": "衝突検出",
     "navLabel": "グラフ",
     "doc": "ドキュメント",
