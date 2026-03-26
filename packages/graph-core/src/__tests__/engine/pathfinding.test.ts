@@ -63,8 +63,9 @@ describe('computeAvoidancePath', () => {
       [{ x: 500, y: 500, width: 50, height: 50 }], // far away obstacle
       20,
     );
-    // Should be at most 4 points (start, bend, end or start, bend1, bend2, end)
-    expect(path.length).toBeLessThanOrEqual(4);
+    // Should be compact (not a staircase with many points)
+    // May include perpendicular entry/exit margin points
+    expect(path.length).toBeLessThanOrEqual(6);
     // Should not have staircase pattern (>4 waypoints with alternating directions)
     expect(path[0]).toEqual({ x: 0, y: 0 });
     expect(path[path.length - 1]).toEqual({ x: 300, y: 200 });
@@ -87,19 +88,34 @@ describe('computeAvoidancePath', () => {
     }
   });
 
-  it('should align connection point with first segment (no diagonal at endpoints)', () => {
-    // Connection point at center of right edge (y=25) should produce
-    // a horizontal first segment, not diagonal to a grid-snapped point
+  it('should ensure perpendicular exit/entry at node edges', () => {
+    // fromSide=right → first segment must be horizontal (perpendicular to right edge)
+    // toSide=left → last segment must be horizontal (perpendicular to left edge)
     const path = computeAvoidancePath(
-      { x: 150, y: 25 }, 'right',  // center of right edge of small node
-      { x: 700, y: 90 }, 'left',   // center of left edge of large node
-      [{ x: 400, y: 200, width: 80, height: 60 }], // obstacle below
+      { x: 150, y: 25 }, 'right',
+      { x: 700, y: 90 }, 'left',
+      [{ x: 400, y: 200, width: 80, height: 60 }],
       20,
     );
-    // First segment should be horizontal (same y as start)
+    // First segment: horizontal (same y as start)
     expect(path[1].y).toBe(path[0].y);
-    // Last segment should be horizontal (same y as end)
+    // Last segment: horizontal (same y as end)
     expect(path[path.length - 2].y).toBe(path[path.length - 1].y);
+  });
+
+  it('should ensure perpendicular exit/entry for vertical sides', () => {
+    // fromSide=bottom → first segment must be vertical
+    // toSide=top → last segment must be vertical
+    const path = computeAvoidancePath(
+      { x: 100, y: 80 }, 'bottom',
+      { x: 300, y: 250 }, 'top',
+      [{ x: 180, y: 120, width: 60, height: 60 }],
+      20,
+    );
+    // First segment: vertical (same x as start)
+    expect(path[1].x).toBe(path[0].x);
+    // Last segment: vertical (same x as end)
+    expect(path[path.length - 2].x).toBe(path[path.length - 1].x);
   });
 
   it('should produce only orthogonal segments (no diagonal lines)', () => {

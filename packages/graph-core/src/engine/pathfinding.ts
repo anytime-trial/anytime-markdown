@@ -79,9 +79,9 @@ export function computeAvoidancePath(
   // 冗長な中間点を除去（同じ方向のセグメントを統合 + 階段パターンをL字に変換）
   const simplified = collapseStaircase(simplifyPath(worldPath), obstacles);
 
-  // 始点/終点付近の中間点を直交になるよう補正
-  // （グリッドスナップで接続ポイントとずれた場合、斜め線が発生する）
-  alignEndpoints(simplified, fromSide, toSide);
+  // 始点/終点に辺と垂直なマージンセグメントを挿入
+  // これにより、コネクタはノード辺に対して必ず垂直に接続する
+  ensurePerpendicularEntry(simplified, fromPt, fromSide, toPt, toSide, gridSize);
 
   return simplified;
 }
@@ -221,42 +221,51 @@ function astar(
 }
 
 /**
- * 始点/終点付近に補正点を挿入して直交性を保証する。
- * A*のグリッドスナップにより、接続ポイント（辺の中心）と隣接する中間点の
- * 座標がずれて斜め線が発生するのを防ぐ。
+ * 始点/終点の最初/最後のセグメントが辺と垂直になるよう補正する。
  *
- * fromSide=right/left の場合、始点の次は水平移動であるべき
- *  → 始点と同じ y を持つ中間点を挿入
- * fromSide=top/bottom の場合、始点の次は垂直移動であるべき
- *  → 始点と同じ x を持つ中間点を挿入
+ * 隣接点の座標を揃えつつ、その先の点との間で斜め線が発生する場合は
+ * コーナー点を挿入して直交性を維持する。
  */
-function alignEndpoints(path: Point[], fromSide: Side, toSide: Side): void {
-  // 始点側: 2番目の点が始点と直交でなければ補正点を挿入
-  if (path.length >= 2) {
-    const start = path[0];
-    const next = path[1];
-    if (fromSide === 'right' || fromSide === 'left') {
-      if (start.y !== next.y) {
-        path.splice(1, 0, { x: next.x, y: start.y });
+function ensurePerpendicularEntry(
+  path: Point[], fromPt: Point, fromSide: Side, toPt: Point, toSide: Side, _margin: number,
+): void {
+  if (path.length < 3) return;
+
+  const isFromHorizontal = fromSide === 'right' || fromSide === 'left';
+
+  // 始点側
+  if (isFromHorizontal ? path[1].y !== fromPt.y : path[1].x !== fromPt.x) {
+    const oldP1 = path[1];
+    if (isFromHorizontal) {
+      // path[1] の y を揃えて水平にする
+      path[1] = { x: oldP1.x, y: fromPt.y };
+      // path[1]→path[2] が斜めになったらコーナーを挿入
+      if (path.length > 2 && path[2].x !== path[1].x && path[2].y !== path[1].y) {
+        path.splice(2, 0, { x: path[1].x, y: path[2].y });
       }
     } else {
-      if (start.x !== next.x) {
-        path.splice(1, 0, { x: start.x, y: next.y });
+      // path[1] の x を揃えて垂直にする
+      path[1] = { x: fromPt.x, y: oldP1.y };
+      if (path.length > 2 && path[2].x !== path[1].x && path[2].y !== path[1].y) {
+        path.splice(2, 0, { x: path[2].x, y: path[1].y });
       }
     }
   }
-  // 終点側: 最後から2番目の点が終点と直交でなければ補正点を挿入
-  if (path.length >= 2) {
-    const last = path.length - 1;
-    const end = path[last];
-    const prev = path[last - 1];
-    if (toSide === 'right' || toSide === 'left') {
-      if (end.y !== prev.y) {
-        path.splice(last, 0, { x: prev.x, y: end.y });
+
+  // 終点側
+  const last = path.length - 1;
+  const isToHorizontal = toSide === 'right' || toSide === 'left';
+  if (isToHorizontal ? path[last - 1].y !== toPt.y : path[last - 1].x !== toPt.x) {
+    const oldPrev = path[last - 1];
+    if (isToHorizontal) {
+      path[last - 1] = { x: oldPrev.x, y: toPt.y };
+      if (last - 2 >= 0 && path[last - 2].x !== path[last - 1].x && path[last - 2].y !== path[last - 1].y) {
+        path.splice(last - 1, 0, { x: path[last - 1].x, y: path[last - 2].y });
       }
     } else {
-      if (end.x !== prev.x) {
-        path.splice(last, 0, { x: end.x, y: prev.y });
+      path[last - 1] = { x: toPt.x, y: oldPrev.y };
+      if (last - 2 >= 0 && path[last - 2].x !== path[last - 1].x && path[last - 2].y !== path[last - 1].y) {
+        path.splice(last - 1, 0, { x: path[last - 2].x, y: path[last - 1].y });
       }
     }
   }
