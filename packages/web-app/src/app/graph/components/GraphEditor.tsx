@@ -447,6 +447,7 @@ export function GraphEditor() {
           draggingNodeIds={isDragging && dragRef.current.type === 'move' ? state.selection.nodeIds : undefined}
           ariaLabel={canvasAriaLabel}
           isDark={isDark}
+          layoutRunning={layoutRunning}
         />
         {state.document.nodes.length === 0 && (
           <Box sx={{
