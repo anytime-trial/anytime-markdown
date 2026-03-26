@@ -3,6 +3,11 @@
     "playwright": {
       "command": "npx",
       "args": ["@playwright/mcp@latest"]
+    },
+    "mcp-graph": {
+      "command": "npx",
+      "args": ["tsx", "packages/mcp-graph/src/stdio.ts"],
+      "cwd": "/anytime-markdown"
     }
   }
 }
