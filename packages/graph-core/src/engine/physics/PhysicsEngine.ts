@@ -235,6 +235,76 @@ export class PhysicsEngine {
       .map((b) => ({ id: b.id, x: b.x, y: b.y }));
   }
 
+  /**
+   * Spread connected nodes apart so that the edge-to-edge distance
+   * between each connected pair is at least `minGap` pixels.
+   * Returns the new positions of all moved nodes.
+   */
+  spreadConnected(
+    nodes: GraphNode[],
+    edges: GraphEdge[],
+    minGap: number,
+  ): Map<string, { x: number; y: number }> {
+    this.syncFromNodes(nodes);
+    this.edges = edges;
+
+    for (let iter = 0; iter < 10; iter++) {
+      let moved = false;
+      for (const edge of this.edges) {
+        const fromId = edge.from.nodeId;
+        const toId = edge.to.nodeId;
+        if (!fromId || !toId) continue;
+        const a = this.bodies.get(fromId);
+        const b = this.bodies.get(toId);
+        if (!a || !b) continue;
+
+        // Edge-to-edge distance (gap between bounding boxes)
+        const cx_a = a.x + a.width / 2;
+        const cy_a = a.y + a.height / 2;
+        const cx_b = b.x + b.width / 2;
+        const cy_b = b.y + b.height / 2;
+        const dx = cx_b - cx_a;
+        const dy = cy_b - cy_a;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+
+        // Required center-to-center distance for the desired gap
+        // along the direction vector
+        const absDx = Math.abs(dx);
+        const absDy = Math.abs(dy);
+        let halfSpanA: number;
+        let halfSpanB: number;
+        if (absDx * (a.height + b.height) > absDy * (a.width + b.width)) {
+          // Primarily horizontal
+          halfSpanA = a.width / 2;
+          halfSpanB = b.width / 2;
+        } else {
+          // Primarily vertical
+          halfSpanA = a.height / 2;
+          halfSpanB = b.height / 2;
+        }
+        const requiredDist = halfSpanA + halfSpanB + minGap;
+
+        if (dist < requiredDist) {
+          const shift = (requiredDist - dist) / 2;
+          const nx = dx / dist;
+          const ny = dy / dist;
+          if (!a.fixed) {
+            a.x -= nx * shift;
+            a.y -= ny * shift;
+          }
+          if (!b.fixed) {
+            b.x += nx * shift;
+            b.y += ny * shift;
+          }
+          moved = true;
+        }
+      }
+      if (!moved) break;
+    }
+
+    return this.getPositions();
+  }
+
   setConfig(patch: Partial<PhysicsConfig>): void {
     Object.assign(this.config, patch);
   }

@@ -729,6 +729,7 @@
     "autoLayout": "Auto Layout",
     "switchAlgorithm": "Switch Algorithm",
     "collisionDetection": "Collision Detection",
+    "spreadConnected": "Spread Connected Nodes",
     "navLabel": "Graph",
     "doc": "Document",
     "clearAll": "Clear All",

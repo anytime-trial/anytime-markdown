@@ -125,6 +125,18 @@ export function GraphEditor() {
     requestAnimationFrame(loop);
   }, [layoutRunning, layoutAlgorithm, dispatch]);
 
+  const handleSpreadConnected = useCallback(() => {
+    dispatch({ type: 'SNAPSHOT' });
+    const engine = new physics.PhysicsEngine();
+    const positions = engine.spreadConnected(nodesRef.current, edgesRef.current, 100);
+    const updates: Array<{ id: string; x: number; y: number }> = [];
+    for (const [id, pos] of positions) {
+      updates.push({ id, x: pos.x, y: pos.y });
+    }
+    dispatch({ type: 'SET_NODE_POSITIONS', updates });
+    dispatch({ type: 'SNAPSHOT' });
+  }, [dispatch]);
+
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     // 右クリック = 選択解除（ESCと同じ動作）
@@ -423,6 +435,7 @@ export function GraphEditor() {
         onToggleCollision={setCollisionEnabled}
         layoutAlgorithm={layoutAlgorithm}
         onChangeAlgorithm={setLayoutAlgorithm}
+        onSpreadConnected={handleSpreadConnected}
       />
       <Box sx={{ flex: 1, display: 'flex', position: 'relative', overflow: 'hidden' }}>
       <Box sx={{ flex: 1, position: 'relative', overflow: 'hidden' }}>

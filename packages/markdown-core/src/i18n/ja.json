@@ -729,6 +729,7 @@
     "autoLayout": "自動レイアウト",
     "switchAlgorithm": "アルゴリズム切替",
     "collisionDetection": "衝突検出",
+    "spreadConnected": "接続ノードを均等配置",
     "navLabel": "グラフ",
     "doc": "ドキュメント",
     "clearAll": "全消去",

@@ -42,6 +42,7 @@ import {
   Settings as SettingsIcon,
   AccountTree as AccountTreeIcon,
   Layers as LayersIcon,
+  UnfoldMore as SpreadIcon,
 } from '@mui/icons-material';
 import { CircularProgress } from '@mui/material';
 import { useTranslations } from 'next-intl';
@@ -85,6 +86,7 @@ interface ToolBarProps {
   onToggleCollision?: (enabled: boolean) => void;
   layoutAlgorithm?: 'eades' | 'fruchterman-reingold';
   onChangeAlgorithm?: (algorithm: 'eades' | 'fruchterman-reingold') => void;
+  onSpreadConnected?: () => void;
 }
 
 export function GraphToolBar({
@@ -93,6 +95,7 @@ export function GraphToolBar({
   onClearAll, onExportSvg, onExportDrawio, onImportDrawio, onAlign, onSetScale, selectionCount, hasSelection, scale, saveStatus, onToggleSettings,
   layoutRunning, collisionEnabled, onAutoLayout, onToggleCollision,
   layoutAlgorithm = 'eades', onChangeAlgorithm,
+  onSpreadConnected,
 }: ToolBarProps) {
   const t = useTranslations('Graph');
   const { themeMode } = useThemeMode();
@@ -328,6 +331,14 @@ export function GraphToolBar({
             }}
           >
             <LayersIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title={t('spreadConnected')}>
+          <IconButton
+            onClick={onSpreadConnected}
+            size="small"
+          >
+            <SpreadIcon fontSize="small" />
           </IconButton>
         </Tooltip>
 

@@ -100,4 +100,62 @@ describe('PhysicsEngine', () => {
       expect(tickCount).toBeLessThan(500);
     });
   });
+
+  describe('spreadConnected', () => {
+    it('should ensure minimum gap between connected nodes', () => {
+      // Place two connected nodes very close (overlapping)
+      const n1 = createNode('rect', 0, 0);   // width=120, height=60
+      const n2 = createNode('rect', 50, 0);   // overlapping with n1
+      const testEdges = [
+        createEdge('connector', { nodeId: n1.id, x: 0, y: 0 }, { nodeId: n2.id, x: 0, y: 0 }),
+      ];
+      const engine = new PhysicsEngine();
+      const positions = engine.spreadConnected([n1, n2], testEdges, 100);
+
+      const p1 = positions.get(n1.id)!;
+      const p2 = positions.get(n2.id)!;
+      // Edge-to-edge gap should be at least 100px
+      const centerDist = Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2);
+      // center-to-center must be >= halfWidth1 + halfWidth2 + 100 = 60 + 60 + 100 = 220
+      expect(centerDist).toBeGreaterThanOrEqual(219); // allow small float error
+    });
+
+    it('should not move nodes that are already far enough apart', () => {
+      const n1 = createNode('rect', 0, 0);
+      const n2 = createNode('rect', 500, 0);  // far apart
+      const testEdges = [
+        createEdge('connector', { nodeId: n1.id, x: 0, y: 0 }, { nodeId: n2.id, x: 0, y: 0 }),
+      ];
+      const engine = new PhysicsEngine();
+      const positions = engine.spreadConnected([n1, n2], testEdges, 100);
+
+      const p1 = positions.get(n1.id)!;
+      const p2 = positions.get(n2.id)!;
+      expect(p1.x).toBe(0);
+      expect(p2.x).toBe(500);
+    });
+
+    it('should handle chain of connected nodes', () => {
+      const n1 = createNode('rect', 0, 0);
+      const n2 = createNode('rect', 30, 0);
+      const n3 = createNode('rect', 60, 0);
+      const testEdges = [
+        createEdge('connector', { nodeId: n1.id, x: 0, y: 0 }, { nodeId: n2.id, x: 0, y: 0 }),
+        createEdge('connector', { nodeId: n2.id, x: 0, y: 0 }, { nodeId: n3.id, x: 0, y: 0 }),
+      ];
+      const engine = new PhysicsEngine();
+      const positions = engine.spreadConnected([n1, n2, n3], testEdges, 100);
+
+      const p1 = positions.get(n1.id)!;
+      const p2 = positions.get(n2.id)!;
+      const p3 = positions.get(n3.id)!;
+
+      // All pairs should have sufficient gap
+      const dist12 = Math.abs(p2.x - p1.x);
+      const dist23 = Math.abs(p3.x - p2.x);
+      // Each center-to-center >= 120 + 100 = 220 (width=120, so halfSpan=60 each)
+      expect(dist12).toBeGreaterThanOrEqual(219);
+      expect(dist23).toBeGreaterThanOrEqual(219);
+    });
+  });
 });
