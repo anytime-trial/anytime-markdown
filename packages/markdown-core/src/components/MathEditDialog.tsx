@@ -118,8 +118,8 @@ export function MathEditDialog({
                 </Tooltip>
               </Box>
               {graphEnabled ? (
-                <Box sx={{ flex: 1, overflow: "auto" }}>
-                  <GraphView code={fsCode} enabled={graphEnabled} isDark={isDark} />
+                <Box sx={{ flex: 1, overflow: "hidden" }}>
+                  <GraphView code={fsCode} enabled={graphEnabled} isDark={isDark} fill />
                 </Box>
               ) : (
                 <ZoomablePreview fsZP={fsZP}>
