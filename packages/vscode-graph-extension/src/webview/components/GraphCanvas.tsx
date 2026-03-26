@@ -50,7 +50,7 @@ export function GraphCanvas({
       return e;
     });
 
-    render(ctx, w, h, nodes, resolvedEdges, viewport, selection, showGrid);
+    render({ ctx, width: w, height: h, nodes, edges: resolvedEdges, viewport, selection, showGrid });
 
     // Draw previews
     const preview = previewRef.current;

@@ -75,7 +75,7 @@ export function useCanvasInteraction({
     }
 
     if (tool === 'select') {
-      const hit = hitTest(nodes, edges, world.x, world.y, viewport.scale, selection.nodeIds);
+      const hit = hitTest({ nodes, edges, wx: world.x, wy: world.y, scale: viewport.scale, selectedNodeIds: selection.nodeIds });
 
       if (hit.type === 'resize-handle' && hit.id && hit.handle) {
         const node = nodes.find(n => n.id === hit.id)!;
@@ -141,7 +141,7 @@ export function useCanvasInteraction({
     }
 
     if (['line', 'arrow', 'connector'].includes(tool)) {
-      const hit = hitTest(nodes, edges, world.x, world.y, viewport.scale, []);
+      const hit = hitTest({ nodes, edges, wx: world.x, wy: world.y, scale: viewport.scale, selectedNodeIds: [] });
       dragRef.current = {
         type: 'create-edge', startWorldX: world.x, startWorldY: world.y,
         startScreenX: sx, startScreenY: sy,
@@ -211,7 +211,7 @@ export function useCanvasInteraction({
 
     if (drag.type === 'create-edge') {
       const world = screenToWorld(viewport, sx, sy);
-      const hit = hitTest(nodes, edges, world.x, world.y, viewport.scale, []);
+      const hit = hitTest({ nodes, edges, wx: world.x, wy: world.y, scale: viewport.scale, selectedNodeIds: [] });
       previewRef.current = {
         type: 'edge',
         fromX: drag.startWorldX, fromY: drag.startWorldY,
@@ -272,7 +272,7 @@ export function useCanvasInteraction({
     }
 
     if (drag.type === 'create-edge') {
-      const hit = hitTest(nodes, edges, world.x, world.y, viewport.scale, []);
+      const hit = hitTest({ nodes, edges, wx: world.x, wy: world.y, scale: viewport.scale, selectedNodeIds: [] });
       const edgeType = tool as 'line' | 'arrow' | 'connector';
       const edge = createEdge(
         edgeType,
@@ -313,7 +313,7 @@ export function useCanvasInteraction({
 
   const handleDoubleClick = useCallback((e: React.MouseEvent) => {
     const world = getWorldPos(e as unknown as MouseEvent);
-    const hit = hitTest(nodes, edges, world.x, world.y, viewport.scale, selection.nodeIds);
+    const hit = hitTest({ nodes, edges, wx: world.x, wy: world.y, scale: viewport.scale, selectedNodeIds: selection.nodeIds });
     if (hit.type === 'node' && hit.id) {
       onTextEdit(hit.id);
     }
