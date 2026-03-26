@@ -22,7 +22,7 @@ import { alignLeft, alignRight, alignTop, alignBottom, alignCenterH, alignCenter
 import { loadDocument, getLastDocumentId } from '../store/graphStorage';
 import { exportToSvg, exportToDrawio, importFromDrawio, getCanvasColors } from '@anytime-markdown/graph-core';
 import { useThemeMode } from '../../providers';
-import { PhysicsEngine } from '@anytime-markdown/graph-core/src/engine/physics/PhysicsEngine';
+import { physics } from '@anytime-markdown/graph-core/engine';
 
 export function GraphEditor() {
   const { themeMode } = useThemeMode();
@@ -36,7 +36,7 @@ export function GraphEditor() {
   const [isDragging, setIsDragging] = useState(false);
   const [layoutRunning, setLayoutRunning] = useState(false);
   const [collisionEnabled, setCollisionEnabled] = useState(false);
-  const physicsRef = useRef<PhysicsEngine | null>(null);
+  const physicsRef = useRef<physics.PhysicsEngine | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const { state, dispatch } = useGraphState();
   const selectionRef = useRef(state.selection);
@@ -99,7 +99,7 @@ export function GraphEditor() {
 
     let lastUpdateTime = Date.now();
 
-    const engine = new PhysicsEngine(
+    const engine = new physics.PhysicsEngine(
       { collisionEnabled: true },
       (positions) => {
         lastUpdateTime = Date.now();

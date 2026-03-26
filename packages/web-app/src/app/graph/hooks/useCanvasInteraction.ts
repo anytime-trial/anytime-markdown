@@ -8,7 +8,7 @@ import { pan as panViewport, zoom as zoomViewport } from '../engine/viewport';
 import { snapToGrid } from '../engine/gridSnap';
 import { computeSmartGuides, GuideLine } from '../engine/smartGuide';
 import { computeOrthogonalPath } from '../engine/connector';
-import { PhysicsEngine } from '@anytime-markdown/graph-core/engine/physics/PhysicsEngine';
+import { physics } from '@anytime-markdown/graph-core/engine';
 
 /** edges に waypoints を付与して hitTest で使えるようにする */
 function resolveEdgesWithWaypoints(edges: GraphEdge[], nodes: GraphNode[]): (GraphEdge & { waypoints?: { x: number; y: number }[] })[] {
@@ -55,7 +55,7 @@ interface UseCanvasInteractionProps {
   onLiveMessage?: (message: string) => void;
   isDark?: boolean;
   collisionEnabled?: boolean;
-  physicsRef?: React.RefObject<PhysicsEngine | null>;
+  physicsRef?: React.RefObject<physics.PhysicsEngine | null>;
 }
 
 export interface DragPreview {
