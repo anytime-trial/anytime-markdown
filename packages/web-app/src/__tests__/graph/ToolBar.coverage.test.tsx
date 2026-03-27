@@ -284,16 +284,6 @@ describe("GraphToolBar", () => {
     }
   });
 
-  it("calls onToggleSettings when settings button clicked", () => {
-    render(<GraphToolBar {...defaultProps} />);
-    const buttons = screen.getAllByRole("button");
-    const settingsBtn = buttons.find(b => b.querySelector('[data-testid="SettingsIcon"]'));
-    if (settingsBtn) {
-      fireEvent.click(settingsBtn);
-      expect(defaultProps.onToggleSettings).toHaveBeenCalled();
-    }
-  });
-
   it("opens zoom menu when scale display clicked", () => {
     render(<GraphToolBar {...defaultProps} />);
     fireEvent.click(screen.getByText("100%"));

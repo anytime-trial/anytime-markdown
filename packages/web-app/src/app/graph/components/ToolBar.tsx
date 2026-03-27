@@ -39,7 +39,6 @@ import {
   CircleOutlined as EllipseIcon,
   // DiamondOutlined replaced by custom SVG diamond icon below
   // ParallelogramIcon, CylinderIcon replaced by custom SVG icons below
-  Settings as SettingsIcon,
   AccountTree as AccountTreeIcon,
   Layers as LayersIcon,
   UnfoldMore as SpreadIcon,
@@ -407,13 +406,6 @@ export function GraphToolBar({
           </IconButton>
         </Tooltip>
 
-        <Divider orientation="vertical" flexItem />
-
-        <Tooltip title={t('settings')}>
-          <IconButton size="small" onClick={onToggleSettings}>
-            <SettingsIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
       </Toolbar>
     </AppBar>
   );
