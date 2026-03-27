@@ -1,10 +1,15 @@
 "use client";
 
+import DarkModeIcon from "@mui/icons-material/DarkMode";
+import DrawIcon from "@mui/icons-material/Draw";
+import LightModeIcon from "@mui/icons-material/LightMode";
 import ListAltIcon from "@mui/icons-material/ListAlt";
-import { Box, IconButton, Tooltip, Typography } from "@mui/material";
+import WorkspacePremiumIcon from "@mui/icons-material/WorkspacePremium";
+import { Box, Divider, IconButton, Tooltip, Typography } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 
 import { getTextSecondary } from "../constants/colors";
+import type { ThemePresetName } from "../constants/themePresets";
 import type { TranslationFn } from "../types";
 
 interface FontSizeOption {
@@ -18,6 +23,10 @@ interface ReadonlyToolbarProps {
   readonly onToggleOutline: () => void;
   readonly fontSize: number;
   readonly onFontSizeChange: (size: number) => void;
+  readonly themeMode?: "light" | "dark";
+  readonly onThemeModeChange?: (mode: "light" | "dark") => void;
+  readonly presetName?: ThemePresetName;
+  readonly onPresetChange?: (name: ThemePresetName) => void;
   readonly t: TranslationFn;
 }
 
@@ -31,7 +40,7 @@ function getActiveBgColor(isDark: boolean): string {
   return isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.04)";
 }
 
-export function ReadonlyToolbar({ outlineOpen, onToggleOutline, fontSize, onFontSizeChange, t }: ReadonlyToolbarProps) {
+export function ReadonlyToolbar({ outlineOpen, onToggleOutline, fontSize, onFontSizeChange, themeMode, onThemeModeChange, presetName, onPresetChange, t }: ReadonlyToolbarProps) {
   const isDark = useTheme().palette.mode === "dark";
   const activeBg = getActiveBgColor(isDark);
 
@@ -75,6 +84,46 @@ export function ReadonlyToolbar({ outlineOpen, onToggleOutline, fontSize, onFont
             </Tooltip>
           );
         })}
+        {onThemeModeChange && (
+          <>
+            <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+            <Tooltip title={t("settingDarkMode")}>
+              <IconButton
+                size="small"
+                onClick={() => onThemeModeChange(themeMode === "dark" ? "light" : "dark")}
+                sx={{
+                  width: 28,
+                  height: 28,
+                  color: getTextSecondary(isDark),
+                }}
+                aria-label={t("settingDarkMode")}
+                aria-pressed={themeMode === "dark"}
+              >
+                {themeMode === "dark" ? <DarkModeIcon sx={{ fontSize: 16 }} /> : <LightModeIcon sx={{ fontSize: 16 }} />}
+              </IconButton>
+            </Tooltip>
+          </>
+        )}
+        {onPresetChange && (
+          <>
+            <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+            <Tooltip title={t("settingThemePreset")}>
+              <IconButton
+                size="small"
+                onClick={() => onPresetChange(presetName === "handwritten" ? "professional" : "handwritten")}
+                sx={{
+                  width: 28,
+                  height: 28,
+                  color: getTextSecondary(isDark),
+                }}
+                aria-label={t("settingThemePreset")}
+                aria-pressed={presetName === "handwritten"}
+              >
+                {presetName === "handwritten" ? <DrawIcon sx={{ fontSize: 16 }} /> : <WorkspacePremiumIcon sx={{ fontSize: 16 }} />}
+              </IconButton>
+            </Tooltip>
+          </>
+        )}
       </Box>
     </Box>
   );
