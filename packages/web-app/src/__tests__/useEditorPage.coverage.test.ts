@@ -230,4 +230,124 @@ describe("useEditorPage - additional coverage", () => {
     const { result } = renderHook(() => useEditorPage(defaultOptions));
     expect(result.current.explorerOpen).toBe(true);
   });
+
+  it("skips ssoContentCleared when already cleared", () => {
+    sessionStorage.setItem("ssoContentCleared", "1");
+    localStorage.setItem("anytime-markdown-content", "some content");
+    renderHook(() =>
+      useEditorPage({ ...defaultOptions, isGitHubLoggedIn: true })
+    );
+    expect(localStorage.getItem("anytime-markdown-content")).toBe("some content");
+    sessionStorage.removeItem("ssoContentCleared");
+  });
+
+  it("handleExternalSave with successful response and commit data", async () => {
+    const mockFetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ commit: { sha: "abc", message: "saved", author: "user", date: "2025-01-01" } }),
+    });
+    const { result } = renderHook(() =>
+      useEditorPage({ ...defaultOptions, fetchFn: mockFetch })
+    );
+
+    await act(async () => {
+      await result.current.handleExplorerSelectFile("user/repo", "test.md", "main");
+    });
+
+    await act(async () => {
+      await result.current.handleExternalSave("new content");
+    });
+
+    expect(result.current.saveSnackbar).toEqual(
+      expect.objectContaining({ severity: "success" })
+    );
+    expect(result.current.newCommit).toBeTruthy();
+  });
+
+  it("handleExternalSave with failed response", async () => {
+    const mockFetch = jest.fn().mockResolvedValue({
+      ok: false,
+      json: () => Promise.resolve({ error: "Conflict" }),
+    });
+    const { result } = renderHook(() =>
+      useEditorPage({ ...defaultOptions, fetchFn: mockFetch })
+    );
+
+    await act(async () => {
+      await result.current.handleExplorerSelectFile("user/repo", "test.md", "main");
+    });
+
+    await act(async () => {
+      await result.current.handleExternalSave("new content");
+    });
+
+    expect(result.current.saveSnackbar).toEqual(
+      expect.objectContaining({ severity: "error" })
+    );
+  });
+
+  it("handleCompareModeChange with stored commit content", async () => {
+    const { result } = renderHook(() => useEditorPage(defaultOptions));
+
+    await act(async () => {
+      await result.current.handleExplorerSelectFile("user/repo", "test.md", "main");
+    });
+
+    await act(async () => {
+      await result.current.handleExplorerSelectCommit("user/repo", "test.md", "sha123");
+    });
+
+    act(() => {
+      result.current.handleCompareModeChange(true);
+    });
+  });
+
+  it("handleExplorerSelectCommit in compare mode", async () => {
+    const { result } = renderHook(() => useEditorPage(defaultOptions));
+
+    act(() => {
+      result.current.handleCompareModeChange(true);
+    });
+
+    await act(async () => {
+      await result.current.handleExplorerSelectCommit("user/repo", "test.md", "sha456");
+    });
+  });
+
+  it("handleSelectCurrent in compare mode", () => {
+    const { result } = renderHook(() => useEditorPage(defaultOptions));
+
+    act(() => {
+      result.current.handleCompareModeChange(true);
+    });
+
+    act(() => {
+      result.current.handleSelectCurrent();
+    });
+  });
+
+  it("handleContentChange tracks dirty state", async () => {
+    const { result } = renderHook(() => useEditorPage(defaultOptions));
+
+    await act(async () => {
+      await result.current.handleExplorerSelectFile("user/repo", "test.md", "main");
+    });
+
+    act(() => {
+      result.current.handleContentChange("modified content");
+    });
+    expect(result.current.isDirty).toBe(true);
+  });
+
+  it("handleExplorerSelectFile same file twice does nothing", async () => {
+    const { result } = renderHook(() => useEditorPage(defaultOptions));
+
+    await act(async () => {
+      await result.current.handleExplorerSelectFile("user/repo", "test.md", "main");
+    });
+
+    await act(async () => {
+      await result.current.handleExplorerSelectFile("user/repo", "test.md", "main");
+    });
+  });
 });

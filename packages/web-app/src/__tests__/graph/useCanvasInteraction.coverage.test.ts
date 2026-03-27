@@ -2156,4 +2156,244 @@ describe("useCanvasInteraction", () => {
       result.current.handleMouseMove(makeMouseEvent("mousemove", 280, 150));
     });
   });
+
+  it("handles resize with grid snap on all handles", () => {
+    for (const handle of ["se", "nw", "ne", "sw", "n", "s", "e", "w"] as any[]) {
+      const node = makeNode("n1");
+      mockHitTest.mockReturnValue({ type: "resize-handle", id: "n1", handle });
+
+      const { result } = renderHook(() =>
+        useCanvasInteraction({
+          ...defaultProps,
+          nodes: [node],
+          selection: { nodeIds: ["n1"], edgeIds: [] },
+          showGrid: true, // Grid snap enabled
+        })
+      );
+
+      act(() => {
+        result.current.handleMouseDown(makeMouseEvent("mousedown", 175, 150));
+      });
+      act(() => {
+        result.current.handleMouseMove(makeMouseEvent("mousemove", 200, 180));
+      });
+      act(() => {
+        result.current.handleMouseUp(makeMouseEvent("mouseup", 200, 180));
+      });
+    }
+  });
+
+  it("handles create-shape with grid snap (grid enabled)", () => {
+    const { result } = renderHook(() =>
+      useCanvasInteraction({ ...defaultProps, tool: "rect" as any, showGrid: true })
+    );
+
+    act(() => {
+      result.current.handleMouseDown(makeMouseEvent("mousedown", 100, 100));
+    });
+    act(() => {
+      result.current.handleMouseMove(makeMouseEvent("mousemove", 250, 200));
+    });
+    act(() => {
+      result.current.handleMouseUp(makeMouseEvent("mouseup", 250, 200));
+    });
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "ADD_NODE" })
+    );
+  });
+
+  it("handles pan with slow movement (no inertia)", () => {
+    jest.spyOn(performance, "now")
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(500) // 500ms gap - too slow
+      .mockReturnValueOnce(1000);
+
+    const { result } = renderHook(() => useCanvasInteraction(defaultProps));
+
+    act(() => {
+      result.current.handleMouseDown(makeMouseEvent("mousedown", 100, 100, { button: 1 }));
+    });
+    act(() => {
+      result.current.handleMouseMove(makeMouseEvent("mousemove", 120, 130));
+    });
+    act(() => {
+      result.current.handleMouseUp(makeMouseEvent("mouseup", 120, 130));
+    });
+    // Velocity should be 0 since dt > 100ms
+    expect(result.current.velocityRef.current.vx).toBe(0);
+  });
+
+  it("handles paste with edges referencing nodes", async () => {
+    const node1 = makeNode("n1");
+    const node2 = makeNode("n2", 300, 300);
+    const edge = {
+      ...makeEdge("e1", "n1", "n2"),
+      from: { nodeId: "n1", x: 0, y: 0 },
+      to: { nodeId: "n2", x: 100, y: 100 },
+    };
+
+    Object.defineProperty(navigator, "clipboard", {
+      value: {
+        writeText: jest.fn().mockResolvedValue(undefined),
+        readText: jest.fn().mockRejectedValue(new Error("not available")),
+      },
+      configurable: true,
+    });
+
+    const { result } = renderHook(() =>
+      useCanvasInteraction({
+        ...defaultProps,
+        nodes: [node1, node2],
+        edges: [edge],
+        selection: { nodeIds: ["n1", "n2"], edgeIds: [] },
+      })
+    );
+
+    // Copy
+    act(() => {
+      result.current.copySelected();
+    });
+
+    // Paste (should remap nodeIds in edges)
+    await act(async () => {
+      await result.current.pasteFromClipboard();
+    });
+
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "PASTE_NODES" })
+    );
+  });
+
+  it("handles paste from system clipboard with edges", async () => {
+    const pasteData = JSON.stringify({
+      type: "anytime-graph",
+      nodes: [{ ...makeNode("clip1"), id: "clip1" }, { ...makeNode("clip2"), id: "clip2" }],
+      edges: [{
+        id: "ce1", type: "connector",
+        from: { nodeId: "clip1", x: 0, y: 0 },
+        to: { nodeId: "clip2", x: 100, y: 100 },
+        style: { stroke: "#fff", strokeWidth: 2 },
+      }],
+    });
+
+    Object.defineProperty(navigator, "clipboard", {
+      value: {
+        writeText: jest.fn().mockResolvedValue(undefined),
+        readText: jest.fn().mockResolvedValue(pasteData),
+      },
+      configurable: true,
+    });
+
+    const { result } = renderHook(() => useCanvasInteraction(defaultProps));
+
+    await act(async () => {
+      await result.current.pasteFromClipboard();
+    });
+
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "PASTE_NODES" })
+    );
+  });
+
+  it("handles select-rect with edge filtering", () => {
+    // Create nodes that partially overlap with selection rect
+    const node1 = { ...makeNode("n1", 50, 50), width: 100, height: 80 };
+    const node2 = { ...makeNode("n2", 300, 300), width: 100, height: 80 };
+    const node3 = { ...makeNode("n3", 120, 120), width: 100, height: 80 };
+    mockHitTest.mockReturnValue({ type: "canvas" });
+
+    const { result } = renderHook(() =>
+      useCanvasInteraction({
+        ...defaultProps,
+        nodes: [node1, node2, node3],
+      })
+    );
+
+    act(() => {
+      result.current.handleMouseDown(makeMouseEvent("mousedown", 0, 0));
+    });
+    act(() => {
+      result.current.handleMouseMove(makeMouseEvent("mousemove", 250, 250));
+    });
+    act(() => {
+      result.current.handleMouseUp(makeMouseEvent("mouseup", 250, 250));
+    });
+    // Should select nodes within the rect
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "SET_SELECTION",
+      })
+    );
+  });
+
+  it("handles edge creation with arrow tool from node to canvas", () => {
+    const node = makeNode("n1");
+    mockHitTest
+      .mockReturnValueOnce({ type: "node", id: "n1" })
+      .mockReturnValueOnce({ type: "canvas" })
+      .mockReturnValueOnce({ type: "canvas" });
+
+    const { result } = renderHook(() =>
+      useCanvasInteraction({
+        ...defaultProps,
+        nodes: [node],
+        tool: "arrow" as any,
+      })
+    );
+
+    act(() => {
+      result.current.handleMouseDown(makeMouseEvent("mousedown", 150, 150));
+    });
+    act(() => {
+      result.current.handleMouseMove(makeMouseEvent("mousemove", 400, 400));
+    });
+    act(() => {
+      result.current.handleMouseUp(makeMouseEvent("mouseup", 400, 400));
+    });
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "ADD_EDGE" })
+    );
+  });
+
+  it("handles move cursor during different drag states", () => {
+    // Test cursor during create-shape drag
+    const { result: result1 } = renderHook(() =>
+      useCanvasInteraction({ ...defaultProps, tool: "rect" as any })
+    );
+    act(() => {
+      result1.current.handleMouseDown(makeMouseEvent("mousedown", 100, 100));
+    });
+    act(() => {
+      result1.current.handleMouseMove(makeMouseEvent("mousemove", 150, 150));
+    });
+
+    // Test cursor during create-edge drag
+    mockHitTest.mockReturnValue({ type: "canvas" });
+    const { result: result2 } = renderHook(() =>
+      useCanvasInteraction({ ...defaultProps, tool: "arrow" as any })
+    );
+    act(() => {
+      result2.current.handleMouseDown(makeMouseEvent("mousedown", 100, 100));
+    });
+    act(() => {
+      result2.current.handleMouseMove(makeMouseEvent("mousemove", 150, 150));
+    });
+
+    // Test cursor during resize drag
+    const node = makeNode("n1");
+    mockHitTest.mockReturnValue({ type: "resize-handle", id: "n1", handle: "se" });
+    const { result: result3 } = renderHook(() =>
+      useCanvasInteraction({
+        ...defaultProps,
+        nodes: [node],
+        selection: { nodeIds: ["n1"], edgeIds: [] },
+      })
+    );
+    act(() => {
+      result3.current.handleMouseDown(makeMouseEvent("mousedown", 250, 200));
+    });
+    act(() => {
+      result3.current.handleMouseMove(makeMouseEvent("mousemove", 280, 230));
+    });
+  });
 });

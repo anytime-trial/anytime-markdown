@@ -37,7 +37,10 @@ jest.mock("../app/components/LandingHeader", () => ({
   default: () => <header data-testid="header">Header</header>,
 }));
 
+import { createTheme, ThemeProvider } from "@mui/material";
 import VsCodeBody from "../app/vscode/VsCodeBody";
+
+const darkTheme = createTheme({ palette: { mode: "dark" } });
 
 describe("VsCodeBody", () => {
   it("renders hero section with titles", () => {
@@ -89,5 +92,14 @@ describe("VsCodeBody", () => {
   it("renders experimental notice", () => {
     render(<VsCodeBody />);
     expect(screen.getAllByText("experimentalNotice").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("renders in dark mode with dark theme styles", () => {
+    render(
+      <ThemeProvider theme={darkTheme}>
+        <VsCodeBody />
+      </ThemeProvider>
+    );
+    expect(screen.getByText("heroTitle1")).toBeTruthy();
   });
 });
