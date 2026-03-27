@@ -36,7 +36,7 @@ export class TimelineItem extends vscode.TreeItem {
 		this.tooltip = `${commit.hash.substring(0, 7)}  ${shortMsg}\n${author}  ${date}`;
 		this.iconPath = new vscode.ThemeIcon('git-commit');
 		this.command = {
-			command: 'anytime-markdown.compareWithCommit',
+			command: 'anytime-git.compareWithCommit',
 			title: 'Compare with this commit',
 			arguments: [this],
 		};

@@ -4,9 +4,9 @@ import * as fs from 'node:fs';
 
 import { showError } from '../utils/errorHelpers';
 
-const STORAGE_KEY = 'anytimeMarkdown.specDocsRoot';
-const STORAGE_KEY_MULTI = 'anytimeMarkdown.specDocsRoots';
-const MD_ONLY_KEY = 'anytimeMarkdown.mdOnly';
+const STORAGE_KEY = 'anytimeGit.specDocsRoot';
+const STORAGE_KEY_MULTI = 'anytimeGit.specDocsRoots';
+const MD_ONLY_KEY = 'anytimeGit.mdOnly';
 
 function isMarkdownFile(name: string): boolean {
 	const lower = name.toLowerCase();
@@ -62,7 +62,7 @@ export class SpecDocsItem extends vscode.TreeItem {
 			this.iconPath = vscode.ThemeIcon.File;
 			if (isMarkdownFile(label)) {
 				this.command = {
-					command: 'anytime-markdown.specDocsOpenFile',
+					command: 'anytime-git.specDocsOpenFile',
 					title: 'Open',
 					arguments: [resourceUri],
 				};
@@ -81,8 +81,8 @@ export class SpecDocsItem extends vscode.TreeItem {
 export type SpecDocsNode = SpecDocsRootItem | SpecDocsItem;
 
 export class SpecDocsDragAndDrop implements vscode.TreeDragAndDropController<SpecDocsNode> {
-	readonly dropMimeTypes = ['application/vnd.code.tree.anytimemarkdown.specdocs', 'text/uri-list'];
-	readonly dragMimeTypes = ['application/vnd.code.tree.anytimemarkdown.specdocs'];
+	readonly dropMimeTypes = ['application/vnd.code.tree.anytimegit.specdocs', 'text/uri-list'];
+	readonly dragMimeTypes = ['application/vnd.code.tree.anytimegit.specdocs'];
 
 	constructor(private readonly provider: SpecDocsProvider) {}
 
@@ -91,7 +91,7 @@ export class SpecDocsDragAndDrop implements vscode.TreeDragAndDropController<Spe
 		const items = source.filter((s): s is SpecDocsItem => s instanceof SpecDocsItem);
 		if (items.length === 0) return;
 		dataTransfer.set(
-			'application/vnd.code.tree.anytimemarkdown.specdocs',
+			'application/vnd.code.tree.anytimegit.specdocs',
 			new vscode.DataTransferItem(items.map(s => s.resourceUri.fsPath)),
 		);
 	}
@@ -107,7 +107,7 @@ export class SpecDocsDragAndDrop implements vscode.TreeDragAndDropController<Spe
 	async handleDrop(target: SpecDocsNode | undefined, dataTransfer: vscode.DataTransfer): Promise<void> {
 		// 内部ドラッグ（移動）— 外部ドロップより先に判定する
 		// VS Code はツリー内ドラッグでも text/uri-list を含めるため、カスタム MIME を優先する
-		const raw = dataTransfer.get('application/vnd.code.tree.anytimemarkdown.specdocs');
+		const raw = dataTransfer.get('application/vnd.code.tree.anytimegit.specdocs');
 		if (raw) {
 			const sourcePaths: string[] = raw.value;
 			if (sourcePaths && sourcePaths.length > 0) {
@@ -232,9 +232,9 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsNode> {
 			void this.context.globalState.update(STORAGE_KEY, undefined);
 		}
 		if (this.rootPaths.length > 0) {
-			void vscode.commands.executeCommand('setContext', 'anytimeMarkdown.specDocsHasRoot', true);
+			void vscode.commands.executeCommand('setContext', 'anytimeGit.specDocsHasRoot', true);
 		}
-		void vscode.commands.executeCommand('setContext', 'anytimeMarkdown.mdOnly', this._mdOnly);
+		void vscode.commands.executeCommand('setContext', 'anytimeGit.mdOnly', this._mdOnly);
 	}
 
 	get mdOnly(): boolean { return this._mdOnly; }
@@ -242,7 +242,7 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsNode> {
 
 	private saveRootPaths(): void {
 		this.context.globalState.update(STORAGE_KEY_MULTI, this.rootPaths.length > 0 ? this.rootPaths : undefined);
-		vscode.commands.executeCommand('setContext', 'anytimeMarkdown.specDocsHasRoot', this.rootPaths.length > 0);
+		vscode.commands.executeCommand('setContext', 'anytimeGit.specDocsHasRoot', this.rootPaths.length > 0);
 	}
 
 	/** 指定ルートパスのリポジトリ名とブランチ名を返す */
@@ -589,7 +589,7 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsNode> {
 	toggleMdOnly(): void {
 		this._mdOnly = !this._mdOnly;
 		this.context.globalState.update(MD_ONLY_KEY, this._mdOnly);
-		vscode.commands.executeCommand('setContext', 'anytimeMarkdown.mdOnly', this._mdOnly);
+		vscode.commands.executeCommand('setContext', 'anytimeGit.mdOnly', this._mdOnly);
 		this._onDidChangeTreeData.fire(undefined);
 	}
 

@@ -2,10 +2,6 @@ import * as vscode from 'vscode';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { MarkdownEditorProvider } from './providers/MarkdownEditorProvider';
-import { TimelineProvider, TimelineItem } from './providers/TimelineProvider';
-import { GraphProvider } from './providers/GraphProvider';
-import { ChangesProvider, ChangesFileItem } from './providers/ChangesProvider';
-import { SpecDocsProvider, SpecDocsItem, SpecDocsRootItem, SpecDocsDragAndDrop } from './providers/SpecDocsProvider';
 import { LinkValidationProvider } from './providers/LinkValidationProvider';
 import { AiLogProvider, AiLogItem } from './providers/AiLogProvider';
 import { AiMemoryProvider, AiMemoryItem } from './providers/AiMemoryProvider';
@@ -16,49 +12,6 @@ export function activate(context: vscode.ExtensionContext) {
 		// リンク検証（壊れたリンクの波線警告）
 		new LinkValidationProvider(),
 	);
-
-	// Git 関連パネル（ワークスペースが開かれている場合のみ初期化）
-	const hasWorkspace = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0;
-
-	let changesProvider: ChangesProvider | undefined;
-	let changesTreeView: vscode.TreeView<vscode.TreeItem> | undefined;
-	let timelineProvider: TimelineProvider | undefined;
-	let timelineTreeView: vscode.TreeView<TimelineItem> | undefined;
-	let graphProvider: GraphProvider | undefined;
-	let graphTreeView: vscode.TreeView<vscode.TreeItem> | undefined;
-
-	if (hasWorkspace) {
-		changesProvider = new ChangesProvider();
-		changesTreeView = vscode.window.createTreeView('anytimeMarkdown.changes', {
-			treeDataProvider: changesProvider,
-		});
-
-		// 変更ファイル数をサイドバーバッジに表示 + 消えたファイルのタブを閉じる
-		let previousChangedPaths = new Set<string>();
-		const updateChangesBadge = () => {
-			const count = changesProvider!.getChangesCount();
-			changesTreeView!.badge = count > 0
-				? { value: count, tooltip: `${count} changes` }
-				: undefined;
-			changesProvider!.closeRemovedTabs(previousChangedPaths);
-			previousChangedPaths = changesProvider!.getChangedPaths();
-		};
-		changesProvider.onDidChangeTreeData(updateChangesBadge);
-		setTimeout(() => {
-			updateChangesBadge();
-			previousChangedPaths = changesProvider!.getChangedPaths();
-		}, 2000);
-
-		timelineProvider = new TimelineProvider();
-		timelineTreeView = vscode.window.createTreeView('anytimeMarkdown.timeline', {
-			treeDataProvider: timelineProvider,
-		});
-
-		graphProvider = new GraphProvider(context);
-		graphTreeView = vscode.window.createTreeView('anytimeMarkdown.graph', {
-			treeDataProvider: graphProvider,
-		});
-	}
 
 	// ステータスバーアイテム（右側、テキストエディタと同等の位置）
 	const cursorStatusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
@@ -90,17 +43,9 @@ export function activate(context: vscode.ExtensionContext) {
 		};
 	}
 
-	// アクティブドキュメント変更時に履歴を更新（外部リポジトリモード中はスキップ）
-	const updateTimeline = () => {
-		if (!timelineProvider || timelineProvider.isExternalMode) return;
-		const p = MarkdownEditorProvider.getInstance();
-		timelineProvider.refresh(p?.activeDocumentUri ?? null);
-	};
-
 	// カスタムエディタのアクティブ変更を監視
 	context.subscriptions.push(
 		vscode.window.onDidChangeActiveTextEditor(() => {
-			updateTimeline();
 			// テキストエディタがアクティブになった場合、Anytime のステータスバーを非表示
 			if (vscode.window.activeTextEditor) {
 				hideStatusBar();
@@ -115,7 +60,6 @@ export function activate(context: vscode.ExtensionContext) {
 		const currentUri = p?.activeDocumentUri?.toString() ?? null;
 		if (currentUri !== lastActiveUri) {
 			lastActiveUri = currentUri;
-			updateTimeline();
 			if (!currentUri) {
 				hideStatusBar();
 			}
@@ -160,21 +104,22 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	);
 
-	const compareWithCommit = vscode.commands.registerCommand(
-		'anytime-markdown.compareWithCommit',
-		async (item: TimelineItem) => {
+	// Anytime Git 拡張機能からの比較モード連携コマンド
+	const openCompareMode = vscode.commands.registerCommand(
+		'anytime-markdown.openCompareMode',
+		async (uri: vscode.Uri, originalContent: string) => {
 			const p = MarkdownEditorProvider.getInstance();
-			if (!p) { return; }
-			const content = await timelineProvider?.getCommitContent(item);
-			if (content == null) {
-				vscode.window.showWarningMessage('Could not load file content for this commit.');
-				return;
+			if (p) {
+				p.skipDiffDetection = true;
+				p.pendingCompareContent = originalContent;
 			}
-			p.compareFileUri = null;
-			p.postMessageToActivePanel({
-				type: 'loadCompareFile',
-				content,
-			});
+			await vscode.commands.executeCommand('vscode.openWith', uri, MarkdownEditorProvider.viewType);
+			// 既に開いているタブの場合、pendingCompareContent が消費されていない → 直接送信
+			if (p && p.pendingCompareContent !== null) {
+				p.pendingCompareContent = null;
+				await p.waitForReady(uri);
+				p.postMessageToPanel(uri, { type: 'loadCompareFile', content: originalContent });
+			}
 		}
 	);
 
@@ -194,166 +139,6 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	);
 
-	// マークダウン管理パネル
-	const specDocsProvider = new SpecDocsProvider(context);
-	const specDocsDragAndDrop = new SpecDocsDragAndDrop(specDocsProvider);
-	const specDocsTreeView = vscode.window.createTreeView('anytimeMarkdown.specDocs', {
-		treeDataProvider: specDocsProvider,
-		dragAndDropController: specDocsDragAndDrop,
-	});
-
-	// アクティブルート追跡
-	let activeRoot: string | null = specDocsProvider.roots[0] ?? null;
-
-	const updateSpecDocsTitle = () => {
-		// ツリーのトップは常にリポジトリノードを表示するため、タイトルはデフォルトのまま
-		specDocsTreeView.description = '';
-	};
-
-	const setActiveRoot = (rootPath: string | null) => {
-		activeRoot = rootPath;
-		changesProvider?.setPrimaryRoot(rootPath);
-		graphProvider?.setTargetRoot(rootPath);
-	};
-
-	let previousRoots: string[] = [];
-	specDocsProvider.onDidChangeTreeData(() => {
-		updateSpecDocsTitle();
-		const roots = specDocsProvider.roots;
-		// ルート一覧が変わった場合のみ changesProvider を更新
-		if (JSON.stringify(roots) !== JSON.stringify(previousRoots)) {
-			previousRoots = roots;
-			changesProvider?.setTargetRoots(roots);
-		}
-		if (roots.length === 0) {
-			setActiveRoot(null);
-		} else if (activeRoot && !roots.includes(activeRoot)) {
-			// activeRoot が削除された場合: 最初のルートにフォールバック
-			setActiveRoot(roots[0]);
-		} else if (!activeRoot) {
-			setActiveRoot(roots[0]);
-		}
-	});
-	updateSpecDocsTitle();
-	// 初回: git 初期化を待ってからターゲットを設定
-	if (changesProvider) {
-		setTimeout(() => {
-			changesProvider!.setTargetRoots(specDocsProvider.roots);
-			previousRoots = specDocsProvider.roots;
-			setActiveRoot(activeRoot);
-		}, 2000);
-	}
-
-	// マークダウン管理: シングルクリックでプレビュー、ダブルクリックで固定タブ（常に通常モード）
-	let lastSpecClickUri: string | null = null;
-	let lastSpecClickTime = 0;
-	const specDocsOpenFile = vscode.commands.registerCommand(
-		'anytime-markdown.specDocsOpenFile',
-		async (uri: vscode.Uri) => {
-			const now = Date.now();
-			const isDoubleClick = lastSpecClickUri === uri.toString() && (now - lastSpecClickTime) < 500;
-			lastSpecClickUri = uri.toString();
-			lastSpecClickTime = now;
-
-			const p = MarkdownEditorProvider.getInstance();
-			if (p) {
-				p.skipDiffDetection = true;
-				p.pendingCompareContent = null; // 通常モードで開く
-			}
-
-			await vscode.commands.executeCommand('vscode.openWith', uri, MarkdownEditorProvider.viewType, { preview: !isDoubleClick });
-
-			// 既に開いているタブが比較モードの場合、通常モードに戻す
-			if (p?.compareModeActive) {
-				await p.waitForReady(uri);
-				p.postMessageToPanel(uri, { type: 'exitCompareMode' });
-			}
-
-			// ファイルのルートを判定して activeRoot を更新
-			const fileRoot = specDocsProvider.findRootForPath(uri.fsPath);
-			if (fileRoot && fileRoot !== activeRoot) {
-				setActiveRoot(fileRoot);
-			}
-
-			// git history を更新
-			const fileGitRoot = changesProvider?.findGitRootForPath(uri.fsPath);
-			if (fileGitRoot) {
-				timelineProvider?.refreshWithGitRoot(uri.fsPath, fileGitRoot);
-			}
-		}
-	);
-
-	const specDocsOpenFolder = vscode.commands.registerCommand(
-		'anytime-markdown.specDocsOpenFolder', () => specDocsProvider.openFolder()
-	);
-	const specDocsCloneRepo = vscode.commands.registerCommand(
-		'anytime-markdown.specDocsCloneRepo', () => specDocsProvider.cloneRepository()
-	);
-	const specDocsClose = vscode.commands.registerCommand(
-		'anytime-markdown.specDocsClose', () => specDocsProvider.closeFolder()
-	);
-	const specDocsRefresh = vscode.commands.registerCommand(
-		'anytime-markdown.specDocsRefresh', () => specDocsProvider.refresh()
-	);
-	const switchBranch = vscode.commands.registerCommand(
-		'anytime-markdown.switchBranch', (item?: SpecDocsRootItem) => {
-			specDocsProvider.switchBranch(item?.rootPath);
-		}
-	);
-	const graphRefresh = vscode.commands.registerCommand(
-		'anytime-markdown.graphRefresh', () => graphProvider?.refresh()
-	);
-	const toggleMdOnly = vscode.commands.registerCommand(
-		'anytime-markdown.toggleMdOnly', () => {
-			specDocsProvider.toggleMdOnly();
-			changesProvider?.refresh();
-		}
-	);
-	changesProvider?.setMdOnlyGetter(() => specDocsProvider.mdOnly);
-
-	// マークダウン管理: ファイル/フォルダ操作
-	const specDocsCreateFile = vscode.commands.registerCommand(
-		'anytime-markdown.specDocsCreateFile', (item?: SpecDocsRootItem | SpecDocsItem) => specDocsProvider.createFile(item)
-	);
-	const specDocsCreateFolder = vscode.commands.registerCommand(
-		'anytime-markdown.specDocsCreateFolder', (item?: SpecDocsRootItem | SpecDocsItem) => specDocsProvider.createFolder(item)
-	);
-	const specDocsDelete = vscode.commands.registerCommand(
-		'anytime-markdown.specDocsDelete', (item: SpecDocsItem) => specDocsProvider.deleteItem(item)
-	);
-	const specDocsRename = vscode.commands.registerCommand(
-		'anytime-markdown.specDocsRename', (item: SpecDocsItem) => specDocsProvider.renameItem(item)
-	);
-	const specDocsRemoveRoot = vscode.commands.registerCommand(
-		'anytime-markdown.specDocsRemoveRoot', (item: SpecDocsRootItem) => specDocsProvider.removeRoot(item.rootPath)
-	);
-	const specDocsCopyPath = vscode.commands.registerCommand(
-		'anytime-markdown.specDocsCopyPath', (item: SpecDocsItem) => {
-			if (item?.resourceUri) {
-				vscode.env.clipboard.writeText(item.resourceUri.fsPath);
-			}
-		}
-	);
-	const specDocsCopyFileName = vscode.commands.registerCommand(
-		'anytime-markdown.specDocsCopyFileName', (item: SpecDocsItem) => {
-			if (item?.resourceUri) {
-				vscode.env.clipboard.writeText(path.basename(item.resourceUri.fsPath));
-			}
-		}
-	);
-	const specDocsImportFiles = vscode.commands.registerCommand(
-		'anytime-markdown.specDocsImportFiles', (item?: SpecDocsRootItem | SpecDocsItem) => specDocsProvider.importFiles(item)
-	);
-	const specDocsCut = vscode.commands.registerCommand(
-		'anytime-markdown.specDocsCut', (item: SpecDocsItem) => specDocsProvider.cut(item)
-	);
-	const specDocsCopy = vscode.commands.registerCommand(
-		'anytime-markdown.specDocsCopy', (item: SpecDocsItem) => specDocsProvider.copy(item)
-	);
-	const specDocsPaste = vscode.commands.registerCommand(
-		'anytime-markdown.specDocsPaste', (item?: SpecDocsRootItem | SpecDocsItem) => specDocsProvider.paste(item)
-	);
-
 	// Markdown で貼り付け
 	const pasteAsMarkdown = vscode.commands.registerCommand(
 		'anytime-markdown.pasteAsMarkdown', async () => {
@@ -363,111 +148,6 @@ export function activate(context: vscode.ExtensionContext) {
 			if (text) {
 				p.postMessageToActivePanel({ type: 'pasteMarkdown', text });
 			}
-		}
-	);
-
-	// Git 変更コマンド
-	const changesRefresh = vscode.commands.registerCommand(
-		'anytime-markdown.changesRefresh', () => changesProvider?.refresh()
-	);
-	const stageFile = vscode.commands.registerCommand(
-		'anytime-markdown.stageFile', (item: ChangesFileItem) => changesProvider?.stageFile(item)
-	);
-	const unstageFile = vscode.commands.registerCommand(
-		'anytime-markdown.unstageFile', (item: ChangesFileItem) => changesProvider?.unstageFile(item)
-	);
-	const stageAll = vscode.commands.registerCommand(
-		'anytime-markdown.stageAll', (gitRoot?: string) => changesProvider?.stageAll(gitRoot)
-	);
-	const unstageAll = vscode.commands.registerCommand(
-		'anytime-markdown.unstageAll', (gitRoot?: string) => changesProvider?.unstageAll(gitRoot)
-	);
-	const discardAll = vscode.commands.registerCommand(
-		'anytime-markdown.discardAll', (gitRoot?: string) => changesProvider?.discardAll(gitRoot)
-	);
-	const discardChanges = vscode.commands.registerCommand(
-		'anytime-markdown.discardChanges', (item: ChangesFileItem) => changesProvider?.discardChanges(item)
-	);
-	// 変更: シングルクリックでプレビュー、ダブルクリックで固定タブ
-	let lastChangesClickUri: string | null = null;
-	let lastChangesClickTime = 0;
-	const changesOpenFile = vscode.commands.registerCommand(
-		'anytime-markdown.changesOpenFile',
-		async (gitRoot: string, filePath: string, group: 'staged' | 'changes', currentUri: vscode.Uri, isMd: boolean, diffLabel: string) => {
-			const now = Date.now();
-			const uriStr = currentUri.toString();
-			const isDoubleClick = lastChangesClickUri === uriStr && (now - lastChangesClickTime) < 500;
-			lastChangesClickUri = uriStr;
-			lastChangesClickTime = now;
-
-			if (isMd) {
-				const p = MarkdownEditorProvider.getInstance();
-				if (p) { p.skipDiffDetection = true; }
-				// git コマンドで変更前コンテンツを取得
-				let originalContent: string;
-				try {
-					const { execFileSync } = await import('node:child_process');
-					originalContent = group === 'staged'
-						? execFileSync('git', ['show', `HEAD:${filePath}`], { cwd: gitRoot, encoding: 'utf-8' })
-						: execFileSync('git', ['show', `:${filePath}`], { cwd: gitRoot, encoding: 'utf-8' });
-				} catch {
-					originalContent = '';
-				}
-				if (p) { p.pendingCompareContent = originalContent; }
-				await vscode.commands.executeCommand('vscode.openWith', currentUri, MarkdownEditorProvider.viewType, { preview: !isDoubleClick });
-				// 既に開いているタブの場合、pendingCompareContent が消費されていない → 直接送信
-				if (p && p.pendingCompareContent !== null) {
-					p.pendingCompareContent = null;
-					await p.waitForReady(currentUri);
-					p.postMessageToPanel(currentUri, { type: 'loadCompareFile', content: originalContent });
-				}
-			} else {
-				await vscode.commands.executeCommand('vscode.diff', currentUri, currentUri, diffLabel);
-			}
-
-			// git history を更新
-			if (gitRoot) {
-				timelineProvider?.refreshWithGitRoot(currentUri.fsPath, gitRoot);
-			}
-		}
-	);
-
-	const commitChanges = vscode.commands.registerCommand(
-		'anytime-markdown.commitChanges', () => changesProvider?.commit()
-	);
-	const syncChanges = vscode.commands.registerCommand(
-		'anytime-markdown.syncChanges', (gitRoot?: string) => changesProvider?.sync(gitRoot)
-	);
-	const pushChanges = vscode.commands.registerCommand(
-		'anytime-markdown.pushChanges', () => changesProvider?.push()
-	);
-	const openChangeDiff = vscode.commands.registerCommand(
-		'anytime-markdown.openChangeDiff',
-		async (gitRoot: string, filePath: string, group: 'staged' | 'changes', currentUri: vscode.Uri) => {
-			// git コマンドで変更前コンテンツを取得
-			let originalContent: string;
-			try {
-				const { execFileSync } = await import('node:child_process');
-				if (group === 'staged') {
-					// ステージ済み: HEAD のコンテンツ
-					originalContent = execFileSync('git', ['show', `HEAD:${filePath}`], { cwd: gitRoot, encoding: 'utf-8' });
-				} else {
-					// 未ステージ: インデックス（ステージ済み or HEAD）のコンテンツ
-					originalContent = execFileSync('git', ['show', `:${filePath}`], { cwd: gitRoot, encoding: 'utf-8' });
-				}
-			} catch {
-				originalContent = '';
-			}
-			const p = MarkdownEditorProvider.getInstance();
-			if (p) {
-				p.skipDiffDetection = true;
-				p.pendingCompareContent = originalContent;
-			}
-			await vscode.commands.executeCommand(
-				'vscode.openWith',
-				currentUri,
-				MarkdownEditorProvider.viewType,
-			);
 		}
 	);
 
@@ -628,19 +308,11 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	);
 
-	// ファイル保存時にリフレッシュ
 	context.subscriptions.push(
-		vscode.workspace.onDidSaveTextDocument(() => changesProvider?.refresh()),
-		specDocsTreeView,
-		...(changesProvider ? [changesTreeView!, { dispose: () => changesProvider!.dispose() }] : []),
-		...(timelineTreeView ? [timelineTreeView] : []),
 		...statusBarItems,
-		openEditorWithFile, compareCmd, compareWithCommit,
+		openEditorWithFile, compareCmd, openCompareMode,
 		insertSectionNumbers, removeSectionNumbers,
-		changesRefresh, stageFile, unstageFile, stageAll, unstageAll, discardAll, discardChanges, commitChanges, pushChanges, syncChanges, changesOpenFile, openChangeDiff,
-		specDocsOpenFile, specDocsOpenFolder, specDocsCloneRepo, specDocsClose, specDocsRefresh, switchBranch, toggleMdOnly,
-		specDocsCreateFile, specDocsCreateFolder, specDocsDelete, specDocsRename, specDocsRemoveRoot, specDocsCopyPath, specDocsCopyFileName, specDocsImportFiles, specDocsCut, specDocsCopy, specDocsPaste, pasteAsMarkdown,
-		...(graphTreeView ? [graphTreeView] : []), graphRefresh,
+		pasteAsMarkdown,
 		openContext, copyContextPath, clearContext,
 		aiLogTreeView, aiLogRefresh, openAiLog,
 		aiMemoryTreeView, aiMemoryRefresh, openAiMemory,

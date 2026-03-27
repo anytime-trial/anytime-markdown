@@ -15,6 +15,7 @@
     "packages/mcp-graph",
     "packages/vscode-markdown-extension",
     "packages/vscode-graph-extension",
+    "packages/vscode-git-extension",
     "packages/web-app",
     "packages/mobile-app"
   ],

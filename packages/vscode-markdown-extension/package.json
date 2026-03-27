@@ -23,10 +23,7 @@
     "plantuml"
   ],
   "activationEvents": [
-    "onLanguage:markdown",
-    "onView:anytimeMarkdown.specDocs",
-    "onView:anytimeMarkdown.changes",
-    "onView:anytimeMarkdown.graph"
+    "onLanguage:markdown"
   ],
   "icon": "images/camel_markdown.png",
   "main": "./dist/extension.js",
@@ -56,22 +53,6 @@
           "id": "anytimeMarkdown.aiMemory",
           "name": "Agent Memory",
           "initialSize": 2
-        },
-        {
-          "id": "anytimeMarkdown.specDocs",
-          "name": "%view.specDocs%"
-        },
-        {
-          "id": "anytimeMarkdown.changes",
-          "name": "%view.changes%"
-        },
-        {
-          "id": "anytimeMarkdown.graph",
-          "name": "%view.graph%"
-        },
-        {
-          "id": "anytimeMarkdown.timeline",
-          "name": "Timeline"
         }
       ]
     },
@@ -79,23 +60,6 @@
       {
         "view": "anytimeMarkdown.aiNote",
         "contents": "%viewsWelcome.aiNote%"
-      },
-      {
-        "view": "anytimeMarkdown.specDocs",
-        "contents": "%viewsWelcome.specDocs%",
-        "when": "!anytimeMarkdown.specDocsHasRoot"
-      },
-      {
-        "view": "anytimeMarkdown.changes",
-        "contents": "%viewsWelcome.changes%"
-      },
-      {
-        "view": "anytimeMarkdown.timeline",
-        "contents": "No items."
-      },
-      {
-        "view": "anytimeMarkdown.graph",
-        "contents": "No items."
       }
     ],
     "commands": [
@@ -117,133 +81,6 @@
         "command": "anytime-markdown.removeSectionNumbers",
         "title": "%command.removeSectionNumbers%",
         "icon": "$(list-flat)"
-      },
-      {
-        "command": "anytime-markdown.specDocsOpenFolder",
-        "title": "%command.specDocsOpenFolder%",
-        "icon": "$(folder-opened)"
-      },
-      {
-        "command": "anytime-markdown.specDocsCloneRepo",
-        "title": "%command.specDocsCloneRepo%",
-        "icon": "$(repo-clone)"
-      },
-      {
-        "command": "anytime-markdown.specDocsClose",
-        "title": "%command.specDocsClose%",
-        "icon": "$(close)"
-      },
-      {
-        "command": "anytime-markdown.specDocsRefresh",
-        "title": "%command.specDocsRefresh%",
-        "icon": "$(refresh)"
-      },
-      {
-        "command": "anytime-markdown.toggleMdOnly",
-        "title": "%command.toggleMdOnly%",
-        "icon": "$(filter)"
-      },
-      {
-        "command": "anytime-markdown.switchBranch",
-        "title": "%command.switchBranch%",
-        "icon": "$(git-branch)"
-      },
-      {
-        "command": "anytime-markdown.specDocsCreateFile",
-        "title": "%command.specDocsCreateFile%",
-        "icon": "$(new-file)"
-      },
-      {
-        "command": "anytime-markdown.specDocsCreateFolder",
-        "title": "%command.specDocsCreateFolder%",
-        "icon": "$(new-folder)"
-      },
-      {
-        "command": "anytime-markdown.specDocsDelete",
-        "title": "%command.specDocsDelete%",
-        "icon": "$(trash)"
-      },
-      {
-        "command": "anytime-markdown.specDocsRename",
-        "title": "%command.specDocsRename%"
-      },
-      {
-        "command": "anytime-markdown.graphRefresh",
-        "title": "%command.graphRefresh%",
-        "icon": "$(refresh)"
-      },
-      {
-        "command": "anytime-markdown.changesRefresh",
-        "title": "%command.changesRefresh%",
-        "icon": "$(refresh)"
-      },
-      {
-        "command": "anytime-markdown.stageFile",
-        "title": "%command.stageFile%",
-        "icon": "$(add)"
-      },
-      {
-        "command": "anytime-markdown.unstageFile",
-        "title": "%command.unstageFile%",
-        "icon": "$(remove)"
-      },
-      {
-        "command": "anytime-markdown.stageAll",
-        "title": "%command.stageAll%",
-        "icon": "$(add)"
-      },
-      {
-        "command": "anytime-markdown.unstageAll",
-        "title": "%command.unstageAll%",
-        "icon": "$(close-all)"
-      },
-      {
-        "command": "anytime-markdown.discardAll",
-        "title": "%command.discardAll%",
-        "icon": "$(discard)"
-      },
-      {
-        "command": "anytime-markdown.discardChanges",
-        "title": "%command.discardChanges%",
-        "icon": "$(discard)"
-      },
-      {
-        "command": "anytime-markdown.commitChanges",
-        "title": "%command.commitChanges%"
-      },
-      {
-        "command": "anytime-markdown.pushChanges",
-        "title": "%command.pushChanges%"
-      },
-      {
-        "command": "anytime-markdown.specDocsRemoveRoot",
-        "title": "%command.specDocsRemoveRoot%",
-        "icon": "$(close)"
-      },
-      {
-        "command": "anytime-markdown.specDocsCopyPath",
-        "title": "%command.specDocsCopyPath%"
-      },
-      {
-        "command": "anytime-markdown.specDocsCopyFileName",
-        "title": "%command.specDocsCopyFileName%"
-      },
-      {
-        "command": "anytime-markdown.specDocsImportFiles",
-        "title": "%command.specDocsImportFiles%",
-        "icon": "$(file-add)"
-      },
-      {
-        "command": "anytime-markdown.specDocsCut",
-        "title": "%command.specDocsCut%"
-      },
-      {
-        "command": "anytime-markdown.specDocsCopy",
-        "title": "%command.specDocsCopy%"
-      },
-      {
-        "command": "anytime-markdown.specDocsPaste",
-        "title": "%command.specDocsPaste%"
       },
       {
         "command": "anytime-markdown.pasteAsMarkdown",
@@ -309,24 +146,7 @@
         }
       }
     },
-    "submenus": [
-      {
-        "id": "anytimeMarkdown.changesMore",
-        "label": "More Actions...",
-        "icon": "$(ellipsis)"
-      }
-    ],
     "menus": {
-      "anytimeMarkdown.changesMore": [
-        {
-          "command": "anytime-markdown.commitChanges",
-          "group": "1_commit@1"
-        },
-        {
-          "command": "anytime-markdown.pushChanges",
-          "group": "1_commit@2"
-        }
-      ],
       "view/title": [
         {
           "command": "anytime-markdown.clearContext",
@@ -347,163 +167,6 @@
           "command": "anytime-markdown.copyContextPath",
           "when": "view == anytimeMarkdown.aiNote",
           "group": "navigation@1"
-        },
-        {
-          "command": "anytime-markdown.toggleMdOnly",
-          "when": "view == anytimeMarkdown.specDocs",
-          "group": "navigation@2"
-        },
-        {
-          "command": "anytime-markdown.specDocsCreateFile",
-          "when": "view == anytimeMarkdown.specDocs && anytimeMarkdown.specDocsHasRoot",
-          "group": "navigation@3"
-        },
-        {
-          "command": "anytime-markdown.specDocsCreateFolder",
-          "when": "view == anytimeMarkdown.specDocs && anytimeMarkdown.specDocsHasRoot",
-          "group": "navigation@4"
-        },
-        {
-          "command": "anytime-markdown.specDocsRefresh",
-          "when": "view == anytimeMarkdown.specDocs && anytimeMarkdown.specDocsHasRoot",
-          "group": "navigation@5"
-        },
-        {
-          "command": "anytime-markdown.specDocsOpenFolder",
-          "when": "view == anytimeMarkdown.specDocs && anytimeMarkdown.specDocsHasRoot",
-          "group": "navigation@6"
-        },
-        {
-          "command": "anytime-markdown.specDocsCloneRepo",
-          "when": "view == anytimeMarkdown.specDocs && anytimeMarkdown.specDocsHasRoot",
-          "group": "navigation@7"
-        },
-        {
-          "command": "anytime-markdown.graphRefresh",
-          "when": "view == anytimeMarkdown.graph",
-          "group": "navigation@1"
-        },
-        {
-          "command": "anytime-markdown.changesRefresh",
-          "when": "view == anytimeMarkdown.changes",
-          "group": "navigation@1"
-        },
-        {
-          "submenu": "anytimeMarkdown.changesMore",
-          "when": "view == anytimeMarkdown.changes",
-          "group": "navigation@2"
-        }
-      ],
-      "view/item/context": [
-        {
-          "command": "anytime-markdown.specDocsCreateFile",
-          "when": "view == anytimeMarkdown.specDocs && viewItem == folder",
-          "group": "1_new@1"
-        },
-        {
-          "command": "anytime-markdown.specDocsCreateFolder",
-          "when": "view == anytimeMarkdown.specDocs && viewItem == folder",
-          "group": "1_new@2"
-        },
-        {
-          "command": "anytime-markdown.specDocsImportFiles",
-          "when": "view == anytimeMarkdown.specDocs && viewItem == folder",
-          "group": "1_new@3"
-        },
-        {
-          "command": "anytime-markdown.specDocsCreateFile",
-          "when": "view == anytimeMarkdown.specDocs && viewItem == specDocsRoot",
-          "group": "1_new@1"
-        },
-        {
-          "command": "anytime-markdown.specDocsCreateFolder",
-          "when": "view == anytimeMarkdown.specDocs && viewItem == specDocsRoot",
-          "group": "1_new@2"
-        },
-        {
-          "command": "anytime-markdown.specDocsImportFiles",
-          "when": "view == anytimeMarkdown.specDocs && viewItem == specDocsRoot",
-          "group": "1_new@3"
-        },
-        {
-          "command": "anytime-markdown.specDocsPaste",
-          "when": "view == anytimeMarkdown.specDocs && viewItem == specDocsRoot",
-          "group": "1_new@4"
-        },
-        {
-          "command": "anytime-markdown.specDocsCut",
-          "when": "view == anytimeMarkdown.specDocs && viewItem != specDocsRoot",
-          "group": "2_clipboard@1"
-        },
-        {
-          "command": "anytime-markdown.specDocsCopy",
-          "when": "view == anytimeMarkdown.specDocs && viewItem != specDocsRoot",
-          "group": "2_clipboard@2"
-        },
-        {
-          "command": "anytime-markdown.specDocsPaste",
-          "when": "view == anytimeMarkdown.specDocs && viewItem != specDocsRoot",
-          "group": "2_clipboard@3"
-        },
-        {
-          "command": "anytime-markdown.specDocsCopyPath",
-          "when": "view == anytimeMarkdown.specDocs && viewItem != specDocsRoot",
-          "group": "3_path@1"
-        },
-        {
-          "command": "anytime-markdown.specDocsCopyFileName",
-          "when": "view == anytimeMarkdown.specDocs && viewItem != specDocsRoot",
-          "group": "3_path@2"
-        },
-        {
-          "command": "anytime-markdown.specDocsRename",
-          "when": "view == anytimeMarkdown.specDocs && viewItem != specDocsRoot",
-          "group": "4_modify@1"
-        },
-        {
-          "command": "anytime-markdown.specDocsDelete",
-          "when": "view == anytimeMarkdown.specDocs && viewItem != specDocsRoot",
-          "group": "4_modify@2"
-        },
-        {
-          "command": "anytime-markdown.switchBranch",
-          "when": "view == anytimeMarkdown.specDocs && viewItem == specDocsRoot",
-          "group": "3_root@1"
-        },
-        {
-          "command": "anytime-markdown.specDocsRemoveRoot",
-          "when": "view == anytimeMarkdown.specDocs && viewItem == specDocsRoot",
-          "group": "3_root@2"
-        },
-        {
-          "command": "anytime-markdown.discardAll",
-          "when": "view == anytimeMarkdown.changes && viewItem == changesGroupChanges",
-          "group": "inline@1"
-        },
-        {
-          "command": "anytime-markdown.stageAll",
-          "when": "view == anytimeMarkdown.changes && viewItem == changesGroupChanges",
-          "group": "inline@2"
-        },
-        {
-          "command": "anytime-markdown.unstageAll",
-          "when": "view == anytimeMarkdown.changes && viewItem == changesGroupStaged",
-          "group": "inline@1"
-        },
-        {
-          "command": "anytime-markdown.stageFile",
-          "when": "view == anytimeMarkdown.changes && viewItem == changesFileUnstaged",
-          "group": "inline@2"
-        },
-        {
-          "command": "anytime-markdown.discardChanges",
-          "when": "view == anytimeMarkdown.changes && viewItem == changesFileUnstaged",
-          "group": "inline@1"
-        },
-        {
-          "command": "anytime-markdown.unstageFile",
-          "when": "view == anytimeMarkdown.changes && viewItem == changesFileStaged",
-          "group": "inline@1"
         }
       ],
       "explorer/context": [
@@ -537,24 +200,6 @@
         "key": "ctrl+shift+v",
         "mac": "cmd+shift+v",
         "when": "activeCustomEditorId == anytimeMarkdown"
-      },
-      {
-        "command": "anytime-markdown.specDocsCut",
-        "key": "ctrl+x",
-        "mac": "cmd+x",
-        "when": "focusedView == anytimeMarkdown.specDocs"
-      },
-      {
-        "command": "anytime-markdown.specDocsCopy",
-        "key": "ctrl+c",
-        "mac": "cmd+c",
-        "when": "focusedView == anytimeMarkdown.specDocs"
-      },
-      {
-        "command": "anytime-markdown.specDocsPaste",
-        "key": "ctrl+v",
-        "mac": "cmd+v",
-        "when": "focusedView == anytimeMarkdown.specDocs"
       }
     ]
   },
