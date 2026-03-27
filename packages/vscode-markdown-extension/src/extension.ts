@@ -5,6 +5,8 @@ import { MarkdownEditorProvider } from './providers/MarkdownEditorProvider';
 import { LinkValidationProvider } from './providers/LinkValidationProvider';
 import { AiLogProvider, AiLogItem } from './providers/AiLogProvider';
 import { AiMemoryProvider, AiMemoryItem } from './providers/AiMemoryProvider';
+import { setupClaudeHooks } from './utils/claudeHookSetup';
+import { ClaudeStatusWatcher } from './utils/claudeStatusWatcher';
 
 export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
@@ -308,6 +310,32 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	);
 
+	// Claude Code 編集通知: ステータスファイル監視 + ステータスバー + エディタロック
+	const claudeEnabled = setupClaudeHooks();
+	const claudeSubscriptions: vscode.Disposable[] = [];
+	if (claudeEnabled) {
+		const claudeStatusItem = vscode.window.createStatusBarItem(
+			vscode.StatusBarAlignment.Right, 101
+		);
+		claudeStatusItem.text = '$(loading~spin) Claude editing';
+		claudeStatusItem.tooltip = 'Claude Code is editing this file';
+		claudeSubscriptions.push(claudeStatusItem);
+
+		const watcher = new ClaudeStatusWatcher();
+		watcher.onStatusChange((editing, filePath) => {
+			const p = MarkdownEditorProvider.getInstance();
+			if (!p) return;
+			p.handleClaudeStatus(editing, filePath);
+			const activeUri = p.activeDocumentUri?.fsPath;
+			if (activeUri === filePath && editing) {
+				claudeStatusItem.show();
+			} else {
+				claudeStatusItem.hide();
+			}
+		});
+		claudeSubscriptions.push(watcher);
+	}
+
 	context.subscriptions.push(
 		...statusBarItems,
 		openEditorWithFile, compareCmd, openCompareMode,
@@ -316,6 +344,7 @@ export function activate(context: vscode.ExtensionContext) {
 		openContext, copyContextPath, clearContext,
 		aiLogTreeView, aiLogRefresh, openAiLog,
 		aiMemoryTreeView, aiMemoryRefresh, openAiMemory,
+		...claudeSubscriptions,
 	);
 }
 

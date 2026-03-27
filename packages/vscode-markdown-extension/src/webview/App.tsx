@@ -17,6 +17,9 @@ const vscode = getVsCodeApi();
 // スクロール同期の無限ループ防止フラグ
 let isSyncingScroll = false;
 
+// Claude Code 編集中フラグ（localStorage bridge で contentChanged 送信を抑止）
+let isClaudeEditing = false;
+
 // localStorage bridge: intercept content key to sync with VS Code
 const CONTENT_KEY = STORAGE_KEY_CONTENT;
 let currentContent: string | null = null;
@@ -28,7 +31,9 @@ const originalRemoveItem = localStorage.removeItem.bind(localStorage);
 localStorage.setItem = (key: string, value: string) => {
   if (key === CONTENT_KEY) {
     currentContent = value;
-    vscode.postMessage({ type: 'contentChanged', content: value });
+    if (!isClaudeEditing) {
+      vscode.postMessage({ type: 'contentChanged', content: value });
+    }
     return;
   }
   originalSetItem(key, value);
@@ -343,6 +348,12 @@ export function App() {
         case 'pasteCodeBlock':
           if (typeof message.text === 'string') dispatchCustomEvent('vscode-paste-codeblock', message.text);
           return;
+        case 'setReadonly':
+          if (typeof message.readonly === 'boolean') {
+            isClaudeEditing = message.readonly;
+            setClaudeEditing(message.readonly);
+          }
+          return;
         case 'setContent':
           if (typeof message.content === 'string') handleSetContent(message, msgState);
           return;
@@ -388,6 +399,7 @@ export function App() {
     vscode.postMessage({ type: 'statusChanged', status });
   }, []);
 
+  const [claudeEditing, setClaudeEditing] = useState(false);
   const [autoReload, setAutoReload] = useState(true);
   const handleToggleAutoReload = useCallback(() => {
     setAutoReload((prev) => {
@@ -457,7 +469,7 @@ export function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <ConfirmProvider>
-        <MarkdownEditorPage key={editorKey} hideFileOps hideUndoRedo hideSettings hideVersionInfo hideTemplates hideFoldAll hideStatusBar sideToolbar hideCompareToggle hideGraph externalCompareContent={compareContent} onCompareModeChange={handleCompareModeChange} onHeadingsChange={handleHeadingsChange} onCommentsChange={handleCommentsChange} onStatusChange={handleStatusChange} autoReload={autoReload} onToggleAutoReload={handleToggleAutoReload} themeMode={themeMode} presetName={presetName} />
+        <MarkdownEditorPage key={editorKey} hideFileOps hideUndoRedo hideSettings hideVersionInfo hideTemplates hideFoldAll hideStatusBar sideToolbar hideCompareToggle hideGraph readOnly={claudeEditing} externalCompareContent={compareContent} onCompareModeChange={handleCompareModeChange} onHeadingsChange={handleHeadingsChange} onCommentsChange={handleCommentsChange} onStatusChange={handleStatusChange} autoReload={autoReload} onToggleAutoReload={handleToggleAutoReload} themeMode={themeMode} presetName={presetName} />
       </ConfirmProvider>
     </ThemeProvider>
   );

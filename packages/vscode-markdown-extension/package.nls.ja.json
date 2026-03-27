@@ -25,5 +25,7 @@
   "configuration.themeMode.dark": "ダーク",
   "configuration.themePreset.description": "エディタのテーマスタイル。",
   "configuration.themePreset.handwritten": "手書き風 — 丸みのあるポップなスタイル",
-  "configuration.themePreset.professional": "プロフェッショナル — すっきりしたフォーマルなスタイル"
+  "configuration.themePreset.professional": "プロフェッショナル — すっきりしたフォーマルなスタイル",
+  "statusBar.claudeEditing": "Claude 編集中",
+  "statusBar.claudeEditing.tooltip": "Claude Code がこのファイルを編集中です"
 }

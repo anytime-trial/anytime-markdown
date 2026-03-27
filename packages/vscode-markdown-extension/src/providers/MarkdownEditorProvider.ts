@@ -50,6 +50,26 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     return false;
   }
 
+  /** Claude Code 編集通知に基づくロック/リロード処理 */
+  public handleClaudeStatus(editing: boolean, filePath: string): void {
+    for (const [key, panel] of this.panels) {
+      const uri = vscode.Uri.parse(key);
+      if (uri.fsPath !== filePath) continue;
+
+      if (editing) {
+        panel.webview.postMessage({ type: 'setReadonly', readonly: true });
+      } else {
+        try {
+          const content = fs.readFileSync(filePath, 'utf-8');
+          panel.webview.postMessage({ type: 'setReadonly', readonly: false });
+          panel.webview.postMessage({ type: 'setContent', content });
+        } catch {
+          panel.webview.postMessage({ type: 'setReadonly', readonly: false });
+        }
+      }
+    }
+  }
+
   public static register(context: vscode.ExtensionContext): vscode.Disposable {
     const provider = new MarkdownEditorProvider(context);
     MarkdownEditorProvider.instance = provider;

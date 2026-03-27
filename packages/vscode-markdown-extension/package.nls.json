@@ -25,5 +25,7 @@
   "configuration.themeMode.dark": "Dark",
   "configuration.themePreset.description": "Theme style preset for the editor.",
   "configuration.themePreset.handwritten": "Handwritten — rounded, playful style",
-  "configuration.themePreset.professional": "Professional — clean, formal style"
+  "configuration.themePreset.professional": "Professional — clean, formal style",
+  "statusBar.claudeEditing": "Claude editing",
+  "statusBar.claudeEditing.tooltip": "Claude Code is editing this file"
 }
