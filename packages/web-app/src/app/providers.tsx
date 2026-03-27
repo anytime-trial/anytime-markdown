@@ -128,6 +128,15 @@ export function Providers({ children }: Readonly<{ children: React.ReactNode }>)
         document.body.appendChild(svg);
       }
       document.documentElement.style.setProperty('--editor-heading-filter', 'url(#roughen)');
+      // Admonition: 不規則角丸 + ハッチング背景
+      document.documentElement.style.setProperty('--editor-admonition-radius', '10px 6px 8px 12px');
+      const hatch = (color: string) =>
+        `repeating-linear-gradient(-45deg, transparent, transparent 4px, ${color} 4px, ${color} 5px), ${isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)'}`;
+      document.documentElement.style.setProperty('--editor-admonition-bg-note', hatch('rgba(31,111,235,0.08)'));
+      document.documentElement.style.setProperty('--editor-admonition-bg-tip', hatch('rgba(35,134,54,0.08)'));
+      document.documentElement.style.setProperty('--editor-admonition-bg-important', hatch('rgba(137,87,229,0.08)'));
+      document.documentElement.style.setProperty('--editor-admonition-bg-warning', hatch('rgba(210,153,34,0.08)'));
+      document.documentElement.style.setProperty('--editor-admonition-bg-caution', hatch('rgba(218,54,51,0.08)'));
     } else {
       document.documentElement.style.removeProperty('--editor-heading-hatch');
       document.documentElement.style.removeProperty('--editor-heading-radius-h1');
@@ -138,6 +147,12 @@ export function Providers({ children }: Readonly<{ children: React.ReactNode }>)
       document.documentElement.style.removeProperty('--editor-heading-border-h2');
       document.documentElement.style.removeProperty('--editor-heading-border-h3');
       document.documentElement.style.removeProperty('--editor-heading-font-family');
+      document.documentElement.style.removeProperty('--editor-admonition-radius');
+      document.documentElement.style.removeProperty('--editor-admonition-bg-note');
+      document.documentElement.style.removeProperty('--editor-admonition-bg-tip');
+      document.documentElement.style.removeProperty('--editor-admonition-bg-important');
+      document.documentElement.style.removeProperty('--editor-admonition-bg-warning');
+      document.documentElement.style.removeProperty('--editor-admonition-bg-caution');
     }
     if (families.length === 0) return;
     const id = 'google-fonts-preset';

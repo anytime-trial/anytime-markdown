@@ -27,9 +27,10 @@ export function getBlockStyles(theme: Theme, settings: EditorSettings): SxProps<
       pt: 4,
       pb: 1,
       my: 1.5,
-      borderRadius: 1,
+      borderRadius: "var(--editor-admonition-radius, 8px)",
       color: getTextPrimary(isDark),
       position: "relative",
+      filter: "var(--editor-heading-filter, none)",
       "&::before": {
         position: "absolute",
         top: 8,
@@ -41,27 +42,27 @@ export function getBlockStyles(theme: Theme, settings: EditorSettings): SxProps<
     },
     "& blockquote[data-admonition-type='note']": {
       borderLeftColor: ADMONITION_NOTE,
-      bgcolor: alpha(ADMONITION_NOTE, 0.06),
+      background: `var(--editor-admonition-bg-note, ${alpha(ADMONITION_NOTE, 0.06)})`,
       "&::before": { content: String.raw`"\24D8  Note"`, color: ADMONITION_NOTE },
     },
     "& blockquote[data-admonition-type='tip']": {
       borderLeftColor: ADMONITION_TIP,
-      bgcolor: alpha(ADMONITION_TIP, 0.06),
+      background: `var(--editor-admonition-bg-tip, ${alpha(ADMONITION_TIP, 0.06)})`,
       "&::before": { content: String.raw`"\2618  Tip"`, color: ADMONITION_TIP },
     },
     "& blockquote[data-admonition-type='important']": {
       borderLeftColor: ADMONITION_IMPORTANT,
-      bgcolor: alpha(ADMONITION_IMPORTANT, 0.06),
+      background: `var(--editor-admonition-bg-important, ${alpha(ADMONITION_IMPORTANT, 0.06)})`,
       "&::before": { content: String.raw`"\2709  Important"`, color: ADMONITION_IMPORTANT },
     },
     "& blockquote[data-admonition-type='warning']": {
       borderLeftColor: ADMONITION_WARNING,
-      bgcolor: alpha(ADMONITION_WARNING, 0.06),
+      background: `var(--editor-admonition-bg-warning, ${alpha(ADMONITION_WARNING, 0.06)})`,
       "&::before": { content: String.raw`"\26A0  Warning"`, color: ADMONITION_WARNING },
     },
     "& blockquote[data-admonition-type='caution']": {
       borderLeftColor: ADMONITION_CAUTION,
-      bgcolor: alpha(ADMONITION_CAUTION, 0.06),
+      background: `var(--editor-admonition-bg-caution, ${alpha(ADMONITION_CAUTION, 0.06)})`,
       "&::before": { content: String.raw`"\2299  Caution"`, color: ADMONITION_CAUTION },
     },
     "& table": {
