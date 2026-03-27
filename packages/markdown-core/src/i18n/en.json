@@ -608,7 +608,12 @@
     "ariaMobileNavigation": "Mobile navigation",
     "ariaLanguage": "Language",
     "ariaMenu": "Menu",
-    "ariaSkipToContent": "Skip to content"
+    "ariaSkipToContent": "Skip to content",
+    "reportPage": "Report",
+    "reportLoadError": "Failed to load article",
+    "reportEmpty": "No articles",
+    "reportRecentPosts": "Recent Posts",
+    "reportMonthlyArchive": "Monthly Archive"
   },
   "Common": {
     "ok": "OK",

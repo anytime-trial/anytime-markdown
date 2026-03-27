@@ -33,9 +33,11 @@ interface MarkdownViewerProps {
   editorHeight?: number;
   /** スクロールなしで全体表示 */
   noScroll?: boolean;
+  /** コンテンツ取得APIのパス（デフォルト: '/api/docs/content'） */
+  contentApiPath?: string;
 }
 
-export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60vh', editorHeight, noScroll }: Readonly<MarkdownViewerProps>) {
+export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60vh', editorHeight, noScroll, contentApiPath = '/api/docs/content' }: Readonly<MarkdownViewerProps>) {
   const t = useTranslations('Landing');
   const { themeMode, setThemeMode } = useThemeMode();
   const { locale, setLocale } = useLocaleSwitch();
@@ -54,7 +56,7 @@ export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60
     setLoading(true);
     setError(null);
 
-    fetch(`/api/docs/content?key=${encodeURIComponent(resolvedDocKey)}`)
+    fetch(`${contentApiPath}?key=${encodeURIComponent(resolvedDocKey)}`)
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.text();
