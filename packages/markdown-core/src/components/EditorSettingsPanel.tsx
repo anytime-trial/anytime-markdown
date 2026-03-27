@@ -141,20 +141,19 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
               <Typography variant="caption" sx={{ fontWeight: 600, color: getTextSecondary(isDark), mb: 0.5, display: "block" }}>
                 {t("settingThemePreset")}
               </Typography>
-              <ToggleButtonGroup
-                value={presetName}
-                exclusive
-                onChange={(_, v) => { if (v) onPresetChange(v); }}
-                size="small"
-                fullWidth
-                aria-label={t("settingThemePreset")}
-              >
-                {PRESET_NAMES.map((name) => (
-                  <ToggleButton key={name} value={name}>
-                    {THEME_PRESETS[name].label}
-                  </ToggleButton>
-                ))}
-              </ToggleButtonGroup>
+              <FormControl size="small" fullWidth>
+                <Select
+                  value={presetName}
+                  onChange={(e) => onPresetChange(e.target.value as ThemePresetName)}
+                  aria-label={t("settingThemePreset")}
+                >
+                  {PRESET_NAMES.map((name) => (
+                    <MenuItem key={name} value={name}>
+                      {THEME_PRESETS[name].label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
             </Box>
           )}
 

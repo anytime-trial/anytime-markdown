@@ -34,18 +34,16 @@ export const THEME_PRESETS = {
       exit: "cubic-bezier(0.4, 0, 1, 1)",
     },
   },
-  comical: {
-    label: "Comical",
-    fontFamily: '"Nunito", "Helvetica Neue", "Arial", sans-serif',
-    displayFont: '"Fredoka", "Arial Rounded MT Bold", sans-serif',
-    borderRadius: { sm: 8, md: 16, lg: 24 },
+  handwritten: {
+    label: "Handwritten",
+    fontFamily: '"Nunito", "Klee One", "Helvetica", "Arial", sans-serif',
+    displayFont: '"Nunito", "Klee One", Georgia, "Times New Roman", serif',
+    borderRadius: { sm: 12, md: 20, lg: 28 },
     easing: {
       enter: "cubic-bezier(0.34, 1.56, 0.64, 1)",
       standard: "cubic-bezier(0.4, 0, 0.2, 1)",
       exit: "cubic-bezier(0.4, 0, 1, 1)",
     },
-    hoverTransform: "translateY(-2px) scale(1.02)",
-    accentColors: ["#FF4081", "#76FF03", "#B388FF"],
   },
 } as const satisfies Record<string, ThemePreset>;
 

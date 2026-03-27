@@ -86,11 +86,14 @@ export function Providers({ children }: Readonly<{ children: React.ReactNode }>)
 
   useEffect(() => {
     const p = getPreset(presetName);
-    const families = [p.fontFamily, p.displayFont]
-      .flatMap(s => s.split(','))
-      .map(s => s.trim().replaceAll(/^["']|["']$/g, ''))
-      .filter(f => !['Helvetica', 'Helvetica Neue', 'Arial', 'sans-serif', 'serif',
-        'Georgia', 'Times New Roman', 'Arial Rounded MT Bold', 'Roboto'].includes(f));
+    const families = [...new Set(
+      [p.fontFamily, p.displayFont]
+        .flatMap(s => s.split(','))
+        .map(s => s.trim().replaceAll(/^["']|["']$/g, ''))
+        .filter(f => !['Helvetica', 'Helvetica Neue', 'Arial', 'sans-serif', 'serif',
+          'Georgia', 'Times New Roman', 'Arial Rounded MT Bold', 'Roboto'].includes(f)),
+    )];
+    document.documentElement.style.setProperty('--editor-content-font-family', p.fontFamily);
     if (families.length === 0) return;
     const id = 'google-fonts-preset';
     if (document.getElementById(id)) {
@@ -113,7 +116,7 @@ export function Providers({ children }: Readonly<{ children: React.ReactNode }>)
       background: { default: themeMode === 'dark' ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG },
     },
     shape: { borderRadius: preset.borderRadius.md },
-    typography: { fontFamily: preset.fontFamily },
+    typography: { fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif' },
   }), [themeMode, preset]);
 
   const themeModeValue = useMemo(() => ({ themeMode, setThemeMode }), [themeMode, setThemeMode]);

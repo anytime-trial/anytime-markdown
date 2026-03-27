@@ -6,7 +6,7 @@ export const DEFAULT_LIGHT_BG = "#E8E6E1";
 
 // ── エディタ文字色 ──
 export const DEFAULT_DARK_TEXT = "#E2E8F0";
-export const DEFAULT_LIGHT_TEXT = "#2D3748";
+export const DEFAULT_LIGHT_TEXT = "#111827";
 
 // ── UI テキスト色（MUI テーマ準拠） ──
 export const DARK_TEXT_PRIMARY = "#ffffffde";

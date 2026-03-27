@@ -52,7 +52,7 @@ export function getEditorPaperSx(
       pr: 2,
       pl: 5,
       outline: "none",
-      fontFamily: "sans-serif",
+      fontFamily: "var(--editor-content-font-family, sans-serif)",
       fontSize: `${settings.fontSize}px`,
       lineHeight: settings.lineHeight,
       color: getEditorText(theme.palette.mode === "dark", settings),

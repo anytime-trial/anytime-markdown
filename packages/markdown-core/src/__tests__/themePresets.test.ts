@@ -24,7 +24,7 @@ describe("themePresets", () => {
 
   it("isPresetName が有効な名前を判定する", () => {
     expect(isPresetName("professional")).toBe(true);
-    expect(isPresetName("comical")).toBe(true);
+    expect(isPresetName("handwritten")).toBe(true);
     expect(isPresetName("unknown")).toBe(false);
     expect(isPresetName("")).toBe(false);
   });
