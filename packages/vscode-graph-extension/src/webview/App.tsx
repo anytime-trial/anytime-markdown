@@ -30,8 +30,10 @@ export function App() {
   const [layoutAlgorithm, setLayoutAlgorithm] = useState<'eades' | 'fruchterman-reingold' | 'eades-vpsc' | 'fruchterman-reingold-vpsc'>('eades');
   const [collisionEnabled, setCollisionEnabled] = useState(false);
   const physicsRef = useRef<physics.PhysicsEngine | null>(null);
+  const documentRef = useRef(state.document);
   const nodesRef = useRef(state.document.nodes);
   const edgesRef = useRef(state.document.edges);
+  documentRef.current = state.document;
   nodesRef.current = state.document.nodes;
   edgesRef.current = state.document.edges;
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -49,9 +51,9 @@ export function App() {
   const scheduleAutoSave = useCallback(() => {
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(() => {
-      saveDocument(state.document);
+      saveDocument(documentRef.current);
     }, 500);
-  }, [saveDocument, state.document]);
+  }, [saveDocument]);
 
   const wrappedDispatch = useCallback((action: any) => {
     dispatch(action);
