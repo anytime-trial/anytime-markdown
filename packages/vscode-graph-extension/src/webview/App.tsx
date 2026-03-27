@@ -11,6 +11,7 @@ import { physics } from '@anytime-markdown/graph-core/engine';
 import { exportToSvg, exportToDrawio, importFromDrawio, createDocument } from '@anytime-markdown/graph-core';
 import { GraphToolBar } from '../../../web-app/src/app/graph/components/ToolBar';
 import { PropertyPanel } from '../../../web-app/src/app/graph/components/PropertyPanel';
+import { ShapeHoverBar } from '../../../web-app/src/app/graph/components/ShapeHoverBar';
 import type { SaveStatus } from '../../../web-app/src/app/graph/hooks/useAutoSave';
 import { useThemeMode } from './shims/providers';
 import { useGraphState } from './hooks/useGraphState';
@@ -28,6 +29,7 @@ export function App() {
   const [layoutRunning, setLayoutRunning] = useState(false);
   const [layoutAlgorithm, setLayoutAlgorithm] = useState<'eades' | 'fruchterman-reingold' | 'eades-vpsc' | 'fruchterman-reingold-vpsc'>('eades');
   const [collisionEnabled, setCollisionEnabled] = useState(false);
+  const physicsRef = useRef<physics.PhysicsEngine | null>(null);
   const nodesRef = useRef(state.document.nodes);
   const edgesRef = useRef(state.document.edges);
   nodesRef.current = state.document.nodes;
@@ -66,6 +68,7 @@ export function App() {
     nodes: state.document.nodes, edges: state.document.edges,
     viewport: state.document.viewport, selection: state.selection,
     dispatch: wrappedDispatch, onTextEdit: setEditingNodeId, showGrid,
+    collisionEnabled, physicsRef,
   });
 
   const handleZoomIn = useCallback(() => {
@@ -114,6 +117,7 @@ export function App() {
     wrappedDispatch({ type: 'SNAPSHOT' });
     const engine = new physics.PhysicsEngine({ collisionEnabled: true, algorithm: layoutAlgorithm });
     engine.initLayout(nodesRef.current, edgesRef.current);
+    physicsRef.current = engine;
     const loop = () => {
       const running = engine.tick();
       const positions = engine.getPositions();
@@ -265,6 +269,13 @@ export function App() {
             onWheel={handleWheel}
             onDoubleClick={handleDoubleClick}
           />
+          {selectedNode && !editingNodeId && (
+            <ShapeHoverBar
+              node={selectedNode}
+              viewport={state.document.viewport}
+              onChangeType={(id, type) => wrappedDispatch({ type: 'UPDATE_NODE', id, changes: { type } })}
+            />
+          )}
           {editingNode && (
             <TextEditOverlay
               node={editingNode}

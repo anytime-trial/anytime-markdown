@@ -3,7 +3,7 @@ import type { GraphNode, GraphEdge, Viewport, SelectionState } from '@anytime-ma
 import { type ToolType, createNode, createEdge } from '@anytime-markdown/graph-core';
 import {
   screenToWorld, hitTest, pan as panViewport, zoom as zoomViewport,
-  snapToGrid, computeSmartGuides,
+  snapToGrid, computeSmartGuides, physics,
 } from '@anytime-markdown/graph-core/engine';
 import type { ResizeHandle, GuideLine } from '@anytime-markdown/graph-core/engine';
 
@@ -28,6 +28,8 @@ interface UseCanvasInteractionProps {
   dispatch: React.Dispatch<any>;
   onTextEdit: (nodeId: string) => void;
   showGrid: boolean;
+  collisionEnabled?: boolean;
+  physicsRef?: React.RefObject<physics.PhysicsEngine | null>;
 }
 
 export interface DragPreview {
@@ -46,6 +48,7 @@ const EMPTY_PREVIEW: DragPreview = { type: 'none', fromX: 0, fromY: 0, toX: 0, t
 
 export function useCanvasInteraction({
   canvasRef, tool, nodes, edges, viewport, selection, dispatch, onTextEdit, showGrid,
+  collisionEnabled, physicsRef,
 }: UseCanvasInteractionProps) {
   const dragRef = useRef<DragState>({
     type: 'none', startWorldX: 0, startWorldY: 0, startScreenX: 0, startScreenY: 0,
@@ -113,6 +116,9 @@ export function useCanvasInteraction({
           type: 'move', startWorldX: world.x, startWorldY: world.y,
           startScreenX: sx, startScreenY: sy, initialNodes,
         };
+        if (physicsRef?.current) {
+          physicsRef.current.syncFromNodes(nodes);
+        }
         dispatch({ type: 'SNAPSHOT' });
         return;
       }
@@ -183,14 +189,30 @@ export function useCanvasInteraction({
           .map(n => ({ id: n.id, x: n.x, y: n.y, width: n.width, height: n.height }));
         const result = computeSmartGuides(rawX, rawY, init.width, init.height, otherRects, 5);
         dispatch({ type: 'RESIZE_NODE', id, x: result.snappedX, y: result.snappedY, width: init.width, height: init.height });
+        if (collisionEnabled && physicsRef?.current) {
+          physicsRef.current.updateBody(id, { x: result.snappedX, y: result.snappedY });
+          const pushed = physicsRef.current.resolveCollisions(id);
+          if (pushed.length > 0) dispatch({ type: 'SET_NODE_POSITIONS', updates: pushed });
+        }
         previewRef.current = { type: 'none', fromX: 0, fromY: 0, toX: 0, toY: 0, guides: result.guides };
       } else {
-        ids.forEach(id => {
+        const moveUpdates = ids.map(id => {
           const init = drag.initialNodes!.get(id)!;
-          const nx = showGrid ? snapToGrid(init.x + dx) : init.x + dx;
-          const ny = showGrid ? snapToGrid(init.y + dy) : init.y + dy;
-          dispatch({ type: 'RESIZE_NODE', id, x: nx, y: ny, width: init.width, height: init.height });
+          return {
+            id,
+            x: showGrid ? snapToGrid(init.x + dx) : init.x + dx,
+            y: showGrid ? snapToGrid(init.y + dy) : init.y + dy,
+          };
         });
+        moveUpdates.forEach(u => dispatch({ type: 'RESIZE_NODE', id: u.id, x: u.x, y: u.y, width: drag.initialNodes!.get(u.id)!.width, height: drag.initialNodes!.get(u.id)!.height }));
+        if (collisionEnabled && physicsRef?.current) {
+          for (const u of moveUpdates) physicsRef.current.updateBody(u.id, { x: u.x, y: u.y });
+          const draggedIds = [...drag.initialNodes!.keys()];
+          if (draggedIds.length > 0) {
+            const pushed = physicsRef.current.resolveCollisions(draggedIds[0]);
+            if (pushed.length > 0) dispatch({ type: 'SET_NODE_POSITIONS', updates: pushed });
+          }
+        }
         previewRef.current = { type: 'none', fromX: 0, fromY: 0, toX: 0, toY: 0 };
       }
       return;
@@ -242,7 +264,7 @@ export function useCanvasInteraction({
       };
       return;
     }
-  }, [canvasRef, viewport, tool, dispatch, showGrid, nodes, edges]);
+  }, [canvasRef, viewport, tool, dispatch, showGrid, nodes, edges, collisionEnabled, physicsRef]);
 
   const handleMouseUp = useCallback((e: React.MouseEvent) => {
     const canvas = canvasRef.current;
