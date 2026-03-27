@@ -100,15 +100,16 @@ export function Providers({ children }: Readonly<{ children: React.ReactNode }>)
       const baseColor = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)';
       document.documentElement.style.setProperty('--editor-heading-hatch',
         `repeating-linear-gradient(-45deg, transparent, transparent 4px, ${lineColor} 4px, ${lineColor} 5px), ${baseColor}`);
+      document.documentElement.style.setProperty('--editor-heading-font-family', '"Nunito", "Klee One", sans-serif');
       // ダークモード時の見出しボーダー色（温かみのある色）
       if (isDark) {
-        document.documentElement.style.setProperty('--editor-heading-border-h1', 'rgba(50,100,170,0.85)');
-        document.documentElement.style.setProperty('--editor-heading-border-h2', 'rgba(50,100,170,0.65)');
-        document.documentElement.style.setProperty('--editor-heading-border-h3', 'rgba(50,100,170,0.45)');
+        document.documentElement.style.setProperty('--editor-heading-border-h1', 'rgba(100,160,210,0.7)');
+        document.documentElement.style.setProperty('--editor-heading-border-h2', 'rgba(100,160,210,0.5)');
+        document.documentElement.style.setProperty('--editor-heading-border-h3', 'rgba(100,160,210,0.35)');
       } else {
         document.documentElement.style.setProperty('--editor-heading-border-h1', 'rgba(160,120,60,0.5)');
-        document.documentElement.style.setProperty('--editor-heading-border-h2', 'rgba(160,120,60,0.35)');
-        document.documentElement.style.setProperty('--editor-heading-border-h3', 'rgba(160,120,60,0.25)');
+        document.documentElement.style.setProperty('--editor-heading-border-h2', 'rgba(160,120,60,0.4)');
+        document.documentElement.style.setProperty('--editor-heading-border-h3', 'rgba(160,120,60,0.35)');
       }
       // 不規則な角丸（手書きの四角形風）
       document.documentElement.style.setProperty('--editor-heading-radius-h1', '12px 8px 10px 6px');
@@ -136,6 +137,7 @@ export function Providers({ children }: Readonly<{ children: React.ReactNode }>)
       document.documentElement.style.removeProperty('--editor-heading-border-h1');
       document.documentElement.style.removeProperty('--editor-heading-border-h2');
       document.documentElement.style.removeProperty('--editor-heading-border-h3');
+      document.documentElement.style.removeProperty('--editor-heading-font-family');
     }
     if (families.length === 0) return;
     const id = 'google-fonts-preset';

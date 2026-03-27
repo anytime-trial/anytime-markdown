@@ -75,7 +75,7 @@ export function getHeadingStyles(theme: Theme): SxProps<Theme> {
     },
     "& h1, & h2, & h3, & h4, & h5": {
       position: "relative",
-      fontFamily: "monospace",
+      fontFamily: "var(--editor-heading-font-family, monospace)",
       letterSpacing: "-0.01em",
       "&::before": blockLabel(theme),
       ...hoverShow,
