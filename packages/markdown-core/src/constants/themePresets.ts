@@ -51,7 +51,7 @@ export type ThemePresetName = keyof typeof THEME_PRESETS;
 
 export const PRESET_NAMES = Object.keys(THEME_PRESETS) as ThemePresetName[];
 
-export const DEFAULT_PRESET_NAME: ThemePresetName = "professional";
+export const DEFAULT_PRESET_NAME: ThemePresetName = "handwritten";
 
 export function isPresetName(value: string): value is ThemePresetName {
   return value in THEME_PRESETS;
