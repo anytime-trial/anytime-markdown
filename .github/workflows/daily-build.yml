@@ -88,6 +88,18 @@ jobs:
         run: npx vsce package --no-dependencies
         working-directory: packages/vscode-graph-extension
 
+      - name: Build git extension
+        run: npm run package
+        working-directory: packages/vscode-git-extension
+
+      - name: Package git VSIX
+        run: npx vsce package --no-dependencies
+        working-directory: packages/vscode-git-extension
+
+      - name: Package extension pack VSIX
+        run: npx vsce package
+        working-directory: packages/vscode-extension-pack
+
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium firefox webkit
         working-directory: packages/web-app
