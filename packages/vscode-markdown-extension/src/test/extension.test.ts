@@ -21,7 +21,7 @@ suite("Extension Test Suite", () => {
     const expected = [
       "anytime-markdown.openEditorWithFile",
       "anytime-markdown.compareWithMarkdownEditor",
-      "anytime-markdown.compareWithCommit",
+      "anytime-markdown.openCompareMode",
     ];
     for (const cmd of expected) {
       assert.ok(commands.includes(cmd), `Command ${cmd} not registered`);
