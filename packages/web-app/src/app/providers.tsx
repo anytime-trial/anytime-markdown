@@ -94,6 +94,49 @@ export function Providers({ children }: Readonly<{ children: React.ReactNode }>)
           'Georgia', 'Times New Roman', 'Arial Rounded MT Bold', 'Roboto'].includes(f)),
     )];
     document.documentElement.style.setProperty('--editor-content-font-family', p.fontFamily);
+    if (presetName === 'handwritten') {
+      const isDark = themeMode === 'dark';
+      const lineColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+      const baseColor = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)';
+      document.documentElement.style.setProperty('--editor-heading-hatch',
+        `repeating-linear-gradient(-45deg, transparent, transparent 4px, ${lineColor} 4px, ${lineColor} 5px), ${baseColor}`);
+      // ダークモード時の見出しボーダー色（温かみのある色）
+      if (isDark) {
+        document.documentElement.style.setProperty('--editor-heading-border-h1', 'rgba(50,100,170,0.85)');
+        document.documentElement.style.setProperty('--editor-heading-border-h2', 'rgba(50,100,170,0.65)');
+        document.documentElement.style.setProperty('--editor-heading-border-h3', 'rgba(50,100,170,0.45)');
+      } else {
+        document.documentElement.style.setProperty('--editor-heading-border-h1', 'rgba(160,120,60,0.5)');
+        document.documentElement.style.setProperty('--editor-heading-border-h2', 'rgba(160,120,60,0.35)');
+        document.documentElement.style.setProperty('--editor-heading-border-h3', 'rgba(160,120,60,0.25)');
+      }
+      // 不規則な角丸（手書きの四角形風）
+      document.documentElement.style.setProperty('--editor-heading-radius-h1', '12px 8px 10px 6px');
+      document.documentElement.style.setProperty('--editor-heading-radius-h2', '8px 10px 6px 12px');
+      document.documentElement.style.setProperty('--editor-heading-radius-h3', '6px 8px 10px 4px');
+      // SVGフィルタで微かな揺らぎ
+      const filterId = 'handwritten-roughen';
+      if (!document.getElementById(filterId)) {
+        const svgNS = 'http://www.w3.org/2000/svg';
+        const svg = document.createElementNS(svgNS, 'svg');
+        svg.setAttribute('id', filterId);
+        svg.setAttribute('width', '0');
+        svg.setAttribute('height', '0');
+        svg.style.position = 'absolute';
+        svg.innerHTML = `<filter id="roughen"><feTurbulence type="turbulence" baseFrequency="0.02" numOctaves="3" seed="1" /><feDisplacementMap in="SourceGraphic" scale="1.5" /></filter>`;
+        document.body.appendChild(svg);
+      }
+      document.documentElement.style.setProperty('--editor-heading-filter', 'url(#roughen)');
+    } else {
+      document.documentElement.style.removeProperty('--editor-heading-hatch');
+      document.documentElement.style.removeProperty('--editor-heading-radius-h1');
+      document.documentElement.style.removeProperty('--editor-heading-radius-h2');
+      document.documentElement.style.removeProperty('--editor-heading-radius-h3');
+      document.documentElement.style.removeProperty('--editor-heading-filter');
+      document.documentElement.style.removeProperty('--editor-heading-border-h1');
+      document.documentElement.style.removeProperty('--editor-heading-border-h2');
+      document.documentElement.style.removeProperty('--editor-heading-border-h3');
+    }
     if (families.length === 0) return;
     const id = 'google-fonts-preset';
     if (document.getElementById(id)) {
@@ -105,7 +148,7 @@ export function Providers({ children }: Readonly<{ children: React.ReactNode }>)
     link.rel = 'stylesheet';
     link.href = `https://fonts.googleapis.com/css2?${params}&display=swap`;
     document.head.appendChild(link);
-  }, [presetName]);
+  }, [presetName, themeMode]);
 
   const preset = getPreset(presetName);
 

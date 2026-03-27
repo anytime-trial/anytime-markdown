@@ -48,6 +48,14 @@ const hoverShow = {
   "&:hover::before, &:focus-within::before": { opacity: 1 },
 } as const;
 
+/**
+ * 手書き風の不規則な角丸（Handwrittenプリセット用）。
+ * CSS変数 --editor-heading-hatch が設定されている場合に適用される。
+ */
+const HANDWRITTEN_H1_RADIUS = "var(--editor-heading-radius-h1, 8px)";
+const HANDWRITTEN_H2_RADIUS = "var(--editor-heading-radius-h2, 8px)";
+const HANDWRITTEN_H3_RADIUS = "var(--editor-heading-radius-h3, 0)";
+
 /** 見出し・ブロックラベルスタイル */
 export function getHeadingStyles(theme: Theme): SxProps<Theme> {
   const isDark = theme.palette.mode === "dark";
@@ -74,24 +82,31 @@ export function getHeadingStyles(theme: Theme): SxProps<Theme> {
     },
     "& h1": {
       fontSize: "2em", fontWeight: 700, mt: 2, mb: 1,
-      py: 0.5, borderRadius: 1,
-      borderLeft: `4px solid ${isDark ? DEFAULT_DARK_HEADING_LINK : DEFAULT_LIGHT_HEADING_LINK}`,
+      py: 0.5,
+      borderRadius: HANDWRITTEN_H1_RADIUS,
+      borderLeft: `4px solid var(--editor-heading-border-h1, ${isDark ? DEFAULT_DARK_HEADING_LINK : DEFAULT_LIGHT_HEADING_LINK})`,
       pl: 1.5,
-      background: `linear-gradient(90deg, ${isDark ? DEFAULT_DARK_H1_GRADIENT : DEFAULT_LIGHT_H1_GRADIENT}, transparent 70%)`,
+      background: `var(--editor-heading-hatch, linear-gradient(90deg, ${isDark ? DEFAULT_DARK_H1_GRADIENT : DEFAULT_LIGHT_H1_GRADIENT}, transparent 70%))`,
+      filter: "var(--editor-heading-filter, none)",
       "&::before": { content: "'H1'" },
     },
     "& h2": {
       fontSize: "1.5em", fontWeight: 700, mt: 1.5, mb: 1,
-      py: 0.5, borderRadius: 1,
-      borderLeft: `3px solid ${isDark ? DEFAULT_DARK_H2_BORDER : DEFAULT_LIGHT_H2_BORDER}`,
+      py: 0.5,
+      borderRadius: HANDWRITTEN_H2_RADIUS,
+      borderLeft: `3px solid var(--editor-heading-border-h2, ${isDark ? DEFAULT_DARK_H2_BORDER : DEFAULT_LIGHT_H2_BORDER})`,
       pl: 1.5,
-      background: `linear-gradient(90deg, ${isDark ? DEFAULT_DARK_H2_GRADIENT : DEFAULT_LIGHT_H2_GRADIENT}, transparent 60%)`,
+      background: `var(--editor-heading-hatch, linear-gradient(90deg, ${isDark ? DEFAULT_DARK_H2_GRADIENT : DEFAULT_LIGHT_H2_GRADIENT}, transparent 60%))`,
+      filter: "var(--editor-heading-filter, none)",
       "&::before": { content: "'H2'" },
     },
     "& h3": {
       fontSize: "1.25em", fontWeight: 700, mt: 1, mb: 0.5,
-      borderLeft: `2px solid ${isDark ? DEFAULT_DARK_H3_BORDER : DEFAULT_LIGHT_H3_BORDER}`,
+      borderRadius: HANDWRITTEN_H3_RADIUS,
+      borderLeft: `2px solid var(--editor-heading-border-h3, ${isDark ? DEFAULT_DARK_H3_BORDER : DEFAULT_LIGHT_H3_BORDER})`,
       pl: 1,
+      background: "var(--editor-heading-hatch, none)",
+      filter: "var(--editor-heading-filter, none)",
       "&::before": { content: "'H3'" },
     },
     "& h4": {
