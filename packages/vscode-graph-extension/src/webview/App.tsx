@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useMemo } from 'react';
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import type { ToolType, GraphDocument } from '@anytime-markdown/graph-core';
@@ -25,6 +25,7 @@ export function App() {
   const [tool, setTool] = useState<ToolType>('select');
   const [showGrid, setShowGrid] = useState(true);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
+  const [textEditAppendMode, setTextEditAppendMode] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [layoutRunning, setLayoutRunning] = useState(false);
   const [layoutAlgorithm, setLayoutAlgorithm] = useState<'eades' | 'fruchterman-reingold' | 'eades-vpsc' | 'fruchterman-reingold-vpsc'>('eades');
@@ -198,6 +199,26 @@ export function App() {
     input.click();
   }, [wrappedDispatch]);
 
+  // Printable key → append text edit on selected node
+  const selectionRef = useRef(state.selection);
+  selectionRef.current = state.selection;
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (editingNodeId) return;
+      const ids = selectionRef.current.nodeIds;
+      if (ids.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1) {
+        const node = state.document.nodes.find(n => n.id === ids[0]);
+        if (node && node.type !== 'image' && node.type !== 'doc' && !node.locked) {
+          e.preventDefault();
+          setTextEditAppendMode(true);
+          setEditingNodeId(ids[0]);
+        }
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [editingNodeId, state.document.nodes]);
+
   const handleLayerAction = useCallback((action: 'up' | 'down' | 'top' | 'bottom') => {
     if (state.selection.nodeIds.length !== 1) return;
     const nodeId = state.selection.nodeIds[0];
@@ -282,11 +303,13 @@ export function App() {
             <TextEditOverlay
               node={editingNode}
               viewport={state.document.viewport}
+              appendMode={textEditAppendMode}
               onCommit={(text) => {
                 wrappedDispatch({ type: 'UPDATE_NODE', id: editingNode.id, changes: { text } });
                 setEditingNodeId(null);
+                setTextEditAppendMode(false);
               }}
-              onCancel={() => setEditingNodeId(null)}
+              onCancel={() => { setEditingNodeId(null); setTextEditAppendMode(false); }}
             />
           )}
           {(selectedNode || selectedEdge) && (

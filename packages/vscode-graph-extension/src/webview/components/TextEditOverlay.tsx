@@ -7,15 +7,24 @@ interface TextEditOverlayProps {
   viewport: Viewport;
   onCommit: (text: string) => void;
   onCancel: () => void;
+  appendMode?: boolean;
 }
 
-export function TextEditOverlay({ node, viewport, onCommit, onCancel }: TextEditOverlayProps) {
+export function TextEditOverlay({ node, viewport, onCommit, onCancel, appendMode }: TextEditOverlayProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    inputRef.current?.focus();
-    inputRef.current?.select();
-  }, []);
+    if (inputRef.current) {
+      if (appendMode) {
+        inputRef.current.focus();
+        const len = inputRef.current.value.length;
+        inputRef.current.setSelectionRange(len, len);
+      } else {
+        inputRef.current.focus();
+        inputRef.current.select();
+      }
+    }
+  }, [appendMode]);
 
   const pos = worldToScreen(viewport, node.x, node.y);
 
