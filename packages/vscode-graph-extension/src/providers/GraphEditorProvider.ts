@@ -60,9 +60,12 @@ export class GraphEditorProvider implements vscode.CustomTextEditorProvider {
 			webviewPanel.webview.postMessage({ type: 'theme', kind: isDark ? 'dark' : 'light' });
 		};
 
+		// Track edits originating from webview to avoid echo
+		let isWebviewEdit = false;
+
 		// Handle messages from webview
 		webviewPanel.webview.onDidReceiveMessage(
-			(message) => {
+			async (message) => {
 				switch (message.type) {
 					case 'ready':
 						sendDocument();
@@ -76,7 +79,9 @@ export class GraphEditorProvider implements vscode.CustomTextEditorProvider {
 							new vscode.Range(0, 0, document.lineCount, 0),
 							json,
 						);
-						vscode.workspace.applyEdit(edit);
+						isWebviewEdit = true;
+						await vscode.workspace.applyEdit(edit);
+						isWebviewEdit = false;
 						break;
 					}
 				}
@@ -86,8 +91,7 @@ export class GraphEditorProvider implements vscode.CustomTextEditorProvider {
 
 		// Update webview when document changes externally
 		const changeDocumentSubscription = vscode.workspace.onDidChangeTextDocument((e) => {
-			if (e.document.uri.toString() === document.uri.toString() && e.contentChanges.length > 0) {
-				// Only send if change came from external source (not from our own edit)
+			if (e.document.uri.toString() === document.uri.toString() && e.contentChanges.length > 0 && !isWebviewEdit) {
 				sendDocument();
 			}
 		});
