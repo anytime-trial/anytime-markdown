@@ -476,7 +476,7 @@ export function App() {
       <CssBaseline />
       <ConfirmProvider>
         <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-          <MarkdownEditorPage key={editorKey} hideToolbar hideStatusBar readOnly={claudeEditing} externalCompareContent={compareContent} onCompareModeChange={handleCompareModeChange} onHeadingsChange={handleHeadingsChange} onCommentsChange={handleCommentsChange} onStatusChange={handleStatusChange} autoReload={autoReload} onModeChange={handleModeChange} themeMode={themeMode} presetName={presetName} />
+          <MarkdownEditorPage key={editorKey} hideToolbar sideToolbar hideSettings hideStatusBar readOnly={claudeEditing} externalCompareContent={compareContent} onCompareModeChange={handleCompareModeChange} onHeadingsChange={handleHeadingsChange} onCommentsChange={handleCommentsChange} onStatusChange={handleStatusChange} autoReload={autoReload} onModeChange={handleModeChange} themeMode={themeMode} presetName={presetName} />
           {claudeEditing && (
             <div style={{
               position: 'absolute',
