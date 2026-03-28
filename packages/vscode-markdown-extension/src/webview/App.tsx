@@ -468,11 +468,40 @@ export function App() {
     return <LandingPage themeMode={themeMode} onContinue={() => setLanding(false)} />;
   }
 
+  const isDark = themeMode === 'dark';
+  const isJa = (document.documentElement.lang || '').startsWith('ja');
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <ConfirmProvider>
-        <MarkdownEditorPage key={editorKey} hideToolbar hideStatusBar readOnly={claudeEditing} externalCompareContent={compareContent} onCompareModeChange={handleCompareModeChange} onHeadingsChange={handleHeadingsChange} onCommentsChange={handleCommentsChange} onStatusChange={handleStatusChange} autoReload={autoReload} onModeChange={handleModeChange} themeMode={themeMode} presetName={presetName} />
+        <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+          <MarkdownEditorPage key={editorKey} hideToolbar hideStatusBar readOnly={claudeEditing} externalCompareContent={compareContent} onCompareModeChange={handleCompareModeChange} onHeadingsChange={handleHeadingsChange} onCommentsChange={handleCommentsChange} onStatusChange={handleStatusChange} autoReload={autoReload} onModeChange={handleModeChange} themeMode={themeMode} presetName={presetName} />
+          {claudeEditing && (
+            <div style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              zIndex: 9999,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              padding: '4px 16px',
+              backgroundColor: isDark ? 'rgba(30,30,30,0.85)' : 'rgba(255,255,255,0.85)',
+              borderBottom: `2px solid ${isDark ? 'rgba(255,180,0,0.5)' : 'rgba(255,160,0,0.5)'}`,
+              backdropFilter: 'blur(4px)',
+              fontSize: 12,
+              color: isDark ? 'rgba(255,200,100,0.9)' : 'rgba(160,100,0,0.9)',
+              pointerEvents: 'none',
+            }}>
+              <span style={{ fontSize: 14, animation: 'claude-spin 2s linear infinite' }}>&#9881;</span>
+              <span>{isJa ? 'Claude Code が編集中です' : 'Claude Code is editing'}</span>
+              <style>{`@keyframes claude-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+            </div>
+          )}
+        </div>
       </ConfirmProvider>
     </ThemeProvider>
   );
