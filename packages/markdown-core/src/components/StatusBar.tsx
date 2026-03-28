@@ -113,7 +113,7 @@ export const StatusBar = React.memo(function StatusBar({ editor, sourceMode, sou
         </Typography>
       </Box>
       {fileName && (
-        <Typography variant="body2" sx={{ ml: 1, color: getTextSecondary(isDark), display: { xs: "none", sm: "flex" }, alignItems: "center" }} aria-label={isDirty ? `${fileName} (${t("unsavedChanges")})` : fileName || undefined}>
+        <Typography variant="body2" sx={{ ml: 1, color: getTextSecondary(isDark), display: { xs: "none", sm: "flex" }, alignItems: "center" }} aria-label={isDirty ? `${fileName} (${t("unsavedChanges")})` : fileName}>
           {fileName}
           {isDirty && (
             <Tooltip title={t("unsavedChanges")}>

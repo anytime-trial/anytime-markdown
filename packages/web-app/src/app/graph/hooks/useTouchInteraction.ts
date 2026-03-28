@@ -96,7 +96,7 @@ export function useTouchInteraction({
       const history = panHistoryRef.current;
       if (history.length >= 2) {
         const first = history[0];
-        const last = history[history.length - 1];
+        const last = history.at(-1)!;
         const dt = last.t - first.t;
         if (dt > 0 && dt < 100) {
           velocityRef.current.vx = (last.x - first.x) / dt * 16;

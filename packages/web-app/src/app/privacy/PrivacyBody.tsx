@@ -28,6 +28,18 @@ function P({ children }: Readonly<{ children: React.ReactNode }>) {
   );
 }
 
+const richStrong = (chunks: React.ReactNode) => <strong>{chunks}</strong>;
+
+const richIssueLink = (chunks: React.ReactNode) => (
+  <Link
+    href="https://github.com/anytime-trial/anytime-markdown/issues"
+    target="_blank"
+    rel="noopener noreferrer"
+  >
+    {chunks}
+  </Link>
+);
+
 export default function PrivacyBody() {
   const t = useTranslations('Privacy');
 
@@ -47,7 +59,7 @@ export default function PrivacyBody() {
         </Section>
 
         <Section title={t('section2Title')}>
-          <P>{t.rich('section2Body', { strong: (chunks) => <strong>{chunks}</strong> })}</P>
+          <P>{t.rich('section2Body', { strong: richStrong })}</P>
         </Section>
 
         <Section title={t('section3Title')}>
@@ -58,10 +70,10 @@ export default function PrivacyBody() {
           <P>{t('section4Intro')}</P>
           <Box component="ul" sx={{ pl: 3 }}>
             <li>
-              <P>{t.rich('section4Plantuml', { strong: (chunks) => <strong>{chunks}</strong> })}</P>
+              <P>{t.rich('section4Plantuml', { strong: richStrong })}</P>
             </li>
             <li>
-              <P>{t.rich('section4Mermaid', { strong: (chunks) => <strong>{chunks}</strong> })}</P>
+              <P>{t.rich('section4Mermaid', { strong: richStrong })}</P>
             </li>
           </Box>
         </Section>
@@ -81,17 +93,7 @@ export default function PrivacyBody() {
 
         <Section title={t('section8Title')}>
           <P>
-            {t.rich('section8Body', {
-              link: (chunks) => (
-                <Link
-                  href="https://github.com/anytime-trial/anytime-markdown/issues"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {chunks}
-                </Link>
-              ),
-            })}
+            {t.rich('section8Body', { link: richIssueLink })}
           </P>
         </Section>
 

@@ -14,7 +14,7 @@ interface SettingsPanelProps {
   onClose: () => void;
 }
 
-export function SettingsPanel({ open, width, onClose }: SettingsPanelProps) {
+export function SettingsPanel({ open, width, onClose }: Readonly<SettingsPanelProps>) {
   const t = useTranslations('Graph');
   const { themeMode, setThemeMode } = useThemeMode();
   const { locale, setLocale } = useLocaleSwitch();

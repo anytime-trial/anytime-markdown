@@ -24,7 +24,7 @@ interface ContextMenuProps {
   hasClipboard: boolean;
 }
 
-export function ContextMenu({ anchorPosition, targetType, onAction, onClose, hasClipboard }: ContextMenuProps) {
+export function ContextMenu({ anchorPosition, targetType, onAction, onClose, hasClipboard }: Readonly<ContextMenuProps>) {
   const t = useTranslations('Graph');
   if (!anchorPosition) return null;
 

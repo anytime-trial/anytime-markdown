@@ -23,7 +23,8 @@
   "overrides": {
     "serialize-javascript": "7.0.3",
     "diff": "8.0.3",
-    "next": "15.5.14"
+    "next": "15.5.14",
+    "handlebars": "4.7.9"
   },
   "devDependencies": {
     "@next/eslint-plugin-next": "^16.1.6",

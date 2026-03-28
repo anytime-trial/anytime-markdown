@@ -2,7 +2,7 @@ import { GraphNode, NodeType } from '../types';
 import { CanvasColors, FONT_FAMILY, getCanvasColors } from '../theme';
 import {
   SHADOW_DEFAULT, SHADOW_STICKY, SHADOW_DRAGGING,
-  FONT_SIZE_BADGE, FONT_SIZE_PREVIEW, FONT_SIZE_LINK_ICON,
+  FONT_SIZE_PREVIEW, FONT_SIZE_LINK_ICON,
   DASH_DEFAULT, DASH_FRAME, STROKE_WIDTH_SELECTED,
   TEXT_PREVIEW_MAX_CHARS, TEXT_PREVIEW_MAX_LINES, TEXT_LINE_MAX_CHARS,
 } from './constants';
@@ -487,7 +487,7 @@ export function wrapText(
 
     let currentLine = '';
     // Split by spaces while preserving CJK character boundaries
-    const tokens = paragraph.match(/[\S]+|\s/g) ?? [paragraph];
+    const tokens = paragraph.match(/\S+|\s/g) ?? [paragraph];
 
     for (const token of tokens) {
       if (token === ' ') {

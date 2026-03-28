@@ -10,8 +10,8 @@ import { applyVpsc } from './vpsc';
 export class PhysicsEngine {
   private bodies = new Map<string, PhysicsBody>();
   private edges: GraphEdge[] = [];
-  private grid: SpatialGrid;
-  private config: PhysicsConfig;
+  private readonly grid: SpatialGrid;
+  private readonly config: PhysicsConfig;
   private iteration = 0;
   private temperature = 0;
   private frK = 0;

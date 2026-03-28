@@ -38,11 +38,13 @@ function nodeStyle(node: GraphNode): string {
       parts.push('rounded=0');
   }
 
-  parts.push(`fillColor=#${fill}`);
-  parts.push(`strokeColor=#${stroke}`);
-  parts.push(`strokeWidth=${node.style.strokeWidth}`);
-  parts.push(`fontSize=${node.style.fontSize}`);
-  parts.push(`fontFamily=${node.style.fontFamily}`);
+  parts.push(
+    `fillColor=#${fill}`,
+    `strokeColor=#${stroke}`,
+    `strokeWidth=${node.style.strokeWidth}`,
+    `fontSize=${node.style.fontSize}`,
+    `fontFamily=${node.style.fontFamily}`,
+  );
 
   const fontColor = node.style.fontColor ? toHexColor(node.style.fontColor).replace('#', '') : 'FFFFFF';
   parts.push(`fontColor=#${fontColor}`);
@@ -58,8 +60,7 @@ function nodeStyle(node: GraphNode): string {
   if (node.style.spacingBottom !== undefined) parts.push(`spacingBottom=${node.style.spacingBottom}`);
   if (node.style.spacingLeft !== undefined) parts.push(`spacingLeft=${node.style.spacingLeft}`);
 
-  parts.push('whiteSpace=wrap');
-  parts.push('html=1');
+  parts.push('whiteSpace=wrap', 'html=1');
 
   return parts.join(';');
 }
@@ -77,8 +78,7 @@ function edgeStyle(edge: GraphEdge): string {
     }
   }
 
-  parts.push(`strokeColor=#${stroke}`);
-  parts.push(`strokeWidth=${edge.style.strokeWidth}`);
+  parts.push(`strokeColor=#${stroke}`, `strokeWidth=${edge.style.strokeWidth}`);
 
   const endShape = edge.style.endShape ?? ((edge.type === 'arrow' || edge.type === 'connector') ? 'arrow' : 'none');
   const startShape = edge.style.startShape ?? 'none';
@@ -104,13 +104,15 @@ function edgeStyle(edge: GraphEdge): string {
 
 export function exportToDrawio(doc: GraphDocument): string {
   const lines: string[] = [];
-  lines.push('<?xml version="1.0" encoding="UTF-8"?>');
-  lines.push('<mxfile>');
-  lines.push('<diagram>');
-  lines.push('<mxGraphModel>');
-  lines.push('<root>');
-  lines.push('<mxCell id="0"/>');
-  lines.push('<mxCell id="1" parent="0"/>');
+  lines.push(
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<mxfile>',
+    '<diagram>',
+    '<mxGraphModel>',
+    '<root>',
+    '<mxCell id="0"/>',
+    '<mxCell id="1" parent="0"/>',
+  );
 
   // Sort nodes by zIndex for correct layer ordering
   const sortedNodes = [...doc.nodes].sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0));
@@ -121,9 +123,11 @@ export function exportToDrawio(doc: GraphDocument): string {
     const urlAttr = node.url ? ` link="${escapeXml(node.url)}"` : '';
     const connectable = node.locked ? ' connectable="0"' : '';
     const parent = node.groupId ? escapeXml(node.groupId) : '1';
-    lines.push(`<mxCell id="${escapeXml(node.id)}" value="${label}" style="${style}" vertex="1" parent="${parent}"${urlAttr}${connectable}>`);
-    lines.push(`<mxGeometry x="${node.x}" y="${node.y}" width="${node.width}" height="${node.height}" as="geometry"/>`);
-    lines.push('</mxCell>');
+    lines.push(
+      `<mxCell id="${escapeXml(node.id)}" value="${label}" style="${style}" vertex="1" parent="${parent}"${urlAttr}${connectable}>`,
+      `<mxGeometry x="${node.x}" y="${node.y}" width="${node.width}" height="${node.height}" as="geometry"/>`,
+      '</mxCell>',
+    );
   }
 
   for (const edge of doc.edges) {
@@ -131,21 +135,19 @@ export function exportToDrawio(doc: GraphDocument): string {
     const label = edge.label ? escapeXml(edge.label) : '';
     const src = edge.from.nodeId ? `source="${escapeXml(edge.from.nodeId)}"` : '';
     const tgt = edge.to.nodeId ? `target="${escapeXml(edge.to.nodeId)}"` : '';
-    lines.push(`<mxCell id="${escapeXml(edge.id)}" value="${label}" style="${style}" edge="1" parent="1" ${src} ${tgt}>`);
-    lines.push('<mxGeometry relative="1" as="geometry">');
+    lines.push(
+      `<mxCell id="${escapeXml(edge.id)}" value="${label}" style="${style}" edge="1" parent="1" ${src} ${tgt}>`,
+      '<mxGeometry relative="1" as="geometry">',
+    );
     if (!edge.from.nodeId) {
       lines.push(`<mxPoint x="${edge.from.x}" y="${edge.from.y}" as="sourcePoint"/>`);
     }
     if (!edge.to.nodeId) {
       lines.push(`<mxPoint x="${edge.to.x}" y="${edge.to.y}" as="targetPoint"/>`);
     }
-    lines.push('</mxGeometry>');
-    lines.push('</mxCell>');
+    lines.push('</mxGeometry>', '</mxCell>');
   }
 
-  lines.push('</root>');
-  lines.push('</mxGraphModel>');
-  lines.push('</diagram>');
-  lines.push('</mxfile>');
+  lines.push('</root>', '</mxGraphModel>', '</diagram>', '</mxfile>');
   return lines.join('\n');
 }

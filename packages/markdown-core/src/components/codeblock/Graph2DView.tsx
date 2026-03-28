@@ -24,9 +24,9 @@ export interface Graph2DViewProps {
   height?: number;
 }
 
-export function Graph2DView({ graphExpr, jsxGraph, isDark, width = 500, height = 400 }: Graph2DViewProps) {
+export function Graph2DView({ graphExpr, jsxGraph, isDark, width = 500, height = 400 }: Readonly<Graph2DViewProps>) {
   const containerId = useId();
-  const stableId = `graph2d-${containerId.replace(/:/g, "")}`;
+  const stableId = `graph2d-${containerId.replaceAll(":", "")}`;
   const containerRef = useRef<HTMLDivElement>(null);
   const boardRef = useRef<JXG.Board | null>(null);
 

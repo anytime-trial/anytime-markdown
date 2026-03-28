@@ -161,7 +161,6 @@ export const DEFAULT_EDGE_STYLE: EdgeStyle = {
 /** テーマ対応のデフォルトノードスタイルを返す */
 export function getDefaultNodeStyle(isDark: boolean): NodeStyle {
   if (isDark) return { ...DEFAULT_NODE_STYLE };
-  const colors = getCanvasColors(false);
   return { fill: '#F5F5F0', stroke: 'rgba(0,0,0,0.2)', strokeWidth: 2, fontSize: 14, fontFamily: FONT_FAMILY };
 }
 

@@ -42,7 +42,7 @@ export function distributeH<T extends Rect>(rects: T[]): T[] {
   if (rects.length < 3) return rects;
   const sorted = [...rects].sort((a, b) => a.x - b.x);
   const totalWidth = sorted.reduce((s, r) => s + r.width, 0);
-  const totalSpan = sorted[sorted.length - 1].x + sorted[sorted.length - 1].width - sorted[0].x;
+  const totalSpan = sorted.at(-1)!.x + sorted.at(-1)!.width - sorted[0].x;
   const gap = Math.max(0, (totalSpan - totalWidth) / (sorted.length - 1));
   let currentX = sorted[0].x;
   const positions = new Map<string, number>();
@@ -57,7 +57,7 @@ export function distributeV<T extends Rect>(rects: T[]): T[] {
   if (rects.length < 3) return rects;
   const sorted = [...rects].sort((a, b) => a.y - b.y);
   const totalHeight = sorted.reduce((s, r) => s + r.height, 0);
-  const totalSpan = sorted[sorted.length - 1].y + sorted[sorted.length - 1].height - sorted[0].y;
+  const totalSpan = sorted.at(-1)!.y + sorted.at(-1)!.height - sorted[0].y;
   const gap = Math.max(0, (totalSpan - totalHeight) / (sorted.length - 1));
   let currentY = sorted[0].y;
   const positions = new Map<string, number>();
