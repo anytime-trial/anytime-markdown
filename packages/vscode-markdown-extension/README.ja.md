@@ -1,18 +1,20 @@
 # Anytime Markdown Editor
 
-![VS Marketplace](https://img.shields.io/visual-studio-marketplace/v/anytime-trial.anytime-markdown?label=VS%20Marketplace&logo=visual-studio-code)![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=alert_status)![Bugs](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=bugs)![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=code_smells)![Coverage](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=coverage)![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=duplicated_lines_density)**AI が書いた Markdown を、コーディングしながらリッチにプレビュー — VS Code だけで完結。**
+![VS Marketplace](https://img.shields.io/visual-studio-marketplace/v/anytime-trial.anytime-markdown?label=VS%20Marketplace&logo=visual-studio-code)![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=alert_status)![Bugs](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=bugs)![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=code_smells)![Coverage](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=coverage)![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=duplicated_lines_density)
+
+**AI が書いた Markdown を、コーディングしながらリッチにプレビュー — VS Code だけで完結。**
 
 AI アシスタントは仕様書や設計書を Markdown で書いてくれますが、プレーンテキストでのレビューは読みにくく、外部ツールとの行き来で集中が途切れがちです。
 
-Anytime Markdown なら、WYSIWYG エディタで Markdown をリッチに表示・編集でき、**AI との共同編集機能**でファイルの競合も防げます。
+Anytime Markdown なら、WYSIWYG エディタで Markdown をリッチに表示・編集でき、**AI との協調編集機能**でファイルの競合も防げます。
 
 
 ## 1. できること
 
-- **WYSIWYG 編集** — テーブル・ダイアグラム（Mermaid / PlantUML）・数式（KaTeX）付きでリッチに編集
-- ​**Agent Note** — 画像やスクリーンショットを AI に共有
-- **Claude Code 協調編集** — AI がファイル編集中にエディタを自動ロックし、競合を防止
-- 3つのモード — WYSIWYG・ソース・レビューをワンクリックで切り替え
+- **Markdown をリッチに表示・編集** — テーブル・Mermaid・PlantUML・KaTeX をそのまま表示
+- **スクリーンショットを貼って AI に「これを直して」** — Agent Note で画像を AI に共有
+- **AI の編集中はエディタが自動ロック** — Claude Code がファイルを書き換えている間、誤操作を防止
+- **3つのモードをワンクリック切り替え** — WYSIWYG・ソース・レビュー
 
 
 ## 2. はじめかた
@@ -22,44 +24,40 @@ Anytime Markdown なら、WYSIWYG エディタで Markdown をリッチに表示
 ※標準のエクスプローラは、右クリックから「Open with Anytime Markdown」を選択すると表示されます。
 
 
-## 3. Agent Note — AI にビジュアル情報を共有
+## 3. AI にスクリーンショットを見せる（Agent Note）
 
-画像・表・手書きメモなどの情報を AI ツールに共有できます。
+エディタ内に画像やスクリーンショットを貼り付けて、AI に視覚情報を共有できます。
 
-- 画像はクリップボードから直接貼り付け可能
-- Claude Code がインストールされている場合、`/anytime-note` スキルが自動生成され、ノートの内容をコンテキストとして AI に指示できる
+**使い方:**
 
-**使用例:**
-
-1. サイドバーのノート編集を押すと、ノートが表示される
-2. Agent Note にスクリーンショットや表を貼り付ける
+1. サイドバーの **Agent Note** でノートを開く
+2. スクリーンショットや表をクリップボードから貼り付ける
 3. Claude Code で `/anytime-note バグを修正して` と指示する
-4. AI がノートの画像を読み取り、コンテキストに基づいて作業を実行する
+4. AI がノートの画像を読み取り、作業を実行する
+
+> Claude Code がインストールされている場合、`/anytime-note` スキルが自動生成されます。
 
 
-## 4. Claude Code 協調編集
+## 4. AI が編集中はエディタを自動ロック（Claude Code 協調編集）
 
-Claude Code（CLI）がファイルを編集中のとき、エディタを自動的にロックし、編集の競合を防ぎます。\
-エディタの内容を最新に更新し、変更箇所をマーキングします。
+Claude Code がファイルを編集している間、エディタを読み取り専用にして競合を防ぎます。\
+編集が終わると自動的にロック解除され、最新の内容に更新されます。
 
-**特徴:**
-
-- **自動セットアップ** — 拡張機能の初回起動時に Claude Code のフック設定を自動追加（`~/.claude/settings.json`）
-- **連続編集対応** — 複数の Edit が連続する場合、最後の Edit から 3 秒後にまとめて解除
-- **安全なフォールバック** — Claude Code がクラッシュした場合、30 秒後にタイムアウトで自動解除
-- **ゼロ設定** — Claude Code がインストールされていれば、追加の設定は不要
+- **設定不要** — Claude Code がインストールされていれば自動で有効化
+- **連続編集に対応** — 最後の編集から 3 秒後にまとめてロック解除
+- **クラッシュ対策** — 30 秒後にタイムアウトで自動解除
 
 
-## 5. AI Log / AI Memory — Claude Code セッション情報
+## 5. AI のログと記憶を確認する（AI Log / AI Memory）
 
-サイドバーの **Anytime Markdown** パネルに、Claude Code のセッション情報を表示します。
+サイドバーの **Anytime Markdown** パネルで、Claude Code のセッション情報を閲覧できます。
 
-| パネル | 説明 |
+| パネル | 内容 |
 | --- | --- |
-| **AI Log** | Claude Code のセッション実行ログを Markdown 形式で表示。セッションをクリックするとエディタで閲覧できる |
-| **AI Memory** | Claude Code がプロジェクトごとに保存した記憶情報（memory）を一覧表示。クリックで内容を確認・編集できる |
+| **AI Log** | セッションの実行ログを Markdown で表示。クリックでエディタに展開 |
+| **AI Memory** | プロジェクトごとの記憶情報を一覧表示。クリックで確認・編集 |
 
-> これらのパネルは `~/.claude/projects/` 配下のデータを参照します。\
+> `~/.claude/projects/` 配下のデータを参照します。\
 > Claude Code がインストールされていない環境では表示されません。
 
 
