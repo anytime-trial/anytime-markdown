@@ -1,0 +1,26 @@
+{
+  "name": "@anytime-markdown/mcp-cms-remote",
+  "version": "0.0.1",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@anytime-markdown/cms-core": "*",
+    "@modelcontextprotocol/sdk": "1.27.1",
+    "hono": "4.7.7",
+    "fetch-to-node": "2.1.0",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "4.20250327.0",
+    "@types/jest": "30.0.0",
+    "@types/node": "22.15.21",
+    "jest": "30.2.0",
+    "ts-jest": "29.4.6",
+    "wrangler": "4.13.2"
+  }
+}

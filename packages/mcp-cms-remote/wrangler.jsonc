@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mcp-cms-remote",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-04-22",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true
+  },
+  "alias": {
+    "raw-body": "./src/empty.ts",
+    "content-type": "./src/empty.ts"
+  },
+  "dev": {
+    "port": 3001
+  }
+}
