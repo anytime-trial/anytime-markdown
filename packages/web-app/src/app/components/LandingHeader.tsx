@@ -16,7 +16,7 @@ export default function LandingHeader() {
   const t = useTranslations('Landing');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const showGraph = process.env.NEXT_PUBLIC_SHOW_GRAPH === '1';
-  const showReport = process.env.NEXT_PUBLIC_SHOW_REPORT === '1';
+
 
   return (
     <AppBar
@@ -62,15 +62,13 @@ export default function LandingHeader() {
           >
             {t('sitesPage')}
           </Button>
-          {showReport && (
-            <Button
-              component={NextLink}
-              href="/report"
-              sx={{ textTransform: 'none', color: 'text.secondary', fontWeight: 600, fontSize: '0.85rem', display: { xs: 'none', sm: 'inline-flex' } }}
-            >
-              {t('reportPage')}
-            </Button>
-          )}
+          <Button
+            component={NextLink}
+            href="/report"
+            sx={{ textTransform: 'none', color: 'text.secondary', fontWeight: 600, fontSize: '0.85rem', display: { xs: 'none', sm: 'inline-flex' } }}
+          >
+            {t('reportPage')}
+          </Button>
 
           <ToggleButtonGroup
             value={locale}
@@ -128,11 +126,9 @@ export default function LandingHeader() {
             <ListItemButton component={NextLink} href="/docs" onClick={() => setDrawerOpen(false)}>
               <ListItemText primary={t('sitesPage')} />
             </ListItemButton>
-            {showReport && (
-              <ListItemButton component={NextLink} href="/report" onClick={() => setDrawerOpen(false)}>
-                <ListItemText primary={t('reportPage')} />
-              </ListItemButton>
-            )}
+            <ListItemButton component={NextLink} href="/report" onClick={() => setDrawerOpen(false)}>
+              <ListItemText primary={t('reportPage')} />
+            </ListItemButton>
           </List>
           <Box sx={{ px: 2, pt: 1 }}>
             <ToggleButtonGroup

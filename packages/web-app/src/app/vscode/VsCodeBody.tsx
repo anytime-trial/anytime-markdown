@@ -286,6 +286,7 @@ export default function VsCodeBody() {
             docKey="docs/markdownAll/markdownAll.ja.md"
             docKeyByLocale={{ en: "docs/markdownAll/markdownAll.en.md" }}
             editorHeight={viewerHeight}
+            showFrontmatter
           />
         </Container>
       </Box>

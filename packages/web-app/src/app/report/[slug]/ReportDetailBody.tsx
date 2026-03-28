@@ -2,7 +2,8 @@
 
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
-import { Alert, Box, Chip, Container, Divider, Typography } from '@mui/material';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import { Alert, Box, Breadcrumbs, Chip, Container, Divider, Link as MuiLink, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import NextLink from 'next/link';
 import { useTranslations } from 'next-intl';
@@ -40,6 +41,45 @@ export default function ReportDetailBody({ report, prev, next }: Readonly<Report
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <LandingHeader />
+
+      {/* Breadcrumbs */}
+      <Box
+        component="nav"
+        aria-label={t('ariaBreadcrumb')}
+        sx={{
+          px: 2,
+          py: 0.75,
+          borderBottom: 1,
+          borderColor: 'divider',
+          bgcolor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)',
+        }}
+      >
+        <Breadcrumbs
+          separator={<ChevronRightIcon sx={{ fontSize: 16, color: 'text.disabled' }} />}
+          sx={{ '& .MuiBreadcrumbs-ol': { flexWrap: 'nowrap' } }}
+        >
+          <MuiLink
+            component={NextLink}
+            href="/report"
+            underline="hover"
+            sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontSize: '0.8125rem', color: 'text.secondary' }}
+          >
+            {t('reportPage')}
+          </MuiLink>
+          <Typography
+            sx={{
+              fontSize: '0.8125rem',
+              color: 'text.primary',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              maxWidth: { xs: 200, sm: 400 },
+            }}
+          >
+            {meta.title}
+          </Typography>
+        </Breadcrumbs>
+      </Box>
 
       {/* Article Header */}
       <Container maxWidth="md" sx={{ pt: { xs: 4, md: 6 }, px: { xs: 2, md: 3 } }}>
