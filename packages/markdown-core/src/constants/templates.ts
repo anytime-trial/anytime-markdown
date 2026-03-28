@@ -1,7 +1,7 @@
 import apiSpec from "./templates/apiSpec.md";
 import basicDesign from "./templates/basicDesign.md";
-import markdownAllJa from "./templates/markdownAll.ja.md";
-import markdownAllEn from "./templates/markdownAll.en.md";
+import markdownAllJa from "./templates/markdownEmbedAll.ja.md";
+import markdownAllEn from "./templates/markdownEmbedAll.en.md";
 
 export interface MarkdownTemplate {
   id: string;

@@ -2,8 +2,8 @@
  * templates 定数のユニットテスト
  */
 
-jest.mock("../constants/templates/markdownAll.ja.md", () => "# 日本語マークダウン", { virtual: true });
-jest.mock("../constants/templates/markdownAll.en.md", () => "# English Markdown", { virtual: true });
+jest.mock("../constants/templates/markdownEmbedAll.ja.md", () => "# 日本語マークダウン", { virtual: true });
+jest.mock("../constants/templates/markdownEmbedAll.en.md", () => "# English Markdown", { virtual: true });
 jest.mock("../constants/templates/basicDesign.md", () => "# Basic Design", { virtual: true });
 jest.mock("../constants/templates/apiSpec.md", () => "# API Spec", { virtual: true });
 
