@@ -52,11 +52,7 @@ function colorFromHex(hex: string | undefined, fallback: string): string {
 
 /** Convert NodeList/HTMLCollection to array for cross-platform compatibility (browser + xmldom) */
 function toArray(nodeList: NodeListOf<Element> | HTMLCollectionOf<Element>): Element[] {
-  const result: Element[] = [];
-  for (let i = 0; i < nodeList.length; i++) {
-    result.push(nodeList[i]);
-  }
-  return result;
+  return Array.from(nodeList);
 }
 
 /** Find first child element matching tag name (xmldom-compatible replacement for querySelector) */
@@ -67,9 +63,8 @@ function findChildByTag(parent: Element, tagName: string): Element | null {
 
 /** Find child mxPoint with specific 'as' attribute */
 function findMxPoint(parent: Element, asValue: string): Element | null {
-  const points = parent.getElementsByTagName('mxPoint');
-  for (let i = 0; i < points.length; i++) {
-    if (points[i].getAttribute('as') === asValue) return points[i];
+  for (const point of Array.from(parent.getElementsByTagName('mxPoint'))) {
+    if (point.getAttribute('as') === asValue) return point;
   }
   return null;
 }
@@ -99,39 +94,39 @@ export function importFromDrawio(xmlString: string): GraphDocument {
 
     if (isVertex) {
       const geo = findChildByTag(cell, 'mxGeometry');
-      const x = parseFloat(geo?.getAttribute('x') ?? '0');
-      const y = parseFloat(geo?.getAttribute('y') ?? '0');
-      const width = parseFloat(geo?.getAttribute('width') ?? '120');
-      const height = parseFloat(geo?.getAttribute('height') ?? '60');
+      const x = Number.parseFloat(geo?.getAttribute('x') ?? '0');
+      const y = Number.parseFloat(geo?.getAttribute('y') ?? '0');
+      const width = Number.parseFloat(geo?.getAttribute('width') ?? '120');
+      const height = Number.parseFloat(geo?.getAttribute('height') ?? '60');
 
       const nodeType = resolveNodeType(style);
       const fill = colorFromHex(style['fillColor'], DEFAULT_NODE_STYLE.fill);
       const stroke = colorFromHex(style['strokeColor'], DEFAULT_NODE_STYLE.stroke);
-      const strokeWidth = parseFloat(style['strokeWidth'] ?? '2');
-      const fontSize = parseFloat(style['fontSize'] ?? '14');
+      const strokeWidth = Number.parseFloat(style['strokeWidth'] ?? '2');
+      const fontSize = Number.parseFloat(style['fontSize'] ?? '14');
       const fontFamily = style['fontFamily'] ?? DEFAULT_NODE_STYLE.fontFamily;
 
       const url = cell.getAttribute('link') ?? undefined;
 
       // Optional style properties
       const fontColor = style['fontColor'] ? colorFromHex(style['fontColor'], '#FFFFFF') : undefined;
-      const fontStyleVal = style['fontStyle'] ? parseInt(style['fontStyle'], 10) : undefined;
+      const fontStyleVal = style['fontStyle'] ? Number.parseInt(style['fontStyle'], 10) : undefined;
       const align = (['left', 'center', 'right'].includes(style['align']) ? style['align'] : undefined) as TextAlign | undefined;
       const verticalAlign = (['top', 'middle', 'bottom'].includes(style['verticalAlign']) ? style['verticalAlign'] : undefined) as VerticalAlign | undefined;
-      const opacity = style['opacity'] !== undefined ? parseFloat(style['opacity']) : undefined;
+      const opacity = style['opacity'] === undefined ? undefined : Number.parseFloat(style['opacity']);
       const dashed = style['dashed'] === '1' ? true : undefined;
       const rounded = style['rounded'] === '1';
-      const borderRadius = rounded ? (parseFloat(style['arcSize'] ?? '0') || 10) : undefined;
-      const spacing = style['spacing'] !== undefined ? parseFloat(style['spacing']) : undefined;
-      const spacingTop = style['spacingTop'] !== undefined ? parseFloat(style['spacingTop']) : undefined;
-      const spacingRight = style['spacingRight'] !== undefined ? parseFloat(style['spacingRight']) : undefined;
-      const spacingBottom = style['spacingBottom'] !== undefined ? parseFloat(style['spacingBottom']) : undefined;
-      const spacingLeft = style['spacingLeft'] !== undefined ? parseFloat(style['spacingLeft']) : undefined;
+      const borderRadius = rounded ? (Number.parseFloat(style['arcSize'] ?? '0') || 10) : undefined;
+      const spacing = style['spacing'] === undefined ? undefined : Number.parseFloat(style['spacing']);
+      const spacingTop = style['spacingTop'] === undefined ? undefined : Number.parseFloat(style['spacingTop']);
+      const spacingRight = style['spacingRight'] === undefined ? undefined : Number.parseFloat(style['spacingRight']);
+      const spacingBottom = style['spacingBottom'] === undefined ? undefined : Number.parseFloat(style['spacingBottom']);
+      const spacingLeft = style['spacingLeft'] === undefined ? undefined : Number.parseFloat(style['spacingLeft']);
 
       // Metadata from cell attributes
       const locked = cell.getAttribute('connectable') === '0' ? true : undefined;
       const parent = cell.getAttribute('parent');
-      const groupId = (parent && parent !== '1') ? parent : undefined;
+      const groupId = (!parent || parent === '1') ? undefined : parent;
 
       nodes.push({
         id,
@@ -145,14 +140,14 @@ export function importFromDrawio(xmlString: string): GraphDocument {
           ...(fontStyleVal ? { fontStyle: fontStyleVal } : {}),
           ...(align ? { align } : {}),
           ...(verticalAlign ? { verticalAlign } : {}),
-          ...(opacity !== undefined ? { opacity } : {}),
+          ...(opacity === undefined ? {} : { opacity }),
           ...(dashed ? { dashed } : {}),
           ...(borderRadius ? { borderRadius } : {}),
-          ...(spacing !== undefined ? { spacing } : {}),
-          ...(spacingTop !== undefined ? { spacingTop } : {}),
-          ...(spacingRight !== undefined ? { spacingRight } : {}),
-          ...(spacingBottom !== undefined ? { spacingBottom } : {}),
-          ...(spacingLeft !== undefined ? { spacingLeft } : {}),
+          ...(spacing === undefined ? {} : { spacing }),
+          ...(spacingTop === undefined ? {} : { spacingTop }),
+          ...(spacingRight === undefined ? {} : { spacingRight }),
+          ...(spacingBottom === undefined ? {} : { spacingBottom }),
+          ...(spacingLeft === undefined ? {} : { spacingLeft }),
         },
         ...(url ? { url } : {}),
         ...(locked ? { locked } : {}),
@@ -166,10 +161,10 @@ export function importFromDrawio(xmlString: string): GraphDocument {
       const srcPt = geo ? findMxPoint(geo, 'sourcePoint') : null;
       const tgtPt = geo ? findMxPoint(geo, 'targetPoint') : null;
 
-      const fromX = parseFloat(srcPt?.getAttribute('x') ?? '0');
-      const fromY = parseFloat(srcPt?.getAttribute('y') ?? '0');
-      const toX = parseFloat(tgtPt?.getAttribute('x') ?? '0');
-      const toY = parseFloat(tgtPt?.getAttribute('y') ?? '0');
+      const fromX = Number.parseFloat(srcPt?.getAttribute('x') ?? '0');
+      const fromY = Number.parseFloat(srcPt?.getAttribute('y') ?? '0');
+      const toX = Number.parseFloat(tgtPt?.getAttribute('x') ?? '0');
+      const toY = Number.parseFloat(tgtPt?.getAttribute('y') ?? '0');
 
       const isOrthogonal = style['edgeStyle'] === 'orthogonalEdgeStyle';
       const isCurved = style['curved'] === '1';
@@ -179,11 +174,11 @@ export function importFromDrawio(xmlString: string): GraphDocument {
       const routing = isCurved ? 'bezier' as const : undefined;
 
       const edgeStroke = colorFromHex(style['strokeColor'], DEFAULT_EDGE_STYLE.stroke);
-      const edgeStrokeWidth = parseFloat(style['strokeWidth'] ?? '2');
+      const edgeStrokeWidth = Number.parseFloat(style['strokeWidth'] ?? '2');
       const endShape = resolveEndpointShape(style['endArrow'], style['endFill']);
       const startShape = resolveEndpointShape(style['startArrow'], style['startFill']);
 
-      const edgeOpacity = style['opacity'] !== undefined ? parseFloat(style['opacity']) : undefined;
+      const edgeOpacity = style['opacity'] === undefined ? undefined : Number.parseFloat(style['opacity']);
       const edgeDashed = style['dashed'] === '1' ? true : undefined;
 
       edges.push({
@@ -193,7 +188,7 @@ export function importFromDrawio(xmlString: string): GraphDocument {
         to: { nodeId: target, x: toX, y: toY },
         style: {
           stroke: edgeStroke, strokeWidth: edgeStrokeWidth, startShape, endShape, routing,
-          ...(edgeOpacity !== undefined ? { opacity: edgeOpacity } : {}),
+          ...(edgeOpacity === undefined ? {} : { opacity: edgeOpacity }),
           ...(edgeDashed ? { dashed: edgeDashed } : {}),
         },
         label: stripHtmlTags(value) || undefined,

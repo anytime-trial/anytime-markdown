@@ -273,7 +273,7 @@ function simplifyPath(path: Point[]): Point[] {
 
   const result: Point[] = [path[0]];
   for (let i = 1; i < path.length - 1; i++) {
-    const prev = result[result.length - 1];
+    const prev = result.at(-1)!;
     const curr = path[i];
     const next = path[i + 1];
     // prev→curr と curr→next が同方向なら curr をスキップ
@@ -283,7 +283,7 @@ function simplifyPath(path: Point[]): Point[] {
       result.push(curr);
     }
   }
-  result.push(path[path.length - 1]);
+  result.push(path.at(-1)!);
   return result;
 }
 
@@ -358,12 +358,10 @@ function collapseStaircase(path: Point[], obstacles: Rect[]): Point[] {
       const bend2: Point = { x: start.x, y: end.y };
 
       if (lPathClear(start, bend1, end, obstacles)) {
-        result.push(bend1);
-        result.push(end);
+        result.push(bend1, end);
         i = j - 1;
       } else if (lPathClear(start, bend2, end, obstacles)) {
-        result.push(bend2);
-        result.push(end);
+        result.push(bend2, end);
         i = j - 1;
       } else {
         // L字が障害物に衝突 → 元のパスを保持

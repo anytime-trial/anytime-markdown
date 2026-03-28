@@ -270,12 +270,10 @@ export function computeOrthogonalPath(
   if (isOpposite) {
     if (isHorizontal) {
       const midX = manualMidpoint ?? (p1.x + p4.x) / 2;
-      points.push({ x: midX, y: fromPt.y });
-      points.push({ x: midX, y: toPt.y });
+      points.push({ x: midX, y: fromPt.y }, { x: midX, y: toPt.y });
     } else {
       const midY = manualMidpoint ?? (p1.y + p4.y) / 2;
-      points.push({ x: fromPt.x, y: midY });
-      points.push({ x: toPt.x, y: midY });
+      points.push({ x: fromPt.x, y: midY }, { x: toPt.x, y: midY });
     }
   } else {
     // 同方向や直交する場合: L字またはZ字

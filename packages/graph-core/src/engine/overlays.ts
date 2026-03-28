@@ -1,7 +1,7 @@
 import { GraphNode, GraphEdge, NodeType } from '../types';
 import type { GuideLine } from './smartGuide';
 import { CanvasColors, getCanvasColors } from '../theme';
-import { drawRoundedRect, drawDiamond, drawParallelogram, drawCylinderBody, drawCylinderTop } from './shapes';
+import { drawDiamond, drawParallelogram, drawCylinderBody, drawCylinderTop } from './shapes';
 import { HANDLE_SIZE, SNAP_INDICATOR_RADIUS, DASH_DEFAULT, DASH_OVERLAY } from './constants';
 import { getConnectionPoints } from './connector';
 
@@ -98,7 +98,7 @@ export function drawEdgeEndpointHandles(
   colors = colors ?? getCanvasColors(true);
   const r = 7 / scale;
   const pts = edge.waypoints && edge.waypoints.length >= 2
-    ? [edge.waypoints[0], edge.waypoints[edge.waypoints.length - 1]]
+    ? [edge.waypoints[0], edge.waypoints.at(-1)!]
     : [{ x: edge.from.x, y: edge.from.y }, { x: edge.to.x, y: edge.to.y }];
 
   ctx.save();

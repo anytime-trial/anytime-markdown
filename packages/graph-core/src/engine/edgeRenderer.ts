@@ -54,8 +54,8 @@ export function drawEdge(
     ctx.stroke();
     const first = edge.waypoints[0];
     const second = edge.waypoints[1];
-    const last = edge.waypoints[edge.waypoints.length - 1];
-    const prev = edge.waypoints[edge.waypoints.length - 2];
+    const last = edge.waypoints.at(-1)!;
+    const prev = edge.waypoints.at(-2)!;
     drawEndpointShape(ctx, startShape, first.x, first.y, second.x, second.y, color);
     drawEndpointShape(ctx, endShape, last.x, last.y, prev.x, prev.y, color);
 
