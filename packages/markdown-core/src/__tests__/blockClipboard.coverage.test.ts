@@ -135,7 +135,7 @@ describe("blockClipboard", () => {
       const view = {
         state: {
           selection: { from: 0, to: 5 },
-          doc: { textBetween: () => "hello" },
+          doc: { textBetween: () => "hello", nodeAt: () => null },
           tr: { deleteSelection },
         },
         dispatch: jest.fn(),
@@ -153,7 +153,7 @@ describe("blockClipboard", () => {
       const view = {
         state: {
           selection: { from: 0, to: 5 },
-          doc: { textBetween: () => "hello" },
+          doc: { textBetween: () => "hello", nodeAt: () => null },
           tr: { deleteSelection },
         },
         dispatch: jest.fn(),

@@ -52,6 +52,7 @@ jest.mock("../utils/blockClipboard", () => ({
   handleBlockClipboardEvent: jest.fn().mockReturnValue(false),
   performBlockCopy: jest.fn().mockReturnValue(false),
   setHandledByKeydown: jest.fn(),
+  getCopiedBlockNode: jest.fn().mockReturnValue(null),
 }));
 
 jest.mock("../utils/editorContentLoader", () => ({

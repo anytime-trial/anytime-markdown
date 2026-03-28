@@ -136,7 +136,7 @@ describe("performBlockCopy", () => {
     const mockView = {
       state: {
         selection: { from: 0, to: 5 },
-        doc: { textBetween: jest.fn(() => "hello") },
+        doc: { textBetween: jest.fn(() => "hello"), nodeAt: jest.fn(() => null) },
         tr: {
           deleteSelection: jest.fn().mockReturnThis(),
         },
@@ -155,7 +155,7 @@ describe("performBlockCopy", () => {
     const mockView = {
       state: {
         selection: { from: 0, to: 5 },
-        doc: { textBetween: jest.fn(() => "hello") },
+        doc: { textBetween: jest.fn(() => "hello"), nodeAt: jest.fn(() => null) },
         tr: {
           deleteSelection: jest.fn().mockReturnThis(),
         },

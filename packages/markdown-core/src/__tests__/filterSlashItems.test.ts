@@ -3,10 +3,10 @@ jest.mock("../constants/templates/apiSpec.md", () => "", { virtual: true });
 jest.mock("../constants/templates/basicDesign.md", () => "", {
   virtual: true,
 });
-jest.mock("../constants/templates/markdownAll.ja.md", () => "", {
+jest.mock("../constants/templates/markdownEmbedAll.ja.md", () => "", {
   virtual: true,
 });
-jest.mock("../constants/templates/markdownAll.en.md", () => "", {
+jest.mock("../constants/templates/markdownEmbedAll.en.md", () => "", {
   virtual: true,
 });
 jest.mock("../constants/templates/welcome.md", () => "", { virtual: true });

@@ -253,8 +253,8 @@ export function EditorMainContent({
           t={t}
         />
       </Box>
-      <Box data-print-hide="">{sideToolbar && commentSlot}</Box>
-      <Box data-print-hide="">{sideOutlineSlot}</Box>
+      <Box data-print-hide="" sx={{ display: "flex" }}>{sideToolbar && commentSlot}</Box>
+      <Box data-print-hide="" sx={{ display: "flex" }}>{sideOutlineSlot}</Box>
       <Box data-print-hide="">{sideToolbar && explorerOpen && explorerSlot}</Box>
       <Box data-print-hide="">{sideToolbarNode}</Box>
       </Box>
@@ -292,8 +292,8 @@ export function EditorMainContent({
         onSwitchToSource={onSwitchToSource}
       />
 
-      <Box data-print-hide="">{commentSlot}</Box>
-      <Box data-print-hide="">{sideOutlineSlot}</Box>
+      <Box data-print-hide="" sx={{ display: "flex" }}>{commentSlot}</Box>
+      <Box data-print-hide="" sx={{ display: "flex" }}>{sideOutlineSlot}</Box>
       <Box data-print-hide="">{sideToolbar && explorerOpen && explorerSlot}</Box>
       </Box>
       </Box>

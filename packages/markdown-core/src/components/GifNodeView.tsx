@@ -106,12 +106,17 @@ function onRecordComplete(
     reader.readAsDataURL(blob);
     updateAttributes({ gifSettings: JSON.stringify(settings) });
   } else {
-    const url = URL.createObjectURL(blob);
-    updateAttributes({
-      src: url,
-      alt: fileName,
-      gifSettings: JSON.stringify(settings),
-    });
+    // data URL を直接使用（blob URL はブラウザコンテキスト固有のため、
+    // 他環境へのコピー時に解決できない）
+    const reader = new FileReader();
+    reader.onload = () => {
+      updateAttributes({
+        src: reader.result as string,
+        alt: fileName,
+        gifSettings: JSON.stringify(settings),
+      });
+    };
+    reader.readAsDataURL(blob);
   }
 }
 

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.5] - 2026-03-28
+
+### Added
+- Save external/base64 pasted images to local workspace folder
+
+### Editor Core (markdown-core)
+- Fixed block node (image, etc.) copy & paste
+- GIF recorder now uses data URL instead of blob URL
+- Fixed side panel border display
+- Renamed template files and removed unused assets
+
 ## [0.8.4] - 2026-03-28
 
 ### Added

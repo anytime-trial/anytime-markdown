@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v6
         with:
           node-version-file: '.node-version'
           cache: 'npm'
@@ -47,6 +47,14 @@ jobs:
       - name: Run mcp-graph tests
         run: npx jest --maxWorkers=1
         working-directory: packages/mcp-graph
+
+      - name: Run cms-core tests
+        run: npx jest --maxWorkers=1
+        working-directory: packages/cms-core
+
+      - name: Run mcp-cms tests
+        run: npx jest --passWithNoTests --maxWorkers=1
+        working-directory: packages/mcp-cms
 
       - name: Run web-app tests
         run: npm test
@@ -176,7 +184,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v6
         with:
           node-version-file: '.node-version'
           cache: 'npm'
@@ -191,6 +199,10 @@ jobs:
       - name: Run graph-core tests with coverage
         run: npx jest --maxWorkers=1 --coverage --coverageReporters=lcov
         working-directory: packages/graph-core
+
+      - name: Run cms-core tests with coverage
+        run: npx jest --maxWorkers=1 --coverage --coverageReporters=lcov
+        working-directory: packages/cms-core
 
       - name: Run web-app tests with coverage
         run: npx jest --coverage --coverageReporters=lcov
@@ -211,7 +223,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v6
         with:
           node-version-file: '.node-version'
           cache: 'npm'

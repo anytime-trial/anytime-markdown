@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.5] - 2026-03-28
+
+### Added
+- External/base64 image paste: local save support via VS Code integration
+
+### Changed
+- Renamed template files and removed unused assets
+
+### Fixed
+- Block node (image, etc.) copy & paste in VS Code
+- GIF recorder: use data URL instead of blob URL for Web app compatibility
+- Side panel (Comment, Outline, EditorSideToolbar) border display
+
 ## [0.8.4] - 2026-03-28
 
 ### Added

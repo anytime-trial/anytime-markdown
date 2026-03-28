@@ -40,11 +40,10 @@ export const EditorSideToolbar = React.memo(function EditorSideToolbar({
         flexDirection: "column",
         alignItems: "center",
         width: SIDE_TOOLBAR_WIDTH,
+        height: "100%",
         py: 1,
         gap: 0.5,
         borderLeft: 1,
-        borderRight: 1,
-        borderTop: 1,
         borderColor: getDivider(isDark),
         flexShrink: 0,
       }}

@@ -4,7 +4,7 @@
  * GifPlaceholder, GifPlaybackImage, message handler, editable state interactions.
  */
 import React from "react";
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { render, screen, fireEvent, act, waitFor } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 // Mock dependencies before importing component
@@ -231,7 +231,7 @@ describe("GifNodeView - edit button", () => {
 });
 
 describe("GifNodeView - record complete", () => {
-  it("handles record completion in browser mode (no vscode)", () => {
+  it("handles record completion in browser mode (no vscode)", async () => {
     const { updateAttributes } = renderGifNodeView();
 
     // Open recorder
@@ -241,21 +241,18 @@ describe("GifNodeView - record complete", () => {
     // Complete recording
     const completeBtn = screen.getByTestId("complete-record");
 
-    // Mock URL.createObjectURL
-    const origCreate = URL.createObjectURL;
-    (URL as any).createObjectURL = jest.fn(() => "blob:recorded-gif");
-
     fireEvent.click(completeBtn);
 
-    expect(updateAttributes).toHaveBeenCalledWith(
-      expect.objectContaining({
-        src: "blob:recorded-gif",
-        alt: "recording.gif",
-        gifSettings: expect.any(String),
-      }),
-    );
-
-    (URL as any).createObjectURL = origCreate;
+    // FileReader.readAsDataURL is async; wait for updateAttributes to be called
+    await waitFor(() => {
+      expect(updateAttributes).toHaveBeenCalledWith(
+        expect.objectContaining({
+          src: expect.stringContaining("data:"),
+          alt: "recording.gif",
+          gifSettings: expect.any(String),
+        }),
+      );
+    });
   });
 
   it("handles record completion in vscode mode", () => {

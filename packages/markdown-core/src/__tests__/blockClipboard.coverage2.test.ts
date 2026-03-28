@@ -151,6 +151,7 @@ describe("blockClipboard coverage2", () => {
           },
           doc: {
             textBetween: () => "select",
+            nodeAt: () => null,
           },
           schema: {},
           tr: { deleteSelection: jest.fn().mockReturnThis() },

@@ -106,6 +106,7 @@ describe("blockClipboard ユーティリティ", () => {
           selection: { from: 5, to: 10 },
           doc: {
             textBetween: () => "hello",
+            nodeAt: () => null,
           },
           tr: {
             deleteSelection: jest.fn().mockReturnThis(),
@@ -128,6 +129,7 @@ describe("blockClipboard ユーティリティ", () => {
           selection: { from: 5, to: 10 },
           doc: {
             textBetween: () => "hello",
+            nodeAt: () => null,
           },
           tr: {
             deleteSelection: deleteSel,

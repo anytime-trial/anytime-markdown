@@ -15,8 +15,8 @@
 // テンプレートの .md ファイルインポートをモック
 jest.mock("../constants/templates/apiSpec.md", () => "---\ntitle: api\n---\n# API Spec", { virtual: true });
 jest.mock("../constants/templates/basicDesign.md", () => "---\ntitle: design\n---\n# Basic Design", { virtual: true });
-jest.mock("../constants/templates/markdownAll.ja.md", () => "# Markdown All JA", { virtual: true });
-jest.mock("../constants/templates/markdownAll.en.md", () => "# Markdown All EN", { virtual: true });
+jest.mock("../constants/templates/markdownEmbedAll.ja.md", () => "# Markdown All JA", { virtual: true });
+jest.mock("../constants/templates/markdownEmbedAll.en.md", () => "# Markdown All EN", { virtual: true });
 jest.mock("../constants/templates/welcome.md", () => "# Welcome JA", { virtual: true });
 jest.mock("../constants/templates/welcome-en.md", () => "# Welcome EN", { virtual: true });
 

@@ -1,6 +1,6 @@
 {
   "name": "@anytime-markdown/mobile-app",
-  "version": "0.8.4",
+  "version": "0.8.5",
   "private": true,
   "scripts": {
     "sync": "bash scripts/sync.sh",

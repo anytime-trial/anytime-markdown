@@ -346,6 +346,11 @@ export function App() {
         case 'imageSaved':
           if (typeof message.path === 'string') dispatchCustomEvent('vscode-image-saved', message.path);
           return;
+        case 'imageDownloaded':
+          if (typeof message.originalUrl === 'string' && typeof message.localPath === 'string') {
+            dispatchCustomEvent('vscode-image-downloaded', { originalUrl: message.originalUrl, localPath: message.localPath });
+          }
+          return;
         case 'pasteMarkdown':
           if (typeof message.text === 'string') dispatchCustomEvent('vscode-paste-markdown', message.text);
           return;
@@ -476,7 +481,7 @@ export function App() {
       <CssBaseline />
       <ConfirmProvider>
         <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-          <MarkdownEditorPage key={editorKey} hideToolbar hideStatusBar readOnly={claudeEditing} externalCompareContent={compareContent} onCompareModeChange={handleCompareModeChange} onHeadingsChange={handleHeadingsChange} onCommentsChange={handleCommentsChange} onStatusChange={handleStatusChange} autoReload={autoReload} onModeChange={handleModeChange} themeMode={themeMode} presetName={presetName} />
+          <MarkdownEditorPage key={editorKey} hideToolbar sideToolbar hideSettings hideStatusBar readOnly={claudeEditing} externalCompareContent={compareContent} onCompareModeChange={handleCompareModeChange} onHeadingsChange={handleHeadingsChange} onCommentsChange={handleCommentsChange} onStatusChange={handleStatusChange} autoReload={autoReload} onModeChange={handleModeChange} themeMode={themeMode} presetName={presetName} />
           {claudeEditing && (
             <div style={{
               position: 'absolute',

@@ -34,6 +34,11 @@ jest.mock("../utils/clipboardHelpers", () => ({
   readTextFromClipboard: jest.fn().mockResolvedValue(null),
 }));
 
+jest.mock("../hooks/useEditorConfig", () => ({
+  requestExternalImageDownloads: jest.fn(),
+  saveClipboardImageViaVscode: jest.fn(),
+}));
+
 const theme = createTheme();
 
 function renderWithTheme(ui: React.ReactElement) {
