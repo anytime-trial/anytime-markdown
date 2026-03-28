@@ -1,5 +1,16 @@
 import { GraphDocument, GraphNode, GraphEdge, NodeType, EdgeType, EndpointShape, TextAlign, VerticalAlign, DEFAULT_NODE_STYLE, DEFAULT_EDGE_STYLE, DEFAULT_VIEWPORT } from '../types';
 
+/** Strip HTML tags from a string, converting `<br>` to newline. Loops until no tags remain to avoid incomplete sanitization of nested/malformed markup. */
+function stripHtmlTags(html: string): string {
+  let result = html.replaceAll(/<br\s*\/?>/gi, '\n');
+  let prev: string;
+  do {
+    prev = result;
+    result = result.replaceAll(/<[^>]*>/g, '');
+  } while (result !== prev);
+  return result;
+}
+
 function parseStyle(styleStr: string): Record<string, string> {
   const result: Record<string, string> = {};
   for (const part of styleStr.split(';')) {
@@ -127,7 +138,7 @@ export function importFromDrawio(xmlString: string): GraphDocument {
         type: nodeType,
         x, y, width, height,
         // Canvas fillText 専用。DOM に出力する場合は DOMPurify 等でサニタイズすること
-        text: value.replace(/<br\s*\/?>/g, '\n').replace(/<[^>]*>/g, ''),
+        text: stripHtmlTags(value),
         style: {
           fill, stroke, strokeWidth, fontSize, fontFamily,
           ...(fontColor ? { fontColor } : {}),
@@ -184,7 +195,7 @@ export function importFromDrawio(xmlString: string): GraphDocument {
           ...(edgeOpacity !== undefined ? { opacity: edgeOpacity } : {}),
           ...(edgeDashed ? { dashed: edgeDashed } : {}),
         },
-        label: value.replace(/<[^>]*>/g, '') || undefined,
+        label: stripHtmlTags(value) || undefined,
       });
     }
   });
