@@ -4,7 +4,7 @@
  * applyMarkdownToEditor の各ブランチ（画像アノテーション復元、GIF設定復元等）を検証する。
  */
 
-import { applyMarkdownToEditor, setTrailingNewline, getTrailingNewline } from "../utils/editorContentLoader";
+import { applyMarkdownToEditor } from "../utils/editorContentLoader";
 
 const mockSetContent = jest.fn();
 const mockInitComments = jest.fn();

@@ -9,7 +9,6 @@
  * このテストは、同一マークダウンが Tiptap ラウンドトリップ後に computeDiff で
  * 差分なしと判定されることを検証する。
  */
-import { Editor } from "@tiptap/core";
 import { createTestEditor } from "../testUtils/createTestEditor";
 import { getMarkdownFromEditor } from "../types";
 import { preserveBlankLines } from "../utils/sanitizeMarkdown";

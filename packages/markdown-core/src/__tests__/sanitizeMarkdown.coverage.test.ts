@@ -9,7 +9,6 @@ import {
   sanitizeMarkdown,
   normalizeCodeSpanDelimitersInLine,
   BLANK_LINE_MARKER,
-  TIGHT_TRANSITION_MARKER,
 } from "../utils/sanitizeMarkdown";
 
 describe("sanitizeMarkdown coverage", () => {

@@ -5,7 +5,7 @@
  *        onCopy/onCut handlers with base64 token restoration
  */
 import React from "react";
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material";
 import { SourceModeEditor } from "../components/SourceModeEditor";
 

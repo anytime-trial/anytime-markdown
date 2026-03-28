@@ -4,7 +4,7 @@
  * エディタ内のノード選択に基づくフローティングツールバーの位置計算を検証する。
  */
 
-import { renderHook, act } from "@testing-library/react";
+import { renderHook } from "@testing-library/react";
 import { useFloatingToolbar } from "../hooks/useFloatingToolbar";
 
 function createMockEditor(nodeType: string, language?: string) {

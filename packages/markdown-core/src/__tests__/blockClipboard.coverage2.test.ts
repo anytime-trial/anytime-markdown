@@ -2,7 +2,6 @@
  * blockClipboard.ts - 追加カバレッジテスト (lines 72-73, 102-105, 137-150)
  */
 import {
-  findBlockNode,
   performBlockCopy,
   handleBlockClipboardEvent,
   setHandledByKeydown,

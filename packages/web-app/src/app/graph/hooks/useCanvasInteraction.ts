@@ -3,7 +3,8 @@
 import { useCallback, useRef, useEffect } from 'react';
 import { ToolType, GraphNode, GraphEdge, Viewport, SelectionState, createNode, createEdge } from '../types';
 import { screenToWorld, pan as panViewport, zoom as zoomViewport } from '../engine/viewport';
-import { hitTest, ResizeHandle } from '../engine/hitTest';
+import { hitTest } from '../engine/hitTest';
+import type { ResizeHandle } from '../engine/hitTest';
 import { snapToGrid } from '../engine/gridSnap';
 import { computeSmartGuides, GuideLine } from '../engine/smartGuide';
 import { computeOrthogonalPath } from '../engine/connector';

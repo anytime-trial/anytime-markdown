@@ -73,11 +73,6 @@ function getPlugin() {
   return plugins[0];
 }
 
-function getPluginKey() {
-  const plugin = getPlugin();
-  return plugin.spec.key;
-}
-
 // --- Plugin state helpers ---
 
 function initState() {

@@ -2,7 +2,7 @@
  * SourceSearchBar.tsx のスモークテスト
  */
 import React from "react";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 jest.mock("../constants/colors", () => ({

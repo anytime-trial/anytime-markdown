@@ -2,7 +2,7 @@
  * SlashCommandMenu.tsx の追加カバレッジテスト
  */
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { render } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 jest.mock("../constants/colors", () => ({

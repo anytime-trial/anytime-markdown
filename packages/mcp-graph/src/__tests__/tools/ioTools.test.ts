@@ -3,7 +3,6 @@ import path from 'path';
 import os from 'os';
 import { createGraphFile } from '../../tools/createGraph';
 import { addNode } from '../../tools/addNode';
-import { addEdge } from '../../tools/addEdge';
 import { exportSvg } from '../../tools/exportSvg';
 import { exportDrawio } from '../../tools/exportDrawio';
 import { importDrawio } from '../../tools/importDrawio';

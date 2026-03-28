@@ -292,10 +292,8 @@ describe("OutlinePanel - coverage", () => {
 
     // Find the drop zone (last Box in the list area)
     // The drop zone has height:16 and handles onDrop
-    const dropZones = container.querySelectorAll("[style]");
     // Try to drop on the navigation's last child area
-    const nav = screen.getByRole("navigation");
-    const lastBox = nav.querySelector("[style*='height']");
+    screen.getByRole("navigation");
     // We just confirm no crash with the final drop zone
   });
 

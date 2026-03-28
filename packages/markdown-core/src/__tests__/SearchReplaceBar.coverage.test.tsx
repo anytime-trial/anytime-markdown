@@ -170,7 +170,7 @@ describe("SearchReplaceBar - coverage tests", () => {
 
   test("handleSearchKeyDown Escape closes search bar", () => {
     const editor = createMockEditor();
-    const { container } = render(<SearchReplaceBar editor={editor} t={t} />);
+    const { container: _container } = render(<SearchReplaceBar editor={editor} t={t} />);
     openSearchBar(editor);
 
     const input = screen.getByLabelText("searchPlaceholder");
@@ -190,7 +190,7 @@ describe("SearchReplaceBar - coverage tests", () => {
     fireEvent.click(toggleBtn);
 
     const replaceInput = screen.getByLabelText("replacePlaceholder");
-    const event = fireEvent.keyDown(replaceInput, { key: "Enter" });
+    fireEvent.keyDown(replaceInput, { key: "Enter" });
 
     // closeSearch should NOT have been called for Enter
     expect(editor.commands.closeSearch).not.toHaveBeenCalled();

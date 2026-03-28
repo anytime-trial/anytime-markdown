@@ -76,7 +76,7 @@ describe("useSourceMode - extra", () => {
   });
 
   test("handleSwitchToReview: WYSIWYG → reviewMode", () => {
-    const { hook, editor } = setup();
+    const { hook, editor: _editor } = setup();
     act(() => hook.result.current.handleSwitchToReview());
     expect(hook.result.current.reviewMode).toBe(true);
     expect(hook.result.current.readonlyMode).toBe(false);

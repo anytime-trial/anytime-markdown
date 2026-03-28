@@ -5,7 +5,7 @@
 import { sanitizeMarkdown, preserveBlankLines } from "../utils/sanitizeMarkdown";
 import { getMarkdownFromEditor } from "../types";
 import { createTestEditor } from "../testUtils/createTestEditor";
-import { Editor } from "@tiptap/core";
+
 
 /** フルラウンドトリップ: sanitize → preserve → Editor → getMarkdown */
 function fullRoundTrip(md: string, opts?: { withTable?: boolean }): string {
