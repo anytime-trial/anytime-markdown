@@ -586,7 +586,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         </div>
       )}
 
-      {readonlyMode && (
+      {_readonlyMode && !readOnly && (
         <ReadonlyToolbar
           outlineOpen={outlineOpen}
           onToggleOutline={handleToggleOutline}
