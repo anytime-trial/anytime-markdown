@@ -1,14 +1,14 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
-import { Typography, Box, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button } from '@mui/material';
+import { Typography, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button } from '@mui/material';
 import type { ToolType, GraphDocument, Viewport } from '@anytime-markdown/graph-core';
-import { getCanvasColors, createDocument, createNode } from '@anytime-markdown/graph-core';
+import { createDocument, createNode } from '@anytime-markdown/graph-core';
 import {
   zoom as zoomViewport, fitToContent, screenToWorld,
   alignLeft, alignRight, alignTop, alignBottom,
   alignCenterH, alignCenterV, distributeH, distributeV,
-  interpolateViewport, physics,
+  physics,
 } from '@anytime-markdown/graph-core/engine';
 import { pan as panViewport } from '@anytime-markdown/graph-core/engine';
 import type { ViewportAnimation } from '@anytime-markdown/graph-core/engine';
@@ -383,8 +383,6 @@ export function App() {
     ? state.document.nodes.find(n => n.id === state.selection.nodeIds[0]) ?? null : null;
   const selectedEdge = state.selection.edgeIds.length === 1
     ? state.document.edges.find(e => e.id === state.selection.edgeIds[0]) ?? null : null;
-  const colors = getCanvasColors(isDark);
-
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />

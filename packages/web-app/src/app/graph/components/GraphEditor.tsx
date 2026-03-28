@@ -3,7 +3,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Box, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button, Typography } from '@mui/material';
 import { useTranslations } from 'next-intl';
-import { ToolType, GraphDocument, Viewport, createDocument, createNode } from '../types';
+import { ToolType, Viewport, createDocument, createNode } from '../types';
 import { screenToWorld, pan as panViewport, zoom as zoomViewport, fitToContent } from '../engine/viewport';
 import { useGraphState } from '../hooks/useGraphState';
 import { useCanvasInteraction } from '../hooks/useCanvasInteraction';
@@ -165,7 +165,7 @@ export function GraphEditor() {
 
   const {
     handleMouseDown, handleMouseMove, handleMouseUp, handleWheel, handleDoubleClick, previewRef, dragRef,
-    clipboardRef, copySelected, pasteFromClipboard, hoverNodeIdRef, mouseWorldRef, velocityRef,
+    hoverNodeIdRef, mouseWorldRef, velocityRef,
   } = useCanvasInteraction({
     canvasRef, tool,
     nodes: state.document.nodes,

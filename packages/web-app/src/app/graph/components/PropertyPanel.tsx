@@ -3,7 +3,7 @@
 import React from 'react';
 import {
   Box, Typography, TextField, Slider, Divider, IconButton, ToggleButton, ToggleButtonGroup,
-  Switch, FormControlLabel, Select, MenuItem as MuiMenuItem,
+  Switch, FormControlLabel,
 } from '@mui/material';
 import {
   Close as CloseIcon,
