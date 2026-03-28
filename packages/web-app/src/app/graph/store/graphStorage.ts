@@ -1,5 +1,5 @@
 // store/graphStorage.ts
-import { GraphDocument, createDocument } from '../types';
+import { GraphDocument } from '../types';
 
 const DB_NAME = 'anytime-graph';
 const DB_VERSION = 1;

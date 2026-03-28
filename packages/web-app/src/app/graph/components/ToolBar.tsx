@@ -5,9 +5,10 @@ import {
   AppBar, Toolbar, ToggleButton, ToggleButtonGroup,
   IconButton, Tooltip, Divider, Box, Menu, MenuItem,
   ListItemIcon, ListItemText, Popover, Typography,
+  CircularProgress,
 } from '@mui/material';
-import { ArrowDropDown as ArrowDropDownIcon } from '@mui/icons-material';
 import {
+  ArrowDropDown as ArrowDropDownIcon,
   NearMe as SelectIcon,
   CropSquare as RectIcon,
   // StickyNote2Outlined replaced by custom StickyNoteShapeIcon
@@ -43,7 +44,6 @@ import {
   Layers as LayersIcon,
   UnfoldMore as SpreadIcon,
 } from '@mui/icons-material';
-import { CircularProgress } from '@mui/material';
 import { useTranslations } from 'next-intl';
 import { ToolType } from '../types';
 import { SaveStatus } from '../hooks/useAutoSave';
@@ -95,7 +95,7 @@ export function GraphToolBar({
   layoutRunning, collisionEnabled, onAutoLayout, onToggleCollision,
   layoutAlgorithm = 'eades', onChangeAlgorithm,
   onSpreadConnected,
-}: ToolBarProps) {
+}: Readonly<ToolBarProps>) {
   const t = useTranslations('Graph');
   const { themeMode } = useThemeMode();
   const isDark = themeMode === 'dark';

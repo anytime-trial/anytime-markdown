@@ -48,7 +48,7 @@ export function useEditorPage({
   session,
   t,
   fetchFileFn = fetchFileContent,
-  fetchFn = typeof window !== 'undefined' ? window.fetch.bind(window) : (undefined as unknown as typeof fetch),
+  fetchFn = typeof window === 'undefined' ? (undefined as unknown as typeof fetch) : window.fetch.bind(window),
 }: UseEditorPageOptions): EditorPageState & EditorPageActions {
   const [explorerOpen, setExplorerOpen] = useState(() => {
     if (typeof window === 'undefined') return false;

@@ -26,7 +26,7 @@ export interface Graph3DViewProps {
   height?: number;
 }
 
-export function Graph3DView({ graphExpr, plotly, isDark, width = 500, height = 400 }: Graph3DViewProps) {
+export function Graph3DView({ graphExpr, plotly, isDark, width = 500, height = 400 }: Readonly<Graph3DViewProps>) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   /** パラメータ値の状態 */

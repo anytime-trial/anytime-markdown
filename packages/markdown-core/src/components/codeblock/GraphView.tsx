@@ -19,7 +19,7 @@ export interface GraphViewProps {
   fill?: boolean;
 }
 
-export function GraphView({ code, enabled, isDark, width, height, fill }: GraphViewProps) {
+export function GraphView({ code, enabled, isDark, width, height, fill }: Readonly<GraphViewProps>) {
   const { graphExpr, loading, error, jsxGraph, plotly } = useGraphRender({ code, enabled, isDark });
 
   const fillRef = useRef<HTMLDivElement>(null);

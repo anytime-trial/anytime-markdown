@@ -2,9 +2,8 @@
 
 import { useCallback, useRef, useEffect } from 'react';
 import { ToolType, GraphNode, GraphEdge, Viewport, SelectionState, createNode, createEdge } from '../types';
-import { screenToWorld } from '../engine/viewport';
-import { hitTest, HitResult, ResizeHandle } from '../engine/hitTest';
-import { pan as panViewport, zoom as zoomViewport } from '../engine/viewport';
+import { screenToWorld, pan as panViewport, zoom as zoomViewport } from '../engine/viewport';
+import { hitTest, ResizeHandle } from '../engine/hitTest';
 import { snapToGrid } from '../engine/gridSnap';
 import { computeSmartGuides, GuideLine } from '../engine/smartGuide';
 import { computeOrthogonalPath } from '../engine/connector';
@@ -256,7 +255,6 @@ export function useCanvasInteraction({
         startScreenX: sx, startScreenY: sy,
         nodeId: hit.type === 'node' ? hit.id : undefined,
       };
-      return;
     }
   }, [canvasRef, viewport, tool, nodes, edges, selection, dispatch, physicsRef]);
 
@@ -472,7 +470,6 @@ export function useCanvasInteraction({
         fromX: drag.startWorldX, fromY: drag.startWorldY,
         toX: world.x, toY: world.y,
       };
-      return;
     }
   }, [canvasRef, viewport, tool, nodes, edges, selection, dispatch, showGrid, collisionEnabled, physicsRef]);
 
@@ -589,7 +586,7 @@ export function useCanvasInteraction({
       const history = panHistoryRef.current;
       if (history.length >= 2) {
         const first = history[0];
-        const last = history[history.length - 1];
+        const last = history.at(-1)!;
         const dt = last.t - first.t;
         if (dt > 0 && dt < 100) {
           velocityRef.current = {

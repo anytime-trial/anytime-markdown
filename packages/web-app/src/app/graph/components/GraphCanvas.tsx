@@ -2,11 +2,10 @@
 
 import React, { useRef, useEffect, useCallback, useMemo } from 'react';
 import { GraphNode, GraphEdge, Viewport, SelectionState } from '../types';
-import { render, drawSelectionRect, drawEdgePreview, drawShapePreview, drawSnapHighlight, drawSmartGuides } from '@anytime-markdown/graph-core/engine';
+import { render, drawSelectionRect, drawEdgePreview, drawShapePreview, drawSnapHighlight, drawSmartGuides, interpolateViewport, computeAvoidancePath } from '@anytime-markdown/graph-core/engine';
+import type { ViewportAnimation } from '@anytime-markdown/graph-core/engine';
 import { getCanvasColors } from '@anytime-markdown/graph-core';
 import { resolveConnectorEndpoints, computeOrthogonalPath, computeBezierPath, bestSides, getConnectionPoints } from '../engine/connector';
-import { interpolateViewport, computeAvoidancePath } from '@anytime-markdown/graph-core/engine';
-import type { ViewportAnimation } from '@anytime-markdown/graph-core/engine';
 import type { DragPreview } from '../hooks/useCanvasInteraction';
 
 interface GraphCanvasProps {
@@ -46,7 +45,7 @@ export function GraphCanvas({
   ariaLabel,
   isDark = true,
   layoutRunning,
-}: GraphCanvasProps) {
+}: Readonly<GraphCanvasProps>) {
   const rafRef = useRef<number>(0);
 
   // コネクタパス計算をメモ化（edges/nodes変更時のみ再計算）
@@ -112,14 +111,14 @@ export function GraphCanvas({
             return {
               ...e,
               from: { ...e.from, ...waypoints[0] },
-              to: { ...e.to, ...waypoints[waypoints.length - 1] },
+              to: { ...e.to, ...waypoints.at(-1)! },
               waypoints,
             };
           }
 
           // No obstacles → standard orthogonal
           const waypoints = computeOrthogonalPath(fromNode, toNode, 20, e.manualMidpoint);
-          return { ...e, from: { ...e.from, ...waypoints[0] }, to: { ...e.to, ...waypoints[waypoints.length - 1] }, waypoints };
+          return { ...e, from: { ...e.from, ...waypoints[0] }, to: { ...e.to, ...waypoints.at(-1)! }, waypoints };
         }
         const pts = resolveConnectorEndpoints(e, nodes);
         return { ...e, from: { ...e.from, ...pts.from }, to: { ...e.to, ...pts.to } };

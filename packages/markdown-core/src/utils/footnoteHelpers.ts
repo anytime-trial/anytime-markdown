@@ -22,7 +22,7 @@ export function preprocessFootnoteRefs(md: string): string {
       // 脚注定義行 [^id]: の [ をエスケープして markdown-it のリンク参照定義を防止
       protected_ = protected_.replaceAll(
         /^\[\^([^\]]+)\]:/gm,
-        "\\[^$1]:",
+        String.raw`\[^$1]:`,
       );
       // [^id]（定義行 [^id]: は除外）を <sup> に変換
       protected_ = protected_.replaceAll(
