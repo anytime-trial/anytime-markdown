@@ -90,6 +90,16 @@ export function performBlockCopy(
   const { from, to } = view.state.selection;
 
   if (from !== to) {
+    // 選択範囲がブロックノード全体（NodeSelection 等）の場合はブロックコピーとして扱う
+    const nodeAt = view.state.doc.nodeAt(from);
+    if (nodeAt && BLOCK_NODE_TYPES.has(nodeAt.type.name) && from + nodeAt.nodeSize === to) {
+      const text = view.state.doc.textBetween(from, to, "\n");
+      const block: BlockInfo = { node: nodeAt, pos: from, text };
+      setCopiedBlockNode(nodeAt);
+      writeClipboard(text, block);
+      if (isCut) view.dispatch(view.state.tr.deleteSelection());
+      return true;
+    }
     const text = view.state.doc.textBetween(from, to, "\n");
     setCopiedBlockNode(null);
     writeClipboard(text, null);

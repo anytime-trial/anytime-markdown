@@ -21,7 +21,7 @@ import {
   getMarkdownFromEditor,
   type HeadingItem,
 } from "../types";
-import { handleBlockClipboardEvent, performBlockCopy, setHandledByKeydown } from "../utils/blockClipboard";
+import { getCopiedBlockNode, handleBlockClipboardEvent, performBlockCopy, setHandledByKeydown } from "../utils/blockClipboard";
 import { setTrailingNewline } from "../utils/editorContentLoader";
 import { toGitHubSlug } from "../utils/tocHelpers";
 
@@ -327,6 +327,17 @@ export function useEditorConfig({
         return true;
       },
       handlePaste: (view: EditorView, event: ClipboardEvent) => {
+        // VS Code: Ctrl+C でコピーしたブロックノード（画像・テーブル等）があれば挿入
+        const copied = getCopiedBlockNode();
+        if (copied) {
+          event.preventDefault();
+          const { $from } = view.state.selection;
+          const insertPos = $from.after(1);
+          const { tr } = view.state;
+          tr.insert(Math.min(insertPos, tr.doc.content.size), copied.copy(copied.content));
+          view.dispatch(tr.scrollIntoView());
+          return true;
+        }
         const items = event.clipboardData?.items;
         if (!items) return false;
         const images = Array.from(items).filter((item) => item.type.startsWith("image/"));
