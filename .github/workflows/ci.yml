@@ -47,11 +47,11 @@ jobs:
         run: npm audit --audit-level=high --omit=dev
 
       - name: Type check
-        if: github.event_name == 'pull_request' || github.ref != 'refs/heads/master'
+        if: github.event_name == 'pull_request'
         run: npx tsc --noEmit
 
       - name: Lint
-        if: github.event_name == 'pull_request' || github.ref != 'refs/heads/master'
+        if: github.event_name == 'pull_request'
         run: npm run lint
 
       - name: Run markdown-core tests with coverage
