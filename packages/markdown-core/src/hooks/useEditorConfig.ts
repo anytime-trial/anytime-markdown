@@ -164,9 +164,23 @@ function handleBlockContextMenu(
 }
 
 /** Generate a timestamp string for file naming */
-function generateTimestamp(): string {
+export function generateTimestamp(): string {
   const now = new Date();
   return `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}`;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type VsCodeApi = { postMessage: (msg: any) => void };
+
+/** Save an image blob/dataUrl via VS Code extension host */
+export function saveClipboardImageViaVscode(
+  vscodeApi: VsCodeApi,
+  dataUrl: string,
+  ext: string,
+  prefix = "paste",
+): void {
+  const fileName = `${prefix}-${generateTimestamp()}.${ext}`;
+  vscodeApi.postMessage({ type: "saveClipboardImage", dataUrl, fileName });
 }
 
 /** Insert image via VS Code API (save to file) or as base64 */
@@ -176,7 +190,8 @@ function insertImageFromFile(
   view: EditorView,
   pos: number,
 ): void {
-  const vscodeApi = (window as any).__vscode;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const vscodeApi = (window as any).__vscode as VsCodeApi | undefined;
   if (vscodeApi) {
     const ext = file.type.split("/")[1] || "png";
     const baseName = file.name && !file.name.startsWith("image") ? file.name : `drop-${generateTimestamp()}.${ext}`;
@@ -193,15 +208,34 @@ function insertPastedImage(
   dataUrl: string,
   view: EditorView,
 ): void {
-  const vscodeApi = (window as any).__vscode;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const vscodeApi = (window as any).__vscode as VsCodeApi | undefined;
   if (vscodeApi) {
     const ext = file.type.split("/")[1] || "png";
-    const fileName = `paste-${generateTimestamp()}.${ext}`;
-    vscodeApi.postMessage({ type: "saveClipboardImage", dataUrl, fileName });
+    saveClipboardImageViaVscode(vscodeApi, dataUrl, ext);
   } else {
     const { from } = view.state.selection;
     const tr = view.state.tr.insert(from, view.state.schema.nodes.image.create({ src: dataUrl, alt: file.name }));
     view.dispatch(tr);
+  }
+}
+
+/** Extract external/base64 image URLs from pasted HTML and request download/save via VS Code API */
+export function requestExternalImageDownloads(
+  html: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  vscodeApi: { postMessage: (msg: any) => void },
+): void {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, "text/html");
+  const imgs = doc.querySelectorAll("img[src]");
+  for (const img of imgs) {
+    const src = img.getAttribute("src");
+    if (!src) continue;
+    // 外部 URL または base64 data URL を対象
+    if (/^https?:\/\//.test(src) || /^data:image\//.test(src)) {
+      vscodeApi.postMessage({ type: "downloadImage", url: src });
+    }
   }
 }
 
@@ -290,11 +324,22 @@ export function useEditorConfig({
         const items = event.clipboardData?.items;
         if (!items) return false;
         const images = Array.from(items).filter((item) => item.type.startsWith("image/"));
-        if (!images.length) return false;
         // テキストまたはHTMLが含まれる場合はTipTapのデフォルト処理に委ねる
         // （Excel等はimage/pngとtext/htmlの両方を含むため、画像優先を抑制）
         const hasText = Array.from(items).some((item) => item.type === "text/plain" || item.type === "text/html");
-        if (hasText) return false;
+        if (hasText) {
+          // VS Code: HTML 内の外部画像 URL をダウンロード要求
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const vscodeApi = (window as any).__vscode;
+          if (vscodeApi) {
+            const html = event.clipboardData?.getData("text/html");
+            if (html) {
+              requestExternalImageDownloads(html, vscodeApi);
+            }
+          }
+          return false;
+        }
+        if (!images.length) return false;
         event.preventDefault();
         images.forEach((item) => {
           const file = item.getAsFile();

@@ -442,6 +442,23 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     return () => globalThis.removeEventListener("vscode-image-saved", handler);
   }, [editor]);
 
+  // VS Code: 外部画像ダウンロード完了 → エディタ内の該当画像 src をローカルパスに差し替え
+  useEffect(() => {
+    if (!editor) return;
+    const handler = (e: Event) => {
+      const { originalUrl, localPath } = (e as CustomEvent<{ originalUrl: string; localPath: string }>).detail;
+      if (!originalUrl || !localPath) return;
+      editor.state.doc.descendants((node, pos) => {
+        if (node.type.name === "image" && node.attrs.src === originalUrl) {
+          const tr = editor.state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, src: localPath });
+          editor.view.dispatch(tr);
+        }
+      });
+    };
+    globalThis.addEventListener("vscode-image-downloaded", handler);
+    return () => globalThis.removeEventListener("vscode-image-downloaded", handler);
+  }, [editor]);
+
   // Screen capture slash command event
   useEffect(() => {
     const handler = () => setScreenCaptureOpen(true);

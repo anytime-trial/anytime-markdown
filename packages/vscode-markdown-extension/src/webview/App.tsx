@@ -346,6 +346,11 @@ export function App() {
         case 'imageSaved':
           if (typeof message.path === 'string') dispatchCustomEvent('vscode-image-saved', message.path);
           return;
+        case 'imageDownloaded':
+          if (typeof message.originalUrl === 'string' && typeof message.localPath === 'string') {
+            dispatchCustomEvent('vscode-image-downloaded', { originalUrl: message.originalUrl, localPath: message.localPath });
+          }
+          return;
         case 'pasteMarkdown':
           if (typeof message.text === 'string') dispatchCustomEvent('vscode-paste-markdown', message.text);
           return;

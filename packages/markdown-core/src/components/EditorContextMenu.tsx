@@ -17,6 +17,7 @@ import { CONTEXT_MENU_FONT_SIZE, SHORTCUT_HINT_FONT_SIZE } from "../constants/di
 import { findBlockNode, getCopiedBlockNode, performBlockCopy } from "../utils/blockClipboard";
 import { boxTableToMarkdown, containsBoxTable } from "../utils/boxTableToMarkdown";
 import { copyTextToClipboard, readTextFromClipboard } from "../utils/clipboardHelpers";
+import { requestExternalImageDownloads, saveClipboardImageViaVscode } from "../hooks/useEditorConfig";
 
 interface EditorContextMenuProps {
   editor: Editor | null;
@@ -198,6 +199,48 @@ export function EditorContextMenu({ editor, readOnly, t, currentMode, onSwitchTo
       editor.view.dispatch(tr.scrollIntoView());
       handleClose();
       return;
+    }
+
+    // クリップボードから画像・HTML を読み取り（navigator.clipboard.read が利用可能な場合）
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const vscodeApi = (window as any).__vscode as { postMessage: (msg: any) => void } | undefined;
+    if (typeof navigator.clipboard?.read === "function") {
+      try {
+        const items = await navigator.clipboard.read();
+        for (const item of items) {
+          // 画像アイテムがあればローカル保存
+          const imageType = item.types.find((tp) => tp.startsWith("image/"));
+          if (imageType) {
+            const blob = await item.getType(imageType);
+            const reader = new FileReader();
+            reader.onload = () => {
+              if (typeof reader.result !== "string") return;
+              const ext = imageType.split("/")[1] || "png";
+              if (vscodeApi) {
+                saveClipboardImageViaVscode(vscodeApi, reader.result, ext);
+              } else {
+                editor.chain().focus().setImage({ src: reader.result, alt: "" }).run();
+              }
+            };
+            reader.readAsDataURL(blob);
+            handleClose();
+            return;
+          }
+          // HTML アイテム内の外部/base64 画像をダウンロード要求し、HTML として挿入
+          if (item.types.includes("text/html")) {
+            const htmlBlob = await item.getType("text/html");
+            const html = await htmlBlob.text();
+            if (vscodeApi) {
+              requestExternalImageDownloads(html, vscodeApi);
+            }
+            editor.chain().focus().insertContent(html).run();
+            handleClose();
+            return;
+          }
+        }
+      } catch {
+        // clipboard.read() が失敗した場合はテキスト貼り付けにフォールバック
+      }
     }
 
     const text = await readTextFromClipboard();

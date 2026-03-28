@@ -484,6 +484,94 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       }
     };
 
+    const handleDownloadImage = async (message: Record<string, unknown>) => {
+      const url = typeof message.url === 'string' ? message.url : '';
+      if (!url) return;
+
+      const docDir = path.dirname(ctx.document.uri.fsPath);
+      const imagesDir = path.join(docDir, 'images');
+
+      // data:image URL の場合: base64 をデコードしてローカル保存
+      const dataMatch = /^data:image\/(\w+);base64,(.+)$/.exec(url);
+      if (dataMatch) {
+        try {
+          if (!fs.existsSync(imagesDir)) {
+            fs.mkdirSync(imagesDir, { recursive: true });
+          }
+          const ext = dataMatch[1] === 'jpeg' ? 'jpg' : dataMatch[1];
+          const buffer = Buffer.from(dataMatch[2], 'base64');
+          if (buffer.byteLength > 10 * 1024 * 1024) return;
+          const now = new Date();
+          const ts = [
+            now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'),
+            String(now.getDate()).padStart(2, '0'), '-',
+            String(now.getHours()).padStart(2, '0'), String(now.getMinutes()).padStart(2, '0'),
+            String(now.getSeconds()).padStart(2, '0'),
+          ].join('');
+          const fileName = `dl-${ts}.${ext}`;
+          const filePath = path.join(imagesDir, fileName);
+          fs.writeFileSync(filePath, buffer);
+          ctx.webviewPanel.webview.postMessage({
+            type: 'imageDownloaded', originalUrl: url, localPath: `images/${fileName}`,
+          });
+        } catch { /* 保存失敗は無視 */ }
+        return;
+      }
+
+      // スキーム検証: https / http のみ許可
+      let parsed: URL;
+      try {
+        parsed = new URL(url);
+      } catch {
+        return;
+      }
+      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return;
+
+      try {
+        if (!fs.existsSync(imagesDir)) {
+          fs.mkdirSync(imagesDir, { recursive: true });
+        }
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10_000);
+        const res = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeout);
+        if (!res.ok) return;
+
+        const contentType = res.headers.get('content-type') ?? '';
+        const extMap: Record<string, string> = {
+          'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif',
+          'image/webp': 'webp', 'image/svg+xml': 'svg', 'image/bmp': 'bmp',
+        };
+        const ext = extMap[contentType.split(';')[0].trim()] ?? 'png';
+        const now = new Date();
+        const ts = [
+          now.getFullYear(),
+          String(now.getMonth() + 1).padStart(2, '0'),
+          String(now.getDate()).padStart(2, '0'),
+          '-',
+          String(now.getHours()).padStart(2, '0'),
+          String(now.getMinutes()).padStart(2, '0'),
+          String(now.getSeconds()).padStart(2, '0'),
+        ].join('');
+        const fileName = `dl-${ts}.${ext}`;
+        const filePath = path.join(imagesDir, fileName);
+
+        const arrayBuf = await res.arrayBuffer();
+        // サイズ上限: 10MB
+        if (arrayBuf.byteLength > 10 * 1024 * 1024) return;
+        fs.writeFileSync(filePath, Buffer.from(arrayBuf));
+
+        const relativePath = `images/${fileName}`;
+        ctx.webviewPanel.webview.postMessage({
+          type: 'imageDownloaded',
+          originalUrl: url,
+          localPath: relativePath,
+        });
+      } catch {
+        // ダウンロード失敗は無視（元の URL のまま表示）
+      }
+    };
+
     const handleOverwriteImage = (message: Record<string, unknown>) => {
       const imgPath = typeof message.path === 'string' ? message.path : '';
       const imgDataUrl = typeof message.dataUrl === 'string' ? message.dataUrl : '';
@@ -583,6 +671,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
         case 'readClipboardForCodeBlock': await handleReadClipboardForCodeBlock(); break;
         case 'saveClipboardImage': handleSaveClipboardImage(message); break;
         case 'overwriteImage': handleOverwriteImage(message); break;
+        case 'downloadImage': await handleDownloadImage(message); break;
         case 'openLink': await handleOpenLink(message); break;
         case 'setAutoReload':
           autoReload = !!message.enabled;
