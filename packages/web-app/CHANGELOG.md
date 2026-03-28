@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.8.5] - 2026-03-28
+
+### Changed
+- Updated help files with renamed template assets
+- CI: upgraded Node.js 22 to 24 LTS, actions/setup-node v5 to v6
+- CI: added Netlify deploy check job and `netlify.toml`
+
+### Fixed
+- npm audit fix: resolved brace-expansion and path-to-regexp vulnerabilities
+
 ## [0.8.4] - 2026-03-28
 
 ### Added

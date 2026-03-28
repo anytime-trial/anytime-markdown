@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [0.8.5] - 2026-03-28
+
+### 変更
+- ヘルプファイルのテンプレートアセット名を更新
+- CI: Node.js 22 → 24 LTS へアップグレード、actions/setup-node v5 → v6
+- CI: Netlify デプロイチェックジョブと `netlify.toml` を追加
+
+### 修正
+- npm audit fix: brace-expansion および path-to-regexp の脆弱性を解消
+
 ## [0.8.4] - 2026-03-28
 
 ### 追加
