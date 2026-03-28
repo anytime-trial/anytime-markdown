@@ -13,6 +13,8 @@
     "packages/graph-core",
     "packages/mcp-markdown",
     "packages/mcp-graph",
+    "packages/cms-core",
+    "packages/mcp-cms",
     "packages/vscode-markdown-extension",
     "packages/vscode-graph-extension",
     "packages/vscode-git-extension",

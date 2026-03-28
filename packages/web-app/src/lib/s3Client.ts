@@ -1,21 +1,13 @@
-import { GetObjectCommand,S3Client } from '@aws-sdk/client-s3';
+import { GetObjectCommand } from '@aws-sdk/client-s3';
 
+import { createCmsConfig, createS3Client } from '@anytime-markdown/cms-core';
 import type { LayoutData } from '../types/layout';
 
-export const s3Client = new S3Client({
-  region: process.env.ANYTIME_AWS_REGION ?? 'ap-northeast-1',
-  ...(process.env.ANYTIME_AWS_ACCESS_KEY_ID && process.env.ANYTIME_AWS_SECRET_ACCESS_KEY
-    ? {
-        credentials: {
-          accessKeyId: process.env.ANYTIME_AWS_ACCESS_KEY_ID,
-          secretAccessKey: process.env.ANYTIME_AWS_SECRET_ACCESS_KEY,
-        },
-      }
-    : {}),
-});
+const cmsConfig = createCmsConfig();
 
-export const DOCS_BUCKET = process.env.S3_DOCS_BUCKET ?? '';
-export const DOCS_PREFIX = process.env.S3_DOCS_PREFIX ?? 'docs/';
+export const s3Client = createS3Client(cmsConfig);
+export const DOCS_BUCKET = cmsConfig.bucket;
+export const DOCS_PREFIX = cmsConfig.docsPrefix;
 export const CLOUDFRONT_URL = process.env.CLOUDFRONT_DOCS_URL ?? '';
 
 const LAYOUT_KEY = DOCS_PREFIX + '_layout.json';

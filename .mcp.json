@@ -8,6 +8,14 @@
       "command": "npx",
       "args": ["tsx", "packages/mcp-graph/src/stdio.ts"],
       "cwd": "/anytime-markdown"
+    },
+    "mcp-cms": {
+      "command": "npx",
+      "args": ["tsx", "--require", "dotenv/config", "packages/mcp-cms/src/stdio.ts"],
+      "cwd": "/anytime-markdown",
+      "env": {
+        "DOTENV_CONFIG_PATH": "packages/web-app/.env.local"
+      }
     }
   }
 }
