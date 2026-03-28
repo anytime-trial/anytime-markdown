@@ -91,7 +91,7 @@ interface ToolBarProps {
 export function GraphToolBar({
   tool, onToolChange, onUndo, onRedo, canUndo, canRedo,
   showGrid, onToggleGrid, onZoomIn, onZoomOut, onFitContent,
-  onClearAll, onExportSvg, onExportDrawio, onImportDrawio, onAlign, onSetScale, selectionCount, hasSelection, scale, saveStatus, onToggleSettings,
+  onClearAll, onExportSvg, onExportDrawio, onImportDrawio, onAlign, onSetScale, selectionCount, hasSelection: _hasSelection, scale, saveStatus, onToggleSettings: _onToggleSettings,
   layoutRunning, collisionEnabled, onAutoLayout, onToggleCollision,
   layoutAlgorithm = 'eades', onChangeAlgorithm,
   onSpreadConnected,

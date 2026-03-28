@@ -2,7 +2,7 @@ import { Box, Paper } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import type { Editor } from "@tiptap/react";
 import type React from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
 import { getEditorPaperSx } from "../styles/editorStyles";
