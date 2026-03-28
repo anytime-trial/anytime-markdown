@@ -149,4 +149,24 @@ describe("getEditorPaperSx", () => {
     expect(result).toBeDefined();
     expect(typeof result).toBe("object");
   });
+
+  test("noScrollオプションでoverflowYがvisibleになる", () => {
+    const result = getEditorPaperSx(lightTheme, defaultSettings, 600, { noScroll: true }) as Record<string, Record<string, unknown>>;
+    expect(result["& .tiptap"]).toHaveProperty("overflowY", "visible");
+  });
+
+  test("blockAlign center で textAlign スタイルが含まれる", () => {
+    const centerSettings = { ...defaultSettings, blockAlign: "center" as const };
+    const result = getEditorPaperSx(lightTheme, centerSettings, 600) as Record<string, Record<string, unknown>>;
+    const tiptap = result["& .tiptap"] as Record<string, unknown>;
+    // blockAlign !== 'left' adds image/block wrapper styles
+    const key = Object.keys(tiptap).find(k => k.includes("image-node-wrapper"));
+    expect(key).toBeDefined();
+  });
+
+  test("ダークテーマ + paperSize A4 で用紙スタイルが含まれる", () => {
+    const a4Settings = { ...defaultSettings, paperSize: "A4" as const };
+    const result = getEditorPaperSx(darkTheme, a4Settings, 600) as Record<string, Record<string, unknown>>;
+    expect(result["& .tiptap"]).toHaveProperty("mx", "auto");
+  });
 });

@@ -3,8 +3,8 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Box, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button, Typography } from '@mui/material';
 import { useTranslations } from 'next-intl';
-import { ToolType, GraphDocument, Viewport, createDocument, createNode } from '../types';
-import { screenToWorld } from '../engine/viewport';
+import { ToolType, Viewport, createDocument, createNode } from '../types';
+import { screenToWorld, pan as panViewport, zoom as zoomViewport, fitToContent } from '../engine/viewport';
 import { useGraphState } from '../hooks/useGraphState';
 import { useCanvasInteraction } from '../hooks/useCanvasInteraction';
 import { useAutoSave } from '../hooks/useAutoSave';
@@ -16,13 +16,11 @@ import { TextEditOverlay } from './TextEditOverlay';
 import { DocEditorModal } from './DocEditorModal';
 import { ShapeHoverBar } from './ShapeHoverBar';
 import { SettingsPanel } from './SettingsPanel';
-import { pan as panViewport, zoom as zoomViewport, fitToContent } from '../engine/viewport';
-import { interpolateViewport, ViewportAnimation, clearImageCache } from '@anytime-markdown/graph-core/engine';
+import { ViewportAnimation, clearImageCache, physics } from '@anytime-markdown/graph-core/engine';
 import { alignLeft, alignRight, alignTop, alignBottom, alignCenterH, alignCenterV, distributeH, distributeV } from '../engine/alignment';
 import { loadDocument, getLastDocumentId } from '../store/graphStorage';
-import { exportToSvg, exportToDrawio, importFromDrawio, getCanvasColors } from '@anytime-markdown/graph-core';
+import { exportToSvg, exportToDrawio, importFromDrawio } from '@anytime-markdown/graph-core';
 import { useThemeMode } from '../../providers';
-import { physics } from '@anytime-markdown/graph-core/engine';
 
 export function GraphEditor() {
   const { themeMode } = useThemeMode();
@@ -167,7 +165,7 @@ export function GraphEditor() {
 
   const {
     handleMouseDown, handleMouseMove, handleMouseUp, handleWheel, handleDoubleClick, previewRef, dragRef,
-    clipboardRef, copySelected, pasteFromClipboard, hoverNodeIdRef, mouseWorldRef, velocityRef,
+    hoverNodeIdRef, mouseWorldRef, velocityRef,
   } = useCanvasInteraction({
     canvasRef, tool,
     nodes: state.document.nodes,

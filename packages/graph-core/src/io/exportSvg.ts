@@ -1,8 +1,8 @@
 import { GraphDocument, GraphNode, GraphEdge } from '../types';
-import { computeOrthogonalPath, getConnectionPoints, nodeCenter } from '../engine/connector';
+import { computeOrthogonalPath } from '../engine/connector';
 import {
-  CANVAS_BG, COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY,
-  FONT_FAMILY, DOC_ICON_COLOR,
+  CANVAS_BG, COLOR_TEXT_PRIMARY,
+  FONT_FAMILY,
 } from '../theme';
 import { escapeXml } from './utils';
 
@@ -27,8 +27,10 @@ function renderNodeSvg(node: GraphNode, gradFill?: string): string {
     lines.push(`<polygon points="${x + offset},${y} ${x + w},${y} ${x + w - offset},${y + h} ${x},${y + h}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"${filterAttr}/>`);
   } else if (type === 'cylinder') {
     const ry = h * 0.1;
-    lines.push(`<path d="M${x},${y + ry} A${w / 2},${ry} 0 0,1 ${x + w},${y + ry} V${y + h - ry} A${w / 2},${ry} 0 0,1 ${x},${y + h - ry} Z" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"${filterAttr}/>`);
-    lines.push(`<ellipse cx="${x + w / 2}" cy="${y + ry}" rx="${w / 2}" ry="${ry}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`);
+    lines.push(
+      `<path d="M${x},${y + ry} A${w / 2},${ry} 0 0,1 ${x + w},${y + ry} V${y + h - ry} A${w / 2},${ry} 0 0,1 ${x},${y + h - ry} Z" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"${filterAttr}/>`,
+      `<ellipse cx="${x + w / 2}" cy="${y + ry}" rx="${w / 2}" ry="${ry}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`,
+    );
   } else if (type === 'frame') {
     lines.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="none" stroke="${stroke}" stroke-width="${sw}" stroke-dasharray="8 4" rx="${r}"${filterAttr}/>`);
   } else if (type === 'image') {
@@ -79,8 +81,8 @@ function renderEdgeSvg(edge: GraphEdge, nodes: GraphNode[]): string {
   // 矢印マーカー
   const endShape = style.endShape ?? ((type === 'arrow' || type === 'connector') ? 'arrow' : 'none');
   if (endShape === 'arrow') {
-    const last = points.length >= 2 ? points[points.length - 1] : { x: edge.to.x, y: edge.to.y };
-    const prev = points.length >= 2 ? points[points.length - 2] : { x: edge.from.x, y: edge.from.y };
+    const last = points.length >= 2 ? points.at(-1)! : { x: edge.to.x, y: edge.to.y };
+    const prev = points.length >= 2 ? points.at(-2)! : { x: edge.from.x, y: edge.from.y };
     const angle = Math.atan2(last.y - prev.y, last.x - prev.x);
     const len = 12;
     const x1 = last.x - len * Math.cos(angle - Math.PI / 6);
@@ -135,8 +137,10 @@ export function exportToSvg(doc: GraphDocument): string {
   }
 
   const parts: string[] = [];
-  parts.push(`<?xml version="1.0" encoding="UTF-8"?>`);
-  parts.push(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="${vx} ${vy} ${vw} ${vh}" width="${vw}" height="${vh}">`);
+  parts.push(
+    `<?xml version="1.0" encoding="UTF-8"?>`,
+    `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="${vx} ${vy} ${vw} ${vh}" width="${vw}" height="${vh}">`,
+  );
   if (defs.length > 0) {
     parts.push(`<defs>${defs.join('')}</defs>`);
   }

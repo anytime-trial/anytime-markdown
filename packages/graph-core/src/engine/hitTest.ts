@@ -157,7 +157,7 @@ function hitTestEdgeEndpoints(
 ): EdgeEndpointEnd | null {
   const r = ENDPOINT_HANDLE_RADIUS / scale;
   const pts = edge.waypoints && edge.waypoints.length >= 2
-    ? [edge.waypoints[0], edge.waypoints[edge.waypoints.length - 1]]
+    ? [edge.waypoints[0], edge.waypoints.at(-1)!]
     : [{ x: edge.from.x, y: edge.from.y }, { x: edge.to.x, y: edge.to.y }];
   if (Math.hypot(wx - pts[0].x, wy - pts[0].y) <= r) return 'from';
   if (Math.hypot(wx - pts[1].x, wy - pts[1].y) <= r) return 'to';

@@ -44,6 +44,16 @@ describe('addEdge', () => {
       to: { nodeId: n2.id, x: 0, y: 0 },
     }, tmpDir)).rejects.toThrow('not found');
   });
+
+  it('should throw if target node does not exist', async () => {
+    const n1 = await addNode({ path: 'test.graph', type: 'rect', x: 0, y: 0 }, tmpDir);
+    await expect(addEdge({
+      path: 'test.graph',
+      type: 'arrow',
+      from: { nodeId: n1.id, x: 0, y: 0 },
+      to: { nodeId: 'fake-target', x: 0, y: 0 },
+    }, tmpDir)).rejects.toThrow('Target node not found');
+  });
 });
 
 describe('removeEdge', () => {

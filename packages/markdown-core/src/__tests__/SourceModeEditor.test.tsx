@@ -76,7 +76,6 @@ describe("SourceModeEditor", () => {
     const props = createDefaultProps({ sourceText: text });
     const { container } = renderWithTheme(<SourceModeEditor {...props} />);
     // 行番号は個別のdiv要素で表示される
-    const gutterDivs = container.querySelectorAll("div[class] > div:first-child > div");
     // ガター内のdiv要素から行番号テキストを取得
     const gutter = container.querySelector("div[class]")?.children[0]?.children[0] as HTMLElement | undefined;
     expect(gutter).toBeTruthy();

@@ -419,6 +419,7 @@
     "semanticDiff": "Semantic comparison",
     "pasteAsMarkdown": "Paste as Markdown",
     "pasteAsCodeBlock": "Paste as Code Block",
+    "clearScreen": "Clear Screen",
     "annotate": "Annotate",
     "annotationRect": "Rectangle",
     "annotationCircle": "Circle",
@@ -608,7 +609,12 @@
     "ariaMobileNavigation": "Mobile navigation",
     "ariaLanguage": "Language",
     "ariaMenu": "Menu",
-    "ariaSkipToContent": "Skip to content"
+    "ariaSkipToContent": "Skip to content",
+    "reportPage": "Report",
+    "reportLoadError": "Failed to load article",
+    "reportEmpty": "No articles",
+    "reportRecentPosts": "Recent Posts",
+    "reportMonthlyArchive": "Monthly Archive"
   },
   "Common": {
     "ok": "OK",

@@ -35,7 +35,7 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
   }
 }
 
-export default async function DocsViewPage({ searchParams }: Props) {
+export default async function DocsViewPage({ searchParams }: Readonly<Props>) {
   const { key } = await searchParams;
   let docTitle: string | undefined;
   if (key) {

@@ -107,6 +107,23 @@ describe('removeNode', () => {
     expect(after.edges).toHaveLength(0);
   });
 
+  it('should remove target node and its connected edges', async () => {
+    const n1 = await addNode({ path: 'test.graph', type: 'rect', x: 0, y: 0, text: 'A' }, tmpDir);
+    const n2 = await addNode({ path: 'test.graph', type: 'rect', x: 200, y: 0, text: 'B' }, tmpDir);
+
+    const doc = await readGraph({ path: 'test.graph' }, tmpDir);
+    const edge = createEdge('arrow', { nodeId: n1.id, x: 0, y: 0 }, { nodeId: n2.id, x: 0, y: 0 });
+    doc.edges.push(edge);
+    await fs.writeFile(path.join(tmpDir, 'test.graph'), JSON.stringify(doc, null, 2));
+
+    // Remove the target node (n2) to cover the e.to.nodeId branch
+    await removeNode({ path: 'test.graph', nodeId: n2.id }, tmpDir);
+    const after = await readGraph({ path: 'test.graph' }, tmpDir);
+    expect(after.nodes).toHaveLength(1);
+    expect(after.nodes[0].id).toBe(n1.id);
+    expect(after.edges).toHaveLength(0);
+  });
+
   it('should throw for non-existent node', async () => {
     await expect(removeNode({ path: 'test.graph', nodeId: 'fake' }, tmpDir)).rejects.toThrow('not found');
   });

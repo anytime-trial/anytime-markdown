@@ -15,7 +15,7 @@ interface TextEditOverlayProps {
   appendMode?: boolean;
 }
 
-export function TextEditOverlay({ node, viewport, onCommit, onCancel, appendMode }: TextEditOverlayProps) {
+export function TextEditOverlay({ node, viewport, onCommit, onCancel, appendMode }: Readonly<TextEditOverlayProps>) {
   const { themeMode } = useThemeMode();
   const isDark = themeMode === 'dark';
   const colors = getCanvasColors(isDark);

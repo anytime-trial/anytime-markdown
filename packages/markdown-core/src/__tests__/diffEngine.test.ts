@@ -97,7 +97,6 @@ describe("computeDiff", () => {
     const left = "line1\n\nline3";
     const right = "line1\nline3";
     const result = computeDiff(left, right, { ignoreBlankLines: true });
-    const nonEqualBlocks = result.blocks.filter((b) => b.type !== "added" || !b.rightLines.every((l) => l.trim() === ""));
     // ignoreBlankLines converts blank-only diffs to equal
     const allEqual = result.leftLines.every((l) => l.type === "equal" || l.type === "padding");
     expect(allEqual || result.blocks.length === 0).toBe(true);

@@ -156,9 +156,71 @@ describe("extractDiagramAltText", () => {
     });
   });
 
+  describe("Mermaid flowchart - bare IDs fallback", () => {
+    it("uses bare IDs when no labels and no arrows", () => {
+      // nodeIds from extractFlowchartLabelsAndIds but no labels and no arrows
+      const code = "flowchart TD\n  A";
+      const result = extractDiagramAltText(code, "mermaid");
+      expect(result).toBe("Flowchart");
+    });
+
+    it("falls back to bare arrow IDs without brackets", () => {
+      const code = "flowchart TD\n  Start --> End --> Final";
+      const result = extractDiagramAltText(code, "mermaid");
+      expect(result).toContain("Start");
+      expect(result).toContain("End");
+      expect(result).toContain("Final");
+    });
+  });
+
+  describe("Mermaid other types continued", () => {
+    it("returns Pie chart label", () => {
+      const code = `pie
+        title Pets
+        "Dogs" : 386
+        "Cats" : 85`;
+      expect(extractDiagramAltText(code, "mermaid")).toBe("Pie chart");
+    });
+
+    it("returns ER diagram label", () => {
+      const code = `erDiagram
+        CUSTOMER ||--o{ ORDER : places`;
+      expect(extractDiagramAltText(code, "mermaid")).toBe("ER diagram");
+    });
+
+    it("returns Mindmap label", () => {
+      const code = `mindmap
+        root((mindmap))
+          Origins
+          Research`;
+      expect(extractDiagramAltText(code, "mermaid")).toBe("Mindmap");
+    });
+
+    it("returns generic Diagram for unknown type", () => {
+      const code = "unknownDiagram\n  stuff";
+      expect(extractDiagramAltText(code, "mermaid")).toBe("Diagram");
+    });
+  });
+
+  describe("PlantUML edge cases", () => {
+    it("returns just PlantUML when no participants found", () => {
+      const code = "@startuml\n  A -> B\n@enduml";
+      expect(extractDiagramAltText(code, "plantuml")).toBe("PlantUML");
+    });
+
+    it("handles collections keyword", () => {
+      const code = "@startuml\ncollections MyCollection\n@enduml";
+      expect(extractDiagramAltText(code, "plantuml")).toBe("PlantUML: MyCollection");
+    });
+  });
+
   describe("edge cases", () => {
     it("handles empty code", () => {
       expect(extractDiagramAltText("", "mermaid")).toBe("Diagram");
+    });
+
+    it("handles whitespace-only code", () => {
+      expect(extractDiagramAltText("   ", "mermaid")).toBe("Diagram");
     });
 
     it("truncates long input for ReDoS protection", () => {

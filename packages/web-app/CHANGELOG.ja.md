@@ -6,6 +6,21 @@
 
 ## [Unreleased]
 
+## [0.8.4] - 2026-03-28
+
+### 追加
+- レポートブログページ: S3 からの Markdown 取得・表示（一覧・詳細ページ）
+- `MarkdownViewer` コンポーネント: フロントマター解析・パンくずリスト対応
+- ナビゲーションにレポートリンクを常時表示、Graph/Report リンクは環境変数でトグル
+- S3 クライアント初期化を `cms-core` を使用するようリファクタ
+
+### 修正
+- テーマプロバイダの SSR ハイドレーションミスマッチを解消
+- 複数コンポーネントの SonarCloud 指摘修正（GraphCanvas、PropertyPanel、ToolBar、graphStorage 等）
+
+### セキュリティ
+- handlebars を 4.7.9 に更新（CVE-2026-33916 対応）
+
 ## [0.8.3] - 2026-03-27
 
 ### 修正
@@ -96,7 +111,7 @@
 - SonarQube 残存 CODE_SMELL を追加修正
 
 ### 修正
-- docs アップロード API でファイル名の basename 抽出が正しく動作しない問題を修正
+- docs アップロード UI でファイル名の表示が正しく動作しない問題を修正
 - Firefox CI e2e テストのクラッシュを解消
 
 ## [0.7.1] - 2026-03-22
@@ -112,8 +127,7 @@
 ### 追加
 - /screenshot スラッシュコマンド（Web 版のみ）
 - ランディングページ: Markdown ドキュメント表示、フォントサイズ切替アイコン
-- CMS: 画像ファイルアップロード対応（png/jpg/gif/svg/webp）
-- CMS: ファイル一覧に日英 md ペアの JA/EN バッジ表示
+- CMS ファイル一覧に日英 md ペアの JA/EN バッジ表示
 
 ### 変更
 - ランディングページ: feature cards セクション削除、Markdown 表示に置換

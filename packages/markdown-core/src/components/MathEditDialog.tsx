@@ -20,6 +20,7 @@ import { SamplePanel } from "./SamplePanel";
 import { ZoomablePreview } from "./ZoomablePreview";
 import { GraphView } from "./codeblock/GraphView";
 import { ZoomToolbar } from "./ZoomToolbar";
+import { useEditorFeaturesContext } from "../contexts/EditorFeaturesContext";
 
 interface MathEditDialogProps {
   open: boolean;
@@ -48,6 +49,7 @@ export function MathEditDialog({
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const settings = useEditorSettingsContext();
+  const { hideGraph } = useEditorFeaturesContext();
   const [graphEnabled, setGraphEnabled] = useState(false);
 
   // Zoom/pan for preview
@@ -106,6 +108,7 @@ export function MathEditDialog({
                 <Box sx={{ flex: 1 }}>
                   <ZoomToolbar fsZP={fsZP} t={t} />
                 </Box>
+                {!hideGraph && (
                 <Tooltip title={graphEnabled ? t("hideGraph") : t("showGraph")} placement="bottom">
                   <IconButton
                     size="small"
@@ -116,8 +119,9 @@ export function MathEditDialog({
                     <ShowChartIcon sx={{ fontSize: 16, color: graphEnabled ? getPrimaryMain(isDark) : getTextSecondary(isDark) }} />
                   </IconButton>
                 </Tooltip>
+                )}
               </Box>
-              {graphEnabled ? (
+              {!hideGraph && graphEnabled ? (
                 <Box sx={{ flex: 1, overflow: "hidden", minHeight: 0 }}>
                   <GraphView code={fsCode} enabled={graphEnabled} isDark={isDark} fill />
                 </Box>

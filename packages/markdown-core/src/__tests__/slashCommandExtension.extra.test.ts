@@ -111,7 +111,7 @@ describe("SlashCommandExtension - handleKeyDown", () => {
   });
 
   it("ArrowUp forwards navigation key", () => {
-    const { plugin, storage, options } = getPlugin();
+    const { plugin, storage, options: _options } = getPlugin();
     storage.active = true;
     const handler = plugin.props.handleKeyDown;
     const event = { key: "ArrowUp", preventDefault: jest.fn() };
@@ -120,7 +120,7 @@ describe("SlashCommandExtension - handleKeyDown", () => {
   });
 
   it("Enter forwards navigation key", () => {
-    const { plugin, storage, options } = getPlugin();
+    const { plugin, storage, options: _options } = getPlugin();
     storage.active = true;
     const handler = plugin.props.handleKeyDown;
     const event = { key: "Enter", preventDefault: jest.fn() };

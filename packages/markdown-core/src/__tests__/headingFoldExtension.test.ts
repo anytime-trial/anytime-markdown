@@ -258,7 +258,7 @@ describe("HeadingFoldExtension", () => {
           { type: "heading", level: 2, nodeSize: 8 },
         ]);
 
-        const state = applyMeta(doc, new Set([0]));
+        const _state = applyMeta(doc, new Set([0]));
 
         const decos = (DecorationSet.create as jest.Mock).mock.calls[0][1] as Decoration[];
         // 1 heading-folded + 1 hidden paragraph (stops at second H2)
@@ -273,7 +273,7 @@ describe("HeadingFoldExtension", () => {
           { type: "heading", level: 1, nodeSize: 8 },
         ]);
 
-        const state = applyMeta(doc, new Set([0]));
+        const _state = applyMeta(doc, new Set([0]));
 
         const decos = (DecorationSet.create as jest.Mock).mock.calls[0][1] as Decoration[];
         // 1 heading-folded + 1 hidden paragraph (stops at H1)
@@ -288,7 +288,7 @@ describe("HeadingFoldExtension", () => {
           { type: "heading", level: 1, nodeSize: 8 },
         ]);
 
-        const state = applyMeta(doc, new Set([1]));
+        const _state = applyMeta(doc, new Set([1]));
 
         const decos = (DecorationSet.create as jest.Mock).mock.calls[0][1] as Decoration[];
         // 1 heading-folded on second H1, nothing after to hide
@@ -307,7 +307,7 @@ describe("HeadingFoldExtension", () => {
           nodeAt: () => null,
         };
 
-        const state = applyMeta(doc, new Set([0]));
+        const _state = applyMeta(doc, new Set([0]));
 
         const decos = (DecorationSet.create as jest.Mock).mock.calls[0][1] as Decoration[];
         // Only heading-folded, while loop breaks immediately
@@ -320,7 +320,7 @@ describe("HeadingFoldExtension", () => {
           { type: "paragraph", nodeSize: 6 },
         ]);
 
-        const state = applyMeta(doc, new Set([0]));
+        const _state = applyMeta(doc, new Set([0]));
         // No headings match, forEach completes but no decorations pushed.
         // DecorationSet.create is still called with empty array.
         expect(DecorationSet.create).toHaveBeenCalled();
@@ -337,7 +337,7 @@ describe("HeadingFoldExtension", () => {
           { type: "paragraph", nodeSize: 6 },
         ]);
 
-        const state = applyMeta(doc, new Set([0, 1]));
+        const _state = applyMeta(doc, new Set([0, 1]));
 
         const decos = (DecorationSet.create as jest.Mock).mock.calls[0][1] as Decoration[];
         // H1[0]: heading-folded + hidden paragraph (stops at H1[1])
@@ -354,7 +354,7 @@ describe("HeadingFoldExtension", () => {
           { type: "paragraph", nodeSize: 5 },
         ]);
 
-        const state = applyMeta(doc, new Set([0]));
+        const _state = applyMeta(doc, new Set([0]));
 
         const decos = (DecorationSet.create as jest.Mock).mock.calls[0][1] as Decoration[];
         // heading-folded on H1 + hidden H2 + hidden H3 + hidden paragraph
@@ -366,7 +366,7 @@ describe("HeadingFoldExtension", () => {
           { type: "heading", level: 1, nodeSize: 10 },
         ]);
 
-        const state = applyMeta(doc, new Set([0]));
+        const _state = applyMeta(doc, new Set([0]));
 
         const decos = (DecorationSet.create as jest.Mock).mock.calls[0][1] as Decoration[];
         // Only heading-folded on the heading, no nodes after
@@ -384,7 +384,7 @@ describe("HeadingFoldExtension", () => {
         ]);
 
         // fold heading index 0 (first heading, which is H2)
-        const state = applyMeta(doc, new Set([0]));
+        const _state = applyMeta(doc, new Set([0]));
 
         const decos = (DecorationSet.create as jest.Mock).mock.calls[0][1] as Decoration[];
         // heading-folded on H2 + hidden paragraph + hidden paragraph + hidden H3
@@ -421,7 +421,7 @@ describe("HeadingFoldExtension", () => {
         ]);
 
         // fold heading index 1 (H2)
-        const state = applyMeta(doc, new Set([1]));
+        const _state = applyMeta(doc, new Set([1]));
 
         const decos = (DecorationSet.create as jest.Mock).mock.calls[0][1] as Decoration[];
         // Only heading-folded on H2, nothing after

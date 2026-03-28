@@ -16,5 +16,20 @@
   "command.clearContext": "AI ノートをクリア",
   "command.aiLogRefresh": "AI Log を更新",
   "command.aiMemoryRefresh": "AI Memory を更新",
-  "viewsWelcome.aiNote": "[$(edit) AI ノートを編集](command:anytime-markdown.openContext)\n画像や表など、AIツールに視覚情報を共有できます。"
+  "command.autoReloadDisable": "自動再読込を無効にする",
+  "command.autoReloadEnable": "自動再読込を有効にする",
+  "submenu.editorMode": "エディタモード",
+  "command.switchToReview": "レビューモード",
+  "command.switchToWysiwyg": "編集モード",
+  "command.switchToSource": "ソースモード",
+  "viewsWelcome.aiNote": "[$(edit) ノート編集](command:anytime-markdown.openContext)\n画像や表など、AIツールに視覚情報を共有できます。",
+  "configuration.language.description": "エディタUIの表示言語。",
+  "configuration.language.auto": "VS Code の表示言語に従う",
+  "configuration.themeMode.description": "エディタのカラーモード。",
+  "configuration.themeMode.auto": "VS Code のカラーテーマに従う",
+  "configuration.themeMode.light": "ライト",
+  "configuration.themeMode.dark": "ダーク",
+  "configuration.themePreset.description": "エディタのテーマスタイル。",
+  "configuration.themePreset.handwritten": "手書き風 — 丸みのあるポップなスタイル",
+  "configuration.themePreset.professional": "プロフェッショナル — すっきりしたフォーマルなスタイル"
 }

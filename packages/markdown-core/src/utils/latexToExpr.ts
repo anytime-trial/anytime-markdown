@@ -72,9 +72,9 @@ export function latexToMathjs(latex: string): string {
   let expr = latex;
 
   // \left, \right, \, を除去
-  expr = expr.replace(/\\left/g, "");
-  expr = expr.replace(/\\right/g, "");
-  expr = expr.replace(/\\,/g, " ");
+  expr = expr.replaceAll(/\\left/g, "");
+  expr = expr.replaceAll(/\\right/g, "");
+  expr = expr.replaceAll(/\\,/g, " ");
 
   // \frac{a}{b} → ((a)/(b))
   // ネストに対応するため繰り返し適用
@@ -88,43 +88,43 @@ export function latexToMathjs(latex: string): string {
   }
 
   // \sqrt{x} → sqrt(x)
-  expr = expr.replace(/\\sqrt\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g, "sqrt($1)");
+  expr = expr.replaceAll(/\\sqrt\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g, "sqrt($1)");
 
   // 三角関数・対数関数
-  expr = expr.replace(/\\sin/g, "sin");
-  expr = expr.replace(/\\cos/g, "cos");
-  expr = expr.replace(/\\tan/g, "tan");
-  expr = expr.replace(/\\asin/g, "asin");
-  expr = expr.replace(/\\acos/g, "acos");
-  expr = expr.replace(/\\atan/g, "atan");
-  expr = expr.replace(/\\sinh/g, "sinh");
-  expr = expr.replace(/\\cosh/g, "cosh");
-  expr = expr.replace(/\\tanh/g, "tanh");
-  expr = expr.replace(/\\ln/g, "log");
-  expr = expr.replace(/\\log/g, "log10");
-  expr = expr.replace(/\\exp/g, "exp");
+  expr = expr.replaceAll(/\\sin/g, "sin");
+  expr = expr.replaceAll(/\\cos/g, "cos");
+  expr = expr.replaceAll(/\\tan/g, "tan");
+  expr = expr.replaceAll(/\\asin/g, "asin");
+  expr = expr.replaceAll(/\\acos/g, "acos");
+  expr = expr.replaceAll(/\\atan/g, "atan");
+  expr = expr.replaceAll(/\\sinh/g, "sinh");
+  expr = expr.replaceAll(/\\cosh/g, "cosh");
+  expr = expr.replaceAll(/\\tanh/g, "tanh");
+  expr = expr.replaceAll(/\\ln/g, "log");
+  expr = expr.replaceAll(/\\log/g, "log10");
+  expr = expr.replaceAll(/\\exp/g, "exp");
 
   // 定数
-  expr = expr.replace(/\\pi/g, "pi");
-  expr = expr.replace(/\\theta/g, "theta");
+  expr = expr.replaceAll(/\\pi/g, "pi");
+  expr = expr.replaceAll(/\\theta/g, "theta");
 
   // 演算子
-  expr = expr.replace(/\\cdot/g, "*");
-  expr = expr.replace(/\\times/g, "*");
+  expr = expr.replaceAll(/\\cdot/g, "*");
+  expr = expr.replaceAll(/\\times/g, "*");
 
   // {} → ()
-  expr = expr.replace(/\{/g, "(");
-  expr = expr.replace(/\}/g, ")");
+  expr = expr.replaceAll(/\{/g, "(");
+  expr = expr.replaceAll(/\}/g, ")");
 
   // 暗黙の乗算: 数字の直後に英字が来る場合
-  expr = expr.replace(/(\d)([a-zA-Z])/g, "$1*$2");
+  expr = expr.replaceAll(/(\d)([a-zA-Z])/g, "$1*$2");
 
   // 閉じ括弧の直後に英字または開き括弧が来る場合の暗黙の乗算
-  expr = expr.replace(/\)([a-zA-Z])/g, ")*$1");
-  expr = expr.replace(/\)\(/g, ")*(");
+  expr = expr.replaceAll(/\)([a-zA-Z])/g, ")*$1");
+  expr = expr.replaceAll(/\)\(/g, ")*(");
 
   // 不要な空白を正規化
-  expr = expr.replace(/\s+/g, " ").trim();
+  expr = expr.replaceAll(/\s+/g, " ").trim();
 
   return expr;
 }
@@ -157,7 +157,7 @@ export function extractVariables(node: MathNode): string[] {
   }
 
   walk(node);
-  return Array.from(vars).sort();
+  return Array.from(vars).sort((a, b) => a.localeCompare(b));
 }
 
 /**
@@ -166,8 +166,8 @@ export function extractVariables(node: MathNode): string[] {
 export function parseCasesEnv(
   latex: string
 ): { lhs: string; rhs: string }[] | null {
-  const casesMatch = latex.match(
-    /\\begin\{cases\}([\s\S]*?)\\end\{cases\}/
+  const casesMatch = /\\begin\{cases\}([\s\S]*?)\\end\{cases\}/.exec(
+    latex
   );
   if (!casesMatch) return null;
 
@@ -176,7 +176,7 @@ export function parseCasesEnv(
 
   const equations: { lhs: string; rhs: string }[] = [];
   for (const line of lines) {
-    const eqMatch = line.match(/^([^=]+)=(.+)$/);
+    const eqMatch = /^([^=]+)=(.+)$/.exec(line);
     if (!eqMatch) return null;
     equations.push({
       lhs: eqMatch[1].trim(),
@@ -314,7 +314,7 @@ function parseCasesGraph(
         allVarSet.add(v);
       }
     }
-    const allVars = Array.from(allVarSet).sort();
+    const allVars = Array.from(allVarSet).sort((a, b) => a.localeCompare(b));
     const variables = allVars.filter((v) => KNOWN_VARIABLES.has(v));
     const parameters = allVars.filter((v) => !KNOWN_VARIABLES.has(v));
 
@@ -342,7 +342,7 @@ function parseCasesGraph(
         allVarSet.add(v);
       }
     }
-    const allVars = Array.from(allVarSet).sort();
+    const allVars = Array.from(allVarSet).sort((a, b) => a.localeCompare(b));
     const variables = allVars.filter((v) => KNOWN_VARIABLES.has(v));
     const parameters = allVars.filter((v) => !KNOWN_VARIABLES.has(v));
 
@@ -406,7 +406,7 @@ export function parseLatexToGraph(latex: string): GraphExpr {
     const lhsNode = parse(lhsMathjs);
     const lhsVars = extractVariables(lhsNode);
 
-    const allVars = Array.from(new Set([...lhsVars, ...rhsVars])).sort();
+    const allVars = Array.from(new Set([...lhsVars, ...rhsVars])).sort((a, b) => a.localeCompare(b));
 
     // y = f(x) → explicit2d
     if (lhsMathjs.trim() === "y") {

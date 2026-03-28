@@ -6,6 +6,35 @@
 
 ## [Unreleased]
 
+## [0.8.4] - 2026-03-28
+
+### 追加
+- Claude Code 編集通知機能: ファイル編集検知 → エディタロック → 解除フロー
+- VS Code 設定: `language`、`themeMode`、`themePreset`
+- ツールバーコントロールを VS Code ネイティブ editor title bar に移動
+- `mcp-cms` サーバーを `.mcp.json` に登録
+
+### 変更
+- Claude 編集ステータスバーアイテムを削除し、オーバーレイ方式に移行
+- 未使用の `claudeLock` メッセージハンドラを除去
+- AI ノートボタンラベルを「AI ノートを編集」→「ノート編集」に短縮
+- jsxgraph と plotly を拡張バンドルから除外（バンドルサイズ削減）
+
+### 修正
+- Claude 編集通知のロック/アンロック信頼性問題を解消
+- Claude Code hook の配列フォーマットを修正
+- hook ファイルパス解析で stdin jq パーシングを使用
+- ステータスファイル監視を安定化（fs.watch → fs.watchFile → setInterval ポーリング）
+- タイムスタンプベースの重複排除がアンロックをブロックする問題を修正
+- ロック検知後のアクティブアンロックポーリングを追加
+
+### エディタコア (markdown-core)
+- `showFrontmatter` prop: フロントマター表示制御
+- エディタコンテキストメニューに「画面クリア」オプション
+- Claude 編集インジケータ: 固定オーバーレイバー（レイアウトシフトなし）
+- MUI Menu の Fragment children 警告を修正
+- セキュリティ: NEXT_LOCALE cookie の Secure 属性追加、importDrawio サニタイズ修正
+
 ## [0.8.3] - 2026-03-27
 
 ### 追加

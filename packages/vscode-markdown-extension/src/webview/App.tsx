@@ -3,8 +3,11 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import type { PaletteMode } from '@mui/material';
 import CssBaseline from '@mui/material/CssBaseline';
 import { getVsCodeApi } from './vscodeApi';
-import { ConfirmProvider, STORAGE_KEY_CONTENT, STORAGE_KEY_SETTINGS } from '@anytime-markdown/markdown-core';
+import { ACCENT_COLOR, ConfirmProvider, DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, STORAGE_KEY_CONTENT, STORAGE_KEY_SETTINGS } from '@anytime-markdown/markdown-core';
+import type { ThemePresetName } from '@anytime-markdown/markdown-core/src/constants/themePresets';
+import { getPreset } from '@anytime-markdown/markdown-core/src/constants/themePresets';
 import MarkdownEditorPage from '@anytime-markdown/markdown-core/src/MarkdownEditorPage';
+import { setLocale as setShimLocale } from './shims/next-intl';
 
 const vscode = getVsCodeApi();
 // markdown-core の EditorContextMenu から VS Code API にアクセスするため公開
@@ -13,6 +16,9 @@ const vscode = getVsCodeApi();
 
 // スクロール同期の無限ループ防止フラグ
 let isSyncingScroll = false;
+
+// Claude Code 編集中フラグ（localStorage bridge で contentChanged 送信を抑止）
+let isClaudeEditing = false;
 
 // localStorage bridge: intercept content key to sync with VS Code
 const CONTENT_KEY = STORAGE_KEY_CONTENT;
@@ -25,7 +31,9 @@ const originalRemoveItem = localStorage.removeItem.bind(localStorage);
 localStorage.setItem = (key: string, value: string) => {
   if (key === CONTENT_KEY) {
     currentContent = value;
-    vscode.postMessage({ type: 'contentChanged', content: value });
+    if (!isClaudeEditing) {
+      vscode.postMessage({ type: 'contentChanged', content: value });
+    }
     return;
   }
   originalSetItem(key, value);
@@ -111,6 +119,7 @@ interface MessageState {
   ready: boolean;
   setLanding: (v: boolean) => void;
   setThemeMode: (v: PaletteMode) => void;
+  setPresetName: (v: ThemePresetName) => void;
   setReady: (v: boolean) => void;
   setCompareContent: (v: string | null) => void;
   setEditorKey: (fn: (k: number) => number) => void;
@@ -148,10 +157,17 @@ export function App() {
   const [ready, setReady] = useState(false);
   const [landing, setLanding] = useState(false);
   const [themeMode, setThemeMode] = useState<PaletteMode>('dark');
+  const [presetName, setPresetName] = useState<ThemePresetName>('handwritten');
   const [editorKey, setEditorKey] = useState(0);
   const [compareContent, setCompareContent] = useState<string | null>(null);
+  const preset = useMemo(() => getPreset(presetName), [presetName]);
   const theme = useMemo(() => createTheme({
-    palette: { mode: themeMode },
+    palette: {
+      mode: themeMode,
+      secondary: { main: ACCENT_COLOR, contrastText: '#000000' },
+      background: { default: themeMode === 'dark' ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG },
+    },
+    shape: { borderRadius: preset.borderRadius.md },
     components: {
       MuiCssBaseline: {
         styleOverrides: themeMode === 'light' ? {
@@ -162,7 +178,88 @@ export function App() {
         } : undefined,
       },
     },
-  }), [themeMode]);
+  }), [themeMode, preset]);
+
+  // プリセットに応じた CSS カスタムプロパティの適用
+  useEffect(() => {
+    const p = getPreset(presetName);
+    const isDark = themeMode === 'dark';
+    document.documentElement.style.setProperty('--editor-content-font-family', p.fontFamily);
+    if (presetName === 'handwritten') {
+      const lineColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+      const baseColor = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)';
+      document.documentElement.style.setProperty('--editor-heading-hatch',
+        `repeating-linear-gradient(-45deg, transparent, transparent 4px, ${lineColor} 4px, ${lineColor} 5px), ${baseColor}`);
+      document.documentElement.style.setProperty('--editor-heading-font-family', '"Nunito", "Klee One", sans-serif');
+      if (isDark) {
+        document.documentElement.style.setProperty('--editor-heading-border-h1', 'rgba(100,160,210,0.7)');
+        document.documentElement.style.setProperty('--editor-heading-border-h2', 'rgba(100,160,210,0.5)');
+        document.documentElement.style.setProperty('--editor-heading-border-h3', 'rgba(100,160,210,0.35)');
+      } else {
+        document.documentElement.style.setProperty('--editor-heading-border-h1', 'rgba(160,120,60,0.5)');
+        document.documentElement.style.setProperty('--editor-heading-border-h2', 'rgba(160,120,60,0.4)');
+        document.documentElement.style.setProperty('--editor-heading-border-h3', 'rgba(160,120,60,0.35)');
+      }
+      document.documentElement.style.setProperty('--editor-heading-radius-h1', '12px 8px 10px 6px');
+      document.documentElement.style.setProperty('--editor-heading-radius-h2', '8px 10px 6px 12px');
+      document.documentElement.style.setProperty('--editor-heading-radius-h3', '6px 8px 10px 4px');
+      const filterId = 'handwritten-roughen';
+      if (!document.getElementById(filterId)) {
+        const svgNS = 'http://www.w3.org/2000/svg';
+        const svg = document.createElementNS(svgNS, 'svg');
+        svg.setAttribute('id', filterId);
+        svg.setAttribute('width', '0');
+        svg.setAttribute('height', '0');
+        svg.style.position = 'absolute';
+        svg.innerHTML = `<filter id="roughen"><feTurbulence type="turbulence" baseFrequency="0.02" numOctaves="3" seed="1" /><feDisplacementMap in="SourceGraphic" scale="1.5" /></filter>`;
+        document.body.appendChild(svg);
+      }
+      document.documentElement.style.setProperty('--editor-heading-filter', 'url(#roughen)');
+      const hatch = (color: string) =>
+        `repeating-linear-gradient(-45deg, transparent, transparent 4px, ${color} 4px, ${color} 5px), ${isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)'}`;
+      document.documentElement.style.setProperty('--editor-admonition-radius', '10px 6px 8px 12px');
+      document.documentElement.style.setProperty('--editor-admonition-bg-note', hatch('rgba(31,111,235,0.08)'));
+      document.documentElement.style.setProperty('--editor-admonition-bg-tip', hatch('rgba(35,134,54,0.08)'));
+      document.documentElement.style.setProperty('--editor-admonition-bg-important', hatch('rgba(137,87,229,0.08)'));
+      document.documentElement.style.setProperty('--editor-admonition-bg-warning', hatch('rgba(210,153,34,0.08)'));
+      document.documentElement.style.setProperty('--editor-admonition-bg-caution', hatch('rgba(218,54,51,0.08)'));
+    } else {
+      document.documentElement.style.removeProperty('--editor-heading-hatch');
+      document.documentElement.style.removeProperty('--editor-heading-radius-h1');
+      document.documentElement.style.removeProperty('--editor-heading-radius-h2');
+      document.documentElement.style.removeProperty('--editor-heading-radius-h3');
+      document.documentElement.style.removeProperty('--editor-heading-filter');
+      document.documentElement.style.removeProperty('--editor-heading-border-h1');
+      document.documentElement.style.removeProperty('--editor-heading-border-h2');
+      document.documentElement.style.removeProperty('--editor-heading-border-h3');
+      document.documentElement.style.removeProperty('--editor-heading-font-family');
+      document.documentElement.style.removeProperty('--editor-admonition-radius');
+      document.documentElement.style.removeProperty('--editor-admonition-bg-note');
+      document.documentElement.style.removeProperty('--editor-admonition-bg-tip');
+      document.documentElement.style.removeProperty('--editor-admonition-bg-important');
+      document.documentElement.style.removeProperty('--editor-admonition-bg-warning');
+      document.documentElement.style.removeProperty('--editor-admonition-bg-caution');
+    }
+    // Google Fonts 読み込み
+    const families = [...new Set(
+      [p.fontFamily, p.displayFont]
+        .flatMap(s => s.split(','))
+        .map(s => s.trim().replaceAll(/^["']|["']$/g, ''))
+        .filter(f => !['Helvetica', 'Helvetica Neue', 'Arial', 'sans-serif', 'serif',
+          'Georgia', 'Times New Roman', 'Arial Rounded MT Bold', 'Roboto'].includes(f)),
+    )];
+    if (families.length > 0) {
+      const id = 'google-fonts-preset';
+      document.getElementById(id)?.remove();
+      const params = families.map(f => `family=${f.replaceAll(' ', '+')}:wght@400;600;700`).join('&');
+      const link = document.createElement('link');
+      link.id = id;
+      link.rel = 'stylesheet';
+      link.href = `https://fonts.googleapis.com/css2?${params}&display=swap`;
+      document.head.appendChild(link);
+    }
+  }, [presetName, themeMode]);
+
   const latestContentRef = useRef<string | null>(null);
   const historicalContentRef = useRef<string | null>(null);
 
@@ -171,6 +268,7 @@ export function App() {
       ready,
       setLanding,
       setThemeMode,
+      setPresetName,
       setReady,
       setCompareContent,
       setEditorKey,
@@ -184,7 +282,30 @@ export function App() {
 
       switch (message.type) {
         case 'setTheme':
-          // テーマはエディタ設定でのみ変更（VS Code テーマ同期を無効化）
+          if (message.themeMode === 'light' || message.themeMode === 'dark') {
+            msgState.setThemeMode(message.themeMode);
+          }
+          if (typeof message.claudeLocked === 'boolean') {
+            isClaudeEditing = message.claudeLocked;
+            setClaudeEditing(message.claudeLocked);
+          }
+          return;
+        case 'setSettings':
+          if (message.settings) {
+            const s = message.settings;
+            if (s.themeMode === 'light' || s.themeMode === 'dark') {
+              msgState.setThemeMode(s.themeMode);
+            }
+            if (s.themePreset === 'handwritten' || s.themePreset === 'professional') {
+              msgState.setPresetName(s.themePreset);
+            }
+            if (s.language === 'en' || s.language === 'ja') {
+              setShimLocale(s.language);
+              document.documentElement.lang = s.language;
+              // locale 変更時にエディタを再マウントして翻訳を反映
+              msgState.setEditorKey((k: number) => k + 1);
+            }
+          }
           return;
         case 'setLanding':
           if (message.landing === true) setLanding(true);
@@ -231,6 +352,14 @@ export function App() {
         case 'pasteCodeBlock':
           if (typeof message.text === 'string') dispatchCustomEvent('vscode-paste-codeblock', message.text);
           return;
+        case 'claudeLock':
+          return;
+        case 'setAutoReload':
+          if (typeof message.enabled === 'boolean') setAutoReload(message.enabled);
+          return;
+        case 'setMode':
+          if (typeof message.mode === 'string') dispatchCustomEvent('vscode-set-mode', message.mode);
+          return;
         case 'setContent':
           if (typeof message.content === 'string') handleSetContent(message, msgState);
           return;
@@ -276,13 +405,11 @@ export function App() {
     vscode.postMessage({ type: 'statusChanged', status });
   }, []);
 
+  const [claudeEditing, setClaudeEditing] = useState(false);
   const [autoReload, setAutoReload] = useState(true);
-  const handleToggleAutoReload = useCallback(() => {
-    setAutoReload((prev) => {
-      const next = !prev;
-      vscode.postMessage({ type: 'setAutoReload', enabled: next });
-      return next;
-    });
+
+  const handleModeChange = useCallback((mode: string) => {
+    vscode.postMessage({ type: 'modeChanged', mode });
   }, []);
 
   // スクロール同期: スクロール位置を extension host に送信
@@ -341,11 +468,40 @@ export function App() {
     return <LandingPage themeMode={themeMode} onContinue={() => setLanding(false)} />;
   }
 
+  const isDark = themeMode === 'dark';
+  const isJa = (document.documentElement.lang || '').startsWith('ja');
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <ConfirmProvider>
-        <MarkdownEditorPage key={editorKey} hideFileOps hideUndoRedo hideSettings hideVersionInfo hideTemplates hideFoldAll hideStatusBar sideToolbar hideCompareToggle externalCompareContent={compareContent} onCompareModeChange={handleCompareModeChange} onHeadingsChange={handleHeadingsChange} onCommentsChange={handleCommentsChange} onStatusChange={handleStatusChange} autoReload={autoReload} onToggleAutoReload={handleToggleAutoReload} />
+        <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+          <MarkdownEditorPage key={editorKey} hideToolbar hideStatusBar readOnly={claudeEditing} externalCompareContent={compareContent} onCompareModeChange={handleCompareModeChange} onHeadingsChange={handleHeadingsChange} onCommentsChange={handleCommentsChange} onStatusChange={handleStatusChange} autoReload={autoReload} onModeChange={handleModeChange} themeMode={themeMode} presetName={presetName} />
+          {claudeEditing && (
+            <div style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              zIndex: 9999,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              padding: '4px 16px',
+              backgroundColor: isDark ? 'rgba(30,30,30,0.85)' : 'rgba(255,255,255,0.85)',
+              borderBottom: `2px solid ${isDark ? 'rgba(255,180,0,0.5)' : 'rgba(255,160,0,0.5)'}`,
+              backdropFilter: 'blur(4px)',
+              fontSize: 12,
+              color: isDark ? 'rgba(255,200,100,0.9)' : 'rgba(160,100,0,0.9)',
+              pointerEvents: 'none',
+            }}>
+              <span style={{ fontSize: 14, animation: 'claude-spin 2s linear infinite' }}>&#9881;</span>
+              <span>{isJa ? 'Claude Code が編集中です' : 'Claude Code is editing'}</span>
+              <style>{`@keyframes claude-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+            </div>
+          )}
+        </div>
       </ConfirmProvider>
     </ThemeProvider>
   );

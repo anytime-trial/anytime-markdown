@@ -18,6 +18,7 @@ import { GraphView } from "./GraphView";
 import { shouldShowBorder, shouldShowToolbar } from "./compareHelpers";
 import { ResizeGrip } from "./ResizeGrip";
 import type { CodeBlockSharedProps } from "./types";
+import { useEditorFeaturesContext } from "../../contexts/EditorFeaturesContext";
 
 type MathBlockProps = Pick<
   CodeBlockSharedProps,
@@ -42,6 +43,7 @@ export function MathBlock(props: MathBlockProps) {
     t, isDark,
   } = props;
 
+  const { hideGraph } = useEditorFeaturesContext();
   const [graphEnabled, setGraphEnabled] = useState(false);
   const { html: mathHtml, error: mathError } = useKatexRender({ code, isMath: true });
 
@@ -60,7 +62,7 @@ export function MathBlock(props: MathBlockProps) {
       labelOnly={props.isCompareLeftEditable}
       labelDivider
       extra={
-        !props.isCompareLeft && !props.isCompareLeftEditable ? (
+        !hideGraph && !props.isCompareLeft && !props.isCompareLeftEditable ? (
           <Tooltip title={graphEnabled ? t("hideGraph") : t("showGraph")} placement="top">
             <IconButton
               size="small"
@@ -135,7 +137,7 @@ export function MathBlock(props: MathBlockProps) {
           <ResizeGrip visible={isSelected && props.isEditable} resizing={resizing} resizeWidth={resizeWidth} onPointerDown={handleResizePointerDown} />
         </Box>
       )}
-      <GraphView code={code} enabled={graphEnabled} isDark={isDark} />
+      {!hideGraph && <GraphView code={code} enabled={graphEnabled} isDark={isDark} />}
     </CodeBlockFrame>
   );
 }

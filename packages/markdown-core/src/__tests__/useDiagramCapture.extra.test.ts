@@ -28,8 +28,6 @@ jest.mock("../constants/timing", () => ({
 }));
 
 import { useDiagramCapture } from "../hooks/useDiagramCapture";
-import { saveBlob } from "../utils/clipboardHelpers";
-
 describe("useDiagramCapture - Mermaid capture", () => {
   it("isMermaid=true with SVG calls downloadSvgAsPng internally", async () => {
     const svgContent = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100"><text>Hello</text></svg>';

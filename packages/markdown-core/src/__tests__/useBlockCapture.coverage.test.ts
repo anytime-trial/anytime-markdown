@@ -139,7 +139,6 @@ describe("useBlockCapture - captureImgElement path", () => {
     mockRect(img, 150, 100);
 
     // Simulate load event
-    const origOnload = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, "onload");
     let loadHandler: (() => void) | null = null;
     Object.defineProperty(img, "onload", {
       set: (fn) => { loadHandler = fn; setTimeout(() => fn?.(), 0); },
@@ -271,7 +270,7 @@ describe("useBlockCapture - captureHtmlPreview path", () => {
     el.appendChild(htmlPreview);
     mockRect(htmlPreview, 200, 150);
 
-    const mockCtx = mockCanvasContext();
+    const _mockCtx = mockCanvasContext();
 
     const mockWritable = { write: jest.fn().mockResolvedValue(undefined), close: jest.fn().mockResolvedValue(undefined) };
     const mockHandle = { name: "preview.png", createWritable: jest.fn().mockResolvedValue(mockWritable) };

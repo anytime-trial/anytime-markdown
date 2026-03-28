@@ -7,6 +7,28 @@
 
 ## [Unreleased]
 
+## [0.8.4] - 2026-03-28
+
+### 追加
+- `showFrontmatter` prop: エディタでのフロントマター表示/非表示制御
+- エディタコンテキストメニューに「画面クリア」オプション
+- ReadonlyToolbar: ダーク/ライトモード切替・テーマスタイル切替アイコン
+- EditorFeaturesContext: 機能フラグ（jsxgraph/plotly 除外対応）
+
+### 変更
+- Claude 編集インジケータをレイアウトシフトしない固定オーバーレイバーに変更
+- Claude 編集オーバーレイを core から vscode-extension に移動（責務分離）
+- Claude Code 編集ロック中は ReadonlyToolbar を非表示に変更
+
+### 修正
+- MUI Menu の Fragment children 警告を解消（EditorContextMenu、ToolbarFileActions、ToolbarMobileMenu）
+- `latexToExpr` の sort() で localeCompare を使用するよう修正
+- StatusBar の aria-label から不要な条件分岐を除去
+
+### セキュリティ
+- NEXT_LOCALE cookie に Secure 属性を追加
+- `importDrawio` の多文字 HTML サニタイズの不完全性を修正
+
 ## [0.8.3] - 2026-03-27
 
 ### 追加

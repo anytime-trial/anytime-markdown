@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTheme } from '@mui/material/styles';
 
 import { useLocaleSwitch } from '../LocaleProvider';
-import { useThemeMode } from '../providers';
+import { usePreset, useThemeMode } from '../providers';
 
 const MarkdownEditorPage = dynamic(
   () => import('@anytime-markdown/markdown-core/src/MarkdownEditorPage'),
@@ -33,11 +33,16 @@ interface MarkdownViewerProps {
   editorHeight?: number;
   /** スクロールなしで全体表示 */
   noScroll?: boolean;
+  /** コンテンツ取得APIのパス（デフォルト: '/api/docs/content'） */
+  contentApiPath?: string;
+  /** フロントマターブロックの表示（デフォルト: false） */
+  showFrontmatter?: boolean;
 }
 
-export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60vh', editorHeight, noScroll }: Readonly<MarkdownViewerProps>) {
+export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60vh', editorHeight, noScroll, contentApiPath = '/api/docs/content', showFrontmatter }: Readonly<MarkdownViewerProps>) {
   const t = useTranslations('Landing');
   const { themeMode, setThemeMode } = useThemeMode();
+  const { presetName, setPresetName } = usePreset();
   const { locale, setLocale } = useLocaleSwitch();
   const muiTheme = useTheme();
   const isBelowMd = useMediaQuery(muiTheme.breakpoints.down('md'));
@@ -54,7 +59,7 @@ export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60
     setLoading(true);
     setError(null);
 
-    fetch(`/api/docs/content?key=${encodeURIComponent(resolvedDocKey)}`)
+    fetch(`${contentApiPath}?key=${encodeURIComponent(resolvedDocKey)}`)
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.text();
@@ -106,7 +111,6 @@ export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60
         key={editorKeyRef.current}
         externalContent={content}
         readOnly
-        hideToolbar
         hideStatusBar
         noScroll={noScroll}
         fixedEditorHeight={editorHeight}
@@ -114,7 +118,10 @@ export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60
         defaultBlockAlign="left"
         themeMode={themeMode}
         onThemeModeChange={setThemeMode}
+        presetName={presetName}
+        onPresetChange={setPresetName}
         onLocaleChange={setLocale}
+        showFrontmatter={showFrontmatter}
       />
     </Box>
   );

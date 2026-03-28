@@ -10,7 +10,6 @@
  */
 import React from "react";
 import { render, act } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 // --- Mocks ---
 let mockIsEditable = true;
@@ -83,8 +82,6 @@ jest.mock("../components/codeblock/RegularCodeBlock", () => ({
 }));
 
 import { CodeBlockNodeView } from "../MermaidNodeView";
-
-const theme = createTheme();
 
 function createMockEditor() {
   const run = jest.fn();

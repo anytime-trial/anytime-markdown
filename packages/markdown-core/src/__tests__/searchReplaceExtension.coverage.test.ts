@@ -8,7 +8,6 @@
 import {
   SearchReplaceExtension,
   isRedosRisk,
-  escapeRegExp,
   type SearchReplaceStorage,
 } from "../searchReplaceExtension";
 

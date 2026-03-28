@@ -11,7 +11,7 @@
  *   118: mobile exportPdf menu item click
  */
 import React from "react";
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 import { ToolbarFileActions } from "../components/ToolbarFileActions";

@@ -218,25 +218,6 @@ describe("EditorToolbar - coverage", () => {
     expect(screen.queryByLabelText("more")).toBeNull();
   });
 
-  // --- auto-reload toggle ---
-  test("onToggleAutoReload が渡された場合にトグルボタンが表示される", () => {
-    const onToggleAutoReload = jest.fn();
-    const props = createDefaultProps({ onToggleAutoReload, autoReload: false });
-    render(<EditorToolbar {...props} />);
-
-    const btn = screen.getByLabelText("autoReloadOff");
-    fireEvent.click(btn);
-    expect(onToggleAutoReload).toHaveBeenCalled();
-  });
-
-  test("autoReload=true で SyncIcon が表示される", () => {
-    const onToggleAutoReload = jest.fn();
-    const props = createDefaultProps({ onToggleAutoReload, autoReload: true });
-    render(<EditorToolbar {...props} />);
-
-    expect(screen.getByLabelText("autoReloadOn")).toBeTruthy();
-  });
-
   // --- compare toggle ---
   test("compare トグルで compare → edit に切り替え", () => {
     const onMerge = jest.fn();

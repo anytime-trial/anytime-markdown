@@ -83,4 +83,13 @@ describe('applyVpsc', () => {
   it('should handle empty array without error', () => {
     expect(() => applyVpsc([], 10)).not.toThrow();
   });
+
+  it('should move left node when right is fixed', () => {
+    const bodies = [
+      makeBody('a', 50, 0),
+      { ...makeBody('b', 0, 0), fixed: true },
+    ];
+    applyVpsc(bodies, 10);
+    expect(bodies[1].x).toBe(0); // b should stay fixed
+  });
 });

@@ -6,8 +6,6 @@ import GitHubIcon from "@mui/icons-material/GitHub";
 import ListAltIcon from "@mui/icons-material/ListAlt";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import RedoIcon from "@mui/icons-material/Redo";
-import SyncIcon from "@mui/icons-material/Sync";
-import SyncDisabledIcon from "@mui/icons-material/SyncDisabled";
 import UndoIcon from "@mui/icons-material/Undo";
 import ViewStreamIcon from "@mui/icons-material/ViewStream";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
@@ -121,8 +119,6 @@ interface EditorToolbarProps {
   onOpenSettings?: () => void;
   onOpenVersionDialog?: () => void;
   onAnnounce?: (message: string) => void;
-  autoReload?: boolean;
-  onToggleAutoReload?: () => void;
   t: TranslationFn;
 }
 
@@ -168,8 +164,6 @@ export const EditorToolbar = React.memo(function EditorToolbar({
   onOpenSettings,
   onOpenVersionDialog,
   onAnnounce: _onAnnounce,
-  autoReload,
-  onToggleAutoReload,
   t,
 }: EditorToolbarProps) {
   const {
@@ -300,17 +294,6 @@ export const EditorToolbar = React.memo(function EditorToolbar({
             </Tooltip>
           </ToggleButton>
         </ToggleButtonGroup>
-      )}
-
-      {/* Auto-reload toggle (VS Code extension only) */}
-      {onToggleAutoReload && (
-        <Tooltip title={autoReload ? t("autoReloadOn") : t("autoReloadOff")}>
-          <IconButton size="small" aria-label={autoReload ? t("autoReloadOn") : t("autoReloadOff")} onClick={onToggleAutoReload}
-            sx={{ color: autoReload ? "primary.main" : undefined }}
-          >
-            {autoReload ? <SyncIcon fontSize="small" /> : <SyncDisabledIcon fontSize="small" />}
-          </IconButton>
-        </Tooltip>
       )}
 
       {/* Outline, Comments - hidden on mobile */}

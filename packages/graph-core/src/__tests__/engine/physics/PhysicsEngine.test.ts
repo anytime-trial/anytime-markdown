@@ -54,11 +54,47 @@ describe('PhysicsEngine', () => {
     });
   });
 
+  describe('addBody / removeBody', () => {
+    it('should add and remove individual bodies', () => {
+      const engine = new PhysicsEngine();
+      const n = createNode('rect', 0, 0);
+      engine.addBody(n);
+      const pos = engine.getPositions();
+      expect(pos.has(n.id)).toBe(true);
+      engine.removeBody(n.id);
+      const pos2 = engine.getPositions();
+      expect(pos2.has(n.id)).toBe(false);
+    });
+  });
+
+  describe('updateBody with non-existent id', () => {
+    it('should not throw', () => {
+      const engine = new PhysicsEngine();
+      expect(() => engine.updateBody('nonexistent', { x: 100 })).not.toThrow();
+    });
+  });
+
   describe('setConfig', () => {
     it('should update configuration', () => {
       const engine = new PhysicsEngine();
       engine.setConfig({ damping: 0.8 });
       engine.setCollisionEnabled(true);
+    });
+  });
+
+  describe('resolveCollisions disabled', () => {
+    it('should return empty when collision disabled', () => {
+      const engine = new PhysicsEngine({ collisionEnabled: false });
+      const n1 = createNode('rect', 0, 0);
+      engine.syncFromNodes([n1]);
+      const result = engine.resolveCollisions(n1.id);
+      expect(result).toEqual([]);
+    });
+
+    it('should return empty for non-existent body', () => {
+      const engine = new PhysicsEngine({ collisionEnabled: true });
+      const result = engine.resolveCollisions('nonexistent');
+      expect(result).toEqual([]);
     });
   });
 
@@ -101,6 +137,58 @@ describe('PhysicsEngine', () => {
     });
   });
 
+  describe('eades-vpsc algorithm', () => {
+    it('should apply vpsc corrections', () => {
+      const engine = new PhysicsEngine({ algorithm: 'eades-vpsc', maxIterations: 20 });
+      engine.initLayout(nodes, edges);
+      // Run enough ticks to trigger vpsc (every 5 iterations)
+      for (let i = 0; i < 10; i++) {
+        engine.tick();
+      }
+      const positions = engine.getPositions();
+      expect(positions.size).toBe(3);
+    });
+  });
+
+  describe('fruchterman-reingold-vpsc algorithm', () => {
+    it('should run FR with vpsc corrections', () => {
+      const engine = new PhysicsEngine({ algorithm: 'fruchterman-reingold-vpsc', maxIterations: 20 });
+      engine.initLayout(nodes, edges);
+      for (let i = 0; i < 10; i++) {
+        engine.tick();
+      }
+      const positions = engine.getPositions();
+      expect(positions.size).toBe(3);
+    });
+  });
+
+  describe('spreadConnected with fixed nodes', () => {
+    it('should not move fixed nodes', () => {
+      const n1 = createNode('rect', 0, 0, { locked: true });
+      const n2 = createNode('rect', 50, 0);
+      const testEdges = [
+        createEdge('connector', { nodeId: n1.id, x: 0, y: 0 }, { nodeId: n2.id, x: 0, y: 0 }),
+      ];
+      const engine = new PhysicsEngine();
+      // Sync and mark n1 as fixed
+      engine.syncFromNodes([n1, n2]);
+      engine.updateBody(n1.id, { fixed: true });
+      const positions = engine.spreadConnected(null, testEdges, 100);
+      const p1 = positions.get(n1.id)!;
+      expect(p1.x).toBe(0);
+    });
+
+    it('should handle edges with missing nodeId', () => {
+      const n1 = createNode('rect', 0, 0);
+      const testEdges = [
+        createEdge('line', { x: 0, y: 0 }, { x: 100, y: 100 }),
+      ];
+      const engine = new PhysicsEngine();
+      const positions = engine.spreadConnected([n1], testEdges, 100);
+      expect(positions.size).toBe(1);
+    });
+  });
+
   describe('spreadConnected', () => {
     it('should ensure minimum gap between connected nodes', () => {
       // Place two connected nodes very close (overlapping)
@@ -133,6 +221,19 @@ describe('PhysicsEngine', () => {
       const p2 = positions.get(n2.id)!;
       expect(p1.x).toBe(0);
       expect(p2.x).toBe(500);
+    });
+
+    it('should separate vertically overlapping nodes', () => {
+      // Place two nodes overlapping vertically (same x, close y)
+      const n1 = createNode('rect', 0, 0);
+      const n2 = createNode('rect', 0, 10); // overlapping vertically (closer)
+      const testEdges: GraphEdge[] = [];
+      const engine = new PhysicsEngine();
+      const positions = engine.spreadConnected([n1, n2], testEdges, 20);
+      const p1 = positions.get(n1.id)!;
+      const p2 = positions.get(n2.id)!;
+      // Should be separated vertically
+      expect(Math.abs(p2.y - p1.y)).toBeGreaterThanOrEqual(10);
     });
 
     it('should handle chain of connected nodes', () => {

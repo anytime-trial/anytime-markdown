@@ -42,7 +42,7 @@ describe("parseCommentData", () => {
       "-->",
     ].join("\n");
 
-    const { comments, body } = parseCommentData(md);
+    const { comments, body: _body } = parseCommentData(md);
     expect(comments.size).toBe(2);
     expect(comments.get("c1")).toEqual({
       id: "c1",

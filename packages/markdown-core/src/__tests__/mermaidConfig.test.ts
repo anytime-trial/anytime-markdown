@@ -29,6 +29,13 @@ describe("extractMermaidConfig", () => {
     expect(result.body).toBe("graph TD");
   });
 
+  test("%%{init: で始まるが }%% がない場合はconfigが空", () => {
+    const code = '%%{init: {"theme":"dark"} missing close';
+    const result = extractMermaidConfig(code);
+    expect(result.config).toBe("");
+    expect(result.body).toBe(code);
+  });
+
   test("空文字列を渡すとconfigが空でbodyも空になる", () => {
     const result = extractMermaidConfig("");
     expect(result.config).toBe("");

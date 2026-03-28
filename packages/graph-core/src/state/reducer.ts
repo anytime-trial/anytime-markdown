@@ -232,7 +232,7 @@ export function graphReducer(state: GraphState, action: Action): GraphState {
           nodes: s.document.nodes.map(n => {
             const u = action.updates.find(u => u.id === n.id);
             if (!u) return n;
-            return { ...n, ...(u.x !== undefined ? { x: u.x } : {}), ...(u.y !== undefined ? { y: u.y } : {}) };
+            return { ...n, ...(u.x === undefined ? {} : { x: u.x }), ...(u.y === undefined ? {} : { y: u.y }) };
           }),
         },
       };

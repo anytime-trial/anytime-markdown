@@ -2,7 +2,7 @@ import { Box, Paper } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import type { Editor } from "@tiptap/react";
 import type React from "react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
 import { getEditorPaperSx } from "../styles/editorStyles";
@@ -31,6 +31,9 @@ interface EditorContentAreaProps {
   handleFrontmatterChange: (value: string | null) => void;
   noScroll?: boolean;
   t: (key: string) => string;
+  onSwitchToReview?: () => void;
+  onSwitchToWysiwyg?: () => void;
+  onSwitchToSource?: () => void;
 }
 
 export function EditorContentArea({
@@ -51,9 +54,14 @@ export function EditorContentArea({
   handleFrontmatterChange,
   noScroll,
   t,
+  onSwitchToReview,
+  onSwitchToWysiwyg,
+  onSwitchToSource,
 }: Readonly<EditorContentAreaProps>) {
   const theme = useTheme();
   const settings = useEditorSettingsContext();
+
+  const sourceContainerRef = useRef<HTMLDivElement>(null);
 
   // Frontmatter パネルの高さを測定し editorHeight から差し引く
   const frontmatterRef = useRef<HTMLDivElement>(null);
@@ -74,7 +82,12 @@ export function EditorContentArea({
   if (sourceMode) {
     return (
       <Box sx={{ flex: 1, minWidth: 0 }}>
+        <EditorContextMenu editor={editor} readOnly={false} t={t}
+          currentMode="source" extraContainerRef={sourceContainerRef} sourceTextareaRef={sourceTextareaRef}
+          onSwitchToReview={onSwitchToReview} onSwitchToWysiwyg={onSwitchToWysiwyg} onSwitchToSource={onSwitchToSource}
+        />
         <Box
+          ref={sourceContainerRef}
           sx={{ position: "relative" }}
           onKeyDown={(e: React.KeyboardEvent) => {
             if ((e.ctrlKey || e.metaKey) && e.key === "f") {
@@ -122,7 +135,10 @@ export function EditorContentArea({
         sx={{ position: "relative", outline: "none" }}
       >
         {editor && <SearchReplaceBar editor={editor} t={t} />}
-        {editor && <EditorContextMenu editor={editor} readOnly={readonlyMode || reviewMode} t={t} />}
+        {editor && <EditorContextMenu editor={editor} readOnly={readonlyMode || reviewMode} t={t}
+          currentMode={reviewMode ? "review" : sourceMode ? "source" : "wysiwyg"}
+          onSwitchToReview={onSwitchToReview} onSwitchToWysiwyg={onSwitchToWysiwyg} onSwitchToSource={onSwitchToSource}
+        />}
         <div ref={frontmatterRef}>
           <FrontmatterBlock frontmatter={frontmatterText} onChange={handleFrontmatterChange} readOnly={readonlyMode || reviewMode} defaultCollapsed={readonlyMode} t={t} />
         </div>

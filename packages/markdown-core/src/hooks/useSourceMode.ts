@@ -46,9 +46,10 @@ interface UseSourceModeParams {
   t: (key: string) => string;
   frontmatterRef: React.RefObject<string | null>;
   defaultSourceMode?: boolean;
+  onModeChange?: (mode: EditorMode) => void;
 }
 
-export function useSourceMode({ editor, saveContent, t, frontmatterRef, defaultSourceMode }: UseSourceModeParams) {
+export function useSourceMode({ editor, saveContent, t, frontmatterRef, defaultSourceMode, onModeChange }: UseSourceModeParams) {
   const [initialMode] = useState(() => {
     if (defaultSourceMode) return "source" as EditorMode;
     return migrateEditorMode();
@@ -87,7 +88,8 @@ export function useSourceMode({ editor, saveContent, t, frontmatterRef, defaultS
     } else {
       safeSetItem(STORAGE_KEY_EDITOR_MODE, mode);
     }
-  }, []);
+    onModeChange?.(mode);
+  }, [onModeChange]);
 
   const handleSwitchToSource = useCallback(() => {
     if (!editor) return;

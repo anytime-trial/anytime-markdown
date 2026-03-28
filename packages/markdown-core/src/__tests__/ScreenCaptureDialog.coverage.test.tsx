@@ -115,7 +115,7 @@ describe("ScreenCaptureDialog", () => {
       renderDialog();
     });
     // In previewing phase, capture button should appear
-    const captureBtn = screen.queryByText("screenCaptureShoot");
+    screen.queryByText("screenCaptureShoot");
     // It may or may not be visible depending on the video ref state
   });
 });

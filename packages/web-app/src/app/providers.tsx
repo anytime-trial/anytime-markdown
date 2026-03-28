@@ -53,21 +53,18 @@ function updateStatusBar(mode: ThemeMode) {
 }
 
 export function Providers({ children }: Readonly<{ children: React.ReactNode }>) {
-  const [themeMode, setThemeModeState] = useState<ThemeMode>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem(THEME_STORAGE_KEY);
-      if (stored === 'light' || stored === 'dark') return stored;
+  const [themeMode, setThemeModeState] = useState<ThemeMode>('dark');
+  const [presetName, setPresetNameState] = useState<ThemePresetName>(DEFAULT_PRESET_NAME);
+  useEffect(() => {
+    const storedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+    if (storedTheme === 'light' || storedTheme === 'dark') {
+      setThemeModeState(storedTheme);
     }
-    return 'dark';
-  });
-
-  const [presetName, setPresetNameState] = useState<ThemePresetName>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem(PRESET_STORAGE_KEY);
-      if (stored && isPresetName(stored)) return stored;
+    const storedPreset = localStorage.getItem(PRESET_STORAGE_KEY);
+    if (storedPreset && isPresetName(storedPreset)) {
+      setPresetNameState(storedPreset);
     }
-    return DEFAULT_PRESET_NAME;
-  });
+  }, []);
 
   const setThemeMode = useCallback((mode: ThemeMode) => {
     setThemeModeState(mode);

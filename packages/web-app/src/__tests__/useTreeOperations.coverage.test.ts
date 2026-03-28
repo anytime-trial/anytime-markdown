@@ -495,6 +495,94 @@ describe("handleMoveEntry - 追加カバレッジ", () => {
   });
 });
 
+// ─── rename - 追加ブランチカバレッジ ──────────────────────────────────────────
+
+describe("rename - branch coverage additions", () => {
+  it("ファイルリネームで同ディレクトリ内の他エントリも保持される (replaceAndSortEntries)", async () => {
+    mockRenameFile.mockResolvedValue(true);
+    const entries: TreeEntry[] = [
+      { path: "docs", type: "tree", name: "docs" },
+      { path: "a.md", type: "blob", name: "a.md" },
+      { path: "b.md", type: "blob", name: "b.md" },
+    ];
+    const args = createArgs();
+    args.childrenCacheRef.current.set("", entries);
+    // Set expanded paths including the rename target
+    const expanded = new Set(["docs", "docs/sub"]);
+    args.setExpanded = jest.fn((fn: unknown) => {
+      if (typeof fn === "function") (fn as Function)(expanded);
+    }) as any;
+    const { result } = renderHook(() => useTreeOperations(args));
+
+    await act(async () => {
+      await result.current.handleRename("a.md", "renamed.md");
+    });
+
+    expect(mockRenameFile).toHaveBeenCalledWith("user/repo", "a.md", "renamed.md", "main");
+  });
+
+  it("フォルダリネームで子パスの expanded が更新される (updateExpandedPaths)", async () => {
+    mockRenameFile.mockResolvedValue(true);
+    mockListAllFiles.mockResolvedValue(["old/file.md"]);
+    const entries: TreeEntry[] = [
+      { path: "old", type: "tree", name: "old" },
+      { path: "other", type: "tree", name: "other" },
+    ];
+    const args = createArgs();
+    args.childrenCacheRef.current.set("", entries);
+    // Expanded set includes the folder and sub-paths
+    const expanded = new Set(["old", "old/sub", "other"]);
+    args.setExpanded = jest.fn((fn: unknown) => {
+      if (typeof fn === "function") {
+        const result = (fn as Function)(expanded);
+        // Verify result contains updated paths
+        expect(result.has("new")).toBe(true);
+        expect(result.has("new/sub")).toBe(true);
+        expect(result.has("other")).toBe(true);
+        expect(result.has("old")).toBe(false);
+      }
+    }) as any;
+    const { result } = renderHook(() => useTreeOperations(args));
+
+    await act(async () => {
+      await result.current.handleRename("old", "new");
+    });
+  });
+
+  it("フォルダリネームで listAllFiles が空を返す場合", async () => {
+    mockListAllFiles.mockResolvedValue([]);
+    const entries: TreeEntry[] = [
+      { path: "empty-dir", type: "tree", name: "empty-dir" },
+    ];
+    const args = createArgs();
+    args.childrenCacheRef.current.set("", entries);
+    const { result } = renderHook(() => useTreeOperations(args));
+
+    await act(async () => {
+      await result.current.handleRename("empty-dir", "new-dir");
+    });
+    // Should handle empty dir gracefully
+  });
+
+  it("フォルダリネームで部分的にリネーム失敗する場合", async () => {
+    mockListAllFiles.mockResolvedValue(["dir/a.md", "dir/b.md"]);
+    mockRenameFile
+      .mockResolvedValueOnce(true) // first file
+      .mockResolvedValueOnce(false); // second file fails
+    const entries: TreeEntry[] = [
+      { path: "dir", type: "tree", name: "dir" },
+    ];
+    const args = createArgs();
+    args.childrenCacheRef.current.set("", entries);
+    const { result } = renderHook(() => useTreeOperations(args));
+
+    await act(async () => {
+      await result.current.handleRename("dir", "new-dir");
+    });
+    // Partial failure - should not update cache
+  });
+});
+
 // ─── loadTree - 追加ケース ──────────────────────────────────────────────────
 
 describe("loadTree - 追加カバレッジ", () => {

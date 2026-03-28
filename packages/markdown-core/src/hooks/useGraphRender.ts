@@ -6,28 +6,21 @@ import type { GraphExpr } from "../utils/latexToExpr";
 /** Lazy-load latexToExpr (includes mathjs ~180KB) */
 let parseLatexToGraphFn: typeof import("../utils/latexToExpr").parseLatexToGraph | null = null;
 async function getParser() {
-  if (!parseLatexToGraphFn) {
-    const mod = await import("../utils/latexToExpr");
-    parseLatexToGraphFn = mod.parseLatexToGraph;
-  }
+  parseLatexToGraphFn ??= (await import("../utils/latexToExpr")).parseLatexToGraph;
   return parseLatexToGraphFn;
 }
 
 /** Lazy-load JSXGraph */
 let jsxGraphModule: typeof import("jsxgraph") | null = null;
 async function getJSXGraph() {
-  if (!jsxGraphModule) {
-    jsxGraphModule = await import("jsxgraph");
-  }
+  jsxGraphModule ??= await import("jsxgraph");
   return jsxGraphModule;
 }
 
 /** Lazy-load Plotly */
 let plotlyModule: typeof import("plotly.js-gl3d-dist-min") | null = null;
 async function getPlotly() {
-  if (!plotlyModule) {
-    plotlyModule = await import("plotly.js-gl3d-dist-min");
-  }
+  plotlyModule ??= await import("plotly.js-gl3d-dist-min");
   return plotlyModule;
 }
 

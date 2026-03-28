@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.4] - 2026-03-28
+
+### Added
+- Claude Code editing notification: file edit detection → editor lock → unlock flow
+- VS Code settings: `language`, `themeMode`, `themePreset`
+- Toolbar controls moved to VS Code native editor title bar
+- `mcp-cms` server registered in `.mcp.json`
+
+### Changed
+- Removed Claude editing status bar item, replaced with overlay approach
+- Removed unused `claudeLock` message handler
+- AI note button label shortened from "AI ノートを編集" to "ノート編集"
+- Excluded jsxgraph and plotly from extension bundle (bundle size reduction)
+
+### Fixed
+- Claude edit notification lock/unlock reliability issues
+- Claude Code hook array format correction
+- Hook file path parsing via stdin jq
+- Status file monitoring stabilized (fs.watch → fs.watchFile → setInterval polling)
+- Fixed timestamp-based dedup blocking unlock detection
+- Added active unlock polling after lock detected
+
+### Editor Core (markdown-core)
+- `showFrontmatter` prop for frontmatter visibility control
+- Clear screen option in editor context menu
+- Claude editing indicator: fixed overlay bar (no layout shift)
+- Fixed MUI Menu Fragment children warning
+- Security: Secure attribute on NEXT_LOCALE cookie, importDrawio sanitization fix
+
 ## [0.8.3] - 2026-03-27
 
 ### Added

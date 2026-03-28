@@ -1,6 +1,6 @@
 {
   "name": "anytime-markdown-monorepo",
-  "version": "0.8.3",
+  "version": "0.8.4",
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -13,6 +13,8 @@
     "packages/graph-core",
     "packages/mcp-markdown",
     "packages/mcp-graph",
+    "packages/cms-core",
+    "packages/mcp-cms",
     "packages/vscode-markdown-extension",
     "packages/vscode-graph-extension",
     "packages/vscode-git-extension",
@@ -21,9 +23,10 @@
     "packages/mobile-app"
   ],
   "overrides": {
-    "serialize-javascript": "7.0.3",
+    "serialize-javascript": "7.0.5",
     "diff": "8.0.3",
-    "next": "15.5.14"
+    "next": "15.5.14",
+    "handlebars": "4.7.9"
   },
   "devDependencies": {
     "@next/eslint-plugin-next": "^16.1.6",

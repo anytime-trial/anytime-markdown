@@ -392,7 +392,7 @@ describe("useEditorFileOps", () => {
   // ---- handleImport ----
 
   test("handleImport: .md ファイルを読み込む", async () => {
-    const { result, setSourceText } = setup({ sourceMode: true });
+    const { result, setSourceText: _setSourceText } = setup({ sourceMode: true });
     const file = new File(["# Import"], "test.md", { type: "text/markdown" });
 
     await act(async () => {

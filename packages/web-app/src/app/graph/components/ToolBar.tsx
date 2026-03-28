@@ -5,9 +5,10 @@ import {
   AppBar, Toolbar, ToggleButton, ToggleButtonGroup,
   IconButton, Tooltip, Divider, Box, Menu, MenuItem,
   ListItemIcon, ListItemText, Popover, Typography,
+  CircularProgress,
 } from '@mui/material';
-import { ArrowDropDown as ArrowDropDownIcon } from '@mui/icons-material';
 import {
+  ArrowDropDown as ArrowDropDownIcon,
   NearMe as SelectIcon,
   CropSquare as RectIcon,
   // StickyNote2Outlined replaced by custom StickyNoteShapeIcon
@@ -39,12 +40,10 @@ import {
   CircleOutlined as EllipseIcon,
   // DiamondOutlined replaced by custom SVG diamond icon below
   // ParallelogramIcon, CylinderIcon replaced by custom SVG icons below
-  Settings as SettingsIcon,
   AccountTree as AccountTreeIcon,
   Layers as LayersIcon,
   UnfoldMore as SpreadIcon,
 } from '@mui/icons-material';
-import { CircularProgress } from '@mui/material';
 import { useTranslations } from 'next-intl';
 import { ToolType } from '../types';
 import { SaveStatus } from '../hooks/useAutoSave';
@@ -96,7 +95,7 @@ export function GraphToolBar({
   layoutRunning, collisionEnabled, onAutoLayout, onToggleCollision,
   layoutAlgorithm = 'eades', onChangeAlgorithm,
   onSpreadConnected,
-}: ToolBarProps) {
+}: Readonly<ToolBarProps>) {
   const t = useTranslations('Graph');
   const { themeMode } = useThemeMode();
   const isDark = themeMode === 'dark';
@@ -104,6 +103,9 @@ export function GraphToolBar({
   const [alignAnchor, setAlignAnchor] = React.useState<null | HTMLElement>(null);
   const [exportAnchor, setExportAnchor] = React.useState<null | HTMLElement>(null);
   const [zoomAnchor, setZoomAnchor] = useState<null | HTMLElement>(null);
+
+  const saveStatusLabel = saveStatus === 'saving' ? t('saving') : t('saveError');
+  const saveTooltip = saveStatus === 'saved' ? t('saved') : saveStatusLabel;
 
   // Shape group: long press to show dropdown, click to activate last shape
   const SHAPE_TOOLS = ['rect', 'ellipse', 'diamond', 'parallelogram', 'cylinder'] as const;
@@ -373,7 +375,7 @@ export function GraphToolBar({
           <IconButton size="small" onClick={onFitContent}><FitIcon fontSize="small" /></IconButton>
         </Tooltip>
 
-        <Tooltip title={saveStatus === 'saved' ? t('saved') : saveStatus === 'saving' ? t('saving') : t('saveError')}>
+        <Tooltip title={saveTooltip}>
           <Box sx={{ display: 'flex', alignItems: 'center', ml: 0.5 }}>
             {saveStatus === 'saved' && <CloudDoneIcon fontSize="small" sx={{ color: 'text.secondary' }} />}
             {saveStatus === 'saving' && <CloudSyncIcon fontSize="small" sx={{ color: 'text.secondary' }} />}
@@ -407,13 +409,6 @@ export function GraphToolBar({
           </IconButton>
         </Tooltip>
 
-        <Divider orientation="vertical" flexItem />
-
-        <Tooltip title={t('settings')}>
-          <IconButton size="small" onClick={onToggleSettings}>
-            <SettingsIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
       </Toolbar>
     </AppBar>
   );

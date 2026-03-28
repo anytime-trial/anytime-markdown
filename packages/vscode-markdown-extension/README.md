@@ -1,40 +1,71 @@
 # Anytime Markdown Editor
 
-![VS Marketplace](https://img.shields.io/visual-studio-marketplace/v/anytime-trial.anytime-markdown?label=VS%20Marketplace&logo=visual-studio-code)
-![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=anytime-trial_anytime-markdown)
-[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=bugs)](https://sonarcloud.io/summary/new_code?id=anytime-trial_anytime-markdown)
-[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=anytime-trial_anytime-markdown)
-[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=coverage)](https://sonarcloud.io/summary/new_code?id=anytime-trial_anytime-markdown)
-[![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=duplicated_lines_density)](https://sonarcloud.io/summary/new_code?id=anytime-trial_anytime-markdown)
+![VS Marketplace](https://img.shields.io/visual-studio-marketplace/v/anytime-trial.anytime-markdown?label=VS%20Marketplace&logo=visual-studio-code)![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=anytime-trial_anytime-markdown)[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=bugs)](https://sonarcloud.io/summary/new_code?id=anytime-trial_anytime-markdown)[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=anytime-trial_anytime-markdown)[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=coverage)](https://sonarcloud.io/summary/new_code?id=anytime-trial_anytime-markdown)[![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=duplicated_lines_density)](https://sonarcloud.io/summary/new_code?id=anytime-trial_anytime-markdown)
 
-**Review AI-generated docs while you code — all inside VS Code.**
+**Rich preview of AI-generated Markdown while you code — all inside VS Code.**
 
-AI assistants are great at writing specs, designs, and notes in Markdown. But reviewing them in plain text is painful, and switching between your editor and a Git GUI breaks your flow.
+AI assistants write specs, designs, and notes in Markdown, but reviewing plain text is hard to read and switching between tools breaks your flow.
 
-Anytime Markdown gives you a rich WYSIWYG editor with built-in Git support, so you can **open a docs repository right next to your code** and keep everything in one window.
+Anytime Markdown gives you a WYSIWYG editor with rich rendering, plus **collaborative editing with AI** to prevent file conflicts.
+
+
+![](images/paste-20260328-141304.png)
 
 ## 1. What You Can Do
 
-- **Open multiple doc repos** in the sidebar alongside your source code
-- **Review AI output** with live-rendered tables, diagrams (Mermaid / PlantUML), and math
-- **Compare versions** side-by-side with diff highlighting (semantic section-based diff available)
-- **Annotate images** with shapes and comments directly in the editor
-- **Edit images** with crop, resize, ruler, and grid tools
-- **Commit and push** docs without leaving VS Code
-- **Track history** with a visual Git graph and per-file timeline
-- **Validate links** with diagnostics for broken file/anchor references
-- **AI integration** — share visual notes with AI tools, browse session logs, and manage AI memory
+- **Rich Markdown editing** — render tables, Mermaid, PlantUML, and KaTeX inline
+- **Paste a screenshot and tell AI "fix this"** — share images with AI via Agent Note
+- **Auto-lock while AI is editing** — prevent conflicts when Claude Code is writing to a file
+- **Switch between 3 modes with one click** — WYSIWYG, Source, Review
 
-## 2. How It Works
 
-1. AI generates a Markdown document
-2. Open the docs repo in the **Markdown Docs** panel
-3. Review in **WYSIWYG** or **Review** mode
-4. Compare with previous versions
-5. Edit, commit, push — done
+## 2. Getting Started
 
-## 3. Editor Modes
+`.md` / `.markdown` files open with Anytime Markdown automatically.
+
+To use the standard text editor, right-click a file and choose **"Open With..."** > **"Text Editor"**.
+
+
+## 3. Share Screenshots with AI (Agent Note)
+
+Paste images and screenshots into the editor, then share them with AI as visual context.
+
+**How to use:**
+
+1. Open a note from **Agent Note** in the sidebar
+2. Paste screenshots or tables from your clipboard
+3. Run `/anytime-note fix this bug` in Claude Code
+4. AI reads the images in the note and performs the task
+
+> When Claude Code is installed, the `/anytime-note` skill is auto-generated.
+
+
+![](images/markdown-agent-note.gif)
+
+## 4. Auto-Lock While AI Is Editing (Claude Code Collaborative Editing)
+
+While Claude Code is editing a file, the editor becomes read-only to prevent conflicts.\
+When editing finishes, the lock is released and the content is updated automatically.
+
+- **Zero config** — auto-enabled when Claude Code is installed
+- **Handles rapid edits** — lock is released 3 seconds after the last edit
+- **Crash safe** — auto-unlocks after 30 seconds if Claude Code stops responding
+
+
+## 5. Browse AI Logs and Memory (AI Log / AI Memory)
+
+View Claude Code session information in the **Anytime Markdown** sidebar panel.
+
+| Panel | Description |
+| --- | --- |
+| **AI Log** | Session execution logs in Markdown. Click to open in the editor |
+| **AI Memory** | Per-project memory entries. Click to view or edit |
+
+> These panels read from `~/.claude/projects/`.\
+> They are hidden when Claude Code is not installed.
+
+
+## 6. Editor Modes
 
 | Mode | What it does |
 | --- | --- |
@@ -44,32 +75,17 @@ Anytime Markdown gives you a rich WYSIWYG editor with built-in Git support, so y
 
 Switch with the toolbar toggles or `Ctrl+Alt+S` (`Cmd+Alt+S` on Mac).
 
-## 4. Sidebar Panels
 
-- **AI Note** — a Markdown scratchpad for sharing visual context (images, tables) with AI CLI tools like Claude Code. Click "Edit AI Note" to open, use the clipboard icon to copy the file path, and the trash icon to clear
-- **AI Log** — browse past Claude Code session logs. Click a session to convert it into a readable Markdown summary with user messages, assistant responses (with model/version), and tool usage overview
-- **AI Memory** — browse and edit Claude Code auto-memory files. Displays memory name and type (feedback, project, user, reference) from frontmatter
-- **Markdown Docs** — file tree with multi-repo support, branch switching, Markdown filter
-- **Changes** — stage, unstage, discard, commit, push (per repo)
-- **Graph** — visual commit log (blue = local, red = remote)
-- **Timeline** — file history, click to compare
-
-## 5. Slash Commands
-
-Type `/` to insert: headings, lists, tables, code blocks, Mermaid / PlantUML diagrams, math (KaTeX), HTML, TOC, footnotes, admonitions, comments, and more.
-
-## 6. Settings
+## 7. Settings
 
 | Setting | Default | Description |
 | --- | --- | --- |
 | `anytimeMarkdown.fontSize` | `0` | Font size (px). 0 = VS Code default |
 | `anytimeMarkdown.editorMaxWidth` | `0` | Max editor width (px). 0 = no limit |
+| `anytimeMarkdown.language` | `auto` | Editor UI language (auto / en / ja) |
+| `anytimeMarkdown.themeMode` | `auto` | Color mode (auto / light / dark) |
+| `anytimeMarkdown.themePreset` | `handwritten` | Theme style (handwritten / professional) |
 
-## 7. Getting Started
-
-`.md` / `.markdown` files open with Anytime Markdown automatically. To use the standard text editor instead, right-click a file and choose **"Open With..."** &gt; **"Text Editor"**.
-
-Requires VS Code 1.109.0 or later.
 
 ## 8. License
 

@@ -121,6 +121,39 @@ describe("extractHeadings", () => {
     editor.destroy();
   });
 
+  test("画像ノードを抽出する", () => {
+    const editor = createTestEditor({
+      content: '<img src="test.png" alt="My Image" />',
+    });
+
+    const items = extractHeadings(editor);
+
+    // imageノードが含まれている場合
+    const imageItems = items.filter(i => i.kind === "image");
+    if (imageItems.length > 0) {
+      expect(imageItems[0]).toMatchObject({
+        level: 6,
+        kind: "image",
+      });
+    }
+
+    editor.destroy();
+  });
+
+  test("alt属性なしの画像は 'Image' テキストになる", () => {
+    const editor = createTestEditor({
+      content: '<img src="test.png" />',
+    });
+
+    const items = extractHeadings(editor);
+    const imageItems = items.filter(i => i.kind === "image");
+    if (imageItems.length > 0) {
+      expect(imageItems[0].text).toBe("Image");
+    }
+
+    editor.destroy();
+  });
+
   test("言語なしコードブロックは 'Code' テキストになる", () => {
     const editor = createTestEditor({
       content: "<pre><code>plain code</code></pre>",

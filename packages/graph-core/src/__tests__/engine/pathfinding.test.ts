@@ -134,4 +134,67 @@ describe('computeAvoidancePath', () => {
       expect(isHorizontal || isVertical).toBe(true);
     }
   });
+
+  it('should handle direct path with vertical start and vertical end sides', () => {
+    const path = computeAvoidancePath(
+      { x: 50, y: 0 }, 'bottom',
+      { x: 150, y: 300 }, 'top',
+      [],
+    );
+    expect(path[0]).toEqual({ x: 50, y: 0 });
+    expect(path[path.length - 1]).toEqual({ x: 150, y: 300 });
+    expect(path.length).toBe(4);
+  });
+
+  it('should handle direct path with horizontal start and vertical end', () => {
+    const path = computeAvoidancePath(
+      { x: 0, y: 50 }, 'right',
+      { x: 200, y: 200 }, 'top',
+      [],
+    );
+    expect(path[0]).toEqual({ x: 0, y: 50 });
+    expect(path[path.length - 1]).toEqual({ x: 200, y: 200 });
+    expect(path.length).toBe(3);
+  });
+
+  it('should handle direct path with vertical start and horizontal end', () => {
+    const path = computeAvoidancePath(
+      { x: 50, y: 0 }, 'bottom',
+      { x: 300, y: 100 }, 'left',
+      [],
+    );
+    expect(path[0]).toEqual({ x: 50, y: 0 });
+    expect(path[path.length - 1]).toEqual({ x: 300, y: 100 });
+    expect(path.length).toBe(3);
+  });
+
+  it('should fallback to direct path when A* finds no route', () => {
+    // Create obstacles that completely surround the destination
+    const obstacles = [
+      { x: 240, y: -60, width: 120, height: 60 },
+      { x: 240, y: 0, width: 60, height: 100 },
+      { x: 360, y: 0, width: 60, height: 100 },
+      { x: 240, y: 100, width: 120, height: 60 },
+    ];
+    const path = computeAvoidancePath(
+      { x: 0, y: 50 }, 'right',
+      { x: 300, y: 50 }, 'left',
+      obstacles,
+      10,
+    );
+    expect(path.length).toBeGreaterThanOrEqual(2);
+    expect(path[0]).toEqual({ x: 0, y: 50 });
+    expect(path[path.length - 1]).toEqual({ x: 300, y: 50 });
+  });
+
+  it('should try second L-bend when first is blocked', () => {
+    const path = computeAvoidancePath(
+      { x: 0, y: 0 }, 'right',
+      { x: 200, y: 200 }, 'left',
+      [{ x: 150, y: -20, width: 80, height: 60 }],
+      20,
+    );
+    expect(path[0]).toEqual({ x: 0, y: 0 });
+    expect(path[path.length - 1]).toEqual({ x: 200, y: 200 });
+  });
 });

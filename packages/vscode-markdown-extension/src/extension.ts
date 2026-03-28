@@ -5,6 +5,8 @@ import { MarkdownEditorProvider } from './providers/MarkdownEditorProvider';
 import { LinkValidationProvider } from './providers/LinkValidationProvider';
 import { AiLogProvider, AiLogItem } from './providers/AiLogProvider';
 import { AiMemoryProvider, AiMemoryItem } from './providers/AiMemoryProvider';
+import { setupClaudeHooks } from './utils/claudeHookSetup';
+import { ClaudeStatusWatcher } from './utils/claudeStatusWatcher';
 
 export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
@@ -12,6 +14,10 @@ export function activate(context: vscode.ExtensionContext) {
 		// リンク検証（壊れたリンクの波線警告）
 		new LinkValidationProvider(),
 	);
+
+	// コンテキストの初期値を設定（editor/title メニュー表示に必要）
+	vscode.commands.executeCommand('setContext', 'anytimeMarkdown.autoReload', true);
+	vscode.commands.executeCommand('setContext', 'anytimeMarkdown.editorMode', 'wysiwyg');
 
 	// ステータスバーアイテム（右側、テキストエディタと同等の位置）
 	const cursorStatusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
@@ -149,6 +155,30 @@ export function activate(context: vscode.ExtensionContext) {
 				p.postMessageToActivePanel({ type: 'pasteMarkdown', text });
 			}
 		}
+	);
+
+	// 自動再読込トグル（VS Code ツールバー）
+	const toggleAutoReloadOff = vscode.commands.registerCommand(
+		'anytime-markdown.toggleAutoReloadOff',
+		() => { MarkdownEditorProvider.getInstance()?.toggleAutoReload(); }
+	);
+	const toggleAutoReloadOn = vscode.commands.registerCommand(
+		'anytime-markdown.toggleAutoReloadOn',
+		() => { MarkdownEditorProvider.getInstance()?.toggleAutoReload(); }
+	);
+
+	// エディタモード切替（VS Code ツールバー）
+	const switchToReview = vscode.commands.registerCommand(
+		'anytime-markdown.switchToReview',
+		() => { MarkdownEditorProvider.getInstance()?.switchMode('review'); }
+	);
+	const switchToWysiwyg = vscode.commands.registerCommand(
+		'anytime-markdown.switchToWysiwyg',
+		() => { MarkdownEditorProvider.getInstance()?.switchMode('wysiwyg'); }
+	);
+	const switchToSource = vscode.commands.registerCommand(
+		'anytime-markdown.switchToSource',
+		() => { MarkdownEditorProvider.getInstance()?.switchMode('source'); }
 	);
 
 	// Agent Note ビュー（空のツリーで Welcome Content を表示）
@@ -308,14 +338,30 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	);
 
+	// Claude Code 編集通知: ステータスファイル監視 + エディタロック
+	const claudeEnabled = setupClaudeHooks();
+	const claudeSubscriptions: vscode.Disposable[] = [];
+	if (claudeEnabled) {
+		const watcher = new ClaudeStatusWatcher();
+		watcher.onStatusChange((editing, filePath) => {
+			const p = MarkdownEditorProvider.getInstance();
+			if (!p) return;
+			p.handleClaudeStatus(editing, filePath);
+		});
+		claudeSubscriptions.push(watcher);
+	}
+
 	context.subscriptions.push(
 		...statusBarItems,
 		openEditorWithFile, compareCmd, openCompareMode,
 		insertSectionNumbers, removeSectionNumbers,
 		pasteAsMarkdown,
+		toggleAutoReloadOff, toggleAutoReloadOn,
+		switchToReview, switchToWysiwyg, switchToSource,
 		openContext, copyContextPath, clearContext,
 		aiLogTreeView, aiLogRefresh, openAiLog,
 		aiMemoryTreeView, aiMemoryRefresh, openAiMemory,
+		...claudeSubscriptions,
 	);
 }
 

@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.4] - 2026-03-28
+
+### Added
+- `showFrontmatter` prop to control frontmatter visibility in editor
+- Clear screen option in editor context menu
+- ReadonlyToolbar: dark/light mode toggle and theme style toggle icons
+- EditorFeaturesContext for feature flags (jsxgraph/plotly exclusion)
+
+### Changed
+- Claude editing indicator changed to fixed overlay bar (no layout shift)
+- Moved Claude editing overlay from core to vscode-extension (separation of concerns)
+- ReadonlyToolbar hidden during Claude Code editing lock
+
+### Fixed
+- MUI Menu Fragment children warning in EditorContextMenu, ToolbarFileActions, ToolbarMobileMenu
+- `latexToExpr` sort() now uses localeCompare
+- StatusBar aria-label: removed trivial conditional
+
+### Security
+- NEXT_LOCALE cookie: added Secure attribute
+- `importDrawio`: fixed incomplete multi-character HTML sanitization
+
 ## [0.8.3] - 2026-03-27
 
 ### Added

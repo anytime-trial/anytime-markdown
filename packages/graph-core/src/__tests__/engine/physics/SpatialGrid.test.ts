@@ -6,6 +6,14 @@ function makeBody(id: string, x: number, y: number, w = 100, h = 50): PhysicsBod
 }
 
 describe('SpatialGrid', () => {
+  it('should use default cell size when not specified', () => {
+    const grid = new SpatialGrid();
+    const a = makeBody('a', 10, 10);
+    grid.insert(a);
+    const nearby = grid.getNearby(a);
+    expect(nearby).toHaveLength(0);
+  });
+
   it('should return nearby bodies within the same cell', () => {
     const grid = new SpatialGrid(200);
     const a = makeBody('a', 10, 10);

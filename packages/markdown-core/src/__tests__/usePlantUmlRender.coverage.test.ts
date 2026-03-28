@@ -135,7 +135,7 @@ describe("usePlantUmlRender coverage", () => {
 
   it("uses cached URL on second render", () => {
     // First render - generate and cache
-    const { result, rerender } = renderHook(
+    const { result, rerender: _rerender } = renderHook(
       ({ isDark }) => usePlantUmlRender({ code: "@startuml\nX->Y\n@enduml", isPlantUml: true, isDark }),
       { initialProps: { isDark: false } },
     );

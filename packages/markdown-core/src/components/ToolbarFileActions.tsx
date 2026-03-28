@@ -107,19 +107,21 @@ export const ToolbarFileActions = React.memo(function ToolbarFileActions({
         open={!!fileMenuAnchorEl}
         onClose={() => setFileMenuAnchorEl(null)}
       >
-        {!externalSaveOnly && (
-          <MenuItem onClick={() => { onClear(); setFileMenuAnchorEl(null); }} disabled={readonlyMode || reviewMode}>
-            <ListItemIcon><DescriptionIcon fontSize="small" /></ListItemIcon>
-            <ListItemText>{t("createNew")}</ListItemText>
-          </MenuItem>
-        )}
-        {fileMenuItems}
-        {onExportPdf && (
-          <MenuItem onClick={() => { onExportPdf(); setFileMenuAnchorEl(null); }} disabled={sourceMode || inlineMergeOpen}>
-            <ListItemIcon><PictureAsPdfIcon fontSize="small" /></ListItemIcon>
-            <ListItemText>{t("exportPdf")}</ListItemText>
-          </MenuItem>
-        )}
+        {[
+          ...(!externalSaveOnly ? [
+            <MenuItem key="createNew" onClick={() => { onClear(); setFileMenuAnchorEl(null); }} disabled={readonlyMode || reviewMode}>
+              <ListItemIcon><DescriptionIcon fontSize="small" /></ListItemIcon>
+              <ListItemText>{t("createNew")}</ListItemText>
+            </MenuItem>,
+          ] : []),
+          ...fileMenuItems,
+          ...(onExportPdf ? [
+            <MenuItem key="exportPdf" onClick={() => { onExportPdf(); setFileMenuAnchorEl(null); }} disabled={sourceMode || inlineMergeOpen}>
+              <ListItemIcon><PictureAsPdfIcon fontSize="small" /></ListItemIcon>
+              <ListItemText>{t("exportPdf")}</ListItemText>
+            </MenuItem>,
+          ] : []),
+        ]}
       </Menu>
 
       {/* Desktop: individual file buttons */}

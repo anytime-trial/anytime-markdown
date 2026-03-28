@@ -73,4 +73,30 @@ describe('distributeV', () => {
     const gap2 = sorted[2].y - (sorted[1].y + sorted[1].height);
     expect(Math.abs(gap1 - gap2)).toBeLessThan(1);
   });
+
+  it('should return unchanged if less than 3 nodes', () => {
+    const two = nodes.slice(0, 2);
+    expect(distributeV(two)).toEqual(two);
+  });
+});
+
+describe('empty array branches', () => {
+  it('alignLeft returns empty array unchanged', () => {
+    expect(alignLeft([])).toEqual([]);
+  });
+  it('alignRight returns empty array unchanged', () => {
+    expect(alignRight([])).toEqual([]);
+  });
+  it('alignTop returns empty array unchanged', () => {
+    expect(alignTop([])).toEqual([]);
+  });
+  it('alignBottom returns empty array unchanged', () => {
+    expect(alignBottom([])).toEqual([]);
+  });
+  it('alignCenterH returns empty array unchanged', () => {
+    expect(alignCenterH([])).toEqual([]);
+  });
+  it('alignCenterV returns empty array unchanged', () => {
+    expect(alignCenterV([])).toEqual([]);
+  });
 });

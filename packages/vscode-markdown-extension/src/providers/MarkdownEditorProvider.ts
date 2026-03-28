@@ -15,6 +15,11 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
   public compareModeActive = false;
   public pendingCompareContent: string | null = null;
   public skipDiffDetection = false;
+  /** アクティブパネルの autoReload 状態 */
+  private autoReloadEnabled = true;
+  private autoReloadSetter: ((enabled: boolean) => void) | null = null;
+  /** アクティブパネルの editorMode 状態 */
+  private editorMode: string = 'wysiwyg';
   private readonly panels = new Map<string, vscode.WebviewPanel>();
   /** diff ビュー検出用: 最後にパネルが開かれた時刻 */
   private lastPanelOpenTime = 0;
@@ -27,6 +32,23 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
 
   public postMessageToActivePanel(message: unknown): void {
     this.activePanel?.webview.postMessage(message);
+  }
+
+  /** エディタモードを切り替え、webview に通知する */
+  public switchMode(mode: string): void {
+    this.editorMode = mode;
+    this.postMessageToActivePanel({ type: 'setMode', mode });
+    vscode.commands.executeCommand('setContext', 'anytimeMarkdown.editorMode', mode);
+  }
+
+  /** autoReload の状態を切り替え、webview に通知する */
+  public toggleAutoReload(): boolean {
+    const next = !this.autoReloadEnabled;
+    this.autoReloadEnabled = next;
+    this.autoReloadSetter?.(next);
+    this.postMessageToActivePanel({ type: 'setAutoReload', enabled: next });
+    vscode.commands.executeCommand('setContext', 'anytimeMarkdown.autoReload', next);
+    return next;
   }
 
   public waitForReady(uri: vscode.Uri): Promise<void> {
@@ -48,6 +70,33 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       return true;
     }
     return false;
+  }
+
+  /** Claude Code 編集通知に基づくロック/リロード処理 */
+  private readonly claudeUnlockTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+  public handleClaudeStatus(editing: boolean, filePath: string): void {
+    if (editing) {
+      const existing = this.claudeUnlockTimers.get(filePath);
+      if (existing) {
+        clearTimeout(existing);
+        this.claudeUnlockTimers.delete(filePath);
+      }
+      if (this.activeDocumentUri?.fsPath === filePath) {
+        this.postMessageToActivePanel({ type: 'setTheme', claudeLocked: true });
+      }
+    } else {
+      const existing = this.claudeUnlockTimers.get(filePath);
+      if (existing) {
+        clearTimeout(existing);
+      }
+      this.claudeUnlockTimers.set(filePath, setTimeout(() => {
+        this.claudeUnlockTimers.delete(filePath);
+        if (this.activeDocumentUri?.fsPath === filePath) {
+          this.postMessageToActivePanel({ type: 'setTheme', claudeLocked: false });
+        }
+      }, 3000));
+    }
   }
 
   public static register(context: vscode.ExtensionContext): vscode.Disposable {
@@ -92,6 +141,8 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     this.activePanel = webviewPanel;
     this.activeDocumentUri = document.uri;
     this.panels.set(document.uri.toString(), webviewPanel);
+    vscode.commands.executeCommand('setContext', 'anytimeMarkdown.autoReload', this.autoReloadEnabled);
+    vscode.commands.executeCommand('setContext', 'anytimeMarkdown.editorMode', this.editorMode);
 
     // diff ビュー検出: 1秒以内に2つ目のパネルが開かれた場合
     // skipDiffDetection が true の場合は拡張機能からの意図的なオープンなのでスキップ
@@ -110,8 +161,29 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
 
     const isLargeFile = () => document.getText().length > 100 * 1024;
 
-    // テーマはエディタ設定でのみ変更（VS Code テーマ同期を無効化）
-    const sendTheme = () => {};
+    const resolveThemeMode = (): 'light' | 'dark' => {
+      const config = vscode.workspace.getConfiguration('anytimeMarkdown');
+      const mode = config.get<string>('themeMode', 'auto');
+      if (mode === 'light' || mode === 'dark') { return mode; }
+      return vscode.window.activeColorTheme.kind === vscode.ColorThemeKind.Light
+        || vscode.window.activeColorTheme.kind === vscode.ColorThemeKind.HighContrastLight
+        ? 'light' : 'dark';
+    };
+
+    const resolveLanguage = (): 'en' | 'ja' => {
+      const config = vscode.workspace.getConfiguration('anytimeMarkdown');
+      const lang = config.get<string>('language', 'auto');
+      if (lang === 'en' || lang === 'ja') { return lang; }
+      return (vscode.env.language || '').startsWith('ja') ? 'ja' : 'en';
+    };
+
+    const sendTheme = () => {
+      if (disposed) { return; }
+      webviewPanel.webview.postMessage({
+        type: 'setTheme',
+        themeMode: resolveThemeMode(),
+      });
+    };
 
     const sendSettings = () => {
       if (disposed) { return; }
@@ -121,6 +193,9 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
         settings: {
           fontSize: config.get<number>('fontSize', 0),
           editorMaxWidth: config.get<number>('editorMaxWidth', 0),
+          language: resolveLanguage(),
+          themeMode: resolveThemeMode(),
+          themePreset: config.get<string>('themePreset', 'handwritten'),
         },
       });
     };
@@ -166,7 +241,8 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
 
     // 外部変更検知（Claude Code、git 操作、他のエディタなど）
     let notificationVisible = false;
-    let autoReload = true;
+    let autoReload = this.autoReloadEnabled;
+    this.autoReloadSetter = (enabled: boolean) => { autoReload = enabled; };
     const showExternalChangeNotification = (content: string) => {
       if (disposed) { return; }
       // 自動再読み込みモード: 通知なしで即座にコンテンツを更新
@@ -193,7 +269,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     const fileWatcher = vscode.workspace.createFileSystemWatcher(
       new vscode.RelativePattern(vscode.Uri.file(path.dirname(document.uri.fsPath)), path.basename(document.uri.fsPath))
     );
-    fileWatcher.onDidChange(async () => {
+    const checkDiskContent = async () => {
       if (disposed) { return; }
       // 自身の保存直後（2秒以内）は無視
       if (Date.now() - lastApplyTime < 2000) { return; }
@@ -205,7 +281,30 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       } catch {
         // ファイル読み取り失敗時は無視
       }
-    });
+    };
+    fileWatcher.onDidChange(checkDiskContent);
+    // アトミック書き込み（一時ファイル→リネーム）対応
+    fileWatcher.onDidCreate(checkDiskContent);
+
+    // フォールバック: FileSystemWatcher がイベントを取りこぼす環境（WSL2 等）向け
+    // mtime ベースのポーリングで外部変更を検知
+    let lastMtime = 0;
+    const pollInterval = setInterval(async () => {
+      if (disposed) { return; }
+      if (Date.now() - lastApplyTime < 2000) { return; }
+      try {
+        const stat = await vscode.workspace.fs.stat(document.uri);
+        if (lastMtime === 0) {
+          lastMtime = stat.mtime;
+          return;
+        }
+        if (stat.mtime === lastMtime) { return; }
+        lastMtime = stat.mtime;
+        await checkDiskContent();
+      } catch {
+        // stat 失敗時は無視
+      }
+    }, 3000);
 
     const configChangeSubscription = vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration('anytimeMarkdown')) {
@@ -485,7 +584,17 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
         case 'saveClipboardImage': handleSaveClipboardImage(message); break;
         case 'overwriteImage': handleOverwriteImage(message); break;
         case 'openLink': await handleOpenLink(message); break;
-        case 'setAutoReload': autoReload = !!message.enabled; break;
+        case 'setAutoReload':
+          autoReload = !!message.enabled;
+          this.autoReloadEnabled = autoReload;
+          vscode.commands.executeCommand('setContext', 'anytimeMarkdown.autoReload', autoReload);
+          break;
+        case 'modeChanged':
+          if (typeof message.mode === 'string') {
+            this.editorMode = message.mode;
+            vscode.commands.executeCommand('setContext', 'anytimeMarkdown.editorMode', message.mode);
+          }
+          break;
         case 'save': await handleSave(); break;
       }
     });
@@ -505,6 +614,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
         this.compareFileUri = null;
         this.activeDocumentUri = null;
         this.compareModeActive = false;
+        this.autoReloadSetter = null;
         vscode.commands.executeCommand('setContext', 'anytimeMarkdown.compareModeActive', false);
       }
       docChangeSubscription.dispose();
@@ -512,6 +622,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       configChangeSubscription.dispose();
       themeChangeSubscription.dispose();
       fileWatcher.dispose();
+      clearInterval(pollInterval);
       if (debounceTimer) { clearTimeout(debounceTimer); }
     });
   }
@@ -535,7 +646,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     const nonce = randomBytes(16).toString('hex');
 
     return `<!DOCTYPE html>
-<html lang="en">
+<html lang="${(vscode.env.language || '').startsWith('ja') ? 'ja' : 'en'}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">

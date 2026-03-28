@@ -21,4 +21,16 @@ describe('snapRect', () => {
     const result = snapRect(20, 40, 153, 97, 20, true);
     expect(result).toEqual({ x: 20, y: 40, width: 160, height: 100 });
   });
+
+  it('should use default grid size of 20', () => {
+    const result = snapRect(23, 37, 150, 100);
+    expect(result).toEqual({ x: 20, y: 40, width: 150, height: 100 });
+  });
+});
+
+describe('snapToGrid with defaults', () => {
+  it('should use default grid size of 20', () => {
+    expect(snapToGrid(23)).toBe(20);
+    expect(snapToGrid(31)).toBe(40);
+  });
 });

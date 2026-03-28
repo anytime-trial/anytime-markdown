@@ -99,6 +99,9 @@ interface EditorMainContentProps {
   explorerSlot?: React.ReactNode;
   noScroll?: boolean;
   t: (key: string) => string;
+  onSwitchToReview?: () => void;
+  onSwitchToWysiwyg?: () => void;
+  onSwitchToSource?: () => void;
 }
 
 export function EditorMainContent({
@@ -140,6 +143,9 @@ export function EditorMainContent({
   explorerSlot,
   noScroll,
   t,
+  onSwitchToReview,
+  onSwitchToWysiwyg,
+  onSwitchToSource,
 }: Readonly<EditorMainContentProps>) {
   // --- ドラッグ＆ドロップ ---
   const handleContainerDragOver = useCallback((e: React.DragEvent) => {
@@ -281,6 +287,9 @@ export function EditorMainContent({
         handleFrontmatterChange={handleFrontmatterChange}
         noScroll={noScroll}
         t={t}
+        onSwitchToReview={onSwitchToReview}
+        onSwitchToWysiwyg={onSwitchToWysiwyg}
+        onSwitchToSource={onSwitchToSource}
       />
 
       <Box data-print-hide="">{commentSlot}</Box>

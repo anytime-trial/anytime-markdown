@@ -26,7 +26,7 @@ describe("editorExtensions coverage - TaskListTight extension", () => {
 
     // Access the global attributes configuration
     const ext = taskListTight as any;
-    const storage = ext.options ?? {};
+    ext.options ?? {};
     // The extension should define globalAttributes via addGlobalAttributes
     // We can check via the extension's config
     if (ext.config?.addGlobalAttributes) {
@@ -651,8 +651,6 @@ describe("editorExtensions coverage - disableFormattingShortcuts", () => {
 });
 
 describe("editorExtensions coverage - VS Code block movement shortcuts", () => {
-  const originalWindow = { ...(window as any) };
-
   beforeEach(() => {
     (window as any).__vscode = true;
   });

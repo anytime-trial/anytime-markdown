@@ -33,6 +33,11 @@ describe('computeSmartGuides', () => {
     expect(result.snappedY).toBe(50);
   });
 
+  it('should use default threshold when not specified', () => {
+    const result = computeSmartGuides(98, 50, 80, 40, otherNodes);
+    expect(result.snappedX).toBe(100);
+  });
+
   it('should snap to right edge of other node', () => {
     // Moving node right edge = 118 + 80 = 198, other node right edge = 200
     const result = computeSmartGuides(118, 50, 80, 40, otherNodes, 5);

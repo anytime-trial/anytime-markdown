@@ -3,9 +3,6 @@
  * Targets: lines 21-25 (FootnoteRefView component), lines 88-91 (InputRule handler)
  */
 
-import React from "react";
-import { render, screen } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import { FootnoteRef } from "../extensions/footnoteExtension";
@@ -14,7 +11,6 @@ jest.mock("../constants/colors", () => ({
   getPrimaryMain: () => "#1976d2",
 }));
 
-const theme = createTheme();
 
 describe("FootnoteRef Extension coverage", () => {
   describe("renderHTML", () => {

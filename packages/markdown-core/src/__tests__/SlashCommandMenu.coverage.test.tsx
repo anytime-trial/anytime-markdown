@@ -180,7 +180,7 @@ describe("SlashCommandMenu - coverage tests", () => {
     const editor = createEditor();
     const callbackRef: { current: ((state: any) => void) } = { current: () => {} };
 
-    const { container } = render(
+    render(
       <ThemeProvider theme={theme}>
         <SlashCommandMenu editor={editor} t={t} slashCommandCallbackRef={callbackRef as any} />
       </ThemeProvider>,

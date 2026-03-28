@@ -4,7 +4,6 @@
  */
 import {
   computeBlockDiff,
-  diffHighlightPluginKey,
   DiffHighlight,
 } from "../extensions/diffHighlight";
 import type { Node as PMNode } from "@tiptap/pm/model";

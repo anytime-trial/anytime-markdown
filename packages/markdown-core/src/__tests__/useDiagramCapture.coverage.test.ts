@@ -94,19 +94,8 @@ describe("useDiagramCapture - Mermaid dark mode (re-renders as light)", () => {
       return img;
     });
 
-    // Mock mermaid dynamic import
-    const mockMermaid = {
-      default: {
-        initialize: jest.fn(),
-        render: jest.fn().mockResolvedValue({
-          svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 50"><text>Light</text></svg>',
-        }),
-      },
-    };
-
     // Mock the dynamic import
     jest.spyOn(globalThis, "Function" as any);
-    const origImport = jest.fn();
 
     // We can't easily mock dynamic import in jest, but we can verify the error path
     const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
@@ -219,7 +208,7 @@ describe("useDiagramCapture - PlantUML both fetch fail -> <a> download", () => {
 
 describe("useDiagramCapture - PlantUML dark mode uses light URL", () => {
   it("builds light PlantUML URL when isDark=true", async () => {
-    const ctx = mockCanvasContext();
+    const _ctx = mockCanvasContext();
     jest.spyOn(globalThis, "Image").mockImplementation(() => {
       const img = document.createElement("img");
       setTimeout(() => img.onload?.(new Event("load")), 0);
@@ -250,7 +239,7 @@ describe("useDiagramCapture - PlantUML dark mode uses light URL", () => {
 
 describe("useDiagramCapture - buildPlantUmlLightUrl code without @start", () => {
   it("wraps code in @startuml/@enduml when no @start directive", async () => {
-    const ctx = mockCanvasContext();
+    const _ctx = mockCanvasContext();
     jest.spyOn(globalThis, "Image").mockImplementation(() => {
       const img = document.createElement("img");
       setTimeout(() => img.onload?.(new Event("load")), 0);
@@ -284,7 +273,7 @@ describe("useDiagramCapture - buildPlantUmlLightUrl code without @start", () => 
 
 describe("useDiagramCapture - buildPlantUmlLightUrl with @startmindmap", () => {
   it("handles @startmindmap directive", async () => {
-    const ctx = mockCanvasContext();
+    const _ctx = mockCanvasContext();
     jest.spyOn(globalThis, "Image").mockImplementation(() => {
       const img = document.createElement("img");
       setTimeout(() => img.onload?.(new Event("load")), 0);

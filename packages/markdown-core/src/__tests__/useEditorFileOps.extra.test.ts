@@ -144,7 +144,6 @@ describe("useEditorFileOps - extra coverage", () => {
   });
 
   test("handleSaveFile: frontmatter 付きで保存", async () => {
-    const saveFn = jest.fn().mockResolvedValue(undefined);
     mockedGetMarkdown.mockReturnValue("# Body");
 
     const { result } = setup({

@@ -96,6 +96,9 @@ const webviewConfig = {
     new webpack.optimize.LimitChunkCountPlugin({
       maxChunks: 1,
     }),
+    // Exclude heavy graph libraries from webview bundle (hideGraph disables the UI).
+    new webpack.NormalModuleReplacementPlugin(/^jsxgraph$/, require.resolve('./src/webview/shims/empty-module.ts')),
+    new webpack.NormalModuleReplacementPlugin(/^plotly\.js-gl3d-dist-min$/, require.resolve('./src/webview/shims/empty-module.ts')),
   ],
   devtool: 'nosources-source-map',
 };

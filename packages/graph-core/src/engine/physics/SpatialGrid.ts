@@ -1,8 +1,8 @@
 import type { PhysicsBody } from './types';
 
 export class SpatialGrid {
-  private cellSize: number;
-  private cells = new Map<string, PhysicsBody[]>();
+  private readonly cellSize: number;
+  private readonly cells = new Map<string, PhysicsBody[]>();
 
   constructor(cellSize = 200) {
     this.cellSize = cellSize;

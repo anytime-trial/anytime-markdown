@@ -222,6 +222,50 @@ describe("parseLatexToGraph", () => {
     });
   });
 
+  describe("polar", () => {
+    test("r = 2\\cos(\\theta) → polar", () => {
+      const result = parseLatexToGraph("r = 2 \\cdot \\cos(\\theta)");
+      expect(result.type).toBe("polar");
+      const val = result.evaluate({ theta: 0 });
+      expect(val).toBeCloseTo(2);
+    });
+  });
+
+  describe("surface3d", () => {
+    test("z = x^2 + y^2 → surface3d", () => {
+      const result = parseLatexToGraph("z = x^{2} + y^{2}");
+      expect(result.type).toBe("surface3d");
+      const val = result.evaluate({ x: 1, y: 2 });
+      expect(val).toBeCloseTo(5);
+    });
+  });
+
+  describe("implicit2d", () => {
+    test("x^2 + y^2 = 1 → implicit2d", () => {
+      const result = parseLatexToGraph("x^{2} + y^{2} = 1");
+      expect(result.type).toBe("implicit2d");
+      // On the circle: x=1, y=0 → 1+0-1 = 0
+      const val = result.evaluate({ x: 1, y: 0 });
+      expect(val).toBeCloseTo(0);
+    });
+  });
+
+  describe("cases unknown", () => {
+    test("cases with no x,y → unknown", () => {
+      const latex = "\\begin{cases} a = 1 \\\\ b = 2 \\end{cases}";
+      const result = parseLatexToGraph(latex);
+      expect(result.type).toBe("unknown");
+      expect(result.error).toBeDefined();
+    });
+  });
+
+  describe("unknown graph type", () => {
+    test("a = b → unknown (cannot determine type)", () => {
+      const result = parseLatexToGraph("a = b");
+      expect(result.type).toBe("unknown");
+    });
+  });
+
   describe("unknown", () => {
     test("\\sum_{k=1}^{n} k → unknown with error", () => {
       const result = parseLatexToGraph("\\sum_{k=1}^{n} k");

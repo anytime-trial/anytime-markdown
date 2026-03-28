@@ -47,6 +47,36 @@ describe("collapseBase64", () => {
     const { displayText } = collapseBase64(text);
     expect(displayText).toBe(text);
   });
+
+  test("data:image/ without ;base64, marker is skipped", () => {
+    const text = "![icon](data:image/png,rawdata)";
+    const { displayText, tokenMap } = collapseBase64(text);
+    expect(displayText).toBe(text);
+    expect(tokenMap.size).toBe(0);
+  });
+
+  test("invalid MIME type (too long or special chars) is skipped", () => {
+    const text = "data:image/this_has_invalid_chars!;base64,AAAA";
+    const { displayText, tokenMap } = collapseBase64(text);
+    expect(displayText).toBe(text);
+    expect(tokenMap.size).toBe(0);
+  });
+
+  test("empty base64 data after marker is skipped", () => {
+    const text = "data:image/png;base64,  not-base64";
+    const { displayText, tokenMap } = collapseBase64(text);
+    // The space is not a valid base64 char, so dataEnd === dataStart
+    expect(displayText).toBe(text);
+    expect(tokenMap.size).toBe(0);
+  });
+
+  test("MIME type too long (>30 chars) is skipped", () => {
+    const longMime = "a".repeat(31);
+    const text = `data:image/${longMime};base64,AAAA`;
+    const { displayText, tokenMap } = collapseBase64(text);
+    expect(displayText).toBe(text);
+    expect(tokenMap.size).toBe(0);
+  });
 });
 
 // ---------- restoreBase64 ----------
@@ -70,6 +100,12 @@ describe("restoreBase64", () => {
     expect(restoreBase64(displayText, tokenMap)).toBe(
       "![a](data:image/png;base64,AAAA)\n![b](data:image/jpeg;base64,BBBB)",
     );
+  });
+
+  test("unknown token is left as-is (fallback branch)", () => {
+    const tokenMap = new Map<string, string>();
+    const displayText = "text with data:base64-image-99 unknown";
+    expect(restoreBase64(displayText, tokenMap)).toBe(displayText);
   });
 
   test("トークンが削除された場合は無視する", () => {

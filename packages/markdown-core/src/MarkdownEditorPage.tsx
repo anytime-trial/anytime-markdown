@@ -36,6 +36,7 @@ import type { SlashCommandState } from "./extensions/slashCommandExtension";
 import { useTextareaSearch } from "./hooks/useTextareaSearch";
 import { PrintStyles } from "./styles/printStyles";
 import { EditorSettingsContext,useEditorSettings } from "./useEditorSettings";
+import { EditorFeaturesContext } from "./contexts/EditorFeaturesContext";
 import { useMarkdownEditor } from "./useMarkdownEditor";
 
 const InlineMergeView = dynamic(
@@ -138,8 +139,8 @@ interface MarkdownEditorPageProps {
   onStatusChange?: (status: { line: number; col: number; charCount: number; lineCount: number; lineEnding: string; encoding: string }) => void;
   /** 自動再読み込み状態（VS Code 拡張用） */
   autoReload?: boolean;
-  /** 自動再読み込みトグルコールバック（VS Code 拡張用） */
-  onToggleAutoReload?: () => void;
+  /** エディタモード変更時のコールバック */
+  onModeChange?: (mode: "wysiwyg" | "source" | "review" | "readonly") => void;
   /** 初期表示をソースモードにする */
   defaultSourceMode?: boolean;
   showReadonlyMode?: boolean;
@@ -153,6 +154,8 @@ interface MarkdownEditorPageProps {
   sideToolbar?: boolean;
   /** 比較モードトグルを非表示 */
   hideCompareToggle?: boolean;
+  /** グラフ表示機能を非表示（jsxgraph/plotly 未バンドル環境向け） */
+  hideGraph?: boolean;
   /** エクスプローラパネルのスロット（コメントパネルと同じ位置に表示） */
   explorerSlot?: React.ReactNode;
   /** スクロールなしで全体表示 */
@@ -169,6 +172,8 @@ interface MarkdownEditorPageProps {
   defaultBlockAlign?: "left" | "center" | "right";
   /** コンテンツ保存時のコールバック（localStorage 書き込み後に呼ばれる） */
   onContentChange?: (content: string) => void;
+  /** フロントマターブロックの表示（デフォルト: false） */
+  showFrontmatter?: boolean;
 }
 
 /** Apply external compare content and open merge mode if needed (extracted to reduce component complexity). */
@@ -190,7 +195,7 @@ function applyExternalCompareContent(
   }
 }
 
-export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideVersionInfo, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, presetName, onPresetChange, onLocaleChange, fileSystemProvider, externalContent, externalFileName, externalFilePath: _externalFilePath, onExternalSave, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, autoReload, onToggleAutoReload, defaultSourceMode, showReadonlyMode, externalCompareContent, explorerOpen, onToggleExplorer, sideToolbar, hideCompareToggle, explorerSlot, noScroll, defaultOutlineOpen, fixedEditorHeight, defaultFontSize, initialFontSize, defaultBlockAlign, onContentChange }: MarkdownEditorPageProps = {}) {
+export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideVersionInfo, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, presetName, onPresetChange, onLocaleChange, fileSystemProvider, externalContent, externalFileName, externalFilePath: _externalFilePath, onExternalSave, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, autoReload, onModeChange, defaultSourceMode, showReadonlyMode, externalCompareContent, explorerOpen, onToggleExplorer, sideToolbar, hideCompareToggle, hideGraph, explorerSlot, noScroll, defaultOutlineOpen, fixedEditorHeight, defaultFontSize, initialFontSize, defaultBlockAlign, onContentChange, showFrontmatter }: MarkdownEditorPageProps = {}) {
   const t = useTranslations("MarkdownEditor");
   const locale = useLocale() as "en" | "ja";
   const muiTheme = useTheme();
@@ -274,7 +279,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     sourceMode, readonlyMode: _readonlyMode, reviewMode, sourceText, setSourceText, liveMessage, setLiveMessage,
     handleSwitchToSource, handleSwitchToWysiwyg, handleSwitchToReview, handleSwitchToReadonly,
     executeInReviewMode, handleSourceChange, appendToSource,
-  } = useSourceMode({ editor, saveContent, t, frontmatterRef, defaultSourceMode });
+  } = useSourceMode({ editor, saveContent, t, frontmatterRef, defaultSourceMode, onModeChange });
   // readOnly prop が true の場合は常に readonlyMode を強制
   const readonlyMode = readOnly || _readonlyMode;
 
@@ -383,6 +388,18 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     return () => { delete storage.frontmatter; };
   }, [editor, frontmatterRef]);
 
+  // VS Code 拡張からのモード切替イベント
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const mode = (e as CustomEvent<string>).detail;
+      if (mode === "review") handleSwitchToReview();
+      else if (mode === "source") handleSwitchToSource();
+      else if (mode === "wysiwyg") handleSwitchToWysiwyg();
+    };
+    globalThis.addEventListener("vscode-set-mode", handler);
+    return () => globalThis.removeEventListener("vscode-set-mode", handler);
+  }, [handleSwitchToReview, handleSwitchToSource, handleSwitchToWysiwyg]);
+
   // 自動再読み込みトグル: ON で baseline を保存、OFF でクリア
   useEffect(() => {
     if (!editor) return;
@@ -476,6 +493,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   return (
     <EditorErrorBoundary>
     <EditorSettingsContext.Provider value={settingsValue}>
+    <EditorFeaturesContext.Provider value={{ hideGraph: !!hideGraph }}>
     <PlantUmlToolbarContext.Provider value={plantUmlToolbarCtx}>
     <PrintStyles />
     <Box id="main-content" component="main" sx={{ p: { xs: 2, sm: 3 } }}>
@@ -504,7 +522,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
           templates: hideTemplates, foldAll: hideFoldAll,
           fileOps: hideFileOps, undoRedo: hideUndoRedo,
           versionInfo: hideVersionInfo,
-          settings: hideSettings, toolbar: hideToolbar,
+          settings: hideSettings, toolbar: hideToolbar || readOnly,
           readonlyToggle: !showReadonlyMode,
         }}
         mergeUndoRedo={inlineMergeOpen ? mergeUndoRedo : null}
@@ -515,8 +533,6 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         rightFileOps={rightFileOps}
         setLiveMessage={setLiveMessage} commentOpen={commentOpen} setCommentOpen={setCommentOpen}
         liveMessage={liveMessage} t={t}
-        autoReload={autoReload}
-        onToggleAutoReload={onToggleAutoReload}
       />
 
       <EditorDialogsSection
@@ -543,12 +559,16 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         t={t}
       />
 
-      {readonlyMode && (
+      {(_readonlyMode || readOnly) && !hideToolbar && (
         <ReadonlyToolbar
           outlineOpen={outlineOpen}
           onToggleOutline={handleToggleOutline}
           fontSize={settings.fontSize}
           onFontSizeChange={(size) => updateSettings({ fontSize: size })}
+          themeMode={themeMode}
+          onThemeModeChange={onThemeModeChange}
+          presetName={presetName}
+          onPresetChange={onPresetChange}
           t={t}
         />
       )}
@@ -560,7 +580,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         editorWrapperRef={editorWrapperRef} editorMountCallback={editorMountCallback}
         sourceText={sourceText} handleSourceChange={handleSourceChange}
         sourceTextareaRef={sourceTextareaRef} sourceSearchOpen={sourceSearchOpen} setSourceSearchOpen={setSourceSearchOpen}
-        sourceSearch={sourceSearch} frontmatterText={fileHandling.frontmatterText}
+        sourceSearch={sourceSearch} frontmatterText={showFrontmatter ? fileHandling.frontmatterText : null}
         handleFrontmatterChange={fileHandling.handleFrontmatterChange}
         commentOpen={commentOpen} setCommentOpen={setCommentOpen} saveContent={saveContent}
         outlineProps={outlineProps} editorMarkdown={editorMarkdown}
@@ -575,6 +595,9 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         onOpenSettings={hideSettings ? undefined : () => setSettingsOpen(true)}
         explorerSlot={explorerSlot}
         noScroll={noScroll}
+        onSwitchToReview={handleSwitchToReview}
+        onSwitchToWysiwyg={handleSwitchToWysiwyg}
+        onSwitchToSource={handleSwitchToSource}
       />
 
       <EditorFooterOverlays
@@ -599,6 +622,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
       />
     </Box>
     </PlantUmlToolbarContext.Provider>
+    </EditorFeaturesContext.Provider>
     </EditorSettingsContext.Provider>
     </EditorErrorBoundary>
   );

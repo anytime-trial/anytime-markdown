@@ -211,6 +211,44 @@ describe('hitTestEdge with waypoints', () => {
   });
 });
 
+describe('hitTestNode - cylinder', () => {
+  const cylNode: GraphNode = {
+    id: 'cy1', type: 'cylinder', x: 100, y: 100, width: 100, height: 120,
+    text: '', style: DEFAULT_NODE_STYLE,
+  };
+
+  it('should detect point in top ellipse region', () => {
+    // Top ellipse: center at (150, 100 + ellipseH), ellipseH = min(120*0.15, 15) = 15
+    // Point at top center area - wy < y + ellipseH = 115
+    expect(hitTestNode(cylNode, 150, 108)).toBe(true);
+  });
+
+  it('should miss point outside top ellipse', () => {
+    // Point outside top ellipse (corner area)
+    expect(hitTestNode(cylNode, 101, 101)).toBe(false);
+  });
+
+  it('should detect point in bottom ellipse region', () => {
+    // Bottom ellipse: wy > y + h - ellipseH = 100 + 120 - 15 = 205
+    expect(hitTestNode(cylNode, 150, 215)).toBe(true);
+  });
+
+  it('should miss point outside bottom ellipse', () => {
+    // Outside bottom right corner
+    expect(hitTestNode(cylNode, 199, 219)).toBe(false);
+  });
+
+  it('should detect point in body (middle rectangle)', () => {
+    // Body: ellipseH < wy - y < h - ellipseH, so 115 < wy < 205
+    expect(hitTestNode(cylNode, 150, 160)).toBe(true);
+  });
+
+  it('should miss point outside body sides', () => {
+    // Outside the left side
+    expect(hitTestNode(cylNode, 90, 160)).toBe(false);
+  });
+});
+
 describe('hitTestEdgeSegment', () => {
   it('should detect vertical middle segment', () => {
     const edge: GraphEdge = {

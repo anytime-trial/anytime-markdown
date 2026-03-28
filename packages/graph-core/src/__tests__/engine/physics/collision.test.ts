@@ -34,13 +34,22 @@ describe('resolveCollision', () => {
     expect(detectCollision(a, b, 10)).toBe(false);
   });
 
-  it('should not move fixed bodies', () => {
+  it('should not move fixed bodies (a fixed)', () => {
     const a = { ...makeBody('a', 0, 0, 100, 50), fixed: true };
     const b = makeBody('b', 80, 0, 100, 50);
     resolveCollision(a, b, 10);
     expect(a.x).toBe(0);
     expect(a.y).toBe(0);
     expect(b.x).toBeGreaterThan(80);
+  });
+
+  it('should move a when b is fixed', () => {
+    const a = makeBody('a', 80, 0, 100, 50);
+    const b = { ...makeBody('b', 0, 0, 100, 50), fixed: true };
+    resolveCollision(a, b, 10);
+    expect(b.x).toBe(0);
+    expect(b.y).toBe(0);
+    expect(a.x).not.toBe(80); // a should have moved
   });
 });
 

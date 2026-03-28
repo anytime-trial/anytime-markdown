@@ -157,7 +157,7 @@ describe("useMermaidRender hook - extended coverage", () => {
   });
 
   it("isDark=true の場合 dark テーマで初期化される", async () => {
-    const { result } = renderHook(() =>
+    const { result: _result } = renderHook(() =>
       useMermaidRender({ code: "graph TD; DarkTest", isMermaid: true, isDark: true }),
     );
 

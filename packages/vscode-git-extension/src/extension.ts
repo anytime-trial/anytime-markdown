@@ -159,7 +159,17 @@ export function activate(context: vscode.ExtensionContext) {
 			lastSpecClickUri = uri.toString();
 			lastSpecClickTime = now;
 
-			await vscode.commands.executeCommand('vscode.open', uri, { preview: !isDoubleClick });
+			if (isMarkdownFile(uri.fsPath)) {
+				// Markdown ファイルは Anytime Markdown エディタで開く
+				const commands = await vscode.commands.getCommands(true);
+				if (commands.includes('anytime-markdown.openEditorWithFile')) {
+					await vscode.commands.executeCommand('anytime-markdown.openEditorWithFile', uri);
+				} else {
+					await vscode.commands.executeCommand('vscode.open', uri, { preview: !isDoubleClick });
+				}
+			} else {
+				await vscode.commands.executeCommand('vscode.open', uri, { preview: !isDoubleClick });
+			}
 
 			// ファイルのルートを判定して activeRoot を更新
 			const fileRoot = specDocsProvider.findRootForPath(uri.fsPath);

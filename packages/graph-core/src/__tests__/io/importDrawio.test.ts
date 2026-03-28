@@ -271,6 +271,179 @@ describe('importFromDrawio', () => {
     expect(group?.groupId).toBeUndefined();
   });
 
+  it('should map parallelogram shape to parallelogram NodeType', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<mxfile><diagram><mxGraphModel><root>
+<mxCell id="0"/><mxCell id="1" parent="0"/>
+<mxCell id="2" value="P" style="shape=parallelogram" vertex="1" parent="1">
+  <mxGeometry x="0" y="0" width="100" height="60" as="geometry"/>
+</mxCell>
+</root></mxGraphModel></diagram></mxfile>`;
+    const doc = importFromDrawio(xml);
+    expect(doc.nodes[0].type).toBe('parallelogram');
+  });
+
+  it('should map cylinder shape to cylinder NodeType', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<mxfile><diagram><mxGraphModel><root>
+<mxCell id="0"/><mxCell id="1" parent="0"/>
+<mxCell id="2" value="C" style="shape=cylinder3" vertex="1" parent="1">
+  <mxGeometry x="0" y="0" width="60" height="80" as="geometry"/>
+</mxCell>
+</root></mxGraphModel></diagram></mxfile>`;
+    const doc = importFromDrawio(xml);
+    expect(doc.nodes[0].type).toBe('cylinder');
+  });
+
+  it('should map note shape to sticky NodeType', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<mxfile><diagram><mxGraphModel><root>
+<mxCell id="0"/><mxCell id="1" parent="0"/>
+<mxCell id="2" value="N" style="shape=note" vertex="1" parent="1">
+  <mxGeometry x="0" y="0" width="100" height="80" as="geometry"/>
+</mxCell>
+</root></mxGraphModel></diagram></mxfile>`;
+    const doc = importFromDrawio(xml);
+    expect(doc.nodes[0].type).toBe('sticky');
+  });
+
+  it('should map document shape to doc NodeType', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<mxfile><diagram><mxGraphModel><root>
+<mxCell id="0"/><mxCell id="1" parent="0"/>
+<mxCell id="2" value="D" style="shape=document" vertex="1" parent="1">
+  <mxGeometry x="0" y="0" width="100" height="80" as="geometry"/>
+</mxCell>
+</root></mxGraphModel></diagram></mxfile>`;
+    const doc = importFromDrawio(xml);
+    expect(doc.nodes[0].type).toBe('doc');
+  });
+
+  it('should map image shape to image NodeType', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<mxfile><diagram><mxGraphModel><root>
+<mxCell id="0"/><mxCell id="1" parent="0"/>
+<mxCell id="2" value="I" style="shape=image" vertex="1" parent="1">
+  <mxGeometry x="0" y="0" width="100" height="80" as="geometry"/>
+</mxCell>
+</root></mxGraphModel></diagram></mxfile>`;
+    const doc = importFromDrawio(xml);
+    expect(doc.nodes[0].type).toBe('image');
+  });
+
+  it('should map swimlane to frame NodeType', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<mxfile><diagram><mxGraphModel><root>
+<mxCell id="0"/><mxCell id="1" parent="0"/>
+<mxCell id="2" value="F" style="swimlane" vertex="1" parent="1">
+  <mxGeometry x="0" y="0" width="200" height="150" as="geometry"/>
+</mxCell>
+</root></mxGraphModel></diagram></mxfile>`;
+    const doc = importFromDrawio(xml);
+    expect(doc.nodes[0].type).toBe('frame');
+  });
+
+  it('should map text with no stroke/fill to text NodeType', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<mxfile><diagram><mxGraphModel><root>
+<mxCell id="0"/><mxCell id="1" parent="0"/>
+<mxCell id="2" value="T" style="text;strokeColor=none;fillColor=none" vertex="1" parent="1">
+  <mxGeometry x="0" y="0" width="100" height="30" as="geometry"/>
+</mxCell>
+</root></mxGraphModel></diagram></mxfile>`;
+    const doc = importFromDrawio(xml);
+    expect(doc.nodes[0].type).toBe('text');
+  });
+
+  it('should resolve endpoint shapes (oval, diamond, bar)', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<mxfile><diagram><mxGraphModel><root>
+<mxCell id="0"/><mxCell id="1" parent="0"/>
+<mxCell id="e1" value="" style="endArrow=oval;startArrow=diamond" edge="1" parent="1">
+  <mxGeometry relative="1" as="geometry">
+    <mxPoint x="0" y="0" as="sourcePoint"/>
+    <mxPoint x="100" y="0" as="targetPoint"/>
+  </mxGeometry>
+</mxCell>
+<mxCell id="e2" value="" style="endArrow=block;endFill=0" edge="1" parent="1">
+  <mxGeometry relative="1" as="geometry">
+    <mxPoint x="0" y="50" as="sourcePoint"/>
+    <mxPoint x="100" y="50" as="targetPoint"/>
+  </mxGeometry>
+</mxCell>
+</root></mxGraphModel></diagram></mxfile>`;
+    const doc = importFromDrawio(xml);
+    expect(doc.edges[0].style.endShape).toBe('circle');
+    expect(doc.edges[0].style.startShape).toBe('diamond');
+    expect(doc.edges[1].style.endShape).toBe('bar');
+  });
+
+  it('should import orthogonal connector edge type', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<mxfile><diagram><mxGraphModel><root>
+<mxCell id="0"/><mxCell id="1" parent="0"/>
+<mxCell id="e1" value="" style="edgeStyle=orthogonalEdgeStyle;endArrow=classic" edge="1" parent="1" source="n1" target="n2">
+  <mxGeometry relative="1" as="geometry"/>
+</mxCell>
+</root></mxGraphModel></diagram></mxfile>`;
+    const doc = importFromDrawio(xml);
+    expect(doc.edges[0].type).toBe('connector');
+  });
+
+  it('should import curved edge with bezier routing', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<mxfile><diagram><mxGraphModel><root>
+<mxCell id="0"/><mxCell id="1" parent="0"/>
+<mxCell id="e1" value="" style="curved=1;endArrow=classic" edge="1" parent="1">
+  <mxGeometry relative="1" as="geometry">
+    <mxPoint x="0" y="0" as="sourcePoint"/>
+    <mxPoint x="100" y="100" as="targetPoint"/>
+  </mxGeometry>
+</mxCell>
+</root></mxGraphModel></diagram></mxfile>`;
+    const doc = importFromDrawio(xml);
+    expect(doc.edges[0].style.routing).toBe('bezier');
+  });
+
+  it('should import line type when no arrow and no orthogonal', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<mxfile><diagram><mxGraphModel><root>
+<mxCell id="0"/><mxCell id="1" parent="0"/>
+<mxCell id="e1" value="" style="endArrow=none" edge="1" parent="1">
+  <mxGeometry relative="1" as="geometry">
+    <mxPoint x="0" y="0" as="sourcePoint"/>
+    <mxPoint x="100" y="100" as="targetPoint"/>
+  </mxGeometry>
+</mxCell>
+</root></mxGraphModel></diagram></mxfile>`;
+    const doc = importFromDrawio(xml);
+    expect(doc.edges[0].type).toBe('line');
+  });
+
+  it('should import node link/url', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<mxfile><diagram><mxGraphModel><root>
+<mxCell id="0"/><mxCell id="1" parent="0"/>
+<mxCell id="2" value="Link" style="rounded=0" vertex="1" parent="1" link="https://example.com">
+  <mxGeometry x="0" y="0" width="100" height="50" as="geometry"/>
+</mxCell>
+</root></mxGraphModel></diagram></mxfile>`;
+    const doc = importFromDrawio(xml);
+    expect(doc.nodes[0].url).toBe('https://example.com');
+  });
+
+  it('should handle parseStyle with no value (flag-only)', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<mxfile><diagram><mxGraphModel><root>
+<mxCell id="0"/><mxCell id="1" parent="0"/>
+<mxCell id="2" value="" style="ellipse;" vertex="1" parent="1">
+  <mxGeometry x="0" y="0" width="100" height="60" as="geometry"/>
+</mxCell>
+</root></mxGraphModel></diagram></mxfile>`;
+    const doc = importFromDrawio(xml);
+    expect(doc.nodes[0].type).toBe('ellipse');
+  });
+
   it('should import edge with dashed and opacity', () => {
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <mxfile><diagram><mxGraphModel><root>

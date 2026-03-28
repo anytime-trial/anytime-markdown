@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.8.4] - 2026-03-28
+
+### Added
+- Report blog page: S3 Markdown fetch/display with list and detail pages
+- `MarkdownViewer` component with frontmatter parsing and breadcrumbs
+- Report link always shown in navigation; Graph/Report nav links toggle via env vars
+- Refactored S3 client initialization to use `cms-core`
+
+### Fixed
+- SSR hydration mismatch in theme provider
+- SonarCloud issues in multiple components (GraphCanvas, PropertyPanel, ToolBar, graphStorage, etc.)
+
+### Security
+- handlebars updated to 4.7.9 (CVE-2026-33916)
+
 ## [0.8.3] - 2026-03-27
 
 ### Fixed
@@ -112,8 +127,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ### Added
 - /screenshot slash command (Web only)
 - Landing page: Markdown document display, font size toggle icon
-- CMS: image file upload support (png/jpg/gif/svg/webp)
-- CMS: JA/EN badge display for md file pairs in file list
+- CMS JA/EN badge display for md file pairs in file list
 
 ### Changed
 - Landing page: feature cards section replaced with Markdown display

@@ -51,6 +51,107 @@ describe("boxTableToMarkdown", () => {
     expect(boxTableToMarkdown(input)).toBe(input);
   });
 
+  test("テーブルの後に空行がある場合も正しく変換", () => {
+    const input = [
+      "┌──┬──┐",
+      "│a │b │",
+      "├──┼──┤",
+      "│c │d │",
+      "└──┴──┘",
+      "",
+      "text after",
+    ].join("\n");
+    const result = boxTableToMarkdown(input);
+    expect(result).toContain("text after");
+    expect(result).toContain("| a");
+  });
+
+  test("テーブル終了後にテーブル外テキストが続く場合(空行なし)", () => {
+    const input = [
+      "┌──┬──┐",
+      "│a │b │",
+      "└──┴──┘",
+      "non-table text",
+    ].join("\n");
+    const result = boxTableToMarkdown(input);
+    expect(result).toContain("non-table text");
+    expect(result).toContain("| a");
+  });
+
+  test("末尾がテーブルで終わる場合", () => {
+    const input = [
+      "intro text",
+      "┌──┬──┐",
+      "│x │y │",
+      "└──┴──┘",
+    ].join("\n");
+    const result = boxTableToMarkdown(input);
+    expect(result).toContain("intro text");
+    expect(result).toContain("| x");
+  });
+
+  test("二重線(║)のデータ行を変換", () => {
+    const input = [
+      "╔══╦══╗",
+      "║a ║b ║",
+      "╠══╬══╣",
+      "║c ║d ║",
+      "╚══╩══╝",
+    ].join("\n");
+    const result = boxTableToMarkdown(input);
+    expect(result).toContain("| a");
+    expect(result).toContain("| c");
+  });
+
+  test("列数が異なる行はパディングされる", () => {
+    const input = [
+      "┌──┬──┬──┐",
+      "│a │b │c │",
+      "├──┼──┼──┤",
+      "│d │e │",
+      "└──┴──┴──┘",
+    ].join("\n");
+    const result = boxTableToMarkdown(input);
+    const lines = result.split("\n");
+    // All rows should have same number of pipes
+    expect(lines[0].split("|").length).toBe(lines[2].split("|").length);
+  });
+
+  test("空行でテーブルが終了する場合", () => {
+    const input = [
+      "┌──┬──┐",
+      "│a │b │",
+      "├──┼──┤",
+      "│c │d │",
+      "└──┴──┘",
+      "",
+      "┌──┬──┐",
+      "│x │y │",
+      "└──┴──┘",
+    ].join("\n");
+    const result = boxTableToMarkdown(input);
+    expect(result).toContain("| a");
+    expect(result).toContain("| x");
+  });
+
+  test("テーブル行中に非テーブル行が混入する場合", () => {
+    const input = [
+      "┌──┬──┐",
+      "│a │b │",
+      "├──┼──┤",
+      "│c │d │",
+      "└──┴──┘",
+      "middle text",
+      "┌──┬──┐",
+      "│e │f │",
+      "└──┴──┘",
+    ].join("\n");
+    const result = boxTableToMarkdown(input);
+    expect(result).toContain("middle text");
+    expect(result).toContain("| a");
+    expect(result).toContain("| e");
+  });
+
   test("Claude Code の出力テーブルを変換", () => {
     const input = [
       "  ┌──────────┬──────────────────┐",

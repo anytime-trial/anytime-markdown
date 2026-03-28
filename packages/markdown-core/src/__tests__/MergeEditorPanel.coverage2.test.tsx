@@ -121,6 +121,74 @@ describe("MergeEditorPanel - coverage2", () => {
     expect(textarea).toBeTruthy();
   });
 
+  it("renders with all diffLine types", () => {
+    const diffLines: DiffLine[] = [
+      { type: "equal", text: "same", blockId: null, lineNumber: 1 },
+      { type: "added", text: "added", blockId: 1, lineNumber: 2 },
+      { type: "removed", text: "removed", blockId: 2, lineNumber: null },
+      { type: "modified-old", text: "old", blockId: 3, lineNumber: 3 },
+      { type: "modified-new", text: "new", blockId: 3, lineNumber: 4 },
+      { type: "padding", text: "", blockId: 3, lineNumber: null },
+    ];
+    const { container } = render(
+      <ThemeProvider theme={theme}>
+        <MergeEditorPanel
+          sourceMode={true}
+          sourceText="same\nadded\nold"
+          diffLines={diffLines}
+          side="left"
+        />
+      </ThemeProvider>,
+    );
+    expect(container).toBeTruthy();
+  });
+
+  it("renders non-source mode with editor", () => {
+    const { container } = render(
+      <ThemeProvider theme={theme}>
+        <MergeEditorPanel
+          sourceMode={false}
+          sourceText=""
+          editor={null}
+          side="left"
+        />
+      </ThemeProvider>,
+    );
+    expect(container).toBeTruthy();
+  });
+
+  it("renders with onSourceChange in source mode", () => {
+    const onSourceChange = jest.fn();
+    const { container } = render(
+      <ThemeProvider theme={theme}>
+        <MergeEditorPanel
+          sourceMode={true}
+          sourceText="test"
+          onSourceChange={onSourceChange}
+        />
+      </ThemeProvider>,
+    );
+    expect(container.querySelector("textarea")).toBeTruthy();
+  });
+
+  it("renders left side with merge buttons and removed lines", () => {
+    const diffLines: DiffLine[] = [
+      { type: "removed", text: "removed line", blockId: 0, lineNumber: 1 },
+    ];
+    const { container } = render(
+      <ThemeProvider theme={theme}>
+        <MergeEditorPanel
+          sourceMode={true}
+          sourceText="removed line"
+          diffLines={diffLines}
+          side="left"
+          onMerge={jest.fn()}
+        />
+      </ThemeProvider>,
+    );
+    expect(container).toBeTruthy();
+  });
+
   it("renders source mode with right side merge buttons", () => {
     const diffLines: DiffLine[] = [
       { type: "equal", text: "same", blockId: null, lineNumber: 1 },

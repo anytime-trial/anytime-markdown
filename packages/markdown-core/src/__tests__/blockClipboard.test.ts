@@ -5,7 +5,6 @@ import {
   setCopiedBlockNode,
   findBlockNode,
   performBlockCopy,
-  handleBlockClipboardEvent,
 } from "../utils/blockClipboard";
 
 describe("blockClipboard ユーティリティ", () => {

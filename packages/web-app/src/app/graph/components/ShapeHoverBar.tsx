@@ -33,7 +33,7 @@ interface ShapeHoverBarProps {
 
 const SHAPE_TYPES = new Set(SHAPES.map(s => s.type));
 
-export function ShapeHoverBar({ node, viewport, onChangeType }: ShapeHoverBarProps) {
+export function ShapeHoverBar({ node, viewport, onChangeType }: Readonly<ShapeHoverBarProps>) {
   const t = useTranslations('Graph');
   const { themeMode } = useThemeMode();
   const isDark = themeMode === 'dark';

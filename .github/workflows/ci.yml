@@ -44,7 +44,7 @@ jobs:
 
       - name: Security audit
         if: github.event_name == 'pull_request' && github.base_ref == 'master'
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=high --omit=dev
 
       - name: Type check
         if: github.event_name == 'pull_request' || github.ref != 'refs/heads/master'

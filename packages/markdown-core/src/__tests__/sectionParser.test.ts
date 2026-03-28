@@ -120,4 +120,49 @@ describe("matchSections", () => {
     expect(result).toHaveLength(2);
     expect(result.every(r => r.type === "left-only")).toBe(true);
   });
+
+  test("片側が空の場合はすべて right-only", () => {
+    const right = [sec("X"), sec("Y")];
+    const result = matchSections([], right);
+    expect(result).toHaveLength(2);
+    expect(result.every(r => r.type === "right-only")).toBe(true);
+  });
+});
+
+describe("parseMarkdownSections - code blocks", () => {
+  test("コードブロック内の見出しは無視される", () => {
+    const text = "## Real\nbody\n```\n## Fake\n```\n## Next\nnext body";
+    const result = parseMarkdownSections(text);
+    expect(result).toHaveLength(2);
+    expect(result[0].heading).toBe("Real");
+    expect(result[1].heading).toBe("Next");
+  });
+
+  test("空テキストは空配列を返す", () => {
+    expect(parseMarkdownSections("")).toEqual([]);
+  });
+
+  test("コードブロック内の見出しがrootBodyにある場合", () => {
+    const text = "intro\n```\n## Fake\n```\n## Real\nbody";
+    const result = parseMarkdownSections(text);
+    const rootSection = result.find(s => s.heading === null);
+    expect(rootSection).toBeDefined();
+    expect(rootSection!.bodyLines.join("\n")).toContain("## Fake");
+  });
+
+  test("見出し後のサブセクションがコードブロック内", () => {
+    const text = "## Parent\nbody\n```\n### Fake child\n```\n### Real child\nchild body";
+    const result = parseMarkdownSections(text);
+    expect(result[0].heading).toBe("Parent");
+    expect(result[0].children).toHaveLength(1);
+    expect(result[0].children[0].heading).toBe("Real child");
+  });
+
+  test("コードブロック内のfindSectionEnd skip", () => {
+    const text = "## A\nbody\n```\n## B inside code\n```\n## C\nc body";
+    const result = parseMarkdownSections(text);
+    expect(result).toHaveLength(2);
+    expect(result[0].heading).toBe("A");
+    expect(result[1].heading).toBe("C");
+  });
 });

@@ -24,8 +24,8 @@ export function useEditorSettingsSync(
   }, [editor, settings.spellCheck]);
 
   useEffect(() => {
-    if (options.readOnly && editor) {
-      editor.setEditable(false);
+    if (editor) {
+      editor.setEditable(!options.readOnly);
     }
   }, [options.readOnly, editor]);
 

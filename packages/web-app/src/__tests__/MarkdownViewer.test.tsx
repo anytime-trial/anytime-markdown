@@ -11,6 +11,7 @@ jest.mock("../app/LocaleProvider", () => ({
 
 jest.mock("../app/providers", () => ({
   useThemeMode: () => ({ themeMode: "light", setThemeMode: jest.fn() }),
+  usePreset: () => ({ presetName: "professional", setPresetName: jest.fn() }),
 }));
 
 jest.mock("next/dynamic", () => () => {

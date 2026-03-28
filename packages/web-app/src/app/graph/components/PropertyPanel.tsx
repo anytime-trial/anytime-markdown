@@ -3,7 +3,7 @@
 import React from 'react';
 import {
   Box, Typography, TextField, Slider, Divider, IconButton, ToggleButton, ToggleButtonGroup,
-  Switch, FormControlLabel, Select, MenuItem as MuiMenuItem, FormControl,
+  Switch, FormControlLabel,
 } from '@mui/material';
 import {
   Close as CloseIcon,
@@ -33,17 +33,17 @@ function ColorPalette({
   selectedColor,
   onSelect,
   label,
-}: {
+}: Readonly<{
   colors: string[];
   selectedColor: string;
   onSelect: (color: string) => void;
   label: string;
-}) {
+}>) {
   const { themeMode } = useThemeMode();
   const isDark = themeMode === 'dark';
   const themeColors = getCanvasColors(isDark);
   const handleKeyDown = (e: React.KeyboardEvent, index: number) => {
-    let nextIndex = index;
+    let nextIndex: number;
     if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
       nextIndex = (index + 1) % colors.length;
       e.preventDefault();
@@ -100,7 +100,7 @@ interface PropertyPanelProps {
   onClose: () => void;
 }
 
-export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpdateEdge, onLayerAction, onClose }: PropertyPanelProps) {
+export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpdateEdge, onLayerAction, onClose }: Readonly<PropertyPanelProps>) {
   const t = useTranslations('Graph');
   const { themeMode } = useThemeMode();
   const isDark = themeMode === 'dark';
@@ -218,7 +218,7 @@ export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpda
                 width: 24, height: 24, borderRadius: '4px', cursor: 'pointer',
                 background: 'linear-gradient(135deg, #666 25%, transparent 25%, transparent 75%, #666 75%)',
                 backgroundSize: '8px 8px',
-                border: !selectedNode.style.gradientTo ? `2px solid ${colors.accentColor}` : `1px solid ${colors.panelBorder}`,
+                border: selectedNode.style.gradientTo ? `1px solid ${colors.panelBorder}` : `2px solid ${colors.accentColor}`,
               }}
             />
             {COLORS.slice(0, 10).map(c => (

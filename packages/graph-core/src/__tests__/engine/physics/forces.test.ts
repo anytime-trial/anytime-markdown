@@ -38,6 +38,23 @@ describe('applySpring', () => {
     expect(a.fy).toBe(0);
     expect(b.fx).toBeLessThan(0);
   });
+
+  it('should not apply force to fixed b body', () => {
+    const a = makeBody('a', 0, 0);
+    const b = { ...makeBody('b', 500, 0), fixed: true };
+    applySpring(a, b, 0.005, 200);
+    expect(b.fx).toBe(0);
+    expect(b.fy).toBe(0);
+    expect(a.fx).toBeGreaterThan(0);
+  });
+
+  it('should handle zero distance (same position)', () => {
+    const a = makeBody('a', 100, 100);
+    const b = makeBody('b', 100, 100);
+    applySpring(a, b, 0.005, 200);
+    expect(Number.isFinite(a.fx)).toBe(true);
+    expect(Number.isFinite(b.fx)).toBe(true);
+  });
 });
 
 describe('applyRepulsion', () => {
@@ -68,6 +85,24 @@ describe('applyRepulsion', () => {
     expect(Number.isFinite(a.fx)).toBe(true);
     expect(Number.isFinite(a.fy)).toBe(true);
   });
+
+  it('should not apply force to fixed a body', () => {
+    const a = { ...makeBody('a', 0, 0), fixed: true };
+    const b = makeBody('b', 100, 0);
+    applyRepulsion(a, b, 5000);
+    expect(a.fx).toBe(0);
+    expect(a.fy).toBe(0);
+    expect(b.fx).toBeGreaterThan(0);
+  });
+
+  it('should not apply force to fixed b body', () => {
+    const a = makeBody('a', 0, 0);
+    const b = { ...makeBody('b', 100, 0), fixed: true };
+    applyRepulsion(a, b, 5000);
+    expect(b.fx).toBe(0);
+    expect(b.fy).toBe(0);
+    expect(a.fx).toBeLessThan(0);
+  });
 });
 
 describe('applyCenterGravity', () => {
@@ -81,6 +116,13 @@ describe('applyCenterGravity', () => {
   it('should not apply force when at center', () => {
     const body = makeBody('a', 100, 100);
     applyCenterGravity(body, 100, 100, 0.01);
+    expect(body.fx).toBe(0);
+    expect(body.fy).toBe(0);
+  });
+
+  it('should skip fixed body', () => {
+    const body = { ...makeBody('a', 500, 300), fixed: true };
+    applyCenterGravity(body, 250, 150, 0.01);
     expect(body.fx).toBe(0);
     expect(body.fy).toBe(0);
   });
@@ -107,6 +149,22 @@ describe('applyFRAttraction', () => {
 
     // d²/k grows with distance
     expect(Math.abs(a2.fx)).toBeGreaterThan(Math.abs(a1.fx));
+  });
+
+  it('should not move fixed a body', () => {
+    const a = { ...makeBody('a', 0, 0), fixed: true };
+    const b = makeBody('b', 300, 0);
+    applyFRAttraction(a, b, 100);
+    expect(a.fx).toBe(0);
+    expect(a.fy).toBe(0);
+  });
+
+  it('should not move fixed b body', () => {
+    const a = makeBody('a', 0, 0);
+    const b = { ...makeBody('b', 300, 0), fixed: true };
+    applyFRAttraction(a, b, 100);
+    expect(b.fx).toBe(0);
+    expect(b.fy).toBe(0);
   });
 });
 
@@ -136,5 +194,32 @@ describe('applyFRRepulsion', () => {
     const b = makeBody('b', 100, 100);
     applyFRRepulsion(a, b, 100);
     expect(Number.isFinite(a.fx)).toBe(true);
+  });
+
+  it('should not move fixed a body', () => {
+    const a = { ...makeBody('a', 0, 0), fixed: true };
+    const b = makeBody('b', 100, 0);
+    applyFRRepulsion(a, b, 100);
+    expect(a.fx).toBe(0);
+    expect(a.fy).toBe(0);
+  });
+
+  it('should not move fixed b body', () => {
+    const a = makeBody('a', 0, 0);
+    const b = { ...makeBody('b', 100, 0), fixed: true };
+    applyFRRepulsion(a, b, 100);
+    expect(b.fx).toBe(0);
+    expect(b.fy).toBe(0);
+  });
+});
+
+describe('applyFRAttraction - same position', () => {
+  it('should handle zero distance (same position)', () => {
+    const a = makeBody('a', 50, 50);
+    const b = makeBody('b', 50, 50);
+    applyFRAttraction(a, b, 100);
+    // dist=0, so || 1 fallback; force = 1/100 = 0.01, fx = 0, fy = 0
+    expect(Number.isFinite(a.fx)).toBe(true);
+    expect(Number.isFinite(b.fx)).toBe(true);
   });
 });

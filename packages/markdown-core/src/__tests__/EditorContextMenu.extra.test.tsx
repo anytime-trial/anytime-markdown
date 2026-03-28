@@ -104,6 +104,7 @@ describe("EditorContextMenu - extra coverage", () => {
     expect(screen.getByText("paste")).toBeTruthy();
     expect(screen.getByText("pasteAsMarkdown")).toBeTruthy();
     expect(screen.getByText("pasteAsCodeBlock")).toBeTruthy();
+    expect(screen.getByText("clearScreen")).toBeTruthy();
   });
 
   it("closes menu when a menu item is clicked", async () => {
@@ -410,6 +411,65 @@ describe("EditorContextMenu - extra coverage", () => {
     });
 
     expect(editor.chain).not.toHaveBeenCalled();
+  });
+
+  it("handleClearScreen calls clearContent and closes menu", async () => {
+    const clearContentRun = jest.fn();
+    const chain = jest.fn().mockReturnValue({
+      focus: jest.fn().mockReturnValue({
+        clearContent: jest.fn().mockReturnValue({ run: clearContentRun }),
+        insertContent: jest.fn().mockReturnValue({ run: jest.fn() }),
+      }),
+    });
+    const editor = createMockEditor({ chain });
+    renderWithTheme(<EditorContextMenu editor={editor} t={t} />);
+
+    act(() => {
+      editor.view.dom.dispatchEvent(
+        new MouseEvent("contextmenu", { bubbles: true, clientX: 10, clientY: 10 }),
+      );
+    });
+
+    act(() => {
+      fireEvent.click(screen.getByText("clearScreen"));
+    });
+
+    expect(chain).toHaveBeenCalled();
+    expect(clearContentRun).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.queryByText("clearScreen")).toBeNull();
+    });
+  });
+
+  it("handleClearScreen does nothing when editor is not editable", () => {
+    const editor = createMockEditor({ isEditable: false });
+    renderWithTheme(<EditorContextMenu editor={editor} t={t} />);
+
+    act(() => {
+      editor.view.dom.dispatchEvent(
+        new MouseEvent("contextmenu", { bubbles: true, clientX: 10, clientY: 10 }),
+      );
+    });
+
+    act(() => {
+      fireEvent.click(screen.getByText("clearScreen"));
+    });
+
+    expect(editor.chain).not.toHaveBeenCalled();
+  });
+
+  it("handleClearScreen is disabled when readOnly", () => {
+    const editor = createMockEditor();
+    renderWithTheme(<EditorContextMenu editor={editor} readOnly t={t} />);
+
+    act(() => {
+      editor.view.dom.dispatchEvent(
+        new MouseEvent("contextmenu", { bubbles: true, clientX: 10, clientY: 10 }),
+      );
+    });
+
+    const menuItem = screen.getByText("clearScreen").closest("li");
+    expect(menuItem?.getAttribute("aria-disabled")).toBe("true");
   });
 
   it("cleans up event listeners on unmount", () => {

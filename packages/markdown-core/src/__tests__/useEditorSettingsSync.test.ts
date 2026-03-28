@@ -60,7 +60,7 @@ describe("useEditorSettingsSync", () => {
     expect(editor.setEditable).toHaveBeenCalledWith(false);
   });
 
-  it("does not set editable when not readOnly", () => {
+  it("sets editor to editable when not readOnly", () => {
     const editor = createMockEditor();
     renderHook(() =>
       useEditorSettingsSync(editor, defaultSettings, {
@@ -68,7 +68,7 @@ describe("useEditorSettingsSync", () => {
         handleExpandAllBlocks: jest.fn(),
       }),
     );
-    expect(editor.setEditable).not.toHaveBeenCalled();
+    expect(editor.setEditable).toHaveBeenCalledWith(true);
   });
 
   it("calls handleExpandAllBlocks when hideFoldAll", () => {

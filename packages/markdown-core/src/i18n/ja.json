@@ -419,6 +419,7 @@
     "semanticDiff": "セマンティック比較",
     "pasteAsMarkdown": "Markdownで貼り付け",
     "pasteAsCodeBlock": "コードブロックで貼り付け",
+    "clearScreen": "画面クリア",
     "annotate": "アノテーション",
     "annotationRect": "矩形",
     "annotationCircle": "丸",
@@ -608,7 +609,12 @@
     "ariaMobileNavigation": "モバイルナビゲーション",
     "ariaLanguage": "言語",
     "ariaMenu": "メニュー",
-    "ariaSkipToContent": "メインコンテンツへスキップ"
+    "ariaSkipToContent": "メインコンテンツへスキップ",
+    "reportPage": "レポート",
+    "reportLoadError": "記事の読み込みに失敗しました",
+    "reportEmpty": "記事がありません",
+    "reportRecentPosts": "最近の投稿",
+    "reportMonthlyArchive": "月別アーカイブ"
   },
   "Common": {
     "ok": "OK",
@@ -639,8 +645,8 @@
   "VsCode": {
     "metaTitle": "Visual Studio Code™ 拡張機能 - Anytime Markdown",
     "metaDescription": "Visual Studio Code で Markdown をリッチに編集。WYSIWYG、差分ハイライト、画像アノテーション、Git連携を統合。",
-    "heroTitle1": "コードも仕様書も、",
-    "heroTitle2": "AI と協力して",
+    "heroTitle1": "コードも仕様書も",
+    "heroTitle2": "AIと一緒に",
     "heroDescription": "AI Agent が生成した Markdown を WYSIWYG でプレビューし、変更箇所をハイライトで即確認。\nAgent Note と Git 連携で、AI Agent との共同作業をスムーズに。",
     "installButton": "拡張機能を入手",
     "installCaption": "Visual Studio Code Marketplace",

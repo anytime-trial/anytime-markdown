@@ -85,7 +85,7 @@ describe("useMergeDiff coverage2", () => {
     act(() => { result.current.setEditText("v1"); });
     act(() => { result.current.setCompareText("c1"); });
     act(() => { result.current.mergeAllBlocks("left-to-right"); });
-    const afterMerge = result.current.compareText;
+    result.current.compareText;
     act(() => { result.current.undo(); });
     expect(result.current.canRedo).toBe(true);
   });

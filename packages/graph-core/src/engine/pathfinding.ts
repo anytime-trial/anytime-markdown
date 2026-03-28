@@ -160,7 +160,6 @@ function astar(
   const heuristic = (c: number, r: number) => Math.abs(c - endC) + Math.abs(r - endR);
 
   const openHeap = new MinHeap();
-  const openKeys = new Set<string>();
   const closedKeys = new Set<string>();
   const cameFrom = new Map<string, string>();
   const gScore = new Map<string, number>();
@@ -168,7 +167,6 @@ function astar(
   const startKey = key(startC, startR);
   const endKey = key(endC, endR);
   openHeap.push({ key: startKey, c: startC, r: startR, g: 0, f: heuristic(startC, startR) });
-  openKeys.add(startKey);
   gScore.set(startKey, 0);
 
   const dirs: [number, number][] = [[0, -1], [1, 0], [0, 1], [-1, 0]];
@@ -186,7 +184,6 @@ function astar(
     // ヒープに残った古いエントリをスキップ（より良いパスで既に処理済み）
     if (closedKeys.has(bestKey)) continue;
     closedKeys.add(bestKey);
-    openKeys.delete(bestKey);
 
     if (bestKey === endKey) {
       // パスを再構築
@@ -212,7 +209,6 @@ function astar(
         gScore.set(nk, tentG);
         cameFrom.set(nk, bestKey);
         openHeap.push({ key: nk, c: nc, r: nr, g: tentG, f: tentG + heuristic(nc, nr) });
-        openKeys.add(nk);
       }
     }
   }
@@ -277,7 +273,7 @@ function simplifyPath(path: Point[]): Point[] {
 
   const result: Point[] = [path[0]];
   for (let i = 1; i < path.length - 1; i++) {
-    const prev = result[result.length - 1];
+    const prev = result.at(-1)!;
     const curr = path[i];
     const next = path[i + 1];
     // prev→curr と curr→next が同方向なら curr をスキップ
@@ -287,7 +283,7 @@ function simplifyPath(path: Point[]): Point[] {
       result.push(curr);
     }
   }
-  result.push(path[path.length - 1]);
+  result.push(path.at(-1)!);
   return result;
 }
 
@@ -362,12 +358,10 @@ function collapseStaircase(path: Point[], obstacles: Rect[]): Point[] {
       const bend2: Point = { x: start.x, y: end.y };
 
       if (lPathClear(start, bend1, end, obstacles)) {
-        result.push(bend1);
-        result.push(end);
+        result.push(bend1, end);
         i = j - 1;
       } else if (lPathClear(start, bend2, end, obstacles)) {
-        result.push(bend2);
-        result.push(end);
+        result.push(bend2, end);
         i = j - 1;
       } else {
         // L字が障害物に衝突 → 元のパスを保持
