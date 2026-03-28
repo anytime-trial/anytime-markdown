@@ -160,7 +160,6 @@ function astar(
   const heuristic = (c: number, r: number) => Math.abs(c - endC) + Math.abs(r - endR);
 
   const openHeap = new MinHeap();
-  const openKeys = new Set<string>();
   const closedKeys = new Set<string>();
   const cameFrom = new Map<string, string>();
   const gScore = new Map<string, number>();
@@ -168,7 +167,6 @@ function astar(
   const startKey = key(startC, startR);
   const endKey = key(endC, endR);
   openHeap.push({ key: startKey, c: startC, r: startR, g: 0, f: heuristic(startC, startR) });
-  openKeys.add(startKey);
   gScore.set(startKey, 0);
 
   const dirs: [number, number][] = [[0, -1], [1, 0], [0, 1], [-1, 0]];
@@ -186,7 +184,6 @@ function astar(
     // ヒープに残った古いエントリをスキップ（より良いパスで既に処理済み）
     if (closedKeys.has(bestKey)) continue;
     closedKeys.add(bestKey);
-    openKeys.delete(bestKey);
 
     if (bestKey === endKey) {
       // パスを再構築
@@ -212,7 +209,6 @@ function astar(
         gScore.set(nk, tentG);
         cameFrom.set(nk, bestKey);
         openHeap.push({ key: nk, c: nc, r: nr, g: tentG, f: tentG + heuristic(nc, nr) });
-        openKeys.add(nk);
       }
     }
   }

@@ -184,7 +184,7 @@ function determineSide(nx: number, ny: number): Side {
     { side: 'left', d: nx },
     { side: 'right', d: 1 - nx },
   ];
-  return dists.sort((a, b) => a.d - b.d)[0].side;
+  return dists.toSorted((a, b) => a.d - b.d)[0].side;
 }
 
 /** 指定座標に最も近い接続ポイントを返す */

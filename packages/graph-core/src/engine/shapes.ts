@@ -487,7 +487,7 @@ export function wrapText(
 
     let currentLine = '';
     // Split by spaces while preserving CJK character boundaries
-    const tokens = paragraph.match(/[\S]+|\s/g) ?? [paragraph];
+    const tokens = paragraph.match(/\S+|\s/g) ?? [paragraph];
 
     for (const token of tokens) {
       if (token === ' ') {

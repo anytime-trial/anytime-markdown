@@ -25,7 +25,7 @@ export function drawEdge(
   const endShape: EndpointShape = style.endShape ?? ((type === 'arrow' || type === 'connector') ? 'arrow' : 'none');
 
   // ベジェ曲線パスの描画
-  if (edge.bezierPath && edge.bezierPath.length === 4) {
+  if (edge.bezierPath?.length === 4) {
     const [start, cp1, cp2, end] = edge.bezierPath;
     ctx.beginPath();
     ctx.moveTo(start.x, start.y);
