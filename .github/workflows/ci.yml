@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v6
         with:
           node-version-file: '.node-version'
           cache: 'npm'
@@ -297,7 +297,7 @@ jobs:
           name: vsix-markdown-ci
           path: packages/vscode-markdown-extension
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v6
         if: steps.tag_check.outputs.exists == 'false'
         with:
           node-version-file: '.node-version'
@@ -360,7 +360,7 @@ jobs:
           name: vsix-graph-ci
           path: packages/vscode-graph-extension
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v6
         if: steps.tag_check.outputs.exists == 'false'
         with:
           node-version-file: '.node-version'
@@ -423,7 +423,7 @@ jobs:
           name: vsix-git-ci
           path: packages/vscode-git-extension
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v6
         if: steps.tag_check.outputs.exists == 'false'
         with:
           node-version-file: '.node-version'
@@ -486,7 +486,7 @@ jobs:
           name: vsix-extension-pack-ci
           path: packages/vscode-extension-pack
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v6
         if: steps.tag_check.outputs.exists == 'false'
         with:
           node-version-file: '.node-version'
