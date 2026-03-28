@@ -1,11 +1,13 @@
 import { GetObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 
+import { createCmsConfig } from '@anytime-markdown/cms-core';
 import type { ReportMeta } from '../types/report';
 import { reportFrontmatterSchema } from '../types/report';
 import { parseFrontmatter, sortByDateDesc } from './reportUtils';
 import { DOCS_BUCKET, s3Client } from './s3Client';
 
-export const REPORTS_PREFIX = process.env.S3_REPORTS_PREFIX ?? 'reports/';
+const cmsConfig = createCmsConfig();
+export const REPORTS_PREFIX = cmsConfig.reportsPrefix;
 
 /** S3 からレポート一覧を取得し、frontmatter を解析して日付降順で返す */
 export async function listReports(): Promise<ReportMeta[]> {
