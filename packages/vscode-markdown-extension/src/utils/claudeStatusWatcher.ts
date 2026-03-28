@@ -12,11 +12,14 @@ interface ClaudeStatus {
 type StatusChangeCallback = (editing: boolean, filePath: string) => void;
 
 const STALE_THRESHOLD_MS = 30_000;
+const UNLOCK_POLL_INTERVAL_MS = 1000;
 
 export class ClaudeStatusWatcher implements vscode.Disposable {
   private readonly callbacks: StatusChangeCallback[] = [];
   private readonly statusFilePath: string;
   private fsWatcher: fs.FSWatcher | null = null;
+  private unlockTimer: ReturnType<typeof setInterval> | null = null;
+  private isLocked = false;
 
   constructor() {
     this.statusFilePath = getStatusFilePath();
@@ -39,34 +42,66 @@ export class ClaudeStatusWatcher implements vscode.Disposable {
         }
       });
       this.fsWatcher.on('error', () => {
-        // エラー時は無視（fs.watchFile にフォールバック）
+        // エラー時は無視
       });
     } catch {
       // fs.watch が利用できない場合は無視
     }
-
-    // fs.watchFile: stat ポーリング（fs.watch がイベントを取りこぼす環境向けフォールバック）
-    fs.watchFile(this.statusFilePath, { interval: 1000 }, () => {
-      this.handleChange();
-    });
   }
 
   private handleChange(): void {
+    const status = this.readStatus();
+    if (!status) return;
+
+    if (status.editing && !this.isLocked) {
+      // ロック: editing: true を検知
+      this.isLocked = true;
+      this.emit(true, status.file);
+      // ロック解除ポーリングを開始
+      this.startUnlockPolling(status.file);
+    }
+  }
+
+  /** ロック中、定期的にステータスファイルを読み取り editing: false を検知したら解除 */
+  private startUnlockPolling(lockedFile: string): void {
+    this.stopUnlockPolling();
+    this.unlockTimer = setInterval(() => {
+      const status = this.readStatus();
+      if (!status) return;
+
+      const isStale = Date.now() - status.timestamp > STALE_THRESHOLD_MS;
+      if (!status.editing || isStale) {
+        // アンロック: editing: false またはタイムスタンプが古い
+        this.isLocked = false;
+        this.emit(false, lockedFile);
+        this.stopUnlockPolling();
+      }
+    }, UNLOCK_POLL_INTERVAL_MS);
+  }
+
+  private stopUnlockPolling(): void {
+    if (this.unlockTimer) {
+      clearInterval(this.unlockTimer);
+      this.unlockTimer = null;
+    }
+  }
+
+  private readStatus(): ClaudeStatus | null {
     try {
       const raw = fs.readFileSync(this.statusFilePath, 'utf-8');
       const parsed: unknown = JSON.parse(raw);
       if (!this.isValidStatus(parsed)) {
-        return;
+        return null;
       }
-
-      const isStale = Date.now() - parsed.timestamp > STALE_THRESHOLD_MS;
-      const editing = isStale ? false : parsed.editing;
-
-      for (const cb of this.callbacks) {
-        cb(editing, parsed.file);
-      }
+      return parsed;
     } catch {
-      // JSON パース失敗やファイル読み取り失敗は無視
+      return null;
+    }
+  }
+
+  private emit(editing: boolean, filePath: string): void {
+    for (const cb of this.callbacks) {
+      cb(editing, filePath);
     }
   }
 
@@ -84,6 +119,6 @@ export class ClaudeStatusWatcher implements vscode.Disposable {
 
   dispose(): void {
     this.fsWatcher?.close();
-    fs.unwatchFile(this.statusFilePath);
+    this.stopUnlockPolling();
   }
 }
