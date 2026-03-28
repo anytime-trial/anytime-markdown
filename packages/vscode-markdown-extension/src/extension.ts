@@ -338,28 +338,15 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	);
 
-	// Claude Code 編集通知: ステータスファイル監視 + ステータスバー + エディタロック
+	// Claude Code 編集通知: ステータスファイル監視 + エディタロック
 	const claudeEnabled = setupClaudeHooks();
 	const claudeSubscriptions: vscode.Disposable[] = [];
 	if (claudeEnabled) {
-		const claudeStatusItem = vscode.window.createStatusBarItem(
-			vscode.StatusBarAlignment.Right, 101
-		);
-		claudeStatusItem.text = '$(loading~spin) Claude editing';
-		claudeStatusItem.tooltip = 'Claude Code is editing this file';
-		claudeSubscriptions.push(claudeStatusItem);
-
 		const watcher = new ClaudeStatusWatcher();
 		watcher.onStatusChange((editing, filePath) => {
 			const p = MarkdownEditorProvider.getInstance();
 			if (!p) return;
 			p.handleClaudeStatus(editing, filePath);
-			const activeUri = p.activeDocumentUri?.fsPath;
-			if (activeUri === filePath && editing) {
-				claudeStatusItem.show();
-			} else {
-				claudeStatusItem.hide();
-			}
 		});
 		claudeSubscriptions.push(watcher);
 	}
