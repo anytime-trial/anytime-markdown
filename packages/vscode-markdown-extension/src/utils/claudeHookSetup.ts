@@ -61,8 +61,8 @@ export function setupClaudeHooks(): boolean {
   }
 
   // フックコマンド: stdin の JSON から tool_input.file_path を jq で取得
-  const preCommand = `FP=$(jq -r '.tool_input.file_path // empty'); [ -n "$FP" ] && echo "{\\"editing\\":true,\\"file\\":\\"$FP\\",\\"timestamp\\":$(date +%s000)}" > ${STATUS_FILE}`;
-  const postCommand = `FP=$(jq -r '.tool_input.file_path // empty'); [ -n "$FP" ] && echo "{\\"editing\\":false,\\"file\\":\\"$FP\\",\\"timestamp\\":$(date +%s000)}" > ${STATUS_FILE}`;
+  const preCommand = `FP=$(jq -r '.tool_input.file_path // empty'); [ -n "$FP" ] && echo "{\\"editing\\":true,\\"file\\":\\"$FP\\",\\"timestamp\\":$(date +%s%3N)}" > ${STATUS_FILE}`;
+  const postCommand = `FP=$(jq -r '.tool_input.file_path // empty'); [ -n "$FP" ] && echo "{\\"editing\\":false,\\"file\\":\\"$FP\\",\\"timestamp\\":$(date +%s%3N)}" > ${STATUS_FILE}`;
 
   if (!hasPreHook) {
     settings.hooks.PreToolUse.push({

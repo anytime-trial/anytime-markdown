@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import * as fs from 'node:fs';
-import * as path from 'node:path';
 import { getStatusFilePath } from './claudeHookSetup';
 
 interface ClaudeStatus {
@@ -12,77 +11,47 @@ interface ClaudeStatus {
 type StatusChangeCallback = (editing: boolean, filePath: string) => void;
 
 const STALE_THRESHOLD_MS = 30_000;
-const UNLOCK_POLL_INTERVAL_MS = 1000;
+const POLL_INTERVAL_MS = 500;
 
 export class ClaudeStatusWatcher implements vscode.Disposable {
   private readonly callbacks: StatusChangeCallback[] = [];
   private readonly statusFilePath: string;
-  private fsWatcher: fs.FSWatcher | null = null;
-  private unlockTimer: ReturnType<typeof setInterval> | null = null;
-  private isLocked = false;
+  private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private lastEditing: boolean | null = null;
+  private lastTimestamp = 0;
 
   constructor() {
     this.statusFilePath = getStatusFilePath();
-    this.startWatching();
+    this.startPolling();
   }
 
   onStatusChange(callback: StatusChangeCallback): void {
     this.callbacks.push(callback);
   }
 
-  private startWatching(): void {
-    const dir = path.dirname(this.statusFilePath);
-    const fileName = path.basename(this.statusFilePath);
-
-    // fs.watch: イベント駆動（PreToolUse の即時検知に必要）
-    try {
-      this.fsWatcher = fs.watch(dir, (_, changedFile) => {
-        if (changedFile === fileName) {
-          this.handleChange();
-        }
-      });
-      this.fsWatcher.on('error', () => {
-        // エラー時は無視
-      });
-    } catch {
-      // fs.watch が利用できない場合は無視
-    }
+  private startPolling(): void {
+    this.pollTimer = setInterval(() => {
+      this.checkStatus();
+    }, POLL_INTERVAL_MS);
   }
 
-  private handleChange(): void {
+  private checkStatus(): void {
     const status = this.readStatus();
     if (!status) return;
 
-    if (status.editing && !this.isLocked) {
-      // ロック: editing: true を検知
-      this.isLocked = true;
-      this.emit(true, status.file);
-      // ロック解除ポーリングを開始
-      this.startUnlockPolling(status.file);
-    }
-  }
+    // タイムスタンプが変わっていない場合はスキップ（ファイル未更新）
+    if (status.timestamp === this.lastTimestamp) return;
+    this.lastTimestamp = status.timestamp;
 
-  /** ロック中、定期的にステータスファイルを読み取り editing: false を検知したら解除 */
-  private startUnlockPolling(lockedFile: string): void {
-    this.stopUnlockPolling();
-    this.unlockTimer = setInterval(() => {
-      const status = this.readStatus();
-      if (!status) return;
+    const isStale = Date.now() - status.timestamp > STALE_THRESHOLD_MS;
+    const editing = isStale ? false : status.editing;
 
-      const isStale = Date.now() - status.timestamp > STALE_THRESHOLD_MS;
-      if (!status.editing || isStale) {
-        // アンロック: editing: false またはタイムスタンプが古い
-        this.isLocked = false;
-        this.emit(false, lockedFile);
-        this.stopUnlockPolling();
-      }
-    }, UNLOCK_POLL_INTERVAL_MS);
-  }
+    // 状態が変化した場合のみコールバック発火
+    if (editing === this.lastEditing) return;
+    this.lastEditing = editing;
 
-  private stopUnlockPolling(): void {
-    if (this.unlockTimer) {
-      clearInterval(this.unlockTimer);
-      this.unlockTimer = null;
+    for (const cb of this.callbacks) {
+      cb(editing, status.file);
     }
   }
 
@@ -99,12 +68,6 @@ export class ClaudeStatusWatcher implements vscode.Disposable {
     }
   }
 
-  private emit(editing: boolean, filePath: string): void {
-    for (const cb of this.callbacks) {
-      cb(editing, filePath);
-    }
-  }
-
   private isValidStatus(obj: unknown): obj is ClaudeStatus {
     if (typeof obj !== 'object' || obj === null) {
       return false;
@@ -118,7 +81,8 @@ export class ClaudeStatusWatcher implements vscode.Disposable {
   }
 
   dispose(): void {
-    this.fsWatcher?.close();
-    this.stopUnlockPolling();
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
+    }
   }
 }
