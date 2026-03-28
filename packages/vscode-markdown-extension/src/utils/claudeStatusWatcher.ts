@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import * as fs from 'node:fs';
-import * as path from 'node:path';
 import { getStatusFilePath } from './claudeHookSetup';
 
 interface ClaudeStatus {
@@ -16,9 +15,8 @@ const STALE_THRESHOLD_MS = 30_000;
 export class ClaudeStatusWatcher implements vscode.Disposable {
   private readonly callbacks: StatusChangeCallback[] = [];
   private readonly statusFilePath: string;
-  private fsWatcher: fs.FSWatcher | null = null;
-  private pollTimer: ReturnType<typeof setInterval> | null = null;
-  private lastMtime = 0;
+  private lastEditing: boolean | null = null;
+  private lastFile = '';
 
   constructor() {
     this.statusFilePath = getStatusFilePath();
@@ -30,36 +28,10 @@ export class ClaudeStatusWatcher implements vscode.Disposable {
   }
 
   private startWatching(): void {
-    const dir = path.dirname(this.statusFilePath);
-    const fileName = path.basename(this.statusFilePath);
-
-    // fs.watch でステータスファイルのディレクトリを監視
-    try {
-      this.fsWatcher = fs.watch(dir, (eventType, changedFile) => {
-        if (changedFile === fileName) {
-          this.handleChange();
-        }
-      });
-      this.fsWatcher.on('error', () => {
-        // エラー時は無視（ポーリングにフォールバック）
-      });
-    } catch {
-      // fs.watch が利用できない場合は無視
-    }
-
-    // フォールバック: mtime ベースのポーリング（WSL2 等の環境向け）
-    this.pollTimer = setInterval(() => {
-      try {
-        const stat = fs.statSync(this.statusFilePath);
-        const mtime = stat.mtimeMs;
-        if (mtime !== this.lastMtime) {
-          this.lastMtime = mtime;
-          this.handleChange();
-        }
-      } catch {
-        // ファイルが存在しない場合は無視
-      }
-    }, 2000);
+    // fs.watchFile: ファイル単位の stat ポーリング（WSL2/Docker でも確実に動作）
+    fs.watchFile(this.statusFilePath, { interval: 1000 }, () => {
+      this.handleChange();
+    });
   }
 
   private handleChange(): void {
@@ -71,6 +43,14 @@ export class ClaudeStatusWatcher implements vscode.Disposable {
       }
       const isStale = Date.now() - parsed.timestamp > STALE_THRESHOLD_MS;
       const editing = isStale ? false : parsed.editing;
+
+      // 状態が変化した場合のみコールバックを発火
+      if (editing === this.lastEditing && parsed.file === this.lastFile) {
+        return;
+      }
+      this.lastEditing = editing;
+      this.lastFile = parsed.file;
+
       for (const cb of this.callbacks) {
         cb(editing, parsed.file);
       }
@@ -92,9 +72,6 @@ export class ClaudeStatusWatcher implements vscode.Disposable {
   }
 
   dispose(): void {
-    this.fsWatcher?.close();
-    if (this.pollTimer) {
-      clearInterval(this.pollTimer);
-    }
+    fs.unwatchFile(this.statusFilePath);
   }
 }
