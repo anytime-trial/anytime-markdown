@@ -104,6 +104,9 @@ export function GraphToolBar({
   const [exportAnchor, setExportAnchor] = React.useState<null | HTMLElement>(null);
   const [zoomAnchor, setZoomAnchor] = useState<null | HTMLElement>(null);
 
+  const saveStatusLabel = saveStatus === 'saving' ? t('saving') : t('saveError');
+  const saveTooltip = saveStatus === 'saved' ? t('saved') : saveStatusLabel;
+
   // Shape group: long press to show dropdown, click to activate last shape
   const SHAPE_TOOLS = ['rect', 'ellipse', 'diamond', 'parallelogram', 'cylinder'] as const;
   type ShapeToolType = typeof SHAPE_TOOLS[number];
@@ -372,7 +375,7 @@ export function GraphToolBar({
           <IconButton size="small" onClick={onFitContent}><FitIcon fontSize="small" /></IconButton>
         </Tooltip>
 
-        <Tooltip title={saveStatus === 'saved' ? t('saved') : saveStatus === 'saving' ? t('saving') : t('saveError')}>
+        <Tooltip title={saveTooltip}>
           <Box sx={{ display: 'flex', alignItems: 'center', ml: 0.5 }}>
             {saveStatus === 'saved' && <CloudDoneIcon fontSize="small" sx={{ color: 'text.secondary' }} />}
             {saveStatus === 'saving' && <CloudSyncIcon fontSize="small" sx={{ color: 'text.secondary' }} />}

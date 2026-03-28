@@ -275,9 +275,9 @@ export function GraphCanvas({
   return (
     <canvas
       ref={canvasRef}
-      role="application"
       tabIndex={0}
       aria-label={ariaLabel}
+      aria-roledescription="graph canvas"
       style={{ display: 'block', width: '100%', height: '100%' }}
       onMouseDown={onMouseDown}
       onMouseMove={onMouseMove}

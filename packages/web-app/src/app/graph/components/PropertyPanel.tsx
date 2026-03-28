@@ -43,7 +43,7 @@ function ColorPalette({
   const isDark = themeMode === 'dark';
   const themeColors = getCanvasColors(isDark);
   const handleKeyDown = (e: React.KeyboardEvent, index: number) => {
-    let nextIndex = index;
+    let nextIndex: number;
     if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
       nextIndex = (index + 1) % colors.length;
       e.preventDefault();
