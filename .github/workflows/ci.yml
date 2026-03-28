@@ -206,9 +206,26 @@ jobs:
         run: |
           echo "Checking Netlify deploy for branch: $BRANCH (commit: $COMMIT_SHA)"
           for i in $(seq 1 30); do
-            DEPLOY=$(curl -sf -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
-              "https://api.netlify.com/api/v1/sites/$NETLIFY_SITE_ID/deploys?per_page=10" \
-              | jq -r "[.[] | select(.context == \"deploy-preview\" and .branch == \"$BRANCH\")] | first // empty")
+            RESPONSE=$(curl -s -w "\n%{http_code}" -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
+              "https://api.netlify.com/api/v1/sites/$NETLIFY_SITE_ID/deploys?per_page=10")
+            HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+            BODY=$(echo "$RESPONSE" | sed '$d')
+
+            if [ "$HTTP_CODE" != "200" ]; then
+              echo "::warning::Netlify API returned HTTP $HTTP_CODE (attempt $i/30)"
+              echo "$BODY" | head -5
+              sleep 30
+              continue
+            fi
+
+            if [ "$i" = "1" ]; then
+              echo "--- Recent deploys ---"
+              echo "$BODY" | jq -r '.[:5] | .[] | "\(.context) | \(.branch) | \(.state) | \(.commit_ref[:8])"'
+              echo "---"
+            fi
+
+            DEPLOY=$(echo "$BODY" | jq --arg branch "$BRANCH" -r \
+              '[.[] | select(.context == "deploy-preview" and .branch == $branch)] | first // empty')
 
             if [ -z "$DEPLOY" ]; then
               echo "Deploy not found yet... (attempt $i/30)"
@@ -230,7 +247,7 @@ jobs:
                 echo "::error::Netlify deploy failed"
                 echo "$DEPLOY" | jq '{state, error_message, deploy_ssl_url, created_at, commit_ref}'
                 echo "--- Deploy details ---"
-                curl -sf -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
+                curl -s -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
                   "https://api.netlify.com/api/v1/deploys/$DEPLOY_ID" \
                   | jq '{state, error_message, summary, deploy_time, context, branch}'
                 exit 1
