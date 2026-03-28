@@ -62,31 +62,38 @@ export const ToolbarMobileMenu = React.memo(function ToolbarMobileMenu({
       open={!!anchorEl}
       onClose={onClose}
     >
-      {!hideOutline && <MenuItem
-        onClick={() => { onToggleOutline(); onClose(); }}
-        disabled={inlineMergeOpen || sourceMode}
-      >
-        <ListItemIcon><ListAltIcon fontSize="small" color={outlineOpen ? "primary" : "inherit"} /></ListItemIcon>
-        <ListItemText>{t("outline")}</ListItemText>
-      </MenuItem>}
-      {!hideComments && onToggleComments && (
-        <MenuItem
-          onClick={() => { onToggleComments(); onClose(); }}
-          disabled={inlineMergeOpen || sourceMode}
-        >
-          <ListItemIcon><ChatBubbleOutlineIcon fontSize="small" color={commentOpen ? "primary" : "inherit"} /></ListItemIcon>
-          <ListItemText>{t("commentPanel") || "Comments"}</ListItemText>
-        </MenuItem>
-      )}
-      <Divider />
-      {!hideVersionInfo && (
-        <MenuItem
-          onClick={() => { onOpenVersionDialog?.(); onClose(); }}
-        >
-          <ListItemIcon><InfoOutlinedIcon fontSize="small" /></ListItemIcon>
-          <ListItemText>{t("versionInfo")}</ListItemText>
-        </MenuItem>
-      )}
+      {[
+        ...(!hideOutline ? [
+          <MenuItem
+            key="outline"
+            onClick={() => { onToggleOutline(); onClose(); }}
+            disabled={inlineMergeOpen || sourceMode}
+          >
+            <ListItemIcon><ListAltIcon fontSize="small" color={outlineOpen ? "primary" : "inherit"} /></ListItemIcon>
+            <ListItemText>{t("outline")}</ListItemText>
+          </MenuItem>,
+        ] : []),
+        ...(!hideComments && onToggleComments ? [
+          <MenuItem
+            key="comments"
+            onClick={() => { onToggleComments(); onClose(); }}
+            disabled={inlineMergeOpen || sourceMode}
+          >
+            <ListItemIcon><ChatBubbleOutlineIcon fontSize="small" color={commentOpen ? "primary" : "inherit"} /></ListItemIcon>
+            <ListItemText>{t("commentPanel") || "Comments"}</ListItemText>
+          </MenuItem>,
+        ] : []),
+        <Divider key="divider" />,
+        ...(!hideVersionInfo ? [
+          <MenuItem
+            key="versionInfo"
+            onClick={() => { onOpenVersionDialog?.(); onClose(); }}
+          >
+            <ListItemIcon><InfoOutlinedIcon fontSize="small" /></ListItemIcon>
+            <ListItemText>{t("versionInfo")}</ListItemText>
+          </MenuItem>,
+        ] : []),
+      ]}
     </Menu>
   );
 });

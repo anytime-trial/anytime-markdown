@@ -271,6 +271,109 @@ export function EditorContextMenu({ editor, readOnly, t, currentMode, onSwitchTo
     handleClose();
   }, [editor, handleClose]);
 
+  const menuItems: React.ReactNode[] = [
+    <MenuItem key="cut" onClick={handleCut} disabled={!!readOnly || !canCopy}>
+      <ListItemIcon>
+        <ContentCutIcon sx={{ fontSize: 16 }} />
+      </ListItemIcon>
+      <ListItemText primaryTypographyProps={{ fontSize: CONTEXT_MENU_FONT_SIZE }}>
+        {t("cut")}
+      </ListItemText>
+      <Typography variant="body2" sx={{ color: getTextSecondary(isDark), fontSize: SHORTCUT_HINT_FONT_SIZE, ml: 2 }}>
+        Ctrl+X
+      </Typography>
+    </MenuItem>,
+    <MenuItem key="copy" onClick={handleCopy} disabled={!canCopy}>
+      <ListItemIcon>
+        <ContentCopyIcon sx={{ fontSize: 16 }} />
+      </ListItemIcon>
+      <ListItemText primaryTypographyProps={{ fontSize: CONTEXT_MENU_FONT_SIZE }}>
+        {t("copy")}
+      </ListItemText>
+      <Typography variant="body2" sx={{ color: getTextSecondary(isDark), fontSize: SHORTCUT_HINT_FONT_SIZE, ml: 2 }}>
+        Ctrl+C
+      </Typography>
+    </MenuItem>,
+    <MenuItem key="paste" onClick={handlePaste} disabled={!!readOnly}>
+      <ListItemIcon>
+        <ContentPasteIcon sx={{ fontSize: 16 }} />
+      </ListItemIcon>
+      <ListItemText primaryTypographyProps={{ fontSize: CONTEXT_MENU_FONT_SIZE }}>
+        {t("paste")}
+      </ListItemText>
+      <Typography variant="body2" sx={{ color: getTextSecondary(isDark), fontSize: SHORTCUT_HINT_FONT_SIZE, ml: 2 }}>
+        Ctrl+V
+      </Typography>
+    </MenuItem>,
+  ];
+
+  if (currentMode !== "source") {
+    menuItems.push(
+      <Divider key="d-paste" sx={{ my: 0.5 }} />,
+      <MenuItem key="pasteAsMarkdown" onClick={handlePasteAsMarkdown} disabled={!!readOnly}>
+        <ListItemIcon>
+          <ContentPasteIcon sx={{ fontSize: 16 }} />
+        </ListItemIcon>
+        <ListItemText primaryTypographyProps={{ fontSize: CONTEXT_MENU_FONT_SIZE }}>
+          {t("pasteAsMarkdown")}
+        </ListItemText>
+        <Typography variant="body2" sx={{ color: getTextSecondary(isDark), fontSize: SHORTCUT_HINT_FONT_SIZE, ml: 2 }}>
+          Ctrl+Shift+V
+        </Typography>
+      </MenuItem>,
+      <MenuItem key="pasteAsCodeBlock" onClick={handlePasteAsCodeBlock} disabled={!!readOnly}>
+        <ListItemIcon>
+          <CodeIcon sx={{ fontSize: 16 }} />
+        </ListItemIcon>
+        <ListItemText primaryTypographyProps={{ fontSize: CONTEXT_MENU_FONT_SIZE }}>
+          {t("pasteAsCodeBlock")}
+        </ListItemText>
+      </MenuItem>,
+    );
+  }
+
+  menuItems.push(
+    <Divider key="d-clear" sx={{ my: 0.5 }} />,
+    <MenuItem key="clearScreen" onClick={handleClearScreen} disabled={!!readOnly}>
+      <ListItemIcon>
+        <ClearAllIcon sx={{ fontSize: 16 }} />
+      </ListItemIcon>
+      <ListItemText primaryTypographyProps={{ fontSize: CONTEXT_MENU_FONT_SIZE }}>
+        {t("clearScreen")}
+      </ListItemText>
+    </MenuItem>,
+  );
+
+  if (onSwitchToReview) {
+    menuItems.push(
+      <Divider key="d-mode" sx={{ my: 0.5 }} />,
+      <MenuItem key="review" onClick={handleSwitchToReview} disabled={currentMode === "review"}>
+        <ListItemIcon>
+          <VisibilityOutlinedIcon sx={{ fontSize: 16 }} />
+        </ListItemIcon>
+        <ListItemText primaryTypographyProps={{ fontSize: CONTEXT_MENU_FONT_SIZE }}>
+          {t("review")}
+        </ListItemText>
+      </MenuItem>,
+      <MenuItem key="wysiwyg" onClick={handleSwitchToWysiwyg} disabled={currentMode === "wysiwyg"}>
+        <ListItemIcon>
+          <EditOutlinedIcon sx={{ fontSize: 16 }} />
+        </ListItemIcon>
+        <ListItemText primaryTypographyProps={{ fontSize: CONTEXT_MENU_FONT_SIZE }}>
+          {t("wysiwyg")}
+        </ListItemText>
+      </MenuItem>,
+      <MenuItem key="source" onClick={handleSwitchToSource} disabled={currentMode === "source"}>
+        <ListItemIcon>
+          <CodeIcon sx={{ fontSize: 16 }} />
+        </ListItemIcon>
+        <ListItemText primaryTypographyProps={{ fontSize: CONTEXT_MENU_FONT_SIZE }}>
+          {t("source")}
+        </ListItemText>
+      </MenuItem>,
+    );
+  }
+
   return (
     <Menu
       open={menuPos !== null}
@@ -283,101 +386,7 @@ export function EditorContextMenu({ editor, readOnly, t, currentMode, onSwitchTo
       }
       slotProps={{ paper: { sx: getMenuPaperSx(isDark) } }}
     >
-      <MenuItem onClick={handleCut} disabled={!!readOnly || !canCopy}>
-        <ListItemIcon>
-          <ContentCutIcon sx={{ fontSize: 16 }} />
-        </ListItemIcon>
-        <ListItemText primaryTypographyProps={{ fontSize: CONTEXT_MENU_FONT_SIZE }}>
-          {t("cut")}
-        </ListItemText>
-        <Typography variant="body2" sx={{ color: getTextSecondary(isDark), fontSize: SHORTCUT_HINT_FONT_SIZE, ml: 2 }}>
-          Ctrl+X
-        </Typography>
-      </MenuItem>
-      <MenuItem onClick={handleCopy} disabled={!canCopy}>
-        <ListItemIcon>
-          <ContentCopyIcon sx={{ fontSize: 16 }} />
-        </ListItemIcon>
-        <ListItemText primaryTypographyProps={{ fontSize: CONTEXT_MENU_FONT_SIZE }}>
-          {t("copy")}
-        </ListItemText>
-        <Typography variant="body2" sx={{ color: getTextSecondary(isDark), fontSize: SHORTCUT_HINT_FONT_SIZE, ml: 2 }}>
-          Ctrl+C
-        </Typography>
-      </MenuItem>
-      <MenuItem onClick={handlePaste} disabled={!!readOnly}>
-        <ListItemIcon>
-          <ContentPasteIcon sx={{ fontSize: 16 }} />
-        </ListItemIcon>
-        <ListItemText primaryTypographyProps={{ fontSize: CONTEXT_MENU_FONT_SIZE }}>
-          {t("paste")}
-        </ListItemText>
-        <Typography variant="body2" sx={{ color: getTextSecondary(isDark), fontSize: SHORTCUT_HINT_FONT_SIZE, ml: 2 }}>
-          Ctrl+V
-        </Typography>
-      </MenuItem>
-      {currentMode !== "source" && (
-        <>
-          <Divider sx={{ my: 0.5 }} />
-          <MenuItem onClick={handlePasteAsMarkdown} disabled={!!readOnly}>
-            <ListItemIcon>
-              <ContentPasteIcon sx={{ fontSize: 16 }} />
-            </ListItemIcon>
-            <ListItemText primaryTypographyProps={{ fontSize: CONTEXT_MENU_FONT_SIZE }}>
-              {t("pasteAsMarkdown")}
-            </ListItemText>
-            <Typography variant="body2" sx={{ color: getTextSecondary(isDark), fontSize: SHORTCUT_HINT_FONT_SIZE, ml: 2 }}>
-              Ctrl+Shift+V
-            </Typography>
-          </MenuItem>
-          <MenuItem onClick={handlePasteAsCodeBlock} disabled={!!readOnly}>
-            <ListItemIcon>
-              <CodeIcon sx={{ fontSize: 16 }} />
-            </ListItemIcon>
-            <ListItemText primaryTypographyProps={{ fontSize: CONTEXT_MENU_FONT_SIZE }}>
-              {t("pasteAsCodeBlock")}
-            </ListItemText>
-          </MenuItem>
-        </>
-      )}
-      <Divider sx={{ my: 0.5 }} />
-      <MenuItem onClick={handleClearScreen} disabled={!!readOnly}>
-        <ListItemIcon>
-          <ClearAllIcon sx={{ fontSize: 16 }} />
-        </ListItemIcon>
-        <ListItemText primaryTypographyProps={{ fontSize: CONTEXT_MENU_FONT_SIZE }}>
-          {t("clearScreen")}
-        </ListItemText>
-      </MenuItem>
-      {onSwitchToReview && (
-        <>
-          <Divider sx={{ my: 0.5 }} />
-          <MenuItem onClick={handleSwitchToReview} disabled={currentMode === "review"}>
-            <ListItemIcon>
-              <VisibilityOutlinedIcon sx={{ fontSize: 16 }} />
-            </ListItemIcon>
-            <ListItemText primaryTypographyProps={{ fontSize: CONTEXT_MENU_FONT_SIZE }}>
-              {t("review")}
-            </ListItemText>
-          </MenuItem>
-          <MenuItem onClick={handleSwitchToWysiwyg} disabled={currentMode === "wysiwyg"}>
-            <ListItemIcon>
-              <EditOutlinedIcon sx={{ fontSize: 16 }} />
-            </ListItemIcon>
-            <ListItemText primaryTypographyProps={{ fontSize: CONTEXT_MENU_FONT_SIZE }}>
-              {t("wysiwyg")}
-            </ListItemText>
-          </MenuItem>
-          <MenuItem onClick={handleSwitchToSource} disabled={currentMode === "source"}>
-            <ListItemIcon>
-              <CodeIcon sx={{ fontSize: 16 }} />
-            </ListItemIcon>
-            <ListItemText primaryTypographyProps={{ fontSize: CONTEXT_MENU_FONT_SIZE }}>
-              {t("source")}
-            </ListItemText>
-          </MenuItem>
-        </>
-      )}
+      {menuItems}
     </Menu>
   );
 }
