@@ -200,7 +200,7 @@ jobs:
       - name: Wait for Netlify deploy and check status
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          NETLIFY_SITE_ID: poetic-syrniki-373949
+          NETLIFY_SITE_ID: 00d05d84-ac2d-489e-88ee-242d1a526bb9
           BRANCH: ${{ github.head_ref }}
           COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
