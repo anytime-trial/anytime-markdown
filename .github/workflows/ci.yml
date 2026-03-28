@@ -179,25 +179,15 @@ jobs:
           path: packages/vscode-extension-pack/*.vsix
           retention-days: 3
 
-      # e2e: master PR → 3ブラウザ、develop push → Chromium のみ、develop PR / master push → スキップ
+      # e2e: master PR → 3ブラウザ、それ以外 → スキップ
       - name: Install Playwright browsers
-        if: (github.event_name == 'pull_request' && github.base_ref == 'master') || github.ref == 'refs/heads/develop'
-        run: |
-          if [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ github.base_ref }}" = "master" ]; then
-            npx playwright install --with-deps chromium firefox webkit
-          else
-            npx playwright install --with-deps chromium
-          fi
+        if: github.event_name == 'pull_request' && github.base_ref == 'master'
+        run: npx playwright install --with-deps chromium firefox webkit
         working-directory: packages/web-app
 
       - name: Run e2e tests
-        if: (github.event_name == 'pull_request' && github.base_ref == 'master') || github.ref == 'refs/heads/develop'
-        run: |
-          if [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ github.base_ref }}" = "master" ]; then
-            xvfb-run npm run e2e
-          else
-            xvfb-run npx playwright test --project=chromium
-          fi
+        if: github.event_name == 'pull_request' && github.base_ref == 'master'
+        run: xvfb-run npm run e2e
         working-directory: packages/web-app
         env:
           AUTH_SECRET: test-secret-for-ci
