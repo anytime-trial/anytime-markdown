@@ -112,8 +112,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ### Added
 - /screenshot slash command (Web only)
 - Landing page: Markdown document display, font size toggle icon
-- CMS: image file upload support (png/jpg/gif/svg/webp)
-- CMS: JA/EN badge display for md file pairs in file list
+- CMS JA/EN badge display for md file pairs in file list
 
 ### Changed
 - Landing page: feature cards section replaced with Markdown display

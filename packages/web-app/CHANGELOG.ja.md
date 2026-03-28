@@ -96,7 +96,7 @@
 - SonarQube 残存 CODE_SMELL を追加修正
 
 ### 修正
-- docs アップロード API でファイル名の basename 抽出が正しく動作しない問題を修正
+- docs アップロード UI でファイル名の表示が正しく動作しない問題を修正
 - Firefox CI e2e テストのクラッシュを解消
 
 ## [0.7.1] - 2026-03-22
@@ -112,8 +112,7 @@
 ### 追加
 - /screenshot スラッシュコマンド（Web 版のみ）
 - ランディングページ: Markdown ドキュメント表示、フォントサイズ切替アイコン
-- CMS: 画像ファイルアップロード対応（png/jpg/gif/svg/webp）
-- CMS: ファイル一覧に日英 md ペアの JA/EN バッジ表示
+- CMS ファイル一覧に日英 md ペアの JA/EN バッジ表示
 
 ### 変更
 - ランディングページ: feature cards セクション削除、Markdown 表示に置換
