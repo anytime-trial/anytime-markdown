@@ -560,28 +560,24 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
       {readOnly && (
         <div style={{
           position: 'absolute',
-          inset: 0,
+          top: 0,
+          left: 0,
+          right: 0,
           zIndex: 9999,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: isDark ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.5)',
+          gap: 8,
+          padding: '4px 16px',
+          backgroundColor: isDark ? 'rgba(30,30,30,0.85)' : 'rgba(255,255,255,0.85)',
+          borderBottom: `2px solid ${isDark ? 'rgba(255,180,0,0.5)' : 'rgba(255,160,0,0.5)'}`,
+          backdropFilter: 'blur(4px)',
+          fontSize: 12,
+          color: isDark ? 'rgba(255,200,100,0.9)' : 'rgba(160,100,0,0.9)',
           pointerEvents: 'none',
         }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            padding: '10px 24px',
-            borderRadius: 8,
-            backgroundColor: isDark ? 'rgba(40,40,40,0.9)' : 'rgba(255,255,255,0.95)',
-            boxShadow: '0 2px 12px rgba(0,0,0,0.2)',
-            fontSize: 14,
-            color: isDark ? 'rgba(255,200,100,0.95)' : 'rgba(140,90,0,0.95)',
-          }}>
-            <span style={{ fontSize: 18, animation: 'claude-spin 2s linear infinite' }}>&#9881;</span>
-            <span>{locale === 'ja' ? 'Claude Code が編集中です' : 'Claude Code is editing'}</span>
-          </div>
+          <span style={{ fontSize: 14, animation: 'claude-spin 2s linear infinite' }}>&#9881;</span>
+          <span>{locale === 'ja' ? 'Claude Code が編集中です' : 'Claude Code is editing'}</span>
           <style>{`@keyframes claude-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
         </div>
       )}
