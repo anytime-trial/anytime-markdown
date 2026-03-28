@@ -172,6 +172,8 @@ interface MarkdownEditorPageProps {
   defaultBlockAlign?: "left" | "center" | "right";
   /** コンテンツ保存時のコールバック（localStorage 書き込み後に呼ばれる） */
   onContentChange?: (content: string) => void;
+  /** フロントマターブロックの表示（デフォルト: false） */
+  showFrontmatter?: boolean;
 }
 
 /** Apply external compare content and open merge mode if needed (extracted to reduce component complexity). */
@@ -193,7 +195,7 @@ function applyExternalCompareContent(
   }
 }
 
-export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideVersionInfo, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, presetName, onPresetChange, onLocaleChange, fileSystemProvider, externalContent, externalFileName, externalFilePath: _externalFilePath, onExternalSave, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, autoReload, onModeChange, defaultSourceMode, showReadonlyMode, externalCompareContent, explorerOpen, onToggleExplorer, sideToolbar, hideCompareToggle, hideGraph, explorerSlot, noScroll, defaultOutlineOpen, fixedEditorHeight, defaultFontSize, initialFontSize, defaultBlockAlign, onContentChange }: MarkdownEditorPageProps = {}) {
+export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideVersionInfo, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, presetName, onPresetChange, onLocaleChange, fileSystemProvider, externalContent, externalFileName, externalFilePath: _externalFilePath, onExternalSave, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, autoReload, onModeChange, defaultSourceMode, showReadonlyMode, externalCompareContent, explorerOpen, onToggleExplorer, sideToolbar, hideCompareToggle, hideGraph, explorerSlot, noScroll, defaultOutlineOpen, fixedEditorHeight, defaultFontSize, initialFontSize, defaultBlockAlign, onContentChange, showFrontmatter }: MarkdownEditorPageProps = {}) {
   const t = useTranslations("MarkdownEditor");
   const locale = useLocale() as "en" | "ja";
   const muiTheme = useTheme();
@@ -520,7 +522,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
           templates: hideTemplates, foldAll: hideFoldAll,
           fileOps: hideFileOps, undoRedo: hideUndoRedo,
           versionInfo: hideVersionInfo,
-          settings: hideSettings, toolbar: hideToolbar,
+          settings: hideSettings, toolbar: hideToolbar || readOnly,
           readonlyToggle: !showReadonlyMode,
         }}
         mergeUndoRedo={inlineMergeOpen ? mergeUndoRedo : null}
@@ -557,7 +559,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         t={t}
       />
 
-      {_readonlyMode && !readOnly && (
+      {(_readonlyMode || readOnly) && !hideToolbar && (
         <ReadonlyToolbar
           outlineOpen={outlineOpen}
           onToggleOutline={handleToggleOutline}
@@ -578,7 +580,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         editorWrapperRef={editorWrapperRef} editorMountCallback={editorMountCallback}
         sourceText={sourceText} handleSourceChange={handleSourceChange}
         sourceTextareaRef={sourceTextareaRef} sourceSearchOpen={sourceSearchOpen} setSourceSearchOpen={setSourceSearchOpen}
-        sourceSearch={sourceSearch} frontmatterText={fileHandling.frontmatterText}
+        sourceSearch={sourceSearch} frontmatterText={showFrontmatter ? fileHandling.frontmatterText : null}
         handleFrontmatterChange={fileHandling.handleFrontmatterChange}
         commentOpen={commentOpen} setCommentOpen={setCommentOpen} saveContent={saveContent}
         outlineProps={outlineProps} editorMarkdown={editorMarkdown}
