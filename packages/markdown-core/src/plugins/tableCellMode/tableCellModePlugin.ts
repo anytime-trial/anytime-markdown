@@ -6,6 +6,7 @@ import {
 } from "./tableCellModeTypes";
 import { CELL_NAV_SELECTED, CELL_EDITING } from "./tableCellModeStyles";
 import { handleMouseDown, handleDoubleClick } from "./tableCellModeMouse";
+import { handleKeyDown } from "./tableCellModeKeymap";
 
 /** Plugin の PluginKey */
 export const tableCellModePluginKey = new PluginKey<TableCellModeState>(
@@ -111,6 +112,7 @@ export function tableCellModePlugin(): Plugin<TableCellModeState> {
     },
 
     props: {
+      handleKeyDown: (view, event) => handleKeyDown(view, event),
       handleDOMEvents: {
         mousedown: (view, event) =>
           handleMouseDown(view, event as MouseEvent),
