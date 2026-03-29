@@ -1,6 +1,5 @@
 import { useTheme } from "@mui/material";
 import type { Editor } from "@tiptap/react";
-import DOMPurify from "dompurify";
 import { useTranslations } from "next-intl";
 import plantumlEncoder from "plantuml-encoder";
 import type { Dispatch, SetStateAction } from "react";
@@ -15,7 +14,7 @@ import { applyMarkdownToEditor } from "../utils/editorContentLoader";
 import { readFileAsText } from "../utils/fileReading";
 import { prependFrontmatter } from "../utils/frontmatterHelpers";
 import { buildPlantUmlUrl } from "../utils/plantumlHelpers";
-import { SVG_SANITIZE_CONFIG } from "./useMermaidRender";
+
 
 interface MermaidReplacement {
   innerDiv: HTMLElement;
@@ -82,7 +81,7 @@ async function prerenderMermaidLight(): Promise<MermaidReplacement[]> {
         if (innerDiv) {
           replacements.push({
             innerDiv,
-            lightHtml: DOMPurify.sanitize(lightSvg, SVG_SANITIZE_CONFIG),
+            lightHtml: lightSvg,
             originalHTML: imgBox.innerHTML,
             imgBox,
           });

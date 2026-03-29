@@ -4,14 +4,13 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { Alert, Box, Button, IconButton, Tooltip, Typography } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
-import DOMPurify from "dompurify";
 import React, { useCallback, useMemo, useRef } from "react";
 
 import { getEditorBg, getErrorMain, getTextSecondary } from "../../constants/colors";
 import { useBlockMergeCompare } from "../../hooks/useBlockMergeCompare";
 import { useBlockResize } from "../../hooks/useBlockResize";
 import { useDiagramCapture } from "../../hooks/useDiagramCapture";
-import { SVG_SANITIZE_CONFIG,useMermaidRender } from "../../hooks/useMermaidRender";
+import { useMermaidRender } from "../../hooks/useMermaidRender";
 import { usePlantUmlRender } from "../../hooks/usePlantUmlRender";
 import { useZoomPan } from "../../hooks/useZoomPan";
 import { useEditorSettingsContext } from "../../useEditorSettings";
@@ -132,7 +131,7 @@ function DiagramContent({ isMermaid, isPlantUml, svg, displaySvg, plantUmlUrl, p
         <DiagramPreviewContainer {...sharedContainerProps} language="mermaid">
           <Box
             sx={{ pt: 0, px: 2, pb: 2, display: "flex", justifyContent: "flex-start", pointerEvents: "none" }}
-            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(displaySvg, SVG_SANITIZE_CONFIG) }}
+            dangerouslySetInnerHTML={{ __html: displaySvg }}
           />
         </DiagramPreviewContainer>
       )}
@@ -198,7 +197,7 @@ export function DiagramBlock(props: DiagramBlockProps) {
 
   const displaySvg = useMemo(() => {
     if (!svg) return svg;
-    const viewBoxMatch = /viewBox="[\d.]+ [\d.]+ ([\d.]+) [\d.]+"/.exec(svg);
+    const viewBoxMatch = /viewBox="-?[\d.]+ -?[\d.]+ ([\d.]+) [\d.]+"/.exec(svg);
     if (!viewBoxMatch) return svg;
     const viewBoxWidth = Number.parseFloat(viewBoxMatch[1]);
     const targetWidth = (settings.fontSize / 16) * viewBoxWidth;

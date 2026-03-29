@@ -1,12 +1,10 @@
 import AccountTreeIcon from "@mui/icons-material/AccountTree";
 import { Box, Tab, Tabs, useTheme } from "@mui/material";
-import DOMPurify from "dompurify";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { getDivider } from "../constants/colors";
 import { FS_TAB_FONT_SIZE, FS_TOOLBAR_HEIGHT } from "../constants/dimensions";
 import { MERMAID_SAMPLES } from "../constants/samples";
-import { SVG_SANITIZE_CONFIG } from "../hooks/useMermaidRender";
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
 import type { UseZoomPanReturn } from "../hooks/useZoomPan";
 import { useEditorSettingsContext } from "../useEditorSettings";
@@ -108,7 +106,7 @@ export function MermaidEditDialog({
   // Scale SVG to match editor font size
   const displaySvg = useMemo(() => {
     if (!svg) return svg;
-    const viewBoxMatch = /viewBox="[\d.]+ [\d.]+ ([\d.]+) [\d.]+"/.exec(svg);
+    const viewBoxMatch = /viewBox="-?[\d.]+ -?[\d.]+ ([\d.]+) [\d.]+"/.exec(svg);
     if (!viewBoxMatch) return svg;
     const viewBoxWidth = Number.parseFloat(viewBoxMatch[1]);
     const targetWidth = (settings.fontSize / 16) * viewBoxWidth;
@@ -184,7 +182,7 @@ export function MermaidEditDialog({
               <ZoomToolbar fsZP={fsZP} onExport={onExport} t={t} />
               <ZoomablePreview fsZP={fsZP}>
                 {displaySvg && (
-                  <Box role="img" aria-label={extractDiagramAltText(code, "mermaid")} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(displaySvg, SVG_SANITIZE_CONFIG) }} sx={{ "& svg": { maxWidth: "100%", height: "auto" } }} />
+                  <Box role="img" aria-label={extractDiagramAltText(code, "mermaid")} dangerouslySetInnerHTML={{ __html: displaySvg }} sx={{ "& svg": { maxWidth: "100%", height: "auto" } }} />
                 )}
               </ZoomablePreview>
             </>

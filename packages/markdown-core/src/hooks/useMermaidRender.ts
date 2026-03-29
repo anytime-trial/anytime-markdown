@@ -138,6 +138,7 @@ function requestMermaidRender(code: string, isDark: boolean, callback: (svg: str
         container.style.position = "absolute";
         container.style.left = "-9999px";
         container.style.top = "-9999px";
+        container.style.fontSize = "16px";
         document.body.appendChild(container);
         try {
           const { svg: rendered } = await mermaid.render(id, code, container);
