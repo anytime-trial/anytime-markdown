@@ -28,6 +28,8 @@ export interface CodeBlockSharedProps {
   /** Fullscreen state */
   editOpen: boolean;
   setEditOpen: (open: boolean) => void;
+  /** 確認ダイアログ付きの閉じる操作 */
+  tryCloseEdit: () => void;
   /** Fullscreen code state */
   fsCode: string;
   onFsCodeChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
@@ -37,6 +39,14 @@ export interface CodeBlockSharedProps {
   t: (key: string) => string;
   /** Whether dark mode */
   isDark: boolean;
+  /** 適用コールバック */
+  onFsApply: () => void;
+  /** 未適用の変更があるか */
+  fsDirty: boolean;
+  /** 破棄確認ダイアログの状態 */
+  discardDialogOpen: boolean;
+  setDiscardDialogOpen: (open: boolean) => void;
+  handleDiscardConfirm: () => void;
   /** Whether editor is editable */
   isEditable: boolean;
   /** 比較モードの左側（比較元）エディタかどうか */

@@ -60,6 +60,8 @@ interface CodeBlockEditDialogProps {
   customSamples?: { label: string; i18nKey: string; code: string }[];
   /** Custom preview renderer (replaces syntax highlight preview) */
   renderPreview?: (code: string) => React.ReactNode;
+  onApply?: () => void;
+  dirty?: boolean;
   t: (key: string) => string;
 }
 
@@ -164,7 +166,7 @@ function SyntaxPreviewPanel({
 export function CodeBlockEditDialog({
   open, onClose, label, language, fsCode, onFsCodeChange, onFsTextChange, fsTextareaRef, fsSearch: _fsSearch,
   readOnly, isCompareMode, compareCode, onMergeApply, thisCode, toolbarExtra, customSamples, renderPreview,
-  t,
+  onApply, dirty, t,
 }: Readonly<CodeBlockEditDialogProps>) {
   const isDark = useTheme().palette.mode === "dark";
   const settings = useEditorSettingsContext();
@@ -226,7 +228,7 @@ export function CodeBlockEditDialog({
 
   return (
     <EditDialogWrapper open={open} onClose={onClose} ariaLabelledBy="codeblock-edit-title">
-      <EditDialogHeader label={label} onClose={onClose} showCompareView={showCompareView} icon={<CodeIcon sx={{ fontSize: 18 }} />} t={t} />
+      <EditDialogHeader label={label} onClose={onClose} showCompareView={showCompareView} icon={<CodeIcon sx={{ fontSize: 18 }} />} onApply={onApply} dirty={dirty} t={t} />
 
       {showCompareView ? (
         <FullscreenDiffView

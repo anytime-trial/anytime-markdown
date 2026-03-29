@@ -39,6 +39,8 @@ interface MermaidEditDialogProps {
   thisCode?: string;
   onExport?: () => void;
   toolbarExtra?: React.ReactNode;
+  onApply?: () => void;
+  dirty?: boolean;
   t: (key: string) => string;
 }
 
@@ -47,7 +49,7 @@ export function MermaidEditDialog({
   fsCode, onFsCodeChange: _onFsCodeChange, onFsTextChange, fsTextareaRef, fsSearch: _fsSearch,
   fsZP, readOnly,
   isCompareMode, compareCode, onMergeApply, thisCode, onExport, toolbarExtra,
-  t,
+  onApply, dirty, t,
 }: Readonly<MermaidEditDialogProps>) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
@@ -119,7 +121,7 @@ export function MermaidEditDialog({
 
   return (
     <EditDialogWrapper open={open} onClose={onClose} ariaLabelledBy="mermaid-edit-title">
-      <EditDialogHeader label={label} onClose={onClose} showCompareView={showCompareView} icon={<AccountTreeIcon sx={{ fontSize: 18 }} />} t={t} />
+      <EditDialogHeader label={label} onClose={onClose} showCompareView={showCompareView} icon={<AccountTreeIcon sx={{ fontSize: 18 }} />} onApply={onApply} dirty={dirty} t={t} />
 
       {/* Compare view */}
       {showCompareView ? (

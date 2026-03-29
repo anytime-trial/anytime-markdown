@@ -138,6 +138,12 @@ function setup(overrides?: { lang?: string; isSelected?: boolean; editOpen?: boo
     setDeleteDialogOpen: jest.fn(),
     editOpen: overrides?.editOpen ?? false,
     setEditOpen: jest.fn(),
+    tryCloseEdit: jest.fn(),
+    onFsApply: jest.fn(),
+    fsDirty: false,
+    discardDialogOpen: false,
+    setDiscardDialogOpen: jest.fn(),
+    handleDiscardConfirm: jest.fn(),
     fsCode: "",
     onFsCodeChange: jest.fn(),
     fsTextareaRef: { current: null },
@@ -192,6 +198,12 @@ describe("DiagramBlock", () => {
         setDeleteDialogOpen={jest.fn()}
         editOpen={false}
         setEditOpen={jest.fn()}
+        tryCloseEdit={jest.fn()}
+        onFsApply={jest.fn()}
+        fsDirty={false}
+        discardDialogOpen={false}
+        setDiscardDialogOpen={jest.fn()}
+        handleDiscardConfirm={jest.fn()}
         fsCode=""
         onFsCodeChange={jest.fn()}
         fsTextareaRef={{ current: null }}
@@ -232,6 +244,12 @@ describe("DiagramBlock", () => {
         setDeleteDialogOpen={jest.fn()}
         editOpen={false}
         setEditOpen={jest.fn()}
+        tryCloseEdit={jest.fn()}
+        onFsApply={jest.fn()}
+        fsDirty={false}
+        discardDialogOpen={false}
+        setDiscardDialogOpen={jest.fn()}
+        handleDiscardConfirm={jest.fn()}
         fsCode=""
         onFsCodeChange={jest.fn()}
         fsTextareaRef={{ current: null }}

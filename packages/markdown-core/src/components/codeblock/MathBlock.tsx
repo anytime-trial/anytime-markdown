@@ -2,7 +2,7 @@
 
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import ShowChartIcon from "@mui/icons-material/ShowChart";
-import { Alert, Box, IconButton, Tooltip } from "@mui/material";
+import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, IconButton, Tooltip } from "@mui/material";
 import DOMPurify from "dompurify";
 import { useRef, useState } from "react";
 
@@ -26,7 +26,8 @@ type MathBlockProps = Pick<
   | "codeCollapsed" | "isSelected"
   | "selectNode" | "code"
   | "handleCopyCode" | "handleDeleteBlock" | "deleteDialogOpen" | "setDeleteDialogOpen"
-  | "editOpen" | "setEditOpen" | "fsCode" | "onFsCodeChange" | "fsTextareaRef" | "fsSearch"
+  | "editOpen" | "setEditOpen" | "tryCloseEdit" | "fsCode" | "onFsCodeChange" | "fsTextareaRef" | "fsSearch"
+  | "onFsApply" | "fsDirty" | "discardDialogOpen" | "setDiscardDialogOpen" | "handleDiscardConfirm"
   | "t" | "isDark" | "isEditable" | "isCompareLeft" | "isCompareLeftEditable"
 > & {
   handleFsTextChange: (newCode: string) => void;
@@ -90,9 +91,12 @@ export function MathBlock(props: MathBlockProps) {
       handleDeleteBlock={handleDeleteBlock}
       t={t}
       afterFrame={
+        <>
         <MathEditDialog
           open={editOpen}
-          onClose={() => { fsSearch.reset(); setEditOpen(false); }}
+          onClose={() => { fsSearch.reset(); props.tryCloseEdit(); }}
+          onApply={props.onFsApply}
+          dirty={props.fsDirty}
           label="Math"
           fsCode={fsCode}
           onFsCodeChange={onFsCodeChange}
@@ -113,6 +117,15 @@ export function MathBlock(props: MathBlockProps) {
           }
           t={t}
         />
+        <Dialog open={props.discardDialogOpen} onClose={() => props.setDiscardDialogOpen(false)}>
+          <DialogTitle>{t("spreadsheetDiscardTitle")}</DialogTitle>
+          <DialogContent><DialogContentText>{t("spreadsheetDiscardMessage")}</DialogContentText></DialogContent>
+          <DialogActions>
+            <Button onClick={() => props.setDiscardDialogOpen(false)}>{t("spreadsheetDiscardCancel")}</Button>
+            <Button onClick={props.handleDiscardConfirm} color="error">{t("spreadsheetDiscardConfirm")}</Button>
+          </DialogActions>
+        </Dialog>
+        </>
       }
     >
       {mathError && (

@@ -1,5 +1,6 @@
+import CheckIcon from "@mui/icons-material/Check";
 import CloseIcon from "@mui/icons-material/Close";
-import { Box, IconButton, Tooltip, Typography } from "@mui/material";
+import { Box, Button, IconButton, Tooltip, Typography } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import React from "react";
 
@@ -14,11 +15,15 @@ interface EditDialogHeaderProps {
   icon?: React.ReactNode;
   /** Extra content after label (e.g. size display) */
   extra?: React.ReactNode;
+  /** 適用ボタンのコールバック */
+  onApply?: () => void;
+  /** 未適用の変更があるか */
+  dirty?: boolean;
   t: (key: string) => string;
 }
 
 /** ブロック要素編集ダイアログの共通ヘッダー */
-export function EditDialogHeader({ label, onClose, showCompareView, icon, extra, t }: Readonly<EditDialogHeaderProps>) {
+export function EditDialogHeader({ label, onClose, showCompareView, icon, extra, onApply, dirty, t }: Readonly<EditDialogHeaderProps>) {
   const isDark = useTheme().palette.mode === "dark";
   return (
     <Box sx={{ display: "flex", alignItems: "center", px: 2, py: 1, borderBottom: 1, borderColor: getDivider(isDark) }}>
@@ -32,6 +37,20 @@ export function EditDialogHeader({ label, onClose, showCompareView, icon, extra,
         {label}{showCompareView ? ` - ${t("compare")}` : ""}
       </Typography>
       <Box sx={{ flex: 1 }} />
+      {onApply && (
+        <Tooltip title={t("spreadsheetApply")} placement="bottom">
+          <Button
+            size="small"
+            variant={dirty ? "contained" : "outlined"}
+            color={dirty ? "primary" : "inherit"}
+            startIcon={<CheckIcon sx={{ fontSize: 14 }} />}
+            onClick={onApply}
+            sx={{ textTransform: "none", fontSize: 12, height: 26, px: 1.5, mr: 1 }}
+          >
+            {t("spreadsheetApply")}
+          </Button>
+        </Tooltip>
+      )}
       {extra}
     </Box>
   );

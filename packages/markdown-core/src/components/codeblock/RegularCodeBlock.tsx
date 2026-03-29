@@ -1,5 +1,7 @@
 "use client";
 
+import { Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle } from "@mui/material";
+
 import { useBlockMergeCompare } from "../../hooks/useBlockMergeCompare";
 import { CodeBlockEditDialog } from "../CodeBlockEditDialog";
 import { BlockInlineToolbar } from "./BlockInlineToolbar";
@@ -12,7 +14,8 @@ type RegularCodeBlockProps = Pick<
   | "editor" | "node" | "getPos" | "code"
   | "isSelected"
   | "handleCopyCode" | "handleDeleteBlock" | "deleteDialogOpen" | "setDeleteDialogOpen"
-  | "editOpen" | "setEditOpen" | "fsCode" | "onFsCodeChange" | "fsTextareaRef" | "fsSearch"
+  | "editOpen" | "setEditOpen" | "tryCloseEdit" | "fsCode" | "onFsCodeChange" | "fsTextareaRef" | "fsSearch"
+  | "onFsApply" | "fsDirty" | "discardDialogOpen" | "setDiscardDialogOpen" | "handleDiscardConfirm"
   | "t" | "isDark" | "isEditable" | "isCompareLeft" | "isCompareLeftEditable"
 > & {
   handleFsTextChange: (newCode: string) => void;
@@ -57,9 +60,12 @@ export function RegularCodeBlock(props: RegularCodeBlockProps) {
       handleDeleteBlock={handleDeleteBlock}
       t={t}
       afterFrame={
+        <>
         <CodeBlockEditDialog
           open={editOpen}
-          onClose={() => { fsSearch.reset(); setEditOpen(false); }}
+          onClose={() => { fsSearch.reset(); props.tryCloseEdit(); }}
+          onApply={props.onFsApply}
+          dirty={props.fsDirty}
           label={codeLabel}
           language={language || "plaintext"}
           fsCode={fsCode}
@@ -74,6 +80,15 @@ export function RegularCodeBlock(props: RegularCodeBlockProps) {
           thisCode={thisCode}
           t={t}
         />
+        <Dialog open={props.discardDialogOpen} onClose={() => props.setDiscardDialogOpen(false)}>
+          <DialogTitle>{t("spreadsheetDiscardTitle")}</DialogTitle>
+          <DialogContent><DialogContentText>{t("spreadsheetDiscardMessage")}</DialogContentText></DialogContent>
+          <DialogActions>
+            <Button onClick={() => props.setDiscardDialogOpen(false)}>{t("spreadsheetDiscardCancel")}</Button>
+            <Button onClick={props.handleDiscardConfirm} color="error">{t("spreadsheetDiscardConfirm")}</Button>
+          </DialogActions>
+        </Dialog>
+        </>
       }
     />
   );

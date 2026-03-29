@@ -90,6 +90,12 @@ function setup(overrides?: { codeCollapsed?: boolean }) {
     setDeleteDialogOpen: jest.fn(),
     editOpen: false,
     setEditOpen: jest.fn(),
+    tryCloseEdit: jest.fn(),
+    onFsApply: jest.fn(),
+    fsDirty: false,
+    discardDialogOpen: false,
+    setDiscardDialogOpen: jest.fn(),
+    handleDiscardConfirm: jest.fn(),
     fsCode: "",
     onFsCodeChange: jest.fn(),
     fsTextareaRef: { current: null },
@@ -133,6 +139,12 @@ describe("MathBlock", () => {
         setDeleteDialogOpen={jest.fn()}
         editOpen={false}
         setEditOpen={jest.fn()}
+        tryCloseEdit={jest.fn()}
+        onFsApply={jest.fn()}
+        fsDirty={false}
+        discardDialogOpen={false}
+        setDiscardDialogOpen={jest.fn()}
+        handleDiscardConfirm={jest.fn()}
         fsCode=""
         onFsCodeChange={jest.fn()}
         fsTextareaRef={{ current: null }}

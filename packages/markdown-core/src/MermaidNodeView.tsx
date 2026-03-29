@@ -67,47 +67,63 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: Re
 
   // Sync code on editOpen open
   // code は意図的に除外（editOpen 切替時のスナップショットのみ取得）
+  const originalCodeRef = useRef("");
+  const [fsDirty, setFsDirty] = useState(false);
   useEffect(() => {
-    if (editOpen) setFsCode(code);
+    if (editOpen) {
+      setFsCode(code);
+      originalCodeRef.current = code;
+      setFsDirty(false);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editOpen]);
 
-  /** Sync editOpen code editor changes back to TipTap node */
+  /** ローカル状態のみ更新（ProseMirror に同期しない） */
   const handleFsCodeChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newCode = e.target.value;
     setFsCode(newCode);
-    if (!editor || typeof getPos !== "function") return;
-    const pos = getPos();
-    if (pos == null) return;
-    const from = pos + 1;
-    const to = from + node.content.size;
-    editor.chain().command(({ tr }) => {
-      if (newCode) {
-        tr.replaceWith(from, to, editor.schema.text(newCode));
-      } else {
-        tr.delete(from, to);
-      }
-      return true;
-    }).run();
-  }, [editor, getPos, node.content.size]);
+    setFsDirty(newCode !== originalCodeRef.current);
+  }, []);
 
-  /** Text update from search/replace (same TipTap node sync) */
+  /** テキスト直接更新（検索置換、サンプル挿入） */
   const handleFsTextChange = useCallback((newCode: string) => {
     setFsCode(newCode);
+    setFsDirty(newCode !== originalCodeRef.current);
+  }, []);
+
+  /** 適用: ProseMirror に一括反映 */
+  const handleFsApply = useCallback(() => {
     if (!editor || typeof getPos !== "function") return;
     const pos = getPos();
     if (pos == null) return;
     const from = pos + 1;
     const to = from + node.content.size;
     editor.chain().command(({ tr }) => {
-      if (newCode) {
-        tr.replaceWith(from, to, editor.schema.text(newCode));
+      if (fsCode) {
+        tr.replaceWith(from, to, editor.schema.text(fsCode));
       } else {
         tr.delete(from, to);
       }
       return true;
     }).run();
-  }, [editor, getPos, node.content.size]);
+    originalCodeRef.current = fsCode;
+    setFsDirty(false);
+  }, [editor, getPos, node.content.size, fsCode]);
+
+  /** 閉じるときの確認 */
+  const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
+  const tryCloseEdit = useCallback(() => {
+    if (fsDirty) {
+      setDiscardDialogOpen(true);
+    } else {
+      setEditOpen(false);
+    }
+  }, [fsDirty]);
+  const handleDiscardConfirm = useCallback(() => {
+    setDiscardDialogOpen(false);
+    setFsDirty(false);
+    setEditOpen(false);
+  }, []);
 
   const fsSearch = useTextareaSearch(fsTextareaRef, fsCode, handleFsTextChange);
 
@@ -126,7 +142,8 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: Re
     isSelected, codeCollapsed,
     selectNode, code,
     handleCopyCode, handleDeleteBlock, deleteDialogOpen, setDeleteDialogOpen,
-    editOpen, setEditOpen, fsCode, onFsCodeChange: handleFsCodeChange, fsTextareaRef, fsSearch,
+    editOpen, setEditOpen, tryCloseEdit, fsCode, onFsCodeChange: handleFsCodeChange, fsTextareaRef, fsSearch,
+    onFsApply: handleFsApply, fsDirty, discardDialogOpen, setDiscardDialogOpen, handleDiscardConfirm,
     t, isDark, isEditable, isCompareLeft, isCompareLeftEditable,
     onExport: handleCapture,
   };

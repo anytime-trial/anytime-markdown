@@ -2,7 +2,7 @@
 
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
-import { Alert, Box, Button, IconButton, Tooltip, Typography } from "@mui/material";
+import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, IconButton, Tooltip, Typography } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import React, { useCallback, useMemo, useRef } from "react";
 
@@ -29,7 +29,8 @@ type DiagramBlockProps = Pick<
   | "codeCollapsed" | "isSelected"
   | "selectNode" | "code"
   | "handleCopyCode" | "handleDeleteBlock" | "deleteDialogOpen" | "setDeleteDialogOpen"
-  | "editOpen" | "setEditOpen" | "fsCode" | "onFsCodeChange" | "fsTextareaRef" | "fsSearch"
+  | "editOpen" | "setEditOpen" | "tryCloseEdit" | "fsCode" | "onFsCodeChange" | "fsTextareaRef" | "fsSearch"
+  | "onFsApply" | "fsDirty" | "discardDialogOpen" | "setDiscardDialogOpen" | "handleDiscardConfirm"
   | "t" | "isDark" | "isEditable" | "isCompareLeft" | "isCompareLeftEditable"
 > & {
   /** Fullscreen code text sync */
@@ -242,7 +243,7 @@ export function DiagramBlock(props: DiagramBlockProps) {
     }
   }, [hasDiagramOutput, fsZP, setEditOpen]);
 
-  const handleCloseDialog = useCallback(() => { fsSearch.reset(); setEditOpen(false); }, [fsSearch, setEditOpen]);
+  const handleCloseDialog = useCallback(() => { fsSearch.reset(); props.tryCloseEdit(); }, [fsSearch, props.tryCloseEdit]);
 
   const sharedContainerProps = {
     containerRef, code, diagramContainerSx, selectNode, handleDoubleClickFullscreen,
@@ -255,6 +256,7 @@ export function DiagramBlock(props: DiagramBlockProps) {
     onFsCodeChange, onFsTextChange: _handleFsTextChange, fsTextareaRef, fsSearch, fsZP,
     readOnly: !isEditable, isCompareMode, compareCode, onMergeApply: handleMergeApply,
     thisCode, onExport: handleCapture,
+    onApply: props.onFsApply, dirty: props.fsDirty,
     toolbarExtra: <CopyCodeButton handleCopyCode={handleCopyCode} t={t} />, t,
   };
 
@@ -274,7 +276,16 @@ export function DiagramBlock(props: DiagramBlockProps) {
       setDeleteDialogOpen={setDeleteDialogOpen}
       handleDeleteBlock={handleDeleteBlock}
       t={t}
-      afterFrame={editDialog}
+      afterFrame={<>{editDialog}
+        <Dialog open={props.discardDialogOpen} onClose={() => props.setDiscardDialogOpen(false)}>
+          <DialogTitle>{t("spreadsheetDiscardTitle")}</DialogTitle>
+          <DialogContent><DialogContentText>{t("spreadsheetDiscardMessage")}</DialogContentText></DialogContent>
+          <DialogActions>
+            <Button onClick={() => props.setDiscardDialogOpen(false)}>{t("spreadsheetDiscardCancel")}</Button>
+            <Button onClick={props.handleDiscardConfirm} color="error">{t("spreadsheetDiscardConfirm")}</Button>
+          </DialogActions>
+        </Dialog>
+      </>}
     >
       <DiagramContent
         isMermaid={isMermaid}

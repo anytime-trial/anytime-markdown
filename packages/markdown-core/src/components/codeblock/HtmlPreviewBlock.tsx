@@ -1,7 +1,7 @@
 "use client";
 
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import { Box, IconButton, Tooltip } from "@mui/material";
+import { Box, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, IconButton, Tooltip } from "@mui/material";
 import DOMPurify from "dompurify";
 import { useRef } from "react";
 
@@ -24,7 +24,8 @@ type HtmlPreviewBlockProps = Pick<
   | "codeCollapsed" | "isSelected"
   | "selectNode" | "code"
   | "handleCopyCode" | "handleDeleteBlock" | "deleteDialogOpen" | "setDeleteDialogOpen"
-  | "editOpen" | "setEditOpen" | "fsCode" | "onFsCodeChange" | "fsTextareaRef" | "fsSearch"
+  | "editOpen" | "setEditOpen" | "tryCloseEdit" | "fsCode" | "onFsCodeChange" | "fsTextareaRef" | "fsSearch"
+  | "onFsApply" | "fsDirty" | "discardDialogOpen" | "setDiscardDialogOpen" | "handleDiscardConfirm"
   | "t" | "isDark" | "isEditable" | "isCompareLeft" | "isCompareLeftEditable" | "onExport"
 > & {
   handleFsTextChange: (newCode: string) => void;
@@ -71,9 +72,12 @@ export function HtmlPreviewBlock(props: HtmlPreviewBlockProps) {
       handleDeleteBlock={handleDeleteBlock}
       t={t}
       afterFrame={
+        <>
         <CodeBlockEditDialog
           open={editOpen}
-          onClose={() => { fsSearch.reset(); setEditOpen(false); }}
+          onClose={() => { fsSearch.reset(); props.tryCloseEdit(); }}
+          onApply={props.onFsApply}
+          dirty={props.fsDirty}
           label={t("htmlPreview")}
           language="html"
           fsCode={fsCode}
@@ -102,6 +106,15 @@ export function HtmlPreviewBlock(props: HtmlPreviewBlockProps) {
           }
           t={t}
         />
+        <Dialog open={props.discardDialogOpen} onClose={() => props.setDiscardDialogOpen(false)}>
+          <DialogTitle>{t("spreadsheetDiscardTitle")}</DialogTitle>
+          <DialogContent><DialogContentText>{t("spreadsheetDiscardMessage")}</DialogContentText></DialogContent>
+          <DialogActions>
+            <Button onClick={() => props.setDiscardDialogOpen(false)}>{t("spreadsheetDiscardCancel")}</Button>
+            <Button onClick={props.handleDiscardConfirm} color="error">{t("spreadsheetDiscardConfirm")}</Button>
+          </DialogActions>
+        </Dialog>
+        </>
       }
     >
       <Box

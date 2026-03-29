@@ -37,6 +37,8 @@ interface MathEditDialogProps {
   onMergeApply?: (newThisCode: string, newOtherCode: string) => void;
   thisCode?: string;
   toolbarExtra?: React.ReactNode;
+  onApply?: () => void;
+  dirty?: boolean;
   t: (key: string) => string;
 }
 
@@ -44,7 +46,7 @@ export function MathEditDialog({
   open, onClose, label,
   fsCode, onFsCodeChange, onFsTextChange, fsTextareaRef, fsSearch: _fsSearch,
   readOnly, isCompareMode, compareCode, onMergeApply, thisCode, toolbarExtra,
-  t,
+  onApply, dirty, t,
 }: Readonly<MathEditDialogProps>) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
@@ -67,7 +69,7 @@ export function MathEditDialog({
 
   return (
     <EditDialogWrapper open={open} onClose={onClose} ariaLabelledBy="math-edit-title">
-      <EditDialogHeader label={label} onClose={onClose} showCompareView={showCompareView} icon={<FunctionsIcon sx={{ fontSize: 18 }} />} t={t} />
+      <EditDialogHeader label={label} onClose={onClose} showCompareView={showCompareView} icon={<FunctionsIcon sx={{ fontSize: 18 }} />} onApply={onApply} dirty={dirty} t={t} />
 
       {/* Compare view */}
       {showCompareView ? (
