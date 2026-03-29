@@ -26,7 +26,6 @@ describe("editorExtensions coverage - TaskListTight extension", () => {
 
     // Access the global attributes configuration
     const ext = taskListTight as any;
-    ext.options ?? {};
     // The extension should define globalAttributes via addGlobalAttributes
     // We can check via the extension's config
     if (ext.config?.addGlobalAttributes) {
