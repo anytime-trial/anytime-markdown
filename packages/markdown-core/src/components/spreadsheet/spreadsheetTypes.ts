@@ -8,8 +8,8 @@ export type SpreadsheetSelection =
       readonly endRow: number;
       readonly endCol: number;
     }
-  | { readonly type: "row"; readonly row: number }
-  | { readonly type: "col"; readonly col: number };
+  | { readonly type: "row"; readonly start: number; readonly end: number }
+  | { readonly type: "col"; readonly start: number; readonly end: number };
 
 /** データ範囲（太枠） */
 export interface DataRange {

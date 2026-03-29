@@ -71,17 +71,17 @@ describe("useSpreadsheetState", () => {
     it("should set row selection", () => {
       const { result } = setup();
       act(() => {
-        result.current.setSelection({ type: "row", row: 5 });
+        result.current.setSelection({ type: "row", start: 5, end: 5 });
       });
-      expect(result.current.selection).toEqual({ type: "row", row: 5 });
+      expect(result.current.selection).toEqual({ type: "row", start: 5, end: 5 });
     });
 
     it("should set col selection", () => {
       const { result } = setup();
       act(() => {
-        result.current.setSelection({ type: "col", col: 3 });
+        result.current.setSelection({ type: "col", start: 3, end: 3 });
       });
-      expect(result.current.selection).toEqual({ type: "col", col: 3 });
+      expect(result.current.selection).toEqual({ type: "col", start: 3, end: 3 });
     });
 
     it("should clear selection with null", () => {

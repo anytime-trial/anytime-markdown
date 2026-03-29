@@ -192,11 +192,17 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     if (selection) {
       ctx.fillStyle = selectedBg;
       if (selection.type === "row") {
-        const y = HEADER_HEIGHT + selection.row * ROW_HEIGHT;
-        ctx.fillRect(ROW_NUM_WIDTH, y, totalWidth - ROW_NUM_WIDTH, ROW_HEIGHT);
+        const minR = Math.min(selection.start, selection.end);
+        const maxR = Math.max(selection.start, selection.end);
+        const y = HEADER_HEIGHT + minR * ROW_HEIGHT;
+        const h = (maxR - minR + 1) * ROW_HEIGHT;
+        ctx.fillRect(ROW_NUM_WIDTH, y, totalWidth - ROW_NUM_WIDTH, h);
       } else if (selection.type === "col") {
-        const x = ROW_NUM_WIDTH + selection.col * COL_WIDTH;
-        ctx.fillRect(x, HEADER_HEIGHT, COL_WIDTH, totalHeight - HEADER_HEIGHT);
+        const minC = Math.min(selection.start, selection.end);
+        const maxC = Math.max(selection.start, selection.end);
+        const x = ROW_NUM_WIDTH + minC * COL_WIDTH;
+        const w = (maxC - minC + 1) * COL_WIDTH;
+        ctx.fillRect(x, HEADER_HEIGHT, w, totalHeight - HEADER_HEIGHT);
       }
     }
 
@@ -285,7 +291,9 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
       const y = HEADER_HEIGHT / 2;
 
       // Header background for selected column
-      if (selection?.type === "col" && selection.col === c) {
+      if (selection?.type === "col" &&
+          c >= Math.min(selection.start, selection.end) &&
+          c <= Math.max(selection.start, selection.end)) {
         ctx.save();
         ctx.fillStyle = selectedBg;
         ctx.fillRect(ROW_NUM_WIDTH + c * COL_WIDTH, 0, COL_WIDTH, HEADER_HEIGHT);
@@ -304,7 +312,9 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
       const y = HEADER_HEIGHT + r * ROW_HEIGHT + ROW_HEIGHT / 2;
 
       // Row number background for selected row
-      if (selection?.type === "row" && selection.row === r) {
+      if (selection?.type === "row" &&
+          r >= Math.min(selection.start, selection.end) &&
+          r <= Math.max(selection.start, selection.end)) {
         ctx.save();
         ctx.fillStyle = selectedBg;
         ctx.fillRect(0, HEADER_HEIGHT + r * ROW_HEIGHT, ROW_NUM_WIDTH, ROW_HEIGHT);
@@ -482,7 +492,12 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     // Check header col
     const col = getHeaderCol(e);
     if (col !== null) {
-      setSelection({ type: "col", col });
+      if (e.shiftKey && selection?.type === "col") {
+        // Shift+クリックで範囲拡張
+        setSelection({ type: "col", start: selection.start, end: col });
+      } else {
+        setSelection({ type: "col", start: col, end: col });
+      }
       setEditing(null);
       return;
     }
@@ -490,7 +505,11 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     // Check row num
     const row = getRowNum(e);
     if (row !== null) {
-      setSelection({ type: "row", row });
+      if (e.shiftKey && selection?.type === "row") {
+        setSelection({ type: "row", start: selection.start, end: row });
+      } else {
+        setSelection({ type: "row", start: row, end: row });
+      }
       setEditing(null);
       return;
     }
@@ -501,7 +520,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
       setSelection({ type: "cell", row: cell.row, col: cell.col });
       setEditing(null);
     }
-  }, [getHeaderCol, getRowNum, getGridCoords, setSelection]);
+  }, [getHeaderCol, getRowNum, getGridCoords, setSelection, selection]);
 
   const handleCanvasDoubleClick = useCallback((e: React.MouseEvent) => {
     const cell = getGridCoords(e);
@@ -598,7 +617,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
       const srcRow = Math.floor((y - HEADER_HEIGHT) / ROW_HEIGHT);
       if (srcRow >= 0 && srcRow < GRID_ROWS) {
         e.preventDefault();
-        setSelection({ type: "row", row: srcRow });
+        setSelection({ type: "row", start: srcRow, end: srcRow });
         setReorderDrag({ type: "row", sourceIndex: srcRow, targetIndex: null });
 
         const onMouseMove = (ev: MouseEvent) => {
@@ -623,7 +642,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
               if (from < dataRange.rows && to < dataRange.rows) {
                 rebuildTable(grid, dataRange);
               }
-              setSelection({ type: "row", row: to });
+              setSelection({ type: "row", start: to, end: to });
             }
           }
           setReorderDrag(null);
@@ -640,7 +659,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
       const srcCol = Math.floor((x - ROW_NUM_WIDTH) / COL_WIDTH);
       if (srcCol >= 0 && srcCol < GRID_COLS) {
         e.preventDefault();
-        setSelection({ type: "col", col: srcCol });
+        setSelection({ type: "col", start: srcCol, end: srcCol });
         setReorderDrag({ type: "col", sourceIndex: srcCol, targetIndex: null });
 
         const onMouseMove = (ev: MouseEvent) => {
@@ -664,7 +683,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
               if (from < dataRange.cols && to < dataRange.cols) {
                 rebuildTable(grid, dataRange);
               }
-              setSelection({ type: "col", col: to });
+              setSelection({ type: "col", start: to, end: to });
             }
           }
           setReorderDrag(null);
@@ -714,9 +733,9 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
       if (!selection) return;
 
       let row = selection.type === "cell" ? selection.row
-        : selection.type === "row" ? selection.row : 0;
+        : selection.type === "row" ? selection.start : 0;
       let col = selection.type === "cell" ? selection.col
-        : selection.type === "col" ? selection.col : 0;
+        : selection.type === "col" ? selection.start : 0;
 
       switch (key) {
         case "ArrowUp":
