@@ -5,7 +5,6 @@ import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import GitHubIcon from "@mui/icons-material/GitHub";
 import ListAltIcon from "@mui/icons-material/ListAlt";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
-import MenuIcon from "@mui/icons-material/Menu";
 import RedoIcon from "@mui/icons-material/Redo";
 import UndoIcon from "@mui/icons-material/Undo";
 import ViewStreamIcon from "@mui/icons-material/ViewStream";
@@ -401,7 +400,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
             onClick={(e) => setMobileMenuAnchorEl(e.currentTarget)}
             sx={{ display: { xs: "inline-flex", md: "none" }, mr: 0, p: 0 }}
           >
-            <MenuIcon fontSize="small" />
+            <AppIcon fontSize="small" />
           </IconButton>
         </>
       )}
@@ -421,9 +420,6 @@ export const EditorToolbar = React.memo(function EditorToolbar({
       hideComments={hideComments}
       hideSettings={hideSettings}
       hideVersionInfo={hideVersionInfo}
-      hideFileOps={hideFileOps}
-      fileHandlers={fileHandlers}
-      fileCapabilities={fileCapabilities}
       onToggleOutline={onToggleOutline}
       onToggleComments={onToggleComments}
       onSetHelpAnchor={onSetHelpAnchor}
