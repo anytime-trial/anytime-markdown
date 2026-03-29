@@ -276,24 +276,27 @@ describe("CodeBlockNodeView - coverage", () => {
   });
 
   // --- handleFsCodeChange (via onFsCodeChange) ---
-  test("onFsCodeChange で非空コードが TipTap ノードに反映される", () => {
-    const { editor } = renderCodeBlock("javascript");
+  test("onFsCodeChange で非空コードがローカルステートに反映される", () => {
+    renderCodeBlock("javascript");
     const props = mockRegularCodeBlock.mock.calls[0][0];
     const event = { target: { value: "new code" } } as React.ChangeEvent<HTMLTextAreaElement>;
     act(() => {
       props.onFsCodeChange(event);
     });
-    expect(editor.chain).toHaveBeenCalled();
+    const updatedProps = mockRegularCodeBlock.mock.calls.at(-1)?.[0];
+    expect(updatedProps.fsCode).toBe("new code");
+    expect(updatedProps.fsDirty).toBe(true);
   });
 
-  test("onFsCodeChange で空コードが TipTap ノードに反映される", () => {
-    const { editor } = renderCodeBlock("javascript");
+  test("onFsCodeChange で空コードがローカルステートに反映される", () => {
+    renderCodeBlock("javascript");
     const props = mockRegularCodeBlock.mock.calls[0][0];
     const event = { target: { value: "" } } as React.ChangeEvent<HTMLTextAreaElement>;
     act(() => {
       props.onFsCodeChange(event);
     });
-    expect(editor.chain).toHaveBeenCalled();
+    const updatedProps = mockRegularCodeBlock.mock.calls.at(-1)?.[0];
+    expect(updatedProps.fsCode).toBe("");
   });
 
   test("onFsCodeChange: editor が null の場合何もしない", () => {
@@ -307,22 +310,25 @@ describe("CodeBlockNodeView - coverage", () => {
   });
 
   // --- handleFsTextChange ---
-  test("handleFsTextChange で非空コードが反映される", () => {
-    const { editor } = renderCodeBlock("javascript");
+  test("handleFsTextChange で非空コードがローカルステートに反映される", () => {
+    renderCodeBlock("javascript");
     const props = mockRegularCodeBlock.mock.calls[0][0];
     act(() => {
       props.handleFsTextChange("updated text");
     });
-    expect(editor.chain).toHaveBeenCalled();
+    const updatedProps = mockRegularCodeBlock.mock.calls.at(-1)?.[0];
+    expect(updatedProps.fsCode).toBe("updated text");
+    expect(updatedProps.fsDirty).toBe(true);
   });
 
-  test("handleFsTextChange で空コードが反映される", () => {
-    const { editor } = renderCodeBlock("javascript");
+  test("handleFsTextChange で空コードがローカルステートに反映される", () => {
+    renderCodeBlock("javascript");
     const props = mockRegularCodeBlock.mock.calls[0][0];
     act(() => {
       props.handleFsTextChange("");
     });
-    expect(editor.chain).toHaveBeenCalled();
+    const updatedProps = mockRegularCodeBlock.mock.calls.at(-1)?.[0];
+    expect(updatedProps.fsCode).toBe("");
   });
 
   // --- isCompareLeft ---
