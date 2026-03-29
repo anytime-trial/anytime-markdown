@@ -53,7 +53,7 @@ function setAdmonition(editor: Editor, type: string): void {
         return true;
       }
     }
-    return true;
+    return false;
   }).run();
 }
 
@@ -255,7 +255,7 @@ export const slashCommandItems: SlashCommandItem[] = [
       editor.state.doc.descendants((node) => {
         if (node.type.name === "footnoteRef") {
           const n = Number.parseInt(node.attrs.noteId, 10);
-          if (!isNaN(n) && n > maxId) maxId = n;
+          if (!Number.isNaN(n) && n > maxId) maxId = n;
         }
       });
       const noteId = String(maxId + 1);
