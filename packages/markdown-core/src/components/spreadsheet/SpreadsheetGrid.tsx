@@ -101,6 +101,15 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
   const previewRangeRef = useRef<DataRange | null>(null);
   previewRangeRef.current = previewRange;
 
+  // Drag reorder state (row/col)
+  const [reorderDrag, setReorderDrag] = useState<{
+    type: "row" | "col";
+    sourceIndex: number;
+    targetIndex: number | null;
+  } | null>(null);
+  const reorderDragRef = useRef<typeof reorderDrag>(null);
+  reorderDragRef.current = reorderDrag;
+
   /* ---------------------------------------------------------------- */
   /*  Theme colors                                                     */
   /* ---------------------------------------------------------------- */
@@ -321,10 +330,27 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     ctx.fillStyle = primaryColor;
     ctx.fillRect(handleX, handleY, 10, 10);
 
+    // 11. Reorder drag indicator
+    if (reorderDrag && reorderDrag.targetIndex !== null) {
+      ctx.strokeStyle = primaryColor;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      if (reorderDrag.type === "row") {
+        const indicatorY = HEADER_HEIGHT + reorderDrag.targetIndex * ROW_HEIGHT;
+        ctx.moveTo(ROW_NUM_WIDTH, indicatorY);
+        ctx.lineTo(totalWidth, indicatorY);
+      } else {
+        const indicatorX = ROW_NUM_WIDTH + reorderDrag.targetIndex * COL_WIDTH;
+        ctx.moveTo(indicatorX, HEADER_HEIGHT);
+        ctx.lineTo(indicatorX, totalHeight);
+      }
+      ctx.stroke();
+    }
+
     ctx.restore();
   }, [
     bgColor, borderColor, dataRange, editing, grid, headerBg, headerTextColor,
-    previewRange, primaryColor, selectedBg, selection, textColor, totalHeight, totalWidth,
+    previewRange, primaryColor, reorderDrag, selectedBg, selection, textColor, totalHeight, totalWidth,
   ]);
 
   /* ---------------------------------------------------------------- */
@@ -514,6 +540,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     if (!coords) return;
     const { x, y } = coords;
 
+    // --- Resize drag ---
     const nearRight = isNearRightEdge(x);
     const nearBottom = isNearBottomEdge(y);
 
@@ -522,48 +549,136 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     else if (nearRight && y >= HEADER_HEIGHT && y <= HEADER_HEIGHT + dataRange.rows * ROW_HEIGHT) edge = "right";
     else if (nearBottom && x >= ROW_NUM_WIDTH && x <= ROW_NUM_WIDTH + dataRange.cols * COL_WIDTH) edge = "bottom";
 
-    if (!edge) return;
+    if (edge) {
+      e.preventDefault();
+      setDragEdge(edge);
+      setPreviewRange({ ...dataRange });
 
-    e.preventDefault();
-    setDragEdge(edge);
-    setPreviewRange({ ...dataRange });
+      const onMouseMove = (ev: MouseEvent) => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const rect = canvas.getBoundingClientRect();
+        const mx = ev.clientX - rect.left;
+        const my = ev.clientY - rect.top;
 
-    const onMouseMove = (ev: MouseEvent) => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const rect = canvas.getBoundingClientRect();
-      const mx = ev.clientX - rect.left;
-      const my = ev.clientY - rect.top;
+        const newCol = Math.floor((mx - ROW_NUM_WIDTH) / COL_WIDTH);
+        const newRow = Math.floor((my - HEADER_HEIGHT) / ROW_HEIGHT);
 
-      const newCol = Math.floor((mx - ROW_NUM_WIDTH) / COL_WIDTH);
-      const newRow = Math.floor((my - HEADER_HEIGHT) / ROW_HEIGHT);
+        const newRows = edge === "right"
+          ? dataRange.rows
+          : Math.max(MIN_RESIZE_ROWS, Math.min(newRow + 1, GRID_ROWS));
+        const newCols = edge === "bottom"
+          ? dataRange.cols
+          : Math.max(MIN_RESIZE_COLS, Math.min(newCol + 1, GRID_COLS));
 
-      const newRows = edge === "right"
-        ? dataRange.rows
-        : Math.max(MIN_RESIZE_ROWS, Math.min(newRow + 1, GRID_ROWS));
-      const newCols = edge === "bottom"
-        ? dataRange.cols
-        : Math.max(MIN_RESIZE_COLS, Math.min(newCol + 1, GRID_COLS));
+        const nr: DataRange = { rows: newRows, cols: newCols };
+        setPreviewRange(nr);
+        previewRangeRef.current = nr;
+      };
 
-      const nr: DataRange = { rows: newRows, cols: newCols };
-      setPreviewRange(nr);
-      previewRangeRef.current = nr;
-    };
+      const onMouseUp = () => {
+        document.removeEventListener("mousemove", onMouseMove);
+        document.removeEventListener("mouseup", onMouseUp);
+        const final = previewRangeRef.current;
+        if (final) {
+          handleDataRangeChange(final);
+        }
+        setDragEdge(null);
+        setPreviewRange(null);
+      };
 
-    const onMouseUp = () => {
-      document.removeEventListener("mousemove", onMouseMove);
-      document.removeEventListener("mouseup", onMouseUp);
-      const final = previewRangeRef.current;
-      if (final) {
-        handleDataRangeChange(final);
+      document.addEventListener("mousemove", onMouseMove);
+      document.addEventListener("mouseup", onMouseUp);
+      return;
+    }
+
+    // --- Row/Column reorder drag ---
+    // 行番号エリアをドラッグ → 行入れ替え
+    if (x < ROW_NUM_WIDTH && y >= HEADER_HEIGHT) {
+      const srcRow = Math.floor((y - HEADER_HEIGHT) / ROW_HEIGHT);
+      if (srcRow >= 0 && srcRow < GRID_ROWS) {
+        e.preventDefault();
+        setSelection({ type: "row", row: srcRow });
+        setReorderDrag({ type: "row", sourceIndex: srcRow, targetIndex: null });
+
+        const onMouseMove = (ev: MouseEvent) => {
+          const canvas = canvasRef.current;
+          if (!canvas) return;
+          const rect = canvas.getBoundingClientRect();
+          const my = ev.clientY - rect.top;
+          const targetRow = Math.max(0, Math.min(GRID_ROWS, Math.floor((my - HEADER_HEIGHT) / ROW_HEIGHT)));
+          setReorderDrag((prev) => prev ? { ...prev, targetIndex: targetRow } : null);
+        };
+
+        const onMouseUp = () => {
+          document.removeEventListener("mousemove", onMouseMove);
+          document.removeEventListener("mouseup", onMouseUp);
+          const drag = reorderDragRef.current;
+          if (drag && drag.targetIndex !== null && drag.targetIndex !== drag.sourceIndex) {
+            // 挿入先の調整: ドラッグ先がソースより後ろの場合、1つ手前に
+            const from = drag.sourceIndex;
+            const to = drag.targetIndex > from ? drag.targetIndex - 1 : drag.targetIndex;
+            if (from !== to) {
+              swapRows(from, to);
+              if (from < dataRange.rows && to < dataRange.rows) {
+                rebuildTable(grid, dataRange);
+              }
+              setSelection({ type: "row", row: to });
+            }
+          }
+          setReorderDrag(null);
+        };
+
+        document.addEventListener("mousemove", onMouseMove);
+        document.addEventListener("mouseup", onMouseUp);
+        return;
       }
-      setDragEdge(null);
-      setPreviewRange(null);
-    };
+    }
 
-    document.addEventListener("mousemove", onMouseMove);
-    document.addEventListener("mouseup", onMouseUp);
-  }, [getCanvasCoords, isNearRightEdge, isNearBottomEdge, dataRange, handleDataRangeChange]);
+    // 列ヘッダーエリアをドラッグ → 列入れ替え
+    if (y < HEADER_HEIGHT && x >= ROW_NUM_WIDTH) {
+      const srcCol = Math.floor((x - ROW_NUM_WIDTH) / COL_WIDTH);
+      if (srcCol >= 0 && srcCol < GRID_COLS) {
+        e.preventDefault();
+        setSelection({ type: "col", col: srcCol });
+        setReorderDrag({ type: "col", sourceIndex: srcCol, targetIndex: null });
+
+        const onMouseMove = (ev: MouseEvent) => {
+          const canvas = canvasRef.current;
+          if (!canvas) return;
+          const rect = canvas.getBoundingClientRect();
+          const mx = ev.clientX - rect.left;
+          const targetCol = Math.max(0, Math.min(GRID_COLS, Math.floor((mx - ROW_NUM_WIDTH) / COL_WIDTH)));
+          setReorderDrag((prev) => prev ? { ...prev, targetIndex: targetCol } : null);
+        };
+
+        const onMouseUp = () => {
+          document.removeEventListener("mousemove", onMouseMove);
+          document.removeEventListener("mouseup", onMouseUp);
+          const drag = reorderDragRef.current;
+          if (drag && drag.targetIndex !== null && drag.targetIndex !== drag.sourceIndex) {
+            const from = drag.sourceIndex;
+            const to = drag.targetIndex > from ? drag.targetIndex - 1 : drag.targetIndex;
+            if (from !== to) {
+              swapCols(from, to);
+              if (from < dataRange.cols && to < dataRange.cols) {
+                rebuildTable(grid, dataRange);
+              }
+              setSelection({ type: "col", col: to });
+            }
+          }
+          setReorderDrag(null);
+        };
+
+        document.addEventListener("mousemove", onMouseMove);
+        document.addEventListener("mouseup", onMouseUp);
+        return;
+      }
+    }
+  }, [
+    getCanvasCoords, isNearRightEdge, isNearBottomEdge, dataRange,
+    handleDataRangeChange, setSelection, swapRows, swapCols, rebuildTable, grid,
+  ]);
 
   const handleCanvasMouseMove = useCallback((e: React.MouseEvent) => {
     const canvas = canvasRef.current;
@@ -582,9 +697,9 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     } else if (nearBottom && x >= ROW_NUM_WIDTH && x <= ROW_NUM_WIDTH + dataRange.cols * COL_WIDTH) {
       canvas.style.cursor = "row-resize";
     } else if (y < HEADER_HEIGHT && x >= ROW_NUM_WIDTH) {
-      canvas.style.cursor = "pointer";
+      canvas.style.cursor = "grab";
     } else if (x < ROW_NUM_WIDTH && y >= HEADER_HEIGHT) {
-      canvas.style.cursor = "pointer";
+      canvas.style.cursor = "grab";
     } else {
       canvas.style.cursor = "cell";
     }
