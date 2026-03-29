@@ -14,7 +14,6 @@ import ContentPasteIcon from "@mui/icons-material/ContentPaste";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import type { Editor } from "@tiptap/react";
 import { moveTableRow, moveTableColumn } from "../../utils/tableHelpers";
-import { isInDataRange } from "./spreadsheetUtils";
 import type { ContextMenuState, DataRange } from "./spreadsheetTypes";
 
 interface SpreadsheetContextMenuProps {
@@ -31,11 +30,6 @@ interface SpreadsheetContextMenuProps {
   readonly onSwapCols: (a: number, b: number) => void;
   readonly setDataRange: (range: DataRange) => void;
   readonly setCellValue: (row: number, col: number, value: string) => void;
-  readonly syncCellToProseMirror: (
-    row: number,
-    col: number,
-    value: string,
-  ) => void;
   readonly onOpenFilter: () => void;
   readonly isDark: boolean;
   readonly t: (key: string) => string;
@@ -56,7 +50,6 @@ export const SpreadsheetContextMenu = React.memo(
     onSwapCols,
     setDataRange,
     setCellValue,
-    syncCellToProseMirror,
     onOpenFilter,
     isDark: _isDark,
     t,
@@ -224,13 +217,10 @@ export const SpreadsheetContextMenu = React.memo(
       for (let r = range.startRow; r <= range.endRow; r++) {
         for (let c = range.startCol; c <= range.endCol; c++) {
           setCellValue(r, c, "");
-          if (isInDataRange(r, c, dataRange)) {
-            syncCellToProseMirror(r, c, "");
-          }
         }
       }
       onClose();
-    }, [getTargetCells, rangesToTsv, dataRange, setCellValue, syncCellToProseMirror, onClose]);
+    }, [getTargetCells, rangesToTsv, setCellValue, onClose]);
 
     const handlePaste = useCallback(() => {
       const range = getTargetCells();
@@ -244,15 +234,12 @@ export const SpreadsheetContextMenu = React.memo(
             const col = range.startCol + c;
             if (row < grid.length && col < grid[0].length) {
               setCellValue(row, col, lines[r][c]);
-              if (isInDataRange(row, col, dataRange)) {
-                syncCellToProseMirror(row, col, lines[r][c]);
-              }
             }
           }
         }
       }).catch(() => {/* ignore */});
       onClose();
-    }, [getTargetCells, grid, dataRange, setCellValue, syncCellToProseMirror, onClose]);
+    }, [getTargetCells, grid, setCellValue, onClose]);
 
     const rotatedIconSx = { transform: "rotate(-90deg)" } as const;
 

@@ -8,12 +8,12 @@ import MoveUpIcon from "@mui/icons-material/MoveUp";
 import TableChartIcon from "@mui/icons-material/TableChart";
 import TableRowsIcon from "@mui/icons-material/TableRows";
 import ViewColumnIcon from "@mui/icons-material/ViewColumn";
-import { Box, Divider, Paper, ToggleButton, ToggleButtonGroup, Tooltip, Typography, useTheme } from "@mui/material";
+import { Box, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Divider, Paper, ToggleButton, ToggleButtonGroup, Tooltip, Typography, useTheme } from "@mui/material";
 import type { Fragment } from "@tiptap/pm/model";
 import type { Editor, NodeViewProps } from "@tiptap/react";
 import { NodeViewContent, NodeViewWrapper } from "@tiptap/react";
 import { useTranslations } from "next-intl";
-import { useMemo } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import { BlockInlineToolbar } from "./components/codeblock/BlockInlineToolbar";
 import { SpreadsheetGrid } from "./components/spreadsheet/SpreadsheetGrid";
@@ -234,15 +234,15 @@ function buildTableBodySx(collapsed: boolean, editOpen: boolean, isDark: boolean
 }
 
 /** 編集ヘッダーツールバー */
-function TableEditHeader({ editor, isDark, isEditable, isSpreadsheet, setEditOpen, t }: Readonly<{
+function TableEditHeader({ editor, isDark, isEditable, isSpreadsheet, onClose, t }: Readonly<{
   editor: Editor; isDark: boolean; isEditable: boolean; isSpreadsheet: boolean;
-  setEditOpen: (v: boolean) => void; t: (key: string) => string;
+  onClose: () => void; t: (key: string) => string;
 }>) {
   return (
     <Box contentEditable={false}>
       <EditDialogHeader
         label={t("tableLabel")}
-        onClose={() => setEditOpen(false)}
+        onClose={onClose}
         icon={<TableChartIcon sx={{ fontSize: 18 }} />}
         t={t}
       />
@@ -304,11 +304,33 @@ export function TableNodeView({ editor, node, getPos }: Readonly<NodeViewProps>)
   const onDeleteAction = canInteract ? () => setDeleteDialogOpen(true) : undefined;
   const onTableDoubleClick = isEditable ? undefined : () => setEditOpen(true);
 
+  // スプレッドシートの未適用変更追跡
+  const spreadsheetDirtyRef = useRef(false);
+  const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
+
+  const handleDirtyChange = useCallback((dirty: boolean) => {
+    spreadsheetDirtyRef.current = dirty;
+  }, []);
+
+  const tryCloseEdit = useCallback(() => {
+    if (spreadsheetDirtyRef.current) {
+      setDiscardDialogOpen(true);
+    } else {
+      setEditOpen(false);
+    }
+  }, [setEditOpen]);
+
+  const handleDiscardConfirm = useCallback(() => {
+    setDiscardDialogOpen(false);
+    spreadsheetDirtyRef.current = false;
+    setEditOpen(false);
+  }, [setEditOpen]);
+
   const dialogProps = editOpen ? {
     role: "dialog" as const,
     "aria-modal": true as const,
     "aria-label": t("tableLabel"),
-    onKeyDown: (e: React.KeyboardEvent) => { if (e.key === "Escape") setEditOpen(false); },
+    onKeyDown: (e: React.KeyboardEvent) => { if (e.key === "Escape") tryCloseEdit(); },
   } : {};
 
   return (
@@ -320,7 +342,7 @@ export function TableNodeView({ editor, node, getPos }: Readonly<NodeViewProps>)
         tabIndex={editOpen ? -1 : undefined}
         sx={buildPaperSx(editOpen, isEditable, isDark, showToolbar)}
       >
-        {editOpen && <TableEditHeader editor={editor} isDark={isDark} isEditable={isEditable} isSpreadsheet={!showCompare} setEditOpen={setEditOpen} t={t} />}
+        {editOpen && <TableEditHeader editor={editor} isDark={isDark} isEditable={isEditable} isSpreadsheet={!showCompare} onClose={tryCloseEdit} t={t} />}
 
         {showInlineToolbar && (
           <BlockInlineToolbar
@@ -348,6 +370,7 @@ export function TableNodeView({ editor, node, getPos }: Readonly<NodeViewProps>)
               t={t}
               gridRows={editor.extensionManager.extensions.find((e) => e.name === "table")?.options?.gridRows}
               gridCols={editor.extensionManager.extensions.find((e) => e.name === "table")?.options?.gridCols}
+              onDirtyChange={handleDirtyChange}
             />
             {/* ProseMirror table hidden but kept in DOM for sync */}
             <Box sx={{ display: "none" }}>
@@ -369,6 +392,16 @@ export function TableNodeView({ editor, node, getPos }: Readonly<NodeViewProps>)
         onDelete={handleDeleteBlock}
         t={t}
       />
+      <Dialog open={discardDialogOpen} onClose={() => setDiscardDialogOpen(false)}>
+        <DialogTitle>{t("spreadsheetDiscardTitle")}</DialogTitle>
+        <DialogContent>
+          <DialogContentText>{t("spreadsheetDiscardMessage")}</DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDiscardDialogOpen(false)}>{t("spreadsheetDiscardCancel")}</Button>
+          <Button onClick={handleDiscardConfirm} color="error">{t("spreadsheetDiscardConfirm")}</Button>
+        </DialogActions>
+      </Dialog>
     </NodeViewWrapper>
   );
 }

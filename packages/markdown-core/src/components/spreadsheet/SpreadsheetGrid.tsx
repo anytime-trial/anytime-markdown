@@ -1,6 +1,7 @@
 import FormatAlignCenterIcon from "@mui/icons-material/FormatAlignCenter";
 import FormatAlignLeftIcon from "@mui/icons-material/FormatAlignLeft";
 import FormatAlignRightIcon from "@mui/icons-material/FormatAlignRight";
+import CheckIcon from "@mui/icons-material/Check";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import FilterListOffIcon from "@mui/icons-material/FilterListOff";
 import SettingsIcon from "@mui/icons-material/Settings";
@@ -56,10 +57,12 @@ interface SpreadsheetGridProps {
   readonly editor: Editor;
   readonly isDark: boolean;
   readonly t: (key: string) => string;
-  /** グリッドの行数（デフォルト: 100） */
+  /** グリッドの行数（デフォルト: 51） */
   readonly gridRows?: number;
-  /** グリッドの列数（デフォルト: 26） */
+  /** グリッドの列数（デフォルト: 15） */
   readonly gridCols?: number;
+  /** 未適用の変更有無が変化したときのコールバック */
+  readonly onDirtyChange?: (dirty: boolean) => void;
 }
 
 /* ------------------------------------------------------------------ */
@@ -72,6 +75,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
   t,
   gridRows: GRID_ROWS = DEFAULT_GRID_ROWS,
   gridCols: GRID_COLS = DEFAULT_GRID_COLS,
+  onDirtyChange,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -139,9 +143,8 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
   const handleDataRangeChange = useCallback(
     (newRange: DataRange) => {
       setDataRange(newRange);
-      rebuildTable(grid, newRange);
     },
-    [setDataRange, rebuildTable, grid],
+    [setDataRange],
   );
 
   /* Cell size settings */
@@ -859,21 +862,15 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
 
   const startEditingWithChar = useCallback((row: number, col: number, char: string) => {
     setCellValue(row, col, char);
-    if (isInDataRange(row, col, dataRange)) {
-      syncCellToProseMirror(row, col, char);
-    }
     setEditing({ row, col, value: char });
     setEditValue(char);
-  }, [setCellValue, dataRange, syncCellToProseMirror]);
+  }, [setCellValue]);
 
   const commitEditing = useCallback((value: string) => {
     if (!editing) return;
     setCellValue(editing.row, editing.col, value);
-    if (isInDataRange(editing.row, editing.col, dataRange)) {
-      syncCellToProseMirror(editing.row, editing.col, value);
-    }
     setEditing(null);
-  }, [editing, setCellValue, dataRange, syncCellToProseMirror]);
+  }, [editing, setCellValue]);
 
   const cancelEditing = useCallback(() => {
     setEditing(null);
@@ -1083,9 +1080,6 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
               const to = drag.targetIndex > from ? drag.targetIndex - 1 : drag.targetIndex;
               if (from !== to) {
                 swapRows(from, to);
-                if (from < dataRange.rows && to < dataRange.rows) {
-                  rebuildTable(grid, dataRange);
-                }
                 setSelection({ type: "row", start: to, end: to });
               }
             }
@@ -1133,9 +1127,6 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
               const to = drag.targetIndex > from ? drag.targetIndex - 1 : drag.targetIndex;
               if (from !== to) {
                 swapCols(from, to);
-                if (from < dataRange.cols && to < dataRange.cols) {
-                  rebuildTable(grid, dataRange);
-                }
                 setSelection({ type: "col", start: to, end: to });
               }
             }
@@ -1305,7 +1296,6 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
           for (let r = anchor.minR; r <= anchor.maxR; r++) {
             for (let c = anchor.minC; c <= anchor.maxC; c++) {
               setCellValue(r, c, "");
-              if (isInDataRange(r, c, dataRange)) syncCellToProseMirror(r, c, "");
             }
           }
         }
@@ -1322,9 +1312,6 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
               const targetCol = anchor.minC + c;
               if (targetRow < grid.length && targetCol < grid[0].length) {
                 setCellValue(targetRow, targetCol, lines[r][c]);
-                if (isInDataRange(targetRow, targetCol, dataRange)) {
-                  syncCellToProseMirror(targetRow, targetCol, lines[r][c]);
-                }
               }
             }
           }
@@ -1357,9 +1344,6 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
       e.preventDefault();
       if (selection?.type === "cell") {
         setCellValue(selection.row, selection.col, "");
-        if (isInDataRange(selection.row, selection.col, dataRange)) {
-          syncCellToProseMirror(selection.row, selection.col, "");
-        }
       } else if (selection?.type === "range") {
         const minR = Math.min(selection.startRow, selection.endRow);
         const maxR = Math.max(selection.startRow, selection.endRow);
@@ -1368,7 +1352,6 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
         for (let r = minR; r <= maxR; r++) {
           for (let c = minC; c <= maxC; c++) {
             setCellValue(r, c, "");
-            if (isInDataRange(r, c, dataRange)) syncCellToProseMirror(r, c, "");
           }
         }
       }
@@ -1384,7 +1367,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     }
   }, [
     editing, editor, grid, selection, handleKeyNavigation, startEditing,
-    startEditingWithChar, setCellValue, dataRange, syncCellToProseMirror,
+    startEditingWithChar, setCellValue, dataRange,
   ]);
 
   /* ---------------------------------------------------------------- */
@@ -1485,10 +1468,36 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
         setAlignments(newAligns);
       }
 
-      rebuildTable(grid, dataRange, newAligns);
     },
-    [selection, setCellAlign, setAlignments, alignments, rebuildTable, grid, dataRange],
+    [selection, setCellAlign, setAlignments, alignments],
   );
+
+  /** 未適用の変更追跡 */
+  const [dirty, setDirty] = useState(false);
+  const dirtyRef = useRef(false);
+
+  // grid/alignments/dataRange の変更を検知して dirty フラグを立てる
+  // 初回レンダリングをスキップするため ref で管理
+  const initializedRef = useRef(false);
+  useEffect(() => {
+    if (!initializedRef.current) {
+      initializedRef.current = true;
+      return;
+    }
+    if (!dirtyRef.current) {
+      dirtyRef.current = true;
+      setDirty(true);
+      onDirtyChange?.(true);
+    }
+  }, [grid, alignments, dataRange, onDirtyChange]);
+
+  /** 適用ボタン: グリッド全体を ProseMirror に一括反映 */
+  const handleApply = useCallback(() => {
+    rebuildTable(grid, dataRange, alignments);
+    dirtyRef.current = false;
+    setDirty(false);
+    onDirtyChange?.(false);
+  }, [rebuildTable, grid, dataRange, alignments, onDirtyChange]);
 
   const iconSx = { fontSize: 16 };
 
@@ -1531,6 +1540,19 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
           <IconButton size="small" onClick={() => { setSettingsDraft(settings); setSettingsOpen(true); }} sx={{ ml: 0.5 }}>
             <SettingsIcon sx={{ fontSize: 16 }} />
           </IconButton>
+        </Tooltip>
+        <Box sx={{ flex: 1 }} />
+        <Tooltip title={t("spreadsheetApply")} placement="top">
+          <Button
+            size="small"
+            variant={dirty ? "contained" : "outlined"}
+            color={dirty ? "primary" : "inherit"}
+            startIcon={<CheckIcon sx={{ fontSize: 14 }} />}
+            onClick={handleApply}
+            sx={{ textTransform: "none", fontSize: 12, height: 24, px: 1.5 }}
+          >
+            {t("spreadsheetApply")}
+          </Button>
         </Tooltip>
       </Box>
 
@@ -1699,7 +1721,6 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
           onSwapCols={swapCols}
           setDataRange={setDataRange}
           setCellValue={setCellValue}
-          syncCellToProseMirror={syncCellToProseMirror}
           onOpenFilter={() => setFilterRowVisible(true)}
           isDark={isDark}
           t={t}
