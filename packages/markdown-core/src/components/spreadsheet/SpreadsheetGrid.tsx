@@ -351,8 +351,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     const isColDropTarget =
       dragState?.type === "col" && dragState.targetIndex === col;
     return (
-      <Box
-        component="th"
+      <th
         key={col}
         draggable
         onClick={() => handleColSelect(col)}
@@ -361,7 +360,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
         onDragOver={(e: React.DragEvent) => handleDragOver("col", col, e)}
         onDrop={(e: React.DragEvent) => handleDrop("col", col, e)}
         onDragEnd={handleDragEnd}
-        sx={{
+        style={{
           position: "sticky",
           top: 0,
           zIndex: 2,
@@ -387,7 +386,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
         }}
       >
         {columnLabel(col)}
-      </Box>
+      </th>
     );
   });
 
@@ -398,10 +397,9 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     const isRowDropTarget =
       dragState?.type === "row" && dragState.targetIndex === row;
     return (
-      <Box component="tr" key={row}>
+      <tr key={row}>
         {/* Row number cell */}
-        <Box
-          component="td"
+        <td
           draggable
           onClick={() => handleRowSelect(row)}
           onContextMenu={(e: React.MouseEvent) =>
@@ -411,7 +409,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
           onDragOver={(e: React.DragEvent) => handleDragOver("row", row, e)}
           onDrop={(e: React.DragEvent) => handleDrop("row", row, e)}
           onDragEnd={handleDragEnd}
-          sx={{
+          style={{
             position: "sticky",
             left: 0,
             zIndex: 1,
@@ -437,7 +435,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
           }}
         >
           {row + 1}
-        </Box>
+        </td>
         {/* Data cells */}
         {Array.from({ length: GRID_COLS }, (_, col) => {
           const isSelected = isCellSelected(row, col);
@@ -454,10 +452,9 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
           const colSelected = isColSelected(col);
 
           return (
-            <Box
-              component="td"
+            <td
               key={col}
-              sx={{
+              style={{
                 padding: 0,
                 position: "relative",
                 minWidth: 80,
@@ -486,10 +483,10 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
                 }
                 isDark={isDark}
               />
-            </Box>
+            </td>
           );
         })}
-      </Box>
+      </tr>
     );
   });
 
@@ -504,20 +501,18 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
         lineHeight: "24px",
       }}
     >
-      <Box
-        component="table"
-        sx={{
+      <table
+        style={{
           borderCollapse: "separate",
           borderSpacing: 0,
           tableLayout: "fixed",
         }}
       >
-        <Box component="thead">
-          <Box component="tr">
+        <thead>
+          <tr>
             {/* Top-left corner cell */}
-            <Box
-              component="th"
-              sx={{
+            <th
+              style={{
                 position: "sticky",
                 top: 0,
                 left: 0,
@@ -534,10 +529,10 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
               }}
             />
             {columnHeaders}
-          </Box>
-        </Box>
-        <Box component="tbody">{rows}</Box>
-      </Box>
+          </tr>
+        </thead>
+        <tbody>{rows}</tbody>
+      </table>
 
       {contextMenu !== null && (
         <SpreadsheetContextMenu
