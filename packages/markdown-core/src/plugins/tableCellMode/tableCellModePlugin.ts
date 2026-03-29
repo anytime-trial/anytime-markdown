@@ -1,4 +1,4 @@
-import { Plugin, PluginKey, type Transaction } from "@tiptap/pm/state";
+import { Plugin, PluginKey, TextSelection, type Transaction } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import {
   type TableCellModeState,
@@ -20,13 +20,25 @@ const META_KEY = "tableCellMode";
 // Transaction ヘルパー
 // ----------------------------------------------------------------
 
-/** navigation モードに設定し、選択セル位置を記録する */
+/** navigation モードに設定し、選択セル位置を記録する。
+ *  同時にセル内先頭にTextSelectionを配置し、旧カーソルを消す。 */
 export function setNavigationMode(tr: Transaction, cellPos: number): Transaction {
-  return tr.setMeta(META_KEY, {
+  tr.setMeta(META_KEY, {
     mode: "navigation",
     selectedCellPos: cellPos,
     editingCellPos: null,
   } satisfies TableCellModeState);
+  // セル内先頭に TextSelection を移動（caret-color: transparent で非表示になる）
+  try {
+    const cell = tr.doc.nodeAt(cellPos);
+    if (cell) {
+      const insidePos = cellPos + 1; // セルノード直下（paragraph の開始）
+      tr.setSelection(TextSelection.near(tr.doc.resolve(insidePos)));
+    }
+  } catch {
+    // 位置が無効な場合は無視
+  }
+  return tr;
 }
 
 /** editing モードに設定し、編集中セル位置を記録する */
