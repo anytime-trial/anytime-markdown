@@ -542,8 +542,8 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         explorerOpen={explorerOpen}
         inlineMergeOpen={inlineMergeOpen}
         hide={{
-          outline: hideOutline || (sideToolbar && !readonlyMode), comments: hideComments || sideToolbar,
-          explorer: sideToolbar, compareToggle: hideCompareToggle,
+          outline: hideOutline || (sideToolbar && !readonlyMode && isMd), comments: hideComments || (sideToolbar && isMd),
+          explorer: sideToolbar && isMd, compareToggle: hideCompareToggle,
           templates: hideTemplates, foldAll: hideFoldAll,
           fileOps: hideFileOps, undoRedo: hideUndoRedo,
           versionInfo: hideVersionInfo,
@@ -643,6 +643,10 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         hideSettings={hideSettings} hideVersionInfo={hideVersionInfo}
         hideTemplates={hideTemplates} inlineMergeOpen={inlineMergeOpen}
         appendToSource={appendToSource}
+        outlineOpen={outlineOpen} commentOpen={commentOpen}
+        onToggleOutline={handleToggleOutline}
+        onToggleComments={() => setCommentOpen((prev) => !prev)}
+        onOpenSettings={hideSettings ? undefined : () => setSettingsOpen(true)}
         pdfExporting={pdfExporting} notification={notification} setNotification={setNotification} t={t}
       />
     </Box>
