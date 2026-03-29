@@ -112,7 +112,7 @@ function createMockEditor(overrides?: Record<string, any>) {
   return {
     chain,
     view: { dom: { dataset: {} } },
-    state: { selection: { from: 0, to: 0 } },
+    state: { selection: { from: 0, to: 0 }, doc: { descendants: jest.fn() } },
     isActive: () => false,
     storage: { searchReplace: true },
     extensionManager: {
