@@ -1,3 +1,8 @@
+import { DOMParser } from '@xmldom/xmldom';
+// @aws-sdk/client-s3 が XML レスポンスのパースに DOMParser を使用するが、
+// Cloudflare Workers 環境には存在しないためポリフィルが必要
+(globalThis as unknown as Record<string, unknown>).DOMParser = DOMParser;
+
 import { Hono } from 'hono';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { toReqRes, toFetchResponse } from 'fetch-to-node';

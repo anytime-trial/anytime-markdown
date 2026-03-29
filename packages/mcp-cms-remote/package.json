@@ -11,8 +11,9 @@
   "dependencies": {
     "@anytime-markdown/cms-core": "*",
     "@modelcontextprotocol/sdk": "1.27.1",
-    "hono": "4.12.9",
+    "@xmldom/xmldom": "0.9.8",
     "fetch-to-node": "2.1.0",
+    "hono": "4.12.9",
     "zod": "3.25.76"
   },
   "devDependencies": {
