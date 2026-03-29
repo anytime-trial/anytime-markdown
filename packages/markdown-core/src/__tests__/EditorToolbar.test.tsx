@@ -69,18 +69,6 @@ describe("EditorToolbar", () => {
     expect(container.firstChild).toBeTruthy();
   });
 
-  test("新規ドキュメントボタンをクリックするとonClearが呼ばれる", () => {
-    const onClear = jest.fn();
-    const props = createDefaultProps({
-      fileHandlers: { ...defaultFileHandlers, onClear },
-    });
-    render(<EditorToolbar {...props} />);
-
-    const btn = screen.getByLabelText("createNew");
-    fireEvent.click(btn);
-    expect(onClear).toHaveBeenCalledTimes(1);
-  });
-
   test("supportsDirectAccess=true のとき、ファイルシステムボタン（open/save/saveAs）を表示する", () => {
     const props = createDefaultProps({
       fileCapabilities: { supportsDirectAccess: true },

@@ -67,66 +67,45 @@ describe("ToolbarFileActions", () => {
     expect(screen.getAllByLabelText("openFile").length).toBeGreaterThanOrEqual(1);
   });
 
-  it("opens file menu on mobile button click", () => {
-    renderComponent();
-    const fileBtns = screen.getAllByLabelText("fileActions");
-    fireEvent.click(fileBtns[0]);
-    expect(screen.getByText("createNew")).toBeTruthy();
-  });
-
   it("shows merge right file buttons when inlineMergeOpen", () => {
     renderComponent({ inlineMergeOpen: true });
     expect(screen.getAllByLabelText("loadCompareFile").length).toBeGreaterThanOrEqual(1);
   });
 
-  it("calls onClear when new is clicked", () => {
-    const handlers = createHandlers();
-    renderComponent({ fileHandlers: handlers });
-    const newBtns = screen.getAllByLabelText("createNew");
-    fireEvent.click(newBtns[0]);
-    expect(handlers.onClear).toHaveBeenCalled();
-  });
-
-  it("menu items work with supportsDirectAccess", () => {
+  it("desktop buttons work with supportsDirectAccess", () => {
     const handlers = createHandlers();
     renderComponent({
       fileHandlers: handlers,
       fileCapabilities: { supportsDirectAccess: true, hasFileHandle: true },
     });
-    // Open mobile menu
-    fireEvent.click(screen.getAllByLabelText("fileActions")[0]);
-    // Click open
-    fireEvent.click(screen.getByText("openFile"));
+    fireEvent.click(screen.getAllByLabelText("openFile")[0]);
     expect(handlers.onOpenFile).toHaveBeenCalled();
   });
 
-  it("menu items work with externalSaveOnly", () => {
+  it("desktop buttons work with externalSaveOnly", () => {
     const handlers = createHandlers();
     renderComponent({
       fileHandlers: handlers,
       fileCapabilities: { externalSaveOnly: true, hasFileHandle: true },
     });
-    fireEvent.click(screen.getAllByLabelText("fileActions")[0]);
-    fireEvent.click(screen.getByText("saveFile"));
+    fireEvent.click(screen.getAllByLabelText("saveFile")[0]);
     expect(handlers.onSaveFile).toHaveBeenCalled();
   });
 
-  it("menu items work without direct access", () => {
+  it("desktop buttons work without direct access", () => {
     const handlers = createHandlers();
     renderComponent({
       fileHandlers: handlers,
       fileCapabilities: { supportsDirectAccess: false },
     });
-    fireEvent.click(screen.getAllByLabelText("fileActions")[0]);
-    fireEvent.click(screen.getByText("openFile"));
+    fireEvent.click(screen.getAllByLabelText("openFile")[0]);
     expect(handlers.onImport).toHaveBeenCalled();
   });
 
-  it("export PDF menu item works", () => {
+  it("export PDF button works", () => {
     const handlers = createHandlers();
     renderComponent({ fileHandlers: handlers });
-    fireEvent.click(screen.getAllByLabelText("fileActions")[0]);
-    fireEvent.click(screen.getByText("exportPdf"));
+    fireEvent.click(screen.getAllByLabelText("exportPdf")[0]);
     expect(handlers.onExportPdf).toHaveBeenCalled();
   });
 

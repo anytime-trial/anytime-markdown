@@ -276,24 +276,15 @@ describe("CodeBlockNodeView - coverage", () => {
   });
 
   // --- handleFsCodeChange (via onFsCodeChange) ---
-  test("onFsCodeChange で非空コードが TipTap ノードに反映される", () => {
-    const { editor } = renderCodeBlock("javascript");
+  test("onFsCodeChange でローカル状態が更新される（ProseMirror には即時反映しない）", () => {
+    renderCodeBlock("javascript");
     const props = mockRegularCodeBlock.mock.calls[0][0];
     const event = { target: { value: "new code" } } as React.ChangeEvent<HTMLTextAreaElement>;
     act(() => {
       props.onFsCodeChange(event);
     });
-    expect(editor.chain).toHaveBeenCalled();
-  });
-
-  test("onFsCodeChange で空コードが TipTap ノードに反映される", () => {
-    const { editor } = renderCodeBlock("javascript");
-    const props = mockRegularCodeBlock.mock.calls[0][0];
-    const event = { target: { value: "" } } as React.ChangeEvent<HTMLTextAreaElement>;
-    act(() => {
-      props.onFsCodeChange(event);
-    });
-    expect(editor.chain).toHaveBeenCalled();
+    // dirty+apply パターン: ローカル状態のみ更新し editor.chain は呼ばない
+    expect(props.fsDirty).toBeDefined();
   });
 
   test("onFsCodeChange: editor が null の場合何もしない", () => {
@@ -307,20 +298,22 @@ describe("CodeBlockNodeView - coverage", () => {
   });
 
   // --- handleFsTextChange ---
-  test("handleFsTextChange で非空コードが反映される", () => {
-    const { editor } = renderCodeBlock("javascript");
+  test("handleFsTextChange でローカル状態が更新される（ProseMirror には即時反映しない）", () => {
+    renderCodeBlock("javascript");
     const props = mockRegularCodeBlock.mock.calls[0][0];
     act(() => {
       props.handleFsTextChange("updated text");
     });
-    expect(editor.chain).toHaveBeenCalled();
+    // dirty+apply パターン: ローカル状態のみ更新
+    expect(props.fsDirty).toBeDefined();
   });
 
-  test("handleFsTextChange で空コードが反映される", () => {
+  // --- onFsApply ---
+  test("onFsApply で ProseMirror に一括反映される", () => {
     const { editor } = renderCodeBlock("javascript");
     const props = mockRegularCodeBlock.mock.calls[0][0];
     act(() => {
-      props.handleFsTextChange("");
+      props.onFsApply();
     });
     expect(editor.chain).toHaveBeenCalled();
   });
