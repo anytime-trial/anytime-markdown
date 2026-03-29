@@ -536,10 +536,12 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
   }, [getGridCoords, startEditing]);
 
   const handleCanvasContextMenu = useCallback((e: React.MouseEvent) => {
+    // スプレッドシート上では常にデフォルトのコンテキストメニューを抑止
+    e.preventDefault();
+
     // Row context menu
     const row = getRowNum(e);
     if (row !== null) {
-      e.preventDefault();
       setContextMenu({
         anchorX: e.clientX,
         anchorY: e.clientY,
@@ -551,7 +553,6 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     // Column context menu
     const col = getHeaderCol(e);
     if (col !== null) {
-      e.preventDefault();
       setContextMenu({
         anchorX: e.clientX,
         anchorY: e.clientY,
