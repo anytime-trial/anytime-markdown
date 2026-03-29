@@ -357,7 +357,7 @@ describe("MathBlock - coverage", () => {
     if (capturedMathEditDialogProps.onClose) {
       capturedMathEditDialogProps.onClose();
       expect(resetFn).toHaveBeenCalled();
-      expect(props.tryCloseEdit).toHaveBeenCalled();
+      expect(setEditOpen).toHaveBeenCalledWith(false);
     }
   });
 

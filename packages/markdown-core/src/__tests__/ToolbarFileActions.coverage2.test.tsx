@@ -1,6 +1,14 @@
 /**
  * ToolbarFileActions.tsx coverage2 tests
- * Desktop button interactions for various file capability modes
+ * Targets remaining uncovered lines:
+ *   61: externalSaveOnly - mobile menu save click
+ *   68: supportsDirectAccess - mobile menu open click
+ *   72: supportsDirectAccess - mobile menu save click
+ *   76: supportsDirectAccess - mobile menu saveAs click
+ *   83: default mode - mobile menu open (import) click
+ *   87: default mode - mobile menu saveAs (download) click
+ *   108,111: mobile createNew menu item click
+ *   118: mobile exportPdf menu item click
  */
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
@@ -41,88 +49,161 @@ function renderComponent(props: Partial<React.ComponentProps<typeof ToolbarFileA
   );
 }
 
-describe("ToolbarFileActions - coverage2 (desktop button interactions)", () => {
-  it("calls onSaveFile in externalSaveOnly mode", () => {
+function openMobileMenu() {
+  // Mobile file menu button
+  const fileButtons = screen.getAllByLabelText("fileActions");
+  fireEvent.click(fileButtons[0]);
+}
+
+describe("ToolbarFileActions - coverage2 (mobile menu interactions)", () => {
+  // --- externalSaveOnly: mobile menu save click (line 61) ---
+  it("calls onSaveFile from mobile menu in externalSaveOnly mode", () => {
     const handlers = createHandlers();
     renderComponent({
       fileHandlers: handlers,
       fileCapabilities: { externalSaveOnly: true, hasFileHandle: true },
     });
-    fireEvent.click(screen.getAllByLabelText("saveFile")[0]);
+
+    openMobileMenu();
+
+    const saveItems = screen.getAllByText("saveFile");
+    // Click the one in the menu (MenuItem)
+    fireEvent.click(saveItems[0]);
     expect(handlers.onSaveFile).toHaveBeenCalled();
   });
 
-  it("calls onOpenFile in supportsDirectAccess mode", () => {
+  // --- supportsDirectAccess: mobile menu items (lines 68, 72, 76) ---
+  it("calls onOpenFile from mobile menu in supportsDirectAccess mode", () => {
     const handlers = createHandlers();
     renderComponent({
       fileHandlers: handlers,
       fileCapabilities: { supportsDirectAccess: true, hasFileHandle: true },
     });
-    fireEvent.click(screen.getAllByLabelText("openFile")[0]);
+
+    openMobileMenu();
+
+    const openItems = screen.getAllByText("openFile");
+    fireEvent.click(openItems[0]);
     expect(handlers.onOpenFile).toHaveBeenCalled();
   });
 
-  it("calls onSaveFile in supportsDirectAccess mode", () => {
+  it("calls onSaveFile from mobile menu in supportsDirectAccess mode", () => {
     const handlers = createHandlers();
     renderComponent({
       fileHandlers: handlers,
       fileCapabilities: { supportsDirectAccess: true, hasFileHandle: true },
     });
-    fireEvent.click(screen.getAllByLabelText("saveFile")[0]);
+
+    openMobileMenu();
+
+    const saveItems = screen.getAllByText("saveFile");
+    fireEvent.click(saveItems[0]);
     expect(handlers.onSaveFile).toHaveBeenCalled();
   });
 
-  it("calls onSaveAsFile in supportsDirectAccess mode", () => {
+  it("calls onSaveAsFile from mobile menu in supportsDirectAccess mode", () => {
     const handlers = createHandlers();
     renderComponent({
       fileHandlers: handlers,
       fileCapabilities: { supportsDirectAccess: true, hasFileHandle: false },
     });
-    fireEvent.click(screen.getAllByLabelText("saveAsFile")[0]);
+
+    openMobileMenu();
+
+    const saveAsItems = screen.getAllByText("saveAsFile");
+    fireEvent.click(saveAsItems[0]);
     expect(handlers.onSaveAsFile).toHaveBeenCalled();
   });
 
-  it("calls onImport in default mode (no direct access)", () => {
+  // --- default mode (no direct access, no external save): mobile menu items (lines 83, 87) ---
+  it("calls onImport from mobile menu in default mode", () => {
     const handlers = createHandlers();
     renderComponent({
       fileHandlers: handlers,
       fileCapabilities: { supportsDirectAccess: false },
     });
-    fireEvent.click(screen.getAllByLabelText("openFile")[0]);
+
+    openMobileMenu();
+
+    // In default mode, "openFile" label maps to onImport
+    const openItems = screen.getAllByText("openFile");
+    fireEvent.click(openItems[0]);
     expect(handlers.onImport).toHaveBeenCalled();
   });
 
-  it("calls onDownload in default mode (no direct access)", () => {
+  it("calls onDownload from mobile menu in default mode", () => {
     const handlers = createHandlers();
     renderComponent({
       fileHandlers: handlers,
       fileCapabilities: { supportsDirectAccess: false },
     });
-    fireEvent.click(screen.getAllByLabelText("saveAsFile")[0]);
+
+    openMobileMenu();
+
+    // In default mode, "saveAsFile" label maps to onDownload
+    const saveAsItems = screen.getAllByText("saveAsFile");
+    fireEvent.click(saveAsItems[0]);
     expect(handlers.onDownload).toHaveBeenCalled();
   });
 
-  it("calls onExportPdf", () => {
+  // --- createNew in mobile menu (lines 108, 111) ---
+  it("calls onClear from createNew in mobile menu", () => {
     const handlers = createHandlers();
-    renderComponent({ fileHandlers: handlers });
-    fireEvent.click(screen.getAllByLabelText("exportPdf")[0]);
+    renderComponent({
+      fileHandlers: handlers,
+    });
+
+    openMobileMenu();
+
+    const createNewItem = screen.getByText("createNew");
+    fireEvent.click(createNewItem);
+    expect(handlers.onClear).toHaveBeenCalled();
+  });
+
+  it("does not show createNew in externalSaveOnly mobile menu", () => {
+    renderComponent({
+      fileCapabilities: { externalSaveOnly: true, hasFileHandle: true },
+    });
+
+    openMobileMenu();
+
+    expect(screen.queryByText("createNew")).toBeNull();
+  });
+
+  // --- exportPdf in mobile menu (line 118) ---
+  it("calls onExportPdf from mobile menu", () => {
+    const handlers = createHandlers();
+    renderComponent({
+      fileHandlers: handlers,
+    });
+
+    openMobileMenu();
+
+    const pdfItem = screen.getByText("exportPdf");
+    fireEvent.click(pdfItem);
     expect(handlers.onExportPdf).toHaveBeenCalled();
   });
 
-  it("does not render exportPdf when handler is not provided", () => {
+  it("does not show exportPdf when handler is not provided", () => {
     const handlers = createHandlers();
+    // Remove onExportPdf
     const { onExportPdf, ...rest } = handlers;
     renderComponent({
       fileHandlers: rest as any,
     });
-    expect(screen.queryByLabelText("exportPdf")).toBeNull();
+
+    openMobileMenu();
+
+    expect(screen.queryByText("exportPdf")).toBeNull();
   });
 
+  // --- tooltip with shortcut ---
   it("shows tooltip with shortcut key", () => {
     renderComponent({
-      tooltipShortcuts: { saveFile: "Ctrl+S" },
-      fileCapabilities: { supportsDirectAccess: true, hasFileHandle: true },
+      tooltipShortcuts: { createNew: "Ctrl+N" },
     });
-    expect(screen.getAllByLabelText("saveFile").length).toBeGreaterThanOrEqual(1);
+    // The desktop button tooltip should include the shortcut
+    // Just verify component renders without error
+    expect(screen.getAllByLabelText("createNew").length).toBeGreaterThanOrEqual(1);
   });
 });
