@@ -109,6 +109,8 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
   } | null>(null);
   const reorderDragRef = useRef<typeof reorderDrag>(null);
   reorderDragRef.current = reorderDrag;
+  /** ドラッグ実行後のクリックを抑止するフラグ */
+  const suppressClickRef = useRef(false);
 
   /* ---------------------------------------------------------------- */
   /*  Theme colors                                                     */
@@ -489,6 +491,10 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
   /* ---------------------------------------------------------------- */
 
   const handleCanvasClick = useCallback((e: React.MouseEvent) => {
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
+      return;
+    }
     // Check header col
     const col = getHeaderCol(e);
     if (col !== null) {
@@ -611,41 +617,51 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
       return;
     }
 
-    // --- Row/Column reorder drag ---
-    // 行番号エリアをドラッグ → 行入れ替え
+    // --- Row/Column reorder drag (with drag threshold) ---
+    // 行番号エリア: mousedown → mousemove で 5px 以上動いたらドラッグ開始
+    const DRAG_THRESHOLD = 5;
+
     if (x < ROW_NUM_WIDTH && y >= HEADER_HEIGHT) {
       const srcRow = Math.floor((y - HEADER_HEIGHT) / ROW_HEIGHT);
       if (srcRow >= 0 && srcRow < GRID_ROWS) {
-        e.preventDefault();
-        setSelection({ type: "row", start: srcRow, end: srcRow });
-        setReorderDrag({ type: "row", sourceIndex: srcRow, targetIndex: null });
+        const startY = e.clientY;
+        let dragStarted = false;
 
         const onMouseMove = (ev: MouseEvent) => {
-          const canvas = canvasRef.current;
-          if (!canvas) return;
-          const rect = canvas.getBoundingClientRect();
-          const my = ev.clientY - rect.top;
-          const targetRow = Math.max(0, Math.min(GRID_ROWS, Math.floor((my - HEADER_HEIGHT) / ROW_HEIGHT)));
-          setReorderDrag((prev) => prev ? { ...prev, targetIndex: targetRow } : null);
+          if (!dragStarted && Math.abs(ev.clientY - startY) >= DRAG_THRESHOLD) {
+            dragStarted = true;
+            setReorderDrag({ type: "row", sourceIndex: srcRow, targetIndex: null });
+          }
+          if (dragStarted) {
+            const canvas = canvasRef.current;
+            if (!canvas) return;
+            const rect = canvas.getBoundingClientRect();
+            const my = ev.clientY - rect.top;
+            const targetRow = Math.max(0, Math.min(GRID_ROWS, Math.floor((my - HEADER_HEIGHT) / ROW_HEIGHT)));
+            setReorderDrag((prev) => prev ? { ...prev, targetIndex: targetRow } : null);
+          }
         };
 
         const onMouseUp = () => {
           document.removeEventListener("mousemove", onMouseMove);
           document.removeEventListener("mouseup", onMouseUp);
-          const drag = reorderDragRef.current;
-          if (drag && drag.targetIndex !== null && drag.targetIndex !== drag.sourceIndex) {
-            // 挿入先の調整: ドラッグ先がソースより後ろの場合、1つ手前に
-            const from = drag.sourceIndex;
-            const to = drag.targetIndex > from ? drag.targetIndex - 1 : drag.targetIndex;
-            if (from !== to) {
-              swapRows(from, to);
-              if (from < dataRange.rows && to < dataRange.rows) {
-                rebuildTable(grid, dataRange);
+          if (dragStarted) {
+            const drag = reorderDragRef.current;
+            if (drag && drag.targetIndex !== null && drag.targetIndex !== drag.sourceIndex) {
+              const from = drag.sourceIndex;
+              const to = drag.targetIndex > from ? drag.targetIndex - 1 : drag.targetIndex;
+              if (from !== to) {
+                swapRows(from, to);
+                if (from < dataRange.rows && to < dataRange.rows) {
+                  rebuildTable(grid, dataRange);
+                }
+                setSelection({ type: "row", start: to, end: to });
               }
-              setSelection({ type: "row", start: to, end: to });
             }
+            setReorderDrag(null);
+            suppressClickRef.current = true;
           }
-          setReorderDrag(null);
+          // ドラッグしなかった場合は click イベントで選択処理される
         };
 
         document.addEventListener("mousemove", onMouseMove);
@@ -654,39 +670,47 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
       }
     }
 
-    // 列ヘッダーエリアをドラッグ → 列入れ替え
+    // 列ヘッダーエリア: 同様にドラッグ閾値付き
     if (y < HEADER_HEIGHT && x >= ROW_NUM_WIDTH) {
       const srcCol = Math.floor((x - ROW_NUM_WIDTH) / COL_WIDTH);
       if (srcCol >= 0 && srcCol < GRID_COLS) {
-        e.preventDefault();
-        setSelection({ type: "col", start: srcCol, end: srcCol });
-        setReorderDrag({ type: "col", sourceIndex: srcCol, targetIndex: null });
+        const startX = e.clientX;
+        let dragStarted = false;
 
         const onMouseMove = (ev: MouseEvent) => {
-          const canvas = canvasRef.current;
-          if (!canvas) return;
-          const rect = canvas.getBoundingClientRect();
-          const mx = ev.clientX - rect.left;
-          const targetCol = Math.max(0, Math.min(GRID_COLS, Math.floor((mx - ROW_NUM_WIDTH) / COL_WIDTH)));
-          setReorderDrag((prev) => prev ? { ...prev, targetIndex: targetCol } : null);
+          if (!dragStarted && Math.abs(ev.clientX - startX) >= DRAG_THRESHOLD) {
+            dragStarted = true;
+            setReorderDrag({ type: "col", sourceIndex: srcCol, targetIndex: null });
+          }
+          if (dragStarted) {
+            const canvas = canvasRef.current;
+            if (!canvas) return;
+            const rect = canvas.getBoundingClientRect();
+            const mx = ev.clientX - rect.left;
+            const targetCol = Math.max(0, Math.min(GRID_COLS, Math.floor((mx - ROW_NUM_WIDTH) / COL_WIDTH)));
+            setReorderDrag((prev) => prev ? { ...prev, targetIndex: targetCol } : null);
+          }
         };
 
         const onMouseUp = () => {
           document.removeEventListener("mousemove", onMouseMove);
           document.removeEventListener("mouseup", onMouseUp);
-          const drag = reorderDragRef.current;
-          if (drag && drag.targetIndex !== null && drag.targetIndex !== drag.sourceIndex) {
-            const from = drag.sourceIndex;
-            const to = drag.targetIndex > from ? drag.targetIndex - 1 : drag.targetIndex;
-            if (from !== to) {
-              swapCols(from, to);
-              if (from < dataRange.cols && to < dataRange.cols) {
-                rebuildTable(grid, dataRange);
+          if (dragStarted) {
+            const drag = reorderDragRef.current;
+            if (drag && drag.targetIndex !== null && drag.targetIndex !== drag.sourceIndex) {
+              const from = drag.sourceIndex;
+              const to = drag.targetIndex > from ? drag.targetIndex - 1 : drag.targetIndex;
+              if (from !== to) {
+                swapCols(from, to);
+                if (from < dataRange.cols && to < dataRange.cols) {
+                  rebuildTable(grid, dataRange);
+                }
+                setSelection({ type: "col", start: to, end: to });
               }
-              setSelection({ type: "col", start: to, end: to });
             }
+            setReorderDrag(null);
+            suppressClickRef.current = true;
           }
-          setReorderDrag(null);
         };
 
         document.addEventListener("mousemove", onMouseMove);
