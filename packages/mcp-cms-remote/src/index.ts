@@ -1,7 +1,16 @@
 import { DOMParser } from '@xmldom/xmldom';
-// @aws-sdk/client-s3 が XML レスポンスのパースに DOMParser を使用するが、
+// @aws-sdk/client-s3 が XML レスポンスのパースに DOMParser と Node を使用するが、
 // Cloudflare Workers 環境には存在しないためポリフィルが必要
-(globalThis as unknown as Record<string, unknown>).DOMParser = DOMParser;
+const g = globalThis as unknown as Record<string, unknown>;
+g.DOMParser = DOMParser;
+if (!g.Node) {
+  g.Node = {
+    ELEMENT_NODE: 1, ATTRIBUTE_NODE: 2, TEXT_NODE: 3,
+    CDATA_SECTION_NODE: 4, PROCESSING_INSTRUCTION_NODE: 7,
+    COMMENT_NODE: 8, DOCUMENT_NODE: 9, DOCUMENT_TYPE_NODE: 10,
+    DOCUMENT_FRAGMENT_NODE: 11,
+  };
+}
 
 import { Hono } from 'hono';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
