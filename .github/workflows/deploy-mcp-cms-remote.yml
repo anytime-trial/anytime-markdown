@@ -6,11 +6,14 @@ on:
     paths:
       - 'packages/mcp-cms-remote/**'
       - 'packages/cms-core/**'
+      - '.github/workflows/deploy-mcp-cms-remote.yml'
   pull_request:
     branches: [master]
     paths:
       - 'packages/mcp-cms-remote/**'
       - 'packages/cms-core/**'
+      - '.github/workflows/deploy-mcp-cms-remote.yml'
+  workflow_dispatch:
 
 concurrency:
   group: deploy-mcp-cms-remote-${{ github.ref }}
