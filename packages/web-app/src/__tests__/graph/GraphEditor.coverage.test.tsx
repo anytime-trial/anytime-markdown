@@ -1,5 +1,6 @@
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import React from "react";
+import type { GraphNode, GraphEdge } from "@anytime-markdown/graph-core";
 
 Object.defineProperty(window, "matchMedia", {
   writable: true,
@@ -33,13 +34,13 @@ const mockState = {
   document: {
     id: "doc1",
     name: "Test",
-    nodes: [],
-    edges: [],
+    nodes: [] as GraphNode[],
+    edges: [] as GraphEdge[],
     viewport: { offsetX: 0, offsetY: 0, scale: 1 },
     createdAt: Date.now(),
     updatedAt: Date.now(),
   },
-  selection: { nodeIds: [], edgeIds: [] },
+  selection: { nodeIds: [] as string[], edgeIds: [] as string[] },
   history: [{}],
   historyIndex: 0,
 };

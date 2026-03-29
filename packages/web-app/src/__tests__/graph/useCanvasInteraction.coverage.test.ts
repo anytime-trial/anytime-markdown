@@ -90,12 +90,12 @@ const makeNode = (id: string, x = 100, y = 100) => ({
   style: { fill: "#fff", stroke: "#000", strokeWidth: 2, fontSize: 14, fontFamily: "sans-serif" },
 });
 
-const makeEdge = (id: string, fromNodeId?: string, toNodeId?: string) => ({
+const makeEdge = (id: string, fromNodeId?: string, toNodeId?: string): import("@anytime-markdown/graph-core").GraphEdge => ({
   id,
   type: "connector" as const,
   from: { nodeId: fromNodeId, x: 0, y: 0 },
   to: { nodeId: toNodeId, x: 100, y: 100 },
-  style: { stroke: "#fff", strokeWidth: 2, routing: "orthogonal" },
+  style: { stroke: "#fff", strokeWidth: 2, routing: "orthogonal" as const },
 });
 
 describe("useCanvasInteraction", () => {
@@ -757,8 +757,7 @@ describe("useCanvasInteraction", () => {
   });
 
   it("handles cursor change for different hit types in select mode", () => {
-    const node = makeNode("n1");
-    node.url = "https://example.com";
+    const node = { ...makeNode("n1"), url: "https://example.com" };
     mockHitTest.mockReturnValue({ type: "node", id: "n1" });
 
     const { result } = renderHook(() =>
