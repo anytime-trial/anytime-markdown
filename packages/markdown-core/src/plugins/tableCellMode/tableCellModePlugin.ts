@@ -7,6 +7,7 @@ import {
 import { CELL_NAV_SELECTED, CELL_EDITING } from "./tableCellModeStyles";
 import { handleMouseDown, handleDoubleClick } from "./tableCellModeMouse";
 import { handleKeyDown } from "./tableCellModeKeymap";
+import { handleCopy, handleCut, handlePaste } from "./tableCellModeClipboard";
 
 /** Plugin の PluginKey */
 export const tableCellModePluginKey = new PluginKey<TableCellModeState>(
@@ -118,6 +119,9 @@ export function tableCellModePlugin(): Plugin<TableCellModeState> {
           handleMouseDown(view, event as MouseEvent),
         dblclick: (view, event) =>
           handleDoubleClick(view, event as MouseEvent),
+        copy: (view, event) => handleCopy(view, event as ClipboardEvent),
+        cut: (view, event) => handleCut(view, event as ClipboardEvent),
+        paste: (view, event) => handlePaste(view, event as ClipboardEvent),
       },
       decorations(state) {
         const pluginState = tableCellModePluginKey.getState(state);
