@@ -5,6 +5,7 @@ import React, { useCallback, useMemo, useRef, useState } from "react";
 import type { CellEditState, ContextMenuState } from "./spreadsheetTypes";
 import SpreadsheetCell from "./SpreadsheetCell";
 import { SpreadsheetContextMenu } from "./SpreadsheetContextMenu";
+import { SpreadsheetDataRange } from "./SpreadsheetDataRange";
 import { useSpreadsheetState } from "./useSpreadsheetState";
 import { useSpreadsheetSync, extractTableData } from "./useSpreadsheetSync";
 import {
@@ -530,6 +531,13 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
         </thead>
         <tbody>{rows}</tbody>
       </table>
+
+      <SpreadsheetDataRange
+        dataRange={dataRange}
+        onResize={setDataRange}
+        containerRef={containerRef}
+        isDark={isDark}
+      />
 
       {contextMenu !== null && (
         <SpreadsheetContextMenu

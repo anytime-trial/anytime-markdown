@@ -1,10 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { DataRange } from "./spreadsheetTypes";
 import { GRID_COLS, GRID_ROWS } from "./spreadsheetUtils";
 
@@ -15,53 +9,78 @@ interface SpreadsheetDataRangeProps {
   readonly isDark: boolean;
 }
 
-interface HandlePos {
-  readonly top: number;
-  readonly left: number;
+/** 右辺・下辺・角の位置 */
+interface EdgePositions {
+  /** 右辺: x座標, top, height */
+  right: { x: number; top: number; height: number } | null;
+  /** 下辺: y座標, left, width */
+  bottom: { y: number; left: number; width: number } | null;
 }
 
-interface PreviewRect {
-  readonly top: number;
-  readonly left: number;
-  readonly width: number;
-  readonly height: number;
-}
-
-interface DragState {
-  readonly isDragging: boolean;
-  readonly previewRange: DataRange | null;
-  readonly previewRect: PreviewRect | null;
-}
-
-const HANDLE_SIZE = 8;
+const HANDLE_THICKNESS = 6;
 const MIN_ROWS = 2;
 const MIN_COLS = 1;
 
-/**
- * Finds the target cell in the table for the data range corner.
- * Returns the cell element or null if not found.
- */
-function findCornerCell(
+/** テーブルの tbody から辺の位置を計算する */
+function computeEdgePositions(
   container: HTMLDivElement,
   dataRange: DataRange,
-): HTMLTableCellElement | null {
+): EdgePositions {
   const table = container.querySelector("table");
-  if (!table) return null;
+  if (!table) return { right: null, bottom: null };
 
-  const rows = table.querySelectorAll("tbody tr");
-  const targetRow = rows[dataRange.rows - 1];
-  if (!targetRow) return null;
+  const tbody = table.querySelector("tbody");
+  if (!tbody) return { right: null, bottom: null };
 
-  // +1 because first td is the row number column
-  const cells = targetRow.querySelectorAll("td");
-  const targetCell = cells[dataRange.cols] as HTMLTableCellElement | undefined;
-  return targetCell ?? null;
+  const trs = tbody.querySelectorAll("tr");
+  if (trs.length === 0) return { right: null, bottom: null };
+
+  const containerRect = container.getBoundingClientRect();
+  const scrollTop = container.scrollTop;
+  const scrollLeft = container.scrollLeft;
+
+  // 右辺: dataRange.cols 番目のデータセル（+1 for row number column）の右端
+  const firstRow = trs[0];
+  const firstRowCells = firstRow?.querySelectorAll("td");
+  // cells[0] = row number, cells[1] = col 0, cells[dataRange.cols] = last data col
+  const rightCell = firstRowCells?.[dataRange.cols] as HTMLTableCellElement | undefined;
+  const lastDataRow = trs[dataRange.rows - 1];
+
+  let right: EdgePositions["right"] = null;
+  if (rightCell && lastDataRow) {
+    const rightCellRect = rightCell.getBoundingClientRect();
+    const firstDataCell = firstRowCells?.[1] as HTMLTableCellElement | undefined;
+    const lastRowRect = lastDataRow.getBoundingClientRect();
+    if (firstDataCell) {
+      const firstCellRect = firstDataCell.getBoundingClientRect();
+      right = {
+        x: rightCellRect.right - containerRect.left + scrollLeft,
+        top: firstCellRect.top - containerRect.top + scrollTop,
+        height: lastRowRect.bottom - firstCellRect.top,
+      };
+    }
+  }
+
+  // 下辺: dataRange.rows 番目の行の下端
+  let bottom: EdgePositions["bottom"] = null;
+  if (lastDataRow) {
+    const lastRowRect = lastDataRow.getBoundingClientRect();
+    const firstDataCell = firstRowCells?.[1] as HTMLTableCellElement | undefined;
+    if (firstDataCell && rightCell) {
+      const firstCellRect = firstDataCell.getBoundingClientRect();
+      const rightCellRect = rightCell.getBoundingClientRect();
+      bottom = {
+        y: lastRowRect.bottom - containerRect.top + scrollTop,
+        left: firstCellRect.left - containerRect.left + scrollLeft,
+        width: rightCellRect.right - firstCellRect.left,
+      };
+    }
+  }
+
+  return { right, bottom };
 }
 
-/**
- * Determines which data cell is under the given client coordinates.
- * Returns 0-indexed row/col in data space (excluding row number column).
- */
+/** マウス座標からセル位置を取得 */
 function getCellAtPoint(
   container: HTMLDivElement,
   clientX: number,
@@ -69,7 +88,6 @@ function getCellAtPoint(
 ): { row: number; col: number } | null {
   const table = container.querySelector("table");
   if (!table) return null;
-
   const rows = table.querySelectorAll("tbody tr");
   for (let r = 0; r < rows.length; r++) {
     const cells = rows[r].querySelectorAll("td");
@@ -88,39 +106,7 @@ function getCellAtPoint(
   return null;
 }
 
-/**
- * Computes the preview rectangle for a given data range.
- */
-function computePreviewRect(
-  container: HTMLDivElement,
-  range: DataRange,
-): PreviewRect | null {
-  const table = container.querySelector("table");
-  if (!table) return null;
-
-  // Top-left corner: first data cell (row 0, col 0 → cells[1])
-  const firstRow = table.querySelectorAll("tbody tr")[0];
-  if (!firstRow) return null;
-  const firstCell = firstRow.querySelectorAll("td")[1] as
-    | HTMLTableCellElement
-    | undefined;
-  if (!firstCell) return null;
-
-  // Bottom-right corner
-  const cornerCell = findCornerCell(container, range);
-  if (!cornerCell) return null;
-
-  const containerRect = container.getBoundingClientRect();
-  const firstRect = firstCell.getBoundingClientRect();
-  const cornerRect = cornerCell.getBoundingClientRect();
-
-  return {
-    top: firstRect.top - containerRect.top + container.scrollTop,
-    left: firstRect.left - containerRect.left + container.scrollLeft,
-    width: cornerRect.right - firstRect.left,
-    height: cornerRect.bottom - firstRect.top,
-  };
-}
+type DragEdge = "right" | "bottom" | "corner";
 
 export function SpreadsheetDataRange({
   dataRange,
@@ -129,174 +115,174 @@ export function SpreadsheetDataRange({
   isDark,
 }: Readonly<SpreadsheetDataRangeProps>) {
   const primaryColor = isDark ? "#5b9bd5" : "#1976d2";
+  const [edges, setEdges] = useState<EdgePositions>({ right: null, bottom: null });
+  const [dragging, setDragging] = useState<DragEdge | null>(null);
+  const [previewRange, setPreviewRange] = useState<DataRange | null>(null);
+  const previewRef = useRef<DataRange | null>(null);
+  previewRef.current = previewRange;
 
-  const [handlePos, setHandlePos] = useState<HandlePos | null>(null);
-  const [dragState, setDragState] = useState<DragState>({
-    isDragging: false,
-    previewRange: null,
-    previewRect: null,
-  });
-
-  const dragStateRef = useRef(dragState);
-  dragStateRef.current = dragState;
-
-  const updateHandlePosition = useCallback(() => {
+  const updateEdges = useCallback(() => {
     const container = containerRef.current;
     if (!container) return;
-
-    const cornerCell = findCornerCell(container, dataRange);
-    if (!cornerCell) return;
-
-    const containerRect = container.getBoundingClientRect();
-    const cellRect = cornerCell.getBoundingClientRect();
-
-    setHandlePos({
-      top:
-        cellRect.bottom -
-        containerRect.top +
-        container.scrollTop -
-        HANDLE_SIZE / 2,
-      left:
-        cellRect.right -
-        containerRect.left +
-        container.scrollLeft -
-        HANDLE_SIZE / 2,
-    });
+    setEdges(computeEdgePositions(container, dataRange));
   }, [containerRef, dataRange]);
 
-  // Recalculate handle position on layout
   useLayoutEffect(() => {
-    updateHandlePosition();
-  }, [updateHandlePosition]);
+    updateEdges();
+  }, [updateEdges]);
 
-  // Recalculate on scroll
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-
-    const handleScroll = () => {
-      updateHandlePosition();
-    };
-
-    container.addEventListener("scroll", handleScroll, { passive: true });
-    return () => {
-      container.removeEventListener("scroll", handleScroll);
-    };
-  }, [containerRef, updateHandlePosition]);
-
-  // Observe table layout changes via ResizeObserver
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
+    const onScroll = () => updateEdges();
+    container.addEventListener("scroll", onScroll, { passive: true });
+    const observer = new ResizeObserver(() => updateEdges());
     const table = container.querySelector("table");
-    if (!table) return;
-
-    const observer = new ResizeObserver(() => {
-      updateHandlePosition();
-    });
-    observer.observe(table);
-
+    if (table) observer.observe(table);
     return () => {
+      container.removeEventListener("scroll", onScroll);
       observer.disconnect();
     };
-  }, [containerRef, updateHandlePosition]);
+  }, [containerRef, updateEdges]);
 
-  // Mouse event handlers for dragging
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
+  const startDrag = useCallback(
+    (edge: DragEdge, e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
+      setDragging(edge);
+      setPreviewRange({ ...dataRange });
 
       const container = containerRef.current;
       if (!container) return;
 
-      const rect = computePreviewRect(container, dataRange);
-
-      setDragState({
-        isDragging: true,
-        previewRange: { ...dataRange },
-        previewRect: rect,
-      });
-
-      const handleMouseMove = (ev: MouseEvent) => {
+      const onMouseMove = (ev: MouseEvent) => {
         const cont = containerRef.current;
         if (!cont) return;
-
         const cell = getCellAtPoint(cont, ev.clientX, ev.clientY);
         if (!cell) return;
 
-        const newRows = Math.max(MIN_ROWS, Math.min(cell.row + 1, GRID_ROWS));
-        const newCols = Math.max(MIN_COLS, Math.min(cell.col + 1, GRID_COLS));
+        const newRows = edge === "right"
+          ? dataRange.rows
+          : Math.max(MIN_ROWS, Math.min(cell.row + 1, GRID_ROWS));
+        const newCols = edge === "bottom"
+          ? dataRange.cols
+          : Math.max(MIN_COLS, Math.min(cell.col + 1, GRID_COLS));
 
-        const newRange: DataRange = { rows: newRows, cols: newCols };
-        const newRect = computePreviewRect(cont, newRange);
-
-        setDragState({
-          isDragging: true,
-          previewRange: newRange,
-          previewRect: newRect,
-        });
+        const nr: DataRange = { rows: newRows, cols: newCols };
+        setPreviewRange(nr);
+        previewRef.current = nr;
       };
 
-      const handleMouseUp = () => {
-        document.removeEventListener("mousemove", handleMouseMove);
-        document.removeEventListener("mouseup", handleMouseUp);
-
-        const current = dragStateRef.current;
-        if (current.previewRange) {
-          onResize(current.previewRange);
-        }
-
-        setDragState({
-          isDragging: false,
-          previewRange: null,
-          previewRect: null,
-        });
+      const onMouseUp = () => {
+        document.removeEventListener("mousemove", onMouseMove);
+        document.removeEventListener("mouseup", onMouseUp);
+        const final = previewRef.current;
+        if (final) onResize(final);
+        setDragging(null);
+        setPreviewRange(null);
       };
 
-      document.addEventListener("mousemove", handleMouseMove);
-      document.addEventListener("mouseup", handleMouseUp);
+      document.addEventListener("mousemove", onMouseMove);
+      document.addEventListener("mouseup", onMouseUp);
     },
     [containerRef, dataRange, onResize],
   );
 
-  if (!handlePos) return null;
+  // プレビュー中の辺位置
+  const previewEdges = dragging && previewRange
+    ? (() => {
+        const container = containerRef.current;
+        if (!container) return null;
+        return computeEdgePositions(container, previewRange);
+      })()
+    : null;
 
   return (
     <>
-      {/* Resize handle */}
-      <div
-        style={{
-          position: "absolute",
-          top: handlePos.top,
-          left: handlePos.left,
-          width: HANDLE_SIZE,
-          height: HANDLE_SIZE,
-          background: primaryColor,
-          cursor: "nwse-resize",
-          borderRadius: 1,
-          zIndex: 10,
-          pointerEvents: "auto",
-        }}
-        onMouseDown={handleMouseDown}
-      />
-
-      {/* Preview overlay during drag */}
-      {dragState.isDragging && dragState.previewRect && (
+      {/* 右辺ドラッグハンドル */}
+      {edges.right && (
         <div
           style={{
             position: "absolute",
-            top: dragState.previewRect.top,
-            left: dragState.previewRect.left,
-            width: dragState.previewRect.width,
-            height: dragState.previewRect.height,
-            border: `2px dashed ${primaryColor}`,
-            pointerEvents: "none",
-            zIndex: 9,
-            boxSizing: "border-box",
+            top: edges.right.top,
+            left: edges.right.x - HANDLE_THICKNESS / 2,
+            width: HANDLE_THICKNESS,
+            height: edges.right.height,
+            cursor: "col-resize",
+            zIndex: 10,
           }}
+          onMouseDown={(e) => startDrag("right", e)}
         />
+      )}
+
+      {/* 下辺ドラッグハンドル */}
+      {edges.bottom && (
+        <div
+          style={{
+            position: "absolute",
+            top: edges.bottom.y - HANDLE_THICKNESS / 2,
+            left: edges.bottom.left,
+            width: edges.bottom.width,
+            height: HANDLE_THICKNESS,
+            cursor: "row-resize",
+            zIndex: 10,
+          }}
+          onMouseDown={(e) => startDrag("bottom", e)}
+        />
+      )}
+
+      {/* 角ドラッグハンドル */}
+      {edges.right && edges.bottom && (
+        <div
+          style={{
+            position: "absolute",
+            top: edges.bottom.y - 5,
+            left: edges.right.x - 5,
+            width: 10,
+            height: 10,
+            background: primaryColor,
+            cursor: "nwse-resize",
+            borderRadius: 2,
+            zIndex: 11,
+          }}
+          onMouseDown={(e) => startDrag("corner", e)}
+        />
+      )}
+
+      {/* ドラッグ中のプレビュー線 */}
+      {dragging && previewEdges && (
+        <>
+          {(dragging === "right" || dragging === "corner") && previewEdges.right && (
+            <div
+              style={{
+                position: "absolute",
+                top: previewEdges.right.top,
+                left: previewEdges.right.x - 1,
+                width: 2,
+                height: previewEdges.right.height,
+                background: primaryColor,
+                opacity: 0.5,
+                pointerEvents: "none",
+                zIndex: 9,
+              }}
+            />
+          )}
+          {(dragging === "bottom" || dragging === "corner") && previewEdges.bottom && (
+            <div
+              style={{
+                position: "absolute",
+                top: previewEdges.bottom.y - 1,
+                left: previewEdges.bottom.left,
+                width: previewEdges.bottom.width,
+                height: 2,
+                background: primaryColor,
+                opacity: 0.5,
+                pointerEvents: "none",
+                zIndex: 9,
+              }}
+            />
+          )}
+        </>
       )}
     </>
   );
