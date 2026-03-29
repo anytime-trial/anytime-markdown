@@ -411,8 +411,24 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
       ctx.strokeStyle = borderColor;
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(ROW_NUM_WIDTH, stickyRowY + rowHeight);
-      ctx.lineTo(totalWidth, stickyRowY + rowHeight);
+      ctx.moveTo(scrollLeft, stickyRowY + rowHeight);
+      ctx.lineTo(scrollLeft + viewWidth, stickyRowY + rowHeight);
+      ctx.stroke();
+
+      // 固定1行目の行番号
+      ctx.fillStyle = headerBg;
+      ctx.fillRect(scrollLeft, stickyRowY, ROW_NUM_WIDTH, rowHeight);
+      ctx.fillStyle = headerTextColor;
+      ctx.font = "600 12px -apple-system, BlinkMacSystemFont, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("1", scrollLeft + ROW_NUM_WIDTH / 2, stickyRowY + rowHeight / 2);
+      // 区切り線
+      ctx.strokeStyle = borderColor;
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(scrollLeft + ROW_NUM_WIDTH, stickyRowY);
+      ctx.lineTo(scrollLeft + ROW_NUM_WIDTH, stickyRowY + rowHeight);
       ctx.stroke();
 
       // 1行目のテキストを再描画
@@ -449,13 +465,19 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     }
 
     // 7. Row number column (sticky left) — 背景でセルを上書き
+    // 行番号は固定ヘッダー（列ヘッダー + 固定1行目）の下からのみ描画
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(scrollLeft, cellAreaTop, ROW_NUM_WIDTH, scrollTop + viewHeight - cellAreaTop);
+    ctx.clip();
+
     ctx.fillStyle = headerBg;
-    ctx.fillRect(scrollLeft, scrollTop, ROW_NUM_WIDTH, viewHeight);
+    ctx.fillRect(scrollLeft, cellAreaTop, ROW_NUM_WIDTH, scrollTop + viewHeight - cellAreaTop);
     // 行番号の区切り線
     ctx.strokeStyle = borderColor;
     ctx.lineWidth = 0.5;
     ctx.beginPath();
-    ctx.moveTo(scrollLeft + ROW_NUM_WIDTH, scrollTop);
+    ctx.moveTo(scrollLeft + ROW_NUM_WIDTH, cellAreaTop);
     ctx.lineTo(scrollLeft + ROW_NUM_WIDTH, scrollTop + viewHeight);
     ctx.stroke();
 
@@ -480,6 +502,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
 
       ctx.fillText(String(r + 1), x, y);
     }
+    ctx.restore();
 
     // 8. Column header row (sticky top) — 背景でセルを上書き
     ctx.fillStyle = headerBg;
