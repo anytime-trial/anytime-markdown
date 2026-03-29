@@ -1,11 +1,12 @@
 import { Box } from "@mui/material";
+import type { Node as PMNode } from "@tiptap/pm/model";
 import type { Editor } from "@tiptap/react";
 import React, { useCallback, useRef, useState } from "react";
 import type { CellEditState, ContextMenuState } from "./spreadsheetTypes";
 import SpreadsheetCell from "./SpreadsheetCell";
 import { SpreadsheetContextMenu } from "./SpreadsheetContextMenu";
 import { useSpreadsheetState } from "./useSpreadsheetState";
-import { useSpreadsheetSync } from "./useSpreadsheetSync";
+import { useSpreadsheetSync, extractTableData } from "./useSpreadsheetSync";
 import {
   columnLabel,
   GRID_COLS,
@@ -26,6 +27,18 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // テーブルデータを同期的に取得して初期値にする
+  const initialTableData = useRef(() => {
+    let tableNode: PMNode | null = null;
+    editor.state.doc.descendants((node) => {
+      if (tableNode) return false;
+      if (node.type.name === "table") { tableNode = node; return false; }
+    });
+    if (!tableNode) return { rows: 1, cols: 1, data: [] as string[][] };
+    const { data, range } = extractTableData(tableNode);
+    return { rows: range.rows, cols: range.cols, data };
+  }).current();
+
   const {
     grid,
     dataRange,
@@ -40,7 +53,11 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     deleteCol,
     swapRows,
     swapCols,
-  } = useSpreadsheetState({ initialRows: 1, initialCols: 1 });
+  } = useSpreadsheetState({
+    initialRows: initialTableData.rows,
+    initialCols: initialTableData.cols,
+    initialData: initialTableData.data,
+  });
 
   const { syncCellToProseMirror } = useSpreadsheetSync({
     editor,

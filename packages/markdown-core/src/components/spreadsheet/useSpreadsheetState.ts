@@ -5,6 +5,7 @@ import { GRID_ROWS, GRID_COLS, createEmptyGrid } from "./spreadsheetUtils";
 interface UseSpreadsheetStateParams {
   readonly initialRows: number;
   readonly initialCols: number;
+  readonly initialData?: string[][];
 }
 
 interface UseSpreadsheetStateReturn {
@@ -26,8 +27,19 @@ interface UseSpreadsheetStateReturn {
 export function useSpreadsheetState({
   initialRows,
   initialCols,
+  initialData,
 }: UseSpreadsheetStateParams): UseSpreadsheetStateReturn {
-  const [grid, setGrid] = useState<string[][]>(() => createEmptyGrid());
+  const [grid, setGrid] = useState<string[][]>(() => {
+    const g = createEmptyGrid();
+    if (initialData) {
+      for (let r = 0; r < initialData.length && r < GRID_ROWS; r++) {
+        for (let c = 0; c < initialData[r].length && c < GRID_COLS; c++) {
+          g[r][c] = initialData[r][c];
+        }
+      }
+    }
+    return g;
+  });
   const [dataRange, setDataRange] = useState<DataRange>({
     rows: initialRows,
     cols: initialCols,
