@@ -292,7 +292,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     col: number,
   ): string | undefined => {
     if (col === dataRange.cols - 1 && row < dataRange.rows) {
-      return `2px solid ${primaryColor}`;
+      return `3px solid ${primaryColor}`;
     }
     return undefined;
   };
@@ -302,7 +302,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     col: number,
   ): string | undefined => {
     if (row === dataRange.rows - 1 && col < dataRange.cols) {
-      return `2px solid ${primaryColor}`;
+      return `3px solid ${primaryColor}`;
     }
     return undefined;
   };
@@ -312,7 +312,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     col: number,
   ): string | undefined => {
     if (col === 0 && row < dataRange.rows) {
-      return `2px solid ${primaryColor}`;
+      return `3px solid ${primaryColor}`;
     }
     return undefined;
   };
@@ -322,7 +322,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     col: number,
   ): string | undefined => {
     if (row === 0 && col < dataRange.cols) {
-      return `2px solid ${primaryColor}`;
+      return `3px solid ${primaryColor}`;
     }
     return undefined;
   };
@@ -358,7 +358,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
           background: isSelected ? selectedBg : headerBg,
           borderRight: "none",
           borderBottom: inDataTop
-            ? `2px solid ${primaryColor}`
+            ? `3px solid ${primaryColor}`
             : `1px solid ${borderColor}`,
           borderTop: "none",
           borderLeft: isColDropTarget
@@ -407,7 +407,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
             lineHeight: "28px",
             background: isRowSel ? selectedBg : headerBg,
             borderRight: inDataLeft
-              ? `2px solid ${primaryColor}`
+              ? `3px solid ${primaryColor}`
               : `1px solid ${borderColor}`,
             borderBottom: "none",
             borderLeft: "none",
@@ -490,7 +490,8 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
       <Box
         component="table"
         sx={{
-          borderCollapse: "collapse",
+          borderCollapse: "separate",
+          borderSpacing: 0,
           tableLayout: "fixed",
         }}
       >
