@@ -2,6 +2,7 @@ import { Table } from "@tiptap/extension-table";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 
+import { tableCellModePlugin } from "./plugins/tableCellMode/tableCellModePlugin";
 import { TableNodeView } from "./TableNodeView";
 import type { MdSerializerState } from "./types";
 
@@ -17,6 +18,12 @@ export const CustomTable = Table.extend({
 
   addNodeView() {
     return ReactNodeViewRenderer(TableNodeView);
+  },
+
+  addProseMirrorPlugins() {
+    const parentPlugins = this.parent?.() ?? [];
+    // tableCellModePlugin を最優先で登録（tableEditing より先にイベントをインターセプト）
+    return [tableCellModePlugin(), ...parentPlugins];
   },
 
   addStorage() {
