@@ -85,6 +85,20 @@ export function getBlockStyles(theme: Theme, settings: EditorSettings): SxProps<
       "& .selectedCell": {
         bgcolor: getActionSelected(isDark),
       },
+      "& .cell-nav-selected": {
+        outline: `2px solid ${getPrimaryMain(isDark)}`,
+        outlineOffset: "-2px",
+        caretColor: "transparent",
+        position: "relative",
+      },
+      "& .cell-editing": {
+        outline: `1px solid ${getPrimaryMain(isDark)}`,
+        outlineOffset: "-1px",
+        bgcolor: alpha(getPrimaryMain(isDark), isDark ? 0.08 : 0.04),
+      },
+      "& .cell-range-selected": {
+        bgcolor: getActionSelected(isDark),
+      },
     },
     "& img": {
       maxWidth: "100%",
