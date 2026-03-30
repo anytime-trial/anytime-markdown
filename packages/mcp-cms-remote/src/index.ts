@@ -40,7 +40,12 @@ app.use('/mcp', async (c, next) => {
     return c.json({ error: 'Server misconfigured' }, 500);
   }
 
-  if (!authHeader || authHeader !== `Bearer ${expectedKey}`) {
+  const queryToken = c.req.query('token');
+  const isAuthorized =
+    (authHeader && authHeader === `Bearer ${expectedKey}`) ||
+    (queryToken && queryToken === expectedKey);
+
+  if (!isAuthorized) {
     return c.json({ error: 'Unauthorized' }, 401);
   }
 
