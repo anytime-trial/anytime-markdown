@@ -10,6 +10,7 @@ services:
       - node_modules:/anytime-markdown/node_modules            # node_modules を名前付きボリュームで永続化（ホストと分離）
       - ${HOME}/.ssh:/home/node/.ssh:cached                    # SSH鍵を共有（git push/pull 用）
       - ${HOME}/.claude:/home/node/.claude:cached              # Claude Code 設定を共有（CLAUDE.md など）
+      - ${HOME}/.gemini:/home/node/.gemini:cached              # gemini 設定を共有（AGENT.md など）
       - ${HOME}/anytime-markdown-docs:/anytime-markdown-docs   # Docs
       - ${HOME}/prompt:/prompt                                 # prompt
 
