@@ -1,9 +1,12 @@
+import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import CheckBoxIcon from "@mui/icons-material/CheckBox";
 import FormatListBulletedIcon from "@mui/icons-material/FormatListBulleted";
 import FormatListNumberedIcon from "@mui/icons-material/FormatListNumbered";
 import FormatQuoteIcon from "@mui/icons-material/FormatQuote";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import ListAltIcon from "@mui/icons-material/ListAlt";
 import SchemaIcon from "@mui/icons-material/Schema";
+import SettingsIcon from "@mui/icons-material/Settings";
 import {
   Box,
   Divider,
@@ -50,6 +53,11 @@ interface EditorMenuPopoversProps {
   hideVersionInfo?: boolean;
   hideTemplates?: boolean;
   templateDisabled?: boolean;
+  outlineOpen?: boolean;
+  commentOpen?: boolean;
+  onToggleOutline?: () => void;
+  onToggleComments?: () => void;
+  onOpenSettings?: () => void;
   t: TranslationFn;
 }
 
@@ -91,6 +99,11 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
   hideVersionInfo,
   hideTemplates: _hideTemplates,
   templateDisabled: _templateDisabled,
+  outlineOpen,
+  commentOpen,
+  onToggleOutline,
+  onToggleComments,
+  onOpenSettings,
   t,
 }: EditorMenuPopoversProps) {
   const locale = useLocale();
@@ -109,6 +122,36 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
         slotProps={{ paper: { role: "menu", "aria-label": t("helpMenu") } }}
       >
         <Box sx={{ py: 0.5, minWidth: 160 }}>
+          {onToggleOutline && (
+            <MenuItem
+              onClick={() => { onToggleOutline(); setHelpAnchorEl(null); }}
+              disabled={sourceMode}
+              sx={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36 }}
+            >
+              <ListItemIcon><ListAltIcon fontSize="small" color={outlineOpen ? "primary" : "inherit"} /></ListItemIcon>
+              <ListItemText>{t("outline")}</ListItemText>
+            </MenuItem>
+          )}
+          {onToggleComments && (
+            <MenuItem
+              onClick={() => { onToggleComments(); setHelpAnchorEl(null); }}
+              disabled={sourceMode}
+              sx={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36 }}
+            >
+              <ListItemIcon><ChatBubbleOutlineIcon fontSize="small" color={commentOpen ? "primary" : "inherit"} /></ListItemIcon>
+              <ListItemText>{t("commentPanel")}</ListItemText>
+            </MenuItem>
+          )}
+          {onOpenSettings && (
+            <MenuItem
+              onClick={() => { onOpenSettings(); setHelpAnchorEl(null); }}
+              sx={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36 }}
+            >
+              <ListItemIcon><SettingsIcon fontSize="small" /></ListItemIcon>
+              <ListItemText>{t("editorSettings")}</ListItemText>
+            </MenuItem>
+          )}
+          {(onToggleOutline || onToggleComments || onOpenSettings) && !hideVersionInfo && <Divider />}
           {!hideVersionInfo && (
             <MenuItem
               onClick={() => { setVersionDialogOpen(true); setHelpAnchorEl(null); }}

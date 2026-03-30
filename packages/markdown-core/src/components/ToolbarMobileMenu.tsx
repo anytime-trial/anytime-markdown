@@ -1,6 +1,11 @@
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
+import FolderOpenIcon from "@mui/icons-material/FolderOpen";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import ListAltIcon from "@mui/icons-material/ListAlt";
+import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
+import SaveAsIcon from "@mui/icons-material/SaveAs";
+import SaveIcon from "@mui/icons-material/Save";
+import SettingsIcon from "@mui/icons-material/Settings";
 import {
   Divider,
   ListItemIcon,
@@ -11,6 +16,7 @@ import {
 import React from "react";
 
 import type { TranslationFn } from "../types";
+import type { ToolbarFileCapabilities, ToolbarFileHandlers } from "../types/toolbar";
 
 interface ToolbarMobileMenuProps {
   anchorEl: HTMLElement | null;
@@ -27,6 +33,10 @@ interface ToolbarMobileMenuProps {
   hideComments?: boolean;
   hideSettings?: boolean;
   hideVersionInfo?: boolean;
+  hideFileOps?: boolean;
+
+  fileHandlers?: ToolbarFileHandlers;
+  fileCapabilities?: ToolbarFileCapabilities;
 
   onToggleOutline: () => void;
   onToggleComments?: () => void;
@@ -44,18 +54,74 @@ export const ToolbarMobileMenu = React.memo(function ToolbarMobileMenu({
   commentOpen,
   inlineMergeOpen,
   sourceMode,
-  readonlyMode: _readonlyMode,
+  readonlyMode,
   hideOutline,
   hideComments,
-  hideSettings: _hideSettings,
+  hideSettings,
   hideVersionInfo,
+  hideFileOps,
+  fileHandlers,
+  fileCapabilities,
   onToggleOutline,
   onToggleComments,
   onSetHelpAnchor: _onSetHelpAnchor,
-  onOpenSettings: _onOpenSettings,
+  onOpenSettings,
   onOpenVersionDialog,
   t,
 }: ToolbarMobileMenuProps) {
+  const { hasFileHandle, supportsDirectAccess, externalSaveOnly } = fileCapabilities ?? {};
+  const readOnly = readonlyMode;
+
+  function buildFileItems(): React.ReactNode[] {
+    if (hideFileOps || !fileHandlers) return [];
+    const items: React.ReactNode[] = [];
+    if (externalSaveOnly) {
+      items.push(
+        <MenuItem key="f-save" onClick={() => { fileHandlers.onSaveFile?.(); onClose(); }} disabled={readOnly || !hasFileHandle}>
+          <ListItemIcon><SaveIcon fontSize="small" /></ListItemIcon>
+          <ListItemText>{t("saveFile")}</ListItemText>
+        </MenuItem>,
+      );
+    } else if (supportsDirectAccess) {
+      items.push(
+        <MenuItem key="f-open" onClick={() => { fileHandlers.onOpenFile?.(); onClose(); }}>
+          <ListItemIcon><FolderOpenIcon fontSize="small" /></ListItemIcon>
+          <ListItemText>{t("openFile")}</ListItemText>
+        </MenuItem>,
+        <MenuItem key="f-save" onClick={() => { fileHandlers.onSaveFile?.(); onClose(); }} disabled={readOnly || !hasFileHandle}>
+          <ListItemIcon><SaveIcon fontSize="small" /></ListItemIcon>
+          <ListItemText>{t("saveFile")}</ListItemText>
+        </MenuItem>,
+        <MenuItem key="f-saveAs" onClick={() => { fileHandlers.onSaveAsFile?.(); onClose(); }} disabled={readOnly}>
+          <ListItemIcon><SaveAsIcon fontSize="small" /></ListItemIcon>
+          <ListItemText>{t("saveAsFile")}</ListItemText>
+        </MenuItem>,
+      );
+    } else {
+      items.push(
+        <MenuItem key="f-open" onClick={() => { fileHandlers.onImport(); onClose(); }}>
+          <ListItemIcon><FolderOpenIcon fontSize="small" /></ListItemIcon>
+          <ListItemText>{t("openFile")}</ListItemText>
+        </MenuItem>,
+        <MenuItem key="f-saveAs" onClick={() => { fileHandlers.onDownload(); onClose(); }} disabled={readOnly}>
+          <ListItemIcon><SaveAsIcon fontSize="small" /></ListItemIcon>
+          <ListItemText>{t("saveAsFile")}</ListItemText>
+        </MenuItem>,
+      );
+    }
+    if (fileHandlers.onExportPdf) {
+      items.push(
+        <MenuItem key="f-pdf" onClick={() => { fileHandlers.onExportPdf!(); onClose(); }} disabled={sourceMode || inlineMergeOpen}>
+          <ListItemIcon><PictureAsPdfIcon fontSize="small" /></ListItemIcon>
+          <ListItemText>{t("exportPdf")}</ListItemText>
+        </MenuItem>,
+      );
+    }
+    return items;
+  }
+
+  const fileItems = buildFileItems();
+
   return (
     <Menu
       anchorEl={anchorEl}
@@ -63,6 +129,8 @@ export const ToolbarMobileMenu = React.memo(function ToolbarMobileMenu({
       onClose={onClose}
     >
       {[
+        ...fileItems,
+        ...(fileItems.length > 0 ? [<Divider key="divider-file" />] : []),
         ...(!hideOutline ? [
           <MenuItem
             key="outline"
@@ -81,6 +149,16 @@ export const ToolbarMobileMenu = React.memo(function ToolbarMobileMenu({
           >
             <ListItemIcon><ChatBubbleOutlineIcon fontSize="small" color={commentOpen ? "primary" : "inherit"} /></ListItemIcon>
             <ListItemText>{t("commentPanel") || "Comments"}</ListItemText>
+          </MenuItem>,
+        ] : []),
+        <Divider key="divider-panel" />,
+        ...(!hideSettings && onOpenSettings ? [
+          <MenuItem
+            key="settings"
+            onClick={() => { onOpenSettings(); onClose(); }}
+          >
+            <ListItemIcon><SettingsIcon fontSize="small" /></ListItemIcon>
+            <ListItemText>{t("editorSettings")}</ListItemText>
           </MenuItem>,
         ] : []),
         <Divider key="divider" />,

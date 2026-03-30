@@ -46,6 +46,9 @@ export const EditorSideToolbar = React.memo(function EditorSideToolbar({
         borderLeft: 1,
         borderColor: getDivider(isDark),
         flexShrink: 0,
+        "@media (max-width: 900px)": {
+          display: "none",
+        },
       }}
     >
       <Tooltip title={t("outline")} placement="left">

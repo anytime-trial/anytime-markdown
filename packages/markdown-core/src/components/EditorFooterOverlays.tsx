@@ -58,6 +58,11 @@ interface EditorFooterOverlaysProps {
   hideTemplates?: boolean;
   inlineMergeOpen?: boolean;
   appendToSource: (text: string) => void;
+  outlineOpen?: boolean;
+  commentOpen?: boolean;
+  onToggleOutline?: () => void;
+  onToggleComments?: () => void;
+  onOpenSettings?: () => void;
   // overlay state
   pdfExporting: boolean;
   notification: NotificationKey;
@@ -100,6 +105,11 @@ export function EditorFooterOverlays({
   hideTemplates,
   inlineMergeOpen,
   appendToSource,
+  outlineOpen,
+  commentOpen,
+  onToggleOutline,
+  onToggleComments,
+  onOpenSettings,
   pdfExporting,
   notification,
   setNotification,
@@ -145,6 +155,11 @@ export function EditorFooterOverlays({
         hideVersionInfo={hideVersionInfo}
         hideTemplates={hideTemplates}
         templateDisabled={readonlyMode || reviewMode || !!inlineMergeOpen}
+        outlineOpen={outlineOpen}
+        commentOpen={commentOpen}
+        onToggleOutline={onToggleOutline}
+        onToggleComments={onToggleComments}
+        onOpenSettings={onOpenSettings}
         t={t}
       />
 
