@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-03-30
+
+### Editor Core (markdown-core)
+- Responsive toolbar for narrow screens (<=900px)
+- Apply button and discard confirmation dialog for all block edit dialogs
+- Spreadsheet: clipboard, range selection, column filter, and configurable grid size
+
 ## [0.9.0] - 2026-03-29
 
 ### Added

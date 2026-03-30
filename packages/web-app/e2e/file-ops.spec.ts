@@ -48,21 +48,4 @@ test.describe("File Operations", () => {
     await expect(editor).toContainText("Uploaded paragraph content");
   });
 
-  test("create new clears content", async ({ page }) => {
-    const editor = page.locator(".tiptap");
-    await editor.click();
-    await page.keyboard.type("Content to be cleared");
-    await expect(editor).toContainText("Content to be cleared");
-
-    // Create New ボタンをクリック
-    await page.getByRole("button", { name: /Create New/i }).click();
-
-    // MUI 確認ダイアログが表示される — OK ボタンをクリック
-    const dialog = page.getByRole("dialog");
-    await expect(dialog).toBeVisible();
-    await dialog.getByRole("button", { name: "OK" }).click();
-
-    // コンテンツがクリアされることを確認
-    await expect(editor).not.toContainText("Content to be cleared");
-  });
 });

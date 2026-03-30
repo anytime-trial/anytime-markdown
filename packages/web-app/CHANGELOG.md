@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-03-30
+
+### Changed
+- Adjusted layout padding and removed unused navigation
+
 ## [0.9.0] - 2026-03-29
 
 ### Added

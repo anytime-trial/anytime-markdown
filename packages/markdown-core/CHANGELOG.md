@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-03-30
+
+### Added
+- Responsive toolbar: collapsed layout for narrow screens (<=900px)
+- Apply button and discard confirmation dialog for all block edit dialogs
+- Close fullscreen edit on apply for all block types
+- Spreadsheet: clipboard support, range selection, column filter, and configurable grid size
+- Spreadsheet: apply button and discard confirmation dialog
+
 ## [0.9.0] - 2026-03-29
 
 ### Added
