@@ -11,6 +11,7 @@ export interface AddNodeInput {
   text?: string;
   width?: number;
   height?: number;
+  metadata?: Record<string, string | number>;
 }
 
 export async function addNode(input: AddNodeInput, rootDir: string): Promise<GraphNode> {
@@ -22,6 +23,7 @@ export async function addNode(input: AddNodeInput, rootDir: string): Promise<Gra
   if (input.text !== undefined) overrides.text = input.text;
   if (input.width !== undefined) overrides.width = input.width;
   if (input.height !== undefined) overrides.height = input.height;
+  if (input.metadata !== undefined) overrides.metadata = input.metadata;
 
   const node = createNode(input.type, input.x, input.y, overrides);
   node.x = snapToGrid(node.x, 20);

@@ -8,6 +8,7 @@ export interface AddEdgeInput {
   from: EdgeEndpoint;
   to: EdgeEndpoint;
   label?: string;
+  weight?: number;
 }
 
 export async function addEdge(input: AddEdgeInput, rootDir: string): Promise<GraphEdge> {
@@ -25,6 +26,7 @@ export async function addEdge(input: AddEdgeInput, rootDir: string): Promise<Gra
 
   const overrides: Partial<GraphEdge> = {};
   if (input.label) overrides.label = input.label;
+  if (input.weight !== undefined) overrides.weight = input.weight;
 
   const edge = createEdge(input.type, input.from, input.to, overrides);
   doc.edges.push(edge);

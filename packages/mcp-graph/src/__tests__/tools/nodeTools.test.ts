@@ -38,6 +38,17 @@ describe('addNode', () => {
     expect(doc.nodes).toHaveLength(1);
   });
 
+  it('should create node with metadata', async () => {
+    const node = await addNode({
+      path: 'test.graph', type: 'ellipse', x: 100, y: 100,
+      metadata: { citationCount: 42, year: 2023 },
+    }, tmpDir);
+    expect(node.metadata).toEqual({ citationCount: 42, year: 2023 });
+    const doc = await readGraph({ path: 'test.graph' }, tmpDir);
+    const saved = doc.nodes.find(n => n.id === node.id);
+    expect(saved?.metadata).toEqual({ citationCount: 42, year: 2023 });
+  });
+
   it('should add node with custom dimensions', async () => {
     const node = await addNode({
       path: 'test.graph',

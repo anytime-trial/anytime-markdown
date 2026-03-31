@@ -81,9 +81,11 @@ export function createMcpServer(options: McpGraphOptions): McpServer {
       text: z.string().optional().describe('Node text'),
       width: z.number().optional().describe('Node width'),
       height: z.number().optional().describe('Node height'),
+      metadata: z.record(z.union([z.string(), z.number()])).optional()
+        .describe('データ駆動スタイリング用メタデータ'),
     },
-    async ({ path, type, x, y, text, width, height }) => {
-      const node = await addNode({ path, type, x, y, text, width, height }, rootDir);
+    async ({ path, type, x, y, text, width, height, metadata }) => {
+      const node = await addNode({ path, type, x, y, text, width, height, metadata }, rootDir);
       return { content: [{ type: 'text' as const, text: JSON.stringify(node, null, 2) }] };
     },
   );
@@ -124,9 +126,11 @@ export function createMcpServer(options: McpGraphOptions): McpServer {
       from: endpointSchema.describe('Source endpoint'),
       to: endpointSchema.describe('Target endpoint'),
       label: z.string().optional().describe('Edge label'),
+      weight: z.number().min(0).max(1).optional()
+        .describe('エッジの重み（0-1）'),
     },
-    async ({ path, type, from, to, label }) => {
-      const edge = await addEdge({ path, type, from, to, label }, rootDir);
+    async ({ path, type, from, to, label, weight }) => {
+      const edge = await addEdge({ path, type, from, to, label, weight }, rootDir);
       return { content: [{ type: 'text' as const, text: JSON.stringify(edge, null, 2) }] };
     },
   );
