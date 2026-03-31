@@ -9,7 +9,7 @@ import {
 import { useTheme } from "@mui/material/styles";
 import type { Editor } from "@tiptap/react";
 import { useEditor } from "@tiptap/react";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { FILE_DROP_OVERLAY_COLOR, getDivider, getEditorBg, getTextDisabled } from "../constants/colors";
 import { MERGE_INFO_FONT_SIZE } from "../constants/dimensions";
@@ -21,11 +21,12 @@ import { useDiffBackground } from "../hooks/useDiffBackground";
 import { useDiffHighlight } from "../hooks/useDiffHighlight";
 import { useMergeContentSync } from "../hooks/useMergeContentSync";
 import { useMergeDiff } from "../hooks/useMergeDiff";
+import { useMergeFileOps } from "../hooks/useMergeFileOps";
 import { useScrollSync } from "../hooks/useScrollSync";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import { type DiffLine } from "../utils/diffEngine";
 
-import { readFileAsText } from "../utils/fileReading";
+
 import { preprocessMarkdown } from "../utils/frontmatterHelpers";
 import { FrontmatterBlock } from "./FrontmatterBlock";
 import { LinePreviewPanel } from "./LinePreviewPanel";
@@ -60,12 +61,7 @@ interface InlineMergeViewProps {
   ) => React.ReactNode;
 }
 
-interface FileMetadata {
-  encoding: string;
-  lineEnding: string;
-}
 
-const DEFAULT_METADATA: FileMetadata = { encoding: "UTF-8", lineEnding: "LF" };
 
 function downloadText(text: string, filename: string) {
   const blob = new Blob([text], { type: "text/markdown;charset=utf-8" });
@@ -124,48 +120,26 @@ export function InlineMergeView({
     onUndoRedoReady?.({ undo, redo, canUndo, canRedo });
   }, [onUndoRedoReady, undo, redo, canUndo, canRedo]);
 
-  // 外部から渡された比較ファイル内容を右パネルに反映（1回限り）
-  useEffect(() => {
-    if (externalRightContent != null) {
-      setCompareText(externalRightContent);
-      onExternalRightContentConsumed?.();
-    }
-  }, [externalRightContent, setCompareText, onExternalRightContentConsumed]);
+  const {
+    rightDragOver, setRightDragOver,
+    fileInputRightRef,
+    handleFileInputChange,
+    handleDragDropFile,
+  } = useMergeFileOps({
+    compareText, setCompareText,
+    onRightFileOpsReady,
+    externalRightContent, onExternalRightContentConsumed,
+    downloadMarkdown: downloadText,
+  });
 
   const leftContainerRef = useRef<HTMLDivElement>(null);
   const rightScrollRef = useRef<HTMLDivElement>(null);
   const compareTextareaRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRightRef = useRef<HTMLInputElement>(null);
 
-  // 右パネルのファイル操作を親に公開
-  useEffect(() => {
-    onRightFileOpsReady?.({
-      loadFile: () => fileInputRightRef.current?.click(),
-      exportFile: () => {
-        const n = new Date();
-        const ts = `${n.getFullYear()}${String(n.getMonth() + 1).padStart(2, "0")}${String(n.getDate()).padStart(2, "0")}_${String(n.getHours()).padStart(2, "0")}${String(n.getMinutes()).padStart(2, "0")}${String(n.getSeconds()).padStart(2, "0")}`;
-        downloadText(compareText, `document_right_${ts}.md`);
-      },
-    });
-  }, [onRightFileOpsReady, compareText]);
-
-  // Ctrl+S で右パネル内容も保存
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        globalThis.dispatchEvent(new CustomEvent('vscode-save-compare-file', { detail: compareText }));
-      }
-    };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [compareText]);
-
-  const [, setRightMeta] = useState<FileMetadata>(DEFAULT_METADATA);
   const hoverSetterRef = useRef<((v: number | null) => void) | null>(null);
   const handleHoverLine = useCallback((idx: number | null) => {
     hoverSetterRef.current?.(idx);
   }, []);
-  const [rightDragOver, setRightDragOver] = useState(false);
 
   // Right tiptap editor (for WYSIWYG mode) – readonly (cursor visible)
   const leftEditor = useEditor({
@@ -224,13 +198,6 @@ export function InlineMergeView({
 
   const { leftBgGradient, rightBgGradient } = useDiffBackground(diffResult, sourceMode);
 
-  const loadFile = (setter: (text: string) => void, metaSetter: (meta: FileMetadata) => void) => (file: File) => {
-    readFileAsText(file).then(({ text, encoding, lineEnding }) => {
-      metaSetter({ encoding, lineEnding });
-      setter(text);
-    });
-  };
-
   // モジュールレベルストアに左右エディタを登録（NodeView ポータルからアクセス可能にする）
   useEffect(() => {
     setMergeEditors({ rightEditor: rightEditor ?? null, leftEditor: leftEditor ?? null });
@@ -245,11 +212,7 @@ export function InlineMergeView({
         type="file"
         accept=".md,text/markdown,text/plain"
         hidden
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) loadFile(setCompareText, setRightMeta)(f);
-          e.target.value = "";
-        }}
+        onChange={handleFileInputChange}
       />
 
 
@@ -341,7 +304,7 @@ export function InlineMergeView({
             setRightDragOver(false);
             const file = e.dataTransfer.files?.[0];
             if (file && (file.name.endsWith(".md") || file.name.endsWith(".markdown") || file.type.startsWith("text/"))) {
-              loadFile(setCompareText, setRightMeta)(file);
+              handleDragDropFile(file);
             }
           }}
         >
