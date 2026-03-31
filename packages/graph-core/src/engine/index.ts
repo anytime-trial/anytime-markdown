@@ -36,3 +36,7 @@ export { getVisibleBounds, isNodeVisible, isEdgeVisible } from './culling';
 export type { VisibleBounds } from './culling';
 export * as physics from './physics/index';
 export { linearScale, interpolateColor } from './dataMapping';
+export { findShortestPath } from './graphTraversal';
+export type { PathResult } from './graphTraversal';
+export { batchCreateGraph } from './batchImport';
+export type { BatchNodeInput, BatchEdgeInput, BatchImportInput } from './batchImport';
