@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { Typography, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button } from '@mui/material';
-import type { ToolType, GraphDocument, Viewport } from '@anytime-markdown/graph-core';
+import type { ToolType, GraphDocument, GraphNode, GraphEdge, Viewport } from '@anytime-markdown/graph-core';
 import { createDocument, createNode } from '@anytime-markdown/graph-core';
 import {
   zoom as zoomViewport, fitToContent, screenToWorld,
@@ -17,7 +17,15 @@ import { GraphToolBar } from '../../../web-app/src/app/graph/components/ToolBar'
 import { PropertyPanel } from '../../../web-app/src/app/graph/components/PropertyPanel';
 import { ShapeHoverBar } from '../../../web-app/src/app/graph/components/ShapeHoverBar';
 import { DocEditorModal } from '../../../web-app/src/app/graph/components/DocEditorModal';
+import { DetailPanel } from '../../../web-app/src/app/graph/components/DetailPanel';
+import { FilterPanel } from '../../../web-app/src/app/graph/components/FilterPanel';
 import type { SaveStatus } from '../../../web-app/src/app/graph/hooks/useAutoSave';
+import { useDataMapping } from '../../../web-app/src/app/graph/hooks/useDataMapping';
+import { useNodeFilter } from '../../../web-app/src/app/graph/hooks/useNodeFilter';
+import { usePathHighlight } from '../../../web-app/src/app/graph/hooks/usePathHighlight';
+import type { DataMappingConfig } from '../../../web-app/src/app/graph/types/dataMapping';
+import type { NodeFilterConfig } from '../../../web-app/src/app/graph/types/nodeFilter';
+import { EMPTY_FILTER } from '../../../web-app/src/app/graph/types/nodeFilter';
 import { useThemeMode } from './shims/providers';
 import { useGraphState } from './hooks/useGraphState';
 import { useCanvasInteraction } from './hooks/useCanvasInteraction';
@@ -41,6 +49,11 @@ export function App() {
   const [layoutRunning, setLayoutRunning] = useState(false);
   const [layoutAlgorithm, setLayoutAlgorithm] = useState<'eades' | 'fruchterman-reingold' | 'eades-vpsc' | 'fruchterman-reingold-vpsc'>('eades');
   const [collisionEnabled, setCollisionEnabled] = useState(false);
+  const [dataMappingConfig, setDataMappingConfig] = useState<DataMappingConfig | undefined>(undefined);
+  const [detailNodeId, setDetailNodeId] = useState<string | null>(null);
+  const [filterConfig, setFilterConfig] = useState<NodeFilterConfig>(EMPTY_FILTER);
+  const [showFilter, setShowFilter] = useState(false);
+  const [showProperty, setShowProperty] = useState(true);
   const physicsRef = useRef<physics.PhysicsEngine | null>(null);
   const documentRef = useRef(state.document);
   const nodesRef = useRef(state.document.nodes);
@@ -49,6 +62,45 @@ export function App() {
   nodesRef.current = state.document.nodes;
   edgesRef.current = state.document.edges;
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const { nodes: filteredNodes, edges: filteredEdges } = useNodeFilter(
+    state.document.nodes, state.document.edges, filterConfig,
+  );
+  const { nodes: displayNodes, edges: displayEdges } = useDataMapping(
+    filteredNodes, filteredEdges, dataMappingConfig,
+  );
+  const {
+    highlightNodeIds, highlightEdgeIds, originNodeId,
+    setOriginNodeId, setHoverTargetId,
+  } = usePathHighlight(state.document.edges);
+
+  const availableMetadataKeys = useMemo(() => {
+    const keys = new Set<string>();
+    for (const node of state.document.nodes) {
+      if (node.metadata) {
+        for (const key of Object.keys(node.metadata)) keys.add(key);
+      }
+    }
+    return [...keys].sort();
+  }, [state.document.nodes]);
+
+  const metadataKeyRanges = useMemo(() => {
+    const ranges = new Map<string, [number, number]>();
+    for (const node of state.document.nodes) {
+      if (!node.metadata) continue;
+      for (const [key, val] of Object.entries(node.metadata)) {
+        if (typeof val !== 'number') continue;
+        const existing = ranges.get(key);
+        if (existing) {
+          existing[0] = Math.min(existing[0], val);
+          existing[1] = Math.max(existing[1], val);
+        } else {
+          ranges.set(key, [val, val]);
+        }
+      }
+    }
+    return ranges;
+  }, [state.document.nodes]);
 
   const { themeMode } = useThemeMode();
   const isDark = themeMode === 'dark';
@@ -151,6 +203,17 @@ export function App() {
     return () => window.removeEventListener('keydown', handler);
   }, [editingNodeId, wrappedDispatch, state.document.nodes, handleTextEdit]);
 
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.altKey && selectionRef.current.nodeIds.length === 1) {
+        const selectedId = selectionRef.current.nodeIds[0];
+        setOriginNodeId(originNodeId === selectedId ? null : selectedId);
+      }
+    };
+    globalThis.addEventListener('click', handler);
+    return () => globalThis.removeEventListener('click', handler);
+  }, [setOriginNodeId, originNodeId]);
+
   // Accessibility: node count change notification
   const prevNodeCountRef = useRef(state.document.nodes.length);
   useEffect(() => {
@@ -170,6 +233,13 @@ export function App() {
       setLiveMessage('');
     }
   }, [state.selection, t]);
+
+  useEffect(() => {
+    const { nodeIds, edgeIds } = state.selection;
+    if (nodeIds.length > 0 || edgeIds.length > 0) {
+      setShowProperty(true);
+    }
+  }, [state.selection]);
 
   // Viewport animation
   const viewportAnimRef = useRef<ViewportAnimation | null>(null);
@@ -416,11 +486,14 @@ export function App() {
           layoutAlgorithm={layoutAlgorithm}
           onChangeAlgorithm={setLayoutAlgorithm}
           onSpreadConnected={handleSpreadConnected}
+          showFilter={showFilter}
+          onToggleFilter={() => setShowFilter(v => !v)}
+          filterActive={filterConfig.rangeFilters.length > 0 || filterConfig.textFilters.length > 0}
         />
         <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
           <GraphCanvas
-            nodes={state.document.nodes}
-            edges={state.document.edges}
+            nodes={displayNodes as GraphNode[]}
+            edges={displayEdges as GraphEdge[]}
             viewport={state.document.viewport}
             selection={state.selection}
             showGrid={showGrid}
@@ -443,6 +516,13 @@ export function App() {
             ariaLabel={t('graphCanvas')}
             isDark={isDark}
             layoutRunning={layoutRunning}
+            onNodeHover={useCallback((id: string | null) => {
+              setDetailNodeId(id);
+              setHoverTargetId(id);
+            }, [setHoverTargetId])}
+            highlightNodeIds={highlightNodeIds}
+            highlightEdgeIds={highlightEdgeIds}
+            originNodeId={originNodeId}
           />
           {state.document.nodes.length === 0 && (
             <div style={{
@@ -469,14 +549,31 @@ export function App() {
             onCancel={() => { setEditingNodeId(null); setTextEditAppendMode(false); }}
             appendMode={textEditAppendMode}
           />
-          {(selectedNode || selectedEdge) && (
+          {showProperty && (selectedNode || selectedEdge) && (
             <PropertyPanel
               selectedNode={selectedNode}
               selectedEdge={selectedEdge}
               onUpdateNode={(id, changes) => wrappedDispatch({ type: 'UPDATE_NODE', id, changes })}
               onUpdateEdge={(id, changes) => wrappedDispatch({ type: 'UPDATE_EDGE', id, changes })}
               onLayerAction={handleLayerAction}
-              onClose={() => wrappedDispatch({ type: 'SET_SELECTION', selection: { nodeIds: [], edgeIds: [] } })}
+              onClose={() => {
+                setShowProperty(false);
+              }}
+            />
+          )}
+          {detailNodeId && !showProperty && (() => {
+            const detailNode = state.document.nodes.find(n => n.id === detailNodeId);
+            return detailNode ? (
+              <DetailPanel node={detailNode} onClose={() => setDetailNodeId(null)} />
+            ) : null;
+          })()}
+          {showFilter && (
+            <FilterPanel
+              config={filterConfig}
+              onConfigChange={setFilterConfig}
+              availableKeys={availableMetadataKeys}
+              keyRanges={metadataKeyRanges}
+              onClose={() => setShowFilter(false)}
             />
           )}
           <div
