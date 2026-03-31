@@ -37,6 +37,7 @@ import { useTextareaSearch } from "./hooks/useTextareaSearch";
 import { PrintStyles } from "./styles/printStyles";
 import { EditorSettingsContext,useEditorSettings } from "./useEditorSettings";
 import { EditorFeaturesContext } from "./contexts/EditorFeaturesContext";
+import { EditorModeContext, type EditorModeContextValue } from "./contexts/EditorModeContext";
 import { useMarkdownEditor } from "./useMarkdownEditor";
 
 const InlineMergeView = dynamic(
@@ -516,8 +517,26 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     t,
   };
 
+  const editorModeValue = useMemo<EditorModeContextValue>(() => ({
+    sourceMode,
+    readonlyMode,
+    reviewMode,
+    inlineMergeOpen,
+    sideToolbar: !!(sideToolbar && !readonlyMode),
+    explorerOpen: !!explorerOpen,
+    noScroll: !!noScroll,
+    onSwitchToReview: handleSwitchToReview,
+    onSwitchToWysiwyg: handleSwitchToWysiwyg,
+    onSwitchToSource: handleSwitchToSource,
+  }), [
+    sourceMode, readonlyMode, reviewMode, inlineMergeOpen,
+    sideToolbar, explorerOpen, noScroll,
+    handleSwitchToReview, handleSwitchToWysiwyg, handleSwitchToSource,
+  ]);
+
   return (
     <EditorErrorBoundary>
+    <EditorModeContext.Provider value={editorModeValue}>
     <EditorSettingsContext.Provider value={settingsValue}>
     <EditorFeaturesContext.Provider value={{ hideGraph: !!hideGraph }}>
     <PlantUmlToolbarContext.Provider value={plantUmlToolbarCtx}>
@@ -654,6 +673,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     </PlantUmlToolbarContext.Provider>
     </EditorFeaturesContext.Provider>
     </EditorSettingsContext.Provider>
+    </EditorModeContext.Provider>
     </EditorErrorBoundary>
   );
 }
