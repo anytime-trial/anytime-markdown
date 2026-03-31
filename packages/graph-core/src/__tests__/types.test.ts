@@ -142,6 +142,32 @@ describe('createNode with light theme', () => {
   });
 });
 
+describe('metadata and weight', () => {
+  it('createNode should accept metadata override', () => {
+    const node = createNode('ellipse', 0, 0, {
+      metadata: { citationCount: 42, year: 2023 },
+    });
+    expect(node.metadata).toEqual({ citationCount: 42, year: 2023 });
+  });
+
+  it('createNode without metadata should have undefined metadata', () => {
+    const node = createNode('rect', 0, 0);
+    expect(node.metadata).toBeUndefined();
+  });
+
+  it('createEdge should accept weight override', () => {
+    const edge = createEdge('line', { x: 0, y: 0 }, { x: 100, y: 100 }, {
+      weight: 0.75,
+    });
+    expect(edge.weight).toBe(0.75);
+  });
+
+  it('createEdge without weight should have undefined weight', () => {
+    const edge = createEdge('arrow', { x: 0, y: 0 }, { x: 100, y: 100 });
+    expect(edge.weight).toBeUndefined();
+  });
+});
+
 describe('createEdge with light theme', () => {
   it('should create edge with light theme style', () => {
     const edge = createEdge('arrow', { x: 0, y: 0 }, { x: 100, y: 100 }, undefined, false);

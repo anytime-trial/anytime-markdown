@@ -15,7 +15,10 @@ function renderNodeSvg(node: GraphNode, gradFill?: string): string {
   const r = style.borderRadius ?? 0;
   const filterAttr = style.shadow ? ' filter="url(#shadow)"' : '';
 
-  lines.push(`<g id="${escapeXml(id)}">`);
+  const metadataAttr = node.metadata
+    ? ` data-metadata="${escapeXml(JSON.stringify(node.metadata))}"`
+    : '';
+  lines.push(`<g id="${escapeXml(id)}"${metadataAttr}>`);
 
   if (type === 'ellipse') {
     lines.push(`<ellipse cx="${x + w / 2}" cy="${y + h / 2}" rx="${w / 2}" ry="${h / 2}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"${filterAttr}/>`);

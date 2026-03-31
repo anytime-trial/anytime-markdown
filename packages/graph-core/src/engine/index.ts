@@ -35,3 +35,4 @@ export type { ViewportAnimation } from './animation';
 export { getVisibleBounds, isNodeVisible, isEdgeVisible } from './culling';
 export type { VisibleBounds } from './culling';
 export * as physics from './physics/index';
+export { linearScale, interpolateColor } from './dataMapping';

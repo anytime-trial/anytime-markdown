@@ -33,6 +33,7 @@ interface GraphCanvasProps {
   ariaLabel?: string;
   isDark?: boolean;
   layoutRunning?: boolean;
+  onNodeHover?: (nodeId: string | null) => void;
 }
 
 export function GraphCanvas({
@@ -45,8 +46,10 @@ export function GraphCanvas({
   ariaLabel,
   isDark = true,
   layoutRunning,
+  onNodeHover,
 }: Readonly<GraphCanvasProps>) {
   const rafRef = useRef<number>(0);
+  const prevHoverRef = useRef<string | undefined>(undefined);
 
   // コネクタパス計算をメモ化（edges/nodes変更時のみ再計算）
   const resolvedEdges = useMemo(() => {
@@ -175,6 +178,15 @@ export function GraphCanvas({
       isDark,
     });
 
+    // ホバーノード変更時にコールバック通知
+    if (onNodeHover) {
+      const currentHover = hoverNodeIdRef.current;
+      if (currentHover !== prevHoverRef.current) {
+        prevHoverRef.current = currentHover;
+        onNodeHover(currentHover ?? null);
+      }
+    }
+
     // ドラッグプレビュー描画
     const preview = previewRef.current;
     if (preview.type !== 'none') {
@@ -208,7 +220,7 @@ export function GraphCanvas({
       drawSmartGuides(ctx, preview.guides, getCanvasColors(isDark));
       ctx.restore();
     }
-  }, [canvasRef, nodes, resolvedEdges, viewport, selection, showGrid, previewRef, hoverNodeIdRef, mouseWorldRef, viewportAnimRef, onViewportUpdate, velocityRef, onPanInertia, draggingNodeIds, isDark]);
+  }, [canvasRef, nodes, resolvedEdges, viewport, selection, showGrid, previewRef, hoverNodeIdRef, mouseWorldRef, viewportAnimRef, onViewportUpdate, velocityRef, onPanInertia, draggingNodeIds, isDark, onNodeHover]);
 
   useEffect(() => {
     const loop = () => {

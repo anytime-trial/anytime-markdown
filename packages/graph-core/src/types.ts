@@ -62,6 +62,8 @@ export interface GraphNode {
   extraConnectionPoints?: { x: number; y: number }[];
   /** ハイパーリンクURL */
   url?: string;
+  /** データ駆動スタイリング用のメタデータ（任意の key-value） */
+  metadata?: Record<string, string | number>;
 }
 
 export interface EdgeEndpoint {
@@ -83,6 +85,8 @@ export interface GraphEdge {
   waypoints?: { x: number; y: number }[];
   /** Bezier パスの制御点列（resolveEdgeConnections で計算） */
   bezierPath?: { x: number; y: number }[];
+  /** エッジの重み（0-1）。データ駆動スタイリングで太さに変換される */
+  weight?: number;
 }
 
 export interface Viewport {

@@ -123,6 +123,13 @@ export function importFromDrawio(xmlString: string): GraphDocument {
       const spacingBottom = style['spacingBottom'] === undefined ? undefined : Number.parseFloat(style['spacingBottom']);
       const spacingLeft = style['spacingLeft'] === undefined ? undefined : Number.parseFloat(style['spacingLeft']);
 
+      // Custom metadata
+      const metadataAttr = cell.getAttribute('data-metadata');
+      let metadata: Record<string, string | number> | undefined;
+      if (metadataAttr) {
+        try { metadata = JSON.parse(metadataAttr); } catch { /* ignore malformed metadata */ }
+      }
+
       // Metadata from cell attributes
       const locked = cell.getAttribute('connectable') === '0' ? true : undefined;
       const parent = cell.getAttribute('parent');
@@ -152,6 +159,7 @@ export function importFromDrawio(xmlString: string): GraphDocument {
         ...(url ? { url } : {}),
         ...(locked ? { locked } : {}),
         ...(groupId ? { groupId } : {}),
+        ...(metadata ? { metadata } : {}),
       });
     } else if (isEdge) {
       const source = cell.getAttribute('source') ?? undefined;
@@ -181,6 +189,9 @@ export function importFromDrawio(xmlString: string): GraphDocument {
       const edgeOpacity = style['opacity'] === undefined ? undefined : Number.parseFloat(style['opacity']);
       const edgeDashed = style['dashed'] === '1' ? true : undefined;
 
+      const weightStr = cell.getAttribute('data-weight');
+      const edgeWeight = weightStr ? Number.parseFloat(weightStr) : undefined;
+
       edges.push({
         id,
         type: edgeType,
@@ -192,6 +203,7 @@ export function importFromDrawio(xmlString: string): GraphDocument {
           ...(edgeDashed ? { dashed: edgeDashed } : {}),
         },
         label: stripHtmlTags(value) || undefined,
+        ...(edgeWeight !== undefined && !Number.isNaN(edgeWeight) ? { weight: edgeWeight } : {}),
       });
     }
   });
