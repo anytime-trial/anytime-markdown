@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { Box, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button, Typography } from '@mui/material';
 import { useTranslations } from 'next-intl';
 import { ToolType, Viewport, createDocument, createNode } from '../types';
@@ -24,6 +24,11 @@ import { useThemeMode } from '../../providers';
 import { useDataMapping } from '../hooks/useDataMapping';
 import { DetailPanel } from './DetailPanel';
 import type { DataMappingConfig } from '../types/dataMapping';
+import { usePathHighlight } from '../hooks/usePathHighlight';
+import { useNodeFilter } from '../hooks/useNodeFilter';
+import { FilterPanel } from './FilterPanel';
+import type { NodeFilterConfig } from '../types/nodeFilter';
+import { EMPTY_FILTER } from '../types/nodeFilter';
 
 export function GraphEditor() {
   const { themeMode } = useThemeMode();
@@ -40,6 +45,8 @@ export function GraphEditor() {
   const [layoutAlgorithm, setLayoutAlgorithm] = useState<'eades' | 'fruchterman-reingold' | 'eades-vpsc' | 'fruchterman-reingold-vpsc'>('eades');
   const [dataMappingConfig, setDataMappingConfig] = useState<DataMappingConfig | undefined>(undefined);
   const [detailNodeId, setDetailNodeId] = useState<string | null>(null);
+  const [filterConfig, setFilterConfig] = useState<NodeFilterConfig>(EMPTY_FILTER);
+  const [showFilter, setShowFilter] = useState(false);
   const physicsRef = useRef<physics.PhysicsEngine | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const { state, dispatch } = useGraphState();
@@ -49,9 +56,46 @@ export function GraphEditor() {
   edgesRef.current = state.document.edges;
   const selectionRef = useRef(state.selection);
   selectionRef.current = state.selection;
-  const { nodes: displayNodes, edges: displayEdges } = useDataMapping(
-    state.document.nodes, state.document.edges, dataMappingConfig,
+  const { nodes: filteredNodes, edges: filteredEdges } = useNodeFilter(
+    state.document.nodes, state.document.edges, filterConfig,
   );
+  const { nodes: displayNodes, edges: displayEdges } = useDataMapping(
+    filteredNodes, filteredEdges, dataMappingConfig,
+  );
+  const {
+    highlightNodeIds, highlightEdgeIds, originNodeId,
+    setOriginNodeId, setHoverTargetId,
+  } = usePathHighlight(state.document.edges);
+
+  const availableMetadataKeys = useMemo(() => {
+    const keys = new Set<string>();
+    for (const node of state.document.nodes) {
+      if (node.metadata) {
+        for (const key of Object.keys(node.metadata)) {
+          keys.add(key);
+        }
+      }
+    }
+    return [...keys].sort();
+  }, [state.document.nodes]);
+
+  const metadataKeyRanges = useMemo(() => {
+    const ranges = new Map<string, [number, number]>();
+    for (const node of state.document.nodes) {
+      if (!node.metadata) continue;
+      for (const [key, val] of Object.entries(node.metadata)) {
+        if (typeof val !== 'number') continue;
+        const existing = ranges.get(key);
+        if (existing) {
+          existing[0] = Math.min(existing[0], val);
+          existing[1] = Math.max(existing[1], val);
+        } else {
+          ranges.set(key, [val, val]);
+        }
+      }
+    }
+    return ranges;
+  }, [state.document.nodes]);
   const [docEditNodeId, setDocEditNodeId] = useState<string | null>(null);
   const t = useTranslations('Graph');
   const [liveMessage, setLiveMessage] = useState('');
@@ -241,6 +285,17 @@ export function GraphEditor() {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [editingNodeId, dispatch, state.document.nodes, handleTextEdit]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.altKey && state.selection.nodeIds.length === 1) {
+        const selectedId = state.selection.nodeIds[0];
+        setOriginNodeId(originNodeId === selectedId ? null : selectedId);
+      }
+    };
+    globalThis.addEventListener('click', handler);
+    return () => globalThis.removeEventListener('click', handler);
+  }, [state.selection.nodeIds, setOriginNodeId, originNodeId]);
 
   const handleTextCommit = useCallback((id: string, text: string) => {
     dispatch({ type: 'UPDATE_NODE', id, changes: { text } });
@@ -452,6 +507,9 @@ export function GraphEditor() {
         layoutAlgorithm={layoutAlgorithm}
         onChangeAlgorithm={setLayoutAlgorithm}
         onSpreadConnected={handleSpreadConnected}
+        showFilter={showFilter}
+        onToggleFilter={() => setShowFilter(v => !v)}
+        filterActive={filterConfig.rangeFilters.length > 0 || filterConfig.textFilters.length > 0}
       />
       <Box sx={{ flex: 1, display: 'flex', position: 'relative', overflow: 'hidden' }}>
       <Box sx={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
@@ -480,7 +538,13 @@ export function GraphEditor() {
           ariaLabel={canvasAriaLabel}
           isDark={isDark}
           layoutRunning={layoutRunning}
-          onNodeHover={setDetailNodeId}
+          onNodeHover={useCallback((id: string | null) => {
+            setDetailNodeId(id);
+            setHoverTargetId(id);
+          }, [setHoverTargetId])}
+          highlightNodeIds={highlightNodeIds}
+          highlightEdgeIds={highlightEdgeIds}
+          originNodeId={originNodeId}
         />
         {state.document.nodes.length === 0 && (
           <Box sx={{
@@ -549,6 +613,15 @@ export function GraphEditor() {
           {liveMessage}
         </div>
       </Box>
+      {showFilter && (
+        <FilterPanel
+          config={filterConfig}
+          onConfigChange={setFilterConfig}
+          availableKeys={availableMetadataKeys}
+          keyRanges={metadataKeyRanges}
+          onClose={() => setShowFilter(false)}
+        />
+      )}
       <SettingsPanel open={showSettings} width={260} onClose={() => setShowSettings(false)} />
       </Box>
       <DocEditorModal
