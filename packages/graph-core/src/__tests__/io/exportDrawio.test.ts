@@ -443,6 +443,35 @@ describe('exportToDrawio', () => {
     expect(xml).toContain('opacity=70');
   });
 
+  it('should preserve metadata in round-trip', () => {
+    const doc = createDocument('test');
+    const node = createNode('ellipse', 100, 100, {
+      text: 'Paper A',
+      metadata: { citationCount: 42, year: 2023 },
+    });
+    doc.nodes.push(node);
+    const xml = exportToDrawio(doc);
+    const imported = importFromDrawio(xml);
+    const importedNode = imported.nodes.find(n => n.text === 'Paper A');
+    expect(importedNode?.metadata).toEqual({ citationCount: 42, year: 2023 });
+  });
+
+  it('should preserve edge weight in round-trip', () => {
+    const doc = createDocument('test');
+    const n1 = createNode('rect', 0, 0);
+    const n2 = createNode('rect', 200, 0);
+    doc.nodes.push(n1, n2);
+    const edge = createEdge('line',
+      { nodeId: n1.id, x: 0, y: 0 },
+      { nodeId: n2.id, x: 200, y: 0 },
+      { weight: 0.75 },
+    );
+    doc.edges.push(edge);
+    const xml = exportToDrawio(doc);
+    const imported = importFromDrawio(xml);
+    expect(imported.edges[0]?.weight).toBe(0.75);
+  });
+
   it('should round-trip new style properties', () => {
     const doc = createDocument('RoundTrip');
     const node = createNode('rect', 50, 50, { id: 'rt2', text: 'Styled', locked: true, zIndex: 3 });

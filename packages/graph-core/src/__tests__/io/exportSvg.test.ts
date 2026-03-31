@@ -198,6 +198,18 @@ describe('exportToSvg', () => {
     expect(edgeGroup).not.toContain('<polygon');
   });
 
+  it('should include metadata as data attributes in SVG', () => {
+    const doc = createDocument('test');
+    const node = createNode('ellipse', 100, 100, {
+      text: 'Paper',
+      metadata: { year: 2023 },
+    });
+    doc.nodes.push(node);
+    const svg = exportToSvg(doc);
+    expect(svg).toContain('data-metadata=');
+    expect(svg).toContain('2023');
+  });
+
   it('should support diagonal gradient direction', () => {
     const doc = createDocument('Test');
     const node = createNode('rect', 0, 0, { id: 'g3' });
