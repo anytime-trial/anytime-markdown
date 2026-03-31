@@ -12,6 +12,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { getDivider, getTextDisabled, getTextSecondary } from "../constants/colors";
 import { CHIP_FONT_SIZE, PANEL_BUTTON_FONT_SIZE, STATUSBAR_FONT_SIZE } from "../constants/dimensions";
+import { useCropEstimate } from "../hooks/useCropEstimate";
 import { useCropInteraction } from "../hooks/useCropInteraction";
 import { SCALE_PRESETS, type CropRect } from "../utils/cropGeometry";
 
@@ -36,36 +37,7 @@ export function ImageCropTool({ src, onCrop, t }: Readonly<ImageCropToolProps>) 
     resetInteraction,
   } = useCropInteraction({ cropping, imgRef });
 
-  // トリム範囲のサイズ・容量を推定
-  const [cropEstimate, setCropEstimate] = useState<string | null>(null);
-  useEffect(() => {
-    if (!cropRect || cropRect.width < 0.01 || cropRect.height < 0.01 || drawing) {
-      setCropEstimate(null);
-      return;
-    }
-    const img = imgRef.current;
-    if (!img) return;
-    const w = Math.round(cropRect.width * img.naturalWidth);
-    const h = Math.round(cropRect.height * img.naturalHeight);
-    const canvas = document.createElement("canvas");
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) { setCropEstimate(`${w}x${h}`); return; }
-    ctx.drawImage(img, Math.round(cropRect.x * img.naturalWidth), Math.round(cropRect.y * img.naturalHeight), w, h, 0, 0, w, h);
-    try {
-      const dataUrl = canvas.toDataURL("image/png");
-      const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
-      const bytes = Math.ceil(base64.length * 3 / 4);
-      let sizeStr: string;
-      if (bytes < 1024) sizeStr = `${bytes}B`;
-      else if (bytes < 1024 * 1024) sizeStr = `${(bytes / 1024).toFixed(1)}KB`;
-      else sizeStr = `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
-      setCropEstimate(`${w}x${h} / ${sizeStr}`);
-    } catch {
-      setCropEstimate(`${w}x${h}`);
-    }
-  }, [cropRect, drawing]);
+  const cropEstimate = useCropEstimate({ cropRect, drawing, imgRef });
 
   const handleApplyCrop = useCallback(() => {
     if (!cropRect || !imgRef.current) return;
