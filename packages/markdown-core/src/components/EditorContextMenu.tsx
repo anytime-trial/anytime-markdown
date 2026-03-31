@@ -202,8 +202,7 @@ export function EditorContextMenu({ editor, readOnly, t, currentMode, onSwitchTo
     }
 
     // クリップボードから画像・HTML を読み取り（navigator.clipboard.read が利用可能な場合）
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const vscodeApi = (window as any).__vscode as { postMessage: (msg: any) => void } | undefined;
+    const vscodeApi = window.__vscode;
     if (typeof navigator.clipboard?.read === "function") {
       try {
         const items = await navigator.clipboard.read();

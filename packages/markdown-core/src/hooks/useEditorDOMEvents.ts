@@ -71,8 +71,7 @@ export function createEditorDOMHandlers({
       const hasText = Array.from(items).some((item) => item.type === "text/plain" || item.type === "text/html");
       if (hasText) {
         // VS Code: HTML 内の外部画像 URL をダウンロード要求
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const vscodeApi = (window as any).__vscode;
+        const vscodeApi = window.__vscode;
         if (vscodeApi) {
           const html = event.clipboardData?.getData("text/html");
           if (html) {
@@ -118,10 +117,10 @@ export function createEditorDOMHandlers({
           _view.dom.classList.add("ctrl-held");
         }
         // VS Code WebView: copy イベントが到達しないため keydown で処理
-        if ((window as any).__vscode && (event.ctrlKey || event.metaKey) && (event.key === "c" || event.key === "x")) {
+        if (window.__vscode && (event.ctrlKey || event.metaKey) && (event.key === "c" || event.key === "x")) {
           const isCut = event.key === "x";
           const handled = performBlockCopy(_view, isCut, (text) => {
-            (window as any).__vscode!.postMessage({ type: "writeClipboard", text });
+            window.__vscode?.postMessage({ type: "writeClipboard", text });
           });
           if (handled) {
             setHandledByKeydown(true);

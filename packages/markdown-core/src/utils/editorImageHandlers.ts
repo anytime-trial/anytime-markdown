@@ -1,9 +1,6 @@
 import type { EditorView } from "@tiptap/pm/view";
 import type { RefObject } from "react";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type VsCodeApi = { postMessage: (msg: any) => void };
-
 /** Generate a timestamp string for file naming */
 export function generateTimestamp(): string {
   const now = new Date();
@@ -13,6 +10,7 @@ export function generateTimestamp(): string {
 /** Save an image blob/dataUrl via VS Code extension host */
 export function saveClipboardImageViaVscode(
   vscodeApi: VsCodeApi,
+
   dataUrl: string,
   ext: string,
   prefix = "paste",
@@ -28,8 +26,7 @@ export function insertImageFromFile(
   view: EditorView,
   pos: number,
 ): void {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const vscodeApi = (window as any).__vscode as VsCodeApi | undefined;
+  const vscodeApi = window.__vscode;
   if (vscodeApi) {
     const ext = file.type.split("/")[1] || "png";
     const baseName = file.name && !file.name.startsWith("image") ? file.name : `drop-${generateTimestamp()}.${ext}`;
@@ -46,8 +43,7 @@ export function insertPastedImage(
   dataUrl: string,
   view: EditorView,
 ): void {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const vscodeApi = (window as any).__vscode as VsCodeApi | undefined;
+  const vscodeApi = window.__vscode;
   if (vscodeApi) {
     const ext = file.type.split("/")[1] || "png";
     saveClipboardImageViaVscode(vscodeApi, dataUrl, ext);
@@ -61,8 +57,7 @@ export function insertPastedImage(
 /** Extract external/base64 image URLs from pasted HTML and request download/save via VS Code API */
 export function requestExternalImageDownloads(
   html: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  vscodeApi: { postMessage: (msg: any) => void },
+  vscodeApi: VsCodeApi,
 ): void {
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, "text/html");
