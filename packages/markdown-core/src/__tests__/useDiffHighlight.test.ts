@@ -1,9 +1,9 @@
 import { renderHook } from "@testing-library/react";
 import { useDiffHighlight } from "../hooks/useDiffHighlight";
-import { computeBlockDiff } from "../extensions/diffHighlight";
+import { computeBlockDiff } from "../utils/blockDiffComputation";
 import type { Editor } from "@tiptap/react";
 
-jest.mock("../extensions/diffHighlight", () => ({
+jest.mock("../utils/blockDiffComputation", () => ({
   computeBlockDiff: jest.fn(() => ({
     left: { changedBlocks: new Set([0]), cellDiffs: new Map() },
     right: { changedBlocks: new Set([1]), cellDiffs: new Map() },
