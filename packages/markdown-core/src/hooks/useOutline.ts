@@ -82,10 +82,12 @@ export function useOutline({ editor, sourceMode, defaultOutlineOpen }: UseOutlin
       if (editor.isEditable) {
         editor.chain().focus().setTextSelection(pos).run();
       }
-      const domAtPos = editor.view.domAtPos(pos);
-      const node =
-        domAtPos.node instanceof HTMLElement ? domAtPos.node : domAtPos.node.parentElement;
-      node?.scrollIntoView({ behavior: "smooth", block: "center" });
+      // focus() が付与する scrollIntoView を先に処理させてからセンタリングする
+      requestAnimationFrame(() => {
+        const dom = editor.view.nodeDOM(pos);
+        const node = dom instanceof HTMLElement ? dom : (dom as Node | null)?.parentElement;
+        node?.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
     },
     [editor],
   );
