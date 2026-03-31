@@ -21,6 +21,9 @@ import { alignLeft, alignRight, alignTop, alignBottom, alignCenterH, alignCenter
 import { loadDocument, getLastDocumentId } from '../store/graphStorage';
 import { exportToSvg, exportToDrawio, importFromDrawio } from '@anytime-markdown/graph-core';
 import { useThemeMode } from '../../providers';
+import { useDataMapping } from '../hooks/useDataMapping';
+import { DetailPanel } from './DetailPanel';
+import type { DataMappingConfig } from '../types/dataMapping';
 
 export function GraphEditor() {
   const { themeMode } = useThemeMode();
@@ -35,6 +38,8 @@ export function GraphEditor() {
   const [layoutRunning, setLayoutRunning] = useState(false);
   const [collisionEnabled, setCollisionEnabled] = useState(false);
   const [layoutAlgorithm, setLayoutAlgorithm] = useState<'eades' | 'fruchterman-reingold' | 'eades-vpsc' | 'fruchterman-reingold-vpsc'>('eades');
+  const [dataMappingConfig, setDataMappingConfig] = useState<DataMappingConfig | undefined>(undefined);
+  const [detailNodeId, setDetailNodeId] = useState<string | null>(null);
   const physicsRef = useRef<physics.PhysicsEngine | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const { state, dispatch } = useGraphState();
@@ -44,6 +49,9 @@ export function GraphEditor() {
   edgesRef.current = state.document.edges;
   const selectionRef = useRef(state.selection);
   selectionRef.current = state.selection;
+  const { nodes: displayNodes, edges: displayEdges } = useDataMapping(
+    state.document.nodes, state.document.edges, dataMappingConfig,
+  );
   const [docEditNodeId, setDocEditNodeId] = useState<string | null>(null);
   const t = useTranslations('Graph');
   const [liveMessage, setLiveMessage] = useState('');
@@ -448,8 +456,8 @@ export function GraphEditor() {
       <Box sx={{ flex: 1, display: 'flex', position: 'relative', overflow: 'hidden' }}>
       <Box sx={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
         <GraphCanvas
-          nodes={state.document.nodes}
-          edges={state.document.edges}
+          nodes={displayNodes}
+          edges={displayEdges}
           viewport={state.document.viewport}
           selection={state.selection}
           showGrid={showGrid}
@@ -472,6 +480,7 @@ export function GraphEditor() {
           ariaLabel={canvasAriaLabel}
           isDark={isDark}
           layoutRunning={layoutRunning}
+          onNodeHover={setDetailNodeId}
         />
         {state.document.nodes.length === 0 && (
           <Box sx={{
@@ -515,6 +524,15 @@ export function GraphEditor() {
             }}
           />
         )}
+        {detailNodeId && !showProperty && (() => {
+          const detailNode = state.document.nodes.find(n => n.id === detailNodeId);
+          return detailNode ? (
+            <DetailPanel
+              node={detailNode}
+              onClose={() => setDetailNodeId(null)}
+            />
+          ) : null;
+        })()}
         <div
           role="status"
           aria-live="polite"
