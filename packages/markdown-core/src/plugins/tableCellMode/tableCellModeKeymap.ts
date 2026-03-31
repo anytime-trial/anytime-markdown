@@ -7,6 +7,7 @@ import {
   setEditingMode,
   exitTableMode,
 } from "./tableCellModePlugin";
+import { isInlineTable } from "./tableCellModeMouse";
 
 // ----------------------------------------------------------------
 // Helper functions
@@ -343,10 +344,14 @@ export function handleKeyDown(
     pluginState.mode === "navigation" &&
     pluginState.selectedCellPos != null
   ) {
+    // インラインの表 → ProseMirror に委譲
+    if (isInlineTable(view, pluginState.selectedCellPos)) return false;
     return handleNavigationKeyDown(view, event, pluginState.selectedCellPos);
   }
 
   if (pluginState.mode === "editing" && pluginState.editingCellPos != null) {
+    // インラインの表 → ProseMirror に委譲
+    if (isInlineTable(view, pluginState.editingCellPos)) return false;
     return handleEditingKeyDown(view, event, pluginState.editingCellPos);
   }
 
