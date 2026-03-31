@@ -411,10 +411,10 @@ describe("MarkdownEditorPage - coverage2", () => {
   // This is covered by mock setup where commentDataRef.current.size === 0
 
   // --- Lines 522-558: EditorMainContent props ---
-  it("passes correct props to EditorMainContent", () => {
+  // sourceMode / readonlyMode は EditorModeContext に移行済みのため props では渡されない
+  it("renders EditorMainContent", () => {
     renderPage();
-    expect(capturedMainContentProps.sourceMode).toBe(false);
-    expect(capturedMainContentProps.readonlyMode).toBe(false);
+    expect(capturedMainContentProps).toBeDefined();
   });
 
   // --- Lines 314-315: prevSourceMode switching ---

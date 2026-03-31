@@ -256,6 +256,7 @@ describe("useOutline", () => {
   // --- handleOutlineClick ---
   describe("handleOutlineClick", () => {
     test("editor.chain().focus().setTextSelection(pos).run() を呼ぶ", () => {
+      jest.useFakeTimers();
       const run = jest.fn();
       const setTextSelection = jest.fn().mockReturnValue({ run });
       const focus = jest.fn().mockReturnValue({ setTextSelection });
@@ -267,7 +268,7 @@ describe("useOutline", () => {
       const editor = createMockEditor({
         chain,
         view: {
-          domAtPos: jest.fn(() => ({ node: el })),
+          nodeDOM: jest.fn(() => el),
         },
       } as unknown as Partial<Editor>);
 
@@ -278,7 +279,11 @@ describe("useOutline", () => {
       expect(focus).toHaveBeenCalled();
       expect(setTextSelection).toHaveBeenCalledWith(42);
       expect(run).toHaveBeenCalled();
+
+      // scrollIntoView は requestAnimationFrame 内で呼ばれる
+      act(() => jest.runAllTimers());
       expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "center" });
+      jest.useRealTimers();
     });
 
     test("editor が null の場合は何もしない", () => {
