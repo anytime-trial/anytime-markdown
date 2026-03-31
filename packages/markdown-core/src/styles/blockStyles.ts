@@ -74,11 +74,11 @@ export function getBlockStyles(theme: Theme, settings: EditorSettings): SxProps<
       "& th, & td": {
         border: `1px solid ${getDivider(isDark)}`,
         px: 1,
-        py: 0.5,
+        py: 0,
         textAlign: "left",
         minWidth: 80,
         fontSize: "inherit",
-        lineHeight: "inherit",
+        lineHeight: 1.2,
         bgcolor: isDark ? DEFAULT_DARK_TABLE_CELL_BG : DEFAULT_LIGHT_TABLE_CELL_BG,
       },
       "& th": {
