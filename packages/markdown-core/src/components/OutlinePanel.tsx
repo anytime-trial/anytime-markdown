@@ -164,23 +164,21 @@ const OutlineItem = React.memo(function OutlineItem({
       ) : (
         <BlockIconIndicator kind={h.kind} isDark={isDark} />
       )}
-      <Tooltip title={h.text || ""} enterDelay={400} placement="bottom-start">
-        <ButtonBase
-          component="div"
-          onClick={() => handleOutlineClick(h.pos)}
-          {...(isDraggable ? { "aria-roledescription": t("draggableHeading") } : {})}
-          onKeyDown={(e: React.KeyboardEvent) => handleHeadingKeyDown(e, isHeading, onHeadingDragEnd, hoIdx, headingOnlyIndices)}
-          sx={{
-            cursor: "pointer", fontSize: OUTLINE_FONT_SIZE, fontWeight: 400,
-            color: isFolded ? getTextDisabled(isDark) : getTextPrimary(isDark),
-            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-            flex: 1, minWidth: 0, borderRadius: 0.5, justifyContent: "flex-start",
-            "&:focus-visible": { outline: "2px solid", outlineColor: getPrimaryMain(isDark), outlineOffset: 1 },
-          }}
-        >
-          {h.text || "(empty)"}
-        </ButtonBase>
-      </Tooltip>
+      <ButtonBase
+        component="div"
+        onClick={() => handleOutlineClick(h.pos)}
+        {...(isDraggable ? { "aria-roledescription": t("draggableHeading") } : {})}
+        onKeyDown={(e: React.KeyboardEvent) => handleHeadingKeyDown(e, isHeading, onHeadingDragEnd, hoIdx, headingOnlyIndices)}
+        sx={{
+          cursor: "pointer", fontSize: OUTLINE_FONT_SIZE, fontWeight: 400,
+          color: isFolded ? getTextDisabled(isDark) : getTextPrimary(isDark),
+          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+          flex: 1, minWidth: 0, borderRadius: 0.5, justifyContent: "flex-start",
+          "&:focus-visible": { outline: "2px solid", outlineColor: getPrimaryMain(isDark), outlineOffset: 1 },
+        }}
+      >
+        {h.text || "(empty)"}
+      </ButtonBase>
       <Box className="outline-move-btns" sx={{ display: "flex", flexShrink: 0, transition: "opacity 0.15s", "@media (prefers-reduced-motion: reduce)": { transition: "none" } }}>
         {onOutlineDelete && (
           <Tooltip title={t("delete")} placement="top">
