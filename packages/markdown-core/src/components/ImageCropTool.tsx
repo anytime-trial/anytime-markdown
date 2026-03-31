@@ -12,11 +12,8 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { getDivider, getTextDisabled, getTextSecondary } from "../constants/colors";
 import { CHIP_FONT_SIZE, PANEL_BUTTON_FONT_SIZE, STATUSBAR_FONT_SIZE } from "../constants/dimensions";
-import {
-  applyDrawing, applyMoving, applyResizing,
-  computeHitTest, SCALE_PRESETS,
-  type CropRect, type DragMode, type ResizeHandle,
-} from "../utils/cropGeometry";
+import { useCropInteraction } from "../hooks/useCropInteraction";
+import { SCALE_PRESETS, type CropRect } from "../utils/cropGeometry";
 
 interface ImageCropToolProps {
   src: string;
@@ -27,89 +24,17 @@ interface ImageCropToolProps {
 export function ImageCropTool({ src, onCrop, t }: Readonly<ImageCropToolProps>) {
   const isDark = useTheme().palette.mode === "dark";
   const [cropping, setCropping] = useState(false);
-  const [cropRect, setCropRect] = useState<CropRect | null>(null);
-  const [dragMode, setDragMode] = useState<DragMode>("none");
-  const [resizeHandle, setResizeHandle] = useState<ResizeHandle | null>(null);
-  const [startPos, setStartPos] = useState<{ x: number; y: number } | null>(null);
-  const [startRect, setStartRect] = useState<CropRect | null>(null);
-  const [hoverCursor, setHoverCursor] = useState<string>("crosshair");
   const [showRuler, setShowRuler] = useState(false);
   const [showGrid, setShowGrid] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const EDGE_THRESHOLD = 0.02; // 2% of image for edge detection
-
-  const getRelativePos = useCallback((e: React.MouseEvent): { x: number; y: number } | null => {
-    const img = imgRef.current;
-    if (!img) return null;
-    const rect = img.getBoundingClientRect();
-    return {
-      x: Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)),
-      y: Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height)),
-    };
-  }, []);
-
-  /** cropRect の端・内部・外部を判定 */
-  const hitTest = useCallback((pos: { x: number; y: number }, cr: CropRect): { mode: DragMode; handle: ResizeHandle | null; cursor: string } => {
-    return computeHitTest(pos, cr, EDGE_THRESHOLD);
-  }, []);
-
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (!cropping) return;
-    const pos = getRelativePos(e);
-    if (!pos) return;
-
-    if (cropRect && cropRect.width > 0.01 && cropRect.height > 0.01) {
-      const hit = hitTest(pos, cropRect);
-      if (hit.mode === "moving") {
-        setDragMode("moving");
-        setStartPos(pos);
-        setStartRect({ ...cropRect });
-        return;
-      }
-      if (hit.mode === "resizing") {
-        setDragMode("resizing");
-        setResizeHandle(hit.handle);
-        setStartPos(pos);
-        setStartRect({ ...cropRect });
-        return;
-      }
-    }
-    // New drawing
-    setDragMode("drawing");
-    setStartPos(pos);
-    setCropRect(null);
-  }, [cropping, cropRect, getRelativePos, hitTest]);
-
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    const pos = getRelativePos(e);
-    if (!pos) return;
-
-    // Update cursor on hover
-    if (dragMode === "none" && cropping && cropRect && cropRect.width > 0.01 && cropRect.height > 0.01) {
-      const hit = hitTest(pos, cropRect);
-      setHoverCursor(hit.cursor);
-    }
-
-    if (dragMode === "none" || !startPos) return;
-
-    if (dragMode === "drawing") {
-      setCropRect(applyDrawing(startPos, pos));
-    } else if (dragMode === "moving" && startRect) {
-      setCropRect(applyMoving(startPos, pos, startRect));
-    } else if (dragMode === "resizing" && startRect && resizeHandle) {
-      setCropRect(applyResizing(startPos, pos, startRect, resizeHandle));
-    }
-  }, [dragMode, startPos, startRect, resizeHandle, getRelativePos, cropping, cropRect, hitTest]);
-
-  const handleMouseUp = useCallback(() => {
-    setDragMode("none");
-    setResizeHandle(null);
-    setStartRect(null);
-  }, []);
-
-  const drawing = dragMode !== "none";
+  const {
+    cropRect, setCropRect,
+    drawing, hoverCursor,
+    handleMouseDown, handleMouseMove, handleMouseUp,
+    resetInteraction,
+  } = useCropInteraction({ cropping, imgRef });
 
   // トリム範囲のサイズ・容量を推定
   const [cropEstimate, setCropEstimate] = useState<string | null>(null);
@@ -169,12 +94,8 @@ export function ImageCropTool({ src, onCrop, t }: Readonly<ImageCropToolProps>) 
 
   const handleCancelCrop = useCallback(() => {
     setCropping(false);
-    setCropRect(null);
-    setDragMode("none");
-    setResizeHandle(null);
-    setStartRect(null);
-    setHoverCursor("crosshair");
-  }, []);
+    resetInteraction();
+  }, [resetInteraction]);
 
   /** 倍率指定でリサイズ */
   const handleResize = useCallback((scale: number) => {
