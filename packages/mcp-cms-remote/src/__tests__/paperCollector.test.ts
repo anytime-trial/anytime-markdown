@@ -42,19 +42,19 @@ describe('formatToTsv', () => {
     const tsv = formatToTsv(samplePapers);
     const lines = tsv.split('\n');
 
-    expect(lines[0]).toBe('arxiv_id\tpublished\tcategories\tauthors\ttitle\tpdf_url');
+    expect(lines[0]).toBe('arxiv_id\tpublished\tcategories\tauthors\ttitle\tabstract\tpdf_url');
     expect(lines[1]).toBe(
-      '2603.12345v1\t2026-03-28\tcs.AI,cs.LG\tJohn Smith; Jane Doe\tAttention Is All You Need Again\thttp://arxiv.org/pdf/2603.12345v1',
+      '2603.12345v1\t2026-03-28\tcs.AI,cs.LG\tJohn Smith; Jane Doe\tAttention Is All You Need Again\tWe propose a new transformer architecture...\thttp://arxiv.org/pdf/2603.12345v1',
     );
     expect(lines[2]).toBe(
-      '2603.12346v1\t2026-03-27\tcs.CR,cs.DC\tAlice Wang\tSecure Federated Learning\thttp://arxiv.org/pdf/2603.12346v1',
+      '2603.12346v1\t2026-03-27\tcs.CR,cs.DC\tAlice Wang\tSecure Federated Learning\tA protocol for privacy-preserving...\thttp://arxiv.org/pdf/2603.12346v1',
     );
     expect(lines).toHaveLength(3);
   });
 
   it('returns header only for empty array', () => {
     const tsv = formatToTsv([]);
-    expect(tsv).toBe('arxiv_id\tpublished\tcategories\tauthors\ttitle\tpdf_url');
+    expect(tsv).toBe('arxiv_id\tpublished\tcategories\tauthors\ttitle\tabstract\tpdf_url');
   });
 });
 
