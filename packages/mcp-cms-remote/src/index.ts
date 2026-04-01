@@ -18,7 +18,6 @@ import { toReqRes, toFetchResponse } from 'fetch-to-node';
 
 import { createCmsConfig, createS3Client } from '@anytime-markdown/cms-core';
 import { createRemoteMcpServer } from './server.js';
-import { collectPaperRanking } from './paperRankingCollector.js';
 import { paperConfig } from './paperConfig.js';
 
 interface Env {
@@ -29,9 +28,8 @@ interface Env {
   S3_DOCS_BUCKET: string;
   S3_DOCS_PREFIX?: string;
   S3_REPORTS_PREFIX?: string;
-  // Paper ranking collector
+  // Paper ranking
   PAPER_S3_BUCKET?: string;
-  PAPER_CRON_ENABLED?: string;
 }
 
 const app = new Hono<{ Bindings: Env }>();
@@ -88,15 +86,4 @@ app.delete('/mcp', (c) => c.json({ error: 'Method not allowed. Use POST.' }, 405
 // ヘルスチェック
 app.get('/health', (c) => c.json({ status: 'ok' }));
 
-export default {
-  fetch: app.fetch,
-  async scheduled(
-    _event: ScheduledEvent,
-    env: Env,
-    ctx: ExecutionContext,
-  ): Promise<void> {
-    ctx.waitUntil(
-      collectPaperRanking(env as unknown as Parameters<typeof collectPaperRanking>[0]),
-    );
-  },
-};
+export default app;

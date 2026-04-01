@@ -2,6 +2,8 @@ import {
   buildOpenAlexUrl,
   parseOpenAlexResponse,
   formatRankingToTsv,
+  parseWrittenList,
+  addToWrittenList,
 } from '../paperRankingCollector';
 
 const sampleOpenAlexResults = [
@@ -146,5 +148,41 @@ describe('formatRankingToTsv', () => {
   it('returns header only for empty array', () => {
     const tsv = formatRankingToTsv([]);
     expect(tsv).toBe('rank\tcited_by_count\tarxiv_id\tpublication_date\tsubfield\tauthors\ttitle\tpdf_url');
+  });
+});
+
+describe('parseWrittenList', () => {
+  it('parses written TSV into Set of IDs', () => {
+    const tsv = 'arxiv_id\twritten_date\n2603.12345v1\t2026-04-01\n2603.12346v1\t2026-04-02';
+    const ids = parseWrittenList(tsv);
+    expect(ids.size).toBe(2);
+    expect(ids.has('2603.12345v1')).toBe(true);
+    expect(ids.has('2603.12346v1')).toBe(true);
+  });
+
+  it('returns empty set for empty TSV', () => {
+    expect(parseWrittenList('').size).toBe(0);
+  });
+
+  it('returns empty set for header only', () => {
+    expect(parseWrittenList('arxiv_id\twritten_date').size).toBe(0);
+  });
+});
+
+describe('addToWrittenList', () => {
+  it('creates new list from empty', () => {
+    const result = addToWrittenList('', '2603.12345v1', '2026-04-01');
+    expect(result).toBe('arxiv_id\twritten_date\n2603.12345v1\t2026-04-01');
+  });
+
+  it('appends to existing list', () => {
+    const existing = 'arxiv_id\twritten_date\n2603.12345v1\t2026-04-01';
+    const result = addToWrittenList(existing, '2603.12346v1', '2026-04-02');
+    expect(result).toBe('arxiv_id\twritten_date\n2603.12345v1\t2026-04-01\n2603.12346v1\t2026-04-02');
+  });
+
+  it('handles header-only list', () => {
+    const result = addToWrittenList('arxiv_id\twritten_date', '2603.12345v1', '2026-04-01');
+    expect(result).toBe('arxiv_id\twritten_date\n2603.12345v1\t2026-04-01');
   });
 });

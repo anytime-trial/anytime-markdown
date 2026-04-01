@@ -1,18 +1,15 @@
-import {
-  uploadPatentFile,
-  createCmsConfig,
-  createS3Client,
-} from '@anytime-markdown/cms-core';
 import { paperConfig } from './paperConfig.js';
 
-export interface PaperCollectorEnv {
+export interface PaperRankingEnv {
   PAPER_S3_BUCKET?: string;
-  PAPER_CRON_ENABLED?: string;
   S3_DOCS_BUCKET: string;
   ANYTIME_AWS_ACCESS_KEY_ID: string;
   ANYTIME_AWS_SECRET_ACCESS_KEY: string;
   ANYTIME_AWS_REGION?: string;
 }
+
+/** @deprecated Use PaperRankingEnv instead */
+export type PaperCollectorEnv = PaperRankingEnv;
 
 /** OpenAlex API のレスポンス中の著者情報 */
 interface OpenAlexAuthorship {
@@ -54,6 +51,7 @@ const MAX_AUTHORS = 5;
 const ARXIV_ABS_PREFIX = 'https://arxiv.org/abs/';
 const ARXIV_PDF_PREFIX = 'https://arxiv.org/pdf/';
 const RANKING_TSV_HEADER = 'rank\tcited_by_count\tarxiv_id\tpublication_date\tsubfield\tauthors\ttitle\tpdf_url';
+const WRITTEN_TSV_HEADER = 'arxiv_id\twritten_date';
 
 /**
  * 指定月数前の日付を計算する。
@@ -137,72 +135,46 @@ export function formatRankingToTsv(papers: readonly RankedPaper[]): string {
   return [RANKING_TSV_HEADER, ...rows].join('\n');
 }
 
-function getTodayString(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+/**
+ * OpenAlex から論文ランキングを取得する。
+ * サイトへの fetch のみ行い、S3 保存はしない。
+ */
+export async function fetchRankingFromOpenAlex(
+  months: number,
+  fetchCount: number,
+  today: string,
+): Promise<RankedPaper[]> {
+  const url = buildOpenAlexUrl(months, fetchCount, today);
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`OpenAlex API error: ${response.status} ${response.statusText}`);
+  }
+  const data = await response.json() as { results: OpenAlexWork[] };
+  return parseOpenAlexResponse(data.results);
 }
 
 /**
- * OpenAlex API で arXiv 論文の引用数ランキングを取得し、TSV で S3 に保存する。
+ * 記事作成済みリスト（TSV）をパースする。
+ * TSV形式: arxiv_id\twritten_date
+ * ヘッダ行あり。
  */
-export async function collectPaperRanking(
-  env: PaperCollectorEnv,
-): Promise<void> {
-  const cronEnabled = env.PAPER_CRON_ENABLED !== undefined
-    ? env.PAPER_CRON_ENABLED !== 'false'
-    : paperConfig.cronEnabled;
-
-  if (!cronEnabled) {
-    console.log('Paper ranking collection is disabled');
-    return;
+export function parseWrittenList(tsv: string): Set<string> {
+  const ids = new Set<string>();
+  const lines = tsv.split('\n').slice(1); // skip header
+  for (const line of lines) {
+    const id = line.split('\t')[0]?.trim();
+    if (id) ids.add(id);
   }
+  return ids;
+}
 
-  const months = paperConfig.monthlyRankingMonths;
-  const today = getTodayString();
-  const url = buildOpenAlexUrl(months, paperConfig.rankingFetchCount, today);
-
-  let response: Response;
-  try {
-    response = await fetch(url);
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(`OpenAlex API request failed: ${message}`);
-    return;
+/**
+ * 記事作成済みリストに追加してTSV文字列を返す。
+ * 既存のTSV文字列 + 新しいarxiv_id + 日付 → 更新後のTSV文字列
+ */
+export function addToWrittenList(existingTsv: string, arxivId: string, writtenDate: string): string {
+  if (!existingTsv || existingTsv.trim() === '' || existingTsv.trim() === WRITTEN_TSV_HEADER) {
+    return `${WRITTEN_TSV_HEADER}\n${arxivId}\t${writtenDate}`;
   }
-
-  if (!response.ok) {
-    console.error(`OpenAlex API error: ${response.status} ${response.statusText}`);
-    return;
-  }
-
-  const data = await response.json() as { results: OpenAlexWork[] };
-  const papers = parseOpenAlexResponse(data.results);
-
-  if (papers.length === 0) {
-    console.log('No ranked papers found');
-    return;
-  }
-
-  console.log(`Fetched ${papers.length} ranked papers from OpenAlex`);
-
-  const tsv = formatRankingToTsv(papers);
-
-  const cmsConfig = createCmsConfig({
-    S3_DOCS_BUCKET: env.PAPER_S3_BUCKET ?? env.S3_DOCS_BUCKET,
-    ANYTIME_AWS_ACCESS_KEY_ID: env.ANYTIME_AWS_ACCESS_KEY_ID,
-    ANYTIME_AWS_SECRET_ACCESS_KEY: env.ANYTIME_AWS_SECRET_ACCESS_KEY,
-    ANYTIME_AWS_REGION: env.ANYTIME_AWS_REGION,
-  });
-  const s3Client = createS3Client(cmsConfig);
-  const rankingsConfig = {
-    bucket: cmsConfig.bucket,
-    patentsPrefix: paperConfig.rankingS3Prefix,
-  };
-
-  await uploadPatentFile({ fileName: `monthly-${today}.tsv`, content: tsv }, s3Client, rankingsConfig);
-
-  console.log(`Uploaded monthly ranking file for ${today}`);
+  return `${existingTsv.trimEnd()}\n${arxivId}\t${writtenDate}`;
 }
