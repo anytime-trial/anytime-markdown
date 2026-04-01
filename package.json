@@ -26,7 +26,11 @@
   "overrides": {
     "serialize-javascript": "7.0.5",
     "diff": "8.0.3",
-    "next": "15.5.14",
+    "next": "16.1.7",
+    "@auth/core": "0.41.1",
+    "next-auth": {
+      "@auth/core": "0.41.1"
+    },
     "handlebars": "4.7.9"
   },
   "devDependencies": {
@@ -35,5 +39,9 @@
     "eslint-plugin-simple-import-sort": "^12.1.1",
     "raw-loader": "4.0.2",
     "typescript-eslint": "^8.57.0"
+  },
+  "dependencies": {
+    "@auth/core": "0.41.1",
+    "next": "16.1.7"
   }
 }

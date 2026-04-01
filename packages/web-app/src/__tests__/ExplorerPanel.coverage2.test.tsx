@@ -62,7 +62,7 @@ jest.mock("next-intl", () => ({
 jest.mock("next-auth/react", () => ({
   signIn: jest.fn(),
   signOut: (...args: any[]) => mockSignOut(...args),
-  useSession: () => ({ data: mockSession, status: mockSession ? "authenticated" : "unauthenticated" }),
+  useSession: () => ({ data: mockSession, status: mockSession !== null ? "authenticated" : "unauthenticated" }),
 }));
 
 jest.mock("../components/explorer/GitHistorySection", () => ({

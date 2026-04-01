@@ -33,8 +33,15 @@ export class ClaudeStatusWatcher implements vscode.Disposable {
 
   /** ステータスファイルが存在しなければ作成し、ファイル単位で fs.watch する */
   private ensureFileAndWatch(): void {
-    if (!fs.existsSync(this.statusFilePath)) {
-      fs.writeFileSync(this.statusFilePath, '{}');
+    try {
+      // wx: 排他作成（ファイルが既に存在する場合は EEXIST で失敗）
+      // mode 0o600: 所有者のみ読み書き可能（insecure-temporary-file 対策）
+      fs.writeFileSync(this.statusFilePath, '{}', { flag: 'wx', mode: 0o600 });
+    } catch (err: unknown) {
+      // EEXIST は正常（既にファイルが存在する）、それ以外は無視してポーリングで対応
+      if (err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code !== 'EEXIST') {
+        // ファイル作成失敗時もポーリングで対応可能
+      }
     }
     this.attachFileWatch();
   }

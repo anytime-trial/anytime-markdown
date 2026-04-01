@@ -41,10 +41,14 @@ export function setupClaudeHooks(): boolean {
   }
 
   let settings: ClaudeSettings = {};
-  if (fs.existsSync(SETTINGS_PATH)) {
-    try {
-      settings = JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf-8'));
-    } catch {
+  try {
+    settings = JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf-8'));
+  } catch (err: unknown) {
+    // ENOENT: ファイル未存在は正常（初回作成）、パースエラーは設定破損
+    if (err instanceof SyntaxError) {
+      return false;
+    }
+    if (err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code !== 'ENOENT') {
       return false;
     }
   }

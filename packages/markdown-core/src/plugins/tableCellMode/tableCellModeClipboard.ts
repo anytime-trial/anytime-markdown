@@ -1,6 +1,6 @@
 import type { EditorView } from "@tiptap/pm/view";
 import { TableMap } from "prosemirror-tables";
-import { tableCellModePluginKey, setNavigationMode } from "./tableCellModePlugin";
+import { tableCellModePluginKey } from "./tableCellModePlugin";
 
 // ----------------------------------------------------------------
 // Pure utility functions

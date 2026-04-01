@@ -287,7 +287,7 @@ export function activate(context: vscode.ExtensionContext) {
 		async (gitRoot: string, filePath: string, group: 'staged' | 'changes', currentUri: vscode.Uri, isMd: boolean, diffLabel: string) => {
 			const now = Date.now();
 			const uriStr = currentUri.toString();
-			const isDoubleClick = lastChangesClickUri === uriStr && (now - lastChangesClickTime) < 500;
+			const _isDoubleClick = lastChangesClickUri === uriStr && (now - lastChangesClickTime) < 500;
 			lastChangesClickUri = uriStr;
 			lastChangesClickTime = now;
 

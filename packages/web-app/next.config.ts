@@ -16,8 +16,13 @@ const isCapacitorBuild = !isCloudflare && process.env.CAPACITOR_BUILD === 'true'
 const nextConfig: NextConfig = {
   devIndicators: false,
   transpilePackages: ['@anytime-markdown/markdown-core'],
-  eslint: {
-    ignoreDuringBuilds: true,
+  turbopack: {
+    rules: {
+      '*.md': {
+        loaders: ['raw-loader'],
+        as: '*.js',
+      },
+    },
   },
   ...(isCapacitorBuild && {
     output: 'export' as const,

@@ -127,7 +127,7 @@ export function EditorContentArea({
       >
         {editor && <SearchReplaceBar editor={editor} t={t} />}
         {editor && <EditorContextMenu editor={editor} readOnly={readonlyMode || reviewMode} t={t}
-          currentMode={reviewMode ? "review" : sourceMode ? "source" : "wysiwyg"}
+          currentMode={reviewMode ? "review" : "wysiwyg"}
           onSwitchToReview={onSwitchToReview} onSwitchToWysiwyg={onSwitchToWysiwyg} onSwitchToSource={onSwitchToSource}
         />}
         <div ref={frontmatterRef}>

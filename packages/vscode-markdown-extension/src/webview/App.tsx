@@ -277,6 +277,8 @@ export function App() {
     };
 
     const handleMessage = (event: MessageEvent) => {
+      // VS Code webview のメッセージは origin が空文字列または vscode-webview:// スキーム
+      if (event.origin && !event.origin.startsWith('vscode-webview://')) return;
       const message = event.data;
       if (!message?.type) return;
 

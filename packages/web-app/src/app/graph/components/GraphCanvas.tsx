@@ -9,8 +9,8 @@ import { resolveConnectorEndpoints, computeOrthogonalPath, computeBezierPath, be
 import type { DragPreview } from '../hooks/useCanvasInteraction';
 
 interface GraphCanvasProps {
-  nodes: GraphNode[];
-  edges: GraphEdge[];
+  nodes: readonly GraphNode[];
+  edges: readonly GraphEdge[];
   viewport: Viewport;
   selection: SelectionState;
   showGrid: boolean;

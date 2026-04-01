@@ -12,8 +12,8 @@ export interface RenderOptions {
   ctx: CanvasRenderingContext2D;
   width: number;
   height: number;
-  nodes: GraphNode[];
-  edges: GraphEdge[];
+  nodes: readonly GraphNode[];
+  edges: readonly GraphEdge[];
   viewport: Viewport;
   selection: SelectionState;
   showGrid: boolean;

@@ -312,7 +312,7 @@ export function computeBezierPath(
 
 export function resolveConnectorEndpoints(
   edge: GraphEdge,
-  nodes: GraphNode[],
+  nodes: readonly GraphNode[],
 ): { from: { x: number; y: number }; to: { x: number; y: number } } {
   const fromNode = edge.from.nodeId ? nodes.find((n) => n.id === edge.from.nodeId) : null;
   const toNode = edge.to.nodeId ? nodes.find((n) => n.id === edge.to.nodeId) : null;
