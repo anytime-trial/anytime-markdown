@@ -95,14 +95,6 @@ describe("ImageCropTool coverage - utility functions via interactions", () => {
 
     // The overlay container is the Box with onMouseDown
     // Find it by looking for the element that wraps the image area
-    const boxes = container.querySelectorAll("div");
-    // The container with mouse handlers - find by checking for cursor style
-    let overlayBox: HTMLElement | null = null;
-    for (const box of boxes) {
-      if (box.style.cursor === "crosshair" || box.getAttribute("style")?.includes("cursor")) {
-        overlayBox = box;
-      }
-    }
     // Use the parent that has the event handlers — fire on the container itself
     const eventTarget = img.parentElement!.parentElement!;
 
