@@ -8,8 +8,8 @@
 export const paperConfig = {
   /** arXiv カテゴリ */
   categories: ['cs.AI', 'cs.LG', 'cs.CL', 'cs.SE', 'cs.CR', 'cs.DC'],
-  /** 1回の取得件数 */
-  fetchCount: 100,
+  /** カテゴリごとの取得件数 */
+  fetchCountPerCategory: 10,
   /** 対象期間（日数） */
   lookbackDays: 7,
   /** arXiv API ベース URL */

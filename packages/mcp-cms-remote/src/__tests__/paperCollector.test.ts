@@ -22,17 +22,17 @@ const samplePapers = [
 ];
 
 describe('buildArxivQuery', () => {
-  it('builds query from categories and date range', () => {
-    const query = buildArxivQuery(['cs.AI', 'cs.LG'], 7, '2026-04-01');
+  it('builds query from single category and date range', () => {
+    const query = buildArxivQuery('cs.AI', 7, '2026-04-01');
     expect(query).toBe(
-      '(cat:cs.AI+OR+cat:cs.LG)+AND+submittedDate:[202603250000+TO+202604012359]',
+      'cat:cs.AI+AND+submittedDate:[202603250000+TO+202604012359]',
     );
   });
 
-  it('handles single category', () => {
-    const query = buildArxivQuery(['cs.AI'], 3, '2026-04-01');
+  it('handles different lookback days', () => {
+    const query = buildArxivQuery('cs.LG', 3, '2026-04-01');
     expect(query).toBe(
-      '(cat:cs.AI)+AND+submittedDate:[202603290000+TO+202604012359]',
+      'cat:cs.LG+AND+submittedDate:[202603290000+TO+202604012359]',
     );
   });
 });

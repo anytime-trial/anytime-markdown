@@ -39,17 +39,16 @@ function computeSinceDate(today: string, lookbackDays: number): string {
 
 /**
  * arXiv API の検索クエリを構築する。
- * 例: `(cat:cs.AI+OR+cat:cs.LG)+AND+submittedDate:[202603250000+TO+202604012359]`
+ * 例: `cat:cs.AI+AND+submittedDate:[202603250000+TO+202604012359]`
  */
 export function buildArxivQuery(
-  categories: readonly string[],
+  category: string,
   lookbackDays: number,
   today: string,
 ): string {
   const sinceDate = computeSinceDate(today, lookbackDays);
   const todayCompact = today.replaceAll('-', '');
-  const catConditions = categories.map((cat) => `cat:${cat}`).join('+OR+');
-  return `(${catConditions})+AND+submittedDate:[${sinceDate}0000+TO+${todayCompact}2359]`;
+  return `cat:${category}+AND+submittedDate:[${sinceDate}0000+TO+${todayCompact}2359]`;
 }
 
 export function formatToTsv(papers: readonly Paper[]): string {
@@ -157,35 +156,55 @@ export async function collectPapers(env: PaperCollectorEnv): Promise<void> {
     return;
   }
 
-  const { baseUrl, categories, fetchCount, lookbackDays, s3Prefix } = paperConfig;
+  const { baseUrl, categories, fetchCountPerCategory, lookbackDays, s3Prefix } = paperConfig;
   const today = getTodayString();
-  const query = buildArxivQuery(categories, lookbackDays, today);
+  const allPapers: Paper[] = [];
+  const seenIds = new Set<string>();
 
-  const url = `${baseUrl}?search_query=${query}&sortBy=submittedDate&sortOrder=descending&max_results=${fetchCount}`;
+  for (const category of categories) {
+    if (allPapers.length > 0) {
+      // arXiv レート制限: 3秒間隔
+      await new Promise((resolve) => setTimeout(resolve, 3500));
+    }
 
-  let response: Response;
-  try {
-    response = await fetch(url);
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(`arXiv API request failed: ${message}`);
-    return;
+    const query = buildArxivQuery(category, lookbackDays, today);
+    const url = `${baseUrl}?search_query=${query}&sortBy=submittedDate&sortOrder=descending&max_results=${fetchCountPerCategory}`;
+
+    let response: Response;
+    try {
+      response = await fetch(url);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`arXiv API request failed for ${category}: ${message}`);
+      continue;
+    }
+
+    if (!response.ok) {
+      console.error(`arXiv API error for ${category}: ${response.status} ${response.statusText}`);
+      continue;
+    }
+
+    const xml = await response.text();
+    const papers = parseArxivResponse(xml);
+
+    // 重複排除（論文は複数カテゴリに属する）
+    for (const paper of papers) {
+      if (!seenIds.has(paper.arxiv_id)) {
+        seenIds.add(paper.arxiv_id);
+        allPapers.push(paper);
+      }
+    }
+
+    console.log(`${category}: ${papers.length} papers`);
   }
 
-  if (!response.ok) {
-    console.error(`arXiv API error: ${response.status} ${response.statusText}`);
-    return;
-  }
-
-  const xml = await response.text();
-  const papers = parseArxivResponse(xml);
-
-  if (papers.length === 0) {
+  if (allPapers.length === 0) {
     console.log('No papers found for the given criteria');
     return;
   }
 
-  console.log(`Fetched ${papers.length} papers from arXiv`);
+  console.log(`Fetched ${allPapers.length} unique papers from arXiv`);
+  const papers = allPapers;
 
   const tsv = formatToTsv(papers);
   const jsonl = formatToJsonl(papers);
