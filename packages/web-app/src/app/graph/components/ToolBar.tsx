@@ -43,6 +43,7 @@ import {
   AccountTree as AccountTreeIcon,
   Layers as LayersIcon,
   UnfoldMore as SpreadIcon,
+  FilterList as FilterListIcon,
 } from '@mui/icons-material';
 import { useTranslations } from 'next-intl';
 import { ToolType } from '../types';
@@ -86,6 +87,9 @@ interface ToolBarProps {
   layoutAlgorithm?: 'eades' | 'fruchterman-reingold' | 'eades-vpsc' | 'fruchterman-reingold-vpsc';
   onChangeAlgorithm?: (algorithm: 'eades' | 'fruchterman-reingold' | 'eades-vpsc' | 'fruchterman-reingold-vpsc') => void;
   onSpreadConnected?: () => void;
+  showFilter?: boolean;
+  onToggleFilter?: () => void;
+  filterActive?: boolean;
 }
 
 export function GraphToolBar({
@@ -95,6 +99,7 @@ export function GraphToolBar({
   layoutRunning, collisionEnabled, onAutoLayout, onToggleCollision,
   layoutAlgorithm = 'eades', onChangeAlgorithm,
   onSpreadConnected,
+  showFilter: _showFilter, onToggleFilter, filterActive,
 }: Readonly<ToolBarProps>) {
   const t = useTranslations('Graph');
   const { themeMode } = useThemeMode();
@@ -388,6 +393,11 @@ export function GraphToolBar({
         <Tooltip title={t('grid')}>
           <IconButton size="small" onClick={onToggleGrid} color={showGrid ? 'primary' : 'default'}>
             <GridIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title="Filter">
+          <IconButton onClick={onToggleFilter} size="small" sx={{ color: filterActive ? '#2196f3' : undefined }}>
+            <FilterListIcon fontSize="small" />
           </IconButton>
         </Tooltip>
 

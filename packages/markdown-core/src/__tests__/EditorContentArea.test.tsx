@@ -68,17 +68,33 @@ jest.mock("../components/SourceSearchBar", () => ({
   SourceSearchBar: () => <div data-testid="source-search-bar" />,
 }));
 
+const mockEditorMode = {
+  sourceMode: false,
+  readonlyMode: false,
+  reviewMode: false,
+  inlineMergeOpen: false,
+  sideToolbar: false,
+  explorerOpen: false,
+  noScroll: false,
+};
+jest.mock("../contexts/EditorModeContext", () => ({
+  useEditorMode: () => mockEditorMode,
+}));
+
 import { EditorContentArea } from "../components/EditorContentArea";
 
 const theme = createTheme();
 const t = (key: string) => key;
 
 describe("EditorContentArea", () => {
+  beforeEach(() => {
+    mockEditorMode.sourceMode = false;
+    mockEditorMode.readonlyMode = false;
+    mockEditorMode.reviewMode = false;
+  });
+
   const defaultProps = {
     editor: null,
-    sourceMode: false,
-    readonlyMode: false,
-    reviewMode: false,
     editorHeight: 500,
     editorWrapperRef: { current: null } as any,
     editorMountCallback: jest.fn(),
@@ -103,9 +119,10 @@ describe("EditorContentArea", () => {
   });
 
   it("renders in source mode without crashing", () => {
+    mockEditorMode.sourceMode = true;
     const { container } = render(
       <ThemeProvider theme={theme}>
-        <EditorContentArea {...defaultProps} sourceMode />
+        <EditorContentArea {...defaultProps} />
       </ThemeProvider>,
     );
     expect(container).toBeTruthy();

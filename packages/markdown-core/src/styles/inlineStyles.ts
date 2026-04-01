@@ -1,7 +1,7 @@
 import type { SxProps,Theme } from "@mui/material/styles";
 import { alpha } from "@mui/material/styles";
 
-import { COMMON_WHITE, getGrey, getPrimaryMain, getWarningLight, getWarningMain } from "../constants/colors";
+import { ACCENT_COLOR, COMMON_WHITE, getGrey, getPrimaryMain, getWarningLight, getWarningMain } from "../constants/colors";
 import { TOOLTIP_FONT_SIZE } from "../constants/dimensions";
 import { Z_LINK_TOOLTIP } from "../constants/zIndex";
 
@@ -44,6 +44,13 @@ export function getInlineStyles(theme: Theme): SxProps<Theme> {
     },
     '&.ctrl-held a[href^="#"]:hover::after': {
       content: "attr(href)",
+    },
+    // テキストハイライト（マーカー）
+    "& mark": {
+      backgroundColor: alpha(ACCENT_COLOR, isDark ? 0.45 : 0.40),
+      borderRadius: "2px",
+      color: "inherit",
+      px: "2px",
     },
     // コメントハイライト
     "& .comment-highlight": {

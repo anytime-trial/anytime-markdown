@@ -282,7 +282,8 @@ export const ChangeGutterExtension = Extension.create({
           for (let i = positions.length - 1; i >= 0; i--) {
             if (positions[i] < cursor) { prev = positions[i]; break; }
           }
-          const target = prev ?? positions.at(-1)!;
+          const target = prev ?? positions.at(-1);
+          if (target == null) return false;
           if (dispatch) {
             const tr = state.tr.setSelection(
               TextSelection.create(state.doc, target),

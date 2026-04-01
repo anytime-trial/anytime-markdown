@@ -8,6 +8,32 @@ import {
 } from "./tableCellModePlugin";
 
 /**
+ * セル位置からテーブルの DOM 要素を取得し、インライン表（width: auto）かどうかを判定する。
+ */
+export function isInlineTable(view: EditorView, cellPos: number): boolean {
+  try {
+    const $pos = view.state.doc.resolve(cellPos);
+    for (let depth = $pos.depth; depth >= 0; depth--) {
+      if ($pos.node(depth).type.name === "table") {
+        const tableStart = $pos.before(depth);
+        const dom = view.nodeDOM(tableStart);
+        if (dom instanceof HTMLElement) {
+          const table = dom.tagName === "TABLE" ? dom : dom.querySelector("table");
+          if (table) {
+            const w = table.style.width;
+            return !w || w === "auto";
+          }
+        }
+        break;
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return false;
+}
+
+/**
  * マウス座標からテーブルセルノードの位置を取得する。
  * セル内でない場合は null を返す。
  */
@@ -62,6 +88,15 @@ export function handleMouseDown(
     return false;
   }
 
+  // インラインの表 → ProseMirror のデフォルト動作に委譲
+  if (isInlineTable(view, cellPos)) {
+    if (hasActiveState) {
+      const { tr } = view.state;
+      view.dispatch(exitTableMode(tr));
+    }
+    return false;
+  }
+
   // Shift+クリック → editing 中なら navigation に切替、選択は ProseMirror に委譲
   if (event.shiftKey) {
     if (pluginState?.mode === "editing" && pluginState.editingCellPos != null) {
@@ -109,6 +144,11 @@ export function handleDoubleClick(
   const cellPos = findCellPosFromEvent(view, event);
 
   if (cellPos == null) {
+    return false;
+  }
+
+  // インラインの表 → デフォルト動作に委譲
+  if (isInlineTable(view, cellPos)) {
     return false;
   }
 

@@ -528,9 +528,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return;
 
       try {
-        if (!fs.existsSync(imagesDir)) {
-          fs.mkdirSync(imagesDir, { recursive: true });
-        }
+        fs.mkdirSync(imagesDir, { recursive: true });
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 10_000);
         const res = await fetch(url, { signal: controller.signal });
@@ -542,7 +540,9 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
           'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif',
           'image/webp': 'webp', 'image/svg+xml': 'svg', 'image/bmp': 'bmp',
         };
-        const ext = extMap[contentType.split(';')[0].trim()] ?? 'png';
+        const ext = extMap[contentType.split(';')[0].trim()];
+        // 許可されていない Content-Type の場合はスキップ
+        if (!ext) return;
         const now = new Date();
         const ts = [
           now.getFullYear(),
@@ -555,6 +555,9 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
         ].join('');
         const fileName = `dl-${ts}.${ext}`;
         const filePath = path.join(imagesDir, fileName);
+
+        // パス走査防止: 解決後のパスが imagesDir 内であることを検証
+        if (!path.resolve(filePath).startsWith(path.resolve(imagesDir))) return;
 
         const arrayBuf = await res.arrayBuffer();
         // サイズ上限: 10MB

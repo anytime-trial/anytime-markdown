@@ -82,6 +82,7 @@ describe("useOutline - handleOutlineResizeStart", () => {
 
 describe("useOutline - handleOutlineClick", () => {
   it("isEditable=false の場合 setTextSelection を呼ばない", () => {
+    jest.useFakeTimers();
     const run = jest.fn();
     const setTextSelection = jest.fn().mockReturnValue({ run });
     const focus = jest.fn().mockReturnValue({ setTextSelection });
@@ -94,7 +95,7 @@ describe("useOutline - handleOutlineClick", () => {
       isEditable: false,
       chain,
       view: {
-        domAtPos: jest.fn(() => ({ node: el })),
+        nodeDOM: jest.fn(() => el),
       },
     });
 
@@ -105,11 +106,14 @@ describe("useOutline - handleOutlineClick", () => {
 
     // chain should not have been called since isEditable is false
     expect(chain).not.toHaveBeenCalled();
-    // But scrollIntoView should still be called
+    // scrollIntoView は requestAnimationFrame 内で呼ばれる
+    act(() => jest.runAllTimers());
     expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "center" });
+    jest.useRealTimers();
   });
 
-  it("domAtPos が Text ノードを返す場合は parentElement にスクロールする", () => {
+  it("nodeDOM が Text ノードを返す場合は parentElement にスクロールする", () => {
+    jest.useFakeTimers();
     const run = jest.fn();
     const setTextSelection = jest.fn().mockReturnValue({ run });
     const focus = jest.fn().mockReturnValue({ setTextSelection });
@@ -123,7 +127,7 @@ describe("useOutline - handleOutlineClick", () => {
     const editor = createMockEditor({
       chain,
       view: {
-        domAtPos: jest.fn(() => ({ node: textNode })),
+        nodeDOM: jest.fn(() => textNode),
       },
     });
 
@@ -132,7 +136,9 @@ describe("useOutline - handleOutlineClick", () => {
     );
     act(() => result.current.handleOutlineClick(5));
 
+    act(() => jest.runAllTimers());
     expect(parentEl.scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "center" });
+    jest.useRealTimers();
   });
 });
 

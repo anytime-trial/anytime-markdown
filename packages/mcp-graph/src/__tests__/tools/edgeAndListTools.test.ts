@@ -35,6 +35,18 @@ describe('addEdge', () => {
     expect(doc.edges).toHaveLength(1);
   });
 
+  it('should create edge with weight', async () => {
+    const n1 = await addNode({ path: 'test.graph', type: 'rect', x: 0, y: 0 }, tmpDir);
+    const n2 = await addNode({ path: 'test.graph', type: 'rect', x: 200, y: 0 }, tmpDir);
+    const edge = await addEdge({
+      path: 'test.graph', type: 'line',
+      from: { nodeId: n1.id, x: 0, y: 0 },
+      to: { nodeId: n2.id, x: 200, y: 0 },
+      weight: 0.8,
+    }, tmpDir);
+    expect(edge.weight).toBe(0.8);
+  });
+
   it('should throw if source node does not exist', async () => {
     const n2 = await addNode({ path: 'test.graph', type: 'rect', x: 200, y: 0 }, tmpDir);
     await expect(addEdge({

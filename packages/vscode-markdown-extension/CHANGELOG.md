@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-04-01
+
+### Security
+
+- Fix TOCTOU race conditions in file system operations using exclusive create flag
+- Secure temporary file creation with restricted permissions (mode 0o600)
+- Add postMessage origin verification for VS Code webview handlers
+- Add path traversal prevention for network-to-file writes
+
+### Editor Core (markdown-core)
+
+- Add EditorModeContext for mode state management
+- Progressive outline unfold and overlay panels on narrow viewports
+- Refactor: extract editor DOM handlers, crop utilities, merge hooks
+- Fix table cell height, heading centering, inline table cursor
+
 ## [0.9.1] - 2026-03-30
 
 ### Editor Core (markdown-core)

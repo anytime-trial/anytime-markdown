@@ -34,7 +34,7 @@ jest.mock("../utils/clipboardHelpers", () => ({
   readTextFromClipboard: jest.fn().mockResolvedValue(null),
 }));
 
-jest.mock("../hooks/useEditorConfig", () => ({
+jest.mock("../utils/editorImageHandlers", () => ({
   requestExternalImageDownloads: jest.fn(),
   saveClipboardImageViaVscode: jest.fn(),
 }));

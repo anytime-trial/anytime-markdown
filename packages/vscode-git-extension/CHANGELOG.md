@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.0.3] - 2026-04-01
+
+### Fixed
+
+- Prefix unused isDoubleClick variable in changes panel
+
 ## [0.0.2] - 2026-03-29
 
 ### Changed

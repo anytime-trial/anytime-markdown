@@ -7,26 +7,26 @@ import {
   Typography,
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
-import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
-import type { Transaction } from "@tiptap/pm/state";
 import type { Editor } from "@tiptap/react";
 import { useEditor } from "@tiptap/react";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { FILE_DROP_OVERLAY_COLOR, getDivider, getEditorBg, getTextDisabled } from "../constants/colors";
 import { MERGE_INFO_FONT_SIZE } from "../constants/dimensions";
 import { setMergeEditors } from "../contexts/MergeEditorsContext";
 import { getBaseExtensions } from "../editorExtensions";
 import { CustomHardBreak } from "../extensions/customHardBreak";
-import { ReviewModeExtension, reviewModeStorage } from "../extensions/reviewModeExtension";
+import { ReviewModeExtension } from "../extensions/reviewModeExtension";
 import { useDiffBackground } from "../hooks/useDiffBackground";
 import { useDiffHighlight } from "../hooks/useDiffHighlight";
+import { useMergeContentSync } from "../hooks/useMergeContentSync";
 import { useMergeDiff } from "../hooks/useMergeDiff";
+import { useMergeFileOps } from "../hooks/useMergeFileOps";
 import { useScrollSync } from "../hooks/useScrollSync";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import { type DiffLine } from "../utils/diffEngine";
-import { applyMarkdownToEditor } from "../utils/editorContentLoader";
-import { readFileAsText } from "../utils/fileReading";
+
+
 import { preprocessMarkdown } from "../utils/frontmatterHelpers";
 import { FrontmatterBlock } from "./FrontmatterBlock";
 import { LinePreviewPanel } from "./LinePreviewPanel";
@@ -61,74 +61,7 @@ interface InlineMergeViewProps {
   ) => React.ReactNode;
 }
 
-interface FileMetadata {
-  encoding: string;
-  lineEnding: string;
-}
 
-const DEFAULT_METADATA: FileMetadata = { encoding: "UTF-8", lineEnding: "LF" };
-
-const SYNC_TARGET_TYPES = new Set(["codeBlock", "table", "image"]);
-
-interface CollapsedState {
-  type: string;
-  index: number;
-  collapsed?: boolean;
-  codeCollapsed?: boolean;
-}
-
-/** Collect collapsed/codeCollapsed states from a ProseMirror doc */
-function collectCollapsedStates(doc: ProseMirrorNode): CollapsedState[] {
-  const states: CollapsedState[] = [];
-  const counters: Record<string, number> = {};
-  doc.descendants((node) => {
-    if (SYNC_TARGET_TYPES.has(node.type.name)) {
-      const key = node.type.name;
-      counters[key] = (counters[key] || 0) + 1;
-      states.push({
-        type: key,
-        index: counters[key] - 1,
-        collapsed: node.attrs.collapsed,
-        codeCollapsed: node.attrs.codeCollapsed,
-      });
-    }
-  });
-  return states;
-}
-
-/** Apply collected collapsed states to a target doc via transaction */
-function applyCollapsedStates(
-  doc: ProseMirrorNode,
-  tr: Transaction,
-  sourceStates: CollapsedState[],
-): boolean {
-  const counters: Record<string, number> = {};
-  let changed = false;
-  doc.descendants((node, pos) => {
-    if (SYNC_TARGET_TYPES.has(node.type.name)) {
-      const key = node.type.name;
-      counters[key] = (counters[key] || 0) + 1;
-      const idx = counters[key] - 1;
-      const srcState = sourceStates.find(s => s.type === key && s.index === idx);
-      if (!srcState) return;
-      let nodeChanged = false;
-      const newAttrs: Record<string, unknown> = { ...node.attrs };
-      if (srcState.collapsed !== undefined && node.attrs.collapsed !== srcState.collapsed) {
-        newAttrs.collapsed = srcState.collapsed;
-        nodeChanged = true;
-      }
-      if (srcState.codeCollapsed !== undefined && node.attrs.codeCollapsed !== srcState.codeCollapsed) {
-        newAttrs.codeCollapsed = srcState.codeCollapsed;
-        nodeChanged = true;
-      }
-      if (nodeChanged) {
-        tr.setNodeMarkup(pos, undefined, newAttrs);
-        changed = true;
-      }
-    }
-  });
-  return changed;
-}
 
 function downloadText(text: string, filename: string) {
   const blob = new Blob([text], { type: "text/markdown;charset=utf-8" });
@@ -187,48 +120,26 @@ export function InlineMergeView({
     onUndoRedoReady?.({ undo, redo, canUndo, canRedo });
   }, [onUndoRedoReady, undo, redo, canUndo, canRedo]);
 
-  // 外部から渡された比較ファイル内容を右パネルに反映（1回限り）
-  useEffect(() => {
-    if (externalRightContent != null) {
-      setCompareText(externalRightContent);
-      onExternalRightContentConsumed?.();
-    }
-  }, [externalRightContent, setCompareText, onExternalRightContentConsumed]);
+  const {
+    rightDragOver, setRightDragOver,
+    fileInputRightRef,
+    handleFileInputChange,
+    handleDragDropFile,
+  } = useMergeFileOps({
+    compareText, setCompareText,
+    onRightFileOpsReady,
+    externalRightContent, onExternalRightContentConsumed,
+    downloadMarkdown: downloadText,
+  });
 
   const leftContainerRef = useRef<HTMLDivElement>(null);
   const rightScrollRef = useRef<HTMLDivElement>(null);
   const compareTextareaRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRightRef = useRef<HTMLInputElement>(null);
 
-  // 右パネルのファイル操作を親に公開
-  useEffect(() => {
-    onRightFileOpsReady?.({
-      loadFile: () => fileInputRightRef.current?.click(),
-      exportFile: () => {
-        const n = new Date();
-        const ts = `${n.getFullYear()}${String(n.getMonth() + 1).padStart(2, "0")}${String(n.getDate()).padStart(2, "0")}_${String(n.getHours()).padStart(2, "0")}${String(n.getMinutes()).padStart(2, "0")}${String(n.getSeconds()).padStart(2, "0")}`;
-        downloadText(compareText, `document_right_${ts}.md`);
-      },
-    });
-  }, [onRightFileOpsReady, compareText]);
-
-  // Ctrl+S で右パネル内容も保存
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        globalThis.dispatchEvent(new CustomEvent('vscode-save-compare-file', { detail: compareText }));
-      }
-    };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [compareText]);
-
-  const [, setRightMeta] = useState<FileMetadata>(DEFAULT_METADATA);
   const hoverSetterRef = useRef<((v: number | null) => void) | null>(null);
   const handleHoverLine = useCallback((idx: number | null) => {
     hoverSetterRef.current?.(idx);
   }, []);
-  const [rightDragOver, setRightDragOver] = useState(false);
 
   // Right tiptap editor (for WYSIWYG mode) – readonly (cursor visible)
   const leftEditor = useEditor({
@@ -252,12 +163,11 @@ export function InlineMergeView({
     },
   });
 
-  // Enable transaction filter to block edits while keeping cursor visible
-  useEffect(() => {
-    if (leftEditor) {
-      reviewModeStorage(leftEditor).enabled = true;
-    }
-  }, [leftEditor]);
+  useMergeContentSync({
+    sourceMode, leftEditor, rightEditor,
+    editorContent, compareText,
+    setEditText, setCompareText,
+  });
 
   // 左側エディタのチェックボックスクリックをキャプチャフェーズでブロック
   useEffect(() => {
@@ -280,67 +190,6 @@ export function InlineMergeView({
     };
   }, [leftEditor]);
 
-  // editorContent -> leftText sync
-  useEffect(() => {
-    setEditText(editorContent);
-  }, [editorContent, setEditText]);
-
-  // compareText -> right tiptap editor sync
-  useEffect(() => {
-    if (leftEditor && !sourceMode) {
-      // React レンダリング中の flushSync 競合を回避するため次フレームに遅延
-      const id = requestAnimationFrame(() => {
-        if (leftEditor.isDestroyed) return;
-        reviewModeStorage(leftEditor).enabled = false;
-        applyMarkdownToEditor(leftEditor, compareText);
-        reviewModeStorage(leftEditor).enabled = true;
-      });
-      return () => cancelAnimationFrame(id);
-    }
-  }, [compareText, leftEditor, sourceMode]);
-
-  // When switching from source -> WYSIWYG, populate right editor
-  const prevSourceMode = useRef(sourceMode);
-  useEffect(() => {
-    let id: number | undefined;
-    if (prevSourceMode.current && !sourceMode && leftEditor) {
-      id = requestAnimationFrame(() => {
-        if (leftEditor.isDestroyed) return;
-        reviewModeStorage(leftEditor).enabled = false;
-        applyMarkdownToEditor(leftEditor, compareText);
-        reviewModeStorage(leftEditor).enabled = true;
-      });
-    }
-    prevSourceMode.current = sourceMode;
-    return () => { if (id !== undefined) cancelAnimationFrame(id); };
-  }, [sourceMode, leftEditor, compareText]);
-
-  // 左エディタのブロック展開/折りたたみ状態を右エディタに同期
-  useEffect(() => {
-    if (!rightEditor || !leftEditor || sourceMode) return;
-    let rafId: number | undefined;
-    const syncCollapsed = () => {
-      if (rightEditor.isDestroyed || leftEditor.isDestroyed) return;
-      if (rafId !== undefined) cancelAnimationFrame(rafId);
-      const sourceStates = collectCollapsedStates(rightEditor.state.doc);
-      rafId = requestAnimationFrame(() => {
-        if (leftEditor.isDestroyed) return;
-        const tr = leftEditor.state.tr;
-        const changed = applyCollapsedStates(leftEditor.state.doc, tr, sourceStates);
-        if (changed) {
-          reviewModeStorage(leftEditor).enabled = false;
-          leftEditor.view.dispatch(tr);
-          reviewModeStorage(leftEditor).enabled = true;
-        }
-      });
-    };
-    rightEditor.on("update", syncCollapsed);
-    return () => {
-      rightEditor.off("update", syncCollapsed);
-      if (rafId !== undefined) cancelAnimationFrame(rafId);
-    };
-  }, [rightEditor, leftEditor, sourceMode]);
-
   useDiffHighlight(sourceMode, rightEditor, leftEditor, diffOptions.semantic);
 
   useScrollSync(leftContainerRef, rightScrollRef);
@@ -348,13 +197,6 @@ export function InlineMergeView({
   const rightFrontmatter = useMemo(() => preprocessMarkdown(compareText).frontmatter, [compareText]);
 
   const { leftBgGradient, rightBgGradient } = useDiffBackground(diffResult, sourceMode);
-
-  const loadFile = (setter: (text: string) => void, metaSetter: (meta: FileMetadata) => void) => (file: File) => {
-    readFileAsText(file).then(({ text, encoding, lineEnding }) => {
-      metaSetter({ encoding, lineEnding });
-      setter(text);
-    });
-  };
 
   // モジュールレベルストアに左右エディタを登録（NodeView ポータルからアクセス可能にする）
   useEffect(() => {
@@ -370,11 +212,7 @@ export function InlineMergeView({
         type="file"
         accept=".md,text/markdown,text/plain"
         hidden
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) loadFile(setCompareText, setRightMeta)(f);
-          e.target.value = "";
-        }}
+        onChange={handleFileInputChange}
       />
 
 
@@ -466,7 +304,7 @@ export function InlineMergeView({
             setRightDragOver(false);
             const file = e.dataTransfer.files?.[0];
             if (file && (file.name.endsWith(".md") || file.name.endsWith(".markdown") || file.type.startsWith("text/"))) {
-              loadFile(setCompareText, setRightMeta)(file);
+              handleDragDropFile(file);
             }
           }}
         >

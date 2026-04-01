@@ -73,17 +73,20 @@ test.describe("Outline", () => {
     // Tooltip を消すためにパネル内にマウスを移動
     await outlineNav.hover();
 
-    // Fold All ボタンをクリック（Tooltip が覆う場合があるため force）
-    await outlineNav.getByRole("button", { name: "Fold All" }).click({ force: true });
+    // Fold ボタンをクリック（Tooltip が覆う場合があるため force）
+    await outlineNav.getByRole("button", { name: "Fold" }).click({ force: true });
 
     // heading-folded クラスがエディタ内に出現する（Firefoxではタイミングが遅い場合がある）
     const foldedHeadings = page.locator(".tiptap .heading-folded");
     await expect(foldedHeadings.first()).toBeAttached({ timeout: 10000 });
 
-    // ボタンが Unfold All に変わっているのでクリック
-    await outlineNav.getByRole("button", { name: "Unfold All" }).click({ force: true });
+    // Progressive unfold: Unfold を複数回クリックして全展開する
+    // H1 → H2 の順に段階的に展開される
+    const unfoldBtn = outlineNav.getByRole("button", { name: "Unfold" });
+    await unfoldBtn.click({ force: true });
+    await unfoldBtn.click({ force: true });
 
     // heading-folded クラスがなくなる
-    await expect(page.locator(".tiptap .heading-folded")).toHaveCount(0);
+    await expect(page.locator(".tiptap .heading-folded")).toHaveCount(0, { timeout: 10000 });
   });
 });

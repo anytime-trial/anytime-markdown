@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.0.3] - 2026-04-01
+
+### Added
+
+- Integrate data mapping, filter, path highlight, and detail panel
+
+### Security
+
+- Add postMessage origin verification for VS Code webview handlers
+
+### Graph Core (graph-core)
+
+- Add metadata to GraphNode and weight to GraphEdge
+- Add data mapping utilities, graph traversal, batch import, node filter, path highlight
+- Preserve metadata and weight in Draw.io and SVG export
+
 ## [0.0.2] - 2026-03-29
 
 ### Changed

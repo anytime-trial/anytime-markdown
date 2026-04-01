@@ -40,6 +40,19 @@ jest.mock("../constants/templates", () => ({
   getBuiltinTemplates: () => [],
 }));
 
+const mockEditorMode = {
+  sourceMode: false,
+  readonlyMode: false,
+  reviewMode: false,
+  inlineMergeOpen: false,
+  sideToolbar: false,
+  explorerOpen: false,
+  noScroll: false,
+};
+jest.mock("../contexts/EditorModeContext", () => ({
+  useEditorMode: () => mockEditorMode,
+}));
+
 import { EditorFooterOverlays } from "../components/EditorFooterOverlays";
 
 const theme = createTheme();
@@ -49,9 +62,6 @@ const noop = jest.fn();
 const baseProps = {
   editor: null as any,
   editorPortalTarget: null as any,
-  sourceMode: false,
-  readonlyMode: false,
-  reviewMode: false,
   handleLink: noop,
   executeInReviewMode: noop,
   slashCommandCallbackRef: { current: noop } as any,
@@ -91,6 +101,13 @@ const mockEditor = {
 } as any;
 
 describe("EditorFooterOverlays coverage", () => {
+  beforeEach(() => {
+    mockEditorMode.sourceMode = false;
+    mockEditorMode.readonlyMode = false;
+    mockEditorMode.reviewMode = false;
+    mockEditorMode.inlineMergeOpen = false;
+  });
+
   it("renders with editor and sourceMode=false shows bubble menu and slash command", () => {
     const { container } = render(
       <ThemeProvider theme={theme}>
@@ -103,9 +120,10 @@ describe("EditorFooterOverlays coverage", () => {
   });
 
   it("renders with sourceMode=true hides bubble menu and slash command", () => {
+    mockEditorMode.sourceMode = true;
     const { container } = render(
       <ThemeProvider theme={theme}>
-        <EditorFooterOverlays {...baseProps} editor={mockEditor} sourceMode={true} />
+        <EditorFooterOverlays {...baseProps} editor={mockEditor} />
       </ThemeProvider>,
     );
     expect(screen.queryByTestId("bubble-menu")).toBeNull();
@@ -114,9 +132,10 @@ describe("EditorFooterOverlays coverage", () => {
   });
 
   it("renders with readonlyMode=true hides slash command but shows bubble menu", () => {
+    mockEditorMode.readonlyMode = true;
     render(
       <ThemeProvider theme={theme}>
-        <EditorFooterOverlays {...baseProps} editor={mockEditor} readonlyMode={true} />
+        <EditorFooterOverlays {...baseProps} editor={mockEditor} />
       </ThemeProvider>,
     );
     expect(screen.getByTestId("bubble-menu")).toBeTruthy();
@@ -124,9 +143,10 @@ describe("EditorFooterOverlays coverage", () => {
   });
 
   it("renders with reviewMode=true hides slash command but shows bubble menu", () => {
+    mockEditorMode.reviewMode = true;
     render(
       <ThemeProvider theme={theme}>
-        <EditorFooterOverlays {...baseProps} editor={mockEditor} reviewMode={true} />
+        <EditorFooterOverlays {...baseProps} editor={mockEditor} />
       </ThemeProvider>,
     );
     expect(screen.getByTestId("bubble-menu")).toBeTruthy();
@@ -179,9 +199,10 @@ describe("EditorFooterOverlays coverage", () => {
   });
 
   it("renders with inlineMergeOpen=true", () => {
+    mockEditorMode.inlineMergeOpen = true;
     render(
       <ThemeProvider theme={theme}>
-        <EditorFooterOverlays {...baseProps} editor={mockEditor} inlineMergeOpen={true} />
+        <EditorFooterOverlays {...baseProps} editor={mockEditor} />
       </ThemeProvider>,
     );
     expect(screen.getByTestId("menu-popovers")).toBeTruthy();

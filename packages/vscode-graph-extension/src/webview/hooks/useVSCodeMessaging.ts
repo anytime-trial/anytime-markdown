@@ -31,6 +31,8 @@ export function useVSCodeMessaging({ onLoad, onTheme }: UseVSCodeMessagingOption
 
   useEffect(() => {
     const handler = (event: MessageEvent) => {
+      // VS Code webview のメッセージは origin が空文字列または vscode-webview:// スキーム
+      if (event.origin && !event.origin.startsWith('vscode-webview://')) return;
       const message = event.data;
       switch (message.type) {
         case 'load':

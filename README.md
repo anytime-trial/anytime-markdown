@@ -89,11 +89,11 @@ Used by the GitHub MCP server and `gh` CLI. Development works without it, but Gi
 4. Add to your WSL shell config:
 
 ```bash
-echo 'export GITHUB_PERSONAL_ACCESS_TOKEN=ghp_xxxxxxxxxxxxxxxx' >> ~/.bashrc
+echo 'export GH_TOKEN=ghp_xxxxxxxxxxxxxxxx' >> ~/.bashrc
 source ~/.bashrc
 ```
 
-If `GITHUB_PERSONAL_ACCESS_TOKEN` is set when the Dev Container starts, the GitHub MCP server is automatically registered.
+If `GH_TOKEN` is set when the Dev Container starts, the GitHub MCP server is automatically registered.
 
 ```bash
 # Start the development server

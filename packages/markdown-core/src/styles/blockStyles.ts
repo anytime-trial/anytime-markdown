@@ -14,6 +14,9 @@ export function getBlockStyles(theme: Theme, settings: EditorSettings): SxProps<
   const isDark = theme.palette.mode === "dark";
   return {
     "& ul, & ol": { pl: 3, mb: 1 },
+    "@media (max-width: 900px)": {
+      "& ul ul, & ul ol, & ol ul, & ol ol": { pl: 1.5 },
+    },
     "& blockquote": {
       borderLeft: `3px solid ${getDivider(isDark)}`,
       pl: 2,
@@ -71,11 +74,11 @@ export function getBlockStyles(theme: Theme, settings: EditorSettings): SxProps<
       "& th, & td": {
         border: `1px solid ${getDivider(isDark)}`,
         px: 1,
-        py: 0.5,
+        py: 0,
         textAlign: "left",
         minWidth: 80,
         fontSize: "inherit",
-        lineHeight: "inherit",
+        lineHeight: 1.2,
         bgcolor: isDark ? DEFAULT_DARK_TABLE_CELL_BG : DEFAULT_LIGHT_TABLE_CELL_BG,
       },
       "& th": {
@@ -85,13 +88,13 @@ export function getBlockStyles(theme: Theme, settings: EditorSettings): SxProps<
       "& .selectedCell": {
         bgcolor: getActionSelected(isDark),
       },
-      "& .cell-nav-selected": {
+      "& .cell-nav-selected": settings.tableWidth === "auto" ? {} : {
         outline: `2px solid ${getPrimaryMain(isDark)}`,
         outlineOffset: "-2px",
         caretColor: "transparent",
         position: "relative",
       },
-      "& .cell-editing": {
+      "& .cell-editing": settings.tableWidth === "auto" ? {} : {
         outline: `1px solid ${getPrimaryMain(isDark)}`,
         outlineOffset: "-1px",
         bgcolor: alpha(getPrimaryMain(isDark), isDark ? 0.08 : 0.04),

@@ -37,6 +37,7 @@ import { useTextareaSearch } from "./hooks/useTextareaSearch";
 import { PrintStyles } from "./styles/printStyles";
 import { EditorSettingsContext,useEditorSettings } from "./useEditorSettings";
 import { EditorFeaturesContext } from "./contexts/EditorFeaturesContext";
+import { EditorModeContext, type EditorModeContextValue } from "./contexts/EditorModeContext";
 import { useMarkdownEditor } from "./useMarkdownEditor";
 
 const InlineMergeView = dynamic(
@@ -499,6 +500,23 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
 
   const { handleInsertSectionNumbers, handleRemoveSectionNumbers } = useSectionNumbers(editor);
 
+  const editorModeValue = useMemo<EditorModeContextValue>(() => ({
+    sourceMode,
+    readonlyMode,
+    reviewMode,
+    inlineMergeOpen,
+    sideToolbar: !!(sideToolbar && !readonlyMode),
+    explorerOpen: !!explorerOpen,
+    noScroll: !!noScroll,
+    onSwitchToReview: handleSwitchToReview,
+    onSwitchToWysiwyg: handleSwitchToWysiwyg,
+    onSwitchToSource: handleSwitchToSource,
+  }), [
+    sourceMode, readonlyMode, reviewMode, inlineMergeOpen,
+    sideToolbar, explorerOpen, noScroll,
+    handleSwitchToReview, handleSwitchToWysiwyg, handleSwitchToSource,
+  ]);
+
   if (loading) {
     return <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}><CircularProgress /></Box>;
   }
@@ -507,7 +525,8 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   const outlineProps = {
     isMd, outlineOpen, handleToggleOutline, outlineWidth, setOutlineWidth, editorHeight,
     headings, foldedIndices, hiddenByFold, foldAll, unfoldAll, toggleFold,
-    handleOutlineClick, handleOutlineResizeStart,
+    handleOutlineClick: isMd ? handleOutlineClick : (pos: number) => { handleOutlineClick(pos); handleToggleOutline(); },
+    handleOutlineResizeStart,
     onHeadingDragEnd: isRestrictedMode ? undefined : handleHeadingDragEnd,
     onOutlineDelete: isRestrictedMode ? undefined : handleOutlineDelete,
     onInsertSectionNumbers: isRestrictedMode ? undefined : handleInsertSectionNumbers,
@@ -517,6 +536,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
 
   return (
     <EditorErrorBoundary>
+    <EditorModeContext.Provider value={editorModeValue}>
     <EditorSettingsContext.Provider value={settingsValue}>
     <EditorFeaturesContext.Provider value={{ hideGraph: !!hideGraph }}>
     <PlantUmlToolbarContext.Provider value={plantUmlToolbarCtx}>
@@ -531,16 +551,12 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         }}
         fileInputRef={fileInputRef}
         handleFileSelected={handleFileSelected} setTemplateAnchorEl={setTemplateAnchorEl} setHelpAnchorEl={setHelpAnchorEl}
-        sourceMode={sourceMode} readonlyMode={readonlyMode} reviewMode={reviewMode}
         outlineOpen={outlineOpen}
         modeHandlers={{
-          onSwitchToSource: handleSwitchToSource, onSwitchToWysiwyg: handleSwitchToWysiwyg,
-          onSwitchToReview: handleSwitchToReview, onSwitchToReadonly: handleSwitchToReadonly,
+          onSwitchToReadonly: handleSwitchToReadonly,
           onToggleOutline: handleToggleOutline, onMerge: handleMerge,
           onToggleExplorer,
         }}
-        explorerOpen={explorerOpen}
-        inlineMergeOpen={inlineMergeOpen}
         hide={{
           outline: hideOutline || (sideToolbar && !readonlyMode && isMd), comments: hideComments || (sideToolbar && isMd),
           explorer: sideToolbar && isMd, compareToggle: hideCompareToggle,
@@ -599,8 +615,8 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
       )}
 
       <EditorMainContent
-        inlineMergeOpen={inlineMergeOpen} InlineMergeView={InlineMergeView}
-        editor={editor} sourceMode={sourceMode} readonlyMode={readonlyMode} reviewMode={reviewMode}
+        InlineMergeView={InlineMergeView}
+        editor={editor}
         editorHeight={editorHeight} editorContainerRef={editorContainerRef}
         editorWrapperRef={editorWrapperRef} editorMountCallback={editorMountCallback}
         sourceText={sourceText} handleSourceChange={handleSourceChange}
@@ -613,21 +629,14 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         setCompareFileContent={setCompareFileContent} setRightFileOps={setRightFileOps} t={t}
         onFileDrop={handleFileSelected}
         fileDragOver={fileDragOver} onFileDragOverChange={setFileDragOver}
-        sideToolbar={sideToolbar && !readonlyMode}
         onToggleOutline={handleToggleOutline}
-        explorerOpen={explorerOpen}
         onToggleExplorer={onToggleExplorer}
         onOpenSettings={hideSettings ? undefined : () => setSettingsOpen(true)}
         explorerSlot={explorerSlot}
-        noScroll={noScroll}
-        onSwitchToReview={handleSwitchToReview}
-        onSwitchToWysiwyg={handleSwitchToWysiwyg}
-        onSwitchToSource={handleSwitchToSource}
       />
 
       <EditorFooterOverlays
         editor={editor} editorPortalTarget={editorPortalTarget}
-        sourceMode={sourceMode} readonlyMode={readonlyMode} reviewMode={reviewMode}
         handleLink={handleLink} executeInReviewMode={executeInReviewMode}
         slashCommandCallbackRef={slashCommandCallbackRef}
         sourceText={sourceText} fileName={fileName ?? externalFileName ?? null} isDirty={isDirty}
@@ -641,7 +650,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
         onInsertTemplate={handleInsertTemplate} headingMenu={headingMenu} setHeadingMenu={setHeadingMenu}
         setSettingsOpen={setSettingsOpen} setVersionDialogOpen={setVersionDialogOpen}
         hideSettings={hideSettings} hideVersionInfo={hideVersionInfo}
-        hideTemplates={hideTemplates} inlineMergeOpen={inlineMergeOpen}
+        hideTemplates={hideTemplates}
         appendToSource={appendToSource}
         outlineOpen={outlineOpen} commentOpen={commentOpen}
         onToggleOutline={handleToggleOutline}
@@ -653,6 +662,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     </PlantUmlToolbarContext.Provider>
     </EditorFeaturesContext.Provider>
     </EditorSettingsContext.Provider>
+    </EditorModeContext.Provider>
     </EditorErrorBoundary>
   );
 }

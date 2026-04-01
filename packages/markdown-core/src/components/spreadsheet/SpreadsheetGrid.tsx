@@ -22,7 +22,6 @@ import {
   columnLabel,
   DEFAULT_GRID_COLS,
   DEFAULT_GRID_ROWS,
-  isInDataRange,
 } from "./spreadsheetUtils";
 
 /* ------------------------------------------------------------------ */
@@ -127,7 +126,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
   /** スプレッドシート自身が ProseMirror を更新した回数（update イベントでデクリメント） */
   const skipSyncCountRef = useRef(0);
 
-  const syncCellToProseMirror = useCallback(
+  const _syncCellToProseMirror = useCallback(
     (row: number, col: number, value: string) => {
       skipSyncCountRef.current++;
       rawSyncCell(row, col, value);
@@ -198,7 +197,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
   // Drag-resize state
-  const [dragEdge, setDragEdge] = useState<"right" | "bottom" | "corner" | null>(null);
+  const [, setDragEdge] = useState<"right" | "bottom" | "corner" | null>(null);
   const [previewRange, setPreviewRange] = useState<DataRange | null>(null);
   const previewRangeRef = useRef<DataRange | null>(null);
   previewRangeRef.current = previewRange;

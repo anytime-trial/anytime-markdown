@@ -12,7 +12,8 @@ import { createPortal } from "react-dom";
 import type { MarkdownTemplate } from "../constants/templates";
 import { NOTIFICATION_DURATION } from "../constants/timing";
 import type { SlashCommandState } from "../extensions/slashCommandExtension";
-import type { NotificationKey } from "../hooks/useEditorFileOps";
+import type { NotificationKey } from "../hooks/useNotification";
+import { useEditorMode } from "../contexts/EditorModeContext";
 import type { EncodingLabel } from "../types";
 import { EditorBubbleMenu } from "./EditorBubbleMenu";
 import { EditorMenuPopovers } from "./EditorMenuPopovers";
@@ -22,9 +23,6 @@ import { StatusBar } from "./StatusBar";
 interface EditorFooterOverlaysProps {
   editor: Editor | null;
   editorPortalTarget: HTMLDivElement | null;
-  sourceMode: boolean;
-  readonlyMode: boolean;
-  reviewMode: boolean;
   // bubble menu
   handleLink: () => void;
   executeInReviewMode: (fn: () => void) => void;
@@ -56,7 +54,6 @@ interface EditorFooterOverlaysProps {
   hideSettings?: boolean;
   hideVersionInfo?: boolean;
   hideTemplates?: boolean;
-  inlineMergeOpen?: boolean;
   appendToSource: (text: string) => void;
   outlineOpen?: boolean;
   commentOpen?: boolean;
@@ -73,9 +70,6 @@ interface EditorFooterOverlaysProps {
 export function EditorFooterOverlays({
   editor,
   editorPortalTarget,
-  sourceMode,
-  readonlyMode,
-  reviewMode,
   handleLink,
   executeInReviewMode,
   slashCommandCallbackRef,
@@ -103,7 +97,6 @@ export function EditorFooterOverlays({
   hideSettings,
   hideVersionInfo,
   hideTemplates,
-  inlineMergeOpen,
   appendToSource,
   outlineOpen,
   commentOpen,
@@ -115,6 +108,7 @@ export function EditorFooterOverlays({
   setNotification,
   t,
 }: Readonly<EditorFooterOverlaysProps>) {
+  const { sourceMode, readonlyMode, reviewMode, inlineMergeOpen } = useEditorMode();
   return (
     <>
       {/* EditorContent は常時マウント – ポータル経由で DOM を移動 */}

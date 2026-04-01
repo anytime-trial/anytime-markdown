@@ -3,6 +3,7 @@ import { useCallback, useMemo } from "react";
 
 import { getErrorMain, getSuccessMain } from "../constants/colors";
 import { useEditorSettingsContext } from "../useEditorSettings";
+import { buildColorRuns } from "../utils/colorRuns";
 import type { DiffResult } from "../utils/diffEngine";
 
 export function useDiffBackground(
@@ -34,15 +35,7 @@ export function useDiffBackground(
         }
       }
       if (lineColors.length === 0) return "none";
-      const runs: { color: string; count: number }[] = [];
-      for (const c of lineColors) {
-        const color = c ?? "transparent";
-        if (runs.length > 0 && runs.at(-1)!.color === color) {
-          runs.at(-1)!.count++;
-        } else {
-          runs.push({ color, count: 1 });
-        }
-      }
+      const runs = buildColorRuns(lineColors);
       // editorSettings から実際の行高さを計算（px単位）
       const lineH = settings.fontSize * settings.lineHeight;
       const padTop = 16; // pt: 2 = 16px (MUI spacing 8px * 2)

@@ -17,7 +17,7 @@ const mockGetCopiedBlockNode = jest.fn().mockReturnValue(null);
 const mockContainsBoxTable = jest.fn().mockReturnValue(false);
 const mockBoxTableToMarkdown = jest.fn((s: string) => s);
 
-jest.mock("../hooks/useEditorConfig", () => ({
+jest.mock("../utils/editorImageHandlers", () => ({
   requestExternalImageDownloads: jest.fn(),
   saveClipboardImageViaVscode: jest.fn(),
 }));

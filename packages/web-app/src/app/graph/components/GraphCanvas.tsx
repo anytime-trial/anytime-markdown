@@ -9,8 +9,8 @@ import { resolveConnectorEndpoints, computeOrthogonalPath, computeBezierPath, be
 import type { DragPreview } from '../hooks/useCanvasInteraction';
 
 interface GraphCanvasProps {
-  nodes: GraphNode[];
-  edges: GraphEdge[];
+  nodes: readonly GraphNode[];
+  edges: readonly GraphEdge[];
   viewport: Viewport;
   selection: SelectionState;
   showGrid: boolean;
@@ -33,6 +33,10 @@ interface GraphCanvasProps {
   ariaLabel?: string;
   isDark?: boolean;
   layoutRunning?: boolean;
+  onNodeHover?: (nodeId: string | null) => void;
+  highlightNodeIds?: ReadonlySet<string>;
+  highlightEdgeIds?: ReadonlySet<string>;
+  originNodeId?: string | null;
 }
 
 export function GraphCanvas({
@@ -45,8 +49,13 @@ export function GraphCanvas({
   ariaLabel,
   isDark = true,
   layoutRunning,
+  onNodeHover,
+  highlightNodeIds,
+  highlightEdgeIds,
+  originNodeId,
 }: Readonly<GraphCanvasProps>) {
   const rafRef = useRef<number>(0);
+  const prevHoverRef = useRef<string | undefined>(undefined);
 
   // コネクタパス計算をメモ化（edges/nodes変更時のみ再計算）
   const resolvedEdges = useMemo(() => {
@@ -175,6 +184,70 @@ export function GraphCanvas({
       isDark,
     });
 
+    // ホバーノード変更時にコールバック通知
+    if (onNodeHover) {
+      const currentHover = hoverNodeIdRef.current;
+      if (currentHover !== prevHoverRef.current) {
+        prevHoverRef.current = currentHover;
+        onNodeHover(currentHover ?? null);
+      }
+    }
+
+    // パスハイライト描画
+    if (highlightNodeIds && highlightNodeIds.size > 0) {
+      ctx.save();
+      ctx.translate(activeViewport.offsetX, activeViewport.offsetY);
+      ctx.scale(activeViewport.scale, activeViewport.scale);
+
+      // ハイライト対象外のノードを暗くする
+      for (const node of nodes) {
+        if (!highlightNodeIds.has(node.id)) {
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+          ctx.fillRect(node.x, node.y, node.width, node.height);
+        }
+      }
+
+      // ハイライトエッジを太い金色で描画
+      if (highlightEdgeIds) {
+        ctx.strokeStyle = '#FFD700';
+        ctx.lineWidth = 4;
+        ctx.globalAlpha = 0.8;
+        for (const edge of resolvedEdges) {
+          if (!highlightEdgeIds.has(edge.id)) continue;
+          ctx.beginPath();
+          if (edge.waypoints && edge.waypoints.length >= 2) {
+            ctx.moveTo(edge.waypoints[0].x, edge.waypoints[0].y);
+            for (let i = 1; i < edge.waypoints.length; i++) {
+              ctx.lineTo(edge.waypoints[i].x, edge.waypoints[i].y);
+            }
+          } else if (edge.bezierPath?.length === 4) {
+            const [s, c1, c2, e] = edge.bezierPath;
+            ctx.moveTo(s.x, s.y);
+            ctx.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, e.x, e.y);
+          } else {
+            ctx.moveTo(edge.from.x, edge.from.y);
+            ctx.lineTo(edge.to.x, edge.to.y);
+          }
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+      }
+
+      // オリジンノードマーカー
+      if (originNodeId) {
+        const originNode = nodes.find(n => n.id === originNodeId);
+        if (originNode) {
+          ctx.strokeStyle = '#FFD700';
+          ctx.lineWidth = 3;
+          ctx.setLineDash([6, 3]);
+          ctx.strokeRect(originNode.x - 4, originNode.y - 4, originNode.width + 8, originNode.height + 8);
+          ctx.setLineDash([]);
+        }
+      }
+
+      ctx.restore();
+    }
+
     // ドラッグプレビュー描画
     const preview = previewRef.current;
     if (preview.type !== 'none') {
@@ -208,7 +281,7 @@ export function GraphCanvas({
       drawSmartGuides(ctx, preview.guides, getCanvasColors(isDark));
       ctx.restore();
     }
-  }, [canvasRef, nodes, resolvedEdges, viewport, selection, showGrid, previewRef, hoverNodeIdRef, mouseWorldRef, viewportAnimRef, onViewportUpdate, velocityRef, onPanInertia, draggingNodeIds, isDark]);
+  }, [canvasRef, nodes, resolvedEdges, viewport, selection, showGrid, previewRef, hoverNodeIdRef, mouseWorldRef, viewportAnimRef, onViewportUpdate, velocityRef, onPanInertia, draggingNodeIds, isDark, onNodeHover, highlightNodeIds, highlightEdgeIds, originNodeId]);
 
   useEffect(() => {
     const loop = () => {

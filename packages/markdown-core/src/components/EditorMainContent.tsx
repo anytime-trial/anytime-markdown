@@ -1,9 +1,10 @@
-import { Box } from "@mui/material";
+import { Box, ClickAwayListener, useMediaQuery } from "@mui/material";
 import type { Editor } from "@tiptap/react";
 import type React from "react";
 import { useCallback } from "react";
 
 import { FILE_DROP_OVERLAY_COLOR } from "../constants/colors";
+import { useEditorMode } from "../contexts/EditorModeContext";
 import { COMMENT_PANEL_WIDTH } from "../constants/dimensions";
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
 import { getMarkdownFromEditor, type HeadingItem } from "../types";
@@ -61,12 +62,8 @@ export interface OutlineProps {
 }
 
 interface EditorMainContentProps {
-  inlineMergeOpen: boolean;
   InlineMergeView: InlineMergeViewComponent;
   editor: Editor | null;
-  sourceMode: boolean;
-  readonlyMode: boolean;
-  reviewMode: boolean;
   editorHeight: number;
   editorContainerRef: React.RefObject<HTMLDivElement | null>;
   editorWrapperRef: React.RefObject<HTMLDivElement | null>;
@@ -91,26 +88,16 @@ interface EditorMainContentProps {
   onFileDrop?: (file: File, nativeHandle?: FileSystemFileHandle) => void;
   fileDragOver?: boolean;
   onFileDragOverChange?: (over: boolean) => void;
-  sideToolbar?: boolean;
   onToggleOutline?: () => void;
-  explorerOpen?: boolean;
   onToggleExplorer?: () => void;
   onOpenSettings?: () => void;
   explorerSlot?: React.ReactNode;
-  noScroll?: boolean;
   t: (key: string) => string;
-  onSwitchToReview?: () => void;
-  onSwitchToWysiwyg?: () => void;
-  onSwitchToSource?: () => void;
 }
 
 export function EditorMainContent({
-  inlineMergeOpen,
   InlineMergeView,
   editor,
-  sourceMode,
-  readonlyMode,
-  reviewMode,
   editorHeight,
   editorContainerRef,
   editorWrapperRef,
@@ -135,18 +122,19 @@ export function EditorMainContent({
   onFileDrop,
   fileDragOver,
   onFileDragOverChange,
-  sideToolbar,
   onToggleOutline,
-  explorerOpen,
   onToggleExplorer,
   onOpenSettings,
   explorerSlot,
-  noScroll,
   t,
-  onSwitchToReview,
-  onSwitchToWysiwyg,
-  onSwitchToSource,
 }: Readonly<EditorMainContentProps>) {
+  const {
+    sourceMode, readonlyMode, reviewMode, inlineMergeOpen,
+    sideToolbar, explorerOpen, noScroll,
+    onSwitchToReview, onSwitchToWysiwyg, onSwitchToSource,
+  } = useEditorMode();
+  const isNarrow = useMediaQuery("(max-width:900px)");
+
   // --- ドラッグ＆ドロップ ---
   const handleContainerDragOver = useCallback((e: React.DragEvent) => {
     if (!e.dataTransfer.types.includes("Files")) return;
@@ -224,7 +212,7 @@ export function EditorMainContent({
   // --- 比較モード ---
   if (inlineMergeOpen) {
     return (
-      <Box ref={editorContainerRef} sx={{ display: "flex", flexDirection: "row", height: editorHeight }}>
+      <Box ref={editorContainerRef} sx={{ display: "flex", flexDirection: "row", height: editorHeight, position: "relative" }}>
       <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
         <EditorMergeContent
           InlineMergeView={InlineMergeView}
@@ -253,8 +241,29 @@ export function EditorMainContent({
           t={t}
         />
       </Box>
-      <Box data-print-hide="" sx={{ display: "flex" }}>{sideToolbar && commentSlot}</Box>
-      <Box data-print-hide="" sx={{ display: "flex" }}>{sideOutlineSlot}</Box>
+      {isNarrow ? (
+        <>
+          {sideToolbar && commentSlot && (
+            <ClickAwayListener onClickAway={() => setCommentOpen(false)}>
+              <Box data-print-hide="" sx={{ position: "absolute", top: 0, right: 0, bottom: 0, zIndex: 20, display: "flex" }}>
+                {commentSlot}
+              </Box>
+            </ClickAwayListener>
+          )}
+          {sideOutlineSlot && (
+            <ClickAwayListener onClickAway={outlineProps.handleToggleOutline}>
+              <Box data-print-hide="" sx={{ position: "absolute", top: 0, right: 0, bottom: 0, zIndex: 20, display: "flex" }}>
+                {sideOutlineSlot}
+              </Box>
+            </ClickAwayListener>
+          )}
+        </>
+      ) : (
+        <>
+          <Box data-print-hide="" sx={{ display: "flex" }}>{sideToolbar && commentSlot}</Box>
+          <Box data-print-hide="" sx={{ display: "flex" }}>{sideOutlineSlot}</Box>
+        </>
+      )}
       <Box data-print-hide="">{sideToolbar && explorerOpen && explorerSlot}</Box>
       <Box data-print-hide="">{sideToolbarNode}</Box>
       </Box>
@@ -271,9 +280,6 @@ export function EditorMainContent({
 
       <EditorContentArea
         editor={editor}
-        sourceMode={sourceMode}
-        readonlyMode={readonlyMode}
-        reviewMode={reviewMode}
         editorHeight={editorHeight}
         editorWrapperRef={editorWrapperRef}
         editorMountCallback={editorMountCallback}
@@ -285,15 +291,34 @@ export function EditorMainContent({
         sourceSearch={sourceSearch}
         frontmatterText={frontmatterText}
         handleFrontmatterChange={handleFrontmatterChange}
-        noScroll={noScroll}
         t={t}
-        onSwitchToReview={onSwitchToReview}
-        onSwitchToWysiwyg={onSwitchToWysiwyg}
-        onSwitchToSource={onSwitchToSource}
       />
 
-      <Box data-print-hide="" sx={{ display: "flex" }}>{commentSlot}</Box>
-      <Box data-print-hide="" sx={{ display: "flex" }}>{sideOutlineSlot}</Box>
+      {isNarrow ? (
+        /* 900px以下: オーバーレイ表示 + 外部クリックで閉じる */
+        <>
+          {commentSlot && (
+            <ClickAwayListener onClickAway={() => setCommentOpen(false)}>
+              <Box data-print-hide="" sx={{ position: "absolute", top: 0, right: 0, bottom: 0, zIndex: 20, display: "flex" }}>
+                {commentSlot}
+              </Box>
+            </ClickAwayListener>
+          )}
+          {sideOutlineSlot && (
+            <ClickAwayListener onClickAway={outlineProps.handleToggleOutline}>
+              <Box data-print-hide="" sx={{ position: "absolute", top: 0, right: 0, bottom: 0, zIndex: 20, display: "flex" }}>
+                {sideOutlineSlot}
+              </Box>
+            </ClickAwayListener>
+          )}
+        </>
+      ) : (
+        /* 900px以上: 通常のサイドパネル */
+        <>
+          <Box data-print-hide="" sx={{ display: "flex" }}>{commentSlot}</Box>
+          <Box data-print-hide="" sx={{ display: "flex" }}>{sideOutlineSlot}</Box>
+        </>
+      )}
       <Box data-print-hide="">{sideToolbar && explorerOpen && explorerSlot}</Box>
       </Box>
       </Box>

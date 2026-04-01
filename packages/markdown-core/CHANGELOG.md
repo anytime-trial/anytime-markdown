@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-04-01
+
+### Added
+
+- EditorModeContext for low-frequency mode state management
+- Progressive outline unfold and auto-close on narrow viewports
+- Overlay outline/comment panels on narrow viewports
+
+### Changed
+
+- Refactor: extract editor DOM handlers, crop utilities, merge hooks, PDF export, notification management
+- Refactor: replace `(window as any).__vscode` with typed window protocol
+
+### Fixed
+
+- Table cell height reduced by removing padding and lowering line-height
+- Center heading in viewport when selected from outline panel
+- Style text highlight mark to match design system
+- Cursor positioning and cell highlight for inline tables
+
+### Security
+
+- Resolve CodeQL code scanning alerts (TOCTOU, origin check, trivial conditional, unused variables)
+
 ## [0.9.1] - 2026-03-30
 
 ### Added

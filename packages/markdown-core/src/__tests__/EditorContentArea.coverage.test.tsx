@@ -27,6 +27,19 @@ jest.mock("@tiptap/react", () => ({
   EditorContent: () => <div data-testid="editor-content" />,
 }));
 
+const mockEditorMode = {
+  sourceMode: false,
+  readonlyMode: false,
+  reviewMode: false,
+  inlineMergeOpen: false,
+  sideToolbar: false,
+  explorerOpen: false,
+  noScroll: false,
+};
+jest.mock("../contexts/EditorModeContext", () => ({
+  useEditorMode: () => mockEditorMode,
+}));
+
 jest.mock("../useEditorSettings", () => ({
   useEditorSettingsContext: () => ({
     fontSize: 14,
@@ -92,9 +105,6 @@ const t = (key: string) => key;
 function createDefaultProps(overrides?: Partial<React.ComponentProps<typeof EditorContentArea>>) {
   return {
     editor: null,
-    sourceMode: false,
-    readonlyMode: false,
-    reviewMode: false,
     editorHeight: 500,
     editorWrapperRef: { current: null } as any,
     editorMountCallback: jest.fn(),
@@ -122,6 +132,10 @@ describe("EditorContentArea - coverage", () => {
     resizeObserverCallback = null;
     capturedSourceProps = {};
     capturedSourceSearchBarProps = {};
+    mockEditorMode.sourceMode = false;
+    mockEditorMode.readonlyMode = false;
+    mockEditorMode.reviewMode = false;
+    mockEditorMode.noScroll = false;
   });
 
   // --- ResizeObserver for frontmatter (lines 65-66) ---
@@ -162,12 +176,12 @@ describe("EditorContentArea - coverage", () => {
     const setSourceSearchOpen = jest.fn();
     const focusSearch = jest.fn();
     jest.useFakeTimers();
+    mockEditorMode.sourceMode = true;
 
     render(
       <ThemeProvider theme={theme}>
         <EditorContentArea
           {...createDefaultProps({
-            sourceMode: true,
             setSourceSearchOpen,
             sourceSearch: {
               ...createDefaultProps().sourceSearch,
@@ -196,12 +210,12 @@ describe("EditorContentArea - coverage", () => {
   test("Meta+F in source mode opens source search", () => {
     const setSourceSearchOpen = jest.fn();
     jest.useFakeTimers();
+    mockEditorMode.sourceMode = true;
 
     render(
       <ThemeProvider theme={theme}>
         <EditorContentArea
           {...createDefaultProps({
-            sourceMode: true,
             setSourceSearchOpen,
           })}
         />
@@ -219,12 +233,12 @@ describe("EditorContentArea - coverage", () => {
   test("Escape in source mode closes search when open", () => {
     const setSourceSearchOpen = jest.fn();
     const reset = jest.fn();
+    mockEditorMode.sourceMode = true;
 
     render(
       <ThemeProvider theme={theme}>
         <EditorContentArea
           {...createDefaultProps({
-            sourceMode: true,
             sourceSearchOpen: true,
             setSourceSearchOpen,
             sourceSearch: {
@@ -247,12 +261,12 @@ describe("EditorContentArea - coverage", () => {
   test("SourceSearchBar onClose callback", () => {
     const setSourceSearchOpen = jest.fn();
     const reset = jest.fn();
+    mockEditorMode.sourceMode = true;
 
     render(
       <ThemeProvider theme={theme}>
         <EditorContentArea
           {...createDefaultProps({
-            sourceMode: true,
             sourceSearchOpen: true,
             setSourceSearchOpen,
             sourceSearch: {
@@ -275,6 +289,7 @@ describe("EditorContentArea - coverage", () => {
 
   // --- WYSIWYG mode Ctrl+F in readonly mode (lines 117-119) ---
   test("Ctrl+F in WYSIWYG readonly mode opens editor search", () => {
+    mockEditorMode.readonlyMode = true;
     const mockOpenSearch = jest.fn();
     const mockEditor = {
       commands: { openSearch: mockOpenSearch },
@@ -285,7 +300,6 @@ describe("EditorContentArea - coverage", () => {
         <EditorContentArea
           {...createDefaultProps({
             editor: mockEditor,
-            readonlyMode: true,
           })}
         />
       </ThemeProvider>,
@@ -298,6 +312,7 @@ describe("EditorContentArea - coverage", () => {
   });
 
   test("Ctrl+F in WYSIWYG review mode opens editor search", () => {
+    mockEditorMode.reviewMode = true;
     const mockOpenSearch = jest.fn();
     const mockEditor = {
       commands: { openSearch: mockOpenSearch },
@@ -308,7 +323,6 @@ describe("EditorContentArea - coverage", () => {
         <EditorContentArea
           {...createDefaultProps({
             editor: mockEditor,
-            reviewMode: true,
           })}
         />
       </ThemeProvider>,
@@ -322,12 +336,12 @@ describe("EditorContentArea - coverage", () => {
 
   // --- Source mode search matches passed to SourceModeEditor ---
   test("source search matches are passed when search is open", () => {
+    mockEditorMode.sourceMode = true;
     const matches = [{ start: 0, end: 5 }];
     render(
       <ThemeProvider theme={theme}>
         <EditorContentArea
           {...createDefaultProps({
-            sourceMode: true,
             sourceSearchOpen: true,
             sourceSearch: {
               ...createDefaultProps().sourceSearch,
@@ -344,11 +358,11 @@ describe("EditorContentArea - coverage", () => {
   });
 
   test("source search matches are undefined when search is closed", () => {
+    mockEditorMode.sourceMode = true;
     render(
       <ThemeProvider theme={theme}>
         <EditorContentArea
           {...createDefaultProps({
-            sourceMode: true,
             sourceSearchOpen: false,
           })}
         />

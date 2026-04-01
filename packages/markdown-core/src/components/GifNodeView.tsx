@@ -93,10 +93,11 @@ function onRecordComplete(
 ): void {
   setRecorderOpen(false);
   gifBlobRef.current = blob;
-  const vscodeApi = (window as any).__vscode;
+  const vscodeApi = window.__vscode;
   if (vscodeApi) {
     const reader = new FileReader();
     reader.onload = () => {
+      if (typeof reader.result !== "string") return;
       vscodeApi.postMessage({
         type: "saveClipboardImage",
         dataUrl: reader.result,
@@ -213,13 +214,16 @@ export function GifNodeView({ editor, node, updateAttributes, getPos }: Readonly
 
   useEffect(() => {
     const handler = (event: MessageEvent) => {
+      // VS Code webview: origin は空文字列または vscode-webview:// スキーム
+      // Web: origin は同一オリジン（空文字列）
+      if (event.origin && !event.origin.startsWith('vscode-webview://') && event.origin !== globalThis.location?.origin) return;
       const data = event.data;
-      if (data?.type === "imageSaved" && data.fileName) {
-        updateAttributes({ src: data.path || data.fileName });
+      if (data?.type === "imageSaved" && typeof data.fileName === "string" && data.fileName) {
+        updateAttributes({ src: typeof data.path === "string" ? data.path : data.fileName });
       }
     };
-    window.addEventListener("message", handler);
-    return () => window.removeEventListener("message", handler);
+    globalThis.addEventListener("message", handler);
+    return () => globalThis.removeEventListener("message", handler);
   }, [updateAttributes]);
 
   // autoEditOpen: スラッシュコマンドから作成された場合、即座にレコーダーを開く

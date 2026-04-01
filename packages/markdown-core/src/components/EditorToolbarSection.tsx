@@ -4,6 +4,7 @@ import type { Editor } from "@tiptap/react";
 import type React from "react";
 
 import { getBgPaper, getPrimaryMain } from "../constants/colors";
+import { useEditorMode } from "../contexts/EditorModeContext";
 import { SKIP_LINK_FONT_SIZE } from "../constants/dimensions";
 import { Z_SKIP_LINK } from "../constants/zIndex";
 import type { ToolbarVisibility } from "../types/toolbar";
@@ -26,21 +27,13 @@ interface EditorToolbarSectionProps {
   handleFileSelected: (f: File) => void;
   setTemplateAnchorEl: (el: HTMLElement | null) => void;
   setHelpAnchorEl: (el: HTMLElement | null) => void;
-  sourceMode: boolean;
-  readonlyMode: boolean;
-  reviewMode: boolean;
   outlineOpen: boolean;
   modeHandlers: {
-    onSwitchToSource: () => void;
-    onSwitchToWysiwyg: () => void;
-    onSwitchToReview: () => void;
     onSwitchToReadonly: () => void;
     onToggleOutline: () => void;
     onMerge: () => void;
     onToggleExplorer?: () => void;
   };
-  explorerOpen?: boolean;
-  inlineMergeOpen: boolean;
   hide?: ToolbarVisibility;
   mergeUndoRedo: MergeUndoRedo | null;
   fileHandle: unknown;
@@ -66,13 +59,8 @@ export function EditorToolbarSection({
   handleFileSelected,
   setTemplateAnchorEl,
   setHelpAnchorEl,
-  sourceMode,
-  readonlyMode,
-  reviewMode,
   outlineOpen,
   modeHandlers,
-  explorerOpen,
-  inlineMergeOpen,
   hide,
   mergeUndoRedo,
   fileHandle,
@@ -88,6 +76,10 @@ export function EditorToolbarSection({
   liveMessage,
   t,
 }: Readonly<EditorToolbarSectionProps>) {
+  const {
+    sourceMode, readonlyMode, reviewMode, explorerOpen, inlineMergeOpen,
+    onSwitchToSource, onSwitchToWysiwyg, onSwitchToReview,
+  } = useEditorMode();
   const isDark = useTheme().palette.mode === "dark";
   return (
     <>
@@ -145,9 +137,9 @@ export function EditorToolbarSection({
           explorerOpen,
         }}
         modeHandlers={{
-          onSwitchToSource: modeHandlers.onSwitchToSource,
-          onSwitchToWysiwyg: modeHandlers.onSwitchToWysiwyg,
-          onSwitchToReview: modeHandlers.onSwitchToReview,
+          onSwitchToSource: onSwitchToSource ?? (() => {}),
+          onSwitchToWysiwyg: onSwitchToWysiwyg ?? (() => {}),
+          onSwitchToReview,
           onSwitchToReadonly: modeHandlers.onSwitchToReadonly,
           onToggleOutline: modeHandlers.onToggleOutline,
           onToggleComments: () => setCommentOpen((prev) => !prev),

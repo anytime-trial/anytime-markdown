@@ -123,8 +123,9 @@ export function exportToDrawio(doc: GraphDocument): string {
     const urlAttr = node.url ? ` link="${escapeXml(node.url)}"` : '';
     const connectable = node.locked ? ' connectable="0"' : '';
     const parent = node.groupId ? escapeXml(node.groupId) : '1';
+    const metadataAttr = node.metadata ? ` data-metadata="${escapeXml(JSON.stringify(node.metadata))}"` : '';
     lines.push(
-      `<mxCell id="${escapeXml(node.id)}" value="${label}" style="${style}" vertex="1" parent="${parent}"${urlAttr}${connectable}>`,
+      `<mxCell id="${escapeXml(node.id)}" value="${label}" style="${style}" vertex="1" parent="${parent}"${urlAttr}${connectable}${metadataAttr}>`,
       `<mxGeometry x="${node.x}" y="${node.y}" width="${node.width}" height="${node.height}" as="geometry"/>`,
       '</mxCell>',
     );
@@ -135,8 +136,9 @@ export function exportToDrawio(doc: GraphDocument): string {
     const label = edge.label ? escapeXml(edge.label) : '';
     const src = edge.from.nodeId ? `source="${escapeXml(edge.from.nodeId)}"` : '';
     const tgt = edge.to.nodeId ? `target="${escapeXml(edge.to.nodeId)}"` : '';
+    const weightAttr = edge.weight != null ? ` data-weight="${edge.weight}"` : '';
     lines.push(
-      `<mxCell id="${escapeXml(edge.id)}" value="${label}" style="${style}" edge="1" parent="1" ${src} ${tgt}>`,
+      `<mxCell id="${escapeXml(edge.id)}" value="${label}" style="${style}" edge="1" parent="1" ${src} ${tgt}${weightAttr}>`,
       '<mxGeometry relative="1" as="geometry">',
     );
     if (!edge.from.nodeId) {

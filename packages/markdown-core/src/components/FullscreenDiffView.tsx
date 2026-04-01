@@ -5,6 +5,7 @@ import React, { useCallback, useEffect,useMemo, useRef, useState } from "react";
 
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getDivider, getErrorMain, getSuccessMain, getTextPrimary, getTextSecondary } from "../constants/colors";
 import { useEditorSettingsContext } from "../useEditorSettings";
+import { buildColorRuns } from "../utils/colorRuns";
 import { applyMerge, computeDiff, type DiffLine } from "../utils/diffEngine";
 
 interface FullscreenDiffViewProps {
@@ -40,15 +41,7 @@ function buildBgGradient(
   }
   if (lineColors.length === 0) return "none";
 
-  const runs: { color: string; count: number }[] = [];
-  for (const c of lineColors) {
-    const color = c ?? "transparent";
-    if (runs.length > 0 && runs.at(-1)!.color === color) {
-      runs.at(-1)!.count++;
-    } else {
-      runs.push({ color, count: 1 });
-    }
-  }
+  const runs = buildColorRuns(lineColors);
 
   const lineH = fontSize * lineHeight;
   const padTop = 16; // py: 2 = 16px

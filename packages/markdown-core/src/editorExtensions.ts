@@ -160,7 +160,7 @@ export function getBaseExtensions(options?: { disableComments?: boolean; disable
             return true; // ブラウザデフォルトのフォーカス移動を抑制
           },
           // Alt+Up/Down: ブロックを上下に移動（VS Code のみ有効、Web は Chromium 競合のため無効）
-          ...((window as any).__vscode ? {
+          ...(window.__vscode ? {
             "Alt-ArrowUp": ({ editor }: { editor: Editor }) => {
               const { $from } = editor.state.selection;
               const curStart = $from.before(1);

@@ -1,6 +1,6 @@
 {
   "name": "@anytime-markdown/mcp-graph",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "license": "MIT",
   "private": true,
   "main": "src/index.ts",
@@ -17,7 +17,7 @@
   "dependencies": {
     "@anytime-markdown/graph-core": "*",
     "@modelcontextprotocol/sdk": "1.27.1",
-    "@xmldom/xmldom": "0.9.8",
+    "@xmldom/xmldom": "^0.9.9",
     "zod": "3.25.76"
   },
   "devDependencies": {

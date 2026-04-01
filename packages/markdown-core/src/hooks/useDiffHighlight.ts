@@ -1,7 +1,7 @@
 import type { Editor } from "@tiptap/react";
 import { useEffect } from "react";
 
-import { computeBlockDiff } from "../extensions/diffHighlight";
+import { computeBlockDiff } from "../utils/blockDiffComputation";
 
 export function useDiffHighlight(
   sourceMode: boolean,

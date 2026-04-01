@@ -38,6 +38,18 @@ jest.mock("../constants/templates", () => ({
   getBuiltinTemplates: () => [],
 }));
 
+jest.mock("../contexts/EditorModeContext", () => ({
+  useEditorMode: () => ({
+    sourceMode: false,
+    readonlyMode: false,
+    reviewMode: false,
+    inlineMergeOpen: false,
+    sideToolbar: false,
+    explorerOpen: false,
+    noScroll: false,
+  }),
+}));
+
 import { EditorFooterOverlays } from "../components/EditorFooterOverlays";
 
 const theme = createTheme();
@@ -51,9 +63,6 @@ describe("EditorFooterOverlays", () => {
         <EditorFooterOverlays
           editor={null}
           editorPortalTarget={null}
-          sourceMode={false}
-          readonlyMode={false}
-          reviewMode={false}
           handleLink={noop}
           executeInReviewMode={noop}
           slashCommandCallbackRef={{ current: noop } as any}

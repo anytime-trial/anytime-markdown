@@ -2,7 +2,7 @@
   "name": "anytime-graph",
   "displayName": "Anytime Graph",
   "description": "Graph whiteboard editor for VS Code",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {

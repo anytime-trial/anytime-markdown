@@ -255,15 +255,17 @@ export function activate(context: vscode.ExtensionContext) {
 			if (!fs.existsSync(dir)) {
 				fs.mkdirSync(dir, { recursive: true });
 			}
-			if (!fs.existsSync(filePath)) {
-				fs.writeFileSync(filePath, '# Anytime Context\n\n', 'utf-8');
+			try {
+				fs.writeFileSync(filePath, '# Anytime Context\n\n', { encoding: 'utf-8', flag: 'wx' });
+			} catch {
+				// EEXIST: ファイル既存は正常
 			}
 
 			// ~/.claude/skills/anytime-note/SKILL.md を自動生成（未作成の場合のみ）
 			if (hasClaudeDir) {
 				const skillDir = path.join(claudeDir, 'skills', 'anytime-note');
 				const skillPath = path.join(skillDir, 'SKILL.md');
-				if (!fs.existsSync(skillPath)) {
+				try {
 					fs.mkdirSync(skillDir, { recursive: true });
 					const imagesDir = path.join(dir, 'images');
 					const skillContent = [
@@ -296,7 +298,10 @@ export function activate(context: vscode.ExtensionContext) {
 						'- 作業結果はノートではなく、通常のコードベースやドキュメントに出力する',
 						'',
 					].join('\n');
-					fs.writeFileSync(skillPath, skillContent, 'utf-8');
+					// wx: 排他作成（既存ファイルがあれば EEXIST で失敗）
+					fs.writeFileSync(skillPath, skillContent, { encoding: 'utf-8', flag: 'wx' });
+				} catch {
+					// EEXIST: ファイル既存は正常
 				}
 			}
 

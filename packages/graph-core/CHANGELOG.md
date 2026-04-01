@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.0.3] - 2026-04-01
+
+### Added
+
+- Add metadata to GraphNode and weight to GraphEdge
+- Add linearScale and interpolateColor utilities for data mapping
+- Preserve metadata and weight in Draw.io and SVG export
+- Add graph traversal, batch import, and node filter
+- Add path highlight and filter panel
+
+### Fixed
+
+- Fix readonly type mismatch in resolveConnectorEndpoints and RenderOptions
+
 ## [0.0.2] - 2026-03-29
 
 ### Fixed
