@@ -92,7 +92,7 @@ describe('parseArxivResponse', () => {
     <summary>We propose a new transformer architecture that improves efficiency.</summary>
     <author><name>John Smith</name></author>
     <author><name>Jane Doe</name></author>
-    <link title="pdf" href="http://arxiv.org/pdf/2603.12345v1" rel="related" type="application/pdf"/>
+    <link href="http://arxiv.org/pdf/2603.12345v1" rel="related" type="application/pdf" title="pdf"/>
     <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
     <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
   </entry>
@@ -102,7 +102,7 @@ describe('parseArxivResponse', () => {
     <title>Secure Federated Learning</title>
     <summary>A protocol for privacy-preserving distributed training.</summary>
     <author><name>Alice Wang</name></author>
-    <link title="pdf" href="http://arxiv.org/pdf/2603.12346v1" rel="related" type="application/pdf"/>
+    <link href="http://arxiv.org/pdf/2603.12346v1" rel="related" type="application/pdf" title="pdf"/>
     <category term="cs.CR" scheme="http://arxiv.org/schemas/atom"/>
   </entry>
 </feed>`;

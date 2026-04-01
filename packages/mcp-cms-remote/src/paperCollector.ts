@@ -137,7 +137,7 @@ export function parseArxivResponse(xml: string): Paper[] {
     }
 
     // PDF URL
-    const pdf_url = /<link[^>]*title="pdf"[^>]*href="([^"]*)"[^>]*\/>/.exec(entry)?.[1] ?? '';
+    const pdf_url = /<link[^>]*href="([^"]*)"[^>]*title="pdf"[^>]*\/>/.exec(entry)?.[1] ?? '';
 
     if (arxiv_id && title) {
       papers.push({ arxiv_id, title, abstract, published, authors, categories, pdf_url });
