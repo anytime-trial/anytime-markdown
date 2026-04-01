@@ -19,6 +19,7 @@ import { toReqRes, toFetchResponse } from 'fetch-to-node';
 import { createCmsConfig, createS3Client } from '@anytime-markdown/cms-core';
 import { createRemoteMcpServer } from './server.js';
 import { collectPapers } from './paperCollector.js';
+import { collectPaperRanking } from './paperRankingCollector.js';
 import { paperConfig } from './paperConfig.js';
 
 interface Env {
@@ -65,7 +66,11 @@ app.post('/mcp', async (c) => {
     bucket: c.env.PAPER_S3_BUCKET ?? c.env.S3_DOCS_BUCKET,
     patentsPrefix: paperConfig.s3Prefix,
   };
-  const server = createRemoteMcpServer(s3Client, config, papersConfig);
+  const rankingsConfig = {
+    bucket: c.env.PAPER_S3_BUCKET ?? c.env.S3_DOCS_BUCKET,
+    patentsPrefix: paperConfig.rankingS3Prefix,
+  };
+  const server = createRemoteMcpServer(s3Client, config, papersConfig, rankingsConfig);
 
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
 
@@ -91,12 +96,17 @@ app.get('/health', (c) => c.json({ status: 'ok' }));
 export default {
   fetch: app.fetch,
   async scheduled(
-    _event: ScheduledEvent,
+    event: ScheduledEvent,
     env: Env,
     ctx: ExecutionContext,
   ): Promise<void> {
-    ctx.waitUntil(
-      collectPapers(env as unknown as Parameters<typeof collectPapers>[0]),
-    );
+    const cron = event.cron;
+    if (cron === '0 0 * * *') {
+      ctx.waitUntil(collectPapers(env as unknown as Parameters<typeof collectPapers>[0]));
+    } else if (cron === '0 1 * * 1') {
+      ctx.waitUntil(collectPaperRanking(env as unknown as Parameters<typeof collectPaperRanking>[0], 'weekly'));
+    } else if (cron === '0 2 1 * *') {
+      ctx.waitUntil(collectPaperRanking(env as unknown as Parameters<typeof collectPaperRanking>[0], 'monthly'));
+    }
   },
 };

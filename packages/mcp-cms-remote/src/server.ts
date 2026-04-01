@@ -63,10 +63,16 @@ const paperDetailParams: Record<string, z.ZodType> = {
   keyword: z.string().optional().describe('Filter by keyword in title/abstract (case-insensitive)'),
 };
 
+const paperRankingParams: Record<string, z.ZodType> = {
+  fileName: z.string().describe('File name (e.g. "weekly-2026-04-01.jsonl" or "monthly-2026-04-01.jsonl")'),
+  keyword: z.string().optional().describe('Filter by keyword (case-insensitive)'),
+};
+
 export function createRemoteMcpServer(
   client: S3Client,
   config: CmsConfig,
   papersConfig?: PapersConfig,
+  rankingsConfig?: PapersConfig,
 ): McpServer {
   const server = new McpServer({
     name: 'anytime-markdown-cms-remote',
@@ -152,6 +158,33 @@ export function createRemoteMcpServer(
           }
         }
         return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+      });
+  }
+
+  if (rankingsConfig) {
+    registerTool(server, 'list_paper_rankings', 'List saved paper citation ranking files',
+      {}, async () => {
+        const entries = await listPatentFiles(client, rankingsConfig);
+        return { content: [{ type: 'text', text: JSON.stringify(entries, null, 2) }] };
+      });
+
+    registerTool(server, 'get_paper_ranking', 'Get paper citation ranking data (weekly or monthly)',
+      paperRankingParams, async (args) => {
+        const fileName = args.fileName as string;
+        const key = `${rankingsConfig.patentsPrefix}${fileName}`;
+        const content = await getPatentFile(key, client, rankingsConfig);
+        const keyword = args.keyword as string | undefined;
+        if (keyword) {
+          const lower = keyword.toLowerCase();
+          let lines = content.split('\n').filter(Boolean);
+          lines = lines.filter((line) => line.toLowerCase().includes(lower));
+          const result: unknown[] = [];
+          for (const line of lines) {
+            try { result.push(JSON.parse(line)); } catch { /* skip */ }
+          }
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
+        return { content: [{ type: 'text', text: content }] };
       });
   }
 
