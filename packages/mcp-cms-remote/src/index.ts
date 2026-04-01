@@ -101,12 +101,13 @@ export default {
     ctx: ExecutionContext,
   ): Promise<void> {
     const cron = event.cron;
-    if (cron === '0 0 * * *') {
-      ctx.waitUntil(collectPapers(env as unknown as Parameters<typeof collectPapers>[0]));
+    const envCast = env as unknown as Parameters<typeof collectPapers>[0];
+    if (cron === '0 0 * * 1') {
+      ctx.waitUntil(collectPapers(envCast));
     } else if (cron === '0 1 * * 1') {
-      ctx.waitUntil(collectPaperRanking(env as unknown as Parameters<typeof collectPaperRanking>[0], 'weekly'));
+      ctx.waitUntil(collectPaperRanking(envCast, 'weekly'));
     } else if (cron === '0 2 1 * *') {
-      ctx.waitUntil(collectPaperRanking(env as unknown as Parameters<typeof collectPaperRanking>[0], 'monthly'));
+      ctx.waitUntil(collectPaperRanking(envCast, 'monthly'));
     }
   },
 };
