@@ -4,7 +4,15 @@ import {
   createS3Client,
 } from '@anytime-markdown/cms-core';
 import { paperConfig } from './paperConfig.js';
-import type { PaperCollectorEnv } from './paperCollector.js';
+
+export interface PaperCollectorEnv {
+  PAPER_S3_BUCKET?: string;
+  PAPER_CRON_ENABLED?: string;
+  S3_DOCS_BUCKET: string;
+  ANYTIME_AWS_ACCESS_KEY_ID: string;
+  ANYTIME_AWS_SECRET_ACCESS_KEY: string;
+  ANYTIME_AWS_REGION?: string;
+}
 
 /** OpenAlex API のレスポンス中の著者情報 */
 interface OpenAlexAuthorship {
@@ -45,6 +53,7 @@ export interface RankedPaper {
 const MAX_AUTHORS = 5;
 const ARXIV_ABS_PREFIX = 'https://arxiv.org/abs/';
 const ARXIV_PDF_PREFIX = 'https://arxiv.org/pdf/';
+const RANKING_TSV_HEADER = 'rank\tcited_by_count\tarxiv_id\tpublication_date\tsubfield\tauthors\ttitle\tpdf_url';
 
 /**
  * 指定月数前の日付を計算する。
@@ -60,8 +69,6 @@ function computeFromDate(today: string, months: number): string {
 
 /**
  * OpenAlex API の URL を構築する。
- * フィルタ: from_publication_date, to_publication_date, locations.source.id
- * ソート: cited_by_count:desc
  */
 export function buildOpenAlexUrl(
   months: number,
@@ -113,8 +120,6 @@ export function parseOpenAlexResponse(
   });
 }
 
-const RANKING_TSV_HEADER = 'rank\tcited_by_count\tarxiv_id\tpublication_date\tsubfield\tauthors\ttitle\tpdf_url';
-
 /**
  * RankedPaper[] を TSV 形式に変換する。
  */
@@ -132,27 +137,6 @@ export function formatRankingToTsv(papers: readonly RankedPaper[]): string {
   return [RANKING_TSV_HEADER, ...rows].join('\n');
 }
 
-/**
- * RankedPaper[] を JSONL 形式に変換する。
- */
-export function formatRankingToJsonl(papers: readonly RankedPaper[]): string {
-  if (papers.length === 0) {
-    return '';
-  }
-
-  return papers
-    .map((p) => JSON.stringify({
-      arxiv_id: p.arxiv_id,
-      title: p.title,
-      cited_by_count: p.cited_by_count,
-      publication_date: p.publication_date,
-      authors: [...p.authors],
-      subfield: p.subfield,
-      pdf_url: p.pdf_url,
-    }))
-    .join('\n');
-}
-
 function getTodayString(): string {
   const now = new Date();
   const year = now.getFullYear();
@@ -162,7 +146,7 @@ function getTodayString(): string {
 }
 
 /**
- * OpenAlex API で arXiv 論文の引用数ランキングを取得し、JSONL で S3 に保存する。
+ * OpenAlex API で arXiv 論文の引用数ランキングを取得し、TSV で S3 に保存する。
  */
 export async function collectPaperRanking(
   env: PaperCollectorEnv,
@@ -177,7 +161,6 @@ export async function collectPaperRanking(
   }
 
   const months = paperConfig.monthlyRankingMonths;
-
   const today = getTodayString();
   const url = buildOpenAlexUrl(months, paperConfig.rankingFetchCount, today);
 
@@ -206,7 +189,6 @@ export async function collectPaperRanking(
   console.log(`Fetched ${papers.length} ranked papers from OpenAlex`);
 
   const tsv = formatRankingToTsv(papers);
-  const jsonl = formatRankingToJsonl(papers);
 
   const cmsConfig = createCmsConfig({
     S3_DOCS_BUCKET: env.PAPER_S3_BUCKET ?? env.S3_DOCS_BUCKET,
@@ -221,7 +203,6 @@ export async function collectPaperRanking(
   };
 
   await uploadPatentFile({ fileName: `monthly-${today}.tsv`, content: tsv }, s3Client, rankingsConfig);
-  await uploadPatentFile({ fileName: `monthly-${today}.jsonl`, content: jsonl }, s3Client, rankingsConfig);
 
-  console.log(`Uploaded monthly ranking files for ${today}`);
+  console.log(`Uploaded monthly ranking file for ${today}`);
 }

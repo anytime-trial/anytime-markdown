@@ -2,7 +2,6 @@ import {
   buildOpenAlexUrl,
   parseOpenAlexResponse,
   formatRankingToTsv,
-  formatRankingToJsonl,
 } from '../paperRankingCollector';
 
 const sampleOpenAlexResults = [
@@ -128,29 +127,6 @@ describe('parseOpenAlexResponse', () => {
   it('returns empty array for empty results', () => {
     const papers = parseOpenAlexResponse([]);
     expect(papers).toEqual([]);
-  });
-});
-
-describe('formatRankingToJsonl', () => {
-  it('converts ranked papers to JSONL format', () => {
-    const papers = parseOpenAlexResponse(sampleOpenAlexResults);
-    const jsonl = formatRankingToJsonl(papers);
-    const lines = jsonl.split('\n');
-
-    expect(lines).toHaveLength(2);
-
-    const first = JSON.parse(lines[0]) as Record<string, unknown>;
-    expect(first.arxiv_id).toBe('2602.04567v1');
-    expect(first.cited_by_count).toBe(84);
-    expect(first.title).toBe('RFAConv: Receptive-field attention convolution');
-
-    const second = JSON.parse(lines[1]) as Record<string, unknown>;
-    expect(second.arxiv_id).toBe('2601.12345v1');
-    expect(second.cited_by_count).toBe(31);
-  });
-
-  it('returns empty string for empty array', () => {
-    expect(formatRankingToJsonl([])).toBe('');
   });
 });
 

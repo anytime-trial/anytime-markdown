@@ -53,25 +53,13 @@ const deleteDocParams: Record<string, z.ZodType> = {
   key: z.string().describe('S3 key of the document to delete (e.g. "docs/file.md")'),
 };
 
-const paperIndexParams: Record<string, z.ZodType> = {
-  date: z.string().describe('Date in YYYY-MM-DD format'),
-};
-
-const paperDetailParams: Record<string, z.ZodType> = {
-  date: z.string().describe('Date in YYYY-MM-DD format'),
-  paperId: z.string().optional().describe('Filter by arXiv ID (exact match)'),
-  keyword: z.string().optional().describe('Filter by keyword in title/abstract (case-insensitive)'),
-};
-
 const paperRankingParams: Record<string, z.ZodType> = {
-  fileName: z.string().describe('File name (e.g. "weekly-2026-04-01.jsonl" or "monthly-2026-04-01.jsonl")'),
-  keyword: z.string().optional().describe('Filter by keyword (case-insensitive)'),
+  fileName: z.string().describe('File name (e.g. "monthly-2026-04-01.tsv")'),
 };
 
 export function createRemoteMcpServer(
   client: S3Client,
   config: CmsConfig,
-  papersConfig?: PapersConfig,
   rankingsConfig?: PapersConfig,
 ): McpServer {
   const server = new McpServer({
@@ -117,50 +105,6 @@ export function createRemoteMcpServer(
       return { content: [{ type: 'text', text: JSON.stringify({ deleted: true, key }) }] };
     });
 
-  if (papersConfig) {
-    registerTool(server, 'list_papers', 'List saved paper data files by date',
-      {}, async () => {
-        const entries = await listPatentFiles(client, papersConfig);
-        return { content: [{ type: 'text', text: JSON.stringify(entries, null, 2) }] };
-      });
-
-    registerTool(server, 'get_paper_index', 'Get TSV index of papers for a specific date (low token cost)',
-      paperIndexParams, async (args) => {
-        const date = args.date as string;
-        const key = `${papersConfig.patentsPrefix}${date}.tsv`;
-        const content = await getPatentFile(key, client, papersConfig);
-        return { content: [{ type: 'text', text: content }] };
-      });
-
-    registerTool(server, 'get_paper_detail', 'Get paper details from JSONL data, optionally filtered by arXiv ID or keyword',
-      paperDetailParams, async (args) => {
-        const date = args.date as string;
-        const paperId = args.paperId as string | undefined;
-        const keyword = args.keyword as string | undefined;
-        const key = `${papersConfig.patentsPrefix}${date}.jsonl`;
-        const content = await getPatentFile(key, client, papersConfig);
-        let lines = content.split('\n').filter(Boolean);
-
-        if (paperId) {
-          lines = lines.filter((line) => line.includes(`"${paperId}"`));
-        }
-        if (keyword) {
-          const lower = keyword.toLowerCase();
-          lines = lines.filter((line) => line.toLowerCase().includes(lower));
-        }
-
-        const result: unknown[] = [];
-        for (const line of lines) {
-          try {
-            result.push(JSON.parse(line));
-          } catch {
-            // skip malformed lines
-          }
-        }
-        return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
-      });
-  }
-
   if (rankingsConfig) {
     registerTool(server, 'list_paper_rankings', 'List saved paper citation ranking files',
       {}, async () => {
@@ -168,22 +112,11 @@ export function createRemoteMcpServer(
         return { content: [{ type: 'text', text: JSON.stringify(entries, null, 2) }] };
       });
 
-    registerTool(server, 'get_paper_ranking', 'Get paper citation ranking data (weekly or monthly)',
+    registerTool(server, 'get_paper_ranking', 'Get paper citation ranking TSV',
       paperRankingParams, async (args) => {
         const fileName = args.fileName as string;
         const key = `${rankingsConfig.patentsPrefix}${fileName}`;
         const content = await getPatentFile(key, client, rankingsConfig);
-        const keyword = args.keyword as string | undefined;
-        if (keyword) {
-          const lower = keyword.toLowerCase();
-          let lines = content.split('\n').filter(Boolean);
-          lines = lines.filter((line) => line.toLowerCase().includes(lower));
-          const result: unknown[] = [];
-          for (const line of lines) {
-            try { result.push(JSON.parse(line)); } catch { /* skip */ }
-          }
-          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
-        }
         return { content: [{ type: 'text', text: content }] };
       });
   }

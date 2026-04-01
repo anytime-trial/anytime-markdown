@@ -18,7 +18,6 @@ import { toReqRes, toFetchResponse } from 'fetch-to-node';
 
 import { createCmsConfig, createS3Client } from '@anytime-markdown/cms-core';
 import { createRemoteMcpServer } from './server.js';
-import { collectPapers } from './paperCollector.js';
 import { collectPaperRanking } from './paperRankingCollector.js';
 import { paperConfig } from './paperConfig.js';
 
@@ -30,7 +29,7 @@ interface Env {
   S3_DOCS_BUCKET: string;
   S3_DOCS_PREFIX?: string;
   S3_REPORTS_PREFIX?: string;
-  // Paper collector (arXiv)
+  // Paper ranking collector
   PAPER_S3_BUCKET?: string;
   PAPER_CRON_ENABLED?: string;
 }
@@ -62,15 +61,11 @@ app.use('/mcp', async (c, next) => {
 app.post('/mcp', async (c) => {
   const config = createCmsConfig(c.env as unknown as Record<string, string | undefined>);
   const s3Client = createS3Client(config);
-  const papersConfig = {
-    bucket: c.env.PAPER_S3_BUCKET ?? c.env.S3_DOCS_BUCKET,
-    patentsPrefix: paperConfig.s3Prefix,
-  };
   const rankingsConfig = {
     bucket: c.env.PAPER_S3_BUCKET ?? c.env.S3_DOCS_BUCKET,
     patentsPrefix: paperConfig.rankingS3Prefix,
   };
-  const server = createRemoteMcpServer(s3Client, config, papersConfig, rankingsConfig);
+  const server = createRemoteMcpServer(s3Client, config, rankingsConfig);
 
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
 
@@ -96,16 +91,12 @@ app.get('/health', (c) => c.json({ status: 'ok' }));
 export default {
   fetch: app.fetch,
   async scheduled(
-    event: ScheduledEvent,
+    _event: ScheduledEvent,
     env: Env,
     ctx: ExecutionContext,
   ): Promise<void> {
-    const cron = event.cron;
-    const envCast = env as unknown as Parameters<typeof collectPapers>[0];
-    if (cron === '0 0 * * 1') {
-      ctx.waitUntil(collectPapers(envCast));
-    } else if (cron === '0 2 1 * *') {
-      ctx.waitUntil(collectPaperRanking(envCast));
-    }
+    ctx.waitUntil(
+      collectPaperRanking(env as unknown as Parameters<typeof collectPaperRanking>[0]),
+    );
   },
 };
