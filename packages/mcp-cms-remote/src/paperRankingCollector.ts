@@ -147,7 +147,6 @@ function getTodayString(): string {
  */
 export async function collectPaperRanking(
   env: PaperCollectorEnv,
-  type: 'weekly' | 'monthly',
 ): Promise<void> {
   const cronEnabled = env.PAPER_CRON_ENABLED !== undefined
     ? env.PAPER_CRON_ENABLED !== 'false'
@@ -158,9 +157,7 @@ export async function collectPaperRanking(
     return;
   }
 
-  const months = type === 'weekly'
-    ? paperConfig.weeklyRankingMonths
-    : paperConfig.monthlyRankingMonths;
+  const months = paperConfig.monthlyRankingMonths;
 
   const today = getTodayString();
   const url = buildOpenAlexUrl(months, paperConfig.rankingFetchCount, today);
@@ -190,7 +187,7 @@ export async function collectPaperRanking(
   console.log(`Fetched ${papers.length} ranked papers from OpenAlex`);
 
   const jsonl = formatRankingToJsonl(papers);
-  const fileName = `${type}-${today}.jsonl`;
+  const fileName = `monthly-${today}.jsonl`;
 
   const cmsConfig = createCmsConfig({
     S3_DOCS_BUCKET: env.PAPER_S3_BUCKET ?? env.S3_DOCS_BUCKET,
@@ -206,5 +203,5 @@ export async function collectPaperRanking(
 
   await uploadPatentFile({ fileName, content: jsonl }, s3Client, rankingsConfig);
 
-  console.log(`Uploaded ${type} ranking file: ${fileName}`);
+  console.log(`Uploaded monthly ranking file: ${fileName}`);
 }

@@ -24,8 +24,6 @@ export const paperConfig = {
   openAlexArxivSourceId: 'S4306400194',
   /** 引用数ランキング S3 プレフィックス */
   rankingS3Prefix: 'paper-rankings/',
-  /** 週次ランキングの対象期間（月数） */
-  weeklyRankingMonths: 1,
   /** 月次ランキングの対象期間（月数） */
   monthlyRankingMonths: 3,
   /** ランキング取得件数 */
