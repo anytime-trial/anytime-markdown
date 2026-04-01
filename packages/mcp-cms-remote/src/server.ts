@@ -130,7 +130,14 @@ export function createRemoteMcpServer(
           lines = lines.filter((line) => line.toLowerCase().includes(lower));
         }
 
-        const result = lines.map((line) => JSON.parse(line));
+        const result: unknown[] = [];
+        for (const line of lines) {
+          try {
+            result.push(JSON.parse(line));
+          } catch {
+            // skip malformed lines
+          }
+        }
         return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
       },
     );
