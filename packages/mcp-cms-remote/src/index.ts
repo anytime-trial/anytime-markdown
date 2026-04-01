@@ -18,6 +18,7 @@ import { toReqRes, toFetchResponse } from 'fetch-to-node';
 
 import { createCmsConfig, createS3Client } from '@anytime-markdown/cms-core';
 import { createRemoteMcpServer } from './server.js';
+import { collectPatents } from './patentCollector.js';
 
 interface Env {
   MCP_API_KEY: string;
@@ -27,6 +28,15 @@ interface Env {
   S3_DOCS_BUCKET: string;
   S3_DOCS_PREFIX?: string;
   S3_REPORTS_PREFIX?: string;
+  // Patent collector
+  PATENT_S3_BUCKET?: string;
+  PATENT_S3_PREFIX?: string;
+  PATENTSVIEW_API_KEY: string;
+  PATENTSVIEW_BASE_URL?: string;
+  PATENT_CPC_CODES?: string;
+  PATENT_FETCH_COUNT?: string;
+  PATENT_LOOKBACK_DAYS?: string;
+  PATENT_CRON_ENABLED?: string;
 }
 
 const app = new Hono<{ Bindings: Env }>();
@@ -56,7 +66,11 @@ app.use('/mcp', async (c, next) => {
 app.post('/mcp', async (c) => {
   const config = createCmsConfig(c.env as unknown as Record<string, string | undefined>);
   const s3Client = createS3Client(config);
-  const server = createRemoteMcpServer(s3Client, config);
+  const patentsConfig = {
+    bucket: c.env.PATENT_S3_BUCKET ?? c.env.S3_DOCS_BUCKET,
+    patentsPrefix: c.env.PATENT_S3_PREFIX ?? 'patents/',
+  };
+  const server = createRemoteMcpServer(s3Client, config, patentsConfig);
 
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
 
@@ -79,4 +93,15 @@ app.delete('/mcp', (c) => c.json({ error: 'Method not allowed. Use POST.' }, 405
 // ヘルスチェック
 app.get('/health', (c) => c.json({ status: 'ok' }));
 
-export default app;
+export default {
+  fetch: app.fetch,
+  async scheduled(
+    _event: ScheduledEvent,
+    env: Env,
+    ctx: ExecutionContext,
+  ): Promise<void> {
+    ctx.waitUntil(
+      collectPatents(env as unknown as Parameters<typeof collectPatents>[0]),
+    );
+  },
+};
