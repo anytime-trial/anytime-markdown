@@ -19,6 +19,7 @@ import { toReqRes, toFetchResponse } from 'fetch-to-node';
 import { createCmsConfig, createS3Client } from '@anytime-markdown/cms-core';
 import { createRemoteMcpServer } from './server.js';
 import { collectPatents } from './patentCollector.js';
+import { patentConfig } from './patentConfig.js';
 
 interface Env {
   MCP_API_KEY: string;
@@ -30,12 +31,7 @@ interface Env {
   S3_REPORTS_PREFIX?: string;
   // Patent collector
   PATENT_S3_BUCKET?: string;
-  PATENT_S3_PREFIX?: string;
   PATENTSVIEW_API_KEY: string;
-  PATENTSVIEW_BASE_URL?: string;
-  PATENT_CPC_CODES?: string;
-  PATENT_FETCH_COUNT?: string;
-  PATENT_LOOKBACK_DAYS?: string;
   PATENT_CRON_ENABLED?: string;
 }
 
@@ -68,7 +64,7 @@ app.post('/mcp', async (c) => {
   const s3Client = createS3Client(config);
   const patentsConfig = {
     bucket: c.env.PATENT_S3_BUCKET ?? c.env.S3_DOCS_BUCKET,
-    patentsPrefix: c.env.PATENT_S3_PREFIX ?? 'patents/',
+    patentsPrefix: patentConfig.s3Prefix,
   };
   const server = createRemoteMcpServer(s3Client, config, patentsConfig);
 

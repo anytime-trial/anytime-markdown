@@ -6,6 +6,7 @@ const config: Config = {
   roots: ['<rootDir>/src'],
   moduleNameMapper: {
     '^@anytime-markdown/cms-core$': '<rootDir>/../cms-core/src/index.ts',
+    '^(\\.{1,2}/.*)\\.js$': '$1',
   },
 };
 

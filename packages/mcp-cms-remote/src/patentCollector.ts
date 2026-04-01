@@ -3,6 +3,7 @@ import {
   createCmsConfig,
   createS3Client,
 } from '@anytime-markdown/cms-core';
+import { patentConfig } from './patentConfig.js';
 
 interface PatentAssignee {
   readonly assignee_organization: string;
@@ -29,12 +30,8 @@ interface Patent {
 
 export interface PatentCollectorEnv {
   PATENT_S3_BUCKET?: string;
-  PATENT_S3_PREFIX?: string;
   PATENTSVIEW_API_KEY: string;
-  PATENTSVIEW_BASE_URL?: string;
-  PATENT_CPC_CODES?: string;
-  PATENT_FETCH_COUNT?: string;
-  PATENT_LOOKBACK_DAYS?: string;
+  /** 環境変数で cronEnabled を上書き（'true'/'false'） */
   PATENT_CRON_ENABLED?: string;
   S3_DOCS_BUCKET: string;
   ANYTIME_AWS_ACCESS_KEY_ID: string;
@@ -139,16 +136,17 @@ function getTodayString(): string {
 }
 
 export async function collectPatents(env: PatentCollectorEnv): Promise<void> {
-  if (env.PATENT_CRON_ENABLED === 'false') {
-    console.log('Patent collection is disabled (PATENT_CRON_ENABLED=false)');
+  // 環境変数 > コンフィグファイルの優先順位で cronEnabled を決定
+  const cronEnabled = env.PATENT_CRON_ENABLED !== undefined
+    ? env.PATENT_CRON_ENABLED !== 'false'
+    : patentConfig.cronEnabled;
+
+  if (!cronEnabled) {
+    console.log('Patent collection is disabled');
     return;
   }
 
-  const baseUrl = env.PATENTSVIEW_BASE_URL ?? 'https://search.patentsview.org/api/v1';
-  const cpcCodes = (env.PATENT_CPC_CODES ?? 'G06,H04L').split(',');
-  const fetchCount = Number.parseInt(env.PATENT_FETCH_COUNT ?? '20', 10);
-  const lookbackDays = Number.parseInt(env.PATENT_LOOKBACK_DAYS ?? '30', 10);
-  const patentsPrefix = env.PATENT_S3_PREFIX ?? 'patents/';
+  const { baseUrl, cpcCodes, fetchCount, lookbackDays, s3Prefix: patentsPrefix } = patentConfig;
   const today = getTodayString();
 
   const query = buildPatentQuery(cpcCodes, lookbackDays, today, fetchCount);
