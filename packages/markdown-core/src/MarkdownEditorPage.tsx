@@ -500,23 +500,6 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
 
   const { handleInsertSectionNumbers, handleRemoveSectionNumbers } = useSectionNumbers(editor);
 
-  if (loading) {
-    return <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}><CircularProgress /></Box>;
-  }
-
-  const isRestrictedMode = readonlyMode || reviewMode;
-  const outlineProps = {
-    isMd, outlineOpen, handleToggleOutline, outlineWidth, setOutlineWidth, editorHeight,
-    headings, foldedIndices, hiddenByFold, foldAll, unfoldAll, toggleFold,
-    handleOutlineClick: isMd ? handleOutlineClick : (pos: number) => { handleOutlineClick(pos); handleToggleOutline(); },
-    handleOutlineResizeStart,
-    onHeadingDragEnd: isRestrictedMode ? undefined : handleHeadingDragEnd,
-    onOutlineDelete: isRestrictedMode ? undefined : handleOutlineDelete,
-    onInsertSectionNumbers: isRestrictedMode ? undefined : handleInsertSectionNumbers,
-    onRemoveSectionNumbers: isRestrictedMode ? undefined : handleRemoveSectionNumbers,
-    t,
-  };
-
   const editorModeValue = useMemo<EditorModeContextValue>(() => ({
     sourceMode,
     readonlyMode,
@@ -533,6 +516,23 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     sideToolbar, explorerOpen, noScroll,
     handleSwitchToReview, handleSwitchToWysiwyg, handleSwitchToSource,
   ]);
+
+  if (loading) {
+    return <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}><CircularProgress /></Box>;
+  }
+
+  const isRestrictedMode = readonlyMode || reviewMode;
+  const outlineProps = {
+    isMd, outlineOpen, handleToggleOutline, outlineWidth, setOutlineWidth, editorHeight,
+    headings, foldedIndices, hiddenByFold, foldAll, unfoldAll, toggleFold,
+    handleOutlineClick: isMd ? handleOutlineClick : (pos: number) => { handleOutlineClick(pos); handleToggleOutline(); },
+    handleOutlineResizeStart,
+    onHeadingDragEnd: isRestrictedMode ? undefined : handleHeadingDragEnd,
+    onOutlineDelete: isRestrictedMode ? undefined : handleOutlineDelete,
+    onInsertSectionNumbers: isRestrictedMode ? undefined : handleInsertSectionNumbers,
+    onRemoveSectionNumbers: isRestrictedMode ? undefined : handleRemoveSectionNumbers,
+    t,
+  };
 
   return (
     <EditorErrorBoundary>

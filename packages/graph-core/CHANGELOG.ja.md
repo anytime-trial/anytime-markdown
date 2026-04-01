@@ -6,6 +6,20 @@
 
 ## [Unreleased]
 
+## [0.0.3] - 2026-04-01
+
+### 追加
+
+- GraphNode にメタデータ、GraphEdge にウェイトを追加
+- データマッピング用の linearScale と interpolateColor ユーティリティを追加
+- Draw.io および SVG エクスポートでメタデータとウェイトを保持
+- グラフ走査、バッチインポート、ノードフィルタを追加
+- パスハイライトとフィルタパネルを追加
+
+### 修正
+
+- resolveConnectorEndpoints と RenderOptions の readonly 型不整合を修正
+
 ## [0.0.2] - 2026-03-29
 
 ### 修正

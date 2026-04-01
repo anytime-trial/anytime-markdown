@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-04-01
+
+### Changed
+
+- Upgrade Next.js 15.5.14 → 16.1.7 with Turbopack as default bundler
+- Add Turbopack config for .md file loader
+- Remove deprecated eslint config from next.config.ts
+- Integrate path highlight, node filter, and filter panel into GraphEditor
+- Add useDataMapping hook and DetailPanel component
+
+### Security
+
+- Upgrade next to 16.1.7 for CVE-2026-27980
+- Add @auth/core 0.41.1 override for SNYK-JS-AUTHCORE-13744119
+- Add path traversal prevention for image download
+
 ## [0.9.1] - 2026-03-30
 
 ### Changed

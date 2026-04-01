@@ -1,0 +1,1081 @@
+{
+  "id": "b0562ea3-c702-468e-a59b-4743ac04e0b7",
+  "name": "Science Mapping Tools",
+  "nodes": [
+    {
+      "id": "3b1b0a17-64f4-4d87-8985-bfb5996cffa2",
+      "type": "ellipse",
+      "x": 1300,
+      "y": 400,
+      "width": 150,
+      "height": 100,
+      "text": "Science mapping software tools (2017)",
+      "style": {
+        "fill": "#121212",
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2,
+        "fontSize": 14,
+        "fontFamily": "Roboto, Helvetica, Arial, sans-serif"
+      },
+      "metadata": {
+        "year": 2017,
+        "citationCount": 312,
+        "field": "Bibliometrics"
+      }
+    },
+    {
+      "id": "410b4791-129e-4cab-b243-2e07201653b2",
+      "type": "ellipse",
+      "x": 1260.845213036123,
+      "y": 647.2135954999579,
+      "width": 150,
+      "height": 100,
+      "text": "VOSviewer (2010)",
+      "style": {
+        "fill": "#121212",
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2,
+        "fontSize": 14,
+        "fontFamily": "Roboto, Helvetica, Arial, sans-serif"
+      },
+      "metadata": {
+        "year": 2010,
+        "citationCount": 4521,
+        "field": "Bibliometrics"
+      }
+    },
+    {
+      "id": "aeb6bd87-eb9a-4594-8aa3-c589218f6f72",
+      "type": "ellipse",
+      "x": 1147.213595499958,
+      "y": 870.2282018339786,
+      "width": 150,
+      "height": 100,
+      "text": "CiteSpace (2006)",
+      "style": {
+        "fill": "#121212",
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2,
+        "fontSize": 14,
+        "fontFamily": "Roboto, Helvetica, Arial, sans-serif"
+      },
+      "metadata": {
+        "year": 2006,
+        "citationCount": 3870,
+        "field": "Bibliometrics"
+      }
+    },
+    {
+      "id": "7e37c178-b278-4e44-b9ec-4ef3e5d5376e",
+      "type": "ellipse",
+      "x": 970.2282018339786,
+      "y": 1047.213595499958,
+      "width": 150,
+      "height": 100,
+      "text": "BibExcel (2009)",
+      "style": {
+        "fill": "#121212",
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2,
+        "fontSize": 14,
+        "fontFamily": "Roboto, Helvetica, Arial, sans-serif"
+      },
+      "metadata": {
+        "year": 2009,
+        "citationCount": 1240,
+        "field": "Bibliometrics"
+      }
+    },
+    {
+      "id": "75bf0b4e-e5d7-4c8b-9df7-e6b8064fe226",
+      "type": "ellipse",
+      "x": 747.2135954999579,
+      "y": 1160.845213036123,
+      "width": 150,
+      "height": 100,
+      "text": "Gephi (2009)",
+      "style": {
+        "fill": "#121212",
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2,
+        "fontSize": 14,
+        "fontFamily": "Roboto, Helvetica, Arial, sans-serif"
+      },
+      "metadata": {
+        "year": 2009,
+        "citationCount": 6100,
+        "field": "Network Analysis"
+      }
+    },
+    {
+      "id": "a8e54b74-edb0-4c6b-bbcb-8259eb8c0226",
+      "type": "ellipse",
+      "x": 500.00000000000006,
+      "y": 1200,
+      "width": 150,
+      "height": 100,
+      "text": "Pajek (2005)",
+      "style": {
+        "fill": "#121212",
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2,
+        "fontSize": 14,
+        "fontFamily": "Roboto, Helvetica, Arial, sans-serif"
+      },
+      "metadata": {
+        "year": 2005,
+        "citationCount": 2890,
+        "field": "Network Analysis"
+      }
+    },
+    {
+      "id": "6e2f2d0c-d5bd-404d-9d9e-052b06fe7a2b",
+      "type": "ellipse",
+      "x": 252.78640450004212,
+      "y": 1160.845213036123,
+      "width": 150,
+      "height": 100,
+      "text": "Sci2 Tool (2012)",
+      "style": {
+        "fill": "#121212",
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2,
+        "fontSize": 14,
+        "fontFamily": "Roboto, Helvetica, Arial, sans-serif"
+      },
+      "metadata": {
+        "year": 2012,
+        "citationCount": 890,
+        "field": "Bibliometrics"
+      }
+    },
+    {
+      "id": "f5fe0d4e-3352-4036-be9f-c8f364c112d0",
+      "type": "ellipse",
+      "x": 29.771798166021597,
+      "y": 1047.213595499958,
+      "width": 150,
+      "height": 100,
+      "text": "Co-citation analysis (1973)",
+      "style": {
+        "fill": "#121212",
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2,
+        "fontSize": 14,
+        "fontFamily": "Roboto, Helvetica, Arial, sans-serif"
+      },
+      "metadata": {
+        "year": 1973,
+        "citationCount": 5200,
+        "field": "Information Science"
+      }
+    },
+    {
+      "id": "5b30a7c9-6d85-41b5-840a-170834aef620",
+      "type": "ellipse",
+      "x": -147.21359549995782,
+      "y": 870.2282018339786,
+      "width": 150,
+      "height": 100,
+      "text": "Bibliographic coupling (1963)",
+      "style": {
+        "fill": "#121212",
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2,
+        "fontSize": 14,
+        "fontFamily": "Roboto, Helvetica, Arial, sans-serif"
+      },
+      "metadata": {
+        "year": 1963,
+        "citationCount": 3400,
+        "field": "Information Science"
+      }
+    },
+    {
+      "id": "5a770e4b-b10a-4828-81cc-1b84b0728d5b",
+      "type": "ellipse",
+      "x": -260.8452130361228,
+      "y": 647.213595499958,
+      "width": 150,
+      "height": 100,
+      "text": "Mapping scientific frontiers (2003)",
+      "style": {
+        "fill": "#121212",
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2,
+        "fontSize": 14,
+        "fontFamily": "Roboto, Helvetica, Arial, sans-serif"
+      },
+      "metadata": {
+        "year": 2003,
+        "citationCount": 2100,
+        "field": "Bibliometrics"
+      }
+    },
+    {
+      "id": "e3cc2865-fe95-4aa1-93cf-344304d60871",
+      "type": "ellipse",
+      "x": -300,
+      "y": 400.0000000000001,
+      "width": 150,
+      "height": 100,
+      "text": "Network visualization (2011)",
+      "style": {
+        "fill": "#121212",
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2,
+        "fontSize": 14,
+        "fontFamily": "Roboto, Helvetica, Arial, sans-serif"
+      },
+      "metadata": {
+        "year": 2011,
+        "citationCount": 1560,
+        "field": "Network Analysis"
+      }
+    },
+    {
+      "id": "e4876be4-dec7-476d-b698-174c035e6c5a",
+      "type": "ellipse",
+      "x": -260.845213036123,
+      "y": 152.7864045000425,
+      "width": 150,
+      "height": 100,
+      "text": "Scopus as data source (2004)",
+      "style": {
+        "fill": "#121212",
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2,
+        "fontSize": 14,
+        "fontFamily": "Roboto, Helvetica, Arial, sans-serif"
+      },
+      "metadata": {
+        "year": 2004,
+        "citationCount": 1980,
+        "field": "Data Source"
+      }
+    },
+    {
+      "id": "5fed4a0c-e11e-4554-8a0c-d5d1c0069ae4",
+      "type": "ellipse",
+      "x": -147.21359549995793,
+      "y": -70.2282018339784,
+      "width": 150,
+      "height": 100,
+      "text": "Web of Science analysis (2015)",
+      "style": {
+        "fill": "#121212",
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2,
+        "fontSize": 14,
+        "fontFamily": "Roboto, Helvetica, Arial, sans-serif"
+      },
+      "metadata": {
+        "year": 2015,
+        "citationCount": 1340,
+        "field": "Data Source"
+      }
+    },
+    {
+      "id": "54524c5d-3764-4b0b-ba3d-6cbc46c1cce8",
+      "type": "ellipse",
+      "x": 29.771798166021426,
+      "y": -247.21359549995782,
+      "width": 150,
+      "height": 100,
+      "text": "Co-word analysis (1986)",
+      "style": {
+        "fill": "#121212",
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2,
+        "fontSize": 14,
+        "fontFamily": "Roboto, Helvetica, Arial, sans-serif"
+      },
+      "metadata": {
+        "year": 1986,
+        "citationCount": 2750,
+        "field": "Information Science"
+      }
+    },
+    {
+      "id": "31936b7d-0e89-4674-9556-d18ca4becb36",
+      "type": "ellipse",
+      "x": 252.78640450004195,
+      "y": -360.8452130361228,
+      "width": 150,
+      "height": 100,
+      "text": "Author collaboration networks (2008)",
+      "style": {
+        "fill": "#121212",
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2,
+        "fontSize": 14,
+        "fontFamily": "Roboto, Helvetica, Arial, sans-serif"
+      },
+      "metadata": {
+        "year": 2008,
+        "citationCount": 1870,
+        "field": "Network Analysis"
+      }
+    },
+    {
+      "id": "a73e4b98-91a8-4c3d-99c6-095d5d6dcf87",
+      "type": "ellipse",
+      "x": 499.99999999999983,
+      "y": -400,
+      "width": 150,
+      "height": 100,
+      "text": "h-index (2005)",
+      "style": {
+        "fill": "#121212",
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2,
+        "fontSize": 14,
+        "fontFamily": "Roboto, Helvetica, Arial, sans-serif"
+      },
+      "metadata": {
+        "year": 2005,
+        "citationCount": 7800,
+        "field": "Bibliometrics"
+      }
+    },
+    {
+      "id": "8050ec3d-feb4-44f0-b4f7-475d0bcf7d6d",
+      "type": "ellipse",
+      "x": 747.2135954999578,
+      "y": -360.8452130361229,
+      "width": 150,
+      "height": 100,
+      "text": "Altmetrics (2010)",
+      "style": {
+        "fill": "#121212",
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2,
+        "fontSize": 14,
+        "fontFamily": "Roboto, Helvetica, Arial, sans-serif"
+      },
+      "metadata": {
+        "year": 2010,
+        "citationCount": 920,
+        "field": "Bibliometrics"
+      }
+    },
+    {
+      "id": "0a845a53-bae3-4319-8cce-35ba16de64bc",
+      "type": "ellipse",
+      "x": 970.2282018339783,
+      "y": -247.21359549995805,
+      "width": 150,
+      "height": 100,
+      "text": "Knowledge domain visualization (2004)",
+      "style": {
+        "fill": "#121212",
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2,
+        "fontSize": 14,
+        "fontFamily": "Roboto, Helvetica, Arial, sans-serif"
+      },
+      "metadata": {
+        "year": 2004,
+        "citationCount": 1650,
+        "field": "Information Science"
+      }
+    },
+    {
+      "id": "1572616e-49a9-4d92-8143-5a13eee7cb46",
+      "type": "ellipse",
+      "x": 1147.2135954999578,
+      "y": -70.22820183397869,
+      "width": 150,
+      "height": 100,
+      "text": "Patent mapping (2014)",
+      "style": {
+        "fill": "#121212",
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2,
+        "fontSize": 14,
+        "fontFamily": "Roboto, Helvetica, Arial, sans-serif"
+      },
+      "metadata": {
+        "year": 2014,
+        "citationCount": 680,
+        "field": "Patent Analysis"
+      }
+    },
+    {
+      "id": "9d658ebf-73e2-48b1-9766-877ae4755380",
+      "type": "ellipse",
+      "x": 1260.845213036123,
+      "y": 152.7864045000419,
+      "width": 150,
+      "height": 100,
+      "text": "Research fronts detection (2013)",
+      "style": {
+        "fill": "#121212",
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2,
+        "fontSize": 14,
+        "fontFamily": "Roboto, Helvetica, Arial, sans-serif"
+      },
+      "metadata": {
+        "year": 2013,
+        "citationCount": 1120,
+        "field": "Bibliometrics"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e9a60e44-cfde-47ab-b6fe-40a8cee6ef73",
+      "type": "arrow",
+      "from": {
+        "nodeId": "3b1b0a17-64f4-4d87-8985-bfb5996cffa2",
+        "x": 1300,
+        "y": 400
+      },
+      "to": {
+        "nodeId": "410b4791-129e-4cab-b243-2e07201653b2",
+        "x": 1260.845213036123,
+        "y": 647.2135954999579
+      },
+      "style": {
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2
+      },
+      "weight": 0.92
+    },
+    {
+      "id": "e2148595-504f-4d66-96c3-df495a80f152",
+      "type": "arrow",
+      "from": {
+        "nodeId": "3b1b0a17-64f4-4d87-8985-bfb5996cffa2",
+        "x": 1300,
+        "y": 400
+      },
+      "to": {
+        "nodeId": "aeb6bd87-eb9a-4594-8aa3-c589218f6f72",
+        "x": 1147.213595499958,
+        "y": 870.2282018339786
+      },
+      "style": {
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2
+      },
+      "weight": 0.9
+    },
+    {
+      "id": "fcf8fe22-74d5-4f0b-a961-8f8b39249029",
+      "type": "arrow",
+      "from": {
+        "nodeId": "3b1b0a17-64f4-4d87-8985-bfb5996cffa2",
+        "x": 1300,
+        "y": 400
+      },
+      "to": {
+        "nodeId": "7e37c178-b278-4e44-b9ec-4ef3e5d5376e",
+        "x": 970.2282018339786,
+        "y": 1047.213595499958
+      },
+      "style": {
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2
+      },
+      "weight": 0.85
+    },
+    {
+      "id": "daab7abb-9b61-4f31-9e06-235846aaaccd",
+      "type": "arrow",
+      "from": {
+        "nodeId": "3b1b0a17-64f4-4d87-8985-bfb5996cffa2",
+        "x": 1300,
+        "y": 400
+      },
+      "to": {
+        "nodeId": "75bf0b4e-e5d7-4c8b-9df7-e6b8064fe226",
+        "x": 747.2135954999579,
+        "y": 1160.845213036123
+      },
+      "style": {
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2
+      },
+      "weight": 0.78
+    },
+    {
+      "id": "072cf039-601f-4af8-8679-7cf6149dff04",
+      "type": "arrow",
+      "from": {
+        "nodeId": "3b1b0a17-64f4-4d87-8985-bfb5996cffa2",
+        "x": 1300,
+        "y": 400
+      },
+      "to": {
+        "nodeId": "6e2f2d0c-d5bd-404d-9d9e-052b06fe7a2b",
+        "x": 252.78640450004212,
+        "y": 1160.845213036123
+      },
+      "style": {
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2
+      },
+      "weight": 0.82
+    },
+    {
+      "id": "0ee83545-e803-4cbc-b9d4-7bae99c0a0a6",
+      "type": "arrow",
+      "from": {
+        "nodeId": "3b1b0a17-64f4-4d87-8985-bfb5996cffa2",
+        "x": 1300,
+        "y": 400
+      },
+      "to": {
+        "nodeId": "a8e54b74-edb0-4c6b-bbcb-8259eb8c0226",
+        "x": 500.00000000000006,
+        "y": 1200
+      },
+      "style": {
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2
+      },
+      "weight": 0.75
+    },
+    {
+      "id": "6c8c9b04-2886-430a-a11c-797382c64f6e",
+      "type": "arrow",
+      "from": {
+        "nodeId": "410b4791-129e-4cab-b243-2e07201653b2",
+        "x": 1260.845213036123,
+        "y": 647.2135954999579
+      },
+      "to": {
+        "nodeId": "aeb6bd87-eb9a-4594-8aa3-c589218f6f72",
+        "x": 1147.213595499958,
+        "y": 870.2282018339786
+      },
+      "style": {
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2
+      },
+      "weight": 0.88
+    },
+    {
+      "id": "95b76bc7-1f35-4b6a-9405-749c9054f572",
+      "type": "arrow",
+      "from": {
+        "nodeId": "410b4791-129e-4cab-b243-2e07201653b2",
+        "x": 1260.845213036123,
+        "y": 647.2135954999579
+      },
+      "to": {
+        "nodeId": "7e37c178-b278-4e44-b9ec-4ef3e5d5376e",
+        "x": 970.2282018339786,
+        "y": 1047.213595499958
+      },
+      "style": {
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2
+      },
+      "weight": 0.72
+    },
+    {
+      "id": "a7cae791-8b8c-48a0-b522-9abb79f8c869",
+      "type": "arrow",
+      "from": {
+        "nodeId": "410b4791-129e-4cab-b243-2e07201653b2",
+        "x": 1260.845213036123,
+        "y": 647.2135954999579
+      },
+      "to": {
+        "nodeId": "75bf0b4e-e5d7-4c8b-9df7-e6b8064fe226",
+        "x": 747.2135954999579,
+        "y": 1160.845213036123
+      },
+      "style": {
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2
+      },
+      "weight": 0.65
+    },
+    {
+      "id": "ce004f92-299d-4b0b-b002-4de0a454252b",
+      "type": "arrow",
+      "from": {
+        "nodeId": "aeb6bd87-eb9a-4594-8aa3-c589218f6f72",
+        "x": 1147.213595499958,
+        "y": 870.2282018339786
+      },
+      "to": {
+        "nodeId": "f5fe0d4e-3352-4036-be9f-c8f364c112d0",
+        "x": 29.771798166021597,
+        "y": 1047.213595499958
+      },
+      "style": {
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2
+      },
+      "weight": 0.85
+    },
+    {
+      "id": "18d40d3c-1127-42cf-91d6-fe6193387d0b",
+      "type": "arrow",
+      "from": {
+        "nodeId": "aeb6bd87-eb9a-4594-8aa3-c589218f6f72",
+        "x": 1147.213595499958,
+        "y": 870.2282018339786
+      },
+      "to": {
+        "nodeId": "5a770e4b-b10a-4828-81cc-1b84b0728d5b",
+        "x": -260.8452130361228,
+        "y": 647.213595499958
+      },
+      "style": {
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2
+      },
+      "weight": 0.8
+    },
+    {
+      "id": "5739f3f9-a65b-47b1-b497-c8200922af2b",
+      "type": "arrow",
+      "from": {
+        "nodeId": "aeb6bd87-eb9a-4594-8aa3-c589218f6f72",
+        "x": 1147.213595499958,
+        "y": 870.2282018339786
+      },
+      "to": {
+        "nodeId": "9d658ebf-73e2-48b1-9766-877ae4755380",
+        "x": 1260.845213036123,
+        "y": 152.7864045000419
+      },
+      "style": {
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2
+      },
+      "weight": 0.78
+    },
+    {
+      "id": "8b354f5d-b6b1-4927-87ab-d673eac7586d",
+      "type": "arrow",
+      "from": {
+        "nodeId": "f5fe0d4e-3352-4036-be9f-c8f364c112d0",
+        "x": 29.771798166021597,
+        "y": 1047.213595499958
+      },
+      "to": {
+        "nodeId": "5b30a7c9-6d85-41b5-840a-170834aef620",
+        "x": -147.21359549995782,
+        "y": 870.2282018339786
+      },
+      "style": {
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2
+      },
+      "weight": 0.9
+    },
+    {
+      "id": "95157d65-85a0-4b76-943c-6d5a0955b86a",
+      "type": "arrow",
+      "from": {
+        "nodeId": "f5fe0d4e-3352-4036-be9f-c8f364c112d0",
+        "x": 29.771798166021597,
+        "y": 1047.213595499958
+      },
+      "to": {
+        "nodeId": "54524c5d-3764-4b0b-ba3d-6cbc46c1cce8",
+        "x": 29.771798166021426,
+        "y": -247.21359549995782
+      },
+      "style": {
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2
+      },
+      "weight": 0.7
+    },
+    {
+      "id": "ce280b37-d07e-4f7f-81e9-78f5dcb523be",
+      "type": "arrow",
+      "from": {
+        "nodeId": "5b30a7c9-6d85-41b5-840a-170834aef620",
+        "x": -147.21359549995782,
+        "y": 870.2282018339786
+      },
+      "to": {
+        "nodeId": "54524c5d-3764-4b0b-ba3d-6cbc46c1cce8",
+        "x": 29.771798166021426,
+        "y": -247.21359549995782
+      },
+      "style": {
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2
+      },
+      "weight": 0.65
+    },
+    {
+      "id": "dfddccdf-bb51-492e-9e4f-b8a40815dc85",
+      "type": "arrow",
+      "from": {
+        "nodeId": "54524c5d-3764-4b0b-ba3d-6cbc46c1cce8",
+        "x": 29.771798166021426,
+        "y": -247.21359549995782
+      },
+      "to": {
+        "nodeId": "0a845a53-bae3-4319-8cce-35ba16de64bc",
+        "x": 970.2282018339783,
+        "y": -247.21359549995805
+      },
+      "style": {
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2
+      },
+      "weight": 0.72
+    },
+    {
+      "id": "ebd2aa15-0c5c-4cc8-afc1-03cd72237e44",
+      "type": "arrow",
+      "from": {
+        "nodeId": "75bf0b4e-e5d7-4c8b-9df7-e6b8064fe226",
+        "x": 747.2135954999579,
+        "y": 1160.845213036123
+      },
+      "to": {
+        "nodeId": "a8e54b74-edb0-4c6b-bbcb-8259eb8c0226",
+        "x": 500.00000000000006,
+        "y": 1200
+      },
+      "style": {
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2
+      },
+      "weight": 0.82
+    },
+    {
+      "id": "29052309-c9f1-4922-90b5-9eac4edc9475",
+      "type": "arrow",
+      "from": {
+        "nodeId": "75bf0b4e-e5d7-4c8b-9df7-e6b8064fe226",
+        "x": 747.2135954999579,
+        "y": 1160.845213036123
+      },
+      "to": {
+        "nodeId": "e3cc2865-fe95-4aa1-93cf-344304d60871",
+        "x": -300,
+        "y": 400.0000000000001
+      },
+      "style": {
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2
+      },
+      "weight": 0.88
+    },
+    {
+      "id": "466deb36-f69d-428a-aaf4-e56ac71a425e",
+      "type": "arrow",
+      "from": {
+        "nodeId": "75bf0b4e-e5d7-4c8b-9df7-e6b8064fe226",
+        "x": 747.2135954999579,
+        "y": 1160.845213036123
+      },
+      "to": {
+        "nodeId": "31936b7d-0e89-4674-9556-d18ca4becb36",
+        "x": 252.78640450004195,
+        "y": -360.8452130361228
+      },
+      "style": {
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2
+      },
+      "weight": 0.7
+    },
+    {
+      "id": "3e6f05b4-5e39-4528-b78a-2853068e7fd2",
+      "type": "arrow",
+      "from": {
+        "nodeId": "a8e54b74-edb0-4c6b-bbcb-8259eb8c0226",
+        "x": 500.00000000000006,
+        "y": 1200
+      },
+      "to": {
+        "nodeId": "e3cc2865-fe95-4aa1-93cf-344304d60871",
+        "x": -300,
+        "y": 400.0000000000001
+      },
+      "style": {
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2
+      },
+      "weight": 0.75
+    },
+    {
+      "id": "8cdf354e-b373-43be-8ab8-4d848300a2a1",
+      "type": "arrow",
+      "from": {
+        "nodeId": "a8e54b74-edb0-4c6b-bbcb-8259eb8c0226",
+        "x": 500.00000000000006,
+        "y": 1200
+      },
+      "to": {
+        "nodeId": "31936b7d-0e89-4674-9556-d18ca4becb36",
+        "x": 252.78640450004195,
+        "y": -360.8452130361228
+      },
+      "style": {
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2
+      },
+      "weight": 0.68
+    },
+    {
+      "id": "7da6383c-eec9-4317-8259-d1753b059f6c",
+      "type": "arrow",
+      "from": {
+        "nodeId": "e4876be4-dec7-476d-b698-174c035e6c5a",
+        "x": -260.845213036123,
+        "y": 152.7864045000425
+      },
+      "to": {
+        "nodeId": "5fed4a0c-e11e-4554-8a0c-d5d1c0069ae4",
+        "x": -147.21359549995793,
+        "y": -70.2282018339784
+      },
+      "style": {
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2
+      },
+      "weight": 0.85
+    },
+    {
+      "id": "21f9cabb-1d13-45f5-8195-7c103e97139a",
+      "type": "arrow",
+      "from": {
+        "nodeId": "e4876be4-dec7-476d-b698-174c035e6c5a",
+        "x": -260.845213036123,
+        "y": 152.7864045000425
+      },
+      "to": {
+        "nodeId": "410b4791-129e-4cab-b243-2e07201653b2",
+        "x": 1260.845213036123,
+        "y": 647.2135954999579
+      },
+      "style": {
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2
+      },
+      "weight": 0.72
+    },
+    {
+      "id": "5a72d57c-ebbc-4c9f-a284-97eeebc5eca3",
+      "type": "arrow",
+      "from": {
+        "nodeId": "5fed4a0c-e11e-4554-8a0c-d5d1c0069ae4",
+        "x": -147.21359549995793,
+        "y": -70.2282018339784
+      },
+      "to": {
+        "nodeId": "aeb6bd87-eb9a-4594-8aa3-c589218f6f72",
+        "x": 1147.213595499958,
+        "y": 870.2282018339786
+      },
+      "style": {
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2
+      },
+      "weight": 0.7
+    },
+    {
+      "id": "3639faab-6d5a-4c17-809b-929f98305f00",
+      "type": "arrow",
+      "from": {
+        "nodeId": "a73e4b98-91a8-4c3d-99c6-095d5d6dcf87",
+        "x": 499.99999999999983,
+        "y": -400
+      },
+      "to": {
+        "nodeId": "8050ec3d-feb4-44f0-b4f7-475d0bcf7d6d",
+        "x": 747.2135954999578,
+        "y": -360.8452130361229
+      },
+      "style": {
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2
+      },
+      "weight": 0.6
+    },
+    {
+      "id": "cebf6bbd-cd7d-4366-b6ea-8420f0c65c39",
+      "type": "arrow",
+      "from": {
+        "nodeId": "a73e4b98-91a8-4c3d-99c6-095d5d6dcf87",
+        "x": 499.99999999999983,
+        "y": -400
+      },
+      "to": {
+        "nodeId": "5fed4a0c-e11e-4554-8a0c-d5d1c0069ae4",
+        "x": -147.21359549995793,
+        "y": -70.2282018339784
+      },
+      "style": {
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2
+      },
+      "weight": 0.55
+    },
+    {
+      "id": "4427729e-2f8c-4606-8b52-fcae79e4ce6c",
+      "type": "arrow",
+      "from": {
+        "nodeId": "6e2f2d0c-d5bd-404d-9d9e-052b06fe7a2b",
+        "x": 252.78640450004212,
+        "y": 1160.845213036123
+      },
+      "to": {
+        "nodeId": "0a845a53-bae3-4319-8cce-35ba16de64bc",
+        "x": 970.2282018339783,
+        "y": -247.21359549995805
+      },
+      "style": {
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2
+      },
+      "weight": 0.68
+    },
+    {
+      "id": "d191aa67-3d10-4cb7-9e85-55f143049e74",
+      "type": "arrow",
+      "from": {
+        "nodeId": "6e2f2d0c-d5bd-404d-9d9e-052b06fe7a2b",
+        "x": 252.78640450004212,
+        "y": 1160.845213036123
+      },
+      "to": {
+        "nodeId": "5a770e4b-b10a-4828-81cc-1b84b0728d5b",
+        "x": -260.8452130361228,
+        "y": 647.213595499958
+      },
+      "style": {
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2
+      },
+      "weight": 0.72
+    },
+    {
+      "id": "d0759205-e698-4fb1-b0c2-d85d8f3a754f",
+      "type": "arrow",
+      "from": {
+        "nodeId": "1572616e-49a9-4d92-8143-5a13eee7cb46",
+        "x": 1147.2135954999578,
+        "y": -70.22820183397869
+      },
+      "to": {
+        "nodeId": "9d658ebf-73e2-48b1-9766-877ae4755380",
+        "x": 1260.845213036123,
+        "y": 152.7864045000419
+      },
+      "style": {
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2
+      },
+      "weight": 0.55
+    },
+    {
+      "id": "2ed23c4b-b96b-4183-ad0a-700aef6a1646",
+      "type": "arrow",
+      "from": {
+        "nodeId": "1572616e-49a9-4d92-8143-5a13eee7cb46",
+        "x": 1147.2135954999578,
+        "y": -70.22820183397869
+      },
+      "to": {
+        "nodeId": "0a845a53-bae3-4319-8cce-35ba16de64bc",
+        "x": 970.2282018339783,
+        "y": -247.21359549995805
+      },
+      "style": {
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2
+      },
+      "weight": 0.5
+    },
+    {
+      "id": "1766bdbc-42ac-4a87-946d-39ded8709d92",
+      "type": "arrow",
+      "from": {
+        "nodeId": "9d658ebf-73e2-48b1-9766-877ae4755380",
+        "x": 1260.845213036123,
+        "y": 152.7864045000419
+      },
+      "to": {
+        "nodeId": "5a770e4b-b10a-4828-81cc-1b84b0728d5b",
+        "x": -260.8452130361228,
+        "y": 647.213595499958
+      },
+      "style": {
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2
+      },
+      "weight": 0.75
+    },
+    {
+      "id": "9c8879e1-5e51-4f99-9b46-34c92ff338f8",
+      "type": "arrow",
+      "from": {
+        "nodeId": "e3cc2865-fe95-4aa1-93cf-344304d60871",
+        "x": -300,
+        "y": 400.0000000000001
+      },
+      "to": {
+        "nodeId": "0a845a53-bae3-4319-8cce-35ba16de64bc",
+        "x": 970.2282018339783,
+        "y": -247.21359549995805
+      },
+      "style": {
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2
+      },
+      "weight": 0.62
+    },
+    {
+      "id": "a853c816-c45f-4549-9d63-e9df44816bb0",
+      "type": "arrow",
+      "from": {
+        "nodeId": "31936b7d-0e89-4674-9556-d18ca4becb36",
+        "x": 252.78640450004195,
+        "y": -360.8452130361228
+      },
+      "to": {
+        "nodeId": "a73e4b98-91a8-4c3d-99c6-095d5d6dcf87",
+        "x": 499.99999999999983,
+        "y": -400
+      },
+      "style": {
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2
+      },
+      "weight": 0.58
+    },
+    {
+      "id": "0ab318df-6d33-460c-8f8f-e1f05dfc34fd",
+      "type": "arrow",
+      "from": {
+        "nodeId": "7e37c178-b278-4e44-b9ec-4ef3e5d5376e",
+        "x": 970.2282018339786,
+        "y": 1047.213595499958
+      },
+      "to": {
+        "nodeId": "a8e54b74-edb0-4c6b-bbcb-8259eb8c0226",
+        "x": 500.00000000000006,
+        "y": 1200
+      },
+      "style": {
+        "stroke": "rgba(255,255,255,0.24)",
+        "strokeWidth": 2
+      },
+      "weight": 0.65
+    }
+  ],
+  "viewport": {
+    "offsetX": 0,
+    "offsetY": 0,
+    "scale": 1
+  },
+  "createdAt": 1775000022468,
+  "updatedAt": 1775000022468
+}
