@@ -27,5 +27,5 @@ export const paperConfig = {
   /** 月次ランキングの対象期間（月数） */
   monthlyRankingMonths: 3,
   /** ランキング取得件数 */
-  rankingFetchCount: 20,
+  rankingFetchCount: 50,
 } as const;
