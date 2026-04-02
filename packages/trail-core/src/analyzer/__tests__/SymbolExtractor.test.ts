@@ -48,6 +48,30 @@ describe('SymbolExtractor', () => {
     expect(runNode?.parent).toBe(appNode?.id);
   });
 
+  it('should extract interface nodes', () => {
+    const nodes = extractor.extract();
+    const interfaceNodes = nodes.filter(n => n.type === 'interface');
+    expect(interfaceNodes.map(n => n.label)).toContain('Runnable');
+  });
+
+  it('should extract type alias nodes', () => {
+    const nodes = extractor.extract();
+    const typeNodes = nodes.filter(n => n.type === 'type');
+    expect(typeNodes.map(n => n.label)).toContain('AppConfig');
+  });
+
+  it('should extract enum nodes', () => {
+    const nodes = extractor.extract();
+    const enumNodes = nodes.filter(n => n.type === 'enum');
+    expect(enumNodes.map(n => n.label)).toContain('LogLevel');
+  });
+
+  it('should extract exported variable nodes', () => {
+    const nodes = extractor.extract();
+    const varNodes = nodes.filter(n => n.type === 'variable');
+    expect(varNodes.map(n => n.label)).toContain('DEFAULT_CONFIG');
+  });
+
   it('should use relative file paths', () => {
     const nodes = extractor.extract();
     for (const node of nodes) {

@@ -94,6 +94,74 @@ export class SymbolExtractor {
       };
     }
 
+    if (ts.isInterfaceDeclaration(node) && node.name) {
+      const name = node.name.text;
+      return {
+        id: `${parentId}::${name}`,
+        label: name,
+        type: 'interface',
+        filePath: relativePath,
+        line,
+        parent: parentId,
+      };
+    }
+
+    if (ts.isTypeAliasDeclaration(node) && node.name) {
+      const name = node.name.text;
+      return {
+        id: `${parentId}::${name}`,
+        label: name,
+        type: 'type',
+        filePath: relativePath,
+        line,
+        parent: parentId,
+      };
+    }
+
+    if (ts.isEnumDeclaration(node) && node.name) {
+      const name = node.name.text;
+      return {
+        id: `${parentId}::${name}`,
+        label: name,
+        type: 'enum',
+        filePath: relativePath,
+        line,
+        parent: parentId,
+      };
+    }
+
+    if (ts.isModuleDeclaration(node) && node.name) {
+      const name = node.name.text;
+      return {
+        id: `${parentId}::${name}`,
+        label: name,
+        type: 'namespace',
+        filePath: relativePath,
+        line,
+        parent: parentId,
+      };
+    }
+
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)) {
+      const statement = node.parent?.parent;
+      if (statement && ts.isVariableStatement(statement)) {
+        const hasExport = statement.modifiers?.some(
+          m => m.kind === ts.SyntaxKind.ExportKeyword,
+        );
+        if (hasExport) {
+          const name = node.name.text;
+          return {
+            id: `${parentId}::${name}`,
+            label: name,
+            type: 'variable',
+            filePath: relativePath,
+            line,
+            parent: parentId,
+          };
+        }
+      }
+    }
+
     return null;
   }
 }
