@@ -35,7 +35,7 @@ export function ViewerBody() {
     setLayoutName(name);
     const cy = cyRef.current?.getCy();
     if (cy) {
-      cy.layout({ name, animate: true }).run();
+      cy.layout({ name } as import('cytoscape').LayoutOptions).run();
     }
   }, []);
 

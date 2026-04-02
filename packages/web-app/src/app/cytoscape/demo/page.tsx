@@ -1,11 +1,6 @@
-import type { Metadata } from 'next';
-import dynamic from 'next/dynamic';
+'use client';
 
-export const metadata: Metadata = {
-  title: 'Demo & Showcase - Cytoscape.js',
-  description: 'Explore Cytoscape.js layout algorithms and graph analysis',
-  alternates: { canonical: '/cytoscape/demo' },
-};
+import dynamic from 'next/dynamic';
 
 const DemoBody = dynamic(
   () => import('./components/DemoBody').then(m => ({ default: m.DemoBody })),
