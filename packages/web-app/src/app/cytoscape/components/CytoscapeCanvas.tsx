@@ -45,6 +45,8 @@ export const CytoscapeCanvas = forwardRef<CytoscapeCanvasRef, CytoscapeCanvasPro
       onCyReady?.(cy);
 
       return () => {
+        cy.stop();
+        cy.elements().stop();
         cy.destroy();
         cyRef.current = null;
       };
