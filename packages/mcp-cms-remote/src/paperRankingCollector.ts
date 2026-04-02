@@ -2,6 +2,7 @@ import { paperConfig } from './paperConfig.js';
 
 export interface PaperRankingEnv {
   PAPER_S3_BUCKET?: string;
+  OPENALEX_MAILTO: string;
   S3_DOCS_BUCKET: string;
   ANYTIME_AWS_ACCESS_KEY_ID: string;
   ANYTIME_AWS_SECRET_ACCESS_KEY: string;
@@ -94,6 +95,7 @@ export function buildOpenAlexUrl(
   months: number,
   fetchCount: number,
   today: string,
+  mailto: string,
 ): string {
   const toDate = getLastDayOfPreviousMonth(today);
   const fromDate = computeFromDate(getFirstDayOfMonth(today), months);
@@ -104,7 +106,7 @@ export function buildOpenAlexUrl(
     `locations.source.id:${openAlexArxivSourceId}`,
   ].join(',');
 
-  return `${openAlexBaseUrl}/works?filter=${filter}&sort=cited_by_count:desc&per_page=${fetchCount}&mailto=noreply@example.com`;
+  return `${openAlexBaseUrl}/works?filter=${filter}&sort=cited_by_count:desc&per_page=${fetchCount}&mailto=${encodeURIComponent(mailto)}`;
 }
 
 /**
@@ -165,10 +167,11 @@ export async function fetchRankingFromOpenAlex(
   months: number,
   fetchCount: number,
   today: string,
+  mailto: string,
 ): Promise<RankedPaper[]> {
   // arXiv 以外の論文を除外するため、多めに取得してフィルタ後に切り詰める
   const overFetchCount = fetchCount * 3;
-  const url = buildOpenAlexUrl(months, overFetchCount, today);
+  const url = buildOpenAlexUrl(months, overFetchCount, today, mailto);
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`OpenAlex API error: ${response.status} ${response.statusText}`);

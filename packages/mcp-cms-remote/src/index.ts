@@ -30,6 +30,7 @@ interface Env {
   S3_REPORTS_PREFIX?: string;
   // Paper ranking
   PAPER_S3_BUCKET?: string;
+  OPENALEX_MAILTO: string;
 }
 
 const app = new Hono<{ Bindings: Env }>();
@@ -62,6 +63,7 @@ app.post('/mcp', async (c) => {
   const rankingsConfig = {
     bucket: c.env.PAPER_S3_BUCKET ?? c.env.S3_DOCS_BUCKET,
     patentsPrefix: paperConfig.rankingS3Prefix,
+    mailto: c.env.OPENALEX_MAILTO,
   };
   const server = createRemoteMcpServer(s3Client, config, rankingsConfig);
 

@@ -40,25 +40,25 @@ const sampleOpenAlexResults = [
 
 describe('buildOpenAlexUrl', () => {
   it('builds URL with correct date range and parameters', () => {
-    const url = buildOpenAlexUrl(1, 20, '2026-04-01');
+    const url = buildOpenAlexUrl(1, 20, '2026-04-01', 'test@example.com');
     expect(url).toContain('https://api.openalex.org/works');
     expect(url).toContain('from_publication_date:2026-03-01');
     expect(url).toContain('to_publication_date:2026-03-31');
     expect(url).toContain('locations.source.id:S4306400194');
     expect(url).toContain('sort=cited_by_count:desc');
     expect(url).toContain('per_page=20');
-    expect(url).toContain('mailto=noreply@example.com');
+    expect(url).toContain('mailto=test%40example.com');
   });
 
   it('computes 3-month lookback excluding current month', () => {
-    const url = buildOpenAlexUrl(3, 10, '2026-04-15');
+    const url = buildOpenAlexUrl(3, 10, '2026-04-15', 'test@example.com');
     expect(url).toContain('from_publication_date:2026-01-01');
     expect(url).toContain('to_publication_date:2026-03-31');
     expect(url).toContain('per_page=10');
   });
 
   it('handles year boundary for lookback', () => {
-    const url = buildOpenAlexUrl(3, 20, '2026-02-15');
+    const url = buildOpenAlexUrl(3, 20, '2026-02-15', 'test@example.com');
     expect(url).toContain('from_publication_date:2025-11-01');
     expect(url).toContain('to_publication_date:2026-01-31');
   });

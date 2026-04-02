@@ -25,6 +25,7 @@ import { paperConfig } from './paperConfig.js';
 interface PapersConfig {
   bucket: string;
   patentsPrefix: string;
+  mailto: string;
 }
 
 type ToolArgs = Record<string, unknown>;
@@ -139,6 +140,7 @@ export function createRemoteMcpServer(
             paperConfig.monthlyRankingMonths,
             paperConfig.rankingFetchCount,
             today,
+            rankingsConfig.mailto,
           );
           rankingTsv = formatRankingToTsv(papers);
           await uploadPatentFile(
