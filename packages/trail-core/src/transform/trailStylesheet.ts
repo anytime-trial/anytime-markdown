@@ -79,5 +79,15 @@ export function getTrailStylesheet(): TrailStyleEntry[] {
     });
   }
 
+  styles.push({
+    selector: 'edge[type="bundled"]',
+    style: {
+      'line-color': '#f8f8f2',
+      'target-arrow-color': '#f8f8f2',
+      'line-style': 'solid',
+      width: 'mapData(weight, 2, 10, 3, 8)',
+    },
+  });
+
   return styles;
 }

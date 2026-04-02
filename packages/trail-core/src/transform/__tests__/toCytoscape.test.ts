@@ -56,3 +56,52 @@ describe('toCytoscape', () => {
     expect(elements.length).toBe(graph.nodes.length + graph.edges.length);
   });
 });
+
+describe('toCytoscape bundleEdges', () => {
+  const graph: TrailGraph = {
+    nodes: [
+      { id: 'a', label: 'A', type: 'file', filePath: 'a.ts', line: 1 },
+      { id: 'b', label: 'B', type: 'file', filePath: 'b.ts', line: 1 },
+      { id: 'c', label: 'C', type: 'file', filePath: 'c.ts', line: 1 },
+    ],
+    edges: [
+      { source: 'a', target: 'b', type: 'import' },
+      { source: 'a', target: 'b', type: 'call' },
+      { source: 'a', target: 'b', type: 'type_use' },
+      { source: 'a', target: 'c', type: 'import' },
+    ],
+    metadata: { projectRoot: '/p', analyzedAt: '', fileCount: 3 },
+  };
+
+  it('should not bundle edges by default', () => {
+    const elements = toCytoscape(graph);
+    const edgeElements = elements.filter(e => 'source' in e.data);
+    expect(edgeElements).toHaveLength(4);
+  });
+
+  it('should bundle edges with same source-target pair', () => {
+    const elements = toCytoscape(graph, { bundleEdges: true });
+    const edgeElements = elements.filter(e => 'source' in e.data);
+    // a→b: 3 edges → 1 bundled, a→c: 1 edge → 1 as-is
+    expect(edgeElements).toHaveLength(2);
+  });
+
+  it('should set weight and bundledTypes on bundled edge', () => {
+    const elements = toCytoscape(graph, { bundleEdges: true });
+    const bundled = elements.find(e => e.data.type === 'bundled');
+    expect(bundled).toBeDefined();
+    expect(bundled!.data.weight).toBe(3);
+    expect(bundled!.data.bundledTypes).toEqual(
+      expect.arrayContaining(['import', 'call', 'type_use']),
+    );
+  });
+
+  it('should not bundle single edges', () => {
+    const elements = toCytoscape(graph, { bundleEdges: true });
+    const importToC = elements.find(
+      e => e.data.source === 'a' && e.data.target === 'c',
+    );
+    expect(importToC).toBeDefined();
+    expect(importToC!.data.type).toBe('import');
+  });
+});
