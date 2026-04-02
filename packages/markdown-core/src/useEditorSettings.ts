@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from "rea
 
 import { STORAGE_KEY_SETTINGS } from "./constants/storageKeys";
 import { safeRemoveItem, safeSetItem } from "./utils/storage";
-const SETTINGS_VERSION = 8; // blockAlign を追加
+const SETTINGS_VERSION = 9; // wordBreak を追加
 
 export interface EditorSettings {
   lineHeight: number;
@@ -19,6 +19,7 @@ export interface EditorSettings {
   paperSize: "off" | "A3" | "A4" | "B4" | "B5";
   paperMargin: number; // mm単位、10-40
   blockAlign: "left" | "center" | "right";
+  wordBreak: "normal" | "keep-all";
 }
 
 export const DEFAULT_SETTINGS: EditorSettings = {
@@ -34,6 +35,7 @@ export const DEFAULT_SETTINGS: EditorSettings = {
   paperSize: "off",
   paperMargin: 20,
   blockAlign: "left",
+  wordBreak: "keep-all",
 };
 
 export interface UseEditorSettingsReturn {

@@ -268,6 +268,26 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
 
       <Divider sx={{ mb: 2 }} />
 
+      {/* Word Break */}
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="caption" sx={{ fontWeight: 600, color: getTextSecondary(isDark), mb: 0.5, display: "block" }}>
+          {t("settingWordBreak")}
+        </Typography>
+        <ToggleButtonGroup
+          value={settings.wordBreak}
+          exclusive
+          onChange={(_, v) => { if (v) updateSettings({ wordBreak: v }); }}
+          size="small"
+          fullWidth
+          aria-label={t("settingWordBreak")}
+        >
+          <ToggleButton value="normal">{t("settingWordBreakNormal")}</ToggleButton>
+          <ToggleButton value="keep-all">{t("settingWordBreakKeepAll")}</ToggleButton>
+        </ToggleButtonGroup>
+      </Box>
+
+      <Divider sx={{ mb: 2 }} />
+
       {/* Spell Check */}
       <Box sx={{ mb: 2, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <Typography variant="caption" sx={{ fontWeight: 600, color: getTextSecondary(isDark) }}>
