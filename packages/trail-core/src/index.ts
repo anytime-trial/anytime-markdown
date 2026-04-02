@@ -13,3 +13,4 @@ export {
   getTrailStylesheet,
   type TrailStyleEntry,
 } from './transform/trailStylesheet';
+export { toGraphDocument } from './transform/toGraphDocument';
