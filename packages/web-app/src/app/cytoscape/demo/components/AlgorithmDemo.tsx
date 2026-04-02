@@ -156,7 +156,7 @@ export function AlgorithmDemo() {
         </Typography>
       )}
 
-      <Box sx={{ flex: 1, minHeight: 500 }}>
+      <Box sx={{ height: 500 }}>
         <CytoscapeCanvas
           ref={cyRef}
           elements={socialNetworkData}

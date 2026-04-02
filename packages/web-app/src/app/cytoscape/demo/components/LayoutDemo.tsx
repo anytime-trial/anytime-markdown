@@ -42,7 +42,7 @@ export function LayoutDemo() {
         ))}
       </Stack>
 
-      <Box sx={{ flex: 1, minHeight: 500 }}>
+      <Box sx={{ height: 500 }}>
         <CytoscapeCanvas
           ref={cyRef}
           elements={socialNetworkData}
