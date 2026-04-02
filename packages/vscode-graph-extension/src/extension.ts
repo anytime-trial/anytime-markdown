@@ -1,8 +1,36 @@
 import * as vscode from 'vscode';
 import { GraphEditorProvider } from './providers/GraphEditorProvider';
+import { TrailPanel } from './trail/TrailPanel';
 
 export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(GraphEditorProvider.register(context));
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('anytime-graph.analyzeTypescript', async () => {
+			const files = await vscode.workspace.findFiles('**/tsconfig.json', '**/node_modules/**', 10);
+			if (files.length === 0) {
+				vscode.window.showErrorMessage('No tsconfig.json found in workspace.');
+				return;
+			}
+
+			let tsconfigPath: string;
+			if (files.length === 1) {
+				tsconfigPath = files[0].fsPath;
+			} else {
+				const items = files.map(f => ({
+					label: vscode.workspace.asRelativePath(f),
+					fsPath: f.fsPath,
+				}));
+				const picked = await vscode.window.showQuickPick(items, {
+					placeHolder: 'Select tsconfig.json to analyze',
+				});
+				if (!picked) return;
+				tsconfigPath = picked.fsPath;
+			}
+
+			await TrailPanel.create(context.extensionUri, tsconfigPath);
+		}),
+	);
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand('anytime-graph.newGraph', async () => {

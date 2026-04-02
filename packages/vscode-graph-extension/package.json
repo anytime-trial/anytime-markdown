@@ -50,6 +50,10 @@
       {
         "command": "anytime-graph.newGraph",
         "title": "Anytime Graph: New Graph"
+      },
+      {
+        "command": "anytime-graph.analyzeTypescript",
+        "title": "Anytime Graph: Analyze TypeScript"
       }
     ]
   },
@@ -71,6 +75,7 @@
   },
   "dependencies": {
     "@anytime-markdown/graph-core": "*",
+    "@anytime-markdown/trail-core": "*",
     "@emotion/react": "11.14.0",
     "@emotion/styled": "11.14.0",
     "@mui/icons-material": "7.3.7",
