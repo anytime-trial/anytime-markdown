@@ -6,12 +6,24 @@ import { getTrailStylesheet } from '@anytime-markdown/trail-core';
 export class TrailPanel {
   public static readonly viewType = 'anytimeGraph.trailView';
   private static currentPanel: TrailPanel | undefined;
+  private static lastResult: { elements: unknown[]; stylesheet: unknown[]; metadata: unknown } | undefined;
+
+  public static getLastResult() {
+    return TrailPanel.lastResult;
+  }
 
   private constructor(
     private readonly panel: vscode.WebviewPanel,
     private readonly extensionUri: vscode.Uri,
   ) {
+    const editorListener = vscode.window.onDidChangeActiveTextEditor((editor) => {
+      if (!editor) return;
+      const filePath = vscode.workspace.asRelativePath(editor.document.uri);
+      this.panel.webview.postMessage({ type: 'highlightFile', filePath });
+    });
+
     this.panel.onDidDispose(() => {
+      editorListener.dispose();
       TrailPanel.currentPanel = undefined;
     });
 
@@ -62,6 +74,8 @@ export class TrailPanel {
       const elements = toCytoscape(graph, { bundleEdges: true });
       const stylesheet = getTrailStylesheet();
 
+      TrailPanel.lastResult = { elements, stylesheet, metadata: graph.metadata };
+
       this.panel.webview.postMessage({
         type: 'load',
         elements,
@@ -85,9 +99,19 @@ export class TrailPanel {
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { background: #282a36; overflow: hidden; }
-    #cy { width: 100vw; height: 100vh; }
+    #toolbar {
+      position: fixed; top: 0; left: 0; right: 0;
+      background: #282a36; border-bottom: 1px solid #44475a;
+      padding: 6px 8px; z-index: 10;
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      font-family: monospace; font-size: 12px; color: #f8f8f2;
+    }
+    #toolbar select { background: #44475a; color: #f8f8f2; border: 1px solid #6272a4; padding: 2px 4px; border-radius: 3px; }
+    #toolbar label { cursor: pointer; white-space: nowrap; }
+    #toolbar .sep { color: #6272a4; }
+    #cy { width: 100vw; height: calc(100vh - 36px); margin-top: 36px; }
     #info {
-      position: fixed; top: 8px; left: 8px;
+      position: fixed; top: 44px; left: 8px;
       color: #f8f8f2; font-family: monospace; font-size: 12px;
       background: rgba(40,42,54,0.9); padding: 4px 8px; border-radius: 4px;
       pointer-events: none; z-index: 10;
@@ -101,6 +125,23 @@ export class TrailPanel {
   </style>
 </head>
 <body>
+  <div id="toolbar">
+    <select id="layout-select">
+      <option value="cose">CoSE</option>
+      <option value="breadthfirst">Breadthfirst</option>
+      <option value="circle">Circle</option>
+      <option value="concentric">Concentric</option>
+      <option value="grid">Grid</option>
+    </select>
+    <span class="sep">|</span>
+    <label><input type="checkbox" class="node-filter" data-type="file" checked> file</label>
+    <label><input type="checkbox" class="node-filter" data-type="class" checked> class</label>
+    <label><input type="checkbox" class="node-filter" data-type="interface" checked> interface</label>
+    <label><input type="checkbox" class="node-filter" data-type="function" checked> function</label>
+    <label><input type="checkbox" class="node-filter" data-type="variable" checked> variable</label>
+    <label><input type="checkbox" class="node-filter" data-type="type" checked> type</label>
+    <label><input type="checkbox" class="node-filter" data-type="enum" checked> enum</label>
+  </div>
   <div id="info">Analyzing...</div>
   <div id="tooltip"></div>
   <div id="cy"></div>
@@ -113,7 +154,21 @@ export class TrailPanel {
       if (msg.type === 'load') {
         initGraph(msg.elements, msg.stylesheet, msg.metadata);
       }
+      if (msg.type === 'highlightFile') {
+        highlightFileNodes(msg.filePath);
+      }
     });
+
+    function highlightFileNodes(filePath) {
+      if (!cy) return;
+      cy.elements().removeClass('editor-active');
+      cy.nodes().forEach(function(node) {
+        var fp = node.data('filePath');
+        if (fp && filePath.endsWith(fp)) {
+          node.addClass('editor-active');
+        }
+      });
+    }
 
     function initGraph(elements, stylesheet, metadata) {
       if (cy) { cy.destroy(); }
@@ -123,11 +178,35 @@ export class TrailPanel {
         style: s.style,
       }));
 
+      cyStylesheet.push({
+        selector: '.editor-active',
+        style: { 'border-width': 4, 'border-color': '#50fa7b' },
+      });
+
       cy = cytoscape({
         container: document.getElementById('cy'),
         elements: elements,
         style: cyStylesheet,
         layout: { name: 'cose', animate: false, nodeRepulsion: 8000, idealEdgeLength: 80 },
+      });
+
+      // Layout switch
+      document.getElementById('layout-select').addEventListener('change', function(e) {
+        if (!cy) return;
+        cy.layout({ name: e.target.value, animate: true, animationDuration: 500 }).run();
+      });
+
+      // Node type filter
+      document.querySelectorAll('.node-filter').forEach(function(cb) {
+        cb.addEventListener('change', function() {
+          if (!cy) return;
+          var type = cb.dataset.type;
+          if (cb.checked) {
+            cy.nodes('[type="' + type + '"]').show();
+          } else {
+            cy.nodes('[type="' + type + '"]').hide();
+          }
+        });
       });
 
       document.getElementById('info').textContent =

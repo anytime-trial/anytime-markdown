@@ -54,6 +54,14 @@
       {
         "command": "anytime-graph.analyzeTypescript",
         "title": "Anytime Graph: Analyze TypeScript"
+      },
+      {
+        "command": "anytime-graph.analyzeTypescriptSelect",
+        "title": "Anytime Graph: Analyze TypeScript (Select tsconfig)"
+      },
+      {
+        "command": "anytime-graph.exportTrailJson",
+        "title": "Anytime Graph: Export Trail JSON"
       }
     ]
   },

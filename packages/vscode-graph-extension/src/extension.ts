@@ -33,6 +33,35 @@ export function activate(context: vscode.ExtensionContext) {
 	);
 
 	context.subscriptions.push(
+		vscode.commands.registerCommand('anytime-graph.analyzeTypescriptSelect', async () => {
+			const uris = await vscode.window.showOpenDialog({
+				canSelectMany: false,
+				filters: { 'TypeScript Config': ['json'] },
+				title: 'Select tsconfig.json',
+			});
+			if (!uris || uris.length === 0) return;
+			await TrailPanel.create(context.extensionUri, uris[0].fsPath);
+		}),
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('anytime-graph.exportTrailJson', async () => {
+			const data = TrailPanel.getLastResult();
+			if (!data) {
+				vscode.window.showWarningMessage('No analysis result to export. Run Analyze TypeScript first.');
+				return;
+			}
+			const uri = await vscode.window.showSaveDialog({
+				filters: { 'JSON': ['json'] },
+				defaultUri: vscode.Uri.file('trail.json'),
+			});
+			if (!uri) return;
+			await vscode.workspace.fs.writeFile(uri, Buffer.from(JSON.stringify(data, null, 2), 'utf-8'));
+			vscode.window.showInformationMessage(`Trail JSON exported to ${uri.fsPath}`);
+		}),
+	);
+
+	context.subscriptions.push(
 		vscode.commands.registerCommand('anytime-graph.newGraph', async () => {
 			const workspaceFolders = vscode.workspace.workspaceFolders;
 			if (!workspaceFolders) {
