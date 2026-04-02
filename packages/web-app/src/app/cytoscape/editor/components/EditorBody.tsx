@@ -3,9 +3,16 @@
 import { useState, useCallback, useRef } from 'react';
 import type { Core, ElementDefinition } from 'cytoscape';
 import Box from '@mui/material/Box';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import Button from '@mui/material/Button';
+import TextField from '@mui/material/TextField';
 import { CytoscapeCanvas, type CytoscapeCanvasRef } from '../../components/CytoscapeCanvas';
 import { defaultStylesheetJsonBlock } from '../../components/sampleData';
 import { Toolbar } from './Toolbar';
+import { PropertyPanel } from './PropertyPanel';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -55,6 +62,10 @@ export function EditorBody() {
   const [future, setFuture] = useState<ElementDefinition[][]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [edgeSource, setEdgeSource] = useState<string | null>(null);
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [importText, setImportText] = useState('');
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [exportText, setExportText] = useState('');
 
   // -----------------------------------------------------------------------
   // Push current state to undo history
@@ -185,19 +196,35 @@ export function EditorBody() {
   }, []);
 
   const handleImport = useCallback(() => {
-    // Placeholder — Task 6 will add import dialog
-    // eslint-disable-next-line no-console
-    console.info('[Editor] Import placeholder');
+    setImportText('');
+    setShowImportDialog(true);
   }, []);
 
-  const handleExport = useCallback(() => {
-    // Placeholder — Task 6 will add export dialog
+  const handleImportApply = useCallback(() => {
     const cy = cyInstanceRef.current;
     if (!cy) return;
-    const json = cy.json();
-    // eslint-disable-next-line no-console
-    console.info('[Editor] Export:', JSON.stringify((json as Record<string, unknown>).elements));
+    try {
+      const parsed = JSON.parse(importText) as ElementDefinition[];
+      pushHistory();
+      cy.elements().remove();
+      cy.add(parsed);
+      setShowImportDialog(false);
+    } catch {
+      // Invalid JSON — keep dialog open
+    }
+  }, [importText, pushHistory]);
+
+  const handleExport = useCallback(() => {
+    const cy = cyInstanceRef.current;
+    if (!cy) return;
+    const json = cy.json() as Record<string, unknown>;
+    setExportText(JSON.stringify(json.elements, null, 2));
+    setShowExportDialog(true);
   }, []);
+
+  const handleExportCopy = useCallback(() => {
+    void navigator.clipboard.writeText(exportText);
+  }, [exportText]);
 
   const handleModeChange = useCallback((newMode: EditorMode) => {
     setMode(newMode);
@@ -222,16 +249,79 @@ export function EditorBody() {
         onImport={handleImport}
         onExport={handleExport}
       />
-      <Box sx={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-        <CytoscapeCanvas
-          ref={canvasRef}
-          elements={elements}
-          stylesheet={defaultStylesheetJsonBlock}
-          layout={{ name: 'preset' }}
-          onCyReady={handleCyReadyStable}
-          sx={{ position: 'absolute', inset: 0 }}
-        />
+      <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+        <Box sx={{ flex: 1, position: 'relative' }}>
+          <CytoscapeCanvas
+            ref={canvasRef}
+            elements={elements}
+            stylesheet={defaultStylesheetJsonBlock}
+            layout={{ name: 'preset' }}
+            onCyReady={handleCyReadyStable}
+            sx={{ position: 'absolute', inset: 0 }}
+          />
+        </Box>
+        <PropertyPanel selectedId={selectedId} cy={cyInstanceRef.current} />
       </Box>
+
+      {/* Import Dialog */}
+      <Dialog
+        open={showImportDialog}
+        onClose={() => setShowImportDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Import Elements</DialogTitle>
+        <DialogContent>
+          <TextField
+            multiline
+            fullWidth
+            minRows={8}
+            maxRows={16}
+            placeholder="Paste JSON elements array here..."
+            value={importText}
+            onChange={e => setImportText(e.target.value)}
+            sx={{ mt: 1 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowImportDialog(false)}>Cancel</Button>
+          <Button variant="contained" onClick={handleImportApply}>
+            Apply
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Export Dialog */}
+      <Dialog
+        open={showExportDialog}
+        onClose={() => setShowExportDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Export Elements</DialogTitle>
+        <DialogContent>
+          <TextField
+            multiline
+            fullWidth
+            minRows={8}
+            maxRows={16}
+            value={exportText}
+            slotProps={{
+              input: {
+                readOnly: true,
+                sx: { fontFamily: 'monospace', fontSize: '0.85rem' },
+              },
+            }}
+            sx={{ mt: 1 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowExportDialog(false)}>Close</Button>
+          <Button variant="contained" onClick={handleExportCopy}>
+            Copy
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
