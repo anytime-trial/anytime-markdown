@@ -807,6 +807,7 @@
     "exportDrawio": "Export draw.io",
     "importDrawio": "Import draw.io",
     "importGraph": "Import .graph",
+    "importMermaid": "Import Mermaid (.mmd)",
     "export": "Export",
     "import": "Import",
     "url": "URL",

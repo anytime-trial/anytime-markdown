@@ -79,6 +79,7 @@
     "exportDrawio": "draw.ioエクスポート",
     "importDrawio": "draw.ioインポート",
     "importGraph": ".graphインポート",
+    "importMermaid": "Mermaidインポート (.mmd)",
     "export": "エクスポート",
     "import": "インポート",
     "url": "URL",

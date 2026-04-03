@@ -19,7 +19,7 @@ import { SettingsPanel } from './SettingsPanel';
 import { ViewportAnimation, clearImageCache, physics } from '@anytime-markdown/graph-core/engine';
 import { alignLeft, alignRight, alignTop, alignBottom, alignCenterH, alignCenterV, distributeH, distributeV } from '../engine/alignment';
 import { loadDocument, getLastDocumentId } from '../store/graphStorage';
-import { exportToSvg, exportToDrawio, importFromDrawio } from '@anytime-markdown/graph-core';
+import { exportToSvg, exportToDrawio, importFromDrawio, importFromMermaid } from '@anytime-markdown/graph-core';
 import { useThemeMode } from '../../providers';
 import { useDataMapping } from '../hooks/useDataMapping';
 import { DetailPanel } from './DetailPanel';
@@ -465,6 +465,36 @@ export function GraphEditor() {
     input.click();
   }, [dispatch]);
 
+  const handleImportMermaid = useCallback(() => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.mmd';
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const text = reader.result as string;
+        try {
+          const doc = importFromMermaid(text);
+          if (!doc.nodes || !doc.edges) return;
+          setConfirmDialog({
+            open: true,
+            title: t('import'),
+            message: t('importConfirm'),
+            onConfirm: () => {
+              dispatch({ type: 'SET_DOCUMENT', doc });
+            },
+          });
+        } catch {
+          // invalid mermaid
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  }, [dispatch]);
+
   const handleAlign = useCallback((type: string) => {
     const selectedNodes = state.document.nodes.filter(n => state.selection.nodeIds.includes(n.id));
     if (selectedNodes.length < 2) return;
@@ -524,6 +554,7 @@ export function GraphEditor() {
         onExportDrawio={handleExportDrawio}
         onImportDrawio={handleImportDrawio}
         onImportGraph={handleImportGraph}
+        onImportMermaid={handleImportMermaid}
         onAlign={handleAlign}
         onSetScale={handleSetScale}
         selectionCount={state.selection.nodeIds.length}

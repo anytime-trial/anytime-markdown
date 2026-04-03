@@ -74,6 +74,7 @@ interface ToolBarProps {
   onExportDrawio: () => void;
   onImportDrawio: () => void;
   onImportGraph: () => void;
+  onImportMermaid: () => void;
   onAlign: (type: string) => void;
   onSetScale: (scale: number) => void;
   selectionCount: number;
@@ -96,7 +97,7 @@ interface ToolBarProps {
 export function GraphToolBar({
   tool, onToolChange, onUndo, onRedo, canUndo, canRedo,
   showGrid, onToggleGrid, onZoomIn, onZoomOut, onFitContent,
-  onClearAll, onExportSvg, onExportDrawio, onImportDrawio, onImportGraph, onAlign, onSetScale, selectionCount, hasSelection: _hasSelection, scale, saveStatus, onToggleSettings: _onToggleSettings,
+  onClearAll, onExportSvg, onExportDrawio, onImportDrawio, onImportGraph, onImportMermaid, onAlign, onSetScale, selectionCount, hasSelection: _hasSelection, scale, saveStatus, onToggleSettings: _onToggleSettings,
   layoutRunning, collisionEnabled, onAutoLayout, onToggleCollision,
   layoutAlgorithm = 'eades', onChangeAlgorithm,
   onSpreadConnected,
@@ -423,6 +424,7 @@ export function GraphToolBar({
         <Menu anchorEl={importAnchor} open={Boolean(importAnchor)} onClose={() => setImportAnchor(null)}>
           <MenuItem onClick={() => { onImportDrawio(); setImportAnchor(null); }}><ListItemText>{t('importDrawio')}</ListItemText></MenuItem>
           <MenuItem onClick={() => { onImportGraph(); setImportAnchor(null); }}><ListItemText>{t('importGraph')}</ListItemText></MenuItem>
+          <MenuItem onClick={() => { onImportMermaid(); setImportAnchor(null); }}><ListItemText>{t('importMermaid')}</ListItemText></MenuItem>
         </Menu>
 
       </Toolbar>
