@@ -803,6 +803,7 @@
     "exportSvg": "Export SVG",
     "exportDrawio": "Export draw.io",
     "importDrawio": "Import draw.io",
+    "importGraph": "Import .graph",
     "export": "Export",
     "import": "Import",
     "url": "URL",

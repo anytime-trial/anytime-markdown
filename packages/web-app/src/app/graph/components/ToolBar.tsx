@@ -73,6 +73,7 @@ interface ToolBarProps {
   onExportSvg: () => void;
   onExportDrawio: () => void;
   onImportDrawio: () => void;
+  onImportGraph: () => void;
   onAlign: (type: string) => void;
   onSetScale: (scale: number) => void;
   selectionCount: number;
@@ -95,7 +96,7 @@ interface ToolBarProps {
 export function GraphToolBar({
   tool, onToolChange, onUndo, onRedo, canUndo, canRedo,
   showGrid, onToggleGrid, onZoomIn, onZoomOut, onFitContent,
-  onClearAll, onExportSvg, onExportDrawio, onImportDrawio, onAlign, onSetScale, selectionCount, hasSelection: _hasSelection, scale, saveStatus, onToggleSettings: _onToggleSettings,
+  onClearAll, onExportSvg, onExportDrawio, onImportDrawio, onImportGraph, onAlign, onSetScale, selectionCount, hasSelection: _hasSelection, scale, saveStatus, onToggleSettings: _onToggleSettings,
   layoutRunning, collisionEnabled, onAutoLayout, onToggleCollision,
   layoutAlgorithm = 'eades', onChangeAlgorithm,
   onSpreadConnected,
@@ -107,6 +108,7 @@ export function GraphToolBar({
   const colors = getCanvasColors(isDark);
   const [alignAnchor, setAlignAnchor] = React.useState<null | HTMLElement>(null);
   const [exportAnchor, setExportAnchor] = React.useState<null | HTMLElement>(null);
+  const [importAnchor, setImportAnchor] = React.useState<null | HTMLElement>(null);
   const [zoomAnchor, setZoomAnchor] = useState<null | HTMLElement>(null);
 
   const saveStatusLabel = saveStatus === 'saving' ? t('saving') : t('saveError');
@@ -414,10 +416,14 @@ export function GraphToolBar({
         </Menu>
 
         <Tooltip title={t('import')}>
-          <IconButton size="small" onClick={onImportDrawio}>
+          <IconButton size="small" onClick={e => setImportAnchor(e.currentTarget)}>
             <ImportIcon fontSize="small" />
           </IconButton>
         </Tooltip>
+        <Menu anchorEl={importAnchor} open={Boolean(importAnchor)} onClose={() => setImportAnchor(null)}>
+          <MenuItem onClick={() => { onImportDrawio(); setImportAnchor(null); }}><ListItemText>{t('importDrawio')}</ListItemText></MenuItem>
+          <MenuItem onClick={() => { onImportGraph(); setImportAnchor(null); }}><ListItemText>{t('importGraph')}</ListItemText></MenuItem>
+        </Menu>
 
       </Toolbar>
     </AppBar>

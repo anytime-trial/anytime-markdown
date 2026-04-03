@@ -78,6 +78,7 @@
     "exportSvg": "SVGエクスポート",
     "exportDrawio": "draw.ioエクスポート",
     "importDrawio": "draw.ioインポート",
+    "importGraph": ".graphインポート",
     "export": "エクスポート",
     "import": "インポート",
     "url": "URL",

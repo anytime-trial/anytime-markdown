@@ -3,7 +3,7 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { Box, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button, Typography } from '@mui/material';
 import { useTranslations } from 'next-intl';
-import { ToolType, Viewport, createDocument, createNode } from '../types';
+import { ToolType, Viewport, createDocument, createNode, type GraphDocument } from '../types';
 import { screenToWorld, pan as panViewport, zoom as zoomViewport, fitToContent } from '../engine/viewport';
 import { useGraphState } from '../hooks/useGraphState';
 import { useCanvasInteraction } from '../hooks/useCanvasInteraction';
@@ -435,6 +435,36 @@ export function GraphEditor() {
     input.click();
   }, [dispatch]);
 
+  const handleImportGraph = useCallback(() => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.graph';
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const json = reader.result as string;
+        try {
+          const doc = JSON.parse(json) as GraphDocument;
+          if (!doc.nodes || !doc.edges) return;
+          setConfirmDialog({
+            open: true,
+            title: t('import'),
+            message: t('importConfirm'),
+            onConfirm: () => {
+              dispatch({ type: 'SET_DOCUMENT', doc });
+            },
+          });
+        } catch {
+          // invalid JSON
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  }, [dispatch]);
+
   const handleAlign = useCallback((type: string) => {
     const selectedNodes = state.document.nodes.filter(n => state.selection.nodeIds.includes(n.id));
     if (selectedNodes.length < 2) return;
@@ -493,6 +523,7 @@ export function GraphEditor() {
         onExportSvg={handleExportSvg}
         onExportDrawio={handleExportDrawio}
         onImportDrawio={handleImportDrawio}
+        onImportGraph={handleImportGraph}
         onAlign={handleAlign}
         onSetScale={handleSetScale}
         selectionCount={state.selection.nodeIds.length}
