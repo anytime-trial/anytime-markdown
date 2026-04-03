@@ -110,35 +110,7 @@ export function GraphCanvas({
         if (fromNode && toNode) {
           const routing = e.style.routing ?? 'orthogonal';
 
-          if (routing === 'bezier') {
-            const bezierPath = computeBezierPath(fromNode, toNode);
-            return {
-              ...e,
-              from: { ...e.from, ...bezierPath[0] },
-              to: { ...e.to, ...bezierPath[3] },
-              bezierPath,
-            };
-          }
-
-          if (routing === 'straight') {
-            const pts = resolveConnectorEndpoints(e, nodes);
-            return { ...e, from: { ...e.from, ...pts.from }, to: { ...e.to, ...pts.to } };
-          }
-
-          // Manual waypoints: user-defined path overrides auto-routing
-          if (e.manualWaypoints?.length) {
-            const pts = resolveConnectorEndpoints(e, nodes);
-            const waypoints = [pts.from, ...e.manualWaypoints, pts.to];
-            return { ...e, from: { ...e.from, ...pts.from }, to: { ...e.to, ...pts.to }, waypoints };
-          }
-
-          // manualMidpoint backward compat
-          if (e.manualMidpoint !== undefined) {
-            const waypoints = computeOrthogonalPath(fromNode, toNode, 20, e.manualMidpoint);
-            return { ...e, from: { ...e.from, ...waypoints[0] }, to: { ...e.to, ...waypoints.at(-1)! }, waypoints };
-          }
-
-          // Orthogonal routing
+          // 同一ノードペアの並列エッジ用オフセット計算
           const pairKey = [e.from.nodeId, e.to.nodeId].sort().join(':');
           const parallelIndex = pairCount.get(pairKey) ?? 0;
           pairCount.set(pairKey, parallelIndex + 1);
@@ -156,6 +128,38 @@ export function GraphCanvas({
             fromPt = offsetAlongSide(fromPt, sides.fromSide, offset);
             toPt = offsetAlongSide(toPt, sides.toSide, offset);
           }
+
+          if (routing === 'bezier') {
+            const bezierPath = computeBezierPath(fromNode, toNode);
+            if (pairTotal > 1) {
+              bezierPath[0] = fromPt;
+              bezierPath[3] = toPt;
+            }
+            return {
+              ...e,
+              from: { ...e.from, ...bezierPath[0] },
+              to: { ...e.to, ...bezierPath[3] },
+              bezierPath,
+            };
+          }
+
+          if (routing === 'straight') {
+            return { ...e, from: { ...e.from, ...fromPt }, to: { ...e.to, ...toPt } };
+          }
+
+          // Manual waypoints: user-defined path overrides auto-routing
+          if (e.manualWaypoints?.length) {
+            const waypoints = [fromPt, ...e.manualWaypoints, toPt];
+            return { ...e, from: { ...e.from, ...fromPt }, to: { ...e.to, ...toPt }, waypoints };
+          }
+
+          // manualMidpoint backward compat
+          if (e.manualMidpoint !== undefined) {
+            const waypoints = computeOrthogonalPath(fromNode, toNode, 20, e.manualMidpoint);
+            return { ...e, from: { ...e.from, ...waypoints[0] }, to: { ...e.to, ...waypoints.at(-1)! }, waypoints };
+          }
+
+          // Orthogonal routing
           const waypoints = computeVisibilityPath(fromPt, sides.fromSide, toPt, sides.toSide, []);
           return { ...e, from: { ...e.from, ...waypoints[0] }, to: { ...e.to, ...waypoints.at(-1)! }, waypoints };
         }
