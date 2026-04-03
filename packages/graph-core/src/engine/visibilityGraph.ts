@@ -1,3 +1,5 @@
+export type Side = 'top' | 'right' | 'bottom' | 'left';
+
 interface Point {
   readonly x: number;
   readonly y: number;
@@ -37,8 +39,9 @@ export function buildMarginRects(
 }
 
 /**
- * 水平/垂直の線分が矩形と交差するか判定する。
+ * 水平/垂直の線分が矩形の厳密内部と交差するか判定する。
  * padding で矩形を仮想的に拡張できる。
+ * 矩形の辺上を走る線分（端点が角にある場合等）は交差とみなさない。
  */
 function segmentIntersectsRect(
   p1: Point,
@@ -53,7 +56,7 @@ function segmentIntersectsRect(
 
   if (p1.y === p2.y) {
     const y = p1.y;
-    if (y < rMinY || y > rMaxY) return false;
+    if (y <= rMinY || y >= rMaxY) return false;
     const minX = Math.min(p1.x, p2.x);
     const maxX = Math.max(p1.x, p2.x);
     return maxX > rMinX && minX < rMaxX;
@@ -61,7 +64,7 @@ function segmentIntersectsRect(
 
   if (p1.x === p2.x) {
     const x = p1.x;
-    if (x < rMinX || x > rMaxX) return false;
+    if (x <= rMinX || x >= rMaxX) return false;
     const minY = Math.min(p1.y, p2.y);
     const maxY = Math.max(p1.y, p2.y);
     return maxY > rMinY && minY < rMaxY;
@@ -171,8 +174,8 @@ function reconstructPath(
   let current: { nodeId: number; dir: Direction } | null = { nodeId: endId, dir: endDir };
   while (current) {
     path.push(current.nodeId);
-    const key = `${current.nodeId},${current.dir}`;
-    current = prev.get(key) ?? null;
+    const prevKey: string = `${current.nodeId},${current.dir}`;
+    current = prev.get(prevKey) ?? null;
   }
   path.reverse();
   return path;
@@ -363,4 +366,192 @@ export function buildVisibilityGraph(
   }
 
   return edges;
+}
+
+/** 同方向の連続セグメントを統合して冗長なウェイポイントを除去 */
+function simplifyPath(path: Point[]): Point[] {
+  if (path.length <= 2) return path;
+
+  const result: Point[] = [path[0]];
+  for (let i = 1; i < path.length - 1; i++) {
+    const prev = result.at(-1)!;
+    const curr = path[i];
+    const next = path[i + 1];
+    const sameX = prev.x === curr.x && curr.x === next.x;
+    const sameY = prev.y === curr.y && curr.y === next.y;
+    if (!sameX && !sameY) {
+      result.push(curr);
+    }
+  }
+  result.push(path.at(-1)!);
+  return result;
+}
+
+/**
+ * 始点/終点の最初/最後のセグメントが辺と垂直になるよう補正する。
+ *
+ * 隣接点の座標を揃えつつ、その先の点との間で斜め線が発生する場合は
+ * コーナー点を挿入して直交性を維持する。
+ */
+function ensurePerpendicularEntry(
+  path: Array<{ x: number; y: number }>,
+  fromPt: Point,
+  fromSide: Side,
+  toPt: Point,
+  toSide: Side,
+  _margin: number,
+): void {
+  if (path.length < 3) return;
+
+  const isFromHorizontal = fromSide === 'right' || fromSide === 'left';
+
+  // 始点側
+  if (isFromHorizontal ? path[1].y !== fromPt.y : path[1].x !== fromPt.x) {
+    const oldP1 = path[1];
+    if (isFromHorizontal) {
+      path[1] = { x: oldP1.x, y: fromPt.y };
+      if (path.length > 2 && path[2].x !== path[1].x && path[2].y !== path[1].y) {
+        path.splice(2, 0, { x: path[1].x, y: path[2].y });
+      }
+    } else {
+      path[1] = { x: fromPt.x, y: oldP1.y };
+      if (path.length > 2 && path[2].x !== path[1].x && path[2].y !== path[1].y) {
+        path.splice(2, 0, { x: path[2].x, y: path[1].y });
+      }
+    }
+  }
+
+  // 終点側
+  const last = path.length - 1;
+  const isToHorizontal = toSide === 'right' || toSide === 'left';
+  if (isToHorizontal ? path[last - 1].y !== toPt.y : path[last - 1].x !== toPt.x) {
+    const oldPrev = path[last - 1];
+    if (isToHorizontal) {
+      path[last - 1] = { x: oldPrev.x, y: toPt.y };
+      if (last - 2 >= 0 && path[last - 2].x !== path[last - 1].x && path[last - 2].y !== path[last - 1].y) {
+        path.splice(last - 1, 0, { x: path[last - 1].x, y: path[last - 2].y });
+      }
+    } else {
+      path[last - 1] = { x: toPt.x, y: oldPrev.y };
+      if (last - 2 >= 0 && path[last - 2].x !== path[last - 1].x && path[last - 2].y !== path[last - 1].y) {
+        path.splice(last - 1, 0, { x: path[last - 2].x, y: path[last - 1].y });
+      }
+    }
+  }
+}
+
+/** 障害物なしの直交パス */
+function computeDirectPath(
+  fromPt: Point,
+  fromSide: Side,
+  toPt: Point,
+  toSide: Side,
+): Point[] {
+  const isHorizontalStart = fromSide === 'left' || fromSide === 'right';
+  const isHorizontalEnd = toSide === 'left' || toSide === 'right';
+
+  if (isHorizontalStart && isHorizontalEnd) {
+    const midX = (fromPt.x + toPt.x) / 2;
+    return [fromPt, { x: midX, y: fromPt.y }, { x: midX, y: toPt.y }, toPt];
+  } else if (!isHorizontalStart && !isHorizontalEnd) {
+    const midY = (fromPt.y + toPt.y) / 2;
+    return [fromPt, { x: fromPt.x, y: midY }, { x: toPt.x, y: midY }, toPt];
+  } else if (isHorizontalStart) {
+    return [fromPt, { x: toPt.x, y: fromPt.y }, toPt];
+  } else {
+    return [fromPt, { x: fromPt.x, y: toPt.y }, toPt];
+  }
+}
+
+/**
+ * Visibility Graph ベースの直交ルーティング。
+ * 4フェーズ（マージン矩形構築、可視グラフ生成、Dijkstra探索、後処理）を統合する。
+ */
+export function computeVisibilityPath(
+  fromPt: Point,
+  fromSide: Side,
+  toPt: Point,
+  toSide: Side,
+  obstacles: Rect[],
+  margin: number = 20,
+  bendPenalty: number = 50,
+): Point[] {
+  if (obstacles.length === 0) {
+    return computeDirectPath(fromPt, fromSide, toPt, toSide);
+  }
+
+  // Phase 1: Build margin rects
+  const marginRects = buildMarginRects(obstacles, margin);
+
+  // Phase 2: Generate vertices
+  const nodes: VNode[] = [
+    { x: fromPt.x, y: fromPt.y, id: 0 },
+    { x: toPt.x, y: toPt.y, id: 1 },
+  ];
+  let nextId = 2;
+  // Collect all y-coordinates from start/end and all x-coordinates from start/end
+  // to create projection points on margin rect edges. This ensures start/end can
+  // connect to the visibility graph even when they don't align with rect corners.
+  const keyYs = [fromPt.y, toPt.y];
+  const keyXs = [fromPt.x, toPt.x];
+
+  for (const rect of marginRects) {
+    const left = rect.x;
+    const right = rect.x + rect.width;
+    const top = rect.y;
+    const bottom = rect.y + rect.height;
+
+    // Add the 4 corners
+    nodes.push(
+      { x: left, y: top, id: nextId++ },
+      { x: right, y: top, id: nextId++ },
+      { x: left, y: bottom, id: nextId++ },
+      { x: right, y: bottom, id: nextId++ },
+    );
+
+    // Add projection points on left/right edges at key y-coordinates
+    for (const y of keyYs) {
+      if (y > top && y < bottom) {
+        nodes.push({ x: left, y, id: nextId++ });
+        nodes.push({ x: right, y, id: nextId++ });
+      }
+    }
+    // Add projection points on top/bottom edges at key x-coordinates
+    for (const x of keyXs) {
+      if (x > left && x < right) {
+        nodes.push({ x, y: top, id: nextId++ });
+        nodes.push({ x, y: bottom, id: nextId++ });
+      }
+    }
+  }
+
+  // Phase 3: Build visibility graph
+  const edges = buildVisibilityGraph(nodes, marginRects);
+
+  // Phase 4: Dijkstra with bend penalty
+  const startDir: Direction = (fromSide === 'left' || fromSide === 'right') ? 'h' : 'v';
+  const pathIds = dijkstraWithBendPenalty(nodes, edges, 0, 1, startDir, bendPenalty);
+
+  // Phase 5: Convert path or fallback
+  let path: Array<{ x: number; y: number }>;
+  if (pathIds === null) {
+    return computeDirectPath(fromPt, fromSide, toPt, toSide);
+  }
+
+  // Map node IDs back to coordinates
+  const nodeMap = new Map<number, VNode>();
+  for (const node of nodes) {
+    nodeMap.set(node.id, node);
+  }
+  path = pathIds.map((id) => {
+    const n = nodeMap.get(id)!;
+    return { x: n.x, y: n.y };
+  });
+
+  // Phase 6: Post-process
+  path = simplifyPath(path);
+  path = nudgePath(path, marginRects);
+  ensurePerpendicularEntry(path, fromPt, fromSide, toPt, toSide, margin);
+
+  return path;
 }
