@@ -29,7 +29,7 @@ export interface NodeStyle {
 }
 
 export type EndpointShape = 'none' | 'arrow' | 'circle' | 'diamond' | 'bar';
-export type RoutingMode = 'orthogonal' | 'bezier';
+export type RoutingMode = 'orthogonal' | 'bezier' | 'straight';
 
 export interface EdgeStyle {
   stroke: string;

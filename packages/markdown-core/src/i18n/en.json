@@ -792,6 +792,7 @@
     "routing": "Routing",
     "routingOrthogonal": "Orthogonal",
     "routingBezier": "Bezier",
+    "routingStraight": "Straight",
     "connectionPoints": "Connection Points",
     "points": "points",
     "reset": "Reset",

@@ -105,6 +105,11 @@ export function GraphCanvas({
             };
           }
 
+          if (routing === 'straight') {
+            const pts = resolveConnectorEndpoints(e, nodes);
+            return { ...e, from: { ...e.from, ...pts.from }, to: { ...e.to, ...pts.to } };
+          }
+
           // Manual waypoints: user-defined path overrides auto-routing
           if (e.manualWaypoints?.length) {
             const pts = resolveConnectorEndpoints(e, nodes);

@@ -95,6 +95,11 @@ export function GraphCanvas({
             };
           }
 
+          if (routing === 'straight') {
+            const pts = resolveConnectorEndpoints(e, nodes);
+            return { ...e, from: { ...e.from, ...pts.from }, to: { ...e.to, ...pts.to } };
+          }
+
           const obstacles = nodes
             .filter(n => n.id !== fromNode.id && n.id !== toNode.id)
             .map(n => ({ x: n.x, y: n.y, width: n.width, height: n.height }));

@@ -64,6 +64,7 @@
     "routing": "ルーティング",
     "routingOrthogonal": "直交",
     "routingBezier": "ベジェ",
+    "routingStraight": "直線",
     "connectionPoints": "接続ポイント",
     "points": "ポイント",
     "reset": "リセット",

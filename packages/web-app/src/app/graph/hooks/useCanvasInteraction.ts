@@ -17,6 +17,11 @@ function resolveEdgesWithWaypoints(edges: GraphEdge[], nodes: GraphNode[]): (Gra
       const fromNode = nodes.find(n => n.id === e.from.nodeId);
       const toNode = nodes.find(n => n.id === e.to.nodeId);
       if (fromNode && toNode) {
+        // straight ルーティングの場合は直線（waypoints なし）
+        if ((e.style.routing) === 'straight') {
+          const pts = resolveConnectorEndpoints(e, nodes);
+          return { ...e, from: { ...e.from, ...pts.from }, to: { ...e.to, ...pts.to } };
+        }
         // manualWaypoints がある場合はそのパスを使用
         if (e.manualWaypoints?.length) {
           const pts = resolveConnectorEndpoints(e, nodes);

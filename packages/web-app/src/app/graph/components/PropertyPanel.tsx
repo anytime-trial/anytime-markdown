@@ -387,6 +387,7 @@ export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpda
               >
                 <ToggleButton value="orthogonal">{t('routingOrthogonal')}</ToggleButton>
                 <ToggleButton value="bezier">{t('routingBezier')}</ToggleButton>
+                <ToggleButton value="straight">{t('routingStraight')}</ToggleButton>
               </ToggleButtonGroup>
             </>
           )}

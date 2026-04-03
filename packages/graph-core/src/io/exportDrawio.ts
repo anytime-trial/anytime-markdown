@@ -73,6 +73,8 @@ function edgeStyle(edge: GraphEdge): string {
     const routing = edge.style.routing ?? 'orthogonal';
     if (routing === 'bezier') {
       parts.push('edgeStyle=orthogonalEdgeStyle;curved=1');
+    } else if (routing === 'straight') {
+      // straight: drawio ではエッジスタイルなし（デフォルトの直線）
     } else {
       parts.push('edgeStyle=orthogonalEdgeStyle');
     }
