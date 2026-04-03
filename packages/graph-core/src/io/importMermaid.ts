@@ -19,7 +19,7 @@ interface ParsedEdge {
   fromId: string;
   toId: string;
   label?: string;
-  edgeType: 'arrow' | 'line';
+  hasArrow: boolean;
   dashed?: boolean;
   thick?: boolean;
 }
@@ -72,36 +72,36 @@ function parseNodeDef(token: string): ParsedNode | null {
 // Edge arrow patterns sorted by specificity (longer patterns first)
 const EDGE_PATTERNS: Array<{
   regex: RegExp;
-  edgeType: 'arrow' | 'line';
+  hasArrow: boolean;
   dashed?: boolean;
   thick?: boolean;
   labelGroup?: number;
 }> = [
   // Pipe-label variants: -->|label|, -.->|label|, ==>|label|
-  { regex: /^==>\|(.+?)\|$/, edgeType: 'arrow', thick: true, labelGroup: 1 },
-  { regex: /^-\.->\|(.+?)\|$/, edgeType: 'arrow', dashed: true, labelGroup: 1 },
-  { regex: /^-->\|(.+?)\|$/, edgeType: 'arrow', labelGroup: 1 },
-  { regex: /^---\|(.+?)\|$/, edgeType: 'line', labelGroup: 1 },
+  { regex: /^==>\|(.+?)\|$/, hasArrow: true, thick: true, labelGroup: 1 },
+  { regex: /^-\.->\|(.+?)\|$/, hasArrow: true, dashed: true, labelGroup: 1 },
+  { regex: /^-->\|(.+?)\|$/, hasArrow: true, labelGroup: 1 },
+  { regex: /^---\|(.+?)\|$/, hasArrow: false, labelGroup: 1 },
   // No-label arrows
-  { regex: /^==>$/, edgeType: 'arrow', thick: true },
-  { regex: /^-.->$/, edgeType: 'arrow', dashed: true },
-  { regex: /^-\.-$/, edgeType: 'line', dashed: true },
-  { regex: /^-->$/, edgeType: 'arrow' },
-  { regex: /^---$/, edgeType: 'line' },
+  { regex: /^==>$/, hasArrow: true, thick: true },
+  { regex: /^-.->$/, hasArrow: true, dashed: true },
+  { regex: /^-\.-$/, hasArrow: false, dashed: true },
+  { regex: /^-->$/, hasArrow: true },
+  { regex: /^---$/, hasArrow: false },
 ];
 
 // Inline label patterns: -- label -->, == label ==>, -. label .->
 const INLINE_LABEL_PATTERNS: Array<{
   startRegex: RegExp;
   endRegex: RegExp;
-  edgeType: 'arrow' | 'line';
+  hasArrow: boolean;
   dashed?: boolean;
   thick?: boolean;
 }> = [
-  { startRegex: /^==$/, endRegex: /^==>$/, edgeType: 'arrow', thick: true },
-  { startRegex: /^-\.$/, endRegex: /^\.->$/, edgeType: 'arrow', dashed: true },
-  { startRegex: /^--$/, endRegex: /^-->$/, edgeType: 'arrow' },
-  { startRegex: /^--$/, endRegex: /^---$/, edgeType: 'line' },
+  { startRegex: /^==$/, endRegex: /^==>$/, hasArrow: true, thick: true },
+  { startRegex: /^-\.$/, endRegex: /^\.->$/, hasArrow: true, dashed: true },
+  { startRegex: /^--$/, endRegex: /^-->$/, hasArrow: true },
+  { startRegex: /^--$/, endRegex: /^---$/, hasArrow: false },
 ];
 
 function parseEdge(tokens: string[]): { consumed: number; edge: ParsedEdge } | null {
@@ -123,7 +123,7 @@ function parseEdge(tokens: string[]): { consumed: number; edge: ParsedEdge } | n
           fromId: fromNode.mermaidId,
           toId: toNode.mermaidId,
           label: pat.labelGroup ? m[pat.labelGroup] : undefined,
-          edgeType: pat.edgeType,
+          hasArrow: pat.hasArrow,
           dashed: pat.dashed,
           thick: pat.thick,
         },
@@ -147,7 +147,7 @@ function parseEdge(tokens: string[]): { consumed: number; edge: ParsedEdge } | n
                 fromId: fromNode.mermaidId,
                 toId: toNode.mermaidId,
                 label,
-                edgeType: pat.edgeType,
+                hasArrow: pat.hasArrow,
                 dashed: pat.dashed,
                 thick: pat.thick,
               },
@@ -331,7 +331,7 @@ export function importFromMermaid(mmdString: string): MermaidImportResult {
     if (!fromNode || !toNode) continue;
 
     // Use 'connector' type for node-to-node edges (orthogonal routing)
-    const edgeType = (pe.edgeType === 'line') ? 'line' : 'connector';
+    const edgeType = pe.hasArrow ? 'connector' : 'line';
     const edge = createEdge(
       edgeType,
       { nodeId: fromNodeId, x: fromNode.x + fromNode.width / 2, y: fromNode.y + fromNode.height / 2 },

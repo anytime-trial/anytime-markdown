@@ -162,9 +162,9 @@ describe('exportToSvg', () => {
     const node2 = createNode('rect', 300, 0, { id: 'n2', text: 'B' });
     doc.nodes = [node1, node2];
     doc.edges = [{
-      id: 'e2', type: 'arrow',
+      id: 'e2', type: 'line',
       from: { x: 150, y: 50 }, to: { x: 300, y: 50 },
-      style: { stroke: '#FFFFFF', strokeWidth: 2 },
+      style: { stroke: '#FFFFFF', strokeWidth: 2, endShape: 'arrow' as const },
     }];
     const svg = exportToSvg(doc);
     expect(svg).toContain('<polygon'); // arrowhead

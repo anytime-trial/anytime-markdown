@@ -32,8 +32,8 @@ describe('createNode', () => {
 
 describe('createEdge', () => {
   it('should create an edge with endpoints', () => {
-    const edge = createEdge('arrow', { x: 0, y: 0 }, { x: 100, y: 100 });
-    expect(edge.type).toBe('arrow');
+    const edge = createEdge('connector', { x: 0, y: 0 }, { x: 100, y: 100 });
+    expect(edge.type).toBe('connector');
     expect(edge.from.x).toBe(0);
     expect(edge.to.x).toBe(100);
     expect(edge.id).toBeDefined();
@@ -163,14 +163,14 @@ describe('metadata and weight', () => {
   });
 
   it('createEdge without weight should have undefined weight', () => {
-    const edge = createEdge('arrow', { x: 0, y: 0 }, { x: 100, y: 100 });
+    const edge = createEdge('connector', { x: 0, y: 0 }, { x: 100, y: 100 });
     expect(edge.weight).toBeUndefined();
   });
 });
 
 describe('createEdge with light theme', () => {
   it('should create edge with light theme style', () => {
-    const edge = createEdge('arrow', { x: 0, y: 0 }, { x: 100, y: 100 }, undefined, false);
+    const edge = createEdge('connector', { x: 0, y: 0 }, { x: 100, y: 100 }, undefined, false);
     expect(edge.style.stroke).toBe('rgba(0,0,0,0.3)');
   });
 });

@@ -80,7 +80,7 @@ function edgeStyle(edge: GraphEdge): string {
 
   parts.push(`strokeColor=#${stroke}`, `strokeWidth=${edge.style.strokeWidth}`);
 
-  const endShape = edge.style.endShape ?? ((edge.type === 'arrow' || edge.type === 'connector') ? 'arrow' : 'none');
+  const endShape = edge.style.endShape ?? (edge.type === 'connector' ? 'arrow' : 'none');
   const startShape = edge.style.startShape ?? 'none';
 
   if (endShape === 'none') parts.push('endArrow=none');

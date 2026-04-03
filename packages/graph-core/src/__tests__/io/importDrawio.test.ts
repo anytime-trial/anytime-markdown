@@ -62,7 +62,7 @@ describe('importFromDrawio', () => {
     expect(edge.id).toBe('e1');
     expect(edge.from.nodeId).toBe('n1');
     expect(edge.to.nodeId).toBe('n2');
-    expect(edge.type).toBe('arrow');
+    expect(edge.type).toBe('line');
   });
 
   it('should produce empty document when no mxCell elements present', () => {

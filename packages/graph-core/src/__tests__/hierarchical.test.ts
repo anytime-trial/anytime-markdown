@@ -9,7 +9,7 @@ function makeBody(id: string, x = 0, y = 0): PhysicsBody {
 function makeEdge(fromId: string, toId: string): GraphEdge {
   return {
     id: `${fromId}-${toId}`,
-    type: 'arrow',
+    type: 'connector',
     from: { nodeId: fromId, x: 0, y: 0 },
     to: { nodeId: toId, x: 0, y: 0 },
     style: { stroke: '#000', strokeWidth: 2, startShape: 'none', endShape: 'arrow' },

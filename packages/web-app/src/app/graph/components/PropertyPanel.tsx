@@ -346,7 +346,7 @@ export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpda
 
           <Typography variant="caption" sx={{ color: colors.textSecondary }}>{t('endShape')}</Typography>
           <ToggleButtonGroup
-            value={selectedEdge.style.endShape ?? ((selectedEdge.type === 'arrow' || selectedEdge.type === 'connector') ? 'arrow' : 'none')}
+            value={selectedEdge.style.endShape ?? (selectedEdge.type === 'connector' ? 'arrow' : 'none')}
             exclusive
             onChange={(_, v) => v && onUpdateEdge(selectedEdge.id, { style: { ...selectedEdge.style, endShape: v as EndpointShape } })}
             size="small"

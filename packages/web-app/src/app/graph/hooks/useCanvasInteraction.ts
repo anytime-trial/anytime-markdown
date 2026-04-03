@@ -7,7 +7,7 @@ import { hitTest, hitTestEdge } from '../engine/hitTest';
 import type { ResizeHandle } from '../engine/hitTest';
 import { snapToGrid } from '../engine/gridSnap';
 import { computeSmartGuides, GuideLine } from '../engine/smartGuide';
-import { computeOrthogonalPath, resolveConnectorEndpoints } from '../engine/connector';
+import { computeOrthogonalPath, resolveConnectorEndpoints, nearestBorderPoint } from '../engine/connector';
 import { physics } from '@anytime-markdown/graph-core/engine';
 
 /** edges に waypoints を付与して hitTest で使えるようにする */
@@ -73,7 +73,7 @@ export interface DragPreview {
   toX: number;
   toY: number;
   shapeType?: 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder' | 'doc' | 'frame';
-  edgeType?: 'line' | 'arrow' | 'connector';
+  edgeType?: 'line' | 'connector';
   /** ドラッグ中にスナップしているノードID */
   snapNodeId?: string;
   /** スマートガイドライン */
@@ -138,17 +138,15 @@ export function useCanvasInteraction({
         return;
       }
 
-      // 接続ポイントクリック → コネクタ作成開始
+      // 接続ポイントクリック → コネクタ作成開始（辺上の任意位置対応）
       if (hit.type === 'connection-point' && hit.id) {
-        const node = nodes.find(n => n.id === hit.id);
-        if (node) {
-          const cp = { top: { x: node.x + node.width / 2, y: node.y }, right: { x: node.x + node.width, y: node.y + node.height / 2 }, bottom: { x: node.x + node.width / 2, y: node.y + node.height }, left: { x: node.x, y: node.y + node.height / 2 } }[hit.connectionSide!];
-          dragRef.current = {
-            type: 'create-edge', startWorldX: cp.x, startWorldY: cp.y,
-            startScreenX: sx, startScreenY: sy, nodeId: hit.id,
-            fromConnectionPoint: true,
-          };
-        }
+        const cpX = hit.connectionX ?? world.x;
+        const cpY = hit.connectionY ?? world.y;
+        dragRef.current = {
+          type: 'create-edge', startWorldX: cpX, startWorldY: cpY,
+          startScreenX: sx, startScreenY: sy, nodeId: hit.id,
+          fromConnectionPoint: true,
+        };
         return;
       }
 
@@ -280,10 +278,20 @@ export function useCanvasInteraction({
       return;
     }
 
-    if (['line', 'arrow', 'connector'].includes(tool)) {
+    if (['line', 'connector'].includes(tool)) {
       const hit = hitTest({ nodes, edges, wx: world.x, wy: world.y, scale: viewport.scale, selectedNodeIds: [] });
+      let startX = world.x;
+      let startY = world.y;
+      // ノード上からの開始: 境界の最近点を使用
+      if (hit.type === 'node' && hit.id) {
+        const node = nodes.find(n => n.id === hit.id);
+        if (node) {
+          const bp = nearestBorderPoint(node, world.x, world.y);
+          if (bp) { startX = bp.x; startY = bp.y; }
+        }
+      }
       dragRef.current = {
-        type: 'create-edge', startWorldX: world.x, startWorldY: world.y,
+        type: 'create-edge', startWorldX: startX, startWorldY: startY,
         startScreenX: sx, startScreenY: sy,
         nodeId: hit.type === 'node' ? hit.id : undefined,
       };
@@ -302,7 +310,7 @@ export function useCanvasInteraction({
     if (drag.type === 'none') {
       if (tool === 'pan') {
         cursorRef.current = 'grab';
-      } else if (['rect', 'ellipse', 'sticky', 'text', 'diamond', 'parallelogram', 'cylinder', 'doc', 'line', 'arrow', 'connector'].includes(tool)) {
+      } else if (['rect', 'ellipse', 'sticky', 'text', 'diamond', 'parallelogram', 'cylinder', 'doc', 'line', 'connector'].includes(tool)) {
         cursorRef.current = 'crosshair';
       }
     }
@@ -507,7 +515,7 @@ export function useCanvasInteraction({
         type: 'edge',
         fromX: drag.startWorldX, fromY: drag.startWorldY,
         toX: world.x, toY: world.y,
-        edgeType: (tool === 'line' || tool === 'arrow' || tool === 'connector') ? tool : 'connector',
+        edgeType: (tool === 'line' || tool === 'connector') ? tool : 'connector',
         snapNodeId: hit.type === 'node' ? hit.id : undefined,
       };
       return;
@@ -564,8 +572,8 @@ export function useCanvasInteraction({
 
     if (drag.type === 'create-edge') {
       const hit = hitTest({ nodes, edges, wx: world.x, wy: world.y, scale: viewport.scale, selectedNodeIds: [] });
-      const edgeType: 'line' | 'arrow' | 'connector' =
-        (tool === 'line' || tool === 'arrow' || tool === 'connector') ? tool : 'connector';
+      const edgeType: 'line' | 'connector' =
+        (tool === 'line' || tool === 'connector') ? tool : 'connector';
       const dist = Math.hypot(world.x - drag.startWorldX, world.y - drag.startWorldY);
 
       // エッジエンドポイント再接続（既存エッジの端点変更）
@@ -586,15 +594,19 @@ export function useCanvasInteraction({
         }
       } else if (dist > 5) {
         if (hit.type === 'node' && hit.id) {
-          // 既存ノードに接続
+          // 既存ノードに接続（ノード境界の最近点を使用）
+          const targetNode = nodes.find(n => n.id === hit.id);
+          const bp = targetNode ? nearestBorderPoint(targetNode, world.x, world.y) : null;
+          const toX = bp?.x ?? world.x;
+          const toY = bp?.y ?? world.y;
           const edge = createEdge(
             edgeType,
             { nodeId: drag.nodeId, x: drag.startWorldX, y: drag.startWorldY },
-            { nodeId: hit.id, x: world.x, y: world.y },
+            { nodeId: hit.id, x: toX, y: toY },
             undefined, isDark,
           );
           dispatch({ type: 'ADD_EDGE', edge });
-        } else if (!drag.fromConnectionPoint && (tool === 'line' || tool === 'arrow' || tool === 'connector')) {
+        } else if (!drag.fromConnectionPoint && (tool === 'line' || tool === 'connector')) {
           // 線ツールで空白→空白: フリーなエッジを作成
           const edge = createEdge(
             edgeType,
@@ -693,7 +705,7 @@ export function useCanvasInteraction({
     // エッジ上をダブルクリック → ウェイポイント追加
     if (hit.type === 'edge' && hit.id) {
       const edge = edges.find(ed => ed.id === hit.id);
-      if (edge && (edge.type === 'connector' || edge.type === 'arrow')) {
+      if (edge && edge.type === 'connector') {
         dispatch({ type: 'SNAPSHOT' });
         const existing = edge.manualWaypoints ?? [];
         // ウェイポイント配列内の適切な位置に挿入（パスに沿った順序を維持）

@@ -82,7 +82,7 @@ function renderEdgeSvg(edge: GraphEdge, nodes: GraphNode[]): string {
   }
 
   // 矢印マーカー
-  const endShape = style.endShape ?? ((type === 'arrow' || type === 'connector') ? 'arrow' : 'none');
+  const endShape = style.endShape ?? (type === 'connector' ? 'arrow' : 'none');
   if (endShape === 'arrow') {
     const last = points.length >= 2 ? points.at(-1)! : { x: edge.to.x, y: edge.to.y };
     const prev = points.length >= 2 ? points.at(-2)! : { x: edge.from.x, y: edge.from.y };

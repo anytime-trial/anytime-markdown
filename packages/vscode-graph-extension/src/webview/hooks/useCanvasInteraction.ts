@@ -60,7 +60,7 @@ export interface DragPreview {
   toX: number;
   toY: number;
   shapeType?: 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder' | 'doc' | 'frame';
-  edgeType?: 'line' | 'arrow' | 'connector';
+  edgeType?: 'line' | 'connector';
   snapNodeId?: string;
   guides?: GuideLine[];
 }
@@ -237,7 +237,7 @@ export function useCanvasInteraction({
       return;
     }
 
-    if (['line', 'arrow', 'connector'].includes(tool)) {
+    if (['line', 'connector'].includes(tool)) {
       const hit = hitTest({ nodes, edges, wx: world.x, wy: world.y, scale: viewport.scale, selectedNodeIds: [] });
       dragRef.current = {
         type: 'create-edge', startWorldX: world.x, startWorldY: world.y,
@@ -259,7 +259,7 @@ export function useCanvasInteraction({
     if (drag.type === 'none') {
       if (tool === 'pan') {
         cursorRef.current = 'grab';
-      } else if (['rect', 'ellipse', 'sticky', 'text', 'diamond', 'parallelogram', 'cylinder', 'doc', 'line', 'arrow', 'connector'].includes(tool)) {
+      } else if (['rect', 'ellipse', 'sticky', 'text', 'diamond', 'parallelogram', 'cylinder', 'doc', 'line', 'connector'].includes(tool)) {
         cursorRef.current = 'crosshair';
       }
     }
@@ -425,7 +425,7 @@ export function useCanvasInteraction({
         type: 'edge',
         fromX: drag.startWorldX, fromY: drag.startWorldY,
         toX: world.x, toY: world.y,
-        edgeType: (tool === 'line' || tool === 'arrow' || tool === 'connector') ? tool : 'connector',
+        edgeType: (tool === 'line' || tool === 'connector') ? tool : 'connector',
         snapNodeId: hit.type === 'node' ? hit.id : undefined,
       };
       return;
@@ -483,8 +483,8 @@ export function useCanvasInteraction({
 
     if (drag.type === 'create-edge') {
       const hit = hitTest({ nodes, edges, wx: world.x, wy: world.y, scale: viewport.scale, selectedNodeIds: [] });
-      const edgeType: 'line' | 'arrow' | 'connector' =
-        (tool === 'line' || tool === 'arrow' || tool === 'connector') ? tool : 'connector';
+      const edgeType: 'line' | 'connector' =
+        (tool === 'line' || tool === 'connector') ? tool : 'connector';
       const dist = Math.hypot(world.x - drag.startWorldX, world.y - drag.startWorldY);
 
       if (drag.edgeId && drag.endpointEnd) {
@@ -511,7 +511,7 @@ export function useCanvasInteraction({
             undefined, isDark,
           );
           dispatch({ type: 'ADD_EDGE', edge });
-        } else if (!drag.fromConnectionPoint && (tool === 'line' || tool === 'arrow' || tool === 'connector')) {
+        } else if (!drag.fromConnectionPoint && (tool === 'line' || tool === 'connector')) {
           const edge = createEdge(
             edgeType,
             { nodeId: drag.nodeId, x: drag.startWorldX, y: drag.startWorldY },

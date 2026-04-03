@@ -276,7 +276,7 @@ export function GraphEditor() {
         v: 'select', r: 'rect', o: 'ellipse', s: 'sticky',
         t: 'text', d: 'diamond', p: 'parallelogram', y: 'cylinder',
         m: 'doc', f: 'frame',
-        l: 'line', a: 'arrow', c: 'connector',
+        l: 'line', c: 'connector',
       };
       if (map[e.key] && !e.ctrlKey && !e.metaKey) {
         setTool(map[e.key]);
