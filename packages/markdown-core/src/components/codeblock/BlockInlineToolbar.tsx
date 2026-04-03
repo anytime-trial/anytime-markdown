@@ -20,8 +20,10 @@ interface BlockInlineToolbarProps {
   onDelete?: () => void;
   /** Show export as image button */
   onExport?: () => void;
-  /** Show export as .mmd source button (Mermaid only) */
-  onExportMmd?: () => void;
+  /** Export diagram source (.mmd / .puml) */
+  onExportSource?: () => void;
+  /** i18n key for source export label (e.g. "exportMmd", "exportPuml") */
+  exportSourceKey?: string;
   /** Whether code/content is collapsed */
   collapsed?: boolean;
   /** Extra content between edit button and spacer */
@@ -35,7 +37,7 @@ interface BlockInlineToolbarProps {
 }
 
 export function BlockInlineToolbar({
-  label, onEdit, onDelete, onExport, onExportMmd, collapsed, extra, labelDivider, labelOnly, t,
+  label, onEdit, onDelete, onExport, onExportSource, exportSourceKey, collapsed, extra, labelDivider, labelOnly, t,
 }: Readonly<BlockInlineToolbarProps>) {
   const isDark = useTheme().palette.mode === "dark";
   const iconSx = { fontSize: 16, color: getTextSecondary(isDark) };
@@ -58,7 +60,7 @@ export function BlockInlineToolbar({
     );
   }
 
-  const hasMenu = onExport && onExportMmd;
+  const hasMenu = onExport && onExportSource;
 
   return (
     <Box
@@ -111,9 +113,9 @@ export function BlockInlineToolbar({
             <ListItemIcon><ImageIcon fontSize="small" /></ListItemIcon>
             <ListItemText>{t("exportPng")}</ListItemText>
           </MenuItem>
-          <MenuItem onClick={() => { setMenuOpen(false); onExportMmd(); }}>
+          <MenuItem onClick={() => { setMenuOpen(false); onExportSource(); }}>
             <ListItemIcon><FileDownloadIcon fontSize="small" /></ListItemIcon>
-            <ListItemText>{t("exportMmd")}</ListItemText>
+            <ListItemText>{t(exportSourceKey ?? "exportMmd")}</ListItemText>
           </MenuItem>
         </Menu>
       </>)}

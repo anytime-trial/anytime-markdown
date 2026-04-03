@@ -15,20 +15,22 @@ interface ZoomToolbarProps {
   fsZP: UseZoomPanReturn;
   /** Export button callback (diagram only) */
   onExport?: () => void;
-  /** Export as .mmd source callback (Mermaid only) */
-  onExportMmd?: () => void;
+  /** Export diagram source (.mmd / .puml) */
+  onExportSource?: () => void;
+  /** i18n key for source export label (e.g. "exportMmd", "exportPuml") */
+  exportSourceKey?: string;
   t: (key: string) => string;
 }
 
 /** プレビュー側のズーム・パン操作ツールバー */
-export function ZoomToolbar({ fsZP, onExport, onExportMmd, t }: Readonly<ZoomToolbarProps>) {
+export function ZoomToolbar({ fsZP, onExport, onExportSource, exportSourceKey, t }: Readonly<ZoomToolbarProps>) {
   const isDark = useTheme().palette.mode === "dark";
   const iconSx = { fontSize: 16, color: getTextSecondary(isDark) };
 
   const [menuOpen, setMenuOpen] = useState(false);
   const anchorRef = useRef<HTMLButtonElement>(null);
 
-  const hasMenu = onExport && onExportMmd;
+  const hasMenu = onExport && onExportSource;
 
   return (
     <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: getDivider(isDark), px: 1, py: 0.25, minHeight: FS_TOOLBAR_HEIGHT }}>
@@ -50,9 +52,9 @@ export function ZoomToolbar({ fsZP, onExport, onExportMmd, t }: Readonly<ZoomToo
             <ListItemIcon><ImageIcon fontSize="small" /></ListItemIcon>
             <ListItemText>{t("exportPng")}</ListItemText>
           </MenuItem>
-          <MenuItem onClick={() => { setMenuOpen(false); onExportMmd(); }}>
+          <MenuItem onClick={() => { setMenuOpen(false); onExportSource(); }}>
             <ListItemIcon><FileDownloadIcon fontSize="small" /></ListItemIcon>
-            <ListItemText>{t("exportMmd")}</ListItemText>
+            <ListItemText>{t(exportSourceKey ?? "exportMmd")}</ListItemText>
           </MenuItem>
         </Menu>
       </>)}

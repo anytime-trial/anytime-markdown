@@ -154,6 +154,7 @@
     "capture": "画像エクスポート",
     "exportPng": "PNG画像でエクスポート",
     "exportMmd": "Mermaidソース (.mmd) でエクスポート",
+    "exportPuml": "PlantUMLソース (.puml) でエクスポート",
     "screenCapture": "スクリーンキャプチャ",
     "screenCaptureShoot": "キャプチャ",
     "screenCaptureSelect": "画面を選択してください",

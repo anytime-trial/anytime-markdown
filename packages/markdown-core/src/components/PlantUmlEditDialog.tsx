@@ -37,6 +37,8 @@ interface PlantUmlEditDialogProps {
   onMergeApply?: (newThisCode: string, newOtherCode: string) => void;
   thisCode?: string;
   onExport?: () => void;
+  onExportSource?: () => void;
+  exportSourceKey?: string;
   toolbarExtra?: React.ReactNode;
   onApply?: () => void;
   dirty?: boolean;
@@ -47,7 +49,7 @@ export function PlantUmlEditDialog({
   open, onClose, label, plantUmlUrl, code,
   fsCode, onFsCodeChange: _onFsCodeChange, onFsTextChange, fsTextareaRef, fsSearch: _fsSearch,
   fsZP, readOnly,
-  isCompareMode, compareCode, onMergeApply, thisCode, onExport, toolbarExtra,
+  isCompareMode, compareCode, onMergeApply, thisCode, onExport, onExportSource, exportSourceKey, toolbarExtra,
   onApply, dirty, t,
 }: Readonly<PlantUmlEditDialogProps>) {
   const theme = useTheme();
@@ -164,7 +166,7 @@ export function PlantUmlEditDialog({
           }
           right={
             <>
-              <ZoomToolbar fsZP={fsZP} onExport={onExport} t={t} />
+              <ZoomToolbar fsZP={fsZP} onExport={onExport} onExportSource={onExportSource} exportSourceKey={exportSourceKey} t={t} />
               <ZoomablePreview fsZP={fsZP}>
                 {plantUmlUrl && (
                   <img src={plantUmlUrl} alt={extractDiagramAltText(code, "plantuml")} referrerPolicy="no-referrer" style={{ maxWidth: "90vw", maxHeight: "85vh", transform: `scale(${settings.fontSize / 16})`, transformOrigin: "center center" }} />

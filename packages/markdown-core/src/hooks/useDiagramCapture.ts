@@ -129,15 +129,15 @@ function buildPlantUmlLightUrl(code: string): string {
   return buildPlantUmlUrl(plantumlEncoder.encode(src));
 }
 
-/** Mermaid ソースコードを .mmd ファイルとして保存 */
-async function downloadMermaidSource(code: string, fileName = "mermaid.mmd") {
+/** ダイアグラムソースコードをテキストファイルとして保存 */
+async function downloadDiagramSource(code: string, fileName: string) {
   const blob = new Blob([code], { type: "text/plain;charset=utf-8" });
   await saveBlob(blob, fileName);
 }
 
 interface UseDiagramCaptureResult {
   handleCapture: () => Promise<void>;
-  handleExportMmd: (() => Promise<void>) | undefined;
+  handleExportSource: (() => Promise<void>) | undefined;
 }
 
 export function useDiagramCapture({ isMermaid, isPlantUml, svg, plantUmlUrl, code, isDark }: UseDiagramCaptureParams): UseDiagramCaptureResult {
@@ -177,13 +177,15 @@ export function useDiagramCapture({ isMermaid, isPlantUml, svg, plantUmlUrl, cod
     }
   }, [isMermaid, isPlantUml, svg, plantUmlUrl, code, isDark]);
 
-  const handleExportMmd = useCallback(async () => {
+  const sourceFileName = isMermaid ? "mermaid.mmd" : "plantuml.puml";
+  const handleExportSource = useCallback(async () => {
     try {
-      await downloadMermaidSource(code);
+      await downloadDiagramSource(code, sourceFileName);
     } catch (err) {
-      console.error("useDiagramCapture: failed to export .mmd", err);
+      console.error(`useDiagramCapture: failed to export ${sourceFileName}`, err);
     }
-  }, [code]);
+  }, [code, sourceFileName]);
 
-  return { handleCapture, handleExportMmd: isMermaid ? handleExportMmd : undefined };
+  const hasDiagram = isMermaid || isPlantUml;
+  return { handleCapture, handleExportSource: hasDiagram ? handleExportSource : undefined };
 }

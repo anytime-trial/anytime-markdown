@@ -154,6 +154,7 @@
     "capture": "Export as image",
     "exportPng": "Export as PNG",
     "exportMmd": "Export as Mermaid source (.mmd)",
+    "exportPuml": "Export as PlantUML source (.puml)",
     "screenCapture": "Screen Capture",
     "screenCaptureShoot": "Capture",
     "screenCaptureSelect": "Select a screen to capture",
