@@ -32,7 +32,7 @@ function toModuleMermaid(
 
   const fileNodes = graph.nodes.filter(n => n.type === 'file');
   for (const node of fileNodes) {
-    lines.push(`  ${toMermaidId(node.id)}["${node.id}"]`);
+    lines.push(`  ${toMermaidId(node.id)}["${node.filePath}"]`);
   }
 
   const fileIds = new Set(fileNodes.map(n => n.id));
@@ -69,10 +69,10 @@ function toSymbolMermaid(
   for (const fileNode of fileNodes) {
     const symbols = symbolsByFile.get(fileNode.id) ?? [];
     if (symbols.length === 0) {
-      lines.push(`  ${toMermaidId(fileNode.id)}["${fileNode.id}"]`);
+      lines.push(`  ${toMermaidId(fileNode.id)}["${fileNode.filePath}"]`);
       continue;
     }
-    lines.push(`  subgraph ${toMermaidId(fileNode.id)} ["${fileNode.id}"]`);
+    lines.push(`  subgraph ${toMermaidId(fileNode.id)} ["${fileNode.filePath}"]`);
     for (const sym of symbols) {
       lines.push(`    ${toMermaidId(sym.id)}["${sym.label}"]`);
     }
