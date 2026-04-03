@@ -18,7 +18,7 @@ export { screenToWorld, worldToScreen, pan, zoom, fitToContent } from './viewpor
 export {
   nodeCenter, rectIntersection, ellipseIntersection, nodeIntersection,
   resolveConnectorEndpoints, computeOrthogonalPath, computeBezierPath,
-  getConnectionPoints, nearestConnectionPoint, hitTestConnectionPoint,
+  getConnectionPoints, nearestConnectionPoint, nearestBorderPoint, hitTestConnectionPoint,
   bestSides,
 } from './connector';
 export type { Side } from './connector';

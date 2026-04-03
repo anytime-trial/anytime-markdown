@@ -1,6 +1,6 @@
 import { GraphNode, GraphEdge } from '../types';
 import { HANDLE_SIZE, EDGE_TOLERANCE, CONNECTION_POINT_RADIUS, ENDPOINT_HANDLE_RADIUS } from './constants';
-import { getConnectionPoints } from './connector';
+import { getConnectionPoints, hitTestConnectionPoint as hitTestConnectionPointFull } from './connector';
 
 export type ResizeHandle = 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w';
 
@@ -13,6 +13,9 @@ export interface HitResult {
   id?: string;
   handle?: ResizeHandle;
   connectionSide?: ConnectionSide;
+  /** 接続ポイントの実座標 */
+  connectionX?: number;
+  connectionY?: number;
   /** ドラッグ可能なエッジセグメントの方向 */
   segmentDirection?: 'horizontal' | 'vertical';
   /** ヒットしたセグメントのインデックス（waypoints[i] → waypoints[i+1]） */
@@ -197,9 +200,27 @@ export interface HitTestContext {
   selectedEdgeIds?: string[];
 }
 
+/**
+ * 統合ヒットテスト。ワールド座標 (wx, wy) にある要素を優先度順に判定する。
+ *
+ * 優先度（上位が優先）:
+ *   1. edge-endpoint     — 選択中エッジの端点ハンドル。エンドポイント再接続のドラッグ開始用。
+ *                          ノードの角と重なっても端点が勝つ（draw.io と同じ再接続優先の UX）。
+ *   2. connection-point  — ホバー中ノードの接続ポイント。辺中央の定義済みポイントと辺境界を含む。
+ *                          リサイズハンドルより優先することで「接続優先」の UX を実現する。
+ *                          ホバーノードが選択ノードと同一の場合、角のリサイズよりコネクタ接続が優先される。
+ *   3. resize-handle     — 選択中ノードの 8 点リサイズハンドル。
+ *   4. node              — ノード本体。後方（高 zIndex）から前方に走査し、手前のノードを優先する。
+ *   5. waypoint-handle   — 選択中エッジの手動ウェイポイントハンドル。ノードの後ろで判定するのは、
+ *                          ノード上に重なったウェイポイントをノード選択より優先させないため。
+ *   6. edge-segment / edge — エッジ本体。複数エッジが重なる場合はクリック座標に最も近いエッジを選択する。
+ *                          edge-segment は直交コネクタの中間セグメント（ドラッグで平行移動可能）。
+ *   7. none              — 何も見つからなかった場合。
+ */
 export function hitTest(ctx: HitTestContext): HitResult {
   const { nodes, edges, wx, wy, scale, selectedNodeIds, hoverNodeId, selectedEdgeIds } = ctx;
-  // 選択中エッジのエンドポイントハンドル判定
+
+  // --- 1. 選択中エッジの端点ハンドル（再接続ドラッグ用、最高優先度） ---
   if (selectedEdgeIds) {
     for (const eid of selectedEdgeIds) {
       const edge = edges.find(e => e.id === eid);
@@ -210,15 +231,16 @@ export function hitTest(ctx: HitTestContext): HitResult {
     }
   }
 
-  // 接続ポイント判定（ホバー中ノードのみ）
+  // --- 2. 接続ポイント（ホバー中ノードのみ、接続優先 UX） ---
   if (hoverNodeId) {
     const hoverNode = nodes.find(n => n.id === hoverNodeId);
     if (hoverNode) {
-      const side = hitTestConnectionPoints(hoverNode, wx, wy, scale);
-      if (side) return { type: 'connection-point', id: hoverNode.id, connectionSide: side };
+      const cp = hitTestConnectionPointFull(hoverNode, wx, wy, scale);
+      if (cp) return { type: 'connection-point', id: hoverNode.id, connectionSide: cp.side, connectionX: cp.x, connectionY: cp.y };
     }
   }
 
+  // --- 3. リサイズハンドル（選択中ノードのみ） ---
   for (const id of selectedNodeIds) {
     const node = nodes.find(n => n.id === id);
     if (node) {
@@ -226,10 +248,13 @@ export function hitTest(ctx: HitTestContext): HitResult {
       if (handle) return { type: 'resize-handle', id: node.id, handle };
     }
   }
+
+  // --- 4. ノード本体（後方 → 前方、手前のノードを優先） ---
   for (let i = nodes.length - 1; i >= 0; i--) {
     if (hitTestNode(nodes[i], wx, wy)) return { type: 'node', id: nodes[i].id };
   }
-  // 選択中エッジのウェイポイントハンドル判定
+
+  // --- 5. ウェイポイントハンドル（選択中エッジのみ、ノードの後ろで判定） ---
   if (selectedEdgeIds) {
     for (const eid of selectedEdgeIds) {
       const edge = edges.find(e => e.id === eid);
@@ -239,7 +264,8 @@ export function hitTest(ctx: HitTestContext): HitResult {
       }
     }
   }
-  // エッジ判定: 複数ヒット時は最も近いエッジを優先
+
+  // --- 6. エッジ本体（複数重なり時は最近接を優先） ---
   const tolerance = EDGE_TOLERANCE / scale;
   let bestEdgeResult: HitResult | null = null;
   let bestEdgeDist = Infinity;
@@ -255,5 +281,7 @@ export function hitTest(ctx: HitTestContext): HitResult {
     }
   }
   if (bestEdgeResult) return bestEdgeResult;
+
+  // --- 7. 何も見つからなかった ---
   return { type: 'none' };
 }
