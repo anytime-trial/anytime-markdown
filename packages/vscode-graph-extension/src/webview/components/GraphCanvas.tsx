@@ -117,13 +117,17 @@ export function GraphCanvas({
           const pairKey = [e.from.nodeId, e.to.nodeId].sort().join(':');
           const parallelIndex = pairCount.get(pairKey) ?? 0;
           pairCount.set(pairKey, parallelIndex + 1);
+          const pairTotal = edges.filter(e2 =>
+            e2.type === 'connector' && e2.from.nodeId && e2.to.nodeId &&
+            [e2.from.nodeId, e2.to.nodeId].sort().join(':') === pairKey,
+          ).length;
           const sides = bestSides(fromNode, toNode);
           const fromPts = getConnectionPoints(fromNode);
           const toPts = getConnectionPoints(toNode);
           let fromPt = fromPts.find(p => p.side === sides.fromSide) ?? fromPts[0];
           let toPt = toPts.find(p => p.side === sides.toSide) ?? toPts[0];
-          if (parallelIndex > 0) {
-            const offset = parallelIndex * 15;
+          if (pairTotal > 1) {
+            const offset = (parallelIndex - (pairTotal - 1) / 2) * 15;
             fromPt = offsetAlongSide(fromPt, sides.fromSide, offset);
             toPt = offsetAlongSide(toPt, sides.toSide, offset);
           }
