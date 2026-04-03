@@ -476,12 +476,23 @@ export function computeVisibilityPath(
   margin: number = 20,
   bendPenalty: number = 50,
 ): Point[] {
-  if (obstacles.length === 0) {
+  // Phase 0: Filter obstacles to those near the path bounding box
+  const pathMargin = margin * 3;
+  const pathMinX = Math.min(fromPt.x, toPt.x) - pathMargin;
+  const pathMinY = Math.min(fromPt.y, toPt.y) - pathMargin;
+  const pathMaxX = Math.max(fromPt.x, toPt.x) + pathMargin;
+  const pathMaxY = Math.max(fromPt.y, toPt.y) + pathMargin;
+  const nearObstacles = obstacles.filter((o) =>
+    o.x + o.width > pathMinX && o.x < pathMaxX &&
+    o.y + o.height > pathMinY && o.y < pathMaxY,
+  );
+
+  if (nearObstacles.length === 0) {
     return computeDirectPath(fromPt, fromSide, toPt, toSide);
   }
 
   // Phase 1: Build margin rects
-  const marginRects = buildMarginRects(obstacles, margin);
+  const marginRects = buildMarginRects(nearObstacles, margin);
 
   // Phase 2: Generate vertices
   const nodes: VNode[] = [
