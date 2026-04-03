@@ -42,7 +42,7 @@ export function GraphEditor() {
   const [isDragging, setIsDragging] = useState(false);
   const [layoutRunning, setLayoutRunning] = useState(false);
   const [collisionEnabled, setCollisionEnabled] = useState(false);
-  const [layoutAlgorithm, setLayoutAlgorithm] = useState<'eades' | 'fruchterman-reingold' | 'eades-vpsc' | 'fruchterman-reingold-vpsc'>('eades');
+  const [layoutAlgorithm, setLayoutAlgorithm] = useState<'eades' | 'fruchterman-reingold' | 'eades-vpsc' | 'fruchterman-reingold-vpsc' | 'hierarchical'>('eades');
   const [dataMappingConfig, setDataMappingConfig] = useState<DataMappingConfig | undefined>(undefined);
   const [detailNodeId, setDetailNodeId] = useState<string | null>(null);
   const [filterConfig, setFilterConfig] = useState<NodeFilterConfig>(EMPTY_FILTER);
@@ -476,8 +476,29 @@ export function GraphEditor() {
       reader.onload = () => {
         const text = reader.result as string;
         try {
-          const doc = importFromMermaid(text);
+          const { doc, direction } = importFromMermaid(text);
           if (!doc.nodes || !doc.edges) return;
+
+          // Apply hierarchical layout using parsed direction
+          const bodies = new Map(doc.nodes.map(n => [n.id, physics.createBody(n)]));
+          physics.computeHierarchicalLayout(bodies, doc.edges, direction, 180, 60);
+          const nodeMap = new Map<string, { x: number; y: number; width: number; height: number }>();
+          for (const node of doc.nodes) {
+            const body = bodies.get(node.id);
+            if (body) {
+              node.x = body.x;
+              node.y = body.y;
+            }
+            nodeMap.set(node.id, { x: node.x, y: node.y, width: node.width, height: node.height });
+          }
+          // Update edge endpoint coordinates to match repositioned nodes
+          for (const edge of doc.edges) {
+            const fn = edge.from.nodeId ? nodeMap.get(edge.from.nodeId) : undefined;
+            const tn = edge.to.nodeId ? nodeMap.get(edge.to.nodeId) : undefined;
+            if (fn) { edge.from.x = fn.x + fn.width / 2; edge.from.y = fn.y + fn.height / 2; }
+            if (tn) { edge.to.x = tn.x + tn.width / 2; edge.to.y = tn.y + tn.height / 2; }
+          }
+
           setConfirmDialog({
             open: true,
             title: t('import'),

@@ -86,8 +86,8 @@ interface ToolBarProps {
   collisionEnabled?: boolean;
   onAutoLayout?: () => void;
   onToggleCollision?: (enabled: boolean) => void;
-  layoutAlgorithm?: 'eades' | 'fruchterman-reingold' | 'eades-vpsc' | 'fruchterman-reingold-vpsc';
-  onChangeAlgorithm?: (algorithm: 'eades' | 'fruchterman-reingold' | 'eades-vpsc' | 'fruchterman-reingold-vpsc') => void;
+  layoutAlgorithm?: 'eades' | 'fruchterman-reingold' | 'eades-vpsc' | 'fruchterman-reingold-vpsc' | 'hierarchical';
+  onChangeAlgorithm?: (algorithm: 'eades' | 'fruchterman-reingold' | 'eades-vpsc' | 'fruchterman-reingold-vpsc' | 'hierarchical') => void;
   onSpreadConnected?: () => void;
   showFilter?: boolean;
   onToggleFilter?: () => void;
@@ -309,7 +309,7 @@ export function GraphToolBar({
         </Menu>
 
         <Tooltip title={`${t('autoLayout')} (${
-          { 'eades': 'Eades', 'fruchterman-reingold': 'FR', 'eades-vpsc': 'Eades+VPSC', 'fruchterman-reingold-vpsc': 'FR+VPSC' }[layoutAlgorithm]
+          { 'eades': 'Eades', 'fruchterman-reingold': 'FR', 'eades-vpsc': 'Eades+VPSC', 'fruchterman-reingold-vpsc': 'FR+VPSC', 'hierarchical': 'Hierarchical' }[layoutAlgorithm]
         })`}>
           <span>
             <IconButton
@@ -324,7 +324,7 @@ export function GraphToolBar({
         <Tooltip title={t('switchAlgorithm')}>
           <IconButton
             onClick={() => {
-              const cycle: Array<'eades' | 'fruchterman-reingold' | 'eades-vpsc' | 'fruchterman-reingold-vpsc'> = ['eades', 'fruchterman-reingold', 'eades-vpsc', 'fruchterman-reingold-vpsc'];
+              const cycle: Array<'eades' | 'fruchterman-reingold' | 'eades-vpsc' | 'fruchterman-reingold-vpsc' | 'hierarchical'> = ['eades', 'fruchterman-reingold', 'eades-vpsc', 'fruchterman-reingold-vpsc', 'hierarchical'];
               const idx = cycle.indexOf(layoutAlgorithm);
               onChangeAlgorithm?.(cycle[(idx + 1) % cycle.length]);
             }}
@@ -332,7 +332,7 @@ export function GraphToolBar({
             disabled={layoutRunning}
           >
             <Typography variant="caption" sx={{ fontSize: 10, fontWeight: 'bold', lineHeight: 1 }}>
-              {{ 'eades': 'EA', 'fruchterman-reingold': 'FR', 'eades-vpsc': 'EA+V', 'fruchterman-reingold-vpsc': 'FR+V' }[layoutAlgorithm]}
+              {{ 'eades': 'EA', 'fruchterman-reingold': 'FR', 'eades-vpsc': 'EA+V', 'fruchterman-reingold-vpsc': 'FR+V', 'hierarchical': 'HI' }[layoutAlgorithm]}
             </Typography>
           </IconButton>
         </Tooltip>

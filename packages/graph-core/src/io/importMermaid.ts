@@ -2,6 +2,11 @@ import { createNode, createEdge, createDocument, type GraphDocument, type NodeTy
 
 type Direction = 'TD' | 'TB' | 'LR' | 'RL' | 'BT';
 
+export interface MermaidImportResult {
+  doc: GraphDocument;
+  direction: 'TB' | 'LR';
+}
+
 interface ParsedNode {
   mermaidId: string;
   text: string;
@@ -22,6 +27,14 @@ interface ParsedEdge {
 interface SubgraphInfo {
   mermaidId: string;
   title: string;
+}
+
+/** Strip surrounding quotes (double or single) from a string. */
+function stripQuotes(text: string): string {
+  if ((text.startsWith('"') && text.endsWith('"')) || (text.startsWith("'") && text.endsWith("'"))) {
+    return text.slice(1, -1);
+  }
+  return text;
 }
 
 /**
@@ -45,7 +58,7 @@ function parseNodeDef(token: string): ParsedNode | null {
   for (const { regex, type, borderRadius } of patterns) {
     const m = regex.exec(token);
     if (m) {
-      return { mermaidId: m[1], text: m[2], type, borderRadius };
+      return { mermaidId: m[1], text: stripQuotes(m[2]), type, borderRadius };
     }
   }
 
@@ -156,13 +169,14 @@ function tokenizeLine(line: string): string[] {
   const tokens: string[] = [];
   let current = '';
   let depth = 0;
+  let inPipe = false;
   const brackets: Record<string, string> = { '[': ']', '(': ')', '{': '}' };
   const closers = new Set(Object.values(brackets));
 
   for (let i = 0; i < line.length; i++) {
     const ch = line[i];
 
-    if (depth === 0 && (ch === ' ' || ch === '\t')) {
+    if (depth === 0 && !inPipe && (ch === ' ' || ch === '\t')) {
       if (current) {
         tokens.push(current);
         current = '';
@@ -172,7 +186,9 @@ function tokenizeLine(line: string): string[] {
 
     current += ch;
 
-    if (brackets[ch]) {
+    if (ch === '|' && depth === 0) {
+      inPipe = !inPipe;
+    } else if (brackets[ch]) {
       depth++;
     } else if (closers.has(ch)) {
       depth = Math.max(0, depth - 1);
@@ -187,7 +203,7 @@ function tokenizeLine(line: string): string[] {
  * Supports: flowchart/graph, TD/TB/LR/RL/BT directions,
  * node shapes, edge types, labels, and subgraphs.
  */
-export function importFromMermaid(mmdString: string): GraphDocument {
+export function importFromMermaid(mmdString: string): MermaidImportResult {
   const trimmed = mmdString.trim();
   if (!trimmed) throw new Error('Empty input');
 
@@ -314,10 +330,12 @@ export function importFromMermaid(mmdString: string): GraphDocument {
     const toNode = doc.nodes.find(n => n.id === toNodeId);
     if (!fromNode || !toNode) continue;
 
+    // Use 'connector' type for node-to-node edges (orthogonal routing)
+    const edgeType = (pe.edgeType === 'line') ? 'line' : 'connector';
     const edge = createEdge(
-      pe.edgeType,
-      { nodeId: fromNodeId, x: fromNode.x, y: fromNode.y },
-      { nodeId: toNodeId, x: toNode.x, y: toNode.y },
+      edgeType,
+      { nodeId: fromNodeId, x: fromNode.x + fromNode.width / 2, y: fromNode.y + fromNode.height / 2 },
+      { nodeId: toNodeId, x: toNode.x + toNode.width / 2, y: toNode.y + toNode.height / 2 },
       { label: pe.label },
     );
 
@@ -327,5 +345,8 @@ export function importFromMermaid(mmdString: string): GraphDocument {
     doc.edges.push(edge);
   }
 
-  return doc;
+  // Normalize direction: TD/TB/BT → 'TB', LR/RL → 'LR'
+  const normalizedDirection: 'TB' | 'LR' = (direction === 'LR' || direction === 'RL') ? 'LR' : 'TB';
+
+  return { doc, direction: normalizedDirection };
 }
