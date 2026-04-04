@@ -1,9 +1,9 @@
 'use client';
 
-import { useRef, useEffect, useCallback } from 'react';
-import type { GraphDocument, Viewport, SelectionState } from '@anytime-markdown/graph-core';
+import type { GraphDocument, SelectionState,Viewport } from '@anytime-markdown/graph-core';
 import { engine } from '@anytime-markdown/graph-core';
 import type { Action } from '@anytime-markdown/graph-core/state';
+import { useCallback,useEffect, useRef } from 'react';
 
 const { render, pan, zoom } = engine;
 
@@ -49,16 +49,19 @@ export function GraphCanvas({ document, viewport, dispatch, canvasRef }: Readonl
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    const cvs = canvas;
+    const context = ctx;
+
     function draw() {
-      const w = canvas!.clientWidth;
-      const h = canvas!.clientHeight;
+      const w = cvs.clientWidth;
+      const h = cvs.clientHeight;
       const dpr = globalThis.devicePixelRatio ?? 1;
-      canvas!.width = w * dpr;
-      canvas!.height = h * dpr;
-      ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
+      cvs.width = w * dpr;
+      cvs.height = h * dpr;
+      context.setTransform(dpr, 0, 0, dpr, 0, 0);
 
       render({
-        ctx: ctx!,
+        ctx: context,
         width: w,
         height: h,
         nodes: document.nodes,

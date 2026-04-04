@@ -10,7 +10,6 @@ import type { FileHandle } from "../types/fileSystem";
 import { applyMarkdownToEditor } from "../utils/editorContentLoader";
 import { readFileAsText } from "../utils/fileReading";
 import { prependFrontmatter } from "../utils/frontmatterHelpers";
-
 import { useNotification } from "./useNotification";
 import { usePdfExport } from "./usePdfExport";
 

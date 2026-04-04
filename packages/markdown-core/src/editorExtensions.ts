@@ -4,13 +4,13 @@
  * メインエディタと比較エディタで共有する Extension リストを一元管理する。
  * エディタ固有の Extension（検索、削除行ショートカット等）は各エディタで追加する。
  */
+import type { Editor } from "@tiptap/core";
 import Highlight from "@tiptap/extension-highlight";
 import LinkExtension from "@tiptap/extension-link";
 import { TableKit } from "@tiptap/extension-table";
 import TaskItem from "@tiptap/extension-task-item";
 import TaskList from "@tiptap/extension-task-list";
 import Underline from "@tiptap/extension-underline";
-import type { Editor } from "@tiptap/core";
 import { Fragment } from "@tiptap/pm/model";
 import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
 import { Extension, type Extensions } from "@tiptap/react";

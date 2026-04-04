@@ -16,10 +16,10 @@ import { useTranslations } from "next-intl";
 import { useCallback, useMemo, useRef, useState } from "react";
 
 import { BlockInlineToolbar } from "./components/codeblock/BlockInlineToolbar";
-import { SpreadsheetGrid } from "./components/spreadsheet/SpreadsheetGrid";
 import { DeleteBlockDialog } from "./components/codeblock/DeleteBlockDialog";
 import { EditDialogHeader } from "./components/EditDialogHeader";
 import { SearchReplaceBar } from "./components/SearchReplaceBar";
+import { SpreadsheetGrid } from "./components/spreadsheet/SpreadsheetGrid";
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getActionHover, getActionSelected, getBgPaper, getDivider, getErrorMain, getTextSecondary } from "./constants/colors";
 import { SMALL_CAPTION_FONT_SIZE } from "./constants/dimensions";
 import { Z_FULLSCREEN } from "./constants/zIndex";

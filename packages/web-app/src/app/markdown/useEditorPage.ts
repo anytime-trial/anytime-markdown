@@ -4,8 +4,8 @@ import { STORAGE_KEY_CONTENT } from '@anytime-markdown/markdown-core/src/constan
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { FallbackFileSystemProvider } from '../../lib/FallbackFileSystemProvider';
-import { WebFileSystemProvider } from '../../lib/WebFileSystemProvider';
 import { fetchFileContent } from '../../lib/githubApi';
+import { WebFileSystemProvider } from '../../lib/WebFileSystemProvider';
 
 export interface EditorPageState {
   explorerOpen: boolean;

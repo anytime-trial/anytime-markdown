@@ -1,10 +1,11 @@
-import type { EditorView } from "@tiptap/pm/view";
 import { TextSelection } from "@tiptap/pm/state";
+import type { EditorView } from "@tiptap/pm/view";
+
 import {
-  tableCellModePluginKey,
-  setNavigationMode,
-  setEditingMode,
   exitTableMode,
+  setEditingMode,
+  setNavigationMode,
+  tableCellModePluginKey,
 } from "./tableCellModePlugin";
 
 /**

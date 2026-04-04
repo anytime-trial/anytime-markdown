@@ -1,4 +1,4 @@
 export {
-  alignLeft, alignRight, alignTop, alignBottom,
-  alignCenterH, alignCenterV, distributeH, distributeV,
+alignBottom,
+  alignCenterH, alignCenterV,   alignLeft, alignRight, alignTop, distributeH, distributeV,
 } from '@anytime-markdown/graph-core/engine';

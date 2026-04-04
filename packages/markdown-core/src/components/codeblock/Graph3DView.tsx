@@ -173,9 +173,10 @@ export function Graph3DView({ graphExpr, plotly, isDark, width = 500, height = 4
       // 評価エラーは無視
     }
 
+    const container = containerRef.current;
     return () => {
-      if (containerRef.current) {
-        plotly.purge(containerRef.current);
+      if (container) {
+        plotly.purge(container);
       }
       plotInitializedRef.current = false;
     };
@@ -234,8 +235,9 @@ export function Graph3DView({ graphExpr, plotly, isDark, width = 500, height = 4
 
   /** アニメーションのクリーンアップ */
   useEffect(() => {
+    const currentAnimFrames = animFrameRef.current;
     return () => {
-      for (const id of Object.values(animFrameRef.current)) {
+      for (const id of Object.values(currentAnimFrames)) {
         cancelAnimationFrame(id);
       }
     };

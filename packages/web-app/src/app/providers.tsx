@@ -154,7 +154,7 @@ export function Providers({ children }: Readonly<{ children: React.ReactNode }>)
     if (families.length === 0) return;
     const id = 'google-fonts-preset';
     if (document.getElementById(id)) {
-      document.getElementById(id)!.remove();
+      document.getElementById(id)?.remove();
     }
     const params = families.map(f => `family=${f.replaceAll(' ', '+')}:wght@400;600;700`).join('&');
     const link = document.createElement('link');

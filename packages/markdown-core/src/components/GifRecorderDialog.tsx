@@ -12,7 +12,6 @@ import { useTheme } from "@mui/material/styles";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getDivider, getTextSecondary } from "../constants/colors";
-
 import {
   type CropRect,
   encodeGif,

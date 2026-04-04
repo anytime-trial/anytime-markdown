@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Box, IconButton, Typography } from '@mui/material';
-import { Close as CloseIcon } from '@mui/icons-material';
-import { useTranslations } from 'next-intl';
 import { getCanvasColors } from '@anytime-markdown/graph-core';
+import { Close as CloseIcon } from '@mui/icons-material';
+import { Box, IconButton, Typography } from '@mui/material';
+import { useTranslations } from 'next-intl';
+import React, { useEffect,useState } from 'react';
+
 import { useThemeMode } from '../../providers';
 
 interface DocEditorModalProps {

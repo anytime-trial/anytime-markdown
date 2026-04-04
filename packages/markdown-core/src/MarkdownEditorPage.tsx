@@ -32,12 +32,12 @@ import { ScreenCaptureDialog } from "./components/ScreenCaptureDialog";
 import { getDefaultContent } from "./constants/defaultContent";
 import { STATUSBAR_HEIGHT } from "./constants/dimensions";
 import type { ThemePresetName } from "./constants/themePresets";
+import { EditorFeaturesContext } from "./contexts/EditorFeaturesContext";
+import { EditorModeContext, type EditorModeContextValue } from "./contexts/EditorModeContext";
 import type { SlashCommandState } from "./extensions/slashCommandExtension";
 import { useTextareaSearch } from "./hooks/useTextareaSearch";
 import { PrintStyles } from "./styles/printStyles";
 import { EditorSettingsContext,useEditorSettings } from "./useEditorSettings";
-import { EditorFeaturesContext } from "./contexts/EditorFeaturesContext";
-import { EditorModeContext, type EditorModeContextValue } from "./contexts/EditorModeContext";
 import { useMarkdownEditor } from "./useMarkdownEditor";
 
 const InlineMergeView = dynamic(

@@ -276,13 +276,17 @@ describe("GraphToolBar", () => {
     }
   });
 
-  it("calls onImportDrawio when import button clicked", () => {
+  it("calls onImportDrawio when import menu item clicked", () => {
     render(<GraphToolBar {...defaultProps} />);
     const buttons = screen.getAllByRole("button");
     const importBtn = buttons.find(b => b.querySelector('[data-testid="FileUploadIcon"]'));
     if (importBtn) {
       fireEvent.click(importBtn);
-      expect(defaultProps.onImportDrawio).toHaveBeenCalled();
+      const drawioItem = screen.queryByText("importDrawio");
+      if (drawioItem) {
+        fireEvent.click(drawioItem);
+        expect(defaultProps.onImportDrawio).toHaveBeenCalled();
+      }
     }
   });
 
@@ -435,6 +439,11 @@ describe("GraphToolBar", () => {
     jest.clearAllMocks();
     rerender(<GraphToolBar {...defaultProps} layoutAlgorithm="fruchterman-reingold-vpsc" />);
     fireEvent.click(screen.getByText("FR+V"));
+    expect(defaultProps.onChangeAlgorithm).toHaveBeenCalledWith("hierarchical");
+
+    jest.clearAllMocks();
+    rerender(<GraphToolBar {...defaultProps} layoutAlgorithm="hierarchical" />);
+    fireEvent.click(screen.getByText("HI"));
     expect(defaultProps.onChangeAlgorithm).toHaveBeenCalledWith("eades");
   });
 

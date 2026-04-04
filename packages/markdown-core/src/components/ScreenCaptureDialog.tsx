@@ -8,7 +8,6 @@ import { useTheme } from "@mui/material/styles";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getDivider } from "../constants/colors";
-
 import { EditDialogHeader } from "./EditDialogHeader";
 import { EditDialogWrapper } from "./EditDialogWrapper";
 import { ImageCropTool } from "./ImageCropTool";

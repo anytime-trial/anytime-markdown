@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { GraphDocument } from '../types';
+
 import { saveDocument, setLastDocumentId } from '../store/graphStorage';
+import { GraphDocument } from '../types';
 
 export type SaveStatus = 'saved' | 'saving' | 'error';
 

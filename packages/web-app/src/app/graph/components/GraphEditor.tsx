@@ -1,34 +1,35 @@
 'use client';
 
-import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { Box, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button, Typography } from '@mui/material';
+import { exportToDrawio, exportToSvg, importFromDrawio, importFromMermaid, layoutWithSubgroups } from '@anytime-markdown/graph-core';
+import { clearImageCache, physics,ViewportAnimation } from '@anytime-markdown/graph-core/engine';
+import { Box, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Typography } from '@mui/material';
 import { useTranslations } from 'next-intl';
-import { ToolType, Viewport, createDocument, createNode, type GraphDocument } from '../types';
-import { screenToWorld, pan as panViewport, zoom as zoomViewport, fitToContent } from '../engine/viewport';
-import { useGraphState } from '../hooks/useGraphState';
-import { useCanvasInteraction } from '../hooks/useCanvasInteraction';
-import { useAutoSave } from '../hooks/useAutoSave';
-import { useTouchInteraction } from '../hooks/useTouchInteraction';
-import { GraphToolBar } from './ToolBar';
-import { GraphCanvas } from './GraphCanvas';
-import { PropertyPanel } from './PropertyPanel';
-import { TextEditOverlay } from './TextEditOverlay';
-import { DocEditorModal } from './DocEditorModal';
-import { ShapeHoverBar } from './ShapeHoverBar';
-import { SettingsPanel } from './SettingsPanel';
-import { ViewportAnimation, clearImageCache, physics } from '@anytime-markdown/graph-core/engine';
-import { alignLeft, alignRight, alignTop, alignBottom, alignCenterH, alignCenterV, distributeH, distributeV } from '../engine/alignment';
-import { loadDocument, getLastDocumentId } from '../store/graphStorage';
-import { exportToSvg, exportToDrawio, importFromDrawio, importFromMermaid, layoutWithSubgroups } from '@anytime-markdown/graph-core';
+import React, { useCallback, useEffect, useMemo,useRef, useState } from 'react';
+
 import { useThemeMode } from '../../providers';
+import { alignBottom, alignCenterH, alignCenterV, alignLeft, alignRight, alignTop, distributeH, distributeV } from '../engine/alignment';
+import { fitToContent,pan as panViewport, screenToWorld, zoom as zoomViewport } from '../engine/viewport';
+import { useAutoSave } from '../hooks/useAutoSave';
+import { useCanvasInteraction } from '../hooks/useCanvasInteraction';
 import { useDataMapping } from '../hooks/useDataMapping';
-import { DetailPanel } from './DetailPanel';
-import type { DataMappingConfig } from '../types/dataMapping';
-import { usePathHighlight } from '../hooks/usePathHighlight';
+import { useGraphState } from '../hooks/useGraphState';
 import { useNodeFilter } from '../hooks/useNodeFilter';
-import { FilterPanel } from './FilterPanel';
+import { usePathHighlight } from '../hooks/usePathHighlight';
+import { useTouchInteraction } from '../hooks/useTouchInteraction';
+import { getLastDocumentId,loadDocument } from '../store/graphStorage';
+import { createDocument, createNode, type GraphDocument,ToolType, Viewport } from '../types';
+import type { DataMappingConfig } from '../types/dataMapping';
 import type { NodeFilterConfig } from '../types/nodeFilter';
 import { EMPTY_FILTER } from '../types/nodeFilter';
+import { DetailPanel } from './DetailPanel';
+import { DocEditorModal } from './DocEditorModal';
+import { FilterPanel } from './FilterPanel';
+import { GraphCanvas } from './GraphCanvas';
+import { PropertyPanel } from './PropertyPanel';
+import { SettingsPanel } from './SettingsPanel';
+import { ShapeHoverBar } from './ShapeHoverBar';
+import { TextEditOverlay } from './TextEditOverlay';
+import { GraphToolBar } from './ToolBar';
 
 export function GraphEditor() {
   const { themeMode } = useThemeMode();
@@ -43,7 +44,7 @@ export function GraphEditor() {
   const [layoutRunning, setLayoutRunning] = useState(false);
   const [collisionEnabled, setCollisionEnabled] = useState(false);
   const [layoutAlgorithm, setLayoutAlgorithm] = useState<'eades' | 'fruchterman-reingold' | 'eades-vpsc' | 'fruchterman-reingold-vpsc' | 'hierarchical'>('eades');
-  const [dataMappingConfig, setDataMappingConfig] = useState<DataMappingConfig | undefined>(undefined);
+  const [dataMappingConfig, _setDataMappingConfig] = useState<DataMappingConfig | undefined>(undefined);
   const [detailNodeId, setDetailNodeId] = useState<string | null>(null);
   const [filterConfig, setFilterConfig] = useState<NodeFilterConfig>(EMPTY_FILTER);
   const [showFilter, setShowFilter] = useState(false);
@@ -433,7 +434,7 @@ export function GraphEditor() {
       reader.readAsText(file);
     };
     input.click();
-  }, [dispatch]);
+  }, [dispatch, t, setConfirmDialog]);
 
   const handleImportGraph = useCallback(() => {
     const input = document.createElement('input');
@@ -463,7 +464,7 @@ export function GraphEditor() {
       reader.readAsText(file);
     };
     input.click();
-  }, [dispatch]);
+  }, [dispatch, t, setConfirmDialog]);
 
   const handleImportMermaid = useCallback(() => {
     const input = document.createElement('input');
@@ -496,7 +497,7 @@ export function GraphEditor() {
       reader.readAsText(file);
     };
     input.click();
-  }, [dispatch]);
+  }, [dispatch, t, setConfirmDialog]);
 
   const handleAlign = useCallback((type: string) => {
     const selectedNodes = state.document.nodes.filter(n => state.selection.nodeIds.includes(n.id));

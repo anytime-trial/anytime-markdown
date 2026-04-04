@@ -11,9 +11,9 @@ import { createPortal } from "react-dom";
 
 import type { MarkdownTemplate } from "../constants/templates";
 import { NOTIFICATION_DURATION } from "../constants/timing";
+import { useEditorMode } from "../contexts/EditorModeContext";
 import type { SlashCommandState } from "../extensions/slashCommandExtension";
 import type { NotificationKey } from "../hooks/useNotification";
-import { useEditorMode } from "../contexts/EditorModeContext";
 import type { EncodingLabel } from "../types";
 import { EditorBubbleMenu } from "./EditorBubbleMenu";
 import { EditorMenuPopovers } from "./EditorMenuPopovers";

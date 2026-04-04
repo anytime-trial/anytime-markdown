@@ -1,4 +1,4 @@
-import { parse, type MathNode } from "mathjs";
+import { type MathNode,parse } from "mathjs";
 
 /** グラフ種別 */
 export type GraphType =

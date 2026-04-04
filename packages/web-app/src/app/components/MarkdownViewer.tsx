@@ -1,11 +1,11 @@
 'use client';
 
 import { Alert, Box, Button, CircularProgress } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
-import useMediaQuery from '@mui/material/useMediaQuery';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useTheme } from '@mui/material/styles';
 
 import { useLocaleSwitch } from '../LocaleProvider';
 import { usePreset, useThemeMode } from '../providers';

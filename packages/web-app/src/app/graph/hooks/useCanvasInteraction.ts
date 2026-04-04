@@ -1,15 +1,17 @@
 'use client';
 
-import { useCallback, useRef, useEffect } from 'react';
-import { ToolType, GraphNode, GraphEdge, Viewport, SelectionState, createNode, createEdge } from '../types';
-import { screenToWorld, pan as panViewport, zoom as zoomViewport } from '../engine/viewport';
-import { hitTest, hitTestEdge } from '../engine/hitTest';
-import type { ResizeHandle } from '../engine/hitTest';
-import { snapToGrid } from '../engine/gridSnap';
-import { computeSmartGuides, GuideLine } from '../engine/smartGuide';
-import { computeOrthogonalPath, resolveConnectorEndpoints, nearestBorderPoint, bestSides, getConnectionPoints } from '../engine/connector';
 import { computeVisibilityPath } from '@anytime-markdown/graph-core/engine';
 import { physics } from '@anytime-markdown/graph-core/engine';
+import { useCallback, useEffect,useRef } from 'react';
+
+import { bestSides, computeOrthogonalPath, getConnectionPoints,nearestBorderPoint, resolveConnectorEndpoints } from '../engine/connector';
+import { snapToGrid } from '../engine/gridSnap';
+import type { ResizeHandle } from '../engine/hitTest';
+import { hitTest, hitTestEdge } from '../engine/hitTest';
+import { computeSmartGuides, GuideLine } from '../engine/smartGuide';
+import { pan as panViewport, screenToWorld, zoom as zoomViewport } from '../engine/viewport';
+import { createEdge,createNode, GraphEdge, GraphNode, SelectionState, ToolType, Viewport } from '../types';
+import type { Action } from './useGraphState';
 
 /** edges に waypoints を付与して hitTest で使えるようにする */
 function resolveEdgesWithWaypoints(edges: GraphEdge[], nodes: GraphNode[]): (GraphEdge & { waypoints?: { x: number; y: number }[] })[] {
@@ -73,7 +75,7 @@ interface UseCanvasInteractionProps {
   edges: GraphEdge[];
   viewport: Viewport;
   selection: SelectionState;
-  dispatch: React.Dispatch<any>;
+  dispatch: React.Dispatch<Action>;
   onTextEdit: (nodeId: string) => void;
   onToolChange: (tool: ToolType) => void;
   showGrid: boolean;
@@ -177,8 +179,8 @@ export function useCanvasInteraction({
       }
 
       if (hit.type === 'resize-handle' && hit.id && hit.handle) {
-        const node = nodes.find(n => n.id === hit.id)!;
-        if (node.locked) return;
+        const node = nodes.find(n => n.id === hit.id);
+        if (!node || node.locked) return;
         dragRef.current = {
           type: 'resize', startWorldX: world.x, startWorldY: world.y,
           startScreenX: sx, startScreenY: sy, handle: hit.handle, nodeId: hit.id,
@@ -418,15 +420,16 @@ export function useCanvasInteraction({
     }
 
     if (drag.type === 'move' && drag.initialNodes) {
+      const initNodes = drag.initialNodes;
       const world = screenToWorld(viewport, sx, sy);
       const dx = world.x - drag.startWorldX;
       const dy = world.y - drag.startWorldY;
-      const ids = [...drag.initialNodes.keys()];
+      const ids = [...initNodes.keys()];
 
       if (!showGrid && ids.length > 0) {
         // Smart guides: snap to other nodes when grid is off
         // Compute bounding box of all dragged nodes (works for single and multi-node)
-        const draggedInits = ids.map(id => ({ id, init: drag.initialNodes!.get(id)! }));
+        const draggedInits = ids.flatMap(id => { const init = initNodes.get(id); return init ? [{ id, init }] : []; });
         const bboxX = Math.min(...draggedInits.map(d => d.init.x + dx));
         const bboxY = Math.min(...draggedInits.map(d => d.init.y + dy));
         const bboxRight = Math.max(...draggedInits.map(d => d.init.x + dx + d.init.width));
@@ -435,23 +438,23 @@ export function useCanvasInteraction({
         const bboxHeight = bboxBottom - bboxY;
 
         const otherRects = nodes
-          .filter(n => !drag.initialNodes!.has(n.id))
+          .filter(n => !initNodes.has(n.id))
           .map(n => ({ id: n.id, x: n.x, y: n.y, width: n.width, height: n.height }));
         const result = computeSmartGuides(bboxX, bboxY, bboxWidth, bboxHeight, otherRects, 5);
 
         // Apply snap offset uniformly to all dragged nodes
         const snapDx = result.snappedX - bboxX;
         const snapDy = result.snappedY - bboxY;
-        const snapUpdates = ids.map(id => {
-          const init = drag.initialNodes!.get(id)!;
-          return { id, x: init.x + dx + snapDx, y: init.y + dy + snapDy };
+        const snapUpdates = ids.flatMap(id => {
+          const init = initNodes.get(id);
+          return init ? [{ id, x: init.x + dx + snapDx, y: init.y + dy + snapDy }] : [];
         });
         dispatch({ type: 'SET_NODE_POSITIONS', updates: snapUpdates });
         if (collisionEnabled && physicsRef?.current) {
           for (const u of snapUpdates) {
             physicsRef.current.updateBody(u.id, { x: u.x, y: u.y });
           }
-          const draggedIds = [...drag.initialNodes!.keys()];
+          const draggedIds = [...initNodes.keys()];
           if (draggedIds.length > 0) {
             const pushed = physicsRef.current.resolveCollisions(draggedIds[0]);
             if (pushed.length > 0) {
@@ -461,20 +464,21 @@ export function useCanvasInteraction({
         }
         previewRef.current = { type: 'none', fromX: 0, fromY: 0, toX: 0, toY: 0, guides: result.guides };
       } else {
-        const moveUpdates = ids.map(id => {
-          const init = drag.initialNodes!.get(id)!;
-          return {
+        const moveUpdates = ids.flatMap(id => {
+          const init = initNodes.get(id);
+          if (!init) return [];
+          return [{
             id,
             x: showGrid ? snapToGrid(init.x + dx) : init.x + dx,
             y: showGrid ? snapToGrid(init.y + dy) : init.y + dy,
-          };
+          }];
         });
         dispatch({ type: 'SET_NODE_POSITIONS', updates: moveUpdates });
         if (collisionEnabled && physicsRef?.current) {
           for (const u of moveUpdates) {
             physicsRef.current.updateBody(u.id, { x: u.x, y: u.y });
           }
-          const draggedIds = [...drag.initialNodes!.keys()];
+          const draggedIds = [...initNodes.keys()];
           if (draggedIds.length > 0) {
             const pushed = physicsRef.current.resolveCollisions(draggedIds[0]);
             if (pushed.length > 0) {
@@ -489,7 +493,8 @@ export function useCanvasInteraction({
 
     if (drag.type === 'resize' && drag.nodeId && drag.handle && drag.initialNodes) {
       const world = screenToWorld(viewport, sx, sy);
-      const init = drag.initialNodes.get(drag.nodeId)!;
+      const init = drag.initialNodes.get(drag.nodeId);
+      if (!init) return;
       const MIN = 20;
       const resized = computeResize(init, drag.handle, world.x, world.y, drag.startWorldX, drag.startWorldY);
       const x = showGrid ? snapToGrid(resized.x) : resized.x;
@@ -687,13 +692,15 @@ export function useCanvasInteraction({
       const history = panHistoryRef.current;
       if (history.length >= 2) {
         const first = history[0];
-        const last = history.at(-1)!;
-        const dt = last.t - first.t;
-        if (dt > 0 && dt < 100) {
-          velocityRef.current = {
-            vx: (last.x - first.x) / dt * 16,
-            vy: (last.y - first.y) / dt * 16,
-          };
+        const last = history.at(-1);
+        if (first && last) {
+          const dt = last.t - first.t;
+          if (dt > 0 && dt < 100) {
+            velocityRef.current = {
+              vx: (last.x - first.x) / dt * 16,
+              vy: (last.y - first.y) / dt * 16,
+            };
+          }
         }
       }
       panHistoryRef.current = [];
@@ -701,7 +708,7 @@ export function useCanvasInteraction({
 
     dragRef.current = { type: 'none', startWorldX: 0, startWorldY: 0, startScreenX: 0, startScreenY: 0 };
     previewRef.current = { ...EMPTY_PREVIEW };
-  }, [canvasRef, viewport, tool, nodes, edges, dispatch, showGrid]);
+  }, [canvasRef, viewport, tool, nodes, edges, dispatch, showGrid, isDark, onTextEdit, onToolChange]);
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
@@ -870,7 +877,7 @@ export function useCanvasInteraction({
       if (e.key === 'c') { e.preventDefault(); copySelected(); return; }
       if (e.key === 'v') { e.preventDefault(); pasteFromClipboard(); return; }
     }
-  }, [canvasRef, selection, nodes, dispatch, copySelected, pasteFromClipboard]);
+  }, [canvasRef, selection, nodes, dispatch, copySelected, pasteFromClipboard, onLiveMessage]);
 
   const handleKeyUp = useCallback((e: KeyboardEvent) => {
     if (e.code === 'Space') {

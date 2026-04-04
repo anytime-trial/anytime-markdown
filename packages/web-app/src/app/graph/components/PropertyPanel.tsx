@@ -1,25 +1,26 @@
 'use client';
 
-import React from 'react';
-import {
-  Box, Typography, TextField, Slider, Divider, IconButton, ToggleButton, ToggleButtonGroup,
-  Switch, FormControlLabel,
-} from '@mui/material';
-import {
-  Close as CloseIcon,
-  Lock as LockIcon,
-  LockOpen as LockOpenIcon,
-  ArrowUpward as UpIcon,
-  ArrowDownward as DownIcon,
-  VerticalAlignTop as TopIcon,
-  VerticalAlignBottom as BottomIcon,
-} from '@mui/icons-material';
-import { useTranslations } from 'next-intl';
-import { GraphNode, GraphEdge, EndpointShape } from '../types';
 import {
   getCanvasColors,
 } from '@anytime-markdown/graph-core';
+import {
+  ArrowDownward as DownIcon,
+  ArrowUpward as UpIcon,
+  Close as CloseIcon,
+  Lock as LockIcon,
+  LockOpen as LockOpenIcon,
+  VerticalAlignBottom as BottomIcon,
+  VerticalAlignTop as TopIcon,
+} from '@mui/icons-material';
+import {
+  Box, Divider, FormControlLabel,
+IconButton, Slider,   Switch, TextField, ToggleButton, ToggleButtonGroup,
+Typography, } from '@mui/material';
+import { useTranslations } from 'next-intl';
+import React from 'react';
+
 import { useThemeMode } from '../../providers';
+import { EndpointShape,GraphEdge, GraphNode } from '../types';
 
 const COLORS = [
   '#ffffff', '#f44336', '#e91e63', '#9c27b0', '#673ab7',

@@ -1,13 +1,15 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
-import { Viewport } from '../types';
+import { useCallback,useEffect, useRef } from 'react';
+
 import { pan as panViewport, zoom as zoomViewport } from '../engine/viewport';
+import { Viewport } from '../types';
+import type { Action } from './useGraphState';
 
 interface UseTouchInteractionProps {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   viewport: Viewport;
-  dispatch: React.Dispatch<any>;
+  dispatch: React.Dispatch<Action>;
   velocityRef: React.RefObject<{ vx: number; vy: number }>;
 }
 
@@ -96,11 +98,13 @@ export function useTouchInteraction({
       const history = panHistoryRef.current;
       if (history.length >= 2) {
         const first = history[0];
-        const last = history.at(-1)!;
-        const dt = last.t - first.t;
-        if (dt > 0 && dt < 100) {
-          velocityRef.current.vx = (last.x - first.x) / dt * 16;
-          velocityRef.current.vy = (last.y - first.y) / dt * 16;
+        const last = history.at(-1);
+        if (first && last) {
+          const dt = last.t - first.t;
+          if (dt > 0 && dt < 100) {
+            velocityRef.current.vx = (last.x - first.x) / dt * 16;
+            velocityRef.current.vy = (last.y - first.y) / dt * 16;
+          }
         }
       }
     }

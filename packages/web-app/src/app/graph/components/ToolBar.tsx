@@ -1,59 +1,60 @@
 'use client';
 
-import React, { useState, useRef, useCallback } from 'react';
+import { getCanvasColors } from '@anytime-markdown/graph-core';
 import {
-  AppBar, Toolbar, ToggleButton, ToggleButtonGroup,
-  IconButton, Tooltip, Divider, Box, Menu, MenuItem,
-  ListItemIcon, ListItemText, Popover, Typography,
-  CircularProgress,
-} from '@mui/material';
-import {
-  ArrowDropDown as ArrowDropDownIcon,
-  NearMe as SelectIcon,
-  CropSquare as RectIcon,
-  // StickyNote2Outlined replaced by custom StickyNoteShapeIcon
-  TextFields as TextIcon,
-  Remove as LineIcon,
-  PanTool as PanIcon,
-  Undo as UndoIcon,
-  Redo as RedoIcon,
-  GridOn as GridIcon,
-  ZoomIn as ZoomInIcon,
-  ZoomOut as ZoomOutIcon,
-  FitScreen as FitIcon,
-  LayersClear as ClearAllIcon,
-  FileDownload as ExportIcon,
-  FileUpload as ImportIcon,
-  AlignHorizontalLeft as AlignHorizontalLeftIcon,
-  AlignHorizontalRight as AlignHorizontalRightIcon,
-  AlignVerticalTop as AlignVerticalTopIcon,
-  AlignVerticalBottom as AlignVerticalBottomIcon,
-  AlignHorizontalCenter as AlignHorizontalCenterIcon,
-  AlignVerticalCenter as AlignVerticalCenterIcon,
-  ViewColumn as ViewColumnIcon,
-  TableRows as TableRowsIcon,
-  Description as DocIcon,
-  Dashboard as FrameIcon,
-  CloudDone as CloudDoneIcon,
-  CloudSync as CloudSyncIcon,
-  CloudOff as CloudOffIcon,
-  CircleOutlined as EllipseIcon,
   // DiamondOutlined replaced by custom SVG diamond icon below
   // ParallelogramIcon, CylinderIcon replaced by custom SVG icons below
   AccountTree as AccountTreeIcon,
-  Layers as LayersIcon,
-  UnfoldMore as SpreadIcon,
+  AlignHorizontalCenter as AlignHorizontalCenterIcon,
+  AlignHorizontalLeft as AlignHorizontalLeftIcon,
+  AlignHorizontalRight as AlignHorizontalRightIcon,
+  AlignVerticalBottom as AlignVerticalBottomIcon,
+  AlignVerticalCenter as AlignVerticalCenterIcon,
+  AlignVerticalTop as AlignVerticalTopIcon,
+  ArrowDropDown as ArrowDropDownIcon,
+  CircleOutlined as EllipseIcon,
+  CloudDone as CloudDoneIcon,
+  CloudOff as CloudOffIcon,
+  CloudSync as CloudSyncIcon,
+  CropSquare as RectIcon,
+  Dashboard as FrameIcon,
+  Description as DocIcon,
+  FileDownload as ExportIcon,
+  FileUpload as ImportIcon,
   FilterList as FilterListIcon,
+  FitScreen as FitIcon,
+  GridOn as GridIcon,
+  Layers as LayersIcon,
+  LayersClear as ClearAllIcon,
+  NearMe as SelectIcon,
+  PanTool as PanIcon,
+  Redo as RedoIcon,
+  Remove as LineIcon,
+  TableRows as TableRowsIcon,
+  // StickyNote2Outlined replaced by custom StickyNoteShapeIcon
+  TextFields as TextIcon,
+  Undo as UndoIcon,
+  UnfoldMore as SpreadIcon,
+  ViewColumn as ViewColumnIcon,
+  ZoomIn as ZoomInIcon,
+  ZoomOut as ZoomOutIcon,
 } from '@mui/icons-material';
-import { useTranslations } from 'next-intl';
-import { ToolType } from '../types';
-import { SaveStatus } from '../hooks/useAutoSave';
-import { getCanvasColors } from '@anytime-markdown/graph-core';
-import { useThemeMode } from '../../providers';
 import {
+  AppBar, Box,   CircularProgress,
+Divider,   IconButton,   ListItemIcon, ListItemText, Menu, MenuItem,
+Popover, ToggleButton, ToggleButtonGroup,
+Toolbar, Tooltip, Typography,
+} from '@mui/material';
+import { useTranslations } from 'next-intl';
+import React, { useCallback,useRef, useState } from 'react';
+
+import { useThemeMode } from '../../providers';
+import { SaveStatus } from '../hooks/useAutoSave';
+import { ToolType } from '../types';
+import {
+  CylinderShapeIcon as CylinderIcon,
   DiamondShapeIcon as DiamondIcon,
   ParallelogramShapeIcon as ParallelogramIcon,
-  CylinderShapeIcon as CylinderIcon,
   StickyNoteShapeIcon as StickyIcon,
 } from './ShapeIcons';
 
@@ -94,6 +95,8 @@ interface ToolBarProps {
   filterActive?: boolean;
 }
 
+const SHAPE_TOOLS = ['rect', 'ellipse', 'diamond', 'parallelogram', 'cylinder'] as const;
+
 export function GraphToolBar({
   tool, onToolChange, onUndo, onRedo, canUndo, canRedo,
   showGrid, onToggleGrid, onZoomIn, onZoomOut, onFitContent,
@@ -116,7 +119,6 @@ export function GraphToolBar({
   const saveTooltip = saveStatus === 'saved' ? t('saved') : saveStatusLabel;
 
   // Shape group: long press to show dropdown, click to activate last shape
-  const SHAPE_TOOLS = ['rect', 'ellipse', 'diamond', 'parallelogram', 'cylinder'] as const;
   type ShapeToolType = typeof SHAPE_TOOLS[number];
   const [lastShape, setLastShape] = useState<ShapeToolType>('rect');
   const [shapeAnchor, setShapeAnchor] = useState<null | HTMLElement>(null);
@@ -124,7 +126,7 @@ export function GraphToolBar({
   const isLongPress = useRef(false);
   const LONG_PRESS_DURATION = 400;
 
-  const isShapeTool = (t: ToolType): t is ShapeToolType => SHAPE_TOOLS.includes(t as ShapeToolType);
+  const isShapeTool = useCallback((t: ToolType): t is ShapeToolType => SHAPE_TOOLS.includes(t as ShapeToolType), []);
   const isShapeSelected = isShapeTool(tool);
 
   // Update lastShape when a shape tool is selected (including via keyboard shortcut)
@@ -132,7 +134,7 @@ export function GraphToolBar({
     if (isShapeTool(tool)) {
       setLastShape(tool as ShapeToolType);
     }
-  }, [tool]);
+  }, [tool, isShapeTool]);
 
   const shapeIconMap: Record<ShapeToolType, React.ReactElement> = {
     rect: <RectIcon fontSize="small" />,

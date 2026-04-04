@@ -165,7 +165,7 @@ export function useLayoutEditor() {
 
     await uploadFiles(folder, fileArray);
     if (fileInputRef.current) fileInputRef.current.value = '';
-  }, [t, fetchFiles, uploadFiles]);
+  }, [t, uploadFiles]);
 
   /** 上書き確認後: 既存ファイルを削除してからアップロード */
   const handleConfirmOverwrite = useCallback(async () => {

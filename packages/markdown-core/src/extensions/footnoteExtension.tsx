@@ -12,13 +12,13 @@
  * - クリックで定義内のURLを新しいタブで開く
  */
 import { Box, Tooltip, useTheme } from "@mui/material";
-import { useCallback } from "react";
-
-import { getPrimaryMain } from "../constants/colors";
 import { InputRule,Node } from "@tiptap/core";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import type { NodeViewProps } from "@tiptap/react";
 import { NodeViewWrapper,ReactNodeViewRenderer } from "@tiptap/react";
+import { useCallback } from "react";
+
+import { getPrimaryMain } from "../constants/colors";
 
 /** ProseMirror ドキュメントから脚注定義テキスト（[^id]: 以降）を検索 */
 export function findFootnoteDefinition(

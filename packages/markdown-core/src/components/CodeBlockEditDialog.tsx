@@ -5,11 +5,11 @@ import { common, createLowlight } from "lowlight";
 import React, { useCallback, useMemo, useState } from "react";
 
 import { CODE_HELLO_SAMPLES } from "../constants/codeHelloSamples";
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, HLJS_DARK, HLJS_LIGHT, getActionHover, getDivider, getTextPrimary } from "../constants/colors";
-import { getHljsStyles } from "../styles/codeStyles";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getActionHover, getDivider, getTextPrimary,HLJS_DARK, HLJS_LIGHT } from "../constants/colors";
 import { CHIP_FONT_SIZE, FS_CHIP_HEIGHT, FS_PANEL_HEADER_FONT_SIZE, FS_TOOLBAR_HEIGHT } from "../constants/dimensions";
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
 import { useZoomPan } from "../hooks/useZoomPan";
+import { getHljsStyles } from "../styles/codeStyles";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import { DraggableSplitLayout } from "./DraggableSplitLayout";
 import { EditDialogHeader } from "./EditDialogHeader";

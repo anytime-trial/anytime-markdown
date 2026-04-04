@@ -147,6 +147,6 @@ describe("saveBlob", () => {
 
     const types = showSaveFilePicker.mock.calls[0][0].types;
     expect(types[0].description).toBe("SVG Image");
-    expect(types.length).toBe(3);
+    expect(types.length).toBe(5);
   });
 });

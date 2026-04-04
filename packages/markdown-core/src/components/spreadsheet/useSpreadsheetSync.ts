@@ -1,6 +1,7 @@
-import { useCallback } from "react";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import type { Editor } from "@tiptap/react";
+import { useCallback } from "react";
+
 import type { CellAlign, DataRange } from "./spreadsheetTypes";
 
 /**

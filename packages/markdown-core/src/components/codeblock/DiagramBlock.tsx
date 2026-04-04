@@ -251,7 +251,8 @@ export function DiagramBlock(props: DiagramBlockProps) {
     }
   }, [hasDiagramOutput, fsZP, setEditOpen]);
 
-  const handleCloseDialog = useCallback(() => { fsSearch.reset(); props.tryCloseEdit(); }, [fsSearch, props.tryCloseEdit]);
+  const { tryCloseEdit } = props;
+  const handleCloseDialog = useCallback(() => { fsSearch.reset(); tryCloseEdit(); }, [fsSearch, tryCloseEdit]);
 
   const sharedContainerProps = {
     containerRef, code, diagramContainerSx, selectNode, handleDoubleClickFullscreen,

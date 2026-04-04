@@ -24,8 +24,8 @@ import { useEditorState } from "@tiptap/react";
 import React, { useCallback, useRef, useState } from "react";
 
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, DEFAULT_LIGHT_TEXT, getActionHover, getActionSelected, getBgPaper, getTextPrimary, getTextSecondary } from "../constants/colors";
-import { modKey } from "../constants/shortcuts";
 import { TOOLBAR_FONT_SIZE } from "../constants/dimensions";
+import { modKey } from "../constants/shortcuts";
 import { Z_TOOLBAR } from "../constants/zIndex";
 import AppIcon from "../icons/AppIcon";
 import type { TranslationFn } from "../types";

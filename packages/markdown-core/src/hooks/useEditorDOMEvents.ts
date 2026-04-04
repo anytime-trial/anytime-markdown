@@ -4,8 +4,8 @@ import type { Editor } from "@tiptap/react";
 import type { RefObject } from "react";
 
 import { getCopiedBlockNode, handleBlockClipboardEvent, performBlockCopy, setHandledByKeydown } from "../utils/blockClipboard";
-import { handleReviewCheckboxClick, handleAnchorLinkClick, handleBlockContextMenu } from "../utils/editorClickHandlers";
-import { insertImageFromFile, insertPastedImage, tryImportDroppedMdFile, requestExternalImageDownloads } from "../utils/editorImageHandlers";
+import { handleAnchorLinkClick, handleBlockContextMenu,handleReviewCheckboxClick } from "../utils/editorClickHandlers";
+import { insertImageFromFile, insertPastedImage, requestExternalImageDownloads,tryImportDroppedMdFile } from "../utils/editorImageHandlers";
 
 interface HeadingMenuArg {
   anchorEl: HTMLElement;

@@ -1,13 +1,14 @@
 'use client';
 
-import React, { useRef, useEffect, useCallback, useMemo } from 'react';
-import { GraphNode, GraphEdge, Viewport, SelectionState } from '../types';
-import { render, drawSelectionRect, drawEdgePreview, drawShapePreview, drawSnapHighlight, drawSmartGuides, interpolateViewport, computeVisibilityPath } from '@anytime-markdown/graph-core/engine';
-import type { ViewportAnimation } from '@anytime-markdown/graph-core/engine';
 import { getCanvasColors } from '@anytime-markdown/graph-core';
-import { resolveConnectorEndpoints, computeOrthogonalPath, computeBezierPath, bestSides, getConnectionPoints } from '../engine/connector';
+import type { ViewportAnimation } from '@anytime-markdown/graph-core/engine';
 import type { Side } from '@anytime-markdown/graph-core/engine';
+import { computeVisibilityPath,drawEdgePreview, drawSelectionRect, drawShapePreview, drawSmartGuides, drawSnapHighlight, interpolateViewport, render } from '@anytime-markdown/graph-core/engine';
+import React, { useCallback, useEffect, useMemo,useRef } from 'react';
+
+import { bestSides, computeBezierPath, computeOrthogonalPath, getConnectionPoints,resolveConnectorEndpoints } from '../engine/connector';
 import type { DragPreview } from '../hooks/useCanvasInteraction';
+import { GraphEdge, GraphNode, SelectionState,Viewport } from '../types';
 
 /** 制御点を接続辺に垂直な方向にオフセットする（カーブ方向の変更） */
 function deflectControlPoint(
@@ -174,12 +175,12 @@ export function GraphCanvas({
           // manualMidpoint backward compat
           if (e.manualMidpoint !== undefined) {
             const waypoints = computeOrthogonalPath(fromNode, toNode, 20, e.manualMidpoint);
-            return { ...e, from: { ...e.from, ...waypoints[0] }, to: { ...e.to, ...waypoints.at(-1)! }, waypoints };
+            return { ...e, from: { ...e.from, ...waypoints[0] }, to: { ...e.to, ...(waypoints.at(-1) ?? waypoints[0]) }, waypoints };
           }
 
           // Orthogonal routing
           const waypoints = computeVisibilityPath(fromPt, sides.fromSide, toPt, sides.toSide, []);
-          return { ...e, from: { ...e.from, ...waypoints[0] }, to: { ...e.to, ...waypoints.at(-1)! }, waypoints };
+          return { ...e, from: { ...e.from, ...waypoints[0] }, to: { ...e.to, ...(waypoints.at(-1) ?? waypoints[0]) }, waypoints };
         }
         const pts = resolveConnectorEndpoints(e, nodes);
         return { ...e, from: { ...e.from, ...pts.from }, to: { ...e.to, ...pts.to } };

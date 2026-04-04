@@ -1,7 +1,8 @@
 'use client';
 
-import { Box, Typography, Divider, IconButton } from '@mui/material';
 import { Close as CloseIcon } from '@mui/icons-material';
+import { Box, Divider, IconButton,Typography } from '@mui/material';
+
 import type { GraphNode } from '../types';
 
 interface DetailPanelProps {

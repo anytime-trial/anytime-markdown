@@ -13,7 +13,6 @@ import React, { useCallback, useRef, useState } from "react";
 
 import { getActionHover, getBgPaper, getDivider, getPrimaryMain, getTextSecondary } from "../constants/colors";
 import { BADGE_NUMBER_FONT_SIZE, PANEL_INPUT_FONT_SIZE, SMALL_CAPTION_FONT_SIZE } from "../constants/dimensions";
-
 import type { AnnotationTool,ImageAnnotation } from "../types/imageAnnotation";
 import { ANNOTATION_COLORS, generateAnnotationId } from "../types/imageAnnotation";
 

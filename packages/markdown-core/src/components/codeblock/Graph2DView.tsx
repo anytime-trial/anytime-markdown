@@ -95,11 +95,12 @@ export function Graph2DView({ graphExpr, jsxGraph, isDark, width = 500, height =
             const r = evalFn({ ...paramValuesRef.current, theta }) as number;
             return r * Math.sin(theta);
           };
-          board.create("curve", [xFn, yFn, 0, 2 * Math.PI], {
+          const polarAttrs: JXG.CurveAttributes = {
             curveType: "parameter",
             strokeColor,
             strokeWidth: 2,
-          } as JXG.CurveAttributes);
+          };
+          board.create("curve", [xFn, yFn, 0, 2 * Math.PI], polarAttrs);
           break;
         }
         case "parametric2d": {
@@ -113,11 +114,12 @@ export function Graph2DView({ graphExpr, jsxGraph, isDark, width = 500, height =
             const result = evalFn({ ...paramValuesRef.current, t });
             return typeof result === "object" && result !== null ? (result as Record<string, number>).y : 0;
           };
-          board.create("curve", [xParam, yParam, tMin, tMax], {
+          const paramAttrs: JXG.CurveAttributes = {
             curveType: "parameter",
             strokeColor,
             strokeWidth: 2,
-          } as JXG.CurveAttributes);
+          };
+          board.create("curve", [xParam, yParam, tMin, tMax], paramAttrs);
           break;
         }
         case "implicit2d": {
@@ -187,8 +189,9 @@ export function Graph2DView({ graphExpr, jsxGraph, isDark, width = 500, height =
 
   /** アニメーションのクリーンアップ */
   useEffect(() => {
+    const currentAnimFrames = animFrameRef.current;
     return () => {
-      for (const id of Object.values(animFrameRef.current)) {
+      for (const id of Object.values(currentAnimFrames)) {
         cancelAnimationFrame(id);
       }
     };

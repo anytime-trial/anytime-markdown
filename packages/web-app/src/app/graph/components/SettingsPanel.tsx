@@ -1,12 +1,13 @@
 'use client';
 
-import React from 'react';
-import { Box, IconButton, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
-import { Close as CloseIcon, DarkMode as DarkModeIcon, LightMode as LightModeIcon } from '@mui/icons-material';
-import { useTranslations } from 'next-intl';
 import { getCanvasColors } from '@anytime-markdown/graph-core';
-import { useThemeMode } from '../../providers';
+import { Close as CloseIcon, DarkMode as DarkModeIcon, LightMode as LightModeIcon } from '@mui/icons-material';
+import { Box, IconButton, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
+import { useTranslations } from 'next-intl';
+import React from 'react';
+
 import { useLocaleSwitch } from '../../LocaleProvider';
+import { useThemeMode } from '../../providers';
 
 interface SettingsPanelProps {
   open: boolean;

@@ -8,10 +8,10 @@ import NextLink from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 
-import { useLocaleSwitch } from '../../LocaleProvider';
 import LandingHeader from '../../components/LandingHeader';
 import MarkdownViewer from '../../components/MarkdownViewer';
 import SiteFooter from '../../components/SiteFooter';
+import { useLocaleSwitch } from '../../LocaleProvider';
 
 /**
  * docKey からロケール別の docKey マップを生成。

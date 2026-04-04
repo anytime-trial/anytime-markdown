@@ -36,7 +36,8 @@ function isValidMimeChar(c: number): boolean {
 function validateMimeType(text: string, start: number, end: number): boolean {
   if (end - start <= 0 || end - start > 30) return false;
   for (let i = start; i < end; i++) {
-    if (!isValidMimeChar(text.codePointAt(i)!)) return false;
+    const cp = text.codePointAt(i);
+    if (cp === undefined || !isValidMimeChar(cp)) return false;
   }
   return true;
 }

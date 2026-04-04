@@ -8,13 +8,13 @@ import { useEffect } from "react";
 
 import { DEBOUNCE_MEDIUM } from "../constants/timing";
 import { getBaseExtensions } from "../editorExtensions";
+import { ChangeGutterExtension } from "../extensions/changeGutterExtension";
 import { CustomHardBreak } from "../extensions/customHardBreak";
 import { DeleteLineExtension } from "../extensions/deleteLineExtension";
 import { ReviewModeExtension } from "../extensions/reviewModeExtension";
 import type { SlashCommandState } from "../extensions/slashCommandExtension";
 import { SlashCommandExtension } from "../extensions/slashCommandExtension";
 import { SearchReplaceExtension } from "../searchReplaceExtension";
-import { ChangeGutterExtension } from "../extensions/changeGutterExtension";
 import {
   extractHeadings,
   getMarkdownFromEditor,
@@ -24,7 +24,7 @@ import { setTrailingNewline } from "../utils/editorContentLoader";
 import { createEditorDOMHandlers } from "./useEditorDOMEvents";
 
 // Re-export for backwards compatibility
-export { generateTimestamp, saveClipboardImageViaVscode, requestExternalImageDownloads } from "../utils/editorImageHandlers";
+export { generateTimestamp, requestExternalImageDownloads,saveClipboardImageViaVscode } from "../utils/editorImageHandlers";
 
 interface HeadingMenuArg {
   anchorEl: HTMLElement;

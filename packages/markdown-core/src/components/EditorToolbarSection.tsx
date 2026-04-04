@@ -4,9 +4,9 @@ import type { Editor } from "@tiptap/react";
 import type React from "react";
 
 import { getBgPaper, getPrimaryMain } from "../constants/colors";
-import { useEditorMode } from "../contexts/EditorModeContext";
 import { SKIP_LINK_FONT_SIZE } from "../constants/dimensions";
 import { Z_SKIP_LINK } from "../constants/zIndex";
+import { useEditorMode } from "../contexts/EditorModeContext";
 import type { ToolbarVisibility } from "../types/toolbar";
 import { EditorToolbar } from "./EditorToolbar";
 import type { MergeUndoRedo } from "./InlineMergeView";

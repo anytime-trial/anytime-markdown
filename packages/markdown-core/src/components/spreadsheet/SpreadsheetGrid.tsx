@@ -1,9 +1,9 @@
-import FormatAlignCenterIcon from "@mui/icons-material/FormatAlignCenter";
-import FormatAlignLeftIcon from "@mui/icons-material/FormatAlignLeft";
-import FormatAlignRightIcon from "@mui/icons-material/FormatAlignRight";
 import CheckIcon from "@mui/icons-material/Check";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import FilterListOffIcon from "@mui/icons-material/FilterListOff";
+import FormatAlignCenterIcon from "@mui/icons-material/FormatAlignCenter";
+import FormatAlignLeftIcon from "@mui/icons-material/FormatAlignLeft";
+import FormatAlignRightIcon from "@mui/icons-material/FormatAlignRight";
 import SettingsIcon from "@mui/icons-material/Settings";
 import {
   Box, Button, Dialog, DialogActions, DialogContent, DialogTitle,
@@ -13,16 +13,17 @@ import {
 import type { Node as PMNode } from "@tiptap/pm/model";
 import type { Editor } from "@tiptap/react";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
 import { getDivider } from "../../constants/colors";
-import type { CellAlign, CellEditState, ColumnFilterState, ContextMenuState, DataRange } from "./spreadsheetTypes";
 import { SpreadsheetContextMenu } from "./SpreadsheetContextMenu";
-import { useSpreadsheetState } from "./useSpreadsheetState";
-import { useSpreadsheetSync, extractTableData } from "./useSpreadsheetSync";
+import type { CellAlign, CellEditState, ColumnFilterState, ContextMenuState, DataRange } from "./spreadsheetTypes";
 import {
   columnLabel,
   DEFAULT_GRID_COLS,
   DEFAULT_GRID_ROWS,
 } from "./spreadsheetUtils";
+import { useSpreadsheetState } from "./useSpreadsheetState";
+import { extractTableData,useSpreadsheetSync } from "./useSpreadsheetSync";
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                          */
@@ -84,7 +85,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const rafRef = useRef<number>(0);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   const initialTableData = useMemo(() => {
     let tableNode: PMNode | null = null;
     editor.state.doc.descendants((node) => {
@@ -94,6 +95,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     if (!tableNode) return { rows: 1, cols: 1, data: [] as string[][], alignments: [] as (import("./spreadsheetTypes").CellAlign)[][] };
     const { data, range, alignments } = extractTableData(tableNode);
     return { rows: range.rows, cols: range.cols, data, alignments };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally computed once on mount
   }, []);
 
   const {
@@ -172,7 +174,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
       }
     }
     return Math.min(maxWidth, AUTO_WIDTH_MAX);
-  }, [settings.widthMode, settings.fixedWidth, grid, dataRange.rows]);
+  }, [settings.widthMode, settings.fixedWidth, grid, dataRange.rows, GRID_ROWS]);
 
   const getColX = useCallback((col: number): number => {
     let x = ROW_NUM_WIDTH;
@@ -190,7 +192,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
       accX += w;
     }
     return GRID_COLS - 1;
-  }, [getColWidth]);
+  }, [getColWidth, GRID_COLS]);
 
   const [editing, setEditing] = useState<CellEditState | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -266,7 +268,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
       }
     }
     return hidden;
-  }, [filters, grid]);
+  }, [filters, grid, GRID_ROWS]);
 
   /** 表示される行インデックスの配列 */
   const visibleRows = useMemo<readonly number[]>(() => {
@@ -278,7 +280,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
       if (!hiddenRows.has(r)) rows.push(r);
     }
     return rows;
-  }, [hiddenRows]);
+  }, [hiddenRows, GRID_ROWS]);
 
   /** gridRowIndex → visibleRows内の表示位置インデックス */
   const gridRowToVisualIndex = useCallback((gridRow: number): number => {
@@ -312,7 +314,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     let w = ROW_NUM_WIDTH;
     for (let c = 0; c < GRID_COLS; c++) w += getColWidth(c);
     return w;
-  }, [getColWidth]);
+  }, [getColWidth, GRID_COLS]);
   const totalHeight = topOffset + visibleRows.length * rowHeight;
 
   /* ---------------------------------------------------------------- */
@@ -738,7 +740,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
 
     ctx.restore();
   }, [
-    alignments, bgColor, borderColor, dataRange, editing, getColWidth, getColX, grid, gridRowToVisualIndex,
+    alignments, bgColor, borderColor, dataRange, editing, getColWidth, getColX, grid, GRID_COLS, gridRowToVisualIndex,
     headerBg, headerTextColor, hiddenRows, previewRange, primaryColor, reorderDrag, rowHeight, selectedBg,
     selection, textColor, topOffset, totalHeight, totalWidth, visibleRows,
   ]);
@@ -776,7 +778,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     };
     editor.on("update", handler);
     return () => { editor.off("update", handler); };
-  }, [editor, initGrid, setDataRange, setAlignments]);
+  }, [editor, initGrid, setDataRange, setAlignments, GRID_COLS, GRID_ROWS]);
 
   // Scroll-driven redraw
   useEffect(() => {
@@ -817,7 +819,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     const vi = Math.floor((y - topOffset) / rowHeight);
     if (vi < 0 || vi >= visibleRows.length || col < 0 || col >= GRID_COLS) return null;
     return { row: visibleRows[vi], col };
-  }, [getCanvasCoords, getColAtX, rowHeight, topOffset, visibleRows]);
+  }, [getCanvasCoords, getColAtX, rowHeight, topOffset, visibleRows, GRID_COLS]);
 
   const getHeaderCol = useCallback((e: React.MouseEvent): number | null => {
     const coords = getCanvasCoords(e);
@@ -826,7 +828,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     if (y >= HEADER_HEIGHT || x < ROW_NUM_WIDTH) return null;
     const col = getColAtX(x);
     return col >= 0 && col < GRID_COLS ? col : null;
-  }, [getCanvasCoords, getColAtX]);
+  }, [getCanvasCoords, getColAtX, GRID_COLS]);
 
   const getRowNum = useCallback((e: React.MouseEvent): number | null => {
     const coords = getCanvasCoords(e);
@@ -1183,7 +1185,8 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     }
   }, [
     getCanvasCoords, getColAtX, getColX, isNearRightEdge, isNearBottomEdge, dataRange, rowHeight, topOffset,
-    handleDataRangeChange, setSelection, swapRows, swapCols, rebuildTable, grid, visibleRows, visibleDataRowCount,
+    handleDataRangeChange, setSelection, swapRows, swapCols, visibleRows, visibleDataRowCount,
+    GRID_COLS, GRID_ROWS,
   ]);
 
   const handleCanvasMouseMove = useCallback((e: React.MouseEvent) => {
@@ -1209,7 +1212,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     } else {
       canvas.style.cursor = "cell";
     }
-  }, [getCanvasCoords, getColX, isNearRightEdge, isNearBottomEdge, dataRange, rowHeight]);
+  }, [getCanvasCoords, getColX, isNearRightEdge, isNearBottomEdge, dataRange, rowHeight, topOffset]);
 
   /* ---------------------------------------------------------------- */
   /*  Canvas keyboard events                                           */
@@ -1254,7 +1257,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
       setSelection({ type: "cell", row, col });
       setEditing(null);
     },
-    [selection, setSelection],
+    [selection, setSelection, GRID_COLS, GRID_ROWS],
   );
 
   const handleCanvasKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -1369,7 +1372,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     }
   }, [
     editing, editor, grid, selection, handleKeyNavigation, startEditing,
-    startEditingWithChar, setCellValue, dataRange,
+    startEditingWithChar, setCellValue,
   ]);
 
   /* ---------------------------------------------------------------- */
@@ -1471,7 +1474,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
       }
 
     },
-    [selection, setCellAlign, setAlignments, alignments],
+    [selection, setCellAlign, setAlignments, alignments, GRID_COLS, GRID_ROWS],
   );
 
   /** 未適用の変更追跡 */

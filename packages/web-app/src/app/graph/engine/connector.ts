@@ -1,6 +1,6 @@
 export {
-  nodeCenter, rectIntersection, ellipseIntersection, nodeIntersection,
-  resolveConnectorEndpoints, computeOrthogonalPath, computeBezierPath,
-  getConnectionPoints, nearestConnectionPoint, nearestBorderPoint, hitTestConnectionPoint,
   bestSides,
-} from '@anytime-markdown/graph-core/engine';
+computeBezierPath,
+computeOrthogonalPath, ellipseIntersection,   getConnectionPoints, hitTestConnectionPoint,
+nearestBorderPoint, nearestConnectionPoint,   nodeCenter, nodeIntersection,
+rectIntersection,   resolveConnectorEndpoints, } from '@anytime-markdown/graph-core/engine';
