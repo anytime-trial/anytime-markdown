@@ -30,7 +30,8 @@
     "onView:anytimeTrail.timeline",
     "onCommand:anytime-trail.c4Import",
     "onCommand:anytime-trail.c4Analyze",
-    "onCommand:anytime-trail.c4Export"
+    "onCommand:anytime-trail.c4Export",
+    "onView:anytimeTrail.c4Elements"
   ],
   "icon": "images/camel_git.png",
   "main": "./dist/extension.js",
@@ -46,6 +47,10 @@
     },
     "views": {
       "anytimeTrail": [
+        {
+          "id": "anytimeTrail.c4Elements",
+          "name": "%view.c4Elements%"
+        },
         {
           "id": "anytimeTrail.specDocs",
           "name": "%view.specDocs%"
@@ -81,6 +86,10 @@
       {
         "view": "anytimeTrail.graph",
         "contents": "No items."
+      },
+      {
+        "view": "anytimeTrail.c4Elements",
+        "contents": "%viewsWelcome.c4Elements%"
       }
     ],
     "commands": [
@@ -242,6 +251,16 @@
         "command": "anytime-trail.c4Export",
         "title": "%command.c4Export%",
         "icon": "$(export)"
+      },
+      {
+        "command": "anytime-trail.c4ElementsRefresh",
+        "title": "%command.c4ElementsRefresh%",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "anytime-trail.c4SetLevel",
+        "title": "%command.c4SetLevel%",
+        "icon": "$(filter)"
       }
     ],
     "submenus": [
@@ -307,6 +326,21 @@
           "submenu": "anytimeTrail.changesMore",
           "when": "view == anytimeTrail.changes",
           "group": "navigation@2"
+        },
+        {
+          "command": "anytime-trail.c4Analyze",
+          "when": "view == anytimeTrail.c4Elements",
+          "group": "navigation@1"
+        },
+        {
+          "command": "anytime-trail.c4SetLevel",
+          "when": "view == anytimeTrail.c4Elements",
+          "group": "navigation@2"
+        },
+        {
+          "command": "anytime-trail.c4ElementsRefresh",
+          "when": "view == anytimeTrail.c4Elements",
+          "group": "navigation@3"
         }
       ],
       "view/item/context": [
@@ -441,7 +475,24 @@
         "mac": "cmd+v",
         "when": "focusedView == anytimeTrail.specDocs"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Anytime Trail",
+      "properties": {
+        "anytimeTrail.c4.analyzeExcludePatterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            ".worktrees",
+            ".vscode-test",
+            "__tests__"
+          ],
+          "markdownDescription": "%config.c4AnalyzeExcludePatterns%"
+        }
+      }
+    }
   },
   "capabilities": {
     "untrustedWorkspaces": {

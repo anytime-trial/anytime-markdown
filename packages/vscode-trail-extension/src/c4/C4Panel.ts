@@ -3,14 +3,21 @@ import { parseMermaidC4, extractBoundaries } from '@anytime-markdown/c4-kernel/s
 import type { C4Model, BoundaryInfo } from '@anytime-markdown/c4-kernel/src/types';
 import { analyze, trailToC4, toMermaid } from '@anytime-markdown/trail-core';
 import type { TrailGraph } from '@anytime-markdown/trail-core';
+import type { C4ElementsProvider } from '../providers/C4ElementsProvider';
 
 export class C4Panel {
   public static readonly viewType = 'anytimeTrail.c4View';
   private static currentPanel: C4Panel | undefined;
+  private static treeProvider: C4ElementsProvider | undefined;
   private lastModel: C4Model | undefined;
   private lastBoundaries: readonly BoundaryInfo[] | undefined;
   private lastTrailGraph: TrailGraph | undefined;
   private lastProjectRoot: string | undefined;
+
+  /** ツリービュープロバイダーを設定 */
+  public static setTreeProvider(provider: C4ElementsProvider): void {
+    C4Panel.treeProvider = provider;
+  }
 
   private constructor(
     private readonly panel: vscode.WebviewPanel,
@@ -18,6 +25,7 @@ export class C4Panel {
   ) {
     this.panel.onDidDispose(() => {
       C4Panel.currentPanel = undefined;
+      C4Panel.treeProvider?.clear();
     });
 
     this.panel.webview.onDidReceiveMessage(async (msg) => {
@@ -132,9 +140,10 @@ export class C4Panel {
 
   /** ワークスペースの TypeScript を trail-core で解析して C4 表示 */
   public static async analyzeWorkspace(extensionUri: vscode.Uri): Promise<void> {
+    const excludePatterns: readonly string[] = vscode.workspace.getConfiguration('anytimeTrail.c4').get<string[]>('analyzeExcludePatterns', ['.worktrees', '.vscode-test', '__tests__']);
     const allTsconfigFiles = await vscode.workspace.findFiles('**/tsconfig.json', '**/node_modules/**', 50);
     const tsconfigFiles = allTsconfigFiles.filter(f =>
-      !f.fsPath.includes('/.worktrees/') && !f.fsPath.includes('/.vscode-test/'),
+      !excludePatterns.some(p => f.fsPath.includes(`/${p}/`)),
     );
     if (tsconfigFiles.length === 0) {
       vscode.window.showWarningMessage('No tsconfig.json found in workspace.');
@@ -207,6 +216,7 @@ export class C4Panel {
       model,
       boundaries: boundaries ?? [],
     });
+    C4Panel.treeProvider?.setModel(model, boundaries ?? []);
   }
 
   private getHtml(): string {

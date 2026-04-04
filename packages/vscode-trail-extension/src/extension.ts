@@ -5,6 +5,7 @@ import { GraphProvider, GraphItem } from './providers/GraphProvider';
 import { ChangesProvider, ChangesFileItem } from './providers/ChangesProvider';
 import { SpecDocsProvider, SpecDocsItem, SpecDocsRootItem, SpecDocsDragAndDrop } from './providers/SpecDocsProvider';
 import { C4Panel } from './c4/C4Panel';
+import { C4ElementsProvider } from './providers/C4ElementsProvider';
 
 /** git の元コンテンツを提供する TextDocumentContentProvider */
 class GitOriginalContentProvider implements vscode.TextDocumentContentProvider {
@@ -385,6 +386,29 @@ export function activate(context: vscode.ExtensionContext) {
 		C4Panel.exportData(),
 	);
 
+	// C4 Elements ツリービュー
+	const c4ElementsProvider = new C4ElementsProvider();
+	C4Panel.setTreeProvider(c4ElementsProvider);
+	const c4ElementsTreeView = vscode.window.createTreeView('anytimeTrail.c4Elements', {
+		treeDataProvider: c4ElementsProvider,
+	});
+
+	const c4ElementsRefresh = vscode.commands.registerCommand('anytime-trail.c4ElementsRefresh', () =>
+		c4ElementsProvider.refresh(),
+	);
+	const c4SetLevel = vscode.commands.registerCommand('anytime-trail.c4SetLevel', async () => {
+		const current = c4ElementsProvider.getLevel();
+		const items = [1, 2, 3, 4].map(l => ({
+			label: `L${l}`,
+			description: l === current ? '(current)' : undefined,
+			level: l,
+		}));
+		const picked = await vscode.window.showQuickPick(items, { placeHolder: 'Select C4 detail level' });
+		if (picked) {
+			c4ElementsProvider.setLevel(picked.level);
+		}
+	});
+
 	// Git リポジトリが開かれている場合、自動的にフォルダを開く
 	if (hasWorkspace) {
 		const autoOpenGitRoots = async () => {
@@ -420,6 +444,7 @@ export function activate(context: vscode.ExtensionContext) {
 		changesRefresh, stageFile, unstageFile, stageAll, unstageAll, discardAll, discardChanges, commitChanges, pushChanges, syncChanges, changesOpenFile,
 		compareWithCommit,
 		c4Import, c4Analyze, c4Export,
+		c4ElementsTreeView, c4ElementsRefresh, c4SetLevel,
 	);
 }
 
