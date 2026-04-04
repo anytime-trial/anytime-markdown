@@ -157,14 +157,9 @@ export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onC
   return (
     <Box
       sx={{
-        position: 'absolute',
-        top: 0,
-        right: 0,
-        bottom: 0,
-        width: 280,
-        zIndex: 10,
+        maxHeight: 200,
         bgcolor: BG_SECONDARY,
-        borderLeft: `1px solid ${BORDER_COLOR}`,
+        borderBottom: `1px solid ${BORDER_COLOR}`,
         display: 'flex',
         flexDirection: 'column',
         overflowY: 'auto',
