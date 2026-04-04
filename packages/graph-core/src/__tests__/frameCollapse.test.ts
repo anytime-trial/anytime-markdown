@@ -1,4 +1,5 @@
-import { hitTestFrameCollapse, FRAME_COLLAPSE_ICON_SIZE } from '../engine/hitTest';
+import { hitTestFrameCollapse, FRAME_COLLAPSE_HIT_SIZE } from '../engine/hitTest';
+import { FRAME_ICON_RIGHT_MARGIN } from '../engine/constants';
 import type { GraphNode } from '../types';
 
 function makeFrame(overrides?: Partial<GraphNode>): GraphNode {
@@ -18,7 +19,7 @@ function makeFrame(overrides?: Partial<GraphNode>): GraphNode {
 describe('hitTestFrameCollapse', () => {
   it('should return true when clicking inside collapse icon area', () => {
     const frame = makeFrame();
-    const iconCenterX = frame.x + frame.width - 12 - FRAME_COLLAPSE_ICON_SIZE / 2;
+    const iconCenterX = frame.x + frame.width - FRAME_ICON_RIGHT_MARGIN - FRAME_COLLAPSE_HIT_SIZE / 2;
     const iconCenterY = frame.y + 14;
     expect(hitTestFrameCollapse(frame, iconCenterX, iconCenterY)).toBe(true);
   });
@@ -35,7 +36,7 @@ describe('hitTestFrameCollapse', () => {
 
   it('should return true when frame is collapsed', () => {
     const frame = makeFrame({ collapsed: true, height: 28 });
-    const iconCenterX = frame.x + frame.width - 12 - FRAME_COLLAPSE_ICON_SIZE / 2;
+    const iconCenterX = frame.x + frame.width - FRAME_ICON_RIGHT_MARGIN - FRAME_COLLAPSE_HIT_SIZE / 2;
     const iconCenterY = frame.y + 14;
     expect(hitTestFrameCollapse(frame, iconCenterX, iconCenterY)).toBe(true);
   });

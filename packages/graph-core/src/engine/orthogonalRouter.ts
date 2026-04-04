@@ -12,8 +12,7 @@ interface Rect {
   readonly height: number;
 }
 
-/** 接続ポイントが重なる場合のオフセット量 */
-const OVERLAP_OFFSET = 30;
+import { OVERLAP_OFFSET } from './constants';
 
 /** 障害物なしの直交パス */
 function computeDirectPath(

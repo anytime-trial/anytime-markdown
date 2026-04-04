@@ -2,7 +2,13 @@ import { GraphNode, GraphEdge, NodeType } from '../types';
 import type { GuideLine } from './smartGuide';
 import { CanvasColors, getCanvasColors } from '../theme';
 import { drawDiamond, drawParallelogram, drawCylinderBody, drawCylinderTop } from './shapes';
-import { HANDLE_SIZE, SNAP_INDICATOR_RADIUS, DASH_DEFAULT, DASH_OVERLAY } from './constants';
+import {
+  HANDLE_SIZE, SNAP_INDICATOR_RADIUS, DASH_DEFAULT, DASH_OVERLAY,
+  EDGE_ENDPOINT_DRAW_RADIUS, EDGE_ENDPOINT_INNER_RATIO,
+  CONNECTION_POINT_DRAW_RADIUS, CONNECTION_POINT_INNER_RATIO,
+  BOUNDING_BOX_PADDING, SNAP_HIGHLIGHT_PADDING, SNAP_HIGHLIGHT_STROKE_WIDTH,
+  SMART_GUIDE_EXTENSION,
+} from './constants';
 import { getConnectionPoints } from './connector';
 
 export function drawResizeHandles(
@@ -55,7 +61,7 @@ export function drawBoundingBox(
     maxX = Math.max(maxX, n.x + n.width);
     maxY = Math.max(maxY, n.y + n.height);
   }
-  const pad = 6 / scale;
+  const pad = BOUNDING_BOX_PADDING / scale;
   const bx = minX - pad;
   const by = minY - pad;
   const bw = maxX - minX + pad * 2;
@@ -96,7 +102,7 @@ export function drawEdgeEndpointHandles(
   colors?: CanvasColors,
 ): void {
   colors = colors ?? getCanvasColors(true);
-  const r = 7 / scale;
+  const r = EDGE_ENDPOINT_DRAW_RADIUS / scale;
   const pts = edge.waypoints && edge.waypoints.length >= 2
     ? [edge.waypoints[0], edge.waypoints.at(-1)!]
     : [{ x: edge.from.x, y: edge.from.y }, { x: edge.to.x, y: edge.to.y }];
@@ -110,7 +116,7 @@ export function drawEdgeEndpointHandles(
     ctx.fill();
     // 内円
     ctx.beginPath();
-    ctx.arc(pt.x, pt.y, r * 0.45, 0, Math.PI * 2);
+    ctx.arc(pt.x, pt.y, r * EDGE_ENDPOINT_INNER_RATIO, 0, Math.PI * 2);
     ctx.fillStyle = colors.canvasBg;
     ctx.fill();
   }
@@ -127,7 +133,7 @@ export function drawConnectionPoints(
   colors?: CanvasColors,
 ): void {
   colors = colors ?? getCanvasColors(true);
-  const r = 6 / scale;
+  const r = CONNECTION_POINT_DRAW_RADIUS / scale;
   const points = getConnectionPoints(node);
 
   // マウス座標が渡された場合、最も近い1点のみ表示
@@ -151,7 +157,7 @@ export function drawConnectionPoints(
     ctx.fill();
     // 内円
     ctx.beginPath();
-    ctx.arc(px, py, r * 0.5, 0, Math.PI * 2);
+    ctx.arc(px, py, r * CONNECTION_POINT_INNER_RATIO, 0, Math.PI * 2);
     ctx.fillStyle = colors.canvasBg;
     ctx.fill();
   }
@@ -167,10 +173,10 @@ export function drawSnapHighlight(
   colors = colors ?? getCanvasColors(true);
   ctx.save();
   ctx.strokeStyle = colors.canvasSnap;
-  ctx.lineWidth = 3;
+  ctx.lineWidth = SNAP_HIGHLIGHT_STROKE_WIDTH;
   ctx.setLineDash([]);
 
-  const pad = 4;
+  const pad = SNAP_HIGHLIGHT_PADDING;
   const { x, y, width, height, type } = node;
 
   if (type === 'ellipse') {
@@ -267,11 +273,11 @@ export function drawSmartGuides(
   for (const g of guides) {
     ctx.beginPath();
     if (g.axis === 'x') {
-      ctx.moveTo(g.position, g.from - 10);
-      ctx.lineTo(g.position, g.to + 10);
+      ctx.moveTo(g.position, g.from - SMART_GUIDE_EXTENSION);
+      ctx.lineTo(g.position, g.to + SMART_GUIDE_EXTENSION);
     } else {
-      ctx.moveTo(g.from - 10, g.position);
-      ctx.lineTo(g.to + 10, g.position);
+      ctx.moveTo(g.from - SMART_GUIDE_EXTENSION, g.position);
+      ctx.lineTo(g.to + SMART_GUIDE_EXTENSION, g.position);
     }
     ctx.stroke();
   }

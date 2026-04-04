@@ -1,4 +1,10 @@
 import { GraphNode, GraphEdge } from '../types';
+import {
+  PARALLELOGRAM_OFFSET_RATIO,
+  CYLINDER_ELLIPSE_HEIGHT_RATIO, CYLINDER_ELLIPSE_MAX_HEIGHT,
+  ORTHOGONAL_MARGIN, BEZIER_MIN_CP_DISTANCE,
+  CONNECTION_HIT_RADIUS, BORDER_HIT_RADIUS,
+} from './constants';
 
 export function nodeCenter(node: GraphNode): { x: number; y: number } {
   return { x: node.x + node.width / 2, y: node.y + node.height / 2 };
@@ -69,7 +75,7 @@ function parallelogramIntersection(
 
   const hw = node.width / 2;
   const hh = node.height / 2;
-  const offset = node.width * 0.2;
+  const offset = node.width * PARALLELOGRAM_OFFSET_RATIO;
 
   // Parallelogram vertices (relative to center)
   const verts = [
@@ -111,7 +117,7 @@ function cylinderIntersection(
 
   const hw = node.width / 2;
   const hh = node.height / 2;
-  const ellipseH = Math.min(node.height * 0.15, 15);
+  const ellipseH = Math.min(node.height * CYLINDER_ELLIPSE_HEIGHT_RATIO, CYLINDER_ELLIPSE_MAX_HEIGHT);
 
   // Check intersection with top ellipse
   const topCy = node.y + ellipseH;
@@ -203,13 +209,13 @@ export function nearestConnectionPoint(node: GraphNode, tx: number, ty: number):
 export function hitTestConnectionPoint(
   node: GraphNode, wx: number, wy: number, scale: number,
 ): { side: Side; x: number; y: number } | null {
-  const handleRadius = 10 / scale;
+  const handleRadius = CONNECTION_HIT_RADIUS / scale;
   // 定義済み接続ポイント（4辺中央 + extra）を優先判定
   for (const p of getConnectionPoints(node)) {
     if (Math.hypot(wx - p.x, wy - p.y) <= handleRadius) return p;
   }
   // ノード辺境界付近なら辺上の最近点で接続（広いゾーン）
-  const borderRadius = 20 / scale;
+  const borderRadius = BORDER_HIT_RADIUS / scale;
   const border = nearestBorderPoint(node, wx, wy);
   if (border && Math.hypot(wx - border.x, wy - border.y) <= borderRadius) {
     return border;
@@ -271,7 +277,7 @@ function offsetPoint(pt: { x: number; y: number }, side: Side, margin: number): 
 export function computeOrthogonalPath(
   fromNode: GraphNode,
   toNode: GraphNode,
-  margin: number = 20,
+  margin: number = ORTHOGONAL_MARGIN,
   manualMidpoint?: number,
 ): { x: number; y: number }[] {
   const { fromSide, toSide } = bestSides(fromNode, toNode);
@@ -328,7 +334,7 @@ export function computeBezierPath(
   const toPt = toPts.find(p => p.side === toSide)!;
 
   const dist = Math.hypot(toPt.x - fromPt.x, toPt.y - fromPt.y);
-  const cpDist = Math.max(dist / 3, 30);
+  const cpDist = Math.max(dist / 3, BEZIER_MIN_CP_DISTANCE);
 
   const cp1 = offsetPoint(fromPt, fromSide, cpDist);
   const cp2 = offsetPoint(toPt, toSide, cpDist);

@@ -1,5 +1,10 @@
 import { GraphNode, GraphEdge } from '../types';
-import { HANDLE_SIZE, EDGE_TOLERANCE, CONNECTION_POINT_RADIUS, ENDPOINT_HANDLE_RADIUS } from './constants';
+import {
+  HANDLE_SIZE, EDGE_TOLERANCE, CONNECTION_POINT_RADIUS, ENDPOINT_HANDLE_RADIUS,
+  FRAME_TITLE_HEIGHT, FRAME_ICON_RIGHT_MARGIN,
+  PARALLELOGRAM_OFFSET_RATIO,
+  CYLINDER_ELLIPSE_HEIGHT_RATIO, CYLINDER_ELLIPSE_MAX_HEIGHT,
+} from './constants';
 import { getConnectionPoints, hitTestConnectionPoint as hitTestConnectionPointFull } from './connector';
 
 export type ResizeHandle = 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w';
@@ -26,15 +31,15 @@ export interface HitResult {
   waypointIndex?: number;
 }
 
-/** 折りたたみアイコンのサイズ（px） */
-export const FRAME_COLLAPSE_ICON_SIZE = 16;
+/** 折りたたみアイコンのヒット領域サイズ（px） */
+export const FRAME_COLLAPSE_HIT_SIZE = 16;
 
 /** フレームのタイトルバー右端の折りたたみアイコン領域にヒットするか判定 */
 export function hitTestFrameCollapse(node: GraphNode, wx: number, wy: number): boolean {
   if (node.type !== 'frame') return false;
-  const titleH = 28;
-  const iconSize = FRAME_COLLAPSE_ICON_SIZE;
-  const iconX = node.x + node.width - 12 - iconSize;
+  const titleH = FRAME_TITLE_HEIGHT;
+  const iconSize = FRAME_COLLAPSE_HIT_SIZE;
+  const iconX = node.x + node.width - FRAME_ICON_RIGHT_MARGIN - iconSize;
   const iconY = node.y + (titleH - iconSize) / 2;
   return wx >= iconX && wx <= iconX + iconSize && wy >= iconY && wy <= iconY + iconSize;
 }
@@ -105,7 +110,7 @@ export function hitTestNode(node: GraphNode, wx: number, wy: number): boolean {
   }
   if (node.type === 'parallelogram') {
     const { x, y, width: w, height: h } = node;
-    const offset = w * 0.2;
+    const offset = w * PARALLELOGRAM_OFFSET_RATIO;
     return pointInPolygon(wx, wy, [
       { x: x + offset, y },
       { x: x + w, y },
@@ -115,7 +120,7 @@ export function hitTestNode(node: GraphNode, wx: number, wy: number): boolean {
   }
   if (node.type === 'cylinder') {
     const { x, y, width: w, height: h } = node;
-    const ellipseH = Math.min(h * 0.15, 15);
+    const ellipseH = Math.min(h * CYLINDER_ELLIPSE_HEIGHT_RATIO, CYLINDER_ELLIPSE_MAX_HEIGHT);
     // 上部楕円
     if (wy < y + ellipseH) {
       return pointInEllipse(wx, wy, x + w / 2, y + ellipseH, w / 2, ellipseH);

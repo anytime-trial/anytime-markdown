@@ -3,6 +3,12 @@ import { createBody } from '../engine/physics/PhysicsBody';
 import { computeHierarchicalLayout } from '../engine/physics/hierarchical';
 import { parseNodeDef, parseEdge, tokenizeLine } from './mermaidParser';
 import type { ParsedNode, ParsedEdge, SubgraphInfo } from './mermaidParser';
+import {
+  FRAME_PADDING, FRAME_TITLE_HEIGHT, THICK_EDGE_STROKE_WIDTH,
+  MERMAID_SPACING_X_HORIZONTAL, MERMAID_SPACING_Y_HORIZONTAL,
+  MERMAID_SPACING_X_VERTICAL, MERMAID_SPACING_Y_VERTICAL,
+  MERMAID_LAYOUT_ORIGIN,
+} from '../engine/constants';
 
 type Direction = 'TD' | 'TB' | 'LR' | 'RL' | 'BT';
 
@@ -102,15 +108,18 @@ export function importFromMermaid(mmdString: string): MermaidImportResult {
 
   // Layout: grid positions based on direction
   const isHorizontal = direction === 'LR' || direction === 'RL';
-  const spacing = { x: isHorizontal ? 250 : 200, y: isHorizontal ? 150 : 180 };
+  const spacing = {
+    x: isHorizontal ? MERMAID_SPACING_X_HORIZONTAL : MERMAID_SPACING_X_VERTICAL,
+    y: isHorizontal ? MERMAID_SPACING_Y_HORIZONTAL : MERMAID_SPACING_Y_VERTICAL,
+  };
   const cols = isHorizontal ? Math.ceil(Math.sqrt(nodeMap.size * 2)) : Math.ceil(Math.sqrt(nodeMap.size));
 
   let idx = 0;
   for (const [mermaidId, parsed] of nodeMap) {
     const col = idx % cols;
     const row = Math.floor(idx / cols);
-    const x = 100 + col * spacing.x;
-    const y = 100 + row * spacing.y;
+    const x = MERMAID_LAYOUT_ORIGIN + col * spacing.x;
+    const y = MERMAID_LAYOUT_ORIGIN + row * spacing.y;
 
     const node = createNode(parsed.type, x, y, { text: parsed.text });
 
@@ -153,7 +162,7 @@ export function importFromMermaid(mmdString: string): MermaidImportResult {
     );
 
     if (pe.dashed) edge.style = { ...edge.style, dashed: true };
-    if (pe.thick) edge.style = { ...edge.style, strokeWidth: 4 };
+    if (pe.thick) edge.style = { ...edge.style, strokeWidth: THICK_EDGE_STROKE_WIDTH };
 
     doc.edges.push(edge);
   }
@@ -163,9 +172,6 @@ export function importFromMermaid(mmdString: string): MermaidImportResult {
 
   return { doc, direction: normalizedDirection };
 }
-
-const FRAME_PADDING = 40;
-const FRAME_TITLE_HEIGHT = 28;
 
 /**
  * Bottom-up recursive layout for nested subgroups.

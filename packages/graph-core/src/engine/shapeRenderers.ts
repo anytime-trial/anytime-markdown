@@ -5,6 +5,13 @@ import {
   FONT_SIZE_PREVIEW,
   DASH_DEFAULT, DASH_FRAME, STROKE_WIDTH_SELECTED,
   TEXT_PREVIEW_MAX_CHARS, TEXT_PREVIEW_MAX_LINES, TEXT_LINE_MAX_CHARS,
+  BORDER_RADIUS_STICKY, BORDER_RADIUS_DOC, BORDER_RADIUS_FRAME, BORDER_RADIUS_IMAGE,
+  FRAME_TITLE_HEIGHT, FRAME_COLLAPSE_ICON_SIZE, FRAME_TITLE_TEXT_LEFT, FRAME_ICON_RIGHT_MARGIN, FRAME_TITLE_TEXT_RIGHT_MARGIN,
+  DOC_ICON_SIZE, DOC_ICON_CENTER_X, DOC_ICON_CENTER_Y,
+  DOC_TITLE_X, DOC_TITLE_Y, DOC_TITLE_RIGHT_MARGIN,
+  DOC_PREVIEW_X, DOC_PREVIEW_Y, DOC_PREVIEW_LINE_HEIGHT, DOC_PREVIEW_RIGHT_MARGIN,
+  EDGE_ENDPOINT_INNER_RATIO,
+  LOCK_ICON_SIZE, LOCK_ICON_OFFSET,
 } from './constants';
 import {
   getCurrentColors, setCurrentColors,
@@ -82,7 +89,7 @@ const standardShapePaths: Partial<Record<NodeType, ShapePathFn>> = {
 
 const renderSticky: SpecialShapeRenderer = (ctx, node, selected, isDragging, fill) => {
   const { x, y, width, height, style } = node;
-  const radius = effectiveBorderRadius(style, 4);
+  const radius = effectiveBorderRadius(style, BORDER_RADIUS_STICKY);
 
   // sticky は常に影・角丸（ドラッグ中は上で設定済み）
   if (!isDragging) {
@@ -132,18 +139,18 @@ const renderCylinder: SpecialShapeRenderer = (ctx, node, selected, _isDragging, 
 const renderDoc: SpecialShapeRenderer = (ctx, node, selected, _isDragging, fill) => {
   const currentColors = getCurrentColors();
   const { x, y, width, style, text } = node;
-  renderRoundedShape(ctx, node, selected, fill, 8);
+  renderRoundedShape(ctx, node, selected, fill, BORDER_RADIUS_DOC);
   // Doc icon (path-based)
   ctx.fillStyle = currentColors.docIconColor;
   ctx.strokeStyle = currentColors.docIconColor;
-  drawDocIcon(ctx, x + 18, y + 18, 18);
+  drawDocIcon(ctx, x + DOC_ICON_CENTER_X, y + DOC_ICON_CENTER_Y, DOC_ICON_SIZE);
   // Title
   if (text) {
     ctx.fillStyle = currentColors.textPrimary;
     ctx.font = `bold ${style.fontSize}px ${style.fontFamily}`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    ctx.fillText(text, x + 34, y + 14, width - 44);
+    ctx.fillText(text, x + DOC_TITLE_X, y + DOC_TITLE_Y, width - DOC_TITLE_RIGHT_MARGIN);
   }
   // Preview text
   if (node.docContent) {
@@ -153,14 +160,14 @@ const renderDoc: SpecialShapeRenderer = (ctx, node, selected, _isDragging, fill)
     ctx.textBaseline = 'top';
     const preview = node.docContent.slice(0, TEXT_PREVIEW_MAX_CHARS).split('\n').slice(0, TEXT_PREVIEW_MAX_LINES);
     preview.forEach((line, i) => {
-      ctx.fillText(line.slice(0, TEXT_LINE_MAX_CHARS), x + 10, y + 40 + i * 15, width - 20);
+      ctx.fillText(line.slice(0, TEXT_LINE_MAX_CHARS), x + DOC_PREVIEW_X, y + DOC_PREVIEW_Y + i * DOC_PREVIEW_LINE_HEIGHT, width - DOC_PREVIEW_RIGHT_MARGIN);
     });
   }
 };
 
 const renderImage: SpecialShapeRenderer = (ctx, node, selected) => {
   const { x, y, width, height, style } = node;
-  const r = effectiveBorderRadius(style, 4);
+  const r = effectiveBorderRadius(style, BORDER_RADIUS_IMAGE);
 
   applyShadow(ctx, style);
   // 背景プレースホルダー
@@ -188,8 +195,8 @@ const renderImage: SpecialShapeRenderer = (ctx, node, selected) => {
 const renderFrame: SpecialShapeRenderer = (ctx, node, selected, _isDragging, fill) => {
   const currentColors = getCurrentColors();
   const { x, y, width, height, style, text } = node;
-  const fr = effectiveBorderRadius(style, 8);
-  const titleH = 28;
+  const fr = effectiveBorderRadius(style, BORDER_RADIUS_FRAME);
+  const titleH = FRAME_TITLE_HEIGHT;
 
   if (node.collapsed) {
     // --- 折りたたみ時: タイトルバーのみの矩形 ---
@@ -222,12 +229,12 @@ const renderFrame: SpecialShapeRenderer = (ctx, node, selected, _isDragging, fil
     ctx.font = `bold ${style.fontSize}px ${style.fontFamily}`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText(text, x + 12, y + titleH / 2, width - 40);
+    ctx.fillText(text, x + FRAME_TITLE_TEXT_LEFT, y + titleH / 2, width - FRAME_TITLE_TEXT_RIGHT_MARGIN);
   }
 
   // 折りたたみ/展開アイコン（三角形）
-  const iconSize = 10;
-  const iconX = x + width - 12 - iconSize / 2;
+  const iconSize = FRAME_COLLAPSE_ICON_SIZE;
+  const iconX = x + width - FRAME_ICON_RIGHT_MARGIN - iconSize / 2;
   const iconY = y + titleH / 2;
   ctx.fillStyle = currentColors.textSecondary;
   ctx.beginPath();
@@ -335,8 +342,8 @@ function drawLockIcon(ctx: CanvasRenderingContext2D, cx: number, cy: number, siz
 /** ロック中ノードに南京錠アイコンを描画 */
 export function drawLockIndicator(ctx: CanvasRenderingContext2D, node: GraphNode, scale: number, colors?: CanvasColors): void {
   setCurrentColors(colors ?? getCanvasColors(true));
-  const size = 14 / scale;
-  const px = node.x + node.width - size - 4 / scale;
-  const py = node.y + 4 / scale;
+  const size = LOCK_ICON_SIZE / scale;
+  const px = node.x + node.width - size - LOCK_ICON_OFFSET / scale;
+  const py = node.y + LOCK_ICON_OFFSET / scale;
   drawLockIcon(ctx, px + size / 2, py + size / 2, size);
 }

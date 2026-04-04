@@ -3,6 +3,9 @@ import { CanvasColors, FONT_FAMILY, getCanvasColors } from '../theme';
 import {
   SHADOW_DEFAULT, SHADOW_DRAGGING,
   FONT_SIZE_LINK_ICON,
+  NODE_TEXT_PADDING, TEXT_LINE_HEIGHT_RATIO,
+  PARALLELOGRAM_OFFSET_RATIO, CYLINDER_ELLIPSE_RATIO,
+  LINK_ICON_OFFSET,
 } from './constants';
 import type { ShadowStyle } from './constants';
 import { specialShapes, standardShapePaths, skipTextTypes, setupStroke } from './shapeRenderers';
@@ -128,10 +131,10 @@ export function drawNode(
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    const padding = 8;
+    const padding = NODE_TEXT_PADDING;
     const maxWidth = width - padding * 2;
     const wrappedLines = wrapText(ctx, text, maxWidth);
-    const lineHeight = style.fontSize * 1.3;
+    const lineHeight = style.fontSize * TEXT_LINE_HEIGHT_RATIO;
     const maxLines = Math.max(1, Math.floor((height - padding * 2) / lineHeight));
     const visibleLines = wrappedLines.slice(0, maxLines);
     if (wrappedLines.length > maxLines && visibleLines.length > 0) {
@@ -152,7 +155,7 @@ export function drawNode(
     ctx.fillStyle = currentColors.accentColor;
     ctx.textAlign = 'right';
     ctx.textBaseline = 'top';
-    ctx.fillText('\u{1F517}', x + width - 4, y + 4);
+    ctx.fillText('\u{1F517}', x + width - LINK_ICON_OFFSET, y + LINK_ICON_OFFSET);
     ctx.restore();
   }
 
@@ -194,7 +197,7 @@ export function drawDiamond(ctx: CanvasRenderingContext2D, x: number, y: number,
 }
 
 export function drawParallelogram(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): void {
-  const offset = w * 0.2;
+  const offset = w * PARALLELOGRAM_OFFSET_RATIO;
   ctx.beginPath();
   ctx.moveTo(x + offset, y);
   ctx.lineTo(x + w, y);
@@ -204,7 +207,7 @@ export function drawParallelogram(ctx: CanvasRenderingContext2D, x: number, y: n
 }
 
 export function drawCylinderBody(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): void {
-  const ry = h * 0.12;
+  const ry = h * CYLINDER_ELLIPSE_RATIO;
   ctx.beginPath();
   ctx.moveTo(x, y + ry);
   ctx.lineTo(x, y + h - ry);
@@ -215,7 +218,7 @@ export function drawCylinderBody(ctx: CanvasRenderingContext2D, x: number, y: nu
 }
 
 export function drawCylinderTop(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): void {
-  const ry = h * 0.12;
+  const ry = h * CYLINDER_ELLIPSE_RATIO;
   ctx.beginPath();
   ctx.ellipse(x + w / 2, y + ry, w / 2, ry, 0, 0, Math.PI * 2);
   ctx.closePath();
