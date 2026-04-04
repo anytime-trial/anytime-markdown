@@ -6,14 +6,18 @@ import type { GraphDocument, GraphNode } from '@anytime-markdown/graph-core';
 import { engine, layoutWithSubgroups, state as graphState } from '@anytime-markdown/graph-core';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import FitScreenIcon from '@mui/icons-material/FitScreen';
+import GridOnIcon from '@mui/icons-material/GridOn';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import ButtonGroup from '@mui/material/ButtonGroup';
+import Tab from '@mui/material/Tab';
+import Tabs from '@mui/material/Tabs';
 import Toolbar from '@mui/material/Toolbar';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 
 import { C4ElementTree } from './C4ElementTree';
+import { DsmCanvas } from './DsmCanvas';
 import { GraphCanvas } from './GraphCanvas';
 
 const { graphReducer, createInitialState } = graphState;
@@ -48,6 +52,9 @@ export function C4Viewer() {
   const [c4Model, setC4Model] = useState<C4Model | null>(null);
   const [boundaryInfos, setBoundaryInfos] = useState<readonly BoundaryInfo[]>([]);
   const [showTree, setShowTree] = useState(true);
+  const [activeTab, setActiveTab] = useState(0);
+  const [dsmLevel, setDsmLevel] = useState<'component' | 'package'>('component');
+  const [dsmClustered, setDsmClustered] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const loadMermaidText = useCallback((text: string) => {
@@ -140,70 +147,144 @@ export function C4Viewer() {
     borderColor: `${ACCENT_BLUE} !important`,
   } as const;
 
-  return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px)', bgcolor: BG_PRIMARY }}>
-      <Toolbar
-        variant="dense"
+  const c4Toolbar = (
+    <Toolbar
+      variant="dense"
+      sx={{
+        gap: 1,
+        bgcolor: BG_SECONDARY,
+        borderBottom: `1px solid ${BORDER_COLOR}`,
+        minHeight: 44,
+        px: { xs: 2, md: 3 },
+      }}
+    >
+      <Button
+        size="small"
+        startIcon={<UploadFileIcon sx={{ fontSize: 18 }} />}
+        onClick={handleImportMermaid}
+        sx={toolbarButtonSx}
+      >
+        Import
+      </Button>
+      <ButtonGroup size="small" sx={{ ml: 1 }}>
+        {[1, 2, 3, 4].map(level => (
+          <Button
+            key={level}
+            onClick={() => handleSetLevel(level)}
+            sx={currentLevel === level ? levelButtonActiveSx : levelButtonSx}
+          >
+            L{level}
+          </Button>
+        ))}
+      </ButtonGroup>
+      <Button
+        size="small"
+        startIcon={<FitScreenIcon sx={{ fontSize: 18 }} />}
+        onClick={handleFit}
+        sx={toolbarButtonSx}
+      >
+        Fit
+      </Button>
+      <Box sx={{ flex: 1 }} />
+      <Button
+        size="small"
+        startIcon={<AccountTreeIcon sx={{ fontSize: 18 }} />}
+        onClick={() => setShowTree(prev => !prev)}
         sx={{
-          gap: 1,
-          bgcolor: BG_SECONDARY,
-          borderBottom: `1px solid ${BORDER_COLOR}`,
-          minHeight: 44,
-          px: { xs: 2, md: 3 },
+          ...toolbarButtonSx,
+          ...(showTree && { bgcolor: 'rgba(144,202,249,0.12)' }),
         }}
       >
-        <Button
-          size="small"
-          startIcon={<UploadFileIcon sx={{ fontSize: 18 }} />}
-          onClick={handleImportMermaid}
-          sx={toolbarButtonSx}
-        >
-          Import
-        </Button>
-        <ButtonGroup size="small" sx={{ ml: 1 }}>
-          {[1, 2, 3, 4].map(level => (
-            <Button
-              key={level}
-              onClick={() => handleSetLevel(level)}
-              sx={currentLevel === level ? levelButtonActiveSx : levelButtonSx}
-            >
-              L{level}
-            </Button>
-          ))}
-        </ButtonGroup>
-        <Button
-          size="small"
-          startIcon={<FitScreenIcon sx={{ fontSize: 18 }} />}
-          onClick={handleFit}
-          sx={toolbarButtonSx}
-        >
-          Fit
-        </Button>
-        <Box sx={{ flex: 1 }} />
-        <Button
-          size="small"
-          startIcon={<AccountTreeIcon sx={{ fontSize: 18 }} />}
-          onClick={() => setShowTree(prev => !prev)}
-          sx={{
-            ...toolbarButtonSx,
-            ...(showTree && { bgcolor: 'rgba(144,202,249,0.12)' }),
-          }}
-        >
-          Tree
-        </Button>
-      </Toolbar>
+        Tree
+      </Button>
+    </Toolbar>
+  );
+
+  const dsmToolbar = (
+    <Toolbar
+      variant="dense"
+      sx={{
+        gap: 1,
+        bgcolor: BG_SECONDARY,
+        borderBottom: `1px solid ${BORDER_COLOR}`,
+        minHeight: 44,
+        px: { xs: 2, md: 3 },
+      }}
+    >
+      <ButtonGroup size="small">
+        {(['component', 'package'] as const).map(lv => (
+          <Button
+            key={lv}
+            onClick={() => setDsmLevel(lv)}
+            sx={dsmLevel === lv ? levelButtonActiveSx : levelButtonSx}
+          >
+            {lv === 'component' ? 'Component' : 'Package'}
+          </Button>
+        ))}
+      </ButtonGroup>
+      <Button
+        size="small"
+        onClick={() => setDsmClustered(prev => !prev)}
+        sx={{
+          ...toolbarButtonSx,
+          ml: 1,
+          ...(dsmClustered && { bgcolor: 'rgba(144,202,249,0.12)' }),
+        }}
+      >
+        Cluster
+      </Button>
+    </Toolbar>
+  );
+
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px)', bgcolor: BG_PRIMARY }}>
+      <Tabs
+        value={activeTab}
+        onChange={(_, v) => setActiveTab(v)}
+        sx={{
+          bgcolor: BG_SECONDARY,
+          borderBottom: `1px solid ${BORDER_COLOR}`,
+          minHeight: 36,
+          '& .MuiTab-root': {
+            color: 'rgba(255,255,255,0.5)',
+            minHeight: 36,
+            textTransform: 'none',
+            fontSize: '0.8125rem',
+            fontWeight: 600,
+          },
+          '& .Mui-selected': { color: `${ACCENT_BLUE} !important` },
+          '& .MuiTabs-indicator': { backgroundColor: ACCENT_BLUE },
+        }}
+      >
+        <Tab label="C4 Model" />
+        <Tab icon={<GridOnIcon sx={{ fontSize: 16 }} />} iconPosition="start" label="DSM" />
+      </Tabs>
+      {activeTab === 0 && c4Toolbar}
+      {activeTab === 1 && dsmToolbar}
       <Box sx={{ flex: 1, position: 'relative', bgcolor: BG_PRIMARY }}>
-        <GraphCanvas
-          document={state.document}
-          viewport={state.document.viewport}
-          dispatch={dispatch}
-          canvasRef={canvasRef}
-        />
-        {showTree && elementTree.length > 0 && (
-          <C4ElementTree
-            tree={elementTree}
-            dispatch={dispatch}
-            onClose={() => setShowTree(false)}
+        {activeTab === 0 && (
+          <>
+            <GraphCanvas
+              document={state.document}
+              viewport={state.document.viewport}
+              dispatch={dispatch}
+              canvasRef={canvasRef}
+            />
+            {showTree && elementTree.length > 0 && (
+              <C4ElementTree
+                tree={elementTree}
+                dispatch={dispatch}
+                onClose={() => setShowTree(false)}
+              />
+            )}
+          </>
+        )}
+        {activeTab === 1 && c4Model && (
+          <DsmCanvas
+            model={c4Model}
+            boundaries={boundaryInfos}
+            level={dsmLevel}
+            clustered={dsmClustered}
           />
         )}
       </Box>
