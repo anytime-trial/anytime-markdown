@@ -24,7 +24,7 @@ export {
   bestSides,
 } from './connector';
 export type { Side } from './connector';
-export { computeVisibilityPath } from './visibilityGraph';
+export { computeVisibilityPath } from './orthogonalRouter';
 export { snapToGrid, snapRect } from './gridSnap';
 export {
   alignLeft, alignRight, alignTop, alignBottom,

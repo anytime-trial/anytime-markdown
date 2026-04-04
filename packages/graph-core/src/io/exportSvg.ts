@@ -1,6 +1,6 @@
 import { GraphDocument, GraphNode, GraphEdge } from '../types';
 import { computeOrthogonalPath, bestSides, getConnectionPoints } from '../engine/connector';
-import { computeVisibilityPath } from '../engine/visibilityGraph';
+import { computeVisibilityPath } from '../engine/orthogonalRouter';
 import {
   CANVAS_BG, COLOR_TEXT_PRIMARY,
   FONT_FAMILY,

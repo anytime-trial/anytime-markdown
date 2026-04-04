@@ -1,4 +1,4 @@
-import { computeVisibilityPath } from '../../engine/visibilityGraph';
+import { computeVisibilityPath } from '../../engine/orthogonalRouter';
 
 describe('computeVisibilityPath', () => {
   it('should return a direct orthogonal path with no obstacles', () => {
