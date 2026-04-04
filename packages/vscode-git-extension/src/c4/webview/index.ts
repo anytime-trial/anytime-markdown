@@ -33,6 +33,9 @@ function resize() {
 resize();
 globalThis.addEventListener('resize', resize);
 
+// Prevent VS Code webview from capturing wheel events
+globalThis.document.addEventListener('wheel', (e) => { e.preventDefault(); }, { passive: false });
+
 // --- Render loop ---
 
 function resolveEdges(doc: GraphDocument): GraphEdge[] {

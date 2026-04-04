@@ -140,7 +140,7 @@ export class C4Panel {
   <title>C4 Model</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #1e1e1e; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+    html, body { background: #1e1e1e; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, sans-serif; height: 100%; }
     #toolbar {
       position: fixed; top: 0; left: 0; right: 0;
       background: #252526; border-bottom: 1px solid #3c3c3c;
