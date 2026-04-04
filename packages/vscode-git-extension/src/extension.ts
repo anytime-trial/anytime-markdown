@@ -244,6 +244,14 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 		}
 	);
+	const specDocsRevealInExplorer = vscode.commands.registerCommand(
+		'anytime-git.specDocsRevealInExplorer', (item: SpecDocsItem) => {
+			if (item?.resourceUri) {
+				const folderUri = vscode.Uri.file(path.dirname(item.resourceUri.fsPath));
+				vscode.env.openExternal(folderUri);
+			}
+		}
+	);
 	const specDocsImportFiles = vscode.commands.registerCommand(
 		'anytime-git.specDocsImportFiles', (item?: SpecDocsRootItem | SpecDocsItem) => specDocsProvider.importFiles(item)
 	);
@@ -373,7 +381,7 @@ export function activate(context: vscode.ExtensionContext) {
 		...(changesProvider ? [changesTreeView!, { dispose: () => changesProvider!.dispose() }] : []),
 		...(timelineTreeView ? [timelineTreeView] : []),
 		specDocsOpenFile, specDocsOpenFolder, specDocsCloneRepo, specDocsClose, specDocsRefresh, switchBranch, toggleMdOnly,
-		specDocsCreateFile, specDocsCreateFolder, specDocsDelete, specDocsRename, specDocsRemoveRoot, specDocsCopyPath, specDocsCopyFileName, specDocsImportFiles, specDocsCut, specDocsCopy, specDocsPaste,
+		specDocsCreateFile, specDocsCreateFolder, specDocsDelete, specDocsRename, specDocsRemoveRoot, specDocsCopyPath, specDocsCopyFileName, specDocsRevealInExplorer, specDocsImportFiles, specDocsCut, specDocsCopy, specDocsPaste,
 		...(graphTreeView ? [graphTreeView] : []), graphRefresh,
 		changesRefresh, stageFile, unstageFile, stageAll, unstageAll, discardAll, discardChanges, commitChanges, pushChanges, syncChanges, changesOpenFile,
 		compareWithCommit,
