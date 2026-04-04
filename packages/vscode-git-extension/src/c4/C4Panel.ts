@@ -57,7 +57,8 @@ export class C4Panel {
 
   /** ワークスペースの TypeScript を trail-core で解析して C4 表示 */
   public static async analyzeWorkspace(extensionUri: vscode.Uri): Promise<void> {
-    const tsconfigFiles = await vscode.workspace.findFiles('**/tsconfig.json', '{**/node_modules/**,**/.worktrees/**}', 50);
+    const allTsconfigFiles = await vscode.workspace.findFiles('**/tsconfig.json', '**/node_modules/**', 50);
+    const tsconfigFiles = allTsconfigFiles.filter(f => !f.fsPath.includes('/.worktrees/'));
     if (tsconfigFiles.length === 0) {
       vscode.window.showWarningMessage('No tsconfig.json found in workspace.');
       return;
