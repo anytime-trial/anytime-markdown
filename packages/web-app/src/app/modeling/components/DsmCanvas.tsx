@@ -37,6 +37,8 @@ function hitTestCell(
   viewport: { offsetX: number; offsetY: number; scale: number },
   nodeCount: number,
 ): { row: number; col: number } | null {
+  // Headers are fixed; cells start at HEADER_WIDTH/HEADER_HEIGHT in screen space
+  if (mouseX < HEADER_WIDTH || mouseY < HEADER_HEIGHT) return null;
   const worldX = (mouseX - viewport.offsetX) / viewport.scale;
   const worldY = (mouseY - viewport.offsetY) / viewport.scale;
   const col = Math.floor((worldX - HEADER_WIDTH) / CELL_SIZE);
@@ -122,9 +124,15 @@ export function DsmCanvas({ model, boundaries, level, clustered }: Readonly<DsmC
         return;
       }
 
+      const s = vp.scale;
+
+      // --- Cell area (panned & zoomed, clipped to content region) ---
       ctx!.save();
+      ctx!.beginPath();
+      ctx!.rect(HEADER_WIDTH, HEADER_HEIGHT, w - HEADER_WIDTH, h - HEADER_HEIGHT);
+      ctx!.clip();
       ctx!.translate(vp.offsetX, vp.offsetY);
-      ctx!.scale(vp.scale, vp.scale);
+      ctx!.scale(s, s);
 
       // Grid lines
       ctx!.strokeStyle = GRID_COLOR;
@@ -170,35 +178,64 @@ export function DsmCanvas({ model, boundaries, level, clustered }: Readonly<DsmC
         }
       }
 
-      // Hover highlight
+      // Hover highlight (within cell area)
       if (hovered) {
         ctx!.fillStyle = HOVER_COLOR;
         ctx!.fillRect(HEADER_WIDTH, HEADER_HEIGHT + hovered.row * CELL_SIZE, n * CELL_SIZE, CELL_SIZE);
         ctx!.fillRect(HEADER_WIDTH + hovered.col * CELL_SIZE, HEADER_HEIGHT, CELL_SIZE, n * CELL_SIZE);
       }
 
-      // Headers
+      ctx!.restore();
+
+      // --- Row headers (fixed left, only Y panned) ---
+      ctx!.save();
+      ctx!.beginPath();
+      ctx!.rect(0, HEADER_HEIGHT, HEADER_WIDTH, h - HEADER_HEIGHT);
+      ctx!.clip();
+
+      // Background to cover scrolled cells
+      ctx!.fillStyle = '#0D1117';
+      ctx!.fillRect(0, HEADER_HEIGHT, HEADER_WIDTH, h - HEADER_HEIGHT);
+
       ctx!.fillStyle = TEXT_COLOR;
       ctx!.font = '10px sans-serif';
       ctx!.textBaseline = 'middle';
-
+      ctx!.textAlign = 'right';
       for (let i = 0; i < n; i++) {
         const name = truncate(matrix.nodes[i].name, 14);
+        const rowY = (HEADER_HEIGHT + i * CELL_SIZE + CELL_SIZE / 2) * s + vp.offsetY;
+        ctx!.fillText(name, HEADER_WIDTH - 4, rowY);
+      }
+      ctx!.restore();
 
-        // Row header (left)
-        ctx!.textAlign = 'right';
-        ctx!.fillText(name, HEADER_WIDTH - 4, HEADER_HEIGHT + i * CELL_SIZE + CELL_SIZE / 2);
+      // --- Column headers (fixed top, only X panned) ---
+      ctx!.save();
+      ctx!.beginPath();
+      ctx!.rect(HEADER_WIDTH, 0, w - HEADER_WIDTH, HEADER_HEIGHT);
+      ctx!.clip();
 
-        // Column header (top, rotated)
+      // Background to cover scrolled cells
+      ctx!.fillStyle = '#0D1117';
+      ctx!.fillRect(HEADER_WIDTH, 0, w - HEADER_WIDTH, HEADER_HEIGHT);
+
+      ctx!.fillStyle = TEXT_COLOR;
+      ctx!.font = '10px sans-serif';
+      ctx!.textBaseline = 'middle';
+      for (let i = 0; i < n; i++) {
+        const name = truncate(matrix.nodes[i].name, 14);
+        const colX = (HEADER_WIDTH + i * CELL_SIZE + CELL_SIZE / 2) * s + vp.offsetX;
         ctx!.save();
-        ctx!.translate(HEADER_WIDTH + i * CELL_SIZE + CELL_SIZE / 2, HEADER_HEIGHT - 4);
+        ctx!.translate(colX, HEADER_HEIGHT - 4);
         ctx!.rotate(-Math.PI / 4);
         ctx!.textAlign = 'left';
         ctx!.fillText(name, 0, 0);
         ctx!.restore();
       }
-
       ctx!.restore();
+
+      // --- Corner background (top-left, covers overlap) ---
+      ctx!.fillStyle = '#0D1117';
+      ctx!.fillRect(0, 0, HEADER_WIDTH, HEADER_HEIGHT);
       rafRef.current = requestAnimationFrame(draw);
     }
 
