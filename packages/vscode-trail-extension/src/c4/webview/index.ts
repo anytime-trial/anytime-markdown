@@ -3,7 +3,7 @@ import { engine, layoutWithSubgroups } from '@anytime-markdown/graph-core';
 import { c4ToGraphDocument } from '@anytime-markdown/c4kernel';
 import type { C4Model, BoundaryInfo } from '@anytime-markdown/c4kernel';
 
-const { render, pan, zoom, fitToContent, resolveConnectorEndpoints } = engine;
+const { render, pan, zoom, fitToContent, resolveConnectorEndpoints, screenToWorld } = engine;
 
 declare function acquireVsCodeApi(): {
   postMessage(message: unknown): void;
@@ -19,6 +19,7 @@ let fullDocument: GraphDocument | null = null;
 let document: GraphDocument | null = null;
 let viewport: Viewport = { offsetX: 0, offsetY: 0, scale: 1 };
 let currentLevel = 4;
+let selectedNodeIds: string[] = [];
 
 // --- Canvas setup ---
 
@@ -77,7 +78,7 @@ function draw() {
     nodes: document.nodes,
     edges: resolveEdges(document),
     viewport,
-    selection: { nodeIds: [], edgeIds: [] },
+    selection: { nodeIds: selectedNodeIds, edgeIds: [] },
     showGrid: false,
     isDark: true,
   });
@@ -91,9 +92,37 @@ requestAnimationFrame(draw);
 let isPanning = false;
 let lastPan = { x: 0, y: 0 };
 
+function hitTestNode(screenX: number, screenY: number): GraphNode | undefined {
+  if (!document) return undefined;
+  const rect = canvas.getBoundingClientRect();
+  const world = screenToWorld(viewport, screenX - rect.left, screenY - rect.top);
+  // 非フレームノードを優先（上に描画されるため逆順走査）
+  for (let i = document.nodes.length - 1; i >= 0; i--) {
+    const n = document.nodes[i];
+    if (n.type === 'frame') continue;
+    if (world.x >= n.x && world.x <= n.x + n.width &&
+        world.y >= n.y && world.y <= n.y + n.height) {
+      return n;
+    }
+  }
+  return undefined;
+}
+
 canvas.addEventListener('mousedown', (e) => {
-  isPanning = true;
-  lastPan = { x: e.clientX, y: e.clientY };
+  const hit = hitTestNode(e.clientX, e.clientY);
+  if (hit) {
+    selectedNodeIds = [hit.id];
+    // c4Id が file:: プレフィックスを持つ場合、ファイルを開く
+    const c4Id = hit.metadata?.c4Id;
+    if (typeof c4Id === 'string' && c4Id.startsWith('file::')) {
+      const relativePath = c4Id.slice('file::'.length);
+      vscode.postMessage({ type: 'openFile', relativePath });
+    }
+  } else {
+    selectedNodeIds = [];
+    isPanning = true;
+    lastPan = { x: e.clientX, y: e.clientY };
+  }
 });
 
 canvas.addEventListener('mousemove', (e) => {

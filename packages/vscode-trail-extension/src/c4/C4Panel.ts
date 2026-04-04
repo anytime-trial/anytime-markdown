@@ -23,6 +23,7 @@ export class C4Panel {
   private lastModel: C4Model | undefined;
   private lastBoundaries: readonly BoundaryInfo[] | undefined;
   private lastTrailGraph: TrailGraph | undefined;
+  private lastProjectRoot: string | undefined;
 
   private constructor(
     private readonly panel: vscode.WebviewPanel,
@@ -30,6 +31,19 @@ export class C4Panel {
   ) {
     this.panel.onDidDispose(() => {
       C4Panel.currentPanel = undefined;
+    });
+
+    this.panel.webview.onDidReceiveMessage(async (msg) => {
+      if (msg.type === 'openFile' && typeof msg.relativePath === 'string' && this.lastProjectRoot) {
+        const path = await import('node:path');
+        const absolutePath = path.join(this.lastProjectRoot, msg.relativePath);
+        const uri = vscode.Uri.file(absolutePath);
+        try {
+          await vscode.window.showTextDocument(uri, { viewColumn: vscode.ViewColumn.One });
+        } catch {
+          vscode.window.showWarningMessage(`File not found: ${msg.relativePath}`);
+        }
+      }
     });
   }
 
@@ -154,6 +168,7 @@ export class C4Panel {
 
           const panel = C4Panel.getOrCreatePanel(extensionUri, 'C4: Project Analysis');
           panel.lastTrailGraph = graph;
+          panel.lastProjectRoot = graph.metadata.projectRoot;
           panel.postModel(model);
         },
       );

@@ -152,6 +152,7 @@ export function c4ToGraphDocument(
         stroke: colors.stroke,
         ...(elem.external ? { dashed: true } : {}),
       },
+      metadata: { c4Id: elem.id, c4Type: elem.type },
       ...(elem.boundaryId && boundaryIdMap.has(elem.boundaryId)
         ? { groupId: boundaryIdMap.get(elem.boundaryId) }
         : {}),
