@@ -52,7 +52,9 @@ export function C4Viewer() {
   const [showTree, setShowTree] = useState(true);
   const [dsmLevel, setDsmLevel] = useState<'component' | 'package'>('component');
   const [dsmClustered, setDsmClustered] = useState(false);
+  const [splitRatio, setSplitRatio] = useState(0.5);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const loadMermaidText = useCallback((text: string) => {
     try {
@@ -122,6 +124,31 @@ export function C4Viewer() {
     const fullTree = buildElementTree(c4Model, boundaryInfos);
     return filterTreeByLevel(fullTree, currentLevel);
   }, [c4Model, boundaryInfos, currentLevel]);
+
+  const handleSplitDrag = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    const container = containerRef.current;
+    if (!container) return;
+
+    const onMove = (ev: MouseEvent) => {
+      const rect = container.getBoundingClientRect();
+      const treeWidth = showTree && elementTree.length > 0 ? 260 : 0;
+      const available = rect.width - treeWidth;
+      if (available <= 0) return;
+      const ratio = Math.min(0.8, Math.max(0.2, (ev.clientX - rect.left) / available));
+      setSplitRatio(ratio);
+    };
+    const onUp = () => {
+      globalThis.removeEventListener('mousemove', onMove);
+      globalThis.removeEventListener('mouseup', onUp);
+      globalThis.document.body.style.cursor = '';
+      globalThis.document.body.style.userSelect = '';
+    };
+    globalThis.addEventListener('mousemove', onMove);
+    globalThis.addEventListener('mouseup', onUp);
+    globalThis.document.body.style.cursor = 'col-resize';
+    globalThis.document.body.style.userSelect = 'none';
+  }, [showTree, elementTree.length]);
 
   const toolbarButtonSx = {
     textTransform: 'none',
@@ -216,9 +243,9 @@ export function C4Viewer() {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px)', bgcolor: BG_PRIMARY }}>
       {c4Toolbar}
-      <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+      <Box ref={containerRef} sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {/* Left: C4 Model */}
-        <Box sx={{ flex: 1, position: 'relative', borderRight: `1px solid ${BORDER_COLOR}` }}>
+        <Box sx={{ flex: splitRatio, position: 'relative', minWidth: 100 }}>
           <GraphCanvas
             document={state.document}
             viewport={state.document.viewport}
@@ -226,8 +253,20 @@ export function C4Viewer() {
             canvasRef={canvasRef}
           />
         </Box>
+        {/* Resize grip */}
+        <Box
+          onMouseDown={handleSplitDrag}
+          sx={{
+            width: 5,
+            cursor: 'col-resize',
+            bgcolor: 'transparent',
+            borderLeft: `1px solid ${BORDER_COLOR}`,
+            '&:hover': { bgcolor: 'rgba(144,202,249,0.2)' },
+            flexShrink: 0,
+          }}
+        />
         {/* Center: DSM */}
-        <Box sx={{ flex: 1, position: 'relative', borderRight: showTree && elementTree.length > 0 ? `1px solid ${BORDER_COLOR}` : 'none' }}>
+        <Box sx={{ flex: 1 - splitRatio, position: 'relative', minWidth: 100, borderRight: showTree && elementTree.length > 0 ? `1px solid ${BORDER_COLOR}` : 'none' }}>
           {c4Model ? (
             <DsmCanvas
               model={c4Model}
