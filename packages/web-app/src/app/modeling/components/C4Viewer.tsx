@@ -8,14 +8,13 @@ import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import FitScreenIcon from '@mui/icons-material/FitScreen';
-import { parseMermaidC4, extractBoundaries, c4ToGraphDocument } from '@anytime-markdown/c4-kernel';
+import { parseMermaidC4, extractBoundaries, c4ToGraphDocument, buildLevelView } from '@anytime-markdown/c4-kernel';
 import { engine, state as graphState, layoutWithSubgroups } from '@anytime-markdown/graph-core';
-import type { GraphNode } from '@anytime-markdown/graph-core';
+import type { GraphDocument, GraphNode } from '@anytime-markdown/graph-core';
 import { GraphCanvas } from './GraphCanvas';
 
 const { graphReducer, createInitialState } = graphState;
 const { fitToContent } = engine;
-
 
 /** ノード群のバウンディングボックスを計算 */
 function computeBounds(nodes: readonly GraphNode[]) {
@@ -32,6 +31,7 @@ function computeBounds(nodes: readonly GraphNode[]) {
 
 export function C4Viewer() {
   const [state, dispatch] = useReducer(graphReducer, createInitialState());
+  const [fullDoc, setFullDoc] = useState<GraphDocument | null>(null);
   const [currentLevel, setCurrentLevel] = useState<number>(4);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -50,6 +50,8 @@ export function C4Viewer() {
           const model = parseMermaidC4(text);
           const doc = c4ToGraphDocument(model, boundaries);
           layoutWithSubgroups(doc, 'TB', 180, 60);
+          setFullDoc(doc);
+          setCurrentLevel(4);
           dispatch({ type: 'SET_DOCUMENT', doc });
         } catch {
           // invalid C4 mermaid
@@ -61,23 +63,12 @@ export function C4Viewer() {
   }, []);
 
   const handleSetLevel = useCallback((level: number) => {
+    if (!fullDoc) return;
     setCurrentLevel(level);
-    const { nodes } = state.document;
-    const frames = nodes.filter(n => n.type === 'frame');
-    for (const frame of frames) {
-      let depth = 1;
-      let parentId = frame.groupId;
-      while (parentId) {
-        depth++;
-        const parent = nodes.find(n => n.id === parentId);
-        parentId = parent?.groupId;
-      }
-      const shouldCollapse = depth >= level;
-      if ((frame.collapsed ?? false) !== shouldCollapse) {
-        dispatch({ type: 'UPDATE_NODE', id: frame.id, changes: { collapsed: shouldCollapse } });
-      }
-    }
-  }, [state.document]);
+    const view = buildLevelView(fullDoc, level);
+    layoutWithSubgroups(view, 'TB', 180, 60);
+    dispatch({ type: 'SET_DOCUMENT', doc: view });
+  }, [fullDoc]);
 
   const handleFit = useCallback(() => {
     const canvas = canvasRef.current;
