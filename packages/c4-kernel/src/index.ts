@@ -28,3 +28,5 @@ export type {
 
 export { buildC4Matrix } from './dsm/buildC4Matrix';
 export { buildSourceMatrix } from './dsm/buildSourceMatrix';
+export { diffMatrix } from './dsm/diffMatrix';
+export { detectCycles } from './dsm/detectCycles';
