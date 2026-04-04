@@ -393,6 +393,12 @@ export function activate(context: vscode.ExtensionContext) {
 		treeDataProvider: c4ElementsProvider,
 	});
 
+	// 保存済みC4モデルを自動読み込み
+	const savedModel = C4Panel.loadSavedModel();
+	if (savedModel) {
+		c4ElementsProvider.setModel(savedModel.model, savedModel.boundaries);
+	}
+
 	const c4ElementsRefresh = vscode.commands.registerCommand('anytime-trail.c4ElementsRefresh', () =>
 		c4ElementsProvider.refresh(),
 	);

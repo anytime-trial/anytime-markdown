@@ -43,5 +43,6 @@
   "viewsWelcome.c4Elements": "No C4 model loaded.\n[$(graph) Analyze Workspace](command:anytime-trail.c4Analyze)",
   "command.c4ElementsRefresh": "Refresh C4 Model",
   "command.c4SetLevel": "Set C4 Detail Level",
-  "config.c4AnalyzeExcludePatterns": "Directory names to exclude when searching for `tsconfig.json` during C4 workspace analysis. Paths containing any of these strings will be filtered out."
+  "config.c4AnalyzeExcludePatterns": "Directory names to exclude when searching for `tsconfig.json` during C4 workspace analysis. Paths containing any of these strings will be filtered out.",
+  "config.c4ModelPath": "File path to save/load C4 model data. Relative paths are resolved from the workspace root. Default: `.vscode/c4-model.json`."
 }

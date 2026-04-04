@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { parseMermaidC4, extractBoundaries } from '@anytime-markdown/c4-kernel/src/parser/mermaidC4';
 import type { C4Model, BoundaryInfo } from '@anytime-markdown/c4-kernel/src/types';
 import { analyze, trailToC4, toMermaid } from '@anytime-markdown/trail-core';
@@ -17,6 +19,48 @@ export class C4Panel {
   /** ツリービュープロバイダーを設定 */
   public static setTreeProvider(provider: C4ElementsProvider): void {
     C4Panel.treeProvider = provider;
+  }
+
+  /** 設定パスを絶対パスに解決する。ワークスペースなし or 空なら null */
+  private static resolveModelPath(): string | null {
+    const configured = vscode.workspace.getConfiguration('anytimeTrail.c4').get<string>('modelPath', '.vscode/c4-model.json');
+    if (!configured) return null;
+    if (path.isAbsolute(configured)) return configured;
+    const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (!root) return null;
+    return path.join(root, configured);
+  }
+
+  /** 解析結果を設定パスに自動保存 */
+  private static saveModel(model: C4Model, boundaries: readonly BoundaryInfo[]): void {
+    const filePath = C4Panel.resolveModelPath();
+    if (!filePath) return;
+    try {
+      const dir = path.dirname(filePath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      const data = { model, boundaries };
+      fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+    } catch {
+      // 保存失敗は無視（権限エラー等）
+    }
+  }
+
+  /** 保存済みモデルを読み込む（ファイルなし or パースエラーなら null） */
+  public static loadSavedModel(): { model: C4Model; boundaries: BoundaryInfo[] } | null {
+    const filePath = C4Panel.resolveModelPath();
+    if (!filePath || !fs.existsSync(filePath)) return null;
+    try {
+      const raw = fs.readFileSync(filePath, 'utf-8');
+      const data = JSON.parse(raw);
+      if (data?.model?.elements && Array.isArray(data.model.elements)) {
+        return { model: data.model, boundaries: data.boundaries ?? [] };
+      }
+    } catch {
+      // パースエラーは無視
+    }
+    return null;
   }
 
   private constructor(
@@ -221,6 +265,7 @@ export class C4Panel {
       boundaries: boundaries ?? [],
     });
     C4Panel.treeProvider?.setModel(model, boundaries ?? []);
+    C4Panel.saveModel(model, boundaries ?? []);
   }
 
   private getHtml(): string {

@@ -490,6 +490,11 @@
             "__tests__"
           ],
           "markdownDescription": "%config.c4AnalyzeExcludePatterns%"
+        },
+        "anytimeTrail.c4.modelPath": {
+          "type": "string",
+          "default": ".vscode/c4-model.json",
+          "markdownDescription": "%config.c4ModelPath%"
         }
       }
     }
