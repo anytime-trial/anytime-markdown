@@ -7,7 +7,7 @@ EXT_DIR="$REPO_ROOT/packages/vscode-trail-extension"
 
 mkdir -p "$DIST_DIR"
 
-echo "=== Anytime Git: Build & Install ==="
+echo "=== Anytime Trail: Build & Install ==="
 
 cd "$REPO_ROOT"
 npm install --ignore-scripts 2>/dev/null || npm install
