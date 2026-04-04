@@ -199,15 +199,41 @@ export function nearestConnectionPoint(node: GraphNode, tx: number, ty: number):
   return best;
 }
 
-/** 接続ポイントのhit判定 */
+/** 接続ポイントのhit判定。定義済みポイント優先、辺境界付近ならその位置を返す */
 export function hitTestConnectionPoint(
   node: GraphNode, wx: number, wy: number, scale: number,
 ): { side: Side; x: number; y: number } | null {
-  const radius = 10 / scale;
+  const handleRadius = 10 / scale;
+  // 定義済み接続ポイント（4辺中央 + extra）を優先判定
   for (const p of getConnectionPoints(node)) {
-    if (Math.hypot(wx - p.x, wy - p.y) <= radius) return p;
+    if (Math.hypot(wx - p.x, wy - p.y) <= handleRadius) return p;
+  }
+  // ノード辺境界付近なら辺上の最近点で接続（広いゾーン）
+  const borderRadius = 20 / scale;
+  const border = nearestBorderPoint(node, wx, wy);
+  if (border && Math.hypot(wx - border.x, wy - border.y) <= borderRadius) {
+    return border;
   }
   return null;
+}
+
+/** ノード境界上の最近点とその辺を返す（矩形ベース） */
+export function nearestBorderPoint(
+  node: GraphNode, wx: number, wy: number,
+): { side: Side; x: number; y: number } | null {
+  const { x, y, width: w, height: h } = node;
+  // 各辺上の最近点を計算
+  const candidates: { side: Side; x: number; y: number; dist: number }[] = [
+    { side: 'top', x: Math.max(x, Math.min(x + w, wx)), y, dist: Math.abs(wy - y) },
+    { side: 'bottom', x: Math.max(x, Math.min(x + w, wx)), y: y + h, dist: Math.abs(wy - (y + h)) },
+    { side: 'left', x, y: Math.max(y, Math.min(y + h, wy)), dist: Math.abs(wx - x) },
+    { side: 'right', x: x + w, y: Math.max(y, Math.min(y + h, wy)), dist: Math.abs(wx - (x + w)) },
+  ];
+  let best = candidates[0];
+  for (let i = 1; i < candidates.length; i++) {
+    if (candidates[i].dist < best.dist) best = candidates[i];
+  }
+  return { side: best.side, x: best.x, y: best.y };
 }
 
 /** 2ノード間の最適な接続辺を決定 */

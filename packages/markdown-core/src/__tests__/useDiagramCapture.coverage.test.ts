@@ -78,7 +78,7 @@ describe("useDiagramCapture - Mermaid light mode (SVG used directly)", () => {
       }),
     );
 
-    await result.current();
+    await result.current.handleCapture();
 
     expect(ctx.drawImage).toHaveBeenCalled();
     expect(mockSaveBlob).toHaveBeenCalledWith(expect.any(Blob), "mermaid.png");
@@ -107,7 +107,7 @@ describe("useDiagramCapture - Mermaid dark mode (re-renders as light)", () => {
       }),
     );
 
-    await result.current();
+    await result.current.handleCapture();
     errorSpy.mockRestore();
   });
 });
@@ -135,7 +135,7 @@ describe("useDiagramCapture - PlantUML SVG fetch success", () => {
       }),
     );
 
-    await result.current();
+    await result.current.handleCapture();
 
     expect(global.fetch).toHaveBeenCalledWith(
       "https://www.plantuml.com/plantuml/svg/encoded",
@@ -170,7 +170,7 @@ describe("useDiagramCapture - PlantUML SVG fetch fail -> PNG fallback", () => {
       }),
     );
 
-    await result.current();
+    await result.current.handleCapture();
 
     expect(fetchCount).toBe(2);
     expect(mockSaveBlob).toHaveBeenCalledWith(pngBlob, "plantuml.png");
@@ -199,7 +199,7 @@ describe("useDiagramCapture - PlantUML both fetch fail -> <a> download", () => {
       }),
     );
 
-    await result.current();
+    await result.current.handleCapture();
 
     expect(mockClick).toHaveBeenCalled();
     jest.restoreAllMocks();
@@ -230,7 +230,7 @@ describe("useDiagramCapture - PlantUML dark mode uses light URL", () => {
       }),
     );
 
-    await result.current();
+    await result.current.handleCapture();
 
     // Should call encode for buildPlantUmlLightUrl
     expect(plantumlEncoder.default.encode).toHaveBeenCalled();
@@ -262,7 +262,7 @@ describe("useDiagramCapture - buildPlantUmlLightUrl code without @start", () => 
       }),
     );
 
-    await result.current();
+    await result.current.handleCapture();
 
     // encode should receive wrapped code
     expect(plantumlEncoder.default.encode).toHaveBeenCalledWith(
@@ -296,7 +296,7 @@ describe("useDiagramCapture - buildPlantUmlLightUrl with @startmindmap", () => {
       }),
     );
 
-    await result.current();
+    await result.current.handleCapture();
 
     // encode should receive original code (has @start)
     expect(plantumlEncoder.default.encode).toHaveBeenCalledWith(
@@ -327,7 +327,7 @@ describe("useDiagramCapture - sanitizeSvgForCanvas with foreignObject", () => {
       }),
     );
 
-    await result.current();
+    await result.current.handleCapture();
 
     expect(ctx.drawImage).toHaveBeenCalled();
   });
@@ -351,7 +351,7 @@ describe("useDiagramCapture - sanitizeSvgForCanvas with foreignObject", () => {
       }),
     );
 
-    await result.current();
+    await result.current.handleCapture();
     expect(ctx.drawImage).toHaveBeenCalled();
   });
 });
@@ -374,7 +374,7 @@ describe("useDiagramCapture - getSvgDimensions fallbacks", () => {
       }),
     );
 
-    await result.current();
+    await result.current.handleCapture();
     expect(ctx.drawImage).toHaveBeenCalled();
   });
 
@@ -395,7 +395,7 @@ describe("useDiagramCapture - getSvgDimensions fallbacks", () => {
       }),
     );
 
-    await result.current();
+    await result.current.handleCapture();
     expect(ctx.drawImage).toHaveBeenCalled();
   });
 
@@ -416,7 +416,7 @@ describe("useDiagramCapture - getSvgDimensions fallbacks", () => {
       }),
     );
 
-    await result.current();
+    await result.current.handleCapture();
     expect(ctx.drawImage).toHaveBeenCalled();
   });
 });
@@ -438,7 +438,7 @@ describe("useDiagramCapture - downloadSvgAsPng ctx null", () => {
       }),
     );
 
-    await result.current();
+    await result.current.handleCapture();
     expect(mockSaveBlob).not.toHaveBeenCalled();
   });
 });
@@ -469,19 +469,21 @@ describe("useDiagramCapture - downloadSvgAsPng toBlob returns null", () => {
       }),
     );
 
-    await result.current();
+    await result.current.handleCapture();
     expect(mockSaveBlob).not.toHaveBeenCalled();
   });
 });
 
 describe("useDiagramCapture - image onerror path", () => {
-  it("continues when image fails to load (onerror resolves)", async () => {
+  it("rejects and skips drawImage when image fails to load", async () => {
     const ctx = mockCanvasContext();
     jest.spyOn(globalThis, "Image").mockImplementation(() => {
       const img = document.createElement("img");
       setTimeout(() => img.onerror?.(new Event("error")), 0);
       return img;
     });
+
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
 
     const { result } = renderHook(() =>
       useDiagramCapture({
@@ -491,9 +493,14 @@ describe("useDiagramCapture - image onerror path", () => {
       }),
     );
 
-    await result.current();
-    // onerror resolves (not rejects) so drawImage still runs with broken image
-    expect(ctx.drawImage).toHaveBeenCalled();
+    await result.current.handleCapture();
+    // onerror rejects → drawImage is NOT called, error is caught by top-level handler
+    expect(ctx.drawImage).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      "useDiagramCapture: failed to capture diagram",
+      expect.any(Error),
+    );
+    errorSpy.mockRestore();
   });
 });
 
@@ -521,7 +528,7 @@ describe("useDiagramCapture - top-level error handler", () => {
       }),
     );
 
-    await result.current();
+    await result.current.handleCapture();
     errorSpy.mockRestore();
     jest.restoreAllMocks();
   });

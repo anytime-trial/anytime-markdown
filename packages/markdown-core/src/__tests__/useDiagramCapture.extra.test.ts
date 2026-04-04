@@ -28,8 +28,19 @@ jest.mock("../constants/timing", () => ({
 }));
 
 import { useDiagramCapture } from "../hooks/useDiagramCapture";
+
+/** jsdom では Image の src 設定で onload/onerror が発火しないため、モックで即座に onload を呼ぶ */
+function mockImageOnload() {
+  return jest.spyOn(globalThis, "Image").mockImplementation(() => {
+    const img = document.createElement("img");
+    setTimeout(() => img.onload?.(new Event("load")), 0);
+    return img;
+  });
+}
+
 describe("useDiagramCapture - Mermaid capture", () => {
   it("isMermaid=true with SVG calls downloadSvgAsPng internally", async () => {
+    const imgSpy = mockImageOnload();
     const svgContent = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100"><text>Hello</text></svg>';
     const { result } = renderHook(() =>
       useDiagramCapture({
@@ -44,9 +55,10 @@ describe("useDiagramCapture - Mermaid capture", () => {
 
     const consoleSpy = jest.spyOn(console, "error").mockImplementation(() => {});
     try {
-      await result.current();
+      await result.current.handleCapture();
     } finally {
       consoleSpy.mockRestore();
+      imgSpy.mockRestore();
     }
     // In jsdom, canvas operations may fail, but the function should handle errors gracefully
   });
@@ -63,7 +75,7 @@ describe("useDiagramCapture - Mermaid capture", () => {
       }),
     );
 
-    await result.current();
+    await result.current.handleCapture();
     // Should not throw
   });
 
@@ -85,7 +97,7 @@ describe("useDiagramCapture - Mermaid capture", () => {
 
     const consoleSpy = jest.spyOn(console, "error").mockImplementation(() => {});
     try {
-      await result.current();
+      await result.current.handleCapture();
     } finally {
       consoleSpy.mockRestore();
     }
@@ -103,11 +115,12 @@ describe("useDiagramCapture - Mermaid capture", () => {
       }),
     );
 
-    await result.current();
+    await result.current.handleCapture();
     // Should complete without error
   });
 
   it("dark mode with mermaid triggers renderMermaidLight", async () => {
+    const imgSpy = mockImageOnload();
     // Mock mermaid module
     jest.mock("mermaid", () => ({
       __esModule: true,
@@ -130,9 +143,10 @@ describe("useDiagramCapture - Mermaid capture", () => {
 
     const consoleSpy = jest.spyOn(console, "error").mockImplementation(() => {});
     try {
-      await result.current();
+      await result.current.handleCapture();
     } finally {
       consoleSpy.mockRestore();
+      imgSpy.mockRestore();
     }
   });
 });

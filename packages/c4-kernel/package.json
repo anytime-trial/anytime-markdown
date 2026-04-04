@@ -1,0 +1,25 @@
+{
+  "name": "@anytime-markdown/c4-kernel",
+  "version": "0.0.1",
+  "license": "MIT",
+  "private": true,
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./src/*": "./src/*"
+  },
+  "scripts": {
+    "test": "jest --maxWorkers=1"
+  },
+  "peerDependencies": {
+    "@anytime-markdown/graph-core": "*",
+    "@anytime-markdown/trail-core": "*"
+  },
+  "devDependencies": {
+    "@types/jest": "30.0.0",
+    "jest": "30.2.0",
+    "ts-jest": "29.4.0",
+    "typescript": "5.8.3"
+  }
+}

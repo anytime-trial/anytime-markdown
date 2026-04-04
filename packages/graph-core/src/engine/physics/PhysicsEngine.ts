@@ -6,6 +6,7 @@ import { SpatialGrid } from './SpatialGrid';
 import { applySpring, applyRepulsion, applyCenterGravity, applyFRAttraction, applyFRRepulsion } from './forces';
 import { detectCollision, resolveCollision } from './collision';
 import { applyVpsc } from './vpsc';
+import { computeHierarchicalLayout } from './hierarchical';
 
 export class PhysicsEngine {
   private bodies = new Map<string, PhysicsBody>();
@@ -46,7 +47,15 @@ export class PhysicsEngine {
     this.iteration = 0;
 
     const algo = this.config.algorithm;
-    if (algo === 'fruchterman-reingold' || algo === 'fruchterman-reingold-vpsc') {
+    if (algo === 'hierarchical') {
+      computeHierarchicalLayout(
+        this.bodies,
+        edges,
+        this.config.hierarchicalDirection,
+        this.config.hierarchicalLevelGap,
+        this.config.hierarchicalNodeSpacing,
+      );
+    } else if (algo === 'fruchterman-reingold' || algo === 'fruchterman-reingold-vpsc') {
       const n = this.bodies.size || 1;
       const area = n * 200 * 200 * this.config.frAreaMultiplier;
       this.frK = Math.sqrt(area / n);
@@ -71,6 +80,7 @@ export class PhysicsEngine {
 
   private step(): void {
     const algo = this.config.algorithm;
+    if (algo === 'hierarchical') return; // non-iterative, computed in initLayout
     if (algo === 'fruchterman-reingold' || algo === 'fruchterman-reingold-vpsc') {
       this.stepFR();
     } else {
@@ -202,6 +212,7 @@ export class PhysicsEngine {
 
   private isConverged(): boolean {
     const algo = this.config.algorithm;
+    if (algo === 'hierarchical') return true; // non-iterative
     if (algo === 'fruchterman-reingold' || algo === 'fruchterman-reingold-vpsc') {
       return this.temperature < 0.5;
     }

@@ -11,7 +11,7 @@ This extension pack includes:
 |---|---|
 | [Anytime Markdown](https://marketplace.visualstudio.com/items?itemName=anytime-trial.anytime-markdown) | WYSIWYG Markdown editor with live preview, diagrams, and comparison mode |
 | [Anytime Graph](https://marketplace.visualstudio.com/items?itemName=anytime-trial.anytime-graph) | Graph whiteboard editor with physics-based layout |
-| [Anytime Git](https://marketplace.visualstudio.com/items?itemName=anytime-trial.anytime-git) | Git repository management, staging, graph, and timeline |
+| [Anytime Trail](https://marketplace.visualstudio.com/items?itemName=anytime-trial.anytime-trail) | Git repository management, staging, graph, and timeline |
 
 ## License
 

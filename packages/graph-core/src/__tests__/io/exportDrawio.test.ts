@@ -236,7 +236,7 @@ describe('exportToDrawio', () => {
 
   it('should export edge with label', () => {
     const doc = createDocument('Test');
-    const edge = createEdge('arrow', { x: 0, y: 0 }, { x: 100, y: 100 }, { id: 'el1', label: 'yes' });
+    const edge = createEdge('connector', { x: 0, y: 0 }, { x: 100, y: 100 }, { id: 'el1', label: 'yes' });
     doc.edges = [edge];
     const xml = exportToDrawio(doc);
     expect(xml).toContain('value="yes"');
@@ -434,7 +434,7 @@ describe('exportToDrawio', () => {
 
   it('should export edge with dashed and opacity', () => {
     const doc = createDocument('Test');
-    const edge = createEdge('arrow', { x: 0, y: 0 }, { x: 100, y: 100 }, { id: 'ed1' });
+    const edge = createEdge('connector', { x: 0, y: 0 }, { x: 100, y: 100 }, { id: 'ed1' });
     edge.style.dashed = true;
     edge.style.opacity = 70;
     doc.edges = [edge];

@@ -18,10 +18,12 @@
     "packages/mcp-cms-remote",
     "packages/vscode-markdown-extension",
     "packages/vscode-graph-extension",
-    "packages/vscode-git-extension",
+    "packages/vscode-trail-extension",
     "packages/vscode-extension-pack",
     "packages/web-app",
-    "packages/mobile-app"
+    "packages/mobile-app",
+    "packages/trail-core",
+    "packages/c4-kernel"
   ],
   "overrides": {
     "serialize-javascript": "7.0.5",

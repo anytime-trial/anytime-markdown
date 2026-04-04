@@ -42,7 +42,7 @@ describe("useDiagramCapture", () => {
       }),
     );
 
-    expect(typeof result.current).toBe("function");
+    expect(typeof result.current.handleCapture).toBe("function");
   });
 
   it("isMermaid=false, isPlantUml=false のとき実行してもエラーにならない", async () => {
@@ -58,7 +58,7 @@ describe("useDiagramCapture", () => {
     );
 
     // エラーなく完了すること
-    await result.current();
+    await result.current.handleCapture();
   });
 
   it("deps が変わると新しいコールバックが返る", () => {
@@ -75,11 +75,11 @@ describe("useDiagramCapture", () => {
       { initialProps: { code: "graph TD; A-->B" } },
     );
 
-    const first = result.current;
+    const first = result.current.handleCapture;
 
     rerender({ code: "graph TD; A-->C" });
 
-    const second = result.current;
+    const second = result.current.handleCapture;
 
     // useCallback の deps が変わったので新しい参照
     expect(first).not.toBe(second);
@@ -97,10 +97,10 @@ describe("useDiagramCapture", () => {
       }),
     );
 
-    const first = result.current;
+    const first = result.current.handleCapture;
 
     rerender();
 
-    expect(result.current).toBe(first);
+    expect(result.current.handleCapture).toBe(first);
   });
 });

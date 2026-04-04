@@ -275,31 +275,61 @@ const renderImage: SpecialShapeRenderer = (ctx, node, selected) => {
 const renderFrame: SpecialShapeRenderer = (ctx, node, selected, _isDragging, fill) => {
   const { x, y, width, height, style, text } = node;
   const fr = effectiveBorderRadius(style, 8);
-
-  // フレーム背景
-  ctx.fillStyle = fill;
-  drawRoundedRect(ctx, x, y, width, height, fr);
-  ctx.fill();
-  setupStroke(ctx, style, selected);
-  ctx.setLineDash([...DASH_FRAME]);
-  drawRoundedRect(ctx, x, y, width, height, fr);
-  ctx.stroke();
-  ctx.setLineDash([]);
-  // タイトルバー
   const titleH = 28;
-  ctx.fillStyle = currentColors.frameTitleBg;
-  drawRoundedRect(ctx, x, y, width, titleH, fr);
-  ctx.fill();
-  // 下の角を矩形で埋める
-  ctx.fillRect(x, y + titleH - fr, width, fr);
+
+  if (node.collapsed) {
+    // --- 折りたたみ時: タイトルバーのみの矩形 ---
+    ctx.fillStyle = currentColors.frameTitleBg;
+    drawRoundedRect(ctx, x, y, width, titleH, fr);
+    ctx.fill();
+    setupStroke(ctx, style, selected);
+    drawRoundedRect(ctx, x, y, width, titleH, fr);
+    ctx.stroke();
+  } else {
+    // --- 展開時: 通常のフレーム描画 ---
+    ctx.fillStyle = fill;
+    drawRoundedRect(ctx, x, y, width, height, fr);
+    ctx.fill();
+    setupStroke(ctx, style, selected);
+    ctx.setLineDash([...DASH_FRAME]);
+    drawRoundedRect(ctx, x, y, width, height, fr);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // タイトルバー
+    ctx.fillStyle = currentColors.frameTitleBg;
+    drawRoundedRect(ctx, x, y, width, titleH, fr);
+    ctx.fill();
+    ctx.fillRect(x, y + titleH - fr, width, fr);
+  }
+
   // タイトルテキスト
   if (text) {
     ctx.fillStyle = currentColors.textSecondary;
     ctx.font = `bold ${style.fontSize}px ${style.fontFamily}`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText(text, x + 12, y + titleH / 2, width - 24);
+    ctx.fillText(text, x + 12, y + titleH / 2, width - 40);
   }
+
+  // 折りたたみ/展開アイコン（三角形）
+  const iconSize = 10;
+  const iconX = x + width - 12 - iconSize / 2;
+  const iconY = y + titleH / 2;
+  ctx.fillStyle = currentColors.textSecondary;
+  ctx.beginPath();
+  if (node.collapsed) {
+    // 右向き三角 ▶
+    ctx.moveTo(iconX - iconSize / 2, iconY - iconSize / 2);
+    ctx.lineTo(iconX + iconSize / 2, iconY);
+    ctx.lineTo(iconX - iconSize / 2, iconY + iconSize / 2);
+  } else {
+    // 下向き三角 ▼
+    ctx.moveTo(iconX - iconSize / 2, iconY - iconSize / 3);
+    ctx.lineTo(iconX + iconSize / 2, iconY - iconSize / 3);
+    ctx.lineTo(iconX, iconY + iconSize / 2);
+  }
+  ctx.closePath();
+  ctx.fill();
 };
 
 const renderRect: SpecialShapeRenderer = (ctx, node, selected, _isDragging, fill) => {

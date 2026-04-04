@@ -73,6 +73,8 @@ function edgeStyle(edge: GraphEdge): string {
     const routing = edge.style.routing ?? 'orthogonal';
     if (routing === 'bezier') {
       parts.push('edgeStyle=orthogonalEdgeStyle;curved=1');
+    } else if (routing === 'straight') {
+      // straight: drawio ではエッジスタイルなし（デフォルトの直線）
     } else {
       parts.push('edgeStyle=orthogonalEdgeStyle');
     }
@@ -80,7 +82,7 @@ function edgeStyle(edge: GraphEdge): string {
 
   parts.push(`strokeColor=#${stroke}`, `strokeWidth=${edge.style.strokeWidth}`);
 
-  const endShape = edge.style.endShape ?? ((edge.type === 'arrow' || edge.type === 'connector') ? 'arrow' : 'none');
+  const endShape = edge.style.endShape ?? (edge.type === 'connector' ? 'arrow' : 'none');
   const startShape = edge.style.startShape ?? 'none';
 
   if (endShape === 'none') parts.push('endArrow=none');

@@ -11,18 +11,18 @@ export {
   drawEdgeEndpointHandles, drawShapePreview,
 } from './overlays';
 export {
-  hitTest, hitTestNode, hitTestEdge, hitTestEdgeSegment, hitTestResizeHandles,
+  hitTest, hitTestNode, hitTestEdge, hitTestEdgeSegment, hitTestWaypointHandle, hitTestResizeHandles,
 } from './hitTest';
 export type { HitResult, HitTestContext, ResizeHandle, ConnectionSide, EdgeEndpointEnd } from './hitTest';
 export { screenToWorld, worldToScreen, pan, zoom, fitToContent } from './viewport';
 export {
   nodeCenter, rectIntersection, ellipseIntersection, nodeIntersection,
   resolveConnectorEndpoints, computeOrthogonalPath, computeBezierPath,
-  getConnectionPoints, nearestConnectionPoint, hitTestConnectionPoint,
+  getConnectionPoints, nearestConnectionPoint, nearestBorderPoint, hitTestConnectionPoint,
   bestSides,
 } from './connector';
 export type { Side } from './connector';
-export { computeAvoidancePath } from './pathfinding';
+export { computeVisibilityPath } from './visibilityGraph';
 export { snapToGrid, snapRect } from './gridSnap';
 export {
   alignLeft, alignRight, alignTop, alignBottom,

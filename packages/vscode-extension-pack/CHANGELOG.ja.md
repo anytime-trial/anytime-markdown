@@ -20,4 +20,4 @@
 ## [0.0.1] - 2026-03-27
 
 ### 追加
-- Anytime Markdown、Anytime Graph、Anytime Git をバンドル
+- Anytime Markdown、Anytime Graph、Anytime Trail をバンドル

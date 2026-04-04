@@ -1,7 +1,7 @@
 {
   "name": "anytime-extension-pack",
   "displayName": "Anytime Extension Pack",
-  "description": "Extension pack bundling Anytime Markdown, Anytime Graph, and Anytime Git for VS Code.",
+  "description": "Extension pack bundling Anytime Markdown, Anytime Graph, and Anytime Trail for VS Code.",
   "version": "0.0.3",
   "license": "MIT",
   "publisher": "anytime-trial",
@@ -26,6 +26,6 @@
   "extensionPack": [
     "anytime-trial.anytime-markdown",
     "anytime-trial.anytime-graph",
-    "anytime-trial.anytime-git"
+    "anytime-trial.anytime-trail"
   ]
 }

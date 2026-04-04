@@ -73,6 +73,8 @@ interface ToolBarProps {
   onExportSvg: () => void;
   onExportDrawio: () => void;
   onImportDrawio: () => void;
+  onImportGraph: () => void;
+  onImportMermaid: () => void;
   onAlign: (type: string) => void;
   onSetScale: (scale: number) => void;
   selectionCount: number;
@@ -84,8 +86,8 @@ interface ToolBarProps {
   collisionEnabled?: boolean;
   onAutoLayout?: () => void;
   onToggleCollision?: (enabled: boolean) => void;
-  layoutAlgorithm?: 'eades' | 'fruchterman-reingold' | 'eades-vpsc' | 'fruchterman-reingold-vpsc';
-  onChangeAlgorithm?: (algorithm: 'eades' | 'fruchterman-reingold' | 'eades-vpsc' | 'fruchterman-reingold-vpsc') => void;
+  layoutAlgorithm?: 'eades' | 'fruchterman-reingold' | 'eades-vpsc' | 'fruchterman-reingold-vpsc' | 'hierarchical';
+  onChangeAlgorithm?: (algorithm: 'eades' | 'fruchterman-reingold' | 'eades-vpsc' | 'fruchterman-reingold-vpsc' | 'hierarchical') => void;
   onSpreadConnected?: () => void;
   showFilter?: boolean;
   onToggleFilter?: () => void;
@@ -95,7 +97,7 @@ interface ToolBarProps {
 export function GraphToolBar({
   tool, onToolChange, onUndo, onRedo, canUndo, canRedo,
   showGrid, onToggleGrid, onZoomIn, onZoomOut, onFitContent,
-  onClearAll, onExportSvg, onExportDrawio, onImportDrawio, onAlign, onSetScale, selectionCount, hasSelection: _hasSelection, scale, saveStatus, onToggleSettings: _onToggleSettings,
+  onClearAll, onExportSvg, onExportDrawio, onImportDrawio, onImportGraph, onImportMermaid, onAlign, onSetScale, selectionCount, hasSelection: _hasSelection, scale, saveStatus, onToggleSettings: _onToggleSettings,
   layoutRunning, collisionEnabled, onAutoLayout, onToggleCollision,
   layoutAlgorithm = 'eades', onChangeAlgorithm,
   onSpreadConnected,
@@ -107,6 +109,7 @@ export function GraphToolBar({
   const colors = getCanvasColors(isDark);
   const [alignAnchor, setAlignAnchor] = React.useState<null | HTMLElement>(null);
   const [exportAnchor, setExportAnchor] = React.useState<null | HTMLElement>(null);
+  const [importAnchor, setImportAnchor] = React.useState<null | HTMLElement>(null);
   const [zoomAnchor, setZoomAnchor] = useState<null | HTMLElement>(null);
 
   const saveStatusLabel = saveStatus === 'saving' ? t('saving') : t('saveError');
@@ -306,7 +309,7 @@ export function GraphToolBar({
         </Menu>
 
         <Tooltip title={`${t('autoLayout')} (${
-          { 'eades': 'Eades', 'fruchterman-reingold': 'FR', 'eades-vpsc': 'Eades+VPSC', 'fruchterman-reingold-vpsc': 'FR+VPSC' }[layoutAlgorithm]
+          { 'eades': 'Eades', 'fruchterman-reingold': 'FR', 'eades-vpsc': 'Eades+VPSC', 'fruchterman-reingold-vpsc': 'FR+VPSC', 'hierarchical': 'Hierarchical' }[layoutAlgorithm]
         })`}>
           <span>
             <IconButton
@@ -321,7 +324,7 @@ export function GraphToolBar({
         <Tooltip title={t('switchAlgorithm')}>
           <IconButton
             onClick={() => {
-              const cycle: Array<'eades' | 'fruchterman-reingold' | 'eades-vpsc' | 'fruchterman-reingold-vpsc'> = ['eades', 'fruchterman-reingold', 'eades-vpsc', 'fruchterman-reingold-vpsc'];
+              const cycle: Array<'eades' | 'fruchterman-reingold' | 'eades-vpsc' | 'fruchterman-reingold-vpsc' | 'hierarchical'> = ['eades', 'fruchterman-reingold', 'eades-vpsc', 'fruchterman-reingold-vpsc', 'hierarchical'];
               const idx = cycle.indexOf(layoutAlgorithm);
               onChangeAlgorithm?.(cycle[(idx + 1) % cycle.length]);
             }}
@@ -329,7 +332,7 @@ export function GraphToolBar({
             disabled={layoutRunning}
           >
             <Typography variant="caption" sx={{ fontSize: 10, fontWeight: 'bold', lineHeight: 1 }}>
-              {{ 'eades': 'EA', 'fruchterman-reingold': 'FR', 'eades-vpsc': 'EA+V', 'fruchterman-reingold-vpsc': 'FR+V' }[layoutAlgorithm]}
+              {{ 'eades': 'EA', 'fruchterman-reingold': 'FR', 'eades-vpsc': 'EA+V', 'fruchterman-reingold-vpsc': 'FR+V', 'hierarchical': 'HI' }[layoutAlgorithm]}
             </Typography>
           </IconButton>
         </Tooltip>
@@ -414,10 +417,15 @@ export function GraphToolBar({
         </Menu>
 
         <Tooltip title={t('import')}>
-          <IconButton size="small" onClick={onImportDrawio}>
+          <IconButton size="small" onClick={e => setImportAnchor(e.currentTarget)}>
             <ImportIcon fontSize="small" />
           </IconButton>
         </Tooltip>
+        <Menu anchorEl={importAnchor} open={Boolean(importAnchor)} onClose={() => setImportAnchor(null)}>
+          <MenuItem onClick={() => { onImportDrawio(); setImportAnchor(null); }}><ListItemText>{t('importDrawio')}</ListItemText></MenuItem>
+          <MenuItem onClick={() => { onImportGraph(); setImportAnchor(null); }}><ListItemText>{t('importGraph')}</ListItemText></MenuItem>
+          <MenuItem onClick={() => { onImportMermaid(); setImportAnchor(null); }}><ListItemText>{t('importMermaid')}</ListItemText></MenuItem>
+        </Menu>
 
       </Toolbar>
     </AppBar>

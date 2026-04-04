@@ -1,6 +1,6 @@
 export type NodeType = 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder' | 'doc' | 'frame' | 'image';
-export type EdgeType = 'line' | 'arrow' | 'connector';
-export type ToolType = 'select' | 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder' | 'doc' | 'frame' | 'line' | 'arrow' | 'connector' | 'pan';
+export type EdgeType = 'line' | 'connector';
+export type ToolType = 'select' | 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder' | 'doc' | 'frame' | 'line' | 'connector' | 'pan';
 
 export type TextAlign = 'left' | 'center' | 'right';
 export type VerticalAlign = 'top' | 'middle' | 'bottom';
@@ -29,7 +29,7 @@ export interface NodeStyle {
 }
 
 export type EndpointShape = 'none' | 'arrow' | 'circle' | 'diamond' | 'bar';
-export type RoutingMode = 'orthogonal' | 'bezier';
+export type RoutingMode = 'orthogonal' | 'bezier' | 'straight';
 
 export interface EdgeStyle {
   stroke: string;
@@ -55,6 +55,8 @@ export interface GraphNode {
   labelColor?: string;
   docContent?: string;
   locked?: boolean;
+  /** フレーム折りたたみ状態 */
+  collapsed?: boolean;
   zIndex?: number;
   /** 画像ノード用: data URL */
   imageData?: string;
@@ -81,6 +83,8 @@ export interface GraphEdge {
   label?: string;
   /** 手動調整した中間セグメントの位置（直角コネクタ用） */
   manualMidpoint?: number;
+  /** ユーザーが手動設定したウェイポイント。設定時は自動直交パスを上書きする */
+  manualWaypoints?: { x: number; y: number }[];
   /** 直角コネクタの中間ウェイポイント（resolveEdgeConnections で計算） */
   waypoints?: { x: number; y: number }[];
   /** Bezier パスの制御点列（resolveEdgeConnections で計算） */

@@ -2,11 +2,36 @@
 
 import React, { useRef, useEffect, useCallback, useMemo } from 'react';
 import { GraphNode, GraphEdge, Viewport, SelectionState } from '../types';
-import { render, drawSelectionRect, drawEdgePreview, drawShapePreview, drawSnapHighlight, drawSmartGuides, interpolateViewport, computeAvoidancePath } from '@anytime-markdown/graph-core/engine';
+import { render, drawSelectionRect, drawEdgePreview, drawShapePreview, drawSnapHighlight, drawSmartGuides, interpolateViewport, computeVisibilityPath } from '@anytime-markdown/graph-core/engine';
 import type { ViewportAnimation } from '@anytime-markdown/graph-core/engine';
 import { getCanvasColors } from '@anytime-markdown/graph-core';
 import { resolveConnectorEndpoints, computeOrthogonalPath, computeBezierPath, bestSides, getConnectionPoints } from '../engine/connector';
 import type { DragPreview } from '../hooks/useCanvasInteraction';
+
+/** 制御点を接続辺に垂直な方向にオフセットする（カーブ方向の変更） */
+function deflectControlPoint(
+  cp: { x: number; y: number },
+  side: string,
+  amount: number,
+): { x: number; y: number } {
+  // 辺に垂直な方向にオフセット
+  if (side === 'left' || side === 'right') {
+    return { x: cp.x, y: cp.y + amount };
+  }
+  return { x: cp.x + amount, y: cp.y };
+}
+
+/** 接続ポイントを辺に沿った方向にオフセットする */
+function offsetAlongSide(
+  pt: { side: string; x: number; y: number },
+  side: string,
+  offset: number,
+): { side: string; x: number; y: number } {
+  if (side === 'left' || side === 'right') {
+    return { ...pt, y: pt.y + offset };
+  }
+  return { ...pt, x: pt.x + offset };
+}
 
 interface GraphCanvasProps {
   nodes: readonly GraphNode[];
@@ -88,6 +113,9 @@ export function GraphCanvas({
       });
     }
 
+    // 同一ノードペア間のエッジ数をカウント（パス重複回避用）
+    const pairCount = new Map<string, number>();
+
     return edges.map(e => {
       if (e.type === 'connector' && e.from.nodeId && e.to.nodeId) {
         const fromNode = nodes.find(n => n.id === e.from.nodeId);
@@ -95,8 +123,35 @@ export function GraphCanvas({
         if (fromNode && toNode) {
           const routing = e.style.routing ?? 'orthogonal';
 
+          // 同一ノードペアの並列エッジ用オフセット計算
+          const pairKey = [e.from.nodeId, e.to.nodeId].sort().join(':');
+          const parallelIndex = pairCount.get(pairKey) ?? 0;
+          pairCount.set(pairKey, parallelIndex + 1);
+          const pairTotal = edges.filter(e2 =>
+            e2.type === 'connector' && e2.from.nodeId && e2.to.nodeId &&
+            [e2.from.nodeId, e2.to.nodeId].sort().join(':') === pairKey,
+          ).length;
+          const sides = bestSides(fromNode, toNode);
+          const fromPts = getConnectionPoints(fromNode);
+          const toPts = getConnectionPoints(toNode);
+          let fromPt = fromPts.find(p => p.side === sides.fromSide) ?? fromPts[0];
+          let toPt = toPts.find(p => p.side === sides.toSide) ?? toPts[0];
+          if (pairTotal > 1) {
+            const offset = (parallelIndex - (pairTotal - 1) / 2) * 15;
+            fromPt = offsetAlongSide(fromPt, sides.fromSide, offset);
+            toPt = offsetAlongSide(toPt, sides.toSide, offset);
+          }
+
           if (routing === 'bezier') {
             const bezierPath = computeBezierPath(fromNode, toNode);
+            if (pairTotal > 1) {
+              bezierPath[0] = fromPt;
+              bezierPath[3] = toPt;
+              // 中心から左右対称にカーブ方向をずらす
+              const deflection = (parallelIndex - (pairTotal - 1) / 2) * 60;
+              bezierPath[1] = deflectControlPoint(bezierPath[1], sides.fromSide, deflection);
+              bezierPath[2] = deflectControlPoint(bezierPath[2], sides.toSide, deflection);
+            }
             return {
               ...e,
               from: { ...e.from, ...bezierPath[0] },
@@ -105,28 +160,24 @@ export function GraphCanvas({
             };
           }
 
-          // orthogonal with obstacle avoidance
-          const obstacles = nodes
-            .filter(n => n.id !== fromNode.id && n.id !== toNode.id)
-            .map(n => ({ x: n.x, y: n.y, width: n.width, height: n.height }));
-
-          if (obstacles.length > 0) {
-            const sides = bestSides(fromNode, toNode);
-            const fromPts = getConnectionPoints(fromNode);
-            const toPts = getConnectionPoints(toNode);
-            const fromPt = fromPts.find(p => p.side === sides.fromSide) ?? fromPts[0];
-            const toPt = toPts.find(p => p.side === sides.toSide) ?? toPts[0];
-            const waypoints = computeAvoidancePath(fromPt, sides.fromSide, toPt, sides.toSide, obstacles);
-            return {
-              ...e,
-              from: { ...e.from, ...waypoints[0] },
-              to: { ...e.to, ...waypoints.at(-1)! },
-              waypoints,
-            };
+          if (routing === 'straight') {
+            return { ...e, from: { ...e.from, ...fromPt }, to: { ...e.to, ...toPt } };
           }
 
-          // No obstacles → standard orthogonal
-          const waypoints = computeOrthogonalPath(fromNode, toNode, 20, e.manualMidpoint);
+          // Manual waypoints: user-defined path overrides auto-routing
+          if (e.manualWaypoints?.length) {
+            const waypoints = [fromPt, ...e.manualWaypoints, toPt];
+            return { ...e, from: { ...e.from, ...fromPt }, to: { ...e.to, ...toPt }, waypoints };
+          }
+
+          // manualMidpoint backward compat
+          if (e.manualMidpoint !== undefined) {
+            const waypoints = computeOrthogonalPath(fromNode, toNode, 20, e.manualMidpoint);
+            return { ...e, from: { ...e.from, ...waypoints[0] }, to: { ...e.to, ...waypoints.at(-1)! }, waypoints };
+          }
+
+          // Orthogonal routing
+          const waypoints = computeVisibilityPath(fromPt, sides.fromSide, toPt, sides.toSide, []);
           return { ...e, from: { ...e.from, ...waypoints[0] }, to: { ...e.to, ...waypoints.at(-1)! }, waypoints };
         }
         const pts = resolveConnectorEndpoints(e, nodes);

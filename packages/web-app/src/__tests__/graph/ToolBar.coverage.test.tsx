@@ -38,6 +38,8 @@ const defaultProps = {
   onExportSvg: jest.fn(),
   onExportDrawio: jest.fn(),
   onImportDrawio: jest.fn(),
+  onImportGraph: jest.fn(),
+  onImportMermaid: jest.fn(),
   onAlign: jest.fn(),
   onSetScale: jest.fn(),
   selectionCount: 0,
