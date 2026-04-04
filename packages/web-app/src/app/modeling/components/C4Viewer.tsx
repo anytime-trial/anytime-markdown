@@ -1,15 +1,14 @@
 'use client';
 
-import { buildLevelView,c4ToGraphDocument, extractBoundaries, parseMermaidC4 } from '@anytime-markdown/c4-kernel';
+import { buildLevelView, c4ToGraphDocument, extractBoundaries, parseMermaidC4 } from '@anytime-markdown/c4-kernel';
 import type { GraphDocument, GraphNode } from '@anytime-markdown/graph-core';
-import { engine, layoutWithSubgroups,state as graphState } from '@anytime-markdown/graph-core';
+import { engine, layoutWithSubgroups, state as graphState } from '@anytime-markdown/graph-core';
 import FitScreenIcon from '@mui/icons-material/FitScreen';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import ButtonGroup from '@mui/material/ButtonGroup';
 import Toolbar from '@mui/material/Toolbar';
-import Typography from '@mui/material/Typography';
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 
 import { GraphCanvas } from './GraphCanvas';
@@ -29,6 +28,15 @@ function computeBounds(nodes: readonly GraphNode[]) {
   }
   return { minX, minY, maxX, maxY };
 }
+
+/** デザインシステム: ミッドナイトネイビー背景 */
+const BG_PRIMARY = '#0D1117';
+/** デザインシステム: チャコール */
+const BG_SECONDARY = '#121212';
+/** デザインシステム: アイスブルー */
+const ACCENT_BLUE = '#90CAF9';
+/** デザインシステム: ボーダー */
+const BORDER_COLOR = 'rgba(255,255,255,0.12)';
 
 export function C4Viewer() {
   const [state, dispatch] = useReducer(graphReducer, createInitialState());
@@ -91,33 +99,74 @@ export function C4Viewer() {
     dispatch({ type: 'SET_VIEWPORT', viewport });
   }, [state.document.nodes]);
 
+  const toolbarButtonSx = {
+    textTransform: 'none',
+    color: ACCENT_BLUE,
+    borderColor: BORDER_COLOR,
+    fontWeight: 600,
+    fontSize: '0.875rem',
+    borderRadius: '8px',
+    '&:hover': { bgcolor: 'rgba(255,255,255,0.08)' },
+  } as const;
+
+  const levelButtonSx = {
+    textTransform: 'none',
+    fontWeight: 600,
+    fontSize: '0.75rem',
+    minWidth: 36,
+    borderColor: BORDER_COLOR,
+    color: 'rgba(255,255,255,0.70)',
+    '&:hover': { bgcolor: 'rgba(255,255,255,0.08)' },
+  } as const;
+
+  const levelButtonActiveSx = {
+    ...levelButtonSx,
+    bgcolor: `${ACCENT_BLUE} !important`,
+    color: `${BG_PRIMARY} !important`,
+    borderColor: `${ACCENT_BLUE} !important`,
+  } as const;
+
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-      <Toolbar variant="dense" sx={{ gap: 1, borderBottom: 1, borderColor: 'divider' }}>
-        <Typography variant="h6" sx={{ mr: 2 }}>C4 Model</Typography>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px)', bgcolor: BG_PRIMARY }}>
+      <Toolbar
+        variant="dense"
+        sx={{
+          gap: 1,
+          bgcolor: BG_SECONDARY,
+          borderBottom: `1px solid ${BORDER_COLOR}`,
+          minHeight: 44,
+          px: { xs: 2, md: 3 },
+        }}
+      >
         <Button
           size="small"
-          startIcon={<UploadFileIcon />}
+          startIcon={<UploadFileIcon sx={{ fontSize: 18 }} />}
           onClick={handleImportMermaid}
+          sx={toolbarButtonSx}
         >
-          Import Mermaid C4
+          Import
         </Button>
-        <ButtonGroup size="small" sx={{ ml: 2 }}>
+        <ButtonGroup size="small" sx={{ ml: 1 }}>
           {[1, 2, 3, 4].map(level => (
             <Button
               key={level}
-              variant={currentLevel === level ? 'contained' : 'outlined'}
               onClick={() => handleSetLevel(level)}
+              sx={currentLevel === level ? levelButtonActiveSx : levelButtonSx}
             >
               L{level}
             </Button>
           ))}
         </ButtonGroup>
-        <Button size="small" startIcon={<FitScreenIcon />} onClick={handleFit}>
+        <Button
+          size="small"
+          startIcon={<FitScreenIcon sx={{ fontSize: 18 }} />}
+          onClick={handleFit}
+          sx={toolbarButtonSx}
+        >
           Fit
         </Button>
       </Toolbar>
-      <Box sx={{ flex: 1, position: 'relative' }}>
+      <Box sx={{ flex: 1, position: 'relative', bgcolor: BG_PRIMARY }}>
         <GraphCanvas
           document={state.document}
           viewport={state.document.viewport}
