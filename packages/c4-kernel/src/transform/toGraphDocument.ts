@@ -106,7 +106,17 @@ export function c4ToGraphDocument(
   // --- Phase 2: container 要素をフレームとして生成 ---
   for (const elem of model.elements) {
     if (!BOUNDARY_TYPES.has(elem.type)) continue;
-    if (boundaryIdMap.has(elem.id)) continue; // BoundaryInfo で既に生成済み
+    if (boundaryIdMap.has(elem.id)) {
+      // Phase 1 で作成済み → groupId のみ更新
+      if (elem.boundaryId && boundaryIdMap.has(elem.boundaryId)) {
+        const existingFrameId = boundaryIdMap.get(elem.id)!;
+        const frame = doc.nodes.find(n => n.id === existingFrameId);
+        if (frame) {
+          frame.groupId = boundaryIdMap.get(elem.boundaryId);
+        }
+      }
+      continue;
+    }
 
     const frameId = nextId();
     boundaryIdMap.set(elem.id, frameId);

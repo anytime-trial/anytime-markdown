@@ -1,5 +1,5 @@
 import { c4ToGraphDocument } from '../transform/toGraphDocument';
-import type { C4Model } from '../types';
+import type { C4Model, BoundaryInfo } from '../types';
 
 describe('c4ToGraphDocument', () => {
   it('should convert person to ellipse node', () => {
@@ -127,5 +127,35 @@ describe('c4ToGraphDocument', () => {
     expect(doc.edges).toHaveLength(1);
     expect(doc.edges[0].label).toBe('Uses');
     expect(doc.edges[0].type).toBe('connector');
+  });
+
+  it('should set groupId on boundary frames when element has boundaryId', () => {
+    const model: C4Model = {
+      title: 'Nested Test',
+      level: 'component',
+      elements: [
+        { id: 'outer', type: 'container', name: 'Outer' },
+        { id: 'inner', type: 'component', name: 'Inner', boundaryId: 'outer' },
+        { id: 'leaf', type: 'code', name: 'leaf.ts', boundaryId: 'inner' },
+      ],
+      relationships: [],
+    };
+    const boundaries: BoundaryInfo[] = [
+      { id: 'outer', name: 'Outer' },
+      { id: 'inner', name: 'Inner' },
+    ];
+    const doc = c4ToGraphDocument(model, boundaries);
+
+    const outerFrame = doc.nodes.find(n => n.text === 'Outer');
+    const innerFrame = doc.nodes.find(n => n.text === 'Inner');
+    const leafNode = doc.nodes.find(n => n.text === 'leaf.ts');
+
+    expect(outerFrame).toBeDefined();
+    expect(innerFrame).toBeDefined();
+    expect(leafNode).toBeDefined();
+    // innerFrame は outerFrame の子
+    expect(innerFrame!.groupId).toBe(outerFrame!.id);
+    // leafNode は innerFrame の子
+    expect(leafNode!.groupId).toBe(innerFrame!.id);
   });
 });
