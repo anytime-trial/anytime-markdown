@@ -7,3 +7,5 @@ export type {
 } from './types';
 
 export { parseMermaidC4 } from './parser/mermaidC4';
+export { c4ToGraphDocument } from './transform/toGraphDocument';
+export type { BoundaryInfo } from './transform/toGraphDocument';
