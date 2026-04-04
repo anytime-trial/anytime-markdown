@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-04-04
+
+### Added
+
+- c4ToMermaid serializer for C4Model to Mermaid C4 text
+- Code element type to parseMermaidC4
+- buildLevelView for C4 level filtering shared with web-app
+- extractBoundaries moved to c4-kernel and deduplicated
+
+### Fixed
+
+- Propagate groupId for nested boundary frames in Phase 2
+
 ## [0.0.1] - 2026-04-04
 
 Initial release. C4 architecture model parser and graph document converter.

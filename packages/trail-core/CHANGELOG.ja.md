@@ -6,6 +6,24 @@
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-04-04
+
+### 追加
+
+- trailToC4 L2-L4 変換と MDA CLI コマンド
+- --format mermaid CLI オプション（粒度・方向指定対応）
+- モジュール・シンボル粒度の toMermaid トランスフォーム
+
+### 変更
+
+- toMermaid を trailToC4 + c4ToMermaid パイプラインに簡素化
+- sourceFiles のキャッシュと EdgeExtractor の診断情報追加
+- 未使用コードの削除
+
+### 修正
+
+- Mermaid ノードラベルに内部 ID ではなく filePath を使用
+
 ## [0.0.1] - 2026-04-04
 
 初回リリース。TypeScript プロジェクトのアーキテクチャ可視化のための静的解析エンジン。

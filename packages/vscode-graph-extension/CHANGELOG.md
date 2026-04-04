@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-04-04
+
+### Added
+
+- TypeScript analysis with Trail Webview panel
+- tsconfig selection, export, bidirectional sync, filter and layout UI
+
 ### Changed
 
 - Improve GraphCanvas rendering with updated shape and edge renderers
@@ -13,10 +20,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Graph Core (graph-core)
 
-- Mermaid diagram import support
+- Mermaid diagram import with mermaidParser
 - Hierarchical layout engine and orthogonal edge routing
-- Split shapes into shapeRenderers and textRendering modules
-- Frame collapse and waypoint support
+- Frame collapse/expand and waypoint editing
+- Straight routing mode and parallel connector offsets
+- Bottom-up subgraph layout and nested frame support
 
 ## [0.0.3] - 2026-04-01
 

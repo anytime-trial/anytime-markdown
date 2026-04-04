@@ -6,6 +6,14 @@
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-04-04
+
+### Editor Core (markdown-core)
+
+- PlantUML ソース (.puml) および Mermaid (.mmd) エクスポート
+- ロゴ画像パス修正
+- ESLint 警告の解消
+
 ## [0.9.3] - 2026-04-01
 
 ### Editor Core (markdown-core)

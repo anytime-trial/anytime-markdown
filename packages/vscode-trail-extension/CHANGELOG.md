@@ -6,10 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-04-04
+
 ### Added
 
 - C4 architecture diagram viewer panel with Mermaid C4 parsing and graph-core rendering
-- Spec Docs provider improvements for documentation browsing
+- C4 model JSON export and Mermaid dependency export
+- Highlight changed files on git graph commit select
+- Open file on node click in C4 viewer
+- Auto-open git repos and C4 level toggle
+
+### Fixed
+
+- Use .mmd extension for Mermaid export
+- Exclude .vscode-test and .worktrees from C4 tsconfig list
+- Increase tsconfig.json search limit to 50 for C4 analyze
+- Pass deltaY directly to zoom function in C4 viewers
+- Prevent webview scroll capture for C4 wheel zoom
+- Bundle typescript in extension to resolve module not found
 
 ## [0.0.3] - 2026-04-01
 

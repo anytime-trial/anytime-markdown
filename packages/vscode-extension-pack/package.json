@@ -2,7 +2,7 @@
   "name": "anytime-extension-pack",
   "displayName": "Anytime Extension Pack",
   "description": "Extension pack bundling Anytime Markdown, Anytime Graph, and Anytime Trail for VS Code.",
-  "version": "0.0.3",
+  "version": "0.1.0",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {

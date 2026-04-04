@@ -6,6 +6,19 @@
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-04-04
+
+### 追加
+
+- C4Model から Mermaid C4 テキストへの c4ToMermaid シリアライザー
+- parseMermaidC4 に Code 要素型を追加
+- web-app と共有する C4 レベルフィルタリング用 buildLevelView
+- extractBoundaries を c4-kernel に移動し重複を排除
+
+### 修正
+
+- Phase 2 でネストバウンダリフレームの groupId を伝播
+
 ## [0.0.1] - 2026-04-04
 
 初回リリース。C4 ア���キテクチャモデルのパーサーおよびグラフドキュメント変換器。
