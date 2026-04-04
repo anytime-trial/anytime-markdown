@@ -123,9 +123,10 @@ TreeNodeItem.displayName = 'TreeNodeItem';
 interface C4ElementTreeProps {
   readonly tree: readonly C4TreeNode[];
   readonly dispatch: Dispatch<Action>;
+  readonly onSelect?: (id: string) => void;
 }
 
-export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch }) => {
+export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onSelect }) => {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => {
     // デフォルトでルートレベルを展開
     return new Set(tree.map(n => n.id));
@@ -147,6 +148,7 @@ export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch }) =
   const handleSelect = useCallback((id: string) => {
     setSelectedId(id);
     dispatch({ type: 'SET_SELECTION', selection: { nodeIds: [id], edgeIds: [] } });
+    onSelect?.(id);
   }, [dispatch]);
 
   return (

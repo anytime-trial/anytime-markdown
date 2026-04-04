@@ -9,6 +9,7 @@ interface DsmCanvasProps {
   readonly boundaries: readonly BoundaryInfo[];
   readonly level: 'component' | 'package';
   readonly clustered: boolean;
+  readonly focusedNodeId?: string | null;
 }
 
 // --- Constants ---
@@ -22,6 +23,7 @@ const DIAGONAL_COLOR = '#333333';
 const GRID_COLOR = '#3c3c3c';
 const TEXT_COLOR = '#cccccc';
 const HOVER_COLOR = 'rgba(255,255,255,0.08)';
+const FOCUS_COLOR = 'rgba(144,202,249,0.15)';
 const CYCLE_BORDER_COLOR = '#F44336';
 const DEPENDENCY_COLOR = ACCENT_BLUE;
 
@@ -62,7 +64,7 @@ function clampViewport(vp: { offsetX: number; offsetY: number; scale: number }):
 
 // --- Component ---
 
-export function DsmCanvas({ model, boundaries, level, clustered }: Readonly<DsmCanvasProps>) {
+export function DsmCanvas({ model, boundaries, level, clustered, focusedNodeId }: Readonly<DsmCanvasProps>) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef(0);
   const viewportRef = useRef({ offsetX: 0, offsetY: 0, scale: 1 });
@@ -191,6 +193,16 @@ export function DsmCanvas({ model, boundaries, level, clustered }: Readonly<DsmC
         }
       }
 
+      // Focus highlight (selected element from tree)
+      if (focusedNodeId) {
+        const focusIdx = matrix.nodes.findIndex(nd => nd.id === focusedNodeId || nd.name === focusedNodeId);
+        if (focusIdx >= 0) {
+          ctx!.fillStyle = FOCUS_COLOR;
+          ctx!.fillRect(HEADER_WIDTH, HEADER_HEIGHT + focusIdx * CELL_SIZE, n * CELL_SIZE, CELL_SIZE);
+          ctx!.fillRect(HEADER_WIDTH + focusIdx * CELL_SIZE, HEADER_HEIGHT, CELL_SIZE, n * CELL_SIZE);
+        }
+      }
+
       // Hover highlight (within cell area)
       if (hovered) {
         ctx!.fillStyle = HOVER_COLOR;
@@ -213,14 +225,22 @@ export function DsmCanvas({ model, boundaries, level, clustered }: Readonly<DsmC
       const fontSize = Math.max(6, Math.min(14, 10 * s));
       const labelFont = `${fontSize}px sans-serif`;
 
-      ctx!.fillStyle = TEXT_COLOR;
+      const focusIdx = focusedNodeId ? matrix.nodes.findIndex(nd => nd.id === focusedNodeId || nd.name === focusedNodeId) : -1;
+
       ctx!.font = labelFont;
       ctx!.textBaseline = 'middle';
       ctx!.textAlign = 'right';
       for (let i = 0; i < n; i++) {
         const name = truncate(matrix.nodes[i].name, 14);
         const rowY = (HEADER_HEIGHT + i * CELL_SIZE + CELL_SIZE / 2) * s + vp.offsetY;
+        ctx!.fillStyle = i === focusIdx ? ACCENT_BLUE : TEXT_COLOR;
+        if (i === focusIdx) {
+          ctx!.font = `bold ${fontSize}px sans-serif`;
+        }
         ctx!.fillText(name, HEADER_WIDTH - 4, rowY);
+        if (i === focusIdx) {
+          ctx!.font = labelFont;
+        }
       }
       ctx!.restore();
 
@@ -257,7 +277,7 @@ export function DsmCanvas({ model, boundaries, level, clustered }: Readonly<DsmC
 
     rafRef.current = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [model, boundaries, level, clustered]);
+  }, [model, boundaries, level, clustered, focusedNodeId]);
 
   // Mouse move (hover + pan)
   const handleMouseMove = useCallback((e: React.MouseEvent) => {

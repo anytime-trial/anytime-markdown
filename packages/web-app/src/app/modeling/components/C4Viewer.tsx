@@ -52,6 +52,7 @@ export function C4Viewer() {
   const [showTree, setShowTree] = useState(true);
   const [dsmLevel, setDsmLevel] = useState<'component' | 'package'>('component');
   const [dsmClustered, setDsmClustered] = useState(false);
+  const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [splitRatio, setSplitRatio] = useState(0.5);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -273,6 +274,7 @@ export function C4Viewer() {
               boundaries={boundaryInfos}
               level={dsmLevel}
               clustered={dsmClustered}
+              focusedNodeId={selectedElementId}
             />
           ) : (
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
@@ -287,6 +289,7 @@ export function C4Viewer() {
           <C4ElementTree
             tree={elementTree}
             dispatch={dispatch}
+            onSelect={setSelectedElementId}
           />
         )}
       </Box>
