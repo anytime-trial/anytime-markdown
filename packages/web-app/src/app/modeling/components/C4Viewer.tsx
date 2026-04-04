@@ -254,7 +254,7 @@ export function C4Viewer() {
             canvasRef={canvasRef}
             selectedNodeId={
               selectedElementId
-                ? state.document.nodes.find(n => n.metadata?.c4Id === selectedElementId)?.id ?? null
+                ? (state.document.nodes.find(n => n.metadata?.c4Id === selectedElementId)?.id ?? null)
                 : null
             }
           />

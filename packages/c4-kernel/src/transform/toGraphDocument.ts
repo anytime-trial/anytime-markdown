@@ -99,6 +99,7 @@ export function c4ToGraphDocument(
         height: 300,
         text: b.name,
         style: { fill: 'transparent', stroke: '#444444', ...DEFAULT_STYLE },
+        metadata: { c4Id: b.id },
       });
     }
   }
@@ -131,6 +132,7 @@ export function c4ToGraphDocument(
       height: 300,
       text: buildNodeText(elem),
       style: { ...DEFAULT_STYLE, fill: colors.fill, stroke: colors.stroke },
+      metadata: { c4Id: elem.id, c4Type: elem.type },
       ...(elem.boundaryId && boundaryIdMap.has(elem.boundaryId)
         ? { groupId: boundaryIdMap.get(elem.boundaryId) }
         : {}),
