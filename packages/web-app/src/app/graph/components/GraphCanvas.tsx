@@ -6,12 +6,13 @@ import { render, drawSelectionRect, drawEdgePreview, drawShapePreview, drawSnapH
 import type { ViewportAnimation } from '@anytime-markdown/graph-core/engine';
 import { getCanvasColors } from '@anytime-markdown/graph-core';
 import { resolveConnectorEndpoints, computeOrthogonalPath, computeBezierPath, bestSides, getConnectionPoints } from '../engine/connector';
+import type { Side } from '@anytime-markdown/graph-core/engine';
 import type { DragPreview } from '../hooks/useCanvasInteraction';
 
 /** 制御点を接続辺に垂直な方向にオフセットする（カーブ方向の変更） */
 function deflectControlPoint(
   cp: { x: number; y: number },
-  side: string,
+  side: Side,
   amount: number,
 ): { x: number; y: number } {
   // 辺に垂直な方向にオフセット
@@ -23,10 +24,10 @@ function deflectControlPoint(
 
 /** 接続ポイントを辺に沿った方向にオフセットする */
 function offsetAlongSide(
-  pt: { side: string; x: number; y: number },
-  side: string,
+  pt: { side: Side; x: number; y: number },
+  side: Side,
   offset: number,
-): { side: string; x: number; y: number } {
+): { side: Side; x: number; y: number } {
   if (side === 'left' || side === 'right') {
     return { ...pt, y: pt.y + offset };
   }
