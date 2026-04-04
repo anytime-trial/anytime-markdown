@@ -11,6 +11,9 @@
   "scripts": {
     "test": "jest --maxWorkers=1"
   },
+  "peerDependencies": {
+    "@anytime-markdown/trail-core": "*"
+  },
   "devDependencies": {
     "@types/jest": "30.0.0",
     "jest": "30.2.0",
