@@ -282,28 +282,54 @@ export class C4Panel {
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { background: #1e1e1e; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, sans-serif; height: 100%; }
-    #toolbar {
+    #tab-bar {
       position: fixed; top: 0; left: 0; right: 0;
+      background: #252526; border-bottom: 1px solid #3c3c3c;
+      padding: 0 8px; z-index: 20;
+      display: flex; align-items: stretch; height: 30px;
+      font-size: 12px; color: #cccccc;
+    }
+    .tab-btn {
+      background: transparent; color: #888; border: none; border-bottom: 2px solid transparent;
+      padding: 0 12px; cursor: pointer; font-size: 12px;
+    }
+    .tab-btn:hover { color: #cccccc; }
+    .tab-btn.active { color: #ffffff; border-bottom-color: #0e639c; }
+    #toolbar, #dsm-toolbar {
+      position: fixed; left: 0; right: 0;
       background: #252526; border-bottom: 1px solid #3c3c3c;
       padding: 4px 8px; z-index: 10;
       display: flex; align-items: center; gap: 6px;
       font-size: 12px; color: #cccccc;
+      top: 30px;
     }
-    #toolbar button {
+    #toolbar button, #dsm-toolbar button {
       background: #3c3c3c; color: #cccccc; border: 1px solid #555;
       padding: 2px 8px; border-radius: 3px; cursor: pointer; font-size: 11px;
     }
-    #toolbar button:hover { background: #4c4c4c; }
-    #toolbar button.active { background: #0e639c; border-color: #1177bb; color: #ffffff; }
-    #toolbar .sep { color: #555; margin: 0 2px; }
+    #toolbar button:hover, #dsm-toolbar button:hover { background: #4c4c4c; }
+    #toolbar button.active, #dsm-toolbar button.active { background: #0e639c; border-color: #1177bb; color: #ffffff; }
+    #toolbar .sep, #dsm-toolbar .sep { color: #555; margin: 0 2px; }
     #info { color: #888; font-size: 11px; margin-left: auto; }
+    #dsm-info { color: #888; font-size: 11px; margin-left: auto; }
+    #dsm-toolbar { display: none; }
+    #c4-view { margin-top: 60px; }
     #c4-canvas {
-      width: 100vw; height: calc(100vh - 30px); margin-top: 30px;
+      width: 100vw; height: calc(100vh - 60px);
+      display: block; cursor: grab;
+    }
+    #dsm-view { margin-top: 60px; display: none; }
+    #dsm-canvas {
+      width: 100vw; height: calc(100vh - 60px);
       display: block; cursor: grab;
     }
   </style>
 </head>
 <body>
+  <div id="tab-bar">
+    <button class="tab-btn active" data-tab="c4">C4 Model</button>
+    <button class="tab-btn" data-tab="dsm">DSM</button>
+  </div>
   <div id="toolbar">
     <span style="font-weight:600;">C4 Model</span>
     <span class="sep">|</span>
@@ -315,7 +341,25 @@ export class C4Panel {
     <button id="btn-fit">Fit</button>
     <span id="info">Loading...</span>
   </div>
-  <canvas id="c4-canvas"></canvas>
+  <div id="dsm-toolbar">
+    <span style="font-weight:600;">DSM</span>
+    <span class="sep">|</span>
+    <button class="dsm-level-btn active" data-dsm-level="component">Component</button>
+    <button class="dsm-level-btn" data-dsm-level="package">Package</button>
+    <span class="sep">|</span>
+    <button class="dsm-mode-btn active" data-dsm-mode="c4">C4 Only</button>
+    <button class="dsm-mode-btn" data-dsm-mode="diff">Diff</button>
+    <span class="sep">|</span>
+    <button id="btn-dsm-cluster">Cluster</button>
+    <button id="btn-dsm-refresh">Refresh</button>
+    <span id="dsm-info">No data</span>
+  </div>
+  <div id="c4-view">
+    <canvas id="c4-canvas"></canvas>
+  </div>
+  <div id="dsm-view">
+    <canvas id="dsm-canvas"></canvas>
+  </div>
   <script src="${scriptUri}"></script>
 </body>
 </html>`;
