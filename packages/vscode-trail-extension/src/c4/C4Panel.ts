@@ -3,6 +3,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { parseMermaidC4, extractBoundaries } from '@anytime-markdown/c4-kernel/src/parser/mermaidC4';
 import type { C4Model, BoundaryInfo } from '@anytime-markdown/c4-kernel/src/types';
+import { buildC4Matrix, buildSourceMatrix, diffMatrix, detectCycles, clusterMatrix } from '@anytime-markdown/c4-kernel';
+import type { DsmMapping, DsmMatrix } from '@anytime-markdown/c4-kernel';
 import { analyze, trailToC4, toMermaid } from '@anytime-markdown/trail-core';
 import type { TrailGraph } from '@anytime-markdown/trail-core';
 import type { C4ElementsProvider } from '../providers/C4ElementsProvider';
@@ -15,6 +17,11 @@ export class C4Panel {
   private lastBoundaries: readonly BoundaryInfo[] | undefined;
   private lastTrailGraph: TrailGraph | undefined;
   private lastProjectRoot: string | undefined;
+  private lastDsmMapping: readonly DsmMapping[] = [];
+  private lastC4Matrix: DsmMatrix | undefined;
+  private lastSourceMatrix: DsmMatrix | undefined;
+  private dsmLevel: 'component' | 'package' = 'component';
+  private dsmMode: 'c4' | 'diff' = 'c4';
 
   /** ツリービュープロバイダーを設定 */
   public static setTreeProvider(provider: C4ElementsProvider): void {
@@ -86,6 +93,21 @@ export class C4Panel {
         } catch {
           vscode.window.showWarningMessage(`File not found: ${msg.relativePath}`);
         }
+      }
+      if (msg.type === 'dsmSetLevel') {
+        this.dsmLevel = msg.level as 'component' | 'package';
+        this.sendDsm();
+      }
+      if (msg.type === 'dsmSetMode') {
+        this.dsmMode = msg.mode as 'c4' | 'diff';
+        this.sendDsm();
+      }
+      if (msg.type === 'dsmCluster') {
+        this.sendDsm(true);
+      }
+      if (msg.type === 'dsmRefresh') {
+        this.inferMapping();
+        this.sendDsm();
       }
     });
   }
@@ -266,6 +288,88 @@ export class C4Panel {
     });
     C4Panel.treeProvider?.setModel(model, boundaries ?? []);
     C4Panel.saveModel(model, boundaries ?? []);
+    this.inferMapping();
+    this.sendDsm();
+  }
+
+  /** C4要素名とソースファイル名のマッチングで自動マッピングを推定 */
+  private inferMapping(): void {
+    if (!this.lastModel || !this.lastTrailGraph) {
+      this.lastDsmMapping = [];
+      return;
+    }
+
+    const fileNodes = this.lastTrailGraph.nodes.filter((n: { type: string }) => n.type === 'file');
+    const mapping: DsmMapping[] = [];
+
+    for (const element of this.lastModel.elements) {
+      const elementName = element.name.toLowerCase().replaceAll(/[^a-z0-9]/g, '');
+      let bestMatch: { id: string; score: number } | null = null;
+
+      for (const file of fileNodes) {
+        const fileName = path.basename(file.filePath, path.extname(file.filePath))
+          .toLowerCase().replaceAll(/[^a-z0-9]/g, '');
+        if (fileName === elementName) {
+          bestMatch = { id: file.id, score: 2 };
+          break;
+        }
+        if (fileName.includes(elementName) || elementName.includes(fileName)) {
+          if (!bestMatch || bestMatch.score < 1) {
+            bestMatch = { id: file.id, score: 1 };
+          }
+        }
+      }
+
+      if (bestMatch) {
+        mapping.push({ c4ElementId: element.id, sourcePath: bestMatch.id });
+      }
+    }
+
+    this.lastDsmMapping = mapping;
+  }
+
+  /** DSM データをビルドして webview に送信 */
+  private sendDsm(cluster = false): void {
+    if (!this.lastModel) return;
+
+    try {
+      let c4Matrix = buildC4Matrix(this.lastModel, this.dsmLevel, this.lastBoundaries ?? undefined);
+      if (cluster) {
+        c4Matrix = clusterMatrix(c4Matrix);
+      }
+      this.lastC4Matrix = c4Matrix;
+
+      if (this.dsmMode === 'diff' && this.lastTrailGraph) {
+        const sourceMatrix = buildSourceMatrix(this.lastTrailGraph, this.dsmLevel);
+        this.lastSourceMatrix = sourceMatrix;
+
+        const diff = diffMatrix(c4Matrix, sourceMatrix, this.lastDsmMapping);
+        const nodeIds = c4Matrix.nodes.map(n => n.id);
+        const sccs = detectCycles(c4Matrix.adjacency, nodeIds);
+        const cyclicPairs = sccs.flatMap(scc => {
+          const pairs: { nodeA: string; nodeB: string }[] = [];
+          for (let i = 0; i < scc.length; i++) {
+            for (let j = i + 1; j < scc.length; j++) {
+              pairs.push({ nodeA: scc[i], nodeB: scc[j] });
+            }
+          }
+          return pairs;
+        });
+
+        this.panel.webview.postMessage({
+          type: 'loadDsmDiff',
+          diff,
+          cyclicPairs,
+        });
+      } else {
+        this.panel.webview.postMessage({
+          type: 'loadDsmMatrix',
+          matrix: c4Matrix,
+        });
+      }
+    } catch {
+      // DSM build failure is non-critical
+    }
   }
 
   private getHtml(): string {
