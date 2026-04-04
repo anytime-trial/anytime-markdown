@@ -19,8 +19,6 @@ const extensionConfig = {
   },
   externals: {
     vscode: 'commonjs vscode',
-    // typescript は実行時に node_modules から読み込む（バンドルに含めると巨大になる）
-    typescript: 'commonjs typescript',
   },
   resolve: {
     extensions: ['.ts', '.js'],
