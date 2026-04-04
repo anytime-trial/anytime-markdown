@@ -42,3 +42,14 @@ export interface BoundaryInfo {
   readonly id: string;
   readonly name: string;
 }
+
+/** ツリー表示用のノード */
+export interface C4TreeNode {
+  readonly id: string;
+  readonly name: string;
+  readonly type: C4ElementType | 'boundary';
+  readonly external?: boolean;
+  readonly technology?: string;
+  readonly description?: string;
+  readonly children: readonly C4TreeNode[];
+}

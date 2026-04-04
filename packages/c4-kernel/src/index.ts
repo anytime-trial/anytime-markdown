@@ -5,9 +5,11 @@ export type {
   C4Relationship,
   C4Model,
   BoundaryInfo,
+  C4TreeNode,
 } from './types';
 
 export { parseMermaidC4, extractBoundaries } from './parser/mermaidC4';
 export { c4ToGraphDocument } from './transform/toGraphDocument';
 export { c4ToMermaid } from './serializer/c4ToMermaid';
 export { buildLevelView, getFrameDepth } from './view/buildLevelView';
+export { buildElementTree, filterTreeByLevel } from './view/buildElementTree';

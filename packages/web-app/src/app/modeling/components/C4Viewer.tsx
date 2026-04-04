@@ -1,16 +1,19 @@
 'use client';
 
-import { buildLevelView, c4ToGraphDocument, extractBoundaries, parseMermaidC4 } from '@anytime-markdown/c4-kernel';
+import { buildElementTree, buildLevelView, c4ToGraphDocument, extractBoundaries, filterTreeByLevel, parseMermaidC4 } from '@anytime-markdown/c4-kernel';
+import type { BoundaryInfo, C4Model } from '@anytime-markdown/c4-kernel';
 import type { GraphDocument, GraphNode } from '@anytime-markdown/graph-core';
 import { engine, layoutWithSubgroups, state as graphState } from '@anytime-markdown/graph-core';
+import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import FitScreenIcon from '@mui/icons-material/FitScreen';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import ButtonGroup from '@mui/material/ButtonGroup';
 import Toolbar from '@mui/material/Toolbar';
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 
+import { C4ElementTree } from './C4ElementTree';
 import { GraphCanvas } from './GraphCanvas';
 
 const { graphReducer, createInitialState } = graphState;
@@ -42,12 +45,17 @@ export function C4Viewer() {
   const [state, dispatch] = useReducer(graphReducer, createInitialState());
   const [fullDoc, setFullDoc] = useState<GraphDocument | null>(null);
   const [currentLevel, setCurrentLevel] = useState<number>(4);
+  const [c4Model, setC4Model] = useState<C4Model | null>(null);
+  const [boundaryInfos, setBoundaryInfos] = useState<readonly BoundaryInfo[]>([]);
+  const [showTree, setShowTree] = useState(true);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const loadMermaidText = useCallback((text: string) => {
     try {
       const boundaries = extractBoundaries(text);
       const model = parseMermaidC4(text);
+      setC4Model(model);
+      setBoundaryInfos(boundaries);
       const doc = c4ToGraphDocument(model, boundaries);
       layoutWithSubgroups(doc, 'TB', 180, 60);
       setFullDoc(doc);
@@ -98,6 +106,12 @@ export function C4Viewer() {
     const viewport = fitToContent(canvas.clientWidth, canvas.clientHeight, bounds);
     dispatch({ type: 'SET_VIEWPORT', viewport });
   }, [state.document.nodes]);
+
+  const elementTree = useMemo(() => {
+    if (!c4Model) return [];
+    const fullTree = buildElementTree(c4Model, boundaryInfos);
+    return filterTreeByLevel(fullTree, currentLevel);
+  }, [c4Model, boundaryInfos, currentLevel]);
 
   const toolbarButtonSx = {
     textTransform: 'none',
@@ -165,6 +179,18 @@ export function C4Viewer() {
         >
           Fit
         </Button>
+        <Box sx={{ flex: 1 }} />
+        <Button
+          size="small"
+          startIcon={<AccountTreeIcon sx={{ fontSize: 18 }} />}
+          onClick={() => setShowTree(prev => !prev)}
+          sx={{
+            ...toolbarButtonSx,
+            ...(showTree && { bgcolor: 'rgba(144,202,249,0.12)' }),
+          }}
+        >
+          Tree
+        </Button>
       </Toolbar>
       <Box sx={{ flex: 1, position: 'relative', bgcolor: BG_PRIMARY }}>
         <GraphCanvas
@@ -173,6 +199,13 @@ export function C4Viewer() {
           dispatch={dispatch}
           canvasRef={canvasRef}
         />
+        {showTree && elementTree.length > 0 && (
+          <C4ElementTree
+            tree={elementTree}
+            dispatch={dispatch}
+            onClose={() => setShowTree(false)}
+          />
+        )}
       </Box>
     </Box>
   );
