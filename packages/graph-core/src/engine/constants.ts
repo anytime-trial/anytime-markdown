@@ -30,7 +30,6 @@ export const SHADOW_DRAGGING: ShadowStyle = { color: COLOR_DRAG_GLOW, blur: 16, 
 
 // ── Font size ──
 
-export const FONT_SIZE_BADGE = 10;
 export const FONT_SIZE_PREVIEW = 11;
 export const FONT_SIZE_TOOLTIP = 11;
 export const FONT_SIZE_EDGE_LABEL = 12;
