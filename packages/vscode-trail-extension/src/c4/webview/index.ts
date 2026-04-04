@@ -1,7 +1,7 @@
 import type { GraphDocument, Viewport, GraphNode, GraphEdge } from '@anytime-markdown/graph-core';
 import { engine, layoutWithSubgroups } from '@anytime-markdown/graph-core';
-import { c4ToGraphDocument } from '@anytime-markdown/c4kernel';
-import type { C4Model, BoundaryInfo } from '@anytime-markdown/c4kernel';
+import { c4ToGraphDocument } from '@anytime-markdown/c4-kernel';
+import type { C4Model, BoundaryInfo } from '@anytime-markdown/c4-kernel';
 
 const { render, pan, zoom, fitToContent, resolveConnectorEndpoints, screenToWorld } = engine;
 
@@ -20,6 +20,9 @@ let document: GraphDocument | null = null;
 let viewport: Viewport = { offsetX: 0, offsetY: 0, scale: 1 };
 let currentLevel = 4;
 let selectedNodeIds: string[] = [];
+const HIGHLIGHT_FILL = '#3d2645';
+/** ハイライト中のノードと元の fill を保持 */
+let highlightedNodes = new Map<string, string>();
 
 // --- Canvas setup ---
 
@@ -108,10 +111,44 @@ function hitTestNode(screenX: number, screenY: number): GraphNode | undefined {
   return undefined;
 }
 
+/** ハイライトをリセットし、元の stroke に戻す */
+function clearHighlights(): void {
+  if (!document) return;
+  for (const node of document.nodes) {
+    const original = highlightedNodes.get(node.id);
+    if (original !== undefined) {
+      node.style.fill = original;
+    }
+  }
+  highlightedNodes = new Map();
+}
+
+/** 選択ノードに接続するノードの輪郭色を変更する */
+function highlightConnectedNodes(selectedId: string): void {
+  if (!document) return;
+  const connectedIds = new Set<string>();
+  for (const edge of document.edges) {
+    if (edge.from.nodeId === selectedId && edge.to.nodeId) {
+      connectedIds.add(edge.to.nodeId);
+    }
+    if (edge.to.nodeId === selectedId && edge.from.nodeId) {
+      connectedIds.add(edge.from.nodeId);
+    }
+  }
+  for (const node of document.nodes) {
+    if (connectedIds.has(node.id) && node.type !== 'frame') {
+      highlightedNodes.set(node.id, node.style.fill);
+      node.style.fill = HIGHLIGHT_FILL;
+    }
+  }
+}
+
 canvas.addEventListener('mousedown', (e) => {
+  clearHighlights();
   const hit = hitTestNode(e.clientX, e.clientY);
   if (hit) {
     selectedNodeIds = [hit.id];
+    highlightConnectedNodes(hit.id);
     // c4Id が file:: プレフィックスを持つ場合、ファイルを開く
     const c4Id = hit.metadata?.c4Id;
     if (typeof c4Id === 'string' && c4Id.startsWith('file::')) {
@@ -280,8 +317,22 @@ globalThis.addEventListener('message', (event: MessageEvent) => {
     document = buildLevelView(fullDocument, currentLevel);
     infoEl.textContent = `${doc.nodes.length} nodes | ${doc.edges.length} edges`;
     updateLevelButtons();
-    // Auto-fit after layout
     requestAnimationFrame(() => fitContent());
+  } else if (msg.type === 'highlightFiles') {
+    if (!document) return;
+    clearHighlights();
+    const paths = msg.relativePaths as string[];
+    const pathSet = new Set(paths);
+    for (const node of document.nodes) {
+      const c4Id = node.metadata?.c4Id;
+      if (typeof c4Id === 'string' && c4Id.startsWith('file::')) {
+        const relPath = c4Id.slice('file::'.length);
+        if (pathSet.has(relPath)) {
+          highlightedNodes.set(node.id, node.style.fill);
+          node.style.fill = HIGHLIGHT_FILL;
+        }
+      }
+    }
   }
 });
 

@@ -126,6 +126,10 @@ export class GraphProvider implements vscode.TreeDataProvider<GraphItem> {
 		extensionPath = context.extensionPath;
 	}
 
+	getGitRoot(): string | null {
+		return this.gitRoot;
+	}
+
 	setTargetRoot(rootPath: string | null): void {
 		this.gitRoot = null;
 		if (rootPath) {

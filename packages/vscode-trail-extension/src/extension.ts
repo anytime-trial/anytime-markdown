@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'node:path';
 import { TimelineProvider, TimelineItem } from './providers/TimelineProvider';
-import { GraphProvider } from './providers/GraphProvider';
+import { GraphProvider, GraphItem } from './providers/GraphProvider';
 import { ChangesProvider, ChangesFileItem } from './providers/ChangesProvider';
 import { SpecDocsProvider, SpecDocsItem, SpecDocsRootItem, SpecDocsDragAndDrop } from './providers/SpecDocsProvider';
 import { C4Panel } from './c4/C4Panel';
@@ -63,7 +63,7 @@ export function activate(context: vscode.ExtensionContext) {
 	let timelineProvider: TimelineProvider | undefined;
 	let timelineTreeView: vscode.TreeView<TimelineItem> | undefined;
 	let graphProvider: GraphProvider | undefined;
-	let graphTreeView: vscode.TreeView<vscode.TreeItem> | undefined;
+	let graphTreeView: vscode.TreeView<GraphItem> | undefined;
 
 	if (hasWorkspace) {
 		changesProvider = new ChangesProvider();
@@ -95,6 +95,25 @@ export function activate(context: vscode.ExtensionContext) {
 		graphProvider = new GraphProvider(context);
 		graphTreeView = vscode.window.createTreeView('anytimeTrail.graph', {
 			treeDataProvider: graphProvider,
+		});
+
+		// Graph コミット選択時に変更ファイルを C4 ビューアーでハイライト
+		graphTreeView.onDidChangeSelection(async (e) => {
+			const item = e.selection[0];
+			if (!item?.hash || !graphProvider) return;
+			const gitRoot = graphProvider.getGitRoot();
+			if (!gitRoot) return;
+			try {
+				const { execFileSync } = await import('node:child_process');
+				const output = execFileSync(
+					'git', ['diff-tree', '--no-commit-id', '-r', '--name-only', item.hash],
+					{ cwd: gitRoot, encoding: 'utf-8' },
+				);
+				const files = output.split('\n').map(f => f.trim()).filter(Boolean);
+				C4Panel.highlightFiles(files);
+			} catch {
+				// ignore
+			}
 		});
 	}
 

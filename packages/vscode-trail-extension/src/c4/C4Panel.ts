@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { parseMermaidC4 } from '@anytime-markdown/c4kernel/src/parser/mermaidC4';
-import type { C4Model, BoundaryInfo } from '@anytime-markdown/c4kernel/src/types';
+import { parseMermaidC4 } from '@anytime-markdown/c4-kernel/src/parser/mermaidC4';
+import type { C4Model, BoundaryInfo } from '@anytime-markdown/c4-kernel/src/types';
 import { analyze, trailToC4, toMermaid } from '@anytime-markdown/trail-core';
 import type { TrailGraph } from '@anytime-markdown/trail-core';
 
@@ -44,6 +44,16 @@ export class C4Panel {
           vscode.window.showWarningMessage(`File not found: ${msg.relativePath}`);
         }
       }
+    });
+  }
+
+  /** 変更ファイルのハイライトを Webview に送信 */
+  public static highlightFiles(relativePaths: readonly string[]): void {
+    const panel = C4Panel.currentPanel;
+    if (!panel) return;
+    panel.panel.webview.postMessage({
+      type: 'highlightFiles',
+      relativePaths,
     });
   }
 
