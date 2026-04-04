@@ -98,11 +98,11 @@ jobs:
 
       - name: Build git extension
         run: npm run package
-        working-directory: packages/vscode-git-extension
+        working-directory: packages/vscode-trail-extension
 
       - name: Package git VSIX
         run: npx vsce package --no-dependencies
-        working-directory: packages/vscode-git-extension
+        working-directory: packages/vscode-trail-extension
 
       - name: Package extension pack VSIX
         run: npx vsce package --no-dependencies
