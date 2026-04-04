@@ -83,8 +83,8 @@ export class C4Panel {
     if (!panel.lastTrailGraph) return;
 
     const uri = await vscode.window.showSaveDialog({
-      filters: { 'Markdown': ['md'], 'Mermaid': ['mmd'] },
-      defaultUri: vscode.Uri.file('deps.md'),
+      filters: { 'Mermaid': ['mmd'] },
+      defaultUri: vscode.Uri.file('deps.mmd'),
       title: 'Export Mermaid Dependencies',
     });
     if (!uri) return;
