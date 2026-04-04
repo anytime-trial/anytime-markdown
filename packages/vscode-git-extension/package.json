@@ -28,7 +28,8 @@
     "onView:anytimeGit.graph",
     "onView:anytimeGit.timeline",
     "onCommand:anytime-git.c4Import",
-    "onCommand:anytime-git.c4Analyze"
+    "onCommand:anytime-git.c4Analyze",
+    "onCommand:anytime-git.c4Export"
   ],
   "icon": "images/camel_git.png",
   "main": "./dist/extension.js",
@@ -235,6 +236,11 @@
         "command": "anytime-git.c4Analyze",
         "title": "%command.c4Analyze%",
         "icon": "$(graph)"
+      },
+      {
+        "command": "anytime-git.c4Export",
+        "title": "%command.c4Export%",
+        "icon": "$(export)"
       }
     ],
     "submenus": [

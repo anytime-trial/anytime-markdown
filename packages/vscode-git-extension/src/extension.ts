@@ -362,6 +362,9 @@ export function activate(context: vscode.ExtensionContext) {
 	const c4Analyze = vscode.commands.registerCommand('anytime-git.c4Analyze', () =>
 		C4Panel.analyzeWorkspace(context.extensionUri),
 	);
+	const c4Export = vscode.commands.registerCommand('anytime-git.c4Export', () =>
+		C4Panel.exportJson(),
+	);
 
 	// ファイル保存時にリフレッシュ
 	context.subscriptions.push(
@@ -374,7 +377,7 @@ export function activate(context: vscode.ExtensionContext) {
 		...(graphTreeView ? [graphTreeView] : []), graphRefresh,
 		changesRefresh, stageFile, unstageFile, stageAll, unstageAll, discardAll, discardChanges, commitChanges, pushChanges, syncChanges, changesOpenFile,
 		compareWithCommit,
-		c4Import, c4Analyze,
+		c4Import, c4Analyze, c4Export,
 	);
 }
 

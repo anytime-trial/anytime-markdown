@@ -37,5 +37,6 @@
   "command.syncChanges": "Sync Changes",
   "command.compareWithCommit": "Compare with this commit",
   "command.c4Import": "C4: Import Mermaid C4",
-  "command.c4Analyze": "C4: Analyze Workspace"
+  "command.c4Analyze": "C4: Analyze Workspace",
+  "command.c4Export": "C4: Export JSON"
 }

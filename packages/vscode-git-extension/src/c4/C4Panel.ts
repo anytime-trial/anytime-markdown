@@ -20,6 +20,8 @@ function extractBoundaries(input: string): BoundaryInfo[] {
 export class C4Panel {
   public static readonly viewType = 'anytimeGit.c4View';
   private static currentPanel: C4Panel | undefined;
+  private lastModel: C4Model | undefined;
+  private lastBoundaries: readonly BoundaryInfo[] | undefined;
 
   private constructor(
     private readonly panel: vscode.WebviewPanel,
@@ -28,6 +30,30 @@ export class C4Panel {
     this.panel.onDidDispose(() => {
       C4Panel.currentPanel = undefined;
     });
+  }
+
+  /** 現在の C4Model を JSON ファイルにエクスポート */
+  public static async exportJson(): Promise<void> {
+    const panel = C4Panel.currentPanel;
+    if (!panel?.lastModel) {
+      vscode.window.showWarningMessage('No C4 model to export. Run Import or Analyze first.');
+      return;
+    }
+
+    const uri = await vscode.window.showSaveDialog({
+      filters: { 'JSON': ['json'] },
+      defaultUri: vscode.Uri.file('c4-model.json'),
+      title: 'Export C4 Model',
+    });
+    if (!uri) return;
+
+    const data = {
+      model: panel.lastModel,
+      boundaries: panel.lastBoundaries ?? [],
+    };
+    const content = Buffer.from(JSON.stringify(data, null, 2), 'utf-8');
+    await vscode.workspace.fs.writeFile(uri, content);
+    vscode.window.showInformationMessage(`C4 model exported to ${vscode.workspace.asRelativePath(uri)}`);
   }
 
   /** Mermaid C4 ファイルをインポートして表示 */
@@ -123,6 +149,8 @@ export class C4Panel {
 
   /** C4Model と境界情報を webview に送信（webview 側で GraphDocument に変換） */
   private postModel(model: C4Model, boundaries?: readonly BoundaryInfo[]): void {
+    this.lastModel = model;
+    this.lastBoundaries = boundaries;
     this.panel.webview.postMessage({
       type: 'loadModel',
       model,
