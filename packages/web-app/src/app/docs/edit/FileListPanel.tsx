@@ -59,7 +59,7 @@ export default function FileListPanel({
       const folder = slashIdx >= 0 ? withoutPrefix.slice(0, slashIdx) : '';
       if (!folder) continue; // ルート直下のファイルは除外
       if (!groups.has(folder)) groups.set(folder, []);
-      groups.get(folder)!.push(file);
+      groups.get(folder)?.push(file);
     }
     return groups;
   }, [files]);

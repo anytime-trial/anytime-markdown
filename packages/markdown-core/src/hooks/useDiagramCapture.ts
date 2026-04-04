@@ -64,27 +64,37 @@ function getSvgDimensions(svgEl: Element): { w: number; h: number } {
 
 async function downloadSvgAsPng(svgText: string, fileName = "diagram.png") {
   const cleanSvg = sanitizeSvgForCanvas(svgText);
-  const svgEl = new DOMParser().parseFromString(cleanSvg, "image/svg+xml").documentElement;
+  const doc = new DOMParser().parseFromString(cleanSvg, "image/svg+xml");
+  const svgEl = doc.documentElement;
+
+  // xmlns がないと <img> での SVG 読み込みが失敗する
+  if (!svgEl.getAttribute("xmlns")) {
+    svgEl.setAttribute("xmlns", SVG_NS);
+  }
+
   const { w, h } = getSvgDimensions(svgEl);
-  const svgBlob = new Blob([cleanSvg], { type: "image/svg+xml;charset=utf-8" });
-  const url = URL.createObjectURL(svgBlob);
+
+  // 再シリアライズして xmlns を保証した SVG 文字列を使用
+  const serializedSvg = new XMLSerializer().serializeToString(doc);
+
+  // Blob URL ではなく data URI を使用（ブラウザの SVG レンダリング互換性向上）
+  const dataUri = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(serializedSvg)}`;
   const img = new Image();
-  await new Promise<void>((resolve) => {
+  await new Promise<void>((resolve, reject) => {
     img.onload = () => resolve();
-    img.onerror = () => resolve();
-    img.src = url;
+    img.onerror = () => reject(new Error("Failed to load SVG as image"));
+    img.src = dataUri;
   });
   const scale = 2;
   const canvas = document.createElement("canvas");
   canvas.width = w * scale;
   canvas.height = h * scale;
   const ctx = canvas.getContext("2d");
-  if (!ctx) { URL.revokeObjectURL(url); return; }
+  if (!ctx) return;
   ctx.scale(scale, scale);
   ctx.fillStyle = CAPTURE_BG;
   ctx.fillRect(0, 0, w, h);
   ctx.drawImage(img, 0, 0, w, h);
-  URL.revokeObjectURL(url);
   const pngBlob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
   if (!pngBlob) return;
   await saveBlob(pngBlob, fileName);
@@ -119,8 +129,19 @@ function buildPlantUmlLightUrl(code: string): string {
   return buildPlantUmlUrl(plantumlEncoder.encode(src));
 }
 
-export function useDiagramCapture({ isMermaid, isPlantUml, svg, plantUmlUrl, code, isDark }: UseDiagramCaptureParams) {
-  return useCallback(async () => {
+/** ダイアグラムソースコードをテキストファイルとして保存 */
+async function downloadDiagramSource(code: string, fileName: string) {
+  const blob = new Blob([code], { type: "text/plain;charset=utf-8" });
+  await saveBlob(blob, fileName);
+}
+
+interface UseDiagramCaptureResult {
+  handleCapture: () => Promise<void>;
+  handleExportSource: (() => Promise<void>) | undefined;
+}
+
+export function useDiagramCapture({ isMermaid, isPlantUml, svg, plantUmlUrl, code, isDark }: UseDiagramCaptureParams): UseDiagramCaptureResult {
+  const handleCapture = useCallback(async () => {
     try {
       const diagramFileName = isMermaid ? "mermaid.png" : "plantuml.png";
       if (isMermaid && svg) {
@@ -155,4 +176,16 @@ export function useDiagramCapture({ isMermaid, isPlantUml, svg, plantUmlUrl, cod
       console.error("useDiagramCapture: failed to capture diagram", err);
     }
   }, [isMermaid, isPlantUml, svg, plantUmlUrl, code, isDark]);
+
+  const sourceFileName = isMermaid ? "mermaid.mmd" : "plantuml.puml";
+  const handleExportSource = useCallback(async () => {
+    try {
+      await downloadDiagramSource(code, sourceFileName);
+    } catch (err) {
+      console.error(`useDiagramCapture: failed to export ${sourceFileName}`, err);
+    }
+  }, [code, sourceFileName]);
+
+  const hasDiagram = isMermaid || isPlantUml;
+  return { handleCapture, handleExportSource: hasDiagram ? handleExportSource : undefined };
 }

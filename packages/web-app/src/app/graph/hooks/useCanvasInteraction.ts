@@ -1,14 +1,17 @@
 'use client';
 
-import { useCallback, useRef, useEffect } from 'react';
-import { ToolType, GraphNode, GraphEdge, Viewport, SelectionState, createNode, createEdge } from '../types';
-import { screenToWorld, pan as panViewport, zoom as zoomViewport } from '../engine/viewport';
-import { hitTest } from '../engine/hitTest';
-import type { ResizeHandle } from '../engine/hitTest';
-import { snapToGrid } from '../engine/gridSnap';
-import { computeSmartGuides, GuideLine } from '../engine/smartGuide';
-import { computeOrthogonalPath } from '../engine/connector';
+import { computeVisibilityPath } from '@anytime-markdown/graph-core/engine';
 import { physics } from '@anytime-markdown/graph-core/engine';
+import { useCallback, useEffect,useRef } from 'react';
+
+import { bestSides, computeOrthogonalPath, getConnectionPoints,nearestBorderPoint, resolveConnectorEndpoints } from '../engine/connector';
+import { snapToGrid } from '../engine/gridSnap';
+import type { ResizeHandle } from '../engine/hitTest';
+import { hitTest, hitTestEdge } from '../engine/hitTest';
+import { computeSmartGuides, GuideLine } from '../engine/smartGuide';
+import { pan as panViewport, screenToWorld, zoom as zoomViewport } from '../engine/viewport';
+import { createEdge,createNode, GraphEdge, GraphNode, SelectionState, ToolType, Viewport } from '../types';
+import type { Action } from './useGraphState';
 
 /** edges に waypoints を付与して hitTest で使えるようにする */
 function resolveEdgesWithWaypoints(edges: GraphEdge[], nodes: GraphNode[]): (GraphEdge & { waypoints?: { x: number; y: number }[] })[] {
@@ -17,7 +20,28 @@ function resolveEdgesWithWaypoints(edges: GraphEdge[], nodes: GraphNode[]): (Gra
       const fromNode = nodes.find(n => n.id === e.from.nodeId);
       const toNode = nodes.find(n => n.id === e.to.nodeId);
       if (fromNode && toNode) {
-        const waypoints = computeOrthogonalPath(fromNode, toNode, 20, e.manualMidpoint);
+        // straight ルーティングの場合は直線（waypoints なし）
+        if ((e.style.routing) === 'straight') {
+          const pts = resolveConnectorEndpoints(e, nodes);
+          return { ...e, from: { ...e.from, ...pts.from }, to: { ...e.to, ...pts.to } };
+        }
+        // manualWaypoints がある場合はそのパスを使用
+        if (e.manualWaypoints?.length) {
+          const pts = resolveConnectorEndpoints(e, nodes);
+          return { ...e, waypoints: [pts.from, ...e.manualWaypoints, pts.to] };
+        }
+        // manualMidpoint backward compat
+        if (e.manualMidpoint !== undefined) {
+          const waypoints = computeOrthogonalPath(fromNode, toNode, 20, e.manualMidpoint);
+          return { ...e, waypoints };
+        }
+        // Orthogonal routing
+        const sides = bestSides(fromNode, toNode);
+        const fromPts = getConnectionPoints(fromNode);
+        const toPts = getConnectionPoints(toNode);
+        const fromPt = fromPts.find(p => p.side === sides.fromSide) ?? fromPts[0];
+        const toPt = toPts.find(p => p.side === sides.toSide) ?? toPts[0];
+        const waypoints = computeVisibilityPath(fromPt, sides.fromSide, toPt, sides.toSide, []);
         return { ...e, waypoints };
       }
     }
@@ -26,7 +50,7 @@ function resolveEdgesWithWaypoints(edges: GraphEdge[], nodes: GraphNode[]): (Gra
 }
 
 interface DragState {
-  type: 'none' | 'pan' | 'move' | 'resize' | 'create-shape' | 'select-rect' | 'create-edge' | 'move-edge-segment';
+  type: 'none' | 'pan' | 'move' | 'resize' | 'create-shape' | 'select-rect' | 'create-edge' | 'move-edge-segment' | 'move-waypoint';
   startWorldX: number;
   startWorldY: number;
   startScreenX: number;
@@ -35,9 +59,12 @@ interface DragState {
   nodeId?: string;
   edgeId?: string;
   segmentDirection?: 'horizontal' | 'vertical';
+  segmentIndex?: number;
   endpointEnd?: 'from' | 'to';
   fromConnectionPoint?: boolean;
   initialMidpoint?: number;
+  initialWaypoints?: { x: number; y: number }[];
+  waypointIndex?: number;
   initialNodes?: Map<string, { x: number; y: number; width: number; height: number }>;
 }
 
@@ -48,7 +75,7 @@ interface UseCanvasInteractionProps {
   edges: GraphEdge[];
   viewport: Viewport;
   selection: SelectionState;
-  dispatch: React.Dispatch<any>;
+  dispatch: React.Dispatch<Action>;
   onTextEdit: (nodeId: string) => void;
   onToolChange: (tool: ToolType) => void;
   showGrid: boolean;
@@ -65,7 +92,7 @@ export interface DragPreview {
   toX: number;
   toY: number;
   shapeType?: 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder' | 'doc' | 'frame';
-  edgeType?: 'line' | 'arrow' | 'connector';
+  edgeType?: 'line' | 'connector';
   /** ドラッグ中にスナップしているノードID */
   snapNodeId?: string;
   /** スマートガイドライン */
@@ -113,6 +140,15 @@ export function useCanvasInteraction({
       const resolved = resolveEdgesWithWaypoints(edges, nodes);
       const hit = hitTest({ nodes, edges: resolved, wx: world.x, wy: world.y, scale: viewport.scale, selectedNodeIds: selection.nodeIds, hoverNodeId: hoverNodeIdRef.current, selectedEdgeIds: selection.edgeIds });
 
+      // フレーム折りたたみアイコン
+      if (hit.type === 'frame-collapse' && hit.id) {
+        const frameNode = nodes.find(n => n.id === hit.id);
+        if (frameNode) {
+          dispatch({ type: 'UPDATE_NODE', id: hit.id, changes: { collapsed: !(frameNode.collapsed ?? false) } });
+        }
+        return;
+      }
+
       // エッジエンドポイントハンドル → 端点再接続ドラッグ
       if (hit.type === 'edge-endpoint' && hit.id && hit.endpointEnd) {
         const edge = edges.find(ed => ed.id === hit.id);
@@ -130,23 +166,21 @@ export function useCanvasInteraction({
         return;
       }
 
-      // 接続ポイントクリック → コネクタ作成開始
+      // 接続ポイントクリック → コネクタ作成開始（辺上の任意位置対応）
       if (hit.type === 'connection-point' && hit.id) {
-        const node = nodes.find(n => n.id === hit.id);
-        if (node) {
-          const cp = { top: { x: node.x + node.width / 2, y: node.y }, right: { x: node.x + node.width, y: node.y + node.height / 2 }, bottom: { x: node.x + node.width / 2, y: node.y + node.height }, left: { x: node.x, y: node.y + node.height / 2 } }[hit.connectionSide!];
-          dragRef.current = {
-            type: 'create-edge', startWorldX: cp.x, startWorldY: cp.y,
-            startScreenX: sx, startScreenY: sy, nodeId: hit.id,
-            fromConnectionPoint: true,
-          };
-        }
+        const cpX = hit.connectionX ?? world.x;
+        const cpY = hit.connectionY ?? world.y;
+        dragRef.current = {
+          type: 'create-edge', startWorldX: cpX, startWorldY: cpY,
+          startScreenX: sx, startScreenY: sy, nodeId: hit.id,
+          fromConnectionPoint: true,
+        };
         return;
       }
 
       if (hit.type === 'resize-handle' && hit.id && hit.handle) {
-        const node = nodes.find(n => n.id === hit.id)!;
-        if (node.locked) return;
+        const node = nodes.find(n => n.id === hit.id);
+        if (!node || node.locked) return;
         dragRef.current = {
           type: 'resize', startWorldX: world.x, startWorldY: world.y,
           startScreenX: sx, startScreenY: sy, handle: hit.handle, nodeId: hit.id,
@@ -213,6 +247,19 @@ export function useCanvasInteraction({
         return;
       }
 
+      if (hit.type === 'waypoint-handle' && hit.id && hit.waypointIndex !== undefined) {
+        const edge = edges.find(ed => ed.id === hit.id);
+        dispatch({ type: 'SET_SELECTION', selection: { nodeIds: [], edgeIds: [hit.id] } });
+        dispatch({ type: 'SNAPSHOT' });
+        dragRef.current = {
+          type: 'move-waypoint', startWorldX: world.x, startWorldY: world.y,
+          startScreenX: sx, startScreenY: sy,
+          edgeId: hit.id, waypointIndex: hit.waypointIndex,
+          initialWaypoints: edge?.manualWaypoints ? [...edge.manualWaypoints.map(w => ({ ...w }))] : [],
+        };
+        return;
+      }
+
       if (hit.type === 'edge-segment' && hit.id && hit.segmentDirection) {
         const edge = edges.find(ed => ed.id === hit.id);
         dispatch({ type: 'SET_SELECTION', selection: { nodeIds: [], edgeIds: [hit.id] } });
@@ -221,13 +268,23 @@ export function useCanvasInteraction({
           type: 'move-edge-segment', startWorldX: world.x, startWorldY: world.y,
           startScreenX: sx, startScreenY: sy,
           edgeId: hit.id, segmentDirection: hit.segmentDirection,
+          segmentIndex: hit.segmentIndex,
           initialMidpoint: edge?.manualMidpoint,
+          initialWaypoints: edge?.manualWaypoints ? [...edge.manualWaypoints.map(w => ({ ...w }))] : undefined,
         };
         return;
       }
 
       if (hit.type === 'edge' && hit.id) {
-        dispatch({ type: 'SET_SELECTION', selection: { nodeIds: [], edgeIds: [hit.id] } });
+        // 既に選択中のエッジと重なる場合、次のエッジにサイクル
+        let targetId = hit.id;
+        if (selection.edgeIds.includes(hit.id)) {
+          const overlapping = resolved.filter(
+            ed => ed.id !== hit.id && hitTestEdge(ed, world.x, world.y, viewport.scale),
+          );
+          if (overlapping.length > 0) targetId = overlapping[0].id;
+        }
+        dispatch({ type: 'SET_SELECTION', selection: { nodeIds: [], edgeIds: [targetId] } });
         return;
       }
 
@@ -249,10 +306,20 @@ export function useCanvasInteraction({
       return;
     }
 
-    if (['line', 'arrow', 'connector'].includes(tool)) {
+    if (['line', 'connector'].includes(tool)) {
       const hit = hitTest({ nodes, edges, wx: world.x, wy: world.y, scale: viewport.scale, selectedNodeIds: [] });
+      let startX = world.x;
+      let startY = world.y;
+      // ノード上からの開始: 境界の最近点を使用
+      if (hit.type === 'node' && hit.id) {
+        const node = nodes.find(n => n.id === hit.id);
+        if (node) {
+          const bp = nearestBorderPoint(node, world.x, world.y);
+          if (bp) { startX = bp.x; startY = bp.y; }
+        }
+      }
       dragRef.current = {
-        type: 'create-edge', startWorldX: world.x, startWorldY: world.y,
+        type: 'create-edge', startWorldX: startX, startWorldY: startY,
         startScreenX: sx, startScreenY: sy,
         nodeId: hit.type === 'node' ? hit.id : undefined,
       };
@@ -271,7 +338,7 @@ export function useCanvasInteraction({
     if (drag.type === 'none') {
       if (tool === 'pan') {
         cursorRef.current = 'grab';
-      } else if (['rect', 'ellipse', 'sticky', 'text', 'diamond', 'parallelogram', 'cylinder', 'doc', 'line', 'arrow', 'connector'].includes(tool)) {
+      } else if (['rect', 'ellipse', 'sticky', 'text', 'diamond', 'parallelogram', 'cylinder', 'doc', 'line', 'connector'].includes(tool)) {
         cursorRef.current = 'crosshair';
       }
     }
@@ -293,7 +360,9 @@ export function useCanvasInteraction({
         n: 'ns-resize', s: 'ns-resize',
         e: 'ew-resize', w: 'ew-resize',
       };
-      if (fullHit.type === 'resize-handle' && fullHit.handle) {
+      if (fullHit.type === 'frame-collapse') {
+        cursorRef.current = 'pointer';
+      } else if (fullHit.type === 'resize-handle' && fullHit.handle) {
         cursorRef.current = RESIZE_CURSORS[fullHit.handle] ?? 'default';
       } else if (fullHit.type === 'edge-endpoint') {
         cursorRef.current = 'crosshair';
@@ -351,15 +420,16 @@ export function useCanvasInteraction({
     }
 
     if (drag.type === 'move' && drag.initialNodes) {
+      const initNodes = drag.initialNodes;
       const world = screenToWorld(viewport, sx, sy);
       const dx = world.x - drag.startWorldX;
       const dy = world.y - drag.startWorldY;
-      const ids = [...drag.initialNodes.keys()];
+      const ids = [...initNodes.keys()];
 
       if (!showGrid && ids.length > 0) {
         // Smart guides: snap to other nodes when grid is off
         // Compute bounding box of all dragged nodes (works for single and multi-node)
-        const draggedInits = ids.map(id => ({ id, init: drag.initialNodes!.get(id)! }));
+        const draggedInits = ids.flatMap(id => { const init = initNodes.get(id); return init ? [{ id, init }] : []; });
         const bboxX = Math.min(...draggedInits.map(d => d.init.x + dx));
         const bboxY = Math.min(...draggedInits.map(d => d.init.y + dy));
         const bboxRight = Math.max(...draggedInits.map(d => d.init.x + dx + d.init.width));
@@ -368,23 +438,23 @@ export function useCanvasInteraction({
         const bboxHeight = bboxBottom - bboxY;
 
         const otherRects = nodes
-          .filter(n => !drag.initialNodes!.has(n.id))
+          .filter(n => !initNodes.has(n.id))
           .map(n => ({ id: n.id, x: n.x, y: n.y, width: n.width, height: n.height }));
         const result = computeSmartGuides(bboxX, bboxY, bboxWidth, bboxHeight, otherRects, 5);
 
         // Apply snap offset uniformly to all dragged nodes
         const snapDx = result.snappedX - bboxX;
         const snapDy = result.snappedY - bboxY;
-        const snapUpdates = ids.map(id => {
-          const init = drag.initialNodes!.get(id)!;
-          return { id, x: init.x + dx + snapDx, y: init.y + dy + snapDy };
+        const snapUpdates = ids.flatMap(id => {
+          const init = initNodes.get(id);
+          return init ? [{ id, x: init.x + dx + snapDx, y: init.y + dy + snapDy }] : [];
         });
         dispatch({ type: 'SET_NODE_POSITIONS', updates: snapUpdates });
         if (collisionEnabled && physicsRef?.current) {
           for (const u of snapUpdates) {
             physicsRef.current.updateBody(u.id, { x: u.x, y: u.y });
           }
-          const draggedIds = [...drag.initialNodes!.keys()];
+          const draggedIds = [...initNodes.keys()];
           if (draggedIds.length > 0) {
             const pushed = physicsRef.current.resolveCollisions(draggedIds[0]);
             if (pushed.length > 0) {
@@ -394,20 +464,21 @@ export function useCanvasInteraction({
         }
         previewRef.current = { type: 'none', fromX: 0, fromY: 0, toX: 0, toY: 0, guides: result.guides };
       } else {
-        const moveUpdates = ids.map(id => {
-          const init = drag.initialNodes!.get(id)!;
-          return {
+        const moveUpdates = ids.flatMap(id => {
+          const init = initNodes.get(id);
+          if (!init) return [];
+          return [{
             id,
             x: showGrid ? snapToGrid(init.x + dx) : init.x + dx,
             y: showGrid ? snapToGrid(init.y + dy) : init.y + dy,
-          };
+          }];
         });
         dispatch({ type: 'SET_NODE_POSITIONS', updates: moveUpdates });
         if (collisionEnabled && physicsRef?.current) {
           for (const u of moveUpdates) {
             physicsRef.current.updateBody(u.id, { x: u.x, y: u.y });
           }
-          const draggedIds = [...drag.initialNodes!.keys()];
+          const draggedIds = [...initNodes.keys()];
           if (draggedIds.length > 0) {
             const pushed = physicsRef.current.resolveCollisions(draggedIds[0]);
             if (pushed.length > 0) {
@@ -422,7 +493,8 @@ export function useCanvasInteraction({
 
     if (drag.type === 'resize' && drag.nodeId && drag.handle && drag.initialNodes) {
       const world = screenToWorld(viewport, sx, sy);
-      const init = drag.initialNodes.get(drag.nodeId)!;
+      const init = drag.initialNodes.get(drag.nodeId);
+      if (!init) return;
       const MIN = 20;
       const resized = computeResize(init, drag.handle, world.x, world.y, drag.startWorldX, drag.startWorldY);
       const x = showGrid ? snapToGrid(resized.x) : resized.x;
@@ -433,8 +505,37 @@ export function useCanvasInteraction({
       return;
     }
 
+    if (drag.type === 'move-waypoint' && drag.edgeId && drag.waypointIndex !== undefined && drag.initialWaypoints) {
+      const world = screenToWorld(viewport, sx, sy);
+      const newWaypoints = drag.initialWaypoints.map(w => ({ ...w }));
+      newWaypoints[drag.waypointIndex] = { x: world.x, y: world.y };
+      dispatch({ type: 'UPDATE_EDGE', id: drag.edgeId, changes: { manualWaypoints: newWaypoints } });
+      return;
+    }
+
     if (drag.type === 'move-edge-segment' && drag.edgeId) {
       const world = screenToWorld(viewport, sx, sy);
+      // manualWaypoints がある場合: 該当セグメント端点を平行移動
+      if (drag.initialWaypoints?.length && drag.segmentIndex !== undefined) {
+        const newWaypoints = drag.initialWaypoints.map(w => ({ ...w }));
+        const delta = drag.segmentDirection === 'horizontal'
+          ? world.y - drag.startWorldY
+          : world.x - drag.startWorldX;
+        // segmentIndex は waypoints（fromPt + manualWaypoints + toPt）内のインデックス
+        // manualWaypoints のインデックスは segmentIndex - 1 と segmentIndex
+        const mwpIdx1 = drag.segmentIndex - 1;
+        const mwpIdx2 = drag.segmentIndex;
+        if (drag.segmentDirection === 'horizontal') {
+          if (mwpIdx1 >= 0 && mwpIdx1 < newWaypoints.length) newWaypoints[mwpIdx1].y += delta;
+          if (mwpIdx2 >= 0 && mwpIdx2 < newWaypoints.length) newWaypoints[mwpIdx2].y += delta;
+        } else {
+          if (mwpIdx1 >= 0 && mwpIdx1 < newWaypoints.length) newWaypoints[mwpIdx1].x += delta;
+          if (mwpIdx2 >= 0 && mwpIdx2 < newWaypoints.length) newWaypoints[mwpIdx2].x += delta;
+        }
+        dispatch({ type: 'UPDATE_EDGE', id: drag.edgeId, changes: { manualWaypoints: newWaypoints } });
+        return;
+      }
+      // 従来の manualMidpoint ドラッグ
       const newMidpoint = drag.segmentDirection === 'vertical' ? world.x : world.y;
       dispatch({ type: 'UPDATE_EDGE', id: drag.edgeId, changes: { manualMidpoint: newMidpoint } });
       return;
@@ -447,7 +548,7 @@ export function useCanvasInteraction({
         type: 'edge',
         fromX: drag.startWorldX, fromY: drag.startWorldY,
         toX: world.x, toY: world.y,
-        edgeType: (tool === 'line' || tool === 'arrow' || tool === 'connector') ? tool : 'connector',
+        edgeType: (tool === 'line' || tool === 'connector') ? tool : 'connector',
         snapNodeId: hit.type === 'node' ? hit.id : undefined,
       };
       return;
@@ -504,8 +605,8 @@ export function useCanvasInteraction({
 
     if (drag.type === 'create-edge') {
       const hit = hitTest({ nodes, edges, wx: world.x, wy: world.y, scale: viewport.scale, selectedNodeIds: [] });
-      const edgeType: 'line' | 'arrow' | 'connector' =
-        (tool === 'line' || tool === 'arrow' || tool === 'connector') ? tool : 'connector';
+      const edgeType: 'line' | 'connector' =
+        (tool === 'line' || tool === 'connector') ? tool : 'connector';
       const dist = Math.hypot(world.x - drag.startWorldX, world.y - drag.startWorldY);
 
       // エッジエンドポイント再接続（既存エッジの端点変更）
@@ -526,15 +627,19 @@ export function useCanvasInteraction({
         }
       } else if (dist > 5) {
         if (hit.type === 'node' && hit.id) {
-          // 既存ノードに接続
+          // 既存ノードに接続（ノード境界の最近点を使用）
+          const targetNode = nodes.find(n => n.id === hit.id);
+          const bp = targetNode ? nearestBorderPoint(targetNode, world.x, world.y) : null;
+          const toX = bp?.x ?? world.x;
+          const toY = bp?.y ?? world.y;
           const edge = createEdge(
             edgeType,
             { nodeId: drag.nodeId, x: drag.startWorldX, y: drag.startWorldY },
-            { nodeId: hit.id, x: world.x, y: world.y },
+            { nodeId: hit.id, x: toX, y: toY },
             undefined, isDark,
           );
           dispatch({ type: 'ADD_EDGE', edge });
-        } else if (!drag.fromConnectionPoint && (tool === 'line' || tool === 'arrow' || tool === 'connector')) {
+        } else if (!drag.fromConnectionPoint && (tool === 'line' || tool === 'connector')) {
           // 線ツールで空白→空白: フリーなエッジを作成
           const edge = createEdge(
             edgeType,
@@ -587,13 +692,15 @@ export function useCanvasInteraction({
       const history = panHistoryRef.current;
       if (history.length >= 2) {
         const first = history[0];
-        const last = history.at(-1)!;
-        const dt = last.t - first.t;
-        if (dt > 0 && dt < 100) {
-          velocityRef.current = {
-            vx: (last.x - first.x) / dt * 16,
-            vy: (last.y - first.y) / dt * 16,
-          };
+        const last = history.at(-1);
+        if (first && last) {
+          const dt = last.t - first.t;
+          if (dt > 0 && dt < 100) {
+            velocityRef.current = {
+              vx: (last.x - first.x) / dt * 16,
+              vy: (last.y - first.y) / dt * 16,
+            };
+          }
         }
       }
       panHistoryRef.current = [];
@@ -601,7 +708,7 @@ export function useCanvasInteraction({
 
     dragRef.current = { type: 'none', startWorldX: 0, startWorldY: 0, startScreenX: 0, startScreenY: 0 };
     previewRef.current = { ...EMPTY_PREVIEW };
-  }, [canvasRef, viewport, tool, nodes, edges, dispatch, showGrid]);
+  }, [canvasRef, viewport, tool, nodes, edges, dispatch, showGrid, isDark, onTextEdit, onToolChange]);
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
@@ -615,11 +722,61 @@ export function useCanvasInteraction({
 
   const handleDoubleClick = useCallback((e: React.MouseEvent) => {
     const world = getWorldPos(e as unknown as MouseEvent);
-    const hit = hitTest({ nodes, edges, wx: world.x, wy: world.y, scale: viewport.scale, selectedNodeIds: selection.nodeIds });
+    const hit = hitTest({ nodes, edges, wx: world.x, wy: world.y, scale: viewport.scale, selectedNodeIds: selection.nodeIds, selectedEdgeIds: selection.edgeIds });
     if (hit.type === 'node' && hit.id) {
       onTextEdit(hit.id);
+      return;
     }
-  }, [getWorldPos, nodes, edges, viewport, selection, onTextEdit]);
+    // ウェイポイントハンドルをダブルクリック → 削除
+    if (hit.type === 'waypoint-handle' && hit.id && hit.waypointIndex !== undefined) {
+      const edge = edges.find(ed => ed.id === hit.id);
+      if (edge?.manualWaypoints) {
+        dispatch({ type: 'SNAPSHOT' });
+        const newWaypoints = edge.manualWaypoints.filter((_, i) => i !== hit.waypointIndex);
+        dispatch({ type: 'UPDATE_EDGE', id: hit.id, changes: { manualWaypoints: newWaypoints.length > 0 ? newWaypoints : undefined } });
+      }
+      return;
+    }
+    // エッジ上をダブルクリック → ウェイポイント追加
+    if (hit.type === 'edge' && hit.id) {
+      const edge = edges.find(ed => ed.id === hit.id);
+      if (edge && edge.type === 'connector') {
+        dispatch({ type: 'SNAPSHOT' });
+        const existing = edge.manualWaypoints ?? [];
+        // ウェイポイント配列内の適切な位置に挿入（パスに沿った順序を維持）
+        const wp = { x: world.x, y: world.y };
+        if (existing.length === 0 || !edge.waypoints?.length) {
+          dispatch({ type: 'UPDATE_EDGE', id: hit.id, changes: { manualWaypoints: [...existing, wp] } });
+        } else {
+          // waypoints パス上で最も近いセグメントの後に挿入
+          let bestIdx = existing.length;
+          let bestDist = Infinity;
+          const fullPath = edge.waypoints;
+          for (let i = 0; i < fullPath.length - 1; i++) {
+            const p1 = fullPath[i];
+            const p2 = fullPath[i + 1];
+            const dx = p2.x - p1.x;
+            const dy = p2.y - p1.y;
+            const len2 = dx * dx + dy * dy;
+            const t = len2 > 0 ? Math.max(0, Math.min(1, ((world.x - p1.x) * dx + (world.y - p1.y) * dy) / len2)) : 0;
+            const px = p1.x + t * dx;
+            const py = p1.y + t * dy;
+            const d = Math.hypot(world.x - px, world.y - py);
+            if (d < bestDist) {
+              bestDist = d;
+              // i は fullPath のインデックス。manualWaypoints のインデックスは i - 1（fromPt を除く）
+              bestIdx = Math.max(0, Math.min(existing.length, i));
+            }
+          }
+          const newWaypoints = [...existing];
+          newWaypoints.splice(bestIdx, 0, wp);
+          dispatch({ type: 'UPDATE_EDGE', id: hit.id, changes: { manualWaypoints: newWaypoints } });
+        }
+        dispatch({ type: 'SET_SELECTION', selection: { nodeIds: [], edgeIds: [hit.id] } });
+      }
+      return;
+    }
+  }, [getWorldPos, nodes, edges, viewport, selection, onTextEdit, dispatch]);
 
   const copySelected = useCallback(() => {
     if (selection.nodeIds.length === 0) return;
@@ -720,7 +877,7 @@ export function useCanvasInteraction({
       if (e.key === 'c') { e.preventDefault(); copySelected(); return; }
       if (e.key === 'v') { e.preventDefault(); pasteFromClipboard(); return; }
     }
-  }, [canvasRef, selection, nodes, dispatch, copySelected, pasteFromClipboard]);
+  }, [canvasRef, selection, nodes, dispatch, copySelected, pasteFromClipboard, onLiveMessage]);
 
   const handleKeyUp = useCallback((e: KeyboardEvent) => {
     if (e.code === 'Space') {

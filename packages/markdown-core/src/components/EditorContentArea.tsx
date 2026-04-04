@@ -4,9 +4,9 @@ import type { Editor } from "@tiptap/react";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
 
+import { useEditorMode } from "../contexts/EditorModeContext";
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
 import { getEditorPaperSx } from "../styles/editorStyles";
-import { useEditorMode } from "../contexts/EditorModeContext";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import { EditorContextMenu } from "./EditorContextMenu";
 import { FrontmatterBlock } from "./FrontmatterBlock";

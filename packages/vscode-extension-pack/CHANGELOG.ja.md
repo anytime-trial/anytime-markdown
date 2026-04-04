@@ -6,6 +6,13 @@
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-04-04
+
+### 変更
+
+- 同梱拡張機能の Anytime Git を Anytime Trail に置き換え
+- 同梱拡張機能を最新バージョンに更新（markdown 0.10.0, graph 0.1.0, trail 0.1.0）
+
 ## [0.0.3] - 2026-04-01
 
 ### 変更
@@ -20,4 +27,4 @@
 ## [0.0.1] - 2026-03-27
 
 ### 追加
-- Anytime Markdown、Anytime Graph、Anytime Git をバンドル
+- Anytime Markdown、Anytime Graph、Anytime Trail をバンドル

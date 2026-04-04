@@ -23,6 +23,7 @@ const defaultSettings: EditorSettings = {
   darkTextColor: "",
   lightTextColor: "",
   blockAlign: "left" as const,
+  wordBreak: "keep-all" as const,
 };
 
 describe("getBaseStyles", () => {

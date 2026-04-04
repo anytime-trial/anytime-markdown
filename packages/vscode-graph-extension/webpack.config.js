@@ -19,6 +19,8 @@ const extensionConfig = {
   },
   externals: {
     vscode: 'commonjs vscode',
+    // typescript は実行時に node_modules から読み込む（バンドルに含めると巨大になる）
+    typescript: 'commonjs typescript',
   },
   resolve: {
     extensions: ['.ts', '.js'],
@@ -27,8 +29,14 @@ const extensionConfig = {
     rules: [
       {
         test: /\.ts$/,
-        exclude: /node_modules/,
-        use: [{ loader: 'ts-loader' }],
+        exclude: /node_modules[\\/](?!@anytime-markdown[\\/]trail-core)/,
+        use: [{
+          loader: 'ts-loader',
+          options: {
+            allowTsInNodeModules: true,
+            transpileOnly: true,
+          },
+        }],
       },
     ],
   },

@@ -5,8 +5,8 @@ import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { ACCENT_COLOR, ACCENT_COLOR_ALPHA, DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getTextPrimary, getTextSecondary } from "../constants/colors";
 import type { TextareaSearchMatch } from "../hooks/useTextareaSearch";
 import { useEditorSettingsContext } from "../useEditorSettings";
-import { collapseBase64, restoreBase64 } from "../utils/base64Collapse";
 import type { Base64TokenSpan } from "../utils/base64Collapse";
+import { collapseBase64, restoreBase64 } from "../utils/base64Collapse";
 
 interface SourceModeEditorProps {
   sourceText: string;

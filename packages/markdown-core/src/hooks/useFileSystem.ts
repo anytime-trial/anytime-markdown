@@ -10,7 +10,8 @@ async function hasWritePermissionDenied(handle: FileSystemFileHandle): Promise<b
   if (typeof h.queryPermission !== 'function') return false;
   const perm = await h.queryPermission({ mode: 'readwrite' });
   if (perm === 'granted') return false;
-  const req = await h.requestPermission!({ mode: 'readwrite' });
+  if (typeof h.requestPermission !== 'function') return true;
+  const req = await h.requestPermission({ mode: 'readwrite' });
   return req !== 'granted';
 }
 

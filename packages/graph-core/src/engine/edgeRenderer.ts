@@ -22,7 +22,7 @@ export function drawEdge(
   const color = selected ? c.canvasSelection : style.stroke;
   // 端点形状（未設定の場合、arrow/connectorタイプは endShape='arrow' をデフォルトにする）
   const startShape: EndpointShape = style.startShape ?? 'none';
-  const endShape: EndpointShape = style.endShape ?? ((type === 'arrow' || type === 'connector') ? 'arrow' : 'none');
+  const endShape: EndpointShape = style.endShape ?? (type === 'connector' ? 'arrow' : 'none');
 
   // ベジェ曲線パスの描画
   if (edge.bezierPath?.length === 4) {
@@ -81,6 +81,18 @@ export function drawEdge(
       const labelX = (from.x + to.x) / 2;
       const labelY = (from.y + to.y) / 2;
       drawEdgeLabel(ctx, edge.label, labelX, labelY, c);
+    }
+  }
+
+  // 選択時: manualWaypoints のハンドルを描画
+  if (selected && edge.manualWaypoints) {
+    const wpSize = 4;
+    for (const wp of edge.manualWaypoints) {
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = c.canvasSelection;
+      ctx.lineWidth = 1.5;
+      ctx.fillRect(wp.x - wpSize, wp.y - wpSize, wpSize * 2, wpSize * 2);
+      ctx.strokeRect(wp.x - wpSize, wp.y - wpSize, wpSize * 2, wpSize * 2);
     }
   }
 
@@ -192,7 +204,7 @@ export function drawEdgePreview(
   ctx: CanvasRenderingContext2D,
   fromX: number, fromY: number,
   toX: number, toY: number,
-  edgeType: 'line' | 'arrow' | 'connector',
+  edgeType: 'line' | 'connector',
   isValid: boolean = true,
   colors?: CanvasColors,
 ): void {
@@ -208,7 +220,7 @@ export function drawEdgePreview(
   ctx.stroke();
   ctx.setLineDash([]);
 
-  if (edgeType === 'arrow' || edgeType === 'connector') {
+  if (edgeType === 'connector') {
     drawArrowHead(ctx, fromX, fromY, toX, toY, color);
   }
   ctx.restore();

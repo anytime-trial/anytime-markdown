@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-04-04
+
+### Added
+
+- Modeling page with C4 architecture diagram viewer and graph visualization
+- C4Viewer component for rendering C4 models via graph-core
+- Cytoscape.js integration: demo, editor, viewer pages and hub navigation
+- .graph file import to graph editor toolbar
+- LandingHeader component for /modeling page
+- Default C4 diagram on /modeling initial render
+
+### Changed
+
+- Rename /trail route to /modeling
+
+### Fixed
+
+- Logo image path updated from /help/ to /images/
+- Fallback to non-localized .md when locale-specific file is missing
+- Resolve ESLint warnings across web-app
+- Stabilize C4 wheel zoom with refs for viewport/dispatch
+
 ## [0.9.3] - 2026-04-01
 
 ### Fixed

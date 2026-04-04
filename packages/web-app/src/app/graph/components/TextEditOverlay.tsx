@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
-import { GraphNode, Viewport } from '../types';
-import { worldToScreen } from '../engine/viewport';
 import { getCanvasColors } from '@anytime-markdown/graph-core';
+import React, { useEffect, useRef } from 'react';
+
 import { useThemeMode } from '../../providers';
+import { worldToScreen } from '../engine/viewport';
+import { GraphNode, Viewport } from '../types';
 
 interface TextEditOverlayProps {
   node: GraphNode | null;

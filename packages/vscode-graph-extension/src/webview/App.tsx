@@ -12,7 +12,7 @@ import {
 } from '@anytime-markdown/graph-core/engine';
 import { pan as panViewport } from '@anytime-markdown/graph-core/engine';
 import type { ViewportAnimation } from '@anytime-markdown/graph-core/engine';
-import { exportToSvg, exportToDrawio, importFromDrawio } from '@anytime-markdown/graph-core';
+import { exportToSvg, exportToDrawio, importFromDrawio, importFromMermaid, layoutWithSubgroups } from '@anytime-markdown/graph-core';
 import { GraphToolBar } from '../../../web-app/src/app/graph/components/ToolBar';
 import { PropertyPanel } from '../../../web-app/src/app/graph/components/PropertyPanel';
 import { ShapeHoverBar } from '../../../web-app/src/app/graph/components/ShapeHoverBar';
@@ -47,7 +47,7 @@ export function App() {
   const [confirmDialog, setConfirmDialog] = useState<{ open: boolean; title: string; message: string; onConfirm: () => void }>({ open: false, title: '', message: '', onConfirm: () => {} });
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [layoutRunning, setLayoutRunning] = useState(false);
-  const [layoutAlgorithm, setLayoutAlgorithm] = useState<'eades' | 'fruchterman-reingold' | 'eades-vpsc' | 'fruchterman-reingold-vpsc'>('eades');
+  const [layoutAlgorithm, setLayoutAlgorithm] = useState<'eades' | 'fruchterman-reingold' | 'eades-vpsc' | 'fruchterman-reingold-vpsc' | 'hierarchical'>('eades');
   const [collisionEnabled, setCollisionEnabled] = useState(false);
   const [dataMappingConfig, setDataMappingConfig] = useState<DataMappingConfig | undefined>(undefined);
   const [detailNodeId, setDetailNodeId] = useState<string | null>(null);
@@ -193,7 +193,7 @@ export function App() {
         v: 'select', r: 'rect', o: 'ellipse', s: 'sticky',
         t: 'text', d: 'diamond', p: 'parallelogram', y: 'cylinder',
         m: 'doc', f: 'frame',
-        l: 'line', a: 'arrow', c: 'connector',
+        l: 'line', c: 'connector',
       };
       if (map[e.key] && !e.ctrlKey && !e.metaKey) {
         setTool(map[e.key]);
@@ -425,6 +425,69 @@ export function App() {
     input.click();
   }, [wrappedDispatch, t]);
 
+  const handleImportGraph = useCallback(() => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.graph';
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const json = reader.result as string;
+        try {
+          const doc = JSON.parse(json) as GraphDocument;
+          if (!doc.nodes || !doc.edges) return;
+          setConfirmDialog({
+            open: true,
+            title: t('import'),
+            message: t('importConfirm'),
+            onConfirm: () => {
+              wrappedDispatch({ type: 'SET_DOCUMENT', doc });
+            },
+          });
+        } catch {
+          // invalid JSON
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  }, [wrappedDispatch, t]);
+
+  const handleImportMermaid = useCallback(() => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.mmd';
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const text = reader.result as string;
+        try {
+          const { doc, direction } = importFromMermaid(text);
+          if (!doc.nodes || !doc.edges) return;
+
+          layoutWithSubgroups(doc, direction, 180, 60);
+
+          setConfirmDialog({
+            open: true,
+            title: t('import'),
+            message: t('importConfirm'),
+            onConfirm: () => {
+              wrappedDispatch({ type: 'SET_DOCUMENT', doc });
+            },
+          });
+        } catch {
+          // invalid mermaid
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  }, [wrappedDispatch, t]);
+
   const handleLayerAction = useCallback((action: 'up' | 'down' | 'top' | 'bottom') => {
     if (state.selection.nodeIds.length !== 1) return;
     const nodeId = state.selection.nodeIds[0];
@@ -473,6 +536,8 @@ export function App() {
           onExportSvg={handleExportSvg}
           onExportDrawio={handleExportDrawio}
           onImportDrawio={handleImportDrawio}
+          onImportGraph={handleImportGraph}
+          onImportMermaid={handleImportMermaid}
           onAlign={handleAlign}
           onSetScale={handleSetScale}
           selectionCount={state.selection.nodeIds.length}

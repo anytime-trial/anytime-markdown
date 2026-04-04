@@ -1,6 +1,6 @@
 {
   "name": "anytime-markdown-monorepo",
-  "version": "0.9.3",
+  "version": "0.10.0",
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -18,10 +18,12 @@
     "packages/mcp-cms-remote",
     "packages/vscode-markdown-extension",
     "packages/vscode-graph-extension",
-    "packages/vscode-git-extension",
+    "packages/vscode-trail-extension",
     "packages/vscode-extension-pack",
     "packages/web-app",
-    "packages/mobile-app"
+    "packages/mobile-app",
+    "packages/trail-core",
+    "packages/c4-kernel"
   ],
   "overrides": {
     "serialize-javascript": "7.0.5",

@@ -14,7 +14,7 @@ import { getDivider, getTextDisabled, getTextSecondary } from "../constants/colo
 import { CHIP_FONT_SIZE, PANEL_BUTTON_FONT_SIZE, STATUSBAR_FONT_SIZE } from "../constants/dimensions";
 import { useCropEstimate } from "../hooks/useCropEstimate";
 import { useCropInteraction } from "../hooks/useCropInteraction";
-import { SCALE_PRESETS, type CropRect } from "../utils/cropGeometry";
+import { SCALE_PRESETS } from "../utils/cropGeometry";
 
 interface ImageCropToolProps {
   src: string;
@@ -62,7 +62,7 @@ export function ImageCropTool({ src, onCrop, t }: Readonly<ImageCropToolProps>) 
     }
     setCropping(false);
     setCropRect(null);
-  }, [cropRect, onCrop]);
+  }, [cropRect, onCrop, setCropRect]);
 
   const handleCancelCrop = useCallback(() => {
     setCropping(false);

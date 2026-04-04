@@ -194,7 +194,8 @@ export function DiagramBlock(props: DiagramBlockProps) {
   } = usePlantUmlRender({ code, isPlantUml, isDark });
   const error = isMermaid ? mermaidError : plantUmlError;
 
-  const handleCapture = useDiagramCapture({ isMermaid, isPlantUml, svg, plantUmlUrl, code, isDark });
+  const { handleCapture, handleExportSource } = useDiagramCapture({ isMermaid, isPlantUml, svg, plantUmlUrl, code, isDark });
+  const exportSourceKey = isMermaid ? "exportMmd" : "exportPuml";
 
   const displaySvg = useMemo(() => {
     if (!svg) return svg;
@@ -221,6 +222,8 @@ export function DiagramBlock(props: DiagramBlockProps) {
       onEdit={canInteract && hasDiagramOutput ? () => { fsZP.reset(); setEditOpen(true); } : undefined}
       onDelete={isEditable && canInteract ? () => setDeleteDialogOpen(true) : undefined}
       onExport={hasDiagramOutput ? handleCapture : undefined}
+      onExportSource={hasDiagramOutput ? handleExportSource : undefined}
+      exportSourceKey={exportSourceKey}
       labelOnly={props.isCompareLeftEditable}
       labelDivider
       t={t}
@@ -234,6 +237,11 @@ export function DiagramBlock(props: DiagramBlockProps) {
     overflow: "hidden", bgcolor: editorBg, position: "relative",
     width: displayWidth || "fit-content", maxWidth: "100%",
     cursor: "pointer",
+    "@media (max-width: 899px)": {
+      overflowX: "auto",
+      "& > div": { minWidth: "max-content" },
+      "& svg": { maxWidth: "none !important" },
+    },
   };
 
   const handleDoubleClickFullscreen = useCallback(() => {
@@ -243,7 +251,8 @@ export function DiagramBlock(props: DiagramBlockProps) {
     }
   }, [hasDiagramOutput, fsZP, setEditOpen]);
 
-  const handleCloseDialog = useCallback(() => { fsSearch.reset(); props.tryCloseEdit(); }, [fsSearch, props.tryCloseEdit]);
+  const { tryCloseEdit } = props;
+  const handleCloseDialog = useCallback(() => { fsSearch.reset(); tryCloseEdit(); }, [fsSearch, tryCloseEdit]);
 
   const sharedContainerProps = {
     containerRef, code, diagramContainerSx, selectNode, handleDoubleClickFullscreen,
@@ -255,7 +264,7 @@ export function DiagramBlock(props: DiagramBlockProps) {
     open: editOpen, onClose: handleCloseDialog, label, code, fsCode,
     onFsCodeChange, onFsTextChange: _handleFsTextChange, fsTextareaRef, fsSearch, fsZP,
     readOnly: !isEditable, isCompareMode, compareCode, onMergeApply: handleMergeApply,
-    thisCode, onExport: handleCapture,
+    thisCode, onExport: handleCapture, onExportSource: handleExportSource, exportSourceKey,
     onApply: props.onFsApply, dirty: props.fsDirty,
     toolbarExtra: <CopyCodeButton handleCopyCode={handleCopyCode} t={t} />, t,
   };

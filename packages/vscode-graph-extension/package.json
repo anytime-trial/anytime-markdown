@@ -2,7 +2,7 @@
   "name": "anytime-graph",
   "displayName": "Anytime Graph",
   "description": "Graph whiteboard editor for VS Code",
-  "version": "0.0.3",
+  "version": "0.1.0",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {
@@ -71,6 +71,7 @@
   },
   "dependencies": {
     "@anytime-markdown/graph-core": "*",
+    "@anytime-markdown/trail-core": "*",
     "@emotion/react": "11.14.0",
     "@emotion/styled": "11.14.0",
     "@mui/icons-material": "7.3.7",

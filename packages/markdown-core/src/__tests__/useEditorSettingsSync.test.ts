@@ -26,6 +26,7 @@ const defaultSettings = {
   spellCheck: true,
   paperSize: "off" as const,
   paperMargin: 20,
+  wordBreak: "keep-all" as const,
 };
 
 describe("useEditorSettingsSync", () => {

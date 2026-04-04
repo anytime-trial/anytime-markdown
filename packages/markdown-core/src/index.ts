@@ -44,14 +44,14 @@ export { getBaseExtensions } from './editorExtensions';
 export { CustomHardBreak } from './extensions/customHardBreak';
 export { CustomTableCell, CustomTableHeader } from './extensions/customTableCells';
 export { DeleteLineExtension } from './extensions/deleteLineExtension';
-export type { BlockDiffResult } from './utils/blockDiffComputation';
-export { computeBlockDiff } from './utils/blockDiffComputation';
 export { DiffHighlight, diffHighlightPluginKey } from './extensions/diffHighlight';
 export { HeadingFoldExtension, headingFoldPluginKey } from './extensions/headingFoldExtension';
 export { CustomImage } from './imageExtension';
 export type { SearchReplaceStorage } from './searchReplaceExtension';
 export { SearchReplaceExtension } from './searchReplaceExtension';
 export { CustomTable } from './tableExtension';
+export type { BlockDiffResult } from './utils/blockDiffComputation';
+export { computeBlockDiff } from './utils/blockDiffComputation';
 
 // Types
 export type {
@@ -150,8 +150,8 @@ export { default as MarkdownIcon } from './icons/MarkdownIcon';
 export { default as MermaidIcon } from './icons/MermaidIcon';
 
 // Contexts
-export { EditorModeContext, useEditorMode } from './contexts/EditorModeContext';
 export type { EditorModeContextValue, EditorModeState } from './contexts/EditorModeContext';
+export { EditorModeContext, useEditorMode } from './contexts/EditorModeContext';
 
 // Providers
 export { ConfirmContext,ConfirmProvider } from './providers/ConfirmProvider';

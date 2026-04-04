@@ -1,11 +1,11 @@
 'use client';
 
 import { Alert, Box, Button, CircularProgress } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
-import useMediaQuery from '@mui/material/useMediaQuery';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useTheme } from '@mui/material/styles';
 
 import { useLocaleSwitch } from '../LocaleProvider';
 import { usePreset, useThemeMode } from '../providers';
@@ -39,9 +39,11 @@ interface MarkdownViewerProps {
   showFrontmatter?: boolean;
   /** エディタ下部の追加オフセット（px） */
   bottomOffset?: number;
+  /** ロケール別キーが見つからない場合のフォールバックキー（言語サフィックスなしファイル等） */
+  fallbackDocKey?: string;
 }
 
-export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60vh', editorHeight, noScroll, contentApiPath = '/api/docs/content', showFrontmatter, bottomOffset }: Readonly<MarkdownViewerProps>) {
+export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60vh', editorHeight, noScroll, contentApiPath = '/api/docs/content', showFrontmatter, bottomOffset, fallbackDocKey }: Readonly<MarkdownViewerProps>) {
   const t = useTranslations('Landing');
   const { themeMode, setThemeMode } = useThemeMode();
   const { presetName, setPresetName } = usePreset();
@@ -57,26 +59,32 @@ export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60
   const [error, setError] = useState<string | null>(null);
   const editorKeyRef = useRef(0);
 
-  const fetchContent = useCallback(() => {
+  const fetchContent = useCallback(async () => {
     setLoading(true);
     setError(null);
-
-    fetch(`${contentApiPath}?key=${encodeURIComponent(resolvedDocKey)}`)
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.text();
-      })
-      .then((text) => {
-        setContent(text);
-        editorKeyRef.current += 1;
-      })
-      .catch(() => {
-        setError(t('docsViewLoadError'));
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  }, [resolvedDocKey, t]);
+    try {
+      const res = await fetch(`${contentApiPath}?key=${encodeURIComponent(resolvedDocKey)}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const text = await res.text();
+      setContent(text);
+      editorKeyRef.current += 1;
+    } catch {
+      // ロケール別キーで失敗した場合、フォールバックキー（言語サフィックスなしファイル）を試行
+      if (fallbackDocKey) {
+        try {
+          const res = await fetch(`${contentApiPath}?key=${encodeURIComponent(fallbackDocKey)}`);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const text = await res.text();
+          setContent(text);
+          editorKeyRef.current += 1;
+          return;
+        } catch { /* フォールバックも失敗 */ }
+      }
+      setError(t('docsViewLoadError'));
+    } finally {
+      setLoading(false);
+    }
+  }, [resolvedDocKey, fallbackDocKey, contentApiPath, t]);
 
   useEffect(() => {
     fetchContent();

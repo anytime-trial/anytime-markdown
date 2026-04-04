@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { Box, Typography, Divider, IconButton, TextField, Slider, Button, Chip } from '@mui/material';
-import CloseIcon from '@mui/icons-material/Close';
 import AddIcon from '@mui/icons-material/Add';
+import CloseIcon from '@mui/icons-material/Close';
 import DeleteIcon from '@mui/icons-material/Delete';
+import { Box, Button, Chip,Divider, IconButton, Slider, TextField, Typography } from '@mui/material';
+import { useCallback,useState } from 'react';
+
 import type { NodeFilterConfig, RangeFilter, TextFilter } from '../types/nodeFilter';
 
 interface FilterPanelProps {

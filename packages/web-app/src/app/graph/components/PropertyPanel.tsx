@@ -1,25 +1,26 @@
 'use client';
 
-import React from 'react';
-import {
-  Box, Typography, TextField, Slider, Divider, IconButton, ToggleButton, ToggleButtonGroup,
-  Switch, FormControlLabel,
-} from '@mui/material';
-import {
-  Close as CloseIcon,
-  Lock as LockIcon,
-  LockOpen as LockOpenIcon,
-  ArrowUpward as UpIcon,
-  ArrowDownward as DownIcon,
-  VerticalAlignTop as TopIcon,
-  VerticalAlignBottom as BottomIcon,
-} from '@mui/icons-material';
-import { useTranslations } from 'next-intl';
-import { GraphNode, GraphEdge, EndpointShape } from '../types';
 import {
   getCanvasColors,
 } from '@anytime-markdown/graph-core';
+import {
+  ArrowDownward as DownIcon,
+  ArrowUpward as UpIcon,
+  Close as CloseIcon,
+  Lock as LockIcon,
+  LockOpen as LockOpenIcon,
+  VerticalAlignBottom as BottomIcon,
+  VerticalAlignTop as TopIcon,
+} from '@mui/icons-material';
+import {
+  Box, Divider, FormControlLabel,
+IconButton, Slider,   Switch, TextField, ToggleButton, ToggleButtonGroup,
+Typography, } from '@mui/material';
+import { useTranslations } from 'next-intl';
+import React from 'react';
+
 import { useThemeMode } from '../../providers';
+import { EndpointShape,GraphEdge, GraphNode } from '../types';
 
 const COLORS = [
   '#ffffff', '#f44336', '#e91e63', '#9c27b0', '#673ab7',
@@ -346,7 +347,7 @@ export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpda
 
           <Typography variant="caption" sx={{ color: colors.textSecondary }}>{t('endShape')}</Typography>
           <ToggleButtonGroup
-            value={selectedEdge.style.endShape ?? ((selectedEdge.type === 'arrow' || selectedEdge.type === 'connector') ? 'arrow' : 'none')}
+            value={selectedEdge.style.endShape ?? (selectedEdge.type === 'connector' ? 'arrow' : 'none')}
             exclusive
             onChange={(_, v) => v && onUpdateEdge(selectedEdge.id, { style: { ...selectedEdge.style, endShape: v as EndpointShape } })}
             size="small"
@@ -387,6 +388,7 @@ export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpda
               >
                 <ToggleButton value="orthogonal">{t('routingOrthogonal')}</ToggleButton>
                 <ToggleButton value="bezier">{t('routingBezier')}</ToggleButton>
+                <ToggleButton value="straight">{t('routingStraight')}</ToggleButton>
               </ToggleButtonGroup>
             </>
           )}

@@ -3,8 +3,8 @@ import type { SxProps,Theme } from "@mui/material/styles";
 import {
   DEFAULT_DARK_BG, DEFAULT_DARK_CODE_BG, DEFAULT_LIGHT_BG, DEFAULT_LIGHT_CODE_BG,
   DEFAULT_LIGHT_INLINE_CODE,
-  HLJS_DARK, HLJS_LIGHT,
   getActionHover, getGrey,
+  HLJS_DARK, HLJS_LIGHT,
 } from "../constants/colors";
 
 /** シンタックスハイライト（hljs）カラー定義 */

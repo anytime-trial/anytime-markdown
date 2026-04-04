@@ -3,8 +3,8 @@ import FolderOpenIcon from "@mui/icons-material/FolderOpen";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import ListAltIcon from "@mui/icons-material/ListAlt";
 import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
-import SaveAsIcon from "@mui/icons-material/SaveAs";
 import SaveIcon from "@mui/icons-material/Save";
+import SaveAsIcon from "@mui/icons-material/SaveAs";
 import SettingsIcon from "@mui/icons-material/Settings";
 import {
   Divider,
@@ -111,7 +111,7 @@ export const ToolbarMobileMenu = React.memo(function ToolbarMobileMenu({
     }
     if (fileHandlers.onExportPdf) {
       items.push(
-        <MenuItem key="f-pdf" onClick={() => { fileHandlers.onExportPdf!(); onClose(); }} disabled={sourceMode || inlineMergeOpen}>
+        <MenuItem key="f-pdf" onClick={() => { fileHandlers.onExportPdf?.(); onClose(); }} disabled={sourceMode || inlineMergeOpen}>
           <ListItemIcon><PictureAsPdfIcon fontSize="small" /></ListItemIcon>
           <ListItemText>{t("exportPdf")}</ListItemText>
         </MenuItem>,

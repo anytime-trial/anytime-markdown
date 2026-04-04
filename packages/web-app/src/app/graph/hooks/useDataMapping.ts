@@ -1,10 +1,9 @@
+import { interpolateColor,linearScale } from '@anytime-markdown/graph-core/engine';
 import { useMemo } from 'react';
 
-import { linearScale, interpolateColor } from '@anytime-markdown/graph-core/engine';
-
-import type { GraphNode, GraphEdge } from '../types';
-import { DEFAULT_DATA_MAPPING } from '../types/dataMapping';
+import type { GraphEdge,GraphNode } from '../types';
 import type { DataMappingConfig } from '../types/dataMapping';
+import { DEFAULT_DATA_MAPPING } from '../types/dataMapping';
 
 interface MappedResult {
   readonly nodes: readonly GraphNode[];
@@ -32,9 +31,9 @@ export function useDataMapping(
       return { nodes, edges };
     }
 
-    const sizeRange = config?.sizeRange ?? DEFAULT_DATA_MAPPING.sizeRange!;
-    const colorRange = config?.colorRange ?? DEFAULT_DATA_MAPPING.colorRange!;
-    const weightRange = config?.weightRange ?? DEFAULT_DATA_MAPPING.weightRange!;
+    const sizeRange = config?.sizeRange ?? DEFAULT_DATA_MAPPING.sizeRange ?? [60, 200] as const;
+    const colorRange = config?.colorRange ?? DEFAULT_DATA_MAPPING.colorRange ?? ['#c6dbef', '#08519c'] as const;
+    const weightRange = config?.weightRange ?? DEFAULT_DATA_MAPPING.weightRange ?? [1, 8] as const;
 
     // --- ノードマッピング ---
     let mappedNodes: GraphNode[] = nodes as GraphNode[];
@@ -45,11 +44,11 @@ export function useDataMapping(
 
       for (const node of nodes) {
         if (hasSizeMapping) {
-          const v = node.metadata?.[config!.sizeKey!];
+          const v = node.metadata?.[config?.sizeKey ?? ''];
           if (typeof v === 'number') sizeValues.push(v);
         }
         if (hasColorMapping) {
-          const v = node.metadata?.[config!.colorKey!];
+          const v = node.metadata?.[config?.colorKey ?? ''];
           if (typeof v === 'number') colorValues.push(v);
         }
       }
@@ -73,7 +72,7 @@ export function useDataMapping(
         let changed = false;
 
         if (sizeScale) {
-          const raw = node.metadata?.[config!.sizeKey!];
+          const raw = node.metadata?.[config?.sizeKey ?? ''];
           if (typeof raw === 'number') {
             const size = sizeScale(raw);
             width = size;
@@ -83,7 +82,7 @@ export function useDataMapping(
         }
 
         if (colorScale) {
-          const raw = node.metadata?.[config!.colorKey!];
+          const raw = node.metadata?.[config?.colorKey ?? ''];
           if (typeof raw === 'number') {
             const t = colorScale(raw);
             const fill = interpolateColor(colorRange[0], colorRange[1], t);

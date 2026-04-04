@@ -225,7 +225,7 @@ function SourceModePanel({
     >
       <Box sx={{ display: "flex", minHeight: "100%" }}>
         {side === "right" && hasMergeButtons && (
-          <MergeGutter panelSide="right" alignedCount={alignedCount} mergeButtonIndices={mergeButtonIndices} fontSize={editorSettings.fontSize} lineHeight={editorSettings.lineHeight} mergeGutterRef={mergeGutterRef} onMerge={onMerge!} t={t} />
+          <MergeGutter panelSide="right" alignedCount={alignedCount} mergeButtonIndices={mergeButtonIndices} fontSize={editorSettings.fontSize} lineHeight={editorSettings.lineHeight} mergeGutterRef={mergeGutterRef} onMerge={onMerge ?? (() => {})} t={t} />
         )}
 
         <Box
@@ -301,7 +301,7 @@ function SourceModePanel({
         </Box>
 
         {side === "left" && hasMergeButtons && (
-          <MergeGutter panelSide="left" alignedCount={alignedCount} mergeButtonIndices={mergeButtonIndices} fontSize={editorSettings.fontSize} lineHeight={editorSettings.lineHeight} mergeGutterRef={mergeGutterRef} onMerge={onMerge!} t={t} />
+          <MergeGutter panelSide="left" alignedCount={alignedCount} mergeButtonIndices={mergeButtonIndices} fontSize={editorSettings.fontSize} lineHeight={editorSettings.lineHeight} mergeGutterRef={mergeGutterRef} onMerge={onMerge ?? (() => {})} t={t} />
         )}
       </Box>
     </Paper>

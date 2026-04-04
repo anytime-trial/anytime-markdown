@@ -16,8 +16,8 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 
-import type { ReportMeta } from '../../types/report';
 import { buildArchiveMonths, paginate } from '../../lib/reportUtils';
+import type { ReportMeta } from '../../types/report';
 import LandingHeader from '../components/LandingHeader';
 import SiteFooter from '../components/SiteFooter';
 

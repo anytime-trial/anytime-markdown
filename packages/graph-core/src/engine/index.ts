@@ -1,9 +1,11 @@
 export { render, drawGrid } from './renderer';
 export type { RenderOptions } from './renderer';
 export {
-  drawNode, drawRoundedRect, wrapText, drawLockIndicator, clearImageCache,
+  drawNode, drawRoundedRect, clearImageCache,
   drawDiamond, drawParallelogram, drawCylinderBody, drawCylinderTop,
 } from './shapes';
+export { wrapText } from './textRendering';
+export { drawLockIndicator } from './shapeRenderers';
 export { drawEdge, drawArrowHead, drawEdgePreview } from './edgeRenderer';
 export {
   drawResizeHandles, drawBoundingBox, drawConnectionPoints,
@@ -11,18 +13,18 @@ export {
   drawEdgeEndpointHandles, drawShapePreview,
 } from './overlays';
 export {
-  hitTest, hitTestNode, hitTestEdge, hitTestEdgeSegment, hitTestResizeHandles,
+  hitTest, hitTestNode, hitTestEdge, hitTestEdgeSegment, hitTestWaypointHandle, hitTestResizeHandles,
 } from './hitTest';
 export type { HitResult, HitTestContext, ResizeHandle, ConnectionSide, EdgeEndpointEnd } from './hitTest';
 export { screenToWorld, worldToScreen, pan, zoom, fitToContent } from './viewport';
 export {
   nodeCenter, rectIntersection, ellipseIntersection, nodeIntersection,
   resolveConnectorEndpoints, computeOrthogonalPath, computeBezierPath,
-  getConnectionPoints, nearestConnectionPoint, hitTestConnectionPoint,
+  getConnectionPoints, nearestConnectionPoint, nearestBorderPoint, hitTestConnectionPoint,
   bestSides,
 } from './connector';
 export type { Side } from './connector';
-export { computeAvoidancePath } from './pathfinding';
+export { computeVisibilityPath } from './orthogonalRouter';
 export { snapToGrid, snapRect } from './gridSnap';
 export {
   alignLeft, alignRight, alignTop, alignBottom,

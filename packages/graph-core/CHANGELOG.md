@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-04-04
+
+### Added
+
+- Mermaid diagram import with mermaidParser for flowchart/sequence/class/state diagrams
+- Hierarchical physics layout engine for layered graph visualization
+- Orthogonal edge routing with visibility graph algorithm
+- Frame collapse support for expandable/collapsible node groups
+- Waypoint support for manual edge path adjustment
+- Straight routing mode for connector edges
+- Parallel connector path offset between same node pair
+- Bottom-up subgraph layout for mermaid import
+- Nested frame layout in layoutWithSubgroups
+- Detour path when connector endpoints overlap
+
+### Changed
+
+- Split shapes.ts into shapeRenderers and textRendering modules
+- Extract orthogonalRouter from visibilityGraph for separation of concerns
+- Extract draw helpers from overlays
+- Extract magic numbers to constants
+- Replace pathfinding module with visibilityGraph-based orthogonal routing
+- Remove obstacle avoidance from connector routing
+- Remove 'arrow' from EdgeType
+
+### Fixed
+
+- Deflect bezier control points perpendicular to edge side
+- Center-symmetric offset for parallel connector endpoints
+- Adapt layer spacing to node height in hierarchical layout
+
 ## [0.0.3] - 2026-04-01
 
 ### Added

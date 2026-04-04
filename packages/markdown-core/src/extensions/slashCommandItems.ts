@@ -33,8 +33,8 @@ import React from "react";
 
 import apiSpec from "../constants/templates/apiSpec.md";
 import basicDesign from "../constants/templates/basicDesign.md";
-import markdownAllJa from "../constants/templates/markdownEmbedAll.ja.md";
 import markdownAllEn from "../constants/templates/markdownEmbedAll.en.md";
+import markdownAllJa from "../constants/templates/markdownEmbedAll.ja.md";
 import welcomeJa from "../constants/templates/welcome.md";
 import welcomeEn from "../constants/templates/welcome-en.md";
 import type { TranslationFn } from "../types";

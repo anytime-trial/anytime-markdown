@@ -7,10 +7,12 @@ import React, { useCallback, useState } from "react";
 import { getDivider, getPrimaryMain, getTextSecondary } from "../constants/colors";
 import { FS_PANEL_HEADER_FONT_SIZE, FS_TOOLBAR_HEIGHT, MENU_ITEM_FONT_SIZE } from "../constants/dimensions";
 import { MATH_SAMPLES } from "../constants/samples";
+import { useEditorFeaturesContext } from "../contexts/EditorFeaturesContext";
 import { MATH_SANITIZE_CONFIG, useKatexRender } from "../hooks/useKatexRender";
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
 import { useZoomPan } from "../hooks/useZoomPan";
 import { useEditorSettingsContext } from "../useEditorSettings";
+import { GraphView } from "./codeblock/GraphView";
 import { DraggableSplitLayout } from "./DraggableSplitLayout";
 import { EditDialogHeader } from "./EditDialogHeader";
 import { EditDialogWrapper } from "./EditDialogWrapper";
@@ -18,9 +20,7 @@ import { FullscreenDiffView } from "./FullscreenDiffView";
 import { LineNumberTextarea } from "./LineNumberTextarea";
 import { SamplePanel } from "./SamplePanel";
 import { ZoomablePreview } from "./ZoomablePreview";
-import { GraphView } from "./codeblock/GraphView";
 import { ZoomToolbar } from "./ZoomToolbar";
-import { useEditorFeaturesContext } from "../contexts/EditorFeaturesContext";
 
 interface MathEditDialogProps {
   open: boolean;

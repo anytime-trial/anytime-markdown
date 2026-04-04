@@ -8,17 +8,17 @@ import { useRef, useState } from "react";
 
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getDivider, getPrimaryMain, getTextSecondary } from "../../constants/colors";
 import { PREVIEW_MAX_HEIGHT } from "../../constants/dimensions";
+import { useEditorFeaturesContext } from "../../contexts/EditorFeaturesContext";
 import { useBlockMergeCompare } from "../../hooks/useBlockMergeCompare";
 import { useBlockResize } from "../../hooks/useBlockResize";
 import { MATH_SANITIZE_CONFIG,useKatexRender } from "../../hooks/useKatexRender";
 import { MathEditDialog } from "../MathEditDialog";
 import { BlockInlineToolbar } from "./BlockInlineToolbar";
 import { CodeBlockFrame } from "./CodeBlockFrame";
-import { GraphView } from "./GraphView";
 import { shouldShowBorder, shouldShowToolbar } from "./compareHelpers";
+import { GraphView } from "./GraphView";
 import { ResizeGrip } from "./ResizeGrip";
 import type { CodeBlockSharedProps } from "./types";
-import { useEditorFeaturesContext } from "../../contexts/EditorFeaturesContext";
 
 type MathBlockProps = Pick<
   CodeBlockSharedProps,

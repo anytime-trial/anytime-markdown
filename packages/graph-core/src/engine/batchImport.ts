@@ -65,7 +65,7 @@ export function batchCreateGraph(input: BatchImportInput): GraphDocument {
     const toNode = doc.nodes.find(n => n.id === toNodeId)!;
 
     const edge = createEdge(
-      'arrow',
+      'connector',
       { nodeId: fromNodeId, x: fromNode.x, y: fromNode.y },
       { nodeId: toNodeId, x: toNode.x, y: toNode.y },
       { weight: edgeInput.weight },

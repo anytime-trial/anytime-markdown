@@ -1,5 +1,6 @@
 import { GraphDocument, GraphNode, GraphEdge } from '../types';
-import { computeOrthogonalPath } from '../engine/connector';
+import { computeOrthogonalPath, bestSides, getConnectionPoints } from '../engine/connector';
+import { computeVisibilityPath } from '../engine/orthogonalRouter';
 import {
   CANVAS_BG, COLOR_TEXT_PRIMARY,
   FONT_FAMILY,
@@ -70,7 +71,19 @@ function renderEdgeSvg(edge: GraphEdge, nodes: GraphNode[]): string {
     const fromNode = nodes.find(n => n.id === edge.from.nodeId);
     const toNode = nodes.find(n => n.id === edge.to.nodeId);
     if (fromNode && toNode) {
-      points = computeOrthogonalPath(fromNode, toNode, 20, edge.manualMidpoint);
+      if (edge.manualMidpoint !== undefined) {
+        points = computeOrthogonalPath(fromNode, toNode, 20, edge.manualMidpoint);
+      } else {
+        const obstacles = nodes
+          .filter(n => n.id !== fromNode.id && n.id !== toNode.id)
+          .map(n => ({ x: n.x, y: n.y, width: n.width, height: n.height }));
+        const sides = bestSides(fromNode, toNode);
+        const fromPts = getConnectionPoints(fromNode);
+        const toPts = getConnectionPoints(toNode);
+        const fromPt = fromPts.find(p => p.side === sides.fromSide) ?? fromPts[0];
+        const toPt = toPts.find(p => p.side === sides.toSide) ?? toPts[0];
+        points = computeVisibilityPath(fromPt, sides.fromSide, toPt, sides.toSide, obstacles);
+      }
     }
   }
 
@@ -82,7 +95,7 @@ function renderEdgeSvg(edge: GraphEdge, nodes: GraphNode[]): string {
   }
 
   // 矢印マーカー
-  const endShape = style.endShape ?? ((type === 'arrow' || type === 'connector') ? 'arrow' : 'none');
+  const endShape = style.endShape ?? (type === 'connector' ? 'arrow' : 'none');
   if (endShape === 'arrow') {
     const last = points.length >= 2 ? points.at(-1)! : { x: edge.to.x, y: edge.to.y };
     const prev = points.length >= 2 ? points.at(-2)! : { x: edge.from.x, y: edge.from.y };

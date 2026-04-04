@@ -12,7 +12,7 @@ export interface PhysicsBody {
   mass: number;
 }
 
-export type LayoutAlgorithm = 'eades' | 'fruchterman-reingold' | 'eades-vpsc' | 'fruchterman-reingold-vpsc';
+export type LayoutAlgorithm = 'eades' | 'fruchterman-reingold' | 'eades-vpsc' | 'fruchterman-reingold-vpsc' | 'hierarchical';
 
 export interface PhysicsConfig {
   algorithm: LayoutAlgorithm;
@@ -25,6 +25,10 @@ export interface PhysicsConfig {
   // FR parameters
   frAreaMultiplier: number;
   frCooling: number;
+  // Hierarchical parameters
+  hierarchicalDirection: 'TB' | 'LR';
+  hierarchicalLevelGap: number;
+  hierarchicalNodeSpacing: number;
   // Common
   collisionEnabled: boolean;
   collisionPadding: number;
@@ -41,6 +45,9 @@ export const DEFAULT_PHYSICS_CONFIG: PhysicsConfig = {
   damping: 0.9,
   frAreaMultiplier: 1.0,
   frCooling: 0.95,
+  hierarchicalDirection: 'TB',
+  hierarchicalLevelGap: 180,
+  hierarchicalNodeSpacing: 60,
   collisionEnabled: false,
   collisionPadding: 10,
   velocityThreshold: 0.5,

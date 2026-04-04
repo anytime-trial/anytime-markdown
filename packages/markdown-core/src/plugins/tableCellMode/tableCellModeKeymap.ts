@@ -1,13 +1,14 @@
-import type { EditorView } from "@tiptap/pm/view";
 import { TextSelection } from "@tiptap/pm/state";
+import type { EditorView } from "@tiptap/pm/view";
 import { TableMap } from "prosemirror-tables";
-import {
-  tableCellModePluginKey,
-  setNavigationMode,
-  setEditingMode,
-  exitTableMode,
-} from "./tableCellModePlugin";
+
 import { isInlineTable } from "./tableCellModeMouse";
+import {
+  exitTableMode,
+  setEditingMode,
+  setNavigationMode,
+  tableCellModePluginKey,
+} from "./tableCellModePlugin";
 
 // ----------------------------------------------------------------
 // Helper functions

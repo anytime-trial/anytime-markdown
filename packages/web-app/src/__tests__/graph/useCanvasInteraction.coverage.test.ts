@@ -10,6 +10,7 @@ jest.mock("@anytime-markdown/graph-core/engine", () => ({
       resolveCollisions: jest.fn().mockReturnValue([]),
     })),
   },
+  computeVisibilityPath: jest.fn().mockReturnValue([{ x: 0, y: 0 }, { x: 50, y: 0 }, { x: 50, y: 100 }, { x: 100, y: 100 }]),
 }));
 
 // Mock viewport
@@ -23,6 +24,7 @@ jest.mock("../../app/graph/engine/viewport", () => ({
 const mockHitTest = jest.fn().mockReturnValue({ type: "canvas" });
 jest.mock("../../app/graph/engine/hitTest", () => ({
   hitTest: (...args: any[]) => mockHitTest(...args),
+  hitTestEdge: jest.fn().mockReturnValue(null),
 }));
 
 // Mock gridSnap
@@ -42,6 +44,10 @@ jest.mock("../../app/graph/engine/smartGuide", () => ({
 // Mock connector
 jest.mock("../../app/graph/engine/connector", () => ({
   computeOrthogonalPath: () => [{ x: 0, y: 0 }, { x: 100, y: 100 }],
+  bestSides: jest.fn().mockReturnValue({ fromSide: "right", toSide: "left" }),
+  getConnectionPoints: jest.fn().mockReturnValue([{ x: 0, y: 50, side: "left" }, { x: 150, y: 50, side: "right" }]),
+  nearestBorderPoint: jest.fn().mockReturnValue({ x: 100, y: 100 }),
+  resolveConnectorEndpoints: jest.fn().mockReturnValue({ from: { x: 0, y: 0 }, to: { x: 100, y: 100 } }),
 }));
 
 // Mock types
@@ -122,6 +128,7 @@ describe("useCanvasInteraction", () => {
     canvas = createMockCanvas();
     defaultProps.canvasRef = { current: canvas };
     jest.clearAllMocks();
+    mockHitTest.mockReset();
     mockHitTest.mockReturnValue({ type: "canvas" });
     // Mock crypto.randomUUID
     Object.defineProperty(globalThis, "crypto", {
@@ -462,7 +469,7 @@ describe("useCanvasInteraction", () => {
       useCanvasInteraction({
         ...defaultProps,
         nodes: [node],
-        tool: "arrow" as any,
+        tool: "connector" as any,
       })
     );
 
@@ -1842,7 +1849,7 @@ describe("useCanvasInteraction", () => {
   it("handles edge creation short distance (no edge created)", () => {
     mockHitTest.mockReturnValue({ type: "canvas" });
     const { result } = renderHook(() =>
-      useCanvasInteraction({ ...defaultProps, tool: "arrow" as any })
+      useCanvasInteraction({ ...defaultProps, tool: "connector" as any })
     );
 
     act(() => {
@@ -2337,7 +2344,7 @@ describe("useCanvasInteraction", () => {
       useCanvasInteraction({
         ...defaultProps,
         nodes: [node],
-        tool: "arrow" as any,
+        tool: "connector" as any,
       })
     );
 
@@ -2370,7 +2377,7 @@ describe("useCanvasInteraction", () => {
     // Test cursor during create-edge drag
     mockHitTest.mockReturnValue({ type: "canvas" });
     const { result: result2 } = renderHook(() =>
-      useCanvasInteraction({ ...defaultProps, tool: "arrow" as any })
+      useCanvasInteraction({ ...defaultProps, tool: "connector" as any })
     );
     act(() => {
       result2.current.handleMouseDown(makeMouseEvent("mousedown", 100, 100));

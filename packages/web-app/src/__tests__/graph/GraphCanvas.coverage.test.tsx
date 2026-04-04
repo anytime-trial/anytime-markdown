@@ -23,7 +23,7 @@ jest.mock("@anytime-markdown/graph-core/engine", () => ({
     viewport: { offsetX: 0, offsetY: 0, scale: 1 },
     done: true,
   }),
-  computeAvoidancePath: jest.fn().mockReturnValue([{ x: 0, y: 0 }, { x: 100, y: 100 }]),
+  computeVisibilityPath: jest.fn().mockReturnValue([{ x: 0, y: 0 }, { x: 100, y: 100 }]),
 }));
 
 jest.mock("../../app/graph/engine/connector", () => ({

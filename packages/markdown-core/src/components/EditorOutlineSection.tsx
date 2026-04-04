@@ -6,6 +6,7 @@ import OutlinePanel from "./OutlinePanel";
 
 interface EditorOutlineSectionProps {
   isMd: boolean;
+  readonlyMode?: boolean;
   outlineOpen: boolean;
   handleToggleOutline: () => void;
   outlineWidth: number;
@@ -28,6 +29,7 @@ interface EditorOutlineSectionProps {
 
 export function EditorOutlineSection({
   isMd,
+  readonlyMode,
   outlineOpen,
   handleToggleOutline,
   outlineWidth,
@@ -49,9 +51,10 @@ export function EditorOutlineSection({
 }: Readonly<EditorOutlineSectionProps>) {
   if (isMd) {
     if (!outlineOpen) return null;
+    const effectiveWidth = readonlyMode ? COMMENT_PANEL_WIDTH : outlineWidth;
     return (
       <OutlinePanel
-        outlineWidth={outlineWidth}
+        outlineWidth={effectiveWidth}
         setOutlineWidth={setOutlineWidth}
         editorHeight={editorHeight}
         headings={headings}
@@ -60,8 +63,9 @@ export function EditorOutlineSection({
         foldAll={foldAll}
         unfoldAll={unfoldAll}
         toggleFold={toggleFold}
-        handleOutlineClick={handleOutlineClick}
+        handleOutlineClick={readonlyMode ? (pos: number) => { handleOutlineClick(pos); handleToggleOutline(); } : handleOutlineClick}
         handleOutlineResizeStart={handleOutlineResizeStart}
+        hideResize={readonlyMode}
         onHeadingDragEnd={onHeadingDragEnd}
         onOutlineDelete={onOutlineDelete}
         onInsertSectionNumbers={onInsertSectionNumbers}

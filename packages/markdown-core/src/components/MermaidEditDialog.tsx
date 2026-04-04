@@ -38,6 +38,8 @@ interface MermaidEditDialogProps {
   onMergeApply?: (newThisCode: string, newOtherCode: string) => void;
   thisCode?: string;
   onExport?: () => void;
+  onExportSource?: () => void;
+  exportSourceKey?: string;
   toolbarExtra?: React.ReactNode;
   onApply?: () => void;
   dirty?: boolean;
@@ -48,7 +50,7 @@ export function MermaidEditDialog({
   open, onClose, label, svg, code,
   fsCode, onFsCodeChange: _onFsCodeChange, onFsTextChange, fsTextareaRef, fsSearch: _fsSearch,
   fsZP, readOnly,
-  isCompareMode, compareCode, onMergeApply, thisCode, onExport, toolbarExtra,
+  isCompareMode, compareCode, onMergeApply, thisCode, onExport, onExportSource, exportSourceKey, toolbarExtra,
   onApply, dirty, t,
 }: Readonly<MermaidEditDialogProps>) {
   const theme = useTheme();
@@ -181,7 +183,7 @@ export function MermaidEditDialog({
           }
           right={
             <>
-              <ZoomToolbar fsZP={fsZP} onExport={onExport} t={t} />
+              <ZoomToolbar fsZP={fsZP} onExport={onExport} onExportSource={onExportSource} exportSourceKey={exportSourceKey} t={t} />
               <ZoomablePreview fsZP={fsZP}>
                 {displaySvg && (
                   <Box role="img" aria-label={extractDiagramAltText(code, "mermaid")} dangerouslySetInnerHTML={{ __html: displaySvg }} sx={{ "& svg": { maxWidth: "100%", height: "auto" } }} />

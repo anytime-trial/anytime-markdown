@@ -4,8 +4,8 @@ import type React from "react";
 import { useCallback } from "react";
 
 import { FILE_DROP_OVERLAY_COLOR } from "../constants/colors";
-import { useEditorMode } from "../contexts/EditorModeContext";
 import { COMMENT_PANEL_WIDTH } from "../constants/dimensions";
+import { useEditorMode } from "../contexts/EditorModeContext";
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
 import { getMarkdownFromEditor, type HeadingItem } from "../types";
 import type { DiffLine } from "../utils/diffEngine";
@@ -41,6 +41,7 @@ type InlineMergeViewComponent = React.ComponentType<{
 
 export interface OutlineProps {
   isMd: boolean;
+  readonlyMode?: boolean;
   outlineOpen: boolean;
   handleToggleOutline: () => void;
   outlineWidth: number;
@@ -130,8 +131,8 @@ export function EditorMainContent({
 }: Readonly<EditorMainContentProps>) {
   const {
     sourceMode, readonlyMode, reviewMode, inlineMergeOpen,
-    sideToolbar, explorerOpen, noScroll,
-    onSwitchToReview, onSwitchToWysiwyg, onSwitchToSource,
+    sideToolbar, explorerOpen, noScroll: _noScroll,
+    onSwitchToReview: _onSwitchToReview, onSwitchToWysiwyg: _onSwitchToWysiwyg, onSwitchToSource: _onSwitchToSource,
   } = useEditorMode();
   const isNarrow = useMediaQuery("(max-width:900px)");
 

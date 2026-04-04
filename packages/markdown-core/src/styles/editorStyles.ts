@@ -58,6 +58,8 @@ export function getEditorPaperSx(
       color: getEditorText(theme.palette.mode === "dark", settings),
       WebkitFontSmoothing: isDark ? "antialiased" : "auto",
       MozOsxFontSmoothing: isDark ? "grayscale" : "auto",
+      wordBreak: settings.wordBreak === "keep-all" ? "keep-all" : "normal",
+      overflowWrap: "break-word",
       ...(getBaseStyles(theme, options) as Record<string, unknown>),
       ...(getHeadingStyles(theme) as Record<string, unknown>),
       ...(getCodeStyles(theme) as Record<string, unknown>),
@@ -79,8 +81,6 @@ export function getEditorPaperSx(
         maxWidth: calcPaperContentWidth(settings.paperSize as Exclude<PaperSize, "off">, settings.paperMargin),
         mx: "auto",
         bgcolor: editorBg,
-        wordBreak: "break-word",
-        overflowWrap: "break-word",
       }),
     },
   };

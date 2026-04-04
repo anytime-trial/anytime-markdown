@@ -25,8 +25,6 @@ import { useMergeFileOps } from "../hooks/useMergeFileOps";
 import { useScrollSync } from "../hooks/useScrollSync";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import { type DiffLine } from "../utils/diffEngine";
-
-
 import { preprocessMarkdown } from "../utils/frontmatterHelpers";
 import { FrontmatterBlock } from "./FrontmatterBlock";
 import { LinePreviewPanel } from "./LinePreviewPanel";

@@ -29,7 +29,7 @@ describe('graphReducer', () => {
 
   it('DELETE_SELECTED removes selected nodes and connected edges', () => {
     const state = makeState();
-    const edge = createEdge('arrow', { nodeId: 'n1', x: 0, y: 0 }, { nodeId: 'n2', x: 0, y: 0 }, { id: 'e1' });
+    const edge = createEdge('connector', { nodeId: 'n1', x: 0, y: 0 }, { nodeId: 'n2', x: 0, y: 0 }, { id: 'e1' });
     let s = graphReducer(state, { type: 'ADD_EDGE', edge });
     s = graphReducer(s, { type: 'SET_SELECTION', selection: { nodeIds: ['n1'], edgeIds: [] } });
     s = graphReducer(s, { type: 'DELETE_SELECTED' });
@@ -135,7 +135,7 @@ describe('graphReducer', () => {
     // Lock n1
     let s = graphReducer(state, { type: 'UPDATE_NODE', id: 'n1', changes: { locked: true } });
     // Add an edge from n1 to n2
-    const edge = createEdge('arrow', { nodeId: 'n1', x: 0, y: 0 }, { nodeId: 'n2', x: 0, y: 0 }, { id: 'e1' });
+    const edge = createEdge('connector', { nodeId: 'n1', x: 0, y: 0 }, { nodeId: 'n2', x: 0, y: 0 }, { id: 'e1' });
     s = graphReducer(s, { type: 'ADD_EDGE', edge });
     // Select both nodes
     s = graphReducer(s, { type: 'SET_SELECTION', selection: { nodeIds: ['n1', 'n2'], edgeIds: [] } });
@@ -158,7 +158,7 @@ describe('graphReducer', () => {
     s = graphReducer(s, { type: 'UPDATE_NODE', id: 'n1', changes: { locked: true } });
     s = graphReducer(s, { type: 'UPDATE_NODE', id: 'n2', changes: { locked: true } });
     // Edge between two locked nodes
-    const edge = createEdge('arrow', { nodeId: 'n1', x: 0, y: 0 }, { nodeId: 'n2', x: 0, y: 0 }, { id: 'e1' });
+    const edge = createEdge('connector', { nodeId: 'n1', x: 0, y: 0 }, { nodeId: 'n2', x: 0, y: 0 }, { id: 'e1' });
     s = graphReducer(s, { type: 'ADD_EDGE', edge });
     // Select all and delete
     s = graphReducer(s, { type: 'SET_SELECTION', selection: { nodeIds: ['n1', 'n2', 'n3'], edgeIds: [] } });
@@ -181,7 +181,7 @@ describe('graphReducer', () => {
 
   it('UPDATE_EDGE updates edge properties', () => {
     const state = makeState();
-    const edge = createEdge('arrow', { nodeId: 'n1', x: 0, y: 0 }, { nodeId: 'n2', x: 0, y: 0 }, { id: 'e1' });
+    const edge = createEdge('connector', { nodeId: 'n1', x: 0, y: 0 }, { nodeId: 'n2', x: 0, y: 0 }, { id: 'e1' });
     let s = graphReducer(state, { type: 'ADD_EDGE', edge });
     s = graphReducer(s, { type: 'UPDATE_EDGE', id: 'e1', changes: { label: 'Edge Label' } });
     expect(s.document.edges.find(e => e.id === 'e1')!.label).toBe('Edge Label');
@@ -233,7 +233,7 @@ describe('graphReducer', () => {
     const state = makeState();
     const pasteNode1 = createNode('rect', 300, 300, { id: 'p1', text: 'Pasted1' });
     const pasteNode2 = createNode('rect', 400, 400, { id: 'p2', text: 'Pasted2' });
-    const pasteEdge = createEdge('arrow', { nodeId: 'p1', x: 0, y: 0 }, { nodeId: 'p2', x: 0, y: 0 }, { id: 'pe1' });
+    const pasteEdge = createEdge('connector', { nodeId: 'p1', x: 0, y: 0 }, { nodeId: 'p2', x: 0, y: 0 }, { id: 'pe1' });
     const next = graphReducer(state, { type: 'PASTE_NODES', nodes: [pasteNode1, pasteNode2], edges: [pasteEdge] });
     expect(next.document.nodes).toHaveLength(4); // 2 original + 2 pasted
     expect(next.document.edges).toHaveLength(1);

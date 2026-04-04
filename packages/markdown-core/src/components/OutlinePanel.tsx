@@ -371,7 +371,8 @@ export function OutlinePanel({
         sx={{
           width: outlineWidth,
           minWidth: outlineWidth,
-          flex: 1,
+          maxWidth: outlineWidth,
+          flex: "0 0 auto",
           borderTopLeftRadius: 0,
           borderTopRightRadius: 0,
           borderRight: "none",

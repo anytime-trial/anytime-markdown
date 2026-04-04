@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-04-04
+
+### Added
+
+- PlantUML source (.puml) export
+- Mermaid (.mmd) export with SVG-to-PNG capture fix
+
+### Fixed
+
+- Update logo image path from /help/ to /images/
+
+### Changed
+
+- Resolve ESLint warnings across markdown-core
+- Remove unused code
+
+## [0.9.3] - 2026-04-01
+
+### Added
+
+- Horizontal scroll for Mermaid diagrams on narrow screens
+- Word-break setting in editor settings
+
+### Fixed
+
+- Close outline panel on heading click in readonly mode and fix panel width
+
 ## [0.9.2] - 2026-04-01
 
 ### Added

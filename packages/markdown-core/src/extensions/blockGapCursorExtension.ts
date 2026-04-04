@@ -27,8 +27,8 @@ function adjustGapCursorPosition(dom: HTMLElement) {
   });
 }
 
-import type { EditorView } from "@tiptap/pm/view";
 import type { EditorState } from "@tiptap/pm/state";
+import type { EditorView } from "@tiptap/pm/view";
 
 /** GapCursor 状態での ArrowDown 処理 */
 function handleGapArrowDown(view: EditorView, state: EditorState, pos: number): boolean {

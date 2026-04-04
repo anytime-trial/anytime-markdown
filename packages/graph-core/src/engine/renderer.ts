@@ -2,7 +2,8 @@ import { GraphNode, GraphEdge, Viewport, SelectionState } from '../types';
 import { CanvasColors, getCanvasColors, FONT_FAMILY } from '../theme';
 import { FONT_SIZE_TOOLTIP, URL_TRUNCATE_LENGTH } from './constants';
 import { getVisibleBounds, isNodeVisible, isEdgeVisible } from './culling';
-import { drawNode, drawLockIndicator, drawRoundedRect } from './shapes';
+import { drawNode, drawRoundedRect } from './shapes';
+import { drawLockIndicator } from './shapeRenderers';
 import { drawEdge } from './edgeRenderer';
 import { drawResizeHandles, drawBoundingBox, drawConnectionPoints, drawEdgeEndpointHandles } from './overlays';
 
@@ -44,6 +45,19 @@ export function render(options: RenderOptions): void {
   // ビューポートカリング
   const visibleBounds = getVisibleBounds(viewport, width, height);
 
+  // collapsed フレームの子ノード・関連エッジを除外
+  const collapsedFrameIds = new Set(
+    nodes.filter(n => n.type === 'frame' && n.collapsed).map(n => n.id),
+  );
+  const hiddenNodeIds = new Set<string>();
+  if (collapsedFrameIds.size > 0) {
+    for (const n of nodes) {
+      if (n.groupId && collapsedFrameIds.has(n.groupId)) {
+        hiddenNodeIds.add(n.id);
+      }
+    }
+  }
+
   // zIndex順にソートして描画（フレームは常に背面）
   const sortedNodes = [...nodes].sort((a, b) => {
     const aIsFrame = a.type === 'frame' ? 0 : 1;
@@ -54,6 +68,7 @@ export function render(options: RenderOptions): void {
   const frameNodes: GraphNode[] = [];
   const nonFrameNodes: GraphNode[] = [];
   for (const n of sortedNodes) {
+    if (hiddenNodeIds.has(n.id)) continue;
     if (!isNodeVisible(n, visibleBounds)) continue;
     if (n.type === 'frame') {
       frameNodes.push(n);
@@ -63,6 +78,8 @@ export function render(options: RenderOptions): void {
   }
   const visibleEdges: GraphEdge[] = [];
   for (const e of edges) {
+    if ((e.from.nodeId && hiddenNodeIds.has(e.from.nodeId)) ||
+        (e.to.nodeId && hiddenNodeIds.has(e.to.nodeId))) continue;
     if (isEdgeVisible(e, visibleBounds)) {
       visibleEdges.push(e);
     }
@@ -141,10 +158,11 @@ export function drawGrid(
   ctx.strokeStyle = colors?.canvasGrid ?? 'rgba(255,255,255,0.06)';
   ctx.lineWidth = 0.5 / viewport.scale;
 
-  const startX = Math.floor(-viewport.offsetX / viewport.scale / GRID_SIZE) * GRID_SIZE;
-  const startY = Math.floor(-viewport.offsetY / viewport.scale / GRID_SIZE) * GRID_SIZE;
-  const endX = startX + width / viewport.scale + GRID_SIZE;
-  const endY = startY + height / viewport.scale + GRID_SIZE;
+  const margin = GRID_SIZE * 2;
+  const startX = Math.floor(-viewport.offsetX / viewport.scale / GRID_SIZE) * GRID_SIZE - margin;
+  const startY = Math.floor(-viewport.offsetY / viewport.scale / GRID_SIZE) * GRID_SIZE - margin;
+  const endX = Math.ceil((width - viewport.offsetX) / viewport.scale / GRID_SIZE) * GRID_SIZE + margin;
+  const endY = Math.ceil((height - viewport.offsetY) / viewport.scale / GRID_SIZE) * GRID_SIZE + margin;
 
   ctx.beginPath();
   for (let x = startX; x <= endX; x += GRID_SIZE) {

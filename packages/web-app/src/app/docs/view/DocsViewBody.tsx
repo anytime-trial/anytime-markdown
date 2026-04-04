@@ -8,23 +8,24 @@ import NextLink from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 
-import { useLocaleSwitch } from '../../LocaleProvider';
 import LandingHeader from '../../components/LandingHeader';
 import MarkdownViewer from '../../components/MarkdownViewer';
 import SiteFooter from '../../components/SiteFooter';
+import { useLocaleSwitch } from '../../LocaleProvider';
 
 /**
  * docKey からロケール別の docKey マップを生成。
  * - ファイルキー (xxx.ja.md / xxx.en.md): 他言語キーを生成
  * - フォルダキー (docs/folder/): 各ロケール用ファイルキーを生成
  */
-function resolveDocKeys(docKey: string, locale: string): { resolved: string; localeMap?: Partial<Record<string, string>> } {
+function resolveDocKeys(docKey: string, locale: string): { resolved: string; fallback?: string; localeMap?: Partial<Record<string, string>> } {
   // フォルダキー（末尾スラッシュ）の場合
   if (docKey.endsWith('/')) {
     const folderName = docKey.split('/').findLast(Boolean) ?? '';
     const resolved = `${docKey}${folderName}.${locale}.md`;
     const otherLocale = locale === 'ja' ? 'en' : 'ja';
-    return { resolved, localeMap: { [otherLocale]: `${docKey}${folderName}.${otherLocale}.md` } };
+    // 言語サフィックスなしファイルをフォールバックに設定
+    return { resolved, fallback: `${docKey}${folderName}.md`, localeMap: { [otherLocale]: `${docKey}${folderName}.${otherLocale}.md` } };
   }
   // 言語サフィックス付きファイルキーの場合
   const jaMatch = /^(.+)\.ja\.md$/.exec(docKey);
@@ -50,7 +51,7 @@ export default function DocsViewBody({ docTitle }: Readonly<{ docTitle?: string 
   const t = useTranslations('Landing');
   const { locale } = useLocaleSwitch();
 
-  const { resolved, localeMap } = key ? resolveDocKeys(key, locale) : { resolved: '', localeMap: undefined };
+  const { resolved, fallback, localeMap } = key ? resolveDocKeys(key, locale) : { resolved: '', fallback: undefined, localeMap: undefined };
   const displayName = docTitle ?? (key ? deriveDisplayName(key) : '');
 
   if (!key) {
@@ -136,7 +137,7 @@ export default function DocsViewBody({ docTitle }: Readonly<{ docTitle?: string 
         </Breadcrumbs>
       </Box>
       <Box sx={{ flex: 1, overflow: 'hidden', '& #main-content': { px: { xs: 0, md: 3 } } }}>
-        <MarkdownViewer docKey={resolved} docKeyByLocale={localeMap} minHeight="calc(100vh - 64px - 41px)" />
+        <MarkdownViewer docKey={resolved} docKeyByLocale={localeMap} fallbackDocKey={fallback} minHeight="calc(100vh - 64px - 41px)" />
       </Box>
     </Box>
   );
