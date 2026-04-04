@@ -23,7 +23,7 @@
     "packages/web-app",
     "packages/mobile-app",
     "packages/trail-core",
-    "packages/c4kernel"
+    "packages/c4-kernel"
   ],
   "overrides": {
     "serialize-javascript": "7.0.5",

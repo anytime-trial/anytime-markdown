@@ -9,17 +9,17 @@
     "paths": {
       "@anytime-markdown/graph-core": ["../graph-core/src/index.ts"],
       "@anytime-markdown/graph-core/*": ["../graph-core/*"],
-      "@anytime-markdown/c4kernel": ["../c4kernel/src/index.ts"],
-      "@anytime-markdown/c4kernel/*": ["../c4kernel/*"]
+      "@anytime-markdown/c4-kernel": ["../c4-kernel/src/index.ts"],
+      "@anytime-markdown/c4-kernel/*": ["../c4-kernel/*"]
     }
   },
   "include": [
     "src/c4/webview/**/*",
     "../graph-core/src/**/*",
-    "../c4kernel/src/**/*"
+    "../c4-kernel/src/**/*"
   ],
   "exclude": [
     "../graph-core/src/__tests__/**/*",
-    "../c4kernel/src/__tests__/**/*"
+    "../c4-kernel/src/__tests__/**/*"
   ]
 }

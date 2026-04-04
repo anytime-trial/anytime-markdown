@@ -27,7 +27,7 @@ const extensionConfig = {
     rules: [
       {
         test: /\.ts$/,
-        exclude: /node_modules[\\/](?!@anytime-markdown[\\/](?:trail-core|c4kernel))/,
+        exclude: /node_modules[\\/](?!@anytime-markdown[\\/](?:trail-core|c4-kernel))/,
         use: [{
           loader: 'ts-loader',
           options: {
@@ -57,7 +57,7 @@ const webviewConfig = {
     rules: [
       {
         test: /\.ts$/,
-        exclude: /node_modules[\\/](?!@anytime-markdown[\\/](?:graph-core|c4kernel))/,
+        exclude: /node_modules[\\/](?!@anytime-markdown[\\/](?:graph-core|c4-kernel))/,
         use: [{
           loader: 'ts-loader',
           options: {
