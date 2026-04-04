@@ -26,6 +26,30 @@ export function GraphCanvas({ document, viewport, dispatch, canvasRef, selectedN
   viewportRef.current = viewport;
   dispatchRef.current = dispatch;
 
+  // Center on selected node
+  useEffect(() => {
+    if (!selectedNodeId) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const node = document.nodes.find(n => n.id === selectedNodeId);
+    if (!node) return;
+
+    const vp = viewportRef.current;
+    const centerX = node.x + node.width / 2;
+    const centerY = node.y + node.height / 2;
+    const canvasCenterX = canvas.clientWidth / 2;
+    const canvasCenterY = canvas.clientHeight / 2;
+
+    dispatchRef.current({
+      type: 'SET_VIEWPORT',
+      viewport: {
+        ...vp,
+        offsetX: canvasCenterX - centerX * vp.scale,
+        offsetY: canvasCenterY - centerY * vp.scale,
+      },
+    });
+  }, [selectedNodeId, document.nodes, canvasRef]);
+
   // Resolve connector edges to line endpoints (simple center-to-center)
   const resolvedEdges = document.edges.map(e => {
     if (e.type === 'connector' && e.from.nodeId && e.to.nodeId) {
