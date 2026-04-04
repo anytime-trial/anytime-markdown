@@ -43,5 +43,8 @@
   "viewsWelcome.c4Elements": "C4 モデルが読み込まれていません。\n[$(graph) ワークスペースを解析](command:anytime-trail.c4Analyze)",
   "command.c4ElementsRefresh": "C4 モデルを更新",
   "command.c4SetLevel": "C4 詳細レベルを設定",
-  "config.c4AnalyzeExcludePatterns": "C4 ワークスペース解析で `tsconfig.json` を検索する際に除外するディレクトリ名。これらの文字列を含むパスがフィルタリングされます。"
+  "config.c4AnalyzeExcludePatterns": "C4 ワークスペース解析で `tsconfig.json` を検索する際に除外するディレクトリ名。これらの文字列を含むパスがフィルタリングされます。",
+  "config.c4ModelPath": "C4 モデルデータの保存/読み込みファイルパス。相対パスはワークスペースルートから解決されます。デフォルト: `.vscode/c4-model.json`。",
+  "command.dsmShow": "Trail: DSMを表示",
+  "command.dsmAnalyze": "Trail: 依存関係を解析"
 }

@@ -386,12 +386,26 @@ export function activate(context: vscode.ExtensionContext) {
 		C4Panel.exportData(),
 	);
 
+	// DSM コマンド
+	const dsmShow = vscode.commands.registerCommand('anytime-trail.dsmShow', () => {
+		C4Panel.showDsm(context.extensionUri);
+	});
+	const dsmAnalyze = vscode.commands.registerCommand('anytime-trail.dsmAnalyze', () => {
+		C4Panel.analyzeWorkspace(context.extensionUri);
+	});
+
 	// C4 Elements ツリービュー
 	const c4ElementsProvider = new C4ElementsProvider();
 	C4Panel.setTreeProvider(c4ElementsProvider);
 	const c4ElementsTreeView = vscode.window.createTreeView('anytimeTrail.c4Elements', {
 		treeDataProvider: c4ElementsProvider,
 	});
+
+	// 保存済みC4モデルを自動読み込み
+	const savedModel = C4Panel.loadSavedModel();
+	if (savedModel) {
+		c4ElementsProvider.setModel(savedModel.model, savedModel.boundaries);
+	}
 
 	const c4ElementsRefresh = vscode.commands.registerCommand('anytime-trail.c4ElementsRefresh', () =>
 		c4ElementsProvider.refresh(),
@@ -444,6 +458,7 @@ export function activate(context: vscode.ExtensionContext) {
 		changesRefresh, stageFile, unstageFile, stageAll, unstageAll, discardAll, discardChanges, commitChanges, pushChanges, syncChanges, changesOpenFile,
 		compareWithCommit,
 		c4Import, c4Analyze, c4Export,
+		dsmShow, dsmAnalyze,
 		c4ElementsTreeView, c4ElementsRefresh, c4SetLevel,
 	);
 }

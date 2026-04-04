@@ -76,6 +76,7 @@ const webviewConfig = {
     new webpack.optimize.LimitChunkCountPlugin({
       maxChunks: 1,
     }),
+    new webpack.NormalModuleReplacementPlugin(/^node:path$/, require.resolve('./src/c4/webview/shims/empty.js')),
   ],
   devtool: 'nosources-source-map',
 };

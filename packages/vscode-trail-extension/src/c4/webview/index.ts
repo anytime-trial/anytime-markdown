@@ -1,7 +1,9 @@
 import type { GraphDocument, Viewport, GraphNode, GraphEdge } from '@anytime-markdown/graph-core';
 import { engine, layoutWithSubgroups } from '@anytime-markdown/graph-core';
 import { c4ToGraphDocument, buildLevelView } from '@anytime-markdown/c4-kernel';
-import type { C4Model, BoundaryInfo } from '@anytime-markdown/c4-kernel';
+import type { C4Model, BoundaryInfo, DsmMatrix, DsmDiff, CyclicPair } from '@anytime-markdown/c4-kernel';
+import { renderDsm, hitTestCell } from './dsm/DsmRenderer';
+import type { DsmViewport, DsmRenderData } from './dsm/DsmRenderer';
 
 const { render, pan, zoom, fitToContent, resolveConnectorEndpoints, screenToWorld } = engine;
 
@@ -31,9 +33,27 @@ const ctx = canvas.getContext('2d')!;
 const infoEl = globalThis.document.getElementById('info')!;
 const levelButtons = globalThis.document.querySelectorAll<HTMLButtonElement>('.level-btn');
 
+// --- DSM State ---
+
+let dsmViewport: DsmViewport = { offsetX: 0, offsetY: 0, scale: 1 };
+let dsmRenderData: DsmRenderData | null = null;
+let dsmHoveredCell: { row: number; col: number } | null = null;
+let activeTab: 'c4' | 'dsm' = 'c4';
+
+const dsmCanvas = globalThis.document.getElementById('dsm-canvas') as HTMLCanvasElement;
+const dsmCtx = dsmCanvas.getContext('2d')!;
+const dsmInfoEl = globalThis.document.getElementById('dsm-info')!;
+const c4View = globalThis.document.getElementById('c4-view')!;
+const dsmView = globalThis.document.getElementById('dsm-view')!;
+const c4Toolbar = globalThis.document.getElementById('toolbar')!;
+const dsmToolbar = globalThis.document.getElementById('dsm-toolbar')!;
+const tabButtons = globalThis.document.querySelectorAll<HTMLButtonElement>('.tab-btn');
+
 function resize() {
   canvas.style.width = '100%';
   canvas.style.height = '100%';
+  dsmCanvas.style.width = '100%';
+  dsmCanvas.style.height = '100%';
 }
 resize();
 globalThis.addEventListener('resize', resize);
@@ -89,6 +109,34 @@ function draw() {
   requestAnimationFrame(draw);
 }
 requestAnimationFrame(draw);
+
+// --- DSM Render loop ---
+
+function drawDsm() {
+  if (activeTab !== 'dsm' || !dsmRenderData) {
+    requestAnimationFrame(drawDsm);
+    return;
+  }
+
+  const w = dsmCanvas.clientWidth;
+  const h = dsmCanvas.clientHeight;
+  const dpr = globalThis.devicePixelRatio ?? 1;
+  dsmCanvas.width = w * dpr;
+  dsmCanvas.height = h * dpr;
+  dsmCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  renderDsm({
+    ctx: dsmCtx,
+    width: w,
+    height: h,
+    viewport: dsmViewport,
+    data: dsmRenderData,
+    hoveredCell: dsmHoveredCell,
+  });
+
+  requestAnimationFrame(drawDsm);
+}
+requestAnimationFrame(drawDsm);
 
 // --- Interactions ---
 
@@ -252,6 +300,21 @@ globalThis.addEventListener('message', (event: MessageEvent) => {
     infoEl.textContent = `${doc.nodes.length} nodes | ${doc.edges.length} edges`;
     updateLevelButtons();
     requestAnimationFrame(() => fitContent());
+  } else if (msg.type === 'loadDsmMatrix') {
+    const matrix = msg.matrix as DsmMatrix;
+    dsmRenderData = { type: 'single', matrix };
+    dsmViewport = { offsetX: 0, offsetY: 0, scale: 1 };
+    dsmHoveredCell = null;
+    dsmInfoEl.textContent = `${matrix.nodes.length} nodes`;
+  } else if (msg.type === 'loadDsmDiff') {
+    const diff = msg.diff as DsmDiff;
+    const cyclicPairs = (msg.cyclicPairs ?? []) as CyclicPair[];
+    dsmRenderData = { type: 'diff', diff, cyclicPairs };
+    dsmViewport = { offsetX: 0, offsetY: 0, scale: 1 };
+    dsmHoveredCell = null;
+    dsmInfoEl.textContent = `${diff.nodes.length} nodes (diff)`;
+  } else if (msg.type === 'switchTab') {
+    switchTab(msg.tab as 'c4' | 'dsm');
   } else if (msg.type === 'highlightFiles') {
     if (!document) return;
     clearHighlights();
@@ -268,6 +331,109 @@ globalThis.addEventListener('message', (event: MessageEvent) => {
       }
     }
   }
+});
+
+// --- Tab switching ---
+
+function switchTab(tab: 'c4' | 'dsm') {
+  activeTab = tab;
+  c4View.style.display = tab === 'c4' ? '' : 'none';
+  dsmView.style.display = tab === 'dsm' ? '' : 'none';
+  c4Toolbar.style.display = tab === 'c4' ? '' : 'none';
+  dsmToolbar.style.display = tab === 'dsm' ? '' : 'none';
+  tabButtons.forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tab);
+  });
+}
+
+tabButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const tab = btn.dataset.tab as 'c4' | 'dsm';
+    switchTab(tab);
+  });
+});
+
+// --- DSM Canvas interactions ---
+
+let isDsmPanning = false;
+let dsmLastPan = { x: 0, y: 0 };
+
+dsmCanvas.addEventListener('mousedown', (e) => {
+  isDsmPanning = true;
+  dsmLastPan = { x: e.clientX, y: e.clientY };
+});
+
+dsmCanvas.addEventListener('mousemove', (e) => {
+  const rect = dsmCanvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+
+  if (isDsmPanning) {
+    const dx = e.clientX - dsmLastPan.x;
+    const dy = e.clientY - dsmLastPan.y;
+    dsmLastPan = { x: e.clientX, y: e.clientY };
+    dsmViewport = {
+      ...dsmViewport,
+      offsetX: dsmViewport.offsetX + dx,
+      offsetY: dsmViewport.offsetY + dy,
+    };
+    return;
+  }
+
+  if (!dsmRenderData) return;
+  const nodeCount = dsmRenderData.type === 'single'
+    ? dsmRenderData.matrix.nodes.length
+    : dsmRenderData.diff.nodes.length;
+  dsmHoveredCell = hitTestCell(mx, my, dsmViewport, nodeCount);
+});
+
+dsmCanvas.addEventListener('mouseup', () => { isDsmPanning = false; });
+dsmCanvas.addEventListener('mouseleave', () => {
+  isDsmPanning = false;
+  dsmHoveredCell = null;
+});
+
+dsmCanvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const rect = dsmCanvas.getBoundingClientRect();
+  const cx = e.clientX - rect.left;
+  const cy = e.clientY - rect.top;
+  const factor = e.deltaY > 0 ? 0.9 : 1.1;
+  const newScale = dsmViewport.scale * factor;
+  dsmViewport = {
+    scale: newScale,
+    offsetX: cx - (cx - dsmViewport.offsetX) * factor,
+    offsetY: cy - (cy - dsmViewport.offsetY) * factor,
+  };
+}, { passive: false });
+
+// --- DSM toolbar buttons ---
+
+const dsmLevelButtons = globalThis.document.querySelectorAll<HTMLButtonElement>('.dsm-level-btn');
+const dsmModeButtons = globalThis.document.querySelectorAll<HTMLButtonElement>('.dsm-mode-btn');
+
+dsmLevelButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const level = btn.dataset.dsmLevel as 'component' | 'package';
+    dsmLevelButtons.forEach(b => b.classList.toggle('active', b === btn));
+    vscode.postMessage({ type: 'dsmSetLevel', level });
+  });
+});
+
+dsmModeButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const mode = btn.dataset.dsmMode as 'c4' | 'diff';
+    dsmModeButtons.forEach(b => b.classList.toggle('active', b === btn));
+    vscode.postMessage({ type: 'dsmSetMode', mode });
+  });
+});
+
+globalThis.document.getElementById('btn-dsm-cluster')!.addEventListener('click', () => {
+  vscode.postMessage({ type: 'dsmCluster' });
+});
+
+globalThis.document.getElementById('btn-dsm-refresh')!.addEventListener('click', () => {
+  vscode.postMessage({ type: 'dsmRefresh' });
 });
 
 // Notify extension that webview is ready

@@ -31,6 +31,8 @@
     "onCommand:anytime-trail.c4Import",
     "onCommand:anytime-trail.c4Analyze",
     "onCommand:anytime-trail.c4Export",
+    "onCommand:anytime-trail.dsmShow",
+    "onCommand:anytime-trail.dsmAnalyze",
     "onView:anytimeTrail.c4Elements"
   ],
   "icon": "images/camel_git.png",
@@ -261,6 +263,16 @@
         "command": "anytime-trail.c4SetLevel",
         "title": "%command.c4SetLevel%",
         "icon": "$(filter)"
+      },
+      {
+        "command": "anytime-trail.dsmShow",
+        "title": "%command.dsmShow%",
+        "icon": "$(table)"
+      },
+      {
+        "command": "anytime-trail.dsmAnalyze",
+        "title": "%command.dsmAnalyze%",
+        "icon": "$(graph)"
       }
     ],
     "submenus": [
@@ -341,6 +353,11 @@
           "command": "anytime-trail.c4ElementsRefresh",
           "when": "view == anytimeTrail.c4Elements",
           "group": "navigation@3"
+        },
+        {
+          "command": "anytime-trail.dsmShow",
+          "when": "view == anytimeTrail.c4Elements",
+          "group": "navigation@4"
         }
       ],
       "view/item/context": [
@@ -490,6 +507,11 @@
             "__tests__"
           ],
           "markdownDescription": "%config.c4AnalyzeExcludePatterns%"
+        },
+        "anytimeTrail.c4.modelPath": {
+          "type": "string",
+          "default": ".vscode/c4-model.json",
+          "markdownDescription": "%config.c4ModelPath%"
         }
       }
     }
