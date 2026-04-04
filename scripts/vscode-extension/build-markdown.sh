@@ -2,12 +2,12 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-DIST_DIR="$REPO_ROOT/scripts/vscodeーextension/dist"
-EXT_DIR="$REPO_ROOT/packages/vscode-git-extension"
+DIST_DIR="$REPO_ROOT/scripts/vscode-extension/dist"
+EXT_DIR="$REPO_ROOT/packages/vscode-markdown-extension"
 
 mkdir -p "$DIST_DIR"
 
-echo "=== Anytime Git: Build & Install ==="
+echo "=== Anytime Markdown: Build & Install ==="
 
 cd "$REPO_ROOT"
 npm install --ignore-scripts 2>/dev/null || npm install
@@ -17,9 +17,9 @@ cd "$EXT_DIR"
 npm run package
 
 echo "Packaging vsix..."
-npx vsce package --no-dependencies -o "$DIST_DIR/anytime-git.vsix"
+npx vsce package --no-dependencies -o "$DIST_DIR/anytime-markdown.vsix"
 
 echo "Installing..."
-code --install-extension "$DIST_DIR/anytime-git.vsix" --force
+code --install-extension "$DIST_DIR/anytime-markdown.vsix" --force
 
 echo "Done! Restart VS Code to activate."

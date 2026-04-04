@@ -2,7 +2,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-DIST_DIR="$REPO_ROOT/scripts/vscodeーextension/dist"
+DIST_DIR="$REPO_ROOT/scripts/vscode-extension/dist"
 EXT_DIR="$REPO_ROOT/packages/vscode-extension-pack"
 
 mkdir -p "$DIST_DIR"
