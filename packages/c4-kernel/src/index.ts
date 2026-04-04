@@ -25,3 +25,5 @@ export type {
   CyclicPair,
   DsmMapping,
 } from './dsm/types';
+
+export { buildC4Matrix } from './dsm/buildC4Matrix';
