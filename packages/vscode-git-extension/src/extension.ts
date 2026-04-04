@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'node:path';
+import { exec } from 'node:child_process';
 import { TimelineProvider, TimelineItem } from './providers/TimelineProvider';
 import { GraphProvider } from './providers/GraphProvider';
 import { ChangesProvider, ChangesFileItem } from './providers/ChangesProvider';
@@ -247,8 +248,18 @@ export function activate(context: vscode.ExtensionContext) {
 	const specDocsRevealInExplorer = vscode.commands.registerCommand(
 		'anytime-git.specDocsRevealInExplorer', (item: SpecDocsItem) => {
 			if (item?.resourceUri) {
-				const folderUri = vscode.Uri.file(path.dirname(item.resourceUri.fsPath));
-				vscode.env.openExternal(folderUri);
+				const folder = path.dirname(item.resourceUri.fsPath);
+				// WSL: wslpath で Windows パスに変換して explorer.exe で開く
+				// ネイティブ: xdg-open / open で開く
+				if (process.env.WSL_DISTRO_NAME) {
+					exec(`explorer.exe "$(wslpath -w '${folder}')"`, (err) => {
+						if (err) vscode.window.showErrorMessage(`Failed to open folder: ${err.message}`);
+					});
+				} else {
+					exec(`xdg-open '${folder}'`, (err) => {
+						if (err) vscode.window.showErrorMessage(`Failed to open folder: ${err.message}`);
+					});
+				}
 			}
 		}
 	);
