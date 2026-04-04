@@ -47,6 +47,19 @@ function hitTestCell(
   return { row, col };
 }
 
+/** ビューポートを制限し、セル左上角がヘッダー領域を超えないようにする */
+function clampViewport(vp: { offsetX: number; offsetY: number; scale: number }): { offsetX: number; offsetY: number; scale: number } {
+  // セル領域の左上角のスクリーン座標: HEADER_WIDTH * scale + offsetX
+  // これが HEADER_WIDTH 以下にならないようにする（= 隙間ができない）
+  const maxOffsetX = HEADER_WIDTH * (1 - vp.scale);
+  const maxOffsetY = HEADER_HEIGHT * (1 - vp.scale);
+  return {
+    scale: vp.scale,
+    offsetX: Math.min(vp.offsetX, maxOffsetX),
+    offsetY: Math.min(vp.offsetY, maxOffsetY),
+  };
+}
+
 // --- Component ---
 
 export function DsmCanvas({ model, boundaries, level, clustered }: Readonly<DsmCanvasProps>) {
@@ -249,11 +262,11 @@ export function DsmCanvas({ model, boundaries, level, clustered }: Readonly<DsmC
       const dx = e.clientX - lastPanRef.current.x;
       const dy = e.clientY - lastPanRef.current.y;
       lastPanRef.current = { x: e.clientX, y: e.clientY };
-      viewportRef.current = {
+      viewportRef.current = clampViewport({
         ...viewportRef.current,
         offsetX: viewportRef.current.offsetX + dx,
         offsetY: viewportRef.current.offsetY + dy,
-      };
+      });
       return;
     }
 
@@ -296,11 +309,11 @@ export function DsmCanvas({ model, boundaries, level, clustered }: Readonly<DsmC
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
       const vp = viewportRef.current;
-      viewportRef.current = {
+      viewportRef.current = clampViewport({
         scale: vp.scale * factor,
         offsetX: mx - (mx - vp.offsetX) * factor,
         offsetY: my - (my - vp.offsetY) * factor,
-      };
+      });
     };
     canvas.addEventListener('wheel', onWheel, { passive: false });
     return () => canvas.removeEventListener('wheel', onWheel);
