@@ -13,3 +13,15 @@ export { c4ToGraphDocument } from './transform/toGraphDocument';
 export { c4ToMermaid } from './serializer/c4ToMermaid';
 export { buildLevelView, getFrameDepth } from './view/buildLevelView';
 export { buildElementTree, filterTreeByLevel } from './view/buildElementTree';
+
+export type {
+  DsmMatrix,
+  DsmNode,
+  DsmEdge,
+  ImportDetail,
+  DsmDiff,
+  DsmDiffCell,
+  DsmCellState,
+  CyclicPair,
+  DsmMapping,
+} from './dsm/types';
