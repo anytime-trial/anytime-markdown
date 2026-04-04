@@ -5,7 +5,7 @@ import type { GraphDocument, Viewport, SelectionState } from '@anytime-markdown/
 import { engine } from '@anytime-markdown/graph-core';
 import type { Action } from '@anytime-markdown/graph-core/state';
 
-const { render, screenToWorld, pan, zoom } = engine;
+const { render, pan, zoom } = engine;
 
 interface C4GraphCanvasProps {
   readonly document: GraphDocument;
@@ -20,6 +20,10 @@ export function GraphCanvas({ document, viewport, dispatch, canvasRef }: Readonl
   const rafRef = useRef<number>(0);
   const isPanningRef = useRef(false);
   const lastPanRef = useRef({ x: 0, y: 0 });
+  const viewportRef = useRef(viewport);
+  const dispatchRef = useRef(dispatch);
+  viewportRef.current = viewport;
+  dispatchRef.current = dispatch;
 
   // Resolve connector edges to line endpoints (simple center-to-center)
   const resolvedEdges = document.edges.map(e => {
@@ -59,7 +63,7 @@ export function GraphCanvas({ document, viewport, dispatch, canvasRef }: Readonl
         height: h,
         nodes: document.nodes,
         edges: resolvedEdges,
-        viewport,
+        viewport: viewportRef.current,
         selection: EMPTY_SELECTION,
         showGrid: false,
         isDark: true,
@@ -69,7 +73,7 @@ export function GraphCanvas({ document, viewport, dispatch, canvasRef }: Readonl
     }
     rafRef.current = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [document.nodes, resolvedEdges, viewport, canvasRef]);
+  }, [document.nodes, resolvedEdges, canvasRef]);
 
   // Pan
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -84,15 +88,15 @@ export function GraphCanvas({ document, viewport, dispatch, canvasRef }: Readonl
     const dx = e.clientX - lastPanRef.current.x;
     const dy = e.clientY - lastPanRef.current.y;
     lastPanRef.current = { x: e.clientX, y: e.clientY };
-    const newViewport = pan(viewport, dx, dy);
-    dispatch({ type: 'SET_VIEWPORT', viewport: newViewport });
-  }, [viewport, dispatch]);
+    const newViewport = pan(viewportRef.current, dx, dy);
+    dispatchRef.current({ type: 'SET_VIEWPORT', viewport: newViewport });
+  }, []);
 
   const handleMouseUp = useCallback(() => {
     isPanningRef.current = false;
   }, []);
 
-  // Zoom (non-passive listener to allow preventDefault)
+  // Zoom (non-passive listener, registered once)
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -102,12 +106,12 @@ export function GraphCanvas({ document, viewport, dispatch, canvasRef }: Readonl
       const cx = e.clientX - rect.left;
       const cy = e.clientY - rect.top;
       const factor = e.deltaY > 0 ? 0.9 : 1.1;
-      const newViewport = zoom(viewport, cx, cy, factor);
-      dispatch({ type: 'SET_VIEWPORT', viewport: newViewport });
+      const newViewport = zoom(viewportRef.current, cx, cy, factor);
+      dispatchRef.current({ type: 'SET_VIEWPORT', viewport: newViewport });
     };
     canvas.addEventListener('wheel', onWheel, { passive: false });
     return () => canvas.removeEventListener('wheel', onWheel);
-  }, [viewport, dispatch, canvasRef]);
+  }, [canvasRef]);
 
   return (
     <canvas
