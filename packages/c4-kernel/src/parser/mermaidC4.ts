@@ -26,6 +26,7 @@ const ELEMENT_DEFS: Readonly<Record<string, ElementDef>> = {
   ContainerDb_Ext:  { type: 'containerDb', hasTech: true,  external: true },
   Component:        { type: 'component',   hasTech: true,  external: false },
   Component_Ext:    { type: 'component',   hasTech: true,  external: true },
+  Code:             { type: 'code',        hasTech: false, external: false },
 };
 
 /** 引数文字列をパースして配列にする（カンマ区切り、クォート内のカンマは無視） */

@@ -100,6 +100,23 @@ describe('parseMermaidC4', () => {
     });
   });
 
+  describe('Code element', () => {
+    it('should parse Code elements', () => {
+      const input = `C4Component
+    Container_Boundary(pkg, "my-pkg") {
+      Code(file1, "index.ts")
+    }`;
+      const model = parseMermaidC4(input);
+      expect(model.elements).toHaveLength(1);
+      expect(model.elements[0]).toEqual({
+        id: 'file1',
+        type: 'code',
+        name: 'index.ts',
+        boundaryId: 'pkg',
+      });
+    });
+  });
+
   describe('error handling', () => {
     it('should throw on empty input', () => {
       expect(() => parseMermaidC4('')).toThrow();
