@@ -43,7 +43,7 @@ export const EditorSideToolbar = React.memo(function EditorSideToolbar({
         height: "100%",
         py: 1,
         gap: 0.5,
-        borderLeft: 1,
+        border: 1,
         borderColor: getDivider(isDark),
         flexShrink: 0,
         "@media (max-width: 900px)": {
