@@ -7,7 +7,6 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExtensionIcon from '@mui/icons-material/Extension';
 import Inventory2Icon from '@mui/icons-material/Inventory2';
 import PersonIcon from '@mui/icons-material/Person';
-import StorageIcon from '@mui/icons-material/Storage';
 import Box from '@mui/material/Box';
 import Collapse from '@mui/material/Collapse';
 import List from '@mui/material/List';
@@ -31,12 +30,12 @@ function TypeIcon({ type }: Readonly<{ type: C4TreeNode['type'] }>) {
   const sx = { fontSize: 16 };
   switch (type) {
     case 'person': return <PersonIcon sx={sx} />;
-    case 'system': return <StorageIcon sx={sx} />;
+    case 'system':
+    case 'boundary': return <AccountTreeIcon sx={sx} />;
     case 'container':
     case 'containerDb': return <Inventory2Icon sx={sx} />;
     case 'component': return <ExtensionIcon sx={sx} />;
     case 'code': return <CodeIcon sx={sx} />;
-    case 'boundary': return <AccountTreeIcon sx={sx} />;
   }
 }
 
@@ -124,8 +123,17 @@ interface C4ElementTreeProps {
 
 export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onSelect }) => {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => {
-    // デフォルトでルートレベルを展開
-    return new Set(tree.map(n => n.id));
+    // デフォルトでルートレベルと system ノードの直下を展開
+    const ids = new Set<string>();
+    for (const n of tree) {
+      ids.add(n.id);
+      if (n.type === 'system' || n.type === 'boundary') {
+        for (const child of n.children) {
+          ids.add(child.id);
+        }
+      }
+    }
+    return ids;
   });
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
