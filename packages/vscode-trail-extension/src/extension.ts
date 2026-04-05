@@ -144,24 +144,7 @@ export function activate(context: vscode.ExtensionContext) {
 			treeDataProvider: graphProvider,
 		});
 
-		// Graph コミット選択時に変更ファイルを C4 ビューアーでハイライト
-		graphTreeView.onDidChangeSelection(async (e) => {
-			const item = e.selection[0];
-			if (!item?.hash || !graphProvider) return;
-			const gitRoot = graphProvider.getGitRoot();
-			if (!gitRoot) return;
-			try {
-				const { execFileSync } = await import('node:child_process');
-				const output = execFileSync(
-					'git', ['diff-tree', '--no-commit-id', '-r', '--name-only', item.hash],
-					{ cwd: gitRoot, encoding: 'utf-8' },
-				);
-				const files = output.split('\n').map(f => f.trim()).filter(Boolean);
-				C4Panel.highlightFiles(files);
-			} catch {
-				// ignore
-			}
-		});
+		// (highlightFiles は standalone viewer 移行により削除)
 	}
 
 	// アクティブテキストエディタ変更時にタイムラインを更新
@@ -423,21 +406,18 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// C4 Model コマンド
 	const c4Import = vscode.commands.registerCommand('anytime-trail.c4Import', () =>
-		C4Panel.importMermaid(context.extensionUri),
+		C4Panel.importMermaid(),
 	);
 	const c4Analyze = vscode.commands.registerCommand('anytime-trail.c4Analyze', () =>
-		C4Panel.analyzeWorkspace(context.extensionUri),
+		C4Panel.analyzeWorkspace(),
 	);
 	const c4Export = vscode.commands.registerCommand('anytime-trail.c4Export', () =>
 		C4Panel.exportData(),
 	);
 
 	// DSM コマンド
-	const dsmShow = vscode.commands.registerCommand('anytime-trail.dsmShow', () => {
-		C4Panel.showDsm(context.extensionUri);
-	});
 	const dsmAnalyze = vscode.commands.registerCommand('anytime-trail.dsmAnalyze', () => {
-		C4Panel.analyzeWorkspace(context.extensionUri);
+		C4Panel.analyzeWorkspace();
 	});
 
 	// C4 Elements ツリービュー
@@ -519,7 +499,7 @@ export function activate(context: vscode.ExtensionContext) {
 		changesRefresh, stageFile, unstageFile, stageAll, unstageAll, discardAll, discardChanges, commitChanges, pushChanges, syncChanges, changesOpenFile,
 		compareWithCommit,
 		c4Import, c4Analyze, c4Export,
-		dsmShow, dsmAnalyze,
+		dsmAnalyze,
 		c4ElementsTreeView, c4ElementsRefresh, c4SetLevel,
 		statusBarItem,
 	);
