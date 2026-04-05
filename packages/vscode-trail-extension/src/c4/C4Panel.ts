@@ -172,11 +172,18 @@ export class C4Panel implements C4DataProvider {
 
   /** ワークスペースの TypeScript を trail-core で解析 */
   public static async analyzeWorkspace(): Promise<void> {
-    const excludePatterns: readonly string[] = vscode.workspace.getConfiguration('anytimeTrail.c4').get<string[]>('analyzeExcludePatterns', ['.worktrees', '.vscode-test', '__tests__']);
-    const allTsconfigFiles = await vscode.workspace.findFiles('**/tsconfig.json', '**/node_modules/**', 50);
-    const tsconfigFiles = allTsconfigFiles.filter(f =>
-      !excludePatterns.some(p => f.fsPath.includes(`/${p}/`)),
-    );
+    const excludePatterns: readonly string[] = vscode.workspace.getConfiguration('anytimeTrail.c4').get<string[]>('analyzeExcludePatterns', ['.worktrees', '.vscode-test', '__tests__', 'fixtures']);
+    const allTsconfigFiles = await vscode.workspace.findFiles('**/tsconfig.json', '**/node_modules/**');
+    const tsconfigFiles = allTsconfigFiles
+      .filter(f => !excludePatterns.some(p => f.fsPath.includes(`/${p}/`)))
+      .sort((a, b) => {
+        // ルートの tsconfig.json を先頭にし、残りはパス順
+        const aRel = vscode.workspace.asRelativePath(a);
+        const bRel = vscode.workspace.asRelativePath(b);
+        const aDepth = aRel.split('/').length;
+        const bDepth = bRel.split('/').length;
+        return aDepth !== bDepth ? aDepth - bDepth : aRel.localeCompare(bRel);
+      });
     if (tsconfigFiles.length === 0) {
       vscode.window.showWarningMessage('No tsconfig.json found in workspace.');
       return;
@@ -186,10 +193,19 @@ export class C4Panel implements C4DataProvider {
     if (tsconfigFiles.length === 1) {
       tsconfigPath = tsconfigFiles[0].fsPath;
     } else {
-      const picked = await vscode.window.showQuickPick(
-        tsconfigFiles.map(f => ({ label: vscode.workspace.asRelativePath(f), uri: f })),
-        { placeHolder: 'Select tsconfig.json to analyze' },
-      );
+      const items = tsconfigFiles.map(f => {
+        const rel = vscode.workspace.asRelativePath(f);
+        const isRoot = !rel.includes('/');
+        return {
+          label: rel,
+          description: isRoot ? '(workspace root — analyzes all packages)' : undefined,
+          uri: f,
+        };
+      });
+      const picked = await vscode.window.showQuickPick(items, {
+        placeHolder: 'Select tsconfig.json to analyze',
+        matchOnDescription: true,
+      });
       if (!picked) return;
       tsconfigPath = picked.uri.fsPath;
     }
