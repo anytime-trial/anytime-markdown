@@ -6,6 +6,50 @@
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-04-05
+
+### 追加
+
+- C4 分析時のサーバー自動起動（ユーザー確認付き）
+- 共有 TrailLogger ユーティリティ
+- C4DataServer（HTTP + WebSocket）の実装
+- スタンドアロンビューア（React エントリーポイント + webpack 構成）
+- ブラウザでスタンドアロンビューアを自動起動
+- C4 モデル永続化と自動読み込み
+- C4 Model / DSM タブバー
+- DSM キャンバスレンダラー（ヒットテスト付き）
+- DSM コマンドとメニュー項目の登録
+
+### 修正
+
+- C4 ツリービューの空パネル登録
+- 新規 WebSocket クライアントへの現在データ送信
+- ブラウザ起動を初回のみに制限
+- バウンダリをオプション扱いに変更
+
+### 変更
+
+- VS Code webview を削除しスタンドアロンビューアのみに変更
+- コマンド登録を個別モジュールに分離
+- ChangesProvider / SpecDocsProvider を分割
+- 空 catch ブロックを TrailLogger 出力に置換
+- 非ヌルアサーションをガード句に置換
+
+### セキュリティ
+
+- CORS ヘッダー、WebSocket origin チェック、メッセージ型ガードを追加
+
+### テスト
+
+- Jest 基盤セットアップと GitStatusParser テスト追加
+- C4DataServer 型ガードテスト追加
+
+### Trail Core (trail-core)
+
+- CLI `--help` と `parseArgs` エクスポート
+- EdgeExtractor の O(1) ルックアップ改善
+- ReDoS 防止
+
 ## [0.1.0] - 2026-04-04
 
 ### 追加

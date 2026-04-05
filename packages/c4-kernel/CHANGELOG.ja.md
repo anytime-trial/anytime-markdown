@@ -6,6 +6,23 @@
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-04-05
+
+### 追加
+
+- DSM 型定義と C4 モデルからの隣接行列構築
+- TrailGraph ソース解析からの DSM マトリクス構築
+- DSM 設計/実装間の差分検出
+- Tarjan SCC によるサイクル検出
+- Reverse Cuthill-McKee クラスタリング
+- DSM コンポーネントノードを boundaryId でソート
+
+### 修正
+
+- コンポーネントレベル DSM から container/containerDb を除外
+- フレームノードに選択マッチング用 `metadata.c4Id` を追加
+- C4 ビューアの共有コンポーネントを graph-core に抽出
+
 ## [0.1.0] - 2026-04-04
 
 ### 追加

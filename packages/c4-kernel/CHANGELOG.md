@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-04-05
+
+### Added
+
+- DSM type definitions and adjacency matrix builder from C4 model
+- DSM matrix builder from TrailGraph source analysis
+- DSM diff detection between design and implementation
+- Tarjan SCC cycle detection for DSM
+- Reverse Cuthill-McKee clustering for DSM
+- Sort DSM component nodes by boundaryId for group borders
+
+### Fixed
+
+- Exclude container/containerDb from component-level DSM
+- Add metadata.c4Id to frame nodes for selection matching
+- Extract shared C4 viewer components to graph-core
+
 ## [0.1.0] - 2026-04-04
 
 ### Added

@@ -6,6 +6,13 @@
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-04-05
+
+### Editor Core (markdown-core)
+
+- ツールバーのアプリアイコンをハンバーガーメニューに置換
+- サイドツールバーの枠線・位置修正
+
 ## [0.10.0] - 2026-04-04
 
 ### Editor Core (markdown-core)

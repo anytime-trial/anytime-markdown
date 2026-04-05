@@ -6,6 +6,50 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-04-05
+
+### Added
+
+- Auto-start server on C4 analyze with user confirmation
+- Shared TrailLogger utility
+- C4DataServer with HTTP and WebSocket
+- Standalone viewer (React entry point + webpack config)
+- Open standalone viewer in browser after import/analyze
+- C4 model persistence and auto-load
+- Tab bar for C4 Model and DSM views
+- DSM canvas renderer with hit testing
+- DSM commands and menu items
+
+### Fixed
+
+- Register empty tree view for c4Elements panel
+- Send current data to new WebSocket clients on connection
+- Open browser only on first import/analyze, not repeatedly
+- Treat boundaries as optional in model endpoint and message
+
+### Changed
+
+- Remove VS Code webview, use standalone viewer only
+- Extract command registrations into separate modules
+- Split ChangesProvider and SpecDocsProvider into focused modules
+- Replace empty catch blocks with TrailLogger output
+- Replace non-null assertions with guard clauses
+
+### Security
+
+- Add CORS headers, WS origin check, and message type guard
+
+### Tests
+
+- Set up Jest infrastructure and add GitStatusParser tests
+- Add C4DataServer type guard tests
+
+### Trail Core (trail-core)
+
+- CLI --help and parseArgs export
+- EdgeExtractor O(1) lookup improvement
+- ReDoS prevention
+
 ## [0.1.0] - 2026-04-04
 
 ### Added

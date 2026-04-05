@@ -58,10 +58,11 @@ describe("VsCodeBody", () => {
 
   it("renders benefit sections", () => {
     render(<VsCodeBody />);
-    expect(screen.getByText("benefitsTitle")).toBeTruthy();
-    expect(screen.getByText("benefit1Title")).toBeTruthy();
-    expect(screen.getByText("benefit1Body")).toBeTruthy();
-    expect(screen.getByText("benefit5Title")).toBeTruthy();
+    expect(screen.getByText("markdownSectionTitle")).toBeTruthy();
+    expect(screen.getByText("md1Title")).toBeTruthy();
+    expect(screen.getByText("md1Body")).toBeTruthy();
+    expect(screen.getByText("trailSectionTitle")).toBeTruthy();
+    expect(screen.getByText("trail1Title")).toBeTruthy();
   });
 
   it("renders markdown viewer", () => {

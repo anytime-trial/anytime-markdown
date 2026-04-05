@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-04-05
+
+### Fixed
+
+- Add missing borders to side toolbar
+- Align hamburger menu center with side toolbar
+
+### Changed
+
+- Replace app icon with hamburger menu in toolbar
+
 ## [0.10.0] - 2026-04-04
 
 ### Added

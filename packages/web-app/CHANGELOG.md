@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-04-05
+
+### Added
+
+- Restructure landing page as twin-product (md / md2) layout
+- Add skill-based instruction description to md2 benefit
+- Add home logo link to editor toolbar
+
+### Fixed
+
+- Handle 204 No Content in initial data fetch
+
+### Changed
+
+- Extract shared C4 viewer components to graph-core package
+- Remove web app remote data source, use standalone viewer only
+
+### Accessibility
+
+- Add keyboard navigation and ARIA to DSM/Graph canvas
+- Fix contrast ratios to meet WCAG AA 4.5:1
+- Add keyboard resize and ARIA to split bar
+- Add aria-pressed to buttons, aria-live to connection status
+
 ## [0.10.0] - 2026-04-04
 
 ### Added

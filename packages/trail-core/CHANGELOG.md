@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-04-05
+
+### Added
+
+- CLI --help option, format validation, and parseArgs export
+
+### Changed
+
+- Index TrailNodes by Map for O(1) lookup in EdgeExtractor
+
+### Security
+
+- Prevent ReDoS in matchGlob pattern handling
+
 ## [0.1.0] - 2026-04-04
 
 ### Added

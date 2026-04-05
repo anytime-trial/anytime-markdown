@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-04-05
+
+### Editor Core (markdown-core)
+
+- Replace app icon with hamburger menu in toolbar
+- Fix side toolbar borders and alignment
+
 ## [0.10.0] - 2026-04-04
 
 ### Editor Core (markdown-core)
