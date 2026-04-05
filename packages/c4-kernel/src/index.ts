@@ -13,6 +13,7 @@ export { c4ToGraphDocument } from './transform/toGraphDocument';
 export { c4ToMermaid } from './serializer/c4ToMermaid';
 export { buildLevelView, getFrameDepth } from './view/buildLevelView';
 export { buildElementTree, filterTreeByLevel } from './view/buildElementTree';
+export { collectDescendantIds } from './view/collectDescendants';
 
 export type {
   DsmMatrix,

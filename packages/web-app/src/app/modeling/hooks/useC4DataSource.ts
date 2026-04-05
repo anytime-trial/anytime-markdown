@@ -202,25 +202,12 @@ export function useC4DataSource(serverUrl?: string): C4DataSourceResult {
   // Local mode
   const local = useLocalMode(!isRemote);
 
-  // Remote initial fetch (stable setters via useCallback)
-  const stableSetRemoteModel = useCallback(
-    (m: C4Model) => setRemoteModel(m),
-    [],
-  );
-  const stableSetRemoteBoundaries = useCallback(
-    (b: readonly BoundaryInfo[]) => setRemoteBoundaries(b),
-    [],
-  );
-  const stableSetDsmMatrix = useCallback(
-    (m: DsmMatrix | null) => setDsmMatrix(m),
-    [],
-  );
-
+  // Remote initial fetch (useState setters are referentially stable)
   useRemoteInitialFetch(
     serverUrl,
-    stableSetRemoteModel,
-    stableSetRemoteBoundaries,
-    stableSetDsmMatrix,
+    setRemoteModel,
+    setRemoteBoundaries,
+    setDsmMatrix,
   );
 
   // WebSocket message handler

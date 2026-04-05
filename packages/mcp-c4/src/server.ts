@@ -29,6 +29,28 @@ export function createMcpServer(options: McpC4Options): McpServer {
     version: '0.1.0',
   });
 
+  // --- Helpers ---
+
+  const NO_MODEL_HINT = 'No model loaded. Use load_c4_file or parse_c4_mermaid first.';
+
+  function loadModel(text: string): { content: Array<{ type: 'text'; text: string }>; isError?: true } {
+    try {
+      currentModel = parseMermaidC4(text);
+      currentBoundaries = extractBoundaries(text);
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify({
+          title: currentModel.title,
+          level: currentModel.level,
+          elementCount: currentModel.elements.length,
+          relationshipCount: currentModel.relationships.length,
+          boundaryCount: currentBoundaries.length,
+        }, null, 2) }],
+      };
+    } catch (e) {
+      return { content: [{ type: 'text' as const, text: `Parse error: ${e instanceof Error ? e.message : String(e)}` }], isError: true };
+    }
+  }
+
   // --- Tools ---
 
   server.tool(
@@ -40,22 +62,7 @@ export function createMcpServer(options: McpC4Options): McpServer {
       if (!fs.existsSync(resolved)) {
         return { content: [{ type: 'text' as const, text: `File not found: ${resolved}` }], isError: true };
       }
-      const text = fs.readFileSync(resolved, 'utf-8');
-      try {
-        currentModel = parseMermaidC4(text);
-        currentBoundaries = extractBoundaries(text);
-        return {
-          content: [{ type: 'text' as const, text: JSON.stringify({
-            title: currentModel.title,
-            level: currentModel.level,
-            elementCount: currentModel.elements.length,
-            relationshipCount: currentModel.relationships.length,
-            boundaryCount: currentBoundaries.length,
-          }, null, 2) }],
-        };
-      } catch (e) {
-        return { content: [{ type: 'text' as const, text: `Parse error: ${e instanceof Error ? e.message : String(e)}` }], isError: true };
-      }
+      return loadModel(fs.readFileSync(resolved, 'utf-8'));
     },
   );
 
@@ -63,23 +70,7 @@ export function createMcpServer(options: McpC4Options): McpServer {
     'parse_c4_mermaid',
     'Parse Mermaid C4 text and set as current model',
     { text: z.string().describe('Mermaid C4 diagram text') },
-    async ({ text }) => {
-      try {
-        currentModel = parseMermaidC4(text);
-        currentBoundaries = extractBoundaries(text);
-        return {
-          content: [{ type: 'text' as const, text: JSON.stringify({
-            title: currentModel.title,
-            level: currentModel.level,
-            elementCount: currentModel.elements.length,
-            relationshipCount: currentModel.relationships.length,
-            boundaryCount: currentBoundaries.length,
-          }, null, 2) }],
-        };
-      } catch (e) {
-        return { content: [{ type: 'text' as const, text: `Parse error: ${e instanceof Error ? e.message : String(e)}` }], isError: true };
-      }
-    },
+    async ({ text }) => loadModel(text),
   );
 
   server.tool(
@@ -88,7 +79,7 @@ export function createMcpServer(options: McpC4Options): McpServer {
     {},
     async () => {
       if (!currentModel) {
-        return { content: [{ type: 'text' as const, text: 'No model loaded. Use load_c4_file or parse_c4_mermaid first.' }], isError: true };
+        return { content: [{ type: 'text' as const, text: NO_MODEL_HINT }], isError: true };
       }
       return { content: [{ type: 'text' as const, text: JSON.stringify(currentModel, null, 2) }] };
     },
@@ -103,7 +94,7 @@ export function createMcpServer(options: McpC4Options): McpServer {
     },
     async ({ level, boundaryId }) => {
       if (!currentModel) {
-        return { content: [{ type: 'text' as const, text: 'No model loaded.' }], isError: true };
+        return { content: [{ type: 'text' as const, text: NO_MODEL_HINT }], isError: true };
       }
 
       let model = currentModel;
@@ -139,7 +130,7 @@ export function createMcpServer(options: McpC4Options): McpServer {
     },
     async ({ level }) => {
       if (!currentModel) {
-        return { content: [{ type: 'text' as const, text: 'No model loaded.' }], isError: true };
+        return { content: [{ type: 'text' as const, text: NO_MODEL_HINT }], isError: true };
       }
 
       const matrix = buildC4Matrix(currentModel, level, currentBoundaries);
@@ -166,7 +157,7 @@ export function createMcpServer(options: McpC4Options): McpServer {
     },
     async ({ level }) => {
       if (!currentModel) {
-        return { content: [{ type: 'text' as const, text: 'No model loaded.' }], isError: true };
+        return { content: [{ type: 'text' as const, text: NO_MODEL_HINT }], isError: true };
       }
 
       const matrix = buildC4Matrix(currentModel, level, currentBoundaries);

@@ -143,7 +143,6 @@ export function activate(context: vscode.ExtensionContext) {
 			treeDataProvider: graphProvider,
 		});
 
-		// (highlightFiles は standalone viewer 移行により削除)
 	}
 
 	// アクティブテキストエディタ変更時にタイムラインを更新
@@ -407,17 +406,12 @@ export function activate(context: vscode.ExtensionContext) {
 	const c4Import = vscode.commands.registerCommand('anytime-trail.c4Import', () =>
 		C4Panel.importMermaid(),
 	);
-	const c4Analyze = vscode.commands.registerCommand('anytime-trail.c4Analyze', () =>
-		C4Panel.analyzeWorkspace(),
-	);
+	const analyzeHandler = () => C4Panel.analyzeWorkspace();
+	const c4Analyze = vscode.commands.registerCommand('anytime-trail.c4Analyze', analyzeHandler);
 	const c4Export = vscode.commands.registerCommand('anytime-trail.c4Export', () =>
 		C4Panel.exportData(),
 	);
-
-	// DSM コマンド
-	const dsmAnalyze = vscode.commands.registerCommand('anytime-trail.dsmAnalyze', () => {
-		C4Panel.analyzeWorkspace();
-	});
+	const dsmAnalyze = vscode.commands.registerCommand('anytime-trail.dsmAnalyze', analyzeHandler);
 
 	// C4 Elements パネル（ツリーは空、ナビゲーションボタンのみ）
 	const c4ElementsTreeView = vscode.window.createTreeView('anytimeTrail.c4Elements', {

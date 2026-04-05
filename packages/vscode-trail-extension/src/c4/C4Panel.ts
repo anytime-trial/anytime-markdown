@@ -1,10 +1,14 @@
 import * as vscode from 'vscode';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { parseMermaidC4, extractBoundaries } from '@anytime-markdown/c4-kernel/src/parser/mermaidC4';
-import type { C4Model, BoundaryInfo } from '@anytime-markdown/c4-kernel/src/types';
-import { buildC4Matrix, buildSourceMatrix, diffMatrix, detectCycles, clusterMatrix } from '@anytime-markdown/c4-kernel';
-import type { DsmMapping, DsmMatrix } from '@anytime-markdown/c4-kernel';
+import {
+  parseMermaidC4,
+  extractBoundaries,
+  buildC4Matrix,
+  buildSourceMatrix,
+  clusterMatrix,
+} from '@anytime-markdown/c4-kernel';
+import type { C4Model, BoundaryInfo, DsmMapping, DsmMatrix } from '@anytime-markdown/c4-kernel';
 import { analyze, trailToC4, toMermaid } from '@anytime-markdown/trail-core';
 import type { TrailGraph } from '@anytime-markdown/trail-core';
 import type { C4DataProvider, C4DataServer } from '../server/C4DataServer';
@@ -274,6 +278,7 @@ export class C4Panel implements C4DataProvider {
 
   /** モデルを設定し、ツリー・保存・DSM・通知を更新 */
   private setModel(model: C4Model, boundaries?: readonly BoundaryInfo[]): void {
+    if (this.lastModel === model && this.lastBoundaries === boundaries) return;
     this.lastModel = model;
     this.lastBoundaries = boundaries;
     C4Panel.saveModel(model, boundaries ?? []);
@@ -330,9 +335,7 @@ export class C4Panel implements C4DataProvider {
       this.lastC4Matrix = c4Matrix;
 
       if (this.dsmMode === 'diff' && this.lastTrailGraph) {
-        const sourceMatrix = buildSourceMatrix(this.lastTrailGraph, this.dsmLevel);
-        this.lastSourceMatrix = sourceMatrix;
-        diffMatrix(c4Matrix, sourceMatrix, this.lastDsmMapping);
+        this.lastSourceMatrix = buildSourceMatrix(this.lastTrailGraph, this.dsmLevel);
       }
       C4Panel.dataServer?.notify('dsm-updated');
     } catch {

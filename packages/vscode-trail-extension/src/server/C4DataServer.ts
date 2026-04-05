@@ -12,6 +12,7 @@ import type {
   BoundaryInfo,
   C4Model,
   CyclicPair,
+  DsmDiff,
   DsmMapping,
   DsmMatrix,
 } from '@anytime-markdown/c4-kernel';
@@ -41,18 +42,10 @@ export interface C4DataProvider {
 //  Constants
 // ---------------------------------------------------------------------------
 
-const CORS_ORIGIN = 'http://localhost:3000';
 const BIND_HOST = '127.0.0.1';
-
-const CORS_HEADERS: Record<string, string> = {
-  'Access-Control-Allow-Origin': CORS_ORIGIN,
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-};
 
 const JSON_HEADERS: Record<string, string> = {
   'Content-Type': 'application/json',
-  ...CORS_HEADERS,
 };
 
 // ---------------------------------------------------------------------------
@@ -72,6 +65,8 @@ export class C4DataServer {
   private httpServer: http.Server | undefined;
   private wsServer: WebSocketServer | undefined;
   private readonly clients = new Set<WebSocket>();
+  private readonly staticCache = new Map<string, Buffer>();
+  private cachedHtml: string | undefined;
 
   constructor(
     private readonly getProvider: () => C4DataProvider | undefined,
@@ -162,12 +157,6 @@ export class C4DataServer {
     req: http.IncomingMessage,
     res: http.ServerResponse,
   ): void {
-    if (req.method === 'OPTIONS') {
-      res.writeHead(204, CORS_HEADERS);
-      res.end();
-      return;
-    }
-
     const url = req.url ?? '';
 
     switch (url) {
@@ -184,8 +173,9 @@ export class C4DataServer {
         this.handleTreeEndpoint(res);
         break;
       case '/':
-        res.writeHead(200, { 'Content-Type': 'text/html', ...CORS_HEADERS });
-        res.end(buildStandaloneHtml());
+        this.cachedHtml ??= buildStandaloneHtml();
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(this.cachedHtml);
         break;
       case '/c4standalone.js':
         this.handleStaticJs(res, 'c4standalone.js');
@@ -194,7 +184,7 @@ export class C4DataServer {
         this.handleStaticJs(res, 'c4standalone.js.map');
         break;
       default:
-        res.writeHead(404, CORS_HEADERS);
+        res.writeHead(404);
         res.end();
     }
   }
@@ -203,7 +193,7 @@ export class C4DataServer {
     const provider = this.getProvider();
     const model = provider?.model;
     if (!model) {
-      res.writeHead(204, CORS_HEADERS);
+      res.writeHead(204);
       res.end();
       return;
     }
@@ -220,7 +210,7 @@ export class C4DataServer {
       : provider?.sourceMatrix;
 
     if (!matrix) {
-      res.writeHead(204, CORS_HEADERS);
+      res.writeHead(204);
       res.end();
       return;
     }
@@ -231,33 +221,29 @@ export class C4DataServer {
 
   private handleDiffEndpoint(res: http.ServerResponse): void {
     const provider = this.getProvider();
-    const c4Matrix = provider?.c4Matrix;
-    const sourceMatrix = provider?.sourceMatrix;
+    const result = computeDiff(provider);
 
-    if (!c4Matrix || !sourceMatrix) {
-      res.writeHead(204, CORS_HEADERS);
+    if (!result) {
+      res.writeHead(204);
       res.end();
       return;
     }
 
-    const mappings = provider?.dsmMappings ?? [];
-    const diff = diffMatrix(c4Matrix, sourceMatrix, mappings);
-    const cycles = computeCyclicPairs(c4Matrix);
-
     res.writeHead(200, JSON_HEADERS);
-    res.end(JSON.stringify({ diff, cycles }));
+    res.end(JSON.stringify(result));
   }
 
   private handleTreeEndpoint(res: http.ServerResponse): void {
     const provider = this.getProvider();
     const model = provider?.model;
-    const boundaries = provider?.boundaries;
 
-    if (!model || !boundaries) {
-      res.writeHead(204, CORS_HEADERS);
+    if (!model) {
+      res.writeHead(204);
       res.end();
       return;
     }
+
+    const boundaries = provider?.boundaries ?? [];
 
     const level = DSM_LEVEL_MAP[provider?.currentDsmLevel ?? 'component'] ?? 3;
     const fullTree = buildElementTree(model, boundaries);
@@ -268,17 +254,24 @@ export class C4DataServer {
   }
 
   private handleStaticJs(res: http.ServerResponse, filename: string): void {
+    const cached = this.staticCache.get(filename);
+    if (cached) {
+      const contentType = filename.endsWith('.map') ? 'application/json' : 'application/javascript';
+      res.writeHead(200, { 'Content-Type': contentType });
+      res.end(cached);
+      return;
+    }
+
     const filePath = path.join(this.distPath, filename);
     fs.readFile(filePath, (err, data) => {
       if (err) {
-        res.writeHead(404, CORS_HEADERS);
+        res.writeHead(404);
         res.end();
         return;
       }
-      const contentType = filename.endsWith('.map')
-        ? 'application/json'
-        : 'application/javascript';
-      res.writeHead(200, { 'Content-Type': contentType, ...CORS_HEADERS });
+      this.staticCache.set(filename, data);
+      const contentType = filename.endsWith('.map') ? 'application/json' : 'application/javascript';
+      res.writeHead(200, { 'Content-Type': contentType });
       res.end(data);
     });
   }
@@ -381,15 +374,27 @@ export class C4DataServer {
   private buildDsmDiffMessage(
     provider: C4DataProvider,
   ): ServerMessage | undefined {
-    const c4Matrix = provider.c4Matrix;
-    const sourceMatrix = provider.sourceMatrix;
-    if (!c4Matrix || !sourceMatrix) return undefined;
-
-    const mappings = provider.dsmMappings;
-    const diff = diffMatrix(c4Matrix, sourceMatrix, mappings);
-    const cycles = computeCyclicPairs(c4Matrix);
-    return { type: 'dsm-updated', diff, cycles };
+    const result = computeDiff(provider);
+    if (!result) return undefined;
+    return { type: 'dsm-updated', diff: result.diff, cycles: result.cycles };
   }
+}
+
+// ---------------------------------------------------------------------------
+//  Helper: compute diff + cycles from provider
+// ---------------------------------------------------------------------------
+
+function computeDiff(
+  provider: C4DataProvider | undefined,
+): { diff: DsmDiff; cycles: readonly CyclicPair[] } | undefined {
+  const c4Matrix = provider?.c4Matrix;
+  const sourceMatrix = provider?.sourceMatrix;
+  if (!c4Matrix || !sourceMatrix) return undefined;
+
+  const mappings = provider?.dsmMappings ?? [];
+  const diff = diffMatrix(c4Matrix, sourceMatrix, mappings);
+  const cycles = computeCyclicPairs(c4Matrix);
+  return { diff, cycles };
 }
 
 // ---------------------------------------------------------------------------

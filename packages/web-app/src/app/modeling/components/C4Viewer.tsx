@@ -1,6 +1,6 @@
 'use client';
 
-import { buildElementTree, buildLevelView, c4ToGraphDocument, extractBoundaries, filterTreeByLevel, parseMermaidC4 } from '@anytime-markdown/c4-kernel';
+import { buildElementTree, buildLevelView, c4ToGraphDocument, collectDescendantIds, extractBoundaries, filterTreeByLevel, parseMermaidC4 } from '@anytime-markdown/c4-kernel';
 import type { BoundaryInfo, C4Model } from '@anytime-markdown/c4-kernel';
 import type { GraphDocument, GraphNode } from '@anytime-markdown/graph-core';
 import { engine, layoutWithSubgroups, state as graphState } from '@anytime-markdown/graph-core';
@@ -148,16 +148,7 @@ export function C4Viewer() {
       const isComponent = selectedElement && selectedElement.type === 'component';
 
       if (isBoundary || isContainer || isComponent) {
-        scopeIds = new Set<string>();
-        function collectDescendants(parentId: string): void {
-          for (const el of c4Model!.elements) {
-            if (el.boundaryId === parentId && !scopeIds!.has(el.id)) {
-              scopeIds!.add(el.id);
-              collectDescendants(el.id);
-            }
-          }
-        }
-        collectDescendants(selectedElementId);
+        scopeIds = collectDescendantIds(c4Model.elements, selectedElementId);
       }
     }
 
