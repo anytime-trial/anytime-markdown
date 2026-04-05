@@ -533,11 +533,13 @@
     "@anytime-markdown/c4-kernel": "*",
     "@anytime-markdown/graph-core": "*",
     "@anytime-markdown/trail-core": "*",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "ws": "8.18.2"
   },
   "devDependencies": {
     "@types/node": "22.x",
     "@types/vscode": "1.109.0",
+    "@types/ws": "8.18.1",
     "ts-loader": "9.5.4",
     "webpack": "5.104.1",
     "webpack-cli": "6.0.1"
