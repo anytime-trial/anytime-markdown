@@ -355,6 +355,7 @@ export function C4Viewer() {
           {dsmModel ? (
             <DsmCanvas
               model={dsmModel}
+              fullModel={c4Model ?? undefined}
               boundaries={boundaryInfos}
               level={dsmLevel}
               clustered={dsmClustered}

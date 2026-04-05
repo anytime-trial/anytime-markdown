@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface DsmCanvasProps {
   readonly model: C4Model;
+  readonly fullModel?: C4Model;
   readonly boundaries: readonly BoundaryInfo[];
   readonly level: 'component' | 'package';
   readonly clustered: boolean;
@@ -64,7 +65,9 @@ function clampViewport(vp: { offsetX: number; offsetY: number; scale: number }):
 
 // --- Component ---
 
-export function DsmCanvas({ model, boundaries, level, clustered, focusedNodeId }: Readonly<DsmCanvasProps>) {
+const GROUP_LINE_COLOR = '#888888';
+
+export function DsmCanvas({ model, fullModel, boundaries, level, clustered, focusedNodeId }: Readonly<DsmCanvasProps>) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef(0);
   const viewportRef = useRef({ offsetX: 0, offsetY: 0, scale: 1 });
@@ -73,6 +76,7 @@ export function DsmCanvas({ model, boundaries, level, clustered, focusedNodeId }
   const cyclicSetRef = useRef(new Set<string>());
   const isPanningRef = useRef(false);
   const lastPanRef = useRef({ x: 0, y: 0 });
+  const groupBordersRef = useRef<number[]>([]);
   const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
 
   // Build matrix when inputs change
@@ -95,6 +99,19 @@ export function DsmCanvas({ model, boundaries, level, clustered, focusedNodeId }
       }
     }
     cyclicSetRef.current = set;
+
+    // Compute group borders (boundaries between different parent components)
+    const srcModel = fullModel ?? model;
+    const elementById = new Map(srcModel.elements.map(e => [e.id, e]));
+    const borders: number[] = [];
+    for (let i = 1; i < matrix.nodes.length; i++) {
+      const prevEl = elementById.get(matrix.nodes[i - 1].id);
+      const currEl = elementById.get(matrix.nodes[i].id);
+      if (prevEl?.boundaryId !== currEl?.boundaryId) {
+        borders.push(i);
+      }
+    }
+    groupBordersRef.current = borders;
 
     // Reset viewport
     viewportRef.current = { offsetX: 0, offsetY: 0, scale: 1 };
@@ -217,6 +234,28 @@ export function DsmCanvas({ model, boundaries, level, clustered, focusedNodeId }
             ctx!.lineWidth = 0.5;
           }
         }
+      }
+
+      // Group border lines (e.g. component boundaries at L4)
+      const groupBorders = groupBordersRef.current;
+      if (groupBorders.length > 0) {
+        ctx!.strokeStyle = GROUP_LINE_COLOR;
+        ctx!.lineWidth = 2;
+        for (const bi of groupBorders) {
+          const gx = HEADER_WIDTH + bi * CELL_SIZE;
+          const gy = HEADER_HEIGHT + bi * CELL_SIZE;
+          // Vertical line
+          ctx!.beginPath();
+          ctx!.moveTo(gx, HEADER_HEIGHT);
+          ctx!.lineTo(gx, HEADER_HEIGHT + n * CELL_SIZE);
+          ctx!.stroke();
+          // Horizontal line
+          ctx!.beginPath();
+          ctx!.moveTo(HEADER_WIDTH, gy);
+          ctx!.lineTo(HEADER_WIDTH + n * CELL_SIZE, gy);
+          ctx!.stroke();
+        }
+        ctx!.lineWidth = 0.5;
       }
 
       // Focus highlight (selected element from tree)
