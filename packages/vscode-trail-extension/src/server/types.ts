@@ -62,8 +62,56 @@ export interface RefreshCommand {
   readonly type: 'refresh';
 }
 
+// ---------------------------------------------------------------------------
+//  Client → Server: editing commands
+// ---------------------------------------------------------------------------
+
+export interface AddElementCommand {
+  readonly type: 'add-element';
+  readonly element: {
+    readonly type: 'person' | 'system';
+    readonly name: string;
+    readonly description?: string;
+    readonly external?: boolean;
+  };
+}
+
+export interface UpdateElementCommand {
+  readonly type: 'update-element';
+  readonly id: string;
+  readonly changes: {
+    readonly name?: string;
+    readonly description?: string;
+    readonly external?: boolean;
+  };
+}
+
+export interface RemoveElementCommand {
+  readonly type: 'remove-element';
+  readonly id: string;
+}
+
+export interface AddRelationshipCommand {
+  readonly type: 'add-relationship';
+  readonly from: string;
+  readonly to: string;
+  readonly label?: string;
+  readonly technology?: string;
+}
+
+export interface RemoveRelationshipCommand {
+  readonly type: 'remove-relationship';
+  readonly from: string;
+  readonly to: string;
+}
+
 export type ClientMessage =
   | SetLevelCommand
   | SetDsmModeCommand
   | ClusterCommand
-  | RefreshCommand;
+  | RefreshCommand
+  | AddElementCommand
+  | UpdateElementCommand
+  | RemoveElementCommand
+  | AddRelationshipCommand
+  | RemoveRelationshipCommand;

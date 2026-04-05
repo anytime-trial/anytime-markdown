@@ -36,6 +36,11 @@ export interface C4DataProvider {
   handleSetDsmMode(mode: 'c4' | 'diff'): void;
   handleCluster(enabled: boolean): void;
   handleRefresh(): void;
+  handleAddElement(element: { type: 'person' | 'system'; name: string; description?: string; external?: boolean }): void;
+  handleUpdateElement(id: string, changes: { name?: string; description?: string; external?: boolean }): void;
+  handleRemoveElement(id: string): void;
+  handleAddRelationship(from: string, to: string, label?: string, technology?: string): void;
+  handleRemoveRelationship(from: string, to: string): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -351,6 +356,21 @@ export class C4DataServer {
       case 'refresh':
         provider.handleRefresh();
         break;
+      case 'add-element':
+        provider.handleAddElement(message.element);
+        break;
+      case 'update-element':
+        provider.handleUpdateElement(message.id, message.changes);
+        break;
+      case 'remove-element':
+        provider.handleRemoveElement(message.id);
+        break;
+      case 'add-relationship':
+        provider.handleAddRelationship(message.from, message.to, message.label, message.technology);
+        break;
+      case 'remove-relationship':
+        provider.handleRemoveRelationship(message.from, message.to);
+        break;
     }
   }
 
@@ -411,7 +431,11 @@ export class C4DataServer {
 export function isClientMessage(data: unknown): data is ClientMessage {
   if (typeof data !== 'object' || data === null) return false;
   const msg = data as Record<string, unknown>;
-  const validTypes = ['set-level', 'set-dsm-mode', 'cluster', 'refresh'];
+  const validTypes = [
+    'set-level', 'set-dsm-mode', 'cluster', 'refresh',
+    'add-element', 'update-element', 'remove-element',
+    'add-relationship', 'remove-relationship',
+  ];
   return typeof msg.type === 'string' && validTypes.includes(msg.type);
 }
 

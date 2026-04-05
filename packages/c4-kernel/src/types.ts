@@ -17,6 +17,8 @@ export interface C4Element {
   readonly children?: readonly C4Element[];
   /** 境界（親要素ID） */
   readonly boundaryId?: string;
+  /** 手動追加された要素か */
+  readonly manual?: boolean;
 }
 
 /** C4リレーションシップ */
@@ -27,6 +29,8 @@ export interface C4Relationship {
   readonly technology?: string;
   /** 双方向か */
   readonly bidirectional?: boolean;
+  /** 手動追加された関係か */
+  readonly manual?: boolean;
 }
 
 /** C4モデル全体 */
