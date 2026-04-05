@@ -269,7 +269,7 @@ export function C4Viewer() {
       <Box ref={containerRef} sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {/* Left: C4 Model */}
         {showC4 && (
-          <Box sx={{ flex: splitRatio, position: 'relative', minWidth: 100 }}>
+          <Box sx={{ flex: showDsm ? splitRatio : 1, position: 'relative', minWidth: 100 }}>
             <GraphCanvas
               document={state.document}
               viewport={state.document.viewport}
@@ -299,7 +299,7 @@ export function C4Viewer() {
         )}
         {/* Center: DSM */}
         {showDsm && (
-        <Box sx={{ flex: 1 - splitRatio, position: 'relative', minWidth: 100, borderRight: showTree && elementTree.length > 0 ? `1px solid ${BORDER_COLOR}` : 'none' }}>
+        <Box sx={{ flex: showC4 ? 1 - splitRatio : 1, position: 'relative', minWidth: 100, borderRight: showTree && elementTree.length > 0 ? `1px solid ${BORDER_COLOR}` : 'none' }}>
           {c4Model ? (
             <DsmCanvas
               model={c4Model}
