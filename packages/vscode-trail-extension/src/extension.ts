@@ -6,6 +6,8 @@ import { ChangesProvider, ChangesFileItem } from './providers/ChangesProvider';
 import { SpecDocsProvider, SpecDocsItem, SpecDocsRootItem, SpecDocsDragAndDrop } from './providers/SpecDocsProvider';
 import { C4Panel } from './c4/C4Panel';
 import { C4ElementsProvider } from './providers/C4ElementsProvider';
+import { C4DataServer } from './server/C4DataServer';
+import type { C4DataProvider } from './server/C4DataServer';
 
 /** git の元コンテンツを提供する TextDocumentContentProvider */
 class GitOriginalContentProvider implements vscode.TextDocumentContentProvider {
@@ -25,6 +27,8 @@ function isMarkdownFile(filePath: string): boolean {
 	const lower = filePath.toLowerCase();
 	return lower.endsWith('.md') || lower.endsWith('.markdown');
 }
+
+let dataServer: C4DataServer | undefined;
 
 /** Anytime Markdown の比較モードでファイルを開く（利用可能な場合） */
 async function openWithMarkdownCompare(uri: vscode.Uri, originalContent: string): Promise<boolean> {
@@ -47,6 +51,47 @@ async function openWithVsCodeDiff(
 	const originalUri = vscode.Uri.parse(`anytime-trail-original:${encodeURIComponent(filePath)}?ts=${Date.now()}`);
 	gitContentProvider.setContent(originalUri.toString(), originalContent);
 	await vscode.commands.executeCommand('vscode.diff', originalUri, currentUri, diffLabel);
+}
+
+// ---------------------------------------------------------------------------
+//  C4 Data Server helpers
+// ---------------------------------------------------------------------------
+
+const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+
+function startDataServer(port: number): void {
+	// TODO: Task 6 will wire getProvider to return C4Panel as C4DataProvider.
+	// Until then the callback returns undefined so the server starts but has no data source.
+	dataServer = new C4DataServer(() => undefined as C4DataProvider | undefined);
+	dataServer.start(port).then(() => {
+		statusBarItem.text = `$(radio-tower) C4 Server: :${port}`;
+		statusBarItem.tooltip = `C4 Data Server running on port ${port}`;
+		statusBarItem.show();
+	}).catch((err: Error) => {
+		vscode.window.showErrorMessage(`C4 Data Server: ${err.message}`);
+	});
+}
+
+function stopDataServer(): void {
+	dataServer?.stop().catch(() => {});
+	dataServer = undefined;
+	statusBarItem.hide();
+}
+
+function handleServerConfigChange(): void {
+	const config = vscode.workspace.getConfiguration('anytimeTrail.server');
+	const enabled = config.get<boolean>('enabled', false);
+	const port = config.get<number>('port', 19840);
+
+	if (enabled && !dataServer?.isRunning) {
+		startDataServer(port);
+	} else if (!enabled && dataServer?.isRunning) {
+		stopDataServer();
+	} else if (enabled && dataServer?.isRunning) {
+		// Port may have changed — restart
+		stopDataServer();
+		startDataServer(port);
+	}
 }
 
 export function activate(context: vscode.ExtensionContext) {
@@ -423,6 +468,21 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	});
 
+	// C4 Data Server
+	const serverConfig = vscode.workspace.getConfiguration('anytimeTrail.server');
+	if (serverConfig.get<boolean>('enabled', false)) {
+		startDataServer(serverConfig.get<number>('port', 19840));
+	}
+
+	// Watch for configuration changes
+	context.subscriptions.push(
+		vscode.workspace.onDidChangeConfiguration((e) => {
+			if (e.affectsConfiguration('anytimeTrail.server')) {
+				handleServerConfigChange();
+			}
+		}),
+	);
+
 	// Git リポジトリが開かれている場合、自動的にフォルダを開く
 	if (hasWorkspace) {
 		const autoOpenGitRoots = async () => {
@@ -460,9 +520,10 @@ export function activate(context: vscode.ExtensionContext) {
 		c4Import, c4Analyze, c4Export,
 		dsmShow, dsmAnalyze,
 		c4ElementsTreeView, c4ElementsRefresh, c4SetLevel,
+		statusBarItem,
 	);
 }
 
 export function deactivate() {
-	// Intentionally empty – VS Code requires this export but no cleanup is needed.
+	dataServer?.stop().catch(() => {});
 }
