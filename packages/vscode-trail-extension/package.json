@@ -547,9 +547,17 @@
     "ws": "8.18.2"
   },
   "devDependencies": {
+    "@emotion/react": "11.14.0",
+    "@emotion/styled": "11.14.0",
+    "@mui/icons-material": "7.3.8",
+    "@mui/material": "7.3.8",
     "@types/node": "22.x",
+    "@types/react": "19.1.6",
+    "@types/react-dom": "19.1.6",
     "@types/vscode": "1.109.0",
     "@types/ws": "8.18.1",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
     "ts-loader": "9.5.4",
     "webpack": "5.104.1",
     "webpack-cli": "6.0.1"
