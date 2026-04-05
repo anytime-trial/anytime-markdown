@@ -119,18 +119,20 @@ export function activate(context: vscode.ExtensionContext) {
 
 		// 変更ファイル数をサイドバーバッジに表示 + 消えたファイルのタブを閉じる
 		let previousChangedPaths = new Set<string>();
+		const cp = changesProvider;
+		const ctv = changesTreeView;
 		const updateChangesBadge = () => {
-			const count = changesProvider!.getChangesCount();
-			changesTreeView!.badge = count > 0
+			const count = cp.getChangesCount();
+			ctv.badge = count > 0
 				? { value: count, tooltip: `${count} changes` }
 				: undefined;
-			changesProvider!.closeRemovedTabs(previousChangedPaths);
-			previousChangedPaths = changesProvider!.getChangedPaths();
+			cp.closeRemovedTabs(previousChangedPaths);
+			previousChangedPaths = cp.getChangedPaths();
 		};
-		changesProvider.onDidChangeTreeData(updateChangesBadge);
+		cp.onDidChangeTreeData(updateChangesBadge);
 		setTimeout(() => {
 			updateChangesBadge();
-			previousChangedPaths = changesProvider!.getChangedPaths();
+			previousChangedPaths = cp.getChangedPaths();
 		}, 2000);
 
 		timelineProvider = new TimelineProvider();
@@ -189,8 +191,9 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// 初回: git 初期化を待ってからターゲットを設定
 	if (changesProvider) {
+		const cp = changesProvider;
 		setTimeout(() => {
-			changesProvider!.setTargetRoots(specDocsProvider.roots);
+			cp.setTargetRoots(specDocsProvider.roots);
 			previousRoots = specDocsProvider.roots;
 			setActiveRoot(activeRoot);
 		}, 2000);
@@ -438,7 +441,9 @@ export function activate(context: vscode.ExtensionContext) {
 		const autoOpenGitRoots = async () => {
 			try {
 				const { execFileSync } = await import('node:child_process');
-				for (const folder of vscode.workspace.workspaceFolders!) {
+				const folders = vscode.workspace.workspaceFolders;
+				if (!folders) return;
+				for (const folder of folders) {
 					try {
 						execFileSync('git', ['rev-parse', '--git-dir'], {
 							cwd: folder.uri.fsPath,
@@ -460,7 +465,7 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.workspace.onDidSaveTextDocument(() => changesProvider?.refresh()),
 		specDocsTreeView,
-		...(changesProvider ? [changesTreeView!, { dispose: () => changesProvider!.dispose() }] : []),
+		...(changesProvider && changesTreeView ? [changesTreeView, { dispose: () => changesProvider.dispose() }] : []),
 		...(timelineTreeView ? [timelineTreeView] : []),
 		specDocsOpenFile, specDocsOpenFolder, specDocsCloneRepo, specDocsClose, specDocsRefresh, switchBranch, toggleMdOnly,
 		specDocsCreateFile, specDocsCreateFolder, specDocsDelete, specDocsRename, specDocsRemoveRoot, specDocsCopyPath, specDocsCopyFileName, specDocsImportFiles, specDocsCut, specDocsCopy, specDocsPaste,
