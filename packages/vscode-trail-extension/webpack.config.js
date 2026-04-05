@@ -19,7 +19,9 @@ const extensionConfig = {
   },
   externals: {
     vscode: 'commonjs vscode',
-    ws: 'commonjs ws',
+    // ws のオプショナルなネイティブ依存を除外（バンドルなしで動作する）
+    bufferutil: 'commonjs bufferutil',
+    'utf-8-validate': 'commonjs utf-8-validate',
   },
   resolve: {
     extensions: ['.ts', '.js'],
