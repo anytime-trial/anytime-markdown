@@ -165,21 +165,8 @@ export function StandaloneC4Viewer() {
     }
     const targetType = currentLevel >= 4 ? 'code' : 'component';
 
-    let scopeIds: Set<string> | null = null;
-    if (selectedElementId) {
-      const selectedElement = c4Model.elements.find(e => e.id === selectedElementId);
-      const isBoundary = boundaryInfos.some(b => b.id === selectedElementId);
-      const isContainer = selectedElement && (selectedElement.type === 'container' || selectedElement.type === 'containerDb');
-      const isComponent = selectedElement && selectedElement.type === 'component';
-
-      if (isBoundary || isContainer || isComponent) {
-        scopeIds = collectDescendantIds(c4Model.elements, selectedElementId);
-      }
-    }
-
     const filteredElements = c4Model.elements.filter(e => {
       if (e.type !== targetType) return false;
-      if (scopeIds && !scopeIds.has(e.id)) return false;
       if (excludedDescendantIds?.has(e.id)) return false;
       return true;
     });
@@ -192,7 +179,20 @@ export function StandaloneC4Viewer() {
     );
 
     return { ...c4Model, elements: filteredElements, relationships: filteredRelationships };
-  }, [c4Model, boundaryInfos, dsmLevel, currentLevel, selectedElementId, excludedDescendantIds]);
+  }, [c4Model, boundaryInfos, dsmLevel, currentLevel, excludedDescendantIds]);
+
+  // 選択要素の配下IDセット（DSM太枠表示用）
+  const selectedScopeIds = useMemo(() => {
+    if (!c4Model || !selectedElementId) return null;
+    const selectedElement = c4Model.elements.find(e => e.id === selectedElementId);
+    const isBoundary = boundaryInfos.some(b => b.id === selectedElementId);
+    const isContainer = selectedElement && (selectedElement.type === 'container' || selectedElement.type === 'containerDb');
+    const isComponent = selectedElement && selectedElement.type === 'component';
+    if (isBoundary || isContainer || isComponent) {
+      return collectDescendantIds(c4Model.elements, selectedElementId);
+    }
+    return null;
+  }, [c4Model, boundaryInfos, selectedElementId]);
 
   const handleSplitDrag = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -369,7 +369,7 @@ export function StandaloneC4Viewer() {
             {matrixView === 'fcmap' && dataSource.featureMatrix && c4Model ? (
               <FcMapCanvas featureMatrix={dataSource.featureMatrix} model={c4Model} />
             ) : dsmModel ? (
-              <DsmCanvas model={dsmModel} fullModel={c4Model ?? undefined} boundaries={boundaryInfos} level={dsmLevel} clustered={dsmClustered} focusedNodeId={selectedElementId} />
+              <DsmCanvas model={dsmModel} fullModel={c4Model ?? undefined} boundaries={boundaryInfos} level={dsmLevel} clustered={dsmClustered} focusedNodeId={selectedElementId} scopeIds={selectedScopeIds} />
             ) : (
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
                 <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.6)' }}>Waiting for C4 model...</Typography>

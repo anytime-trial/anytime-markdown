@@ -9,6 +9,8 @@ interface DsmCanvasProps {
   readonly level: 'component' | 'package';
   readonly clustered: boolean;
   readonly focusedNodeId?: string | null;
+  /** 選択スコープに含まれるノードID。太枠で囲む */
+  readonly scopeIds?: ReadonlySet<string> | null;
 }
 
 // --- Constants ---
@@ -66,7 +68,10 @@ function clampViewport(vp: { offsetX: number; offsetY: number; scale: number }):
 
 const GROUP_LINE_COLOR = '#888888';
 
-export function DsmCanvas({ model, fullModel, boundaries, level, clustered, focusedNodeId }: Readonly<DsmCanvasProps>) {
+const SCOPE_BORDER_COLOR = '#FFB74D';
+const SCOPE_BORDER_WIDTH = 3;
+
+export function DsmCanvas({ model, fullModel, boundaries, level, clustered, focusedNodeId, scopeIds }: Readonly<DsmCanvasProps>) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef(0);
   const viewportRef = useRef({ offsetX: 0, offsetY: 0, scale: 1 });
@@ -272,6 +277,44 @@ export function DsmCanvas({ model, fullModel, boundaries, level, clustered, focu
         }
       }
 
+      // Scope highlight (thick border around selected scope)
+      if (scopeIds && scopeIds.size > 0) {
+        const scopeIndices: number[] = [];
+        for (let i = 0; i < n; i++) {
+          if (scopeIds.has(matrix.nodes[i].id)) {
+            scopeIndices.push(i);
+          }
+        }
+        if (scopeIndices.length > 0) {
+          // Find contiguous ranges
+          scopeIndices.sort((a, b) => a - b);
+          let rangeStart = scopeIndices[0];
+          let rangeEnd = scopeIndices[0];
+          const ranges: { start: number; end: number }[] = [];
+          for (let i = 1; i < scopeIndices.length; i++) {
+            if (scopeIndices[i] === rangeEnd + 1) {
+              rangeEnd = scopeIndices[i];
+            } else {
+              ranges.push({ start: rangeStart, end: rangeEnd });
+              rangeStart = scopeIndices[i];
+              rangeEnd = scopeIndices[i];
+            }
+          }
+          ranges.push({ start: rangeStart, end: rangeEnd });
+
+          ctx!.strokeStyle = SCOPE_BORDER_COLOR;
+          ctx!.lineWidth = SCOPE_BORDER_WIDTH;
+          for (const range of ranges) {
+            const sx = HEADER_WIDTH + range.start * CELL_SIZE;
+            const sy = HEADER_HEIGHT + range.start * CELL_SIZE;
+            const sw = (range.end - range.start + 1) * CELL_SIZE;
+            const sh = sw;
+            ctx!.strokeRect(sx, sy, sw, sh);
+          }
+          ctx!.lineWidth = 0.5;
+        }
+      }
+
       // Hover highlight (within cell area)
       if (hovered) {
         ctx!.fillStyle = HOVER_COLOR;
@@ -346,7 +389,7 @@ export function DsmCanvas({ model, fullModel, boundaries, level, clustered, focu
 
     rafRef.current = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [model, boundaries, level, clustered, focusedNodeId]);
+  }, [model, boundaries, level, clustered, focusedNodeId, scopeIds]);
 
   // Mouse move (hover + pan)
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
