@@ -48,6 +48,7 @@ interface EditorToolbarSectionProps {
   setCommentOpen: React.Dispatch<React.SetStateAction<boolean>>;
   liveMessage: string;
   t: (key: string) => string;
+  onHomeClick?: () => void;
 }
 
 export function EditorToolbarSection({
@@ -75,6 +76,7 @@ export function EditorToolbarSection({
   setCommentOpen,
   liveMessage,
   t,
+  onHomeClick,
 }: Readonly<EditorToolbarSectionProps>) {
   const {
     sourceMode, readonlyMode, reviewMode, explorerOpen, inlineMergeOpen,
@@ -165,6 +167,7 @@ export function EditorToolbarSection({
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenVersionDialog={() => setVersionDialogOpen(true)}
         onAnnounce={setLiveMessage}
+        onHomeClick={onHomeClick}
         t={t}
       />}
       <input

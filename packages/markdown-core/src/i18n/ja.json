@@ -34,6 +34,7 @@
     "noHeadings": "見出しがありません",
     "noPermission": "この画面を表示する権限がありません。",
     "skipToEditor": "エディタへスキップ",
+    "home": "ホームへ戻る",
     "chars": "文字",
     "lines": "行",
     "import": "インポート (.md)",

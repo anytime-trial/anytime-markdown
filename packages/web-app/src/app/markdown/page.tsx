@@ -3,6 +3,7 @@
 import { COMMENT_PANEL_WIDTH } from '@anytime-markdown/markdown-core';
 import { Alert, Box, CircularProgress, Snackbar } from '@mui/material';
 import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useTranslations } from 'next-intl';
 
@@ -31,6 +32,7 @@ const ExplorerPanel = dynamic(
 
 export default function Page() {
   const t = useTranslations('Common');
+  const router = useRouter();
   const { themeMode, setThemeMode } = useThemeMode();
   const { presetName, setPresetName } = usePreset();
   const { setLocale } = useLocaleSwitch();
@@ -83,6 +85,7 @@ export default function Page() {
           showReadonlyMode={process.env.NEXT_PUBLIC_SHOW_READONLY_MODE === "1"}
           sideToolbar
           explorerSlot={explorerSlotNode}
+          onHomeClick={() => router.push('/')}
           onContentChange={handleContentChange}
           gridRows={process.env.NEXT_PUBLIC_GRID_ROWS ? Number(process.env.NEXT_PUBLIC_GRID_ROWS) : undefined}
           gridCols={process.env.NEXT_PUBLIC_GRID_COLS ? Number(process.env.NEXT_PUBLIC_GRID_COLS) : undefined}

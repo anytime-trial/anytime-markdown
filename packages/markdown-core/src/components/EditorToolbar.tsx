@@ -12,6 +12,7 @@ import ViewStreamIcon from "@mui/icons-material/ViewStream";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import {
   Box,
+  Divider,
   IconButton,
   Paper,
   ToggleButton,
@@ -120,6 +121,7 @@ interface EditorToolbarProps {
   onOpenSettings?: () => void;
   onOpenVersionDialog?: () => void;
   onAnnounce?: (message: string) => void;
+  onHomeClick?: () => void;
   t: TranslationFn;
 }
 
@@ -165,6 +167,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
   onOpenSettings,
   onOpenVersionDialog,
   onAnnounce: _onAnnounce,
+  onHomeClick,
   t,
 }: EditorToolbarProps) {
   const {
@@ -255,6 +258,23 @@ export const EditorToolbar = React.memo(function EditorToolbar({
         color: isDark ? undefined : DEFAULT_LIGHT_TEXT,
       }}
     >
+      {/* Home logo */}
+      {onHomeClick && (
+        <>
+          <Tooltip title={t("home")}>
+            <IconButton
+              size="small"
+              onClick={onHomeClick}
+              aria-label={t("home")}
+              sx={{ p: 0.25 }}
+            >
+              <AppIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
+        </>
+      )}
+
       {/* File actions */}
       {!hideFileOps && (
         <ToolbarFileActions
