@@ -128,45 +128,57 @@ export function C4Viewer() {
     return filterTreeByLevel(fullTree, currentLevel);
   }, [c4Model, boundaryInfos, currentLevel]);
 
-  // DSM用: 選択要素がパッケージの場合、その配下の要素のみに絞ったモデルを生成
+  // DSM用: C4レベルに応じた要素タイプでフィルタし、パッケージ選択時は配下のみ表示
   const dsmModel = useMemo(() => {
     if (!c4Model) return null;
-    if (dsmLevel !== 'component' || !selectedElementId) return c4Model;
 
-    // 選択要素がパッケージ（boundary/container/containerDb）か判定
-    const selectedElement = c4Model.elements.find(e => e.id === selectedElementId);
-    const isBoundary = boundaryInfos.some(b => b.id === selectedElementId);
-    const isContainer = selectedElement && (selectedElement.type === 'container' || selectedElement.type === 'containerDb');
-    const isComponent = selectedElement && selectedElement.type === 'component';
+    // L2=package はbuildC4Matrixがboundary単位で処理するのでフィルタ不要
+    if (dsmLevel === 'package') return c4Model;
 
-    // パッケージまたはコンポーネント（L4で子要素を持つ場合）でなければフィルタしない
-    if (!isBoundary && !isContainer && !isComponent) return c4Model;
+    // L3=component のみ、L4=code のみ
+    const targetType = currentLevel >= 4 ? 'code' : 'component';
 
-    // 再帰的に配下の全子孫要素を収集
-    const descendantIds = new Set<string>();
-    function collectDescendants(parentId: string): void {
-      for (const el of c4Model!.elements) {
-        if (el.boundaryId === parentId && !descendantIds.has(el.id)) {
-          descendantIds.add(el.id);
-          collectDescendants(el.id);
+    // パッケージ選択時: 配下の子孫のみに絞る
+    let scopeIds: Set<string> | null = null;
+    if (selectedElementId) {
+      const selectedElement = c4Model.elements.find(e => e.id === selectedElementId);
+      const isBoundary = boundaryInfos.some(b => b.id === selectedElementId);
+      const isContainer = selectedElement && (selectedElement.type === 'container' || selectedElement.type === 'containerDb');
+      const isComponent = selectedElement && selectedElement.type === 'component';
+
+      if (isBoundary || isContainer || isComponent) {
+        scopeIds = new Set<string>();
+        function collectDescendants(parentId: string): void {
+          for (const el of c4Model!.elements) {
+            if (el.boundaryId === parentId && !scopeIds!.has(el.id)) {
+              scopeIds!.add(el.id);
+              collectDescendants(el.id);
+            }
+          }
         }
+        collectDescendants(selectedElementId);
       }
     }
-    collectDescendants(selectedElementId);
 
-    if (descendantIds.size === 0) return c4Model;
+    const filteredElements = c4Model.elements.filter(e => {
+      if (e.type !== targetType) return false;
+      if (scopeIds && !scopeIds.has(e.id)) return false;
+      return true;
+    });
 
-    const childElements = c4Model.elements.filter(e => descendantIds.has(e.id));
+    if (filteredElements.length === 0) return c4Model;
+
+    const filteredIds = new Set(filteredElements.map(e => e.id));
     const filteredRelationships = c4Model.relationships.filter(
-      r => descendantIds.has(r.from) || descendantIds.has(r.to),
+      r => filteredIds.has(r.from) || filteredIds.has(r.to),
     );
 
     return {
       ...c4Model,
-      elements: childElements,
+      elements: filteredElements,
       relationships: filteredRelationships,
     };
-  }, [c4Model, boundaryInfos, dsmLevel, selectedElementId]);
+  }, [c4Model, boundaryInfos, dsmLevel, currentLevel, selectedElementId]);
 
   const handleSplitDrag = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
