@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 interface FcMapCanvasProps {
   readonly featureMatrix: FeatureMatrix;
   readonly model: C4Model;
+  /** チェックOFFで除外する要素ID */
+  readonly excludedElementIds?: ReadonlySet<string> | null;
 }
 
 // --- Constants ---
@@ -53,10 +55,11 @@ function clampViewport(vp: { offsetX: number; offsetY: number; scale: number }):
 }
 
 /** Build the grid data from FeatureMatrix + C4Model */
-function buildGrid(fm: FeatureMatrix, model: C4Model) {
+function buildGrid(fm: FeatureMatrix, model: C4Model, excluded?: ReadonlySet<string> | null) {
   // Columns: unique elementIds referenced by mappings, resolved to names
   const elementMap = new Map(model.elements.map(e => [e.id, e.name]));
-  const colIds = [...new Set(fm.mappings.map(m => m.elementId))];
+  const colIds = [...new Set(fm.mappings.map(m => m.elementId))]
+    .filter(id => !excluded?.has(id));
   const columns = colIds.map(id => ({ id, name: elementMap.get(id) ?? id }));
 
   // Rows: features grouped by category
@@ -87,7 +90,7 @@ function buildGrid(fm: FeatureMatrix, model: C4Model) {
 
 // --- Component ---
 
-export function FcMapCanvas({ featureMatrix, model }: Readonly<FcMapCanvasProps>) {
+export function FcMapCanvas({ featureMatrix, model, excludedElementIds }: Readonly<FcMapCanvasProps>) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef(0);
   const viewportRef = useRef({ offsetX: 0, offsetY: 0, scale: 1 });
@@ -100,11 +103,11 @@ export function FcMapCanvas({ featureMatrix, model }: Readonly<FcMapCanvasProps>
 
   // Build grid when data changes
   useEffect(() => {
-    gridRef.current = buildGrid(featureMatrix, model);
+    gridRef.current = buildGrid(featureMatrix, model, excludedElementIds);
     viewportRef.current = { offsetX: 0, offsetY: 0, scale: 1 };
     hoveredRef.current = null;
     setTooltip(null);
-  }, [featureMatrix, model]);
+  }, [featureMatrix, model, excludedElementIds]);
 
   // Render loop
   useEffect(() => {
@@ -320,7 +323,7 @@ export function FcMapCanvas({ featureMatrix, model }: Readonly<FcMapCanvasProps>
 
     rafRef.current = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [featureMatrix, model]);
+  }, [featureMatrix, model, excludedElementIds]);
 
   // Hit test for cell hover
   const hitTestCell = useCallback((mouseX: number, mouseY: number): { row: number; col: number } | null => {

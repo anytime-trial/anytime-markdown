@@ -446,7 +446,7 @@ export function C4Viewer() {
         {showDsm && (
         <Box sx={{ flex: showC4 ? 1 - splitRatio : 1, position: 'relative', minWidth: 100, borderRight: showTree && elementTree.length > 0 ? `1px solid ${BORDER_COLOR}` : 'none' }}>
           {matrixView === 'fcmap' && featureMatrix && c4Model ? (
-            <FcMapCanvas featureMatrix={featureMatrix} model={c4Model} />
+            <FcMapCanvas featureMatrix={featureMatrix} model={c4Model} excludedElementIds={excludedDescendantIds} />
           ) : dsmModel ? (
             <DsmCanvas
               model={dsmModel}

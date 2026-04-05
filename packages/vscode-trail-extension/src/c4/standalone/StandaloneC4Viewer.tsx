@@ -368,7 +368,7 @@ export function StandaloneC4Viewer() {
         {showDsm && (
           <Box sx={{ flex: showC4 ? 1 - splitRatio : 1, position: 'relative', minWidth: 100, borderRight: showTree && elementTree.length > 0 ? `1px solid ${BORDER_COLOR}` : 'none' }}>
             {matrixView === 'fcmap' && dataSource.featureMatrix && c4Model ? (
-              <FcMapCanvas featureMatrix={dataSource.featureMatrix} model={c4Model} />
+              <FcMapCanvas featureMatrix={dataSource.featureMatrix} model={c4Model} excludedElementIds={excludedDescendantIds} />
             ) : dsmModel ? (
               <DsmCanvas model={dsmModel} fullModel={c4Model ?? undefined} boundaries={boundaryInfos} level={dsmLevel} clustered={dsmClustered} focusedNodeId={selectedElementId} scopeIds={selectedScopeIds} />
             ) : (
