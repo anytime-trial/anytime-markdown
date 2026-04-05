@@ -1,4 +1,6 @@
+import fs from 'node:fs';
 import http from 'node:http';
+import path from 'node:path';
 
 import {
   buildElementTree,
@@ -73,6 +75,7 @@ export class C4DataServer {
 
   constructor(
     private readonly getProvider: () => C4DataProvider | undefined,
+    private readonly distPath: string,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -179,6 +182,16 @@ export class C4DataServer {
       case '/api/c4/tree':
         this.handleTreeEndpoint(res);
         break;
+      case '/':
+        res.writeHead(200, { 'Content-Type': 'text/html', ...CORS_HEADERS });
+        res.end(buildStandaloneHtml());
+        break;
+      case '/c4standalone.js':
+        this.handleStaticJs(res, 'c4standalone.js');
+        break;
+      case '/c4standalone.js.map':
+        this.handleStaticJs(res, 'c4standalone.js.map');
+        break;
       default:
         res.writeHead(404, CORS_HEADERS);
         res.end();
@@ -252,6 +265,22 @@ export class C4DataServer {
 
     res.writeHead(200, JSON_HEADERS);
     res.end(JSON.stringify({ tree }));
+  }
+
+  private handleStaticJs(res: http.ServerResponse, filename: string): void {
+    const filePath = path.join(this.distPath, filename);
+    fs.readFile(filePath, (err, data) => {
+      if (err) {
+        res.writeHead(404, CORS_HEADERS);
+        res.end();
+        return;
+      }
+      const contentType = filename.endsWith('.map')
+        ? 'application/json'
+        : 'application/javascript';
+      res.writeHead(200, { 'Content-Type': contentType, ...CORS_HEADERS });
+      res.end(data);
+    });
   }
 
   // -------------------------------------------------------------------------
@@ -345,6 +374,26 @@ export class C4DataServer {
     const cycles = computeCyclicPairs(c4Matrix);
     return { type: 'dsm-updated', diff, cycles };
   }
+}
+
+// ---------------------------------------------------------------------------
+//  Helper: standalone viewer HTML
+// ---------------------------------------------------------------------------
+
+function buildStandaloneHtml(): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>C4 / DSM Viewer</title>
+  <style>html, body, #root { margin: 0; padding: 0; height: 100%; overflow: hidden; }</style>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="/c4standalone.js"></script>
+</body>
+</html>`;
 }
 
 // ---------------------------------------------------------------------------
