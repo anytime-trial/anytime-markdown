@@ -1,6 +1,8 @@
 import type { C4TreeNode } from '@anytime-markdown/c4-kernel';
 import type { Action } from '@anytime-markdown/graph-core/state';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
+import CheckBoxIcon from '@mui/icons-material/CheckBox';
+import CheckBoxOutlineBlankIcon from '@mui/icons-material/CheckBoxOutlineBlank';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import CodeIcon from '@mui/icons-material/Code';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -10,12 +12,15 @@ import PersonIcon from '@mui/icons-material/Person';
 import Box from '@mui/material/Box';
 import Checkbox from '@mui/material/Checkbox';
 import Collapse from '@mui/material/Collapse';
+import IconButton from '@mui/material/IconButton';
 import List from '@mui/material/List';
 import ListItemButton from '@mui/material/ListItemButton';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
+import Tooltip from '@mui/material/Tooltip';
+import Typography from '@mui/material/Typography';
 import type { Dispatch, FC } from 'react';
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 
 /** デザインシステム: チャコール */
 const BG_SECONDARY = '#121212';
@@ -214,6 +219,15 @@ export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onS
     });
   }, [onCheckedChange]);
 
+  const allPackageIds = useMemo(() => collectPackageIds(tree), [tree]);
+  const allChecked = allPackageIds.size > 0 && allPackageIds.size === [...allPackageIds].filter(id => checkedIds.has(id)).length;
+
+  const handleCheckAll = useCallback(() => {
+    const next = allChecked ? new Set<string>() : new Set(allPackageIds);
+    setCheckedIds(next);
+    onCheckedChange?.(next);
+  }, [allChecked, allPackageIds, onCheckedChange]);
+
   return (
     <Box
       sx={{
@@ -224,6 +238,31 @@ export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onS
         overflowY: 'auto',
       }}
     >
+      <Box sx={{
+        display: 'flex',
+        alignItems: 'center',
+        px: 1,
+        py: 0.25,
+        borderBottom: `1px solid ${BORDER_COLOR}`,
+        minHeight: 32,
+        flexShrink: 0,
+      }}>
+        <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.7rem', flex: 1 }}>
+          Elements
+        </Typography>
+        <Tooltip title={allChecked ? 'Uncheck all' : 'Check all'} placement="left">
+          <IconButton
+            size="small"
+            onClick={handleCheckAll}
+            aria-label={allChecked ? 'Uncheck all packages' : 'Check all packages'}
+            sx={{ color: ACCENT_BLUE, p: 0.25 }}
+          >
+            {allChecked
+              ? <CheckBoxIcon sx={{ fontSize: 18 }} />
+              : <CheckBoxOutlineBlankIcon sx={{ fontSize: 18 }} />}
+          </IconButton>
+        </Tooltip>
+      </Box>
       <List dense disablePadding sx={{ flex: 1, overflowY: 'auto' }}>
         {tree.map(node => (
           <TreeNodeItem
