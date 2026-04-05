@@ -14,7 +14,6 @@ import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 
-import { useC4DataSource } from '../hooks/useC4DataSource';
 import { C4ElementTree } from './C4ElementTree';
 import { DsmCanvas } from './DsmCanvas';
 import { GraphCanvas } from './GraphCanvas';
@@ -44,22 +43,12 @@ const ACCENT_BLUE = '#90CAF9';
 /** デザインシステム: ボーダー */
 const BORDER_COLOR = 'rgba(255,255,255,0.12)';
 
-interface C4ViewerProps {
-  serverUrl?: string;
-}
-
-export function C4Viewer({ serverUrl }: Readonly<C4ViewerProps> = {}) {
-  const effectiveUrl = serverUrl ?? process.env.NEXT_PUBLIC_C4_SERVER_URL;
+export function C4Viewer() {
   const [state, dispatch] = useReducer(graphReducer, createInitialState());
   const [fullDoc, setFullDoc] = useState<GraphDocument | null>(null);
   const [currentLevel, setCurrentLevel] = useState<number>(4);
-
-  const dataSource = useC4DataSource(effectiveUrl);
-  const [localModel, setLocalModel] = useState<C4Model | null>(null);
-  const [localBoundaries, setLocalBoundaries] = useState<readonly BoundaryInfo[]>([]);
-
-  const c4Model = localModel ?? dataSource.c4Model;
-  const boundaryInfos = localBoundaries.length > 0 ? localBoundaries : dataSource.boundaries;
+  const [c4Model, setC4Model] = useState<C4Model | null>(null);
+  const [boundaryInfos, setBoundaryInfos] = useState<readonly BoundaryInfo[]>([]);
 
   const [showTree, setShowTree] = useState(true);
   const [showC4, setShowC4] = useState(true);
@@ -75,8 +64,8 @@ export function C4Viewer({ serverUrl }: Readonly<C4ViewerProps> = {}) {
     try {
       const boundaries = extractBoundaries(text);
       const model = parseMermaidC4(text);
-      setLocalModel(model);
-      setLocalBoundaries(boundaries);
+      setC4Model(model);
+      setBoundaryInfos(boundaries);
       const doc = c4ToGraphDocument(model, boundaries);
       layoutWithSubgroups(doc, 'TB', 180, 60);
       setFullDoc(doc);
@@ -87,14 +76,13 @@ export function C4Viewer({ serverUrl }: Readonly<C4ViewerProps> = {}) {
     }
   }, []);
 
-  // dataSource のモデル更新をグラフに反映
+  // 初期表示: public/anytime-markdown-c4.mmd を読み込む
   useEffect(() => {
-    if (!dataSource.c4Model || localModel) return;
-    const doc = c4ToGraphDocument(dataSource.c4Model, dataSource.boundaries);
-    layoutWithSubgroups(doc, 'TB', 180, 60);
-    setFullDoc(doc);
-    dispatch({ type: 'SET_DOCUMENT', doc });
-  }, [dataSource.c4Model, dataSource.boundaries, localModel]);
+    fetch('/anytime-markdown-c4.mmd')
+      .then(res => { if (res.ok) return res.text(); })
+      .then(text => { if (text) loadMermaidText(text); })
+      .catch(() => { /* ファイルが存在しない場合は無視 */ });
+  }, [loadMermaidText]);
 
   const handleImportMermaid = useCallback(() => {
     const input = document.createElement('input');
@@ -256,21 +244,6 @@ export function C4Viewer({ serverUrl }: Readonly<C4ViewerProps> = {}) {
         px: { xs: 2, md: 3 },
       }}
     >
-      {effectiveUrl && (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mr: 1 }}>
-          <Box
-            sx={{
-              width: 8,
-              height: 8,
-              borderRadius: '50%',
-              bgcolor: dataSource.connected ? '#4caf50' : 'rgba(255,255,255,0.3)',
-            }}
-          />
-          <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.7rem' }}>
-            {dataSource.connected ? 'Connected' : 'Disconnected'}
-          </Typography>
-        </Box>
-      )}
       <Button
         size="small"
         startIcon={<UploadFileIcon sx={{ fontSize: 18 }} />}

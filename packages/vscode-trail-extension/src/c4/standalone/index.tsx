@@ -2,7 +2,7 @@ import CssBaseline from '@mui/material/CssBaseline';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { createRoot } from 'react-dom/client';
 
-import { C4Viewer } from '../../../../web-app/src/app/modeling/components/C4Viewer';
+import { StandaloneC4Viewer } from './StandaloneC4Viewer';
 
 const darkTheme = createTheme({
   palette: {
@@ -16,7 +16,7 @@ if (container) {
   root.render(
     <ThemeProvider theme={darkTheme}>
       <CssBaseline />
-      <C4Viewer serverUrl={globalThis.location.origin} />
+      <StandaloneC4Viewer />
     </ThemeProvider>,
   );
 }
