@@ -54,6 +54,7 @@ export function buildElementTree(
       ...(el.external ? { external: true } : {}),
       ...(el.technology ? { technology: el.technology } : {}),
       ...(el.description ? { description: el.description } : {}),
+      ...(el.deleted ? { deleted: true } : {}),
       children,
     };
   }
