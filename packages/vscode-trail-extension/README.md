@@ -1,43 +1,105 @@
 # Anytime Trail
 
-![VS Marketplace](https://img.shields.io/visual-studio-marketplace/v/anytime-trial.anytime-trail?label=VS%20Marketplace&logo=visual-studio-code)
-![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=anytime-trial_anytime-markdown)
-[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=bugs)](https://sonarcloud.io/summary/new_code?id=anytime-trial_anytime-markdown)
-[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=anytime-trial_anytime-markdown)
-[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=coverage)](https://sonarcloud.io/summary/new_code?id=anytime-trial_anytime-markdown)
-[![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=duplicated_lines_density)](https://sonarcloud.io/summary/new_code?id=anytime-trial_anytime-markdown)
+![VS Marketplace](https://img.shields.io/visual-studio-marketplace/v/anytime-trial.anytime-trail?label=VS%20Marketplace&logo=visual-studio-code)![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=alert_status)![Bugs](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=bugs)![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=code_smells)![Coverage](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=coverage)![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=duplicated_lines_density)
 
-**Git repository management, C4 architecture diagrams, and project visualization for VS Code.**
+**See your architecture while you code.**
 
-Manage Git repositories, visualize commit history, and generate interactive C4 architecture diagrams from your TypeScript codebase — all from a dedicated sidebar panel.
+Analyze TypeScript projects to auto-generate C4 architecture diagrams and DSM (Dependency Structure Matrix).\
+A live browser viewer reflects code changes in real time.
 
-## Features
 
-### C4 Architecture Diagram
+## C4 Architecture Diagrams & DSM
 
-- **Import** — Load Mermaid C4 diagrams (`.mmd`, `.mermaid`, `.txt`) into an interactive canvas
-- **Analyze** — Auto-generate C4 models from TypeScript projects by scanning `tsconfig.json`
-- **Level toggle** — Switch between architecture levels (L2: Container, L3: Component, L4: Code) to control detail granularity
-- **Interactive canvas** — Pan, zoom, click nodes to open source files, and highlight connected nodes
-- **Export** — Save as JSON (C4 model + boundaries) or Mermaid format (module dependencies)
-- **Git integration** — Select a commit in the Graph view to highlight changed files in the C4 diagram
+One command visualizes your entire TypeScript project structure at four levels of detail.
 
-### Git Management
+| Level | What you see |
+| --- | --- |
+| L1 System Context | The system and its external relationships |
+| L2 Container | Apps, APIs, databases, and other building blocks |
+| L3 Component | Dependencies between packages and modules |
+| L4 Code | Every file-level dependency |
 
-- **Repository** — Open folders or clone repositories; browse files with drag-and-drop; switch branches; filter by Markdown files
-- **Changes** — View staged / unstaged changes; stage, unstage, discard, commit, and push with inline actions; badge shows change count
-- **Graph** — ASCII-art commit graph with local / remote indicators and branch/tag decorations
-- **Timeline** — Per-file commit history; compare any commit with the working copy
+![C4 Mermaid diagram example](images/c4-mermaid.png)
 
-When [Anytime Markdown](https://marketplace.visualstudio.com/items?itemName=anytime-trial.anytime-markdown) is installed, Markdown diffs open in its rich compare mode. Otherwise, the standard VS Code diff editor is used.
+**Live Viewer** (`http://localhost:19840`)
 
-## Getting Started
+- Three-pane layout: C4 graph, DSM matrix, and element tree
+- Drill down with L1 through L4 level switching
+- Cluster related modules in the DSM
+- Circular dependencies highlighted in red
+- Re-analysis and imports in VS Code are reflected instantly (WebSocket)
 
-1. Install the extension
-2. Click the **Anytime Trail** icon in the Activity Bar
-3. Open a folder or clone a repository from the **Repository** view
-4. Run **Anytime Trail: Analyze C4** from the Command Palette to generate a C4 diagram from your TypeScript project
+**Import / Export**
+
+- Import Mermaid C4 diagrams (`.mmd`)
+- Export as JSON or Mermaid format
+
+
+## Git Management
+
+All your daily Git operations in one sidebar.
+
+- **Repository** -- Open folders / clone / switch branches.\
+  Drag-and-drop file tree
+- **Changes** -- Stage / unstage / discard / commit / push inline.\
+  Badge shows change count at a glance
+- **Graph** -- ASCII commit graph with branch flow overview
+- **Timeline** -- Per-file commit history and diff comparison
+
+> Pair with [Anytime Markdown](https://marketplace.visualstudio.com/items?itemName=anytime-trial.anytime-markdown) for rich Markdown diff views.
+
+
+## Setup
+
+
+### 1. Enable the C4 data server
+
+Add to your VS Code `settings.json`:
+
+```json
+{
+  "anytimeTrail.server.enabled": true
+}
+```
+
+
+### 2. Reload VS Code
+
+`Ctrl+Shift+P` -> `Developer: Reload Window`\
+Look for `C4 Server: :19840` in the status bar to confirm it is running.
+
+
+### 3. Run analysis
+
+`Ctrl+Shift+P` -> `Anytime Trail: Analyze C4`
+
+A browser tab opens automatically showing your project's architecture.\
+Subsequent analyses update the existing tab in real time -- no new tabs are opened.
+
+> To import a Mermaid C4 file instead, use `Anytime Trail: Import C4`.
+
+
+## Viewer Controls
+
+| Control | Description |
+| --- | --- |
+| L1 -- L4 | Switch C4 detail level |
+| Fit | Fit the graph to screen |
+| Cluster | Group DSM by dependency clusters |
+| C4 / DSM / Tree | Toggle each pane |
+| Drag | Pan the viewport |
+| Scroll wheel | Zoom in / out |
+
+
+## Configuration
+
+| Key | Default | Description |
+| --- | --- | --- |
+| `anytimeTrail.server.enabled` | `false` | Enable / disable the C4 data server |
+| `anytimeTrail.server.port` | `19840` | Data server port number |
+| `anytimeTrail.c4.modelPath` | `.vscode/c4-model.json` | Path to save C4 model |
+| `anytimeTrail.c4.analyzeExcludePatterns` | `[".worktrees", ...]` | Directory patterns to exclude from analysis |
+
 
 ## License
 
