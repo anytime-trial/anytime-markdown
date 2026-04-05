@@ -107,6 +107,10 @@ export interface RemoveRelationshipCommand {
   readonly to: string;
 }
 
+export interface PurgeDeletedElementsCommand {
+  readonly type: 'purge-deleted-elements';
+}
+
 export type ClientMessage =
   | SetLevelCommand
   | SetDsmModeCommand
@@ -116,4 +120,5 @@ export type ClientMessage =
   | UpdateElementCommand
   | RemoveElementCommand
   | AddRelationshipCommand
-  | RemoveRelationshipCommand;
+  | RemoveRelationshipCommand
+  | PurgeDeletedElementsCommand;

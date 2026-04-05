@@ -41,6 +41,7 @@ export interface C4DataProvider {
   handleAddElement(element: { type: 'person' | 'system'; name: string; description?: string; external?: boolean }): void;
   handleUpdateElement(id: string, changes: { name?: string; description?: string; external?: boolean }): void;
   handleRemoveElement(id: string): void;
+  handlePurgeDeletedElements(): void;
   handleAddRelationship(from: string, to: string, label?: string, technology?: string): void;
   handleRemoveRelationship(from: string, to: string): void;
 }
@@ -372,6 +373,9 @@ export class C4DataServer {
       case 'remove-element':
         provider.handleRemoveElement(message.id);
         break;
+      case 'purge-deleted-elements':
+        provider.handlePurgeDeletedElements();
+        break;
       case 'add-relationship':
         provider.handleAddRelationship(message.from, message.to, message.label, message.technology);
         break;
@@ -442,7 +446,7 @@ export function isClientMessage(data: unknown): data is ClientMessage {
   const validTypes = [
     'set-level', 'set-dsm-mode', 'cluster', 'refresh',
     'add-element', 'update-element', 'remove-element',
-    'add-relationship', 'remove-relationship',
+    'add-relationship', 'remove-relationship', 'purge-deleted-elements',
   ];
   return typeof msg.type === 'string' && validTypes.includes(msg.type);
 }
