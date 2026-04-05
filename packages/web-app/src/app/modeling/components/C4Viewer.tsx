@@ -231,7 +231,7 @@ export function C4Viewer() {
       <Box sx={{ flex: 1 }} />
       <Button
         size="small"
-        onClick={() => setShowC4(prev => prev ? showDsm : true)}
+        onClick={() => { if (showC4 && !showDsm) return; setShowC4(prev => !prev); }}
         sx={{
           ...toolbarButtonSx,
           ...(showC4 && { bgcolor: 'rgba(144,202,249,0.12)' }),
@@ -241,7 +241,7 @@ export function C4Viewer() {
       </Button>
       <Button
         size="small"
-        onClick={() => setShowDsm(prev => prev ? showC4 : true)}
+        onClick={() => { if (showDsm && !showC4) return; setShowDsm(prev => !prev); }}
         sx={{
           ...toolbarButtonSx,
           ...(showDsm && { bgcolor: 'rgba(144,202,249,0.12)' }),
