@@ -19,8 +19,6 @@ import { C4ElementTree } from './C4ElementTree';
 import { DsmCanvas } from './DsmCanvas';
 import { GraphCanvas } from './GraphCanvas';
 
-const C4_SERVER_URL = process.env.NEXT_PUBLIC_C4_SERVER_URL;
-
 const { graphReducer, createInitialState } = graphState;
 const { fitToContent } = engine;
 
@@ -46,12 +44,17 @@ const ACCENT_BLUE = '#90CAF9';
 /** デザインシステム: ボーダー */
 const BORDER_COLOR = 'rgba(255,255,255,0.12)';
 
-export function C4Viewer() {
+interface C4ViewerProps {
+  serverUrl?: string;
+}
+
+export function C4Viewer({ serverUrl }: Readonly<C4ViewerProps> = {}) {
+  const effectiveUrl = serverUrl ?? process.env.NEXT_PUBLIC_C4_SERVER_URL;
   const [state, dispatch] = useReducer(graphReducer, createInitialState());
   const [fullDoc, setFullDoc] = useState<GraphDocument | null>(null);
   const [currentLevel, setCurrentLevel] = useState<number>(4);
 
-  const dataSource = useC4DataSource(C4_SERVER_URL);
+  const dataSource = useC4DataSource(effectiveUrl);
   const [localModel, setLocalModel] = useState<C4Model | null>(null);
   const [localBoundaries, setLocalBoundaries] = useState<readonly BoundaryInfo[]>([]);
 
@@ -253,7 +256,7 @@ export function C4Viewer() {
         px: { xs: 2, md: 3 },
       }}
     >
-      {C4_SERVER_URL && (
+      {effectiveUrl && (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mr: 1 }}>
           <Box
             sx={{
