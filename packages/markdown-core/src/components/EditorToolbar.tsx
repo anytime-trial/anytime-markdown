@@ -410,7 +410,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
                 onClick={(e) => onSetHelpAnchor(e.currentTarget)}
                 sx={{ mr: 0, p: 0 }}
               >
-                <AppIcon fontSize="small" />
+                <MenuIcon fontSize="small" />
               </IconButton>
             </Tooltip>
           </Box>
