@@ -45,17 +45,17 @@ function TypeIcon({ type }: Readonly<{ type: C4TreeNode['type'] }>) {
   }
 }
 
-/** パッケージ（container）かどうか */
-function isPackageType(type: C4TreeNode['type']): boolean {
-  return type === 'container' || type === 'containerDb';
+/** チェックボックス表示対象かどうか */
+function isCheckableType(type: C4TreeNode['type']): boolean {
+  return type === 'container' || type === 'containerDb' || type === 'component';
 }
 
-/** ツリーからパッケージ型ノードのIDを再帰的に収集 */
-function collectPackageIds(nodes: readonly C4TreeNode[]): Set<string> {
+/** ツリーからチェック対象ノードのIDを再帰的に収集 */
+function collectCheckableIds(nodes: readonly C4TreeNode[]): Set<string> {
   const ids = new Set<string>();
   function walk(list: readonly C4TreeNode[]): void {
     for (const n of list) {
-      if (isPackageType(n.type)) ids.add(n.id);
+      if (isCheckableType(n.type)) ids.add(n.id);
       if (n.children.length > 0) walk(n.children);
     }
   }
@@ -78,7 +78,7 @@ const TreeNodeItem: FC<TreeNodeItemProps> = memo(({ node, depth, selectedId, onS
   const hasChildren = node.children.length > 0;
   const isOpen = expanded.has(node.id);
   const isSelected = node.id === selectedId;
-  const isPackage = isPackageType(node.type);
+  const isCheckable = isCheckableType(node.type);
   const isChecked = checkedIds.has(node.id);
 
   const handleRowClick = useCallback(() => {
@@ -118,7 +118,7 @@ const TreeNodeItem: FC<TreeNodeItemProps> = memo(({ node, depth, selectedId, onS
         ) : (
           <Box sx={{ width: 20 }} />
         )}
-        {isPackage && (
+        {isCheckable && (
           <Checkbox
             size="small"
             checked={isChecked}
@@ -186,7 +186,7 @@ export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onS
     return ids;
   });
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [checkedIds, setCheckedIds] = useState<ReadonlySet<string>>(() => collectPackageIds(tree));
+  const [checkedIds, setCheckedIds] = useState<ReadonlySet<string>>(() => collectCheckableIds(tree));
 
   const handleToggle = useCallback((id: string) => {
     setExpanded(prev => {
@@ -218,7 +218,7 @@ export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onS
     });
   }, []);
 
-  const allPackageIds = useMemo(() => collectPackageIds(tree), [tree]);
+  const allPackageIds = useMemo(() => collectCheckableIds(tree), [tree]);
   const allChecked = allPackageIds.size > 0 && allPackageIds.size === [...allPackageIds].filter(id => checkedIds.has(id)).length;
 
   const handleCheckAll = useCallback(() => {

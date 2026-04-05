@@ -143,7 +143,8 @@ export function StandaloneC4Viewer() {
     if (!c4Model || !checkedPackageIds) return null;
     const excluded = new Set<string>();
     for (const elem of c4Model.elements) {
-      if ((elem.type === 'container' || elem.type === 'containerDb') && !checkedPackageIds.has(elem.id)) {
+      const isCheckable = elem.type === 'container' || elem.type === 'containerDb' || elem.type === 'component';
+      if (isCheckable && !checkedPackageIds.has(elem.id)) {
         const descendants = collectDescendantIds(c4Model.elements, elem.id);
         for (const id of descendants) excluded.add(id);
         excluded.add(elem.id);
