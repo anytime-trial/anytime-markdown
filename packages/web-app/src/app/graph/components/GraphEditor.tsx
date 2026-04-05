@@ -7,8 +7,10 @@ import { useTranslations } from 'next-intl';
 import React, { useCallback, useEffect, useMemo,useRef, useState } from 'react';
 
 import { useThemeMode } from '../../providers';
-import { alignBottom, alignCenterH, alignCenterV, alignLeft, alignRight, alignTop, distributeH, distributeV } from '../engine/alignment';
-import { fitToContent,pan as panViewport, screenToWorld, zoom as zoomViewport } from '../engine/viewport';
+import {
+  alignBottom, alignCenterH, alignCenterV, alignLeft, alignRight, alignTop, distributeH, distributeV,
+  fitToContent, pan as panViewport, screenToWorld, zoom as zoomViewport,
+} from '@anytime-markdown/graph-core/engine';
 import { useAutoSave } from '../hooks/useAutoSave';
 import { useCanvasInteraction } from '../hooks/useCanvasInteraction';
 import { useDataMapping } from '../hooks/useDataMapping';

@@ -1,4 +1,4 @@
-import { computeSmartGuides } from '../../../app/graph/engine/smartGuide';
+import { computeSmartGuides } from '@anytime-markdown/graph-core/engine';
 
 describe('computeSmartGuides', () => {
   const otherNodes = [

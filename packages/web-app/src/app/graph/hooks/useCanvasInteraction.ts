@@ -4,12 +4,12 @@ import { computeVisibilityPath } from '@anytime-markdown/graph-core/engine';
 import { physics } from '@anytime-markdown/graph-core/engine';
 import { useCallback, useEffect,useRef } from 'react';
 
-import { bestSides, computeOrthogonalPath, getConnectionPoints,nearestBorderPoint, resolveConnectorEndpoints } from '../engine/connector';
-import { snapToGrid } from '../engine/gridSnap';
-import type { ResizeHandle } from '../engine/hitTest';
-import { hitTest, hitTestEdge } from '../engine/hitTest';
-import { computeSmartGuides, GuideLine } from '../engine/smartGuide';
-import { pan as panViewport, screenToWorld, zoom as zoomViewport } from '../engine/viewport';
+import {
+  bestSides, computeOrthogonalPath, getConnectionPoints, nearestBorderPoint, resolveConnectorEndpoints,
+  snapToGrid, hitTest, hitTestEdge, computeSmartGuides,
+  pan as panViewport, screenToWorld, zoom as zoomViewport,
+} from '@anytime-markdown/graph-core/engine';
+import type { ResizeHandle, GuideLine } from '@anytime-markdown/graph-core/engine';
 import { createEdge,createNode, GraphEdge, GraphNode, SelectionState, ToolType, Viewport } from '../types';
 import type { Action } from './useGraphState';
 

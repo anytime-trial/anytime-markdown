@@ -24,15 +24,14 @@ jest.mock("@anytime-markdown/graph-core/engine", () => ({
     done: true,
   }),
   computeVisibilityPath: jest.fn().mockReturnValue([{ x: 0, y: 0 }, { x: 100, y: 100 }]),
-}));
-
-jest.mock("../../app/graph/engine/connector", () => ({
   resolveConnectorEndpoints: jest.fn().mockReturnValue({ from: { x: 0, y: 0 }, to: { x: 100, y: 100 } }),
   computeOrthogonalPath: jest.fn().mockReturnValue([{ x: 0, y: 0 }, { x: 100, y: 100 }]),
   computeBezierPath: jest.fn().mockReturnValue([{ x: 0, y: 0 }, { x: 30, y: 0 }, { x: 70, y: 100 }, { x: 100, y: 100 }]),
   bestSides: jest.fn().mockReturnValue({ fromSide: "right", toSide: "left" }),
   getConnectionPoints: jest.fn().mockReturnValue([{ x: 0, y: 50, side: "left" }, { x: 150, y: 50, side: "right" }]),
 }));
+
+// connector mock merged into @anytime-markdown/graph-core/engine above
 
 // Mock canvas context
 const mockCtx = {

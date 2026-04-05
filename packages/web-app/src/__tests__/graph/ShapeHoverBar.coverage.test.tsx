@@ -20,7 +20,7 @@ jest.mock("@anytime-markdown/graph-core", () => ({
   }),
 }));
 
-jest.mock("../../app/graph/engine/viewport", () => ({
+jest.mock("@anytime-markdown/graph-core/engine", () => ({
   worldToScreen: (_vp: any, x: number, y: number) => ({ x, y }),
 }));
 

@@ -1,4 +1,4 @@
-import { screenToWorld, worldToScreen, pan, zoom, fitToContent } from '../../../app/graph/engine/viewport';
+import { screenToWorld, worldToScreen, pan, zoom, fitToContent } from '@anytime-markdown/graph-core/engine';
 import { Viewport } from '../../../app/graph/types';
 
 describe('screenToWorld', () => {

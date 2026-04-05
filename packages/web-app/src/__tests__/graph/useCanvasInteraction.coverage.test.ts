@@ -1,7 +1,8 @@
 import { renderHook, act } from "@testing-library/react";
 import React from "react";
 
-// Mock graph-core engine (physics)
+// Mock graph-core engine (all engine modules consolidated)
+const mockHitTest = jest.fn().mockReturnValue({ type: "canvas" });
 jest.mock("@anytime-markdown/graph-core/engine", () => ({
   physics: {
     PhysicsEngine: jest.fn().mockImplementation(() => ({
@@ -11,38 +12,17 @@ jest.mock("@anytime-markdown/graph-core/engine", () => ({
     })),
   },
   computeVisibilityPath: jest.fn().mockReturnValue([{ x: 0, y: 0 }, { x: 50, y: 0 }, { x: 50, y: 100 }, { x: 100, y: 100 }]),
-}));
-
-// Mock viewport
-jest.mock("../../app/graph/engine/viewport", () => ({
   screenToWorld: (_vp: any, sx: number, sy: number) => ({ x: sx, y: sy }),
   pan: (vp: any, dx: number, dy: number) => ({ ...vp, offsetX: vp.offsetX + dx, offsetY: vp.offsetY + dy }),
   zoom: (vp: any, _sx: number, _sy: number, _delta: number) => ({ ...vp, scale: vp.scale * 1.1 }),
-}));
-
-// Mock hitTest
-const mockHitTest = jest.fn().mockReturnValue({ type: "canvas" });
-jest.mock("../../app/graph/engine/hitTest", () => ({
   hitTest: (...args: any[]) => mockHitTest(...args),
   hitTestEdge: jest.fn().mockReturnValue(null),
-}));
-
-// Mock gridSnap
-jest.mock("../../app/graph/engine/gridSnap", () => ({
   snapToGrid: (v: number) => Math.round(v / 20) * 20,
-}));
-
-// Mock smartGuide
-jest.mock("../../app/graph/engine/smartGuide", () => ({
   computeSmartGuides: (_x: number, _y: number, _w: number, _h: number, _others: any[], _threshold: number) => ({
     snappedX: _x,
     snappedY: _y,
     guides: [],
   }),
-}));
-
-// Mock connector
-jest.mock("../../app/graph/engine/connector", () => ({
   computeOrthogonalPath: () => [{ x: 0, y: 0 }, { x: 100, y: 100 }],
   bestSides: jest.fn().mockReturnValue({ fromSide: "right", toSide: "left" }),
   getConnectionPoints: jest.fn().mockReturnValue([{ x: 0, y: 50, side: "left" }, { x: 150, y: 50, side: "right" }]),

@@ -10,7 +10,7 @@ import { useTranslations } from 'next-intl';
 import React from 'react';
 
 import { useThemeMode } from '../../providers';
-import { worldToScreen } from '../engine/viewport';
+import { worldToScreen } from '@anytime-markdown/graph-core/engine';
 import { GraphNode, NodeType, Viewport } from '../types';
 import {
   CylinderShapeIcon as CylinderIcon,

@@ -4,7 +4,7 @@ import { getCanvasColors } from '@anytime-markdown/graph-core';
 import React, { useEffect, useRef } from 'react';
 
 import { useThemeMode } from '../../providers';
-import { worldToScreen } from '../engine/viewport';
+import { worldToScreen } from '@anytime-markdown/graph-core/engine';
 import { GraphNode, Viewport } from '../types';
 
 interface TextEditOverlayProps {

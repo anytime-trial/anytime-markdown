@@ -1,6 +1,6 @@
 import { renderHook } from "@testing-library/react";
 
-jest.mock("../../app/graph/engine/viewport", () => ({
+jest.mock("@anytime-markdown/graph-core/engine", () => ({
   pan: (vp: any, dx: number, dy: number) => ({
     ...vp,
     offsetX: vp.offsetX + dx,

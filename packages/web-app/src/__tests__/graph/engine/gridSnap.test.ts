@@ -1,4 +1,4 @@
-import { snapToGrid, snapRect } from '../../../app/graph/engine/gridSnap';
+import { snapToGrid, snapRect } from '@anytime-markdown/graph-core/engine';
 
 describe('snapToGrid', () => {
   it('should snap value to nearest grid multiple', () => {
