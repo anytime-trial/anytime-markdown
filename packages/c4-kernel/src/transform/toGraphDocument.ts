@@ -13,7 +13,7 @@ interface C4NodeMapping {
 }
 
 const NODE_MAP: Readonly<Record<C4ElementType, C4NodeMapping>> = {
-  person:      { type: 'ellipse',  width: 140, height: 80 },
+  person:      { type: 'person',   width: 120, height: 160 },
   system:      { type: 'rect',     width: 200, height: 80 },
   container:   { type: 'rect',     width: 180, height: 70 },
   containerDb: { type: 'cylinder', width: 160, height: 80 },

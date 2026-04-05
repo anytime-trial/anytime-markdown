@@ -99,6 +99,16 @@ export function hitTestNode(node: GraphNode, wx: number, wy: number): boolean {
   if (node.type === 'ellipse') {
     return pointInEllipse(wx, wy, node.x + node.width / 2, node.y + node.height / 2, node.width / 2, node.height / 2);
   }
+  if (node.type === 'person') {
+    const { x, y, width, height } = node;
+    const headR = width * 0.22;
+    const headCx = x + width / 2;
+    const headCy = y + height * 0.30;
+    if (pointInEllipse(wx, wy, headCx, headCy, headR, headR)) return true;
+    const bodyY = y + height * 0.45;
+    const bodyH = height - height * 0.45;
+    return pointInRect(wx, wy, x, bodyY, width, bodyH);
+  }
   if (node.type === 'diamond') {
     const { x, y, width: w, height: h } = node;
     return pointInPolygon(wx, wy, [

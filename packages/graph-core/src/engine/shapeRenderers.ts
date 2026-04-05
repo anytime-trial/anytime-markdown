@@ -253,6 +253,50 @@ const renderFrame: SpecialShapeRenderer = (ctx, node, selected, _isDragging, fil
   ctx.fill();
 };
 
+const PERSON_HEAD_RATIO = 0.30;    // head center at 30% from top
+const PERSON_HEAD_RADIUS = 0.22;   // head radius relative to width
+const PERSON_BODY_TOP = 0.45;      // body starts at 45% from top
+const PERSON_BODY_RADIUS = 12;     // body corner radius
+
+const renderPerson: SpecialShapeRenderer = (ctx, node, selected, _isDragging, fill) => {
+  const { x, y, width, height, style } = node;
+
+  const headCx = x + width / 2;
+  const headCy = y + height * PERSON_HEAD_RATIO;
+  const headR = width * PERSON_HEAD_RADIUS;
+
+  const bodyX = x;
+  const bodyY = y + height * PERSON_BODY_TOP;
+  const bodyW = width;
+  const bodyH = height - height * PERSON_BODY_TOP;
+  const bodyR = Math.min(PERSON_BODY_RADIUS, bodyW / 4, bodyH / 4);
+
+  // Fill: shadow → head → body
+  applyShadow(ctx, style);
+  ctx.fillStyle = fill;
+
+  // Head fill
+  ctx.beginPath();
+  ctx.arc(headCx, headCy, headR, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Body fill
+  drawRoundedRect(ctx, bodyX, bodyY, bodyW, bodyH, bodyR);
+  ctx.fill();
+
+  clearShadow(ctx);
+
+  // Stroke
+  setupStroke(ctx, style, selected);
+
+  ctx.beginPath();
+  ctx.arc(headCx, headCy, headR, 0, Math.PI * 2);
+  ctx.stroke();
+
+  drawRoundedRect(ctx, bodyX, bodyY, bodyW, bodyH, bodyR);
+  ctx.stroke();
+};
+
 const renderRect: SpecialShapeRenderer = (ctx, node, selected, _isDragging, fill) => {
   const { x, y, width, height, style } = node;
   const radius = style.borderRadius ?? 0;
@@ -310,6 +354,7 @@ export const specialShapes: Partial<Record<NodeType, SpecialShapeRenderer>> = {
   image: renderImage,
   frame: renderFrame,
   rect: renderRect,
+  person: renderPerson,
 };
 
 /** テキスト描画をスキップするタイプ */

@@ -1,7 +1,7 @@
 'use client';
 
 import { buildElementTree, buildLevelView, c4ToGraphDocument, collectDescendantIds, extractBoundaries, filterTreeByLevel, parseMermaidC4 } from '@anytime-markdown/c4-kernel';
-import type { BoundaryInfo, C4Model } from '@anytime-markdown/c4-kernel';
+import type { BoundaryInfo, C4Model, FeatureMatrix } from '@anytime-markdown/c4-kernel';
 import type { GraphDocument, GraphNode } from '@anytime-markdown/graph-core';
 import { engine, layoutWithSubgroups, state as graphState } from '@anytime-markdown/graph-core';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
@@ -14,7 +14,7 @@ import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 
-import { C4ElementTree, DsmCanvas, GraphCanvas } from '@anytime-markdown/c4-viewer';
+import { C4ElementTree, DsmCanvas, FcMapCanvas, GraphCanvas } from '@anytime-markdown/c4-viewer';
 
 const { graphReducer, createInitialState } = graphState;
 const { fitToContent } = engine;
@@ -48,9 +48,11 @@ export function C4Viewer() {
   const [c4Model, setC4Model] = useState<C4Model | null>(null);
   const [boundaryInfos, setBoundaryInfos] = useState<readonly BoundaryInfo[]>([]);
 
+  const [featureMatrix, setFeatureMatrix] = useState<FeatureMatrix | null>(null);
   const [showTree, setShowTree] = useState(true);
   const [showC4, setShowC4] = useState(true);
   const [showDsm, setShowDsm] = useState(true);
+  const [matrixView, setMatrixView] = useState<'dsm' | 'fcmap'>('dsm');
   const [dsmLevel, setDsmLevel] = useState<'component' | 'package'>('component');
   const [dsmClustered, setDsmClustered] = useState(false);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
@@ -74,6 +76,38 @@ export function C4Viewer() {
     }
   }, []);
 
+  /** Graph JSON (.graph) — { model, boundaries, featureMatrix } 形式をロード */
+  const loadGraphJson = useCallback((json: string) => {
+    try {
+      const data = JSON.parse(json) as Record<string, unknown>;
+      // c4-model.json 形式: { model, boundaries, featureMatrix? }
+      if (data.model && typeof data.model === 'object') {
+        const model = data.model as C4Model;
+        if (!model.elements || !Array.isArray(model.elements)) return;
+        const boundaries = (Array.isArray(data.boundaries) ? data.boundaries : []) as BoundaryInfo[];
+        setC4Model(model);
+        setBoundaryInfos(boundaries);
+        if (data.featureMatrix && typeof data.featureMatrix === 'object') {
+          setFeatureMatrix(data.featureMatrix as FeatureMatrix);
+        }
+        const doc = c4ToGraphDocument(model, boundaries);
+        layoutWithSubgroups(doc, 'TB', 180, 60);
+        setFullDoc(doc);
+        setCurrentLevel(4);
+        dispatch({ type: 'SET_DOCUMENT', doc });
+        return;
+      }
+      // 純粋な GraphDocument 形式
+      const doc = data as unknown as GraphDocument;
+      if (doc.nodes && doc.edges) {
+        setFullDoc(doc);
+        dispatch({ type: 'SET_DOCUMENT', doc });
+      }
+    } catch {
+      // invalid JSON
+    }
+  }, [dispatch]);
+
   // 初期表示: public/anytime-markdown-c4.mmd を読み込む
   useEffect(() => {
     fetch('/anytime-markdown-c4.mmd')
@@ -82,22 +116,27 @@ export function C4Viewer() {
       .catch(() => { /* ファイルが存在しない場合は無視 */ });
   }, [loadMermaidText]);
 
-  const handleImportMermaid = useCallback(() => {
+  const handleImport = useCallback(() => {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.mmd,.mermaid,.txt';
+    input.accept = '.mmd,.mermaid,.txt,.graph,.json';
     input.onchange = () => {
       const file = input.files?.[0];
       if (!file) return;
       const reader = new FileReader();
       reader.onload = () => {
         const text = reader.result as string;
-        loadMermaidText(text);
+        const ext = file.name.split('.').pop()?.toLowerCase();
+        if (ext === 'graph' || ext === 'json') {
+          loadGraphJson(text);
+        } else {
+          loadMermaidText(text);
+        }
       };
       reader.readAsText(file);
     };
     input.click();
-  }, [loadMermaidText]);
+  }, [loadMermaidText, loadGraphJson]);
 
   const handleSetLevel = useCallback((level: number) => {
     if (!fullDoc) return;
@@ -236,7 +275,7 @@ export function C4Viewer() {
       <Button
         size="small"
         startIcon={<UploadFileIcon sx={{ fontSize: 18 }} />}
-        onClick={handleImportMermaid}
+        onClick={handleImport}
         sx={toolbarButtonSx}
       >
         Import
@@ -288,15 +327,28 @@ export function C4Viewer() {
       </Button>
       <Button
         size="small"
-        onClick={() => { if (showDsm && !showC4) return; setShowDsm(prev => !prev); }}
-        aria-pressed={showDsm}
+        onClick={() => { if (showDsm && !showC4) return; setShowDsm(prev => !prev); if (!showDsm) setMatrixView('dsm'); }}
+        aria-pressed={showDsm && matrixView === 'dsm'}
         aria-label="Toggle DSM matrix"
         sx={{
           ...toolbarButtonSx,
-          ...(showDsm && { bgcolor: 'rgba(144,202,249,0.12)' }),
+          ...(showDsm && matrixView === 'dsm' && { bgcolor: 'rgba(144,202,249,0.12)' }),
         }}
       >
         DSM
+      </Button>
+      <Button
+        size="small"
+        onClick={() => { setShowDsm(true); setMatrixView('fcmap'); }}
+        aria-pressed={showDsm && matrixView === 'fcmap'}
+        aria-label="Toggle F-C Map"
+        disabled={!featureMatrix}
+        sx={{
+          ...toolbarButtonSx,
+          ...(showDsm && matrixView === 'fcmap' && { bgcolor: 'rgba(144,202,249,0.12)' }),
+        }}
+      >
+        F-C Map
       </Button>
       <Button
         size="small"
@@ -368,7 +420,9 @@ export function C4Viewer() {
         {/* Center: DSM */}
         {showDsm && (
         <Box sx={{ flex: showC4 ? 1 - splitRatio : 1, position: 'relative', minWidth: 100, borderRight: showTree && elementTree.length > 0 ? `1px solid ${BORDER_COLOR}` : 'none' }}>
-          {dsmModel ? (
+          {matrixView === 'fcmap' && featureMatrix && c4Model ? (
+            <FcMapCanvas featureMatrix={featureMatrix} model={c4Model} />
+          ) : dsmModel ? (
             <DsmCanvas
               model={dsmModel}
               fullModel={c4Model ?? undefined}
