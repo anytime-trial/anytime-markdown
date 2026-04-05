@@ -512,6 +512,16 @@
           "type": "string",
           "default": ".vscode/c4-model.json",
           "markdownDescription": "%config.c4ModelPath%"
+        },
+        "anytimeTrail.server.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Enable the C4 data server for external web app access"
+        },
+        "anytimeTrail.server.port": {
+          "type": "number",
+          "default": 19840,
+          "markdownDescription": "Port number for the C4 data server"
         }
       }
     }
@@ -533,11 +543,13 @@
     "@anytime-markdown/c4-kernel": "*",
     "@anytime-markdown/graph-core": "*",
     "@anytime-markdown/trail-core": "*",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "ws": "8.18.2"
   },
   "devDependencies": {
     "@types/node": "22.x",
     "@types/vscode": "1.109.0",
+    "@types/ws": "8.18.1",
     "ts-loader": "9.5.4",
     "webpack": "5.104.1",
     "webpack-cli": "6.0.1"

@@ -8,11 +8,18 @@ import type { DsmMapping, DsmMatrix } from '@anytime-markdown/c4-kernel';
 import { analyze, trailToC4, toMermaid } from '@anytime-markdown/trail-core';
 import type { TrailGraph } from '@anytime-markdown/trail-core';
 import type { C4ElementsProvider } from '../providers/C4ElementsProvider';
+import type { C4DataServer } from '../server/C4DataServer';
 
 export class C4Panel {
   public static readonly viewType = 'anytimeTrail.c4View';
   private static currentPanel: C4Panel | undefined;
   private static treeProvider: C4ElementsProvider | undefined;
+  private static dataServer: C4DataServer | undefined;
+
+  public static setDataServer(server: C4DataServer): void {
+    C4Panel.dataServer = server;
+  }
+
   private lastModel: C4Model | undefined;
   private lastBoundaries: readonly BoundaryInfo[] | undefined;
   private lastTrailGraph: TrailGraph | undefined;
@@ -26,6 +33,39 @@ export class C4Panel {
   /** ツリービュープロバイダーを設定 */
   public static setTreeProvider(provider: C4ElementsProvider): void {
     C4Panel.treeProvider = provider;
+  }
+
+  // C4DataProvider interface implementation
+  public get model(): C4Model | undefined { return this.lastModel; }
+  public get boundaries(): readonly BoundaryInfo[] | undefined { return this.lastBoundaries; }
+  public get c4Matrix(): DsmMatrix | undefined { return this.lastC4Matrix; }
+  public get sourceMatrix(): DsmMatrix | undefined { return this.lastSourceMatrix; }
+  public get currentDsmLevel(): 'component' | 'package' { return this.dsmLevel; }
+  public get currentDsmMode(): 'c4' | 'diff' { return this.dsmMode; }
+  public get dsmMappings(): readonly DsmMapping[] { return this.lastDsmMapping; }
+
+  public handleSetDsmLevel(level: 'component' | 'package'): void {
+    this.dsmLevel = level;
+    this.sendDsm();
+  }
+
+  public handleSetDsmMode(mode: 'c4' | 'diff'): void {
+    this.dsmMode = mode;
+    this.sendDsm();
+  }
+
+  public handleCluster(enabled: boolean): void {
+    this.sendDsm(enabled);
+  }
+
+  public handleRefresh(): void {
+    this.inferMapping();
+    this.sendDsm();
+  }
+
+  /** Returns the current panel as a C4DataProvider, or undefined */
+  public static getDataProvider(): import('../server/C4DataServer').C4DataProvider | undefined {
+    return C4Panel.currentPanel;
   }
 
   /** 設定パスを絶対パスに解決する。ワークスペースなし or 空なら null */
@@ -296,6 +336,7 @@ export class C4Panel {
     C4Panel.saveModel(model, boundaries ?? []);
     this.inferMapping();
     this.sendDsm();
+    C4Panel.dataServer?.notify('model-updated');
   }
 
   /** C4要素名とソースファイル名のマッチングで自動マッピングを推定 */
@@ -373,6 +414,7 @@ export class C4Panel {
           matrix: c4Matrix,
         });
       }
+      C4Panel.dataServer?.notify('dsm-updated');
     } catch {
       // DSM build failure is non-critical
     }
