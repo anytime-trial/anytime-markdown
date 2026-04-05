@@ -19,6 +19,7 @@ const CELL_SIZE = 32;
 const HEADER_WIDTH = 120;
 const HEADER_HEIGHT = 120;
 
+const PAN_STEP = 20;
 const ACCENT_BLUE = '#90CAF9';
 const DIAGONAL_COLOR = '#333333';
 const GRID_COLOR = '#3c3c3c';
@@ -78,6 +79,7 @@ export function DsmCanvas({ model, fullModel, boundaries, level, clustered, focu
   const lastPanRef = useRef({ x: 0, y: 0 });
   const groupBordersRef = useRef<number[]>([]);
   const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
+  const [isFocused, setIsFocused] = useState(false);
 
   // Build matrix when inputs change
   useEffect(() => {
@@ -390,12 +392,52 @@ export function DsmCanvas({ model, fullModel, boundaries, level, clustered, focu
     isPanningRef.current = false;
   }, []);
 
+  // Keyboard navigation
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    const vp = viewportRef.current;
+    switch (e.key) {
+      case 'ArrowUp': {
+        e.preventDefault();
+        viewportRef.current = clampViewport({ ...vp, offsetY: vp.offsetY + PAN_STEP });
+        break;
+      }
+      case 'ArrowDown': {
+        e.preventDefault();
+        viewportRef.current = clampViewport({ ...vp, offsetY: vp.offsetY - PAN_STEP });
+        break;
+      }
+      case 'ArrowLeft': {
+        e.preventDefault();
+        viewportRef.current = clampViewport({ ...vp, offsetX: vp.offsetX + PAN_STEP });
+        break;
+      }
+      case 'ArrowRight': {
+        e.preventDefault();
+        viewportRef.current = clampViewport({ ...vp, offsetX: vp.offsetX - PAN_STEP });
+        break;
+      }
+      case '+':
+      case '=': {
+        e.preventDefault();
+        viewportRef.current = clampViewport({ ...vp, scale: vp.scale * 1.1 });
+        break;
+      }
+      case '-': {
+        e.preventDefault();
+        viewportRef.current = clampViewport({ ...vp, scale: vp.scale * 0.9 });
+        break;
+      }
+    }
+  }, []);
+
   // Zoom
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const onWheel = (e: WheelEvent) => {
-      e.preventDefault();
+      if (globalThis.document.activeElement === canvasRef.current) {
+        e.preventDefault();
+      }
       const factor = e.deltaY > 0 ? 0.9 : 1.1;
       const rect = canvas.getBoundingClientRect();
       const mx = e.clientX - rect.left;
@@ -415,7 +457,21 @@ export function DsmCanvas({ model, fullModel, boundaries, level, clustered, focu
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <canvas
         ref={canvasRef}
-        style={{ width: '100%', height: '100%', display: 'block', cursor: 'grab' }}
+        tabIndex={0}
+        role="img"
+        aria-roledescription="dependency structure matrix"
+        aria-label={`DSM with ${matrixRef.current?.nodes.length ?? 0} nodes`}
+        style={{
+          width: '100%',
+          height: '100%',
+          display: 'block',
+          cursor: 'grab',
+          outline: 'none',
+          boxShadow: isFocused ? 'inset 0 0 0 2px #4FC3F7' : 'none',
+        }}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
+        onKeyDown={handleKeyDown}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
