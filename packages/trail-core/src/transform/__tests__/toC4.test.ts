@@ -77,6 +77,22 @@ describe('trailToC4', () => {
       }
     });
 
+    it('should skip root files in monorepo analysis', () => {
+      const graph = makeTrailGraph({
+        metadata: { projectRoot: '/workspace/anytime-markdown', analyzedAt: '2026-01-01', fileCount: 3 },
+        nodes: [
+          { id: 'f1', label: 'index.ts', type: 'file', filePath: 'packages/web-app/src/index.ts', line: 0 },
+          { id: 'f2', label: 'package.json', type: 'file', filePath: 'package.json', line: 0 },
+        ],
+      });
+      const model = trailToC4(graph);
+      const containers = model.elements.filter(e => e.type === 'container');
+      expect(containers).toHaveLength(1);
+      expect(containers[0].name).toBe('web-app');
+      // ルートファイルが独自のコンテナを生成しないこと
+      expect(containers.some(c => c.name === 'anytime-markdown')).toBe(false);
+    });
+
     it('should not create system boundary for single-package analysis', () => {
       const graph = makeTrailGraph({
         metadata: { projectRoot: '/workspace/packages/trail-core', analyzedAt: '2026-01-01', fileCount: 1 },

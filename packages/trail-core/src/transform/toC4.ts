@@ -62,6 +62,10 @@ export function trailToC4(graph: TrailGraph): C4Model {
   const relationships: C4Relationship[] = [];
   const projectRoot = graph.metadata.projectRoot;
 
+  // --- Phase 0: モノレポ判定 ---
+  const monorepo = isMonorepoAnalysis(graph);
+  const systemBoundaryId = monorepo ? `sys_${path.basename(projectRoot)}` : undefined;
+
   // --- Phase 1: ファイルの分類 ---
   const fileToPackage = new Map<string, string>();
   const fileToComponent = new Map<string, string>();
@@ -70,6 +74,10 @@ export function trailToC4(graph: TrailGraph): C4Model {
 
   for (const node of graph.nodes) {
     if (node.type !== 'file') continue;
+
+    // モノレポ解析時、packages/ 配下にないファイルはスキップ
+    if (monorepo && !/^packages\/[^/]+\//.test(node.filePath)) continue;
+
     const pkg = resolvePackageName(node.filePath, projectRoot);
     fileToPackage.set(node.id, pkg);
     packageSet.add(pkg);
@@ -82,9 +90,7 @@ export function trailToC4(graph: TrailGraph): C4Model {
     }
   }
 
-  // --- Phase 1.5: L2 System Boundary（モノレポの場合） ---
-  const monorepo = isMonorepoAnalysis(graph);
-  const systemBoundaryId = monorepo ? `sys_${path.basename(projectRoot)}` : undefined;
+  // --- Phase 1.5: L2 System Boundary 要素の追加 ---
 
   if (monorepo && systemBoundaryId) {
     elements.push({
