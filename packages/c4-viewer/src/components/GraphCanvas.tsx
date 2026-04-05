@@ -1,9 +1,8 @@
-import type { GraphDocument, SelectionState, Viewport } from '../../types';
-import { render } from '../../engine/index';
-import type { Action } from '../../state/index';
+import type { GraphDocument, SelectionState, Viewport } from '@anytime-markdown/graph-core';
+import { render } from '@anytime-markdown/graph-core/engine';
+import type { Action } from '@anytime-markdown/graph-core/state';
+import { useCanvasBase } from '@anytime-markdown/graph-core';
 import { useCallback, useEffect, useRef, useState } from 'react';
-
-import { useCanvasBase } from '../../hooks/useCanvasBase';
 
 interface C4GraphCanvasProps {
   readonly document: GraphDocument;

@@ -1,5 +1,5 @@
 import type { C4TreeNode } from '@anytime-markdown/c4-kernel';
-import type { Action } from '../../state/index';
+import type { Action } from '@anytime-markdown/graph-core/state';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import CodeIcon from '@mui/icons-material/Code';
