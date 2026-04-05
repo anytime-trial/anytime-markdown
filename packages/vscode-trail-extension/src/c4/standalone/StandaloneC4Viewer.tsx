@@ -172,15 +172,22 @@ export function StandaloneC4Viewer() {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh', bgcolor: BG_PRIMARY }}>
       <Toolbar variant="dense" sx={{ gap: 1, bgcolor: BG_SECONDARY, borderBottom: `1px solid ${BORDER_COLOR}`, minHeight: 44, px: { xs: 2, md: 3 } }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mr: 1 }}>
-          <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: dataSource.connected ? '#4caf50' : 'rgba(255,255,255,0.3)' }} />
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mr: 1 }} aria-live="polite" aria-atomic="true">
+          <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: dataSource.connected ? '#4caf50' : 'rgba(255,255,255,0.3)' }} aria-hidden="true" />
           <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.7rem' }}>
             {dataSource.connected ? 'Connected' : 'Disconnected'}
           </Typography>
         </Box>
         <ButtonGroup size="small" sx={{ ml: 1 }}>
-          {[1, 2, 3, 4].map(level => (
-            <Button key={level} onClick={() => handleSetLevel(level)} sx={currentLevel === level ? levelButtonActiveSx : levelButtonSx}>
+          {([1, 2, 3, 4] as const).map(level => (
+            <Button
+              key={level}
+              onClick={() => handleSetLevel(level)}
+              aria-pressed={currentLevel === level}
+              aria-label={`Level ${level}: ${({ 1: 'Context', 2: 'Container', 3: 'Component', 4: 'Code' } as const)[level]}`}
+              title={({ 1: 'Context', 2: 'Container', 3: 'Component', 4: 'Code' } as const)[level]}
+              sx={currentLevel === level ? levelButtonActiveSx : levelButtonSx}
+            >
               L{level}
             </Button>
           ))}
@@ -188,9 +195,9 @@ export function StandaloneC4Viewer() {
         <Button size="small" startIcon={<FitScreenIcon sx={{ fontSize: 18 }} />} onClick={handleFit} sx={toolbarButtonSx}>Fit</Button>
         <Button size="small" onClick={() => setDsmClustered(prev => !prev)} sx={{ ...toolbarButtonSx, ...(dsmClustered && { bgcolor: 'rgba(144,202,249,0.12)' }) }}>Cluster</Button>
         <Box sx={{ flex: 1 }} />
-        <Button size="small" onClick={() => { if (showC4 && !showDsm) return; setShowC4(prev => !prev); }} sx={{ ...toolbarButtonSx, ...(showC4 && { bgcolor: 'rgba(144,202,249,0.12)' }) }}>C4</Button>
-        <Button size="small" onClick={() => { if (showDsm && !showC4) return; setShowDsm(prev => !prev); }} sx={{ ...toolbarButtonSx, ...(showDsm && { bgcolor: 'rgba(144,202,249,0.12)' }) }}>DSM</Button>
-        <Button size="small" startIcon={<AccountTreeIcon sx={{ fontSize: 18 }} />} onClick={() => setShowTree(prev => !prev)} sx={{ ...toolbarButtonSx, ...(showTree && { bgcolor: 'rgba(144,202,249,0.12)' }) }}>Tree</Button>
+        <Button size="small" onClick={() => { if (showC4 && !showDsm) return; setShowC4(prev => !prev); }} aria-pressed={showC4} aria-label="Toggle C4 graph" sx={{ ...toolbarButtonSx, ...(showC4 && { bgcolor: 'rgba(144,202,249,0.12)' }) }}>C4</Button>
+        <Button size="small" onClick={() => { if (showDsm && !showC4) return; setShowDsm(prev => !prev); }} aria-pressed={showDsm} aria-label="Toggle DSM matrix" sx={{ ...toolbarButtonSx, ...(showDsm && { bgcolor: 'rgba(144,202,249,0.12)' }) }}>DSM</Button>
+        <Button size="small" startIcon={<AccountTreeIcon sx={{ fontSize: 18 }} />} onClick={() => setShowTree(prev => !prev)} aria-pressed={showTree} aria-label="Toggle element tree" sx={{ ...toolbarButtonSx, ...(showTree && { bgcolor: 'rgba(144,202,249,0.12)' }) }}>Tree</Button>
       </Toolbar>
       <Box ref={containerRef} sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {showC4 && (

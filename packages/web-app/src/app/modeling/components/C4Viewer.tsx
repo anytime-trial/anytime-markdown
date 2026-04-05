@@ -244,10 +244,13 @@ export function C4Viewer() {
         Import
       </Button>
       <ButtonGroup size="small" sx={{ ml: 1 }}>
-        {[1, 2, 3, 4].map(level => (
+        {([1, 2, 3, 4] as const).map(level => (
           <Button
             key={level}
             onClick={() => handleSetLevel(level)}
+            aria-pressed={currentLevel === level}
+            aria-label={`Level ${level}: ${({ 1: 'Context', 2: 'Container', 3: 'Component', 4: 'Code' } as const)[level]}`}
+            title={({ 1: 'Context', 2: 'Container', 3: 'Component', 4: 'Code' } as const)[level]}
             sx={currentLevel === level ? levelButtonActiveSx : levelButtonSx}
           >
             L{level}
@@ -276,6 +279,8 @@ export function C4Viewer() {
       <Button
         size="small"
         onClick={() => { if (showC4 && !showDsm) return; setShowC4(prev => !prev); }}
+        aria-pressed={showC4}
+        aria-label="Toggle C4 graph"
         sx={{
           ...toolbarButtonSx,
           ...(showC4 && { bgcolor: 'rgba(144,202,249,0.12)' }),
@@ -286,6 +291,8 @@ export function C4Viewer() {
       <Button
         size="small"
         onClick={() => { if (showDsm && !showC4) return; setShowDsm(prev => !prev); }}
+        aria-pressed={showDsm}
+        aria-label="Toggle DSM matrix"
         sx={{
           ...toolbarButtonSx,
           ...(showDsm && { bgcolor: 'rgba(144,202,249,0.12)' }),
@@ -297,6 +304,8 @@ export function C4Viewer() {
         size="small"
         startIcon={<AccountTreeIcon sx={{ fontSize: 18 }} />}
         onClick={() => setShowTree(prev => !prev)}
+        aria-pressed={showTree}
+        aria-label="Toggle element tree"
         sx={{
           ...toolbarButtonSx,
           ...(showTree && { bgcolor: 'rgba(144,202,249,0.12)' }),
