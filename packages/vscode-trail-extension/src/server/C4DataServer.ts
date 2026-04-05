@@ -398,7 +398,7 @@ export class C4DataServer {
 //  Helper: ClientMessage type guard
 // ---------------------------------------------------------------------------
 
-function isClientMessage(data: unknown): data is ClientMessage {
+export function isClientMessage(data: unknown): data is ClientMessage {
   if (typeof data !== 'object' || data === null) return false;
   const msg = data as Record<string, unknown>;
   const validTypes = ['set-level', 'set-dsm-mode', 'cluster', 'refresh'];
