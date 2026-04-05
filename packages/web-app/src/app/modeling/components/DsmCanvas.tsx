@@ -101,17 +101,21 @@ export function DsmCanvas({ model, fullModel, boundaries, level, clustered, focu
     cyclicSetRef.current = set;
 
     // Compute group borders (boundaries between different parent components)
-    const srcModel = fullModel ?? model;
-    const elementById = new Map(srcModel.elements.map(e => [e.id, e]));
-    const borders: number[] = [];
-    for (let i = 1; i < matrix.nodes.length; i++) {
-      const prevEl = elementById.get(matrix.nodes[i - 1].id);
-      const currEl = elementById.get(matrix.nodes[i].id);
-      if (prevEl?.boundaryId !== currEl?.boundaryId) {
-        borders.push(i);
+    if (clustered) {
+      groupBordersRef.current = [];
+    } else {
+      const srcModel = fullModel ?? model;
+      const elementById = new Map(srcModel.elements.map(e => [e.id, e]));
+      const borders: number[] = [];
+      for (let i = 1; i < matrix.nodes.length; i++) {
+        const prevEl = elementById.get(matrix.nodes[i - 1].id);
+        const currEl = elementById.get(matrix.nodes[i].id);
+        if (prevEl?.boundaryId !== currEl?.boundaryId) {
+          borders.push(i);
+        }
       }
+      groupBordersRef.current = borders;
     }
-    groupBordersRef.current = borders;
 
     // Reset viewport
     viewportRef.current = { offsetX: 0, offsetY: 0, scale: 1 };
