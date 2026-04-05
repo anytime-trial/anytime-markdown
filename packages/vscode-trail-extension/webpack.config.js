@@ -10,7 +10,7 @@ const webpack = require('webpack');
 /** @type WebpackConfig */
 const extensionConfig = {
   target: 'node',
-  mode: 'none',
+  mode: 'development',
   entry: './src/extension.ts',
   output: {
     path: path.resolve(__dirname, 'dist'),
@@ -47,7 +47,7 @@ const extensionConfig = {
 /** @type WebpackConfig */
 const standaloneConfig = {
   target: 'web',
-  mode: 'none',
+  mode: 'development',
   entry: './src/c4/standalone/index.tsx',
   output: {
     path: path.resolve(__dirname, 'dist'),
