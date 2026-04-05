@@ -10,13 +10,14 @@ interface C4GraphCanvasProps {
   readonly dispatch: React.Dispatch<Action>;
   readonly canvasRef: React.RefObject<HTMLCanvasElement | null>;
   readonly selectedNodeId?: string | null;
+  readonly centerOnSelect?: boolean;
   readonly onNodeSelect?: (nodeId: string | null) => void;
   readonly onNodeDoubleClick?: (nodeId: string) => void;
 }
 
 const EMPTY_SELECTION: SelectionState = { nodeIds: [], edgeIds: [] };
 
-export function GraphCanvas({ document, viewport, dispatch, canvasRef, selectedNodeId, onNodeSelect, onNodeDoubleClick }: Readonly<C4GraphCanvasProps>) {
+export function GraphCanvas({ document, viewport, dispatch, canvasRef, selectedNodeId, centerOnSelect, onNodeSelect, onNodeDoubleClick }: Readonly<C4GraphCanvasProps>) {
   const rafRef = useRef<number>(0);
   const viewportRef = useRef(viewport);
   const dispatchRef = useRef(dispatch);
@@ -60,9 +61,9 @@ export function GraphCanvas({ document, viewport, dispatch, canvasRef, selectedN
     },
   });
 
-  // Center on selected node
+  // Center on selected node (only when centerOnSelect is true, e.g. tree panel selection)
   useEffect(() => {
-    if (!selectedNodeId) return;
+    if (!centerOnSelect || !selectedNodeId) return;
     const cvs = canvasRef.current;
     if (!cvs) return;
     const node = document.nodes.find(n => n.id === selectedNodeId);
@@ -82,7 +83,7 @@ export function GraphCanvas({ document, viewport, dispatch, canvasRef, selectedN
         offsetY: canvasCenterY - centerY * vp.scale,
       },
     });
-  }, [selectedNodeId, document.nodes, canvasRef]);
+  }, [centerOnSelect, selectedNodeId, document.nodes, canvasRef]);
 
   // Resolve connector edges to line endpoints
   const resolvedEdges = document.edges.map(e => {

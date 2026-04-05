@@ -52,6 +52,7 @@ export function StandaloneC4Viewer() {
   const [dsmLevel, setDsmLevel] = useState<'component' | 'package'>('component');
   const [dsmClustered, setDsmClustered] = useState(false);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
+  const [centerOnSelect, setCenterOnSelect] = useState(false);
   const [splitRatio, setSplitRatio] = useState(0.5);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -304,7 +305,8 @@ export function StandaloneC4Viewer() {
           <Box sx={{ flex: showDsm ? splitRatio : 1, position: 'relative', minWidth: 100 }}>
             <GraphCanvas document={state.document} viewport={state.document.viewport} dispatch={dispatch} canvasRef={canvasRef}
               selectedNodeId={selectedElementId ? (state.document.nodes.find(n => n.metadata?.c4Id === selectedElementId)?.id ?? null) : null}
-              onNodeSelect={setSelectedElementId}
+              centerOnSelect={centerOnSelect}
+              onNodeSelect={(id) => { setCenterOnSelect(false); setSelectedElementId(id); }}
               onNodeDoubleClick={(nodeId) => {
                 if (!c4Model) return;
                 const elem = c4Model.elements.find(e => e.id === nodeId);
@@ -348,7 +350,7 @@ export function StandaloneC4Viewer() {
           </Box>
         )}
         {showTree && elementTree.length > 0 && (
-          <C4ElementTree tree={elementTree} dispatch={dispatch} onSelect={setSelectedElementId} />
+          <C4ElementTree tree={elementTree} dispatch={dispatch} onSelect={(id) => { setCenterOnSelect(true); setSelectedElementId(id); }} />
         )}
       </Box>
       {/* --- Edit Dialogs --- */}
