@@ -94,6 +94,17 @@ const TreeNodeItem: FC<TreeNodeItemProps> = memo(({ node, depth, selectedId, onS
   const isCheckable = isCheckableType(node.type);
   const isChecked = checkedIds.has(node.id);
 
+  // 配下のチェック対象が一部だけONの場合 indeterminate
+  const isIndeterminate = isChecked && hasChildren && (() => {
+    const descIds = collectDescendantCheckableIds(node);
+    if (descIds.size === 0) return false;
+    let checkedCount = 0;
+    for (const cid of descIds) {
+      if (checkedIds.has(cid)) checkedCount++;
+    }
+    return checkedCount > 0 && checkedCount < descIds.size;
+  })();
+
   const handleRowClick = useCallback(() => {
     onSelect(node.id);
   }, [node.id, onSelect]);
@@ -135,6 +146,7 @@ const TreeNodeItem: FC<TreeNodeItemProps> = memo(({ node, depth, selectedId, onS
           <Checkbox
             size="small"
             checked={isChecked}
+            indeterminate={isIndeterminate}
             onClick={handleCheckboxClick}
             sx={{ p: 0, mr: 0.5, '& .MuiSvgIcon-root': { fontSize: 16 } }}
             inputProps={{ 'aria-label': `Select ${node.name}` }}
@@ -219,17 +231,19 @@ export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onS
     onSelect?.(id);
   }, [dispatch, onSelect]);
 
-  // ツリーノードをIDで引けるマップ
-  const nodeById = useMemo(() => {
-    const map = new Map<string, C4TreeNode>();
-    function walk(list: readonly C4TreeNode[]): void {
+  // ツリーノードをIDで引けるマップ + 親IDマップ
+  const { nodeById, parentOf } = useMemo(() => {
+    const nMap = new Map<string, C4TreeNode>();
+    const pMap = new Map<string, string>();
+    function walk(list: readonly C4TreeNode[], parentId?: string): void {
       for (const n of list) {
-        map.set(n.id, n);
-        if (n.children.length > 0) walk(n.children);
+        nMap.set(n.id, n);
+        if (parentId) pMap.set(n.id, parentId);
+        if (n.children.length > 0) walk(n.children, n.id);
       }
     }
     walk(tree);
-    return map;
+    return { nodeById: nMap, parentOf: pMap };
   }, [tree]);
 
   const handleCheck = useCallback((id: string) => {
@@ -253,9 +267,20 @@ export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onS
           }
         }
       }
+      // 子ON → 祖先もON
+      if (turning) {
+        let cur = parentOf.get(id);
+        while (cur) {
+          const pNode = nodeById.get(cur);
+          if (pNode && isCheckableType(pNode.type)) {
+            next.add(cur);
+          }
+          cur = parentOf.get(cur);
+        }
+      }
       return next;
     });
-  }, [nodeById]);
+  }, [nodeById, parentOf]);
 
   const allPackageIds = useMemo(() => collectCheckableIds(tree), [tree]);
   const allChecked = allPackageIds.size > 0 && allPackageIds.size === [...allPackageIds].filter(id => checkedIds.has(id)).length;
