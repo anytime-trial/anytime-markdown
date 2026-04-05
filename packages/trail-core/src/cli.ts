@@ -5,28 +5,49 @@ import { toCytoscape } from './transform/toCytoscape';
 import { getTrailStylesheet } from './transform/trailStylesheet';
 import { toMermaid } from './transform/toMermaid';
 
-interface CliArgs {
+export interface CliArgs {
   tsconfigPath: string;
   output: string;
   exclude: string[];
   includeTests: boolean;
   format: 'cytoscape' | 'mermaid';
-  granularity: 'module' | 'symbol';
-  direction: 'TD' | 'LR';
 }
 
-function parseArgs(argv: string[]): CliArgs {
+const VALID_FORMATS = ['cytoscape', 'mermaid'] as const;
+const AVAILABLE_OPTIONS = '--tsconfig, --output, --exclude, --include-tests, --format, --help';
+
+function showHelp(): void {
+  console.log(`Usage: trail [options]
+
+Options:
+  --tsconfig <path>   Path to tsconfig.json (default: ./tsconfig.json)
+  --output <path>     Output file path (default: ./trail.json or ./trail.md)
+  --exclude <pattern> Glob pattern to exclude (can be repeated)
+  --include-tests     Include test files in analysis
+  --format <type>     Output format: cytoscape, mermaid (default: cytoscape)
+  -h, --help          Show this help message
+
+Examples:
+  trail --tsconfig ./tsconfig.json --format mermaid
+  trail --exclude "src/generated/**" --exclude "src/__tests__/**"
+  trail --format cytoscape --output ./dependency-graph.json`);
+}
+
+export function parseArgs(argv: string[]): CliArgs {
   const args = argv.slice(2);
   let tsconfigPath = './tsconfig.json';
   let output = '';
   const exclude: string[] = [];
   let includeTests = false;
   let format: 'cytoscape' | 'mermaid' = 'cytoscape';
-  let granularity: 'module' | 'symbol' = 'module';
-  let direction: 'TD' | 'LR' = 'TD';
 
   for (let i = 0; i < args.length; i++) {
     switch (args[i]) {
+      case '--help':
+      case '-h':
+        showHelp();
+        process.exit(0);
+        break;
       case '--tsconfig':
         tsconfigPath = args[++i];
         break;
@@ -39,20 +60,20 @@ function parseArgs(argv: string[]): CliArgs {
       case '--include-tests':
         includeTests = true;
         break;
-      case '--format':
-        format = args[++i] as 'cytoscape' | 'mermaid';
+      case '--format': {
+        const value = args[++i];
+        if (!VALID_FORMATS.includes(value as typeof VALID_FORMATS[number])) {
+          console.error(`Invalid format: ${value}. Valid: cytoscape, mermaid`);
+          process.exit(1);
+        }
+        format = value as 'cytoscape' | 'mermaid';
         break;
-      case '--granularity':
-        granularity = args[++i] as 'module' | 'symbol';
-        break;
-      case '--direction':
-        direction = args[++i] as 'TD' | 'LR';
-        break;
+      }
       case 'analyze':
       case 'mda':
         break;
       default:
-        console.error(`Unknown argument: ${args[i]}`);
+        console.error(`Unknown argument: ${args[i]}\nAvailable options: ${AVAILABLE_OPTIONS}`);
         process.exit(1);
     }
   }
@@ -61,7 +82,7 @@ function parseArgs(argv: string[]): CliArgs {
     output = format === 'mermaid' ? './trail.md' : './trail.json';
   }
 
-  return { tsconfigPath, output, exclude, includeTests, format, granularity, direction };
+  return { tsconfigPath, output, exclude, includeTests, format };
 }
 
 function main(): void {
@@ -100,4 +121,7 @@ function main(): void {
   console.log(`Output: ${outputPath}`);
 }
 
-main();
+/* istanbul ignore next -- CLI entry point */
+if (require.main === module) {
+  main();
+}

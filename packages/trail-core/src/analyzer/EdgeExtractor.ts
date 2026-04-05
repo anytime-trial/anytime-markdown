@@ -12,11 +12,13 @@ export class EdgeExtractor {
   private readonly analyzer: ProjectAnalyzer;
   private readonly nodes: readonly TrailNode[];
   private readonly symbolToNodeId: Map<ts.Symbol, string>;
+  private nodeIndex: Map<string, TrailNode>;
 
   constructor(analyzer: ProjectAnalyzer, nodes: readonly TrailNode[]) {
     this.analyzer = analyzer;
     this.nodes = nodes;
     this.symbolToNodeId = new Map();
+    this.nodeIndex = new Map();
   }
 
   extract(): TrailEdge[] {
@@ -30,6 +32,11 @@ export class EdgeExtractor {
     const sourceFiles = this.analyzer
       .getSourceFiles()
       .filter((sf) => !sf.isDeclarationFile);
+
+    this.nodeIndex = new Map();
+    for (const node of this.nodes) {
+      this.nodeIndex.set(`${node.filePath}::${node.label}`, node);
+    }
 
     this.buildSymbolMap(checker, sourceFiles);
 
@@ -93,9 +100,7 @@ export class EdgeExtractor {
       sourceFile.fileName,
     );
 
-    return this.nodes.find(
-      (n) => n.label === name && n.filePath === relativePath,
-    );
+    return this.nodeIndex.get(`${relativePath}::${name}`);
   }
 
   private extractImportEdges(

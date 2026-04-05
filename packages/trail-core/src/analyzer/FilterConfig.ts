@@ -33,10 +33,22 @@ export function applyFilter(
   return { nodes: [...filteredNodes], edges: [...filteredEdges] };
 }
 
-function matchGlob(filePath: string, pattern: string): boolean {
-  const regex = pattern
-    .replaceAll('**', '\0')
-    .replaceAll('*', '[^/]*')
-    .replaceAll('\0', '.*');
-  return new RegExp(`^${regex}$`).test(filePath);
+const MAX_PATTERN_LENGTH = 1000;
+
+export function matchGlob(filePath: string, pattern: string): boolean {
+  if (pattern.length > MAX_PATTERN_LENGTH) {
+    return false;
+  }
+
+  try {
+    const regex = pattern
+      .replaceAll('**', '\0')
+      .replaceAll('*', '\x01')
+      .replaceAll(/[.+?^${}()|[\]\\]/g, String.raw`\$&`)
+      .replaceAll('\x01', '[^/]*')
+      .replaceAll('\0', '.*');
+    return new RegExp(`^${regex}$`).test(filePath);
+  } catch {
+    return false;
+  }
 }

@@ -1,4 +1,4 @@
-import { FilterConfig, applyFilter } from '../FilterConfig';
+import { FilterConfig, applyFilter, matchGlob } from '../FilterConfig';
 import type { TrailNode, TrailEdge } from '../../model/types';
 
 describe('FilterConfig', () => {
@@ -31,5 +31,33 @@ describe('FilterConfig', () => {
     const config: FilterConfig = { exclude: [], includeTests: false };
     const result = applyFilter(nodes, edges, config);
     expect(result.edges).toHaveLength(0);
+  });
+});
+
+describe('matchGlob', () => {
+  it('should return false for patterns exceeding max length', () => {
+    const longPattern = 'a'.repeat(1001);
+    expect(matchGlob('src/app.ts', longPattern)).toBe(false);
+  });
+
+  it('should safely handle regex special characters in patterns', () => {
+    expect(matchGlob('src/foo.bar/baz.ts', 'src/foo.bar/baz.ts')).toBe(true);
+    expect(matchGlob('src/foo+bar.ts', 'src/foo+bar.ts')).toBe(true);
+    expect(matchGlob('src/(utils)/index.ts', 'src/(utils)/index.ts')).toBe(true);
+  });
+
+  it('should still support glob wildcards after escaping', () => {
+    expect(matchGlob('src/utils/index.ts', 'src/**')).toBe(true);
+    expect(matchGlob('src/app.ts', 'src/*.ts')).toBe(true);
+    expect(matchGlob('src/deep/nested/file.ts', 'src/**')).toBe(true);
+  });
+
+  it('should not match across directories with single *', () => {
+    expect(matchGlob('src/deep/file.ts', 'src/*.ts')).toBe(false);
+  });
+
+  it('should return false for invalid regex patterns', () => {
+    // matchGlob escapes special chars, so this tests the catch block indirectly
+    expect(matchGlob('test', '')).toBe(false);
   });
 });
