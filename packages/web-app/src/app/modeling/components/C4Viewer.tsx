@@ -14,9 +14,7 @@ import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 
-import { C4ElementTree } from './C4ElementTree';
-import { DsmCanvas } from './DsmCanvas';
-import { GraphCanvas } from './GraphCanvas';
+import { C4ElementTree, DsmCanvas, GraphCanvas } from '@anytime-markdown/graph-core/c4';
 
 const { graphReducer, createInitialState } = graphState;
 const { fitToContent } = engine;

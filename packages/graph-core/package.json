@@ -7,10 +7,25 @@
   "types": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./c4": "./src/c4/index.ts",
     "./engine": "./src/engine/index.ts",
     "./state": "./src/state/index.ts",
     "./types": "./src/types.ts",
     "./src/*": "./src/*"
+  },
+  "peerDependencies": {
+    "@anytime-markdown/c4-kernel": "*",
+    "@mui/icons-material": ">=6",
+    "@mui/material": ">=6",
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "@anytime-markdown/c4-kernel": { "optional": true },
+    "@mui/icons-material": { "optional": true },
+    "@mui/material": { "optional": true },
+    "react": { "optional": true },
+    "react-dom": { "optional": true }
   },
   "scripts": {
     "test": "jest"

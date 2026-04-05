@@ -10,10 +10,7 @@ import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 
-import { useC4DataSource } from '../../../../web-app/src/app/modeling/hooks/useC4DataSource';
-import { C4ElementTree } from '../../../../web-app/src/app/modeling/components/C4ElementTree';
-import { DsmCanvas } from '../../../../web-app/src/app/modeling/components/DsmCanvas';
-import { GraphCanvas } from '../../../../web-app/src/app/modeling/components/GraphCanvas';
+import { C4ElementTree, DsmCanvas, GraphCanvas, useC4DataSource } from '@anytime-markdown/graph-core/c4';
 
 const { graphReducer, createInitialState } = graphState;
 const { fitToContent } = engine;
