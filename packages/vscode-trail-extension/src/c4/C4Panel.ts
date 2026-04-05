@@ -191,6 +191,8 @@ export class C4Panel implements C4DataProvider {
       tsconfigPath = picked.uri.fsPath;
     }
 
+    C4Panel.openViewer();
+
     try {
       await vscode.window.withProgress(
         { location: vscode.ProgressLocation.Notification, title: 'C4 Analysis', cancellable: false },
@@ -222,7 +224,6 @@ export class C4Panel implements C4DataProvider {
           server?.notifyProgress('', 100);
         },
       );
-      C4Panel.openViewer();
     } catch (e) {
       const msg = e instanceof Error ? `${e.message}\n${e.stack ?? ''}` : String(e);
       const channel = vscode.window.createOutputChannel('C4 Model');
