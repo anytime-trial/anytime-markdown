@@ -90,7 +90,13 @@ export class C4DataServer {
     const wss = new WebSocketServer({ server });
     this.wsServer = wss;
 
-    wss.on('connection', (ws: WebSocket) => {
+    wss.on('connection', (ws: WebSocket, req: http.IncomingMessage) => {
+      const origin = req.headers.origin ?? '';
+      if (origin && !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+        ws.close(4003, 'Forbidden origin');
+        return;
+      }
+
       this.clients.add(ws);
       ws.on('close', () => this.clients.delete(ws));
       ws.on('message', (data: unknown) => this.handleWsMessage(data));
@@ -157,6 +163,13 @@ export class C4DataServer {
     req: http.IncomingMessage,
     res: http.ServerResponse,
   ): void {
+    // CORS: localhost のみ許可
+    const origin = req.headers.origin;
+    if (origin && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    }
+    res.setHeader('Vary', 'Origin');
+
     const url = req.url ?? '';
 
     switch (url) {
@@ -300,14 +313,15 @@ export class C4DataServer {
     const provider = this.getProvider();
     if (!provider) return;
 
-    let message: ClientMessage;
+    let parsed: unknown;
     try {
-      message = JSON.parse(String(data)) as ClientMessage;
+      parsed = JSON.parse(String(data));
     } catch {
       return;
     }
 
-    this.dispatchClientMessage(message, provider);
+    if (!isClientMessage(parsed)) return;
+    this.dispatchClientMessage(parsed, provider);
   }
 
   private dispatchClientMessage(
@@ -378,6 +392,17 @@ export class C4DataServer {
     if (!result) return undefined;
     return { type: 'dsm-updated', diff: result.diff, cycles: result.cycles };
   }
+}
+
+// ---------------------------------------------------------------------------
+//  Helper: ClientMessage type guard
+// ---------------------------------------------------------------------------
+
+function isClientMessage(data: unknown): data is ClientMessage {
+  if (typeof data !== 'object' || data === null) return false;
+  const msg = data as Record<string, unknown>;
+  const validTypes = ['set-level', 'set-dsm-mode', 'cluster', 'refresh'];
+  return typeof msg.type === 'string' && validTypes.includes(msg.type);
 }
 
 // ---------------------------------------------------------------------------
