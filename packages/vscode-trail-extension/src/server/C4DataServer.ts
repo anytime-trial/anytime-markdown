@@ -202,7 +202,6 @@ export class C4DataServer {
     const provider = this.getProvider();
     const model = provider?.model;
     const boundaries = provider?.boundaries;
-
     if (!model || !boundaries) {
       res.writeHead(204, CORS_HEADERS);
       res.end();

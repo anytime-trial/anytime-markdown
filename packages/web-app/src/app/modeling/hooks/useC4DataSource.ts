@@ -155,7 +155,7 @@ function useRemoteInitialFetch(
 
       if (cancelled) return;
 
-      if (modelRes?.ok) {
+      if (modelRes?.status === 200) {
         const json: unknown = await modelRes.json();
         if (!cancelled && isModelPayload(json)) {
           setC4Model(json.model);
@@ -163,7 +163,7 @@ function useRemoteInitialFetch(
         }
       }
 
-      if (dsmRes?.ok) {
+      if (dsmRes?.status === 200) {
         const json: unknown = await dsmRes.json();
         if (!cancelled && isDsmMatrixPayload(json)) {
           setDsmMatrix(json.matrix);
