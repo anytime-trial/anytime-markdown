@@ -2,7 +2,11 @@ import { buildElementTree, buildLevelView, c4ToGraphDocument, collectDescendantI
 import type { GraphNode } from '@anytime-markdown/graph-core';
 import { engine, layoutWithSubgroups, state as graphState } from '@anytime-markdown/graph-core';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
+import AddIcon from '@mui/icons-material/Add';
+import DeleteIcon from '@mui/icons-material/Delete';
 import FitScreenIcon from '@mui/icons-material/FitScreen';
+import LinkIcon from '@mui/icons-material/Link';
+import PersonIcon from '@mui/icons-material/Person';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import ButtonGroup from '@mui/material/ButtonGroup';
@@ -12,6 +16,8 @@ import Typography from '@mui/material/Typography';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 
 import { C4ElementTree, DsmCanvas, GraphCanvas, useC4DataSource } from '@anytime-markdown/graph-core/c4';
+import { AddElementDialog, AddRelationshipDialog } from './C4EditDialogs';
+import type { ElementFormData, RelationshipFormData } from './C4EditDialogs';
 
 const { graphReducer, createInitialState } = graphState;
 const { fitToContent } = engine;
@@ -53,6 +59,44 @@ export function StandaloneC4Viewer() {
   const c4Model = dataSource.c4Model;
   const boundaryInfos = dataSource.boundaries;
   const analysisProgress = dataSource.analysisProgress;
+
+  // --- Editing state ---
+  const [addElementType, setAddElementType] = useState<'person' | 'system' | null>(null);
+  const [editElement, setEditElement] = useState<{ id: string; type: 'person' | 'system'; name: string; description: string; external: boolean } | null>(null);
+  const [addRelOpen, setAddRelOpen] = useState(false);
+
+  const handleAddElement = useCallback((data: ElementFormData) => {
+    dataSource.sendCommand('add-element', { element: data });
+  }, [dataSource]);
+
+  const handleUpdateElement = useCallback((data: ElementFormData) => {
+    if (!editElement) return;
+    dataSource.sendCommand('update-element', { id: editElement.id, changes: { name: data.name, description: data.description || undefined, external: data.external } });
+    setEditElement(null);
+  }, [dataSource, editElement]);
+
+  const handleAddRelationship = useCallback((data: RelationshipFormData) => {
+    dataSource.sendCommand('add-relationship', { from: data.from, to: data.to, label: data.label || undefined, technology: data.technology || undefined });
+  }, [dataSource]);
+
+  const handleDeleteSelected = useCallback(() => {
+    if (!selectedElementId || !c4Model) return;
+    const elem = c4Model.elements.find(e => e.id === selectedElementId);
+    if (elem?.manual) {
+      dataSource.sendCommand('remove-element', { id: selectedElementId });
+      setSelectedElementId(null);
+    }
+  }, [selectedElementId, c4Model, dataSource]);
+
+  const selectedIsManual = useMemo(() => {
+    if (!selectedElementId || !c4Model) return false;
+    return c4Model.elements.find(e => e.id === selectedElementId)?.manual === true;
+  }, [selectedElementId, c4Model]);
+
+  // 2ノード選択判定用（将来的に複数選択に対応する場合はここを拡張）
+  // 現状は1ノードのみ選択可能なので、Relationship追加はツリーから2つ選択する方式ではなく
+  // 「from を選択 → + Rel → to を選択」のフローにする
+  // 簡易版: selectedElementId が存在すれば from として扱い、ダイアログで to をドロップダウンから選ぶ
 
   // dataSource のモデル更新をグラフに反映
   useEffect(() => {
@@ -193,6 +237,11 @@ export function StandaloneC4Viewer() {
         </ButtonGroup>
         <Button size="small" startIcon={<FitScreenIcon sx={{ fontSize: 18 }} />} onClick={handleFit} sx={toolbarButtonSx}>Fit</Button>
         <Button size="small" onClick={() => setDsmClustered(prev => !prev)} sx={{ ...toolbarButtonSx, ...(dsmClustered && { bgcolor: 'rgba(144,202,249,0.12)' }) }}>Cluster</Button>
+        <Box sx={{ width: 1, height: 20, bgcolor: BORDER_COLOR, mx: 0.5 }} />
+        <Button size="small" startIcon={<PersonIcon sx={{ fontSize: 16 }} />} onClick={() => setAddElementType('person')} sx={toolbarButtonSx} aria-label="Add Person">Person</Button>
+        <Button size="small" startIcon={<AddIcon sx={{ fontSize: 16 }} />} onClick={() => setAddElementType('system')} sx={toolbarButtonSx} aria-label="Add System">System</Button>
+        <Button size="small" startIcon={<LinkIcon sx={{ fontSize: 16 }} />} onClick={() => setAddRelOpen(true)} disabled={!selectedElementId} sx={toolbarButtonSx} aria-label="Add Relationship">Rel</Button>
+        <Button size="small" startIcon={<DeleteIcon sx={{ fontSize: 16 }} />} onClick={handleDeleteSelected} disabled={!selectedIsManual} sx={{ ...toolbarButtonSx, ...(selectedIsManual && { color: '#ef5350' }) }} aria-label="Delete selected">Del</Button>
         <Box sx={{ flex: 1 }} />
         <Button size="small" onClick={() => { if (showC4 && !showDsm) return; setShowC4(prev => !prev); }} aria-pressed={showC4} aria-label="Toggle C4 graph" sx={{ ...toolbarButtonSx, ...(showC4 && { bgcolor: 'rgba(144,202,249,0.12)' }) }}>C4</Button>
         <Button size="small" onClick={() => { if (showDsm && !showC4) return; setShowDsm(prev => !prev); }} aria-pressed={showDsm} aria-label="Toggle DSM matrix" sx={{ ...toolbarButtonSx, ...(showDsm && { bgcolor: 'rgba(144,202,249,0.12)' }) }}>DSM</Button>
@@ -290,6 +339,30 @@ export function StandaloneC4Viewer() {
           <C4ElementTree tree={elementTree} dispatch={dispatch} onSelect={setSelectedElementId} />
         )}
       </Box>
+      {/* --- Edit Dialogs --- */}
+      <AddElementDialog
+        open={addElementType !== null && !editElement}
+        elementType={addElementType ?? 'person'}
+        onSubmit={handleAddElement}
+        onClose={() => setAddElementType(null)}
+      />
+      <AddElementDialog
+        open={editElement !== null}
+        elementType={editElement?.type ?? 'person'}
+        initial={editElement ?? undefined}
+        onSubmit={handleUpdateElement}
+        onClose={() => setEditElement(null)}
+      />
+      {selectedElementId && (
+        <AddRelationshipDialog
+          open={addRelOpen}
+          from={selectedElementId}
+          fromName={c4Model?.elements.find(e => e.id === selectedElementId)?.name ?? selectedElementId}
+          candidates={c4Model?.elements.filter(e => e.id !== selectedElementId && (e.type === 'person' || e.type === 'system' || e.type === 'container')).map(e => ({ id: e.id, name: e.name })) ?? []}
+          onSubmit={handleAddRelationship}
+          onClose={() => setAddRelOpen(false)}
+        />
+      )}
     </Box>
   );
 }
