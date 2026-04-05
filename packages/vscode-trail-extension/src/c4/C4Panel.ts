@@ -332,17 +332,30 @@ export class C4Panel implements C4DataProvider {
           server?.notifyProgress('Building C4 model...', 80);
           const analyzed = trailToC4(graph);
 
-          // 既存の手動要素を保持してマージ
+          // 既存の手動要素を保持し、消失した解析要素に削除フラグを付与してマージ
           const panel = C4Panel.getInstance();
-          const manualElements = panel.lastModel?.elements.filter(e => e.manual) ?? [];
-          const manualRels = panel.lastModel?.relationships.filter(r => r.manual) ?? [];
-          const model: C4Model = manualElements.length > 0 || manualRels.length > 0
-            ? {
-              ...analyzed,
-              elements: [...analyzed.elements, ...manualElements],
-              relationships: [...analyzed.relationships, ...manualRels],
-            }
-            : analyzed;
+          const prevElements = panel.lastModel?.elements ?? [];
+          const prevRels = panel.lastModel?.relationships ?? [];
+
+          const analyzedIdSet = new Set(analyzed.elements.map(e => e.id));
+
+          // 手動要素: そのまま保持
+          const manualElements = prevElements.filter(e => e.manual);
+          // 解析由来の前回要素: 新結果に不在なら deleted フラグ付与
+          const deletedElements = prevElements
+            .filter(e => !e.manual && !e.deleted && !analyzedIdSet.has(e.id))
+            .map(e => ({ ...e, deleted: true }));
+          // 前回すでに deleted だった要素: そのまま保持（新結果に復活していなければ）
+          const prevDeletedElements = prevElements
+            .filter(e => e.deleted && !analyzedIdSet.has(e.id));
+
+          const manualRels = prevRels.filter(r => r.manual);
+
+          const model: C4Model = {
+            ...analyzed,
+            elements: [...analyzed.elements, ...manualElements, ...deletedElements, ...prevDeletedElements],
+            relationships: [...analyzed.relationships, ...manualRels],
+          };
 
           panel.lastTrailGraph = graph;
           panel.lastProjectRoot = graph.metadata.projectRoot;
