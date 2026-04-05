@@ -99,6 +99,7 @@ export class C4DataServer {
       this.clients.add(ws);
       ws.on('close', () => this.clients.delete(ws));
       ws.on('message', (data: unknown) => this.handleWsMessage(data));
+      this.sendCurrentState(ws);
     });
 
     return new Promise<void>((resolve, reject) => {
@@ -285,6 +286,22 @@ export class C4DataServer {
   // -------------------------------------------------------------------------
   //  WebSocket handler
   // -------------------------------------------------------------------------
+
+  /** 新規接続クライアントに現在のデータを送信 */
+  private sendCurrentState(ws: WebSocket): void {
+    const provider = this.getProvider();
+    if (!provider) return;
+
+    const modelMsg = this.buildModelMessage(provider);
+    if (modelMsg) {
+      ws.send(JSON.stringify(modelMsg));
+    }
+
+    const dsmMsg = this.buildDsmMessage(provider);
+    if (dsmMsg) {
+      ws.send(JSON.stringify(dsmMsg));
+    }
+  }
 
   private handleWsMessage(data: unknown): void {
     const provider = this.getProvider();
