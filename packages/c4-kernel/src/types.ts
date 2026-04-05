@@ -19,6 +19,8 @@ export interface C4Element {
   readonly boundaryId?: string;
   /** 手動追加された要素か */
   readonly manual?: boolean;
+  /** ワークスペース解析で検出されなくなった要素か */
+  readonly deleted?: boolean;
 }
 
 /** C4リレーションシップ */
@@ -90,5 +92,6 @@ export interface C4TreeNode {
   readonly external?: boolean;
   readonly technology?: string;
   readonly description?: string;
+  readonly deleted?: boolean;
   readonly children: readonly C4TreeNode[];
 }
