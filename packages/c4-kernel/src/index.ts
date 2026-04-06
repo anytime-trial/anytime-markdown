@@ -45,3 +45,4 @@ export { clusterMatrix } from './dsm/cluster';
 
 export { parseCoverage } from './coverage/parseCoverage';
 export type { FileCoverage } from './coverage/parseCoverage';
+export { aggregateCoverage } from './coverage/aggregateCoverage';
