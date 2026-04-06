@@ -130,3 +130,20 @@ export interface CoverageMatrix {
   readonly entries: readonly CoverageEntry[];
   readonly generatedAt: number;
 }
+
+export interface CoverageDelta {
+  readonly pctDelta: number;
+}
+
+export interface CoverageDiffEntry {
+  readonly elementId: string;
+  readonly lines: CoverageDelta;
+  readonly branches: CoverageDelta;
+  readonly functions: CoverageDelta;
+}
+
+export interface CoverageDiffMatrix {
+  readonly entries: readonly CoverageDiffEntry[];
+  readonly baseGeneratedAt: number;
+  readonly currentGeneratedAt: number;
+}

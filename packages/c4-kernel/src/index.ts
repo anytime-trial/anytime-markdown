@@ -15,6 +15,9 @@ export type {
   CoverageMetric,
   CoverageEntry,
   CoverageMatrix,
+  CoverageDelta,
+  CoverageDiffEntry,
+  CoverageDiffMatrix,
 } from './types';
 
 export { parseMermaidC4, extractBoundaries } from './parser/mermaidC4';
@@ -46,3 +49,4 @@ export { clusterMatrix } from './dsm/cluster';
 export { parseCoverage } from './coverage/parseCoverage';
 export type { FileCoverage } from './coverage/parseCoverage';
 export { aggregateCoverage } from './coverage/aggregateCoverage';
+export { computeCoverageDiff } from './coverage/computeCoverageDiff';
