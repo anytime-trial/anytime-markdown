@@ -28,11 +28,24 @@ One command visualizes your entire TypeScript project structure at four levels o
 - Cluster related modules in the DSM
 - Circular dependencies highlighted in red
 - Re-analysis and imports in VS Code are reflected instantly (WebSocket)
+- **F-C Map**: Feature-Component matrix view (toggle inside the DSM pane)
+- **Deleted elements**: Elements removed by re-analysis are flagged as deleted and shown with strikethrough
 
 **Import / Export**
 
 - Import Mermaid C4 diagrams (`.mmd`)
 - Export as JSON or Mermaid format
+
+
+## Claude Code Integration
+
+The `anytime-fcmap` Claude Code skill is automatically installed to `~/.claude/skills/` when the extension activates.\
+Run `/anytime-fcmap` to generate or update the Feature-Component Map (`featureMatrix`) from source code analysis.
+
+- **Full generation**: Analyze the C4 model via `trail-core` CLI and generate the entire featureMatrix
+- **Incremental update**: Re-analyze only files changed since the last revision for efficient updates
+
+> The skill is automatically removed on extension uninstall.
 
 
 ## Git Management
@@ -86,6 +99,7 @@ Subsequent analyses update the existing tab in real time -- no new tabs are open
 | L1 -- L4 | Switch C4 detail level |
 | Fit | Fit the graph to screen |
 | Cluster | Group DSM by dependency clusters |
+| DSM / F-C Map | Switch matrix view inside the DSM pane |
 | C4 / DSM / Tree | Toggle each pane |
 | Drag | Pan the viewport |
 | Scroll wheel | Zoom in / out |
