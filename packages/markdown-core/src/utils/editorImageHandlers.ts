@@ -1,4 +1,5 @@
 import type { EditorView } from "@tiptap/pm/view";
+import DOMPurify from "dompurify";
 import type { RefObject } from "react";
 
 /** Generate a timestamp string for file naming */
@@ -59,8 +60,9 @@ export function requestExternalImageDownloads(
   html: string,
   vscodeApi: VsCodeApi,
 ): void {
+  const sanitized = DOMPurify.sanitize(html, { ALLOWED_TAGS: ["img"], ALLOWED_ATTR: ["src"] });
   const parser = new DOMParser();
-  const doc = parser.parseFromString(html, "text/html");
+  const doc = parser.parseFromString(sanitized, "text/html");
   const imgs = doc.querySelectorAll("img[src]");
   for (const img of imgs) {
     const src = img.getAttribute("src");
