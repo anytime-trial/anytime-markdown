@@ -346,24 +346,9 @@
           "group": "navigation@2"
         },
         {
-          "command": "anytime-trail.c4Import",
-          "when": "view == anytimeTrail.c4Elements",
-          "group": "navigation@1"
-        },
-        {
-          "command": "anytime-trail.c4Analyze",
-          "when": "view == anytimeTrail.c4Elements",
-          "group": "navigation@2"
-        },
-        {
-          "command": "anytime-trail.c4Export",
-          "when": "view == anytimeTrail.c4Elements",
-          "group": "navigation@3"
-        },
-        {
           "command": "anytime-trail.c4View",
           "when": "view == anytimeTrail.c4Elements",
-          "group": "navigation@4"
+          "group": "navigation@1"
         }
       ],
       "view/item/context": [
