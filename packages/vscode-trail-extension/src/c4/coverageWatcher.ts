@@ -1,4 +1,5 @@
 import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { TrailLogger } from '../utils/TrailLogger';
 
 const DEBOUNCE_MS = 500;
@@ -14,13 +15,22 @@ export class CoverageWatcher {
 
   start(filePath: string): void {
     this.stop();
-    if (!fs.existsSync(filePath)) {
-      this.logger.info(`CoverageWatcher: file not found, waiting for creation: ${filePath}`);
+    const dir = path.dirname(filePath);
+    const basename = path.basename(filePath);
+
+    if (!fs.existsSync(dir)) {
+      this.logger.info(`CoverageWatcher: directory not found: ${dir}`);
+      return;
+    }
+
+    // 起動時にファイルが既に存在する場合は即座に読み込む
+    if (fs.existsSync(filePath)) {
+      this.debounce(filePath);
     }
 
     try {
-      this.watcher = fs.watch(filePath, { persistent: false }, (eventType) => {
-        if (eventType === 'change' || eventType === 'rename') {
+      this.watcher = fs.watch(dir, { persistent: false }, (_eventType, filename) => {
+        if (filename === basename) {
           this.debounce(filePath);
         }
       });
@@ -29,9 +39,9 @@ export class CoverageWatcher {
         this.logger.warn(`CoverageWatcher error: ${err.message}`);
       });
 
-      this.logger.info(`CoverageWatcher: watching ${filePath}`);
+      this.logger.info(`CoverageWatcher: watching ${dir} for ${basename}`);
     } catch {
-      this.logger.warn(`CoverageWatcher: cannot watch ${filePath}, will retry on config change`);
+      this.logger.warn(`CoverageWatcher: cannot watch ${dir}, will retry on config change`);
     }
   }
 
@@ -52,7 +62,9 @@ export class CoverageWatcher {
     }
     this.debounceTimer = setTimeout(() => {
       this.debounceTimer = undefined;
-      this.onFileChanged(filePath);
+      if (fs.existsSync(filePath)) {
+        this.onFileChanged(filePath);
+      }
     }, DEBOUNCE_MS);
   }
 }
