@@ -79,7 +79,7 @@ function extractCells(line: string): string[] {
   // 先頭と末尾が空（罫線の外側）なら除去
   if (parts.length > 0 && parts[0].trim() === "") parts.shift();
   const lastPart = parts.at(-1);
-  if (lastPart != null && lastPart.trim() === "") parts.pop();
+  if (lastPart?.trim() === "") parts.pop();
   return parts.map(cell => cell.trim());
 }
 

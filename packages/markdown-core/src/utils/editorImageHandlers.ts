@@ -1,4 +1,5 @@
 import type { EditorView } from "@tiptap/pm/view";
+import DOMPurify from "dompurify";
 import type { RefObject } from "react";
 
 /** Generate a timestamp string for file naming */
@@ -59,14 +60,15 @@ export function requestExternalImageDownloads(
   html: string,
   vscodeApi: VsCodeApi,
 ): void {
+  const sanitized = DOMPurify.sanitize(html, { ALLOWED_TAGS: ["img"], ALLOWED_ATTR: ["src"] });
   const parser = new DOMParser();
-  const doc = parser.parseFromString(html, "text/html");
+  const doc = parser.parseFromString(sanitized, "text/html");
   const imgs = doc.querySelectorAll("img[src]");
   for (const img of imgs) {
     const src = img.getAttribute("src");
     if (!src) continue;
     // 外部 URL または base64 data URL を対象
-    if (/^https?:\/\//.test(src) || /^data:image\//.test(src)) {
+    if (src.startsWith("http://") || src.startsWith("https://") || src.startsWith("data:image/")) {
       vscodeApi.postMessage({ type: "downloadImage", url: src });
     }
   }

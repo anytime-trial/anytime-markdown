@@ -651,9 +651,12 @@ export function useCanvasInteraction({
         } else if (drag.fromConnectionPoint) {
           // 接続ポイント起点 + 空白にドロップ → 子ノード自動作成 + コネクタ接続
           const parentNode = drag.nodeId ? nodes.find(n => n.id === drag.nodeId) : undefined;
-          const childType = parentNode?.type === 'sticky' ? 'sticky'
-            : parentNode?.type === 'ellipse' ? 'ellipse'
-            : 'rect';
+          const inferChildType = (type: string | undefined): string => {
+            if (type === 'sticky') return 'sticky';
+            if (type === 'ellipse') return 'ellipse';
+            return 'rect';
+          };
+          const childType = inferChildType(parentNode?.type);
           const childW = 150;
           const childH = 100;
           const child = createNode(childType, world.x - childW / 2, world.y - childH / 2, {
@@ -740,7 +743,7 @@ export function useCanvasInteraction({
     // エッジ上をダブルクリック → ウェイポイント追加
     if (hit.type === 'edge' && hit.id) {
       const edge = edges.find(ed => ed.id === hit.id);
-      if (edge && edge.type === 'connector') {
+      if (edge?.type === 'connector') {
         dispatch({ type: 'SNAPSHOT' });
         const existing = edge.manualWaypoints ?? [];
         // ウェイポイント配列内の適切な位置に挿入（パスに沿った順序を維持）

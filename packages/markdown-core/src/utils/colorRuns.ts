@@ -9,7 +9,7 @@ export function buildColorRuns(colors: (string | null)[]): ColorRun[] {
   for (const c of colors) {
     const color = c ?? "transparent";
     const last = runs.at(-1);
-    if (last && last.color === color) {
+    if (last?.color === color) {
       last.count++;
     } else {
       runs.push({ color, count: 1 });

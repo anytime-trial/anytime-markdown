@@ -256,8 +256,12 @@ export function GraphEditor() {
         const ids = selectionRef.current.nodeIds;
         if (ids.length === 0) return;
         const step = e.shiftKey ? 10 : 1;
-        const dx = e.key === 'ArrowRight' ? step : e.key === 'ArrowLeft' ? -step : 0;
-        const dy = e.key === 'ArrowDown' ? step : e.key === 'ArrowUp' ? -step : 0;
+        const dxRight = e.key === 'ArrowRight' ? step : 0;
+        const dxLeft = e.key === 'ArrowLeft' ? -step : 0;
+        const dx = dxRight || dxLeft;
+        const dyDown = e.key === 'ArrowDown' ? step : 0;
+        const dyUp = e.key === 'ArrowUp' ? -step : 0;
+        const dy = dyDown || dyUp;
         if (dx !== 0 || dy !== 0) {
           dispatch({ type: 'MOVE_NODES', ids, dx, dy });
           e.preventDefault();

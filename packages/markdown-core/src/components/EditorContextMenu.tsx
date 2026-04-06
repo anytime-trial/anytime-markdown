@@ -127,8 +127,8 @@ export function EditorContextMenu({ editor, readOnly, t, currentMode, onSwitchTo
   const sourceHasSelection = isSource && sourceTextareaRef?.current
     ? sourceTextareaRef.current.selectionStart !== sourceTextareaRef.current.selectionEnd
     : false;
-  const hasSelection = isSource ? sourceHasSelection
-    : editor ? editor.state.selection.from !== editor.state.selection.to : false;
+  const editorHasSelection = editor ? editor.state.selection.from !== editor.state.selection.to : false;
+  const hasSelection = isSource ? sourceHasSelection : editorHasSelection;
   const blockInfo = !isSource && editor ? findBlockNode(editor.state) : null;
   const canCopy = hasSelection || !!blockInfo;
 

@@ -494,7 +494,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
       for (let c = startCol; c < endCol; c++) {
         const value = grid[r][c];
         if (!value) continue;
-        if (editing && editing.row === r && editing.col === c) continue;
+        if (editing?.row === r && editing?.col === c) continue;
 
         const cw = getColWidth(c);
         const cellLeft = getColX(c);
@@ -927,11 +927,11 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     if (cell) {
       if (e.shiftKey && selection) {
         // Shift+クリックで範囲選択
-        const anchor = selection.type === "cell"
+        const anchorFromType = selection.type === "cell"
           ? { row: selection.row, col: selection.col }
-          : selection.type === "range"
-          ? { row: selection.startRow, col: selection.startCol }
           : null;
+        const anchor = anchorFromType
+          ?? (selection.type === "range" ? { row: selection.startRow, col: selection.startCol } : null);
         if (anchor) {
           setSelection({ type: "range", startRow: anchor.row, startCol: anchor.col, endRow: cell.row, endCol: cell.col });
           setEditing(null);
@@ -1222,12 +1222,20 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     (key: string, shiftKey: boolean) => {
       if (!selection) return;
 
-      let row = selection.type === "cell" ? selection.row
-        : selection.type === "range" ? selection.startRow
-        : selection.type === "row" ? selection.start : 0;
-      let col = selection.type === "cell" ? selection.col
-        : selection.type === "range" ? selection.startCol
-        : selection.type === "col" ? selection.start : 0;
+      const getSelectionRow = (): number => {
+        if (selection.type === "cell") return selection.row;
+        if (selection.type === "range") return selection.startRow;
+        if (selection.type === "row") return selection.start;
+        return 0;
+      };
+      const getSelectionCol = (): number => {
+        if (selection.type === "cell") return selection.col;
+        if (selection.type === "range") return selection.startCol;
+        if (selection.type === "col") return selection.start;
+        return 0;
+      };
+      let row = getSelectionRow();
+      let col = getSelectionCol();
 
       switch (key) {
         case "ArrowUp":
@@ -1660,8 +1668,9 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
           {Array.from({ length: dataRange.cols }, (_, c) => {
             const uniqueVals = columnUniqueValues.get(c) ?? [];
             const currentFilter = filters.get(c);
-            const selectedValue = currentFilter?.selectedValues
-              ? (currentFilter.selectedValues.size === 1 ? Array.from(currentFilter.selectedValues)[0] : "__all__")
+            const hasSingleFilter = currentFilter?.selectedValues?.size === 1;
+            const selectedValue = hasSingleFilter
+              ? Array.from(currentFilter!.selectedValues!)[0]
               : "__all__";
             return (
               <Box key={c} sx={{ minWidth: getColWidth(c), maxWidth: getColWidth(c), flexShrink: 0, px: 0.25, background: bgColor }}>
