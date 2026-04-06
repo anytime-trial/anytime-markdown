@@ -27,6 +27,7 @@ export class C4Panel implements C4DataProvider {
   private lastFeatureMatrix: FeatureMatrix | undefined;
   private lastTrailGraph: TrailGraph | undefined;
   private lastProjectRoot: string | undefined;
+  private lastTsconfigPath: string | undefined;
   private lastDsmMapping: readonly DsmMapping[] = [];
   private lastC4Matrix: DsmMatrix | undefined;
   private lastSourceMatrix: DsmMatrix | undefined;
@@ -228,7 +229,25 @@ export class C4Panel implements C4DataProvider {
       }
       const data: Record<string, unknown> = { model, boundaries };
       if (featureMatrix) {
-        data.featureMatrix = featureMatrix;
+        // featureMatrix にプロジェクトメタデータを付与
+        const panel = C4Panel.instance;
+        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        const fmData: Record<string, unknown> = { ...featureMatrix };
+        if (workspaceRoot) {
+          const pkgPath = path.join(workspaceRoot, 'package.json');
+          if (fs.existsSync(pkgPath)) {
+            try {
+              const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+              fmData.project = pkg.name ?? path.basename(workspaceRoot);
+            } catch {
+              fmData.project = path.basename(workspaceRoot);
+            }
+          }
+        }
+        if (panel?.lastTsconfigPath && workspaceRoot) {
+          fmData.tsconfig = path.relative(workspaceRoot, panel.lastTsconfigPath);
+        }
+        data.featureMatrix = fmData;
       }
       fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
     } catch (err) {
@@ -389,6 +408,7 @@ export class C4Panel implements C4DataProvider {
 
           panel.lastTrailGraph = graph;
           panel.lastProjectRoot = graph.metadata.projectRoot;
+          panel.lastTsconfigPath = tsconfigPath;
           panel.setModel(model);
           server?.notifyProgress('', 100);
         },
