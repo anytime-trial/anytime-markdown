@@ -2,7 +2,7 @@ import type { GraphDocument, SelectionState, Viewport } from '@anytime-markdown/
 import { render, nodeIntersection } from '@anytime-markdown/graph-core/engine';
 import type { Action } from '@anytime-markdown/graph-core/state';
 import { useCanvasBase } from '@anytime-markdown/graph-core';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 interface C4GraphCanvasProps {
   readonly document: GraphDocument;
@@ -11,13 +11,20 @@ interface C4GraphCanvasProps {
   readonly canvasRef: React.RefObject<HTMLCanvasElement | null>;
   readonly selectedNodeId?: string | null;
   readonly centerOnSelect?: boolean;
+  readonly coverageMap?: ReadonlyMap<string, number> | null;
   readonly onNodeSelect?: (nodeId: string | null) => void;
   readonly onNodeDoubleClick?: (nodeId: string) => void;
 }
 
 const EMPTY_SELECTION: SelectionState = { nodeIds: [], edgeIds: [] };
 
-export function GraphCanvas({ document, viewport, dispatch, canvasRef, selectedNodeId, centerOnSelect, onNodeSelect, onNodeDoubleClick }: Readonly<C4GraphCanvasProps>) {
+function coverageColor(pct: number): string {
+  if (pct >= 80) return '#2e7d32';
+  if (pct >= 50) return '#f9a825';
+  return '#c62828';
+}
+
+export function GraphCanvas({ document, viewport, dispatch, canvasRef, selectedNodeId, centerOnSelect, coverageMap, onNodeSelect, onNodeDoubleClick }: Readonly<C4GraphCanvasProps>) {
   const rafRef = useRef<number>(0);
   const viewportRef = useRef(viewport);
   const dispatchRef = useRef(dispatch);
@@ -106,6 +113,19 @@ export function GraphCanvas({ document, viewport, dispatch, canvasRef, selectedN
     return e;
   });
 
+  // Coverage heatmap: replace node fill colors
+  const styledNodes = useMemo(() => {
+    if (!coverageMap) return document.nodes;
+    return document.nodes.map(n => {
+      const c4Id = n.metadata?.c4Id as string | undefined;
+      if (!c4Id) return n;
+      const pct = coverageMap.get(c4Id);
+      const fill = pct !== undefined ? coverageColor(pct) : '#616161';
+      const suffix = pct !== undefined ? ` (${pct}%)` : '';
+      return { ...n, style: { ...n.style, fill }, text: `${n.text}${suffix}` };
+    });
+  }, [document.nodes, coverageMap]);
+
   // Render loop
   useEffect(() => {
     const cvs = canvasRef.current;
@@ -126,7 +146,7 @@ export function GraphCanvas({ document, viewport, dispatch, canvasRef, selectedN
         ctx: ctx!,
         width: w,
         height: h,
-        nodes: document.nodes,
+        nodes: styledNodes,
         edges: resolvedEdges,
         viewport: viewportRef.current,
         selection: sel.length > 0 ? { nodeIds: sel, edgeIds: [] } : EMPTY_SELECTION,
@@ -141,7 +161,7 @@ export function GraphCanvas({ document, viewport, dispatch, canvasRef, selectedN
     }
     rafRef.current = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [document.nodes, resolvedEdges, canvasRef, canvas]);
+  }, [styledNodes, resolvedEdges, canvasRef, canvas]);
 
   const getCursor = useCallback(() => {
     const mode = canvas.getDragMode();
