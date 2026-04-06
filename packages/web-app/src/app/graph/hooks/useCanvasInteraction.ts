@@ -743,7 +743,7 @@ export function useCanvasInteraction({
     // エッジ上をダブルクリック → ウェイポイント追加
     if (hit.type === 'edge' && hit.id) {
       const edge = edges.find(ed => ed.id === hit.id);
-      if (edge && edge.type === 'connector') {
+      if (edge?.type === 'connector') {
         dispatch({ type: 'SNAPSHOT' });
         const existing = edge.manualWaypoints ?? [];
         // ウェイポイント配列内の適切な位置に挿入（パスに沿った順序を維持）

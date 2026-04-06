@@ -494,7 +494,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
       for (let c = startCol; c < endCol; c++) {
         const value = grid[r][c];
         if (!value) continue;
-        if (editing && editing.row === r && editing.col === c) continue;
+        if (editing?.row === r && editing?.col === c) continue;
 
         const cw = getColWidth(c);
         const cellLeft = getColX(c);

@@ -27,7 +27,7 @@ export function parseClipboardTable(
   plainText: string,
   _htmlText: string,
 ): string[][] | null {
-  if (!plainText || !plainText.includes("\t")) {
+  if (!plainText?.includes("\t")) {
     return null;
   }
   return tsvToCellContent(plainText);
