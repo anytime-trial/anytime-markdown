@@ -23,17 +23,58 @@ let extensionDistPath = '';
 const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
 
 function startDataServer(port: number): void {
-	dataServer = new C4DataServer(() => C4Panel.getDataProvider(), extensionDistPath);
-	C4Panel.setDataServer(dataServer);
-	dataServer.start(port).then(() => {
+	const server = new C4DataServer(() => C4Panel.getDataProvider(), extensionDistPath);
+	dataServer = server;
+	C4Panel.setDataServer(server);
+	server.start(port).then(() => {
 		statusBarItem.text = `$(radio-tower) C4 Server: :${port}`;
 		statusBarItem.tooltip = `C4 Data Server running on port ${port}`;
 		statusBarItem.show();
 		const restored = C4Panel.restoreSavedModel();
 		void vscode.commands.executeCommand('setContext', 'anytimeTrail.c4ModelLoaded', restored);
+		// ドキュメントパス設定を読み取りスキャンを開始
+		applyDocsPathConfig();
+		// カバレッジウォッチ設定を適用
+		applyCoverageConfig();
+		// ドキュメントリンククリック時にVS Codeでファイルを開く
+		server.onOpenDocLink = (docPath) => {
+			const docsDir = vscode.workspace.getConfiguration('anytimeTrail').get<string>('docsPath', '');
+			if (!docsDir) return;
+			const uri = vscode.Uri.file(path.join(docsDir, docPath));
+			vscode.commands.executeCommand('vscode.openWith', uri, 'anytimeMarkdown').then(
+				undefined,
+				() => {
+					// anytimeMarkdown エディタが利用不可の場合は通常のテキストエディタで開く
+					vscode.workspace.openTextDocument(uri).then(
+						(doc) => vscode.window.showTextDocument(doc),
+						() => vscode.window.showWarningMessage(`File not found: ${uri.fsPath}`),
+					);
+				},
+			);
+		};
 	}).catch((err: Error) => {
 		vscode.window.showErrorMessage(`C4 Data Server: ${err.message}`);
 	});
+}
+
+function applyDocsPathConfig(): void {
+	const docsPath = vscode.workspace.getConfiguration('anytimeTrail').get<string>('docsPath', '');
+	dataServer?.setDocsPath(docsPath || undefined);
+}
+
+function applyCoverageConfig(): void {
+	const config = vscode.workspace.getConfiguration('anytimeTrail.coverage');
+	const coveragePath = config.get<string>('path', '');
+
+	if (coveragePath) {
+		const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+		const absPath = path.isAbsolute(coveragePath)
+			? coveragePath
+			: path.join(workspaceRoot, coveragePath);
+		C4Panel.startCoverageWatch(absPath);
+	} else {
+		C4Panel.stopCoverageWatch();
+	}
 }
 
 function stopDataServer(): void {
@@ -179,6 +220,22 @@ export function activate(context: vscode.ExtensionContext) {
 		'anytime-trail.graphRefresh', () => graphProvider?.refresh()
 	);
 
+	context.subscriptions.push(
+		vscode.commands.registerCommand('anytime-trail.loadCoverage', () => {
+			const config = vscode.workspace.getConfiguration('anytimeTrail.coverage');
+			const coveragePath = config.get<string>('path', '');
+			if (!coveragePath) {
+				vscode.window.showWarningMessage('anytimeTrail.coverage.path is not configured.');
+				return;
+			}
+			const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+			const absPath = path.isAbsolute(coveragePath)
+				? coveragePath
+				: path.join(workspaceRoot, coveragePath);
+			C4Panel.loadCoverageData(absPath);
+		}),
+	);
+
 	registerChangesCommands(context, {
 		changesProvider,
 		timelineProvider,
@@ -212,6 +269,12 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.workspace.onDidChangeConfiguration((e) => {
 			if (e.affectsConfiguration('anytimeTrail.server')) {
 				handleServerConfigChange();
+			}
+			if (e.affectsConfiguration('anytimeTrail.docsPath')) {
+				applyDocsPathConfig();
+			}
+			if (e.affectsConfiguration('anytimeTrail.coverage')) {
+				applyCoverageConfig();
 			}
 		}),
 	);
