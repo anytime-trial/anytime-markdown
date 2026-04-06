@@ -1,8 +1,9 @@
-import type { C4Model, C4Element, CoverageMatrix, CoverageEntry } from '@anytime-markdown/c4-kernel';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import type { C4Model, C4Element, CoverageDiffMatrix, CoverageMatrix, CoverageEntry } from '@anytime-markdown/c4-kernel';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 interface CoverageCanvasProps {
   readonly coverageMatrix: CoverageMatrix;
+  readonly coverageDiff?: CoverageDiffMatrix | null;
   readonly model: C4Model;
   readonly level?: number; // 2=container, 3=component, 4=code
 }
@@ -109,9 +110,15 @@ function buildGrid(
 
 export function CoverageCanvas({
   coverageMatrix,
+  coverageDiff,
   model,
   level,
 }: Readonly<CoverageCanvasProps>): React.JSX.Element {
+  const diffMap = useMemo(() => {
+    if (!coverageDiff) return null;
+    return new Map(coverageDiff.entries.map(e => [e.elementId, e]));
+  }, [coverageDiff]);
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef(0);
   const viewportRef = useRef({ offsetX: 0, offsetY: 0, scale: 1 });
@@ -217,10 +224,41 @@ export function CoverageCanvas({
           ctx!.fillStyle = hasCoverage ? heatColor(pct) : COLOR_NONE;
           ctx!.fillRect(x + 1, y + 1, CELL_W - 2, CELL_H - 2);
 
-          // Percentage label
-          const label = hasCoverage ? `${Math.round(pct)}%` : '-';
+          // Base percentage label
+          const baseLabel = hasCoverage ? `${Math.round(pct)}%` : '-';
+
+          // Check for diff data
+          let deltaLabel = '';
+          let deltaColor = '';
+          if (hasCoverage && diffMap) {
+            const diffEntry = diffMap.get(rows[r].entry.elementId);
+            if (diffEntry) {
+              const metricKeys = ['lines', 'branches', 'functions'] as const;
+              const d = diffEntry[metricKeys[c]].pctDelta;
+              if (d > 0) {
+                deltaLabel = ` +${Math.round(d)}`;
+                deltaColor = '#4caf50';
+              } else if (d < 0) {
+                deltaLabel = ` ${Math.round(d)}`;
+                deltaColor = '#ef5350';
+              }
+            }
+          }
+
+          // Draw base label
           ctx!.fillStyle = hasCoverage ? textColorForBg(pct) : 'rgba(255,255,255,0.5)';
-          ctx!.fillText(label, x + CELL_W / 2, y + CELL_H / 2);
+          if (deltaLabel) {
+            // Shift base label left to make room for delta
+            ctx!.fillText(baseLabel, x + CELL_W / 2 - 8, y + CELL_H / 2);
+            // Draw delta with color
+            const baseWidth = ctx!.measureText(baseLabel).width;
+            ctx!.fillStyle = deltaColor;
+            ctx!.textAlign = 'left';
+            ctx!.fillText(deltaLabel, x + CELL_W / 2 - 8 + baseWidth / 2 + 2, y + CELL_H / 2);
+            ctx!.textAlign = 'center';
+          } else {
+            ctx!.fillText(baseLabel, x + CELL_W / 2, y + CELL_H / 2);
+          }
         }
       }
 

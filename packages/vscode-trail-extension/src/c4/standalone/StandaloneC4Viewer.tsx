@@ -180,6 +180,16 @@ export function StandaloneC4Viewer() {
     return map;
   }, [showCoverage, dataSource.coverageMatrix]);
 
+  // カバレッジ差分ヒートマップ用マップ (c4Id → lines.pctDelta)
+  const coverageDiffMap = useMemo(() => {
+    if (!showCoverage || !dataSource.coverageDiff) return null;
+    const map = new Map<string, number>();
+    for (const entry of dataSource.coverageDiff.entries) {
+      map.set(entry.elementId, entry.lines.pctDelta);
+    }
+    return map;
+  }, [showCoverage, dataSource.coverageDiff]);
+
   // チェックOFFパッケージ配下の要素IDを収集
   const excludedDescendantIds = useMemo(() => {
     if (!c4Model || !checkedPackageIds) return null;
@@ -377,6 +387,7 @@ export function StandaloneC4Viewer() {
               selectedNodeId={selectedElementId ? (state.document.nodes.find(n => n.metadata?.c4Id === selectedElementId)?.id ?? null) : null}
               centerOnSelect={centerOnSelect}
               coverageMap={coverageMap}
+              coverageDiffMap={coverageDiffMap}
               onNodeSelect={(id) => { setCenterOnSelect(false); setSelectedElementId(id); }}
               onNodeDoubleClick={(nodeId) => {
                 if (!c4Model) return;
@@ -412,7 +423,7 @@ export function StandaloneC4Viewer() {
         {showDsm && (
           <Box sx={{ flex: showC4 ? 1 - splitRatio : 1, position: 'relative', minWidth: 100, borderRight: showTree && elementTree.length > 0 ? `1px solid ${BORDER_COLOR}` : 'none' }}>
             {matrixView === 'coverage' && dataSource.coverageMatrix && c4Model ? (
-              <CoverageCanvas coverageMatrix={dataSource.coverageMatrix} model={c4Model} level={currentLevel} />
+              <CoverageCanvas coverageMatrix={dataSource.coverageMatrix} coverageDiff={dataSource.coverageDiff} model={c4Model} level={currentLevel} />
             ) : matrixView === 'fcmap' && dataSource.featureMatrix && c4Model ? (
               <FcMapCanvas featureMatrix={dataSource.featureMatrix} model={c4Model} excludedElementIds={excludedDescendantIds} level={currentLevel} />
             ) : dsmModel ? (

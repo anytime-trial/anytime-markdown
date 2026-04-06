@@ -12,6 +12,7 @@ interface C4GraphCanvasProps {
   readonly selectedNodeId?: string | null;
   readonly centerOnSelect?: boolean;
   readonly coverageMap?: ReadonlyMap<string, number> | null;
+  readonly coverageDiffMap?: ReadonlyMap<string, number> | null;
   readonly onNodeSelect?: (nodeId: string | null) => void;
   readonly onNodeDoubleClick?: (nodeId: string) => void;
 }
@@ -24,7 +25,7 @@ function coverageColor(pct: number): string {
   return '#c62828';
 }
 
-export function GraphCanvas({ document, viewport, dispatch, canvasRef, selectedNodeId, centerOnSelect, coverageMap, onNodeSelect, onNodeDoubleClick }: Readonly<C4GraphCanvasProps>) {
+export function GraphCanvas({ document, viewport, dispatch, canvasRef, selectedNodeId, centerOnSelect, coverageMap, coverageDiffMap, onNodeSelect, onNodeDoubleClick }: Readonly<C4GraphCanvasProps>) {
   const rafRef = useRef<number>(0);
   const viewportRef = useRef(viewport);
   const dispatchRef = useRef(dispatch);
@@ -121,10 +122,17 @@ export function GraphCanvas({ document, viewport, dispatch, canvasRef, selectedN
       if (!c4Id) return n;
       const pct = coverageMap.get(c4Id);
       const fill = pct !== undefined ? coverageColor(pct) : '#616161';
-      const suffix = pct !== undefined ? ` (${pct}%)` : '';
+      let suffix = pct !== undefined ? ` (${pct}%` : '';
+      if (suffix && coverageDiffMap) {
+        const d = coverageDiffMap.get(c4Id);
+        if (d !== undefined && d !== 0) {
+          suffix += d > 0 ? ` +${Math.round(d)}` : ` ${Math.round(d)}`;
+        }
+      }
+      if (suffix) suffix += ')';
       return { ...n, style: { ...n.style, fill }, text: `${n.text}${suffix}` };
     });
-  }, [document.nodes, coverageMap]);
+  }, [document.nodes, coverageMap, coverageDiffMap]);
 
   // Render loop
   useEffect(() => {

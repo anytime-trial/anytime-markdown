@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
   BoundaryInfo,
   C4Model,
+  CoverageDiffMatrix,
   CoverageMatrix,
   CyclicPair,
   DocLink,
@@ -31,6 +32,7 @@ interface C4DataSourceResult {
   boundaries: readonly BoundaryInfo[];
   featureMatrix: FeatureMatrix | null;
   coverageMatrix: CoverageMatrix | null;
+  coverageDiff: CoverageDiffMatrix | null;
   docLinks: readonly DocLink[];
   dsmMatrix: DsmMatrix | null;
   dsmDiff: DsmDiff | null;
@@ -84,7 +86,12 @@ interface WsCoverageMessage {
   coverageMatrix: CoverageMatrix;
 }
 
-type WsMessage = WsModelMessage | WsDsmMatrixMessage | WsDsmDiffMessage | WsAnalysisProgressMessage | WsDocLinksMessage | WsCoverageMessage;
+interface WsCoverageDiffMessage {
+  type: 'coverage-diff-updated';
+  coverageDiff: CoverageDiffMatrix;
+}
+
+type WsMessage = WsModelMessage | WsDsmMatrixMessage | WsDsmDiffMessage | WsAnalysisProgressMessage | WsDocLinksMessage | WsCoverageMessage | WsCoverageDiffMessage;
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -144,6 +151,12 @@ function isWsCoverageMessage(v: unknown): v is WsCoverageMessage {
   return obj.type === 'coverage-updated' && 'coverageMatrix' in obj;
 }
 
+function isWsCoverageDiffMessage(v: unknown): v is WsCoverageDiffMessage {
+  if (typeof v !== 'object' || v === null) return false;
+  const obj = v as Record<string, unknown>;
+  return obj.type === 'coverage-diff-updated' && 'coverageDiff' in obj;
+}
+
 // ---------------------------------------------------------------------------
 // Local-mode loader
 // ---------------------------------------------------------------------------
@@ -191,6 +204,7 @@ function useRemoteInitialFetch(
   setDsmMatrix: (m: DsmMatrix | null) => void,
   setFeatureMatrix: (m: FeatureMatrix | null) => void,
   setCoverageMatrix: (m: CoverageMatrix | null) => void,
+  setCoverageDiff: (m: CoverageDiffMatrix | null) => void,
 ): void {
   useEffect(() => {
     if (!serverUrl) return;
@@ -223,9 +237,12 @@ function useRemoteInitialFetch(
       }
 
       if (covRes?.status === 200) {
-        const json = await covRes.json() as { coverageMatrix: CoverageMatrix | null };
+        const json = await covRes.json() as { coverageMatrix: CoverageMatrix | null; coverageDiff: CoverageDiffMatrix | null };
         if (!cancelled && json.coverageMatrix) {
           setCoverageMatrix(json.coverageMatrix);
+        }
+        if (!cancelled && json.coverageDiff) {
+          setCoverageDiff(json.coverageDiff);
         }
       }
       // 204 (no content) — keep null state (no action needed)
@@ -233,7 +250,7 @@ function useRemoteInitialFetch(
 
     void fetchInitial();
     return () => { cancelled = true; };
-  }, [serverUrl, setC4Model, setBoundaries, setDsmMatrix, setFeatureMatrix, setCoverageMatrix]);
+  }, [serverUrl, setC4Model, setBoundaries, setDsmMatrix, setFeatureMatrix, setCoverageMatrix, setCoverageDiff]);
 }
 
 // ---------------------------------------------------------------------------
@@ -250,6 +267,7 @@ export function useC4DataSource(serverUrl?: string): C4DataSourceResult {
   >([]);
   const [featureMatrix, setFeatureMatrix] = useState<FeatureMatrix | null>(null);
   const [coverageMatrix, setCoverageMatrix] = useState<CoverageMatrix | null>(null);
+  const [coverageDiff, setCoverageDiff] = useState<CoverageDiffMatrix | null>(null);
   const [dsmMatrix, setDsmMatrix] = useState<DsmMatrix | null>(null);
   const [dsmDiff, setDsmDiff] = useState<DsmDiff | null>(null);
   const [dsmCycles, setDsmCycles] = useState<readonly CyclicPair[]>([]);
@@ -273,6 +291,7 @@ export function useC4DataSource(serverUrl?: string): C4DataSourceResult {
     setDsmMatrix,
     setFeatureMatrix,
     setCoverageMatrix,
+    setCoverageDiff,
   );
 
   // WebSocket message handler
@@ -295,6 +314,8 @@ export function useC4DataSource(serverUrl?: string): C4DataSourceResult {
         setDocLinks(parsed.docLinks);
       } else if (isWsCoverageMessage(parsed)) {
         setCoverageMatrix(parsed.coverageMatrix);
+      } else if (isWsCoverageDiffMessage(parsed)) {
+        setCoverageDiff(parsed.coverageDiff);
       }
     } catch {
       // Malformed message — ignore
@@ -369,6 +390,7 @@ export function useC4DataSource(serverUrl?: string): C4DataSourceResult {
     boundaries: isRemote ? remoteBoundaries : local.boundaries,
     featureMatrix,
     coverageMatrix,
+    coverageDiff,
     docLinks,
     dsmMatrix,
     dsmDiff,
