@@ -42,3 +42,6 @@ export { buildSourceMatrix } from './dsm/buildSourceMatrix';
 export { diffMatrix } from './dsm/diffMatrix';
 export { detectCycles } from './dsm/detectCycles';
 export { clusterMatrix } from './dsm/cluster';
+
+export { parseCoverage } from './coverage/parseCoverage';
+export type { FileCoverage } from './coverage/parseCoverage';
