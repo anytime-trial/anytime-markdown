@@ -108,3 +108,25 @@ export interface C4TreeNode {
   readonly deleted?: boolean;
   readonly children: readonly C4TreeNode[];
 }
+
+// ---------------------------------------------------------------------------
+//  Coverage types
+// ---------------------------------------------------------------------------
+
+export interface CoverageMetric {
+  readonly covered: number;
+  readonly total: number;
+  readonly pct: number;
+}
+
+export interface CoverageEntry {
+  readonly elementId: string;
+  readonly lines: CoverageMetric;
+  readonly branches: CoverageMetric;
+  readonly functions: CoverageMetric;
+}
+
+export interface CoverageMatrix {
+  readonly entries: readonly CoverageEntry[];
+  readonly generatedAt: number;
+}

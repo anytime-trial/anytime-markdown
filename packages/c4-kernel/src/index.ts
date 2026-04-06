@@ -12,6 +12,9 @@ export type {
   FeatureMapping,
   FeatureMatrix,
   DocLink,
+  CoverageMetric,
+  CoverageEntry,
+  CoverageMatrix,
 } from './types';
 
 export { parseMermaidC4, extractBoundaries } from './parser/mermaidC4';
