@@ -84,6 +84,19 @@ export interface FeatureMatrix {
   readonly mappings: readonly FeatureMapping[];
 }
 
+// ---------------------------------------------------------------------------
+//  Document Links
+// ---------------------------------------------------------------------------
+
+/** C4要素に紐づくドキュメントリンク */
+export interface DocLink {
+  readonly title: string;
+  readonly type: string;
+  readonly path: string;
+  readonly c4Scope: readonly string[];
+  readonly date: string;
+}
+
 /** ツリー表示用のノード */
 export interface C4TreeNode {
   readonly id: string;

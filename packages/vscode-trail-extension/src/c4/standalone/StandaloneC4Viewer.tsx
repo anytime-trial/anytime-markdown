@@ -1,4 +1,5 @@
 import { buildElementTree, buildLevelView, c4ToGraphDocument, collectDescendantIds, filterTreeByLevel } from '@anytime-markdown/c4-kernel';
+import type { DocLink } from '@anytime-markdown/c4-kernel';
 import type { GraphNode } from '@anytime-markdown/graph-core';
 import { engine, layoutWithSubgroups, state as graphState } from '@anytime-markdown/graph-core';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
@@ -155,6 +156,18 @@ export function StandaloneC4Viewer() {
     }
     return ids.size > 0 ? ids : undefined;
   }, [c4Model]);
+
+  const handleDocLinkClick = useCallback((doc: DocLink) => {
+    // VS Code 拡張環境ではローカルファイルをエディタで開く
+    // vscode.postMessage は standalone viewer からは直接利用できないため
+    // コマンドリンク経由で VS Code に通知する
+    const vscodeApi = (globalThis as Record<string, unknown>).__vscode as
+      | { postMessage?: (msg: unknown) => void }
+      | undefined;
+    if (vscodeApi?.postMessage) {
+      vscodeApi.postMessage({ type: 'open-doc-link', path: doc.path });
+    }
+  }, []);
 
   const handleRemoveElement = useCallback((id: string) => {
     dataSource.sendCommand('remove-element', { id });
@@ -405,7 +418,7 @@ export function StandaloneC4Viewer() {
           </Box>
         )}
         {showTree && elementTree.length > 0 && (
-          <C4ElementTree tree={elementTree} dispatch={dispatch} onSelect={(id) => { setCenterOnSelect(true); setSelectedElementId(id); }} onCheckedChange={setCheckedPackageIds} onRemoveElement={handleRemoveElement} onPurgeDeleted={handlePurgeDeleted} />
+          <C4ElementTree tree={elementTree} dispatch={dispatch} onSelect={(id) => { setCenterOnSelect(true); setSelectedElementId(id); }} onCheckedChange={setCheckedPackageIds} onRemoveElement={handleRemoveElement} onPurgeDeleted={handlePurgeDeleted} docLinks={dataSource.docLinks} onDocLinkClick={handleDocLinkClick} />
         )}
       </Box>
       {/* --- Edit Dialogs --- */}

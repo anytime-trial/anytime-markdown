@@ -11,6 +11,7 @@ export type {
   FeatureRole,
   FeatureMapping,
   FeatureMatrix,
+  DocLink,
 } from './types';
 
 export { parseMermaidC4, extractBoundaries } from './parser/mermaidC4';

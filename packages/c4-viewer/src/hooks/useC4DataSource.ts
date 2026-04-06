@@ -4,6 +4,7 @@ import type {
   BoundaryInfo,
   C4Model,
   CyclicPair,
+  DocLink,
   DsmDiff,
   DsmMatrix,
   FeatureMatrix,
@@ -28,6 +29,7 @@ interface C4DataSourceResult {
   c4Model: C4Model | null;
   boundaries: readonly BoundaryInfo[];
   featureMatrix: FeatureMatrix | null;
+  docLinks: readonly DocLink[];
   dsmMatrix: DsmMatrix | null;
   dsmDiff: DsmDiff | null;
   dsmCycles: readonly CyclicPair[];
@@ -70,7 +72,12 @@ interface WsAnalysisProgressMessage {
   percent: number;
 }
 
-type WsMessage = WsModelMessage | WsDsmMatrixMessage | WsDsmDiffMessage | WsAnalysisProgressMessage;
+interface WsDocLinksMessage {
+  type: 'doc-links-updated';
+  docLinks: DocLink[];
+}
+
+type WsMessage = WsModelMessage | WsDsmMatrixMessage | WsDsmDiffMessage | WsAnalysisProgressMessage | WsDocLinksMessage;
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -116,6 +123,12 @@ function isWsAnalysisProgressMessage(v: unknown): v is WsAnalysisProgressMessage
   if (typeof v !== 'object' || v === null) return false;
   const obj = v as Record<string, unknown>;
   return obj.type === 'analysis-progress' && typeof obj.phase === 'string';
+}
+
+function isWsDocLinksMessage(v: unknown): v is WsDocLinksMessage {
+  if (typeof v !== 'object' || v === null) return false;
+  const obj = v as Record<string, unknown>;
+  return obj.type === 'doc-links-updated' && Array.isArray(obj.docLinks);
 }
 
 // ---------------------------------------------------------------------------
@@ -217,6 +230,7 @@ export function useC4DataSource(serverUrl?: string): C4DataSourceResult {
   const [dsmMatrix, setDsmMatrix] = useState<DsmMatrix | null>(null);
   const [dsmDiff, setDsmDiff] = useState<DsmDiff | null>(null);
   const [dsmCycles, setDsmCycles] = useState<readonly CyclicPair[]>([]);
+  const [docLinks, setDocLinks] = useState<readonly DocLink[]>([]);
   const [connected, setConnected] = useState(false);
   const [analysisProgress, setAnalysisProgress] = useState<AnalysisProgress | null>(null);
 
@@ -253,6 +267,8 @@ export function useC4DataSource(serverUrl?: string): C4DataSourceResult {
       } else if (isWsDsmDiffMessage(parsed)) {
         setDsmDiff(parsed.diff);
         setDsmCycles(parsed.cycles);
+      } else if (isWsDocLinksMessage(parsed)) {
+        setDocLinks(parsed.docLinks);
       }
     } catch {
       // Malformed message — ignore
@@ -326,6 +342,7 @@ export function useC4DataSource(serverUrl?: string): C4DataSourceResult {
     c4Model: isRemote ? remoteModel : local.c4Model,
     boundaries: isRemote ? remoteBoundaries : local.boundaries,
     featureMatrix,
+    docLinks,
     dsmMatrix,
     dsmDiff,
     dsmCycles,

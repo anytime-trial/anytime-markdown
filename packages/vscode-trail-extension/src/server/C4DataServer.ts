@@ -12,6 +12,7 @@ import type {
   BoundaryInfo,
   C4Model,
   CyclicPair,
+  DocLink,
   DsmDiff,
   DsmMapping,
   DsmMatrix,
@@ -75,6 +76,8 @@ export class C4DataServer {
   private readonly clients = new Set<WebSocket>();
   private readonly staticCache = new Map<string, Buffer>();
   private cachedHtml: string | undefined;
+  private docLinks: readonly DocLink[] = [];
+  private docsPath: string | undefined;
 
   constructor(
     private readonly getProvider: () => C4DataProvider | undefined,
@@ -163,6 +166,33 @@ export class C4DataServer {
     }
   }
 
+  /** ドキュメントパスを設定しスキャンを開始する */
+  setDocsPath(docsPath: string | undefined): void {
+    this.docsPath = docsPath;
+    if (docsPath) {
+      this.scanDocLinks().catch(() => { /* ignore */ });
+    } else {
+      this.docLinks = [];
+    }
+  }
+
+  /** ドキュメントを再スキャンしてクライアントに配信する */
+  async scanDocLinks(): Promise<void> {
+    if (!this.docsPath) return;
+    this.docLinks = await scanLocalDocs(this.docsPath);
+    this.notifyDocLinks();
+  }
+
+  /** docLinks をクライアントに配信する */
+  private notifyDocLinks(): void {
+    if (this.clients.size === 0) return;
+    const message: ServerMessage = { type: 'doc-links-updated', docLinks: this.docLinks };
+    const payload = JSON.stringify(message);
+    for (const ws of this.clients) {
+      ws.send(payload);
+    }
+  }
+
   /** 解析進捗をビューアに配信する */
   notifyProgress(phase: string, percent: number): void {
     if (this.clients.size === 0) return;
@@ -202,6 +232,10 @@ export class C4DataServer {
         break;
       case '/api/c4/tree':
         this.handleTreeEndpoint(res);
+        break;
+      case '/api/c4/doc-links':
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify({ docLinks: this.docLinks }));
         break;
       case '/':
         this.cachedHtml ??= buildStandaloneHtml();
@@ -329,6 +363,11 @@ export class C4DataServer {
     const dsmMsg = this.buildDsmMessage(provider);
     if (dsmMsg) {
       ws.send(JSON.stringify(dsmMsg));
+    }
+
+    if (this.docLinks.length > 0) {
+      const docMsg: ServerMessage = { type: 'doc-links-updated', docLinks: this.docLinks };
+      ws.send(JSON.stringify(docMsg));
     }
   }
 
@@ -486,6 +525,94 @@ function buildStandaloneHtml(): string {
   <script src="/c4standalone.js"></script>
 </body>
 </html>`;
+}
+
+// ---------------------------------------------------------------------------
+//  Helper: compute cyclic pairs from a DSM matrix
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+//  Helper: scan local docs directory for DocLink entries
+// ---------------------------------------------------------------------------
+
+async function scanLocalDocs(docsDir: string): Promise<DocLink[]> {
+  const docs: DocLink[] = [];
+
+  let entries: string[];
+  try {
+    entries = await collectMarkdownFiles(docsDir, '');
+  } catch {
+    return docs;
+  }
+
+  for (const relPath of entries) {
+    try {
+      const content = await fs.promises.readFile(path.join(docsDir, relPath), 'utf-8');
+      const meta = parseLocalFrontmatter(content);
+      if (meta) {
+        docs.push({ ...meta, path: relPath });
+      }
+    } catch {
+      // skip unreadable files
+    }
+  }
+  return docs;
+}
+
+async function collectMarkdownFiles(base: string, rel: string): Promise<string[]> {
+  const results: string[] = [];
+  const dir = rel ? path.join(base, rel) : base;
+  const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    const entryRel = rel ? `${rel}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) {
+      results.push(...await collectMarkdownFiles(base, entryRel));
+    } else if (entry.isFile() && entry.name.endsWith('.md')) {
+      results.push(entryRel);
+    }
+  }
+  return results;
+}
+
+function parseLocalFrontmatter(raw: string): Omit<DocLink, 'path'> | null {
+  const fmMatch = /^---\r?\n([\s\S]*?)\r?\n---/.exec(raw);
+  if (!fmMatch) return null;
+  const fm = fmMatch[1];
+
+  const scopeLines: string[] = [];
+  let inScope = false;
+  for (const line of fm.split(/\r?\n/)) {
+    if (/^c4Scope\s*:/.test(line)) {
+      inScope = true;
+      const inline = /\[([^\]]*)\]/.exec(line);
+      if (inline) {
+        scopeLines.push(
+          ...inline[1].split(',').map(s => s.trim().replaceAll(/^["']|["']$/g, '')).filter(Boolean),
+        );
+        inScope = false;
+      }
+      continue;
+    }
+    if (inScope) {
+      if (/^\s+-\s+/.test(line)) {
+        scopeLines.push(line.replace(/^\s+-\s+/, '').trim().replaceAll(/^["']|["']$/g, ''));
+      } else {
+        inScope = false;
+      }
+    }
+  }
+  if (scopeLines.length === 0) return null;
+
+  const titleMatch = /^title\s*:\s*"?(.+?)"?\s*$/m.exec(fm);
+  const typeMatch = /^type\s*:\s*"?(\w+)"?\s*$/m.exec(fm);
+  const dateMatch = /^date\s*:\s*"?(\d{4}-\d{2}-\d{2})"?\s*$/m.exec(fm);
+
+  return {
+    title: titleMatch?.[1] ?? 'Untitled',
+    type: typeMatch?.[1] ?? 'unknown',
+    c4Scope: scopeLines,
+    date: dateMatch?.[1] ?? '',
+  };
 }
 
 // ---------------------------------------------------------------------------

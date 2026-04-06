@@ -2,6 +2,7 @@ import type {
   BoundaryInfo,
   C4Model,
   CyclicPair,
+  DocLink,
   DsmDiff,
   DsmMatrix,
   FeatureMatrix,
@@ -39,7 +40,12 @@ export interface AnalysisProgressMessage {
   readonly percent: number;
 }
 
-export type ServerMessage = ModelUpdatedMessage | DsmUpdatedMessage | AnalysisProgressMessage;
+export interface DocLinksUpdatedMessage {
+  readonly type: 'doc-links-updated';
+  readonly docLinks: readonly DocLink[];
+}
+
+export type ServerMessage = ModelUpdatedMessage | DsmUpdatedMessage | AnalysisProgressMessage | DocLinksUpdatedMessage;
 
 // ---------------------------------------------------------------------------
 //  Client → Server messages

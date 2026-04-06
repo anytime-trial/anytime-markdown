@@ -504,6 +504,11 @@
           "default": ".vscode/c4-model.json",
           "markdownDescription": "%config.c4ModelPath%"
         },
+        "anytimeTrail.docsPath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Absolute path to the documentation directory for C4 document links. When set, Markdown files with `c4Scope` frontmatter are indexed and shown in the C4 viewer."
+        },
         "anytimeTrail.server.enabled": {
           "type": "boolean",
           "default": false,

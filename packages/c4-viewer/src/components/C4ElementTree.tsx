@@ -1,4 +1,4 @@
-import type { C4TreeNode } from '@anytime-markdown/c4-kernel';
+import type { C4TreeNode, DocLink } from '@anytime-markdown/c4-kernel';
 import type { Action } from '@anytime-markdown/graph-core/state';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import CheckBoxIcon from '@mui/icons-material/CheckBox';
@@ -14,6 +14,9 @@ import PersonIcon from '@mui/icons-material/Person';
 import Box from '@mui/material/Box';
 import Checkbox from '@mui/material/Checkbox';
 import Collapse from '@mui/material/Collapse';
+import DescriptionIcon from '@mui/icons-material/Description';
+import Chip from '@mui/material/Chip';
+import Divider from '@mui/material/Divider';
 import IconButton from '@mui/material/IconButton';
 import List from '@mui/material/List';
 import ListItemButton from '@mui/material/ListItemButton';
@@ -212,6 +215,101 @@ const TreeNodeItem: FC<TreeNodeItemProps> = memo(({ node, depth, selectedId, onS
 });
 TreeNodeItem.displayName = 'TreeNodeItem';
 
+// ---------------------------------------------------------------------------
+//  Documents section
+// ---------------------------------------------------------------------------
+
+/** c4Scope がターゲット要素IDに一致するか（完全一致 or 子パス前方一致） */
+function matchesScope(docScope: readonly string[], elementId: string): boolean {
+  return docScope.some(s => s === elementId || s.startsWith(elementId + '/'));
+}
+
+const TYPE_COLORS: Record<string, string> = {
+  spec: '#4FC3F7',
+  tech: '#81C784',
+  plan: '#FFB74D',
+  review: '#CE93D8',
+  report: '#F48FB1',
+  test: '#A5D6A7',
+  manual: '#90A4AE',
+};
+
+interface DocLinksSectionProps {
+  readonly docLinks: readonly DocLink[];
+  readonly selectedId: string | null;
+  readonly onDocLinkClick?: (doc: DocLink) => void;
+}
+
+const DocLinksSection: FC<DocLinksSectionProps> = memo(({ docLinks, selectedId, onDocLinkClick }) => {
+  const matched = useMemo(() => {
+    if (!selectedId || docLinks.length === 0) return [];
+    return docLinks.filter(d => matchesScope(d.c4Scope, selectedId));
+  }, [docLinks, selectedId]);
+
+  return (
+    <>
+      <Divider sx={{ borderColor: BORDER_COLOR }} />
+      <Box sx={{
+        px: 1,
+        py: 0.25,
+        borderBottom: `1px solid ${BORDER_COLOR}`,
+        minHeight: 32,
+        display: 'flex',
+        alignItems: 'center',
+        flexShrink: 0,
+      }}>
+        <DescriptionIcon sx={{ fontSize: 14, mr: 0.5, color: 'rgba(255,255,255,0.5)' }} />
+        <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.7rem' }}>
+          Documents
+        </Typography>
+      </Box>
+      {!selectedId ? (
+        <Typography variant="caption" sx={{ px: 1.5, py: 1, color: 'rgba(255,255,255,0.3)', fontSize: '0.7rem' }}>
+          Select an element
+        </Typography>
+      ) : matched.length === 0 ? (
+        <Typography variant="caption" sx={{ px: 1.5, py: 1, color: 'rgba(255,255,255,0.3)', fontSize: '0.7rem' }}>
+          No linked documents
+        </Typography>
+      ) : (
+        <List dense disablePadding sx={{ overflowY: 'auto' }}>
+          {matched.map(doc => (
+            <ListItemButton
+              key={doc.path}
+              onClick={() => onDocLinkClick?.(doc)}
+              sx={{ py: 0.25, pl: 1.5, minHeight: 28 }}
+            >
+              <Chip
+                label={doc.type}
+                size="small"
+                sx={{
+                  height: 16,
+                  fontSize: '0.6rem',
+                  mr: 0.75,
+                  bgcolor: TYPE_COLORS[doc.type] ?? '#757575',
+                  color: '#000',
+                  '& .MuiChip-label': { px: 0.5 },
+                }}
+              />
+              <ListItemText
+                primary={doc.title}
+                primaryTypographyProps={{
+                  variant: 'body2',
+                  noWrap: true,
+                  fontSize: '0.75rem',
+                }}
+              />
+            </ListItemButton>
+          ))}
+        </List>
+      )}
+    </>
+  );
+});
+DocLinksSection.displayName = 'DocLinksSection';
+
+// ---------------------------------------------------------------------------
+
 interface C4ElementTreeProps {
   readonly tree: readonly C4TreeNode[];
   readonly dispatch: Dispatch<Action>;
@@ -219,9 +317,11 @@ interface C4ElementTreeProps {
   readonly onCheckedChange?: (checkedIds: ReadonlySet<string>) => void;
   readonly onRemoveElement?: (id: string) => void;
   readonly onPurgeDeleted?: () => void;
+  readonly docLinks?: readonly DocLink[];
+  readonly onDocLinkClick?: (doc: DocLink) => void;
 }
 
-export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onSelect, onCheckedChange, onRemoveElement, onPurgeDeleted }) => {
+export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onSelect, onCheckedChange, onRemoveElement, onPurgeDeleted, docLinks, onDocLinkClick }) => {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => {
     // デフォルトでルートレベルと system ノードの直下を展開
     const ids = new Set<string>();
@@ -393,6 +493,13 @@ export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onS
           />
         ))}
       </List>
+      {docLinks && docLinks.length > 0 && (
+        <DocLinksSection
+          docLinks={docLinks}
+          selectedId={selectedId}
+          onDocLinkClick={onDocLinkClick}
+        />
+      )}
     </Box>
   );
 });

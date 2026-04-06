@@ -1,7 +1,7 @@
 'use client';
 
 import { buildElementTree, buildLevelView, c4ToGraphDocument, collectDescendantIds, extractBoundaries, filterTreeByLevel, parseMermaidC4 } from '@anytime-markdown/c4-kernel';
-import type { BoundaryInfo, C4Model, FeatureMatrix } from '@anytime-markdown/c4-kernel';
+import type { BoundaryInfo, C4Model, DocLink, FeatureMatrix } from '@anytime-markdown/c4-kernel';
 import type { GraphDocument, GraphNode } from '@anytime-markdown/graph-core';
 import { engine, layoutWithSubgroups, state as graphState } from '@anytime-markdown/graph-core';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
@@ -73,6 +73,8 @@ export function C4Viewer() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   // --- Editing state ---
+  const [docLinks, setDocLinks] = useState<readonly DocLink[]>([]);
+
   const [addElementType, setAddElementType] = useState<'person' | 'system' | null>(null);
   const [editElement, setEditElement] = useState<{ id: string; type: 'person' | 'system'; name: string; description: string; external: boolean } | null>(null);
   const [addRelOpen, setAddRelOpen] = useState(false);
@@ -221,6 +223,23 @@ export function C4Viewer() {
       .then(json => { if (json) loadGraphJson(json); })
       .catch(() => { /* ファイルが存在しない場合は無視 */ });
   }, [loadGraphJson]);
+
+  // ドキュメントインデックスの取得
+  useEffect(() => {
+    fetch('/api/docs-index')
+      .then(res => { if (res.ok) return res.json(); })
+      .then((data: { docs?: DocLink[] } | undefined) => {
+        if (data?.docs) setDocLinks(data.docs);
+      })
+      .catch(() => { /* docs-index unavailable */ });
+  }, []);
+
+  const handleDocLinkClick = useCallback((doc: DocLink) => {
+    const repo = process.env.NEXT_PUBLIC_DOCS_GITHUB_REPO;
+    if (repo) {
+      globalThis.open(`https://github.com/${repo}/blob/main/${doc.path}`, '_blank');
+    }
+  }, []);
 
   // c4Model のローカル編集をグラフに反映（レベル維持）
   const currentLevelRef = useRef(currentLevel);
@@ -546,6 +565,8 @@ export function C4Viewer() {
             onCheckedChange={setCheckedPackageIds}
             onRemoveElement={handleRemoveElement}
             onPurgeDeleted={handlePurgeDeleted}
+            docLinks={docLinks}
+            onDocLinkClick={handleDocLinkClick}
           />
         )}
       </Box>
