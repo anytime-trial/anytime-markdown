@@ -54,6 +54,8 @@ export interface C4DataProvider {
 // ---------------------------------------------------------------------------
 
 const BIND_HOST = '127.0.0.1';
+const RATE_LIMIT_WINDOW_MS = 1_000;
+const RATE_LIMIT_MAX = 60;
 
 const JSON_HEADERS: Record<string, string> = {
   'Content-Type': 'application/json',
@@ -77,6 +79,8 @@ export class C4DataServer {
   private wsServer: WebSocketServer | undefined;
   private readonly clients = new Set<WebSocket>();
   private readonly staticCache = new Map<string, Buffer>();
+  private rateLimitCount = 0;
+  private rateLimitReset = 0;
   private cachedHtml: string | undefined;
   private docLinks: readonly DocLink[] = [];
   private docsPath: string | undefined;
@@ -216,6 +220,19 @@ export class C4DataServer {
     req: http.IncomingMessage,
     res: http.ServerResponse,
   ): void {
+    // Rate limiting
+    const now = Date.now();
+    if (now > this.rateLimitReset) {
+      this.rateLimitCount = 0;
+      this.rateLimitReset = now + RATE_LIMIT_WINDOW_MS;
+    }
+    this.rateLimitCount++;
+    if (this.rateLimitCount > RATE_LIMIT_MAX) {
+      res.writeHead(429, { 'Retry-After': '1' });
+      res.end('Too Many Requests');
+      return;
+    }
+
     // CORS: localhost のみ許可
     const origin = req.headers.origin;
     if (origin && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
