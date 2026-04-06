@@ -16,7 +16,7 @@ import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 
-import { AddElementDialog, AddRelationshipDialog, C4ElementTree, DsmCanvas, FcMapCanvas, GraphCanvas, useC4DataSource } from '@anytime-markdown/c4-viewer';
+import { AddElementDialog, AddRelationshipDialog, C4ElementTree, CoverageCanvas, DsmCanvas, FcMapCanvas, GraphCanvas, useC4DataSource } from '@anytime-markdown/c4-viewer';
 import type { ElementFormData, RelationshipFormData } from '@anytime-markdown/c4-viewer';
 
 const { graphReducer, createInitialState } = graphState;
@@ -49,7 +49,8 @@ export function StandaloneC4Viewer() {
   const [showTree, setShowTree] = useState(true);
   const [showC4, setShowC4] = useState(true);
   const [showDsm, setShowDsm] = useState(true);
-  const [matrixView, setMatrixView] = useState<'dsm' | 'fcmap'>('dsm');
+  const [matrixView, setMatrixView] = useState<'dsm' | 'fcmap' | 'coverage'>('dsm');
+  const [showCoverage, setShowCoverage] = useState(false);
   const [dsmLevel, setDsmLevel] = useState<'component' | 'package'>('component');
   const [dsmClustered, setDsmClustered] = useState(false);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
@@ -158,16 +159,8 @@ export function StandaloneC4Viewer() {
   }, [c4Model]);
 
   const handleDocLinkClick = useCallback((doc: DocLink) => {
-    // VS Code 拡張環境ではローカルファイルをエディタで開く
-    // vscode.postMessage は standalone viewer からは直接利用できないため
-    // コマンドリンク経由で VS Code に通知する
-    const vscodeApi = (globalThis as Record<string, unknown>).__vscode as
-      | { postMessage?: (msg: unknown) => void }
-      | undefined;
-    if (vscodeApi?.postMessage) {
-      vscodeApi.postMessage({ type: 'open-doc-link', path: doc.path });
-    }
-  }, []);
+    dataSource.sendCommand('open-doc-link', { path: doc.path });
+  }, [dataSource]);
 
   const handleRemoveElement = useCallback((id: string) => {
     dataSource.sendCommand('remove-element', { id });
@@ -176,6 +169,16 @@ export function StandaloneC4Viewer() {
   const handlePurgeDeleted = useCallback(() => {
     dataSource.sendCommand('purge-deleted-elements');
   }, [dataSource]);
+
+  // カバレッジヒートマップ用マップ (c4Id → lines.pct)
+  const coverageMap = useMemo(() => {
+    if (!showCoverage || !dataSource.coverageMatrix) return null;
+    const map = new Map<string, number>();
+    for (const entry of dataSource.coverageMatrix.entries) {
+      map.set(entry.elementId, entry.lines.pct);
+    }
+    return map;
+  }, [showCoverage, dataSource.coverageMatrix]);
 
   // チェックOFFパッケージ配下の要素IDを収集
   const excludedDescendantIds = useMemo(() => {
@@ -307,6 +310,7 @@ export function StandaloneC4Viewer() {
         <Button size="small" onClick={() => { if (showC4 && !showDsm) return; setShowC4(prev => !prev); }} aria-pressed={showC4} aria-label="Toggle C4 graph" sx={{ ...toolbarButtonSx, ...(showC4 && { bgcolor: 'rgba(144,202,249,0.12)' }) }}>C4</Button>
         <Button size="small" onClick={() => { if (showDsm && !showC4) return; setShowDsm(prev => !prev); if (!showDsm) setMatrixView('dsm'); }} aria-pressed={showDsm && matrixView === 'dsm'} aria-label="Toggle DSM matrix" sx={{ ...toolbarButtonSx, ...(showDsm && matrixView === 'dsm' && { bgcolor: 'rgba(144,202,249,0.12)' }) }}>DSM</Button>
         <Button size="small" onClick={() => { setShowDsm(true); setMatrixView('fcmap'); }} aria-pressed={showDsm && matrixView === 'fcmap'} aria-label="Toggle F-C Map" disabled={!dataSource.featureMatrix} sx={{ ...toolbarButtonSx, ...(showDsm && matrixView === 'fcmap' && { bgcolor: 'rgba(144,202,249,0.12)' }) }}>F-C Map</Button>
+        <Button size="small" onClick={() => { const next = !showCoverage; setShowCoverage(next); if (next) { setShowDsm(true); setMatrixView('coverage'); } }} aria-pressed={showCoverage} aria-label="Toggle coverage overlay" disabled={!dataSource.coverageMatrix} sx={{ ...toolbarButtonSx, ...(showCoverage && { bgcolor: 'rgba(144,202,249,0.12)' }) }}>Cov</Button>
         <Button size="small" startIcon={<AccountTreeIcon sx={{ fontSize: 18 }} />} onClick={() => setShowTree(prev => !prev)} aria-pressed={showTree} aria-label="Toggle element tree" sx={{ ...toolbarButtonSx, ...(showTree && { bgcolor: 'rgba(144,202,249,0.12)' }) }}>Tree</Button>
       </Toolbar>
       {currentLevel === 1 && (
@@ -372,6 +376,7 @@ export function StandaloneC4Viewer() {
             <GraphCanvas document={state.document} viewport={state.document.viewport} dispatch={dispatch} canvasRef={canvasRef}
               selectedNodeId={selectedElementId ? (state.document.nodes.find(n => n.metadata?.c4Id === selectedElementId)?.id ?? null) : null}
               centerOnSelect={centerOnSelect}
+              coverageMap={coverageMap}
               onNodeSelect={(id) => { setCenterOnSelect(false); setSelectedElementId(id); }}
               onNodeDoubleClick={(nodeId) => {
                 if (!c4Model) return;
@@ -406,7 +411,9 @@ export function StandaloneC4Viewer() {
         )}
         {showDsm && (
           <Box sx={{ flex: showC4 ? 1 - splitRatio : 1, position: 'relative', minWidth: 100, borderRight: showTree && elementTree.length > 0 ? `1px solid ${BORDER_COLOR}` : 'none' }}>
-            {matrixView === 'fcmap' && dataSource.featureMatrix && c4Model ? (
+            {matrixView === 'coverage' && dataSource.coverageMatrix && c4Model ? (
+              <CoverageCanvas coverageMatrix={dataSource.coverageMatrix} model={c4Model} level={currentLevel} />
+            ) : matrixView === 'fcmap' && dataSource.featureMatrix && c4Model ? (
               <FcMapCanvas featureMatrix={dataSource.featureMatrix} model={c4Model} excludedElementIds={excludedDescendantIds} level={currentLevel} />
             ) : dsmModel ? (
               <DsmCanvas model={dsmModel} fullModel={c4Model ?? undefined} boundaries={boundaryInfos} level={dsmLevel} clustered={dsmClustered} focusedNodeId={selectedElementId} scopeIds={selectedScopeIds} deletedIds={deletedIds} />
