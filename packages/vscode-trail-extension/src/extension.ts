@@ -237,6 +237,24 @@ export function activate(context: vscode.ExtensionContext) {
 		}),
 	);
 
+	context.subscriptions.push(
+		vscode.commands.registerCommand('anytime-trail.runE2eTest', () => {
+			const cmd = vscode.workspace.getConfiguration('anytimeTrail.test').get<string>('e2eCommand', 'cd packages/web-app && npm run e2e');
+			const terminal = vscode.window.createTerminal('E2E Test');
+			terminal.show();
+			terminal.sendText(cmd);
+		}),
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('anytime-trail.runCoverageTest', () => {
+			const cmd = vscode.workspace.getConfiguration('anytimeTrail.test').get<string>('coverageCommand', 'npx jest --coverage --maxWorkers=1');
+			const terminal = vscode.window.createTerminal('Coverage Test');
+			terminal.show();
+			terminal.sendText(cmd);
+		}),
+	);
+
 	registerChangesCommands(context, {
 		changesProvider,
 		timelineProvider,
