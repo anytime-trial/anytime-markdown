@@ -473,6 +473,7 @@ export class C4Panel implements C4DataProvider {
     C4Panel.saveModel(model, boundaries ?? [], this.lastFeatureMatrix);
     this.inferMapping();
     this.buildDsm();
+    void vscode.commands.executeCommand('setContext', 'anytimeTrail.c4ModelLoaded', true);
     C4Panel.dataServer?.notify('model-updated');
   }
 

@@ -91,7 +91,8 @@
       },
       {
         "view": "anytimeTrail.c4Elements",
-        "contents": "%viewsWelcome.c4Elements%"
+        "contents": "%viewsWelcome.c4Elements%",
+        "when": "!anytimeTrail.c4ModelLoaded"
       }
     ],
     "commands": [

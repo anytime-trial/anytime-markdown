@@ -27,7 +27,8 @@ function startDataServer(port: number): void {
 		statusBarItem.text = `$(radio-tower) C4 Server: :${port}`;
 		statusBarItem.tooltip = `C4 Data Server running on port ${port}`;
 		statusBarItem.show();
-		C4Panel.restoreSavedModel();
+		const restored = C4Panel.restoreSavedModel();
+		void vscode.commands.executeCommand('setContext', 'anytimeTrail.c4ModelLoaded', restored);
 	}).catch((err: Error) => {
 		vscode.window.showErrorMessage(`C4 Data Server: ${err.message}`);
 	});
