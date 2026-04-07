@@ -451,13 +451,20 @@ export function C4Viewer() {
   const toolbarButtonSx = {
     textTransform: 'none', color: ACCENT_BLUE, borderColor: BORDER_COLOR,
     fontWeight: 600, fontSize: '0.875rem', borderRadius: '8px',
-    '&:hover': { bgcolor: 'rgba(255,255,255,0.08)' },
+    transition: '250ms cubic-bezier(0.4, 0, 0.2, 1)',
+    '&:hover': { bgcolor: 'rgba(255,255,255,0.16)' },
+    '&:focus-visible': { outline: '2px solid #90CAF9', outlineOffset: '2px' },
+    '&:disabled': { color: 'rgba(255,255,255,0.45)' },
   } as const;
+
+  const toolbarButtonActiveBg = 'rgba(144,202,249,0.08)';
 
   const levelButtonSx = {
     textTransform: 'none', fontWeight: 600, fontSize: '0.75rem', minWidth: 36,
     borderColor: BORDER_COLOR, color: 'rgba(255,255,255,0.70)',
-    '&:hover': { bgcolor: 'rgba(255,255,255,0.08)' },
+    transition: '250ms cubic-bezier(0.4, 0, 0.2, 1)',
+    '&:hover': { bgcolor: 'rgba(255,255,255,0.16)' },
+    '&:focus-visible': { outline: '2px solid #90CAF9', outlineOffset: '2px' },
   } as const;
 
   const levelButtonActiveSx = {
@@ -469,7 +476,7 @@ export function C4Viewer() {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px)', bgcolor: BG_PRIMARY }}>
-      <Toolbar variant="dense" sx={{ gap: 1, bgcolor: BG_SECONDARY, borderBottom: `1px solid ${BORDER_COLOR}`, minHeight: 44, px: { xs: 2, md: 3 } }}>
+      <Toolbar variant="dense" sx={{ gap: 1, bgcolor: 'rgba(18,18,18,0.85)', backdropFilter: 'blur(12px)', borderBottom: `1px solid ${BORDER_COLOR}`, minHeight: 44, px: { xs: 2, md: 3 }, zIndex: 1100 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mr: 1 }} aria-live="polite" aria-atomic="true">
           <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'rgba(255,255,255,0.3)' }} aria-hidden="true" />
           <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.7rem' }}>
@@ -499,9 +506,9 @@ export function C4Viewer() {
           ))}
         </ButtonGroup>
         <Box sx={{ flex: 1 }} />
-        <Button size="small" onClick={() => setShowDsm(prev => !prev)} aria-pressed={!showDsm} aria-label="Toggle matrix panel" sx={{ ...toolbarButtonSx, ...(!showDsm && { bgcolor: 'rgba(144,202,249,0.12)' }) }}>C4</Button>
-        <Button size="small" onClick={() => setShowC4(prev => !prev)} aria-pressed={!showC4} aria-label="Toggle C4 graph" sx={{ ...toolbarButtonSx, ...(!showC4 && { bgcolor: 'rgba(144,202,249,0.12)' }) }}>Matrix</Button>
-        <Button size="small" startIcon={<AccountTreeIcon sx={{ fontSize: 18 }} />} onClick={() => setShowTree(prev => !prev)} aria-pressed={showTree} aria-label="Toggle element tree" sx={{ ...toolbarButtonSx, ...(showTree && { bgcolor: 'rgba(144,202,249,0.12)' }) }}>Tree</Button>
+        <Button size="small" onClick={() => setShowDsm(prev => !prev)} aria-pressed={!showDsm} aria-label="Toggle matrix panel" sx={{ ...toolbarButtonSx, ...(!showDsm && { bgcolor: toolbarButtonActiveBg }) }}>C4</Button>
+        <Button size="small" onClick={() => setShowC4(prev => !prev)} aria-pressed={!showC4} aria-label="Toggle C4 graph" sx={{ ...toolbarButtonSx, ...(!showC4 && { bgcolor: toolbarButtonActiveBg }) }}>Matrix</Button>
+        <Button size="small" startIcon={<AccountTreeIcon sx={{ fontSize: 18 }} />} onClick={() => setShowTree(prev => !prev)} aria-pressed={showTree} aria-label="Toggle element tree" sx={{ ...toolbarButtonSx, ...(showTree && { bgcolor: toolbarButtonActiveBg }) }}>Tree</Button>
       </Toolbar>
       {currentLevel === 1 && (
         <Toolbar variant="dense" sx={{ gap: 1, bgcolor: BG_SECONDARY, borderBottom: `1px solid ${BORDER_COLOR}`, minHeight: 36, px: { xs: 2, md: 3 } }}>
@@ -561,17 +568,17 @@ export function C4Viewer() {
                 setSplitRatio(prev => Math.min(0.8, prev + 0.05));
               }
             }}
-            sx={{ width: 5, cursor: 'col-resize', bgcolor: 'transparent', borderLeft: `1px solid ${BORDER_COLOR}`, '&:hover': { bgcolor: 'rgba(144,202,249,0.2)' }, '&:focus-visible': { outline: '2px solid #4FC3F7' }, flexShrink: 0 }}
+            sx={{ width: 5, cursor: 'col-resize', bgcolor: 'transparent', borderLeft: `1px solid ${BORDER_COLOR}`, '&:hover': { bgcolor: 'rgba(144,202,249,0.2)' }, '&:focus-visible': { outline: '2px solid #90CAF9', outlineOffset: '2px' }, flexShrink: 0 }}
           />
         )}
         {/* Center: Matrix panel (DSM / F-C Map / Coverage) */}
         {showDsm && (
           <Box sx={{ flex: showC4 ? 1 - splitRatio : 1, display: 'flex', flexDirection: 'column', minWidth: 100, borderRight: showTree && elementTree.length > 0 ? `1px solid ${BORDER_COLOR}` : 'none' }}>
             <Toolbar variant="dense" sx={{ gap: 0.5, bgcolor: BG_SECONDARY, borderBottom: `1px solid ${BORDER_COLOR}`, minHeight: 36, px: 1, flexShrink: 0 }}>
-              <Button size="small" onClick={() => { setMatrixView('dsm'); }} aria-pressed={matrixView === 'dsm'} aria-label="Show DSM matrix" sx={{ ...toolbarButtonSx, fontSize: '0.75rem', ...(matrixView === 'dsm' && { bgcolor: 'rgba(144,202,249,0.12)' }) }}>DSM</Button>
-              <Button size="small" onClick={() => { setMatrixView('fcmap'); }} aria-pressed={matrixView === 'fcmap'} aria-label="Show F-C Map" disabled={!featureMatrix} sx={{ ...toolbarButtonSx, fontSize: '0.75rem', ...(matrixView === 'fcmap' && { bgcolor: 'rgba(144,202,249,0.12)' }) }}>F-C Map</Button>
-              <Button size="small" onClick={() => { const next = matrixView !== 'coverage'; setShowCoverage(next); setMatrixView(next ? 'coverage' : 'dsm'); }} aria-pressed={matrixView === 'coverage'} aria-label="Show coverage" disabled={!coverageMatrix} sx={{ ...toolbarButtonSx, fontSize: '0.75rem', ...(matrixView === 'coverage' && { bgcolor: 'rgba(144,202,249,0.12)' }) }}>Cov</Button>
-              <Button size="small" onClick={() => setDsmClustered(prev => !prev)} sx={{ ...toolbarButtonSx, fontSize: '0.75rem', ...(dsmClustered && { bgcolor: 'rgba(144,202,249,0.12)' }) }}>Cluster</Button>
+              <Button size="small" onClick={() => { setMatrixView('dsm'); }} aria-pressed={matrixView === 'dsm'} aria-label="Show DSM matrix" sx={{ ...toolbarButtonSx, fontSize: '0.75rem', ...(matrixView === 'dsm' && { bgcolor: toolbarButtonActiveBg }) }}>DSM</Button>
+              <Button size="small" onClick={() => { setMatrixView('fcmap'); }} aria-pressed={matrixView === 'fcmap'} aria-label="Show F-C Map" disabled={!featureMatrix} sx={{ ...toolbarButtonSx, fontSize: '0.75rem', ...(matrixView === 'fcmap' && { bgcolor: toolbarButtonActiveBg }) }}>F-C Map</Button>
+              <Button size="small" onClick={() => { const next = matrixView !== 'coverage'; setShowCoverage(next); setMatrixView(next ? 'coverage' : 'dsm'); }} aria-pressed={matrixView === 'coverage'} aria-label="Show coverage" disabled={!coverageMatrix} sx={{ ...toolbarButtonSx, fontSize: '0.75rem', ...(matrixView === 'coverage' && { bgcolor: toolbarButtonActiveBg }) }}>Cov</Button>
+              <Button size="small" onClick={() => setDsmClustered(prev => !prev)} sx={{ ...toolbarButtonSx, fontSize: '0.75rem', ...(dsmClustered && { bgcolor: toolbarButtonActiveBg }) }}>Cluster</Button>
             </Toolbar>
             <Box sx={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
             {matrixView === 'coverage' && coverageMatrix && c4Model ? (
