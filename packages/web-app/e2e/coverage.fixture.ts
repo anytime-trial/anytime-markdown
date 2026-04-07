@@ -30,14 +30,16 @@ function shouldFetchSourceMap(url: string): boolean {
   return true;
 }
 
+const coverageEnabled = !!process.env.E2E_COVERAGE || !!process.env.CI;
+
 export const test = base.extend<object>({
   page: async ({ page, browserName }, use, testInfo) => {
-    const isChromium = browserName === "chromium";
-    if (isChromium) {
+    const collect = coverageEnabled && browserName === "chromium";
+    if (collect) {
       await page.coverage.startJSCoverage({ resetOnNavigation: false });
     }
     await use(page);
-    if (isChromium) {
+    if (collect) {
       const coverage = await page.coverage.stopJSCoverage();
       if (coverage.length === 0) return;
 
