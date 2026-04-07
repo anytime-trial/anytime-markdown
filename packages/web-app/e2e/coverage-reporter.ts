@@ -4,68 +4,99 @@ import type {
 } from "@playwright/test/reporter";
 import { readdir, readFile, rm, mkdir, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
-import v8ToIstanbul from "v8-to-istanbul";
 
-const V8_COV_DIR = join(import.meta.dirname, "..", ".v8-coverage");
-const OUT_DIR = join(import.meta.dirname, "..", "coverage");
-const PROJECT_ROOT = join(import.meta.dirname, "..");
+// Playwright transforms TS to CJS, so __dirname and require are available
+/* eslint-disable @typescript-eslint/no-require-imports */
+const v8ToIstanbul: typeof import("v8-to-istanbul").default =
+  require("v8-to-istanbul");
+const {
+  AnyMap,
+  encodedMappings,
+}: typeof import("@jridgewell/trace-mapping") =
+  require("@jridgewell/trace-mapping");
 
-/** webpack internals, node_modules, Next.js runtime are excluded */
-function shouldInclude(url: string): boolean {
-  if (url.includes("node_modules")) return false;
-  if (url.includes("_next/static/chunks/webpack")) return false;
-  if (url.includes("__nextjs_original-stack-frame")) return false;
-  return url.includes("/src/");
+const V8_COV_DIR = join(__dirname, "..", ".v8-coverage");
+const OUT_DIR = join(__dirname, "..", "coverage");
+const PROJECT_ROOT = join(__dirname, "..");
+
+interface V8Entry {
+  url: string;
+  source?: string;
+  sourceMapJson?: string;
+  functions: Array<{
+    functionName: string;
+    ranges: Array<{
+      startOffset: number;
+      endOffset: number;
+      count: number;
+    }>;
+    isBlockCoverage: boolean;
+  }>;
+}
+
+/** Include only project source chunks from Turbopack */
+function shouldInclude(entry: V8Entry): boolean {
+  if (!entry.url.includes("_next/static/chunks/packages_")) return false;
+  if (entry.url.includes("node_modules")) return false;
+  if (!entry.source || entry.source.length < 500) return false;
+  if (!entry.sourceMapJson) return false;
+  return true;
 }
 
 class CoverageReporter implements Reporter {
   async onEnd(_result: FullResult): Promise<void> {
-    let files: string[];
+    let covFiles: string[];
     try {
-      files = await readdir(V8_COV_DIR);
+      covFiles = await readdir(V8_COV_DIR);
     } catch {
       return;
     }
 
     const istanbulMap: Record<string, unknown> = {};
 
-    for (const file of files) {
-      if (!file.endsWith(".json")) continue;
-      const raw = await readFile(join(V8_COV_DIR, file), "utf-8");
-      const entries: Array<{
-        url: string;
-        source?: string;
-        functions: Array<{
-          functionName: string;
-          ranges: Array<{
-            startOffset: number;
-            endOffset: number;
-            count: number;
-          }>;
-          isBlockCoverage: boolean;
-        }>;
-      }> = JSON.parse(raw);
+    for (const covFile of covFiles) {
+      if (!covFile.endsWith(".json")) continue;
+      const raw = await readFile(join(V8_COV_DIR, covFile), "utf-8");
+      const entries: V8Entry[] = JSON.parse(raw);
 
       for (const entry of entries) {
-        if (!shouldInclude(entry.url)) continue;
+        if (!shouldInclude(entry)) continue;
 
-        const converter = v8ToIstanbul(entry.url, 0, {
-          source: entry.source ?? "",
-        });
-        await converter.load();
-        converter.applyCoverage(entry.functions);
-        const istanbul = converter.toIstanbul();
+        try {
+          // Turbopack emits sectioned source maps; flatten them for v8-to-istanbul
+          const rawMap = JSON.parse(entry.sourceMapJson!);
+          const flatMap = flattenSourceMap(rawMap);
 
-        for (const [filePath, data] of Object.entries(istanbul)) {
-          const relPath = relative(PROJECT_ROOT, filePath);
-          if (istanbulMap[relPath]) {
-            mergeFileCoverage(
-              istanbulMap[relPath] as Record<string, unknown>,
-              data as Record<string, unknown>,
-            );
-          } else {
-            istanbulMap[relPath] = data;
+          // Strip sourceMappingURL to prevent v8-to-istanbul from trying to read .map files
+          const cleanSource = entry.source!.replace(
+            /\/\/[#@]\s*sourceMappingURL=\S+/g,
+            "",
+          );
+          // Use a local dummy path so v8-to-istanbul doesn't try to resolve HTTP URLs
+          const dummyPath = join(PROJECT_ROOT, "e2e-coverage-temp.js");
+          const converter = v8ToIstanbul(dummyPath, 0, {
+            source: cleanSource,
+            sourceMap: { sourcemap: flatMap },
+          });
+          await converter.load();
+          converter.applyCoverage(entry.functions);
+          const istanbul = converter.toIstanbul();
+
+          for (const [filePath, data] of Object.entries(istanbul)) {
+            const normalizedPath = normalizePath(filePath);
+            if (!normalizedPath) continue;
+
+            if (istanbulMap[normalizedPath]) {
+              mergeFileCoverage(
+                istanbulMap[normalizedPath] as Record<string, unknown>,
+                data as Record<string, unknown>,
+              );
+            } else {
+              istanbulMap[normalizedPath] = data;
+            }
           }
+        } catch {
+          // Skip entries that fail to convert (e.g. chunk loaders without source)
         }
       }
     }
@@ -83,6 +114,62 @@ class CoverageReporter implements Reporter {
 
     await rm(V8_COV_DIR, { recursive: true, force: true });
   }
+}
+
+/**
+ * Flatten a potentially sectioned source map into a standard source map.
+ * Turbopack emits sectioned (index) source maps that v8-to-istanbul cannot handle directly.
+ */
+function flattenSourceMap(
+  rawMap: Record<string, unknown>,
+): Record<string, unknown> {
+  if (!rawMap.sections) return rawMap;
+  const traced = new AnyMap(rawMap as Parameters<typeof AnyMap>[0]);
+  return {
+    version: 3,
+    sources: traced.sources,
+    sourcesContent: traced.sourcesContent,
+    mappings: encodedMappings(traced),
+    names: traced.names,
+  };
+}
+
+/**
+ * Normalize source map paths to relative paths from project root.
+ * Turbopack source maps use [project]/ prefix for project files.
+ */
+function normalizePath(filePath: string): string | undefined {
+  if (filePath.includes("node_modules")) return undefined;
+  if (filePath.includes("[turbopack]")) return undefined;
+  if (filePath.endsWith(".json")) return undefined;
+
+  // Handle [project]/ prefix from Turbopack source maps
+  const projectPrefix = "[project]/";
+  const idx = filePath.indexOf(projectPrefix);
+  if (idx >= 0) {
+    let rel = filePath.substring(idx + projectPrefix.length);
+    // Paths like src/app/... are relative to web-app, normalize to monorepo root
+    if (rel.startsWith("src/")) {
+      rel = `packages/web-app/${rel}`;
+    }
+    if (rel.includes("/src/")) return rel;
+    return undefined;
+  }
+
+  // Handle file:// URLs from source maps
+  if (filePath.startsWith("file://")) {
+    filePath = filePath.replace("file://", "");
+  }
+
+  // Handle absolute paths — normalize to monorepo-relative
+  if (filePath.startsWith(PROJECT_ROOT)) {
+    const rel = relative(PROJECT_ROOT, filePath);
+    if (rel.startsWith("src/")) return `packages/web-app/${rel}`;
+    if (rel.includes("/src/")) return rel;
+    return undefined;
+  }
+
+  return undefined;
 }
 
 function mergeFileCoverage(
