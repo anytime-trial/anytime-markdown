@@ -9,3 +9,8 @@ export type {
   TrailPromptEntry,
   TrailEvaluation,
 } from './parser/types';
+
+export { parseSession } from './parser/parseSession';
+export { buildMessageTree } from './parser/buildMessageTree';
+export { filterMessages } from './parser/filterMessages';
+export { aggregateUsage } from './parser/aggregateUsage';
