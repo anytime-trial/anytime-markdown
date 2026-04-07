@@ -434,19 +434,28 @@ export function CoverageCanvas({
     const canvas = canvasRef.current;
     if (!canvas) return;
     const onWheel = (e: WheelEvent): void => {
-      if (globalThis.document.activeElement === canvasRef.current) {
+      if (e.shiftKey) {
+        // Shift+ホイール: ズーム
         e.preventDefault();
+        const factor = e.deltaY > 0 ? 0.9 : 1.1;
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        const vp = viewportRef.current;
+        viewportRef.current = clampViewport({
+          scale: vp.scale * factor,
+          offsetX: mx - (mx - vp.offsetX) * factor,
+          offsetY: my - (my - vp.offsetY) * factor,
+        });
+      } else {
+        // ホイール: 上下スクロール
+        e.preventDefault();
+        const vp = viewportRef.current;
+        viewportRef.current = clampViewport({
+          ...vp,
+          offsetY: vp.offsetY - e.deltaY,
+        });
       }
-      const factor = e.deltaY > 0 ? 0.9 : 1.1;
-      const rect = canvas.getBoundingClientRect();
-      const mx = e.clientX - rect.left;
-      const my = e.clientY - rect.top;
-      const vp = viewportRef.current;
-      viewportRef.current = clampViewport({
-        scale: vp.scale * factor,
-        offsetX: mx - (mx - vp.offsetX) * factor,
-        offsetY: my - (my - vp.offsetY) * factor,
-      });
     };
     canvas.addEventListener('wheel', onWheel, { passive: false });
     return () => canvas.removeEventListener('wheel', onWheel);

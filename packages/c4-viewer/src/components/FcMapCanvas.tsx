@@ -409,19 +409,26 @@ export function FcMapCanvas({ featureMatrix, model, excludedElementIds, level }:
     const canvas = canvasRef.current;
     if (!canvas) return;
     const onWheel = (e: WheelEvent) => {
-      if (globalThis.document.activeElement === canvasRef.current) {
+      if (e.shiftKey) {
         e.preventDefault();
+        const factor = e.deltaY > 0 ? 0.9 : 1.1;
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        const vp = viewportRef.current;
+        viewportRef.current = clampViewport({
+          scale: vp.scale * factor,
+          offsetX: mx - (mx - vp.offsetX) * factor,
+          offsetY: my - (my - vp.offsetY) * factor,
+        });
+      } else {
+        e.preventDefault();
+        const vp = viewportRef.current;
+        viewportRef.current = clampViewport({
+          ...vp,
+          offsetY: vp.offsetY - e.deltaY,
+        });
       }
-      const factor = e.deltaY > 0 ? 0.9 : 1.1;
-      const rect = canvas.getBoundingClientRect();
-      const mx = e.clientX - rect.left;
-      const my = e.clientY - rect.top;
-      const vp = viewportRef.current;
-      viewportRef.current = clampViewport({
-        scale: vp.scale * factor,
-        offsetX: mx - (mx - vp.offsetX) * factor,
-        offsetY: my - (my - vp.offsetY) * factor,
-      });
     };
     canvas.addEventListener('wheel', onWheel, { passive: false });
     return () => canvas.removeEventListener('wheel', onWheel);
