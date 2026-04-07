@@ -4,16 +4,17 @@ import { analyze } from './analyze';
 import { toCytoscape } from './transform/toCytoscape';
 import { getTrailStylesheet } from './transform/trailStylesheet';
 import { toMermaid } from './transform/toMermaid';
+import { trailToC4 } from './transform/toC4';
 
 export interface CliArgs {
   tsconfigPath: string;
   output: string;
   exclude: string[];
   includeTests: boolean;
-  format: 'cytoscape' | 'mermaid';
+  format: 'cytoscape' | 'mermaid' | 'c4';
 }
 
-const VALID_FORMATS = ['cytoscape', 'mermaid'] as const;
+const VALID_FORMATS = ['cytoscape', 'mermaid', 'c4'] as const;
 const AVAILABLE_OPTIONS = '--tsconfig, --output, --exclude, --include-tests, --format, --help';
 
 function showHelp(): void {
@@ -24,7 +25,7 @@ Options:
   --output <path>     Output file path (default: ./trail.json or ./trail.md)
   --exclude <pattern> Glob pattern to exclude (can be repeated)
   --include-tests     Include test files in analysis
-  --format <type>     Output format: cytoscape, mermaid (default: cytoscape)
+  --format <type>     Output format: cytoscape, mermaid, c4 (default: cytoscape)
   -h, --help          Show this help message
 
 Examples:
@@ -39,7 +40,7 @@ export function parseArgs(argv: string[]): CliArgs {
   let output = '';
   const exclude: string[] = [];
   let includeTests = false;
-  let format: 'cytoscape' | 'mermaid' = 'cytoscape';
+  let format: 'cytoscape' | 'mermaid' | 'c4' = 'cytoscape';
 
   for (let i = 0; i < args.length; i++) {
     switch (args[i]) {
@@ -63,10 +64,10 @@ export function parseArgs(argv: string[]): CliArgs {
       case '--format': {
         const value = args[++i];
         if (!VALID_FORMATS.includes(value as typeof VALID_FORMATS[number])) {
-          console.error(`Invalid format: ${value}. Valid: cytoscape, mermaid`);
+          console.error(`Invalid format: ${value}. Valid: ${VALID_FORMATS.join(', ')}`);
           process.exit(1);
         }
-        format = value as 'cytoscape' | 'mermaid';
+        format = value as 'cytoscape' | 'mermaid' | 'c4';
         break;
       }
       case 'analyze':
@@ -79,7 +80,7 @@ export function parseArgs(argv: string[]): CliArgs {
   }
 
   if (!output) {
-    output = format === 'mermaid' ? './trail.md' : './trail.json';
+    output = format === 'mermaid' ? './trail.md' : format === 'c4' ? './c4-model.json' : './trail.json';
   }
 
   return { tsconfigPath, output, exclude, includeTests, format };
@@ -107,6 +108,9 @@ function main(): void {
   if (args.format === 'mermaid') {
     const mermaid = toMermaid(graph);
     fs.writeFileSync(outputPath, mermaid, 'utf-8');
+  } else if (args.format === 'c4') {
+    const c4Model = trailToC4(graph);
+    fs.writeFileSync(outputPath, JSON.stringify(c4Model, null, 2), 'utf-8');
   } else {
     const elements = toCytoscape(graph);
     const stylesheet = getTrailStylesheet();
@@ -122,6 +126,5 @@ function main(): void {
 }
 
 /* istanbul ignore next -- CLI entry point */
-if (require.main === module) {
-  main();
-}
+// bin/trail.js から require されるため require.main チェックを省略
+main();

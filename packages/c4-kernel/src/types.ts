@@ -17,6 +17,10 @@ export interface C4Element {
   readonly children?: readonly C4Element[];
   /** 境界（親要素ID） */
   readonly boundaryId?: string;
+  /** 手動追加された要素か */
+  readonly manual?: boolean;
+  /** ワークスペース解析で検出されなくなった要素か */
+  readonly deleted?: boolean;
 }
 
 /** C4リレーションシップ */
@@ -27,6 +31,8 @@ export interface C4Relationship {
   readonly technology?: string;
   /** 双方向か */
   readonly bidirectional?: boolean;
+  /** 手動追加された関係か */
+  readonly manual?: boolean;
 }
 
 /** C4モデル全体 */
@@ -43,6 +49,54 @@ export interface BoundaryInfo {
   readonly name: string;
 }
 
+// ---------------------------------------------------------------------------
+//  Feature Matrix
+// ---------------------------------------------------------------------------
+
+/** 機能カテゴリ */
+export interface FeatureCategory {
+  readonly id: string;
+  readonly name: string;
+}
+
+/** 機能領域 */
+export interface Feature {
+  readonly id: string;
+  readonly name: string;
+  readonly categoryId: string;
+}
+
+/** 機能と要素の対応（P=主担当, S=補助, D=依存先） */
+export type FeatureRole = 'primary' | 'secondary' | 'dependency';
+
+/** 機能と C4 要素のマッピング */
+export interface FeatureMapping {
+  readonly featureId: string;
+  /** C4 要素の ID（container or component） */
+  readonly elementId: string;
+  readonly role: FeatureRole;
+}
+
+/** 機能・構成マトリックス */
+export interface FeatureMatrix {
+  readonly categories: readonly FeatureCategory[];
+  readonly features: readonly Feature[];
+  readonly mappings: readonly FeatureMapping[];
+}
+
+// ---------------------------------------------------------------------------
+//  Document Links
+// ---------------------------------------------------------------------------
+
+/** C4要素に紐づくドキュメントリンク */
+export interface DocLink {
+  readonly title: string;
+  readonly type: string;
+  readonly path: string;
+  readonly c4Scope: readonly string[];
+  readonly date: string;
+}
+
 /** ツリー表示用のノード */
 export interface C4TreeNode {
   readonly id: string;
@@ -51,5 +105,45 @@ export interface C4TreeNode {
   readonly external?: boolean;
   readonly technology?: string;
   readonly description?: string;
+  readonly deleted?: boolean;
   readonly children: readonly C4TreeNode[];
+}
+
+// ---------------------------------------------------------------------------
+//  Coverage types
+// ---------------------------------------------------------------------------
+
+export interface CoverageMetric {
+  readonly covered: number;
+  readonly total: number;
+  readonly pct: number;
+}
+
+export interface CoverageEntry {
+  readonly elementId: string;
+  readonly lines: CoverageMetric;
+  readonly branches: CoverageMetric;
+  readonly functions: CoverageMetric;
+}
+
+export interface CoverageMatrix {
+  readonly entries: readonly CoverageEntry[];
+  readonly generatedAt: number;
+}
+
+export interface CoverageDelta {
+  readonly pctDelta: number;
+}
+
+export interface CoverageDiffEntry {
+  readonly elementId: string;
+  readonly lines: CoverageDelta;
+  readonly branches: CoverageDelta;
+  readonly functions: CoverageDelta;
+}
+
+export interface CoverageDiffMatrix {
+  readonly entries: readonly CoverageDiffEntry[];
+  readonly baseGeneratedAt: number;
+  readonly currentGeneratedAt: number;
 }

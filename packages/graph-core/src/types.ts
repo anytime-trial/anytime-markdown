@@ -1,4 +1,4 @@
-export type NodeType = 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder' | 'doc' | 'frame' | 'image';
+export type NodeType = 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder' | 'doc' | 'frame' | 'image' | 'person';
 export type EdgeType = 'line' | 'connector';
 export type ToolType = 'select' | 'rect' | 'ellipse' | 'sticky' | 'text' | 'diamond' | 'parallelogram' | 'cylinder' | 'doc' | 'frame' | 'line' | 'connector' | 'pan';
 
@@ -211,6 +211,7 @@ export function createNode(type: NodeType, x: number, y: number, overrides?: Par
     doc: { width: 200, height: 120 },
     frame: { width: 400, height: 300 },
     image: { width: 200, height: 150 },
+    person: { width: 120, height: 160 },
   };
   const size = sizeMap[type] ?? { width: 150, height: 100 };
   const extra: Partial<GraphNode> = {};

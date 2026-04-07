@@ -48,7 +48,7 @@ describe("useGraphState", () => {
   it("dispatches action", () => {
     const { result } = renderHook(() => useGraphState());
     act(() => {
-      result.current.dispatch({ type: "SET_TOOL", tool: "rect" });
+      result.current.dispatch({ type: "DELETE_SELECTED" });
     });
   });
 });

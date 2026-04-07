@@ -6,7 +6,7 @@ import type { Side } from '@anytime-markdown/graph-core/engine';
 import { computeVisibilityPath,drawEdgePreview, drawSelectionRect, drawShapePreview, drawSmartGuides, drawSnapHighlight, interpolateViewport, render } from '@anytime-markdown/graph-core/engine';
 import React, { useCallback, useEffect, useMemo,useRef } from 'react';
 
-import { bestSides, computeBezierPath, computeOrthogonalPath, getConnectionPoints,resolveConnectorEndpoints } from '../engine/connector';
+import { bestSides, computeBezierPath, computeOrthogonalPath, getConnectionPoints, resolveConnectorEndpoints } from '@anytime-markdown/graph-core/engine';
 import type { DragPreview } from '../hooks/useCanvasInteraction';
 import { GraphEdge, GraphNode, SelectionState,Viewport } from '../types';
 

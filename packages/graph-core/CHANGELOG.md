@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-04-07
+
+### Added
+
+- Person shape support for graph nodes
+- `useCanvasBase` hook extracted for shared graph operations
+- Editor key bindings in useCanvasBase
+
+### Changed
+
+- Wheel behavior: Shift+wheel for zoom, wheel for scroll in matrices
+
+### Fixed
+
+- Type errors in useCanvasBase (SELECT_RECT_COLORS / CanvasColors mismatch)
+- SonarCloud issues (S1854, S6557, S4624, S6481, S3358, S6582)
+
 ## [0.1.0] - 2026-04-04
 
 ### Added

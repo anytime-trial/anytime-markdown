@@ -499,6 +499,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     [settings, isDark],
   );
   const plantUmlToolbarCtx = useMemo(() => ({ setSampleAnchorEl }), [setSampleAnchorEl]);
+  const editorFeaturesValue = useMemo(() => ({ hideGraph: !!hideGraph }), [hideGraph]);
 
   const { handleInsertSectionNumbers, handleRemoveSectionNumbers } = useSectionNumbers(editor);
 
@@ -540,7 +541,7 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     <EditorErrorBoundary>
     <EditorModeContext.Provider value={editorModeValue}>
     <EditorSettingsContext.Provider value={settingsValue}>
-    <EditorFeaturesContext.Provider value={{ hideGraph: !!hideGraph }}>
+    <EditorFeaturesContext.Provider value={editorFeaturesValue}>
     <PlantUmlToolbarContext.Provider value={plantUmlToolbarCtx}>
     <PrintStyles />
     <Box id="main-content" component="main" sx={{ p: { xs: 2, sm: 3 } }}>

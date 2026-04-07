@@ -6,6 +6,23 @@
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-04-07
+
+### 追加
+
+- グラフノードの Person シェイプ対応
+- 共通グラフ操作用 `useCanvasBase` フック抽出
+- useCanvasBase のエディタキーバインド
+
+### 変更
+
+- ホイール動作変更: Shift+ホイールでズーム、ホイールでマトリクススクロール
+
+### 修正
+
+- useCanvasBase の型エラー（SELECT_RECT_COLORS / CanvasColors 不一致）
+- SonarCloud 指摘事項（S1854, S6557, S4624, S6481, S3358, S6582）
+
 ## [0.1.0] - 2026-04-04
 
 ### 追加

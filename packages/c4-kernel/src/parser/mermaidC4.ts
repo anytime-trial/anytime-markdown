@@ -53,7 +53,7 @@ export function extractBoundaries(input: string): BoundaryInfo[] {
   const boundaries: BoundaryInfo[] = [];
   const lines = input.split('\n').map(l => l.trim());
   for (const line of lines) {
-    const match = /^(\w+_?Boundary)\s*\(\s*([^,]+),\s*"([^"]+)"\s*\)/.exec(line);
+    const match = /^(\w+_?Boundary)\s*\(\s*([^,)]+),\s*"([^"]+)"\s*\)/.exec(line);
     if (match) {
       boundaries.push({ id: match[2].trim(), name: match[3] });
     }
@@ -85,7 +85,7 @@ export function parseMermaidC4(input: string): C4Model {
     if (line in DIAGRAM_LEVEL || Object.keys(DIAGRAM_LEVEL).some(k => line.startsWith(k) && line.length === k.length)) continue;
 
     // title
-    const titleMatch = /^title\s+(.+)$/.exec(line);
+    const titleMatch = /^title\s+(\S(?:.*\S)?)$/.exec(line);
     if (titleMatch) {
       title = titleMatch[1].trim();
       continue;
@@ -93,7 +93,7 @@ export function parseMermaidC4(input: string): C4Model {
 
     // Boundary open: System_Boundary(id, "name") { or Boundary(id, "name") {
     // Also: Container_Boundary, Enterprise_Boundary
-    const boundaryMatch = /^(\w+_?Boundary)\s*\(\s*(.+)\)\s*\{?\s*$/.exec(line);
+    const boundaryMatch = /^(\w+_?Boundary)\s*\(\s*([^)]*)\)\s*\{?\s*$/.exec(line);
     if (boundaryMatch) {
       const args = parseArgs(boundaryMatch[2]);
       boundaryStack.push(args[0]);
@@ -107,7 +107,7 @@ export function parseMermaidC4(input: string): C4Model {
     }
 
     // Element: FunctionName(id, "name", ...)
-    const elemMatch = /^(\w+)\s*\(\s*(.+)\)\s*$/.exec(line);
+    const elemMatch = /^(\w+)\s*\(\s*([^)]*)\)\s*$/.exec(line);
     if (elemMatch) {
       const funcName = elemMatch[1];
       const args = parseArgs(elemMatch[2]);

@@ -10,7 +10,7 @@ import {
   nearestConnectionPoint,
   hitTestConnectionPoint,
   bestSides,
-} from '../../../app/graph/engine/connector';
+} from '@anytime-markdown/graph-core/engine';
 import { GraphNode, GraphEdge, DEFAULT_NODE_STYLE, DEFAULT_EDGE_STYLE } from '../../../app/graph/types';
 
 const rectNode: GraphNode = {

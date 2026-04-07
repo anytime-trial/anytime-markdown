@@ -6,6 +6,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-04-07
+
+### Added
+
+- Coverage file watching with debounced monitoring (`CoverageWatcher`)
+- Coverage snapshot history persistence (`CoverageHistory`)
+- Coverage loading, history, and diff integration in C4 Panel
+- C4 tree provider with C1-C4 level nodes
+- C4 viewer in root node context menu
+- Context menus and test command settings for C4 tree
+- `runE2eTest` and `runCoverageTest` commands
+- Auto-install Claude Code skills on activation
+- L1 editing UI for standalone C4 viewer
+- Manual element merge and editing handlers
+- System boundary for monorepo analysis
+- Analysis progress overlay
+- Marquee selection and node click/double-click in C4 graph
+
+### Changed
+
+- C4 toolbar icons moved to context menu
+
+### Fixed
+
+- Set `projectRoot` on `restoreSavedModel` for coverage loading
+- Watch directory instead of file for coverage detection
+- tsconfig.json picker for workspace analysis
+- Always open viewer on analyze command
+
+### Trail Core (trail-core)
+
+- Added `--format c4` option for CLI output
+
 ## [0.2.0] - 2026-04-05
 
 ### Added

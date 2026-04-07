@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-04-07
+
+### Added
+
+- E2E coverage collection with V8 → Istanbul reporter
+- `/api/c4model` endpoint to fetch c4-model.json from GitHub docs repository
+- `/api/docs/github-content` endpoint for GitHub-sourced document viewing
+- Document links in C4 Viewer now open in `/docs/view` instead of GitHub
+
+### Changed
+
+- Renamed `/modeling` route to `/c4model`
+- Consolidated `DOCS_GITHUB_REPO` / `NEXT_PUBLIC_DOCS_GITHUB_REPO` into single server-side env var
+
+### Fixed
+
+- SonarCloud issues (S1854, S6557, S4624, S6481, S3358, S6582)
+- HTML sanitization for pasted content (security)
+- Rate limiting for C4DataServer HTTP endpoints
+
 ## [0.10.1] - 2026-04-05
 
 ### Added

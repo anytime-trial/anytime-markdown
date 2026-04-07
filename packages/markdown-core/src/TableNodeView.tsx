@@ -355,14 +355,15 @@ export function TableNodeView({ editor, node, getPos }: Readonly<NodeViewProps>)
           />
         )}
 
-        {showCompare ? (
+        {showCompare && (
           <TableCompareView
             highlightedCompareHtml={highlightedCompareHtml}
             tableSx={tableSx}
             isDark={isDark}
             t={t}
           />
-        ) : editOpen ? (
+        )}
+        {!showCompare && editOpen && (
           <>
             <SpreadsheetGrid
               editor={editor}
@@ -378,7 +379,8 @@ export function TableNodeView({ editor, node, getPos }: Readonly<NodeViewProps>)
               <NodeViewContent<"table"> as="table" />
             </Box>
           </>
-        ) : (
+        )}
+        {!showCompare && !editOpen && (
           <Box
             sx={buildTableBodySx(collapsed, editOpen, isDark, tableSx)}
             onDoubleClick={onTableDoubleClick}

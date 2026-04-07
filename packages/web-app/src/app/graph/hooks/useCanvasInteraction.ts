@@ -4,13 +4,14 @@ import { computeVisibilityPath } from '@anytime-markdown/graph-core/engine';
 import { physics } from '@anytime-markdown/graph-core/engine';
 import { useCallback, useEffect,useRef } from 'react';
 
-import { bestSides, computeOrthogonalPath, getConnectionPoints,nearestBorderPoint, resolveConnectorEndpoints } from '../engine/connector';
-import { snapToGrid } from '../engine/gridSnap';
-import type { ResizeHandle } from '../engine/hitTest';
-import { hitTest, hitTestEdge } from '../engine/hitTest';
-import { computeSmartGuides, GuideLine } from '../engine/smartGuide';
-import { pan as panViewport, screenToWorld, zoom as zoomViewport } from '../engine/viewport';
+import {
+  bestSides, computeOrthogonalPath, getConnectionPoints, nearestBorderPoint, resolveConnectorEndpoints,
+  snapToGrid, hitTest, hitTestEdge, computeSmartGuides,
+  pan as panViewport, screenToWorld, zoom as zoomViewport,
+} from '@anytime-markdown/graph-core/engine';
+import type { ResizeHandle, GuideLine } from '@anytime-markdown/graph-core/engine';
 import { createEdge,createNode, GraphEdge, GraphNode, SelectionState, ToolType, Viewport } from '../types';
+import type { NodeType } from '../types';
 import type { Action } from './useGraphState';
 
 /** edges に waypoints を付与して hitTest で使えるようにする */
@@ -651,9 +652,12 @@ export function useCanvasInteraction({
         } else if (drag.fromConnectionPoint) {
           // 接続ポイント起点 + 空白にドロップ → 子ノード自動作成 + コネクタ接続
           const parentNode = drag.nodeId ? nodes.find(n => n.id === drag.nodeId) : undefined;
-          const childType = parentNode?.type === 'sticky' ? 'sticky'
-            : parentNode?.type === 'ellipse' ? 'ellipse'
-            : 'rect';
+          const inferChildType = (type: string | undefined): NodeType => {
+            if (type === 'sticky') return 'sticky';
+            if (type === 'ellipse') return 'ellipse';
+            return 'rect';
+          };
+          const childType = inferChildType(parentNode?.type);
           const childW = 150;
           const childH = 100;
           const child = createNode(childType, world.x - childW / 2, world.y - childH / 2, {
@@ -740,7 +744,7 @@ export function useCanvasInteraction({
     // エッジ上をダブルクリック → ウェイポイント追加
     if (hit.type === 'edge' && hit.id) {
       const edge = edges.find(ed => ed.id === hit.id);
-      if (edge && edge.type === 'connector') {
+      if (edge?.type === 'connector') {
         dispatch({ type: 'SNAPSHOT' });
         const existing = edge.manualWaypoints ?? [];
         // ウェイポイント配列内の適切な位置に挿入（パスに沿った順序を維持）

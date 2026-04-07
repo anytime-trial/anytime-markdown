@@ -2,7 +2,7 @@
 
 import { useCallback,useEffect, useRef } from 'react';
 
-import { pan as panViewport, zoom as zoomViewport } from '../engine/viewport';
+import { pan as panViewport, zoom as zoomViewport } from '@anytime-markdown/graph-core/engine';
 import { Viewport } from '../types';
 import type { Action } from './useGraphState';
 

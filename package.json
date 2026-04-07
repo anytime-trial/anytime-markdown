@@ -1,6 +1,6 @@
 {
   "name": "anytime-markdown-monorepo",
-  "version": "0.10.1",
+  "version": "0.10.2",
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -23,7 +23,8 @@
     "packages/web-app",
     "packages/mobile-app",
     "packages/trail-core",
-    "packages/c4-kernel"
+    "packages/c4-kernel",
+    "packages/c4-viewer"
   ],
   "overrides": {
     "serialize-javascript": "7.0.5",

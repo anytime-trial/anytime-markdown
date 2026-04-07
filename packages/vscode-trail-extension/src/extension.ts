@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'node:path';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
 import { TimelineProvider, TimelineItem } from './providers/TimelineProvider';
 import { GraphProvider, GraphItem } from './providers/GraphProvider';
 import { ChangesProvider } from './providers/ChangesProvider';
@@ -10,6 +12,7 @@ import { registerSpecDocsCommands } from './commands/specDocsCommands';
 import { registerChangesCommands, GitOriginalContentProvider } from './commands/changesCommands';
 import { registerC4Commands } from './commands/c4Commands';
 import { TrailLogger } from './utils/TrailLogger';
+import { C4TreeProvider } from './providers/C4TreeProvider';
 
 let dataServer: C4DataServer | undefined;
 let extensionDistPath = '';
@@ -21,15 +24,58 @@ let extensionDistPath = '';
 const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
 
 function startDataServer(port: number): void {
-	dataServer = new C4DataServer(() => C4Panel.getDataProvider(), extensionDistPath);
-	C4Panel.setDataServer(dataServer);
-	dataServer.start(port).then(() => {
+	const server = new C4DataServer(() => C4Panel.getDataProvider(), extensionDistPath);
+	dataServer = server;
+	C4Panel.setDataServer(server);
+	server.start(port).then(() => {
 		statusBarItem.text = `$(radio-tower) C4 Server: :${port}`;
 		statusBarItem.tooltip = `C4 Data Server running on port ${port}`;
 		statusBarItem.show();
+		const restored = C4Panel.restoreSavedModel();
+		void vscode.commands.executeCommand('setContext', 'anytimeTrail.c4ModelLoaded', restored);
+		// ドキュメントパス設定を読み取りスキャンを開始
+		applyDocsPathConfig();
+		// カバレッジウォッチ設定を適用
+		applyCoverageConfig();
+		// ドキュメントリンククリック時にVS Codeでファイルを開く
+		server.onOpenDocLink = (docPath) => {
+			const docsDir = vscode.workspace.getConfiguration('anytimeTrail').get<string>('docsPath', '');
+			if (!docsDir) return;
+			const uri = vscode.Uri.file(path.join(docsDir, docPath));
+			vscode.commands.executeCommand('vscode.openWith', uri, 'anytimeMarkdown').then(
+				undefined,
+				() => {
+					// anytimeMarkdown エディタが利用不可の場合は通常のテキストエディタで開く
+					vscode.workspace.openTextDocument(uri).then(
+						(doc) => vscode.window.showTextDocument(doc),
+						() => vscode.window.showWarningMessage(`File not found: ${uri.fsPath}`),
+					);
+				},
+			);
+		};
 	}).catch((err: Error) => {
 		vscode.window.showErrorMessage(`C4 Data Server: ${err.message}`);
 	});
+}
+
+function applyDocsPathConfig(): void {
+	const docsPath = vscode.workspace.getConfiguration('anytimeTrail').get<string>('docsPath', '');
+	dataServer?.setDocsPath(docsPath || undefined);
+}
+
+function applyCoverageConfig(): void {
+	const config = vscode.workspace.getConfiguration('anytimeTrail.coverage');
+	const coveragePath = config.get<string>('path', '');
+
+	if (coveragePath) {
+		const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+		const absPath = path.isAbsolute(coveragePath)
+			? coveragePath
+			: path.join(workspaceRoot, coveragePath);
+		C4Panel.startCoverageWatch(absPath);
+	} else {
+		C4Panel.stopCoverageWatch();
+	}
 }
 
 function stopDataServer(): void {
@@ -175,6 +221,40 @@ export function activate(context: vscode.ExtensionContext) {
 		'anytime-trail.graphRefresh', () => graphProvider?.refresh()
 	);
 
+	context.subscriptions.push(
+		vscode.commands.registerCommand('anytime-trail.loadCoverage', () => {
+			const config = vscode.workspace.getConfiguration('anytimeTrail.coverage');
+			const coveragePath = config.get<string>('path', '');
+			if (!coveragePath) {
+				vscode.window.showWarningMessage('anytimeTrail.coverage.path is not configured.');
+				return;
+			}
+			const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+			const absPath = path.isAbsolute(coveragePath)
+				? coveragePath
+				: path.join(workspaceRoot, coveragePath);
+			C4Panel.loadCoverageData(absPath);
+		}),
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('anytime-trail.runE2eTest', () => {
+			const cmd = vscode.workspace.getConfiguration('anytimeTrail.test').get<string>('e2eCommand', 'cd packages/web-app && npm run e2e');
+			const terminal = vscode.window.createTerminal('E2E Test');
+			terminal.show();
+			terminal.sendText(cmd);
+		}),
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('anytime-trail.runCoverageTest', () => {
+			const cmd = vscode.workspace.getConfiguration('anytimeTrail.test').get<string>('coverageCommand', 'npx jest --coverage --maxWorkers=1');
+			const terminal = vscode.window.createTerminal('Coverage Test');
+			terminal.show();
+			terminal.sendText(cmd);
+		}),
+	);
+
 	registerChangesCommands(context, {
 		changesProvider,
 		timelineProvider,
@@ -192,9 +272,10 @@ export function activate(context: vscode.ExtensionContext) {
 		},
 	});
 
-	// C4 Elements パネル（ツリーは空、ナビゲーションボタンのみ）
+	// C4 Elements パネル
+	const c4TreeProvider = new C4TreeProvider();
 	const c4ElementsTreeView = vscode.window.createTreeView('anytimeTrail.c4Elements', {
-		treeDataProvider: { getTreeItem: () => { throw new Error(); }, getChildren: () => [] },
+		treeDataProvider: c4TreeProvider,
 	});
 
 	// C4 Data Server
@@ -208,6 +289,12 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.workspace.onDidChangeConfiguration((e) => {
 			if (e.affectsConfiguration('anytimeTrail.server')) {
 				handleServerConfigChange();
+			}
+			if (e.affectsConfiguration('anytimeTrail.docsPath')) {
+				applyDocsPathConfig();
+			}
+			if (e.affectsConfiguration('anytimeTrail.coverage')) {
+				applyCoverageConfig();
 			}
 		}),
 	);
@@ -247,6 +334,33 @@ export function activate(context: vscode.ExtensionContext) {
 		c4ElementsTreeView,
 		statusBarItem,
 	);
+
+	// Claude Code スキルの自動配置
+	installClaudeSkills(context);
+}
+
+/** 拡張機能同梱の Claude Code スキルを ~/.claude/skills/ にコピーする */
+function installClaudeSkills(context: vscode.ExtensionContext): void {
+	const skillsSource = path.join(context.extensionUri.fsPath, 'skills');
+	if (!fs.existsSync(skillsSource)) return;
+
+	const claudeSkillsDir = path.join(os.homedir(), '.claude', 'skills');
+
+	for (const skillName of fs.readdirSync(skillsSource)) {
+		const srcDir = path.join(skillsSource, skillName);
+		if (!fs.statSync(srcDir).isDirectory()) continue;
+
+		const destDir = path.join(claudeSkillsDir, skillName);
+		if (!fs.existsSync(destDir)) {
+			fs.mkdirSync(destDir, { recursive: true });
+		}
+
+		const srcFile = path.join(srcDir, 'SKILL.md');
+		const destFile = path.join(destDir, 'SKILL.md');
+		if (fs.existsSync(srcFile)) {
+			fs.copyFileSync(srcFile, destFile);
+		}
+	}
 }
 
 export function deactivate(): void {

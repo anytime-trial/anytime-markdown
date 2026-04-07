@@ -84,8 +84,8 @@ export function render(options: RenderOptions): void {
       visibleEdges.push(e);
     }
   }
-  frameNodes.forEach(n => drawNode(ctx, n, selection.nodeIds.includes(n.id), false, colors));
   visibleEdges.forEach(e => drawEdge(ctx, e, selection.edgeIds.includes(e.id), colors));
+  frameNodes.forEach(n => drawNode(ctx, n, selection.nodeIds.includes(n.id), false, colors));
   nonFrameNodes.forEach(n => {
     const isDragging = draggingNodeIds?.includes(n.id) ?? false;
     drawNode(ctx, n, selection.nodeIds.includes(n.id), isDragging, colors);

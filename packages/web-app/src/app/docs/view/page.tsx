@@ -6,7 +6,7 @@ import DocsViewBody from './DocsViewBody';
 export const dynamic = 'force-dynamic';
 
 interface Props {
-  searchParams: Promise<{ key?: string }>;
+  searchParams: Promise<{ key?: string; ghPath?: string }>;
 }
 
 export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {

@@ -130,17 +130,11 @@ jest.mock("@anytime-markdown/graph-core/engine", () => ({
       syncFromNodes: jest.fn(),
     })),
   },
-}));
-
-jest.mock("../../app/graph/engine/viewport", () => ({
   screenToWorld: (_vp: any, sx: number, sy: number) => ({ x: sx, y: sy }),
   worldToScreen: (_vp: any, x: number, y: number) => ({ x, y }),
   pan: (vp: any, dx: number, dy: number) => ({ ...vp, offsetX: vp.offsetX + dx, offsetY: vp.offsetY + dy }),
   zoom: (vp: any) => vp,
   fitToContent: () => ({ offsetX: 0, offsetY: 0, scale: 1 }),
-}));
-
-jest.mock("../../app/graph/engine/alignment", () => ({
   alignLeft: (nodes: any[]) => nodes,
   alignRight: (nodes: any[]) => nodes,
   alignTop: (nodes: any[]) => nodes,
@@ -149,6 +143,11 @@ jest.mock("../../app/graph/engine/alignment", () => ({
   alignCenterV: (nodes: any[]) => nodes,
   distributeH: (nodes: any[]) => nodes,
   distributeV: (nodes: any[]) => nodes,
+  resolveConnectorEndpoints: jest.fn().mockReturnValue({ from: { x: 0, y: 0 }, to: { x: 100, y: 100 } }),
+  computeOrthogonalPath: jest.fn().mockReturnValue([{ x: 0, y: 0 }, { x: 100, y: 100 }]),
+  computeBezierPath: jest.fn().mockReturnValue([{ x: 0, y: 0 }, { x: 30, y: 0 }, { x: 70, y: 100 }, { x: 100, y: 100 }]),
+  bestSides: jest.fn().mockReturnValue({ fromSide: "right", toSide: "left" }),
+  getConnectionPoints: jest.fn().mockReturnValue([{ x: 0, y: 50, side: "left" }]),
 }));
 
 jest.mock("../../app/graph/types", () => ({
@@ -172,13 +171,7 @@ jest.mock("../../app/graph/types", () => ({
   }),
 }));
 
-jest.mock("../../app/graph/engine/connector", () => ({
-  resolveConnectorEndpoints: jest.fn().mockReturnValue({ from: { x: 0, y: 0 }, to: { x: 100, y: 100 } }),
-  computeOrthogonalPath: jest.fn().mockReturnValue([{ x: 0, y: 0 }, { x: 100, y: 100 }]),
-  computeBezierPath: jest.fn().mockReturnValue([{ x: 0, y: 0 }, { x: 30, y: 0 }, { x: 70, y: 100 }, { x: 100, y: 100 }]),
-  bestSides: jest.fn().mockReturnValue({ fromSide: "right", toSide: "left" }),
-  getConnectionPoints: jest.fn().mockReturnValue([{ x: 0, y: 50, side: "left" }]),
-}));
+// connector mock merged into @anytime-markdown/graph-core/engine above
 
 // Mock canvas
 HTMLCanvasElement.prototype.getContext = jest.fn().mockReturnValue({

@@ -6,6 +6,23 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-04-07
+
+### 追加
+
+- カバレッジ分析: `parseCoverage`、`aggregateCoverage`、`computeCoverageDiff`
+- `CoverageMatrix` 型定義
+- `enrichFeatureMatrixWithComponents` 関数
+- `C4Element` / `C4TreeNode` に `deleted` フラグ
+- `buildElementTree` で deleted フラグを伝播
+
+### 修正
+
+- mermaidC4 パーサー正規表現の多項式 ReDoS（セキュリティ）
+- カバレッジファイルパスの先頭スラッシュ除去
+- L2 レベルでのシステムフレーム表示
+- L1-L3 グラフビューでの Person / 外部システムノード表示
+
 ## [0.2.0] - 2026-04-05
 
 ### 追加

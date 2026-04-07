@@ -2,7 +2,7 @@
   "name": "anytime-trail",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {
@@ -31,6 +31,7 @@
     "onCommand:anytime-trail.c4Import",
     "onCommand:anytime-trail.c4Analyze",
     "onCommand:anytime-trail.c4Export",
+    "onCommand:anytime-trail.c4View",
     "onCommand:anytime-trail.dsmAnalyze",
     "onView:anytimeTrail.c4Elements"
   ],
@@ -90,7 +91,8 @@
       },
       {
         "view": "anytimeTrail.c4Elements",
-        "contents": "%viewsWelcome.c4Elements%"
+        "contents": "%viewsWelcome.c4Elements%",
+        "when": "!anytimeTrail.c4ModelLoaded"
       }
     ],
     "commands": [
@@ -254,9 +256,29 @@
         "icon": "$(export)"
       },
       {
+        "command": "anytime-trail.c4View",
+        "title": "%command.c4View%",
+        "icon": "$(open-preview)"
+      },
+      {
         "command": "anytime-trail.dsmAnalyze",
         "title": "%command.dsmAnalyze%",
         "icon": "$(graph)"
+      },
+      {
+        "command": "anytime-trail.loadCoverage",
+        "title": "Load Coverage",
+        "icon": "$(beaker)"
+      },
+      {
+        "command": "anytime-trail.runE2eTest",
+        "title": "E2Eテスト実行",
+        "icon": "$(play)"
+      },
+      {
+        "command": "anytime-trail.runCoverageTest",
+        "title": "テスト実行（カバレッジ付き）",
+        "icon": "$(beaker)"
       }
     ],
     "submenus": [
@@ -324,19 +346,9 @@
           "group": "navigation@2"
         },
         {
-          "command": "anytime-trail.c4Import",
+          "command": "anytime-trail.c4View",
           "when": "view == anytimeTrail.c4Elements",
           "group": "navigation@1"
-        },
-        {
-          "command": "anytime-trail.c4Analyze",
-          "when": "view == anytimeTrail.c4Elements",
-          "group": "navigation@2"
-        },
-        {
-          "command": "anytime-trail.c4Export",
-          "when": "view == anytimeTrail.c4Elements",
-          "group": "navigation@3"
         }
       ],
       "view/item/context": [
@@ -449,6 +461,36 @@
           "command": "anytime-trail.unstageFile",
           "when": "view == anytimeTrail.changes && viewItem == changesFileStaged",
           "group": "inline@1"
+        },
+        {
+          "command": "anytime-trail.c4View",
+          "when": "view == anytimeTrail.c4Elements && viewItem == c4Root",
+          "group": "0_view@1"
+        },
+        {
+          "command": "anytime-trail.c4Analyze",
+          "when": "view == anytimeTrail.c4Elements && viewItem == c4Root",
+          "group": "1_c4@1"
+        },
+        {
+          "command": "anytime-trail.c4Export",
+          "when": "view == anytimeTrail.c4Elements && viewItem == c4Root",
+          "group": "1_c4@2"
+        },
+        {
+          "command": "anytime-trail.c4Import",
+          "when": "view == anytimeTrail.c4Elements && viewItem == c4Root",
+          "group": "1_c4@3"
+        },
+        {
+          "command": "anytime-trail.runE2eTest",
+          "when": "view == anytimeTrail.c4Elements && viewItem == c4Level.c1",
+          "group": "1_test@1"
+        },
+        {
+          "command": "anytime-trail.runCoverageTest",
+          "when": "view == anytimeTrail.c4Elements && viewItem == c4Level.c4",
+          "group": "1_test@1"
         }
       ]
     },
@@ -492,6 +534,11 @@
           "default": ".vscode/c4-model.json",
           "markdownDescription": "%config.c4ModelPath%"
         },
+        "anytimeTrail.docsPath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Absolute path to the documentation directory for C4 document links. When set, Markdown files with `c4Scope` frontmatter are indexed and shown in the C4 viewer."
+        },
         "anytimeTrail.server.enabled": {
           "type": "boolean",
           "default": false,
@@ -501,6 +548,28 @@
           "type": "number",
           "default": 19840,
           "markdownDescription": "Port number for the C4 data server"
+        },
+        "anytimeTrail.coverage.path": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Path to `coverage-final.json` (relative to workspace root). When set, file changes are watched and coverage is auto-updated."
+        },
+        "anytimeTrail.test.e2eCommand": {
+          "type": "string",
+          "default": "cd packages/web-app && npm run e2e",
+          "markdownDescription": "Command to run E2E tests (executed in VS Code terminal)."
+        },
+        "anytimeTrail.test.coverageCommand": {
+          "type": "string",
+          "default": "npx jest --coverage --maxWorkers=1",
+          "markdownDescription": "Command to run tests with coverage (executed in VS Code terminal). The generated `coverage-final.json` is auto-detected by the coverage watcher."
+        },
+        "anytimeTrail.coverage.historyLimit": {
+          "type": "number",
+          "default": 50,
+          "minimum": 1,
+          "maximum": 500,
+          "markdownDescription": "Maximum number of coverage history snapshots to keep."
         }
       }
     }
@@ -514,6 +583,7 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
+    "vscode:uninstall": "node ./dist/uninstall.js",
     "compile": "webpack",
     "watch": "webpack --watch",
     "package": "webpack --mode production --devtool hidden-source-map",
@@ -521,6 +591,7 @@
   },
   "dependencies": {
     "@anytime-markdown/c4-kernel": "*",
+    "@anytime-markdown/c4-viewer": "*",
     "@anytime-markdown/graph-core": "*",
     "@anytime-markdown/trail-core": "*",
     "typescript": "5.9.3",

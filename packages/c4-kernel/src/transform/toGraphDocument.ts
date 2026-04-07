@@ -13,7 +13,7 @@ interface C4NodeMapping {
 }
 
 const NODE_MAP: Readonly<Record<C4ElementType, C4NodeMapping>> = {
-  person:      { type: 'ellipse',  width: 140, height: 80 },
+  person:      { type: 'person',   width: 120, height: 160 },
   system:      { type: 'rect',     width: 200, height: 80 },
   container:   { type: 'rect',     width: 180, height: 70 },
   containerDb: { type: 'cylinder', width: 160, height: 80 },
@@ -35,6 +35,7 @@ const C4_COLORS: Readonly<Record<C4ElementType, { fill: string; stroke: string }
 const EXTERNAL_COLOR = { fill: '#999999', stroke: '#8a8a8a' };
 
 const FRAME_COLORS: Readonly<Record<string, { fill: string; stroke: string }>> = {
+  system:    { fill: 'rgba(17,104,189,0.06)', stroke: '#1168bd' },
   container: { fill: 'rgba(67,141,213,0.08)', stroke: '#438dd5' },
   component: { fill: 'rgba(133,187,240,0.08)', stroke: '#85bbf0' },
 };
@@ -53,7 +54,7 @@ const DEFAULT_EDGE_STYLE: Readonly<EdgeStyle> = {
 };
 
 /** frame（境界）として扱う型 */
-const BOUNDARY_TYPES: ReadonlySet<C4ElementType> = new Set(['container', 'component']);
+const BOUNDARY_TYPES: ReadonlySet<C4ElementType> = new Set(['system', 'container', 'component']);
 
 let idCounter = 0;
 function nextId(): string {
@@ -104,9 +105,9 @@ export function c4ToGraphDocument(
     }
   }
 
-  // --- Phase 2: container 要素をフレームとして生成 ---
+  // --- Phase 2: 境界要素をフレームとして生成 ---
   for (const elem of model.elements) {
-    if (!BOUNDARY_TYPES.has(elem.type)) continue;
+    if (!BOUNDARY_TYPES.has(elem.type) || elem.external) continue;
     if (boundaryIdMap.has(elem.id)) {
       // Phase 1 で作成済み → groupId のみ更新
       if (elem.boundaryId && boundaryIdMap.has(elem.boundaryId)) {
@@ -123,6 +124,7 @@ export function c4ToGraphDocument(
     boundaryIdMap.set(elem.id, frameId);
     const colors = FRAME_COLORS[elem.type] ?? { fill: 'transparent', stroke: '#444444' };
 
+    const nodeColors = C4_COLORS[elem.type] ?? EXTERNAL_COLOR;
     const node: GraphNode = {
       id: frameId,
       type: 'frame',
@@ -132,7 +134,7 @@ export function c4ToGraphDocument(
       height: 300,
       text: buildNodeText(elem),
       style: { ...DEFAULT_STYLE, fill: colors.fill, stroke: colors.stroke },
-      metadata: { c4Id: elem.id, c4Type: elem.type },
+      metadata: { c4Id: elem.id, c4Type: elem.type, c4NodeFill: nodeColors.fill, c4NodeStroke: nodeColors.stroke },
       ...(elem.boundaryId && boundaryIdMap.has(elem.boundaryId)
         ? { groupId: boundaryIdMap.get(elem.boundaryId) }
         : {}),
@@ -143,7 +145,7 @@ export function c4ToGraphDocument(
   // --- Phase 3: その他の要素をノードとして生成 ---
   const elemIdMap = new Map<string, string>(); // c4ElementId → graphNodeId
   for (const elem of model.elements) {
-    if (BOUNDARY_TYPES.has(elem.type)) continue; // フレームとして既に生成済み
+    if (BOUNDARY_TYPES.has(elem.type) && !elem.external) continue; // フレームとして既に生成済み
 
     const mapping = NODE_MAP[elem.type];
     const colors = elem.external ? EXTERNAL_COLOR : C4_COLORS[elem.type];

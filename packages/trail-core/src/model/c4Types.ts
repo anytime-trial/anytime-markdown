@@ -15,6 +15,7 @@ export interface C4Element {
   readonly external?: boolean;
   readonly children?: readonly C4Element[];
   readonly boundaryId?: string;
+  readonly manual?: boolean;
 }
 
 export interface C4Relationship {
@@ -23,6 +24,7 @@ export interface C4Relationship {
   readonly label?: string;
   readonly technology?: string;
   readonly bidirectional?: boolean;
+  readonly manual?: boolean;
 }
 
 export interface C4Model {

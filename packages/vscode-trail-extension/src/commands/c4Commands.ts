@@ -44,5 +44,11 @@ export function registerC4Commands(
 		await C4Panel.analyzeWorkspace();
 	});
 
-	context.subscriptions.push(c4Import, c4Analyze, c4Export, dsmAnalyze);
+	const c4View = vscode.commands.registerCommand('anytime-trail.c4View', async () => {
+		if (!await ensureServerRunning(deps)) return;
+		C4Panel.restoreSavedModel();
+		C4Panel.openViewer(true);
+	});
+
+	context.subscriptions.push(c4Import, c4Analyze, c4Export, dsmAnalyze, c4View);
 }

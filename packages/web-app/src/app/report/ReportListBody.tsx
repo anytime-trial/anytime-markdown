@@ -196,7 +196,8 @@ export default function ReportListBody({ reports, currentPage, filterMonth }: Re
                     if (page > 1) params.set('page', String(page));
                     if (validMonth) params.set('month', validMonth);
                     const qs = params.toString();
-                    router.push(`/report${qs ? `?${qs}` : ''}`);
+                    const url = qs ? `/report?${qs}` : '/report';
+                    router.push(url);
                   }}
                   sx={{
                     '& .MuiPaginationItem-root': {

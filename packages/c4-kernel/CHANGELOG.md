@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-04-07
+
+### Added
+
+- Coverage analysis: `parseCoverage`, `aggregateCoverage`, `computeCoverageDiff`
+- `CoverageMatrix` type definitions
+- `enrichFeatureMatrixWithComponents` function
+- `deleted` flag on `C4Element` and `C4TreeNode`
+- `buildElementTree` propagates deleted flag
+
+### Fixed
+
+- Polynomial ReDoS in mermaidC4 parser regexes (security)
+- Strip leading slash from coverage file paths
+- System frame visibility at L2 level
+- Person and external system nodes at L1-L3 in graph view
+
 ## [0.2.0] - 2026-04-05
 
 ### Added

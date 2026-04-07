@@ -18,8 +18,12 @@ const TYPE_TO_FUNC: Readonly<Record<C4ElementType, { normal: string; ext: string
   code:        { normal: 'Code',        ext: 'Code',            hasTech: false },
 };
 
-/** Boundary として子要素を持つ型 */
-const BOUNDARY_TYPES: ReadonlySet<C4ElementType> = new Set(['container', 'component']);
+/** Boundary として子要素を持つ型 → Mermaid Boundary 関数名 */
+const BOUNDARY_FUNC: Readonly<Partial<Record<C4ElementType, string>>> = {
+  system: 'System_Boundary',
+  container: 'Container_Boundary',
+  component: 'Container_Boundary',
+};
 
 function escapeQuotes(s: string): string {
   return s.replaceAll('"', '\\"');
@@ -64,10 +68,11 @@ export function c4ToMermaid(model: C4Model): string {
   function writeElement(elem: C4Element, indent: string): void {
     const children = childrenOf.get(elem.id);
 
-    if (BOUNDARY_TYPES.has(elem.type) && children) {
+    const boundaryFunc = BOUNDARY_FUNC[elem.type];
+    if (boundaryFunc && children) {
       // Boundary 型で子を持つ場合: Element 定義 + Boundary ブロック
       lines.push(`${indent}${serializeElement(elem)}`);
-      lines.push(`${indent}Container_Boundary(${elem.id}, "${escapeQuotes(elem.name)}") {`);
+      lines.push(`${indent}${boundaryFunc}(${elem.id}, "${escapeQuotes(elem.name)}") {`);
       for (const child of children) {
         writeElement(child, indent + '  ');
       }

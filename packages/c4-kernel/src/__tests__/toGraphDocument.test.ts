@@ -11,10 +11,10 @@ describe('c4ToGraphDocument', () => {
     const doc = c4ToGraphDocument(model);
     const node = doc.nodes.find(n => n.text.includes('User'));
     expect(node).toBeDefined();
-    expect(node!.type).toBe('ellipse');
+    expect(node!.type).toBe('person');
   });
 
-  it('should convert system to rect node', () => {
+  it('should convert system to frame', () => {
     const model: C4Model = {
       level: 'context',
       elements: [{ id: 's1', type: 'system', name: 'App' }],
@@ -23,7 +23,7 @@ describe('c4ToGraphDocument', () => {
     const doc = c4ToGraphDocument(model);
     const node = doc.nodes.find(n => n.text === 'App');
     expect(node).toBeDefined();
-    expect(node!.type).toBe('rect');
+    expect(node!.type).toBe('frame');
   });
 
   it('should convert external system with dashed style', () => {

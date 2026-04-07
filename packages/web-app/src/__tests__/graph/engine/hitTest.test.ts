@@ -1,4 +1,4 @@
-import { hitTest, hitTestNode, hitTestEdge, hitTestResizeHandles } from '../../../app/graph/engine/hitTest';
+import { hitTest, hitTestNode, hitTestEdge, hitTestResizeHandles } from '@anytime-markdown/graph-core/engine';
 import { GraphNode, GraphEdge, DEFAULT_NODE_STYLE, DEFAULT_EDGE_STYLE } from '../../../app/graph/types';
 
 const rectNode: GraphNode = {

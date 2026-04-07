@@ -42,6 +42,26 @@ describe('c4ToMermaid', () => {
     expect(result).toContain('Code(f1, "types.ts")');
   });
 
+  it('should serialize system boundary with nested containers', () => {
+    const model: C4Model = {
+      title: 'Monorepo',
+      level: 'component',
+      elements: [
+        { id: 'sys', type: 'system', name: 'anytime-markdown' },
+        { id: 'pkg_web', type: 'container', name: 'web-app', boundaryId: 'sys' },
+        { id: 'pkg_core', type: 'container', name: 'editor-core', boundaryId: 'sys' },
+      ],
+      relationships: [
+        { from: 'pkg_web', to: 'pkg_core', label: 'imports' },
+      ],
+    };
+    const result = c4ToMermaid(model);
+    expect(result).toContain('System(sys, "anytime-markdown")');
+    expect(result).toContain('System_Boundary(sys, "anytime-markdown") {');
+    expect(result).toContain('Container(pkg_web, "web-app")');
+    expect(result).toContain('Container(pkg_core, "editor-core")');
+  });
+
   it('should serialize external elements', () => {
     const model: C4Model = {
       level: 'context',

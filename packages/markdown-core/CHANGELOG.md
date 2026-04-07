@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.10.2] - 2026-04-07
+
+### Fixed
+
+- SonarCloud issues: nested ternary operators (S3358), optional chaining (S6582)
+- HTML sanitization for pasted external content (security)
+- i18n label update for C4Model navigation
+
 ## [0.10.1] - 2026-04-05
 
 ### Fixed

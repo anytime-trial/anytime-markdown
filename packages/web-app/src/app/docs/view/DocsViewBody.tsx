@@ -48,13 +48,16 @@ function deriveDisplayName(docKey: string): string {
 export default function DocsViewBody({ docTitle }: Readonly<{ docTitle?: string }>) {
   const searchParams = useSearchParams();
   const key = searchParams.get('key');
+  const ghPath = searchParams.get('ghPath');
   const t = useTranslations('Landing');
   const { locale } = useLocaleSwitch();
 
-  const { resolved, fallback, localeMap } = key ? resolveDocKeys(key, locale) : { resolved: '', fallback: undefined, localeMap: undefined };
-  const displayName = docTitle ?? (key ? deriveDisplayName(key) : '');
+  // GitHub パス指定の場合はロケール解決をスキップ
+  const isGitHub = !!ghPath;
+  const { resolved, fallback, localeMap } = key ? resolveDocKeys(key, locale) : { resolved: ghPath ?? '', fallback: undefined, localeMap: undefined };
+  const displayName = docTitle ?? (key ? deriveDisplayName(key) : ghPath ? deriveDisplayName(ghPath) : '');
 
-  if (!key) {
+  if (!key && !ghPath) {
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
         <LandingHeader />
@@ -137,7 +140,13 @@ export default function DocsViewBody({ docTitle }: Readonly<{ docTitle?: string 
         </Breadcrumbs>
       </Box>
       <Box sx={{ flex: 1, overflow: 'hidden', '& #main-content': { px: { xs: 0, md: 3 } } }}>
-        <MarkdownViewer docKey={resolved} docKeyByLocale={localeMap} fallbackDocKey={fallback} minHeight="calc(100vh - 64px - 41px)" />
+        <MarkdownViewer
+          docKey={resolved}
+          docKeyByLocale={isGitHub ? undefined : localeMap}
+          fallbackDocKey={isGitHub ? undefined : fallback}
+          contentApiPath={isGitHub ? '/api/docs/github-content' : '/api/docs/content'}
+          minHeight="calc(100vh - 64px - 41px)"
+        />
       </Box>
     </Box>
   );

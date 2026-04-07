@@ -39,6 +39,7 @@
   "command.c4Import": "C4: Mermaid C4 をインポート",
   "command.c4Analyze": "C4: ワークスペースを解析",
   "command.c4Export": "C4: JSON エクスポート",
+  "command.c4View": "C4: ビューアを開く",
   "view.c4Elements": "C4 モデル",
   "viewsWelcome.c4Elements": "C4 モデルが読み込まれていません。\n[$(graph) ワークスペースを解析](command:anytime-trail.c4Analyze)",
   "command.c4ElementsRefresh": "C4 モデルを更新",

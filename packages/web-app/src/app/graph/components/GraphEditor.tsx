@@ -7,8 +7,10 @@ import { useTranslations } from 'next-intl';
 import React, { useCallback, useEffect, useMemo,useRef, useState } from 'react';
 
 import { useThemeMode } from '../../providers';
-import { alignBottom, alignCenterH, alignCenterV, alignLeft, alignRight, alignTop, distributeH, distributeV } from '../engine/alignment';
-import { fitToContent,pan as panViewport, screenToWorld, zoom as zoomViewport } from '../engine/viewport';
+import {
+  alignBottom, alignCenterH, alignCenterV, alignLeft, alignRight, alignTop, distributeH, distributeV,
+  fitToContent, pan as panViewport, screenToWorld, zoom as zoomViewport,
+} from '@anytime-markdown/graph-core/engine';
 import { useAutoSave } from '../hooks/useAutoSave';
 import { useCanvasInteraction } from '../hooks/useCanvasInteraction';
 import { useDataMapping } from '../hooks/useDataMapping';
@@ -254,8 +256,12 @@ export function GraphEditor() {
         const ids = selectionRef.current.nodeIds;
         if (ids.length === 0) return;
         const step = e.shiftKey ? 10 : 1;
-        const dx = e.key === 'ArrowRight' ? step : e.key === 'ArrowLeft' ? -step : 0;
-        const dy = e.key === 'ArrowDown' ? step : e.key === 'ArrowUp' ? -step : 0;
+        const dxRight = e.key === 'ArrowRight' ? step : 0;
+        const dxLeft = e.key === 'ArrowLeft' ? -step : 0;
+        const dx = dxRight || dxLeft;
+        const dyDown = e.key === 'ArrowDown' ? step : 0;
+        const dyUp = e.key === 'ArrowUp' ? -step : 0;
+        const dy = dyDown || dyUp;
         if (dx !== 0 || dy !== 0) {
           dispatch({ type: 'MOVE_NODES', ids, dx, dy });
           e.preventDefault();

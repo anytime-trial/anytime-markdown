@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-04-07
+
+### Added
+
+- `--format c4` option for CLI output
+
 ## [0.2.0] - 2026-04-05
 
 ### Added

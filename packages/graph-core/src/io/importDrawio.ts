@@ -176,7 +176,6 @@ export function importFromDrawio(xmlString: string): GraphDocument {
 
       const isOrthogonal = style['edgeStyle'] === 'orthogonalEdgeStyle';
       const isCurved = style['curved'] === '1';
-      const hasArrow = style['endArrow'] !== undefined && style['endArrow'] !== 'none';
       const nonOrthogonalType: EdgeType = 'line';
       const edgeType: EdgeType = isOrthogonal ? 'connector' : nonOrthogonalType;
       const routing = isCurved ? 'bezier' as const : undefined;

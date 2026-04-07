@@ -6,6 +6,26 @@
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-04-07
+
+### 追加
+
+- E2E カバレッジ収集（V8 → Istanbul レポーター）
+- `/api/c4model` エンドポイント（GitHub ドキュメントリポジトリから c4-model.json を取得）
+- `/api/docs/github-content` エンドポイント（GitHub ソースのドキュメント表示）
+- C4 Viewer のドキュメントリンクを GitHub ではなく `/docs/view` で表示
+
+### 変更
+
+- `/modeling` ルートを `/c4model` にリネーム
+- `DOCS_GITHUB_REPO` / `NEXT_PUBLIC_DOCS_GITHUB_REPO` をサーバーサイドの単一環境変数に統合
+
+### 修正
+
+- SonarCloud 指摘事項（S1854, S6557, S4624, S6481, S3358, S6582）
+- ペースト時の HTML サニタイズ（セキュリティ）
+- C4DataServer HTTP エンドポイントのレート制限
+
 ## [0.10.1] - 2026-04-05
 
 ### 追加

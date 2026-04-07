@@ -69,8 +69,8 @@ describe("s3Client", () => {
           transformToString: () =>
             Promise.resolve(JSON.stringify({
               categories: [
-                { name: "Cat2", order: 2 },
-                { name: "Cat1", order: 1 },
+                { title: "Cat2", order: 2 },
+                { title: "Cat1", order: 1 },
               ],
             })),
         },
@@ -78,8 +78,8 @@ describe("s3Client", () => {
 
       const result = await fetchLayoutData();
       expect(result.categories.length).toBe(2);
-      expect(result.categories[0].name).toBe("Cat1");
-      expect(result.categories[1].name).toBe("Cat2");
+      expect(result.categories[0].title).toBe("Cat1");
+      expect(result.categories[1].title).toBe("Cat2");
     });
 
     it("returns empty categories when body is empty", async () => {

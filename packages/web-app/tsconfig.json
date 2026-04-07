@@ -16,7 +16,6 @@
     "allowJs": true,
     "resolveJsonModule": true,
     "jsx": "preserve",
-    "baseUrl": ".",
     "paths": {
       "@/*": ["../markdown-core/src/*"],
       "@anytime-markdown/markdown-core/src/*": ["../markdown-core/src/*"],

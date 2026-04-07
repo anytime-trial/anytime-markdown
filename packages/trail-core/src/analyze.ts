@@ -9,17 +9,25 @@ export interface AnalyzeOptions {
   readonly tsconfigPath: string;
   readonly exclude?: readonly string[];
   readonly includeTests?: boolean;
+  /** 進捗通知コールバック（フェーズ名を受け取る） */
+  readonly onProgress?: (phase: string) => void;
 }
 
 export function analyze(options: AnalyzeOptions): TrailGraph {
+  const report = options.onProgress ?? (() => {});
+
+  report('Loading project...');
   const analyzer = new ProjectAnalyzer(options.tsconfigPath);
 
+  report('Extracting symbols...');
   const symbolExtractor = new SymbolExtractor(analyzer);
   const rawNodes = symbolExtractor.extract();
 
+  report('Extracting dependencies...');
   const edgeExtractor = new EdgeExtractor(analyzer, rawNodes);
   const rawEdges = edgeExtractor.extract();
 
+  report('Filtering results...');
   const filterConfig: FilterConfig = {
     exclude: options.exclude ?? [],
     includeTests: options.includeTests ?? false,

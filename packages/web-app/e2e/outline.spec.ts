@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./coverage.fixture";
 
 const MARKDOWN_WITH_HEADINGS = `# First Heading
 

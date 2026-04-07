@@ -54,6 +54,56 @@ describe('trailToC4', () => {
       );
       expect(l2Rels).toHaveLength(1);
     });
+
+    it('should wrap containers in system boundary for monorepo analysis', () => {
+      const graph = makeTrailGraph({
+        metadata: { projectRoot: '/workspace/anytime-markdown', analyzedAt: '2026-01-01', fileCount: 2 },
+        nodes: [
+          { id: 'f1', label: 'index.ts', type: 'file', filePath: 'packages/web-app/src/index.ts', line: 0 },
+          { id: 'f2', label: 'types.ts', type: 'file', filePath: 'packages/graph-core/src/types.ts', line: 0 },
+        ],
+      });
+      const model = trailToC4(graph);
+
+      // system 要素が作成される
+      const system = model.elements.find(e => e.type === 'system');
+      expect(system).toBeDefined();
+      expect(system?.name).toBe('anytime-markdown');
+
+      // container の boundaryId が system を指す
+      const containers = model.elements.filter(e => e.type === 'container');
+      for (const c of containers) {
+        expect(c.boundaryId).toBe(system?.id);
+      }
+    });
+
+    it('should skip root files in monorepo analysis', () => {
+      const graph = makeTrailGraph({
+        metadata: { projectRoot: '/workspace/anytime-markdown', analyzedAt: '2026-01-01', fileCount: 3 },
+        nodes: [
+          { id: 'f1', label: 'index.ts', type: 'file', filePath: 'packages/web-app/src/index.ts', line: 0 },
+          { id: 'f2', label: 'package.json', type: 'file', filePath: 'package.json', line: 0 },
+        ],
+      });
+      const model = trailToC4(graph);
+      const containers = model.elements.filter(e => e.type === 'container');
+      expect(containers).toHaveLength(1);
+      expect(containers[0].name).toBe('web-app');
+      // ルートファイルが独自のコンテナを生成しないこと
+      expect(containers.some(c => c.name === 'anytime-markdown')).toBe(false);
+    });
+
+    it('should not create system boundary for single-package analysis', () => {
+      const graph = makeTrailGraph({
+        metadata: { projectRoot: '/workspace/packages/trail-core', analyzedAt: '2026-01-01', fileCount: 1 },
+        nodes: [
+          { id: 'f1', label: 'analyze.ts', type: 'file', filePath: 'src/analyze.ts', line: 0 },
+        ],
+      });
+      const model = trailToC4(graph);
+      const system = model.elements.find(e => e.type === 'system');
+      expect(system).toBeUndefined();
+    });
   });
 
   describe('L3 Component', () => {

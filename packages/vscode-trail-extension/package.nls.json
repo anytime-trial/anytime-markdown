@@ -39,6 +39,7 @@
   "command.c4Import": "C4: Import Mermaid C4",
   "command.c4Analyze": "C4: Analyze Workspace",
   "command.c4Export": "C4: Export JSON",
+  "command.c4View": "C4: Open Viewer",
   "view.c4Elements": "C4 Model",
   "viewsWelcome.c4Elements": "No C4 model loaded.\n[$(graph) Analyze Workspace](command:anytime-trail.c4Analyze)",
   "command.c4ElementsRefresh": "Refresh C4 Model",

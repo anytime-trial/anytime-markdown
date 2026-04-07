@@ -1,4 +1,4 @@
-import { alignLeft, alignRight, alignTop, alignBottom, alignCenterH, alignCenterV, distributeH, distributeV } from '../../../app/graph/engine/alignment';
+import { alignLeft, alignRight, alignTop, alignBottom, alignCenterH, alignCenterV, distributeH, distributeV } from '@anytime-markdown/graph-core/engine';
 
 const nodes = [
   { id: '1', x: 10, y: 10, width: 100, height: 50 },
