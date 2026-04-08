@@ -458,16 +458,10 @@ export class TrailDatabase {
         continue;
       }
 
-      let files: string[];
-      try {
-        files = fs.readdirSync(projectPath);
-      } catch {
-        continue;
-      }
+      // Recursively find all .jsonl files (including subagents/)
+      const jsonlFiles = findJsonlFiles(projectPath);
 
-      for (const fileName of files) {
-        if (!fileName.endsWith('.jsonl')) continue;
-        const filePath = path.join(projectPath, fileName);
+      for (const filePath of jsonlFiles) {
 
         // Extract sessionId from first few lines
         let sid = '';
@@ -652,4 +646,33 @@ export class TrailDatabase {
       sessionsByModel,
     };
   }
+}
+
+// ---------------------------------------------------------------------------
+//  File utilities
+// ---------------------------------------------------------------------------
+
+/** Recursively find all .jsonl files under a directory. */
+function findJsonlFiles(dir: string): string[] {
+  const results: string[] = [];
+  let entries: string[];
+  try {
+    entries = fs.readdirSync(dir);
+  } catch {
+    return results;
+  }
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry);
+    try {
+      const stat = fs.statSync(fullPath);
+      if (stat.isDirectory()) {
+        results.push(...findJsonlFiles(fullPath));
+      } else if (entry.endsWith('.jsonl') && stat.isFile()) {
+        results.push(fullPath);
+      }
+    } catch {
+      // skip
+    }
+  }
+  return results;
 }
