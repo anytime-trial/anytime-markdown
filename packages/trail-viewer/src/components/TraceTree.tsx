@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import Box from '@mui/material/Box';
+import Divider from '@mui/material/Divider';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Switch from '@mui/material/Switch';
 
@@ -11,32 +12,46 @@ interface TraceTreeProps {
   readonly showSystem?: boolean;
 }
 
-function TreeNodeList({
+/** Flatten tree nodes for rendering */
+function flattenNodes(nodes: readonly TrailTreeNode[]): readonly TrailTreeNode[] {
+  const result: TrailTreeNode[] = [];
+  for (const node of nodes) {
+    result.push(node);
+    if (node.children.length > 0) {
+      result.push(...flattenNodes(node.children));
+    }
+  }
+  return result;
+}
+
+function FlatMessageList({
   nodes,
   showSystem,
 }: Readonly<{
   nodes: readonly TrailTreeNode[];
   showSystem: boolean;
 }>) {
+  const flat = flattenNodes(nodes);
+  let userCount = 0;
+
   return (
     <>
-      {nodes.map((node) => {
+      {flat.map((node) => {
         if (!showSystem && node.message.type === 'system') {
           return null;
         }
 
+        const isUserTurn = node.message.type === 'user' && !node.message.isSidechain;
+        if (isUserTurn) userCount++;
+        const showDivider = isUserTurn && userCount > 1;
+
         return (
           <Box key={node.message.uuid}>
+            {showDivider && <Divider sx={{ my: 1.5 }} />}
             <MessageNode
               message={node.message}
               depth={node.depth}
             />
-            {node.children.length > 0 && (
-              <TreeNodeList
-                nodes={node.children}
-                showSystem={showSystem}
-              />
-            )}
           </Box>
         );
       })}
@@ -91,7 +106,7 @@ export function TraceTree({
             </Box>
           </Box>
         ) : (
-          <TreeNodeList nodes={nodes} showSystem={showSystem} />
+          <FlatMessageList nodes={nodes} showSystem={showSystem} />
         )}
       </Box>
     </Box>
