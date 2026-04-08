@@ -472,6 +472,39 @@ function scanPromptFiles(): PromptEntry[] {
     // skip
   }
 
+  // 5. Skills (SKILL.md in each skill directory)
+  const skillsDir = path.join(claudeDir, 'skills');
+  try {
+    for (const skillName of fs.readdirSync(skillsDir)) {
+      const skillFile = path.join(skillsDir, skillName, 'SKILL.md');
+      if (fs.existsSync(skillFile)) {
+        addFile(skillFile, ['skill', skillName]);
+      }
+    }
+  } catch {
+    // skills dir may not exist
+  }
+
+  // 6. settings.json
+  const settingsFile = path.join(claudeDir, 'settings.json');
+  try {
+    const stat = fs.statSync(settingsFile);
+    if (stat.isFile()) {
+      const content = fs.readFileSync(settingsFile, 'utf-8');
+      prompts.push({
+        id: 'settings-json',
+        name: 'settings.json',
+        content,
+        version: version++,
+        tags: ['config'],
+        createdAt: stat.birthtime.toISOString(),
+        updatedAt: stat.mtime.toISOString(),
+      });
+    }
+  } catch {
+    // skip
+  }
+
   return prompts;
 }
 
