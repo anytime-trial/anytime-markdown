@@ -604,10 +604,12 @@
     "@anytime-markdown/c4-viewer": "*",
     "@anytime-markdown/graph-core": "*",
     "@anytime-markdown/trail-core": "*",
+    "sql.js": "1.12.0",
     "typescript": "5.9.3",
     "ws": "8.18.2"
   },
   "devDependencies": {
+    "@types/sql.js": "1.4.9",
     "@emotion/react": "11.14.0",
     "@emotion/styled": "11.14.0",
     "@mui/icons-material": "7.3.8",
