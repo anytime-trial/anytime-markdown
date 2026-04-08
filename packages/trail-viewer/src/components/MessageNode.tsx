@@ -141,7 +141,7 @@ export function MessageNode({
         {/* Message bubble */}
         <Box
           sx={{
-            bgcolor: isUser ? 'primary.main' : 'grey.100',
+            bgcolor: isUser ? 'primary.main' : 'action.hover',
             color: isUser ? 'primary.contrastText' : 'text.primary',
             px: 1.5,
             py: 1,
