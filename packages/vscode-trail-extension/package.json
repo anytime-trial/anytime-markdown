@@ -279,6 +279,11 @@
         "command": "anytime-trail.runCoverageTest",
         "title": "テスト実行（カバレッジ付き）",
         "icon": "$(beaker)"
+      },
+      {
+        "command": "anytime-trail.openTrailViewer",
+        "title": "Open Trail Viewer",
+        "category": "Anytime Trail"
       }
     ],
     "submenus": [
@@ -563,6 +568,11 @@
           "type": "string",
           "default": "npx jest --coverage --maxWorkers=1",
           "markdownDescription": "Command to run tests with coverage (executed in VS Code terminal). The generated `coverage-final.json` is auto-detected by the coverage watcher."
+        },
+        "anytimeTrail.trailServer.port": {
+          "type": "number",
+          "default": 19841,
+          "description": "Port number for the Trail Viewer server"
         },
         "anytimeTrail.coverage.historyLimit": {
           "type": "number",

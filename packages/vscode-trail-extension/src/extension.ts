@@ -8,6 +8,8 @@ import { ChangesProvider } from './providers/ChangesProvider';
 import { SpecDocsProvider, SpecDocsDragAndDrop } from './providers/SpecDocsProvider';
 import { C4Panel } from './c4/C4Panel';
 import { C4DataServer } from './server/C4DataServer';
+import { TrailPanel } from './trail/TrailPanel';
+import { TrailDataServer } from './server/TrailDataServer';
 import { registerSpecDocsCommands } from './commands/specDocsCommands';
 import { registerChangesCommands, GitOriginalContentProvider } from './commands/changesCommands';
 import { registerC4Commands } from './commands/c4Commands';
@@ -15,6 +17,7 @@ import { TrailLogger } from './utils/TrailLogger';
 import { C4TreeProvider } from './providers/C4TreeProvider';
 
 let dataServer: C4DataServer | undefined;
+let trailDataServer: TrailDataServer | undefined;
 let extensionDistPath = '';
 
 // ---------------------------------------------------------------------------
@@ -284,6 +287,26 @@ export function activate(context: vscode.ExtensionContext) {
 		startDataServer(serverConfig.get<number>('port', 19840));
 	}
 
+	// Trail Data Server
+	trailDataServer = new TrailDataServer(extensionDistPath);
+	TrailPanel.setDataServer(trailDataServer);
+	const trailPort = vscode.workspace.getConfiguration('anytimeTrail.trailServer').get<number>('port', 19841);
+	trailDataServer.start(trailPort).catch((err: Error) => {
+		vscode.window.showErrorMessage(`Trail Data Server: ${err.message}`);
+	});
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('anytime-trail.openTrailViewer', () => {
+			TrailPanel.openViewer(true);
+		}),
+	);
+
+	context.subscriptions.push({
+		dispose: () => {
+			trailDataServer?.stop().catch(() => {});
+		},
+	});
+
 	// Watch for configuration changes
 	context.subscriptions.push(
 		vscode.workspace.onDidChangeConfiguration((e) => {
@@ -365,5 +388,6 @@ function installClaudeSkills(context: vscode.ExtensionContext): void {
 
 export function deactivate(): void {
 	dataServer?.stop().catch((err) => TrailLogger.error('Failed to stop data server', err));
+	trailDataServer?.stop().catch((err) => TrailLogger.error('Failed to stop trail data server', err));
 	TrailLogger.dispose();
 }
