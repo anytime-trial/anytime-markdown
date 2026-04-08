@@ -13,6 +13,11 @@ export function StandaloneTrailViewer({ isDark = true }: Readonly<{ isDark?: boo
     dataSource.loadSession(id);
   }, [dataSource]);
 
+  const handleFilterChange = useCallback((newFilter: TrailFilter) => {
+    setFilter(newFilter);
+    dataSource.searchSessions(newFilter);
+  }, [dataSource]);
+
   return (
     <TrailViewerCore
       isDark={isDark}
@@ -21,7 +26,7 @@ export function StandaloneTrailViewer({ isDark = true }: Readonly<{ isDark?: boo
       messages={dataSource.messages}
       filter={filter}
       onSelectSession={handleSelectSession}
-      onFilterChange={setFilter}
+      onFilterChange={handleFilterChange}
     />
   );
 }
