@@ -186,11 +186,6 @@ const CREATE_MESSAGES = `CREATE TABLE IF NOT EXISTS messages (
   git_branch TEXT
 )`;
 
-const CREATE_FTS = `CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
-  text_content, user_content, tool_names,
-  content=messages, content_rowid=rowid
-)`;
-
 const CREATE_INDEXES = [
   'CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id)',
   'CREATE INDEX IF NOT EXISTS idx_messages_type ON messages(type)',
@@ -212,12 +207,6 @@ const INSERT_MESSAGE = `INSERT OR REPLACE INTO messages
    is_sidechain, is_meta, cwd, git_branch)
   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`;
 
-const INSERT_FTS = `INSERT INTO messages_fts(rowid, text_content, user_content, tool_names)
-  SELECT rowid, text_content, user_content,
-    (SELECT group_concat(json_extract(value, '$.name'), ' ')
-     FROM json_each(tool_calls)
-     WHERE tool_calls IS NOT NULL)
-  FROM messages WHERE uuid = ?`;
 
 // ---------------------------------------------------------------------------
 //  Helpers
@@ -287,7 +276,6 @@ export class TrailDatabase {
     const db = this.ensureDb();
     db.run(CREATE_SESSIONS);
     db.run(CREATE_MESSAGES);
-    db.run(CREATE_FTS);
     for (const sql of CREATE_INDEXES) {
       db.run(sql);
     }
@@ -442,13 +430,6 @@ export class TrailDatabase {
       }
       msgStmt.free();
 
-      // Update FTS for each message
-      for (const raw of messagesToInsert) {
-        if (raw.uuid) {
-          db.run(INSERT_FTS, [raw.uuid]);
-        }
-      }
-
       db.run('COMMIT');
     } catch (err) {
       db.run('ROLLBACK');
@@ -583,16 +564,20 @@ export class TrailDatabase {
 
   searchMessages(query: string): SearchResult[] {
     const db = this.ensureDb();
-    const sql = `SELECT m.session_id, m.uuid, m.type, m.timestamp,
-      snippet(messages_fts, 0, '<b>', '</b>', '...', 32) AS snippet
-      FROM messages_fts
-      JOIN messages m ON messages_fts.rowid = m.rowid
-      WHERE messages_fts MATCH ?
-      ORDER BY rank
+    const pattern = `%${query}%`;
+    const sql = `SELECT session_id, uuid, type, timestamp,
+      COALESCE(
+        SUBSTR(text_content, MAX(1, INSTR(LOWER(text_content), LOWER(?)) - 30), 80),
+        SUBSTR(user_content, MAX(1, INSTR(LOWER(user_content), LOWER(?)) - 30), 80),
+        ''
+      ) AS snippet
+      FROM messages
+      WHERE text_content LIKE ? OR user_content LIKE ? OR tool_calls LIKE ?
+      ORDER BY timestamp DESC
       LIMIT 100`;
 
     const stmt = db.prepare(sql);
-    stmt.bind([query]);
+    stmt.bind([query, query, pattern, pattern, pattern]);
 
     const results: SearchResult[] = [];
     while (stmt.step()) {
