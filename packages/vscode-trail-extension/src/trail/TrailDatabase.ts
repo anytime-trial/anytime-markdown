@@ -1,10 +1,9 @@
-// Use asm.js build (no Wasm file needed, works in any Node.js environment)
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const initSqlJs: typeof import('sql.js').default = require('sql.js/dist/sql-asm.js');
 import type { Database } from 'sql.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+
+declare const __non_webpack_require__: (id: string) => unknown;
 
 const DB_DIR = path.join(os.homedir(), '.claude', 'trail');
 const DB_PATH = path.join(DB_DIR, 'trail.db');
@@ -252,7 +251,14 @@ function extractToolCalls(
 export class TrailDatabase {
   private db: Database | null = null;
 
+  constructor(private readonly distPath: string) {}
+
   async init(): Promise<void> {
+    // Load sql-asm.js from dist/ directory using __non_webpack_require__
+    // to bypass webpack bundling (bundling breaks sql.js module system)
+    const sqlAsmPath = path.join(this.distPath, 'sql-asm.js');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports, no-undef
+    const initSqlJs = __non_webpack_require__(sqlAsmPath) as typeof import('sql.js').default;
     const SQL = await initSqlJs();
     console.log('[TrailDatabase] sql.js initialized, DB_PATH =', DB_PATH);
 

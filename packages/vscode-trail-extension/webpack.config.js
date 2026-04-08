@@ -4,6 +4,7 @@
 
 const path = require('path');
 const webpack = require('webpack');
+const CopyPlugin = require('copy-webpack-plugin');
 
 /** @typedef {import('webpack').Configuration} WebpackConfig **/
 
@@ -41,6 +42,14 @@ const extensionConfig = {
       },
     ],
   },
+  plugins: [
+    new CopyPlugin({
+      patterns: [{
+        from: path.resolve(__dirname, '../../node_modules/sql.js/dist/sql-asm.js'),
+        to: 'sql-asm.js',
+      }],
+    }),
+  ],
   devtool: 'nosources-source-map',
 };
 
