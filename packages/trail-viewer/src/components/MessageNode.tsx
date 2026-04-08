@@ -60,10 +60,15 @@ export function MessageNode({
 }: Readonly<MessageNodeProps>) {
   const [expanded, setExpanded] = useState(false);
   const hasToolCalls = (message.toolCalls?.length ?? 0) > 0;
-  const hasTextContent = Boolean(message.textContent ?? message.userContent);
-  const textContent = message.userContent ?? message.textContent ?? '';
+  const textContent = (message.userContent ?? message.textContent ?? '').trim();
+  const hasTextContent = textContent.length > 0;
   const isUser = message.type === 'user';
   const isSystem = message.type === 'system';
+
+  // Skip empty messages (no text and no tool calls)
+  if (!hasTextContent && !hasToolCalls && !isSystem) {
+    return null;
+  }
 
   const needsCollapse = textContent.split('\n').length > COLLAPSED_LINES
     || textContent.length > 200;
