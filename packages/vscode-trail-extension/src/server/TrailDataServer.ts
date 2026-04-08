@@ -245,7 +245,24 @@ export class TrailDataServer {
       if (model) filters.model = model;
       if (project) filters.project = project;
 
-      const sessions = this.trailDb.getSessions(filters);
+      const rawSessions = this.trailDb.getSessions(filters);
+      const sessions = rawSessions.map((s) => ({
+        id: s.id,
+        slug: s.slug,
+        project: s.project,
+        gitBranch: s.git_branch,
+        model: s.model,
+        version: s.version,
+        startTime: s.start_time,
+        endTime: s.end_time,
+        messageCount: s.message_count,
+        usage: {
+          inputTokens: s.input_tokens,
+          outputTokens: s.output_tokens,
+          cacheReadTokens: s.cache_read_tokens,
+          cacheCreationTokens: s.cache_creation_tokens,
+        },
+      }));
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ sessions }));
     } catch {
