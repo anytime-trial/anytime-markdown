@@ -38,7 +38,7 @@ function getAvatarProps(type: TrailMessage['type'], hasToolCalls: boolean) {
 
 function formatTimestamp(timestamp: string): string {
   try {
-    return format(new Date(timestamp), 'HH:mm:ss');
+    return format(new Date(timestamp), 'MM/dd HH:mm:ss');
   } catch {
     return '';
   }
