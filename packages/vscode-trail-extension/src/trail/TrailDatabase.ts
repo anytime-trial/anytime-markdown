@@ -437,7 +437,9 @@ export class TrailDatabase {
     }
   }
 
-  async importAll(): Promise<{ imported: number; skipped: number }> {
+  async importAll(
+    onProgress?: (message: string, increment?: number) => void,
+  ): Promise<{ imported: number; skipped: number }> {
     const projectsDir = path.join(os.homedir(), '.claude', 'projects');
     let imported = 0;
     let skipped = 0;
@@ -449,6 +451,7 @@ export class TrailDatabase {
       return { imported, skipped };
     }
 
+    const allFiles: { filePath: string; projectName: string }[] = [];
     for (const projectName of projectDirs) {
       const projectPath = path.join(projectsDir, projectName);
       try {
@@ -457,13 +460,19 @@ export class TrailDatabase {
       } catch {
         continue;
       }
-
-      // Recursively find all .jsonl files (including subagents/)
       const jsonlFiles = findJsonlFiles(projectPath);
+      allFiles.push(...jsonlFiles.map((f) => ({ filePath: f, projectName })));
+    }
 
-      for (const filePath of jsonlFiles) {
+    const totalFiles = allFiles.length;
+    onProgress?.(`Found ${totalFiles} JSONL files`, 0);
 
-        // Extract sessionId from first few lines
+    for (let i = 0; i < allFiles.length; i++) {
+      const { filePath, projectName } = allFiles[i];
+      const increment = totalFiles > 0 ? 100 / totalFiles : 0;
+      onProgress?.(`(${i + 1}/${totalFiles}) Importing...`, increment);
+
+      // Extract sessionId from first few lines
         let sid = '';
         try {
           const head = fs.readFileSync(filePath, 'utf-8').slice(0, 8192);
@@ -497,7 +506,6 @@ export class TrailDatabase {
           // Skip files that fail to import
         }
       }
-    }
 
     this.save();
     return { imported, skipped };

@@ -332,13 +332,23 @@ export async function activate(context: vscode.ExtensionContext) {
 			if (!trailDb) return;
 			dashboardProvider.setImporting(true);
 			try {
-				const result = await trailDb.importAll();
+				const result = await vscode.window.withProgress(
+					{
+						location: vscode.ProgressLocation.Notification,
+						title: 'Trail: Importing JSONL logs',
+						cancellable: false,
+					},
+					async (progress) => {
+						return trailDb!.importAll((message, increment) => {
+							progress.report({ message, increment });
+						});
+					},
+				);
 				TrailLogger.info(`Trail DB: import complete - imported=${result.imported}, skipped=${result.skipped}`);
 				const stats = trailDb.getStats();
 				dashboardProvider.updateStatus('Ready', stats.totalSessions);
 				dashboardProvider.setImporting(false);
 
-				// Notify WebSocket clients
 				trailDataServer?.notifySessionsUpdated();
 
 				vscode.window.showInformationMessage(
