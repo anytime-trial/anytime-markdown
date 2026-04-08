@@ -4,7 +4,6 @@
 
 const path = require('path');
 const webpack = require('webpack');
-const CopyPlugin = require('copy-webpack-plugin');
 
 /** @typedef {import('webpack').Configuration} WebpackConfig **/
 
@@ -20,19 +19,10 @@ const extensionConfig = {
   },
   externals: {
     vscode: 'commonjs vscode',
-    'sql.js': 'commonjs sql.js',
     // ws のオプショナルなネイティブ依存を除外（バンドルなしで動作する）
     bufferutil: 'commonjs bufferutil',
     'utf-8-validate': 'commonjs utf-8-validate',
   },
-  plugins: [
-    new CopyPlugin({
-      patterns: [{
-        from: path.resolve(__dirname, '../../node_modules/sql.js/dist/sql-wasm.wasm'),
-        to: 'sql-wasm.wasm',
-      }],
-    }),
-  ],
   resolve: {
     extensions: ['.ts', '.js'],
   },

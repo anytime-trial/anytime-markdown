@@ -1,4 +1,7 @@
-import initSqlJs, { type Database } from 'sql.js';
+// Use asm.js build (no Wasm file needed, works in any Node.js environment)
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const initSqlJs: typeof import('sql.js').default = require('sql.js/dist/sql-asm.js');
+import type { Database } from 'sql.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -249,16 +252,9 @@ function extractToolCalls(
 export class TrailDatabase {
   private db: Database | null = null;
 
-  constructor(private readonly wasmPath?: string) {}
-
   async init(): Promise<void> {
-    const wasmLocate = this.wasmPath
-      ? (file: string) => path.join(this.wasmPath as string, file)
-      : undefined;
-    console.log('[TrailDatabase] init: wasmPath =', this.wasmPath);
-    console.log('[TrailDatabase] init: DB_DIR =', DB_DIR, 'DB_PATH =', DB_PATH);
-    const SQL = await initSqlJs({ locateFile: wasmLocate });
-    console.log('[TrailDatabase] sql.js initialized');
+    const SQL = await initSqlJs();
+    console.log('[TrailDatabase] sql.js initialized, DB_PATH =', DB_PATH);
 
     if (!fs.existsSync(DB_DIR)) {
       fs.mkdirSync(DB_DIR, { recursive: true });
