@@ -10,10 +10,12 @@ import type {
   TrailPromptEntry,
   TrailSession,
 } from '../parser/types';
+import { buildMessageTree } from '../parser/buildMessageTree';
 import { FilterBar } from './FilterBar';
 import { PromptManager } from './PromptManager';
 import { SessionList } from './SessionList';
 import { StatsBar } from './StatsBar';
+import { TraceTree } from './TraceTree';
 
 export interface TrailViewerCoreProps {
   readonly isDark?: boolean;
@@ -95,20 +97,17 @@ export function TrailViewerCore({
             <Box
               sx={{
                 flex: 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
                 overflow: 'auto',
               }}
             >
-              {selectedSessionId ? (
-                <Typography variant="body2" color="text.secondary">
-                  {messages.length} messages loaded
-                </Typography>
+              {selectedSessionId && messages.length > 0 ? (
+                <TraceTree nodes={buildMessageTree(messages)} />
               ) : (
-                <Typography variant="body2" color="text.secondary">
-                  Select a session
-                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                  <Typography variant="body2" color="text.secondary">
+                    {selectedSessionId ? 'Loading...' : 'Select a session'}
+                  </Typography>
+                </Box>
               )}
             </Box>
           </Box>
