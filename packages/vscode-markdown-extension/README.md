@@ -52,17 +52,16 @@ When editing finishes, the lock is released and the content is updated automatic
 - **Crash safe** — auto-unlocks after 30 seconds if Claude Code stops responding
 
 
-## 5. Browse AI Logs and Memory (AI Log / AI Memory)
+## 5. Browse AI Memory
 
-View Claude Code session information in the **Anytime Markdown** sidebar panel.
+View Claude Code memory information in the **Anytime Markdown** sidebar panel.
 
 | Panel | Description |
 | --- | --- |
-| **AI Log** | Session execution logs in Markdown. Click to open in the editor |
 | **AI Memory** | Per-project memory entries. Click to view or edit |
 
-> These panels read from `~/.claude/projects/`.\
-> They are hidden when Claude Code is not installed.
+> This panel reads from `~/.claude/projects/`.\
+> It is hidden when Claude Code is not installed.
 
 
 ## 6. Editor Modes

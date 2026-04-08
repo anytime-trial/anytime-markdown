@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [0.10.3] - 2026-04-08
+
+### 追加
+
+- サイドバーの Agent Note ビューを復元
+
 ## [0.10.1] - 2026-04-05
 
 ### Editor Core (markdown-core)

@@ -4,6 +4,7 @@
 
 const path = require('path');
 const webpack = require('webpack');
+const CopyPlugin = require('copy-webpack-plugin');
 
 /** @typedef {import('webpack').Configuration} WebpackConfig **/
 
@@ -41,6 +42,14 @@ const extensionConfig = {
       },
     ],
   },
+  plugins: [
+    new CopyPlugin({
+      patterns: [{
+        from: path.resolve(__dirname, '../../node_modules/sql.js/dist/sql-asm.js'),
+        to: 'sql-asm.js',
+      }],
+    }),
+  ],
   devtool: 'nosources-source-map',
 };
 
@@ -86,6 +95,45 @@ const standaloneConfig = {
 };
 
 /** @type WebpackConfig */
+const trailStandaloneConfig = {
+  target: 'web',
+  mode: 'development',
+  entry: './src/trail/standalone/index.tsx',
+  output: {
+    path: path.resolve(__dirname, 'dist'),
+    filename: 'trailstandalone.js',
+  },
+  resolve: {
+    extensions: ['.ts', '.tsx', '.js', '.jsx'],
+  },
+  module: {
+    rules: [
+      {
+        test: /\.tsx?$/,
+        exclude: /node_modules[\\/](?!@anytime-markdown[\\/]trail-viewer)/,
+        use: [{
+          loader: 'ts-loader',
+          options: {
+            configFile: 'tsconfig.trail-standalone.json',
+            allowTsInNodeModules: true,
+            transpileOnly: true,
+          },
+        }],
+      },
+    ],
+  },
+  plugins: [
+    new webpack.DefinePlugin({
+      'process.env.NODE_ENV': JSON.stringify('production'),
+    }),
+    new webpack.optimize.LimitChunkCountPlugin({
+      maxChunks: 1,
+    }),
+  ],
+  devtool: 'nosources-source-map',
+};
+
+/** @type WebpackConfig */
 const uninstallConfig = {
   target: 'node',
   mode: 'production',
@@ -112,4 +160,4 @@ const uninstallConfig = {
   },
 };
 
-module.exports = [extensionConfig, standaloneConfig, uninstallConfig];
+module.exports = [extensionConfig, standaloneConfig, trailStandaloneConfig, uninstallConfig];

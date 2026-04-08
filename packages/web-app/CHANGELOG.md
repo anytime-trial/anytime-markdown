@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-04-08
+
+### Added
+
+- Trail API routes (`/api/trail/*`) for session data
+- `/trail` page for Claude Code conversation trace viewing
+
+### Fixed
+
+- Turbopack build errors for trail-viewer integration
+
 ## [0.11.0] - 2026-04-07
 
 ### Added

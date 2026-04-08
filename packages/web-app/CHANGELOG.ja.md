@@ -6,6 +6,17 @@
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-04-08
+
+### 追加
+
+- Trail API ルート（`/api/trail/*`）セッションデータ用
+- `/trail` ページ（Claude Code 会話トレース表示）
+
+### 修正
+
+- trail-viewer 統合時の Turbopack ビルドエラー
+
 ## [0.11.0] - 2026-04-07
 
 ### 追加

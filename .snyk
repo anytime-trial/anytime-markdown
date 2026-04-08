@@ -1,0 +1,7 @@
+# Snyk policy file
+# https://docs.snyk.io/scan-using-snyk/snyk-code/configure-snyk-code#excluding-directories-and-files-from-the-snyk-code-test
+exclude:
+  global:
+    - "**/__tests__/**"
+    - "**/*.test.ts"
+    - "**/*.test.tsx"

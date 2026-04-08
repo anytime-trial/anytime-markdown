@@ -6,6 +6,35 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-04-08
+
+### 追加
+
+- SQLite データベースによるトレイルデータ保存（sql.js、sql-asm.js）
+- Dashboard パネル（手動 JSONL インポートボタン付き）
+- JSONL インポート中のプログレス通知
+- Prompts タブ（skills・settings.json 表示）
+- Analytics タブ（コスト推定・ツール使用量統計）
+- プロンプトファイル読み込み用 Prompts API エンドポイント
+
+### 変更
+
+- ビューア・インポートボタンを Dashboard タイトルバーに移動
+
+### 修正
+
+- JSONL ファイルの再帰的スキャン（サブエージェントセッション含む）
+- セッション行の snake_case → camelCase 変換
+- 互換性のため FTS5 を LIKE 検索に置換
+- sql.js を `__non_webpack_require__` で dist/ から読み込み
+- TrailDatabase の初期化をバックグラウンドで実行（アクティベーションブロック回避）
+- フィルタドロップダウンで全ブランチ・モデルを保持
+- フィルタ変更時の `searchSessions` 呼び出し
+
+### Trail Core (trail-core)
+
+- バージョン同期のみ（コード変更なし）
+
 ## [0.3.0] - 2026-04-07
 
 ### 追加

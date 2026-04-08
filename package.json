@@ -1,10 +1,11 @@
 {
   "name": "anytime-markdown-monorepo",
-  "version": "0.10.2",
+  "version": "0.10.3",
   "license": "MIT",
   "private": true,
   "scripts": {
     "version:sync": "npm version --no-git-tag-version --workspaces",
+    "postinstall": "rm -rf node_modules/next-auth/node_modules/@auth",
     "lint": "eslint packages/markdown-core/src packages/web-app/src",
     "lint:fix": "eslint --fix packages/markdown-core/src packages/web-app/src"
   },
@@ -24,7 +25,8 @@
     "packages/mobile-app",
     "packages/trail-core",
     "packages/c4-kernel",
-    "packages/c4-viewer"
+    "packages/c4-viewer",
+    "packages/trail-viewer"
   ],
   "overrides": {
     "serialize-javascript": "7.0.5",

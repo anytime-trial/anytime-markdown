@@ -2,7 +2,7 @@
   "name": "anytime-trail",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {
@@ -33,6 +33,7 @@
     "onCommand:anytime-trail.c4Export",
     "onCommand:anytime-trail.c4View",
     "onCommand:anytime-trail.dsmAnalyze",
+    "onView:anytimeTrail.dashboard",
     "onView:anytimeTrail.c4Elements"
   ],
   "icon": "images/camel_git.png",
@@ -49,6 +50,10 @@
     },
     "views": {
       "anytimeTrail": [
+        {
+          "id": "anytimeTrail.dashboard",
+          "name": "Dashboard"
+        },
         {
           "id": "anytimeTrail.c4Elements",
           "name": "%view.c4Elements%"
@@ -279,6 +284,18 @@
         "command": "anytime-trail.runCoverageTest",
         "title": "テスト実行（カバレッジ付き）",
         "icon": "$(beaker)"
+      },
+      {
+        "command": "anytime-trail.openTrailViewer",
+        "title": "Open Trail Viewer",
+        "category": "Anytime Trail",
+        "icon": "$(browser)"
+      },
+      {
+        "command": "anytime-trail.importTrailData",
+        "title": "Import JSONL Logs",
+        "category": "Anytime Trail",
+        "icon": "$(database)"
       }
     ],
     "submenus": [
@@ -343,6 +360,16 @@
         {
           "submenu": "anytimeTrail.changesMore",
           "when": "view == anytimeTrail.changes",
+          "group": "navigation@2"
+        },
+        {
+          "command": "anytime-trail.openTrailViewer",
+          "when": "view == anytimeTrail.dashboard",
+          "group": "navigation@1"
+        },
+        {
+          "command": "anytime-trail.importTrailData",
+          "when": "view == anytimeTrail.dashboard",
           "group": "navigation@2"
         },
         {
@@ -564,6 +591,11 @@
           "default": "npx jest --coverage --maxWorkers=1",
           "markdownDescription": "Command to run tests with coverage (executed in VS Code terminal). The generated `coverage-final.json` is auto-detected by the coverage watcher."
         },
+        "anytimeTrail.trailServer.port": {
+          "type": "number",
+          "default": 19841,
+          "description": "Port number for the Trail Viewer server"
+        },
         "anytimeTrail.coverage.historyLimit": {
           "type": "number",
           "default": 50,
@@ -594,10 +626,12 @@
     "@anytime-markdown/c4-viewer": "*",
     "@anytime-markdown/graph-core": "*",
     "@anytime-markdown/trail-core": "*",
+    "sql.js": "1.12.0",
     "typescript": "5.9.3",
     "ws": "8.18.2"
   },
   "devDependencies": {
+    "@types/sql.js": "1.4.9",
     "@emotion/react": "11.14.0",
     "@emotion/styled": "11.14.0",
     "@mui/icons-material": "7.3.8",
@@ -613,6 +647,7 @@
     "react-dom": "19.2.4",
     "ts-jest": "29.3.4",
     "ts-loader": "9.5.4",
+    "copy-webpack-plugin": "12.0.2",
     "webpack": "5.104.1",
     "webpack-cli": "6.0.1"
   }

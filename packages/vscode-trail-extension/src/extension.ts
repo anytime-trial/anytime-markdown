@@ -8,13 +8,19 @@ import { ChangesProvider } from './providers/ChangesProvider';
 import { SpecDocsProvider, SpecDocsDragAndDrop } from './providers/SpecDocsProvider';
 import { C4Panel } from './c4/C4Panel';
 import { C4DataServer } from './server/C4DataServer';
+import { TrailPanel } from './trail/TrailPanel';
+import { TrailDataServer } from './server/TrailDataServer';
+import { TrailDatabase } from './trail/TrailDatabase';
 import { registerSpecDocsCommands } from './commands/specDocsCommands';
 import { registerChangesCommands, GitOriginalContentProvider } from './commands/changesCommands';
 import { registerC4Commands } from './commands/c4Commands';
 import { TrailLogger } from './utils/TrailLogger';
 import { C4TreeProvider } from './providers/C4TreeProvider';
+import { DashboardProvider } from './trail/DashboardProvider';
 
 let dataServer: C4DataServer | undefined;
+let trailDataServer: TrailDataServer | undefined;
+let trailDb: TrailDatabase | undefined;
 let extensionDistPath = '';
 
 // ---------------------------------------------------------------------------
@@ -100,7 +106,7 @@ function handleServerConfigChange(): void {
 	}
 }
 
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
 	extensionDistPath = path.join(context.extensionUri.fsPath, 'dist');
 
 	// Git 元コンテンツプロバイダー（diff 表示用）
@@ -284,6 +290,85 @@ export function activate(context: vscode.ExtensionContext) {
 		startDataServer(serverConfig.get<number>('port', 19840));
 	}
 
+	// Trail Database + Data Server (non-blocking initialization)
+	trailDb = new TrailDatabase(extensionDistPath);
+	trailDataServer = new TrailDataServer(extensionDistPath, trailDb);
+	TrailPanel.setDataServer(trailDataServer);
+	const trailPort = vscode.workspace.getConfiguration('anytimeTrail.trailServer').get<number>('port', 19841);
+
+	// Dashboard panel
+	const dashboardProvider = new DashboardProvider(trailDb);
+	const dashboardTreeView = vscode.window.createTreeView('anytimeTrail.dashboard', {
+		treeDataProvider: dashboardProvider,
+	});
+
+	// Initialize DB and start server in background — do not block activate
+	void (async () => {
+		try {
+			TrailLogger.info(`Trail DB: initializing with distPath=${extensionDistPath}`);
+			await trailDb!.init();
+			dashboardProvider.updateStatus('Ready');
+			TrailLogger.info('Trail DB: initialized');
+		} catch (err) {
+			TrailLogger.error('Failed to initialize trail database', err);
+			dashboardProvider.updateStatus('Error');
+		}
+		try {
+			await trailDataServer!.start(trailPort);
+			TrailLogger.info(`Trail Data Server started on port ${trailPort}`);
+		} catch (err) {
+			TrailLogger.error('Trail Data Server failed to start', err);
+		}
+	})();
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('anytime-trail.openTrailViewer', () => {
+			TrailPanel.openViewer(true);
+		}),
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('anytime-trail.importTrailData', async () => {
+			if (!trailDb) return;
+			dashboardProvider.setImporting(true);
+			try {
+				const result = await vscode.window.withProgress(
+					{
+						location: vscode.ProgressLocation.Notification,
+						title: 'Trail: Importing JSONL logs',
+						cancellable: false,
+					},
+					async (progress) => {
+						return trailDb!.importAll((message, increment) => {
+							progress.report({ message, increment });
+						});
+					},
+				);
+				TrailLogger.info(`Trail DB: import complete - imported=${result.imported}, skipped=${result.skipped}`);
+				const stats = trailDb.getStats();
+				dashboardProvider.updateStatus('Ready', stats.totalSessions);
+				dashboardProvider.setImporting(false);
+
+				trailDataServer?.notifySessionsUpdated();
+
+				vscode.window.showInformationMessage(
+					`Trail: imported ${result.imported} sessions (${result.skipped} skipped)`,
+				);
+			} catch (err) {
+				dashboardProvider.setImporting(false);
+				dashboardProvider.updateStatus('Import failed');
+				TrailLogger.error('Trail import failed', err);
+			}
+		}),
+	);
+
+	context.subscriptions.push({
+		dispose: () => {
+			trailDataServer?.stop().catch(() => {});
+			trailDb?.close();
+		},
+	});
+
 	// Watch for configuration changes
 	context.subscriptions.push(
 		vscode.workspace.onDidChangeConfiguration((e) => {
@@ -332,6 +417,7 @@ export function activate(context: vscode.ExtensionContext) {
 		...(timelineTreeView ? [timelineTreeView] : []),
 		...(graphTreeView ? [graphTreeView] : []), graphRefresh,
 		c4ElementsTreeView,
+		dashboardTreeView,
 		statusBarItem,
 	);
 
@@ -365,5 +451,7 @@ function installClaudeSkills(context: vscode.ExtensionContext): void {
 
 export function deactivate(): void {
 	dataServer?.stop().catch((err) => TrailLogger.error('Failed to stop data server', err));
+	trailDataServer?.stop().catch((err) => TrailLogger.error('Failed to stop trail data server', err));
+	trailDb?.close();
 	TrailLogger.dispose();
 }

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.10.3] - 2026-04-08
+
+### Added
+
+- Restore Agent Note view in sidebar
+
 ## [0.10.1] - 2026-04-05
 
 ### Editor Core (markdown-core)

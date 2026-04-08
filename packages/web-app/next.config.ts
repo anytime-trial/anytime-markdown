@@ -15,7 +15,7 @@ const isCapacitorBuild = !isCloudflare && process.env.CAPACITOR_BUILD === 'true'
 
 const nextConfig: NextConfig = {
   devIndicators: false,
-  transpilePackages: ['@anytime-markdown/markdown-core'],
+  transpilePackages: ['@anytime-markdown/markdown-core', '@anytime-markdown/trail-viewer'],
   turbopack: {
     rules: {
       '*.md': {

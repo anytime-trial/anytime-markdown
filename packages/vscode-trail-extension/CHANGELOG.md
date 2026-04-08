@@ -6,6 +6,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-04-08
+
+### Added
+
+- SQLite database for trail data storage (sql.js with sql-asm.js)
+- Dashboard panel with manual JSONL import button
+- Progress notification during JSONL import
+- Prompts tab with skills and settings.json display
+- Analytics tab with cost estimation and tool usage statistics
+- Prompts API endpoint for prompt file loading
+
+### Changed
+
+- Viewer/import buttons moved to Dashboard title bar
+
+### Fixed
+
+- Recursive scan for JSONL files including subagent sessions
+- Session row snake_case to camelCase conversion
+- FTS5 removed in favor of LIKE search for compatibility
+- sql.js loading via `__non_webpack_require__` from dist/
+- TrailDatabase init runs in background to avoid blocking activation
+- Filter dropdowns retain all branches/models
+- `searchSessions` called on filter change
+
+### Trail Core (trail-core)
+
+- Version sync only (no code changes)
+
 ## [0.3.0] - 2026-04-07
 
 ### Added
