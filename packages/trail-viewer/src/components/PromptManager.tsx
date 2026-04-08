@@ -57,7 +57,6 @@ export function PromptManager({
                 color="text.secondary"
                 sx={{ mt: 0.5 }}
               >
-                v{prompt.version} &middot;{' '}
                 {new Date(prompt.updatedAt).toLocaleDateString()}
               </Typography>
             </ListItemButton>
