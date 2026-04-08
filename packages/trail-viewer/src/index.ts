@@ -14,3 +14,6 @@ export { parseSession } from './parser/parseSession';
 export { buildMessageTree } from './parser/buildMessageTree';
 export { filterMessages } from './parser/filterMessages';
 export { aggregateUsage } from './parser/aggregateUsage';
+
+export { TrailViewerCore } from './components/TrailViewerCore';
+export type { TrailViewerCoreProps } from './components/TrailViewerCore';
