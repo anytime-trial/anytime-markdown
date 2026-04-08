@@ -12,47 +12,37 @@ interface TraceTreeProps {
   readonly showSystem?: boolean;
 }
 
-/** Flatten tree nodes for rendering */
-function flattenNodes(nodes: readonly TrailTreeNode[]): readonly TrailTreeNode[] {
-  const result: TrailTreeNode[] = [];
-  for (const node of nodes) {
-    result.push(node);
-    if (node.children.length > 0) {
-      result.push(...flattenNodes(node.children));
-    }
+/** Flatten a single tree node and all its descendants */
+function flattenNode(node: TrailTreeNode): readonly TrailTreeNode[] {
+  const result: TrailTreeNode[] = [node];
+  for (const child of node.children) {
+    result.push(...flattenNode(child));
   }
   return result;
 }
 
-function FlatMessageList({
-  nodes,
+/** Render a single conversation turn (root node + all descendants, flat) */
+function ConversationTurn({
+  node,
   showSystem,
 }: Readonly<{
-  nodes: readonly TrailTreeNode[];
+  node: TrailTreeNode;
   showSystem: boolean;
 }>) {
-  const flat = flattenNodes(nodes);
-  let userCount = 0;
+  const flat = flattenNode(node);
 
   return (
     <>
-      {flat.map((node) => {
-        if (!showSystem && node.message.type === 'system') {
+      {flat.map((n) => {
+        if (!showSystem && n.message.type === 'system') {
           return null;
         }
-
-        const isUserTurn = node.message.type === 'user' && !node.message.isSidechain;
-        if (isUserTurn) userCount++;
-        const showDivider = isUserTurn && userCount > 1;
-
         return (
-          <Box key={node.message.uuid}>
-            {showDivider && <Divider sx={{ my: 1.5 }} />}
-            <MessageNode
-              message={node.message}
-              depth={node.depth}
-            />
-          </Box>
+          <MessageNode
+            key={n.message.uuid}
+            message={n.message}
+            depth={n.depth}
+          />
         );
       })}
     </>
@@ -106,7 +96,12 @@ export function TraceTree({
             </Box>
           </Box>
         ) : (
-          <FlatMessageList nodes={nodes} showSystem={showSystem} />
+          nodes.map((rootNode, index) => (
+            <Box key={rootNode.message.uuid}>
+              {index > 0 && <Divider sx={{ my: 2 }} />}
+              <ConversationTurn node={rootNode} showSystem={showSystem} />
+            </Box>
+          ))
         )}
       </Box>
     </Box>
