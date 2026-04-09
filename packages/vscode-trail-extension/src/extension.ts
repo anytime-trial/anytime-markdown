@@ -339,9 +339,10 @@ export async function activate(context: vscode.ExtensionContext) {
 						cancellable: false,
 					},
 					async (progress) => {
+						const gitRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 						return trailDb!.importAll((message, increment) => {
 							progress.report({ message, increment });
-						});
+						}, gitRoot);
 					},
 				);
 				TrailLogger.info(`Trail DB: import complete - imported=${result.imported}, skipped=${result.skipped}`);
@@ -352,7 +353,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				trailDataServer?.notifySessionsUpdated();
 
 				vscode.window.showInformationMessage(
-					`Trail: imported ${result.imported} sessions (${result.skipped} skipped)`,
+					`Trail: imported ${result.imported} sessions, ${result.commitsResolved} commits resolved (${result.skipped} skipped)`,
 				);
 			} catch (err) {
 				dashboardProvider.setImporting(false);

@@ -641,10 +641,12 @@ export class TrailDatabase {
 
   async importAll(
     onProgress?: (message: string, increment?: number) => void,
-  ): Promise<{ imported: number; skipped: number }> {
+    gitRoot?: string,
+  ): Promise<{ imported: number; skipped: number; commitsResolved: number }> {
     const projectsDir = path.join(os.homedir(), '.claude', 'projects');
     let imported = 0;
     let skipped = 0;
+    let commitsResolved = 0;
 
     let projectDirs: string[];
     try {
@@ -697,6 +699,14 @@ export class TrailDatabase {
         if (!sid) continue;
 
         if (this.isImported(sid)) {
+          if (gitRoot && !this.isCommitsResolved(sid)) {
+            try {
+              this.resolveCommits(sid, gitRoot);
+              commitsResolved++;
+            } catch {
+              // skip
+            }
+          }
           skipped++;
           continue;
         }
@@ -704,13 +714,21 @@ export class TrailDatabase {
         try {
           this.importSession(filePath, projectName);
           imported++;
+          if (gitRoot) {
+            try {
+              this.resolveCommits(sid, gitRoot);
+              commitsResolved++;
+            } catch {
+              // skip
+            }
+          }
         } catch {
           // Skip files that fail to import
         }
       }
 
     this.save();
-    return { imported, skipped };
+    return { imported, skipped, commitsResolved };
   }
 
   // -------------------------------------------------------------------------
