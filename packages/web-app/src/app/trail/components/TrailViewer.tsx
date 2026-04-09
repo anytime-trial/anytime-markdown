@@ -46,11 +46,16 @@ export function TrailViewer() {
     <TrailViewerCore
       isDark={isDark}
       sessions={dataSource.sessions}
+      allSessions={dataSource.allSessions}
       selectedSessionId={selectedSessionId}
       messages={dataSource.messages}
       filter={filter}
       onSelectSession={handleSelectSession}
       onFilterChange={handleFilterChange}
+      analytics={dataSource.analytics}
+      fetchSessionMessages={dataSource.fetchSessionMessages}
+      fetchSessionCommits={dataSource.fetchSessionCommits}
+      fetchSessionToolMetrics={dataSource.fetchSessionToolMetrics}
     />
   );
 }
