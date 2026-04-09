@@ -80,7 +80,24 @@ export interface TrailSession {
   readonly messageCount: number;
   readonly peakContextTokens?: number;
   readonly initialContextTokens?: number;
+  readonly commitStats?: {
+    readonly commits: number;
+    readonly linesAdded: number;
+    readonly linesDeleted: number;
+    readonly filesChanged: number;
+  };
   readonly usage: TrailTokenUsage;
+}
+
+export interface TrailSessionCommit {
+  readonly commitHash: string;
+  readonly commitMessage: string;
+  readonly author: string;
+  readonly committedAt: string;
+  readonly isAiAssisted: boolean;
+  readonly filesChanged: number;
+  readonly linesAdded: number;
+  readonly linesDeleted: number;
 }
 
 export interface TrailTreeNode {

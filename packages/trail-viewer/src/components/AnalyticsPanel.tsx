@@ -25,6 +25,9 @@ export interface AnalyticsData {
     readonly cacheReadTokens: number;
     readonly cacheCreationTokens: number;
     readonly estimatedCostUsd: number;
+    readonly totalCommits: number;
+    readonly totalLinesAdded: number;
+    readonly totalLinesDeleted: number;
   };
   readonly toolUsage: readonly { name: string; count: number }[];
   readonly modelBreakdown: readonly {
