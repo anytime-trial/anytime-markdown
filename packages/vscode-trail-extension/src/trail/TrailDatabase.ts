@@ -70,6 +70,18 @@ export interface MessageRow {
   readonly git_branch: string | null;
 }
 
+export interface SessionCommitRow {
+  readonly session_id: string;
+  readonly commit_hash: string;
+  readonly commit_message: string;
+  readonly author: string;
+  readonly committed_at: string;
+  readonly is_ai_assisted: number;
+  readonly files_changed: number;
+  readonly lines_added: number;
+  readonly lines_deleted: number;
+}
+
 interface SessionFilters {
   readonly branch?: string;
   readonly model?: string;
@@ -811,6 +823,57 @@ export class TrailDatabase {
     }
 
     return result;
+  }
+
+  getSessionCommitStats(
+    sessionIds: readonly string[],
+  ): Map<string, { commits: number; linesAdded: number; linesDeleted: number; filesChanged: number }> {
+    if (sessionIds.length === 0) return new Map();
+    const db = this.ensureDb();
+    const result = new Map<string, {
+      commits: number; linesAdded: number; linesDeleted: number; filesChanged: number;
+    }>();
+    const placeholders = sessionIds.map(() => '?').join(',');
+
+    try {
+      const rows = db.exec(
+        `SELECT session_id,
+          COUNT(*) AS commits,
+          COALESCE(SUM(lines_added), 0) AS lines_added,
+          COALESCE(SUM(lines_deleted), 0) AS lines_deleted,
+          COALESCE(SUM(files_changed), 0) AS files_changed
+        FROM session_commits
+        WHERE session_id IN (${placeholders})
+        GROUP BY session_id`,
+        sessionIds as string[],
+      );
+      for (const row of rows[0]?.values ?? []) {
+        result.set(String(row[0]), {
+          commits: Number(row[1]),
+          linesAdded: Number(row[2]),
+          linesDeleted: Number(row[3]),
+          filesChanged: Number(row[4]),
+        });
+      }
+    } catch {
+      // Graceful fallback
+    }
+
+    return result;
+  }
+
+  getSessionCommits(sessionId: string): SessionCommitRow[] {
+    const db = this.ensureDb();
+    const stmt = db.prepare(
+      'SELECT * FROM session_commits WHERE session_id = ? ORDER BY committed_at ASC',
+    );
+    stmt.bind([sessionId]);
+    const rows: SessionCommitRow[] = [];
+    while (stmt.step()) {
+      rows.push(stmt.getAsObject() as unknown as SessionCommitRow);
+    }
+    stmt.free();
+    return rows;
   }
 
   getMessages(sessionId: string): MessageRow[] {
