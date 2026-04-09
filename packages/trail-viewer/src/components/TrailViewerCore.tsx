@@ -10,6 +10,7 @@ import type {
   TrailPromptEntry,
   TrailSession,
 } from '../parser/types';
+import type { AnalyticsPanelProps } from './AnalyticsPanel';
 import { buildMessageTree } from '../parser/buildMessageTree';
 import { AnalyticsPanel } from './AnalyticsPanel';
 import type { AnalyticsData } from './AnalyticsPanel';
@@ -31,6 +32,7 @@ export interface TrailViewerCoreProps {
   readonly containerHeight?: string;
   readonly prompts?: readonly TrailPromptEntry[];
   readonly analytics?: AnalyticsData | null;
+  readonly fetchSessionMessages?: AnalyticsPanelProps['fetchSessionMessages'];
 }
 
 const SESSION_LIST_WIDTH = 300;
@@ -47,6 +49,7 @@ export function TrailViewerCore({
   containerHeight = 'calc(100vh - 64px)',
   prompts = [],
   analytics = null,
+  fetchSessionMessages,
 }: Readonly<TrailViewerCoreProps>) {
   const [activeTab, setActiveTab] = useState(0);
   const selectedSession = sessions.find((s) => s.id === selectedSessionId);
@@ -67,14 +70,25 @@ export function TrailViewerCore({
           onChange={(_e, v: number) => setActiveTab(v)}
           aria-label="Trail viewer tabs"
         >
+          <Tab label="Analytics" />
           <Tab label="Traces" />
           <Tab label="Prompts" />
-          <Tab label="Analytics" />
         </Tabs>
       </Box>
 
-      {/* Tab 0: Traces */}
+      {/* Tab 0: Analytics */}
       {activeTab === 0 && (
+        <AnalyticsPanel
+          analytics={analytics}
+          isDark={isDark}
+          sessions={allSessions ?? sessions}
+          onSelectSession={onSelectSession}
+          fetchSessionMessages={fetchSessionMessages}
+        />
+      )}
+
+      {/* Tab 1: Traces */}
+      {activeTab === 1 && (
         <>
           {/* FilterBar */}
           <FilterBar
@@ -124,18 +138,8 @@ export function TrailViewerCore({
         </>
       )}
 
-      {/* Tab 1: Prompts */}
-      {activeTab === 1 && <PromptManager prompts={prompts} isDark={isDark} />}
-
-      {/* Tab 2: Analytics */}
-      {activeTab === 2 && (
-        <AnalyticsPanel
-          analytics={analytics}
-          isDark={isDark}
-          sessions={allSessions ?? sessions}
-          onSelectSession={onSelectSession}
-        />
-      )}
+      {/* Tab 2: Prompts */}
+      {activeTab === 2 && <PromptManager prompts={prompts} isDark={isDark} />}
     </Box>
   );
 }

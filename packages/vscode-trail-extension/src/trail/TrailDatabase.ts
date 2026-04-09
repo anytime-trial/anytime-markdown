@@ -38,6 +38,7 @@ export interface SessionRow {
   readonly file_path: string;
   readonly file_size: number;
   readonly imported_at: string;
+  readonly peak_context_tokens?: number;
 }
 
 export interface MessageRow {
@@ -568,7 +569,10 @@ export class TrailDatabase {
     const where = conditions.length > 0
       ? `WHERE ${conditions.join(' AND ')}`
       : '';
-    const sql = `SELECT * FROM sessions ${where} ORDER BY start_time DESC`;
+    const sql = `SELECT s.*,
+      (SELECT MAX(COALESCE(m.input_tokens,0) + COALESCE(m.cache_read_tokens,0) + COALESCE(m.cache_creation_tokens,0))
+       FROM messages m WHERE m.session_id = s.id) AS peak_context_tokens
+      FROM sessions s ${where} ORDER BY s.start_time DESC`;
 
     const stmt = db.prepare(sql);
     if (params.length > 0) stmt.bind(params);

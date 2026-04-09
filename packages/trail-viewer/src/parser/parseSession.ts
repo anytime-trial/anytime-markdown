@@ -157,6 +157,14 @@ export function parseSession(
   const firstAssistant = filtered.find((r) => r.type === 'assistant');
   const lastRaw = filtered.at(-1);
 
+  let peakContextTokens = 0;
+  for (const msg of messages) {
+    if (msg.usage) {
+      const ctx = msg.usage.inputTokens + msg.usage.cacheReadTokens + msg.usage.cacheCreationTokens;
+      if (ctx > peakContextTokens) peakContextTokens = ctx;
+    }
+  }
+
   const session: TrailSession = {
     id: firstRaw?.sessionId ?? '',
     slug: firstRaw?.slug ?? firstAssistant?.slug ?? '',
@@ -167,6 +175,7 @@ export function parseSession(
     version: firstRaw?.version ?? '',
     model: firstAssistant?.message?.model ?? '',
     messageCount: messages.length,
+    peakContextTokens,
     usage: aggregateUsage(messages),
   };
 

@@ -10,7 +10,8 @@ import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Typography from '@mui/material/Typography';
 import { BarChart } from '@mui/x-charts/BarChart';
-import type { TrailSession } from '../parser/types';
+import { LineChart } from '@mui/x-charts/LineChart';
+import type { TrailMessage, TrailSession } from '../parser/types';
 
 // ---------------------------------------------------------------------------
 //  Types
@@ -55,6 +56,7 @@ export interface AnalyticsPanelProps {
   readonly isDark?: boolean;
   readonly sessions?: readonly TrailSession[];
   readonly onSelectSession?: (id: string) => void;
+  readonly fetchSessionMessages?: (id: string) => Promise<readonly TrailMessage[]>;
 }
 
 // ---------------------------------------------------------------------------
@@ -164,18 +166,100 @@ function toUsd(tokens: number, key: string): number {
   return (tokens * (COST_PER_M[key] ?? 3)) / 1_000_000;
 }
 
+function SessionCacheTimeline({
+  messages,
+  onClose,
+}: Readonly<{
+  messages: readonly TrailMessage[];
+  onClose: () => void;
+}>) {
+  const assistantMsgs = messages.filter((m) => m.type === 'assistant' && m.usage);
+  if (assistantMsgs.length === 0) {
+    return (
+      <Paper variant="outlined" sx={{ mt: 1, p: 1.5 }}>
+        <Typography variant="body2" color="text.secondary">No token usage data in this session.</Typography>
+      </Paper>
+    );
+  }
+
+  const dataset = assistantMsgs.map((m, i) => ({
+    turn: i + 1,
+    inputTokens: m.usage?.inputTokens ?? 0,
+    outputTokens: m.usage?.outputTokens ?? 0,
+    cacheReadTokens: m.usage?.cacheReadTokens ?? 0,
+    cacheCreationTokens: m.usage?.cacheCreationTokens ?? 0,
+  }));
+
+  return (
+    <Paper variant="outlined" sx={{ mt: 1, p: 1.5 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+        <Typography variant="subtitle2">
+          Session Cache Timeline ({assistantMsgs.length} turns)
+        </Typography>
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          sx={{ cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+          onClick={onClose}
+        >
+          Close
+        </Typography>
+      </Box>
+      <LineChart
+        dataset={dataset}
+        xAxis={[{ dataKey: 'turn', label: 'Turn', scaleType: 'point' }]}
+        yAxis={[{ valueFormatter: fmtTokens }]}
+        series={[
+          { dataKey: 'inputTokens', label: 'Input', color: BAR_COLOR_INPUT, showMark: false },
+          { dataKey: 'outputTokens', label: 'Output', color: BAR_COLOR_OUTPUT, showMark: false },
+          { dataKey: 'cacheReadTokens', label: 'Cache Read', color: BAR_COLOR_CACHE_READ, showMark: false },
+          { dataKey: 'cacheCreationTokens', label: 'Cache Write', color: BAR_COLOR_CACHE_WRITE, showMark: false },
+        ]}
+        height={200}
+        margin={{ left: 60, right: 16, top: 16, bottom: 32 }}
+        slotProps={{
+          legend: { direction: 'horizontal', position: { vertical: 'top', horizontal: 'end' } },
+        }}
+      />
+    </Paper>
+  );
+}
+
 function DailySessionList({
   date,
   sessions,
   onSelectSession,
+  fetchSessionMessages,
   onClose,
 }: Readonly<{
   date: string;
   sessions: readonly TrailSession[];
   onSelectSession?: (id: string) => void;
+  fetchSessionMessages?: (id: string) => Promise<readonly TrailMessage[]>;
   onClose: () => void;
 }>) {
+  const [timelineSessionId, setTimelineSessionId] = useState<string | null>(null);
+  const [timelineMessages, setTimelineMessages] = useState<readonly TrailMessage[]>([]);
+  const [timelineLoading, setTimelineLoading] = useState(false);
   const daySessions = sessions.filter((s) => s.startTime.startsWith(date));
+
+  const handleSessionClick = (id: string) => {
+    if (timelineSessionId === id) {
+      setTimelineSessionId(null);
+      setTimelineMessages([]);
+      return;
+    }
+    if (fetchSessionMessages) {
+      setTimelineSessionId(id);
+      setTimelineLoading(true);
+      void fetchSessionMessages(id).then((msgs) => {
+        setTimelineMessages(msgs);
+        setTimelineLoading(false);
+      });
+    } else {
+      onSelectSession?.(id);
+    }
+  };
 
   return (
     <Paper variant="outlined" sx={{ mt: 1, p: 1.5 }}>
@@ -203,6 +287,7 @@ function DailySessionList({
               <TableCell align="right">Input</TableCell>
               <TableCell align="right">Output</TableCell>
               <TableCell align="right">Cache Read</TableCell>
+              <TableCell align="right">Peak Context</TableCell>
               <TableCell align="right">Messages</TableCell>
             </TableRow>
           </TableHead>
@@ -211,8 +296,9 @@ function DailySessionList({
               <TableRow
                 key={s.id}
                 hover
-                sx={{ cursor: onSelectSession ? 'pointer' : 'default' }}
-                onClick={() => onSelectSession?.(s.id)}
+                selected={timelineSessionId === s.id}
+                sx={{ cursor: 'pointer' }}
+                onClick={() => handleSessionClick(s.id)}
               >
                 <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
                   {s.startTime.slice(11, 16)}–{s.endTime.slice(11, 16)}
@@ -223,11 +309,21 @@ function DailySessionList({
                 <TableCell align="right">{fmtTokens(s.usage.inputTokens)}</TableCell>
                 <TableCell align="right">{fmtTokens(s.usage.outputTokens)}</TableCell>
                 <TableCell align="right">{fmtTokens(s.usage.cacheReadTokens)}</TableCell>
+                <TableCell align="right">{fmtTokens(s.peakContextTokens ?? 0)}</TableCell>
                 <TableCell align="right">{fmtNum(s.messageCount)}</TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
+      )}
+      {timelineLoading && (
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>Loading timeline...</Typography>
+      )}
+      {timelineSessionId && timelineMessages.length > 0 && (
+        <SessionCacheTimeline
+          messages={timelineMessages}
+          onClose={() => { setTimelineSessionId(null); setTimelineMessages([]); }}
+        />
       )}
     </Paper>
   );
@@ -237,10 +333,12 @@ function DailyActivityChart({
   items,
   sessions,
   onSelectSession,
+  fetchSessionMessages,
 }: Readonly<{
   items: AnalyticsData['dailyActivity'];
   sessions: readonly TrailSession[];
   onSelectSession?: (id: string) => void;
+  fetchSessionMessages?: (id: string) => Promise<readonly TrailMessage[]>;
 }>) {
   const [mode, setMode] = useState<DailyViewMode>('tokens');
   const [period, setPeriod] = useState<PeriodDays>(30);
@@ -323,6 +421,7 @@ function DailyActivityChart({
           date={selectedDate}
           sessions={sessions}
           onSelectSession={onSelectSession}
+          fetchSessionMessages={fetchSessionMessages}
           onClose={() => setSelectedDate(null)}
         />
       )}
@@ -404,7 +503,7 @@ function BranchTable({ items }: Readonly<{ items: AnalyticsData['branchBreakdown
 //  Main component
 // ---------------------------------------------------------------------------
 
-export function AnalyticsPanel({ analytics, isDark: _isDark, sessions = [], onSelectSession }: Readonly<AnalyticsPanelProps>) {
+export function AnalyticsPanel({ analytics, isDark: _isDark, sessions = [], onSelectSession, fetchSessionMessages }: Readonly<AnalyticsPanelProps>) {
   if (!analytics) {
     return (
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
@@ -419,7 +518,7 @@ export function AnalyticsPanel({ analytics, isDark: _isDark, sessions = [], onSe
     <Box sx={{ overflow: 'auto', flex: 1, p: 2, display: 'flex', flexDirection: 'column', gap: 3 }}>
       <OverviewCards totals={analytics.totals} />
       <ToolUsageChart items={analytics.toolUsage} />
-      <DailyActivityChart items={analytics.dailyActivity} sessions={sessions} onSelectSession={onSelectSession} />
+      <DailyActivityChart items={analytics.dailyActivity} sessions={sessions} onSelectSession={onSelectSession} fetchSessionMessages={fetchSessionMessages} />
       <ModelTable items={analytics.modelBreakdown} />
       <BranchTable items={analytics.branchBreakdown} />
     </Box>

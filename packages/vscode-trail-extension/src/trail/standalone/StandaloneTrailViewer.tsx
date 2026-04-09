@@ -30,6 +30,7 @@ export function StandaloneTrailViewer({ isDark = true }: Readonly<{ isDark?: boo
       onFilterChange={handleFilterChange}
       prompts={dataSource.prompts}
       analytics={dataSource.analytics}
+      fetchSessionMessages={dataSource.fetchSessionMessages}
     />
   );
 }

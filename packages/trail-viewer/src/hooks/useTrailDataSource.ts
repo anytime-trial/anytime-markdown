@@ -18,6 +18,7 @@ export interface TrailDataSourceResult {
   readonly error: string | null;
   readonly loadSession: (id: string) => void;
   readonly searchSessions: (filter: TrailFilter) => void;
+  readonly fetchSessionMessages: (id: string) => Promise<readonly TrailMessage[]>;
 }
 
 interface WsMessage {
@@ -138,6 +139,22 @@ export function useTrailDataSource(serverUrl?: string): TrailDataSourceResult {
     [baseUrl],
   );
 
+  // --- Fetch session messages (standalone, does not update shared state) ---
+
+  const fetchSessionMessages = useCallback(
+    async (id: string): Promise<readonly TrailMessage[]> => {
+      const res = await fetch(`${baseUrl}/api/trail/sessions/${encodeURIComponent(id)}`);
+      if (!res.ok) return [];
+      const data: unknown = await res.json();
+      if (data && typeof data === 'object' && 'messages' in data) {
+        return (data as { messages: readonly TrailMessage[] }).messages;
+      }
+      if (Array.isArray(data)) return data as readonly TrailMessage[];
+      return [];
+    },
+    [baseUrl],
+  );
+
   // --- Search sessions ---
 
   const searchSessions = useCallback(
@@ -250,5 +267,6 @@ export function useTrailDataSource(serverUrl?: string): TrailDataSourceResult {
     error,
     loadSession,
     searchSessions,
+    fetchSessionMessages,
   };
 }

@@ -267,6 +267,7 @@ export class TrailDataServer {
         startTime: s.start_time,
         endTime: s.end_time,
         messageCount: s.message_count,
+        peakContextTokens: s.peak_context_tokens ?? 0,
         usage: {
           inputTokens: s.input_tokens,
           outputTokens: s.output_tokens,
