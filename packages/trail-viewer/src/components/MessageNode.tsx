@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { format } from 'date-fns';
 import Box from '@mui/material/Box';
 import Collapse from '@mui/material/Collapse';
 import IconButton from '@mui/material/IconButton';
@@ -36,13 +35,6 @@ function getAvatarProps(type: TrailMessage['type'], hasToolCalls: boolean) {
   return { icon: <SmartToyIcon />, bgcolor: '#2196f3' };
 }
 
-function formatTimestamp(timestamp: string): string {
-  try {
-    return format(new Date(timestamp), 'MM/dd HH:mm:ss');
-  } catch {
-    return '';
-  }
-}
 
 function getToolCallSummary(toolCall: TrailToolCall): string {
   const entries = Object.entries(toolCall.input);
@@ -89,7 +81,7 @@ export function MessageNode({
             fontSize: '0.7rem',
           }}
         >
-          {message.subtype ?? 'system'} &middot; {formatTimestamp(message.timestamp)}
+          {message.subtype ?? 'system'}
         </Typography>
       </Box>
     );
