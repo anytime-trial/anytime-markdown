@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'node:path';
 import { execFileSync } from 'node:child_process';
 
-import { TrailLogger } from '../utils/TrailLogger';
+import { GitLogger } from '../utils/GitLogger';
 import {
 	ChangesRepoItem, ChangesGroupItem, ChangesFileItem, ChangesSyncItem,
 } from './changes/types';
@@ -62,7 +62,7 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem>
 					watcher.onDidDelete(debouncedRefresh);
 					this.watchers.push(watcher);
 				}
-			} catch (err) { TrailLogger.warn(`Not a git repo: ${rootPath}`); }
+			} catch (err) { GitLogger.warn(`Not a git repo: ${rootPath}`); }
 		}
 
 		this._primaryGitRoot = this.gitRootEntries[0]?.gitRoot ?? null;

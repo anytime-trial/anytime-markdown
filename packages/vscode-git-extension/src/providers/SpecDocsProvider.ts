@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 
-import { TrailLogger } from '../utils/TrailLogger';
+import { GitLogger } from '../utils/GitLogger';
 import {
 	SpecDocsRootItem, SpecDocsItem, SpecDocsDragAndDrop,
 	isMarkdownFile, findGitDir, readGitBranch,
@@ -16,9 +16,9 @@ import type { SpecDocsGitOpsHost } from './specdocs/SpecDocsGitOps';
 export { SpecDocsRootItem, SpecDocsItem, SpecDocsDragAndDrop } from './specdocs/types';
 export type { SpecDocsNode } from './specdocs/types';
 
-const STORAGE_KEY = 'anytimeTrail.specDocsRoot';
-const STORAGE_KEY_MULTI = 'anytimeTrail.specDocsRoots';
-const MD_ONLY_KEY = 'anytimeTrail.mdOnly';
+const STORAGE_KEY = 'anytimeGit.specDocsRoot';
+const STORAGE_KEY_MULTI = 'anytimeGit.specDocsRoots';
+const MD_ONLY_KEY = 'anytimeGit.mdOnly';
 
 export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsNode>, SpecDocsFileOpsHost, SpecDocsGitOpsHost {
 	private readonly _onDidChangeTreeData = new vscode.EventEmitter<SpecDocsNode | undefined>();
@@ -57,9 +57,9 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsNode>, 
 			void this.context.globalState.update(STORAGE_KEY, undefined);
 		}
 		if (this.rootPaths.length > 0) {
-			void vscode.commands.executeCommand('setContext', 'anytimeTrail.specDocsHasRoot', true);
+			void vscode.commands.executeCommand('setContext', 'anytimeGit.specDocsHasRoot', true);
 		}
-		void vscode.commands.executeCommand('setContext', 'anytimeTrail.mdOnly', this._mdOnly);
+		void vscode.commands.executeCommand('setContext', 'anytimeGit.mdOnly', this._mdOnly);
 	}
 
 	get mdOnly(): boolean { return this._mdOnly; }
@@ -67,7 +67,7 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsNode>, 
 
 	private saveRootPaths(): void {
 		this.context.globalState.update(STORAGE_KEY_MULTI, this.rootPaths.length > 0 ? this.rootPaths : undefined);
-		vscode.commands.executeCommand('setContext', 'anytimeTrail.specDocsHasRoot', this.rootPaths.length > 0);
+		vscode.commands.executeCommand('setContext', 'anytimeGit.specDocsHasRoot', this.rootPaths.length > 0);
 	}
 
 	/** 指定ルートパスのリポジトリ名とブランチ名を返す */
@@ -160,7 +160,7 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsNode>, 
 		try {
 			const entries = fs.readdirSync(dirPath, { withFileTypes: true });
 			return entries.some(entry => this.isMarkdownEntry(entry, dirPath));
-		} catch (err) { TrailLogger.error('Failed to read directory', err); }
+		} catch (err) { GitLogger.error('Failed to read directory', err); }
 		return false;
 	}
 
@@ -231,7 +231,7 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsNode>, 
 	toggleMdOnly(): void {
 		this._mdOnly = !this._mdOnly;
 		this.context.globalState.update(MD_ONLY_KEY, this._mdOnly);
-		vscode.commands.executeCommand('setContext', 'anytimeTrail.mdOnly', this._mdOnly);
+		vscode.commands.executeCommand('setContext', 'anytimeGit.mdOnly', this._mdOnly);
 		this._onDidChangeTreeData.fire(undefined);
 	}
 

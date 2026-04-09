@@ -28,7 +28,7 @@ export function registerSpecDocsCommands(
 	let lastSpecClickTime = 0;
 
 	const specDocsOpenFile = vscode.commands.registerCommand(
-		'anytime-trail.specDocsOpenFile',
+		'anytime-git.specDocsOpenFile',
 		async (uri: vscode.Uri) => {
 			const now = Date.now();
 			const isDoubleClick = lastSpecClickUri === uri.toString() && (now - lastSpecClickTime) < 500;
@@ -61,24 +61,24 @@ export function registerSpecDocsCommands(
 	);
 
 	const specDocsOpenFolder = vscode.commands.registerCommand(
-		'anytime-trail.specDocsOpenFolder', () => specDocsProvider.openFolder()
+		'anytime-git.specDocsOpenFolder', () => specDocsProvider.openFolder()
 	);
 	const specDocsCloneRepo = vscode.commands.registerCommand(
-		'anytime-trail.specDocsCloneRepo', () => specDocsProvider.cloneRepository()
+		'anytime-git.specDocsCloneRepo', () => specDocsProvider.cloneRepository()
 	);
 	const specDocsClose = vscode.commands.registerCommand(
-		'anytime-trail.specDocsClose', () => specDocsProvider.closeFolder()
+		'anytime-git.specDocsClose', () => specDocsProvider.closeFolder()
 	);
 	const specDocsRefresh = vscode.commands.registerCommand(
-		'anytime-trail.specDocsRefresh', () => specDocsProvider.refresh()
+		'anytime-git.specDocsRefresh', () => specDocsProvider.refresh()
 	);
 	const switchBranch = vscode.commands.registerCommand(
-		'anytime-trail.switchBranch', (item?: SpecDocsRootItem) => {
+		'anytime-git.switchBranch', (item?: SpecDocsRootItem) => {
 			specDocsProvider.switchBranch(item?.rootPath);
 		}
 	);
 	const toggleMdOnly = vscode.commands.registerCommand(
-		'anytime-trail.toggleMdOnly', () => {
+		'anytime-git.toggleMdOnly', () => {
 			specDocsProvider.toggleMdOnly();
 			changesProvider?.refresh();
 		}
@@ -86,45 +86,45 @@ export function registerSpecDocsCommands(
 
 	// ファイル/フォルダ操作
 	const specDocsCreateFile = vscode.commands.registerCommand(
-		'anytime-trail.specDocsCreateFile', (item?: SpecDocsRootItem | SpecDocsItem) => specDocsProvider.createFile(item)
+		'anytime-git.specDocsCreateFile', (item?: SpecDocsRootItem | SpecDocsItem) => specDocsProvider.createFile(item)
 	);
 	const specDocsCreateFolder = vscode.commands.registerCommand(
-		'anytime-trail.specDocsCreateFolder', (item?: SpecDocsRootItem | SpecDocsItem) => specDocsProvider.createFolder(item)
+		'anytime-git.specDocsCreateFolder', (item?: SpecDocsRootItem | SpecDocsItem) => specDocsProvider.createFolder(item)
 	);
 	const specDocsDelete = vscode.commands.registerCommand(
-		'anytime-trail.specDocsDelete', (item: SpecDocsItem) => specDocsProvider.deleteItem(item)
+		'anytime-git.specDocsDelete', (item: SpecDocsItem) => specDocsProvider.deleteItem(item)
 	);
 	const specDocsRename = vscode.commands.registerCommand(
-		'anytime-trail.specDocsRename', (item: SpecDocsItem) => specDocsProvider.renameItem(item)
+		'anytime-git.specDocsRename', (item: SpecDocsItem) => specDocsProvider.renameItem(item)
 	);
 	const specDocsRemoveRoot = vscode.commands.registerCommand(
-		'anytime-trail.specDocsRemoveRoot', (item: SpecDocsRootItem) => specDocsProvider.removeRoot(item.rootPath)
+		'anytime-git.specDocsRemoveRoot', (item: SpecDocsRootItem) => specDocsProvider.removeRoot(item.rootPath)
 	);
 	const specDocsCopyPath = vscode.commands.registerCommand(
-		'anytime-trail.specDocsCopyPath', (item: SpecDocsItem) => {
+		'anytime-git.specDocsCopyPath', (item: SpecDocsItem) => {
 			if (item?.resourceUri) {
 				vscode.env.clipboard.writeText(item.resourceUri.fsPath);
 			}
 		}
 	);
 	const specDocsCopyFileName = vscode.commands.registerCommand(
-		'anytime-trail.specDocsCopyFileName', (item: SpecDocsItem) => {
+		'anytime-git.specDocsCopyFileName', (item: SpecDocsItem) => {
 			if (item?.resourceUri) {
 				vscode.env.clipboard.writeText(path.basename(item.resourceUri.fsPath));
 			}
 		}
 	);
 	const specDocsImportFiles = vscode.commands.registerCommand(
-		'anytime-trail.specDocsImportFiles', (item?: SpecDocsRootItem | SpecDocsItem) => specDocsProvider.importFiles(item)
+		'anytime-git.specDocsImportFiles', (item?: SpecDocsRootItem | SpecDocsItem) => specDocsProvider.importFiles(item)
 	);
 	const specDocsCut = vscode.commands.registerCommand(
-		'anytime-trail.specDocsCut', (item: SpecDocsItem) => specDocsProvider.cut(item)
+		'anytime-git.specDocsCut', (item: SpecDocsItem) => specDocsProvider.cut(item)
 	);
 	const specDocsCopy = vscode.commands.registerCommand(
-		'anytime-trail.specDocsCopy', (item: SpecDocsItem) => specDocsProvider.copy(item)
+		'anytime-git.specDocsCopy', (item: SpecDocsItem) => specDocsProvider.copy(item)
 	);
 	const specDocsPaste = vscode.commands.registerCommand(
-		'anytime-trail.specDocsPaste', (item?: SpecDocsRootItem | SpecDocsItem) => specDocsProvider.paste(item)
+		'anytime-git.specDocsPaste', (item?: SpecDocsRootItem | SpecDocsItem) => specDocsProvider.paste(item)
 	);
 
 	context.subscriptions.push(

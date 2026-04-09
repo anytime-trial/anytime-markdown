@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { TrailLogger } from '../utils/TrailLogger';
+import { GitLogger } from '../utils/GitLogger';
 
 const GIT_LOG_LIMIT = 100;
 const GIT_LOG_MAX_BUFFER = 1024 * 1024;
@@ -138,7 +138,7 @@ export class GraphProvider implements vscode.TreeDataProvider<GraphItem> {
 		if (rootPath) {
 			try {
 				this.gitRoot = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: rootPath, encoding: 'utf-8' }).trim();
-			} catch (err) { TrailLogger.warn(`Not a git repo: ${rootPath}`); }
+			} catch (err) { GitLogger.warn(`Not a git repo: ${rootPath}`); }
 		}
 		this.items = [];
 		this._onDidChangeTreeData.fire();
