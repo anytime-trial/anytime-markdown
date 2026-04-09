@@ -1,4 +1,5 @@
 import type { Database } from 'sql.js';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -360,6 +361,150 @@ export class TrailDatabase {
     const exists = stmt.step();
     stmt.free();
     return exists;
+  }
+
+  isCommitsResolved(sessionId: string): boolean {
+    const db = this.ensureDb();
+    const stmt = db.prepare(
+      'SELECT 1 FROM sessions WHERE id = ? AND commits_resolved_at IS NOT NULL LIMIT 1',
+    );
+    stmt.bind([sessionId]);
+    const exists = stmt.step();
+    stmt.free();
+    return exists;
+  }
+
+  private getSessionTimeRange(sessionId: string): {
+    startTime: string; endTime: string; gitBranch: string;
+  } | null {
+    const db = this.ensureDb();
+    const stmt = db.prepare(
+      'SELECT start_time, end_time, git_branch FROM sessions WHERE id = ? LIMIT 1',
+    );
+    stmt.bind([sessionId]);
+    if (!stmt.step()) {
+      stmt.free();
+      return null;
+    }
+    const row = stmt.getAsObject() as {
+      start_time: string; end_time: string; git_branch: string;
+    };
+    stmt.free();
+    return {
+      startTime: row.start_time,
+      endTime: row.end_time,
+      gitBranch: row.git_branch,
+    };
+  }
+
+  resolveCommits(sessionId: string, gitRoot: string): number {
+    const db = this.ensureDb();
+    const range = this.getSessionTimeRange(sessionId);
+    if (!range) return 0;
+
+    const { startTime, endTime, gitBranch } = range;
+
+    // Add 5 minutes buffer to endTime for commits made right after session
+    const endDate = new Date(endTime);
+    endDate.setMinutes(endDate.getMinutes() + 5);
+    const bufferedEnd = endDate.toISOString();
+
+    const execOpts = { encoding: 'utf-8' as const, timeout: 10_000 };
+    const logFormat = '%H%x00%s%x00%an%x00%aI%x00%b%x1e';
+
+    let logOutput = '';
+    try {
+      // Try branch-specific log first
+      logOutput = execFileSync('git', [
+        'log', gitBranch,
+        `--after=${startTime}`,
+        `--before=${bufferedEnd}`,
+        `--format=${logFormat}`,
+        '--no-merges',
+      ], { ...execOpts, cwd: gitRoot });
+    } catch {
+      // Fallback to --all if branch not found
+      try {
+        logOutput = execFileSync('git', [
+          'log', '--all',
+          `--after=${startTime}`,
+          `--before=${bufferedEnd}`,
+          `--format=${logFormat}`,
+          '--no-merges',
+        ], { ...execOpts, cwd: gitRoot });
+      } catch {
+        // On any git error, mark as resolved and return 0
+        db.run(
+          "UPDATE sessions SET commits_resolved_at = datetime('now') WHERE id = ?",
+          [sessionId],
+        );
+        return 0;
+      }
+    }
+
+    const commits = logOutput
+      .split('\x1e')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+
+    let count = 0;
+    const insertStmt = db.prepare(
+      `INSERT OR IGNORE INTO session_commits
+        (session_id, commit_hash, commit_message, author, committed_at,
+         is_ai_assisted, files_changed, lines_added, lines_deleted)
+        VALUES (?,?,?,?,?,?,?,?,?)`,
+    );
+
+    for (const entry of commits) {
+      const parts = entry.split('\x00');
+      if (parts.length < 4) continue;
+
+      const hash = parts[0];
+      const subject = parts[1];
+      const author = parts[2];
+      const committedAt = parts[3];
+      const body = parts[4] ?? '';
+
+      // Check for AI co-authoring
+      const isAiAssisted = /Co-Authored-By:.*Claude/i.test(body) ? 1 : 0;
+
+      // Get file stats via numstat
+      let filesChanged = 0;
+      let linesAdded = 0;
+      let linesDeleted = 0;
+      try {
+        const numstat = execFileSync('git', [
+          'diff', '--numstat', `${hash}^..${hash}`,
+        ], { ...execOpts, cwd: gitRoot });
+
+        for (const line of numstat.split('\n')) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          const [added, deleted] = trimmed.split('\t');
+          filesChanged++;
+          // Binary files show as "-"
+          if (added !== '-') linesAdded += Number.parseInt(added, 10) || 0;
+          if (deleted !== '-') linesDeleted += Number.parseInt(deleted, 10) || 0;
+        }
+      } catch {
+        // Initial commit or other error — skip numstat
+      }
+
+      insertStmt.run([
+        sessionId, hash, subject, author, committedAt,
+        isAiAssisted, filesChanged, linesAdded, linesDeleted,
+      ]);
+      count++;
+    }
+
+    insertStmt.free();
+
+    db.run(
+      "UPDATE sessions SET commits_resolved_at = datetime('now') WHERE id = ?",
+      [sessionId],
+    );
+
+    return count;
   }
 
   importSession(filePath: string, projectName: string): void {
