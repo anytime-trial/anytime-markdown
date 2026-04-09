@@ -292,7 +292,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Trail Database + Data Server (non-blocking initialization)
 	trailDb = new TrailDatabase(extensionDistPath);
-	trailDataServer = new TrailDataServer(extensionDistPath, trailDb);
+	const gitRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+	trailDataServer = new TrailDataServer(extensionDistPath, trailDb, gitRoot);
 	TrailPanel.setDataServer(trailDataServer);
 	const trailPort = vscode.workspace.getConfiguration('anytimeTrail.trailServer').get<number>('port', 19841);
 

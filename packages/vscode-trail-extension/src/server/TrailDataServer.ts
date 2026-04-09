@@ -35,6 +35,7 @@ export class TrailDataServer {
   constructor(
     private readonly distPath: string,
     private readonly trailDb: TrailDatabase,
+    private readonly gitRoot?: string,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -436,7 +437,7 @@ export class TrailDataServer {
 
   private handleRefresh(res: http.ServerResponse): void {
     this.trailDb
-      .importAll()
+      .importAll(undefined, this.gitRoot)
       .then((result) => {
         this.notifySessionsUpdated();
         res.writeHead(200, JSON_HEADERS);
