@@ -40,6 +40,7 @@ export interface SessionRow {
   readonly imported_at: string;
   readonly peak_context_tokens?: number;
   readonly initial_context_tokens?: number;
+  readonly commits_resolved_at?: string;
 }
 
 export interface MessageRow {
@@ -220,10 +221,24 @@ const CREATE_MESSAGES = `CREATE TABLE IF NOT EXISTS messages (
   git_branch TEXT
 )`;
 
+const CREATE_SESSION_COMMITS = `CREATE TABLE IF NOT EXISTS session_commits (
+  session_id TEXT NOT NULL REFERENCES sessions(id),
+  commit_hash TEXT NOT NULL,
+  commit_message TEXT NOT NULL DEFAULT '',
+  author TEXT NOT NULL DEFAULT '',
+  committed_at TEXT NOT NULL DEFAULT '',
+  is_ai_assisted INTEGER NOT NULL DEFAULT 0,
+  files_changed INTEGER NOT NULL DEFAULT 0,
+  lines_added INTEGER NOT NULL DEFAULT 0,
+  lines_deleted INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (session_id, commit_hash)
+)`;
+
 const CREATE_INDEXES = [
   'CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id)',
   'CREATE INDEX IF NOT EXISTS idx_messages_type ON messages(type)',
   'CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp)',
+  'CREATE INDEX IF NOT EXISTS idx_session_commits_session ON session_commits(session_id)',
 ];
 
 const INSERT_SESSION = `INSERT OR REPLACE INTO sessions
@@ -310,8 +325,16 @@ export class TrailDatabase {
     const db = this.ensureDb();
     db.run(CREATE_SESSIONS);
     db.run(CREATE_MESSAGES);
+    db.run(CREATE_SESSION_COMMITS);
     for (const sql of CREATE_INDEXES) {
       db.run(sql);
+    }
+
+    // Add columns for existing DBs (may already exist)
+    try {
+      db.run('ALTER TABLE sessions ADD COLUMN commits_resolved_at TEXT');
+    } catch {
+      // Column already exists — ignore
     }
   }
 
