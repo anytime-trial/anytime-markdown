@@ -106,12 +106,23 @@ type PeriodDays = 7 | 30 | 90;
 //  Sub-components
 // ---------------------------------------------------------------------------
 
-function OverviewCards({ totals }: Readonly<{ totals: AnalyticsData['totals'] }>) {
+function OverviewCards({
+  totals,
+  sessions = [],
+}: Readonly<{
+  totals: AnalyticsData['totals'];
+  sessions?: readonly TrailSession[];
+}>) {
+  const totalInput = totals.inputTokens + totals.cacheReadTokens;
+  const cacheHitRate = totalInput > 0
+    ? fmtPercent(totals.cacheReadTokens / totalInput)
+    : '\u2014';
+
   const cards = [
     { label: 'Total Sessions', value: fmtNum(totals.sessions) },
     { label: 'Total Tokens', value: fmtTokens(totals.inputTokens + totals.outputTokens) },
     { label: 'Estimated Cost', value: fmtUsd(totals.estimatedCostUsd) },
-    { label: 'Cache Read Tokens', value: fmtTokens(totals.cacheReadTokens) },
+    { label: 'Cache Hit Rate', value: cacheHitRate },
   ];
 
   const totalTokens = totals.inputTokens + totals.outputTokens;
@@ -124,6 +135,33 @@ function OverviewCards({ totals }: Readonly<{ totals: AnalyticsData['totals'] }>
         : '\u2014' },
     { label: 'Cost/Line', value: hasLines
         ? fmtUsd(totals.estimatedCostUsd / totals.totalLinesAdded)
+        : '\u2014' },
+  ];
+
+  const totalDurationHours = totals.totalSessionDurationMs / 3_600_000;
+
+  const sessionsWithContext = sessions.filter(
+    (s) => s.messageCount > 0 && (s.peakContextTokens ?? 0) > 0,
+  );
+  const avgContextGrowth = sessionsWithContext.length > 0
+    ? sessionsWithContext.reduce(
+        (sum, s) => sum + ((s.peakContextTokens ?? 0) - (s.initialContextTokens ?? 0)) / s.messageCount,
+        0,
+      ) / sessionsWithContext.length
+    : 0;
+
+  const efficiencyCards = [
+    { label: 'AI Commit %', value: totals.totalCommits > 0
+        ? fmtPercent(totals.totalAiAssistedCommits / totals.totalCommits)
+        : '\u2014' },
+    { label: 'Avg Lines/Hour', value: totalDurationHours > 0 && totals.totalLinesAdded > 0
+        ? fmtNum(Math.round(totals.totalLinesAdded / totalDurationHours))
+        : '\u2014' },
+    { label: 'Avg Cost/Hour', value: totalDurationHours > 0
+        ? fmtUsd(totals.estimatedCostUsd / totalDurationHours)
+        : '\u2014' },
+    { label: 'Avg Context Growth', value: avgContextGrowth > 0
+        ? `${fmtTokens(Math.round(avgContextGrowth))}/step`
         : '\u2014' },
   ];
 
@@ -148,6 +186,24 @@ function OverviewCards({ totals }: Readonly<{ totals: AnalyticsData['totals'] }>
       {totals.totalCommits > 0 && (
         <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
           {commitCards.map((c) => (
+            <Paper
+              key={c.label}
+              variant="outlined"
+              sx={{ flex: '1 1 140px', p: 2, minWidth: 140, textAlign: 'center' }}
+            >
+              <Typography variant="caption" color="text.secondary">
+                {c.label}
+              </Typography>
+              <Typography variant="h5" sx={{ mt: 0.5 }}>
+                {c.value}
+              </Typography>
+            </Paper>
+          ))}
+        </Box>
+      )}
+      {totals.totalCommits > 0 && (
+        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+          {efficiencyCards.map((c) => (
             <Paper
               key={c.label}
               variant="outlined"
@@ -752,7 +808,7 @@ export function AnalyticsPanel({ analytics, isDark: _isDark, sessions = [], onSe
 
   return (
     <Box sx={{ overflow: 'auto', flex: 1, p: 2, display: 'flex', flexDirection: 'column', gap: 3 }}>
-      <OverviewCards totals={analytics.totals} />
+      <OverviewCards totals={analytics.totals} sessions={sessions} />
       <ToolUsageChart items={analytics.toolUsage} />
       <DailyActivityChart items={analytics.dailyActivity} sessions={sessions} onSelectSession={onSelectSession} fetchSessionMessages={fetchSessionMessages} fetchSessionCommits={fetchSessionCommits} />
       <ModelTable items={analytics.modelBreakdown} />
