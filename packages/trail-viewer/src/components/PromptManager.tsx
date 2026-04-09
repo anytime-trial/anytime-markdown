@@ -7,18 +7,18 @@ import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 
 import type { TrailPromptEntry } from '../parser/types';
+import { useTrailTheme } from './TrailThemeContext';
 
 export interface PromptManagerProps {
   readonly prompts: readonly TrailPromptEntry[];
-  readonly isDark?: boolean;
 }
 
 const PROMPT_LIST_WIDTH = 320;
 
 export function PromptManager({
   prompts,
-  isDark,
 }: Readonly<PromptManagerProps>) {
+  const { colors, codeSx } = useTrailTheme();
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
   const selected = prompts.find((p) => p.id === selectedId);
 
@@ -30,7 +30,7 @@ export function PromptManager({
           width: PROMPT_LIST_WIDTH,
           minWidth: PROMPT_LIST_WIDTH,
           borderRight: 1,
-          borderColor: 'divider',
+          borderColor: colors.border,
           overflowY: 'auto',
         }}
       >
@@ -40,7 +40,7 @@ export function PromptManager({
               key={prompt.id}
               selected={prompt.id === selectedId}
               onClick={() => setSelectedId(prompt.id)}
-              sx={{ flexDirection: 'column', alignItems: 'flex-start', py: 1 }}
+              sx={{ flexDirection: 'column', alignItems: 'flex-start', py: 1, '&.Mui-selected': { bgcolor: colors.iceBlueBg }, '&.Mui-selected:hover': { bgcolor: colors.iceBlueSubtle }, '&:hover': { bgcolor: colors.hoverBg } }}
             >
               <Typography variant="subtitle2" noWrap sx={{ width: '100%' }}>
                 {prompt.name}
@@ -49,13 +49,12 @@ export function PromptManager({
                 sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 0.5 }}
               >
                 {prompt.tags.map((tag) => (
-                  <Chip key={tag} label={tag} size="small" variant="outlined" />
+                  <Chip key={tag} label={tag} size="small" variant="outlined" sx={{ borderColor: colors.iceBlue, color: colors.iceBlue }} />
                 ))}
               </Box>
               <Typography
                 variant="caption"
-                color="text.secondary"
-                sx={{ mt: 0.5 }}
+                sx={{ mt: 0.5, color: colors.textSecondary }}
               >
                 {new Date(prompt.updatedAt).toLocaleDateString()}
               </Typography>
@@ -65,8 +64,7 @@ export function PromptManager({
         {prompts.length === 0 && (
           <Typography
             variant="body2"
-            color="text.secondary"
-            sx={{ p: 2, textAlign: 'center' }}
+            sx={{ p: 2, textAlign: 'center', color: colors.textSecondary }}
           >
             No prompts found
           </Typography>
@@ -77,14 +75,13 @@ export function PromptManager({
       <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
         {selected ? (
           <Paper
-            variant="outlined"
+            elevation={0}
             sx={{
+              ...codeSx,
               p: 2,
-              fontFamily: 'monospace',
               fontSize: '0.85rem',
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-word',
-              backgroundColor: isDark ? 'grey.900' : 'grey.50',
               minHeight: '100%',
             }}
           >
@@ -99,7 +96,7 @@ export function PromptManager({
               height: '100%',
             }}
           >
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{ color: colors.textSecondary }}>
               Select a prompt to view
             </Typography>
           </Box>

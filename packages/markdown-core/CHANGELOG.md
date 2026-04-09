@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.10.4] - 2026-04-09
+
+### Added
+
+- i18n translation key for Trail navigation label
+
 ## [0.10.3] - 2026-04-08
 
 - Version sync with vscode-markdown-extension

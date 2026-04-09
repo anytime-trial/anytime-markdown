@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-04-09
+
+### Added
+
+- Remote sync command and VS Code settings for Supabase connection
+- Supabase CSP configuration
+
+### Trail Core (trail-core)
+
+- Remote DB sync layer (SQLite → Supabase/PostgreSQL)
+- Session commit stats and commit resolution queries
+- Analytics fields: `totalFilesChanged`, `totalAiAssistedCommits`, `totalSessionDurationMs`
+
 ## [0.4.0] - 2026-04-08
 
 ### Added

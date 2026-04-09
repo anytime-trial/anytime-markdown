@@ -3,7 +3,7 @@
 import { useCallback, useState } from 'react';
 
 import { TrailViewerCore, useTrailDataSource } from '@anytime-markdown/trail-viewer';
-import type { TrailFilter } from '@anytime-markdown/trail-viewer';
+import type { TrailFilter, SupabaseConfig } from '@anytime-markdown/trail-viewer';
 
 import { useThemeMode } from '../../providers';
 
@@ -13,7 +13,15 @@ export function TrailViewer() {
   const { themeMode } = useThemeMode();
   const isDark = themeMode === 'dark';
 
-  const dataSource = useTrailDataSource();
+  const supabaseConfig: SupabaseConfig | undefined =
+    process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      ? {
+          url: process.env.NEXT_PUBLIC_SUPABASE_URL,
+          anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+        }
+      : undefined;
+
+  const dataSource = useTrailDataSource(undefined, supabaseConfig);
 
   const [filter, setFilter] = useState<TrailFilter>(EMPTY_FILTER);
   const [selectedSessionId, setSelectedSessionId] = useState<string | undefined>();
@@ -38,11 +46,16 @@ export function TrailViewer() {
     <TrailViewerCore
       isDark={isDark}
       sessions={dataSource.sessions}
+      allSessions={dataSource.allSessions}
       selectedSessionId={selectedSessionId}
       messages={dataSource.messages}
       filter={filter}
       onSelectSession={handleSelectSession}
       onFilterChange={handleFilterChange}
+      analytics={dataSource.analytics}
+      fetchSessionMessages={dataSource.fetchSessionMessages}
+      fetchSessionCommits={dataSource.fetchSessionCommits}
+      fetchSessionToolMetrics={dataSource.fetchSessionToolMetrics}
     />
   );
 }

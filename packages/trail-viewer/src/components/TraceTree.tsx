@@ -8,6 +8,7 @@ import Chip from '@mui/material/Chip';
 import Typography from '@mui/material/Typography';
 
 import type { TrailSession, TrailTreeNode } from '../parser/types';
+import { useTrailTheme } from './TrailThemeContext';
 import { MessageNode } from './MessageNode';
 
 interface TraceTreeProps {
@@ -58,6 +59,7 @@ export function TraceTree({
   session,
   showSystem: showSystemProp = false,
 }: Readonly<TraceTreeProps>) {
+  const { colors } = useTrailTheme();
   const [showSystem, setShowSystem] = useState(showSystemProp);
 
   return (
@@ -67,17 +69,17 @@ export function TraceTree({
           px: 2,
           py: 1,
           borderBottom: 1,
-          borderColor: 'divider',
+          borderColor: colors.border,
           flexShrink: 0,
         }}
       >
         {session && (
           <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: 0.5, flexWrap: 'wrap' }}>
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" sx={{ color: colors.textSecondary }}>
               Claude Code {session.version}
             </Typography>
-            <Chip label={session.model || 'unknown'} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
-            <Chip label={session.gitBranch || '-'} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
+            <Chip label={session.model || 'unknown'} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.7rem', borderColor: colors.iceBlue, color: colors.iceBlue }} />
+            <Chip label={session.gitBranch || '-'} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.7rem', borderColor: colors.iceBlue, color: colors.iceBlue }} />
           </Box>
         )}
         <FormControlLabel
@@ -86,11 +88,15 @@ export function TraceTree({
               size="small"
               checked={showSystem}
               onChange={(_, checked) => setShowSystem(checked)}
+              sx={{
+                '&.Mui-checked': { color: colors.iceBlue },
+                '&.Mui-checked + .MuiSwitch-track': { bgcolor: colors.iceBlue },
+              }}
             />
           }
           label="Show system messages"
           slotProps={{
-            typography: { variant: 'body2' },
+            typography: { variant: 'body2', sx: { color: colors.textSecondary } },
           }}
         />
       </Box>
@@ -105,14 +111,14 @@ export function TraceTree({
       >
         {nodes.length === 0 ? (
           <Box sx={{ p: 2, textAlign: 'center' }}>
-            <Box component="span" sx={{ color: 'text.secondary' }}>
+            <Box component="span" sx={{ color: colors.textSecondary }}>
               No messages
             </Box>
           </Box>
         ) : (
           nodes.map((rootNode, index) => (
             <Box key={rootNode.message.uuid}>
-              {index > 0 && <Divider sx={{ my: 2 }} />}
+              {index > 0 && <Divider sx={{ my: 2, borderColor: colors.border }} />}
               <ConversationTurn node={rootNode} showSystem={showSystem} />
             </Box>
           ))

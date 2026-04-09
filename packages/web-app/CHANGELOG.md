@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-04-09
+
+### Added
+
+- Trail navigation link in landing page header
+
 ## [0.12.0] - 2026-04-08
 
 ### Added

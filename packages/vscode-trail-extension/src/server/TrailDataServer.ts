@@ -35,6 +35,7 @@ export class TrailDataServer {
   constructor(
     private readonly distPath: string,
     private readonly trailDb: TrailDatabase,
+    private readonly gitRoot?: string,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -186,6 +187,18 @@ export class TrailDataServer {
       return;
     }
 
+    const commitsMatch = /^\/api\/trail\/sessions\/([^/]+)\/commits$/.exec(pathname);
+    if (commitsMatch && method === 'GET') {
+      this.handleGetSessionCommits(res, decodeURIComponent(commitsMatch[1]));
+      return;
+    }
+
+    const toolMetricsMatch = /^\/api\/trail\/sessions\/([^/]+)\/tool-metrics$/.exec(pathname);
+    if (toolMetricsMatch && method === 'GET') {
+      this.handleGetSessionToolMetrics(res, decodeURIComponent(toolMetricsMatch[1]));
+      return;
+    }
+
     const sessionMatch = /^\/api\/trail\/sessions\/([^/]+)$/.exec(pathname);
     if (sessionMatch && method === 'GET') {
       this.handleGetSession(res, decodeURIComponent(sessionMatch[1]));
@@ -257,23 +270,39 @@ export class TrailDataServer {
       if (project) filters.project = project;
 
       const rawSessions = this.trailDb.getSessions(filters);
-      const sessions = rawSessions.map((s) => ({
-        id: s.id,
-        slug: s.slug,
-        project: s.project,
-        gitBranch: s.git_branch,
-        model: s.model,
-        version: s.version,
-        startTime: s.start_time,
-        endTime: s.end_time,
-        messageCount: s.message_count,
-        usage: {
-          inputTokens: s.input_tokens,
-          outputTokens: s.output_tokens,
-          cacheReadTokens: s.cache_read_tokens,
-          cacheCreationTokens: s.cache_creation_tokens,
-        },
-      }));
+      const sessionIds = rawSessions.map((s) => s.id);
+      const contextStats = this.trailDb.getSessionContextStats(sessionIds);
+      const commitStats = this.trailDb.getSessionCommitStats(sessionIds);
+      const interruptions = this.trailDb.getSessionInterruptions(sessionIds);
+      const sessions = rawSessions.map((s) => {
+        const stats = contextStats.get(s.id);
+        const cStats = commitStats.get(s.id);
+        const intr = interruptions.get(s.id);
+        return {
+          id: s.id,
+          slug: s.slug,
+          project: s.project,
+          gitBranch: s.git_branch,
+          model: s.model,
+          version: s.version,
+          startTime: s.start_time,
+          endTime: s.end_time,
+          messageCount: s.message_count,
+          peakContextTokens: stats?.peak ?? 0,
+          initialContextTokens: stats?.initial ?? 0,
+          interruption: intr ?? undefined,
+          usage: {
+            inputTokens: s.input_tokens,
+            outputTokens: s.output_tokens,
+            cacheReadTokens: s.cache_read_tokens,
+            cacheCreationTokens: s.cache_creation_tokens,
+          },
+          commitStats: cStats
+            ? { commits: cStats.commits, linesAdded: cStats.linesAdded,
+                linesDeleted: cStats.linesDeleted, filesChanged: cStats.filesChanged }
+            : undefined,
+        };
+      });
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ sessions }));
     } catch {
@@ -325,6 +354,49 @@ export class TrailDataServer {
     } catch {
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: 'Failed to read session' }));
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  //  API: GET /api/trail/sessions/:id/commits
+  // -------------------------------------------------------------------------
+
+  private handleGetSessionCommits(res: http.ServerResponse, sessionId: string): void {
+    try {
+      const commits = this.trailDb.getSessionCommits(sessionId);
+      const mapped = commits.map((c) => ({
+        commitHash: c.commit_hash,
+        commitMessage: c.commit_message,
+        author: c.author,
+        committedAt: c.committed_at,
+        isAiAssisted: c.is_ai_assisted === 1,
+        filesChanged: c.files_changed,
+        linesAdded: c.lines_added,
+        linesDeleted: c.lines_deleted,
+      }));
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify({ commits: mapped }));
+    } catch {
+      res.writeHead(500, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'Failed to get commits' }));
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  //  API: GET /api/trail/sessions/:id/tool-metrics
+  // -------------------------------------------------------------------------
+
+  private handleGetSessionToolMetrics(
+    res: http.ServerResponse,
+    sessionId: string,
+  ): void {
+    try {
+      const metrics = this.trailDb.computeToolMetrics(sessionId);
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify(metrics));
+    } catch {
+      res.writeHead(500, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'Failed to get tool metrics' }));
     }
   }
 
@@ -392,7 +464,7 @@ export class TrailDataServer {
 
   private handleRefresh(res: http.ServerResponse): void {
     this.trailDb
-      .importAll()
+      .importAll(undefined, this.gitRoot)
       .then((result) => {
         this.notifySessionsUpdated();
         res.writeHead(200, JSON_HEADERS);

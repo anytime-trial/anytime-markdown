@@ -7,6 +7,7 @@ import Toolbar from '@mui/material/Toolbar';
 import { useCallback, useMemo } from 'react';
 
 import type { TrailFilter, TrailSession } from '../parser/types';
+import { useTrailTheme } from './TrailThemeContext';
 
 interface FilterBarProps {
   readonly filter: TrailFilter;
@@ -17,6 +18,7 @@ interface FilterBarProps {
 const ALL_VALUE = '__all__';
 
 export function FilterBar({ filter, sessions, onChange }: Readonly<FilterBarProps>) {
+  const { colors, radius } = useTrailTheme();
   const branches = useMemo(() => {
     const set = new Set<string>();
     for (const s of sessions) {
@@ -62,7 +64,8 @@ export function FilterBar({ filter, sessions, onChange }: Readonly<FilterBarProp
       sx={{
         gap: 1,
         borderBottom: 1,
-        borderColor: 'divider',
+        borderColor: colors.border,
+        bgcolor: colors.midnightNavy,
         flexWrap: 'wrap',
         minHeight: 48,
       }}
@@ -76,12 +79,22 @@ export function FilterBar({ filter, sessions, onChange }: Readonly<FilterBarProp
           input: {
             startAdornment: (
               <InputAdornment position="start">
-                <SearchIcon fontSize="small" />
+                <SearchIcon fontSize="small" sx={{ color: colors.textSecondary }} />
               </InputAdornment>
             ),
           },
         }}
-        sx={{ minWidth: 200 }}
+        sx={{
+          minWidth: 200,
+          '& .MuiOutlinedInput-root': {
+            borderRadius: radius.md,
+            '& fieldset': { borderColor: colors.border },
+            '&:hover fieldset': { borderColor: colors.textSecondary },
+            '&.Mui-focused fieldset': { borderColor: colors.iceBlue },
+          },
+          '& .MuiInputLabel-root': { color: colors.textSecondary },
+          '& .MuiInputLabel-root.Mui-focused': { color: colors.iceBlue },
+        }}
       />
       <Box sx={{ display: 'flex', gap: 1 }}>
         <TextField

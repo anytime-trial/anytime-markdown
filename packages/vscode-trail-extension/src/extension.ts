@@ -17,6 +17,10 @@ import { registerC4Commands } from './commands/c4Commands';
 import { TrailLogger } from './utils/TrailLogger';
 import { C4TreeProvider } from './providers/C4TreeProvider';
 import { DashboardProvider } from './trail/DashboardProvider';
+import type { IRemoteTrailStore } from './trail/IRemoteTrailStore';
+import { SupabaseTrailStore } from './trail/SupabaseTrailStore';
+import { PostgresTrailStore } from './trail/PostgresTrailStore';
+import { SyncService } from './trail/SyncService';
 
 let dataServer: C4DataServer | undefined;
 let trailDataServer: TrailDataServer | undefined;
@@ -292,7 +296,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Trail Database + Data Server (non-blocking initialization)
 	trailDb = new TrailDatabase(extensionDistPath);
-	trailDataServer = new TrailDataServer(extensionDistPath, trailDb);
+	const gitRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+	trailDataServer = new TrailDataServer(extensionDistPath, trailDb, gitRoot);
 	TrailPanel.setDataServer(trailDataServer);
 	const trailPort = vscode.workspace.getConfiguration('anytimeTrail.trailServer').get<number>('port', 19841);
 
@@ -339,9 +344,10 @@ export async function activate(context: vscode.ExtensionContext) {
 						cancellable: false,
 					},
 					async (progress) => {
+						const gitRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 						return trailDb!.importAll((message, increment) => {
 							progress.report({ message, increment });
-						});
+						}, gitRoot);
 					},
 				);
 				TrailLogger.info(`Trail DB: import complete - imported=${result.imported}, skipped=${result.skipped}`);
@@ -352,13 +358,66 @@ export async function activate(context: vscode.ExtensionContext) {
 				trailDataServer?.notifySessionsUpdated();
 
 				vscode.window.showInformationMessage(
-					`Trail: imported ${result.imported} sessions (${result.skipped} skipped)`,
+					`Trail: imported ${result.imported} sessions, ${result.commitsResolved} commits linked (${result.skipped} skipped)`,
 				);
 			} catch (err) {
 				dashboardProvider.setImporting(false);
 				dashboardProvider.updateStatus('Import failed');
 				TrailLogger.error('Trail import failed', err);
 			}
+		}),
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('anytime-trail.syncToRemote', async () => {
+			if (!trailDb) return;
+			const config = vscode.workspace.getConfiguration('anytimeTrail.remote');
+			const provider = config.get<string>('provider', 'none');
+
+			if (provider === 'none') {
+				vscode.window.showWarningMessage(
+					'Remote sync is disabled. Set anytimeTrail.remote.provider in settings.',
+				);
+				return;
+			}
+
+			let store: IRemoteTrailStore;
+			if (provider === 'supabase') {
+				const url = config.get<string>('supabaseUrl', '');
+				const key = config.get<string>('supabaseAnonKey', '');
+				if (!url || !key) {
+					vscode.window.showWarningMessage('Supabase URL and anon key are required.');
+					return;
+				}
+				store = new SupabaseTrailStore(url, key);
+			} else if (provider === 'postgres') {
+				const pgUrl = config.get<string>('postgresUrl', '');
+				if (!pgUrl) {
+					vscode.window.showWarningMessage('PostgreSQL connection string is required.');
+					return;
+				}
+				store = new PostgresTrailStore(pgUrl);
+			} else {
+				vscode.window.showWarningMessage(`Unknown provider: ${provider}`);
+				return;
+			}
+
+			const syncService = new SyncService(trailDb, store);
+			await vscode.window.withProgress(
+				{
+					location: vscode.ProgressLocation.Notification,
+					title: 'Syncing Trail data to remote DB...',
+					cancellable: false,
+				},
+				async (progress) => {
+					const result = await syncService.sync(({ message, increment }) => {
+						progress.report({ message, increment });
+					});
+					vscode.window.showInformationMessage(
+						`Trail sync complete: ${result.synced} synced, ${result.skipped} up-to-date, ${result.errors} errors`,
+					);
+				},
+			);
 		}),
 	);
 

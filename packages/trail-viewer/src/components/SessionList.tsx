@@ -8,6 +8,7 @@ import { format } from 'date-fns';
 import { useCallback } from 'react';
 
 import type { TrailSession } from '../parser/types';
+import { useTrailTheme } from './TrailThemeContext';
 
 interface SessionListProps {
   readonly sessions: readonly TrailSession[];
@@ -27,6 +28,7 @@ function formatSessionDate(startTime: string): string {
 }
 
 export function SessionList({ sessions, selectedId, onSelect }: Readonly<SessionListProps>) {
+  const { colors } = useTrailTheme();
   const handleSelect = useCallback(
     (id: string) => () => {
       onSelect(id);
@@ -37,7 +39,7 @@ export function SessionList({ sessions, selectedId, onSelect }: Readonly<Session
   if (sessions.length === 0) {
     return (
       <Box sx={{ p: 2 }}>
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" sx={{ color: colors.textSecondary, p: 2 }}>
           No sessions found
         </Typography>
       </Box>
@@ -51,7 +53,12 @@ export function SessionList({ sessions, selectedId, onSelect }: Readonly<Session
           key={session.id}
           selected={session.id === selectedId}
           onClick={handleSelect(session.id)}
-          sx={{ alignItems: 'flex-start' }}
+          sx={{
+            alignItems: 'flex-start',
+            '&.Mui-selected': { bgcolor: colors.iceBlueBg },
+            '&.Mui-selected:hover': { bgcolor: colors.iceBlueSubtle },
+            '&:hover': { bgcolor: colors.hoverBg },
+          }}
         >
           <ListItemText
             primary={formatSessionLabel(session)}
@@ -65,7 +72,7 @@ export function SessionList({ sessions, selectedId, onSelect }: Readonly<Session
                     label={`${session.messageCount} messages`}
                     size="small"
                     variant="outlined"
-                    sx={{ height: 20, fontSize: '0.7rem' }}
+                    sx={{ height: 20, fontSize: '0.7rem', borderColor: colors.iceBlue }}
                   />
                 </Box>
               </Box>

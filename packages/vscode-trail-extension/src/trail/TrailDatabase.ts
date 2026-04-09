@@ -1,4 +1,5 @@
 import type { Database } from 'sql.js';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -38,6 +39,9 @@ export interface SessionRow {
   readonly file_path: string;
   readonly file_size: number;
   readonly imported_at: string;
+  readonly peak_context_tokens?: number;
+  readonly initial_context_tokens?: number;
+  readonly commits_resolved_at?: string;
 }
 
 export interface MessageRow {
@@ -64,6 +68,18 @@ export interface MessageRow {
   readonly is_meta: number;
   readonly cwd: string | null;
   readonly git_branch: string | null;
+}
+
+export interface SessionCommitRow {
+  readonly session_id: string;
+  readonly commit_hash: string;
+  readonly commit_message: string;
+  readonly author: string;
+  readonly committed_at: string;
+  readonly is_ai_assisted: number;
+  readonly files_changed: number;
+  readonly lines_added: number;
+  readonly lines_deleted: number;
 }
 
 interface SessionFilters {
@@ -97,6 +113,18 @@ export interface AnalyticsData {
     readonly cacheReadTokens: number;
     readonly cacheCreationTokens: number;
     readonly estimatedCostUsd: number;
+    readonly totalCommits: number;
+    readonly totalLinesAdded: number;
+    readonly totalLinesDeleted: number;
+    readonly totalFilesChanged: number;
+    readonly totalAiAssistedCommits: number;
+    readonly totalSessionDurationMs: number;
+    readonly totalRetries: number;
+    readonly totalEdits: number;
+    readonly totalBuildRuns: number;
+    readonly totalBuildFails: number;
+    readonly totalTestRuns: number;
+    readonly totalTestFails: number;
   };
   readonly toolUsage: readonly { name: string; count: number }[];
   readonly modelBreakdown: readonly {
@@ -218,10 +246,24 @@ const CREATE_MESSAGES = `CREATE TABLE IF NOT EXISTS messages (
   git_branch TEXT
 )`;
 
+const CREATE_SESSION_COMMITS = `CREATE TABLE IF NOT EXISTS session_commits (
+  session_id TEXT NOT NULL REFERENCES sessions(id),
+  commit_hash TEXT NOT NULL,
+  commit_message TEXT NOT NULL DEFAULT '',
+  author TEXT NOT NULL DEFAULT '',
+  committed_at TEXT NOT NULL DEFAULT '',
+  is_ai_assisted INTEGER NOT NULL DEFAULT 0,
+  files_changed INTEGER NOT NULL DEFAULT 0,
+  lines_added INTEGER NOT NULL DEFAULT 0,
+  lines_deleted INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (session_id, commit_hash)
+)`;
+
 const CREATE_INDEXES = [
   'CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id)',
   'CREATE INDEX IF NOT EXISTS idx_messages_type ON messages(type)',
   'CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp)',
+  'CREATE INDEX IF NOT EXISTS idx_session_commits_session ON session_commits(session_id)',
 ];
 
 const INSERT_SESSION = `INSERT OR REPLACE INTO sessions
@@ -308,8 +350,16 @@ export class TrailDatabase {
     const db = this.ensureDb();
     db.run(CREATE_SESSIONS);
     db.run(CREATE_MESSAGES);
+    db.run(CREATE_SESSION_COMMITS);
     for (const sql of CREATE_INDEXES) {
       db.run(sql);
+    }
+
+    // Add columns for existing DBs (may already exist)
+    try {
+      db.run('ALTER TABLE sessions ADD COLUMN commits_resolved_at TEXT');
+    } catch {
+      // Column already exists — ignore
     }
   }
 
@@ -335,6 +385,151 @@ export class TrailDatabase {
     const exists = stmt.step();
     stmt.free();
     return exists;
+  }
+
+  isCommitsResolved(sessionId: string): boolean {
+    const db = this.ensureDb();
+    const stmt = db.prepare(
+      'SELECT 1 FROM sessions WHERE id = ? AND commits_resolved_at IS NOT NULL LIMIT 1',
+    );
+    stmt.bind([sessionId]);
+    const exists = stmt.step();
+    stmt.free();
+    return exists;
+  }
+
+  private getSessionTimeRange(sessionId: string): {
+    startTime: string; endTime: string; gitBranch: string;
+  } | null {
+    const db = this.ensureDb();
+    const stmt = db.prepare(
+      'SELECT start_time, end_time, git_branch FROM sessions WHERE id = ? LIMIT 1',
+    );
+    stmt.bind([sessionId]);
+    if (!stmt.step()) {
+      stmt.free();
+      return null;
+    }
+    const row = stmt.getAsObject() as {
+      start_time: string; end_time: string; git_branch: string;
+    };
+    stmt.free();
+    return {
+      startTime: row.start_time,
+      endTime: row.end_time,
+      gitBranch: row.git_branch,
+    };
+  }
+
+  resolveCommits(sessionId: string, gitRoot: string): number {
+    const db = this.ensureDb();
+    const range = this.getSessionTimeRange(sessionId);
+    if (!range) return 0;
+
+    const { startTime, endTime, gitBranch } = range;
+
+    // Add 5 minutes buffer to endTime for commits made right after session
+    const endDate = new Date(endTime);
+    endDate.setMinutes(endDate.getMinutes() + 5);
+    const bufferedEnd = endDate.toISOString();
+
+    const execOpts = { encoding: 'utf-8' as const, timeout: 10_000 };
+    const logFormat = '%H%x00%s%x00%an%x00%aI%x00%b%x1e';
+
+    let logOutput = '';
+    const useBranch = gitBranch && gitBranch.trim() !== '';
+    try {
+      // Try branch-specific log first (or --all if no branch)
+      logOutput = execFileSync('git', [
+        'log', useBranch ? gitBranch : '--all',
+        `--after=${startTime}`,
+        `--before=${bufferedEnd}`,
+        `--format=${logFormat}`,
+        '--no-merges',
+      ], { ...execOpts, cwd: gitRoot });
+    } catch {
+      // Fallback to --all if branch not found
+      try {
+        logOutput = execFileSync('git', [
+          'log', '--all',
+          `--after=${startTime}`,
+          `--before=${bufferedEnd}`,
+          `--format=${logFormat}`,
+          '--no-merges',
+        ], { ...execOpts, cwd: gitRoot });
+      } catch {
+        // On any git error, mark as resolved and return 0
+        db.run(
+          "UPDATE sessions SET commits_resolved_at = datetime('now') WHERE id = ?",
+          [sessionId],
+        );
+        return 0;
+      }
+    }
+
+    const commits = logOutput
+      .split('\x1e')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+
+    let count = 0;
+    const insertStmt = db.prepare(
+      `INSERT OR IGNORE INTO session_commits
+        (session_id, commit_hash, commit_message, author, committed_at,
+         is_ai_assisted, files_changed, lines_added, lines_deleted)
+        VALUES (?,?,?,?,?,?,?,?,?)`,
+    );
+
+    for (const entry of commits) {
+      const parts = entry.split('\x00');
+      if (parts.length < 4) continue;
+
+      const hash = parts[0];
+      const subject = parts[1];
+      const author = parts[2];
+      const committedAt = parts[3];
+      const body = parts[4] ?? '';
+
+      // Check for AI co-authoring
+      const isAiAssisted = /Co-Authored-By:.*Claude/i.test(body) ? 1 : 0;
+
+      // Get file stats via numstat
+      let filesChanged = 0;
+      let linesAdded = 0;
+      let linesDeleted = 0;
+      try {
+        const numstat = execFileSync('git', [
+          'diff', '--numstat', `${hash}^..${hash}`,
+        ], { ...execOpts, cwd: gitRoot });
+
+        for (const line of numstat.split('\n')) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          const [added, deleted] = trimmed.split('\t');
+          filesChanged++;
+          // Binary files show as "-"
+          if (added !== '-') linesAdded += Number.parseInt(added, 10) || 0;
+          if (deleted !== '-') linesDeleted += Number.parseInt(deleted, 10) || 0;
+        }
+      } catch {
+        // Initial commit or other error — skip numstat
+      }
+
+      insertStmt.run([
+        sessionId, hash, subject, author, committedAt,
+        isAiAssisted, filesChanged, linesAdded, linesDeleted,
+      ]);
+      count++;
+    }
+
+    insertStmt.free();
+
+    db.run(
+      "UPDATE sessions SET commits_resolved_at = datetime('now') WHERE id = ?",
+      [sessionId],
+    );
+
+    return count;
   }
 
   importSession(filePath: string, projectName: string): void {
@@ -471,16 +666,18 @@ export class TrailDatabase {
 
   async importAll(
     onProgress?: (message: string, increment?: number) => void,
-  ): Promise<{ imported: number; skipped: number }> {
+    gitRoot?: string,
+  ): Promise<{ imported: number; skipped: number; commitsResolved: number }> {
     const projectsDir = path.join(os.homedir(), '.claude', 'projects');
     let imported = 0;
     let skipped = 0;
+    let commitsResolved = 0;
 
     let projectDirs: string[];
     try {
       projectDirs = fs.readdirSync(projectsDir);
     } catch {
-      return { imported, skipped };
+      return { imported, skipped, commitsResolved };
     }
 
     const allFiles: { filePath: string; projectName: string }[] = [];
@@ -527,6 +724,13 @@ export class TrailDatabase {
         if (!sid) continue;
 
         if (this.isImported(sid)) {
+          if (gitRoot && !this.isCommitsResolved(sid)) {
+            try {
+              commitsResolved += this.resolveCommits(sid, gitRoot);
+            } catch {
+              // skip
+            }
+          }
           skipped++;
           continue;
         }
@@ -534,13 +738,20 @@ export class TrailDatabase {
         try {
           this.importSession(filePath, projectName);
           imported++;
+          if (gitRoot) {
+            try {
+              commitsResolved += this.resolveCommits(sid, gitRoot);
+            } catch {
+              // skip
+            }
+          }
         } catch {
           // Skip files that fail to import
         }
       }
 
     this.save();
-    return { imported, skipped };
+    return { imported, skipped, commitsResolved };
   }
 
   // -------------------------------------------------------------------------
@@ -553,22 +764,22 @@ export class TrailDatabase {
     const params: string[] = [];
 
     if (filters?.branch) {
-      conditions.push('git_branch = ?');
+      conditions.push('s.git_branch = ?');
       params.push(filters.branch);
     }
     if (filters?.model) {
-      conditions.push('model = ?');
+      conditions.push('s.model = ?');
       params.push(filters.model);
     }
     if (filters?.project) {
-      conditions.push('project = ?');
+      conditions.push('s.project = ?');
       params.push(filters.project);
     }
 
     const where = conditions.length > 0
       ? `WHERE ${conditions.join(' AND ')}`
       : '';
-    const sql = `SELECT * FROM sessions ${where} ORDER BY start_time DESC`;
+    const sql = `SELECT s.* FROM sessions s ${where} ORDER BY s.start_time DESC`;
 
     const stmt = db.prepare(sql);
     if (params.length > 0) stmt.bind(params);
@@ -576,6 +787,159 @@ export class TrailDatabase {
     const rows: SessionRow[] = [];
     while (stmt.step()) {
       rows.push(stmt.getAsObject() as unknown as SessionRow);
+    }
+    stmt.free();
+    return rows;
+  }
+
+  getSessionContextStats(sessionIds: readonly string[]): Map<string, { peak: number; initial: number }> {
+    if (sessionIds.length === 0) return new Map();
+    const db = this.ensureDb();
+    const result = new Map<string, { peak: number; initial: number }>();
+
+    const placeholders = sessionIds.map(() => '?').join(',');
+
+    try {
+      // Peak context per session
+      const peakResult = db.exec(
+        `SELECT session_id,
+          MAX(COALESCE(input_tokens,0) + COALESCE(cache_read_tokens,0) + COALESCE(cache_creation_tokens,0)) AS peak
+        FROM messages WHERE session_id IN (${placeholders})
+        GROUP BY session_id`,
+        sessionIds as string[],
+      );
+      for (const row of peakResult[0]?.values ?? []) {
+        result.set(String(row[0]), { peak: Number(row[1]), initial: 0 });
+      }
+
+      // Initial context (first assistant message's cache_creation_tokens per session)
+      const initResult = db.exec(
+        `SELECT session_id, COALESCE(cache_creation_tokens, 0)
+        FROM messages WHERE session_id IN (${placeholders}) AND type = 'assistant'
+        GROUP BY session_id
+        HAVING timestamp = MIN(timestamp)`,
+        sessionIds as string[],
+      );
+      for (const row of initResult[0]?.values ?? []) {
+        const id = String(row[0]);
+        const entry = result.get(id);
+        if (entry) {
+          entry.initial = Number(row[1]);
+        } else {
+          result.set(id, { peak: 0, initial: Number(row[1]) });
+        }
+      }
+    } catch {
+      // Graceful fallback if queries fail
+    }
+
+    return result;
+  }
+
+  getSessionInterruptions(
+    sessionIds: readonly string[],
+  ): Map<string, { interrupted: boolean; reason: 'max_tokens' | 'no_response' | null; contextTokens: number }> {
+    if (sessionIds.length === 0) return new Map();
+    const db = this.ensureDb();
+    const result = new Map<string, { interrupted: boolean; reason: 'max_tokens' | 'no_response' | null; contextTokens: number }>();
+    const placeholders = sessionIds.map(() => '?').join(',');
+
+    try {
+      // Get the last message per session (by timestamp desc) and the last assistant message
+      const lastMsgResult = db.exec(
+        `SELECT session_id, type, stop_reason,
+          COALESCE(input_tokens,0) + COALESCE(cache_read_tokens,0) + COALESCE(cache_creation_tokens,0) AS ctx
+        FROM messages
+        WHERE session_id IN (${placeholders}) AND is_meta = 0
+        AND type IN ('user','assistant')
+        ORDER BY session_id, timestamp DESC`,
+        sessionIds as string[],
+      );
+
+      // Group by session_id — first row per session is the last message
+      const sessionLastMsg = new Map<string, { type: string; stopReason: string | null; ctx: number }>();
+      const sessionLastAssistant = new Map<string, { stopReason: string | null; ctx: number }>();
+      for (const row of lastMsgResult[0]?.values ?? []) {
+        const sid = String(row[0]);
+        const type = String(row[1]);
+        const stopReason = row[2] === null ? null : String(row[2]);
+        const ctx = Number(row[3]);
+        if (!sessionLastMsg.has(sid)) {
+          sessionLastMsg.set(sid, { type, stopReason, ctx });
+        }
+        if (type === 'assistant' && !sessionLastAssistant.has(sid)) {
+          sessionLastAssistant.set(sid, { stopReason, ctx });
+        }
+      }
+
+      for (const sid of sessionIds) {
+        const lastMsg = sessionLastMsg.get(sid);
+        const lastAssistant = sessionLastAssistant.get(sid);
+        if (!lastMsg) continue;
+
+        if (lastAssistant?.stopReason === 'max_tokens') {
+          result.set(sid, { interrupted: true, reason: 'max_tokens', contextTokens: lastAssistant.ctx });
+        } else if (lastMsg.type === 'user') {
+          result.set(sid, {
+            interrupted: true,
+            reason: 'no_response',
+            contextTokens: lastAssistant?.ctx ?? 0,
+          });
+        }
+      }
+    } catch {
+      // Graceful fallback
+    }
+
+    return result;
+  }
+
+  getSessionCommitStats(
+    sessionIds: readonly string[],
+  ): Map<string, { commits: number; linesAdded: number; linesDeleted: number; filesChanged: number }> {
+    if (sessionIds.length === 0) return new Map();
+    const db = this.ensureDb();
+    const result = new Map<string, {
+      commits: number; linesAdded: number; linesDeleted: number; filesChanged: number;
+    }>();
+    const placeholders = sessionIds.map(() => '?').join(',');
+
+    try {
+      const rows = db.exec(
+        `SELECT session_id,
+          COUNT(*) AS commits,
+          COALESCE(SUM(lines_added), 0) AS lines_added,
+          COALESCE(SUM(lines_deleted), 0) AS lines_deleted,
+          COALESCE(SUM(files_changed), 0) AS files_changed
+        FROM session_commits
+        WHERE session_id IN (${placeholders})
+        GROUP BY session_id`,
+        sessionIds as string[],
+      );
+      for (const row of rows[0]?.values ?? []) {
+        result.set(String(row[0]), {
+          commits: Number(row[1]),
+          linesAdded: Number(row[2]),
+          linesDeleted: Number(row[3]),
+          filesChanged: Number(row[4]),
+        });
+      }
+    } catch {
+      // Graceful fallback
+    }
+
+    return result;
+  }
+
+  getSessionCommits(sessionId: string): SessionCommitRow[] {
+    const db = this.ensureDb();
+    const stmt = db.prepare(
+      'SELECT * FROM session_commits WHERE session_id = ? ORDER BY committed_at ASC',
+    );
+    stmt.bind([sessionId]);
+    const rows: SessionCommitRow[] = [];
+    while (stmt.step()) {
+      rows.push(stmt.getAsObject() as unknown as SessionCommitRow);
     }
     stmt.free();
     return rows;
@@ -687,6 +1051,119 @@ export class TrailDatabase {
     };
   }
 
+  /**
+   * Compute tool-call-based metrics (Retry Rate, Build/Test Fail Rate).
+   * If sessionId is provided, scopes to that session only.
+   */
+  computeToolMetrics(sessionId?: string): {
+    totalRetries: number;
+    totalEdits: number;
+    totalBuildRuns: number;
+    totalBuildFails: number;
+    totalTestRuns: number;
+    totalTestFails: number;
+  } {
+    const zero = {
+      totalRetries: 0, totalEdits: 0,
+      totalBuildRuns: 0, totalBuildFails: 0,
+      totalTestRuns: 0, totalTestFails: 0,
+    };
+    try {
+      const db = this.ensureDb();
+
+      // Fetch assistant messages with tool_calls, joined with their
+      // child tool-result messages to get tool_use_result.
+      const whereClause = sessionId
+        ? 'WHERE m1.session_id = ? AND m1.tool_calls IS NOT NULL'
+        : 'WHERE m1.tool_calls IS NOT NULL';
+      const sql = `SELECT m1.session_id, m1.tool_calls, m2.tool_use_result
+        FROM messages m1
+        LEFT JOIN messages m2
+          ON m2.parent_uuid = m1.uuid AND m2.tool_use_result IS NOT NULL
+        ${whereClause}`;
+      const params = sessionId ? [sessionId] : [];
+      const result = db.exec(sql, params);
+      if (!result[0]) return zero;
+
+      const BUILD_RE = /\b(npm run build|npx tsc|tsc\b|webpack|vite build|esbuild|rollup)\b/;
+      const TEST_RE = /\b(jest|vitest|npm run test|npm test|npx jest)\b/;
+      const FAIL_RE = /error|FAIL|ERR!|exit code [1-9]|non-zero exit|Command failed/i;
+
+      let totalEdits = 0;
+      let totalRetries = 0;
+      let totalBuildRuns = 0;
+      let totalBuildFails = 0;
+      let totalTestRuns = 0;
+      let totalTestFails = 0;
+
+      // Track Edit file paths per session for retry detection
+      const editsBySession = new Map<string, Map<string, number>>();
+
+      for (const row of result[0].values) {
+        const sessId = String(row[0]);
+        const toolCallsJson = String(row[1]);
+        const toolResultStr = row[2] != null ? String(row[2]) : null;
+
+        let calls: { name: string; input: Record<string, unknown> }[];
+        try {
+          calls = JSON.parse(toolCallsJson);
+        } catch {
+          continue;
+        }
+        if (!Array.isArray(calls)) continue;
+
+        for (const call of calls) {
+          if (call.name === 'Edit' || call.name === 'Write') {
+            totalEdits++;
+            const filePath = typeof call.input?.file_path === 'string'
+              ? call.input.file_path : '';
+            if (filePath) {
+              let fileMap = editsBySession.get(sessId);
+              if (!fileMap) {
+                fileMap = new Map();
+                editsBySession.set(sessId, fileMap);
+              }
+              fileMap.set(filePath, (fileMap.get(filePath) ?? 0) + 1);
+            }
+          }
+
+          if (call.name === 'Bash') {
+            const cmd = typeof call.input?.command === 'string'
+              ? call.input.command : '';
+            const isFailed = toolResultStr != null && FAIL_RE.test(toolResultStr);
+
+            if (BUILD_RE.test(cmd)) {
+              totalBuildRuns++;
+              if (isFailed) totalBuildFails++;
+            }
+            if (TEST_RE.test(cmd)) {
+              totalTestRuns++;
+              if (isFailed) totalTestFails++;
+            }
+          }
+        }
+      }
+
+      // Count retries: for each session, files edited 2+ times contribute
+      // (editCount - 1) retries per file
+      for (const fileMap of editsBySession.values()) {
+        for (const count of fileMap.values()) {
+          if (count > 1) {
+            totalRetries += count - 1;
+          }
+        }
+      }
+
+      return {
+        totalRetries, totalEdits,
+        totalBuildRuns, totalBuildFails,
+        totalTestRuns, totalTestFails,
+      };
+    } catch {
+      return zero;
+    }
+  }
+
   getAnalytics(): AnalyticsData {
     const db = this.ensureDb();
 
@@ -754,13 +1231,15 @@ export class TrailDatabase {
       };
     });
 
-    // Daily activity (last 30 days)
+    // Daily activity (last 90 days — frontend filters to 7/30/90)
     const dailyResult = db.exec(
       `SELECT DATE(start_time) as d, COUNT(*),
         COALESCE(SUM(input_tokens),0),
-        COALESCE(SUM(output_tokens),0)
+        COALESCE(SUM(output_tokens),0),
+        COALESCE(SUM(cache_read_tokens),0),
+        COALESCE(SUM(cache_creation_tokens),0)
       FROM sessions
-      WHERE start_time >= DATE('now', '-30 days')
+      WHERE start_time >= DATE('now', '-90 days')
       GROUP BY d ORDER BY d`,
     );
     const dailyActivity = (dailyResult[0]?.values ?? []).map((r) => ({
@@ -768,6 +1247,8 @@ export class TrailDatabase {
       sessions: Number(r[1]),
       inputTokens: Number(r[2]),
       outputTokens: Number(r[3]),
+      cacheReadTokens: Number(r[4]),
+      cacheCreationTokens: Number(r[5]),
     }));
 
     // Branch breakdown
@@ -785,10 +1266,47 @@ export class TrailDatabase {
       outputTokens: Number(r[3]),
     }));
 
+    // Commit totals
+    const commitTotals = db.exec(
+      `SELECT COUNT(*) AS total_commits,
+        COALESCE(SUM(lines_added), 0) AS total_lines_added,
+        COALESCE(SUM(lines_deleted), 0) AS total_lines_deleted
+      FROM session_commits`,
+    );
+    const cr = commitTotals[0]?.values[0] ?? [0, 0, 0];
+    const totalCommits = Number(cr[0]);
+    const totalLinesAdded = Number(cr[1]);
+    const totalLinesDeleted = Number(cr[2]);
+
+    // AI-assisted commits + files changed
+    const aiCommitResult = db.exec(
+      `SELECT COALESCE(SUM(CASE WHEN is_ai_assisted = 1 THEN 1 ELSE 0 END), 0),
+              COALESCE(SUM(files_changed), 0)
+       FROM session_commits`,
+    );
+    const acr = aiCommitResult[0]?.values[0] ?? [0, 0];
+    const totalAiAssistedCommits = Number(acr[0]);
+    const totalFilesChanged = Number(acr[1]);
+
+    // Total session duration
+    const durationResult = db.exec(
+      `SELECT COALESCE(SUM(
+        (julianday(end_time) - julianday(start_time)) * 86400000
+      ), 0)
+       FROM sessions
+       WHERE start_time != '' AND end_time != ''`,
+    );
+    const totalSessionDurationMs = Number(
+      durationResult[0]?.values[0]?.[0] ?? 0,
+    );
+
     // Estimate total cost
     const totalEstimatedCost = modelBreakdown.reduce(
       (sum, m) => sum + m.estimatedCostUsd, 0,
     );
+
+    // Tool-call-based metrics (Retry Rate, Build/Test Fail Rate)
+    const toolMetrics = this.computeToolMetrics();
 
     return {
       totals: {
@@ -798,6 +1316,13 @@ export class TrailDatabase {
         cacheReadTokens: totalCacheRead,
         cacheCreationTokens: totalCacheCreation,
         estimatedCostUsd: totalEstimatedCost,
+        totalCommits,
+        totalLinesAdded,
+        totalLinesDeleted,
+        totalFilesChanged,
+        totalAiAssistedCommits,
+        totalSessionDurationMs,
+        ...toolMetrics,
       },
       toolUsage,
       modelBreakdown,

@@ -10,6 +10,7 @@ import type {
   TrailPromptEntry,
   TrailSession,
 } from '../parser/types';
+import type { AnalyticsPanelProps } from './AnalyticsPanel';
 import { buildMessageTree } from '../parser/buildMessageTree';
 import { AnalyticsPanel } from './AnalyticsPanel';
 import type { AnalyticsData } from './AnalyticsPanel';
@@ -18,6 +19,8 @@ import { PromptManager } from './PromptManager';
 import { SessionList } from './SessionList';
 import { StatsBar } from './StatsBar';
 import { TraceTree } from './TraceTree';
+import { TrailThemeProvider } from './TrailThemeContext';
+import { getTokens } from './designTokens';
 
 export interface TrailViewerCoreProps {
   readonly isDark?: boolean;
@@ -31,6 +34,9 @@ export interface TrailViewerCoreProps {
   readonly containerHeight?: string;
   readonly prompts?: readonly TrailPromptEntry[];
   readonly analytics?: AnalyticsData | null;
+  readonly fetchSessionMessages?: AnalyticsPanelProps['fetchSessionMessages'];
+  readonly fetchSessionCommits?: AnalyticsPanelProps['fetchSessionCommits'];
+  readonly fetchSessionToolMetrics?: AnalyticsPanelProps['fetchSessionToolMetrics'];
 }
 
 const SESSION_LIST_WIDTH = 300;
@@ -47,34 +53,59 @@ export function TrailViewerCore({
   containerHeight = 'calc(100vh - 64px)',
   prompts = [],
   analytics = null,
+  fetchSessionMessages,
+  fetchSessionCommits,
+  fetchSessionToolMetrics,
 }: Readonly<TrailViewerCoreProps>) {
+  const tokens = getTokens(isDark ?? true);
+  const { colors } = tokens;
   const [activeTab, setActiveTab] = useState(0);
   const selectedSession = sessions.find((s) => s.id === selectedSessionId);
 
   return (
+    <TrailThemeProvider isDark={isDark ?? true}>
     <Box
       sx={{
         display: 'flex',
         flexDirection: 'column',
         height: containerHeight,
         overflow: 'hidden',
+        bgcolor: colors.midnightNavy,
+        color: colors.textPrimary,
       }}
     >
       {/* Top: Tabs */}
-      <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+      <Box sx={{ borderBottom: 1, borderColor: colors.border }}>
         <Tabs
           value={activeTab}
           onChange={(_e, v: number) => setActiveTab(v)}
           aria-label="Trail viewer tabs"
+          sx={{
+            '& .MuiTab-root': { color: colors.textSecondary },
+            '& .Mui-selected': { color: colors.iceBlue },
+            '& .MuiTabs-indicator': { backgroundColor: colors.iceBlue },
+          }}
         >
+          <Tab label="Analytics" />
           <Tab label="Traces" />
           <Tab label="Prompts" />
-          <Tab label="Analytics" />
         </Tabs>
       </Box>
 
-      {/* Tab 0: Traces */}
+      {/* Tab 0: Analytics */}
       {activeTab === 0 && (
+        <AnalyticsPanel
+          analytics={analytics}
+          sessions={allSessions ?? sessions}
+          onSelectSession={onSelectSession}
+          fetchSessionMessages={fetchSessionMessages}
+          fetchSessionCommits={fetchSessionCommits}
+          fetchSessionToolMetrics={fetchSessionToolMetrics}
+        />
+      )}
+
+      {/* Tab 1: Traces */}
+      {activeTab === 1 && (
         <>
           {/* FilterBar */}
           <FilterBar
@@ -90,7 +121,7 @@ export function TrailViewerCore({
                 width: SESSION_LIST_WIDTH,
                 minWidth: SESSION_LIST_WIDTH,
                 borderRight: 1,
-                borderColor: 'divider',
+                borderColor: colors.border,
                 overflowY: 'auto',
               }}
             >
@@ -111,7 +142,7 @@ export function TrailViewerCore({
                 <TraceTree nodes={buildMessageTree(messages)} session={selectedSession} />
               ) : (
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{ color: colors.textSecondary }}>
                     {selectedSessionId ? 'Loading...' : 'Select a session'}
                   </Typography>
                 </Box>
@@ -124,11 +155,9 @@ export function TrailViewerCore({
         </>
       )}
 
-      {/* Tab 1: Prompts */}
-      {activeTab === 1 && <PromptManager prompts={prompts} isDark={isDark} />}
-
-      {/* Tab 2: Analytics */}
-      {activeTab === 2 && <AnalyticsPanel analytics={analytics} isDark={isDark} />}
+      {/* Tab 2: Prompts */}
+      {activeTab === 2 && <PromptManager prompts={prompts} />}
     </Box>
+    </TrailThemeProvider>
   );
 }

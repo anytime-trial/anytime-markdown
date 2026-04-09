@@ -6,6 +6,20 @@
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-04-09
+
+### 追加
+
+- リモート DB 同期レイヤー（SQLite → Supabase/PostgreSQL）
+- `IRemoteTrailStore` インターフェース（リモート DB 抽象化）
+- `SupabaseTrailStore`・`PostgresTrailStore` 実装
+- リモートトレイルテーブル用 PostgreSQL マイグレーション
+- `SyncService`（SQLite → リモート同期）
+- `resolveCommits`・`isCommitsResolved` メソッド
+- `session_commits` テーブルと `commits_resolved_at` カラム
+- `getSessionCommitStats`・`getSessionCommits` クエリ
+- Analytics に `totalFilesChanged`・`totalAiAssistedCommits`・`totalSessionDurationMs` フィールド追加
+
 ## [0.4.0] - 2026-04-08
 
 - vscode-trail-extension とのバージョン同期

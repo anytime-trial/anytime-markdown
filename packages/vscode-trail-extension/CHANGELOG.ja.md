@@ -6,6 +6,19 @@
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-04-09
+
+### 追加
+
+- リモート同期コマンドと Supabase 接続用 VS Code 設定
+- Supabase CSP 設定
+
+### Trail Core (trail-core)
+
+- リモート DB 同期レイヤー（SQLite → Supabase/PostgreSQL）
+- セッションコミット統計・コミット解決クエリ
+- Analytics フィールド: `totalFilesChanged`・`totalAiAssistedCommits`・`totalSessionDurationMs`
+
 ## [0.4.0] - 2026-04-08
 
 ### 追加

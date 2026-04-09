@@ -8,6 +8,8 @@ export type {
   TrailFilter,
   TrailPromptEntry,
   TrailEvaluation,
+  TrailSessionCommit,
+  ToolMetrics,
 } from './parser/types';
 
 export { parseSession } from './parser/parseSession';
@@ -35,4 +37,4 @@ export { createEvaluation, isValidEvaluation } from './parser/evaluationStore';
 export { EvaluationPanel } from './components/EvaluationPanel';
 
 export { useTrailDataSource } from './hooks/useTrailDataSource';
-export type { TrailDataSourceResult } from './hooks/useTrailDataSource';
+export type { TrailDataSourceResult, SupabaseConfig } from './hooks/useTrailDataSource';

@@ -17,6 +17,7 @@ export interface RawJsonlMessage {
     readonly model?: string;
     readonly content?: string | readonly RawContentBlock[];
     readonly usage?: RawUsage;
+    readonly stop_reason?: string | null;
   };
   readonly userContent?: string;
   readonly isMeta?: boolean;
@@ -65,6 +66,7 @@ export interface TrailMessage {
   readonly toolCalls?: readonly TrailToolCall[];
   readonly textContent?: string;
   readonly usage?: TrailTokenUsage;
+  readonly stopReason?: string | null;
   readonly userContent?: string;
 }
 
@@ -78,7 +80,40 @@ export interface TrailSession {
   readonly version: string;
   readonly model: string;
   readonly messageCount: number;
+  readonly peakContextTokens?: number;
+  readonly initialContextTokens?: number;
+  readonly commitStats?: {
+    readonly commits: number;
+    readonly linesAdded: number;
+    readonly linesDeleted: number;
+    readonly filesChanged: number;
+  };
+  readonly interruption?: {
+    readonly interrupted: boolean;
+    readonly reason: 'max_tokens' | 'no_response' | null;
+    readonly contextTokens: number;
+  };
   readonly usage: TrailTokenUsage;
+}
+
+export interface TrailSessionCommit {
+  readonly commitHash: string;
+  readonly commitMessage: string;
+  readonly author: string;
+  readonly committedAt: string;
+  readonly isAiAssisted: boolean;
+  readonly filesChanged: number;
+  readonly linesAdded: number;
+  readonly linesDeleted: number;
+}
+
+export interface ToolMetrics {
+  readonly totalRetries: number;
+  readonly totalEdits: number;
+  readonly totalBuildRuns: number;
+  readonly totalBuildFails: number;
+  readonly totalTestRuns: number;
+  readonly totalTestFails: number;
 }
 
 export interface TrailTreeNode {

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-04-09
+
+### Added
+
+- Remote DB sync layer (SQLite → Supabase/PostgreSQL)
+- `IRemoteTrailStore` interface for remote DB abstraction
+- `SupabaseTrailStore` and `PostgresTrailStore` implementations
+- PostgreSQL migration for remote trail tables
+- `SyncService` for SQLite-to-remote sync
+- `resolveCommits` and `isCommitsResolved` methods
+- `session_commits` table and `commits_resolved_at` column
+- `getSessionCommitStats` and `getSessionCommits` queries
+- `totalFilesChanged`, `totalAiAssistedCommits`, `totalSessionDurationMs` analytics fields
+
 ## [0.4.0] - 2026-04-08
 
 - Version sync with vscode-trail-extension

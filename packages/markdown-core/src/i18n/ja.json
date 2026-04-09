@@ -650,6 +650,7 @@
     "ariaMenu": "メニュー",
     "ariaSkipToContent": "メインコンテンツへスキップ",
     "trailPage": "C4Model",
+    "trailViewerPage": "Trail",
     "reportPage": "Report",
     "reportLoadError": "記事の読み込みに失敗しました",
     "reportEmpty": "記事がありません",

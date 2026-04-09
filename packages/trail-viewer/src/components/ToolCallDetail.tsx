@@ -3,6 +3,7 @@ import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 
 import type { TrailToolCall } from '../parser/types';
+import { useTrailTheme } from './TrailThemeContext';
 
 interface ToolCallDetailProps {
   readonly toolCall: TrailToolCall;
@@ -18,13 +19,14 @@ function formatJson(value: Record<string, unknown> | string): string {
 export function ToolCallDetail({
   toolCall,
 }: Readonly<ToolCallDetailProps>) {
+  const { cardSx, codeSx, colors } = useTrailTheme();
   return (
     <Paper
-      elevation={1}
+      elevation={0}
       sx={{
         mt: 1,
         p: 1.5,
-        bgcolor: 'action.hover',
+        ...cardSx,
       }}
     >
       <Typography variant="subtitle2" sx={{ mb: 1 }}>
@@ -34,8 +36,7 @@ export function ToolCallDetail({
       <Box sx={{ mb: toolCall.result ? 1 : 0 }}>
         <Typography
           variant="caption"
-          color="text.secondary"
-          sx={{ display: 'block', mb: 0.5 }}
+          sx={{ color: colors.textSecondary, display: 'block', mb: 0.5 }}
         >
           Input
         </Typography>
@@ -44,14 +45,11 @@ export function ToolCallDetail({
           sx={{
             m: 0,
             p: 1,
-            fontFamily: 'monospace',
-            fontSize: '0.75rem',
             maxHeight: 300,
             overflow: 'auto',
-            bgcolor: 'background.default',
-            borderRadius: 1,
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-word',
+            ...codeSx,
           }}
         >
           {formatJson(toolCall.input)}
@@ -62,8 +60,7 @@ export function ToolCallDetail({
         <Box>
           <Typography
             variant="caption"
-            color="text.secondary"
-            sx={{ display: 'block', mb: 0.5 }}
+            sx={{ color: colors.textSecondary, display: 'block', mb: 0.5 }}
           >
             Result
           </Typography>
@@ -72,14 +69,11 @@ export function ToolCallDetail({
             sx={{
               m: 0,
               p: 1,
-              fontFamily: 'monospace',
-              fontSize: '0.75rem',
               maxHeight: 300,
               overflow: 'auto',
-              bgcolor: 'background.default',
-              borderRadius: 1,
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-word',
+              ...codeSx,
             }}
           >
             {toolCall.result}

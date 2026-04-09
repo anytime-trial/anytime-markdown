@@ -10,12 +10,12 @@ import Typography from '@mui/material/Typography';
 import { useCallback, useState } from 'react';
 
 import type { TrailEvaluation } from '../parser/types';
+import { useTrailTheme } from './TrailThemeContext';
 
 interface EvaluationPanelProps {
   readonly evaluations: readonly TrailEvaluation[];
   readonly selectedSessionId?: string;
   readonly onSave: (evaluation: TrailEvaluation) => void;
-  readonly isDark?: boolean;
 }
 
 function formatDate(iso: string): string {
@@ -31,6 +31,7 @@ function EvaluationForm({
   selectedSessionId,
   onSave,
 }: Readonly<{ selectedSessionId: string; onSave: (e: TrailEvaluation) => void }>) {
+  const { colors, radius } = useTrailTheme();
   const [score, setScore] = useState<number | null>(null);
   const [comment, setComment] = useState('');
   const [evaluator, setEvaluator] = useState('');
@@ -59,13 +60,14 @@ function EvaluationForm({
         New Evaluation
       </Typography>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" sx={{ color: colors.textSecondary }}>
           Score:
         </Typography>
         <Rating
           value={score}
           onChange={(_event, newValue) => setScore(newValue)}
           size="medium"
+          sx={{ '& .MuiRating-iconFilled': { color: colors.amberGold }, '& .MuiRating-iconEmpty': { color: colors.border } }}
         />
       </Box>
       <TextField
@@ -74,7 +76,16 @@ function EvaluationForm({
         onChange={(e) => setEvaluator(e.target.value)}
         size="small"
         fullWidth
-        sx={{ mb: 1 }}
+        sx={{
+          mb: 1,
+          '& .MuiOutlinedInput-root': {
+            '& fieldset': { borderColor: colors.border },
+            '&:hover fieldset': { borderColor: colors.textSecondary },
+            '&.Mui-focused fieldset': { borderColor: colors.iceBlue },
+          },
+          '& .MuiInputLabel-root': { color: colors.textSecondary },
+          '& .MuiInputLabel-root.Mui-focused': { color: colors.iceBlue },
+        }}
       />
       <TextField
         label="Comment"
@@ -85,13 +96,23 @@ function EvaluationForm({
         maxRows={4}
         size="small"
         fullWidth
-        sx={{ mb: 1 }}
+        sx={{
+          mb: 1,
+          '& .MuiOutlinedInput-root': {
+            '& fieldset': { borderColor: colors.border },
+            '&:hover fieldset': { borderColor: colors.textSecondary },
+            '&.Mui-focused fieldset': { borderColor: colors.iceBlue },
+          },
+          '& .MuiInputLabel-root': { color: colors.textSecondary },
+          '& .MuiInputLabel-root.Mui-focused': { color: colors.iceBlue },
+        }}
       />
       <Button
         variant="contained"
         size="small"
         disabled={!canSubmit}
         onClick={handleSubmit}
+        sx={{ bgcolor: colors.amberGold, color: colors.textOnLight, borderRadius: radius.md, '&:hover': { bgcolor: '#d4900f' } }}
       >
         Save
       </Button>
@@ -100,14 +121,15 @@ function EvaluationForm({
 }
 
 function EvaluationItem({ evaluation }: Readonly<{ evaluation: TrailEvaluation }>) {
+  const { colors } = useTrailTheme();
   return (
     <ListItem sx={{ flexDirection: 'column', alignItems: 'flex-start', py: 1 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
-        <Rating value={evaluation.score} readOnly size="small" />
-        <Typography variant="body2" color="text.secondary" sx={{ ml: 'auto' }}>
+        <Rating value={evaluation.score} readOnly size="small" sx={{ '& .MuiRating-iconFilled': { color: colors.amberGold }, '& .MuiRating-iconEmpty': { color: colors.border } }} />
+        <Typography variant="body2" sx={{ ml: 'auto', color: colors.textSecondary }}>
           {evaluation.evaluator}
         </Typography>
-        <Typography variant="caption" color="text.secondary">
+        <Typography variant="caption" sx={{ color: colors.textSecondary }}>
           {formatDate(evaluation.createdAt)}
         </Typography>
       </Box>
@@ -124,18 +146,18 @@ export function EvaluationPanel({
   evaluations,
   selectedSessionId,
   onSave,
-  isDark,
 }: Readonly<EvaluationPanelProps>) {
+  const { colors, cardSx, radius } = useTrailTheme();
   const sessionEvaluations = selectedSessionId
     ? evaluations.filter((e) => e.sessionId === selectedSessionId)
     : [];
 
   return (
     <Paper
-      elevation={1}
+      elevation={0}
       sx={{
+        ...cardSx,
         p: 2,
-        bgcolor: isDark ? 'grey.900' : 'background.paper',
       }}
     >
       <Typography variant="h6" sx={{ mb: 2 }}>
@@ -148,7 +170,7 @@ export function EvaluationPanel({
             selectedSessionId={selectedSessionId}
             onSave={onSave}
           />
-          <Divider sx={{ my: 1 }} />
+          <Divider sx={{ my: 1, borderColor: colors.border }} />
           {sessionEvaluations.length > 0 ? (
             <List disablePadding>
               {sessionEvaluations.map((evalItem) => (
@@ -156,13 +178,13 @@ export function EvaluationPanel({
               ))}
             </List>
           ) : (
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{ color: colors.textSecondary }}>
               No evaluations yet
             </Typography>
           )}
         </>
       ) : (
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" sx={{ color: colors.textSecondary }}>
           Select a session to evaluate
         </Typography>
       )}

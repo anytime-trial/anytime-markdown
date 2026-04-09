@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { format } from 'date-fns';
 import Box from '@mui/material/Box';
 import Collapse from '@mui/material/Collapse';
 import IconButton from '@mui/material/IconButton';
@@ -12,6 +11,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 
 import type { TrailMessage, TrailToolCall } from '../parser/types';
+import { useTrailTheme } from './TrailThemeContext';
 import { ToolCallDetail } from './ToolCallDetail';
 
 interface MessageNodeProps {
@@ -23,26 +23,23 @@ const LINE_HEIGHT_PX = 20;
 const COLLAPSED_LINES = 3;
 const COLLAPSED_MAX_HEIGHT = LINE_HEIGHT_PX * COLLAPSED_LINES;
 
-function getAvatarProps(type: TrailMessage['type'], hasToolCalls: boolean) {
+function getAvatarProps(
+  type: TrailMessage['type'],
+  hasToolCalls: boolean,
+  avColors: { user: string; system: string; tool: string; assistant: string },
+) {
   if (type === 'user') {
-    return { icon: <PersonIcon />, bgcolor: '#4caf50' };
+    return { icon: <PersonIcon />, bgcolor: avColors.user };
   }
   if (type === 'system') {
-    return { icon: <SettingsIcon />, bgcolor: '#9e9e9e' };
+    return { icon: <SettingsIcon />, bgcolor: avColors.system };
   }
   if (hasToolCalls) {
-    return { icon: <BuildIcon />, bgcolor: '#ff9800' };
+    return { icon: <BuildIcon />, bgcolor: avColors.tool };
   }
-  return { icon: <SmartToyIcon />, bgcolor: '#2196f3' };
+  return { icon: <SmartToyIcon />, bgcolor: avColors.assistant };
 }
 
-function formatTimestamp(timestamp: string): string {
-  try {
-    return format(new Date(timestamp), 'MM/dd HH:mm:ss');
-  } catch {
-    return '';
-  }
-}
 
 function getToolCallSummary(toolCall: TrailToolCall): string {
   const entries = Object.entries(toolCall.input);
@@ -58,6 +55,7 @@ export function MessageNode({
   message,
   depth,
 }: Readonly<MessageNodeProps>) {
+  const { colors, avatarColors, radius } = useTrailTheme();
   const [expanded, setExpanded] = useState(false);
   const hasToolCalls = (message.toolCalls?.length ?? 0) > 0;
   const textContent = (message.userContent ?? message.textContent ?? '').trim();
@@ -73,7 +71,7 @@ export function MessageNode({
   const needsCollapse = textContent.split('\n').length > COLLAPSED_LINES
     || textContent.length > 200;
 
-  const avatar = getAvatarProps(message.type, hasToolCalls);
+  const avatar = getAvatarProps(message.type, hasToolCalls, avatarColors);
 
   if (isSystem) {
     return (
@@ -81,15 +79,15 @@ export function MessageNode({
         <Typography
           variant="caption"
           sx={{
-            color: 'text.disabled',
-            bgcolor: 'action.hover',
+            color: colors.textDisabled,
+            bgcolor: colors.hoverBg,
             px: 1.5,
             py: 0.25,
             borderRadius: 2,
             fontSize: '0.7rem',
           }}
         >
-          {message.subtype ?? 'system'} &middot; {formatTimestamp(message.timestamp)}
+          {message.subtype ?? 'system'}
         </Typography>
       </Box>
     );
@@ -106,7 +104,7 @@ export function MessageNode({
         px: 1,
         pl: 1,
         borderLeft: message.isSidechain ? '2px dashed' : 'none',
-        borderColor: 'divider',
+        borderColor: colors.border,
       }}
     >
       {/* Avatar */}
@@ -129,31 +127,19 @@ export function MessageNode({
           minWidth: 60,
         }}
       >
-        {/* Timestamp */}
-        <Typography
-          variant="caption"
-          sx={{
-            display: 'block',
-            color: 'text.disabled',
-            textAlign: isUser ? 'right' : 'left',
-            fontSize: '0.65rem',
-            mb: 0.25,
-          }}
-        >
-          {formatTimestamp(message.timestamp)}
-        </Typography>
-
         {/* Message bubble */}
         <Box
           sx={{
-            bgcolor: isUser ? 'primary.main' : 'action.hover',
-            color: isUser ? 'primary.contrastText' : 'text.primary',
+            bgcolor: isUser ? colors.iceBlueSubtle : colors.charcoal,
+            color: colors.textPrimary,
+            border: isUser
+              ? `1px solid rgba(144,202,249,0.3)`
+              : `1px solid ${colors.border}`,
             px: 1.5,
             py: 1,
-            borderRadius: 2,
+            borderRadius: radius.lg,
             borderTopRightRadius: isUser ? 0 : undefined,
             borderTopLeftRadius: isUser ? undefined : 0,
-            '.MuiTypography-root': isUser ? { color: 'inherit' } : undefined,
           }}
         >
           {hasTextContent && (
@@ -180,7 +166,7 @@ export function MessageNode({
                   sx={{
                     transform: expanded ? 'rotate(180deg)' : 'none',
                     transition: 'transform 0.2s',
-                    color: isUser ? 'primary.contrastText' : 'text.secondary',
+                    color: colors.textSecondary,
                   }}
                   aria-label={expanded ? 'Collapse' : 'Expand'}
                 >
@@ -203,6 +189,7 @@ function ToolCallEntry({
   toolCall,
   isUserSide,
 }: Readonly<{ toolCall: TrailToolCall; isUserSide: boolean }>) {
+  const { colors } = useTrailTheme();
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -220,7 +207,7 @@ function ToolCallEntry({
           sx={{
             transform: expanded ? 'rotate(180deg)' : 'none',
             transition: 'transform 0.2s',
-            color: isUserSide ? 'primary.contrastText' : 'text.secondary',
+            color: colors.textSecondary,
           }}
           aria-label={expanded ? 'Collapse tool detail' : 'Expand tool detail'}
         >

@@ -3,6 +3,7 @@ import Chip from '@mui/material/Chip';
 import Typography from '@mui/material/Typography';
 
 import type { TrailMessage, TrailSession } from '../parser/types';
+import { useTrailTheme } from './TrailThemeContext';
 
 interface StatsBarProps {
   readonly session?: TrailSession;
@@ -28,6 +29,7 @@ function formatDuration(startTime: string, endTime: string): string {
 }
 
 export function StatsBar({ session, messages }: Readonly<StatsBarProps>) {
+  const { colors } = useTrailTheme();
   if (!session) {
     return (
       <Box
@@ -35,10 +37,11 @@ export function StatsBar({ session, messages }: Readonly<StatsBarProps>) {
           px: 2,
           py: 1,
           borderTop: 1,
-          borderColor: 'divider',
+          borderColor: colors.border,
+          bgcolor: colors.charcoal,
         }}
       >
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" sx={{ color: colors.textSecondary }}>
           No session selected
         </Typography>
       </Box>
@@ -53,7 +56,8 @@ export function StatsBar({ session, messages }: Readonly<StatsBarProps>) {
         px: 2,
         py: 1,
         borderTop: 1,
-        borderColor: 'divider',
+        borderColor: colors.border,
+        bgcolor: colors.charcoal,
         display: 'flex',
         gap: 1,
         flexWrap: 'wrap',
@@ -64,26 +68,31 @@ export function StatsBar({ session, messages }: Readonly<StatsBarProps>) {
         label={`Input: ${formatNumber(usage.inputTokens)}`}
         size="small"
         variant="outlined"
+        sx={{ borderColor: colors.iceBlue, color: colors.iceBlue }}
       />
       <Chip
         label={`Output: ${formatNumber(usage.outputTokens)}`}
         size="small"
         variant="outlined"
+        sx={{ borderColor: colors.error, color: colors.error }}
       />
       <Chip
         label={`Cache read: ${formatNumber(usage.cacheReadTokens)}`}
         size="small"
         variant="outlined"
+        sx={{ borderColor: colors.success, color: colors.success }}
       />
       <Chip
         label={`Duration: ${formatDuration(session.startTime, session.endTime)}`}
         size="small"
         variant="outlined"
+        sx={{ borderColor: colors.textSecondary, color: colors.textSecondary }}
       />
       <Chip
         label={`${messages.length} messages`}
         size="small"
         variant="outlined"
+        sx={{ borderColor: colors.textSecondary, color: colors.textSecondary }}
       />
     </Box>
   );
