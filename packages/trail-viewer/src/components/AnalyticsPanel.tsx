@@ -429,16 +429,10 @@ function DailySessionList({
             <TableRow>
               <TableCell>Time</TableCell>
               <TableCell>Model</TableCell>
-              <TableCell align="right">Input</TableCell>
-              <TableCell align="right">Output</TableCell>
-              <TableCell align="right">Cache Read</TableCell>
-              <TableCell align="right">Init Context</TableCell>
-              <TableCell align="right">Peak Context</TableCell>
+              <TableCell align="right">Tokens</TableCell>
+              <TableCell align="right">Cost</TableCell>
               <TableCell align="right">Messages</TableCell>
-              <TableCell align="right">Tokens/Step</TableCell>
-              <TableCell align="right">Cost/Step</TableCell>
-              <TableCell align="right">Commits</TableCell>
-              <TableCell align="right">+/-</TableCell>
+              <TableCell align="right">Commits(+/-)</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -456,34 +450,21 @@ function DailySessionList({
                 <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
                   {s.model}
                 </TableCell>
-                <TableCell align="right">{fmtTokens(s.usage.inputTokens)}</TableCell>
-                <TableCell align="right">{fmtTokens(s.usage.outputTokens)}</TableCell>
-                <TableCell align="right">{fmtTokens(s.usage.cacheReadTokens)}</TableCell>
-                <TableCell align="right">{fmtTokens(s.initialContextTokens ?? 0)}</TableCell>
-                <TableCell align="right">{fmtTokens(s.peakContextTokens ?? 0)}</TableCell>
+                <TableCell align="right">
+                  {fmtTokens(s.usage.inputTokens + s.usage.outputTokens)}
+                </TableCell>
+                <TableCell align="right">
+                  {fmtUsd(
+                    toUsd(s.usage.inputTokens, 'inputTokens')
+                    + toUsd(s.usage.outputTokens, 'outputTokens')
+                    + toUsd(s.usage.cacheReadTokens, 'cacheReadTokens')
+                    + toUsd(s.usage.cacheCreationTokens, 'cacheCreationTokens')
+                  )}
+                </TableCell>
                 <TableCell align="right">{fmtNum(s.messageCount)}</TableCell>
-                <TableCell align="right">
-                  {s.messageCount > 0
-                    ? fmtTokens(Math.round((s.usage.inputTokens + s.usage.outputTokens) / s.messageCount))
-                    : '\u2014'}
-                </TableCell>
-                <TableCell align="right">
-                  {s.messageCount > 0
-                    ? fmtUsd(
-                        (toUsd(s.usage.inputTokens, 'inputTokens')
-                          + toUsd(s.usage.outputTokens, 'outputTokens')
-                          + toUsd(s.usage.cacheReadTokens, 'cacheReadTokens')
-                          + toUsd(s.usage.cacheCreationTokens, 'cacheCreationTokens'))
-                        / s.messageCount,
-                      )
-                    : '\u2014'}
-                </TableCell>
-                <TableCell align="right">
-                  {s.commitStats ? fmtNum(s.commitStats.commits) : '\u2014'}
-                </TableCell>
                 <TableCell align="right" sx={{ fontFamily: 'monospace', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
                   {s.commitStats
-                    ? `+${fmtNum(s.commitStats.linesAdded)} / -${fmtNum(s.commitStats.linesDeleted)}`
+                    ? `${s.commitStats.commits} (+${fmtNum(s.commitStats.linesAdded)}/-${fmtNum(s.commitStats.linesDeleted)})`
                     : '\u2014'}
                 </TableCell>
               </TableRow>
