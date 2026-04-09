@@ -650,6 +650,7 @@
     "ariaMenu": "Menu",
     "ariaSkipToContent": "Skip to content",
     "trailPage": "C4Model",
+    "trailViewerPage": "Trail",
     "reportPage": "Report",
     "reportLoadError": "Failed to load article",
     "reportEmpty": "No articles",
