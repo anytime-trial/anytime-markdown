@@ -206,6 +206,25 @@ function toUsd(tokens: number, key: string): number {
   return (tokens * (COST_PER_M[key] ?? 3)) / 1_000_000;
 }
 
+function fmtDuration(ms: number): string {
+  const totalMin = Math.round(ms / 60_000);
+  if (totalMin < 60) return `${totalMin}m`;
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return m > 0 ? `${h}h${m}m` : `${h}h`;
+}
+
+function fmtPercent(ratio: number): string {
+  return `${(ratio * 100).toFixed(0)}%`;
+}
+
+function sessionCost(s: TrailSession): number {
+  return toUsd(s.usage.inputTokens, 'inputTokens')
+    + toUsd(s.usage.outputTokens, 'outputTokens')
+    + toUsd(s.usage.cacheReadTokens, 'cacheReadTokens')
+    + toUsd(s.usage.cacheCreationTokens, 'cacheCreationTokens');
+}
+
 function SessionCacheTimeline({
   messages,
   onClose,
@@ -368,6 +387,51 @@ function SessionCommitList({
   );
 }
 
+function SessionMetricsPanel({ session }: Readonly<{ session: TrailSession }>) {
+  const s = session;
+  const totalTokens = s.usage.inputTokens + s.usage.outputTokens;
+  const cost = sessionCost(s);
+  const durationMs = new Date(s.endTime).getTime() - new Date(s.startTime).getTime();
+  const durationHours = durationMs / 3_600_000;
+  const cacheInput = s.usage.inputTokens + s.usage.cacheReadTokens;
+  const cacheHitRate = cacheInput > 0 ? s.usage.cacheReadTokens / cacheInput : 0;
+  const outputRatio = cacheInput > 0 ? s.usage.outputTokens / cacheInput : 0;
+  const contextGrowth = s.messageCount > 0
+    ? ((s.peakContextTokens ?? 0) - (s.initialContextTokens ?? 0)) / s.messageCount
+    : 0;
+  const linesAdded = s.commitStats?.linesAdded ?? 0;
+  const linesDeleted = s.commitStats?.linesDeleted ?? 0;
+
+  const metrics = [
+    { label: 'Tokens/Step', value: s.messageCount > 0 ? fmtTokens(Math.round(totalTokens / s.messageCount)) : '\u2014' },
+    { label: 'Cost/Step', value: s.messageCount > 0 ? fmtUsd(cost / s.messageCount) : '\u2014' },
+    { label: 'Lines/Hour', value: durationHours > 0 && linesAdded > 0 ? fmtNum(Math.round(linesAdded / durationHours)) : '\u2014' },
+    { label: 'Cost/Hour', value: durationHours > 0 ? fmtUsd(cost / durationHours) : '\u2014' },
+    { label: 'Cost/Commit', value: (s.commitStats?.commits ?? 0) > 0 ? fmtUsd(cost / s.commitStats!.commits) : '\u2014' },
+    { label: 'Cache Hit', value: cacheInput > 0 ? fmtPercent(cacheHitRate) : '\u2014' },
+    { label: 'Output Ratio', value: cacheInput > 0 ? fmtPercent(outputRatio) : '\u2014' },
+    { label: 'Context Growth', value: s.messageCount > 0 ? `${fmtTokens(Math.round(contextGrowth))}/step` : '\u2014' },
+    { label: 'Net Lines', value: linesAdded > 0 || linesDeleted > 0 ? `+${fmtNum(linesAdded)} / -${fmtNum(linesDeleted)}` : '\u2014' },
+    { label: 'Files', value: (s.commitStats?.filesChanged ?? 0) > 0 ? fmtNum(s.commitStats!.filesChanged) : '\u2014' },
+    { label: 'Duration', value: durationMs > 0 ? fmtDuration(durationMs) : '\u2014' },
+    { label: 'Avg Interval', value: s.messageCount > 1 ? fmtDuration(durationMs / (s.messageCount - 1)) : '\u2014' },
+  ];
+
+  return (
+    <Paper variant="outlined" sx={{ mt: 1, p: 1.5 }}>
+      <Typography variant="subtitle2" sx={{ mb: 1 }}>Session Metrics</Typography>
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1 }}>
+        {metrics.map((m) => (
+          <Box key={m.label} sx={{ textAlign: 'center', p: 0.5 }}>
+            <Typography variant="caption" color="text.secondary">{m.label}</Typography>
+            <Typography variant="body2" sx={{ fontWeight: 500 }}>{m.value}</Typography>
+          </Box>
+        ))}
+      </Box>
+    </Paper>
+  );
+}
+
 function DailySessionList({
   date,
   sessions,
@@ -474,6 +538,11 @@ function DailySessionList({
       )}
       {timelineLoading && (
         <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>Loading timeline...</Typography>
+      )}
+      {timelineSessionId && daySessions.find((s) => s.id === timelineSessionId) && (
+        <SessionMetricsPanel
+          session={daySessions.find((s) => s.id === timelineSessionId)!}
+        />
       )}
       {timelineSessionId && timelineMessages.length > 0 && (
         <SessionCacheTimeline
