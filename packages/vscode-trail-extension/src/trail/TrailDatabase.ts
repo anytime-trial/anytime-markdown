@@ -428,10 +428,11 @@ export class TrailDatabase {
     const logFormat = '%H%x00%s%x00%an%x00%aI%x00%b%x1e';
 
     let logOutput = '';
+    const useBranch = gitBranch && gitBranch.trim() !== '';
     try {
-      // Try branch-specific log first
+      // Try branch-specific log first (or --all if no branch)
       logOutput = execFileSync('git', [
-        'log', gitBranch,
+        'log', useBranch ? gitBranch : '--all',
         `--after=${startTime}`,
         `--before=${bufferedEnd}`,
         `--format=${logFormat}`,
@@ -667,7 +668,7 @@ export class TrailDatabase {
     try {
       projectDirs = fs.readdirSync(projectsDir);
     } catch {
-      return { imported, skipped };
+      return { imported, skipped, commitsResolved };
     }
 
     const allFiles: { filePath: string; projectName: string }[] = [];
@@ -716,8 +717,7 @@ export class TrailDatabase {
         if (this.isImported(sid)) {
           if (gitRoot && !this.isCommitsResolved(sid)) {
             try {
-              this.resolveCommits(sid, gitRoot);
-              commitsResolved++;
+              commitsResolved += this.resolveCommits(sid, gitRoot);
             } catch {
               // skip
             }
@@ -731,8 +731,7 @@ export class TrailDatabase {
           imported++;
           if (gitRoot) {
             try {
-              this.resolveCommits(sid, gitRoot);
-              commitsResolved++;
+              commitsResolved += this.resolveCommits(sid, gitRoot);
             } catch {
               // skip
             }
