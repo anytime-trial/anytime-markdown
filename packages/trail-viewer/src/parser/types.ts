@@ -79,6 +79,7 @@ export interface TrailSession {
   readonly model: string;
   readonly messageCount: number;
   readonly peakContextTokens?: number;
+  readonly initialContextTokens?: number;
   readonly usage: TrailTokenUsage;
 }
 

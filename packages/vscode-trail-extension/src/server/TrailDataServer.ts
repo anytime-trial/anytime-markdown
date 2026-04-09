@@ -257,24 +257,30 @@ export class TrailDataServer {
       if (project) filters.project = project;
 
       const rawSessions = this.trailDb.getSessions(filters);
-      const sessions = rawSessions.map((s) => ({
-        id: s.id,
-        slug: s.slug,
-        project: s.project,
-        gitBranch: s.git_branch,
-        model: s.model,
-        version: s.version,
-        startTime: s.start_time,
-        endTime: s.end_time,
-        messageCount: s.message_count,
-        peakContextTokens: s.peak_context_tokens ?? 0,
-        usage: {
-          inputTokens: s.input_tokens,
-          outputTokens: s.output_tokens,
-          cacheReadTokens: s.cache_read_tokens,
-          cacheCreationTokens: s.cache_creation_tokens,
-        },
-      }));
+      const sessionIds = rawSessions.map((s) => s.id);
+      const contextStats = this.trailDb.getSessionContextStats(sessionIds);
+      const sessions = rawSessions.map((s) => {
+        const stats = contextStats.get(s.id);
+        return {
+          id: s.id,
+          slug: s.slug,
+          project: s.project,
+          gitBranch: s.git_branch,
+          model: s.model,
+          version: s.version,
+          startTime: s.start_time,
+          endTime: s.end_time,
+          messageCount: s.message_count,
+          peakContextTokens: stats?.peak ?? 0,
+          initialContextTokens: stats?.initial ?? 0,
+          usage: {
+            inputTokens: s.input_tokens,
+            outputTokens: s.output_tokens,
+            cacheReadTokens: s.cache_read_tokens,
+            cacheCreationTokens: s.cache_creation_tokens,
+          },
+        };
+      });
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ sessions }));
     } catch {

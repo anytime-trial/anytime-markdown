@@ -158,6 +158,8 @@ export function parseSession(
   const lastRaw = filtered.at(-1);
 
   let peakContextTokens = 0;
+  const firstAssistantMsg = messages.find((m) => m.type === 'assistant' && m.usage);
+  const initialContextTokens = firstAssistantMsg?.usage?.cacheCreationTokens ?? 0;
   for (const msg of messages) {
     if (msg.usage) {
       const ctx = msg.usage.inputTokens + msg.usage.cacheReadTokens + msg.usage.cacheCreationTokens;
@@ -176,6 +178,7 @@ export function parseSession(
     model: firstAssistant?.message?.model ?? '',
     messageCount: messages.length,
     peakContextTokens,
+    initialContextTokens,
     usage: aggregateUsage(messages),
   };
 

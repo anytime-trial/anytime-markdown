@@ -287,6 +287,7 @@ function DailySessionList({
               <TableCell align="right">Input</TableCell>
               <TableCell align="right">Output</TableCell>
               <TableCell align="right">Cache Read</TableCell>
+              <TableCell align="right">Init Context</TableCell>
               <TableCell align="right">Peak Context</TableCell>
               <TableCell align="right">Messages</TableCell>
             </TableRow>
@@ -309,6 +310,7 @@ function DailySessionList({
                 <TableCell align="right">{fmtTokens(s.usage.inputTokens)}</TableCell>
                 <TableCell align="right">{fmtTokens(s.usage.outputTokens)}</TableCell>
                 <TableCell align="right">{fmtTokens(s.usage.cacheReadTokens)}</TableCell>
+                <TableCell align="right">{fmtTokens(s.initialContextTokens ?? 0)}</TableCell>
                 <TableCell align="right">{fmtTokens(s.peakContextTokens ?? 0)}</TableCell>
                 <TableCell align="right">{fmtNum(s.messageCount)}</TableCell>
               </TableRow>

@@ -39,6 +39,7 @@ export interface SessionRow {
   readonly file_size: number;
   readonly imported_at: string;
   readonly peak_context_tokens?: number;
+  readonly initial_context_tokens?: number;
 }
 
 export interface MessageRow {
@@ -554,25 +555,22 @@ export class TrailDatabase {
     const params: string[] = [];
 
     if (filters?.branch) {
-      conditions.push('git_branch = ?');
+      conditions.push('s.git_branch = ?');
       params.push(filters.branch);
     }
     if (filters?.model) {
-      conditions.push('model = ?');
+      conditions.push('s.model = ?');
       params.push(filters.model);
     }
     if (filters?.project) {
-      conditions.push('project = ?');
+      conditions.push('s.project = ?');
       params.push(filters.project);
     }
 
     const where = conditions.length > 0
       ? `WHERE ${conditions.join(' AND ')}`
       : '';
-    const sql = `SELECT s.*,
-      (SELECT MAX(COALESCE(m.input_tokens,0) + COALESCE(m.cache_read_tokens,0) + COALESCE(m.cache_creation_tokens,0))
-       FROM messages m WHERE m.session_id = s.id) AS peak_context_tokens
-      FROM sessions s ${where} ORDER BY s.start_time DESC`;
+    const sql = `SELECT s.* FROM sessions s ${where} ORDER BY s.start_time DESC`;
 
     const stmt = db.prepare(sql);
     if (params.length > 0) stmt.bind(params);
@@ -583,6 +581,50 @@ export class TrailDatabase {
     }
     stmt.free();
     return rows;
+  }
+
+  getSessionContextStats(sessionIds: readonly string[]): Map<string, { peak: number; initial: number }> {
+    if (sessionIds.length === 0) return new Map();
+    const db = this.ensureDb();
+    const result = new Map<string, { peak: number; initial: number }>();
+
+    const placeholders = sessionIds.map(() => '?').join(',');
+
+    try {
+      // Peak context per session
+      const peakResult = db.exec(
+        `SELECT session_id,
+          MAX(COALESCE(input_tokens,0) + COALESCE(cache_read_tokens,0) + COALESCE(cache_creation_tokens,0)) AS peak
+        FROM messages WHERE session_id IN (${placeholders})
+        GROUP BY session_id`,
+        sessionIds as string[],
+      );
+      for (const row of peakResult[0]?.values ?? []) {
+        result.set(String(row[0]), { peak: Number(row[1]), initial: 0 });
+      }
+
+      // Initial context (first assistant message's cache_creation_tokens per session)
+      const initResult = db.exec(
+        `SELECT session_id, COALESCE(cache_creation_tokens, 0)
+        FROM messages WHERE session_id IN (${placeholders}) AND type = 'assistant'
+        GROUP BY session_id
+        HAVING timestamp = MIN(timestamp)`,
+        sessionIds as string[],
+      );
+      for (const row of initResult[0]?.values ?? []) {
+        const id = String(row[0]);
+        const entry = result.get(id);
+        if (entry) {
+          entry.initial = Number(row[1]);
+        } else {
+          result.set(id, { peak: 0, initial: Number(row[1]) });
+        }
+      }
+    } catch {
+      // Graceful fallback if queries fail
+    }
+
+    return result;
   }
 
   getMessages(sessionId: string): MessageRow[] {
