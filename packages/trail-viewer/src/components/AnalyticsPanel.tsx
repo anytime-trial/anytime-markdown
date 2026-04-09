@@ -11,7 +11,7 @@ import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Typography from '@mui/material/Typography';
 import { BarChart } from '@mui/x-charts/BarChart';
 import { LineChart } from '@mui/x-charts/LineChart';
-import type { TrailMessage, TrailSession, TrailSessionCommit, TrailTokenUsage } from '../parser/types';
+import type { ToolMetrics, TrailMessage, TrailSession, TrailSessionCommit, TrailTokenUsage } from '../parser/types';
 
 // ---------------------------------------------------------------------------
 //  Types
@@ -31,6 +31,12 @@ export interface AnalyticsData {
     readonly totalFilesChanged: number;
     readonly totalAiAssistedCommits: number;
     readonly totalSessionDurationMs: number;
+    readonly totalRetries: number;
+    readonly totalEdits: number;
+    readonly totalBuildRuns: number;
+    readonly totalBuildFails: number;
+    readonly totalTestRuns: number;
+    readonly totalTestFails: number;
   };
   readonly toolUsage: readonly { name: string; count: number }[];
   readonly modelBreakdown: readonly {
@@ -64,6 +70,7 @@ export interface AnalyticsPanelProps {
   readonly onSelectSession?: (id: string) => void;
   readonly fetchSessionMessages?: (id: string) => Promise<readonly TrailMessage[]>;
   readonly fetchSessionCommits?: (id: string) => Promise<readonly TrailSessionCommit[]>;
+  readonly fetchSessionToolMetrics?: (id: string) => Promise<ToolMetrics | null>;
 }
 
 // ---------------------------------------------------------------------------
@@ -165,15 +172,26 @@ function OverviewCards({
         : '\u2014' },
   ];
 
+  const hasToolMetrics = totals.totalEdits > 0 || totals.totalBuildRuns > 0 || totals.totalTestRuns > 0;
+  const toolMetricsCards = [
+    { label: 'Retry Rate', value: totals.totalEdits > 0
+        ? fmtPercent(totals.totalRetries / totals.totalEdits)
+        : '\u2014' },
+    { label: 'Build Fail Rate', value: totals.totalBuildRuns > 0
+        ? fmtPercent(totals.totalBuildFails / totals.totalBuildRuns)
+        : '\u2014' },
+    { label: 'Test Fail Rate', value: totals.totalTestRuns > 0
+        ? fmtPercent(totals.totalTestFails / totals.totalTestRuns)
+        : '\u2014' },
+  ];
+
+  const cardStyle = { flex: '1 1 140px', p: 2, minWidth: 140, textAlign: 'center' } as const;
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
         {cards.map((c) => (
-          <Paper
-            key={c.label}
-            variant="outlined"
-            sx={{ flex: '1 1 140px', p: 2, minWidth: 140, textAlign: 'center' }}
-          >
+          <Paper key={c.label} variant="outlined" sx={cardStyle}>
             <Typography variant="caption" color="text.secondary">
               {c.label}
             </Typography>
@@ -186,11 +204,7 @@ function OverviewCards({
       {totals.totalCommits > 0 && (
         <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
           {commitCards.map((c) => (
-            <Paper
-              key={c.label}
-              variant="outlined"
-              sx={{ flex: '1 1 140px', p: 2, minWidth: 140, textAlign: 'center' }}
-            >
+            <Paper key={c.label} variant="outlined" sx={cardStyle}>
               <Typography variant="caption" color="text.secondary">
                 {c.label}
               </Typography>
@@ -204,11 +218,21 @@ function OverviewCards({
       {totals.totalCommits > 0 && (
         <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
           {efficiencyCards.map((c) => (
-            <Paper
-              key={c.label}
-              variant="outlined"
-              sx={{ flex: '1 1 140px', p: 2, minWidth: 140, textAlign: 'center' }}
-            >
+            <Paper key={c.label} variant="outlined" sx={cardStyle}>
+              <Typography variant="caption" color="text.secondary">
+                {c.label}
+              </Typography>
+              <Typography variant="h5" sx={{ mt: 0.5 }}>
+                {c.value}
+              </Typography>
+            </Paper>
+          ))}
+        </Box>
+      )}
+      {hasToolMetrics && (
+        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+          {toolMetricsCards.map((c) => (
+            <Paper key={c.label} variant="outlined" sx={cardStyle}>
               <Typography variant="caption" color="text.secondary">
                 {c.label}
               </Typography>
@@ -443,7 +467,10 @@ function SessionCommitList({
   );
 }
 
-function SessionMetricsPanel({ session }: Readonly<{ session: TrailSession }>) {
+function SessionMetricsPanel({ session, toolMetrics }: Readonly<{
+  session: TrailSession;
+  toolMetrics?: ToolMetrics | null;
+}>) {
   const s = session;
   const totalTokens = s.usage.inputTokens + s.usage.outputTokens;
   const cost = sessionCost(s);
@@ -458,6 +485,7 @@ function SessionMetricsPanel({ session }: Readonly<{ session: TrailSession }>) {
   const linesAdded = s.commitStats?.linesAdded ?? 0;
   const linesDeleted = s.commitStats?.linesDeleted ?? 0;
 
+  const tm = toolMetrics;
   const metrics = [
     { label: 'Tokens/Step', value: s.messageCount > 0 ? fmtTokens(Math.round(totalTokens / s.messageCount)) : '\u2014' },
     { label: 'Cost/Step', value: s.messageCount > 0 ? fmtUsd(cost / s.messageCount) : '\u2014' },
@@ -471,12 +499,18 @@ function SessionMetricsPanel({ session }: Readonly<{ session: TrailSession }>) {
     { label: 'Files', value: (s.commitStats?.filesChanged ?? 0) > 0 ? fmtNum(s.commitStats!.filesChanged) : '\u2014' },
     { label: 'Duration', value: durationMs > 0 ? fmtDuration(durationMs) : '\u2014' },
     { label: 'Avg Interval', value: s.messageCount > 1 ? fmtDuration(durationMs / (s.messageCount - 1)) : '\u2014' },
+    { label: 'Retry Rate', value: tm && tm.totalEdits > 0
+        ? fmtPercent(tm.totalRetries / tm.totalEdits) : '\u2014' },
+    { label: 'Build Fail', value: tm && tm.totalBuildRuns > 0
+        ? fmtPercent(tm.totalBuildFails / tm.totalBuildRuns) : '\u2014' },
+    { label: 'Test Fail', value: tm && tm.totalTestRuns > 0
+        ? fmtPercent(tm.totalTestFails / tm.totalTestRuns) : '\u2014' },
   ];
 
   return (
     <Paper variant="outlined" sx={{ mt: 1, p: 1.5 }}>
       <Typography variant="subtitle2" sx={{ mb: 1 }}>Session Metrics</Typography>
-      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1 }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 1 }}>
         {metrics.map((m) => (
           <Box key={m.label} sx={{ textAlign: 'center', p: 0.5 }}>
             <Typography variant="caption" color="text.secondary">{m.label}</Typography>
@@ -494,6 +528,7 @@ function DailySessionList({
   onSelectSession,
   fetchSessionMessages,
   fetchSessionCommits,
+  fetchSessionToolMetrics,
   onClose,
 }: Readonly<{
   date: string;
@@ -501,26 +536,33 @@ function DailySessionList({
   onSelectSession?: (id: string) => void;
   fetchSessionMessages?: (id: string) => Promise<readonly TrailMessage[]>;
   fetchSessionCommits?: (id: string) => Promise<readonly TrailSessionCommit[]>;
+  fetchSessionToolMetrics?: (id: string) => Promise<ToolMetrics | null>;
   onClose: () => void;
 }>) {
   const [timelineSessionId, setTimelineSessionId] = useState<string | null>(null);
   const [timelineMessages, setTimelineMessages] = useState<readonly TrailMessage[]>([]);
   const [timelineLoading, setTimelineLoading] = useState(false);
+  const [sessionToolMetrics, setSessionToolMetrics] = useState<ToolMetrics | null>(null);
   const daySessions = sessions.filter((s) => s.startTime.startsWith(date));
 
   const handleSessionClick = (id: string) => {
     if (timelineSessionId === id) {
       setTimelineSessionId(null);
       setTimelineMessages([]);
+      setSessionToolMetrics(null);
       return;
     }
     if (fetchSessionMessages) {
       setTimelineSessionId(id);
       setTimelineLoading(true);
+      setSessionToolMetrics(null);
       void fetchSessionMessages(id).then((msgs) => {
         setTimelineMessages(msgs);
         setTimelineLoading(false);
       });
+      if (fetchSessionToolMetrics) {
+        void fetchSessionToolMetrics(id).then(setSessionToolMetrics);
+      }
     } else {
       onSelectSession?.(id);
     }
@@ -598,6 +640,7 @@ function DailySessionList({
       {timelineSessionId && daySessions.find((s) => s.id === timelineSessionId) && (
         <SessionMetricsPanel
           session={daySessions.find((s) => s.id === timelineSessionId)!}
+          toolMetrics={sessionToolMetrics}
         />
       )}
       {timelineSessionId && timelineMessages.length > 0 && (
@@ -624,12 +667,14 @@ function DailyActivityChart({
   onSelectSession,
   fetchSessionMessages,
   fetchSessionCommits,
+  fetchSessionToolMetrics,
 }: Readonly<{
   items: AnalyticsData['dailyActivity'];
   sessions: readonly TrailSession[];
   onSelectSession?: (id: string) => void;
   fetchSessionMessages?: (id: string) => Promise<readonly TrailMessage[]>;
   fetchSessionCommits?: (id: string) => Promise<readonly TrailSessionCommit[]>;
+  fetchSessionToolMetrics?: (id: string) => Promise<ToolMetrics | null>;
 }>) {
   const [mode, setMode] = useState<DailyViewMode>('tokens');
   const [period, setPeriod] = useState<PeriodDays>(30);
@@ -714,6 +759,7 @@ function DailyActivityChart({
           onSelectSession={onSelectSession}
           fetchSessionMessages={fetchSessionMessages}
           fetchSessionCommits={fetchSessionCommits}
+          fetchSessionToolMetrics={fetchSessionToolMetrics}
           onClose={() => setSelectedDate(null)}
         />
       )}
@@ -795,7 +841,7 @@ function BranchTable({ items }: Readonly<{ items: AnalyticsData['branchBreakdown
 //  Main component
 // ---------------------------------------------------------------------------
 
-export function AnalyticsPanel({ analytics, isDark: _isDark, sessions = [], onSelectSession, fetchSessionMessages, fetchSessionCommits }: Readonly<AnalyticsPanelProps>) {
+export function AnalyticsPanel({ analytics, isDark: _isDark, sessions = [], onSelectSession, fetchSessionMessages, fetchSessionCommits, fetchSessionToolMetrics }: Readonly<AnalyticsPanelProps>) {
   if (!analytics) {
     return (
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
@@ -810,7 +856,7 @@ export function AnalyticsPanel({ analytics, isDark: _isDark, sessions = [], onSe
     <Box sx={{ overflow: 'auto', flex: 1, p: 2, display: 'flex', flexDirection: 'column', gap: 3 }}>
       <OverviewCards totals={analytics.totals} sessions={sessions} />
       <ToolUsageChart items={analytics.toolUsage} />
-      <DailyActivityChart items={analytics.dailyActivity} sessions={sessions} onSelectSession={onSelectSession} fetchSessionMessages={fetchSessionMessages} fetchSessionCommits={fetchSessionCommits} />
+      <DailyActivityChart items={analytics.dailyActivity} sessions={sessions} onSelectSession={onSelectSession} fetchSessionMessages={fetchSessionMessages} fetchSessionCommits={fetchSessionCommits} fetchSessionToolMetrics={fetchSessionToolMetrics} />
       <ModelTable items={analytics.modelBreakdown} />
       <BranchTable items={analytics.branchBreakdown} />
     </Box>

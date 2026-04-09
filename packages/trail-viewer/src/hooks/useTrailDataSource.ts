@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { TrailFilter, TrailMessage, TrailPromptEntry, TrailSession, TrailSessionCommit } from '../parser/types';
+import type { ToolMetrics, TrailFilter, TrailMessage, TrailPromptEntry, TrailSession, TrailSessionCommit } from '../parser/types';
 import type { AnalyticsData } from '../components/AnalyticsPanel';
 
 // ---------------------------------------------------------------------------
@@ -20,6 +20,7 @@ export interface TrailDataSourceResult {
   readonly searchSessions: (filter: TrailFilter) => void;
   readonly fetchSessionMessages: (id: string) => Promise<readonly TrailMessage[]>;
   readonly fetchSessionCommits: (id: string) => Promise<readonly TrailSessionCommit[]>;
+  readonly fetchSessionToolMetrics: (id: string) => Promise<ToolMetrics | null>;
 }
 
 interface WsMessage {
@@ -172,6 +173,21 @@ export function useTrailDataSource(serverUrl?: string): TrailDataSourceResult {
     [baseUrl],
   );
 
+  // --- Fetch session tool metrics (standalone) ---
+
+  const fetchSessionToolMetrics = useCallback(
+    async (id: string): Promise<ToolMetrics | null> => {
+      try {
+        const res = await fetch(`${baseUrl}/api/trail/sessions/${encodeURIComponent(id)}/tool-metrics`);
+        if (!res.ok) return null;
+        return (await res.json()) as ToolMetrics;
+      } catch {
+        return null;
+      }
+    },
+    [baseUrl],
+  );
+
   // --- Search sessions ---
 
   const searchSessions = useCallback(
@@ -286,5 +302,6 @@ export function useTrailDataSource(serverUrl?: string): TrailDataSourceResult {
     searchSessions,
     fetchSessionMessages,
     fetchSessionCommits,
+    fetchSessionToolMetrics,
   };
 }

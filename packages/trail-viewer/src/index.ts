@@ -9,6 +9,7 @@ export type {
   TrailPromptEntry,
   TrailEvaluation,
   TrailSessionCommit,
+  ToolMetrics,
 } from './parser/types';
 
 export { parseSession } from './parser/parseSession';

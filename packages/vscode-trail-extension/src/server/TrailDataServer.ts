@@ -193,6 +193,12 @@ export class TrailDataServer {
       return;
     }
 
+    const toolMetricsMatch = /^\/api\/trail\/sessions\/([^/]+)\/tool-metrics$/.exec(pathname);
+    if (toolMetricsMatch && method === 'GET') {
+      this.handleGetSessionToolMetrics(res, decodeURIComponent(toolMetricsMatch[1]));
+      return;
+    }
+
     const sessionMatch = /^\/api\/trail\/sessions\/([^/]+)$/.exec(pathname);
     if (sessionMatch && method === 'GET') {
       this.handleGetSession(res, decodeURIComponent(sessionMatch[1]));
@@ -370,6 +376,24 @@ export class TrailDataServer {
     } catch {
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: 'Failed to get commits' }));
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  //  API: GET /api/trail/sessions/:id/tool-metrics
+  // -------------------------------------------------------------------------
+
+  private handleGetSessionToolMetrics(
+    res: http.ServerResponse,
+    sessionId: string,
+  ): void {
+    try {
+      const metrics = this.trailDb.computeToolMetrics(sessionId);
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify(metrics));
+    } catch {
+      res.writeHead(500, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'Failed to get tool metrics' }));
     }
   }
 

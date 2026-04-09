@@ -119,6 +119,12 @@ export interface AnalyticsData {
     readonly totalFilesChanged: number;
     readonly totalAiAssistedCommits: number;
     readonly totalSessionDurationMs: number;
+    readonly totalRetries: number;
+    readonly totalEdits: number;
+    readonly totalBuildRuns: number;
+    readonly totalBuildFails: number;
+    readonly totalTestRuns: number;
+    readonly totalTestFails: number;
   };
   readonly toolUsage: readonly { name: string; count: number }[];
   readonly modelBreakdown: readonly {
@@ -987,6 +993,119 @@ export class TrailDatabase {
     };
   }
 
+  /**
+   * Compute tool-call-based metrics (Retry Rate, Build/Test Fail Rate).
+   * If sessionId is provided, scopes to that session only.
+   */
+  computeToolMetrics(sessionId?: string): {
+    totalRetries: number;
+    totalEdits: number;
+    totalBuildRuns: number;
+    totalBuildFails: number;
+    totalTestRuns: number;
+    totalTestFails: number;
+  } {
+    const zero = {
+      totalRetries: 0, totalEdits: 0,
+      totalBuildRuns: 0, totalBuildFails: 0,
+      totalTestRuns: 0, totalTestFails: 0,
+    };
+    try {
+      const db = this.ensureDb();
+
+      // Fetch assistant messages with tool_calls, joined with their
+      // child tool-result messages to get tool_use_result.
+      const whereClause = sessionId
+        ? 'WHERE m1.session_id = ? AND m1.tool_calls IS NOT NULL'
+        : 'WHERE m1.tool_calls IS NOT NULL';
+      const sql = `SELECT m1.session_id, m1.tool_calls, m2.tool_use_result
+        FROM messages m1
+        LEFT JOIN messages m2
+          ON m2.parent_uuid = m1.uuid AND m2.tool_use_result IS NOT NULL
+        ${whereClause}`;
+      const params = sessionId ? [sessionId] : [];
+      const result = db.exec(sql, params);
+      if (!result[0]) return zero;
+
+      const BUILD_RE = /\b(npm run build|npx tsc|tsc\b|webpack|vite build|esbuild|rollup)\b/;
+      const TEST_RE = /\b(jest|vitest|npm run test|npm test|npx jest)\b/;
+      const FAIL_RE = /error|FAIL|ERR!|exit code [1-9]|non-zero exit|Command failed/i;
+
+      let totalEdits = 0;
+      let totalRetries = 0;
+      let totalBuildRuns = 0;
+      let totalBuildFails = 0;
+      let totalTestRuns = 0;
+      let totalTestFails = 0;
+
+      // Track Edit file paths per session for retry detection
+      const editsBySession = new Map<string, Map<string, number>>();
+
+      for (const row of result[0].values) {
+        const sessId = String(row[0]);
+        const toolCallsJson = String(row[1]);
+        const toolResultStr = row[2] != null ? String(row[2]) : null;
+
+        let calls: { name: string; input: Record<string, unknown> }[];
+        try {
+          calls = JSON.parse(toolCallsJson);
+        } catch {
+          continue;
+        }
+        if (!Array.isArray(calls)) continue;
+
+        for (const call of calls) {
+          if (call.name === 'Edit' || call.name === 'Write') {
+            totalEdits++;
+            const filePath = typeof call.input?.file_path === 'string'
+              ? call.input.file_path : '';
+            if (filePath) {
+              let fileMap = editsBySession.get(sessId);
+              if (!fileMap) {
+                fileMap = new Map();
+                editsBySession.set(sessId, fileMap);
+              }
+              fileMap.set(filePath, (fileMap.get(filePath) ?? 0) + 1);
+            }
+          }
+
+          if (call.name === 'Bash') {
+            const cmd = typeof call.input?.command === 'string'
+              ? call.input.command : '';
+            const isFailed = toolResultStr != null && FAIL_RE.test(toolResultStr);
+
+            if (BUILD_RE.test(cmd)) {
+              totalBuildRuns++;
+              if (isFailed) totalBuildFails++;
+            }
+            if (TEST_RE.test(cmd)) {
+              totalTestRuns++;
+              if (isFailed) totalTestFails++;
+            }
+          }
+        }
+      }
+
+      // Count retries: for each session, files edited 2+ times contribute
+      // (editCount - 1) retries per file
+      for (const fileMap of editsBySession.values()) {
+        for (const count of fileMap.values()) {
+          if (count > 1) {
+            totalRetries += count - 1;
+          }
+        }
+      }
+
+      return {
+        totalRetries, totalEdits,
+        totalBuildRuns, totalBuildFails,
+        totalTestRuns, totalTestFails,
+      };
+    } catch {
+      return zero;
+    }
+  }
+
   getAnalytics(): AnalyticsData {
     const db = this.ensureDb();
 
@@ -1128,6 +1247,9 @@ export class TrailDatabase {
       (sum, m) => sum + m.estimatedCostUsd, 0,
     );
 
+    // Tool-call-based metrics (Retry Rate, Build/Test Fail Rate)
+    const toolMetrics = this.computeToolMetrics();
+
     return {
       totals: {
         sessions: totalSessions,
@@ -1142,6 +1264,7 @@ export class TrailDatabase {
         totalFilesChanged,
         totalAiAssistedCommits,
         totalSessionDurationMs,
+        ...toolMetrics,
       },
       toolUsage,
       modelBreakdown,

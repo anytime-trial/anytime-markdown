@@ -100,6 +100,15 @@ export interface TrailSessionCommit {
   readonly linesDeleted: number;
 }
 
+export interface ToolMetrics {
+  readonly totalRetries: number;
+  readonly totalEdits: number;
+  readonly totalBuildRuns: number;
+  readonly totalBuildFails: number;
+  readonly totalTestRuns: number;
+  readonly totalTestFails: number;
+}
+
 export interface TrailTreeNode {
   readonly message: TrailMessage;
   readonly children: readonly TrailTreeNode[];

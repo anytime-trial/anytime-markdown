@@ -32,6 +32,7 @@ export function StandaloneTrailViewer({ isDark = true }: Readonly<{ isDark?: boo
       analytics={dataSource.analytics}
       fetchSessionMessages={dataSource.fetchSessionMessages}
       fetchSessionCommits={dataSource.fetchSessionCommits}
+      fetchSessionToolMetrics={dataSource.fetchSessionToolMetrics}
     />
   );
 }
