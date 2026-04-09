@@ -836,6 +836,64 @@ export class TrailDatabase {
     return result;
   }
 
+  getSessionInterruptions(
+    sessionIds: readonly string[],
+  ): Map<string, { interrupted: boolean; reason: 'max_tokens' | 'no_response' | null; contextTokens: number }> {
+    if (sessionIds.length === 0) return new Map();
+    const db = this.ensureDb();
+    const result = new Map<string, { interrupted: boolean; reason: 'max_tokens' | 'no_response' | null; contextTokens: number }>();
+    const placeholders = sessionIds.map(() => '?').join(',');
+
+    try {
+      // Get the last message per session (by timestamp desc) and the last assistant message
+      const lastMsgResult = db.exec(
+        `SELECT session_id, type, stop_reason,
+          COALESCE(input_tokens,0) + COALESCE(cache_read_tokens,0) + COALESCE(cache_creation_tokens,0) AS ctx
+        FROM messages
+        WHERE session_id IN (${placeholders}) AND is_meta = 0
+        AND type IN ('user','assistant')
+        ORDER BY session_id, timestamp DESC`,
+        sessionIds as string[],
+      );
+
+      // Group by session_id — first row per session is the last message
+      const sessionLastMsg = new Map<string, { type: string; stopReason: string | null; ctx: number }>();
+      const sessionLastAssistant = new Map<string, { stopReason: string | null; ctx: number }>();
+      for (const row of lastMsgResult[0]?.values ?? []) {
+        const sid = String(row[0]);
+        const type = String(row[1]);
+        const stopReason = row[2] === null ? null : String(row[2]);
+        const ctx = Number(row[3]);
+        if (!sessionLastMsg.has(sid)) {
+          sessionLastMsg.set(sid, { type, stopReason, ctx });
+        }
+        if (type === 'assistant' && !sessionLastAssistant.has(sid)) {
+          sessionLastAssistant.set(sid, { stopReason, ctx });
+        }
+      }
+
+      for (const sid of sessionIds) {
+        const lastMsg = sessionLastMsg.get(sid);
+        const lastAssistant = sessionLastAssistant.get(sid);
+        if (!lastMsg) continue;
+
+        if (lastAssistant?.stopReason === 'max_tokens') {
+          result.set(sid, { interrupted: true, reason: 'max_tokens', contextTokens: lastAssistant.ctx });
+        } else if (lastMsg.type === 'user') {
+          result.set(sid, {
+            interrupted: true,
+            reason: 'no_response',
+            contextTokens: lastAssistant?.ctx ?? 0,
+          });
+        }
+      }
+    } catch {
+      // Graceful fallback
+    }
+
+    return result;
+  }
+
   getSessionCommitStats(
     sessionIds: readonly string[],
   ): Map<string, { commits: number; linesAdded: number; linesDeleted: number; filesChanged: number }> {

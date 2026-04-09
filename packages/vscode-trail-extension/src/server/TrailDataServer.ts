@@ -273,9 +273,11 @@ export class TrailDataServer {
       const sessionIds = rawSessions.map((s) => s.id);
       const contextStats = this.trailDb.getSessionContextStats(sessionIds);
       const commitStats = this.trailDb.getSessionCommitStats(sessionIds);
+      const interruptions = this.trailDb.getSessionInterruptions(sessionIds);
       const sessions = rawSessions.map((s) => {
         const stats = contextStats.get(s.id);
         const cStats = commitStats.get(s.id);
+        const intr = interruptions.get(s.id);
         return {
           id: s.id,
           slug: s.slug,
@@ -288,6 +290,7 @@ export class TrailDataServer {
           messageCount: s.message_count,
           peakContextTokens: stats?.peak ?? 0,
           initialContextTokens: stats?.initial ?? 0,
+          interruption: intr ?? undefined,
           usage: {
             inputTokens: s.input_tokens,
             outputTokens: s.output_tokens,

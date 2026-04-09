@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import Box from '@mui/material/Box';
+import Chip from '@mui/material/Chip';
 import Paper from '@mui/material/Paper';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
@@ -8,6 +9,7 @@ import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { BarChart } from '@mui/x-charts/BarChart';
 import { LineChart } from '@mui/x-charts/LineChart';
@@ -505,6 +507,9 @@ function SessionMetricsPanel({ session, toolMetrics }: Readonly<{
         ? fmtPercent(tm.totalBuildFails / tm.totalBuildRuns) : '\u2014' },
     { label: 'Test Fail', value: tm && tm.totalTestRuns > 0
         ? fmtPercent(tm.totalTestFails / tm.totalTestRuns) : '\u2014' },
+    { label: 'Interrupted', value: s.interruption?.interrupted
+        ? `${s.interruption.reason === 'max_tokens' ? 'max_tokens' : 'no response'} (${fmtTokens(s.interruption.contextTokens)})`
+        : '\u2014' },
   ];
 
   return (
@@ -608,6 +613,21 @@ function DailySessionList({
               >
                 <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
                   {s.startTime.slice(11, 16)}–{s.endTime.slice(11, 16)}
+                  {s.interruption?.interrupted && (
+                    <Tooltip title={
+                      s.interruption.reason === 'max_tokens'
+                        ? `Interrupted: max_tokens (context: ${fmtTokens(s.interruption.contextTokens)})`
+                        : `Interrupted: no response (context: ${fmtTokens(s.interruption.contextTokens)})`
+                    }>
+                      <Chip
+                        label={s.interruption.reason === 'max_tokens' ? 'MAX' : 'N/R'}
+                        size="small"
+                        color="warning"
+                        variant="outlined"
+                        sx={{ ml: 0.5, height: 18, fontSize: '0.65rem' }}
+                      />
+                    </Tooltip>
+                  )}
                 </TableCell>
                 <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
                   {s.model}

@@ -108,6 +108,7 @@ function convertMessage(raw: RawJsonlMessage): TrailMessage {
       textContent: extractTextContent(raw.message?.content),
       toolCalls: extractToolCalls(raw.message?.content),
       usage: convertUsage(raw.message?.usage),
+      stopReason: raw.message?.stop_reason,
     };
   }
 
@@ -167,6 +168,26 @@ export function parseSession(
     }
   }
 
+  // Detect session interruption
+  const lastMessage = messages.at(-1);
+  const lastAssistant = [...messages].reverse().find((m) => m.type === 'assistant');
+  let interruption: TrailSession['interruption'];
+  if (lastAssistant?.stopReason === 'max_tokens') {
+    // Output hit max_tokens limit
+    const u = lastAssistant.usage;
+    const ctxTokens = u
+      ? u.inputTokens + u.cacheReadTokens + u.cacheCreationTokens
+      : 0;
+    interruption = { interrupted: true, reason: 'max_tokens', contextTokens: ctxTokens };
+  } else if (lastMessage?.type === 'user') {
+    // Session ended with a user message — no assistant response
+    const prevAssistant = [...messages].reverse().find((m) => m.type === 'assistant');
+    const ctxTokens = prevAssistant?.usage
+      ? prevAssistant.usage.inputTokens + prevAssistant.usage.cacheReadTokens + prevAssistant.usage.cacheCreationTokens
+      : 0;
+    interruption = { interrupted: true, reason: 'no_response', contextTokens: ctxTokens };
+  }
+
   const session: TrailSession = {
     id: firstRaw?.sessionId ?? '',
     slug: firstRaw?.slug ?? firstAssistant?.slug ?? '',
@@ -179,6 +200,7 @@ export function parseSession(
     messageCount: messages.length,
     peakContextTokens,
     initialContextTokens,
+    interruption,
     usage: aggregateUsage(messages),
   };
 
