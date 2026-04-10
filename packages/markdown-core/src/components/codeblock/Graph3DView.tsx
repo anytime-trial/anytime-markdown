@@ -18,6 +18,113 @@ const DEFAULT_RANGE: [number, number] = [-5, 5];
 const PARAM_DEFAULT_RANGE: [number, number] = [-5, 5];
 const PARAM_STEP = 0.1;
 
+type EvalFn = GraphExpr["evaluate"];
+
+/** 線形空間（等差数列）を生成する */
+function linspace(min: number, max: number, steps: number): number[] {
+  const vals: number[] = [];
+  for (let i = 0; i <= steps; i++) {
+    vals.push(min + (max - min) * (i / steps));
+  }
+  return vals;
+}
+
+/** surface3d 用プロットデータを生成する */
+function buildSurface3dData(
+  evalFn: EvalFn,
+  vars: Record<string, number>,
+  isDark: boolean,
+) {
+  const xVals = linspace(DEFAULT_RANGE[0], DEFAULT_RANGE[1], GRID_SIZE);
+  const yVals = linspace(DEFAULT_RANGE[0], DEFAULT_RANGE[1], GRID_SIZE);
+
+  const zVals: number[][] = [];
+  for (let yi = 0; yi <= GRID_SIZE; yi++) {
+    const row: number[] = [];
+    for (let xi = 0; xi <= GRID_SIZE; xi++) {
+      try {
+        const z = evalFn({ ...vars, x: xVals[xi], y: yVals[yi] }) as number;
+        row.push(Number.isFinite(z) ? z : NaN);
+      } catch {
+        row.push(NaN);
+      }
+    }
+    zVals.push(row);
+  }
+
+  return [{
+    type: "surface" as const,
+    x: xVals,
+    y: yVals,
+    z: zVals,
+    colorscale: isDark ? "Viridis" : "YlGnBu",
+    showscale: false,
+  }];
+}
+
+/** parametric3d の各点を評価して座標を返す */
+function evalParametricPoint(
+  evalFn: EvalFn,
+  vars: Record<string, number>,
+  u: number,
+  v: number,
+): { x: number; y: number; z: number } {
+  try {
+    const result = evalFn({ ...vars, u, v });
+    if (typeof result === "object" && result !== null) {
+      const r = result as Record<string, number>;
+      return {
+        x: Number.isFinite(r.x) ? r.x : NaN,
+        y: Number.isFinite(r.y) ? r.y : NaN,
+        z: Number.isFinite(r.z) ? r.z : NaN,
+      };
+    }
+  } catch {
+    // 評価エラーは NaN で代替
+  }
+  return { x: NaN, y: NaN, z: NaN };
+}
+
+/** parametric3d 用プロットデータを生成する */
+function buildParametric3dData(
+  evalFn: EvalFn,
+  vars: Record<string, number>,
+  isDark: boolean,
+) {
+  const uVals = linspace(0, 2 * Math.PI, GRID_SIZE);
+  const vVals = linspace(0, Math.PI, GRID_SIZE);
+
+  const xGrid: number[][] = [];
+  const yGrid: number[][] = [];
+  const zGrid: number[][] = [];
+
+  for (let vi = 0; vi <= GRID_SIZE; vi++) {
+    const xRow: number[] = [];
+    const yRow: number[] = [];
+    const zRow: number[] = [];
+
+    for (let ui = 0; ui <= GRID_SIZE; ui++) {
+      const pt = evalParametricPoint(evalFn, vars, uVals[ui], vVals[vi]);
+      xRow.push(pt.x);
+      yRow.push(pt.y);
+      zRow.push(pt.z);
+    }
+
+    xGrid.push(xRow);
+    yGrid.push(yRow);
+    zGrid.push(zRow);
+  }
+
+  return [{
+    type: "surface" as const,
+    x: xGrid,
+    y: yGrid,
+    z: zGrid,
+    colorscale: isDark ? "Viridis" : "YlGnBu",
+    showscale: false,
+  }];
+}
+
 export interface Graph3DViewProps {
   graphExpr: GraphExpr;
   plotly: typeof import("plotly.js-gl3d-dist-min");
@@ -52,86 +159,10 @@ export function Graph3DView({ graphExpr, plotly, isDark, width = 500, height = 4
     const evalFn = graphExpr.evaluate;
 
     if (graphExpr.type === "surface3d") {
-      const xVals: number[] = [];
-      const yVals: number[] = [];
-      for (let i = 0; i <= GRID_SIZE; i++) {
-        const v = DEFAULT_RANGE[0] + (DEFAULT_RANGE[1] - DEFAULT_RANGE[0]) * (i / GRID_SIZE);
-        xVals.push(v);
-        yVals.push(v);
-      }
-
-      const zVals: number[][] = [];
-      for (let yi = 0; yi <= GRID_SIZE; yi++) {
-        const row: number[] = [];
-        for (let xi = 0; xi <= GRID_SIZE; xi++) {
-          try {
-            const z = evalFn({ ...vars, x: xVals[xi], y: yVals[yi] }) as number;
-            row.push(Number.isFinite(z) ? z : NaN);
-          } catch {
-            row.push(NaN);
-          }
-        }
-        zVals.push(row);
-      }
-
-      return [{
-        type: "surface" as const,
-        x: xVals,
-        y: yVals,
-        z: zVals,
-        colorscale: isDark ? "Viridis" : "YlGnBu",
-        showscale: false,
-      }];
-    } else if (graphExpr.type === "parametric3d") {
-      const uMin = 0;
-      const uMax = 2 * Math.PI;
-      const vMin = 0;
-      const vMax = Math.PI;
-
-      const xGrid: number[][] = [];
-      const yGrid: number[][] = [];
-      const zGrid: number[][] = [];
-
-      for (let vi = 0; vi <= GRID_SIZE; vi++) {
-        const v = vMin + (vMax - vMin) * (vi / GRID_SIZE);
-        const xRow: number[] = [];
-        const yRow: number[] = [];
-        const zRow: number[] = [];
-
-        for (let ui = 0; ui <= GRID_SIZE; ui++) {
-          const u = uMin + (uMax - uMin) * (ui / GRID_SIZE);
-          try {
-            const result = evalFn({ ...vars, u, v });
-            if (typeof result === "object" && result !== null) {
-              const r = result as Record<string, number>;
-              xRow.push(Number.isFinite(r.x) ? r.x : NaN);
-              yRow.push(Number.isFinite(r.y) ? r.y : NaN);
-              zRow.push(Number.isFinite(r.z) ? r.z : NaN);
-            } else {
-              xRow.push(NaN);
-              yRow.push(NaN);
-              zRow.push(NaN);
-            }
-          } catch {
-            xRow.push(NaN);
-            yRow.push(NaN);
-            zRow.push(NaN);
-          }
-        }
-
-        xGrid.push(xRow);
-        yGrid.push(yRow);
-        zGrid.push(zRow);
-      }
-
-      return [{
-        type: "surface" as const,
-        x: xGrid,
-        y: yGrid,
-        z: zGrid,
-        colorscale: isDark ? "Viridis" : "YlGnBu",
-        showscale: false,
-      }];
+      return buildSurface3dData(evalFn, vars, isDark);
+    }
+    if (graphExpr.type === "parametric3d") {
+      return buildParametric3dData(evalFn, vars, isDark);
     }
 
     return null;

@@ -32,6 +32,309 @@ function truncate(text: string, maxLen: number): string {
   return text.length > maxLen ? text.slice(0, maxLen - 1) + '\u2026' : text;
 }
 
+/** 削除済みノードのインデックスセットを構築する */
+function buildDeletedIndices(
+  nodes: DsmMatrix['nodes'],
+  deletedIds: ReadonlySet<string> | undefined,
+): Set<number> {
+  const set = new Set<number>();
+  if (!deletedIds) return set;
+  for (let i = 0; i < nodes.length; i++) {
+    if (deletedIds.has(nodes[i].id)) {
+      set.add(i);
+    }
+  }
+  return set;
+}
+
+/** スコープインデックスを連続範囲にまとめる */
+function buildScopeRanges(
+  scopeIndices: number[],
+): { start: number; end: number }[] {
+  const sorted = [...scopeIndices].sort((a, b) => a - b);
+  const ranges: { start: number; end: number }[] = [];
+  if (sorted.length === 0) return ranges;
+
+  let rangeStart = sorted[0];
+  let rangeEnd = sorted[0];
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i] === rangeEnd + 1) {
+      rangeEnd = sorted[i];
+    } else {
+      ranges.push({ start: rangeStart, end: rangeEnd });
+      rangeStart = sorted[i];
+      rangeEnd = sorted[i];
+    }
+  }
+  ranges.push({ start: rangeStart, end: rangeEnd });
+  return ranges;
+}
+
+type C4Colors = ReturnType<typeof import('../c4Theme').getC4Colors>;
+
+interface DrawCellAreaParams {
+  ctx: CanvasRenderingContext2D;
+  matrix: DsmMatrix;
+  vp: { offsetX: number; offsetY: number; scale: number };
+  hovered: { row: number; col: number } | null;
+  cyclicSet: Set<string>;
+  groupBorders: number[];
+  focusedNodeId: string | null | undefined;
+  scopeIds: ReadonlySet<string> | null | undefined;
+  deletedIds: ReadonlySet<string> | undefined;
+  colors: C4Colors;
+  w: number;
+  h: number;
+}
+
+/** グリッド線を描画する */
+function drawGridLines(ctx: CanvasRenderingContext2D, n: number, colors: C4Colors): void {
+  ctx.strokeStyle = colors.grid;
+  ctx.lineWidth = 0.5;
+  for (let i = 0; i <= n; i++) {
+    const x = HEADER_WIDTH + i * CELL_SIZE;
+    const y = HEADER_HEIGHT + i * CELL_SIZE;
+    ctx.beginPath();
+    ctx.moveTo(x, HEADER_HEIGHT);
+    ctx.lineTo(x, HEADER_HEIGHT + n * CELL_SIZE);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(HEADER_WIDTH, y);
+    ctx.lineTo(HEADER_WIDTH + n * CELL_SIZE, y);
+    ctx.stroke();
+  }
+}
+
+/** セル（対角・依存関係・サイクル）を描画する */
+function drawCells(
+  ctx: CanvasRenderingContext2D,
+  matrix: DsmMatrix,
+  deletedIndices: Set<number>,
+  cyclicSet: Set<string>,
+  colors: C4Colors,
+): void {
+  const n = matrix.nodes.length;
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      const x = HEADER_WIDTH + j * CELL_SIZE;
+      const y = HEADER_HEIGHT + i * CELL_SIZE;
+      const isDeletedCell = deletedIndices.has(i) || deletedIndices.has(j);
+
+      if (isDeletedCell) ctx.globalAlpha = colors.deletedAlpha;
+
+      if (i === j) {
+        ctx.fillStyle = colors.diagonal;
+        ctx.fillRect(x, y, CELL_SIZE, CELL_SIZE);
+        if (isDeletedCell) ctx.globalAlpha = 1;
+        continue;
+      }
+
+      if (matrix.adjacency[i][j] === 1) {
+        ctx.fillStyle = colors.dependency;
+        ctx.fillRect(x + 1, y + 1, CELL_SIZE - 2, CELL_SIZE - 2);
+      }
+
+      const key = `${matrix.nodes[i].id}:${matrix.nodes[j].id}`;
+      if (cyclicSet.has(key) && matrix.adjacency[i][j] === 1) {
+        ctx.strokeStyle = colors.cycleBorder;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x + 1, y + 1, CELL_SIZE - 2, CELL_SIZE - 2);
+        ctx.lineWidth = 0.5;
+      }
+
+      if (isDeletedCell) ctx.globalAlpha = 1;
+    }
+  }
+}
+
+/** グループ境界線を描画する */
+function drawGroupBorders(
+  ctx: CanvasRenderingContext2D,
+  groupBorders: number[],
+  n: number,
+  colors: C4Colors,
+): void {
+  if (groupBorders.length === 0) return;
+  ctx.strokeStyle = colors.groupLine;
+  ctx.lineWidth = 2;
+  for (const bi of groupBorders) {
+    const gx = HEADER_WIDTH + bi * CELL_SIZE;
+    const gy = HEADER_HEIGHT + bi * CELL_SIZE;
+    ctx.beginPath();
+    ctx.moveTo(gx, HEADER_HEIGHT);
+    ctx.lineTo(gx, HEADER_HEIGHT + n * CELL_SIZE);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(HEADER_WIDTH, gy);
+    ctx.lineTo(HEADER_WIDTH + n * CELL_SIZE, gy);
+    ctx.stroke();
+  }
+  ctx.lineWidth = 0.5;
+}
+
+/** フォーカスハイライトを描画する */
+function drawFocusHighlight(
+  ctx: CanvasRenderingContext2D,
+  matrix: DsmMatrix,
+  focusedNodeId: string | null | undefined,
+  colors: C4Colors,
+): void {
+  if (!focusedNodeId) return;
+  const n = matrix.nodes.length;
+  const focusIdx = matrix.nodes.findIndex(nd => nd.id === focusedNodeId || nd.name === focusedNodeId);
+  if (focusIdx < 0) return;
+  ctx.fillStyle = colors.focus;
+  ctx.fillRect(HEADER_WIDTH, HEADER_HEIGHT + focusIdx * CELL_SIZE, n * CELL_SIZE, CELL_SIZE);
+  ctx.fillRect(HEADER_WIDTH + focusIdx * CELL_SIZE, HEADER_HEIGHT, CELL_SIZE, n * CELL_SIZE);
+}
+
+/** スコープハイライト（太枠）を描画する */
+function drawScopeHighlight(
+  ctx: CanvasRenderingContext2D,
+  matrix: DsmMatrix,
+  scopeIds: ReadonlySet<string> | null | undefined,
+  colors: C4Colors,
+): void {
+  if (!scopeIds || scopeIds.size === 0) return;
+  const n = matrix.nodes.length;
+  const scopeIndices: number[] = [];
+  for (let i = 0; i < n; i++) {
+    if (scopeIds.has(matrix.nodes[i].id)) {
+      scopeIndices.push(i);
+    }
+  }
+  if (scopeIndices.length === 0) return;
+
+  const ranges = buildScopeRanges(scopeIndices);
+  ctx.strokeStyle = colors.scopeBorder;
+  ctx.lineWidth = SCOPE_BORDER_WIDTH;
+  for (const range of ranges) {
+    const sx = HEADER_WIDTH + range.start * CELL_SIZE;
+    const sy = HEADER_HEIGHT + range.start * CELL_SIZE;
+    const sw = (range.end - range.start + 1) * CELL_SIZE;
+    ctx.strokeRect(sx, sy, sw, sw);
+  }
+  ctx.lineWidth = 0.5;
+}
+
+/** ホバーハイライトを描画する */
+function drawHoverHighlight(
+  ctx: CanvasRenderingContext2D,
+  hovered: { row: number; col: number } | null,
+  n: number,
+  colors: C4Colors,
+): void {
+  if (!hovered) return;
+  ctx.fillStyle = colors.hover;
+  ctx.fillRect(HEADER_WIDTH, HEADER_HEIGHT + hovered.row * CELL_SIZE, n * CELL_SIZE, CELL_SIZE);
+  ctx.fillRect(HEADER_WIDTH + hovered.col * CELL_SIZE, HEADER_HEIGHT, CELL_SIZE, n * CELL_SIZE);
+}
+
+/** 行ヘッダーを描画する */
+function drawRowHeaders(
+  ctx: CanvasRenderingContext2D,
+  matrix: DsmMatrix,
+  vp: { offsetX: number; offsetY: number; scale: number },
+  focusIdx: number,
+  deletedIds: ReadonlySet<string> | undefined,
+  colors: C4Colors,
+  h: number,
+): void {
+  const n = matrix.nodes.length;
+  const s = vp.scale;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, HEADER_HEIGHT, HEADER_WIDTH, h - HEADER_HEIGHT);
+  ctx.clip();
+
+  ctx.fillStyle = colors.bg;
+  ctx.fillRect(0, HEADER_HEIGHT, HEADER_WIDTH, h - HEADER_HEIGHT);
+
+  const fontSize = Math.max(6, Math.min(14, 10 * s));
+  const labelFont = `${fontSize}px sans-serif`;
+
+  ctx.font = labelFont;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'right';
+  for (let i = 0; i < n; i++) {
+    const name = truncate(matrix.nodes[i].name, 14);
+    const rowY = (HEADER_HEIGHT + i * CELL_SIZE + CELL_SIZE / 2) * s + vp.offsetY;
+    const isDeleted = deletedIds?.has(matrix.nodes[i].id);
+
+    if (isDeleted) ctx.globalAlpha = DELETED_TEXT_ALPHA;
+    ctx.fillStyle = i === focusIdx ? colors.accent : colors.text;
+    if (i === focusIdx) ctx.font = `bold ${fontSize}px sans-serif`;
+    ctx.fillText(name, HEADER_WIDTH - 4, rowY);
+
+    if (isDeleted) {
+      const textWidth = ctx.measureText(name).width;
+      ctx.strokeStyle = ctx.fillStyle;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(HEADER_WIDTH - 4 - textWidth, rowY);
+      ctx.lineTo(HEADER_WIDTH - 4, rowY);
+      ctx.stroke();
+    }
+
+    if (i === focusIdx) ctx.font = labelFont;
+    if (isDeleted) ctx.globalAlpha = 1;
+  }
+  ctx.restore();
+}
+
+/** 列ヘッダーを描画する */
+function drawColHeaders(
+  ctx: CanvasRenderingContext2D,
+  matrix: DsmMatrix,
+  vp: { offsetX: number; offsetY: number; scale: number },
+  deletedIds: ReadonlySet<string> | undefined,
+  colors: C4Colors,
+  w: number,
+  fontSize: number,
+  labelFont: string,
+): void {
+  const n = matrix.nodes.length;
+  const s = vp.scale;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(HEADER_WIDTH, 0, w - HEADER_WIDTH, HEADER_HEIGHT);
+  ctx.clip();
+
+  ctx.fillStyle = colors.bg;
+  ctx.fillRect(HEADER_WIDTH, 0, w - HEADER_WIDTH, HEADER_HEIGHT);
+
+  ctx.fillStyle = colors.text;
+  ctx.font = labelFont;
+  ctx.textBaseline = 'middle';
+  for (let i = 0; i < n; i++) {
+    const name = truncate(matrix.nodes[i].name, 14);
+    const colX = (HEADER_WIDTH + i * CELL_SIZE + CELL_SIZE / 2) * s + vp.offsetX;
+    const isDeleted = deletedIds?.has(matrix.nodes[i].id);
+
+    if (isDeleted) ctx.globalAlpha = DELETED_TEXT_ALPHA;
+
+    ctx.save();
+    ctx.translate(colX, HEADER_HEIGHT - 4);
+    ctx.rotate(-Math.PI / 4);
+    ctx.textAlign = 'left';
+    ctx.fillText(name, 0, 0);
+
+    if (isDeleted) {
+      const textWidth = ctx.measureText(name).width;
+      ctx.strokeStyle = colors.text;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(textWidth, 0);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+    if (isDeleted) ctx.globalAlpha = 1;
+  }
+  ctx.restore();
+}
+
 function hitTestCell(
   mouseX: number,
   mouseY: number,
@@ -187,6 +490,12 @@ export function DsmCanvas({ model, fullModel, boundaries, level, clustered, focu
       }
 
       const s = vp.scale;
+      const fontSize = Math.max(6, Math.min(14, 10 * s));
+      const labelFont = `${fontSize}px sans-serif`;
+      const focusIdx = focusedNodeId
+        ? matrix.nodes.findIndex(nd => nd.id === focusedNodeId || nd.name === focusedNodeId)
+        : -1;
+      const deletedIndices = buildDeletedIndices(matrix.nodes, deletedIds);
 
       // --- Cell area (panned & zoomed, clipped to content region) ---
       ctx!.save();
@@ -196,234 +505,17 @@ export function DsmCanvas({ model, fullModel, boundaries, level, clustered, focu
       ctx!.translate(vp.offsetX, vp.offsetY);
       ctx!.scale(s, s);
 
-      // Grid lines
-      ctx!.strokeStyle = colors.grid;
-      ctx!.lineWidth = 0.5;
-      for (let i = 0; i <= n; i++) {
-        const x = HEADER_WIDTH + i * CELL_SIZE;
-        const y = HEADER_HEIGHT + i * CELL_SIZE;
-        ctx!.beginPath();
-        ctx!.moveTo(x, HEADER_HEIGHT);
-        ctx!.lineTo(x, HEADER_HEIGHT + n * CELL_SIZE);
-        ctx!.stroke();
-        ctx!.beginPath();
-        ctx!.moveTo(HEADER_WIDTH, y);
-        ctx!.lineTo(HEADER_WIDTH + n * CELL_SIZE, y);
-        ctx!.stroke();
-      }
-
-      // Deleted indices
-      const deletedIndices = new Set<number>();
-      if (deletedIds) {
-        for (let i = 0; i < n; i++) {
-          if (deletedIds.has(matrix.nodes[i].id)) {
-            deletedIndices.add(i);
-          }
-        }
-      }
-
-      // Cells
-      for (let i = 0; i < n; i++) {
-        for (let j = 0; j < n; j++) {
-          const x = HEADER_WIDTH + j * CELL_SIZE;
-          const y = HEADER_HEIGHT + i * CELL_SIZE;
-          const isDeletedCell = deletedIndices.has(i) || deletedIndices.has(j);
-
-          if (isDeletedCell) ctx!.globalAlpha = colors.deletedAlpha;
-
-          if (i === j) {
-            ctx!.fillStyle = colors.diagonal;
-            ctx!.fillRect(x, y, CELL_SIZE, CELL_SIZE);
-            if (isDeletedCell) ctx!.globalAlpha = 1;
-            continue;
-          }
-
-          if (matrix.adjacency[i][j] === 1) {
-            ctx!.fillStyle = colors.dependency;
-            ctx!.fillRect(x + 1, y + 1, CELL_SIZE - 2, CELL_SIZE - 2);
-          }
-
-          // Cyclic border
-          const key = `${matrix.nodes[i].id}:${matrix.nodes[j].id}`;
-          if (cyclicSet.has(key) && matrix.adjacency[i][j] === 1) {
-            ctx!.strokeStyle = colors.cycleBorder;
-            ctx!.lineWidth = 2;
-            ctx!.strokeRect(x + 1, y + 1, CELL_SIZE - 2, CELL_SIZE - 2);
-            ctx!.lineWidth = 0.5;
-          }
-
-          if (isDeletedCell) ctx!.globalAlpha = 1;
-        }
-      }
-
-      // Group border lines (e.g. component boundaries at L4)
-      const groupBorders = groupBordersRef.current;
-      if (groupBorders.length > 0) {
-        ctx!.strokeStyle = colors.groupLine;
-        ctx!.lineWidth = 2;
-        for (const bi of groupBorders) {
-          const gx = HEADER_WIDTH + bi * CELL_SIZE;
-          const gy = HEADER_HEIGHT + bi * CELL_SIZE;
-          // Vertical line
-          ctx!.beginPath();
-          ctx!.moveTo(gx, HEADER_HEIGHT);
-          ctx!.lineTo(gx, HEADER_HEIGHT + n * CELL_SIZE);
-          ctx!.stroke();
-          // Horizontal line
-          ctx!.beginPath();
-          ctx!.moveTo(HEADER_WIDTH, gy);
-          ctx!.lineTo(HEADER_WIDTH + n * CELL_SIZE, gy);
-          ctx!.stroke();
-        }
-        ctx!.lineWidth = 0.5;
-      }
-
-      // Focus highlight (selected element from tree)
-      if (focusedNodeId) {
-        const focusIdx = matrix.nodes.findIndex(nd => nd.id === focusedNodeId || nd.name === focusedNodeId);
-        if (focusIdx >= 0) {
-          ctx!.fillStyle = colors.focus;
-          ctx!.fillRect(HEADER_WIDTH, HEADER_HEIGHT + focusIdx * CELL_SIZE, n * CELL_SIZE, CELL_SIZE);
-          ctx!.fillRect(HEADER_WIDTH + focusIdx * CELL_SIZE, HEADER_HEIGHT, CELL_SIZE, n * CELL_SIZE);
-        }
-      }
-
-      // Scope highlight (thick border around selected scope)
-      if (scopeIds && scopeIds.size > 0) {
-        const scopeIndices: number[] = [];
-        for (let i = 0; i < n; i++) {
-          if (scopeIds.has(matrix.nodes[i].id)) {
-            scopeIndices.push(i);
-          }
-        }
-        if (scopeIndices.length > 0) {
-          // Find contiguous ranges
-          scopeIndices.sort((a, b) => a - b);
-          let rangeStart = scopeIndices[0];
-          let rangeEnd = scopeIndices[0];
-          const ranges: { start: number; end: number }[] = [];
-          for (let i = 1; i < scopeIndices.length; i++) {
-            if (scopeIndices[i] === rangeEnd + 1) {
-              rangeEnd = scopeIndices[i];
-            } else {
-              ranges.push({ start: rangeStart, end: rangeEnd });
-              rangeStart = scopeIndices[i];
-              rangeEnd = scopeIndices[i];
-            }
-          }
-          ranges.push({ start: rangeStart, end: rangeEnd });
-
-          ctx!.strokeStyle = colors.scopeBorder;
-          ctx!.lineWidth = SCOPE_BORDER_WIDTH;
-          for (const range of ranges) {
-            const sx = HEADER_WIDTH + range.start * CELL_SIZE;
-            const sy = HEADER_HEIGHT + range.start * CELL_SIZE;
-            const sw = (range.end - range.start + 1) * CELL_SIZE;
-            const sh = sw;
-            ctx!.strokeRect(sx, sy, sw, sh);
-          }
-          ctx!.lineWidth = 0.5;
-        }
-      }
-
-      // Hover highlight (within cell area)
-      if (hovered) {
-        ctx!.fillStyle = colors.hover;
-        ctx!.fillRect(HEADER_WIDTH, HEADER_HEIGHT + hovered.row * CELL_SIZE, n * CELL_SIZE, CELL_SIZE);
-        ctx!.fillRect(HEADER_WIDTH + hovered.col * CELL_SIZE, HEADER_HEIGHT, CELL_SIZE, n * CELL_SIZE);
-      }
+      drawGridLines(ctx!, n, colors);
+      drawCells(ctx!, matrix, deletedIndices, cyclicSet, colors);
+      drawGroupBorders(ctx!, groupBordersRef.current, n, colors);
+      drawFocusHighlight(ctx!, matrix, focusedNodeId, colors);
+      drawScopeHighlight(ctx!, matrix, scopeIds, colors);
+      drawHoverHighlight(ctx!, hovered, n, colors);
 
       ctx!.restore();
 
-      // --- Row headers (fixed left, only Y panned) ---
-      ctx!.save();
-      ctx!.beginPath();
-      ctx!.rect(0, HEADER_HEIGHT, HEADER_WIDTH, h - HEADER_HEIGHT);
-      ctx!.clip();
-
-      // Background to cover scrolled cells
-      ctx!.fillStyle = colors.bg;
-      ctx!.fillRect(0, HEADER_HEIGHT, HEADER_WIDTH, h - HEADER_HEIGHT);
-
-      const fontSize = Math.max(6, Math.min(14, 10 * s));
-      const labelFont = `${fontSize}px sans-serif`;
-
-      const focusIdx = focusedNodeId ? matrix.nodes.findIndex(nd => nd.id === focusedNodeId || nd.name === focusedNodeId) : -1;
-
-      ctx!.font = labelFont;
-      ctx!.textBaseline = 'middle';
-      ctx!.textAlign = 'right';
-      for (let i = 0; i < n; i++) {
-        const name = truncate(matrix.nodes[i].name, 14);
-        const rowY = (HEADER_HEIGHT + i * CELL_SIZE + CELL_SIZE / 2) * s + vp.offsetY;
-        const isDeleted = deletedIds?.has(matrix.nodes[i].id);
-
-        if (isDeleted) ctx!.globalAlpha = DELETED_TEXT_ALPHA;
-        ctx!.fillStyle = i === focusIdx ? colors.accent : colors.text;
-        if (i === focusIdx) {
-          ctx!.font = `bold ${fontSize}px sans-serif`;
-        }
-        ctx!.fillText(name, HEADER_WIDTH - 4, rowY);
-
-        // 打ち消し線
-        if (isDeleted) {
-          const textWidth = ctx!.measureText(name).width;
-          ctx!.strokeStyle = ctx!.fillStyle;
-          ctx!.lineWidth = 1;
-          ctx!.beginPath();
-          ctx!.moveTo(HEADER_WIDTH - 4 - textWidth, rowY);
-          ctx!.lineTo(HEADER_WIDTH - 4, rowY);
-          ctx!.stroke();
-        }
-
-        if (i === focusIdx) {
-          ctx!.font = labelFont;
-        }
-        if (isDeleted) ctx!.globalAlpha = 1;
-      }
-      ctx!.restore();
-
-      // --- Column headers (fixed top, only X panned) ---
-      ctx!.save();
-      ctx!.beginPath();
-      ctx!.rect(HEADER_WIDTH, 0, w - HEADER_WIDTH, HEADER_HEIGHT);
-      ctx!.clip();
-
-      // Background to cover scrolled cells
-      ctx!.fillStyle = colors.bg;
-      ctx!.fillRect(HEADER_WIDTH, 0, w - HEADER_WIDTH, HEADER_HEIGHT);
-
-      ctx!.fillStyle = colors.text;
-      ctx!.font = labelFont;
-      ctx!.textBaseline = 'middle';
-      for (let i = 0; i < n; i++) {
-        const name = truncate(matrix.nodes[i].name, 14);
-        const colX = (HEADER_WIDTH + i * CELL_SIZE + CELL_SIZE / 2) * s + vp.offsetX;
-        const isDeleted = deletedIds?.has(matrix.nodes[i].id);
-
-        if (isDeleted) ctx!.globalAlpha = DELETED_TEXT_ALPHA;
-
-        ctx!.save();
-        ctx!.translate(colX, HEADER_HEIGHT - 4);
-        ctx!.rotate(-Math.PI / 4);
-        ctx!.textAlign = 'left';
-        ctx!.fillText(name, 0, 0);
-
-        // 打ち消し線
-        if (isDeleted) {
-          const textWidth = ctx!.measureText(name).width;
-          ctx!.strokeStyle = colors.text;
-          ctx!.lineWidth = 1;
-          ctx!.beginPath();
-          ctx!.moveTo(0, 0);
-          ctx!.lineTo(textWidth, 0);
-          ctx!.stroke();
-        }
-
-        ctx!.restore();
-        if (isDeleted) ctx!.globalAlpha = 1;
-      }
-      ctx!.restore();
+      drawRowHeaders(ctx!, matrix, vp, focusIdx, deletedIds, colors, h);
+      drawColHeaders(ctx!, matrix, vp, deletedIds, colors, w, fontSize, labelFont);
 
       // --- Corner background (top-left, covers overlap) ---
       ctx!.fillStyle = colors.bg;
