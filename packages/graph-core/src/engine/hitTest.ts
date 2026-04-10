@@ -248,75 +248,111 @@ export interface HitTestContext {
 export function hitTest(ctx: HitTestContext): HitResult {
   const { nodes, edges, wx, wy, scale, selectedNodeIds, hoverNodeId, selectedEdgeIds } = ctx;
 
-  // --- 1. 選択中エッジの端点ハンドル（再接続ドラッグ用、最高優先度） ---
-  if (selectedEdgeIds) {
-    for (const eid of selectedEdgeIds) {
-      const edge = edges.find(e => e.id === eid);
-      if (edge) {
-        const end = hitTestEdgeEndpoints(edge, wx, wy, scale);
-        if (end) return { type: 'edge-endpoint', id: edge.id, endpointEnd: end };
-      }
-    }
-  }
+  // 優先度順に判定。見つかった時点で即リターン
+  return hitTestSelectedEdgeEndpoints(edges, selectedEdgeIds, wx, wy, scale)
+    ?? hitTestHoverConnectionPoint(nodes, hoverNodeId, wx, wy, scale)
+    ?? hitTestSelectedResizeHandles(nodes, selectedNodeIds, wx, wy, scale)
+    ?? hitTestFrameCollapseIcons(nodes, wx, wy)
+    ?? hitTestNodeBodies(nodes, wx, wy)
+    ?? hitTestSelectedWaypoints(edges, selectedEdgeIds, wx, wy, scale)
+    ?? hitTestClosestEdge(edges, wx, wy, scale)
+    ?? { type: 'none' };
+}
 
-  // --- 2. 接続ポイント（ホバー中ノードのみ、接続優先 UX） ---
-  if (hoverNodeId) {
-    const hoverNode = nodes.find(n => n.id === hoverNodeId);
-    if (hoverNode) {
-      const cp = hitTestConnectionPointFull(hoverNode, wx, wy, scale);
-      if (cp) return { type: 'connection-point', id: hoverNode.id, connectionSide: cp.side, connectionX: cp.x, connectionY: cp.y };
-    }
+/** 1. 選択中エッジの端点ハンドル（再接続ドラッグ用、最高優先度） */
+function hitTestSelectedEdgeEndpoints(
+  edges: GraphEdge[], selectedEdgeIds: string[] | undefined,
+  wx: number, wy: number, scale: number,
+): HitResult | null {
+  if (!selectedEdgeIds) return null;
+  for (const eid of selectedEdgeIds) {
+    const edge = edges.find(e => e.id === eid);
+    if (!edge) continue;
+    const end = hitTestEdgeEndpoints(edge, wx, wy, scale);
+    if (end) return { type: 'edge-endpoint', id: edge.id, endpointEnd: end };
   }
+  return null;
+}
 
-  // --- 3. リサイズハンドル（選択中ノードのみ） ---
+/** 2. 接続ポイント（ホバー中ノードのみ、接続優先 UX） */
+function hitTestHoverConnectionPoint(
+  nodes: GraphNode[], hoverNodeId: string | undefined,
+  wx: number, wy: number, scale: number,
+): HitResult | null {
+  if (!hoverNodeId) return null;
+  const hoverNode = nodes.find(n => n.id === hoverNodeId);
+  if (!hoverNode) return null;
+  const cp = hitTestConnectionPointFull(hoverNode, wx, wy, scale);
+  if (!cp) return null;
+  return { type: 'connection-point', id: hoverNode.id, connectionSide: cp.side, connectionX: cp.x, connectionY: cp.y };
+}
+
+/** 3. リサイズハンドル（選択中ノードのみ） */
+function hitTestSelectedResizeHandles(
+  nodes: GraphNode[], selectedNodeIds: string[],
+  wx: number, wy: number, scale: number,
+): HitResult | null {
   for (const id of selectedNodeIds) {
     const node = nodes.find(n => n.id === id);
-    if (node) {
-      const handle = hitTestResizeHandles(node, wx, wy, scale);
-      if (handle) return { type: 'resize-handle', id: node.id, handle };
-    }
+    if (!node) continue;
+    const handle = hitTestResizeHandles(node, wx, wy, scale);
+    if (handle) return { type: 'resize-handle', id: node.id, handle };
   }
+  return null;
+}
 
-  // --- 3.5. フレーム折りたたみアイコン ---
+/** 3.5. フレーム折りたたみアイコン */
+function hitTestFrameCollapseIcons(
+  nodes: GraphNode[], wx: number, wy: number,
+): HitResult | null {
   for (let i = nodes.length - 1; i >= 0; i--) {
     if (hitTestFrameCollapse(nodes[i], wx, wy)) {
       return { type: 'frame-collapse', id: nodes[i].id };
     }
   }
+  return null;
+}
 
-  // --- 4. ノード本体（後方 → 前方、手前のノードを優先） ---
+/** 4. ノード本体（後方→前方、手前のノードを優先） */
+function hitTestNodeBodies(
+  nodes: GraphNode[], wx: number, wy: number,
+): HitResult | null {
   for (let i = nodes.length - 1; i >= 0; i--) {
     if (hitTestNode(nodes[i], wx, wy)) return { type: 'node', id: nodes[i].id };
   }
+  return null;
+}
 
-  // --- 5. ウェイポイントハンドル（選択中エッジのみ、ノードの後ろで判定） ---
-  if (selectedEdgeIds) {
-    for (const eid of selectedEdgeIds) {
-      const edge = edges.find(e => e.id === eid);
-      if (edge) {
-        const wpIdx = hitTestWaypointHandle(edge, wx, wy, scale);
-        if (wpIdx !== null) return { type: 'waypoint-handle', id: edge.id, waypointIndex: wpIdx };
-      }
-    }
+/** 5. ウェイポイントハンドル（選択中エッジのみ、ノードの後ろで判定） */
+function hitTestSelectedWaypoints(
+  edges: GraphEdge[], selectedEdgeIds: string[] | undefined,
+  wx: number, wy: number, scale: number,
+): HitResult | null {
+  if (!selectedEdgeIds) return null;
+  for (const eid of selectedEdgeIds) {
+    const edge = edges.find(e => e.id === eid);
+    if (!edge) continue;
+    const wpIdx = hitTestWaypointHandle(edge, wx, wy, scale);
+    if (wpIdx !== null) return { type: 'waypoint-handle', id: edge.id, waypointIndex: wpIdx };
   }
+  return null;
+}
 
-  // --- 6. エッジ本体（複数重なり時は最近接を優先） ---
+/** 6. エッジ本体（複数重なり時は最近接を優先） */
+function hitTestClosestEdge(
+  edges: GraphEdge[], wx: number, wy: number, scale: number,
+): HitResult | null {
   const tolerance = EDGE_TOLERANCE / scale;
-  let bestEdgeResult: HitResult | null = null;
-  let bestEdgeDist = Infinity;
+  let bestResult: HitResult | null = null;
+  let bestDist = Infinity;
   for (let i = edges.length - 1; i >= 0; i--) {
     const dist = distanceToEdge(edges[i], wx, wy);
-    if (dist > tolerance) continue;
-    if (dist < bestEdgeDist) {
-      bestEdgeDist = dist;
-      const seg = hitTestEdgeSegment(edges[i], wx, wy, scale);
-      bestEdgeResult = seg
-        ? { type: 'edge-segment', id: edges[i].id, segmentDirection: seg.segmentDirection, segmentIndex: seg.segmentIndex }
-        : { type: 'edge', id: edges[i].id };
-    }
+    if (dist > tolerance || dist >= bestDist) continue;
+    bestDist = dist;
+    const seg = hitTestEdgeSegment(edges[i], wx, wy, scale);
+    bestResult = seg
+      ? { type: 'edge-segment', id: edges[i].id, segmentDirection: seg.segmentDirection, segmentIndex: seg.segmentIndex }
+      : { type: 'edge', id: edges[i].id };
   }
-  if (bestEdgeResult) return bestEdgeResult;
-
-  // --- 7. 何も見つからなかった ---
-  return { type: 'none' };
+  return bestResult;
 }
