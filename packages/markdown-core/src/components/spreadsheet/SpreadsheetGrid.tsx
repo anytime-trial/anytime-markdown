@@ -16,7 +16,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { getDivider } from "../../constants/colors";
 import { SpreadsheetContextMenu } from "./SpreadsheetContextMenu";
-import type { CellAlign, CellEditState, ColumnFilterState, ContextMenuState, DataRange } from "./spreadsheetTypes";
+import type { CellAlign, CellEditState, ColumnFilterState, ContextMenuState, DataRange, SpreadsheetSelection } from "./spreadsheetTypes";
 import {
   columnLabel,
   DEFAULT_GRID_COLS,
@@ -65,6 +65,58 @@ interface SpreadsheetGridProps {
   readonly onDirtyChange?: (dirty: boolean) => void;
   /** 適用後に全画面を閉じるコールバック */
   readonly onClose?: () => void;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Canvas click helpers (pure functions)                               */
+/* ------------------------------------------------------------------ */
+
+/** Shift+クリック時のアンカーセルを解決する */
+function resolveSelectionAnchor(
+  sel: SpreadsheetSelection,
+): { row: number; col: number } | null {
+  if (sel.type === "cell") return { row: sel.row, col: sel.col };
+  if (sel.type === "range") return { row: sel.startRow, col: sel.startCol };
+  return null;
+}
+
+/** ヘッダー列クリック時の選択状態を返す */
+function handleHeaderColClick(
+  col: number,
+  shiftKey: boolean,
+  selection: SpreadsheetSelection | null,
+): SpreadsheetSelection {
+  if (shiftKey && selection?.type === "col") {
+    return { type: "col", start: selection.start, end: col };
+  }
+  return { type: "col", start: col, end: col };
+}
+
+/** 行番号クリック時の選択状態を返す */
+function handleRowNumClick(
+  row: number,
+  shiftKey: boolean,
+  selection: SpreadsheetSelection | null,
+): SpreadsheetSelection {
+  if (shiftKey && selection?.type === "row") {
+    return { type: "row", start: selection.start, end: row };
+  }
+  return { type: "row", start: row, end: row };
+}
+
+/** セルクリック時の選択状態を返す */
+function handleCellClick(
+  cell: { row: number; col: number },
+  shiftKey: boolean,
+  selection: SpreadsheetSelection | null,
+): SpreadsheetSelection {
+  if (shiftKey && selection) {
+    const anchor = resolveSelectionAnchor(selection);
+    if (anchor) {
+      return { type: "range", startRow: anchor.row, startCol: anchor.col, endRow: cell.row, endCol: cell.col };
+    }
+  }
+  return { type: "cell", row: cell.row, col: cell.col };
 }
 
 /* ------------------------------------------------------------------ */
@@ -897,15 +949,12 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
       suppressClickRef.current = false;
       return;
     }
+
     // Check header col
     const col = getHeaderCol(e);
     if (col !== null) {
-      if (e.shiftKey && selection?.type === "col") {
-        // Shift+クリックで範囲拡張
-        setSelection({ type: "col", start: selection.start, end: col });
-      } else {
-        setSelection({ type: "col", start: col, end: col });
-      }
+      const next = handleHeaderColClick(col, e.shiftKey, selection);
+      setSelection(next);
       setEditing(null);
       return;
     }
@@ -913,11 +962,8 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     // Check row num
     const row = getRowNum(e);
     if (row !== null) {
-      if (e.shiftKey && selection?.type === "row") {
-        setSelection({ type: "row", start: selection.start, end: row });
-      } else {
-        setSelection({ type: "row", start: row, end: row });
-      }
+      const next = handleRowNumClick(row, e.shiftKey, selection);
+      setSelection(next);
       setEditing(null);
       return;
     }
@@ -925,20 +971,8 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     // Check cell
     const cell = getGridCoords(e);
     if (cell) {
-      if (e.shiftKey && selection) {
-        // Shift+クリックで範囲選択
-        const anchorFromType = selection.type === "cell"
-          ? { row: selection.row, col: selection.col }
-          : null;
-        const anchor = anchorFromType
-          ?? (selection.type === "range" ? { row: selection.startRow, col: selection.startCol } : null);
-        if (anchor) {
-          setSelection({ type: "range", startRow: anchor.row, startCol: anchor.col, endRow: cell.row, endCol: cell.col });
-          setEditing(null);
-          return;
-        }
-      }
-      setSelection({ type: "cell", row: cell.row, col: cell.col });
+      const next = handleCellClick(cell, e.shiftKey, selection);
+      setSelection(next);
       setEditing(null);
     }
   }, [getHeaderCol, getRowNum, getGridCoords, setSelection, selection]);
