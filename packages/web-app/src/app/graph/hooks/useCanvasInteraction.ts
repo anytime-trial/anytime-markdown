@@ -383,19 +383,13 @@ export function useCanvasInteraction({
       } else {
         cursorRef.current = 'default';
       }
-    } else if (drag.type === 'move') {
+    } else if (drag.type === 'move' || drag.type === 'pan') {
       cursorRef.current = 'grabbing';
       hoverNodeIdRef.current = undefined;
     } else if (drag.type === 'resize') {
       // リサイズ中はカーソル維持
       hoverNodeIdRef.current = undefined;
-    } else if (drag.type === 'pan') {
-      cursorRef.current = 'grabbing';
-      hoverNodeIdRef.current = undefined;
-    } else if (drag.type === 'create-edge') {
-      cursorRef.current = 'crosshair';
-      hoverNodeIdRef.current = undefined;
-    } else if (drag.type === 'create-shape') {
+    } else if (drag.type === 'create-edge' || drag.type === 'create-shape') {
       cursorRef.current = 'crosshair';
       hoverNodeIdRef.current = undefined;
     } else if (drag.type !== 'none') {
