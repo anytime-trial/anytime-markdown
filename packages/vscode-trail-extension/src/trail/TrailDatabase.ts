@@ -1124,6 +1124,18 @@ export class TrailDatabase {
     return results;
   }
 
+  getLastImportedAt(): string | null {
+    this.ensureDb();
+    const result = this.db!.exec(
+      `SELECT MAX(imported_at) as last_imported FROM sessions`,
+    );
+    if (result.length === 0 || result[0].values.length === 0) {
+      return null;
+    }
+    const value = result[0].values[0][0];
+    return value ? String(value) : null;
+  }
+
   getStats(): DbStats {
     const db = this.ensureDb();
 
