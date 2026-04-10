@@ -31,7 +31,7 @@
     "onView:anytimeTrail.dashboard",
     "onView:anytimeTrail.c4Elements"
   ],
-  "icon": "images/camel_git.png",
+  "icon": "images/camel_trail.png",
   "main": "./dist/extension.js",
   "contributes": {
     "viewsContainers": {
@@ -39,7 +39,7 @@
         {
           "id": "anytimeTrail",
           "title": "%viewsContainer.title%",
-          "icon": "images/git-activitybar.svg"
+          "icon": "images/trail_activitybar_icon.svg"
         }
       ]
     },
