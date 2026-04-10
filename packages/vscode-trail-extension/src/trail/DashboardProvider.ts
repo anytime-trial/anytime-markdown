@@ -6,7 +6,7 @@ import type { SupabaseTrailStore } from './SupabaseTrailStore';
 interface DbRootItem {
   readonly label: string;
   readonly contextValue: 'sqliteDb' | 'supabaseDb';
-  readonly status: string;
+  readonly status?: string;
   readonly lastImported: string | null;
 }
 
@@ -14,7 +14,9 @@ class DbRootTreeItem extends vscode.TreeItem {
   constructor(item: DbRootItem) {
     super(item.label, vscode.TreeItemCollapsibleState.Collapsed);
     this.contextValue = item.contextValue;
-    this.description = item.status;
+    if (item.status !== undefined) {
+      this.description = item.status;
+    }
   }
 }
 
@@ -86,13 +88,11 @@ export class DashboardProvider implements vscode.TreeDataProvider<AnyTreeItem> {
         new DbRootTreeItem({
           label: 'SQLite',
           contextValue: 'sqliteDb',
-          status: this.sqliteStatus,
           lastImported: this.sqliteLastImported,
         }),
         new DbRootTreeItem({
           label: 'Supabase',
           contextValue: 'supabaseDb',
-          status: this.supabaseStatus,
           lastImported: this.supabaseLastImported,
         }),
       ];
