@@ -44,13 +44,16 @@ function aggregateByPeriod(
 
   const grouped = new Map<string, { actualCost: number; ruleCost: number; featureCost: number }>();
   for (const d of daily) {
-    const dt = new Date(d.date);
+    // T12:00:00 を付けてローカルTZでも日付がずれないようにする
+    const dt = new Date(`${d.date}T12:00:00`);
     let key: string;
     if (mode === 'week') {
       const dayOfWeek = dt.getDay();
       const monday = new Date(dt);
       monday.setDate(dt.getDate() - ((dayOfWeek + 6) % 7));
-      key = monday.toISOString().slice(5, 10);
+      const m = String(monday.getMonth() + 1).padStart(2, '0');
+      const day = String(monday.getDate()).padStart(2, '0');
+      key = `${m}-${day}`;
     } else {
       key = d.date.slice(0, 7);
     }

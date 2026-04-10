@@ -1526,7 +1526,7 @@ export class TrailDatabase {
         COALESCE(SUM(cache_read_tokens),0),
         COALESCE(SUM(cache_creation_tokens),0)
       FROM sessions
-      WHERE start_time >= DATE('now', '-90 days')
+      WHERE start_time >= DATE('now', '${tzOffset}', '-90 days')
       GROUP BY d ORDER BY d`,
     );
     const dailyActivity = (dailyResult[0]?.values ?? []).map((r) => ({
@@ -1729,7 +1729,7 @@ export class TrailDatabase {
               SUM(m.input_tokens) AS inp, SUM(m.output_tokens) AS outp,
               SUM(m.cache_read_tokens) AS cr, COALESCE(m.model,'') AS mdl
        FROM messages m
-       WHERE m.type = 'assistant' AND m.timestamp >= DATE('now', '-90 days')
+       WHERE m.type = 'assistant' AND m.timestamp >= DATE('now', '${tzOffset}', '-90 days')
        GROUP BY d, mdl ORDER BY d`,
     );
     const dailyMap = new Map<string, { actual: number; rule: number; feature: number }>();
@@ -1755,7 +1755,7 @@ export class TrailDatabase {
               a.input_tokens, a.output_tokens, a.cache_read_tokens
        FROM messages a
        LEFT JOIN messages u ON a.parent_uuid = u.uuid AND u.type = 'user'
-       WHERE a.type = 'assistant' AND a.timestamp >= DATE('now', '-90 days')`,
+       WHERE a.type = 'assistant' AND a.timestamp >= DATE('now', '${tzOffset}', '-90 days')`,
     );
     const dailyRefined = new Map<string, { actual: number; rule: number; feature: number }>();
     for (const row of dailyDetailResult[0]?.values ?? []) {
