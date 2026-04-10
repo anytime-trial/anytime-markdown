@@ -13,5 +13,6 @@
   "config.c4AnalyzeExcludePatterns": "Directory names to exclude when searching for `tsconfig.json` during C4 workspace analysis. Paths containing any of these strings will be filtered out.",
   "config.c4ModelPath": "File path to save/load C4 model data. Relative paths are resolved from the workspace root. Default: `.vscode/c4-model.json`.",
   "command.dsmShow": "Trail: Show DSM",
-  "command.dsmAnalyze": "Trail: Analyze Dependencies"
+  "command.dsmAnalyze": "Trail: Analyze Dependencies",
+  "command.aiMemoryRefresh": "Refresh Memory"
 }
