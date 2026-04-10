@@ -181,6 +181,31 @@ function reconstructPath(
   return path;
 }
 
+/** Process neighbors of a node in the Dijkstra search, updating dist/prev/heap */
+function processNeighbors(
+  nodeId: number,
+  dir: Direction,
+  cost: number,
+  neighbors: Array<{ to: number; distance: number; horizontal: boolean }>,
+  bendPenalty: number,
+  dist: Map<string, number>,
+  prev: Map<string, { nodeId: number; dir: Direction } | null>,
+  heap: MinHeap,
+): void {
+  for (const neighbor of neighbors) {
+    const edgeDir: Direction = neighbor.horizontal ? 'h' : 'v';
+    const bend = dir !== 'init' && dir !== edgeDir ? bendPenalty : 0;
+    const newCost = cost + neighbor.distance + bend;
+    const neighborKey = `${neighbor.to},${edgeDir}`;
+
+    if (newCost < (dist.get(neighborKey) ?? Infinity)) {
+      dist.set(neighborKey, newCost);
+      prev.set(neighborKey, { nodeId, dir });
+      heap.push({ cost: newCost, nodeId: neighbor.to, dir: edgeDir });
+    }
+  }
+}
+
 /**
  * 折れペナルティ付き Dijkstra。
  * エッジの方向が変わるたびに bendPenalty をコストに加算する。
@@ -213,18 +238,7 @@ export function dijkstraWithBendPenalty(
     const neighbors = adj.get(nodeId);
     if (!neighbors) continue;
 
-    for (const neighbor of neighbors) {
-      const edgeDir: Direction = neighbor.horizontal ? 'h' : 'v';
-      const bend = dir !== 'init' && dir !== edgeDir ? bendPenalty : 0;
-      const newCost = cost + neighbor.distance + bend;
-      const neighborKey = `${neighbor.to},${edgeDir}`;
-
-      if (newCost < (dist.get(neighborKey) ?? Infinity)) {
-        dist.set(neighborKey, newCost);
-        prev.set(neighborKey, { nodeId, dir });
-        heap.push({ cost: newCost, nodeId: neighbor.to, dir: edgeDir });
-      }
-    }
+    processNeighbors(nodeId, dir, cost, neighbors, bendPenalty, dist, prev, heap);
   }
 
   return null;
@@ -388,6 +402,65 @@ function simplifyPath(path: Point[]): Point[] {
 }
 
 /**
+ * 始点側の隣接点を補正して直交性を維持する。
+ * 斜め線が発生する場合はコーナー点を挿入する。
+ */
+function fixStartEntry(
+  path: Array<{ x: number; y: number }>,
+  fromPt: Point,
+  isHorizontal: boolean,
+): void {
+  const needsFix = isHorizontal
+    ? path[1].y !== fromPt.y
+    : path[1].x !== fromPt.x;
+  if (!needsFix) return;
+
+  const oldP1 = path[1];
+  path[1] = isHorizontal
+    ? { x: oldP1.x, y: fromPt.y }
+    : { x: fromPt.x, y: oldP1.y };
+
+  if (path.length <= 2) return;
+  const isDiagonal = path[2].x !== path[1].x && path[2].y !== path[1].y;
+  if (!isDiagonal) return;
+
+  const corner = isHorizontal
+    ? { x: path[1].x, y: path[2].y }
+    : { x: path[2].x, y: path[1].y };
+  path.splice(2, 0, corner);
+}
+
+/**
+ * 終点側の隣接点を補正して直交性を維持する。
+ * 斜め線が発生する場合はコーナー点を挿入する。
+ */
+function fixEndEntry(
+  path: Array<{ x: number; y: number }>,
+  toPt: Point,
+  isHorizontal: boolean,
+): void {
+  const last = path.length - 1;
+  const needsFix = isHorizontal
+    ? path[last - 1].y !== toPt.y
+    : path[last - 1].x !== toPt.x;
+  if (!needsFix) return;
+
+  const oldPrev = path[last - 1];
+  path[last - 1] = isHorizontal
+    ? { x: oldPrev.x, y: toPt.y }
+    : { x: toPt.x, y: oldPrev.y };
+
+  if (last - 2 < 0) return;
+  const isDiagonal = path[last - 2].x !== path[last - 1].x && path[last - 2].y !== path[last - 1].y;
+  if (!isDiagonal) return;
+
+  const corner = isHorizontal
+    ? { x: path[last - 1].x, y: path[last - 2].y }
+    : { x: path[last - 2].x, y: path[last - 1].y };
+  path.splice(last - 1, 0, corner);
+}
+
+/**
  * 始点/終点の最初/最後のセグメントが辺と垂直になるよう補正する。
  *
  * 隣接点の座標を揃えつつ、その先の点との間で斜め線が発生する場合は
@@ -403,39 +476,6 @@ function ensurePerpendicularEntry(
 ): void {
   if (path.length < 3) return;
 
-  const isFromHorizontal = fromSide === 'right' || fromSide === 'left';
-
-  // 始点側
-  if (isFromHorizontal ? path[1].y !== fromPt.y : path[1].x !== fromPt.x) {
-    const oldP1 = path[1];
-    if (isFromHorizontal) {
-      path[1] = { x: oldP1.x, y: fromPt.y };
-      if (path.length > 2 && path[2].x !== path[1].x && path[2].y !== path[1].y) {
-        path.splice(2, 0, { x: path[1].x, y: path[2].y });
-      }
-    } else {
-      path[1] = { x: fromPt.x, y: oldP1.y };
-      if (path.length > 2 && path[2].x !== path[1].x && path[2].y !== path[1].y) {
-        path.splice(2, 0, { x: path[2].x, y: path[1].y });
-      }
-    }
-  }
-
-  // 終点側
-  const last = path.length - 1;
-  const isToHorizontal = toSide === 'right' || toSide === 'left';
-  if (isToHorizontal ? path[last - 1].y !== toPt.y : path[last - 1].x !== toPt.x) {
-    const oldPrev = path[last - 1];
-    if (isToHorizontal) {
-      path[last - 1] = { x: oldPrev.x, y: toPt.y };
-      if (last - 2 >= 0 && path[last - 2].x !== path[last - 1].x && path[last - 2].y !== path[last - 1].y) {
-        path.splice(last - 1, 0, { x: path[last - 1].x, y: path[last - 2].y });
-      }
-    } else {
-      path[last - 1] = { x: toPt.x, y: oldPrev.y };
-      if (last - 2 >= 0 && path[last - 2].x !== path[last - 1].x && path[last - 2].y !== path[last - 1].y) {
-        path.splice(last - 1, 0, { x: path[last - 2].x, y: path[last - 1].y });
-      }
-    }
-  }
+  fixStartEntry(path, fromPt, fromSide === 'right' || fromSide === 'left');
+  fixEndEntry(path, toPt, toSide === 'right' || toSide === 'left');
 }
