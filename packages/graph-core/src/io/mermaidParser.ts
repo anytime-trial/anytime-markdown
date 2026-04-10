@@ -97,25 +97,54 @@ export const INLINE_LABEL_PATTERNS: Array<{
   { startRegex: /^--$/, endRegex: /^---$/, hasArrow: false },
 ];
 
-export function parseEdge(tokens: string[]): { consumed: number; edge: ParsedEdge } | null {
-  // Need at least 3 tokens: FROM ARROW TO
-  if (tokens.length < 3) return null;
-
-  const fromNode = parseNodeDef(tokens[0]);
-  if (!fromNode) return null;
-
-  // Try simple edge pattern (FROM ARROW TO)
+/** Try to match a simple edge pattern (FROM ARROW TO) */
+function trySimpleEdgePattern(
+  tokens: string[],
+  fromId: string,
+): { consumed: number; edge: ParsedEdge } | null {
   for (const pat of EDGE_PATTERNS) {
     const m = pat.regex.exec(tokens[1]);
-    if (m) {
-      const toNode = parseNodeDef(tokens[2]);
+    if (!m) continue;
+
+    const toNode = parseNodeDef(tokens[2]);
+    if (!toNode) return null;
+    return {
+      consumed: 3,
+      edge: {
+        fromId,
+        toId: toNode.mermaidId,
+        label: pat.labelGroup ? m[pat.labelGroup] : undefined,
+        hasArrow: pat.hasArrow,
+        dashed: pat.dashed,
+        thick: pat.thick,
+      },
+    };
+  }
+  return null;
+}
+
+/** Try to match an inline label pattern (FROM -- label --> TO) */
+function tryInlineLabelPattern(
+  tokens: string[],
+  fromId: string,
+): { consumed: number; edge: ParsedEdge } | null {
+  if (tokens.length < 4) return null;
+
+  for (const pat of INLINE_LABEL_PATTERNS) {
+    if (!pat.startRegex.test(tokens[1])) continue;
+
+    for (let i = 3; i < tokens.length; i++) {
+      if (!pat.endRegex.test(tokens[i])) continue;
+
+      const label = tokens.slice(2, i).join(' ');
+      const toNode = parseNodeDef(tokens[i + 1]);
       if (!toNode) return null;
       return {
-        consumed: 3,
+        consumed: i + 2,
         edge: {
-          fromId: fromNode.mermaidId,
+          fromId,
           toId: toNode.mermaidId,
-          label: pat.labelGroup ? m[pat.labelGroup] : undefined,
+          label,
           hasArrow: pat.hasArrow,
           dashed: pat.dashed,
           thick: pat.thick,
@@ -123,35 +152,18 @@ export function parseEdge(tokens: string[]): { consumed: number; edge: ParsedEdg
       };
     }
   }
-
-  // Try inline label pattern (FROM -- label --> TO)
-  if (tokens.length >= 4) {
-    for (const pat of INLINE_LABEL_PATTERNS) {
-      if (pat.startRegex.test(tokens[1])) {
-        // Find the matching end token
-        for (let i = 3; i < tokens.length; i++) {
-          if (pat.endRegex.test(tokens[i])) {
-            const label = tokens.slice(2, i).join(' ');
-            const toNode = parseNodeDef(tokens[i + 1]);
-            if (!toNode) return null;
-            return {
-              consumed: i + 2,
-              edge: {
-                fromId: fromNode.mermaidId,
-                toId: toNode.mermaidId,
-                label,
-                hasArrow: pat.hasArrow,
-                dashed: pat.dashed,
-                thick: pat.thick,
-              },
-            };
-          }
-        }
-      }
-    }
-  }
-
   return null;
+}
+
+export function parseEdge(tokens: string[]): { consumed: number; edge: ParsedEdge } | null {
+  // Need at least 3 tokens: FROM ARROW TO
+  if (tokens.length < 3) return null;
+
+  const fromNode = parseNodeDef(tokens[0]);
+  if (!fromNode) return null;
+
+  return trySimpleEdgePattern(tokens, fromNode.mermaidId)
+    ?? tryInlineLabelPattern(tokens, fromNode.mermaidId);
 }
 
 /**
