@@ -373,15 +373,12 @@ function extractToolCallNames(toolCallsJson: string | null): string[] {
 function countUniqueFiles(toolCallsJson: string | null): number {
   if (!toolCallsJson) return 0;
   try {
-    const calls = JSON.parse(toolCallsJson) as Array<{ input?: string }>;
+    const calls = JSON.parse(toolCallsJson) as Array<{ input?: Record<string, unknown> }>;
     const files = new Set<string>();
     for (const call of calls) {
-      if (!call.input) continue;
-      try {
-        const input = JSON.parse(call.input);
-        if (input.file_path) files.add(input.file_path);
-        if (input.path) files.add(input.path);
-      } catch { /* input may not be JSON */ }
+      if (!call.input || typeof call.input !== 'object') continue;
+      if (typeof call.input.file_path === 'string') files.add(call.input.file_path);
+      if (typeof call.input.path === 'string') files.add(call.input.path);
     }
     return files.size;
   } catch { return 0; }
