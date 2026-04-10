@@ -22,7 +22,7 @@ interface Props {
 
 export default async function ReportPage({ searchParams }: Props) {
   const { page, month } = await searchParams;
-  const currentPage = Math.max(1, parseInt(page ?? '1', 10) || 1);
+  const currentPage = Math.max(1, Number.parseInt(page ?? '1', 10) || 1);
 
   let reports: ReportMeta[] = [];
   try {
