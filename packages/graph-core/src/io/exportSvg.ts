@@ -58,34 +58,58 @@ function renderNodeSvg(node: GraphNode, gradFill?: string): string {
   return lines.join('\n');
 }
 
+function resolveEdgePoints(edge: GraphEdge, nodes: GraphNode[]): { x: number; y: number }[] {
+  if (edge.type !== 'connector' || !edge.from.nodeId || !edge.to.nodeId) {
+    return [];
+  }
+  const fromNode = nodes.find(n => n.id === edge.from.nodeId);
+  const toNode = nodes.find(n => n.id === edge.to.nodeId);
+  if (!fromNode || !toNode) {
+    return [];
+  }
+  if (edge.manualMidpoint !== undefined) {
+    return computeOrthogonalPath(fromNode, toNode, 20, edge.manualMidpoint);
+  }
+  const obstacles = nodes
+    .filter(n => n.id !== fromNode.id && n.id !== toNode.id)
+    .map(n => ({ x: n.x, y: n.y, width: n.width, height: n.height }));
+  const sides = bestSides(fromNode, toNode);
+  const fromPts = getConnectionPoints(fromNode);
+  const toPts = getConnectionPoints(toNode);
+  const fromPt = fromPts.find(p => p.side === sides.fromSide) ?? fromPts[0];
+  const toPt = toPts.find(p => p.side === sides.toSide) ?? toPts[0];
+  return computeVisibilityPath(fromPt, sides.fromSide, toPt, sides.toSide, obstacles);
+}
+
+function renderArrowMarker(
+  lines: string[],
+  points: { x: number; y: number }[],
+  edge: GraphEdge,
+  stroke: string,
+): void {
+  const endShape = edge.style.endShape ?? (edge.type === 'connector' ? 'arrow' : 'none');
+  if (endShape !== 'arrow') {
+    return;
+  }
+  const last = points.length >= 2 ? points.at(-1)! : { x: edge.to.x, y: edge.to.y };
+  const prev = points.length >= 2 ? points.at(-2)! : { x: edge.from.x, y: edge.from.y };
+  const angle = Math.atan2(last.y - prev.y, last.x - prev.x);
+  const len = 12;
+  const x1 = last.x - len * Math.cos(angle - Math.PI / 6);
+  const y1 = last.y - len * Math.sin(angle - Math.PI / 6);
+  const x2 = last.x - len * Math.cos(angle + Math.PI / 6);
+  const y2 = last.y - len * Math.sin(angle + Math.PI / 6);
+  lines.push(`<polygon points="${last.x},${last.y} ${x1},${y1} ${x2},${y2}" fill="${stroke}"/>`);
+}
+
 function renderEdgeSvg(edge: GraphEdge, nodes: GraphNode[]): string {
-  const { id, style, type } = edge;
+  const { id, style } = edge;
   const stroke = escapeXml(style.stroke);
   const sw = style.strokeWidth;
   const lines: string[] = [];
   lines.push(`<g id="${escapeXml(id)}">`);
 
-  let points: { x: number; y: number }[] = [];
-
-  if (type === 'connector' && edge.from.nodeId && edge.to.nodeId) {
-    const fromNode = nodes.find(n => n.id === edge.from.nodeId);
-    const toNode = nodes.find(n => n.id === edge.to.nodeId);
-    if (fromNode && toNode) {
-      if (edge.manualMidpoint !== undefined) {
-        points = computeOrthogonalPath(fromNode, toNode, 20, edge.manualMidpoint);
-      } else {
-        const obstacles = nodes
-          .filter(n => n.id !== fromNode.id && n.id !== toNode.id)
-          .map(n => ({ x: n.x, y: n.y, width: n.width, height: n.height }));
-        const sides = bestSides(fromNode, toNode);
-        const fromPts = getConnectionPoints(fromNode);
-        const toPts = getConnectionPoints(toNode);
-        const fromPt = fromPts.find(p => p.side === sides.fromSide) ?? fromPts[0];
-        const toPt = toPts.find(p => p.side === sides.toSide) ?? toPts[0];
-        points = computeVisibilityPath(fromPt, sides.fromSide, toPt, sides.toSide, obstacles);
-      }
-    }
-  }
+  const points = resolveEdgePoints(edge, nodes);
 
   if (points.length >= 2) {
     const d = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
@@ -94,19 +118,7 @@ function renderEdgeSvg(edge: GraphEdge, nodes: GraphNode[]): string {
     lines.push(`<line x1="${edge.from.x}" y1="${edge.from.y}" x2="${edge.to.x}" y2="${edge.to.y}" stroke="${stroke}" stroke-width="${sw}"/>`);
   }
 
-  // 矢印マーカー
-  const endShape = style.endShape ?? (type === 'connector' ? 'arrow' : 'none');
-  if (endShape === 'arrow') {
-    const last = points.length >= 2 ? points.at(-1)! : { x: edge.to.x, y: edge.to.y };
-    const prev = points.length >= 2 ? points.at(-2)! : { x: edge.from.x, y: edge.from.y };
-    const angle = Math.atan2(last.y - prev.y, last.x - prev.x);
-    const len = 12;
-    const x1 = last.x - len * Math.cos(angle - Math.PI / 6);
-    const y1 = last.y - len * Math.sin(angle - Math.PI / 6);
-    const x2 = last.x - len * Math.cos(angle + Math.PI / 6);
-    const y2 = last.y - len * Math.sin(angle + Math.PI / 6);
-    lines.push(`<polygon points="${last.x},${last.y} ${x1},${y1} ${x2},${y2}" fill="${stroke}"/>`);
-  }
+  renderArrowMarker(lines, points, edge, stroke);
 
   lines.push('</g>');
   return lines.join('\n');
