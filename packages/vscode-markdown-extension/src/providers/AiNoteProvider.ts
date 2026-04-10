@@ -51,7 +51,8 @@ export class AiNoteProvider implements vscode.TreeDataProvider<AiNoteItem> {
 
 		return files.map(fileName => {
 			const filePath = path.join(this.storageDir, fileName);
-			const label = fileName.replace(/\.md$/, '');
+			const num = fileName.replace('anytime-note-', '').replace('.md', '');
+			const label = `ページ${num}`;
 			return new AiNoteItem(filePath, fileName, label);
 		});
 	}
