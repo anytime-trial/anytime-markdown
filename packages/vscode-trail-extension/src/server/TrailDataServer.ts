@@ -5,7 +5,7 @@ import path from 'node:path';
 
 import { WebSocketServer, type WebSocket } from 'ws';
 
-import type { TrailDatabase, SessionRow, MessageRow, AnalyticsData } from '../trail/TrailDatabase';
+import type { TrailDatabase, SessionRow, MessageRow, AnalyticsData, CostOptimizationData } from '../trail/TrailDatabase';
 
 // ---------------------------------------------------------------------------
 //  Constants
@@ -184,6 +184,16 @@ export class TrailDataServer {
 
     if (pathname === '/api/trail/analytics' && method === 'GET') {
       this.handleGetAnalytics(res);
+      return;
+    }
+
+    if (pathname === '/api/trail/cost-optimization' && method === 'GET') {
+      this.handleGetCostOptimization(res);
+      return;
+    }
+
+    if (pathname === '/api/trail/reclassify' && method === 'POST') {
+      this.handleReclassify(res);
       return;
     }
 
@@ -455,6 +465,36 @@ export class TrailDataServer {
     } catch {
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: 'Failed to get analytics' }));
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  //  API: GET /api/trail/cost-optimization
+  // -------------------------------------------------------------------------
+
+  private handleGetCostOptimization(res: http.ServerResponse): void {
+    try {
+      const data: CostOptimizationData = this.trailDb.getCostOptimization();
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify(data));
+    } catch {
+      res.writeHead(500, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'Failed to get cost optimization data' }));
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  //  API: POST /api/trail/reclassify
+  // -------------------------------------------------------------------------
+
+  private handleReclassify(res: http.ServerResponse): void {
+    try {
+      this.trailDb.reclassifyAllMessages();
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify({ success: true }));
+    } catch {
+      res.writeHead(500, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'Failed to reclassify messages' }));
     }
   }
 
