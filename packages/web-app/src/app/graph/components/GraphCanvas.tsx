@@ -126,12 +126,12 @@ export function GraphCanvas({
           const routing = e.style.routing ?? 'orthogonal';
 
           // 同一ノードペアの並列エッジ用オフセット計算
-          const pairKey = [e.from.nodeId, e.to.nodeId].sort().join(':');
+          const pairKey = [e.from.nodeId, e.to.nodeId].sort((a, b) => (a ?? '').localeCompare(b ?? '')).join(':');
           const parallelIndex = pairCount.get(pairKey) ?? 0;
           pairCount.set(pairKey, parallelIndex + 1);
           const pairTotal = edges.filter(e2 =>
             e2.type === 'connector' && e2.from.nodeId && e2.to.nodeId &&
-            [e2.from.nodeId, e2.to.nodeId].sort().join(':') === pairKey,
+            [e2.from.nodeId, e2.to.nodeId].sort((a, b) => (a ?? '').localeCompare(b ?? '')).join(':') === pairKey,
           ).length;
           const sides = bestSides(fromNode, toNode);
           const fromPts = getConnectionPoints(fromNode);

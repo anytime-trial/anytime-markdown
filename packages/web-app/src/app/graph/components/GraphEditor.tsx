@@ -79,7 +79,7 @@ export function GraphEditor() {
         }
       }
     }
-    return [...keys].sort();
+    return [...keys].sort((a, b) => a.localeCompare(b));
   }, [state.document.nodes]);
 
   const metadataKeyRanges = useMemo(() => {
