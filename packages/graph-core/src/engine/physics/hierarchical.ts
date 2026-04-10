@@ -93,7 +93,7 @@ function removeCycles(
     for (const v of adj.get(u)!) {
       const cv = color.get(v)!;
       if (cv === GRAY) {
-        backEdges.add(`${u}→${v}`);
+        backEdges.add(`${u}\u2192${v}`);
       } else if (cv === WHITE) {
         dfs(v);
       }
@@ -107,11 +107,23 @@ function removeCycles(
 
   // Return edges with back-edges reversed
   return edges.map(({ from, to }) => {
-    if (backEdges.has(`${from}→${to}`)) {
+    if (backEdges.has(`${from}\u2192${to}`)) {
       return { from: to, to: from };
     }
     return { from, to };
   });
+}
+
+/**
+ * Group a node-to-layer map into a Map<layerNumber, nodeIds[]>.
+ */
+function groupByLayer(layer: Map<string, number>): Map<number, string[]> {
+  const layers = new Map<number, string[]>();
+  for (const [id, l] of layer) {
+    if (!layers.has(l)) layers.set(l, []);
+    layers.get(l)!.push(id);
+  }
+  return layers;
 }
 
 /**
@@ -126,10 +138,6 @@ function assignLayers(
 ): Map<number, string[]> {
   const layer = new Map<string, number>();
 
-  // Find root nodes (in-degree 0 in DAG)
-  const roots = nodeIds.filter(id => predecessors.get(id)!.length === 0);
-
-  // BFS-based longest path
   // Initialize all nodes at layer 0
   for (const id of nodeIds) layer.set(id, 0);
 
@@ -137,13 +145,8 @@ function assignLayers(
   const inDegree = new Map<string, number>();
   for (const id of nodeIds) inDegree.set(id, predecessors.get(id)!.length);
 
-  const queue = [...roots];
-  // Also add isolated nodes (no predecessors and no successors)
-  for (const id of nodeIds) {
-    if (predecessors.get(id)!.length === 0 && !roots.includes(id)) {
-      queue.push(id);
-    }
-  }
+  // Root nodes: in-degree 0
+  const queue = nodeIds.filter(id => inDegree.get(id) === 0);
 
   while (queue.length > 0) {
     const u = queue.shift()!;
@@ -159,13 +162,41 @@ function assignLayers(
     }
   }
 
-  // Group by layer
-  const layers = new Map<number, string[]>();
-  for (const [id, l] of layer) {
-    if (!layers.has(l)) layers.set(l, []);
-    layers.get(l)!.push(id);
+  return groupByLayer(layer);
+}
+
+/**
+ * Reorder a single layer by barycenter values computed from neighbor positions.
+ * Mutates the layer array in place.
+ */
+function reorderLayer(
+  layer: string[],
+  neighbors: (node: string) => string[],
+  positionOf: Map<string, number>,
+): void {
+  const barycenters = computeBarycenters(layer, neighbors, positionOf);
+  layer.sort((a, b) => barycenters.get(a)! - barycenters.get(b)!);
+}
+
+/**
+ * Compute barycenter values for nodes in a layer based on neighbor positions.
+ */
+function computeBarycenters(
+  layer: string[],
+  neighbors: (node: string) => string[],
+  positionOf: Map<string, number>,
+): Map<string, number> {
+  const barycenters = new Map<string, number>();
+  for (const node of layer) {
+    const nbrs = neighbors(node).filter(n => positionOf.has(n));
+    if (nbrs.length === 0) {
+      barycenters.set(node, positionOf.get(node) ?? 0);
+    } else {
+      const sum = nbrs.reduce((s, n) => s + (positionOf.get(n) ?? 0), 0);
+      barycenters.set(node, sum / nbrs.length);
+    }
   }
-  return layers;
+  return barycenters;
 }
 
 /**
@@ -201,18 +232,7 @@ function minimizeCrossings(
     for (let i = 0; i < maxLayer; i++) {
       const nextLayer = ordered[i + 1];
       if (nextLayer.length <= 1) continue;
-
-      const barycenters = new Map<string, number>();
-      for (const node of nextLayer) {
-        const preds = predecessors.get(node)!.filter(p => positionOf.has(p));
-        if (preds.length === 0) {
-          barycenters.set(node, positionOf.get(node) ?? 0);
-        } else {
-          const sum = preds.reduce((s, p) => s + (positionOf.get(p) ?? 0), 0);
-          barycenters.set(node, sum / preds.length);
-        }
-      }
-      nextLayer.sort((a, b) => barycenters.get(a)! - barycenters.get(b)!);
+      reorderLayer(nextLayer, node => predecessors.get(node)!, positionOf);
       updatePositions();
     }
 
@@ -220,23 +240,39 @@ function minimizeCrossings(
     for (let i = maxLayer; i > 0; i--) {
       const prevLayer = ordered[i - 1];
       if (prevLayer.length <= 1) continue;
-
-      const barycenters = new Map<string, number>();
-      for (const node of prevLayer) {
-        const succs = successors.get(node)!.filter(s => positionOf.has(s));
-        if (succs.length === 0) {
-          barycenters.set(node, positionOf.get(node) ?? 0);
-        } else {
-          const sum = succs.reduce((s, n) => s + (positionOf.get(n) ?? 0), 0);
-          barycenters.set(node, sum / succs.length);
-        }
-      }
-      prevLayer.sort((a, b) => barycenters.get(a)! - barycenters.get(b)!);
+      reorderLayer(prevLayer, node => successors.get(node)!, positionOf);
       updatePositions();
     }
   }
 
   return ordered;
+}
+
+/**
+ * Create direction-aware accessors that abstract TB/LR differences.
+ * - span(body): the dimension along the layer (width for TB, height for LR)
+ * - depth(body): the dimension across layers (height for TB, width for LR)
+ * - setPos(body, cursor, depthCursor): set x/y based on direction
+ */
+function makeDirectionAccessor(direction: 'TB' | 'LR') {
+  if (direction === 'TB') {
+    return {
+      span: (body: PhysicsBody) => body.width,
+      depth: (body: PhysicsBody) => body.height,
+      setPos: (body: PhysicsBody, cursor: number, depthCursor: number) => {
+        body.x = cursor;
+        body.y = depthCursor;
+      },
+    };
+  }
+  return {
+    span: (body: PhysicsBody) => body.height,
+    depth: (body: PhysicsBody) => body.width,
+    setPos: (body: PhysicsBody, cursor: number, depthCursor: number) => {
+      body.x = depthCursor;
+      body.y = cursor;
+    },
+  };
 }
 
 /**
@@ -252,64 +288,53 @@ function assignCoordinates(
   levelGap: number,
   nodeSpacing: number,
 ): void {
+  const { span, depth, setPos } = makeDirectionAccessor(direction);
+
   // Find the widest layer to center all layers relative to it
-  let maxLayerWidth = 0;
+  let maxLayerSpan = 0;
   for (const layer of layerOrder) {
     if (layer.length === 0) continue;
-    let width = 0;
+    let layerSpan = 0;
     for (const id of layer) {
-      const body = bodies.get(id)!;
-      width += direction === 'TB' ? body.width : body.height;
+      layerSpan += span(bodies.get(id)!);
     }
-    width += (layer.length - 1) * nodeSpacing;
-    maxLayerWidth = Math.max(maxLayerWidth, width);
+    layerSpan += (layer.length - 1) * nodeSpacing;
+    maxLayerSpan = Math.max(maxLayerSpan, layerSpan);
   }
 
-  // Precompute the max "depth" (height for TB, width for LR) per layer
+  // Precompute the max depth per layer
   const layerDepths: number[] = [];
   for (const layer of layerOrder) {
     let maxDepth = 0;
     for (const id of layer) {
-      const body = bodies.get(id)!;
-      maxDepth = Math.max(maxDepth, direction === 'TB' ? body.height : body.width);
+      maxDepth = Math.max(maxDepth, depth(bodies.get(id)!));
     }
     layerDepths.push(maxDepth);
   }
 
   const startOffset = 100; // margin from canvas origin
-
-  // Accumulate layer positions based on actual node depths
   let depthCursor = startOffset;
 
   for (let layerIdx = 0; layerIdx < layerOrder.length; layerIdx++) {
     const layer = layerOrder[layerIdx];
     if (layer.length === 0) continue;
 
-    // Calculate total width of this layer
+    // Calculate total span of this layer
     let totalSpan = 0;
     for (const id of layer) {
-      const body = bodies.get(id)!;
-      totalSpan += direction === 'TB' ? body.width : body.height;
+      totalSpan += span(bodies.get(id)!);
     }
     totalSpan += (layer.length - 1) * nodeSpacing;
 
     // Center this layer relative to the widest layer
-    const layerOffset = (maxLayerWidth - totalSpan) / 2;
+    const layerOffset = (maxLayerSpan - totalSpan) / 2;
 
     let cursor = startOffset + layerOffset;
     for (const id of layer) {
       const body = bodies.get(id)!;
       if (body.fixed) continue;
-
-      if (direction === 'TB') {
-        body.x = cursor;
-        body.y = depthCursor;
-        cursor += body.width + nodeSpacing;
-      } else {
-        body.x = depthCursor;
-        body.y = cursor;
-        cursor += body.height + nodeSpacing;
-      }
+      setPos(body, cursor, depthCursor);
+      cursor += span(body) + nodeSpacing;
     }
 
     // Advance depth cursor by this layer's max depth + gap
