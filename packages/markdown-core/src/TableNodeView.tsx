@@ -266,6 +266,111 @@ function getCompareTableHtml(
   return findCounterpartTableHtml(editor, otherEditor, pos);
 }
 
+/** Build table cell styles (extracted to reduce cognitive complexity). */
+function buildTableSx(isDark: boolean, tableWidth: string) {
+  return {
+    borderCollapse: "collapse",
+    width: tableWidth,
+    "& th, & td": { border: 1, borderColor: getDivider(isDark), px: 1, py: 0.5, textAlign: "left", minWidth: 80, bgcolor: getBgPaper(isDark) },
+    "& th": { bgcolor: getActionHover(isDark), fontWeight: 600 },
+    "& .selectedCell": { bgcolor: getActionSelected(isDark) },
+  };
+}
+
+/** Get table grid options from editor extensions (extracted to reduce cognitive complexity). */
+function getTableGridOptions(editor: Editor) {
+  const tableExt = editor.extensionManager.extensions.find((e) => e.name === "table");
+  return {
+    gridRows: tableExt?.options?.gridRows as number | undefined,
+    gridCols: tableExt?.options?.gridCols as number | undefined,
+  };
+}
+
+/** Spreadsheet edit mode content (extracted to reduce cognitive complexity). */
+function SpreadsheetEditContent({ editor, isDark, t, onDirtyChange, onClose }: Readonly<{
+  editor: Editor; isDark: boolean; t: (key: string) => string;
+  onDirtyChange: (dirty: boolean) => void; onClose: () => void;
+}>) {
+  const { gridRows, gridCols } = getTableGridOptions(editor);
+  return (
+    <>
+      <SpreadsheetGrid
+        editor={editor}
+        isDark={isDark}
+        t={t}
+        gridRows={gridRows}
+        gridCols={gridCols}
+        onDirtyChange={onDirtyChange}
+        onClose={onClose}
+      />
+      {/* ProseMirror table hidden but kept in DOM for sync */}
+      <Box sx={{ display: "none" }}>
+        <NodeViewContent<"table"> as="table" />
+      </Box>
+    </>
+  );
+}
+
+/** Table content area dispatcher: compare view, spreadsheet edit, or inline table (extracted to reduce cognitive complexity). */
+function TableContentArea({ showCompare, editOpen, collapsed, highlightedCompareHtml, tableSx, editor, isDark, onDirtyChange, onSpreadsheetClose, onTableDoubleClick, t }: Readonly<{
+  showCompare: boolean; editOpen: boolean; collapsed: boolean;
+  highlightedCompareHtml: string | null;
+  tableSx: Record<string, unknown>;
+  editor: Editor; isDark: boolean;
+  onDirtyChange: (dirty: boolean) => void;
+  onSpreadsheetClose: () => void;
+  onTableDoubleClick: (() => void) | undefined;
+  t: (key: string) => string;
+}>) {
+  if (showCompare) {
+    return (
+      <TableCompareView
+        highlightedCompareHtml={highlightedCompareHtml!}
+        tableSx={tableSx}
+        isDark={isDark}
+        t={t}
+      />
+    );
+  }
+  if (editOpen) {
+    return (
+      <SpreadsheetEditContent
+        editor={editor}
+        isDark={isDark}
+        t={t}
+        onDirtyChange={onDirtyChange}
+        onClose={onSpreadsheetClose}
+      />
+    );
+  }
+  return (
+    <Box
+      sx={buildTableBodySx(collapsed, editOpen, isDark, tableSx)}
+      onDoubleClick={onTableDoubleClick}
+    >
+      <NodeViewContent<"table"> as="table" />
+    </Box>
+  );
+}
+
+/** Discard-changes confirmation dialog for table (extracted to reduce cognitive complexity). */
+function TableDiscardDialog({ open, onClose, onConfirm, t }: Readonly<{
+  open: boolean; onClose: () => void; onConfirm: () => void; t: (key: string) => string;
+}>) {
+  return (
+    <Dialog open={open} onClose={onClose}>
+      <DialogTitle>{t("spreadsheetDiscardTitle")}</DialogTitle>
+      <DialogContent>
+        <DialogContentText>{t("spreadsheetDiscardMessage")}</DialogContentText>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>{t("spreadsheetDiscardCancel")}</Button>
+        <Button onClick={onConfirm} color="error">{t("spreadsheetDiscardConfirm")}</Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 export function TableNodeView({ editor, node, getPos }: Readonly<NodeViewProps>) {
   const t = useTranslations("MarkdownEditor");
   const isDark = useTheme().palette.mode === "dark";
@@ -288,13 +393,7 @@ export function TableNodeView({ editor, node, getPos }: Readonly<NodeViewProps>)
     return buildHighlightedCompareHtml(compareTableHtml, node.content, settings.tableWidth);
   }, [compareTableHtml, node.content, settings.tableWidth]);
 
-  const tableSx = {
-    borderCollapse: "collapse",
-    width: settings.tableWidth,
-    "& th, & td": { border: 1, borderColor: getDivider(isDark), px: 1, py: 0.5, textAlign: "left", minWidth: 80, bgcolor: getBgPaper(isDark) },
-    "& th": { bgcolor: getActionHover(isDark), fontWeight: 600 },
-    "& .selectedCell": { bgcolor: getActionSelected(isDark) },
-  };
+  const tableSx = buildTableSx(isDark, settings.tableWidth);
 
   const showCompare = editOpen && isCompareMode && !!highlightedCompareHtml;
   const canInteract = !collapsed && !isCompareLeft;
@@ -322,6 +421,11 @@ export function TableNodeView({ editor, node, getPos }: Readonly<NodeViewProps>)
 
   const handleDiscardConfirm = useCallback(() => {
     setDiscardDialogOpen(false);
+    spreadsheetDirtyRef.current = false;
+    setEditOpen(false);
+  }, [setEditOpen]);
+
+  const handleSpreadsheetClose = useCallback(() => {
     spreadsheetDirtyRef.current = false;
     setEditOpen(false);
   }, [setEditOpen]);
@@ -355,39 +459,19 @@ export function TableNodeView({ editor, node, getPos }: Readonly<NodeViewProps>)
           />
         )}
 
-        {showCompare && (
-          <TableCompareView
-            highlightedCompareHtml={highlightedCompareHtml}
-            tableSx={tableSx}
-            isDark={isDark}
-            t={t}
-          />
-        )}
-        {!showCompare && editOpen && (
-          <>
-            <SpreadsheetGrid
-              editor={editor}
-              isDark={isDark}
-              t={t}
-              gridRows={editor.extensionManager.extensions.find((e) => e.name === "table")?.options?.gridRows}
-              gridCols={editor.extensionManager.extensions.find((e) => e.name === "table")?.options?.gridCols}
-              onDirtyChange={handleDirtyChange}
-              onClose={() => { spreadsheetDirtyRef.current = false; setEditOpen(false); }}
-            />
-            {/* ProseMirror table hidden but kept in DOM for sync */}
-            <Box sx={{ display: "none" }}>
-              <NodeViewContent<"table"> as="table" />
-            </Box>
-          </>
-        )}
-        {!showCompare && !editOpen && (
-          <Box
-            sx={buildTableBodySx(collapsed, editOpen, isDark, tableSx)}
-            onDoubleClick={onTableDoubleClick}
-          >
-            <NodeViewContent<"table"> as="table" />
-          </Box>
-        )}
+        <TableContentArea
+          showCompare={showCompare}
+          editOpen={editOpen}
+          collapsed={collapsed}
+          highlightedCompareHtml={highlightedCompareHtml}
+          tableSx={tableSx}
+          editor={editor}
+          isDark={isDark}
+          onDirtyChange={handleDirtyChange}
+          onSpreadsheetClose={handleSpreadsheetClose}
+          onTableDoubleClick={onTableDoubleClick}
+          t={t}
+        />
       </Paper>
       <DeleteBlockDialog
         open={deleteDialogOpen}
@@ -395,16 +479,12 @@ export function TableNodeView({ editor, node, getPos }: Readonly<NodeViewProps>)
         onDelete={handleDeleteBlock}
         t={t}
       />
-      <Dialog open={discardDialogOpen} onClose={() => setDiscardDialogOpen(false)}>
-        <DialogTitle>{t("spreadsheetDiscardTitle")}</DialogTitle>
-        <DialogContent>
-          <DialogContentText>{t("spreadsheetDiscardMessage")}</DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDiscardDialogOpen(false)}>{t("spreadsheetDiscardCancel")}</Button>
-          <Button onClick={handleDiscardConfirm} color="error">{t("spreadsheetDiscardConfirm")}</Button>
-        </DialogActions>
-      </Dialog>
+      <TableDiscardDialog
+        open={discardDialogOpen}
+        onClose={() => setDiscardDialogOpen(false)}
+        onConfirm={handleDiscardConfirm}
+        t={t}
+      />
     </NodeViewWrapper>
   );
 }
