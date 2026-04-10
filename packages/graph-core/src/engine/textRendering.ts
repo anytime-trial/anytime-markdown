@@ -7,49 +7,87 @@ export function wrapText(
 
   for (const paragraph of text.split('\n')) {
     if (paragraph === '') { lines.push(''); continue; }
-
-    let currentLine = '';
-    // Split by spaces while preserving CJK character boundaries
-    const tokens = paragraph.match(/\S+|\s/g) ?? [paragraph];
-
-    for (const token of tokens) {
-      if (token === ' ') {
-        const testLine = currentLine + ' ';
-        if (ctx.measureText(testLine).width > maxWidth && currentLine) {
-          lines.push(currentLine);
-          currentLine = '';
-        } else {
-          currentLine = testLine;
-        }
-        continue;
-      }
-
-      const testLine = currentLine + token;
-      if (ctx.measureText(testLine).width <= maxWidth || currentLine === '') {
-        currentLine = testLine;
-      } else {
-        lines.push(currentLine);
-        currentLine = token;
-      }
-
-      // If single token exceeds maxWidth, break it character by character
-      if (ctx.measureText(currentLine).width > maxWidth) {
-        let rebuild = '';
-        for (const c of currentLine) {
-          const test = rebuild + c;
-          if (ctx.measureText(test).width > maxWidth && rebuild) {
-            lines.push(rebuild);
-            rebuild = c;
-          } else {
-            rebuild = test;
-          }
-        }
-        currentLine = rebuild;
-      }
-    }
-
-    if (currentLine) lines.push(currentLine);
+    wrapParagraph(ctx, paragraph, maxWidth, lines);
   }
 
   return lines.length > 0 ? lines : [''];
+}
+
+/** 1段落分のテキストを maxWidth に収まるよう折り返し、結果を lines に追加する */
+function wrapParagraph(
+  ctx: CanvasRenderingContext2D,
+  paragraph: string,
+  maxWidth: number,
+  lines: string[],
+): void {
+  let currentLine = '';
+  const tokens = paragraph.match(/\S+|\s/g) ?? [paragraph];
+
+  for (const token of tokens) {
+    if (token === ' ') {
+      currentLine = handleSpaceToken(ctx, currentLine, maxWidth, lines);
+      continue;
+    }
+    currentLine = handleWordToken(ctx, token, currentLine, maxWidth, lines);
+  }
+
+  if (currentLine) lines.push(currentLine);
+}
+
+/** スペーストークンの処理: 行幅を超える場合は改行 */
+function handleSpaceToken(
+  ctx: CanvasRenderingContext2D,
+  currentLine: string,
+  maxWidth: number,
+  lines: string[],
+): string {
+  const testLine = currentLine + ' ';
+  if (ctx.measureText(testLine).width > maxWidth && currentLine) {
+    lines.push(currentLine);
+    return '';
+  }
+  return testLine;
+}
+
+/** 単語トークンの処理: 行に追加し、溢れた場合は文字単位で分割 */
+function handleWordToken(
+  ctx: CanvasRenderingContext2D,
+  token: string,
+  currentLine: string,
+  maxWidth: number,
+  lines: string[],
+): string {
+  const testLine = currentLine + token;
+  if (ctx.measureText(testLine).width <= maxWidth || currentLine === '') {
+    currentLine = testLine;
+  } else {
+    lines.push(currentLine);
+    currentLine = token;
+  }
+
+  // 単一トークンが maxWidth を超える場合、文字単位で分割
+  if (ctx.measureText(currentLine).width > maxWidth) {
+    currentLine = breakByCharacter(ctx, currentLine, maxWidth, lines);
+  }
+  return currentLine;
+}
+
+/** 文字単位で分割し、溢れた部分を lines に追加。残りの文字列を返す */
+function breakByCharacter(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+  lines: string[],
+): string {
+  let rebuild = '';
+  for (const c of text) {
+    const test = rebuild + c;
+    if (ctx.measureText(test).width > maxWidth && rebuild) {
+      lines.push(rebuild);
+      rebuild = c;
+    } else {
+      rebuild = test;
+    }
+  }
+  return rebuild;
 }
