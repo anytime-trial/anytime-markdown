@@ -1,42 +1,48 @@
 import { GraphDocument, GraphNode, GraphEdge } from '../types';
 import { escapeXml, toHexColor } from './utils';
 
+const NODE_SHAPE_MAP: Record<string, string> = {
+  ellipse: 'ellipse',
+  diamond: 'rhombus',
+  parallelogram: 'shape=parallelogram',
+  cylinder: 'shape=cylinder3;size=15',
+  sticky: 'shape=note;size=15',
+  doc: 'shape=document;size=0.15',
+  frame: 'swimlane;startSize=20',
+  image: 'shape=image;imageAlign=center;imageVerticalAlign=middle',
+};
+
+const END_ARROW_MAP: Record<string, string> = {
+  none: 'endArrow=none',
+  circle: 'endArrow=oval;endFill=1',
+  diamond: 'endArrow=diamond;endFill=1',
+  bar: 'endArrow=block;endFill=0',
+};
+
+const START_ARROW_MAP: Record<string, string> = {
+  none: 'startArrow=none',
+  arrow: 'startArrow=classic;startFill=1',
+  circle: 'startArrow=oval;startFill=1',
+  diamond: 'startArrow=diamond;startFill=1',
+  bar: 'startArrow=block;startFill=0',
+};
+
+const ROUTING_MAP: Record<string, string> = {
+  bezier: 'edgeStyle=orthogonalEdgeStyle;curved=1',
+  orthogonal: 'edgeStyle=orthogonalEdgeStyle',
+};
+
 function nodeStyle(node: GraphNode): string {
   const parts: string[] = [];
   const fill = toHexColor(node.style.fill).replaceAll('#', '');
   const stroke = toHexColor(node.style.stroke).replaceAll('#', '');
 
-  switch (node.type) {
-    case 'ellipse':
-      parts.push('ellipse');
-      break;
-    case 'diamond':
-      parts.push('rhombus');
-      break;
-    case 'parallelogram':
-      parts.push('shape=parallelogram');
-      break;
-    case 'cylinder':
-      parts.push('shape=cylinder3;size=15');
-      break;
-    case 'sticky':
-      parts.push('shape=note;size=15');
-      break;
-    case 'text':
-      parts.push('text;strokeColor=none;fillColor=none');
-      return parts.join(';');
-    case 'doc':
-      parts.push('shape=document;size=0.15');
-      break;
-    case 'frame':
-      parts.push('swimlane;startSize=20');
-      break;
-    case 'image':
-      parts.push('shape=image;imageAlign=center;imageVerticalAlign=middle');
-      break;
-    default:
-      parts.push('rounded=0');
+  if (node.type === 'text') {
+    parts.push('text;strokeColor=none;fillColor=none');
+    return parts.join(';');
   }
+
+  parts.push(NODE_SHAPE_MAP[node.type] ?? 'rounded=0');
 
   parts.push(
     `fillColor=#${fill}`,
@@ -71,13 +77,8 @@ function edgeStyle(edge: GraphEdge): string {
 
   if (edge.type === 'connector') {
     const routing = edge.style.routing ?? 'orthogonal';
-    if (routing === 'bezier') {
-      parts.push('edgeStyle=orthogonalEdgeStyle;curved=1');
-    } else if (routing === 'straight') {
-      // straight: drawio ではエッジスタイルなし（デフォルトの直線）
-    } else {
-      parts.push('edgeStyle=orthogonalEdgeStyle');
-    }
+    const routingStyle = ROUTING_MAP[routing];
+    if (routingStyle) parts.push(routingStyle);
   }
 
   parts.push(`strokeColor=#${stroke}`, `strokeWidth=${edge.style.strokeWidth}`);
@@ -85,17 +86,8 @@ function edgeStyle(edge: GraphEdge): string {
   const endShape = edge.style.endShape ?? (edge.type === 'connector' ? 'arrow' : 'none');
   const startShape = edge.style.startShape ?? 'none';
 
-  if (endShape === 'none') parts.push('endArrow=none');
-  else if (endShape === 'circle') parts.push('endArrow=oval;endFill=1');
-  else if (endShape === 'diamond') parts.push('endArrow=diamond;endFill=1');
-  else if (endShape === 'bar') parts.push('endArrow=block;endFill=0');
-  else parts.push('endArrow=classic;endFill=1');
-
-  if (startShape === 'none') parts.push('startArrow=none');
-  else if (startShape === 'arrow') parts.push('startArrow=classic;startFill=1');
-  else if (startShape === 'circle') parts.push('startArrow=oval;startFill=1');
-  else if (startShape === 'diamond') parts.push('startArrow=diamond;startFill=1');
-  else if (startShape === 'bar') parts.push('startArrow=block;startFill=0');
+  parts.push(END_ARROW_MAP[endShape] ?? 'endArrow=classic;endFill=1');
+  parts.push(START_ARROW_MAP[startShape] ?? '');
 
   if (edge.style.opacity !== undefined && edge.style.opacity !== 100) parts.push(`opacity=${edge.style.opacity}`);
   if (edge.style.dashed) parts.push('dashed=1');
@@ -104,9 +96,40 @@ function edgeStyle(edge: GraphEdge): string {
   return parts.join(';');
 }
 
+function buildNodeCell(node: GraphNode, style: string): string[] {
+  const label = escapeXml(node.text);
+  const urlAttr = node.url ? ` link="${escapeXml(node.url)}"` : '';
+  const connectable = node.locked ? ' connectable="0"' : '';
+  const parent = node.groupId ? escapeXml(node.groupId) : '1';
+  const metadataAttr = node.metadata ? ` data-metadata="${escapeXml(JSON.stringify(node.metadata))}"` : '';
+  return [
+    `<mxCell id="${escapeXml(node.id)}" value="${label}" style="${style}" vertex="1" parent="${parent}"${urlAttr}${connectable}${metadataAttr}>`,
+    `<mxGeometry x="${node.x}" y="${node.y}" width="${node.width}" height="${node.height}" as="geometry"/>`,
+    '</mxCell>',
+  ];
+}
+
+function buildEdgeCell(edge: GraphEdge, style: string): string[] {
+  const label = edge.label ? escapeXml(edge.label) : '';
+  const src = edge.from.nodeId ? `source="${escapeXml(edge.from.nodeId)}"` : '';
+  const tgt = edge.to.nodeId ? `target="${escapeXml(edge.to.nodeId)}"` : '';
+  const weightAttr = edge.weight != null ? ` data-weight="${edge.weight}"` : '';
+  const lines: string[] = [
+    `<mxCell id="${escapeXml(edge.id)}" value="${label}" style="${style}" edge="1" parent="1" ${src} ${tgt}${weightAttr}>`,
+    '<mxGeometry relative="1" as="geometry">',
+  ];
+  if (!edge.from.nodeId) {
+    lines.push(`<mxPoint x="${edge.from.x}" y="${edge.from.y}" as="sourcePoint"/>`);
+  }
+  if (!edge.to.nodeId) {
+    lines.push(`<mxPoint x="${edge.to.x}" y="${edge.to.y}" as="targetPoint"/>`);
+  }
+  lines.push('</mxGeometry>', '</mxCell>');
+  return lines;
+}
+
 export function exportToDrawio(doc: GraphDocument): string {
-  const lines: string[] = [];
-  lines.push(
+  const lines: string[] = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<mxfile>',
     '<diagram>',
@@ -114,42 +137,17 @@ export function exportToDrawio(doc: GraphDocument): string {
     '<root>',
     '<mxCell id="0"/>',
     '<mxCell id="1" parent="0"/>',
-  );
+  ];
 
   // Sort nodes by zIndex for correct layer ordering
   const sortedNodes = [...doc.nodes].sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0));
 
   for (const node of sortedNodes) {
-    const style = nodeStyle(node);
-    const label = escapeXml(node.text);
-    const urlAttr = node.url ? ` link="${escapeXml(node.url)}"` : '';
-    const connectable = node.locked ? ' connectable="0"' : '';
-    const parent = node.groupId ? escapeXml(node.groupId) : '1';
-    const metadataAttr = node.metadata ? ` data-metadata="${escapeXml(JSON.stringify(node.metadata))}"` : '';
-    lines.push(
-      `<mxCell id="${escapeXml(node.id)}" value="${label}" style="${style}" vertex="1" parent="${parent}"${urlAttr}${connectable}${metadataAttr}>`,
-      `<mxGeometry x="${node.x}" y="${node.y}" width="${node.width}" height="${node.height}" as="geometry"/>`,
-      '</mxCell>',
-    );
+    lines.push(...buildNodeCell(node, nodeStyle(node)));
   }
 
   for (const edge of doc.edges) {
-    const style = edgeStyle(edge);
-    const label = edge.label ? escapeXml(edge.label) : '';
-    const src = edge.from.nodeId ? `source="${escapeXml(edge.from.nodeId)}"` : '';
-    const tgt = edge.to.nodeId ? `target="${escapeXml(edge.to.nodeId)}"` : '';
-    const weightAttr = edge.weight != null ? ` data-weight="${edge.weight}"` : '';
-    lines.push(
-      `<mxCell id="${escapeXml(edge.id)}" value="${label}" style="${style}" edge="1" parent="1" ${src} ${tgt}${weightAttr}>`,
-      '<mxGeometry relative="1" as="geometry">',
-    );
-    if (!edge.from.nodeId) {
-      lines.push(`<mxPoint x="${edge.from.x}" y="${edge.from.y}" as="sourcePoint"/>`);
-    }
-    if (!edge.to.nodeId) {
-      lines.push(`<mxPoint x="${edge.to.x}" y="${edge.to.y}" as="targetPoint"/>`);
-    }
-    lines.push('</mxGeometry>', '</mxCell>');
+    lines.push(...buildEdgeCell(edge, edgeStyle(edge)));
   }
 
   lines.push('</root>', '</mxGraphModel>', '</diagram>', '</mxfile>');
