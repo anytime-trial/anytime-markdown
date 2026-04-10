@@ -33,6 +33,37 @@ import { ShapeHoverBar } from './ShapeHoverBar';
 import { TextEditOverlay } from './TextEditOverlay';
 import { GraphToolBar } from './ToolBar';
 
+/** 矢印キーの移動量を計算する */
+function computeArrowDelta(key: string, shiftKey: boolean): { dx: number; dy: number } | null {
+  if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)) return null;
+  const step = shiftKey ? 10 : 1;
+  const dx = key === 'ArrowRight' ? step : key === 'ArrowLeft' ? -step : 0;
+  const dy = key === 'ArrowDown' ? step : key === 'ArrowUp' ? -step : 0;
+  return (dx !== 0 || dy !== 0) ? { dx, dy } : null;
+}
+
+/** ツールショートカットマップ */
+const TOOL_SHORTCUT_MAP: Readonly<Record<string, ToolType>> = {
+  v: 'select', r: 'rect', o: 'ellipse', s: 'sticky',
+  t: 'text', d: 'diamond', p: 'parallelogram', y: 'cylinder',
+  m: 'doc', f: 'frame',
+  l: 'line', c: 'connector',
+};
+
+/** レイヤーアクションの新 zIndex を計算する */
+function computeLayerZIndex(
+  action: 'up' | 'down' | 'top' | 'bottom',
+  currentZ: number,
+  allZ: number[],
+): number {
+  const maxZ = allZ.length > 0 ? Math.max(...allZ) : 0;
+  const minZ = allZ.length > 0 ? Math.min(...allZ) : 0;
+  if (action === 'up') return currentZ + 1;
+  if (action === 'down') return currentZ - 1;
+  if (action === 'top') return maxZ + 1;
+  return minZ - 1;
+}
+
 export function GraphEditor() {
   const { themeMode } = useThemeMode();
   const isDark = themeMode === 'dark';
@@ -252,23 +283,17 @@ export function GraphEditor() {
       const tag = document.activeElement?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.getAttribute('contenteditable') === 'true') return;
       if (editingNodeId) return;
-      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+
+      const delta = computeArrowDelta(e.key, e.shiftKey);
+      if (delta) {
         const ids = selectionRef.current.nodeIds;
         if (ids.length === 0) return;
-        const step = e.shiftKey ? 10 : 1;
-        const dxRight = e.key === 'ArrowRight' ? step : 0;
-        const dxLeft = e.key === 'ArrowLeft' ? -step : 0;
-        const dx = dxRight || dxLeft;
-        const dyDown = e.key === 'ArrowDown' ? step : 0;
-        const dyUp = e.key === 'ArrowUp' ? -step : 0;
-        const dy = dyDown || dyUp;
-        if (dx !== 0 || dy !== 0) {
-          dispatch({ type: 'MOVE_NODES', ids, dx, dy });
-          e.preventDefault();
-        }
+        dispatch({ type: 'MOVE_NODES', ids, dx: delta.dx, dy: delta.dy });
+        e.preventDefault();
         return;
       }
-      // 単一ノード選択中に印字可能キーを押したらテキスト編集開始（ショートカットより優先）
+
+      // 単一ノード選択中に印字可能キーを押したらテキスト編集開始
       const ids = selectionRef.current.nodeIds;
       if (ids.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1) {
         const node = state.document.nodes.find(n => n.id === ids[0]);
@@ -279,14 +304,10 @@ export function GraphEditor() {
           return;
         }
       }
-      const map: Record<string, ToolType> = {
-        v: 'select', r: 'rect', o: 'ellipse', s: 'sticky',
-        t: 'text', d: 'diamond', p: 'parallelogram', y: 'cylinder',
-        m: 'doc', f: 'frame',
-        l: 'line', c: 'connector',
-      };
-      if (map[e.key] && !e.ctrlKey && !e.metaKey) {
-        setTool(map[e.key]);
+
+      const toolKey = TOOL_SHORTCUT_MAP[e.key];
+      if (toolKey && !e.ctrlKey && !e.metaKey) {
+        setTool(toolKey);
       }
     };
     window.addEventListener('keydown', handler);
@@ -529,13 +550,7 @@ export function GraphEditor() {
     if (!node) return;
     const currentZ = node.zIndex ?? 0;
     const allZ = state.document.nodes.filter(n => n.id !== nodeId).map(n => n.zIndex ?? 0);
-    const maxZ = allZ.length > 0 ? Math.max(...allZ) : 0;
-    const minZ = allZ.length > 0 ? Math.min(...allZ) : 0;
-    let newZ = currentZ;
-    if (action === 'up') newZ = currentZ + 1;
-    else if (action === 'down') newZ = currentZ - 1;
-    else if (action === 'top') newZ = maxZ + 1;
-    else if (action === 'bottom') newZ = minZ - 1;
+    const newZ = computeLayerZIndex(action, currentZ, allZ);
     dispatch({ type: 'UPDATE_NODE', id: nodeId, changes: { zIndex: newZ } });
   }, [state.selection.nodeIds, state.document.nodes, dispatch]);
 
