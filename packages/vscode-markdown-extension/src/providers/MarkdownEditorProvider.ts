@@ -74,9 +74,11 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
 
   /** Claude Code 編集通知に基づくロック/リロード処理 */
   private readonly claudeUnlockTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private claudeEditing = false;
 
   public handleClaudeStatus(editing: boolean, filePath: string): void {
     if (editing) {
+      this.claudeEditing = true;
       const existing = this.claudeUnlockTimers.get(filePath);
       if (existing) {
         clearTimeout(existing);
@@ -91,6 +93,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
         clearTimeout(existing);
       }
       this.claudeUnlockTimers.set(filePath, setTimeout(() => {
+        this.claudeEditing = false;
         this.claudeUnlockTimers.delete(filePath);
         if (this.activeDocumentUri?.fsPath === filePath) {
           this.postMessageToActivePanel({ type: 'setTheme', claudeLocked: false });
@@ -428,6 +431,8 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
           const success = await vscode.workspace.applyEdit(edit);
           if (!success) {
             vscode.window.showWarningMessage('Failed to apply edit to the document.');
+          } else if (!this.claudeEditing) {
+            await ctx.document.save();
           }
         } catch (err) {
           vscode.window.showErrorMessage(`Error saving changes: ${err instanceof Error ? err.message : String(err)}`);
