@@ -9,7 +9,8 @@
     ".": "./src/index.ts",
     "./analyzer": "./src/analyzer/index.ts",
     "./transform": "./src/transform/index.ts",
-    "./model": "./src/model/index.ts"
+    "./model": "./src/model/index.ts",
+    "./formatDate": "./src/formatDate.ts"
   },
   "bin": {
     "trail-core": "./bin/trail.js"

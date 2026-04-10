@@ -13,6 +13,7 @@ import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { BarChart } from '@mui/x-charts/BarChart';
 import { LineChart } from '@mui/x-charts/LineChart';
+import { formatLocalTime } from '@anytime-markdown/trail-core/formatDate';
 import type { CostOptimizationData, ToolMetrics, TrailMessage, TrailSession, TrailSessionCommit, TrailTokenUsage } from '../parser/types';
 import { CostOptimizationSection } from './CostOptimizationSection';
 import { useTrailTheme } from './TrailThemeContext';
@@ -617,7 +618,7 @@ function DailySessionList({
                 onClick={() => handleSessionClick(s.id)}
               >
                 <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
-                  {s.startTime.slice(11, 16)}–{s.endTime.slice(11, 16)}
+                  {formatLocalTime(s.startTime)}–{formatLocalTime(s.endTime)}
                   {s.interruption?.interrupted && (
                     <Tooltip title={
                       s.interruption.reason === 'max_tokens'

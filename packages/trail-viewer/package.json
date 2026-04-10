@@ -10,8 +10,8 @@
     "./parser": "./src/parser/index.ts"
   },
   "dependencies": {
-    "@mui/x-charts": "9.0.1",
-    "date-fns": "4.1.0"
+    "@anytime-markdown/trail-core": "*",
+    "@mui/x-charts": "9.0.1"
   },
   "peerDependencies": {
     "@mui/icons-material": ">=7",

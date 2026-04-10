@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import type { TrailDatabase } from './TrailDatabase';
 import type { SupabaseTrailStore } from './SupabaseTrailStore';
+import { formatLocalDateTime } from '@anytime-markdown/trail-core/formatDate';
 
 // ルートノード（SQLite / Supabase）
 interface DbRootItem {
@@ -35,17 +36,6 @@ class ImportingTreeItem extends vscode.TreeItem {
   }
 }
 
-function formatJst(isoString: string): string {
-  const date = new Date(isoString);
-  const jst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
-  const y = jst.getUTCFullYear();
-  const m = jst.getUTCMonth() + 1;
-  const d = jst.getUTCDate();
-  const hh = String(jst.getUTCHours()).padStart(2, '0');
-  const mm = String(jst.getUTCMinutes()).padStart(2, '0');
-  const ss = String(jst.getUTCSeconds()).padStart(2, '0');
-  return `${y}/${m}/${d} ${hh}:${mm}:${ss}`;
-}
 
 type AnyTreeItem = DbRootTreeItem | DbDetailTreeItem | ImportingTreeItem;
 
@@ -119,13 +109,13 @@ export class DashboardProvider implements vscode.TreeDataProvider<AnyTreeItem> {
       if (element.contextValue === 'sqliteDb') {
         return [
           new DbDetailTreeItem('Status', this.sqliteStatus),
-          new DbDetailTreeItem('最終インポート', this.sqliteLastImported ? formatJst(this.sqliteLastImported) : '未実行'),
+          new DbDetailTreeItem('最終インポート', this.sqliteLastImported ? formatLocalDateTime(this.sqliteLastImported) : '未実行'),
         ];
       }
       if (element.contextValue === 'supabaseDb') {
         return [
           new DbDetailTreeItem('Status', this.supabaseStatus),
-          new DbDetailTreeItem('最終同期', this.supabaseLastImported ? formatJst(this.supabaseLastImported) : '未実行'),
+          new DbDetailTreeItem('最終同期', this.supabaseLastImported ? formatLocalDateTime(this.supabaseLastImported) : '未実行'),
         ];
       }
     }
