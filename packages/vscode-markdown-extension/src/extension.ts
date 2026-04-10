@@ -187,6 +187,13 @@ export function activate(context: vscode.ExtensionContext) {
 		treeDataProvider: aiNoteProvider,
 	});
 
+	// ノートフォルダの変更を監視して自動更新
+	const noteWatcher = vscode.workspace.createFileSystemWatcher(
+		new vscode.RelativePattern(vscode.Uri.file(noteStorageDir), 'anytime-note-*.md')
+	);
+	noteWatcher.onDidCreate(() => aiNoteProvider.refresh());
+	noteWatcher.onDidDelete(() => aiNoteProvider.refresh());
+
 	// Claude Code 連携（~/.claude/ が存在する場合のみ有効）
 	const homeDir = process.env.HOME || process.env.USERPROFILE || '';
 	const claudeDir = homeDir ? path.join(homeDir, '.claude') : '';
@@ -438,7 +445,7 @@ export function activate(context: vscode.ExtensionContext) {
 		switchToReview, switchToWysiwyg, switchToSource,
 		openContext, openNoteSkill, copyContextPath, clearContext,
 		addNotePage, deleteNotePage, openNotePage,
-		aiNoteTreeView,
+		aiNoteTreeView, noteWatcher,
 		...claudeSubscriptions,
 	);
 }
