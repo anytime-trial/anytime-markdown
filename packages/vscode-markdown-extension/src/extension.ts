@@ -285,7 +285,7 @@ export function activate(context: vscode.ExtensionContext) {
 			const dir = context.globalStorageUri.fsPath;
 			if (fs.existsSync(dir)) {
 				for (const f of fs.readdirSync(dir)) {
-					if (f.endsWith('.md')) {
+					if (f.startsWith('anytime-note') && f.endsWith('.md')) {
 						fs.rmSync(path.join(dir, f));
 					}
 				}
@@ -299,28 +299,24 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	);
 
-	// ノートページを新規追加
+	// ノートページを新規追加（ファイル名: anytime-note-{N}.md）
 	const addNotePage = vscode.commands.registerCommand(
 		'anytime-markdown.addNotePage',
 		async () => {
 			const dir = context.globalStorageUri.fsPath;
-			const name = await vscode.window.showInputBox({
-				prompt: 'ページ名を入力してください（ファイル名に使用）',
-				placeHolder: 'page-name',
-				validateInput: (v) => {
-					if (!v.trim()) { return '名前を入力してください。'; }
-					if (/[/\\:*?"<>|]/.test(v)) { return '使用できない文字が含まれています。'; }
-					const filePath = path.join(dir, `${v.trim()}.md`);
-					if (fs.existsSync(filePath)) { return `${v.trim()}.md はすでに存在します。`; }
-					return undefined;
-				},
-			});
-			if (!name) { return; }
-			const filePath = path.join(dir, `${name.trim()}.md`);
 			if (!fs.existsSync(dir)) {
 				fs.mkdirSync(dir, { recursive: true });
 			}
-			fs.writeFileSync(filePath, `# ${name.trim()}\n\n`, { encoding: 'utf-8' });
+			// 次のページ番号を決定
+			const existing = fs.existsSync(dir)
+				? fs.readdirSync(dir)
+					.filter(f => /^anytime-note-\d+\.md$/.test(f))
+					.map(f => Number.parseInt(f.replace('anytime-note-', '').replace('.md', ''), 10))
+				: [];
+			const nextNum = existing.length > 0 ? Math.max(...existing) + 1 : 1;
+			const fileName = `anytime-note-${nextNum}.md`;
+			const filePath = path.join(dir, fileName);
+			fs.writeFileSync(filePath, `# anytime-note-${nextNum}\n\n`, { encoding: 'utf-8' });
 			aiNoteProvider.refresh();
 			const uri = vscode.Uri.file(filePath);
 			await vscode.commands.executeCommand('vscode.openWith', uri, MarkdownEditorProvider.viewType);

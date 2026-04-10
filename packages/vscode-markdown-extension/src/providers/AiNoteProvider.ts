@@ -40,19 +40,18 @@ export class AiNoteProvider implements vscode.TreeDataProvider<AiNoteItem> {
 		if (!fs.existsSync(this.storageDir)) { return []; }
 
 		const files = fs.readdirSync(this.storageDir)
-			.filter(f => f.endsWith('.md'))
+			.filter(f => f.startsWith('anytime-note') && f.endsWith('.md'))
 			.sort((a, b) => {
-				// anytime-context.md を先頭に固定
-				if (a === 'anytime-context.md') { return -1; }
-				if (b === 'anytime-context.md') { return 1; }
+				// ページ番号で数値ソート
+				const numA = Number.parseInt(a.replace('anytime-note-', '').replace('.md', ''), 10);
+				const numB = Number.parseInt(b.replace('anytime-note-', '').replace('.md', ''), 10);
+				if (!Number.isNaN(numA) && !Number.isNaN(numB)) { return numA - numB; }
 				return a.localeCompare(b);
 			});
 
 		return files.map(fileName => {
 			const filePath = path.join(this.storageDir, fileName);
-			const label = fileName === 'anytime-context.md'
-				? 'Note'
-				: fileName.replace(/\.md$/, '');
+			const label = fileName.replace(/\.md$/, '');
 			return new AiNoteItem(filePath, fileName, label);
 		});
 	}
