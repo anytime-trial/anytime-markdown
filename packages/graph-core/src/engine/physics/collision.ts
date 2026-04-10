@@ -51,6 +51,40 @@ export function resolveCollision(
   }
 }
 
+/** Resolve a single collision pair and track which bodies moved */
+function resolveCollisionPair(
+  a: PhysicsBody,
+  b: PhysicsBody,
+  padding: number,
+  movedId: string,
+  movedSet: Set<string>,
+): boolean {
+  if (!detectCollision(a, b, padding)) return false;
+
+  resolveCollision(a, b, padding);
+  if (a.id !== movedId) movedSet.add(a.id);
+  if (b.id !== movedId) movedSet.add(b.id);
+  return true;
+}
+
+/** Run one iteration of pairwise collision resolution */
+function resolveOneIteration(
+  bodies: PhysicsBody[],
+  padding: number,
+  movedId: string,
+  movedSet: Set<string>,
+): boolean {
+  let hasCollision = false;
+  for (let i = 0; i < bodies.length; i++) {
+    for (let j = i + 1; j < bodies.length; j++) {
+      if (resolveCollisionPair(bodies[i], bodies[j], padding, movedId, movedSet)) {
+        hasCollision = true;
+      }
+    }
+  }
+  return hasCollision;
+}
+
 export function resolveAllCollisions(
   movedId: string,
   bodies: PhysicsBody[],
@@ -60,18 +94,7 @@ export function resolveAllCollisions(
   const movedSet = new Set<string>();
 
   for (let iter = 0; iter < maxIterations; iter++) {
-    let hasCollision = false;
-    for (let i = 0; i < bodies.length; i++) {
-      for (let j = i + 1; j < bodies.length; j++) {
-        if (detectCollision(bodies[i], bodies[j], padding)) {
-          resolveCollision(bodies[i], bodies[j], padding);
-          hasCollision = true;
-          if (bodies[i].id !== movedId) movedSet.add(bodies[i].id);
-          if (bodies[j].id !== movedId) movedSet.add(bodies[j].id);
-        }
-      }
-    }
-    if (!hasCollision) break;
+    if (!resolveOneIteration(bodies, padding, movedId, movedSet)) break;
   }
 
   return bodies
