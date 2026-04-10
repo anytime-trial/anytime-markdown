@@ -1,0 +1,15 @@
+{
+  "rules": [
+    { "pattern": "^(ok|yes|はい|続けて|1|2|3|a|b|c|d)$", "model": "haiku", "label": "確認・承認" },
+    { "pattern": "コミットして|コミットのみ", "model": "haiku", "label": "Git操作" },
+    { "pattern": "バグ|エラー|原因|デバッグ|表示されない|動かない|壊れ|崩れ|不具合", "model": "opus", "label": "デバッグ" },
+    { "pattern": "レビュー|品質|sonar|lint|脆弱性|セキュリティ", "model": "opus", "label": "レビュー・品質" },
+    { "pattern": "設計|アーキテクチャ|リファクタ", "model": "opus", "label": "設計・リファクタ" },
+    { "pattern": "色|幅|余白|アイコン|フォント|サイズ|配置|レイアウト|ホバー|ツールバー|パネル|ダーク|スクロール", "model": "sonnet", "label": "UI調整" },
+    { "pattern": "追加して|作成して|実装して|削除して|変更して|更新して|非表示にして", "model": "sonnet", "label": "機能変更" },
+    { "pattern": "おしえて|教えて|ですか|でしょうか|どう|なぜ|確認して|調べて", "model": "sonnet", "label": "質問・調査" },
+    { "pattern": "ドキュメント|設計書|マニュアル|レポート|記事", "model": "sonnet", "label": "ドキュメント" },
+    { "pattern": "リリース|デプロイ|publish", "model": "sonnet", "label": "リリース" }
+  ],
+  "default": "sonnet"
+}

@@ -131,6 +131,36 @@ export interface TrailFilter {
   readonly searchText?: string;
 }
 
+// --- v1.1: Cost Optimization ---
+
+export interface CostOptimizationData {
+  readonly actual: {
+    readonly totalCost: number;
+    readonly byModel: Readonly<Record<string, number>>;
+  };
+  readonly ruleEstimate: {
+    readonly totalCost: number;
+    readonly byModel: Readonly<Record<string, number>>;
+  };
+  readonly featureEstimate: {
+    readonly totalCost: number;
+    readonly byModel: Readonly<Record<string, number>>;
+  };
+  readonly daily: readonly CostDailyEntry[];
+  readonly modelDistribution: {
+    readonly actual: Readonly<Record<string, number>>;
+    readonly ruleRecommended: Readonly<Record<string, number>>;
+    readonly featureRecommended: Readonly<Record<string, number>>;
+  };
+}
+
+export interface CostDailyEntry {
+  readonly date: string;
+  readonly actualCost: number;
+  readonly ruleCost: number;
+  readonly featureCost: number;
+}
+
 // --- v1.1: Prompt & Evaluation ---
 
 export interface TrailPromptEntry {

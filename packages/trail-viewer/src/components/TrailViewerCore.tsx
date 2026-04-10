@@ -10,6 +10,7 @@ import type {
   TrailPromptEntry,
   TrailSession,
 } from '../parser/types';
+import type { CostOptimizationData } from '../parser/types';
 import type { AnalyticsPanelProps } from './AnalyticsPanel';
 import { buildMessageTree } from '../parser/buildMessageTree';
 import { AnalyticsPanel } from './AnalyticsPanel';
@@ -37,6 +38,9 @@ export interface TrailViewerCoreProps {
   readonly fetchSessionMessages?: AnalyticsPanelProps['fetchSessionMessages'];
   readonly fetchSessionCommits?: AnalyticsPanelProps['fetchSessionCommits'];
   readonly fetchSessionToolMetrics?: AnalyticsPanelProps['fetchSessionToolMetrics'];
+  readonly costOptimization?: CostOptimizationData | null;
+  readonly onReclassify?: () => void;
+  readonly reclassifying?: boolean;
 }
 
 const SESSION_LIST_WIDTH = 300;
@@ -56,6 +60,9 @@ export function TrailViewerCore({
   fetchSessionMessages,
   fetchSessionCommits,
   fetchSessionToolMetrics,
+  costOptimization = null,
+  onReclassify,
+  reclassifying,
 }: Readonly<TrailViewerCoreProps>) {
   const tokens = getTokens(isDark ?? true);
   const { colors } = tokens;
@@ -101,6 +108,9 @@ export function TrailViewerCore({
           fetchSessionMessages={fetchSessionMessages}
           fetchSessionCommits={fetchSessionCommits}
           fetchSessionToolMetrics={fetchSessionToolMetrics}
+          costOptimization={costOptimization}
+          onReclassify={onReclassify}
+          reclassifying={reclassifying}
         />
       )}
 

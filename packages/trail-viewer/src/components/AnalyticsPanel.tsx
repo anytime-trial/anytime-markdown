@@ -13,7 +13,8 @@ import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { BarChart } from '@mui/x-charts/BarChart';
 import { LineChart } from '@mui/x-charts/LineChart';
-import type { ToolMetrics, TrailMessage, TrailSession, TrailSessionCommit, TrailTokenUsage } from '../parser/types';
+import type { CostOptimizationData, ToolMetrics, TrailMessage, TrailSession, TrailSessionCommit, TrailTokenUsage } from '../parser/types';
+import { CostOptimizationSection } from './CostOptimizationSection';
 import { useTrailTheme } from './TrailThemeContext';
 
 // ---------------------------------------------------------------------------
@@ -73,6 +74,9 @@ export interface AnalyticsPanelProps {
   readonly fetchSessionMessages?: (id: string) => Promise<readonly TrailMessage[]>;
   readonly fetchSessionCommits?: (id: string) => Promise<readonly TrailSessionCommit[]>;
   readonly fetchSessionToolMetrics?: (id: string) => Promise<ToolMetrics | null>;
+  readonly costOptimization?: CostOptimizationData | null;
+  readonly onReclassify?: () => void;
+  readonly reclassifying?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -865,7 +869,7 @@ function BranchTable({ items }: Readonly<{ items: AnalyticsData['branchBreakdown
 //  Main component
 // ---------------------------------------------------------------------------
 
-export function AnalyticsPanel({ analytics, sessions = [], onSelectSession, fetchSessionMessages, fetchSessionCommits, fetchSessionToolMetrics }: Readonly<AnalyticsPanelProps>) {
+export function AnalyticsPanel({ analytics, sessions = [], onSelectSession, fetchSessionMessages, fetchSessionCommits, fetchSessionToolMetrics, costOptimization, onReclassify, reclassifying }: Readonly<AnalyticsPanelProps>) {
   const { colors } = useTrailTheme();
   if (!analytics) {
     return (
@@ -884,6 +888,7 @@ export function AnalyticsPanel({ analytics, sessions = [], onSelectSession, fetc
       <DailyActivityChart items={analytics.dailyActivity} sessions={sessions} onSelectSession={onSelectSession} fetchSessionMessages={fetchSessionMessages} fetchSessionCommits={fetchSessionCommits} fetchSessionToolMetrics={fetchSessionToolMetrics} />
       <ModelTable items={analytics.modelBreakdown} />
       <BranchTable items={analytics.branchBreakdown} />
+      <CostOptimizationSection data={costOptimization ?? null} onReclassify={onReclassify} reclassifying={reclassifying} />
     </Box>
   );
 }
