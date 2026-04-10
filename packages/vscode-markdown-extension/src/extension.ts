@@ -207,7 +207,7 @@ export function activate(context: vscode.ExtensionContext) {
 				fs.mkdirSync(dir, { recursive: true });
 			}
 			try {
-				fs.writeFileSync(filePath, '# anytime-note-1\n\n', { encoding: 'utf-8', flag: 'wx' });
+				fs.writeFileSync(filePath, '', { encoding: 'utf-8', flag: 'wx' });
 			} catch {
 				// EEXIST: ファイル既存は正常
 			}
@@ -383,7 +383,7 @@ export function activate(context: vscode.ExtensionContext) {
 			const nextNum = existing.length > 0 ? Math.max(...existing) + 1 : 1;
 			const fileName = `anytime-note-${nextNum}.md`;
 			const filePath = path.join(dir, fileName);
-			fs.writeFileSync(filePath, `# anytime-note-${nextNum}\n\n`, { encoding: 'utf-8' });
+			fs.writeFileSync(filePath, '', { encoding: 'utf-8' });
 			aiNoteProvider.refresh();
 			const uri = vscode.Uri.file(filePath);
 			await vscode.commands.executeCommand('vscode.openWith', uri, MarkdownEditorProvider.viewType);
