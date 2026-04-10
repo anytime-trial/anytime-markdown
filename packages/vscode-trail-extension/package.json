@@ -120,6 +120,16 @@
         "title": "Sync to Remote DB",
         "category": "Anytime Trail",
         "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "anytime-trail.syncToSupabase",
+        "title": "同期",
+        "category": "Anytime Trail"
+      },
+      {
+        "command": "anytime-trail.reconnectSupabase",
+        "title": "再接続",
+        "category": "Anytime Trail"
       }
     ],
     "menus": {
@@ -170,6 +180,21 @@
           "command": "anytime-trail.runCoverageTest",
           "when": "view == anytimeTrail.c4Elements && viewItem == c4Level.c4",
           "group": "1_test@1"
+        },
+        {
+          "command": "anytime-trail.importTrailData",
+          "when": "view == anytimeTrail.dashboard && viewItem == sqliteDb",
+          "group": "inline"
+        },
+        {
+          "command": "anytime-trail.syncToSupabase",
+          "when": "view == anytimeTrail.dashboard && viewItem == supabaseDb",
+          "group": "inline"
+        },
+        {
+          "command": "anytime-trail.reconnectSupabase",
+          "when": "view == anytimeTrail.dashboard && viewItem == supabaseDb",
+          "group": "inline"
         }
       ]
     },
