@@ -65,6 +65,21 @@ export function findCellPosFromEvent(
   return null;
 }
 
+/** アクティブなテーブルモード状態があれば終了する */
+function exitTableModeIfActive(
+  view: EditorView,
+  pluginState: ReturnType<typeof tableCellModePluginKey.getState>,
+): void {
+  const hasActiveState =
+    pluginState &&
+    (pluginState.selectedCellPos != null ||
+      pluginState.editingCellPos != null);
+  if (hasActiveState) {
+    const { tr } = view.state;
+    view.dispatch(exitTableMode(tr));
+  }
+}
+
 /**
  * mousedown ハンドラ。
  * テーブルセルモードの navigation / editing 切替を制御する。
@@ -75,26 +90,16 @@ export function handleMouseDown(
 ): boolean {
   const pluginState = tableCellModePluginKey.getState(view.state);
   const cellPos = findCellPosFromEvent(view, event);
-  const hasActiveState =
-    pluginState &&
-    (pluginState.selectedCellPos != null ||
-      pluginState.editingCellPos != null);
 
   // テーブル外クリック → アクティブ状態があれば終了
   if (cellPos == null) {
-    if (hasActiveState) {
-      const { tr } = view.state;
-      view.dispatch(exitTableMode(tr));
-    }
+    exitTableModeIfActive(view, pluginState);
     return false;
   }
 
   // インラインの表 → ProseMirror のデフォルト動作に委譲
   if (isInlineTable(view, cellPos)) {
-    if (hasActiveState) {
-      const { tr } = view.state;
-      view.dispatch(exitTableMode(tr));
-    }
+    exitTableModeIfActive(view, pluginState);
     return false;
   }
 
@@ -106,6 +111,11 @@ export function handleMouseDown(
     }
     return false;
   }
+
+  const hasActiveState =
+    pluginState &&
+    (pluginState.selectedCellPos != null ||
+      pluginState.editingCellPos != null);
 
   // navigation モード → 選択セルを更新
   if (pluginState?.mode === "navigation" && hasActiveState) {
