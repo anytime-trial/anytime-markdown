@@ -167,6 +167,32 @@ function getEditDialog(isMermaid: boolean, isPlantUml: boolean, commonDialogProp
   return null;
 }
 
+/** Scale SVG width based on editor font size (extracted to reduce cognitive complexity). */
+function scaleSvgForFontSize(svg: string | undefined, fontSize: number): string | undefined {
+  if (!svg) return svg;
+  const viewBoxMatch = /viewBox="-?[\d.]+ -?[\d.]+ ([\d.]+) [\d.]+"/.exec(svg);
+  if (!viewBoxMatch) return svg;
+  const viewBoxWidth = Number.parseFloat(viewBoxMatch[1]);
+  const targetWidth = (fontSize / 16) * viewBoxWidth;
+  return svg
+    .replace(/width="100%"/, `width="${targetWidth}"`)
+    .replace(/max-width:\s*[\d.]+px/, `max-width: 100%`);
+}
+
+/** Build diagram container sx styles (extracted to reduce cognitive complexity). */
+function buildDiagramContainerSx(displayWidth: string | undefined, editorBg: string) {
+  return {
+    overflow: "hidden", bgcolor: editorBg, position: "relative",
+    width: displayWidth || "fit-content", maxWidth: "100%",
+    cursor: "pointer",
+    "@media (max-width: 899px)": {
+      overflowX: "auto",
+      "& > div": { minWidth: "max-content" },
+      "& svg": { maxWidth: "none !important" },
+    },
+  };
+}
+
 export function DiagramBlock(props: DiagramBlockProps) {
   const {
     editor, node, updateAttributes, getPos: _getPos,
@@ -197,16 +223,7 @@ export function DiagramBlock(props: DiagramBlockProps) {
   const { handleCapture, handleExportSource } = useDiagramCapture({ isMermaid, isPlantUml, svg, plantUmlUrl, code, isDark });
   const exportSourceKey = isMermaid ? "exportMmd" : "exportPuml";
 
-  const displaySvg = useMemo(() => {
-    if (!svg) return svg;
-    const viewBoxMatch = /viewBox="-?[\d.]+ -?[\d.]+ ([\d.]+) [\d.]+"/.exec(svg);
-    if (!viewBoxMatch) return svg;
-    const viewBoxWidth = Number.parseFloat(viewBoxMatch[1]);
-    const targetWidth = (settings.fontSize / 16) * viewBoxWidth;
-    return svg
-      .replace(/width="100%"/, `width="${targetWidth}"`)
-      .replace(/max-width:\s*[\d.]+px/, `max-width: 100%`);
-  }, [svg, settings.fontSize]);
+  const displaySvg = useMemo(() => scaleSvgForFontSize(svg, settings.fontSize), [svg, settings.fontSize]);
 
   const { isCompareMode, compareCode, thisCode, handleMergeApply } = useBlockMergeCompare({
     editor, getPos: _getPos, language, code, editOpen,
@@ -233,16 +250,7 @@ export function DiagramBlock(props: DiagramBlockProps) {
   const { resizing, resizeWidth, displayWidth, handleResizePointerDown, handleResizePointerMove, handleResizePointerUp } = useBlockResize({ containerRef, updateAttributes, currentWidth: node.attrs.width });
 
   const editorBg = getEditorBg(isDark, settings);
-  const diagramContainerSx = {
-    overflow: "hidden", bgcolor: editorBg, position: "relative",
-    width: displayWidth || "fit-content", maxWidth: "100%",
-    cursor: "pointer",
-    "@media (max-width: 899px)": {
-      overflowX: "auto",
-      "& > div": { minWidth: "max-content" },
-      "& svg": { maxWidth: "none !important" },
-    },
-  };
+  const diagramContainerSx = buildDiagramContainerSx(displayWidth, editorBg);
 
   const handleDoubleClickFullscreen = useCallback(() => {
     if (hasDiagramOutput) {
