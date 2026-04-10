@@ -126,6 +126,34 @@ function getCellPosAt(
 // Multi-cell paste
 // ----------------------------------------------------------------
 
+/** 1セル分の貼り付けを行い、更新された Transaction を返す */
+function pasteSingleCell(
+  tr: import("@tiptap/pm/state").Transaction,
+  view: EditorView,
+  startCellPos: number,
+  rowIdx: number,
+  colIdx: number,
+  text: string,
+  schema: import("@tiptap/pm/model").Schema,
+): import("@tiptap/pm/state").Transaction {
+  const targetPos = getCellPosAt(view, startCellPos, rowIdx, colIdx);
+  if (targetPos == null) return tr;
+
+  // マッピングで位置を更新（前の置換で位置がずれるため）
+  const mappedPos = tr.mapping.map(targetPos);
+  const cell = tr.doc.nodeAt(mappedPos);
+  if (!cell) return tr;
+
+  const from = mappedPos + 1;
+  const to = mappedPos + cell.nodeSize - 1;
+  if (from >= to) return tr;
+
+  const content = text
+    ? schema.nodes.paragraph.create(null, schema.text(text))
+    : schema.nodes.paragraph.create();
+  return tr.replaceWith(from, to, content);
+}
+
 /** TSV データを起点セルから貼り付ける */
 function pasteTableData(
   view: EditorView,
@@ -139,23 +167,7 @@ function pasteTableData(
   for (let rowIdx = 0; rowIdx < data.length; rowIdx++) {
     const row = data[rowIdx];
     for (let colIdx = 0; colIdx < row.length; colIdx++) {
-      const targetPos = getCellPosAt(view, startCellPos, rowIdx, colIdx);
-      if (targetPos == null) continue;
-
-      // マッピングで位置を更新（前の置換で位置がずれるため）
-      const mappedPos = tr.mapping.map(targetPos);
-      const cell = tr.doc.nodeAt(mappedPos);
-      if (!cell) continue;
-
-      const from = mappedPos + 1;
-      const to = mappedPos + cell.nodeSize - 1;
-      if (from >= to) continue;
-
-      const text = row[colIdx];
-      const content = text
-        ? schema.nodes.paragraph.create(null, schema.text(text))
-        : schema.nodes.paragraph.create();
-      tr = tr.replaceWith(from, to, content);
+      tr = pasteSingleCell(tr, view, startCellPos, rowIdx, colIdx, row[colIdx], schema);
     }
   }
 
