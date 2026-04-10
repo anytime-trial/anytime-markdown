@@ -14,6 +14,7 @@
   "command.openContext": "AI ノートを開く",
   "command.copyContextPath": "AI ノートのパスをコピー",
   "command.clearContext": "AI ノートをクリア",
+  "command.openNoteSkill": "ノートスキルを開く",
   "command.addNotePage": "ノートページを追加",
   "command.deleteNotePage": "ノートページを削除",
   "command.openNotePage": "ノートページを開く",

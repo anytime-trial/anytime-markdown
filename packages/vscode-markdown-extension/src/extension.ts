@@ -262,6 +262,20 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	);
 
+	// anytime-note スキルファイルを開く
+	const openNoteSkill = vscode.commands.registerCommand(
+		'anytime-markdown.openNoteSkill',
+		async () => {
+			const skillPath = path.join(homeDir, '.claude', 'skills', 'anytime-note', 'SKILL.md');
+			if (!fs.existsSync(skillPath)) {
+				vscode.window.showWarningMessage('スキルファイルが見つかりません。先にノートを作成してください。');
+				return;
+			}
+			const uri = vscode.Uri.file(skillPath);
+			await vscode.commands.executeCommand('vscode.openWith', uri, MarkdownEditorProvider.viewType);
+		}
+	);
+
 	// AI Note ファイルパスをクリップボードにコピー
 	const copyContextPath = vscode.commands.registerCommand(
 		'anytime-markdown.copyContextPath',
@@ -369,7 +383,7 @@ export function activate(context: vscode.ExtensionContext) {
 		pasteAsMarkdown,
 		toggleAutoReloadOff, toggleAutoReloadOn,
 		switchToReview, switchToWysiwyg, switchToSource,
-		openContext, copyContextPath, clearContext,
+		openContext, openNoteSkill, copyContextPath, clearContext,
 		addNotePage, deleteNotePage, openNotePage,
 		aiNoteTreeView,
 		...claudeSubscriptions,

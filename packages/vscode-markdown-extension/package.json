@@ -109,6 +109,11 @@
         "icon": "$(trash)"
       },
       {
+        "command": "anytime-markdown.openNoteSkill",
+        "title": "%command.openNoteSkill%",
+        "icon": "$(book)"
+      },
+      {
         "command": "anytime-markdown.addNotePage",
         "title": "%command.addNotePage%",
         "icon": "$(add)"
@@ -233,14 +238,19 @@
     "menus": {
       "view/title": [
         {
-          "command": "anytime-markdown.addNotePage",
+          "command": "anytime-markdown.openNoteSkill",
           "when": "view == anytimeMarkdown.aiNote",
           "group": "navigation@1"
         },
         {
-          "command": "anytime-markdown.clearContext",
+          "command": "anytime-markdown.addNotePage",
           "when": "view == anytimeMarkdown.aiNote",
           "group": "navigation@2"
+        },
+        {
+          "command": "anytime-markdown.clearContext",
+          "when": "view == anytimeMarkdown.aiNote",
+          "group": "navigation@3"
         },
         {
           "command": "anytime-markdown.copyContextPath",
