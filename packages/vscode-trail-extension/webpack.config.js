@@ -54,47 +54,6 @@ const extensionConfig = {
 };
 
 /** @type WebpackConfig */
-const standaloneConfig = {
-  target: 'web',
-  mode: 'development',
-  entry: './src/c4/standalone/index.tsx',
-  output: {
-    path: path.resolve(__dirname, 'dist'),
-    filename: 'c4standalone.js',
-  },
-  resolve: {
-    extensions: ['.ts', '.tsx', '.js', '.jsx'],
-  },
-  module: {
-    rules: [
-      {
-        test: /\.tsx?$/,
-        exclude: /node_modules[\\/](?!@anytime-markdown[\\/](?:graph-core|c4-kernel|c4-viewer))/,
-        use: [{
-          loader: 'ts-loader',
-          options: {
-            configFile: 'tsconfig.standalone.json',
-            allowTsInNodeModules: true,
-            transpileOnly: true,
-          },
-        }],
-      },
-    ],
-  },
-  plugins: [
-    new webpack.DefinePlugin({
-      'process.env.NODE_ENV': JSON.stringify('production'),
-      'process.env.NEXT_PUBLIC_C4_SERVER_URL': JSON.stringify(''),
-    }),
-    new webpack.optimize.LimitChunkCountPlugin({
-      maxChunks: 1,
-    }),
-    new webpack.NormalModuleReplacementPlugin(/^node:path$/, require.resolve('./src/c4/standalone/shims/empty.js')),
-  ],
-  devtool: 'nosources-source-map',
-};
-
-/** @type WebpackConfig */
 const trailStandaloneConfig = {
   target: 'web',
   mode: 'development',
@@ -110,7 +69,7 @@ const trailStandaloneConfig = {
     rules: [
       {
         test: /\.tsx?$/,
-        exclude: /node_modules[\\/](?!@anytime-markdown[\\/]trail-viewer)/,
+        exclude: /node_modules[\\/](?!@anytime-markdown[\\/](?:graph-core|c4-kernel|trail-viewer))/,
         use: [{
           loader: 'ts-loader',
           options: {
@@ -129,6 +88,7 @@ const trailStandaloneConfig = {
     new webpack.optimize.LimitChunkCountPlugin({
       maxChunks: 1,
     }),
+    new webpack.NormalModuleReplacementPlugin(/^node:path$/, require.resolve('./src/c4/standalone/shims/empty.js')),
   ],
   devtool: 'nosources-source-map',
 };
@@ -160,4 +120,4 @@ const uninstallConfig = {
   },
 };
 
-module.exports = [extensionConfig, standaloneConfig, trailStandaloneConfig, uninstallConfig];
+module.exports = [extensionConfig, trailStandaloneConfig, uninstallConfig];

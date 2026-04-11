@@ -14,7 +14,8 @@ import {
 import type { C4Element, C4Model, C4Relationship, BoundaryInfo, CoverageDiffMatrix, CoverageMatrix, DsmMapping, DsmMatrix, FeatureMatrix } from '@anytime-markdown/c4-kernel';
 import { analyze, trailToC4, toMermaid } from '@anytime-markdown/trail-core';
 import type { TrailGraph } from '@anytime-markdown/trail-core';
-import type { C4DataProvider, C4DataServer } from '../server/C4DataServer';
+import type { C4DataProvider } from '../server/TrailDataServer';
+import type { TrailDataServer } from '../server/TrailDataServer';
 import { TrailLogger } from '../utils/TrailLogger';
 import { CoverageHistory } from './coverageHistory';
 import { CoverageWatcher } from './coverageWatcher';
@@ -22,11 +23,11 @@ import type { TrailDatabase } from '../trail/TrailDatabase';
 
 /**
  * C4モデルのデータ管理を担当するシングルトン。
- * Webview は持たず、C4DataServer 経由でスタンドアロンビューアにデータを配信する。
+ * Webview は持たず、TrailDataServer 経由でスタンドアロンビューアにデータを配信する。
  */
 export class C4Panel implements C4DataProvider {
   private static instance: C4Panel | undefined;
-  private static dataServer: C4DataServer | undefined;
+  private static dataServer: TrailDataServer | undefined;
   private static trailDb: TrailDatabase | undefined;
 
   private lastModel: C4Model | undefined;
@@ -51,7 +52,7 @@ export class C4Panel implements C4DataProvider {
   //  Static setup
   // -------------------------------------------------------------------------
 
-  public static setDataServer(server: C4DataServer): void {
+  public static setDataServer(server: TrailDataServer): void {
     C4Panel.dataServer = server;
   }
 
@@ -73,7 +74,7 @@ export class C4Panel implements C4DataProvider {
     if (!C4Panel.dataServer?.isRunning) return;
     if (!force && C4Panel.viewerOpened) return;
     C4Panel.viewerOpened = true;
-    const port = vscode.workspace.getConfiguration('anytimeTrail.server').get<number>('port', 19840);
+    const port = vscode.workspace.getConfiguration('anytimeTrail.trailServer').get<number>('port', 19841);
     vscode.env.openExternal(vscode.Uri.parse(`http://localhost:${port}`));
   }
 

@@ -14,6 +14,8 @@
     "@mui/x-charts": "9.0.1"
   },
   "peerDependencies": {
+    "@anytime-markdown/c4-kernel": "*",
+    "@anytime-markdown/graph-core": "*",
     "@mui/icons-material": ">=7",
     "@mui/material": ">=7",
     "react": ">=19",

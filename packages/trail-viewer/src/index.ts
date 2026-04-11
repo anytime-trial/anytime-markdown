@@ -43,3 +43,18 @@ export { useTrailDataSource } from './hooks/useTrailDataSource';
 export type { TrailDataSourceResult, SupabaseConfig } from './hooks/useTrailDataSource';
 
 export type { TrailLocale } from './i18n/types';
+
+// C4 viewer (merged from @anytime-markdown/c4-viewer)
+export { getC4Colors } from './c4/c4Theme';
+export type { C4ThemeColors } from './c4/c4Theme';
+export { GraphCanvas } from './c4/components/GraphCanvas';
+export { DsmCanvas } from './c4/components/DsmCanvas';
+export { FcMapCanvas } from './c4/components/FcMapCanvas';
+export { CoverageCanvas } from './c4/components/CoverageCanvas';
+export { C4ElementTree } from './c4/components/C4ElementTree';
+export { useC4DataSource } from './c4/hooks/useC4DataSource';
+export type { AnalysisProgress } from './c4/hooks/useC4DataSource';
+export { AddElementDialog, AddRelationshipDialog } from './c4/components/C4EditDialogs';
+export type { ElementFormData, RelationshipFormData, ElementOption } from './c4/components/C4EditDialogs';
+export { C4ViewerCore } from './c4/components/C4ViewerCore';
+export type { C4ViewerCoreProps } from './c4/components/C4ViewerCore';

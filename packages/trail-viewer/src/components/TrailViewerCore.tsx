@@ -27,6 +27,12 @@ import { TrailLocaleProvider, useTrailI18n } from '../i18n';
 import type { TrailLocale } from '../i18n';
 import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
 
+import { C4ViewerCore } from '../c4/components/C4ViewerCore';
+import type { C4ViewerCoreProps } from '../c4/components/C4ViewerCore';
+
+/** C4-related props forwarded to the embedded C4ViewerCore. */
+type C4Props = Omit<C4ViewerCoreProps, 'isDark' | 'containerHeight'>;
+
 export interface TrailViewerCoreProps {
   readonly isDark?: boolean;
   readonly locale?: TrailLocale;
@@ -45,6 +51,8 @@ export interface TrailViewerCoreProps {
   readonly fetchSessionToolMetrics?: AnalyticsPanelProps['fetchSessionToolMetrics'];
   readonly costOptimization?: CostOptimizationData | null;
   readonly releases?: readonly TrailRelease[];
+  /** C4 viewer props. When provided, the C4 tab is shown. */
+  readonly c4?: C4Props;
 }
 
 const SESSION_LIST_WIDTH = 300;
@@ -76,6 +84,7 @@ function TrailViewerCoreInner({
   fetchSessionToolMetrics,
   costOptimization = null,
   releases = [],
+  c4,
 }: Readonly<TrailViewerCoreProps>) {
   const { t } = useTrailI18n();
   const tokens = useMemo(() => getTokens(isDark ?? true), [isDark]);
@@ -132,6 +141,7 @@ function TrailViewerCoreInner({
           <Tab id="trail-tab-1" aria-controls="trail-panel-1" label={t('viewer.traces')} />
           <Tab id="trail-tab-2" aria-controls="trail-panel-2" label={t('viewer.prompts')} />
           <Tab id="trail-tab-3" aria-controls="trail-panel-3" label={t('releases.title')} />
+          {c4 && <Tab id="trail-tab-4" aria-controls="trail-panel-4" label={t('viewer.c4')} />}
         </Tabs>
       </Box>
 
@@ -221,6 +231,18 @@ function TrailViewerCoreInner({
       >
         <ReleasesPanel releases={releases ?? []} />
       </Box>
+
+      {/* Tab 4: C4 */}
+      {c4 && (
+        <Box
+          role="tabpanel"
+          id="trail-panel-4"
+          aria-labelledby="trail-tab-4"
+          sx={{ display: activeTab !== 4 ? 'none' : 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}
+        >
+          <C4ViewerCore isDark={isDark} containerHeight="100%" {...c4} />
+        </Box>
+      )}
     </Box>
   );
 }

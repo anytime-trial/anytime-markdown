@@ -16,7 +16,6 @@
   },
   "dependencies": {
     "@anytime-markdown/c4-kernel": "*",
-    "@anytime-markdown/c4-viewer": "*",
     "@anytime-markdown/cms-core": "*",
     "@anytime-markdown/graph-core": "*",
     "@anytime-markdown/markdown-core": "*",

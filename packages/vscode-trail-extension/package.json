@@ -314,7 +314,6 @@
   },
   "dependencies": {
     "@anytime-markdown/c4-kernel": "*",
-    "@anytime-markdown/c4-viewer": "*",
     "@anytime-markdown/graph-core": "*",
     "@anytime-markdown/trail-core": "*",
     "@supabase/supabase-js": "2.103.0",

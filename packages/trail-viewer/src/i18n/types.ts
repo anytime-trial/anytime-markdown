@@ -155,4 +155,6 @@ export interface TrailI18n {
   'releases.packages': string;
   'releases.days': string;
   'releases.noReleases': string;
+  // c4
+  'viewer.c4': string;
 }

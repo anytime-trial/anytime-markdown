@@ -7,8 +7,8 @@ import { layoutWithSubgroups } from '@anytime-markdown/graph-core';
 import { c4ToGraphDocument } from '@anytime-markdown/c4-kernel';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { C4ViewerCore } from '@anytime-markdown/c4-viewer';
-import type { ElementFormData, RelationshipFormData } from '@anytime-markdown/c4-viewer';
+import { C4ViewerCore } from '@anytime-markdown/trail-viewer';
+import type { ElementFormData, RelationshipFormData } from '@anytime-markdown/trail-viewer';
 import { useThemeMode } from '../../providers';
 
 let nextManualId = 1;

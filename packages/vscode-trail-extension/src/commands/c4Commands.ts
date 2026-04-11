@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
 import { C4Panel } from '../c4/C4Panel';
-import { C4DataServer } from '../server/C4DataServer';
+import type { TrailDataServer } from '../server/TrailDataServer';
 
 export interface C4CommandsDeps {
-	getDataServer: () => C4DataServer | undefined;
+	getDataServer: () => TrailDataServer | undefined;
 	startServer: () => Promise<void>;
 }
 

@@ -143,4 +143,5 @@ export const ja: TrailI18n = {
   'releases.packages': 'パッケージ',
   'releases.days': '日',
   'releases.noReleases': 'リリースデータがありません',
+  'viewer.c4': 'C4',
 };
