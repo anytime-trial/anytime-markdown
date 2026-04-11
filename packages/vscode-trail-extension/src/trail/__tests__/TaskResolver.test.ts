@@ -67,6 +67,17 @@ describe('mapFilesToC4Elements', () => {
     expect(result.find((r) => r.elementId.startsWith('file::'))?.matchType).toBe('exact');
   });
 
+  it('elementName を返す', () => {
+    const result = mapFilesToC4Elements(
+      ['packages/graph-core/src/engine/constants.ts'],
+      elements,
+    );
+    const fileResult = result.find((r) => r.elementId.startsWith('file::'));
+    expect(fileResult?.elementName).toBe('constants.ts');
+    const pkgResult = result.find((r) => r.elementId === 'pkg_graph-core');
+    expect(pkgResult?.elementName).toBe('graph-core');
+  });
+
   it('ファイルが C4 モデルにない場合はパッケージにフォールバックする', () => {
     const result = mapFilesToC4Elements(
       ['packages/graph-core/src/unknown-file.ts'],
@@ -75,6 +86,7 @@ describe('mapFilesToC4Elements', () => {
     expect(result).toHaveLength(1);
     expect(result[0].elementId).toBe('pkg_graph-core');
     expect(result[0].matchType).toBe('package_fallback');
+    expect(result[0].elementName).toBe('graph-core');
   });
 
   it('重複する要素は除外する', () => {

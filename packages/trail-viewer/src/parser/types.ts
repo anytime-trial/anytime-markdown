@@ -196,19 +196,33 @@ export interface TrailTask {
   readonly filesChanged: number;
   readonly linesAdded: number;
   readonly linesDeleted: number;
+  readonly sessionCount: number;
+  readonly totalInputTokens: number;
+  readonly totalOutputTokens: number;
+  readonly totalCacheReadTokens: number;
+  readonly totalDurationMs: number;
   readonly resolvedAt: string | null;
   readonly files?: readonly TrailTaskFile[];
   readonly c4Elements?: readonly TrailTaskC4Element[];
+  readonly features?: readonly TrailTaskFeature[];
 }
 
 export interface TrailTaskFile {
   readonly filePath: string;
   readonly linesAdded: number;
   readonly linesDeleted: number;
+  readonly changeType: string;
 }
 
 export interface TrailTaskC4Element {
   readonly elementId: string;
   readonly elementType: string;
+  readonly elementName: string;
   readonly matchType: string;
+}
+
+export interface TrailTaskFeature {
+  readonly featureId: string;
+  readonly featureName: string;
+  readonly role: string;
 }

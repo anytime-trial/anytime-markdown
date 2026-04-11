@@ -8,11 +8,12 @@ import {
   CREATE_TASKS,
   CREATE_TASK_FILES,
   CREATE_TASK_C4_ELEMENTS,
+  CREATE_TASK_FEATURES,
   CREATE_TASK_INDEXES,
   resolveTasks as resolveTasksImpl,
 } from './TaskResolver';
-import type { TaskRow, TaskFileRow, TaskC4ElementRow } from './TaskResolver';
-export type { TaskRow, TaskFileRow, TaskC4ElementRow } from './TaskResolver';
+import type { TaskRow, TaskFileRow, TaskC4ElementRow, TaskFeatureRow } from './TaskResolver';
+export type { TaskRow, TaskFileRow, TaskC4ElementRow, TaskFeatureRow } from './TaskResolver';
 
 declare const __non_webpack_require__: (id: string) => unknown;
 
@@ -509,6 +510,7 @@ export class TrailDatabase {
     db.run(CREATE_TASKS);
     db.run(CREATE_TASK_FILES);
     db.run(CREATE_TASK_C4_ELEMENTS);
+    db.run(CREATE_TASK_FEATURES);
     for (const sql of [...CREATE_INDEXES, ...CREATE_TASK_INDEXES]) {
       db.run(sql);
     }
@@ -518,6 +520,19 @@ export class TrailDatabase {
       db.run('ALTER TABLE sessions ADD COLUMN commits_resolved_at TEXT');
     } catch {
       // Column already exists — ignore
+    }
+    // Task table migrations for existing DBs
+    const taskAlters = [
+      'ALTER TABLE tasks ADD COLUMN session_count INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE tasks ADD COLUMN total_input_tokens INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE tasks ADD COLUMN total_output_tokens INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE tasks ADD COLUMN total_cache_read_tokens INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE tasks ADD COLUMN total_duration_ms INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE task_files ADD COLUMN change_type TEXT NOT NULL DEFAULT \'modified\'',
+      'ALTER TABLE task_c4_elements ADD COLUMN element_name TEXT NOT NULL DEFAULT \'\'',
+    ];
+    for (const sql of taskAlters) {
+      try { db.run(sql); } catch { /* Column already exists */ }
     }
     try {
       db.run('ALTER TABLE messages ADD COLUMN rule_recommended_model TEXT');
@@ -1169,6 +1184,22 @@ export class TrailDatabase {
         obj[cols[i]] = row[i];
       }
       return obj as unknown as TaskC4ElementRow;
+    });
+  }
+
+  getTaskFeatures(taskId: string): TaskFeatureRow[] {
+    const db = this.ensureDb();
+    const result = db.exec(
+      `SELECT * FROM task_features WHERE task_id = '${taskId.replaceAll("'", "''")}'`,
+    );
+    if (!result[0]) return [];
+    const cols = result[0].columns;
+    return result[0].values.map((row) => {
+      const obj: Record<string, unknown> = {};
+      for (let i = 0; i < cols.length; i++) {
+        obj[cols[i]] = row[i];
+      }
+      return obj as unknown as TaskFeatureRow;
     });
   }
 

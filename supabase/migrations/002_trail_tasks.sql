@@ -11,6 +11,11 @@ CREATE TABLE IF NOT EXISTS trail_tasks (
   files_changed INTEGER NOT NULL DEFAULT 0,
   lines_added INTEGER NOT NULL DEFAULT 0,
   lines_deleted INTEGER NOT NULL DEFAULT 0,
+  session_count INTEGER NOT NULL DEFAULT 0,
+  total_input_tokens INTEGER NOT NULL DEFAULT 0,
+  total_output_tokens INTEGER NOT NULL DEFAULT 0,
+  total_cache_read_tokens INTEGER NOT NULL DEFAULT 0,
+  total_duration_ms INTEGER NOT NULL DEFAULT 0,
   resolved_at TEXT,
   synced_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(merge_commit_hash)
@@ -25,6 +30,7 @@ CREATE TABLE IF NOT EXISTS trail_task_files (
   file_path TEXT NOT NULL,
   lines_added INTEGER NOT NULL DEFAULT 0,
   lines_deleted INTEGER NOT NULL DEFAULT 0,
+  change_type TEXT NOT NULL DEFAULT 'modified',
   PRIMARY KEY (task_id, file_path)
 );
 
@@ -35,8 +41,20 @@ CREATE TABLE IF NOT EXISTS trail_task_c4_elements (
   task_id TEXT NOT NULL REFERENCES trail_tasks(id) ON DELETE CASCADE,
   element_id TEXT NOT NULL,
   element_type TEXT NOT NULL,
+  element_name TEXT NOT NULL DEFAULT '',
   match_type TEXT NOT NULL,
   PRIMARY KEY (task_id, element_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_trail_task_c4_task ON trail_task_c4_elements(task_id);
+
+-- Features affected per task (derived from C4 elements + featureMatrix)
+CREATE TABLE IF NOT EXISTS trail_task_features (
+  task_id TEXT NOT NULL REFERENCES trail_tasks(id) ON DELETE CASCADE,
+  feature_id TEXT NOT NULL,
+  feature_name TEXT NOT NULL DEFAULT '',
+  role TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (task_id, feature_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_trail_task_features_task ON trail_task_features(task_id);

@@ -91,6 +91,8 @@ export class SyncService {
         await this.store.upsertTaskFiles(files);
         const c4Elements = this.trailDb.getTaskC4Elements(task.id);
         await this.store.upsertTaskC4Elements(c4Elements);
+        const features = this.trailDb.getTaskFeatures(task.id);
+        await this.store.upsertTaskFeatures(features);
       }
     } catch (e) {
       TrailLogger.error('Failed to sync tasks', e);

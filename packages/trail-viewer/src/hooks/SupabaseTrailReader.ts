@@ -7,6 +7,7 @@ import type {
   TrailSessionCommit,
   TrailTask,
   TrailToolCall,
+  TrailTaskFeature,
 } from '../parser/types';
 import { toLocalDateKey } from '@anytime-markdown/trail-core/formatDate';
 import type { AnalyticsData } from '../components/AnalyticsPanel';
@@ -76,21 +77,35 @@ interface TaskDbRow {
   readonly files_changed: number;
   readonly lines_added: number;
   readonly lines_deleted: number;
+  readonly session_count: number;
+  readonly total_input_tokens: number;
+  readonly total_output_tokens: number;
+  readonly total_cache_read_tokens: number;
+  readonly total_duration_ms: number;
   readonly resolved_at: string | null;
   readonly trail_task_files?: readonly TaskFileDbRow[];
   readonly trail_task_c4_elements?: readonly TaskC4DbRow[];
+  readonly trail_task_features?: readonly TaskFeatureDbRow[];
 }
 
 interface TaskFileDbRow {
   readonly file_path: string;
   readonly lines_added: number;
   readonly lines_deleted: number;
+  readonly change_type: string;
 }
 
 interface TaskC4DbRow {
   readonly element_id: string;
   readonly element_type: string;
+  readonly element_name: string;
   readonly match_type: string;
+}
+
+interface TaskFeatureDbRow {
+  readonly feature_id: string;
+  readonly feature_name: string;
+  readonly role: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -161,7 +176,7 @@ export class SupabaseTrailReader implements ITrailReader {
   async getTasks(): Promise<readonly TrailTask[]> {
     const { data, error } = await this.client
       .from('trail_tasks')
-      .select('*, trail_task_files(*), trail_task_c4_elements(*)')
+      .select('*, trail_task_files(*), trail_task_c4_elements(*), trail_task_features(*)')
       .order('merged_at', { ascending: false });
     if (error) throw new Error(`Supabase getTasks failed: ${error.message}`);
     return (data ?? []).map((r: TaskDbRow) => ({
@@ -176,16 +191,28 @@ export class SupabaseTrailReader implements ITrailReader {
       filesChanged: r.files_changed,
       linesAdded: r.lines_added,
       linesDeleted: r.lines_deleted,
+      sessionCount: r.session_count,
+      totalInputTokens: r.total_input_tokens,
+      totalOutputTokens: r.total_output_tokens,
+      totalCacheReadTokens: r.total_cache_read_tokens,
+      totalDurationMs: r.total_duration_ms,
       resolvedAt: r.resolved_at,
       files: (r.trail_task_files ?? []).map((f: TaskFileDbRow) => ({
         filePath: f.file_path,
         linesAdded: f.lines_added,
         linesDeleted: f.lines_deleted,
+        changeType: f.change_type,
       })),
       c4Elements: (r.trail_task_c4_elements ?? []).map((e: TaskC4DbRow) => ({
         elementId: e.element_id,
         elementType: e.element_type,
+        elementName: e.element_name,
         matchType: e.match_type,
+      })),
+      features: (r.trail_task_features ?? []).map((f: TaskFeatureDbRow) => ({
+        featureId: f.feature_id,
+        featureName: f.feature_name,
+        role: f.role,
       })),
     }));
   }

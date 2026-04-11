@@ -1,5 +1,5 @@
 import type { SessionRow, MessageRow, SessionCommitRow } from './TrailDatabase';
-import type { TaskRow, TaskFileRow, TaskC4ElementRow } from './TaskResolver';
+import type { TaskRow, TaskFileRow, TaskC4ElementRow, TaskFeatureRow } from './TaskResolver';
 
 export interface IRemoteTrailStore {
   connect(): Promise<void>;
@@ -12,4 +12,5 @@ export interface IRemoteTrailStore {
   upsertTasks(rows: readonly TaskRow[]): Promise<void>;
   upsertTaskFiles(rows: readonly TaskFileRow[]): Promise<void>;
   upsertTaskC4Elements(rows: readonly TaskC4ElementRow[]): Promise<void>;
+  upsertTaskFeatures(rows: readonly TaskFeatureRow[]): Promise<void>;
 }
