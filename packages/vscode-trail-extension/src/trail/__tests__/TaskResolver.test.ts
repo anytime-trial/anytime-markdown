@@ -1,7 +1,7 @@
 import {
   parseTaskFromMergeCommit,
   mapFilesToC4Elements,
-} from '../TaskResolver';
+} from '@anytime-markdown/trail-core';
 
 describe('parseTaskFromMergeCommit', () => {
   it('Merge branch パターンからブランチ名とマージ先を抽出する', () => {

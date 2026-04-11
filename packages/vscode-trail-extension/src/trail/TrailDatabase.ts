@@ -5,15 +5,27 @@ import path from 'node:path';
 import os from 'node:os';
 import { toUTC } from './dateUtils';
 import {
+  CREATE_SESSIONS,
+  CREATE_SESSION_COSTS,
+  CREATE_DAILY_COSTS,
+  CREATE_MESSAGES,
+  CREATE_SESSION_COMMITS,
+  CREATE_IMPORTED_FILES,
+  CREATE_C4_MODELS,
+  CREATE_SKILL_MODELS as CREATE_SKILL_MODELS_TABLE,
+  CREATE_SKILL_MODELS_RESOLVED_VIEW,
+  CREATE_INDEXES,
   CREATE_TASKS,
   CREATE_TASK_FILES,
   CREATE_TASK_C4_ELEMENTS,
   CREATE_TASK_FEATURES,
   CREATE_TASK_INDEXES,
-  resolveTasks as resolveTasksImpl,
-} from './TaskResolver';
-import type { TaskRow, TaskFileRow, TaskC4ElementRow, TaskFeatureRow } from './TaskResolver';
-export type { TaskRow, TaskFileRow, TaskC4ElementRow, TaskFeatureRow } from './TaskResolver';
+  DEFAULT_SKILL_MODELS,
+  extractSkillName,
+} from '@anytime-markdown/trail-core';
+import { resolveTasks as resolveTasksImpl } from './TaskResolver';
+import type { TaskRow, TaskFileRow, TaskC4ElementRow, TaskFeatureRow } from '@anytime-markdown/trail-core';
+export type { TaskRow, TaskFileRow, TaskC4ElementRow, TaskFeatureRow } from '@anytime-markdown/trail-core';
 
 declare const __non_webpack_require__: (id: string) => unknown;
 
@@ -223,181 +235,19 @@ interface RawContentBlock {
 //  SQL statements
 // ---------------------------------------------------------------------------
 
-const CREATE_SESSIONS = `CREATE TABLE IF NOT EXISTS sessions (
-  id TEXT PRIMARY KEY,
-  slug TEXT NOT NULL DEFAULT '',
-  project TEXT NOT NULL DEFAULT '',
-  version TEXT NOT NULL DEFAULT '',
-  entrypoint TEXT NOT NULL DEFAULT '',
-  model TEXT NOT NULL DEFAULT '',
-  start_time TEXT NOT NULL DEFAULT '',
-  end_time TEXT NOT NULL DEFAULT '',
-  message_count INTEGER NOT NULL DEFAULT 0,
-  file_path TEXT NOT NULL DEFAULT '',
-  file_size INTEGER NOT NULL DEFAULT 0,
-  imported_at TEXT NOT NULL DEFAULT '',
-  commits_resolved_at TEXT
-)`;
+// Schema constants imported from trail-core (see import at top of file)
 
-const CREATE_SESSION_COSTS = `CREATE TABLE IF NOT EXISTS session_costs (
-  session_id TEXT NOT NULL REFERENCES sessions(id),
-  model TEXT NOT NULL,
-  input_tokens INTEGER NOT NULL DEFAULT 0,
-  output_tokens INTEGER NOT NULL DEFAULT 0,
-  cache_read_tokens INTEGER NOT NULL DEFAULT 0,
-  cache_creation_tokens INTEGER NOT NULL DEFAULT 0,
-  estimated_cost_usd REAL NOT NULL DEFAULT 0,
-  PRIMARY KEY (session_id, model)
-)`;
 
-const CREATE_DAILY_COSTS = `CREATE TABLE IF NOT EXISTS daily_costs (
-  date TEXT NOT NULL,
-  model TEXT NOT NULL,
-  cost_type TEXT NOT NULL DEFAULT 'actual',
-  input_tokens INTEGER NOT NULL DEFAULT 0,
-  output_tokens INTEGER NOT NULL DEFAULT 0,
-  cache_read_tokens INTEGER NOT NULL DEFAULT 0,
-  cache_creation_tokens INTEGER NOT NULL DEFAULT 0,
-  estimated_cost_usd REAL NOT NULL DEFAULT 0,
-  PRIMARY KEY (date, model, cost_type)
-)`;
 
-const CREATE_MESSAGES = `CREATE TABLE IF NOT EXISTS messages (
-  uuid TEXT PRIMARY KEY,
-  session_id TEXT NOT NULL REFERENCES sessions(id),
-  parent_uuid TEXT,
-  type TEXT NOT NULL,
-  subtype TEXT,
-  text_content TEXT,
-  user_content TEXT,
-  tool_calls TEXT,
-  tool_use_result TEXT,
-  model TEXT,
-  request_id TEXT,
-  stop_reason TEXT,
-  input_tokens INTEGER NOT NULL DEFAULT 0,
-  output_tokens INTEGER NOT NULL DEFAULT 0,
-  cache_read_tokens INTEGER NOT NULL DEFAULT 0,
-  cache_creation_tokens INTEGER NOT NULL DEFAULT 0,
-  service_tier TEXT,
-  speed TEXT,
-  timestamp TEXT NOT NULL DEFAULT '',
-  is_sidechain INTEGER NOT NULL DEFAULT 0,
-  is_meta INTEGER NOT NULL DEFAULT 0,
-  cwd TEXT,
-  git_branch TEXT,
-  permission_mode TEXT,
-  skill TEXT,
-  agent_id TEXT,
-  system_command TEXT,
-  duration_ms INTEGER,
-  tool_result_size INTEGER,
-  agent_description TEXT,
-  agent_model TEXT
-)`;
 
-const CREATE_SESSION_COMMITS = `CREATE TABLE IF NOT EXISTS session_commits (
-  session_id TEXT NOT NULL REFERENCES sessions(id),
-  commit_hash TEXT NOT NULL,
-  commit_message TEXT NOT NULL DEFAULT '',
-  author TEXT NOT NULL DEFAULT '',
-  committed_at TEXT NOT NULL DEFAULT '',
-  is_ai_assisted INTEGER NOT NULL DEFAULT 0,
-  files_changed INTEGER NOT NULL DEFAULT 0,
-  lines_added INTEGER NOT NULL DEFAULT 0,
-  lines_deleted INTEGER NOT NULL DEFAULT 0,
-  PRIMARY KEY (session_id, commit_hash)
-)`;
 
-const CREATE_IMPORTED_FILES = `CREATE TABLE IF NOT EXISTS imported_files (
-  file_path TEXT PRIMARY KEY,
-  file_size INTEGER NOT NULL DEFAULT 0,
-  session_id TEXT NOT NULL DEFAULT '',
-  imported_at TEXT NOT NULL DEFAULT ''
-)`;
 
-const CREATE_C4_MODELS = `CREATE TABLE IF NOT EXISTS c4_models (
-  id TEXT PRIMARY KEY DEFAULT 'current',
-  model_json TEXT NOT NULL,
-  revision TEXT NOT NULL DEFAULT '',
-  updated_at TEXT NOT NULL DEFAULT ''
-)`;
 
-const CREATE_SKILL_MODELS = `CREATE TABLE IF NOT EXISTS skill_models (
-  skill TEXT PRIMARY KEY,
-  canonical_skill TEXT,
-  recommended_model TEXT NOT NULL DEFAULT 'sonnet'
-)`;
 
-const CREATE_SKILL_MODELS_RESOLVED_VIEW = `CREATE VIEW IF NOT EXISTS skill_models_resolved AS
-SELECT
-  s.skill,
-  COALESCE(
-    (SELECT c.recommended_model FROM skill_models c WHERE c.skill = s.canonical_skill),
-    s.recommended_model
-  ) AS recommended_model
-FROM skill_models s`;
 
-const DEFAULT_SKILL_MODELS: ReadonlyArray<readonly [string, string | null, string]> = [
-  // opus
-  ['resolve-issues', null, 'opus'],
-  ['security-review', null, 'opus'],
-  ['superpowers:systematic-debugging', null, 'opus'],
-  // sonnet
-  ['superpowers:brainstorming', null, 'sonnet'],
-  ['superpowers:writing-plans', null, 'sonnet'],
-  ['superpowers:subagent-driven-development', null, 'sonnet'],
-  ['superpowers:executing-plans', null, 'sonnet'],
-  ['superpowers:using-git-worktrees', null, 'sonnet'],
-  ['superpowers:finishing-a-development-branch', null, 'sonnet'],
-  ['superpowers:writing-skills', null, 'sonnet'],
-  ['superpowers:requesting-code-review', null, 'sonnet'],
-  ['superpowers:verification-before-completion', null, 'sonnet'],
-  ['superpowers:test-driven-development', null, 'sonnet'],
-  ['markdown-output', null, 'sonnet'],
-  ['production-release', null, 'sonnet'],
-  ['code-review-checklist', null, 'sonnet'],
-  ['tech-article', null, 'sonnet'],
-  ['design-md', null, 'sonnet'],
-  ['daily-research', null, 'sonnet'],
-  ['documentation-update', null, 'sonnet'],
-  ['claude-code-guide', null, 'sonnet'],
-  ['feature-dev', null, 'sonnet'],
-  ['update-config', null, 'sonnet'],
-  ['anytime-note', null, 'sonnet'],
-  ['claude-api', null, 'sonnet'],
-  ['weekly-research', null, 'sonnet'],
-  ['daily-humanities-research', null, 'sonnet'],
-  ['daily-cs-research', null, 'sonnet'],
-  ['daily-patent-research', null, 'sonnet'],
-  // haiku
-  ['dotfiles-commit', null, 'haiku'],
-  ['find-skills', null, 'haiku'],
-  ['web-search', null, 'haiku'],
-  ['test-spec-generator', null, 'haiku'],
-  ['brainstorming', null, 'haiku'],
-  ['deploy-cms-remote', null, 'haiku'],
-  ['daily-essay', null, 'haiku'],
-  ['simplify', null, 'haiku'],
-  ['health', null, 'haiku'],
-  ['manual-guide', null, 'haiku'],
-  // aliases
-  ['note', 'anytime-note', 'sonnet'],
-  ['release', 'production-release', 'sonnet'],
-  ['writing-skills', 'superpowers:writing-skills', 'sonnet'],
-  ['claude-health', 'health', 'haiku'],
-];
+// DEFAULT_SKILL_MODELS imported from trail-core (see import at top of file)
 
-const CREATE_INDEXES = [
-  'CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id)',
-  'CREATE INDEX IF NOT EXISTS idx_messages_type ON messages(type)',
-  'CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp)',
-  'CREATE INDEX IF NOT EXISTS idx_messages_parent_uuid ON messages(parent_uuid)',
-  'CREATE INDEX IF NOT EXISTS idx_session_commits_session ON session_commits(session_id)',
-  'CREATE INDEX IF NOT EXISTS idx_session_costs_session ON session_costs(session_id)',
-  'CREATE INDEX IF NOT EXISTS idx_daily_costs_date ON daily_costs(date)',
-  'CREATE INDEX IF NOT EXISTS idx_daily_costs_type ON daily_costs(cost_type)',
-];
+// CREATE_INDEXES imported from trail-core (see import at top of file)
 
 const INSERT_SESSION = `INSERT OR REPLACE INTO sessions
   (id, slug, project, version, entrypoint, model,
@@ -468,18 +318,7 @@ function extractAgentInfo(
   }
 }
 
-function extractSkillName(toolCallsJson: string | null): string | null {
-  if (!toolCallsJson) return null;
-  try {
-    const calls = JSON.parse(toolCallsJson) as Array<{ name?: string; input?: Record<string, unknown> }>;
-    for (const call of calls) {
-      if (call.name === 'Skill' && typeof call.input?.skill === 'string') {
-        return call.input.skill;
-      }
-    }
-  } catch { /* ignore */ }
-  return null;
-}
+// extractSkillName imported from trail-core (see import at top of file)
 
 /**
  * Estimate token count from a string.
@@ -545,7 +384,7 @@ export class TrailDatabase {
     db.run(CREATE_TASK_C4_ELEMENTS);
     db.run(CREATE_TASK_FEATURES);
     db.run(CREATE_C4_MODELS);
-    db.run(CREATE_SKILL_MODELS);
+    db.run(CREATE_SKILL_MODELS_TABLE);
     db.run(CREATE_SKILL_MODELS_RESOLVED_VIEW);
     for (const sql of [...CREATE_INDEXES, ...CREATE_TASK_INDEXES]) {
       db.run(sql);

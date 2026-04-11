@@ -2,112 +2,39 @@ import type { Database } from 'sql.js';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import { toUTC } from './dateUtils';
+import {
+  parseTaskFromMergeCommit as parseTaskFromMergeCommitCore,
+  mapFilesToC4Elements as mapFilesToC4ElementsCore,
+  mapC4ToFeatures as mapC4ToFeaturesCore,
+} from '@anytime-markdown/trail-core';
+
+// Re-export domain types from trail-core
+/** @deprecated Import from '@anytime-markdown/trail-core' directly */
+export type { TaskRow, TaskFileRow, TaskC4ElementRow, TaskFeatureRow } from '@anytime-markdown/trail-core';
+/** @deprecated Import from '@anytime-markdown/trail-core' directly */
+export { parseTaskFromMergeCommit, mapFilesToC4Elements } from '@anytime-markdown/trail-core';
+export type { C4MappingResult } from '@anytime-markdown/trail-core';
 
 // ---------------------------------------------------------------------------
 //  Type definitions
 // ---------------------------------------------------------------------------
 
-export interface TaskRow {
-  readonly id: string;
-  readonly merge_commit_hash: string;
-  readonly branch_name: string | null;
-  readonly pr_number: number | null;
-  readonly title: string;
-  readonly merged_at: string;
-  readonly base_branch: string;
-  readonly commit_count: number;
-  readonly files_changed: number;
-  readonly lines_added: number;
-  readonly lines_deleted: number;
-  readonly session_count: number;
-  readonly total_input_tokens: number;
-  readonly total_output_tokens: number;
-  readonly total_cache_read_tokens: number;
-  readonly total_duration_ms: number;
-  readonly resolved_at: string | null;
-}
-
-export interface TaskFileRow {
-  readonly task_id: string;
-  readonly file_path: string;
-  readonly lines_added: number;
-  readonly lines_deleted: number;
-  readonly change_type: string;
-}
-
-export interface TaskC4ElementRow {
-  readonly task_id: string;
-  readonly element_id: string;
-  readonly element_type: string;
-  readonly element_name: string;
-  readonly match_type: string;
-}
-
-export interface TaskFeatureRow {
-  readonly task_id: string;
-  readonly feature_id: string;
-  readonly feature_name: string;
-  readonly role: string;
-}
+// Type definitions moved to @anytime-markdown/trail-core/domain/model
+// Re-exported above for backward compatibility
 
 // ---------------------------------------------------------------------------
 //  SQL definitions
 // ---------------------------------------------------------------------------
 
-export const CREATE_TASKS = `CREATE TABLE IF NOT EXISTS tasks (
-  id TEXT PRIMARY KEY,
-  merge_commit_hash TEXT NOT NULL,
-  branch_name TEXT,
-  pr_number INTEGER,
-  title TEXT NOT NULL DEFAULT '',
-  merged_at TEXT NOT NULL DEFAULT '',
-  base_branch TEXT NOT NULL DEFAULT '',
-  commit_count INTEGER NOT NULL DEFAULT 0,
-  files_changed INTEGER NOT NULL DEFAULT 0,
-  lines_added INTEGER NOT NULL DEFAULT 0,
-  lines_deleted INTEGER NOT NULL DEFAULT 0,
-  session_count INTEGER NOT NULL DEFAULT 0,
-  total_input_tokens INTEGER NOT NULL DEFAULT 0,
-  total_output_tokens INTEGER NOT NULL DEFAULT 0,
-  total_cache_read_tokens INTEGER NOT NULL DEFAULT 0,
-  total_duration_ms INTEGER NOT NULL DEFAULT 0,
-  resolved_at TEXT,
-  UNIQUE(merge_commit_hash)
-)`;
-
-export const CREATE_TASK_FILES = `CREATE TABLE IF NOT EXISTS task_files (
-  task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-  file_path TEXT NOT NULL,
-  lines_added INTEGER NOT NULL DEFAULT 0,
-  lines_deleted INTEGER NOT NULL DEFAULT 0,
-  change_type TEXT NOT NULL DEFAULT 'modified',
-  PRIMARY KEY (task_id, file_path)
-)`;
-
-export const CREATE_TASK_C4_ELEMENTS = `CREATE TABLE IF NOT EXISTS task_c4_elements (
-  task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-  element_id TEXT NOT NULL,
-  element_type TEXT NOT NULL,
-  element_name TEXT NOT NULL DEFAULT '',
-  match_type TEXT NOT NULL,
-  PRIMARY KEY (task_id, element_id)
-)`;
-
-export const CREATE_TASK_FEATURES = `CREATE TABLE IF NOT EXISTS task_features (
-  task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-  feature_id TEXT NOT NULL,
-  feature_name TEXT NOT NULL DEFAULT '',
-  role TEXT NOT NULL DEFAULT '',
-  PRIMARY KEY (task_id, feature_id)
-)`;
-
-export const CREATE_TASK_INDEXES = [
-  'CREATE INDEX IF NOT EXISTS idx_tasks_merged_at ON tasks(merged_at)',
-  'CREATE INDEX IF NOT EXISTS idx_tasks_branch ON tasks(branch_name)',
-  'CREATE INDEX IF NOT EXISTS idx_task_files_task ON task_files(task_id)',
-  'CREATE INDEX IF NOT EXISTS idx_task_c4_task ON task_c4_elements(task_id)',
-  'CREATE INDEX IF NOT EXISTS idx_task_features_task ON task_features(task_id)',
-];
+// SQL constants moved to @anytime-markdown/trail-core/domain/schema
+/** @deprecated Import from '@anytime-markdown/trail-core' directly */
+export {
+  CREATE_TASKS,
+  CREATE_TASK_FILES,
+  CREATE_TASK_C4_ELEMENTS,
+  CREATE_TASK_FEATURES,
+  CREATE_TASK_INDEXES,
+} from '@anytime-markdown/trail-core';
 
 // ---------------------------------------------------------------------------
 //  C4 model types (minimal subset)
@@ -145,44 +72,7 @@ interface C4Model {
 //  Merge commit parsing
 // ---------------------------------------------------------------------------
 
-interface ParsedTask {
-  readonly branchName: string | null;
-  readonly prNumber: number | null;
-  readonly baseBranch: string;
-}
-
-/**
- * マージコミットのメッセージからブランチ名・PR番号・マージ先を抽出する。
- */
-export function parseTaskFromMergeCommit(subject: string): ParsedTask {
-  let branchName: string | null = null;
-  let prNumber: number | null = null;
-  let baseBranch = '';
-
-  // Pattern 1: "Merge branch 'feature/xxx' into develop"
-  const mergeMatch = /^[Mm]erge branch '([^']+)' into (\S+)/.exec(subject);
-  if (mergeMatch) {
-    branchName = mergeMatch[1];
-    baseBranch = mergeMatch[2];
-  }
-
-  // Pattern 2: "merge: feature/xxx into develop"
-  if (!branchName) {
-    const altMatch = /^merge:\s+(\S+)\s+into\s+(\S+)/i.exec(subject);
-    if (altMatch) {
-      branchName = altMatch[1];
-      baseBranch = altMatch[2];
-    }
-  }
-
-  // Pattern 3: "(#NN)" anywhere in subject
-  const prMatch = /\(#(\d+)\)/.exec(subject);
-  if (prMatch) {
-    prNumber = Number.parseInt(prMatch[1], 10);
-  }
-
-  return { branchName, prNumber, baseBranch };
-}
+// parseTaskFromMergeCommit moved to @anytime-markdown/trail-core/domain/engine
 
 // ---------------------------------------------------------------------------
 //  File stats aggregation
@@ -268,129 +158,13 @@ function computeAggregateFileStats(
 //  C4 model mapping
 // ---------------------------------------------------------------------------
 
-export interface C4MappingResult {
-  readonly elementId: string;
-  readonly elementType: string;
-  readonly elementName: string;
-  readonly matchType: 'exact' | 'package_fallback';
-}
-
-/**
- * 変更ファイルパスからC4モデル要素へマッピングする。
- *
- * 1. `file::` + filePath で exact マッチ
- * 2. マッチしない場合 `packages/xxx/` → `pkg_xxx` にフォールバック
- */
-export function mapFilesToC4Elements(
-  filePaths: readonly string[],
-  elements: readonly C4Element[],
-): C4MappingResult[] {
-  const results: C4MappingResult[] = [];
-  const seen = new Set<string>();
-
-  // Build lookup maps for efficient matching
-  const elementById = new Map<string, C4Element>();
-  for (const el of elements) {
-    elementById.set(el.id, el);
-  }
-
-  for (const filePath of filePaths) {
-    // 1. Exact file match
-    const fileId = `file::${filePath}`;
-    const fileEl = elementById.get(fileId);
-    if (fileEl && !seen.has(fileEl.id)) {
-      results.push({
-        elementId: fileEl.id,
-        elementType: fileEl.type,
-        elementName: fileEl.name,
-        matchType: 'exact',
-      });
-      seen.add(fileEl.id);
-
-      // Also add parent container/component via boundaryId chain
-      let current = fileEl;
-      while (current.boundaryId) {
-        const parent = elementById.get(current.boundaryId);
-        if (!parent || seen.has(parent.id)) break;
-        results.push({
-          elementId: parent.id,
-          elementType: parent.type,
-          elementName: parent.name,
-          matchType: 'exact',
-        });
-        seen.add(parent.id);
-        current = parent;
-      }
-      continue;
-    }
-
-    // 2. Package fallback: packages/xxx/ → pkg_xxx
-    const pkgMatch = /^packages\/([^/]+)\//.exec(filePath);
-    if (pkgMatch) {
-      const pkgId = `pkg_${pkgMatch[1]}`;
-      if (!seen.has(pkgId)) {
-        const pkgEl = elementById.get(pkgId);
-        if (pkgEl) {
-          results.push({
-            elementId: pkgId,
-            elementType: pkgEl.type,
-            elementName: pkgEl.name,
-            matchType: 'package_fallback',
-          });
-          seen.add(pkgId);
-        }
-      }
-    }
-  }
-
-  return results;
-}
+// mapFilesToC4Elements moved to @anytime-markdown/trail-core/domain/engine
 
 // ---------------------------------------------------------------------------
 //  Feature mapping
 // ---------------------------------------------------------------------------
 
-interface FeatureMappingResult {
-  readonly featureId: string;
-  readonly featureName: string;
-  readonly role: string;
-}
-
-/**
- * タスクの C4 要素から featureMatrix を使って影響を受ける機能を導出する。
- */
-function mapC4ToFeatures(
-  c4ElementIds: readonly string[],
-  features: readonly Feature[],
-  mappings: readonly FeatureMapping[],
-): FeatureMappingResult[] {
-  const elementIdSet = new Set(c4ElementIds);
-  const featureById = new Map<string, Feature>();
-  for (const f of features) {
-    featureById.set(f.id, f);
-  }
-
-  // Find all features that map to any of the affected C4 elements
-  const seen = new Set<string>();
-  const results: FeatureMappingResult[] = [];
-
-  for (const mapping of mappings) {
-    if (!elementIdSet.has(mapping.elementId)) continue;
-    if (seen.has(mapping.featureId)) continue;
-    seen.add(mapping.featureId);
-
-    const feature = featureById.get(mapping.featureId);
-    if (!feature) continue;
-
-    results.push({
-      featureId: mapping.featureId,
-      featureName: feature.name,
-      role: mapping.role,
-    });
-  }
-
-  return results;
-}
+// mapC4ToFeatures moved to @anytime-markdown/trail-core/domain/engine
 
 // ---------------------------------------------------------------------------
 //  Session aggregation
@@ -534,7 +308,7 @@ export function resolveTasks(
     );
     if (existing[0]?.values?.length) continue;
 
-    const { branchName, prNumber, baseBranch } = parseTaskFromMergeCommit(subject);
+    const { branchName, prNumber, baseBranch } = parseTaskFromMergeCommitCore(subject);
 
     // Get commits in merge range: merge^1..merge^2
     const parentHashes = parents.split(' ');
@@ -587,7 +361,7 @@ export function resolveTasks(
     // Insert C4 mappings (with element_name)
     let c4ElementIds: string[] = [];
     if (c4Elements.length > 0) {
-      const c4Mappings = mapFilesToC4Elements(
+      const c4Mappings = mapFilesToC4ElementsCore(
         fileStats.map((f) => f.filePath),
         c4Elements,
       );
@@ -599,7 +373,7 @@ export function resolveTasks(
 
     // Insert feature mappings
     if (featureData && c4ElementIds.length > 0) {
-      const featureMappings = mapC4ToFeatures(
+      const featureMappings = mapC4ToFeaturesCore(
         c4ElementIds,
         featureData.features,
         featureData.mappings,
