@@ -331,7 +331,10 @@ export function useTrailDataSource(
       })();
     }
     void refreshAnalytics();
-  }, [fetchSessions, baseUrl, supabaseReader, refreshAnalytics]);
+    if (!supabaseReader) {
+      void fetchReleases();
+    }
+  }, [fetchSessions, baseUrl, supabaseReader, refreshAnalytics, fetchReleases]);
 
   // --- WebSocket (remote mode only) ---
 

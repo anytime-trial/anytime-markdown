@@ -1163,6 +1163,16 @@ export class TrailDatabase {
       }
     }
 
+    // Resolve releases from version tags
+    if (gitRoot) {
+      try {
+        onProgress?.('Resolving releases from version tags...', 0);
+        this.resolveReleases(gitRoot);
+      } catch {
+        // Skip release resolution errors
+      }
+    }
+
     // Rebuild session_costs and daily_costs from all messages
     onProgress?.('Rebuilding session costs...', 0);
     this.rebuildSessionCosts();
