@@ -29,3 +29,6 @@ export type {
 } from './c4Mapper';
 
 export { DEFAULT_SKILL_MODELS, extractSkillName } from './skillModels';
+
+export { classifyCommitType, buildReleaseFromGitData } from './releaseResolver';
+export type { ReleaseGitData } from './releaseResolver';
