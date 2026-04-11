@@ -12,6 +12,7 @@ import type {
 } from '../parser/types';
 import type { AnalyticsData } from '../components/AnalyticsPanel';
 import type { ITrailReader } from './ITrailReader';
+import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
 
 // ---------------------------------------------------------------------------
 // Row shapes returned by Supabase (snake_case DB columns)
@@ -496,5 +497,9 @@ export class SupabaseTrailReader implements ITrailReader {
         cacheCreationTokens: r.cache_creation_tokens,
       },
     };
+  }
+
+  async getReleases(): Promise<readonly TrailRelease[]> {
+    return [];
   }
 }
