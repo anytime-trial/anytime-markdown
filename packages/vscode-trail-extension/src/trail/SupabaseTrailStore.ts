@@ -43,18 +43,11 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     if (rows.length === 0) return;
     const mapped = rows.map((r) => ({
       id: r.id, slug: r.slug, project: r.project,
-      git_branch: r.git_branch, cwd: r.cwd, model: r.model,
-      version: r.version, entrypoint: r.entrypoint,
-      permission_mode: r.permission_mode,
+      version: r.version, entrypoint: r.entrypoint, model: r.model,
       start_time: r.start_time, end_time: r.end_time,
       message_count: r.message_count,
-      input_tokens: r.input_tokens, output_tokens: r.output_tokens,
-      cache_read_tokens: r.cache_read_tokens,
-      cache_creation_tokens: r.cache_creation_tokens,
       file_path: r.file_path, file_size: r.file_size,
       imported_at: r.imported_at,
-      peak_context_tokens: r.peak_context_tokens ?? null,
-      initial_context_tokens: r.initial_context_tokens ?? null,
       commits_resolved_at: r.commits_resolved_at ?? null,
       synced_at: new Date().toISOString(),
     }));
@@ -62,6 +55,30 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
       .from('trail_sessions')
       .upsert(mapped, { onConflict: 'id' });
     if (error) throw new Error(`Supabase upsert sessions failed: ${error.message}`);
+  }
+
+  async upsertSessionCosts(sessionId: string, costs: readonly {
+    model: string;
+    input_tokens: number;
+    output_tokens: number;
+    cache_read_tokens: number;
+    cache_creation_tokens: number;
+    estimated_cost_usd: number;
+  }[]): Promise<void> {
+    if (costs.length === 0) return;
+    const mapped = costs.map((c) => ({
+      session_id: sessionId,
+      model: c.model,
+      input_tokens: c.input_tokens,
+      output_tokens: c.output_tokens,
+      cache_read_tokens: c.cache_read_tokens,
+      cache_creation_tokens: c.cache_creation_tokens,
+      estimated_cost_usd: c.estimated_cost_usd,
+    }));
+    const { error } = await this.ensureClient()
+      .from('trail_session_costs')
+      .upsert(mapped, { onConflict: 'session_id,model' });
+    if (error) throw new Error(`Supabase upsert session_costs failed: ${error.message}`);
   }
 
   async upsertMessages(rows: readonly MessageRow[]): Promise<void> {

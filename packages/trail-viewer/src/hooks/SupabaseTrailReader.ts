@@ -9,7 +9,6 @@ import type {
   TrailToolCall,
   TrailTaskFeature,
 } from '../parser/types';
-import { toLocalDateKey } from '@anytime-markdown/trail-core/formatDate';
 import type { AnalyticsData } from '../components/AnalyticsPanel';
 import type { ITrailReader } from './ITrailReader';
 
@@ -17,23 +16,28 @@ import type { ITrailReader } from './ITrailReader';
 // Row shapes returned by Supabase (snake_case DB columns)
 // ---------------------------------------------------------------------------
 
+interface SessionCostDbRow {
+  readonly session_id: string;
+  readonly model: string;
+  readonly input_tokens: number;
+  readonly output_tokens: number;
+  readonly cache_read_tokens: number;
+  readonly cache_creation_tokens: number;
+  readonly estimated_cost_usd: number;
+}
+
 interface SessionDbRow {
   readonly id: string;
   readonly slug: string;
   readonly project: string;
-  readonly git_branch: string;
-  readonly cwd: string;
   readonly model: string;
   readonly version: string;
   readonly start_time: string;
   readonly end_time: string;
   readonly message_count: number;
-  readonly input_tokens: number;
-  readonly output_tokens: number;
-  readonly cache_read_tokens: number;
-  readonly cache_creation_tokens: number;
   readonly peak_context_tokens: number | null;
   readonly initial_context_tokens: number | null;
+  readonly trail_session_costs?: readonly SessionCostDbRow[];
 }
 
 interface MessageDbRow {
@@ -122,14 +126,11 @@ export class SupabaseTrailReader implements ITrailReader {
   async getSessions(filters?: TrailFilter): Promise<readonly TrailSession[]> {
     let query = this.client
       .from('trail_sessions')
-      .select('*, trail_session_commits(commit_hash, lines_added, lines_deleted, files_changed)')
+      .select('*, trail_session_costs(*), trail_session_commits(commit_hash, lines_added, lines_deleted, files_changed)')
       .order('start_time', { ascending: false });
 
     if (filters?.project) {
       query = query.eq('project', filters.project);
-    }
-    if (filters?.gitBranch) {
-      query = query.eq('git_branch', filters.gitBranch);
     }
     if (filters?.model) {
       query = query.eq('model', filters.model);
@@ -238,6 +239,17 @@ export class SupabaseTrailReader implements ITrailReader {
     if (error) return null;
     if (!sessions || sessions.length === 0) return null;
 
+    const { data: costData } = await this.client
+      .from('trail_session_costs')
+      .select('*');
+    const allCosts = (costData ?? []) as readonly SessionCostDbRow[];
+
+    const { data: dailyCostData } = await this.client
+      .from('trail_daily_costs')
+      .select('*')
+      .eq('cost_type', 'actual')
+      .order('date');
+
     const { data: commits } = await this.client
       .from('trail_session_commits')
       .select('*');
@@ -246,11 +258,11 @@ export class SupabaseTrailReader implements ITrailReader {
 
     const totals = {
       sessions: sessions.length,
-      inputTokens: sessions.reduce((s, r) => s + r.input_tokens, 0),
-      outputTokens: sessions.reduce((s, r) => s + r.output_tokens, 0),
-      cacheReadTokens: sessions.reduce((s, r) => s + r.cache_read_tokens, 0),
-      cacheCreationTokens: sessions.reduce((s, r) => s + r.cache_creation_tokens, 0),
-      estimatedCostUsd: 0,
+      inputTokens: allCosts.reduce((s, c) => s + c.input_tokens, 0),
+      outputTokens: allCosts.reduce((s, c) => s + c.output_tokens, 0),
+      cacheReadTokens: allCosts.reduce((s, c) => s + c.cache_read_tokens, 0),
+      cacheCreationTokens: allCosts.reduce((s, c) => s + c.cache_creation_tokens, 0),
+      estimatedCostUsd: allCosts.reduce((s, c) => s + c.estimated_cost_usd, 0),
       totalCommits: allCommits.length,
       totalLinesAdded: allCommits.reduce((s, c) => s + c.lines_added, 0),
       totalLinesDeleted: allCommits.reduce((s, c) => s + c.lines_deleted, 0),
@@ -269,52 +281,44 @@ export class SupabaseTrailReader implements ITrailReader {
       totalTestFails: 0,
     };
 
-    // Model breakdown
-    const modelMap = new Map<string, { sessions: number; inputTokens: number; outputTokens: number; cacheReadTokens: number }>();
-    for (const r of sessions) {
-      const entry = modelMap.get(r.model) ?? { sessions: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 };
-      entry.sessions++;
-      entry.inputTokens += r.input_tokens;
-      entry.outputTokens += r.output_tokens;
-      entry.cacheReadTokens += r.cache_read_tokens;
-      modelMap.set(r.model, entry);
+    // Model breakdown from session_costs
+    const modelMap = new Map<string, { sessions: Set<string>; inputTokens: number; outputTokens: number; cacheReadTokens: number; estimatedCostUsd: number }>();
+    for (const c of allCosts) {
+      const entry = modelMap.get(c.model) ?? { sessions: new Set<string>(), inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, estimatedCostUsd: 0 };
+      entry.sessions.add(c.session_id);
+      entry.inputTokens += c.input_tokens;
+      entry.outputTokens += c.output_tokens;
+      entry.cacheReadTokens += c.cache_read_tokens;
+      entry.estimatedCostUsd += c.estimated_cost_usd;
+      modelMap.set(c.model, entry);
     }
     const modelBreakdown = [...modelMap.entries()].map(([model, v]) => ({
       model,
-      sessions: v.sessions,
+      sessions: v.sessions.size,
       inputTokens: v.inputTokens,
       outputTokens: v.outputTokens,
       cacheReadTokens: v.cacheReadTokens,
-      estimatedCostUsd: 0,
+      estimatedCostUsd: v.estimatedCostUsd,
     }));
 
-    // Daily activity
-    const dailyMap = new Map<string, { sessions: number; inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheCreationTokens: number }>();
-    for (const r of sessions) {
-      const date = toLocalDateKey(r.start_time);
-      const entry = dailyMap.get(date) ?? { sessions: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 };
-      entry.sessions++;
+    // Daily activity from daily_costs
+    type DailyEntry = { sessions: number; inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheCreationTokens: number; estimatedCostUsd: number };
+    const dailyMap = new Map<string, DailyEntry>();
+    for (const r of (dailyCostData ?? []) as readonly { date: string; input_tokens: number; output_tokens: number; cache_read_tokens: number; cache_creation_tokens: number; estimated_cost_usd: number }[]) {
+      const entry = dailyMap.get(r.date) ?? { sessions: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, estimatedCostUsd: 0 };
       entry.inputTokens += r.input_tokens;
       entry.outputTokens += r.output_tokens;
       entry.cacheReadTokens += r.cache_read_tokens;
       entry.cacheCreationTokens += r.cache_creation_tokens;
-      dailyMap.set(date, entry);
+      entry.estimatedCostUsd += r.estimated_cost_usd;
+      dailyMap.set(r.date, entry);
     }
     const dailyActivity = [...dailyMap.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, v]) => ({ date, ...v }));
 
-    // Branch breakdown
-    const branchMap = new Map<string, { sessions: number; inputTokens: number; outputTokens: number }>();
-    for (const r of sessions) {
-      const branch = r.git_branch || '(none)';
-      const entry = branchMap.get(branch) ?? { sessions: 0, inputTokens: 0, outputTokens: 0 };
-      entry.sessions++;
-      entry.inputTokens += r.input_tokens;
-      entry.outputTokens += r.output_tokens;
-      branchMap.set(branch, entry);
-    }
-    const branchBreakdown = [...branchMap.entries()].map(([branch, v]) => ({ branch, ...v }));
+    // Branch breakdown (empty — git_branch removed from sessions, would need messages query)
+    const branchBreakdown: { branch: string; sessions: number; inputTokens: number; outputTokens: number }[] = [];
 
     return { totals, toolUsage: [], modelBreakdown, dailyActivity, branchBreakdown };
   }
@@ -393,11 +397,19 @@ export class SupabaseTrailReader implements ITrailReader {
         }
       : undefined;
 
+    // Aggregate costs from session_costs join
+    const costs = r.trail_session_costs ?? [];
+    const totalInput = costs.reduce((s, c) => s + c.input_tokens, 0);
+    const totalOutput = costs.reduce((s, c) => s + c.output_tokens, 0);
+    const totalCacheRead = costs.reduce((s, c) => s + c.cache_read_tokens, 0);
+    const totalCacheCreation = costs.reduce((s, c) => s + c.cache_creation_tokens, 0);
+    const totalCostUsd = costs.reduce((s, c) => s + c.estimated_cost_usd, 0);
+
     return {
       id: r.id,
       slug: r.slug,
       project: r.project,
-      gitBranch: r.git_branch,
+      gitBranch: '',
       startTime: r.start_time,
       endTime: r.end_time,
       version: r.version,
@@ -407,11 +419,12 @@ export class SupabaseTrailReader implements ITrailReader {
       initialContextTokens: r.initial_context_tokens ?? undefined,
       commitStats,
       usage: {
-        inputTokens: r.input_tokens,
-        outputTokens: r.output_tokens,
-        cacheReadTokens: r.cache_read_tokens,
-        cacheCreationTokens: r.cache_creation_tokens,
+        inputTokens: totalInput,
+        outputTokens: totalOutput,
+        cacheReadTokens: totalCacheRead,
+        cacheCreationTokens: totalCacheCreation,
       },
+      estimatedCostUsd: totalCostUsd,
     };
   }
 
