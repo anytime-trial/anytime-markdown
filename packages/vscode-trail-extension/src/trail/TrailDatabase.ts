@@ -156,28 +156,25 @@ export interface AnalyticsData {
     readonly cacheCreationTokens: number;
     readonly estimatedCostUsd: number;
   }[];
-  readonly branchBreakdown: readonly {
-    readonly branch: string;
-    readonly sessions: number;
-    readonly inputTokens: number;
-    readonly outputTokens: number;
-  }[];
 }
 
 export interface CostOptimizationData {
   readonly actual: { readonly totalCost: number; readonly byModel: Readonly<Record<string, number>> };
   readonly ruleEstimate: { readonly totalCost: number; readonly byModel: Readonly<Record<string, number>> };
   readonly featureEstimate: { readonly totalCost: number; readonly byModel: Readonly<Record<string, number>> };
+  readonly skillEstimate: { readonly totalCost: number; readonly byModel: Readonly<Record<string, number>> };
   readonly daily: readonly {
     readonly date: string;
     readonly actualCost: number;
     readonly ruleCost: number;
     readonly featureCost: number;
+    readonly skillCost: number;
   }[];
   readonly modelDistribution: {
     readonly actual: Readonly<Record<string, number>>;
     readonly ruleRecommended: Readonly<Record<string, number>>;
     readonly featureRecommended: Readonly<Record<string, number>>;
+    readonly skillRecommended: Readonly<Record<string, number>>;
   };
 }
 
@@ -331,6 +328,71 @@ const CREATE_C4_MODELS = `CREATE TABLE IF NOT EXISTS c4_models (
   revision TEXT NOT NULL DEFAULT '',
   updated_at TEXT NOT NULL DEFAULT ''
 )`;
+
+const CREATE_SKILL_MODELS = `CREATE TABLE IF NOT EXISTS skill_models (
+  skill TEXT PRIMARY KEY,
+  canonical_skill TEXT,
+  recommended_model TEXT NOT NULL DEFAULT 'sonnet'
+)`;
+
+const CREATE_SKILL_MODELS_RESOLVED_VIEW = `CREATE VIEW IF NOT EXISTS skill_models_resolved AS
+SELECT
+  s.skill,
+  COALESCE(
+    (SELECT c.recommended_model FROM skill_models c WHERE c.skill = s.canonical_skill),
+    s.recommended_model
+  ) AS recommended_model
+FROM skill_models s`;
+
+const DEFAULT_SKILL_MODELS: ReadonlyArray<readonly [string, string | null, string]> = [
+  // opus
+  ['resolve-issues', null, 'opus'],
+  ['security-review', null, 'opus'],
+  ['superpowers:systematic-debugging', null, 'opus'],
+  // sonnet
+  ['superpowers:brainstorming', null, 'sonnet'],
+  ['superpowers:writing-plans', null, 'sonnet'],
+  ['superpowers:subagent-driven-development', null, 'sonnet'],
+  ['superpowers:executing-plans', null, 'sonnet'],
+  ['superpowers:using-git-worktrees', null, 'sonnet'],
+  ['superpowers:finishing-a-development-branch', null, 'sonnet'],
+  ['superpowers:writing-skills', null, 'sonnet'],
+  ['superpowers:requesting-code-review', null, 'sonnet'],
+  ['superpowers:verification-before-completion', null, 'sonnet'],
+  ['superpowers:test-driven-development', null, 'sonnet'],
+  ['markdown-output', null, 'sonnet'],
+  ['production-release', null, 'sonnet'],
+  ['code-review-checklist', null, 'sonnet'],
+  ['tech-article', null, 'sonnet'],
+  ['design-md', null, 'sonnet'],
+  ['daily-research', null, 'sonnet'],
+  ['documentation-update', null, 'sonnet'],
+  ['claude-code-guide', null, 'sonnet'],
+  ['feature-dev', null, 'sonnet'],
+  ['update-config', null, 'sonnet'],
+  ['anytime-note', null, 'sonnet'],
+  ['claude-api', null, 'sonnet'],
+  ['weekly-research', null, 'sonnet'],
+  ['daily-humanities-research', null, 'sonnet'],
+  ['daily-cs-research', null, 'sonnet'],
+  ['daily-patent-research', null, 'sonnet'],
+  // haiku
+  ['dotfiles-commit', null, 'haiku'],
+  ['find-skills', null, 'haiku'],
+  ['web-search', null, 'haiku'],
+  ['test-spec-generator', null, 'haiku'],
+  ['brainstorming', null, 'haiku'],
+  ['deploy-cms-remote', null, 'haiku'],
+  ['daily-essay', null, 'haiku'],
+  ['simplify', null, 'haiku'],
+  ['health', null, 'haiku'],
+  ['manual-guide', null, 'haiku'],
+  // aliases
+  ['note', 'anytime-note', 'sonnet'],
+  ['release', 'production-release', 'sonnet'],
+  ['writing-skills', 'superpowers:writing-skills', 'sonnet'],
+  ['claude-health', 'health', 'haiku'],
+];
 
 const CREATE_INDEXES = [
   'CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id)',
@@ -575,6 +637,8 @@ export class TrailDatabase {
     db.run(CREATE_TASK_C4_ELEMENTS);
     db.run(CREATE_TASK_FEATURES);
     db.run(CREATE_C4_MODELS);
+    db.run(CREATE_SKILL_MODELS);
+    db.run(CREATE_SKILL_MODELS_RESOLVED_VIEW);
     for (const sql of [...CREATE_INDEXES, ...CREATE_TASK_INDEXES]) {
       db.run(sql);
     }
@@ -613,6 +677,16 @@ export class TrailDatabase {
     ];
     for (const sql of messageAlters) {
       try { db.run(sql); } catch { /* Column already exists */ }
+    }
+
+    // Seed skill_models with defaults if empty
+    const smCount = db.exec('SELECT COUNT(*) FROM skill_models');
+    if (Number(smCount[0]?.values[0]?.[0]) === 0) {
+      const smStmt = db.prepare('INSERT OR IGNORE INTO skill_models (skill, canonical_skill, recommended_model) VALUES (?, ?, ?)');
+      for (const [skill, canonical, model] of DEFAULT_SKILL_MODELS) {
+        smStmt.run([skill, canonical, model]);
+      }
+      smStmt.free();
     }
 
     this.migrateTimestampsToUTC(db);
@@ -780,6 +854,36 @@ export class TrailDatabase {
       const inp = Number(row[2]); const outp = Number(row[3]);
       const cr = Number(row[4]); const cc = Number(row[5]);
       stmt.run([d, m, 'feature', inp, outp, cr, cc, estimateCost(m, inp, outp, cr, cc)]);
+    }
+
+    // Auto-register new skills that are not yet in skill_models
+    db.run(
+      `INSERT OR IGNORE INTO skill_models (skill, recommended_model)
+       SELECT DISTINCT m.skill, 'sonnet'
+       FROM messages m
+       WHERE m.skill IS NOT NULL
+         AND m.skill NOT IN (SELECT skill FROM skill_models)`,
+    );
+
+    // skill (uses skill_models_resolved view for model resolution,
+    //        falls back to rule_recommended_model for skill=NULL messages)
+    const skill = db.exec(
+      `SELECT DATE(a.timestamp, '${tzOffset}'),
+        COALESCE(sm.recommended_model, u.rule_recommended_model, 'sonnet'),
+        SUM(a.input_tokens), SUM(a.output_tokens),
+        SUM(a.cache_read_tokens), SUM(a.cache_creation_tokens)
+       FROM messages a
+       LEFT JOIN messages u ON a.parent_uuid = u.uuid AND u.type = 'user'
+       LEFT JOIN skill_models_resolved sm ON a.skill = sm.skill
+       WHERE a.type = 'assistant'
+       GROUP BY DATE(a.timestamp, '${tzOffset}'),
+         COALESCE(sm.recommended_model, u.rule_recommended_model, 'sonnet')`,
+    );
+    for (const row of skill[0]?.values ?? []) {
+      const d = String(row[0]); const m = String(row[1]);
+      const inp = Number(row[2]); const outp = Number(row[3]);
+      const cr = Number(row[4]); const cc = Number(row[5]);
+      stmt.run([d, m, 'skill', inp, outp, cr, cc, estimateCost(m, inp, outp, cr, cc)]);
     }
 
     stmt.free();
@@ -1944,20 +2048,6 @@ export class TrailDatabase {
       estimatedCostUsd: Number(r[5]),
     }));
 
-    // Branch breakdown from messages
-    const branchResult = db.exec(
-      `SELECT git_branch, COUNT(DISTINCT session_id),
-        SUM(input_tokens), SUM(output_tokens)
-       FROM messages WHERE git_branch != '' AND type = 'assistant'
-       GROUP BY git_branch ORDER BY COUNT(DISTINCT session_id) DESC LIMIT 10`,
-    );
-    const branchBreakdown = (branchResult[0]?.values ?? []).map((r) => ({
-      branch: String(r[0]),
-      sessions: Number(r[1]),
-      inputTokens: Number(r[2]),
-      outputTokens: Number(r[3]),
-    }));
-
     // Commit totals
     const commitTotals = db.exec(
       `SELECT COUNT(*) AS total_commits,
@@ -2014,7 +2104,6 @@ export class TrailDatabase {
       toolUsage,
       modelBreakdown,
       dailyActivity,
-      branchBreakdown,
     };
   }
 
@@ -2113,6 +2202,21 @@ export class TrailDatabase {
       featureTotal += c;
     }
 
+    // 3b. Skill-based estimate from daily_costs
+    const skillResult = db.exec(
+      `SELECT model, SUM(estimated_cost_usd)
+       FROM daily_costs WHERE cost_type = 'skill'
+       GROUP BY model`,
+    );
+    const skillByModel: Record<string, number> = {};
+    let skillTotal = 0;
+    for (const row of skillResult[0]?.values ?? []) {
+      const m = String(row[0]);
+      const c = Number(row[1]);
+      skillByModel[m] = (skillByModel[m] ?? 0) + c;
+      skillTotal += c;
+    }
+
     // 4. Daily breakdown from daily_costs (last 90 days)
     const dailyResult = db.exec(
       `SELECT date, cost_type, SUM(estimated_cost_usd)
@@ -2120,24 +2224,26 @@ export class TrailDatabase {
        WHERE date >= DATE('now', '${tzOffset}', '-90 days')
        GROUP BY date, cost_type ORDER BY date`,
     );
-    const dailyMap = new Map<string, { actual: number; rule: number; feature: number }>();
+    const dailyMap = new Map<string, { actual: number; rule: number; feature: number; skill: number }>();
     for (const row of dailyResult[0]?.values ?? []) {
       const d = String(row[0]);
       const ct = String(row[1]);
       const c = Number(row[2]);
-      const entry = dailyMap.get(d) ?? { actual: 0, rule: 0, feature: 0 };
+      const entry = dailyMap.get(d) ?? { actual: 0, rule: 0, feature: 0, skill: 0 };
       if (ct === 'actual') entry.actual += c;
       else if (ct === 'rule') entry.rule += c;
       else if (ct === 'feature') entry.feature += c;
+      else if (ct === 'skill') entry.skill += c;
       dailyMap.set(d, entry);
     }
-    const daily: Array<{ date: string; actualCost: number; ruleCost: number; featureCost: number }> = [];
+    const daily: Array<{ date: string; actualCost: number; ruleCost: number; featureCost: number; skillCost: number }> = [];
     for (const [d, entry] of dailyMap) {
       daily.push({
         date: d,
         actualCost: entry.actual,
         ruleCost: entry.rule,
         featureCost: entry.feature,
+        skillCost: entry.skill,
       });
     }
 
@@ -2171,15 +2277,30 @@ export class TrailDatabase {
       featureDist[String(row[0])] = Number(row[1]);
     }
 
+    const distSkill = db.exec(
+      `SELECT COALESCE(sm.recommended_model, u.rule_recommended_model, 'sonnet'), COUNT(*)
+       FROM messages a
+       LEFT JOIN messages u ON a.parent_uuid = u.uuid AND u.type = 'user'
+       LEFT JOIN skill_models_resolved sm ON a.skill = sm.skill
+       WHERE a.type = 'assistant'
+       GROUP BY COALESCE(sm.recommended_model, u.rule_recommended_model, 'sonnet')`,
+    );
+    const skillDist: Record<string, number> = {};
+    for (const row of distSkill[0]?.values ?? []) {
+      skillDist[String(row[0])] = Number(row[1]);
+    }
+
     return {
       actual: { totalCost: actualTotal, byModel: actualByModel },
       ruleEstimate: { totalCost: ruleTotal, byModel: ruleByModel },
       featureEstimate: { totalCost: featureTotal, byModel: featureByModel },
+      skillEstimate: { totalCost: skillTotal, byModel: skillByModel },
       daily,
       modelDistribution: {
         actual: actualDist,
         ruleRecommended: ruleDist,
         featureRecommended: featureDist,
+        skillRecommended: skillDist,
       },
     };
   }

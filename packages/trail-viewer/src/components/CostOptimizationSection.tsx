@@ -22,6 +22,7 @@ const COLORS = {
   actual: '#1976d2',
   rule: '#2e7d32',
   feature: '#ed6c02',
+  skill: '#8b5cf6',
 } as const;
 
 const MODEL_COLORS: Readonly<Record<string, string>> = {
@@ -37,12 +38,12 @@ function fmtUsd(n: number): string {
 function aggregateByPeriod(
   daily: readonly CostOptimizationData['daily'][number][],
   mode: PeriodMode,
-): Array<{ label: string; actualCost: number; ruleCost: number; featureCost: number }> {
+): Array<{ label: string; actualCost: number; ruleCost: number; featureCost: number; skillCost: number }> {
   if (mode === 'day') {
     return daily.map((d) => ({ label: d.date.slice(5), ...d }));
   }
 
-  const grouped = new Map<string, { actualCost: number; ruleCost: number; featureCost: number }>();
+  const grouped = new Map<string, { actualCost: number; ruleCost: number; featureCost: number; skillCost: number }>();
   for (const d of daily) {
     // T12:00:00 を付けてローカルTZでも日付がずれないようにする
     const dt = new Date(`${d.date}T12:00:00`);
@@ -57,10 +58,11 @@ function aggregateByPeriod(
     } else {
       key = d.date.slice(0, 7);
     }
-    const entry = grouped.get(key) ?? { actualCost: 0, ruleCost: 0, featureCost: 0 };
+    const entry = grouped.get(key) ?? { actualCost: 0, ruleCost: 0, featureCost: 0, skillCost: 0 };
     entry.actualCost += d.actualCost;
     entry.ruleCost += d.ruleCost;
     entry.featureCost += d.featureCost;
+    entry.skillCost += d.skillCost;
     grouped.set(key, entry);
   }
   return [...grouped.entries()].map(([label, v]) => ({ label, ...v }));
@@ -78,7 +80,7 @@ function distToSlices(dist: Readonly<Record<string, number>>): Array<{ id: numbe
 
 export function CostOptimizationSection({ data, onReclassify, reclassifying }: Readonly<CostOptimizationSectionProps>) {
   const [periodMode, setPeriodMode] = useState<PeriodMode>('day');
-  const [distMode, setDistMode] = useState<'rule' | 'feature'>('rule');
+  const [distMode, setDistMode] = useState<'rule' | 'feature' | 'skill'>('skill');
 
   const chartData = useMemo(
     () => (data ? aggregateByPeriod(data.daily, periodMode) : []),
@@ -87,16 +89,19 @@ export function CostOptimizationSection({ data, onReclassify, reclassifying }: R
 
   if (!data) return null;
 
-  const { actual, ruleEstimate, featureEstimate, modelDistribution } = data;
-  const bestEstimate = Math.min(ruleEstimate.totalCost, featureEstimate.totalCost);
+  const { actual, ruleEstimate, featureEstimate, skillEstimate, modelDistribution } = data;
+  const bestEstimate = Math.min(ruleEstimate.totalCost, featureEstimate.totalCost, skillEstimate.totalCost);
   const savingsRate = actual.totalCost > 0
     ? ((actual.totalCost - bestEstimate) / actual.totalCost) * 100
     : 0;
 
   const actualSlices = distToSlices(modelDistribution.actual);
-  const recommendedSlices = distToSlices(
-    distMode === 'rule' ? modelDistribution.ruleRecommended : modelDistribution.featureRecommended,
-  );
+  const recommendedDist = distMode === 'rule'
+    ? modelDistribution.ruleRecommended
+    : distMode === 'feature'
+      ? modelDistribution.featureRecommended
+      : modelDistribution.skillRecommended;
+  const recommendedSlices = distToSlices(recommendedDist);
 
   return (
     <Box>
@@ -138,6 +143,12 @@ export function CostOptimizationSection({ data, onReclassify, reclassifying }: R
           </Typography>
         </Paper>
         <Paper variant="outlined" sx={{ p: 1.5, flex: 1, minWidth: 140 }}>
+          <Typography variant="caption" color="text.secondary">Skill Estimate</Typography>
+          <Typography variant="h6" sx={{ color: COLORS.skill, fontWeight: 700 }}>
+            {fmtUsd(skillEstimate.totalCost)}
+          </Typography>
+        </Paper>
+        <Paper variant="outlined" sx={{ p: 1.5, flex: 1, minWidth: 140 }}>
           <Typography variant="caption" color="text.secondary">Potential Savings</Typography>
           <Typography variant="h6" sx={{ color: savingsRate > 0 ? COLORS.rule : 'text.primary', fontWeight: 700 }}>
             {savingsRate.toFixed(1)}%
@@ -166,6 +177,7 @@ export function CostOptimizationSection({ data, onReclassify, reclassifying }: R
             xAxis={[{ data: chartData.map((d) => d.label), scaleType: 'band' }]}
             series={[
               { data: chartData.map((d) => d.actualCost), label: 'Actual', color: COLORS.actual },
+              { data: chartData.map((d) => d.skillCost), label: 'Skill', color: COLORS.skill },
               { data: chartData.map((d) => d.ruleCost), label: 'Rule', color: COLORS.rule },
               { data: chartData.map((d) => d.featureCost), label: 'Feature', color: COLORS.feature },
             ]}
@@ -185,8 +197,9 @@ export function CostOptimizationSection({ data, onReclassify, reclassifying }: R
             size="small"
             value={distMode}
             exclusive
-            onChange={(_, v: 'rule' | 'feature' | null) => { if (v) setDistMode(v); }}
+            onChange={(_, v: 'rule' | 'feature' | 'skill' | null) => { if (v) setDistMode(v); }}
           >
+            <ToggleButton value="skill">Skill</ToggleButton>
             <ToggleButton value="rule">Rule</ToggleButton>
             <ToggleButton value="feature">Feature</ToggleButton>
           </ToggleButtonGroup>

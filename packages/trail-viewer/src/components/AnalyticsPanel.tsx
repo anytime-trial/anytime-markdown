@@ -743,10 +743,10 @@ function DailyActivityChart({
 
   // Build cost optimization lookup by date
   const costByDate = useMemo(() => {
-    const map = new Map<string, { actual: number; rule: number; feature: number }>();
+    const map = new Map<string, { actual: number; rule: number; feature: number; skill: number }>();
     if (!costOptimization) return map;
     for (const d of costOptimization.daily) {
-      map.set(d.date, { actual: d.actualCost, rule: d.ruleCost, feature: d.featureCost });
+      map.set(d.date, { actual: d.actualCost, rule: d.ruleCost, feature: d.featureCost, skill: d.skillCost });
     }
     return map;
   }, [costOptimization]);
@@ -763,6 +763,7 @@ function DailyActivityChart({
       actualCost: isTokens ? 0 : (costEntry?.actual ?? d.estimatedCostUsd),
       ruleCost: isTokens ? 0 : (costEntry?.rule ?? 0),
       featureCost: isTokens ? 0 : (costEntry?.feature ?? 0),
+      skillCost: isTokens ? 0 : (costEntry?.skill ?? 0),
     };
   });
 
@@ -814,6 +815,7 @@ function DailyActivityChart({
           { dataKey: 'cacheCreationTokens', label: 'Cache Write', stack: 'a', color: chartColors.cacheWrite },
         ] : [
           { dataKey: 'actualCost', label: 'Actual', color: '#1976d2' },
+          { dataKey: 'skillCost', label: 'Skill', color: '#8b5cf6' },
           { dataKey: 'ruleCost', label: 'Rule', color: '#2e7d32' },
           { dataKey: 'featureCost', label: 'Feature', color: '#ed6c02' },
         ]}
