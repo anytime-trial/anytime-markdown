@@ -6,6 +6,14 @@
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-04-11
+
+### Graph Core (graph-core)
+
+- レンダリングパイプラインおよびレイアウトアルゴリズム全体の認知的複雑度を低減（SonarCloud S3776）
+- SonarCloud 修正: S125・S1854・S6582・S2871・S1871・S7781
+- edgeRenderer の drawEdge にユニットテストを追加
+
 ## [0.1.0] - 2026-04-04
 
 ### 追加

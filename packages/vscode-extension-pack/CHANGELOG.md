@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-04-11
+
+### Changed
+
+- Add Anytime Git to bundled extensions
+- Update bundled extension versions (markdown 0.11.0, graph 0.1.2, git 0.1.0, trail 0.5.1)
+
 ## [0.1.0] - 2026-04-04
 
 ### Changed

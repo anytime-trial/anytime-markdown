@@ -7,6 +7,13 @@
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-04-11
+
+### 変更
+
+- TableNodeView・MathBlock・MarkdownEditorPage・ImageNodeView・DiagramBlock の認知的複雑度を低減（SonarCloud S3776）
+- tableCellModeKeymap・tableCellModeMouse・tableCellModeClipboard・handlePaste の認知的複雑度を低減（SonarCloud S3776）
+
 ## [0.10.4] - 2026-04-09
 
 ### 追加

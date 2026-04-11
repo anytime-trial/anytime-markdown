@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-04-11
+
+### Changed
+
+- Reduce cognitive complexity in TableNodeView, MathBlock, MarkdownEditorPage, ImageNodeView, DiagramBlock (SonarCloud S3776)
+- Reduce cognitive complexity in tableCellModeKeymap, tableCellModeMouse, tableCellModeClipboard, handlePaste (SonarCloud S3776)
+
 ## [0.10.4] - 2026-04-09
 
 ### Added

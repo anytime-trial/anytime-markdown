@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-04-11
+
+### Added
+
+- Note panel multi-page support with `anytime-note-N` file naming
+- Note file auto-update via FileSystemWatcher
+- Auto-save after editor editing
+- anytime-note skill: page number argument, summary mode, handover mode
+- Note view skill display button
+- Show frontmatter title in note page list
+- Create new note page with cleared state
+
+### Changed
+
+- Note tree renamed: Agent Note → Note, Agent Memory → Memory
+
+### Removed
+
+- Memory panel moved to Anytime Trail extension
+
+### Fixed
+
+- Avoid corrupt cache when opening note files
+- Restore skill auto-generation with path updated to `anytime-note-1.md`
+- Fire Claude lock even when PreToolUse event is missed
+
+### Editor Core (markdown-core)
+
+- Reduce cognitive complexity in key editor components (SonarCloud S3776)
+
 ## [0.10.4] - 2026-04-09
 
 ### Editor Core (markdown-core)

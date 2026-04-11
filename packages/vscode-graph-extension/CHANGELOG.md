@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-04-11
+
+### Graph Core (graph-core)
+
+- Reduce cognitive complexity across rendering pipeline and layout algorithms (SonarCloud S3776)
+- Fix SonarCloud issues: S125, S1854, S6582, S2871, S1871, S7781
+- Add unit tests for drawEdge in edgeRenderer
+
 ## [0.1.0] - 2026-04-04
 
 ### Added

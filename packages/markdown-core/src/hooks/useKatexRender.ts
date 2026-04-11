@@ -11,7 +11,6 @@ async function getKatex() {
     katexInstance = mod.default;
   }
   if (!cssLoaded) {
-    // @ts-expect-error CSS import has no type declarations
     await import("katex/dist/katex.min.css");
     cssLoaded = true;
   }

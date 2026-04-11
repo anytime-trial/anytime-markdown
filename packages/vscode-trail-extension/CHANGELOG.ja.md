@@ -6,6 +6,36 @@
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-04-11
+
+### 追加
+
+- Claude メモリファイル管理用 `AiMemoryProvider` による Memory ツリービューを追加
+- Memory コマンドと NLS ラベルを追加
+
+### 変更
+
+- Trail アイコンを更新（camel_trail.png）
+- Dashboard を 2 階層構造に変更
+- DB 日時データを UTC ISO 8601 形式に統一
+- コスト分類カラムを追加し、インポート時に分類を実行
+- 最終インポート・最終同期をローカルタイムゾーン形式で表示
+
+### 削除
+
+- Git 機能（Changes・Graph・Timeline・SpecDocs パネル）を Anytime Git 拡張に分離
+
+### 修正
+
+- マイグレーション失敗時のエラーログを追加
+- syncToSupabase コマンドの実装と同期エラーログを追加
+- Trail Viewer のインポートおよび表示に関する複数バグを修正
+
+### Trail Core (trail-core)
+
+- ロケール対応の日時フォーマット用 `formatDate` ユーティリティ
+- 日時表示をローカルタイムゾーンに統一
+
 ## [0.5.0] - 2026-04-09
 
 ### 追加
