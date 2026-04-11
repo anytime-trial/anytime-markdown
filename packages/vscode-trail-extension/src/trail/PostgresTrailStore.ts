@@ -236,6 +236,54 @@ export class PostgresTrailStore implements IRemoteTrailStore {
     }
   }
 
+  async upsertSessionCosts(sessionId: string, costs: readonly {
+    model: string;
+    input_tokens: number;
+    output_tokens: number;
+    cache_read_tokens: number;
+    cache_creation_tokens: number;
+    estimated_cost_usd: number;
+  }[]): Promise<void> {
+    if (costs.length === 0) return;
+    const pool = this.ensurePool();
+    for (const c of costs) {
+      await pool.query(
+        `INSERT INTO trail_session_costs (session_id, model, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, estimated_cost_usd)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)
+         ON CONFLICT (session_id, model) DO UPDATE SET
+           input_tokens=EXCLUDED.input_tokens, output_tokens=EXCLUDED.output_tokens,
+           cache_read_tokens=EXCLUDED.cache_read_tokens, cache_creation_tokens=EXCLUDED.cache_creation_tokens,
+           estimated_cost_usd=EXCLUDED.estimated_cost_usd`,
+        [sessionId, c.model, c.input_tokens, c.output_tokens, c.cache_read_tokens, c.cache_creation_tokens, c.estimated_cost_usd],
+      );
+    }
+  }
+
+  async upsertDailyCosts(rows: readonly {
+    date: string;
+    model: string;
+    cost_type: string;
+    input_tokens: number;
+    output_tokens: number;
+    cache_read_tokens: number;
+    cache_creation_tokens: number;
+    estimated_cost_usd: number;
+  }[]): Promise<void> {
+    if (rows.length === 0) return;
+    const pool = this.ensurePool();
+    for (const r of rows) {
+      await pool.query(
+        `INSERT INTO daily_costs (date, model, cost_type, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, estimated_cost_usd)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+         ON CONFLICT (date, model, cost_type) DO UPDATE SET
+           input_tokens=EXCLUDED.input_tokens, output_tokens=EXCLUDED.output_tokens,
+           cache_read_tokens=EXCLUDED.cache_read_tokens, cache_creation_tokens=EXCLUDED.cache_creation_tokens,
+           estimated_cost_usd=EXCLUDED.estimated_cost_usd`,
+        [r.date, r.model, r.cost_type, r.input_tokens, r.output_tokens, r.cache_read_tokens, r.cache_creation_tokens, r.estimated_cost_usd],
+      );
+    }
+  }
+
   async upsertC4Model(json: string, revision: string): Promise<void> {
     const pool = this.ensurePool();
     await pool.query(

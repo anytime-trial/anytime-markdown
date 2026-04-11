@@ -679,6 +679,59 @@ export class TrailDatabase {
     return `${sign}${Math.abs(offsetMin)} minutes`;
   }
 
+  getSessionCosts(sessionId: string): readonly {
+    model: string;
+    input_tokens: number;
+    output_tokens: number;
+    cache_read_tokens: number;
+    cache_creation_tokens: number;
+    estimated_cost_usd: number;
+  }[] {
+    const db = this.ensureDb();
+    const result = db.exec(
+      `SELECT model, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, estimated_cost_usd
+       FROM session_costs WHERE session_id = ?`,
+      [sessionId],
+    );
+    if (!result[0]) return [];
+    return result[0].values.map((r) => ({
+      model: r[0] as string,
+      input_tokens: r[1] as number,
+      output_tokens: r[2] as number,
+      cache_read_tokens: r[3] as number,
+      cache_creation_tokens: r[4] as number,
+      estimated_cost_usd: r[5] as number,
+    }));
+  }
+
+  getAllDailyCosts(): readonly {
+    date: string;
+    model: string;
+    cost_type: string;
+    input_tokens: number;
+    output_tokens: number;
+    cache_read_tokens: number;
+    cache_creation_tokens: number;
+    estimated_cost_usd: number;
+  }[] {
+    const db = this.ensureDb();
+    const result = db.exec(
+      `SELECT date, model, cost_type, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, estimated_cost_usd
+       FROM daily_costs`,
+    );
+    if (!result[0]) return [];
+    return result[0].values.map((r) => ({
+      date: r[0] as string,
+      model: r[1] as string,
+      cost_type: r[2] as string,
+      input_tokens: r[3] as number,
+      output_tokens: r[4] as number,
+      cache_read_tokens: r[5] as number,
+      cache_creation_tokens: r[6] as number,
+      estimated_cost_usd: r[7] as number,
+    }));
+  }
+
   /** Delete and rebuild session_costs from all messages. */
   private rebuildSessionCosts(): void {
     const db = this.ensureDb();

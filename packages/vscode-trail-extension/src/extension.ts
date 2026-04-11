@@ -329,10 +329,22 @@ export async function activate(context: vscode.ExtensionContext) {
 			dashboardProvider.updateSupabaseStatus('Syncing...');
 			try {
 				const syncService = new SyncService(trailDb, supabaseStore);
-				const result = await syncService.syncWithOpenStore();
-				dashboardProvider.updateSupabaseStatus('Connected', new Date().toISOString());
-				vscode.window.showInformationMessage(
-					`Supabase sync complete: ${result.synced} synced, ${result.skipped} up-to-date, ${result.errors} errors`,
+				await vscode.window.withProgress(
+					{
+						location: vscode.ProgressLocation.Notification,
+						title: 'Trail: Syncing to Supabase',
+						cancellable: false,
+					},
+					async (progress) => {
+						const result = await syncService.syncWithOpenStore(({ message, increment }) => {
+							progress.report({ message, increment });
+							TrailLogger.info(`Trail Supabase sync: ${message}`);
+						});
+						dashboardProvider.updateSupabaseStatus('Connected', new Date().toISOString());
+						vscode.window.showInformationMessage(
+							`Supabase sync complete: ${result.synced} synced, ${result.skipped} up-to-date, ${result.errors} errors`,
+						);
+					},
 				);
 			} catch (e) {
 				dashboardProvider.updateSupabaseStatus('Sync failed');
