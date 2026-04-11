@@ -772,17 +772,30 @@ export class TrailDatabase {
   // -------------------------------------------------------------------------
 
   /** Load all imported sessions into memory for fast lookup during importAll. */
-  private getImportedSessionMap(): Map<string, { fileSize: number; commitsResolved: boolean }> {
+  /** Load imported sessions keyed by file_path for accurate skip detection. */
+  private getImportedFileMap(): Map<string, { sessionId: string; fileSize: number; commitsResolved: boolean }> {
     const db = this.ensureDb();
-    const result = db.exec('SELECT id, file_size, commits_resolved_at FROM sessions');
-    const map = new Map<string, { fileSize: number; commitsResolved: boolean }>();
+    const result = db.exec('SELECT id, file_path, file_size, commits_resolved_at FROM sessions');
+    const map = new Map<string, { sessionId: string; fileSize: number; commitsResolved: boolean }>();
     for (const row of result[0]?.values ?? []) {
-      map.set(String(row[0]), {
-        fileSize: Number(row[1]),
-        commitsResolved: row[2] != null,
+      map.set(String(row[1]), {
+        sessionId: String(row[0]),
+        fileSize: Number(row[2]),
+        commitsResolved: row[3] != null,
       });
     }
     return map;
+  }
+
+  /** Get set of session IDs that exist in DB. */
+  private getImportedSessionIds(): Set<string> {
+    const db = this.ensureDb();
+    const result = db.exec('SELECT id FROM sessions');
+    const set = new Set<string>();
+    for (const row of result[0]?.values ?? []) {
+      set.add(String(row[0]));
+    }
+    return set;
   }
 
   isImported(sessionId: string): boolean {
@@ -1164,8 +1177,9 @@ export class TrailDatabase {
     const totalFiles = allFiles.length;
     onProgress?.(`Found ${totalFiles} JSONL files`, 0);
 
-    // Pre-load imported sessions into memory for fast lookup
-    const importedSessions = this.getImportedSessionMap();
+    // Pre-load imported data into memory for fast lookup
+    const importedFiles = this.getImportedFileMap();
+    const importedSessionIds = this.getImportedSessionIds();
     const UUID_RE = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/;
 
     const BATCH_MESSAGE_LIMIT = 10_000;
@@ -1220,26 +1234,33 @@ export class TrailDatabase {
 
       if (!sid) { skipped++; continue; }
 
-      // Fast skip: check in-memory map instead of per-file SQL query
-      const existing = importedSessions.get(sid);
-      if (existing) {
-        let currentFileSize = 0;
-        try {
-          currentFileSize = fs.statSync(filePath).size;
-        } catch {
+      // Fast skip: different logic for main sessions vs subagents
+      if (isSubagent) {
+        // Subagent: skip if parent session already imported (messages use INSERT OR REPLACE)
+        if (importedSessionIds.has(sid)) {
           skipped++;
           continue;
         }
-        // Skip if file hasn't grown since last import
-        if (currentFileSize <= existing.fileSize) {
-          skipped++;
-          // Check commits only if not yet resolved
-          if (gitRoot && !existing.commitsResolved) {
-            try {
-              commitsResolved += this.resolveCommits(sid, gitRoot);
-            } catch { /* skip */ }
+      } else {
+        // Main session: skip if same file imported and size unchanged
+        const existing = importedFiles.get(filePath);
+        if (existing) {
+          let currentFileSize = 0;
+          try {
+            currentFileSize = fs.statSync(filePath).size;
+          } catch {
+            skipped++;
+            continue;
           }
-          continue;
+          if (currentFileSize <= existing.fileSize) {
+            skipped++;
+            if (gitRoot && !existing.commitsResolved) {
+              try {
+                commitsResolved += this.resolveCommits(sid, gitRoot);
+              } catch { /* skip */ }
+            }
+            continue;
+          }
         }
       }
 
