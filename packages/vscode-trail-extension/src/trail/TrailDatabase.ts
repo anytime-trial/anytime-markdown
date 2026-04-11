@@ -1229,22 +1229,21 @@ export class TrailDatabase {
         }
       }
 
-      // Collect all files for this session (main + subagents)
+      // Import all files for this session (main + subagents) in one batch
+      const db = this.ensureDb();
+      if (!inTransaction) {
+        db.run('BEGIN TRANSACTION');
+        inTransaction = true;
+        batchMessageCount = 0;
+        batchFileCount = 0;
+      }
+
       const filesToImport = [
         { filePath: dir.mainFile, isSubagent: false },
         ...dir.subagentFiles.map((f) => ({ filePath: f, isSubagent: true })),
       ];
 
       for (const file of filesToImport) {
-        // Start transaction if not already in one
-        const db = this.ensureDb();
-        if (!inTransaction) {
-          db.run('BEGIN TRANSACTION');
-          inTransaction = true;
-          batchMessageCount = 0;
-          batchFileCount = 0;
-        }
-
         try {
           const msgCount = this.importSession(file.filePath, dir.projectName, file.isSubagent, true);
           imported++;
@@ -1252,21 +1251,21 @@ export class TrailDatabase {
           batchFileCount++;
         } catch { /* skip individual file errors */ }
         processedFiles++;
-
-        // Commit when message count or file count exceeds limit
-        if (batchMessageCount >= BATCH_MESSAGE_LIMIT || batchFileCount >= BATCH_FILE_LIMIT) {
-          if (inTransaction) {
-            try { db.run('COMMIT'); } catch { try { db.run('ROLLBACK'); } catch { /* ignore */ } }
-            inTransaction = false;
-          }
-          onProgress?.(`${batchMessageCount} messages (${processedFiles}/${totalFiles}, skipped ${skipped})`, 0);
-          await new Promise<void>((resolve) => setTimeout(resolve, 0));
-        }
       }
 
       // Resolve commits after all files for this session
       if (gitRoot) {
         try { commitsResolved += this.resolveCommits(dir.sid, gitRoot); } catch { /* skip */ }
+      }
+
+      // Commit at session boundary when limits exceeded
+      if (batchMessageCount >= BATCH_MESSAGE_LIMIT || batchFileCount >= BATCH_FILE_LIMIT) {
+        if (inTransaction) {
+          try { db.run('COMMIT'); } catch { try { db.run('ROLLBACK'); } catch { /* ignore */ } }
+          inTransaction = false;
+        }
+        onProgress?.(`${batchMessageCount} messages (${processedFiles}/${totalFiles}, skipped ${skipped})`, 0);
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
       }
     }
 
