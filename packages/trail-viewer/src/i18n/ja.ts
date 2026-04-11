@@ -24,7 +24,7 @@ export const ja: TrailI18n = {
   'sessionList.tokensHeader': 'トークン',
   'sessionList.costHeader': 'コスト',
   'sessionList.messagesHeader': 'メッセージ',
-  'sessionList.commitsHeader': 'コミット(+/-)',
+  'sessionList.commitsHeader': 'Commits / Lines',
   'sessionList.maxChip': 'MAX',
   'sessionList.nrChip': 'N/R',
   'sessionList.interruptedMaxTokens': '中断: max_tokens',

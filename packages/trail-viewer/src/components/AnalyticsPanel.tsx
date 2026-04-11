@@ -683,7 +683,15 @@ function DailySessionList({
                 <TableCell align="right">{fmtNum(s.messageCount)}</TableCell>
                 <TableCell align="right" sx={{ fontFamily: 'monospace', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
                   {s.commitStats
-                    ? `${s.commitStats.commits} (+${fmtNum(s.commitStats.linesAdded)}/-${fmtNum(s.commitStats.linesDeleted)})`
+                    ? <>
+                        {s.commitStats.commits}
+                        <Typography
+                          component="div"
+                          sx={{ fontFamily: 'monospace', fontSize: '0.7rem', color: colors.textSecondary, lineHeight: 1.2 }}
+                        >
+                          +{fmtNum(s.commitStats.linesAdded)} / -{fmtNum(s.commitStats.linesDeleted)}
+                        </Typography>
+                      </>
                     : '\u2014'}
                 </TableCell>
               </TableRow>
