@@ -263,6 +263,8 @@ export function useTrailDataSource(
         if (supabaseReader) {
           const analyticsData = await supabaseReader.getAnalytics();
           if (analyticsData) setAnalytics(analyticsData);
+          const costOptData = await supabaseReader.getCostOptimization();
+          if (costOptData) setCostOptimization(costOptData);
         } else {
           const res = await fetch(`${baseUrl}/api/trail/analytics`);
           if (res.ok) {

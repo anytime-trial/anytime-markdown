@@ -53,6 +53,7 @@ export function TrailViewer() {
       onSelectSession={handleSelectSession}
       onFilterChange={handleFilterChange}
       analytics={dataSource.analytics}
+      costOptimization={dataSource.costOptimization}
       fetchSessionMessages={dataSource.fetchSessionMessages}
       fetchSessionCommits={dataSource.fetchSessionCommits}
       fetchSessionToolMetrics={dataSource.fetchSessionToolMetrics}

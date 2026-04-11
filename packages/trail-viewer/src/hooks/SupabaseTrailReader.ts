@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type {
+  CostOptimizationData,
   ToolMetrics,
   TrailFilter,
   TrailMessage,
@@ -318,6 +319,47 @@ export class SupabaseTrailReader implements ITrailReader {
       .map(([date, v]) => ({ date, ...v }));
 
     return { totals, toolUsage: [], modelBreakdown, dailyActivity };
+  }
+
+  async getCostOptimization(): Promise<CostOptimizationData | null> {
+    const { data, error } = await this.client
+      .from('trail_daily_costs')
+      .select('*')
+      .in('cost_type', ['actual', 'skill'])
+      .order('date');
+    if (error || !data) return null;
+
+    const rows = data as readonly { date: string; model: string; cost_type: string; estimated_cost_usd: number }[];
+
+    const actualByModel: Record<string, number> = {};
+    const skillByModel: Record<string, number> = {};
+    const dailyMap = new Map<string, { actualCost: number; skillCost: number }>();
+
+    for (const r of rows) {
+      const entry = dailyMap.get(r.date) ?? { actualCost: 0, skillCost: 0 };
+      if (r.cost_type === 'actual') {
+        actualByModel[r.model] = (actualByModel[r.model] ?? 0) + r.estimated_cost_usd;
+        entry.actualCost += r.estimated_cost_usd;
+      } else if (r.cost_type === 'skill') {
+        skillByModel[r.model] = (skillByModel[r.model] ?? 0) + r.estimated_cost_usd;
+        entry.skillCost += r.estimated_cost_usd;
+      }
+      dailyMap.set(r.date, entry);
+    }
+
+    const daily = [...dailyMap.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, v]) => ({ date, actualCost: v.actualCost, skillCost: v.skillCost }));
+
+    const totalActual = Object.values(actualByModel).reduce((s, v) => s + v, 0);
+    const totalSkill = Object.values(skillByModel).reduce((s, v) => s + v, 0);
+
+    return {
+      actual: { totalCost: totalActual, byModel: actualByModel },
+      skillEstimate: { totalCost: totalSkill, byModel: skillByModel },
+      daily,
+      modelDistribution: { actual: actualByModel, skillRecommended: skillByModel },
+    };
   }
 
   async getSessionToolMetrics(sessionId: string): Promise<ToolMetrics | null> {
