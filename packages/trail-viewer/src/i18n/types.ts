@@ -141,4 +141,18 @@ export interface TrailI18n {
   // prompt
   'prompt.noPrompts': string;
   'prompt.selectPrompt': string;
+  // releases
+  'releases.title': string;
+  'releases.version': string;
+  'releases.date': string;
+  'releases.interval': string;
+  'releases.steps': string;
+  'releases.files': string;
+  'releases.commits': string;
+  'releases.breakdown': string;
+  'releases.stepsPerDay': string;
+  'releases.fixRate': string;
+  'releases.packages': string;
+  'releases.days': string;
+  'releases.noReleases': string;
 }
