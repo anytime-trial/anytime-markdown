@@ -1,20 +1,2 @@
-import type {
-  ToolMetrics,
-  TrailFilter,
-  TrailMessage,
-  TrailSession,
-  TrailSessionCommit,
-  TrailTask,
-} from '../parser/types';
-import type { AnalyticsData } from '../components/AnalyticsPanel';
-
-export interface ITrailReader {
-  getSessions(filters?: TrailFilter): Promise<readonly TrailSession[]>;
-  getMessages(sessionId: string): Promise<readonly TrailMessage[]>;
-  getSessionCommits(sessionId: string): Promise<readonly TrailSessionCommit[]>;
-  getTasks(): Promise<readonly TrailTask[]>;
-  getC4Model(): Promise<Record<string, unknown> | null>;
-  getAnalytics(): Promise<AnalyticsData | null>;
-  getSessionToolMetrics(sessionId: string): Promise<ToolMetrics | null>;
-  searchMessages(query: string): Promise<readonly { sessionId: string; uuid: string; snippet: string }[]>;
-}
+/** @deprecated Import from '@anytime-markdown/trail-core/domain' directly */
+export type { ITrailReader } from '@anytime-markdown/trail-core/domain';
