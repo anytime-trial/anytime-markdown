@@ -42,16 +42,6 @@ interface C4DataSourceResult {
   sendCommand: (cmd: string, payload?: unknown) => void;
 }
 
-interface ModelPayload {
-  model: C4Model;
-  boundaries: BoundaryInfo[];
-  featureMatrix?: FeatureMatrix;
-}
-
-interface DsmMatrixPayload {
-  matrix: DsmMatrix;
-}
-
 interface WsModelMessage {
   type: 'model-updated';
   model: C4Model;
@@ -91,8 +81,6 @@ interface WsCoverageDiffMessage {
   coverageDiff: CoverageDiffMatrix;
 }
 
-type WsMessage = WsModelMessage | WsDsmMatrixMessage | WsDsmDiffMessage | WsAnalysisProgressMessage | WsDocLinksMessage | WsCoverageMessage | WsCoverageDiffMessage;
-
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -103,17 +91,6 @@ const RECONNECT_DELAY_MS = 3_000;
 // ---------------------------------------------------------------------------
 // Helpers (type guards)
 // ---------------------------------------------------------------------------
-
-function isModelPayload(v: unknown): v is ModelPayload {
-  if (typeof v !== 'object' || v === null) return false;
-  const obj = v as Record<string, unknown>;
-  return 'model' in obj && 'boundaries' in obj;
-}
-
-function isDsmMatrixPayload(v: unknown): v is DsmMatrixPayload {
-  if (typeof v !== 'object' || v === null) return false;
-  return 'matrix' in v;
-}
 
 function isWsModelMessage(v: unknown): v is WsModelMessage {
   if (typeof v !== 'object' || v === null) return false;
@@ -194,66 +171,6 @@ function useLocalMode(enabled: boolean): Pick<
 }
 
 // ---------------------------------------------------------------------------
-// Remote-mode helpers
-// ---------------------------------------------------------------------------
-
-function useRemoteInitialFetch(
-  serverUrl: string | undefined,
-  setC4Model: (m: C4Model) => void,
-  setBoundaries: (b: readonly BoundaryInfo[]) => void,
-  setDsmMatrix: (m: DsmMatrix | null) => void,
-  setFeatureMatrix: (m: FeatureMatrix | null) => void,
-  setCoverageMatrix: (m: CoverageMatrix | null) => void,
-  setCoverageDiff: (m: CoverageDiffMatrix | null) => void,
-): void {
-  useEffect(() => {
-    if (!serverUrl) return;
-
-    let cancelled = false;
-
-    async function fetchInitial(): Promise<void> {
-      const [modelRes, dsmRes, covRes] = await Promise.all([
-        fetch(`${serverUrl}/api/c4/model`).catch(() => null),
-        fetch(`${serverUrl}/api/c4/dsm`).catch(() => null),
-        fetch(`${serverUrl}/api/c4/coverage`).catch(() => null),
-      ]);
-
-      if (cancelled) return;
-
-      if (modelRes?.status === 200) {
-        const json: unknown = await modelRes.json();
-        if (!cancelled && isModelPayload(json)) {
-          setC4Model(json.model);
-          setBoundaries(json.boundaries);
-          setFeatureMatrix(json.featureMatrix ?? null);
-        }
-      }
-
-      if (dsmRes?.status === 200) {
-        const json: unknown = await dsmRes.json();
-        if (!cancelled && isDsmMatrixPayload(json)) {
-          setDsmMatrix(json.matrix);
-        }
-      }
-
-      if (covRes?.status === 200) {
-        const json = await covRes.json() as { coverageMatrix: CoverageMatrix | null; coverageDiff: CoverageDiffMatrix | null };
-        if (!cancelled && json.coverageMatrix) {
-          setCoverageMatrix(json.coverageMatrix);
-        }
-        if (!cancelled && json.coverageDiff) {
-          setCoverageDiff(json.coverageDiff);
-        }
-      }
-      // 204 (no content) — keep null state (no action needed)
-    }
-
-    void fetchInitial();
-    return () => { cancelled = true; };
-  }, [serverUrl, setC4Model, setBoundaries, setDsmMatrix, setFeatureMatrix, setCoverageMatrix, setCoverageDiff]);
-}
-
-// ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
 
@@ -282,17 +199,6 @@ export function useC4DataSource(serverUrl?: string): C4DataSourceResult {
 
   // Local mode
   const local = useLocalMode(!isRemote);
-
-  // Remote initial fetch (useState setters are referentially stable)
-  useRemoteInitialFetch(
-    serverUrl,
-    setRemoteModel,
-    setRemoteBoundaries,
-    setDsmMatrix,
-    setFeatureMatrix,
-    setCoverageMatrix,
-    setCoverageDiff,
-  );
 
   // WebSocket message handler
   const handleWsMessage = useCallback((event: MessageEvent) => {

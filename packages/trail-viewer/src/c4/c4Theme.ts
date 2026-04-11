@@ -74,3 +74,14 @@ const LIGHT: C4ThemeColors = {
 export function getC4Colors(isDark: boolean): C4ThemeColors {
   return isDark ? DARK : LIGHT;
 }
+
+/** Document type badge colors (theme-independent). */
+export const DOC_TYPE_COLORS: Readonly<Record<string, string>> = {
+  spec: '#4FC3F7',
+  tech: '#81C784',
+  plan: '#FFB74D',
+  review: '#CE93D8',
+  report: '#F48FB1',
+  test: '#A5D6A7',
+  manual: '#90A4AE',
+};

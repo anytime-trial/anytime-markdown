@@ -27,7 +27,7 @@ import Typography from '@mui/material/Typography';
 import type { Dispatch, FC } from 'react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 
-import { getC4Colors } from '../c4Theme';
+import { DOC_TYPE_COLORS, getC4Colors } from '../c4Theme';
 
 const INDENT_PX = 20;
 
@@ -211,16 +211,6 @@ function matchesScope(docScope: readonly string[], elementId: string): boolean {
   return docScope.some(s => s === elementId || s.startsWith(elementId + '/'));
 }
 
-const TYPE_COLORS: Record<string, string> = {
-  spec: '#4FC3F7',
-  tech: '#81C784',
-  plan: '#FFB74D',
-  review: '#CE93D8',
-  report: '#F48FB1',
-  test: '#A5D6A7',
-  manual: '#90A4AE',
-};
-
 interface DocLinksSectionProps {
   readonly isDark?: boolean;
   readonly docLinks: readonly DocLink[];
@@ -275,7 +265,7 @@ const DocLinksSection: FC<DocLinksSectionProps> = memo(({ docLinks, selectedId, 
                   height: 16,
                   fontSize: '0.6rem',
                   mr: 0.75,
-                  bgcolor: TYPE_COLORS[doc.type] ?? '#757575',
+                  bgcolor: DOC_TYPE_COLORS[doc.type] ?? '#757575',
                   color: '#000',
                   '& .MuiChip-label': { px: 0.5 },
                 }}
