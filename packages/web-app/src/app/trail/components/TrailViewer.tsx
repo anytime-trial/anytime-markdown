@@ -6,12 +6,14 @@ import { TrailViewerCore, useTrailDataSource } from '@anytime-markdown/trail-vie
 import type { TrailFilter, SupabaseConfig } from '@anytime-markdown/trail-viewer';
 
 import { useThemeMode } from '../../providers';
+import { useLocaleSwitch } from '../../LocaleProvider';
 
 const EMPTY_FILTER: TrailFilter = {};
 
 export function TrailViewer() {
   const { themeMode } = useThemeMode();
   const isDark = themeMode === 'dark';
+  const { locale } = useLocaleSwitch();
 
   const supabaseConfig: SupabaseConfig | undefined =
     process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -44,6 +46,7 @@ export function TrailViewer() {
 
   return (
     <TrailViewerCore
+      locale={locale}
       isDark={isDark}
       sessions={dataSource.sessions}
       allSessions={dataSource.allSessions}
