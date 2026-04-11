@@ -149,32 +149,27 @@
           "group": "navigation@1"
         },
         {
+          "command": "anytime-trail.c4Analyze",
+          "when": "view == anytimeTrail.c4Elements",
+          "group": "navigation@1"
+        },
+        {
+          "command": "anytime-trail.c4Export",
+          "when": "view == anytimeTrail.c4Elements",
+          "group": "navigation@2"
+        },
+        {
+          "command": "anytime-trail.c4Import",
+          "when": "view == anytimeTrail.c4Elements",
+          "group": "navigation@3"
+        },
+        {
           "command": "anytime-trail.aiMemoryRefresh",
           "when": "view == anytimeTrail.aiMemory",
           "group": "navigation"
         }
       ],
       "view/item/context": [
-        {
-          "command": "anytime-trail.c4View",
-          "when": "view == anytimeTrail.c4Elements && viewItem == c4Root",
-          "group": "0_view@1"
-        },
-        {
-          "command": "anytime-trail.c4Analyze",
-          "when": "view == anytimeTrail.c4Elements && viewItem == c4Root",
-          "group": "1_c4@1"
-        },
-        {
-          "command": "anytime-trail.c4Export",
-          "when": "view == anytimeTrail.c4Elements && viewItem == c4Root",
-          "group": "1_c4@2"
-        },
-        {
-          "command": "anytime-trail.c4Import",
-          "when": "view == anytimeTrail.c4Elements && viewItem == c4Root",
-          "group": "1_c4@3"
-        },
         {
           "command": "anytime-trail.runE2eTest",
           "when": "view == anytimeTrail.c4Elements && viewItem == c4Level.c1",
