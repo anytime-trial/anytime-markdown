@@ -1206,11 +1206,12 @@ export class TrailDatabase {
             } catch { /* skip */ }
           }
         } catch {
+          skipped++;
           continue;
         }
       }
 
-      if (!sid) continue;
+      if (!sid) { skipped++; continue; }
 
       // Fast skip: check in-memory map instead of per-file SQL query
       const existing = importedSessions.get(sid);
