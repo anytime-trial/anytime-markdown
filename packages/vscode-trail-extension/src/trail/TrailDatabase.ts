@@ -704,6 +704,32 @@ export class TrailDatabase {
     }));
   }
 
+  getAllSessionCosts(): readonly {
+    session_id: string;
+    model: string;
+    input_tokens: number;
+    output_tokens: number;
+    cache_read_tokens: number;
+    cache_creation_tokens: number;
+    estimated_cost_usd: number;
+  }[] {
+    const db = this.ensureDb();
+    const result = db.exec(
+      `SELECT session_id, model, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, estimated_cost_usd
+       FROM session_costs`,
+    );
+    if (!result[0]) return [];
+    return result[0].values.map((r) => ({
+      session_id: r[0] as string,
+      model: r[1] as string,
+      input_tokens: r[2] as number,
+      output_tokens: r[3] as number,
+      cache_read_tokens: r[4] as number,
+      cache_creation_tokens: r[5] as number,
+      estimated_cost_usd: r[6] as number,
+    }));
+  }
+
   getAllDailyCosts(): readonly {
     date: string;
     model: string;

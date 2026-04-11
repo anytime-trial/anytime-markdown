@@ -81,6 +81,25 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     if (error) throw new Error(`Supabase upsert session_costs failed: ${error.message}`);
   }
 
+  async upsertAllSessionCosts(rows: readonly {
+    session_id: string;
+    model: string;
+    input_tokens: number;
+    output_tokens: number;
+    cache_read_tokens: number;
+    cache_creation_tokens: number;
+    estimated_cost_usd: number;
+  }[]): Promise<void> {
+    if (rows.length === 0) return;
+    const CHUNK = 500;
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      const { error } = await this.ensureClient()
+        .from('trail_session_costs')
+        .upsert(rows.slice(i, i + CHUNK), { onConflict: 'session_id,model' });
+      if (error) throw new Error(`Supabase upsert all session_costs failed: ${error.message}`);
+    }
+  }
+
   async upsertDailyCosts(rows: readonly {
     date: string;
     model: string;

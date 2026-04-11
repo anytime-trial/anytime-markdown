@@ -21,6 +21,15 @@ export interface IRemoteTrailStore {
     cache_creation_tokens: number;
     estimated_cost_usd: number;
   }[]): Promise<void>;
+  upsertAllSessionCosts(rows: readonly {
+    session_id: string;
+    model: string;
+    input_tokens: number;
+    output_tokens: number;
+    cache_read_tokens: number;
+    cache_creation_tokens: number;
+    estimated_cost_usd: number;
+  }[]): Promise<void>;
   upsertDailyCosts(rows: readonly {
     date: string;
     model: string;

@@ -71,9 +71,6 @@ export class SyncService {
           const commits = this.trailDb.getSessionCommits(session.id);
           await this.store.upsertCommits(commits);
 
-          const sessionCosts = this.trailDb.getSessionCosts(session.id);
-          await this.store.upsertSessionCosts(session.id, sessionCosts);
-
           synced++;
         } catch (e) {
           const id = session.slug || session.id.slice(0, 8);
@@ -83,7 +80,17 @@ export class SyncService {
       }
     }
 
-    // Sync daily_costs (全件上書き — セッション更新の有無によらず常に実行)
+    // Sync session_costs 全件上書き — セッション更新の有無によらず常に実行
+    try {
+      onProgress?.({ message: 'Syncing session costs...' });
+      const allSessionCosts = this.trailDb.getAllSessionCosts();
+      await this.store.upsertAllSessionCosts(allSessionCosts);
+    } catch (e) {
+      TrailLogger.error('Failed to sync session costs', e);
+      errors++;
+    }
+
+    // Sync daily_costs 全件上書き — セッション更新の有無によらず常に実行
     try {
       onProgress?.({ message: 'Syncing daily costs...' });
       const dailyCosts = this.trailDb.getAllDailyCosts();
