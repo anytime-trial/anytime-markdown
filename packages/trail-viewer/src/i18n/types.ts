@@ -98,6 +98,13 @@ export interface TrailI18n {
   'analytics.buildFail': string;
   'analytics.testFail': string;
   'analytics.metricInterrupted': string;
+  'analytics.loadingAnalytics': string;
+  'analytics.modelBreakdown': string;
+  'analytics.turn': string;
+  'analytics.chartInput': string;
+  'analytics.chartOutput': string;
+  'analytics.chartCacheRead': string;
+  'analytics.chartCacheWrite': string;
   // chart
   'chart.tokenUsage': string;
   'chart.estimatedCost': string;

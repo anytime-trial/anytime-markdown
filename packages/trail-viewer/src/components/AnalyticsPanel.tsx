@@ -375,13 +375,13 @@ function SessionCacheTimeline({
       </Box>
       <LineChart
         dataset={dataset}
-        xAxis={[{ dataKey: 'turn', label: 'Turn', scaleType: 'point' }]}
+        xAxis={[{ dataKey: 'turn', label: t('analytics.turn'), scaleType: 'point' }]}
         yAxis={[{ valueFormatter: fmtTokens }]}
         series={[
-          { dataKey: 'inputTokens', label: 'Input', color: chartColors.input, showMark: false },
-          { dataKey: 'outputTokens', label: 'Output', color: chartColors.output, showMark: false },
-          { dataKey: 'cacheReadTokens', label: 'Cache Read', color: chartColors.cacheRead, showMark: false },
-          { dataKey: 'cacheCreationTokens', label: 'Cache Write', color: chartColors.cacheWrite, showMark: false },
+          { dataKey: 'inputTokens', label: t('analytics.chartInput'), color: chartColors.input, showMark: false },
+          { dataKey: 'outputTokens', label: t('analytics.chartOutput'), color: chartColors.output, showMark: false },
+          { dataKey: 'cacheReadTokens', label: t('analytics.chartCacheRead'), color: chartColors.cacheRead, showMark: false },
+          { dataKey: 'cacheCreationTokens', label: t('analytics.chartCacheWrite'), color: chartColors.cacheWrite, showMark: false },
         ]}
         height={200}
         margin={{ left: 60, right: 16, top: 16, bottom: 32 }}
@@ -883,12 +883,13 @@ function DailyActivityChart({
 
 function ModelTable({ items }: Readonly<{ items: AnalyticsData['modelBreakdown'] }>) {
   const { colors } = useTrailTheme();
+  const { t } = useTrailI18n();
   if (items.length === 0) return null;
 
   return (
     <Box>
       <Typography variant="subtitle1" sx={{ mb: 1 }}>
-        Model Breakdown
+        {t('analytics.modelBreakdown')}
       </Typography>
       <Table size="small">
         <TableHead>
@@ -925,11 +926,12 @@ function ModelTable({ items }: Readonly<{ items: AnalyticsData['modelBreakdown']
 
 export function AnalyticsPanel({ analytics, sessions = [], onSelectSession, fetchSessionMessages, fetchSessionCommits, fetchSessionToolMetrics, costOptimization }: Readonly<AnalyticsPanelProps>) {
   const { colors } = useTrailTheme();
+  const { t } = useTrailI18n();
   if (!analytics) {
     return (
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
         <Typography variant="body2" color="text.secondary">
-          Loading analytics...
+          {t('analytics.loadingAnalytics')}
         </Typography>
       </Box>
     );
