@@ -11,28 +11,33 @@ Anytime Markdown gives you a WYSIWYG editor with rich rendering, plus **collabor
 
 ![](images/markdown-editor-screen.png)
 
+
 ## 1. What You Can Do
 
-- **Rich Markdown editing** — render tables, Mermaid, PlantUML, and KaTeX inline
+- **Rich Markdown editing** — render tables, Mermaid, PlantUML, KaTeX, JSXGraph, and Plotly inline
 - **Paste a screenshot and tell AI "fix this"** — share images with AI via Agent Note
 - **Auto-lock while AI is editing** — prevent conflicts when Claude Code is writing to a file
 - **Switch between 3 modes with one click** — WYSIWYG, Source, Review
+- **Broken link warnings** — wave underlines for invalid file links and anchors
+- **Status bar** — cursor position, character count, line count, line ending, and encoding
+- **Diff view** — compare two versions side by side
+- **Section number insertion and removal**
 
 
 ## 2. Getting Started
 
-`.md` / `.markdown` files open with Anytime Markdown automatically.
+Right-click a `.md` / `.markdown` file and choose **"Open with Anytime Markdown"** to open it in the editor.
 
-To use the standard text editor, right-click a file and choose **"Open With..."** > **"Text Editor"**.
+Available from both the Explorer context menu and the editor title bar context menu.
 
 
-## 3. Share Screenshots with AI (Agent Note)
+## 3. Share Screenshots with AI (Anytime Note)
 
-Paste images and screenshots into the editor, then share them with AI as visual context.
+Manage multiple note pages in the **Note** sidebar panel and share visual context with AI.
 
 **How to use:**
 
-1. Open a note from **Agent Note** in the sidebar
+1. Open a note from **Note** in the sidebar (use `+` to add a new page)
 2. Paste screenshots or tables from your clipboard
 3. Run `/anytime-note fix this bug` in Claude Code
 4. AI reads the images in the note and performs the task
@@ -41,6 +46,7 @@ Paste images and screenshots into the editor, then share them with AI as visual 
 
 
 ![](images/markdown-agent-note.gif)
+
 
 ## 4. Auto-Lock While AI Is Editing (Claude Code Collaborative Editing)
 
@@ -52,19 +58,7 @@ When editing finishes, the lock is released and the content is updated automatic
 - **Crash safe** — auto-unlocks after 30 seconds if Claude Code stops responding
 
 
-## 5. Browse AI Memory
-
-View Claude Code memory information in the **Anytime Markdown** sidebar panel.
-
-| Panel | Description |
-| --- | --- |
-| **AI Memory** | Per-project memory entries. Click to view or edit |
-
-> This panel reads from `~/.claude/projects/`.\
-> It is hidden when Claude Code is not installed.
-
-
-## 6. Editor Modes
+## 5. Editor Modes
 
 | Mode | What it does |
 | --- | --- |
@@ -72,7 +66,14 @@ View Claude Code memory information in the **Anytime Markdown** sidebar panel.
 | **Source** | Edit raw Markdown directly |
 | **Review** | Read-only. Great for reviewing AI output |
 
-Switch with the toolbar toggles or `Ctrl+Alt+S` (`Cmd+Alt+S` on Mac).
+Switch with the mode menu in the toolbar.
+
+
+## 6. Keyboard Shortcuts
+
+| Key | Action |
+| --- | --- |
+| `Ctrl+Shift+V` / `Cmd+Shift+V` | Paste as Markdown |
 
 
 ## 7. Settings
