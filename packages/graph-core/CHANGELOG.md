@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-04-11
+
+### Added
+
+- Unit tests for drawEdge in edgeRenderer
+
+### Changed
+
+- Reduce cognitive complexity in renderer.ts, textRendering.ts, hitTest.ts, smartGuide.ts (SonarCloud S3776)
+- Reduce cognitive complexity in importDrawio.ts, importMermaid.ts, exportDrawio.ts (SonarCloud S3776)
+- Reduce cognitive complexity in visibilityGraph.ts, vpsc.ts, resolveAllCollisions.ts, parseEdge.ts (SonarCloud S3776)
+- Reduce cognitive complexity in findShortestPath.ts, hierarchical layout, PhysicsEngine, drawEdge (SonarCloud S3776)
+- Fix SonarCloud issues: remove commented-out code (S125), remove unnecessary assignments (S1854), optional chaining (S6582), localeCompare for sort (S2871), consolidate duplicate branches (S1871), use replaceAll (S7781)
+
 ## [0.1.1] - 2026-04-07
 
 ### Added

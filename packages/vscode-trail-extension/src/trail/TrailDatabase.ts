@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { toUTC } from './dateUtils';
 
 declare const __non_webpack_require__: (id: string) => unknown;
 
@@ -86,6 +87,8 @@ interface SessionFilters {
   readonly branch?: string;
   readonly model?: string;
   readonly project?: string;
+  readonly from?: string;
+  readonly to?: string;
 }
 
 interface SearchResult {
@@ -147,6 +150,23 @@ export interface AnalyticsData {
     readonly inputTokens: number;
     readonly outputTokens: number;
   }[];
+}
+
+export interface CostOptimizationData {
+  readonly actual: { readonly totalCost: number; readonly byModel: Readonly<Record<string, number>> };
+  readonly ruleEstimate: { readonly totalCost: number; readonly byModel: Readonly<Record<string, number>> };
+  readonly featureEstimate: { readonly totalCost: number; readonly byModel: Readonly<Record<string, number>> };
+  readonly daily: readonly {
+    readonly date: string;
+    readonly actualCost: number;
+    readonly ruleCost: number;
+    readonly featureCost: number;
+  }[];
+  readonly modelDistribution: {
+    readonly actual: Readonly<Record<string, number>>;
+    readonly ruleRecommended: Readonly<Record<string, number>>;
+    readonly featureRecommended: Readonly<Record<string, number>>;
+  };
 }
 
 interface RawLine {
@@ -278,8 +298,9 @@ const INSERT_MESSAGE = `INSERT OR REPLACE INTO messages
    user_content, tool_calls, tool_use_result, model, request_id,
    stop_reason, input_tokens, output_tokens, cache_read_tokens,
    cache_creation_tokens, service_tier, speed, timestamp,
-   is_sidechain, is_meta, cwd, git_branch)
-  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`;
+   is_sidechain, is_meta, cwd, git_branch,
+   rule_recommended_model, feature_recommended_model, cost_category)
+  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`;
 
 
 // ---------------------------------------------------------------------------
@@ -305,6 +326,95 @@ function extractToolCalls(
     .filter((b) => b.type === 'tool_use')
     .map((b) => ({ id: b.id ?? '', name: b.name ?? '', input: b.input ?? {} }));
   return calls.length > 0 ? JSON.stringify(calls) : null;
+}
+
+// ---------------------------------------------------------------------------
+//  Cost classification helpers (inlined from trail-viewer/engine)
+// ---------------------------------------------------------------------------
+
+const SEARCH_TOOLS = new Set(['Grep', 'Glob', 'Read', 'WebSearch', 'WebFetch']);
+const EDIT_TOOLS = new Set(['Edit', 'Write', 'NotebookEdit']);
+
+interface CostRuleEntry {
+  pattern: string;
+  model: string;
+  label: string;
+}
+
+let costRulesCache: { rules: CostRuleEntry[]; default: string } | null = null;
+
+function loadCostRules(): { rules: CostRuleEntry[]; default: string } {
+  if (costRulesCache) return costRulesCache;
+  try {
+    const rulesPath = path.join(os.homedir(), '.claude', 'trail', 'costRules.json');
+    if (fs.existsSync(rulesPath)) {
+      costRulesCache = JSON.parse(fs.readFileSync(rulesPath, 'utf-8'));
+      return costRulesCache!;
+    }
+  } catch { /* ignore */ }
+  // Default rules
+  costRulesCache = {
+    rules: [
+      { pattern: '^(ok|yes|はい|続けて|1|2|3|a|b|c|d)$', model: 'haiku', label: '確認・承認' },
+      { pattern: 'コミットして|コミットのみ', model: 'haiku', label: 'Git操作' },
+      { pattern: 'バグ|エラー|原因|デバッグ|表示されない|動かない|壊れ|崩れ|不具合', model: 'opus', label: 'デバッグ' },
+      { pattern: 'レビュー|品質|sonar|lint|脆弱性|セキュリティ', model: 'opus', label: 'レビュー・品質' },
+      { pattern: '設計|アーキテクチャ|リファクタ', model: 'opus', label: '設計・リファクタ' },
+      { pattern: '色|幅|余白|アイコン|フォント|サイズ|配置|レイアウト|ホバー|ツールバー|パネル|ダーク|スクロール', model: 'sonnet', label: 'UI調整' },
+      { pattern: '追加して|作成して|実装して|削除して|変更して|更新して|非表示にして', model: 'sonnet', label: '機能変更' },
+      { pattern: 'おしえて|教えて|ですか|でしょうか|どう|なぜ|確認して|調べて', model: 'sonnet', label: '質問・調査' },
+      { pattern: 'ドキュメント|設計書|マニュアル|レポート|記事', model: 'sonnet', label: 'ドキュメント' },
+      { pattern: 'リリース|デプロイ|publish', model: 'sonnet', label: 'リリース' },
+    ],
+    default: 'sonnet',
+  };
+  return costRulesCache;
+}
+
+function classifyMessageByRules(userContent: string): { model: string; label?: string } {
+  const config = loadCostRules();
+  const text = userContent.trim();
+  for (const rule of config.rules) {
+    if (new RegExp(rule.pattern, 'i').test(text)) {
+      return { model: rule.model, label: rule.label };
+    }
+  }
+  return { model: config.default };
+}
+
+function extractToolCallNames(toolCallsJson: string | null): string[] {
+  if (!toolCallsJson) return [];
+  try {
+    const calls = JSON.parse(toolCallsJson) as Array<{ name?: string }>;
+    return calls.map(c => c.name ?? '').filter(Boolean);
+  } catch { return []; }
+}
+
+function countUniqueFiles(toolCallsJson: string | null): number {
+  if (!toolCallsJson) return 0;
+  try {
+    const calls = JSON.parse(toolCallsJson) as Array<{ input?: Record<string, unknown> }>;
+    const files = new Set<string>();
+    for (const call of calls) {
+      if (!call.input || typeof call.input !== 'object') continue;
+      if (typeof call.input.file_path === 'string') files.add(call.input.file_path);
+      if (typeof call.input.path === 'string') files.add(call.input.path);
+    }
+    return files.size;
+  } catch { return 0; }
+}
+
+function classifyMessageByFeatures(
+  outputTokens: number,
+  toolCallNames: string[],
+  uniqueFileCount: number,
+): string {
+  if (outputTokens < 500 && toolCallNames.length === 0) return 'haiku';
+  if (toolCallNames.length > 0 && toolCallNames.every(n => SEARCH_TOOLS.has(n))) return 'sonnet';
+  if (toolCallNames.some(n => EDIT_TOOLS.has(n)) && uniqueFileCount >= 3) return 'opus';
+  const uniqueToolTypes = new Set(toolCallNames).size;
+  if (outputTokens > 3000 && uniqueToolTypes >= 3) return 'opus';
+  return 'sonnet';
 }
 
 // ---------------------------------------------------------------------------
@@ -361,6 +471,96 @@ export class TrailDatabase {
     } catch {
       // Column already exists — ignore
     }
+    try {
+      db.run('ALTER TABLE messages ADD COLUMN rule_recommended_model TEXT');
+    } catch { /* Column already exists */ }
+    try {
+      db.run('ALTER TABLE messages ADD COLUMN feature_recommended_model TEXT');
+    } catch { /* Column already exists */ }
+    try {
+      db.run('ALTER TABLE messages ADD COLUMN cost_category TEXT');
+    } catch { /* Column already exists */ }
+
+    this.migrateTimestampsToUTC(db);
+  }
+
+  /**
+   * 既存データの日時カラムをUTC ISO 8601に一括変換する。
+   * 一度実行済みなら _migrations テーブルのフラグで二重実行を防止する。
+   */
+  private migrateTimestampsToUTC(db: Database): void {
+    db.run('CREATE TABLE IF NOT EXISTS _migrations (key TEXT PRIMARY KEY)');
+
+    const done = db.exec(
+      "SELECT 1 FROM _migrations WHERE key = 'timestamps_to_utc'",
+    );
+    if (done[0]?.values?.length) return;
+
+    db.run('BEGIN TRANSACTION');
+    try {
+      // sessions: start_time, end_time, imported_at, commits_resolved_at
+      const sessions = db.exec(
+        'SELECT id, start_time, end_time, imported_at, commits_resolved_at FROM sessions',
+      );
+      if (sessions[0]?.values) {
+        const stmt = db.prepare(
+          'UPDATE sessions SET start_time = ?, end_time = ?, imported_at = ?, commits_resolved_at = ? WHERE id = ?',
+        );
+        for (const row of sessions[0].values) {
+          stmt.run([
+            toUTC(String(row[1] ?? '')),
+            toUTC(String(row[2] ?? '')),
+            toUTC(String(row[3] ?? '')),
+            row[4] ? toUTC(String(row[4])) : null,
+            String(row[0]),
+          ]);
+        }
+        stmt.free();
+      }
+
+      // messages: timestamp
+      const messages = db.exec('SELECT uuid, timestamp FROM messages');
+      if (messages[0]?.values) {
+        const stmt = db.prepare(
+          'UPDATE messages SET timestamp = ? WHERE uuid = ?',
+        );
+        for (const row of messages[0].values) {
+          stmt.run([toUTC(String(row[1] ?? '')), String(row[0])]);
+        }
+        stmt.free();
+      }
+
+      // session_commits: committed_at
+      const commits = db.exec(
+        'SELECT session_id, commit_hash, committed_at FROM session_commits',
+      );
+      if (commits[0]?.values) {
+        const stmt = db.prepare(
+          'UPDATE session_commits SET committed_at = ? WHERE session_id = ? AND commit_hash = ?',
+        );
+        for (const row of commits[0].values) {
+          stmt.run([
+            toUTC(String(row[2] ?? '')),
+            String(row[0]),
+            String(row[1]),
+          ]);
+        }
+        stmt.free();
+      }
+
+      db.run("INSERT INTO _migrations (key) VALUES ('timestamps_to_utc')");
+      db.run('COMMIT');
+    } catch (e) {
+      console.error('[TrailDatabase] migrateTimestampsToUTC failed:', e);
+      db.run('ROLLBACK');
+    }
+  }
+
+  /** SQLiteのDATE()に渡すローカルTZオフセット文字列を返す */
+  private getLocalTzOffset(): string {
+    const offsetMin = -new Date().getTimezoneOffset();
+    const sign = offsetMin >= 0 ? '+' : '-';
+    return `${sign}${Math.abs(offsetMin)} minutes`;
   }
 
   save(): void {
@@ -385,6 +585,19 @@ export class TrailDatabase {
     const exists = stmt.step();
     stmt.free();
     return exists;
+  }
+
+  getImportedFileSize(sessionId: string): number {
+    const db = this.ensureDb();
+    const stmt = db.prepare('SELECT file_size FROM sessions WHERE id = ? LIMIT 1');
+    stmt.bind([sessionId]);
+    if (stmt.step()) {
+      const row = stmt.getAsObject() as unknown as { file_size: number };
+      stmt.free();
+      return row.file_size;
+    }
+    stmt.free();
+    return 0;
   }
 
   isCommitsResolved(sessionId: string): boolean {
@@ -487,7 +700,7 @@ export class TrailDatabase {
       const hash = parts[0];
       const subject = parts[1];
       const author = parts[2];
-      const committedAt = parts[3];
+      const committedAt = toUTC(parts[3]);
       const body = parts[4] ?? '';
 
       // Check for AI co-authoring
@@ -532,7 +745,7 @@ export class TrailDatabase {
     return count;
   }
 
-  importSession(filePath: string, projectName: string): void {
+  importSession(filePath: string, projectName: string, isSubagent = false): void {
     const db = this.ensureDb();
     const content = fs.readFileSync(filePath, 'utf-8');
     const lines = content.split('\n').filter((l) => l.trim() !== '');
@@ -581,8 +794,8 @@ export class TrailDatabase {
       if (!entrypoint && raw.entrypoint) entrypoint = raw.entrypoint;
       if (!permissionMode && raw.permissionMode) permissionMode = raw.permissionMode;
       if (!model && raw.message?.model) model = raw.message.model;
-      if (!startTime && raw.timestamp) startTime = raw.timestamp;
-      if (raw.timestamp) endTime = raw.timestamp;
+      if (!startTime && raw.timestamp) startTime = toUTC(raw.timestamp);
+      if (raw.timestamp) endTime = toUTC(raw.timestamp);
 
       const usage = raw.message?.usage;
       if (usage) {
@@ -603,13 +816,15 @@ export class TrailDatabase {
 
     db.run('BEGIN TRANSACTION');
     try {
-      // Insert session
-      db.run(INSERT_SESSION, [
-        sessionId, slug, projectName, gitBranch, cwd, model, version,
-        entrypoint, permissionMode, startTime, endTime, messageCount,
-        totalInput, totalOutput, totalCacheRead, totalCacheCreation,
-        filePath, fileSize, importedAt,
-      ]);
+      // Insert/update session metadata only for main session files
+      if (!isSubagent) {
+        db.run(INSERT_SESSION, [
+          sessionId, slug, projectName, gitBranch, cwd, model, version,
+          entrypoint, permissionMode, startTime, endTime, messageCount,
+          totalInput, totalOutput, totalCacheRead, totalCacheCreation,
+          filePath, fileSize, importedAt,
+        ]);
+      }
 
       // Insert messages
       const msgStmt = db.prepare(INSERT_MESSAGE);
@@ -628,6 +843,26 @@ export class TrailDatabase {
             ? raw.toolUseResult
             : JSON.stringify(raw.toolUseResult))
           : null;
+
+        // --- Cost classification ---
+        let ruleRecommendedModel: string | null = null;
+        let featureRecommendedModel: string | null = null;
+        let costCategory: string | null = null;
+
+        // Rule-based: classify user messages
+        if (raw.type === 'user' && userContent) {
+          const ruleResult = classifyMessageByRules(userContent);
+          ruleRecommendedModel = ruleResult.model;
+          costCategory = ruleResult.label ?? null;
+        }
+
+        // Feature-based: classify assistant messages
+        if (raw.type === 'assistant') {
+          const outputTokens = raw.message?.usage?.output_tokens ?? 0;
+          const toolCallNames = extractToolCallNames(toolCalls);
+          const uniqueFileCount = countUniqueFiles(toolCalls);
+          featureRecommendedModel = classifyMessageByFeatures(outputTokens, toolCallNames, uniqueFileCount);
+        }
 
         msgStmt.run([
           raw.uuid ?? '',
@@ -648,11 +883,14 @@ export class TrailDatabase {
           raw.message?.usage?.cache_creation_input_tokens ?? 0,
           raw.message?.usage?.service_tier ?? null,
           raw.message?.usage?.speed ?? null,
-          raw.timestamp ?? '',
+          toUTC(raw.timestamp ?? ''),
           raw.isSidechain ? 1 : 0,
           raw.isMeta ? 1 : 0,
           raw.cwd ?? null,
           raw.gitBranch ?? null,
+          ruleRecommendedModel,
+          featureRecommendedModel,
+          costCategory,
         ]);
       }
       msgStmt.free();
@@ -701,29 +939,68 @@ export class TrailDatabase {
       const increment = totalFiles > 0 ? 100 / totalFiles : 0;
       onProgress?.(`(${i + 1}/${totalFiles}) Importing...`, increment);
 
-      // Extract sessionId from first few lines
+      // Extract sessionId — try filename first, then parse file content
         let sid = '';
-        try {
-          const head = fs.readFileSync(filePath, 'utf-8').slice(0, 8192);
-          const headLines = head.split('\n').filter((l) => l.trim() !== '');
-          for (const line of headLines.slice(0, 10)) {
-            try {
-              const obj = JSON.parse(line) as { sessionId?: string };
-              if (obj.sessionId) {
-                sid = obj.sessionId;
-                break;
+        const basename = path.basename(filePath, '.jsonl');
+        const UUID_RE = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/;
+        if (UUID_RE.test(basename)) {
+          sid = basename;
+        } else {
+          try {
+            const head = fs.readFileSync(filePath, 'utf-8').slice(0, 65536);
+            const headLines = head.split('\n').filter((l) => l.trim() !== '');
+            for (const line of headLines.slice(0, 20)) {
+              try {
+                const obj = JSON.parse(line) as { sessionId?: string };
+                if (obj.sessionId) {
+                  sid = obj.sessionId;
+                  break;
+                }
+              } catch {
+                // skip
               }
-            } catch {
-              // skip
             }
+          } catch {
+            continue;
           }
-        } catch {
-          continue;
         }
 
         if (!sid) continue;
 
+        // Subagent files share the parent sessionId — import messages only
+        const isSubagent = path.basename(filePath).startsWith('agent-')
+          || filePath.includes(`${path.sep}subagents${path.sep}`);
+
         if (this.isImported(sid)) {
+          // Re-import if the main file has grown (new messages appended)
+          if (!isSubagent) {
+            let currentFileSize = 0;
+            try {
+              currentFileSize = fs.statSync(filePath).size;
+            } catch {
+              // skip
+            }
+            const importedSize = this.getImportedFileSize(sid);
+            if (currentFileSize > importedSize) {
+              try {
+                this.importSession(filePath, projectName);
+                imported++;
+              } catch {
+                // skip
+              }
+            } else {
+              skipped++;
+            }
+          }
+          // Always import subagent messages (messages use INSERT OR REPLACE)
+          if (isSubagent) {
+            try {
+              this.importSession(filePath, projectName, true);
+              imported++;
+            } catch {
+              // skip
+            }
+          }
           if (gitRoot && !this.isCommitsResolved(sid)) {
             try {
               commitsResolved += this.resolveCommits(sid, gitRoot);
@@ -731,12 +1008,11 @@ export class TrailDatabase {
               // skip
             }
           }
-          skipped++;
           continue;
         }
 
         try {
-          this.importSession(filePath, projectName);
+          this.importSession(filePath, projectName, isSubagent);
           imported++;
           if (gitRoot) {
             try {
@@ -774,6 +1050,14 @@ export class TrailDatabase {
     if (filters?.project) {
       conditions.push('s.project = ?');
       params.push(filters.project);
+    }
+    if (filters?.from) {
+      conditions.push('s.start_time >= ?');
+      params.push(filters.from);
+    }
+    if (filters?.to) {
+      conditions.push('s.start_time <= ?');
+      params.push(filters.to);
     }
 
     const where = conditions.length > 0
@@ -983,6 +1267,18 @@ export class TrailDatabase {
     }
     stmt.free();
     return results;
+  }
+
+  getLastImportedAt(): string | null {
+    this.ensureDb();
+    const result = this.db!.exec(
+      `SELECT MAX(imported_at) as last_imported FROM sessions`,
+    );
+    if (result.length === 0 || result[0].values.length === 0) {
+      return null;
+    }
+    const value = result[0].values[0][0];
+    return value ? String(value) : null;
   }
 
   getStats(): DbStats {
@@ -1232,14 +1528,15 @@ export class TrailDatabase {
     });
 
     // Daily activity (last 90 days — frontend filters to 7/30/90)
+    const tzOffset = this.getLocalTzOffset();
     const dailyResult = db.exec(
-      `SELECT DATE(start_time) as d, COUNT(*),
+      `SELECT DATE(start_time, '${tzOffset}') as d, COUNT(*),
         COALESCE(SUM(input_tokens),0),
         COALESCE(SUM(output_tokens),0),
         COALESCE(SUM(cache_read_tokens),0),
         COALESCE(SUM(cache_creation_tokens),0)
       FROM sessions
-      WHERE start_time >= DATE('now', '-90 days')
+      WHERE start_time >= DATE('now', '${tzOffset}', '-90 days')
       GROUP BY d ORDER BY d`,
     );
     const dailyActivity = (dailyResult[0]?.values ?? []).map((r) => ({
@@ -1328,6 +1625,214 @@ export class TrailDatabase {
       modelBreakdown,
       dailyActivity,
       branchBreakdown,
+    };
+  }
+
+  public reclassifyAllMessages(): void {
+    const db = this.ensureDb();
+    costRulesCache = null; // Force reload of rules
+
+    const results = db.exec(
+      'SELECT uuid, type, user_content, tool_calls, output_tokens FROM messages',
+    );
+    if (results.length === 0) return;
+
+    db.run('BEGIN TRANSACTION');
+    try {
+      const stmt = db.prepare(
+        'UPDATE messages SET rule_recommended_model = ?, feature_recommended_model = ?, cost_category = ? WHERE uuid = ?',
+      );
+
+      const rows = results[0].values;
+      for (const row of rows) {
+        const [uuid, type, userContentVal, toolCallsVal, outputTokensVal] = row as [string, string, string | null, string | null, number];
+
+        let ruleModel: string | null = null;
+        let featureModel: string | null = null;
+        let category: string | null = null;
+
+        if (type === 'user' && userContentVal) {
+          const result = classifyMessageByRules(userContentVal);
+          ruleModel = result.model;
+          category = result.label ?? null;
+        }
+
+        if (type === 'assistant') {
+          const toolNames = extractToolCallNames(toolCallsVal);
+          const fileCount = countUniqueFiles(toolCallsVal);
+          featureModel = classifyMessageByFeatures(outputTokensVal ?? 0, toolNames, fileCount);
+        }
+
+        stmt.run([ruleModel, featureModel, category, uuid]);
+      }
+
+      stmt.free();
+      db.run('COMMIT');
+      this.save();
+    } catch (err) {
+      db.run('ROLLBACK');
+      throw err;
+    }
+  }
+
+  getCostOptimization(): CostOptimizationData {
+    const db = this.ensureDb();
+
+    // Helper: compute cost for a model + tokens
+    const cost = (model: string, input: number, output: number, cacheRead: number): number =>
+      estimateCost(model, input, output, cacheRead);
+
+    // 1. Actual cost by model (from messages)
+    const actualResult = db.exec(
+      `SELECT COALESCE(model,''), SUM(input_tokens), SUM(output_tokens), SUM(cache_read_tokens)
+       FROM messages WHERE type = 'assistant' AND model IS NOT NULL
+       GROUP BY model`,
+    );
+    const actualByModel: Record<string, number> = {};
+    let actualTotal = 0;
+    for (const row of actualResult[0]?.values ?? []) {
+      const m = String(row[0]);
+      const c = cost(m, Number(row[1]), Number(row[2]), Number(row[3]));
+      actualByModel[m] = (actualByModel[m] ?? 0) + c;
+      actualTotal += c;
+    }
+
+    // 2. Rule-based estimate: re-price assistant messages using the rule_recommended_model
+    //    from their preceding user message (joined via parent_uuid or session ordering)
+    const ruleResult = db.exec(
+      `SELECT COALESCE(u.rule_recommended_model, 'sonnet') AS rec_model,
+              SUM(a.input_tokens), SUM(a.output_tokens), SUM(a.cache_read_tokens)
+       FROM messages a
+       JOIN messages u ON a.parent_uuid = u.uuid
+       WHERE a.type = 'assistant' AND u.type = 'user'
+       GROUP BY rec_model`,
+    );
+    const ruleByModel: Record<string, number> = {};
+    let ruleTotal = 0;
+    for (const row of ruleResult[0]?.values ?? []) {
+      const m = String(row[0]);
+      const c = cost(m, Number(row[1]), Number(row[2]), Number(row[3]));
+      ruleByModel[m] = (ruleByModel[m] ?? 0) + c;
+      ruleTotal += c;
+    }
+
+    // 3. Feature-based estimate: use feature_recommended_model from assistant messages
+    const featureResult = db.exec(
+      `SELECT COALESCE(feature_recommended_model, 'sonnet') AS rec_model,
+              SUM(input_tokens), SUM(output_tokens), SUM(cache_read_tokens)
+       FROM messages WHERE type = 'assistant'
+       GROUP BY rec_model`,
+    );
+    const featureByModel: Record<string, number> = {};
+    let featureTotal = 0;
+    for (const row of featureResult[0]?.values ?? []) {
+      const m = String(row[0]);
+      const c = cost(m, Number(row[1]), Number(row[2]), Number(row[3]));
+      featureByModel[m] = (featureByModel[m] ?? 0) + c;
+      featureTotal += c;
+    }
+
+    // 4. Daily breakdown (last 90 days)
+    const tzOffset = this.getLocalTzOffset();
+    const dailyResult = db.exec(
+      `SELECT DATE(m.timestamp, '${tzOffset}') AS d,
+              SUM(m.input_tokens) AS inp, SUM(m.output_tokens) AS outp,
+              SUM(m.cache_read_tokens) AS cr, COALESCE(m.model,'') AS mdl
+       FROM messages m
+       WHERE m.type = 'assistant' AND m.timestamp >= DATE('now', '${tzOffset}', '-90 days')
+       GROUP BY d, mdl ORDER BY d`,
+    );
+    const dailyMap = new Map<string, { actual: number; rule: number; feature: number }>();
+    for (const row of dailyResult[0]?.values ?? []) {
+      const d = String(row[0]);
+      const inp = Number(row[1]);
+      const outp = Number(row[2]);
+      const cr = Number(row[3]);
+      const mdl = String(row[4]);
+      const entry = dailyMap.get(d) ?? { actual: 0, rule: 0, feature: 0 };
+      entry.actual += cost(mdl, inp, outp, cr);
+      // For daily, use sonnet as default estimate (detailed per-message would be too slow)
+      entry.rule += cost('sonnet', inp, outp, cr);
+      entry.feature += cost('sonnet', inp, outp, cr);
+      dailyMap.set(d, entry);
+    }
+
+    // Refine daily with per-message classification
+    const dailyDetailResult = db.exec(
+      `SELECT DATE(a.timestamp, '${tzOffset}') AS d,
+              COALESCE(u.rule_recommended_model, 'sonnet') AS rule_rec,
+              COALESCE(a.feature_recommended_model, 'sonnet') AS feat_rec,
+              a.input_tokens, a.output_tokens, a.cache_read_tokens
+       FROM messages a
+       LEFT JOIN messages u ON a.parent_uuid = u.uuid AND u.type = 'user'
+       WHERE a.type = 'assistant' AND a.timestamp >= DATE('now', '${tzOffset}', '-90 days')`,
+    );
+    const dailyRefined = new Map<string, { actual: number; rule: number; feature: number }>();
+    for (const row of dailyDetailResult[0]?.values ?? []) {
+      const d = String(row[0]);
+      const ruleRec = String(row[1]);
+      const featRec = String(row[2]);
+      const inp = Number(row[3]);
+      const outp = Number(row[4]);
+      const cr = Number(row[5]);
+      const entry = dailyRefined.get(d) ?? { actual: 0, rule: 0, feature: 0 };
+      entry.rule += cost(ruleRec, inp, outp, cr);
+      entry.feature += cost(featRec, inp, outp, cr);
+      dailyRefined.set(d, entry);
+    }
+
+    // Merge actual costs from dailyMap with refined rule/feature costs
+    const daily: Array<{ date: string; actualCost: number; ruleCost: number; featureCost: number }> = [];
+    for (const [d, entry] of dailyMap) {
+      const refined = dailyRefined.get(d);
+      daily.push({
+        date: d,
+        actualCost: entry.actual,
+        ruleCost: refined?.rule ?? entry.rule,
+        featureCost: refined?.feature ?? entry.feature,
+      });
+    }
+
+    // 5. Model distribution (message count)
+    const distActual = db.exec(
+      `SELECT COALESCE(model,'unknown'), COUNT(*) FROM messages WHERE type = 'assistant' GROUP BY model`,
+    );
+    const actualDist: Record<string, number> = {};
+    for (const row of distActual[0]?.values ?? []) {
+      actualDist[String(row[0])] = Number(row[1]);
+    }
+
+    const distRule = db.exec(
+      `SELECT COALESCE(u.rule_recommended_model,'sonnet'), COUNT(*)
+       FROM messages a JOIN messages u ON a.parent_uuid = u.uuid
+       WHERE a.type = 'assistant' AND u.type = 'user'
+       GROUP BY u.rule_recommended_model`,
+    );
+    const ruleDist: Record<string, number> = {};
+    for (const row of distRule[0]?.values ?? []) {
+      ruleDist[String(row[0])] = Number(row[1]);
+    }
+
+    const distFeature = db.exec(
+      `SELECT COALESCE(feature_recommended_model,'sonnet'), COUNT(*)
+       FROM messages WHERE type = 'assistant'
+       GROUP BY feature_recommended_model`,
+    );
+    const featureDist: Record<string, number> = {};
+    for (const row of distFeature[0]?.values ?? []) {
+      featureDist[String(row[0])] = Number(row[1]);
+    }
+
+    return {
+      actual: { totalCost: actualTotal, byModel: actualByModel },
+      ruleEstimate: { totalCost: ruleTotal, byModel: ruleByModel },
+      featureEstimate: { totalCost: featureTotal, byModel: featureByModel },
+      daily,
+      modelDistribution: {
+        actual: actualDist,
+        ruleRecommended: ruleDist,
+        featureRecommended: featureDist,
+      },
     };
   }
 }

@@ -6,6 +6,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-04-11
+
+### Added
+
+- Memory treeview with `AiMemoryProvider` for Claude memory file management
+- Memory commands and NLS labels
+
+### Changed
+
+- Trail icon updated (camel_trail.png)
+- Dashboard changed to 2-tier hierarchy
+- DB date/time unified to UTC ISO 8601 format
+- Cost classification columns added; classify on import
+- Last import/sync display in local timezone format
+
+### Removed
+
+- Git features (Changes, Graph, Timeline, SpecDocs panels) extracted to Anytime Git extension
+
+### Fixed
+
+- Migration failure error logging added
+- syncToSupabase command implementation and sync error logging
+- Multiple bugs in Trail Viewer import and display
+
+### Trail Core (trail-core)
+
+- `formatDate` utility for locale-aware date formatting
+- Date/time display unified to local timezone
+
 ## [0.5.0] - 2026-04-09
 
 ### Added

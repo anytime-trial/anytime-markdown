@@ -93,17 +93,30 @@ export class PhysicsEngine {
 
   private stepEades(): void {
     const bodies = Array.from(this.bodies.values());
+    this.initForces(bodies);
+    this.rebuildGrid(bodies);
+    this.applyEdgeSprings();
+    this.applyGridRepulsion(bodies);
+    this.applyCenterGravityForce(bodies);
+    this.integrateEades(bodies);
+    this.resolveLayoutCollisions();
+  }
 
+  private initForces(bodies: PhysicsBody[]): void {
     for (const body of bodies) {
       body.fx = 0;
       body.fy = 0;
     }
+  }
 
+  private rebuildGrid(bodies: PhysicsBody[]): void {
     this.grid.clear();
     for (const body of bodies) {
       this.grid.insert(body);
     }
+  }
 
+  private applyEdgeSprings(): void {
     for (const edge of this.edges) {
       const fromId = edge.from.nodeId;
       const toId = edge.to.nodeId;
@@ -114,7 +127,9 @@ export class PhysicsEngine {
         applySpring(a, b, this.config.springStrength, this.config.springLength);
       }
     }
+  }
 
+  private applyGridRepulsion(bodies: PhysicsBody[]): void {
     for (const body of bodies) {
       const nearby = this.grid.getNearby(body);
       for (const other of nearby) {
@@ -123,7 +138,9 @@ export class PhysicsEngine {
         }
       }
     }
+  }
 
+  private applyCenterGravityForce(bodies: PhysicsBody[]): void {
     let cx = 0;
     let cy = 0;
     for (const body of bodies) {
@@ -135,7 +152,9 @@ export class PhysicsEngine {
     for (const body of bodies) {
       applyCenterGravity(body, cx, cy, this.config.centerGravity);
     }
+  }
 
+  private integrateEades(bodies: PhysicsBody[]): void {
     for (const body of bodies) {
       if (body.fixed) continue;
       body.vx = (body.vx + body.fx / body.mass) * this.config.damping;
@@ -143,24 +162,21 @@ export class PhysicsEngine {
       body.x += body.vx;
       body.y += body.vy;
     }
-
-    this.resolveLayoutCollisions();
   }
 
   private stepFR(): void {
     const bodies = Array.from(this.bodies.values());
+    this.initForces(bodies);
+    this.rebuildGrid(bodies);
+    this.applyFRRepulsionAll(bodies);
+    this.applyFRAttractionAll();
+    this.integrateFR(bodies);
+    this.temperature *= this.config.frCooling;
+    this.resolveLayoutCollisions();
+  }
+
+  private applyFRRepulsionAll(bodies: PhysicsBody[]): void {
     const k = this.frK;
-
-    for (const body of bodies) {
-      body.fx = 0;
-      body.fy = 0;
-    }
-
-    // Repulsive forces (all pairs via spatial grid)
-    this.grid.clear();
-    for (const body of bodies) {
-      this.grid.insert(body);
-    }
     for (const body of bodies) {
       const nearby = this.grid.getNearby(body);
       for (const other of nearby) {
@@ -169,8 +185,10 @@ export class PhysicsEngine {
         }
       }
     }
+  }
 
-    // Attractive forces (edges only)
+  private applyFRAttractionAll(): void {
+    const k = this.frK;
     for (const edge of this.edges) {
       const fromId = edge.from.nodeId;
       const toId = edge.to.nodeId;
@@ -181,8 +199,9 @@ export class PhysicsEngine {
         applyFRAttraction(a, b, k);
       }
     }
+  }
 
-    // Displacement clamped by temperature
+  private integrateFR(bodies: PhysicsBody[]): void {
     for (const body of bodies) {
       if (body.fixed) continue;
       const disp = Math.sqrt(body.fx * body.fx + body.fy * body.fy) || 1;
@@ -192,11 +211,6 @@ export class PhysicsEngine {
       body.x += body.vx;
       body.y += body.vy;
     }
-
-    // Cool temperature
-    this.temperature *= this.config.frCooling;
-
-    this.resolveLayoutCollisions();
   }
 
   private resolveLayoutCollisions(): void {
@@ -278,44 +292,7 @@ export class PhysicsEngine {
         const b = this.bodies.get(toId);
         if (!a || !b) continue;
 
-        // Edge-to-edge distance (gap between bounding boxes)
-        const cx_a = a.x + a.width / 2;
-        const cy_a = a.y + a.height / 2;
-        const cx_b = b.x + b.width / 2;
-        const cy_b = b.y + b.height / 2;
-        const dx = cx_b - cx_a;
-        const dy = cy_b - cy_a;
-        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-
-        // Required center-to-center distance for the desired gap
-        // along the direction vector
-        const absDx = Math.abs(dx);
-        const absDy = Math.abs(dy);
-        let halfSpanA: number;
-        let halfSpanB: number;
-        if (absDx * (a.height + b.height) > absDy * (a.width + b.width)) {
-          // Primarily horizontal
-          halfSpanA = a.width / 2;
-          halfSpanB = b.width / 2;
-        } else {
-          // Primarily vertical
-          halfSpanA = a.height / 2;
-          halfSpanB = b.height / 2;
-        }
-        const requiredDist = halfSpanA + halfSpanB + minGap;
-
-        if (dist < requiredDist) {
-          const shift = (requiredDist - dist) / 2;
-          const nx = dx / dist;
-          const ny = dy / dist;
-          if (!a.fixed) {
-            a.x -= nx * shift;
-            a.y -= ny * shift;
-          }
-          if (!b.fixed) {
-            b.x += nx * shift;
-            b.y += ny * shift;
-          }
+        if (this.spreadEdge(a, b, minGap)) {
           moved = true;
         }
       }
@@ -323,6 +300,50 @@ export class PhysicsEngine {
     }
 
     return this.getPositions();
+  }
+
+  /** Push two connected bodies apart so their edge-to-edge gap >= minGap. Returns true if moved. */
+  private spreadEdge(a: PhysicsBody, b: PhysicsBody, minGap: number): boolean {
+    const cx_a = a.x + a.width / 2;
+    const cy_a = a.y + a.height / 2;
+    const cx_b = b.x + b.width / 2;
+    const cy_b = b.y + b.height / 2;
+    const dx = cx_b - cx_a;
+    const dy = cy_b - cy_a;
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+
+    const { halfSpanA, halfSpanB } = this.computeHalfSpans(a, b, dx, dy);
+    const requiredDist = halfSpanA + halfSpanB + minGap;
+
+    if (dist >= requiredDist) return false;
+
+    const shift = (requiredDist - dist) / 2;
+    const nx = dx / dist;
+    const ny = dy / dist;
+    if (!a.fixed) {
+      a.x -= nx * shift;
+      a.y -= ny * shift;
+    }
+    if (!b.fixed) {
+      b.x += nx * shift;
+      b.y += ny * shift;
+    }
+    return true;
+  }
+
+  /** Determine half-span for each body along the direction vector (horizontal vs vertical). */
+  private computeHalfSpans(
+    a: PhysicsBody,
+    b: PhysicsBody,
+    dx: number,
+    dy: number,
+  ): { halfSpanA: number; halfSpanB: number } {
+    const absDx = Math.abs(dx);
+    const absDy = Math.abs(dy);
+    if (absDx * (a.height + b.height) > absDy * (a.width + b.width)) {
+      return { halfSpanA: a.width / 2, halfSpanB: b.width / 2 };
+    }
+    return { halfSpanA: a.height / 2, halfSpanB: b.height / 2 };
   }
 
   setConfig(patch: Partial<PhysicsConfig>): void {

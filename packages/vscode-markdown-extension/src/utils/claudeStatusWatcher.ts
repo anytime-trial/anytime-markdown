@@ -81,6 +81,15 @@ export class ClaudeStatusWatcher implements vscode.Disposable {
     const isStale = Date.now() - status.timestamp > STALE_THRESHOLD_MS;
     const editing = isStale ? false : status.editing;
 
+    // editing: false かつ lastEditing が true でない場合、
+    // PreToolUse (editing: true) を見逃した可能性があるため先にロックを発火する
+    if (!editing && this.lastEditing !== true) {
+      this.lastEditing = true;
+      for (const cb of this.callbacks) {
+        cb(true, status.file);
+      }
+    }
+
     // 状態が変化した場合のみコールバック発火
     if (editing === this.lastEditing) return;
     this.lastEditing = editing;

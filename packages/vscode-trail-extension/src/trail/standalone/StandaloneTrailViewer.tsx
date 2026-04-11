@@ -7,6 +7,16 @@ export function StandaloneTrailViewer({ isDark = true }: Readonly<{ isDark?: boo
   const dataSource = useTrailDataSource(serverUrl);
   const [selectedSessionId, setSelectedSessionId] = useState<string>();
   const [filter, setFilter] = useState<TrailFilter>({});
+  const [reclassifying, setReclassifying] = useState(false);
+
+  const handleReclassify = useCallback(async () => {
+    setReclassifying(true);
+    try {
+      await dataSource.reclassify();
+    } finally {
+      setReclassifying(false);
+    }
+  }, [dataSource]);
 
   const handleSelectSession = useCallback((id: string) => {
     setSelectedSessionId(id);
@@ -33,6 +43,9 @@ export function StandaloneTrailViewer({ isDark = true }: Readonly<{ isDark?: boo
       fetchSessionMessages={dataSource.fetchSessionMessages}
       fetchSessionCommits={dataSource.fetchSessionCommits}
       fetchSessionToolMetrics={dataSource.fetchSessionToolMetrics}
+      costOptimization={dataSource.costOptimization}
+      onReclassify={handleReclassify}
+      reclassifying={reclassifying}
     />
   );
 }

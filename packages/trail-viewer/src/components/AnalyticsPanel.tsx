@@ -13,7 +13,9 @@ import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { BarChart } from '@mui/x-charts/BarChart';
 import { LineChart } from '@mui/x-charts/LineChart';
-import type { ToolMetrics, TrailMessage, TrailSession, TrailSessionCommit, TrailTokenUsage } from '../parser/types';
+import { formatLocalTime, toLocalDateKey } from '@anytime-markdown/trail-core/formatDate';
+import type { CostOptimizationData, ToolMetrics, TrailMessage, TrailSession, TrailSessionCommit, TrailTokenUsage } from '../parser/types';
+import { CostOptimizationSection } from './CostOptimizationSection';
 import { useTrailTheme } from './TrailThemeContext';
 
 // ---------------------------------------------------------------------------
@@ -73,6 +75,9 @@ export interface AnalyticsPanelProps {
   readonly fetchSessionMessages?: (id: string) => Promise<readonly TrailMessage[]>;
   readonly fetchSessionCommits?: (id: string) => Promise<readonly TrailSessionCommit[]>;
   readonly fetchSessionToolMetrics?: (id: string) => Promise<ToolMetrics | null>;
+  readonly costOptimization?: CostOptimizationData | null;
+  readonly onReclassify?: () => void;
+  readonly reclassifying?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -549,7 +554,7 @@ function DailySessionList({
   const [timelineMessages, setTimelineMessages] = useState<readonly TrailMessage[]>([]);
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [sessionToolMetrics, setSessionToolMetrics] = useState<ToolMetrics | null>(null);
-  const daySessions = sessions.filter((s) => s.startTime.startsWith(date));
+  const daySessions = sessions.filter((s) => toLocalDateKey(s.startTime) === date);
 
   const handleSessionClick = (id: string) => {
     if (timelineSessionId === id) {
@@ -613,7 +618,7 @@ function DailySessionList({
                 onClick={() => handleSessionClick(s.id)}
               >
                 <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
-                  {s.startTime.slice(11, 16)}–{s.endTime.slice(11, 16)}
+                  {formatLocalTime(s.startTime)}–{formatLocalTime(s.endTime)}
                   {s.interruption?.interrupted && (
                     <Tooltip title={
                       s.interruption.reason === 'max_tokens'
@@ -706,7 +711,7 @@ function DailyActivityChart({
 
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - period);
-  const cutoffStr = cutoff.toISOString().slice(0, 10);
+  const cutoffStr = toLocalDateKey(cutoff.toISOString());
   const filtered = items.filter((d) => d.date >= cutoffStr);
 
   const isTokens = mode === 'tokens';
@@ -722,8 +727,8 @@ function DailyActivityChart({
 
   const yFormatter = isTokens ? fmtTokens : fmtUsd;
 
-  const handleBarClick = (_event: unknown, params: { dataIndex?: number } | null) => {
-    const idx = params?.dataIndex;
+  const handleAxisClick = (_event: MouseEvent, data: { dataIndex: number } | null) => {
+    const idx = data?.dataIndex;
     if (idx == null || idx < 0 || idx >= dataset.length) return;
     const fullDate = dataset[idx].fullDate;
     setSelectedDate((prev) => (prev === fullDate ? null : fullDate));
@@ -772,7 +777,7 @@ function DailyActivityChart({
         slotProps={{
           legend: { direction: 'horizontal', position: { vertical: 'top', horizontal: 'end' } },
         }}
-        onItemClick={handleBarClick}
+        onAxisClick={handleAxisClick}
       />
       {selectedDate && (
         <DailySessionList
@@ -865,7 +870,7 @@ function BranchTable({ items }: Readonly<{ items: AnalyticsData['branchBreakdown
 //  Main component
 // ---------------------------------------------------------------------------
 
-export function AnalyticsPanel({ analytics, sessions = [], onSelectSession, fetchSessionMessages, fetchSessionCommits, fetchSessionToolMetrics }: Readonly<AnalyticsPanelProps>) {
+export function AnalyticsPanel({ analytics, sessions = [], onSelectSession, fetchSessionMessages, fetchSessionCommits, fetchSessionToolMetrics, costOptimization, onReclassify, reclassifying }: Readonly<AnalyticsPanelProps>) {
   const { colors } = useTrailTheme();
   if (!analytics) {
     return (
@@ -884,6 +889,7 @@ export function AnalyticsPanel({ analytics, sessions = [], onSelectSession, fetc
       <DailyActivityChart items={analytics.dailyActivity} sessions={sessions} onSelectSession={onSelectSession} fetchSessionMessages={fetchSessionMessages} fetchSessionCommits={fetchSessionCommits} fetchSessionToolMetrics={fetchSessionToolMetrics} />
       <ModelTable items={analytics.modelBreakdown} />
       <BranchTable items={analytics.branchBreakdown} />
+      <CostOptimizationSection data={costOptimization ?? null} onReclassify={onReclassify} reclassifying={reclassifying} />
     </Box>
   );
 }

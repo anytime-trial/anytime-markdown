@@ -6,6 +6,20 @@
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-04-11
+
+### 追加
+
+- edgeRenderer の drawEdge にユニットテストを追加
+
+### 変更
+
+- renderer.ts・textRendering.ts・hitTest.ts・smartGuide.ts の認知的複雑度を低減（SonarCloud S3776）
+- importDrawio.ts・importMermaid.ts・exportDrawio.ts の認知的複雑度を低減（SonarCloud S3776）
+- visibilityGraph.ts・vpsc.ts・resolveAllCollisions.ts・parseEdge.ts の認知的複雑度を低減（SonarCloud S3776）
+- findShortestPath.ts・階層レイアウト・PhysicsEngine・drawEdge の認知的複雑度を低減（SonarCloud S3776）
+- SonarCloud 修正: コメントアウトコード削除（S125）、不要な代入削除（S1854）、オプショナルチェイン（S6582）、ソートに localeCompare を使用（S2871）、重複分岐を統合（S1871）、replaceAll を使用（S7781）
+
 ## [0.1.1] - 2026-04-07
 
 ### 追加

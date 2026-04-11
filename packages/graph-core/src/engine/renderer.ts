@@ -25,6 +25,12 @@ export interface RenderOptions {
   isDark?: boolean;
 }
 
+interface VisibleElements {
+  frameNodes: GraphNode[];
+  nonFrameNodes: GraphNode[];
+  visibleEdges: GraphEdge[];
+}
+
 export function render(options: RenderOptions): void {
   const {
     ctx, width, height, nodes, edges, viewport, selection,
@@ -42,7 +48,30 @@ export function render(options: RenderOptions): void {
 
   if (showGrid) drawGrid(ctx, viewport, width, height, colors);
 
-  // ビューポートカリング
+  const { frameNodes, nonFrameNodes, visibleEdges } = computeVisibleElements(nodes, edges, viewport, width, height);
+
+  visibleEdges.forEach(e => drawEdge(ctx, e, selection.edgeIds.includes(e.id), colors));
+  frameNodes.forEach(n => drawNode(ctx, n, selection.nodeIds.includes(n.id), false, colors));
+  nonFrameNodes.forEach(n => {
+    const isDragging = draggingNodeIds?.includes(n.id) ?? false;
+    drawNode(ctx, n, selection.nodeIds.includes(n.id), isDragging, colors);
+    if (n.locked) drawLockIndicator(ctx, n, viewport.scale, colors);
+  });
+
+  drawSelectionOverlays(ctx, nodes, edges, selection, viewport.scale, colors);
+  drawHoverOverlays(ctx, nodes, hoverNodeId, mouseWorldX, mouseWorldY, viewport.scale, colors);
+
+  ctx.restore();
+}
+
+/** ビューポートカリングと collapsed フレーム除外を適用し、描画対象の要素を返す */
+function computeVisibleElements(
+  nodes: readonly GraphNode[],
+  edges: readonly GraphEdge[],
+  viewport: Viewport,
+  width: number,
+  height: number,
+): VisibleElements {
   const visibleBounds = getVisibleBounds(viewport, width, height);
 
   // collapsed フレームの子ノード・関連エッジを除外
@@ -65,6 +94,7 @@ export function render(options: RenderOptions): void {
     if (aIsFrame !== bIsFrame) return aIsFrame - bIsFrame;
     return (a.zIndex ?? 0) - (b.zIndex ?? 0);
   });
+
   const frameNodes: GraphNode[] = [];
   const nonFrameNodes: GraphNode[] = [];
   for (const n of sortedNodes) {
@@ -76,6 +106,7 @@ export function render(options: RenderOptions): void {
       nonFrameNodes.push(n);
     }
   }
+
   const visibleEdges: GraphEdge[] = [];
   for (const e of edges) {
     if ((e.from.nodeId && hiddenNodeIds.has(e.from.nodeId)) ||
@@ -84,66 +115,89 @@ export function render(options: RenderOptions): void {
       visibleEdges.push(e);
     }
   }
-  visibleEdges.forEach(e => drawEdge(ctx, e, selection.edgeIds.includes(e.id), colors));
-  frameNodes.forEach(n => drawNode(ctx, n, selection.nodeIds.includes(n.id), false, colors));
-  nonFrameNodes.forEach(n => {
-    const isDragging = draggingNodeIds?.includes(n.id) ?? false;
-    drawNode(ctx, n, selection.nodeIds.includes(n.id), isDragging, colors);
-    if (n.locked) drawLockIndicator(ctx, n, viewport.scale, colors);
-  });
+
+  return { frameNodes, nonFrameNodes, visibleEdges };
+}
+
+/** 選択状態に応じたオーバーレイ描画（リサイズハンドル、バウンディングボックス、エッジエンドポイント） */
+function drawSelectionOverlays(
+  ctx: CanvasRenderingContext2D,
+  nodes: readonly GraphNode[],
+  edges: readonly GraphEdge[],
+  selection: SelectionState,
+  scale: number,
+  colors: CanvasColors,
+): void {
   // 単一選択時のみ個別リサイズハンドル表示
   if (selection.nodeIds.length === 1) {
     const sn = nodes.find(n => n.id === selection.nodeIds[0]);
-    if (sn) drawResizeHandles(ctx, sn, viewport.scale, colors);
+    if (sn) drawResizeHandles(ctx, sn, scale, colors);
   }
 
   // マルチ選択バウンディングボックス
   const selectedNodes = nodes.filter(n => selection.nodeIds.includes(n.id));
   if (selectedNodes.length >= 2) {
-    drawBoundingBox(ctx, selectedNodes, viewport.scale, colors);
+    drawBoundingBox(ctx, selectedNodes, scale, colors);
   }
 
   // 選択中エッジのエンドポイントハンドル
   edges
     .filter(e => selection.edgeIds.includes(e.id))
-    .forEach(e => drawEdgeEndpointHandles(ctx, e, viewport.scale, colors));
+    .forEach(e => drawEdgeEndpointHandles(ctx, e, scale, colors));
+}
 
-  // ホバー接続ポイント
-  if (hoverNodeId) {
-    const hoverNode = nodes.find(n => n.id === hoverNodeId);
-    if (hoverNode) drawConnectionPoints(ctx, hoverNode, viewport.scale, mouseWorldX, mouseWorldY, colors);
+/** ホバー時の接続ポイントとURLツールチップ描画 */
+function drawHoverOverlays(
+  ctx: CanvasRenderingContext2D,
+  nodes: readonly GraphNode[],
+  hoverNodeId: string | undefined,
+  mouseWorldX: number | undefined,
+  mouseWorldY: number | undefined,
+  scale: number,
+  colors: CanvasColors,
+): void {
+  if (!hoverNodeId) return;
+
+  const hoverNode = nodes.find(n => n.id === hoverNodeId);
+  if (!hoverNode) return;
+
+  drawConnectionPoints(ctx, hoverNode, scale, mouseWorldX, mouseWorldY, colors);
+
+  if (hoverNode.url && mouseWorldX !== undefined && mouseWorldY !== undefined) {
+    drawUrlTooltip(ctx, hoverNode.url, mouseWorldX, mouseWorldY, colors);
   }
+}
 
-  // ホバー中ノードのURL表示
-  if (hoverNodeId) {
-    const hoverNode = nodes.find(n => n.id === hoverNodeId);
-    if (hoverNode?.url && mouseWorldX !== undefined && mouseWorldY !== undefined) {
-      ctx.save();
-      ctx.font = `${FONT_SIZE_TOOLTIP}px ${FONT_FAMILY}`;
-      const urlText = hoverNode.url.length > URL_TRUNCATE_LENGTH ? hoverNode.url.slice(0, URL_TRUNCATE_LENGTH) + '...' : hoverNode.url;
-      const metrics = ctx.measureText(urlText);
-      const pad = 4;
-      const tipX = mouseWorldX + 12;
-      const tipY = mouseWorldY + 16;
+/** ホバー中ノードのURL表示 */
+function drawUrlTooltip(
+  ctx: CanvasRenderingContext2D,
+  url: string,
+  mouseWorldX: number,
+  mouseWorldY: number,
+  colors: CanvasColors,
+): void {
+  ctx.save();
+  ctx.font = `${FONT_SIZE_TOOLTIP}px ${FONT_FAMILY}`;
+  const urlText = url.length > URL_TRUNCATE_LENGTH ? url.slice(0, URL_TRUNCATE_LENGTH) + '...' : url;
+  const metrics = ctx.measureText(urlText);
+  const pad = 4;
+  const tipX = mouseWorldX + 12;
+  const tipY = mouseWorldY + 16;
 
-      // 背景
-      ctx.fillStyle = colors.tooltipBg;
-      drawRoundedRect(ctx, tipX - pad, tipY - pad, metrics.width + pad * 2, 16 + pad * 2, 4);
-      ctx.fill();
-      // 枠線
-      ctx.strokeStyle = colors.tooltipBorder;
-      ctx.lineWidth = 1;
-      drawRoundedRect(ctx, tipX - pad, tipY - pad, metrics.width + pad * 2, 16 + pad * 2, 4);
-      ctx.stroke();
-      // テキスト
-      ctx.fillStyle = colors.tooltipText;
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'top';
-      ctx.fillText(urlText, tipX, tipY);
-      ctx.restore();
-    }
-  }
-
+  // 背景
+  ctx.fillStyle = colors.tooltipBg;
+  drawRoundedRect(ctx, tipX - pad, tipY - pad, metrics.width + pad * 2, 16 + pad * 2, 4);
+  ctx.fill();
+  // 枠線
+  ctx.strokeStyle = colors.tooltipBorder;
+  ctx.lineWidth = 1;
+  drawRoundedRect(ctx, tipX - pad, tipY - pad, metrics.width + pad * 2, 16 + pad * 2, 4);
+  ctx.stroke();
+  // テキスト
+  ctx.fillStyle = colors.tooltipText;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText(urlText, tipX, tipY);
   ctx.restore();
 }
 

@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 
 import type { ParsedChange } from './types';
 import { parseStatusCode } from './types';
-import { TrailLogger } from '../../utils/TrailLogger';
+import { GitLogger } from '../../utils/GitLogger';
 
 /** git status の1行をパースして staged/unstaged に振り分ける */
 export function parseStatusLine(line: string, gitRoot: string): { staged?: ParsedChange; unstaged?: ParsedChange } {
@@ -101,6 +101,6 @@ export function getRepoInfo(gitRoot: string): { repoName: string; branchName: st
 	let branchName = '';
 	try {
 		branchName = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: gitRoot, encoding: 'utf-8' }).trim();
-	} catch (err) { TrailLogger.warn(`Failed to get branch name for ${gitRoot}`); }
+	} catch (err) { GitLogger.warn(`Failed to get branch name for ${gitRoot}`); }
 	return { repoName, branchName };
 }

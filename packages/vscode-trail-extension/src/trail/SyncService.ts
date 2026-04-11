@@ -1,5 +1,6 @@
 import type { TrailDatabase } from './TrailDatabase';
 import type { IRemoteTrailStore } from './IRemoteTrailStore';
+import { TrailLogger } from '../utils/TrailLogger';
 
 export interface SyncProgress {
   message: string;
@@ -27,6 +28,13 @@ export class SyncService {
     } finally {
       await this.store.close();
     }
+  }
+
+  /** Store が既に接続済みの場合に connect/close をスキップして同期する */
+  async syncWithOpenStore(
+    onProgress?: (progress: SyncProgress) => void,
+  ): Promise<SyncResult> {
+    return this.doSync(onProgress);
   }
 
   private async doSync(
@@ -66,7 +74,9 @@ export class SyncService {
         await this.store.upsertCommits(commits);
 
         synced++;
-      } catch {
+      } catch (e) {
+        const id = session.slug || session.id.slice(0, 8);
+        TrailLogger.error(`Failed to sync session ${id}`, e);
         errors++;
       }
     }

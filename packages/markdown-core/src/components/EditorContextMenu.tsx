@@ -9,6 +9,7 @@ import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import { Divider, ListItemIcon, ListItemText, Menu, MenuItem, Typography } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
+import type { Node as PMNode } from "@tiptap/pm/model";
 import type { Editor } from "@tiptap/react";
 import { useCallback, useEffect, useState } from "react";
 
@@ -65,6 +66,99 @@ function getMenuPaperSx(isDark: boolean) { return {
     minWidth: 28,
   },
 } as const; }
+
+/** ソースモード時のテキスト貼り付け */
+async function pasteIntoSource(
+  insertTextIntoTextarea: (text: string) => void,
+  handleClose: () => void,
+): Promise<void> {
+  const text = await readTextFromClipboard();
+  if (text) insertTextIntoTextarea(text);
+  handleClose();
+}
+
+/** コピーされたブロックノードの挿入 */
+function pasteCopiedBlock(
+  editor: Editor,
+  copied: PMNode,
+  handleClose: () => void,
+): void {
+  const { $from } = editor.state.selection;
+  const insertPos = $from.after(1); // 現在のブロックの末尾に挿入
+  const { tr } = editor.state;
+  tr.insert(Math.min(insertPos, tr.doc.content.size), copied.copy(copied.content));
+  editor.view.dispatch(tr.scrollIntoView());
+  handleClose();
+}
+
+/** Clipboard API 経由の貼り付け（画像 → HTML → テキストの優先順） */
+async function pasteFromClipboardAPI(
+  editor: Editor,
+  vscodeApi: VsCodeApi | undefined,
+  handleClose: () => void,
+): Promise<void> {
+  if (typeof navigator.clipboard?.read === "function") {
+    try {
+      const items = await navigator.clipboard.read();
+      for (const item of items) {
+        const imageType = item.types.find((tp) => tp.startsWith("image/"));
+        if (imageType) {
+          await pasteClipboardImage(editor, vscodeApi, item, imageType);
+          handleClose();
+          return;
+        }
+        if (item.types.includes("text/html")) {
+          await pasteClipboardHtml(editor, vscodeApi, item);
+          handleClose();
+          return;
+        }
+      }
+    } catch {
+      // clipboard.read() が失敗した場合はテキスト貼り付けにフォールバック
+    }
+  }
+
+  const text = await readTextFromClipboard();
+  if (text) {
+    editor.chain().focus().insertContent(text, { parseOptions: { preserveWhitespace: true } }).run();
+  }
+  handleClose();
+}
+
+/** クリップボードの画像アイテムを貼り付け */
+async function pasteClipboardImage(
+  editor: Editor,
+  vscodeApi: VsCodeApi | undefined,
+  item: ClipboardItem,
+  imageType: string,
+): Promise<void> {
+  const blob = await item.getType(imageType);
+  const reader = new FileReader();
+  reader.onload = () => {
+    if (typeof reader.result !== "string") return;
+    const ext = imageType.split("/")[1] || "png";
+    if (vscodeApi) {
+      saveClipboardImageViaVscode(vscodeApi, reader.result, ext);
+    } else {
+      editor.chain().focus().setImage({ src: reader.result, alt: "" }).run();
+    }
+  };
+  reader.readAsDataURL(blob);
+}
+
+/** クリップボードの HTML アイテムを貼り付け */
+async function pasteClipboardHtml(
+  editor: Editor,
+  vscodeApi: VsCodeApi | undefined,
+  item: ClipboardItem,
+): Promise<void> {
+  const htmlBlob = await item.getType("text/html");
+  const html = await htmlBlob.text();
+  if (vscodeApi) {
+    requestExternalImageDownloads(html, vscodeApi);
+  }
+  editor.chain().focus().insertContent(html).run();
+}
 
 export function EditorContextMenu({ editor, readOnly, t, currentMode, onSwitchToReview, onSwitchToWysiwyg, onSwitchToSource, extraContainerRef, sourceTextareaRef }: Readonly<EditorContextMenuProps>) {
   const isDark = useTheme().palette.mode === "dark";
@@ -182,71 +276,18 @@ export function EditorContextMenu({ editor, readOnly, t, currentMode, onSwitchTo
 
   const handlePaste = useCallback(async () => {
     if (isSource) {
-      const text = await readTextFromClipboard();
-      if (text) insertTextIntoTextarea(text);
-      handleClose();
+      await pasteIntoSource(insertTextIntoTextarea, handleClose);
       return;
     }
     if (!editor || !!readOnly) { handleClose(); return; }
 
-    // コンテキストメニューまたは Ctrl+C でコピーしたブロックノードがある場合はそれを挿入
     const copied = getCopiedBlockNode();
     if (copied) {
-      const { $from } = editor.state.selection;
-      const insertPos = $from.after(1); // 現在のブロックの末尾に挿入
-      const { tr } = editor.state;
-      tr.insert(Math.min(insertPos, tr.doc.content.size), copied.copy(copied.content));
-      editor.view.dispatch(tr.scrollIntoView());
-      handleClose();
+      pasteCopiedBlock(editor, copied, handleClose);
       return;
     }
 
-    // クリップボードから画像・HTML を読み取り（navigator.clipboard.read が利用可能な場合）
-    const vscodeApi = window.__vscode;
-    if (typeof navigator.clipboard?.read === "function") {
-      try {
-        const items = await navigator.clipboard.read();
-        for (const item of items) {
-          // 画像アイテムがあればローカル保存
-          const imageType = item.types.find((tp) => tp.startsWith("image/"));
-          if (imageType) {
-            const blob = await item.getType(imageType);
-            const reader = new FileReader();
-            reader.onload = () => {
-              if (typeof reader.result !== "string") return;
-              const ext = imageType.split("/")[1] || "png";
-              if (vscodeApi) {
-                saveClipboardImageViaVscode(vscodeApi, reader.result, ext);
-              } else {
-                editor.chain().focus().setImage({ src: reader.result, alt: "" }).run();
-              }
-            };
-            reader.readAsDataURL(blob);
-            handleClose();
-            return;
-          }
-          // HTML アイテム内の外部/base64 画像をダウンロード要求し、HTML として挿入
-          if (item.types.includes("text/html")) {
-            const htmlBlob = await item.getType("text/html");
-            const html = await htmlBlob.text();
-            if (vscodeApi) {
-              requestExternalImageDownloads(html, vscodeApi);
-            }
-            editor.chain().focus().insertContent(html).run();
-            handleClose();
-            return;
-          }
-        }
-      } catch {
-        // clipboard.read() が失敗した場合はテキスト貼り付けにフォールバック
-      }
-    }
-
-    const text = await readTextFromClipboard();
-    if (text) {
-      editor.chain().focus().insertContent(text, { parseOptions: { preserveWhitespace: true } }).run();
-    }
-    handleClose();
+    await pasteFromClipboardAPI(editor, window.__vscode, handleClose);
   }, [editor, readOnly, isSource, insertTextIntoTextarea, handleClose]);
 
   const handlePasteAsCodeBlock = useCallback(async () => {

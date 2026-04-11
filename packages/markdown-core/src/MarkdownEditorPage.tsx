@@ -204,6 +204,106 @@ function applyExternalCompareContent(
   }
 }
 
+/** VS Code mode-switch event handler (extracted to reduce component CC). */
+function useVSCodeModeEvents(
+  handleSwitchToReview: () => void,
+  handleSwitchToSource: () => void,
+  handleSwitchToWysiwyg: () => void,
+) {
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const mode = (e as CustomEvent<string>).detail;
+      if (mode === "review") handleSwitchToReview();
+      else if (mode === "source") handleSwitchToSource();
+      else if (mode === "wysiwyg") handleSwitchToWysiwyg();
+    };
+    globalThis.addEventListener("vscode-set-mode", handler);
+    return () => globalThis.removeEventListener("vscode-set-mode", handler);
+  }, [handleSwitchToReview, handleSwitchToSource, handleSwitchToWysiwyg]);
+}
+
+/** Auto-reload baseline management (extracted to reduce component CC). */
+function useAutoReloadBaseline(editor: Editor | null, autoReload: boolean | undefined) {
+  useEffect(() => {
+    if (!editor) return;
+    const command = autoReload ? editor.commands.setChangeGutterBaseline : editor.commands.clearChangeGutter;
+    command.call(editor.commands);
+  }, [editor, autoReload]);
+
+  useEffect(() => {
+    if (!editor || !autoReload) return;
+    const handler = (e: KeyboardEvent) => handleChangeGutterKeydown(e, editor);
+    globalThis.addEventListener("keydown", handler);
+    return () => globalThis.removeEventListener("keydown", handler);
+  }, [editor, autoReload]);
+}
+
+/** VS Code source-mode content sync (extracted to reduce component CC). */
+function useVSCodeSourceContentSync(sourceMode: boolean, setSourceText: (text: string) => void) {
+  useEffect(() => {
+    if (!sourceMode) return;
+    const handler = (e: Event) => {
+      const content = (e as CustomEvent<string>).detail;
+      if (typeof content !== "string") return;
+      const { body } = preprocessMarkdown(content);
+      setSourceText(body);
+    };
+    globalThis.addEventListener("vscode-set-content", handler);
+    return () => globalThis.removeEventListener("vscode-set-content", handler);
+  }, [sourceMode, setSourceText]);
+}
+
+/** VS Code image events: clipboard paste and external download (extracted to reduce component CC). */
+function useVSCodeImageEvents(editor: Editor | null) {
+  useEffect(() => {
+    if (!editor) return;
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<string>).detail;
+      if (typeof detail !== "string") return;
+      editor.chain().focus().setImage({ src: detail, alt: "" }).run();
+    };
+    globalThis.addEventListener("vscode-image-saved", handler);
+    return () => globalThis.removeEventListener("vscode-image-saved", handler);
+  }, [editor]);
+
+  useEffect(() => {
+    if (!editor) return;
+    const handler = (e: Event) => {
+      const { originalUrl, localPath } = (e as CustomEvent<{ originalUrl: string; localPath: string }>).detail;
+      if (!originalUrl || !localPath) return;
+      editor.state.doc.descendants((node, pos) => {
+        if (node.type.name === "image" && node.attrs.src === originalUrl) {
+          const tr = editor.state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, src: localPath });
+          editor.view.dispatch(tr);
+        }
+      });
+    };
+    globalThis.addEventListener("vscode-image-downloaded", handler);
+    return () => globalThis.removeEventListener("vscode-image-downloaded", handler);
+  }, [editor]);
+}
+
+/** Frontmatter storage registration for slash commands (extracted to reduce component CC). */
+function useFrontmatterStorage(
+  editor: Editor | null,
+  frontmatterRef: React.RefObject<string | null>,
+  setFrontmatterText: (value: string | null) => void,
+) {
+  const setFrontmatterTextRef = useRef(setFrontmatterText);
+  setFrontmatterTextRef.current = setFrontmatterText;
+  useEffect(() => {
+    if (!editor) return;
+    let storage: Record<string, unknown>;
+    try { storage = getEditorStorage(editor); } catch { return; }
+    if (!storage) return;
+    storage.frontmatter = {
+      get: () => frontmatterRef.current,
+      set: (value: string | null) => { frontmatterRef.current = value; setFrontmatterTextRef.current(value); },
+    };
+    return () => { delete storage.frontmatter; };
+  }, [editor, frontmatterRef]);
+}
+
 export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideVersionInfo, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, presetName, onPresetChange, onLocaleChange, fileSystemProvider, externalContent, externalFileName, externalFilePath: _externalFilePath, onExternalSave, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, autoReload, onModeChange, defaultSourceMode, showReadonlyMode, externalCompareContent, explorerOpen, onToggleExplorer, sideToolbar, hideCompareToggle, hideGraph, explorerSlot, noScroll, defaultOutlineOpen, fixedEditorHeight, defaultFontSize, initialFontSize, defaultBlockAlign, onContentChange, showFrontmatter, bottomOffset: extraBottomOffset, gridRows, gridCols, onHomeClick }: MarkdownEditorPageProps = {}) {
   const t = useTranslations("MarkdownEditor");
   const locale = useLocale() as "en" | "ja";
@@ -385,90 +485,19 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
   useVSCodeIntegration(editor);
 
   // スラッシュコマンドからフロントマターを操作するためのストレージ登録
-  const setFrontmatterTextRef = useRef(fileHandling.setFrontmatterText);
-  setFrontmatterTextRef.current = fileHandling.setFrontmatterText;
-  useEffect(() => {
-    if (!editor) return;
-    let storage: Record<string, unknown>;
-    try { storage = getEditorStorage(editor); } catch { return; }
-    if (!storage) return;
-    storage.frontmatter = {
-      get: () => frontmatterRef.current,
-      set: (value: string | null) => { frontmatterRef.current = value; setFrontmatterTextRef.current(value); },
-    };
-    return () => { delete storage.frontmatter; };
-  }, [editor, frontmatterRef]);
+  useFrontmatterStorage(editor, frontmatterRef, fileHandling.setFrontmatterText);
 
   // VS Code 拡張からのモード切替イベント
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const mode = (e as CustomEvent<string>).detail;
-      if (mode === "review") handleSwitchToReview();
-      else if (mode === "source") handleSwitchToSource();
-      else if (mode === "wysiwyg") handleSwitchToWysiwyg();
-    };
-    globalThis.addEventListener("vscode-set-mode", handler);
-    return () => globalThis.removeEventListener("vscode-set-mode", handler);
-  }, [handleSwitchToReview, handleSwitchToSource, handleSwitchToWysiwyg]);
+  useVSCodeModeEvents(handleSwitchToReview, handleSwitchToSource, handleSwitchToWysiwyg);
 
-  // 自動再読み込みトグル: ON で baseline を保存、OFF でクリア
-  useEffect(() => {
-    if (!editor) return;
-    const command = autoReload ? editor.commands.setChangeGutterBaseline : editor.commands.clearChangeGutter;
-    command.call(editor.commands);
-  }, [editor, autoReload]);
-
-  // ESC: 変更ガター起点リセット、Alt+F5/Shift+Alt+F5: 変更箇所ナビ（autoReload ON 時のみ）
-  useEffect(() => {
-    if (!editor || !autoReload) return;
-    const handler = (e: KeyboardEvent) => handleChangeGutterKeydown(e, editor);
-    globalThis.addEventListener("keydown", handler);
-    return () => globalThis.removeEventListener("keydown", handler);
-  }, [editor, autoReload]);
+  // 自動再読み込み: baseline 管理 & 変更箇所ナビ
+  useAutoReloadBaseline(editor, autoReload);
 
   // VS Code Undo/Redo: ソースモード時は vscode-set-content で sourceText を更新
-  // saveContent は呼ばない（contentChanged ループ防止）
-  useEffect(() => {
-    if (!sourceMode) return;
-    const handler = (e: Event) => {
-      const content = (e as CustomEvent<string>).detail;
-      if (typeof content !== "string") return;
-      const { body } = preprocessMarkdown(content);
-      setSourceText(body);
-    };
-    globalThis.addEventListener("vscode-set-content", handler);
-    return () => globalThis.removeEventListener("vscode-set-content", handler);
-  }, [sourceMode, setSourceText]);
+  useVSCodeSourceContentSync(sourceMode, setSourceText);
 
-  // VS Code: クリップボード画像の保存完了 → エディタに相対パスで画像挿入
-  // <base href> が設定されているため、相対パスで画像が表示される
-  useEffect(() => {
-    if (!editor) return;
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent<string>).detail;
-      if (typeof detail !== "string") return;
-      editor.chain().focus().setImage({ src: detail, alt: "" }).run();
-    };
-    globalThis.addEventListener("vscode-image-saved", handler);
-    return () => globalThis.removeEventListener("vscode-image-saved", handler);
-  }, [editor]);
-
-  // VS Code: 外部画像ダウンロード完了 → エディタ内の該当画像 src をローカルパスに差し替え
-  useEffect(() => {
-    if (!editor) return;
-    const handler = (e: Event) => {
-      const { originalUrl, localPath } = (e as CustomEvent<{ originalUrl: string; localPath: string }>).detail;
-      if (!originalUrl || !localPath) return;
-      editor.state.doc.descendants((node, pos) => {
-        if (node.type.name === "image" && node.attrs.src === originalUrl) {
-          const tr = editor.state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, src: localPath });
-          editor.view.dispatch(tr);
-        }
-      });
-    };
-    globalThis.addEventListener("vscode-image-downloaded", handler);
-    return () => globalThis.removeEventListener("vscode-image-downloaded", handler);
-  }, [editor]);
+  // VS Code: クリップボード画像 & 外部画像ダウンロード
+  useVSCodeImageEvents(editor);
 
   // Screen capture slash command event
   useEffect(() => {

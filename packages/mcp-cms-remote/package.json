@@ -13,7 +13,7 @@
     "@modelcontextprotocol/sdk": "1.27.1",
     "@xmldom/xmldom": "^0.9.9",
     "fetch-to-node": "2.1.0",
-    "hono": "4.12.9",
+    "hono": "4.12.12",
     "zod": "3.25.76"
   },
   "devDependencies": {
@@ -22,6 +22,6 @@
     "@types/node": "22.15.21",
     "jest": "30.2.0",
     "ts-jest": "29.4.6",
-    "wrangler": "4.13.2"
+    "wrangler": "4.81.1"
   }
 }

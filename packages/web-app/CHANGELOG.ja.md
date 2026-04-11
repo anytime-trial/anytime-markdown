@@ -6,6 +6,13 @@
 
 ## [Unreleased]
 
+## [0.12.2] - 2026-04-11
+
+### 変更
+
+- useCanvasInteraction・GraphEditor・GraphCanvas・useDataMapping の認知的複雑度を低減（SonarCloud S3776）
+- SonarCloud 修正: Number.parseInt を使用（S7773）、replaceAll を使用（S7781）、ソートに localeCompare を使用（S2871）、オプショナルチェイン（S6582）、重複ドラッグカーソル分岐を統合（S1871）、不要な代入削除（S1854）
+
 ## [0.12.1] - 2026-04-09
 
 ### 追加

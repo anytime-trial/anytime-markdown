@@ -44,6 +44,50 @@ function buildAdjacencyList(edges: readonly GraphEdge[]): Map<string, AdjEntry[]
 }
 
 /**
+ * Extract the entry with the minimum cost from the priority queue.
+ * Linear scan is fine for typical graph sizes in this app.
+ */
+function extractMin(pq: Array<[number, string]>): [number, string] {
+  let minIdx = 0;
+  for (let i = 1; i < pq.length; i++) {
+    if (pq[i][0] < pq[minIdx][0]) {
+      minIdx = i;
+    }
+  }
+  const entry = pq[minIdx];
+  pq.splice(minIdx, 1);
+  return entry;
+}
+
+/**
+ * Reconstruct the shortest path from the predecessor map.
+ * @returns PathResult or null if no path can be traced.
+ */
+function reconstructPath(
+  prev: ReadonlyMap<string, { node: string; edgeId: string }>,
+  startId: string,
+  targetId: string,
+): PathResult | null {
+  if (!prev.has(targetId)) {
+    return null;
+  }
+
+  const nodeIds: string[] = [targetId];
+  const edgeIds: string[] = [];
+  let current = targetId;
+
+  while (current !== startId) {
+    const entry = prev.get(current);
+    if (!entry) return null;
+    edgeIds.unshift(entry.edgeId);
+    nodeIds.unshift(entry.node);
+    current = entry.node;
+  }
+
+  return { nodeIds, edgeIds };
+}
+
+/**
  * Find the shortest path between two nodes using Dijkstra's algorithm.
  *
  * Edges are treated as undirected (bidirectional).
@@ -66,27 +110,16 @@ export function findShortestPath(
     return null;
   }
 
-  // Dijkstra with a simple priority queue (array-based, sufficient for graph sizes in this app)
   const dist = new Map<string, number>();
   const prev = new Map<string, { node: string; edgeId: string }>();
   const visited = new Set<string>();
-
-  // Priority queue entries: [cost, nodeId]
   const pq: Array<[number, string]> = [];
 
   dist.set(startId, 0);
   pq.push([0, startId]);
 
   while (pq.length > 0) {
-    // Extract min — linear scan is fine for typical graph sizes
-    let minIdx = 0;
-    for (let i = 1; i < pq.length; i++) {
-      if (pq[i][0] < pq[minIdx][0]) {
-        minIdx = i;
-      }
-    }
-    const [currentDist, current] = pq[minIdx];
-    pq.splice(minIdx, 1);
+    const [currentDist, current] = extractMin(pq);
 
     if (visited.has(current)) continue;
     visited.add(current);
@@ -110,22 +143,5 @@ export function findShortestPath(
     }
   }
 
-  // Reconstruct path
-  if (!prev.has(targetId)) {
-    return null;
-  }
-
-  const nodeIds: string[] = [targetId];
-  const edgeIds: string[] = [];
-  let current = targetId;
-
-  while (current !== startId) {
-    const entry = prev.get(current);
-    if (!entry) return null;
-    edgeIds.unshift(entry.edgeId);
-    nodeIds.unshift(entry.node);
-    current = entry.node;
-  }
-
-  return { nodeIds, edgeIds };
+  return reconstructPath(prev, startId, targetId);
 }

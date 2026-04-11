@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-04-11
+
+### Added
+
+- `formatDate` utility for locale-aware date formatting
+- Unit tests for `formatDate`
+
+### Changed
+
+- Date/time display unified to local timezone using `formatDate`
+- Daily graph aggregation changed to local timezone basis
+
 ## [0.5.0] - 2026-04-09
 
 ### Added

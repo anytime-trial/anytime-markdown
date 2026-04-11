@@ -35,7 +35,7 @@ async function openWithVsCodeDiff(
 	originalContent: string,
 	diffLabel: string,
 ): Promise<void> {
-	const originalUri = vscode.Uri.parse(`anytime-trail-original:${encodeURIComponent(filePath)}?ts=${Date.now()}`);
+	const originalUri = vscode.Uri.parse(`anytime-git-original:${encodeURIComponent(filePath)}?ts=${Date.now()}`);
 	gitContentProvider.setContent(originalUri.toString(), originalContent);
 	await vscode.commands.executeCommand('vscode.diff', originalUri, currentUri, diffLabel);
 }
@@ -53,32 +53,32 @@ export function registerChangesCommands(
 	const { changesProvider, timelineProvider, gitContentProvider } = deps;
 
 	const changesRefresh = vscode.commands.registerCommand(
-		'anytime-trail.changesRefresh', () => changesProvider?.refresh()
+		'anytime-git.changesRefresh', () => changesProvider?.refresh()
 	);
 	const stageFile = vscode.commands.registerCommand(
-		'anytime-trail.stageFile', (item: ChangesFileItem) => changesProvider?.stageFile(item)
+		'anytime-git.stageFile', (item: ChangesFileItem) => changesProvider?.stageFile(item)
 	);
 	const unstageFile = vscode.commands.registerCommand(
-		'anytime-trail.unstageFile', (item: ChangesFileItem) => changesProvider?.unstageFile(item)
+		'anytime-git.unstageFile', (item: ChangesFileItem) => changesProvider?.unstageFile(item)
 	);
 	const stageAll = vscode.commands.registerCommand(
-		'anytime-trail.stageAll', (gitRoot?: string) => changesProvider?.stageAll(gitRoot)
+		'anytime-git.stageAll', (gitRoot?: string) => changesProvider?.stageAll(gitRoot)
 	);
 	const unstageAll = vscode.commands.registerCommand(
-		'anytime-trail.unstageAll', (gitRoot?: string) => changesProvider?.unstageAll(gitRoot)
+		'anytime-git.unstageAll', (gitRoot?: string) => changesProvider?.unstageAll(gitRoot)
 	);
 	const discardAll = vscode.commands.registerCommand(
-		'anytime-trail.discardAll', (gitRoot?: string) => changesProvider?.discardAll(gitRoot)
+		'anytime-git.discardAll', (gitRoot?: string) => changesProvider?.discardAll(gitRoot)
 	);
 	const discardChanges = vscode.commands.registerCommand(
-		'anytime-trail.discardChanges', (item: ChangesFileItem) => changesProvider?.discardChanges(item)
+		'anytime-git.discardChanges', (item: ChangesFileItem) => changesProvider?.discardChanges(item)
 	);
 
 	// 変更: シングルクリックでプレビュー、ダブルクリックで固定タブ
 	let lastChangesClickUri: string | null = null;
 	let lastChangesClickTime = 0;
 	const changesOpenFile = vscode.commands.registerCommand(
-		'anytime-trail.changesOpenFile',
+		'anytime-git.changesOpenFile',
 		async (gitRoot: string, filePath: string, group: 'staged' | 'changes', currentUri: vscode.Uri, isMd: boolean, diffLabel: string) => {
 			const now = Date.now();
 			const uriStr = currentUri.toString();
@@ -114,18 +114,18 @@ export function registerChangesCommands(
 	);
 
 	const commitChanges = vscode.commands.registerCommand(
-		'anytime-trail.commitChanges', () => changesProvider?.commit()
+		'anytime-git.commitChanges', () => changesProvider?.commit()
 	);
 	const syncChanges = vscode.commands.registerCommand(
-		'anytime-trail.syncChanges', (gitRoot?: string) => changesProvider?.sync(gitRoot)
+		'anytime-git.syncChanges', (gitRoot?: string) => changesProvider?.sync(gitRoot)
 	);
 	const pushChanges = vscode.commands.registerCommand(
-		'anytime-trail.pushChanges', () => changesProvider?.push()
+		'anytime-git.pushChanges', () => changesProvider?.push()
 	);
 
 	// Timeline: コミットとの比較
 	const compareWithCommit = vscode.commands.registerCommand(
-		'anytime-trail.compareWithCommit',
+		'anytime-git.compareWithCommit',
 		async (item: TimelineItem) => {
 			const content = await timelineProvider?.getCommitContent(item);
 			if (content == null) {

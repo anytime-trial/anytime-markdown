@@ -318,6 +318,76 @@ function handleResizeKeyDownImpl(
   updateAttributes({ width: `${newWidth}px` });
 }
 
+/** Compute interaction flags from node state (extracted to reduce cognitive complexity). */
+function computeImageInteractionFlags(collapsed: boolean, isCompareLeft: boolean, isCompareLeftEditable: boolean, isEditable: boolean, isSelected: boolean, showToolbar: boolean) {
+  const canInteract = !collapsed && !isCompareLeft;
+  const hasScreenCapture = canInteract && typeof navigator !== "undefined" && !!navigator.mediaDevices?.getDisplayMedia;
+  const showBorder = showToolbar || (isCompareLeftEditable && isSelected);
+  const showBlockToolbar = isEditable || isCompareLeftEditable;
+  return { canInteract, hasScreenCapture, showBorder, showBlockToolbar };
+}
+
+/** Build the wrapper Box sx style (extracted to reduce cognitive complexity). */
+function buildImageWrapperSx(showBorder: boolean, isDark: boolean) {
+  const borderColor = showBorder ? getDivider(isDark) : "transparent";
+  const hiddenToolbarSx = showBorder ? {} : {
+    "& > [data-block-toolbar]": {
+      maxHeight: 0, opacity: 0, py: 0, overflow: "hidden",
+    },
+  };
+  return { border: 1, borderRadius: 1, overflow: "hidden", my: 1, borderColor, ...hiddenToolbarSx };
+}
+
+/** Image content area: either error placeholder or resizable image (extracted to reduce cognitive complexity). */
+function ImageContentArea({
+  collapsed, imgError, imgRef, imgContainerRef, src, alt, title, displayWidth, annotations,
+  isSelected, isEditable, resizing, resizeWidth,
+  handleResizePointerDown, handleResizePointerMove, handleResizePointerUp, handleResizeKeyDown,
+  onDoubleClick, width, isDark, t,
+}: Readonly<{
+  collapsed: boolean; imgError: boolean;
+  imgRef: React.RefObject<HTMLImageElement | null>;
+  imgContainerRef: React.RefObject<HTMLDivElement | null>;
+  src: string; alt: string; title: string; displayWidth: string | undefined;
+  annotations: ImageAnnotation[];
+  isSelected: boolean; isEditable: boolean;
+  resizing: boolean; resizeWidth: number | null;
+  handleResizePointerDown: (e: React.PointerEvent) => void;
+  handleResizePointerMove: (e: React.PointerEvent) => void;
+  handleResizePointerUp: (e: React.PointerEvent) => void;
+  handleResizeKeyDown: (e: React.KeyboardEvent) => void;
+  onDoubleClick: (() => void) | undefined;
+  width: string; isDark: boolean; t: (key: string) => string;
+}>) {
+  if (collapsed) return null;
+  if (imgError) {
+    return <Box contentEditable={false} sx={{ height: "2em", borderTop: 1, borderColor: getDivider(isDark), bgcolor: getActionHover(isDark) }} />;
+  }
+  return (
+    <ImageWithResize
+      imgRef={imgRef}
+      imgContainerRef={imgContainerRef}
+      src={src}
+      alt={alt}
+      title={title}
+      displayWidth={displayWidth}
+      annotations={annotations}
+      isSelected={isSelected}
+      isEditable={isEditable}
+      resizing={resizing}
+      resizeWidth={resizeWidth}
+      handleResizePointerDown={handleResizePointerDown}
+      handleResizePointerMove={handleResizePointerMove}
+      handleResizePointerUp={handleResizePointerUp}
+      handleResizeKeyDown={handleResizeKeyDown}
+      onDoubleClick={onDoubleClick}
+      width={width}
+      isDark={isDark}
+      t={t}
+    />
+  );
+}
+
 export function ImageNodeView({ editor, node, updateAttributes, getPos }: Readonly<NodeViewProps>) {
   const t = useTranslations("MarkdownEditor");
   const theme = useTheme();
@@ -353,10 +423,7 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: Readon
     handleCropComplete(src, updateAttributes, croppedDataUrl);
   }, [src, updateAttributes]);
 
-  const canInteract = !collapsed && !isCompareLeft;
-  const hasScreenCapture = canInteract && typeof navigator !== "undefined" && !!navigator.mediaDevices?.getDisplayMedia;
-  const showBorder = showToolbar || (isCompareLeftEditable && isSelected);
-  const showBlockToolbar = isEditable || isCompareLeftEditable;
+  const { canInteract, hasScreenCapture, showBorder, showBlockToolbar } = computeImageInteractionFlags(collapsed, isCompareLeft, isCompareLeftEditable, isEditable, isSelected, showToolbar);
 
   const onDeleteAction = canInteract ? () => setDeleteDialogOpen(true) : undefined;
   const onEditAction = canInteract ? () => setEditOpen(true) : undefined;
@@ -364,16 +431,8 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: Readon
   const onScreenCaptureAction = hasScreenCapture ? () => setScreenCaptureOpen(true) : undefined;
   const onImageDoubleClick = isEditable ? undefined : () => setEditOpen(true);
 
-  const borderColor = showBorder ? getDivider(isDark) : "transparent";
-  const hiddenToolbarSx = showBorder ? {} : {
-    "& > [data-block-toolbar]": {
-      maxHeight: 0, opacity: 0, py: 0, overflow: "hidden",
-    },
-  };
-
   return (
     <NodeViewWrapper className="image-node-wrapper">
-      {/* Edit Dialog */}
       <ImageEditDialog
         editOpen={editOpen}
         setEditOpen={setEditOpen}
@@ -384,14 +443,7 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: Readon
         isDark={isDark}
         t={t}
       />
-      {/* Inline view */}
-      <Box
-        sx={{
-          border: 1, borderRadius: 1, overflow: "hidden", my: 1,
-          borderColor,
-          ...hiddenToolbarSx,
-        }}
-      >
+      <Box sx={buildImageWrapperSx(showBorder, isDark)}>
         {showBlockToolbar && (
           <BlockInlineToolbar
             label={t("image")}
@@ -419,33 +471,29 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: Readon
             t={t}
           />
         )}
-        {/* Image with resize handle */}
-        {!collapsed && imgError && (
-          <Box contentEditable={false} sx={{ height: "2em", borderTop: 1, borderColor: getDivider(isDark), bgcolor: getActionHover(isDark) }} />
-        )}
-        {!collapsed && !imgError && (
-          <ImageWithResize
-            imgRef={imgRef}
-            imgContainerRef={imgContainerRef}
-            src={src}
-            alt={alt}
-            title={title}
-            displayWidth={displayWidth}
-            annotations={annotations}
-            isSelected={isSelected}
-            isEditable={isEditable}
-            resizing={resizing}
-            resizeWidth={resizeWidth}
-            handleResizePointerDown={handleResizePointerDown}
-            handleResizePointerMove={handleResizePointerMove}
-            handleResizePointerUp={handleResizePointerUp}
-            handleResizeKeyDown={handleResizeKeyDown}
-            onDoubleClick={onImageDoubleClick}
-            width={width}
-            isDark={isDark}
-            t={t}
-          />
-        )}
+        <ImageContentArea
+          collapsed={collapsed}
+          imgError={imgError}
+          imgRef={imgRef}
+          imgContainerRef={imgContainerRef}
+          src={src}
+          alt={alt}
+          title={title}
+          displayWidth={displayWidth}
+          annotations={annotations}
+          isSelected={isSelected}
+          isEditable={isEditable}
+          resizing={resizing}
+          resizeWidth={resizeWidth}
+          handleResizePointerDown={handleResizePointerDown}
+          handleResizePointerMove={handleResizePointerMove}
+          handleResizePointerUp={handleResizePointerUp}
+          handleResizeKeyDown={handleResizeKeyDown}
+          onDoubleClick={onImageDoubleClick}
+          width={width}
+          isDark={isDark}
+          t={t}
+        />
       </Box>
       <DeleteBlockDialog
         open={deleteDialogOpen}

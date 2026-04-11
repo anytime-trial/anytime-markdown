@@ -6,6 +6,36 @@
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-04-11
+
+### 追加
+
+- Note パネルを複数ページ対応（`anytime-note-N` ファイル命名）
+- FileSystemWatcher によるノートファイルの自動更新
+- エディタ編集後の自動保存
+- anytime-note スキル: ページ番号引数・要約モード・引継ぎモード追加
+- Note ビューにスキル表示ボタンを追加
+- ノートページ一覧にフロントマターのタイトルを表示
+- 新規ノートページをクリア状態で作成
+
+### 変更
+
+- ツリービューの表示名変更: Agent Note → Note、Agent Memory → Memory
+
+### 削除
+
+- Memory パネルを Anytime Trail 拡張に移動
+
+### 修正
+
+- ノートファイルを開く際の破損キャッシュを回避
+- スキル自動生成を復元しパスを `anytime-note-1.md` に更新
+- PreToolUse イベントを見逃した場合も Claude ロックを発火するよう修正
+
+### Editor Core (markdown-core)
+
+- エディタ主要コンポーネントの認知的複雑度を低減（SonarCloud S3776）
+
 ## [0.10.4] - 2026-04-09
 
 ### Editor Core (markdown-core)

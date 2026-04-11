@@ -169,6 +169,48 @@ function isClipboardShortcut(event: KeyboardEvent): boolean {
 }
 
 // ----------------------------------------------------------------
+// Arrow key helpers
+// ----------------------------------------------------------------
+
+/** Arrow キーを方向文字列に変換する。Arrow キーでなければ null を返す。 */
+function arrowToDirection(
+  key: string,
+): "up" | "down" | "left" | "right" | null {
+  switch (key) {
+    case "ArrowUp":
+      return "up";
+    case "ArrowDown":
+      return "down";
+    case "ArrowLeft":
+      return "left";
+    case "ArrowRight":
+      return "right";
+    default:
+      return null;
+  }
+}
+
+/** Arrow キーによるセル移動を処理する。Arrow キーでなければ null を返す。 */
+function handleArrowKey(
+  view: EditorView,
+  event: KeyboardEvent,
+  cellPos: number,
+): boolean | null {
+  const direction = arrowToDirection(event.key);
+  if (!direction) return null;
+
+  // Shift+Arrow → CellSelection に委譲
+  if (event.shiftKey) return false;
+
+  const nextPos = getAdjacentCellPos(view, cellPos, direction);
+  if (nextPos != null) {
+    const { tr } = view.state;
+    view.dispatch(setNavigationMode(tr, nextPos));
+  }
+  return true;
+}
+
+// ----------------------------------------------------------------
 // Navigation mode handler
 // ----------------------------------------------------------------
 
@@ -183,36 +225,9 @@ export function handleNavigationKeyDown(
 ): boolean {
   const { key } = event;
 
-  // Shift+Arrow → CellSelection に委譲
-  if (
-    event.shiftKey &&
-    (key === "ArrowUp" ||
-      key === "ArrowDown" ||
-      key === "ArrowLeft" ||
-      key === "ArrowRight")
-  ) {
-    return false;
-  }
-
-  // Arrow keys → 隣接セルへ移動
-  if (
-    key === "ArrowUp" ||
-    key === "ArrowDown" ||
-    key === "ArrowLeft" ||
-    key === "ArrowRight"
-  ) {
-    const direction = key.replace("Arrow", "").toLowerCase() as
-      | "up"
-      | "down"
-      | "left"
-      | "right";
-    const nextPos = getAdjacentCellPos(view, cellPos, direction);
-    if (nextPos != null) {
-      const { tr } = view.state;
-      view.dispatch(setNavigationMode(tr, nextPos));
-    }
-    return true;
-  }
+  // Arrow keys → 隣接セルへ移動（Shift+Arrow は CellSelection に委譲）
+  const arrowResult = handleArrowKey(view, event, cellPos);
+  if (arrowResult != null) return arrowResult;
 
   // Tab / Shift+Tab → 次/前のセルへ移動
   if (key === "Tab") {
@@ -247,14 +262,10 @@ export function handleNavigationKeyDown(
   }
 
   // Ctrl/Cmd+C/X/V → クリップボードに委譲
-  if (isClipboardShortcut(event)) {
-    return false;
-  }
+  if (isClipboardShortcut(event)) return false;
 
   // 修飾キー単体 → 無視
-  if (isModifierOnly(key)) {
-    return false;
-  }
+  if (isModifierOnly(key)) return false;
 
   // 印字可能文字（Ctrl/Meta/Alt なし） → editing モードに遷移して文字入力を許可
   if (isPrintableKey(key) && !event.ctrlKey && !event.metaKey && !event.altKey) {

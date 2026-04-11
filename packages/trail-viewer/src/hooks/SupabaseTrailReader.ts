@@ -7,6 +7,7 @@ import type {
   TrailSessionCommit,
   TrailToolCall,
 } from '../parser/types';
+import { toLocalDateKey } from '@anytime-markdown/trail-core/formatDate';
 import type { AnalyticsData } from '../components/AnalyticsPanel';
 import type { ITrailReader } from './ITrailReader';
 
@@ -187,7 +188,7 @@ export class SupabaseTrailReader implements ITrailReader {
     // Daily activity
     const dailyMap = new Map<string, { sessions: number; inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheCreationTokens: number }>();
     for (const r of sessions) {
-      const date = r.start_time.slice(0, 10);
+      const date = toLocalDateKey(r.start_time);
       const entry = dailyMap.get(date) ?? { sessions: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 };
       entry.sessions++;
       entry.inputTokens += r.input_tokens;

@@ -33,6 +33,90 @@ type MathBlockProps = Pick<
   handleFsTextChange: (newCode: string) => void;
 };
 
+/** Graph toggle button for the math block toolbar (extracted to reduce cognitive complexity). */
+function GraphToggleButton({ graphEnabled, onToggle, isDark, t }: Readonly<{
+  graphEnabled: boolean; onToggle: () => void; isDark: boolean; t: (key: string) => string;
+}>) {
+  return (
+    <Tooltip title={graphEnabled ? t("hideGraph") : t("showGraph")} placement="top">
+      <IconButton
+        size="small"
+        sx={{ p: 0.25 }}
+        onClick={onToggle}
+        aria-label={graphEnabled ? t("hideGraph") : t("showGraph")}
+      >
+        <ShowChartIcon sx={{ fontSize: 16, color: graphEnabled ? getPrimaryMain(isDark) : getTextSecondary(isDark) }} />
+      </IconButton>
+    </Tooltip>
+  );
+}
+
+/** Copy-code button for the math edit dialog toolbar (extracted to reduce cognitive complexity). */
+function MathCopyCodeButton({ handleCopyCode, isDark, t }: Readonly<{
+  handleCopyCode: () => void; isDark: boolean; t: (key: string) => string;
+}>) {
+  return (
+    <Tooltip title={t("copyCode")} placement="bottom">
+      <IconButton size="small" sx={{ p: 0.25 }} onClick={handleCopyCode} aria-label={t("copyCode")}>
+        <ContentCopyIcon sx={{ fontSize: 16, color: getTextSecondary(isDark) }} />
+      </IconButton>
+    </Tooltip>
+  );
+}
+
+/** Discard-changes confirmation dialog (extracted to reduce cognitive complexity). */
+function DiscardDialog({ open, onClose, onConfirm, t }: Readonly<{
+  open: boolean; onClose: () => void; onConfirm: () => void; t: (key: string) => string;
+}>) {
+  return (
+    <Dialog open={open} onClose={onClose}>
+      <DialogTitle>{t("spreadsheetDiscardTitle")}</DialogTitle>
+      <DialogContent><DialogContentText>{t("spreadsheetDiscardMessage")}</DialogContentText></DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>{t("spreadsheetDiscardCancel")}</Button>
+        <Button onClick={onConfirm} color="error">{t("spreadsheetDiscardConfirm")}</Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+/** Math preview container with resize support (extracted to reduce cognitive complexity). */
+function MathPreview({
+  mathContainerRef, code, codeCollapsed, displayWidth, isDark, mathHtml, isSelected, isEditable,
+  resizing, resizeWidth, handleResizePointerDown, handleResizePointerMove, handleResizePointerUp,
+  selectNode, updateAttributes, setEditOpen, t,
+}: Readonly<{
+  mathContainerRef: React.RefObject<HTMLDivElement | null>;
+  code: string; codeCollapsed: boolean; displayWidth: string | undefined;
+  isDark: boolean; mathHtml: string; isSelected: boolean; isEditable: boolean;
+  resizing: boolean; resizeWidth: number | null;
+  handleResizePointerDown: (e: React.PointerEvent) => void;
+  handleResizePointerMove: (e: React.PointerEvent) => void;
+  handleResizePointerUp: (e: React.PointerEvent) => void;
+  selectNode: () => void; updateAttributes: (attrs: Record<string, unknown>) => void;
+  setEditOpen: (v: boolean) => void; t: (key: string) => string;
+}>) {
+  return (
+    <Box
+      ref={mathContainerRef}
+      contentEditable={false}
+      role="img"
+      aria-label={`${t("mathFormula")}: ${code}`}
+      onClick={() => { selectNode(); if (!codeCollapsed) updateAttributes({ codeCollapsed: true }); }}
+      onDoubleClick={() => setEditOpen(true)}
+      onPointerMove={handleResizePointerMove}
+      onPointerUp={handleResizePointerUp}
+      sx={{ pt: 0, px: 2, pb: 2, bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG, borderTop: codeCollapsed ? 0 : 1, borderColor: getDivider(isDark), overflow: "auto", maxHeight: PREVIEW_MAX_HEIGHT, display: "flex", justifyContent: "flex-start", cursor: "pointer", position: "relative", width: displayWidth || "fit-content", maxWidth: "100%" }}
+    >
+      <Box
+        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(mathHtml, MATH_SANITIZE_CONFIG) }}
+        sx={{ pointerEvents: "none" }}
+      />
+      <ResizeGrip visible={isSelected && isEditable} resizing={resizing} resizeWidth={resizeWidth} onPointerDown={handleResizePointerDown} />
+    </Box>
+  );
+}
+
 export function MathBlock(props: MathBlockProps) {
   const {
     editor, node, updateAttributes, getPos,
@@ -55,6 +139,11 @@ export function MathBlock(props: MathBlockProps) {
     editor, getPos, language: "math", code, editOpen,
   });
 
+  const showGraphToggle = !hideGraph && !props.isCompareLeft && !props.isCompareLeftEditable;
+  const graphToggle = showGraphToggle
+    ? <GraphToggleButton graphEnabled={graphEnabled} onToggle={() => setGraphEnabled(prev => !prev)} isDark={isDark} t={t} />
+    : undefined;
+
   const toolbar = (
     <BlockInlineToolbar
       label="Math"
@@ -62,20 +151,7 @@ export function MathBlock(props: MathBlockProps) {
       onDelete={props.isCompareLeft ? undefined : () => setDeleteDialogOpen(true)}
       labelOnly={props.isCompareLeftEditable}
       labelDivider
-      extra={
-        !hideGraph && !props.isCompareLeft && !props.isCompareLeftEditable ? (
-          <Tooltip title={graphEnabled ? t("hideGraph") : t("showGraph")} placement="top">
-            <IconButton
-              size="small"
-              sx={{ p: 0.25 }}
-              onClick={() => setGraphEnabled(prev => !prev)}
-              aria-label={graphEnabled ? t("hideGraph") : t("showGraph")}
-            >
-              <ShowChartIcon sx={{ fontSize: 16, color: graphEnabled ? getPrimaryMain(isDark) : getTextSecondary(isDark) }} />
-            </IconButton>
-          </Tooltip>
-        ) : undefined
-      }
+      extra={graphToggle}
       t={t}
     />
   );
@@ -108,23 +184,15 @@ export function MathBlock(props: MathBlockProps) {
           compareCode={compareCode}
           onMergeApply={handleMergeApply}
           thisCode={thisCode}
-          toolbarExtra={
-            <Tooltip title={t("copyCode")} placement="bottom">
-              <IconButton size="small" sx={{ p: 0.25 }} onClick={handleCopyCode} aria-label={t("copyCode")}>
-                <ContentCopyIcon sx={{ fontSize: 16, color: getTextSecondary(isDark) }} />
-              </IconButton>
-            </Tooltip>
-          }
+          toolbarExtra={<MathCopyCodeButton handleCopyCode={handleCopyCode} isDark={isDark} t={t} />}
           t={t}
         />
-        <Dialog open={props.discardDialogOpen} onClose={() => props.setDiscardDialogOpen(false)}>
-          <DialogTitle>{t("spreadsheetDiscardTitle")}</DialogTitle>
-          <DialogContent><DialogContentText>{t("spreadsheetDiscardMessage")}</DialogContentText></DialogContent>
-          <DialogActions>
-            <Button onClick={() => props.setDiscardDialogOpen(false)}>{t("spreadsheetDiscardCancel")}</Button>
-            <Button onClick={props.handleDiscardConfirm} color="error">{t("spreadsheetDiscardConfirm")}</Button>
-          </DialogActions>
-        </Dialog>
+        <DiscardDialog
+          open={props.discardDialogOpen}
+          onClose={() => props.setDiscardDialogOpen(false)}
+          onConfirm={props.handleDiscardConfirm}
+          t={t}
+        />
         </>
       }
     >
@@ -132,23 +200,25 @@ export function MathBlock(props: MathBlockProps) {
         <Alert severity="warning" sx={{ borderRadius: 0 }}>{mathError}</Alert>
       )}
       {mathHtml && (
-        <Box
-          ref={mathContainerRef}
-          contentEditable={false}
-          role="img"
-          aria-label={`${t("mathFormula")}: ${code}`}
-          onClick={() => { selectNode(); if (!codeCollapsed) updateAttributes({ codeCollapsed: true }); }}
-          onDoubleClick={() => setEditOpen(true)}
-          onPointerMove={handleResizePointerMove}
-          onPointerUp={handleResizePointerUp}
-          sx={{ pt: 0, px: 2, pb: 2, bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG, borderTop: codeCollapsed ? 0 : 1, borderColor: getDivider(isDark), overflow: "auto", maxHeight: PREVIEW_MAX_HEIGHT, display: "flex", justifyContent: "flex-start", cursor: "pointer", position: "relative", width: displayWidth || "fit-content", maxWidth: "100%" }}
-        >
-          <Box
-            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(mathHtml, MATH_SANITIZE_CONFIG) }}
-            sx={{ pointerEvents: "none" }}
-          />
-          <ResizeGrip visible={isSelected && props.isEditable} resizing={resizing} resizeWidth={resizeWidth} onPointerDown={handleResizePointerDown} />
-        </Box>
+        <MathPreview
+          mathContainerRef={mathContainerRef}
+          code={code}
+          codeCollapsed={codeCollapsed}
+          displayWidth={displayWidth}
+          isDark={isDark}
+          mathHtml={mathHtml}
+          isSelected={isSelected}
+          isEditable={props.isEditable}
+          resizing={resizing}
+          resizeWidth={resizeWidth}
+          handleResizePointerDown={handleResizePointerDown}
+          handleResizePointerMove={handleResizePointerMove}
+          handleResizePointerUp={handleResizePointerUp}
+          selectNode={selectNode}
+          updateAttributes={updateAttributes}
+          setEditOpen={setEditOpen}
+          t={t}
+        />
       )}
       {!hideGraph && <GraphView code={code} enabled={graphEnabled} isDark={isDark} />}
     </CodeBlockFrame>

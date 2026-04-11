@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-04-11
+
+### Added
+
+- Cost optimization section in Analytics tab
+- Cost optimizer classification engine and rules configuration
+- Model pricing constants and cost calculator
+- Cost optimization types and data fetching API
+
+### Fixed
+
+- Session filter for date selection corrected to local timezone basis
+
 ## [0.2.0] - 2026-04-09
 
 ### Added

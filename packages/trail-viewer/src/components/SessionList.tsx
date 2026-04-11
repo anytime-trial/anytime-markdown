@@ -4,9 +4,9 @@ import List from '@mui/material/List';
 import ListItemButton from '@mui/material/ListItemButton';
 import ListItemText from '@mui/material/ListItemText';
 import Typography from '@mui/material/Typography';
-import { format } from 'date-fns';
 import { useCallback } from 'react';
 
+import { formatLocalDateTime } from '@anytime-markdown/trail-core/formatDate';
 import type { TrailSession } from '../parser/types';
 import { useTrailTheme } from './TrailThemeContext';
 
@@ -21,10 +21,7 @@ function formatSessionLabel(session: TrailSession): string {
 }
 
 function formatSessionDate(startTime: string): string {
-  if (!startTime) return '';
-  const date = new Date(startTime);
-  if (Number.isNaN(date.getTime())) return '';
-  return format(date, 'yyyy/MM/dd HH:mm');
+  return formatLocalDateTime(startTime);
 }
 
 export function SessionList({ sessions, selectedId, onSelect }: Readonly<SessionListProps>) {

@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.12.2] - 2026-04-11
+
+### Changed
+
+- Reduce cognitive complexity in useCanvasInteraction, GraphEditor, GraphCanvas, useDataMapping (SonarCloud S3776)
+- Fix SonarCloud issues: use Number.parseInt (S7773), use replaceAll (S7781), localeCompare for sort (S2871), optional chaining (S6582), consolidate duplicate drag cursor branches (S1871), remove unnecessary assignment (S1854)
+
 ## [0.12.1] - 2026-04-09
 
 ### Added

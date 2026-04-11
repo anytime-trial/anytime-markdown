@@ -27,86 +27,124 @@ export function importFromMermaid(mmdString: string): MermaidImportResult {
   if (!trimmed) throw new Error('Empty input');
 
   const lines = trimmed.split('\n').map(l => l.trim());
+  const { direction, headerIdx } = parseHeader(lines);
 
-  // Parse header: flowchart/graph + direction
+  const { nodeMap, parsedEdges, nodeSubgraphMap } = parseBody(lines, headerIdx);
+  const doc = buildDocument(nodeMap, parsedEdges, nodeSubgraphMap, direction);
+
+  const normalizedDirection: 'TB' | 'LR' = (direction === 'LR' || direction === 'RL') ? 'LR' : 'TB';
+  return { doc, direction: normalizedDirection };
+}
+
+/** ヘッダー行をパースして方向と行インデックスを返す */
+function parseHeader(lines: string[]): { direction: Direction; headerIdx: number } {
   const headerIdx = lines.findIndex(l => /^(flowchart|graph)\s/i.test(l));
   if (headerIdx < 0) throw new Error('Missing flowchart/graph declaration');
 
   const headerMatch = /^(flowchart|graph)\s+(TD|TB|LR|RL|BT)\s*$/i.exec(lines[headerIdx]);
   const direction: Direction = (headerMatch?.[2]?.toUpperCase() as Direction) ?? 'TD';
+  return { direction, headerIdx };
+}
 
+interface ParseBodyResult {
+  nodeMap: Map<string, ParsedNode>;
+  parsedEdges: ParsedEdge[];
+  nodeSubgraphMap: Map<string, string>;
+}
+
+/** ボディ行をパースしてノード・エッジ・サブグラフ情報を返す */
+function parseBody(lines: string[], headerIdx: number): ParseBodyResult {
   const nodeMap = new Map<string, ParsedNode>();
   const parsedEdges: ParsedEdge[] = [];
   const subgraphStack: SubgraphInfo[] = [];
-  const nodeSubgraphMap = new Map<string, string>(); // mermaidId → subgraph mermaidId
+  const nodeSubgraphMap = new Map<string, string>();
 
-  // Process body lines
   for (let i = headerIdx + 1; i < lines.length; i++) {
     const line = lines[i];
     if (!line || line.startsWith('%%')) continue;
 
-    // Handle subgraph
-    const subgraphMatch = /^subgraph\s+(\w+)\s*\[(.+?)\]\s*$/.exec(line)
-      ?? /^subgraph\s+(\S+(?:\s+\S+)*)\s*$/.exec(line);
-    if (subgraphMatch) {
-      const id = subgraphMatch[2] ? subgraphMatch[1] : subgraphMatch[1].replaceAll(/\s+/g, '_');
-      const title = subgraphMatch[2] ?? subgraphMatch[1];
-      subgraphStack.push({ mermaidId: id, title });
-      // Register subgraph as a frame node
-      nodeMap.set(id, { mermaidId: id, text: title, type: 'frame' });
-      continue;
-    }
+    if (tryParseSubgraph(line, subgraphStack, nodeMap)) continue;
+    if (/^end\s*$/.test(line)) { subgraphStack.pop(); continue; }
 
-    if (/^end\s*$/.test(line)) {
-      subgraphStack.pop();
-      continue;
-    }
-
-    // Tokenize and parse
-    const tokens = tokenizeLine(line);
-    if (tokens.length === 0) continue;
-
-    let pos = 0;
-    while (pos < tokens.length) {
-      // Try to parse an edge starting at pos
-      const edgeResult = parseEdge(tokens.slice(pos));
-      if (edgeResult) {
-        const { consumed, edge } = edgeResult;
-        parsedEdges.push(edge);
-
-        // Register nodes from edge (both endpoints + any inline definitions)
-        for (const token of [tokens[pos], tokens[pos + consumed - 1]]) {
-          const nodeDef = parseNodeDef(token);
-          if (nodeDef && !nodeMap.has(nodeDef.mermaidId)) {
-            nodeMap.set(nodeDef.mermaidId, nodeDef);
-            if (subgraphStack.length > 0) {
-              nodeSubgraphMap.set(nodeDef.mermaidId, subgraphStack.at(-1)!.mermaidId);
-            }
-          }
-        }
-
-        // Continue parsing from the last token (it might be the start of a chained edge)
-        pos += consumed - 1;
-        continue;
-      }
-
-      // Try standalone node definition
-      const nodeDef = parseNodeDef(tokens[pos]);
-      if (nodeDef && !nodeMap.has(nodeDef.mermaidId)) {
-        nodeMap.set(nodeDef.mermaidId, nodeDef);
-        if (subgraphStack.length > 0) {
-          nodeSubgraphMap.set(nodeDef.mermaidId, subgraphStack.at(-1)!.mermaidId);
-        }
-      }
-      pos++;
-    }
+    parseLine(line, nodeMap, parsedEdges, subgraphStack, nodeSubgraphMap);
   }
 
-  // Build GraphDocument
-  const doc = createDocument('Imported');
-  const idMap = new Map<string, string>(); // mermaidId → generated UUID
+  return { nodeMap, parsedEdges, nodeSubgraphMap };
+}
 
-  // Layout: grid positions based on direction
+/** subgraph 宣言を試行。パースできた場合 true を返す */
+function tryParseSubgraph(
+  line: string,
+  subgraphStack: SubgraphInfo[],
+  nodeMap: Map<string, ParsedNode>,
+): boolean {
+  const subgraphMatch = /^subgraph\s+(\w+)\s*\[(.+?)\]\s*$/.exec(line)
+    ?? /^subgraph\s+(\S+(?:\s+\S+)*)\s*$/.exec(line);
+  if (!subgraphMatch) return false;
+
+  const id = subgraphMatch[2] ? subgraphMatch[1] : subgraphMatch[1].replaceAll(/\s+/g, '_');
+  const title = subgraphMatch[2] ?? subgraphMatch[1];
+  subgraphStack.push({ mermaidId: id, title });
+  nodeMap.set(id, { mermaidId: id, text: title, type: 'frame' });
+  return true;
+}
+
+/** 1行分のトークンをパースしてノード・エッジを登録する */
+function parseLine(
+  line: string,
+  nodeMap: Map<string, ParsedNode>,
+  parsedEdges: ParsedEdge[],
+  subgraphStack: SubgraphInfo[],
+  nodeSubgraphMap: Map<string, string>,
+): void {
+  const tokens = tokenizeLine(line);
+  if (tokens.length === 0) return;
+
+  let pos = 0;
+  while (pos < tokens.length) {
+    const edgeResult = parseEdge(tokens.slice(pos));
+    if (edgeResult) {
+      const { consumed, edge } = edgeResult;
+      parsedEdges.push(edge);
+
+      for (const token of [tokens[pos], tokens[pos + consumed - 1]]) {
+        registerNode(token, nodeMap, subgraphStack, nodeSubgraphMap);
+      }
+
+      pos += consumed - 1;
+      continue;
+    }
+
+    registerNode(tokens[pos], nodeMap, subgraphStack, nodeSubgraphMap);
+    pos++;
+  }
+}
+
+/** トークンからノード定義をパースして登録する */
+function registerNode(
+  token: string,
+  nodeMap: Map<string, ParsedNode>,
+  subgraphStack: SubgraphInfo[],
+  nodeSubgraphMap: Map<string, string>,
+): void {
+  const nodeDef = parseNodeDef(token);
+  if (!nodeDef || nodeMap.has(nodeDef.mermaidId)) return;
+  nodeMap.set(nodeDef.mermaidId, nodeDef);
+  if (subgraphStack.length > 0) {
+    nodeSubgraphMap.set(nodeDef.mermaidId, subgraphStack.at(-1)!.mermaidId);
+  }
+}
+
+/** パース結果から GraphDocument を構築する */
+function buildDocument(
+  nodeMap: Map<string, ParsedNode>,
+  parsedEdges: ParsedEdge[],
+  nodeSubgraphMap: Map<string, string>,
+  direction: Direction,
+): GraphDocument {
+  const doc = createDocument('Imported');
+  const idMap = new Map<string, string>();
+
   const isHorizontal = direction === 'LR' || direction === 'RL';
   const spacing = {
     x: isHorizontal ? MERMAID_SPACING_X_HORIZONTAL : MERMAID_SPACING_X_VERTICAL,
@@ -122,7 +160,6 @@ export function importFromMermaid(mmdString: string): MermaidImportResult {
     const y = MERMAID_LAYOUT_ORIGIN + row * spacing.y;
 
     const node = createNode(parsed.type, x, y, { text: parsed.text });
-
     if (parsed.borderRadius) {
       node.style = { ...node.style, borderRadius: parsed.borderRadius };
     }
@@ -132,17 +169,33 @@ export function importFromMermaid(mmdString: string): MermaidImportResult {
     idx++;
   }
 
-  // Assign groupId for subgraph children
+  assignGroupIds(doc, idMap, nodeSubgraphMap);
+  createEdges(doc, parsedEdges, idMap);
+
+  return doc;
+}
+
+/** サブグラフの子ノードに groupId を設定する */
+function assignGroupIds(
+  doc: GraphDocument,
+  idMap: Map<string, string>,
+  nodeSubgraphMap: Map<string, string>,
+): void {
   for (const [mermaidId, subgraphMermaidId] of nodeSubgraphMap) {
     const nodeId = idMap.get(mermaidId);
     const frameId = idMap.get(subgraphMermaidId);
-    if (nodeId && frameId) {
-      const node = doc.nodes.find(n => n.id === nodeId);
-      if (node) node.groupId = frameId;
-    }
+    if (!nodeId || !frameId) continue;
+    const node = doc.nodes.find(n => n.id === nodeId);
+    if (node) node.groupId = frameId;
   }
+}
 
-  // Create edges
+/** パース済みエッジから GraphEdge を生成して doc に追加する */
+function createEdges(
+  doc: GraphDocument,
+  parsedEdges: ParsedEdge[],
+  idMap: Map<string, string>,
+): void {
   for (const pe of parsedEdges) {
     const fromNodeId = idMap.get(pe.fromId);
     const toNodeId = idMap.get(pe.toId);
@@ -152,7 +205,6 @@ export function importFromMermaid(mmdString: string): MermaidImportResult {
     const toNode = doc.nodes.find(n => n.id === toNodeId);
     if (!fromNode || !toNode) continue;
 
-    // Use 'connector' type for node-to-node edges (orthogonal routing)
     const edgeType = pe.hasArrow ? 'connector' : 'line';
     const edge = createEdge(
       edgeType,
@@ -166,11 +218,6 @@ export function importFromMermaid(mmdString: string): MermaidImportResult {
 
     doc.edges.push(edge);
   }
-
-  // Normalize direction: TD/TB/BT → 'TB', LR/RL → 'LR'
-  const normalizedDirection: 'TB' | 'LR' = (direction === 'LR' || direction === 'RL') ? 'LR' : 'TB';
-
-  return { doc, direction: normalizedDirection };
 }
 
 /**
@@ -179,7 +226,7 @@ export function importFromMermaid(mmdString: string): MermaidImportResult {
  * Supports arbitrary nesting depth (L1 System > L2 Container > L3 Component > L4 Code).
  *
  * Algorithm:
- * 1. Build frame tree (parent → children, including child frames)
+ * 1. Build frame tree (parent -> children, including child frames)
  * 2. Topological sort: process leaf frames first, then parents (bottom-up)
  * 3. For each frame, layout its direct children (nodes + already-sized child frames)
  * 4. Set frame size from children bounding box
@@ -193,25 +240,49 @@ export function layoutWithSubgroups(
   nodeSpacing: number,
 ): void {
   const frameMap = new Map(doc.nodes.filter(n => n.type === 'frame').map(n => [n.id, n]));
+  const { childrenOf, orphanNodes } = buildChildrenMap(doc.nodes, frameMap);
+  const { nodeToDeepestFrame, intraEdgesOf, interEdges } = classifyEdges(doc, childrenOf, frameMap);
+  const frameOrder = topologicalSortFrames(frameMap, childrenOf);
 
-  // --- Build parent → direct children map (includes both frames and non-frames) ---
+  const childOrigins = layoutFrameChildren(frameOrder, childrenOf, intraEdgesOf, direction, levelGap, nodeSpacing);
+  layoutRootNodes(doc, frameMap, orphanNodes, interEdges, nodeToDeepestFrame, direction, levelGap, nodeSpacing);
+  translateChildrenToAbsolute(frameOrder, childrenOf, childOrigins);
+  updateEdgeEndpoints(doc);
+}
+
+/** parent -> direct children マップとルートレベルの孤立ノードを構築する */
+function buildChildrenMap(
+  nodes: GraphNode[],
+  frameMap: Map<string, GraphNode>,
+): { childrenOf: Map<string, GraphNode[]>; orphanNodes: GraphNode[] } {
   const childrenOf = new Map<string, GraphNode[]>();
   const orphanNodes: GraphNode[] = [];
 
-  for (const node of doc.nodes) {
+  for (const node of nodes) {
     if (node.groupId && frameMap.has(node.groupId)) {
       const list = childrenOf.get(node.groupId) ?? [];
       list.push(node);
       childrenOf.set(node.groupId, list);
     } else if (node.type !== 'frame' || !node.groupId) {
-      // Root-level frame (no parent) or non-frame without groupId
       if (node.type !== 'frame') {
         orphanNodes.push(node);
       }
     }
   }
 
-  // --- Resolve deepest frame for each non-frame node ---
+  return { childrenOf, orphanNodes };
+}
+
+/** エッジをフレーム内部と外部に分類する */
+function classifyEdges(
+  doc: GraphDocument,
+  childrenOf: Map<string, GraphNode[]>,
+  frameMap: Map<string, GraphNode>,
+): {
+  nodeToDeepestFrame: Map<string, string>;
+  intraEdgesOf: Map<string, GraphEdge[]>;
+  interEdges: GraphEdge[];
+} {
   const nodeToDeepestFrame = new Map<string, string>();
   for (const [frameId, children] of childrenOf) {
     for (const child of children) {
@@ -221,23 +292,6 @@ export function layoutWithSubgroups(
     }
   }
 
-  // Resolve the top-level ancestor frame for edge remapping
-  function resolveRootFrame(nodeId: string): string | undefined {
-    let frameId = nodeToDeepestFrame.get(nodeId);
-    if (!frameId) {
-      // nodeId might be a frame itself
-      if (frameMap.has(nodeId)) frameId = nodeId;
-      else return undefined;
-    }
-    let current = frameId;
-    while (true) {
-      const frame = frameMap.get(current);
-      if (!frame?.groupId || !frameMap.has(frame.groupId)) return current;
-      current = frame.groupId;
-    }
-  }
-
-  // --- Classify edges by frame scope ---
   const intraEdgesOf = new Map<string, GraphEdge[]>();
   const interEdges: GraphEdge[] = [];
 
@@ -253,7 +307,14 @@ export function layoutWithSubgroups(
     }
   }
 
-  // --- Topological sort: leaf frames first (bottom-up) ---
+  return { nodeToDeepestFrame, intraEdgesOf, interEdges };
+}
+
+/** フレームをボトムアップ順（リーフ優先）にトポロジカルソートする */
+function topologicalSortFrames(
+  frameMap: Map<string, GraphNode>,
+  childrenOf: Map<string, GraphNode[]>,
+): GraphNode[] {
   const frameOrder: GraphNode[] = [];
   const visited = new Set<string>();
 
@@ -270,8 +331,18 @@ export function layoutWithSubgroups(
   for (const frame of frameMap.values()) {
     visitFrame(frame);
   }
+  return frameOrder;
+}
 
-  // --- Bottom-up: layout each frame's children, set frame size ---
+/** ボトムアップ: 各フレーム内の子要素をレイアウトし、フレームサイズを設定する */
+function layoutFrameChildren(
+  frameOrder: GraphNode[],
+  childrenOf: Map<string, GraphNode[]>,
+  intraEdgesOf: Map<string, GraphEdge[]>,
+  direction: 'TB' | 'LR',
+  levelGap: number,
+  nodeSpacing: number,
+): Map<string, { x: number; y: number }> {
   const childOrigins = new Map<string, { x: number; y: number }>();
 
   for (const frame of frameOrder) {
@@ -284,10 +355,7 @@ export function layoutWithSubgroups(
 
     for (const child of children) {
       const body = bodies.get(child.id);
-      if (body) {
-        child.x = body.x;
-        child.y = body.y;
-      }
+      if (body) { child.x = body.x; child.y = body.y; }
     }
 
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -303,12 +371,39 @@ export function layoutWithSubgroups(
     frame.height = maxY - minY + FRAME_PADDING * 2 + FRAME_TITLE_HEIGHT;
   }
 
-  // --- Root layout: top-level frames + orphan nodes ---
+  return childOrigins;
+}
+
+/** ルートレベル（トップレベルフレーム + 孤立ノード）のレイアウト */
+function layoutRootNodes(
+  doc: GraphDocument,
+  frameMap: Map<string, GraphNode>,
+  orphanNodes: GraphNode[],
+  interEdges: GraphEdge[],
+  nodeToDeepestFrame: Map<string, string>,
+  direction: 'TB' | 'LR',
+  levelGap: number,
+  nodeSpacing: number,
+): void {
   const rootFrames = [...frameMap.values()].filter(
     f => !f.groupId || !frameMap.has(f.groupId),
   );
   const rootNodes = [...rootFrames, ...orphanNodes];
   if (rootNodes.length === 0) return;
+
+  function resolveRootFrame(nodeId: string): string | undefined {
+    let frameId = nodeToDeepestFrame.get(nodeId);
+    if (!frameId) {
+      if (frameMap.has(nodeId)) frameId = nodeId;
+      else return undefined;
+    }
+    let current = frameId;
+    while (true) {
+      const frame = frameMap.get(current);
+      if (!frame?.groupId || !frameMap.has(frame.groupId)) return current;
+      current = frame.groupId;
+    }
+  }
 
   const rootBodies = new Map(rootNodes.map(n => [n.id, createBody(n)]));
   const remappedEdges: GraphEdge[] = interEdges.map(edge => {
@@ -324,14 +419,16 @@ export function layoutWithSubgroups(
 
   for (const node of rootNodes) {
     const body = rootBodies.get(node.id);
-    if (body) {
-      node.x = body.x;
-      node.y = body.y;
-    }
+    if (body) { node.x = body.x; node.y = body.y; }
   }
+}
 
-  // --- Top-down: translate children to absolute coordinates ---
-  // Process in reverse order (parents before children)
+/** トップダウン: 子要素を親フレームの絶対座標に変換する */
+function translateChildrenToAbsolute(
+  frameOrder: GraphNode[],
+  childrenOf: Map<string, GraphNode[]>,
+  childOrigins: Map<string, { x: number; y: number }>,
+): void {
   for (let i = frameOrder.length - 1; i >= 0; i--) {
     const frame = frameOrder[i];
     const children = childrenOf.get(frame.id);
@@ -345,8 +442,10 @@ export function layoutWithSubgroups(
       child.y += dy;
     }
   }
+}
 
-  // --- Update edge endpoints ---
+/** エッジのエンドポイント座標をノード中心に更新する */
+function updateEdgeEndpoints(doc: GraphDocument): void {
   const nodeMap = new Map(doc.nodes.map(n => [n.id, n]));
   for (const edge of doc.edges) {
     const fn = edge.from.nodeId ? nodeMap.get(edge.from.nodeId) : undefined;

@@ -2,21 +2,16 @@ import * as vscode from 'vscode';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
-import { TimelineProvider, TimelineItem } from './providers/TimelineProvider';
-import { GraphProvider, GraphItem } from './providers/GraphProvider';
-import { ChangesProvider } from './providers/ChangesProvider';
-import { SpecDocsProvider, SpecDocsDragAndDrop } from './providers/SpecDocsProvider';
 import { C4Panel } from './c4/C4Panel';
 import { C4DataServer } from './server/C4DataServer';
 import { TrailPanel } from './trail/TrailPanel';
 import { TrailDataServer } from './server/TrailDataServer';
 import { TrailDatabase } from './trail/TrailDatabase';
-import { registerSpecDocsCommands } from './commands/specDocsCommands';
-import { registerChangesCommands, GitOriginalContentProvider } from './commands/changesCommands';
 import { registerC4Commands } from './commands/c4Commands';
 import { TrailLogger } from './utils/TrailLogger';
 import { C4TreeProvider } from './providers/C4TreeProvider';
 import { DashboardProvider } from './trail/DashboardProvider';
+import { AiMemoryProvider, AiMemoryItem } from './providers/AiMemoryProvider';
 import type { IRemoteTrailStore } from './trail/IRemoteTrailStore';
 import { SupabaseTrailStore } from './trail/SupabaseTrailStore';
 import { PostgresTrailStore } from './trail/PostgresTrailStore';
@@ -113,124 +108,7 @@ function handleServerConfigChange(): void {
 export async function activate(context: vscode.ExtensionContext) {
 	extensionDistPath = path.join(context.extensionUri.fsPath, 'dist');
 
-	// Git 元コンテンツプロバイダー（diff 表示用）
-	const gitContentProvider = new GitOriginalContentProvider();
-	context.subscriptions.push(
-		vscode.workspace.registerTextDocumentContentProvider('anytime-trail-original', gitContentProvider),
-	);
-
-	// Git 関連パネル（ワークスペースが開かれている場合のみ初期化）
-	const hasWorkspace = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0;
-
-	let changesProvider: ChangesProvider | undefined;
-	let changesTreeView: vscode.TreeView<vscode.TreeItem> | undefined;
-	let timelineProvider: TimelineProvider | undefined;
-	let timelineTreeView: vscode.TreeView<TimelineItem> | undefined;
-	let graphProvider: GraphProvider | undefined;
-	let graphTreeView: vscode.TreeView<GraphItem> | undefined;
-
-	if (hasWorkspace) {
-		changesProvider = new ChangesProvider();
-		changesTreeView = vscode.window.createTreeView('anytimeTrail.changes', {
-			treeDataProvider: changesProvider,
-		});
-
-		// 変更ファイル数をサイドバーバッジに表示 + 消えたファイルのタブを閉じる
-		let previousChangedPaths = new Set<string>();
-		const cp = changesProvider;
-		const ctv = changesTreeView;
-		const updateChangesBadge = () => {
-			const count = cp.getChangesCount();
-			ctv.badge = count > 0
-				? { value: count, tooltip: `${count} changes` }
-				: undefined;
-			cp.closeRemovedTabs(previousChangedPaths);
-			previousChangedPaths = cp.getChangedPaths();
-		};
-		cp.onDidChangeTreeData(updateChangesBadge);
-		setTimeout(() => {
-			updateChangesBadge();
-			previousChangedPaths = cp.getChangedPaths();
-		}, 2000);
-
-		timelineProvider = new TimelineProvider();
-		timelineTreeView = vscode.window.createTreeView('anytimeTrail.timeline', {
-			treeDataProvider: timelineProvider,
-		});
-
-		graphProvider = new GraphProvider(context);
-		graphTreeView = vscode.window.createTreeView('anytimeTrail.graph', {
-			treeDataProvider: graphProvider,
-		});
-
-	}
-
-	// アクティブテキストエディタ変更時にタイムラインを更新
-	context.subscriptions.push(
-		vscode.window.onDidChangeActiveTextEditor((editor) => {
-			if (!timelineProvider || timelineProvider.isExternalMode) return;
-			timelineProvider.refresh(editor?.document.uri ?? null);
-		}),
-	);
-
-	// マークダウン管理パネル
-	const specDocsProvider = new SpecDocsProvider(context);
-	const specDocsDragAndDrop = new SpecDocsDragAndDrop(specDocsProvider);
-	const specDocsTreeView = vscode.window.createTreeView('anytimeTrail.specDocs', {
-		treeDataProvider: specDocsProvider,
-		dragAndDropController: specDocsDragAndDrop,
-	});
-
-	// アクティブルート追跡
-	let activeRoot: string | null = specDocsProvider.roots[0] ?? null;
-
-	const setActiveRoot = (rootPath: string | null) => {
-		activeRoot = rootPath;
-		changesProvider?.setPrimaryRoot(rootPath);
-		graphProvider?.setTargetRoot(rootPath);
-	};
-
-	let previousRoots: string[] = [];
-	specDocsProvider.onDidChangeTreeData(() => {
-		const roots = specDocsProvider.roots;
-		// ルート一覧が変わった場合のみ changesProvider を更新
-		if (JSON.stringify(roots) !== JSON.stringify(previousRoots)) {
-			previousRoots = roots;
-			changesProvider?.setTargetRoots(roots);
-		}
-		if (roots.length === 0) {
-			setActiveRoot(null);
-		} else if (activeRoot && !roots.includes(activeRoot)) {
-			setActiveRoot(roots[0]);
-		} else if (!activeRoot) {
-			setActiveRoot(roots[0]);
-		}
-	});
-
-	// 初回: git 初期化を待ってからターゲットを設定
-	if (changesProvider) {
-		const cp = changesProvider;
-		setTimeout(() => {
-			cp.setTargetRoots(specDocsProvider.roots);
-			previousRoots = specDocsProvider.roots;
-			setActiveRoot(activeRoot);
-		}, 2000);
-	}
-
 	// --- コマンド登録 ---
-	registerSpecDocsCommands(context, {
-		specDocsProvider,
-		changesProvider,
-		timelineProvider,
-		setActiveRoot,
-	});
-
-	changesProvider?.setMdOnlyGetter(() => specDocsProvider.mdOnly);
-
-	const graphRefresh = vscode.commands.registerCommand(
-		'anytime-trail.graphRefresh', () => graphProvider?.refresh()
-	);
-
 	context.subscriptions.push(
 		vscode.commands.registerCommand('anytime-trail.loadCoverage', () => {
 			const config = vscode.workspace.getConfiguration('anytimeTrail.coverage');
@@ -265,12 +143,6 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	);
 
-	registerChangesCommands(context, {
-		changesProvider,
-		timelineProvider,
-		gitContentProvider,
-	});
-
 	registerC4Commands(context, {
 		getDataServer: () => dataServer,
 		startServer: async () => {
@@ -301,8 +173,19 @@ export async function activate(context: vscode.ExtensionContext) {
 	TrailPanel.setDataServer(trailDataServer);
 	const trailPort = vscode.workspace.getConfiguration('anytimeTrail.trailServer').get<number>('port', 19841);
 
+	// Supabase store（設定が揃っている場合のみ初期化）
+	const remoteConfig = vscode.workspace.getConfiguration('anytimeTrail.remote');
+	let supabaseStore: SupabaseTrailStore | undefined;
+	if (remoteConfig.get<string>('provider', 'none') === 'supabase') {
+		const url = remoteConfig.get<string>('supabaseUrl', '');
+		const key = remoteConfig.get<string>('supabaseAnonKey', '');
+		if (url && key) {
+			supabaseStore = new SupabaseTrailStore(url, key);
+		}
+	}
+
 	// Dashboard panel
-	const dashboardProvider = new DashboardProvider(trailDb);
+	const dashboardProvider = new DashboardProvider(trailDb, supabaseStore);
 	const dashboardTreeView = vscode.window.createTreeView('anytimeTrail.dashboard', {
 		treeDataProvider: dashboardProvider,
 	});
@@ -312,11 +195,11 @@ export async function activate(context: vscode.ExtensionContext) {
 		try {
 			TrailLogger.info(`Trail DB: initializing with distPath=${extensionDistPath}`);
 			await trailDb!.init();
-			dashboardProvider.updateStatus('Ready');
+			dashboardProvider.updateSqliteStatus('Ready', trailDb!.getLastImportedAt());
 			TrailLogger.info('Trail DB: initialized');
 		} catch (err) {
 			TrailLogger.error('Failed to initialize trail database', err);
-			dashboardProvider.updateStatus('Error');
+			dashboardProvider.updateSqliteStatus('Error');
 		}
 		try {
 			await trailDataServer!.start(trailPort);
@@ -351,8 +234,7 @@ export async function activate(context: vscode.ExtensionContext) {
 					},
 				);
 				TrailLogger.info(`Trail DB: import complete - imported=${result.imported}, skipped=${result.skipped}`);
-				const stats = trailDb.getStats();
-				dashboardProvider.updateStatus('Ready', stats.totalSessions);
+				dashboardProvider.updateSqliteStatus('Ready', trailDb.getLastImportedAt());
 				dashboardProvider.setImporting(false);
 
 				trailDataServer?.notifySessionsUpdated();
@@ -362,7 +244,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				);
 			} catch (err) {
 				dashboardProvider.setImporting(false);
-				dashboardProvider.updateStatus('Import failed');
+				dashboardProvider.updateSqliteStatus('Import failed');
 				TrailLogger.error('Trail import failed', err);
 			}
 		}),
@@ -421,6 +303,54 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	);
 
+	// Supabase 同期
+	context.subscriptions.push(
+		vscode.commands.registerCommand('anytime-trail.syncToSupabase', async () => {
+			if (!supabaseStore || !trailDb) {
+				vscode.window.showErrorMessage('Supabase が設定されていません');
+				return;
+			}
+			dashboardProvider.setImporting(true);
+			dashboardProvider.updateSupabaseStatus('Syncing...');
+			try {
+				const syncService = new SyncService(trailDb, supabaseStore);
+				const result = await syncService.syncWithOpenStore();
+				dashboardProvider.updateSupabaseStatus('Connected', new Date().toISOString());
+				vscode.window.showInformationMessage(
+					`Supabase sync complete: ${result.synced} synced, ${result.skipped} up-to-date, ${result.errors} errors`,
+				);
+			} catch (e) {
+				dashboardProvider.updateSupabaseStatus('Sync failed');
+				vscode.window.showErrorMessage(`同期エラー: ${e}`);
+			} finally {
+				dashboardProvider.setImporting(false);
+			}
+		}),
+	);
+
+	// Supabase 再接続
+	context.subscriptions.push(
+		vscode.commands.registerCommand('anytime-trail.reconnectSupabase', async () => {
+			if (!supabaseStore) {
+				vscode.window.showErrorMessage('Supabase が設定されていません');
+				return;
+			}
+			dashboardProvider.updateSupabaseStatus('Connecting...');
+			try {
+				await supabaseStore.close();
+				await supabaseStore.connect();
+				const syncedAt = await supabaseStore.getExistingSyncedAt();
+				const lastSync = syncedAt.size > 0
+					? [...syncedAt.values()].reduce((a, b) => (a > b ? a : b))
+					: null;
+				dashboardProvider.updateSupabaseStatus('Connected', lastSync);
+			} catch (e) {
+				dashboardProvider.updateSupabaseStatus('Connection failed');
+				vscode.window.showErrorMessage(`再接続エラー: ${e}`);
+			}
+		}),
+	);
+
 	context.subscriptions.push({
 		dispose: () => {
 			trailDataServer?.stop().catch(() => {});
@@ -443,41 +373,40 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	);
 
-	// Git リポジトリが開かれている場合、自動的にフォルダを開く
-	if (hasWorkspace) {
-		const autoOpenGitRoots = async () => {
-			try {
-				const { execFileSync } = await import('node:child_process');
-				const folders = vscode.workspace.workspaceFolders;
-				if (!folders) return;
-				for (const folder of folders) {
-					try {
-						execFileSync('git', ['rev-parse', '--git-dir'], {
-							cwd: folder.uri.fsPath,
-							encoding: 'utf-8',
-						});
-						specDocsProvider.addRoot(folder.uri.fsPath);
-					} catch {
-						// git リポジトリでないフォルダはスキップ — 正常系
-					}
-				}
-			} catch (err) {
-				TrailLogger.error('Failed to auto-open git roots', err);
-			}
-		};
-		setTimeout(autoOpenGitRoots, 1000);
-	}
+	// AI Memory ビュー
+	const homeDir = process.env.HOME || process.env.USERPROFILE || '';
+	const claudeDir = homeDir ? path.join(homeDir, '.claude') : '';
+	const sessionsDir = claudeDir ? path.join(claudeDir, 'projects') : '';
+	const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
+	const projectDirName = workspaceRoot.replaceAll('/', '-') || '-';
+	const memoryDir = sessionsDir
+		? path.join(sessionsDir, projectDirName, 'memory')
+		: '';
 
-	// ファイル保存時にリフレッシュ
+	const aiMemoryProvider = new AiMemoryProvider(memoryDir);
+	const aiMemoryTreeView = vscode.window.createTreeView('anytimeTrail.aiMemory', {
+		treeDataProvider: aiMemoryProvider,
+	});
+
+	const aiMemoryRefresh = vscode.commands.registerCommand(
+		'anytime-trail.aiMemoryRefresh', () => aiMemoryProvider.refresh(),
+	);
+
+	const openAiMemory = vscode.commands.registerCommand(
+		'anytime-trail.openAiMemory',
+		async (item: AiMemoryItem) => {
+			const uri = vscode.Uri.file(item.filePath);
+			await vscode.commands.executeCommand('vscode.openWith', uri, 'anytimeMarkdown');
+		},
+	);
+
 	context.subscriptions.push(
-		vscode.workspace.onDidSaveTextDocument(() => changesProvider?.refresh()),
-		specDocsTreeView,
-		...(changesProvider && changesTreeView ? [changesTreeView, { dispose: () => changesProvider.dispose() }] : []),
-		...(timelineTreeView ? [timelineTreeView] : []),
-		...(graphTreeView ? [graphTreeView] : []), graphRefresh,
 		c4ElementsTreeView,
 		dashboardTreeView,
 		statusBarItem,
+		aiMemoryTreeView,
+		aiMemoryRefresh,
+		openAiMemory,
 	);
 
 	// Claude Code スキルの自動配置

@@ -10,6 +10,90 @@ interface MappedResult {
   readonly edges: readonly GraphEdge[];
 }
 
+/** ノードからメタデータの数値を収集する */
+function collectMetadataValues(
+  nodes: readonly GraphNode[],
+  key: string | undefined,
+): number[] {
+  if (key == null) return [];
+  const values: number[] = [];
+  for (const node of nodes) {
+    const v = node.metadata?.[key];
+    if (typeof v === 'number') values.push(v);
+  }
+  return values;
+}
+
+/** スケール関数を作成する（値が存在する場合のみ） */
+function buildScale(
+  values: number[],
+  outMin: number,
+  outMax: number,
+): ((v: number) => number) | null {
+  if (values.length === 0) return null;
+  return linearScale(Math.min(...values), Math.max(...values), outMin, outMax);
+}
+
+/** サイズ・色マッピングをノードに適用する */
+function applyNodeMapping(
+  nodes: readonly GraphNode[],
+  sizeScale: ((v: number) => number) | null,
+  colorScale: ((v: number) => number) | null,
+  sizeKey: string | undefined,
+  colorKey: string | undefined,
+  colorRange: readonly [string, string],
+): GraphNode[] {
+  return nodes.map((node) => {
+    let { width, height, style } = node;
+    let changed = false;
+
+    if (sizeScale && sizeKey != null) {
+      const raw = node.metadata?.[sizeKey];
+      if (typeof raw === 'number') {
+        const size = sizeScale(raw);
+        width = size;
+        height = size;
+        changed = true;
+      }
+    }
+
+    if (colorScale && colorKey != null) {
+      const raw = node.metadata?.[colorKey];
+      if (typeof raw === 'number') {
+        const t = colorScale(raw);
+        const fill = interpolateColor(colorRange[0], colorRange[1], t);
+        style = { ...style, fill };
+        changed = true;
+      }
+    }
+
+    return changed ? { ...node, width, height, style } : node;
+  });
+}
+
+/** weight を strokeWidth にマッピングする */
+function applyEdgeWeightMapping(
+  edges: readonly GraphEdge[],
+  weightRange: readonly [number, number],
+): GraphEdge[] {
+  const weights: number[] = [];
+  for (const edge of edges) {
+    if (edge.weight != null) weights.push(edge.weight);
+  }
+  if (weights.length === 0) return edges as GraphEdge[];
+
+  const weightScale = linearScale(
+    Math.min(...weights), Math.max(...weights),
+    weightRange[0], weightRange[1],
+  );
+
+  return edges.map((edge) => {
+    if (edge.weight == null) return edge;
+    const strokeWidth = weightScale(edge.weight);
+    return { ...edge, style: { ...edge.style, strokeWidth } };
+  });
+}
+
 /**
  * metadata / weight の数値を視覚属性（サイズ・色・線幅）にマッピングするフック。
  *
@@ -37,86 +121,16 @@ export function useDataMapping(
 
     // --- ノードマッピング ---
     let mappedNodes: GraphNode[] = nodes as GraphNode[];
-
     if (hasSizeMapping || hasColorMapping) {
-      const sizeValues: number[] = [];
-      const colorValues: number[] = [];
-
-      for (const node of nodes) {
-        if (hasSizeMapping) {
-          const v = node.metadata?.[config?.sizeKey ?? ''];
-          if (typeof v === 'number') sizeValues.push(v);
-        }
-        if (hasColorMapping) {
-          const v = node.metadata?.[config?.colorKey ?? ''];
-          if (typeof v === 'number') colorValues.push(v);
-        }
-      }
-
-      const sizeScale = hasSizeMapping && sizeValues.length > 0
-        ? linearScale(
-            Math.min(...sizeValues), Math.max(...sizeValues),
-            sizeRange[0], sizeRange[1],
-          )
-        : null;
-
-      const colorScale = hasColorMapping && colorValues.length > 0
-        ? linearScale(
-            Math.min(...colorValues), Math.max(...colorValues),
-            0, 1,
-          )
-        : null;
-
-      mappedNodes = nodes.map((node) => {
-        let { width, height, style } = node;
-        let changed = false;
-
-        if (sizeScale) {
-          const raw = node.metadata?.[config?.sizeKey ?? ''];
-          if (typeof raw === 'number') {
-            const size = sizeScale(raw);
-            width = size;
-            height = size;
-            changed = true;
-          }
-        }
-
-        if (colorScale) {
-          const raw = node.metadata?.[config?.colorKey ?? ''];
-          if (typeof raw === 'number') {
-            const t = colorScale(raw);
-            const fill = interpolateColor(colorRange[0], colorRange[1], t);
-            style = { ...style, fill };
-            changed = true;
-          }
-        }
-
-        return changed ? { ...node, width, height, style } : node;
-      });
+      const sizeScale = buildScale(collectMetadataValues(nodes, config?.sizeKey), sizeRange[0], sizeRange[1]);
+      const colorScale = buildScale(collectMetadataValues(nodes, config?.colorKey), 0, 1);
+      mappedNodes = applyNodeMapping(nodes, sizeScale, colorScale, config?.sizeKey, config?.colorKey, colorRange);
     }
 
     // --- エッジマッピング ---
-    let mappedEdges: GraphEdge[] = edges as GraphEdge[];
-
-    if (hasWeightMapping) {
-      const weights: number[] = [];
-      for (const edge of edges) {
-        if (edge.weight != null) weights.push(edge.weight);
-      }
-
-      if (weights.length > 0) {
-        const weightScale = linearScale(
-          Math.min(...weights), Math.max(...weights),
-          weightRange[0], weightRange[1],
-        );
-
-        mappedEdges = edges.map((edge) => {
-          if (edge.weight == null) return edge;
-          const strokeWidth = weightScale(edge.weight);
-          return { ...edge, style: { ...edge.style, strokeWidth } };
-        });
-      }
-    }
+    const mappedEdges = hasWeightMapping
+      ? applyEdgeWeightMapping(edges, weightRange)
+      : edges as GraphEdge[];
 
     return { nodes: mappedNodes, edges: mappedEdges };
   }, [nodes, edges, config]);

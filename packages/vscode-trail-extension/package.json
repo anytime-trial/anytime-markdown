@@ -2,7 +2,7 @@
   "name": "anytime-trail",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {
@@ -13,21 +13,16 @@
     "vscode": "^1.109.0"
   },
   "categories": [
-    "SCM Providers"
+    "Visualization"
   ],
   "keywords": [
-    "git",
-    "repository",
-    "staging",
-    "timeline",
-    "graph"
+    "c4",
+    "architecture",
+    "trail",
+    "dashboard",
+    "analysis"
   ],
   "activationEvents": [
-    "workspaceContains:**/.git/HEAD",
-    "onView:anytimeTrail.specDocs",
-    "onView:anytimeTrail.changes",
-    "onView:anytimeTrail.graph",
-    "onView:anytimeTrail.timeline",
     "onCommand:anytime-trail.c4Import",
     "onCommand:anytime-trail.c4Analyze",
     "onCommand:anytime-trail.c4Export",
@@ -36,7 +31,7 @@
     "onView:anytimeTrail.dashboard",
     "onView:anytimeTrail.c4Elements"
   ],
-  "icon": "images/camel_git.png",
+  "icon": "images/camel_trail.png",
   "main": "./dist/extension.js",
   "contributes": {
     "viewsContainers": {
@@ -44,7 +39,7 @@
         {
           "id": "anytimeTrail",
           "title": "%viewsContainer.title%",
-          "icon": "images/git-activitybar.svg"
+          "icon": "images/trail_activitybar_icon.svg"
         }
       ]
     },
@@ -59,41 +54,12 @@
           "name": "%view.c4Elements%"
         },
         {
-          "id": "anytimeTrail.specDocs",
-          "name": "%view.specDocs%"
-        },
-        {
-          "id": "anytimeTrail.changes",
-          "name": "%view.changes%"
-        },
-        {
-          "id": "anytimeTrail.graph",
-          "name": "%view.graph%"
-        },
-        {
-          "id": "anytimeTrail.timeline",
-          "name": "Timeline"
+          "id": "anytimeTrail.aiMemory",
+          "name": "Memory"
         }
       ]
     },
     "viewsWelcome": [
-      {
-        "view": "anytimeTrail.specDocs",
-        "contents": "%viewsWelcome.specDocs%",
-        "when": "!anytimeTrail.specDocsHasRoot"
-      },
-      {
-        "view": "anytimeTrail.changes",
-        "contents": "%viewsWelcome.changes%"
-      },
-      {
-        "view": "anytimeTrail.timeline",
-        "contents": "No items."
-      },
-      {
-        "view": "anytimeTrail.graph",
-        "contents": "No items."
-      },
       {
         "view": "anytimeTrail.c4Elements",
         "contents": "%viewsWelcome.c4Elements%",
@@ -101,150 +67,6 @@
       }
     ],
     "commands": [
-      {
-        "command": "anytime-trail.specDocsOpenFolder",
-        "title": "%command.specDocsOpenFolder%",
-        "icon": "$(folder-opened)"
-      },
-      {
-        "command": "anytime-trail.specDocsCloneRepo",
-        "title": "%command.specDocsCloneRepo%",
-        "icon": "$(repo-clone)"
-      },
-      {
-        "command": "anytime-trail.specDocsClose",
-        "title": "%command.specDocsClose%",
-        "icon": "$(close)"
-      },
-      {
-        "command": "anytime-trail.specDocsRefresh",
-        "title": "%command.specDocsRefresh%",
-        "icon": "$(refresh)"
-      },
-      {
-        "command": "anytime-trail.toggleMdOnly",
-        "title": "%command.toggleMdOnly%",
-        "icon": "$(filter)"
-      },
-      {
-        "command": "anytime-trail.switchBranch",
-        "title": "%command.switchBranch%",
-        "icon": "$(git-branch)"
-      },
-      {
-        "command": "anytime-trail.specDocsCreateFile",
-        "title": "%command.specDocsCreateFile%",
-        "icon": "$(new-file)"
-      },
-      {
-        "command": "anytime-trail.specDocsCreateFolder",
-        "title": "%command.specDocsCreateFolder%",
-        "icon": "$(new-folder)"
-      },
-      {
-        "command": "anytime-trail.specDocsDelete",
-        "title": "%command.specDocsDelete%",
-        "icon": "$(trash)"
-      },
-      {
-        "command": "anytime-trail.specDocsRename",
-        "title": "%command.specDocsRename%"
-      },
-      {
-        "command": "anytime-trail.specDocsRemoveRoot",
-        "title": "%command.specDocsRemoveRoot%",
-        "icon": "$(close)"
-      },
-      {
-        "command": "anytime-trail.specDocsCopyPath",
-        "title": "%command.specDocsCopyPath%"
-      },
-      {
-        "command": "anytime-trail.specDocsCopyFileName",
-        "title": "%command.specDocsCopyFileName%"
-      },
-      {
-        "command": "anytime-trail.specDocsImportFiles",
-        "title": "%command.specDocsImportFiles%",
-        "icon": "$(file-add)"
-      },
-      {
-        "command": "anytime-trail.specDocsCut",
-        "title": "%command.specDocsCut%"
-      },
-      {
-        "command": "anytime-trail.specDocsCopy",
-        "title": "%command.specDocsCopy%"
-      },
-      {
-        "command": "anytime-trail.specDocsPaste",
-        "title": "%command.specDocsPaste%"
-      },
-      {
-        "command": "anytime-trail.graphRefresh",
-        "title": "%command.graphRefresh%",
-        "icon": "$(refresh)"
-      },
-      {
-        "command": "anytime-trail.changesRefresh",
-        "title": "%command.changesRefresh%",
-        "icon": "$(refresh)"
-      },
-      {
-        "command": "anytime-trail.stageFile",
-        "title": "%command.stageFile%",
-        "icon": "$(add)"
-      },
-      {
-        "command": "anytime-trail.unstageFile",
-        "title": "%command.unstageFile%",
-        "icon": "$(remove)"
-      },
-      {
-        "command": "anytime-trail.stageAll",
-        "title": "%command.stageAll%",
-        "icon": "$(add)"
-      },
-      {
-        "command": "anytime-trail.unstageAll",
-        "title": "%command.unstageAll%",
-        "icon": "$(close-all)"
-      },
-      {
-        "command": "anytime-trail.discardAll",
-        "title": "%command.discardAll%",
-        "icon": "$(discard)"
-      },
-      {
-        "command": "anytime-trail.discardChanges",
-        "title": "%command.discardChanges%",
-        "icon": "$(discard)"
-      },
-      {
-        "command": "anytime-trail.commitChanges",
-        "title": "%command.commitChanges%"
-      },
-      {
-        "command": "anytime-trail.pushChanges",
-        "title": "%command.pushChanges%"
-      },
-      {
-        "command": "anytime-trail.syncChanges",
-        "title": "%command.syncChanges%",
-        "icon": "$(sync)"
-      },
-      {
-        "command": "anytime-trail.specDocsOpenFile",
-        "title": "Open File"
-      },
-      {
-        "command": "anytime-trail.changesOpenFile",
-        "title": "Open Changes"
-      },
-      {
-        "command": "anytime-trail.compareWithCommit",
-        "title": "%command.compareWithCommit%"
-      },
       {
         "command": "anytime-trail.c4Import",
         "title": "%command.c4Import%",
@@ -302,199 +124,42 @@
         "title": "Sync to Remote DB",
         "category": "Anytime Trail",
         "icon": "$(cloud-upload)"
-      }
-    ],
-    "submenus": [
+      },
       {
-        "id": "anytimeTrail.changesMore",
-        "label": "More Actions...",
-        "icon": "$(ellipsis)"
+        "command": "anytime-trail.syncToSupabase",
+        "title": "同期",
+        "category": "Anytime Trail"
+      },
+      {
+        "command": "anytime-trail.reconnectSupabase",
+        "title": "再接続",
+        "category": "Anytime Trail"
+      },
+      {
+        "command": "anytime-trail.aiMemoryRefresh",
+        "title": "%command.aiMemoryRefresh%",
+        "icon": "$(refresh)"
       }
     ],
     "menus": {
-      "anytimeTrail.changesMore": [
-        {
-          "command": "anytime-trail.commitChanges",
-          "group": "1_commit@1"
-        },
-        {
-          "command": "anytime-trail.pushChanges",
-          "group": "1_commit@2"
-        }
-      ],
       "view/title": [
-        {
-          "command": "anytime-trail.toggleMdOnly",
-          "when": "view == anytimeTrail.specDocs",
-          "group": "navigation@2"
-        },
-        {
-          "command": "anytime-trail.specDocsCreateFile",
-          "when": "view == anytimeTrail.specDocs && anytimeTrail.specDocsHasRoot",
-          "group": "navigation@3"
-        },
-        {
-          "command": "anytime-trail.specDocsCreateFolder",
-          "when": "view == anytimeTrail.specDocs && anytimeTrail.specDocsHasRoot",
-          "group": "navigation@4"
-        },
-        {
-          "command": "anytime-trail.specDocsRefresh",
-          "when": "view == anytimeTrail.specDocs && anytimeTrail.specDocsHasRoot",
-          "group": "navigation@5"
-        },
-        {
-          "command": "anytime-trail.specDocsOpenFolder",
-          "when": "view == anytimeTrail.specDocs && anytimeTrail.specDocsHasRoot",
-          "group": "navigation@6"
-        },
-        {
-          "command": "anytime-trail.specDocsCloneRepo",
-          "when": "view == anytimeTrail.specDocs && anytimeTrail.specDocsHasRoot",
-          "group": "navigation@7"
-        },
-        {
-          "command": "anytime-trail.graphRefresh",
-          "when": "view == anytimeTrail.graph",
-          "group": "navigation@1"
-        },
-        {
-          "command": "anytime-trail.changesRefresh",
-          "when": "view == anytimeTrail.changes",
-          "group": "navigation@1"
-        },
-        {
-          "submenu": "anytimeTrail.changesMore",
-          "when": "view == anytimeTrail.changes",
-          "group": "navigation@2"
-        },
         {
           "command": "anytime-trail.openTrailViewer",
           "when": "view == anytimeTrail.dashboard",
           "group": "navigation@1"
         },
         {
-          "command": "anytime-trail.importTrailData",
-          "when": "view == anytimeTrail.dashboard",
-          "group": "navigation@2"
-        },
-        {
           "command": "anytime-trail.c4View",
           "when": "view == anytimeTrail.c4Elements",
           "group": "navigation@1"
+        },
+        {
+          "command": "anytime-trail.aiMemoryRefresh",
+          "when": "view == anytimeTrail.aiMemory",
+          "group": "navigation"
         }
       ],
       "view/item/context": [
-        {
-          "command": "anytime-trail.specDocsCreateFile",
-          "when": "view == anytimeTrail.specDocs && viewItem == folder",
-          "group": "1_new@1"
-        },
-        {
-          "command": "anytime-trail.specDocsCreateFolder",
-          "when": "view == anytimeTrail.specDocs && viewItem == folder",
-          "group": "1_new@2"
-        },
-        {
-          "command": "anytime-trail.specDocsImportFiles",
-          "when": "view == anytimeTrail.specDocs && viewItem == folder",
-          "group": "1_new@3"
-        },
-        {
-          "command": "anytime-trail.specDocsCreateFile",
-          "when": "view == anytimeTrail.specDocs && viewItem == specDocsRoot",
-          "group": "1_new@1"
-        },
-        {
-          "command": "anytime-trail.specDocsCreateFolder",
-          "when": "view == anytimeTrail.specDocs && viewItem == specDocsRoot",
-          "group": "1_new@2"
-        },
-        {
-          "command": "anytime-trail.specDocsImportFiles",
-          "when": "view == anytimeTrail.specDocs && viewItem == specDocsRoot",
-          "group": "1_new@3"
-        },
-        {
-          "command": "anytime-trail.specDocsPaste",
-          "when": "view == anytimeTrail.specDocs && viewItem == specDocsRoot",
-          "group": "1_new@4"
-        },
-        {
-          "command": "anytime-trail.specDocsCut",
-          "when": "view == anytimeTrail.specDocs && viewItem != specDocsRoot",
-          "group": "2_clipboard@1"
-        },
-        {
-          "command": "anytime-trail.specDocsCopy",
-          "when": "view == anytimeTrail.specDocs && viewItem != specDocsRoot",
-          "group": "2_clipboard@2"
-        },
-        {
-          "command": "anytime-trail.specDocsPaste",
-          "when": "view == anytimeTrail.specDocs && viewItem != specDocsRoot",
-          "group": "2_clipboard@3"
-        },
-        {
-          "command": "anytime-trail.specDocsCopyPath",
-          "when": "view == anytimeTrail.specDocs && viewItem != specDocsRoot",
-          "group": "3_path@1"
-        },
-        {
-          "command": "anytime-trail.specDocsCopyFileName",
-          "when": "view == anytimeTrail.specDocs && viewItem != specDocsRoot",
-          "group": "3_path@2"
-        },
-        {
-          "command": "anytime-trail.specDocsRename",
-          "when": "view == anytimeTrail.specDocs && viewItem != specDocsRoot",
-          "group": "4_modify@1"
-        },
-        {
-          "command": "anytime-trail.specDocsDelete",
-          "when": "view == anytimeTrail.specDocs && viewItem != specDocsRoot",
-          "group": "4_modify@2"
-        },
-        {
-          "command": "anytime-trail.switchBranch",
-          "when": "view == anytimeTrail.specDocs && viewItem == specDocsRoot",
-          "group": "3_root@1"
-        },
-        {
-          "command": "anytime-trail.specDocsRemoveRoot",
-          "when": "view == anytimeTrail.specDocs && viewItem == specDocsRoot",
-          "group": "3_root@2"
-        },
-        {
-          "command": "anytime-trail.discardAll",
-          "when": "view == anytimeTrail.changes && viewItem == changesGroupChanges",
-          "group": "inline@1"
-        },
-        {
-          "command": "anytime-trail.stageAll",
-          "when": "view == anytimeTrail.changes && viewItem == changesGroupChanges",
-          "group": "inline@2"
-        },
-        {
-          "command": "anytime-trail.unstageAll",
-          "when": "view == anytimeTrail.changes && viewItem == changesGroupStaged",
-          "group": "inline@1"
-        },
-        {
-          "command": "anytime-trail.stageFile",
-          "when": "view == anytimeTrail.changes && viewItem == changesFileUnstaged",
-          "group": "inline@2"
-        },
-        {
-          "command": "anytime-trail.discardChanges",
-          "when": "view == anytimeTrail.changes && viewItem == changesFileUnstaged",
-          "group": "inline@1"
-        },
-        {
-          "command": "anytime-trail.unstageFile",
-          "when": "view == anytimeTrail.changes && viewItem == changesFileStaged",
-          "group": "inline@1"
-        },
         {
           "command": "anytime-trail.c4View",
           "when": "view == anytimeTrail.c4Elements && viewItem == c4Root",
@@ -524,29 +189,24 @@
           "command": "anytime-trail.runCoverageTest",
           "when": "view == anytimeTrail.c4Elements && viewItem == c4Level.c4",
           "group": "1_test@1"
+        },
+        {
+          "command": "anytime-trail.importTrailData",
+          "when": "view == anytimeTrail.dashboard && viewItem == sqliteDb",
+          "group": "inline"
+        },
+        {
+          "command": "anytime-trail.syncToSupabase",
+          "when": "view == anytimeTrail.dashboard && viewItem == supabaseDb",
+          "group": "inline"
+        },
+        {
+          "command": "anytime-trail.reconnectSupabase",
+          "when": "view == anytimeTrail.dashboard && viewItem == supabaseDb",
+          "group": "inline"
         }
       ]
     },
-    "keybindings": [
-      {
-        "command": "anytime-trail.specDocsCut",
-        "key": "ctrl+x",
-        "mac": "cmd+x",
-        "when": "focusedView == anytimeTrail.specDocs"
-      },
-      {
-        "command": "anytime-trail.specDocsCopy",
-        "key": "ctrl+c",
-        "mac": "cmd+c",
-        "when": "focusedView == anytimeTrail.specDocs"
-      },
-      {
-        "command": "anytime-trail.specDocsPaste",
-        "key": "ctrl+v",
-        "mac": "cmd+v",
-        "when": "focusedView == anytimeTrail.specDocs"
-      }
-    ],
     "configuration": {
       "title": "Anytime Trail",
       "properties": {
@@ -676,7 +336,7 @@
     "@types/sql.js": "1.4.9",
     "@types/vscode": "1.109.0",
     "@types/ws": "8.18.1",
-    "copy-webpack-plugin": "12.0.2",
+    "copy-webpack-plugin": "14.0.0",
     "jest": "29.7.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",

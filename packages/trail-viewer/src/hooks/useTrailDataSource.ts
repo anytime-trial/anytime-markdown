@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import type { ToolMetrics, TrailFilter, TrailMessage, TrailPromptEntry, TrailSession, TrailSessionCommit } from '../parser/types';
+import type { CostOptimizationData, ToolMetrics, TrailFilter, TrailMessage, TrailPromptEntry, TrailSession, TrailSessionCommit } from '../parser/types';
 import type { AnalyticsData } from '../components/AnalyticsPanel';
 import { SupabaseTrailReader } from './SupabaseTrailReader';
 
@@ -22,6 +22,9 @@ export interface TrailDataSourceResult {
   readonly fetchSessionMessages: (id: string) => Promise<readonly TrailMessage[]>;
   readonly fetchSessionCommits: (id: string) => Promise<readonly TrailSessionCommit[]>;
   readonly fetchSessionToolMetrics: (id: string) => Promise<ToolMetrics | null>;
+  readonly costOptimization: CostOptimizationData | null;
+  readonly fetchCostOptimization: () => Promise<CostOptimizationData | null>;
+  readonly reclassify: () => Promise<boolean>;
 }
 
 interface WsMessage {
@@ -81,6 +84,7 @@ export function useTrailDataSource(
   const [messages, setMessages] = useState<readonly TrailMessage[]>([]);
   const [prompts, setPrompts] = useState<readonly TrailPromptEntry[]>([]);
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
+  const [costOptimization, setCostOptimization] = useState<CostOptimizationData | null>(null);
   const [connected, setConnected] = useState(!isRemote || isSupabase);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -228,6 +232,41 @@ export function useTrailDataSource(
     [baseUrl, supabaseReader],
   );
 
+  // --- Fetch cost optimization data ---
+
+  const fetchCostOptimization = useCallback(
+    async (): Promise<CostOptimizationData | null> => {
+      try {
+        const res = await fetch(`${baseUrl}/api/trail/cost-optimization`);
+        if (!res.ok) return null;
+        return (await res.json()) as CostOptimizationData;
+      } catch {
+        return null;
+      }
+    },
+    [baseUrl],
+  );
+
+  // --- Reclassify all messages ---
+
+  const reclassify = useCallback(
+    async (): Promise<boolean> => {
+      try {
+        const res = await fetch(`${baseUrl}/api/trail/reclassify`, { method: 'POST' });
+        if (res.ok) {
+          // Refresh cost optimization data after reclassification
+          const updated = await fetchCostOptimization();
+          if (updated) setCostOptimization(updated);
+          return true;
+        }
+        return false;
+      } catch {
+        return false;
+      }
+    },
+    [baseUrl, fetchCostOptimization],
+  );
+
   // --- Search sessions ---
 
   const searchSessions = useCallback(
@@ -235,6 +274,38 @@ export function useTrailDataSource(
       void fetchSessions(filter);
     },
     [fetchSessions],
+  );
+
+  // --- Fetch analytics ---
+
+  const refreshAnalytics = useCallback(
+    async (): Promise<void> => {
+      try {
+        if (supabaseReader) {
+          const analyticsData = await supabaseReader.getAnalytics();
+          if (analyticsData) setAnalytics(analyticsData);
+        } else {
+          const res = await fetch(`${baseUrl}/api/trail/analytics`);
+          if (res.ok) {
+            const data: unknown = await res.json();
+            if (data && typeof data === 'object' && 'totals' in data) {
+              setAnalytics(data as AnalyticsData);
+            }
+          }
+        }
+      } catch {
+        // analytics endpoint may not exist
+      }
+      if (!supabaseReader) {
+        try {
+          const data = await fetchCostOptimization();
+          if (data) setCostOptimization(data);
+        } catch {
+          // cost-optimization endpoint may not exist
+        }
+      }
+    },
+    [baseUrl, supabaseReader, fetchCostOptimization],
   );
 
   // --- Initial fetch ---
@@ -257,26 +328,8 @@ export function useTrailDataSource(
         }
       })();
     }
-    // Fetch analytics
-    void (async () => {
-      try {
-        if (supabaseReader) {
-          const analyticsData = await supabaseReader.getAnalytics();
-          if (analyticsData) setAnalytics(analyticsData);
-        } else {
-          const res = await fetch(`${baseUrl}/api/trail/analytics`);
-          if (res.ok) {
-            const data: unknown = await res.json();
-            if (data && typeof data === 'object' && 'totals' in data) {
-              setAnalytics(data as AnalyticsData);
-            }
-          }
-        }
-      } catch {
-        // analytics endpoint may not exist
-      }
-    })();
-  }, [fetchSessions, baseUrl, supabaseReader]);
+    void refreshAnalytics();
+  }, [fetchSessions, baseUrl, supabaseReader, refreshAnalytics]);
 
   // --- WebSocket (remote mode only) ---
 
@@ -297,7 +350,8 @@ export function useTrailDataSource(
         try {
           const parsed: unknown = JSON.parse(String(event.data));
           if (isWsMessage(parsed) && parsed.type === 'sessions-updated') {
-            void fetchSessions();
+            void fetchSessions(undefined, true);
+            void refreshAnalytics();
           }
         } catch {
           // Malformed message — ignore
@@ -350,5 +404,8 @@ export function useTrailDataSource(
     fetchSessionMessages,
     fetchSessionCommits,
     fetchSessionToolMetrics,
+    costOptimization,
+    fetchCostOptimization,
+    reclassify,
   };
 }

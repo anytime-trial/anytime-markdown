@@ -14,89 +14,132 @@ export function drawEdge(
   const c = colors ?? getCanvasColors(true);
   ctx.save();
 
-  const { from, to, style, type } = edge;
+  const { style, type } = edge;
 
   ctx.strokeStyle = selected ? c.canvasSelection : style.stroke;
   ctx.lineWidth = selected ? style.strokeWidth + 1 : style.strokeWidth;
 
   const color = selected ? c.canvasSelection : style.stroke;
-  // 端点形状（未設定の場合、arrow/connectorタイプは endShape='arrow' をデフォルトにする）
   const startShape: EndpointShape = style.startShape ?? 'none';
   const endShape: EndpointShape = style.endShape ?? (type === 'connector' ? 'arrow' : 'none');
 
-  // ベジェ曲線パスの描画
-  if (edge.bezierPath?.length === 4) {
-    const [start, cp1, cp2, end] = edge.bezierPath;
-    ctx.beginPath();
-    ctx.moveTo(start.x, start.y);
-    ctx.bezierCurveTo(cp1.x, cp1.y, cp2.x, cp2.y, end.x, end.y);
-    ctx.stroke();
+  const labelPos = drawEdgePath(ctx, edge, startShape, endShape, color);
 
-    // 端点形状: ベジェ曲線の接線方向を使用
-    drawEndpointShape(ctx, startShape, start.x, start.y, cp1.x, cp1.y, color);
-    drawEndpointShape(ctx, endShape, end.x, end.y, cp2.x, cp2.y, color);
-
-    // ラベル（t=0.5のベジェ曲線上の点）
-    if (edge.label) {
-      const t = 0.5;
-      const mt = 1 - t;
-      const labelX = mt*mt*mt*start.x + 3*mt*mt*t*cp1.x + 3*mt*t*t*cp2.x + t*t*t*end.x;
-      const labelY = mt*mt*mt*start.y + 3*mt*mt*t*cp1.y + 3*mt*t*t*cp2.y + t*t*t*end.y;
-      drawEdgeLabel(ctx, edge.label, labelX, labelY, c);
-    }
-  } else if (edge.waypoints && edge.waypoints.length >= 2) {
-    // 既存の直交パス描画
-    ctx.beginPath();
-    ctx.moveTo(edge.waypoints[0].x, edge.waypoints[0].y);
-    for (let i = 1; i < edge.waypoints.length; i++) {
-      ctx.lineTo(edge.waypoints[i].x, edge.waypoints[i].y);
-    }
-    ctx.stroke();
-    const first = edge.waypoints[0];
-    const second = edge.waypoints[1];
-    const last = edge.waypoints.at(-1)!;
-    const prev = edge.waypoints.at(-2)!;
-    drawEndpointShape(ctx, startShape, first.x, first.y, second.x, second.y, color);
-    drawEndpointShape(ctx, endShape, last.x, last.y, prev.x, prev.y, color);
-
-    // ラベル（waypointsのパス中点に描画）
-    if (edge.label) {
-      const midIdx = Math.floor(edge.waypoints.length / 2);
-      const midPt = edge.waypoints[midIdx];
-      const prevPt = edge.waypoints[midIdx - 1] ?? midPt;
-      const labelX = (midPt.x + prevPt.x) / 2;
-      const labelY = (midPt.y + prevPt.y) / 2;
-      drawEdgeLabel(ctx, edge.label, labelX, labelY, c);
-    }
-  } else {
-    // 直線描画
-    ctx.beginPath();
-    ctx.moveTo(from.x, from.y);
-    ctx.lineTo(to.x, to.y);
-    ctx.stroke();
-    drawEndpointShape(ctx, startShape, from.x, from.y, to.x, to.y, color);
-    drawEndpointShape(ctx, endShape, to.x, to.y, from.x, from.y, color);
-
-    if (edge.label) {
-      const labelX = (from.x + to.x) / 2;
-      const labelY = (from.y + to.y) / 2;
-      drawEdgeLabel(ctx, edge.label, labelX, labelY, c);
-    }
+  if (edge.label && labelPos) {
+    drawEdgeLabel(ctx, edge.label, labelPos.x, labelPos.y, c);
   }
 
-  // 選択時: manualWaypoints のハンドルを描画
   if (selected && edge.manualWaypoints) {
-    const wpSize = 4;
-    for (const wp of edge.manualWaypoints) {
-      ctx.fillStyle = '#ffffff';
-      ctx.strokeStyle = c.canvasSelection;
-      ctx.lineWidth = 1.5;
-      ctx.fillRect(wp.x - wpSize, wp.y - wpSize, wpSize * 2, wpSize * 2);
-      ctx.strokeRect(wp.x - wpSize, wp.y - wpSize, wpSize * 2, wpSize * 2);
-    }
+    drawManualWaypointHandles(ctx, edge.manualWaypoints, c);
   }
 
   ctx.restore();
+}
+
+interface Point { readonly x: number; readonly y: number }
+
+/** 描画モードに応じたパスを描画し、ラベル位置を返す */
+function drawEdgePath(
+  ctx: CanvasRenderingContext2D,
+  edge: GraphEdge,
+  startShape: EndpointShape,
+  endShape: EndpointShape,
+  color: string,
+): Point | undefined {
+  if (edge.bezierPath?.length === 4) {
+    return drawBezierEdge(ctx, edge.bezierPath, startShape, endShape, color);
+  }
+  if (edge.waypoints && edge.waypoints.length >= 2) {
+    return drawWaypointEdge(ctx, edge.waypoints, startShape, endShape, color);
+  }
+  return drawStraightEdge(ctx, edge.from, edge.to, startShape, endShape, color);
+}
+
+/** ベジェ曲線パスを描画し、t=0.5 のラベル位置を返す */
+function drawBezierEdge(
+  ctx: CanvasRenderingContext2D,
+  bezierPath: readonly Point[],
+  startShape: EndpointShape,
+  endShape: EndpointShape,
+  color: string,
+): Point {
+  const [start, cp1, cp2, end] = bezierPath;
+  ctx.beginPath();
+  ctx.moveTo(start.x, start.y);
+  ctx.bezierCurveTo(cp1.x, cp1.y, cp2.x, cp2.y, end.x, end.y);
+  ctx.stroke();
+
+  drawEndpointShape(ctx, startShape, start.x, start.y, cp1.x, cp1.y, color);
+  drawEndpointShape(ctx, endShape, end.x, end.y, cp2.x, cp2.y, color);
+
+  const t = 0.5;
+  const mt = 1 - t;
+  return {
+    x: mt*mt*mt*start.x + 3*mt*mt*t*cp1.x + 3*mt*t*t*cp2.x + t*t*t*end.x,
+    y: mt*mt*mt*start.y + 3*mt*mt*t*cp1.y + 3*mt*t*t*cp2.y + t*t*t*end.y,
+  };
+}
+
+/** ウェイポイントパスを描画し、パス中点のラベル位置を返す */
+function drawWaypointEdge(
+  ctx: CanvasRenderingContext2D,
+  waypoints: readonly Point[],
+  startShape: EndpointShape,
+  endShape: EndpointShape,
+  color: string,
+): Point {
+  ctx.beginPath();
+  ctx.moveTo(waypoints[0].x, waypoints[0].y);
+  for (let i = 1; i < waypoints.length; i++) {
+    ctx.lineTo(waypoints[i].x, waypoints[i].y);
+  }
+  ctx.stroke();
+
+  const first = waypoints[0];
+  const second = waypoints[1];
+  const last = waypoints.at(-1)!;
+  const prev = waypoints.at(-2)!;
+  drawEndpointShape(ctx, startShape, first.x, first.y, second.x, second.y, color);
+  drawEndpointShape(ctx, endShape, last.x, last.y, prev.x, prev.y, color);
+
+  const midIdx = Math.floor(waypoints.length / 2);
+  const midPt = waypoints[midIdx];
+  const prevPt = waypoints[midIdx - 1] ?? midPt;
+  return { x: (midPt.x + prevPt.x) / 2, y: (midPt.y + prevPt.y) / 2 };
+}
+
+/** 直線パスを描画し、中点のラベル位置を返す */
+function drawStraightEdge(
+  ctx: CanvasRenderingContext2D,
+  from: Point,
+  to: Point,
+  startShape: EndpointShape,
+  endShape: EndpointShape,
+  color: string,
+): Point {
+  ctx.beginPath();
+  ctx.moveTo(from.x, from.y);
+  ctx.lineTo(to.x, to.y);
+  ctx.stroke();
+  drawEndpointShape(ctx, startShape, from.x, from.y, to.x, to.y, color);
+  drawEndpointShape(ctx, endShape, to.x, to.y, from.x, from.y, color);
+  return { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
+}
+
+/** 選択時の manualWaypoints ハンドルを描画 */
+function drawManualWaypointHandles(
+  ctx: CanvasRenderingContext2D,
+  manualWaypoints: readonly Point[],
+  c: CanvasColors,
+): void {
+  const wpSize = 4;
+  for (const wp of manualWaypoints) {
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = c.canvasSelection;
+    ctx.lineWidth = 1.5;
+    ctx.fillRect(wp.x - wpSize, wp.y - wpSize, wpSize * 2, wpSize * 2);
+    ctx.strokeRect(wp.x - wpSize, wp.y - wpSize, wpSize * 2, wpSize * 2);
+  }
 }
 
 /** エッジラベルを背景付きで描画 */
