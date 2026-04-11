@@ -1181,14 +1181,10 @@ export class TrailDatabase {
     const importedSessions = this.getImportedSessionMap();
     const UUID_RE = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/;
 
+    let sinceLastYield = 0;
     for (let i = 0; i < allFiles.length; i++) {
-      // Yield to event loop every 10 files to prevent Extension Host timeout
-      if (i > 0 && i % 10 === 0) {
-        await new Promise<void>((resolve) => setTimeout(resolve, 0));
-      }
       const { filePath, projectName } = allFiles[i];
       const increment = totalFiles > 0 ? 100 / totalFiles : 0;
-      onProgress?.(`(${i + 1}/${totalFiles}) ${path.basename(filePath)}`, increment);
 
       const isSubagent = path.basename(filePath).startsWith('agent-')
         || filePath.includes(`${path.sep}subagents${path.sep}`);
@@ -1251,6 +1247,13 @@ export class TrailDatabase {
       }
 
       try {
+        // Yield before heavy import to prevent Extension Host timeout
+        sinceLastYield++;
+        if (sinceLastYield >= 3) {
+          await new Promise<void>((resolve) => setTimeout(resolve, 0));
+          sinceLastYield = 0;
+        }
+        onProgress?.(`(${i + 1}/${totalFiles}) ${path.basename(filePath)}`, increment);
         this.importSession(filePath, projectName, isSubagent);
         imported++;
           if (gitRoot) {
