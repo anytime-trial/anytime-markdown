@@ -81,6 +81,22 @@ export class SyncService {
       }
     }
 
+    // Sync tasks (PRs)
+    try {
+      onProgress?.({ message: 'Syncing tasks...' });
+      const tasks = this.trailDb.getTasks();
+      await this.store.upsertTasks(tasks);
+      for (const task of tasks) {
+        const files = this.trailDb.getTaskFiles(task.id);
+        await this.store.upsertTaskFiles(files);
+        const c4Elements = this.trailDb.getTaskC4Elements(task.id);
+        await this.store.upsertTaskC4Elements(c4Elements);
+      }
+    } catch (e) {
+      TrailLogger.error('Failed to sync tasks', e);
+      errors++;
+    }
+
     return {
       synced,
       skipped: localSessions.length - toSync.length,

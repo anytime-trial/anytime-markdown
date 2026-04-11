@@ -4,6 +4,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { toUTC } from './dateUtils';
+import {
+  CREATE_TASKS,
+  CREATE_TASK_FILES,
+  CREATE_TASK_C4_ELEMENTS,
+  CREATE_TASK_INDEXES,
+  resolveTasks as resolveTasksImpl,
+} from './TaskResolver';
+import type { TaskRow, TaskFileRow, TaskC4ElementRow } from './TaskResolver';
+export type { TaskRow, TaskFileRow, TaskC4ElementRow } from './TaskResolver';
 
 declare const __non_webpack_require__: (id: string) => unknown;
 
@@ -497,7 +506,10 @@ export class TrailDatabase {
     db.run(CREATE_SESSIONS);
     db.run(CREATE_MESSAGES);
     db.run(CREATE_SESSION_COMMITS);
-    for (const sql of CREATE_INDEXES) {
+    db.run(CREATE_TASKS);
+    db.run(CREATE_TASK_FILES);
+    db.run(CREATE_TASK_C4_ELEMENTS);
+    for (const sql of [...CREATE_INDEXES, ...CREATE_TASK_INDEXES]) {
       db.run(sql);
     }
 
@@ -961,7 +973,8 @@ export class TrailDatabase {
   async importAll(
     onProgress?: (message: string, increment?: number) => void,
     gitRoot?: string,
-  ): Promise<{ imported: number; skipped: number; commitsResolved: number }> {
+    c4ModelPath?: string,
+  ): Promise<{ imported: number; skipped: number; commitsResolved: number; tasksResolved: number }> {
     const projectsDir = path.join(os.homedir(), '.claude', 'projects');
     let imported = 0;
     let skipped = 0;
@@ -971,7 +984,7 @@ export class TrailDatabase {
     try {
       projectDirs = fs.readdirSync(projectsDir);
     } catch {
-      return { imported, skipped, commitsResolved };
+      return { imported, skipped, commitsResolved, tasksResolved: 0 };
     }
 
     const allFiles: { filePath: string; projectName: string }[] = [];
@@ -1082,8 +1095,81 @@ export class TrailDatabase {
         }
       }
 
+    // Resolve tasks (PRs) from merge commits
+    let tasksResolved = 0;
+    if (gitRoot) {
+      try {
+        onProgress?.('Resolving tasks from merge commits...', 0);
+        tasksResolved = this.resolveTasks(gitRoot, c4ModelPath);
+      } catch {
+        // Skip task resolution errors
+      }
+    }
+
     this.save();
-    return { imported, skipped, commitsResolved };
+    return { imported, skipped, commitsResolved, tasksResolved };
+  }
+
+  /**
+   * git log のマージコミットからタスク（PR）を解決し、DBに保存する。
+   */
+  resolveTasks(gitRoot: string, c4ModelPath?: string): number {
+    const db = this.ensureDb();
+    const count = resolveTasksImpl(db, gitRoot, c4ModelPath);
+    if (count > 0) {
+      this.save();
+    }
+    return count;
+  }
+
+  // -------------------------------------------------------------------------
+  //  Task queries
+  // -------------------------------------------------------------------------
+
+  getTasks(): TaskRow[] {
+    const db = this.ensureDb();
+    const result = db.exec('SELECT * FROM tasks ORDER BY merged_at DESC');
+    if (!result[0]) return [];
+    const cols = result[0].columns;
+    return result[0].values.map((row) => {
+      const obj: Record<string, unknown> = {};
+      for (let i = 0; i < cols.length; i++) {
+        obj[cols[i]] = row[i];
+      }
+      return obj as unknown as TaskRow;
+    });
+  }
+
+  getTaskFiles(taskId: string): TaskFileRow[] {
+    const db = this.ensureDb();
+    const result = db.exec(
+      `SELECT * FROM task_files WHERE task_id = '${taskId.replaceAll("'", "''")}'`,
+    );
+    if (!result[0]) return [];
+    const cols = result[0].columns;
+    return result[0].values.map((row) => {
+      const obj: Record<string, unknown> = {};
+      for (let i = 0; i < cols.length; i++) {
+        obj[cols[i]] = row[i];
+      }
+      return obj as unknown as TaskFileRow;
+    });
+  }
+
+  getTaskC4Elements(taskId: string): TaskC4ElementRow[] {
+    const db = this.ensureDb();
+    const result = db.exec(
+      `SELECT * FROM task_c4_elements WHERE task_id = '${taskId.replaceAll("'", "''")}'`,
+    );
+    if (!result[0]) return [];
+    const cols = result[0].columns;
+    return result[0].values.map((row) => {
+      const obj: Record<string, unknown> = {};
+      for (let i = 0; i < cols.length; i++) {
+        obj[cols[i]] = row[i];
+      }
+      return obj as unknown as TaskC4ElementRow;
+    });
   }
 
   // -------------------------------------------------------------------------

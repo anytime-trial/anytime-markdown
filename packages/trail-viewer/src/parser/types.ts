@@ -181,3 +181,34 @@ export interface TrailEvaluation {
   readonly evaluator: string;
   readonly createdAt: string;
 }
+
+// --- Task (PR) types ---
+
+export interface TrailTask {
+  readonly id: string;
+  readonly mergeCommitHash: string;
+  readonly branchName: string | null;
+  readonly prNumber: number | null;
+  readonly title: string;
+  readonly mergedAt: string;
+  readonly baseBranch: string;
+  readonly commitCount: number;
+  readonly filesChanged: number;
+  readonly linesAdded: number;
+  readonly linesDeleted: number;
+  readonly resolvedAt: string | null;
+  readonly files?: readonly TrailTaskFile[];
+  readonly c4Elements?: readonly TrailTaskC4Element[];
+}
+
+export interface TrailTaskFile {
+  readonly filePath: string;
+  readonly linesAdded: number;
+  readonly linesDeleted: number;
+}
+
+export interface TrailTaskC4Element {
+  readonly elementId: string;
+  readonly elementType: string;
+  readonly matchType: string;
+}

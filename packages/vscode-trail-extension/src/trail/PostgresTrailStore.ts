@@ -1,5 +1,6 @@
 import { Pool } from 'pg';
 import type { SessionRow, MessageRow, SessionCommitRow } from './TrailDatabase';
+import type { TaskRow, TaskFileRow, TaskC4ElementRow } from './TaskResolver';
 import type { IRemoteTrailStore } from './IRemoteTrailStore';
 
 export class PostgresTrailStore implements IRemoteTrailStore {
@@ -149,6 +150,61 @@ export class PostgresTrailStore implements IRemoteTrailStore {
           r.committed_at, r.is_ai_assisted, r.files_changed,
           r.lines_added, r.lines_deleted,
         ],
+      );
+    }
+  }
+
+  async upsertTasks(rows: readonly TaskRow[]): Promise<void> {
+    if (rows.length === 0) return;
+    const pool = this.ensurePool();
+    for (const r of rows) {
+      await pool.query(
+        `INSERT INTO trail_tasks (
+          id, merge_commit_hash, branch_name, pr_number, title,
+          merged_at, base_branch, commit_count, files_changed,
+          lines_added, lines_deleted, resolved_at, synced_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
+        ON CONFLICT (id) DO UPDATE SET
+          merge_commit_hash = EXCLUDED.merge_commit_hash,
+          branch_name = EXCLUDED.branch_name, pr_number = EXCLUDED.pr_number,
+          title = EXCLUDED.title, merged_at = EXCLUDED.merged_at,
+          base_branch = EXCLUDED.base_branch, commit_count = EXCLUDED.commit_count,
+          files_changed = EXCLUDED.files_changed,
+          lines_added = EXCLUDED.lines_added, lines_deleted = EXCLUDED.lines_deleted,
+          resolved_at = EXCLUDED.resolved_at, synced_at = NOW()`,
+        [
+          r.id, r.merge_commit_hash, r.branch_name, r.pr_number, r.title,
+          r.merged_at, r.base_branch, r.commit_count, r.files_changed,
+          r.lines_added, r.lines_deleted, r.resolved_at,
+        ],
+      );
+    }
+  }
+
+  async upsertTaskFiles(rows: readonly TaskFileRow[]): Promise<void> {
+    if (rows.length === 0) return;
+    const pool = this.ensurePool();
+    for (const r of rows) {
+      await pool.query(
+        `INSERT INTO trail_task_files (task_id, file_path, lines_added, lines_deleted)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (task_id, file_path) DO UPDATE SET
+          lines_added = EXCLUDED.lines_added, lines_deleted = EXCLUDED.lines_deleted`,
+        [r.task_id, r.file_path, r.lines_added, r.lines_deleted],
+      );
+    }
+  }
+
+  async upsertTaskC4Elements(rows: readonly TaskC4ElementRow[]): Promise<void> {
+    if (rows.length === 0) return;
+    const pool = this.ensurePool();
+    for (const r of rows) {
+      await pool.query(
+        `INSERT INTO trail_task_c4_elements (task_id, element_id, element_type, match_type)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (task_id, element_id) DO UPDATE SET
+          element_type = EXCLUDED.element_type, match_type = EXCLUDED.match_type`,
+        [r.task_id, r.element_id, r.element_type, r.match_type],
       );
     }
   }
