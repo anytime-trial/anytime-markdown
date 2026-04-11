@@ -659,7 +659,15 @@ function DailySessionList({
                   {s.model}
                 </TableCell>
                 <TableCell align="right">
-                  {fmtTokens(s.usage.inputTokens + s.usage.outputTokens)}
+                  {fmtTokens(s.usage.inputTokens + s.usage.outputTokens + s.usage.cacheReadTokens + s.usage.cacheCreationTokens)}
+                  {(s.initialContextTokens != null || s.peakContextTokens != null) && (
+                    <Typography
+                      component="div"
+                      sx={{ fontFamily: 'monospace', fontSize: '0.7rem', color: colors.textSecondary, lineHeight: 1.2 }}
+                    >
+                      {fmtTokens(s.initialContextTokens ?? 0)}→{fmtTokens(s.peakContextTokens ?? 0)}
+                    </Typography>
+                  )}
                 </TableCell>
                 <TableCell align="right">
                   {fmtUsd(sessionCost(s))}
