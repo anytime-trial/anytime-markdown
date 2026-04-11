@@ -8,6 +8,7 @@ import { useCallback } from 'react';
 
 import { formatLocalDateTime } from '@anytime-markdown/trail-core/formatDate';
 import type { TrailSession } from '../parser/types';
+import { useTrailI18n } from '../i18n';
 import { useTrailTheme } from './TrailThemeContext';
 
 interface SessionListProps {
@@ -25,6 +26,7 @@ function formatSessionDate(startTime: string): string {
 }
 
 export function SessionList({ sessions, selectedId, onSelect }: Readonly<SessionListProps>) {
+  const { t } = useTrailI18n();
   const { colors } = useTrailTheme();
   const handleSelect = useCallback(
     (id: string) => () => {
@@ -37,7 +39,7 @@ export function SessionList({ sessions, selectedId, onSelect }: Readonly<Session
     return (
       <Box sx={{ p: 2 }}>
         <Typography variant="body2" sx={{ color: colors.textSecondary, p: 2 }}>
-          No sessions found
+          {t('sessionList.noSessions')}
         </Typography>
       </Box>
     );
@@ -66,7 +68,7 @@ export function SessionList({ sessions, selectedId, onSelect }: Readonly<Session
                 </Typography>
                 <Box component="span">
                   <Chip
-                    label={`${session.messageCount} messages`}
+                    label={`${session.messageCount} ${t('sessionList.messages')}`}
                     size="small"
                     variant="outlined"
                     sx={{ height: 20, fontSize: '0.7rem', borderColor: colors.iceBlue }}

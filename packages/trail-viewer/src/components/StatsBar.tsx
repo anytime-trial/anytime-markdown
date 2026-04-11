@@ -3,6 +3,7 @@ import Chip from '@mui/material/Chip';
 import Typography from '@mui/material/Typography';
 
 import type { TrailMessage, TrailSession } from '../parser/types';
+import { useTrailI18n } from '../i18n';
 import { useTrailTheme } from './TrailThemeContext';
 
 interface StatsBarProps {
@@ -29,6 +30,7 @@ function formatDuration(startTime: string, endTime: string): string {
 }
 
 export function StatsBar({ session, messages }: Readonly<StatsBarProps>) {
+  const { t } = useTrailI18n();
   const { colors } = useTrailTheme();
   if (!session) {
     return (
@@ -42,7 +44,7 @@ export function StatsBar({ session, messages }: Readonly<StatsBarProps>) {
         }}
       >
         <Typography variant="body2" sx={{ color: colors.textSecondary }}>
-          No session selected
+          {t('stats.noSessionSelected')}
         </Typography>
       </Box>
     );
@@ -65,31 +67,31 @@ export function StatsBar({ session, messages }: Readonly<StatsBarProps>) {
       }}
     >
       <Chip
-        label={`Input: ${formatNumber(usage.inputTokens)}`}
+        label={`${t('stats.input')} ${formatNumber(usage.inputTokens)}`}
         size="small"
         variant="outlined"
         sx={{ borderColor: colors.iceBlue, color: colors.iceBlue }}
       />
       <Chip
-        label={`Output: ${formatNumber(usage.outputTokens)}`}
+        label={`${t('stats.output')} ${formatNumber(usage.outputTokens)}`}
         size="small"
         variant="outlined"
         sx={{ borderColor: colors.error, color: colors.error }}
       />
       <Chip
-        label={`Cache read: ${formatNumber(usage.cacheReadTokens)}`}
+        label={`${t('stats.cacheRead')} ${formatNumber(usage.cacheReadTokens)}`}
         size="small"
         variant="outlined"
         sx={{ borderColor: colors.success, color: colors.success }}
       />
       <Chip
-        label={`Duration: ${formatDuration(session.startTime, session.endTime)}`}
+        label={`${t('stats.duration')} ${formatDuration(session.startTime, session.endTime)}`}
         size="small"
         variant="outlined"
         sx={{ borderColor: colors.textSecondary, color: colors.textSecondary }}
       />
       <Chip
-        label={`${messages.length} messages`}
+        label={`${messages.length} ${t('stats.messages')}`}
         size="small"
         variant="outlined"
         sx={{ borderColor: colors.textSecondary, color: colors.textSecondary }}

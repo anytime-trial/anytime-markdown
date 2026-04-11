@@ -7,6 +7,7 @@ import Toolbar from '@mui/material/Toolbar';
 import { useCallback, useMemo } from 'react';
 
 import type { TrailFilter, TrailSession } from '../parser/types';
+import { useTrailI18n } from '../i18n';
 import { useTrailTheme } from './TrailThemeContext';
 
 interface FilterBarProps {
@@ -18,6 +19,7 @@ interface FilterBarProps {
 const ALL_VALUE = '__all__';
 
 export function FilterBar({ filter, sessions, onChange }: Readonly<FilterBarProps>) {
+  const { t } = useTrailI18n();
   const { colors, radius } = useTrailTheme();
   const branches = useMemo(() => {
     const set = new Set<string>();
@@ -72,7 +74,7 @@ export function FilterBar({ filter, sessions, onChange }: Readonly<FilterBarProp
     >
       <TextField
         size="small"
-        placeholder="Search..."
+        placeholder={t('filter.searchPlaceholder')}
         value={filter.searchText ?? ''}
         onChange={handleSearchChange}
         slotProps={{
@@ -100,12 +102,12 @@ export function FilterBar({ filter, sessions, onChange }: Readonly<FilterBarProp
         <TextField
           select
           size="small"
-          label="Branch"
+          label={t('filter.branch')}
           value={filter.gitBranch ?? ALL_VALUE}
           onChange={handleBranchChange}
           sx={{ minWidth: 140 }}
         >
-          <MenuItem value={ALL_VALUE}>All branches</MenuItem>
+          <MenuItem value={ALL_VALUE}>{t('filter.allBranches')}</MenuItem>
           {branches.map((b) => (
             <MenuItem key={b} value={b}>
               {b}
@@ -115,12 +117,12 @@ export function FilterBar({ filter, sessions, onChange }: Readonly<FilterBarProp
         <TextField
           select
           size="small"
-          label="Model"
+          label={t('filter.model')}
           value={filter.model ?? ALL_VALUE}
           onChange={handleModelChange}
           sx={{ minWidth: 140 }}
         >
-          <MenuItem value={ALL_VALUE}>All models</MenuItem>
+          <MenuItem value={ALL_VALUE}>{t('filter.allModels')}</MenuItem>
           {models.map((m) => (
             <MenuItem key={m} value={m}>
               {m}
