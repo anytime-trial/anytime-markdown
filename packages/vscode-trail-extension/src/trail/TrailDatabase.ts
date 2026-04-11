@@ -1169,7 +1169,9 @@ export class TrailDatabase {
     const UUID_RE = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/;
 
     const BATCH_MESSAGE_LIMIT = 10_000;
+    const BATCH_FILE_LIMIT = 80;
     let batchMessageCount = 0;
+    let batchFileCount = 0;
     let inTransaction = false;
     for (let i = 0; i < allFiles.length; i++) {
       const { filePath, projectName } = allFiles[i];
@@ -1247,12 +1249,14 @@ export class TrailDatabase {
         db.run('BEGIN TRANSACTION');
         inTransaction = true;
         batchMessageCount = 0;
+        batchFileCount = 0;
       }
 
       try {
         const msgCount = this.importSession(filePath, projectName, isSubagent, true);
         imported++;
         batchMessageCount += msgCount;
+        batchFileCount++;
         if (gitRoot) {
           try {
             commitsResolved += this.resolveCommits(sid, gitRoot);
@@ -1261,7 +1265,7 @@ export class TrailDatabase {
       } catch { /* skip individual file errors */ }
 
       // Commit when message count exceeds limit or at end of loop
-      if (batchMessageCount >= BATCH_MESSAGE_LIMIT || i === allFiles.length - 1) {
+      if (batchMessageCount >= BATCH_MESSAGE_LIMIT || batchFileCount >= BATCH_FILE_LIMIT || i === allFiles.length - 1) {
         if (inTransaction) {
           try { db.run('COMMIT'); } catch { try { db.run('ROLLBACK'); } catch { /* ignore */ } }
           inTransaction = false;
