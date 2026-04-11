@@ -17,6 +17,7 @@ import { LineChart } from '@mui/x-charts/LineChart';
 import { formatLocalTime, toLocalDateKey } from '@anytime-markdown/trail-core/formatDate';
 import type { CostOptimizationData, ToolMetrics, TrailMessage, TrailSession, TrailSessionCommit, TrailTokenUsage } from '../parser/types';
 import { useTrailTheme } from './TrailThemeContext';
+import { useTrailI18n } from '../i18n';
 
 // ---------------------------------------------------------------------------
 //  Types
@@ -166,6 +167,7 @@ function OverviewCards({
   sessions?: readonly TrailSession[];
 }>) {
   const { colors, cardSx } = useTrailTheme();
+  const { t } = useTrailI18n();
   const [usageIdx, setUsageIdx] = useState(0);
   const [productivityIdx, setProductivityIdx] = useState(0);
   const [qualityIdx, setQualityIdx] = useState(0);
@@ -176,21 +178,21 @@ function OverviewCards({
     : '\u2014';
 
   const cards = [
-    { label: 'Total Sessions', value: fmtNum(totals.sessions) },
-    { label: 'Total Tokens', value: fmtTokens(totals.inputTokens + totals.outputTokens) },
-    { label: 'Estimated Cost', value: fmtUsd(totals.estimatedCostUsd) },
-    { label: 'Cache Hit Rate', value: cacheHitRate },
+    { label: t('analytics.totalSessions'), value: fmtNum(totals.sessions) },
+    { label: t('analytics.totalTokens'), value: fmtTokens(totals.inputTokens + totals.outputTokens) },
+    { label: t('analytics.estimatedCost'), value: fmtUsd(totals.estimatedCostUsd) },
+    { label: t('analytics.cacheHitRate'), value: cacheHitRate },
   ];
 
   const totalTokens = totals.inputTokens + totals.outputTokens;
   const hasLines = totals.totalLinesAdded > 0;
   const commitCards = [
-    { label: 'Total Commits', value: fmtNum(totals.totalCommits) },
-    { label: 'Lines Added', value: fmtNum(totals.totalLinesAdded) },
-    { label: 'Tokens/Line', value: hasLines
+    { label: t('analytics.totalCommits'), value: fmtNum(totals.totalCommits) },
+    { label: t('analytics.linesAdded'), value: fmtNum(totals.totalLinesAdded) },
+    { label: t('analytics.tokensPerLine'), value: hasLines
         ? fmtTokens(Math.round(totalTokens / totals.totalLinesAdded))
         : '\u2014' },
-    { label: 'Cost/Line', value: hasLines
+    { label: t('analytics.costPerLine'), value: hasLines
         ? fmtUsd(totals.estimatedCostUsd / totals.totalLinesAdded)
         : '\u2014' },
   ];
@@ -208,29 +210,29 @@ function OverviewCards({
     : 0;
 
   const efficiencyCards = [
-    { label: 'AI Commit %', value: totals.totalCommits > 0
+    { label: t('analytics.aiCommitPercent'), value: totals.totalCommits > 0
         ? fmtPercent(totals.totalAiAssistedCommits / totals.totalCommits)
         : '\u2014' },
-    { label: 'Avg Lines/Hour', value: totalDurationHours > 0 && totals.totalLinesAdded > 0
+    { label: t('analytics.avgLinesPerHour'), value: totalDurationHours > 0 && totals.totalLinesAdded > 0
         ? fmtNum(Math.round(totals.totalLinesAdded / totalDurationHours))
         : '\u2014' },
-    { label: 'Avg Cost/Hour', value: totalDurationHours > 0
+    { label: t('analytics.avgCostPerHour'), value: totalDurationHours > 0
         ? fmtUsd(totals.estimatedCostUsd / totalDurationHours)
         : '\u2014' },
-    { label: 'Avg Context Growth', value: avgContextGrowth > 0
+    { label: t('analytics.avgContextGrowth'), value: avgContextGrowth > 0
         ? `${fmtTokens(Math.round(avgContextGrowth))}/step`
         : '\u2014' },
   ];
 
   const hasToolMetrics = totals.totalEdits > 0 || totals.totalBuildRuns > 0 || totals.totalTestRuns > 0;
   const toolMetricsCards = [
-    { label: 'Retry Rate', value: totals.totalEdits > 0
+    { label: t('analytics.retryRate'), value: totals.totalEdits > 0
         ? fmtPercent(totals.totalRetries / totals.totalEdits)
         : '\u2014' },
-    { label: 'Build Fail Rate', value: totals.totalBuildRuns > 0
+    { label: t('analytics.buildFailRate'), value: totals.totalBuildRuns > 0
         ? fmtPercent(totals.totalBuildFails / totals.totalBuildRuns)
         : '\u2014' },
-    { label: 'Test Fail Rate', value: totals.totalTestRuns > 0
+    { label: t('analytics.testFailRate'), value: totals.totalTestRuns > 0
         ? fmtPercent(totals.totalTestFails / totals.totalTestRuns)
         : '\u2014' },
   ];
@@ -240,7 +242,7 @@ function OverviewCards({
   return (
     <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
       <CyclingCard
-        groupName="Usage"
+        groupName={t('analytics.groupUsage')}
         items={cards}
         index={usageIdx}
         onCycle={() => setUsageIdx((i) => (i + 1) % cards.length)}
@@ -248,7 +250,7 @@ function OverviewCards({
       />
       {totals.totalCommits > 0 && (
         <CyclingCard
-          groupName="Productivity"
+          groupName={t('analytics.groupProductivity')}
           items={commitCards}
           index={productivityIdx}
           onCycle={() => setProductivityIdx((i) => (i + 1) % commitCards.length)}
@@ -257,7 +259,7 @@ function OverviewCards({
       )}
       {totals.totalCommits > 0 && (
         <CyclingCard
-          groupName="Quality"
+          groupName={t('analytics.groupQuality')}
           items={efficiencyCards}
           index={qualityIdx}
           onCycle={() => setQualityIdx((i) => (i + 1) % efficiencyCards.length)}
@@ -266,7 +268,7 @@ function OverviewCards({
       )}
       {hasToolMetrics && (
         <CyclingCard
-          groupName="Tool Metrics"
+          groupName={t('analytics.groupToolMetrics')}
           items={toolMetricsCards}
           index={toolIdx}
           onCycle={() => setToolIdx((i) => (i + 1) % toolMetricsCards.length)}
@@ -279,13 +281,14 @@ function OverviewCards({
 
 function ToolUsageChart({ items }: Readonly<{ items: AnalyticsData['toolUsage'] }>) {
   const { colors, chartColors, radius } = useTrailTheme();
+  const { t } = useTrailI18n();
   if (items.length === 0) return null;
   const maxCount = items[0].count;
 
   return (
     <Box>
       <Typography variant="subtitle1" sx={{ mb: 1 }}>
-        Tool Usage
+        {t('analytics.toolUsageTitle')}
       </Typography>
       {items.map((item) => (
         <Box key={item.name} sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
@@ -337,11 +340,12 @@ function SessionCacheTimeline({
   onClose: () => void;
 }>) {
   const { colors, chartColors, cardSx } = useTrailTheme();
+  const { t } = useTrailI18n();
   const assistantMsgs = messages.filter((m) => m.type === 'assistant' && m.usage);
   if (assistantMsgs.length === 0) {
     return (
       <Paper elevation={0} sx={{ ...cardSx, mt: 1, p: 1.5 }}>
-        <Typography variant="body2" color="text.secondary">No token usage data in this session.</Typography>
+        <Typography variant="body2" color="text.secondary">{t('analytics.noTokenData')}</Typography>
       </Paper>
     );
   }
@@ -358,7 +362,7 @@ function SessionCacheTimeline({
     <Paper elevation={0} sx={{ ...cardSx, mt: 1, p: 1.5 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
         <Typography variant="subtitle2">
-          Session Cache Timeline ({assistantMsgs.length} turns)
+          {t('analytics.sessionCacheTimelineTitle')} ({assistantMsgs.length} {t('analytics.turns')})
         </Typography>
         <Typography
           variant="caption"
@@ -366,7 +370,7 @@ function SessionCacheTimeline({
           sx={{ cursor: 'pointer', color: colors.textSecondary, '&:hover': { textDecoration: 'underline' } }}
           onClick={onClose}
         >
-          Close
+          {t('analytics.close')}
         </Typography>
       </Box>
       <LineChart
@@ -401,6 +405,7 @@ function SessionCommitList({
   onClose: () => void;
 }>) {
   const { colors, cardSx } = useTrailTheme();
+  const { t } = useTrailI18n();
   const [commits, setCommits] = useState<readonly TrailSessionCommit[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -426,7 +431,7 @@ function SessionCommitList({
   if (loading) {
     return (
       <Paper elevation={0} sx={{ ...cardSx, mt: 1, p: 1.5 }}>
-        <Typography variant="body2" color="text.secondary">Loading commits...</Typography>
+        <Typography variant="body2" color="text.secondary">{t('analytics.loadingCommits')}</Typography>
       </Paper>
     );
   }
@@ -435,29 +440,29 @@ function SessionCommitList({
     <Paper elevation={0} sx={{ ...cardSx, mt: 1, p: 1.5 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
         <Typography variant="subtitle2">
-          Related Commits ({commits.length})
+          {t('analytics.relatedCommits')} ({commits.length})
         </Typography>
         <Typography
           variant="caption" color="text.secondary"
           sx={{ cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
           onClick={onClose}
         >
-          Close
+          {t('analytics.close')}
         </Typography>
       </Box>
       {commits.length === 0 ? (
         <Typography variant="body2" color="text.secondary">
-          No commits found in this session&apos;s time range
+          {t('analytics.noCommits')}
         </Typography>
       ) : (
         <>
           <Table size="small">
             <TableHead>
               <TableRow sx={{ '& .MuiTableCell-head': { color: colors.textSecondary, borderColor: colors.border } }}>
-                <TableCell>Hash</TableCell>
-                <TableCell>Message</TableCell>
-                <TableCell align="right">Files</TableCell>
-                <TableCell align="right">+/-</TableCell>
+                <TableCell>{t('analytics.commitHash')}</TableCell>
+                <TableCell>{t('analytics.commitMessage')}</TableCell>
+                <TableCell align="right">{t('analytics.commitFiles')}</TableCell>
+                <TableCell align="right">{t('analytics.commitDiff')}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -467,7 +472,7 @@ function SessionCommitList({
                     {c.commitHash.slice(0, 8)}
                     {c.isAiAssisted && (
                       <Typography component="span" variant="caption" sx={{ ml: 0.5, color: 'info.main' }}>
-                        AI
+                        {t('analytics.commitAI')}
                       </Typography>
                     )}
                   </TableCell>
@@ -484,7 +489,7 @@ function SessionCommitList({
           </Table>
           {totalAdded > 0 && (
             <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-              Tokens/Line: {fmtTokens(tokensPerLine)}
+              {t('analytics.tokensPerLineLabel')} {fmtTokens(tokensPerLine)}
             </Typography>
           )}
         </>
@@ -498,6 +503,7 @@ function SessionMetricsPanel({ session, toolMetrics }: Readonly<{
   toolMetrics?: ToolMetrics | null;
 }>) {
   const { colors, cardSx } = useTrailTheme();
+  const { t } = useTrailI18n();
   const s = session;
   const totalTokens = s.usage.inputTokens + s.usage.outputTokens;
   const cost = sessionCost(s);
@@ -514,32 +520,32 @@ function SessionMetricsPanel({ session, toolMetrics }: Readonly<{
 
   const tm = toolMetrics;
   const metrics = [
-    { label: 'Tokens/Step', value: s.messageCount > 0 ? fmtTokens(Math.round(totalTokens / s.messageCount)) : '\u2014' },
-    { label: 'Cost/Step', value: s.messageCount > 0 ? fmtUsd(cost / s.messageCount) : '\u2014' },
-    { label: 'Lines/Hour', value: durationHours > 0 && linesAdded > 0 ? fmtNum(Math.round(linesAdded / durationHours)) : '\u2014' },
-    { label: 'Cost/Hour', value: durationHours > 0 ? fmtUsd(cost / durationHours) : '\u2014' },
-    { label: 'Cost/Commit', value: (s.commitStats?.commits ?? 0) > 0 ? fmtUsd(cost / s.commitStats!.commits) : '\u2014' },
-    { label: 'Cache Hit', value: cacheInput > 0 ? fmtPercent(cacheHitRate) : '\u2014' },
-    { label: 'Output Ratio', value: cacheInput > 0 ? fmtPercent(outputRatio) : '\u2014' },
-    { label: 'Context Growth', value: s.messageCount > 0 ? `${fmtTokens(Math.round(contextGrowth))}/step` : '\u2014' },
-    { label: 'Net Lines', value: linesAdded > 0 || linesDeleted > 0 ? `+${fmtNum(linesAdded)} / -${fmtNum(linesDeleted)}` : '\u2014' },
-    { label: 'Files', value: (s.commitStats?.filesChanged ?? 0) > 0 ? fmtNum(s.commitStats!.filesChanged) : '\u2014' },
-    { label: 'Duration', value: durationMs > 0 ? fmtDuration(durationMs) : '\u2014' },
-    { label: 'Avg Interval', value: s.messageCount > 1 ? fmtDuration(durationMs / (s.messageCount - 1)) : '\u2014' },
-    { label: 'Retry Rate', value: tm && tm.totalEdits > 0
+    { label: t('analytics.tokensPerStep'), value: s.messageCount > 0 ? fmtTokens(Math.round(totalTokens / s.messageCount)) : '\u2014' },
+    { label: t('analytics.costPerStep'), value: s.messageCount > 0 ? fmtUsd(cost / s.messageCount) : '\u2014' },
+    { label: t('analytics.linesPerHour'), value: durationHours > 0 && linesAdded > 0 ? fmtNum(Math.round(linesAdded / durationHours)) : '\u2014' },
+    { label: t('analytics.costPerHour'), value: durationHours > 0 ? fmtUsd(cost / durationHours) : '\u2014' },
+    { label: t('analytics.costPerCommit'), value: (s.commitStats?.commits ?? 0) > 0 ? fmtUsd(cost / s.commitStats!.commits) : '\u2014' },
+    { label: t('analytics.cacheHit'), value: cacheInput > 0 ? fmtPercent(cacheHitRate) : '\u2014' },
+    { label: t('analytics.outputRatio'), value: cacheInput > 0 ? fmtPercent(outputRatio) : '\u2014' },
+    { label: t('analytics.contextGrowth'), value: s.messageCount > 0 ? `${fmtTokens(Math.round(contextGrowth))}/step` : '\u2014' },
+    { label: t('analytics.netLines'), value: linesAdded > 0 || linesDeleted > 0 ? `+${fmtNum(linesAdded)} / -${fmtNum(linesDeleted)}` : '\u2014' },
+    { label: t('analytics.metricFiles'), value: (s.commitStats?.filesChanged ?? 0) > 0 ? fmtNum(s.commitStats!.filesChanged) : '\u2014' },
+    { label: t('analytics.metricDuration'), value: durationMs > 0 ? fmtDuration(durationMs) : '\u2014' },
+    { label: t('analytics.avgInterval'), value: s.messageCount > 1 ? fmtDuration(durationMs / (s.messageCount - 1)) : '\u2014' },
+    { label: t('analytics.retryRate'), value: tm && tm.totalEdits > 0
         ? fmtPercent(tm.totalRetries / tm.totalEdits) : '\u2014' },
-    { label: 'Build Fail', value: tm && tm.totalBuildRuns > 0
+    { label: t('analytics.buildFail'), value: tm && tm.totalBuildRuns > 0
         ? fmtPercent(tm.totalBuildFails / tm.totalBuildRuns) : '\u2014' },
-    { label: 'Test Fail', value: tm && tm.totalTestRuns > 0
+    { label: t('analytics.testFail'), value: tm && tm.totalTestRuns > 0
         ? fmtPercent(tm.totalTestFails / tm.totalTestRuns) : '\u2014' },
-    { label: 'Interrupted', value: s.interruption?.interrupted
+    { label: t('analytics.metricInterrupted'), value: s.interruption?.interrupted
         ? `${s.interruption.reason === 'max_tokens' ? 'max_tokens' : 'no response'} (${fmtTokens(s.interruption.contextTokens)})`
         : '\u2014' },
   ];
 
   return (
     <Paper elevation={0} sx={{ ...cardSx, mt: 1, p: 1.5 }}>
-      <Typography variant="subtitle2" sx={{ mb: 1 }}>Session Metrics</Typography>
+      <Typography variant="subtitle2" sx={{ mb: 1 }}>{t('analytics.sessionMetricsTitle')}</Typography>
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 1 }}>
         {metrics.map((m) => (
           <Box key={m.label} sx={{ textAlign: 'center', p: 0.5 }}>
@@ -570,6 +576,7 @@ function DailySessionList({
   onClose: () => void;
 }>) {
   const { colors, cardSx } = useTrailTheme();
+  const { t } = useTrailI18n();
   const [timelineSessionId, setTimelineSessionId] = useState<string | null>(null);
   const [timelineMessages, setTimelineMessages] = useState<readonly TrailMessage[]>([]);
   const [timelineLoading, setTimelineLoading] = useState(false);
@@ -603,7 +610,7 @@ function DailySessionList({
     <Paper elevation={0} sx={{ ...cardSx, mt: 1, p: 1.5 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
         <Typography variant="subtitle2">
-          {date} — {daySessions.length} session{daySessions.length !== 1 ? 's' : ''}
+          {date} — {daySessions.length} {daySessions.length !== 1 ? t('sessionList.sessions') : t('sessionList.session')}
         </Typography>
         <Typography
           variant="caption"
@@ -611,21 +618,21 @@ function DailySessionList({
           sx={{ cursor: 'pointer', color: colors.textSecondary, '&:hover': { textDecoration: 'underline' } }}
           onClick={onClose}
         >
-          Close
+          {t('analytics.close')}
         </Typography>
       </Box>
       {daySessions.length === 0 ? (
-        <Typography variant="body2" color="text.secondary">No sessions found.</Typography>
+        <Typography variant="body2" color="text.secondary">{t('sessionList.noSessionsFound')}</Typography>
       ) : (
         <Table size="small">
           <TableHead>
             <TableRow sx={{ '& .MuiTableCell-head': { color: colors.textSecondary, borderColor: colors.border } }}>
-              <TableCell>Time</TableCell>
-              <TableCell>Model</TableCell>
-              <TableCell align="right">Tokens</TableCell>
-              <TableCell align="right">Cost</TableCell>
-              <TableCell align="right">Messages</TableCell>
-              <TableCell align="right">Commits(+/-)</TableCell>
+              <TableCell>{t('sessionList.timeHeader')}</TableCell>
+              <TableCell>{t('sessionList.modelHeader')}</TableCell>
+              <TableCell align="right">{t('sessionList.tokensHeader')}</TableCell>
+              <TableCell align="right">{t('sessionList.costHeader')}</TableCell>
+              <TableCell align="right">{t('sessionList.messagesHeader')}</TableCell>
+              <TableCell align="right">{t('sessionList.commitsHeader')}</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -642,11 +649,11 @@ function DailySessionList({
                   {s.interruption?.interrupted && (
                     <Tooltip title={
                       s.interruption.reason === 'max_tokens'
-                        ? `Interrupted: max_tokens (context: ${fmtTokens(s.interruption.contextTokens)})`
-                        : `Interrupted: no response (context: ${fmtTokens(s.interruption.contextTokens)})`
+                        ? `${t('sessionList.interruptedMaxTokens')} (${t('sessionList.contextLabel')} ${fmtTokens(s.interruption.contextTokens)})`
+                        : `${t('sessionList.interruptedNoResponse')} (${t('sessionList.contextLabel')} ${fmtTokens(s.interruption.contextTokens)})`
                     }>
                       <Chip
-                        label={s.interruption.reason === 'max_tokens' ? 'MAX' : 'N/R'}
+                        label={s.interruption.reason === 'max_tokens' ? t('sessionList.maxChip') : t('sessionList.nrChip')}
                         size="small"
                         color="warning"
                         variant="outlined"
@@ -684,7 +691,7 @@ function DailySessionList({
         </Table>
       )}
       {timelineLoading && (
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>Loading timeline...</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>{t('sessionList.loadingTimeline')}</Typography>
       )}
       {timelineSessionId && daySessions.find((s) => s.id === timelineSessionId) && (
         <SessionMetricsPanel
@@ -762,6 +769,7 @@ function DailyActivityChart({
   costOptimization?: CostOptimizationData | null;
 }>) {
   const { colors, chartColors } = useTrailTheme();
+  const { t } = useTrailI18n();
   const [mode, setMode] = useState<DailyViewMode>('tokens');
   const [period, setPeriod] = useState<PeriodDays>(30);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -815,7 +823,7 @@ function DailyActivityChart({
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Typography variant="subtitle1">
-            {isTokens ? 'Token Usage' : 'Estimated Cost'}
+            {isTokens ? t('chart.tokenUsage') : t('chart.estimatedCost')}
           </Typography>
           <ToggleButtonGroup
             value={period}
@@ -834,8 +842,8 @@ function DailyActivityChart({
           onChange={(_e, v: DailyViewMode | null) => { if (v) setMode(v); }}
           size="small"
         >
-          <ToggleButton value="tokens" sx={{ color: colors.textSecondary, borderColor: colors.border, '&.Mui-selected': { color: colors.iceBlue, bgcolor: colors.iceBlueBg, borderColor: colors.iceBlue }, '&:hover': { bgcolor: colors.hoverBg } }}>Tokens</ToggleButton>
-          <ToggleButton value="cost" sx={{ color: colors.textSecondary, borderColor: colors.border, '&.Mui-selected': { color: colors.iceBlue, bgcolor: colors.iceBlueBg, borderColor: colors.iceBlue }, '&:hover': { bgcolor: colors.hoverBg } }}>Cost</ToggleButton>
+          <ToggleButton value="tokens" sx={{ color: colors.textSecondary, borderColor: colors.border, '&.Mui-selected': { color: colors.iceBlue, bgcolor: colors.iceBlueBg, borderColor: colors.iceBlue }, '&:hover': { bgcolor: colors.hoverBg } }}>{t('chart.tokens')}</ToggleButton>
+          <ToggleButton value="cost" sx={{ color: colors.textSecondary, borderColor: colors.border, '&.Mui-selected': { color: colors.iceBlue, bgcolor: colors.iceBlueBg, borderColor: colors.iceBlue }, '&:hover': { bgcolor: colors.hoverBg } }}>{t('chart.cost')}</ToggleButton>
         </ToggleButtonGroup>
       </Box>
       <BarChart
