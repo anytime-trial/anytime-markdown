@@ -10,12 +10,13 @@ interface TrailLocaleContextValue {
 
 const TrailLocaleContext = createContext<TrailLocaleContextValue | null>(null);
 
+const TRANSLATION_MAP: Record<TrailLocale, TrailI18n> = { ja, en };
+
 export function TrailLocaleProvider({
   locale = 'en',
   children,
 }: Readonly<{ locale?: TrailLocale; children: React.ReactNode }>) {
-  const translationMap: Record<TrailLocale, TrailI18n> = { ja, en };
-  const translations = translationMap[locale];
+  const translations = TRANSLATION_MAP[locale];
   const t = useCallback((key: keyof TrailI18n) => translations[key], [translations]);
   return (
     <TrailLocaleContext.Provider value={{ t }}>
