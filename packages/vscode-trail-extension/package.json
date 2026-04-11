@@ -222,16 +222,6 @@
           "default": "",
           "markdownDescription": "Absolute path to the documentation directory for C4 document links. When set, Markdown files with `c4Scope` frontmatter are indexed and shown in the C4 viewer."
         },
-        "anytimeTrail.server.enabled": {
-          "type": "boolean",
-          "default": false,
-          "markdownDescription": "Enable the C4 data server for external web app access"
-        },
-        "anytimeTrail.server.port": {
-          "type": "number",
-          "default": 19840,
-          "markdownDescription": "Port number for the C4 data server"
-        },
         "anytimeTrail.coverage.path": {
           "type": "string",
           "default": "",

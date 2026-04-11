@@ -21,7 +21,7 @@ One command visualizes your entire TypeScript project structure at four levels o
 
 ![C4 Mermaid diagram example](images/c4-mermaid.png)
 
-**Live Viewer** (`http://localhost:19840`)
+**Live Viewer** (`http://localhost:19841`)
 
 - Three-pane layout: C4 graph, DSM matrix, and element tree
 - Drill down with L1 through L4 level switching
@@ -93,20 +93,7 @@ Generates or updates the Feature-Component Map (`featureMatrix`) from source cod
 
 ### 1. Enable the C4 data server
 
-Add to your VS Code `settings.json`:
-
-```json
-{
-  "anytimeTrail.server.enabled": true
-}
-```
-
-### 2. Reload VS Code
-
-`Ctrl+Shift+P` → `Developer: Reload Window`\
-Look for `C4 Server: :19840` in the status bar to confirm it is running.
-
-### 3. Run analysis
+### 2. Run analysis
 
 `Ctrl+Shift+P` → `Anytime Trail: Analyze C4`
 
@@ -115,7 +102,7 @@ Subsequent analyses update the existing tab in real time — no new tabs are ope
 
 > To import a Mermaid C4 file instead, use `Anytime Trail: Import C4`.
 
-### 4. Open the Trail Viewer
+### 3. Open the Trail Viewer
 
 Click the Trail icon in the **Dashboard** sidebar panel, or run the `Anytime Trail: Open Trail Viewer` command.\
 The browser opens at `http://localhost:19841`.
@@ -127,9 +114,7 @@ To import JSONL logs, click the inline button on the SQLite row in the Dashboard
 
 | Key | Default | Description |
 | --- | --- | --- |
-| `anytimeTrail.server.enabled` | `false` | Enable / disable the C4 data server |
-| `anytimeTrail.server.port` | `19840` | C4 data server port number |
-| `anytimeTrail.trailServer.port` | `19841` | Trail Viewer server port number |
+| `anytimeTrail.trailServer.port` | `19841` | Server port number |
 | `anytimeTrail.c4.modelPath` | `.vscode/c4-model.json` | Path to save the C4 model |
 | `anytimeTrail.c4.analyzeExcludePatterns` | `[".worktrees", ...]` | Directory patterns to exclude from analysis |
 | `anytimeTrail.docsPath` | `""` | Absolute path to the documentation directory for C4 document links |
