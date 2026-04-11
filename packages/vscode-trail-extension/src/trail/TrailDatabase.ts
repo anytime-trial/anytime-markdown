@@ -347,10 +347,16 @@ const INSERT_SESSION_COST = `INSERT OR REPLACE INTO session_costs
    cache_read_tokens, cache_creation_tokens, estimated_cost_usd)
   VALUES (?,?,?,?,?,?,?)`;
 
-const INSERT_DAILY_COST = `INSERT OR REPLACE INTO daily_costs
+const UPSERT_DAILY_COST = `INSERT INTO daily_costs
   (date, model, cost_type, input_tokens, output_tokens,
    cache_read_tokens, cache_creation_tokens, estimated_cost_usd)
-  VALUES (?,?,?,?,?,?,?,?)`;
+  VALUES (?,?,?,?,?,?,?,?)
+  ON CONFLICT(date, model, cost_type) DO UPDATE SET
+    input_tokens = input_tokens + excluded.input_tokens,
+    output_tokens = output_tokens + excluded.output_tokens,
+    cache_read_tokens = cache_read_tokens + excluded.cache_read_tokens,
+    cache_creation_tokens = cache_creation_tokens + excluded.cache_creation_tokens,
+    estimated_cost_usd = estimated_cost_usd + excluded.estimated_cost_usd`;
 
 const INSERT_MESSAGE = `INSERT OR REPLACE INTO messages
   (uuid, session_id, parent_uuid, type, subtype, text_content,
@@ -1060,83 +1066,63 @@ export class TrailDatabase {
       }
       scStmt.free();
 
-      // --- Rebuild daily_costs for affected dates (all sessions, not just this one) ---
+      // --- Populate daily_costs (date × model) via additive UPSERT ---
       const tzOffset = this.getLocalTzOffset();
 
-      // Find dates touched by this session
-      const datesResult = db.exec(
-        `SELECT DISTINCT DATE(timestamp, '${tzOffset}')
-         FROM messages WHERE session_id = ? AND type = 'assistant'`,
+      // actual costs
+      const dcActualResult = db.exec(
+        `SELECT DATE(timestamp, '${tzOffset}'), COALESCE(model,''),
+          SUM(input_tokens), SUM(output_tokens),
+          SUM(cache_read_tokens), SUM(cache_creation_tokens)
+         FROM messages WHERE session_id = ? AND type = 'assistant'
+         GROUP BY DATE(timestamp, '${tzOffset}'), model`,
         [sessionId],
       );
-      const affectedDates = (datesResult[0]?.values ?? []).map((r) => String(r[0]));
-
-      if (affectedDates.length > 0) {
-        const placeholders = affectedDates.map(() => '?').join(',');
-        // Delete existing daily_costs for affected dates
-        db.run(`DELETE FROM daily_costs WHERE date IN (${placeholders})`, affectedDates);
-
-        // Re-aggregate from all messages for those dates
-        const dcStmt = db.prepare(INSERT_DAILY_COST);
-
-        // actual
-        const dcActual = db.exec(
-          `SELECT DATE(timestamp, '${tzOffset}'), COALESCE(model,''),
-            SUM(input_tokens), SUM(output_tokens),
-            SUM(cache_read_tokens), SUM(cache_creation_tokens)
-           FROM messages WHERE type = 'assistant'
-            AND DATE(timestamp, '${tzOffset}') IN (${placeholders})
-           GROUP BY DATE(timestamp, '${tzOffset}'), model`,
-          affectedDates,
-        );
-        for (const row of dcActual[0]?.values ?? []) {
-          const d = String(row[0]); const m = String(row[1]);
-          const inp = Number(row[2]); const outp = Number(row[3]);
-          const cr = Number(row[4]); const cc = Number(row[5]);
-          dcStmt.run([d, m, 'actual', inp, outp, cr, cc, estimateCost(m, inp, outp, cr, cc)]);
-        }
-
-        // rule
-        const dcRule = db.exec(
-          `SELECT DATE(a.timestamp, '${tzOffset}'),
-            COALESCE(u.rule_recommended_model, 'sonnet'),
-            SUM(a.input_tokens), SUM(a.output_tokens),
-            SUM(a.cache_read_tokens), SUM(a.cache_creation_tokens)
-           FROM messages a
-           LEFT JOIN messages u ON a.parent_uuid = u.uuid AND u.type = 'user'
-           WHERE a.type = 'assistant'
-            AND DATE(a.timestamp, '${tzOffset}') IN (${placeholders})
-           GROUP BY DATE(a.timestamp, '${tzOffset}'), COALESCE(u.rule_recommended_model, 'sonnet')`,
-          affectedDates,
-        );
-        for (const row of dcRule[0]?.values ?? []) {
-          const d = String(row[0]); const m = String(row[1]);
-          const inp = Number(row[2]); const outp = Number(row[3]);
-          const cr = Number(row[4]); const cc = Number(row[5]);
-          dcStmt.run([d, m, 'rule', inp, outp, cr, cc, estimateCost(m, inp, outp, cr, cc)]);
-        }
-
-        // feature
-        const dcFeature = db.exec(
-          `SELECT DATE(a.timestamp, '${tzOffset}'),
-            COALESCE(a.feature_recommended_model, 'sonnet'),
-            SUM(a.input_tokens), SUM(a.output_tokens),
-            SUM(a.cache_read_tokens), SUM(a.cache_creation_tokens)
-           FROM messages a
-           WHERE a.type = 'assistant'
-            AND DATE(a.timestamp, '${tzOffset}') IN (${placeholders})
-           GROUP BY DATE(a.timestamp, '${tzOffset}'), COALESCE(a.feature_recommended_model, 'sonnet')`,
-          affectedDates,
-        );
-        for (const row of dcFeature[0]?.values ?? []) {
-          const d = String(row[0]); const m = String(row[1]);
-          const inp = Number(row[2]); const outp = Number(row[3]);
-          const cr = Number(row[4]); const cc = Number(row[5]);
-          dcStmt.run([d, m, 'feature', inp, outp, cr, cc, estimateCost(m, inp, outp, cr, cc)]);
-        }
-
-        dcStmt.free();
+      const dcStmt = db.prepare(UPSERT_DAILY_COST);
+      for (const row of dcActualResult[0]?.values ?? []) {
+        const d = String(row[0]); const m = String(row[1]);
+        const inp = Number(row[2]); const outp = Number(row[3]);
+        const cr = Number(row[4]); const cc = Number(row[5]);
+        dcStmt.run([d, m, 'actual', inp, outp, cr, cc, estimateCost(m, inp, outp, cr, cc)]);
       }
+
+      // rule-based estimated costs
+      const dcRuleResult = db.exec(
+        `SELECT DATE(a.timestamp, '${tzOffset}'),
+          COALESCE(u.rule_recommended_model, 'sonnet'),
+          SUM(a.input_tokens), SUM(a.output_tokens),
+          SUM(a.cache_read_tokens), SUM(a.cache_creation_tokens)
+         FROM messages a
+         LEFT JOIN messages u ON a.parent_uuid = u.uuid AND u.type = 'user'
+         WHERE a.session_id = ? AND a.type = 'assistant'
+         GROUP BY DATE(a.timestamp, '${tzOffset}'), COALESCE(u.rule_recommended_model, 'sonnet')`,
+        [sessionId],
+      );
+      for (const row of dcRuleResult[0]?.values ?? []) {
+        const d = String(row[0]); const m = String(row[1]);
+        const inp = Number(row[2]); const outp = Number(row[3]);
+        const cr = Number(row[4]); const cc = Number(row[5]);
+        dcStmt.run([d, m, 'rule', inp, outp, cr, cc, estimateCost(m, inp, outp, cr, cc)]);
+      }
+
+      // feature-based estimated costs
+      const dcFeatureResult = db.exec(
+        `SELECT DATE(a.timestamp, '${tzOffset}'),
+          COALESCE(a.feature_recommended_model, 'sonnet'),
+          SUM(a.input_tokens), SUM(a.output_tokens),
+          SUM(a.cache_read_tokens), SUM(a.cache_creation_tokens)
+         FROM messages a
+         WHERE a.session_id = ? AND a.type = 'assistant'
+         GROUP BY DATE(a.timestamp, '${tzOffset}'), COALESCE(a.feature_recommended_model, 'sonnet')`,
+        [sessionId],
+      );
+      for (const row of dcFeatureResult[0]?.values ?? []) {
+        const d = String(row[0]); const m = String(row[1]);
+        const inp = Number(row[2]); const outp = Number(row[3]);
+        const cr = Number(row[4]); const cc = Number(row[5]);
+        dcStmt.run([d, m, 'feature', inp, outp, cr, cc, estimateCost(m, inp, outp, cr, cc)]);
+      }
+      dcStmt.free();
 
       db.run('COMMIT');
     } catch (err) {
@@ -1150,6 +1136,9 @@ export class TrailDatabase {
     gitRoot?: string,
     c4ModelPath?: string,
   ): Promise<{ imported: number; skipped: number; commitsResolved: number; tasksResolved: number }> {
+    // Clear daily_costs before import to avoid double-counting from additive UPSERT
+    this.ensureDb().run('DELETE FROM daily_costs');
+
     const projectsDir = path.join(os.homedir(), '.claude', 'projects');
     let imported = 0;
     let skipped = 0;
