@@ -1206,8 +1206,8 @@ export class TrailDatabase {
     const totalFiles = sessionDirs.reduce((s, d) => s + 1 + d.subagentFiles.length, 0);
     onProgress?.(`Found ${totalSessions} sessions (${totalFiles} files)`, 0);
 
-    const BATCH_MESSAGE_LIMIT = 10_000;
-    const BATCH_FILE_LIMIT = 50;
+    const BATCH_MESSAGE_LIMIT = 20_000;
+    const BATCH_FILE_LIMIT = 100;
     let batchMessageCount = 0;
     let batchFileCount = 0;
     let inTransaction = false;
