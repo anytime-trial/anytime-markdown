@@ -1,4 +1,4 @@
-import type { Database } from 'sql.js';
+import type { Database, Statement as SqlJsStatement } from 'sql.js';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -772,6 +772,12 @@ export class TrailDatabase {
     };
   }
 
+  /** Session-Id トレーラーから UUID を抽出。なければ null */
+  parseSessionIdFromBody(body: string): string | null {
+    const match = /^Session-Id:\s*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\s*$/im.exec(body);
+    return match ? match[1] : null;
+  }
+
   resolveCommits(sessionId: string, gitRoot: string): number {
     const db = this.ensureDb();
     const range = this.getSessionTimeRange(sessionId);
@@ -787,10 +793,34 @@ export class TrailDatabase {
     const execOpts = { encoding: 'utf-8' as const, timeout: 10_000 };
     const logFormat = '%H%x00%s%x00%an%x00%aI%x00%b%x1e';
 
+    const insertStmt = db.prepare(
+      `INSERT OR IGNORE INTO session_commits
+        (session_id, commit_hash, commit_message, author, committed_at,
+         is_ai_assisted, files_changed, lines_added, lines_deleted)
+        VALUES (?,?,?,?,?,?,?,?,?)`,
+    );
+
+    let count = 0;
+
+    // Phase A: Session-Id trailer exact match
+    try {
+      const grepPattern = `^Session-Id: ${sessionId}$`;
+      const phaseAOutput = execFileSync('git', [
+        'log', '--all',
+        '--extended-regexp', `--grep=${grepPattern}`,
+        `--format=${logFormat}`,
+        '--no-merges',
+      ], { ...execOpts, cwd: gitRoot });
+
+      count += this.processCommitEntries(phaseAOutput, sessionId, insertStmt, execOpts, gitRoot);
+    } catch {
+      // git grep may fail if no commits match — not an error
+    }
+
+    // Phase B: Time-range fallback (existing behavior + Session-Id filter)
     let logOutput = '';
     const useBranch = gitBranch && gitBranch.trim() !== '';
     try {
-      // Try branch-specific log first (or --all if no branch)
       logOutput = execFileSync('git', [
         'log', useBranch ? gitBranch : '--all',
         `--after=${startTime}`,
@@ -799,7 +829,6 @@ export class TrailDatabase {
         '--no-merges',
       ], { ...execOpts, cwd: gitRoot });
     } catch {
-      // Fallback to --all if branch not found
       try {
         logOutput = execFileSync('git', [
           'log', '--all',
@@ -809,28 +838,44 @@ export class TrailDatabase {
           '--no-merges',
         ], { ...execOpts, cwd: gitRoot });
       } catch {
-        // On any git error, mark as resolved and return 0
+        // On any git error, mark as resolved and return Phase A count
+        insertStmt.free();
         db.run(
           "UPDATE sessions SET commits_resolved_at = datetime('now') WHERE id = ?",
           [sessionId],
         );
-        return 0;
+        return count;
       }
     }
 
+    count += this.processCommitEntries(logOutput, sessionId, insertStmt, execOpts, gitRoot, true);
+
+    insertStmt.free();
+
+    db.run(
+      "UPDATE sessions SET commits_resolved_at = datetime('now') WHERE id = ?",
+      [sessionId],
+    );
+
+    return count;
+  }
+
+  /** Parse git log output and insert commits into session_commits table.
+   *  @param filterBySessionId If true, skip commits whose Session-Id trailer belongs to another session */
+  private processCommitEntries(
+    logOutput: string,
+    sessionId: string,
+    insertStmt: SqlJsStatement,
+    execOpts: { encoding: 'utf-8'; timeout: number },
+    gitRoot: string,
+    filterBySessionId = false,
+  ): number {
     const commits = logOutput
       .split('\x1e')
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
 
     let count = 0;
-    const insertStmt = db.prepare(
-      `INSERT OR IGNORE INTO session_commits
-        (session_id, commit_hash, commit_message, author, committed_at,
-         is_ai_assisted, files_changed, lines_added, lines_deleted)
-        VALUES (?,?,?,?,?,?,?,?,?)`,
-    );
-
     for (const entry of commits) {
       const parts = entry.split('\x00');
       if (parts.length < 4) continue;
@@ -841,10 +886,14 @@ export class TrailDatabase {
       const committedAt = toUTC(parts[3]);
       const body = parts[4] ?? '';
 
-      // Check for AI co-authoring
+      // Phase B filter: skip commits that belong to a different session
+      if (filterBySessionId) {
+        const trailerSessionId = this.parseSessionIdFromBody(body);
+        if (trailerSessionId && trailerSessionId !== sessionId) continue;
+      }
+
       const isAiAssisted = /Co-Authored-By:.*Claude/i.test(body) ? 1 : 0;
 
-      // Get file stats via numstat
       let filesChanged = 0;
       let linesAdded = 0;
       let linesDeleted = 0;
@@ -858,7 +907,6 @@ export class TrailDatabase {
           if (!trimmed) continue;
           const [added, deleted] = trimmed.split('\t');
           filesChanged++;
-          // Binary files show as "-"
           if (added !== '-') linesAdded += Number.parseInt(added, 10) || 0;
           if (deleted !== '-') linesDeleted += Number.parseInt(deleted, 10) || 0;
         }
@@ -872,13 +920,6 @@ export class TrailDatabase {
       ]);
       count++;
     }
-
-    insertStmt.free();
-
-    db.run(
-      "UPDATE sessions SET commits_resolved_at = datetime('now') WHERE id = ?",
-      [sessionId],
-    );
 
     return count;
   }
