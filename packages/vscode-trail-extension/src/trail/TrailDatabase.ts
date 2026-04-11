@@ -1250,7 +1250,7 @@ export class TrailDatabase {
       try {
         // Yield before heavy import to prevent Extension Host timeout
         sinceLastYield++;
-        if (sinceLastYield >= 3) {
+        if (sinceLastYield >= 10) {
           await new Promise<void>((resolve) => setTimeout(resolve, 0));
           sinceLastYield = 0;
         }
