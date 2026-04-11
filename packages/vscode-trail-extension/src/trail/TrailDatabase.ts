@@ -1260,7 +1260,7 @@ export class TrailDatabase {
           try { db.run('COMMIT'); } catch { try { db.run('ROLLBACK'); } catch { /* ignore */ } }
           inTransaction = false;
         }
-        onProgress?.(`${batchMessageCount} messages (${imported}/${totalFiles - skipped})`, increment);
+        onProgress?.(`${batchMessageCount} messages (${imported + skipped}/${totalFiles}, skipped ${skipped})`, increment);
         // Yield to event loop to prevent Extension Host timeout
         await new Promise<void>((resolve) => setTimeout(resolve, 0));
       }
