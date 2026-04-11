@@ -2,7 +2,36 @@
 const sqlAsmActual = require('/anytime-markdown/node_modules/sql.js/dist/sql-asm.js'); // eslint-disable-line @typescript-eslint/no-require-imports
 (global as Record<string, unknown>).__non_webpack_require__ = (_path: string) => sqlAsmActual;
 
-import { TrailDatabase } from '../TrailDatabase';
+import { TrailDatabase, estimateCost } from '../TrailDatabase';
+
+describe('estimateCost', () => {
+  it('should calculate sonnet cost with all 4 token types', () => {
+    // input: 1M, output: 1M, cacheRead: 1M, cacheCreation: 1M
+    // cost = (1M * 3 + 1M * 15 + 1M * 0.3 + 1M * 3.75) / 1M = $22.05
+    const result = estimateCost('claude-sonnet-4-6', 1_000_000, 1_000_000, 1_000_000, 1_000_000);
+    expect(result).toBeCloseTo(22.05);
+  });
+
+  it('should calculate opus cost with model-specific rates', () => {
+    const result = estimateCost('claude-opus-4-6', 1_000_000, 1_000_000, 1_000_000, 1_000_000);
+    expect(result).toBeCloseTo(110.25); // 15 + 75 + 1.5 + 18.75
+  });
+
+  it('should calculate haiku cost with model-specific rates', () => {
+    const result = estimateCost('claude-haiku-4-5', 1_000_000, 1_000_000, 1_000_000, 1_000_000);
+    expect(result).toBeCloseTo(5.88); // 0.8 + 4 + 0.08 + 1.0
+  });
+
+  it('should fallback to sonnet rates for unknown models', () => {
+    const result = estimateCost('unknown-model', 1_000_000, 0, 0, 0);
+    expect(result).toBeCloseTo(3.0);
+  });
+
+  it('should match opus by partial name', () => {
+    const result = estimateCost('some-opus-variant', 1_000_000, 0, 0, 0);
+    expect(result).toBeCloseTo(15.0);
+  });
+});
 
 describe('TrailDatabase.getLastImportedAt', () => {
   it('セッションがない場合はnullを返す', async () => {

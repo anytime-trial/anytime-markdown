@@ -1730,7 +1730,7 @@ export class TrailDatabase {
         inputTokens: inp,
         outputTokens: out,
         cacheReadTokens: cacheRead,
-        estimatedCostUsd: estimateCost(model, inp, out, cacheRead),
+        estimatedCostUsd: estimateCost(model, inp, out, cacheRead, 0),
       };
     });
 
@@ -1886,12 +1886,12 @@ export class TrailDatabase {
     const db = this.ensureDb();
 
     // Helper: compute cost for a model + tokens
-    const cost = (model: string, input: number, output: number, cacheRead: number): number =>
-      estimateCost(model, input, output, cacheRead);
+    const cost = (model: string, input: number, output: number, cacheRead: number, cacheCreation: number): number =>
+      estimateCost(model, input, output, cacheRead, cacheCreation);
 
     // 1. Actual cost by model (from messages)
     const actualResult = db.exec(
-      `SELECT COALESCE(model,''), SUM(input_tokens), SUM(output_tokens), SUM(cache_read_tokens)
+      `SELECT COALESCE(model,''), SUM(input_tokens), SUM(output_tokens), SUM(cache_read_tokens), SUM(cache_creation_tokens)
        FROM messages WHERE type = 'assistant' AND model IS NOT NULL
        GROUP BY model`,
     );
@@ -1899,7 +1899,7 @@ export class TrailDatabase {
     let actualTotal = 0;
     for (const row of actualResult[0]?.values ?? []) {
       const m = String(row[0]);
-      const c = cost(m, Number(row[1]), Number(row[2]), Number(row[3]));
+      const c = cost(m, Number(row[1]), Number(row[2]), Number(row[3]), Number(row[4]));
       actualByModel[m] = (actualByModel[m] ?? 0) + c;
       actualTotal += c;
     }
@@ -1908,7 +1908,7 @@ export class TrailDatabase {
     //    from their preceding user message (joined via parent_uuid or session ordering)
     const ruleResult = db.exec(
       `SELECT COALESCE(u.rule_recommended_model, 'sonnet') AS rec_model,
-              SUM(a.input_tokens), SUM(a.output_tokens), SUM(a.cache_read_tokens)
+              SUM(a.input_tokens), SUM(a.output_tokens), SUM(a.cache_read_tokens), SUM(a.cache_creation_tokens)
        FROM messages a
        JOIN messages u ON a.parent_uuid = u.uuid
        WHERE a.type = 'assistant' AND u.type = 'user'
@@ -1918,7 +1918,7 @@ export class TrailDatabase {
     let ruleTotal = 0;
     for (const row of ruleResult[0]?.values ?? []) {
       const m = String(row[0]);
-      const c = cost(m, Number(row[1]), Number(row[2]), Number(row[3]));
+      const c = cost(m, Number(row[1]), Number(row[2]), Number(row[3]), Number(row[4]));
       ruleByModel[m] = (ruleByModel[m] ?? 0) + c;
       ruleTotal += c;
     }
@@ -1926,7 +1926,7 @@ export class TrailDatabase {
     // 3. Feature-based estimate: use feature_recommended_model from assistant messages
     const featureResult = db.exec(
       `SELECT COALESCE(feature_recommended_model, 'sonnet') AS rec_model,
-              SUM(input_tokens), SUM(output_tokens), SUM(cache_read_tokens)
+              SUM(input_tokens), SUM(output_tokens), SUM(cache_read_tokens), SUM(cache_creation_tokens)
        FROM messages WHERE type = 'assistant'
        GROUP BY rec_model`,
     );
@@ -1934,7 +1934,7 @@ export class TrailDatabase {
     let featureTotal = 0;
     for (const row of featureResult[0]?.values ?? []) {
       const m = String(row[0]);
-      const c = cost(m, Number(row[1]), Number(row[2]), Number(row[3]));
+      const c = cost(m, Number(row[1]), Number(row[2]), Number(row[3]), Number(row[4]));
       featureByModel[m] = (featureByModel[m] ?? 0) + c;
       featureTotal += c;
     }
@@ -1944,7 +1944,8 @@ export class TrailDatabase {
     const dailyResult = db.exec(
       `SELECT DATE(m.timestamp, '${tzOffset}') AS d,
               SUM(m.input_tokens) AS inp, SUM(m.output_tokens) AS outp,
-              SUM(m.cache_read_tokens) AS cr, COALESCE(m.model,'') AS mdl
+              SUM(m.cache_read_tokens) AS cr, SUM(m.cache_creation_tokens) AS cc,
+              COALESCE(m.model,'') AS mdl
        FROM messages m
        WHERE m.type = 'assistant' AND m.timestamp >= DATE('now', '${tzOffset}', '-90 days')
        GROUP BY d, mdl ORDER BY d`,
@@ -1955,12 +1956,13 @@ export class TrailDatabase {
       const inp = Number(row[1]);
       const outp = Number(row[2]);
       const cr = Number(row[3]);
-      const mdl = String(row[4]);
+      const cc = Number(row[4]);
+      const mdl = String(row[5]);
       const entry = dailyMap.get(d) ?? { actual: 0, rule: 0, feature: 0 };
-      entry.actual += cost(mdl, inp, outp, cr);
+      entry.actual += cost(mdl, inp, outp, cr, cc);
       // For daily, use sonnet as default estimate (detailed per-message would be too slow)
-      entry.rule += cost('sonnet', inp, outp, cr);
-      entry.feature += cost('sonnet', inp, outp, cr);
+      entry.rule += cost('sonnet', inp, outp, cr, cc);
+      entry.feature += cost('sonnet', inp, outp, cr, cc);
       dailyMap.set(d, entry);
     }
 
@@ -1969,7 +1971,7 @@ export class TrailDatabase {
       `SELECT DATE(a.timestamp, '${tzOffset}') AS d,
               COALESCE(u.rule_recommended_model, 'sonnet') AS rule_rec,
               COALESCE(a.feature_recommended_model, 'sonnet') AS feat_rec,
-              a.input_tokens, a.output_tokens, a.cache_read_tokens
+              a.input_tokens, a.output_tokens, a.cache_read_tokens, a.cache_creation_tokens
        FROM messages a
        LEFT JOIN messages u ON a.parent_uuid = u.uuid AND u.type = 'user'
        WHERE a.type = 'assistant' AND a.timestamp >= DATE('now', '${tzOffset}', '-90 days')`,
@@ -1982,9 +1984,10 @@ export class TrailDatabase {
       const inp = Number(row[3]);
       const outp = Number(row[4]);
       const cr = Number(row[5]);
+      const cc = Number(row[6]);
       const entry = dailyRefined.get(d) ?? { actual: 0, rule: 0, feature: 0 };
-      entry.rule += cost(ruleRec, inp, outp, cr);
-      entry.feature += cost(featRec, inp, outp, cr);
+      entry.rule += cost(ruleRec, inp, outp, cr, cc);
+      entry.feature += cost(featRec, inp, outp, cr, cc);
       dailyRefined.set(d, entry);
     }
 
@@ -2048,20 +2051,21 @@ export class TrailDatabase {
 //  Cost estimation
 // ---------------------------------------------------------------------------
 
-interface ModelRates {
+export interface ModelRates {
   readonly input: number;
   readonly output: number;
   readonly cacheRead: number;
+  readonly cacheCreation: number;
 }
 
 /** Per-1M-token rates in USD. */
 const MODEL_RATES: Record<string, ModelRates> = {
-  'claude-opus-4-6': { input: 15, output: 75, cacheRead: 1.5 },
-  'claude-sonnet-4-6': { input: 3, output: 15, cacheRead: 0.3 },
-  'claude-haiku-4-5': { input: 0.8, output: 4, cacheRead: 0.08 },
+  'claude-opus-4-6': { input: 15, output: 75, cacheRead: 1.5, cacheCreation: 18.75 },
+  'claude-sonnet-4-6': { input: 3, output: 15, cacheRead: 0.3, cacheCreation: 3.75 },
+  'claude-haiku-4-5': { input: 0.8, output: 4, cacheRead: 0.08, cacheCreation: 1.0 },
 };
 
-const DEFAULT_RATES: ModelRates = { input: 3, output: 15, cacheRead: 0.3 };
+const DEFAULT_RATES: ModelRates = { input: 3, output: 15, cacheRead: 0.3, cacheCreation: 3.75 };
 
 function getModelRates(model: string): ModelRates {
   for (const [key, rates] of Object.entries(MODEL_RATES)) {
@@ -2073,17 +2077,19 @@ function getModelRates(model: string): ModelRates {
   return DEFAULT_RATES;
 }
 
-function estimateCost(
+export function estimateCost(
   model: string,
   inputTokens: number,
   outputTokens: number,
   cacheReadTokens: number,
+  cacheCreationTokens: number,
 ): number {
   const rates = getModelRates(model);
   return (
     (inputTokens * rates.input +
       outputTokens * rates.output +
-      cacheReadTokens * rates.cacheRead) /
+      cacheReadTokens * rates.cacheRead +
+      cacheCreationTokens * rates.cacheCreation) /
     1_000_000
   );
 }
