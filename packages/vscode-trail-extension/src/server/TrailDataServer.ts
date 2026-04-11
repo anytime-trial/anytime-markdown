@@ -192,6 +192,11 @@ export class TrailDataServer {
       return;
     }
 
+    if (pathname === '/api/trail/releases' && method === 'GET') {
+      this.handleGetReleases(res);
+      return;
+    }
+
 
     const commitsMatch = /^\/api\/trail\/sessions\/([^/]+)\/commits$/.exec(pathname);
     if (commitsMatch && method === 'GET') {
@@ -510,6 +515,38 @@ export class TrailDataServer {
     } catch {
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: 'Failed to get cost optimization data' }));
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  //  API: GET /api/trail/releases
+  // -------------------------------------------------------------------------
+
+  private handleGetReleases(res: http.ServerResponse): void {
+    try {
+      const rows = this.trailDb.getReleases();
+      const releases = rows.map((row) => ({
+        tag: row.tag,
+        releasedAt: row.released_at,
+        prevTag: row.prev_tag,
+        packageTags: JSON.parse(row.package_tags) as string[],
+        commitCount: row.commit_count,
+        filesChanged: row.files_changed,
+        linesAdded: row.lines_added,
+        linesDeleted: row.lines_deleted,
+        featCount: row.feat_count,
+        fixCount: row.fix_count,
+        refactorCount: row.refactor_count,
+        testCount: row.test_count,
+        otherCount: row.other_count,
+        affectedPackages: JSON.parse(row.affected_packages) as string[],
+        durationDays: row.duration_days,
+      }));
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify(releases));
+    } catch {
+      res.writeHead(500, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'Failed to get releases' }));
     }
   }
 
