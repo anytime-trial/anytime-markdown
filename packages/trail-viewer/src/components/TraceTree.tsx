@@ -8,6 +8,7 @@ import Chip from '@mui/material/Chip';
 import Typography from '@mui/material/Typography';
 
 import type { TrailSession, TrailTreeNode } from '../parser/types';
+import { useTrailI18n } from '../i18n';
 import { useTrailTheme } from './TrailThemeContext';
 import { MessageNode } from './MessageNode';
 
@@ -60,6 +61,7 @@ export function TraceTree({
   showSystem: showSystemProp = false,
 }: Readonly<TraceTreeProps>) {
   const { colors } = useTrailTheme();
+  const { t } = useTrailI18n();
   const [showSystem, setShowSystem] = useState(showSystemProp);
 
   return (
@@ -94,7 +96,7 @@ export function TraceTree({
               }}
             />
           }
-          label="Show system messages"
+          label={t('trace.showSystemMessages')}
           slotProps={{
             typography: { variant: 'body2', sx: { color: colors.textSecondary } },
           }}
@@ -112,7 +114,7 @@ export function TraceTree({
         {nodes.length === 0 ? (
           <Box sx={{ p: 2, textAlign: 'center' }}>
             <Box component="span" sx={{ color: colors.textSecondary }}>
-              No messages
+              {t('trace.noMessages')}
             </Box>
           </Box>
         ) : (

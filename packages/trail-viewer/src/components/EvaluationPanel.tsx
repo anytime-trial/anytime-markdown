@@ -10,6 +10,7 @@ import Typography from '@mui/material/Typography';
 import { useCallback, useState } from 'react';
 
 import type { TrailEvaluation } from '../parser/types';
+import { useTrailI18n } from '../i18n';
 import { useTrailTheme } from './TrailThemeContext';
 
 interface EvaluationPanelProps {
@@ -32,6 +33,7 @@ function EvaluationForm({
   onSave,
 }: Readonly<{ selectedSessionId: string; onSave: (e: TrailEvaluation) => void }>) {
   const { colors, radius } = useTrailTheme();
+  const { t } = useTrailI18n();
   const [score, setScore] = useState<number | null>(null);
   const [comment, setComment] = useState('');
   const [evaluator, setEvaluator] = useState('');
@@ -57,11 +59,11 @@ function EvaluationForm({
   return (
     <Box sx={{ mb: 2 }}>
       <Typography variant="subtitle2" sx={{ mb: 1 }}>
-        New Evaluation
+        {t('eval.newEvaluation')}
       </Typography>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
         <Typography variant="body2" sx={{ color: colors.textSecondary }}>
-          Score:
+          {t('eval.score')}
         </Typography>
         <Rating
           value={score}
@@ -71,7 +73,7 @@ function EvaluationForm({
         />
       </Box>
       <TextField
-        label="Evaluator"
+        label={t('eval.evaluator')}
         value={evaluator}
         onChange={(e) => setEvaluator(e.target.value)}
         size="small"
@@ -88,7 +90,7 @@ function EvaluationForm({
         }}
       />
       <TextField
-        label="Comment"
+        label={t('eval.comment')}
         value={comment}
         onChange={(e) => setComment(e.target.value)}
         multiline
@@ -114,7 +116,7 @@ function EvaluationForm({
         onClick={handleSubmit}
         sx={{ bgcolor: colors.amberGold, color: colors.textOnLight, borderRadius: radius.md, '&:hover': { bgcolor: '#d4900f' } }}
       >
-        Save
+        {t('eval.save')}
       </Button>
     </Box>
   );
@@ -148,6 +150,7 @@ export function EvaluationPanel({
   onSave,
 }: Readonly<EvaluationPanelProps>) {
   const { colors, cardSx, radius } = useTrailTheme();
+  const { t } = useTrailI18n();
   const sessionEvaluations = selectedSessionId
     ? evaluations.filter((e) => e.sessionId === selectedSessionId)
     : [];
@@ -161,7 +164,7 @@ export function EvaluationPanel({
       }}
     >
       <Typography variant="h6" sx={{ mb: 2 }}>
-        Evaluations
+        {t('eval.title')}
       </Typography>
 
       {selectedSessionId ? (
@@ -179,13 +182,13 @@ export function EvaluationPanel({
             </List>
           ) : (
             <Typography variant="body2" sx={{ color: colors.textSecondary }}>
-              No evaluations yet
+              {t('eval.noEvaluations')}
             </Typography>
           )}
         </>
       ) : (
         <Typography variant="body2" sx={{ color: colors.textSecondary }}>
-          Select a session to evaluate
+          {t('eval.selectSession')}
         </Typography>
       )}
     </Paper>

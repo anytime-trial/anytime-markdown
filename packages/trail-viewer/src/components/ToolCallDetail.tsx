@@ -3,6 +3,7 @@ import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 
 import type { TrailToolCall } from '../parser/types';
+import { useTrailI18n } from '../i18n';
 import { useTrailTheme } from './TrailThemeContext';
 
 interface ToolCallDetailProps {
@@ -20,6 +21,7 @@ export function ToolCallDetail({
   toolCall,
 }: Readonly<ToolCallDetailProps>) {
   const { cardSx, codeSx, colors } = useTrailTheme();
+  const { t } = useTrailI18n();
   return (
     <Paper
       elevation={0}
@@ -38,7 +40,7 @@ export function ToolCallDetail({
           variant="caption"
           sx={{ color: colors.textSecondary, display: 'block', mb: 0.5 }}
         >
-          Input
+          {t('message.input')}
         </Typography>
         <Box
           component="pre"
@@ -62,7 +64,7 @@ export function ToolCallDetail({
             variant="caption"
             sx={{ color: colors.textSecondary, display: 'block', mb: 0.5 }}
           >
-            Result
+            {t('message.result')}
           </Typography>
           <Box
             component="pre"

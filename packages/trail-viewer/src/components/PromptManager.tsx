@@ -7,6 +7,7 @@ import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 
 import type { TrailPromptEntry } from '../parser/types';
+import { useTrailI18n } from '../i18n';
 import { useTrailTheme } from './TrailThemeContext';
 
 export interface PromptManagerProps {
@@ -19,6 +20,7 @@ export function PromptManager({
   prompts,
 }: Readonly<PromptManagerProps>) {
   const { colors, codeSx } = useTrailTheme();
+  const { t } = useTrailI18n();
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
   const selected = prompts.find((p) => p.id === selectedId);
 
@@ -66,7 +68,7 @@ export function PromptManager({
             variant="body2"
             sx={{ p: 2, textAlign: 'center', color: colors.textSecondary }}
           >
-            No prompts found
+            {t('prompt.noPrompts')}
           </Typography>
         )}
       </Box>
@@ -97,7 +99,7 @@ export function PromptManager({
             }}
           >
             <Typography variant="body2" sx={{ color: colors.textSecondary }}>
-              Select a prompt to view
+              {t('prompt.selectPrompt')}
             </Typography>
           </Box>
         )}

@@ -7,6 +7,7 @@ import Typography from '@mui/material/Typography';
 import { BarChart } from '@mui/x-charts/BarChart';
 import { PieChart } from '@mui/x-charts/PieChart';
 import type { CostOptimizationData } from '../parser/types';
+import { useTrailI18n } from '../i18n';
 
 interface CostOptimizationSectionProps {
   readonly data: CostOptimizationData | null;
@@ -71,6 +72,7 @@ function distToSlices(dist: Readonly<Record<string, number>>): Array<{ id: numbe
 }
 
 export function CostOptimizationSection({ data }: Readonly<CostOptimizationSectionProps>) {
+  const { t } = useTrailI18n();
   const [periodMode, setPeriodMode] = useState<PeriodMode>('day');
   const chartData = useMemo(
     () => (data ? aggregateByPeriod(data.daily, periodMode) : []),
@@ -91,26 +93,26 @@ export function CostOptimizationSection({ data }: Readonly<CostOptimizationSecti
     <Box>
       <Box sx={{ mb: 1 }}>
         <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-          Cost Optimization
+          {t('cost.title')}
         </Typography>
       </Box>
 
       {/* Summary Cards */}
       <Box sx={{ display: 'flex', gap: 1.5, mb: 2, flexWrap: 'wrap' }}>
         <Paper variant="outlined" sx={{ p: 1.5, flex: 1, minWidth: 140 }}>
-          <Typography variant="caption" color="text.secondary">Current</Typography>
+          <Typography variant="caption" color="text.secondary">{t('cost.current')}</Typography>
           <Typography variant="h6" sx={{ color: COLORS.actual, fontWeight: 700 }}>
             {fmtUsd(actual.totalCost)}
           </Typography>
         </Paper>
         <Paper variant="outlined" sx={{ p: 1.5, flex: 1, minWidth: 140 }}>
-          <Typography variant="caption" color="text.secondary">Optimized</Typography>
+          <Typography variant="caption" color="text.secondary">{t('cost.optimized')}</Typography>
           <Typography variant="h6" sx={{ color: COLORS.skill, fontWeight: 700 }}>
             {fmtUsd(skillEstimate.totalCost)}
           </Typography>
         </Paper>
         <Paper variant="outlined" sx={{ p: 1.5, flex: 1, minWidth: 140 }}>
-          <Typography variant="caption" color="text.secondary">Potential Savings</Typography>
+          <Typography variant="caption" color="text.secondary">{t('cost.potentialSavings')}</Typography>
           <Typography variant="h6" sx={{ color: savingsRate > 0 ? COLORS.skill : 'text.primary', fontWeight: 700 }}>
             {savingsRate.toFixed(1)}%
           </Typography>
@@ -120,16 +122,16 @@ export function CostOptimizationSection({ data }: Readonly<CostOptimizationSecti
       {/* Period Chart */}
       <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-          <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Cost by Period</Typography>
+          <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{t('cost.costByPeriod')}</Typography>
           <ToggleButtonGroup
             size="small"
             value={periodMode}
             exclusive
             onChange={(_, v: PeriodMode | null) => { if (v) setPeriodMode(v); }}
           >
-            <ToggleButton value="day">Day</ToggleButton>
-            <ToggleButton value="week">Week</ToggleButton>
-            <ToggleButton value="month">Month</ToggleButton>
+            <ToggleButton value="day">{t('cost.day')}</ToggleButton>
+            <ToggleButton value="week">{t('cost.week')}</ToggleButton>
+            <ToggleButton value="month">{t('cost.month')}</ToggleButton>
           </ToggleButtonGroup>
         </Box>
         {chartData.length > 0 ? (
@@ -137,35 +139,35 @@ export function CostOptimizationSection({ data }: Readonly<CostOptimizationSecti
             height={250}
             xAxis={[{ data: chartData.map((d) => d.label), scaleType: 'band' }]}
             series={[
-              { data: chartData.map((d) => d.actualCost), label: 'Current', color: COLORS.actual },
-              { data: chartData.map((d) => d.skillCost), label: 'Optimized', color: COLORS.skill },
+              { data: chartData.map((d) => d.actualCost), label: t('cost.current'), color: COLORS.actual },
+              { data: chartData.map((d) => d.skillCost), label: t('cost.optimized'), color: COLORS.skill },
             ]}
           />
         ) : (
           <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
-            No data available
+            {t('cost.noData')}
           </Typography>
         )}
       </Paper>
 
       {/* Model Distribution */}
       <Paper variant="outlined" sx={{ p: 2 }}>
-        <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>Model Distribution</Typography>
+        <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>{t('cost.modelDistribution')}</Typography>
         <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
           <Box sx={{ textAlign: 'center' }}>
-            <Typography variant="caption" color="text.secondary">Current</Typography>
+            <Typography variant="caption" color="text.secondary">{t('cost.current')}</Typography>
             {actualSlices.length > 0 ? (
               <PieChart width={200} height={200} series={[{ data: actualSlices, innerRadius: 30 }]} />
             ) : (
-              <Typography variant="body2" color="text.secondary">No data</Typography>
+              <Typography variant="body2" color="text.secondary">{t('cost.noDataShort')}</Typography>
             )}
           </Box>
           <Box sx={{ textAlign: 'center' }}>
-            <Typography variant="caption" color="text.secondary">Optimized</Typography>
+            <Typography variant="caption" color="text.secondary">{t('cost.optimized')}</Typography>
             {recommendedSlices.length > 0 ? (
               <PieChart width={200} height={200} series={[{ data: recommendedSlices, innerRadius: 30 }]} />
             ) : (
-              <Typography variant="body2" color="text.secondary">No data</Typography>
+              <Typography variant="body2" color="text.secondary">{t('cost.noDataShort')}</Typography>
             )}
           </Box>
         </Box>

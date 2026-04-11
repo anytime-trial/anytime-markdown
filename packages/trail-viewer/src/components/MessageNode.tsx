@@ -11,6 +11,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 
 import type { TrailMessage, TrailToolCall } from '../parser/types';
+import { useTrailI18n } from '../i18n';
 import { useTrailTheme } from './TrailThemeContext';
 import { ToolCallDetail } from './ToolCallDetail';
 
@@ -56,6 +57,7 @@ export function MessageNode({
   depth,
 }: Readonly<MessageNodeProps>) {
   const { colors, avatarColors, radius } = useTrailTheme();
+  const { t } = useTrailI18n();
   const [expanded, setExpanded] = useState(false);
   const hasToolCalls = (message.toolCalls?.length ?? 0) > 0;
   const textContent = (message.userContent ?? message.textContent ?? '').trim();
@@ -168,7 +170,7 @@ export function MessageNode({
                     transition: 'transform 0.2s',
                     color: colors.textSecondary,
                   }}
-                  aria-label={expanded ? 'Collapse' : 'Expand'}
+                  aria-label={expanded ? t('message.collapse') : t('message.expand')}
                 >
                   <ExpandMoreIcon fontSize="small" />
                 </IconButton>
@@ -190,6 +192,7 @@ function ToolCallEntry({
   isUserSide,
 }: Readonly<{ toolCall: TrailToolCall; isUserSide: boolean }>) {
   const { colors } = useTrailTheme();
+  const { t } = useTrailI18n();
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -209,7 +212,7 @@ function ToolCallEntry({
             transition: 'transform 0.2s',
             color: colors.textSecondary,
           }}
-          aria-label={expanded ? 'Collapse tool detail' : 'Expand tool detail'}
+          aria-label={expanded ? t('message.collapseDetail') : t('message.expandDetail')}
         >
           <ExpandMoreIcon fontSize="small" />
         </IconButton>
