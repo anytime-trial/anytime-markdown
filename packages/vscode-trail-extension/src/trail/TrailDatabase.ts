@@ -697,6 +697,28 @@ export class TrailDatabase {
     return `${sign}${Math.abs(offsetMin)} minutes`;
   }
 
+  /** Delete and rebuild session_costs from all messages. */
+  private rebuildSessionCosts(): void {
+    const db = this.ensureDb();
+    db.run('DELETE FROM session_costs');
+
+    const result = db.exec(
+      `SELECT session_id, COALESCE(model,''),
+        SUM(input_tokens), SUM(output_tokens),
+        SUM(cache_read_tokens), SUM(cache_creation_tokens)
+       FROM messages WHERE type = 'assistant'
+       GROUP BY session_id, model`,
+    );
+    const stmt = db.prepare(INSERT_SESSION_COST);
+    for (const row of result[0]?.values ?? []) {
+      const sid = String(row[0]); const m = String(row[1]);
+      const inp = Number(row[2]); const outp = Number(row[3]);
+      const cr = Number(row[4]); const cc = Number(row[5]);
+      stmt.run([sid, m, inp, outp, cr, cc, estimateCost(m, inp, outp, cr, cc)]);
+    }
+    stmt.free();
+  }
+
   /** Delete and rebuild daily_costs from all messages in a single pass. */
   private rebuildDailyCosts(): void {
     const db = this.ensureDb();
@@ -1115,25 +1137,6 @@ export class TrailDatabase {
       }
       msgStmt.free();
 
-      // --- Populate session_costs (session × model) ---
-      const scResult = db.exec(
-        `SELECT COALESCE(model,''), SUM(input_tokens), SUM(output_tokens),
-          SUM(cache_read_tokens), SUM(cache_creation_tokens)
-         FROM messages WHERE session_id = ? AND type = 'assistant'
-         GROUP BY model`,
-        [sessionId],
-      );
-      const scStmt = db.prepare(INSERT_SESSION_COST);
-      for (const row of scResult[0]?.values ?? []) {
-        const m = String(row[0]);
-        const inp = Number(row[1]);
-        const outp = Number(row[2]);
-        const cr = Number(row[3]);
-        const cc = Number(row[4]);
-        scStmt.run([sessionId, m, inp, outp, cr, cc, estimateCost(m, inp, outp, cr, cc)]);
-      }
-      scStmt.free();
-
       if (!externalTransaction) db.run('COMMIT');
       return messageCount;
     } catch (err) {
@@ -1286,7 +1289,9 @@ export class TrailDatabase {
       }
     }
 
-    // Rebuild daily_costs from all messages
+    // Rebuild session_costs and daily_costs from all messages
+    onProgress?.('Rebuilding session costs...', 0);
+    this.rebuildSessionCosts();
     onProgress?.('Rebuilding daily costs...', 0);
     this.rebuildDailyCosts();
 
