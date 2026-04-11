@@ -62,12 +62,6 @@ export interface AnalyticsData {
     readonly cacheCreationTokens: number;
     readonly estimatedCostUsd: number;
   }[];
-  readonly branchBreakdown: readonly {
-    readonly branch: string;
-    readonly sessions: number;
-    readonly inputTokens: number;
-    readonly outputTokens: number;
-  }[];
 }
 
 export interface AnalyticsPanelProps {
@@ -111,6 +105,62 @@ type PeriodDays = 7 | 30 | 90;
 //  Sub-components
 // ---------------------------------------------------------------------------
 
+interface MetricItem {
+  readonly label: string;
+  readonly value: string;
+}
+
+function CyclingCard({
+  groupName,
+  items,
+  index,
+  onCycle,
+  cardStyle,
+}: Readonly<{
+  groupName: string;
+  items: readonly MetricItem[];
+  index: number;
+  onCycle: () => void;
+  cardStyle: object;
+}>) {
+  const current = items[index];
+  return (
+    <Paper
+      elevation={0}
+      sx={{
+        ...cardStyle,
+        cursor: 'pointer',
+        '&:hover': { backgroundColor: 'action.hover' },
+        userSelect: 'none',
+      }}
+      onClick={onCycle}
+    >
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+        {groupName}
+      </Typography>
+      <Typography variant="h5" sx={{ mt: 0.5 }}>
+        {current.value}
+      </Typography>
+      <Typography variant="caption" color="text.secondary">
+        {current.label}
+      </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'center', gap: 0.5, mt: 1 }}>
+        {items.map((_, i) => (
+          <Box
+            key={i}
+            sx={{
+              width: 6,
+              height: 6,
+              borderRadius: '50%',
+              backgroundColor: i === index ? 'primary.main' : 'action.disabled',
+            }}
+          />
+        ))}
+      </Box>
+    </Paper>
+  );
+}
+
 function OverviewCards({
   totals,
   sessions = [],
@@ -119,6 +169,10 @@ function OverviewCards({
   sessions?: readonly TrailSession[];
 }>) {
   const { colors, cardSx } = useTrailTheme();
+  const [usageIdx, setUsageIdx] = useState(0);
+  const [productivityIdx, setProductivityIdx] = useState(0);
+  const [qualityIdx, setQualityIdx] = useState(0);
+  const [toolIdx, setToolIdx] = useState(0);
   const totalInput = totals.inputTokens + totals.cacheReadTokens;
   const cacheHitRate = totalInput > 0
     ? fmtPercent(totals.cacheReadTokens / totalInput)
@@ -187,60 +241,40 @@ function OverviewCards({
   const cardStyle = { ...cardSx, flex: '1 1 140px', p: 2, minWidth: 140, textAlign: 'center' } as const;
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-        {cards.map((c) => (
-          <Paper key={c.label} elevation={0} sx={cardStyle}>
-            <Typography variant="caption" color="text.secondary">
-              {c.label}
-            </Typography>
-            <Typography variant="h5" sx={{ mt: 0.5 }}>
-              {c.value}
-            </Typography>
-          </Paper>
-        ))}
-      </Box>
+    <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+      <CyclingCard
+        groupName="Usage"
+        items={cards}
+        index={usageIdx}
+        onCycle={() => setUsageIdx((i) => (i + 1) % cards.length)}
+        cardStyle={cardStyle}
+      />
       {totals.totalCommits > 0 && (
-        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-          {commitCards.map((c) => (
-            <Paper key={c.label} elevation={0} sx={cardStyle}>
-              <Typography variant="caption" color="text.secondary">
-                {c.label}
-              </Typography>
-              <Typography variant="h5" sx={{ mt: 0.5 }}>
-                {c.value}
-              </Typography>
-            </Paper>
-          ))}
-        </Box>
+        <CyclingCard
+          groupName="Productivity"
+          items={commitCards}
+          index={productivityIdx}
+          onCycle={() => setProductivityIdx((i) => (i + 1) % commitCards.length)}
+          cardStyle={cardStyle}
+        />
       )}
       {totals.totalCommits > 0 && (
-        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-          {efficiencyCards.map((c) => (
-            <Paper key={c.label} elevation={0} sx={cardStyle}>
-              <Typography variant="caption" color="text.secondary">
-                {c.label}
-              </Typography>
-              <Typography variant="h5" sx={{ mt: 0.5 }}>
-                {c.value}
-              </Typography>
-            </Paper>
-          ))}
-        </Box>
+        <CyclingCard
+          groupName="Quality"
+          items={efficiencyCards}
+          index={qualityIdx}
+          onCycle={() => setQualityIdx((i) => (i + 1) % efficiencyCards.length)}
+          cardStyle={cardStyle}
+        />
       )}
       {hasToolMetrics && (
-        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-          {toolMetricsCards.map((c) => (
-            <Paper key={c.label} elevation={0} sx={cardStyle}>
-              <Typography variant="caption" color="text.secondary">
-                {c.label}
-              </Typography>
-              <Typography variant="h5" sx={{ mt: 0.5 }}>
-                {c.value}
-              </Typography>
-            </Paper>
-          ))}
-        </Box>
+        <CyclingCard
+          groupName="Tool Metrics"
+          items={toolMetricsCards}
+          index={toolIdx}
+          onCycle={() => setToolIdx((i) => (i + 1) % toolMetricsCards.length)}
+          cardStyle={cardStyle}
+        />
       )}
     </Box>
   );
@@ -854,40 +888,6 @@ function ModelTable({ items }: Readonly<{ items: AnalyticsData['modelBreakdown']
   );
 }
 
-function BranchTable({ items }: Readonly<{ items: AnalyticsData['branchBreakdown'] }>) {
-  const { colors } = useTrailTheme();
-  if (items.length === 0) return null;
-
-  return (
-    <Box>
-      <Typography variant="subtitle1" sx={{ mb: 1 }}>
-        Branch Breakdown
-      </Typography>
-      <Table size="small">
-        <TableHead>
-          <TableRow sx={{ '& .MuiTableCell-head': { color: colors.textSecondary, borderColor: colors.border } }}>
-            <TableCell>Branch</TableCell>
-            <TableCell align="right">Sessions</TableCell>
-            <TableCell align="right">Input Tokens</TableCell>
-            <TableCell align="right">Output Tokens</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {items.map((b) => (
-            <TableRow key={b.branch} sx={{ '& .MuiTableCell-root': { borderColor: colors.border } }}>
-              <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
-                {b.branch}
-              </TableCell>
-              <TableCell align="right">{fmtNum(b.sessions)}</TableCell>
-              <TableCell align="right">{fmtTokens(b.inputTokens)}</TableCell>
-              <TableCell align="right">{fmtTokens(b.outputTokens)}</TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </Box>
-  );
-}
 
 // ---------------------------------------------------------------------------
 //  Main component
@@ -911,7 +911,6 @@ export function AnalyticsPanel({ analytics, sessions = [], onSelectSession, fetc
       <ToolUsageChart items={analytics.toolUsage} />
       <DailyActivityChart items={analytics.dailyActivity} sessions={sessions} onSelectSession={onSelectSession} fetchSessionMessages={fetchSessionMessages} fetchSessionCommits={fetchSessionCommits} fetchSessionToolMetrics={fetchSessionToolMetrics} costOptimization={costOptimization} onReclassify={onReclassify} reclassifying={reclassifying} />
       <ModelTable items={analytics.modelBreakdown} />
-      <BranchTable items={analytics.branchBreakdown} />
     </Box>
   );
 }
