@@ -153,22 +153,22 @@ jobs:
           path: packages/vscode-graph-extension/*.vsix
           retention-days: 3
 
-      - name: Run git extension tests
+      - name: Run history extension tests
         if: github.event_name == 'pull_request' && github.base_ref == 'master'
         run: npx jest --maxWorkers=1
         working-directory: packages/vscode-history-extension
 
-      - name: Build git extension
+      - name: Build history extension
         if: (github.event_name == 'pull_request' && github.base_ref == 'master') || github.ref == 'refs/heads/master'
         run: npm run package
         working-directory: packages/vscode-history-extension
 
-      - name: Package git VSIX
+      - name: Package history VSIX
         if: (github.event_name == 'pull_request' && github.base_ref == 'master') || github.ref == 'refs/heads/master'
         run: npx vsce package --no-dependencies
         working-directory: packages/vscode-history-extension
 
-      - name: Upload git VSIX artifact
+      - name: Upload history VSIX artifact
         if: github.ref == 'refs/heads/master'
         uses: actions/upload-artifact@v4
         with:
@@ -415,7 +415,7 @@ jobs:
           files: packages/vscode-graph-extension/*.vsix
           generate_release_notes: true
 
-  publish-git:
+  publish-history:
     if: github.ref == 'refs/heads/master'
     needs: ci
     runs-on: ubuntu-latest
@@ -442,7 +442,7 @@ jobs:
 
       - name: Skip if already released
         if: steps.tag_check.outputs.exists == 'true'
-        run: echo "Tag ${{ steps.version.outputs.version }} already exists. Skipping git release."
+        run: echo "Tag ${{ steps.version.outputs.version }} already exists. Skipping history release."
 
       - name: Download VSIX from CI
         if: steps.tag_check.outputs.exists == 'false'
@@ -474,7 +474,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.version }}
-          name: Anytime Git ${{ steps.version.outputs.version }}
+          name: Anytime History ${{ steps.version.outputs.version }}
           files: packages/vscode-history-extension/*.vsix
           generate_release_notes: true
 
