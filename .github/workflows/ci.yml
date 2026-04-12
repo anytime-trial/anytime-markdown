@@ -172,7 +172,7 @@ jobs:
         if: github.ref == 'refs/heads/master'
         uses: actions/upload-artifact@v4
         with:
-          name: vsix-git-ci
+          name: vsix-history-ci
           path: packages/vscode-git-extension/*.vsix
           retention-days: 3
 
@@ -429,7 +429,7 @@ jobs:
 
       - name: Get version from package.json
         id: version
-        run: echo "version=git-v$(node -p "require('./packages/vscode-git-extension/package.json').version")" >> "$GITHUB_OUTPUT"
+        run: echo "version=history-v$(node -p "require('./packages/vscode-git-extension/package.json').version")" >> "$GITHUB_OUTPUT"
 
       - name: Check if tag already exists
         id: tag_check
@@ -448,7 +448,7 @@ jobs:
         if: steps.tag_check.outputs.exists == 'false'
         uses: actions/download-artifact@v4
         with:
-          name: vsix-git-ci
+          name: vsix-history-ci
           path: packages/vscode-git-extension
 
       - uses: actions/setup-node@v6

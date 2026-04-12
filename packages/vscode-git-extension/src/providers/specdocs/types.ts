@@ -58,7 +58,7 @@ export class SpecDocsItem extends vscode.TreeItem {
 			this.iconPath = vscode.ThemeIcon.File;
 			if (isMarkdownFile(label)) {
 				this.command = {
-					command: 'anytime-git.specDocsOpenFile',
+					command: 'anytime-history.specDocsOpenFile',
 					title: 'Open',
 					arguments: [resourceUri],
 				};
