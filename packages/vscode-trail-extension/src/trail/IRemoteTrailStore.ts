@@ -1,4 +1,4 @@
-import type { SessionRow, MessageRow, SessionCommitRow, ReleaseFileRow, ReleaseFeatureRow } from './TrailDatabase';
+import type { SessionRow, MessageRow, SessionCommitRow, ReleaseFileRow, ReleaseFeatureRow, ReleaseRow } from './TrailDatabase';
 
 export interface IRemoteTrailStore {
   connect(): Promise<void>;
@@ -8,6 +8,7 @@ export interface IRemoteTrailStore {
   upsertSessions(rows: readonly SessionRow[]): Promise<void>;
   upsertMessages(rows: readonly MessageRow[]): Promise<void>;
   upsertCommits(rows: readonly SessionCommitRow[]): Promise<void>;
+  upsertReleases(rows: readonly ReleaseRow[]): Promise<void>;
   upsertReleaseFiles(rows: readonly ReleaseFileRow[]): Promise<void>;
   upsertReleaseFeatures(rows: readonly ReleaseFeatureRow[]): Promise<void>;
   upsertSessionCosts(sessionId: string, costs: readonly {

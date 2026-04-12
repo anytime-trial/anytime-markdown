@@ -100,10 +100,11 @@ export class SyncService {
       errors++;
     }
 
-    // Sync release files and features
+    // Sync releases, release files and features
     try {
-      onProgress?.({ message: 'Syncing release files...' });
+      onProgress?.({ message: 'Syncing releases...' });
       const releases = this.trailDb.getReleases();
+      if (releases.length > 0) await this.store.upsertReleases(releases);
       for (const release of releases) {
         const files = this.trailDb.getReleaseFiles(release.tag);
         if (files.length > 0) await this.store.upsertReleaseFiles(files);
@@ -111,7 +112,7 @@ export class SyncService {
         if (features.length > 0) await this.store.upsertReleaseFeatures(features);
       }
     } catch (e) {
-      TrailLogger.error('Failed to sync release files/features', e);
+      TrailLogger.error('Failed to sync releases', e);
       errors++;
     }
 

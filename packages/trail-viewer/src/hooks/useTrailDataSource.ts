@@ -331,7 +331,9 @@ export function useTrailDataSource(
       })();
     }
     void refreshAnalytics();
-    if (!supabaseReader) {
+    if (supabaseReader) {
+      void supabaseReader.getReleases().then(setReleases).catch(() => {});
+    } else {
       void fetchReleases();
     }
   }, [fetchSessions, baseUrl, supabaseReader, refreshAnalytics, fetchReleases]);

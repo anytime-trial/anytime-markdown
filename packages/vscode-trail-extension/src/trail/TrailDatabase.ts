@@ -31,7 +31,7 @@ import {
 import type { TrailGraph } from '@anytime-markdown/trail-core';
 import { ExecFileGitService } from './ExecFileGitService';
 import type { ReleaseFileRow, ReleaseFeatureRow, ReleaseCoverageRow, ReleaseRow } from '@anytime-markdown/trail-core';
-export type { ReleaseFileRow, ReleaseFeatureRow, ReleaseCoverageRow } from '@anytime-markdown/trail-core';
+export type { ReleaseFileRow, ReleaseFeatureRow, ReleaseCoverageRow, ReleaseRow } from '@anytime-markdown/trail-core';
 
 declare const __non_webpack_require__: (id: string) => unknown;
 

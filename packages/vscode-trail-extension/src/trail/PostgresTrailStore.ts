@@ -1,5 +1,5 @@
 import { Pool } from 'pg';
-import type { SessionRow, MessageRow, SessionCommitRow, ReleaseFileRow, ReleaseFeatureRow } from './TrailDatabase';
+import type { SessionRow, MessageRow, SessionCommitRow, ReleaseFileRow, ReleaseFeatureRow, ReleaseRow } from './TrailDatabase';
 import type { IRemoteTrailStore } from './IRemoteTrailStore';
 
 export class PostgresTrailStore implements IRemoteTrailStore {
@@ -148,6 +148,36 @@ export class PostgresTrailStore implements IRemoteTrailStore {
           r.session_id, r.commit_hash, r.commit_message, r.author,
           r.committed_at, r.is_ai_assisted, r.files_changed,
           r.lines_added, r.lines_deleted,
+        ],
+      );
+    }
+  }
+
+  async upsertReleases(rows: readonly ReleaseRow[]): Promise<void> {
+    if (rows.length === 0) return;
+    const pool = this.ensurePool();
+    for (const r of rows) {
+      await pool.query(
+        `INSERT INTO trail_releases (
+          tag, released_at, prev_tag, package_tags, commit_count,
+          files_changed, lines_added, lines_deleted,
+          feat_count, fix_count, refactor_count, test_count, other_count,
+          affected_packages, duration_days, resolved_at, synced_at
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,NOW())
+        ON CONFLICT (tag) DO UPDATE SET
+          released_at = EXCLUDED.released_at, prev_tag = EXCLUDED.prev_tag,
+          package_tags = EXCLUDED.package_tags, commit_count = EXCLUDED.commit_count,
+          files_changed = EXCLUDED.files_changed, lines_added = EXCLUDED.lines_added,
+          lines_deleted = EXCLUDED.lines_deleted, feat_count = EXCLUDED.feat_count,
+          fix_count = EXCLUDED.fix_count, refactor_count = EXCLUDED.refactor_count,
+          test_count = EXCLUDED.test_count, other_count = EXCLUDED.other_count,
+          affected_packages = EXCLUDED.affected_packages, duration_days = EXCLUDED.duration_days,
+          resolved_at = EXCLUDED.resolved_at, synced_at = NOW()`,
+        [
+          r.tag, r.released_at, r.prev_tag ?? null, r.package_tags, r.commit_count,
+          r.files_changed, r.lines_added, r.lines_deleted,
+          r.feat_count, r.fix_count, r.refactor_count, r.test_count, r.other_count,
+          r.affected_packages, r.duration_days, r.resolved_at ?? null,
         ],
       );
     }

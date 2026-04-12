@@ -88,9 +88,28 @@ CREATE TABLE IF NOT EXISTS trail_c4_models (
     synced_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- release_tag は TEXT のみ（trail_releases テーブルなし）
+CREATE TABLE IF NOT EXISTS trail_releases (
+    tag TEXT PRIMARY KEY,
+    released_at TEXT NOT NULL DEFAULT '',
+    prev_tag TEXT,
+    package_tags TEXT NOT NULL DEFAULT '[]',
+    commit_count INTEGER NOT NULL DEFAULT 0,
+    files_changed INTEGER NOT NULL DEFAULT 0,
+    lines_added INTEGER NOT NULL DEFAULT 0,
+    lines_deleted INTEGER NOT NULL DEFAULT 0,
+    feat_count INTEGER NOT NULL DEFAULT 0,
+    fix_count INTEGER NOT NULL DEFAULT 0,
+    refactor_count INTEGER NOT NULL DEFAULT 0,
+    test_count INTEGER NOT NULL DEFAULT 0,
+    other_count INTEGER NOT NULL DEFAULT 0,
+    affected_packages TEXT NOT NULL DEFAULT '[]',
+    duration_days REAL NOT NULL DEFAULT 0,
+    resolved_at TEXT,
+    synced_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS trail_release_files (
-    release_tag TEXT NOT NULL,
+    release_tag TEXT NOT NULL REFERENCES trail_releases(tag) ON DELETE CASCADE,
     file_path TEXT NOT NULL,
     lines_added INTEGER NOT NULL DEFAULT 0,
     lines_deleted INTEGER NOT NULL DEFAULT 0,
@@ -99,7 +118,7 @@ CREATE TABLE IF NOT EXISTS trail_release_files (
 );
 
 CREATE TABLE IF NOT EXISTS trail_release_features (
-    release_tag TEXT NOT NULL,
+    release_tag TEXT NOT NULL REFERENCES trail_releases(tag) ON DELETE CASCADE,
     feature_id TEXT NOT NULL,
     feature_name TEXT NOT NULL DEFAULT '',
     role TEXT NOT NULL DEFAULT '',
@@ -115,5 +134,6 @@ CREATE INDEX IF NOT EXISTS idx_trail_session_costs_session ON trail_session_cost
 CREATE INDEX IF NOT EXISTS idx_trail_daily_costs_date ON trail_daily_costs(date);
 CREATE INDEX IF NOT EXISTS idx_trail_daily_costs_type ON trail_daily_costs(cost_type);
 CREATE INDEX IF NOT EXISTS idx_trail_session_commits_session ON trail_session_commits(session_id);
+CREATE INDEX IF NOT EXISTS idx_trail_releases_released_at ON trail_releases(released_at);
 CREATE INDEX IF NOT EXISTS idx_trail_release_files_tag ON trail_release_files(release_tag);
 CREATE INDEX IF NOT EXISTS idx_trail_release_features_tag ON trail_release_features(release_tag);

@@ -411,6 +411,34 @@ export class SupabaseTrailReader implements ITrailReader {
   }
 
   async getReleases(): Promise<readonly TrailRelease[]> {
-    return [];
+    const { data, error } = await this.client
+      .from('trail_releases')
+      .select('*')
+      .order('released_at', { ascending: false });
+    if (error || !data) return [];
+    return (data as readonly {
+      tag: string; released_at: string; prev_tag: string | null;
+      package_tags: string; commit_count: number;
+      files_changed: number; lines_added: number; lines_deleted: number;
+      feat_count: number; fix_count: number; refactor_count: number;
+      test_count: number; other_count: number;
+      affected_packages: string; duration_days: number;
+    }[]).map((r) => ({
+      tag: r.tag,
+      releasedAt: r.released_at,
+      prevTag: r.prev_tag,
+      packageTags: JSON.parse(r.package_tags) as string[],
+      commitCount: r.commit_count,
+      filesChanged: r.files_changed,
+      linesAdded: r.lines_added,
+      linesDeleted: r.lines_deleted,
+      featCount: r.feat_count,
+      fixCount: r.fix_count,
+      refactorCount: r.refactor_count,
+      testCount: r.test_count,
+      otherCount: r.other_count,
+      affectedPackages: JSON.parse(r.affected_packages) as string[],
+      durationDays: r.duration_days,
+    }));
   }
 }

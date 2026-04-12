@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { SessionRow, MessageRow, SessionCommitRow, ReleaseFileRow, ReleaseFeatureRow } from './TrailDatabase';
+import type { SessionRow, MessageRow, SessionCommitRow, ReleaseFileRow, ReleaseFeatureRow, ReleaseRow } from './TrailDatabase';
 import type { IRemoteTrailStore } from './IRemoteTrailStore';
 
 export class SupabaseTrailStore implements IRemoteTrailStore {
@@ -154,6 +154,24 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
       .from('trail_session_commits')
       .upsert(mapped, { onConflict: 'session_id,commit_hash' });
     if (error) throw new Error(`Supabase upsert commits failed: ${error.message}`);
+  }
+
+  async upsertReleases(rows: readonly ReleaseRow[]): Promise<void> {
+    if (rows.length === 0) return;
+    const mapped = rows.map((r) => ({
+      tag: r.tag, released_at: r.released_at, prev_tag: r.prev_tag ?? null,
+      package_tags: r.package_tags, commit_count: r.commit_count,
+      files_changed: r.files_changed, lines_added: r.lines_added, lines_deleted: r.lines_deleted,
+      feat_count: r.feat_count, fix_count: r.fix_count, refactor_count: r.refactor_count,
+      test_count: r.test_count, other_count: r.other_count,
+      affected_packages: r.affected_packages, duration_days: r.duration_days,
+      resolved_at: r.resolved_at ?? null,
+      synced_at: new Date().toISOString(),
+    }));
+    const { error } = await this.ensureClient()
+      .from('trail_releases')
+      .upsert(mapped, { onConflict: 'tag' });
+    if (error) throw new Error(`Supabase upsert trail_releases failed: ${error.message}`);
   }
 
   async upsertReleaseFiles(rows: readonly ReleaseFileRow[]): Promise<void> {
