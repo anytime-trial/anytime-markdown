@@ -87,9 +87,9 @@ function fmtUsd(n: number): string {
 }
 
 function fmtTokens(n: number): string {
-  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  if (n >= 1_000_000_000) return `${parseFloat((n / 1_000_000_000).toFixed(1))}B`;
+  if (n >= 1_000_000) return `${parseFloat((n / 1_000_000).toFixed(1))}M`;
+  if (n >= 1_000) return `${parseFloat((n / 1_000).toFixed(1))}K`;
   return String(n);
 }
 
@@ -358,6 +358,9 @@ function SessionCacheTimeline({
     cacheCreationTokens: m.usage?.cacheCreationTokens ?? 0,
   }));
 
+  const totalTurns = dataset.length;
+  const tickStep = totalTurns <= 100 ? 10 : totalTurns <= 500 ? 50 : 100;
+
   return (
     <Paper elevation={0} sx={{ ...cardSx, mt: 1, p: 1.5 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
@@ -375,7 +378,7 @@ function SessionCacheTimeline({
       </Box>
       <LineChart
         dataset={dataset}
-        xAxis={[{ dataKey: 'turn', label: t('analytics.turn'), scaleType: 'point' }]}
+        xAxis={[{ dataKey: 'turn', scaleType: 'point', tickInterval: (value: number) => value % tickStep === 0 }]}
         yAxis={[{ valueFormatter: fmtTokens }]}
         series={[
           { dataKey: 'inputTokens', label: t('analytics.chartInput'), color: chartColors.input, showMark: false },
@@ -384,7 +387,7 @@ function SessionCacheTimeline({
           { dataKey: 'cacheCreationTokens', label: t('analytics.chartCacheWrite'), color: chartColors.cacheWrite, showMark: false },
         ]}
         height={200}
-        margin={{ left: 60, right: 16, top: 16, bottom: 32 }}
+        margin={{ left: 0, right: 16, top: 16, bottom: 0 }}
         slotProps={{
           legend: { direction: 'horizontal', position: { vertical: 'top', horizontal: 'end' } },
         }}
@@ -502,8 +505,12 @@ function SessionMetricsPanel({ session, toolMetrics }: Readonly<{
   session: TrailSession;
   toolMetrics?: ToolMetrics | null;
 }>) {
-  const { colors, cardSx } = useTrailTheme();
+  const { cardSx } = useTrailTheme();
   const { t } = useTrailI18n();
+  const [usageIdx, setUsageIdx] = useState(0);
+  const [productivityIdx, setProductivityIdx] = useState(0);
+  const [qualityIdx, setQualityIdx] = useState(0);
+
   const s = session;
   const totalTokens = s.usage.inputTokens + s.usage.outputTokens;
   const cost = sessionCost(s);
@@ -517,44 +524,61 @@ function SessionMetricsPanel({ session, toolMetrics }: Readonly<{
     : 0;
   const linesAdded = s.commitStats?.linesAdded ?? 0;
   const linesDeleted = s.commitStats?.linesDeleted ?? 0;
-
   const tm = toolMetrics;
-  const metrics = [
+
+  const cardStyle = { ...cardSx, p: 2, minWidth: 160, flex: '1 1 160px', textAlign: 'center' } as const;
+
+  const usageCards = [
     { label: t('analytics.tokensPerStep'), value: s.messageCount > 0 ? fmtTokens(Math.round(totalTokens / s.messageCount)) : '\u2014' },
     { label: t('analytics.costPerStep'), value: s.messageCount > 0 ? fmtUsd(cost / s.messageCount) : '\u2014' },
-    { label: t('analytics.linesPerHour'), value: durationHours > 0 && linesAdded > 0 ? fmtNum(Math.round(linesAdded / durationHours)) : '\u2014' },
-    { label: t('analytics.costPerHour'), value: durationHours > 0 ? fmtUsd(cost / durationHours) : '\u2014' },
-    { label: t('analytics.costPerCommit'), value: (s.commitStats?.commits ?? 0) > 0 ? fmtUsd(cost / s.commitStats!.commits) : '\u2014' },
     { label: t('analytics.cacheHit'), value: cacheInput > 0 ? fmtPercent(cacheHitRate) : '\u2014' },
     { label: t('analytics.outputRatio'), value: cacheInput > 0 ? fmtPercent(outputRatio) : '\u2014' },
     { label: t('analytics.contextGrowth'), value: s.messageCount > 0 ? `${fmtTokens(Math.round(contextGrowth))}/step` : '\u2014' },
+  ];
+
+  const productivityCards = [
+    { label: t('analytics.linesPerHour'), value: durationHours > 0 && linesAdded > 0 ? fmtNum(Math.round(linesAdded / durationHours)) : '\u2014' },
+    { label: t('analytics.costPerHour'), value: durationHours > 0 ? fmtUsd(cost / durationHours) : '\u2014' },
+    { label: t('analytics.costPerCommit'), value: (s.commitStats?.commits ?? 0) > 0 ? fmtUsd(cost / s.commitStats!.commits) : '\u2014' },
     { label: t('analytics.netLines'), value: linesAdded > 0 || linesDeleted > 0 ? `+${fmtNum(linesAdded)} / -${fmtNum(linesDeleted)}` : '\u2014' },
     { label: t('analytics.metricFiles'), value: (s.commitStats?.filesChanged ?? 0) > 0 ? fmtNum(s.commitStats!.filesChanged) : '\u2014' },
     { label: t('analytics.metricDuration'), value: durationMs > 0 ? fmtDuration(durationMs) : '\u2014' },
     { label: t('analytics.avgInterval'), value: s.messageCount > 1 ? fmtDuration(durationMs / (s.messageCount - 1)) : '\u2014' },
-    { label: t('analytics.retryRate'), value: tm && tm.totalEdits > 0
-        ? fmtPercent(tm.totalRetries / tm.totalEdits) : '\u2014' },
-    { label: t('analytics.buildFail'), value: tm && tm.totalBuildRuns > 0
-        ? fmtPercent(tm.totalBuildFails / tm.totalBuildRuns) : '\u2014' },
-    { label: t('analytics.testFail'), value: tm && tm.totalTestRuns > 0
-        ? fmtPercent(tm.totalTestFails / tm.totalTestRuns) : '\u2014' },
+  ];
+
+  const qualityCards = [
+    { label: t('analytics.retryRate'), value: tm && tm.totalEdits > 0 ? fmtPercent(tm.totalRetries / tm.totalEdits) : '\u2014' },
+    { label: t('analytics.buildFail'), value: tm && tm.totalBuildRuns > 0 ? fmtPercent(tm.totalBuildFails / tm.totalBuildRuns) : '\u2014' },
+    { label: t('analytics.testFail'), value: tm && tm.totalTestRuns > 0 ? fmtPercent(tm.totalTestFails / tm.totalTestRuns) : '\u2014' },
     { label: t('analytics.metricInterrupted'), value: s.interruption?.interrupted
         ? `${s.interruption.reason === 'max_tokens' ? 'max_tokens' : 'no response'} (${fmtTokens(s.interruption.contextTokens)})`
         : '\u2014' },
   ];
 
   return (
-    <Paper elevation={0} sx={{ ...cardSx, mt: 1, p: 1.5 }}>
-      <Typography variant="subtitle2" sx={{ mb: 1 }}>{t('analytics.sessionMetricsTitle')}</Typography>
-      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 1 }}>
-        {metrics.map((m) => (
-          <Box key={m.label} sx={{ textAlign: 'center', p: 0.5 }}>
-            <Typography variant="caption" color="text.secondary">{m.label}</Typography>
-            <Typography variant="body2" sx={{ fontWeight: 500 }}>{m.value}</Typography>
-          </Box>
-        ))}
-      </Box>
-    </Paper>
+    <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 1 }}>
+      <CyclingCard
+        groupName={t('analytics.groupUsage')}
+        items={usageCards}
+        index={usageIdx}
+        onCycle={() => setUsageIdx((i) => (i + 1) % usageCards.length)}
+        cardStyle={cardStyle}
+      />
+      <CyclingCard
+        groupName={t('analytics.groupProductivity')}
+        items={productivityCards}
+        index={productivityIdx}
+        onCycle={() => setProductivityIdx((i) => (i + 1) % productivityCards.length)}
+        cardStyle={cardStyle}
+      />
+      <CyclingCard
+        groupName={t('analytics.groupQuality')}
+        items={qualityCards}
+        index={qualityIdx}
+        onCycle={() => setQualityIdx((i) => (i + 1) % qualityCards.length)}
+        cardStyle={cardStyle}
+      />
+    </Box>
   );
 }
 
@@ -621,91 +645,101 @@ function DailySessionList({
           {t('analytics.close')}
         </Typography>
       </Box>
-      {daySessions.length === 0 ? (
-        <Typography variant="body2" color="text.secondary">{t('sessionList.noSessionsFound')}</Typography>
-      ) : (
-        <Table size="small">
-          <TableHead>
-            <TableRow sx={{ '& .MuiTableCell-head': { color: colors.textSecondary, borderColor: colors.border } }}>
-              <TableCell>{t('sessionList.timeHeader')}</TableCell>
-              <TableCell>{t('sessionList.modelHeader')}</TableCell>
-              <TableCell align="right">{t('sessionList.tokensHeader')}</TableCell>
-              <TableCell align="right">{t('sessionList.costHeader')}</TableCell>
-              <TableCell align="right">{t('sessionList.messagesHeader')}</TableCell>
-              <TableCell align="right">{t('sessionList.commitsHeader')}</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {daySessions.map((s) => (
-              <TableRow
-                key={s.id}
-                hover
-                selected={timelineSessionId === s.id}
-                sx={{ cursor: 'pointer', '& .MuiTableCell-root': { borderColor: colors.border } }}
-                onClick={() => handleSessionClick(s.id)}
-              >
-                <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
-                  {formatLocalTime(s.startTime)}–{formatLocalTime(s.endTime)}
-                  {s.interruption?.interrupted && (
-                    <Tooltip title={
-                      s.interruption.reason === 'max_tokens'
-                        ? `${t('sessionList.interruptedMaxTokens')} (${t('sessionList.contextLabel')} ${fmtTokens(s.interruption.contextTokens)})`
-                        : `${t('sessionList.interruptedNoResponse')} (${t('sessionList.contextLabel')} ${fmtTokens(s.interruption.contextTokens)})`
-                    }>
-                      <Chip
-                        label={s.interruption.reason === 'max_tokens' ? t('sessionList.maxChip') : t('sessionList.nrChip')}
-                        aria-label={s.interruption.reason === 'max_tokens' ? t('sessionList.interruptedMaxTokens') : t('sessionList.interruptedNoResponse')}
-                        size="small"
-                        color="warning"
-                        variant="outlined"
-                        sx={{ ml: 0.5, height: 18, fontSize: '0.65rem' }}
-                      />
-                    </Tooltip>
-                  )}
-                </TableCell>
-                <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
-                  {s.model}
-                </TableCell>
-                <TableCell align="right">
-                  {fmtTokens(s.usage.inputTokens + s.usage.outputTokens + s.usage.cacheReadTokens + s.usage.cacheCreationTokens)}
-                  {(s.initialContextTokens != null || s.peakContextTokens != null) && (
-                    <Typography
-                      component="div"
-                      sx={{ fontFamily: 'monospace', fontSize: '0.7rem', color: colors.textSecondary, lineHeight: 1.2 }}
-                    >
-                      {fmtTokens(s.initialContextTokens ?? 0)}→{fmtTokens(s.peakContextTokens ?? 0)}
-                    </Typography>
-                  )}
-                </TableCell>
-                <TableCell align="right">
-                  {fmtUsd(sessionCost(s))}
-                </TableCell>
-                <TableCell align="right">{fmtNum(s.messageCount)}</TableCell>
-                <TableCell align="right" sx={{ fontFamily: 'monospace', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
-                  {s.commitStats
-                    ? `${s.commitStats.commits} (+${fmtNum(s.commitStats.linesAdded)}/-${fmtNum(s.commitStats.linesDeleted)})`
-                    : '\u2014'}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
-      {timelineLoading && (
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>{t('sessionList.loadingTimeline')}</Typography>
-      )}
-      {timelineSessionId && daySessions.find((s) => s.id === timelineSessionId) && (
-        <SessionMetricsPanel
-          session={daySessions.find((s) => s.id === timelineSessionId)!}
-          toolMetrics={sessionToolMetrics}
-        />
-      )}
-      {timelineSessionId && timelineMessages.length > 0 && (
-        <SessionCacheTimeline
-          messages={timelineMessages}
-          onClose={() => { setTimelineSessionId(null); setTimelineMessages([]); }}
-        />
-      )}
+      <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', md: 'row' } }}>
+        {/* Left: session table — height stretches to match right column, scrolls if needed */}
+        <Box sx={{ flex: 1, minWidth: 0, overflowY: 'auto' }}>
+          {daySessions.length === 0 ? (
+            <Typography variant="body2" color="text.secondary">{t('sessionList.noSessionsFound')}</Typography>
+          ) : (
+            <Table size="small" stickyHeader>
+              <TableHead>
+                <TableRow sx={{ '& .MuiTableCell-head': { color: colors.textSecondary, borderColor: colors.border, bgcolor: colors.midnightNavy } }}>
+                  <TableCell>{t('sessionList.timeHeader')}</TableCell>
+                  <TableCell>{t('sessionList.modelHeader')}</TableCell>
+                  <TableCell align="right">{t('sessionList.tokensHeader')}</TableCell>
+                  <TableCell align="right">{t('sessionList.costHeader')}</TableCell>
+                  <TableCell align="right">{t('sessionList.messagesHeader')}</TableCell>
+                  <TableCell align="right">{t('sessionList.commitsHeader')}</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {daySessions.map((s) => (
+                  <TableRow
+                    key={s.id}
+                    hover
+                    selected={timelineSessionId === s.id}
+                    sx={{ cursor: 'pointer', '& .MuiTableCell-root': { borderColor: colors.border } }}
+                    onClick={() => handleSessionClick(s.id)}
+                  >
+                    <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
+                      {formatLocalTime(s.startTime)}–{formatLocalTime(s.endTime)}
+                      {s.interruption?.interrupted && (
+                        <Tooltip title={
+                          s.interruption.reason === 'max_tokens'
+                            ? `${t('sessionList.interruptedMaxTokens')} (${t('sessionList.contextLabel')} ${fmtTokens(s.interruption.contextTokens)})`
+                            : `${t('sessionList.interruptedNoResponse')} (${t('sessionList.contextLabel')} ${fmtTokens(s.interruption.contextTokens)})`
+                        }>
+                          <Chip
+                            label={s.interruption.reason === 'max_tokens' ? t('sessionList.maxChip') : t('sessionList.nrChip')}
+                            aria-label={s.interruption.reason === 'max_tokens' ? t('sessionList.interruptedMaxTokens') : t('sessionList.interruptedNoResponse')}
+                            size="small"
+                            color="warning"
+                            variant="outlined"
+                            sx={{ ml: 0.5, height: 18, fontSize: '0.65rem' }}
+                          />
+                        </Tooltip>
+                      )}
+                    </TableCell>
+                    <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
+                      {s.model}
+                    </TableCell>
+                    <TableCell align="right">
+                      {fmtTokens(s.usage.inputTokens + s.usage.outputTokens + s.usage.cacheReadTokens + s.usage.cacheCreationTokens)}
+                      {(s.initialContextTokens != null || s.peakContextTokens != null) && (
+                        <Typography
+                          component="div"
+                          sx={{ fontFamily: 'monospace', fontSize: '0.7rem', color: colors.textSecondary, lineHeight: 1.2 }}
+                        >
+                          {fmtTokens(s.initialContextTokens ?? 0)}→{fmtTokens(s.peakContextTokens ?? 0)}
+                        </Typography>
+                      )}
+                    </TableCell>
+                    <TableCell align="right">
+                      {fmtUsd(sessionCost(s))}
+                    </TableCell>
+                    <TableCell align="right">{fmtNum(s.messageCount)}</TableCell>
+                    <TableCell align="right" sx={{ fontFamily: 'monospace', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
+                      {s.commitStats
+                        ? `${s.commitStats.commits} (+${fmtNum(s.commitStats.linesAdded)}/-${fmtNum(s.commitStats.linesDeleted)})`
+                        : '\u2014'}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </Box>
+
+        {/* Right: cards + timeline — visible when a session is selected */}
+        {timelineSessionId && daySessions.find((s) => s.id === timelineSessionId) && (
+          <Box sx={{ flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 1, width: { md: 560 } }}>
+            <SessionMetricsPanel
+              session={daySessions.find((s) => s.id === timelineSessionId)!}
+              toolMetrics={sessionToolMetrics}
+            />
+            {timelineLoading ? (
+              <Paper elevation={0} sx={{ ...cardSx, mt: 1, p: 1.5, height: 270, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Typography variant="body2" color="text.secondary">{t('sessionList.loadingTimeline')}</Typography>
+              </Paper>
+            ) : timelineMessages.length > 0 && (
+              <SessionCacheTimeline
+                messages={timelineMessages}
+                onClose={() => { setTimelineSessionId(null); setTimelineMessages([]); }}
+              />
+            )}
+          </Box>
+        )}
+      </Box>
       {timelineSessionId && fetchSessionCommits && (
         <SessionCommitList
           sessionId={timelineSessionId}
