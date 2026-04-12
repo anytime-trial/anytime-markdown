@@ -60,6 +60,9 @@ export interface C4ViewerCoreProps {
   readonly onDocLinkClick?: (doc: DocLink) => void;
   readonly onImport?: () => void;
   readonly containerHeight?: string;
+  readonly releases?: readonly string[];
+  readonly selectedRelease?: string;
+  readonly onReleaseSelect?: (release: string) => void;
 }
 
 export function C4ViewerCore({
@@ -80,6 +83,9 @@ export function C4ViewerCore({
   onDocLinkClick,
   onImport,
   containerHeight = '100vh',
+  releases = [],
+  selectedRelease = 'current',
+  onReleaseSelect,
 }: Readonly<C4ViewerCoreProps>) {
   const colors = useMemo(() => getC4Colors(isDark), [isDark]);
 
@@ -406,6 +412,56 @@ export function C4ViewerCore({
         </Box>
       )}
       <Box ref={containerRef} sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        {/* リリースパネル */}
+        {releases.length > 0 && (
+          <Box
+            sx={{
+              width: 160,
+              flexShrink: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              borderRight: `1px solid ${colors.border}`,
+              bgcolor: colors.bgSecondary,
+              overflowY: 'auto',
+            }}
+          >
+            <Typography
+              variant="caption"
+              sx={{ px: 1, py: 0.5, color: colors.textMuted, fontWeight: 600, borderBottom: `1px solid ${colors.border}`, flexShrink: 0 }}
+            >
+              Releases
+            </Typography>
+            {releases.map((id) => (
+              <Box
+                key={id}
+                role="button"
+                tabIndex={0}
+                aria-pressed={id === selectedRelease}
+                onClick={() => onReleaseSelect?.(id)}
+                onKeyDown={(e: React.KeyboardEvent) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onReleaseSelect?.(id);
+                  }
+                }}
+                sx={{
+                  px: 1,
+                  py: 0.5,
+                  cursor: 'pointer',
+                  fontSize: '0.75rem',
+                  color: id === selectedRelease ? colors.accent : colors.text,
+                  bgcolor: id === selectedRelease ? colors.focus : 'transparent',
+                  borderLeft: id === selectedRelease ? `2px solid ${colors.accent}` : '2px solid transparent',
+                  '&:hover': { bgcolor: colors.focus },
+                  wordBreak: 'break-all',
+                }}
+              >
+                {id === 'current' ? 'Current' : id}
+              </Box>
+            ))}
+          </Box>
+        )}
+        {/* 既存コンテンツ (C4Graph / Separator / DSM / Tree) */}
         {showC4 && (
           <Box sx={{ flex: showDsm ? splitRatio : 1, display: 'flex', flexDirection: 'column', minWidth: 100 }}>
             <Toolbar variant="dense" sx={{ gap: 0.5, bgcolor: colors.bgSecondary, borderBottom: `1px solid ${colors.border}`, minHeight: 36, px: 1, flexShrink: 0 }}>
