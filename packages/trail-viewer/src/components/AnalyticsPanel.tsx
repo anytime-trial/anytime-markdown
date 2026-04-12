@@ -707,16 +707,16 @@ function DailySessionList({
                 messages={timelineMessages}
               />
             )}
+            {fetchSessionCommits && (
+              <SessionCommitList
+                sessionId={timelineSessionId}
+                usage={daySessions.find((s) => s.id === timelineSessionId)?.usage ?? { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 }}
+                fetchSessionCommits={fetchSessionCommits}
+              />
+            )}
           </Box>
         )}
       </Box>
-      {timelineSessionId && fetchSessionCommits && (
-        <SessionCommitList
-          sessionId={timelineSessionId}
-          usage={daySessions.find((s) => s.id === timelineSessionId)?.usage ?? { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 }}
-          fetchSessionCommits={fetchSessionCommits}
-        />
-      )}
     </Paper>
   );
 }
