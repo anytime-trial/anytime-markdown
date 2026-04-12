@@ -12,7 +12,7 @@ import {
   computeCoverageDiff,
 } from '@anytime-markdown/trail-core/c4';
 import type { C4Element, C4Model, C4Relationship, BoundaryInfo, CoverageDiffMatrix, CoverageMatrix, DsmMapping, DsmMatrix, FeatureMatrix } from '@anytime-markdown/trail-core/c4';
-import { analyze, trailToC4, toMermaid } from '@anytime-markdown/trail-core';
+import { analyze, toMermaid } from '@anytime-markdown/trail-core';
 import type { TrailGraph } from '@anytime-markdown/trail-core';
 import type { C4DataProvider } from '../server/TrailDataServer';
 import type { TrailDataServer } from '../server/TrailDataServer';
