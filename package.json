@@ -36,7 +36,8 @@
       "@auth/core": "0.41.1"
     },
     "handlebars": "4.7.9",
-    "@xmldom/xmldom": "0.9.9"
+    "@xmldom/xmldom": "0.9.9",
+    "brace-expansion": "1.1.13"
   },
   "devDependencies": {
     "@next/eslint-plugin-next": "^16.1.6",
