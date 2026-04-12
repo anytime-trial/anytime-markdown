@@ -411,16 +411,6 @@ export class TrailDatabase {
     } catch {
       // Column already exists — ignore
     }
-    try {
-      db.run("ALTER TABLE sessions ADD COLUMN repo_name TEXT NOT NULL DEFAULT ''");
-    } catch {
-      // Column already exists — ignore
-    }
-    try {
-      db.run("ALTER TABLE releases ADD COLUMN repo_name TEXT NOT NULL DEFAULT ''");
-    } catch {
-      // Column already exists — ignore
-    }
     const messageAlters = [
       'ALTER TABLE messages ADD COLUMN rule_recommended_model TEXT',
       'ALTER TABLE messages ADD COLUMN feature_recommended_model TEXT',
@@ -1092,12 +1082,6 @@ export class TrailDatabase {
     let skipped = 0;
     let commitsResolved = 0;
 
-    // Backfill repo_name for existing records that were imported before the column was added
-    if (repoName) {
-      const db = this.ensureDb();
-      db.run("UPDATE sessions SET repo_name = ? WHERE repo_name = ''", [repoName]);
-      db.run("UPDATE releases SET repo_name = ? WHERE repo_name = ''", [repoName]);
-    }
 
     let projectDirs: string[];
     try {
