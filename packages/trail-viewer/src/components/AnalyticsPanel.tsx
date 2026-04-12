@@ -437,9 +437,11 @@ function SessionCommitList({
         </Typography>
       </Box>
       {commits.length === 0 ? (
-        <Typography variant="body2" color="text.secondary">
-          {t('analytics.noCommits')}
-        </Typography>
+        <Box sx={{ height: 198, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px dashed ${colors.border}`, borderRadius: 1 }}>
+          <Typography variant="body2" sx={{ color: colors.textSecondary }}>
+            {t('analytics.noCommits')}
+          </Typography>
+        </Box>
       ) : (
         <>
           <Box sx={{ height: 198, overflowY: 'auto', ...scrollbarSx }}>
