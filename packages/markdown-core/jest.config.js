@@ -1,5 +1,6 @@
 /** @type {import('jest').Config} */
 const config = {
+  coverageReporters: ["json", "text", "lcov", "clover", "json-summary"],
   testEnvironment: "jsdom",
   transform: {
     "^.+\\.tsx?$": "ts-jest",

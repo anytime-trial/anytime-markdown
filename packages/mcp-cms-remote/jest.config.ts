@@ -1,6 +1,7 @@
 import type { Config } from 'jest';
 
 const config: Config = {
+  coverageReporters: ['json', 'text', 'lcov', 'clover', 'json-summary'],
   preset: 'ts-jest',
   testEnvironment: 'node',
   roots: ['<rootDir>/src'],
