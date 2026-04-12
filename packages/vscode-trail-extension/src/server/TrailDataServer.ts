@@ -3,11 +3,12 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 
-import { trailToC4 } from '@anytime-markdown/trail-core';
 import {
   buildElementTree,
   detectCycles,
   diffMatrix,
+  fetchC4Model,
+  fetchC4ModelEntries,
   filterTreeByLevel,
 } from '@anytime-markdown/trail-core/c4';
 import type {
@@ -325,14 +326,14 @@ export class TrailDataServer {
     }
 
     if (pathname === '/api/c4/releases' && method === 'GET') {
-      this.handleC4ReleasesEndpoint(res);
+      void this.handleC4ReleasesEndpoint(res);
       return;
     }
 
     if (pathname === '/api/c4/model' && method === 'GET') {
       const releaseId = parsed.searchParams.get('release') ?? 'current';
       const repo = parsed.searchParams.get('repo') ?? undefined;
-      this.handleC4ModelEndpoint(res, releaseId, repo);
+      void this.handleC4ModelEndpoint(res, releaseId, repo);
       return;
     }
     if (pathname === '/api/c4/dsm' && method === 'GET') {
@@ -564,19 +565,13 @@ export class TrailDataServer {
   //  API: C4 endpoints
   // -------------------------------------------------------------------------
 
-  private handleC4ModelEndpoint(res: http.ServerResponse, releaseId: string, repo?: string): void {
-    // current_graphs / release_graphs から TrailGraph を取得して trailToC4() で変換
-    // releaseId='current' 時は repo クエリ、未指定ならワークスペースの gitRoot basename を使用
+  private async handleC4ModelEndpoint(res: http.ServerResponse, releaseId: string, repo?: string): Promise<void> {
+    // trail-core の fetchC4Model 経由でストアから取得（pure 関数 + IC4ModelStore アダプタ）
     const repoName = repo ?? (this.gitRoot ? path.basename(this.gitRoot) : undefined);
-    const graph = this.trailDb.getTrailGraph(releaseId, repoName);
-    if (graph) {
-      const model = trailToC4(graph);
-      const provider = this.getC4Provider?.();
-      const featureMatrix = provider?.featureMatrix;
-      const payload: Record<string, unknown> = { model, boundaries: [] };
-      if (featureMatrix) {
-        payload.featureMatrix = featureMatrix;
-      }
+    const provider = this.getC4Provider?.();
+    const store = this.trailDb.asC4ModelStore();
+    const payload = await fetchC4Model(store, releaseId, repoName, provider?.featureMatrix);
+    if (payload) {
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(payload));
       return;
@@ -584,17 +579,16 @@ export class TrailDataServer {
 
     // フォールバック: C4Panel のメモリ上データ（releaseId === 'current' の場合のみ）
     if (releaseId === 'current') {
-      const provider = this.getC4Provider?.();
       const model = provider?.model;
       if (model) {
         const boundaries = provider?.boundaries ?? [];
         const featureMatrix = provider?.featureMatrix;
-        const payload: Record<string, unknown> = { model, boundaries };
+        const fallback: Record<string, unknown> = { model, boundaries };
         if (featureMatrix) {
-          payload.featureMatrix = featureMatrix;
+          fallback.featureMatrix = featureMatrix;
         }
         res.writeHead(200, JSON_HEADERS);
-        res.end(JSON.stringify(payload));
+        res.end(JSON.stringify(fallback));
         return;
       }
     }
@@ -603,9 +597,10 @@ export class TrailDataServer {
     res.end();
   }
 
-  private handleC4ReleasesEndpoint(res: http.ServerResponse): void {
+  private async handleC4ReleasesEndpoint(res: http.ServerResponse): Promise<void> {
     try {
-      const entries = this.trailDb.getTrailGraphEntries();
+      const store = this.trailDb.asC4ModelStore();
+      const entries = await fetchC4ModelEntries(store);
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(entries));
     } catch {

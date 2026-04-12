@@ -28,8 +28,9 @@ import {
   mapFilesToC4Elements,
   mapC4ToFeatures,
   analyze,
+  trailToC4,
 } from '@anytime-markdown/trail-core';
-import type { TrailGraph } from '@anytime-markdown/trail-core';
+import type { TrailGraph, IC4ModelStore, C4ModelEntry, C4ModelResult } from '@anytime-markdown/trail-core';
 import { ExecFileGitService } from './ExecFileGitService';
 import { TrailLogger } from '../utils/TrailLogger';
 import type { ReleaseFileRow, ReleaseFeatureRow, ReleaseCoverageRow, ReleaseRow } from '@anytime-markdown/trail-core';
@@ -1442,6 +1443,43 @@ export class TrailDatabase {
    */
   getTrailGraph(id = 'current', repoName?: string): TrailGraph | null {
     return id === 'current' ? this.getCurrentGraph(repoName) : this.getReleaseGraph(id);
+  }
+
+  /**
+   * このローカル DB を IC4ModelStore として公開するアダプタを返す。
+   * TrailGraph → C4Model 変換（trailToC4）はこのアダプタ内で実行する。
+   */
+  asC4ModelStore(): IC4ModelStore {
+    const db = this;
+    return {
+      getCurrentC4Model(repoName: string): C4ModelResult | null {
+        const graph = db.getCurrentGraph(repoName);
+        if (!graph) return null;
+        const model = trailToC4(graph);
+        const info = db.getCurrentGraphCommit(repoName);
+        return { model, commitId: info?.commitId };
+      },
+      getReleaseC4Model(tag: string): C4ModelResult | null {
+        const graph = db.getReleaseGraph(tag);
+        if (!graph) return null;
+        return { model: trailToC4(graph) };
+      },
+      getC4ModelEntries(): readonly C4ModelEntry[] {
+        return db.getTrailGraphEntries();
+      },
+    };
+  }
+
+  /** current_graphs の commit_id を取得する内部ヘルパ */
+  private getCurrentGraphCommit(repoName: string): { commitId: string } | null {
+    const db = this.ensureDb();
+    const result = db.exec(
+      'SELECT commit_id FROM current_graphs WHERE repo_name = ?',
+      [repoName],
+    );
+    const commitId = result[0]?.values?.[0]?.[0];
+    if (typeof commitId !== 'string') return null;
+    return { commitId };
   }
 
   /**

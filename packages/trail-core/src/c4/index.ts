@@ -51,3 +51,6 @@ export { parseCoverage } from './coverage/parseCoverage';
 export type { FileCoverage } from './coverage/parseCoverage';
 export { aggregateCoverage } from './coverage/aggregateCoverage';
 export { computeCoverageDiff } from './coverage/computeCoverageDiff';
+
+export { fetchC4Model, fetchC4ModelEntries } from './c4ModelService';
+export type { C4ModelPayload } from './c4ModelService';
