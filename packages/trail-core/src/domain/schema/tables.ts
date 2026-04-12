@@ -159,3 +159,22 @@ export const CREATE_RELEASE_FEATURES = `CREATE TABLE IF NOT EXISTS release_featu
   role TEXT NOT NULL DEFAULT '',
   PRIMARY KEY (release_tag, feature_id)
 )`;
+
+export const CREATE_RELEASE_COVERAGE = `CREATE TABLE IF NOT EXISTS release_coverage (
+  release_tag        TEXT    NOT NULL REFERENCES releases(tag) ON DELETE CASCADE,
+  package            TEXT    NOT NULL,
+  file_path          TEXT    NOT NULL,
+  lines_total        INTEGER NOT NULL DEFAULT 0,
+  lines_covered      INTEGER NOT NULL DEFAULT 0,
+  lines_pct          REAL    NOT NULL DEFAULT 0,
+  statements_total   INTEGER NOT NULL DEFAULT 0,
+  statements_covered INTEGER NOT NULL DEFAULT 0,
+  statements_pct     REAL    NOT NULL DEFAULT 0,
+  functions_total    INTEGER NOT NULL DEFAULT 0,
+  functions_covered  INTEGER NOT NULL DEFAULT 0,
+  functions_pct      REAL    NOT NULL DEFAULT 0,
+  branches_total     INTEGER NOT NULL DEFAULT 0,
+  branches_covered   INTEGER NOT NULL DEFAULT 0,
+  branches_pct       REAL    NOT NULL DEFAULT 0,
+  PRIMARY KEY (release_tag, package, file_path)
+)`;

@@ -15,4 +15,5 @@ export const CREATE_RELEASE_INDEXES = [
   'CREATE INDEX IF NOT EXISTS idx_releases_released_at ON releases(released_at)',
   'CREATE INDEX IF NOT EXISTS idx_release_files_tag ON release_files(release_tag)',
   'CREATE INDEX IF NOT EXISTS idx_release_features_tag ON release_features(release_tag)',
+  'CREATE INDEX IF NOT EXISTS idx_release_coverage_tag ON release_coverage(release_tag)',
 ];
