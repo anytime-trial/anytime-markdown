@@ -102,6 +102,7 @@ export const ja: TrailI18n = {
   'analytics.chartOutput': '出力',
   'analytics.chartCacheRead': 'キャッシュ読取',
   'analytics.chartCacheWrite': 'キャッシュ書込',
+  'analytics.chartCumulativeInferenceTime': '累積推論時間',
   'chart.tokenUsage': 'トークン使用量',
   'chart.estimatedCost': '推定コスト',
   'chart.tokens': 'トークン',

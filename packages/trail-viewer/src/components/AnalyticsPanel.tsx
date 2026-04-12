@@ -324,6 +324,17 @@ function fmtDuration(ms: number): string {
   return m > 0 ? `${h}h${m}m` : `${h}h`;
 }
 
+function fmtDurationShort(ms: number): string {
+  if (ms < 1_000) return `${Math.round(ms)}ms`;
+  const s = ms / 1_000;
+  if (s < 60) return `${s.toFixed(0)}s`;
+  const min = s / 60;
+  if (min < 60) return `${min.toFixed(1)}m`;
+  const h = Math.floor(min / 60);
+  const m = Math.round(min % 60);
+  return m > 0 ? `${h}h${m}m` : `${h}h`;
+}
+
 function fmtPercent(ratio: number): string {
   return `${(ratio * 100).toFixed(0)}%`;
 }
@@ -342,13 +353,30 @@ function SessionCacheTimeline({
   const assistantMsgs = messages.filter((m) => m.type === 'assistant' && m.usage);
   const hasData = assistantMsgs.length > 0;
 
-  const dataset = assistantMsgs.map((m, i) => ({
-    turn: i + 1,
-    inputTokens: m.usage?.inputTokens ?? 0,
-    outputTokens: m.usage?.outputTokens ?? 0,
-    cacheReadTokens: m.usage?.cacheReadTokens ?? 0,
-    cacheCreationTokens: m.usage?.cacheCreationTokens ?? 0,
-  }));
+  const byUuid = useMemo(() => {
+    const map = new Map<string, TrailMessage>();
+    for (const m of messages) map.set(m.uuid, m);
+    return map;
+  }, [messages]);
+
+  const dataset = useMemo(() => {
+    let cumulativeMs = 0;
+    return assistantMsgs.map((m, i) => {
+      const parent = m.parentUuid ? byUuid.get(m.parentUuid) : undefined;
+      if (parent?.timestamp && m.timestamp) {
+        const delta = new Date(m.timestamp).getTime() - new Date(parent.timestamp).getTime();
+        if (delta > 0) cumulativeMs += delta;
+      }
+      return {
+        turn: i + 1,
+        inputTokens: m.usage?.inputTokens ?? 0,
+        outputTokens: m.usage?.outputTokens ?? 0,
+        cacheReadTokens: m.usage?.cacheReadTokens ?? 0,
+        cacheCreationTokens: m.usage?.cacheCreationTokens ?? 0,
+        cumulativeMs,
+      };
+    });
+  }, [assistantMsgs, byUuid]);
 
   const totalTurns = dataset.length;
   const tickStep = totalTurns <= 100 ? 10 : totalTurns <= 500 ? 50 : 100;
@@ -364,12 +392,23 @@ function SessionCacheTimeline({
         <LineChart
           dataset={dataset}
           xAxis={[{ dataKey: 'turn', scaleType: 'point', tickInterval: (value: number) => value % tickStep === 0 }]}
-          yAxis={[{ valueFormatter: fmtTokens }]}
+          yAxis={[
+            { id: 'tokens', valueFormatter: fmtTokens },
+            { id: 'time', position: 'right', valueFormatter: fmtDurationShort },
+          ]}
           series={[
-            { dataKey: 'inputTokens', label: t('analytics.chartInput'), color: chartColors.input, showMark: false },
-            { dataKey: 'outputTokens', label: t('analytics.chartOutput'), color: chartColors.output, showMark: false },
-            { dataKey: 'cacheReadTokens', label: t('analytics.chartCacheRead'), color: chartColors.cacheRead, showMark: false },
-            { dataKey: 'cacheCreationTokens', label: t('analytics.chartCacheWrite'), color: chartColors.cacheWrite, showMark: false },
+            { dataKey: 'inputTokens', label: t('analytics.chartInput'), color: chartColors.input, showMark: false, yAxisId: 'tokens' },
+            { dataKey: 'outputTokens', label: t('analytics.chartOutput'), color: chartColors.output, showMark: false, yAxisId: 'tokens' },
+            { dataKey: 'cacheReadTokens', label: t('analytics.chartCacheRead'), color: chartColors.cacheRead, showMark: false, yAxisId: 'tokens' },
+            { dataKey: 'cacheCreationTokens', label: t('analytics.chartCacheWrite'), color: chartColors.cacheWrite, showMark: false, yAxisId: 'tokens' },
+            {
+              dataKey: 'cumulativeMs',
+              label: t('analytics.chartCumulativeInferenceTime'),
+              color: chartColors.cumulativeTime,
+              showMark: false,
+              yAxisId: 'time',
+              valueFormatter: (v) => (v == null ? '' : fmtDurationShort(v)),
+            },
           ]}
           height={200}
           margin={{ left: 0, right: 16, top: 16, bottom: 0 }}

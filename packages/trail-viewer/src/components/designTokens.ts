@@ -54,6 +54,7 @@ const darkChartColors = {
   output: '#EF5350',
   cacheRead: '#66BB6A',
   cacheWrite: '#E8A012',
+  cumulativeTime: '#CE93D8',
   primary: '#90CAF9',
 } as const;
 
@@ -100,6 +101,7 @@ const lightChartColors: ThemeChartColors = {
   output: '#D32F2F',
   cacheRead: '#388E3C',
   cacheWrite: '#E8A012',
+  cumulativeTime: '#7B1FA2',
   primary: '#1976D2',
 } as const;
 
@@ -143,6 +145,7 @@ export interface ThemeChartColors {
   readonly output: string;
   readonly cacheRead: string;
   readonly cacheWrite: string;
+  readonly cumulativeTime: string;
   readonly primary: string;
 }
 
