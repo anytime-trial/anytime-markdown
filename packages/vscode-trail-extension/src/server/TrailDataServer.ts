@@ -3,6 +3,7 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 
+import { trailToC4 } from '@anytime-markdown/trail-core';
 import {
   buildElementTree,
   detectCycles,
@@ -323,8 +324,14 @@ export class TrailDataServer {
       return;
     }
 
+    if (pathname === '/api/c4/releases' && method === 'GET') {
+      this.handleC4ReleasesEndpoint(res);
+      return;
+    }
+
     if (pathname === '/api/c4/model' && method === 'GET') {
-      this.handleC4ModelEndpoint(res);
+      const releaseId = parsed.searchParams.get('release') ?? 'current';
+      this.handleC4ModelEndpoint(res, releaseId);
       return;
     }
     if (pathname === '/api/c4/dsm' && method === 'GET') {
@@ -556,32 +563,52 @@ export class TrailDataServer {
   //  API: C4 endpoints
   // -------------------------------------------------------------------------
 
-  private handleC4ModelEndpoint(res: http.ServerResponse): void {
-    // DB から読み取り（第一優先）
-    const record = this.trailDb.getC4Model();
-    if (record) {
+  private handleC4ModelEndpoint(res: http.ServerResponse, releaseId: string): void {
+    // trail_graphs から TrailGraph を取得して trailToC4() で変換
+    const graph = this.trailDb.getTrailGraph(releaseId);
+    if (graph) {
+      const model = trailToC4(graph);
+      const provider = this.getC4Provider?.();
+      const featureMatrix = provider?.featureMatrix;
+      const payload: Record<string, unknown> = { model, boundaries: [] };
+      if (featureMatrix) {
+        payload.featureMatrix = featureMatrix;
+      }
       res.writeHead(200, JSON_HEADERS);
-      res.end(record.modelJson);
+      res.end(JSON.stringify(payload));
       return;
     }
 
-    // フォールバック: C4Panel のメモリ上データ
-    const provider = this.getC4Provider?.();
-    const model = provider?.model;
-    if (!model) {
-      res.writeHead(204);
-      res.end();
-      return;
+    // フォールバック: C4Panel のメモリ上データ（releaseId === 'current' の場合のみ）
+    if (releaseId === 'current') {
+      const provider = this.getC4Provider?.();
+      const model = provider?.model;
+      if (model) {
+        const boundaries = provider?.boundaries ?? [];
+        const featureMatrix = provider?.featureMatrix;
+        const payload: Record<string, unknown> = { model, boundaries };
+        if (featureMatrix) {
+          payload.featureMatrix = featureMatrix;
+        }
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify(payload));
+        return;
+      }
     }
-    const boundaries = provider?.boundaries ?? [];
-    const featureMatrix = provider?.featureMatrix;
 
-    const payload: Record<string, unknown> = { model, boundaries };
-    if (featureMatrix) {
-      payload.featureMatrix = featureMatrix;
+    res.writeHead(204);
+    res.end();
+  }
+
+  private handleC4ReleasesEndpoint(res: http.ServerResponse): void {
+    try {
+      const ids = this.trailDb.getTrailGraphIds();
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify(ids));
+    } catch {
+      res.writeHead(500, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'Failed to get C4 releases' }));
     }
-    res.writeHead(200, JSON_HEADERS);
-    res.end(JSON.stringify(payload));
   }
 
   private handleC4DsmEndpoint(res: http.ServerResponse): void {
