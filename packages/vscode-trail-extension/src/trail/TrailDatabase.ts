@@ -2116,6 +2116,7 @@ export class TrailDatabase {
         prevTag,
         releasedAt,
         prevReleasedAt,
+        repoName: path.basename(gitRoot),
         packageTags,
         commitSubjects,
         filesChanged: stats.filesChanged,

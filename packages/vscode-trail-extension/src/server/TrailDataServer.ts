@@ -762,6 +762,7 @@ export class TrailDataServer {
         tag: row.tag,
         releasedAt: row.released_at,
         prevTag: row.prev_tag,
+        repoName: row.repo_name ?? null,
         packageTags: JSON.parse(row.package_tags) as string[],
         commitCount: row.commit_count,
         filesChanged: row.files_changed,

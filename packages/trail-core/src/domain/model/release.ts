@@ -4,6 +4,7 @@ export interface TrailRelease {
   readonly tag: string;
   readonly releasedAt: string;
   readonly prevTag: string | null;
+  readonly repoName: string | null;
   readonly packageTags: readonly string[];
   readonly commitCount: number;
   readonly filesChanged: number;

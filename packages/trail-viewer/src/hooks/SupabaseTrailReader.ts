@@ -418,6 +418,7 @@ export class SupabaseTrailReader implements ITrailReader {
     if (error || !data) return [];
     return (data as readonly {
       tag: string; released_at: string; prev_tag: string | null;
+      repo_name: string | null;
       package_tags: string; commit_count: number;
       files_changed: number; lines_added: number; lines_deleted: number;
       feat_count: number; fix_count: number; refactor_count: number;
@@ -427,6 +428,7 @@ export class SupabaseTrailReader implements ITrailReader {
       tag: r.tag,
       releasedAt: r.released_at,
       prevTag: r.prev_tag,
+      repoName: r.repo_name,
       packageTags: JSON.parse(r.package_tags) as string[],
       commitCount: r.commit_count,
       filesChanged: r.files_changed,
