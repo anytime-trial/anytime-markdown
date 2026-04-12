@@ -90,7 +90,15 @@ function TrailViewerCoreInner({
   const tokens = useMemo(() => getTokens(isDark ?? true), [isDark]);
   const { colors } = tokens;
   const [activeTab, setActiveTab] = useState(0);
-  const selectedSession = sessions.find((s) => s.id === selectedSessionId);
+
+  const visibleSessions = useMemo(() => {
+    if (process.env.NEXT_PUBLIC_SHOW_LIMITED !== '1') return sessions;
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 7);
+    return sessions.filter((s) => new Date(s.startTime) >= cutoff);
+  }, [sessions]);
+
+  const selectedSession = visibleSessions.find((s) => s.id === selectedSessionId);
 
   return (
     <Box
@@ -189,7 +197,7 @@ function TrailViewerCoreInner({
             }}
           >
             <SessionList
-              sessions={sessions}
+              sessions={visibleSessions}
               selectedId={selectedSessionId}
               onSelect={onSelectSession}
             />

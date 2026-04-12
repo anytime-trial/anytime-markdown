@@ -84,7 +84,7 @@ const trailStandaloneConfig = {
   plugins: [
     new webpack.DefinePlugin({
       'process.env.NODE_ENV': JSON.stringify('production'),
-      'process.env.NEXT_PUBLIC_SHOW_90D_PERIOD': JSON.stringify('1'),
+      'process.env.NEXT_PUBLIC_SHOW_LIMITED': JSON.stringify('1'),
     }),
     new webpack.optimize.LimitChunkCountPlugin({
       maxChunks: 1,
