@@ -270,15 +270,6 @@ export class C4Panel implements C4DataProvider {
       const jsonStr = JSON.stringify(data, null, 2);
       fs.writeFileSync(filePath, jsonStr, 'utf-8');
 
-      // Also save to trail DB
-      if (C4Panel.trailDb) {
-        try {
-          const rev = (featureMatrix as Record<string, unknown> | undefined)?.revision as string ?? '';
-          C4Panel.trailDb.saveC4Model(jsonStr, rev);
-        } catch {
-          // DB save failure should not block file save
-        }
-      }
     } catch (err) {
       TrailLogger.error('Failed to save C4 model', err);
     }
