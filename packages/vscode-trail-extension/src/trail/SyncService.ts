@@ -116,6 +116,18 @@ export class SyncService {
       errors++;
     }
 
+    // Sync C4 model
+    try {
+      const c4 = this.trailDb.getC4Model();
+      if (c4) {
+        onProgress?.({ message: 'Syncing C4 model...' });
+        await this.store.upsertC4Model(c4.json, c4.revision);
+      }
+    } catch (e) {
+      TrailLogger.error('Failed to sync C4 model', e);
+      errors++;
+    }
+
     return {
       synced,
       skipped: localSessions.length - toSync.length,
