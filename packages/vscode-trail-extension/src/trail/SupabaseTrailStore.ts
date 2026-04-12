@@ -1,6 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { SessionRow, MessageRow, SessionCommitRow } from './TrailDatabase';
-import type { TaskRow, TaskFileRow, TaskC4ElementRow, TaskFeatureRow } from './TaskResolver';
+import type { SessionRow, MessageRow, SessionCommitRow, ReleaseFileRow, ReleaseFeatureRow } from './TrailDatabase';
 import type { IRemoteTrailStore } from './IRemoteTrailStore';
 
 export class SupabaseTrailStore implements IRemoteTrailStore {
@@ -157,64 +156,31 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     if (error) throw new Error(`Supabase upsert commits failed: ${error.message}`);
   }
 
-  async upsertTasks(rows: readonly TaskRow[]): Promise<void> {
+  async upsertReleaseFiles(rows: readonly ReleaseFileRow[]): Promise<void> {
     if (rows.length === 0) return;
-    const mapped = rows.map((r) => ({
-      id: r.id, merge_commit_hash: r.merge_commit_hash,
-      branch_name: r.branch_name, pr_number: r.pr_number,
-      title: r.title, merged_at: r.merged_at, base_branch: r.base_branch,
-      commit_count: r.commit_count, files_changed: r.files_changed,
-      lines_added: r.lines_added, lines_deleted: r.lines_deleted,
-      session_count: r.session_count,
-      total_input_tokens: r.total_input_tokens,
-      total_output_tokens: r.total_output_tokens,
-      total_cache_read_tokens: r.total_cache_read_tokens,
-      total_duration_ms: r.total_duration_ms,
-      resolved_at: r.resolved_at,
-      synced_at: new Date().toISOString(),
-    }));
     const { error } = await this.ensureClient()
-      .from('trail_tasks')
-      .upsert(mapped, { onConflict: 'id' });
-    if (error) throw new Error(`Supabase upsert tasks failed: ${error.message}`);
+      .from('trail_release_files')
+      .upsert(rows.map((r) => ({
+        release_tag: r.release_tag,
+        file_path: r.file_path,
+        lines_added: r.lines_added,
+        lines_deleted: r.lines_deleted,
+        change_type: r.change_type,
+      })), { onConflict: 'release_tag,file_path' });
+    if (error) throw new Error(`Supabase upsert release_files failed: ${error.message}`);
   }
 
-  async upsertTaskFiles(rows: readonly TaskFileRow[]): Promise<void> {
+  async upsertReleaseFeatures(rows: readonly ReleaseFeatureRow[]): Promise<void> {
     if (rows.length === 0) return;
-    const mapped = rows.map((r) => ({
-      task_id: r.task_id, file_path: r.file_path,
-      lines_added: r.lines_added, lines_deleted: r.lines_deleted,
-      change_type: r.change_type,
-    }));
     const { error } = await this.ensureClient()
-      .from('trail_task_files')
-      .upsert(mapped, { onConflict: 'task_id,file_path' });
-    if (error) throw new Error(`Supabase upsert task files failed: ${error.message}`);
-  }
-
-  async upsertTaskC4Elements(rows: readonly TaskC4ElementRow[]): Promise<void> {
-    if (rows.length === 0) return;
-    const mapped = rows.map((r) => ({
-      task_id: r.task_id, element_id: r.element_id,
-      element_type: r.element_type, element_name: r.element_name,
-      match_type: r.match_type,
-    }));
-    const { error } = await this.ensureClient()
-      .from('trail_task_c4_elements')
-      .upsert(mapped, { onConflict: 'task_id,element_id' });
-    if (error) throw new Error(`Supabase upsert task C4 elements failed: ${error.message}`);
-  }
-
-  async upsertTaskFeatures(rows: readonly TaskFeatureRow[]): Promise<void> {
-    if (rows.length === 0) return;
-    const mapped = rows.map((r) => ({
-      task_id: r.task_id, feature_id: r.feature_id,
-      feature_name: r.feature_name, role: r.role,
-    }));
-    const { error } = await this.ensureClient()
-      .from('trail_task_features')
-      .upsert(mapped, { onConflict: 'task_id,feature_id' });
-    if (error) throw new Error(`Supabase upsert task features failed: ${error.message}`);
+      .from('trail_release_features')
+      .upsert(rows.map((r) => ({
+        release_tag: r.release_tag,
+        feature_id: r.feature_id,
+        feature_name: r.feature_name,
+        role: r.role,
+      })), { onConflict: 'release_tag,feature_id' });
+    if (error) throw new Error(`Supabase upsert release_features failed: ${error.message}`);
   }
 
   async upsertC4Model(json: string, revision: string): Promise<void> {

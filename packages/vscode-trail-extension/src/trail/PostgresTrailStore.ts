@@ -1,6 +1,5 @@
 import { Pool } from 'pg';
-import type { SessionRow, MessageRow, SessionCommitRow } from './TrailDatabase';
-import type { TaskRow, TaskFileRow, TaskC4ElementRow, TaskFeatureRow } from './TaskResolver';
+import type { SessionRow, MessageRow, SessionCommitRow, ReleaseFileRow, ReleaseFeatureRow } from './TrailDatabase';
 import type { IRemoteTrailStore } from './IRemoteTrailStore';
 
 export class PostgresTrailStore implements IRemoteTrailStore {
@@ -154,84 +153,31 @@ export class PostgresTrailStore implements IRemoteTrailStore {
     }
   }
 
-  async upsertTasks(rows: readonly TaskRow[]): Promise<void> {
+  async upsertReleaseFiles(rows: readonly ReleaseFileRow[]): Promise<void> {
     if (rows.length === 0) return;
     const pool = this.ensurePool();
     for (const r of rows) {
       await pool.query(
-        `INSERT INTO trail_tasks (
-          id, merge_commit_hash, branch_name, pr_number, title,
-          merged_at, base_branch, commit_count, files_changed,
-          lines_added, lines_deleted,
-          session_count, total_input_tokens, total_output_tokens,
-          total_cache_read_tokens, total_duration_ms,
-          resolved_at, synced_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW())
-        ON CONFLICT (id) DO UPDATE SET
-          merge_commit_hash = EXCLUDED.merge_commit_hash,
-          branch_name = EXCLUDED.branch_name, pr_number = EXCLUDED.pr_number,
-          title = EXCLUDED.title, merged_at = EXCLUDED.merged_at,
-          base_branch = EXCLUDED.base_branch, commit_count = EXCLUDED.commit_count,
-          files_changed = EXCLUDED.files_changed,
-          lines_added = EXCLUDED.lines_added, lines_deleted = EXCLUDED.lines_deleted,
-          session_count = EXCLUDED.session_count,
-          total_input_tokens = EXCLUDED.total_input_tokens,
-          total_output_tokens = EXCLUDED.total_output_tokens,
-          total_cache_read_tokens = EXCLUDED.total_cache_read_tokens,
-          total_duration_ms = EXCLUDED.total_duration_ms,
-          resolved_at = EXCLUDED.resolved_at, synced_at = NOW()`,
-        [
-          r.id, r.merge_commit_hash, r.branch_name, r.pr_number, r.title,
-          r.merged_at, r.base_branch, r.commit_count, r.files_changed,
-          r.lines_added, r.lines_deleted,
-          r.session_count, r.total_input_tokens, r.total_output_tokens,
-          r.total_cache_read_tokens, r.total_duration_ms,
-          r.resolved_at,
-        ],
-      );
-    }
-  }
-
-  async upsertTaskFiles(rows: readonly TaskFileRow[]): Promise<void> {
-    if (rows.length === 0) return;
-    const pool = this.ensurePool();
-    for (const r of rows) {
-      await pool.query(
-        `INSERT INTO trail_task_files (task_id, file_path, lines_added, lines_deleted, change_type)
+        `INSERT INTO trail_release_files (release_tag, file_path, lines_added, lines_deleted, change_type)
         VALUES ($1, $2, $3, $4, $5)
-        ON CONFLICT (task_id, file_path) DO UPDATE SET
+        ON CONFLICT (release_tag, file_path) DO UPDATE SET
           lines_added = EXCLUDED.lines_added, lines_deleted = EXCLUDED.lines_deleted,
           change_type = EXCLUDED.change_type`,
-        [r.task_id, r.file_path, r.lines_added, r.lines_deleted, r.change_type],
+        [r.release_tag, r.file_path, r.lines_added, r.lines_deleted, r.change_type],
       );
     }
   }
 
-  async upsertTaskC4Elements(rows: readonly TaskC4ElementRow[]): Promise<void> {
+  async upsertReleaseFeatures(rows: readonly ReleaseFeatureRow[]): Promise<void> {
     if (rows.length === 0) return;
     const pool = this.ensurePool();
     for (const r of rows) {
       await pool.query(
-        `INSERT INTO trail_task_c4_elements (task_id, element_id, element_type, element_name, match_type)
-        VALUES ($1, $2, $3, $4, $5)
-        ON CONFLICT (task_id, element_id) DO UPDATE SET
-          element_type = EXCLUDED.element_type, element_name = EXCLUDED.element_name,
-          match_type = EXCLUDED.match_type`,
-        [r.task_id, r.element_id, r.element_type, r.element_name, r.match_type],
-      );
-    }
-  }
-
-  async upsertTaskFeatures(rows: readonly TaskFeatureRow[]): Promise<void> {
-    if (rows.length === 0) return;
-    const pool = this.ensurePool();
-    for (const r of rows) {
-      await pool.query(
-        `INSERT INTO trail_task_features (task_id, feature_id, feature_name, role)
+        `INSERT INTO trail_release_features (release_tag, feature_id, feature_name, role)
         VALUES ($1, $2, $3, $4)
-        ON CONFLICT (task_id, feature_id) DO UPDATE SET
+        ON CONFLICT (release_tag, feature_id) DO UPDATE SET
           feature_name = EXCLUDED.feature_name, role = EXCLUDED.role`,
-        [r.task_id, r.feature_id, r.feature_name, r.role],
+        [r.release_tag, r.feature_id, r.feature_name, r.role],
       );
     }
   }
