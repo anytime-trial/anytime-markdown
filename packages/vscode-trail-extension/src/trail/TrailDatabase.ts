@@ -1221,9 +1221,11 @@ export class TrailDatabase {
     if (c4ModelPath) {
       try {
         const raw = fs.readFileSync(c4ModelPath, 'utf-8');
-        JSON.parse(raw); // バリデーション（パース失敗は catch で無視）
-        const revision = fs.statSync(c4ModelPath).mtimeMs.toString();
-        this.saveC4Model(raw, revision);
+        const parsed: unknown = JSON.parse(raw);
+        if (typeof parsed === 'object' && parsed !== null) {
+          const revision = fs.statSync(c4ModelPath).mtimeMs.toString();
+          this.saveC4Model(raw, revision);
+        }
       } catch { /* ファイル読み込み失敗は無視 */ }
     }
 
@@ -2365,7 +2367,7 @@ export class TrailDatabase {
   //  C4 Model
   // ---------------------------------------------------------------------------
 
-  saveC4Model(json: string, revision: string): void {
+  private saveC4Model(json: string, revision: string): void {
     const db = this.ensureDb();
     db.run(
       `INSERT OR REPLACE INTO c4_models (id, model_json, revision, updated_at)
