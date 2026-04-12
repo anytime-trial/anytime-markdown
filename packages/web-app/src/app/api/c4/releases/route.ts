@@ -5,6 +5,10 @@ import { SupabaseC4ModelStore } from "@anytime-markdown/trail-viewer/supabase";
 
 import { resolveSupabaseEnv } from "../../../../lib/supabase-env";
 
+// Next.js App Router のデフォルト GET キャッシュを無効化（毎回 Supabase に問い合わせる）
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 /**
  * GET /api/c4/releases
  *
