@@ -144,4 +144,8 @@ export const en: TrailI18n = {
   'releases.days': 'd',
   'releases.noReleases': 'No release data available',
   'viewer.c4': 'C4',
+  'c4.releases': 'Releases',
+  'c4.releaseRepository': 'Repository',
+  'c4.unknownRepo': '(unknown)',
+  'c4.currentRelease': 'Current',
 };

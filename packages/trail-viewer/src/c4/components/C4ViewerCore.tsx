@@ -1,5 +1,5 @@
 import { buildElementTree, buildLevelView, c4ToGraphDocument, collectDescendantIds, filterTreeByLevel } from '@anytime-markdown/trail-core/c4';
-import type { BoundaryInfo, C4Model, CoverageDiffMatrix, CoverageMatrix, DocLink, FeatureMatrix } from '@anytime-markdown/trail-core/c4';
+import type { BoundaryInfo, C4Model, C4ReleaseEntry, CoverageDiffMatrix, CoverageMatrix, DocLink, FeatureMatrix } from '@anytime-markdown/trail-core/c4';
 import type { GraphDocument, GraphNode } from '@anytime-markdown/graph-core';
 import { engine, layoutWithSubgroups, state as graphState } from '@anytime-markdown/graph-core';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
@@ -12,12 +12,21 @@ import UploadFileIcon from '@mui/icons-material/UploadFile';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import ButtonGroup from '@mui/material/ButtonGroup';
+import FormControl from '@mui/material/FormControl';
+import InputLabel from '@mui/material/InputLabel';
 import LinearProgress from '@mui/material/LinearProgress';
+import MenuItem from '@mui/material/MenuItem';
+import Select from '@mui/material/Select';
+import type { SelectChangeEvent } from '@mui/material/Select';
 import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 
+import { useTrailI18n } from '../../i18n';
 import { getC4Colors } from '../c4Theme';
+
+const UNKNOWN_REPO_KEY = '__unknown__';
+const CURRENT_RELEASE_TAG = 'current';
 import { AddElementDialog, AddRelationshipDialog } from './C4EditDialogs';
 import type { ElementFormData, RelationshipFormData } from './C4EditDialogs';
 import { C4ElementTree } from './C4ElementTree';
@@ -60,7 +69,7 @@ export interface C4ViewerCoreProps {
   readonly onDocLinkClick?: (doc: DocLink) => void;
   readonly onImport?: () => void;
   readonly containerHeight?: string;
-  readonly releases?: readonly string[];
+  readonly releases?: readonly C4ReleaseEntry[];
   readonly selectedRelease?: string;
   readonly onReleaseSelect?: (release: string) => void;
 }
@@ -84,10 +93,57 @@ export function C4ViewerCore({
   onImport,
   containerHeight = '100vh',
   releases = [],
-  selectedRelease = 'current',
+  selectedRelease = CURRENT_RELEASE_TAG,
   onReleaseSelect,
 }: Readonly<C4ViewerCoreProps>) {
+  const { t } = useTrailI18n();
   const colors = useMemo(() => getC4Colors(isDark), [isDark]);
+
+  const repoOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const order: string[] = [];
+    for (const r of releases) {
+      if (r.tag === CURRENT_RELEASE_TAG) continue;
+      const key = r.repoName ?? UNKNOWN_REPO_KEY;
+      if (!seen.has(key)) {
+        seen.add(key);
+        order.push(key);
+      }
+    }
+    return order;
+  }, [releases]);
+
+  const [selectedRepo, setSelectedRepo] = useState<string>(() => repoOptions[0] ?? '');
+
+  useEffect(() => {
+    if (repoOptions.length === 0) {
+      if (selectedRepo !== '') setSelectedRepo('');
+      return;
+    }
+    if (!repoOptions.includes(selectedRepo)) {
+      setSelectedRepo(repoOptions[0]);
+    }
+  }, [repoOptions, selectedRepo]);
+
+  const visibleReleases = useMemo(() => {
+    if (releases.length === 0) return [];
+    const out: C4ReleaseEntry[] = [];
+    for (const r of releases) {
+      if (r.tag === CURRENT_RELEASE_TAG) {
+        out.push(r);
+        continue;
+      }
+      if (selectedRepo === '') continue;
+      if ((r.repoName ?? UNKNOWN_REPO_KEY) === selectedRepo) {
+        out.push(r);
+      }
+    }
+    return out;
+  }, [releases, selectedRepo]);
+
+  const handleRepoChange = useCallback((event: SelectChangeEvent<string>): void => {
+    setSelectedRepo(event.target.value);
+  }, []);
 
   const [state, dispatch] = useReducer(graphReducer, createInitialState());
   const [fullDoc, setFullDoc] = useState<GraphDocument | null>(null);
@@ -416,49 +472,73 @@ export function C4ViewerCore({
         {releases.length > 0 && (
           <Box
             sx={{
-              width: 160,
+              width: 200,
               flexShrink: 0,
               display: 'flex',
               flexDirection: 'column',
               borderRight: `1px solid ${colors.border}`,
               bgcolor: colors.bgSecondary,
-              overflowY: 'auto',
+              overflow: 'hidden',
             }}
           >
             <Typography
               variant="caption"
               sx={{ px: 1, py: 0.5, color: colors.textMuted, fontWeight: 600, borderBottom: `1px solid ${colors.border}`, flexShrink: 0 }}
             >
-              Releases
+              {t('c4.releases')}
             </Typography>
-            {releases.map((id) => (
-              <Box
-                key={id}
-                role="button"
-                tabIndex={0}
-                aria-pressed={id === selectedRelease}
-                onClick={() => onReleaseSelect?.(id)}
-                onKeyDown={(e: React.KeyboardEvent) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    onReleaseSelect?.(id);
-                  }
-                }}
-                sx={{
-                  px: 1,
-                  py: 0.5,
-                  cursor: 'pointer',
-                  fontSize: '0.75rem',
-                  color: id === selectedRelease ? colors.accent : colors.text,
-                  bgcolor: id === selectedRelease ? colors.focus : 'transparent',
-                  borderLeft: id === selectedRelease ? `2px solid ${colors.accent}` : '2px solid transparent',
-                  '&:hover': { bgcolor: colors.focus },
-                  wordBreak: 'break-all',
-                }}
-              >
-                {id === 'current' ? 'Current' : id}
+            {repoOptions.length > 0 && (
+              <Box sx={{ px: 1, py: 1, borderBottom: `1px solid ${colors.border}`, flexShrink: 0 }}>
+                <FormControl size="small" fullWidth>
+                  <InputLabel id="c4-release-repo-select-label">{t('c4.releaseRepository')}</InputLabel>
+                  <Select
+                    labelId="c4-release-repo-select-label"
+                    value={selectedRepo}
+                    label={t('c4.releaseRepository')}
+                    onChange={handleRepoChange}
+                  >
+                    {repoOptions.map((key) => (
+                      <MenuItem key={key} value={key}>
+                        {key === UNKNOWN_REPO_KEY ? t('c4.unknownRepo') : key}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
               </Box>
-            ))}
+            )}
+            <Box sx={{ flex: 1, overflowY: 'auto' }}>
+              {visibleReleases.map((entry) => {
+                const id = entry.tag;
+                return (
+                  <Box
+                    key={id}
+                    role="button"
+                    tabIndex={0}
+                    aria-pressed={id === selectedRelease}
+                    onClick={() => onReleaseSelect?.(id)}
+                    onKeyDown={(e: React.KeyboardEvent) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onReleaseSelect?.(id);
+                      }
+                    }}
+                    sx={{
+                      px: 1,
+                      py: 0.5,
+                      cursor: 'pointer',
+                      fontSize: '0.75rem',
+                      color: id === selectedRelease ? colors.accent : colors.text,
+                      bgcolor: id === selectedRelease ? colors.focus : 'transparent',
+                      borderLeft: id === selectedRelease ? `2px solid ${colors.accent}` : '2px solid transparent',
+                      '&:hover': { bgcolor: colors.focus },
+                      wordBreak: 'break-all',
+                    }}
+                  >
+                    {id === CURRENT_RELEASE_TAG ? t('c4.currentRelease') : id}
+                  </Box>
+                );
+              })}
+            </Box>
           </Box>
         )}
         {/* 既存コンテンツ (C4Graph / Separator / DSM / Tree) */}

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
   BoundaryInfo,
   C4Model,
+  C4ReleaseEntry,
   CoverageDiffMatrix,
   CoverageMatrix,
   CyclicPair,
@@ -40,7 +41,7 @@ interface C4DataSourceResult {
   connected: boolean;
   analysisProgress: AnalysisProgress | null;
   sendCommand: (cmd: string, payload?: unknown) => void;
-  releases: readonly string[];
+  releases: readonly C4ReleaseEntry[];
   selectedRelease: string;
   setSelectedRelease: (release: string) => void;
 }
@@ -175,7 +176,7 @@ function useRemoteInitialFetch(
   setFeatureMatrix: (m: FeatureMatrix | null) => void,
   setCoverageMatrix: (m: CoverageMatrix | null) => void,
   setCoverageDiff: (m: CoverageDiffMatrix | null) => void,
-  setReleases: (ids: readonly string[]) => void,
+  setReleases: (entries: readonly C4ReleaseEntry[]) => void,
 ): void {
   useEffect(() => {
     if (!serverUrl) return;
@@ -222,7 +223,20 @@ function useRemoteInitialFetch(
       if (releasesRes?.status === 200) {
         const json: unknown = await releasesRes.json();
         if (!cancelled && Array.isArray(json)) {
-          setReleases(json as string[]);
+          const normalized: C4ReleaseEntry[] = (json as unknown[]).map((item) => {
+            if (typeof item === 'string') {
+              return { tag: item, repoName: null };
+            }
+            if (item && typeof item === 'object' && 'tag' in item) {
+              const obj = item as { tag: unknown; repoName?: unknown };
+              return {
+                tag: String(obj.tag),
+                repoName: typeof obj.repoName === 'string' ? obj.repoName : null,
+              };
+            }
+            return null;
+          }).filter((e): e is C4ReleaseEntry => e !== null);
+          setReleases(normalized);
         }
       }
     }
@@ -289,7 +303,7 @@ export function useC4DataSource(serverUrl?: string): C4DataSourceResult {
   const [docLinks, setDocLinks] = useState<readonly DocLink[]>([]);
   const [connected, setConnected] = useState(false);
   const [analysisProgress, setAnalysisProgress] = useState<AnalysisProgress | null>(null);
-  const [releases, setReleases] = useState<readonly string[]>([]);
+  const [releases, setReleases] = useState<readonly C4ReleaseEntry[]>([]);
   const [selectedRelease, setSelectedRelease] = useState<string>('current');
 
   // Refs

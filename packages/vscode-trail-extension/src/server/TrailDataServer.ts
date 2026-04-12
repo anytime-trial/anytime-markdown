@@ -602,9 +602,9 @@ export class TrailDataServer {
 
   private handleC4ReleasesEndpoint(res: http.ServerResponse): void {
     try {
-      const ids = this.trailDb.getTrailGraphIds();
+      const entries = this.trailDb.getTrailGraphEntries();
       res.writeHead(200, JSON_HEADERS);
-      res.end(JSON.stringify(ids));
+      res.end(JSON.stringify(entries));
     } catch {
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: 'Failed to get C4 releases' }));

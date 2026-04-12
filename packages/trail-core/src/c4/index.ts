@@ -18,6 +18,7 @@ export type {
   CoverageDelta,
   CoverageDiffEntry,
   CoverageDiffMatrix,
+  C4ReleaseEntry,
 } from './types';
 
 export { parseMermaidC4, extractBoundaries } from './parser/mermaidC4';

@@ -1310,6 +1310,27 @@ export class TrailDatabase {
     return (result[0]?.values?.map((r) => r[0] as string) ?? []);
   }
 
+  /**
+   * trail_graphs テーブルに存在する ID と repo_name のペア一覧を返す。
+   * 'current' を先頭に、残りは released_at の降順。
+   * repo_name は releases テーブルから取得（'current' などは null）。
+   */
+  getTrailGraphEntries(): Array<{ tag: string; repoName: string | null }> {
+    const db = this.ensureDb();
+    const result = db.exec(`
+      SELECT tg.id, r.repo_name
+      FROM trail_graphs tg
+      LEFT JOIN releases r ON tg.id = r.tag
+      ORDER BY
+        CASE WHEN tg.id = 'current' THEN 0 ELSE 1 END,
+        r.released_at DESC
+    `);
+    return (result[0]?.values?.map((row) => ({
+      tag: row[0] as string,
+      repoName: (row[1] as string | null) ?? null,
+    })) ?? []);
+  }
+
   // -------------------------------------------------------------------------
   //  Queries
   // -------------------------------------------------------------------------
