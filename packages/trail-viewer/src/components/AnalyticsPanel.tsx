@@ -589,7 +589,6 @@ function DailySessionList({
   fetchSessionMessages,
   fetchSessionCommits,
   fetchSessionToolMetrics,
-  onClose,
 }: Readonly<{
   date: string;
   sessions: readonly TrailSession[];
@@ -597,7 +596,6 @@ function DailySessionList({
   fetchSessionMessages?: (id: string) => Promise<readonly TrailMessage[]>;
   fetchSessionCommits?: (id: string) => Promise<readonly TrailSessionCommit[]>;
   fetchSessionToolMetrics?: (id: string) => Promise<ToolMetrics | null>;
-  onClose: () => void;
 }>) {
   const { colors, cardSx } = useTrailTheme();
   const { t } = useTrailI18n();
@@ -632,17 +630,9 @@ function DailySessionList({
 
   return (
     <Paper elevation={0} sx={{ ...cardSx, mt: 1, p: 1.5 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+      <Box sx={{ mb: 1 }}>
         <Typography variant="subtitle2">
           {date} — {daySessions.length} {daySessions.length !== 1 ? t('sessionList.sessions') : t('sessionList.session')}
-        </Typography>
-        <Typography
-          variant="caption"
-          color="text.secondary"
-          sx={{ cursor: 'pointer', color: colors.textSecondary, '&:hover': { textDecoration: 'underline' } }}
-          onClick={onClose}
-        >
-          {t('analytics.close')}
         </Typography>
       </Box>
       <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', md: 'row' } }}>
@@ -911,7 +901,6 @@ function DailyActivityChart({
           fetchSessionMessages={fetchSessionMessages}
           fetchSessionCommits={fetchSessionCommits}
           fetchSessionToolMetrics={fetchSessionToolMetrics}
-          onClose={() => setSelectedDate(null)}
         />
       )}
     </Box>
