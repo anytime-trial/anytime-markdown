@@ -4,7 +4,7 @@ import InputAdornment from '@mui/material/InputAdornment';
 import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
 import Toolbar from '@mui/material/Toolbar';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 
 import type { TrailFilter, TrailSession } from '../parser/types';
 import { useTrailI18n } from '../i18n';
@@ -16,26 +16,23 @@ interface FilterBarProps {
   readonly onChange: (filter: TrailFilter) => void;
 }
 
-const ALL_VALUE = '__all__';
-
 export function FilterBar({ filter, sessions, onChange }: Readonly<FilterBarProps>) {
   const { t } = useTrailI18n();
   const { colors, radius } = useTrailTheme();
-  const branches = useMemo(() => {
+
+  const repositories = useMemo(() => {
     const set = new Set<string>();
     for (const s of sessions) {
-      if (s.gitBranch) set.add(s.gitBranch);
+      if (s.project) set.add(s.project);
     }
     return [...set].sort();
   }, [sessions]);
 
-  const models = useMemo(() => {
-    const set = new Set<string>();
-    for (const s of sessions) {
-      if (s.model) set.add(s.model);
+  useEffect(() => {
+    if (!filter.project && repositories.length > 0) {
+      onChange({ ...filter, project: repositories[0] });
     }
-    return [...set].sort();
-  }, [sessions]);
+  }, [filter, repositories, onChange]);
 
   const handleSearchChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -44,18 +41,9 @@ export function FilterBar({ filter, sessions, onChange }: Readonly<FilterBarProp
     [filter, onChange],
   );
 
-  const handleBranchChange = useCallback(
+  const handleRepositoryChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const value = e.target.value;
-      onChange({ ...filter, gitBranch: value === ALL_VALUE ? undefined : value });
-    },
-    [filter, onChange],
-  );
-
-  const handleModelChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const value = e.target.value;
-      onChange({ ...filter, model: value === ALL_VALUE ? undefined : value });
+      onChange({ ...filter, project: e.target.value });
     },
     [filter, onChange],
   );
@@ -103,30 +91,14 @@ export function FilterBar({ filter, sessions, onChange }: Readonly<FilterBarProp
         <TextField
           select
           size="small"
-          label={t('filter.branch')}
-          value={filter.gitBranch ?? ALL_VALUE}
-          onChange={handleBranchChange}
-          sx={{ minWidth: 140 }}
+          label={t('filter.repository')}
+          value={filter.project ?? ''}
+          onChange={handleRepositoryChange}
+          sx={{ minWidth: 200 }}
         >
-          <MenuItem value={ALL_VALUE}>{t('filter.allBranches')}</MenuItem>
-          {branches.map((b) => (
-            <MenuItem key={b} value={b}>
-              {b}
-            </MenuItem>
-          ))}
-        </TextField>
-        <TextField
-          select
-          size="small"
-          label={t('filter.model')}
-          value={filter.model ?? ALL_VALUE}
-          onChange={handleModelChange}
-          sx={{ minWidth: 140 }}
-        >
-          <MenuItem value={ALL_VALUE}>{t('filter.allModels')}</MenuItem>
-          {models.map((m) => (
-            <MenuItem key={m} value={m}>
-              {m}
+          {repositories.map((r) => (
+            <MenuItem key={r} value={r}>
+              {r}
             </MenuItem>
           ))}
         </TextField>

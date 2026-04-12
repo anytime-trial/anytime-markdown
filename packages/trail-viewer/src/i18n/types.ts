@@ -10,10 +10,7 @@ export interface TrailI18n {
   'viewer.loaded': string;
   // filter
   'filter.searchPlaceholder': string;
-  'filter.branch': string;
-  'filter.allBranches': string;
-  'filter.model': string;
-  'filter.allModels': string;
+  'filter.repository': string;
   'filter.searchLabel': string;
   // sessionList
   'sessionList.noSessions': string;
