@@ -40,19 +40,20 @@ export class PostgresTrailStore implements IRemoteTrailStore {
     for (const r of rows) {
       await pool.query(
         `INSERT INTO trail_sessions (
-          id, slug, project, git_branch, cwd, model, version, entrypoint,
+          id, slug, project, repo_name, git_branch, cwd, model, version, entrypoint,
           permission_mode, start_time, end_time, message_count,
           input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens,
           file_path, file_size, imported_at,
           peak_context_tokens, initial_context_tokens, commits_resolved_at, synced_at
         ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8,
-          $9, $10, $11, $12,
-          $13, $14, $15, $16,
-          $17, $18, $19,
-          $20, $21, $22, NOW()
+          $1, $2, $3, $4, $5, $6, $7, $8, $9,
+          $10, $11, $12, $13,
+          $14, $15, $16, $17,
+          $18, $19, $20,
+          $21, $22, $23, NOW()
         ) ON CONFLICT (id) DO UPDATE SET
           slug = EXCLUDED.slug, project = EXCLUDED.project,
+          repo_name = EXCLUDED.repo_name,
           git_branch = EXCLUDED.git_branch, cwd = EXCLUDED.cwd,
           model = EXCLUDED.model, version = EXCLUDED.version,
           entrypoint = EXCLUDED.entrypoint, permission_mode = EXCLUDED.permission_mode,
@@ -68,7 +69,7 @@ export class PostgresTrailStore implements IRemoteTrailStore {
           commits_resolved_at = EXCLUDED.commits_resolved_at,
           synced_at = NOW()`,
         [
-          r.id, r.slug, r.project, r.git_branch, r.cwd, r.model,
+          r.id, r.slug, r.project, r.repo_name, r.git_branch, r.cwd, r.model,
           r.version, r.entrypoint, r.permission_mode,
           r.start_time, r.end_time, r.message_count,
           r.input_tokens, r.output_tokens, r.cache_read_tokens, r.cache_creation_tokens,
@@ -159,13 +160,14 @@ export class PostgresTrailStore implements IRemoteTrailStore {
     for (const r of rows) {
       await pool.query(
         `INSERT INTO trail_releases (
-          tag, released_at, prev_tag, package_tags, commit_count,
+          tag, released_at, prev_tag, repo_name, package_tags, commit_count,
           files_changed, lines_added, lines_deleted,
           feat_count, fix_count, refactor_count, test_count, other_count,
           affected_packages, duration_days, resolved_at, synced_at
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,NOW())
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,NOW())
         ON CONFLICT (tag) DO UPDATE SET
           released_at = EXCLUDED.released_at, prev_tag = EXCLUDED.prev_tag,
+          repo_name = EXCLUDED.repo_name,
           package_tags = EXCLUDED.package_tags, commit_count = EXCLUDED.commit_count,
           files_changed = EXCLUDED.files_changed, lines_added = EXCLUDED.lines_added,
           lines_deleted = EXCLUDED.lines_deleted, feat_count = EXCLUDED.feat_count,
@@ -174,7 +176,7 @@ export class PostgresTrailStore implements IRemoteTrailStore {
           affected_packages = EXCLUDED.affected_packages, duration_days = EXCLUDED.duration_days,
           resolved_at = EXCLUDED.resolved_at, synced_at = NOW()`,
         [
-          r.tag, r.released_at, r.prev_tag ?? null, r.package_tags, r.commit_count,
+          r.tag, r.released_at, r.prev_tag ?? null, r.repo_name, r.package_tags, r.commit_count,
           r.files_changed, r.lines_added, r.lines_deleted,
           r.feat_count, r.fix_count, r.refactor_count, r.test_count, r.other_count,
           r.affected_packages, r.duration_days, r.resolved_at ?? null,

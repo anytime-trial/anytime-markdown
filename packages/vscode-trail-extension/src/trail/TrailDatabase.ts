@@ -59,6 +59,7 @@ export interface SessionRow {
   readonly id: string;
   readonly slug: string;
   readonly project: string;
+  readonly repo_name: string;
   readonly version: string;
   readonly entrypoint: string;
   readonly model: string;
@@ -263,10 +264,10 @@ interface RawContentBlock {
 // CREATE_INDEXES imported from trail-core (see import at top of file)
 
 const INSERT_SESSION = `INSERT OR REPLACE INTO sessions
-  (id, slug, project, version, entrypoint, model,
+  (id, slug, project, repo_name, version, entrypoint, model,
    start_time, end_time, message_count,
    file_path, file_size, imported_at)
-  VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`;
+  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`;
 
 const INSERT_SESSION_COST = `INSERT OR REPLACE INTO session_costs
   (session_id, model, input_tokens, output_tokens,
@@ -934,7 +935,7 @@ export class TrailDatabase {
   }
 
   /** @returns number of messages imported */
-  importSession(filePath: string, projectName: string, isSubagent = false, externalTransaction = false): number {
+  importSession(filePath: string, projectName: string, isSubagent = false, externalTransaction = false, repoName = ''): number {
     const db = this.ensureDb();
     const content = fs.readFileSync(filePath, 'utf-8');
     const lines = content.split('\n').filter((l) => l.trim() !== '');
@@ -989,7 +990,7 @@ export class TrailDatabase {
       // Insert/update session metadata only for main session files
       if (!isSubagent) {
         db.run(INSERT_SESSION, [
-          sessionId, slug, projectName, version,
+          sessionId, slug, projectName, repoName, version,
           entrypoint, model, startTime, endTime, messageCount,
           filePath, fileSize, importedAt,
         ]);
@@ -1076,6 +1077,7 @@ export class TrailDatabase {
     c4ModelPath?: string,
   ): Promise<{ imported: number; skipped: number; commitsResolved: number; releasesResolved: number; releasesAnalyzed: number; coverageImported: number }> {
     const projectsDir = path.join(os.homedir(), '.claude', 'projects');
+    const repoName = gitRoot ? path.basename(gitRoot) : '';
     let imported = 0;
     let skipped = 0;
     let commitsResolved = 0;
@@ -1170,7 +1172,7 @@ export class TrailDatabase {
 
       for (const file of filesToImport) {
         try {
-          const msgCount = this.importSession(file.filePath, dir.projectName, file.isSubagent, true);
+          const msgCount = this.importSession(file.filePath, dir.projectName, file.isSubagent, true, repoName);
           imported++;
           batchMessageCount += msgCount;
           batchFileCount++;
@@ -2111,15 +2113,16 @@ export class TrailDatabase {
 
       db.run(
         `INSERT OR REPLACE INTO releases (
-          tag, released_at, prev_tag, package_tags,
+          tag, released_at, prev_tag, repo_name, package_tags,
           commit_count, files_changed, lines_added, lines_deleted,
           feat_count, fix_count, refactor_count, test_count, other_count,
           affected_packages, duration_days
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           release.tag,
           release.releasedAt,
           release.prevTag,
+          path.basename(gitRoot),
           JSON.stringify(release.packageTags),
           release.commitCount,
           release.filesChanged,

@@ -22,6 +22,7 @@ export interface ReleaseRow {
   readonly tag: string;
   readonly released_at: string;
   readonly prev_tag: string | null;
+  readonly repo_name: string;
   readonly package_tags: string;
   readonly commit_count: number;
   readonly files_changed: number;
