@@ -92,11 +92,27 @@ function TrailViewerCoreInner({
   const [activeTab, setActiveTab] = useState(0);
 
   const visibleSessions = useMemo(() => {
-    if (process.env.NEXT_PUBLIC_SHOW_UNLIMITED === '1') return sessions;
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - 7);
-    return sessions.filter((s) => new Date(s.startTime) >= cutoff);
-  }, [sessions]);
+    let result = sessions;
+    if (process.env.NEXT_PUBLIC_SHOW_UNLIMITED !== '1') {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 7);
+      result = result.filter((s) => new Date(s.startTime) >= cutoff);
+    }
+    if (filter.project) {
+      result = result.filter((s) => s.project === filter.project);
+    }
+    const q = filter.searchText?.trim().toLowerCase();
+    if (q) {
+      result = result.filter((s) => {
+        const haystack = [s.slug, s.id, s.project, s.gitBranch, s.model]
+          .filter((v): v is string => typeof v === 'string')
+          .join(' ')
+          .toLowerCase();
+        return haystack.includes(q);
+      });
+    }
+    return result;
+  }, [sessions, filter.project, filter.searchText]);
 
   const selectedSession = visibleSessions.find((s) => s.id === selectedSessionId);
 
