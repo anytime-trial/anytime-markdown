@@ -1997,12 +1997,6 @@ export class TrailDatabase {
     const latestTag = latestResult[0]?.values?.[0]?.[0] as string | undefined;
     if (!latestTag) return 0;
 
-    // すでにカバレッジデータがある場合はスキップ
-    const existing = db.exec(
-      `SELECT COUNT(*) FROM release_coverage WHERE release_tag = '${latestTag.replaceAll("'", "''")}'`,
-    );
-    if ((existing[0]?.values?.[0]?.[0] as number) > 0) return 0;
-
     const packagesDir = path.join(gitRoot, 'packages');
     let count = 0;
 
@@ -2015,8 +2009,6 @@ export class TrailDatabase {
 
     for (const pkgDir of packageDirs) {
       const summaryPath = path.join(packagesDir, pkgDir, 'coverage', 'coverage-summary.json');
-      if (!fs.existsSync(summaryPath)) continue;
-
       let summary: Record<string, CoverageSummaryEntry>;
       try {
         summary = JSON.parse(fs.readFileSync(summaryPath, 'utf-8')) as Record<string, CoverageSummaryEntry>;
@@ -2025,10 +2017,13 @@ export class TrailDatabase {
       }
 
       for (const [key, entry] of Object.entries(summary)) {
+        if (!entry?.lines || !entry?.statements || !entry?.functions || !entry?.branches) {
+          continue;
+        }
         const filePath = key === 'total' ? '__total__' : key;
         try {
           db.run(
-            `INSERT OR REPLACE INTO release_coverage (
+            `INSERT OR IGNORE INTO release_coverage (
               release_tag, package, file_path,
               lines_total, lines_covered, lines_pct,
               statements_total, statements_covered, statements_pct,
@@ -2332,7 +2327,7 @@ export class TrailDatabase {
     const result = db.exec(
       `SELECT * FROM release_coverage WHERE release_tag = '${releaseTag.replaceAll("'", "''")}'`,
     );
-    if (!result[0]) return [];
+    if (!result[0]?.values) return [];
     const cols = result[0].columns;
     return result[0].values.map((row) =>
       Object.fromEntries(cols.map((col, i) => [col, row[i]])) as unknown as ReleaseCoverageRow,
@@ -2345,7 +2340,7 @@ export class TrailDatabase {
       `SELECT * FROM release_coverage WHERE release_tag = '${releaseTag.replaceAll("'", "''")}'
        AND file_path = '__total__'`,
     );
-    if (!result[0]) return [];
+    if (!result[0]?.values) return [];
     const cols = result[0].columns;
     return result[0].values.map((row) =>
       Object.fromEntries(cols.map((col, i) => [col, row[i]])) as unknown as ReleaseCoverageRow,
