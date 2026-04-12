@@ -4,6 +4,8 @@ import { NextResponse } from "next/server";
 import { fetchC4Model } from "@anytime-markdown/trail-core/c4";
 import { SupabaseC4ModelStore } from "@anytime-markdown/trail-viewer/supabase";
 
+import { resolveSupabaseEnv } from "../../../lib/supabase-env";
+
 /**
  * GET /api/c4model?release=...&repo=...
  *
@@ -45,11 +47,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // Try Supabase first if configured
   const c4Source = process.env.C4_SOURCE ?? "github";
   if (c4Source === "supabase") {
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_ANON_KEY;
-    if (supabaseUrl && supabaseKey) {
+    const env = resolveSupabaseEnv();
+    if (env) {
       try {
-        const store = new SupabaseC4ModelStore(supabaseUrl, supabaseKey);
+        const store = new SupabaseC4ModelStore(env.url, env.anonKey);
         const payload = await fetchC4Model(store, release, repo);
         if (payload) {
           return NextResponse.json(payload, {

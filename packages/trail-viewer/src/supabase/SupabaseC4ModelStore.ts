@@ -62,23 +62,29 @@ export class SupabaseC4ModelStore implements IC4ModelStore {
 
   async getC4ModelEntries(): Promise<readonly C4ModelEntry[]> {
     // current_graphs 相当: trail_current_c4_models
-    const { data: currentRows } = await this.client
+    const currentRes = await this.client
       .from('trail_current_c4_models')
       .select('repo_name')
       .returns<{ repo_name: string }[]>();
+    if (currentRes.error) {
+      console.error('[SupabaseC4ModelStore] trail_current_c4_models select failed:', currentRes.error.message);
+    }
 
-    // release 相当: trail_releases と join（trail_c4_models から取るが id=release_tag なので releases と突合が必要）
-    const { data: releaseRows } = await this.client
+    // release 相当: trail_releases（tag で trail_c4_models と突合）
+    const releaseRes = await this.client
       .from('trail_releases')
       .select('tag, repo_name, released_at')
       .order('released_at', { ascending: false })
       .returns<TrailReleaseRow[]>();
+    if (releaseRes.error) {
+      console.error('[SupabaseC4ModelStore] trail_releases select failed:', releaseRes.error.message);
+    }
 
     const entries: C4ModelEntry[] = [];
-    for (const r of currentRows ?? []) {
+    for (const r of currentRes.data ?? []) {
       entries.push({ tag: 'current', repoName: r.repo_name });
     }
-    for (const r of releaseRows ?? []) {
+    for (const r of releaseRes.data ?? []) {
       entries.push({ tag: r.tag, repoName: r.repo_name });
     }
     return entries;

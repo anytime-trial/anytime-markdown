@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { fetchC4ModelEntries } from "@anytime-markdown/trail-core/c4";
 import { SupabaseC4ModelStore } from "@anytime-markdown/trail-viewer/supabase";
 
+import { resolveSupabaseEnv } from "../../../../lib/supabase-env";
+
 /**
  * GET /api/c4/releases
  *
@@ -13,17 +15,19 @@ import { SupabaseC4ModelStore } from "@anytime-markdown/trail-viewer/supabase";
  */
 
 export async function GET(): Promise<NextResponse> {
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_ANON_KEY;
-  if (!supabaseUrl || !supabaseKey) {
+  const env = resolveSupabaseEnv();
+  if (!env) {
+    console.warn('[/api/c4/releases] Supabase env not configured');
     return NextResponse.json([]);
   }
 
   try {
-    const store = new SupabaseC4ModelStore(supabaseUrl, supabaseKey);
+    const store = new SupabaseC4ModelStore(env.url, env.anonKey);
     const entries = await fetchC4ModelEntries(store);
+    console.info(`[/api/c4/releases] returned ${entries.length} entries`);
     return NextResponse.json(entries);
-  } catch {
+  } catch (e) {
+    console.error('[/api/c4/releases] error', e);
     return NextResponse.json([]);
   }
 }
