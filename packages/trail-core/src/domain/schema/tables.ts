@@ -106,7 +106,7 @@ export const CREATE_TRAIL_GRAPHS = `CREATE TABLE IF NOT EXISTS trail_graphs (
   tsconfig_path TEXT NOT NULL,
   project_root  TEXT NOT NULL,
   analyzed_at   TEXT NOT NULL,
-  updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  updated_at    TEXT NOT NULL DEFAULT ''
 )`;
 
 export const CREATE_SKILL_MODELS = `CREATE TABLE IF NOT EXISTS skill_models (
