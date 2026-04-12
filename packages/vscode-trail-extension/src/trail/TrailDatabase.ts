@@ -1979,7 +1979,29 @@ export class TrailDatabase {
     for (let i = 0; i < tags.length; i++) {
       const tag = tags[i];
       const existing = db.exec(`SELECT tag FROM releases WHERE tag = '${tag.replaceAll("'", "''")}'`);
-      if (existing[0]?.values?.length) continue;
+      if (existing[0]?.values?.length) {
+        // Release exists — backfill release_files if missing
+        const prevTag = i + 1 < tags.length ? tags[i + 1] : null;
+        if (prevTag) {
+          const filesExist = db.exec(
+            `SELECT COUNT(*) FROM release_files WHERE release_tag = '${tag.replaceAll("'", "''")}'`,
+          );
+          if (!((filesExist[0]?.values?.[0]?.[0] as number) > 0)) {
+            const fileStats = git.getFileStatsByRange(prevTag, tag);
+            for (const f of fileStats) {
+              try {
+                db.run(
+                  `INSERT OR IGNORE INTO release_files (release_tag, file_path, lines_added, lines_deleted, change_type)
+                   VALUES (?, ?, ?, ?, ?)`,
+                  [tag, f.filePath, f.linesAdded, f.linesDeleted, f.changeType],
+                );
+              } catch { /* ignore */ }
+            }
+            if (fileStats.length > 0) count++;
+          }
+        }
+        continue;
+      }
 
       const prevTag = i + 1 < tags.length ? tags[i + 1] : null;
       const commitHash = git.getTagCommitHash(tag);
