@@ -20,6 +20,7 @@ import { TrailLogger } from '../utils/TrailLogger';
 import { CoverageHistory } from './coverageHistory';
 import { CoverageWatcher } from './coverageWatcher';
 import type { TrailDatabase } from '../trail/TrailDatabase';
+import { ExecFileGitService } from '../trail/ExecFileGitService';
 
 /**
  * C4モデルのデータ管理を担当するシングルトン。
@@ -413,9 +414,11 @@ export class C4Panel implements C4DataProvider {
             `C4 analysis [${repoName}]: analyzed ${graph.metadata.fileCount} files, ${graph.nodes.length} nodes, ${graph.edges.length} edges`,
           );
 
-          // TrailGraph を DB に保存
-          C4Panel.trailDb?.saveTrailGraph(graph, tsconfigPath);
-          TrailLogger.info(`C4 analysis [${repoName}]: TrailGraph saved to DB`);
+          // TrailGraph を current_graphs テーブルに保存（HEAD コミット ID 付き）
+          const gitRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+          const commitId = gitRoot ? new ExecFileGitService(gitRoot).getHeadCommit() : '';
+          C4Panel.trailDb?.saveCurrentGraph(graph, tsconfigPath, commitId);
+          TrailLogger.info(`C4 analysis [${repoName}]: TrailGraph saved to current_graphs (commit=${commitId || 'unknown'})`);
 
           // TODO: C4モデル変換・マージは一旦コメントアウト
           // progress.report({ message: 'Building C4 model...' });

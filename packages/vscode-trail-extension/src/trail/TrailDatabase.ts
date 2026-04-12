@@ -12,7 +12,8 @@ import {
   CREATE_SESSION_COMMITS,
   CREATE_IMPORTED_FILES,
   CREATE_C4_MODELS,
-  CREATE_TRAIL_GRAPHS,
+  CREATE_CURRENT_GRAPHS,
+  CREATE_RELEASE_GRAPHS,
   CREATE_SKILL_MODELS as CREATE_SKILL_MODELS_TABLE,
   CREATE_SKILL_MODELS_RESOLVED_VIEW,
   CREATE_INDEXES,
@@ -389,6 +390,7 @@ export class TrailDatabase {
 
   private createTables(): void {
     const db = this.ensureDb();
+    db.run('PRAGMA foreign_keys = ON');
     db.run(CREATE_SESSIONS);
     db.run(CREATE_SESSION_COSTS);
     db.run(CREATE_DAILY_COSTS);
@@ -399,7 +401,9 @@ export class TrailDatabase {
     db.run(CREATE_RELEASE_FEATURES);
     db.run(CREATE_RELEASE_COVERAGE);
     db.run(CREATE_C4_MODELS);
-    db.run(CREATE_TRAIL_GRAPHS);
+    db.run(CREATE_CURRENT_GRAPHS);
+    db.run(CREATE_RELEASE_GRAPHS);
+    this.migrateTrailGraphsTable(db);
     db.run(CREATE_SKILL_MODELS_TABLE);
     db.run(CREATE_SKILL_MODELS_RESOLVED_VIEW);
     for (const sql of [...CREATE_INDEXES, ...CREATE_RELEASE_INDEXES]) {
@@ -511,6 +515,83 @@ export class TrailDatabase {
     } catch (e) {
       console.error('[TrailDatabase] migrateTimestampsToUTC failed:', e);
       db.run('ROLLBACK');
+    }
+  }
+
+  /**
+   * 旧 trail_graphs テーブルのデータを current_graphs / release_graphs に移行して破棄する。
+   * - id='current' 行 → current_graphs（commit_id は空文字で初期化）
+   * - それ以外で releases.tag に存在するもの → release_graphs
+   * - releases に存在しない孤児タグはログ警告のみで破棄
+   */
+  private migrateTrailGraphsTable(db: Database): void {
+    const exists = db.exec(
+      "SELECT 1 FROM sqlite_master WHERE type='table' AND name='trail_graphs'",
+    );
+    if (!exists[0]?.values?.length) return;
+
+    try {
+      const currentRes = db.exec(
+        "SELECT graph_json, tsconfig_path, project_root, analyzed_at, updated_at FROM trail_graphs WHERE id = 'current'",
+      );
+      const currentRow = currentRes[0]?.values?.[0];
+      if (currentRow) {
+        db.run(
+          `INSERT OR REPLACE INTO current_graphs
+             (id, commit_id, graph_json, tsconfig_path, project_root, analyzed_at, updated_at)
+           VALUES ('current', '', ?, ?, ?, ?, ?)`,
+          [
+            String(currentRow[0] ?? ''),
+            String(currentRow[1] ?? ''),
+            String(currentRow[2] ?? ''),
+            String(currentRow[3] ?? ''),
+            String(currentRow[4] ?? ''),
+          ],
+        );
+      }
+
+      const releaseTagsRes = db.exec('SELECT tag FROM releases');
+      const knownTags = new Set<string>(
+        releaseTagsRes[0]?.values?.map((r) => String(r[0])) ?? [],
+      );
+
+      const othersRes = db.exec(
+        "SELECT id, graph_json, tsconfig_path, project_root, analyzed_at, updated_at FROM trail_graphs WHERE id <> 'current'",
+      );
+      const orphans: string[] = [];
+      for (const row of othersRes[0]?.values ?? []) {
+        const tag = String(row[0]);
+        if (!knownTags.has(tag)) {
+          orphans.push(tag);
+          continue;
+        }
+        db.run(
+          `INSERT OR REPLACE INTO release_graphs
+             (tag, graph_json, tsconfig_path, project_root, analyzed_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [
+            tag,
+            String(row[1] ?? ''),
+            String(row[2] ?? ''),
+            String(row[3] ?? ''),
+            String(row[4] ?? ''),
+            String(row[5] ?? ''),
+          ],
+        );
+      }
+
+      if (orphans.length > 0) {
+        TrailLogger.warn(
+          `migrateTrailGraphsTable: dropped ${orphans.length} orphan tag(s) not present in releases: ${orphans.join(', ')}`,
+        );
+      }
+
+      db.run('DROP TABLE trail_graphs');
+      TrailLogger.info(
+        `migrateTrailGraphsTable: migrated trail_graphs → current_graphs/release_graphs (current=${currentRow ? 1 : 0}, releases=${(othersRes[0]?.values?.length ?? 0) - orphans.length})`,
+      );
+    } catch (e) {
+      TrailLogger.error('migrateTrailGraphsTable failed', e);
     }
   }
 
@@ -1281,14 +1362,14 @@ export class TrailDatabase {
     return { imported, skipped, commitsResolved, releasesResolved, releasesAnalyzed, coverageImported };
   }
 
-  saveTrailGraph(graph: TrailGraph, tsconfigPath: string, id = 'current'): void {
+  saveCurrentGraph(graph: TrailGraph, tsconfigPath: string, commitId: string): void {
     const db = this.ensureDb();
     db.run(
-      `INSERT OR REPLACE INTO trail_graphs
-         (id, graph_json, tsconfig_path, project_root, analyzed_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, datetime('now'))`,
+      `INSERT OR REPLACE INTO current_graphs
+         (id, commit_id, graph_json, tsconfig_path, project_root, analyzed_at, updated_at)
+       VALUES ('current', ?, ?, ?, ?, ?, datetime('now'))`,
       [
-        id,
+        commitId,
         JSON.stringify(graph),
         tsconfigPath,
         graph.metadata.projectRoot,
@@ -1298,11 +1379,38 @@ export class TrailDatabase {
     this.save();
   }
 
-  getTrailGraph(id = 'current'): TrailGraph | null {
+  getCurrentGraph(): TrailGraph | null {
     const db = this.ensureDb();
     const result = db.exec(
-      'SELECT graph_json FROM trail_graphs WHERE id = ?',
-      [id],
+      "SELECT graph_json FROM current_graphs WHERE id = 'current'",
+    );
+    const json = result[0]?.values?.[0]?.[0];
+    if (typeof json !== 'string') return null;
+    return JSON.parse(json) as TrailGraph;
+  }
+
+  saveReleaseGraph(graph: TrailGraph, tsconfigPath: string, tag: string): void {
+    const db = this.ensureDb();
+    db.run(
+      `INSERT OR REPLACE INTO release_graphs
+         (tag, graph_json, tsconfig_path, project_root, analyzed_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, datetime('now'))`,
+      [
+        tag,
+        JSON.stringify(graph),
+        tsconfigPath,
+        graph.metadata.projectRoot,
+        graph.metadata.analyzedAt,
+      ],
+    );
+    this.save();
+  }
+
+  getReleaseGraph(tag: string): TrailGraph | null {
+    const db = this.ensureDb();
+    const result = db.exec(
+      'SELECT graph_json FROM release_graphs WHERE tag = ?',
+      [tag],
     );
     const json = result[0]?.values?.[0]?.[0];
     if (typeof json !== 'string') return null;
@@ -1310,36 +1418,49 @@ export class TrailDatabase {
   }
 
   /**
-   * trail_graphs テーブルに存在する ID の一覧を返す。
-   * 'current' を先頭に、残りは released_at の降順（releases テーブルと結合）。
+   * 互換ラッパー: id='current' なら current_graphs、それ以外は release_graphs から取得する。
+   */
+  getTrailGraph(id = 'current'): TrailGraph | null {
+    return id === 'current' ? this.getCurrentGraph() : this.getReleaseGraph(id);
+  }
+
+  /**
+   * current_graphs と release_graphs に存在する ID の一覧を返す。
+   * 'current' を先頭に、残りは released_at の降順。
    */
   getTrailGraphIds(): string[] {
     const db = this.ensureDb();
     const result = db.exec(`
-      SELECT tg.id
-      FROM trail_graphs tg
-      LEFT JOIN releases r ON tg.id = r.tag
-      ORDER BY
-        CASE WHEN tg.id = 'current' THEN 0 ELSE 1 END,
-        r.released_at DESC
+      SELECT id FROM (
+        SELECT 'current' AS id, 0 AS sort_order, '' AS released_at
+          FROM current_graphs WHERE id = 'current'
+        UNION ALL
+        SELECT rg.tag AS id, 1 AS sort_order, COALESCE(r.released_at, '') AS released_at
+          FROM release_graphs rg
+          LEFT JOIN releases r ON rg.tag = r.tag
+      )
+      ORDER BY sort_order, released_at DESC
     `);
     return (result[0]?.values?.map((r) => r[0] as string) ?? []);
   }
 
   /**
-   * trail_graphs テーブルに存在する ID と repo_name のペア一覧を返す。
+   * current_graphs と release_graphs に存在する ID と repo_name のペア一覧を返す。
    * 'current' を先頭に、残りは released_at の降順。
-   * repo_name は releases テーブルから取得（'current' などは null）。
+   * repo_name は releases テーブルから取得（'current' は null）。
    */
   getTrailGraphEntries(): Array<{ tag: string; repoName: string | null }> {
     const db = this.ensureDb();
     const result = db.exec(`
-      SELECT tg.id, r.repo_name
-      FROM trail_graphs tg
-      LEFT JOIN releases r ON tg.id = r.tag
-      ORDER BY
-        CASE WHEN tg.id = 'current' THEN 0 ELSE 1 END,
-        r.released_at DESC
+      SELECT tag, repo_name FROM (
+        SELECT 'current' AS tag, NULL AS repo_name, 0 AS sort_order, '' AS released_at
+          FROM current_graphs WHERE id = 'current'
+        UNION ALL
+        SELECT rg.tag AS tag, r.repo_name AS repo_name, 1 AS sort_order, COALESCE(r.released_at, '') AS released_at
+          FROM release_graphs rg
+          LEFT JOIN releases r ON rg.tag = r.tag
+      )
+      ORDER BY sort_order, released_at DESC
     `);
     return (result[0]?.values?.map((row) => ({
       tag: row[0] as string,
@@ -2240,8 +2361,8 @@ export class TrailDatabase {
 
   /**
    * releases テーブルの各リリースタグのソースコードを git worktree でチェックアウトして解析し、
-   * trail_graphs テーブルにタグ ID で保存する。
-   * 既に trail_graphs に同タグが存在する場合はスキップ。
+   * release_graphs テーブルにタグ ID で保存する。
+   * 既に release_graphs に同タグが存在する場合はスキップ。
    */
   analyzeReleases(
     gitRoot: string,
@@ -2252,7 +2373,7 @@ export class TrailDatabase {
     if (releases.length === 0) return 0;
 
     // 解析済みタグを取得
-    const existingResult = db.exec('SELECT id FROM trail_graphs');
+    const existingResult = db.exec('SELECT tag FROM release_graphs');
     const existingIds = new Set<string>(
       existingResult[0]?.values?.map((r) => r[0] as string) ?? [],
     );
@@ -2312,7 +2433,7 @@ export class TrailDatabase {
         });
 
         // 保存（tsconfigPath は canonical パスを記録）
-        this.saveTrailGraph(graph, tsconfigPath, tag);
+        this.saveReleaseGraph(graph, tsconfigPath, tag);
         existingIds.add(tag);
         count++;
         onProgress?.(`Release ${tag} analyzed: ${graph.nodes.length} nodes, ${graph.edges.length} edges`);

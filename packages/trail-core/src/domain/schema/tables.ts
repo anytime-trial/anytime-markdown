@@ -101,8 +101,18 @@ export const CREATE_C4_MODELS = `CREATE TABLE IF NOT EXISTS c4_models (
   updated_at TEXT NOT NULL DEFAULT ''
 )`;
 
-export const CREATE_TRAIL_GRAPHS = `CREATE TABLE IF NOT EXISTS trail_graphs (
-  id            TEXT PRIMARY KEY,
+export const CREATE_CURRENT_GRAPHS = `CREATE TABLE IF NOT EXISTS current_graphs (
+  id            TEXT PRIMARY KEY DEFAULT 'current',
+  commit_id     TEXT NOT NULL DEFAULT '',
+  graph_json    TEXT NOT NULL,
+  tsconfig_path TEXT NOT NULL,
+  project_root  TEXT NOT NULL,
+  analyzed_at   TEXT NOT NULL,
+  updated_at    TEXT NOT NULL DEFAULT ''
+)`;
+
+export const CREATE_RELEASE_GRAPHS = `CREATE TABLE IF NOT EXISTS release_graphs (
+  tag           TEXT PRIMARY KEY REFERENCES releases(tag) ON DELETE CASCADE,
   graph_json    TEXT NOT NULL,
   tsconfig_path TEXT NOT NULL,
   project_root  TEXT NOT NULL,

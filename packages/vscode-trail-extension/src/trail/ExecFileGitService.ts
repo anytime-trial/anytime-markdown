@@ -200,6 +200,17 @@ export class ExecFileGitService implements IGitService {
     }));
   }
 
+  getHeadCommit(): string {
+    try {
+      const output = execFileSync('git', ['rev-parse', 'HEAD'], {
+        encoding: 'utf-8', timeout: 10_000, cwd: this.gitRoot,
+      });
+      return output.trim();
+    } catch {
+      return '';
+    }
+  }
+
   getChangedPackages(fromTag: string, toTag: string): readonly string[] {
     try {
       const output = execFileSync('git', [
