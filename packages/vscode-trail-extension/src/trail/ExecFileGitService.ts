@@ -142,6 +142,64 @@ export class ExecFileGitService implements IGitService {
     }
   }
 
+  getFileStatsByRange(fromTag: string, toTag: string): readonly FileStatEntry[] {
+    const execOpts = { encoding: 'utf-8' as const, timeout: 30_000 };
+    const fileMap = new Map<string, { added: number; deleted: number; changeType: string }>();
+
+    // 行数集計
+    try {
+      const numstat = execFileSync('git', [
+        'diff', '--numstat', fromTag, toTag,
+      ], { ...execOpts, cwd: this.gitRoot });
+
+      for (const line of numstat.split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        const [added, deleted, filePath] = trimmed.split('\t');
+        if (!filePath) continue;
+        const existing = fileMap.get(filePath) ?? { added: 0, deleted: 0, changeType: 'modified' };
+        if (added !== '-') existing.added += Number.parseInt(added, 10) || 0;
+        if (deleted !== '-') existing.deleted += Number.parseInt(deleted, 10) || 0;
+        fileMap.set(filePath, existing);
+      }
+    } catch {
+      return [];
+    }
+
+    // 変更種別（A/M/D/R）
+    try {
+      const nameStatus = execFileSync('git', [
+        'diff', '--name-status', fromTag, toTag,
+      ], { ...execOpts, cwd: this.gitRoot });
+
+      for (const line of nameStatus.split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        const parts = trimmed.split('\t');
+        if (parts.length < 2) continue;
+        const status = parts[0].charAt(0);
+        const filePath = status === 'R' && parts[2] ? parts[2] : parts[1];
+        if (!filePath) continue;
+        const changeType =
+          status === 'A' ? 'added' :
+          status === 'D' ? 'deleted' :
+          status === 'R' ? 'renamed' : 'modified';
+        const existing = fileMap.get(filePath) ?? { added: 0, deleted: 0, changeType };
+        existing.changeType = changeType;
+        fileMap.set(filePath, existing);
+      }
+    } catch {
+      // use defaults
+    }
+
+    return [...fileMap.entries()].map(([filePath, s]) => ({
+      filePath,
+      linesAdded: s.added,
+      linesDeleted: s.deleted,
+      changeType: s.changeType,
+    }));
+  }
+
   getChangedPackages(fromTag: string, toTag: string): readonly string[] {
     try {
       const output = execFileSync('git', [
