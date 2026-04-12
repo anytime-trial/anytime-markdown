@@ -12,6 +12,7 @@ export interface TrailI18n {
   'filter.searchPlaceholder': string;
   'filter.repository': string;
   'analytics.chartCumulativeInferenceTime': string;
+  'analytics.openInTraces': string;
   'filter.searchLabel': string;
   // sessionList
   'sessionList.noSessions': string;

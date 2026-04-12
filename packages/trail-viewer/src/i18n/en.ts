@@ -103,6 +103,7 @@ export const en: TrailI18n = {
   'analytics.chartCacheRead': 'Cache Read',
   'analytics.chartCacheWrite': 'Cache Write',
   'analytics.chartCumulativeInferenceTime': 'Cum. Inference',
+  'analytics.openInTraces': 'Open in Traces',
   'chart.tokenUsage': 'Token Usage',
   'chart.estimatedCost': 'Estimated Cost',
   'chart.tokens': 'Tokens',

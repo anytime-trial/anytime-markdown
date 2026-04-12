@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import Box from '@mui/material/Box';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
@@ -92,8 +92,10 @@ function TrailViewerCoreInner({
   const [activeTab, setActiveTab] = useState(0);
 
   const visibleSessions = useMemo(() => {
-    let result = sessions;
-    if (process.env.NEXT_PUBLIC_SHOW_UNLIMITED !== '1') {
+    let result: readonly TrailSession[] = allSessions ?? sessions;
+    const q = filter.searchText?.trim().toLowerCase();
+    const skipCutoff = process.env.NEXT_PUBLIC_SHOW_UNLIMITED === '1' || !!q;
+    if (!skipCutoff) {
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - 7);
       result = result.filter((s) => new Date(s.startTime) >= cutoff);
@@ -101,7 +103,6 @@ function TrailViewerCoreInner({
     if (filter.project) {
       result = result.filter((s) => s.project === filter.project);
     }
-    const q = filter.searchText?.trim().toLowerCase();
     if (q) {
       result = result.filter((s) => {
         const haystack = [s.slug, s.id, s.project, s.gitBranch, s.model]
@@ -112,7 +113,17 @@ function TrailViewerCoreInner({
       });
     }
     return result;
-  }, [sessions, filter.project, filter.searchText]);
+  }, [sessions, allSessions, filter.project, filter.searchText]);
+
+  const handleJumpToTrace = useCallback(
+    (session: TrailSession) => {
+      const query = session.slug || session.id;
+      onFilterChange({ ...filter, project: session.project, searchText: query });
+      onSelectSession(session.id);
+      setActiveTab(1);
+    },
+    [filter, onFilterChange, onSelectSession],
+  );
 
   const selectedSession = visibleSessions.find((s) => s.id === selectedSessionId);
 
@@ -180,6 +191,7 @@ function TrailViewerCoreInner({
           analytics={analytics}
           sessions={allSessions ?? sessions}
           onSelectSession={onSelectSession}
+          onJumpToTrace={handleJumpToTrace}
           fetchSessionMessages={fetchSessionMessages}
           fetchSessionCommits={fetchSessionCommits}
           fetchSessionToolMetrics={fetchSessionToolMetrics}
