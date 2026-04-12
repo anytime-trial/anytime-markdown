@@ -26,6 +26,7 @@ import {
   DEFAULT_SKILL_MODELS,
   extractSkillName,
   buildReleaseFromGitData,
+  analyze,
 } from '@anytime-markdown/trail-core';
 import type { TrailGraph } from '@anytime-markdown/trail-core';
 import { resolveTasks as resolveTasksImpl } from './TaskResolver';
@@ -1081,7 +1082,7 @@ export class TrailDatabase {
     onProgress?: (message: string, increment?: number) => void,
     gitRoot?: string,
     c4ModelPath?: string,
-  ): Promise<{ imported: number; skipped: number; commitsResolved: number; tasksResolved: number }> {
+  ): Promise<{ imported: number; skipped: number; commitsResolved: number; tasksResolved: number; releasesResolved: number; releasesAnalyzed: number }> {
     const projectsDir = path.join(os.homedir(), '.claude', 'projects');
     let imported = 0;
     let skipped = 0;
@@ -1091,7 +1092,7 @@ export class TrailDatabase {
     try {
       projectDirs = fs.readdirSync(projectsDir);
     } catch {
-      return { imported, skipped, commitsResolved, tasksResolved: 0 };
+      return { imported, skipped, commitsResolved, tasksResolved: 0, releasesResolved: 0 };
     }
 
     // Pre-load imported file paths + sizes for fast skip
@@ -1215,29 +1216,46 @@ export class TrailDatabase {
       try {
         onProgress?.('Resolving tasks from merge commits...', 0);
         tasksResolved = this.resolveTasks(gitRoot, c4ModelPath);
+        onProgress?.(`Tasks resolved: ${tasksResolved}`, 0);
       } catch {
         // Skip task resolution errors
       }
     }
 
     // Resolve releases from version tags
+    let releasesResolved = 0;
     if (gitRoot) {
       try {
         onProgress?.('Resolving releases from version tags...', 0);
-        this.resolveReleases(gitRoot);
+        releasesResolved = this.resolveReleases(gitRoot);
+        onProgress?.(`Releases resolved: ${releasesResolved}`, 0);
       } catch {
         // Skip release resolution errors
+      }
+    }
+
+    // Analyze source code for each release
+    let releasesAnalyzed = 0;
+    if (gitRoot) {
+      try {
+        onProgress?.('Analyzing releases...', 0);
+        releasesAnalyzed = this.analyzeReleases(gitRoot, (msg) => onProgress?.(msg, 0));
+        onProgress?.(`Releases analyzed: ${releasesAnalyzed}`, 0);
+      } catch {
+        // Skip analysis errors
       }
     }
 
     // Rebuild session_costs and daily_costs from all messages
     onProgress?.('Rebuilding session costs...', 0);
     this.rebuildSessionCosts();
+    onProgress?.('Session costs rebuilt', 0);
     onProgress?.('Rebuilding daily costs...', 0);
     this.rebuildDailyCosts();
+    onProgress?.('Daily costs rebuilt', 0);
 
     this.save();
-    return { imported, skipped, commitsResolved, tasksResolved };
+    return { imported, skipped, commitsResolved, tasksResolved, releasesResolved, releasesAnalyzed };
   }
 
   /**
@@ -2134,6 +2152,90 @@ export class TrailDatabase {
     }
 
     if (count > 0) this.save();
+    return count;
+  }
+
+  /**
+   * releases テーブルの各リリースタグのソースコードを git worktree でチェックアウトして解析し、
+   * trail_graphs テーブルにタグ ID で保存する。
+   * 既に trail_graphs に同タグが存在する場合はスキップ。
+   */
+  analyzeReleases(
+    gitRoot: string,
+    onProgress?: (message: string) => void,
+  ): number {
+    const db = this.ensureDb();
+    const releases = this.getReleases();
+    if (releases.length === 0) return 0;
+
+    // 解析済みタグを取得
+    const existingResult = db.exec('SELECT id FROM trail_graphs');
+    const existingIds = new Set<string>(
+      existingResult[0]?.values?.map((r) => r[0] as string) ?? [],
+    );
+
+    const git = new ExecFileGitService(gitRoot);
+    const tsconfigPath = path.join(gitRoot, 'tsconfig.json');
+    let count = 0;
+
+    for (const release of releases) {
+      const tag = release.tag;
+      if (existingIds.has(tag)) continue;
+
+      const tmpDir = path.join(os.tmpdir(), `trail-release-${tag.replaceAll('/', '-')}`);
+      try {
+        onProgress?.(`Analyzing release ${tag}...`);
+
+        // 一時 worktree を作成
+        const commitHash = git.getTagCommitHash(tag);
+        execFileSync('git', ['worktree', 'add', '--detach', tmpDir, commitHash], {
+          cwd: gitRoot,
+          stdio: 'pipe',
+        });
+
+        // worktree 内に tsconfig.json がなければスキップ
+        const worktreeTsconfig = path.join(tmpDir, 'tsconfig.json');
+        if (!fs.existsSync(worktreeTsconfig)) {
+          onProgress?.(`Skipping ${tag}: tsconfig.json not found`);
+          continue;
+        }
+
+        // node_modules をシンボリックリンク（型解決のため）
+        const worktreeNodeModules = path.join(tmpDir, 'node_modules');
+        if (!fs.existsSync(worktreeNodeModules)) {
+          fs.symlinkSync(
+            path.join(gitRoot, 'node_modules'),
+            worktreeNodeModules,
+            'dir',
+          );
+        }
+
+        // 解析実行
+        const graph = analyze({
+          tsconfigPath: worktreeTsconfig,
+          exclude: ['.worktrees', '.vscode-test', '__tests__', 'fixtures'],
+        });
+
+        // 保存（tsconfigPath は canonical パスを記録）
+        this.saveTrailGraph(graph, tsconfigPath, tag);
+        existingIds.add(tag);
+        count++;
+        onProgress?.(`Release ${tag} analyzed: ${graph.nodes.length} nodes, ${graph.edges.length} edges`);
+      } catch (e) {
+        onProgress?.(`Skipping ${tag}: ${e instanceof Error ? e.message : String(e)}`);
+      } finally {
+        // worktree を必ず削除
+        try {
+          execFileSync('git', ['worktree', 'remove', tmpDir, '--force'], {
+            cwd: gitRoot,
+            stdio: 'pipe',
+          });
+        } catch {
+          try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
+        }
+      }
+    }
+
     return count;
   }
 
