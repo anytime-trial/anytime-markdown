@@ -94,31 +94,4 @@ const trailStandaloneConfig = {
   devtool: 'nosources-source-map',
 };
 
-/** @type WebpackConfig */
-const uninstallConfig = {
-  target: 'node',
-  mode: 'production',
-  entry: './src/uninstall.ts',
-  output: {
-    path: path.resolve(__dirname, 'dist'),
-    filename: 'uninstall.js',
-    libraryTarget: 'commonjs2',
-  },
-  resolve: {
-    extensions: ['.ts', '.js'],
-  },
-  module: {
-    rules: [
-      {
-        test: /\.ts$/,
-        exclude: /node_modules/,
-        use: [{
-          loader: 'ts-loader',
-          options: { transpileOnly: true },
-        }],
-      },
-    ],
-  },
-};
-
-module.exports = [extensionConfig, trailStandaloneConfig, uninstallConfig];
+module.exports = [extensionConfig, trailStandaloneConfig];

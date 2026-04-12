@@ -75,19 +75,6 @@ Set `anytimeTrail.coverage.path` to point to a `coverage-final.json` file to aut
 - Run coverage tests directly from the L4 node in the C4 tree
 
 
-## Claude Code Integration
-
-Claude Code skills are automatically installed to `~/.claude/skills/` when the extension activates.\
-They are removed automatically on uninstall.
-
-**`/anytime-fcmap`**
-
-Generates or updates the Feature-Component Map (`featureMatrix`) from source code analysis.
-
-- **Full generation**: Analyze the C4 model via `trail-core` CLI and generate the entire featureMatrix
-- **Incremental update**: Re-analyze only files changed since the last revision for efficient updates
-
-
 ## Setup
 
 

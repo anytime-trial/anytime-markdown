@@ -1,7 +1,5 @@
 import * as vscode from 'vscode';
 import * as path from 'node:path';
-import * as fs from 'node:fs';
-import * as os from 'node:os';
 import { C4Panel } from './c4/C4Panel';
 import { TrailPanel } from './trail/TrailPanel';
 import { TrailDataServer } from './server/TrailDataServer';
@@ -382,33 +380,6 @@ export async function activate(context: vscode.ExtensionContext) {
 		aiMemoryRefresh,
 		openAiMemory,
 	);
-
-	// Claude Code スキルの自動配置
-	installClaudeSkills(context);
-}
-
-/** 拡張機能同梱の Claude Code スキルを ~/.claude/skills/ にコピーする */
-function installClaudeSkills(context: vscode.ExtensionContext): void {
-	const skillsSource = path.join(context.extensionUri.fsPath, 'skills');
-	if (!fs.existsSync(skillsSource)) return;
-
-	const claudeSkillsDir = path.join(os.homedir(), '.claude', 'skills');
-
-	for (const skillName of fs.readdirSync(skillsSource)) {
-		const srcDir = path.join(skillsSource, skillName);
-		if (!fs.statSync(srcDir).isDirectory()) continue;
-
-		const destDir = path.join(claudeSkillsDir, skillName);
-		if (!fs.existsSync(destDir)) {
-			fs.mkdirSync(destDir, { recursive: true });
-		}
-
-		const srcFile = path.join(srcDir, 'SKILL.md');
-		const destFile = path.join(destDir, 'SKILL.md');
-		if (fs.existsSync(srcFile)) {
-			fs.copyFileSync(srcFile, destFile);
-		}
-	}
 }
 
 export function deactivate(): void {
