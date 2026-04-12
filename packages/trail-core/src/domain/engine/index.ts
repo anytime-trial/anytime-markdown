@@ -12,13 +12,8 @@ export type {
   MessageFeatures,
 } from './CostOptimizer';
 
-export { parseTaskFromMergeCommit } from './taskParser';
-export type { ParsedTask } from './taskParser';
+export { mapFilesToC4Elements, mapC4ToFeatures } from './c4Mapper';
 
-export {
-  mapFilesToC4Elements,
-  mapC4ToFeatures,
-} from './c4Mapper';
 export type {
   C4Element,
   C4MappingResult,

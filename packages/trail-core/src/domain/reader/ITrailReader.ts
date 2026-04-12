@@ -5,7 +5,6 @@ import type {
   TrailMessage,
   TrailSession,
   TrailSessionCommit,
-  TrailTask,
   TrailRelease,
   ToolMetrics,
   AnalyticsData,
@@ -15,7 +14,6 @@ export interface ITrailReader {
   getSessions(filters?: TrailFilter): Promise<readonly TrailSession[]>;
   getMessages(sessionId: string): Promise<readonly TrailMessage[]>;
   getSessionCommits(sessionId: string): Promise<readonly TrailSessionCommit[]>;
-  getTasks(): Promise<readonly TrailTask[]>;
   getReleases(): Promise<readonly TrailRelease[]>;
   getC4Model(): Promise<Record<string, unknown> | null>;
   getAnalytics(): Promise<AnalyticsData | null>;
