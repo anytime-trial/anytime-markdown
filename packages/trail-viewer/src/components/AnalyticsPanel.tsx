@@ -624,7 +624,7 @@ function DailySessionList({
       </Box>
       <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', lg: 'row' } }}>
         {/* Left: fixed height matches right column when session selected */}
-        <Box sx={{ flex: 1, minWidth: 0, overflowY: 'auto', ...scrollbarSx, ...(timelineSessionId && daySessions.find((s) => s.id === timelineSessionId) ? { height: { lg: 670 } } : {}) }}>
+        <Box sx={{ flex: 1, minWidth: 0, overflowY: 'auto', ...scrollbarSx, ...(timelineSessionId && daySessions.find((s) => s.id === timelineSessionId) ? { height: { lg: 726 } } : { maxHeight: { lg: 726 } }) }}>
           {daySessions.length === 0 ? (
             <Typography variant="body2" color="text.secondary">{t('sessionList.noSessionsFound')}</Typography>
           ) : (
