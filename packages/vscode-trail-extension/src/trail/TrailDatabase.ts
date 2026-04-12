@@ -16,23 +16,21 @@ import {
   CREATE_SKILL_MODELS as CREATE_SKILL_MODELS_TABLE,
   CREATE_SKILL_MODELS_RESOLVED_VIEW,
   CREATE_INDEXES,
-  CREATE_TASKS,
-  CREATE_TASK_FILES,
-  CREATE_TASK_C4_ELEMENTS,
-  CREATE_TASK_FEATURES,
-  CREATE_TASK_INDEXES,
   CREATE_RELEASES,
+  CREATE_RELEASE_FILES,
+  CREATE_RELEASE_FEATURES,
   CREATE_RELEASE_INDEXES,
   DEFAULT_SKILL_MODELS,
   extractSkillName,
   buildReleaseFromGitData,
+  mapFilesToC4Elements,
+  mapC4ToFeatures,
   analyze,
 } from '@anytime-markdown/trail-core';
 import type { TrailGraph } from '@anytime-markdown/trail-core';
-import { resolveTasks as resolveTasksImpl } from './TaskResolver';
 import { ExecFileGitService } from './ExecFileGitService';
-import type { TaskRow, TaskFileRow, TaskC4ElementRow, TaskFeatureRow, ReleaseRow } from '@anytime-markdown/trail-core';
-export type { TaskRow, TaskFileRow, TaskC4ElementRow, TaskFeatureRow } from '@anytime-markdown/trail-core';
+import type { ReleaseFileRow, ReleaseFeatureRow, ReleaseRow } from '@anytime-markdown/trail-core';
+export type { ReleaseFileRow, ReleaseFeatureRow } from '@anytime-markdown/trail-core';
 
 declare const __non_webpack_require__: (id: string) => unknown;
 
@@ -386,16 +384,14 @@ export class TrailDatabase {
     db.run(CREATE_DAILY_COSTS);
     db.run(CREATE_MESSAGES);
     db.run(CREATE_SESSION_COMMITS);
-    db.run(CREATE_TASKS);
-    db.run(CREATE_TASK_FILES);
-    db.run(CREATE_TASK_C4_ELEMENTS);
-    db.run(CREATE_TASK_FEATURES);
     db.run(CREATE_RELEASES);
+    db.run(CREATE_RELEASE_FILES);
+    db.run(CREATE_RELEASE_FEATURES);
     db.run(CREATE_C4_MODELS);
     db.run(CREATE_TRAIL_GRAPHS);
     db.run(CREATE_SKILL_MODELS_TABLE);
     db.run(CREATE_SKILL_MODELS_RESOLVED_VIEW);
-    for (const sql of [...CREATE_INDEXES, ...CREATE_TASK_INDEXES, ...CREATE_RELEASE_INDEXES]) {
+    for (const sql of [...CREATE_INDEXES, ...CREATE_RELEASE_INDEXES]) {
       db.run(sql);
     }
 
@@ -404,19 +400,6 @@ export class TrailDatabase {
       db.run('ALTER TABLE sessions ADD COLUMN commits_resolved_at TEXT');
     } catch {
       // Column already exists — ignore
-    }
-    // Task table migrations for existing DBs
-    const taskAlters = [
-      'ALTER TABLE tasks ADD COLUMN session_count INTEGER NOT NULL DEFAULT 0',
-      'ALTER TABLE tasks ADD COLUMN total_input_tokens INTEGER NOT NULL DEFAULT 0',
-      'ALTER TABLE tasks ADD COLUMN total_output_tokens INTEGER NOT NULL DEFAULT 0',
-      'ALTER TABLE tasks ADD COLUMN total_cache_read_tokens INTEGER NOT NULL DEFAULT 0',
-      'ALTER TABLE tasks ADD COLUMN total_duration_ms INTEGER NOT NULL DEFAULT 0',
-      'ALTER TABLE task_files ADD COLUMN change_type TEXT NOT NULL DEFAULT \'modified\'',
-      'ALTER TABLE task_c4_elements ADD COLUMN element_name TEXT NOT NULL DEFAULT \'\'',
-    ];
-    for (const sql of taskAlters) {
-      try { db.run(sql); } catch { /* Column already exists */ }
     }
     const messageAlters = [
       'ALTER TABLE messages ADD COLUMN rule_recommended_model TEXT',
@@ -1082,7 +1065,7 @@ export class TrailDatabase {
     onProgress?: (message: string, increment?: number) => void,
     gitRoot?: string,
     c4ModelPath?: string,
-  ): Promise<{ imported: number; skipped: number; commitsResolved: number; tasksResolved: number; releasesResolved: number; releasesAnalyzed: number }> {
+  ): Promise<{ imported: number; skipped: number; commitsResolved: number; releasesResolved: number; releasesAnalyzed: number }> {
     const projectsDir = path.join(os.homedir(), '.claude', 'projects');
     let imported = 0;
     let skipped = 0;
@@ -1092,7 +1075,7 @@ export class TrailDatabase {
     try {
       projectDirs = fs.readdirSync(projectsDir);
     } catch {
-      return { imported, skipped, commitsResolved, tasksResolved: 0, releasesResolved: 0, releasesAnalyzed: 0 };
+      return { imported, skipped, commitsResolved, releasesResolved: 0, releasesAnalyzed: 0 };
     }
 
     // Pre-load imported file paths + sizes for fast skip
@@ -1210,24 +1193,12 @@ export class TrailDatabase {
       onProgress?.(`${batchMessageCount} messages (${processedFiles}/${totalFiles}, skipped ${skipped})`, 0);
     }
 
-    // Resolve tasks (PRs) from merge commits
-    let tasksResolved = 0;
-    if (gitRoot) {
-      try {
-        onProgress?.('Resolving tasks from merge commits...', 0);
-        tasksResolved = this.resolveTasks(gitRoot, c4ModelPath);
-        onProgress?.(`Tasks resolved: ${tasksResolved}`, 0);
-      } catch {
-        // Skip task resolution errors
-      }
-    }
-
     // Resolve releases from version tags
     let releasesResolved = 0;
     if (gitRoot) {
       try {
         onProgress?.('Resolving releases from version tags...', 0);
-        releasesResolved = this.resolveReleases(gitRoot);
+        releasesResolved = this.resolveReleases(gitRoot, c4ModelPath);
         onProgress?.(`Releases resolved: ${releasesResolved}`, 0);
       } catch {
         // Skip release resolution errors
@@ -1255,19 +1226,7 @@ export class TrailDatabase {
     onProgress?.('Daily costs rebuilt', 0);
 
     this.save();
-    return { imported, skipped, commitsResolved, tasksResolved, releasesResolved, releasesAnalyzed };
-  }
-
-  /**
-   * git log のマージコミットからタスク（PR）を解決し、DBに保存する。
-   */
-  resolveTasks(gitRoot: string, c4ModelPath?: string): number {
-    const db = this.ensureDb();
-    const count = resolveTasksImpl(db, gitRoot, c4ModelPath);
-    if (count > 0) {
-      this.save();
-    }
-    return count;
+    return { imported, skipped, commitsResolved, releasesResolved, releasesAnalyzed };
   }
 
   saveTrailGraph(graph: TrailGraph, tsconfigPath: string, id = 'current'): void {
@@ -1313,72 +1272,6 @@ export class TrailDatabase {
         r.released_at DESC
     `);
     return (result[0]?.values?.map((r) => r[0] as string) ?? []);
-  }
-
-  // -------------------------------------------------------------------------
-  //  Task queries
-  // -------------------------------------------------------------------------
-
-  getTasks(): TaskRow[] {
-    const db = this.ensureDb();
-    const result = db.exec('SELECT * FROM tasks ORDER BY merged_at DESC');
-    if (!result[0]) return [];
-    const cols = result[0].columns;
-    return result[0].values.map((row) => {
-      const obj: Record<string, unknown> = {};
-      for (let i = 0; i < cols.length; i++) {
-        obj[cols[i]] = row[i];
-      }
-      return obj as unknown as TaskRow;
-    });
-  }
-
-  getTaskFiles(taskId: string): TaskFileRow[] {
-    const db = this.ensureDb();
-    const result = db.exec(
-      `SELECT * FROM task_files WHERE task_id = '${taskId.replaceAll("'", "''")}'`,
-    );
-    if (!result[0]) return [];
-    const cols = result[0].columns;
-    return result[0].values.map((row) => {
-      const obj: Record<string, unknown> = {};
-      for (let i = 0; i < cols.length; i++) {
-        obj[cols[i]] = row[i];
-      }
-      return obj as unknown as TaskFileRow;
-    });
-  }
-
-  getTaskC4Elements(taskId: string): TaskC4ElementRow[] {
-    const db = this.ensureDb();
-    const result = db.exec(
-      `SELECT * FROM task_c4_elements WHERE task_id = '${taskId.replaceAll("'", "''")}'`,
-    );
-    if (!result[0]) return [];
-    const cols = result[0].columns;
-    return result[0].values.map((row) => {
-      const obj: Record<string, unknown> = {};
-      for (let i = 0; i < cols.length; i++) {
-        obj[cols[i]] = row[i];
-      }
-      return obj as unknown as TaskC4ElementRow;
-    });
-  }
-
-  getTaskFeatures(taskId: string): TaskFeatureRow[] {
-    const db = this.ensureDb();
-    const result = db.exec(
-      `SELECT * FROM task_features WHERE task_id = '${taskId.replaceAll("'", "''")}'`,
-    );
-    if (!result[0]) return [];
-    const cols = result[0].columns;
-    return result[0].values.map((row) => {
-      const obj: Record<string, unknown> = {};
-      for (let i = 0; i < cols.length; i++) {
-        obj[cols[i]] = row[i];
-      }
-      return obj as unknown as TaskFeatureRow;
-    });
   }
 
   // -------------------------------------------------------------------------
@@ -2077,7 +1970,7 @@ export class TrailDatabase {
   //  Releases
   // -------------------------------------------------------------------------
 
-  resolveReleases(gitRoot: string): number {
+  resolveReleases(gitRoot: string, c4ModelPath?: string): number {
     const db = this.ensureDb();
     const git = new ExecFileGitService(gitRoot);
     const tags = git.getVersionTags();
@@ -2139,6 +2032,49 @@ export class TrailDatabase {
           release.durationDays,
         ],
       );
+
+      // Save release files
+      if (prevTag) {
+        const fileStats = git.getFileStatsByRange(prevTag, tag);
+        for (const f of fileStats) {
+          try {
+            db.run(
+              `INSERT OR IGNORE INTO release_files (release_tag, file_path, lines_added, lines_deleted, change_type)
+               VALUES (?, ?, ?, ?, ?)`,
+              [tag, f.filePath, f.linesAdded, f.linesDeleted, f.changeType],
+            );
+          } catch { /* ignore */ }
+        }
+
+        // Save release features (if featureMatrix available)
+        if (c4ModelPath) {
+          try {
+            const raw = fs.readFileSync(c4ModelPath, 'utf-8');
+            const model = JSON.parse(raw) as { featureMatrix?: { features: unknown[]; mappings: unknown[]; elements?: unknown[] } };
+            if (model.featureMatrix) {
+              const { features, mappings, elements = [] } = model.featureMatrix;
+              const changedFilePaths = fileStats.map((f) => f.filePath);
+              const c4Mappings = mapFilesToC4Elements(changedFilePaths, elements as Parameters<typeof mapFilesToC4Elements>[1]);
+              const elementIds = c4Mappings.map((m) => m.elementId);
+              const featureMappings = mapC4ToFeatures(
+                elementIds,
+                features as Parameters<typeof mapC4ToFeatures>[1],
+                mappings as Parameters<typeof mapC4ToFeatures>[2],
+              );
+              for (const fm of featureMappings) {
+                try {
+                  db.run(
+                    `INSERT OR IGNORE INTO release_features (release_tag, feature_id, feature_name, role)
+                     VALUES (?, ?, ?, ?)`,
+                    [tag, fm.featureId, fm.featureName, fm.role],
+                  );
+                } catch { /* ignore */ }
+              }
+            }
+          } catch { /* featureMatrix not available */ }
+        }
+      }
+
       count++;
     }
 
@@ -2253,6 +2189,34 @@ export class TrailDatabase {
         obj[cols[i]] = row[i];
       }
       return obj as unknown as ReleaseRow;
+    });
+  }
+
+  getReleaseFiles(releaseTag: string): ReleaseFileRow[] {
+    const db = this.ensureDb();
+    const result = db.exec(
+      `SELECT * FROM release_files WHERE release_tag = '${releaseTag.replaceAll("'", "''")}'`,
+    );
+    if (!result[0]?.values) return [];
+    const cols = result[0].columns;
+    return result[0].values.map((row) => {
+      const obj: Record<string, unknown> = {};
+      cols.forEach((col, i) => { obj[col] = row[i]; });
+      return obj as unknown as ReleaseFileRow;
+    });
+  }
+
+  getReleaseFeatures(releaseTag: string): ReleaseFeatureRow[] {
+    const db = this.ensureDb();
+    const result = db.exec(
+      `SELECT * FROM release_features WHERE release_tag = '${releaseTag.replaceAll("'", "''")}'`,
+    );
+    if (!result[0]?.values) return [];
+    const cols = result[0].columns;
+    return result[0].values.map((row) => {
+      const obj: Record<string, unknown> = {};
+      cols.forEach((col, i) => { obj[col] = row[i]; });
+      return obj as unknown as ReleaseFeatureRow;
     });
   }
 }
