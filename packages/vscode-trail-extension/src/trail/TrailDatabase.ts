@@ -48,6 +48,13 @@ const SKIP_TYPES = new Set([
 //  Type definitions
 // ---------------------------------------------------------------------------
 
+interface CoverageSummaryEntry {
+  lines: { total: number; covered: number; skipped: number; pct: number };
+  statements: { total: number; covered: number; skipped: number; pct: number };
+  functions: { total: number; covered: number; skipped: number; pct: number };
+  branches: { total: number; covered: number; skipped: number; pct: number };
+}
+
 export interface SessionRow {
   readonly id: string;
   readonly slug: string;
@@ -1966,6 +1973,70 @@ export class TrailDatabase {
         skillRecommended: skillDist,
       },
     };
+  }
+
+  importCoverage(gitRoot: string): number {
+    const db = this.ensureDb();
+
+    // 最新リリースタグを取得
+    const latestResult = db.exec(
+      "SELECT tag FROM releases ORDER BY released_at DESC LIMIT 1",
+    );
+    const latestTag = latestResult[0]?.values?.[0]?.[0] as string | undefined;
+    if (!latestTag) return 0;
+
+    // すでにカバレッジデータがある場合はスキップ
+    const existing = db.exec(
+      `SELECT COUNT(*) FROM release_coverage WHERE release_tag = '${latestTag.replaceAll("'", "''")}'`,
+    );
+    if ((existing[0]?.values?.[0]?.[0] as number) > 0) return 0;
+
+    const packagesDir = path.join(gitRoot, 'packages');
+    let count = 0;
+
+    let packageDirs: string[];
+    try {
+      packageDirs = fs.readdirSync(packagesDir);
+    } catch {
+      return 0;
+    }
+
+    for (const pkgDir of packageDirs) {
+      const summaryPath = path.join(packagesDir, pkgDir, 'coverage', 'coverage-summary.json');
+      if (!fs.existsSync(summaryPath)) continue;
+
+      let summary: Record<string, CoverageSummaryEntry>;
+      try {
+        summary = JSON.parse(fs.readFileSync(summaryPath, 'utf-8')) as Record<string, CoverageSummaryEntry>;
+      } catch {
+        continue;
+      }
+
+      for (const [key, entry] of Object.entries(summary)) {
+        const filePath = key === 'total' ? '__total__' : key;
+        try {
+          db.run(
+            `INSERT OR REPLACE INTO release_coverage (
+              release_tag, package, file_path,
+              lines_total, lines_covered, lines_pct,
+              statements_total, statements_covered, statements_pct,
+              functions_total, functions_covered, functions_pct,
+              branches_total, branches_covered, branches_pct
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              latestTag, pkgDir, filePath,
+              entry.lines.total, entry.lines.covered, entry.lines.pct,
+              entry.statements.total, entry.statements.covered, entry.statements.pct,
+              entry.functions.total, entry.functions.covered, entry.functions.pct,
+              entry.branches.total, entry.branches.covered, entry.branches.pct,
+            ],
+          );
+          count++;
+        } catch { /* ignore */ }
+      }
+    }
+
+    return count;
   }
 
   // -------------------------------------------------------------------------
