@@ -395,7 +395,7 @@ function SessionCommitList({
   usage: TrailTokenUsage;
   fetchSessionCommits: (id: string) => Promise<readonly TrailSessionCommit[]>;
 }>) {
-  const { colors, cardSx } = useTrailTheme();
+  const { colors, cardSx, scrollbarSx } = useTrailTheme();
   const { t } = useTrailI18n();
   const [commits, setCommits] = useState<readonly TrailSessionCommit[]>([]);
   const [loading, setLoading] = useState(true);
@@ -440,7 +440,7 @@ function SessionCommitList({
         </Typography>
       ) : (
         <>
-          <Box sx={{ maxHeight: 198, overflowY: 'auto' }}>
+          <Box sx={{ maxHeight: 198, overflowY: 'auto', ...scrollbarSx }}>
             <Table size="small" stickyHeader>
               <TableHead>
                 <TableRow sx={{ '& .MuiTableCell-head': { color: colors.textSecondary, borderColor: colors.border, bgcolor: colors.midnightNavy } }}>
@@ -580,7 +580,7 @@ function DailySessionList({
   fetchSessionCommits?: (id: string) => Promise<readonly TrailSessionCommit[]>;
   fetchSessionToolMetrics?: (id: string) => Promise<ToolMetrics | null>;
 }>) {
-  const { colors, cardSx } = useTrailTheme();
+  const { colors, cardSx, scrollbarSx } = useTrailTheme();
   const { t } = useTrailI18n();
   const [timelineSessionId, setTimelineSessionId] = useState<string | null>(null);
   const [timelineMessages, setTimelineMessages] = useState<readonly TrailMessage[]>([]);
@@ -620,7 +620,7 @@ function DailySessionList({
       </Box>
       <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', lg: 'row' } }}>
         {/* Left: session table — height stretches to match right column, scrolls if needed */}
-        <Box sx={{ flex: 1, minWidth: 0, overflowY: 'auto' }}>
+        <Box sx={{ flex: 1, minWidth: 0, overflowY: 'auto', ...scrollbarSx }}>
           {daySessions.length === 0 ? (
             <Typography variant="body2" color="text.secondary">{t('sessionList.noSessionsFound')}</Typography>
           ) : (

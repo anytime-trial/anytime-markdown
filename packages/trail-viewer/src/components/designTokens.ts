@@ -170,6 +170,7 @@ export interface TrailThemeTokens {
     readonly fontFamily: string;
     readonly fontSize: string;
   };
+  readonly scrollbarSx: Record<string, unknown>;
 }
 
 // ---------------------------------------------------------------------------
@@ -194,6 +195,19 @@ export function getTokens(isDark: boolean): TrailThemeTokens {
       borderRadius: radius.md,
       fontFamily: 'Roboto Mono, monospace',
       fontSize: '0.75rem',
+    },
+    scrollbarSx: {
+      scrollbarWidth: 'thin',
+      scrollbarColor: isDark ? 'rgba(255,255,255,0.45) transparent' : 'rgba(0,0,0,0.4) transparent',
+      '&::-webkit-scrollbar': { width: 6 },
+      '&::-webkit-scrollbar-track': { background: 'transparent' },
+      '&::-webkit-scrollbar-thumb': {
+        background: isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.4)',
+        borderRadius: 3,
+      },
+      '&::-webkit-scrollbar-thumb:hover': {
+        background: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.55)',
+      },
     },
   };
 }
