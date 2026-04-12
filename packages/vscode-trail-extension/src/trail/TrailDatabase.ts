@@ -19,6 +19,7 @@ import {
   CREATE_RELEASES,
   CREATE_RELEASE_FILES,
   CREATE_RELEASE_FEATURES,
+  CREATE_RELEASE_COVERAGE,
   CREATE_RELEASE_INDEXES,
   DEFAULT_SKILL_MODELS,
   extractSkillName,
@@ -29,8 +30,8 @@ import {
 } from '@anytime-markdown/trail-core';
 import type { TrailGraph } from '@anytime-markdown/trail-core';
 import { ExecFileGitService } from './ExecFileGitService';
-import type { ReleaseFileRow, ReleaseFeatureRow, ReleaseRow } from '@anytime-markdown/trail-core';
-export type { ReleaseFileRow, ReleaseFeatureRow } from '@anytime-markdown/trail-core';
+import type { ReleaseFileRow, ReleaseFeatureRow, ReleaseCoverageRow, ReleaseRow } from '@anytime-markdown/trail-core';
+export type { ReleaseFileRow, ReleaseFeatureRow, ReleaseCoverageRow } from '@anytime-markdown/trail-core';
 
 declare const __non_webpack_require__: (id: string) => unknown;
 
@@ -387,6 +388,7 @@ export class TrailDatabase {
     db.run(CREATE_RELEASES);
     db.run(CREATE_RELEASE_FILES);
     db.run(CREATE_RELEASE_FEATURES);
+    db.run(CREATE_RELEASE_COVERAGE);
     db.run(CREATE_C4_MODELS);
     db.run(CREATE_TRAIL_GRAPHS);
     db.run(CREATE_SKILL_MODELS_TABLE);
