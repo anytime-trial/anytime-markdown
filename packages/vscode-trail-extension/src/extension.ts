@@ -199,14 +199,14 @@ export async function activate(context: vscode.ExtensionContext) {
 						}, gitRoot, resolvedC4Path);
 					},
 				);
-				TrailLogger.info(`Trail DB: import complete - imported=${result.imported}, skipped=${result.skipped}`);
+				TrailLogger.info(`Trail DB: import complete - imported=${result.imported}, skipped=${result.skipped}, commits=${result.commitsResolved}, tasks=${result.tasksResolved}, releases=${result.releasesResolved}, analyzed=${result.releasesAnalyzed}`);
 				dashboardProvider.updateSqliteStatus('Ready', trailDb.getLastImportedAt());
 				dashboardProvider.setImporting(false);
 
 				trailDataServer?.notifySessionsUpdated();
 
 				vscode.window.showInformationMessage(
-					`Trail: imported ${result.imported} sessions, ${result.commitsResolved} commits linked, ${result.tasksResolved} tasks resolved (${result.skipped} skipped)`,
+					`Trail: imported ${result.imported} sessions, ${result.commitsResolved} commits linked, ${result.tasksResolved} tasks resolved, ${result.releasesResolved} releases resolved, ${result.releasesAnalyzed} releases analyzed (${result.skipped} skipped)`,
 				);
 			} catch (err) {
 				dashboardProvider.setImporting(false);
