@@ -7,16 +7,20 @@ function getChannel(): vscode.OutputChannel {
   return channel;
 }
 
+function ts(): string {
+  return new Date().toISOString();
+}
+
 export const TrailLogger = {
   info(msg: string): void {
-    getChannel().appendLine(`[INFO] ${msg}`);
+    getChannel().appendLine(`[${ts()}] [INFO] ${msg}`);
   },
   warn(msg: string): void {
-    getChannel().appendLine(`[WARN] ${msg}`);
+    getChannel().appendLine(`[${ts()}] [WARN] ${msg}`);
   },
   error(msg: string, err?: unknown): void {
     const detail = err instanceof Error ? `: ${err.message}` : err ? `: ${String(err)}` : '';
-    getChannel().appendLine(`[ERROR] ${msg}${detail}`);
+    getChannel().appendLine(`[${ts()}] [ERROR] ${msg}${detail}`);
     if (err instanceof Error && err.stack) {
       getChannel().appendLine(err.stack);
     }
