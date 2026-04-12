@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -9,7 +9,9 @@ import type { TrailFilter, SupabaseConfig } from '@anytime-markdown/trail-viewer
 
 import { useThemeMode } from '../../providers';
 import { useLocaleSwitch } from '../../LocaleProvider';
-import type { C4Model, BoundaryInfo, FeatureMatrix } from '@anytime-markdown/trail-core/c4';
+import type { C4Model, BoundaryInfo, C4ReleaseEntry, FeatureMatrix } from '@anytime-markdown/trail-core/c4';
+
+const CURRENT_RELEASE_TAG = 'current';
 
 import { TrailErrorBoundary } from './TrailErrorBoundary';
 
@@ -56,12 +58,20 @@ export function TrailViewer() {
   );
 
   const [c4Payload, setC4Payload] = useState<C4Payload | null>(null);
+  const [selectedRelease, setSelectedRelease] = useState<string>(CURRENT_RELEASE_TAG);
+
+  const c4ReleaseEntries: readonly C4ReleaseEntry[] = useMemo(() => {
+    return [
+      { tag: CURRENT_RELEASE_TAG, repoName: null },
+      ...dataSource.releases.map((r) => ({ tag: r.tag, repoName: r.repoName })),
+    ];
+  }, [dataSource.releases]);
 
   useEffect(() => {
     let cancelled = false;
     async function fetchC4(): Promise<void> {
       try {
-        const res = await fetch('/api/c4model');
+        const res = await fetch(`/api/c4model?release=${encodeURIComponent(selectedRelease)}`);
         if (!res.ok) return;
         const data = (await res.json()) as C4Payload;
         if (!cancelled && data?.model?.elements) {
@@ -71,7 +81,7 @@ export function TrailViewer() {
     }
     void fetchC4();
     return () => { cancelled = true; };
-  }, []);
+  }, [selectedRelease]);
 
   if (dataSource.loading && dataSource.sessions.length === 0) {
     return (
@@ -113,6 +123,9 @@ export function TrailViewer() {
           featureMatrix: c4Payload.featureMatrix ?? null,
           coverageMatrix: null,
           coverageDiff: null,
+          releases: c4ReleaseEntries,
+          selectedRelease,
+          onReleaseSelect: setSelectedRelease,
         } : undefined}
       />
     </TrailErrorBoundary>

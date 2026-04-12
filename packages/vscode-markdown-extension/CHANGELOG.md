@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.11.2] - 2026-04-12
+
+### Fixed
+
+- Fix `.gitignore` pattern that inadvertently excluded `trail-core/src/c4/coverage/` source files from version control
+
 ## [0.11.0] - 2026-04-11
 
 ### Added

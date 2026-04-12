@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-04-12
+
+### 変更
+
+- バンドル拡張機能 `anytime-trial.anytime-git` を `anytime-trial.anytime-history` に置き換え
+
 ## [0.2.0] - 2026-04-11
 
 ### 変更

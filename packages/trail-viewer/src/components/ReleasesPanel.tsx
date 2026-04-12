@@ -1,5 +1,11 @@
+import { useEffect, useMemo, useState } from 'react';
 import Box from '@mui/material/Box';
 import Chip from '@mui/material/Chip';
+import FormControl from '@mui/material/FormControl';
+import InputLabel from '@mui/material/InputLabel';
+import MenuItem from '@mui/material/MenuItem';
+import Select from '@mui/material/Select';
+import type { SelectChangeEvent } from '@mui/material/Select';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
@@ -10,6 +16,8 @@ import Typography from '@mui/material/Typography';
 import { formatLocalDate } from '@anytime-markdown/trail-core/formatDate';
 import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
 import { useTrailI18n } from '../i18n';
+
+const UNKNOWN_REPO_KEY = '__unknown__';
 
 export interface ReleasesPanelProps {
   readonly releases: readonly TrailRelease[];
@@ -73,6 +81,40 @@ function CommitBreakdownBar({ release }: Readonly<CommitBreakdownBarProps>): Rea
 export function ReleasesPanel({ releases }: Readonly<ReleasesPanelProps>): React.ReactElement {
   const { t } = useTrailI18n();
 
+  const repoOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const order: string[] = [];
+    for (const r of releases) {
+      const key = r.repoName ?? UNKNOWN_REPO_KEY;
+      if (!seen.has(key)) {
+        seen.add(key);
+        order.push(key);
+      }
+    }
+    return order;
+  }, [releases]);
+
+  const [selectedRepo, setSelectedRepo] = useState<string>(() => repoOptions[0] ?? '');
+
+  useEffect(() => {
+    if (repoOptions.length === 0) {
+      if (selectedRepo !== '') setSelectedRepo('');
+      return;
+    }
+    if (!repoOptions.includes(selectedRepo)) {
+      setSelectedRepo(repoOptions[0]);
+    }
+  }, [repoOptions, selectedRepo]);
+
+  const filteredReleases = useMemo(() => {
+    if (selectedRepo === '') return releases;
+    return releases.filter((r) => (r.repoName ?? UNKNOWN_REPO_KEY) === selectedRepo);
+  }, [releases, selectedRepo]);
+
+  const handleRepoChange = (event: SelectChangeEvent<string>): void => {
+    setSelectedRepo(event.target.value);
+  };
+
   if (releases.length === 0) {
     return (
       <Box sx={{ p: 3 }}>
@@ -82,7 +124,25 @@ export function ReleasesPanel({ releases }: Readonly<ReleasesPanelProps>): React
   }
 
   return (
-    <Box sx={{ overflow: 'auto', flex: 1 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+      <Box sx={{ p: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+        <FormControl size="small" sx={{ minWidth: 200 }}>
+          <InputLabel id="releases-repo-select-label">{t('releases.repository')}</InputLabel>
+          <Select
+            labelId="releases-repo-select-label"
+            value={selectedRepo}
+            label={t('releases.repository')}
+            onChange={handleRepoChange}
+          >
+            {repoOptions.map((key) => (
+              <MenuItem key={key} value={key}>
+                {key === UNKNOWN_REPO_KEY ? t('releases.unknownRepo') : key}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+      </Box>
+      <Box sx={{ overflow: 'auto', flex: 1 }}>
       <Table size="small" stickyHeader>
         <TableHead>
           <TableRow>
@@ -99,7 +159,7 @@ export function ReleasesPanel({ releases }: Readonly<ReleasesPanelProps>): React
           </TableRow>
         </TableHead>
         <TableBody>
-          {releases.map((release) => {
+          {filteredReleases.map((release) => {
             const steps = release.linesAdded + release.linesDeleted;
             const stepsPerDay = release.durationDays > 0 ? steps / release.durationDays : 0;
             const fixRate = release.commitCount > 0 ? release.fixCount / release.commitCount : 0;
@@ -156,6 +216,7 @@ export function ReleasesPanel({ releases }: Readonly<ReleasesPanelProps>): React
           })}
         </TableBody>
       </Table>
+      </Box>
     </Box>
   );
 }

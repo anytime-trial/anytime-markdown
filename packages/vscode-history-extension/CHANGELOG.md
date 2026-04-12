@@ -1,10 +1,16 @@
 # Change Log
 
-All notable changes to the "Anytime Git" extension will be documented in this file.
+All notable changes to the "Anytime History" extension will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+## [0.0.1] - 2026-04-12
+
+### Changed
+
+- Renamed extension from Anytime Git (`anytime-git`) to Anytime History (`anytime-history`) to resolve VS Code Marketplace name conflict
 
 ## [0.1.1] - 2026-04-11
 

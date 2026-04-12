@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-04-12
+
+### Changed
+
+- Update cms-core dependency to 0.1.3
+
 ## [0.1.1] - 2026-04-04
 
 ### Changed

@@ -39,6 +39,7 @@ describe('buildReleaseFromGitData', () => {
       prevTag: 'v0.10.4',
       releasedAt: '2026-04-11T01:29:50.000Z',
       prevReleasedAt: '2026-04-09T15:12:09.000Z',
+      repoName: 'anytime-markdown',
       packageTags: ['trail-v0.5.1', 'graph-v0.1.2'],
       commitSubjects: [
         'feat: add releases tab',
@@ -72,6 +73,7 @@ describe('buildReleaseFromGitData', () => {
       prevTag: null,
       releasedAt: '2026-01-01T00:00:00.000Z',
       prevReleasedAt: null,
+      repoName: null,
       packageTags: [],
       commitSubjects: ['feat: initial release'],
       filesChanged: 100,

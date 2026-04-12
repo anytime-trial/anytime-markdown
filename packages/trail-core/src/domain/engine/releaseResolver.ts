@@ -21,6 +21,7 @@ export interface ReleaseGitData {
   readonly prevTag: string | null;
   readonly releasedAt: string;
   readonly prevReleasedAt: string | null;
+  readonly repoName: string | null;
   readonly packageTags: readonly string[];
   readonly commitSubjects: readonly string[];
   readonly filesChanged: number;
@@ -58,6 +59,7 @@ export function buildReleaseFromGitData(data: ReleaseGitData): TrailRelease {
     tag: data.tag,
     releasedAt: data.releasedAt,
     prevTag: data.prevTag,
+    repoName: data.repoName,
     packageTags: data.packageTags,
     commitCount: data.commitSubjects.length,
     filesChanged: data.filesChanged,

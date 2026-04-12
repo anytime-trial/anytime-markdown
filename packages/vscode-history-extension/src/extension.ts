@@ -11,7 +11,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Git 元コンテンツプロバイダー（diff 表示用）
 	const gitContentProvider = new GitOriginalContentProvider();
 	context.subscriptions.push(
-		vscode.workspace.registerTextDocumentContentProvider('anytime-git-original', gitContentProvider),
+		vscode.workspace.registerTextDocumentContentProvider('anytime-history-original', gitContentProvider),
 	);
 
 	// Git 関連パネル（ワークスペースが開かれている場合のみ初期化）
@@ -26,7 +26,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	if (hasWorkspace) {
 		changesProvider = new ChangesProvider();
-		changesTreeView = vscode.window.createTreeView('anytimeGit.changes', {
+		changesTreeView = vscode.window.createTreeView('anytimeHistory.changes', {
 			treeDataProvider: changesProvider,
 		});
 
@@ -49,12 +49,12 @@ export async function activate(context: vscode.ExtensionContext) {
 		}, 2000);
 
 		timelineProvider = new TimelineProvider();
-		timelineTreeView = vscode.window.createTreeView('anytimeGit.timeline', {
+		timelineTreeView = vscode.window.createTreeView('anytimeHistory.timeline', {
 			treeDataProvider: timelineProvider,
 		});
 
 		graphProvider = new GraphProvider(context);
-		graphTreeView = vscode.window.createTreeView('anytimeGit.graph', {
+		graphTreeView = vscode.window.createTreeView('anytimeHistory.graph', {
 			treeDataProvider: graphProvider,
 		});
 	}
@@ -70,7 +70,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// マークダウン管理パネル
 	const specDocsProvider = new SpecDocsProvider(context);
 	const specDocsDragAndDrop = new SpecDocsDragAndDrop(specDocsProvider);
-	const specDocsTreeView = vscode.window.createTreeView('anytimeGit.specDocs', {
+	const specDocsTreeView = vscode.window.createTreeView('anytimeHistory.specDocs', {
 		treeDataProvider: specDocsProvider,
 		dragAndDropController: specDocsDragAndDrop,
 	});
@@ -122,7 +122,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	changesProvider?.setMdOnlyGetter(() => specDocsProvider.mdOnly);
 
 	const graphRefresh = vscode.commands.registerCommand(
-		'anytime-git.graphRefresh', () => graphProvider?.refresh()
+		'anytime-history.graphRefresh', () => graphProvider?.refresh()
 	);
 
 	registerChangesCommands(context, {

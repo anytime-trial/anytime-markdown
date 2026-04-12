@@ -155,6 +155,12 @@ export interface TrailI18n {
   'releases.packages': string;
   'releases.days': string;
   'releases.noReleases': string;
+  'releases.repository': string;
+  'releases.unknownRepo': string;
   // c4
   'viewer.c4': string;
+  'c4.releases': string;
+  'c4.releaseRepository': string;
+  'c4.unknownRepo': string;
+  'c4.currentRelease': string;
 }

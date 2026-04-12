@@ -1,15 +1,17 @@
 'use client';
 
 import { extractBoundaries, parseMermaidC4 } from '@anytime-markdown/trail-core/c4';
-import type { BoundaryInfo, C4Model, CoverageDiffMatrix, CoverageMatrix, DocLink, FeatureMatrix } from '@anytime-markdown/trail-core/c4';
+import type { BoundaryInfo, C4Model, C4ReleaseEntry, CoverageDiffMatrix, CoverageMatrix, DocLink, FeatureMatrix } from '@anytime-markdown/trail-core/c4';
 import type { GraphDocument } from '@anytime-markdown/graph-core';
 import { layoutWithSubgroups } from '@anytime-markdown/graph-core';
 import { c4ToGraphDocument } from '@anytime-markdown/trail-core/c4';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { C4ViewerCore } from '@anytime-markdown/trail-viewer';
-import type { ElementFormData, RelationshipFormData } from '@anytime-markdown/trail-viewer';
+import { C4ViewerCore, SupabaseTrailReader } from '@anytime-markdown/trail-viewer';
+import type { ElementFormData, RelationshipFormData, SupabaseConfig } from '@anytime-markdown/trail-viewer';
 import { useThemeMode } from '../../providers';
+
+const CURRENT_RELEASE_TAG = 'current';
 
 let nextManualId = 1;
 function generateManualId(type: string): string {
@@ -26,6 +28,41 @@ export function C4Viewer() {
   const [coverageMatrix, setCoverageMatrix] = useState<CoverageMatrix | null>(null);
   const [coverageDiff, setCoverageDiff] = useState<CoverageDiffMatrix | null>(null);
   const [docLinks, setDocLinks] = useState<readonly DocLink[]>([]);
+  const [releases, setReleases] = useState<readonly C4ReleaseEntry[]>([]);
+  const [selectedRelease, setSelectedRelease] = useState<string>(CURRENT_RELEASE_TAG);
+
+  const supabaseConfig: SupabaseConfig | undefined = useMemo(() => {
+    if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      return {
+        url: process.env.NEXT_PUBLIC_SUPABASE_URL,
+        anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      };
+    }
+    return undefined;
+  }, []);
+
+  useEffect(() => {
+    if (!supabaseConfig) {
+      setReleases([{ tag: CURRENT_RELEASE_TAG, repoName: null }]);
+      return;
+    }
+    let cancelled = false;
+    const reader = new SupabaseTrailReader(supabaseConfig.url, supabaseConfig.anonKey);
+    reader.getReleases()
+      .then((trailReleases) => {
+        if (cancelled) return;
+        const entries: C4ReleaseEntry[] = [
+          { tag: CURRENT_RELEASE_TAG, repoName: null },
+          ...trailReleases.map((r) => ({ tag: r.tag, repoName: r.repoName })),
+        ];
+        setReleases(entries);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setReleases([{ tag: CURRENT_RELEASE_TAG, repoName: null }]);
+      });
+    return () => { cancelled = true; };
+  }, [supabaseConfig]);
 
   // --- Data loading ---
 
@@ -65,11 +102,16 @@ export function C4Viewer() {
   }, []);
 
   useEffect(() => {
-    fetch('/api/c4model')
+    let cancelled = false;
+    fetch(`/api/c4model?release=${encodeURIComponent(selectedRelease)}`)
       .then(res => { if (res.ok) return res.json(); })
-      .then((data: unknown) => { if (data) loadGraphJson(JSON.stringify(data)); })
+      .then((data: unknown) => {
+        if (cancelled || !data) return;
+        loadGraphJson(JSON.stringify(data));
+      })
       .catch(() => { /* c4-model.json が取得できない場合は無視 */ });
-  }, [loadGraphJson]);
+    return () => { cancelled = true; };
+  }, [loadGraphJson, selectedRelease]);
 
   useEffect(() => {
     fetch('/api/docs-index')
@@ -191,6 +233,9 @@ export function C4Viewer() {
       onDocLinkClick={handleDocLinkClick}
       onImport={handleImport}
       containerHeight="calc(100vh - 64px)"
+      releases={releases}
+      selectedRelease={selectedRelease}
+      onReleaseSelect={setSelectedRelease}
     />
   );
 }

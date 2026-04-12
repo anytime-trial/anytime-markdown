@@ -202,10 +202,14 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
   }
 
   async upsertC4Model(json: string, revision: string): Promise<void> {
+    await this.upsertC4ModelById('current', json, revision);
+  }
+
+  async upsertC4ModelById(id: string, json: string, revision: string): Promise<void> {
     const { error } = await this.ensureClient()
       .from('trail_c4_models')
       .upsert({
-        id: 'current',
+        id,
         model_json: json,
         revision,
         updated_at: new Date().toISOString(),

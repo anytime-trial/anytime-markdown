@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-04-12
+
+### Changed
+
+- Replace bundled extension `anytime-trial.anytime-git` with `anytime-trial.anytime-history`
+
 ## [0.2.0] - 2026-04-11
 
 ### Changed

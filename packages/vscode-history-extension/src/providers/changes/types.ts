@@ -42,7 +42,7 @@ export class ChangesSyncItem extends vscode.TreeItem {
 		this.iconPath = new vscode.ThemeIcon('sync');
 		this.contextValue = 'changesSync';
 		this.command = {
-			command: 'anytime-git.syncChanges',
+			command: 'anytime-history.syncChanges',
 			title: 'Sync Changes',
 			arguments: [gitRoot],
 		};
@@ -96,7 +96,7 @@ export class ChangesFileItem extends vscode.TreeItem {
 		const lower = fileName.toLowerCase();
 		const isMd = lower.endsWith('.md') || lower.endsWith('.markdown');
 		this.command = {
-			command: 'anytime-git.changesOpenFile',
+			command: 'anytime-history.changesOpenFile',
 			title: 'Open Changes',
 			arguments: [gitRoot, change.filePath, change.group, vscode.Uri.file(change.absPath), isMd, `${fileName} (${statusLabel})`],
 		};

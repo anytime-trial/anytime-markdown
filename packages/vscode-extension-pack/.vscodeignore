@@ -1,7 +1,10 @@
 **
+../**
+../../**
 !package.json
 !README.md
 !README.ja.md
 !CHANGELOG.md
+!CHANGELOG.ja.md
 !LICENSE
 !images/**

@@ -1,6 +1,7 @@
 import type { TrailDatabase } from './TrailDatabase';
 import type { IRemoteTrailStore } from './IRemoteTrailStore';
 import { TrailLogger } from '../utils/TrailLogger';
+import { trailToC4 } from '@anytime-markdown/trail-core';
 
 export interface SyncProgress {
   message: string;
@@ -125,6 +126,24 @@ export class SyncService {
       }
     } catch (e) {
       TrailLogger.error('Failed to sync C4 model', e);
+      errors++;
+    }
+
+    // Sync historical C4 models per release (trail_graphs → trail_c4_models)
+    try {
+      const graphIds = this.trailDb.getTrailGraphIds();
+      const releaseIds = graphIds.filter((id) => id !== 'current');
+      if (releaseIds.length > 0) {
+        onProgress?.({ message: `Syncing ${releaseIds.length} historical C4 models...` });
+        for (const id of releaseIds) {
+          const graph = this.trailDb.getTrailGraph(id);
+          if (!graph) continue;
+          const model = trailToC4(graph);
+          await this.store.upsertC4ModelById(id, JSON.stringify(model), '');
+        }
+      }
+    } catch (e) {
+      TrailLogger.error('Failed to sync historical C4 models', e);
       errors++;
     }
 

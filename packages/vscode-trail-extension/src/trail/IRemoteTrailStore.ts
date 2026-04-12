@@ -39,4 +39,5 @@ export interface IRemoteTrailStore {
     estimated_cost_usd: number;
   }[]): Promise<void>;
   upsertC4Model(json: string, revision: string): Promise<void>;
+  upsertC4ModelById(id: string, json: string, revision: string): Promise<void>;
 }

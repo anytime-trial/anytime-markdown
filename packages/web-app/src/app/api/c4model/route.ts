@@ -1,3 +1,4 @@
+import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -34,9 +35,11 @@ interface GitHubBlobResponse {
   encoding?: string;
 }
 
-let cachedData: { json: unknown; expiresAt: number } | null = null;
+const cachedDataByRelease = new Map<string, { json: unknown; expiresAt: number }>();
 
-export async function GET(): Promise<NextResponse> {
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  const release = request.nextUrl.searchParams.get("release") ?? "current";
+
   // Try Supabase first if configured
   const c4Source = process.env.C4_SOURCE ?? "github";
   if (c4Source === "supabase") {
@@ -48,7 +51,7 @@ export async function GET(): Promise<NextResponse> {
         const { data, error } = await client
           .from("trail_c4_models")
           .select("model_json")
-          .eq("id", "current")
+          .eq("id", release)
           .single();
         if (!error && data?.model_json) {
           const parsed = JSON.parse(data.model_json) as unknown;
@@ -56,10 +59,24 @@ export async function GET(): Promise<NextResponse> {
             headers: { "Cache-Control": `public, max-age=${CACHE_MAX_AGE}` },
           });
         }
+        if (release !== "current") {
+          return NextResponse.json(
+            { error: `C4 model for release '${release}' not found` },
+            { status: 404 },
+          );
+        }
       } catch {
         // Fall through to GitHub
       }
     }
+  }
+
+  // GitHub fallback only supports current
+  if (release !== "current") {
+    return NextResponse.json(
+      { error: "Historical C4 models require Supabase backend" },
+      { status: 404 },
+    );
   }
 
   const repoRaw = process.env.DOCS_GITHUB_REPO;
@@ -78,9 +95,10 @@ export async function GET(): Promise<NextResponse> {
     );
   }
 
-  // in-memory cache
-  if (cachedData && Date.now() < cachedData.expiresAt) {
-    return NextResponse.json(cachedData.json, {
+  // in-memory cache (per release)
+  const cached = cachedDataByRelease.get(release);
+  if (cached && Date.now() < cached.expiresAt) {
+    return NextResponse.json(cached.json, {
       headers: { "Cache-Control": `public, max-age=${CACHE_MAX_AGE}` },
     });
   }
@@ -125,7 +143,7 @@ export async function GET(): Promise<NextResponse> {
     );
   }
 
-  cachedData = { json: parsed, expiresAt: Date.now() + CACHE_MAX_AGE * 1000 };
+  cachedDataByRelease.set(release, { json: parsed, expiresAt: Date.now() + CACHE_MAX_AGE * 1000 });
 
   return NextResponse.json(parsed, {
     headers: { "Cache-Control": `public, max-age=${CACHE_MAX_AGE}` },

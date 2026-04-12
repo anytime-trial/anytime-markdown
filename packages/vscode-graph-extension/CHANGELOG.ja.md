@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-04-12
+
+### Graph Core (graph-core)
+
+- `trail-core/src/c4/coverage/` ソースファイルをバージョン管理から除外してしまう `.gitignore` パターンを修正
+
 ## [0.1.2] - 2026-04-11
 
 ### Graph Core (graph-core)

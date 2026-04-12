@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-04-12
+
+### Graph Core (graph-core)
+
+- Fix `.gitignore` pattern that inadvertently excluded `trail-core/src/c4/coverage/` source files from version control
+
 ## [0.1.2] - 2026-04-11
 
 ### Graph Core (graph-core)

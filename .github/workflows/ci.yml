@@ -156,24 +156,24 @@ jobs:
       - name: Run git extension tests
         if: github.event_name == 'pull_request' && github.base_ref == 'master'
         run: npx jest --maxWorkers=1
-        working-directory: packages/vscode-git-extension
+        working-directory: packages/vscode-history-extension
 
       - name: Build git extension
         if: (github.event_name == 'pull_request' && github.base_ref == 'master') || github.ref == 'refs/heads/master'
         run: npm run package
-        working-directory: packages/vscode-git-extension
+        working-directory: packages/vscode-history-extension
 
       - name: Package git VSIX
         if: (github.event_name == 'pull_request' && github.base_ref == 'master') || github.ref == 'refs/heads/master'
         run: npx vsce package --no-dependencies
-        working-directory: packages/vscode-git-extension
+        working-directory: packages/vscode-history-extension
 
       - name: Upload git VSIX artifact
         if: github.ref == 'refs/heads/master'
         uses: actions/upload-artifact@v4
         with:
-          name: vsix-git-ci
-          path: packages/vscode-git-extension/*.vsix
+          name: vsix-history-ci
+          path: packages/vscode-history-extension/*.vsix
           retention-days: 3
 
       - name: Build trail extension
@@ -429,7 +429,7 @@ jobs:
 
       - name: Get version from package.json
         id: version
-        run: echo "version=git-v$(node -p "require('./packages/vscode-git-extension/package.json').version")" >> "$GITHUB_OUTPUT"
+        run: echo "version=history-v$(node -p "require('./packages/vscode-history-extension/package.json').version")" >> "$GITHUB_OUTPUT"
 
       - name: Check if tag already exists
         id: tag_check
@@ -448,8 +448,8 @@ jobs:
         if: steps.tag_check.outputs.exists == 'false'
         uses: actions/download-artifact@v4
         with:
-          name: vsix-git-ci
-          path: packages/vscode-git-extension
+          name: vsix-history-ci
+          path: packages/vscode-history-extension
 
       - uses: actions/setup-node@v6
         if: steps.tag_check.outputs.exists == 'false'
@@ -459,7 +459,7 @@ jobs:
       - name: Publish to Marketplace
         if: steps.tag_check.outputs.exists == 'false'
         run: npx vsce publish --packagePath *.vsix --pat "$VSCE_PAT"
-        working-directory: packages/vscode-git-extension
+        working-directory: packages/vscode-history-extension
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
 
@@ -475,7 +475,7 @@ jobs:
         with:
           tag_name: ${{ steps.version.outputs.version }}
           name: Anytime Git ${{ steps.version.outputs.version }}
-          files: packages/vscode-git-extension/*.vsix
+          files: packages/vscode-history-extension/*.vsix
           generate_release_notes: true
 
   publish-trail:

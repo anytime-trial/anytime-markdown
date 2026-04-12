@@ -1,0 +1,455 @@
+{
+  "name": "anytime-history",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "0.0.1",
+  "license": "MIT",
+  "publisher": "anytime-trial",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/anytime-trial/anytime-markdown.git"
+  },
+  "engines": {
+    "vscode": "^1.109.0"
+  },
+  "categories": [
+    "SCM Providers"
+  ],
+  "keywords": [
+    "git",
+    "repository",
+    "staging",
+    "timeline",
+    "graph"
+  ],
+  "activationEvents": [
+    "workspaceContains:**/.git/HEAD",
+    "onView:anytimeHistory.specDocs",
+    "onView:anytimeHistory.changes",
+    "onView:anytimeHistory.graph",
+    "onView:anytimeHistory.timeline"
+  ],
+  "icon": "images/camel_git.png",
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "anytimeHistory",
+          "title": "%viewsContainer.title%",
+          "icon": "images/git-activitybar.svg"
+        }
+      ]
+    },
+    "views": {
+      "anytimeHistory": [
+        {
+          "id": "anytimeHistory.specDocs",
+          "name": "%view.specDocs%"
+        },
+        {
+          "id": "anytimeHistory.changes",
+          "name": "%view.changes%"
+        },
+        {
+          "id": "anytimeHistory.graph",
+          "name": "%view.graph%"
+        },
+        {
+          "id": "anytimeHistory.timeline",
+          "name": "Timeline"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "anytimeHistory.specDocs",
+        "contents": "%viewsWelcome.specDocs%",
+        "when": "!anytimeHistory.specDocsHasRoot"
+      },
+      {
+        "view": "anytimeHistory.changes",
+        "contents": "%viewsWelcome.changes%"
+      },
+      {
+        "view": "anytimeHistory.timeline",
+        "contents": "No items."
+      },
+      {
+        "view": "anytimeHistory.graph",
+        "contents": "No items."
+      }
+    ],
+    "commands": [
+      {
+        "command": "anytime-history.specDocsOpenFolder",
+        "title": "%command.specDocsOpenFolder%",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "command": "anytime-history.specDocsCloneRepo",
+        "title": "%command.specDocsCloneRepo%",
+        "icon": "$(repo-clone)"
+      },
+      {
+        "command": "anytime-history.specDocsClose",
+        "title": "%command.specDocsClose%",
+        "icon": "$(close)"
+      },
+      {
+        "command": "anytime-history.specDocsRefresh",
+        "title": "%command.specDocsRefresh%",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "anytime-history.toggleMdOnly",
+        "title": "%command.toggleMdOnly%",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "anytime-history.switchBranch",
+        "title": "%command.switchBranch%",
+        "icon": "$(git-branch)"
+      },
+      {
+        "command": "anytime-history.specDocsCreateFile",
+        "title": "%command.specDocsCreateFile%",
+        "icon": "$(new-file)"
+      },
+      {
+        "command": "anytime-history.specDocsCreateFolder",
+        "title": "%command.specDocsCreateFolder%",
+        "icon": "$(new-folder)"
+      },
+      {
+        "command": "anytime-history.specDocsDelete",
+        "title": "%command.specDocsDelete%",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "anytime-history.specDocsRename",
+        "title": "%command.specDocsRename%"
+      },
+      {
+        "command": "anytime-history.specDocsRemoveRoot",
+        "title": "%command.specDocsRemoveRoot%",
+        "icon": "$(close)"
+      },
+      {
+        "command": "anytime-history.specDocsCopyPath",
+        "title": "%command.specDocsCopyPath%"
+      },
+      {
+        "command": "anytime-history.specDocsCopyFileName",
+        "title": "%command.specDocsCopyFileName%"
+      },
+      {
+        "command": "anytime-history.specDocsImportFiles",
+        "title": "%command.specDocsImportFiles%",
+        "icon": "$(file-add)"
+      },
+      {
+        "command": "anytime-history.specDocsCut",
+        "title": "%command.specDocsCut%"
+      },
+      {
+        "command": "anytime-history.specDocsCopy",
+        "title": "%command.specDocsCopy%"
+      },
+      {
+        "command": "anytime-history.specDocsPaste",
+        "title": "%command.specDocsPaste%"
+      },
+      {
+        "command": "anytime-history.graphRefresh",
+        "title": "%command.graphRefresh%",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "anytime-history.changesRefresh",
+        "title": "%command.changesRefresh%",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "anytime-history.stageFile",
+        "title": "%command.stageFile%",
+        "icon": "$(add)"
+      },
+      {
+        "command": "anytime-history.unstageFile",
+        "title": "%command.unstageFile%",
+        "icon": "$(remove)"
+      },
+      {
+        "command": "anytime-history.stageAll",
+        "title": "%command.stageAll%",
+        "icon": "$(add)"
+      },
+      {
+        "command": "anytime-history.unstageAll",
+        "title": "%command.unstageAll%",
+        "icon": "$(close-all)"
+      },
+      {
+        "command": "anytime-history.discardAll",
+        "title": "%command.discardAll%",
+        "icon": "$(discard)"
+      },
+      {
+        "command": "anytime-history.discardChanges",
+        "title": "%command.discardChanges%",
+        "icon": "$(discard)"
+      },
+      {
+        "command": "anytime-history.commitChanges",
+        "title": "%command.commitChanges%"
+      },
+      {
+        "command": "anytime-history.pushChanges",
+        "title": "%command.pushChanges%"
+      },
+      {
+        "command": "anytime-history.syncChanges",
+        "title": "%command.syncChanges%",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "anytime-history.specDocsOpenFile",
+        "title": "Open File"
+      },
+      {
+        "command": "anytime-history.changesOpenFile",
+        "title": "Open Changes"
+      },
+      {
+        "command": "anytime-history.compareWithCommit",
+        "title": "%command.compareWithCommit%"
+      }
+    ],
+    "submenus": [
+      {
+        "id": "anytimeHistory.changesMore",
+        "label": "More Actions...",
+        "icon": "$(ellipsis)"
+      }
+    ],
+    "menus": {
+      "anytimeHistory.changesMore": [
+        {
+          "command": "anytime-history.commitChanges",
+          "group": "1_commit@1"
+        },
+        {
+          "command": "anytime-history.pushChanges",
+          "group": "1_commit@2"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "anytime-history.toggleMdOnly",
+          "when": "view == anytimeHistory.specDocs",
+          "group": "navigation@2"
+        },
+        {
+          "command": "anytime-history.specDocsCreateFile",
+          "when": "view == anytimeHistory.specDocs && anytimeHistory.specDocsHasRoot",
+          "group": "navigation@3"
+        },
+        {
+          "command": "anytime-history.specDocsCreateFolder",
+          "when": "view == anytimeHistory.specDocs && anytimeHistory.specDocsHasRoot",
+          "group": "navigation@4"
+        },
+        {
+          "command": "anytime-history.specDocsRefresh",
+          "when": "view == anytimeHistory.specDocs && anytimeHistory.specDocsHasRoot",
+          "group": "navigation@5"
+        },
+        {
+          "command": "anytime-history.specDocsOpenFolder",
+          "when": "view == anytimeHistory.specDocs && anytimeHistory.specDocsHasRoot",
+          "group": "navigation@6"
+        },
+        {
+          "command": "anytime-history.specDocsCloneRepo",
+          "when": "view == anytimeHistory.specDocs && anytimeHistory.specDocsHasRoot",
+          "group": "navigation@7"
+        },
+        {
+          "command": "anytime-history.graphRefresh",
+          "when": "view == anytimeHistory.graph",
+          "group": "navigation@1"
+        },
+        {
+          "command": "anytime-history.changesRefresh",
+          "when": "view == anytimeHistory.changes",
+          "group": "navigation@1"
+        },
+        {
+          "submenu": "anytimeHistory.changesMore",
+          "when": "view == anytimeHistory.changes",
+          "group": "navigation@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "anytime-history.specDocsCreateFile",
+          "when": "view == anytimeHistory.specDocs && viewItem == folder",
+          "group": "1_new@1"
+        },
+        {
+          "command": "anytime-history.specDocsCreateFolder",
+          "when": "view == anytimeHistory.specDocs && viewItem == folder",
+          "group": "1_new@2"
+        },
+        {
+          "command": "anytime-history.specDocsImportFiles",
+          "when": "view == anytimeHistory.specDocs && viewItem == folder",
+          "group": "1_new@3"
+        },
+        {
+          "command": "anytime-history.specDocsCreateFile",
+          "when": "view == anytimeHistory.specDocs && viewItem == specDocsRoot",
+          "group": "1_new@1"
+        },
+        {
+          "command": "anytime-history.specDocsCreateFolder",
+          "when": "view == anytimeHistory.specDocs && viewItem == specDocsRoot",
+          "group": "1_new@2"
+        },
+        {
+          "command": "anytime-history.specDocsImportFiles",
+          "when": "view == anytimeHistory.specDocs && viewItem == specDocsRoot",
+          "group": "1_new@3"
+        },
+        {
+          "command": "anytime-history.specDocsPaste",
+          "when": "view == anytimeHistory.specDocs && viewItem == specDocsRoot",
+          "group": "1_new@4"
+        },
+        {
+          "command": "anytime-history.specDocsCut",
+          "when": "view == anytimeHistory.specDocs && viewItem != specDocsRoot",
+          "group": "2_clipboard@1"
+        },
+        {
+          "command": "anytime-history.specDocsCopy",
+          "when": "view == anytimeHistory.specDocs && viewItem != specDocsRoot",
+          "group": "2_clipboard@2"
+        },
+        {
+          "command": "anytime-history.specDocsPaste",
+          "when": "view == anytimeHistory.specDocs && viewItem != specDocsRoot",
+          "group": "2_clipboard@3"
+        },
+        {
+          "command": "anytime-history.specDocsCopyPath",
+          "when": "view == anytimeHistory.specDocs && viewItem != specDocsRoot",
+          "group": "3_path@1"
+        },
+        {
+          "command": "anytime-history.specDocsCopyFileName",
+          "when": "view == anytimeHistory.specDocs && viewItem != specDocsRoot",
+          "group": "3_path@2"
+        },
+        {
+          "command": "anytime-history.specDocsRename",
+          "when": "view == anytimeHistory.specDocs && viewItem != specDocsRoot",
+          "group": "4_modify@1"
+        },
+        {
+          "command": "anytime-history.specDocsDelete",
+          "when": "view == anytimeHistory.specDocs && viewItem != specDocsRoot",
+          "group": "4_modify@2"
+        },
+        {
+          "command": "anytime-history.switchBranch",
+          "when": "view == anytimeHistory.specDocs && viewItem == specDocsRoot",
+          "group": "3_root@1"
+        },
+        {
+          "command": "anytime-history.specDocsRemoveRoot",
+          "when": "view == anytimeHistory.specDocs && viewItem == specDocsRoot",
+          "group": "3_root@2"
+        },
+        {
+          "command": "anytime-history.discardAll",
+          "when": "view == anytimeHistory.changes && viewItem == changesGroupChanges",
+          "group": "inline@1"
+        },
+        {
+          "command": "anytime-history.stageAll",
+          "when": "view == anytimeHistory.changes && viewItem == changesGroupChanges",
+          "group": "inline@2"
+        },
+        {
+          "command": "anytime-history.unstageAll",
+          "when": "view == anytimeHistory.changes && viewItem == changesGroupStaged",
+          "group": "inline@1"
+        },
+        {
+          "command": "anytime-history.stageFile",
+          "when": "view == anytimeHistory.changes && viewItem == changesFileUnstaged",
+          "group": "inline@2"
+        },
+        {
+          "command": "anytime-history.discardChanges",
+          "when": "view == anytimeHistory.changes && viewItem == changesFileUnstaged",
+          "group": "inline@1"
+        },
+        {
+          "command": "anytime-history.unstageFile",
+          "when": "view == anytimeHistory.changes && viewItem == changesFileStaged",
+          "group": "inline@1"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "anytime-history.specDocsCut",
+        "key": "ctrl+x",
+        "mac": "cmd+x",
+        "when": "focusedView == anytimeHistory.specDocs"
+      },
+      {
+        "command": "anytime-history.specDocsCopy",
+        "key": "ctrl+c",
+        "mac": "cmd+c",
+        "when": "focusedView == anytimeHistory.specDocs"
+      },
+      {
+        "command": "anytime-history.specDocsPaste",
+        "key": "ctrl+v",
+        "mac": "cmd+v",
+        "when": "focusedView == anytimeHistory.specDocs"
+      }
+    ]
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "Git operations and file system access require workspace trust.",
+      "restrictedConfigurations": []
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "webpack",
+    "watch": "webpack --watch",
+    "package": "webpack --mode production --devtool hidden-source-map",
+    "test": "jest --maxWorkers=1"
+  },
+  "dependencies": {
+    "typescript": "5.9.3"
+  },
+  "devDependencies": {
+    "@types/jest": "29.5.14",
+    "@types/node": "22.x",
+    "@types/vscode": "1.109.0",
+    "jest": "29.7.0",
+    "ts-jest": "29.3.4",
+    "ts-loader": "9.5.4",
+    "webpack": "5.104.1",
+    "webpack-cli": "6.0.1"
+  }
+}

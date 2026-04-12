@@ -1,10 +1,16 @@
 # 変更ログ
 
-"Anytime Git" 拡張機能の主要な変更を記録します。
+"Anytime History" 拡張機能の主要な変更を記録します。
 
 形式は [Keep a Changelog](https://keepachangelog.com/) に従います。
 
 ## [Unreleased]
+
+## [0.0.1] - 2026-04-12
+
+### 変更
+
+- VS Code Marketplace の名前競合解消のため、拡張機能名を Anytime Git（`anytime-git`）から Anytime History（`anytime-history`）に変更
 
 ## [0.1.1] - 2026-04-11
 

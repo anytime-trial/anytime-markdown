@@ -147,3 +147,13 @@ export interface CoverageDiffMatrix {
   readonly baseGeneratedAt: number;
   readonly currentGeneratedAt: number;
 }
+
+/**
+ * C4 ビューのリリースパネルに表示するエントリ。
+ * tag は trail_graphs のスナップショット ID（'current' を含む）。
+ * repoName が null の場合はリポジトリ未紐付け（'current' など）。
+ */
+export interface C4ReleaseEntry {
+  readonly tag: string;
+  readonly repoName: string | null;
+}
