@@ -102,7 +102,7 @@ export const CREATE_C4_MODELS = `CREATE TABLE IF NOT EXISTS c4_models (
 )`;
 
 export const CREATE_CURRENT_GRAPHS = `CREATE TABLE IF NOT EXISTS current_graphs (
-  id            TEXT PRIMARY KEY DEFAULT 'current',
+  repo_name     TEXT PRIMARY KEY,
   commit_id     TEXT NOT NULL DEFAULT '',
   graph_json    TEXT NOT NULL,
   tsconfig_path TEXT NOT NULL,

@@ -564,8 +564,9 @@ export class TrailDataServer {
   // -------------------------------------------------------------------------
 
   private handleC4ModelEndpoint(res: http.ServerResponse, releaseId: string): void {
-    // trail_graphs から TrailGraph を取得して trailToC4() で変換
-    const graph = this.trailDb.getTrailGraph(releaseId);
+    // current_graphs / release_graphs から TrailGraph を取得して trailToC4() で変換
+    const repoName = this.gitRoot ? path.basename(this.gitRoot) : undefined;
+    const graph = this.trailDb.getTrailGraph(releaseId, repoName);
     if (graph) {
       const model = trailToC4(graph);
       const provider = this.getC4Provider?.();
@@ -602,7 +603,8 @@ export class TrailDataServer {
 
   private handleC4ReleasesEndpoint(res: http.ServerResponse): void {
     try {
-      const entries = this.trailDb.getTrailGraphEntries();
+      const repoName = this.gitRoot ? path.basename(this.gitRoot) : undefined;
+      const entries = this.trailDb.getTrailGraphEntries(repoName);
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(entries));
     } catch {

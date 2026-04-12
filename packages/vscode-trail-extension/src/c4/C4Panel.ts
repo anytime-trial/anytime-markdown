@@ -414,11 +414,13 @@ export class C4Panel implements C4DataProvider {
             `C4 analysis [${repoName}]: analyzed ${graph.metadata.fileCount} files, ${graph.nodes.length} nodes, ${graph.edges.length} edges`,
           );
 
-          // TrailGraph を current_graphs テーブルに保存（HEAD コミット ID 付き）
+          // TrailGraph を current_graphs テーブルに保存（HEAD コミット ID 付き、repo_name をキーに）
+          // releases.repo_name と整合させるため path.basename(gitRoot) を使用する
           const gitRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+          const dbRepoName = gitRoot ? path.basename(gitRoot) : repoName;
           const commitId = gitRoot ? new ExecFileGitService(gitRoot).getHeadCommit() : '';
-          C4Panel.trailDb?.saveCurrentGraph(graph, tsconfigPath, commitId);
-          TrailLogger.info(`C4 analysis [${repoName}]: TrailGraph saved to current_graphs (commit=${commitId || 'unknown'})`);
+          C4Panel.trailDb?.saveCurrentGraph(graph, tsconfigPath, commitId, dbRepoName);
+          TrailLogger.info(`C4 analysis [${repoName}]: TrailGraph saved to current_graphs (repo=${dbRepoName}, commit=${commitId || 'unknown'})`);
 
           // TODO: C4モデル変換・マージは一旦コメントアウト
           // progress.report({ message: 'Building C4 model...' });
