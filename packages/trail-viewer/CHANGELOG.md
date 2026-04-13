@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-04-13
+
+### Added
+
+- Jump from analytics session row to traces tab
+- Plot cumulative inference time on session cache timeline
+- Repository selector replaces branch/model filters
+
+### Changed
+
+- Extract `TrailViewerApp` as shared wrapper component (used by both VS Code extension and web app)
+- Remove local mode from `useC4DataSource`
+- Remove dead Supabase dual-mode from `useTrailDataSource`
+
+### Fixed
+
+- Apply search text and repository filter client-side correctly
+
 ## [0.3.1] - 2026-04-12
 
 ### Fixed

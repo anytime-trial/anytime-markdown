@@ -6,6 +6,30 @@
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-04-13
+
+### 追加
+
+- 共有 `IC4ModelStore` によるマルチリポジトリC4モデルサポートを追加
+- SQLiteからリリースDSMを提供する `/api/c4/dsm` エンドポイントを追加
+
+### 変更
+
+- `TrailViewer` を `useTrailDataSource` HTTPパスで統合
+- `C4Viewer` を `useC4DataSource` で統合
+- 未使用の `/c4model` ページとレガシー `/api/c4model` ルートを削除
+- DSMパイプラインから `c4Matrix` を削除
+
+### 修正
+
+- `/api/c4/*` ルートの動的レンダリングを強制するよう修正
+- APIルートで `NEXT_PUBLIC_` Supabase環境変数へのフォールバックを追加
+- C4タブをリリース読み込み完了後に表示するよう修正（`c4Model` 依存を解消）
+- `TrailViewerCore` に常に `c4` propを渡すよう修正（拡張機能との動作統一）
+- 解析後にDSMビルドをトリガーし、クエリを `/api/c4/dsm` に渡すよう修正
+- フェッチ失敗または204レスポンス時にC4/DSM/Coverageの状態をリセット
+- `/api/c4/dsm?release=current` でSQLiteの `current_graphs` にフォールバック
+
 ## [0.12.4] - 2026-04-12
 
 ### 修正

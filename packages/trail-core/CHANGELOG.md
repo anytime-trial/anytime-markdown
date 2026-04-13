@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-04-13
+
+### Added
+
+- `IC4ModelStore` port and `fetchC4Model` service for multi-repository C4 model support
+
+### Changed
+
+- Replace remote sync with full wipe-and-reload strategy and 7-day message window
+- Split `trail_graphs` into `current_graphs` and `release_graphs` tables
+- Use `repo_name` as primary key for `current_graphs`
+- Add ISO 8601 UTC timestamps to `TrailLogger` output
+
+### Fixed
+
+- Re-import sessions whose messages were silently dropped during sync
+- Correct `INSERT_MESSAGE` SQL placeholder count and surface previously silent catch errors
+- Aggregate `daily_costs` by JST boundary instead of process timezone
+
 ## [0.5.3] - 2026-04-12
 
 ### Fixed

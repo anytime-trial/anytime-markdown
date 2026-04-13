@@ -6,6 +6,33 @@
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-04-13
+
+### 追加
+
+- Trail Viewerボタン付きダッシュボードパネルを追加
+- ダッシュボードパネルのi18nキーを追加
+- C4解析とTrailインポートのステップをリポジトリ名付きでログ出力
+
+### 変更
+
+- "Import JSONL Logs"を"Refresh Trail Data"（リフレッシュアイコン）にリネーム
+- "Analyze Workspace"を"Analyze Code"（`symbol-class`アイコン、互換性向上）にリネーム
+- `c4Export` / `c4Import` コマンドを削除
+- データベースパネルのTrail Viewerアイコンを削除
+
+### 修正
+
+- C4パネルのリポジトリセレクターで全リポジトリを表示するよう修正
+- `trail_graphs` マイグレーション結果をディスクに永続化するよう修正
+
+### Trail Core (trail-core)
+
+- `IC4ModelStore` ポートと `fetchC4Model` サービスを導入
+- リモート同期を完全洗い替え方式に変更
+- `trail_graphs` を `current_graphs` / `release_graphs` に分割
+- `daily_costs` のJST境界集計とサイレントエラーを修正
+
 ## [0.5.3] - 2026-04-12
 
 ### Trail Core (trail-core)

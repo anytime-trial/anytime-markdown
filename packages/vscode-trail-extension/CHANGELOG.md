@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-04-13
+
+### Added
+
+- Dashboard panel with Trail Viewer button for quick access
+- i18n keys for dashboard panel labels
+- Log C4 analysis and trail import steps with repository name
+
+### Changed
+
+- Rename "Import JSONL Logs" to "Refresh Trail Data" with refresh icon
+- Rename "Analyze Workspace" to "Analyze Code" with `symbol-class` icon (broader VS Code compatibility)
+- Remove `c4Export` and `c4Import` commands
+- Remove Trail Viewer icon from database panel
+
+### Fixed
+
+- Surface all repositories in C4 panel repository selector
+- Persist `trail_graphs` migration result to disk
+
+### Trail Core (trail-core)
+
+- Introduce `IC4ModelStore` port and `fetchC4Model` service
+- Replace remote sync with full wipe-and-reload strategy
+- Split `trail_graphs` into `current_graphs` / `release_graphs`
+- Fix `daily_costs` JST boundary aggregation and silent sync errors
+
 ## [0.5.3] - 2026-04-12
 
 ### Trail Core (trail-core)

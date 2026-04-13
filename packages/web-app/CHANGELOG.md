@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-04-13
+
+### Added
+
+- Multi-repository C4 model support via shared `IC4ModelStore`
+- `/api/c4/dsm` endpoint serving release DSM from SQLite
+
+### Changed
+
+- Unify `TrailViewer` with `useTrailDataSource` HTTP path
+- Unify `C4Viewer` with `useC4DataSource`
+- Remove unused `/c4model` page and legacy `/api/c4model` route
+- Remove `c4Matrix` from DSM pipeline
+
+### Fixed
+
+- Force dynamic rendering for `/api/c4/*` routes
+- Fall back to `NEXT_PUBLIC_` Supabase env vars in API routes
+- Show C4 tab once releases are loaded (not dependent on `c4Model`)
+- Always pass `c4` prop to `TrailViewerCore` (match extension behavior)
+- Trigger DSM build after analyze and pass query to `/api/c4/dsm`
+- Reset C4/DSM/Coverage state on fetch failure or 204 response
+- Fall back to SQLite `current_graphs` for `/api/c4/dsm?release=current`
+
 ## [0.12.4] - 2026-04-12
 
 ### Fixed

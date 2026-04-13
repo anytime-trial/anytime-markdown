@@ -6,6 +6,25 @@
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-04-13
+
+### 追加
+
+- マルチリポジトリC4モデルサポートのための `IC4ModelStore` ポートと `fetchC4Model` サービスを追加
+
+### 変更
+
+- リモート同期を完全洗い替え方式（7日間メッセージウィンドウ）に変更
+- `trail_graphs` を `current_graphs` と `release_graphs` テーブルに分割
+- `current_graphs` の主キーを `repo_name` に変更
+- `TrailLogger` 出力に ISO 8601 UTC タイムスタンプを追加
+
+### 修正
+
+- 同期時にメッセージがサイレントに欠落していたセッションを再インポートするよう修正
+- `INSERT_MESSAGE` SQL プレースホルダー数を修正し、サイレントキャッチエラーを表面化
+- `daily_costs` の集計境界をプロセスTZではなくJSTで区切るよう修正
+
 ## [0.5.3] - 2026-04-12
 
 ### 修正
