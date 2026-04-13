@@ -349,6 +349,22 @@ export class TrailDataServer {
       return;
     }
 
+    if (pathname === '/api/c4/exports' && method === 'GET') {
+      const componentId = parsed.searchParams.get('componentId') ?? '';
+      const repo = parsed.searchParams.get('repo') ?? undefined;
+      void this.handleC4ExportsEndpoint(res, componentId, repo);
+      return;
+    }
+
+    if (pathname === '/api/c4/flowchart' && method === 'GET') {
+      const componentId = parsed.searchParams.get('componentId') ?? '';
+      const symbolId = parsed.searchParams.get('symbolId') ?? '';
+      const type = (parsed.searchParams.get('type') ?? 'control') as 'control' | 'call';
+      const repo = parsed.searchParams.get('repo') ?? undefined;
+      void this.handleC4FlowchartEndpoint(res, componentId, symbolId, type, repo);
+      return;
+    }
+
     res.writeHead(404);
     res.end();
   }
@@ -918,6 +934,119 @@ export class TrailDataServer {
     const matrix = provider.sourceMatrix;
     if (!matrix) return undefined;
     return { type: 'dsm-updated', matrix };
+  }
+
+  private async handleC4ExportsEndpoint(
+    res: http.ServerResponse,
+    componentId: string,
+    repo: string | undefined,
+  ): Promise<void> {
+    const { ExportExtractor, createSourceFile } = await import('@anytime-markdown/trail-core/analyzer');
+    try {
+      const model = this.getC4Provider?.()?.model;
+      const graph = this.trailDb.getCurrentGraph(repo);
+
+      if (!model || !graph) {
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify({ symbols: [] }));
+        return;
+      }
+
+      const { projectRoot } = graph.metadata;
+      const codeElementIds = new Set(
+        model.elements
+          .filter(el => el.type === 'code' && el.boundaryId === componentId)
+          .map(el => el.id),
+      );
+
+      const sourceFiles = [];
+      for (const node of graph.nodes) {
+        if (!codeElementIds.has(node.id)) continue;
+        const absolutePath = path.join(projectRoot, node.filePath);
+        try {
+          const content = fs.readFileSync(absolutePath, 'utf-8');
+          sourceFiles.push(createSourceFile(node.filePath, content));
+        } catch (e) {
+          TrailLogger.error(`[/api/c4/exports] failed to read file: ${node.filePath}`, e);
+        }
+      }
+
+      const symbols = ExportExtractor.extract(sourceFiles, componentId);
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify({ symbols }));
+    } catch (e) {
+      TrailLogger.error(`[/api/c4/exports] error: componentId=${componentId}`, e);
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify({ symbols: [] }));
+    }
+  }
+
+  private async handleC4FlowchartEndpoint(
+    res: http.ServerResponse,
+    componentId: string,
+    symbolId: string,
+    type: 'control' | 'call',
+    repo: string | undefined,
+  ): Promise<void> {
+    const { FlowAnalyzer, createSourceFile, findFunctionNode } = await import('@anytime-markdown/trail-core/analyzer');
+    const EMPTY_GRAPH = { nodes: [], edges: [] };
+    try {
+      const model = this.getC4Provider?.()?.model;
+      const graph = this.trailDb.getCurrentGraph(repo);
+
+      if (!model || !graph) {
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify({ graph: EMPTY_GRAPH }));
+        return;
+      }
+
+      const { projectRoot } = graph.metadata;
+      const codeElementIds = new Set(
+        model.elements
+          .filter(el => el.type === 'code' && el.boundaryId === componentId)
+          .map(el => el.id),
+      );
+
+      const sourceFiles = [];
+      for (const node of graph.nodes) {
+        if (!codeElementIds.has(node.id)) continue;
+        const absolutePath = path.join(projectRoot, node.filePath);
+        try {
+          const content = fs.readFileSync(absolutePath, 'utf-8');
+          sourceFiles.push(createSourceFile(node.filePath, content));
+        } catch (e) {
+          TrailLogger.error(`[/api/c4/flowchart] failed to read file: ${node.filePath}`, e);
+        }
+      }
+
+      let flowGraph;
+      if (type === 'control') {
+        const filePart = symbolId.split('::')[0];
+        const funcName = symbolId.split('::').at(-1);
+        const targetSf = sourceFiles.find(sf => sf.fileName === filePart);
+        if (!targetSf || !funcName) {
+          res.writeHead(200, JSON_HEADERS);
+          res.end(JSON.stringify({ graph: EMPTY_GRAPH }));
+          return;
+        }
+        const funcNode = findFunctionNode(targetSf, funcName);
+        if (!funcNode) {
+          res.writeHead(200, JSON_HEADERS);
+          res.end(JSON.stringify({ graph: EMPTY_GRAPH }));
+          return;
+        }
+        flowGraph = FlowAnalyzer.buildControlFlow(targetSf, funcNode);
+      } else {
+        flowGraph = FlowAnalyzer.buildCallGraph(sourceFiles, symbolId);
+      }
+
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify({ graph: flowGraph }));
+    } catch (e) {
+      TrailLogger.error(`[/api/c4/flowchart] error: componentId=${componentId}, symbolId=${symbolId}`, e);
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify({ graph: EMPTY_GRAPH }));
+    }
   }
 }
 
