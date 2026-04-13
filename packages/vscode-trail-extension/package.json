@@ -117,7 +117,7 @@
       },
       {
         "command": "anytime-trail.importTrailData",
-        "title": "Import JSONL Logs",
+        "title": "Refresh Trail Data",
         "category": "Anytime Trail",
         "icon": "$(database)"
       },

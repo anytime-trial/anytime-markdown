@@ -185,7 +185,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				const result = await vscode.window.withProgress(
 					{
 						location: vscode.ProgressLocation.Notification,
-						title: 'Trail: Importing JSONL logs',
+						title: 'Trail: Refreshing Trail Data',
 						cancellable: false,
 					},
 					async (progress) => {
