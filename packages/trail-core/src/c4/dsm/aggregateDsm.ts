@@ -1,3 +1,4 @@
+import type { C4Element } from '../types';
 import type { DsmMatrix, DsmNode } from './types';
 
 /** ブラウザ対応の dirname（node:path 不使用） */
@@ -46,6 +47,84 @@ export function aggregateDsmToPackageLevel(matrix: DsmMatrix): DsmMatrix {
       if (!fromPkg || !toPkg || fromPkg === toPkg) continue;
       const fi = idxMap.get(fromPkg);
       const ti = idxMap.get(toPkg);
+      if (fi === undefined || ti === undefined) continue;
+      adjacency[fi][ti] = 1;
+    }
+  }
+
+  return { nodes, edges: [], adjacency };
+}
+
+/**
+ * component レベルの DsmMatrix を C4 component 単位に集約する。
+ * code 要素の boundaryId（親 component の ID）でグループ化し、
+ * component 間の依存関係を隣接行列で表現する。
+ * C4 component に対応しないノードは個別ノードとして残す。
+ */
+export function aggregateDsmToC4ComponentLevel(
+  matrix: DsmMatrix,
+  elements: readonly C4Element[],
+): DsmMatrix {
+  if (matrix.nodes.length === 0) return matrix;
+
+  // code 要素の ID → 親 component ID のマップを構築
+  const fileToComponent = new Map<string, string>();
+  const componentNameById = new Map<string, string>();
+  for (const el of elements) {
+    if (el.type === 'code' && el.boundaryId) {
+      fileToComponent.set(el.id, el.boundaryId);
+    }
+    if (el.type === 'component') {
+      componentNameById.set(el.id, el.name);
+    }
+  }
+
+  // DSM ノードを component にマップ（対応なしは自身のIDを使用）
+  const nodeToGroup = new Map<string, string>();
+  const groupSet = new Set<string>();
+  const groupNameById = new Map<string, string>();
+
+  for (const node of matrix.nodes) {
+    const compId = fileToComponent.get(node.id);
+    if (compId) {
+      nodeToGroup.set(node.id, compId);
+      groupSet.add(compId);
+      const name = componentNameById.get(compId);
+      if (name) groupNameById.set(compId, name);
+    } else {
+      // C4 component に紐づかないファイルは個別ノードとして残す
+      nodeToGroup.set(node.id, node.id);
+      groupSet.add(node.id);
+      groupNameById.set(node.id, node.name);
+    }
+  }
+
+  const sortedGroups = [...groupSet].sort((a, b) =>
+    (groupNameById.get(a) ?? a).localeCompare(groupNameById.get(b) ?? b),
+  );
+
+  const nodes: DsmNode[] = sortedGroups.map(id => ({
+    id,
+    name: groupNameById.get(id) ?? id,
+    path: id,
+    level: 'component' as const,
+  }));
+
+  const idxMap = new Map(nodes.map((node, i) => [node.id, i]));
+  const n = nodes.length;
+  const adjacency: number[][] = Array.from({ length: n }, () =>
+    Array.from({ length: n }, () => 0),
+  );
+
+  const srcLen = matrix.nodes.length;
+  for (let i = 0; i < srcLen; i++) {
+    for (let j = 0; j < srcLen; j++) {
+      if (matrix.adjacency[i][j] !== 1) continue;
+      const fromGroup = nodeToGroup.get(matrix.nodes[i].id);
+      const toGroup = nodeToGroup.get(matrix.nodes[j].id);
+      if (!fromGroup || !toGroup || fromGroup === toGroup) continue;
+      const fi = idxMap.get(fromGroup);
+      const ti = idxMap.get(toGroup);
       if (fi === undefined || ti === undefined) continue;
       adjacency[fi][ti] = 1;
     }

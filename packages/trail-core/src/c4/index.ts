@@ -38,7 +38,7 @@ export type {
 } from './dsm/types';
 
 export { buildSourceMatrix } from './dsm/buildSourceMatrix';
-export { aggregateDsmToPackageLevel, sortDsmMatrixByName } from './dsm/aggregateDsm';
+export { aggregateDsmToPackageLevel, aggregateDsmToC4ComponentLevel, sortDsmMatrixByName } from './dsm/aggregateDsm';
 export { detectCycles } from './dsm/detectCycles';
 export { clusterMatrix } from './dsm/cluster';
 
