@@ -3,9 +3,7 @@ import type {
   C4Model,
   CoverageDiffMatrix,
   CoverageMatrix,
-  CyclicPair,
   DocLink,
-  DsmDiff,
   DsmMatrix,
   FeatureMatrix,
 } from '@anytime-markdown/trail-core/c4';
@@ -21,18 +19,10 @@ export interface ModelUpdatedMessage {
   readonly featureMatrix?: FeatureMatrix;
 }
 
-export interface DsmMatrixUpdatedMessage {
+export interface DsmUpdatedMessage {
   readonly type: 'dsm-updated';
   readonly matrix: DsmMatrix;
 }
-
-export interface DsmDiffUpdatedMessage {
-  readonly type: 'dsm-updated';
-  readonly diff: DsmDiff;
-  readonly cycles: readonly CyclicPair[];
-}
-
-export type DsmUpdatedMessage = DsmMatrixUpdatedMessage | DsmDiffUpdatedMessage;
 
 export interface AnalysisProgressMessage {
   readonly type: 'analysis-progress';
@@ -66,11 +56,6 @@ export type ServerMessage = ModelUpdatedMessage | DsmUpdatedMessage | AnalysisPr
 export interface SetLevelCommand {
   readonly type: 'set-level';
   readonly level: 'component' | 'package';
-}
-
-export interface SetDsmModeCommand {
-  readonly type: 'set-dsm-mode';
-  readonly mode: 'c4' | 'diff';
 }
 
 export interface ClusterCommand {
@@ -136,7 +121,6 @@ export interface OpenDocLinkCommand {
 
 export type ClientMessage =
   | SetLevelCommand
-  | SetDsmModeCommand
   | ClusterCommand
   | RefreshCommand
   | AddElementCommand

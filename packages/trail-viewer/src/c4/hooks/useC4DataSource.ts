@@ -6,9 +6,7 @@ import type {
   C4ReleaseEntry,
   CoverageDiffMatrix,
   CoverageMatrix,
-  CyclicPair,
   DocLink,
-  DsmDiff,
   DsmMatrix,
   FeatureMatrix,
 } from '@anytime-markdown/trail-core/c4';
@@ -32,8 +30,6 @@ interface C4DataSourceResult {
   coverageDiff: CoverageDiffMatrix | null;
   docLinks: readonly DocLink[];
   dsmMatrix: DsmMatrix | null;
-  dsmDiff: DsmDiff | null;
-  dsmCycles: readonly CyclicPair[];
   connected: boolean;
   analysisProgress: AnalysisProgress | null;
   sendCommand: (cmd: string, payload?: unknown) => void;
@@ -54,12 +50,6 @@ interface WsModelMessage {
 interface WsDsmMatrixMessage {
   type: 'dsm-updated';
   matrix: DsmMatrix;
-}
-
-interface WsDsmDiffMessage {
-  type: 'dsm-updated';
-  diff: DsmDiff;
-  cycles: CyclicPair[];
 }
 
 interface WsAnalysisProgressMessage {
@@ -90,6 +80,26 @@ interface WsCoverageDiffMessage {
 const MAX_RETRIES = 5;
 const RECONNECT_DELAY_MS = 3_000;
 
+// Build the WebSocket URL from the data source URL.
+//   - ''                     → same-origin (ws(s)://window.location.host)
+//   - 'http://host:port'     → ws://host:port
+//   - 'https://host:port'    → wss://host:port
+// Returns null when neither an absolute URL nor a browser window is available.
+function buildWsUrl(serverUrl: string): string | null {
+  if (serverUrl === '') {
+    if (typeof window === 'undefined') return null;
+    const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${proto}//${window.location.host}`;
+  }
+  try {
+    const url = new URL(serverUrl);
+    const proto = url.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${proto}//${url.host}`;
+  } catch {
+    return null;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Helpers (type guards)
 // ---------------------------------------------------------------------------
@@ -104,12 +114,6 @@ function isWsDsmMatrixMessage(v: unknown): v is WsDsmMatrixMessage {
   if (typeof v !== 'object' || v === null) return false;
   const obj = v as Record<string, unknown>;
   return obj.type === 'dsm-updated' && 'matrix' in obj;
-}
-
-function isWsDsmDiffMessage(v: unknown): v is WsDsmDiffMessage {
-  if (typeof v !== 'object' || v === null) return false;
-  const obj = v as Record<string, unknown>;
-  return obj.type === 'dsm-updated' && 'diff' in obj;
 }
 
 function isWsAnalysisProgressMessage(v: unknown): v is WsAnalysisProgressMessage {
@@ -263,8 +267,6 @@ export function useC4DataSource(serverUrl: string): C4DataSourceResult {
   const [coverageMatrix, setCoverageMatrix] = useState<CoverageMatrix | null>(null);
   const [coverageDiff, setCoverageDiff] = useState<CoverageDiffMatrix | null>(null);
   const [dsmMatrix, setDsmMatrix] = useState<DsmMatrix | null>(null);
-  const [dsmDiff, setDsmDiff] = useState<DsmDiff | null>(null);
-  const [dsmCycles, setDsmCycles] = useState<readonly CyclicPair[]>([]);
   const [docLinks, setDocLinks] = useState<readonly DocLink[]>([]);
   const [connected, setConnected] = useState(false);
   const [analysisProgress, setAnalysisProgress] = useState<AnalysisProgress | null>(null);
@@ -304,9 +306,6 @@ export function useC4DataSource(serverUrl: string): C4DataSourceResult {
         setAnalysisProgress(null);
       } else if (isWsDsmMatrixMessage(parsed)) {
         setDsmMatrix(parsed.matrix);
-      } else if (isWsDsmDiffMessage(parsed)) {
-        setDsmDiff(parsed.diff);
-        setDsmCycles(parsed.cycles);
       } else if (isWsDocLinksMessage(parsed)) {
         setDocLinks(parsed.docLinks);
       } else if (isWsCoverageMessage(parsed)) {
@@ -326,8 +325,9 @@ export function useC4DataSource(serverUrl: string): C4DataSourceResult {
 
     function connect(): void {
       if (!mounted) return;
-      const host = new URL(serverUrl as string).host;
-      const ws = new WebSocket(`ws://${host}`);
+      const wsUrl = buildWsUrl(serverUrl);
+      if (wsUrl === null) return;
+      const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.addEventListener('open', () => {
@@ -393,8 +393,6 @@ export function useC4DataSource(serverUrl: string): C4DataSourceResult {
     coverageDiff,
     docLinks,
     dsmMatrix,
-    dsmDiff,
-    dsmCycles,
     connected,
     analysisProgress,
     sendCommand,

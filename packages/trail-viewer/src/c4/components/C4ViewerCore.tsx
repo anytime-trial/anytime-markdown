@@ -1,5 +1,5 @@
 import { buildElementTree, buildLevelView, c4ToGraphDocument, collectDescendantIds, filterTreeByLevel } from '@anytime-markdown/trail-core/c4';
-import type { BoundaryInfo, C4Model, C4ReleaseEntry, CoverageDiffMatrix, CoverageMatrix, DocLink, FeatureMatrix } from '@anytime-markdown/trail-core/c4';
+import type { BoundaryInfo, C4Model, C4ReleaseEntry, CoverageDiffMatrix, CoverageMatrix, DocLink, DsmMatrix, FeatureMatrix } from '@anytime-markdown/trail-core/c4';
 import type { GraphDocument, GraphNode } from '@anytime-markdown/graph-core';
 import { engine, layoutWithSubgroups, state as graphState } from '@anytime-markdown/graph-core';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
@@ -56,6 +56,7 @@ export interface C4ViewerCoreProps {
   readonly c4Model: C4Model | null;
   readonly boundaries: readonly BoundaryInfo[];
   readonly featureMatrix: FeatureMatrix | null;
+  readonly dsmMatrix: DsmMatrix | null;
   readonly coverageMatrix: CoverageMatrix | null;
   readonly coverageDiff: CoverageDiffMatrix | null;
   readonly docLinks?: readonly DocLink[];
@@ -81,6 +82,7 @@ export function C4ViewerCore({
   c4Model,
   boundaries: boundaryInfos,
   featureMatrix,
+  dsmMatrix,
   coverageMatrix,
   coverageDiff,
   docLinks,
@@ -309,31 +311,6 @@ export function C4ViewerCore({
     }
     return excluded.size > 0 ? excluded : null;
   }, [c4Model, checkedPackageIds]);
-
-  const dsmModel = useMemo(() => {
-    if (!c4Model) return null;
-    if (dsmLevel === 'package') {
-      if (!excludedDescendantIds) return c4Model;
-      const filteredElements = c4Model.elements.filter(e => !excludedDescendantIds.has(e.id));
-      const filteredIds = new Set(filteredElements.map(e => e.id));
-      const filteredRelationships = c4Model.relationships.filter(
-        r => filteredIds.has(r.from) || filteredIds.has(r.to),
-      );
-      return { ...c4Model, elements: filteredElements, relationships: filteredRelationships };
-    }
-    const targetType = currentLevel >= 4 ? 'code' : 'component';
-    const filteredElements = c4Model.elements.filter(e => {
-      if (e.type !== targetType) return false;
-      if (excludedDescendantIds?.has(e.id)) return false;
-      return true;
-    });
-    if (filteredElements.length === 0 && !excludedDescendantIds) return c4Model;
-    const filteredIds = new Set(filteredElements.map(e => e.id));
-    const filteredRelationships = c4Model.relationships.filter(
-      r => filteredIds.has(r.from) || filteredIds.has(r.to),
-    );
-    return { ...c4Model, elements: filteredElements, relationships: filteredRelationships };
-  }, [c4Model, dsmLevel, currentLevel, excludedDescendantIds]);
 
   const selectedScopeIds = useMemo(() => {
     if (!c4Model || !selectedElementId) return null;
@@ -630,12 +607,10 @@ export function C4ViewerCore({
                 <CoverageCanvas coverageMatrix={coverageMatrix} coverageDiff={coverageDiff} model={c4Model} level={currentLevel} isDark={isDark} />
               ) : matrixView === 'fcmap' && featureMatrix && c4Model ? (
                 <FcMapCanvas featureMatrix={featureMatrix} model={c4Model} excludedElementIds={excludedDescendantIds} level={currentLevel} isDark={isDark} />
-              ) : dsmModel ? (
+              ) : dsmMatrix ? (
                 <DsmCanvas
-                  model={dsmModel}
+                  matrix={dsmMatrix}
                   fullModel={c4Model ?? undefined}
-                  boundaries={boundaryInfos}
-                  level={dsmLevel}
                   clustered={dsmClustered}
                   focusedNodeId={selectedElementId}
                   scopeIds={selectedScopeIds}

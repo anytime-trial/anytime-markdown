@@ -1,13 +1,11 @@
-import type { BoundaryInfo, C4Model, DsmMatrix } from '@anytime-markdown/trail-core/c4';
-import { buildC4Matrix, clusterMatrix, detectCycles } from '@anytime-markdown/trail-core/c4';
+import type { C4Model, DsmMatrix } from '@anytime-markdown/trail-core/c4';
+import { clusterMatrix, detectCycles } from '@anytime-markdown/trail-core/c4';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getC4Colors } from '../c4Theme';
 
 interface DsmCanvasProps {
-  readonly model: C4Model;
+  readonly matrix: DsmMatrix | null;
   readonly fullModel?: C4Model;
-  readonly boundaries: readonly BoundaryInfo[];
-  readonly level: 'component' | 'package';
   readonly clustered: boolean;
   readonly focusedNodeId?: string | null;
   /** 選択スコープに含まれるノードID。太枠で囲む */
@@ -356,7 +354,7 @@ function clampDsmViewport(vp: { offsetX: number; offsetY: number; scale: number 
 
 const SCOPE_BORDER_WIDTH = 3;
 
-export function DsmCanvas({ model, fullModel, boundaries, level, clustered, focusedNodeId, scopeIds, deletedIds, isDark }: Readonly<DsmCanvasProps>) {
+export function DsmCanvas({ matrix: inputMatrix, fullModel, clustered, focusedNodeId, scopeIds, deletedIds, isDark }: Readonly<DsmCanvasProps>) {
   const colors = useMemo(() => getC4Colors(isDark ?? true), [isDark]);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef(0);
@@ -372,10 +370,13 @@ export function DsmCanvas({ model, fullModel, boundaries, level, clustered, focu
 
   // Build matrix when inputs change
   useEffect(() => {
-    let matrix = buildC4Matrix(model, level, boundaries);
-    if (clustered) {
-      matrix = clusterMatrix(matrix);
+    if (!inputMatrix) {
+      matrixRef.current = null;
+      cyclicSetRef.current = new Set();
+      groupBordersRef.current = [];
+      return;
     }
+    const matrix = clustered ? clusterMatrix(inputMatrix) : inputMatrix;
     matrixRef.current = matrix;
 
     // Detect cycles
@@ -392,11 +393,10 @@ export function DsmCanvas({ model, fullModel, boundaries, level, clustered, focu
     cyclicSetRef.current = set;
 
     // Compute group borders (boundaries between different parent components)
-    if (clustered) {
+    if (clustered || !fullModel) {
       groupBordersRef.current = [];
     } else {
-      const srcModel = fullModel ?? model;
-      const elementById = new Map(srcModel.elements.map(e => [e.id, e]));
+      const elementById = new Map(fullModel.elements.map(e => [e.id, e]));
       const borders: number[] = [];
       for (let i = 1; i < matrix.nodes.length; i++) {
         const prevEl = elementById.get(matrix.nodes[i - 1].id);
@@ -412,7 +412,7 @@ export function DsmCanvas({ model, fullModel, boundaries, level, clustered, focu
     viewportRef.current = { offsetX: 0, offsetY: 0, scale: 1 };
     hoveredCellRef.current = null;
     setTooltip(null);
-  }, [model, boundaries, level, clustered]);
+  }, [inputMatrix, fullModel, clustered]);
 
   // Scroll to focused node
   useEffect(() => {
@@ -513,7 +513,7 @@ export function DsmCanvas({ model, fullModel, boundaries, level, clustered, focu
 
     rafRef.current = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [model, boundaries, level, clustered, focusedNodeId, scopeIds, deletedIds, colors]);
+  }, [inputMatrix, clustered, focusedNodeId, scopeIds, deletedIds, colors]);
 
   // Mouse move (hover + pan)
   const handleMouseMove = useCallback((e: React.MouseEvent) => {

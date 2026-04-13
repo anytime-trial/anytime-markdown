@@ -5,8 +5,6 @@ import path from 'node:path';
 
 import {
   buildElementTree,
-  detectCycles,
-  diffMatrix,
   fetchC4Model,
   fetchC4ModelEntries,
   filterTreeByLevel,
@@ -16,10 +14,7 @@ import type {
   C4Model,
   CoverageDiffMatrix,
   CoverageMatrix,
-  CyclicPair,
   DocLink,
-  DsmDiff,
-  DsmMapping,
   DsmMatrix,
   FeatureMatrix,
 } from '@anytime-markdown/trail-core/c4';
@@ -57,15 +52,11 @@ export interface C4DataProvider {
   readonly model: C4Model | undefined;
   readonly boundaries: readonly BoundaryInfo[] | undefined;
   readonly featureMatrix: FeatureMatrix | undefined;
-  readonly c4Matrix: DsmMatrix | undefined;
   readonly sourceMatrix: DsmMatrix | undefined;
   readonly currentDsmLevel: 'component' | 'package';
-  readonly currentDsmMode: 'c4' | 'diff';
-  readonly dsmMappings: readonly DsmMapping[];
   readonly coverageMatrix: CoverageMatrix | undefined;
   readonly coverageDiff: CoverageDiffMatrix | undefined;
   handleSetDsmLevel(level: 'component' | 'package'): void;
-  handleSetDsmMode(mode: 'c4' | 'diff'): void;
   handleCluster(enabled: boolean): void;
   handleRefresh(): void;
   handleAddElement(element: { type: 'person' | 'system'; name: string; description?: string; external?: boolean }): void;
@@ -340,10 +331,6 @@ export class TrailDataServer {
       this.handleC4DsmEndpoint(res);
       return;
     }
-    if (pathname === '/api/c4/diff' && method === 'GET') {
-      this.handleC4DiffEndpoint(res);
-      return;
-    }
     if (pathname === '/api/c4/tree' && method === 'GET') {
       this.handleC4TreeEndpoint(res);
       return;
@@ -611,9 +598,7 @@ export class TrailDataServer {
 
   private handleC4DsmEndpoint(res: http.ServerResponse): void {
     const provider = this.getC4Provider?.();
-    const matrix = provider?.currentDsmMode === 'c4'
-      ? provider?.c4Matrix
-      : provider?.sourceMatrix;
+    const matrix = provider?.sourceMatrix;
 
     if (!matrix) {
       res.writeHead(204);
@@ -623,20 +608,6 @@ export class TrailDataServer {
 
     res.writeHead(200, JSON_HEADERS);
     res.end(JSON.stringify({ matrix }));
-  }
-
-  private handleC4DiffEndpoint(res: http.ServerResponse): void {
-    const provider = this.getC4Provider?.();
-    const result = computeDiff(provider);
-
-    if (!result) {
-      res.writeHead(204);
-      res.end();
-      return;
-    }
-
-    res.writeHead(200, JSON_HEADERS);
-    res.end(JSON.stringify(result));
   }
 
   private handleC4TreeEndpoint(res: http.ServerResponse): void {
@@ -847,9 +818,6 @@ export class TrailDataServer {
       case 'set-level':
         provider.handleSetDsmLevel(message.level);
         break;
-      case 'set-dsm-mode':
-        provider.handleSetDsmMode(message.mode);
-        break;
       case 'cluster':
         provider.handleCluster(message.enabled);
         break;
@@ -927,26 +895,9 @@ export class TrailDataServer {
   private buildDsmMessage(
     provider: C4DataProvider,
   ): ServerMessage | undefined {
-    if (provider.currentDsmMode === 'diff') {
-      return this.buildDsmDiffMessage(provider);
-    }
-    return this.buildDsmMatrixMessage(provider);
-  }
-
-  private buildDsmMatrixMessage(
-    provider: C4DataProvider,
-  ): ServerMessage | undefined {
-    const matrix = provider.c4Matrix;
+    const matrix = provider.sourceMatrix;
     if (!matrix) return undefined;
     return { type: 'dsm-updated', matrix };
-  }
-
-  private buildDsmDiffMessage(
-    provider: C4DataProvider,
-  ): ServerMessage | undefined {
-    const result = computeDiff(provider);
-    if (!result) return undefined;
-    return { type: 'dsm-updated', diff: result.diff, cycles: result.cycles };
   }
 }
 
@@ -958,48 +909,12 @@ export function isClientMessage(data: unknown): data is ClientMessage {
   if (typeof data !== 'object' || data === null) return false;
   const msg = data as Record<string, unknown>;
   const validTypes = [
-    'set-level', 'set-dsm-mode', 'cluster', 'refresh',
+    'set-level', 'cluster', 'refresh',
     'add-element', 'update-element', 'remove-element',
     'add-relationship', 'remove-relationship', 'purge-deleted-elements',
     'open-doc-link',
   ];
   return typeof msg.type === 'string' && validTypes.includes(msg.type);
-}
-
-// ---------------------------------------------------------------------------
-//  Helper: compute diff + cycles from provider
-// ---------------------------------------------------------------------------
-
-function computeDiff(
-  provider: C4DataProvider | undefined,
-): { diff: DsmDiff; cycles: readonly CyclicPair[] } | undefined {
-  const c4Matrix = provider?.c4Matrix;
-  const sourceMatrix = provider?.sourceMatrix;
-  if (!c4Matrix || !sourceMatrix) return undefined;
-
-  const mappings = provider?.dsmMappings ?? [];
-  const diff = diffMatrix(c4Matrix, sourceMatrix, mappings);
-  const cycles = computeCyclicPairs(c4Matrix);
-  return { diff, cycles };
-}
-
-// ---------------------------------------------------------------------------
-//  Helper: compute cyclic pairs from a DSM matrix
-// ---------------------------------------------------------------------------
-
-function computeCyclicPairs(matrix: DsmMatrix): readonly CyclicPair[] {
-  const nodeIds = matrix.nodes.map(n => n.id);
-  const sccs = detectCycles(matrix.adjacency, nodeIds);
-
-  return sccs.flatMap(scc => {
-    const pairs: CyclicPair[] = [];
-    for (let i = 0; i < scc.length; i++) {
-      for (let j = i + 1; j < scc.length; j++) {
-        pairs.push({ nodeA: scc[i], nodeB: scc[j] });
-      }
-    }
-    return pairs;
-  });
 }
 
 // ---------------------------------------------------------------------------

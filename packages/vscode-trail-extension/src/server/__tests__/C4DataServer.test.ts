@@ -14,10 +14,6 @@ describe('isClientMessage', () => {
       expect(isClientMessage({ type: 'set-level', level: 'package' })).toBe(true);
     });
 
-    it('should accept set-dsm-mode message', () => {
-      expect(isClientMessage({ type: 'set-dsm-mode', mode: 'c4' })).toBe(true);
-    });
-
     it('should accept cluster message', () => {
       expect(isClientMessage({ type: 'cluster', enabled: true })).toBe(true);
     });

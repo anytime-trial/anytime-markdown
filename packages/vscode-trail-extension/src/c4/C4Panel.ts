@@ -4,14 +4,13 @@ import * as path from 'node:path';
 import {
   parseMermaidC4,
   extractBoundaries,
-  buildC4Matrix,
   buildSourceMatrix,
   clusterMatrix,
   parseCoverage,
   aggregateCoverage,
   computeCoverageDiff,
 } from '@anytime-markdown/trail-core/c4';
-import type { C4Element, C4Model, C4Relationship, BoundaryInfo, CoverageDiffMatrix, CoverageMatrix, DsmMapping, DsmMatrix, FeatureMatrix } from '@anytime-markdown/trail-core/c4';
+import type { C4Element, C4Model, C4Relationship, BoundaryInfo, CoverageDiffMatrix, CoverageMatrix, DsmMatrix, FeatureMatrix } from '@anytime-markdown/trail-core/c4';
 import { analyze, toMermaid } from '@anytime-markdown/trail-core';
 import type { TrailGraph } from '@anytime-markdown/trail-core';
 import type { C4DataProvider } from '../server/TrailDataServer';
@@ -37,11 +36,8 @@ export class C4Panel implements C4DataProvider {
   private lastTrailGraph: TrailGraph | undefined;
   private lastProjectRoot: string | undefined;
   private lastTsconfigPath: string | undefined;
-  private lastDsmMapping: readonly DsmMapping[] = [];
-  private lastC4Matrix: DsmMatrix | undefined;
   private lastSourceMatrix: DsmMatrix | undefined;
   private dsmLevel: 'component' | 'package' = 'component';
-  private dsmMode: 'c4' | 'diff' = 'c4';
   private lastCoverageMatrix: CoverageMatrix | undefined;
   private lastCoverageDiff: CoverageDiffMatrix | undefined;
   private coverageHistory: CoverageHistory | undefined;
@@ -91,11 +87,8 @@ export class C4Panel implements C4DataProvider {
   public get model(): C4Model | undefined { return this.lastModel; }
   public get boundaries(): readonly BoundaryInfo[] | undefined { return this.lastBoundaries; }
   public get featureMatrix(): FeatureMatrix | undefined { return this.lastFeatureMatrix; }
-  public get c4Matrix(): DsmMatrix | undefined { return this.lastC4Matrix; }
   public get sourceMatrix(): DsmMatrix | undefined { return this.lastSourceMatrix; }
   public get currentDsmLevel(): 'component' | 'package' { return this.dsmLevel; }
-  public get currentDsmMode(): 'c4' | 'diff' { return this.dsmMode; }
-  public get dsmMappings(): readonly DsmMapping[] { return this.lastDsmMapping; }
   public get coverageMatrix(): CoverageMatrix | undefined { return this.lastCoverageMatrix; }
   public get coverageDiff(): CoverageDiffMatrix | undefined { return this.lastCoverageDiff; }
 
@@ -104,17 +97,11 @@ export class C4Panel implements C4DataProvider {
     this.buildDsm();
   }
 
-  public handleSetDsmMode(mode: 'c4' | 'diff'): void {
-    this.dsmMode = mode;
-    this.buildDsm();
-  }
-
   public handleCluster(enabled: boolean): void {
     this.buildDsm(enabled);
   }
 
   public handleRefresh(): void {
-    this.inferMapping();
     this.buildDsm();
   }
 
@@ -605,62 +592,21 @@ export class C4Panel implements C4DataProvider {
     this.lastModel = model;
     this.lastBoundaries = boundaries;
     C4Panel.saveModel(model, boundaries ?? [], this.lastFeatureMatrix);
-    this.inferMapping();
     this.buildDsm();
     void vscode.commands.executeCommand('setContext', 'anytimeTrail.c4ModelLoaded', true);
     C4Panel.dataServer?.notify('model-updated');
   }
 
-  /** C4要素名とソースファイル名のマッチングで自動マッピングを推定 */
-  private inferMapping(): void {
-    if (!this.lastModel || !this.lastTrailGraph) {
-      this.lastDsmMapping = [];
-      return;
-    }
-
-    const fileNodes = this.lastTrailGraph.nodes.filter((n: { type: string }) => n.type === 'file');
-    const mapping: DsmMapping[] = [];
-
-    for (const element of this.lastModel.elements) {
-      const elementName = element.name.toLowerCase().replaceAll(/[^a-z0-9]/g, '');
-      let bestMatch: { id: string; score: number } | null = null;
-
-      for (const file of fileNodes) {
-        const fileName = path.basename(file.filePath, path.extname(file.filePath))
-          .toLowerCase().replaceAll(/[^a-z0-9]/g, '');
-        if (fileName === elementName) {
-          bestMatch = { id: file.id, score: 2 };
-          break;
-        }
-        if (fileName.includes(elementName) || elementName.includes(fileName)) {
-          if (!bestMatch || bestMatch.score < 1) {
-            bestMatch = { id: file.id, score: 1 };
-          }
-        }
-      }
-
-      if (bestMatch) {
-        mapping.push({ c4ElementId: element.id, sourcePath: bestMatch.id });
-      }
-    }
-
-    this.lastDsmMapping = mapping;
-  }
-
   /** DSM データをビルドしてデータサーバーに通知 */
   private buildDsm(cluster = false): void {
-    if (!this.lastModel) return;
+    if (!this.lastTrailGraph) return;
 
     try {
-      let c4Matrix = buildC4Matrix(this.lastModel, this.dsmLevel, this.lastBoundaries ?? undefined);
+      let matrix = buildSourceMatrix(this.lastTrailGraph, this.dsmLevel);
       if (cluster) {
-        c4Matrix = clusterMatrix(c4Matrix);
+        matrix = clusterMatrix(matrix);
       }
-      this.lastC4Matrix = c4Matrix;
-
-      if (this.dsmMode === 'diff' && this.lastTrailGraph) {
-        this.lastSourceMatrix = buildSourceMatrix(this.lastTrailGraph, this.dsmLevel);
-      }
+      this.lastSourceMatrix = matrix;
       C4Panel.dataServer?.notify('dsm-updated');
     } catch (err) {
       TrailLogger.warn('DSM build failed');

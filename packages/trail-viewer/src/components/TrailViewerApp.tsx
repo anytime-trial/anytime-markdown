@@ -119,6 +119,7 @@ export function TrailViewerApp({
     c4Model: c4.c4Model,
     boundaries: c4.boundaries,
     featureMatrix: c4.featureMatrix,
+    dsmMatrix: c4.dsmMatrix,
     coverageMatrix: c4.coverageMatrix,
     coverageDiff: c4.coverageDiff,
     docLinks: c4.docLinks,
