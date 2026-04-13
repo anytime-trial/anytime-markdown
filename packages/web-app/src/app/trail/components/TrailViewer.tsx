@@ -87,7 +87,7 @@ export function TrailViewer() {
         fetchSessionMessages={dataSource.fetchSessionMessages}
         fetchSessionCommits={dataSource.fetchSessionCommits}
         fetchSessionToolMetrics={dataSource.fetchSessionToolMetrics}
-        c4={c4.c4Model ? {
+        c4={c4.releases.length > 0 ? {
           c4Model: c4.c4Model,
           boundaries: c4.boundaries,
           featureMatrix: c4.featureMatrix,
