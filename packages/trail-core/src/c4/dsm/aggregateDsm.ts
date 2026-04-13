@@ -1,10 +1,10 @@
 import type { C4Element, C4ElementType } from '../types';
 import type { DsmMatrix, DsmNode } from './types';
 
-/** ブラウザ対応の dirname（node:path 不使用）。ルート直下は '(root)' を返す。 */
+/** ブラウザ対応の dirname（node:path 不使用） */
 function dirnameOf(p: string): string {
   const idx = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'));
-  return idx < 0 ? '(root)' : p.slice(0, idx);
+  return idx < 0 ? '.' : p.slice(0, idx);
 }
 
 /**
@@ -93,13 +93,8 @@ function aggregateDsmByC4Ancestors(
       groupSet.add(ancestor);
       const el = elementById.get(ancestor);
       if (el) groupNameById.set(ancestor, el.name);
-    } else {
-      // C4 階層に祖先が見つからない場合はディレクトリ単位でフォールバック集約
-      const pkg = dirnameOf(node.path);
-      nodeToGroup.set(node.id, pkg);
-      groupSet.add(pkg);
-      groupNameById.set(pkg, pkg);
     }
+    // C4 階層に祖先が見つからないノードは集約対象外（L4 のみで表示）
   }
 
   const sortedGroups = [...groupSet].sort((a, b) =>
