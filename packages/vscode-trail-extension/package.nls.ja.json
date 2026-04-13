@@ -6,7 +6,7 @@
   "command.c4Export": "C4: JSON エクスポート",
   "command.c4View": "C4: ビューアを開く",
   "view.c4Elements": "C4 モデル",
-  "viewsWelcome.c4Elements": "C4 モデルが読み込まれていません。\n[$(search-code) コードを解析](command:anytime-trail.c4Analyze)",
+  "viewsWelcome.c4Elements": "C4 モデルが読み込まれていません。\n[$(symbol-class) コードを解析](command:anytime-trail.c4Analyze)",
   "command.c4ElementsRefresh": "C4 モデルを更新",
   "command.c4SetLevel": "C4 詳細レベルを設定",
   "config.c4AnalyzeExcludePatterns": "C4 ワークスペース解析で `tsconfig.json` を検索する際に除外するディレクトリ名。これらの文字列を含むパスがフィルタリングされます。",
