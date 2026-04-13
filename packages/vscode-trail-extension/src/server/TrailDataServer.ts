@@ -5,6 +5,7 @@ import path from 'node:path';
 
 import {
   buildElementTree,
+  buildSourceMatrix,
   fetchC4Model,
   fetchC4ModelEntries,
   filterTreeByLevel,
@@ -328,7 +329,9 @@ export class TrailDataServer {
       return;
     }
     if (pathname === '/api/c4/dsm' && method === 'GET') {
-      this.handleC4DsmEndpoint(res);
+      const releaseId = parsed.searchParams.get('release') ?? 'current';
+      const repo = parsed.searchParams.get('repo') ?? undefined;
+      this.handleC4DsmEndpoint(res, releaseId, repo);
       return;
     }
     if (pathname === '/api/c4/tree' && method === 'GET') {
@@ -596,18 +599,36 @@ export class TrailDataServer {
     }
   }
 
-  private handleC4DsmEndpoint(res: http.ServerResponse): void {
-    const provider = this.getC4Provider?.();
-    const matrix = provider?.sourceMatrix;
-
-    if (!matrix) {
-      res.writeHead(204);
-      res.end();
+  private handleC4DsmEndpoint(res: http.ServerResponse, releaseId: string, repo?: string): void {
+    // current: メモリ上のプロバイダ（C4Panel）から取得
+    if (releaseId === 'current') {
+      const provider = this.getC4Provider?.();
+      const matrix = provider?.sourceMatrix;
+      if (!matrix) {
+        res.writeHead(204);
+        res.end();
+        return;
+      }
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify({ matrix }));
       return;
     }
 
-    res.writeHead(200, JSON_HEADERS);
-    res.end(JSON.stringify({ matrix }));
+    // release: SQLite の release_graphs から取得して計算
+    try {
+      const graph = this.trailDb.getReleaseGraph(releaseId);
+      if (!graph) {
+        res.writeHead(204);
+        res.end();
+        return;
+      }
+      const matrix = buildSourceMatrix(graph, 'component');
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify({ matrix }));
+    } catch (e) {
+      res.writeHead(500, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'Failed to build DSM for release' }));
+    }
   }
 
   private handleC4TreeEndpoint(res: http.ServerResponse): void {
