@@ -27,6 +27,9 @@ export {
 export { TrailViewerCore } from './components/TrailViewerCore';
 export type { TrailViewerCoreProps } from './components/TrailViewerCore';
 
+export { TrailViewerApp } from './components/TrailViewerApp';
+export type { TrailViewerAppProps } from './components/TrailViewerApp';
+
 export { PromptManager } from './components/PromptManager';
 export type { PromptManagerProps } from './components/PromptManager';
 
