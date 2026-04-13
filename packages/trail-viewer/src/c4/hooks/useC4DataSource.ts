@@ -192,9 +192,10 @@ function useRemoteInitialFetch(
     async function fetchInitial(): Promise<void> {
       const repoQuery = selectedRepo ? `&repo=${encodeURIComponent(selectedRepo)}` : '';
       const modelUrl = `${serverUrl}/api/c4/model?release=${encodeURIComponent(selectedRelease)}${repoQuery}`;
+      const dsmUrl = `${serverUrl}/api/c4/dsm?release=${encodeURIComponent(selectedRelease)}${repoQuery}`;
       const [modelRes, dsmRes, covRes, releasesRes] = await Promise.all([
         fetch(modelUrl).catch(() => null),
-        fetch(`${serverUrl}/api/c4/dsm`).catch(() => null),
+        fetch(dsmUrl).catch(() => null),
         fetch(`${serverUrl}/api/c4/coverage`).catch(() => null),
         fetch(`${serverUrl}/api/c4/releases`).catch(() => null),
       ]);

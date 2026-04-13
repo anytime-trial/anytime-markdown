@@ -445,6 +445,7 @@ export class C4Panel implements C4DataProvider {
           panel.lastTrailGraph = graph;
           panel.lastProjectRoot = graph.metadata.projectRoot;
           panel.lastTsconfigPath = tsconfigPath;
+          panel.buildDsm();
           server?.notifyProgress('', 100);
         },
       );
@@ -598,7 +599,7 @@ export class C4Panel implements C4DataProvider {
   }
 
   /** DSM データをビルドしてデータサーバーに通知 */
-  private buildDsm(cluster = false): void {
+  public buildDsm(cluster = false): void {
     if (!this.lastTrailGraph) return;
 
     try {
