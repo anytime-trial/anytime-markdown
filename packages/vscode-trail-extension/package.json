@@ -81,8 +81,7 @@
       },
       {
         "command": "anytime-trail.c4Export",
-        "title": "%command.c4Export%",
-        "icon": "$(export)"
+        "title": "%command.c4Export%"
       },
       {
         "command": "anytime-trail.c4View",
