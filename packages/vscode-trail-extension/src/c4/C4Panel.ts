@@ -91,6 +91,7 @@ export class C4Panel implements C4DataProvider {
   public get currentDsmLevel(): 'component' | 'package' { return this.dsmLevel; }
   public get coverageMatrix(): CoverageMatrix | undefined { return this.lastCoverageMatrix; }
   public get coverageDiff(): CoverageDiffMatrix | undefined { return this.lastCoverageDiff; }
+  public get trailGraph(): TrailGraph | undefined { return this.lastTrailGraph; }
 
   public handleSetDsmLevel(level: 'component' | 'package'): void {
     this.dsmLevel = level;

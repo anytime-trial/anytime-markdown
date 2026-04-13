@@ -19,6 +19,7 @@ import type {
   DsmMatrix,
   FeatureMatrix,
 } from '@anytime-markdown/trail-core/c4';
+import type { TrailGraph } from '@anytime-markdown/trail-core';
 import { WebSocketServer, type WebSocket } from 'ws';
 
 import type { ClientMessage, ServerMessage } from './types';
@@ -58,6 +59,7 @@ export interface C4DataProvider {
   readonly currentDsmLevel: 'component' | 'package';
   readonly coverageMatrix: CoverageMatrix | undefined;
   readonly coverageDiff: CoverageDiffMatrix | undefined;
+  readonly trailGraph: TrailGraph | undefined;
   handleSetDsmLevel(level: 'component' | 'package'): void;
   handleCluster(enabled: boolean): void;
   handleRefresh(): void;
@@ -351,8 +353,7 @@ export class TrailDataServer {
 
     if (pathname === '/api/c4/exports' && method === 'GET') {
       const componentId = parsed.searchParams.get('componentId') ?? '';
-      const repo = parsed.searchParams.get('repo') ?? undefined;
-      void this.handleC4ExportsEndpoint(res, componentId, repo);
+      void this.handleC4ExportsEndpoint(res, componentId);
       return;
     }
 
@@ -360,8 +361,7 @@ export class TrailDataServer {
       const componentId = parsed.searchParams.get('componentId') ?? '';
       const symbolId = parsed.searchParams.get('symbolId') ?? '';
       const type = (parsed.searchParams.get('type') ?? 'control') as 'control' | 'call';
-      const repo = parsed.searchParams.get('repo') ?? undefined;
-      void this.handleC4FlowchartEndpoint(res, componentId, symbolId, type, repo);
+      void this.handleC4FlowchartEndpoint(res, componentId, symbolId, type);
       return;
     }
 
@@ -939,12 +939,12 @@ export class TrailDataServer {
   private async handleC4ExportsEndpoint(
     res: http.ServerResponse,
     componentId: string,
-    repo: string | undefined,
   ): Promise<void> {
     const { ExportExtractor, createSourceFile } = await import('@anytime-markdown/trail-core/analyzer');
     try {
-      const model = this.getC4Provider?.()?.model;
-      const graph = this.trailDb.getCurrentGraph(repo);
+      const provider = this.getC4Provider?.();
+      const model = provider?.model;
+      const graph = provider?.trailGraph;
 
       if (!model || !graph) {
         res.writeHead(200, JSON_HEADERS);
@@ -986,13 +986,13 @@ export class TrailDataServer {
     componentId: string,
     symbolId: string,
     type: 'control' | 'call',
-    repo: string | undefined,
   ): Promise<void> {
     const { FlowAnalyzer, createSourceFile, findFunctionNode } = await import('@anytime-markdown/trail-core/analyzer');
     const EMPTY_GRAPH = { nodes: [], edges: [] };
     try {
-      const model = this.getC4Provider?.()?.model;
-      const graph = this.trailDb.getCurrentGraph(repo);
+      const provider = this.getC4Provider?.();
+      const model = provider?.model;
+      const graph = provider?.trailGraph;
 
       if (!model || !graph) {
         res.writeHead(200, JSON_HEADERS);
