@@ -1,41 +1,27 @@
 import { NextResponse } from "next/server";
 
 import { fetchC4ModelEntries } from "@anytime-markdown/trail-core/c4";
-import { SupabaseC4ModelStore } from "@anytime-markdown/trail-viewer/supabase";
 
-import { resolveSupabaseEnv } from "../../../../lib/supabase-env";
+import { NO_STORE_HEADERS, createC4ModelStore } from "../../../../lib/api-helpers";
 
-// Next.js App Router のデフォルト GET キャッシュを無効化（毎回 Supabase に問い合わせる）
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 /**
  * GET /api/c4/releases
  *
- * current + release の C4 モデルエントリ一覧を返す。
+ * 拡張機能の /api/c4/releases と互換。current + release エントリ一覧を返す。
  * 返却形状: Array<{ tag: string; repoName: string | null }>
- *
- * 拡張機能の /api/c4/releases と互換。web アプリは Supabase を使用する。
  */
-
 export async function GET(): Promise<NextResponse> {
-  const env = resolveSupabaseEnv();
-  if (!env) {
-    console.warn('[/api/c4/releases] Supabase env not configured');
-    return NextResponse.json([]);
-  }
+  const store = createC4ModelStore();
+  if (!store) return NextResponse.json([], { headers: NO_STORE_HEADERS });
 
   try {
-    const store = new SupabaseC4ModelStore(env.url, env.anonKey);
     const entries = await fetchC4ModelEntries(store);
-    console.info(`[/api/c4/releases] returned ${entries.length} entries`);
-    return NextResponse.json(entries, {
-      headers: { 'Cache-Control': 'no-store, must-revalidate' },
-    });
+    return NextResponse.json(entries, { headers: NO_STORE_HEADERS });
   } catch (e) {
     console.error('[/api/c4/releases] error', e);
-    return NextResponse.json([], {
-      headers: { 'Cache-Control': 'no-store, must-revalidate' },
-    });
+    return NextResponse.json([], { headers: NO_STORE_HEADERS });
   }
 }

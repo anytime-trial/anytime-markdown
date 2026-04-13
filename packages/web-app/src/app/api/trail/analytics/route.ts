@@ -1,21 +1,9 @@
-import { NextResponse } from "next/server";
-import { createTrailReader } from "../../../../lib/supabase-trail-reader";
+import type { NextResponse } from "next/server";
+import { trailReaderRoute } from "../../../../lib/api-helpers";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export async function GET(): Promise<NextResponse> {
-  const reader = createTrailReader();
-  if (!reader) return NextResponse.json(null, { headers: noStore() });
-  try {
-    const analytics = await reader.getAnalytics();
-    return NextResponse.json(analytics, { headers: noStore() });
-  } catch (e) {
-    console.error('[/api/trail/analytics] error', e);
-    return NextResponse.json(null, { headers: noStore(), status: 500 });
-  }
-}
-
-function noStore(): Record<string, string> {
-  return { 'Cache-Control': 'no-store, must-revalidate' };
+  return trailReaderRoute((r) => r.getAnalytics(), null, '/api/trail/analytics');
 }

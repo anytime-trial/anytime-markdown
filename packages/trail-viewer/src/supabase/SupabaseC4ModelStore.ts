@@ -61,21 +61,21 @@ export class SupabaseC4ModelStore implements IC4ModelStore {
   }
 
   async getC4ModelEntries(): Promise<readonly C4ModelEntry[]> {
-    // current_graphs 相当: trail_current_c4_models
-    const currentRes = await this.client
-      .from('trail_current_c4_models')
-      .select('repo_name')
-      .returns<{ repo_name: string }[]>();
+    // 2 テーブルへの SELECT を並列実行する
+    const [currentRes, releaseRes] = await Promise.all([
+      this.client
+        .from('trail_current_c4_models')
+        .select('repo_name')
+        .returns<{ repo_name: string }[]>(),
+      this.client
+        .from('trail_releases')
+        .select('tag, repo_name, released_at')
+        .order('released_at', { ascending: false })
+        .returns<TrailReleaseRow[]>(),
+    ]);
     if (currentRes.error) {
       console.error('[SupabaseC4ModelStore] trail_current_c4_models select failed:', currentRes.error.message);
     }
-
-    // release 相当: trail_releases（tag で trail_c4_models と突合）
-    const releaseRes = await this.client
-      .from('trail_releases')
-      .select('tag, repo_name, released_at')
-      .order('released_at', { ascending: false })
-      .returns<TrailReleaseRow[]>();
     if (releaseRes.error) {
       console.error('[SupabaseC4ModelStore] trail_releases select failed:', releaseRes.error.message);
     }
