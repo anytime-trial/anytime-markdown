@@ -44,9 +44,13 @@ export function buildElementTree(
     boundaryInfoMap.set(b.id, b);
   }
 
+  function sortByName<T extends { name: string }>(list: T[]): T[] {
+    return list.slice().sort((a, b) => a.name.localeCompare(b.name));
+  }
+
   function buildNode(el: C4Element): C4TreeNode {
     const kids = childrenByParent.get(el.id);
-    const children = kids ? kids.map(buildNode) : [];
+    const children = kids ? sortByName(kids).map(buildNode) : [];
     return {
       id: el.id,
       name: el.name,
@@ -64,7 +68,7 @@ export function buildElementTree(
     const kids = childrenByParent.get(id);
     const children: C4TreeNode[] = [];
     if (kids) {
-      for (const el of kids) {
+      for (const el of sortByName(kids)) {
         children.push(buildNode(el));
       }
     }
@@ -81,21 +85,25 @@ export function buildElementTree(
 
   // boundaryIdがない要素
   const rootElements = childrenByParent.get(undefined) ?? [];
-  for (const el of rootElements) {
+  for (const el of sortByName(rootElements)) {
     if (boundaryOnlyIds.has(el.id)) continue; // boundary-onlyとして別途処理
     roots.push(buildNode(el));
   }
 
   // boundary-only仮想ノード（ルートレベルのもの）
+  const boundaryOnlyRoots: C4TreeNode[] = [];
   for (const id of boundaryOnlyIds) {
     // このboundary自体がどこかの子でないか確認
     const hasParent = elements.some(el => el.id === id && el.boundaryId);
     if (!hasParent) {
-      roots.push(buildBoundaryNode(id));
+      boundaryOnlyRoots.push(buildBoundaryNode(id));
     }
   }
+  for (const node of sortByName(boundaryOnlyRoots)) {
+    roots.push(node);
+  }
 
-  return roots;
+  return sortByName(roots);
 }
 
 /**
