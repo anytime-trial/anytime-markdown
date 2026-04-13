@@ -182,7 +182,10 @@ function useRemoteInitialFetch(
   setReleases: (entries: readonly C4ReleaseEntry[]) => void,
 ): void {
   useEffect(() => {
-    if (!serverUrl) return;
+    // serverUrl === undefined → local mode (fetch しない)
+    // serverUrl === '' → same-origin 相対パス（Next.js 同居モード）
+    // それ以外 → 絶対 URL（拡張機能モード）
+    if (serverUrl === undefined) return;
 
     let cancelled = false;
 
