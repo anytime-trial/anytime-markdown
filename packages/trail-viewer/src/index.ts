@@ -43,7 +43,7 @@ export { createEvaluation, isValidEvaluation } from './parser/evaluationStore';
 export { EvaluationPanel } from './components/EvaluationPanel';
 
 export { useTrailDataSource } from './hooks/useTrailDataSource';
-export type { TrailDataSourceResult, SupabaseConfig } from './hooks/useTrailDataSource';
+export type { TrailDataSourceResult } from './hooks/useTrailDataSource';
 export { SupabaseTrailReader } from './hooks/SupabaseTrailReader';
 // SupabaseC4ModelStore は server-safe 用に '@anytime-markdown/trail-viewer/supabase' から import する
 

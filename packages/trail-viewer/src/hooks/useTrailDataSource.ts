@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { CostOptimizationData, ToolMetrics, TrailFilter, TrailMessage, TrailPromptEntry, TrailSession, TrailSessionCommit } from '../parser/types';
 import type { AnalyticsData } from '../components/AnalyticsPanel';
 import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
-import { SupabaseTrailReader } from './SupabaseTrailReader';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -61,25 +60,10 @@ const RECONNECT_DELAY_MS = 3_000;
 const MAX_RETRIES = 5;
 
 // ---------------------------------------------------------------------------
-// Supabase config
-// ---------------------------------------------------------------------------
-
-export interface SupabaseConfig {
-  readonly url: string;
-  readonly anonKey: string;
-}
-
-// ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
 
-export function useTrailDataSource(
-  serverUrl?: string,
-  supabaseConfig?: SupabaseConfig,
-): TrailDataSourceResult {
-  const isRemote = serverUrl !== undefined;
-  const isSupabase = supabaseConfig !== undefined;
-
+export function useTrailDataSource(serverUrl: string): TrailDataSourceResult {
   // State
   const [sessions, setSessions] = useState<readonly TrailSession[]>([]);
   const [allSessions, setAllSessions] = useState<readonly TrailSession[]>([]);
@@ -88,24 +72,17 @@ export function useTrailDataSource(
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [costOptimization, setCostOptimization] = useState<CostOptimizationData | null>(null);
   const [releases, setReleases] = useState<readonly TrailRelease[]>([]);
-  const [connected, setConnected] = useState(!isRemote || isSupabase);
+  const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Supabase reader (stable reference)
-  const supabaseReader = useMemo(
-    () => (supabaseConfig ? new SupabaseTrailReader(supabaseConfig.url, supabaseConfig.anonKey) : null),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [supabaseConfig?.url, supabaseConfig?.anonKey],
-  );
 
   // Refs
   const wsRef = useRef<WebSocket | null>(null);
   const retryCountRef = useRef(0);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Base URL for API calls
-  const baseUrl = isRemote ? serverUrl : '';
+  // Base URL for API calls (serverUrl='' → same-origin relative)
+  const baseUrl = serverUrl;
 
   // --- Fetch sessions ---
 
@@ -114,24 +91,20 @@ export function useTrailDataSource(
       setLoading(true);
       setError(null);
       try {
+        const queryString = filter ? buildQueryString(filter) : '';
+        const res = await fetch(`${baseUrl}/api/trail/sessions${queryString}`);
+        if (!res.ok) {
+          setError(`Failed to fetch sessions: ${res.status}`);
+          return;
+        }
+        const data: unknown = await res.json();
         let parsed: readonly TrailSession[];
-        if (supabaseReader) {
-          parsed = await supabaseReader.getSessions(filter);
+        if (Array.isArray(data)) {
+          parsed = data as readonly TrailSession[];
+        } else if (data && typeof data === 'object' && 'sessions' in data) {
+          parsed = (data as { sessions: readonly TrailSession[] }).sessions;
         } else {
-          const queryString = filter ? buildQueryString(filter) : '';
-          const res = await fetch(`${baseUrl}/api/trail/sessions${queryString}`);
-          if (!res.ok) {
-            setError(`Failed to fetch sessions: ${res.status}`);
-            return;
-          }
-          const data: unknown = await res.json();
-          if (Array.isArray(data)) {
-            parsed = data as readonly TrailSession[];
-          } else if (data && typeof data === 'object' && 'sessions' in data) {
-            parsed = (data as { sessions: readonly TrailSession[] }).sessions;
-          } else {
-            parsed = [];
-          }
+          parsed = [];
         }
         setSessions(parsed);
         if (isInitial) {
@@ -143,7 +116,7 @@ export function useTrailDataSource(
         setLoading(false);
       }
     },
-    [baseUrl, supabaseReader],
+    [baseUrl],
   );
 
   // --- Load single session messages ---
@@ -152,15 +125,6 @@ export function useTrailDataSource(
     (id: string): void => {
       setLoading(true);
       setError(null);
-
-      if (supabaseReader) {
-        supabaseReader
-          .getMessages(id)
-          .then((msgs) => setMessages(msgs))
-          .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Failed to load session'))
-          .finally(() => setLoading(false));
-        return;
-      }
 
       fetch(`${baseUrl}/api/trail/sessions/${encodeURIComponent(id)}`)
         .then(async (res) => {
@@ -182,14 +146,13 @@ export function useTrailDataSource(
           setLoading(false);
         });
     },
-    [baseUrl, supabaseReader],
+    [baseUrl],
   );
 
   // --- Fetch session messages (standalone, does not update shared state) ---
 
   const fetchSessionMessages = useCallback(
     async (id: string): Promise<readonly TrailMessage[]> => {
-      if (supabaseReader) return supabaseReader.getMessages(id);
       const res = await fetch(`${baseUrl}/api/trail/sessions/${encodeURIComponent(id)}`);
       if (!res.ok) return [];
       const data: unknown = await res.json();
@@ -199,14 +162,13 @@ export function useTrailDataSource(
       if (Array.isArray(data)) return data as readonly TrailMessage[];
       return [];
     },
-    [baseUrl, supabaseReader],
+    [baseUrl],
   );
 
   // --- Fetch session commits (standalone, does not update shared state) ---
 
   const fetchSessionCommits = useCallback(
     async (id: string): Promise<readonly TrailSessionCommit[]> => {
-      if (supabaseReader) return supabaseReader.getSessionCommits(id);
       try {
         const res = await fetch(`${baseUrl}/api/trail/sessions/${encodeURIComponent(id)}/commits`);
         if (!res.ok) return [];
@@ -216,14 +178,13 @@ export function useTrailDataSource(
         return [];
       }
     },
-    [baseUrl, supabaseReader],
+    [baseUrl],
   );
 
   // --- Fetch session tool metrics (standalone) ---
 
   const fetchSessionToolMetrics = useCallback(
     async (id: string): Promise<ToolMetrics | null> => {
-      if (supabaseReader) return supabaseReader.getSessionToolMetrics(id);
       try {
         const res = await fetch(`${baseUrl}/api/trail/sessions/${encodeURIComponent(id)}/tool-metrics`);
         if (!res.ok) return null;
@@ -232,7 +193,7 @@ export function useTrailDataSource(
         return null;
       }
     },
-    [baseUrl, supabaseReader],
+    [baseUrl],
   );
 
   // --- Fetch cost optimization data ---
@@ -281,33 +242,24 @@ export function useTrailDataSource(
   const refreshAnalytics = useCallback(
     async (): Promise<void> => {
       try {
-        if (supabaseReader) {
-          const analyticsData = await supabaseReader.getAnalytics();
-          if (analyticsData) setAnalytics(analyticsData);
-          const costOptData = await supabaseReader.getCostOptimization();
-          if (costOptData) setCostOptimization(costOptData);
-        } else {
-          const res = await fetch(`${baseUrl}/api/trail/analytics`);
-          if (res.ok) {
-            const data: unknown = await res.json();
-            if (data && typeof data === 'object' && 'totals' in data) {
-              setAnalytics(data as AnalyticsData);
-            }
+        const res = await fetch(`${baseUrl}/api/trail/analytics`);
+        if (res.ok) {
+          const data: unknown = await res.json();
+          if (data && typeof data === 'object' && 'totals' in data) {
+            setAnalytics(data as AnalyticsData);
           }
         }
       } catch {
         // analytics endpoint may not exist
       }
-      if (!supabaseReader) {
-        try {
-          const data = await fetchCostOptimization();
-          if (data) setCostOptimization(data);
-        } catch {
-          // cost-optimization endpoint may not exist
-        }
+      try {
+        const data = await fetchCostOptimization();
+        if (data) setCostOptimization(data);
+      } catch {
+        // cost-optimization endpoint may not exist
       }
     },
-    [baseUrl, supabaseReader, fetchCostOptimization],
+    [baseUrl, fetchCostOptimization],
   );
 
   // --- Initial fetch ---
@@ -315,36 +267,30 @@ export function useTrailDataSource(
   useEffect(() => {
     void fetchSessions(undefined, true);
     // Fetch prompts
-    if (!supabaseReader) {
-      void (async () => {
-        try {
-          const res = await fetch(`${baseUrl}/api/trail/prompts`);
-          if (res.ok) {
-            const data: unknown = await res.json();
-            if (data && typeof data === 'object' && 'prompts' in data) {
-              setPrompts((data as { prompts: readonly TrailPromptEntry[] }).prompts);
-            }
+    void (async () => {
+      try {
+        const res = await fetch(`${baseUrl}/api/trail/prompts`);
+        if (res.ok) {
+          const data: unknown = await res.json();
+          if (data && typeof data === 'object' && 'prompts' in data) {
+            setPrompts((data as { prompts: readonly TrailPromptEntry[] }).prompts);
           }
-        } catch {
-          // prompts endpoint may not exist
         }
-      })();
-    }
+      } catch {
+        // prompts endpoint may not exist
+      }
+    })();
     void refreshAnalytics();
-    if (supabaseReader) {
-      void supabaseReader.getReleases().then(setReleases).catch(() => {});
-    } else {
-      void fetchReleases();
-    }
-  }, [fetchSessions, baseUrl, supabaseReader, refreshAnalytics, fetchReleases]);
+    void fetchReleases();
+  }, [fetchSessions, baseUrl, refreshAnalytics, fetchReleases]);
 
-  // --- WebSocket (remote mode only) ---
+  // --- WebSocket (only when serverUrl is an absolute URL) ---
 
   useEffect(() => {
-    if (!isRemote || !serverUrl) return;
+    if (!serverUrl) return;
 
     function connect(): void {
-      const host = new URL(serverUrl as string).host;
+      const host = new URL(serverUrl).host;
       const ws = new WebSocket(`ws://${host}/ws`);
       wsRef.current = ws;
 
