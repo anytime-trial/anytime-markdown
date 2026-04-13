@@ -1,4 +1,4 @@
-import { buildElementTree, buildLevelView, c4ToGraphDocument, collectDescendantIds, filterTreeByLevel } from '@anytime-markdown/trail-core/c4';
+import { aggregateDsmToPackageLevel, buildElementTree, buildLevelView, c4ToGraphDocument, collectDescendantIds, filterTreeByLevel } from '@anytime-markdown/trail-core/c4';
 import type { BoundaryInfo, C4Model, C4ReleaseEntry, CoverageDiffMatrix, CoverageMatrix, DocLink, DsmMatrix, FeatureMatrix } from '@anytime-markdown/trail-core/c4';
 import type { GraphDocument, GraphNode } from '@anytime-markdown/graph-core';
 import { engine, layoutWithSubgroups, state as graphState } from '@anytime-markdown/graph-core';
@@ -297,6 +297,11 @@ export function C4ViewerCore({
     }
     return map;
   }, [showCoverage, coverageDiff]);
+
+  const filteredDsmMatrix = useMemo(() => {
+    if (!dsmMatrix) return null;
+    return currentLevel <= 2 ? aggregateDsmToPackageLevel(dsmMatrix) : dsmMatrix;
+  }, [dsmMatrix, currentLevel]);
 
   const excludedDescendantIds = useMemo(() => {
     if (!c4Model || !checkedPackageIds) return null;
@@ -607,9 +612,9 @@ export function C4ViewerCore({
                 <CoverageCanvas coverageMatrix={coverageMatrix} coverageDiff={coverageDiff} model={c4Model} level={currentLevel} isDark={isDark} />
               ) : matrixView === 'fcmap' && featureMatrix && c4Model ? (
                 <FcMapCanvas featureMatrix={featureMatrix} model={c4Model} excludedElementIds={excludedDescendantIds} level={currentLevel} isDark={isDark} />
-              ) : dsmMatrix ? (
+              ) : filteredDsmMatrix ? (
                 <DsmCanvas
-                  matrix={dsmMatrix}
+                  matrix={filteredDsmMatrix}
                   fullModel={c4Model ?? undefined}
                   clustered={dsmClustered}
                   focusedNodeId={selectedElementId}
