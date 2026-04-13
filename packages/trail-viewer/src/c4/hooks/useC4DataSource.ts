@@ -165,6 +165,15 @@ function isDsmMatrixPayload(v: unknown): v is DsmMatrixPayload {
   return 'matrix' in v;
 }
 
+async function readJson(res: Response | null): Promise<unknown> {
+  if (res?.status !== 200) return null;
+  try {
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Remote-mode initial fetch (DB-stored model)
 // ---------------------------------------------------------------------------
@@ -173,7 +182,7 @@ function useRemoteInitialFetch(
   serverUrl: string | undefined,
   selectedRelease: string,
   selectedRepo: string,
-  setC4Model: (m: C4Model) => void,
+  setC4Model: (m: C4Model | null) => void,
   setBoundaries: (b: readonly BoundaryInfo[]) => void,
   setDsmMatrix: (m: DsmMatrix | null) => void,
   setFeatureMatrix: (m: FeatureMatrix | null) => void,
@@ -200,32 +209,36 @@ function useRemoteInitialFetch(
         fetch(`${serverUrl}/api/c4/releases`).catch(() => null),
       ]);
 
+      const [modelJson, dsmJson, covJson] = await Promise.all([
+        readJson(modelRes),
+        readJson(dsmRes),
+        readJson(covRes),
+      ]);
       if (cancelled) return;
 
-      if (modelRes?.status === 200) {
-        const json: unknown = await modelRes.json();
-        if (!cancelled && isModelPayload(json)) {
-          setC4Model(json.model);
-          setBoundaries(json.boundaries);
-          setFeatureMatrix(json.featureMatrix ?? null);
-        }
+      if (isModelPayload(modelJson)) {
+        setC4Model(modelJson.model);
+        setBoundaries(modelJson.boundaries);
+        setFeatureMatrix(modelJson.featureMatrix ?? null);
+      } else {
+        setC4Model(null);
+        setBoundaries([]);
+        setFeatureMatrix(null);
       }
 
-      if (dsmRes?.status === 200) {
-        const json: unknown = await dsmRes.json();
-        if (!cancelled && isDsmMatrixPayload(json)) {
-          setDsmMatrix(json.matrix);
-        }
+      if (isDsmMatrixPayload(dsmJson)) {
+        setDsmMatrix(dsmJson.matrix);
+      } else {
+        setDsmMatrix(null);
       }
 
-      if (covRes?.status === 200) {
-        const json = await covRes.json() as { coverageMatrix: CoverageMatrix | null; coverageDiff: CoverageDiffMatrix | null };
-        if (!cancelled && json.coverageMatrix) {
-          setCoverageMatrix(json.coverageMatrix);
-        }
-        if (!cancelled && json.coverageDiff) {
-          setCoverageDiff(json.coverageDiff);
-        }
+      if (covJson && typeof covJson === 'object') {
+        const cov = covJson as { coverageMatrix?: CoverageMatrix | null; coverageDiff?: CoverageDiffMatrix | null };
+        setCoverageMatrix(cov.coverageMatrix ?? null);
+        setCoverageDiff(cov.coverageDiff ?? null);
+      } else {
+        setCoverageMatrix(null);
+        setCoverageDiff(null);
       }
 
       if (releasesRes?.status === 200) {
