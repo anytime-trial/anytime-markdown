@@ -24,8 +24,7 @@
   ],
   "activationEvents": [
 "onCommand:anytime-trail.c4Analyze",
-    "onCommand:anytime-trail.c4Export",
-    "onCommand:anytime-trail.c4View",
+"onCommand:anytime-trail.c4View",
     "onCommand:anytime-trail.dsmAnalyze",
     "onView:anytimeTrail.database",
     "onView:anytimeTrail.c4Elements"
@@ -79,11 +78,7 @@
         "title": "%command.c4Analyze%",
         "icon": "$(symbol-class)"
       },
-      {
-        "command": "anytime-trail.c4Export",
-        "title": "%command.c4Export%"
-      },
-      {
+{
         "command": "anytime-trail.c4View",
         "title": "%command.c4View%",
         "icon": "$(open-preview)"
@@ -149,12 +144,7 @@
           "when": "view == anytimeTrail.c4Elements",
           "group": "navigation@1"
         },
-        {
-          "command": "anytime-trail.c4Export",
-          "when": "view == anytimeTrail.c4Elements",
-          "group": "navigation@2"
-        },
-        {
+{
           "command": "anytime-trail.aiMemoryRefresh",
           "when": "view == anytimeTrail.aiMemory",
           "group": "navigation"
