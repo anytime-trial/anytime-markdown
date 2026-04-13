@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -53,6 +53,24 @@ export function TrailViewer() {
     [dataSource],
   );
 
+  // 拡張機能の StandaloneTrailViewer と同じく、c4 prop は常に渡して C4 タブを常時表示する。
+  // C4ViewerCore が selectedRepo の自動初期化や empty 状態を内部で処理する。
+  const c4Props = useMemo(() => ({
+    c4Model: c4.c4Model,
+    boundaries: c4.boundaries,
+    featureMatrix: c4.featureMatrix,
+    coverageMatrix: c4.coverageMatrix,
+    coverageDiff: c4.coverageDiff,
+    docLinks: c4.docLinks,
+    releases: c4.releases,
+    selectedRelease: c4.selectedRelease,
+    onReleaseSelect: c4.setSelectedRelease,
+    selectedRepo: c4.selectedRepo,
+    onRepoSelect: c4.setSelectedRepo,
+  }), [c4.c4Model, c4.boundaries, c4.featureMatrix, c4.coverageMatrix, c4.coverageDiff,
+       c4.docLinks, c4.releases, c4.selectedRelease, c4.setSelectedRelease,
+       c4.selectedRepo, c4.setSelectedRepo]);
+
   if (dataSource.loading && dataSource.sessions.length === 0) {
     return (
       <Box
@@ -87,19 +105,7 @@ export function TrailViewer() {
         fetchSessionMessages={dataSource.fetchSessionMessages}
         fetchSessionCommits={dataSource.fetchSessionCommits}
         fetchSessionToolMetrics={dataSource.fetchSessionToolMetrics}
-        c4={c4.releases.length > 0 ? {
-          c4Model: c4.c4Model,
-          boundaries: c4.boundaries,
-          featureMatrix: c4.featureMatrix,
-          coverageMatrix: c4.coverageMatrix,
-          coverageDiff: c4.coverageDiff,
-          docLinks: c4.docLinks,
-          releases: c4.releases,
-          selectedRelease: c4.selectedRelease,
-          onReleaseSelect: c4.setSelectedRelease,
-          selectedRepo: c4.selectedRepo,
-          onRepoSelect: c4.setSelectedRepo,
-        } : undefined}
+        c4={c4Props}
       />
     </TrailErrorBoundary>
   );
