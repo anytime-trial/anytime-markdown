@@ -2,8 +2,6 @@ import type { C4TreeNode, DocLink } from '@anytime-markdown/trail-core/c4';
 import type { ExportedSymbol } from '@anytime-markdown/trail-core/analyzer';
 import type { Action } from '@anytime-markdown/graph-core/state';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
-import CheckBoxIcon from '@mui/icons-material/CheckBox';
-import CheckBoxOutlineBlankIcon from '@mui/icons-material/CheckBoxOutlineBlank';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
@@ -305,11 +303,11 @@ interface C4ElementTreeProps {
   readonly onExportSelect?: (symbol: ExportedSymbol) => void;
   readonly selectedExportId?: string | null;
   readonly isDark?: boolean;
-  /** 現在図に表示されているC4要素IDのセット。変化したらcheckedIdsをこれに同期する */
-  readonly visibleC4Ids?: ReadonlySet<string>;
+  /** レベル/ドリル変更時にインクリメントされるキー。変化したらcheckedIdsを全チェック状態にリセットする */
+  readonly resetKey?: number;
 }
 
-export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onSelect, onCheckedChange, onRemoveElement, onPurgeDeleted, docLinks, onDocLinkClick, exports, onExportSelect, selectedExportId, isDark, visibleC4Ids }) => {
+export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onSelect, onCheckedChange, onRemoveElement, onPurgeDeleted, docLinks, onDocLinkClick, exports, onExportSelect, selectedExportId, isDark, resetKey }) => {
   const colors = useMemo(() => getC4Colors(isDark ?? true), [isDark]);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => {
     // デフォルトでルートレベルと system ノードの直下を展開
@@ -407,27 +405,12 @@ export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onS
     return hasDeleted(tree);
   }, [tree]);
 
-  const allPackageIds = useMemo(() => collectCheckableIds(tree), [tree]);
-  const allChecked = allPackageIds.size > 0 && allPackageIds.size === [...allPackageIds].filter(id => checkedIds.has(id)).length;
 
-  const handleCheckAll = useCallback(() => {
-    setCheckedIds(allChecked ? new Set<string>() : new Set(allPackageIds));
-  }, [allChecked, allPackageIds]);
-
-  // 図に表示されているIDが変化したらチェック状態を同期する
+  // レベル/ドリル変更時に全チェック状態にリセットする
   useEffect(() => {
-    if (!visibleC4Ids) return;
-    const checkable = collectCheckableIds(tree);
-    const next = new Set<string>();
-    for (const id of checkable) {
-      if (visibleC4Ids.has(id)) next.add(id);
-    }
-    // 内容が同じなら参照を維持してループを防ぐ
-    setCheckedIds(prev => {
-      if (prev.size === next.size && [...next].every(id => prev.has(id))) return prev;
-      return next;
-    });
-  }, [visibleC4Ids, tree]);
+    if (resetKey === undefined) return;
+    setCheckedIds(collectCheckableIds(tree));
+  }, [resetKey, tree]);
 
   // checkedIds の変更を親に通知（useEffect で render 後に実行）
   useEffect(() => {
@@ -444,33 +427,8 @@ export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onS
         overflowY: 'auto',
       }}
     >
-      <Box sx={{
-        display: 'flex',
-        alignItems: 'center',
-        px: 1,
-        py: 0.25,
-        borderBottom: `1px solid ${colors.border}`,
-        minHeight: 32,
-        flexShrink: 0,
-      }}>
-        {/* L1アイコンと縦位置を揃えるため chevron 幅（20px）分スペースを確保 */}
-        <Box sx={{ width: 20, flexShrink: 0 }} />
-        <Tooltip title={allChecked ? 'Uncheck all' : 'Check all'} placement="right">
-          <IconButton
-            size="small"
-            onClick={handleCheckAll}
-            aria-label={allChecked ? 'Uncheck all packages' : 'Check all packages'}
-            sx={{ color: colors.accent, p: 0.25, mr: 0.5 }}
-          >
-            {allChecked
-              ? <CheckBoxIcon sx={{ fontSize: 18 }} />
-              : <CheckBoxOutlineBlankIcon sx={{ fontSize: 18 }} />}
-          </IconButton>
-        </Tooltip>
-        <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.7rem', flex: 1 }}>
-          Elements
-        </Typography>
-        {hasDeletedElements && onPurgeDeleted && (
+      {hasDeletedElements && onPurgeDeleted && (
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', px: 0.5, py: 0.25, borderBottom: `1px solid ${colors.border}`, flexShrink: 0 }}>
           <Tooltip title="Remove all deleted elements" placement="left">
             <IconButton
               size="small"
@@ -481,8 +439,8 @@ export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onS
               <DeleteSweepIcon sx={{ fontSize: 18 }} />
             </IconButton>
           </Tooltip>
-        )}
-      </Box>
+        </Box>
+      )}
       <List dense disablePadding sx={{ flex: 1, overflowY: 'auto' }}>
         {tree.map(node => (
           <TreeNodeItem

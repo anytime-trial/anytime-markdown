@@ -363,6 +363,7 @@ export function C4ViewerCore({
           setCurrentLevel(minLevel);
         }
         setCheckedPackageIds(null);
+        setCheckResetKey(prev => prev + 1);
       }
       setContextMenu(null);
     },
@@ -375,6 +376,7 @@ export function C4ViewerCore({
     setDrillStack((prev) => prev.slice(0, -1));
     if (prevLevel !== undefined) setCurrentLevel(prevLevel);
     setCheckedPackageIds(null);
+    setCheckResetKey(prev => prev + 1);
     setContextMenu(null);
   }, [drillStack]);
 
@@ -382,6 +384,7 @@ export function C4ViewerCore({
     setCurrentLevel(level);
     setDrillStack([]);
     setCheckedPackageIds(null);
+    setCheckResetKey(prev => prev + 1);
     if (level <= 2) {
       setDsmLevel('package');
     } else {
@@ -403,14 +406,7 @@ export function C4ViewerCore({
     return filterTreeByLevel(fullTree, currentLevel);
   }, [c4Model, boundaryInfos, currentLevel]);
 
-  const visibleC4Ids = useMemo(() => {
-    const ids = new Set<string>();
-    for (const node of state.document.nodes) {
-      const c4Id = node.metadata?.c4Id as string | undefined;
-      if (c4Id) ids.add(c4Id);
-    }
-    return ids;
-  }, [state.document.nodes]);
+  const [checkResetKey, setCheckResetKey] = useState(0);
 
   const deletedIds = useMemo(() => {
     if (!c4Model) return undefined;
@@ -692,7 +688,7 @@ export function C4ViewerCore({
             dispatch={dispatch}
             onSelect={handleElementSelect}
             onCheckedChange={setCheckedPackageIds}
-            visibleC4Ids={visibleC4Ids}
+            resetKey={checkResetKey}
             onRemoveElement={onRemoveElement}
             onPurgeDeleted={onPurgeDeleted}
             docLinks={docLinks}
