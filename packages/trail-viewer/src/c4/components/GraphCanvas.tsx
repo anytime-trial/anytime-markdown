@@ -113,6 +113,11 @@ export function GraphCanvas({ document, viewport, dispatch, canvasRef, selectedN
         return {
           ...e,
           type: 'line' as const,
+          style: {
+            ...e.style,
+            startShape: (e.style.startShape ?? 'circle') as typeof e.style.startShape,
+            endShape: (e.style.endShape ?? 'arrow') as typeof e.style.endShape,
+          },
           from: { ...e.from, x: fromPt.x, y: fromPt.y },
           to: { ...e.to, x: toPt.x, y: toPt.y },
         };
