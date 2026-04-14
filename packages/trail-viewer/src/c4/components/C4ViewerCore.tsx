@@ -464,8 +464,9 @@ export function C4ViewerCore({
   // L2(1): container のみ、L3(2): component のみ、L4(3): code のみ
   const levelFilteredImportanceMatrix = useMemo(() => {
     if (!importanceMatrix || !c4Model) return importanceMatrix ?? null;
-    const targetType = currentLevel === 1 ? 'container'
-      : currentLevel === 2 ? 'component'
+    // L1=Context(system), L2=Container(container), L3=Component(component), L4=Code(code)
+    const targetType = currentLevel === 2 ? 'container'
+      : currentLevel === 3 ? 'component'
       : 'code';
     const typeById = new Map(c4Model.elements.map((e) => [e.id, e.type]));
     const filtered: ImportanceMatrix = {};
