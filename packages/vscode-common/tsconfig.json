@@ -5,7 +5,9 @@
     "moduleResolution": "node16",
     "outDir": "out",
     "lib": ["ES2023"],
-    "types": ["node"]
+    "types": ["node"],
+    "declaration": true,
+    "declarationMap": true
   },
   "include": ["src/**/*.ts"]
 }

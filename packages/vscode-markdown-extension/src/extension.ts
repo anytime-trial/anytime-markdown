@@ -4,8 +4,7 @@ import * as path from 'node:path';
 import { MarkdownEditorProvider } from './providers/MarkdownEditorProvider';
 import { LinkValidationProvider } from './providers/LinkValidationProvider';
 import { AiNoteProvider, AiNoteItem } from './providers/AiNoteProvider';
-import { setupClaudeHooks } from './utils/claudeHookSetup';
-import { ClaudeStatusWatcher } from './utils/claudeStatusWatcher';
+import { setupClaudeHooks, ClaudeStatusWatcher } from '@anytime-markdown/vscode-common';
 
 /** ノートファイルをカスタムエディタで開く（既存の破損タブを先に閉じてから openWith） */
 async function openNoteFile(filePath: string): Promise<void> {
