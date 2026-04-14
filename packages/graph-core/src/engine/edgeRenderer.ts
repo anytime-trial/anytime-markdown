@@ -20,7 +20,7 @@ export function drawEdge(
   ctx.lineWidth = selected ? style.strokeWidth + 1 : style.strokeWidth;
 
   const color = selected ? c.canvasSelection : style.stroke;
-  const startShape: EndpointShape = style.startShape ?? 'none';
+  const startShape: EndpointShape = style.startShape ?? (type === 'connector' ? 'circle' : 'none');
   const endShape: EndpointShape = style.endShape ?? (type === 'connector' ? 'arrow' : 'none');
 
   const labelPos = drawEdgePath(ctx, edge, startShape, endShape, color);
