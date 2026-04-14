@@ -97,6 +97,30 @@ describe('computeColorMap — complexity-most', () => {
   });
 });
 
+describe('computeColorMap — importance', () => {
+  const importanceMatrix = { 'pkg_a': 80, 'pkg_b': 50, 'pkg_c': 20 };
+
+  it('score >= 70 は赤', () => {
+    const m = computeColorMap('importance', null, null, null, importanceMatrix);
+    expect(m.get('pkg_a')).toBe('#c62828');
+  });
+
+  it('score 40-69 は黄', () => {
+    const m = computeColorMap('importance', null, null, null, importanceMatrix);
+    expect(m.get('pkg_b')).toBe('#f9a825');
+  });
+
+  it('score < 40 は緑', () => {
+    const m = computeColorMap('importance', null, null, null, importanceMatrix);
+    expect(m.get('pkg_c')).toBe('#2e7d32');
+  });
+
+  it('importanceMatrix が null なら空 Map', () => {
+    const m = computeColorMap('importance', null, null, null, null);
+    expect(m.size).toBe(0);
+  });
+});
+
 describe('computeColorMap — complexity-highest', () => {
   it('highest=multi-file-editは黄', () => {
     const m = computeColorMap('complexity-highest', null, null, complexity);

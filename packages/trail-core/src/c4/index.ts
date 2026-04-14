@@ -55,3 +55,4 @@ export type { MetricOverlay, ComplexityClass, ComplexityEntry, ComplexityMatrix 
 export { computeColorMap } from './metrics/computeColorMap';
 export type { MessageInput } from './metrics/computeComplexityMatrix';
 export { computeComplexityMatrix } from './metrics/computeComplexityMatrix';
+export { computeImportanceMatrix } from './metrics/computeImportanceMatrix';

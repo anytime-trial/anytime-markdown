@@ -172,7 +172,8 @@ export type MetricOverlay =
   | 'dsm-in'
   | 'dsm-cyclic'
   | 'complexity-most'
-  | 'complexity-highest';
+  | 'complexity-highest'
+  | 'importance';
 
 /** 複雑度分類（classifyByFeatures の label に対応） */
 export type ComplexityClass =

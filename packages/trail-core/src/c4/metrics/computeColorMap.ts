@@ -27,6 +27,13 @@ function coverageHeatColor(pct: number): string {
   return COLOR_LOW_PCT;
 }
 
+/** 0〜100 のスコアで 緑(low)→黄(mid)→赤(high) を返す */
+function importanceHeatColor(score: number): string {
+  if (score >= 70) return COLOR_LOW_PCT;   // 赤
+  if (score >= 40) return COLOR_MID_PCT;   // 黄
+  return COLOR_HIGH_PCT;                   // 緑
+}
+
 /** 0〜1 の t で青(min)→赤(max) を線形補間する */
 function interpolateDsmColor(t: number): string {
   // blue #1565c0 → red #c62828
@@ -43,6 +50,7 @@ export function computeColorMap(
   coverageMatrix: CoverageMatrix | null,
   dsmMatrix: DsmMatrix | null,
   complexityMatrix: ComplexityMatrix | null,
+  importanceMatrix: Record<string, number> | null = null,
 ): Map<string, string> {
   if (overlay === 'none') return new Map();
 
@@ -104,6 +112,16 @@ export function computeColorMap(
     const field = overlay === 'complexity-most' ? 'mostFrequent' : 'highest';
     for (const entry of complexityMatrix.entries) {
       map.set(entry.elementId, COMPLEXITY_COLORS[entry[field]]);
+    }
+    return map;
+  }
+
+  // ── Importance ──
+  if (overlay === 'importance') {
+    if (!importanceMatrix) return new Map();
+    const map = new Map<string, string>();
+    for (const [elementId, score] of Object.entries(importanceMatrix)) {
+      map.set(elementId, importanceHeatColor(score));
     }
     return map;
   }
