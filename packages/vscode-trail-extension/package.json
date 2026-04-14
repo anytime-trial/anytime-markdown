@@ -275,6 +275,7 @@
   "dependencies": {
     "@anytime-markdown/graph-core": "*",
     "@anytime-markdown/trail-core": "*",
+    "@anytime-markdown/vscode-common": "*",
     "@supabase/supabase-js": "2.103.0",
     "pg": "8.20.0",
     "sql.js": "1.12.0",

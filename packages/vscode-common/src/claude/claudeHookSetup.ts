@@ -28,7 +28,6 @@ export function getStatusFilePath(): string {
   return STATUS_FILE;
 }
 
-/** ステータスファイルに書き込むフックコマンドが既に設定済みか判定 */
 function hasStatusFileHook(matchers: HookMatcher[]): boolean {
   return matchers.some((m) =>
     m.hooks?.some((h) => h.command?.includes(STATUS_FILE))
@@ -44,7 +43,6 @@ export function setupClaudeHooks(): boolean {
   try {
     settings = JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf-8'));
   } catch (err: unknown) {
-    // ENOENT: ファイル未存在は正常（初回作成）、パースエラーは設定破損
     if (err instanceof SyntaxError) {
       return false;
     }
@@ -64,7 +62,6 @@ export function setupClaudeHooks(): boolean {
     return true;
   }
 
-  // フックコマンド: stdin の JSON から tool_input.file_path を jq で取得
   const preCommand = `FP=$(jq -r '.tool_input.file_path // empty'); [ -n "$FP" ] && echo "{\\"editing\\":true,\\"file\\":\\"$FP\\",\\"timestamp\\":$(date +%s%3N)}" > ${STATUS_FILE}`;
   const postCommand = `FP=$(jq -r '.tool_input.file_path // empty'); [ -n "$FP" ] && echo "{\\"editing\\":false,\\"file\\":\\"$FP\\",\\"timestamp\\":$(date +%s%3N)}" > ${STATUS_FILE}`;
 

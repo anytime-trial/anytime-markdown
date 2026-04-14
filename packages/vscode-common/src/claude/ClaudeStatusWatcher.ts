@@ -1,19 +1,11 @@
-import * as vscode from 'vscode';
 import * as fs from 'node:fs';
 import { getStatusFilePath } from './claudeHookSetup';
-
-interface ClaudeStatus {
-  editing: boolean;
-  file: string;
-  timestamp: number;
-}
-
-type StatusChangeCallback = (editing: boolean, filePath: string) => void;
+import type { Disposable, ClaudeStatus, StatusChangeCallback } from './types';
 
 const STALE_THRESHOLD_MS = 30_000;
 const POLL_INTERVAL_MS = 3000;
 
-export class ClaudeStatusWatcher implements vscode.Disposable {
+export class ClaudeStatusWatcher implements Disposable {
   private readonly callbacks: StatusChangeCallback[] = [];
   private readonly statusFilePath: string;
   private fsWatcher: fs.FSWatcher | null = null;
@@ -31,16 +23,12 @@ export class ClaudeStatusWatcher implements vscode.Disposable {
     this.callbacks.push(callback);
   }
 
-  /** ステータスファイルが存在しなければ作成し、ファイル単位で fs.watch する */
   private ensureFileAndWatch(): void {
     try {
-      // wx: 排他作成（ファイルが既に存在する場合は EEXIST で失敗）
-      // mode 0o600: 所有者のみ読み書き可能（insecure-temporary-file 対策）
       fs.writeFileSync(this.statusFilePath, '{}', { flag: 'wx', mode: 0o600 });
     } catch (err: unknown) {
-      // EEXIST は正常（既にファイルが存在する）、それ以外は無視してポーリングで対応
       if (err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code !== 'EEXIST') {
-        // ファイル作成失敗時もポーリングで対応可能
+        // ファイル作成失敗時はポーリングで対応
       }
     }
     this.attachFileWatch();
@@ -49,21 +37,18 @@ export class ClaudeStatusWatcher implements vscode.Disposable {
   private attachFileWatch(): void {
     this.fsWatcher?.close();
     try {
-      // ファイル単位の fs.watch（ディレクトリ監視ではないため VS Code と競合しない）
       this.fsWatcher = fs.watch(this.statusFilePath, () => {
         this.handleChange();
       });
       this.fsWatcher.on('error', () => {
-        // エラー時はポーリングにフォールバック
         this.fsWatcher?.close();
         this.fsWatcher = null;
       });
     } catch {
-      // fs.watch 失敗時は無視（ポーリングで対応）
+      // fs.watch 失敗時はポーリングで対応
     }
   }
 
-  /** フォールバック: fs.watch がイベントを取りこぼす環境向け */
   private startPolling(): void {
     this.pollTimer = setInterval(() => {
       this.handleChange();
@@ -74,15 +59,12 @@ export class ClaudeStatusWatcher implements vscode.Disposable {
     const status = this.readStatus();
     if (!status) return;
 
-    // タイムスタンプが変わっていなければスキップ
     if (status.timestamp === this.lastTimestamp) return;
     this.lastTimestamp = status.timestamp;
 
     const isStale = Date.now() - status.timestamp > STALE_THRESHOLD_MS;
     const editing = isStale ? false : status.editing;
 
-    // editing: false かつ lastEditing が true でない場合、
-    // PreToolUse (editing: true) を見逃した可能性があるため先にロックを発火する
     if (!editing && this.lastEditing !== true) {
       this.lastEditing = true;
       for (const cb of this.callbacks) {
@@ -90,7 +72,6 @@ export class ClaudeStatusWatcher implements vscode.Disposable {
       }
     }
 
-    // 状態が変化した場合のみコールバック発火
     if (editing === this.lastEditing) return;
     this.lastEditing = editing;
 
@@ -103,9 +84,7 @@ export class ClaudeStatusWatcher implements vscode.Disposable {
     try {
       const raw = fs.readFileSync(this.statusFilePath, 'utf-8');
       const parsed: unknown = JSON.parse(raw);
-      if (!this.isValidStatus(parsed)) {
-        return null;
-      }
+      if (!this.isValidStatus(parsed)) return null;
       return parsed;
     } catch {
       return null;
@@ -113,9 +92,7 @@ export class ClaudeStatusWatcher implements vscode.Disposable {
   }
 
   private isValidStatus(obj: unknown): obj is ClaudeStatus {
-    if (typeof obj !== 'object' || obj === null) {
-      return false;
-    }
+    if (typeof obj !== 'object' || obj === null) return false;
     const record = obj as Record<string, unknown>;
     return (
       typeof record.editing === 'boolean' &&

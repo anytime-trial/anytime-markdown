@@ -73,6 +73,7 @@ export interface C4DataProvider {
   handlePurgeDeletedElements(): void;
   handleAddRelationship(from: string, to: string, label?: string, technology?: string): void;
   handleRemoveRelationship(from: string, to: string): void;
+  handleResetClaudeActivity(): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -892,6 +893,22 @@ export class TrailDataServer {
       case 'remove-relationship':
         provider.handleRemoveRelationship(message.from, message.to);
         break;
+      case 'reset-claude-activity':
+        provider.handleResetClaudeActivity();
+        break;
+    }
+  }
+
+  notifyClaudeActivity(activeElementIds: readonly string[], touchedElementIds: readonly string[]): void {
+    if (this.clients.size === 0) return;
+    const message: ServerMessage = {
+      type: 'claude-activity-updated',
+      activeElementIds,
+      touchedElementIds,
+    };
+    const payload = JSON.stringify(message);
+    for (const ws of this.clients) {
+      ws.send(payload);
     }
   }
 
@@ -1107,7 +1124,7 @@ export function isClientMessage(data: unknown): data is ClientMessage {
     'set-level', 'cluster', 'refresh',
     'add-element', 'update-element', 'remove-element',
     'add-relationship', 'remove-relationship', 'purge-deleted-elements',
-    'open-doc-link',
+    'open-doc-link', 'reset-claude-activity',
   ];
   return typeof msg.type === 'string' && validTypes.includes(msg.type);
 }

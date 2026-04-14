@@ -40,6 +40,7 @@ import { FcMapCanvas } from './FcMapCanvas';
 import { FlowchartCanvas } from './FlowchartCanvas';
 import { GraphCanvas } from './GraphCanvas';
 import { OverlayLegend } from './OverlayLegend';
+import { computeClaudeActivityColorMap } from '../claudeActivityColorMap';
 
 const { graphReducer, createInitialState } = graphState;
 const { fitToContent } = engine;
@@ -84,6 +85,8 @@ export interface C4ViewerCoreProps {
   readonly selectedRepo?: string;
   readonly onRepoSelect?: (repo: string) => void;
   readonly serverUrl?: string;
+  readonly claudeActivity?: import('../hooks/useC4DataSource').ClaudeActivityState | null;
+  readonly onResetClaudeActivity?: () => void;
 }
 
 export function C4ViewerCore({
@@ -113,6 +116,8 @@ export function C4ViewerCore({
   selectedRepo: selectedRepoProp,
   onRepoSelect,
   serverUrl = '',
+  claudeActivity,
+  onResetClaudeActivity,
 }: Readonly<C4ViewerCoreProps>) {
   const { t } = useTrailI18n();
   const colors = useMemo(() => getC4Colors(isDark), [isDark]);
@@ -460,6 +465,13 @@ export function C4ViewerCore({
     [metricOverlay, coverageMatrix, filteredDsmMatrix, complexityMatrix, importanceMatrix],
   );
 
+  const claudeActivityMap = useMemo(() => {
+    if (!claudeActivity) return null;
+    const { activeElementIds, touchedElementIds } = claudeActivity;
+    if (activeElementIds.length === 0 && touchedElementIds.length === 0) return null;
+    return computeClaudeActivityColorMap(activeElementIds, touchedElementIds, isDark);
+  }, [claudeActivity, isDark]);
+
   const dsmMax = useMemo(() => {
     if ((metricOverlay !== 'dsm-out' && metricOverlay !== 'dsm-in') || !filteredDsmMatrix) return undefined;
     let max = 0;
@@ -682,6 +694,17 @@ export function C4ViewerCore({
             )}
           </>
         )}
+        {claudeActivity && (claudeActivity.activeElementIds.length > 0 || claudeActivity.touchedElementIds.length > 0) && (
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={onResetClaudeActivity}
+            title={t('c4.claudeActivity.reset')}
+            sx={{ ...toolbarButtonSx, ml: 0.5 }}
+          >
+            {t('c4.claudeActivity.reset')}
+          </Button>
+        )}
       </Toolbar>
       {currentLevel === 1 && (
         <Toolbar variant="dense" sx={{ gap: 1, bgcolor: colors.bgSecondary, borderBottom: `1px solid ${colors.border}`, minHeight: 36, px: { xs: 2, md: 3 } }}>
@@ -772,6 +795,7 @@ export function C4ViewerCore({
                 selectedNodeId={selectedElementId ? (state.document.nodes.find(n => n.metadata?.c4Id === selectedElementId)?.id ?? null) : null}
                 centerOnSelect={centerOnSelect}
                 overlayMap={overlayMap.size > 0 ? overlayMap : null}
+                claudeActivityMap={claudeActivityMap}
                 onNodeSelect={(id) => { setCenterOnSelect(false); setSelectedElementId(id); }}
                 onNodeDoubleClick={(nodeId) => {
                   if (!c4Model) return;

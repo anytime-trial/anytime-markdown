@@ -22,6 +22,8 @@ import { CoverageHistory } from './coverageHistory';
 import { CoverageWatcher } from './coverageWatcher';
 import type { TrailDatabase } from '../trail/TrailDatabase';
 import { ExecFileGitService } from '../trail/ExecFileGitService';
+import { ClaudeStatusWatcher } from '@anytime-markdown/vscode-common';
+import { ClaudeActivityTracker } from './ClaudeActivityTracker';
 
 /**
  * C4モデルのデータ管理を担当するシングルトン。
@@ -46,6 +48,8 @@ export class C4Panel implements C4DataProvider {
   private lastImportanceMatrix: ImportanceMatrix | undefined;
   private coverageHistory: CoverageHistory | undefined;
   private coverageWatcher: CoverageWatcher | undefined;
+  private claudeWatcher: ClaudeStatusWatcher | null = null;
+  private claudeTracker: ClaudeActivityTracker | null = null;
 
   private constructor() {}
 
@@ -59,6 +63,11 @@ export class C4Panel implements C4DataProvider {
 
   public static setTrailDatabase(db: TrailDatabase): void {
     C4Panel.trailDb = db;
+  }
+
+  public static disposeClaudeWatcher(): void {
+    C4Panel.instance?.claudeWatcher?.dispose();
+    C4Panel.instance?.claudeTracker?.dispose();
   }
 
   public static getDataProvider(): C4DataProvider | undefined {
@@ -217,6 +226,11 @@ export class C4Panel implements C4DataProvider {
       ),
     };
     this.setModel(model, this.lastBoundaries);
+  }
+
+  public handleResetClaudeActivity(): void {
+    this.claudeTracker?.resetTouched();
+    C4Panel.dataServer?.notifyClaudeActivity([], []);
   }
 
   // -------------------------------------------------------------------------
@@ -608,6 +622,16 @@ export class C4Panel implements C4DataProvider {
     if (this.lastTsconfigPath) {
       this.buildImportanceMatrix(this.lastTsconfigPath);
     }
+    if (!this.claudeWatcher) {
+      this.claudeWatcher = new ClaudeStatusWatcher();
+      this.claudeTracker = new ClaudeActivityTracker();
+      this.claudeTracker.onChange((state) => {
+        C4Panel.dataServer?.notifyClaudeActivity(state.activeElementIds, state.touchedElementIds);
+      });
+      this.claudeWatcher.onStatusChange(this.claudeTracker.onFileEditing);
+    }
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+    this.claudeTracker?.setModel(model, workspaceRoot);
   }
 
   /** メッセージ履歴から複雑度マトリクスを計算してキャッシュ */

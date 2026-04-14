@@ -59,7 +59,13 @@ export interface ImportanceUpdatedMessage {
   readonly importanceMatrix: ImportanceMatrix;
 }
 
-export type ServerMessage = ModelUpdatedMessage | DsmUpdatedMessage | AnalysisProgressMessage | DocLinksUpdatedMessage | CoverageUpdatedMessage | CoverageDiffUpdatedMessage | ComplexityUpdatedMessage | ImportanceUpdatedMessage;
+export interface ClaudeActivityUpdatedMessage {
+  readonly type: 'claude-activity-updated';
+  readonly activeElementIds: readonly string[];
+  readonly touchedElementIds: readonly string[];
+}
+
+export type ServerMessage = ModelUpdatedMessage | DsmUpdatedMessage | AnalysisProgressMessage | DocLinksUpdatedMessage | CoverageUpdatedMessage | CoverageDiffUpdatedMessage | ComplexityUpdatedMessage | ImportanceUpdatedMessage | ClaudeActivityUpdatedMessage;
 
 // ---------------------------------------------------------------------------
 //  Client → Server messages
@@ -131,6 +137,10 @@ export interface OpenDocLinkCommand {
   readonly path: string;
 }
 
+export interface ResetClaudeActivityCommand {
+  readonly type: 'reset-claude-activity';
+}
+
 export type ClientMessage =
   | SetLevelCommand
   | ClusterCommand
@@ -141,4 +151,5 @@ export type ClientMessage =
   | AddRelationshipCommand
   | RemoveRelationshipCommand
   | PurgeDeletedElementsCommand
-  | OpenDocLinkCommand;
+  | OpenDocLinkCommand
+  | ResetClaudeActivityCommand;

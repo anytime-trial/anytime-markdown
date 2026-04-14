@@ -139,6 +139,8 @@ export function TrailViewerApp({
     onPurgeDeleted,
     onDocLinkClick,
     serverUrl,
+    claudeActivity: c4.claudeActivity,
+    onResetClaudeActivity: () => sendCommand('reset-claude-activity'),
   };
 
   return (
