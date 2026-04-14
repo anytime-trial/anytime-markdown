@@ -2,7 +2,6 @@ import { aggregateDsmToC4ComponentLevel, aggregateDsmToC4ContainerLevel, aggrega
 import type { BoundaryInfo, C4Element, C4Model, C4ReleaseEntry, CoverageDiffMatrix, CoverageMatrix, DocLink, DsmMatrix, FeatureMatrix } from '@anytime-markdown/trail-core/c4';
 import type { GraphDocument, GraphNode } from '@anytime-markdown/graph-core';
 import { engine, layoutWithSubgroups, state as graphState } from '@anytime-markdown/graph-core';
-import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import FitScreenIcon from '@mui/icons-material/FitScreen';
@@ -181,7 +180,7 @@ export function C4ViewerCore({
   const [state, dispatch] = useReducer(graphReducer, createInitialState());
   const [fullDoc, setFullDoc] = useState<GraphDocument | null>(null);
   const [currentLevel, setCurrentLevel] = useState<number>(1);
-  const [showTree, setShowTree] = useState(true);
+
   const [showC4, setShowC4] = useState(true);
   const [showDsm, setShowDsm] = useState(false);
   const [showCoverage, setShowCoverage] = useState(false);
@@ -485,7 +484,7 @@ export function C4ViewerCore({
     if (!container) return;
     const onMove = (ev: MouseEvent) => {
       const rect = container.getBoundingClientRect();
-      const treeWidth = showTree && elementTree.length > 0 ? 260 : 0;
+      const treeWidth = elementTree.length > 0 ? 260 : 0;
       const available = rect.width - treeWidth;
       if (available <= 0) return;
       const ratio = Math.min(0.8, Math.max(0.2, (ev.clientX - rect.left) / available));
@@ -501,7 +500,7 @@ export function C4ViewerCore({
     globalThis.addEventListener('mouseup', onUp);
     globalThis.document.body.style.cursor = 'col-resize';
     globalThis.document.body.style.userSelect = 'none';
-  }, [showTree, elementTree.length]);
+  }, [elementTree.length]);
 
   const toolbarButtonSx = {
     textTransform: 'none', color: colors.accent, borderColor: colors.border,
@@ -602,7 +601,6 @@ export function C4ViewerCore({
         <Box sx={{ flex: 1 }} />
         <Button size="small" onClick={() => { if (showC4 && !showDsm) { setShowDsm(true); } else { setShowC4(true); setShowDsm(false); } }} aria-pressed={showC4 && !showDsm} aria-label="Toggle C4 graph" sx={{ ...toolbarButtonSx, ...(showC4 && !showDsm && { bgcolor: toolbarButtonActiveBg }) }}>C4</Button>
         <Button size="small" onClick={() => { if (!showC4 && showDsm) { setShowC4(true); } else { setShowC4(false); setShowDsm(true); } }} aria-pressed={!showC4 && showDsm} aria-label="Toggle matrix panel" sx={{ ...toolbarButtonSx, ...(!showC4 && showDsm && { bgcolor: toolbarButtonActiveBg }) }}>Matrix</Button>
-        <Button size="small" startIcon={<AccountTreeIcon sx={{ fontSize: 18 }} />} onClick={() => setShowTree(prev => !prev)} aria-pressed={showTree} aria-label="Toggle element tree" sx={{ ...toolbarButtonSx, ...(showTree && { bgcolor: toolbarButtonActiveBg }) }}>Tree</Button>
         {selectedExport && (
           <>
             <Button
@@ -687,7 +685,25 @@ export function C4ViewerCore({
         </Box>
       )}
       <Box ref={containerRef} sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        {/* 既存コンテンツ (C4Graph / Separator / DSM / Tree) */}
+        {/* 要素ツリーパネル（左側固定表示） */}
+        {elementTree.length > 0 && (
+          <C4ElementTree
+            tree={elementTree}
+            dispatch={dispatch}
+            onSelect={handleElementSelect}
+            onCheckedChange={setCheckedPackageIds}
+            visibleC4Ids={visibleC4Ids}
+            onRemoveElement={onRemoveElement}
+            onPurgeDeleted={onPurgeDeleted}
+            docLinks={docLinks}
+            onDocLinkClick={onDocLinkClick}
+            isDark={isDark}
+            exports={exports}
+            selectedExportId={selectedExport?.id ?? null}
+            onExportSelect={handleExportSelect}
+          />
+        )}
+        {/* 既存コンテンツ (C4Graph / Separator / DSM) */}
         {showC4 && (
           <Box sx={{ flex: showDsm ? splitRatio : 1, display: 'flex', flexDirection: 'column', minWidth: 100 }}>
             <Box sx={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
@@ -810,7 +826,7 @@ export function C4ViewerCore({
           </Box>
         )}
         {showDsm && (
-          <Box sx={{ flex: showC4 ? 1 - splitRatio : 1, display: 'flex', flexDirection: 'column', minWidth: 100, borderRight: showTree && elementTree.length > 0 ? `1px solid ${colors.border}` : 'none' }}>
+          <Box sx={{ flex: showC4 ? 1 - splitRatio : 1, display: 'flex', flexDirection: 'column', minWidth: 100 }}>
             <Toolbar variant="dense" sx={{ gap: 0.5, bgcolor: colors.bgSecondary, borderBottom: `1px solid ${colors.border}`, minHeight: 36, px: 1, flexShrink: 0 }}>
               <Button size="small" onClick={() => { setMatrixView('dsm'); }} aria-pressed={matrixView === 'dsm'} aria-label="Show DSM matrix" sx={{ ...toolbarButtonSx, fontSize: '0.75rem', ...(matrixView === 'dsm' && { bgcolor: toolbarButtonActiveBg }) }}>DSM</Button>
               <Button size="small" onClick={() => { setMatrixView('fcmap'); }} aria-pressed={matrixView === 'fcmap'} aria-label="Show F-C Map" disabled={!featureMatrix} sx={{ ...toolbarButtonSx, fontSize: '0.75rem', ...(matrixView === 'fcmap' && { bgcolor: toolbarButtonActiveBg }) }}>F-C Map</Button>
@@ -841,23 +857,6 @@ export function C4ViewerCore({
               )}
             </Box>
           </Box>
-        )}
-        {showTree && elementTree.length > 0 && (
-          <C4ElementTree
-            tree={elementTree}
-            dispatch={dispatch}
-            onSelect={handleElementSelect}
-            onCheckedChange={setCheckedPackageIds}
-            visibleC4Ids={visibleC4Ids}
-            onRemoveElement={onRemoveElement}
-            onPurgeDeleted={onPurgeDeleted}
-            docLinks={docLinks}
-            onDocLinkClick={onDocLinkClick}
-            isDark={isDark}
-            exports={exports}
-            selectedExportId={selectedExport?.id ?? null}
-            onExportSelect={handleExportSelect}
-          />
         )}
       </Box>
       <AddElementDialog
