@@ -10,6 +10,7 @@ import type {
   DocLink,
   DsmMatrix,
   FeatureMatrix,
+  ImportanceMatrix,
 } from '@anytime-markdown/trail-core/c4';
 
 // ---------------------------------------------------------------------------
@@ -30,7 +31,7 @@ interface C4DataSourceResult {
   coverageMatrix: CoverageMatrix | null;
   coverageDiff: CoverageDiffMatrix | null;
   complexityMatrix: ComplexityMatrix | null;
-  importanceMatrix: Record<string, number> | null;
+  importanceMatrix: ImportanceMatrix | null;
   docLinks: readonly DocLink[];
   dsmMatrix: DsmMatrix | null;
   connected: boolean;
@@ -156,7 +157,7 @@ function isWsComplexityMessage(v: unknown): v is WsComplexityMessage {
 
 interface WsImportanceMessage {
   type: 'importance-updated';
-  importanceMatrix: Record<string, number>;
+  importanceMatrix: ImportanceMatrix;
 }
 
 function isWsImportanceMessage(v: unknown): v is WsImportanceMessage {
@@ -306,7 +307,7 @@ export function useC4DataSource(serverUrl: string): C4DataSourceResult {
   const [coverageMatrix, setCoverageMatrix] = useState<CoverageMatrix | null>(null);
   const [coverageDiff, setCoverageDiff] = useState<CoverageDiffMatrix | null>(null);
   const [complexityMatrix, setComplexityMatrix] = useState<ComplexityMatrix | null>(null);
-  const [importanceMatrix, setImportanceMatrix] = useState<Record<string, number> | null>(null);
+  const [importanceMatrix, setImportanceMatrix] = useState<ImportanceMatrix | null>(null);
   const [dsmMatrix, setDsmMatrix] = useState<DsmMatrix | null>(null);
   const [docLinks, setDocLinks] = useState<readonly DocLink[]>([]);
   const [connected, setConnected] = useState(false);
