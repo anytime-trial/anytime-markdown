@@ -408,10 +408,18 @@ export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onS
   }, [tree]);
 
 
-  // レベル/ドリル変更時にチェック状態をリセットする
+  // レベル/ドリル変更時にチェック状態と展開状態をリセットする
   useEffect(() => {
     if (resetKey === undefined) return;
     setCheckedIds(resetIds != null ? new Set(resetIds) : collectCheckableIds(tree));
+    if (resetIds != null) {
+      // ドリル時: resetIds に含まれるノードをすべて展開する
+      setExpanded(prev => {
+        const next = new Set(prev);
+        for (const id of resetIds) next.add(id);
+        return next;
+      });
+    }
   // resetIds は resetKey と同時に更新されるため resetKey の変化だけを監視する
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetKey]);
