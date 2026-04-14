@@ -36,6 +36,7 @@ interface C4DataSourceResult {
   dsmMatrix: DsmMatrix | null;
   connected: boolean;
   analysisProgress: AnalysisProgress | null;
+  claudeActivity: ClaudeActivityState | null;
   sendCommand: (cmd: string, payload?: unknown) => void;
   releases: readonly C4ReleaseEntry[];
   selectedRelease: string;
@@ -164,6 +165,27 @@ function isWsImportanceMessage(v: unknown): v is WsImportanceMessage {
   if (typeof v !== 'object' || v === null) return false;
   const obj = v as Record<string, unknown>;
   return obj.type === 'importance-updated' && 'importanceMatrix' in obj;
+}
+
+export interface ClaudeActivityState {
+  readonly activeElementIds: readonly string[];
+  readonly touchedElementIds: readonly string[];
+}
+
+interface WsClaudeActivityMessage {
+  type: 'claude-activity-updated';
+  activeElementIds: string[];
+  touchedElementIds: string[];
+}
+
+function isWsClaudeActivityMessage(v: unknown): v is WsClaudeActivityMessage {
+  if (typeof v !== 'object' || v === null) return false;
+  const obj = v as Record<string, unknown>;
+  return (
+    obj.type === 'claude-activity-updated' &&
+    Array.isArray(obj.activeElementIds) &&
+    Array.isArray(obj.touchedElementIds)
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -312,6 +334,7 @@ export function useC4DataSource(serverUrl: string): C4DataSourceResult {
   const [docLinks, setDocLinks] = useState<readonly DocLink[]>([]);
   const [connected, setConnected] = useState(false);
   const [analysisProgress, setAnalysisProgress] = useState<AnalysisProgress | null>(null);
+  const [claudeActivity, setClaudeActivity] = useState<ClaudeActivityState | null>(null);
   const [releases, setReleases] = useState<readonly C4ReleaseEntry[]>([]);
   const [selectedRelease, setSelectedRelease] = useState<string>('current');
   const [selectedRepo, setSelectedRepo] = useState<string>('');
@@ -358,6 +381,11 @@ export function useC4DataSource(serverUrl: string): C4DataSourceResult {
         setComplexityMatrix(parsed.complexityMatrix);
       } else if (isWsImportanceMessage(parsed)) {
         setImportanceMatrix(parsed.importanceMatrix);
+      } else if (isWsClaudeActivityMessage(parsed)) {
+        setClaudeActivity({
+          activeElementIds: parsed.activeElementIds,
+          touchedElementIds: parsed.touchedElementIds,
+        });
       }
     } catch {
       // Malformed message — ignore
@@ -443,6 +471,7 @@ export function useC4DataSource(serverUrl: string): C4DataSourceResult {
     dsmMatrix,
     connected,
     analysisProgress,
+    claudeActivity,
     sendCommand,
     releases,
     selectedRelease,
