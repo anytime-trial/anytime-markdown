@@ -6,3 +6,4 @@ export { formatLocalDate, formatLocalTime, formatLocalDateTime, toLocalDateKey }
 
 // Domain layer
 export * from './domain';
+export * from './importance';
