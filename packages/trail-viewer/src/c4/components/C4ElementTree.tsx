@@ -303,11 +303,13 @@ interface C4ElementTreeProps {
   readonly onExportSelect?: (symbol: ExportedSymbol) => void;
   readonly selectedExportId?: string | null;
   readonly isDark?: boolean;
-  /** レベル/ドリル変更時にインクリメントされるキー。変化したらcheckedIdsを全チェック状態にリセットする */
+  /** レベル/ドリル変更時にインクリメントされるキー。変化したらcheckedIdsをリセットする */
   readonly resetKey?: number;
+  /** resetKey 変化時にリセットするID集合。null/undefined なら全チェック状態にリセット */
+  readonly resetIds?: ReadonlySet<string> | null;
 }
 
-export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onSelect, onCheckedChange, onRemoveElement, onPurgeDeleted, docLinks, onDocLinkClick, exports, onExportSelect, selectedExportId, isDark, resetKey }) => {
+export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onSelect, onCheckedChange, onRemoveElement, onPurgeDeleted, docLinks, onDocLinkClick, exports, onExportSelect, selectedExportId, isDark, resetKey, resetIds }) => {
   const colors = useMemo(() => getC4Colors(isDark ?? true), [isDark]);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => {
     // デフォルトでルートレベルと system ノードの直下を展開
@@ -406,11 +408,13 @@ export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onS
   }, [tree]);
 
 
-  // レベル/ドリル変更時に全チェック状態にリセットする
+  // レベル/ドリル変更時にチェック状態をリセットする
   useEffect(() => {
     if (resetKey === undefined) return;
-    setCheckedIds(collectCheckableIds(tree));
-  }, [resetKey, tree]);
+    setCheckedIds(resetIds != null ? new Set(resetIds) : collectCheckableIds(tree));
+  // resetIds は resetKey と同時に更新されるため resetKey の変化だけを監視する
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetKey]);
 
   // checkedIds の変更を親に通知（useEffect で render 後に実行）
   useEffect(() => {

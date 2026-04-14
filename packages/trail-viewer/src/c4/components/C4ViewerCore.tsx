@@ -362,7 +362,16 @@ export function C4ViewerCore({
         if (currentLevel < minLevel) {
           setCurrentLevel(minLevel);
         }
+        // ドリル対象の子孫のうちチェック可能なIDのみ checked に設定
+        const CHECKABLE = new Set(['system', 'container', 'containerDb', 'component']);
+        const inScope = new Set<string>();
+        if (CHECKABLE.has(element.type)) inScope.add(element.id);
+        for (const id of collectDescendantIds(c4Model.elements, element.id)) {
+          const el = c4Model.elements.find(e => e.id === id);
+          if (el && CHECKABLE.has(el.type)) inScope.add(id);
+        }
         setCheckedPackageIds(null);
+        setCheckResetIds(inScope);
         setCheckResetKey(prev => prev + 1);
       }
       setContextMenu(null);
@@ -376,6 +385,7 @@ export function C4ViewerCore({
     setDrillStack((prev) => prev.slice(0, -1));
     if (prevLevel !== undefined) setCurrentLevel(prevLevel);
     setCheckedPackageIds(null);
+    setCheckResetIds(null);
     setCheckResetKey(prev => prev + 1);
     setContextMenu(null);
   }, [drillStack]);
@@ -384,6 +394,7 @@ export function C4ViewerCore({
     setCurrentLevel(level);
     setDrillStack([]);
     setCheckedPackageIds(null);
+    setCheckResetIds(null);
     setCheckResetKey(prev => prev + 1);
     if (level <= 2) {
       setDsmLevel('package');
@@ -407,6 +418,7 @@ export function C4ViewerCore({
   }, [c4Model, boundaryInfos, currentLevel]);
 
   const [checkResetKey, setCheckResetKey] = useState(0);
+  const [checkResetIds, setCheckResetIds] = useState<ReadonlySet<string> | null>(null);
 
   const deletedIds = useMemo(() => {
     if (!c4Model) return undefined;
@@ -689,6 +701,7 @@ export function C4ViewerCore({
             onSelect={handleElementSelect}
             onCheckedChange={setCheckedPackageIds}
             resetKey={checkResetKey}
+            resetIds={checkResetIds}
             onRemoveElement={onRemoveElement}
             onPurgeDeleted={onPurgeDeleted}
             docLinks={docLinks}
