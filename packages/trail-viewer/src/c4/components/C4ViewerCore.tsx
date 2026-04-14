@@ -388,6 +388,15 @@ export function C4ViewerCore({
     return filterTreeByLevel(fullTree, currentLevel);
   }, [c4Model, boundaryInfos, currentLevel]);
 
+  const visibleC4Ids = useMemo(() => {
+    const ids = new Set<string>();
+    for (const node of state.document.nodes) {
+      const c4Id = node.metadata?.c4Id as string | undefined;
+      if (c4Id) ids.add(c4Id);
+    }
+    return ids;
+  }, [state.document.nodes]);
+
   const deletedIds = useMemo(() => {
     if (!c4Model) return undefined;
     const ids = new Set<string>();
@@ -823,6 +832,7 @@ export function C4ViewerCore({
             dispatch={dispatch}
             onSelect={handleElementSelect}
             onCheckedChange={setCheckedPackageIds}
+            visibleC4Ids={visibleC4Ids}
             onRemoveElement={onRemoveElement}
             onPurgeDeleted={onPurgeDeleted}
             docLinks={docLinks}

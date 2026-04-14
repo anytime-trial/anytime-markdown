@@ -305,9 +305,11 @@ interface C4ElementTreeProps {
   readonly onExportSelect?: (symbol: ExportedSymbol) => void;
   readonly selectedExportId?: string | null;
   readonly isDark?: boolean;
+  /** 現在図に表示されているC4要素IDのセット。変化したらcheckedIdsをこれに同期する */
+  readonly visibleC4Ids?: ReadonlySet<string>;
 }
 
-export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onSelect, onCheckedChange, onRemoveElement, onPurgeDeleted, docLinks, onDocLinkClick, exports, onExportSelect, selectedExportId, isDark }) => {
+export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onSelect, onCheckedChange, onRemoveElement, onPurgeDeleted, docLinks, onDocLinkClick, exports, onExportSelect, selectedExportId, isDark, visibleC4Ids }) => {
   const colors = useMemo(() => getC4Colors(isDark ?? true), [isDark]);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => {
     // デフォルトでルートレベルと system ノードの直下を展開
@@ -411,6 +413,17 @@ export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onS
   const handleCheckAll = useCallback(() => {
     setCheckedIds(allChecked ? new Set<string>() : new Set(allPackageIds));
   }, [allChecked, allPackageIds]);
+
+  // 図に表示されているIDが変化したらチェック状態を同期する
+  useEffect(() => {
+    if (!visibleC4Ids) return;
+    const checkable = collectCheckableIds(tree);
+    const next = new Set<string>();
+    for (const id of checkable) {
+      if (visibleC4Ids.has(id)) next.add(id);
+    }
+    setCheckedIds(next);
+  }, [visibleC4Ids, tree]);
 
   // checkedIds の変更を親に通知（useEffect で render 後に実行）
   useEffect(() => {
