@@ -331,11 +331,21 @@ export function useCanvasBase(options: UseCanvasBaseOptions): UseCanvasBaseRetur
     e.preventDefault();
     if (!onNodeContextMenu) return;
     const { sx, sy } = screenPos(e);
-    const node = nodeAtScreen(sx, sy);
+    // frame ノードも対象にするため skipFrames を無視した hit test を行う
+    const vp = getViewport();
+    const world = screenToWorld(vp, sx, sy);
+    const nodes = getNodes();
+    let node: GraphNode | undefined;
+    for (let i = nodes.length - 1; i >= 0; i--) {
+      if (hitTestNode(nodes[i], world.x, world.y)) {
+        node = nodes[i];
+        break;
+      }
+    }
     if (node) {
       onNodeContextMenu(node, e.clientX, e.clientY);
     }
-  }, [onNodeContextMenu, screenPos, nodeAtScreen]);
+  }, [onNodeContextMenu, screenPos, getViewport, getNodes]);
 
   // --- Wheel zoom (non-passive) ---
   useEffect(() => {
