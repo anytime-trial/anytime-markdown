@@ -13,7 +13,7 @@ import {
   computeImportanceMatrix,
 } from '@anytime-markdown/trail-core/c4';
 import type { C4Element, C4Model, C4Relationship, BoundaryInfo, ComplexityMatrix, CoverageDiffMatrix, CoverageMatrix, DsmMatrix, FeatureMatrix, ImportanceMatrix, MessageInput } from '@anytime-markdown/trail-core/c4';
-import { analyze, toMermaid } from '@anytime-markdown/trail-core';
+import { analyze, toMermaid, trailToC4 } from '@anytime-markdown/trail-core';
 import type { TrailGraph } from '@anytime-markdown/trail-core';
 import type { C4DataProvider } from '../server/TrailDataServer';
 import type { TrailDataServer } from '../server/TrailDataServer';
@@ -683,7 +683,10 @@ export class C4Panel implements C4DataProvider {
 
   /** tsconfig から ImportanceMatrix を計算してデータサーバーに通知 */
   public buildImportanceMatrix(tsconfigPath: string): void {
-    const elements = this.lastModel?.elements ?? C4Panel.loadSavedModel()?.model.elements;
+    const elements =
+      this.lastModel?.elements ??
+      (this.lastTrailGraph ? trailToC4(this.lastTrailGraph).elements : undefined) ??
+      C4Panel.loadSavedModel()?.model.elements;
     if (!elements || elements.length === 0) {
       TrailLogger.warn('buildImportanceMatrix: no C4 elements available, skipping');
       return;
