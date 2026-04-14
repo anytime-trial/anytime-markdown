@@ -47,10 +47,13 @@ export function computeImportanceMatrix(
     }
   }
 
+  // system タイプを除外: boundary フレームに色が伝播しないようにする
+  const mappableElements = c4Elements.filter((el) => el.type !== 'system');
+
   // ユニークなファイルパスだけ C4 要素にマッピング（要素単位の max）
   const elementScores = new Map<string, number>();
   for (const [filePath, score] of fileScores) {
-    const mappings = mapFilesToC4Elements([filePath], c4Elements);
+    const mappings = mapFilesToC4Elements([filePath], mappableElements);
     for (const mapping of mappings) {
       const current = elementScores.get(mapping.elementId) ?? 0;
       if (score > current) elementScores.set(mapping.elementId, score);
