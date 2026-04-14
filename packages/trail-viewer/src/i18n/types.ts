@@ -164,4 +164,17 @@ export interface TrailI18n {
   'c4.currentRelease': string;
   'c4.drillDown': string;
   'c4.drillUp': string;
+  'c4.overlay.label': string;
+  'c4.overlay.none': string;
+  'c4.overlay.groupCoverage': string;
+  'c4.overlay.groupDsm': string;
+  'c4.overlay.groupComplexity': string;
+  'c4.overlay.coverageLines': string;
+  'c4.overlay.coverageBranches': string;
+  'c4.overlay.coverageFunctions': string;
+  'c4.overlay.dsmOut': string;
+  'c4.overlay.dsmIn': string;
+  'c4.overlay.dsmCyclic': string;
+  'c4.overlay.complexityMost': string;
+  'c4.overlay.complexityHighest': string;
 }

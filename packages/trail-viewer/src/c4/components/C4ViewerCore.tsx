@@ -1,5 +1,5 @@
-import { aggregateDsmToC4ComponentLevel, aggregateDsmToC4ContainerLevel, aggregateDsmToC4SystemLevel, buildElementTree, buildLevelView, c4ToGraphDocument, collectDescendantIds, filterDsmMatrix, filterModelForDrill, filterTreeByLevel, sortDsmMatrixByName } from '@anytime-markdown/trail-core/c4';
-import type { BoundaryInfo, C4Element, C4Model, C4ReleaseEntry, CoverageDiffMatrix, CoverageMatrix, DocLink, DsmMatrix, FeatureMatrix } from '@anytime-markdown/trail-core/c4';
+import { aggregateDsmToC4ComponentLevel, aggregateDsmToC4ContainerLevel, aggregateDsmToC4SystemLevel, buildElementTree, buildLevelView, c4ToGraphDocument, collectDescendantIds, computeColorMap, filterDsmMatrix, filterModelForDrill, filterTreeByLevel, sortDsmMatrixByName } from '@anytime-markdown/trail-core/c4';
+import type { BoundaryInfo, C4Element, C4Model, C4ReleaseEntry, ComplexityMatrix, CoverageDiffMatrix, CoverageMatrix, DocLink, DsmMatrix, FeatureMatrix, MetricOverlay } from '@anytime-markdown/trail-core/c4';
 import type { GraphDocument, GraphNode } from '@anytime-markdown/graph-core';
 import { engine, layoutWithSubgroups, state as graphState } from '@anytime-markdown/graph-core';
 import AddIcon from '@mui/icons-material/Add';
@@ -12,6 +12,7 @@ import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import ButtonGroup from '@mui/material/ButtonGroup';
 import LinearProgress from '@mui/material/LinearProgress';
+import ListSubheader from '@mui/material/ListSubheader';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import type { SelectChangeEvent } from '@mui/material/Select';
@@ -38,6 +39,7 @@ import { DsmCanvas } from './DsmCanvas';
 import { FcMapCanvas } from './FcMapCanvas';
 import { FlowchartCanvas } from './FlowchartCanvas';
 import { GraphCanvas } from './GraphCanvas';
+import { OverlayLegend } from './OverlayLegend';
 
 const { graphReducer, createInitialState } = graphState;
 const { fitToContent } = engine;
@@ -63,6 +65,7 @@ export interface C4ViewerCoreProps {
   readonly dsmMatrix: DsmMatrix | null;
   readonly coverageMatrix: CoverageMatrix | null;
   readonly coverageDiff: CoverageDiffMatrix | null;
+  readonly complexityMatrix?: ComplexityMatrix | null;
   readonly docLinks?: readonly DocLink[];
   readonly connected?: boolean;
   readonly analysisProgress?: { phase: string; percent: number } | null;
@@ -90,6 +93,7 @@ export function C4ViewerCore({
   dsmMatrix,
   coverageMatrix,
   coverageDiff,
+  complexityMatrix,
   docLinks,
   connected,
   analysisProgress,
@@ -190,6 +194,7 @@ export function C4ViewerCore({
   const [showDsm, setShowDsm] = useState(false);
   const [showCoverage, setShowCoverage] = useState(false);
   const [matrixView, setMatrixView] = useState<'dsm' | 'fcmap' | 'coverage'>('dsm');
+  const [metricOverlay, setMetricOverlay] = useState<MetricOverlay>('none');
   const [dsmLevel, setDsmLevel] = useState<'component' | 'package'>('component');
   const [dsmClustered, setDsmClustered] = useState(false);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
@@ -431,24 +436,6 @@ export function C4ViewerCore({
     return ids.size > 0 ? ids : undefined;
   }, [c4Model]);
 
-  const coverageMap = useMemo(() => {
-    if (!showCoverage || !coverageMatrix) return null;
-    const map = new Map<string, number>();
-    for (const entry of coverageMatrix.entries) {
-      map.set(entry.elementId, entry.lines.pct);
-    }
-    return map;
-  }, [showCoverage, coverageMatrix]);
-
-  const coverageDiffMap = useMemo(() => {
-    if (!showCoverage || !coverageDiff) return null;
-    const map = new Map<string, number>();
-    for (const entry of coverageDiff.entries) {
-      map.set(entry.elementId, entry.lines.pctDelta);
-    }
-    return map;
-  }, [showCoverage, coverageDiff]);
-
   const filteredDsmMatrix = useMemo(() => {
     if (!dsmMatrix) return null;
     let m = dsmMatrix;
@@ -465,6 +452,23 @@ export function C4ViewerCore({
     }
     return m;
   }, [dsmMatrix, currentLevel, c4Model, checkedPackageIds]);
+
+  const overlayMap = useMemo(
+    () => computeColorMap(metricOverlay, coverageMatrix, filteredDsmMatrix, complexityMatrix ?? null),
+    [metricOverlay, coverageMatrix, filteredDsmMatrix, complexityMatrix],
+  );
+
+  const dsmMax = useMemo(() => {
+    if ((metricOverlay !== 'dsm-out' && metricOverlay !== 'dsm-in') || !filteredDsmMatrix) return undefined;
+    let max = 0;
+    for (let i = 0; i < filteredDsmMatrix.nodes.length; i++) {
+      const count = metricOverlay === 'dsm-out'
+        ? filteredDsmMatrix.adjacency[i].reduce((s: number, v: number) => s + (v > 0 ? 1 : 0), 0)
+        : filteredDsmMatrix.adjacency.reduce((s: number, row: readonly number[]) => s + (row[i] > 0 ? 1 : 0), 0);
+      if (count > max) max = count;
+    }
+    return max;
+  }, [metricOverlay, filteredDsmMatrix]);
 
   const excludedDescendantIds = useMemo(() => {
     if (!c4Model || !checkedPackageIds) return null;
@@ -613,6 +617,38 @@ export function C4ViewerCore({
         </ButtonGroup>
         <Button size="small" startIcon={<FitScreenIcon sx={{ fontSize: 16 }} />} onClick={handleFit} sx={{ ...toolbarButtonSx, ml: 0.5 }} aria-label="Fit">Fit</Button>
         <Box sx={{ flex: 1 }} />
+        {/* 指標オーバーレイ ドロップダウン */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 1 }}>
+          <Typography variant="caption" sx={{ fontSize: '0.7rem', color: colors.textMuted, whiteSpace: 'nowrap' }}>
+            {t('c4.overlay.label')}:
+          </Typography>
+          <Select
+            size="small"
+            value={metricOverlay}
+            onChange={(e) => { setMetricOverlay(e.target.value as MetricOverlay); }}
+            sx={{ fontSize: '0.75rem', height: 24, '.MuiSelect-select': { py: 0, px: 1 } }}
+            aria-label={t('c4.overlay.label')}
+          >
+            <MenuItem value="none" sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.none')}</MenuItem>
+            <ListSubheader sx={{ fontSize: '0.65rem', lineHeight: '24px', bgcolor: 'transparent' }}>
+              {t('c4.overlay.groupCoverage')}
+            </ListSubheader>
+            <MenuItem value="coverage-lines" disabled={!coverageMatrix} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.coverageLines')}</MenuItem>
+            <MenuItem value="coverage-branches" disabled={!coverageMatrix} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.coverageBranches')}</MenuItem>
+            <MenuItem value="coverage-functions" disabled={!coverageMatrix} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.coverageFunctions')}</MenuItem>
+            <ListSubheader sx={{ fontSize: '0.65rem', lineHeight: '24px', bgcolor: 'transparent' }}>
+              {t('c4.overlay.groupDsm')}
+            </ListSubheader>
+            <MenuItem value="dsm-out" disabled={!filteredDsmMatrix} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.dsmOut')}</MenuItem>
+            <MenuItem value="dsm-in" disabled={!filteredDsmMatrix} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.dsmIn')}</MenuItem>
+            <MenuItem value="dsm-cyclic" disabled={!filteredDsmMatrix} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.dsmCyclic')}</MenuItem>
+            <ListSubheader sx={{ fontSize: '0.65rem', lineHeight: '24px', bgcolor: 'transparent' }}>
+              {t('c4.overlay.groupComplexity')}
+            </ListSubheader>
+            <MenuItem value="complexity-most" disabled={!complexityMatrix} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.complexityMost')}</MenuItem>
+            <MenuItem value="complexity-highest" disabled={!complexityMatrix} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.complexityHighest')}</MenuItem>
+          </Select>
+        </Box>
         <Button size="small" onClick={() => { if (showC4 && !showDsm) { setShowDsm(true); } else { setShowC4(true); setShowDsm(false); } }} aria-pressed={showC4 && !showDsm} aria-label="Toggle C4 graph" sx={{ ...toolbarButtonSx, ...(showC4 && !showDsm && { bgcolor: toolbarButtonActiveBg }) }}>C4</Button>
         <Button size="small" onClick={() => { if (!showC4 && showDsm) { setShowC4(true); } else { setShowC4(false); setShowDsm(true); } }} aria-pressed={!showC4 && showDsm} aria-label="Toggle matrix panel" sx={{ ...toolbarButtonSx, ...(!showC4 && showDsm && { bgcolor: toolbarButtonActiveBg }) }}>Matrix</Button>
         {selectedExport && (
@@ -729,8 +765,7 @@ export function C4ViewerCore({
                 canvasRef={canvasRef}
                 selectedNodeId={selectedElementId ? (state.document.nodes.find(n => n.metadata?.c4Id === selectedElementId)?.id ?? null) : null}
                 centerOnSelect={centerOnSelect}
-                coverageMap={coverageMap}
-                coverageDiffMap={coverageDiffMap}
+                overlayMap={overlayMap.size > 0 ? overlayMap : null}
                 onNodeSelect={(id) => { setCenterOnSelect(false); setSelectedElementId(id); }}
                 onNodeDoubleClick={(nodeId) => {
                   if (!c4Model) return;
@@ -741,6 +776,7 @@ export function C4ViewerCore({
                 }}
                 onNodeContextMenu={handleNodeContextMenu}
               />
+              <OverlayLegend overlay={metricOverlay} isDark={isDark} dsmMax={dsmMax} />
               {showContextMenu && contextMenu && (
                 <>
                   {/* オーバーレイ: メニュー外クリックで閉じる */}

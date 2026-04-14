@@ -4,6 +4,7 @@ import type {
   BoundaryInfo,
   C4Model,
   C4ReleaseEntry,
+  ComplexityMatrix,
   CoverageDiffMatrix,
   CoverageMatrix,
   DocLink,
@@ -28,6 +29,7 @@ interface C4DataSourceResult {
   featureMatrix: FeatureMatrix | null;
   coverageMatrix: CoverageMatrix | null;
   coverageDiff: CoverageDiffMatrix | null;
+  complexityMatrix: ComplexityMatrix | null;
   docLinks: readonly DocLink[];
   dsmMatrix: DsmMatrix | null;
   connected: boolean;
@@ -71,6 +73,11 @@ interface WsCoverageMessage {
 interface WsCoverageDiffMessage {
   type: 'coverage-diff-updated';
   coverageDiff: CoverageDiffMatrix;
+}
+
+interface WsComplexityMessage {
+  type: 'complexity-updated';
+  complexityMatrix: ComplexityMatrix;
 }
 
 // ---------------------------------------------------------------------------
@@ -138,6 +145,12 @@ function isWsCoverageDiffMessage(v: unknown): v is WsCoverageDiffMessage {
   if (typeof v !== 'object' || v === null) return false;
   const obj = v as Record<string, unknown>;
   return obj.type === 'coverage-diff-updated' && 'coverageDiff' in obj;
+}
+
+function isWsComplexityMessage(v: unknown): v is WsComplexityMessage {
+  if (typeof v !== 'object' || v === null) return false;
+  const obj = v as Record<string, unknown>;
+  return obj.type === 'complexity-updated' && 'complexityMatrix' in obj;
 }
 
 // ---------------------------------------------------------------------------
@@ -280,6 +293,7 @@ export function useC4DataSource(serverUrl: string): C4DataSourceResult {
   const [featureMatrix, setFeatureMatrix] = useState<FeatureMatrix | null>(null);
   const [coverageMatrix, setCoverageMatrix] = useState<CoverageMatrix | null>(null);
   const [coverageDiff, setCoverageDiff] = useState<CoverageDiffMatrix | null>(null);
+  const [complexityMatrix, setComplexityMatrix] = useState<ComplexityMatrix | null>(null);
   const [dsmMatrix, setDsmMatrix] = useState<DsmMatrix | null>(null);
   const [docLinks, setDocLinks] = useState<readonly DocLink[]>([]);
   const [connected, setConnected] = useState(false);
@@ -326,6 +340,8 @@ export function useC4DataSource(serverUrl: string): C4DataSourceResult {
         setCoverageMatrix(parsed.coverageMatrix);
       } else if (isWsCoverageDiffMessage(parsed)) {
         setCoverageDiff(parsed.coverageDiff);
+      } else if (isWsComplexityMessage(parsed)) {
+        setComplexityMatrix(parsed.complexityMatrix);
       }
     } catch {
       // Malformed message — ignore
@@ -405,6 +421,7 @@ export function useC4DataSource(serverUrl: string): C4DataSourceResult {
     featureMatrix,
     coverageMatrix,
     coverageDiff,
+    complexityMatrix,
     docLinks,
     dsmMatrix,
     connected,

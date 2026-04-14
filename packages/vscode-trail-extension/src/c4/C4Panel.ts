@@ -9,8 +9,9 @@ import {
   parseCoverage,
   aggregateCoverage,
   computeCoverageDiff,
+  computeComplexityMatrix,
 } from '@anytime-markdown/trail-core/c4';
-import type { C4Element, C4Model, C4Relationship, BoundaryInfo, CoverageDiffMatrix, CoverageMatrix, DsmMatrix, FeatureMatrix } from '@anytime-markdown/trail-core/c4';
+import type { C4Element, C4Model, C4Relationship, BoundaryInfo, ComplexityMatrix, CoverageDiffMatrix, CoverageMatrix, DsmMatrix, FeatureMatrix, MessageInput } from '@anytime-markdown/trail-core/c4';
 import { analyze, toMermaid } from '@anytime-markdown/trail-core';
 import type { TrailGraph } from '@anytime-markdown/trail-core';
 import type { C4DataProvider } from '../server/TrailDataServer';
@@ -40,6 +41,7 @@ export class C4Panel implements C4DataProvider {
   private dsmLevel: 'component' | 'package' = 'component';
   private lastCoverageMatrix: CoverageMatrix | undefined;
   private lastCoverageDiff: CoverageDiffMatrix | undefined;
+  private lastComplexityMatrix: ComplexityMatrix | undefined;
   private coverageHistory: CoverageHistory | undefined;
   private coverageWatcher: CoverageWatcher | undefined;
 
@@ -91,6 +93,7 @@ export class C4Panel implements C4DataProvider {
   public get currentDsmLevel(): 'component' | 'package' { return this.dsmLevel; }
   public get coverageMatrix(): CoverageMatrix | undefined { return this.lastCoverageMatrix; }
   public get coverageDiff(): CoverageDiffMatrix | undefined { return this.lastCoverageDiff; }
+  public get complexityMatrix(): ComplexityMatrix | undefined { return this.lastComplexityMatrix; }
   public get trailGraph(): TrailGraph | undefined { return this.lastTrailGraph; }
 
   public handleSetDsmLevel(level: 'component' | 'package'): void {
@@ -597,6 +600,38 @@ export class C4Panel implements C4DataProvider {
     this.buildDsm();
     void vscode.commands.executeCommand('setContext', 'anytimeTrail.c4ModelLoaded', true);
     C4Panel.dataServer?.notify('model-updated');
+    this.computeAndCacheComplexity();
+  }
+
+  /** メッセージ履歴から複雑度マトリクスを計算してキャッシュ */
+  private computeAndCacheComplexity(): void {
+    if (!this.lastModel || !C4Panel.trailDb) return;
+    try {
+      const rows = C4Panel.trailDb.getAllAssistantMessages();
+      const inputs: MessageInput[] = rows.map(row => {
+        let toolCallNames: string[] = [];
+        let editedFilePaths: string[] = [];
+        if (row.tool_calls) {
+          try {
+            const calls = JSON.parse(row.tool_calls) as { name?: string; input?: Record<string, unknown> }[];
+            if (Array.isArray(calls)) {
+              toolCallNames = calls.map(c => c.name ?? '').filter(Boolean);
+              editedFilePaths = calls
+                .filter(c => c.name === 'Edit' || c.name === 'Write')
+                .map(c => (typeof c.input?.file_path === 'string' ? c.input.file_path : ''))
+                .filter(Boolean);
+            }
+          } catch {
+            TrailLogger.warn(`Failed to parse tool_calls JSON`);
+          }
+        }
+        return { outputTokens: row.output_tokens, toolCallNames, editedFilePaths };
+      });
+      this.lastComplexityMatrix = computeComplexityMatrix(inputs, this.lastModel.elements);
+      C4Panel.dataServer?.notify('complexity-updated');
+    } catch (err) {
+      TrailLogger.warn(`Failed to compute complexity: ${(err as Error).message}`);
+    }
   }
 
   /** DSM データをビルドしてデータサーバーに通知 */

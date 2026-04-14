@@ -122,6 +122,7 @@ export function TrailViewerApp({
     dsmMatrix: c4.dsmMatrix,
     coverageMatrix: c4.coverageMatrix,
     coverageDiff: c4.coverageDiff,
+    complexityMatrix: c4.complexityMatrix,
     docLinks: c4.docLinks,
     connected: c4.connected,
     analysisProgress: c4.analysisProgress,

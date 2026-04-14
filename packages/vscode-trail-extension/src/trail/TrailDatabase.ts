@@ -622,6 +622,24 @@ export class TrailDatabase {
     return getSqliteTzOffset();
   }
 
+  /** 全セッションの全アシスタントメッセージ（tool_calls あり）を取得する */
+  getAllAssistantMessages(): Pick<MessageRow, 'tool_calls' | 'output_tokens'>[] {
+    try {
+      const db = this.ensureDb();
+      const result = db.exec(
+        `SELECT tool_calls, output_tokens FROM messages WHERE type = 'assistant' AND tool_calls IS NOT NULL`,
+      );
+      if (!result[0]) return [];
+      return result[0].values.map(row => ({
+        tool_calls: row[0] != null ? String(row[0]) : null,
+        output_tokens: Number(row[1]),
+      }));
+    } catch (err) {
+      TrailLogger.warn(`getAllAssistantMessages failed: ${(err as Error).message}`);
+      return [];
+    }
+  }
+
   getSessionCosts(sessionId: string): readonly {
     model: string;
     input_tokens: number;
