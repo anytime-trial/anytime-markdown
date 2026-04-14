@@ -50,3 +50,8 @@ export { computeCoverageDiff } from './coverage/computeCoverageDiff';
 
 export { fetchC4Model, fetchC4ModelEntries } from './c4ModelService';
 export type { C4ModelPayload } from './c4ModelService';
+
+export type { MetricOverlay, ComplexityClass, ComplexityEntry, ComplexityMatrix } from './types';
+export { computeColorMap } from './metrics/computeColorMap';
+export type { MessageInput } from './metrics/computeComplexityMatrix';
+export { computeComplexityMatrix } from './metrics/computeComplexityMatrix';
