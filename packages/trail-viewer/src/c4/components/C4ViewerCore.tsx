@@ -469,8 +469,16 @@ export function C4ViewerCore({
     } else if (currentLevel === 3 && c4Model) {
       m = aggregateDsmToC4ComponentLevel(dsmMatrix, c4Model.elements);
     }
-    return sortDsmMatrixByName(m);
-  }, [dsmMatrix, currentLevel, c4Model]);
+    m = sortDsmMatrixByName(m);
+    if (checkedPackageIds) {
+      const keepIndices: number[] = [];
+      m.nodes.forEach((n, i) => { if (checkedPackageIds.has(n.id)) keepIndices.push(i); });
+      const filteredNodes = keepIndices.map(i => m.nodes[i]);
+      const filteredAdjacency = keepIndices.map(ri => keepIndices.map(ci => m.adjacency[ri][ci]));
+      m = { nodes: filteredNodes, edges: m.edges, adjacency: filteredAdjacency };
+    }
+    return m;
+  }, [dsmMatrix, currentLevel, c4Model, checkedPackageIds]);
 
   const excludedDescendantIds = useMemo(() => {
     if (!c4Model || !checkedPackageIds) return null;
