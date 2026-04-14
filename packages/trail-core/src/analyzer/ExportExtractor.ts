@@ -39,9 +39,15 @@ export class ExportExtractor {
       out.push({ id: `${filePath}::${node.name.text}`, name: node.name.text, kind: 'function', filePath, line });
     } else if (ts.isVariableStatement(node)) {
       for (const decl of node.declarationList.declarations) {
-        if (ts.isIdentifier(decl.name)) {
-          out.push({ id: `${filePath}::${decl.name.text}`, name: decl.name.text, kind: 'variable', filePath, line });
+        if (!ts.isIdentifier(decl.name)) continue;
+        const isFunc = decl.initializer !== undefined && (
+          ts.isArrowFunction(decl.initializer) || ts.isFunctionExpression(decl.initializer)
+        );
+        if (isFunc) {
+          // アロー関数・関数式は function として扱う
+          out.push({ id: `${filePath}::${decl.name.text}`, name: decl.name.text, kind: 'function', filePath, line });
         }
+        // 純粋な定数（値のみ）はフローがないためスキップ
       }
     } else if (ts.isClassDeclaration(node) && node.name) {
       out.push({ id: `${filePath}::${node.name.text}`, name: node.name.text, kind: 'class', filePath, line });

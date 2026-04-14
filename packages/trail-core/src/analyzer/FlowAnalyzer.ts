@@ -13,7 +13,7 @@ export class FlowAnalyzer {
    */
   static buildControlFlow(
     sf: ts.SourceFile,
-    funcNode: ts.FunctionDeclaration | ts.MethodDeclaration | ts.ArrowFunction,
+    funcNode: ts.FunctionDeclaration | ts.MethodDeclaration | ts.ArrowFunction | ts.FunctionExpression,
   ): FlowGraph {
     nodeCounter = 0;
     const nodes: FlowNode[] = [];
@@ -24,7 +24,7 @@ export class FlowAnalyzer {
     nodes.push({ id: startId, label: 'start', kind: 'start' });
     nodes.push({ id: endId, label: 'end', kind: 'end' });
 
-    const body = ts.isFunctionDeclaration(funcNode) || ts.isMethodDeclaration(funcNode)
+    const body = ts.isFunctionDeclaration(funcNode) || ts.isMethodDeclaration(funcNode) || ts.isFunctionExpression(funcNode)
       ? funcNode.body
       : ts.isBlock(funcNode.body) ? funcNode.body : undefined;
 

@@ -15,18 +15,34 @@ export function createSourceFile(fileName: string, content: string): ts.SourceFi
 }
 
 /**
- * SourceFile から指定名の FunctionDeclaration を検索する。
+ * SourceFile から指定名の関数ノードを検索する。
+ * FunctionDeclaration / アロー関数 / FunctionExpression に対応。
  * @param sf 対象 SourceFile
  * @param funcName 関数名
  */
 export function findFunctionNode(
   sf: ts.SourceFile,
   funcName: string,
-): ts.FunctionDeclaration | undefined {
-  let result: ts.FunctionDeclaration | undefined;
+): ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpression | undefined {
+  let result: ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpression | undefined;
   ts.forEachChild(sf, node => {
     if (ts.isFunctionDeclaration(node) && node.name?.text === funcName) {
       result = node;
+      return;
+    }
+    // export const funcName = (...) => { ... } / function(...) { ... }
+    if (ts.isVariableStatement(node)) {
+      for (const decl of node.declarationList.declarations) {
+        if (
+          ts.isIdentifier(decl.name) &&
+          decl.name.text === funcName &&
+          decl.initializer !== undefined &&
+          (ts.isArrowFunction(decl.initializer) || ts.isFunctionExpression(decl.initializer))
+        ) {
+          result = decl.initializer;
+          return;
+        }
+      }
     }
   });
   return result;
