@@ -93,6 +93,46 @@ export class TypeScriptAdapter implements ILanguageAdapter {
     return this.program;
   }
 
+  /**
+   * プログラム全体の CallExpression を走査し、関数ID → 呼び出し回数 のマップを返す。
+   * エイリアス（import した別名）も型チェッカーで解決する。
+   */
+  computeFanInMap(): Map<string, number> {
+    const checker = this.program.getTypeChecker();
+    const fanInMap = new Map<string, number>();
+
+    for (const sourceFile of this.program.getSourceFiles()) {
+      if (sourceFile.isDeclarationFile || sourceFile.fileName.includes('node_modules')) continue;
+      this.countCallsInNode(sourceFile, checker, fanInMap);
+    }
+
+    return fanInMap;
+  }
+
+  private countCallsInNode(node: ts.Node, checker: ts.TypeChecker, map: Map<string, number>): void {
+    if (ts.isCallExpression(node)) {
+      let symbol = checker.getSymbolAtLocation(node.expression);
+      // import エイリアスを解決
+      if (symbol && (symbol.flags & ts.SymbolFlags.Alias)) {
+        symbol = checker.getAliasedSymbol(symbol);
+      }
+      if (symbol) {
+        for (const decl of symbol.getDeclarations() ?? []) {
+          if (!this.isFunctionLike(decl) || !this.hasFunctionName(decl)) continue;
+          const sf = decl.getSourceFile();
+          if (sf.isDeclarationFile || sf.fileName.includes('node_modules')) continue;
+          const relPath = path.relative(process.cwd(), sf.fileName);
+          const name = this.getFunctionName(decl as FunctionLikeNode);
+          if (name) {
+            const id = `file::${relPath}::${name}`;
+            map.set(id, (map.get(id) ?? 0) + 1);
+          }
+        }
+      }
+    }
+    ts.forEachChild(node, child => this.countCallsInNode(child, checker, map));
+  }
+
   extractFunctions(filePaths: string[]): FunctionInfo[] {
     const results: FunctionInfo[] = [];
     const absolutePaths = new Set(filePaths.map(p => path.resolve(p)));

@@ -13,4 +13,10 @@ export interface ILanguageAdapter {
 
   /** fanIn を除くメトリクスを計算する */
   computeMetrics(fn: FunctionInfo): Omit<FunctionMetrics, 'fanIn'>;
+
+  /**
+   * プログラム全体の CallExpression を走査し、関数ID → 呼び出し回数 のマップを返す。
+   * 実装できない場合は省略可（省略時は fanIn=0 として扱われる）。
+   */
+  computeFanInMap?(): Map<string, number>;
 }

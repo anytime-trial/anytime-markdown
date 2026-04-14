@@ -22,11 +22,12 @@ export class ImportanceAnalyzer {
    */
   analyze(filePaths: string[]): ScoredFunction[] {
     const functions = this.adapter.extractFunctions(filePaths);
+    const fanInMap = this.adapter.computeFanInMap?.() ?? new Map<string, number>();
 
     const metricsMap = new Map<string, FunctionMetrics>();
     for (const fn of functions) {
       const partial = this.adapter.computeMetrics(fn);
-      metricsMap.set(fn.id, { ...partial, fanIn: 0 });
+      metricsMap.set(fn.id, { ...partial, fanIn: fanInMap.get(fn.id) ?? 0 });
     }
 
     return this.scorer.scoreAll(functions, metricsMap);
