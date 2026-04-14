@@ -27,15 +27,22 @@ export function computeImportanceMatrix(
   const analyzer = new ImportanceAnalyzer(adapter);
   const scored = analyzer.analyze(allSourceFiles);
 
-  // 関数ファイルパス → C4 要素IDへのマッピング（max 集約）
-  const elementScores = new Map<string, number>();
+  // 関数スコアをファイルパスごとに集約（ファイル単位の max）
+  const fileScores = new Map<string, number>();
   for (const fn of scored) {
-    const mappings = mapFilesToC4Elements([fn.filePath], c4Elements);
+    const current = fileScores.get(fn.filePath) ?? 0;
+    if (fn.importanceScore > current) {
+      fileScores.set(fn.filePath, fn.importanceScore);
+    }
+  }
+
+  // ユニークなファイルパスだけ C4 要素にマッピング（要素単位の max）
+  const elementScores = new Map<string, number>();
+  for (const [filePath, score] of fileScores) {
+    const mappings = mapFilesToC4Elements([filePath], c4Elements);
     for (const mapping of mappings) {
       const current = elementScores.get(mapping.elementId) ?? 0;
-      if (fn.importanceScore > current) {
-        elementScores.set(mapping.elementId, fn.importanceScore);
-      }
+      if (score > current) elementScores.set(mapping.elementId, score);
     }
   }
 
