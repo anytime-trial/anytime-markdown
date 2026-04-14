@@ -384,6 +384,7 @@ export async function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate(): void {
+	C4Panel.disposeClaudeWatcher();
 	trailDataServer?.stop().catch((err) => TrailLogger.error('Failed to stop trail data server', err));
 	trailDb?.close();
 	TrailLogger.dispose();
