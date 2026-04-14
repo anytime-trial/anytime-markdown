@@ -187,7 +187,7 @@ export function C4ViewerCore({
   const [dsmLevel, setDsmLevel] = useState<'component' | 'package'>('component');
   const [dsmClustered, setDsmClustered] = useState(false);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
-  const [drillStack, setDrillStack] = useState<readonly C4Element[]>([]);
+  const [drillStack, setDrillStack] = useState<readonly { readonly element: C4Element; readonly prevLevel: number }[]>([]);
   const [contextMenu, setContextMenu] = useState<{
     readonly x: number;
     readonly y: number;
@@ -292,7 +292,7 @@ export function C4ViewerCore({
     }
 
     // ドリル状態に応じてモデルをフィルタリング
-    const currentDrillRoot = drillStack.at(-1) ?? null;
+    const currentDrillRoot = drillStack.at(-1)?.element ?? null;
     const filteredModel = currentDrillRoot
       ? filterModelForDrill(c4Model, currentDrillRoot.id)
       : c4Model;
@@ -336,9 +336,10 @@ export function C4ViewerCore({
       if (!c4Model) return;
       const element = c4Model.elements.find(e => e.id === c4Id);
       if (element) {
-        setDrillStack((prev) => [...prev, element]);
-        // 子要素が表示されるよう必要なら自動でレベルを上げる
+        // ドリル前のレベルを保存し、子要素が表示される最低レベルへ自動調整
+        const prevLevel = currentLevel;
         const minLevel = drillTargetLevel(element.type);
+        setDrillStack((prev) => [...prev, { element, prevLevel }]);
         if (currentLevel < minLevel) {
           setCurrentLevel(minLevel);
         }
@@ -350,9 +351,11 @@ export function C4ViewerCore({
 
   /** ドリルアップ: 前の表示に戻る */
   const handleDrillUp = useCallback(() => {
+    const prevLevel = drillStack.at(-1)?.prevLevel;
     setDrillStack((prev) => prev.slice(0, -1));
+    if (prevLevel !== undefined) setCurrentLevel(prevLevel);
     setContextMenu(null);
-  }, []);
+  }, [drillStack]);
 
   const handleSetLevel = useCallback((level: number) => {
     if (!fullDoc) return;
@@ -501,7 +504,7 @@ export function C4ViewerCore({
   // boundaryId で親子関係が表現されているため、children ではなく boundaryId で子の有無を判定する
   // 現在のドリルルートへの再ドリルは防ぐ
   const canDrillDown = contextMenu !== null &&
-    drillStack.at(-1)?.id !== contextMenu.c4Id &&
+    drillStack.at(-1)?.element.id !== contextMenu.c4Id &&
     (c4Model?.elements.some(e => e.boundaryId === contextMenu.c4Id) ?? false);
   const canDrillUp = drillStack.length > 0;
   const showContextMenu = contextMenu !== null && (canDrillDown || canDrillUp);
