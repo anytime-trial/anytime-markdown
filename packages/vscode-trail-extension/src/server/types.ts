@@ -7,6 +7,7 @@ import type {
   DocLink,
   DsmMatrix,
   FeatureMatrix,
+  ImportanceMatrix,
 } from '@anytime-markdown/trail-core/c4';
 
 // ---------------------------------------------------------------------------
@@ -55,7 +56,7 @@ export interface ComplexityUpdatedMessage {
 
 export interface ImportanceUpdatedMessage {
   readonly type: 'importance-updated';
-  readonly importanceMatrix: Record<string, number>;
+  readonly importanceMatrix: ImportanceMatrix;
 }
 
 export type ServerMessage = ModelUpdatedMessage | DsmUpdatedMessage | AnalysisProgressMessage | DocLinksUpdatedMessage | CoverageUpdatedMessage | CoverageDiffUpdatedMessage | ComplexityUpdatedMessage | ImportanceUpdatedMessage;

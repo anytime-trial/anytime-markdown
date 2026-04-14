@@ -19,6 +19,7 @@ import type {
   DocLink,
   DsmMatrix,
   FeatureMatrix,
+  ImportanceMatrix,
 } from '@anytime-markdown/trail-core/c4';
 import type { TrailGraph } from '@anytime-markdown/trail-core';
 import { WebSocketServer, type WebSocket } from 'ws';
@@ -61,7 +62,7 @@ export interface C4DataProvider {
   readonly coverageMatrix: CoverageMatrix | undefined;
   readonly coverageDiff: CoverageDiffMatrix | undefined;
   readonly complexityMatrix: ComplexityMatrix | undefined;
-  readonly importanceMatrix: Record<string, number> | undefined;
+  readonly importanceMatrix: ImportanceMatrix | undefined;
   readonly trailGraph: TrailGraph | undefined;
   handleSetDsmLevel(level: 'component' | 'package'): void;
   handleCluster(enabled: boolean): void;

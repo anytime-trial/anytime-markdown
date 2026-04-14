@@ -12,7 +12,7 @@ import {
   computeComplexityMatrix,
   computeImportanceMatrix,
 } from '@anytime-markdown/trail-core/c4';
-import type { C4Element, C4Model, C4Relationship, BoundaryInfo, ComplexityMatrix, CoverageDiffMatrix, CoverageMatrix, DsmMatrix, FeatureMatrix, MessageInput } from '@anytime-markdown/trail-core/c4';
+import type { C4Element, C4Model, C4Relationship, BoundaryInfo, ComplexityMatrix, CoverageDiffMatrix, CoverageMatrix, DsmMatrix, FeatureMatrix, ImportanceMatrix, MessageInput } from '@anytime-markdown/trail-core/c4';
 import { analyze, toMermaid } from '@anytime-markdown/trail-core';
 import type { TrailGraph } from '@anytime-markdown/trail-core';
 import type { C4DataProvider } from '../server/TrailDataServer';
@@ -43,7 +43,7 @@ export class C4Panel implements C4DataProvider {
   private lastCoverageMatrix: CoverageMatrix | undefined;
   private lastCoverageDiff: CoverageDiffMatrix | undefined;
   private lastComplexityMatrix: ComplexityMatrix | undefined;
-  private lastImportanceMatrix: Record<string, number> | undefined;
+  private lastImportanceMatrix: ImportanceMatrix | undefined;
   private coverageHistory: CoverageHistory | undefined;
   private coverageWatcher: CoverageWatcher | undefined;
 
@@ -96,7 +96,7 @@ export class C4Panel implements C4DataProvider {
   public get coverageMatrix(): CoverageMatrix | undefined { return this.lastCoverageMatrix; }
   public get coverageDiff(): CoverageDiffMatrix | undefined { return this.lastCoverageDiff; }
   public get complexityMatrix(): ComplexityMatrix | undefined { return this.lastComplexityMatrix; }
-  public get importanceMatrix(): Record<string, number> | undefined { return this.lastImportanceMatrix; }
+  public get importanceMatrix(): ImportanceMatrix | undefined { return this.lastImportanceMatrix; }
   public get trailGraph(): TrailGraph | undefined { return this.lastTrailGraph; }
 
   public handleSetDsmLevel(level: 'component' | 'package'): void {
@@ -605,6 +605,9 @@ export class C4Panel implements C4DataProvider {
     void vscode.commands.executeCommand('setContext', 'anytimeTrail.c4ModelLoaded', true);
     C4Panel.dataServer?.notify('model-updated');
     this.computeAndCacheComplexity();
+    if (this.lastTsconfigPath) {
+      this.buildImportanceMatrix(this.lastTsconfigPath);
+    }
   }
 
   /** メッセージ履歴から複雑度マトリクスを計算してキャッシュ */
