@@ -284,34 +284,51 @@ export function C4ViewerCore({
     return c4Model.elements.find(e => e.id === selectedElementId)?.manual === true;
   }, [selectedElementId, c4Model]);
 
-  // c4Model changes -> rebuild graph document (maintain current level)
-  const currentLevelRef = useRef(currentLevel);
-  currentLevelRef.current = currentLevel;
-  const isInitialLoadRef = useRef(true);
+  // c4Model / drillStack / currentLevel / checkedPackageIds が変化したら図を再構築する
   useEffect(() => {
     if (!c4Model) return;
-    if (isInitialLoadRef.current) {
-      isInitialLoadRef.current = false;
-    }
 
-    // ドリル状態に応じてモデルをフィルタリング
+    // Step1: ドリル状態に応じてモデルをフィルタリング
     const currentDrillRoot = drillStack.at(-1)?.element ?? null;
-    const filteredModel = currentDrillRoot
+    let filteredModel = currentDrillRoot
       ? filterModelForDrill(c4Model, currentDrillRoot.id)
       : c4Model;
 
+    // Step2: チェックボックスによるフィルタリング
+    if (checkedPackageIds) {
+      const CHECKABLE = new Set(['container', 'containerDb', 'component']);
+      const excluded = new Set<string>();
+      for (const elem of filteredModel.elements) {
+        if (CHECKABLE.has(elem.type) && !checkedPackageIds.has(elem.id)) {
+          excluded.add(elem.id);
+          for (const id of collectDescendantIds(filteredModel.elements, elem.id)) {
+            excluded.add(id);
+          }
+        }
+      }
+      if (excluded.size > 0) {
+        filteredModel = {
+          ...filteredModel,
+          elements: filteredModel.elements.filter(e => !excluded.has(e.id)),
+          relationships: filteredModel.relationships.filter(
+            r => !excluded.has(r.from) && !excluded.has(r.to),
+          ),
+        };
+      }
+    }
+
+    // Step3: GraphDocument を構築してレベルフィルタを適用
     const doc = c4ToGraphDocument(filteredModel, boundaryInfos);
     layoutWithSubgroups(doc, 'TB', 180, 60);
     setFullDoc(doc);
-    const level = currentLevelRef.current;
-    if (level < 4) {
-      const view = buildLevelView(doc, level);
+    if (currentLevel < 4) {
+      const view = buildLevelView(doc, currentLevel);
       layoutWithSubgroups(view, 'TB', 180, 60);
       dispatch({ type: 'SET_DOCUMENT', doc: view });
     } else {
       dispatch({ type: 'SET_DOCUMENT', doc });
     }
-  }, [c4Model, boundaryInfos, drillStack]);
+  }, [c4Model, boundaryInfos, drillStack, currentLevel, checkedPackageIds]);
 
   /** 右クリックメニューを表示する */
   const handleNodeContextMenu = useCallback(
@@ -346,6 +363,7 @@ export function C4ViewerCore({
         if (currentLevel < minLevel) {
           setCurrentLevel(minLevel);
         }
+        setCheckedPackageIds(null);
       }
       setContextMenu(null);
     },
@@ -357,22 +375,20 @@ export function C4ViewerCore({
     const prevLevel = drillStack.at(-1)?.prevLevel;
     setDrillStack((prev) => prev.slice(0, -1));
     if (prevLevel !== undefined) setCurrentLevel(prevLevel);
+    setCheckedPackageIds(null);
     setContextMenu(null);
   }, [drillStack]);
 
   const handleSetLevel = useCallback((level: number) => {
-    if (!fullDoc) return;
     setCurrentLevel(level);
     setDrillStack([]);
-    const view = buildLevelView(fullDoc, level);
-    layoutWithSubgroups(view, 'TB', 180, 60);
-    dispatch({ type: 'SET_DOCUMENT', doc: view });
+    setCheckedPackageIds(null);
     if (level <= 2) {
       setDsmLevel('package');
     } else {
       setDsmLevel('component');
     }
-  }, [fullDoc]);
+  }, []);
 
   const handleFit = useCallback(() => {
     const canvas = canvasRef.current;

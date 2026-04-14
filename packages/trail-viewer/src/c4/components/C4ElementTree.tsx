@@ -422,7 +422,11 @@ export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onS
     for (const id of checkable) {
       if (visibleC4Ids.has(id)) next.add(id);
     }
-    setCheckedIds(next);
+    // 内容が同じなら参照を維持してループを防ぐ
+    setCheckedIds(prev => {
+      if (prev.size === next.size && [...next].every(id => prev.has(id))) return prev;
+      return next;
+    });
   }, [visibleC4Ids, tree]);
 
   // checkedIds の変更を親に通知（useEffect で render 後に実行）
