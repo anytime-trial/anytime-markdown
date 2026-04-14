@@ -936,28 +936,52 @@ export class TrailDataServer {
     return { type: 'dsm-updated', matrix };
   }
 
+  /** model / trailGraph をインメモリ優先、なければ SQLite からフォールバック取得 */
+  private async resolveModelAndGraph(): Promise<{ model: import('@anytime-markdown/trail-core/c4').C4Model; graph: import('@anytime-markdown/trail-core').TrailGraph } | null> {
+    const provider = this.getC4Provider?.();
+    let model = provider?.model;
+    let graph = provider?.trailGraph;
+
+    if (!model || !graph) {
+      const repoName = this.gitRoot ? path.basename(this.gitRoot) : undefined;
+      if (!model) {
+        const store = this.trailDb.asC4ModelStore();
+        const payload = await fetchC4Model(store, 'current', repoName, provider?.featureMatrix);
+        if (payload) {
+          model = payload.model;
+        }
+      }
+      if (!graph) {
+        graph = this.trailDb.getCurrentGraph(repoName) ?? undefined;
+      }
+    }
+
+    if (!model || !graph) return null;
+    return { model, graph };
+  }
+
   private async handleC4ExportsEndpoint(
     res: http.ServerResponse,
     componentId: string,
   ): Promise<void> {
     const { ExportExtractor, createSourceFile } = await import('@anytime-markdown/trail-core/analyzer');
     try {
-      const provider = this.getC4Provider?.();
-      const model = provider?.model;
-      const graph = provider?.trailGraph;
+      const resolved = await this.resolveModelAndGraph();
 
-      if (!model || !graph) {
+      if (!resolved) {
+        TrailLogger.warn(`[/api/c4/exports] model or graph not available for componentId=${componentId}`);
         res.writeHead(200, JSON_HEADERS);
         res.end(JSON.stringify({ symbols: [] }));
         return;
       }
 
+      const { model, graph } = resolved;
+
       const { projectRoot } = graph.metadata;
-      const codeElementIds = new Set(
-        model.elements
-          .filter(el => el.type === 'code' && el.boundaryId === componentId)
-          .map(el => el.id),
-      );
+      const codeElements = model.elements.filter(el => el.type === 'code' && el.boundaryId === componentId);
+      TrailLogger.info(`[/api/c4/exports] componentId=${componentId}, codeElements=${codeElements.length}, totalElements=${model.elements.length}`);
+
+      const codeElementIds = new Set(codeElements.map(el => el.id));
 
       const sourceFiles = [];
       for (const node of graph.nodes) {
@@ -971,6 +995,7 @@ export class TrailDataServer {
         }
       }
 
+      TrailLogger.info(`[/api/c4/exports] sourceFiles=${sourceFiles.length}`);
       const symbols = ExportExtractor.extract(sourceFiles, componentId);
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ symbols }));
@@ -990,16 +1015,16 @@ export class TrailDataServer {
     const { FlowAnalyzer, createSourceFile, findFunctionNode } = await import('@anytime-markdown/trail-core/analyzer');
     const EMPTY_GRAPH = { nodes: [], edges: [] };
     try {
-      const provider = this.getC4Provider?.();
-      const model = provider?.model;
-      const graph = provider?.trailGraph;
+      const resolved = await this.resolveModelAndGraph();
 
-      if (!model || !graph) {
+      if (!resolved) {
+        TrailLogger.warn(`[/api/c4/flowchart] model or graph not available for componentId=${componentId}`);
         res.writeHead(200, JSON_HEADERS);
         res.end(JSON.stringify({ graph: EMPTY_GRAPH }));
         return;
       }
 
+      const { model, graph } = resolved;
       const { projectRoot } = graph.metadata;
       const codeElementIds = new Set(
         model.elements
