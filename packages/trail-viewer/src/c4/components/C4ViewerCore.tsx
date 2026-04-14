@@ -460,9 +460,22 @@ export function C4ViewerCore({
     return m;
   }, [dsmMatrix, currentLevel, c4Model, checkedPackageIds]);
 
+  // dsmLevel に合わせて importance スコアを対象タイプに絞る
+  // package レベル → container のみ、component レベル → component のみ
+  const levelFilteredImportanceMatrix = useMemo(() => {
+    if (!importanceMatrix || !c4Model) return importanceMatrix ?? null;
+    const targetType = dsmLevel === 'package' ? 'container' : 'component';
+    const typeById = new Map(c4Model.elements.map((e) => [e.id, e.type]));
+    const filtered: ImportanceMatrix = {};
+    for (const [id, score] of Object.entries(importanceMatrix)) {
+      if (typeById.get(id) === targetType) filtered[id] = score;
+    }
+    return filtered;
+  }, [importanceMatrix, c4Model, dsmLevel]);
+
   const overlayMap = useMemo(
-    () => computeColorMap(metricOverlay, coverageMatrix, filteredDsmMatrix, complexityMatrix ?? null, importanceMatrix ?? null),
-    [metricOverlay, coverageMatrix, filteredDsmMatrix, complexityMatrix, importanceMatrix],
+    () => computeColorMap(metricOverlay, coverageMatrix, filteredDsmMatrix, complexityMatrix ?? null, levelFilteredImportanceMatrix),
+    [metricOverlay, coverageMatrix, filteredDsmMatrix, complexityMatrix, levelFilteredImportanceMatrix],
   );
 
   const claudeActivityMap = useMemo(() => {
