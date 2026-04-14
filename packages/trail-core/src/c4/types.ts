@@ -157,3 +157,42 @@ export interface C4ReleaseEntry {
   readonly tag: string;
   readonly repoName: string | null;
 }
+
+// ---------------------------------------------------------------------------
+//  Metric overlay types
+// ---------------------------------------------------------------------------
+
+/** C4グラフノードに適用できる色分け指標 */
+export type MetricOverlay =
+  | 'none'
+  | 'coverage-lines'
+  | 'coverage-branches'
+  | 'coverage-functions'
+  | 'dsm-out'
+  | 'dsm-in'
+  | 'dsm-cyclic'
+  | 'complexity-most'
+  | 'complexity-highest';
+
+/** 複雑度分類（classifyByFeatures の label に対応） */
+export type ComplexityClass =
+  | 'low-complexity'
+  | 'search-only'
+  | 'multi-file-edit'
+  | 'high-complexity';
+
+/** 要素別複雑度集計エントリ */
+export interface ComplexityEntry {
+  readonly elementId: string;
+  /** 最多分類（同率の場合は高い方を優先） */
+  readonly mostFrequent: ComplexityClass;
+  /** 最高分類（high > multi-file-edit > search-only > low） */
+  readonly highest: ComplexityClass;
+  readonly totalCount: number;
+}
+
+/** 要素別複雑度マトリクス */
+export interface ComplexityMatrix {
+  readonly entries: readonly ComplexityEntry[];
+  readonly generatedAt: number;
+}
