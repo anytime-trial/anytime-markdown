@@ -12,8 +12,6 @@ import UploadFileIcon from '@mui/icons-material/UploadFile';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import ButtonGroup from '@mui/material/ButtonGroup';
-import FormControl from '@mui/material/FormControl';
-import InputLabel from '@mui/material/InputLabel';
 import LinearProgress from '@mui/material/LinearProgress';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
@@ -532,6 +530,21 @@ export function C4ViewerCore({
             Import
           </Button>
         )}
+        {repoOptions.length > 0 && (
+          <Select
+            size="small"
+            value={selectedRepo}
+            onChange={handleRepoChange}
+            sx={{ fontSize: '0.75rem', height: 28, minWidth: 100, mr: 0.5, '& .MuiSelect-select': { py: '2px' } }}
+            aria-label={t('c4.releaseRepository')}
+          >
+            {repoOptions.map((key) => (
+              <MenuItem key={key} value={key} sx={{ fontSize: '0.75rem' }}>
+                {key === UNKNOWN_REPO_KEY ? t('c4.unknownRepo') : key}
+              </MenuItem>
+            ))}
+          </Select>
+        )}
         <ButtonGroup size="small" sx={{ ml: 1 }}>
           {([1, 2, 3, 4] as const).map(level => (
             <Button
@@ -653,25 +666,6 @@ export function C4ViewerCore({
             >
               {t('c4.releases')}
             </Typography>
-            {repoOptions.length > 0 && (
-              <Box sx={{ px: 1, py: 1, borderBottom: `1px solid ${colors.border}`, flexShrink: 0 }}>
-                <FormControl size="small" fullWidth>
-                  <InputLabel id="c4-release-repo-select-label">{t('c4.releaseRepository')}</InputLabel>
-                  <Select
-                    labelId="c4-release-repo-select-label"
-                    value={selectedRepo}
-                    label={t('c4.releaseRepository')}
-                    onChange={handleRepoChange}
-                  >
-                    {repoOptions.map((key) => (
-                      <MenuItem key={key} value={key}>
-                        {key === UNKNOWN_REPO_KEY ? t('c4.unknownRepo') : key}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Box>
-            )}
             <Box sx={{ flex: 1, overflowY: 'auto' }}>
               {visibleReleases.map((entry) => {
                 const id = entry.tag;
