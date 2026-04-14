@@ -48,6 +48,7 @@ export function GraphCanvas({ document, viewport, dispatch, canvasRef, selectedN
     canvasRef,
     getViewport: () => viewportRef.current,
     getNodes: () => nodesRef.current,
+    skipFrames: false,
     setViewport: (vp) => dispatchRef.current({ type: 'SET_VIEWPORT', viewport: vp }),
     setSelection: (sel) => {
       selectionRef.current = sel.nodeIds;
