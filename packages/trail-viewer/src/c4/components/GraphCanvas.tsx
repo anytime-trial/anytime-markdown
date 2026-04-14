@@ -15,6 +15,7 @@ interface C4GraphCanvasProps {
   readonly coverageDiffMap?: ReadonlyMap<string, number> | null;
   readonly onNodeSelect?: (nodeId: string | null) => void;
   readonly onNodeDoubleClick?: (nodeId: string) => void;
+  readonly onNodeContextMenu?: (c4Id: string, x: number, y: number) => void;
   readonly isDark?: boolean;
 }
 
@@ -26,7 +27,7 @@ function coverageColor(pct: number): string {
   return '#c62828';
 }
 
-export function GraphCanvas({ document, viewport, dispatch, canvasRef, selectedNodeId, centerOnSelect, coverageMap, coverageDiffMap, onNodeSelect, onNodeDoubleClick, isDark }: Readonly<C4GraphCanvasProps>) {
+export function GraphCanvas({ document, viewport, dispatch, canvasRef, selectedNodeId, centerOnSelect, coverageMap, coverageDiffMap, onNodeSelect, onNodeDoubleClick, onNodeContextMenu, isDark }: Readonly<C4GraphCanvasProps>) {
   const rafRef = useRef<number>(0);
   const viewportRef = useRef(viewport);
   const dispatchRef = useRef(dispatch);
@@ -67,6 +68,10 @@ export function GraphCanvas({ document, viewport, dispatch, canvasRef, selectedN
         const c4Id = node.metadata?.c4Id as string | undefined;
         onNodeDoubleClick?.(c4Id ?? node.id);
       }
+    },
+    onNodeContextMenu: (node, x, y) => {
+      const c4Id = node.metadata?.c4Id as string | undefined;
+      if (c4Id) onNodeContextMenu?.(c4Id, x, y);
     },
   });
 
