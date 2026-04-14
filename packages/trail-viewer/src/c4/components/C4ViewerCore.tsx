@@ -174,6 +174,10 @@ export function C4ViewerCore({
     onRepoSelect?.(next);
   }, [onRepoSelect]);
 
+  const handleReleaseChange = useCallback((event: SelectChangeEvent<string>): void => {
+    onReleaseSelect?.(event.target.value);
+  }, [onReleaseSelect]);
+
   const [state, dispatch] = useReducer(graphReducer, createInitialState());
   const [fullDoc, setFullDoc] = useState<GraphDocument | null>(null);
   const [currentLevel, setCurrentLevel] = useState<number>(1);
@@ -545,6 +549,21 @@ export function C4ViewerCore({
             ))}
           </Select>
         )}
+        {visibleReleases.length > 0 && (
+          <Select
+            size="small"
+            value={selectedRelease}
+            onChange={handleReleaseChange}
+            sx={{ fontSize: '0.75rem', height: 28, minWidth: 120, mr: 0.5, '& .MuiSelect-select': { py: '2px' } }}
+            aria-label={t('c4.releases')}
+          >
+            {visibleReleases.map((entry) => (
+              <MenuItem key={entry.tag} value={entry.tag} sx={{ fontSize: '0.75rem' }}>
+                {entry.tag === CURRENT_RELEASE_TAG ? t('c4.currentRelease') : entry.tag}
+              </MenuItem>
+            ))}
+          </Select>
+        )}
         <ButtonGroup size="small" sx={{ ml: 1 }}>
           {([1, 2, 3, 4] as const).map(level => (
             <Button
@@ -647,60 +666,6 @@ export function C4ViewerCore({
         </Box>
       )}
       <Box ref={containerRef} sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        {/* リリースパネル */}
-        {releases.length > 0 && (
-          <Box
-            sx={{
-              width: 200,
-              flexShrink: 0,
-              display: 'flex',
-              flexDirection: 'column',
-              borderRight: `1px solid ${colors.border}`,
-              bgcolor: colors.bgSecondary,
-              overflow: 'hidden',
-            }}
-          >
-            <Typography
-              variant="caption"
-              sx={{ px: 1, py: 0.5, color: colors.textMuted, fontWeight: 600, borderBottom: `1px solid ${colors.border}`, flexShrink: 0 }}
-            >
-              {t('c4.releases')}
-            </Typography>
-            <Box sx={{ flex: 1, overflowY: 'auto' }}>
-              {visibleReleases.map((entry) => {
-                const id = entry.tag;
-                return (
-                  <Box
-                    key={id}
-                    role="button"
-                    tabIndex={0}
-                    aria-pressed={id === selectedRelease}
-                    onClick={() => onReleaseSelect?.(id)}
-                    onKeyDown={(e: React.KeyboardEvent) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        onReleaseSelect?.(id);
-                      }
-                    }}
-                    sx={{
-                      px: 1,
-                      py: 0.5,
-                      cursor: 'pointer',
-                      fontSize: '0.75rem',
-                      color: id === selectedRelease ? colors.accent : colors.text,
-                      bgcolor: id === selectedRelease ? colors.focus : 'transparent',
-                      borderLeft: id === selectedRelease ? `2px solid ${colors.accent}` : '2px solid transparent',
-                      '&:hover': { bgcolor: colors.focus },
-                      wordBreak: 'break-all',
-                    }}
-                  >
-                    {id === CURRENT_RELEASE_TAG ? t('c4.currentRelease') : id}
-                  </Box>
-                );
-              })}
-            </Box>
-          </Box>
-        )}
         {/* 既存コンテンツ (C4Graph / Separator / DSM / Tree) */}
         {showC4 && (
           <Box sx={{ flex: showDsm ? splitRatio : 1, display: 'flex', flexDirection: 'column', minWidth: 100 }}>
