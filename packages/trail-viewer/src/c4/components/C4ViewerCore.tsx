@@ -178,10 +178,10 @@ export function C4ViewerCore({
 
   const [state, dispatch] = useReducer(graphReducer, createInitialState());
   const [fullDoc, setFullDoc] = useState<GraphDocument | null>(null);
-  const [currentLevel, setCurrentLevel] = useState<number>(4);
+  const [currentLevel, setCurrentLevel] = useState<number>(1);
   const [showTree, setShowTree] = useState(true);
   const [showC4, setShowC4] = useState(true);
-  const [showDsm, setShowDsm] = useState(true);
+  const [showDsm, setShowDsm] = useState(false);
   const [showCoverage, setShowCoverage] = useState(false);
   const [matrixView, setMatrixView] = useState<'dsm' | 'fcmap' | 'coverage'>('dsm');
   const [dsmLevel, setDsmLevel] = useState<'component' | 'package'>('component');
