@@ -17,6 +17,7 @@
     "packages/cms-core",
     "packages/mcp-cms",
     "packages/mcp-cms-remote",
+    "packages/vscode-common",
     "packages/vscode-markdown-extension",
     "packages/vscode-graph-extension",
     "packages/vscode-trail-extension",
