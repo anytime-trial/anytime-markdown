@@ -18,7 +18,7 @@ const IO_OBJECTS = new Set(['console', 'fs', 'process']);
 const DB_OBJECTS = new Set(['db', 'prisma', 'supabase', 'knex', 'sequelize']);
 
 /** 関数の直接引数のみローカルとみなす */
-function collectLocalNames(funcNode: ts.FunctionLike): Set<string> {
+function collectLocalNames(funcNode: ts.FunctionLikeDeclaration): Set<string> {
   const names = new Set<string>();
   for (const param of funcNode.parameters) {
     if (ts.isIdentifier(param.name)) {
@@ -35,7 +35,7 @@ function isLocalVar(node: ts.Node, localNames: Set<string>): boolean {
 }
 
 export class MutationAnalyzer {
-  static computeDataMutationScore(funcNode: ts.FunctionLike): number {
+  static computeDataMutationScore(funcNode: ts.FunctionLikeDeclaration): number {
     let score = 0;
     const localNames = collectLocalNames(funcNode);
 
@@ -81,7 +81,7 @@ export class MutationAnalyzer {
     return score;
   }
 
-  static computeSideEffectScore(funcNode: ts.FunctionLike): number {
+  static computeSideEffectScore(funcNode: ts.FunctionLikeDeclaration): number {
     let score = 0;
 
     const visit = (node: ts.Node): void => {

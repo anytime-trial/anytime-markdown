@@ -155,7 +155,7 @@ export class TypeScriptAdapter implements ILanguageAdapter {
     };
   }
 
-  private computeCognitiveComplexity(node: ts.FunctionLike): number {
+  private computeCognitiveComplexity(node: ts.FunctionLikeDeclaration): number {
     let count = 0;
     const visit = (n: ts.Node): void => {
       if (COMPLEXITY_NODES.has(n.kind)) count++;
