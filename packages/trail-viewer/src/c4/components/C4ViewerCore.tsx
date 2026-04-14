@@ -1,5 +1,5 @@
-import { aggregateDsmToC4ComponentLevel, aggregateDsmToC4ContainerLevel, aggregateDsmToC4SystemLevel, buildElementTree, buildLevelView, c4ToGraphDocument, collectDescendantIds, filterTreeByLevel, sortDsmMatrixByName } from '@anytime-markdown/trail-core/c4';
-import type { BoundaryInfo, C4Model, C4ReleaseEntry, CoverageDiffMatrix, CoverageMatrix, DocLink, DsmMatrix, FeatureMatrix } from '@anytime-markdown/trail-core/c4';
+import { aggregateDsmToC4ComponentLevel, aggregateDsmToC4ContainerLevel, aggregateDsmToC4SystemLevel, buildElementTree, buildLevelView, c4ToGraphDocument, collectDescendantIds, filterModelForDrill, filterTreeByLevel, sortDsmMatrixByName } from '@anytime-markdown/trail-core/c4';
+import type { BoundaryInfo, C4Element, C4Model, C4ReleaseEntry, CoverageDiffMatrix, CoverageMatrix, DocLink, DsmMatrix, FeatureMatrix } from '@anytime-markdown/trail-core/c4';
 import type { GraphDocument, GraphNode } from '@anytime-markdown/graph-core';
 import { engine, layoutWithSubgroups, state as graphState } from '@anytime-markdown/graph-core';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
@@ -187,6 +187,12 @@ export function C4ViewerCore({
   const [dsmLevel, setDsmLevel] = useState<'component' | 'package'>('component');
   const [dsmClustered, setDsmClustered] = useState(false);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
+  const [drillStack, setDrillStack] = useState<readonly C4Element[]>([]);
+  const [contextMenu, setContextMenu] = useState<{
+    readonly x: number;
+    readonly y: number;
+    readonly c4Id: string;
+  } | null>(null);
   const [checkedPackageIds, setCheckedPackageIds] = useState<ReadonlySet<string> | null>(null);
   const [centerOnSelect, setCenterOnSelect] = useState(false);
   const [splitRatio, setSplitRatio] = useState(0.5);
@@ -284,7 +290,14 @@ export function C4ViewerCore({
     if (isInitialLoadRef.current) {
       isInitialLoadRef.current = false;
     }
-    const doc = c4ToGraphDocument(c4Model, boundaryInfos);
+
+    // ドリル状態に応じてモデルをフィルタリング
+    const currentDrillRoot = drillStack.at(-1) ?? null;
+    const filteredModel = currentDrillRoot
+      ? filterModelForDrill(c4Model, currentDrillRoot)
+      : c4Model;
+
+    const doc = c4ToGraphDocument(filteredModel, boundaryInfos);
     layoutWithSubgroups(doc, 'TB', 180, 60);
     setFullDoc(doc);
     const level = currentLevelRef.current;
@@ -295,7 +308,39 @@ export function C4ViewerCore({
     } else {
       dispatch({ type: 'SET_DOCUMENT', doc });
     }
-  }, [c4Model, boundaryInfos]);
+  }, [c4Model, boundaryInfos, drillStack]);
+
+  /** 右クリックメニューを表示する */
+  const handleNodeContextMenu = useCallback(
+    (c4Id: string, x: number, y: number) => {
+      setContextMenu({ x, y, c4Id });
+    },
+    [],
+  );
+
+  /** コンテキストメニューを閉じる */
+  const handleCloseContextMenu = useCallback(() => {
+    setContextMenu(null);
+  }, []);
+
+  /** ドリルダウン: 選択要素の子要素のみ表示する */
+  const handleDrillDown = useCallback(
+    (c4Id: string) => {
+      if (!c4Model) return;
+      const element = findC4Element(c4Model.elements, c4Id);
+      if (element?.children?.length) {
+        setDrillStack((prev) => [...prev, element]);
+      }
+      setContextMenu(null);
+    },
+    [c4Model],
+  );
+
+  /** ドリルアップ: 前の表示に戻る */
+  const handleDrillUp = useCallback(() => {
+    setDrillStack((prev) => prev.slice(0, -1));
+    setContextMenu(null);
+  }, []);
 
   const handleSetLevel = useCallback((level: number) => {
     if (!fullDoc) return;
@@ -769,4 +814,18 @@ export function C4ViewerCore({
       )}
     </Box>
   );
+}
+
+/** C4Element の配列を再帰的に検索して id が一致する要素を返す */
+function findC4Element(
+  elements: readonly C4Element[],
+  id: string,
+): C4Element | undefined {
+  for (const el of elements) {
+    if (el.id === id) return el;
+    if (el.children) {
+      const found = findC4Element(el.children, id);
+      if (found) return found;
+    }
+  }
 }
