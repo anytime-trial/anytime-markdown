@@ -303,15 +303,11 @@ interface C4ElementTreeProps {
   readonly onExportSelect?: (symbol: ExportedSymbol) => void;
   readonly selectedExportId?: string | null;
   readonly isDark?: boolean;
-  /** レベル/ドリル変更時にインクリメントされるキー。変化したらcheckedIdsをリセットする */
-  readonly resetKey?: number;
-  /** resetKey 変化時にリセットするID集合。null/undefined なら全チェック状態にリセット */
-  readonly resetIds?: ReadonlySet<string> | null;
-  /** resetKey 変化時に展開するID集合。null/undefined なら展開状態を変更しない */
-  readonly resetExpanded?: ReadonlySet<string> | null;
+  /** レベル/ドリル変更時に渡すリセット指示。key が変化したらチェック・展開状態をリセットする */
+  readonly checkReset?: { readonly key: number; readonly ids: ReadonlySet<string> | null; readonly expanded: ReadonlySet<string> | null };
 }
 
-export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onSelect, onCheckedChange, onRemoveElement, onPurgeDeleted, docLinks, onDocLinkClick, exports, onExportSelect, selectedExportId, isDark, resetKey, resetIds, resetExpanded }) => {
+export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onSelect, onCheckedChange, onRemoveElement, onPurgeDeleted, docLinks, onDocLinkClick, exports, onExportSelect, selectedExportId, isDark, checkReset }) => {
   const colors = useMemo(() => getC4Colors(isDark ?? true), [isDark]);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => {
     // デフォルトでルートレベルと system ノードの直下を展開
@@ -410,17 +406,13 @@ export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onS
   }, [tree]);
 
 
-  // レベル/ドリル変更時にチェック状態と展開状態をリセットする
   useEffect(() => {
-    if (resetKey === undefined) return;
-    setCheckedIds(resetIds != null ? new Set(resetIds) : collectCheckableIds(tree));
-    if (resetExpanded != null) {
-      // ドリル時: 指定されたIDのみを展開状態にする
-      setExpanded(new Set(resetExpanded));
+    if (!checkReset) return;
+    setCheckedIds(checkReset.ids != null ? new Set(checkReset.ids) : collectCheckableIds(tree));
+    if (checkReset.expanded != null) {
+      setExpanded(new Set(checkReset.expanded));
     }
-  // resetIds は resetKey と同時に更新されるため resetKey の変化だけを監視する
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resetKey]);
+  }, [checkReset]);
 
   // checkedIds の変更を親に通知（useEffect で render 後に実行）
   useEffect(() => {

@@ -189,3 +189,12 @@ export function sortDsmMatrixByName(matrix: DsmMatrix): DsmMatrix {
 
   return { nodes, edges, adjacency };
 }
+
+/** 指定IDセットに含まれるノードのみ残して行列を再構築する */
+export function filterDsmMatrix(matrix: DsmMatrix, nodeIds: ReadonlySet<string>): DsmMatrix {
+  const keepIndices: number[] = [];
+  matrix.nodes.forEach((n, i) => { if (nodeIds.has(n.id)) keepIndices.push(i); });
+  const nodes = keepIndices.map(i => matrix.nodes[i]);
+  const adjacency = keepIndices.map(ri => keepIndices.map(ci => matrix.adjacency[ri][ci]));
+  return { nodes, edges: matrix.edges, adjacency };
+}

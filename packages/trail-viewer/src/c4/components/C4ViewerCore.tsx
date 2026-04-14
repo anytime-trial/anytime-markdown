@@ -1,4 +1,4 @@
-import { aggregateDsmToC4ComponentLevel, aggregateDsmToC4ContainerLevel, aggregateDsmToC4SystemLevel, buildElementTree, buildLevelView, c4ToGraphDocument, collectDescendantIds, filterModelForDrill, filterTreeByLevel, sortDsmMatrixByName } from '@anytime-markdown/trail-core/c4';
+import { aggregateDsmToC4ComponentLevel, aggregateDsmToC4ContainerLevel, aggregateDsmToC4SystemLevel, buildElementTree, buildLevelView, c4ToGraphDocument, collectDescendantIds, filterDsmMatrix, filterModelForDrill, filterTreeByLevel, sortDsmMatrixByName } from '@anytime-markdown/trail-core/c4';
 import type { BoundaryInfo, C4Element, C4Model, C4ReleaseEntry, CoverageDiffMatrix, CoverageMatrix, DocLink, DsmMatrix, FeatureMatrix } from '@anytime-markdown/trail-core/c4';
 import type { GraphDocument, GraphNode } from '@anytime-markdown/graph-core';
 import { engine, layoutWithSubgroups, state as graphState } from '@anytime-markdown/graph-core';
@@ -24,6 +24,11 @@ import { getC4Colors } from '../c4Theme';
 
 const UNKNOWN_REPO_KEY = '__unknown__';
 const CURRENT_RELEASE_TAG = 'current';
+
+/** チェックボックス非表示フィルタ対象の型（system は常時表示のため除外） */
+const FILTER_CHECKABLE_TYPES = new Set(['container', 'containerDb', 'component'] as const);
+/** ドリルダウン時のスコープに含まれる型 */
+const DRILL_SCOPE_TYPES = new Set(['system', 'container', 'containerDb', 'component'] as const);
 import { AddElementDialog, AddRelationshipDialog } from './C4EditDialogs';
 import type { ElementFormData, RelationshipFormData } from './C4EditDialogs';
 import type { ExportedSymbol, FlowGraph } from '@anytime-markdown/trail-core/analyzer';
@@ -283,22 +288,18 @@ export function C4ViewerCore({
     return c4Model.elements.find(e => e.id === selectedElementId)?.manual === true;
   }, [selectedElementId, c4Model]);
 
-  // c4Model / drillStack / currentLevel / checkedPackageIds が変化したら図を再構築する
   useEffect(() => {
     if (!c4Model) return;
 
-    // Step1: ドリル状態に応じてモデルをフィルタリング
     const currentDrillRoot = drillStack.at(-1)?.element ?? null;
     let filteredModel = currentDrillRoot
       ? filterModelForDrill(c4Model, currentDrillRoot.id)
       : c4Model;
 
-    // Step2: チェックボックスによるフィルタリング
     if (checkedPackageIds) {
-      const CHECKABLE = new Set(['container', 'containerDb', 'component']);
       const excluded = new Set<string>();
       for (const elem of filteredModel.elements) {
-        if (CHECKABLE.has(elem.type) && !checkedPackageIds.has(elem.id)) {
+        if (FILTER_CHECKABLE_TYPES.has(elem.type as 'container') && !checkedPackageIds.has(elem.id)) {
           excluded.add(elem.id);
           for (const id of collectDescendantIds(filteredModel.elements, elem.id)) {
             excluded.add(id);
@@ -316,7 +317,6 @@ export function C4ViewerCore({
       }
     }
 
-    // Step3: GraphDocument を構築してレベルフィルタを適用
     const doc = c4ToGraphDocument(filteredModel, boundaryInfos);
     layoutWithSubgroups(doc, 'TB', 180, 60);
     setFullDoc(doc);
@@ -349,56 +349,44 @@ export function C4ViewerCore({
     return 4;
   }, []);
 
-  /** ドリルダウン: 選択要素の子要素のみ表示する */
   const handleDrillDown = useCallback(
     (c4Id: string) => {
       if (!c4Model) return;
       const element = c4Model.elements.find(e => e.id === c4Id);
       if (element) {
-        // ドリル前のレベルを保存し、子要素が表示される最低レベルへ自動調整
         const prevLevel = currentLevel;
         const minLevel = drillTargetLevel(element.type);
         setDrillStack((prev) => [...prev, { element, prevLevel, prevCheckedIds: checkedPackageIds }]);
         if (currentLevel < minLevel) {
           setCurrentLevel(minLevel);
         }
-        // ドリル対象の子孫のうちチェック可能なIDのみ checked に設定
-        const CHECKABLE = new Set(['system', 'container', 'containerDb', 'component']);
+        const elementById = new Map(c4Model.elements.map(e => [e.id, e]));
         const inScope = new Set<string>();
-        if (CHECKABLE.has(element.type)) inScope.add(element.id);
+        if (DRILL_SCOPE_TYPES.has(element.type as 'system')) inScope.add(element.id);
         for (const id of collectDescendantIds(c4Model.elements, element.id)) {
-          const el = c4Model.elements.find(e => e.id === id);
-          if (el && CHECKABLE.has(el.type)) inScope.add(id);
+          const el = elementById.get(id);
+          if (el && DRILL_SCOPE_TYPES.has(el.type as 'system')) inScope.add(id);
         }
-        // ドリル対象とその祖先のIDを展開対象とする（ルート→ドリル対象のパスのみ展開）
         const expandIds = new Set<string>([element.id]);
         let parentId = element.boundaryId;
         while (parentId) {
           expandIds.add(parentId);
-          const parent = c4Model.elements.find(e => e.id === parentId);
-          parentId = parent?.boundaryId;
+          parentId = elementById.get(parentId)?.boundaryId;
         }
         setCheckedPackageIds(null);
-        setCheckResetIds(inScope);
-        setCheckResetExpanded(expandIds);
-        setCheckResetKey(prev => prev + 1);
+        setCheckReset(prev => ({ key: prev.key + 1, ids: inScope, expanded: expandIds }));
       }
       setContextMenu(null);
     },
     [c4Model, currentLevel, drillTargetLevel, checkedPackageIds],
   );
 
-  /** ドリルアップ: 前の表示に戻る */
   const handleDrillUp = useCallback(() => {
     const entry = drillStack.at(-1);
-    const prevLevel = entry?.prevLevel;
-    const prevCheckedIds = entry?.prevCheckedIds ?? null;
+    if (entry?.prevLevel !== undefined) setCurrentLevel(entry.prevLevel);
     setDrillStack((prev) => prev.slice(0, -1));
-    if (prevLevel !== undefined) setCurrentLevel(prevLevel);
     setCheckedPackageIds(null);
-    setCheckResetIds(prevCheckedIds);
-    setCheckResetExpanded(null);
-    setCheckResetKey(prev => prev + 1);
+    setCheckReset(prev => ({ key: prev.key + 1, ids: entry?.prevCheckedIds ?? null, expanded: null }));
     setContextMenu(null);
   }, [drillStack]);
 
@@ -406,9 +394,7 @@ export function C4ViewerCore({
     setCurrentLevel(level);
     setDrillStack([]);
     setCheckedPackageIds(null);
-    setCheckResetIds(null);
-    setCheckResetExpanded(null);
-    setCheckResetKey(prev => prev + 1);
+    setCheckReset(prev => ({ key: prev.key + 1, ids: null, expanded: null }));
     if (level <= 2) {
       setDsmLevel('package');
     } else {
@@ -430,9 +416,11 @@ export function C4ViewerCore({
     return filterTreeByLevel(fullTree, currentLevel);
   }, [c4Model, boundaryInfos, currentLevel]);
 
-  const [checkResetKey, setCheckResetKey] = useState(0);
-  const [checkResetIds, setCheckResetIds] = useState<ReadonlySet<string> | null>(null);
-  const [checkResetExpanded, setCheckResetExpanded] = useState<ReadonlySet<string> | null>(null);
+  const [checkReset, setCheckReset] = useState<{
+    readonly key: number;
+    readonly ids: ReadonlySet<string> | null;
+    readonly expanded: ReadonlySet<string> | null;
+  }>({ key: 0, ids: null, expanded: null });
 
   const deletedIds = useMemo(() => {
     if (!c4Model) return undefined;
@@ -473,11 +461,7 @@ export function C4ViewerCore({
     }
     m = sortDsmMatrixByName(m);
     if (checkedPackageIds) {
-      const keepIndices: number[] = [];
-      m.nodes.forEach((n, i) => { if (checkedPackageIds.has(n.id)) keepIndices.push(i); });
-      const filteredNodes = keepIndices.map(i => m.nodes[i]);
-      const filteredAdjacency = keepIndices.map(ri => keepIndices.map(ci => m.adjacency[ri][ci]));
-      m = { nodes: filteredNodes, edges: m.edges, adjacency: filteredAdjacency };
+      m = filterDsmMatrix(m, checkedPackageIds);
     }
     return m;
   }, [dsmMatrix, currentLevel, c4Model, checkedPackageIds]);
@@ -486,7 +470,7 @@ export function C4ViewerCore({
     if (!c4Model || !checkedPackageIds) return null;
     const excluded = new Set<string>();
     for (const elem of c4Model.elements) {
-      const isCheckable = elem.type === 'container' || elem.type === 'containerDb' || elem.type === 'component';
+      const isCheckable = FILTER_CHECKABLE_TYPES.has(elem.type as 'container');
       if (isCheckable && !checkedPackageIds.has(elem.id)) {
         const descendants = collectDescendantIds(c4Model.elements, elem.id);
         for (const id of descendants) excluded.add(id);
@@ -722,9 +706,7 @@ export function C4ViewerCore({
             dispatch={dispatch}
             onSelect={handleElementSelect}
             onCheckedChange={setCheckedPackageIds}
-            resetKey={checkResetKey}
-            resetIds={checkResetIds}
-            resetExpanded={checkResetExpanded}
+            checkReset={checkReset}
             onRemoveElement={onRemoveElement}
             onPurgeDeleted={onPurgeDeleted}
             docLinks={docLinks}
