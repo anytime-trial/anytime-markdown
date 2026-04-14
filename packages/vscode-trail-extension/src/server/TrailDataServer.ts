@@ -833,6 +833,13 @@ export class TrailDataServer {
       const docMsg: ServerMessage = { type: 'doc-links-updated', docLinks: this.docLinks };
       ws.send(JSON.stringify(docMsg));
     }
+
+    for (const type of ['coverage-updated', 'coverage-diff-updated', 'complexity-updated', 'importance-updated'] as const) {
+      const msg = this.buildNotifyMessage(type, provider);
+      if (msg) {
+        ws.send(JSON.stringify(msg));
+      }
+    }
   }
 
   private handleWsMessage(data: unknown): void {

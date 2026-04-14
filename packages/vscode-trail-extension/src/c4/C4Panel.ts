@@ -659,7 +659,10 @@ export class C4Panel implements C4DataProvider {
 
   /** tsconfig から ImportanceMatrix を計算してデータサーバーに通知 */
   public buildImportanceMatrix(tsconfigPath: string): void {
-    if (!this.lastModel) return;
+    if (!this.lastModel) {
+      TrailLogger.warn('buildImportanceMatrix: lastModel is not set, skipping');
+      return;
+    }
     try {
       this.lastImportanceMatrix = computeImportanceMatrix(tsconfigPath, this.lastModel.elements);
       C4Panel.dataServer?.notify('importance-updated');
