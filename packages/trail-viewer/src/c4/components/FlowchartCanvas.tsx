@@ -42,7 +42,7 @@ function layoutNodes(graph: FlowGraph): Map<string, Pos> {
     depth.set(endNode.id, maxD + 1);
   }
 
-  // 同じ深さのノードを横に並べる
+  // 深さでグループ化
   const byDepth = new Map<number, string[]>();
   for (const [id, d] of depth) {
     const arr = byDepth.get(d) ?? [];
@@ -50,14 +50,42 @@ function layoutNodes(graph: FlowGraph): Map<string, Pos> {
     byDepth.set(d, arr);
   }
 
-  for (const [d, ids] of byDepth) {
-    const total = ids.length;
-    ids.forEach((id, i) => {
-      pos.set(id, {
-        x: (NODE_W + H_GAP) * (i - (total - 1) / 2),
-        y: d * (NODE_H + V_GAP),
+  // barycenter ヒューリスティック: 各レベルをトップダウンに処理し、
+  // 親ノードの平均 x 座標でソートして線の交差を削減する
+  const xPos = new Map<string, number>();
+  const maxDepthVal = Math.max(0, ...[...depth.values()]);
+
+  for (let d = 0; d <= maxDepthVal; d++) {
+    const ids = byDepth.get(d) ?? [];
+    if (ids.length === 0) continue;
+
+    if (d === 0) {
+      // 最上段: 単純に均等配置
+      ids.forEach((id, i) => {
+        xPos.set(id, (NODE_W + H_GAP) * (i - (ids.length - 1) / 2));
       });
-    });
+    } else {
+      // 親ノードの平均 x を重心として計算
+      const withBC = ids.map(id => {
+        const parentXs = graph.edges
+          .filter(e => e.to === id)
+          .map(e => xPos.get(e.from) ?? 0);
+        const bc = parentXs.length > 0
+          ? parentXs.reduce((s, x) => s + x, 0) / parentXs.length
+          : 0;
+        return { id, bc };
+      });
+      // 重心でソートして横順序を決定
+      withBC.sort((a, b) => a.bc - b.bc);
+      const total = withBC.length;
+      withBC.forEach(({ id }, i) => {
+        xPos.set(id, (NODE_W + H_GAP) * (i - (total - 1) / 2));
+      });
+    }
+  }
+
+  for (const [id, d] of depth) {
+    pos.set(id, { x: xPos.get(id) ?? 0, y: d * (NODE_H + V_GAP) });
   }
 
   return pos;
