@@ -55,7 +55,7 @@ export const URL_TRUNCATE_LENGTH = 50;
 // ── Endpoint shape dimensions ──
 
 export const ARROW_HEAD_LENGTH = 12;
-export const ENDPOINT_CIRCLE_RADIUS = 5;
+export const ENDPOINT_CIRCLE_RADIUS = 3;
 export const ENDPOINT_DIAMOND_SIZE = 8;
 export const ENDPOINT_BAR_LENGTH = 8;
 
