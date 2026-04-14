@@ -13,6 +13,7 @@ import {
 import type {
   BoundaryInfo,
   C4Model,
+  ComplexityMatrix,
   CoverageDiffMatrix,
   CoverageMatrix,
   DocLink,
@@ -59,6 +60,7 @@ export interface C4DataProvider {
   readonly currentDsmLevel: 'component' | 'package';
   readonly coverageMatrix: CoverageMatrix | undefined;
   readonly coverageDiff: CoverageDiffMatrix | undefined;
+  readonly complexityMatrix: ComplexityMatrix | undefined;
   readonly trailGraph: TrailGraph | undefined;
   handleSetDsmLevel(level: 'component' | 'package'): void;
   handleCluster(enabled: boolean): void;

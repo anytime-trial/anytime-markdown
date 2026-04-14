@@ -3,6 +3,7 @@ import type {
   C4Model,
   CoverageDiffMatrix,
   CoverageMatrix,
+  ComplexityMatrix,
   DocLink,
   DsmMatrix,
   FeatureMatrix,
@@ -47,7 +48,12 @@ export interface CoverageDiffUpdatedMessage {
   readonly coverageDiff: CoverageDiffMatrix;
 }
 
-export type ServerMessage = ModelUpdatedMessage | DsmUpdatedMessage | AnalysisProgressMessage | DocLinksUpdatedMessage | CoverageUpdatedMessage | CoverageDiffUpdatedMessage;
+export interface ComplexityUpdatedMessage {
+  readonly type: 'complexity-updated';
+  readonly complexityMatrix: ComplexityMatrix;
+}
+
+export type ServerMessage = ModelUpdatedMessage | DsmUpdatedMessage | AnalysisProgressMessage | DocLinksUpdatedMessage | CoverageUpdatedMessage | CoverageDiffUpdatedMessage | ComplexityUpdatedMessage;
 
 // ---------------------------------------------------------------------------
 //  Client → Server messages

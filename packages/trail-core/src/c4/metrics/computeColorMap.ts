@@ -1,5 +1,6 @@
 import { detectCycles } from '../dsm/detectCycles';
-import type { CoverageMatrix, DsmMatrix, ComplexityMatrix, MetricOverlay, ComplexityClass } from '../types';
+import type { DsmMatrix } from '../dsm/types';
+import type { CoverageMatrix, ComplexityMatrix, MetricOverlay, ComplexityClass } from '../types';
 
 // ─── Color constants ──────────────────────────────────────────────────────────
 
@@ -63,11 +64,11 @@ export function computeColorMap(
   if (overlay === 'dsm-out' || overlay === 'dsm-in') {
     if (!dsmMatrix) return new Map();
     const map = new Map<string, string>();
-    const counts = dsmMatrix.nodes.map((_, i) => {
+    const counts = dsmMatrix.nodes.map((_node, i) => {
       if (overlay === 'dsm-out') {
-        return dsmMatrix.adjacency[i].reduce((s, v) => s + (v > 0 ? 1 : 0), 0);
+        return dsmMatrix.adjacency[i].reduce((s: number, v: number) => s + (v > 0 ? 1 : 0), 0);
       } else {
-        return dsmMatrix.adjacency.reduce((s, row) => s + (row[i] > 0 ? 1 : 0), 0);
+        return dsmMatrix.adjacency.reduce((s: number, row: readonly number[]) => s + (row[i] > 0 ? 1 : 0), 0);
       }
     });
     const maxCount = Math.max(...counts, 1);
@@ -81,7 +82,7 @@ export function computeColorMap(
   // ── DSM cyclic ──
   if (overlay === 'dsm-cyclic') {
     if (!dsmMatrix) return new Map();
-    const nodeIds = dsmMatrix.nodes.map(n => n.id);
+    const nodeIds = dsmMatrix.nodes.map((n) => n.id);
     const sccs = detectCycles(dsmMatrix.adjacency, nodeIds);
     const cyclic = new Set<string>();
     for (const scc of sccs) {
