@@ -63,6 +63,7 @@ export interface C4DataProvider {
   handleSetDsmLevel(level: 'component' | 'package'): void;
   handleCluster(enabled: boolean): void;
   handleRefresh(): void;
+  handleResetClaudeActivity(): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -920,6 +921,9 @@ export class TrailDataServer {
       case 'open-doc-link':
         this.onOpenDocLink?.(message.path);
         break;
+      case 'reset-claude-activity':
+        provider.handleResetClaudeActivity();
+        break;
     }
   }
 
@@ -1106,7 +1110,7 @@ export class TrailDataServer {
 export function isClientMessage(data: unknown): data is ClientMessage {
   if (typeof data !== 'object' || data === null) return false;
   const msg = data as Record<string, unknown>;
-  const validTypes = ['set-level', 'cluster', 'refresh', 'open-doc-link'];
+  const validTypes = ['set-level', 'cluster', 'refresh', 'open-doc-link', 'reset-claude-activity'];
   return typeof msg.type === 'string' && validTypes.includes(msg.type);
 }
 

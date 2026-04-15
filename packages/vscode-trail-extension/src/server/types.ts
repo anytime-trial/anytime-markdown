@@ -62,8 +62,13 @@ export interface OpenDocLinkCommand {
   readonly path: string;
 }
 
+export interface ResetClaudeActivityCommand {
+  readonly type: 'reset-claude-activity';
+}
+
 export type ClientMessage =
   | SetLevelCommand
   | ClusterCommand
   | RefreshCommand
-  | OpenDocLinkCommand;
+  | OpenDocLinkCommand
+  | ResetClaudeActivityCommand;

@@ -13,6 +13,8 @@ import type { TrailDataServer } from '../server/TrailDataServer';
 import { TrailLogger } from '../utils/TrailLogger';
 import type { TrailDatabase } from '../trail/TrailDatabase';
 import { ExecFileGitService } from '../trail/ExecFileGitService';
+import { ClaudeStatusWatcher } from '@anytime-markdown/vscode-common';
+import { ClaudeActivityTracker } from './ClaudeActivityTracker';
 
 /**
  * C4モデルのデータ管理を担当するシングルトン。
@@ -30,6 +32,8 @@ export class C4Panel implements C4DataProvider {
   private lastSourceMatrix: DsmMatrix | undefined;
   private dsmLevel: 'component' | 'package' = 'component';
   private lastImportanceMatrix: ImportanceMatrix | undefined;
+  private claudeWatcher: ClaudeStatusWatcher | null = null;
+  private claudeTracker: ClaudeActivityTracker | null = null;
 
   private constructor() {}
 
@@ -47,6 +51,16 @@ export class C4Panel implements C4DataProvider {
 
   public static getDataProvider(): C4DataProvider | undefined {
     return C4Panel.getInstance();
+  }
+
+  public static disposeClaudeWatcher(): void {
+    const inst = C4Panel.instance;
+    inst?.claudeWatcher?.dispose();
+    inst?.claudeTracker?.dispose();
+    if (inst) {
+      inst.claudeWatcher = null;
+      inst.claudeTracker = null;
+    }
   }
 
   private static viewerOpened = false;
@@ -105,6 +119,11 @@ export class C4Panel implements C4DataProvider {
 
   public handleRefresh(): void {
     this.buildDsm();
+  }
+
+  public handleResetClaudeActivity(): void {
+    this.claudeTracker?.resetTouched();
+    C4Panel.dataServer?.notifyClaudeActivity([], []);
   }
 
   // -------------------------------------------------------------------------
@@ -199,6 +218,7 @@ export class C4Panel implements C4DataProvider {
           panel.lastTsconfigPath = tsconfigPath;
           panel.buildDsm();
           panel.buildImportanceMatrix(tsconfigPath);
+          panel.startClaudeActivityTracking(graph.metadata.projectRoot);
           server?.notifyProgress('', 100);
         },
       );
@@ -212,6 +232,24 @@ export class C4Panel implements C4DataProvider {
   // -------------------------------------------------------------------------
   //  Internal data management
   // -------------------------------------------------------------------------
+
+  /** Claude Code のファイル編集監視を起動し、C4 要素への紐付けを更新する */
+  private startClaudeActivityTracking(projectRoot: string): void {
+    if (!this.claudeWatcher) {
+      this.claudeWatcher = new ClaudeStatusWatcher();
+      this.claudeTracker = new ClaudeActivityTracker();
+      this.claudeTracker.onChange((state) => {
+        C4Panel.dataServer?.notifyClaudeActivity(state.activeElementIds, state.touchedElementIds);
+      });
+      this.claudeWatcher.onStatusChange(this.claudeTracker.onFileEditing);
+    }
+    // 解析結果から C4 モデルを構築してインデックスを更新
+    if (this.lastTrailGraph && this.claudeTracker) {
+      const model = trailToC4(this.lastTrailGraph);
+      this.claudeTracker.setModel(model, projectRoot);
+      TrailLogger.info(`ClaudeActivityTracker: model updated (${model.elements.length} elements, root=${projectRoot})`);
+    }
+  }
 
   /** DSM データをビルドしてデータサーバーに通知 */
   public buildDsm(cluster = false): void {
