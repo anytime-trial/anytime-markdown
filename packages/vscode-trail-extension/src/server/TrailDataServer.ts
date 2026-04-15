@@ -6,10 +6,12 @@ import path from 'node:path';
 import {
   buildElementTree,
   buildSourceMatrix,
+  computeComplexityMatrix,
   fetchC4Model,
   fetchC4ModelEntries,
   filterTreeByLevel,
 } from '@anytime-markdown/trail-core/c4';
+import type { MessageInput } from '@anytime-markdown/trail-core/c4';
 import type {
   BoundaryInfo,
   C4Model,
@@ -359,7 +361,9 @@ export class TrailDataServer {
       return;
     }
     if (pathname === '/api/c4/complexity' && method === 'GET') {
-      this.handleC4ComplexityEndpoint(res);
+      const releaseId = parsed.searchParams.get('release') ?? 'current';
+      const repo = parsed.searchParams.get('repo') ?? undefined;
+      void this.handleC4ComplexityEndpoint(res, releaseId, repo);
       return;
     }
 
@@ -695,11 +699,51 @@ export class TrailDataServer {
     res.end(JSON.stringify({ coverageMatrix: coverageMatrix ?? null, coverageDiff: coverageDiff ?? null }));
   }
 
-  private handleC4ComplexityEndpoint(res: http.ServerResponse): void {
-    const provider = this.getC4Provider?.();
-    const complexityMatrix = provider?.getOrComputeComplexityMatrix() ?? null;
-    res.writeHead(200, JSON_HEADERS);
-    res.end(JSON.stringify({ complexityMatrix }));
+  private async handleC4ComplexityEndpoint(res: http.ServerResponse, releaseId: string, repo?: string): Promise<void> {
+    try {
+      const repoName = repo ?? (this.gitRoot ? path.basename(this.gitRoot) : undefined);
+      const store = this.trailDb.asC4ModelStore();
+      const provider = this.getC4Provider?.();
+
+      // モデルを SQLite から取得（C4Panel のメモリ上データをフォールバック）
+      let elements: readonly import('@anytime-markdown/trail-core/c4').C4Element[] = [];
+      const payload = await fetchC4Model(store, releaseId, repoName, provider?.featureMatrix);
+      if (payload) {
+        elements = payload.model.elements;
+      } else if (releaseId === 'current' && provider?.model) {
+        elements = provider.model.elements;
+      }
+
+      // メッセージから ComplexityMatrix を計算
+      const rows = this.trailDb.getAllAssistantMessages();
+      const messages: MessageInput[] = rows.map(row => {
+        let toolCallNames: string[] = [];
+        let editedFilePaths: string[] = [];
+        if (row.tool_calls) {
+          try {
+            const calls = JSON.parse(String(row.tool_calls)) as { name?: string; input?: Record<string, unknown> }[];
+            if (Array.isArray(calls)) {
+              toolCallNames = calls.map(c => c.name ?? '').filter(Boolean);
+              editedFilePaths = calls
+                .filter(c => c.name === 'Edit' || c.name === 'Write')
+                .map(c => (typeof c.input?.file_path === 'string' ? c.input.file_path : ''))
+                .filter(Boolean);
+            }
+          } catch {
+            // malformed tool_calls — skip
+          }
+        }
+        return { outputTokens: Number(row.output_tokens), toolCallNames, editedFilePaths };
+      });
+
+      const complexityMatrix = computeComplexityMatrix(messages, elements);
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify({ complexityMatrix }));
+    } catch (e) {
+      TrailLogger.error('[/api/c4/complexity] failed', e);
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify({ complexityMatrix: null }));
+    }
   }
 
   // -------------------------------------------------------------------------
