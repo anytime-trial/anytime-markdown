@@ -1,55 +1,35 @@
 import * as vscode from 'vscode';
-import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
-  parseMermaidC4,
-  extractBoundaries,
   buildSourceMatrix,
   clusterMatrix,
-  parseCoverage,
-  aggregateCoverage,
-  computeCoverageDiff,
-  computeComplexityMatrix,
   computeImportanceMatrix,
 } from '@anytime-markdown/trail-core/c4';
-import type { C4Element, C4Model, C4Relationship, BoundaryInfo, ComplexityMatrix, CoverageDiffMatrix, CoverageMatrix, DsmMatrix, FeatureMatrix, ImportanceMatrix, MessageInput } from '@anytime-markdown/trail-core/c4';
-import { analyze, toMermaid, trailToC4 } from '@anytime-markdown/trail-core';
+import type { DsmMatrix, FeatureMatrix, ImportanceMatrix } from '@anytime-markdown/trail-core/c4';
+import { analyze, trailToC4 } from '@anytime-markdown/trail-core';
 import type { TrailGraph } from '@anytime-markdown/trail-core';
 import type { C4DataProvider } from '../server/TrailDataServer';
 import type { TrailDataServer } from '../server/TrailDataServer';
 import { TrailLogger } from '../utils/TrailLogger';
-import { CoverageHistory } from './coverageHistory';
-import { CoverageWatcher } from './coverageWatcher';
 import type { TrailDatabase } from '../trail/TrailDatabase';
 import { ExecFileGitService } from '../trail/ExecFileGitService';
-import { ClaudeStatusWatcher } from '@anytime-markdown/vscode-common';
-import { ClaudeActivityTracker } from './ClaudeActivityTracker';
 
 /**
  * C4モデルのデータ管理を担当するシングルトン。
  * Webview は持たず、TrailDataServer 経由でスタンドアロンビューアにデータを配信する。
+ * C4モデル本体は SQLite (trail_current_graphs) に保存し、TrailDataServer が直接読み込む。
  */
 export class C4Panel implements C4DataProvider {
   private static instance: C4Panel | undefined;
   private static dataServer: TrailDataServer | undefined;
   private static trailDb: TrailDatabase | undefined;
 
-  private lastModel: C4Model | undefined;
-  private lastBoundaries: readonly BoundaryInfo[] | undefined;
   private lastFeatureMatrix: FeatureMatrix | undefined;
   private lastTrailGraph: TrailGraph | undefined;
-  private lastProjectRoot: string | undefined;
   private lastTsconfigPath: string | undefined;
   private lastSourceMatrix: DsmMatrix | undefined;
   private dsmLevel: 'component' | 'package' = 'component';
-  private lastCoverageMatrix: CoverageMatrix | undefined;
-  private lastCoverageDiff: CoverageDiffMatrix | undefined;
-  private lastComplexityMatrix: ComplexityMatrix | undefined;
   private lastImportanceMatrix: ImportanceMatrix | undefined;
-  private coverageHistory: CoverageHistory | undefined;
-  private coverageWatcher: CoverageWatcher | undefined;
-  private claudeWatcher: ClaudeStatusWatcher | null = null;
-  private claudeTracker: ClaudeActivityTracker | null = null;
 
   private constructor() {}
 
@@ -63,11 +43,6 @@ export class C4Panel implements C4DataProvider {
 
   public static setTrailDatabase(db: TrailDatabase): void {
     C4Panel.trailDb = db;
-  }
-
-  public static disposeClaudeWatcher(): void {
-    C4Panel.instance?.claudeWatcher?.dispose();
-    C4Panel.instance?.claudeTracker?.dispose();
   }
 
   public static getDataProvider(): C4DataProvider | undefined {
@@ -97,21 +72,9 @@ export class C4Panel implements C4DataProvider {
   //  C4DataProvider interface
   // -------------------------------------------------------------------------
 
-  public get model(): C4Model | undefined { return this.lastModel; }
-  public get boundaries(): readonly BoundaryInfo[] | undefined { return this.lastBoundaries; }
   public get featureMatrix(): FeatureMatrix | undefined { return this.lastFeatureMatrix; }
   public get sourceMatrix(): DsmMatrix | undefined { return this.lastSourceMatrix; }
   public get currentDsmLevel(): 'component' | 'package' { return this.dsmLevel; }
-  public get coverageMatrix(): CoverageMatrix | undefined { return this.lastCoverageMatrix; }
-  public get coverageDiff(): CoverageDiffMatrix | undefined { return this.lastCoverageDiff; }
-  public get complexityMatrix(): ComplexityMatrix | undefined { return this.lastComplexityMatrix; }
-
-  public getOrComputeComplexityMatrix(): ComplexityMatrix | null {
-    if (!this.lastComplexityMatrix) {
-      this.computeAndCacheComplexity();
-    }
-    return this.lastComplexityMatrix ?? null;
-  }
   public get importanceMatrix(): ImportanceMatrix | undefined { return this.lastImportanceMatrix; }
   public get trailGraph(): TrailGraph | undefined { return this.lastTrailGraph; }
 
@@ -129,152 +92,8 @@ export class C4Panel implements C4DataProvider {
   }
 
   // -------------------------------------------------------------------------
-  //  Editing handlers (manual L1 elements)
-  // -------------------------------------------------------------------------
-
-  private nextManualId(): string {
-    return `manual_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  }
-
-  public handleAddElement(element: { type: 'person' | 'system'; name: string; description?: string; external?: boolean }): void {
-    if (!this.lastModel) return;
-    const newElement: C4Element = {
-      id: this.nextManualId(),
-      type: element.type,
-      name: element.name,
-      ...(element.description ? { description: element.description } : {}),
-      ...(element.external !== undefined ? { external: element.external } : {}),
-      manual: true,
-    };
-    const model: C4Model = {
-      ...this.lastModel,
-      elements: [...this.lastModel.elements, newElement],
-    };
-    this.setModel(model, this.lastBoundaries);
-  }
-
-  public handleUpdateElement(id: string, changes: { name?: string; description?: string; external?: boolean }): void {
-    if (!this.lastModel) return;
-    const elem = this.lastModel.elements.find(e => e.id === id);
-    if (!elem?.manual) return; // 手動要素のみ編集可能
-    const model: C4Model = {
-      ...this.lastModel,
-      elements: this.lastModel.elements.map(e =>
-        e.id === id ? { ...e, ...changes } : e,
-      ),
-    };
-    this.setModel(model, this.lastBoundaries);
-  }
-
-  public handleRemoveElement(id: string): void {
-    if (!this.lastModel) return;
-    const elem = this.lastModel.elements.find(e => e.id === id);
-    if (!elem?.manual && !elem?.deleted) return; // 手動要素 or 削除フラグ付き要素のみ削除可能
-    const model: C4Model = {
-      ...this.lastModel,
-      elements: this.lastModel.elements.filter(e => e.id !== id),
-      relationships: this.lastModel.relationships.filter(r => r.from !== id && r.to !== id),
-    };
-    // FeatureMatrix からも関連マッピングを除去
-    if (this.lastFeatureMatrix) {
-      this.lastFeatureMatrix = {
-        ...this.lastFeatureMatrix,
-        mappings: this.lastFeatureMatrix.mappings.filter(m => m.elementId !== id),
-      };
-    }
-    this.setModel(model, this.lastBoundaries);
-  }
-
-  public handlePurgeDeletedElements(): void {
-    if (!this.lastModel) return;
-    const deletedIds = new Set(
-      this.lastModel.elements.filter(e => e.deleted).map(e => e.id),
-    );
-    if (deletedIds.size === 0) return;
-    const model: C4Model = {
-      ...this.lastModel,
-      elements: this.lastModel.elements.filter(e => !e.deleted),
-      relationships: this.lastModel.relationships.filter(
-        r => !deletedIds.has(r.from) && !deletedIds.has(r.to),
-      ),
-    };
-    // FeatureMatrix からも関連マッピングを除去
-    if (this.lastFeatureMatrix) {
-      this.lastFeatureMatrix = {
-        ...this.lastFeatureMatrix,
-        mappings: this.lastFeatureMatrix.mappings.filter(m => !deletedIds.has(m.elementId)),
-      };
-    }
-    this.setModel(model, this.lastBoundaries);
-  }
-
-  public handleAddRelationship(from: string, to: string, label?: string, technology?: string): void {
-    if (!this.lastModel) return;
-    const newRel: C4Relationship = {
-      from,
-      to,
-      ...(label ? { label } : {}),
-      ...(technology ? { technology } : {}),
-      manual: true,
-    };
-    const model: C4Model = {
-      ...this.lastModel,
-      relationships: [...this.lastModel.relationships, newRel],
-    };
-    this.setModel(model, this.lastBoundaries);
-  }
-
-  public handleRemoveRelationship(from: string, to: string): void {
-    if (!this.lastModel) return;
-    const model: C4Model = {
-      ...this.lastModel,
-      relationships: this.lastModel.relationships.filter(
-        r => !(r.from === from && r.to === to && r.manual),
-      ),
-    };
-    this.setModel(model, this.lastBoundaries);
-  }
-
-  public handleResetClaudeActivity(): void {
-    this.claudeTracker?.resetTouched();
-    C4Panel.dataServer?.notifyClaudeActivity([], []);
-  }
-
-  /** 保存済みモデルを復元して配信する。サーバー起動後に呼ぶ。C4 モデルは DB から読み込まれるため常に false を返す。 */
-  public static restoreSavedModel(): boolean {
-    return false;
-  }
-
-  // -------------------------------------------------------------------------
   //  Commands
   // -------------------------------------------------------------------------
-
-  /** Mermaid C4 ファイルをインポート */
-  public static async importMermaid(): Promise<void> {
-    const files = await vscode.window.showOpenDialog({
-      canSelectFiles: true,
-      canSelectMany: false,
-      filters: { 'Mermaid C4': ['mmd', 'mermaid', 'txt'] },
-      title: 'Import Mermaid C4 Diagram',
-    });
-    if (!files?.[0]) return;
-
-    const content = await vscode.workspace.fs.readFile(files[0]);
-    const text = Buffer.from(content).toString('utf-8');
-
-    try {
-      const boundaries = extractBoundaries(text);
-      const model = parseMermaidC4(text);
-
-      const panel = C4Panel.getInstance();
-      panel.lastTrailGraph = undefined;
-      panel.setModel(model, boundaries);
-      C4Panel.openViewer();
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      vscode.window.showErrorMessage(`Failed to parse Mermaid C4: ${msg}`);
-    }
-  }
 
   /** ワークスペースの TypeScript を trail-core で解析 */
   public static async analyzeWorkspace(): Promise<void> {
@@ -359,41 +178,8 @@ export class C4Panel implements C4DataProvider {
           C4Panel.trailDb?.saveCurrentGraph(graph, tsconfigPath, commitId, dbRepoName);
           TrailLogger.info(`C4 analysis [${repoName}]: TrailGraph saved to current_graphs (repo=${dbRepoName}, commit=${commitId || 'unknown'})`);
 
-          // TODO: C4モデル変換・マージは一旦コメントアウト
-          // progress.report({ message: 'Building C4 model...' });
-          // server?.notifyProgress('Building C4 model...', 80);
-          // const analyzed = trailToC4(graph);
-          //
-          // // 既存の手動要素を保持し、消失した解析要素に削除フラグを付与してマージ
-          // const panel = C4Panel.getInstance();
-          // const prevElements = panel.lastModel?.elements ?? [];
-          // const prevRels = panel.lastModel?.relationships ?? [];
-          //
-          // const analyzedIdSet = new Set(analyzed.elements.map(e => e.id));
-          //
-          // // 手動要素: そのまま保持
-          // const manualElements = prevElements.filter(e => e.manual);
-          // // 解析由来の前回要素: 新結果に不在なら deleted フラグ付与
-          // const deletedElements = prevElements
-          //   .filter(e => !e.manual && !e.deleted && !analyzedIdSet.has(e.id))
-          //   .map(e => ({ ...e, deleted: true }));
-          // // 前回すでに deleted だった要素: そのまま保持（新結果に復活していなければ）
-          // const prevDeletedElements = prevElements
-          //   .filter(e => e.deleted && !analyzedIdSet.has(e.id));
-          //
-          // const manualRels = prevRels.filter(r => r.manual);
-          //
-          // const model: C4Model = {
-          //   ...analyzed,
-          //   elements: [...analyzed.elements, ...manualElements, ...deletedElements, ...prevDeletedElements],
-          //   relationships: [...analyzed.relationships, ...manualRels],
-          // };
-          //
-          // panel.setModel(model);
-
           const panel = C4Panel.getInstance();
           panel.lastTrailGraph = graph;
-          panel.lastProjectRoot = graph.metadata.projectRoot;
           panel.lastTsconfigPath = tsconfigPath;
           panel.buildDsm();
           panel.buildImportanceMatrix(tsconfigPath);
@@ -407,191 +193,9 @@ export class C4Panel implements C4DataProvider {
     }
   }
 
-  /** 解析データをエクスポート（形式選択） */
-  public static async exportData(): Promise<void> {
-    const panel = C4Panel.instance;
-    if (!panel?.lastModel) {
-      vscode.window.showWarningMessage('No C4 model to export. Run Import or Analyze first.');
-      return;
-    }
-
-    const formats = [
-      { label: 'JSON (C4 Model)', format: 'json' },
-      { label: 'Mermaid (Module Dependencies)', format: 'mermaid' },
-    ];
-    const available = panel.lastTrailGraph ? formats : [formats[0]];
-
-    const picked = available.length === 1
-      ? available[0]
-      : await vscode.window.showQuickPick(available, { placeHolder: 'Select export format' });
-    if (!picked) return;
-
-    if (picked.format === 'mermaid') {
-      await C4Panel.exportMermaid(panel);
-    } else {
-      await C4Panel.exportJson(panel);
-    }
-  }
-
-  private static async exportJson(panel: C4Panel): Promise<void> {
-    const uri = await vscode.window.showSaveDialog({
-      filters: { 'JSON': ['json'] },
-      defaultUri: vscode.Uri.file('c4-model.json'),
-      title: 'Export C4 Model',
-    });
-    if (!uri) return;
-
-    const data = {
-      model: panel.lastModel,
-      boundaries: panel.lastBoundaries ?? [],
-    };
-    const content = Buffer.from(JSON.stringify(data, null, 2), 'utf-8');
-    await vscode.workspace.fs.writeFile(uri, content);
-    vscode.window.showInformationMessage(`Exported to ${vscode.workspace.asRelativePath(uri)}`);
-  }
-
-  private static async exportMermaid(panel: C4Panel): Promise<void> {
-    if (!panel.lastTrailGraph) return;
-
-    const uri = await vscode.window.showSaveDialog({
-      filters: { 'Mermaid': ['mmd'] },
-      defaultUri: vscode.Uri.file('deps.mmd'),
-      title: 'Export Mermaid Dependencies',
-    });
-    if (!uri) return;
-
-    const mermaid = toMermaid(panel.lastTrailGraph);
-    const content = Buffer.from(mermaid, 'utf-8');
-    await vscode.workspace.fs.writeFile(uri, content);
-    vscode.window.showInformationMessage(`Exported to ${vscode.workspace.asRelativePath(uri)}`);
-  }
-
-  // -------------------------------------------------------------------------
-  //  Coverage
-  // -------------------------------------------------------------------------
-
-  public loadCoverage(coveragePath: string): void {
-    if (!this.lastModel || !this.lastProjectRoot) {
-      TrailLogger.warn('loadCoverage: model or projectRoot not available');
-      return;
-    }
-
-    try {
-      const raw = JSON.parse(fs.readFileSync(coveragePath, 'utf-8'));
-      const files = parseCoverage(raw);
-      const matrix = aggregateCoverage(files, this.lastModel, this.lastProjectRoot);
-      this.lastCoverageMatrix = matrix;
-
-      this.ensureHistory();
-      const previous = this.coverageHistory!.loadLatest();
-      this.coverageHistory!.save(matrix);
-
-      if (previous) {
-        this.lastCoverageDiff = computeCoverageDiff(previous, matrix);
-      } else {
-        this.lastCoverageDiff = undefined;
-      }
-
-      C4Panel.dataServer?.notify('coverage-updated');
-      C4Panel.dataServer?.notify('coverage-diff-updated');
-      TrailLogger.info(`Coverage loaded: ${matrix.entries.length} entries`);
-    } catch (err) {
-      TrailLogger.warn(`Failed to load coverage: ${(err as Error).message}`);
-    }
-  }
-
-  public startCoverageWatch(coveragePath: string): void {
-    this.coverageWatcher?.stop();
-    this.coverageWatcher = new CoverageWatcher(
-      (filePath) => this.loadCoverage(filePath),
-      TrailLogger,
-    );
-    this.coverageWatcher.start(coveragePath);
-  }
-
-  public stopCoverageWatch(): void {
-    this.coverageWatcher?.stop();
-    this.coverageWatcher = undefined;
-  }
-
-  private ensureHistory(): void {
-    if (this.coverageHistory) return;
-    if (!this.lastProjectRoot) return;
-    const historyDir = path.join(this.lastProjectRoot, '.anytime-trail', 'coverage-history');
-    const limit = vscode.workspace.getConfiguration('anytimeTrail.coverage').get<number>('historyLimit', 50);
-    this.coverageHistory = new CoverageHistory(historyDir, limit);
-  }
-
-  public static loadCoverageData(coveragePath: string): void {
-    C4Panel.getInstance().loadCoverage(coveragePath);
-  }
-
-  public static startCoverageWatch(coveragePath: string): void {
-    C4Panel.getInstance().startCoverageWatch(coveragePath);
-  }
-
-  public static stopCoverageWatch(): void {
-    C4Panel.getInstance().stopCoverageWatch();
-  }
-
   // -------------------------------------------------------------------------
   //  Internal data management
   // -------------------------------------------------------------------------
-
-  /** モデルを設定し、ツリー・保存・DSM・通知を更新 */
-  private setModel(model: C4Model, boundaries?: readonly BoundaryInfo[]): void {
-    if (this.lastModel === model && this.lastBoundaries === boundaries) return;
-    this.lastModel = model;
-    this.lastBoundaries = boundaries;
-    this.buildDsm();
-    void vscode.commands.executeCommand('setContext', 'anytimeTrail.c4ModelLoaded', true);
-    C4Panel.dataServer?.notify('model-updated');
-    this.computeAndCacheComplexity();
-    if (this.lastTsconfigPath) {
-      this.buildImportanceMatrix(this.lastTsconfigPath);
-    }
-    if (!this.claudeWatcher) {
-      this.claudeWatcher = new ClaudeStatusWatcher();
-      this.claudeTracker = new ClaudeActivityTracker();
-      this.claudeTracker.onChange((state) => {
-        C4Panel.dataServer?.notifyClaudeActivity(state.activeElementIds, state.touchedElementIds);
-      });
-      this.claudeWatcher.onStatusChange(this.claudeTracker.onFileEditing);
-    }
-    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
-    this.claudeTracker?.setModel(model, workspaceRoot);
-  }
-
-  /** メッセージ履歴から複雑度マトリクスを計算してキャッシュ */
-  private computeAndCacheComplexity(): void {
-    if (!this.lastModel || !C4Panel.trailDb) return;
-    try {
-      const rows = C4Panel.trailDb.getAllAssistantMessages();
-      const inputs: MessageInput[] = rows.map(row => {
-        let toolCallNames: string[] = [];
-        let editedFilePaths: string[] = [];
-        if (row.tool_calls) {
-          try {
-            const calls = JSON.parse(row.tool_calls) as { name?: string; input?: Record<string, unknown> }[];
-            if (Array.isArray(calls)) {
-              toolCallNames = calls.map(c => c.name ?? '').filter(Boolean);
-              editedFilePaths = calls
-                .filter(c => c.name === 'Edit' || c.name === 'Write')
-                .map(c => (typeof c.input?.file_path === 'string' ? c.input.file_path : ''))
-                .filter(Boolean);
-            }
-          } catch {
-            TrailLogger.warn(`Failed to parse tool_calls JSON`);
-          }
-        }
-        return { outputTokens: row.output_tokens, toolCallNames, editedFilePaths };
-      });
-      this.lastComplexityMatrix = computeComplexityMatrix(inputs, this.lastModel.elements);
-      C4Panel.dataServer?.notify('complexity-updated');
-    } catch (err) {
-      TrailLogger.warn(`Failed to compute complexity: ${(err as Error).message}`);
-    }
-  }
 
   /** DSM データをビルドしてデータサーバーに通知 */
   public buildDsm(cluster = false): void {
@@ -611,9 +215,7 @@ export class C4Panel implements C4DataProvider {
 
   /** tsconfig から ImportanceMatrix を計算してデータサーバーに通知 */
   public buildImportanceMatrix(tsconfigPath: string): void {
-    const elements =
-      this.lastModel?.elements ??
-      (this.lastTrailGraph ? trailToC4(this.lastTrailGraph).elements : undefined);
+    const elements = this.lastTrailGraph ? trailToC4(this.lastTrailGraph).elements : undefined;
     if (!elements || elements.length === 0) {
       TrailLogger.warn('buildImportanceMatrix: no C4 elements available, skipping');
       return;

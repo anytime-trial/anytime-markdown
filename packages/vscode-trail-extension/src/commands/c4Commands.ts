@@ -38,7 +38,6 @@ const dsmAnalyze = vscode.commands.registerCommand('anytime-trail.dsmAnalyze', a
 
 	const c4View = vscode.commands.registerCommand('anytime-trail.c4View', async () => {
 		if (!await ensureServerRunning(deps)) return;
-		C4Panel.restoreSavedModel();
 		C4Panel.openViewer(true);
 	});
 

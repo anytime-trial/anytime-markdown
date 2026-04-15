@@ -27,28 +27,10 @@ function applyDocsPathConfig(): void {
 	trailDataServer?.setDocsPath(docsPath || undefined);
 }
 
-function applyCoverageConfig(): void {
-	const config = vscode.workspace.getConfiguration('anytimeTrail.coverage');
-	const coveragePath = config.get<string>('path', '');
-
-	if (coveragePath) {
-		const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
-		const absPath = path.isAbsolute(coveragePath)
-			? coveragePath
-			: path.join(workspaceRoot, coveragePath);
-		C4Panel.startCoverageWatch(absPath);
-	} else {
-		C4Panel.stopCoverageWatch();
-	}
-}
-
 function setupC4OnServer(server: TrailDataServer): void {
 	server.setC4Provider(() => C4Panel.getDataProvider());
 	C4Panel.setDataServer(server);
-	const restored = C4Panel.restoreSavedModel();
-	void vscode.commands.executeCommand('setContext', 'anytimeTrail.c4ModelLoaded', restored);
 	applyDocsPathConfig();
-	applyCoverageConfig();
 	server.onOpenDocLink = (docPath) => {
 		const docsDir = vscode.workspace.getConfiguration('anytimeTrail').get<string>('docsPath', '');
 		if (!docsDir) return;
@@ -69,22 +51,6 @@ export async function activate(context: vscode.ExtensionContext) {
 	extensionDistPath = path.join(context.extensionUri.fsPath, 'dist');
 
 	// --- コマンド登録 ---
-	context.subscriptions.push(
-		vscode.commands.registerCommand('anytime-trail.loadCoverage', () => {
-			const config = vscode.workspace.getConfiguration('anytimeTrail.coverage');
-			const coveragePath = config.get<string>('path', '');
-			if (!coveragePath) {
-				vscode.window.showWarningMessage('anytimeTrail.coverage.path is not configured.');
-				return;
-			}
-			const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
-			const absPath = path.isAbsolute(coveragePath)
-				? coveragePath
-				: path.join(workspaceRoot, coveragePath);
-			C4Panel.loadCoverageData(absPath);
-		}),
-	);
-
 	context.subscriptions.push(
 		vscode.commands.registerCommand('anytime-trail.runE2eTest', () => {
 			const cmd = vscode.workspace.getConfiguration('anytimeTrail.test').get<string>('e2eCommand', 'cd packages/web-app && npm run e2e');
@@ -339,9 +305,6 @@ export async function activate(context: vscode.ExtensionContext) {
 			if (e.affectsConfiguration('anytimeTrail.docsPath')) {
 				applyDocsPathConfig();
 			}
-			if (e.affectsConfiguration('anytimeTrail.coverage')) {
-				applyCoverageConfig();
-			}
 		}),
 	);
 
@@ -382,7 +345,6 @@ export async function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate(): void {
-	C4Panel.disposeClaudeWatcher();
 	trailDataServer?.stop().catch((err) => TrailLogger.error('Failed to stop trail data server', err));
 	trailDb?.close();
 	TrailLogger.dispose();

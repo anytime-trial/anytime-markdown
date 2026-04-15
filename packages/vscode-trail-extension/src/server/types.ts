@@ -1,25 +1,12 @@
 import type {
-  BoundaryInfo,
-  C4Model,
-  CoverageDiffMatrix,
-  CoverageMatrix,
-  ComplexityMatrix,
   DocLink,
   DsmMatrix,
-  FeatureMatrix,
   ImportanceMatrix,
 } from '@anytime-markdown/trail-core/c4';
 
 // ---------------------------------------------------------------------------
 //  Server → Client messages
 // ---------------------------------------------------------------------------
-
-export interface ModelUpdatedMessage {
-  readonly type: 'model-updated';
-  readonly model: C4Model;
-  readonly boundaries: readonly BoundaryInfo[];
-  readonly featureMatrix?: FeatureMatrix;
-}
 
 export interface DsmUpdatedMessage {
   readonly type: 'dsm-updated';
@@ -39,21 +26,6 @@ export interface DocLinksUpdatedMessage {
   readonly docLinks: readonly DocLink[];
 }
 
-export interface CoverageUpdatedMessage {
-  readonly type: 'coverage-updated';
-  readonly coverageMatrix: CoverageMatrix;
-}
-
-export interface CoverageDiffUpdatedMessage {
-  readonly type: 'coverage-diff-updated';
-  readonly coverageDiff: CoverageDiffMatrix;
-}
-
-export interface ComplexityUpdatedMessage {
-  readonly type: 'complexity-updated';
-  readonly complexityMatrix: ComplexityMatrix;
-}
-
 export interface ImportanceUpdatedMessage {
   readonly type: 'importance-updated';
   readonly importanceMatrix: ImportanceMatrix;
@@ -65,7 +37,7 @@ export interface ClaudeActivityUpdatedMessage {
   readonly touchedElementIds: readonly string[];
 }
 
-export type ServerMessage = ModelUpdatedMessage | DsmUpdatedMessage | AnalysisProgressMessage | DocLinksUpdatedMessage | CoverageUpdatedMessage | CoverageDiffUpdatedMessage | ComplexityUpdatedMessage | ImportanceUpdatedMessage | ClaudeActivityUpdatedMessage;
+export type ServerMessage = DsmUpdatedMessage | AnalysisProgressMessage | DocLinksUpdatedMessage | ImportanceUpdatedMessage | ClaudeActivityUpdatedMessage;
 
 // ---------------------------------------------------------------------------
 //  Client → Server messages
@@ -85,71 +57,13 @@ export interface RefreshCommand {
   readonly type: 'refresh';
 }
 
-// ---------------------------------------------------------------------------
-//  Client → Server: editing commands
-// ---------------------------------------------------------------------------
-
-export interface AddElementCommand {
-  readonly type: 'add-element';
-  readonly element: {
-    readonly type: 'person' | 'system';
-    readonly name: string;
-    readonly description?: string;
-    readonly external?: boolean;
-  };
-}
-
-export interface UpdateElementCommand {
-  readonly type: 'update-element';
-  readonly id: string;
-  readonly changes: {
-    readonly name?: string;
-    readonly description?: string;
-    readonly external?: boolean;
-  };
-}
-
-export interface RemoveElementCommand {
-  readonly type: 'remove-element';
-  readonly id: string;
-}
-
-export interface AddRelationshipCommand {
-  readonly type: 'add-relationship';
-  readonly from: string;
-  readonly to: string;
-  readonly label?: string;
-  readonly technology?: string;
-}
-
-export interface RemoveRelationshipCommand {
-  readonly type: 'remove-relationship';
-  readonly from: string;
-  readonly to: string;
-}
-
-export interface PurgeDeletedElementsCommand {
-  readonly type: 'purge-deleted-elements';
-}
-
 export interface OpenDocLinkCommand {
   readonly type: 'open-doc-link';
   readonly path: string;
-}
-
-export interface ResetClaudeActivityCommand {
-  readonly type: 'reset-claude-activity';
 }
 
 export type ClientMessage =
   | SetLevelCommand
   | ClusterCommand
   | RefreshCommand
-  | AddElementCommand
-  | UpdateElementCommand
-  | RemoveElementCommand
-  | AddRelationshipCommand
-  | RemoveRelationshipCommand
-  | PurgeDeletedElementsCommand
-  | OpenDocLinkCommand
-  | ResetClaudeActivityCommand;
+  | OpenDocLinkCommand;

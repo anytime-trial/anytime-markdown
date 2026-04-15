@@ -13,11 +13,6 @@ import {
 } from '@anytime-markdown/trail-core/c4';
 import type { MessageInput } from '@anytime-markdown/trail-core/c4';
 import type {
-  BoundaryInfo,
-  C4Model,
-  ComplexityMatrix,
-  CoverageDiffMatrix,
-  CoverageMatrix,
   DocLink,
   DsmMatrix,
   FeatureMatrix,
@@ -56,27 +51,14 @@ const DSM_LEVEL_MAP: Record<string, number> = {
 // ---------------------------------------------------------------------------
 
 export interface C4DataProvider {
-  readonly model: C4Model | undefined;
-  readonly boundaries: readonly BoundaryInfo[] | undefined;
   readonly featureMatrix: FeatureMatrix | undefined;
   readonly sourceMatrix: DsmMatrix | undefined;
   readonly currentDsmLevel: 'component' | 'package';
-  readonly coverageMatrix: CoverageMatrix | undefined;
-  readonly coverageDiff: CoverageDiffMatrix | undefined;
-  readonly complexityMatrix: ComplexityMatrix | undefined;
   readonly importanceMatrix: ImportanceMatrix | undefined;
-  getOrComputeComplexityMatrix(): ComplexityMatrix | null;
   readonly trailGraph: TrailGraph | undefined;
   handleSetDsmLevel(level: 'component' | 'package'): void;
   handleCluster(enabled: boolean): void;
   handleRefresh(): void;
-  handleAddElement(element: { type: 'person' | 'system'; name: string; description?: string; external?: boolean }): void;
-  handleUpdateElement(id: string, changes: { name?: string; description?: string; external?: boolean }): void;
-  handleRemoveElement(id: string): void;
-  handlePurgeDeletedElements(): void;
-  handleAddRelationship(from: string, to: string, label?: string, technology?: string): void;
-  handleRemoveRelationship(from: string, to: string): void;
-  handleResetClaudeActivity(): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -95,8 +77,6 @@ export class TrailDataServer {
   private docLinks: readonly DocLink[] = [];
   private docsPath: string | undefined;
   onOpenDocLink: ((docPath: string) => void) | undefined;
-  /** Cached tree result keyed by model reference + level */
-  private treeCache: { model: C4Model; level: number; json: string } | undefined;
 
   constructor(
     private readonly distPath: string,
@@ -194,8 +174,7 @@ export class TrailDataServer {
 
   get clientCount(): number { return this.clients.size; }
 
-  notify(type: 'model-updated' | 'dsm-updated' | 'coverage-updated' | 'coverage-diff-updated' | 'complexity-updated' | 'importance-updated'): void {
-    if (type === 'model-updated') this.treeCache = undefined;
+  notify(type: 'dsm-updated' | 'importance-updated'): void {
     if (this.clients.size === 0) return;
 
     const provider = this.getC4Provider?.();
@@ -348,7 +327,7 @@ export class TrailDataServer {
       return;
     }
     if (pathname === '/api/c4/tree' && method === 'GET') {
-      this.handleC4TreeEndpoint(res);
+      void this.handleC4TreeEndpoint(res);
       return;
     }
     if (pathname === '/api/c4/doc-links' && method === 'GET') {
@@ -600,22 +579,6 @@ export class TrailDataServer {
       return;
     }
 
-    // フォールバック: C4Panel のメモリ上データ（releaseId === 'current' の場合のみ）
-    if (releaseId === 'current') {
-      const model = provider?.model;
-      if (model) {
-        const boundaries = provider?.boundaries ?? [];
-        const featureMatrix = provider?.featureMatrix;
-        const fallback: Record<string, unknown> = { model, boundaries };
-        if (featureMatrix) {
-          fallback.featureMatrix = featureMatrix;
-        }
-        res.writeHead(200, JSON_HEADERS);
-        res.end(JSON.stringify(fallback));
-        return;
-      }
-    }
-
     res.writeHead(204);
     res.end();
   }
@@ -662,41 +625,30 @@ export class TrailDataServer {
     }
   }
 
-  private handleC4TreeEndpoint(res: http.ServerResponse): void {
+  private async handleC4TreeEndpoint(res: http.ServerResponse): Promise<void> {
+    const repoName = this.gitRoot ? path.basename(this.gitRoot) : undefined;
     const provider = this.getC4Provider?.();
-    const model = provider?.model;
+    const store = this.trailDb.asC4ModelStore();
+    const payload = await fetchC4Model(store, 'current', repoName, provider?.featureMatrix);
 
-    if (!model) {
+    if (!payload) {
       res.writeHead(204);
       res.end();
       return;
     }
 
     const level = DSM_LEVEL_MAP[provider?.currentDsmLevel ?? 'component'] ?? 3;
-
-    if (this.treeCache?.model === model && this.treeCache.level === level) {
-      res.writeHead(200, JSON_HEADERS);
-      res.end(this.treeCache.json);
-      return;
-    }
-
-    const boundaries = provider?.boundaries ?? [];
-    const fullTree = buildElementTree(model, boundaries);
+    const boundaries = payload.boundaries ?? [];
+    const fullTree = buildElementTree(payload.model, boundaries);
     const tree = filterTreeByLevel(fullTree, level);
-    const json = JSON.stringify({ tree });
-
-    this.treeCache = { model, level, json };
 
     res.writeHead(200, JSON_HEADERS);
-    res.end(json);
+    res.end(JSON.stringify({ tree }));
   }
 
   private handleC4CoverageEndpoint(res: http.ServerResponse): void {
-    const provider = this.getC4Provider?.();
-    const coverageMatrix = provider?.coverageMatrix;
-    const coverageDiff = provider?.coverageDiff;
     res.writeHead(200, JSON_HEADERS);
-    res.end(JSON.stringify({ coverageMatrix: coverageMatrix ?? null, coverageDiff: coverageDiff ?? null }));
+    res.end(JSON.stringify({ coverageMatrix: null, coverageDiff: null }));
   }
 
   private async handleC4ComplexityEndpoint(res: http.ServerResponse, releaseId: string, repo?: string): Promise<void> {
@@ -705,14 +657,9 @@ export class TrailDataServer {
       const store = this.trailDb.asC4ModelStore();
       const provider = this.getC4Provider?.();
 
-      // モデルを SQLite から取得（C4Panel のメモリ上データをフォールバック）
-      let elements: readonly import('@anytime-markdown/trail-core/c4').C4Element[] = [];
+      // モデルを SQLite から取得（elements が空でも complexityMatrix は計算する）
       const payload = await fetchC4Model(store, releaseId, repoName, provider?.featureMatrix);
-      if (payload) {
-        elements = payload.model.elements;
-      } else if (releaseId === 'current' && provider?.model) {
-        elements = provider.model.elements;
-      }
+      const elements = payload?.model.elements ?? [];
 
       // メッセージから ComplexityMatrix を計算
       const rows = this.trailDb.getAllAssistantMessages();
@@ -878,11 +825,6 @@ export class TrailDataServer {
     const provider = this.getC4Provider?.();
     if (!provider) return;
 
-    const modelMsg = this.buildModelMessage(provider);
-    if (modelMsg) {
-      ws.send(JSON.stringify(modelMsg));
-    }
-
     const dsmMsg = this.buildDsmMessage(provider);
     if (dsmMsg) {
       ws.send(JSON.stringify(dsmMsg));
@@ -893,11 +835,9 @@ export class TrailDataServer {
       ws.send(JSON.stringify(docMsg));
     }
 
-    for (const type of ['coverage-updated', 'coverage-diff-updated', 'complexity-updated', 'importance-updated'] as const) {
-      const msg = this.buildNotifyMessage(type, provider);
-      if (msg) {
-        ws.send(JSON.stringify(msg));
-      }
+    const importanceMsg = this.buildNotifyMessage('importance-updated', provider);
+    if (importanceMsg) {
+      ws.send(JSON.stringify(importanceMsg));
     }
   }
 
@@ -930,29 +870,8 @@ export class TrailDataServer {
       case 'refresh':
         provider.handleRefresh();
         break;
-      case 'add-element':
-        provider.handleAddElement(message.element);
-        break;
-      case 'update-element':
-        provider.handleUpdateElement(message.id, message.changes);
-        break;
-      case 'remove-element':
-        provider.handleRemoveElement(message.id);
-        break;
-      case 'purge-deleted-elements':
-        provider.handlePurgeDeletedElements();
-        break;
       case 'open-doc-link':
         this.onOpenDocLink?.(message.path);
-        break;
-      case 'add-relationship':
-        provider.handleAddRelationship(message.from, message.to, message.label, message.technology);
-        break;
-      case 'remove-relationship':
-        provider.handleRemoveRelationship(message.from, message.to);
-        break;
-      case 'reset-claude-activity':
-        provider.handleResetClaudeActivity();
         break;
     }
   }
@@ -984,44 +903,15 @@ export class TrailDataServer {
   // -------------------------------------------------------------------------
 
   private buildNotifyMessage(
-    type: 'model-updated' | 'dsm-updated' | 'coverage-updated' | 'coverage-diff-updated' | 'complexity-updated' | 'importance-updated',
+    type: 'dsm-updated' | 'importance-updated',
     provider: C4DataProvider,
   ): ServerMessage | undefined {
-    if (type === 'model-updated') {
-      return this.buildModelMessage(provider);
-    }
-    if (type === 'coverage-updated') {
-      const coverageMatrix = provider.coverageMatrix;
-      if (!coverageMatrix) return undefined;
-      return { type: 'coverage-updated', coverageMatrix };
-    }
-    if (type === 'coverage-diff-updated') {
-      const coverageDiff = provider.coverageDiff;
-      if (!coverageDiff) return undefined;
-      return { type: 'coverage-diff-updated', coverageDiff };
-    }
-    if (type === 'complexity-updated') {
-      const complexityMatrix = provider.complexityMatrix;
-      if (!complexityMatrix) return undefined;
-      return { type: 'complexity-updated', complexityMatrix };
-    }
     if (type === 'importance-updated') {
       const importanceMatrix = provider.importanceMatrix;
       if (!importanceMatrix) return undefined;
       return { type: 'importance-updated', importanceMatrix };
     }
     return this.buildDsmMessage(provider);
-  }
-
-  private buildModelMessage(
-    provider: C4DataProvider,
-  ): ServerMessage | undefined {
-    const model = provider.model;
-    if (!model) return undefined;
-    const boundaries = provider.boundaries ?? [];
-    const featureMatrix = provider.featureMatrix;
-
-    return { type: 'model-updated', model, boundaries, featureMatrix };
   }
 
   private buildDsmMessage(
@@ -1032,25 +922,16 @@ export class TrailDataServer {
     return { type: 'dsm-updated', matrix };
   }
 
-  /** model / trailGraph をインメモリ優先、なければ SQLite からフォールバック取得 */
+  /** model / trailGraph を SQLite およびプロバイダから取得 */
   private async resolveModelAndGraph(): Promise<{ model: import('@anytime-markdown/trail-core/c4').C4Model; graph: import('@anytime-markdown/trail-core').TrailGraph } | null> {
     const provider = this.getC4Provider?.();
-    let model = provider?.model;
-    let graph = provider?.trailGraph;
+    const repoName = this.gitRoot ? path.basename(this.gitRoot) : undefined;
 
-    if (!model || !graph) {
-      const repoName = this.gitRoot ? path.basename(this.gitRoot) : undefined;
-      if (!model) {
-        const store = this.trailDb.asC4ModelStore();
-        const payload = await fetchC4Model(store, 'current', repoName, provider?.featureMatrix);
-        if (payload) {
-          model = payload.model;
-        }
-      }
-      if (!graph) {
-        graph = this.trailDb.getCurrentGraph(repoName) ?? undefined;
-      }
-    }
+    const store = this.trailDb.asC4ModelStore();
+    const payload = await fetchC4Model(store, 'current', repoName, provider?.featureMatrix);
+    const model = payload?.model;
+
+    const graph = provider?.trailGraph ?? (this.trailDb.getCurrentGraph(repoName) ?? undefined);
 
     if (!model || !graph) return null;
     return { model, graph };
@@ -1178,12 +1059,7 @@ export class TrailDataServer {
 export function isClientMessage(data: unknown): data is ClientMessage {
   if (typeof data !== 'object' || data === null) return false;
   const msg = data as Record<string, unknown>;
-  const validTypes = [
-    'set-level', 'cluster', 'refresh',
-    'add-element', 'update-element', 'remove-element',
-    'add-relationship', 'remove-relationship', 'purge-deleted-elements',
-    'open-doc-link', 'reset-claude-activity',
-  ];
+  const validTypes = ['set-level', 'cluster', 'refresh', 'open-doc-link'];
   return typeof msg.type === 'string' && validTypes.includes(msg.type);
 }
 
