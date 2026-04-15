@@ -359,9 +359,15 @@ export function C4ViewerCore({
     if (pendingFitRef.current) {
       pendingFitRef.current = false;
       const canvas = canvasRef.current;
-      if (canvas && canvas.clientWidth > 0 && canvas.clientHeight > 0) {
+      const cw = canvas?.clientWidth ?? -1;
+      const ch = canvas?.clientHeight ?? -1;
+      // eslint-disable-next-line no-console
+      console.log('[C4ViewerCore] pendingFit: canvas=', !!canvas, 'clientWidth=', cw, 'clientHeight=', ch, 'nodes=', viewDoc.nodes.length);
+      if (canvas && cw > 0 && ch > 0) {
         const bounds = computeBounds(viewDoc.nodes);
-        const viewport = fitToContent(canvas.clientWidth, canvas.clientHeight, bounds);
+        const viewport = fitToContent(cw, ch, bounds);
+        // eslint-disable-next-line no-console
+        console.log('[C4ViewerCore] fit viewport=', viewport, 'bounds=', bounds);
         dispatch({ type: 'SET_VIEWPORT', viewport });
       }
     }
