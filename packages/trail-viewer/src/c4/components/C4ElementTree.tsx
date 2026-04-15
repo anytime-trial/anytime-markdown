@@ -27,6 +27,7 @@ import type { Dispatch, FC } from 'react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 
 import { DOC_TYPE_COLORS, getC4Colors } from '../c4Theme';
+import { getTokens } from '../../components/designTokens';
 
 const INDENT_PX = 20;
 
@@ -219,6 +220,7 @@ interface DocLinksSectionProps {
 
 const DocLinksSection: FC<DocLinksSectionProps> = memo(({ docLinks, selectedId, onDocLinkClick, isDark }) => {
   const colors = useMemo(() => getC4Colors(isDark ?? true), [isDark]);
+  const { scrollbarSx } = useMemo(() => getTokens(isDark ?? true), [isDark]);
   const matched = useMemo(() => {
     if (!selectedId || docLinks.length === 0) return [];
     return docLinks.filter(d => matchesScope(d.c4Scope, selectedId));
@@ -250,7 +252,7 @@ const DocLinksSection: FC<DocLinksSectionProps> = memo(({ docLinks, selectedId, 
           No linked documents
         </Typography>
       ) : (
-        <List dense disablePadding sx={{ overflowY: 'auto' }}>
+        <List dense disablePadding sx={{ overflowY: 'auto', ...scrollbarSx }}>
           {matched.map(doc => (
             <ListItemButton
               key={doc.path}
@@ -309,6 +311,7 @@ interface C4ElementTreeProps {
 
 export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onSelect, onCheckedChange, onRemoveElement, onPurgeDeleted, docLinks, onDocLinkClick, exports, onExportSelect, selectedExportId, isDark, checkReset }) => {
   const colors = useMemo(() => getC4Colors(isDark ?? true), [isDark]);
+  const { scrollbarSx } = useMemo(() => getTokens(isDark ?? true), [isDark]);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => {
     // デフォルトでルートレベルと system ノードの直下を展開
     const ids = new Set<string>();
@@ -427,6 +430,7 @@ export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onS
         display: 'flex',
         flexDirection: 'column',
         overflowY: 'auto',
+        ...scrollbarSx,
       }}
     >
       {hasDeletedElements && onPurgeDeleted && (
@@ -443,7 +447,7 @@ export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onS
           </Tooltip>
         </Box>
       )}
-      <List dense disablePadding sx={{ flex: 1, overflowY: 'auto' }}>
+      <List dense disablePadding sx={{ flex: 1, overflowY: 'auto', ...scrollbarSx }}>
         {tree.map(node => (
           <TreeNodeItem
             key={node.id}
@@ -469,7 +473,7 @@ export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onS
       )}
       {exports && exports.length > 0 && <><Divider sx={{ borderColor: colors.border }} />
         <Box sx={{ px: 1, py: 0.25, borderBottom: `1px solid ${colors.border}`, minHeight: 32, display: 'flex', alignItems: 'center', flexShrink: 0 }}><Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.7rem' }}>Exports</Typography></Box>
-        <List dense disablePadding sx={{ overflowY: 'auto' }}>{exports.map(sym => (
+        <List dense disablePadding sx={{ overflowY: 'auto', ...scrollbarSx }}>{exports.map(sym => (
           <ListItemButton key={sym.id} selected={sym.id === selectedExportId} onClick={() => onExportSelect?.(sym)} sx={{ py: 0.25, pl: 1.5, minHeight: 28 }}>
             <Typography variant="caption" sx={{ mr: 0.75, color: colors.accent, fontFamily: 'monospace', fontSize: '0.75rem', minWidth: 14 }}>{EXPORT_KIND_ICONS[sym.kind]}</Typography>
             <ListItemText primary={sym.name} primaryTypographyProps={{ variant: 'body2', noWrap: true, fontSize: '0.75rem' }} />
