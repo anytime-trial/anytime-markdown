@@ -756,7 +756,35 @@ export function C4ViewerCore({
           </Select>
         </Box>
         <Button size="small" onClick={() => { if (showC4 && !showDsm) { setShowDsm(true); } else { setShowC4(true); setShowDsm(false); } }} aria-pressed={showC4 && !showDsm} aria-label="Toggle C4 graph" sx={{ ...toolbarButtonSx, ...(showC4 && !showDsm && { bgcolor: toolbarButtonActiveBg }) }}>C4</Button>
-        <Button size="small" onClick={() => { if (!showC4 && showDsm) { setShowC4(true); } else { setShowC4(false); setShowDsm(true); } }} aria-pressed={!showC4 && showDsm} aria-label="Toggle matrix panel" sx={{ ...toolbarButtonSx, ...(!showC4 && showDsm && { bgcolor: toolbarButtonActiveBg }) }}>Matrix</Button>
+        <ButtonGroup size="small">
+          {(['dsm', 'fcmap', 'coverage'] as const).map((view) => {
+            const label = view === 'dsm' ? 'DSM' : view === 'fcmap' ? 'F-cMap' : 'Cov';
+            const isActive = showDsm && matrixView === view;
+            const isDisabled = (view === 'fcmap' && !featureMatrix) || (view === 'coverage' && !coverageMatrix);
+            return (
+              <Button
+                key={view}
+                size="small"
+                disabled={isDisabled}
+                aria-pressed={isActive}
+                aria-label={`Show ${label} matrix`}
+                onClick={() => {
+                  if (isActive) {
+                    setShowC4(true);
+                    setShowDsm(false);
+                  } else {
+                    setShowC4(false);
+                    setShowDsm(true);
+                    setMatrixView(view);
+                  }
+                }}
+                sx={{ ...toolbarButtonSx, fontSize: '0.75rem', ...(isActive && { bgcolor: toolbarButtonActiveBg }) }}
+              >
+                {label}
+              </Button>
+            );
+          })}
+        </ButtonGroup>
         {selectedExport && (
           <>
             <Button
@@ -1021,9 +1049,6 @@ export function C4ViewerCore({
         {showDsm && (
           <Box sx={{ flex: showC4 ? 1 - splitRatio : 1, display: 'flex', flexDirection: 'column', minWidth: 100 }}>
             <Toolbar variant="dense" sx={{ gap: 0.5, bgcolor: colors.bgSecondary, borderBottom: `1px solid ${colors.border}`, minHeight: 36, px: 1, flexShrink: 0 }}>
-              <Button size="small" onClick={() => { setMatrixView('dsm'); }} aria-pressed={matrixView === 'dsm'} aria-label="Show DSM matrix" sx={{ ...toolbarButtonSx, fontSize: '0.75rem', ...(matrixView === 'dsm' && { bgcolor: toolbarButtonActiveBg }) }}>DSM</Button>
-              <Button size="small" onClick={() => { setMatrixView('fcmap'); }} aria-pressed={matrixView === 'fcmap'} aria-label="Show F-C Map" disabled={!featureMatrix} sx={{ ...toolbarButtonSx, fontSize: '0.75rem', ...(matrixView === 'fcmap' && { bgcolor: toolbarButtonActiveBg }) }}>F-C Map</Button>
-              <Button size="small" onClick={() => { const next = matrixView !== 'coverage'; setShowCoverage(next); setMatrixView(next ? 'coverage' : 'dsm'); }} aria-pressed={matrixView === 'coverage'} aria-label="Show coverage" disabled={!coverageMatrix} sx={{ ...toolbarButtonSx, fontSize: '0.75rem', ...(matrixView === 'coverage' && { bgcolor: toolbarButtonActiveBg }) }}>Cov</Button>
               <Button size="small" onClick={() => setDsmClustered(prev => !prev)} sx={{ ...toolbarButtonSx, fontSize: '0.75rem', ...(dsmClustered && { bgcolor: toolbarButtonActiveBg }) }}>Cluster</Button>
             </Toolbar>
             <Box sx={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
