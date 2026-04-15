@@ -228,8 +228,10 @@ export function C4ViewerCore({
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const pendingFitRef = useRef(false);
-  const pendingFitClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // L1/L2/L3/L4 切り替え後に Fit を適用する残り回数。
+  // 0 = Fit 不要。正値の間は SET_DOCUMENT に fit viewport を埋め込む。
+  // setTimeout は React スケジューラと競合するため使わず、カウントダウン方式にする。
+  const pendingFitCountRef = useRef(0);
 
   // --- Editing state ---
   const [addElementType, setAddElementType] = useState<'person' | 'system' | null>(null);
@@ -358,20 +360,16 @@ export function C4ViewerCore({
     // L1/L2/L3/L4 切り替え時に Fit を実行する。
     // viewport を doc に埋め込んで SET_DOCUMENT で確実に適用する（別途 SET_VIEWPORT を
     // 発行すると後続の SET_DOCUMENT で上書きされるため）。
-    // エフェクトが同一バッチ内で複数回実行される場合にも対応するため、
-    // setTimeout(fn, 0) で現在のレンダーバッチ完了後に pendingFitRef をクリアする。
-    if (pendingFitRef.current) {
+    // setFullDoc() によるstate更新がエフェクトを再実行させるため、
+    // カウントダウン方式で複数回の実行に対応する（setTimeout は React スケジューラと競合する）。
+    if (pendingFitCountRef.current > 0) {
+      pendingFitCountRef.current--;
       const canvas = canvasRef.current;
       if (canvas && canvas.clientWidth > 0 && canvas.clientHeight > 0) {
         const bounds = computeBounds(viewDoc.nodes);
         const viewport = fitToContent(canvas.clientWidth, canvas.clientHeight, bounds);
         viewDoc = { ...viewDoc, viewport };
       }
-      clearTimeout(pendingFitClearTimerRef.current ?? undefined);
-      pendingFitClearTimerRef.current = setTimeout(() => {
-        pendingFitRef.current = false;
-        pendingFitClearTimerRef.current = null;
-      }, 0);
     }
 
     dispatch({ type: 'SET_DOCUMENT', doc: viewDoc });
@@ -453,7 +451,7 @@ export function C4ViewerCore({
   }, [drillStack]);
 
   const handleSetLevel = useCallback((level: number) => {
-    pendingFitRef.current = true;
+    pendingFitCountRef.current = 5;
     setCurrentLevel(level);
     setDrillStack([]);
     setCheckedPackageIds(null);
