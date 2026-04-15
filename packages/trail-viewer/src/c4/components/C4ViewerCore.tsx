@@ -616,7 +616,9 @@ export function C4ViewerCore({
   const canDrillUp = contextMenu !== null &&
     contextMenu.nodeType === 'frame' &&
     drillStack.length > 0;
-  const showContextMenu = contextMenu !== null && (canDrillDown || canDrillUp);
+  const canShowOnlyFrame = contextMenu !== null &&
+    contextMenu.nodeType === 'frame';
+  const showContextMenu = contextMenu !== null && (canDrillDown || canDrillUp || canShowOnlyFrame);
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: containerHeight, bgcolor: colors.bg }}>
@@ -912,6 +914,31 @@ export function C4ViewerCore({
                         onClick={handleDrillUp}
                       >
                         {t('c4.drillUp')}
+                      </button>
+                    )}
+                    {canShowOnlyFrame && (
+                      <button
+                        type="button"
+                        style={{
+                          display: 'block',
+                          width: '100%',
+                          padding: '6px 16px',
+                          textAlign: 'left',
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: 14,
+                          color: isDark ? '#e0e0e0' : '#333',
+                        }}
+                        onClick={() =>
+                          soloFrameId === contextMenu.c4Id
+                            ? handleClearFrameFilter()
+                            : handleShowOnlyFrame(contextMenu.c4Id)
+                        }
+                      >
+                        {soloFrameId === contextMenu.c4Id
+                          ? t('c4.clearFrameFilter')
+                          : t('c4.showOnlyThisFrame')}
                       </button>
                     )}
                   </div>
