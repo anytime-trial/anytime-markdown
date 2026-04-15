@@ -65,7 +65,11 @@ export class ClaudeStatusWatcher implements Disposable {
     const isStale = Date.now() - status.timestamp > STALE_THRESHOLD_MS;
     const editing = isStale ? false : status.editing;
 
-    if (!editing && this.lastEditing !== true) {
+    // PreToolUse と PostToolUse が連続して同一の fs.watch イベントに合流した場合、
+    // editing=false しか観測できない。非 stale な editing=false は直前に editing=true が
+    // あったことを示すため、synthetic な true イベントを先に発火してから false を発火する。
+    // stale（30秒超）の場合は前セッションの残存データなので synthetic を発火しない。
+    if (!editing && !isStale && this.lastEditing !== true) {
       this.lastEditing = true;
       for (const cb of this.callbacks) {
         cb(true, status.file);

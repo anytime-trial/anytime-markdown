@@ -239,7 +239,10 @@ export class C4Panel implements C4DataProvider {
   /** Claude Code のファイル編集監視を起動し、C4 要素への紐付けを更新する */
   private startClaudeActivityTracking(projectRoot: string): void {
     if (!this.claudeWatcher) {
-      this.claudeWatcher = new ClaudeStatusWatcher(projectRoot);
+      // フックは VS Code ワークスペースルートの .vscode/ に書き込むため、
+      // tsconfig の projectRoot ではなくワークスペースルートを使用する。
+      const watchRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? projectRoot;
+      this.claudeWatcher = new ClaudeStatusWatcher(watchRoot);
       this.claudeTracker = new ClaudeActivityTracker();
       this.claudeTracker.onChange((state) => {
         C4Panel.dataServer?.notifyClaudeActivity(state.activeElementIds, state.touchedElementIds);
