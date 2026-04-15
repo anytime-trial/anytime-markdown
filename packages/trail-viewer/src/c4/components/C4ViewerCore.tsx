@@ -350,12 +350,20 @@ export function C4ViewerCore({
     const doc = c4ToGraphDocument(filteredModel, boundaryInfos);
     layoutWithSubgroups(doc, 'TB', 180, 60);
     setFullDoc(doc);
-    if (currentLevel < 4) {
-      const view = buildLevelView(doc, currentLevel);
-      layoutWithSubgroups(view, 'TB', 180, 60);
-      dispatch({ type: 'SET_DOCUMENT', doc: view });
-    } else {
-      dispatch({ type: 'SET_DOCUMENT', doc });
+    const viewDoc = currentLevel < 4
+      ? (() => { const v = buildLevelView(doc, currentLevel); layoutWithSubgroups(v, 'TB', 180, 60); return v; })()
+      : doc;
+    dispatch({ type: 'SET_DOCUMENT', doc: viewDoc });
+
+    // L1/L2/L3/L4 切り替え時に Fit を実行する
+    if (pendingFitRef.current) {
+      pendingFitRef.current = false;
+      const canvas = canvasRef.current;
+      if (canvas && canvas.clientWidth > 0 && canvas.clientHeight > 0) {
+        const bounds = computeBounds(viewDoc.nodes);
+        const viewport = fitToContent(canvas.clientWidth, canvas.clientHeight, bounds);
+        dispatch({ type: 'SET_VIEWPORT', viewport });
+      }
     }
   }, [c4Model, boundaryInfos, drillStack, currentLevel, checkedPackageIds, soloFrameId]);
 
@@ -455,16 +463,6 @@ export function C4ViewerCore({
     dispatch({ type: 'SET_VIEWPORT', viewport });
   }, [state.document.nodes]);
 
-  // L1/L2/L3/L4 切り替え後にドキュメントが確定したら Fit を実行する
-  useEffect(() => {
-    if (!pendingFitRef.current) return;
-    pendingFitRef.current = false;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const bounds = computeBounds(state.document.nodes);
-    const viewport = fitToContent(canvas.clientWidth, canvas.clientHeight, bounds);
-    dispatch({ type: 'SET_VIEWPORT', viewport });
-  }, [state.document.nodes]);
 
   const elementTree = useMemo(() => {
     if (!c4Model) return [];
