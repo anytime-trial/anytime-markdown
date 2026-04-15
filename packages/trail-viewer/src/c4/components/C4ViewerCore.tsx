@@ -394,6 +394,26 @@ export function C4ViewerCore({
     setContextMenu(null);
   }, []);
 
+  /** pkg_ 要素のパスをクリップボードにコピーする */
+  const handleCopyPath = useCallback(() => {
+    if (!contextMenu) return;
+    const id = contextMenu.c4Id;
+    let path: string;
+    if (id.startsWith('pkg_')) {
+      const inner = id.slice(4);
+      const slash = inner.indexOf('/');
+      if (slash === -1) {
+        path = `packages/${inner}`;
+      } else {
+        path = `packages/${inner.slice(0, slash)}/src/${inner.slice(slash + 1)}`;
+      }
+    } else {
+      path = id;
+    }
+    navigator.clipboard.writeText(path).catch(() => {});
+    setContextMenu(null);
+  }, [contextMenu]);
+
   /** フレームフィルタを解除する */
   const handleClearFrameFilter = useCallback(() => {
     setSoloFrameId(null);
@@ -670,7 +690,8 @@ export function C4ViewerCore({
     drillStack.length > 0;
   const canShowOnlyFrame = contextMenu !== null &&
     contextMenu.nodeType === 'frame';
-  const showContextMenu = contextMenu !== null && (canDrillDown || canDrillUp || canShowOnlyFrame);
+  const canCopyPath = contextMenu !== null && contextMenu.c4Id.startsWith('pkg_');
+  const showContextMenu = contextMenu !== null && (canDrillDown || canDrillUp || canShowOnlyFrame || canCopyPath);
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: containerHeight, bgcolor: colors.bg }}>
@@ -1039,6 +1060,25 @@ export function C4ViewerCore({
                         {soloFrameId === contextMenu.c4Id
                           ? t('c4.clearFrameFilter')
                           : t('c4.showOnlyThisFrame')}
+                      </button>
+                    )}
+                    {canCopyPath && (
+                      <button
+                        type="button"
+                        style={{
+                          display: 'block',
+                          width: '100%',
+                          padding: '6px 16px',
+                          textAlign: 'left',
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: 14,
+                          color: isDark ? '#e0e0e0' : '#333',
+                        }}
+                        onClick={handleCopyPath}
+                      >
+                        {t('c4.copyPath')}
                       </button>
                     )}
                   </div>

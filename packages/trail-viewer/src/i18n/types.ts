@@ -182,5 +182,6 @@ export interface TrailI18n {
   'c4.claudeActivity.reset': string;
   'c4.showOnlyThisFrame': string;
   'c4.clearFrameFilter': string;
+  'c4.copyPath': string;
   'c4.frameFilter.reset': string;
 }
