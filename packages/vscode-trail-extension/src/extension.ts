@@ -13,6 +13,7 @@ import type { IRemoteTrailStore } from './trail/IRemoteTrailStore';
 import { SupabaseTrailStore } from './trail/SupabaseTrailStore';
 import { PostgresTrailStore } from './trail/PostgresTrailStore';
 import { SyncService } from './trail/SyncService';
+import { setupClaudeHooks } from '@anytime-markdown/vscode-common';
 
 let trailDataServer: TrailDataServer | undefined;
 let trailDb: TrailDatabase | undefined;
@@ -49,6 +50,15 @@ function setupC4OnServer(server: TrailDataServer): void {
 
 export async function activate(context: vscode.ExtensionContext) {
 	extensionDistPath = path.join(context.extensionUri.fsPath, 'dist');
+
+	// Claude Code hook を ~/.claude/settings.json に自動登録
+	{
+		const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+		if (wsRoot) {
+			const registered = setupClaudeHooks(wsRoot);
+			TrailLogger.info(`Claude hooks setup: ${registered ? 'registered' : 'skipped (already registered or .claude not found)'}`);
+		}
+	}
 
 	// --- コマンド登録 ---
 	context.subscriptions.push(
