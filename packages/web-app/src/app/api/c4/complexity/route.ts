@@ -31,20 +31,23 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (!store) return new NextResponse(null, { status: 204 });
 
   try {
+    const supabase = createClient(env.url, env.anonKey);
     const [payload, messagesResult] = await Promise.all([
       fetchC4Model(store, release, repo),
-      createClient(env.url, env.anonKey)
+      supabase
         .from('trail_messages')
         .select('tool_calls, output_tokens')
         .eq('type', 'assistant')
         .not('tool_calls', 'is', null),
     ]);
 
-    if (!payload) return new NextResponse(null, { status: 204 });
     if (messagesResult.error) {
       console.error('[/api/c4/complexity] trail_messages query failed:', messagesResult.error.message);
       return new NextResponse(null, { status: 204 });
     }
+
+    // C4 モデルが取得できない場合は空の elements でフォールバック（items は enabled になる）
+    const elements = payload?.model.elements ?? [];
 
     const messages: MessageInput[] = (messagesResult.data ?? []).map(row => {
       let toolCallNames: string[] = [];
@@ -66,7 +69,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return { outputTokens: Number(row.output_tokens), toolCallNames, editedFilePaths };
     });
 
-    const complexityMatrix = computeComplexityMatrix(messages, payload.model.elements);
+    const complexityMatrix = computeComplexityMatrix(messages, elements);
     return NextResponse.json({ complexityMatrix }, { headers: NO_STORE_HEADERS });
   } catch (e) {
     console.error('[/api/c4/complexity] error', e);
