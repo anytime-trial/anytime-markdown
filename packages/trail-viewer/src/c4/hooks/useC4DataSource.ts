@@ -247,6 +247,7 @@ function useRemoteInitialFetch(
   setCoverageDiff: (m: CoverageDiffMatrix | null) => void,
   setComplexityMatrix: (m: ComplexityMatrix | null) => void,
   setReleases: (entries: readonly C4ReleaseEntry[]) => void,
+  setDocLinks: (docs: readonly DocLink[]) => void,
 ): void {
   useEffect(() => {
     // serverUrl === undefined → local mode (fetch しない)
@@ -261,19 +262,21 @@ function useRemoteInitialFetch(
       const modelUrl = `${serverUrl}/api/c4/model?release=${encodeURIComponent(selectedRelease)}${repoQuery}`;
       const dsmUrl = `${serverUrl}/api/c4/dsm?release=${encodeURIComponent(selectedRelease)}${repoQuery}`;
       const complexityUrl = `${serverUrl}/api/c4/complexity?release=${encodeURIComponent(selectedRelease)}${repoQuery}`;
-      const [modelRes, dsmRes, covRes, complexityRes, releasesRes] = await Promise.all([
+      const [modelRes, dsmRes, covRes, complexityRes, releasesRes, docsRes] = await Promise.all([
         fetch(modelUrl).catch(() => null),
         fetch(dsmUrl).catch(() => null),
         fetch(`${serverUrl}/api/c4/coverage`).catch(() => null),
         fetch(complexityUrl).catch(() => null),
         fetch(`${serverUrl}/api/c4/releases`).catch(() => null),
+        fetch(`${serverUrl}/api/docs-index`).catch(() => null),
       ]);
 
-      const [modelJson, dsmJson, covJson, complexityJson] = await Promise.all([
+      const [modelJson, dsmJson, covJson, complexityJson, docsJson] = await Promise.all([
         readJson(modelRes),
         readJson(dsmRes),
         readJson(covRes),
         readJson(complexityRes),
+        readJson(docsRes),
       ]);
       if (cancelled) return;
 
@@ -304,6 +307,10 @@ function useRemoteInitialFetch(
 
       setComplexityMatrix(isComplexityPayload(complexityJson) ? complexityJson.complexityMatrix : null);
 
+      if (docsJson && typeof docsJson === 'object' && 'docs' in docsJson && Array.isArray((docsJson as { docs: unknown }).docs)) {
+        setDocLinks((docsJson as { docs: DocLink[] }).docs);
+      }
+
       if (releasesRes?.status === 200) {
         const json: unknown = await releasesRes.json();
         if (!cancelled && Array.isArray(json)) {
@@ -327,7 +334,7 @@ function useRemoteInitialFetch(
 
     void fetchInitial();
     return () => { cancelled = true; };
-  }, [serverUrl, selectedRelease, selectedRepo, setC4Model, setBoundaries, setDsmMatrix, setFeatureMatrix, setCoverageMatrix, setCoverageDiff, setComplexityMatrix, setReleases]);
+  }, [serverUrl, selectedRelease, selectedRepo, setC4Model, setBoundaries, setDsmMatrix, setFeatureMatrix, setCoverageMatrix, setCoverageDiff, setComplexityMatrix, setReleases, setDocLinks]);
 }
 
 // ---------------------------------------------------------------------------
@@ -372,6 +379,7 @@ export function useC4DataSource(serverUrl: string): C4DataSourceResult {
     setCoverageDiff,
     setComplexityMatrix,
     setReleases,
+    setDocLinks,
   );
 
   // WebSocket message handler
