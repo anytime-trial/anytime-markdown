@@ -5,6 +5,7 @@ import { TrailLogger } from '../utils/TrailLogger';
 export interface ClaudeActivityState {
   readonly activeElementIds: readonly string[];
   readonly touchedElementIds: readonly string[];
+  readonly plannedElementIds: readonly string[];
 }
 
 type ActivityChangeCallback = (state: ClaudeActivityState) => void;
@@ -17,6 +18,7 @@ export class ClaudeActivityTracker {
 
   private activeElementIds: string[] = [];
   private touchedElementIds = new Set<string>();
+  private plannedElementIds = new Set<string>();
   private workspaceRoot = '';
   private readonly changeCallbacks: ActivityChangeCallback[] = [];
 
@@ -48,6 +50,18 @@ export class ClaudeActivityTracker {
     this.notifyChange();
   };
 
+  /** plannedEdits の絶対パス配列から plannedElementIds を解決してセットする */
+  setPlannedEdits(absolutePaths: readonly string[]): void {
+    this.plannedElementIds.clear();
+    for (const filePath of absolutePaths) {
+      const ids = this.resolveElementIds(filePath);
+      for (const id of ids) {
+        this.plannedElementIds.add(id);
+      }
+    }
+    this.notifyChange();
+  }
+
   /** セッション履歴から touchedElementIds を復元する */
   restoreSessionEdits(edits: readonly SessionEdit[]): void {
     for (const edit of edits) {
@@ -64,13 +78,17 @@ export class ClaudeActivityTracker {
   resetTouched(): void {
     this.activeElementIds = [];
     this.touchedElementIds.clear();
+    this.plannedElementIds.clear();
     this.notifyChange();
   }
 
   getState(): ClaudeActivityState {
+    const planned = [...this.plannedElementIds]
+      .filter((id) => !this.touchedElementIds.has(id));
     return {
       activeElementIds: [...this.activeElementIds],
       touchedElementIds: [...this.touchedElementIds],
+      plannedElementIds: planned,
     };
   }
 
