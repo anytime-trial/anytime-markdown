@@ -17,3 +17,11 @@ export const CREATE_RELEASE_INDEXES = [
   'CREATE INDEX IF NOT EXISTS idx_release_features_tag ON release_features(release_tag)',
   'CREATE INDEX IF NOT EXISTS idx_release_coverage_tag ON release_coverage(release_tag)',
 ];
+
+export const CREATE_MESSAGE_TOOL_CALLS_INDEXES = [
+  'CREATE INDEX IF NOT EXISTS idx_mtc_session   ON message_tool_calls(session_id)',
+  'CREATE INDEX IF NOT EXISTS idx_mtc_tool_name ON message_tool_calls(tool_name)',
+  'CREATE INDEX IF NOT EXISTS idx_mtc_timestamp ON message_tool_calls(timestamp)',
+  'CREATE INDEX IF NOT EXISTS idx_mtc_skill     ON message_tool_calls(skill_name)',
+  'CREATE INDEX IF NOT EXISTS idx_mtc_is_error  ON message_tool_calls(is_error)',
+] as const;
