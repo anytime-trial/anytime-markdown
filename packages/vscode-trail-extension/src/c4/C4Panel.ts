@@ -47,6 +47,21 @@ export class C4Panel implements C4DataProvider {
 
   public static setTrailDatabase(db: TrailDatabase): void {
     C4Panel.trailDb = db;
+    // 保存済みグラフがあればアクティビティトラッキングを起動する。
+    // analyzeWorkspace() を実行していない場合（VS Code 再起動後・保存済みグラフ利用時）でも
+    // クロードコードの編集ハイライトが機能するようにする。
+    const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    const repoName = wsRoot ? path.basename(wsRoot) : undefined;
+    try {
+      const savedGraph = db.getCurrentGraph(repoName);
+      if (savedGraph) {
+        const panel = C4Panel.getInstance();
+        panel.lastTrailGraph ??= savedGraph;
+        panel.startClaudeActivityTracking(savedGraph.metadata.projectRoot);
+      }
+    } catch {
+      // DB 初期化前やグラフ未保存の場合は無視。analyzeWorkspace() 実行時に再試行される。
+    }
   }
 
   public static getDataProvider(): C4DataProvider | undefined {
@@ -76,6 +91,21 @@ export class C4Panel implements C4DataProvider {
     if ((C4Panel.dataServer.clientCount ?? 0) > 0) return;
     if (!force && C4Panel.viewerOpened) return;
     C4Panel.viewerOpened = true;
+    // setTrailDatabase 時点でグラフがなかった場合のフォールバック（import 後に初めて開く場合等）
+    const panel = C4Panel.getInstance();
+    if (!panel.claudeWatcher && C4Panel.trailDb) {
+      const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      const repoName = wsRoot ? path.basename(wsRoot) : undefined;
+      try {
+        const savedGraph = C4Panel.trailDb.getCurrentGraph(repoName);
+        if (savedGraph) {
+          panel.lastTrailGraph ??= savedGraph;
+          panel.startClaudeActivityTracking(savedGraph.metadata.projectRoot);
+        }
+      } catch {
+        // グラフ未保存の場合は無視
+      }
+    }
     const port = vscode.workspace.getConfiguration('anytimeTrail.trailServer').get<number>('port', 19841);
     vscode.env.openExternal(vscode.Uri.parse(`http://localhost:${port}`));
   }
