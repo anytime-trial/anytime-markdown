@@ -459,20 +459,34 @@ export class SupabaseTrailReader implements ITrailReader {
       type Row = { session_id: string; turn_index: number; tool_name: string; skill_name: string | null; is_error: number; is_sidechain: number; timestamp: string };
       const rows = data as Row[];
 
+      // IANA タイムゾーンから UTC オフセット（分）を取得する。
+      // getTimezoneOffset() は WSL 環境で常に 0 を返すため使用禁止。
+      const getIanaOffsetMs = (timeZone: string, at: Date): number => {
+        const parts = new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'longOffset' }).formatToParts(at);
+        const label = parts.find(p => p.type === 'timeZoneName')?.value ?? 'GMT+00:00';
+        const match = /^GMT([+-])(\d{1,2}):(\d{2})$/.exec(label);
+        if (!match) return 0;
+        const sign = match[1] === '+' ? 1 : -1;
+        return sign * (Number(match[2]) * 60 + Number(match[3])) * 60_000;
+      };
+
       // period key function
       const periodKey = (r: Row): string => {
         if (period === 'session') return r.session_id;
-        const d = new Date(r.timestamp);
-        const jstMs = d.getTime() + 9 * 3600 * 1000;
-        const jst = new Date(jstMs);
-        const y = jst.getUTCFullYear();
-        const m = String(jst.getUTCMonth() + 1).padStart(2, '0');
-        const day = String(jst.getUTCDate()).padStart(2, '0');
+        const utc = new Date(r.timestamp);
+        const offsetMs = getIanaOffsetMs('Asia/Tokyo', utc);
+        const local = new Date(utc.getTime() + offsetMs);
+        const y = local.getUTCFullYear();
+        const m = String(local.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(local.getUTCDate()).padStart(2, '0');
         if (period === 'day') return `${y}-${m}-${day}`;
-        const startOfWeek = new Date(jstMs - jst.getUTCDay() * 86_400_000);
-        const wy = startOfWeek.getUTCFullYear();
-        const wm = String(startOfWeek.getUTCMonth() + 1).padStart(2, '0');
-        const wd = String(startOfWeek.getUTCDate()).padStart(2, '0');
+        // 週キー: 月曜始まり（getUTCDay() 0=日曜 → 月曜を週頭にするため調整）
+        const dow = local.getUTCDay(); // 0=Sun, 1=Mon, ...
+        const diffToMonday = (dow + 6) % 7;
+        const monday = new Date(local.getTime() - diffToMonday * 86_400_000);
+        const wy = monday.getUTCFullYear();
+        const wm = String(monday.getUTCMonth() + 1).padStart(2, '0');
+        const wd = String(monday.getUTCDate()).padStart(2, '0');
         return `${wy}-${wm}-${wd}`;
       };
 

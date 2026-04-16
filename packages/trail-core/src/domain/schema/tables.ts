@@ -207,5 +207,6 @@ export const CREATE_MESSAGE_TOOL_CALLS = `CREATE TABLE IF NOT EXISTS message_too
   has_thinking INTEGER NOT NULL DEFAULT 0,
   is_error     INTEGER NOT NULL DEFAULT 0,
   error_type   TEXT,
-  timestamp    TEXT NOT NULL
+  timestamp    TEXT NOT NULL,
+  UNIQUE (message_uuid, call_index)
 )`;

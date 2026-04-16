@@ -54,7 +54,7 @@ export class ClaudeCodeBehaviorAnalyzer {
         if (!msg.tool_calls) { turnIndex++; continue; }
 
         let toolBlocks: ToolCallBlock[] = [];
-        try { toolBlocks = JSON.parse(msg.tool_calls) as ToolCallBlock[]; } catch { turnIndex++; continue; }
+        try { toolBlocks = JSON.parse(msg.tool_calls) as ToolCallBlock[]; } catch (e) { TrailLogger.warn(`[ClaudeCodeBehaviorAnalyzer] Failed to parse tool_calls for message ${msg.uuid}: ${String(e)}`); turnIndex++; continue; }
         if (toolBlocks.length === 0) { turnIndex++; continue; }
 
         // thinking ブロックは messages テーブルに情報がないため常に 0 とする。
@@ -142,7 +142,7 @@ export class ClaudeCodeBehaviorAnalyzer {
     if (!toolUseResultJson) return map;
 
     let results: unknown;
-    try { results = JSON.parse(toolUseResultJson) as unknown; } catch { return map; }
+    try { results = JSON.parse(toolUseResultJson) as unknown; } catch (e) { TrailLogger.warn(`[ClaudeCodeBehaviorAnalyzer] Failed to parse tool_use_result JSON: ${String(e)}`); return map; }
 
     const items: ToolResultBlock[] = Array.isArray(results) ? results as ToolResultBlock[] : [results as ToolResultBlock];
     for (const item of items) {

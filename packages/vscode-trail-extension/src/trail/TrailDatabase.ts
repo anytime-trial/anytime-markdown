@@ -434,6 +434,12 @@ export class TrailDatabase {
     for (const sql of CREATE_MESSAGE_TOOL_CALLS_INDEXES) {
       db.run(sql);
     }
+    // 既存 DB 向け: UNIQUE 制約をインデックスとして追加（新規 DB は CREATE TABLE の UNIQUE 制約で対応済み）
+    try {
+      db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_mtc_unique ON message_tool_calls(message_uuid, call_index)');
+    } catch {
+      // Already exists — ignore
+    }
 
     // Add columns for existing DBs (may already exist)
     try {
