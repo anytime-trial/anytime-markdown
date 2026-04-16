@@ -95,11 +95,11 @@ export async function activate(context: vscode.ExtensionContext) {
 	});
 
 	// Trail Database + Data Server (non-blocking initialization)
-	const dbStoragePathSetting = vscode.workspace.getConfiguration('anytimeTrail.database').get<string>('storagePath', '');
+	const dbStoragePathSetting = vscode.workspace.getConfiguration('anytimeTrail.database').get<string>('storagePath', '') || '.vscode';
 	const wsRootForDb = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-	const dbStorageDir = dbStoragePathSetting
-		? (path.isAbsolute(dbStoragePathSetting) ? dbStoragePathSetting : wsRootForDb ? path.join(wsRootForDb, dbStoragePathSetting) : undefined)
-		: undefined;
+	const dbStorageDir = path.isAbsolute(dbStoragePathSetting)
+		? dbStoragePathSetting
+		: wsRootForDb ? path.join(wsRootForDb, dbStoragePathSetting) : undefined;
 	trailDb = new TrailDatabase(extensionDistPath, dbStorageDir);
 	C4Panel.setTrailDatabase(trailDb);
 	const gitRoot = wsRootForDb;
