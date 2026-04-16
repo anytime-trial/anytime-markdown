@@ -761,7 +761,7 @@ export class TrailDatabase {
     const result = db.exec('SELECT * FROM message_tool_calls ORDER BY id ASC');
     if (!result[0]) return [];
     const { columns, values } = result[0];
-    return values.map(row => Object.fromEntries(columns.map((c, i) => [c, row[i]]))) as ReturnType<TrailDatabase['getAllMessageToolCalls']>;
+    return values.map(row => Object.fromEntries(columns.map((c, i) => [c, row[i]]))) as unknown as ReturnType<TrailDatabase['getAllMessageToolCalls']>;
   }
 
   /** Delete and rebuild session_costs from all messages. */

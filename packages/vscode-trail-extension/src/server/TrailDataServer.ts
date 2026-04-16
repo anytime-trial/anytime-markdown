@@ -297,7 +297,7 @@ export class TrailDataServer {
     }
 
     if (pathname === '/api/trail/behavior' && method === 'GET') {
-      this.handleGetBehavior(res, url.searchParams);
+      this.handleGetBehavior(res, parsed.searchParams);
       return;
     }
 
@@ -344,6 +344,11 @@ export class TrailDataServer {
     if (pathname === '/api/c4/doc-links' && method === 'GET') {
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ docLinks: this.docLinks }));
+      return;
+    }
+    if (pathname === '/api/docs-index' && method === 'GET') {
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify({ docs: this.docLinks }));
       return;
     }
     if (pathname === '/api/c4/coverage' && method === 'GET') {
