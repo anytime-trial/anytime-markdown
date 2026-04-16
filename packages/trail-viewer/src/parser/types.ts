@@ -83,6 +83,67 @@ export interface AnalyticsData {
   }[];
 }
 
+export interface BehaviorToolSequence {
+  readonly period: string;
+  readonly sequence: string;
+  readonly count: number;
+}
+
+export interface BehaviorPeriodCount {
+  readonly period: string;
+  readonly count: number;
+}
+
+export interface BehaviorAvg {
+  readonly period: string;
+  readonly avg: number;
+}
+
+export interface BehaviorSubagent {
+  readonly period: string;
+  readonly rate: number;
+  readonly byType: Readonly<Record<string, number>>;
+}
+
+export interface BehaviorError {
+  readonly period: string;
+  readonly rate: number;
+  readonly byTool: Readonly<Record<string, number>>;
+}
+
+export interface BehaviorSkill {
+  readonly period: string;
+  readonly skill: string;
+  readonly count: number;
+  readonly costUsd: number;
+}
+
+export interface BehaviorCacheSession {
+  readonly period: string;
+  readonly hitRate: number;
+  readonly isAnomaly: boolean;
+}
+
+export interface BehaviorCorrection {
+  readonly period: string;
+  readonly count: number;
+  readonly preTool: Readonly<Record<string, number>>;
+}
+
+export interface BehaviorData {
+  readonly toolSequences: readonly BehaviorToolSequence[];
+  readonly repeatOps: readonly BehaviorPeriodCount[];
+  readonly avgToolsPerTurn: readonly BehaviorAvg[];
+  readonly subagentRate: readonly BehaviorSubagent[];
+  readonly errorRate: readonly BehaviorError[];
+  readonly skillStats: readonly BehaviorSkill[];
+  readonly cacheEfficiency: readonly BehaviorCacheSession[];
+  readonly corrections: readonly BehaviorCorrection[];
+}
+
+export type BehaviorPeriodMode = 'day' | 'week' | 'session';
+export type BehaviorRangeDays = 30 | 90 | 180;
+
 // --- Domain types (re-exported from trail-core) ---
 
 /** @deprecated Import from '@anytime-markdown/trail-core/domain' directly */

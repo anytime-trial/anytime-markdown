@@ -290,6 +290,34 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     if (error) throw new Error(`Supabase upsert release graph failed: ${error.message}`);
   }
 
+  async upsertMessageToolCalls(rows: readonly {
+    id: number;
+    session_id: string;
+    message_uuid: string;
+    turn_index: number;
+    call_index: number;
+    tool_name: string;
+    file_path: string | null;
+    command: string | null;
+    skill_name: string | null;
+    model: string | null;
+    is_sidechain: number;
+    turn_exec_ms: number | null;
+    has_thinking: number;
+    is_error: number;
+    error_type: string | null;
+    timestamp: string;
+  }[]): Promise<void> {
+    if (rows.length === 0) return;
+    const CHUNK = 500;
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      const { error } = await this.ensureClient()
+        .from('trail_message_tool_calls')
+        .upsert(rows.slice(i, i + CHUNK), { onConflict: 'session_id,message_uuid,call_index' });
+      if (error) throw new Error(`Supabase upsert trail_message_tool_calls failed: ${error.message}`);
+    }
+  }
+
   private ensureClient(): SupabaseClient {
     if (!this.client) throw new Error('SupabaseTrailStore not connected');
     return this.client;

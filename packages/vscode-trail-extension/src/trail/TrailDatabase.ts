@@ -22,6 +22,8 @@ import {
   CREATE_RELEASE_FEATURES,
   CREATE_RELEASE_COVERAGE,
   CREATE_RELEASE_INDEXES,
+  CREATE_MESSAGE_TOOL_CALLS,
+  CREATE_MESSAGE_TOOL_CALLS_INDEXES,
   DEFAULT_SKILL_MODELS,
   extractSkillName,
   buildReleaseFromGitData,
@@ -31,6 +33,7 @@ import {
 import type { TrailGraph, IC4ModelStore, C4ModelEntry, C4ModelResult } from '@anytime-markdown/trail-core';
 import { ExecFileGitService } from './ExecFileGitService';
 import { TrailLogger } from '../utils/TrailLogger';
+import { ClaudeCodeBehaviorAnalyzer } from './ClaudeCodeBehaviorAnalyzer';
 import type { ReleaseFileRow, ReleaseFeatureRow, ReleaseCoverageRow, ReleaseRow } from '@anytime-markdown/trail-core';
 export type { ReleaseFileRow, ReleaseFeatureRow, ReleaseCoverageRow, ReleaseRow } from '@anytime-markdown/trail-core';
 
@@ -199,6 +202,17 @@ export interface CostOptimizationData {
     readonly actual: Readonly<Record<string, number>>;
     readonly skillRecommended: Readonly<Record<string, number>>;
   };
+}
+
+interface BehaviorData {
+  readonly toolSequences: readonly { period: string; sequence: string; count: number }[];
+  readonly repeatOps: readonly { period: string; count: number }[];
+  readonly avgToolsPerTurn: readonly { period: string; avg: number }[];
+  readonly subagentRate: readonly { period: string; rate: number; byType: Readonly<Record<string, number>> }[];
+  readonly errorRate: readonly { period: string; rate: number; byTool: Readonly<Record<string, number>> }[];
+  readonly skillStats: readonly { period: string; skill: string; count: number; costUsd: number }[];
+  readonly cacheEfficiency: readonly { period: string; hitRate: number; isAnomaly: boolean }[];
+  readonly corrections: readonly { period: string; count: number; preTool: Readonly<Record<string, number>> }[];
 }
 
 interface RawLine {
@@ -414,6 +428,10 @@ export class TrailDatabase {
     db.run(CREATE_SKILL_MODELS_TABLE);
     db.run(CREATE_SKILL_MODELS_RESOLVED_VIEW);
     for (const sql of [...CREATE_INDEXES, ...CREATE_RELEASE_INDEXES]) {
+      db.run(sql);
+    }
+    db.run(CREATE_MESSAGE_TOOL_CALLS);
+    for (const sql of CREATE_MESSAGE_TOOL_CALLS_INDEXES) {
       db.run(sql);
     }
 
@@ -719,6 +737,31 @@ export class TrailDatabase {
       cache_creation_tokens: r[6] as number,
       estimated_cost_usd: r[7] as number,
     }));
+  }
+
+  getAllMessageToolCalls(): readonly {
+    id: number;
+    session_id: string;
+    message_uuid: string;
+    turn_index: number;
+    call_index: number;
+    tool_name: string;
+    file_path: string | null;
+    command: string | null;
+    skill_name: string | null;
+    model: string | null;
+    is_sidechain: number;
+    turn_exec_ms: number | null;
+    has_thinking: number;
+    is_error: number;
+    error_type: string | null;
+    timestamp: string;
+  }[] {
+    const db = this.ensureDb();
+    const result = db.exec('SELECT * FROM message_tool_calls ORDER BY id ASC');
+    if (!result[0]) return [];
+    const { columns, values } = result[0];
+    return values.map(row => Object.fromEntries(columns.map((c, i) => [c, row[i]]))) as ReturnType<TrailDatabase['getAllMessageToolCalls']>;
   }
 
   /** Delete and rebuild session_costs from all messages. */
@@ -1382,6 +1425,18 @@ export class TrailDatabase {
     onProgress?.('Rebuilding daily costs...', 0);
     this.rebuildDailyCosts();
     onProgress?.('Daily costs rebuilt', 0);
+
+    // Analyze Claude Code behavior for all sessions (INSERT OR IGNORE ensures idempotency)
+    const db = this.ensureDb();
+    const analyzer = new ClaudeCodeBehaviorAnalyzer();
+    onProgress?.('Analyzing Claude Code behavior...', 0);
+    for (const dir of sessionDirs) {
+      try {
+        analyzer.analyze(dir.sid, db);
+      } catch (e) {
+        TrailLogger.error(`ClaudeCodeBehaviorAnalyzer failed for session ${dir.sid}`, e);
+      }
+    }
 
     this.save();
     return { imported, skipped, commitsResolved, releasesResolved, releasesAnalyzed, coverageImported };
@@ -2159,6 +2214,131 @@ export class TrailDatabase {
       toolUsage,
       modelBreakdown,
       dailyActivity,
+    };
+  }
+
+  getBehaviorData(period: 'day' | 'week' | 'session', rangeDays: 30 | 90 | 180): BehaviorData {
+    const db = this.ensureDb();
+    const tzOffset = this.getLocalTzOffset();
+    const periodExpr =
+      period === 'day' ? `DATE(timestamp, '${tzOffset}')`
+      : period === 'week' ? `strftime('%Y-W%W', timestamp, '${tzOffset}')`
+      : 'session_id';
+
+    const toRows = (result: ReturnType<typeof db.exec>): Record<string, unknown>[] => {
+      if (!result[0]) return [];
+      const { columns, values } = result[0];
+      return values.map(row => Object.fromEntries(columns.map((c, i) => [c, row[i]])));
+    };
+
+    // ③ avgToolsPerTurn
+    const avgResult = db.exec(
+      `SELECT ${periodExpr} AS period, AVG(tools_per_turn) AS avg
+       FROM (
+         SELECT ${periodExpr} AS period, session_id, turn_index, COUNT(*) AS tools_per_turn
+         FROM message_tool_calls
+         WHERE timestamp >= datetime('now', '-${rangeDays} days')
+         GROUP BY period, session_id, turn_index
+       )
+       GROUP BY period ORDER BY period`,
+    );
+    const avgToolsPerTurn = toRows(avgResult).map(r => ({
+      period: String(r['period'] ?? ''),
+      avg: Number(r['avg'] ?? 0),
+    }));
+
+    // ④ subagentRate
+    const subResult = db.exec(
+      `SELECT ${periodExpr} AS period,
+              CAST(SUM(CASE WHEN tool_name = 'Agent' THEN 1 ELSE 0 END) AS REAL) / COUNT(*) AS rate,
+              SUM(CASE WHEN tool_name = 'Agent' THEN 1 ELSE 0 END) AS agent_count,
+              COUNT(*) AS total
+       FROM message_tool_calls
+       WHERE timestamp >= datetime('now', '-${rangeDays} days')
+       GROUP BY period ORDER BY period`,
+    );
+    const subagentRate = toRows(subResult).map(r => ({
+      period: String(r['period'] ?? ''),
+      rate: Number(r['rate'] ?? 0),
+      byType: { Agent: Number(r['agent_count'] ?? 0) },
+    }));
+
+    // ⑤ errorRate
+    const errResult = db.exec(
+      `SELECT ${periodExpr} AS period,
+              CAST(SUM(is_error) AS REAL) / COUNT(*) AS rate,
+              tool_name,
+              SUM(is_error) AS err_count
+       FROM message_tool_calls
+       WHERE timestamp >= datetime('now', '-${rangeDays} days')
+       GROUP BY period, tool_name ORDER BY period`,
+    );
+    const errByPeriod: Record<string, { rate: number; byTool: Record<string, number> }> = {};
+    for (const r of toRows(errResult)) {
+      const p = String(r['period'] ?? '');
+      if (!errByPeriod[p]) errByPeriod[p] = { rate: Number(r['rate'] ?? 0), byTool: {} };
+      const tool = String(r['tool_name'] ?? '');
+      errByPeriod[p].byTool[tool] = Number(r['err_count'] ?? 0);
+    }
+    const errorRate = Object.entries(errByPeriod).map(([period, v]) => ({
+      period, rate: v.rate, byTool: v.byTool,
+    }));
+
+    // ⑥ skillStats
+    const skillResult = db.exec(
+      `SELECT ${periodExpr} AS period, skill_name AS skill, COUNT(*) AS count
+       FROM message_tool_calls
+       WHERE timestamp >= datetime('now', '-${rangeDays} days') AND skill_name IS NOT NULL
+       GROUP BY period, skill_name ORDER BY period, count DESC`,
+    );
+    const skillStats = toRows(skillResult).map(r => ({
+      period: String(r['period'] ?? ''),
+      skill: String(r['skill'] ?? ''),
+      count: Number(r['count'] ?? 0),
+      costUsd: 0, // cost join not yet implemented
+    }));
+
+    // ② repeatOps: turns where 3+ consecutive same-tool calls
+    const repeatResult = db.exec(
+      `SELECT ${periodExpr} AS period, COUNT(*) AS count
+       FROM (
+         SELECT ${periodExpr} AS period, session_id, turn_index
+         FROM message_tool_calls
+         WHERE timestamp >= datetime('now', '-${rangeDays} days')
+         GROUP BY period, session_id, turn_index
+         HAVING COUNT(*) >= 3
+       )
+       GROUP BY period ORDER BY period`,
+    );
+    const repeatOps = toRows(repeatResult).map(r => ({
+      period: String(r['period'] ?? ''),
+      count: Number(r['count'] ?? 0),
+    }));
+
+    // ① toolSequences: top-10 tool name per turn grouped by period
+    const seqResult = db.exec(
+      `SELECT ${periodExpr} AS period, tool_name AS sequence, COUNT(*) AS count
+       FROM message_tool_calls
+       WHERE timestamp >= datetime('now', '-${rangeDays} days')
+       GROUP BY period, tool_name
+       ORDER BY count DESC
+       LIMIT 10`,
+    );
+    const toolSequences = toRows(seqResult).map(r => ({
+      period: String(r['period'] ?? ''),
+      sequence: String(r['sequence'] ?? ''),
+      count: Number(r['count'] ?? 0),
+    }));
+
+    return {
+      toolSequences,
+      repeatOps,
+      avgToolsPerTurn,
+      subagentRate,
+      errorRate,
+      skillStats,
+      cacheEfficiency: [], // future: requires session_costs join
+      corrections: [],     // future: requires user message analysis
     };
   }
 

@@ -296,6 +296,11 @@ export class TrailDataServer {
       return;
     }
 
+    if (pathname === '/api/trail/behavior' && method === 'GET') {
+      this.handleGetBehavior(res, url.searchParams);
+      return;
+    }
+
 
     const commitsMatch = /^\/api\/trail\/sessions\/([^/]+)\/commits$/.exec(pathname);
     if (commitsMatch && method === 'GET') {
@@ -812,6 +817,25 @@ export class TrailDataServer {
     } catch {
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: 'Failed to get cost optimization data' }));
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  //  API: GET /api/trail/behavior?period=day&rangeDays=30
+  // -------------------------------------------------------------------------
+
+  private handleGetBehavior(res: http.ServerResponse, params: URLSearchParams): void {
+    const period = (params.get('period') ?? 'day') as 'day' | 'week' | 'session';
+    const rangeDaysRaw = Number.parseInt(params.get('rangeDays') ?? '30', 10);
+    const rangeDays = ([30, 90, 180].includes(rangeDaysRaw) ? rangeDaysRaw : 30) as 30 | 90 | 180;
+    try {
+      const data = this.trailDb.getBehaviorData(period, rangeDays);
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify(data));
+    } catch (e) {
+      TrailLogger.error('handleGetBehavior failed', e);
+      res.writeHead(500, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'Failed to get behavior data' }));
     }
   }
 

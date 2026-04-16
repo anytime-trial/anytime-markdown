@@ -330,6 +330,63 @@ export class PostgresTrailStore implements IRemoteTrailStore {
     );
   }
 
+  async upsertMessageToolCalls(rows: readonly {
+    id: number;
+    session_id: string;
+    message_uuid: string;
+    turn_index: number;
+    call_index: number;
+    tool_name: string;
+    file_path: string | null;
+    command: string | null;
+    skill_name: string | null;
+    model: string | null;
+    is_sidechain: number;
+    turn_exec_ms: number | null;
+    has_thinking: number;
+    is_error: number;
+    error_type: string | null;
+    timestamp: string;
+  }[]): Promise<void> {
+    if (rows.length === 0) return;
+    const pool = this.ensurePool();
+    const CHUNK = 500;
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      const chunk = rows.slice(i, i + CHUNK);
+      const values: unknown[] = [];
+      const placeholders = chunk.map((r, j) => {
+        const base = j * 16;
+        values.push(
+          r.id, r.session_id, r.message_uuid, r.turn_index, r.call_index,
+          r.tool_name, r.file_path, r.command, r.skill_name, r.model,
+          r.is_sidechain, r.turn_exec_ms, r.has_thinking, r.is_error, r.error_type, r.timestamp,
+        );
+        return `($${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8},$${base + 9},$${base + 10},$${base + 11},$${base + 12},$${base + 13},$${base + 14},$${base + 15},$${base + 16})`;
+      });
+      await pool.query(
+        `INSERT INTO trail_message_tool_calls
+          (id, session_id, message_uuid, turn_index, call_index, tool_name,
+           file_path, command, skill_name, model, is_sidechain, turn_exec_ms,
+           has_thinking, is_error, error_type, timestamp)
+         VALUES ${placeholders.join(',')}
+         ON CONFLICT (session_id, message_uuid, call_index) DO UPDATE SET
+           turn_index = EXCLUDED.turn_index,
+           tool_name = EXCLUDED.tool_name,
+           file_path = EXCLUDED.file_path,
+           command = EXCLUDED.command,
+           skill_name = EXCLUDED.skill_name,
+           model = EXCLUDED.model,
+           is_sidechain = EXCLUDED.is_sidechain,
+           turn_exec_ms = EXCLUDED.turn_exec_ms,
+           has_thinking = EXCLUDED.has_thinking,
+           is_error = EXCLUDED.is_error,
+           error_type = EXCLUDED.error_type,
+           timestamp = EXCLUDED.timestamp`,
+        values,
+      );
+    }
+  }
+
   private ensurePool(): Pool {
     if (!this.pool) throw new Error('PostgresTrailStore not connected');
     return this.pool;

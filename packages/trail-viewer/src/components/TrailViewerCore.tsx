@@ -13,6 +13,8 @@ import type {
 import type { CostOptimizationData } from '../parser/types';
 import type { AnalyticsPanelProps } from './AnalyticsPanel';
 import type { AnalyticsData } from '../parser/types';
+import { BehaviorPanel } from './BehaviorPanel';
+import type { BehaviorPanelProps } from './BehaviorPanel';
 import { buildMessageTree } from '../parser/buildMessageTree';
 import { AnalyticsPanel } from './AnalyticsPanel';
 import { FilterBar } from './FilterBar';
@@ -51,6 +53,7 @@ export interface TrailViewerCoreProps {
   readonly fetchSessionToolMetrics?: AnalyticsPanelProps['fetchSessionToolMetrics'];
   readonly costOptimization?: CostOptimizationData | null;
   readonly releases?: readonly TrailRelease[];
+  readonly fetchBehaviorData?: BehaviorPanelProps['fetchBehaviorData'];
   /** C4 viewer props. When provided, the C4 tab is shown. */
   readonly c4?: C4Props;
 }
@@ -84,6 +87,7 @@ function TrailViewerCoreInner({
   fetchSessionToolMetrics,
   costOptimization = null,
   releases = [],
+  fetchBehaviorData,
   c4,
 }: Readonly<TrailViewerCoreProps>) {
   const { t } = useTrailI18n();
@@ -176,7 +180,8 @@ function TrailViewerCoreInner({
           <Tab id="trail-tab-1" aria-controls="trail-panel-1" label={t('viewer.traces')} />
           <Tab id="trail-tab-2" aria-controls="trail-panel-2" label={t('viewer.prompts')} />
           <Tab id="trail-tab-3" aria-controls="trail-panel-3" label={t('releases.title')} />
-          {c4 && <Tab id="trail-tab-4" aria-controls="trail-panel-4" label={t('viewer.c4')} />}
+          {fetchBehaviorData && <Tab id="trail-tab-4" aria-controls="trail-panel-4" label={t('behavior.title')} />}
+          {c4 && <Tab id="trail-tab-5" aria-controls="trail-panel-5" label={t('viewer.c4')} />}
         </Tabs>
       </Box>
 
@@ -268,13 +273,25 @@ function TrailViewerCoreInner({
         <ReleasesPanel releases={releases ?? []} />
       </Box>
 
-      {/* Tab 4: C4 */}
-      {c4 && (
+      {/* Tab 4: Behavior */}
+      {fetchBehaviorData && (
         <Box
           role="tabpanel"
           id="trail-panel-4"
           aria-labelledby="trail-tab-4"
-          sx={{ display: activeTab !== 4 ? 'none' : 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}
+          sx={{ display: activeTab !== 4 ? 'none' : 'flex', flexDirection: 'column', flex: 1, overflow: 'auto' }}
+        >
+          {activeTab === 4 && <BehaviorPanel fetchBehaviorData={fetchBehaviorData} />}
+        </Box>
+      )}
+
+      {/* Tab 5: C4 */}
+      {c4 && (
+        <Box
+          role="tabpanel"
+          id="trail-panel-5"
+          aria-labelledby="trail-tab-5"
+          sx={{ display: activeTab !== 5 ? 'none' : 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}
         >
           <C4ViewerCore isDark={isDark} containerHeight="100%" {...c4} />
         </Box>

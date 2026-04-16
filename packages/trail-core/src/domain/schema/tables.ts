@@ -190,3 +190,22 @@ export const CREATE_RELEASE_COVERAGE = `CREATE TABLE IF NOT EXISTS release_cover
   branches_pct       REAL    NOT NULL DEFAULT 0,
   PRIMARY KEY (release_tag, package, file_path)
 )`;
+
+export const CREATE_MESSAGE_TOOL_CALLS = `CREATE TABLE IF NOT EXISTS message_tool_calls (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id   TEXT NOT NULL REFERENCES sessions(id),
+  message_uuid TEXT NOT NULL REFERENCES messages(uuid),
+  turn_index   INTEGER NOT NULL,
+  call_index   INTEGER NOT NULL,
+  tool_name    TEXT NOT NULL,
+  file_path    TEXT,
+  command      TEXT,
+  skill_name   TEXT,
+  model        TEXT,
+  is_sidechain INTEGER NOT NULL DEFAULT 0,
+  turn_exec_ms INTEGER,
+  has_thinking INTEGER NOT NULL DEFAULT 0,
+  is_error     INTEGER NOT NULL DEFAULT 0,
+  error_type   TEXT,
+  timestamp    TEXT NOT NULL
+)`;

@@ -43,4 +43,22 @@ export interface IRemoteTrailStore {
   clearReleaseGraphs(): Promise<void>;
   upsertCurrentGraph(repoName: string, graphJson: string, commitId: string): Promise<void>;
   upsertReleaseGraph(tag: string, graphJson: string): Promise<void>;
+  upsertMessageToolCalls(rows: readonly {
+    id: number;
+    session_id: string;
+    message_uuid: string;
+    turn_index: number;
+    call_index: number;
+    tool_name: string;
+    file_path: string | null;
+    command: string | null;
+    skill_name: string | null;
+    model: string | null;
+    is_sidechain: number;
+    turn_exec_ms: number | null;
+    has_thinking: number;
+    is_error: number;
+    error_type: string | null;
+    timestamp: string;
+  }[]): Promise<void>;
 }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { AnalyticsData, CostOptimizationData, ToolMetrics, TrailFilter, TrailMessage, TrailPromptEntry, TrailSession, TrailSessionCommit } from '../parser/types';
+import type { AnalyticsData, BehaviorData, BehaviorPeriodMode, BehaviorRangeDays, CostOptimizationData, ToolMetrics, TrailFilter, TrailMessage, TrailPromptEntry, TrailSession, TrailSessionCommit } from '../parser/types';
 import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
 
 // ---------------------------------------------------------------------------
@@ -25,6 +25,7 @@ export interface TrailDataSourceResult {
   readonly fetchCostOptimization: () => Promise<CostOptimizationData | null>;
   readonly releases: readonly TrailRelease[];
   readonly fetchReleases: () => Promise<readonly TrailRelease[]>;
+  readonly fetchBehaviorData: (period: BehaviorPeriodMode, rangeDays: BehaviorRangeDays) => Promise<BehaviorData>;
 }
 
 interface WsMessage {
@@ -227,6 +228,23 @@ export function useTrailDataSource(serverUrl: string): TrailDataSourceResult {
     [baseUrl],
   );
 
+  const fetchBehaviorData = useCallback(
+    async (period: BehaviorPeriodMode, rangeDays: BehaviorRangeDays): Promise<BehaviorData> => {
+      const empty: BehaviorData = {
+        toolSequences: [], repeatOps: [], avgToolsPerTurn: [], subagentRate: [],
+        errorRate: [], skillStats: [], cacheEfficiency: [], corrections: [],
+      };
+      try {
+        const res = await fetch(`${baseUrl}/api/trail/behavior?period=${period}&rangeDays=${rangeDays}`);
+        if (!res.ok) return empty;
+        return (await res.json()) as BehaviorData;
+      } catch {
+        return empty;
+      }
+    },
+    [baseUrl],
+  );
+
   // --- Search sessions ---
 
   const searchSessions = useCallback(
@@ -360,5 +378,6 @@ export function useTrailDataSource(serverUrl: string): TrailDataSourceResult {
     fetchCostOptimization,
     releases,
     fetchReleases,
+    fetchBehaviorData,
   };
 }

@@ -184,4 +184,18 @@ export interface TrailI18n {
   'c4.clearFrameFilter': string;
   'c4.copyPath': string;
   'c4.frameFilter.reset': string;
+  // behavior
+  'behavior.title': string;
+  'behavior.period.day': string;
+  'behavior.period.week': string;
+  'behavior.period.session': string;
+  'behavior.range.days': string;
+  'behavior.sections.toolSequences': string;
+  'behavior.sections.repeatOps': string;
+  'behavior.sections.avgTools': string;
+  'behavior.sections.subagent': string;
+  'behavior.sections.errors': string;
+  'behavior.sections.skills': string;
+  'behavior.sections.cache': string;
+  'behavior.sections.corrections': string;
 }

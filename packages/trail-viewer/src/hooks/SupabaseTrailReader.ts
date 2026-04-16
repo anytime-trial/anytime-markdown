@@ -1,5 +1,8 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type {
+  BehaviorData,
+  BehaviorPeriodMode,
+  BehaviorRangeDays,
   CostOptimizationData,
   ToolMetrics,
   TrailFilter,
@@ -441,5 +444,110 @@ export class SupabaseTrailReader implements ITrailReader {
       affectedPackages: JSON.parse(r.affected_packages) as string[],
       durationDays: r.duration_days,
     }));
+  }
+
+  async getBehaviorData(period: BehaviorPeriodMode, rangeDays: BehaviorRangeDays): Promise<BehaviorData | null> {
+    try {
+      // Aggregate from trail_message_tool_calls in Supabase
+      const cutoff = new Date(Date.now() - rangeDays * 86_400_000).toISOString();
+      const { data, error } = await this.client
+        .from('trail_message_tool_calls')
+        .select('session_id, turn_index, call_index, tool_name, skill_name, is_error, is_sidechain, timestamp')
+        .gte('timestamp', cutoff);
+      if (error || !data) return null;
+
+      type Row = { session_id: string; turn_index: number; tool_name: string; skill_name: string | null; is_error: number; is_sidechain: number; timestamp: string };
+      const rows = data as Row[];
+
+      // period key function
+      const periodKey = (r: Row): string => {
+        if (period === 'session') return r.session_id;
+        const d = new Date(r.timestamp);
+        const jstMs = d.getTime() + 9 * 3600 * 1000;
+        const jst = new Date(jstMs);
+        const y = jst.getUTCFullYear();
+        const m = String(jst.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(jst.getUTCDate()).padStart(2, '0');
+        if (period === 'day') return `${y}-${m}-${day}`;
+        const startOfWeek = new Date(jstMs - jst.getUTCDay() * 86_400_000);
+        const wy = startOfWeek.getUTCFullYear();
+        const wm = String(startOfWeek.getUTCMonth() + 1).padStart(2, '0');
+        const wd = String(startOfWeek.getUTCDate()).padStart(2, '0');
+        return `${wy}-${wm}-${wd}`;
+      };
+
+      // ③ avgToolsPerTurn
+      const turnMap = new Map<string, Map<string, number>>();
+      for (const r of rows) {
+        const p = periodKey(r);
+        const key = `${r.session_id}:${r.turn_index}`;
+        if (!turnMap.has(p)) turnMap.set(p, new Map());
+        turnMap.get(p)!.set(key, (turnMap.get(p)!.get(key) ?? 0) + 1);
+      }
+      const avgToolsPerTurn = [...turnMap.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([p, m]) => {
+        const vals = [...m.values()];
+        return { period: p, avg: vals.reduce((s, v) => s + v, 0) / (vals.length || 1) };
+      });
+
+      // ④ subagentRate
+      const agentByPeriod = new Map<string, { agent: number; total: number }>();
+      for (const r of rows) {
+        const p = periodKey(r);
+        const e = agentByPeriod.get(p) ?? { agent: 0, total: 0 };
+        e.total++;
+        if (r.tool_name === 'Agent') e.agent++;
+        agentByPeriod.set(p, e);
+      }
+      const subagentRate = [...agentByPeriod.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([p, e]) => ({
+        period: p, rate: e.total > 0 ? e.agent / e.total : 0, byType: { Agent: e.agent },
+      }));
+
+      // ⑤ errorRate
+      const errByPeriod = new Map<string, { err: number; total: number; byTool: Record<string, number> }>();
+      for (const r of rows) {
+        const p = periodKey(r);
+        const e = errByPeriod.get(p) ?? { err: 0, total: 0, byTool: {} };
+        e.total++;
+        if (r.is_error) { e.err++; e.byTool[r.tool_name] = (e.byTool[r.tool_name] ?? 0) + 1; }
+        errByPeriod.set(p, e);
+      }
+      const errorRate = [...errByPeriod.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([p, e]) => ({
+        period: p, rate: e.total > 0 ? e.err / e.total : 0, byTool: e.byTool,
+      }));
+
+      // ⑥ skillStats
+      const skillMap = new Map<string, { count: number }>();
+      for (const r of rows) {
+        if (!r.skill_name) continue;
+        const k = `${periodKey(r)}::${r.skill_name}`;
+        const e = skillMap.get(k) ?? { count: 0 };
+        e.count++;
+        skillMap.set(k, e);
+      }
+      const skillStats = [...skillMap.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([k, e]) => {
+        const [period, skill] = k.split('::');
+        return { period: period ?? '', skill: skill ?? '', count: e.count, costUsd: 0 };
+      });
+
+      // ① toolSequences (simplified: top tools)
+      const toolCount = new Map<string, { count: number; period: string }>();
+      for (const r of rows) {
+        const k = `${periodKey(r)}::${r.tool_name}`;
+        const e = toolCount.get(k) ?? { count: 0, period: periodKey(r) };
+        e.count++;
+        toolCount.set(k, e);
+      }
+      const toolSequences = [...toolCount.entries()]
+        .sort(([, a], [, b]) => b.count - a.count)
+        .slice(0, 10)
+        .map(([k, e]) => ({ period: e.period, sequence: k.split('::')[1] ?? '', count: e.count }));
+
+      // ② repeatOps
+      const repeatOps: BehaviorData['repeatOps'] = [];
+
+      return { toolSequences, repeatOps, avgToolsPerTurn, subagentRate, errorRate, skillStats, cacheEfficiency: [], corrections: [] };
+    } catch {
+      return null;
+    }
   }
 }

@@ -101,6 +101,18 @@ export class SyncService {
       errors++;
     }
 
+    // Sync message_tool_calls
+    try {
+      onProgress?.({ message: 'Syncing message tool calls...' });
+      const toolCallRows = this.trailDb.getAllMessageToolCalls();
+      if (toolCallRows.length > 0) {
+        await this.store.upsertMessageToolCalls(toolCallRows);
+      }
+    } catch (e) {
+      TrailLogger.error('Failed to sync message_tool_calls', e);
+      errors++;
+    }
+
     // Sync releases, release files and features
     try {
       onProgress?.({ message: 'Syncing releases...' });

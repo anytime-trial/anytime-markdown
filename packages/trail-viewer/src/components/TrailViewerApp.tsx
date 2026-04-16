@@ -175,6 +175,7 @@ export function TrailViewerApp({
       fetchSessionToolMetrics={dataSource.fetchSessionToolMetrics}
       costOptimization={dataSource.costOptimization}
       releases={dataSource.releases}
+      fetchBehaviorData={dataSource.fetchBehaviorData}
       c4={c4Props}
     />
   );
