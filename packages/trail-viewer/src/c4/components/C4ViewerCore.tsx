@@ -604,8 +604,8 @@ export function C4ViewerCore({
 
   const claudeActivityMap = useMemo(() => {
     if (!claudeActivity) return null;
-    const { activeElementIds, touchedElementIds } = claudeActivity;
-    if (activeElementIds.length === 0 && touchedElementIds.length === 0) return null;
+    const { activeElementIds, touchedElementIds, plannedElementIds } = claudeActivity;
+    if (activeElementIds.length === 0 && touchedElementIds.length === 0 && plannedElementIds.length === 0) return null;
     if (c4Model) {
       const targetType = currentLevel === 1 ? 'system'
         : currentLevel === 2 ? 'container'
@@ -614,10 +614,11 @@ export function C4ViewerCore({
       const typeById = new Map(c4Model.elements.map((e) => [e.id, e.type]));
       const filteredActive = activeElementIds.filter((id) => typeById.get(id) === targetType);
       const filteredTouched = touchedElementIds.filter((id) => typeById.get(id) === targetType);
-      if (filteredActive.length === 0 && filteredTouched.length === 0) return null;
-      return computeClaudeActivityColorMap(filteredActive, filteredTouched, isDark);
+      const filteredPlanned = plannedElementIds.filter((id) => typeById.get(id) === targetType);
+      if (filteredActive.length === 0 && filteredTouched.length === 0 && filteredPlanned.length === 0) return null;
+      return computeClaudeActivityColorMap(filteredActive, filteredTouched, filteredPlanned, isDark);
     }
-    return computeClaudeActivityColorMap(activeElementIds, touchedElementIds, isDark);
+    return computeClaudeActivityColorMap(activeElementIds, touchedElementIds, plannedElementIds, isDark);
   }, [claudeActivity, c4Model, currentLevel, isDark]);
 
   const dsmMax = useMemo(() => {
@@ -894,7 +895,11 @@ export function C4ViewerCore({
             )}
           </>
         )}
-        {claudeActivity && (claudeActivity.activeElementIds.length > 0 || claudeActivity.touchedElementIds.length > 0) && (
+        {claudeActivity && (
+          claudeActivity.activeElementIds.length > 0 ||
+          claudeActivity.touchedElementIds.length > 0 ||
+          claudeActivity.plannedElementIds.length > 0
+        ) && (
           <Button
             size="small"
             variant="outlined"
