@@ -1,5 +1,5 @@
 import type { C4Element, C4Model } from '@anytime-markdown/trail-core/c4';
-import type { StatusChangeCallback } from '@anytime-markdown/vscode-common';
+import type { StatusChangeCallback, SessionEdit } from '@anytime-markdown/vscode-common';
 import { TrailLogger } from '../utils/TrailLogger';
 
 export interface ClaudeActivityState {
@@ -47,6 +47,19 @@ export class ClaudeActivityTracker {
     }
     this.notifyChange();
   };
+
+  /** セッション履歴から touchedElementIds を復元する */
+  restoreSessionEdits(edits: readonly SessionEdit[]): void {
+    for (const edit of edits) {
+      const ids = this.resolveElementIds(edit.file);
+      for (const id of ids) {
+        this.touchedElementIds.add(id);
+      }
+    }
+    if (this.touchedElementIds.size > 0) {
+      this.notifyChange();
+    }
+  }
 
   resetTouched(): void {
     this.activeElementIds = [];

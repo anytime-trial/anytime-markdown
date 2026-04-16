@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import { getStatusFilePath } from './claudeHookSetup';
-import type { Disposable, ClaudeStatus, StatusChangeCallback } from './types';
+import type { Disposable, ClaudeStatus, SessionEdit, StatusChangeCallback } from './types';
 
 const STALE_THRESHOLD_MS = 30_000;
 const POLL_INTERVAL_MS = 3000;
@@ -11,7 +11,7 @@ export class ClaudeStatusWatcher implements Disposable {
   private fsWatcher: fs.FSWatcher | null = null;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private lastEditing: boolean | null = null;
-  private lastTimestamp = 0;
+  private lastTimestamp = '';
 
   constructor(workspaceRoot?: string, statusDir?: string) {
     this.statusFilePath = getStatusFilePath(workspaceRoot, statusDir);
@@ -55,6 +55,11 @@ export class ClaudeStatusWatcher implements Disposable {
     }, POLL_INTERVAL_MS);
   }
 
+  /** 現在のステータスファイルに記録されたセッション編集履歴を返す */
+  getSessionEdits(): readonly SessionEdit[] {
+    return this.readStatus()?.sessionEdits ?? [];
+  }
+
   private handleChange(): void {
     const status = this.readStatus();
     if (!status) return;
@@ -62,7 +67,7 @@ export class ClaudeStatusWatcher implements Disposable {
     if (status.timestamp === this.lastTimestamp) return;
     this.lastTimestamp = status.timestamp;
 
-    const isStale = Date.now() - status.timestamp > STALE_THRESHOLD_MS;
+    const isStale = Date.now() - new Date(status.timestamp).getTime() > STALE_THRESHOLD_MS;
     const editing = isStale ? false : status.editing;
 
     // PreToolUse と PostToolUse が連続して同一の fs.watch イベントに合流した場合、
@@ -89,7 +94,12 @@ export class ClaudeStatusWatcher implements Disposable {
       const raw = fs.readFileSync(this.statusFilePath, 'utf-8');
       const parsed: unknown = JSON.parse(raw);
       if (!this.isValidStatus(parsed)) return null;
-      return parsed;
+      // 旧形式（number の Unix ms タイムスタンプ）を UTC ISO 8601 文字列に正規化する
+      const record = parsed as Record<string, unknown>;
+      if (typeof record.timestamp === 'number') {
+        return { ...parsed, timestamp: new Date(record.timestamp).toISOString() } as ClaudeStatus;
+      }
+      return parsed as ClaudeStatus;
     } catch {
       return null;
     }
@@ -101,7 +111,8 @@ export class ClaudeStatusWatcher implements Disposable {
     return (
       typeof record.editing === 'boolean' &&
       typeof record.file === 'string' &&
-      typeof record.timestamp === 'number'
+      // timestamp は UTC ISO 8601 文字列。旧形式（number）との後方互換のため number も許容する。
+      (typeof record.timestamp === 'string' || typeof record.timestamp === 'number')
     );
   }
 

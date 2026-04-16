@@ -285,6 +285,13 @@ export class C4Panel implements C4DataProvider {
       const model = trailToC4(this.lastTrailGraph);
       this.claudeTracker.setModel(model, projectRoot);
       TrailLogger.info(`ClaudeActivityTracker: model updated (${model.elements.length} elements, root=${projectRoot})`);
+
+      // セッション履歴から touchedElementIds を復元
+      const sessionEdits = this.claudeWatcher!.getSessionEdits();
+      if (sessionEdits.length > 0) {
+        this.claudeTracker.restoreSessionEdits(sessionEdits);
+        TrailLogger.info(`ClaudeActivityTracker: restored ${sessionEdits.length} session edits`);
+      }
     }
   }
 

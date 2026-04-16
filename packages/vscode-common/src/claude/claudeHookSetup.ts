@@ -65,10 +65,13 @@ export function setupClaudeHooks(workspaceRoot?: string, statusDir?: string): bo
   settings.hooks.PostToolUse ??= [];
 
   const statusFile = buildStatusFilePath(workspaceRoot, statusDir);
-  // jq の代わりに node で stdin の JSON をパース（jq が未インストール環境でも動作する）
-  const parseFilePath = `node -e "let d='';process.stdin.resume();process.stdin.setEncoding('utf8');process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{process.stdout.write(JSON.parse(d).tool_input?.file_path||'')}catch{}})"`;
-  const preCommand = `FP=$(${parseFilePath}); [ -n "$FP" ] && echo "{\\"editing\\":true,\\"file\\":\\"$FP\\",\\"timestamp\\":$(date +%s%3N)}" > ${statusFile}`;
-  const postCommand = `FP=$(${parseFilePath}); [ -n "$FP" ] && echo "{\\"editing\\":false,\\"file\\":\\"$FP\\",\\"timestamp\\":$(date +%s%3N)}" > ${statusFile}`;
+  // stdin の JSON を読み取り、セッション履歴を保持しながらステータスファイルを更新する。
+  // session_id が変わった場合は sessionEdits をリセットし新セッションとして記録する。
+  // timestamp は UTC ISO 8601 文字列で記録する。
+  const makeCommand = (editing: boolean): string =>
+    `node -e "let d='';process.stdin.resume();process.stdin.setEncoding('utf8');process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const i=JSON.parse(d),fp=i.tool_input?.file_path;if(!fp)return;const sid=i.session_id||'',fs=require('fs'),f='${statusFile}',ts=new Date().toISOString();let c={};try{c=JSON.parse(fs.readFileSync(f,'utf8'))}catch{}const e=(c.sessionId===sid)?(c.sessionEdits||[]):[];const j=e.findIndex(x=>x.file===fp);if(j>=0)e[j].timestamp=ts;else e.push({file:fp,timestamp:ts});fs.writeFileSync(f,JSON.stringify({editing:${editing},file:fp,timestamp:ts,sessionId:sid,sessionEdits:e}))}catch{}})"`;
+  const preCommand = makeCommand(true);
+  const postCommand = makeCommand(false);
 
   // 古い/破損したフックをすべて除去してから登録し直す
   settings.hooks.PreToolUse = removeStatusFileHooks(settings.hooks.PreToolUse);
