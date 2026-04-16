@@ -6,8 +6,11 @@ const CLAUDE_DIR = path.join(os.homedir(), '.claude');
 const SETTINGS_PATH = path.join(CLAUDE_DIR, 'settings.json');
 
 function buildStatusFilePath(workspaceRoot?: string, statusDir?: string): string {
-  const base = workspaceRoot ?? os.homedir();
   const dir = statusDir ?? '.vscode';
+  if (path.isAbsolute(dir)) {
+    return path.join(dir, 'claude-code-status.json');
+  }
+  const base = workspaceRoot ?? os.homedir();
   return path.join(base, dir, 'claude-code-status.json');
 }
 
