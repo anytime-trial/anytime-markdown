@@ -156,7 +156,7 @@ export class C4Panel implements C4DataProvider {
 
   public handleResetClaudeActivity(): void {
     this.claudeTracker?.resetTouched();
-    C4Panel.dataServer?.notifyClaudeActivity([], []);
+    C4Panel.dataServer?.notifyClaudeActivity([], [], []);
   }
 
   // -------------------------------------------------------------------------
@@ -276,7 +276,11 @@ export class C4Panel implements C4DataProvider {
       this.claudeWatcher = new ClaudeStatusWatcher(watchRoot, statusDir);
       this.claudeTracker = new ClaudeActivityTracker();
       this.claudeTracker.onChange((state) => {
-        C4Panel.dataServer?.notifyClaudeActivity(state.activeElementIds, state.touchedElementIds);
+        C4Panel.dataServer?.notifyClaudeActivity(
+          state.activeElementIds,
+          state.touchedElementIds,
+          state.plannedElementIds,
+        );
       });
       this.claudeWatcher.onStatusChange(this.claudeTracker.onFileEditing);
     }
@@ -291,6 +295,13 @@ export class C4Panel implements C4DataProvider {
       if (sessionEdits.length > 0) {
         this.claudeTracker.restoreSessionEdits(sessionEdits);
         TrailLogger.info(`ClaudeActivityTracker: restored ${sessionEdits.length} session edits`);
+      }
+
+      // plannedEdits から plannedElementIds を復元
+      const plannedEdits = this.claudeWatcher!.getPlannedEdits();
+      if (plannedEdits.length > 0) {
+        this.claudeTracker.setPlannedEdits(plannedEdits);
+        TrailLogger.info(`ClaudeActivityTracker: restored ${plannedEdits.length} planned edits`);
       }
     }
   }
