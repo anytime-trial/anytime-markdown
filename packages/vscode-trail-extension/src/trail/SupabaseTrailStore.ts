@@ -290,6 +290,10 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     if (error) throw new Error(`Supabase upsert release graph failed: ${error.message}`);
   }
 
+  async clearMessageToolCalls(): Promise<void> {
+    await this.deleteAllPaged('trail_message_tool_calls', 'id');
+  }
+
   async upsertMessageToolCalls(rows: readonly {
     id: number;
     session_id: string;

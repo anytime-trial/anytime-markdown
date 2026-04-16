@@ -5,6 +5,7 @@
 -- 先頭で全テーブルを DROP し、その後に CREATE TABLE を実行する。
 -- FK 依存順序に注意し、子テーブル → 親テーブルの順で DROP する。
 
+DROP TABLE IF EXISTS trail_message_tool_calls CASCADE;
 DROP TABLE IF EXISTS trail_release_features CASCADE;
 DROP TABLE IF EXISTS trail_release_files CASCADE;
 DROP TABLE IF EXISTS trail_releases CASCADE;
@@ -155,6 +156,26 @@ CREATE TABLE IF NOT EXISTS trail_release_features (
     PRIMARY KEY (release_tag, feature_id)
 );
 
+CREATE TABLE IF NOT EXISTS trail_message_tool_calls (
+    id           BIGSERIAL PRIMARY KEY,
+    session_id   TEXT NOT NULL REFERENCES trail_sessions(id) ON DELETE CASCADE,
+    message_uuid TEXT NOT NULL REFERENCES trail_messages(uuid) ON DELETE CASCADE,
+    turn_index   INTEGER NOT NULL,
+    call_index   INTEGER NOT NULL,
+    tool_name    TEXT NOT NULL,
+    file_path    TEXT,
+    command      TEXT,
+    skill_name   TEXT,
+    model        TEXT,
+    is_sidechain INTEGER NOT NULL DEFAULT 0,
+    turn_exec_ms INTEGER,
+    has_thinking INTEGER NOT NULL DEFAULT 0,
+    is_error     INTEGER NOT NULL DEFAULT 0,
+    error_type   TEXT,
+    timestamp    TEXT NOT NULL,
+    UNIQUE (session_id, message_uuid, call_index)
+);
+
 -- インデックス
 CREATE INDEX IF NOT EXISTS idx_trail_messages_session ON trail_messages(session_id);
 CREATE INDEX IF NOT EXISTS idx_trail_messages_type ON trail_messages(type);
@@ -167,3 +188,5 @@ CREATE INDEX IF NOT EXISTS idx_trail_session_commits_session ON trail_session_co
 CREATE INDEX IF NOT EXISTS idx_trail_releases_released_at ON trail_releases(released_at);
 CREATE INDEX IF NOT EXISTS idx_trail_release_files_tag ON trail_release_files(release_tag);
 CREATE INDEX IF NOT EXISTS idx_trail_release_features_tag ON trail_release_features(release_tag);
+CREATE INDEX IF NOT EXISTS idx_trail_mtc_session ON trail_message_tool_calls(session_id);
+CREATE INDEX IF NOT EXISTS idx_trail_mtc_timestamp ON trail_message_tool_calls(timestamp);

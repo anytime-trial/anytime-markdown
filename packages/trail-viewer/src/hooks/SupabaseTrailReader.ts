@@ -452,11 +452,12 @@ export class SupabaseTrailReader implements ITrailReader {
       const cutoff = new Date(Date.now() - rangeDays * 86_400_000).toISOString();
       const { data, error } = await this.client
         .from('trail_message_tool_calls')
-        .select('session_id, turn_index, call_index, tool_name, skill_name, is_error, is_sidechain, timestamp')
-        .gte('timestamp', cutoff);
+        .select('session_id, turn_index, call_index, tool_name, file_path, skill_name, is_error, is_sidechain, timestamp')
+        .gte('timestamp', cutoff)
+        .limit(100_000);
       if (error || !data) return null;
 
-      type Row = { session_id: string; turn_index: number; tool_name: string; skill_name: string | null; is_error: number; is_sidechain: number; timestamp: string };
+      type Row = { session_id: string; turn_index: number; call_index: number; tool_name: string; file_path: string | null; skill_name: string | null; is_error: number; is_sidechain: number; timestamp: string };
       const rows = data as Row[];
 
       // IANA タイムゾーンから UTC オフセット（分）を取得する。
@@ -556,8 +557,20 @@ export class SupabaseTrailReader implements ITrailReader {
         .slice(0, 10)
         .map(([k, e]) => ({ period: e.period, sequence: k.split('::')[1] ?? '', count: e.count }));
 
-      // ② repeatOps
-      const repeatOps: BehaviorData['repeatOps'] = [];
+      // ② repeatOps: 同一ターン内に 3 回以上のツール呼び出しがあるターン数
+      const turnCallCount = new Map<string, { period: string; count: number }>();
+      for (const r of rows) {
+        const p = periodKey(r);
+        const key = `${p}:${r.session_id}:${r.turn_index}`;
+        const e = turnCallCount.get(key) ?? { period: p, count: 0 };
+        e.count++;
+        turnCallCount.set(key, e);
+      }
+      const repeatByPeriod = new Map<string, number>();
+      for (const { period, count } of turnCallCount.values()) {
+        if (count >= 3) repeatByPeriod.set(period, (repeatByPeriod.get(period) ?? 0) + 1);
+      }
+      const repeatOps = [...repeatByPeriod.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([period, count]) => ({ period, count }));
 
       return { toolSequences, repeatOps, avgToolsPerTurn, subagentRate, errorRate, skillStats, cacheEfficiency: [], corrections: [] };
     } catch {

@@ -285,7 +285,7 @@ export class PostgresTrailStore implements IRemoteTrailStore {
     const pool = this.ensurePool();
     for (const r of rows) {
       await pool.query(
-        `INSERT INTO daily_costs (date, model, cost_type, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, estimated_cost_usd)
+        `INSERT INTO trail_daily_costs (date, model, cost_type, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, estimated_cost_usd)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
          ON CONFLICT (date, model, cost_type) DO UPDATE SET
            input_tokens=EXCLUDED.input_tokens, output_tokens=EXCLUDED.output_tokens,
@@ -328,6 +328,10 @@ export class PostgresTrailStore implements IRemoteTrailStore {
         updated_at = EXCLUDED.updated_at, synced_at = NOW()`,
       [tag, graphJson, new Date().toISOString()],
     );
+  }
+
+  async clearMessageToolCalls(): Promise<void> {
+    await this.ensurePool().query('DELETE FROM trail_message_tool_calls');
   }
 
   async upsertMessageToolCalls(rows: readonly {
