@@ -60,6 +60,11 @@ export class ClaudeStatusWatcher implements Disposable {
     return this.readStatus()?.sessionEdits ?? [];
   }
 
+  /** 現在のステータスファイルに記録された計画対象ファイルの絶対パス配列を返す */
+  getPlannedEdits(): readonly string[] {
+    return this.readStatus()?.plannedEdits ?? [];
+  }
+
   private handleChange(): void {
     const status = this.readStatus();
     if (!status) return;
