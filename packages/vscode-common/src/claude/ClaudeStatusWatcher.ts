@@ -95,7 +95,7 @@ export class ClaudeStatusWatcher implements Disposable {
       const parsed: unknown = JSON.parse(raw);
       if (!this.isValidStatus(parsed)) return null;
       // 旧形式（number の Unix ms タイムスタンプ）を UTC ISO 8601 文字列に正規化する
-      const record = parsed as Record<string, unknown>;
+      const record = parsed as unknown as Record<string, unknown>;
       if (typeof record.timestamp === 'number') {
         return { ...parsed, timestamp: new Date(record.timestamp).toISOString() } as ClaudeStatus;
       }
