@@ -281,7 +281,7 @@ function TrailViewerCoreInner({
           aria-labelledby="trail-tab-4"
           sx={{ display: activeTab !== 4 ? 'none' : 'flex', flexDirection: 'column', flex: 1, overflow: 'auto' }}
         >
-          {activeTab === 4 && <BehaviorPanel fetchBehaviorData={fetchBehaviorData} />}
+          <BehaviorPanel fetchBehaviorData={fetchBehaviorData} />
         </Box>
       )}
 
