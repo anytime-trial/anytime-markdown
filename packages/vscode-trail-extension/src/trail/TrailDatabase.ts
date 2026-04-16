@@ -22,6 +22,8 @@ import {
   CREATE_RELEASE_FEATURES,
   CREATE_RELEASE_COVERAGE,
   CREATE_RELEASE_INDEXES,
+  CREATE_MESSAGE_TOOL_CALLS,
+  CREATE_MESSAGE_TOOL_CALLS_INDEXES,
   DEFAULT_SKILL_MODELS,
   extractSkillName,
   buildReleaseFromGitData,
@@ -31,6 +33,7 @@ import {
 import type { TrailGraph, IC4ModelStore, C4ModelEntry, C4ModelResult } from '@anytime-markdown/trail-core';
 import { ExecFileGitService } from './ExecFileGitService';
 import { TrailLogger } from '../utils/TrailLogger';
+import { ClaudeCodeBehaviorAnalyzer } from './ClaudeCodeBehaviorAnalyzer';
 import type { ReleaseFileRow, ReleaseFeatureRow, ReleaseCoverageRow, ReleaseRow } from '@anytime-markdown/trail-core';
 export type { ReleaseFileRow, ReleaseFeatureRow, ReleaseCoverageRow, ReleaseRow } from '@anytime-markdown/trail-core';
 
@@ -414,6 +417,10 @@ export class TrailDatabase {
     db.run(CREATE_SKILL_MODELS_TABLE);
     db.run(CREATE_SKILL_MODELS_RESOLVED_VIEW);
     for (const sql of [...CREATE_INDEXES, ...CREATE_RELEASE_INDEXES]) {
+      db.run(sql);
+    }
+    db.run(CREATE_MESSAGE_TOOL_CALLS);
+    for (const sql of CREATE_MESSAGE_TOOL_CALLS_INDEXES) {
       db.run(sql);
     }
 
@@ -1382,6 +1389,18 @@ export class TrailDatabase {
     onProgress?.('Rebuilding daily costs...', 0);
     this.rebuildDailyCosts();
     onProgress?.('Daily costs rebuilt', 0);
+
+    // Analyze Claude Code behavior for all sessions (INSERT OR IGNORE ensures idempotency)
+    const db = this.ensureDb();
+    const analyzer = new ClaudeCodeBehaviorAnalyzer();
+    onProgress?.('Analyzing Claude Code behavior...', 0);
+    for (const dir of sessionDirs) {
+      try {
+        analyzer.analyze(dir.sid, db);
+      } catch (e) {
+        TrailLogger.error(`ClaudeCodeBehaviorAnalyzer failed for session ${dir.sid}`, e);
+      }
+    }
 
     this.save();
     return { imported, skipped, commitsResolved, releasesResolved, releasesAnalyzed, coverageImported };
