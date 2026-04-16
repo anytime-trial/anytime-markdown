@@ -65,8 +65,10 @@ export function setupClaudeHooks(workspaceRoot?: string, statusDir?: string): bo
   settings.hooks.PostToolUse ??= [];
 
   const statusFile = buildStatusFilePath(workspaceRoot, statusDir);
-  const preCommand = `FP=$(jq -r '.tool_input.file_path // empty'); [ -n "$FP" ] && echo "{\\"editing\\":true,\\"file\\":\\"$FP\\",\\"timestamp\\":$(date +%s%3N)}" > ${statusFile}`;
-  const postCommand = `FP=$(jq -r '.tool_input.file_path // empty'); [ -n "$FP" ] && echo "{\\"editing\\":false,\\"file\\":\\"$FP\\",\\"timestamp\\":$(date +%s%3N)}" > ${statusFile}`;
+  // jq の代わりに node で stdin の JSON をパース（jq が未インストール環境でも動作する）
+  const parseFilePath = `node -e "let d='';process.stdin.resume();process.stdin.setEncoding('utf8');process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{process.stdout.write(JSON.parse(d).tool_input?.file_path||'')}catch{}})"`;
+  const preCommand = `FP=$(${parseFilePath}); [ -n "$FP" ] && echo "{\\"editing\\":true,\\"file\\":\\"$FP\\",\\"timestamp\\":$(date +%s%3N)}" > ${statusFile}`;
+  const postCommand = `FP=$(${parseFilePath}); [ -n "$FP" ] && echo "{\\"editing\\":false,\\"file\\":\\"$FP\\",\\"timestamp\\":$(date +%s%3N)}" > ${statusFile}`;
 
   // 古い/破損したフックをすべて除去してから登録し直す
   settings.hooks.PreToolUse = removeStatusFileHooks(settings.hooks.PreToolUse);
