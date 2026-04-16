@@ -36,9 +36,10 @@ export function getStatusFilePath(workspaceRoot?: string, statusDir?: string): s
   return buildStatusFilePath(workspaceRoot, statusDir);
 }
 
-function hasStatusFileHook(matchers: HookMatcher[], statusFile: string): boolean {
-  return matchers.some((m) =>
-    m.hooks?.some((h) => h.command?.includes(statusFile))
+/** claude-code-status.json への書き込みを含むフックエントリを除去する */
+function removeStatusFileHooks(matchers: HookMatcher[]): HookMatcher[] {
+  return matchers.filter(
+    (m) => !m.hooks?.some((h) => h.command?.includes('claude-code-status.json'))
   );
 }
 
@@ -64,29 +65,21 @@ export function setupClaudeHooks(workspaceRoot?: string, statusDir?: string): bo
   settings.hooks.PostToolUse ??= [];
 
   const statusFile = buildStatusFilePath(workspaceRoot, statusDir);
-  const hasPreHook = hasStatusFileHook(settings.hooks.PreToolUse, statusFile);
-  const hasPostHook = hasStatusFileHook(settings.hooks.PostToolUse, statusFile);
-
-  if (hasPreHook && hasPostHook) {
-    return true;
-  }
-
   const preCommand = `FP=$(jq -r '.tool_input.file_path // empty'); [ -n "$FP" ] && echo "{\\"editing\\":true,\\"file\\":\\"$FP\\",\\"timestamp\\":$(date +%s%3N)}" > ${statusFile}`;
   const postCommand = `FP=$(jq -r '.tool_input.file_path // empty'); [ -n "$FP" ] && echo "{\\"editing\\":false,\\"file\\":\\"$FP\\",\\"timestamp\\":$(date +%s%3N)}" > ${statusFile}`;
 
-  if (!hasPreHook) {
-    settings.hooks.PreToolUse.push({
-      matcher: 'Edit|Write',
-      hooks: [{ type: 'command', command: preCommand }],
-    });
-  }
+  // 古い/破損したフックをすべて除去してから登録し直す
+  settings.hooks.PreToolUse = removeStatusFileHooks(settings.hooks.PreToolUse);
+  settings.hooks.PostToolUse = removeStatusFileHooks(settings.hooks.PostToolUse);
 
-  if (!hasPostHook) {
-    settings.hooks.PostToolUse.push({
-      matcher: 'Edit|Write',
-      hooks: [{ type: 'command', command: postCommand }],
-    });
-  }
+  settings.hooks.PreToolUse.push({
+    matcher: 'Edit|Write',
+    hooks: [{ type: 'command', command: preCommand }],
+  });
+  settings.hooks.PostToolUse.push({
+    matcher: 'Edit|Write',
+    hooks: [{ type: 'command', command: postCommand }],
+  });
 
   fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2));
   return true;
