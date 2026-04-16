@@ -170,12 +170,14 @@ function isWsImportanceMessage(v: unknown): v is WsImportanceMessage {
 export interface ClaudeActivityState {
   readonly activeElementIds: readonly string[];
   readonly touchedElementIds: readonly string[];
+  readonly plannedElementIds: readonly string[];
 }
 
 interface WsClaudeActivityMessage {
   type: 'claude-activity-updated';
   activeElementIds: string[];
   touchedElementIds: string[];
+  plannedElementIds: string[];
 }
 
 function isWsClaudeActivityMessage(v: unknown): v is WsClaudeActivityMessage {
@@ -184,7 +186,8 @@ function isWsClaudeActivityMessage(v: unknown): v is WsClaudeActivityMessage {
   return (
     obj.type === 'claude-activity-updated' &&
     Array.isArray(obj.activeElementIds) &&
-    Array.isArray(obj.touchedElementIds)
+    Array.isArray(obj.touchedElementIds) &&
+    Array.isArray(obj.plannedElementIds)
   );
 }
 
@@ -409,6 +412,7 @@ export function useC4DataSource(serverUrl: string): C4DataSourceResult {
         setClaudeActivity({
           activeElementIds: parsed.activeElementIds,
           touchedElementIds: parsed.touchedElementIds,
+          plannedElementIds: parsed.plannedElementIds,
         });
       }
     } catch {
