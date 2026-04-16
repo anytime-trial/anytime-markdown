@@ -38,13 +38,36 @@ export function buildSourceMatrix(
   return buildComponentLevel(fileNodes, importEdges);
 }
 
+/**
+ * 同名ファイルが複数ある場合、親ディレクトリ名を付加して区別する。
+ * 例: route.ts が複数 → users/route.ts、posts/route.ts
+ */
+function disambiguateNames(fileNodes: readonly TrailFileNode[]): Map<string, string> {
+  const nameCount = new Map<string, number>();
+  for (const n of fileNodes) {
+    nameCount.set(n.label, (nameCount.get(n.label) ?? 0) + 1);
+  }
+
+  const result = new Map<string, string>();
+  for (const n of fileNodes) {
+    if ((nameCount.get(n.label) ?? 0) > 1) {
+      const parent = path.basename(path.dirname(n.filePath));
+      result.set(n.id, `${parent}/${n.label}`);
+    } else {
+      result.set(n.id, n.label);
+    }
+  }
+  return result;
+}
+
 function buildComponentLevel(
   fileNodes: readonly TrailFileNode[],
   importEdges: readonly TrailImportEdge[],
 ): DsmMatrix {
+  const nameMap = disambiguateNames(fileNodes);
   const nodes: DsmNode[] = fileNodes.map(n => ({
     id: n.id,
-    name: n.label,
+    name: nameMap.get(n.id) ?? n.label,
     path: n.filePath,
     level: 'component' as const,
   }));
