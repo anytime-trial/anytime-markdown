@@ -48,9 +48,21 @@ export interface AgentActivityEntry {
   readonly plannedElementIds: readonly string[];
 }
 
+export interface FileConflict {
+  /** 衝突ファイルの絶対パス */
+  readonly file: string;
+  /** 対応する C4 要素 ID */
+  readonly elementIds: readonly string[];
+  /** 関与するエージェントのセッション ID */
+  readonly agentSessionIds: readonly string[];
+  /** true: 同時 editing、false: sessionEdits の重複のみ */
+  readonly isActiveConflict: boolean;
+}
+
 export interface MultiAgentActivityMessage {
   readonly type: 'multi-agent-activity-updated';
   readonly agents: readonly AgentActivityEntry[];
+  readonly conflicts: readonly FileConflict[];
 }
 
 export type ServerMessage = DsmUpdatedMessage | AnalysisProgressMessage | DocLinksUpdatedMessage | ImportanceUpdatedMessage | ClaudeActivityUpdatedMessage | MultiAgentActivityMessage;
