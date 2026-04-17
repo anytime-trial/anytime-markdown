@@ -617,7 +617,7 @@ export class SupabaseTrailReader implements ITrailReader {
         })
         .sort((a, b) => a.period.localeCompare(b.period) || b.count - a.count);
 
-      return { toolSequences, toolCounts, errorRate, skillStats, cacheEfficiency: [], corrections: [] };
+      return { toolSequences, toolCounts, errorRate, skillStats, corrections: [] };
     } catch {
       return null;
     }

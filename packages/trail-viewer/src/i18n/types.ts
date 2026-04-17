@@ -201,6 +201,6 @@ export interface TrailI18n {
 
   'behavior.sections.errors': string;
   'behavior.sections.skills': string;
-  'behavior.sections.cache': string;
+
   'behavior.sections.corrections': string;
 }

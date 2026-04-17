@@ -301,29 +301,6 @@ function SkillSection({ data }: Readonly<{ data: BehaviorData }>) {
   );
 }
 
-// ─── Section: ⑦ Cache Efficiency ─────────────────────────────────────────────
-
-function CacheSection({ data }: Readonly<{ data: BehaviorData }>) {
-  const { cardSx } = useTrailTheme();
-  const { t } = useTrailI18n();
-  const rows = data.cacheEfficiency.filter(r => r.isAnomaly);
-  return (
-    <Paper elevation={0} sx={{ ...cardSx, p: 2 }}>
-      <Typography variant="subtitle2" gutterBottom>{t('behavior.sections.cache')}</Typography>
-      {rows.length === 0 ? (
-        <Typography variant="body2" color="text.secondary">—</Typography>
-      ) : (
-        <LineChart
-          xAxis={[{ scaleType: 'band', data: rows.map(r => r.period) }]}
-          series={[{ data: rows.map(r => Math.round(r.hitRate * 1000) / 10), label: 'hit%' }]}
-          height={200}
-          margin={{ left: 40, right: 8, top: 8, bottom: 40 }}
-        />
-      )}
-    </Paper>
-  );
-}
-
 // ─── Section: ⑧ User Corrections ─────────────────────────────────────────────
 
 function CorrectionsSection({ data }: Readonly<{ data: BehaviorData }>) {
@@ -410,7 +387,6 @@ export function BehaviorPanel({ fetchBehaviorData }: Readonly<BehaviorPanelProps
           </Box>
           <ErrorPatternsSection data={data} />
           <SkillSection data={data} />
-          <CacheSection data={data} />
           <CorrectionsSection data={data} />
         </>
       )}

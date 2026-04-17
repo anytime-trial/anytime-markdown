@@ -232,7 +232,7 @@ export function useTrailDataSource(serverUrl: string): TrailDataSourceResult {
     async (period: BehaviorPeriodMode, rangeDays: BehaviorRangeDays): Promise<BehaviorData> => {
       const empty: BehaviorData = {
         toolSequences: [], toolCounts: [],
-        errorRate: [], skillStats: [], cacheEfficiency: [], corrections: [],
+        errorRate: [], skillStats: [], corrections: [],
       };
       try {
         const res = await fetch(`${baseUrl}/api/trail/behavior?period=${period}&rangeDays=${rangeDays}`);

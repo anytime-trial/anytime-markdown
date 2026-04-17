@@ -187,6 +187,6 @@ export const ja: TrailI18n = {
 
   'behavior.sections.errors': 'エラーパターン',
   'behavior.sections.skills': 'スキル実施内容分析',
-  'behavior.sections.cache': 'キャッシュ効率（異常セッション）',
+
   'behavior.sections.corrections': 'ユーザー訂正パターン',
 };

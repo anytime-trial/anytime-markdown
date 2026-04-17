@@ -114,11 +114,6 @@ export interface BehaviorSkill {
   readonly costUsd: number;
 }
 
-export interface BehaviorCacheSession {
-  readonly period: string;
-  readonly hitRate: number;
-  readonly isAnomaly: boolean;
-}
 
 export interface BehaviorCorrection {
   readonly period: string;
@@ -131,7 +126,6 @@ export interface BehaviorData {
   readonly toolCounts: readonly BehaviorToolCount[];
   readonly errorRate: readonly BehaviorError[];
   readonly skillStats: readonly BehaviorSkill[];
-  readonly cacheEfficiency: readonly BehaviorCacheSession[];
   readonly corrections: readonly BehaviorCorrection[];
 }
 
