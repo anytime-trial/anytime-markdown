@@ -1,21 +1,25 @@
 import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { getStatusFilePath } from './claudeHookSetup';
-import type { Disposable, ClaudeStatus, SessionEdit, StatusChangeCallback } from './types';
+import type { Disposable, ClaudeStatus, SessionEdit, StatusChangeCallback, AgentInfo, MultiStatusChangeCallback } from './types';
 
 const STALE_THRESHOLD_MS = 30_000;
 const POLL_INTERVAL_MS = 3000;
 
 export class ClaudeStatusWatcher implements Disposable {
   private readonly callbacks: StatusChangeCallback[] = [];
-  private readonly statusFilePath: string;
-  private fsWatcher: fs.FSWatcher | null = null;
+  private readonly multiCallbacks: MultiStatusChangeCallback[] = [];
+  private readonly statusDir: string;
+  private readonly statusFilePrefix: string;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private lastEditing: boolean | null = null;
   private lastTimestamp = '';
+  private lastAgentMapJson = '';
 
   constructor(workspaceRoot?: string, statusDir?: string) {
-    this.statusFilePath = getStatusFilePath(workspaceRoot, statusDir);
-    this.ensureFileAndWatch();
+    const filePath = getStatusFilePath(workspaceRoot, statusDir);
+    this.statusDir = path.dirname(filePath);
+    this.statusFilePrefix = 'claude-code-status';
     this.startPolling();
   }
 
@@ -23,82 +27,108 @@ export class ClaudeStatusWatcher implements Disposable {
     this.callbacks.push(callback);
   }
 
-  private ensureFileAndWatch(): void {
-    try {
-      fs.writeFileSync(this.statusFilePath, '{}', { flag: 'wx', mode: 0o600 });
-    } catch (err: unknown) {
-      if (err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code !== 'EEXIST') {
-        // ファイル作成失敗時はポーリングで対応
-      }
-    }
-    this.attachFileWatch();
+  onMultiStatusChange(callback: MultiStatusChangeCallback): void {
+    this.multiCallbacks.push(callback);
   }
 
-  private attachFileWatch(): void {
-    this.fsWatcher?.close();
+  /** 現在の全エージェントのセッション編集履歴を統合して返す */
+  getSessionEdits(): readonly SessionEdit[] {
+    const agents = this.readAllAgents();
+    const edits: SessionEdit[] = [];
+    for (const agent of agents.values()) {
+      edits.push(...agent.sessionEdits);
+    }
+    return edits;
+  }
+
+  /** 現在の全エージェントの計画対象ファイルを統合して返す */
+  getPlannedEdits(): readonly string[] {
+    const agents = this.readAllAgents();
+    const set = new Set<string>();
+    for (const agent of agents.values()) {
+      for (const p of agent.plannedEdits) set.add(p);
+    }
+    return [...set];
+  }
+
+  /** 全ステータスファイルの sessionEdits と plannedEdits をクリアする */
+  clearEdits(): void {
     try {
-      this.fsWatcher = fs.watch(this.statusFilePath, () => {
-        this.handleChange();
-      });
-      this.fsWatcher.on('error', () => {
-        this.fsWatcher?.close();
-        this.fsWatcher = null;
-      });
+      const files = this.listStatusFiles();
+      for (const filePath of files) {
+        try {
+          const raw = fs.readFileSync(filePath, 'utf-8');
+          const parsed: unknown = JSON.parse(raw);
+          if (typeof parsed === 'object' && parsed !== null) {
+            const record = parsed as Record<string, unknown>;
+            record.sessionEdits = [];
+            record.plannedEdits = [];
+            fs.writeFileSync(filePath, JSON.stringify(record));
+          }
+        } catch {
+          // 個別ファイルのパース失敗は無視
+        }
+      }
     } catch {
-      // fs.watch 失敗時はポーリングで対応
+      // ディレクトリ読み取り失敗は無視
     }
   }
+
+  /** アクティブなエージェント情報マップを返す */
+  getAgents(): ReadonlyMap<string, AgentInfo> {
+    return this.readAllAgents();
+  }
+
+  dispose(): void {
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  //  Private
+  // ---------------------------------------------------------------------------
 
   private startPolling(): void {
     this.pollTimer = setInterval(() => {
-      this.handleChange();
+      this.handlePoll();
     }, POLL_INTERVAL_MS);
   }
 
-  /** 現在のステータスファイルに記録されたセッション編集履歴を返す */
-  getSessionEdits(): readonly SessionEdit[] {
-    return this.readStatus()?.sessionEdits ?? [];
-  }
+  private handlePoll(): void {
+    const agents = this.readAllAgents();
 
-  /** 現在のステータスファイルに記録された計画対象ファイルの絶対パス配列を返す */
-  getPlannedEdits(): readonly string[] {
-    return this.readStatus()?.plannedEdits ?? [];
-  }
-
-  /** ステータスファイルの sessionEdits と plannedEdits をクリアする */
-  clearEdits(): void {
-    try {
-      const raw = fs.readFileSync(this.statusFilePath, 'utf-8');
-      const parsed: unknown = JSON.parse(raw);
-      if (typeof parsed === 'object' && parsed !== null) {
-        const record = parsed as Record<string, unknown>;
-        record.sessionEdits = [];
-        record.plannedEdits = [];
-        fs.writeFileSync(this.statusFilePath, JSON.stringify(record));
+    // マルチエージェントコールバック
+    const json = JSON.stringify([...agents.entries()]);
+    if (json !== this.lastAgentMapJson) {
+      this.lastAgentMapJson = json;
+      for (const cb of this.multiCallbacks) {
+        cb(agents);
       }
-    } catch {
-      // ファイル未存在・パース失敗時は無視
     }
-  }
 
-  private handleChange(): void {
-    const status = this.readStatus();
-    if (!status) return;
+    // 互換コールバック: 最後に更新されたアクティブエージェントの状態を通知
+    let latest: AgentInfo | null = null;
+    for (const agent of agents.values()) {
+      if (!latest || agent.timestamp > latest.timestamp) {
+        latest = agent;
+      }
+    }
+    if (!latest) return;
 
-    if (status.timestamp === this.lastTimestamp) return;
-    this.lastTimestamp = status.timestamp;
+    if (latest.timestamp === this.lastTimestamp) return;
+    this.lastTimestamp = latest.timestamp;
 
-    const isStale = Date.now() - new Date(status.timestamp).getTime() > STALE_THRESHOLD_MS;
-    const editing = isStale ? false : status.editing;
+    const isStale = Date.now() - new Date(latest.timestamp).getTime() > STALE_THRESHOLD_MS;
+    const editing = isStale ? false : latest.editing;
 
-    // PreToolUse と PostToolUse が連続して同一の fs.watch イベントに合流した場合、
+    // PreToolUse と PostToolUse が連続して同一のポーリングサイクルに合流した場合、
     // editing=false しか観測できない。非 stale な editing=false は直前に editing=true が
     // あったことを示すため、synthetic な true イベントを先に発火してから false を発火する。
-    // stale（30秒超）の場合は前セッションの残存データなので synthetic を発火しない。
     if (!editing && !isStale && this.lastEditing !== true) {
       this.lastEditing = true;
       for (const cb of this.callbacks) {
-        cb(true, status.file);
+        cb(true, latest.file);
       }
     }
 
@@ -106,13 +136,61 @@ export class ClaudeStatusWatcher implements Disposable {
     this.lastEditing = editing;
 
     for (const cb of this.callbacks) {
-      cb(editing, status.file);
+      cb(editing, latest.file);
     }
   }
 
-  private readStatus(): ClaudeStatus | null {
+  private readAllAgents(): Map<string, AgentInfo> {
+    const agents = new Map<string, AgentInfo>();
+    const now = Date.now();
+    const files = this.listStatusFiles();
+
+    for (const filePath of files) {
+      const status = this.readStatusFile(filePath);
+      if (!status) continue;
+
+      const elapsed = now - new Date(status.timestamp).getTime();
+      if (elapsed > STALE_THRESHOLD_MS) continue;
+
+      const sessionId = status.sessionId ?? this.extractSessionId(filePath);
+      if (!sessionId) continue;
+
+      agents.set(sessionId, {
+        sessionId,
+        editing: status.editing,
+        file: status.file,
+        timestamp: status.timestamp,
+        branch: status.branch ?? '',
+        sessionEdits: status.sessionEdits ?? [],
+        plannedEdits: status.plannedEdits ?? [],
+      });
+    }
+    return agents;
+  }
+
+  private listStatusFiles(): string[] {
     try {
-      const raw = fs.readFileSync(this.statusFilePath, 'utf-8');
+      const entries = fs.readdirSync(this.statusDir);
+      return entries
+        .filter((e) => e.startsWith(this.statusFilePrefix) && e.endsWith('.json'))
+        .map((e) => path.join(this.statusDir, e));
+    } catch {
+      return [];
+    }
+  }
+
+  private extractSessionId(filePath: string): string {
+    const base = path.basename(filePath, '.json');
+    const prefix = 'claude-code-status-';
+    if (base.startsWith(prefix)) {
+      return base.slice(prefix.length);
+    }
+    return '';
+  }
+
+  private readStatusFile(filePath: string): ClaudeStatus | null {
+    try {
+      const raw = fs.readFileSync(filePath, 'utf-8');
       const parsed: unknown = JSON.parse(raw);
       if (!this.isValidStatus(parsed)) return null;
       // 旧形式（number の Unix ms タイムスタンプ）を UTC ISO 8601 文字列に正規化する
@@ -135,12 +213,5 @@ export class ClaudeStatusWatcher implements Disposable {
       // timestamp は UTC ISO 8601 文字列。旧形式（number）との後方互換のため number も許容する。
       (typeof record.timestamp === 'string' || typeof record.timestamp === 'number')
     );
-  }
-
-  dispose(): void {
-    this.fsWatcher?.close();
-    if (this.pollTimer) {
-      clearInterval(this.pollTimer);
-    }
   }
 }
