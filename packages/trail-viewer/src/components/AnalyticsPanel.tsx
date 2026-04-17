@@ -566,6 +566,12 @@ function SessionMetricsPanel({ session, toolMetrics }: Readonly<{
   );
 }
 
+const TOOL_COLORS = [
+  '#1976d2', '#8b5cf6', '#00897b', '#e65100', '#c62828',
+  '#6d4c41', '#37474f', '#f9a825', '#558b2f', '#ad1457',
+  '#0097a7', '#5c6bc0', '#ef6c00', '#2e7d32', '#8e24aa',
+] as const;
+
 type SessionToolMetric = 'count' | 'tokens' | 'duration';
 
 function SessionToolUsageChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMetrics | null }>) {
@@ -579,10 +585,14 @@ function SessionToolUsageChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMetr
     metric === 'tokens' ? e.tokens
     : metric === 'duration' ? Math.round(e.durationMs / 1000)
     : e.count;
-  const label = metric === 'tokens' ? 'tokens' : metric === 'duration' ? 'sec' : 'count';
 
   const sorted = [...usage].sort((a, b) => getValue(b) - getValue(a));
-  const dataset = sorted.map((e, i) => ({ idx: `t${i}`, value: getValue(e) }));
+
+  // 1行の積算横棒: Y軸=メトリクス名、各ツールが色分けでスタック
+  const entry: Record<string, string | number> = { metric: metric === 'tokens' ? 'tokens' : metric === 'duration' ? 'sec' : 'count' };
+  for (let i = 0; i < sorted.length; i++) {
+    entry[`t${i}`] = getValue(sorted[i]);
+  }
 
   return (
     <Paper elevation={0} sx={{ ...cardSx, p: 2 }}>
@@ -595,15 +605,17 @@ function SessionToolUsageChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMetr
         </ToggleButtonGroup>
       </Box>
       <BarChart
-        dataset={dataset}
+        dataset={[entry]}
         layout="horizontal"
-        yAxis={[{ scaleType: 'band', dataKey: 'idx', valueFormatter: (v: string) => {
-          const i = Number.parseInt(v.slice(1), 10);
-          return sorted[i]?.tool ?? v;
-        } }]}
-        series={[{ dataKey: 'value', label }]}
-        height={Math.max(160, sorted.length * 28)}
-        margin={{ left: 120, right: 16, top: 8, bottom: 24 }}
+        yAxis={[{ scaleType: 'band', dataKey: 'metric' }]}
+        series={sorted.map((e, i) => ({
+          dataKey: `t${i}`,
+          label: e.tool,
+          stack: 'total',
+          color: TOOL_COLORS[i % TOOL_COLORS.length],
+        }))}
+        height={100}
+        margin={{ left: 60, right: 16, top: 8, bottom: 24 }}
       />
     </Paper>
   );
