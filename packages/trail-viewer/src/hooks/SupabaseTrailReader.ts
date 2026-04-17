@@ -586,10 +586,16 @@ export class SupabaseTrailReader implements ITrailReader {
         .sort((a, b) => a.period.localeCompare(b.period) || b.count - a.count);
 
       // ①-b toolCounts: 全ツール利用回数
+      // MCP ツール名を正規化: mcp__github__xxx → mcp__github
+      const normalizeTool = (name: string): string => {
+        if (!name.startsWith('mcp__')) return name;
+        const parts = name.split('__');
+        return parts.length >= 3 ? `${parts[0]}__${parts[1]}` : name;
+      };
       const toolCountMap = new Map<string, number>();
       for (const r of rows) {
         const p = periodKey(r);
-        const k = `${p}::${r.tool_name}`;
+        const k = `${p}::${normalizeTool(r.tool_name)}`;
         toolCountMap.set(k, (toolCountMap.get(k) ?? 0) + 1);
       }
       const toolCounts = [...toolCountMap.entries()]

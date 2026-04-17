@@ -2354,9 +2354,16 @@ export class TrailDatabase {
       count: Number(r['count'] ?? 0),
     }));
 
-    // ①-b toolCounts: 単独ツール利用回数（Top5、全期間展開）
+    // ①-b toolCounts: 全ツール利用回数
+    // MCP ツール名を正規化: mcp__github__xxx → mcp__github
     const tcResult = db.exec(
-      `SELECT ${periodExpr} AS period, tool_name AS tool, COUNT(*) AS count
+      `SELECT ${periodExpr} AS period,
+              CASE
+                WHEN tool_name LIKE 'mcp\\_\\_%\\_\\_%' ESCAPE '\\'
+                THEN SUBSTR(tool_name, 1, INSTR(SUBSTR(tool_name, 6), '__') + 4)
+                ELSE tool_name
+              END AS tool,
+              COUNT(*) AS count
        FROM message_tool_calls
        WHERE timestamp >= datetime('now', '-${rangeDays} days')
        GROUP BY period, tool
