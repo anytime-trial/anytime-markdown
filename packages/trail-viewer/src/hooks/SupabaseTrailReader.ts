@@ -585,26 +585,14 @@ export class SupabaseTrailReader implements ITrailReader {
         .map(([k, e]) => ({ period: e.period, sequence: k.split('::')[1] ?? '', count: e.count }))
         .sort((a, b) => a.period.localeCompare(b.period) || b.count - a.count);
 
-      // ①-b toolCounts: 単独ツール利用回数（Top5）
+      // ①-b toolCounts: 全ツール利用回数
       const toolCountMap = new Map<string, number>();
       for (const r of rows) {
         const p = periodKey(r);
         const k = `${p}::${r.tool_name}`;
         toolCountMap.set(k, (toolCountMap.get(k) ?? 0) + 1);
       }
-      const toolTotals = new Map<string, number>();
-      for (const [k, cnt] of toolCountMap) {
-        const tool = k.split('::')[1] ?? '';
-        toolTotals.set(tool, (toolTotals.get(tool) ?? 0) + cnt);
-      }
-      const topTools = new Set(
-        [...toolTotals.entries()]
-          .sort(([, a], [, b]) => b - a)
-          .slice(0, 5)
-          .map(([t]) => t),
-      );
       const toolCounts = [...toolCountMap.entries()]
-        .filter(([k]) => topTools.has(k.split('::')[1] ?? ''))
         .map(([k, cnt]) => {
           const [p, tool] = k.split('::');
           return { period: p, tool: tool ?? '', count: cnt };

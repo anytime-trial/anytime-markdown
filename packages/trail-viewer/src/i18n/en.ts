@@ -179,7 +179,7 @@ export const en: TrailI18n = {
   'behavior.period.session': 'Session',
   'behavior.range.days': 'days',
   'behavior.sections.toolSequences': 'Tool Sequences Top5',
-  'behavior.sections.toolCounts': 'Tool Usage Top5',
+  'behavior.sections.toolCounts': 'Tool Usage',
   'behavior.sections.repeatOps': 'Repeated Operations',
   'behavior.sections.avgTools': 'Avg Tools per Turn',
   'behavior.sections.subagent': 'Subagent Rate',

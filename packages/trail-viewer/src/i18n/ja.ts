@@ -179,7 +179,7 @@ export const ja: TrailI18n = {
   'behavior.period.session': 'セッション',
   'behavior.range.days': '日間',
   'behavior.sections.toolSequences': 'ツールシーケンス Top5',
-  'behavior.sections.toolCounts': 'ツール利用回数 Top5',
+  'behavior.sections.toolCounts': 'ツール利用回数',
   'behavior.sections.repeatOps': '繰り返し操作',
   'behavior.sections.avgTools': 'ターンあたりツール数（平均）',
   'behavior.sections.subagent': 'サブエージェント起動率',

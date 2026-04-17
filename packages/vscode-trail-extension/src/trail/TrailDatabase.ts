@@ -2356,16 +2356,10 @@ export class TrailDatabase {
 
     // ①-b toolCounts: 単独ツール利用回数（Top5、全期間展開）
     const tcResult = db.exec(
-      `WITH counts AS (
-         SELECT ${periodExpr} AS period, tool_name AS tool, COUNT(*) AS count
-         FROM message_tool_calls
-         WHERE timestamp >= datetime('now', '-${rangeDays} days')
-         GROUP BY period, tool
-       ),
-       top5 AS (
-         SELECT tool FROM counts GROUP BY tool ORDER BY SUM(count) DESC LIMIT 5
-       )
-       SELECT period, tool, count FROM counts WHERE tool IN (SELECT tool FROM top5)
+      `SELECT ${periodExpr} AS period, tool_name AS tool, COUNT(*) AS count
+       FROM message_tool_calls
+       WHERE timestamp >= datetime('now', '-${rangeDays} days')
+       GROUP BY period, tool
        ORDER BY period, count DESC`,
     );
     const toolCounts = toRows(tcResult).map(r => ({
