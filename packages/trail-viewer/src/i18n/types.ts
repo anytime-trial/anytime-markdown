@@ -198,7 +198,6 @@ export interface TrailI18n {
   'behavior.toolCounts.tokens': string;
   'behavior.toolCounts.duration': string;
 
-  'behavior.sections.avgTools': string;
   'behavior.sections.subagent': string;
   'behavior.sections.errors': string;
   'behavior.sections.skills': string;

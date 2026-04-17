@@ -513,19 +513,6 @@ export class SupabaseTrailReader implements ITrailReader {
         return `${wy}-${wm}-${wd}`;
       };
 
-      // ③ avgToolsPerTurn
-      const turnMap = new Map<string, Map<string, number>>();
-      for (const r of rows) {
-        const p = periodKey(r);
-        const key = `${r.session_id}:${r.turn_index}`;
-        if (!turnMap.has(p)) turnMap.set(p, new Map());
-        turnMap.get(p)!.set(key, (turnMap.get(p)!.get(key) ?? 0) + 1);
-      }
-      const avgToolsPerTurn = [...turnMap.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([p, m]) => {
-        const vals = [...m.values()];
-        return { period: p, avg: vals.reduce((s, v) => s + v, 0) / (vals.length || 1) };
-      });
-
       // ④ subagentRate
       const agentByPeriod = new Map<string, { agent: number; total: number }>();
       for (const r of rows) {
@@ -643,7 +630,7 @@ export class SupabaseTrailReader implements ITrailReader {
         })
         .sort((a, b) => a.period.localeCompare(b.period) || b.count - a.count);
 
-      return { toolSequences, toolCounts, avgToolsPerTurn, subagentRate, errorRate, skillStats, cacheEfficiency: [], corrections: [] };
+      return { toolSequences, toolCounts, subagentRate, errorRate, skillStats, cacheEfficiency: [], corrections: [] };
     } catch {
       return null;
     }

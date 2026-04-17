@@ -47,7 +47,7 @@ function ToolSequencesSection({ data }: Readonly<{ data: BehaviorData }>) {
   // avgToolsPerTurn から全期間を取得し、ビグラムがない日も 0 埋めする
   const allPeriods = [...new Set([
     ...rows.map(r => r.period),
-    ...data.avgToolsPerTurn.map(a => a.period),
+    ...(data.toolCounts ?? []).map(a => a.period),
   ])].sort();
   const sequences = [...new Set(rows.map(r => r.sequence))];
   const hasMultiplePeriods = allPeriods.length > 1;
@@ -127,7 +127,7 @@ function ToolCountsSection({ data }: Readonly<{ data: BehaviorData }>) {
   const seriesLabel = metric === 'tokens' ? 'tokens' : metric === 'duration' ? 'sec' : 'count';
   const allPeriods = [...new Set([
     ...rows.map(r => r.period),
-    ...data.avgToolsPerTurn.map(a => a.period),
+    ...(data.toolCounts ?? []).map(a => a.period),
   ])].sort();
   const tools = [...new Set(rows.map(r => r.tool))];
   const hasMultiplePeriods = allPeriods.length > 1;
@@ -193,33 +193,6 @@ function ToolCountsSection({ data }: Readonly<{ data: BehaviorData }>) {
 // ─── Section: ② Repeated Ops ─────────────────────────────────────────────────
 
 
-// ─── Section: ③ Avg Tools per Turn ───────────────────────────────────────────
-
-function AvgToolsSection({ data }: Readonly<{ data: BehaviorData }>) {
-  const { cardSx } = useTrailTheme();
-  const { t } = useTrailI18n();
-  const rows = data.avgToolsPerTurn;
-  const allPeriods = [...new Set(rows.map(r => r.period))].sort();
-  const avgByPeriod = new Map(rows.map(r => [r.period, r.avg]));
-  const labels = allPeriods.map(p => p.length > 5 ? p.slice(5) : p);
-  const filledData = allPeriods.map(p => Math.round((avgByPeriod.get(p) ?? 0) * 100) / 100);
-  return (
-    <Paper elevation={0} sx={{ ...cardSx, p: 2 }}>
-      <Typography variant="subtitle2" gutterBottom>{t('behavior.sections.avgTools')}</Typography>
-      {allPeriods.length === 0 ? (
-        <Typography variant="body2" color="text.secondary">—</Typography>
-      ) : (
-        <LineChart
-          xAxis={[{ scaleType: 'band', data: labels }]}
-          series={[{ data: filledData, label: 'avg' }]}
-          height={200}
-          margin={{ left: 40, right: 8, top: 8, bottom: 40 }}
-        />
-      )}
-    </Paper>
-  );
-}
-
 // ─── Section: ④ Subagent Rate ─────────────────────────────────────────────────
 
 function SubagentSection({ data }: Readonly<{ data: BehaviorData }>) {
@@ -228,7 +201,7 @@ function SubagentSection({ data }: Readonly<{ data: BehaviorData }>) {
   const rows = data.subagentRate;
   const allPeriods = [...new Set([
     ...rows.map(r => r.period),
-    ...data.avgToolsPerTurn.map(a => a.period),
+    ...(data.toolCounts ?? []).map(a => a.period),
   ])].sort();
   const labels = allPeriods.map(p => p.length > 5 ? p.slice(5) : p);
 
@@ -443,7 +416,6 @@ export function BehaviorPanel({ fetchBehaviorData }: Readonly<BehaviorPanelProps
             <ToolSequencesSection data={data} />
             <ToolCountsSection data={data} />
           </Box>
-          <AvgToolsSection data={data} />
           <SubagentSection data={data} />
           <ErrorPatternsSection data={data} />
           <SkillSection data={data} />

@@ -184,7 +184,6 @@ export const ja: TrailI18n = {
   'behavior.toolCounts.tokens': 'トークン',
   'behavior.toolCounts.duration': '時間',
 
-  'behavior.sections.avgTools': 'ターンあたりツール数（平均）',
   'behavior.sections.subagent': 'サブエージェント起動率',
   'behavior.sections.errors': 'エラーパターン',
   'behavior.sections.skills': 'スキル実施内容分析',

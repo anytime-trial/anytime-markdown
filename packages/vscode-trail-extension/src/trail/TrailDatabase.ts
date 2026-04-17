@@ -207,7 +207,6 @@ export interface CostOptimizationData {
 interface BehaviorData {
   readonly toolSequences: readonly { period: string; sequence: string; count: number }[];
   readonly toolCounts: readonly { period: string; tool: string; count: number; tokens: number; durationMs: number }[];
-  readonly avgToolsPerTurn: readonly { period: string; avg: number }[];
   readonly subagentRate: readonly { period: string; rate: number; byType: Readonly<Record<string, number>> }[];
   readonly errorRate: readonly { period: string; rate: number; byTool: Readonly<Record<string, number>> }[];
   readonly skillStats: readonly { period: string; skill: string; count: number; costUsd: number }[];
@@ -2237,22 +2236,6 @@ export class TrailDatabase {
       return values.map(row => Object.fromEntries(columns.map((c, i) => [c, row[i]])));
     };
 
-    // ③ avgToolsPerTurn
-    const avgResult = db.exec(
-      `SELECT period, AVG(tools_per_turn) AS avg
-       FROM (
-         SELECT ${periodExpr} AS period, session_id, turn_index, COUNT(*) AS tools_per_turn
-         FROM message_tool_calls
-         WHERE timestamp >= datetime('now', '-${rangeDays} days')
-         GROUP BY period, session_id, turn_index
-       )
-       GROUP BY period ORDER BY period`,
-    );
-    const avgToolsPerTurn = toRows(avgResult).map(r => ({
-      period: String(r['period'] ?? ''),
-      avg: Number(r['avg'] ?? 0),
-    }));
-
     // ④ subagentRate
     const subResult = db.exec(
       `SELECT ${periodExpr} AS period,
@@ -2374,7 +2357,6 @@ export class TrailDatabase {
     return {
       toolSequences,
       toolCounts,
-      avgToolsPerTurn,
       subagentRate,
       errorRate,
       skillStats,
