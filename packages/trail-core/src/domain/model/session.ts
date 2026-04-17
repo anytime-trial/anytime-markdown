@@ -67,6 +67,13 @@ export interface TrailSessionCommit {
   readonly linesDeleted: number;
 }
 
+export interface ToolUsageEntry {
+  readonly tool: string;
+  readonly count: number;
+  readonly tokens: number;
+  readonly durationMs: number;
+}
+
 export interface ToolMetrics {
   readonly totalRetries: number;
   readonly totalEdits: number;
@@ -74,6 +81,8 @@ export interface ToolMetrics {
   readonly totalBuildFails: number;
   readonly totalTestRuns: number;
   readonly totalTestFails: number;
+  /** セッション内のツール別利用統計 */
+  readonly toolUsage?: readonly ToolUsageEntry[];
 }
 
 export interface TrailTreeNode {

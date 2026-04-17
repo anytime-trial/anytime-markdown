@@ -316,7 +316,61 @@ export class SupabaseTrailReader implements ITrailReader {
       }
     }
 
-    return { totalRetries, totalEdits, totalBuildRuns, totalBuildFails, totalTestRuns, totalTestFails };
+    // ツール別利用統計を message_tool_calls + messages から集計
+    const normalizeTool = (name: string): string => {
+      if (!name.startsWith('mcp__')) return name;
+      const parts = name.split('__');
+      return parts.length >= 3 ? `${parts[0]}__${parts[1]}` : name;
+    };
+    const { data: tcData } = await this.client
+      .from('trail_message_tool_calls')
+      .select('message_uuid, turn_index, tool_name, turn_exec_ms')
+      .eq('session_id', sessionId);
+    const tcRows = (tcData ?? []) as { message_uuid: string; turn_index: number; tool_name: string; turn_exec_ms: number | null }[];
+
+    // メッセージのトークン数を取得
+    const msgUuids = [...new Set(tcRows.map(r => r.message_uuid))];
+    const msgTokenMap = new Map<string, number>();
+    const msgToolCount = new Map<string, number>();
+    for (const r of tcRows) {
+      msgToolCount.set(r.message_uuid, (msgToolCount.get(r.message_uuid) ?? 0) + 1);
+    }
+    for (let i = 0; i < msgUuids.length; i += 1000) {
+      const batch = msgUuids.slice(i, i + 1000);
+      const { data: msgData } = await this.client
+        .from('trail_messages')
+        .select('uuid, input_tokens, output_tokens')
+        .in('uuid', batch);
+      if (msgData) {
+        for (const m of msgData as { uuid: string; input_tokens: number; output_tokens: number }[]) {
+          msgTokenMap.set(m.uuid, (m.input_tokens ?? 0) + (m.output_tokens ?? 0));
+        }
+      }
+    }
+    // ターン内ツール数
+    const turnToolCount = new Map<string, number>();
+    for (const r of tcRows) {
+      const tk = `${sessionId}:${r.turn_index}`;
+      turnToolCount.set(tk, (turnToolCount.get(tk) ?? 0) + 1);
+    }
+    const toolAgg = new Map<string, { count: number; tokens: number; durationMs: number }>();
+    for (const r of tcRows) {
+      const tool = normalizeTool(r.tool_name);
+      const e = toolAgg.get(tool) ?? { count: 0, tokens: 0, durationMs: 0 };
+      e.count++;
+      const mTokens = msgTokenMap.get(r.message_uuid) ?? 0;
+      const mTools = msgToolCount.get(r.message_uuid) ?? 1;
+      e.tokens += Math.round(mTokens / mTools);
+      const tk = `${sessionId}:${r.turn_index}`;
+      const tTools = turnToolCount.get(tk) ?? 1;
+      e.durationMs += Math.round((r.turn_exec_ms ?? 0) / tTools);
+      toolAgg.set(tool, e);
+    }
+    const toolUsage = [...toolAgg.entries()]
+      .sort(([, a], [, b]) => b.count - a.count)
+      .map(([tool, e]) => ({ tool, ...e }));
+
+    return { totalRetries, totalEdits, totalBuildRuns, totalBuildFails, totalTestRuns, totalTestFails, toolUsage };
   }
 
   async searchMessages(query: string): Promise<readonly { sessionId: string; uuid: string; snippet: string }[]> {

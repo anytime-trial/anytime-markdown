@@ -2095,10 +2095,52 @@ export class TrailDatabase {
         }
       }
 
+      // セッション指定時のみツール別利用統計を集計
+      let toolUsage: { tool: string; count: number; tokens: number; durationMs: number }[] | undefined;
+      if (sessionId) {
+        const tuResult = db.exec(
+          `WITH tool_with_metrics AS (
+             SELECT tc.message_uuid, tc.turn_index, tc.tool_name,
+                    COALESCE(m.input_tokens, 0) + COALESCE(m.output_tokens, 0) AS msg_tokens,
+                    COUNT(*) OVER (PARTITION BY tc.message_uuid) AS tools_in_msg,
+                    COALESCE(tc.turn_exec_ms, 0) AS turn_exec_ms,
+                    COUNT(*) OVER (PARTITION BY tc.session_id, tc.turn_index) AS tools_in_turn
+             FROM message_tool_calls tc
+             LEFT JOIN messages m ON m.uuid = tc.message_uuid
+             WHERE tc.session_id = ?
+           )
+           SELECT CASE
+                    WHEN tool_name LIKE 'mcp\\_\\_%\\_\\_%' ESCAPE '\\'
+                    THEN SUBSTR(tool_name, 1, INSTR(SUBSTR(tool_name, 6), '__') + 4)
+                    ELSE tool_name
+                  END AS tool,
+                  COUNT(*) AS count,
+                  CAST(SUM(ROUND(1.0 * msg_tokens / tools_in_msg)) AS INTEGER) AS tokens,
+                  CAST(SUM(ROUND(1.0 * turn_exec_ms / tools_in_turn)) AS INTEGER) AS duration_ms
+           FROM tool_with_metrics
+           GROUP BY tool
+           ORDER BY count DESC`,
+          [sessionId],
+        );
+        if (tuResult[0]) {
+          const cols = tuResult[0].columns;
+          toolUsage = tuResult[0].values.map(row => {
+            const r = Object.fromEntries(cols.map((c, i) => [c, row[i]]));
+            return {
+              tool: String(r['tool'] ?? ''),
+              count: Number(r['count'] ?? 0),
+              tokens: Number(r['tokens'] ?? 0),
+              durationMs: Number(r['duration_ms'] ?? 0),
+            };
+          });
+        }
+      }
+
       return {
         totalRetries, totalEdits,
         totalBuildRuns, totalBuildFails,
         totalTestRuns, totalTestFails,
+        toolUsage,
       };
     } catch {
       return zero;
