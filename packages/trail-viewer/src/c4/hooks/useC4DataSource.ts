@@ -217,6 +217,7 @@ function isWsClaudeActivityMessage(v: unknown): v is WsClaudeActivityMessage {
 interface WsMultiAgentMessage {
   type: 'multi-agent-activity-updated';
   agents: AgentActivityEntry[];
+  conflicts?: FileConflict[];
 }
 
 function isWsMultiAgentMessage(v: unknown): v is WsMultiAgentMessage {
