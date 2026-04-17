@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Box from '@mui/material/Box';
 import Chip from '@mui/material/Chip';
+import CircularProgress from '@mui/material/CircularProgress';
 import IconButton from '@mui/material/IconButton';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import Paper from '@mui/material/Paper';
@@ -1092,28 +1093,13 @@ function ModelTable({ items }: Readonly<{ items: AnalyticsData['modelBreakdown']
 type BehaviorMetric = 'count' | 'tokens';
 type BehaviorChartKind = 'tools' | 'errors' | 'skills';
 
-function BehaviorChartsSection({ fetchBehaviorData, periodDays, activeChart, toolMetric }: Readonly<{
-  fetchBehaviorData: (period: BehaviorPeriodMode, rangeDays: BehaviorRangeDays) => Promise<BehaviorData>;
+function BehaviorChartsSection({ data, periodDays, activeChart, toolMetric }: Readonly<{
+  data: BehaviorData | null;
   periodDays: PeriodDays;
   activeChart: BehaviorChartKind;
   toolMetric: BehaviorMetric;
 }>) {
   const { cardSx } = useTrailTheme();
-  const { t } = useTrailI18n();
-  const [data, setData] = useState<BehaviorData | null>(null);
-
-  // PeriodDays (7/30/90) → BehaviorRangeDays (30/90) + period に変換
-  const rangeDays: BehaviorRangeDays = periodDays >= 90 ? 90 : 30;
-  const period: BehaviorPeriodMode = periodDays >= 90 ? 'week' : 'day';
-
-  useEffect(() => {
-    let mounted = true;
-    void (async () => {
-      const result = await fetchBehaviorData(period, rangeDays);
-      if (mounted) setData(result);
-    })();
-    return () => { mounted = false; };
-  }, [fetchBehaviorData, period, rangeDays]);
 
   const axisInfo = useMemo(() => {
     if (!data) return null;
@@ -1288,6 +1274,25 @@ function CombinedChartsSection({
   const [metric, setMetric] = useState<CombinedMetric>('tokens');
   const [tokenMode, setTokenMode] = useState<DailyViewMode>('tokens');
   const [toolMetric, setToolMetric] = useState<BehaviorMetric>('count');
+  const [behaviorData, setBehaviorData] = useState<BehaviorData | null>(null);
+  const [behaviorLoading, setBehaviorLoading] = useState(false);
+
+  // Prefetch behavior data so switching to Tool/Error/Skill does not block on fetch.
+  useEffect(() => {
+    if (!fetchBehaviorData) return;
+    const rangeDays: BehaviorRangeDays = period >= 90 ? 90 : 30;
+    const periodMode: BehaviorPeriodMode = period >= 90 ? 'week' : 'day';
+    let mounted = true;
+    setBehaviorLoading(true);
+    void (async () => {
+      const result = await fetchBehaviorData(periodMode, rangeDays);
+      if (mounted) {
+        setBehaviorData(result);
+        setBehaviorLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [fetchBehaviorData, period]);
 
   const toggleSx = {
     color: colors.textSecondary,
@@ -1361,12 +1366,18 @@ function CombinedChartsSection({
           costOptimization={costOptimization}
         />
       ) : fetchBehaviorData ? (
-        <BehaviorChartsSection
-          fetchBehaviorData={fetchBehaviorData}
-          periodDays={period}
-          activeChart={metric}
-          toolMetric={toolMetric}
-        />
+        behaviorLoading && !behaviorData ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 240 }}>
+            <CircularProgress size={32} />
+          </Box>
+        ) : (
+          <BehaviorChartsSection
+            data={behaviorData}
+            periodDays={period}
+            activeChart={metric}
+            toolMetric={toolMetric}
+          />
+        )
       ) : null}
     </Box>
   );
