@@ -940,7 +940,7 @@ function DailyActivityChart({
   items,
   sessions,
   period,
-  setPeriod,
+  mode,
   onSelectSession,
   onJumpToTrace,
   fetchSessionMessages,
@@ -951,7 +951,7 @@ function DailyActivityChart({
   items: AnalyticsData['dailyActivity'];
   sessions: readonly TrailSession[];
   period: PeriodDays;
-  setPeriod: (v: PeriodDays) => void;
+  mode: DailyViewMode;
   onSelectSession?: (id: string) => void;
   onJumpToTrace?: (session: TrailSession) => void;
   fetchSessionMessages?: (id: string) => Promise<readonly TrailMessage[]>;
@@ -959,21 +959,11 @@ function DailyActivityChart({
   fetchSessionToolMetrics?: (id: string) => Promise<ToolMetrics | null>;
   costOptimization?: CostOptimizationData | null;
 }>) {
-  const { colors, chartColors } = useTrailTheme();
-  const { t } = useTrailI18n();
-  const [mode, setMode] = useState<DailyViewMode>('tokens');
+  const { chartColors } = useTrailTheme();
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
-  if (items.length === 0) return null;
+  useEffect(() => { setSelectedDate(null); }, [period]);
 
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - period);
-  const cutoffStr = toLocalDateKey(cutoff.toISOString());
-  const filtered = items.filter((d) => d.date >= cutoffStr);
-
-  const isTokens = mode === 'tokens';
-
-  // Build cost optimization lookup by date
   const costByDate = useMemo(() => {
     const map = new Map<string, { actual: number; skill: number }>();
     if (!costOptimization) return map;
@@ -983,22 +973,31 @@ function DailyActivityChart({
     return map;
   }, [costOptimization]);
 
-  const dailyDataset: ChartEntry[] = filtered.map((d) => {
-    const costEntry = costByDate.get(d.date);
-    return {
-      date: d.date.slice(5),
-      fullDate: d.date,
-      inputTokens: isTokens ? d.inputTokens : 0,
-      outputTokens: isTokens ? d.outputTokens : 0,
-      cacheReadTokens: isTokens ? d.cacheReadTokens : 0,
-      cacheCreationTokens: isTokens ? d.cacheCreationTokens : 0,
-      actualCost: isTokens ? 0 : (costEntry?.actual ?? d.estimatedCostUsd),
-      skillCost: isTokens ? 0 : (costEntry?.skill ?? 0),
-    };
-  });
+  const dataset = useMemo(() => {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - period);
+    const cutoffStr = toLocalDateKey(cutoff.toISOString());
+    const filtered = items.filter((d) => d.date >= cutoffStr);
+    const isTokens = mode === 'tokens';
+    const dailyDataset: ChartEntry[] = filtered.map((d) => {
+      const costEntry = costByDate.get(d.date);
+      return {
+        date: d.date.slice(5),
+        fullDate: d.date,
+        inputTokens: isTokens ? d.inputTokens : 0,
+        outputTokens: isTokens ? d.outputTokens : 0,
+        cacheReadTokens: isTokens ? d.cacheReadTokens : 0,
+        cacheCreationTokens: isTokens ? d.cacheCreationTokens : 0,
+        actualCost: isTokens ? 0 : (costEntry?.actual ?? d.estimatedCostUsd),
+        skillCost: isTokens ? 0 : (costEntry?.skill ?? 0),
+      };
+    });
+    return period === 90 ? groupByWeek(dailyDataset) : dailyDataset;
+  }, [items, period, mode, costByDate]);
 
-  const dataset = period === 90 ? groupByWeek(dailyDataset) : dailyDataset;
+  if (items.length === 0) return null;
 
+  const isTokens = mode === 'tokens';
   const yFormatter = isTokens ? fmtTokens : fmtUsd;
 
   const handleAxisClick = (_event: MouseEvent, data: { dataIndex: number } | null) => {
@@ -1010,34 +1009,6 @@ function DailyActivityChart({
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Typography variant="subtitle1">
-            {isTokens ? t('chart.tokenUsage') : t('chart.estimatedCost')}
-          </Typography>
-          <ToggleButtonGroup
-            value={period}
-            exclusive
-            onChange={(_e, v: PeriodDays | null) => { if (v) { setPeriod(v); setSelectedDate(null); } }}
-            size="small"
-          >
-            <ToggleButton value={7} sx={{ color: colors.textSecondary, borderColor: colors.border, '&.Mui-selected': { color: colors.iceBlue, bgcolor: colors.iceBlueBg, borderColor: colors.iceBlue }, '&:hover': { bgcolor: colors.hoverBg } }}>7d</ToggleButton>
-            <ToggleButton value={30} sx={{ color: colors.textSecondary, borderColor: colors.border, '&.Mui-selected': { color: colors.iceBlue, bgcolor: colors.iceBlueBg, borderColor: colors.iceBlue }, '&:hover': { bgcolor: colors.hoverBg } }}>30d</ToggleButton>
-            {process.env.NEXT_PUBLIC_SHOW_UNLIMITED === '1' && (
-              <ToggleButton value={90} sx={{ color: colors.textSecondary, borderColor: colors.border, '&.Mui-selected': { color: colors.iceBlue, bgcolor: colors.iceBlueBg, borderColor: colors.iceBlue }, '&:hover': { bgcolor: colors.hoverBg } }}>90d</ToggleButton>
-            )}
-          </ToggleButtonGroup>
-        </Box>
-        <ToggleButtonGroup
-          value={mode}
-          exclusive
-          onChange={(_e, v: DailyViewMode | null) => { if (v) setMode(v); }}
-          size="small"
-        >
-          <ToggleButton value="tokens" sx={{ color: colors.textSecondary, borderColor: colors.border, '&.Mui-selected': { color: colors.iceBlue, bgcolor: colors.iceBlueBg, borderColor: colors.iceBlue }, '&:hover': { bgcolor: colors.hoverBg } }}>{t('chart.tokens')}</ToggleButton>
-          <ToggleButton value="cost" sx={{ color: colors.textSecondary, borderColor: colors.border, '&.Mui-selected': { color: colors.iceBlue, bgcolor: colors.iceBlueBg, borderColor: colors.iceBlue }, '&:hover': { bgcolor: colors.hoverBg } }}>{t('chart.cost')}</ToggleButton>
-        </ToggleButtonGroup>
-      </Box>
       <BarChart
         dataset={dataset}
         xAxis={[{ scaleType: 'band', dataKey: 'date' }]}
@@ -1119,14 +1090,16 @@ function ModelTable({ items }: Readonly<{ items: AnalyticsData['modelBreakdown']
 // ─── Behavior charts in Analytics ───────────────────────────────────────────
 
 type BehaviorMetric = 'count' | 'tokens';
+type BehaviorChartKind = 'tools' | 'errors' | 'skills';
 
-function BehaviorChartsSection({ fetchBehaviorData, periodDays }: Readonly<{
+function BehaviorChartsSection({ fetchBehaviorData, periodDays, activeChart, toolMetric }: Readonly<{
   fetchBehaviorData: (period: BehaviorPeriodMode, rangeDays: BehaviorRangeDays) => Promise<BehaviorData>;
   periodDays: PeriodDays;
+  activeChart: BehaviorChartKind;
+  toolMetric: BehaviorMetric;
 }>) {
   const { cardSx } = useTrailTheme();
   const { t } = useTrailI18n();
-  const [metric, setMetric] = useState<BehaviorMetric>('count');
   const [data, setData] = useState<BehaviorData | null>(null);
 
   // PeriodDays (7/30/90) → BehaviorRangeDays (30/90) + period に変換
@@ -1168,7 +1141,7 @@ function BehaviorChartsSection({ fetchBehaviorData, periodDays }: Readonly<{
     if (!axisInfo) return [];
     const { toolRows, allPeriods, labels, tools } = axisInfo;
     const getValue = (r: { count: number; tokens?: number }): number =>
-      metric === 'tokens' ? (r.tokens ?? 0) : r.count;
+      toolMetric === 'tokens' ? (r.tokens ?? 0) : r.count;
     const valMap = new Map<string, number>();
     for (const r of toolRows) {
       const key = `${r.period}::${r.tool}`;
@@ -1181,7 +1154,7 @@ function BehaviorChartsSection({ fetchBehaviorData, periodDays }: Readonly<{
       }
       return entry;
     });
-  }, [axisInfo, metric]);
+  }, [axisInfo, toolMetric]);
 
   const errDataset = useMemo(() => {
     if (!axisInfo) return [];
@@ -1216,33 +1189,31 @@ function BehaviorChartsSection({ fetchBehaviorData, periodDays }: Readonly<{
   if (!axisInfo) return null;
   const { toolRows, errTools, tools, skills } = axisInfo;
 
-  return (
-    <>
-      <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-        <ToggleButtonGroup size="small" exclusive value={metric} onChange={(_, v: BehaviorMetric | null) => { if (v) setMetric(v); }}>
-          <ToggleButton value="count">{t('behavior.toolCounts.count')}</ToggleButton>
-          <ToggleButton value="tokens">{t('behavior.toolCounts.tokens')}</ToggleButton>
-        </ToggleButtonGroup>
-      </Box>
-      {toolRows.length > 0 && (
-        <Paper elevation={0} sx={{ ...cardSx, p: 2 }}>
-          <Typography variant="subtitle2" gutterBottom>{t('behavior.sections.toolCounts')}</Typography>
-          <BarChart
-            dataset={toolDataset}
-            xAxis={[{ scaleType: 'band', dataKey: 'period' }]}
-            series={tools.map((tool, i) => ({
-              dataKey: `t${i}`,
-              label: tool,
-              stack: 'total',
-              color: TOOL_COLORS[i % TOOL_COLORS.length],
-            }))}
-            height={220}
-            margin={{ left: 8, right: 8, top: 8, bottom: 60 }}
-          />
-        </Paper>
-      )}
+  if (activeChart === 'tools') {
+    if (toolRows.length === 0) {
+      return <Typography variant="body2" color="text.secondary">0</Typography>;
+    }
+    return (
       <Paper elevation={0} sx={{ ...cardSx, p: 2 }}>
-        <Typography variant="subtitle2" gutterBottom>{t('behavior.sections.errors')}</Typography>
+        <BarChart
+          dataset={toolDataset}
+          xAxis={[{ scaleType: 'band', dataKey: 'period' }]}
+          series={tools.map((tool, i) => ({
+            dataKey: `t${i}`,
+            label: tool,
+            stack: 'total',
+            color: TOOL_COLORS[i % TOOL_COLORS.length],
+          }))}
+          height={240}
+          margin={{ left: 8, right: 8, top: 8, bottom: 60 }}
+        />
+      </Paper>
+    );
+  }
+
+  if (activeChart === 'errors') {
+    return (
+      <Paper elevation={0} sx={{ ...cardSx, p: 2 }}>
         {errTools.length === 0 ? (
           <Typography variant="body2" color="text.secondary">0</Typography>
         ) : (
@@ -1255,34 +1226,153 @@ function BehaviorChartsSection({ fetchBehaviorData, periodDays }: Readonly<{
               stack: 'total',
               color: TOOL_COLORS[i % TOOL_COLORS.length],
             }))}
-            height={200}
+            height={240}
             margin={{ left: 40, right: 8, top: 8, bottom: 40 }}
           />
         )}
       </Paper>
-      {skills.length > 0 && (
-        <Paper elevation={0} sx={{ ...cardSx, p: 2 }}>
-          <Typography variant="subtitle2" gutterBottom>{t('behavior.sections.skills')}</Typography>
-          <BarChart
-            dataset={skillDataset}
-            xAxis={[{ scaleType: 'band', dataKey: 'period' }]}
-            series={skills.map((skill, i) => ({
-              dataKey: `s${i}`,
-              label: skill,
-              stack: 'total',
-              color: TOOL_COLORS[i % TOOL_COLORS.length],
-            }))}
-            height={200}
-            margin={{ left: 40, right: 8, top: 8, bottom: 40 }}
-          />
-        </Paper>
-      )}
-    </>
+    );
+  }
+
+  // activeChart === 'skills'
+  if (skills.length === 0) {
+    return <Typography variant="body2" color="text.secondary">0</Typography>;
+  }
+  return (
+    <Paper elevation={0} sx={{ ...cardSx, p: 2 }}>
+      <BarChart
+        dataset={skillDataset}
+        xAxis={[{ scaleType: 'band', dataKey: 'period' }]}
+        series={skills.map((skill, i) => ({
+          dataKey: `s${i}`,
+          label: skill,
+          stack: 'total',
+          color: TOOL_COLORS[i % TOOL_COLORS.length],
+        }))}
+        height={240}
+        margin={{ left: 40, right: 8, top: 8, bottom: 40 }}
+      />
+    </Paper>
+  );
+}
+
+type CombinedMetric = 'tokens' | 'tools' | 'errors' | 'skills';
+
+function CombinedChartsSection({
+  dailyActivity,
+  sessions,
+  period,
+  setPeriod,
+  onSelectSession,
+  onJumpToTrace,
+  fetchSessionMessages,
+  fetchSessionCommits,
+  fetchSessionToolMetrics,
+  costOptimization,
+  fetchBehaviorData,
+}: Readonly<{
+  dailyActivity: AnalyticsData['dailyActivity'];
+  sessions: readonly TrailSession[];
+  period: PeriodDays;
+  setPeriod: (v: PeriodDays) => void;
+  onSelectSession?: (id: string) => void;
+  onJumpToTrace?: (session: TrailSession) => void;
+  fetchSessionMessages?: (id: string) => Promise<readonly TrailMessage[]>;
+  fetchSessionCommits?: (id: string) => Promise<readonly TrailSessionCommit[]>;
+  fetchSessionToolMetrics?: (id: string) => Promise<ToolMetrics | null>;
+  costOptimization?: CostOptimizationData | null;
+  fetchBehaviorData?: (period: BehaviorPeriodMode, rangeDays: BehaviorRangeDays) => Promise<BehaviorData>;
+}>) {
+  const { colors } = useTrailTheme();
+  const { t } = useTrailI18n();
+  const [metric, setMetric] = useState<CombinedMetric>('tokens');
+  const [tokenMode, setTokenMode] = useState<DailyViewMode>('tokens');
+  const [toolMetric, setToolMetric] = useState<BehaviorMetric>('count');
+
+  const toggleSx = {
+    color: colors.textSecondary,
+    borderColor: colors.border,
+    '&.Mui-selected': { color: colors.iceBlue, bgcolor: colors.iceBlueBg, borderColor: colors.iceBlue },
+    '&:hover': { bgcolor: colors.hoverBg },
+  };
+
+  return (
+    <Box>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, gap: 2, flexWrap: 'wrap' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+          <ToggleButtonGroup
+            value={metric}
+            exclusive
+            onChange={(_e, v: CombinedMetric | null) => { if (v) setMetric(v); }}
+            size="small"
+          >
+            <ToggleButton value="tokens" sx={toggleSx}>{t('chart.tokenUsage')}</ToggleButton>
+            <ToggleButton value="tools" sx={toggleSx}>{t('behavior.sections.toolCounts')}</ToggleButton>
+            <ToggleButton value="errors" sx={toggleSx}>{t('behavior.sections.errors')}</ToggleButton>
+            <ToggleButton value="skills" sx={toggleSx}>{t('behavior.sections.skills')}</ToggleButton>
+          </ToggleButtonGroup>
+          <ToggleButtonGroup
+            value={period}
+            exclusive
+            onChange={(_e, v: PeriodDays | null) => { if (v) setPeriod(v); }}
+            size="small"
+          >
+            <ToggleButton value={7} sx={toggleSx}>7d</ToggleButton>
+            <ToggleButton value={30} sx={toggleSx}>30d</ToggleButton>
+            {process.env.NEXT_PUBLIC_SHOW_UNLIMITED === '1' && (
+              <ToggleButton value={90} sx={toggleSx}>90d</ToggleButton>
+            )}
+          </ToggleButtonGroup>
+        </Box>
+        {metric === 'tokens' && (
+          <ToggleButtonGroup
+            value={tokenMode}
+            exclusive
+            onChange={(_e, v: DailyViewMode | null) => { if (v) setTokenMode(v); }}
+            size="small"
+          >
+            <ToggleButton value="tokens" sx={toggleSx}>{t('chart.tokens')}</ToggleButton>
+            <ToggleButton value="cost" sx={toggleSx}>{t('chart.cost')}</ToggleButton>
+          </ToggleButtonGroup>
+        )}
+        {metric === 'tools' && (
+          <ToggleButtonGroup
+            value={toolMetric}
+            exclusive
+            onChange={(_e, v: BehaviorMetric | null) => { if (v) setToolMetric(v); }}
+            size="small"
+          >
+            <ToggleButton value="count" sx={toggleSx}>{t('behavior.toolCounts.count')}</ToggleButton>
+            <ToggleButton value="tokens" sx={toggleSx}>{t('behavior.toolCounts.tokens')}</ToggleButton>
+          </ToggleButtonGroup>
+        )}
+      </Box>
+      {metric === 'tokens' ? (
+        <DailyActivityChart
+          items={dailyActivity}
+          sessions={sessions}
+          period={period}
+          mode={tokenMode}
+          onSelectSession={onSelectSession}
+          onJumpToTrace={onJumpToTrace}
+          fetchSessionMessages={fetchSessionMessages}
+          fetchSessionCommits={fetchSessionCommits}
+          fetchSessionToolMetrics={fetchSessionToolMetrics}
+          costOptimization={costOptimization}
+        />
+      ) : fetchBehaviorData ? (
+        <BehaviorChartsSection
+          fetchBehaviorData={fetchBehaviorData}
+          periodDays={period}
+          activeChart={metric}
+          toolMetric={toolMetric}
+        />
+      ) : null}
+    </Box>
   );
 }
 
 export function AnalyticsPanel({ analytics, sessions = [], onSelectSession, onJumpToTrace, fetchSessionMessages, fetchSessionCommits, fetchSessionToolMetrics, costOptimization, fetchBehaviorData }: Readonly<AnalyticsPanelProps>) {
-  const { colors } = useTrailTheme();
   const { t } = useTrailI18n();
   const [period, setPeriod] = useState<PeriodDays>(30);
 
@@ -1300,9 +1390,20 @@ export function AnalyticsPanel({ analytics, sessions = [], onSelectSession, onJu
     <Box sx={{ overflow: 'auto', flex: 1, p: 2, display: 'flex', flexDirection: 'column', gap: 3 }}>
       <OverviewCards totals={analytics.totals} sessions={sessions} />
       <ToolUsageChart items={analytics.toolUsage} />
-      <DailyActivityChart items={analytics.dailyActivity} sessions={sessions} period={period} setPeriod={setPeriod} onSelectSession={onSelectSession} onJumpToTrace={onJumpToTrace} fetchSessionMessages={fetchSessionMessages} fetchSessionCommits={fetchSessionCommits} fetchSessionToolMetrics={fetchSessionToolMetrics} costOptimization={costOptimization} />
+      <CombinedChartsSection
+        dailyActivity={analytics.dailyActivity}
+        sessions={sessions}
+        period={period}
+        setPeriod={setPeriod}
+        onSelectSession={onSelectSession}
+        onJumpToTrace={onJumpToTrace}
+        fetchSessionMessages={fetchSessionMessages}
+        fetchSessionCommits={fetchSessionCommits}
+        fetchSessionToolMetrics={fetchSessionToolMetrics}
+        costOptimization={costOptimization}
+        fetchBehaviorData={fetchBehaviorData}
+      />
       <ModelTable items={analytics.modelBreakdown} />
-      {fetchBehaviorData && <BehaviorChartsSection fetchBehaviorData={fetchBehaviorData} periodDays={period} />}
     </Box>
   );
 }
