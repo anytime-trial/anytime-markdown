@@ -579,7 +579,14 @@ function SessionToolUsageChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMetr
   const { t } = useTrailI18n();
   const [metric, setMetric] = useState<SessionToolMetric>('count');
   const usage = toolMetrics?.toolUsage;
-  if (!usage || usage.length === 0) return null;
+  if (!usage || usage.length === 0) {
+    return (
+      <Paper elevation={0} sx={{ ...cardSx, p: 2 }}>
+        <Typography variant="subtitle2" sx={{ mb: 0.5 }}>{t('analytics.toolUsageTitle')}</Typography>
+        <Typography variant="body2" color="text.secondary">0</Typography>
+      </Paper>
+    );
+  }
 
   const getValue = (e: { count: number; tokens: number; durationMs: number }): number =>
     metric === 'tokens' ? e.tokens
@@ -626,7 +633,14 @@ function SessionSkillUsageChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMet
   const { t } = useTrailI18n();
   const [metric, setMetric] = useState<SessionToolMetric>('count');
   const usage = toolMetrics?.skillUsage;
-  if (!usage || usage.length === 0) return null;
+  if (!usage || usage.length === 0) {
+    return (
+      <Paper elevation={0} sx={{ ...cardSx, p: 2 }}>
+        <Typography variant="subtitle2" sx={{ mb: 0.5 }}>{t('behavior.sections.skills')}</Typography>
+        <Typography variant="body2" color="text.secondary">0</Typography>
+      </Paper>
+    );
+  }
 
   const getValue = (e: { count: number; tokens: number; durationMs: number }): number =>
     metric === 'tokens' ? e.tokens
@@ -671,7 +685,14 @@ function SessionErrorChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMetrics 
   const { cardSx } = useTrailTheme();
   const { t } = useTrailI18n();
   const errors = toolMetrics?.errorsByTool;
-  if (!errors || errors.length === 0) return null;
+  if (!errors || errors.length === 0) {
+    return (
+      <Paper elevation={0} sx={{ ...cardSx, p: 2 }}>
+        <Typography variant="subtitle2" sx={{ mb: 0.5 }}>{t('behavior.sections.errors')}</Typography>
+        <Typography variant="body2" color="text.secondary">0</Typography>
+      </Paper>
+    );
+  }
 
   const sorted = [...errors].sort((a, b) => b.count - a.count);
   const entry: Record<string, string | number> = { metric: 'errors' };
