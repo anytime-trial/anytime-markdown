@@ -41,7 +41,7 @@ import { FcMapCanvas } from './FcMapCanvas';
 import { FlowchartCanvas } from './FlowchartCanvas';
 import { GraphCanvas } from './GraphCanvas';
 import { OverlayLegend } from './OverlayLegend';
-import { computeClaudeActivityColorMap, computeMultiAgentColorMap } from '../claudeActivityColorMap';
+import { computeClaudeActivityColorMap, computeMultiAgentColorMap, computeConflictBorderMap } from '../claudeActivityColorMap';
 
 const { graphReducer, createInitialState } = graphState;
 const { fitToContent } = engine;
@@ -645,6 +645,33 @@ export function C4ViewerCore({
     return computeClaudeActivityColorMap(activeElementIds, touchedElementIds, plannedElementIds, isDark);
   }, [multiAgentActivity, claudeActivity, c4Model, currentLevel, isDark]);
 
+  const conflictBorderMap = useMemo(() => {
+    if (!multiAgentActivity?.conflicts?.length) return null;
+    if (!c4Model) return computeConflictBorderMap(multiAgentActivity.conflicts);
+    const targetType = currentLevel === 1 ? 'system'
+      : currentLevel === 2 ? 'container'
+      : currentLevel === 3 ? 'component'
+      : 'code';
+    const typeById = new Map(c4Model.elements.map((e) => [e.id, e.type]));
+    const filtered = multiAgentActivity.conflicts.map((c) => ({
+      ...c,
+      elementIds: c.elementIds.filter((id) => typeById.get(id) === targetType),
+    })).filter((c) => c.elementIds.length > 0);
+    if (filtered.length === 0) return null;
+    return computeConflictBorderMap(filtered);
+  }, [multiAgentActivity, c4Model, currentLevel]);
+
+  const claudeActivityMapWithConflicts = useMemo(() => {
+    if (!claudeActivityMap && !conflictBorderMap) return null;
+    const map = new Map(claudeActivityMap ?? []);
+    if (conflictBorderMap) {
+      for (const [id, color] of conflictBorderMap) {
+        map.set(id, color);
+      }
+    }
+    return map.size > 0 ? map : null;
+  }, [claudeActivityMap, conflictBorderMap]);
+
   const dsmMax = useMemo(() => {
     if ((metricOverlay !== 'dsm-out' && metricOverlay !== 'dsm-in') || !filteredDsmMatrix) return undefined;
     let max = 0;
@@ -924,6 +951,11 @@ export function C4ViewerCore({
             {multiAgentActivity.agents.length} {t('c4.multiAgent.badge')}
           </Typography>
         )}
+        {multiAgentActivity?.conflicts && multiAgentActivity.conflicts.length > 0 && (
+          <Typography variant="caption" sx={{ ml: 0.5, color: 'error.main', fontWeight: 'bold' }}>
+            {multiAgentActivity.conflicts.length} {t('c4.multiAgent.conflicts')}
+          </Typography>
+        )}
         {((claudeActivity && (
           claudeActivity.activeElementIds.length > 0 ||
           claudeActivity.touchedElementIds.length > 0 ||
@@ -1029,7 +1061,7 @@ export function C4ViewerCore({
                 selectedNodeId={selectedElementId ? (state.document.nodes.find(n => n.metadata?.c4Id === selectedElementId)?.id ?? null) : null}
                 centerOnSelect={centerOnSelect}
                 overlayMap={overlayMap.size > 0 ? overlayMap : null}
-                claudeActivityMap={claudeActivityMap}
+                claudeActivityMap={claudeActivityMapWithConflicts}
                 onNodeSelect={(id) => { setCenterOnSelect(false); setSelectedElementId(id); }}
                 onNodeDoubleClick={(nodeId) => {
                   if (!c4Model) return;
