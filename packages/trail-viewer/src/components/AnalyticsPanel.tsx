@@ -615,15 +615,15 @@ function SessionModelUsageChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMet
       <BarChart
         dataset={[entry]}
         layout="horizontal"
-        yAxis={[{ scaleType: 'band', dataKey: 'metric', categoryGapRatio: 0.6 }]}
+        yAxis={[{ scaleType: 'band', dataKey: 'metric', categoryGapRatio: 0.25 }]}
         series={sorted.map((e, i) => ({
           dataKey: `m${i}`,
           label: e.model,
           stack: 'total',
           color: TOOL_COLORS[i % TOOL_COLORS.length],
         }))}
-        height={100}
-        margin={{ left: 16, right: 16, top: 8, bottom: 16 }}
+        height={50}
+        margin={{ left: 16, right: 16, top: 4, bottom: 14 }}
       />
     </Paper>
   );
@@ -669,15 +669,15 @@ function SessionToolUsageChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMetr
       <BarChart
         dataset={[entry]}
         layout="horizontal"
-        yAxis={[{ scaleType: 'band', dataKey: 'metric', categoryGapRatio: 0.6 }]}
+        yAxis={[{ scaleType: 'band', dataKey: 'metric', categoryGapRatio: 0.25 }]}
         series={sorted.map((e, i) => ({
           dataKey: `t${i}`,
           label: e.tool,
           stack: 'total',
           color: TOOL_COLORS[i % TOOL_COLORS.length],
         }))}
-        height={100}
-        margin={{ left: 16, right: 16, top: 8, bottom: 16 }}
+        height={50}
+        margin={{ left: 16, right: 16, top: 4, bottom: 14 }}
       />
     </Paper>
   );
@@ -722,7 +722,7 @@ function SessionSkillUsageChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMet
       <BarChart
         dataset={[entry]}
         layout="horizontal"
-        yAxis={[{ scaleType: 'band', dataKey: 'metric', categoryGapRatio: 0.6 }]}
+        yAxis={[{ scaleType: 'band', dataKey: 'metric', categoryGapRatio: 0.25 }]}
         xAxis={[{ tickMinStep: 1 }]}
         series={sorted.map((e, i) => ({
           dataKey: `s${i}`,
@@ -730,8 +730,8 @@ function SessionSkillUsageChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMet
           stack: 'total',
           color: TOOL_COLORS[i % TOOL_COLORS.length],
         }))}
-        height={100}
-        margin={{ left: 16, right: 16, top: 8, bottom: 16 }}
+        height={50}
+        margin={{ left: 16, right: 16, top: 4, bottom: 14 }}
       />
     </Paper>
   );
@@ -762,7 +762,7 @@ function SessionErrorChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMetrics 
       <BarChart
         dataset={[entry]}
         layout="horizontal"
-        yAxis={[{ scaleType: 'band', dataKey: 'metric', categoryGapRatio: 0.6 }]}
+        yAxis={[{ scaleType: 'band', dataKey: 'metric', categoryGapRatio: 0.25 }]}
         xAxis={[{ tickMinStep: 1 }]}
         series={sorted.map((e, i) => ({
           dataKey: `e${i}`,
@@ -770,8 +770,8 @@ function SessionErrorChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMetrics 
           stack: 'total',
           color: TOOL_COLORS[i % TOOL_COLORS.length],
         }))}
-        height={100}
-        margin={{ left: 16, right: 16, top: 8, bottom: 16 }}
+        height={50}
+        margin={{ left: 16, right: 16, top: 4, bottom: 14 }}
       />
     </Paper>
   );
@@ -1123,6 +1123,27 @@ function ModelTable({ items }: Readonly<{ items: AnalyticsData['modelBreakdown']
 type BehaviorMetric = 'count' | 'tokens';
 type BehaviorChartKind = 'tools' | 'errors' | 'skills' | 'models';
 
+// スタック棒グラフの系列数が多すぎると描画・凡例・ツールチップが重くなるため、
+// 上位 N 件以外を "Others" に集約する。
+const MAX_STACKED_SERIES = 10;
+const OTHERS_LABEL = 'Others';
+
+function capTopN(
+  totals: ReadonlyMap<string, number>,
+  topN = MAX_STACKED_SERIES,
+): { displayKeys: string[]; keyMap: Map<string, string> } {
+  const sorted = [...totals.entries()].sort(([, a], [, b]) => b - a).map(([k]) => k);
+  const keyMap = new Map<string, string>();
+  if (sorted.length <= topN) {
+    for (const k of sorted) keyMap.set(k, k);
+    return { displayKeys: sorted, keyMap };
+  }
+  const top = sorted.slice(0, topN);
+  const topSet = new Set(top);
+  for (const k of sorted) keyMap.set(k, topSet.has(k) ? k : OTHERS_LABEL);
+  return { displayKeys: [...top, OTHERS_LABEL], keyMap };
+}
+
 function BehaviorChartsSection({ data, periodDays, activeChart, toolMetric, modelMetric, onDateClick }: Readonly<{
   data: BehaviorData | null;
   periodDays: PeriodDays;
@@ -1146,6 +1167,21 @@ function BehaviorChartsSection({ data, periodDays, activeChart, toolMetric, mode
     const labels = allPeriods.map(p => p.length > 5 ? p.slice(5) : p);
     const modelPeriods = [...new Set(modelRows.map(r => r.period))].sort();
     const modelLabels = modelPeriods.map(p => p.length > 5 ? p.slice(5) : p);
+
+    const toolTotals = new Map<string, number>();
+    for (const r of toolRows) toolTotals.set(r.tool, (toolTotals.get(r.tool) ?? 0) + r.count);
+    const errToolTotals = new Map<string, number>();
+    for (const r of errorRows) for (const [k, v] of Object.entries(r.byTool)) errToolTotals.set(k, (errToolTotals.get(k) ?? 0) + v);
+    const skillTotals = new Map<string, number>();
+    for (const r of skillRows) skillTotals.set(r.skill, (skillTotals.get(r.skill) ?? 0) + r.count);
+    const modelTotals = new Map<string, number>();
+    for (const r of modelRows) modelTotals.set(r.model, (modelTotals.get(r.model) ?? 0) + r.count);
+
+    const toolCap = capTopN(toolTotals);
+    const errCap = capTopN(errToolTotals);
+    const skillCap = capTopN(skillTotals);
+    const modelCap = capTopN(modelTotals);
+
     return {
       toolRows,
       errorRows,
@@ -1155,21 +1191,26 @@ function BehaviorChartsSection({ data, periodDays, activeChart, toolMetric, mode
       labels,
       modelPeriods,
       modelLabels,
-      tools: [...new Set(toolRows.map(r => r.tool))],
-      errTools: [...new Set(errorRows.flatMap(r => Object.keys(r.byTool)))],
-      skills: [...new Set(skillRows.map(r => r.skill))],
-      models: [...new Set(modelRows.map(r => r.model))],
+      tools: toolCap.displayKeys,
+      toolMap: toolCap.keyMap,
+      errTools: errCap.displayKeys,
+      errMap: errCap.keyMap,
+      skills: skillCap.displayKeys,
+      skillMap: skillCap.keyMap,
+      models: modelCap.displayKeys,
+      modelMap: modelCap.keyMap,
     };
   }, [data, periodDays]);
 
   const toolDataset = useMemo(() => {
     if (!axisInfo) return [];
-    const { toolRows, allPeriods, labels, tools } = axisInfo;
+    const { toolRows, allPeriods, labels, tools, toolMap } = axisInfo;
     const getValue = (r: { count: number; tokens?: number }): number =>
       toolMetric === 'tokens' ? (r.tokens ?? 0) : r.count;
     const valMap = new Map<string, number>();
     for (const r of toolRows) {
-      const key = `${r.period}::${r.tool}`;
+      const displayKey = toolMap.get(r.tool) ?? r.tool;
+      const key = `${r.period}::${displayKey}`;
       valMap.set(key, (valMap.get(key) ?? 0) + getValue(r));
     }
     return allPeriods.map((p, pi) => {
@@ -1183,12 +1224,19 @@ function BehaviorChartsSection({ data, periodDays, activeChart, toolMetric, mode
 
   const errDataset = useMemo(() => {
     if (!axisInfo) return [];
-    const { errorRows, allPeriods, labels, errTools } = axisInfo;
-    const byPeriod = new Map(errorRows.map(r => [r.period, r]));
+    const { errorRows, allPeriods, labels, errTools, errMap } = axisInfo;
+    const valMap = new Map<string, number>();
+    for (const r of errorRows) {
+      for (const [tool, v] of Object.entries(r.byTool)) {
+        const displayKey = errMap.get(tool) ?? tool;
+        const key = `${r.period}::${displayKey}`;
+        valMap.set(key, (valMap.get(key) ?? 0) + v);
+      }
+    }
     return allPeriods.map((p, pi) => {
       const entry: Record<string, string | number> = { period: labels[pi] };
       for (let i = 0; i < errTools.length; i++) {
-        entry[`e${i}`] = byPeriod.get(p)?.byTool[errTools[i]] ?? 0;
+        entry[`e${i}`] = valMap.get(`${p}::${errTools[i]}`) ?? 0;
       }
       return entry;
     });
@@ -1196,10 +1244,11 @@ function BehaviorChartsSection({ data, periodDays, activeChart, toolMetric, mode
 
   const skillDataset = useMemo(() => {
     if (!axisInfo) return [];
-    const { skillRows, allPeriods, labels, skills } = axisInfo;
+    const { skillRows, allPeriods, labels, skills, skillMap } = axisInfo;
     const countMap = new Map<string, number>();
     for (const r of skillRows) {
-      const key = `${r.period}::${r.skill}`;
+      const displayKey = skillMap.get(r.skill) ?? r.skill;
+      const key = `${r.period}::${displayKey}`;
       countMap.set(key, (countMap.get(key) ?? 0) + r.count);
     }
     return allPeriods.map((p, pi) => {
@@ -1213,12 +1262,13 @@ function BehaviorChartsSection({ data, periodDays, activeChart, toolMetric, mode
 
   const modelDataset = useMemo(() => {
     if (!axisInfo) return [];
-    const { modelRows, modelPeriods, modelLabels, models } = axisInfo;
+    const { modelRows, modelPeriods, modelLabels, models, modelMap } = axisInfo;
     const getValue = (r: { count: number; tokens: number }): number =>
       modelMetric === 'tokens' ? r.tokens : r.count;
     const valMap = new Map<string, number>();
     for (const r of modelRows) {
-      const key = `${r.period}::${r.model}`;
+      const displayKey = modelMap.get(r.model) ?? r.model;
+      const key = `${r.period}::${displayKey}`;
       valMap.set(key, (valMap.get(key) ?? 0) + getValue(r));
     }
     return modelPeriods.map((p, pi) => {
