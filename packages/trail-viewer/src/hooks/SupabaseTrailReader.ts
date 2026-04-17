@@ -519,7 +519,7 @@ export class SupabaseTrailReader implements ITrailReader {
         const p = periodKey(r);
         const e = errByPeriod.get(p) ?? { err: 0, total: 0, byTool: {} };
         e.total++;
-        if (r.is_error) { e.err++; e.byTool[r.tool_name] = (e.byTool[r.tool_name] ?? 0) + 1; }
+        if (r.is_error) { const tn = normalizeTool(r.tool_name); e.err++; e.byTool[tn] = (e.byTool[tn] ?? 0) + 1; }
         errByPeriod.set(p, e);
       }
       const errorRate = [...errByPeriod.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([p, e]) => ({

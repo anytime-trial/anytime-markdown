@@ -2265,22 +2265,26 @@ export class TrailDatabase {
       return values.map(row => Object.fromEntries(columns.map((c, i) => [c, row[i]])));
     };
 
-    // ⑤ errorRate
+    // ⑤ errorRate (MCP ツール名を正規化)
     const errResult = db.exec(
       `SELECT ${periodExpr} AS period,
               CAST(SUM(is_error) AS REAL) / COUNT(*) AS rate,
-              tool_name,
+              CASE
+                WHEN tool_name LIKE 'mcp\\_\\_%\\_\\_%' ESCAPE '\\'
+                THEN SUBSTR(tool_name, 1, INSTR(SUBSTR(tool_name, 6), '__') + 4)
+                ELSE tool_name
+              END AS tool,
               SUM(is_error) AS err_count
        FROM message_tool_calls
        WHERE timestamp >= datetime('now', '-${rangeDays} days')
-       GROUP BY period, tool_name ORDER BY period`,
+       GROUP BY period, tool ORDER BY period`,
     );
     const errByPeriod: Record<string, { rate: number; byTool: Record<string, number> }> = {};
     for (const r of toRows(errResult)) {
       const p = String(r['period'] ?? '');
       if (!errByPeriod[p]) errByPeriod[p] = { rate: Number(r['rate'] ?? 0), byTool: {} };
-      const tool = String(r['tool_name'] ?? '');
-      errByPeriod[p].byTool[tool] = Number(r['err_count'] ?? 0);
+      const tool = String(r['tool'] ?? '');
+      errByPeriod[p].byTool[tool] = (errByPeriod[p].byTool[tool] ?? 0) + Number(r['err_count'] ?? 0);
     }
     const errorRate = Object.entries(errByPeriod).map(([period, v]) => ({
       period, rate: v.rate, byTool: v.byTool,

@@ -198,32 +198,51 @@ function ToolCountsSection({ data }: Readonly<{ data: BehaviorData }>) {
 function ErrorPatternsSection({ data }: Readonly<{ data: BehaviorData }>) {
   const { cardSx } = useTrailTheme();
   const { t } = useTrailI18n();
-  const rows = data.errorRate;
-  const toolMap: Readonly<Record<string, number[]>> = {};
-  for (const r of rows) {
-    for (const [tool, cnt] of Object.entries(r.byTool)) {
-      if (!toolMap[tool]) Object.assign(toolMap, { [tool]: [] });
-      toolMap[tool].push(cnt);
-    }
+  const rows = data.errorRate ?? [];
+
+  // toolCounts から全期間を取得して 0 埋め
+  const allPeriods = [...new Set([
+    ...rows.map(r => r.period),
+    ...(data.toolCounts ?? []).map(a => a.period),
+  ])].sort();
+  const labels = allPeriods.map(p => p.length > 5 ? p.slice(5) : p);
+
+  const rowByPeriod = new Map(rows.map(r => [r.period, r]));
+  const allTools = [...new Set(rows.flatMap(r => Object.keys(r.byTool)))];
+
+  if (allPeriods.length === 0) {
+    return (
+      <Paper elevation={0} sx={{ ...cardSx, p: 2 }}>
+        <Typography variant="subtitle2" gutterBottom>{t('behavior.sections.errors')}</Typography>
+        <Typography variant="body2" color="text.secondary">—</Typography>
+      </Paper>
+    );
   }
-  const series = Object.entries(toolMap).map(([label, vals], i) => ({
-    data: vals,
-    label,
-    color: PALETTE[i % PALETTE.length],
-  }));
+
+  // サニタイズした dataKey を使用
+  const dataset = allPeriods.map(p => {
+    const entry: Record<string, string | number> = { period: labels[allPeriods.indexOf(p)] };
+    for (let ti = 0; ti < allTools.length; ti++) {
+      entry[`e${ti}`] = rowByPeriod.get(p)?.byTool[allTools[ti]] ?? 0;
+    }
+    return entry;
+  });
+
   return (
     <Paper elevation={0} sx={{ ...cardSx, p: 2 }}>
       <Typography variant="subtitle2" gutterBottom>{t('behavior.sections.errors')}</Typography>
-      {rows.length === 0 ? (
-        <Typography variant="body2" color="text.secondary">—</Typography>
-      ) : (
-        <BarChart
-          xAxis={[{ scaleType: 'band', data: rows.map(r => r.period) }]}
-          series={series.length > 0 ? series : [{ data: rows.map(r => r.rate), label: 'rate' }]}
-          height={200}
-          margin={{ left: 40, right: 8, top: 8, bottom: 40 }}
-        />
-      )}
+      <BarChart
+        dataset={dataset}
+        xAxis={[{ scaleType: 'band', dataKey: 'period' }]}
+        series={allTools.map((tool, i) => ({
+          dataKey: `e${i}`,
+          label: tool,
+          stack: 'total',
+          color: PALETTE[i % PALETTE.length],
+        }))}
+        height={200}
+        margin={{ left: 40, right: 8, top: 8, bottom: 40 }}
+      />
     </Paper>
   );
 }
