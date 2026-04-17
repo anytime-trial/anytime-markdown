@@ -91,3 +91,33 @@ export function computeClaudeActivityColorMap(
 
   return map;
 }
+
+// ---------------------------------------------------------------------------
+//  Conflict border colors
+// ---------------------------------------------------------------------------
+
+const CONFLICT_ACTIVE_BORDER = 'rgba(244, 67, 54, 0.8)';   // 赤（editing 衝突）
+const CONFLICT_TOUCHED_BORDER = 'rgba(244, 67, 54, 0.4)';  // 薄赤（touched 衝突）
+
+export interface ConflictInput {
+  readonly file: string;
+  readonly elementIds: readonly string[];
+  readonly agentSessionIds: readonly string[];
+  readonly isActiveConflict: boolean;
+}
+
+/** 衝突ノードの枠色マップを生成する */
+export function computeConflictBorderMap(
+  conflicts: readonly ConflictInput[],
+): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const conflict of conflicts) {
+    const color = conflict.isActiveConflict ? CONFLICT_ACTIVE_BORDER : CONFLICT_TOUCHED_BORDER;
+    for (const id of conflict.elementIds) {
+      if (!map.has(id) || conflict.isActiveConflict) {
+        map.set(id, color);
+      }
+    }
+  }
+  return map;
+}

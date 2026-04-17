@@ -1,4 +1,4 @@
-import { computeClaudeActivityColorMap, computeMultiAgentColorMap } from '../claudeActivityColorMap';
+import { computeClaudeActivityColorMap, computeMultiAgentColorMap, computeConflictBorderMap } from '../claudeActivityColorMap';
 
 describe('computeClaudeActivityColorMap', () => {
   it('active要素はオレンジ色を返す', () => {
@@ -83,5 +83,30 @@ describe('computeMultiAgentColorMap', () => {
     const activeColor = map.get('el_a')!;
     const touchedColor = map.get('el_b')!;
     expect(activeColor).not.toBe(touchedColor);
+  });
+});
+
+describe('computeConflictBorderMap', () => {
+  it('衝突ノードに赤枠色を返す', () => {
+    const map = computeConflictBorderMap([
+      { file: '/a.ts', elementIds: ['el_a', 'el_b'], agentSessionIds: ['s1', 's2'], isActiveConflict: true },
+    ]);
+    expect(map.get('el_a')).toBeDefined();
+    expect(map.get('el_b')).toBeDefined();
+  });
+
+  it('isActiveConflict=true は実線色、false は点線色', () => {
+    const active = computeConflictBorderMap([
+      { file: '/a.ts', elementIds: ['el_a'], agentSessionIds: ['s1', 's2'], isActiveConflict: true },
+    ]);
+    const touched = computeConflictBorderMap([
+      { file: '/b.ts', elementIds: ['el_b'], agentSessionIds: ['s1', 's2'], isActiveConflict: false },
+    ]);
+    expect(active.get('el_a')).not.toBe(touched.get('el_b'));
+  });
+
+  it('空の conflicts で空マップを返す', () => {
+    const map = computeConflictBorderMap([]);
+    expect(map.size).toBe(0);
   });
 });
