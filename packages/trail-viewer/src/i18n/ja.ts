@@ -168,6 +168,7 @@ export const ja: TrailI18n = {
   'c4.overlay.importance': '重要度スコア',
   'c4.claudeActivity.reset': '編集履歴をクリア',
   'c4.multiAgent.badge': 'agents',
+  'c4.multiAgent.conflicts': '衝突',
   'c4.showOnlyThisFrame': 'このフレームのみ表示',
   'c4.clearFrameFilter': 'フィルタ解除',
   'c4.copyPath': 'パスをコピー',
