@@ -1134,13 +1134,14 @@ function BehaviorChartsSection({ fetchBehaviorData, periodDays }: Readonly<{
   const [metric, setMetric] = useState<BehaviorMetric>('count');
   const [data, setData] = useState<BehaviorData | null>(null);
 
-  // PeriodDays (7/30/90) → BehaviorRangeDays (30/90) に変換
+  // PeriodDays (7/30/90) → BehaviorRangeDays (30/90) + period に変換
   const rangeDays: BehaviorRangeDays = periodDays >= 90 ? 90 : 30;
+  const period: BehaviorPeriodMode = periodDays >= 90 ? 'week' : 'day';
 
   const load = useCallback(async () => {
-    const result = await fetchBehaviorData('day', rangeDays);
+    const result = await fetchBehaviorData(period, rangeDays);
     setData(result);
-  }, [fetchBehaviorData, rangeDays]);
+  }, [fetchBehaviorData, period, rangeDays]);
 
   useEffect(() => { void load(); }, [load]);
 
