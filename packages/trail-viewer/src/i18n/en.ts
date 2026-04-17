@@ -188,5 +188,5 @@ export const en: TrailI18n = {
   'behavior.sections.errors': 'Error Patterns',
   'behavior.sections.skills': 'Skill Analysis',
 
-  'behavior.sections.corrections': 'User Corrections',
+
 };

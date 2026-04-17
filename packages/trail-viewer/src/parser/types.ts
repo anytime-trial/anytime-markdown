@@ -115,18 +115,11 @@ export interface BehaviorSkill {
 }
 
 
-export interface BehaviorCorrection {
-  readonly period: string;
-  readonly count: number;
-  readonly preTool: Readonly<Record<string, number>>;
-}
-
 export interface BehaviorData {
   readonly toolSequences: readonly BehaviorToolSequence[];
   readonly toolCounts: readonly BehaviorToolCount[];
   readonly errorRate: readonly BehaviorError[];
   readonly skillStats: readonly BehaviorSkill[];
-  readonly corrections: readonly BehaviorCorrection[];
 }
 
 export type BehaviorPeriodMode = 'day' | 'week' | 'session';

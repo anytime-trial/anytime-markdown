@@ -6,7 +6,7 @@ import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Typography from '@mui/material/Typography';
 import { BarChart } from '@mui/x-charts/BarChart';
-import { LineChart } from '@mui/x-charts/LineChart';
+
 
 import type {
   BehaviorData,
@@ -301,29 +301,6 @@ function SkillSection({ data }: Readonly<{ data: BehaviorData }>) {
   );
 }
 
-// ─── Section: ⑧ User Corrections ─────────────────────────────────────────────
-
-function CorrectionsSection({ data }: Readonly<{ data: BehaviorData }>) {
-  const { cardSx } = useTrailTheme();
-  const { t } = useTrailI18n();
-  const rows = data.corrections;
-  return (
-    <Paper elevation={0} sx={{ ...cardSx, p: 2 }}>
-      <Typography variant="subtitle2" gutterBottom>{t('behavior.sections.corrections')}</Typography>
-      {rows.length === 0 ? (
-        <Typography variant="body2" color="text.secondary">—</Typography>
-      ) : (
-        <LineChart
-          xAxis={[{ scaleType: 'band', data: rows.map(r => r.period) }]}
-          series={[{ data: rows.map(r => r.count), label: 'count' }]}
-          height={200}
-          margin={{ left: 40, right: 8, top: 8, bottom: 40 }}
-        />
-      )}
-    </Paper>
-  );
-}
-
 // ─── Main: BehaviorPanel ──────────────────────────────────────────────────────
 
 const RANGE_OPTIONS: readonly BehaviorRangeDays[] = [30, 90, 180];
@@ -387,7 +364,6 @@ export function BehaviorPanel({ fetchBehaviorData }: Readonly<BehaviorPanelProps
           </Box>
           <ErrorPatternsSection data={data} />
           <SkillSection data={data} />
-          <CorrectionsSection data={data} />
         </>
       )}
     </Box>

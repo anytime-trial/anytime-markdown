@@ -209,7 +209,6 @@ interface BehaviorData {
   readonly toolCounts: readonly { period: string; tool: string; count: number; tokens: number; durationMs: number }[];
   readonly errorRate: readonly { period: string; rate: number; byTool: Readonly<Record<string, number>> }[];
   readonly skillStats: readonly { period: string; skill: string; count: number; costUsd: number }[];
-  readonly corrections: readonly { period: string; count: number; preTool: Readonly<Record<string, number>> }[];
 }
 
 interface RawLine {
@@ -2375,7 +2374,6 @@ export class TrailDatabase {
       toolCounts,
       errorRate,
       skillStats,
-      corrections: [],     // future: requires user message analysis
     };
   }
 
