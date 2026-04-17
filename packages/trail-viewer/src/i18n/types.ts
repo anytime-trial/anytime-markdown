@@ -187,7 +187,6 @@ export interface TrailI18n {
   'c4.copyPath': string;
   'c4.frameFilter.reset': string;
   // behavior
-  'behavior.title': string;
   'behavior.period.day': string;
   'behavior.period.week': string;
 

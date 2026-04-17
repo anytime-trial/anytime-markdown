@@ -173,7 +173,6 @@ export const en: TrailI18n = {
   'c4.clearFrameFilter': 'Clear Frame Filter',
   'c4.copyPath': 'Copy Path',
   'c4.frameFilter.reset': 'Reset',
-  'behavior.title': 'Behavior',
   'behavior.period.day': 'Day',
   'behavior.period.week': 'Week',
 

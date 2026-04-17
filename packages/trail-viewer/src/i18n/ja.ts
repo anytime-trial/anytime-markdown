@@ -173,7 +173,6 @@ export const ja: TrailI18n = {
   'c4.clearFrameFilter': 'フィルタ解除',
   'c4.copyPath': 'パスをコピー',
   'c4.frameFilter.reset': 'Reset',
-  'behavior.title': '行動分析',
   'behavior.period.day': '日',
   'behavior.period.week': '週',
 
