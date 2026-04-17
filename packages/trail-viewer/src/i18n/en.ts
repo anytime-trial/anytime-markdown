@@ -182,6 +182,7 @@ export const en: TrailI18n = {
   'behavior.sections.toolCounts': 'Tool Usage',
   'behavior.toolCounts.count': 'Count',
   'behavior.toolCounts.tokens': 'Tokens',
+  'behavior.toolCounts.duration': 'Duration',
   'behavior.sections.repeatOps': 'Repeated Operations',
   'behavior.sections.avgTools': 'Avg Tools per Turn',
   'behavior.sections.subagent': 'Subagent Rate',

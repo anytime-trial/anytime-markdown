@@ -452,12 +452,12 @@ export class SupabaseTrailReader implements ITrailReader {
       const cutoff = new Date(Date.now() - rangeDays * 86_400_000).toISOString();
       const { data, error } = await this.client
         .from('trail_message_tool_calls')
-        .select('session_id, message_uuid, turn_index, call_index, tool_name, file_path, skill_name, is_error, is_sidechain, timestamp')
+        .select('session_id, message_uuid, turn_index, call_index, tool_name, file_path, skill_name, is_error, is_sidechain, turn_exec_ms, timestamp')
         .gte('timestamp', cutoff)
         .limit(100_000);
       if (error || !data) return null;
 
-      type Row = { session_id: string; message_uuid: string; turn_index: number; call_index: number; tool_name: string; file_path: string | null; skill_name: string | null; is_error: number; is_sidechain: number; timestamp: string };
+      type Row = { session_id: string; message_uuid: string; turn_index: number; call_index: number; tool_name: string; file_path: string | null; skill_name: string | null; is_error: number; is_sidechain: number; turn_exec_ms: number | null; timestamp: string };
       const rows = data as Row[];
 
       // メッセージごとのトークン数を取得（ツール呼び出し按分用）
@@ -614,22 +614,32 @@ export class SupabaseTrailReader implements ITrailReader {
         const parts = name.split('__');
         return parts.length >= 3 ? `${parts[0]}__${parts[1]}` : name;
       };
-      const toolCountMap = new Map<string, { count: number; tokens: number }>();
+      // ターン内のツール呼び出し数（turn_exec_ms 按分用）
+      const turnToolCount = new Map<string, number>();
+      for (const r of rows) {
+        const turnKey = `${r.session_id}:${r.turn_index}`;
+        turnToolCount.set(turnKey, (turnToolCount.get(turnKey) ?? 0) + 1);
+      }
+      const toolCountMap = new Map<string, { count: number; tokens: number; durationMs: number }>();
       for (const r of rows) {
         const p = periodKey(r);
         const k = `${p}::${normalizeTool(r.tool_name)}`;
-        const e = toolCountMap.get(k) ?? { count: 0, tokens: 0 };
+        const e = toolCountMap.get(k) ?? { count: 0, tokens: 0, durationMs: 0 };
         e.count++;
         // メッセージのトークンをそのメッセージ内のツール呼び出し数で按分
         const msgTokens = msgTokenMap.get(r.message_uuid) ?? 0;
         const msgTools = msgToolCountMap.get(r.message_uuid) ?? 1;
         e.tokens += Math.round(msgTokens / msgTools);
+        // ターンの実行時間をターン内のツール呼び出し数で按分
+        const turnKey = `${r.session_id}:${r.turn_index}`;
+        const turnTools = turnToolCount.get(turnKey) ?? 1;
+        e.durationMs += Math.round((r.turn_exec_ms ?? 0) / turnTools);
         toolCountMap.set(k, e);
       }
       const toolCounts = [...toolCountMap.entries()]
         .map(([k, e]) => {
           const [p, tool] = k.split('::');
-          return { period: p, tool: tool ?? '', count: e.count, tokens: e.tokens };
+          return { period: p, tool: tool ?? '', count: e.count, tokens: e.tokens, durationMs: e.durationMs };
         })
         .sort((a, b) => a.period.localeCompare(b.period) || b.count - a.count);
 

@@ -95,6 +95,8 @@ export interface BehaviorToolCount {
   readonly count: number;
   /** メッセージのトークン数をツール呼び出し数で按分した推定値 */
   readonly tokens: number;
+  /** ターンの実行時間（ms）をツール呼び出し数で按分した推定値 */
+  readonly durationMs: number;
 }
 
 export interface BehaviorPeriodCount {

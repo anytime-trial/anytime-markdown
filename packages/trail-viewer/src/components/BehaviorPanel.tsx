@@ -104,7 +104,7 @@ function ToolSequencesSection({ data }: Readonly<{ data: BehaviorData }>) {
 
 // ─── Section: ①-b Tool Counts ─────────────────────────────────────────────────
 
-type ToolCountMetric = 'count' | 'tokens';
+type ToolCountMetric = 'count' | 'tokens' | 'duration';
 
 function ToolCountsSection({ data }: Readonly<{ data: BehaviorData }>) {
   const { cardSx } = useTrailTheme();
@@ -120,7 +120,11 @@ function ToolCountsSection({ data }: Readonly<{ data: BehaviorData }>) {
     );
   }
 
-  const valueKey = metric;
+  const getValue = (r: { count: number; tokens?: number; durationMs?: number }): number =>
+    metric === 'tokens' ? (r.tokens ?? 0)
+    : metric === 'duration' ? Math.round((r.durationMs ?? 0) / 1000)
+    : r.count;
+  const seriesLabel = metric === 'tokens' ? 'tokens' : metric === 'duration' ? 'sec' : 'count';
   const allPeriods = [...new Set([
     ...rows.map(r => r.period),
     ...data.avgToolsPerTurn.map(a => a.period),
@@ -134,6 +138,7 @@ function ToolCountsSection({ data }: Readonly<{ data: BehaviorData }>) {
       <ToggleButtonGroup size="small" exclusive value={metric} onChange={(_, v: ToolCountMetric | null) => { if (v) setMetric(v); }}>
         <ToggleButton value="count">{t('behavior.toolCounts.count')}</ToggleButton>
         <ToggleButton value="tokens">{t('behavior.toolCounts.tokens')}</ToggleButton>
+        <ToggleButton value="duration">{t('behavior.toolCounts.duration')}</ToggleButton>
       </ToggleButtonGroup>
     </Box>
   );
@@ -141,7 +146,7 @@ function ToolCountsSection({ data }: Readonly<{ data: BehaviorData }>) {
   if (hasMultiplePeriods) {
     const valMap = new Map<string, number>();
     for (const r of rows) {
-      const v = valueKey === 'tokens' ? (r.tokens ?? 0) : r.count;
+      const v = getValue(r);
       valMap.set(`${r.period}::${r.tool}`, (valMap.get(`${r.period}::${r.tool}`) ?? 0) + v);
     }
     const dataset = allPeriods.map(p => {
@@ -170,18 +175,14 @@ function ToolCountsSection({ data }: Readonly<{ data: BehaviorData }>) {
     );
   }
 
-  const ranked = [...rows].sort((a, b) => {
-    const va = valueKey === 'tokens' ? (a.tokens ?? 0) : a.count;
-    const vb = valueKey === 'tokens' ? (b.tokens ?? 0) : b.count;
-    return vb - va;
-  }).slice(0, 10);
+  const ranked = [...rows].sort((a, b) => getValue(b) - getValue(a)).slice(0, 10);
   return (
     <Paper elevation={0} sx={{ ...cardSx, p: 2 }}>
       {header}
       <BarChart
-        dataset={ranked.map(r => ({ tool: r.tool, value: valueKey === 'tokens' ? (r.tokens ?? 0) : r.count }))}
+        dataset={ranked.map(r => ({ tool: r.tool, value: getValue(r) }))}
         xAxis={[{ scaleType: 'band', dataKey: 'tool' }]}
-        series={[{ dataKey: 'value', label: metric === 'tokens' ? 'tokens' : 'count' }]}
+        series={[{ dataKey: 'value', label: seriesLabel }]}
         height={220}
         margin={{ left: 8, right: 8, top: 8, bottom: 60 }}
       />
