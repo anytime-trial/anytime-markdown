@@ -324,9 +324,9 @@ export class SupabaseTrailReader implements ITrailReader {
     };
     const { data: tcData } = await this.client
       .from('trail_message_tool_calls')
-      .select('message_uuid, turn_index, tool_name, skill_name, is_error, turn_exec_ms')
+      .select('message_uuid, turn_index, tool_name, skill_name, is_error, turn_exec_ms, model')
       .eq('session_id', sessionId);
-    const tcRows = (tcData ?? []) as { message_uuid: string; turn_index: number; tool_name: string; skill_name: string | null; is_error: number; turn_exec_ms: number | null }[];
+    const tcRows = (tcData ?? []) as { message_uuid: string; turn_index: number; tool_name: string; skill_name: string | null; is_error: number; turn_exec_ms: number | null; model: string | null }[];
 
     // メッセージのトークン数を取得
     const msgUuids = [...new Set(tcRows.map(r => r.message_uuid))];
@@ -400,7 +400,35 @@ export class SupabaseTrailReader implements ITrailReader {
       .sort(([, a], [, b]) => b - a)
       .map(([tool, count]) => ({ tool, count }));
 
-    return { totalRetries, totalEdits, totalBuildRuns, totalBuildFails, totalTestRuns, totalTestFails, toolUsage, skillUsage, errorsByTool };
+    // モデル別利用統計: count/tokens は assistant メッセージから、durationMs は turn_exec_ms をターン単位で集計
+    const { data: modelMsgData } = await this.client
+      .from('trail_messages')
+      .select('uuid, model, input_tokens, output_tokens')
+      .eq('session_id', sessionId)
+      .eq('type', 'assistant')
+      .not('model', 'is', null);
+    const modelAgg = new Map<string, { count: number; tokens: number; durationMs: number }>();
+    for (const m of (modelMsgData ?? []) as { uuid: string; model: string | null; input_tokens: number | null; output_tokens: number | null }[]) {
+      if (!m.model) continue;
+      const e = modelAgg.get(m.model) ?? { count: 0, tokens: 0, durationMs: 0 };
+      e.count++;
+      e.tokens += (m.input_tokens ?? 0) + (m.output_tokens ?? 0);
+      modelAgg.set(m.model, e);
+    }
+    // turn_exec_ms はターン内全行で同一値。turn_index 単位で一度だけ加算する。
+    const turnSeen = new Set<number>();
+    for (const r of tcRows) {
+      if (turnSeen.has(r.turn_index)) continue;
+      turnSeen.add(r.turn_index);
+      if (!r.model) continue;
+      const e = modelAgg.get(r.model);
+      if (e) e.durationMs += r.turn_exec_ms ?? 0;
+    }
+    const modelUsage = [...modelAgg.entries()]
+      .sort(([, a], [, b]) => b.count - a.count)
+      .map(([model, e]) => ({ model, ...e }));
+
+    return { totalRetries, totalEdits, totalBuildRuns, totalBuildFails, totalTestRuns, totalTestFails, toolUsage, skillUsage, errorsByTool, modelUsage };
   }
 
   async searchMessages(query: string): Promise<readonly { sessionId: string; uuid: string; snippet: string }[]> {

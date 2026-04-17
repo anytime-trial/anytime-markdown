@@ -576,6 +576,59 @@ const TOOL_COLORS = [
 
 type SessionToolMetric = 'count' | 'tokens' | 'duration';
 
+function SessionModelUsageChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMetrics | null }>) {
+  const { cardSx } = useTrailTheme();
+  const { t } = useTrailI18n();
+  const [metric, setMetric] = useState<SessionToolMetric>('count');
+  const usage = toolMetrics?.modelUsage;
+  if (!usage || usage.length === 0) {
+    return (
+      <Paper elevation={0} sx={{ ...cardSx, p: 2 }}>
+        <Typography variant="subtitle2" sx={{ mb: 0.5 }}>{t('behavior.sections.models')}</Typography>
+        <Typography variant="body2" color="text.secondary">0</Typography>
+      </Paper>
+    );
+  }
+
+  const getValue = (e: { count: number; tokens: number; durationMs: number }): number =>
+    metric === 'tokens' ? e.tokens
+    : metric === 'duration' ? Math.round(e.durationMs / 1000)
+    : e.count;
+
+  const sorted = [...usage].sort((a, b) => getValue(b) - getValue(a));
+
+  const entry: Record<string, string | number> = { metric: metric === 'tokens' ? 'tokens' : metric === 'duration' ? 'sec' : 'count' };
+  for (let i = 0; i < sorted.length; i++) {
+    entry[`m${i}`] = getValue(sorted[i]);
+  }
+
+  return (
+    <Paper elevation={0} sx={{ ...cardSx, p: 2 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+        <Typography variant="subtitle2">{t('behavior.sections.models')}</Typography>
+        <ToggleButtonGroup size="small" exclusive value={metric} onChange={(_, v: SessionToolMetric | null) => { if (v) setMetric(v); }}>
+          <ToggleButton value="count">{t('behavior.toolCounts.count')}</ToggleButton>
+          <ToggleButton value="tokens">{t('behavior.toolCounts.tokens')}</ToggleButton>
+          <ToggleButton value="duration">{t('behavior.toolCounts.duration')}</ToggleButton>
+        </ToggleButtonGroup>
+      </Box>
+      <BarChart
+        dataset={[entry]}
+        layout="horizontal"
+        yAxis={[{ scaleType: 'band', dataKey: 'metric' }]}
+        series={sorted.map((e, i) => ({
+          dataKey: `m${i}`,
+          label: e.model,
+          stack: 'total',
+          color: TOOL_COLORS[i % TOOL_COLORS.length],
+        }))}
+        height={100}
+        margin={{ left: 60, right: 16, top: 8, bottom: 24 }}
+      />
+    </Paper>
+  );
+}
+
 function SessionToolUsageChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMetrics | null }>) {
   const { cardSx } = useTrailTheme();
   const { t } = useTrailI18n();
@@ -877,6 +930,7 @@ function DailySessionList({
               session={daySessions.find((s) => s.id === timelineSessionId)!}
               toolMetrics={sessionToolMetrics}
             />
+            <SessionModelUsageChart toolMetrics={sessionToolMetrics} />
             <SessionToolUsageChart toolMetrics={sessionToolMetrics} />
             <SessionSkillUsageChart toolMetrics={sessionToolMetrics} />
             <SessionErrorChart toolMetrics={sessionToolMetrics} />

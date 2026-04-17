@@ -2004,6 +2004,10 @@ export class TrailDatabase {
     totalBuildFails: number;
     totalTestRuns: number;
     totalTestFails: number;
+    toolUsage?: { tool: string; count: number; tokens: number; durationMs: number }[];
+    skillUsage?: { skill: string; count: number; tokens: number; durationMs: number }[];
+    errorsByTool?: { tool: string; count: number }[];
+    modelUsage?: { model: string; count: number; tokens: number; durationMs: number }[];
   } {
     const zero = {
       totalRetries: 0, totalEdits: 0,
@@ -2174,6 +2178,51 @@ export class TrailDatabase {
         }
       }
 
+      // モデル別利用統計: count/tokens は assistant メッセージから、durationMs は distinct turn_exec_ms から集計
+      let modelUsage: { model: string; count: number; tokens: number; durationMs: number }[] | undefined;
+      if (sessionId) {
+        const mdResult = db.exec(
+          `SELECT model,
+                  COUNT(*) AS count,
+                  CAST(SUM(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)) AS INTEGER) AS tokens
+           FROM messages
+           WHERE session_id = ? AND type = 'assistant' AND model IS NOT NULL
+           GROUP BY model ORDER BY count DESC`,
+          [sessionId],
+        );
+        const durResult = db.exec(
+          `WITH turn_dur AS (
+             SELECT DISTINCT session_id, turn_index, model, turn_exec_ms
+             FROM message_tool_calls
+             WHERE session_id = ? AND model IS NOT NULL
+           )
+           SELECT model, CAST(SUM(COALESCE(turn_exec_ms, 0)) AS INTEGER) AS duration_ms
+           FROM turn_dur GROUP BY model`,
+          [sessionId],
+        );
+        const durMap = new Map<string, number>();
+        if (durResult[0]) {
+          const cols = durResult[0].columns;
+          for (const row of durResult[0].values) {
+            const r = Object.fromEntries(cols.map((c, i) => [c, row[i]]));
+            durMap.set(String(r['model'] ?? ''), Number(r['duration_ms'] ?? 0));
+          }
+        }
+        if (mdResult[0]) {
+          const cols = mdResult[0].columns;
+          modelUsage = mdResult[0].values.map(row => {
+            const r = Object.fromEntries(cols.map((c, i) => [c, row[i]]));
+            const model = String(r['model'] ?? '');
+            return {
+              model,
+              count: Number(r['count'] ?? 0),
+              tokens: Number(r['tokens'] ?? 0),
+              durationMs: durMap.get(model) ?? 0,
+            };
+          });
+        }
+      }
+
       // ツール別エラー回数（MCP 正規化）
       let errorsByTool: { tool: string; count: number }[] | undefined;
       if (sessionId) {
@@ -2206,6 +2255,7 @@ export class TrailDatabase {
         toolUsage,
         skillUsage,
         errorsByTool,
+        modelUsage,
       };
     } catch {
       return zero;
