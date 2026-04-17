@@ -939,6 +939,8 @@ function groupByWeek(entries: readonly ChartEntry[]): ChartEntry[] {
 function DailyActivityChart({
   items,
   sessions,
+  period,
+  setPeriod,
   onSelectSession,
   onJumpToTrace,
   fetchSessionMessages,
@@ -948,6 +950,8 @@ function DailyActivityChart({
 }: Readonly<{
   items: AnalyticsData['dailyActivity'];
   sessions: readonly TrailSession[];
+  period: PeriodDays;
+  setPeriod: (v: PeriodDays) => void;
   onSelectSession?: (id: string) => void;
   onJumpToTrace?: (session: TrailSession) => void;
   fetchSessionMessages?: (id: string) => Promise<readonly TrailMessage[]>;
@@ -958,7 +962,6 @@ function DailyActivityChart({
   const { colors, chartColors } = useTrailTheme();
   const { t } = useTrailI18n();
   const [mode, setMode] = useState<DailyViewMode>('tokens');
-  const [period, setPeriod] = useState<PeriodDays>(30);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   if (items.length === 0) return null;
@@ -1122,14 +1125,17 @@ const BEHAVIOR_PALETTE = [
 
 type BehaviorMetric = 'count' | 'tokens' | 'duration';
 
-function BehaviorChartsSection({ fetchBehaviorData }: Readonly<{
+function BehaviorChartsSection({ fetchBehaviorData, periodDays }: Readonly<{
   fetchBehaviorData: (period: BehaviorPeriodMode, rangeDays: BehaviorRangeDays) => Promise<BehaviorData>;
+  periodDays: PeriodDays;
 }>) {
   const { cardSx } = useTrailTheme();
   const { t } = useTrailI18n();
-  const [rangeDays, setRangeDays] = useState<BehaviorRangeDays>(30);
   const [metric, setMetric] = useState<BehaviorMetric>('count');
   const [data, setData] = useState<BehaviorData | null>(null);
+
+  // PeriodDays (7/30/90) → BehaviorRangeDays (30/90) に変換
+  const rangeDays: BehaviorRangeDays = periodDays >= 90 ? 90 : 30;
 
   const load = useCallback(async () => {
     const result = await fetchBehaviorData('day', rangeDays);
@@ -1145,7 +1151,12 @@ function BehaviorChartsSection({ fetchBehaviorData }: Readonly<{
     : metric === 'duration' ? Math.round((r.durationMs ?? 0) / 1000)
     : r.count;
 
-  const toolRows = data.toolCounts ?? [];
+  // periodDays に合わせて表示期間をフィルタ
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - periodDays);
+  const cutoffStr = cutoff.toISOString().slice(0, 10);
+
+  const toolRows = (data.toolCounts ?? []).filter(r => r.period >= cutoffStr);
   const allPeriods = [...new Set(toolRows.map(r => r.period))].sort();
   const labels = allPeriods.map(p => p.length > 5 ? p.slice(5) : p);
   const tools = [...new Set(toolRows.map(r => r.tool))];
@@ -1165,7 +1176,7 @@ function BehaviorChartsSection({ fetchBehaviorData }: Readonly<{
   });
 
   // Error Patterns
-  const errorRows = data.errorRate ?? [];
+  const errorRows = (data.errorRate ?? []).filter(r => r.period >= cutoffStr);
   const errByPeriod = new Map(errorRows.map(r => [r.period, r]));
   const errTools = [...new Set(errorRows.flatMap(r => Object.keys(r.byTool)))];
   const errDataset = allPeriods.map(p => {
@@ -1177,7 +1188,7 @@ function BehaviorChartsSection({ fetchBehaviorData }: Readonly<{
   });
 
   // Skill Analysis
-  const skillRows = data.skillStats ?? [];
+  const skillRows = (data.skillStats ?? []).filter(r => r.period >= cutoffStr);
   const skills = [...new Set(skillRows.map(r => r.skill))];
   const skillCountMap = new Map<string, number>();
   for (const r of skillRows) {
@@ -1193,10 +1204,6 @@ function BehaviorChartsSection({ fetchBehaviorData }: Readonly<{
 
   const controls = (
     <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-      <ToggleButtonGroup size="small" exclusive value={rangeDays} onChange={(_, v: BehaviorRangeDays | null) => { if (v) setRangeDays(v); }}>
-        <ToggleButton value={30}>30{t('behavior.range.days')}</ToggleButton>
-        <ToggleButton value={90}>90{t('behavior.range.days')}</ToggleButton>
-      </ToggleButtonGroup>
       <ToggleButtonGroup size="small" exclusive value={metric} onChange={(_, v: BehaviorMetric | null) => { if (v) setMetric(v); }}>
         <ToggleButton value="count">{t('behavior.toolCounts.count')}</ToggleButton>
         <ToggleButton value="tokens">{t('behavior.toolCounts.tokens')}</ToggleButton>
@@ -1268,6 +1275,8 @@ function BehaviorChartsSection({ fetchBehaviorData }: Readonly<{
 export function AnalyticsPanel({ analytics, sessions = [], onSelectSession, onJumpToTrace, fetchSessionMessages, fetchSessionCommits, fetchSessionToolMetrics, costOptimization, fetchBehaviorData }: Readonly<AnalyticsPanelProps>) {
   const { colors } = useTrailTheme();
   const { t } = useTrailI18n();
+  const [period, setPeriod] = useState<PeriodDays>(30);
+
   if (!analytics) {
     return (
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
@@ -1282,9 +1291,9 @@ export function AnalyticsPanel({ analytics, sessions = [], onSelectSession, onJu
     <Box sx={{ overflow: 'auto', flex: 1, p: 2, display: 'flex', flexDirection: 'column', gap: 3 }}>
       <OverviewCards totals={analytics.totals} sessions={sessions} />
       <ToolUsageChart items={analytics.toolUsage} />
-      <DailyActivityChart items={analytics.dailyActivity} sessions={sessions} onSelectSession={onSelectSession} onJumpToTrace={onJumpToTrace} fetchSessionMessages={fetchSessionMessages} fetchSessionCommits={fetchSessionCommits} fetchSessionToolMetrics={fetchSessionToolMetrics} costOptimization={costOptimization} />
+      <DailyActivityChart items={analytics.dailyActivity} sessions={sessions} period={period} setPeriod={setPeriod} onSelectSession={onSelectSession} onJumpToTrace={onJumpToTrace} fetchSessionMessages={fetchSessionMessages} fetchSessionCommits={fetchSessionCommits} fetchSessionToolMetrics={fetchSessionToolMetrics} costOptimization={costOptimization} />
       <ModelTable items={analytics.modelBreakdown} />
-      {fetchBehaviorData && <BehaviorChartsSection fetchBehaviorData={fetchBehaviorData} />}
+      {fetchBehaviorData && <BehaviorChartsSection fetchBehaviorData={fetchBehaviorData} periodDays={period} />}
     </Box>
   );
 }
