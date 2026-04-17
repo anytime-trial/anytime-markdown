@@ -54,14 +54,16 @@ function ToolSequencesSection({ data }: Readonly<{ data: BehaviorData }>) {
 
   if (hasMultiplePeriods) {
     // 期間×シーケンスのマトリクスを構築
+    // dataKey に特殊文字（→）を含めると MUI X Charts がクラッシュするため、
+    // サニタイズしたキー（seq0, seq1, ...）を使い label に元の名前を表示する
     const countMap = new Map<string, number>();
     for (const r of rows) {
       countMap.set(`${r.period}::${r.sequence}`, r.count);
     }
     const dataset = allPeriods.map(p => {
       const entry: Record<string, string | number> = { period: p.slice(5) };
-      for (const seq of sequences) {
-        entry[seq] = countMap.get(`${p}::${seq}`) ?? 0;
+      for (let si = 0; si < sequences.length; si++) {
+        entry[`seq${si}`] = countMap.get(`${p}::${sequences[si]}`) ?? 0;
       }
       return entry;
     });
@@ -72,7 +74,7 @@ function ToolSequencesSection({ data }: Readonly<{ data: BehaviorData }>) {
           dataset={dataset}
           xAxis={[{ scaleType: 'band', dataKey: 'period' }]}
           series={sequences.map((seq, i) => ({
-            dataKey: seq,
+            dataKey: `seq${i}`,
             label: seq,
             stack: 'total',
             color: PALETTE[i % PALETTE.length],
@@ -105,7 +107,7 @@ function ToolSequencesSection({ data }: Readonly<{ data: BehaviorData }>) {
 function ToolCountsSection({ data }: Readonly<{ data: BehaviorData }>) {
   const { cardSx } = useTrailTheme();
   const { t } = useTrailI18n();
-  const rows = data.toolCounts;
+  const rows = data.toolCounts ?? [];
   if (rows.length === 0) {
     return (
       <Paper elevation={0} sx={{ ...cardSx, p: 2 }}>
