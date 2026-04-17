@@ -7,7 +7,7 @@ import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Typography from '@mui/material/Typography';
 import { BarChart } from '@mui/x-charts/BarChart';
 import { LineChart } from '@mui/x-charts/LineChart';
-import { PieChart } from '@mui/x-charts/PieChart';
+
 import type {
   BehaviorData,
   BehaviorPeriodMode,
@@ -252,24 +252,51 @@ function ErrorPatternsSection({ data }: Readonly<{ data: BehaviorData }>) {
 function SkillSection({ data }: Readonly<{ data: BehaviorData }>) {
   const { cardSx } = useTrailTheme();
   const { t } = useTrailI18n();
-  const rows = data.skillStats;
-  const bySkill: Readonly<Record<string, number>> = {};
-  for (const r of rows) {
-    Object.assign(bySkill, { [r.skill]: (bySkill[r.skill] ?? 0) + r.count });
+  const rows = data.skillStats ?? [];
+
+  const allPeriods = [...new Set([
+    ...rows.map(r => r.period),
+    ...(data.toolCounts ?? []).map(a => a.period),
+  ])].sort();
+  const labels = allPeriods.map(p => p.length > 5 ? p.slice(5) : p);
+  const skills = [...new Set(rows.map(r => r.skill))];
+
+  if (allPeriods.length === 0 || skills.length === 0) {
+    return (
+      <Paper elevation={0} sx={{ ...cardSx, p: 2 }}>
+        <Typography variant="subtitle2" gutterBottom>{t('behavior.sections.skills')}</Typography>
+        <Typography variant="body2" color="text.secondary">—</Typography>
+      </Paper>
+    );
   }
-  const pieData = Object.entries(bySkill).map(([label, value]) => ({ label, value }));
+
+  const countMap = new Map<string, number>();
+  for (const r of rows) {
+    countMap.set(`${r.period}::${r.skill}`, (countMap.get(`${r.period}::${r.skill}`) ?? 0) + r.count);
+  }
+  const dataset = allPeriods.map(p => {
+    const entry: Record<string, string | number> = { period: labels[allPeriods.indexOf(p)] };
+    for (let si = 0; si < skills.length; si++) {
+      entry[`s${si}`] = countMap.get(`${p}::${skills[si]}`) ?? 0;
+    }
+    return entry;
+  });
+
   return (
     <Paper elevation={0} sx={{ ...cardSx, p: 2 }}>
       <Typography variant="subtitle2" gutterBottom>{t('behavior.sections.skills')}</Typography>
-      {pieData.length === 0 ? (
-        <Typography variant="body2" color="text.secondary">—</Typography>
-      ) : (
-        <PieChart
-          series={[{ data: pieData, innerRadius: 40, outerRadius: 80 }]}
-          height={200}
-          margin={{ left: 80, right: 80, top: 8, bottom: 8 }}
-        />
-      )}
+      <BarChart
+        dataset={dataset}
+        xAxis={[{ scaleType: 'band', dataKey: 'period' }]}
+        series={skills.map((skill, i) => ({
+          dataKey: `s${i}`,
+          label: skill,
+          stack: 'total',
+          color: PALETTE[i % PALETTE.length],
+        }))}
+        height={200}
+        margin={{ left: 40, right: 8, top: 8, bottom: 40 }}
+      />
     </Paper>
   );
 }
