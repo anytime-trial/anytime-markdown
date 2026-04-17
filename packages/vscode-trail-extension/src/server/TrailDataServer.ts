@@ -82,7 +82,7 @@ export class TrailDataServer {
   private docLinks: readonly DocLink[] = [];
   private docsPath: string | undefined;
   private lastClaudeActivity: { activeElementIds: readonly string[]; touchedElementIds: readonly string[]; plannedElementIds: readonly string[] } | undefined;
-  private lastMultiAgentActivity: readonly import('./types').AgentActivityEntry[] | undefined;
+  private lastMultiAgentActivity: { agents: readonly import('./types').AgentActivityEntry[]; conflicts: readonly import('./types').FileConflict[] } | undefined;
   onOpenDocLink: ((docPath: string) => void) | undefined;
 
   constructor(
@@ -929,10 +929,11 @@ export class TrailDataServer {
       ws.send(JSON.stringify(activityMsg));
     }
 
-    if (this.lastMultiAgentActivity && this.lastMultiAgentActivity.length > 0) {
+    if (this.lastMultiAgentActivity && this.lastMultiAgentActivity.agents.length > 0) {
       const multiMsg: ServerMessage = {
         type: 'multi-agent-activity-updated',
-        agents: this.lastMultiAgentActivity,
+        agents: this.lastMultiAgentActivity.agents,
+        conflicts: this.lastMultiAgentActivity.conflicts,
       };
       ws.send(JSON.stringify(multiMsg));
     }
@@ -995,12 +996,13 @@ export class TrailDataServer {
     }
   }
 
-  notifyMultiAgentActivity(agents: readonly import('./types').AgentActivityEntry[]): void {
-    this.lastMultiAgentActivity = agents;
+  notifyMultiAgentActivity(agents: readonly import('./types').AgentActivityEntry[], conflicts: readonly import('./types').FileConflict[]): void {
+    this.lastMultiAgentActivity = { agents, conflicts };
     if (this.clients.size === 0) return;
     const message: ServerMessage = {
       type: 'multi-agent-activity-updated',
       agents,
+      conflicts,
     };
     const payload = JSON.stringify(message);
     for (const ws of this.clients) {

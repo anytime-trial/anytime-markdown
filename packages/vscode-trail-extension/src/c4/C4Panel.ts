@@ -157,7 +157,7 @@ export class C4Panel implements C4DataProvider {
   public handleResetClaudeActivity(): void {
     this.claudeTracker?.resetTouched();
     this.claudeWatcher?.clearEdits();
-    C4Panel.dataServer?.notifyMultiAgentActivity([]);
+    C4Panel.dataServer?.notifyMultiAgentActivity([], []);
     C4Panel.dataServer?.notifyClaudeActivity([], [], []);
   }
 
@@ -278,7 +278,7 @@ export class C4Panel implements C4DataProvider {
       this.claudeWatcher = new ClaudeStatusWatcher(watchRoot, statusDir);
       this.claudeTracker = new ClaudeActivityTracker();
       this.claudeTracker.onChange((state) => {
-        C4Panel.dataServer?.notifyMultiAgentActivity(state.agents);
+        C4Panel.dataServer?.notifyMultiAgentActivity(state.agents, state.conflicts);
         C4Panel.dataServer?.notifyClaudeActivity(
           state.merged.activeElementIds,
           state.merged.touchedElementIds,
