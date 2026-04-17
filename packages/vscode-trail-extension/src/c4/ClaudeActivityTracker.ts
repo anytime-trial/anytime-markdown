@@ -1,5 +1,6 @@
 import type { C4Element, C4Model } from '@anytime-markdown/trail-core/c4';
 import type { StatusChangeCallback, SessionEdit, AgentInfo } from '@anytime-markdown/vscode-common';
+import type { FileConflict } from '../server/types';
 import { TrailLogger } from '../utils/TrailLogger';
 
 export interface AgentActivityEntry {
@@ -23,6 +24,8 @@ export interface MultiAgentActivityState {
   readonly merged: ClaudeActivityState;
   /** エージェント別の詳細 */
   readonly agents: readonly AgentActivityEntry[];
+  /** ファイル衝突 */
+  readonly conflicts: readonly FileConflict[];
 }
 
 type ActivityChangeCallback = (state: MultiAgentActivityState) => void;
@@ -31,6 +34,7 @@ interface PerAgentState {
   activeElementIds: string[];
   touchedElementIds: Set<string>;
   plannedElementIds: Set<string>;
+  touchedFiles: Set<string>;
   branch: string;
   currentFile: string;
 }
@@ -65,6 +69,7 @@ export class ClaudeActivityTracker {
           activeElementIds: [],
           touchedElementIds: new Set(),
           plannedElementIds: new Set(),
+          touchedFiles: new Set(),
           branch: '',
           currentFile: '',
         };
@@ -88,6 +93,7 @@ export class ClaudeActivityTracker {
 
       // touched (restore from sessionEdits)
       for (const edit of info.sessionEdits) {
+        state.touchedFiles.add(edit.file);
         const ids = this.resolveElementIds(edit.file);
         for (const id of ids) {
           state.touchedElementIds.add(id);
@@ -204,6 +210,10 @@ export class ClaudeActivityTracker {
     const allPlanned = new Set<string>();
     const agents: AgentActivityEntry[] = [];
 
+    // 衝突検出用: ファイル → エージェント sessionId 集合
+    const fileToAgents = new Map<string, Set<string>>();
+    const fileActiveCount = new Map<string, number>();
+
     for (const sid of this.agentOrder) {
       const state = this.agentStates.get(sid);
       if (!state) continue;
@@ -225,6 +235,32 @@ export class ClaudeActivityTracker {
       for (const id of state.activeElementIds) allActive.add(id);
       for (const id of state.touchedElementIds) allTouched.add(id);
       for (const id of planned) allPlanned.add(id);
+
+      // 衝突検出: currentFile（editing 中）
+      if (state.currentFile && state.activeElementIds.length > 0) {
+        if (!fileToAgents.has(state.currentFile)) fileToAgents.set(state.currentFile, new Set());
+        fileToAgents.get(state.currentFile)!.add(sid);
+        fileActiveCount.set(state.currentFile, (fileActiveCount.get(state.currentFile) ?? 0) + 1);
+      }
+
+      // 衝突検出: touchedFiles（sessionEdits 累積）
+      for (const file of state.touchedFiles) {
+        if (!fileToAgents.has(file)) fileToAgents.set(file, new Set());
+        fileToAgents.get(file)!.add(sid);
+      }
+    }
+
+    // conflicts を構築（2エージェント以上が同一ファイルに関与）
+    const conflicts: FileConflict[] = [];
+    for (const [file, agentIds] of fileToAgents) {
+      if (agentIds.size < 2) continue;
+      const elementIds = this.resolveElementIds(file);
+      conflicts.push({
+        file,
+        elementIds,
+        agentSessionIds: [...agentIds],
+        isActiveConflict: (fileActiveCount.get(file) ?? 0) >= 2,
+      });
     }
 
     // planned から touched/active を除外（merged レベル）
@@ -238,6 +274,7 @@ export class ClaudeActivityTracker {
         plannedElementIds: [...allPlanned],
       },
       agents,
+      conflicts,
     };
   }
 
