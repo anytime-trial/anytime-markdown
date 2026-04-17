@@ -38,7 +38,22 @@ export interface ClaudeActivityUpdatedMessage {
   readonly plannedElementIds: readonly string[];
 }
 
-export type ServerMessage = DsmUpdatedMessage | AnalysisProgressMessage | DocLinksUpdatedMessage | ImportanceUpdatedMessage | ClaudeActivityUpdatedMessage;
+export interface AgentActivityEntry {
+  readonly sessionId: string;
+  readonly label: string;
+  readonly branch: string;
+  readonly currentFile: string;
+  readonly activeElementIds: readonly string[];
+  readonly touchedElementIds: readonly string[];
+  readonly plannedElementIds: readonly string[];
+}
+
+export interface MultiAgentActivityMessage {
+  readonly type: 'multi-agent-activity-updated';
+  readonly agents: readonly AgentActivityEntry[];
+}
+
+export type ServerMessage = DsmUpdatedMessage | AnalysisProgressMessage | DocLinksUpdatedMessage | ImportanceUpdatedMessage | ClaudeActivityUpdatedMessage | MultiAgentActivityMessage;
 
 // ---------------------------------------------------------------------------
 //  Client → Server messages

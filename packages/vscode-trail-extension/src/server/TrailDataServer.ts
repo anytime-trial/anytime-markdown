@@ -82,6 +82,7 @@ export class TrailDataServer {
   private docLinks: readonly DocLink[] = [];
   private docsPath: string | undefined;
   private lastClaudeActivity: { activeElementIds: readonly string[]; touchedElementIds: readonly string[]; plannedElementIds: readonly string[] } | undefined;
+  private lastMultiAgentActivity: readonly import('./types').AgentActivityEntry[] | undefined;
   onOpenDocLink: ((docPath: string) => void) | undefined;
 
   constructor(
@@ -927,6 +928,14 @@ export class TrailDataServer {
       };
       ws.send(JSON.stringify(activityMsg));
     }
+
+    if (this.lastMultiAgentActivity && this.lastMultiAgentActivity.length > 0) {
+      const multiMsg: ServerMessage = {
+        type: 'multi-agent-activity-updated',
+        agents: this.lastMultiAgentActivity,
+      };
+      ws.send(JSON.stringify(multiMsg));
+    }
   }
 
   private handleWsMessage(data: unknown): void {
@@ -979,6 +988,19 @@ export class TrailDataServer {
       activeElementIds,
       touchedElementIds,
       plannedElementIds,
+    };
+    const payload = JSON.stringify(message);
+    for (const ws of this.clients) {
+      ws.send(payload);
+    }
+  }
+
+  notifyMultiAgentActivity(agents: readonly import('./types').AgentActivityEntry[]): void {
+    this.lastMultiAgentActivity = agents;
+    if (this.clients.size === 0) return;
+    const message: ServerMessage = {
+      type: 'multi-agent-activity-updated',
+      agents,
     };
     const payload = JSON.stringify(message);
     for (const ws of this.clients) {
