@@ -185,16 +185,16 @@ export interface TrailI18n {
   'c4.clearFrameFilter': string;
   'c4.copyPath': string;
   'c4.frameFilter.reset': string;
-  // behavior
-  'behavior.sections.toolCounts': string;
-  'behavior.toolCounts.count': string;
-  'behavior.toolCounts.tokens': string;
-  'behavior.toolCounts.duration': string;
+  // combined (analytics)
+  'analytics.combined.tool': string;
+  'analytics.combined.count': string;
+  'analytics.combined.tokens': string;
+  'analytics.combined.duration': string;
 
 
-  'behavior.sections.errors': string;
-  'behavior.sections.skills': string;
-  'behavior.sections.models': string;
+  'analytics.combined.error': string;
+  'analytics.combined.skill': string;
+  'analytics.combined.model': string;
 
 
 }

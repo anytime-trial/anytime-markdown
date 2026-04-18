@@ -172,15 +172,15 @@ export const en: TrailI18n = {
   'c4.clearFrameFilter': 'Clear Frame Filter',
   'c4.copyPath': 'Copy Path',
   'c4.frameFilter.reset': 'Reset',
-  'behavior.sections.toolCounts': 'Tool',
-  'behavior.toolCounts.count': 'Count',
-  'behavior.toolCounts.tokens': 'Tokens',
-  'behavior.toolCounts.duration': 'Duration',
+  'analytics.combined.tool': 'Tool',
+  'analytics.combined.count': 'Count',
+  'analytics.combined.tokens': 'Tokens',
+  'analytics.combined.duration': 'Duration',
 
 
-  'behavior.sections.errors': 'Error',
-  'behavior.sections.skills': 'Skill',
-  'behavior.sections.models': 'Model',
+  'analytics.combined.error': 'Error',
+  'analytics.combined.skill': 'Skill',
+  'analytics.combined.model': 'Model',
 
 
 };

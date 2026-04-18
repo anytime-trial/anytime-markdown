@@ -198,7 +198,7 @@ export interface CostOptimizationData {
   };
 }
 
-interface BehaviorData {
+interface CombinedData {
   readonly toolCounts: readonly { period: string; tool: string; count: number; tokens: number; durationMs: number }[];
   readonly errorRate: readonly { period: string; rate: number; byTool: Readonly<Record<string, number>> }[];
   readonly skillStats: readonly { period: string; skill: string; count: number; costUsd: number }[];
@@ -2558,7 +2558,7 @@ export class TrailDatabase {
     };
   }
 
-  getBehaviorData(period: 'day' | 'week', rangeDays: 30 | 90): BehaviorData {
+  getCombinedData(period: 'day' | 'week', rangeDays: 30 | 90): CombinedData {
     const db = this.ensureDb();
     // daily_counts.date は YYYY-MM-DD（タイムゾーン適用済み）。
     // week 集計時は strftime('%Y-W%W', date) で週キー化。

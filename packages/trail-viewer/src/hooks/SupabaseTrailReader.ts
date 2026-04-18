@@ -1,8 +1,8 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type {
-  BehaviorData,
-  BehaviorPeriodMode,
-  BehaviorRangeDays,
+  CombinedData,
+  CombinedPeriodMode,
+  CombinedRangeDays,
   CostOptimizationData,
   ToolMetrics,
   TrailFilter,
@@ -538,7 +538,7 @@ export class SupabaseTrailReader implements ITrailReader {
     }));
   }
 
-  async getBehaviorData(period: BehaviorPeriodMode, rangeDays: BehaviorRangeDays): Promise<BehaviorData | null> {
+  async getCombinedData(period: CombinedPeriodMode, rangeDays: CombinedRangeDays): Promise<CombinedData | null> {
     try {
       // daily_counts の date は JST (YYYY-MM-DD)。
       // cutoff も JST 日付文字列で比較する。

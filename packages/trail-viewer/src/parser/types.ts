@@ -75,7 +75,7 @@ export interface AnalyticsData {
   }[];
 }
 
-export interface BehaviorToolCount {
+export interface CombinedToolCount {
   readonly period: string;
   readonly tool: string;
   readonly count: number;
@@ -87,20 +87,20 @@ export interface BehaviorToolCount {
 
 
 
-export interface BehaviorError {
+export interface CombinedError {
   readonly period: string;
   readonly rate: number;
   readonly byTool: Readonly<Record<string, number>>;
 }
 
-export interface BehaviorSkill {
+export interface CombinedSkill {
   readonly period: string;
   readonly skill: string;
   readonly count: number;
   readonly costUsd: number;
 }
 
-export interface BehaviorModel {
+export interface CombinedModel {
   readonly period: string;
   readonly model: string;
   readonly count: number;
@@ -108,15 +108,15 @@ export interface BehaviorModel {
 }
 
 
-export interface BehaviorData {
-  readonly toolCounts: readonly BehaviorToolCount[];
-  readonly errorRate: readonly BehaviorError[];
-  readonly skillStats: readonly BehaviorSkill[];
-  readonly modelStats: readonly BehaviorModel[];
+export interface CombinedData {
+  readonly toolCounts: readonly CombinedToolCount[];
+  readonly errorRate: readonly CombinedError[];
+  readonly skillStats: readonly CombinedSkill[];
+  readonly modelStats: readonly CombinedModel[];
 }
 
-export type BehaviorPeriodMode = 'day' | 'week';
-export type BehaviorRangeDays = 30 | 90;
+export type CombinedPeriodMode = 'day' | 'week';
+export type CombinedRangeDays = 30 | 90;
 
 // --- Domain types (re-exported from trail-core) ---
 

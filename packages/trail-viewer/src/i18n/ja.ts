@@ -172,15 +172,15 @@ export const ja: TrailI18n = {
   'c4.clearFrameFilter': 'フィルタ解除',
   'c4.copyPath': 'パスをコピー',
   'c4.frameFilter.reset': 'Reset',
-  'behavior.sections.toolCounts': 'ツール',
-  'behavior.toolCounts.count': '回数',
-  'behavior.toolCounts.tokens': 'トークン',
-  'behavior.toolCounts.duration': '時間',
+  'analytics.combined.tool': 'ツール',
+  'analytics.combined.count': '回数',
+  'analytics.combined.tokens': 'トークン',
+  'analytics.combined.duration': '時間',
 
 
-  'behavior.sections.errors': 'エラー',
-  'behavior.sections.skills': 'スキル',
-  'behavior.sections.models': 'モデル',
+  'analytics.combined.error': 'エラー',
+  'analytics.combined.skill': 'スキル',
+  'analytics.combined.model': 'モデル',
 
 
 };

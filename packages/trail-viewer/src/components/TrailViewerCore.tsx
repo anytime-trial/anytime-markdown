@@ -51,7 +51,7 @@ export interface TrailViewerCoreProps {
   readonly fetchSessionToolMetrics?: AnalyticsPanelProps['fetchSessionToolMetrics'];
   readonly costOptimization?: CostOptimizationData | null;
   readonly releases?: readonly TrailRelease[];
-  readonly fetchBehaviorData?: AnalyticsPanelProps['fetchBehaviorData'];
+  readonly fetchCombinedData?: AnalyticsPanelProps['fetchCombinedData'];
   /** C4 viewer props. When provided, the C4 tab is shown. */
   readonly c4?: C4Props;
 }
@@ -85,12 +85,12 @@ function TrailViewerCoreInner({
   fetchSessionToolMetrics,
   costOptimization = null,
   releases = [],
-  fetchBehaviorData,
+  fetchCombinedData,
   c4,
 }: Readonly<TrailViewerCoreProps>) {
   const { t } = useTrailI18n();
   const tokens = useMemo(() => getTokens(isDark ?? true), [isDark]);
-  const { colors } = tokens;
+  const { colors, scrollbarSx } = tokens;
   const [activeTab, setActiveTab] = useState(0);
 
   const visibleSessions = useMemo(() => {
@@ -197,7 +197,7 @@ function TrailViewerCoreInner({
           fetchSessionCommits={fetchSessionCommits}
           fetchSessionToolMetrics={fetchSessionToolMetrics}
           costOptimization={costOptimization}
-          fetchBehaviorData={fetchBehaviorData}
+          fetchCombinedData={fetchCombinedData}
         />
       </Box>
 
@@ -223,6 +223,7 @@ function TrailViewerCoreInner({
               borderRight: 1,
               borderColor: colors.border,
               overflowY: 'auto',
+              ...scrollbarSx,
             }}
           >
             <SessionList
@@ -232,7 +233,7 @@ function TrailViewerCoreInner({
             />
           </Box>
 
-          <Box sx={{ flex: 1, overflow: 'auto' }}>
+          <Box sx={{ flex: 1, overflow: 'auto', ...scrollbarSx }}>
             {selectedSessionId && messages.length > 0 ? (
               <TraceTree nodes={buildMessageTree(messages)} session={selectedSession} />
             ) : (
@@ -262,7 +263,7 @@ function TrailViewerCoreInner({
         role="tabpanel"
         id="trail-panel-3"
         aria-labelledby="trail-tab-3"
-        sx={{ display: activeTab !== 3 ? 'none' : 'flex', flexDirection: 'column', flex: 1, overflow: 'auto' }}
+        sx={{ display: activeTab !== 3 ? 'none' : 'flex', flexDirection: 'column', flex: 1, overflow: 'auto', ...scrollbarSx }}
       >
         <ReleasesPanel releases={releases ?? []} />
       </Box>

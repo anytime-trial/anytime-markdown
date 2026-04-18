@@ -297,8 +297,8 @@ export class TrailDataServer {
       return;
     }
 
-    if (pathname === '/api/trail/behavior' && method === 'GET') {
-      this.handleGetBehavior(res, parsed.searchParams);
+    if (pathname === '/api/trail/combined' && method === 'GET') {
+      this.handleGetCombined(res, parsed.searchParams);
       return;
     }
 
@@ -825,21 +825,21 @@ export class TrailDataServer {
   }
 
   // -------------------------------------------------------------------------
-  //  API: GET /api/trail/behavior?period=day&rangeDays=30
+  //  API: GET /api/trail/combined?period=day&rangeDays=30
   // -------------------------------------------------------------------------
 
-  private handleGetBehavior(res: http.ServerResponse, params: URLSearchParams): void {
+  private handleGetCombined(res: http.ServerResponse, params: URLSearchParams): void {
     const period = (params.get('period') ?? 'day') as 'day' | 'week';
     const rangeDaysRaw = Number.parseInt(params.get('rangeDays') ?? '30', 10);
     const rangeDays = ([30, 90].includes(rangeDaysRaw) ? rangeDaysRaw : 30) as 30 | 90;
     try {
-      const data = this.trailDb.getBehaviorData(period, rangeDays);
+      const data = this.trailDb.getCombinedData(period, rangeDays);
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(data));
     } catch (e) {
-      TrailLogger.error('handleGetBehavior failed', e);
+      TrailLogger.error('handleGetCombined failed', e);
       res.writeHead(500, JSON_HEADERS);
-      res.end(JSON.stringify({ error: 'Failed to get behavior data' }));
+      res.end(JSON.stringify({ error: 'Failed to get combined data' }));
     }
   }
 

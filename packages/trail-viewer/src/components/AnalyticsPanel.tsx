@@ -18,7 +18,7 @@ import type { SxProps, Theme } from '@mui/material/styles';
 import { BarChart } from '@mui/x-charts/BarChart';
 import { LineChart } from '@mui/x-charts/LineChart';
 import { formatLocalTime, toLocalDateKey } from '@anytime-markdown/trail-core/formatDate';
-import type { AnalyticsData, BehaviorData, BehaviorPeriodMode, BehaviorRangeDays, CostOptimizationData, ToolMetrics, TrailMessage, TrailSession, TrailSessionCommit, TrailTokenUsage } from '../parser/types';
+import type { AnalyticsData, CombinedData, CombinedPeriodMode, CombinedRangeDays, CostOptimizationData, ToolMetrics, TrailMessage, TrailSession, TrailSessionCommit, TrailTokenUsage } from '../parser/types';
 import { useTrailTheme } from './TrailThemeContext';
 import { useTrailI18n } from '../i18n';
 
@@ -31,7 +31,7 @@ export interface AnalyticsPanelProps {
   readonly fetchSessionCommits?: (id: string) => Promise<readonly TrailSessionCommit[]>;
   readonly fetchSessionToolMetrics?: (id: string) => Promise<ToolMetrics | null>;
   readonly costOptimization?: CostOptimizationData | null;
-  readonly fetchBehaviorData?: (period: BehaviorPeriodMode, rangeDays: BehaviorRangeDays) => Promise<BehaviorData>;
+  readonly fetchCombinedData?: (period: CombinedPeriodMode, rangeDays: CombinedRangeDays) => Promise<CombinedData>;
 }
 
 // ---------------------------------------------------------------------------
@@ -584,7 +584,7 @@ function SessionModelUsageChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMet
   if (!usage || usage.length === 0) {
     return (
       <Paper elevation={0} sx={{ ...cardSx, pt: 2, pr: 2, pb: 0, pl: 2 }}>
-        <Typography variant="subtitle2" sx={{ mb: 0.5 }}>{t('behavior.sections.models')}</Typography>
+        <Typography variant="subtitle2" sx={{ mb: 0.5 }}>{t('analytics.combined.model')}</Typography>
         <Typography variant="body2" color="text.secondary">0</Typography>
       </Paper>
     );
@@ -605,11 +605,11 @@ function SessionModelUsageChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMet
   return (
     <Paper elevation={0} sx={{ ...cardSx, pt: 2, pr: 2, pb: 0, pl: 0 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, px: 2 }}>
-        <Typography variant="subtitle2">{t('behavior.sections.models')}</Typography>
+        <Typography variant="subtitle2">{t('analytics.combined.model')}</Typography>
         <ToggleButtonGroup size="small" exclusive value={metric} onChange={(_, v: SessionToolMetric | null) => { if (v) setMetric(v); }}>
-          <ToggleButton value="count">{t('behavior.toolCounts.count')}</ToggleButton>
-          <ToggleButton value="tokens">{t('behavior.toolCounts.tokens')}</ToggleButton>
-          <ToggleButton value="duration">{t('behavior.toolCounts.duration')}</ToggleButton>
+          <ToggleButton value="count">{t('analytics.combined.count')}</ToggleButton>
+          <ToggleButton value="tokens">{t('analytics.combined.tokens')}</ToggleButton>
+          <ToggleButton value="duration">{t('analytics.combined.duration')}</ToggleButton>
         </ToggleButtonGroup>
       </Box>
       <BarChart
@@ -661,9 +661,9 @@ function SessionToolUsageChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMetr
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, px: 2 }}>
         <Typography variant="subtitle2">{t('analytics.toolUsageTitle')}</Typography>
         <ToggleButtonGroup size="small" exclusive value={metric} onChange={(_, v: SessionToolMetric | null) => { if (v) setMetric(v); }}>
-          <ToggleButton value="count">{t('behavior.toolCounts.count')}</ToggleButton>
-          <ToggleButton value="tokens">{t('behavior.toolCounts.tokens')}</ToggleButton>
-          <ToggleButton value="duration">{t('behavior.toolCounts.duration')}</ToggleButton>
+          <ToggleButton value="count">{t('analytics.combined.count')}</ToggleButton>
+          <ToggleButton value="tokens">{t('analytics.combined.tokens')}</ToggleButton>
+          <ToggleButton value="duration">{t('analytics.combined.duration')}</ToggleButton>
         </ToggleButtonGroup>
       </Box>
       <BarChart
@@ -691,7 +691,7 @@ function SessionSkillUsageChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMet
   if (!usage || usage.length === 0) {
     return (
       <Paper elevation={0} sx={{ ...cardSx, pt: 2, pr: 2, pb: 0, pl: 2 }}>
-        <Typography variant="subtitle2" sx={{ mb: 0.5 }}>{t('behavior.sections.skills')}</Typography>
+        <Typography variant="subtitle2" sx={{ mb: 0.5 }}>{t('analytics.combined.skill')}</Typography>
         <Typography variant="body2" color="text.secondary">0</Typography>
       </Paper>
     );
@@ -712,11 +712,11 @@ function SessionSkillUsageChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMet
   return (
     <Paper elevation={0} sx={{ ...cardSx, pt: 2, pr: 2, pb: 0, pl: 0 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, px: 2 }}>
-        <Typography variant="subtitle2">{t('behavior.sections.skills')}</Typography>
+        <Typography variant="subtitle2">{t('analytics.combined.skill')}</Typography>
         <ToggleButtonGroup size="small" exclusive value={metric} onChange={(_, v: SessionToolMetric | null) => { if (v) setMetric(v); }}>
-          <ToggleButton value="count">{t('behavior.toolCounts.count')}</ToggleButton>
-          <ToggleButton value="tokens">{t('behavior.toolCounts.tokens')}</ToggleButton>
-          <ToggleButton value="duration">{t('behavior.toolCounts.duration')}</ToggleButton>
+          <ToggleButton value="count">{t('analytics.combined.count')}</ToggleButton>
+          <ToggleButton value="tokens">{t('analytics.combined.tokens')}</ToggleButton>
+          <ToggleButton value="duration">{t('analytics.combined.duration')}</ToggleButton>
         </ToggleButtonGroup>
       </Box>
       <BarChart
@@ -744,7 +744,7 @@ function SessionErrorChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMetrics 
   if (!errors || errors.length === 0) {
     return (
       <Paper elevation={0} sx={{ ...cardSx, pt: 2, pr: 2, pb: 0, pl: 2 }}>
-        <Typography variant="subtitle2" sx={{ mb: 0.5 }}>{t('behavior.sections.errors')}</Typography>
+        <Typography variant="subtitle2" sx={{ mb: 0.5 }}>{t('analytics.combined.error')}</Typography>
         <Typography variant="body2" color="text.secondary">0</Typography>
       </Paper>
     );
@@ -758,7 +758,7 @@ function SessionErrorChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMetrics 
 
   return (
     <Paper elevation={0} sx={{ ...cardSx, pt: 2, pr: 2, pb: 0, pl: 0 }}>
-      <Typography variant="subtitle2" sx={{ mb: 1, px: 2 }}>{t('behavior.sections.errors')}</Typography>
+      <Typography variant="subtitle2" sx={{ mb: 1, px: 2 }}>{t('analytics.combined.error')}</Typography>
       <BarChart
         dataset={[entry]}
         layout="horizontal"
@@ -1079,8 +1079,8 @@ function DailyActivityChart({
 
 // ─── Behavior charts in Analytics ───────────────────────────────────────────
 
-type BehaviorMetric = 'count' | 'tokens';
-type BehaviorChartKind = 'tools' | 'errors' | 'skills' | 'models';
+type ChartMetric = 'count' | 'tokens';
+type CombinedChartKind = 'tools' | 'errors' | 'skills' | 'models';
 
 // スタック棒グラフの系列数が多すぎると描画・凡例・ツールチップが重くなるため、
 // 上位 N 件以外を "Others" に集約する。
@@ -1103,12 +1103,12 @@ function capTopN(
   return { displayKeys: [...top, OTHERS_LABEL], keyMap };
 }
 
-function BehaviorChartsSection({ data, periodDays, activeChart, toolMetric, modelMetric, onDateClick }: Readonly<{
-  data: BehaviorData | null;
+function CombinedChartsContent({ data, periodDays, activeChart, toolMetric, modelMetric, onDateClick }: Readonly<{
+  data: CombinedData | null;
   periodDays: PeriodDays;
-  activeChart: BehaviorChartKind;
-  toolMetric: BehaviorMetric;
-  modelMetric: BehaviorMetric;
+  activeChart: CombinedChartKind;
+  toolMetric: ChartMetric;
+  modelMetric: ChartMetric;
   onDateClick?: (fullDate: string) => void;
 }>) {
   const { cardSx } = useTrailTheme();
@@ -1362,7 +1362,7 @@ function CombinedChartsSection({
   fetchSessionCommits,
   fetchSessionToolMetrics,
   costOptimization,
-  fetchBehaviorData,
+  fetchCombinedData,
 }: Readonly<{
   dailyActivity: AnalyticsData['dailyActivity'];
   sessions: readonly TrailSession[];
@@ -1374,16 +1374,16 @@ function CombinedChartsSection({
   fetchSessionCommits?: (id: string) => Promise<readonly TrailSessionCommit[]>;
   fetchSessionToolMetrics?: (id: string) => Promise<ToolMetrics | null>;
   costOptimization?: CostOptimizationData | null;
-  fetchBehaviorData?: (period: BehaviorPeriodMode, rangeDays: BehaviorRangeDays) => Promise<BehaviorData>;
+  fetchCombinedData?: (period: CombinedPeriodMode, rangeDays: CombinedRangeDays) => Promise<CombinedData>;
 }>) {
   const { colors } = useTrailTheme();
   const { t } = useTrailI18n();
   const [metric, setMetric] = useState<CombinedMetric>('tokens');
   const [tokenMode, setTokenMode] = useState<DailyViewMode>('tokens');
-  const [toolMetric, setToolMetric] = useState<BehaviorMetric>('count');
-  const [modelMetric, setModelMetric] = useState<BehaviorMetric>('count');
-  const [behaviorData, setBehaviorData] = useState<BehaviorData | null>(null);
-  const [behaviorLoading, setBehaviorLoading] = useState(false);
+  const [toolMetric, setToolMetric] = useState<ChartMetric>('count');
+  const [modelMetric, setModelMetric] = useState<ChartMetric>('count');
+  const [combinedData, setCombinedData] = useState<CombinedData | null>(null);
+  const [combinedLoading, setCombinedLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   useEffect(() => { setSelectedDate(null); }, [period]);
   const handleDateClick = (fullDate: string) => {
@@ -1392,20 +1392,20 @@ function CombinedChartsSection({
 
   // Prefetch behavior data so switching to Tool/Error/Skill does not block on fetch.
   useEffect(() => {
-    if (!fetchBehaviorData) return;
-    const rangeDays: BehaviorRangeDays = period >= 90 ? 90 : 30;
-    const periodMode: BehaviorPeriodMode = period >= 90 ? 'week' : 'day';
+    if (!fetchCombinedData) return;
+    const rangeDays: CombinedRangeDays = period >= 90 ? 90 : 30;
+    const periodMode: CombinedPeriodMode = period >= 90 ? 'week' : 'day';
     let mounted = true;
-    setBehaviorLoading(true);
+    setCombinedLoading(true);
     void (async () => {
-      const result = await fetchBehaviorData(periodMode, rangeDays);
+      const result = await fetchCombinedData(periodMode, rangeDays);
       if (mounted) {
-        setBehaviorData(result);
-        setBehaviorLoading(false);
+        setCombinedData(result);
+        setCombinedLoading(false);
       }
     })();
     return () => { mounted = false; };
-  }, [fetchBehaviorData, period]);
+  }, [fetchCombinedData, period]);
 
   const toggleSx = {
     color: colors.textSecondary,
@@ -1425,10 +1425,10 @@ function CombinedChartsSection({
             size="small"
           >
             <ToggleButton value="tokens" sx={toggleSx}>{t('chart.tokenUsage')}</ToggleButton>
-            <ToggleButton value="models" sx={toggleSx}>{t('behavior.sections.models')}</ToggleButton>
-            <ToggleButton value="skills" sx={toggleSx}>{t('behavior.sections.skills')}</ToggleButton>
-            <ToggleButton value="tools" sx={toggleSx}>{t('behavior.sections.toolCounts')}</ToggleButton>
-            <ToggleButton value="errors" sx={toggleSx}>{t('behavior.sections.errors')}</ToggleButton>
+            <ToggleButton value="models" sx={toggleSx}>{t('analytics.combined.model')}</ToggleButton>
+            <ToggleButton value="skills" sx={toggleSx}>{t('analytics.combined.skill')}</ToggleButton>
+            <ToggleButton value="tools" sx={toggleSx}>{t('analytics.combined.tool')}</ToggleButton>
+            <ToggleButton value="errors" sx={toggleSx}>{t('analytics.combined.error')}</ToggleButton>
           </ToggleButtonGroup>
           <ToggleButtonGroup
             value={period}
@@ -1458,22 +1458,22 @@ function CombinedChartsSection({
           <ToggleButtonGroup
             value={toolMetric}
             exclusive
-            onChange={(_e, v: BehaviorMetric | null) => { if (v) setToolMetric(v); }}
+            onChange={(_e, v: ChartMetric | null) => { if (v) setToolMetric(v); }}
             size="small"
           >
-            <ToggleButton value="count" sx={toggleSx}>{t('behavior.toolCounts.count')}</ToggleButton>
-            <ToggleButton value="tokens" sx={toggleSx}>{t('behavior.toolCounts.tokens')}</ToggleButton>
+            <ToggleButton value="count" sx={toggleSx}>{t('analytics.combined.count')}</ToggleButton>
+            <ToggleButton value="tokens" sx={toggleSx}>{t('analytics.combined.tokens')}</ToggleButton>
           </ToggleButtonGroup>
         )}
         {metric === 'models' && (
           <ToggleButtonGroup
             value={modelMetric}
             exclusive
-            onChange={(_e, v: BehaviorMetric | null) => { if (v) setModelMetric(v); }}
+            onChange={(_e, v: ChartMetric | null) => { if (v) setModelMetric(v); }}
             size="small"
           >
-            <ToggleButton value="count" sx={toggleSx}>{t('behavior.toolCounts.count')}</ToggleButton>
-            <ToggleButton value="tokens" sx={toggleSx}>{t('behavior.toolCounts.tokens')}</ToggleButton>
+            <ToggleButton value="count" sx={toggleSx}>{t('analytics.combined.count')}</ToggleButton>
+            <ToggleButton value="tokens" sx={toggleSx}>{t('analytics.combined.tokens')}</ToggleButton>
           </ToggleButtonGroup>
         )}
       </Box>
@@ -1485,14 +1485,14 @@ function CombinedChartsSection({
           onDateClick={handleDateClick}
           costOptimization={costOptimization}
         />
-      ) : fetchBehaviorData ? (
-        behaviorLoading && !behaviorData ? (
+      ) : fetchCombinedData ? (
+        combinedLoading && !combinedData ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 240 }}>
             <CircularProgress size={32} />
           </Box>
         ) : (
-          <BehaviorChartsSection
-            data={behaviorData}
+          <CombinedChartsContent
+            data={combinedData}
             periodDays={period}
             activeChart={metric}
             toolMetric={toolMetric}
@@ -1516,8 +1516,9 @@ function CombinedChartsSection({
   );
 }
 
-export function AnalyticsPanel({ analytics, sessions = [], onSelectSession, onJumpToTrace, fetchSessionMessages, fetchSessionCommits, fetchSessionToolMetrics, costOptimization, fetchBehaviorData }: Readonly<AnalyticsPanelProps>) {
+export function AnalyticsPanel({ analytics, sessions = [], onSelectSession, onJumpToTrace, fetchSessionMessages, fetchSessionCommits, fetchSessionToolMetrics, costOptimization, fetchCombinedData }: Readonly<AnalyticsPanelProps>) {
   const { t } = useTrailI18n();
+  const { scrollbarSx } = useTrailTheme();
   const [period, setPeriod] = useState<PeriodDays>(30);
 
   if (!analytics) {
@@ -1531,7 +1532,7 @@ export function AnalyticsPanel({ analytics, sessions = [], onSelectSession, onJu
   }
 
   return (
-    <Box sx={{ overflow: 'auto', flex: 1, p: 2, display: 'flex', flexDirection: 'column', gap: 3 }}>
+    <Box sx={{ overflow: 'auto', flex: 1, p: 2, display: 'flex', flexDirection: 'column', gap: 3, ...scrollbarSx }}>
       <OverviewCards totals={analytics.totals} sessions={sessions} />
       <ToolUsageChart items={analytics.toolUsage} />
       <CombinedChartsSection
@@ -1545,7 +1546,7 @@ export function AnalyticsPanel({ analytics, sessions = [], onSelectSession, onJu
         fetchSessionCommits={fetchSessionCommits}
         fetchSessionToolMetrics={fetchSessionToolMetrics}
         costOptimization={costOptimization}
-        fetchBehaviorData={fetchBehaviorData}
+        fetchCombinedData={fetchCombinedData}
       />
     </Box>
   );

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { AnalyticsData, BehaviorData, BehaviorPeriodMode, BehaviorRangeDays, CostOptimizationData, ToolMetrics, TrailFilter, TrailMessage, TrailPromptEntry, TrailSession, TrailSessionCommit } from '../parser/types';
+import type { AnalyticsData, CombinedData, CombinedPeriodMode, CombinedRangeDays, CostOptimizationData, ToolMetrics, TrailFilter, TrailMessage, TrailPromptEntry, TrailSession, TrailSessionCommit } from '../parser/types';
 import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
 
 // ---------------------------------------------------------------------------
@@ -25,7 +25,7 @@ export interface TrailDataSourceResult {
   readonly fetchCostOptimization: () => Promise<CostOptimizationData | null>;
   readonly releases: readonly TrailRelease[];
   readonly fetchReleases: () => Promise<readonly TrailRelease[]>;
-  readonly fetchBehaviorData: (period: BehaviorPeriodMode, rangeDays: BehaviorRangeDays) => Promise<BehaviorData>;
+  readonly fetchCombinedData: (period: CombinedPeriodMode, rangeDays: CombinedRangeDays) => Promise<CombinedData>;
 }
 
 interface WsMessage {
@@ -228,16 +228,16 @@ export function useTrailDataSource(serverUrl: string): TrailDataSourceResult {
     [baseUrl],
   );
 
-  const fetchBehaviorData = useCallback(
-    async (period: BehaviorPeriodMode, rangeDays: BehaviorRangeDays): Promise<BehaviorData> => {
-      const empty: BehaviorData = {
+  const fetchCombinedData = useCallback(
+    async (period: CombinedPeriodMode, rangeDays: CombinedRangeDays): Promise<CombinedData> => {
+      const empty: CombinedData = {
         toolCounts: [],
         errorRate: [], skillStats: [], modelStats: [],
       };
       try {
-        const res = await fetch(`${baseUrl}/api/trail/behavior?period=${period}&rangeDays=${rangeDays}`);
+        const res = await fetch(`${baseUrl}/api/trail/combined?period=${period}&rangeDays=${rangeDays}`);
         if (!res.ok) return empty;
-        return (await res.json()) as BehaviorData;
+        return (await res.json()) as CombinedData;
       } catch {
         return empty;
       }
@@ -378,6 +378,6 @@ export function useTrailDataSource(serverUrl: string): TrailDataSourceResult {
     fetchCostOptimization,
     releases,
     fetchReleases,
-    fetchBehaviorData,
+    fetchCombinedData,
   };
 }
