@@ -450,8 +450,10 @@ export class TrailDataServer {
       const rawSessions = this.trailDb.getSessions(filters);
       const sessionIds = rawSessions.map((s) => s.id);
       const commitStats = this.trailDb.getSessionCommitStats(sessionIds);
+      const errorCounts = this.trailDb.getSessionErrorCounts(sessionIds);
       const sessions = rawSessions.map((s) => {
         const cStats = commitStats.get(s.id);
+        const errorCount = errorCounts.get(s.id);
         const interruptionReason = (s.interruption_reason ?? null) as 'max_tokens' | 'no_response' | null;
         return {
           id: s.id,
@@ -479,6 +481,7 @@ export class TrailDataServer {
             ? { commits: cStats.commits, linesAdded: cStats.linesAdded,
                 linesDeleted: cStats.linesDeleted, filesChanged: cStats.filesChanged }
             : undefined,
+          errorCount: errorCount != null && errorCount > 0 ? errorCount : undefined,
         };
       });
       res.writeHead(200, JSON_HEADERS);

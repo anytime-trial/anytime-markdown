@@ -1989,6 +1989,28 @@ export class TrailDatabase {
     return result;
   }
 
+  getSessionErrorCounts(sessionIds: readonly string[]): Map<string, number> {
+    if (sessionIds.length === 0) return new Map();
+    const db = this.ensureDb();
+    const result = new Map<string, number>();
+    const placeholders = sessionIds.map(() => '?').join(',');
+    try {
+      const rows = db.exec(
+        `SELECT session_id, COUNT(*) AS error_count
+         FROM message_tool_calls
+         WHERE is_error = 1 AND session_id IN (${placeholders})
+         GROUP BY session_id`,
+        sessionIds as string[],
+      );
+      for (const row of rows[0]?.values ?? []) {
+        result.set(String(row[0]), Number(row[1]));
+      }
+    } catch {
+      // Graceful fallback
+    }
+    return result;
+  }
+
   getSessionCommits(sessionId: string): SessionCommitRow[] {
     const db = this.ensureDb();
     const stmt = db.prepare(
