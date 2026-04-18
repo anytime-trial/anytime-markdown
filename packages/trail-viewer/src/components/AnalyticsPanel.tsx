@@ -625,6 +625,7 @@ function SessionModelUsageChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMet
         }))}
         height={70}
         margin={{ left: 16, right: 16, top: 4, bottom: 16 }}
+        slots={{ legend: () => null }}
       />
     </Paper>
   );
@@ -679,6 +680,7 @@ function SessionToolUsageChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMetr
         }))}
         height={70}
         margin={{ left: 16, right: 16, top: 4, bottom: 16 }}
+        slots={{ legend: () => null }}
       />
     </Paper>
   );
@@ -733,6 +735,7 @@ function SessionSkillUsageChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMet
         }))}
         height={70}
         margin={{ left: 16, right: 16, top: 4, bottom: 16 }}
+        slots={{ legend: () => null }}
       />
     </Paper>
   );
@@ -773,6 +776,7 @@ function SessionErrorChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMetrics 
         }))}
         height={70}
         margin={{ left: 16, right: 16, top: 4, bottom: 16 }}
+        slots={{ legend: () => null }}
       />
     </Paper>
   );
