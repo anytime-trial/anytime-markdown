@@ -55,7 +55,7 @@ export interface TrailViewerCoreProps {
   readonly costOptimization?: CostOptimizationData | null;
   readonly releases?: readonly TrailRelease[];
   readonly fetchCombinedData?: AnalyticsPanelProps['fetchCombinedData'];
-  readonly tokenBudget?: import('../hooks/useTrailDataSource').TokenBudgetStatus | null;
+  readonly tokenBudgets?: readonly import('../hooks/useTrailDataSource').TokenBudgetStatus[];
   /** C4 viewer props. When provided, the C4 tab is shown. */
   readonly c4?: C4Props;
 }
@@ -91,7 +91,7 @@ function TrailViewerCoreInner({
   costOptimization = null,
   releases = [],
   fetchCombinedData,
-  tokenBudget = null,
+  tokenBudgets = [],
   c4,
 }: Readonly<TrailViewerCoreProps>) {
   const { t } = useTrailI18n();
@@ -187,30 +187,35 @@ function TrailViewerCoreInner({
           <Tab id="trail-tab-3" aria-controls="trail-panel-3" label={t('releases.title')} />
           {c4 && <Tab id="trail-tab-4" aria-controls="trail-panel-4" label={t('viewer.c4')} />}
         </Tabs>
-        {tokenBudget && (
-          <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', px: 2, flexShrink: 0 }}>
-            <TokenBudgetIndicator
-              label={t('tokenBudget.session')}
-              current={tokenBudget.sessionTokens}
-              limit={tokenBudget.sessionLimitTokens}
-              threshold={tokenBudget.alertThresholdPct}
-              colors={colors}
-            />
+        {tokenBudgets.length > 0 && (
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', px: 2, flexShrink: 0 }}>
+            {tokenBudgets.map((tb, idx) => (
+              <Box key={tb.sessionId} sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                {idx > 0 && <Box sx={{ width: 1, height: 24, bgcolor: colors.border, flexShrink: 0 }} />}
+                <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.65rem', minWidth: 56, fontFamily: 'monospace' }}>
+                  {tb.sessionId.slice(0, 8)}
+                </Typography>
+                <TokenBudgetIndicator
+                  label={t('tokenBudget.session')}
+                  current={tb.sessionTokens}
+                  limit={tb.sessionLimitTokens}
+                  threshold={tb.alertThresholdPct}
+                  colors={colors}
+                />
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 32 }}>
+                  <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.65rem' }}>{t('tokenBudget.turns')}</Typography>
+                  <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.7rem' }}>{tb.turnCount}</Typography>
+                </Box>
+              </Box>
+            ))}
+            <Box sx={{ width: 1, height: 24, bgcolor: colors.border, flexShrink: 0 }} />
             <TokenBudgetIndicator
               label={t('tokenBudget.daily')}
-              current={tokenBudget.dailyTokens}
-              limit={tokenBudget.dailyLimitTokens}
-              threshold={tokenBudget.alertThresholdPct}
+              current={tokenBudgets[0].dailyTokens}
+              limit={tokenBudgets[0].dailyLimitTokens}
+              threshold={tokenBudgets[0].alertThresholdPct}
               colors={colors}
             />
-            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 40 }}>
-              <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.65rem' }}>{t('tokenBudget.turns')}</Typography>
-              <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.7rem' }}>{tokenBudget.turnCount}</Typography>
-            </Box>
-            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 40 }}>
-              <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.65rem' }}>{t('tokenBudget.messages')}</Typography>
-              <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.7rem' }}>{tokenBudget.messageCount}</Typography>
-            </Box>
           </Box>
         )}
       </Box>
@@ -330,31 +335,51 @@ function formatTokens(n: number): string {
   return String(n);
 }
 
+// リミットあり: threshold未満=緑, threshold〜中間=オレンジ, 中間以上=赤
+// リミットなし: <50K=緑, 50K-100K=オレンジ, >100K=赤
+function resolveTokenColor(
+  current: number,
+  limit: number | null,
+  threshold: number,
+  colors: ReturnType<typeof getTokens>['colors'],
+): string {
+  if (limit !== null) {
+    const pct = Math.min((current / limit) * 100, 100);
+    const midpoint = threshold + (100 - threshold) / 2;
+    if (pct >= midpoint) return colors.error;
+    if (pct >= threshold) return colors.warning;
+    return colors.success;
+  }
+  if (current >= 100_000) return colors.error;
+  if (current >= 50_000) return colors.warning;
+  return colors.success;
+}
+
 function TokenBudgetIndicator({ label, current, limit, threshold, colors }: Readonly<TokenBudgetIndicatorProps>) {
+  const color = resolveTokenColor(current, limit, threshold, colors);
+
   if (limit === null) {
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 64 }}>
-        <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.65rem' }}>{label}</Typography>
-        <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.7rem' }}>{formatTokens(current)}</Typography>
+        <Typography variant="caption" sx={{ color, fontSize: '0.65rem' }}>{label}</Typography>
+        <Typography variant="caption" sx={{ color, fontSize: '0.7rem' }}>{formatTokens(current)}</Typography>
       </Box>
     );
   }
 
   const pct = Math.min((current / limit) * 100, 100);
-  const isWarning = pct >= threshold;
-  const barColor = isWarning ? colors.error : colors.success;
   const tooltipText = `${current.toLocaleString()} / ${limit.toLocaleString()} tokens`;
 
   return (
     <Tooltip title={tooltipText} placement="bottom">
       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 64 }}>
-        <Typography variant="caption" sx={{ color: isWarning ? colors.error : colors.textSecondary, fontSize: '0.65rem' }}>{label}</Typography>
+        <Typography variant="caption" sx={{ color, fontSize: '0.65rem' }}>{label}</Typography>
         <LinearProgress
           variant="determinate"
           value={pct}
-          sx={{ width: 60, height: 4, borderRadius: 2, bgcolor: colors.border, '& .MuiLinearProgress-bar': { bgcolor: barColor } }}
+          sx={{ width: 60, height: 4, borderRadius: 2, bgcolor: colors.border, '& .MuiLinearProgress-bar': { bgcolor: color } }}
         />
-        <Typography variant="caption" sx={{ color: isWarning ? colors.error : colors.textSecondary, fontSize: '0.65rem' }}>
+        <Typography variant="caption" sx={{ color, fontSize: '0.65rem' }}>
           {formatTokens(current)}/{formatTokens(limit)}
         </Typography>
       </Box>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { AnalyticsData, CombinedData, CombinedPeriodMode, CombinedRangeDays, CostOptimizationData, ToolMetrics, TrailFilter, TrailMessage, TrailPromptEntry, TrailSession, TrailSessionCommit } from '../parser/types';
 import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
@@ -38,7 +38,7 @@ export interface TrailDataSourceResult {
   readonly releases: readonly TrailRelease[];
   readonly fetchReleases: () => Promise<readonly TrailRelease[]>;
   readonly fetchCombinedData: (period: CombinedPeriodMode, rangeDays: CombinedRangeDays) => Promise<CombinedData>;
-  readonly tokenBudget: TokenBudgetStatus | null;
+  readonly tokenBudgets: readonly TokenBudgetStatus[];
 }
 
 interface WsMessage {
@@ -85,7 +85,7 @@ export function useTrailDataSource(serverUrl: string): TrailDataSourceResult {
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [costOptimization, setCostOptimization] = useState<CostOptimizationData | null>(null);
   const [releases, setReleases] = useState<readonly TrailRelease[]>([]);
-  const [tokenBudget, setTokenBudget] = useState<TokenBudgetStatus | null>(null);
+  const [tokenBudgetMap, setTokenBudgetMap] = useState<ReadonlyMap<string, TokenBudgetStatus>>(new Map());
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -353,7 +353,12 @@ export function useTrailDataSource(serverUrl: string): TrailDataSourceResult {
             void refreshAnalytics();
           }
           if (isWsMessage(parsed) && parsed.type === 'token-budget-updated') {
-            setTokenBudget(parsed as unknown as TokenBudgetStatus);
+            const status = parsed as unknown as TokenBudgetStatus;
+            setTokenBudgetMap(prev => {
+              const next = new Map(prev);
+              next.set(status.sessionId, status);
+              return next;
+            });
           }
         } catch {
           // Malformed message — ignore
@@ -392,6 +397,8 @@ export function useTrailDataSource(serverUrl: string): TrailDataSourceResult {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serverUrl]);
 
+  const tokenBudgets = useMemo(() => Array.from(tokenBudgetMap.values()), [tokenBudgetMap]);
+
   return {
     sessions,
     allSessions,
@@ -412,6 +419,6 @@ export function useTrailDataSource(serverUrl: string): TrailDataSourceResult {
     releases,
     fetchReleases,
     fetchCombinedData,
-    tokenBudget,
+    tokenBudgets,
   };
 }
