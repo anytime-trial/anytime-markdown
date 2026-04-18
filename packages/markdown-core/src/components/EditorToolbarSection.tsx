@@ -106,7 +106,7 @@ export function EditorToolbarSection({
         role="status"
         aria-live="polite"
         aria-atomic="true"
-        sx={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0,0,0,0)", whiteSpace: "nowrap" }}
+        sx={{ position: "absolute", width: "1px", height: "1px", margin: "-1px", overflow: "hidden", clip: "rect(0,0,0,0)", whiteSpace: "nowrap" }}
       >
         {liveMessage}
       </Box>
