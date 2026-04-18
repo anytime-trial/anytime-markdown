@@ -86,6 +86,7 @@ export interface SessionRow {
   readonly initial_context_tokens?: number;
   readonly interruption_reason?: string | null;
   readonly interruption_context_tokens?: number;
+  readonly compact_count?: number;
 }
 
 export interface MessageRow {
@@ -439,6 +440,7 @@ export class TrailDatabase {
       'ALTER TABLE sessions ADD COLUMN git_branch TEXT',
       'ALTER TABLE sessions ADD COLUMN interruption_reason TEXT',
       'ALTER TABLE sessions ADD COLUMN interruption_context_tokens INTEGER',
+      'ALTER TABLE sessions ADD COLUMN compact_count INTEGER',
     ];
     for (const sql of sessionAlters) {
       try { db.run(sql); } catch { /* Column already exists */ }
@@ -850,6 +852,19 @@ export class TrailDatabase {
             ORDER BY m.timestamp DESC LIMIT 1),
            0
          )`,
+    );
+
+    // 自動 /compact 検出: 連続 assistant ターンで cacheRead が 50K 以上から 70% 以上減少した回数。
+    // LAG ウィンドウ関数で前ターンの cache_read_tokens を取得して比較する。
+    db.run(
+      `UPDATE sessions SET compact_count = COALESCE((
+         SELECT COUNT(*) FROM (
+           SELECT cache_read_tokens,
+                  LAG(cache_read_tokens) OVER (ORDER BY timestamp ASC) AS prev_cr
+           FROM messages
+           WHERE session_id = sessions.id AND type = 'assistant' AND is_meta = 0
+         ) WHERE prev_cr >= 50000 AND cache_read_tokens <= prev_cr * 0.3
+       ), 0)`,
     );
   }
 

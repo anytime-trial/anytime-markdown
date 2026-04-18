@@ -35,6 +35,12 @@ CREATE TABLE IF NOT EXISTS trail_sessions (
     file_size INTEGER NOT NULL DEFAULT 0,
     imported_at TEXT NOT NULL DEFAULT '',
     commits_resolved_at TEXT,
+    -- Pre-aggregated stats (mirrored from local SQLite at sync time)
+    peak_context_tokens INTEGER,
+    initial_context_tokens INTEGER,
+    interruption_reason TEXT,
+    interruption_context_tokens INTEGER,
+    compact_count INTEGER,
     synced_at TIMESTAMPTZ DEFAULT NOW()
 );
 

@@ -56,6 +56,8 @@ export interface TrailSession {
   readonly estimatedCostUsd?: number;
   readonly errorCount?: number;
   readonly subAgentCount?: number;
+  /** 自動 /compact によりキャッシュが再構築された回数 (前ターン >= 50K かつ現ターン <= 前ターン × 0.3) */
+  readonly compactCount?: number;
 }
 
 export interface TrailSessionCommit {

@@ -1061,6 +1061,17 @@ function DailySessionList({
                     </TableCell>
                     <TableCell align="right">
                       {fmtTokens(s.usage.inputTokens + s.usage.outputTokens + s.usage.cacheReadTokens + s.usage.cacheCreationTokens)}
+                      {s.compactCount != null && s.compactCount >= 2 && (
+                        <Tooltip title={t('analytics.compactLoopTooltip')}>
+                          <Chip
+                            label={`⚠ ×${s.compactCount}`}
+                            size="small"
+                            color="warning"
+                            variant="outlined"
+                            sx={{ ml: 0.5, height: 16, fontSize: '0.65rem' }}
+                          />
+                        </Tooltip>
+                      )}
                       {(s.initialContextTokens != null || s.peakContextTokens != null) && (
                         <Typography
                           component="div"

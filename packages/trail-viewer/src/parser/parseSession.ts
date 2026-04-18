@@ -198,6 +198,16 @@ export function parseSession(
     }
   }
 
+  // 自動 /compact の検出: 連続する assistant ターンで cacheRead が
+  // 50K 以上積まれていた状態から 70% 以上減少したケースをカウント
+  let compactCount = 0;
+  const assistantWithUsage = messages.filter((m) => m.type === 'assistant' && m.usage);
+  for (let i = 1; i < assistantWithUsage.length; i++) {
+    const prev = assistantWithUsage[i - 1].usage?.cacheReadTokens ?? 0;
+    const cur = assistantWithUsage[i].usage?.cacheReadTokens ?? 0;
+    if (prev >= 50_000 && cur <= prev * 0.3) compactCount++;
+  }
+
   const session: TrailSession = {
     id: firstRaw?.sessionId ?? '',
     slug: firstRaw?.slug ?? firstAssistant?.slug ?? '',
@@ -214,6 +224,7 @@ export function parseSession(
     usage: aggregateUsage(messages),
     errorCount: errorCount > 0 ? errorCount : undefined,
     subAgentCount: subAgentCount > 0 ? subAgentCount : undefined,
+    compactCount: compactCount > 0 ? compactCount : undefined,
   };
 
   return { session, messages };

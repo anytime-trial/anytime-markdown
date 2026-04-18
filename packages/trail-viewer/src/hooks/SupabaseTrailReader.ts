@@ -39,6 +39,9 @@ interface SessionDbRow {
   readonly message_count: number;
   readonly peak_context_tokens: number | null;
   readonly initial_context_tokens: number | null;
+  readonly interruption_reason: string | null;
+  readonly interruption_context_tokens: number | null;
+  readonly compact_count: number | null;
   readonly trail_session_costs?: readonly SessionCostDbRow[];
 }
 
@@ -532,6 +535,14 @@ export class SupabaseTrailReader implements ITrailReader {
       messageCount: r.message_count,
       peakContextTokens: r.peak_context_tokens ?? undefined,
       initialContextTokens: r.initial_context_tokens ?? undefined,
+      interruption: r.interruption_reason
+        ? {
+            interrupted: true,
+            reason: r.interruption_reason as 'max_tokens' | 'no_response',
+            contextTokens: r.interruption_context_tokens ?? 0,
+          }
+        : undefined,
+      compactCount: r.compact_count && r.compact_count > 0 ? r.compact_count : undefined,
       commitStats,
       usage: {
         inputTokens: totalInput,

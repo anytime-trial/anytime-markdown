@@ -83,6 +83,11 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
       file_path: r.file_path, file_size: r.file_size,
       imported_at: r.imported_at,
       commits_resolved_at: r.commits_resolved_at ?? null,
+      peak_context_tokens: r.peak_context_tokens ?? null,
+      initial_context_tokens: r.initial_context_tokens ?? null,
+      interruption_reason: r.interruption_reason ?? null,
+      interruption_context_tokens: r.interruption_context_tokens ?? null,
+      compact_count: r.compact_count ?? null,
       synced_at: new Date().toISOString(),
     }));
     const { error } = await this.ensureClient()

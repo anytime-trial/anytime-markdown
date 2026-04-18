@@ -485,6 +485,7 @@ export class TrailDataServer {
             : undefined,
           errorCount: errorCount != null && errorCount > 0 ? errorCount : undefined,
           subAgentCount: subAgentCount != null && subAgentCount > 0 ? subAgentCount : undefined,
+          compactCount: s.compact_count != null && s.compact_count > 0 ? s.compact_count : undefined,
         };
       });
       res.writeHead(200, JSON_HEADERS);
