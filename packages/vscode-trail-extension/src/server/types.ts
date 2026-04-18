@@ -74,6 +74,7 @@ export interface TokenBudgetUpdatedMessage {
   readonly sessionLimitTokens: number | null;
   readonly alertThresholdPct: number;
   readonly turnCount: number;
+  readonly messageCount: number;
 }
 
 export type ServerMessage = DsmUpdatedMessage | AnalysisProgressMessage | DocLinksUpdatedMessage | ImportanceUpdatedMessage | ClaudeActivityUpdatedMessage | MultiAgentActivityMessage | TokenBudgetUpdatedMessage;

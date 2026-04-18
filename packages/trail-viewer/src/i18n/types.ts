@@ -47,6 +47,7 @@ export interface TrailI18n {
   'tokenBudget.session': string;
   'tokenBudget.daily': string;
   'tokenBudget.turns': string;
+  'tokenBudget.messages': string;
   // trace
   'trace.showSystemMessages': string;
   'trace.noMessages': string;

@@ -207,6 +207,10 @@ function TrailViewerCoreInner({
               <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.65rem' }}>{t('tokenBudget.turns')}</Typography>
               <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.7rem' }}>{tokenBudget.turnCount}</Typography>
             </Box>
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 40 }}>
+              <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.65rem' }}>{t('tokenBudget.messages')}</Typography>
+              <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.7rem' }}>{tokenBudget.messageCount}</Typography>
+            </Box>
           </Box>
         )}
       </Box>

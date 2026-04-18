@@ -40,6 +40,7 @@ export const ja: TrailI18n = {
   'tokenBudget.session': 'セッション',
   'tokenBudget.daily': '本日',
   'tokenBudget.turns': 'ターン',
+  'tokenBudget.messages': 'メッセージ',
   'trace.showSystemMessages': 'システムメッセージを表示',
   'trace.noMessages': 'メッセージがありません',
   'message.collapse': '折りたたむ',

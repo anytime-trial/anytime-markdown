@@ -920,9 +920,10 @@ export class TrailDataServer {
   //  JSONL real-time token helpers
   // ---------------------------------------------------------------------------
 
-  private static parseJsonlSession(jsonlPath: string): { contextTokens: number; turnCount: number } {
+  private static parseJsonlSession(jsonlPath: string): { contextTokens: number; turnCount: number; messageCount: number } {
     let contextTokens = 0;
     let turnCount = 0;
+    let messageCount = 0;
     try {
       const lines = fs.readFileSync(jsonlPath, 'utf-8').split('\n');
       for (const line of lines) {
@@ -931,16 +932,20 @@ export class TrailDataServer {
           const entry = JSON.parse(line) as { type?: string; message?: { usage?: { input_tokens?: number } } };
           if (entry.type === 'user') {
             turnCount++;
-          } else if (entry.type === 'assistant' && entry.message?.usage?.input_tokens !== undefined) {
-            contextTokens = entry.message.usage.input_tokens;
+            messageCount++;
+          } else if (entry.type === 'assistant') {
+            messageCount++;
+            if (entry.message?.usage?.input_tokens !== undefined) {
+              contextTokens = entry.message.usage.input_tokens;
+            }
           }
         } catch { /* skip malformed line */ }
       }
     } catch { /* ignore */ }
-    return { contextTokens, turnCount };
+    return { contextTokens, turnCount, messageCount };
   }
 
-  private static getSessionStatsFromJsonl(sessionId: string): { contextTokens: number; turnCount: number } {
+  private static getSessionStatsFromJsonl(sessionId: string): { contextTokens: number; turnCount: number; messageCount: number } {
     const projectsDir = path.join(os.homedir(), '.claude', 'projects');
     try {
       for (const dir of fs.readdirSync(projectsDir, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name)) {
@@ -948,7 +953,7 @@ export class TrailDataServer {
         if (fs.existsSync(p)) return TrailDataServer.parseJsonlSession(p);
       }
     } catch { /* ignore */ }
-    return { contextTokens: 0, turnCount: 0 };
+    return { contextTokens: 0, turnCount: 0, messageCount: 0 };
   }
 
   private static getDailyTokensFromJsonl(): number {
@@ -983,7 +988,7 @@ export class TrailDataServer {
           return;
         }
 
-        const { contextTokens, turnCount } = TrailDataServer.getSessionStatsFromJsonl(sessionId);
+        const { contextTokens, turnCount, messageCount } = TrailDataServer.getSessionStatsFromJsonl(sessionId);
         const dbDaily = this.trailDb.getDailyTokensToday();
         const dailyTokens = dbDaily > 0 ? dbDaily : TrailDataServer.getDailyTokensFromJsonl();
         const { dailyLimitTokens, sessionLimitTokens, alertThresholdPct } = this.tokenBudgetConfig;
@@ -997,6 +1002,7 @@ export class TrailDataServer {
           sessionLimitTokens,
           alertThresholdPct,
           turnCount,
+          messageCount,
         };
 
         const payload = JSON.stringify(status);
