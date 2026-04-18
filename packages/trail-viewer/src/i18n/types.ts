@@ -81,6 +81,7 @@ export interface TrailI18n {
   'analytics.toolUsageTitle': string;
   'analytics.sessionCacheTimelineTitle': string;
   'analytics.turns': string;
+  'analytics.compactLoopTooltip': string;
   'analytics.close': string;
   'analytics.noTokenData': string;
   'analytics.relatedCommits': string;

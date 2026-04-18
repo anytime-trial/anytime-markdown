@@ -72,6 +72,7 @@ export const ja: TrailI18n = {
   'analytics.toolUsageTitle': 'ツール使用状況',
   'analytics.sessionCacheTimelineTitle': 'セッションキャッシュタイムライン',
   'analytics.turns': 'ターン',
+  'analytics.compactLoopTooltip': '自動 compact によりキャッシュが再構築されています。トークン消費と再処理コストが増加している可能性があります。',
   'analytics.close': '閉じる',
   'analytics.noTokenData': 'このセッションにトークン使用データがありません。',
   'analytics.relatedCommits': '関連コミット',

@@ -324,6 +324,20 @@ function sessionCost(s: TrailSession): number {
   return s.estimatedCostUsd ?? 0;
 }
 
+// 連続する assistant ターンで cacheRead が急落した回数をカウント。
+// auto /compact の特徴: 直前 50K 以上積まれていて、次ターンで 70% 以上減少。
+function countCompactDrops(msgs: readonly TrailMessage[]): number {
+  const MIN_BEFORE = 50_000;
+  const DROP_RATIO = 0.3; // 直前の 30% 以下 = 70% 以上減少
+  let count = 0;
+  for (let i = 1; i < msgs.length; i++) {
+    const prev = msgs[i - 1].usage?.cacheReadTokens ?? 0;
+    const cur = msgs[i].usage?.cacheReadTokens ?? 0;
+    if (prev >= MIN_BEFORE && cur <= prev * DROP_RATIO) count++;
+  }
+  return count;
+}
+
 function SessionCacheTimeline({
   messages,
 }: Readonly<{
@@ -333,6 +347,7 @@ function SessionCacheTimeline({
   const { t } = useTrailI18n();
   const assistantMsgs = messages.filter((m) => m.type === 'assistant' && m.usage);
   const hasData = assistantMsgs.length > 0;
+  const compactDrops = useMemo(() => countCompactDrops(assistantMsgs), [assistantMsgs]);
 
   const byUuid = useMemo(() => {
     const map = new Map<string, TrailMessage>();
@@ -372,10 +387,21 @@ function SessionCacheTimeline({
 
   return (
     <Paper elevation={0} sx={{ ...cardSx, mt: 1, p: 1.5 }}>
-      <Box sx={{ mb: 1 }}>
+      <Box sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
         <Typography variant="subtitle2">
           {t('analytics.sessionCacheTimelineTitle')} {hasData && `(${assistantMsgs.length} ${t('analytics.turns')})`}
         </Typography>
+        {compactDrops >= 2 && (
+          <Tooltip title={t('analytics.compactLoopTooltip')}>
+            <Chip
+              label={`⚠ Compact ×${compactDrops}`}
+              size="small"
+              color="warning"
+              variant="outlined"
+              sx={{ height: 20, fontSize: '0.7rem' }}
+            />
+          </Tooltip>
+        )}
       </Box>
       {hasData ? (
         <LineChart

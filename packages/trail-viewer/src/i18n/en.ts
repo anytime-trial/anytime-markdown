@@ -72,6 +72,7 @@ export const en: TrailI18n = {
   'analytics.toolUsageTitle': 'Tool Usage',
   'analytics.sessionCacheTimelineTitle': 'Session Cache Timeline',
   'analytics.turns': 'turns',
+  'analytics.compactLoopTooltip': 'Cache is being rebuilt by auto /compact events. Token consumption and rework cost may be elevated.',
   'analytics.close': 'Close',
   'analytics.noTokenData': 'No token usage data in this session.',
   'analytics.relatedCommits': 'Related Commits',
