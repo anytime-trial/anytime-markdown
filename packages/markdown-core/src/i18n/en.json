@@ -704,7 +704,7 @@
     "md3Title": "Preview docs and diagrams in VS Code",
     "md3Body": "Instantly preview AI-generated Markdown in WYSIWYG. Mermaid, PlantUML, and math (KaTeX) render directly in the editor — no context switching needed.",
     "trailSectionTitle": "Anytime Trail",
-    "trail1Title": "Visualize architecture from code",
+    "trail1Title": "Code Mapping",
     "trail1Body": "Analyze TypeScript projects to auto-generate C4 architecture diagrams and DSM (Dependency Structure Matrix). Drill down from system overview to individual files across four levels (L1–L4), with circular dependencies highlighted in red at a glance.",
     "trail2Title": "Real-time Visualization",
     "trail2Body": "Analysis results stream instantly from VS Code to the browser viewer. Files being edited by your AI agents are highlighted on the graph in real time — a control-tower view of the entire codebase.",

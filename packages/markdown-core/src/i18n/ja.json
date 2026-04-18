@@ -704,7 +704,7 @@
     "md3Title": "VS Code で文書も図表もプレビュー",
     "md3Body": "AIが生成したMarkdownをWYSIWYGで即確認。Mermaid・PlantUML・数式（KaTeX）もエディタ内で直接プレビューでき、コンテキストスイッチなしで完結します。",
     "trailSectionTitle": "Anytime Trail",
-    "trail1Title": "コードからアーキテクチャを可視化",
+    "trail1Title": "コードをマップ化",
     "trail1Body": "TypeScriptプロジェクトを解析し、C4アーキテクチャ図とDSM（依存構造マトリクス）を自動生成。L1〜L4の4段階でシステム全体から個別ファイルまでドリルダウンし、循環依存は赤枠でひと目で把握できます。",
     "trail2Title": "リアルタイム可視化",
     "trail2Body": "VS Codeでの解析結果がブラウザビューアにリアルタイム反映。AIエージェントが現在編集中のファイルをグラフ上にリアルタイム表示し、管制塔のようにコードベース全体を俯瞰できます。",
