@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
+import Typography from '@mui/material/Typography';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 
@@ -97,8 +98,6 @@ export function TraceTimeline({
     scrollToMessage(uuid);
   }, [onSelectMessage]);
 
-  if (assistantMessages.length === 0) return null;
-
   return (
     <Box
       sx={{
@@ -129,7 +128,25 @@ export function TraceTimeline({
         {collapsed ? <KeyboardArrowDownIcon fontSize="small" /> : <KeyboardArrowUpIcon fontSize="small" />}
       </IconButton>
 
-      {!collapsed && (
+      {!collapsed && assistantMessages.length === 0 && (
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 36,
+            bottom: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Typography variant="caption" sx={{ color: colors.textSecondary }}>
+            データなし
+          </Typography>
+        </Box>
+      )}
+      {!collapsed && assistantMessages.length > 0 && (
         <Box
           sx={{
             position: 'absolute',

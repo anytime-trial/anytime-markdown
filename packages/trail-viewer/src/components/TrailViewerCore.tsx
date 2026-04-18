@@ -266,21 +266,29 @@ function TrailViewerCoreInner({
           </Box>
 
           <Box sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            {selectedSessionId && messages.length > 0 ? (
+            {selectedSessionId ? (
               <>
                 <TraceTimeline
                   nodes={buildMessageTree(messages)}
                   session={selectedSession}
                   onSelectMessage={() => { /* scroll handled inside component */ }}
                 />
-                <Box sx={{ flex: 1, overflow: 'auto', ...scrollbarSx }}>
-                  <TraceTree nodes={buildMessageTree(messages)} session={selectedSession} />
-                </Box>
+                {messages.length > 0 ? (
+                  <Box sx={{ flex: 1, overflow: 'auto', ...scrollbarSx }}>
+                    <TraceTree nodes={buildMessageTree(messages)} session={selectedSession} />
+                  </Box>
+                ) : (
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
+                    <Typography variant="body2" sx={{ color: colors.textSecondary }}>
+                      {t('viewer.loading')}
+                    </Typography>
+                  </Box>
+                )}
               </>
             ) : (
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
                 <Typography variant="body2" sx={{ color: colors.textSecondary }}>
-                  {selectedSessionId ? t('viewer.loading') : t('viewer.selectSession')}
+                  {t('viewer.selectSession')}
                 </Typography>
               </Box>
             )}
