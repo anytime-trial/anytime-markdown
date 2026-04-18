@@ -116,7 +116,7 @@ export function SessionList({ sessions, selectedId, onSelect }: Readonly<Session
                       label={`${session.errorCount} errors`}
                       size="small"
                       variant="outlined"
-                      sx={{ height: 20, fontSize: '0.7rem', borderColor: 'error.main', color: 'error.main' }}
+                      sx={{ height: 20, fontSize: '0.7rem', borderColor: colors.iceBlue }}
                     />
                   )}
                 </Box>

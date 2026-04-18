@@ -1008,7 +1008,7 @@ function DailySessionList({
                       {fmtUsd(sessionCost(s))}
                     </TableCell>
                     <TableCell align="right">{fmtNum(s.messageCount)}</TableCell>
-                    <TableCell align="right" sx={{ color: s.errorCount != null && s.errorCount > 0 ? 'error.main' : colors.textSecondary, fontWeight: s.errorCount != null && s.errorCount > 0 ? 600 : 400 }}>
+                    <TableCell align="right">
                       {s.errorCount != null && s.errorCount > 0 ? fmtNum(s.errorCount) : '\u2014'}
                     </TableCell>
                     <TableCell align="right" sx={{ fontFamily: 'monospace', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
