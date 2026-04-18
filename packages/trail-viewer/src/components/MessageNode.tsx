@@ -2,10 +2,12 @@ import { useState } from 'react';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import ButtonBase from '@mui/material/ButtonBase';
+import Chip from '@mui/material/Chip';
 import Collapse from '@mui/material/Collapse';
 import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
 import BuildIcon from '@mui/icons-material/Build';
+import CommitIcon from '@mui/icons-material/Commit';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import PersonIcon from '@mui/icons-material/Person';
 import SettingsIcon from '@mui/icons-material/Settings';
@@ -98,6 +100,7 @@ export function MessageNode({
 
   return (
     <Box
+      data-message-uuid={message.uuid}
       sx={{
         display: 'flex',
         flexDirection: isUser ? 'row-reverse' : 'row',
@@ -187,9 +190,32 @@ export function MessageNode({
           )}
 
           {hasToolCalls && message.toolCalls?.map((tc) => (
-            <ToolCallEntry key={tc.id} toolCall={tc} isUserSide={isUser} />
+            <ToolCallEntry key={tc.id} toolCall={tc} isUserSide={isUser} commitHashes={message.triggerCommitHashes} />
           ))}
         </Box>
+
+        {message.triggerCommitHashes && message.triggerCommitHashes.length > 0 && (
+          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 0.5 }}>
+            {message.triggerCommitHashes.map((hash) => (
+              <Chip
+                key={hash}
+                label={`#${hash.slice(0, 7)}`}
+                size="small"
+                icon={<CommitIcon sx={{ fontSize: 14 }} />}
+                sx={{
+                  height: 20,
+                  fontSize: '0.7rem',
+                  color: colors.iceBlue,
+                  borderColor: colors.iceBlue,
+                  bgcolor: 'transparent',
+                  border: '1px solid',
+                  '& .MuiChip-icon': { color: colors.iceBlue },
+                }}
+                aria-label={`commit ${hash}`}
+              />
+            ))}
+          </Box>
+        )}
       </Box>
     </Box>
   );
@@ -198,7 +224,8 @@ export function MessageNode({
 function ToolCallEntry({
   toolCall,
   isUserSide,
-}: Readonly<{ toolCall: TrailToolCall; isUserSide: boolean }>) {
+  commitHashes,
+}: Readonly<{ toolCall: TrailToolCall; isUserSide: boolean; commitHashes?: readonly string[] }>) {
   const { colors } = useTrailTheme();
   const { t } = useTrailI18n();
   const [expanded, setExpanded] = useState(false);
@@ -236,7 +263,7 @@ function ToolCallEntry({
         </Typography>
       </ButtonBase>
       <Collapse in={expanded}>
-        <ToolCallDetail toolCall={toolCall} />
+        <ToolCallDetail toolCall={toolCall} commitHashes={commitHashes} />
       </Collapse>
     </Box>
   );

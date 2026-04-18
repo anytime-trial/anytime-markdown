@@ -121,11 +121,12 @@ export type CombinedRangeDays = 30 | 90;
 
 // --- Domain types (re-exported from trail-core) ---
 
+import type { TrailMessage as _TrailMessage } from '@anytime-markdown/trail-core/domain';
+
 /** @deprecated Import from '@anytime-markdown/trail-core/domain' directly */
 export type {
   TrailTokenUsage,
   TrailToolCall,
-  TrailMessage,
   TrailSession,
   TrailSessionCommit,
   ToolMetrics,
@@ -136,3 +137,7 @@ export type {
   TrailPromptEntry,
   TrailEvaluation,
 } from '@anytime-markdown/trail-core/domain';
+
+export type TrailMessage = _TrailMessage & {
+  readonly triggerCommitHashes?: readonly string[];
+};

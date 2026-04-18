@@ -534,6 +534,13 @@ export class TrailDataServer {
       }
 
       const rawMessages: MessageRow[] = this.trailDb.getMessages(sessionId);
+      const messageCommits = this.trailDb.getMessageCommitsBySession(sessionId);
+      const commitsByMessageUuid = new Map<string, string[]>();
+      for (const mc of messageCommits) {
+        const arr = commitsByMessageUuid.get(mc.messageUuid) ?? [];
+        arr.push(mc.commitHash);
+        commitsByMessageUuid.set(mc.messageUuid, arr);
+      }
       const messages = rawMessages.map((m) => ({
         uuid: m.uuid,
         parentUuid: m.parent_uuid,
@@ -553,6 +560,7 @@ export class TrailDataServer {
           : undefined,
         timestamp: m.timestamp,
         isSidechain: m.is_sidechain === 1,
+        triggerCommitHashes: commitsByMessageUuid.get(m.uuid),
       }));
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ session, messages }));

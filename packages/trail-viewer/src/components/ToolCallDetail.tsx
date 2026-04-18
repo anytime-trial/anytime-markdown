@@ -1,6 +1,8 @@
 import Box from '@mui/material/Box';
+import Chip from '@mui/material/Chip';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
+import CommitIcon from '@mui/icons-material/Commit';
 
 import type { TrailToolCall } from '../parser/types';
 import { useTrailI18n } from '../i18n';
@@ -8,6 +10,7 @@ import { useTrailTheme } from './TrailThemeContext';
 
 interface ToolCallDetailProps {
   readonly toolCall: TrailToolCall;
+  readonly commitHashes?: readonly string[];
 }
 
 function formatJson(value: Record<string, unknown> | string): string {
@@ -19,9 +22,13 @@ function formatJson(value: Record<string, unknown> | string): string {
 
 export function ToolCallDetail({
   toolCall,
+  commitHashes,
 }: Readonly<ToolCallDetailProps>) {
   const { cardSx, codeSx, colors, scrollbarSx } = useTrailTheme();
   const { t } = useTrailI18n();
+  const isGitCommitBash = toolCall.name === 'Bash'
+    && typeof toolCall.input?.command === 'string'
+    && (toolCall.input.command as string).includes('git commit');
   return (
     <Paper
       elevation={0}
@@ -31,9 +38,29 @@ export function ToolCallDetail({
         ...cardSx,
       }}
     >
-      <Typography variant="subtitle2" sx={{ mb: 1 }}>
-        {toolCall.name}
-      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+        <Typography variant="subtitle2">
+          {toolCall.name}
+        </Typography>
+        {isGitCommitBash && commitHashes && commitHashes.length > 0 && commitHashes.map((hash) => (
+          <Chip
+            key={hash}
+            label={`#${hash.slice(0, 7)}`}
+            size="small"
+            icon={<CommitIcon sx={{ fontSize: 12 }} />}
+            sx={{
+              height: 18,
+              fontSize: '0.65rem',
+              color: colors.iceBlue,
+              borderColor: colors.iceBlue,
+              bgcolor: 'transparent',
+              border: '1px solid',
+              '& .MuiChip-icon': { color: colors.iceBlue },
+            }}
+            aria-label={`commit ${hash}`}
+          />
+        ))}
+      </Box>
 
       <Box sx={{ mb: toolCall.result ? 1 : 0 }}>
         <Typography
