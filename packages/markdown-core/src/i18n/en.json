@@ -710,7 +710,7 @@
     "trail2Body": "Analysis results stream instantly from VS Code to the browser viewer. Files being edited by your AI agents are highlighted on the graph in real time — a control-tower view of the entire codebase.",
     "trail3Title": "Traceability",
     "trail3Body": "Automatically collect Claude Code work logs to record what each AI did and when. Centralize costs by model, tool usage, and commit history — enabling complete tracking and verification of every AI action.",
-    "trail4Title": "Visual Context Sharing",
+    "trail4Title": "Visual AI Briefing",
     "trail4Body": "Paste screenshots and annotations into Agent Note to share visual context with your AI assistant. With skills, you can issue work instructions referencing the note in a single command.",
     "featuresTitle": "Key Features",
     "feature1Title": "WYSIWYG Editor",
