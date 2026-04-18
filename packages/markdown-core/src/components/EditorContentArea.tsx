@@ -131,7 +131,7 @@ export function EditorContentArea({
           onSwitchToReview={onSwitchToReview} onSwitchToWysiwyg={onSwitchToWysiwyg} onSwitchToSource={onSwitchToSource}
         />}
         <div ref={frontmatterRef}>
-          <FrontmatterBlock frontmatter={frontmatterText} onChange={handleFrontmatterChange} readOnly={readonlyMode || reviewMode} defaultCollapsed={readonlyMode} t={t} />
+          <FrontmatterBlock frontmatter={frontmatterText} onChange={handleFrontmatterChange} readOnly={readonlyMode || reviewMode} defaultCollapsed={true} t={t} />
         </div>
         <Paper
           id="md-editor-content"
