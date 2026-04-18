@@ -421,6 +421,7 @@ export class TrailDatabase {
     this.migrateTrailGraphsTable(db);
     db.run(CREATE_SKILL_MODELS_TABLE);
     db.run(CREATE_SKILL_MODELS_RESOLVED_VIEW);
+    db.run(CREATE_MESSAGE_COMMITS);
     for (const sql of [...CREATE_INDEXES, ...CREATE_RELEASE_INDEXES]) {
       db.run(sql);
     }
@@ -435,8 +436,6 @@ export class TrailDatabase {
       // Already exists — ignore
     }
 
-    // message_commits table and migration
-    db.run(CREATE_MESSAGE_COMMITS);
     this.migrateMessageCommitsSchema(db);
 
     // Add columns for existing DBs (may already exist)

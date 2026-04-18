@@ -4,7 +4,9 @@ import type { Database } from 'sql.js';
 import type {
   ISessionRepository,
   SessionStats,
+  MessageCommitInput,
 } from '@anytime-markdown/trail-core';
+import type { TrailMessageCommit } from '@anytime-markdown/trail-core/domain';
 
 export class SqliteSessionRepository implements ISessionRepository {
   constructor(private readonly db: Database) {}
@@ -41,5 +43,45 @@ export class SqliteSessionRepository implements ISessionRepository {
       totalCacheReadTokens: cacheRead as number,
       totalDurationMs: dur as number,
     };
+  }
+
+  insertMessageCommit(input: MessageCommitInput): void {
+    this.db.run(
+      `INSERT OR IGNORE INTO message_commits (message_uuid, session_id, commit_hash, detected_at, match_confidence)
+       VALUES (?, ?, ?, ?, ?)`,
+      [input.messageUuid, input.sessionId, input.commitHash, input.detectedAt, input.matchConfidence],
+    );
+  }
+
+  getMessageCommitsBySession(sessionId: string): readonly TrailMessageCommit[] {
+    const result = this.db.exec(
+      `SELECT message_uuid, session_id, commit_hash, detected_at, match_confidence
+       FROM message_commits WHERE session_id = ?`,
+      [sessionId],
+    );
+    if (!result[0]?.values) return [];
+    return result[0].values.map(([messageUuid, sid, commitHash, detectedAt, matchConfidence]) => ({
+      messageUuid: messageUuid as string,
+      sessionId: sid as string,
+      commitHash: commitHash as string,
+      detectedAt: detectedAt as string,
+      matchConfidence: matchConfidence as TrailMessageCommit['matchConfidence'],
+    }));
+  }
+
+  markMessageCommitsResolved(sessionId: string, resolvedAt: string): void {
+    this.db.run(
+      `UPDATE sessions SET message_commits_resolved_at = ? WHERE id = ?`,
+      [resolvedAt, sessionId],
+    );
+  }
+
+  isMessageCommitsResolved(sessionId: string): boolean {
+    const result = this.db.exec(
+      `SELECT message_commits_resolved_at FROM sessions WHERE id = ?`,
+      [sessionId],
+    );
+    const val = result[0]?.values?.[0]?.[0];
+    return typeof val === 'string' && val.length > 0;
   }
 }
