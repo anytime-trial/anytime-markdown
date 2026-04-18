@@ -160,9 +160,9 @@ export class SupabaseTrailReader implements ITrailReader {
     const allCosts = (costData ?? []) as readonly SessionCostDbRow[];
 
     const { data: dailyCostData } = await this.client
-      .from('trail_daily_costs')
-      .select('*')
-      .eq('cost_type', 'actual')
+      .from('trail_daily_counts')
+      .select('date,input_tokens,output_tokens,cache_read_tokens,cache_creation_tokens,estimated_cost_usd')
+      .eq('kind', 'cost_actual')
       .order('date');
 
     const { data: commits } = await this.client
@@ -237,13 +237,13 @@ export class SupabaseTrailReader implements ITrailReader {
 
   async getCostOptimization(): Promise<CostOptimizationData | null> {
     const { data, error } = await this.client
-      .from('trail_daily_costs')
-      .select('*')
-      .in('cost_type', ['actual', 'skill'])
+      .from('trail_daily_counts')
+      .select('date,kind,key,estimated_cost_usd')
+      .in('kind', ['cost_actual', 'cost_skill'])
       .order('date');
     if (error || !data) return null;
 
-    const rows = data as readonly { date: string; model: string; cost_type: string; estimated_cost_usd: number }[];
+    const rows = data as readonly { date: string; kind: string; key: string; estimated_cost_usd: number }[];
 
     const actualByModel: Record<string, number> = {};
     const skillByModel: Record<string, number> = {};
@@ -251,11 +251,11 @@ export class SupabaseTrailReader implements ITrailReader {
 
     for (const r of rows) {
       const entry = dailyMap.get(r.date) ?? { actualCost: 0, skillCost: 0 };
-      if (r.cost_type === 'actual') {
-        actualByModel[r.model] = (actualByModel[r.model] ?? 0) + r.estimated_cost_usd;
+      if (r.kind === 'cost_actual') {
+        actualByModel[r.key] = (actualByModel[r.key] ?? 0) + r.estimated_cost_usd;
         entry.actualCost += r.estimated_cost_usd;
-      } else if (r.cost_type === 'skill') {
-        skillByModel[r.model] = (skillByModel[r.model] ?? 0) + r.estimated_cost_usd;
+      } else if (r.kind === 'cost_skill') {
+        skillByModel[r.key] = (skillByModel[r.key] ?? 0) + r.estimated_cost_usd;
         entry.skillCost += r.estimated_cost_usd;
       }
       dailyMap.set(r.date, entry);
