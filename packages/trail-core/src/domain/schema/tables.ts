@@ -14,7 +14,13 @@ export const CREATE_SESSIONS = `CREATE TABLE IF NOT EXISTS sessions (
   file_path TEXT NOT NULL DEFAULT '',
   file_size INTEGER NOT NULL DEFAULT 0,
   imported_at TEXT NOT NULL DEFAULT '',
-  commits_resolved_at TEXT
+  commits_resolved_at TEXT,
+  -- Pre-aggregated stats (populated in rebuildSessionStats after importAll).
+  peak_context_tokens INTEGER,
+  initial_context_tokens INTEGER,
+  git_branch TEXT,
+  interruption_reason TEXT,
+  interruption_context_tokens INTEGER
 )`;
 
 export const CREATE_SESSION_COSTS = `CREATE TABLE IF NOT EXISTS session_costs (
@@ -28,16 +34,21 @@ export const CREATE_SESSION_COSTS = `CREATE TABLE IF NOT EXISTS session_costs (
   PRIMARY KEY (session_id, model)
 )`;
 
-export const CREATE_DAILY_COSTS = `CREATE TABLE IF NOT EXISTS daily_costs (
+// 統合日次集計テーブル。kind で cost_actual / cost_skill / tool / skill / error / model を識別。
+// 従来の daily_costs も cost_actual / cost_skill として本テーブルに統合している。
+export const CREATE_DAILY_COUNTS = `CREATE TABLE IF NOT EXISTS daily_counts (
   date TEXT NOT NULL,
-  model TEXT NOT NULL,
-  cost_type TEXT NOT NULL DEFAULT 'actual',
+  kind TEXT NOT NULL,
+  key TEXT NOT NULL,
+  count INTEGER NOT NULL DEFAULT 0,
+  tokens INTEGER NOT NULL DEFAULT 0,
   input_tokens INTEGER NOT NULL DEFAULT 0,
   output_tokens INTEGER NOT NULL DEFAULT 0,
   cache_read_tokens INTEGER NOT NULL DEFAULT 0,
   cache_creation_tokens INTEGER NOT NULL DEFAULT 0,
+  duration_ms INTEGER NOT NULL DEFAULT 0,
   estimated_cost_usd REAL NOT NULL DEFAULT 0,
-  PRIMARY KEY (date, model, cost_type)
+  PRIMARY KEY (date, kind, key)
 )`;
 
 export const CREATE_MESSAGES = `CREATE TABLE IF NOT EXISTS messages (

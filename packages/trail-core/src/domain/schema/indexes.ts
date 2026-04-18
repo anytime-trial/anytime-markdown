@@ -5,10 +5,10 @@ export const CREATE_INDEXES = [
   'CREATE INDEX IF NOT EXISTS idx_messages_type ON messages(type)',
   'CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp)',
   'CREATE INDEX IF NOT EXISTS idx_messages_parent_uuid ON messages(parent_uuid)',
+  'CREATE INDEX IF NOT EXISTS idx_messages_session_type_ts ON messages(session_id, type, timestamp)',
   'CREATE INDEX IF NOT EXISTS idx_session_commits_session ON session_commits(session_id)',
   'CREATE INDEX IF NOT EXISTS idx_session_costs_session ON session_costs(session_id)',
-  'CREATE INDEX IF NOT EXISTS idx_daily_costs_date ON daily_costs(date)',
-  'CREATE INDEX IF NOT EXISTS idx_daily_costs_type ON daily_costs(cost_type)',
+  'CREATE INDEX IF NOT EXISTS idx_daily_counts_kind_date ON daily_counts(kind, date)',
 ];
 
 export const CREATE_RELEASE_INDEXES = [

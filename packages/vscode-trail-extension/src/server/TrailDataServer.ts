@@ -449,27 +449,25 @@ export class TrailDataServer {
 
       const rawSessions = this.trailDb.getSessions(filters);
       const sessionIds = rawSessions.map((s) => s.id);
-      const contextStats = this.trailDb.getSessionContextStats(sessionIds);
       const commitStats = this.trailDb.getSessionCommitStats(sessionIds);
-      const interruptions = this.trailDb.getSessionInterruptions(sessionIds);
-      const branchMap = this.trailDb.getSessionBranches(sessionIds);
       const sessions = rawSessions.map((s) => {
-        const stats = contextStats.get(s.id);
         const cStats = commitStats.get(s.id);
-        const intr = interruptions.get(s.id);
+        const interruptionReason = (s.interruption_reason ?? null) as 'max_tokens' | 'no_response' | null;
         return {
           id: s.id,
           slug: s.slug,
           project: s.project,
-          gitBranch: branchMap.get(s.id) ?? '',
+          gitBranch: s.git_branch ?? '',
           model: s.model,
           version: s.version,
           startTime: s.start_time,
           endTime: s.end_time,
           messageCount: s.message_count,
-          peakContextTokens: stats?.peak ?? 0,
-          initialContextTokens: stats?.initial ?? 0,
-          interruption: intr ?? undefined,
+          peakContextTokens: s.peak_context_tokens ?? 0,
+          initialContextTokens: s.initial_context_tokens ?? 0,
+          interruption: interruptionReason
+            ? { interrupted: true, reason: interruptionReason, contextTokens: s.interruption_context_tokens ?? 0 }
+            : undefined,
           usage: {
             inputTokens: s.input_tokens ?? 0,
             outputTokens: s.output_tokens ?? 0,

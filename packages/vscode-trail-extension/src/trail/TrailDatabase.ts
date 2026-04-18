@@ -7,7 +7,7 @@ import { toUTC, getSqliteTzOffset } from './dateUtils';
 import {
   CREATE_SESSIONS,
   CREATE_SESSION_COSTS,
-  CREATE_DAILY_COSTS,
+  CREATE_DAILY_COUNTS,
   CREATE_MESSAGES,
   CREATE_SESSION_COMMITS,
   CREATE_IMPORTED_FILES,
@@ -84,6 +84,8 @@ export interface SessionRow {
   readonly cache_creation_tokens?: number;
   readonly peak_context_tokens?: number;
   readonly initial_context_tokens?: number;
+  readonly interruption_reason?: string | null;
+  readonly interruption_context_tokens?: number;
 }
 
 export interface MessageRow {
@@ -409,7 +411,7 @@ export class TrailDatabase {
     db.run('PRAGMA foreign_keys = ON');
     db.run(CREATE_SESSIONS);
     db.run(CREATE_SESSION_COSTS);
-    db.run(CREATE_DAILY_COSTS);
+    db.run(CREATE_DAILY_COUNTS);
     db.run(CREATE_MESSAGES);
     db.run(CREATE_SESSION_COMMITS);
     db.run(CREATE_RELEASES);
@@ -438,10 +440,16 @@ export class TrailDatabase {
     }
 
     // Add columns for existing DBs (may already exist)
-    try {
-      db.run('ALTER TABLE sessions ADD COLUMN commits_resolved_at TEXT');
-    } catch {
-      // Column already exists — ignore
+    const sessionAlters = [
+      'ALTER TABLE sessions ADD COLUMN commits_resolved_at TEXT',
+      'ALTER TABLE sessions ADD COLUMN peak_context_tokens INTEGER',
+      'ALTER TABLE sessions ADD COLUMN initial_context_tokens INTEGER',
+      'ALTER TABLE sessions ADD COLUMN git_branch TEXT',
+      'ALTER TABLE sessions ADD COLUMN interruption_reason TEXT',
+      'ALTER TABLE sessions ADD COLUMN interruption_context_tokens INTEGER',
+    ];
+    for (const sql of sessionAlters) {
+      try { db.run(sql); } catch { /* Column already exists */ }
     }
     const messageAlters = [
       'ALTER TABLE messages ADD COLUMN rule_recommended_model TEXT',
@@ -741,15 +749,18 @@ export class TrailDatabase {
     estimated_cost_usd: number;
   }[] {
     const db = this.ensureDb();
+    // daily_counts の cost_actual / cost_skill 行を従来の daily_costs シェイプに変換して返す
     const result = db.exec(
-      `SELECT date, model, cost_type, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, estimated_cost_usd
-       FROM daily_costs`,
+      `SELECT date, SUBSTR(kind, 6) AS cost_type, key AS model,
+              input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, estimated_cost_usd
+       FROM daily_counts
+       WHERE kind IN ('cost_actual', 'cost_skill')`,
     );
     if (!result[0]) return [];
     return result[0].values.map((r) => ({
       date: r[0] as string,
-      model: r[1] as string,
-      cost_type: r[2] as string,
+      cost_type: r[1] as string,
+      model: r[2] as string,
       input_tokens: r[3] as number,
       output_tokens: r[4] as number,
       cache_read_tokens: r[5] as number,
@@ -805,20 +816,75 @@ export class TrailDatabase {
     stmt.free();
   }
 
-  /** Delete and rebuild daily_costs from all messages in a single pass. */
-  private rebuildDailyCosts(): void {
+  /**
+   * Populate per-session pre-aggregated stat columns (peak_context_tokens,
+   * initial_context_tokens, git_branch, interruption_reason, interruption_context_tokens)
+   * in a single pass. Avoids expensive per-read GROUP BY scans over messages.
+   */
+  private rebuildSessionStats(): void {
+    const db = this.ensureDb();
+
+    // Peak context + initial context (cache_creation_tokens of first assistant message)
+    db.run(
+      `UPDATE sessions SET
+         peak_context_tokens = (
+           SELECT MAX(COALESCE(m.input_tokens, 0) + COALESCE(m.cache_read_tokens, 0) + COALESCE(m.cache_creation_tokens, 0))
+           FROM messages m WHERE m.session_id = sessions.id
+         ),
+         initial_context_tokens = (
+           SELECT COALESCE(m.cache_creation_tokens, 0)
+           FROM messages m
+           WHERE m.session_id = sessions.id AND m.type = 'assistant'
+           ORDER BY m.timestamp ASC LIMIT 1
+         ),
+         git_branch = (
+           SELECT m.git_branch FROM messages m
+           WHERE m.session_id = sessions.id AND m.git_branch IS NOT NULL AND m.git_branch != ''
+           ORDER BY m.rowid ASC LIMIT 1
+         )`,
+    );
+
+    // Interruption detection:
+    //   1) last assistant has stop_reason='max_tokens' → max_tokens
+    //   2) last non-meta message is 'user' (no assistant response follows) → no_response
+    db.run(
+      `UPDATE sessions SET
+         interruption_reason = CASE
+           WHEN (SELECT m.stop_reason FROM messages m
+                 WHERE m.session_id = sessions.id AND m.type = 'assistant' AND m.is_meta = 0
+                 ORDER BY m.timestamp DESC LIMIT 1) = 'max_tokens' THEN 'max_tokens'
+           WHEN (SELECT m.type FROM messages m
+                 WHERE m.session_id = sessions.id AND m.is_meta = 0 AND m.type IN ('user','assistant')
+                 ORDER BY m.timestamp DESC LIMIT 1) = 'user' THEN 'no_response'
+           ELSE NULL
+         END,
+         interruption_context_tokens = COALESCE(
+           (SELECT COALESCE(m.input_tokens, 0) + COALESCE(m.cache_read_tokens, 0) + COALESCE(m.cache_creation_tokens, 0)
+            FROM messages m
+            WHERE m.session_id = sessions.id AND m.type = 'assistant' AND m.is_meta = 0
+            ORDER BY m.timestamp DESC LIMIT 1),
+           0
+         )`,
+    );
+  }
+
+  /**
+   * Delete and rebuild daily_counts for all 6 kinds in a single pass.
+   * kinds: cost_actual / cost_skill / tool / skill / error / model
+   */
+  private rebuildDailyCounts(): void {
     const db = this.ensureDb();
     const tzOffset = this.getLocalTzOffset();
 
-    db.run('DELETE FROM daily_costs');
+    db.run('DELETE FROM daily_counts');
 
-    const INSERT_DC = `INSERT INTO daily_costs
-      (date, model, cost_type, input_tokens, output_tokens,
-       cache_read_tokens, cache_creation_tokens, estimated_cost_usd)
-      VALUES (?,?,?,?,?,?,?,?)`;
+    const INSERT_DC = `INSERT INTO daily_counts
+      (date, kind, key, count, tokens, input_tokens, output_tokens,
+       cache_read_tokens, cache_creation_tokens, duration_ms, estimated_cost_usd)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?)`;
     const stmt = db.prepare(INSERT_DC);
 
-    // actual
+    // ── kind='cost_actual' : assistant メッセージ日次トークン・コスト ──
     const actual = db.exec(
       `SELECT DATE(timestamp, '${tzOffset}'), COALESCE(model,''),
         SUM(input_tokens), SUM(output_tokens),
@@ -830,7 +896,7 @@ export class TrailDatabase {
       const d = String(row[0]); const m = String(row[1]);
       const inp = Number(row[2]); const outp = Number(row[3]);
       const cr = Number(row[4]); const cc = Number(row[5]);
-      stmt.run([d, m, 'actual', inp, outp, cr, cc, estimateCost(m, inp, outp, cr, cc)]);
+      stmt.run([d, 'cost_actual', m, 0, 0, inp, outp, cr, cc, 0, estimateCost(m, inp, outp, cr, cc)]);
     }
 
     // Auto-register new skills that are not yet in skill_models
@@ -842,7 +908,7 @@ export class TrailDatabase {
          AND m.skill NOT IN (SELECT skill FROM skill_models)`,
     );
 
-    // skill (uses skill_models_resolved view, defaults to 'sonnet' for unmatched)
+    // ── kind='cost_skill' : スキル推奨モデルでの仮想コスト ──
     const skill = db.exec(
       `SELECT DATE(a.timestamp, '${tzOffset}'),
         COALESCE(sm.recommended_model, 'sonnet'),
@@ -858,7 +924,75 @@ export class TrailDatabase {
       const d = String(row[0]); const m = String(row[1]);
       const inp = Number(row[2]); const outp = Number(row[3]);
       const cr = Number(row[4]); const cc = Number(row[5]);
-      stmt.run([d, m, 'skill', inp, outp, cr, cc, estimateCost(m, inp, outp, cr, cc)]);
+      stmt.run([d, 'cost_skill', m, 0, 0, inp, outp, cr, cc, 0, estimateCost(m, inp, outp, cr, cc)]);
+    }
+
+    // ── kind='tool' : メッセージトークン/ターン時間按分のツール別日次集計 ──
+    const tools = db.exec(
+      `WITH tool_with_metrics AS (
+         SELECT tc.session_id, tc.message_uuid, tc.turn_index, tc.tool_name, tc.timestamp,
+                COALESCE(m.input_tokens, 0) + COALESCE(m.output_tokens, 0) AS msg_tokens,
+                COUNT(*) OVER (PARTITION BY tc.message_uuid) AS tools_in_msg,
+                COALESCE(tc.turn_exec_ms, 0) AS turn_exec_ms,
+                COUNT(*) OVER (PARTITION BY tc.session_id, tc.turn_index) AS tools_in_turn
+         FROM message_tool_calls tc
+         LEFT JOIN messages m ON m.uuid = tc.message_uuid
+       )
+       SELECT DATE(timestamp, '${tzOffset}') AS d,
+              CASE
+                WHEN tool_name LIKE 'mcp\\_\\_%\\_\\_%' ESCAPE '\\'
+                THEN SUBSTR(tool_name, 1, INSTR(SUBSTR(tool_name, 6), '__') + 4)
+                ELSE tool_name
+              END AS tool,
+              COUNT(*) AS count,
+              CAST(SUM(ROUND(1.0 * msg_tokens / tools_in_msg)) AS INTEGER) AS tokens,
+              CAST(SUM(ROUND(1.0 * turn_exec_ms / tools_in_turn)) AS INTEGER) AS duration_ms
+       FROM tool_with_metrics
+       GROUP BY d, tool`,
+    );
+    for (const row of tools[0]?.values ?? []) {
+      stmt.run([String(row[0]), 'tool', String(row[1] ?? ''), Number(row[2] ?? 0), Number(row[3] ?? 0), 0, 0, 0, 0, Number(row[4] ?? 0), 0]);
+    }
+
+    // ── kind='skill' : スキル別日次集計 ──
+    const skillCounts = db.exec(
+      `SELECT DATE(timestamp, '${tzOffset}') AS d, skill_name, COUNT(*) AS count
+       FROM message_tool_calls
+       WHERE skill_name IS NOT NULL
+       GROUP BY d, skill_name`,
+    );
+    for (const row of skillCounts[0]?.values ?? []) {
+      stmt.run([String(row[0]), 'skill', String(row[1] ?? ''), Number(row[2] ?? 0), 0, 0, 0, 0, 0, 0, 0]);
+    }
+
+    // ── kind='error' : ツール別エラー日次集計 ──
+    const errors = db.exec(
+      `SELECT DATE(timestamp, '${tzOffset}') AS d,
+              CASE
+                WHEN tool_name LIKE 'mcp\\_\\_%\\_\\_%' ESCAPE '\\'
+                THEN SUBSTR(tool_name, 1, INSTR(SUBSTR(tool_name, 6), '__') + 4)
+                ELSE tool_name
+              END AS tool,
+              SUM(is_error) AS err_count
+       FROM message_tool_calls
+       GROUP BY d, tool
+       HAVING err_count > 0`,
+    );
+    for (const row of errors[0]?.values ?? []) {
+      stmt.run([String(row[0]), 'error', String(row[1] ?? ''), Number(row[2] ?? 0), 0, 0, 0, 0, 0, 0, 0]);
+    }
+
+    // ── kind='model' : assistant メッセージ数のモデル別日次集計 ──
+    const modelCounts = db.exec(
+      `SELECT DATE(timestamp, '${tzOffset}') AS d, model,
+              COUNT(*) AS count,
+              CAST(SUM(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)) AS INTEGER) AS tokens
+       FROM messages
+       WHERE type = 'assistant' AND model IS NOT NULL
+       GROUP BY d, model`,
+    );
+    for (const row of modelCounts[0]?.values ?? []) {
+      stmt.run([String(row[0]), 'model', String(row[1] ?? ''), Number(row[2] ?? 0), Number(row[3] ?? 0), 0, 0, 0, 0, 0, 0]);
     }
 
     stmt.free();
@@ -1450,13 +1584,10 @@ export class TrailDatabase {
       }
     }
 
-    // Rebuild session_costs and daily_costs from all messages
+    // Rebuild session_costs and daily_counts from all messages / tool_calls
     onProgress?.('Rebuilding session costs...', 0);
     this.rebuildSessionCosts();
     onProgress?.('Session costs rebuilt', 0);
-    onProgress?.('Rebuilding daily costs...', 0);
-    this.rebuildDailyCosts();
-    onProgress?.('Daily costs rebuilt', 0);
 
     // Analyze Claude Code behavior for all sessions (INSERT OR IGNORE ensures idempotency)
     const db = this.ensureDb();
@@ -1469,6 +1600,16 @@ export class TrailDatabase {
         TrailLogger.error(`ClaudeCodeBehaviorAnalyzer failed for session ${dir.sid}`, e);
       }
     }
+
+    // Rebuild daily_counts (6 kinds) after message_tool_calls is populated
+    onProgress?.('Rebuilding daily counts...', 0);
+    this.rebuildDailyCounts();
+    onProgress?.('Daily counts rebuilt', 0);
+
+    // Pre-aggregate per-session stats used by /api/trail/sessions
+    onProgress?.('Rebuilding session stats...', 0);
+    this.rebuildSessionStats();
+    onProgress?.('Session stats rebuilt', 0);
 
     this.save();
     return { imported, skipped, commitsResolved, releasesResolved, releasesAnalyzed, coverageImported };
@@ -2324,7 +2465,7 @@ export class TrailDatabase {
       estimatedCostUsd: Number(r[5]),
     }));
 
-    // Daily activity from daily_costs (last 90 days — frontend filters to 7/30/90)
+    // Daily activity from daily_counts (kind='cost_actual', last 90 days — frontend filters to 7/30/90)
     const tzOffset = this.getLocalTzOffset();
     const dailyResult = db.exec(
       `SELECT date,
@@ -2332,8 +2473,8 @@ export class TrailDatabase {
         SUM(cache_read_tokens), SUM(cache_creation_tokens),
         SUM(estimated_cost_usd),
         0 AS sessions
-       FROM daily_costs
-       WHERE cost_type = 'actual' AND date >= DATE('now', '${tzOffset}', '-90 days')
+       FROM daily_counts
+       WHERE kind = 'cost_actual' AND date >= DATE('now', '${tzOffset}', '-90 days')
        GROUP BY date ORDER BY date`,
     );
     const dailyActivity = (dailyResult[0]?.values ?? []).map((r) => ({
@@ -2407,11 +2548,10 @@ export class TrailDatabase {
 
   getBehaviorData(period: 'day' | 'week', rangeDays: 30 | 90): BehaviorData {
     const db = this.ensureDb();
-    const tzOffset = this.getLocalTzOffset();
-    const periodExpr =
-      period === 'day' ? `DATE(timestamp, '${tzOffset}')`
-      : period === 'week' ? `strftime('%Y-W%W', timestamp, '${tzOffset}')`
-      : 'session_id';
+    // daily_counts.date は YYYY-MM-DD（タイムゾーン適用済み）。
+    // week 集計時は strftime('%Y-W%W', date) で週キー化。
+    const periodExpr = period === 'week' ? `strftime('%Y-W%W', date)` : 'date';
+    const cutoff = `DATE('now', '-${rangeDays} days')`;
 
     const toRows = (result: ReturnType<typeof db.exec>): Record<string, unknown>[] => {
       if (!result[0]) return [];
@@ -2419,73 +2559,16 @@ export class TrailDatabase {
       return values.map(row => Object.fromEntries(columns.map((c, i) => [c, row[i]])));
     };
 
-    // ⑤ errorRate (MCP ツール名を正規化)
-    const errResult = db.exec(
-      `SELECT ${periodExpr} AS period,
-              CAST(SUM(is_error) AS REAL) / COUNT(*) AS rate,
-              CASE
-                WHEN tool_name LIKE 'mcp\\_\\_%\\_\\_%' ESCAPE '\\'
-                THEN SUBSTR(tool_name, 1, INSTR(SUBSTR(tool_name, 6), '__') + 4)
-                ELSE tool_name
-              END AS tool,
-              SUM(is_error) AS err_count
-       FROM message_tool_calls
-       WHERE timestamp >= datetime('now', '-${rangeDays} days')
-       GROUP BY period, tool ORDER BY period`,
+    const toolResult = db.exec(
+      `SELECT ${periodExpr} AS period, key AS tool,
+              SUM(count) AS count,
+              SUM(tokens) AS tokens,
+              SUM(duration_ms) AS duration_ms
+       FROM daily_counts
+       WHERE kind = 'tool' AND date >= ${cutoff}
+       GROUP BY period, key`,
     );
-    const errByPeriod: Record<string, { rate: number; byTool: Record<string, number> }> = {};
-    for (const r of toRows(errResult)) {
-      const p = String(r['period'] ?? '');
-      if (!errByPeriod[p]) errByPeriod[p] = { rate: Number(r['rate'] ?? 0), byTool: {} };
-      const tool = String(r['tool'] ?? '');
-      errByPeriod[p].byTool[tool] = (errByPeriod[p].byTool[tool] ?? 0) + Number(r['err_count'] ?? 0);
-    }
-    const errorRate = Object.entries(errByPeriod).map(([period, v]) => ({
-      period, rate: v.rate, byTool: v.byTool,
-    }));
-
-    // ⑥ skillStats
-    const skillResult = db.exec(
-      `SELECT ${periodExpr} AS period, skill_name AS skill, COUNT(*) AS count
-       FROM message_tool_calls
-       WHERE timestamp >= datetime('now', '-${rangeDays} days') AND skill_name IS NOT NULL
-       GROUP BY period, skill_name ORDER BY period, count DESC`,
-    );
-    const skillStats = toRows(skillResult).map(r => ({
-      period: String(r['period'] ?? ''),
-      skill: String(r['skill'] ?? ''),
-      count: Number(r['count'] ?? 0),
-      costUsd: 0, // cost join not yet implemented
-    }));
-
-    // ① toolCounts: 全ツール利用回数 + トークン按分 + 処理時間按分
-    // MCP ツール名を正規化: mcp__github__xxx → mcp__github
-    // メッセージのトークン数・ターンの実行時間をそれぞれツール呼び出し数で按分
-    const tcResult = db.exec(
-      `WITH tool_with_metrics AS (
-         SELECT tc.session_id, tc.message_uuid, tc.turn_index, tc.tool_name, tc.timestamp,
-                COALESCE(m.input_tokens, 0) + COALESCE(m.output_tokens, 0) AS msg_tokens,
-                COUNT(*) OVER (PARTITION BY tc.message_uuid) AS tools_in_msg,
-                COALESCE(tc.turn_exec_ms, 0) AS turn_exec_ms,
-                COUNT(*) OVER (PARTITION BY tc.session_id, tc.turn_index) AS tools_in_turn
-         FROM message_tool_calls tc
-         LEFT JOIN messages m ON m.uuid = tc.message_uuid
-         WHERE tc.timestamp >= datetime('now', '-${rangeDays} days')
-       )
-       SELECT ${periodExpr} AS period,
-              CASE
-                WHEN tool_name LIKE 'mcp\\_\\_%\\_\\_%' ESCAPE '\\'
-                THEN SUBSTR(tool_name, 1, INSTR(SUBSTR(tool_name, 6), '__') + 4)
-                ELSE tool_name
-              END AS tool,
-              COUNT(*) AS count,
-              CAST(SUM(ROUND(1.0 * msg_tokens / tools_in_msg)) AS INTEGER) AS tokens,
-              CAST(SUM(ROUND(1.0 * turn_exec_ms / tools_in_turn)) AS INTEGER) AS duration_ms
-       FROM tool_with_metrics
-       GROUP BY period, tool
-       ORDER BY period, count DESC`,
-    );
-    const toolCounts = toRows(tcResult).map(r => ({
+    const toolCounts = toRows(toolResult).map(r => ({
       period: String(r['period'] ?? ''),
       tool: String(r['tool'] ?? ''),
       count: Number(r['count'] ?? 0),
@@ -2493,15 +2576,46 @@ export class TrailDatabase {
       durationMs: Number(r['duration_ms'] ?? 0),
     }));
 
-    // ⑦ modelStats: assistant メッセージを (period, model) で集計
+    const errResult = db.exec(
+      `SELECT ${periodExpr} AS period, key AS tool, SUM(count) AS err_count
+       FROM daily_counts
+       WHERE kind = 'error' AND date >= ${cutoff}
+       GROUP BY period, key`,
+    );
+    const errByPeriod = new Map<string, { byTool: Record<string, number> }>();
+    for (const r of toRows(errResult)) {
+      const p = String(r['period'] ?? '');
+      const tool = String(r['tool'] ?? '');
+      const errCount = Number(r['err_count'] ?? 0);
+      if (errCount === 0) continue;
+      const e = errByPeriod.get(p) ?? { byTool: {} };
+      e.byTool[tool] = (e.byTool[tool] ?? 0) + errCount;
+      errByPeriod.set(p, e);
+    }
+    const errorRate = [...errByPeriod.entries()].map(([p, v]) => ({
+      period: p, rate: 0, byTool: v.byTool,
+    }));
+
+    const skillResult = db.exec(
+      `SELECT ${periodExpr} AS period, key AS skill, SUM(count) AS count
+       FROM daily_counts
+       WHERE kind = 'skill' AND date >= ${cutoff}
+       GROUP BY period, key`,
+    );
+    const skillStats = toRows(skillResult).map(r => ({
+      period: String(r['period'] ?? ''),
+      skill: String(r['skill'] ?? ''),
+      count: Number(r['count'] ?? 0),
+      costUsd: 0,
+    }));
+
     const modelResult = db.exec(
-      `SELECT ${periodExpr} AS period, model,
-              COUNT(*) AS count,
-              CAST(SUM(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)) AS INTEGER) AS tokens
-       FROM messages
-       WHERE timestamp >= datetime('now', '-${rangeDays} days')
-         AND type = 'assistant' AND model IS NOT NULL
-       GROUP BY period, model ORDER BY period, count DESC`,
+      `SELECT ${periodExpr} AS period, key AS model,
+              SUM(count) AS count,
+              SUM(tokens) AS tokens
+       FROM daily_counts
+       WHERE kind = 'model' AND date >= ${cutoff}
+       GROUP BY period, key`,
     );
     const modelStats = toRows(modelResult).map(r => ({
       period: String(r['period'] ?? ''),
@@ -2536,11 +2650,11 @@ export class TrailDatabase {
       actualTotal += c;
     }
 
-    // 2. Skill-based estimate from daily_costs
+    // 2. Skill-based estimate from daily_counts (kind='cost_skill')
     const skillResult = db.exec(
-      `SELECT model, SUM(estimated_cost_usd)
-       FROM daily_costs WHERE cost_type = 'skill'
-       GROUP BY model`,
+      `SELECT key AS model, SUM(estimated_cost_usd)
+       FROM daily_counts WHERE kind = 'cost_skill'
+       GROUP BY key`,
     );
     const skillByModel: Record<string, number> = {};
     let skillTotal = 0;
@@ -2551,12 +2665,13 @@ export class TrailDatabase {
       skillTotal += c;
     }
 
-    // 4. Daily breakdown from daily_costs (last 90 days)
+    // 4. Daily breakdown from daily_counts (last 90 days, kind IN cost_actual/cost_skill)
     const dailyResult = db.exec(
-      `SELECT date, cost_type, SUM(estimated_cost_usd)
-       FROM daily_costs
-       WHERE date >= DATE('now', '${tzOffset}', '-90 days')
-       GROUP BY date, cost_type ORDER BY date`,
+      `SELECT date, SUBSTR(kind, 6) AS cost_type, SUM(estimated_cost_usd)
+       FROM daily_counts
+       WHERE kind IN ('cost_actual', 'cost_skill')
+         AND date >= DATE('now', '${tzOffset}', '-90 days')
+       GROUP BY date, kind ORDER BY date`,
     );
     const dailyMap = new Map<string, { actual: number; skill: number }>();
     for (const row of dailyResult[0]?.values ?? []) {
