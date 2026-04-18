@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.11.3] - 2026-04-18
+
+### Added
+
+- Collapse frontmatter by default when opening a file
+
+### Changed
+
+- Remove Note treeview (moved to vscode-trail-extension)
+
 ## [0.11.2] - 2026-04-12
 
 ### Fixed

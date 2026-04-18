@@ -6,6 +6,23 @@
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-04-18
+
+### 追加
+
+- ランディングページの Trail セクションに AI エージェント監視フレーミングを追加
+- ランディングページのセクションタイトルに拡張機能アイコンを表示
+- Markdown 機能に「インスタント 3 モード切り替え」を追加
+
+### 変更
+
+- ランディングページのセクション順を変更 — Trail 先頭、Markdown 後続
+- ナビゲーション項目の順序変更 — Analytics / Report / Docs / Graph
+- オンラインエディタリンクをヘッダーへ移動（ヒーロー/CTA から削除）
+- Trail 機能の説明を改訂: Code Mapping、Real-time Visualization、Traceability、Visual AI Briefing
+- Markdown 機能の利点を並び替え — プレビュー → 自動ロック → 3 モード
+- ヒーロー説明文を AI フレーミングを含む単一の流れに整理
+
 ## [0.13.0] - 2026-04-13
 
 ### 追加

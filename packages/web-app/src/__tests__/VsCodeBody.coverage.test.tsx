@@ -53,7 +53,7 @@ describe("VsCodeBody", () => {
   it("renders install and editor buttons", () => {
     render(<VsCodeBody />);
     expect(screen.getAllByText("installButton").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText("openEditor").length).toBeGreaterThanOrEqual(1);
+    // openEditor は LandingHeader に移動済み（ヘッダーはモックのためテスト対象外）
   });
 
   it("renders benefit sections", () => {
@@ -84,10 +84,10 @@ describe("VsCodeBody", () => {
     // No assertion needed - just verifying no crash
   });
 
-  it("renders install caption and editor caption", () => {
+  it("renders install caption", () => {
     render(<VsCodeBody />);
     expect(screen.getAllByText("installCaption").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText("editorCaption").length).toBeGreaterThanOrEqual(1);
+    // editorCaption はオンラインエディタリンクのヘッダー移動に伴い削除済み
   });
 
   it("renders experimental notice", () => {

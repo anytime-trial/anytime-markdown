@@ -1,6 +1,6 @@
 {
   "name": "@anytime-markdown/trail-viewer",
-  "version": "0.4.0",
+  "version": "0.7.0",
   "license": "MIT",
   "private": true,
   "main": "src/index.ts",

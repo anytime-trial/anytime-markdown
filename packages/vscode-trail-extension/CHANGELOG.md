@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-04-18
+
+### Added
+
+- Add Note treeview (moved from vscode-markdown-extension)
+
+### Changed
+
+- Split `storagePath` into `database.storagePath` and `claudeStatus.directory`
+- Migrate `ClaudeStatusWatcher` to `vscode-common`
+
+### Fixed
+
+- Clear `sessionEdits` and `plannedEdits` from status file on reset
+
+### Trail Core (trail-core)
+
+- Introduce `trail_daily_counts` replacing `trail_daily_costs`
+- Filter sync to `anytime-markdown` repository only
+- Fix parameterized query in `getAllMessageToolCalls`
+
 ## [0.6.0] - 2026-04-13
 
 ### Added

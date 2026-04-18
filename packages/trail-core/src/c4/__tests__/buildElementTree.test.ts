@@ -13,8 +13,9 @@ describe('buildElementTree', () => {
     };
     const tree = buildElementTree(model, []);
     expect(tree).toHaveLength(2);
-    expect(tree[0]).toEqual({ id: 'user', type: 'person', name: 'User', children: [] });
-    expect(tree[1]).toEqual({ id: 'sys', type: 'system', name: 'System', children: [] });
+    // 名前順ソート: "System" < "User"
+    expect(tree[0]).toEqual({ id: 'sys', type: 'system', name: 'System', children: [] });
+    expect(tree[1]).toEqual({ id: 'user', type: 'person', name: 'User', children: [] });
   });
 
   it('boundaryIdで要素を親要素の子にグルーピングする', () => {
@@ -33,8 +34,9 @@ describe('buildElementTree', () => {
     expect(tree).toHaveLength(1);
     expect(tree[0].id).toBe('sys');
     expect(tree[0].children).toHaveLength(2);
-    expect(tree[0].children[0].id).toBe('web');
-    expect(tree[0].children[1].id).toBe('api');
+    // 名前順ソート: "API" < "Web App"
+    expect(tree[0].children[0].id).toBe('api');
+    expect(tree[0].children[1].id).toBe('web');
   });
 
   it('ネストした境界を正しく階層化する', () => {

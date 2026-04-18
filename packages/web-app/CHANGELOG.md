@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-04-18
+
+### Added
+
+- AI agent monitoring framing to Trail section on landing page
+- Extension icons in section titles on landing page
+- Instant 3-mode switching to Markdown features
+
+### Changed
+
+- Reorder landing page sections — Trail first, Markdown second
+- Reorder navigation items — Analytics / Report / Docs / Graph
+- Move online editor link to header (removed from hero/CTA)
+- Trail feature descriptions polished: Code Mapping, Real-time Visualization, Traceability, Visual AI Briefing
+- Reorder Markdown benefits — preview → auto-lock → 3-mode
+- Hero description refactored to single cohesive flow with AI framing
+
 ## [0.13.0] - 2026-04-13
 
 ### Added

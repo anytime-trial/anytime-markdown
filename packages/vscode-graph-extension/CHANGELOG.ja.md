@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-04-18
+
+### Graph Core (graph-core)
+
+- コンテキストメニュー対応のため `useCanvasBase` に `onNodeContextMenu` コールバックを追加
+- コネクタ始点にドットを表示
+- コンテキストメニューのヒットテストに frame ノードを含める
+- コネクタ始点ドットの半径を 5 から 3 に縮小
+- `shapes` と `shapeRenderers` の循環依存を解消
+
 ## [0.1.4] - 2026-04-12
 
 ### Graph Core (graph-core)

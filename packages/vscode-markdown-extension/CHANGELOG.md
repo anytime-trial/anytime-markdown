@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.11.3] - 2026-04-18
+
+### Added
+
+- Add `anytimeMarkdown.storagePath` setting for intermediate file storage path
+
+### Changed
+
+- Migrate `ClaudeStatusWatcher` to `vscode-common` shared package
+- Split `storagePath` into `database.storagePath` and `claudeStatus.directory`
+- Remove Note treeview (moved to vscode-trail-extension)
+
+### Editor Core (markdown-core)
+
+- Collapse frontmatter by default when opening a file
+
 ## [0.11.2] - 2026-04-12
 
 ### Fixed

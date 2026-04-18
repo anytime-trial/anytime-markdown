@@ -6,6 +6,27 @@
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-04-18
+
+### 追加
+
+- Note treeview を追加（vscode-markdown-extension から移動）
+
+### 変更
+
+- `storagePath` を `database.storagePath` と `claudeStatus.directory` に分割
+- `ClaudeStatusWatcher` を `vscode-common` へ移行
+
+### 修正
+
+- リセット時にステータスファイルから `sessionEdits` と `plannedEdits` をクリア
+
+### Trail Core (trail-core)
+
+- `trail_daily_costs` を廃止し `trail_daily_counts` を導入
+- 同期を `anytime-markdown` リポジトリのみにフィルタ
+- `getAllMessageToolCalls` のパラメータ化クエリを修正
+
 ## [0.6.0] - 2026-04-13
 
 ### 追加

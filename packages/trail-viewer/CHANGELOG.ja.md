@@ -6,6 +6,34 @@
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-04-18
+
+### 追加
+
+- Analytics 日付パネルの右カラムに日次集計チャートを表示
+- デザイントークン追加: `amberGoldHover`、`iceBlueBorder`、スキルチャート色、`toolPalette`、`commitColors`
+
+### 変更
+
+- Analytics UI 命名に合わせて `Behavior*` を `Combined*` にリネーム
+- すべてのスクロール可能領域に `scrollbarSx` を適用
+- セッション一覧テーブルからモデル列を削除
+- 日次集計パネルからキャッシュタイムラインを削除
+
+### 修正
+
+- Analytics 日付パネルの日次ツール指標を `trail_daily_counts` から取得
+- ライトモードのトークン値（bg、semantics、disabled text）を修正
+- `TOOL_COLORS` とコストチャートのハードコード色をデザイントークンに置き換え
+- コミットタイプ色のハードコードを `commitColors` トークンに置き換え
+- CTA ホバー色のハードコードを `amberGoldHover` トークンに置き換え
+- ユーザーメッセージボーダーをトークン化、フォーカスリングを 3px に強化（WCAG 2.2）
+- `getAnalytics` / `getCostOptimization` を `trail_daily_counts` に移行
+
+### パフォーマンス
+
+- `getBehaviorData` の大量フェッチを `trail_daily_counts` SELECT に置き換え
+
 ## [0.4.0] - 2026-04-13
 
 ### 追加

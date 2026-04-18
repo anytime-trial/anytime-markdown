@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-04-18
+
+### Graph Core (graph-core)
+
+- Add `onNodeContextMenu` callback to `useCanvasBase` for context menu support
+- Show dot at connector start point
+- Include frame nodes in context menu hit test
+- Reduce connector start dot radius from 5 to 3
+- Break circular dependency between `shapes` and `shapeRenderers`
+
 ## [0.1.4] - 2026-04-12
 
 ### Graph Core (graph-core)

@@ -6,6 +6,30 @@
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-04-18
+
+### 追加
+
+- `trail_daily_costs` を廃止し `trail_daily_counts` テーブルを導入
+- TrailDB に `getAllDailyCounts()` を追加・`getAllDailyCosts()` を削除
+- `IRemoteTrailStore.upsertDailyCosts` を `upsertDailyCounts` に置き換え
+
+### 変更
+
+- `SyncService` を `getAllDailyCounts` / `upsertDailyCounts` に対応
+- `PostgresTrailStore` と `SupabaseTrailStore` を `trail_daily_counts` に対応
+- リリース同期を `anytime-markdown` リポジトリのみにフィルタ
+- `trail_current_graphs` 同期を `anytime-markdown` のみにフィルタ
+
+### 修正
+
+- `getAllMessageToolCalls` にパラメータ化クエリを使用（SQL インジェクション防止）
+- FK 違反防止のため `message_tool_calls` を `messageCutoff` でフィルタ
+
+### 削除
+
+- `daily_costs` デッドコードを削除
+
 ## [0.6.0] - 2026-04-13
 
 ### 追加

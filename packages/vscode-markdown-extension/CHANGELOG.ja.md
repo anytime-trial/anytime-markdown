@@ -6,6 +6,22 @@
 
 ## [Unreleased]
 
+## [0.11.3] - 2026-04-18
+
+### 追加
+
+- 中間ファイルの保存パスを指定する `anytimeMarkdown.storagePath` 設定を追加
+
+### 変更
+
+- `ClaudeStatusWatcher` を `vscode-common` 共通パッケージへ移行
+- `storagePath` を `database.storagePath` と `claudeStatus.directory` に分割
+- Note treeview を削除（vscode-trail-extension へ移動）
+
+### Editor Core (markdown-core)
+
+- ファイルオープン時にフロントマターをデフォルトで折りたたむ
+
 ## [0.11.2] - 2026-04-12
 
 ### 修正

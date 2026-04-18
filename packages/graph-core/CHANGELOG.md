@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-04-18
+
+### Added
+
+- Add `onNodeContextMenu` callback to `useCanvasBase` for context menu support
+- Show dot at connector start point
+
+### Fixed
+
+- Include frame nodes in context menu hit test
+- Reduce connector start dot radius from 5 to 3
+
+### Changed
+
+- Break circular dependency between `shapes` and `shapeRenderers`
+
 ## [0.1.4] - 2026-04-12
 
 ### Fixed

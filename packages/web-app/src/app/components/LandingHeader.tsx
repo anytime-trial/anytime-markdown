@@ -7,6 +7,7 @@ ToggleButton,
 ToggleButtonGroup, Toolbar, Typography, } from '@mui/material';
 import NextLink from 'next/link';
 import { useTranslations } from 'next-intl';
+import Image from 'next/image';
 import { useState } from 'react';
 
 import { useLocaleSwitch } from '../LocaleProvider';
@@ -40,8 +41,12 @@ export default function LandingHeader() {
             letterSpacing: '-0.02em',
             color: 'text.primary',
             textDecoration: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
           }}
         >
+          <Image src="/camel_face.png" alt="Anytime Markdown icon" width={28} height={28} style={{ borderRadius: 4 }} />
           Anytime Markdown
         </Typography>
 

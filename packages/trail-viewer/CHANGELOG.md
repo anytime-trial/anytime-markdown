@@ -6,6 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-04-18
+
+### Added
+
+- Show day-aggregate charts in Analytics date panel right column
+- Add design tokens: `amberGoldHover`, `iceBlueBorder`, skill chart color, `toolPalette`, `commitColors`
+
+### Changed
+
+- Rename `Behavior*` to `Combined*` to align with Analytics UI naming
+- Apply `scrollbarSx` to all scrollable areas
+- Remove model column from session list table
+- Remove cache timeline from day-aggregate panel
+
+### Fixed
+
+- Fetch day tool metrics from `trail_daily_counts` for Analytics date panel
+- Correct light-mode token values for bg, semantics, disabled text
+- Replace hardcoded `TOOL_COLORS` and cost chart colors with design tokens
+- Replace hardcoded commit type colors with `commitColors` tokens
+- Replace hardcoded CTA hover color with `amberGoldHover` token
+- Tokenize user message border and upgrade focus ring to 3px (WCAG 2.2)
+- Migrate `getAnalytics` / `getCostOptimization` to `trail_daily_counts`
+
+### Performance
+
+- Replace `getBehaviorData` mass-fetch with `trail_daily_counts` SELECT
+
 ## [0.4.0] - 2026-04-13
 
 ### Added

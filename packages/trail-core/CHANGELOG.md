@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-04-18
+
+### Added
+
+- Introduce `trail_daily_counts` table replacing `trail_daily_costs`
+- Add `getAllDailyCounts()` and remove `getAllDailyCosts()` in TrailDB
+- Replace `IRemoteTrailStore.upsertDailyCosts` with `upsertDailyCounts`
+
+### Changed
+
+- Update `SyncService` to use `getAllDailyCounts` / `upsertDailyCounts`
+- Update `PostgresTrailStore` and `SupabaseTrailStore` to use `trail_daily_counts`
+- Filter releases sync to `anytime-markdown` repository only
+- Filter `trail_current_graphs` sync to `anytime-markdown` only
+
+### Fixed
+
+- Use parameterized query in `getAllMessageToolCalls` to prevent SQL injection
+- Filter `message_tool_calls` by `messageCutoff` to prevent FK violation
+
+### Removed
+
+- Remove `daily_costs` dead code
+
 ## [0.6.0] - 2026-04-13
 
 ### Added

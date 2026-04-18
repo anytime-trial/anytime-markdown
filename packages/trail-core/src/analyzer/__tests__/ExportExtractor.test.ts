@@ -13,13 +13,13 @@ describe('ExportExtractor', () => {
       export const VERSION = '1.0';
     `);
     const result = ExportExtractor.extract([src], 'src/auth');
-    expect(result).toHaveLength(2);
+    // 純粋な定数（値のみ）はフローがないためスキップされる
+    expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({
       name: 'login',
       kind: 'function',
       filePath: 'test.ts',
     });
-    expect(result[1]).toMatchObject({ name: 'VERSION', kind: 'variable' });
   });
 
   it('export class のメソッドを抽出する', () => {
