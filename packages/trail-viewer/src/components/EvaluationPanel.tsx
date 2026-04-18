@@ -114,7 +114,7 @@ function EvaluationForm({
         size="small"
         disabled={!canSubmit}
         onClick={handleSubmit}
-        sx={{ bgcolor: colors.amberGold, color: colors.textOnLight, borderRadius: radius.md, '&:hover': { bgcolor: '#d4900f' } }}
+        sx={{ bgcolor: colors.amberGold, color: colors.textOnLight, borderRadius: radius.md, '&:hover': { bgcolor: colors.amberGoldHover } }}
       >
         {t('eval.save')}
       </Button>
