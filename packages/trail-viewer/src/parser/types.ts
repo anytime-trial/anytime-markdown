@@ -31,6 +31,7 @@ export interface RawContentBlock {
   readonly name?: string;
   readonly input?: Record<string, unknown>;
   readonly content?: string | readonly RawContentBlock[];
+  readonly is_error?: boolean;
 }
 
 export interface RawUsage {

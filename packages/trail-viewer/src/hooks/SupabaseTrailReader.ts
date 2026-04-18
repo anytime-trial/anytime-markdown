@@ -100,8 +100,23 @@ export class SupabaseTrailReader implements ITrailReader {
 
     const { data, error } = await query;
     if (error) throw new Error(`Supabase getSessions failed: ${error.message}`);
-    return (data ?? []).map((r: SessionDbRow & { trail_session_commits?: readonly CommitDbRow[] }) =>
-      this.toTrailSession(r, r.trail_session_commits ?? []),
+
+    const sessions = data ?? [];
+    const sessionIds = sessions.map((r: SessionDbRow) => r.id);
+    const errorCountMap = new Map<string, number>();
+    if (sessionIds.length > 0) {
+      const { data: errData } = await this.client
+        .from('trail_message_tool_calls')
+        .select('session_id')
+        .in('session_id', sessionIds)
+        .eq('is_error', 1);
+      for (const row of (errData ?? []) as { session_id: string }[]) {
+        errorCountMap.set(row.session_id, (errorCountMap.get(row.session_id) ?? 0) + 1);
+      }
+    }
+
+    return sessions.map((r: SessionDbRow & { trail_session_commits?: readonly CommitDbRow[] }) =>
+      this.toTrailSession(r, r.trail_session_commits ?? [], errorCountMap.get(r.id)),
     );
   }
 
@@ -476,6 +491,7 @@ export class SupabaseTrailReader implements ITrailReader {
   private toTrailSession(
     r: SessionDbRow,
     commits: readonly CommitDbRow[],
+    errorCount?: number,
   ): TrailSession {
     const commitStats = commits.length > 0
       ? {
@@ -514,6 +530,7 @@ export class SupabaseTrailReader implements ITrailReader {
         cacheCreationTokens: totalCacheCreation,
       },
       estimatedCostUsd: totalCostUsd,
+      errorCount: errorCount && errorCount > 0 ? errorCount : undefined,
     };
   }
 

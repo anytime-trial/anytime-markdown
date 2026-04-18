@@ -104,13 +104,21 @@ export function SessionList({ sessions, selectedId, onSelect }: Readonly<Session
                 <Typography variant="caption" component="span" color="text.secondary">
                   {session.gitBranch} &middot; {formatSessionDate(session.startTime)}
                 </Typography>
-                <Box component="span">
+                <Box component="span" sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
                   <Chip
                     label={`${session.messageCount} ${t('sessionList.messages')}`}
                     size="small"
                     variant="outlined"
                     sx={{ height: 20, fontSize: '0.7rem', borderColor: colors.iceBlue }}
                   />
+                  {session.errorCount != null && session.errorCount > 0 && (
+                    <Chip
+                      label={`${session.errorCount} errors`}
+                      size="small"
+                      variant="outlined"
+                      sx={{ height: 20, fontSize: '0.7rem', borderColor: 'error.main', color: 'error.main' }}
+                    />
+                  )}
                 </Box>
               </Box>
             }

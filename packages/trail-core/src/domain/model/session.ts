@@ -54,6 +54,7 @@ export interface TrailSession {
   };
   readonly usage: TrailTokenUsage;
   readonly estimatedCostUsd?: number;
+  readonly errorCount?: number;
 }
 
 export interface TrailSessionCommit {

@@ -188,6 +188,14 @@ export function parseSession(
     interruption = { interrupted: true, reason: 'no_response', contextTokens: ctxTokens };
   }
 
+  let errorCount = 0;
+  for (const raw of parsedRaws) {
+    if (raw.type !== 'user' || !Array.isArray(raw.message?.content)) continue;
+    for (const block of raw.message.content as readonly RawContentBlock[]) {
+      if (block.type === 'tool_result' && block.is_error === true) errorCount++;
+    }
+  }
+
   const session: TrailSession = {
     id: firstRaw?.sessionId ?? '',
     slug: firstRaw?.slug ?? firstAssistant?.slug ?? '',
@@ -202,6 +210,7 @@ export function parseSession(
     initialContextTokens,
     interruption,
     usage: aggregateUsage(messages),
+    errorCount: errorCount > 0 ? errorCount : undefined,
   };
 
   return { session, messages };
