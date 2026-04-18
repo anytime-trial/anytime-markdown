@@ -26,7 +26,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     await this.deleteAllPaged('trail_messages', 'uuid');
     await this.deleteAllPaged('trail_sessions', 'id');
     await this.deleteAllPaged('trail_releases', 'tag');
-    await this.deleteAllPaged('trail_daily_costs', 'date');
+    await this.ensureClient().from('trail_daily_counts').delete().gte('date', '0000-01-01');
     await this.deleteAllPaged('trail_release_graphs', 'tag');
   }
 
@@ -134,21 +134,27 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     }
   }
 
-  async upsertDailyCosts(rows: readonly {
+  async upsertDailyCounts(rows: readonly {
     date: string;
-    model: string;
-    cost_type: string;
+    kind: string;
+    key: string;
+    count: number;
+    tokens: number;
     input_tokens: number;
     output_tokens: number;
     cache_read_tokens: number;
     cache_creation_tokens: number;
+    duration_ms: number;
     estimated_cost_usd: number;
   }[]): Promise<void> {
     if (rows.length === 0) return;
-    const { error } = await this.ensureClient()
-      .from('trail_daily_costs')
-      .upsert(rows, { onConflict: 'date,model,cost_type' });
-    if (error) throw new Error(`Supabase upsert trail_daily_costs failed: ${error.message}`);
+    const CHUNK = 500;
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      const { error } = await this.ensureClient()
+        .from('trail_daily_counts')
+        .upsert(rows.slice(i, i + CHUNK), { onConflict: 'date,kind,key' });
+      if (error) throw new Error(`Supabase upsert trail_daily_counts failed: ${error.message}`);
+    }
   }
 
   async upsertMessages(rows: readonly MessageRow[]): Promise<void> {
