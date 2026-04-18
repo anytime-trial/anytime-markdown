@@ -139,6 +139,17 @@ export function TraceTimeline({
       const msg = n.message as TrailMessage;
       const t = msg.type;
       if (t === 'user' || t === 'assistant' || t === 'system') {
+        // type='user' in Claude Code JSONL includes tool_result messages as well.
+        // Only messages carrying actual user_content (text input) represent real
+        // user instructions. Tool-result user messages are part of the AI turn
+        // and are already covered by the AI turn bar, so skip them here.
+        if (t === 'user') {
+          const hasUserContent = typeof msg.userContent === 'string' && msg.userContent.length > 0;
+          if (!hasUserContent) {
+            for (const child of n.children) traverse(child);
+            return;
+          }
+        }
         const hasAgentId = typeof msg.agentId === 'string' && msg.agentId.length > 0;
         const laneKind: LaneKind = hasAgentId ? 'subagent' : t;
         const ms = Date.parse(msg.timestamp);
