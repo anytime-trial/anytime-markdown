@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.14.1] - 2026-04-18
+
+### Added
+
+- Embed interactive TrailViewer (600px) below trail3 section on landing page
+- Embed interactive TrailViewer with browser-frame style below trail4 section on landing page
+- Wrap MarkdownViewer in macOS-style window frame on landing page
+
+### Changed
+
+- Replace dynamic `viewerHeight` calculation with fixed 500px for MarkdownViewer embed
+
 ## [0.14.0] - 2026-04-18
 
 ### Added

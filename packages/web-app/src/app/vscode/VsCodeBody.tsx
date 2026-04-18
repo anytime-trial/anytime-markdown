@@ -16,10 +16,16 @@ import {
   Typography,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
+import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
-import { type ReactNode, useEffect, useState } from 'react';
+import { Fragment, type ReactNode } from 'react';
 
 import LandingHeader from '../components/LandingHeader';
+
+const TrailViewerEmbed = dynamic(
+  () => import('../trail/components/TrailViewer').then((m) => ({ default: m.TrailViewer })),
+  { ssr: false },
+);
 import MarkdownViewer from '../components/MarkdownViewer';
 import SiteFooter from '../components/SiteFooter';
 
@@ -153,13 +159,7 @@ export default function VsCodeBody() {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
 
-  const [viewerHeight, setViewerHeight] = useState(300);
-  useEffect(() => {
-    const update = () => setViewerHeight(Math.round(window.innerHeight * 0.4));
-    update();
-    window.addEventListener('resize', update);
-    return () => window.removeEventListener('resize', update);
-  }, []);
+
 
   return (
     <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -268,21 +268,57 @@ export default function VsCodeBody() {
 
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 6, md: 8 } }}>
             {TRAIL_BENEFITS.map(({ key, icon }) => (
-              <BenefitItem key={key} icon={icon} title={t(`${key}Title`)} body={t(`${key}Body`)} isDark={isDark} />
+              <Fragment key={key}>
+                <BenefitItem
+                  icon={icon}
+                  title={t(`${key}Title`)}
+                  body={t(`${key}Body`)}
+                  isDark={isDark}
+                />
+                {key === 'trail4' && (
+                  <Box
+                    sx={{
+                      mt: 4,
+                      borderRadius: 3,
+                      overflow: 'hidden',
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      boxShadow: isDark
+                        ? '0 8px 40px rgba(0,0,0,0.5)'
+                        : '0 8px 40px rgba(0,0,0,0.12)',
+                    }}
+                  >
+                    {/* タイトルバー */}
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1,
+                        px: 2,
+                        py: 1.2,
+                        bgcolor: 'background.paper',
+                        borderBottom: '1px solid',
+                        borderColor: 'divider',
+                      }}
+                    >
+                      {(['#FF5F57', '#FFBD2E', '#28C840'] as const).map((color) => (
+                        <Box
+                          key={color}
+                          sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: color, flexShrink: 0 }}
+                        />
+                      ))}
+                      <Typography
+                        variant="caption"
+                        sx={{ ml: 1, color: 'text.secondary', fontFamily: 'monospace' }}
+                      >
+                        anytime-trail — trail viewer
+                      </Typography>
+                    </Box>
+                    <TrailViewerEmbed containerHeight="550px" />
+                  </Box>
+                )}
+              </Fragment>
             ))}
-          </Box>
-
-          <Box sx={{ mt: { xs: 4, md: 6 }, textAlign: 'center' }}>
-            <Box
-              component="img"
-              src="/images/c4-mermaid.png"
-              alt={t('trail1Title')}
-              sx={{
-                maxWidth: '100%',
-                height: 'auto',
-                borderRadius: 2,
-              }}
-            />
           </Box>
         </Container>
       </Box>
@@ -315,18 +351,52 @@ export default function VsCodeBody() {
       </Box>
 
       {/* ---- Markdown Preview ---- */}
-      <Box sx={{
-        py: { xs: 4, md: 6 },
-        px: 0,
-        '& #main-content': { px: { xs: 0, md: 3 } },
-      }}>
+      <Box sx={{ py: { xs: 4, md: 6 }, px: { xs: 2, md: 3 } }}>
         <Container maxWidth="lg" disableGutters>
-          <MarkdownViewer
-            docKey="docs/markdownAll/markdownAll.ja.md"
-            docKeyByLocale={{ en: "docs/markdownAll/markdownAll.en.md" }}
-            editorHeight={viewerHeight}
-            showFrontmatter
-          />
+          <Box
+            sx={{
+              borderRadius: 3,
+              overflow: 'hidden',
+              border: '1px solid',
+              borderColor: 'divider',
+              boxShadow: isDark
+                ? '0 8px 40px rgba(0,0,0,0.5)'
+                : '0 8px 40px rgba(0,0,0,0.12)',
+            }}
+          >
+            {/* タイトルバー */}
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1,
+                px: 2,
+                py: 1.2,
+                bgcolor: 'background.paper',
+                borderBottom: '1px solid',
+                borderColor: 'divider',
+              }}
+            >
+              {(['#FF5F57', '#FFBD2E', '#28C840'] as const).map((color) => (
+                <Box
+                  key={color}
+                  sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: color, flexShrink: 0 }}
+                />
+              ))}
+              <Typography
+                variant="caption"
+                sx={{ ml: 1, color: 'text.secondary', fontFamily: 'monospace' }}
+              >
+                anytime-markdown — markdown editor
+              </Typography>
+            </Box>
+            <MarkdownViewer
+              docKey="docs/markdownAll/markdownAll.ja.md"
+              docKeyByLocale={{ en: 'docs/markdownAll/markdownAll.en.md' }}
+              editorHeight={500}
+              showFrontmatter
+            />
+          </Box>
         </Container>
       </Box>
 

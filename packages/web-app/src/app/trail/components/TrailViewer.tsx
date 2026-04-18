@@ -16,7 +16,7 @@ import { TrailErrorBoundary } from './TrailErrorBoundary';
  * 共通の TrailViewerApp に同居 Next.js API ルート（serverUrl=''）を渡すだけのシェル。
  * editable は false（read-only）。doc link は新規タブで開く。
  */
-export function TrailViewer() {
+export function TrailViewer({ containerHeight = 'calc(100vh - 64px)' }: Readonly<{ containerHeight?: string }> = {}) {
   const { themeMode } = useThemeMode();
   const isDark = themeMode === 'dark';
   const { locale } = useLocaleSwitch();
@@ -31,7 +31,7 @@ export function TrailViewer() {
         serverUrl=""
         isDark={isDark}
         locale={locale}
-        containerHeight="calc(100vh - 64px)"
+        containerHeight={containerHeight}
         onDocLinkClick={handleDocLinkClick}
       />
     </TrailErrorBoundary>
