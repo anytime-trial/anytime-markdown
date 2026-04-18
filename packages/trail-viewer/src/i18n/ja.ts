@@ -29,6 +29,7 @@ export const ja: TrailI18n = {
   'sessionList.contextLabel': 'コンテキスト:',
   'sessionList.copyId': 'IDをコピー',
   'sessionList.copied': 'コピーしました',
+  'sessionList.errorsHeader': 'エラー',
   'stats.noSessionSelected': 'セッションが選択されていません',
   'stats.input': '入力:',
   'stats.output': '出力:',

@@ -29,6 +29,7 @@ export const en: TrailI18n = {
   'sessionList.contextLabel': 'context:',
   'sessionList.copyId': 'Copy ID',
   'sessionList.copied': 'Copied',
+  'sessionList.errorsHeader': 'Errors',
   'stats.noSessionSelected': 'No session selected',
   'stats.input': 'Input:',
   'stats.output': 'Output:',

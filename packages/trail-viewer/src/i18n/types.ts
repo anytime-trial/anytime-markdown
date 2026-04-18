@@ -34,6 +34,7 @@ export interface TrailI18n {
   'sessionList.contextLabel': string;
   'sessionList.copyId': string;
   'sessionList.copied': string;
+  'sessionList.errorsHeader': string;
   // stats
   'stats.noSessionSelected': string;
   'stats.input': string;

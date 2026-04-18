@@ -378,7 +378,7 @@ function SessionCacheTimeline({
             },
           ]}
           height={200}
-          margin={{ left: 20, right: 16, top: 16, bottom: 0 }}
+          margin={{ left: 48, right: 16, top: 16, bottom: 0 }}
           slotProps={{
             legend: { direction: 'horizontal', position: { vertical: 'bottom', horizontal: 'center' } },
           }}
@@ -960,6 +960,7 @@ function DailySessionList({
                   <TableCell align="right">{t('sessionList.tokensHeader')}</TableCell>
                   <TableCell align="right">{t('sessionList.costHeader')}</TableCell>
                   <TableCell align="right">{t('sessionList.messagesHeader')}</TableCell>
+                  <TableCell align="right">{t('sessionList.errorsHeader')}</TableCell>
                   <TableCell align="right">{t('sessionList.commitsHeader')}</TableCell>
                   <TableCell align="right" sx={{ width: 36 }} />
                 </TableRow>
@@ -1007,6 +1008,9 @@ function DailySessionList({
                       {fmtUsd(sessionCost(s))}
                     </TableCell>
                     <TableCell align="right">{fmtNum(s.messageCount)}</TableCell>
+                    <TableCell align="right" sx={{ color: s.errorCount != null && s.errorCount > 0 ? 'error.main' : colors.textSecondary, fontWeight: s.errorCount != null && s.errorCount > 0 ? 600 : 400 }}>
+                      {s.errorCount != null && s.errorCount > 0 ? fmtNum(s.errorCount) : '\u2014'}
+                    </TableCell>
                     <TableCell align="right" sx={{ fontFamily: 'monospace', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
                       {s.commitStats
                         ? `${s.commitStats.commits} (+${fmtNum(s.commitStats.linesAdded)}/-${fmtNum(s.commitStats.linesDeleted)})`
@@ -1209,7 +1213,7 @@ function DailyActivityChart({
         { dataKey: 'skillCost', label: 'Optimized', color: chartColors.skill, valueFormatter: seriesFormatter },
       ]}
       height={240}
-      margin={{ left: 20, right: 16, top: 16, bottom: 24 }}
+      margin={{ left: 48, right: 16, top: 16, bottom: 24 }}
       slotProps={{
         legend: { direction: 'horizontal', position: { vertical: 'bottom', horizontal: 'center' } },
       }}
@@ -1417,7 +1421,7 @@ function CombinedChartsContent({ data, periodDays, activeChart, toolMetric, mode
             valueFormatter: hideZero,
           }))}
           height={240}
-          margin={{ left: 20, right: 8, top: 8, bottom: 60 }}
+          margin={{ left: 48, right: 8, top: 8, bottom: 60 }}
           slotProps={{ legend: { direction: 'horizontal', position: { vertical: 'bottom', horizontal: 'center' } } }}
           onAxisClick={makeAxisClick(allPeriods)}
         />
@@ -1443,7 +1447,7 @@ function CombinedChartsContent({ data, periodDays, activeChart, toolMetric, mode
               valueFormatter: hideZero,
             }))}
             height={240}
-            margin={{ left: 20, right: 8, top: 8, bottom: 40 }}
+            margin={{ left: 48, right: 8, top: 8, bottom: 40 }}
             slotProps={{ legend: { direction: 'horizontal', position: { vertical: 'bottom', horizontal: 'center' } } }}
             onAxisClick={makeAxisClick(allPeriods)}
           />
@@ -1470,7 +1474,7 @@ function CombinedChartsContent({ data, periodDays, activeChart, toolMetric, mode
             valueFormatter: hideZero,
           }))}
           height={240}
-          margin={{ left: 20, right: 8, top: 8, bottom: 40 }}
+          margin={{ left: 48, right: 8, top: 8, bottom: 40 }}
           slotProps={{ legend: { direction: 'horizontal', position: { vertical: 'bottom', horizontal: 'center' } } }}
           onAxisClick={makeAxisClick(allPeriods)}
         />
@@ -1496,7 +1500,7 @@ function CombinedChartsContent({ data, periodDays, activeChart, toolMetric, mode
           valueFormatter: hideZero,
         }))}
         height={240}
-        margin={{ left: 20, right: 8, top: 8, bottom: 40 }}
+        margin={{ left: 48, right: 8, top: 8, bottom: 40 }}
         slotProps={{ legend: { direction: 'horizontal', position: { vertical: 'bottom', horizontal: 'center' } } }}
         onAxisClick={makeAxisClick(modelPeriods)}
       />
