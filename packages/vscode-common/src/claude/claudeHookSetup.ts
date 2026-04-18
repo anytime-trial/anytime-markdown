@@ -77,6 +77,42 @@ if [ -n "$MSG" ]; then
 fi
 `;
 
+function commitTrackerScriptContent(port: number): string {
+  return `#!/usr/bin/env bash
+# commit-tracker.sh — detect git commits after Bash tool use and notify Trail
+set -eu
+STATE_DIR="\${HOME}/.vscode-server/data/User/globalStorage/anytime-trial.anytime-trail/git-state"
+mkdir -p "\$STATE_DIR"
+
+read -r -d '' STDIN_DATA || true
+SESSION_ID=$(echo "\$STDIN_DATA" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{process.stdout.write(JSON.parse(d).session_id||'')}catch{}})")
+CWD=$(echo "\$STDIN_DATA" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{process.stdout.write(JSON.parse(d).cwd||process.cwd())}catch{}})")
+TRANSCRIPT=$(echo "\$STDIN_DATA" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{process.stdout.write(JSON.parse(d).transcript_path||'')}catch{}})")
+[ -z "\$SESSION_ID" ] && exit 0
+
+STATE_FILE="\$STATE_DIR/claude-code-git-state-\${SESSION_ID}.json"
+CURRENT=$(cd "\$CWD" && git rev-parse HEAD 2>/dev/null || true)
+[ -z "\$CURRENT" ] && exit 0
+
+LAST=""
+[ -f "\$STATE_FILE" ] && LAST=$(node -e "try{process.stdout.write(JSON.parse(require('fs').readFileSync('\${STATE_FILE}','utf8')).lastHead||'')}catch{}")
+
+if [ "\$LAST" != "\$CURRENT" ] && [ -n "\$LAST" ]; then
+  UUID=$(node -e "const fs=require('fs');try{const lines=fs.readFileSync('\${TRANSCRIPT}','utf8').trim().split('\\\\n');for(let i=lines.length-1;i>=0;i--){const o=JSON.parse(lines[i]);if(o.type==='assistant'&&o.uuid){process.stdout.write(o.uuid);break}}}catch{}")
+  COMMITS=$(cd "\$CWD" && git log "\${LAST}..\${CURRENT}" --format=%H 2>/dev/null || true)
+  PORT="\${ANYTIME_TRAIL_PORT:-${port}}"
+  for HASH in \$COMMITS; do
+    [ -z "\$UUID" ] || curl -s -m 2 -X POST "http://localhost:\${PORT}/api/message-commits" \\
+      -H "Content-Type: application/json" \\
+      -d "{\\"messageUuid\\":\\"\${UUID}\\",\\"sessionId\\":\\"\${SESSION_ID}\\",\\"commitHash\\":\\"\${HASH}\\",\\"matchConfidence\\":\\"realtime\\"}" || true
+  done
+fi
+
+node -e "require('fs').writeFileSync('\${STATE_FILE}',JSON.stringify({sessionId:'\${SESSION_ID}',lastHead:'\${CURRENT}',updatedAt:new Date().toISOString()}))" || true
+exit 0
+`;
+}
+
 function writeScript(filename: string, content: string): void {
   fs.mkdirSync(SCRIPTS_DIR, { recursive: true });
   const scriptPath = path.join(SCRIPTS_DIR, filename);
@@ -159,6 +195,7 @@ export function setupClaudeHooks(workspaceRoot?: string, statusDir?: string, tra
   try {
     writeScript('trail-token-budget.sh', tokenBudgetScriptContent(trailPort));
     writeScript('session-guard.sh', SESSION_GUARD_SCRIPT);
+    writeScript('commit-tracker.sh', commitTrackerScriptContent(trailPort));
   } catch (err) {
     // スクリプト作成失敗はログのみ（フック設定は続行）
     if (process.env.NODE_ENV !== 'test') {
@@ -205,6 +242,13 @@ export function setupClaudeHooks(workspaceRoot?: string, statusDir?: string, tra
   settings.hooks.PostToolUse.push({
     matcher: 'Write',
     hooks: [{ type: 'command', command: planHookCommand }],
+  });
+
+  // PostToolUse hook: commit-tracker.sh (realtime message_commits recording)
+  settings.hooks.PostToolUse = removeHooksByMarker(settings.hooks.PostToolUse, 'commit-tracker.sh');
+  settings.hooks.PostToolUse.push({
+    matcher: 'Bash',
+    hooks: [{ type: 'command', command: 'bash ~/.claude/scripts/commit-tracker.sh', timeout: 5 }],
   });
 
   // Stop hook: trail-token-budget.sh

@@ -292,6 +292,11 @@ export class TrailDataServer {
       return;
     }
 
+    if (pathname === '/api/message-commits' && method === 'POST') {
+      this.handleInsertMessageCommit(req, res);
+      return;
+    }
+
     if (pathname === '/api/trail/prompts' && method === 'GET') {
       this.handleGetPrompts(res);
       return;
@@ -1022,6 +1027,38 @@ export class TrailDataServer {
       } catch {
         res.writeHead(200, JSON_HEADERS);
         res.end(JSON.stringify({ ok: true }));
+      }
+    });
+  }
+
+  private handleInsertMessageCommit(req: http.IncomingMessage, res: http.ServerResponse): void {
+    let body = '';
+    req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
+    req.on('end', () => {
+      try {
+        const { messageUuid, sessionId, commitHash, matchConfidence } = JSON.parse(body) as {
+          messageUuid: string;
+          sessionId: string;
+          commitHash: string;
+          matchConfidence: string;
+        };
+        if (!messageUuid || !sessionId || !commitHash) {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'messageUuid, sessionId, commitHash required' }));
+          return;
+        }
+        this.trailDb.insertMessageCommit({
+          messageUuid,
+          sessionId,
+          commitHash,
+          detectedAt: new Date().toISOString(),
+          matchConfidence: (matchConfidence ?? 'realtime') as import('@anytime-markdown/trail-core').MessageCommitMatchConfidence,
+        });
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify({ ok: true }));
+      } catch (e) {
+        res.writeHead(500, JSON_HEADERS);
+        res.end(JSON.stringify({ error: String(e) }));
       }
     });
   }
