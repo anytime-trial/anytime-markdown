@@ -560,42 +560,8 @@ export class SupabaseTrailReader implements ITrailReader {
 
   async getBehaviorData(period: BehaviorPeriodMode, rangeDays: BehaviorRangeDays): Promise<BehaviorData | null> {
     try {
-      const cutoff = new Date(Date.now() - rangeDays * 86_400_000).toISOString();
-
-      // tool_calls と assistant メッセージを並列 fetch。
-      // assistant メッセージは msgTokenMap と modelStats の両方に使い回す。
-      const [tcResult, msgResult] = await Promise.all([
-        this.client
-          .from('trail_message_tool_calls')
-          .select('session_id, message_uuid, turn_index, tool_name, skill_name, is_error, turn_exec_ms, timestamp')
-          .gte('timestamp', cutoff)
-          .limit(100_000),
-        this.client
-          .from('trail_messages')
-          .select('uuid, timestamp, model, input_tokens, output_tokens')
-          .eq('type', 'assistant')
-          .gte('timestamp', cutoff)
-          .limit(200_000),
-      ]);
-      if (tcResult.error || !tcResult.data) return null;
-
-      type Row = { session_id: string; message_uuid: string; turn_index: number; tool_name: string; skill_name: string | null; is_error: number; turn_exec_ms: number | null; timestamp: string };
-      const rows = tcResult.data as Row[];
-      type MsgRow = { uuid: string; timestamp: string; model: string | null; input_tokens: number | null; output_tokens: number | null };
-      const msgs = (msgResult.data ?? []) as MsgRow[];
-
-      // assistant メッセージから msgTokenMap を構築（バッチ fetch の置き換え）
-      const msgTokenMap = new Map<string, number>();
-      for (const m of msgs) {
-        msgTokenMap.set(m.uuid, (m.input_tokens ?? 0) + (m.output_tokens ?? 0));
-      }
-      const msgToolCountMap = new Map<string, number>();
-      for (const r of rows) {
-        msgToolCountMap.set(r.message_uuid, (msgToolCountMap.get(r.message_uuid) ?? 0) + 1);
-      }
-
-      // IANA タイムゾーンから UTC オフセット（分）を取得する。
-      // getTimezoneOffset() は WSL 環境で常に 0 を返すため使用禁止。
+      // daily_counts の date は JST (YYYY-MM-DD)。
+      // cutoff も JST 日付文字列で比較する。
       const getIanaOffsetMs = (timeZone: string, at: Date): number => {
         const parts = new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'longOffset' }).formatToParts(at);
         const label = parts.find(p => p.type === 'timeZoneName')?.value ?? 'GMT+00:00';
@@ -604,107 +570,81 @@ export class SupabaseTrailReader implements ITrailReader {
         const sign = match[1] === '+' ? 1 : -1;
         return sign * (Number(match[2]) * 60 + Number(match[3])) * 60_000;
       };
+      const cutoffMs = Date.now() - rangeDays * 86_400_000;
+      const cutoffLocal = new Date(cutoffMs + getIanaOffsetMs('Asia/Tokyo', new Date(cutoffMs)));
+      const cutoffDate = `${cutoffLocal.getUTCFullYear()}-${String(cutoffLocal.getUTCMonth() + 1).padStart(2, '0')}-${String(cutoffLocal.getUTCDate()).padStart(2, '0')}`;
 
-      // period key function
-      const periodKeyFromTs = (ts: string): string => {
-        const utc = new Date(ts);
-        const offsetMs = getIanaOffsetMs('Asia/Tokyo', utc);
-        const local = new Date(utc.getTime() + offsetMs);
-        const y = local.getUTCFullYear();
-        const m = String(local.getUTCMonth() + 1).padStart(2, '0');
-        const day = String(local.getUTCDate()).padStart(2, '0');
-        if (period === 'day') return `${y}-${m}-${day}`;
-        // 週キー: 月曜始まり（getUTCDay() 0=日曜 → 月曜を週頭にするため調整）
-        const dow = local.getUTCDay(); // 0=Sun, 1=Mon, ...
-        const diffToMonday = (dow + 6) % 7;
-        const monday = new Date(local.getTime() - diffToMonday * 86_400_000);
-        const wy = monday.getUTCFullYear();
-        const wm = String(monday.getUTCMonth() + 1).padStart(2, '0');
-        const wd = String(monday.getUTCDate()).padStart(2, '0');
-        return `${wy}-${wm}-${wd}`;
+      const { data, error } = await this.client
+        .from('trail_daily_counts')
+        .select('date,kind,key,count,tokens,duration_ms')
+        .in('kind', ['tool', 'skill', 'error', 'model'])
+        .gte('date', cutoffDate);
+      if (error || !data) return null;
+
+      type DcRow = { date: string; kind: string; key: string; count: number; tokens: number; duration_ms: number };
+      const rows = data as DcRow[];
+
+      const getMonday = (dateStr: string): string => {
+        const [y, m, d] = dateStr.split('-').map(Number);
+        const dt = new Date(Date.UTC(y!, m! - 1, d!));
+        const diffToMonday = (dt.getUTCDay() + 6) % 7;
+        const monday = new Date(dt.getTime() - diffToMonday * 86_400_000);
+        return `${monday.getUTCFullYear()}-${String(monday.getUTCMonth() + 1).padStart(2, '0')}-${String(monday.getUTCDate()).padStart(2, '0')}`;
       };
-      const periodKey = (r: Row): string => periodKeyFromTs(r.timestamp);
+      const periodKey = (dateStr: string): string =>
+        period === 'week' ? getMonday(dateStr) : dateStr;
 
-      // MCP ツール名を正規化: mcp__github__xxx → mcp__github
-      const normalizeTool = (name: string): string => {
-        if (!name.startsWith('mcp__')) return name;
-        const parts = name.split('__');
-        return parts.length >= 3 ? `${parts[0]}__${parts[1]}` : name;
+      const toolMap = new Map<string, { count: number; tokens: number; durationMs: number }>();
+      const errMap = new Map<string, { err: number; total: number; byTool: Record<string, number> }>();
+      const skillMap = new Map<string, number>();
+      const modelMap = new Map<string, { count: number; tokens: number }>();
+
+      for (const r of rows) {
+        const p = periodKey(r.date);
+        if (r.kind === 'tool') {
+          const k = `${p}::${r.key}`;
+          const e = toolMap.get(k) ?? { count: 0, tokens: 0, durationMs: 0 };
+          e.count += r.count; e.tokens += r.tokens; e.durationMs += r.duration_ms;
+          toolMap.set(k, e);
+          const ef = errMap.get(p) ?? { err: 0, total: 0, byTool: {} };
+          ef.total += r.count;
+          errMap.set(p, ef);
+        } else if (r.kind === 'error') {
+          const ef = errMap.get(p) ?? { err: 0, total: 0, byTool: {} };
+          ef.err += r.count;
+          ef.byTool[r.key] = (ef.byTool[r.key] ?? 0) + r.count;
+          errMap.set(p, ef);
+        } else if (r.kind === 'skill') {
+          const k = `${p}::${r.key}`;
+          skillMap.set(k, (skillMap.get(k) ?? 0) + r.count);
+        } else if (r.kind === 'model') {
+          const k = `${p}::${r.key}`;
+          const e = modelMap.get(k) ?? { count: 0, tokens: 0 };
+          e.count += r.count; e.tokens += r.tokens;
+          modelMap.set(k, e);
+        }
+      }
+
+      const splitKey = (k: string): [string, string] => {
+        const sep = k.indexOf('::');
+        return [k.slice(0, sep), k.slice(sep + 2)];
       };
 
-      // ⑤ errorRate
-      const errByPeriod = new Map<string, { err: number; total: number; byTool: Record<string, number> }>();
-      for (const r of rows) {
-        const p = periodKey(r);
-        const e = errByPeriod.get(p) ?? { err: 0, total: 0, byTool: {} };
-        e.total++;
-        if (r.is_error) { const tn = normalizeTool(r.tool_name); e.err++; e.byTool[tn] = (e.byTool[tn] ?? 0) + 1; }
-        errByPeriod.set(p, e);
-      }
-      const errorRate = [...errByPeriod.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([p, e]) => ({
-        period: p, rate: e.total > 0 ? e.err / e.total : 0, byTool: e.byTool,
-      }));
-
-      // ⑥ skillStats
-      const skillMap = new Map<string, { count: number }>();
-      for (const r of rows) {
-        if (!r.skill_name) continue;
-        const k = `${periodKey(r)}::${r.skill_name}`;
-        const e = skillMap.get(k) ?? { count: 0 };
-        e.count++;
-        skillMap.set(k, e);
-      }
-      const skillStats = [...skillMap.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([k, e]) => {
-        const [period, skill] = k.split('::');
-        return { period: period ?? '', skill: skill ?? '', count: e.count, costUsd: 0 };
-      });
-
-      // ① toolCounts: 全ツール利用回数
-      // ターン内のツール呼び出し数（turn_exec_ms 按分用）
-      const turnToolCount = new Map<string, number>();
-      for (const r of rows) {
-        const turnKey = `${r.session_id}:${r.turn_index}`;
-        turnToolCount.set(turnKey, (turnToolCount.get(turnKey) ?? 0) + 1);
-      }
-      const toolCountMap = new Map<string, { count: number; tokens: number; durationMs: number }>();
-      for (const r of rows) {
-        const p = periodKey(r);
-        const k = `${p}::${normalizeTool(r.tool_name)}`;
-        const e = toolCountMap.get(k) ?? { count: 0, tokens: 0, durationMs: 0 };
-        e.count++;
-        // メッセージのトークンをそのメッセージ内のツール呼び出し数で按分
-        const msgTokens = msgTokenMap.get(r.message_uuid) ?? 0;
-        const msgTools = msgToolCountMap.get(r.message_uuid) ?? 1;
-        e.tokens += Math.round(msgTokens / msgTools);
-        // ターンの実行時間をターン内のツール呼び出し数で按分
-        const turnKey = `${r.session_id}:${r.turn_index}`;
-        const turnTools = turnToolCount.get(turnKey) ?? 1;
-        e.durationMs += Math.round((r.turn_exec_ms ?? 0) / turnTools);
-        toolCountMap.set(k, e);
-      }
-      const toolCounts = [...toolCountMap.entries()]
-        .map(([k, e]) => {
-          const [p, tool] = k.split('::');
-          return { period: p, tool: tool ?? '', count: e.count, tokens: e.tokens, durationMs: e.durationMs };
-        })
+      const toolCounts = [...toolMap.entries()]
+        .map(([k, e]) => { const [p, tool] = splitKey(k); return { period: p, tool, ...e }; })
         .sort((a, b) => a.period.localeCompare(b.period) || b.count - a.count);
 
-      // ⑦ modelStats: 並列 fetch 済みの assistant メッセージから集計
-      const modelMap = new Map<string, { count: number; tokens: number }>();
-      for (const m of msgs) {
-        if (!m.model) continue;
-        const p = periodKeyFromTs(m.timestamp);
-        const k = `${p}::${m.model}`;
-        const e = modelMap.get(k) ?? { count: 0, tokens: 0 };
-        e.count++;
-        e.tokens += (m.input_tokens ?? 0) + (m.output_tokens ?? 0);
-        modelMap.set(k, e);
-      }
+      const errorRate = [...errMap.entries()]
+        .filter(([, e]) => e.total > 0)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([p, e]) => ({ period: p, rate: e.err / e.total, byTool: e.byTool }));
+
+      const skillStats = [...skillMap.entries()]
+        .map(([k, count]) => { const [p, skill] = splitKey(k); return { period: p, skill, count, costUsd: 0 }; })
+        .sort((a, b) => a.period.localeCompare(b.period));
+
       const modelStats = [...modelMap.entries()]
-        .map(([k, e]) => {
-          const [p, model] = k.split('::');
-          return { period: p ?? '', model: model ?? '', count: e.count, tokens: e.tokens };
-        })
+        .map(([k, e]) => { const [p, model] = splitKey(k); return { period: p, model, ...e }; })
         .sort((a, b) => a.period.localeCompare(b.period) || b.count - a.count);
 
       return { toolCounts, errorRate, skillStats, modelStats };
