@@ -616,7 +616,7 @@ function SessionModelUsageChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMet
       <BarChart
         dataset={[entry]}
         layout="horizontal"
-        yAxis={[{ scaleType: 'band', dataKey: 'metric', categoryGapRatio: 0.25 }]}
+        yAxis={[{ scaleType: 'band', dataKey: 'metric', categoryGapRatio: 0.25, tickLabelStyle: { display: 'none' } }]}
         series={sorted.map((e, i) => ({
           dataKey: `m${i}`,
           label: e.model,
@@ -671,7 +671,7 @@ function SessionToolUsageChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMetr
       <BarChart
         dataset={[entry]}
         layout="horizontal"
-        yAxis={[{ scaleType: 'band', dataKey: 'metric', categoryGapRatio: 0.25 }]}
+        yAxis={[{ scaleType: 'band', dataKey: 'metric', categoryGapRatio: 0.25, tickLabelStyle: { display: 'none' } }]}
         series={sorted.map((e, i) => ({
           dataKey: `t${i}`,
           label: e.tool,
@@ -725,7 +725,7 @@ function SessionSkillUsageChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMet
       <BarChart
         dataset={[entry]}
         layout="horizontal"
-        yAxis={[{ scaleType: 'band', dataKey: 'metric', categoryGapRatio: 0.25 }]}
+        yAxis={[{ scaleType: 'band', dataKey: 'metric', categoryGapRatio: 0.25, tickLabelStyle: { display: 'none' } }]}
         xAxis={[{ tickMinStep: 1 }]}
         series={sorted.map((e, i) => ({
           dataKey: `s${i}`,
@@ -766,7 +766,7 @@ function SessionErrorChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMetrics 
       <BarChart
         dataset={[entry]}
         layout="horizontal"
-        yAxis={[{ scaleType: 'band', dataKey: 'metric', categoryGapRatio: 0.25 }]}
+        yAxis={[{ scaleType: 'band', dataKey: 'metric', categoryGapRatio: 0.25, tickLabelStyle: { display: 'none' } }]}
         xAxis={[{ tickMinStep: 1 }]}
         series={sorted.map((e, i) => ({
           dataKey: `e${i}`,
