@@ -28,30 +28,6 @@
   "icon": "images/camel_markdown.png",
   "main": "./dist/extension.js",
   "contributes": {
-    "viewsContainers": {
-      "activitybar": [
-        {
-          "id": "anytimeMarkdown",
-          "title": "%viewsContainer.title%",
-          "icon": "images/camel-activitybar.svg"
-        }
-      ]
-    },
-    "views": {
-      "anytimeMarkdown": [
-        {
-          "id": "anytimeMarkdown.aiNote",
-          "name": "Note",
-          "initialSize": 1
-        }
-      ]
-    },
-    "viewsWelcome": [
-      {
-        "view": "anytimeMarkdown.aiNote",
-        "contents": "%viewsWelcome.aiNote%"
-      }
-    ],
     "submenus": [
       {
         "id": "anytime-markdown.modeMenu.review",
@@ -92,40 +68,6 @@
       {
         "command": "anytime-markdown.pasteAsMarkdown",
         "title": "%command.pasteAsMarkdown%"
-      },
-      {
-        "command": "anytime-markdown.openContext",
-        "title": "%command.openContext%",
-        "icon": "$(note)"
-      },
-      {
-        "command": "anytime-markdown.copyContextPath",
-        "title": "%command.copyContextPath%",
-        "icon": "$(clippy)"
-      },
-      {
-        "command": "anytime-markdown.clearContext",
-        "title": "%command.clearContext%",
-        "icon": "$(trash)"
-      },
-      {
-        "command": "anytime-markdown.openNoteSkill",
-        "title": "%command.openNoteSkill%",
-        "icon": "$(book)"
-      },
-      {
-        "command": "anytime-markdown.addNotePage",
-        "title": "%command.addNotePage%",
-        "icon": "$(add)"
-      },
-      {
-        "command": "anytime-markdown.deleteNotePage",
-        "title": "%command.deleteNotePage%",
-        "icon": "$(trash)"
-      },
-      {
-        "command": "anytime-markdown.openNotePage",
-        "title": "%command.openNotePage%"
       },
       {
         "command": "anytime-markdown.toggleAutoReloadOff",
@@ -241,35 +183,6 @@
       }
     },
     "menus": {
-      "view/title": [
-        {
-          "command": "anytime-markdown.openNoteSkill",
-          "when": "view == anytimeMarkdown.aiNote",
-          "group": "navigation@1"
-        },
-        {
-          "command": "anytime-markdown.addNotePage",
-          "when": "view == anytimeMarkdown.aiNote",
-          "group": "navigation@2"
-        },
-        {
-          "command": "anytime-markdown.clearContext",
-          "when": "view == anytimeMarkdown.aiNote",
-          "group": "navigation@3"
-        },
-        {
-          "command": "anytime-markdown.copyContextPath",
-          "when": "view == anytimeMarkdown.aiNote",
-          "group": "navigation@3"
-        }
-      ],
-      "view/item/context": [
-        {
-          "command": "anytime-markdown.deleteNotePage",
-          "when": "view == anytimeMarkdown.aiNote && viewItem == noteItem",
-          "group": "inline"
-        }
-      ],
       "explorer/context": [
         {
           "command": "anytime-markdown.openEditorWithFile",

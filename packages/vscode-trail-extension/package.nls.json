@@ -17,5 +17,14 @@
   "command.openTrailViewer": "Open Trail Viewer",
   "view.dashboard": "Dashboard",
   "viewsWelcome.dashboard": "[$(graph-line) Open Trail Viewer](command:anytime-trail.openTrailViewer)",
-  "view.database": "Database"
+  "view.database": "Database",
+  "view.aiNote": "Note",
+  "viewsWelcome.aiNote": "[$(edit) Create Note](command:anytime-trail.openContext)\nShare visual information (images, tables) with AI tools.",
+  "command.openContext": "Open Agent Note",
+  "command.openNoteSkill": "Open Note Skill",
+  "command.addNotePage": "Add Note Page",
+  "command.deleteNotePage": "Delete Note Page",
+  "command.openNotePage": "Open Note Page",
+  "command.clearContext": "Clear Agent Note",
+  "command.copyContextPath": "Copy Agent Note Path"
 }

@@ -17,5 +17,14 @@
   "command.openTrailViewer": "Trail ビューアを開く",
   "view.dashboard": "ダッシュボード",
   "viewsWelcome.dashboard": "[$(graph-line) Trail Viewerを開く](command:anytime-trail.openTrailViewer)",
-  "view.database": "データベース"
+  "view.database": "データベース",
+  "view.aiNote": "Note",
+  "viewsWelcome.aiNote": "[$(edit) ノート作成](command:anytime-trail.openContext)\n画像や表など、AIツールに視覚情報を共有できます。",
+  "command.openContext": "AI ノートを開く",
+  "command.openNoteSkill": "ノートスキルを開く",
+  "command.addNotePage": "ノートページを追加",
+  "command.deleteNotePage": "ノートページを削除",
+  "command.openNotePage": "ノートページを開く",
+  "command.clearContext": "AI ノートをクリア",
+  "command.copyContextPath": "AI ノートのパスをコピー"
 }

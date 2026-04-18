@@ -15,13 +15,14 @@ Anytime Markdown gives you a WYSIWYG editor with rich rendering, plus **collabor
 ## 1. What You Can Do
 
 - **Rich Markdown editing** — render tables, Mermaid, PlantUML, KaTeX, JSXGraph, and Plotly inline
-- **Paste a screenshot and tell AI "fix this"** — share images with AI via Agent Note
 - **Auto-lock while AI is editing** — prevent conflicts when Claude Code is writing to a file
 - **Switch between 3 modes with one click** — WYSIWYG, Source, Review
 - **Broken link warnings** — wave underlines for invalid file links and anchors
 - **Status bar** — cursor position, character count, line count, line ending, and encoding
 - **Diff view** — compare two versions side by side
 - **Section number insertion and removal**
+
+> **Tip:** To share screenshots with Claude Code, use the **Note** panel in [Anytime Trail](https://marketplace.visualstudio.com/items?itemName=anytime-trial.anytime-trail).
 
 
 ## 2. Getting Started
@@ -31,24 +32,7 @@ Right-click a `.md` / `.markdown` file and choose **"Open with Anytime Markdown"
 Available from both the Explorer context menu and the editor title bar context menu.
 
 
-## 3. Share Screenshots with AI (Anytime Note)
-
-Manage multiple note pages in the **Note** sidebar panel and share visual context with AI.
-
-**How to use:**
-
-1. Open a note from **Note** in the sidebar (use `+` to add a new page)
-2. Paste screenshots or tables from your clipboard
-3. Run `/anytime-note fix this bug` in Claude Code
-4. AI reads the images in the note and performs the task
-
-> When Claude Code is installed, the `/anytime-note` skill is auto-generated.
-
-
-![](images/markdown-agent-note.gif)
-
-
-## 4. Auto-Lock While AI Is Editing (Claude Code Collaborative Editing)
+## 3. Auto-Lock While AI Is Editing (Claude Code Collaborative Editing)
 
 While Claude Code is editing a file, the editor becomes read-only to prevent conflicts.\
 When editing finishes, the lock is released and the content is updated automatically.
@@ -58,7 +42,7 @@ When editing finishes, the lock is released and the content is updated automatic
 - **Crash safe** — auto-unlocks after 30 seconds if Claude Code stops responding
 
 
-## 5. Editor Modes
+## 4. Editor Modes
 
 | Mode | What it does |
 | --- | --- |
@@ -69,14 +53,14 @@ When editing finishes, the lock is released and the content is updated automatic
 Switch with the mode menu in the toolbar.
 
 
-## 6. Keyboard Shortcuts
+## 5. Keyboard Shortcuts
 
 | Key | Action |
 | --- | --- |
 | `Ctrl+Shift+V` / `Cmd+Shift+V` | Paste as Markdown |
 
 
-## 7. Settings
+## 6. Settings
 
 | Setting | Default | Description |
 | --- | --- | --- |
@@ -87,6 +71,6 @@ Switch with the mode menu in the toolbar.
 | `anytimeMarkdown.themePreset` | `handwritten` | Theme style (handwritten / professional) |
 
 
-## 8. License
+## 7. License
 
 MIT

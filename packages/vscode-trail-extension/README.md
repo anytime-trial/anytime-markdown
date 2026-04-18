@@ -5,7 +5,30 @@
 **See your architecture while you code.**
 
 Analyze TypeScript projects to auto-generate C4 architecture diagrams and DSM (Dependency Structure Matrix).\
-Visualize Claude Code session logs to analyze your AI-assisted work history.
+Visualize Claude Code session logs to analyze your AI-assisted work history.\
+Share screenshots and visual context with Claude Code via the built-in Note panel.
+
+
+## Anytime Note — Share Screenshots with AI
+
+The **Note** panel (top of the sidebar) lets you manage multi-page notes and share visual context with Claude Code.
+
+**How to use:**
+
+1. Click **Note** in the sidebar and press `+` to create a new page
+2. Open the note in Anytime Markdown and paste screenshots or tables from your clipboard
+3. Run `/anytime-note fix this bug` in Claude Code
+4. AI reads the images in the note and performs the task
+
+> When Claude Code is installed, the `/anytime-note` skill is auto-generated on first note creation.
+
+**Toolbar actions**
+
+| Icon | Action |
+| --- | --- |
+| `+` | Add a new note page |
+| book | Open the `/anytime-note` skill file |
+| trash | Clear all note pages and images |
 
 
 ## C4 Architecture Diagrams & DSM
@@ -65,6 +88,8 @@ Click any entry to open and edit it in Anytime Markdown.
 
 > Reads from `~/.claude/projects/<project>/memory/`.\
 > Hidden when Claude Code is not installed.
+
+> **Note storage:** Note files are saved in this extension's VS Code global storage (separate from Anytime Markdown's storage). The skill file is generated at `~/.claude/skills/anytime-note/SKILL.md`.
 
 
 ## Coverage Integration
