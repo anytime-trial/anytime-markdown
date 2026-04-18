@@ -84,6 +84,12 @@ export class TrailDataServer {
   private lastClaudeActivity: { activeElementIds: readonly string[]; touchedElementIds: readonly string[]; plannedElementIds: readonly string[] } | undefined;
   private lastMultiAgentActivity: { agents: readonly import('./types').AgentActivityEntry[]; conflicts: readonly import('./types').FileConflict[] } | undefined;
   onOpenDocLink: ((docPath: string) => void) | undefined;
+  onTokenBudgetExceeded: ((status: import('./types').TokenBudgetUpdatedMessage) => void) | undefined;
+  private tokenBudgetConfig: { dailyLimitTokens: number | null; sessionLimitTokens: number | null; alertThresholdPct: number } = {
+    dailyLimitTokens: null,
+    sessionLimitTokens: null,
+    alertThresholdPct: 80,
+  };
 
   constructor(
     private readonly distPath: string,
@@ -173,6 +179,10 @@ export class TrailDataServer {
     for (const ws of this.clients) {
       ws.send(payload);
     }
+  }
+
+  setTokenBudgetConfig(config: { dailyLimitTokens: number | null; sessionLimitTokens: number | null; alertThresholdPct: number }): void {
+    this.tokenBudgetConfig = config;
   }
 
   setC4Provider(getProvider: () => C4DataProvider | undefined): void {
@@ -274,6 +284,11 @@ export class TrailDataServer {
     }
     if (pathname === '/api/trail/refresh' && method === 'POST') {
       this.handleRefresh(res);
+      return;
+    }
+
+    if (pathname === '/api/trail/token-budget' && method === 'POST') {
+      this.handleTokenBudget(req, res);
       return;
     }
 
@@ -899,6 +914,53 @@ export class TrailDataServer {
         res.writeHead(500, JSON_HEADERS);
         res.end(JSON.stringify({ error: 'Refresh failed' }));
       });
+  }
+
+  private handleTokenBudget(req: http.IncomingMessage, res: http.ServerResponse): void {
+    let body = '';
+    req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
+    req.on('end', () => {
+      try {
+        const { sessionId } = JSON.parse(body) as { sessionId: string };
+        if (!sessionId) {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'sessionId required' }));
+          return;
+        }
+
+        const sessionTokens = this.trailDb.getSessionTokens(sessionId);
+        const dailyTokens = this.trailDb.getDailyTokensToday();
+        const { dailyLimitTokens, sessionLimitTokens, alertThresholdPct } = this.tokenBudgetConfig;
+
+        const status: import('./types').TokenBudgetUpdatedMessage = {
+          type: 'token-budget-updated',
+          sessionId,
+          sessionTokens,
+          dailyTokens,
+          dailyLimitTokens,
+          sessionLimitTokens,
+          alertThresholdPct,
+        };
+
+        const payload = JSON.stringify(status);
+        for (const ws of this.clients) {
+          ws.send(payload);
+        }
+
+        const threshold = alertThresholdPct / 100;
+        const dailyExceeded = dailyLimitTokens !== null && dailyTokens >= dailyLimitTokens * threshold;
+        const sessionExceeded = sessionLimitTokens !== null && sessionTokens >= sessionLimitTokens * threshold;
+        if (dailyExceeded || sessionExceeded) {
+          this.onTokenBudgetExceeded?.(status);
+        }
+
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify({ ok: true }));
+      } catch {
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify({ ok: true }));
+      }
+    });
   }
 
   // -------------------------------------------------------------------------

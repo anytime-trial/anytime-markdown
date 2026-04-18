@@ -43,6 +43,9 @@ export interface TrailI18n {
   'stats.cacheRead': string;
   'stats.duration': string;
   'stats.messages': string;
+  // tokenBudget
+  'tokenBudget.session': string;
+  'tokenBudget.daily': string;
   // trace
   'trace.showSystemMessages': string;
   'trace.noMessages': string;

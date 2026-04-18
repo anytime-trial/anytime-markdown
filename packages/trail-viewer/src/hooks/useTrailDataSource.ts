@@ -7,6 +7,15 @@ import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
 // Types
 // ---------------------------------------------------------------------------
 
+export interface TokenBudgetStatus {
+  readonly sessionId: string;
+  readonly sessionTokens: number;
+  readonly dailyTokens: number;
+  readonly dailyLimitTokens: number | null;
+  readonly sessionLimitTokens: number | null;
+  readonly alertThresholdPct: number;
+}
+
 export interface TrailDataSourceResult {
   readonly sessions: readonly TrailSession[];
   readonly allSessions: readonly TrailSession[];
@@ -27,6 +36,7 @@ export interface TrailDataSourceResult {
   readonly releases: readonly TrailRelease[];
   readonly fetchReleases: () => Promise<readonly TrailRelease[]>;
   readonly fetchCombinedData: (period: CombinedPeriodMode, rangeDays: CombinedRangeDays) => Promise<CombinedData>;
+  readonly tokenBudget: TokenBudgetStatus | null;
 }
 
 interface WsMessage {
@@ -73,6 +83,7 @@ export function useTrailDataSource(serverUrl: string): TrailDataSourceResult {
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [costOptimization, setCostOptimization] = useState<CostOptimizationData | null>(null);
   const [releases, setReleases] = useState<readonly TrailRelease[]>([]);
+  const [tokenBudget, setTokenBudget] = useState<TokenBudgetStatus | null>(null);
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -339,6 +350,9 @@ export function useTrailDataSource(serverUrl: string): TrailDataSourceResult {
             void fetchSessions(undefined, true);
             void refreshAnalytics();
           }
+          if (isWsMessage(parsed) && parsed.type === 'token-budget-updated') {
+            setTokenBudget(parsed as unknown as TokenBudgetStatus);
+          }
         } catch {
           // Malformed message — ignore
         }
@@ -396,5 +410,6 @@ export function useTrailDataSource(serverUrl: string): TrailDataSourceResult {
     releases,
     fetchReleases,
     fetchCombinedData,
+    tokenBudget,
   };
 }

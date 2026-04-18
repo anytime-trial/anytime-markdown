@@ -326,6 +326,23 @@
           "type": "string",
           "default": "",
           "markdownDescription": "%config.claudeStatus.directory%"
+        },
+        "anytimeTrail.budget.dailyLimitTokens": {
+          "type": ["number", "null"],
+          "default": null,
+          "markdownDescription": "日次トークン上限。`null` で無効。"
+        },
+        "anytimeTrail.budget.sessionLimitTokens": {
+          "type": ["number", "null"],
+          "default": null,
+          "markdownDescription": "セッションあたりのトークン上限。`null` で無効。"
+        },
+        "anytimeTrail.budget.alertThresholdPct": {
+          "type": "number",
+          "default": 80,
+          "minimum": 1,
+          "maximum": 100,
+          "markdownDescription": "上限に対する警告閾値（%）。"
         }
       }
     }

@@ -1,7 +1,9 @@
 import { useCallback, useMemo, useState } from 'react';
 import Box from '@mui/material/Box';
+import LinearProgress from '@mui/material/LinearProgress';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 
 import type {
@@ -53,6 +55,7 @@ export interface TrailViewerCoreProps {
   readonly costOptimization?: CostOptimizationData | null;
   readonly releases?: readonly TrailRelease[];
   readonly fetchCombinedData?: AnalyticsPanelProps['fetchCombinedData'];
+  readonly tokenBudget?: import('../hooks/useTrailDataSource').TokenBudgetStatus | null;
   /** C4 viewer props. When provided, the C4 tab is shown. */
   readonly c4?: C4Props;
 }
@@ -88,6 +91,7 @@ function TrailViewerCoreInner({
   costOptimization = null,
   releases = [],
   fetchCombinedData,
+  tokenBudget = null,
   c4,
 }: Readonly<TrailViewerCoreProps>) {
   const { t } = useTrailI18n();
@@ -165,12 +169,13 @@ function TrailViewerCoreInner({
       </Box>
 
       {/* Top: Tabs */}
-      <Box sx={{ borderBottom: 1, borderColor: colors.border }}>
+      <Box sx={{ borderBottom: 1, borderColor: colors.border, display: 'flex', alignItems: 'center' }}>
         <Tabs
           value={activeTab}
           onChange={(_e, v: number) => setActiveTab(v)}
           aria-label="Trail viewer tabs"
           sx={{
+            flex: 1,
             '& .MuiTab-root': { color: colors.textSecondary },
             '& .Mui-selected': { color: colors.iceBlue },
             '& .MuiTabs-indicator': { backgroundColor: colors.iceBlue },
@@ -182,6 +187,24 @@ function TrailViewerCoreInner({
           <Tab id="trail-tab-3" aria-controls="trail-panel-3" label={t('releases.title')} />
           {c4 && <Tab id="trail-tab-4" aria-controls="trail-panel-4" label={t('viewer.c4')} />}
         </Tabs>
+        {tokenBudget && (
+          <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', px: 2, flexShrink: 0 }}>
+            <TokenBudgetIndicator
+              label={t('tokenBudget.session')}
+              current={tokenBudget.sessionTokens}
+              limit={tokenBudget.sessionLimitTokens}
+              threshold={tokenBudget.alertThresholdPct}
+              colors={colors}
+            />
+            <TokenBudgetIndicator
+              label={t('tokenBudget.daily')}
+              current={tokenBudget.dailyTokens}
+              limit={tokenBudget.dailyLimitTokens}
+              threshold={tokenBudget.alertThresholdPct}
+              colors={colors}
+            />
+          </Box>
+        )}
       </Box>
 
       <Box
@@ -282,5 +305,51 @@ function TrailViewerCoreInner({
         </Box>
       )}
     </Box>
+  );
+}
+
+interface TokenBudgetIndicatorProps {
+  readonly label: string;
+  readonly current: number;
+  readonly limit: number | null;
+  readonly threshold: number;
+  readonly colors: ReturnType<typeof getTokens>['colors'];
+}
+
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
+  return String(n);
+}
+
+function TokenBudgetIndicator({ label, current, limit, threshold, colors }: Readonly<TokenBudgetIndicatorProps>) {
+  if (limit === null) {
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 64 }}>
+        <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.65rem' }}>{label}</Typography>
+        <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.7rem' }}>{formatTokens(current)}</Typography>
+      </Box>
+    );
+  }
+
+  const pct = Math.min((current / limit) * 100, 100);
+  const isWarning = pct >= threshold;
+  const barColor = isWarning ? colors.error : colors.success;
+  const tooltipText = `${current.toLocaleString()} / ${limit.toLocaleString()} tokens`;
+
+  return (
+    <Tooltip title={tooltipText} placement="bottom">
+      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 64 }}>
+        <Typography variant="caption" sx={{ color: isWarning ? colors.error : colors.textSecondary, fontSize: '0.65rem' }}>{label}</Typography>
+        <LinearProgress
+          variant="determinate"
+          value={pct}
+          sx={{ width: 60, height: 4, borderRadius: 2, bgcolor: colors.border, '& .MuiLinearProgress-bar': { bgcolor: barColor } }}
+        />
+        <Typography variant="caption" sx={{ color: isWarning ? colors.error : colors.textSecondary, fontSize: '0.65rem' }}>
+          {formatTokens(current)}/{formatTokens(limit)}
+        </Typography>
+      </Box>
+    </Tooltip>
   );
 }

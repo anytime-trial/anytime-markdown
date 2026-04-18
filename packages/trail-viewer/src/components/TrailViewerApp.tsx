@@ -178,6 +178,7 @@ export function TrailViewerApp({
       costOptimization={dataSource.costOptimization}
       releases={dataSource.releases}
       fetchCombinedData={dataSource.fetchCombinedData}
+      tokenBudget={dataSource.tokenBudget}
       c4={c4Props}
     />
   );

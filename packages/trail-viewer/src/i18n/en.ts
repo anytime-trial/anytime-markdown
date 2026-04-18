@@ -37,6 +37,8 @@ export const en: TrailI18n = {
   'stats.cacheRead': 'Cache read:',
   'stats.duration': 'Duration:',
   'stats.messages': 'messages',
+  'tokenBudget.session': 'Session',
+  'tokenBudget.daily': 'Today',
   'trace.showSystemMessages': 'Show system messages',
   'trace.noMessages': 'No messages',
   'message.collapse': 'Collapse',

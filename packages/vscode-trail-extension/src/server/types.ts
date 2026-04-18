@@ -65,7 +65,17 @@ export interface MultiAgentActivityMessage {
   readonly conflicts: readonly FileConflict[];
 }
 
-export type ServerMessage = DsmUpdatedMessage | AnalysisProgressMessage | DocLinksUpdatedMessage | ImportanceUpdatedMessage | ClaudeActivityUpdatedMessage | MultiAgentActivityMessage;
+export interface TokenBudgetUpdatedMessage {
+  readonly type: 'token-budget-updated';
+  readonly sessionId: string;
+  readonly sessionTokens: number;
+  readonly dailyTokens: number;
+  readonly dailyLimitTokens: number | null;
+  readonly sessionLimitTokens: number | null;
+  readonly alertThresholdPct: number;
+}
+
+export type ServerMessage = DsmUpdatedMessage | AnalysisProgressMessage | DocLinksUpdatedMessage | ImportanceUpdatedMessage | ClaudeActivityUpdatedMessage | MultiAgentActivityMessage | TokenBudgetUpdatedMessage;
 
 // ---------------------------------------------------------------------------
 //  Client → Server messages

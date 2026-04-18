@@ -1000,6 +1000,30 @@ export class TrailDatabase {
     stmt.free();
   }
 
+  /** 当日（JST）の input + output トークン合計を返す。 */
+  getDailyTokensToday(): number {
+    const db = this.ensureDb();
+    const tzOffset = getSqliteTzOffset('Asia/Tokyo');
+    const result = db.exec(
+      `SELECT COALESCE(SUM(input_tokens + output_tokens), 0)
+       FROM session_costs sc
+       JOIN sessions s ON s.id = sc.session_id
+       WHERE DATE(s.start_time, '${tzOffset}') = DATE('now', '${tzOffset}')`,
+    );
+    return Number(result[0]?.values[0]?.[0] ?? 0);
+  }
+
+  /** 指定セッションの input + output トークン合計を返す。 */
+  getSessionTokens(sessionId: string): number {
+    const db = this.ensureDb();
+    const result = db.exec(
+      `SELECT COALESCE(SUM(input_tokens + output_tokens), 0)
+       FROM session_costs WHERE session_id = ?`,
+      [sessionId],
+    );
+    return Number(result[0]?.values[0]?.[0] ?? 0);
+  }
+
   save(): void {
     const db = this.ensureDb();
     const data = db.export();
