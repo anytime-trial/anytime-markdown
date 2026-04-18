@@ -60,6 +60,20 @@ function fmtTokens(n: number): string {
   return String(n);
 }
 
+// Return up to ~5 "nice" tick values covering [0, max]. Minimum step is 1 (no fractions).
+function niceTicks(max: number): number[] {
+  if (max <= 0) return [0];
+  const rough = max / 4;
+  const magnitude = 10 ** Math.floor(Math.log10(rough));
+  const normalized = rough / magnitude;
+  const rawStep = (normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10) * magnitude;
+  const step = Math.max(1, rawStep);
+  const values: number[] = [];
+  const end = Math.ceil(max / step) * step;
+  for (let v = 0; v <= end + step / 2; v += step) values.push(v);
+  return values;
+}
+
 
 // Cost rates removed — backend now provides pre-calculated estimatedCostUsd
 
@@ -346,7 +360,15 @@ function SessionCacheTimeline({
   }, [assistantMsgs, byUuid]);
 
   const totalTurns = dataset.length;
-  const tickStep = totalTurns <= 100 ? 10 : totalTurns <= 500 ? 50 : 100;
+  const tickStep = totalTurns <= 5 ? 1
+    : totalTurns <= 10 ? 2
+    : totalTurns <= 25 ? 5
+    : totalTurns <= 50 ? 10
+    : totalTurns <= 100 ? 20
+    : totalTurns <= 250 ? 50
+    : totalTurns <= 500 ? 100
+    : totalTurns <= 1000 ? 200
+    : 500;
 
   return (
     <Paper elevation={0} sx={{ ...cardSx, mt: 1, p: 1.5 }}>
@@ -378,7 +400,7 @@ function SessionCacheTimeline({
             },
           ]}
           height={200}
-          margin={{ left: 48, right: 16, top: 16, bottom: 0 }}
+          margin={{ left: 16, right: 16, top: 16, bottom: 0 }}
           slotProps={{
             legend: { direction: 'horizontal', position: { vertical: 'bottom', horizontal: 'center' } },
           }}
@@ -599,9 +621,13 @@ function SessionModelUsageChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMet
   const sorted = [...usage].sort((a, b) => getValue(b) - getValue(a));
 
   const entry: Record<string, string | number> = { metric: metric === 'tokens' ? 'tokens' : metric === 'duration' ? 'sec' : 'count' };
+  let total = 0;
   for (let i = 0; i < sorted.length; i++) {
-    entry[`m${i}`] = getValue(sorted[i]);
+    const v = getValue(sorted[i]);
+    entry[`m${i}`] = v;
+    total += v;
   }
+  const tickValues = niceTicks(total);
 
   return (
     <Paper elevation={0} sx={{ ...cardSx, pt: 2, pr: 2, pb: 0, pl: 0 }}>
@@ -617,6 +643,7 @@ function SessionModelUsageChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMet
         dataset={[entry]}
         layout="horizontal"
         yAxis={[{ scaleType: 'band', dataKey: 'metric', categoryGapRatio: 0.25, tickLabelStyle: { display: 'none' } }]}
+        xAxis={[{ tickInterval: tickValues, valueFormatter: metric === 'duration' ? fmtDurationShort : fmtTokens }]}
         series={sorted.map((e, i) => ({
           dataKey: `m${i}`,
           label: e.model,
@@ -654,9 +681,13 @@ function SessionToolUsageChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMetr
 
   // 1行の積算横棒: Y軸=メトリクス名、各ツールが色分けでスタック
   const entry: Record<string, string | number> = { metric: metric === 'tokens' ? 'tokens' : metric === 'duration' ? 'sec' : 'count' };
+  let total = 0;
   for (let i = 0; i < sorted.length; i++) {
-    entry[`t${i}`] = getValue(sorted[i]);
+    const v = getValue(sorted[i]);
+    entry[`t${i}`] = v;
+    total += v;
   }
+  const tickValues = niceTicks(total);
 
   return (
     <Paper elevation={0} sx={{ ...cardSx, pt: 2, pr: 2, pb: 0, pl: 0 }}>
@@ -672,6 +703,7 @@ function SessionToolUsageChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMetr
         dataset={[entry]}
         layout="horizontal"
         yAxis={[{ scaleType: 'band', dataKey: 'metric', categoryGapRatio: 0.25, tickLabelStyle: { display: 'none' } }]}
+        xAxis={[{ tickInterval: tickValues, valueFormatter: metric === 'duration' ? fmtDurationShort : fmtTokens }]}
         series={sorted.map((e, i) => ({
           dataKey: `t${i}`,
           label: e.tool,
@@ -708,9 +740,13 @@ function SessionSkillUsageChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMet
   const sorted = [...usage].sort((a, b) => getValue(b) - getValue(a));
 
   const entry: Record<string, string | number> = { metric: metric === 'tokens' ? 'tokens' : metric === 'duration' ? 'sec' : 'count' };
+  let total = 0;
   for (let i = 0; i < sorted.length; i++) {
-    entry[`s${i}`] = getValue(sorted[i]);
+    const v = getValue(sorted[i]);
+    entry[`s${i}`] = v;
+    total += v;
   }
+  const tickValues = niceTicks(total);
 
   return (
     <Paper elevation={0} sx={{ ...cardSx, pt: 2, pr: 2, pb: 0, pl: 0 }}>
@@ -726,7 +762,7 @@ function SessionSkillUsageChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMet
         dataset={[entry]}
         layout="horizontal"
         yAxis={[{ scaleType: 'band', dataKey: 'metric', categoryGapRatio: 0.25, tickLabelStyle: { display: 'none' } }]}
-        xAxis={[{ tickMinStep: 1 }]}
+        xAxis={[{ tickInterval: tickValues, valueFormatter: metric === 'duration' ? fmtDurationShort : fmtTokens }]}
         series={sorted.map((e, i) => ({
           dataKey: `s${i}`,
           label: e.skill,
@@ -756,9 +792,12 @@ function SessionErrorChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMetrics 
 
   const sorted = [...errors].sort((a, b) => b.count - a.count);
   const entry: Record<string, string | number> = { metric: 'errors' };
+  let total = 0;
   for (let i = 0; i < sorted.length; i++) {
     entry[`e${i}`] = sorted[i].count;
+    total += sorted[i].count;
   }
+  const tickValues = niceTicks(total);
 
   return (
     <Paper elevation={0} sx={{ ...cardSx, pt: 2, pr: 2, pb: 0, pl: 0 }}>
@@ -767,7 +806,7 @@ function SessionErrorChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMetrics 
         dataset={[entry]}
         layout="horizontal"
         yAxis={[{ scaleType: 'band', dataKey: 'metric', categoryGapRatio: 0.25, tickLabelStyle: { display: 'none' } }]}
-        xAxis={[{ tickMinStep: 1 }]}
+        xAxis={[{ tickInterval: tickValues, valueFormatter: fmtTokens }]}
         series={sorted.map((e, i) => ({
           dataKey: `e${i}`,
           label: e.tool,
@@ -961,6 +1000,7 @@ function DailySessionList({
                   <TableCell align="right">{t('sessionList.costHeader')}</TableCell>
                   <TableCell align="right">{t('sessionList.messagesHeader')}</TableCell>
                   <TableCell align="right">{t('sessionList.errorsHeader')}</TableCell>
+                  <TableCell align="right">{t('sessionList.subAgents')}</TableCell>
                   <TableCell align="right">{t('sessionList.commitsHeader')}</TableCell>
                   <TableCell align="right" sx={{ width: 36 }} />
                 </TableRow>
@@ -1010,6 +1050,9 @@ function DailySessionList({
                     <TableCell align="right">{fmtNum(s.messageCount)}</TableCell>
                     <TableCell align="right">
                       {s.errorCount != null && s.errorCount > 0 ? fmtNum(s.errorCount) : '\u2014'}
+                    </TableCell>
+                    <TableCell align="right">
+                      {s.subAgentCount != null && s.subAgentCount > 0 ? fmtNum(s.subAgentCount) : '\u2014'}
                     </TableCell>
                     <TableCell align="right" sx={{ fontFamily: 'monospace', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
                       {s.commitStats
@@ -1153,7 +1196,7 @@ function DailyActivityChart({
   onDateClick?: (fullDate: string) => void;
   costOptimization?: CostOptimizationData | null;
 }>) {
-  const { chartColors } = useTrailTheme();
+  const { chartColors, cardSx } = useTrailTheme();
 
   const costByDate = useMemo(() => {
     const map = new Map<string, { actual: number; skill: number }>();
@@ -1199,26 +1242,28 @@ function DailyActivityChart({
   };
 
   return (
-    <BarChart
-      dataset={dataset}
-      xAxis={[{ scaleType: 'band', dataKey: 'date' }]}
-      yAxis={[{ valueFormatter: yFormatter }]}
-      series={isTokens ? [
-        { dataKey: 'inputTokens', label: 'Input', stack: 'a', color: chartColors.input, valueFormatter: seriesFormatter },
-        { dataKey: 'outputTokens', label: 'Output', stack: 'a', color: chartColors.output, valueFormatter: seriesFormatter },
-        { dataKey: 'cacheReadTokens', label: 'Cache Read', stack: 'a', color: chartColors.cacheRead, valueFormatter: seriesFormatter },
-        { dataKey: 'cacheCreationTokens', label: 'Cache Write', stack: 'a', color: chartColors.cacheWrite, valueFormatter: seriesFormatter },
-      ] : [
-        { dataKey: 'actualCost', label: 'Current', color: chartColors.primary, valueFormatter: seriesFormatter },
-        { dataKey: 'skillCost', label: 'Optimized', color: chartColors.skill, valueFormatter: seriesFormatter },
-      ]}
-      height={240}
-      margin={{ left: 48, right: 16, top: 16, bottom: 24 }}
-      slotProps={{
-        legend: { direction: 'horizontal', position: { vertical: 'bottom', horizontal: 'center' } },
-      }}
-      onAxisClick={period === 90 ? undefined : handleAxisClick}
-    />
+    <Paper elevation={0} sx={{ ...cardSx, p: 2 }}>
+      <BarChart
+        dataset={dataset}
+        xAxis={[{ scaleType: 'band', dataKey: 'date' }]}
+        yAxis={[{ valueFormatter: yFormatter }]}
+        series={isTokens ? [
+          { dataKey: 'inputTokens', label: 'Input', stack: 'a', color: chartColors.input, valueFormatter: seriesFormatter },
+          { dataKey: 'outputTokens', label: 'Output', stack: 'a', color: chartColors.output, valueFormatter: seriesFormatter },
+          { dataKey: 'cacheReadTokens', label: 'Cache Read', stack: 'a', color: chartColors.cacheRead, valueFormatter: seriesFormatter },
+          { dataKey: 'cacheCreationTokens', label: 'Cache Write', stack: 'a', color: chartColors.cacheWrite, valueFormatter: seriesFormatter },
+        ] : [
+          { dataKey: 'actualCost', label: 'Current', color: chartColors.primary, valueFormatter: seriesFormatter },
+          { dataKey: 'skillCost', label: 'Optimized', color: chartColors.skill, valueFormatter: seriesFormatter },
+        ]}
+        height={240}
+        margin={{ left: 16, right: 8, top: 8, bottom: 40 }}
+        slotProps={{
+          legend: { direction: 'horizontal', position: { vertical: 'bottom', horizontal: 'center' } },
+        }}
+        onAxisClick={period === 90 ? undefined : handleAxisClick}
+      />
+    </Paper>
   );
 }
 
@@ -1421,7 +1466,7 @@ function CombinedChartsContent({ data, periodDays, activeChart, toolMetric, mode
             valueFormatter: hideZero,
           }))}
           height={240}
-          margin={{ left: 48, right: 8, top: 8, bottom: 60 }}
+          margin={{ left: 16, right: 8, top: 8, bottom: 60 }}
           slotProps={{ legend: { direction: 'horizontal', position: { vertical: 'bottom', horizontal: 'center' } } }}
           onAxisClick={makeAxisClick(allPeriods)}
         />
@@ -1447,7 +1492,7 @@ function CombinedChartsContent({ data, periodDays, activeChart, toolMetric, mode
               valueFormatter: hideZero,
             }))}
             height={240}
-            margin={{ left: 48, right: 8, top: 8, bottom: 40 }}
+            margin={{ left: 16, right: 8, top: 8, bottom: 40 }}
             slotProps={{ legend: { direction: 'horizontal', position: { vertical: 'bottom', horizontal: 'center' } } }}
             onAxisClick={makeAxisClick(allPeriods)}
           />
@@ -1474,7 +1519,7 @@ function CombinedChartsContent({ data, periodDays, activeChart, toolMetric, mode
             valueFormatter: hideZero,
           }))}
           height={240}
-          margin={{ left: 48, right: 8, top: 8, bottom: 40 }}
+          margin={{ left: 16, right: 8, top: 8, bottom: 40 }}
           slotProps={{ legend: { direction: 'horizontal', position: { vertical: 'bottom', horizontal: 'center' } } }}
           onAxisClick={makeAxisClick(allPeriods)}
         />
@@ -1500,7 +1545,7 @@ function CombinedChartsContent({ data, periodDays, activeChart, toolMetric, mode
           valueFormatter: hideZero,
         }))}
         height={240}
-        margin={{ left: 48, right: 8, top: 8, bottom: 40 }}
+        margin={{ left: 16, right: 8, top: 8, bottom: 40 }}
         slotProps={{ legend: { direction: 'horizontal', position: { vertical: 'bottom', horizontal: 'center' } } }}
         onAxisClick={makeAxisClick(modelPeriods)}
       />

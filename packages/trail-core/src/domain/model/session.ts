@@ -55,6 +55,7 @@ export interface TrailSession {
   readonly usage: TrailTokenUsage;
   readonly estimatedCostUsd?: number;
   readonly errorCount?: number;
+  readonly subAgentCount?: number;
 }
 
 export interface TrailSessionCommit {

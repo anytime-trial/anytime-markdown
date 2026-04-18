@@ -119,6 +119,14 @@ export function SessionList({ sessions, selectedId, onSelect }: Readonly<Session
                       sx={{ height: 20, fontSize: '0.7rem', borderColor: colors.iceBlue }}
                     />
                   )}
+                  {session.subAgentCount != null && session.subAgentCount > 0 && (
+                    <Chip
+                      label={`${session.subAgentCount} ${t('sessionList.subAgents')}`}
+                      size="small"
+                      variant="outlined"
+                      sx={{ height: 20, fontSize: '0.7rem', borderColor: colors.iceBlue }}
+                    />
+                  )}
                 </Box>
               </Box>
             }

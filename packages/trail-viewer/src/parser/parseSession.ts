@@ -189,10 +189,12 @@ export function parseSession(
   }
 
   let errorCount = 0;
+  let subAgentCount = 0;
   for (const raw of parsedRaws) {
-    if (raw.type !== 'user' || !Array.isArray(raw.message?.content)) continue;
+    if (!Array.isArray(raw.message?.content)) continue;
     for (const block of raw.message.content as readonly RawContentBlock[]) {
-      if (block.type === 'tool_result' && block.is_error === true) errorCount++;
+      if (raw.type === 'user' && block.type === 'tool_result' && block.is_error === true) errorCount++;
+      if (raw.type === 'assistant' && block.type === 'tool_use' && block.name === 'Agent') subAgentCount++;
     }
   }
 
@@ -211,6 +213,7 @@ export function parseSession(
     interruption,
     usage: aggregateUsage(messages),
     errorCount: errorCount > 0 ? errorCount : undefined,
+    subAgentCount: subAgentCount > 0 ? subAgentCount : undefined,
   };
 
   return { session, messages };

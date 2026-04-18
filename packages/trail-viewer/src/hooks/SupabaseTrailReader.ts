@@ -104,6 +104,7 @@ export class SupabaseTrailReader implements ITrailReader {
     const sessions = data ?? [];
     const sessionIds = sessions.map((r: SessionDbRow) => r.id);
     const errorCountMap = new Map<string, number>();
+    const subAgentCountMap = new Map<string, number>();
     if (sessionIds.length > 0) {
       const { data: errData } = await this.client
         .from('trail_message_tool_calls')
@@ -113,10 +114,18 @@ export class SupabaseTrailReader implements ITrailReader {
       for (const row of (errData ?? []) as { session_id: string }[]) {
         errorCountMap.set(row.session_id, (errorCountMap.get(row.session_id) ?? 0) + 1);
       }
+      const { data: agentData } = await this.client
+        .from('trail_message_tool_calls')
+        .select('session_id')
+        .in('session_id', sessionIds)
+        .eq('tool_name', 'Agent');
+      for (const row of (agentData ?? []) as { session_id: string }[]) {
+        subAgentCountMap.set(row.session_id, (subAgentCountMap.get(row.session_id) ?? 0) + 1);
+      }
     }
 
     return sessions.map((r: SessionDbRow & { trail_session_commits?: readonly CommitDbRow[] }) =>
-      this.toTrailSession(r, r.trail_session_commits ?? [], errorCountMap.get(r.id)),
+      this.toTrailSession(r, r.trail_session_commits ?? [], errorCountMap.get(r.id), subAgentCountMap.get(r.id)),
     );
   }
 
@@ -492,6 +501,7 @@ export class SupabaseTrailReader implements ITrailReader {
     r: SessionDbRow,
     commits: readonly CommitDbRow[],
     errorCount?: number,
+    subAgentCount?: number,
   ): TrailSession {
     const commitStats = commits.length > 0
       ? {
@@ -531,6 +541,7 @@ export class SupabaseTrailReader implements ITrailReader {
       },
       estimatedCostUsd: totalCostUsd,
       errorCount: errorCount && errorCount > 0 ? errorCount : undefined,
+      subAgentCount: subAgentCount && subAgentCount > 0 ? subAgentCount : undefined,
     };
   }
 
