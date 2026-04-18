@@ -27,6 +27,17 @@ export interface TrailMessage {
   readonly usage?: TrailTokenUsage;
   readonly stopReason?: string | null;
   readonly userContent?: string;
+  readonly triggerCommitHashes?: readonly string[];
+}
+
+export type MessageCommitMatchConfidence = 'realtime' | 'high' | 'medium' | 'low';
+
+export interface TrailMessageCommit {
+  readonly messageUuid: string;
+  readonly sessionId: string;
+  readonly commitHash: string;
+  readonly detectedAt: string;
+  readonly matchConfidence: MessageCommitMatchConfidence;
 }
 
 export interface TrailSession {

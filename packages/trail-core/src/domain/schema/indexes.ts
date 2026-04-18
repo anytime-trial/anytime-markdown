@@ -9,6 +9,8 @@ export const CREATE_INDEXES = [
   'CREATE INDEX IF NOT EXISTS idx_session_commits_session ON session_commits(session_id)',
   'CREATE INDEX IF NOT EXISTS idx_session_costs_session ON session_costs(session_id)',
   'CREATE INDEX IF NOT EXISTS idx_daily_counts_kind_date ON daily_counts(kind, date)',
+  'CREATE INDEX IF NOT EXISTS idx_message_commits_session ON message_commits(session_id)',
+  'CREATE INDEX IF NOT EXISTS idx_message_commits_commit ON message_commits(commit_hash)',
 ];
 
 export const CREATE_RELEASE_INDEXES = [

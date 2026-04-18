@@ -20,7 +20,8 @@ export const CREATE_SESSIONS = `CREATE TABLE IF NOT EXISTS sessions (
   initial_context_tokens INTEGER,
   git_branch TEXT,
   interruption_reason TEXT,
-  interruption_context_tokens INTEGER
+  interruption_context_tokens INTEGER,
+  message_commits_resolved_at TEXT
 )`;
 
 export const CREATE_SESSION_COSTS = `CREATE TABLE IF NOT EXISTS session_costs (
@@ -96,6 +97,15 @@ export const CREATE_SESSION_COMMITS = `CREATE TABLE IF NOT EXISTS session_commit
   lines_added INTEGER NOT NULL DEFAULT 0,
   lines_deleted INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (session_id, commit_hash)
+)`;
+
+export const CREATE_MESSAGE_COMMITS = `CREATE TABLE IF NOT EXISTS message_commits (
+  message_uuid TEXT NOT NULL,
+  session_id TEXT NOT NULL REFERENCES sessions(id),
+  commit_hash TEXT NOT NULL,
+  detected_at TEXT NOT NULL,
+  match_confidence TEXT NOT NULL CHECK(match_confidence IN ('realtime', 'high', 'medium', 'low')),
+  PRIMARY KEY (message_uuid, commit_hash)
 )`;
 
 export const CREATE_IMPORTED_FILES = `CREATE TABLE IF NOT EXISTS imported_files (
