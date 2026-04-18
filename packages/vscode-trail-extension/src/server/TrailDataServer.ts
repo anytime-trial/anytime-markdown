@@ -920,34 +920,35 @@ export class TrailDataServer {
   //  JSONL real-time token helpers
   // ---------------------------------------------------------------------------
 
-  private static sumTokensFromJsonl(jsonlPath: string): number {
+  private static parseJsonlSession(jsonlPath: string): { contextTokens: number; turnCount: number } {
+    let contextTokens = 0;
+    let turnCount = 0;
     try {
       const lines = fs.readFileSync(jsonlPath, 'utf-8').split('\n');
-      let total = 0;
       for (const line of lines) {
         if (!line.trim()) continue;
         try {
-          const entry = JSON.parse(line) as { type?: string; message?: { usage?: { input_tokens?: number; output_tokens?: number } } };
-          if (entry.type === 'assistant' && entry.message?.usage) {
-            total += (entry.message.usage.input_tokens ?? 0) + (entry.message.usage.output_tokens ?? 0);
+          const entry = JSON.parse(line) as { type?: string; message?: { usage?: { input_tokens?: number } } };
+          if (entry.type === 'user') {
+            turnCount++;
+          } else if (entry.type === 'assistant' && entry.message?.usage?.input_tokens !== undefined) {
+            contextTokens = entry.message.usage.input_tokens;
           }
         } catch { /* skip malformed line */ }
       }
-      return total;
-    } catch {
-      return 0;
-    }
+    } catch { /* ignore */ }
+    return { contextTokens, turnCount };
   }
 
-  private static getSessionTokensFromJsonl(sessionId: string): number {
+  private static getSessionStatsFromJsonl(sessionId: string): { contextTokens: number; turnCount: number } {
     const projectsDir = path.join(os.homedir(), '.claude', 'projects');
     try {
       for (const dir of fs.readdirSync(projectsDir, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name)) {
         const p = path.join(projectsDir, dir, `${sessionId}.jsonl`);
-        if (fs.existsSync(p)) return TrailDataServer.sumTokensFromJsonl(p);
+        if (fs.existsSync(p)) return TrailDataServer.parseJsonlSession(p);
       }
     } catch { /* ignore */ }
-    return 0;
+    return { contextTokens: 0, turnCount: 0 };
   }
 
   private static getDailyTokensFromJsonl(): number {
@@ -962,7 +963,7 @@ export class TrailDataServer {
           const filePath = path.join(dirPath, file);
           const mtimeJst = new Date(fs.statSync(filePath).mtimeMs + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
           if (mtimeJst === todayJst) {
-            total += TrailDataServer.sumTokensFromJsonl(filePath);
+            total += TrailDataServer.parseJsonlSession(filePath).contextTokens;
           }
         }
       }
@@ -982,8 +983,7 @@ export class TrailDataServer {
           return;
         }
 
-        const dbSession = this.trailDb.getSessionTokens(sessionId);
-        const sessionTokens = dbSession > 0 ? dbSession : TrailDataServer.getSessionTokensFromJsonl(sessionId);
+        const { contextTokens, turnCount } = TrailDataServer.getSessionStatsFromJsonl(sessionId);
         const dbDaily = this.trailDb.getDailyTokensToday();
         const dailyTokens = dbDaily > 0 ? dbDaily : TrailDataServer.getDailyTokensFromJsonl();
         const { dailyLimitTokens, sessionLimitTokens, alertThresholdPct } = this.tokenBudgetConfig;
@@ -991,11 +991,12 @@ export class TrailDataServer {
         const status: import('./types').TokenBudgetUpdatedMessage = {
           type: 'token-budget-updated',
           sessionId,
-          sessionTokens,
+          sessionTokens: contextTokens,
           dailyTokens,
           dailyLimitTokens,
           sessionLimitTokens,
           alertThresholdPct,
+          turnCount,
         };
 
         const payload = JSON.stringify(status);
@@ -1005,7 +1006,7 @@ export class TrailDataServer {
 
         const threshold = alertThresholdPct / 100;
         const dailyExceeded = dailyLimitTokens !== null && dailyTokens >= dailyLimitTokens * threshold;
-        const sessionExceeded = sessionLimitTokens !== null && sessionTokens >= sessionLimitTokens * threshold;
+        const sessionExceeded = sessionLimitTokens !== null && contextTokens >= sessionLimitTokens * threshold;
         if (dailyExceeded || sessionExceeded) {
           this.onTokenBudgetExceeded?.(status);
         }
