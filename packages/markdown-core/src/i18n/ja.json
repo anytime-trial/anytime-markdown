@@ -699,6 +699,8 @@
     "markdownSectionTitle": "Anytime Markdown",
     "md1Title": "AI変更箇所の把握と自動ロック",
     "md1Body": "AIが編集した箇所を色付きで表示し、セクション単位の差分比較で変更点を即把握。確定済みのセクションはロックしてAIの再編集を防止できます。",
+    "md2Title": "3モードを瞬時に切替",
+    "md2Body": "WYSIWYG・ソース・レビューの3モードをワンクリックで切替。レビューモードは読み取り専用で、AI出力の集中レビューに最適です。",
     "md3Title": "VS Code で文書も図表もプレビュー",
     "md3Body": "AIが生成したMarkdownをWYSIWYGで即確認。Mermaid・PlantUML・数式（KaTeX）もエディタ内で直接プレビューでき、コンテキストスイッチなしで完結します。",
     "trailSectionTitle": "Anytime Trail",

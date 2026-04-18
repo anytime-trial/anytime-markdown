@@ -7,6 +7,7 @@ import CodeIcon from '@mui/icons-material/Code';
 import ImageIcon from '@mui/icons-material/Image';
 import SyncIcon from '@mui/icons-material/Sync';
 import TimelineIcon from '@mui/icons-material/Timeline';
+import ViewCompactIcon from '@mui/icons-material/ViewCompact';
 import {
   Box,
   Button,
@@ -41,6 +42,7 @@ const richGithubLink = (chunks: ReactNode) => (
 
 const MD_BENEFITS = [
   { key: 'md1', icon: <AutoFixHighIcon aria-hidden="true" sx={{ fontSize: 40 }} /> },
+  { key: 'md2', icon: <ViewCompactIcon aria-hidden="true" sx={{ fontSize: 40 }} /> },
   { key: 'md3', icon: <CodeIcon aria-hidden="true" sx={{ fontSize: 40 }} /> },
 ] as const;
 

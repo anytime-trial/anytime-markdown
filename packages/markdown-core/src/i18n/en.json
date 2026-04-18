@@ -699,6 +699,8 @@
     "markdownSectionTitle": "Anytime Markdown",
     "md1Title": "AI diff highlighting and auto-lock",
     "md1Body": "AI-edited sections are color-highlighted for instant diff comparison. Lock finalized sections to prevent AI from re-editing them.",
+    "md2Title": "Instant 3-mode switching",
+    "md2Body": "Switch between WYSIWYG, Source, and Review modes with a single click. Review mode is read-only — perfect for focused review of AI output.",
     "md3Title": "Preview docs and diagrams in VS Code",
     "md3Body": "Instantly preview AI-generated Markdown in WYSIWYG. Mermaid, PlantUML, and math (KaTeX) render directly in the editor — no context switching needed.",
     "trailSectionTitle": "Anytime Trail",
