@@ -9,7 +9,7 @@ import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import type { TrailMessage, TrailSession, TrailTreeNode } from '../parser/types';
 import { useTrailTheme } from './TrailThemeContext';
 
-const TIMELINE_HEIGHT = 180;
+const TIMELINE_HEIGHT = 200;
 const COLLAPSED_HEIGHT = 32;
 const STORAGE_KEY = 'trail.timeline.collapsed';
 const LANE_LABEL_WIDTH = 72;
@@ -20,11 +20,17 @@ type LaneKind = 'user' | 'assistant' | 'system' | 'subagent';
 const LANES: readonly { readonly kind: LaneKind; readonly label: string }[] = [
   { kind: 'user', label: 'User' },
   { kind: 'assistant', label: 'AI' },
-  { kind: 'system', label: 'System' },
   { kind: 'subagent', label: 'Subagent' },
+  { kind: 'system', label: 'System' },
 ];
 
-// Agent color palette (HSL-based for distinctness)
+const LANE_INDEX: Readonly<Record<LaneKind, number>> = {
+  user: 0,
+  assistant: 1,
+  subagent: 2,
+  system: 3,
+};
+
 const AGENT_PALETTE = [
   '#FF6B6B', '#4ECDC4', '#FFD93D', '#6A4C93', '#1982C4',
   '#8AC926', '#F48C06', '#E56B6F', '#52B788', '#B5838D',
@@ -43,7 +49,7 @@ function getAgentColor(agentId: string): string {
   return AGENT_PALETTE[hashString(agentId) % AGENT_PALETTE.length];
 }
 
-function getToolColor(
+function getTurnColor(
   toolNames: readonly string[],
   toolColors: { bash: string; edit: string; write: string; read: string; task: string; other: string; plain: string },
 ): string {
@@ -79,12 +85,20 @@ interface TraceTimelineProps {
 interface TimelineEntry {
   readonly uuid: string;
   readonly timestamp: string;
+  readonly ms: number;
   readonly laneKind: LaneKind;
   readonly agentId?: string;
   readonly agentDescription?: string;
   readonly toolNames: readonly string[];
   readonly hasCommit: boolean;
   readonly role: string;
+}
+
+interface Turn {
+  readonly userMsg: TimelineEntry | null;
+  readonly aiMsgs: TimelineEntry[];
+  readonly subagentMsgs: TimelineEntry[];
+  readonly systemMsgs: TimelineEntry[];
 }
 
 export function TraceTimeline({
@@ -127,9 +141,11 @@ export function TraceTimeline({
       if (t === 'user' || t === 'assistant' || t === 'system') {
         const hasAgentId = typeof msg.agentId === 'string' && msg.agentId.length > 0;
         const laneKind: LaneKind = hasAgentId ? 'subagent' : t;
+        const ms = Date.parse(msg.timestamp);
         result.push({
           uuid: msg.uuid,
           timestamp: msg.timestamp,
+          ms,
           laneKind,
           agentId: hasAgentId ? msg.agentId : undefined,
           agentDescription: msg.agentDescription,
@@ -141,10 +157,36 @@ export function TraceTimeline({
       for (const child of n.children) traverse(child);
     }
     for (const node of nodes) traverse(node);
-    return result.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+    return result.sort((a, b) => a.ms - b.ms);
   }, [nodes]);
 
-  // Discover sub-tracks within the Subagent lane: one per unique agentId, ordered by first appearance
+  // Group messages into turns. A turn starts with a user message and contains
+  // all subsequent assistant/subagent/system messages until the next user message.
+  const turns = useMemo<readonly Turn[]>(() => {
+    const out: Turn[] = [];
+    let cur: Turn | null = null;
+    const pushCurrent = () => {
+      if (cur) out.push(cur);
+    };
+    for (const msg of timelineMessages) {
+      if (msg.role === 'user' && msg.laneKind === 'user') {
+        pushCurrent();
+        cur = { userMsg: msg, aiMsgs: [], subagentMsgs: [], systemMsgs: [] };
+        continue;
+      }
+      if (!cur) {
+        // Orphan messages before first user (unusual): bucket into a synthetic turn
+        cur = { userMsg: null, aiMsgs: [], subagentMsgs: [], systemMsgs: [] };
+      }
+      if (msg.laneKind === 'assistant') cur.aiMsgs.push(msg);
+      else if (msg.laneKind === 'subagent') cur.subagentMsgs.push(msg);
+      else if (msg.laneKind === 'system') cur.systemMsgs.push(msg);
+    }
+    pushCurrent();
+    return out;
+  }, [timelineMessages]);
+
+  // Subagent sub-tracks (one per unique agentId, ordered by first appearance)
   const subagentTracks = useMemo<readonly string[]>(() => {
     const seen = new Set<string>();
     const order: string[] = [];
@@ -167,17 +209,14 @@ export function TraceTimeline({
   const { rangeStart, rangeEnd } = useMemo(() => {
     const sStart = session?.startTime ? Date.parse(session.startTime) : NaN;
     const sEnd = session?.endTime ? Date.parse(session.endTime) : NaN;
-    const msgFirst = timelineMessages.length > 0 ? Date.parse(timelineMessages[0].timestamp) : NaN;
-    const msgLast = timelineMessages.length > 0 ? Date.parse(timelineMessages[timelineMessages.length - 1].timestamp) : NaN;
-
+    const msgFirst = timelineMessages.length > 0 ? timelineMessages[0].ms : NaN;
+    const msgLast = timelineMessages.length > 0 ? timelineMessages[timelineMessages.length - 1].ms : NaN;
     const candidates: number[] = [];
     if (Number.isFinite(sStart)) candidates.push(sStart);
     if (Number.isFinite(msgFirst)) candidates.push(msgFirst);
     if (Number.isFinite(sEnd)) candidates.push(sEnd);
     if (Number.isFinite(msgLast)) candidates.push(msgLast);
-
     if (candidates.length === 0) return { rangeStart: 0, rangeEnd: 0 };
-
     const start = Math.min(...candidates);
     const end = Math.max(...candidates);
     return { rangeStart: start, rangeEnd: end > start ? end : start + 1 };
@@ -196,25 +235,72 @@ export function TraceTimeline({
   const plotTop = 8;
   const plotBottom = TIME_AXIS_HEIGHT;
 
-  function getLanePosition(entry: TimelineEntry): { topPct: number; heightPct: number } {
-    const laneIndex = LANES.findIndex((l) => l.kind === entry.laneKind);
-    const laneBasePct = (laneIndex / LANES.length) * 100;
-    const laneHeightPct = 100 / LANES.length;
-    if (entry.laneKind === 'subagent' && entry.agentId) {
-      // subdivide lane into N tracks
-      const trackIndex = subagentIndex.get(entry.agentId) ?? 0;
-      const trackHeightPct = laneHeightPct / subTrackCount;
-      const trackTopPct = laneBasePct + trackIndex * trackHeightPct;
-      return {
-        topPct: trackTopPct + trackHeightPct * 0.15,
-        heightPct: trackHeightPct * 0.7,
-      };
-    }
-    return {
-      topPct: laneBasePct + laneHeightPct * 0.2,
-      heightPct: laneHeightPct * 0.6,
-    };
+  const laneHeightPct = 100 / LANES.length;
+
+  const toPct = useCallback((ms: number): number => ((ms - rangeStart) / duration) * 100, [rangeStart, duration]);
+
+  function laneCenterPct(kind: LaneKind): number {
+    return LANE_INDEX[kind] * laneHeightPct + laneHeightPct * 0.5;
   }
+
+  // Compute AI turn spans (single horizontal bar per turn)
+  const aiTurnBars = useMemo(() => {
+    const bars: Array<{
+      key: string;
+      leftPct: number;
+      widthPct: number;
+      color: string;
+      toolNames: readonly string[];
+      startMs: number;
+      endMs: number;
+      firstUuid: string;
+      userUuid?: string;
+      hasCommit: boolean;
+    }> = [];
+    for (let i = 0; i < turns.length; i++) {
+      const turn = turns[i];
+      if (turn.aiMsgs.length === 0) continue;
+      const startMs = turn.aiMsgs[0].ms;
+      // end: latest AI ms, but capped at next turn's userMsg if present
+      const lastAiMs = turn.aiMsgs[turn.aiMsgs.length - 1].ms;
+      const nextUserMs = i + 1 < turns.length && turns[i + 1].userMsg ? (turns[i + 1].userMsg as TimelineEntry).ms : undefined;
+      const endMs = nextUserMs !== undefined ? Math.max(lastAiMs, nextUserMs - 1) : lastAiMs;
+      const allToolNames = turn.aiMsgs.flatMap((m) => m.toolNames);
+      const hasCommit = turn.aiMsgs.some((m) => m.hasCommit);
+      bars.push({
+        key: turn.aiMsgs[0].uuid,
+        leftPct: toPct(startMs),
+        widthPct: Math.max(toPct(endMs) - toPct(startMs), 0.3),
+        color: getTurnColor(allToolNames, toolColors),
+        toolNames: allToolNames,
+        startMs,
+        endMs,
+        firstUuid: turn.aiMsgs[0].uuid,
+        userUuid: turn.userMsg?.uuid,
+        hasCommit,
+      });
+    }
+    return bars;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [turns, toPct]);
+
+  // Compute User↔AI dashed connectors
+  const connectors = useMemo(() => {
+    const out: Array<{
+      key: string;
+      x1Pct: number;
+      x2Pct: number;
+    }> = [];
+    for (const turn of turns) {
+      if (!turn.userMsg || turn.aiMsgs.length === 0) continue;
+      out.push({
+        key: `conn-${turn.userMsg.uuid}`,
+        x1Pct: toPct(turn.userMsg.ms),
+        x2Pct: toPct(turn.aiMsgs[0].ms),
+      });
+    }
+    return out;
+  }, [turns, toPct]);
 
   return (
     <Box
@@ -299,77 +385,206 @@ export function TraceTimeline({
                 key={`lane-bg-${lane.kind}`}
                 sx={{
                   position: 'absolute',
-                  top: `${(i / LANES.length) * 100}%`,
+                  top: `${i * laneHeightPct}%`,
                   left: 0,
                   right: 0,
-                  height: `${100 / LANES.length}%`,
+                  height: `${laneHeightPct}%`,
                   borderBottom: i < LANES.length - 1 ? `1px dashed ${colors.border}` : 'none',
                 }}
               />
             ))}
 
-            {timelineMessages.length === 0 ? (
+            {/* SVG overlay for dashed User→AI connectors */}
+            <svg
+              style={{
+                position: 'absolute',
+                inset: 0,
+                width: '100%',
+                height: '100%',
+                pointerEvents: 'none',
+                zIndex: 1,
+              }}
+              aria-hidden="true"
+            >
+              {connectors.map((c) => {
+                const userY = laneCenterPct('user');
+                const aiY = laneCenterPct('assistant');
+                return (
+                  <line
+                    key={c.key}
+                    x1={`${c.x1Pct}%`}
+                    y1={`${userY}%`}
+                    x2={`${c.x2Pct}%`}
+                    y2={`${aiY}%`}
+                    stroke={colors.iceBlue}
+                    strokeWidth={1}
+                    strokeDasharray="3,3"
+                    opacity={0.5}
+                  />
+                );
+              })}
+            </svg>
+
+            {timelineMessages.length === 0 && (
               <Box sx={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Typography variant="caption" sx={{ color: colors.textSecondary }}>
                   データなし
                 </Typography>
               </Box>
-            ) : (
-              timelineMessages.map((msg) => {
-                const msgMs = Date.parse(msg.timestamp);
-                const leftPct = ((msgMs - rangeStart) / duration) * 100;
-                const { topPct, heightPct } = getLanePosition(msg);
-                const barColor = msg.laneKind === 'subagent' && msg.agentId
-                  ? getAgentColor(msg.agentId)
-                  : getToolColor(msg.toolNames, toolColors);
-                const toolSuffix = msg.toolNames.length > 0 ? ` · ${msg.toolNames.join(', ')}` : '';
-                const agentSuffix = msg.agentId
-                  ? ` · agent=${msg.agentId.slice(0, 8)}${msg.agentDescription ? ` (${msg.agentDescription})` : ''}`
-                  : '';
-                const tooltipLabel = `[${msg.role}] ${msg.timestamp}${toolSuffix}${agentSuffix}`;
+            )}
 
+            {/* User bars */}
+            {timelineMessages
+              .filter((m) => m.laneKind === 'user')
+              .map((msg) => {
+                const leftPct = toPct(msg.ms);
+                const topPct = LANE_INDEX.user * laneHeightPct + laneHeightPct * 0.2;
+                const heightPct = laneHeightPct * 0.6;
                 return (
-                  <Tooltip key={msg.uuid} title={tooltipLabel} placement="top">
+                  <Tooltip key={msg.uuid} title={`[user] ${msg.timestamp}`} placement="top">
                     <Box
                       component="button"
                       onClick={() => handleBarClick(msg.uuid)}
-                      aria-label={`${msg.role} message at ${msg.timestamp}`}
+                      aria-label={`user message at ${msg.timestamp}`}
                       sx={{
                         position: 'absolute',
                         left: `${Math.max(0, Math.min(leftPct, 99.5))}%`,
                         top: `${topPct}%`,
                         width: 4,
                         height: `${heightPct}%`,
-                        bgcolor: barColor,
+                        bgcolor: colors.iceBlue,
                         borderRadius: '2px',
                         border: 'none',
                         cursor: 'pointer',
                         p: 0,
                         transform: 'translateX(-50%)',
+                        zIndex: 2,
                         '&:hover': { opacity: 0.7 },
-                        '&:focus-visible': { outline: `2px solid ${colors.iceBlue}`, outlineOffset: '2px' },
                       }}
-                    >
-                      {msg.hasCommit && (
-                        <Box
-                          sx={{
-                            position: 'absolute',
-                            bottom: -5,
-                            left: '50%',
-                            transform: 'translateX(-50%)',
-                            width: 5,
-                            height: 5,
-                            borderRadius: '50%',
-                            bgcolor: colors.iceBlue,
-                          }}
-                          aria-hidden="true"
-                        />
-                      )}
-                    </Box>
+                    />
                   </Tooltip>
                 );
-              })
-            )}
+              })}
+
+            {/* AI turn bars (one per turn, spanning the turn duration) */}
+            {aiTurnBars.map((bar) => {
+              const topPct = LANE_INDEX.assistant * laneHeightPct + laneHeightPct * 0.2;
+              const heightPct = laneHeightPct * 0.6;
+              const toolSuffix = bar.toolNames.length > 0 ? ` · ${Array.from(new Set(bar.toolNames)).join(', ')}` : '';
+              const durMs = bar.endMs - bar.startMs;
+              const tooltipLabel = `[AI turn] ${formatTimeLabel(bar.startMs, includeDate)} - ${formatTimeLabel(bar.endMs, includeDate)} (${Math.round(durMs / 1000)}s)${toolSuffix}`;
+              return (
+                <Tooltip key={bar.key} title={tooltipLabel} placement="top">
+                  <Box
+                    component="button"
+                    onClick={() => handleBarClick(bar.firstUuid)}
+                    aria-label={`AI turn ${bar.startMs}`}
+                    sx={{
+                      position: 'absolute',
+                      left: `${Math.max(0, Math.min(bar.leftPct, 99.5))}%`,
+                      top: `${topPct}%`,
+                      width: `${Math.max(bar.widthPct, 0.3)}%`,
+                      minWidth: 3,
+                      height: `${heightPct}%`,
+                      bgcolor: bar.color,
+                      borderRadius: '2px',
+                      border: 'none',
+                      cursor: 'pointer',
+                      p: 0,
+                      zIndex: 2,
+                      '&:hover': { opacity: 0.7 },
+                    }}
+                  >
+                    {bar.hasCommit && (
+                      <Box
+                        sx={{
+                          position: 'absolute',
+                          bottom: -5,
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          width: 5,
+                          height: 5,
+                          borderRadius: '50%',
+                          bgcolor: colors.iceBlue,
+                        }}
+                        aria-hidden="true"
+                      />
+                    )}
+                  </Box>
+                </Tooltip>
+              );
+            })}
+
+            {/* Subagent bars (per message, in sub-tracks by agentId) */}
+            {timelineMessages
+              .filter((m) => m.laneKind === 'subagent')
+              .map((msg) => {
+                const leftPct = toPct(msg.ms);
+                const laneBasePct = LANE_INDEX.subagent * laneHeightPct;
+                const trackIndex = msg.agentId ? subagentIndex.get(msg.agentId) ?? 0 : 0;
+                const trackHeightPct = laneHeightPct / subTrackCount;
+                const topPct = laneBasePct + trackIndex * trackHeightPct + trackHeightPct * 0.15;
+                const heightPct = trackHeightPct * 0.7;
+                const color = msg.agentId ? getAgentColor(msg.agentId) : toolColors.plain;
+                const tooltipLabel = `[subagent] ${msg.timestamp}${msg.agentId ? ` · ${msg.agentId.slice(0, 8)}` : ''}${msg.agentDescription ? ` (${msg.agentDescription})` : ''}`;
+                return (
+                  <Tooltip key={msg.uuid} title={tooltipLabel} placement="top">
+                    <Box
+                      component="button"
+                      onClick={() => handleBarClick(msg.uuid)}
+                      aria-label={`subagent message at ${msg.timestamp}`}
+                      sx={{
+                        position: 'absolute',
+                        left: `${Math.max(0, Math.min(leftPct, 99.5))}%`,
+                        top: `${topPct}%`,
+                        width: 3,
+                        height: `${heightPct}%`,
+                        bgcolor: color,
+                        borderRadius: '2px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        p: 0,
+                        transform: 'translateX(-50%)',
+                        zIndex: 2,
+                        '&:hover': { opacity: 0.7 },
+                      }}
+                    />
+                  </Tooltip>
+                );
+              })}
+
+            {/* System bars (per message) */}
+            {timelineMessages
+              .filter((m) => m.laneKind === 'system')
+              .map((msg) => {
+                const leftPct = toPct(msg.ms);
+                const topPct = LANE_INDEX.system * laneHeightPct + laneHeightPct * 0.2;
+                const heightPct = laneHeightPct * 0.6;
+                return (
+                  <Tooltip key={msg.uuid} title={`[system] ${msg.timestamp}`} placement="top">
+                    <Box
+                      component="button"
+                      onClick={() => handleBarClick(msg.uuid)}
+                      aria-label={`system message at ${msg.timestamp}`}
+                      sx={{
+                        position: 'absolute',
+                        left: `${Math.max(0, Math.min(leftPct, 99.5))}%`,
+                        top: `${topPct}%`,
+                        width: 3,
+                        height: `${heightPct}%`,
+                        bgcolor: toolColors.plain,
+                        borderRadius: '2px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        p: 0,
+                        transform: 'translateX(-50%)',
+                        zIndex: 2,
+                        '&:hover': { opacity: 0.7 },
+                      }}
+                    />
+                  </Tooltip>
+                );
+              })}
           </Box>
 
           {/* Time axis */}
