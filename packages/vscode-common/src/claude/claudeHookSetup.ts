@@ -4,6 +4,84 @@ import * as os from 'node:os';
 
 const CLAUDE_DIR = path.join(os.homedir(), '.claude');
 const SETTINGS_PATH = path.join(CLAUDE_DIR, 'settings.json');
+const SCRIPTS_DIR = path.join(CLAUDE_DIR, 'scripts');
+
+// ---------------------------------------------------------------------------
+// Hook scripts
+// ---------------------------------------------------------------------------
+
+function tokenBudgetScriptContent(port: number): string {
+  return `#!/bin/bash
+SESSION_ID="\${CLAUDE_SESSION_ID:-}"
+PORT="\${ANYTIME_TRAIL_PORT:-${port}}"
+if [ -z "$SESSION_ID" ]; then exit 0; fi
+curl -s -X POST "http://127.0.0.1:\${PORT}/api/trail/token-budget" \\
+  -H "Content-Type: application/json" \\
+  -d "{\\"sessionId\\":\\"$\{SESSION_ID\}\\"}" > /dev/null 2>&1 || true
+exit 0
+`;
+}
+
+const SESSION_GUARD_SCRIPT = `#!/bin/bash
+# session-guard.sh — Check session duration and turn count, warn if thresholds exceeded
+THRESHOLD_MINUTES=60
+THRESHOLD_TURNS=50
+STATE_FILE="/tmp/claude-session-guard.json"
+
+JSONL=$(find "$HOME/.claude/projects" -maxdepth 2 -name "*.jsonl" -not -path "*/subagents/*" -printf '%T@ %p\\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
+
+if [ -z "$JSONL" ] || [ ! -f "$JSONL" ]; then
+  exit 0
+fi
+
+FILE_AGE=$(( $(date +%s) - $(stat -c %Y "$JSONL" 2>/dev/null || echo 0) ))
+if [ "$FILE_AGE" -gt 60 ]; then
+  exit 0
+fi
+
+FIRST_TS=$(head -20 "$JSONL" | grep -oP '"timestamp":"[^"]+' | head -1 | cut -d'"' -f4)
+TURN_COUNT=$(grep -c '"type":"user"' "$JSONL" 2>/dev/null || echo 0)
+
+if [ -z "$FIRST_TS" ]; then
+  exit 0
+fi
+
+FIRST_EPOCH=$(date -d "$FIRST_TS" +%s 2>/dev/null || echo 0)
+NOW_EPOCH=$(date +%s)
+ELAPSED_MIN=$(( (NOW_EPOCH - FIRST_EPOCH) / 60 ))
+
+WARNED_FOR=""
+if [ -f "$STATE_FILE" ]; then
+  WARNED_FOR=$(cat "$STATE_FILE" 2>/dev/null)
+fi
+
+MSG=""
+if [ "$ELAPSED_MIN" -ge "$THRESHOLD_MINUTES" ] && [ "$TURN_COUNT" -ge "$THRESHOLD_TURNS" ]; then
+  MSG="[Session Guard] \${ELAPSED_MIN}min / \${TURN_COUNT} turns — both thresholds exceeded. Consider /clear or new session."
+elif [ "$ELAPSED_MIN" -ge "$THRESHOLD_MINUTES" ]; then
+  MSG="[Session Guard] \${ELAPSED_MIN}min elapsed (limit: \${THRESHOLD_MINUTES}min). Consider /clear or new session."
+elif [ "$TURN_COUNT" -ge "$THRESHOLD_TURNS" ]; then
+  MSG="[Session Guard] \${TURN_COUNT} turns (limit: \${THRESHOLD_TURNS}). Consider /clear or new session."
+fi
+
+if [ -n "$MSG" ]; then
+  if [ "$WARNED_FOR" = "$JSONL" ]; then
+    OVER_THRESHOLD=$(( TURN_COUNT - THRESHOLD_TURNS ))
+    if [ "$OVER_THRESHOLD" -gt 0 ] && [ $(( OVER_THRESHOLD % 10 )) -eq 0 ]; then
+      echo "{\\"systemMessage\\":\\"$MSG\\"}"
+    fi
+  else
+    echo "$JSONL" > "$STATE_FILE"
+    echo "{\\"systemMessage\\":\\"$MSG\\"}"
+  fi
+fi
+`;
+
+function writeScript(filename: string, content: string): void {
+  fs.mkdirSync(SCRIPTS_DIR, { recursive: true });
+  const scriptPath = path.join(SCRIPTS_DIR, filename);
+  fs.writeFileSync(scriptPath, content, { encoding: 'utf-8', mode: 0o755 });
+}
 
 function buildStatusFilePath(workspaceRoot?: string, statusDir?: string): string {
   const dir = statusDir ?? '.vscode';
@@ -17,23 +95,31 @@ function buildStatusFilePath(workspaceRoot?: string, statusDir?: string): string
 interface HookHandler {
   type: 'command';
   command: string;
+  timeout?: number;
 }
 
-interface HookMatcher {
-  matcher: string;
+interface HookEntry {
+  matcher?: string;
   hooks: HookHandler[];
 }
 
 interface ClaudeSettings {
   hooks?: {
-    PreToolUse?: HookMatcher[];
-    PostToolUse?: HookMatcher[];
+    PreToolUse?: HookEntry[];
+    PostToolUse?: HookEntry[];
+    Stop?: HookEntry[];
+    UserPromptSubmit?: HookEntry[];
   };
   [key: string]: unknown;
 }
 
 export function getStatusFilePath(workspaceRoot?: string, statusDir?: string): string {
   return buildStatusFilePath(workspaceRoot, statusDir);
+}
+
+/** 指定マーカー文字列を含むフックエントリを除去する（idempotent 更新用） */
+function removeHooksByMarker(entries: HookEntry[], marker: string): HookEntry[] {
+  return entries.filter((e) => !e.hooks?.some((h) => h.command?.includes(marker)));
 }
 
 /** セッション ID を含むステータスファイルパスのパターンを返す（glob 用） */
@@ -46,13 +132,13 @@ export function getStatusFileGlob(workspaceRoot?: string, statusDir?: string): s
 }
 
 /** claude-code-status 関連の書き込みを含むフックエントリを除去する */
-function removeStatusFileHooks(matchers: HookMatcher[]): HookMatcher[] {
-  return matchers.filter(
-    (m) => !m.hooks?.some((h) => h.command?.includes('claude-code-status'))
+function removeStatusFileHooks(entries: HookEntry[]): HookEntry[] {
+  return entries.filter(
+    (m) => !m.hooks?.some((h: HookHandler) => h.command?.includes('claude-code-status'))
   );
 }
 
-export function setupClaudeHooks(workspaceRoot?: string, statusDir?: string): boolean {
+export function setupClaudeHooks(workspaceRoot?: string, statusDir?: string, trailPort = 19841): boolean {
   if (!fs.existsSync(CLAUDE_DIR)) {
     return false;
   }
@@ -69,9 +155,22 @@ export function setupClaudeHooks(workspaceRoot?: string, statusDir?: string): bo
     }
   }
 
+  // スクリプトファイルを作成/更新
+  try {
+    writeScript('trail-token-budget.sh', tokenBudgetScriptContent(trailPort));
+    writeScript('session-guard.sh', SESSION_GUARD_SCRIPT);
+  } catch (err) {
+    // スクリプト作成失敗はログのみ（フック設定は続行）
+    if (process.env.NODE_ENV !== 'test') {
+      console.error('[trail] Failed to write hook scripts:', err);
+    }
+  }
+
   settings.hooks ??= {};
   settings.hooks.PreToolUse ??= [];
   settings.hooks.PostToolUse ??= [];
+  settings.hooks.Stop ??= [];
+  settings.hooks.UserPromptSubmit ??= [];
 
   const statusFile = buildStatusFilePath(workspaceRoot, statusDir);
   const statusFileBase = statusFile.replace(/\.json$/, '');
@@ -106,6 +205,18 @@ export function setupClaudeHooks(workspaceRoot?: string, statusDir?: string): bo
   settings.hooks.PostToolUse.push({
     matcher: 'Write',
     hooks: [{ type: 'command', command: planHookCommand }],
+  });
+
+  // Stop hook: trail-token-budget.sh
+  settings.hooks.Stop = removeHooksByMarker(settings.hooks.Stop, 'trail-token-budget.sh');
+  settings.hooks.Stop.push({
+    hooks: [{ type: 'command', command: '~/.claude/scripts/trail-token-budget.sh', timeout: 10 }],
+  });
+
+  // UserPromptSubmit hook: session-guard.sh
+  settings.hooks.UserPromptSubmit = removeHooksByMarker(settings.hooks.UserPromptSubmit, 'session-guard.sh');
+  settings.hooks.UserPromptSubmit.push({
+    hooks: [{ type: 'command', command: 'bash ~/.claude/scripts/session-guard.sh', timeout: 5 }],
   });
 
   fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2));

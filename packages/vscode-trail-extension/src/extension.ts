@@ -55,10 +55,11 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Claude Code hook を ~/.claude/settings.json に自動登録
 	const claudeStatusDirSetting = vscode.workspace.getConfiguration('anytimeTrail.claudeStatus').get<string>('directory', '') || '.vscode';
+	const trailPortForHooks = vscode.workspace.getConfiguration('anytimeTrail.trailServer').get<number>('port', 19841);
 	{
 		const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 		if (wsRoot) {
-			const registered = setupClaudeHooks(wsRoot, claudeStatusDirSetting);
+			const registered = setupClaudeHooks(wsRoot, claudeStatusDirSetting, trailPortForHooks);
 			TrailLogger.info(`Claude hooks setup: ${registered ? 'registered' : 'skipped (already registered or .claude not found)'}`);
 		}
 	}
