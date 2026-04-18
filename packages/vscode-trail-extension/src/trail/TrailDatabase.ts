@@ -912,6 +912,7 @@ export class TrailDatabase {
     const skill = db.exec(
       `SELECT DATE(a.timestamp, '${tzOffset}'),
         COALESCE(sm.recommended_model, 'sonnet'),
+        COUNT(*) AS msg_count,
         SUM(a.input_tokens), SUM(a.output_tokens),
         SUM(a.cache_read_tokens), SUM(a.cache_creation_tokens)
        FROM messages a
@@ -922,9 +923,10 @@ export class TrailDatabase {
     );
     for (const row of skill[0]?.values ?? []) {
       const d = String(row[0]); const m = String(row[1]);
-      const inp = Number(row[2]); const outp = Number(row[3]);
-      const cr = Number(row[4]); const cc = Number(row[5]);
-      stmt.run([d, 'cost_skill', m, 0, 0, inp, outp, cr, cc, 0, estimateCost(m, inp, outp, cr, cc)]);
+      const cnt = Number(row[2]);
+      const inp = Number(row[3]); const outp = Number(row[4]);
+      const cr = Number(row[5]); const cc = Number(row[6]);
+      stmt.run([d, 'cost_skill', m, cnt, 0, inp, outp, cr, cc, 0, estimateCost(m, inp, outp, cr, cc)]);
     }
 
     // ── kind='tool' : メッセージトークン/ターン時間按分のツール別日次集計 ──
@@ -2158,18 +2160,61 @@ export class TrailDatabase {
     try {
       const db = this.ensureDb();
 
-      // Fetch assistant messages with tool_calls, joined with their
-      // child tool-result messages to get tool_use_result.
-      const whereClause = sessionId
-        ? 'WHERE m1.session_id = ? AND m1.tool_calls IS NOT NULL'
-        : 'WHERE m1.tool_calls IS NOT NULL';
-      const sql = `SELECT m1.session_id, m1.tool_calls, m2.tool_use_result
-        FROM messages m1
-        LEFT JOIN messages m2
-          ON m2.parent_uuid = m1.uuid AND m2.tool_use_result IS NOT NULL
-        ${whereClause}`;
-      const params = sessionId ? [sessionId] : [];
-      const result = db.exec(sql, params);
+      // Global metrics: use pre-computed message_tool_calls instead of parsing message JSON
+      if (!sessionId) {
+        const editRes = db.exec(
+          `SELECT COUNT(*) FROM message_tool_calls WHERE tool_name IN ('Edit', 'Write')`,
+        );
+        const totalEdits = Number(editRes[0]?.values[0]?.[0] ?? 0);
+
+        const retryRes = db.exec(
+          `SELECT COALESCE(SUM(edit_count - 1), 0)
+           FROM (
+             SELECT COUNT(*) AS edit_count
+             FROM message_tool_calls
+             WHERE tool_name IN ('Edit', 'Write') AND file_path IS NOT NULL AND file_path != ''
+             GROUP BY session_id, file_path
+             HAVING COUNT(*) > 1
+           )`,
+        );
+        const totalRetries = Number(retryRes[0]?.values[0]?.[0] ?? 0);
+
+        const buildRes = db.exec(
+          `SELECT COUNT(*), COALESCE(SUM(is_error), 0)
+           FROM message_tool_calls
+           WHERE tool_name = 'Bash' AND (
+             command LIKE '%npm run build%' OR command LIKE '%npx tsc%' OR
+             command LIKE '% tsc %' OR command LIKE '% tsc' OR command LIKE 'tsc %' OR
+             command LIKE '%webpack%' OR command LIKE '%vite build%' OR
+             command LIKE '%esbuild%' OR command LIKE '%rollup%'
+           )`,
+        );
+        const totalBuildRuns = Number(buildRes[0]?.values[0]?.[0] ?? 0);
+        const totalBuildFails = Number(buildRes[0]?.values[0]?.[1] ?? 0);
+
+        const testRes = db.exec(
+          `SELECT COUNT(*), COALESCE(SUM(is_error), 0)
+           FROM message_tool_calls
+           WHERE tool_name = 'Bash' AND (
+             command LIKE '%jest%' OR command LIKE '%vitest%' OR
+             command LIKE '%npm run test%' OR command LIKE '%npm test%'
+           )`,
+        );
+        const totalTestRuns = Number(testRes[0]?.values[0]?.[0] ?? 0);
+        const totalTestFails = Number(testRes[0]?.values[0]?.[1] ?? 0);
+
+        return { totalRetries, totalEdits, totalBuildRuns, totalBuildFails, totalTestRuns, totalTestFails };
+      }
+
+      // Session-specific path: fetch messages with tool_calls for per-session detail
+      const result = db.exec(
+        `SELECT m1.session_id, m1.tool_calls, m2.tool_use_result
+         FROM messages m1
+         LEFT JOIN messages m2
+           ON m2.parent_uuid = m1.uuid AND m2.tool_use_result IS NOT NULL
+         WHERE m1.session_id = ? AND m1.tool_calls IS NOT NULL`,
+        [sessionId],
+      );
       if (!result[0]) return zero;
 
       const BUILD_RE = /\b(npm run build|npx tsc|tsc\b|webpack|vite build|esbuild|rollup)\b/;
@@ -2692,9 +2737,9 @@ export class TrailDatabase {
       });
     }
 
-    // 5. Model distribution (message count)
+    // 5. Model distribution (message count) — from daily_counts to avoid full messages scan
     const distActual = db.exec(
-      `SELECT COALESCE(model,'unknown'), COUNT(*) FROM messages WHERE type = 'assistant' GROUP BY model`,
+      `SELECT key, SUM(count) FROM daily_counts WHERE kind = 'model' GROUP BY key`,
     );
     const actualDist: Record<string, number> = {};
     for (const row of distActual[0]?.values ?? []) {
@@ -2702,11 +2747,7 @@ export class TrailDatabase {
     }
 
     const distSkill = db.exec(
-      `SELECT COALESCE(sm.recommended_model, 'sonnet'), COUNT(*)
-       FROM messages a
-       LEFT JOIN skill_models_resolved sm ON a.skill = sm.skill
-       WHERE a.type = 'assistant'
-       GROUP BY COALESCE(sm.recommended_model, 'sonnet')`,
+      `SELECT key, SUM(count) FROM daily_counts WHERE kind = 'cost_skill' GROUP BY key`,
     );
     const skillDist: Record<string, number> = {};
     for (const row of distSkill[0]?.values ?? []) {
