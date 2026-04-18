@@ -12,8 +12,8 @@ const SCRIPTS_DIR = path.join(CLAUDE_DIR, 'scripts');
 
 function tokenBudgetScriptContent(port: number): string {
   return `#!/bin/bash
-SESSION_ID="\${CLAUDE_SESSION_ID:-}"
 PORT="\${ANYTIME_TRAIL_PORT:-${port}}"
+SESSION_ID=$(node -e "let d='';process.stdin.resume();process.stdin.setEncoding('utf8');process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{process.stdout.write(JSON.parse(d).session_id||'')}catch{}})")
 if [ -z "$SESSION_ID" ]; then exit 0; fi
 curl -s -X POST "http://127.0.0.1:\${PORT}/api/trail/token-budget" \\
   -H "Content-Type: application/json" \\
