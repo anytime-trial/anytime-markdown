@@ -916,6 +916,60 @@ export class TrailDataServer {
       });
   }
 
+  // ---------------------------------------------------------------------------
+  //  JSONL real-time token helpers
+  // ---------------------------------------------------------------------------
+
+  private static sumTokensFromJsonl(jsonlPath: string): number {
+    try {
+      const lines = fs.readFileSync(jsonlPath, 'utf-8').split('\n');
+      let total = 0;
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const entry = JSON.parse(line) as { type?: string; message?: { usage?: { input_tokens?: number; output_tokens?: number } } };
+          if (entry.type === 'assistant' && entry.message?.usage) {
+            total += (entry.message.usage.input_tokens ?? 0) + (entry.message.usage.output_tokens ?? 0);
+          }
+        } catch { /* skip malformed line */ }
+      }
+      return total;
+    } catch {
+      return 0;
+    }
+  }
+
+  private static getSessionTokensFromJsonl(sessionId: string): number {
+    const projectsDir = path.join(os.homedir(), '.claude', 'projects');
+    try {
+      for (const dir of fs.readdirSync(projectsDir, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name)) {
+        const p = path.join(projectsDir, dir, `${sessionId}.jsonl`);
+        if (fs.existsSync(p)) return TrailDataServer.sumTokensFromJsonl(p);
+      }
+    } catch { /* ignore */ }
+    return 0;
+  }
+
+  private static getDailyTokensFromJsonl(): number {
+    const projectsDir = path.join(os.homedir(), '.claude', 'projects');
+    const nowJst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+    const todayJst = nowJst.toISOString().slice(0, 10);
+    let total = 0;
+    try {
+      for (const dir of fs.readdirSync(projectsDir, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name)) {
+        const dirPath = path.join(projectsDir, dir);
+        for (const file of fs.readdirSync(dirPath).filter(f => f.endsWith('.jsonl'))) {
+          const filePath = path.join(dirPath, file);
+          const mtimeJst = new Date(fs.statSync(filePath).mtimeMs + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+          if (mtimeJst === todayJst) {
+            total += TrailDataServer.sumTokensFromJsonl(filePath);
+          }
+        }
+      }
+    } catch { /* ignore */ }
+    return total;
+  }
+
   private handleTokenBudget(req: http.IncomingMessage, res: http.ServerResponse): void {
     let body = '';
     req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
@@ -928,8 +982,10 @@ export class TrailDataServer {
           return;
         }
 
-        const sessionTokens = this.trailDb.getSessionTokens(sessionId);
-        const dailyTokens = this.trailDb.getDailyTokensToday();
+        const dbSession = this.trailDb.getSessionTokens(sessionId);
+        const sessionTokens = dbSession > 0 ? dbSession : TrailDataServer.getSessionTokensFromJsonl(sessionId);
+        const dbDaily = this.trailDb.getDailyTokensToday();
+        const dailyTokens = dbDaily > 0 ? dbDaily : TrailDataServer.getDailyTokensFromJsonl();
         const { dailyLimitTokens, sessionLimitTokens, alertThresholdPct } = this.tokenBudgetConfig;
 
         const status: import('./types').TokenBudgetUpdatedMessage = {
