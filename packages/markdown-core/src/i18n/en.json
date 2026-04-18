@@ -706,7 +706,7 @@
     "trailSectionTitle": "Anytime Trail",
     "trail1Title": "Visualize architecture from code",
     "trail1Body": "Analyze TypeScript projects to auto-generate C4 architecture diagrams and DSM (Dependency Structure Matrix). The Claude activity overlay shows which files your AI agent is currently editing — directly on the graph.",
-    "trail2Title": "Real-time code change reflection",
+    "trail2Title": "Real-time Visualization",
     "trail2Body": "Re-analysis in VS Code is instantly reflected in the live viewer. Drill down across 4 levels (L1–L4) and spot circular dependencies highlighted in red.",
     "trail3Title": "Journey Log",
     "trail3Body": "Import Claude Code session logs into a local SQLite database. Review cost estimates by model, tool usage statistics, and commit history — every AI work session recorded as a travel diary you can revisit anytime.",
