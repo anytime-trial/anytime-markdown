@@ -39,6 +39,7 @@ export const en: TrailI18n = {
   'stats.messages': 'messages',
   'tokenBudget.session': 'Session',
   'tokenBudget.daily': 'Today',
+  'tokenBudget.turns': 'Turns',
   'trace.showSystemMessages': 'Show system messages',
   'trace.noMessages': 'No messages',
   'message.collapse': 'Collapse',

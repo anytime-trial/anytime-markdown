@@ -14,6 +14,7 @@ export interface TokenBudgetStatus {
   readonly dailyLimitTokens: number | null;
   readonly sessionLimitTokens: number | null;
   readonly alertThresholdPct: number;
+  readonly turnCount: number;
 }
 
 export interface TrailDataSourceResult {
