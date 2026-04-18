@@ -41,9 +41,9 @@ const richGithubLink = (chunks: ReactNode) => (
 );
 
 const MD_BENEFITS = [
+  { key: 'md3', icon: <CodeIcon aria-hidden="true" sx={{ fontSize: 40 }} /> },
   { key: 'md1', icon: <AutoFixHighIcon aria-hidden="true" sx={{ fontSize: 40 }} /> },
   { key: 'md2', icon: <ViewCompactIcon aria-hidden="true" sx={{ fontSize: 40 }} /> },
-  { key: 'md3', icon: <CodeIcon aria-hidden="true" sx={{ fontSize: 40 }} /> },
 ] as const;
 
 const TRAIL_BENEFITS = [
