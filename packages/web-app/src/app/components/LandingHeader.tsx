@@ -17,6 +17,7 @@ export default function LandingHeader() {
   const t = useTranslations('Landing');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const showGraph = process.env.NEXT_PUBLIC_SHOW_GRAPH === '1';
+  const showSpotify = process.env.NEXT_PUBLIC_SHOW_SPOTIFY === '1';
 
 
   return (
@@ -88,6 +89,15 @@ export default function LandingHeader() {
               {t('graphPage')}
             </Button>
           )}
+          {showSpotify && (
+            <Button
+              component={NextLink}
+              href="/spotify"
+              sx={{ textTransform: 'none', color: 'text.secondary', fontWeight: 600, fontSize: '0.85rem', display: { xs: 'none', sm: 'inline-flex' } }}
+            >
+              {t('spotifyPage')}
+            </Button>
+          )}
 
           <ToggleButtonGroup
             value={locale}
@@ -152,6 +162,11 @@ export default function LandingHeader() {
             {showGraph && (
               <ListItemButton component={NextLink} href="/graph" onClick={() => setDrawerOpen(false)}>
                 <ListItemText primary={t('graphPage')} />
+              </ListItemButton>
+            )}
+            {showSpotify && (
+              <ListItemButton component={NextLink} href="/spotify" onClick={() => setDrawerOpen(false)}>
+                <ListItemText primary={t('spotifyPage')} />
               </ListItemButton>
             )}
           </List>
