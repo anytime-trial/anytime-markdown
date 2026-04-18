@@ -32,6 +32,8 @@ export interface TrailI18n {
   'sessionList.interruptedMaxTokens': string;
   'sessionList.interruptedNoResponse': string;
   'sessionList.contextLabel': string;
+  'sessionList.copyId': string;
+  'sessionList.copied': string;
   // stats
   'stats.noSessionSelected': string;
   'stats.input': string;

@@ -27,6 +27,8 @@ export const en: TrailI18n = {
   'sessionList.interruptedMaxTokens': 'Interrupted: max_tokens',
   'sessionList.interruptedNoResponse': 'Interrupted: no response',
   'sessionList.contextLabel': 'context:',
+  'sessionList.copyId': 'Copy ID',
+  'sessionList.copied': 'Copied',
   'stats.noSessionSelected': 'No session selected',
   'stats.input': 'Input:',
   'stats.output': 'Output:',

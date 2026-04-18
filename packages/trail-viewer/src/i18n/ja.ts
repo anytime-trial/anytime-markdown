@@ -27,6 +27,8 @@ export const ja: TrailI18n = {
   'sessionList.interruptedMaxTokens': '中断: max_tokens',
   'sessionList.interruptedNoResponse': '中断: 応答なし',
   'sessionList.contextLabel': 'コンテキスト:',
+  'sessionList.copyId': 'IDをコピー',
+  'sessionList.copied': 'コピーしました',
   'stats.noSessionSelected': 'セッションが選択されていません',
   'stats.input': '入力:',
   'stats.output': '出力:',
