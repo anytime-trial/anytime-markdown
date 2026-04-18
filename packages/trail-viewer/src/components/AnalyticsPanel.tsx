@@ -624,7 +624,7 @@ function SessionModelUsageChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMet
           color: TOOL_COLORS[i % TOOL_COLORS.length],
         }))}
         height={70}
-        margin={{ left: 16, right: 16, top: 4, bottom: 16 }}
+        margin={{ left: 0, right: 16, top: 4, bottom: 16 }}
         slots={{ legend: () => null }}
       />
     </Paper>
@@ -679,7 +679,7 @@ function SessionToolUsageChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMetr
           color: TOOL_COLORS[i % TOOL_COLORS.length],
         }))}
         height={70}
-        margin={{ left: 16, right: 16, top: 4, bottom: 16 }}
+        margin={{ left: 0, right: 16, top: 4, bottom: 16 }}
         slots={{ legend: () => null }}
       />
     </Paper>
@@ -734,7 +734,7 @@ function SessionSkillUsageChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMet
           color: TOOL_COLORS[i % TOOL_COLORS.length],
         }))}
         height={70}
-        margin={{ left: 16, right: 16, top: 4, bottom: 16 }}
+        margin={{ left: 0, right: 16, top: 4, bottom: 16 }}
         slots={{ legend: () => null }}
       />
     </Paper>
@@ -775,7 +775,7 @@ function SessionErrorChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMetrics 
           color: TOOL_COLORS[i % TOOL_COLORS.length],
         }))}
         height={70}
-        margin={{ left: 16, right: 16, top: 4, bottom: 16 }}
+        margin={{ left: 0, right: 16, top: 4, bottom: 16 }}
         slots={{ legend: () => null }}
       />
     </Paper>
