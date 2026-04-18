@@ -49,6 +49,7 @@ export interface TrailViewerCoreProps {
   readonly fetchSessionMessages?: AnalyticsPanelProps['fetchSessionMessages'];
   readonly fetchSessionCommits?: AnalyticsPanelProps['fetchSessionCommits'];
   readonly fetchSessionToolMetrics?: AnalyticsPanelProps['fetchSessionToolMetrics'];
+  readonly fetchDayToolMetrics?: AnalyticsPanelProps['fetchDayToolMetrics'];
   readonly costOptimization?: CostOptimizationData | null;
   readonly releases?: readonly TrailRelease[];
   readonly fetchCombinedData?: AnalyticsPanelProps['fetchCombinedData'];
@@ -83,6 +84,7 @@ function TrailViewerCoreInner({
   fetchSessionMessages,
   fetchSessionCommits,
   fetchSessionToolMetrics,
+  fetchDayToolMetrics,
   costOptimization = null,
   releases = [],
   fetchCombinedData,
@@ -196,6 +198,7 @@ function TrailViewerCoreInner({
           fetchSessionMessages={fetchSessionMessages}
           fetchSessionCommits={fetchSessionCommits}
           fetchSessionToolMetrics={fetchSessionToolMetrics}
+          fetchDayToolMetrics={fetchDayToolMetrics}
           costOptimization={costOptimization}
           fetchCombinedData={fetchCombinedData}
         />

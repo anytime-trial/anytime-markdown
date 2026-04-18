@@ -174,6 +174,7 @@ export function TrailViewerApp({
       fetchSessionMessages={dataSource.fetchSessionMessages}
       fetchSessionCommits={dataSource.fetchSessionCommits}
       fetchSessionToolMetrics={dataSource.fetchSessionToolMetrics}
+      fetchDayToolMetrics={dataSource.fetchDayToolMetrics}
       costOptimization={dataSource.costOptimization}
       releases={dataSource.releases}
       fetchCombinedData={dataSource.fetchCombinedData}

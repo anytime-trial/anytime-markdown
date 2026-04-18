@@ -20,5 +20,6 @@ export interface ITrailReader {
   getAnalytics(): Promise<AnalyticsData | null>;
   getCostOptimization(): Promise<CostOptimizationData | null>;
   getSessionToolMetrics(sessionId: string): Promise<ToolMetrics | null>;
+  getDayToolMetrics(date: string): Promise<ToolMetrics | null>;
   searchMessages(query: string): Promise<readonly { sessionId: string; uuid: string; snippet: string }[]>;
 }

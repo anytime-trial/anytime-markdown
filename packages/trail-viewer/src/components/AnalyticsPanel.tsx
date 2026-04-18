@@ -30,6 +30,7 @@ export interface AnalyticsPanelProps {
   readonly fetchSessionMessages?: (id: string) => Promise<readonly TrailMessage[]>;
   readonly fetchSessionCommits?: (id: string) => Promise<readonly TrailSessionCommit[]>;
   readonly fetchSessionToolMetrics?: (id: string) => Promise<ToolMetrics | null>;
+  readonly fetchDayToolMetrics?: (date: string) => Promise<ToolMetrics | null>;
   readonly costOptimization?: CostOptimizationData | null;
   readonly fetchCombinedData?: (period: CombinedPeriodMode, rangeDays: CombinedRangeDays) => Promise<CombinedData>;
 }
@@ -868,6 +869,7 @@ function DailySessionList({
   fetchSessionMessages,
   fetchSessionCommits,
   fetchSessionToolMetrics,
+  fetchDayToolMetrics,
 }: Readonly<{
   date: string;
   sessions: readonly TrailSession[];
@@ -876,6 +878,7 @@ function DailySessionList({
   fetchSessionMessages?: (id: string) => Promise<readonly TrailMessage[]>;
   fetchSessionCommits?: (id: string) => Promise<readonly TrailSessionCommit[]>;
   fetchSessionToolMetrics?: (id: string) => Promise<ToolMetrics | null>;
+  fetchDayToolMetrics?: (date: string) => Promise<ToolMetrics | null>;
 }>) {
   const { colors, cardSx, scrollbarSx } = useTrailTheme();
   const { t } = useTrailI18n();
@@ -887,17 +890,16 @@ function DailySessionList({
   const daySessions = sessions.filter((s) => toLocalDateKey(s.startTime) === date);
 
   useEffect(() => {
-    if (!fetchSessionToolMetrics || daySessions.length === 0) {
+    if (!fetchDayToolMetrics) {
       setDayAggToolMetrics(null);
       return;
     }
     let cancelled = false;
-    void Promise.all(daySessions.map((s) => fetchSessionToolMetrics(s.id))).then((results) => {
-      if (!cancelled) setDayAggToolMetrics(mergeToolMetrics(results));
+    void fetchDayToolMetrics(date).then((result) => {
+      if (!cancelled) setDayAggToolMetrics(result);
     });
     return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [date, sessions, fetchSessionToolMetrics]);
+  }, [date, fetchDayToolMetrics]);
 
   const handleSessionClick = (id: string) => {
     if (timelineSessionId === id) {
@@ -1053,6 +1055,7 @@ function DailySessionList({
               <SessionSkillUsageChart toolMetrics={dayAggToolMetrics} />
               <SessionToolUsageChart toolMetrics={dayAggToolMetrics} />
               <SessionErrorChart toolMetrics={dayAggToolMetrics} />
+              <SessionCacheTimeline messages={[]} />
             </Box>
           );
         })()}
@@ -1467,6 +1470,7 @@ function CombinedChartsSection({
   fetchSessionMessages,
   fetchSessionCommits,
   fetchSessionToolMetrics,
+  fetchDayToolMetrics,
   costOptimization,
   fetchCombinedData,
 }: Readonly<{
@@ -1479,6 +1483,7 @@ function CombinedChartsSection({
   fetchSessionMessages?: (id: string) => Promise<readonly TrailMessage[]>;
   fetchSessionCommits?: (id: string) => Promise<readonly TrailSessionCommit[]>;
   fetchSessionToolMetrics?: (id: string) => Promise<ToolMetrics | null>;
+  fetchDayToolMetrics?: (date: string) => Promise<ToolMetrics | null>;
   costOptimization?: CostOptimizationData | null;
   fetchCombinedData?: (period: CombinedPeriodMode, rangeDays: CombinedRangeDays) => Promise<CombinedData>;
 }>) {
@@ -1616,13 +1621,14 @@ function CombinedChartsSection({
           fetchSessionMessages={fetchSessionMessages}
           fetchSessionCommits={fetchSessionCommits}
           fetchSessionToolMetrics={fetchSessionToolMetrics}
+          fetchDayToolMetrics={fetchDayToolMetrics}
         />
       )}
     </Box>
   );
 }
 
-export function AnalyticsPanel({ analytics, sessions = [], onSelectSession, onJumpToTrace, fetchSessionMessages, fetchSessionCommits, fetchSessionToolMetrics, costOptimization, fetchCombinedData }: Readonly<AnalyticsPanelProps>) {
+export function AnalyticsPanel({ analytics, sessions = [], onSelectSession, onJumpToTrace, fetchSessionMessages, fetchSessionCommits, fetchSessionToolMetrics, fetchDayToolMetrics, costOptimization, fetchCombinedData }: Readonly<AnalyticsPanelProps>) {
   const { t } = useTrailI18n();
   const { scrollbarSx } = useTrailTheme();
   const [period, setPeriod] = useState<PeriodDays>(30);
@@ -1651,6 +1657,7 @@ export function AnalyticsPanel({ analytics, sessions = [], onSelectSession, onJu
         fetchSessionMessages={fetchSessionMessages}
         fetchSessionCommits={fetchSessionCommits}
         fetchSessionToolMetrics={fetchSessionToolMetrics}
+        fetchDayToolMetrics={fetchDayToolMetrics}
         costOptimization={costOptimization}
         fetchCombinedData={fetchCombinedData}
       />

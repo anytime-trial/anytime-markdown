@@ -411,6 +411,50 @@ export class SupabaseTrailReader implements ITrailReader {
     return { totalRetries, totalEdits, totalBuildRuns, totalBuildFails, totalTestRuns, totalTestFails, toolUsage, skillUsage, errorsByTool, modelUsage };
   }
 
+  async getDayToolMetrics(date: string): Promise<ToolMetrics | null> {
+    const { data, error } = await this.client
+      .from('trail_daily_counts')
+      .select('kind,key,count,tokens,duration_ms')
+      .eq('date', date)
+      .in('kind', ['tool', 'skill', 'error', 'model']);
+    if (error || !data) return null;
+
+    type Row = { kind: string; key: string; count: number; tokens: number; duration_ms: number };
+    const rows = data as Row[];
+
+    const toolMap = new Map<string, { count: number; tokens: number; durationMs: number }>();
+    const skillMap = new Map<string, { count: number; tokens: number; durationMs: number }>();
+    const errMap = new Map<string, number>();
+    const modelMap = new Map<string, { count: number; tokens: number; durationMs: number }>();
+
+    for (const r of rows) {
+      if (r.kind === 'tool') {
+        const e = toolMap.get(r.key) ?? { count: 0, tokens: 0, durationMs: 0 };
+        e.count += r.count; e.tokens += r.tokens; e.durationMs += r.duration_ms;
+        toolMap.set(r.key, e);
+      } else if (r.kind === 'skill') {
+        const e = skillMap.get(r.key) ?? { count: 0, tokens: 0, durationMs: 0 };
+        e.count += r.count; e.tokens += r.tokens; e.durationMs += r.duration_ms;
+        skillMap.set(r.key, e);
+      } else if (r.kind === 'error') {
+        errMap.set(r.key, (errMap.get(r.key) ?? 0) + r.count);
+      } else if (r.kind === 'model') {
+        const e = modelMap.get(r.key) ?? { count: 0, tokens: 0, durationMs: 0 };
+        e.count += r.count; e.tokens += r.tokens; e.durationMs += r.duration_ms;
+        modelMap.set(r.key, e);
+      }
+    }
+
+    return {
+      totalRetries: 0, totalEdits: 0, totalBuildRuns: 0, totalBuildFails: 0,
+      totalTestRuns: 0, totalTestFails: 0,
+      toolUsage: [...toolMap.entries()].map(([tool, e]) => ({ tool, ...e })).sort((a, b) => b.count - a.count),
+      skillUsage: [...skillMap.entries()].map(([skill, e]) => ({ skill, ...e })).sort((a, b) => b.count - a.count),
+      errorsByTool: [...errMap.entries()].map(([tool, count]) => ({ tool, count })).sort((a, b) => b.count - a.count),
+      modelUsage: [...modelMap.entries()].map(([model, e]) => ({ model, ...e })).sort((a, b) => b.count - a.count),
+    };
+  }
+
   async searchMessages(query: string): Promise<readonly { sessionId: string; uuid: string; snippet: string }[]> {
     const { data, error } = await this.client
       .from('trail_messages')
