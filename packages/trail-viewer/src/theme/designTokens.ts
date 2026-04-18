@@ -47,6 +47,8 @@ const darkColors = {
   warningBg: 'rgba(255,167,38,0.12)',
   info: '#42A5F5',
   infoBg: 'rgba(66,165,245,0.12)',
+  amberGoldHover: '#d4920e',
+  iceBlueBorder: 'rgba(144,202,249,0.3)',
 } as const;
 
 const darkChartColors = {
@@ -56,6 +58,7 @@ const darkChartColors = {
   cacheWrite: '#E8A012',
   cumulativeTime: '#CE93D8',
   primary: '#90CAF9',
+  skill: '#8b5cf6',
 } as const;
 
 const darkAvatarColors = {
@@ -94,6 +97,8 @@ const lightColors: ThemeColors = {
   warningBg: 'rgba(245,124,0,0.12)',
   info: '#01579B',
   infoBg: 'rgba(1,87,155,0.12)',
+  amberGoldHover: '#c47e00',
+  iceBlueBorder: 'rgba(25,118,210,0.3)',
 } as const;
 
 const lightChartColors: ThemeChartColors = {
@@ -103,6 +108,7 @@ const lightChartColors: ThemeChartColors = {
   cacheWrite: '#E8A012',
   cumulativeTime: '#7B1FA2',
   primary: '#1976D2',
+  skill: '#7c3aed',
 } as const;
 
 const lightAvatarColors: ThemeAvatarColors = {
@@ -138,6 +144,8 @@ export interface ThemeColors {
   readonly warningBg: string;
   readonly info: string;
   readonly infoBg: string;
+  readonly amberGoldHover: string;
+  readonly iceBlueBorder: string;
 }
 
 export interface ThemeChartColors {
@@ -147,6 +155,7 @@ export interface ThemeChartColors {
   readonly cacheWrite: string;
   readonly cumulativeTime: string;
   readonly primary: string;
+  readonly skill: string;
 }
 
 export interface ThemeAvatarColors {
@@ -174,11 +183,37 @@ export interface TrailThemeTokens {
     readonly fontSize: string;
   };
   readonly scrollbarSx: Record<string, unknown>;
+  readonly toolPalette: readonly string[];
+  readonly commitColors: Readonly<{
+    feat: string; fix: string; refactor: string; test: string; other: string;
+  }>;
 }
 
 // ---------------------------------------------------------------------------
 //  Factory
 // ---------------------------------------------------------------------------
+
+const darkToolPalette = [
+  '#90CAF9', '#8b5cf6', '#00897b', '#e65100', '#c62828',
+  '#7b1fa2', '#0288d1', '#f57f17', '#2e7d32', '#ad1457',
+  '#4527a0', '#00838f', '#558b2f', '#6d4c41', '#546e7a',
+] as const;
+
+const lightToolPalette = [
+  '#1565C0', '#6d28d9', '#00695c', '#bf360c', '#b71c1c',
+  '#6a1b9a', '#01579b', '#e65100', '#1b5e20', '#880e4f',
+  '#311b92', '#006064', '#33691e', '#4e342e', '#37474f',
+] as const;
+
+const darkCommitColors = {
+  feat: '#66BB6A', fix: '#EF5350', refactor: '#42A5F5',
+  test: '#FFA726', other: 'rgba(255,255,255,0.30)',
+} as const;
+
+const lightCommitColors = {
+  feat: '#388E3C', fix: '#D32F2F', refactor: '#1565C0',
+  test: '#F57C00', other: 'rgba(0,0,0,0.30)',
+} as const;
 
 export function getTokens(isDark: boolean): TrailThemeTokens {
   const c = isDark ? darkColors : lightColors;
@@ -199,6 +234,8 @@ export function getTokens(isDark: boolean): TrailThemeTokens {
       fontFamily: 'Roboto Mono, monospace',
       fontSize: '0.75rem',
     },
+    toolPalette: isDark ? darkToolPalette : lightToolPalette,
+    commitColors: isDark ? darkCommitColors : lightCommitColors,
     scrollbarSx: {
       scrollbarWidth: 'thin',
       scrollbarColor: `${c.textDisabled} transparent`,
