@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Box from '@mui/material/Box';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import IconButton from '@mui/material/IconButton';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import Paper from '@mui/material/Paper';
 import Table from '@mui/material/Table';
@@ -885,6 +886,18 @@ function DailySessionList({
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [sessionToolMetrics, setSessionToolMetrics] = useState<ToolMetrics | null>(null);
   const [dayAggToolMetrics, setDayAggToolMetrics] = useState<ToolMetrics | null>(null);
+  const [copiedSessionId, setCopiedSessionId] = useState(false);
+
+  const handleCopySessionId = useCallback(
+    (id: string) => (e: React.MouseEvent) => {
+      e.stopPropagation();
+      void navigator.clipboard.writeText(id).then(() => {
+        setCopiedSessionId(true);
+        setTimeout(() => setCopiedSessionId(false), 2000);
+      });
+    },
+    [],
+  );
   const daySessions = sessions.filter((s) => toLocalDateKey(s.startTime) === date);
 
   useEffect(() => {
@@ -1024,6 +1037,28 @@ function DailySessionList({
           if (selectedSession) {
             return (
               <Box sx={{ flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 1, width: { lg: 600 } }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 0.5 }}>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {selectedSession.slug ?? selectedSession.id.slice(0, 8)}
+                    </Typography>
+                    {selectedSession.slug && (
+                      <Typography variant="caption" sx={{ color: colors.textSecondary, fontFamily: 'monospace', display: 'block' }}>
+                        {selectedSession.id}
+                      </Typography>
+                    )}
+                  </Box>
+                  <Tooltip title={copiedSessionId ? t('sessionList.copied') : t('sessionList.copyId')}>
+                    <IconButton
+                      size="small"
+                      onClick={handleCopySessionId(selectedSession.id)}
+                      sx={{ p: 0.5, color: colors.textSecondary, '&:hover': { color: colors.iceBlue } }}
+                      aria-label={t('sessionList.copyId')}
+                    >
+                      <ContentCopyIcon sx={{ fontSize: 14 }} />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
                 <SessionMetricsPanel session={selectedSession} toolMetrics={sessionToolMetrics} />
                 <SessionModelUsageChart toolMetrics={sessionToolMetrics} />
                 <SessionSkillUsageChart toolMetrics={sessionToolMetrics} />
