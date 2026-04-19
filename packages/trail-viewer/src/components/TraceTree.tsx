@@ -1,8 +1,5 @@
-import { useEffect, useState } from 'react';
 import Box from '@mui/material/Box';
 import Divider from '@mui/material/Divider';
-import FormControlLabel from '@mui/material/FormControlLabel';
-import Switch from '@mui/material/Switch';
 
 import type { TrailTreeNode } from '../parser/types';
 import { useTrailI18n } from '../i18n';
@@ -11,7 +8,6 @@ import { MessageNode } from './MessageNode';
 
 interface TraceTreeProps {
   readonly nodes: readonly TrailTreeNode[];
-  readonly showSystem?: boolean;
 }
 
 /** Flatten a single tree node and all its descendants */
@@ -26,77 +22,32 @@ function flattenNode(node: TrailTreeNode): readonly TrailTreeNode[] {
 /** Render a single conversation turn (root node + all descendants, flat) */
 function ConversationTurn({
   node,
-  showSystem,
 }: Readonly<{
   node: TrailTreeNode;
-  showSystem: boolean;
 }>) {
   const flat = flattenNode(node);
 
   return (
     <>
-      {flat.map((n) => {
-        if (!showSystem && n.message.type === 'system') {
-          return null;
-        }
-        return (
-          <MessageNode
-            key={n.message.uuid}
-            message={n.message}
-            depth={n.depth}
-          />
-        );
-      })}
+      {flat.map((n) => (
+        <MessageNode
+          key={n.message.uuid}
+          message={n.message}
+          depth={n.depth}
+        />
+      ))}
     </>
   );
 }
 
 export function TraceTree({
   nodes,
-  showSystem: showSystemProp = false,
 }: Readonly<TraceTreeProps>) {
   const { colors, scrollbarSx } = useTrailTheme();
   const { t } = useTrailI18n();
-  const [showSystem, setShowSystem] = useState(showSystemProp);
-
-  // Allow outside components (e.g. TraceTimeline) to request that system
-  // messages be made visible, so that scrollToMessage can land on them.
-  useEffect(() => {
-    const handler = (): void => setShowSystem(true);
-    window.addEventListener('trail:show-system', handler);
-    return () => window.removeEventListener('trail:show-system', handler);
-  }, []);
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <Box
-        sx={{
-          px: 2,
-          py: 1,
-          borderBottom: 1,
-          borderColor: colors.border,
-          flexShrink: 0,
-        }}
-      >
-        <FormControlLabel
-          control={
-            <Switch
-              size="small"
-              checked={showSystem}
-              onChange={(_, checked) => setShowSystem(checked)}
-              sx={{
-                '&.Mui-checked': { color: colors.iceBlue },
-                '&.Mui-checked + .MuiSwitch-track': { bgcolor: colors.iceBlue },
-              }}
-            />
-          }
-          label={t('trace.showSystemMessages')}
-          slotProps={{
-            typography: { variant: 'body2', sx: { color: colors.textSecondary } },
-          }}
-        />
-      </Box>
-
       <Box
         sx={{
           flex: 1,
@@ -116,7 +67,7 @@ export function TraceTree({
           nodes.map((rootNode, index) => (
             <Box key={rootNode.message.uuid}>
               {index > 0 && <Divider sx={{ my: 2, borderColor: colors.border }} />}
-              <ConversationTurn node={rootNode} showSystem={showSystem} />
+              <ConversationTurn node={rootNode} />
             </Box>
           ))
         )}

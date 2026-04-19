@@ -87,17 +87,7 @@ function applyScrollHighlight(el: HTMLElement, highlightColor: string): void {
 
 function scrollToMessage(uuids: readonly string[], highlightColor: string): void {
   const el = findMessageEl(uuids);
-  if (el) {
-    applyScrollHighlight(el, highlightColor);
-    return;
-  }
-  // Target not in DOM. Could be a hidden system message — ask TraceTree to
-  // enable showSystem and retry after React has rendered the new state.
-  window.dispatchEvent(new CustomEvent('trail:show-system'));
-  window.setTimeout(() => {
-    const retried = findMessageEl(uuids);
-    if (retried) applyScrollHighlight(retried, highlightColor);
-  }, 80);
+  if (el) applyScrollHighlight(el, highlightColor);
 }
 
 function formatTimeLabel(ms: number, includeDate: boolean): string {
