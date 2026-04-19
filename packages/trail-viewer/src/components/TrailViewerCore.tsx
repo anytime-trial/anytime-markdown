@@ -336,20 +336,17 @@ function SessionBudgetBadge({ tokenBudget, sessionLabel, turnsLabel, colors }: R
       sx={{
         display: 'grid',
         gridTemplateColumns: '72px 72px',
-        gridTemplateAreas: `
-          "id id"
-          "session turns"
-        `,
         columnGap: '8px',
         rowGap: '2px',
-        justifyItems: 'center',
         alignItems: 'start',
       }}
     >
       <Typography
         variant="caption"
         sx={{
-          gridArea: 'id',
+          gridColumn: '1 / span 2',
+          gridRow: 1,
+          textAlign: 'center',
           color: colors.textSecondary,
           fontSize: '0.65rem',
           fontFamily: 'monospace',
@@ -358,7 +355,7 @@ function SessionBudgetBadge({ tokenBudget, sessionLabel, turnsLabel, colors }: R
       >
         {tokenBudget.sessionId.slice(0, 8)}
       </Typography>
-      <Box sx={{ gridArea: 'session' }}>
+      <Box sx={{ gridColumn: 1, gridRow: 2, justifySelf: 'center' }}>
         <TokenBudgetIndicator
           label={sessionLabel}
           current={tokenBudget.sessionTokens}
@@ -367,7 +364,16 @@ function SessionBudgetBadge({ tokenBudget, sessionLabel, turnsLabel, colors }: R
           colors={colors}
         />
       </Box>
-      <Box sx={{ gridArea: 'turns', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <Box
+        sx={{
+          gridColumn: 2,
+          gridRow: 2,
+          justifySelf: 'center',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+        }}
+      >
         <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.65rem' }}>
           {turnsLabel}
         </Typography>
