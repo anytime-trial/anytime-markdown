@@ -77,6 +77,26 @@ export class ProjectAnalyzer {
     if (visited.size === 1 || Object.keys(outOptions).length === 0) {
       Object.assign(outOptions, parsed.options);
     }
+
+    // tsconfig.json と同階層の tsconfig.*.json を自動検出して追加処理する
+    // （webview・node など複数コンパイル単位を持つパッケージに対応）
+    if (path.basename(normalized) === 'tsconfig.json') {
+      for (const sibling of this.findSiblingTsconfigs(configDir)) {
+        this.collectFiles(sibling, outFileNames, outOptions, visited);
+      }
+    }
+  }
+
+  private findSiblingTsconfigs(dir: string): string[] {
+    try {
+      return fs
+        .readdirSync(dir)
+        .filter(f => /^tsconfig\..+\.json$/.test(f))
+        .map(f => path.join(dir, f))
+        .filter(f => fs.existsSync(f));
+    } catch {
+      return [];
+    }
   }
 
   private normalizeIncludePatterns(rawConfig: Record<string, unknown>): void {
