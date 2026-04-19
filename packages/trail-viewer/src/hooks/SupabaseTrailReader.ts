@@ -719,10 +719,65 @@ export class SupabaseTrailReader implements ITrailReader {
   }
 
   async getQualityMetrics(range: DateRange): Promise<QualityMetrics> {
-    // Supabase implementation: compute from trail_* tables (Phase 2+)
-    // For now, return empty metrics computed from empty inputs.
+    // Compute previous range (same duration immediately before current range).
+    const fromMs = new Date(range.from).getTime();
+    const toMs = new Date(range.to).getTime();
+    const duration = toMs - fromMs;
+    const prevTo = new Date(fromMs - 1).toISOString();
+    const prevFrom = new Date(fromMs - 1 - duration).toISOString();
+
+    type ReleaseRow = { tag: string; released_at: string; fix_count: number };
+    type MessageRow = { uuid: string; timestamp: string; type: string };
+    type CommitRow = { commit_hash: string; commit_message: string; committed_at: string };
+
+    const fetchReleases = async (f: string, t: string): Promise<ReleaseRow[]> => {
+      const { data } = await this.client
+        .from('trail_releases')
+        .select('tag, released_at, fix_count')
+        .gte('released_at', f)
+        .lte('released_at', t);
+      return (data ?? []) as ReleaseRow[];
+    };
+    const fetchMessages = async (f: string, t: string): Promise<MessageRow[]> => {
+      const { data } = await this.client
+        .from('trail_messages')
+        .select('uuid, timestamp, type')
+        .eq('type', 'user')
+        .gte('timestamp', f)
+        .lte('timestamp', t);
+      return (data ?? []) as MessageRow[];
+    };
+    const fetchCommits = async (f: string, t: string): Promise<CommitRow[]> => {
+      const { data } = await this.client
+        .from('trail_session_commits')
+        .select('commit_hash, commit_message, committed_at')
+        .gte('committed_at', f)
+        .lte('committed_at', t);
+      return (data ?? []) as CommitRow[];
+    };
+
+    const [curReleases, curMessages, curCommits, prevReleases, prevMessages, prevCommits] = await Promise.all([
+      fetchReleases(range.from, range.to),
+      fetchMessages(range.from, range.to),
+      fetchCommits(range.from, range.to),
+      fetchReleases(prevFrom, prevTo),
+      fetchMessages(prevFrom, prevTo),
+      fetchCommits(prevFrom, prevTo),
+    ]);
+
+    // trail_message_commits は現状 Supabase 未同期のため空配列。
+    // Lead Time / Prompt→Commit 成功率は sampleSize=0 で「データなし」表示になる。
     return computeQualityMetrics(
-      { releases: [], messages: [], messageCommits: [], commits: [] },
+      {
+        releases: curReleases.map((r) => ({ id: r.tag, tag_date: r.released_at, commit_hashes: [], fix_count: r.fix_count })),
+        messages: curMessages.map((m) => ({ uuid: m.uuid, created_at: m.timestamp, role: m.type, type: 'text' })),
+        messageCommits: [],
+        commits: curCommits.map((c) => ({ hash: c.commit_hash, subject: (c.commit_message ?? '').split('\n')[0] })),
+        previousReleases: prevReleases.map((r) => ({ id: r.tag, tag_date: r.released_at, commit_hashes: [], fix_count: r.fix_count })),
+        previousMessages: prevMessages.map((m) => ({ uuid: m.uuid, created_at: m.timestamp, role: m.type, type: 'text' })),
+        previousMessageCommits: [],
+        previousCommits: prevCommits.map((c) => ({ hash: c.commit_hash, subject: (c.commit_message ?? '').split('\n')[0] })),
+      },
       range,
     );
   }

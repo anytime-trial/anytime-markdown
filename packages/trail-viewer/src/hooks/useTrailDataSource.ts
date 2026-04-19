@@ -280,13 +280,17 @@ export function useTrailDataSource(serverUrl: string): TrailDataSourceResult {
 
   const fetchQualityMetrics = useCallback(
     async (range: DateRange): Promise<QualityMetrics | null> => {
+      const url = `${baseUrl}/api/trail/quality-metrics?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`;
       try {
-        const res = await fetch(
-          `${baseUrl}/api/trail/quality-metrics?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`,
-        );
-        if (!res.ok) return null;
+        const res = await fetch(url);
+        if (!res.ok) {
+          const body = await res.text().catch(() => '');
+          console.error(`[fetchQualityMetrics] HTTP ${res.status}: ${body}`);
+          return null;
+        }
         return (await res.json()) as QualityMetrics;
-      } catch {
+      } catch (err) {
+        console.error('[fetchQualityMetrics] request failed', err);
         return null;
       }
     },

@@ -917,8 +917,9 @@ export class TrailDataServer {
       res.end(JSON.stringify(metrics));
     } catch (e) {
       TrailLogger.error('handleGetQualityMetrics failed', e);
+      const msg = e instanceof Error ? `${e.message}\n${e.stack ?? ''}` : String(e);
       res.writeHead(500, JSON_HEADERS);
-      res.end(JSON.stringify({ error: 'Failed to get quality metrics' }));
+      res.end(JSON.stringify({ error: 'Failed to get quality metrics', detail: msg }));
     }
   }
 
