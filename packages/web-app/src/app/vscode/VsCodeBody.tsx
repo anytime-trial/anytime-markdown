@@ -188,7 +188,7 @@ export default function VsCodeBody() {
             inset: 0,
             background: isDark
               ? 'radial-gradient(ellipse 80% 60% at 50% 30%, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.65) 100%)'
-              : 'radial-gradient(ellipse 80% 60% at 50% 30%, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0.6) 100%)',
+              : 'radial-gradient(ellipse 80% 60% at 50% 30%, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.85) 100%)',
             pointerEvents: 'none',
           },
         }}
