@@ -365,7 +365,7 @@ export default function VsCodeBody() {
                     </Box>
                     <TrailViewerEmbed containerHeight="clamp(320px, 40vh, 550px)" />
                   </Box>
-                  <Box sx={{ mt: 3, display: 'flex', flexDirection: 'column', alignItems: { xs: 'flex-start', sm: 'flex-end' }, gap: 0.5 }}>
+                  <Box sx={{ mt: 3, display: 'flex', justifyContent: { xs: 'flex-start', sm: 'flex-end' } }}>
                     <Button
                       component={NextLink}
                       href="/trail"
@@ -378,6 +378,8 @@ export default function VsCodeBody() {
                         borderColor: ACCENT_COLOR,
                         color: ACCENT_COLOR,
                         whiteSpace: 'nowrap',
+                        flexDirection: 'column',
+                        gap: 0.2,
                         '&:hover': {
                           borderColor: '#d4920e',
                           bgcolor: isDark ? 'rgba(232,160,18,0.08)' : 'rgba(232,160,18,0.04)',
@@ -385,10 +387,10 @@ export default function VsCodeBody() {
                       }}
                     >
                       {t('trailViewerLinkLabel')} →
+                      <Box component="span" sx={{ fontSize: '0.68rem', fontWeight: 400, color: 'text.disabled', lineHeight: 1 }}>
+                        {t('trailViewerLinkDescription')}
+                      </Box>
                     </Button>
-                    <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.72rem' }}>
-                      {t('trailViewerLinkDescription')}
-                    </Typography>
                   </Box>
                   </>
                 )}
