@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.15.1] - 2026-04-19
+
+### Changed
+
+- Convert Hero background image from PNG to WebP and use `next/image` for improved performance
+
 ## [0.15.0] - 2026-04-19
 
 ### Added
