@@ -1,5 +1,4 @@
 import Box from '@mui/material/Box';
-import Divider from '@mui/material/Divider';
 
 import type { TrailTreeNode } from '../parser/types';
 import { useTrailI18n } from '../i18n';
@@ -64,11 +63,8 @@ export function TraceTree({
             </Box>
           </Box>
         ) : (
-          nodes.map((rootNode, index) => (
-            <Box key={rootNode.message.uuid}>
-              {index > 0 && <Divider sx={{ my: 2, borderColor: colors.border }} />}
-              <ConversationTurn node={rootNode} />
-            </Box>
+          nodes.map((rootNode) => (
+            <ConversationTurn key={rootNode.message.uuid} node={rootNode} />
           ))
         )}
       </Box>
