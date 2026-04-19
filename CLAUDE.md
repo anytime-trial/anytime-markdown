@@ -38,51 +38,33 @@ UI / 画面コンポーネントの実装・修正時は、以下の仕様書を
 
 ## C4 コード解析（trail-core）
 
-### ProjectAnalyzer のファイルスコープ
+### 解析スコープの決定ルール
 
-`ProjectAnalyzer` は `tsconfig.json` の `include`/`exclude` を C4 解析スコープとして使用する。\
-`tsc` のような import 追跡ではなく、`parseJsonConfigFileContent()` が返すファイル一覧を起点とするため、**import チェーンに乗らないファイル（webpack エントリーポイント等）は `include` に含まれなければ解析されない**。
+`ProjectAnalyzer` は `tsconfig.json` の `include`/`exclude` を解析スコープとして使用する。\
+TypeScript コンパイラの import 追跡とは異なり、`parseJsonConfigFileContent()` が返すファイル一覧を起点とするため、以下のファイルは `include` に含まれなければ解析されない。
 
-### C2 エッジが生成されない場合の確認手順
+- バンドラー（webpack・Vite 等）のエントリーポイントで、TypeScript の import チェーンに乗らないファイル
+- 拡張子が `.tsx`・`.mts` など、`include` パターンが `*.ts` のみの場合に取りこぼされるファイル
 
-C2（コンテナ間）のエッジが C4 ビューに表示されない場合、以下の順に確認する。
-
-1. **ファイルが解析対象か確認する**
-
-   ```bash
-   sqlite3 ~/.claude/trail/trail.db \
-     "SELECT graph_json FROM current_graphs WHERE repo_name='<repo>';" \
-     | node -e "
-       const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
-       console.log(d.nodes.filter(n => n.id.includes('<package>')).length);
-     "
-   ```
-
-   ノード数がゼロなら、そのパッケージのファイルが解析されていない。
-
-2. **tsconfig の `include` を確認する**
-
-   `include: ["src/**/*.ts"]` のように拡張子を明示したパターンは `.tsx` を取りこぼす。\
-   `ProjectAnalyzer` は `*.ts` パターンを自動的に `*.tsx` へ拡張するが、`exclude` で除外されている場合はその限りでない。
-
-3. **webpack エントリーポイントかどうか確認する**
-
-   TypeScript の import チェーンに乗らずに webpack から直接参照されるファイルは、`include` に明示されなければ解析対象にならない。\
-   この場合は対象パッケージの `tsconfig.json` の `include` を `src/**/*` に修正する。
+`ProjectAnalyzer` は `*.ts` パターンを自動的に `*.tsx`・`*.mts` へ拡張するが、`exclude` で除外されている場合はその限りでない。
 
 ### tsconfig.json の `include` 記述方針
 
-解析対象パッケージの `tsconfig.json` は `include: ["src/**/*"]` を標準とする。\
-拡張子を絞る場合（例: `*.ts` のみ）は C4 解析から除外される `.tsx` ファイルが生じないか確認する。
+解析対象パッケージの `tsconfig.json` は `include: ["src/**/*"]` を標準とする。
 
-- **OK**: `["src/**/*"]` — `.ts`・`.tsx` を含む全ソースファイルが対象
-- **要注意**: `["src/**/*.ts"]` — `.tsx` が除外される（`ProjectAnalyzer` が自動補完するが、意図的な除外と区別できない）
+- `src/**/*` — 拡張子を問わず全ソースファイルが対象（推奨）
+- `src/**/*.ts` — `.tsx` が除外されるため、React コンポーネント等を持つパッケージでは使用しない
 
-### L2（コンテナ間）エッジの生成メカニズム
+### L2 エッジが欠落している場合の対処方針
 
-`trailToC4()` が L3 の file-to-file エッジをパッケージ名で集約し、L2 エッジを自動生成する。\
-L2 エッジが欠落している場合、原因は必ず L3 エッジの欠落（＝ファイルが解析対象外）にある。\
-**L2 エッジを直接操作・手動追加しない**。L3 が正しく解析されれば L2 は自動導出される。
+C2（コンテナ間）エッジが表示されない場合、原因は必ず **L3（ファイル間）エッジの欠落** にある。\
+確認順序は次のとおり。
+
+1. 対象パッケージのノードが解析結果に存在するか確認する
+2. `tsconfig.json` の `include` が関連する `.tsx` 等を含んでいるか確認する
+3. バンドラーのエントリーポイントが `include` に含まれているか確認する
+
+**L2 エッジを直接操作・手動追加しない**。L3 が正しく解析されれば `trailToC4()` が L2 を自動導出する。
 
 ## Supabase
 
