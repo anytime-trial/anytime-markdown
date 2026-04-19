@@ -12,7 +12,7 @@ import { useTrailTheme } from './TrailThemeContext';
 const TIMELINE_HEIGHT = 200;
 const COLLAPSED_HEIGHT = 32;
 const STORAGE_KEY = 'trail.timeline.collapsed';
-const LANE_LABEL_WIDTH = 72;
+const LANE_LABEL_WIDTH = 88;
 const TIME_AXIS_HEIGHT = 24;
 
 type LaneKind = 'user' | 'assistant' | 'system' | 'subagent';
@@ -368,14 +368,27 @@ export function TraceTimeline({
                   borderRight: `1px solid ${colors.border}`,
                 }}
               >
-                <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.7rem' }}>
-                  {lane.label}
-                  {lane.kind === 'subagent' && subagentTracks.length > 0 && (
-                    <Box component="span" sx={{ ml: 0.5, color: colors.textSecondary, opacity: 0.6 }}>
-                      ×{subagentTracks.length}
-                    </Box>
-                  )}
-                </Typography>
+                {lane.kind === 'assistant' ? (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: 1.1 }}>
+                    <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.7rem' }}>
+                      Claude Code
+                    </Typography>
+                    {session?.version && (
+                      <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.6rem', opacity: 0.7 }}>
+                        v{session.version}
+                      </Typography>
+                    )}
+                  </Box>
+                ) : (
+                  <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.7rem' }}>
+                    {lane.label}
+                    {lane.kind === 'subagent' && subagentTracks.length > 0 && (
+                      <Box component="span" sx={{ ml: 0.5, color: colors.textSecondary, opacity: 0.6 }}>
+                        ×{subagentTracks.length}
+                      </Box>
+                    )}
+                  </Typography>
+                )}
               </Box>
             ))}
           </Box>
