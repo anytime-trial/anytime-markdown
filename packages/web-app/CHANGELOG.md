@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.15.2] - 2026-04-19
+
+### Added
+
+- Trail Viewer CTA link button below embedded Trail Viewer on landing page
+- Markdown Editor CTA link button below Markdown Preview on landing page
+- `LandingHeader` on `/markdown` editor page
+
+### Changed
+
+- Align Trail and Markdown section container width to `md` (matches "Why Camel" section)
+- Match Markdown Preview height to Trail Viewer embed (`clamp(320px, 40vh, 550px)`)
+- Reduce top padding above Markdown Preview section
+- Remove home icon from Markdown editor toolbar (replaced by LandingHeader)
+
+### Fixed
+
+- Add `region1.google-analytics.com` to CSP `connect-src` for GA4 data collection
+- Improve SEO metadata: add `/trail` and `/report` to sitemap, unify description to English, add `openGraph.url`
+- Add `ハーネスエンジニアリング` keyword to SEO description
+
 ## [0.15.1] - 2026-04-19
 
 ### Changed

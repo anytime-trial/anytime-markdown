@@ -5,7 +5,7 @@ import VsCodeBody from './vscode/VsCodeBody';
 export const metadata: Metadata = {
   title: 'Anytime Markdown - SDD × AI Markdown Editor',
   description:
-    'Spec-Driven Development (SDD) Markdown editor for AI collaboration. AI diff highlighting, image annotation, image prompt. Visual Studio Code extension available. | 仕様駆動開発(SDD)対応 AI コラボレーション マークダウンエディタ。AI差分ハイライト、画像アノテーション、イメージプロンプト対応。Visual Studio Code拡張。',
+    'Spec-Driven Development (SDD) Markdown editor for AI collaboration. AI diff highlighting, image annotation, image prompt. Visual Studio Code extension available. ハーネスエンジニアリング',
   alternates: {
     canonical: '/',
   },
@@ -13,6 +13,7 @@ export const metadata: Metadata = {
     title: 'Anytime Markdown - SDD × AI Markdown Editor',
     description:
       'Spec-Driven Development (SDD) Markdown editor with AI diff highlighting, image annotation, and image prompt. Visual Studio Code extension.',
+    url: process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.anytime-trial.com',
     type: 'website',
     siteName: 'Anytime Markdown',
   },

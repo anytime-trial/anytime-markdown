@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.11.4] - 2026-04-19
+
+### Editor Core (markdown-core)
+
+- Add i18n keys for Trail Viewer and Markdown Editor CTA link labels and descriptions
+
 ## [0.11.3] - 2026-04-18
 
 ### Added

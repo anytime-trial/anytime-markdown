@@ -6,6 +6,27 @@
 
 ## [Unreleased]
 
+## [0.15.2] - 2026-04-19
+
+### 追加
+
+- ランディングページの Trail Viewer 埋め込み直下に Trail Viewer CTA リンクボタンを追加
+- ランディングページの Markdown Preview 直下に Markdown Editor CTA リンクボタンを追加
+- `/markdown` エディタページに `LandingHeader` を追加
+
+### 変更
+
+- Trail・Markdown セクションのコンテナ幅を `md` に統一（"Why Camel" セクションに合わせる）
+- Markdown Preview の高さを Trail Viewer 埋め込みに合わせる（`clamp(320px, 40vh, 550px)`）
+- Markdown Preview セクション上部の余白を縮小
+- Markdown エディタのツールバーからホームアイコンを削除（LandingHeader で代替）
+
+### 修正
+
+- GA4 データ収集のため CSP `connect-src` に `region1.google-analytics.com` を追加
+- SEO メタデータ改善: `/trail`・`/report` を sitemap に追加、description を英語のみに統一、`openGraph.url` を設定
+- SEO description に「ハーネスエンジニアリング」キーワードを追加
+
 ## [0.15.1] - 2026-04-19
 
 ### 変更

@@ -3,10 +3,10 @@
 import { COMMENT_PANEL_WIDTH } from '@anytime-markdown/markdown-core';
 import { Alert, Box, CircularProgress, Snackbar } from '@mui/material';
 import dynamic from 'next/dynamic';
-import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useTranslations } from 'next-intl';
 
+import LandingHeader from '../components/LandingHeader';
 import { useLocaleSwitch } from '../LocaleProvider';
 import { usePreset, useThemeMode } from '../providers';
 import { useEditorPage } from './useEditorPage';
@@ -32,7 +32,7 @@ const ExplorerPanel = dynamic(
 
 export default function Page() {
   const t = useTranslations('Common');
-  const router = useRouter();
+
   const { themeMode, setThemeMode } = useThemeMode();
   const { presetName, setPresetName } = usePreset();
   const { setLocale } = useLocaleSwitch();
@@ -63,7 +63,9 @@ export default function Page() {
   ) : undefined;
 
   return (
-    <Box id="md-page-wrapper" sx={{ display: "flex", height: "100vh", overflow: "hidden" }}>
+    <Box sx={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+      <LandingHeader />
+      <Box id="md-page-wrapper" sx={{ display: "flex", flex: 1, overflow: "hidden" }}>
       <Box sx={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
         <MarkdownEditorPage
           key={editorKey}
@@ -85,7 +87,6 @@ export default function Page() {
           showReadonlyMode={process.env.NEXT_PUBLIC_SHOW_READONLY_MODE === "1"}
           sideToolbar
           explorerSlot={explorerSlotNode}
-          onHomeClick={() => router.push('/')}
           onContentChange={handleContentChange}
           gridRows={process.env.NEXT_PUBLIC_GRID_ROWS ? Number(process.env.NEXT_PUBLIC_GRID_ROWS) : undefined}
           gridCols={process.env.NEXT_PUBLIC_GRID_COLS ? Number(process.env.NEXT_PUBLIC_GRID_COLS) : undefined}
@@ -123,6 +124,7 @@ export default function Page() {
           {saveSnackbar?.message}
         </Alert>
       </Snackbar>
+      </Box>
     </Box>
   );
 }

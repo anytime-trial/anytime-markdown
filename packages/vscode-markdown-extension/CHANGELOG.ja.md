@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [0.11.4] - 2026-04-19
+
+### Editor Core (markdown-core)
+
+- Trail Viewer・Markdown Editor CTA リンク文言の i18n キーを追加
+
 ## [0.11.3] - 2026-04-18
 
 ### 追加
