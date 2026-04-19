@@ -480,6 +480,33 @@ export default function VsCodeBody() {
               showFrontmatter
             />
           </Box>
+          <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center' }}>
+            <Button
+              component={NextLink}
+              href="/markdown"
+              variant="outlined"
+              size="medium"
+              sx={{
+                textTransform: 'none',
+                fontWeight: 600,
+                borderRadius: 2,
+                borderColor: ACCENT_COLOR,
+                color: ACCENT_COLOR,
+                whiteSpace: 'nowrap',
+                flexDirection: 'column',
+                gap: 0.2,
+                '&:hover': {
+                  borderColor: '#d4920e',
+                  bgcolor: isDark ? 'rgba(232,160,18,0.08)' : 'rgba(232,160,18,0.04)',
+                },
+              }}
+            >
+              {t('markdownEditorLinkLabel')} →
+              <Box component="span" sx={{ fontSize: '0.68rem', fontWeight: 400, color: ACCENT_COLOR, opacity: 0.7, lineHeight: 1 }}>
+                {t('markdownEditorLinkDescription')}
+              </Box>
+            </Button>
+          </Box>
         </Container>
       </Box>
 

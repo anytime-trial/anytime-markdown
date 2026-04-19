@@ -717,6 +717,8 @@
     "trail4Body": "Agent Noteにスクリーンキャプチャやアノテーションを貼り付けて、AIに視覚的なコンテキストを共有。スキルを使えば、ノートの内容を参照した作業指示もワンコマンドで実行できます。",
     "trailViewerLinkDescription": "フルビューアで確認",
     "trailViewerLinkLabel": "Trail Viewer を開く",
+    "markdownEditorLinkDescription": "フルエディタで試す",
+    "markdownEditorLinkLabel": "Markdown Editor を開く",
     "featuresTitle": "主な機能",
     "feature1Title": "WYSIWYG エディタ",
     "feature1Body": "リアルタイムプレビューで Markdown を視覚的に編集",
