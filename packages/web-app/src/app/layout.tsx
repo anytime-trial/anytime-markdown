@@ -11,7 +11,7 @@ import { Providers } from './providers';
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.anytime-trial.com'),
   title: 'Anytime Markdown',
-  description: 'Spec-Driven Development (SDD) Markdown editor with AI diff highlighting, image annotation, and image prompt support. WYSIWYG editing, Mermaid/PlantUML diagrams, Git integration. Visual Studio Code extension available. | 仕様駆動開発(SDD)対応マークダウンエディタ。AI差分ハイライト、画像アノテーション、イメージプロンプト対応。WYSIWYG編集、Mermaid/PlantUML図解、Git連携。Visual Studio Code拡張対応。',
+  description: 'Spec-Driven Development (SDD) Markdown editor with AI diff highlighting, image annotation, and image prompt support. WYSIWYG editing, Mermaid/PlantUML diagrams, Git integration. Visual Studio Code extension available.',
   manifest: '/manifest.json',
   icons: [
     { rel: 'icon', url: '/favicon.ico', sizes: '32x32' },
@@ -32,6 +32,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Anytime Markdown',
     description: 'Spec-Driven Development (SDD) Markdown editor with AI diff highlighting, image annotation, and image prompt. WYSIWYG, Mermaid, PlantUML, Git integration.',
+    url: process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.anytime-trial.com',
     type: 'website',
     siteName: 'Anytime Markdown',
   },
