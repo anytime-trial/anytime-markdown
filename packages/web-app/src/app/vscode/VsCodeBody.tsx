@@ -473,12 +473,14 @@ export default function VsCodeBody() {
                 anytime-markdown — markdown editor
               </Typography>
             </Box>
-            <MarkdownViewer
-              docKey="docs/markdownAll/markdownAll.ja.md"
-              docKeyByLocale={{ en: 'docs/markdownAll/markdownAll.en.md' }}
-              minHeight="clamp(320px, 40vh, 550px)"
-              showFrontmatter
-            />
+            <Box sx={{ height: 'clamp(320px, 40vh, 550px)', overflow: 'hidden' }}>
+              <MarkdownViewer
+                docKey="docs/markdownAll/markdownAll.ja.md"
+                docKeyByLocale={{ en: 'docs/markdownAll/markdownAll.en.md' }}
+                minHeight="clamp(320px, 40vh, 550px)"
+                showFrontmatter
+              />
+            </Box>
           </Box>
           <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center' }}>
             <Button
