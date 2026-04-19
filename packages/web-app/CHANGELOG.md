@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-04-19
+
+### Added
+
+- Camel-themed Hero background images for light and dark mode on landing page
+- "Why Camel?" section to landing page
+- Spotify and YouTube playlist pages (`/spotify`, `/playlist`)
+- Spotify and YouTube API routes (`/api/spotify/*`, `/api/youtube/*`)
+- Quality metrics API route (`/api/trail/quality-metrics`) for DORA metrics visualization
+- Spotify library (`src/lib/spotify.ts`) and YouTube library (`src/lib/youtube.ts`)
+
+### Changed
+
+- Strengthen light-mode Hero overlay for better text readability
+- Update VS Code page (`VsCodeBody`) layout and content
+
 ## [0.14.1] - 2026-04-18
 
 ### Added

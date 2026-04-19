@@ -6,6 +6,25 @@
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-04-19
+
+### 追加
+
+- タブバーにリアルタイムのトークンバジェット監視インジケーターを追加
+- 拡張機能アクティベート時に全 Claude Code フック（PostToolUse、Stop 等）を自動セットアップ
+- セッション一覧とアナリティクスパネルにセッション ID コピーボタンを追加
+- アナリティクスセッションテーブルとセッション一覧にエラー件数を表示
+- セッション一覧にサブエージェント数を表示
+- ビューアへ HTTP でデータを提供する `TrailDataServer` を追加
+- `JsonlSessionReader`・`GitStateService`・`MetricsThresholdsLoader`・`SqliteSessionRepository` を実装
+- DORA メトリクス用の品質メトリクス SQL・REST エンドポイント・リーダー実装を追加
+
+### Trail Core (trail-core)
+
+- DORA 4 メトリクス: デプロイ頻度・変更のリードタイム・プロンプト成功率・変更失敗率
+- `computeQualityMetrics` オーケストレーターと `getQualityMetrics` ポート
+- メッセージとコミットを事後的に紐付ける `BackfillMessageCommits` ユースケース
+
 ## [0.7.0] - 2026-04-18
 
 ### 追加

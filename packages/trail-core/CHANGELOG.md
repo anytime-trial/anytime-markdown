@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-04-19
+
+### Added
+
+- DORA 4 metrics domain types, thresholds, and classification (`types.ts`, `thresholds.ts`)
+- Deployment frequency metric implementation
+- Lead time for changes metric implementation
+- Prompt-to-commit success rate metric implementation
+- Change failure rate metric implementation
+- `computeQualityMetrics` orchestrator aggregating all DORA metrics
+- `getQualityMetrics` port to `ITrailReader`
+- `ISessionRepository` port for session-level persistence
+- `budget` and `session` domain model additions
+- `BackfillMessageCommits` use case for retroactively linking messages to commits
+- Time-series utility functions for metrics windowing
+
 ## [0.7.0] - 2026-04-18
 
 ### Added

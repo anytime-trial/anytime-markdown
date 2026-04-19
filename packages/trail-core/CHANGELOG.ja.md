@@ -6,6 +6,22 @@
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-04-19
+
+### 追加
+
+- DORA 4 メトリクスのドメイン型・閾値・分類（`types.ts`、`thresholds.ts`）
+- デプロイ頻度メトリクス実装
+- 変更のリードタイムメトリクス実装
+- プロンプト→コミット成功率メトリクス実装
+- 変更失敗率メトリクス実装
+- 全 DORA メトリクスを集約する `computeQualityMetrics` オーケストレーター
+- `ITrailReader` に `getQualityMetrics` ポートを追加
+- セッション単位の永続化のための `ISessionRepository` ポート
+- `budget` および `session` ドメインモデルの拡張
+- メッセージとコミットを事後的に紐付ける `BackfillMessageCommits` ユースケース
+- メトリクス集計ウィンドウ用の時系列ユーティリティ関数
+
 ## [0.7.0] - 2026-04-18
 
 ### 追加

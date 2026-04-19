@@ -332,7 +332,7 @@
     "@mui/icons-material": "7.3.7",
     "@mui/material": "7.3.7",
     "diff": "8.0.3",
-    "dompurify": "3.3.3",
+    "dompurify": "3.4.0",
     "jsxgraph": "1.12.2",
     "marked": "17.0.3",
     "mathjs": "15.2.0",

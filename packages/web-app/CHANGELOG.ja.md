@@ -6,6 +6,22 @@
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-04-19
+
+### 追加
+
+- ランディングページのライト／ダークモード Hero にラクダをテーマにした背景画像を追加
+- ランディングページに「Why Camel?」セクションを追加
+- Spotify・YouTube プレイリストページを追加（`/spotify`、`/playlist`）
+- Spotify・YouTube API ルートを追加（`/api/spotify/*`、`/api/youtube/*`）
+- DORA メトリクス可視化のための品質メトリクス API ルートを追加（`/api/trail/quality-metrics`）
+- Spotify ライブラリ（`src/lib/spotify.ts`）と YouTube ライブラリ（`src/lib/youtube.ts`）を追加
+
+### 変更
+
+- ライトモード Hero オーバーレイを強化してテキストの視認性を改善
+- VS Code ページ（`VsCodeBody`）のレイアウトとコンテンツを更新
+
 ## [0.14.1] - 2026-04-18
 
 ### 追加

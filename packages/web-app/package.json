@@ -1,6 +1,6 @@
 {
   "name": "@anytime-markdown/web-app",
-  "version": "0.14.1",
+  "version": "0.15.0",
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -34,7 +34,7 @@
     "@serwist/next": "9.5.6",
     "@supabase/supabase-js": "2.103.0",
     "diff": "8.0.3",
-    "dompurify": "3.3.3",
+    "dompurify": "3.4.0",
     "jsxgraph": "1.12.2",
     "katex": "0.16.38",
     "marked": "17.0.3",

@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-04-19
+
+### Added
+
+- Token budget monitoring with real-time indicator in the tab bar
+- Auto-setup all Claude Code hooks (PostToolUse, Stop, etc.) on extension activate
+- Session ID copy button in session list and analytics panel
+- Error count column in analytics session table and session list
+- Sub-agent count display in session list
+- `TrailDataServer` for serving trail data over HTTP to the viewer
+- `JsonlSessionReader`, `GitStateService`, `MetricsThresholdsLoader`, `SqliteSessionRepository` implementations
+- Quality metrics SQL queries, REST endpoint, and reader implementations for DORA metrics
+
+### Trail Core (trail-core)
+
+- DORA 4 metrics: deployment frequency, lead time for changes, prompt-to-commit success rate, change failure rate
+- `computeQualityMetrics` orchestrator and `getQualityMetrics` port
+- `BackfillMessageCommits` use case for retroactive message-commit linking
+
 ## [0.7.0] - 2026-04-18
 
 ### Added
