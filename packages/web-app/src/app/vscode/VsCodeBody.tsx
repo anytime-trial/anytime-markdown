@@ -476,7 +476,7 @@ export default function VsCodeBody() {
             <MarkdownViewer
               docKey="docs/markdownAll/markdownAll.ja.md"
               docKeyByLocale={{ en: 'docs/markdownAll/markdownAll.en.md' }}
-              editorHeight={500}
+              minHeight="clamp(320px, 40vh, 550px)"
               showFrontmatter
             />
           </Box>
