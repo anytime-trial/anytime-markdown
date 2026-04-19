@@ -332,28 +332,33 @@ interface SessionBudgetBadgeProps {
 
 function SessionBudgetBadge({ tokenBudget, sessionLabel, turnsLabel, colors }: Readonly<SessionBudgetBadgeProps>) {
   return (
-    <Box sx={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'stretch', gap: 0.25 }}>
+    <Box
+      sx={{
+        display: 'grid',
+        gridTemplateColumns: '72px 72px',
+        gridTemplateAreas: `
+          "id id"
+          "session turns"
+        `,
+        columnGap: '8px',
+        rowGap: '2px',
+        justifyItems: 'center',
+        alignItems: 'start',
+      }}
+    >
       <Typography
         variant="caption"
         sx={{
+          gridArea: 'id',
           color: colors.textSecondary,
           fontSize: '0.65rem',
           fontFamily: 'monospace',
           lineHeight: 1.2,
-          textAlign: 'center',
         }}
       >
         {tokenBudget.sessionId.slice(0, 8)}
       </Typography>
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(2, 72px)',
-          columnGap: 1,
-          alignItems: 'start',
-          justifyItems: 'center',
-        }}
-      >
+      <Box sx={{ gridArea: 'session' }}>
         <TokenBudgetIndicator
           label={sessionLabel}
           current={tokenBudget.sessionTokens}
@@ -361,14 +366,14 @@ function SessionBudgetBadge({ tokenBudget, sessionLabel, turnsLabel, colors }: R
           threshold={tokenBudget.alertThresholdPct}
           colors={colors}
         />
-        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.65rem' }}>
-            {turnsLabel}
-          </Typography>
-          <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.7rem' }}>
-            {tokenBudget.turnCount}
-          </Typography>
-        </Box>
+      </Box>
+      <Box sx={{ gridArea: 'turns', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.65rem' }}>
+          {turnsLabel}
+        </Typography>
+        <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.7rem' }}>
+          {tokenBudget.turnCount}
+        </Typography>
       </Box>
     </Box>
   );
