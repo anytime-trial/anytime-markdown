@@ -202,7 +202,7 @@ function TrailViewerCoreInner({
                 <SessionBudgetBadge
                   tokenBudget={tb}
                   sessionLabel={t('tokenBudget.session')}
-                  turnsLabel={t('tokenBudget.turns')}
+                  messagesLabel={t('tokenBudget.messages')}
                   colors={colors}
                 />
               </Box>
@@ -339,7 +339,7 @@ function TrailViewerCoreInner({
 interface SessionBudgetBadgeProps {
   readonly tokenBudget: import('../hooks/useTrailDataSource').TokenBudgetStatus;
   readonly sessionLabel: string;
-  readonly turnsLabel: string;
+  readonly messagesLabel: string;
   readonly colors: ReturnType<typeof getTokens>['colors'];
 }
 
@@ -347,7 +347,7 @@ const BADGE_COL_WIDTH = 72;
 const BADGE_COL_GAP = 8;
 const BADGE_TOTAL_WIDTH = BADGE_COL_WIDTH * 2 + BADGE_COL_GAP;
 
-function SessionBudgetBadge({ tokenBudget, sessionLabel, turnsLabel, colors }: Readonly<SessionBudgetBadgeProps>) {
+function SessionBudgetBadge({ tokenBudget, sessionLabel, messagesLabel, colors }: Readonly<SessionBudgetBadgeProps>) {
   return (
     <Box sx={{ width: BADGE_TOTAL_WIDTH, flexShrink: 0 }}>
       <Typography
@@ -385,10 +385,10 @@ function SessionBudgetBadge({ tokenBudget, sessionLabel, turnsLabel, colors }: R
           }}
         >
           <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.65rem' }}>
-            {turnsLabel}
+            {messagesLabel}
           </Typography>
           <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.7rem' }}>
-            {tokenBudget.turnCount}
+            {tokenBudget.messageCount}
           </Typography>
         </Box>
       </Box>
