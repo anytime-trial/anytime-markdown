@@ -2,6 +2,7 @@
 
 import { COMMENT_PANEL_WIDTH } from '@anytime-markdown/markdown-core';
 import { Alert, Box, CircularProgress, Snackbar } from '@mui/material';
+import LandingHeader from '../components/LandingHeader';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
@@ -63,7 +64,9 @@ export default function Page() {
   ) : undefined;
 
   return (
-    <Box id="md-page-wrapper" sx={{ display: "flex", height: "100vh", overflow: "hidden" }}>
+    <Box sx={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+      <LandingHeader />
+      <Box id="md-page-wrapper" sx={{ display: "flex", flex: 1, overflow: "hidden" }}>
       <Box sx={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
         <MarkdownEditorPage
           key={editorKey}
@@ -123,6 +126,7 @@ export default function Page() {
           {saveSnackbar?.message}
         </Alert>
       </Snackbar>
+      </Box>
     </Box>
   );
 }
