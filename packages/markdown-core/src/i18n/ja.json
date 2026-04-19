@@ -691,6 +691,8 @@
     "heroTitle1": "コードも文書もAIも",
     "heroTitle2": "見える化する",
     "heroDescription": "AIエージェントは、苛酷な砂漠（開発環境）を往くキャラバン。\nMarkdown の WYSIWYG 編集・差分レビューと、TypeScript プロジェクトのリアルタイム可視化で、その旅路を安全に見守り導く — AI時代の羅針盤となる2つの VS Code 拡張です。",
+    "whyCamelTitle": "なぜ「ラクダ」なのか — 制御ではなく、伴走へ",
+    "whyCamelBody": "「馬」は整備された道を高速で駆けるが、未知や重いコンテキストに弱い。対して「ラクダ」（AIエージェント）は巨大な荷（コードベース）を背負い、砂嵐（エラー）の中でも自ら考え歩き続ける長距離ランナーだ。\n\n多くのツールは AI を「ハーネス（手綱）」で縛り、事前の制約で制御しようとする。しかし縛るほどに自律性も判断力も失われる。Anytime は制約をかけない。行動を見える化（Trail）し、成果物をレビュー可能（Markdown）にすることで、事前事後の検証で信頼を築く ― 伴走の思想である。",
     "installButton": "Markdown 拡張を入手",
     "installCaption": "Visual Studio Code Marketplace",
     "trailInstallButton": "Trail 拡張を入手",

@@ -691,6 +691,8 @@
     "heroTitle1": "Code, docs, and AI —",
     "heroTitle2": "made visible.",
     "heroDescription": "AI agents are a caravan crossing the harsh terrain of development.\nWYSIWYG Markdown editing with diff review and real-time TypeScript architecture visualization — two VS Code extensions that serve as your compass in the age of AI.",
+    "whyCamelTitle": "Why a Camel? — Companionship, not Control",
+    "whyCamelBody": "The horse gallops fast on paved roads but falters against the unknown or heavy context. The camel (AI agents) carries the entire codebase and walks for weeks, thinking through sandstorms (errors) — a long-distance runner.\n\nMany tools try to leash AI with a harness, controlling it through up-front constraints. But the more you leash it, the more its autonomy and judgment are lost. Anytime imposes no constraints. We make actions visible (Trail) and artifacts reviewable (Markdown), building trust through verification both before and after — a philosophy of companionship.",
     "installButton": "Get Markdown Extension",
     "installCaption": "Visual Studio Code Marketplace",
     "trailInstallButton": "Get Trail Extension",

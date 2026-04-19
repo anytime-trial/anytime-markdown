@@ -247,6 +247,37 @@ export default function VsCodeBody() {
         </Container>
       </Box>
 
+      {/* ---- Why Camel ---- */}
+      <Box sx={{ py: { xs: 8, md: 12 }, px: { xs: 0, md: 3 } }}>
+        <Container maxWidth="md" disableGutters sx={{ px: { xs: 2, md: 3 } }}>
+          <Typography
+            variant="h4"
+            component="h2"
+            sx={{
+              fontWeight: 700,
+              mb: { xs: 4, md: 5 },
+              color: 'text.primary',
+              textAlign: 'center',
+              fontSize: { xs: '1.6rem', md: '2.125rem' },
+              lineHeight: 1.3,
+            }}
+          >
+            {t('whyCamelTitle')}
+          </Typography>
+          <Typography
+            variant="body1"
+            sx={{
+              color: 'text.secondary',
+              fontSize: { xs: '1rem', md: '1.1rem' },
+              lineHeight: 1.9,
+              whiteSpace: 'pre-line',
+            }}
+          >
+            {t('whyCamelBody')}
+          </Typography>
+        </Container>
+      </Box>
+
       {/* ---- Product 1: Anytime Trail ---- */}
       <Box sx={{ py: { xs: 8, md: 12 }, px: { xs: 0, md: 3 } }}>
         <Container maxWidth="lg" disableGutters sx={{ px: { xs: 2, md: 3 } }}>
