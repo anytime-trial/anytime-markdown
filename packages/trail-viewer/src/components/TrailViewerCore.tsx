@@ -194,7 +194,7 @@ function TrailViewerCoreInner({
           <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', px: 2, flexShrink: 0 }}>
             {tokenBudgets.map((tb, idx) => (
               <Box key={tb.sessionId} sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                {idx > 0 && <Box sx={{ width: 1, height: 48, bgcolor: colors.border, flexShrink: 0 }} />}
+                {idx > 0 && <Box sx={{ width: '1px', height: 48, bgcolor: colors.border, flexShrink: 0 }} />}
                 <SessionBudgetBadge
                   tokenBudget={tb}
                   sessionLabel={t('tokenBudget.session')}
@@ -203,7 +203,7 @@ function TrailViewerCoreInner({
                 />
               </Box>
             ))}
-            <Box sx={{ width: 1, height: 48, bgcolor: colors.border, flexShrink: 0 }} />
+            <Box sx={{ width: '1px', height: 48, bgcolor: colors.border, flexShrink: 0 }} />
             <TokenBudgetIndicator
               label={t('tokenBudget.daily')}
               current={tokenBudgets[0].dailyTokens}
