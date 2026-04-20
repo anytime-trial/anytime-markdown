@@ -46,33 +46,10 @@ declare const __non_webpack_require__: (id: string) => unknown;
 
 const DEFAULT_DB_DIR = path.join(os.homedir(), '.claude', 'trail');
 
-/**
- * テスト環境で保護領域（ユーザーホーム配下の永続データ）への書き込みが
- * 発行された場合に例外を投げるガード。単一のファイル書き込みミスで
- * 本番 DB を破壊する事故を防ぐ最後の防衛線。
- *
- * 検出条件:
- *   - NODE_ENV === 'test' または JEST_WORKER_ID が定義済み
- *   - 書き込み先パスが PROTECTED_PREFIXES のいずれかで始まる
- */
-const PROTECTED_PATH_PREFIXES = [
-  path.join(os.homedir(), '.claude'),
-  path.join(os.homedir(), '.vscode-server', 'data', 'User', 'globalStorage'),
-];
-
-export function assertNotProductionWriteDuringTests(targetPath: string): void {
-  const isTest = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID !== undefined;
-  if (!isTest) return;
-  for (const prefix of PROTECTED_PATH_PREFIXES) {
-    if (targetPath.startsWith(prefix)) {
-      throw new Error(
-        `[TrailDatabase] Refusing to write to protected path during tests: ${targetPath}. ` +
-          'Inject an in-memory DB and neutralize save() in the test factory, ' +
-          'or pass a test-specific storageDir (under os.tmpdir()) to the constructor.',
-      );
-    }
-  }
-}
+export { assertNotProductionWriteDuringTests } from './TrailDatabase.guard';
+import { ITrailStorage, FileTrailStorage } from './ITrailStorage';
+export type { ITrailStorage } from './ITrailStorage';
+export { FileTrailStorage, InMemoryTrailStorage } from './ITrailStorage';
 
 const SKIP_TYPES = new Set([
   'file-history-snapshot',
@@ -396,12 +373,25 @@ function estimateTokenCount(text: string | null): number | null {
 
 export class TrailDatabase {
   private db: Database | null = null;
-  private readonly dbDir: string;
   private readonly dbPath: string;
+  private readonly storage: ITrailStorage;
 
-  constructor(private readonly distPath: string, storageDir?: string) {
-    this.dbDir = storageDir ?? DEFAULT_DB_DIR;
-    this.dbPath = path.join(this.dbDir, 'trail.db');
+  /**
+   * @param distPath sql-asm.js の配置ディレクトリ
+   * @param storageDirOrStorage ディレクトリ文字列（互換 API）または ITrailStorage を直接注入
+   */
+  constructor(
+    private readonly distPath: string,
+    storageDirOrStorage?: string | ITrailStorage,
+  ) {
+    if (storageDirOrStorage !== undefined && typeof storageDirOrStorage !== 'string') {
+      this.storage = storageDirOrStorage;
+      this.dbPath = this.storage.identifier;
+    } else {
+      const dbDir = storageDirOrStorage ?? DEFAULT_DB_DIR;
+      this.dbPath = path.join(dbDir, 'trail.db');
+      this.storage = new FileTrailStorage(this.dbPath);
+    }
   }
 
   async init(): Promise<void> {
@@ -411,18 +401,10 @@ export class TrailDatabase {
     // eslint-disable-next-line @typescript-eslint/no-require-imports, no-undef
     const initSqlJs = __non_webpack_require__(sqlAsmPath) as typeof import('sql.js').default;
     const SQL = await initSqlJs();
-    console.log('[TrailDatabase] sql.js initialized, DB_PATH =', this.dbPath);
+    console.log('[TrailDatabase] sql.js initialized, storage =', this.storage.identifier);
 
-    if (!fs.existsSync(this.dbDir)) {
-      fs.mkdirSync(this.dbDir, { recursive: true });
-    }
-
-    if (fs.existsSync(this.dbPath)) {
-      const buffer = fs.readFileSync(this.dbPath);
-      this.db = new SQL.Database(buffer);
-    } else {
-      this.db = new SQL.Database();
-    }
+    const initial = this.storage.readInitialBytes();
+    this.db = initial ? new SQL.Database(initial) : new SQL.Database();
 
     this.createTables();
   }
@@ -1073,8 +1055,7 @@ export class TrailDatabase {
   save(): void {
     const db = this.ensureDb();
     const data = db.export();
-    assertNotProductionWriteDuringTests(this.dbPath);
-    fs.writeFileSync(this.dbPath, Buffer.from(data));
+    this.storage.save(data);
   }
 
   close(): void {

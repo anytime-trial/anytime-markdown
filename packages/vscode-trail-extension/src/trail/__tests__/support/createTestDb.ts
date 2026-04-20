@@ -6,13 +6,13 @@
 //   - CRUD メソッドは内部で this.save() → fs.writeFileSync(this.dbPath, ...) を呼ぶ
 // → テスト中に本番 DB を上書きする事故につながる（2026-04-20 に発生）
 //
-// このファクトリは以下を保証する。
-//   - in-memory SQL.js DB を注入
-//   - save() メソッドを no-op に差し替え
-//   - createTables() を実行してスキーマ適用
-// これを経由する限り、テストが本番パスに書き込むことはない。
+// Phase 2.1 でストレージ戦略パターンを導入したため、
+// 本ファクトリは InMemoryTrailStorage を注入するだけで安全になる。
+//   - readInitialBytes(): 常に null → 新規 SQL.Database を作成
+//   - save(): no-op → ディスク I/O は一切発生しない
+// 追加のフィールド差し替えは不要。
 
-import { TrailDatabase } from '../../TrailDatabase';
+import { TrailDatabase, InMemoryTrailStorage } from '../../TrailDatabase';
 
 // ts-jest + CommonJS のため require で直接読み込む
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -23,22 +23,13 @@ export async function createTestTrailDatabase(): Promise<TrailDatabase> {
   const SQL = await initSqlJs();
   const inMemoryDb = new SQL.Database();
 
-  // 第1引数 '/tmp' は distPath（sql-asm.js の場所）として渡す。
-  // この値はファイル I/O には使われない（既に SQL.js はロード済み）。
-  const db = new TrailDatabase('/tmp');
+  // InMemoryTrailStorage を注入すれば save() は no-op、
+  // readInitialBytes() は null を返すため新規 DB として動作する。
+  const db = new TrailDatabase('/tmp', new InMemoryTrailStorage());
 
-  // in-memory DB を private フィールドに注入
+  // init() は sql-asm を __non_webpack_require__ で読むためテストでは使えない。
+  // 直接読み込んだ SQL.js DB を private フィールドに注入し、createTables を実行。
   (db as unknown as Record<string, unknown>).db = inMemoryDb;
-
-  // save() を no-op 化: CRUD メソッドが内部で呼ぶ this.save() が
-  // fs.writeFileSync(this.dbPath, ...) を実行し本番 DB を上書きするのを防ぐ。
-  // Phase 0 で TrailDatabase.save() 自体にもガードを追加済みだが、
-  // ここでの差し替えはガードが発動する前に I/O を完全に回避する。
-  (db as unknown as Record<string, () => void>).save = () => {
-    /* no-op for tests */
-  };
-
-  // スキーマを適用（CREATE TABLE IF NOT EXISTS ...）
   (db as unknown as Record<string, () => void>).createTables();
 
   return db;
