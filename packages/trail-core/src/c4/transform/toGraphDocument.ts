@@ -106,24 +106,20 @@ export function c4ToGraphDocument(
     }
   }
 
-  // --- Phase 2: 境界要素をフレームとして生成 ---
+  // --- Phase 2: 境界要素をフレームとして生成（2パス）---
+  // Pass 2a: 全境界要素のフレームノードを生成（groupId は未設定）
   for (const elem of model.elements) {
     if (!BOUNDARY_TYPES.has(elem.type) || elem.external) continue;
     if (boundaryIdMap.has(elem.id)) {
-      // Phase 1 で作成済み → c4Type / 色 / groupId を補完する
+      // Phase 1 で作成済み → c4Type / 色 / スタイルを補完する（groupId は 2b で設定）
       const existingFrameId = boundaryIdMap.get(elem.id)!;
       const frame = doc.nodes.find(n => n.id === existingFrameId);
-      if (frame) {
-        if (!frame.metadata?.c4Type) {
-          const nodeColors = C4_COLORS[elem.type] ?? EXTERNAL_COLOR;
-          const colors = FRAME_COLORS[elem.type] ?? { fill: 'transparent', stroke: '#444444' };
-          frame.metadata = { ...frame.metadata, c4Type: elem.type, c4NodeFill: nodeColors.fill, c4NodeStroke: nodeColors.stroke };
-          frame.style = { ...DEFAULT_STYLE, fill: colors.fill, stroke: colors.stroke };
-          frame.text = buildNodeText(elem);
-        }
-        if (elem.boundaryId && boundaryIdMap.has(elem.boundaryId)) {
-          frame.groupId = boundaryIdMap.get(elem.boundaryId);
-        }
+      if (frame && !frame.metadata?.c4Type) {
+        const nodeColors = C4_COLORS[elem.type] ?? EXTERNAL_COLOR;
+        const colors = FRAME_COLORS[elem.type] ?? { fill: 'transparent', stroke: '#444444' };
+        frame.metadata = { ...frame.metadata, c4Type: elem.type, c4NodeFill: nodeColors.fill, c4NodeStroke: nodeColors.stroke };
+        frame.style = { ...DEFAULT_STYLE, fill: colors.fill, stroke: colors.stroke };
+        frame.text = buildNodeText(elem);
       }
       continue;
     }
@@ -131,7 +127,6 @@ export function c4ToGraphDocument(
     const frameId = nextId();
     boundaryIdMap.set(elem.id, frameId);
     const colors = FRAME_COLORS[elem.type] ?? { fill: 'transparent', stroke: '#444444' };
-
     const nodeColors = C4_COLORS[elem.type] ?? EXTERNAL_COLOR;
     const node: GraphNode = {
       id: frameId,
@@ -143,11 +138,18 @@ export function c4ToGraphDocument(
       text: buildNodeText(elem),
       style: { ...DEFAULT_STYLE, fill: colors.fill, stroke: colors.stroke },
       metadata: { c4Id: elem.id, c4Type: elem.type, c4NodeFill: nodeColors.fill, c4NodeStroke: nodeColors.stroke },
-      ...(elem.boundaryId && boundaryIdMap.has(elem.boundaryId)
-        ? { groupId: boundaryIdMap.get(elem.boundaryId) }
-        : {}),
     };
     doc.nodes.push(node);
+  }
+
+  // Pass 2b: 全境界要素の groupId を設定（2a 完了後に boundaryIdMap が揃っている）
+  for (const elem of model.elements) {
+    if (!BOUNDARY_TYPES.has(elem.type) || elem.external) continue;
+    if (!elem.boundaryId || !boundaryIdMap.has(elem.boundaryId)) continue;
+    const frameId = boundaryIdMap.get(elem.id);
+    if (!frameId) continue;
+    const frame = doc.nodes.find(n => n.id === frameId);
+    if (frame) frame.groupId = boundaryIdMap.get(elem.boundaryId);
   }
 
   // --- Phase 3: その他の要素をノードとして生成 ---
