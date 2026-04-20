@@ -43,6 +43,8 @@ describe('mergeManualIntoC4Model', () => {
     }];
     const result = mergeManualIntoC4Model(baseModel, manualElements, []);
     expect(result.elements).toHaveLength(3);
+    const elem = result.elements.find(e => e.id === 'pkg_manual_1');
+    expect(elem?.boundaryId).toBe('pkg_web-app');
   });
 
   it('keeps manual relationship when both ends are live', () => {

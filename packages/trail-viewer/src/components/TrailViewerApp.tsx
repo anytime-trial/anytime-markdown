@@ -56,7 +56,7 @@ export function TrailViewerApp({
   const onAddElement = useCallback(
     (data: ElementFormData) => {
       if (!effectiveEditable) return;
-      void c4.addElement({ type: data.type, name: data.name, description: data.description || undefined, external: data.external, parentId: data.parentId ?? null });
+      void c4.addElement({ type: data.type, name: data.name, description: data.description || undefined, external: data.external, parentId: data.parentId ?? null, serviceType: data.serviceType });
     },
     [effectiveEditable, c4],
   );
