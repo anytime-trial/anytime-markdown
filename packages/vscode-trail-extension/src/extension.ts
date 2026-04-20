@@ -450,7 +450,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand('anytime-trail.restoreBackup', async () => {
+		vscode.commands.registerCommand('anytime-trail.restoreBackup', async (arg?: number) => {
 			if (!trailDb) {
 				vscode.window.showErrorMessage('Trail DB is not initialized.');
 				return;
@@ -462,20 +462,28 @@ export async function activate(context: vscode.ExtensionContext) {
 				);
 				return;
 			}
-			const items = entries.map((e) => ({
-				label: `$(history) Generation ${e.generation}`,
-				description: e.mtime.toLocaleString(),
-				detail: `${(e.compressedSize / 1024 / 1024).toFixed(2)} MB (gzip) · ${e.path}`,
-				generation: e.generation,
-			}));
-			const picked = await vscode.window.showQuickPick(items, {
-				title: 'Restore Trail DB from backup',
-				placeHolder: 'Select a generation to restore (current DB will be saved as .restore-safety-*)',
-				ignoreFocusOut: true,
-			});
-			if (!picked) return;
+			let generation: number | undefined = typeof arg === 'number' ? arg : undefined;
+			if (generation === undefined) {
+				const items = entries.map((e) => ({
+					label: `$(history) Generation ${e.generation}`,
+					description: e.mtime.toLocaleString(),
+					detail: `${(e.compressedSize / 1024 / 1024).toFixed(2)} MB (gzip) · ${e.path}`,
+					generation: e.generation,
+				}));
+				const picked = await vscode.window.showQuickPick(items, {
+					title: 'Restore Trail DB from backup',
+					placeHolder: 'Select a generation to restore (current DB will be saved as .restore-safety-*)',
+					ignoreFocusOut: true,
+				});
+				if (!picked) return;
+				generation = picked.generation;
+			}
+			if (!entries.some((e) => e.generation === generation)) {
+				vscode.window.showErrorMessage(`Backup generation ${generation} not found.`);
+				return;
+			}
 			const confirm = await vscode.window.showWarningMessage(
-				`Restore Trail DB from generation ${picked.generation}? ` +
+				`Restore Trail DB from generation ${generation}? ` +
 				'The current DB will be backed up to a .restore-safety-* file. ' +
 				'You must reload the VS Code window after restore for changes to take effect.',
 				{ modal: true },
@@ -483,12 +491,13 @@ export async function activate(context: vscode.ExtensionContext) {
 			);
 			if (confirm !== 'Restore') return;
 			try {
-				const result = trailDb.restoreFromBackup(picked.generation);
+				const result = trailDb.restoreFromBackup(generation);
 				TrailLogger.info(
 					`Trail DB restored from ${result.restoredFrom}; safety copy at ${result.safetyCopy ?? '(none)'}`,
 				);
+				databaseProvider.refresh();
 				const reload = await vscode.window.showInformationMessage(
-					`Restored from generation ${picked.generation}. Reload the window now?`,
+					`Restored from generation ${generation}. Reload the window now?`,
 					'Reload Window',
 				);
 				if (reload === 'Reload Window') {

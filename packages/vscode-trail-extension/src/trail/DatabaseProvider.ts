@@ -30,6 +30,37 @@ class DbDetailTreeItem extends vscode.TreeItem {
   }
 }
 
+// バックアップのグループノード（SQLite 配下に表示）
+class BackupsRootTreeItem extends vscode.TreeItem {
+  readonly kind = 'backupsRoot' as const;
+  constructor(count: number) {
+    super('Backups', count > 0
+      ? vscode.TreeItemCollapsibleState.Collapsed
+      : vscode.TreeItemCollapsibleState.None);
+    this.contextValue = 'backupsRoot';
+    this.iconPath = new vscode.ThemeIcon('archive');
+    this.description = count > 0 ? `${count} generation${count === 1 ? '' : 's'}` : 'None';
+  }
+}
+
+// 個別バックアップ（クリックで復元コマンド起動）
+class BackupTreeItem extends vscode.TreeItem {
+  readonly kind = 'backup' as const;
+  constructor(generation: number, mtime: Date, compressedBytes: number) {
+    super(`Generation ${generation}`, vscode.TreeItemCollapsibleState.None);
+    this.contextValue = 'backupEntry';
+    this.iconPath = new vscode.ThemeIcon('history');
+    this.description = mtime.toLocaleString();
+    const mb = (compressedBytes / 1024 / 1024).toFixed(2);
+    this.tooltip = `Generation ${generation}\n${mtime.toLocaleString()}\n${mb} MB (gzip)`;
+    this.command = {
+      command: 'anytime-trail.restoreBackup',
+      title: 'Restore from this backup',
+      arguments: [generation],
+    };
+  }
+}
+
 // インポート中スピナー
 class ImportingTreeItem extends vscode.TreeItem {
   constructor() {
@@ -38,7 +69,12 @@ class ImportingTreeItem extends vscode.TreeItem {
 }
 
 
-type AnyTreeItem = DbRootTreeItem | DbDetailTreeItem | ImportingTreeItem;
+type AnyTreeItem =
+  | DbRootTreeItem
+  | DbDetailTreeItem
+  | BackupsRootTreeItem
+  | BackupTreeItem
+  | ImportingTreeItem;
 
 export class DatabaseProvider implements vscode.TreeDataProvider<AnyTreeItem> {
   private _onDidChangeTreeData = new vscode.EventEmitter<AnyTreeItem | undefined | null | void>();
@@ -108,9 +144,11 @@ export class DatabaseProvider implements vscode.TreeDataProvider<AnyTreeItem> {
     // 子ノード（DbRootTreeItem の展開）
     if (element instanceof DbRootTreeItem) {
       if (element.contextValue === 'sqliteDb') {
+        const backups = this.trailDb.listBackups();
         return [
           new DbDetailTreeItem('Status', this.sqliteStatus),
           new DbDetailTreeItem('最終インポート', this.sqliteLastImported ? formatLocalDateTime(this.sqliteLastImported) : '未実行'),
+          new BackupsRootTreeItem(backups.length),
         ];
       }
       if (element.contextValue === 'supabaseDb') {
@@ -120,6 +158,14 @@ export class DatabaseProvider implements vscode.TreeDataProvider<AnyTreeItem> {
         ];
       }
     }
+
+    // バックアップグループの展開
+    if (element instanceof BackupsRootTreeItem) {
+      return this.trailDb.listBackups().map(
+        (b) => new BackupTreeItem(b.generation, b.mtime, b.compressedSize),
+      );
+    }
+
     return [];
   }
 }
