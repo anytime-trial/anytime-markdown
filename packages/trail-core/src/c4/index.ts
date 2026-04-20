@@ -27,6 +27,7 @@ export { c4ToMermaid } from './serializer/c4ToMermaid';
 export { buildLevelView, getFrameDepth } from './view/buildLevelView';
 export { filterModelForDrill } from './view/filterModelForDrill';
 export { buildElementTree, filterTreeByLevel } from './view/buildElementTree';
+export { filterTreeBySearch } from './view/filterTreeBySearch';
 export { collectDescendantIds } from './view/collectDescendants';
 export { enrichFeatureMatrixWithComponents } from './featureMatrix';
 
