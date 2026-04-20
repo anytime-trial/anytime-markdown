@@ -1,4 +1,5 @@
 import type { C4TreeNode, DocLink } from '@anytime-markdown/trail-core/c4';
+import { findService } from '@anytime-markdown/trail-core';
 import type { ExportedSymbol } from '@anytime-markdown/trail-core/analyzer';
 import type { Action } from '@anytime-markdown/graph-core/state';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
@@ -37,8 +38,24 @@ import { getTokens } from '../../theme/designTokens';
 const INDENT_PX = 20;
 
 /** C4要素タイプに対応するアイコン */
-function TypeIcon({ type }: Readonly<{ type: C4TreeNode['type'] }>) {
+function TypeIcon({ type, serviceType }: Readonly<{ type: C4TreeNode['type']; serviceType?: string }>) {
   const sx = { fontSize: 16 };
+
+  if (type === 'container' && serviceType) {
+    const entry = findService(serviceType);
+    if (entry) {
+      return (
+        <Box
+          component="svg"
+          viewBox="0 0 24 24"
+          sx={{ width: 16, height: 16, flexShrink: 0, fill: entry.brandColor }}
+        >
+          <path d={entry.iconPath} />
+        </Box>
+      );
+    }
+  }
+
   switch (type) {
     case 'person': return <PersonIcon sx={sx} />;
     case 'system':
@@ -158,7 +175,7 @@ const TreeNodeItem: FC<TreeNodeItemProps> = memo(({ node, depth, selectedId, onS
           />
         )}
         <ListItemIcon sx={{ minWidth: 24 }}>
-          <TypeIcon type={node.type} />
+          <TypeIcon type={node.type} serviceType={node.serviceType} />
         </ListItemIcon>
         <ListItemText
           primary={node.name}
