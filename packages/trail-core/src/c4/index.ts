@@ -66,3 +66,6 @@ export type {
   ManualRelationship,
   IManualElementProvider,
 } from './manualTypes';
+
+export type { ServiceEntry } from './services/catalog';
+export { SERVICE_CATALOG, findService, filterServices } from './services/catalog';
