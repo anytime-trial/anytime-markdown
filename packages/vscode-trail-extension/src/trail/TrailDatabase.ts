@@ -517,6 +517,11 @@ export class TrailDatabase {
       try { db.run(sql); } catch { /* Column already exists */ }
     }
 
+    // service_type カラム追加（既存 DB 向け）
+    try {
+      db.run('ALTER TABLE c4_manual_elements ADD COLUMN service_type TEXT');
+    } catch { /* Column already exists */ }
+
     // Seed skill_models with defaults if empty
     const smCount = db.exec('SELECT COUNT(*) FROM skill_models');
     if (Number(smCount[0]?.values[0]?.[0]) === 0) {
@@ -1744,7 +1749,7 @@ export class TrailDatabase {
 
   saveManualElement(
     repoName: string,
-    input: { type: string; name: string; description?: string; external: boolean; parentId: string | null },
+    input: { type: string; name: string; description?: string; external: boolean; parentId: string | null; serviceType?: string },
   ): string {
     const db = this.ensureDb();
     const prefix = this.getTypePrefix(input.type);
@@ -1753,9 +1758,9 @@ export class TrailDatabase {
     const now = new Date().toISOString();
     db.run(
       `INSERT INTO c4_manual_elements
-         (repo_name, element_id, type, name, description, external, parent_id, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [repoName, id, input.type, input.name, input.description ?? null, input.external ? 1 : 0, input.parentId, now],
+         (repo_name, element_id, type, name, description, external, parent_id, service_type, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [repoName, id, input.type, input.name, input.description ?? null, input.external ? 1 : 0, input.parentId, input.serviceType ?? null, now],
     );
     this.save();
     return id;
@@ -1764,7 +1769,7 @@ export class TrailDatabase {
   updateManualElement(
     repoName: string,
     elementId: string,
-    changes: { name?: string; description?: string; external?: boolean },
+    changes: { name?: string; description?: string; external?: boolean; serviceType?: string },
   ): void {
     const db = this.ensureDb();
     const now = new Date().toISOString();
@@ -1773,6 +1778,7 @@ export class TrailDatabase {
     if (changes.name !== undefined) { sets.push('name = ?'); vals.push(changes.name); }
     if (changes.description !== undefined) { sets.push('description = ?'); vals.push(changes.description); }
     if (changes.external !== undefined) { sets.push('external = ?'); vals.push(changes.external ? 1 : 0); }
+    if (changes.serviceType !== undefined) { sets.push('service_type = ?'); vals.push(changes.serviceType); }
     if (sets.length === 0) return;
     sets.push('updated_at = ?');
     vals.push(now, repoName, elementId);
@@ -1799,7 +1805,7 @@ export class TrailDatabase {
   getManualElements(repoName: string): readonly ManualElement[] {
     const db = this.ensureDb();
     const result = db.exec(
-      `SELECT element_id, type, name, description, external, parent_id, updated_at
+      `SELECT element_id, type, name, description, external, parent_id, service_type, updated_at
          FROM c4_manual_elements WHERE repo_name = ? ORDER BY element_id`,
       [repoName],
     );
@@ -1811,7 +1817,8 @@ export class TrailDatabase {
       description: row[3] == null ? undefined : String(row[3]),
       external: Boolean(row[4]),
       parentId: row[5] == null ? null : String(row[5]),
-      updatedAt: String(row[6]),
+      serviceType: row[6] == null ? undefined : String(row[6]),
+      updatedAt: String(row[7]),
     }));
   }
 
@@ -1864,9 +1871,9 @@ export class TrailDatabase {
     const db = this.ensureDb();
     db.run(
       `INSERT OR REPLACE INTO c4_manual_elements
-         (repo_name, element_id, type, name, description, external, parent_id, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [repoName, e.id, e.type, e.name, e.description ?? null, e.external ? 1 : 0, e.parentId, e.updatedAt],
+         (repo_name, element_id, type, name, description, external, parent_id, service_type, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [repoName, e.id, e.type, e.name, e.description ?? null, e.external ? 1 : 0, e.parentId, e.serviceType ?? null, e.updatedAt],
     );
     this.save();
   }

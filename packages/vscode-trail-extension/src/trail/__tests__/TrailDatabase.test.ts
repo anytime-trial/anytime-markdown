@@ -38,11 +38,7 @@ describe('TrailDatabase.parseSessionIdFromBody', () => {
   let db: TrailDatabase;
 
   beforeAll(async () => {
-    const initSqlJs = sqlAsmActual as typeof import('sql.js').default;
-    const SQL = await initSqlJs();
-    const inMemoryDb = new SQL.Database();
-    db = new TrailDatabase('/tmp');
-    (db as unknown as Record<string, unknown>).db = inMemoryDb;
+    db = await createTestTrailDatabase();
   });
 
   afterAll(() => {
@@ -91,13 +87,8 @@ describe('TrailDatabase.parseSessionIdFromBody', () => {
 
 describe('INSERT_MESSAGE statement', () => {
   it('has matching column count and placeholder count', async () => {
-    const initSqlJs = sqlAsmActual as typeof import('sql.js').default;
-    const SQL = await initSqlJs();
-    const inMemoryDb = new SQL.Database();
-
-    const db = new TrailDatabase('/tmp');
-    (db as unknown as Record<string, unknown>).db = inMemoryDb;
-    (db as unknown as Record<string, () => void>).createTables();
+    const db = await createTestTrailDatabase();
+    const inMemoryDb = (db as unknown as Record<string, unknown>).db as import('sql.js').Database;
 
     // If the column list and placeholder count disagree, prepare() throws.
     // This guards against "N values for M columns" regressions.
@@ -109,13 +100,8 @@ describe('INSERT_MESSAGE statement', () => {
 
 describe('TrailDatabase.getImportedFileMap', () => {
   it('flags hasMessages=false for sessions with message_count>0 but no messages rows', async () => {
-    const initSqlJs = sqlAsmActual as typeof import('sql.js').default;
-    const SQL = await initSqlJs();
-    const inMemoryDb = new SQL.Database();
-
-    const db = new TrailDatabase('/tmp');
-    (db as unknown as Record<string, unknown>).db = inMemoryDb;
-    (db as unknown as Record<string, () => void>).createTables();
+    const db = await createTestTrailDatabase();
+    const inMemoryDb = (db as unknown as Record<string, unknown>).db as import('sql.js').Database;
 
     // Broken session: row inserted but messages silently dropped by a prior bug.
     inMemoryDb.run(
@@ -205,21 +191,34 @@ describe('c4_manual_elements CRUD', () => {
     expect(db.getManualRelationships('repo-a')).toHaveLength(0);
     db.close();
   });
+
+  it('saves and reads serviceType', async () => {
+    const db = await createDb();
+    db.saveManualElement('repo', {
+      type: 'container', name: 'Supabase', external: true, parentId: null,
+      serviceType: 'supabase',
+    });
+    const elements = db.getManualElements('repo');
+    expect(elements[0].serviceType).toBe('supabase');
+    db.close();
+  });
+
+  it('updateManualElement updates serviceType', async () => {
+    const db = await createDb();
+    const id = db.saveManualElement('repo', {
+      type: 'container', name: 'Supabase', external: true, parentId: null,
+      serviceType: 'supabase',
+    });
+    db.updateManualElement('repo', id, { serviceType: 'netlify' });
+    const elements = db.getManualElements('repo');
+    expect(elements[0].serviceType).toBe('netlify');
+    db.close();
+  });
 });
 
 describe('TrailDatabase.getLastImportedAt', () => {
   it('セッションがない場合はnullを返す', async () => {
-    // DB_PATH はハードコードされているため、init() をモックして空のインメモリDBを使用する
-    const initSqlJs = sqlAsmActual as typeof import('sql.js').default;
-    const SQL = await initSqlJs();
-    const inMemoryDb = new SQL.Database();
-
-    const db = new TrailDatabase('/tmp');
-    // private フィールドに直接アクセスして空DBをセット
-    (db as unknown as Record<string, unknown>).db = inMemoryDb;
-    // createTables を呼び出すためにprotected メソッドにアクセス
-    (db as unknown as Record<string, () => void>).createTables();
-
+    const db = await createTestTrailDatabase();
     const result = db.getLastImportedAt();
     expect(result).toBeNull();
     db.close();

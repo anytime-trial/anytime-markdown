@@ -233,14 +233,15 @@ export const CREATE_MESSAGE_TOOL_CALLS = `CREATE TABLE IF NOT EXISTS message_too
 )`;
 
 export const CREATE_C4_MANUAL_ELEMENTS = `CREATE TABLE IF NOT EXISTS c4_manual_elements (
-  repo_name   TEXT NOT NULL,
-  element_id  TEXT NOT NULL,
-  type        TEXT NOT NULL,
-  name        TEXT NOT NULL,
-  description TEXT,
-  external    INTEGER NOT NULL DEFAULT 0,
-  parent_id   TEXT,
-  updated_at  TEXT NOT NULL,
+  repo_name    TEXT NOT NULL,
+  element_id   TEXT NOT NULL,
+  type         TEXT NOT NULL,
+  name         TEXT NOT NULL,
+  description  TEXT,
+  external     INTEGER NOT NULL DEFAULT 0,
+  parent_id    TEXT,
+  service_type TEXT,
+  updated_at   TEXT NOT NULL,
   PRIMARY KEY (repo_name, element_id)
 )`;
 
