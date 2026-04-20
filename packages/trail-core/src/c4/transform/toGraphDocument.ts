@@ -173,7 +173,10 @@ export function c4ToGraphDocument(
       metadata: {
         c4Id: elem.id,
         c4Type: elem.type,
-        ...(serviceEntry ? {
+        ...(serviceEntry?.iconBody ? {
+          serviceIconBody: serviceEntry.iconBody,
+          serviceIconViewBox: serviceEntry.iconViewBox ?? '0 0 24 24',
+        } : serviceEntry?.iconPath ? {
           serviceIconPath: serviceEntry.iconPath,
           serviceColor: serviceEntry.brandColor,
         } : {}),

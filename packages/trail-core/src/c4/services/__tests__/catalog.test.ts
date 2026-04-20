@@ -7,8 +7,7 @@ describe('catalog', () => {
     expect(entry!.label).toBe('Supabase');
     expect(entry!.category).toBe('Database');
     expect(entry!.brandColor).toMatch(/^#[0-9A-Fa-f]{6}$/);
-    expect(typeof entry!.iconPath).toBe('string');
-    expect(entry!.iconPath.length).toBeGreaterThan(10);
+    expect(entry!.iconPath ?? entry!.iconBody).toBeTruthy();
   });
 
   it('findService with unknown id returns undefined', () => {

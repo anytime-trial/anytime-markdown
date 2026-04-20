@@ -327,9 +327,16 @@ const renderRect: SpecialShapeRenderer = (ctx, node, selected, _isDragging, fill
     ctx.strokeRect(x, y, width, height);
   }
 
-  const iconPath = node.metadata?.serviceIconPath;
-  const iconColor = node.metadata?.serviceColor;
-  if (typeof iconPath === 'string' && typeof iconColor === 'string') {
+  const iconBody = node.metadata?.serviceIconBody as string | undefined;
+  const iconViewBox = node.metadata?.serviceIconViewBox as string | undefined;
+  const iconPath = node.metadata?.serviceIconPath as string | undefined;
+  const iconColor = node.metadata?.serviceColor as string | undefined;
+  if (iconBody) {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${iconViewBox ?? '0 0 24 24'}">${iconBody}</svg>`;
+    const dataUri = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+    const img = getOrLoadImage(dataUri);
+    if (img) ctx.drawImage(img, x + 6, y + 6, 14, 14);
+  } else if (typeof iconPath === 'string' && typeof iconColor === 'string') {
     drawServiceIcon(ctx, iconPath, iconColor, x + 6, y + 6, 14);
   }
 };

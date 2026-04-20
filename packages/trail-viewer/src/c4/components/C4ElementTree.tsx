@@ -43,7 +43,12 @@ function TypeIcon({ type, serviceType }: Readonly<{ type: C4TreeNode['type']; se
 
   if (type === 'container' && serviceType) {
     const entry = findService(serviceType);
-    if (entry) {
+    if (entry?.iconBody) {
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${entry.iconViewBox ?? '0 0 24 24'}">${entry.iconBody}</svg>`;
+      const dataUri = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+      return <Box component="img" src={dataUri} alt={entry.label} sx={{ width: 16, height: 16, flexShrink: 0 }} />;
+    }
+    if (entry?.iconPath) {
       return (
         <Box
           component="svg"
