@@ -83,3 +83,25 @@ UI / 画面コンポーネントの実装・修正時は、以下の仕様書を
 - 具体的には「対象テーブルを DELETE → ローカル DB の全行を upsert」の順で実行する。
 - 差分同期（追加/更新/削除の判定）は行わない。一貫性を優先し、毎回すべて置き換える。
 - 例: `current_graphs` → `trail_current_c4_models` の同期は `clearCurrentC4Models()` 後に全行 `upsertCurrentC4Model()` を呼ぶ。
+
+
+## 永続データ保護（本リポジトリ固有の補足）
+
+`~/.claude/CLAUDE.md` の「永続データ保護」に加え、本リポジトリでは以下のファイルを保護領域として扱う。
+
+- `~/.claude/*/**.db` — VS Code 拡張機能のローカル SQLite DB
+- `~/.vscode-server/data/User/globalStorage/anytime-trial.*/` — 拡張機能のストレージ領域
+- Supabase 側の公開スキーマ全テーブル
+
+### 永続化クラスのテスト規約
+
+本リポジトリの `packages/vscode-trail-extension/src/trail/` および `packages/trail-core/src/` 配下には、内部で `fs.writeFileSync` を呼ぶ永続化クラスが複数存在する。これらのテストは以下を徹底する。
+
+- 永続化クラスを直接 `new` しない。テストファクトリ（`__tests__/support/createTestDb.ts` 等。未整備の場合は追加する）を経由する。
+- ファクトリ内で `save` / `persist` 相当のメソッドを no-op に差し替える。コンストラクタで `storageDir` を省略するとデフォルトで本番パスにフォールバックするクラスがあるため、差し替えなしでは本番 DB を上書きする危険がある。
+- 新規 CRUD メソッドを追加した場合、そのメソッドがファイル書き込みを発生させるか必ず確認し、副作用があればテストファクトリで無害化されていることを検証する。
+
+### 参考
+
+- 事故対応: `/Shared/anytime-markdown-docs/proposal/20260420-trail-db-test-data-loss-prevention.ja.md`
+- ベストプラクティス: `/Shared/anytime-markdown-docs/proposal/20260420-trail-data-safety-best-practices.ja.md`
