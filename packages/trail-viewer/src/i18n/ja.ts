@@ -181,6 +181,7 @@ export const ja: TrailI18n = {
   'c4.clearFrameFilter': 'フィルタ解除',
   'c4.copyPath': 'パスをコピー',
   'c4.frameFilter.reset': 'Reset',
+  'c4.elementPanel.searchPlaceholder': '要素を検索...',
   'analytics.combined.tool': 'ツール',
   'analytics.combined.count': '回数',
   'analytics.combined.tokens': 'トークン',
