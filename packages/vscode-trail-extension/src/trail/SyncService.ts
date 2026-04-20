@@ -159,6 +159,17 @@ export class SyncService {
       errors++;
     }
 
+    // Sync manual C4 elements (two-way merge) per repository
+    try {
+      const repoNames = [...new Set(this.trailDb.listCurrentGraphs().map(r => r.repoName))];
+      for (const repoName of repoNames) {
+        await this.syncManualElements(repoName);
+      }
+    } catch (e) {
+      TrailLogger.error('Failed to sync manual C4 elements', e);
+      errors++;
+    }
+
     return {
       synced,
       skipped: 0,
