@@ -25,8 +25,16 @@ export interface ITrailStorage {
  *
  * 破壊的副作用（writeFileSync）を持つ。コンストラクタは絶対パスを要求し、
  * `~/.claude` や `~/.vscode-server` 配下への書き込みはテスト環境で例外を投げる。
+ *
+ * セッション（このインスタンスの生存期間）内で最初の save() 呼び出し時に
+ * 既存 DB を 3 世代までローテーションバックアップする（.bak.1 → .bak.2 → .bak.3）。
+ * これにより、バグや誤操作で save() が破壊的データを書き込んでも
+ * .bak.1 からロールバック可能。
  */
 export class FileTrailStorage implements ITrailStorage {
+  private static readonly BACKUP_GENERATIONS = 3;
+  private backupDone = false;
+
   constructor(private readonly dbPath: string) {}
 
   get identifier(): string {
@@ -44,7 +52,32 @@ export class FileTrailStorage implements ITrailStorage {
 
   save(bytes: Uint8Array): void {
     assertNotProductionWriteDuringTests(this.dbPath);
+    if (!this.backupDone) {
+      this.rotateBackups();
+      this.backupDone = true;
+    }
     fs.writeFileSync(this.dbPath, Buffer.from(bytes));
+  }
+
+  /**
+   * 既存 DB ファイルを .bak.1 へ、.bak.1 → .bak.2 → .bak.3 とシフトする。
+   * .bak.3 は上書きで破棄される。エラーは swallow せず throw するが、
+   * DB ファイルが存在しないケース（新規）は通常動作として無視する。
+   */
+  private rotateBackups(): void {
+    if (!fs.existsSync(this.dbPath)) return;
+    const oldest = `${this.dbPath}.bak.${FileTrailStorage.BACKUP_GENERATIONS}`;
+    if (fs.existsSync(oldest)) {
+      fs.unlinkSync(oldest);
+    }
+    for (let gen = FileTrailStorage.BACKUP_GENERATIONS - 1; gen >= 1; gen -= 1) {
+      const src = `${this.dbPath}.bak.${gen}`;
+      const dst = `${this.dbPath}.bak.${gen + 1}`;
+      if (fs.existsSync(src)) {
+        fs.renameSync(src, dst);
+      }
+    }
+    fs.copyFileSync(this.dbPath, `${this.dbPath}.bak.1`);
   }
 }
 

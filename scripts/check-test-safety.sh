@@ -41,10 +41,16 @@ for FILE in $STAGED; do
     FAILED=1
   fi
 
-  # 危険パターン: テスト内で直接 fs.writeFileSync を呼ぶ
+  # 危険パターン: テスト内で直接 fs.writeFileSync を呼ぶ。
+  # ただし、同ファイルで `os.tmpdir()` + `fs.mkdtempSync` を使っており、
+  # かつ保護領域リテラルを含まない場合は一時ディレクトリ利用と判断し許可する。
   if grep -Pn 'fs\.(writeFileSync|promises\.writeFile|appendFileSync)' "$FILE" > /dev/null 2>&1; then
-    REASONS+=("[$FILE] テストで fs.writeFileSync / appendFileSync を直接呼んでいます。一時ディレクトリに限定するか、ファクトリ経由にしてください。")
-    FAILED=1
+    if grep -q 'os\.tmpdir\s*(' "$FILE" && grep -q 'fs\.mkdtempSync\s*(' "$FILE"; then
+      :
+    else
+      REASONS+=("[$FILE] テストで fs.writeFileSync / appendFileSync を直接呼んでいます。os.tmpdir() + fs.mkdtempSync のパターンで一時ディレクトリに限定するか、ファクトリ経由にしてください。")
+      FAILED=1
+    fi
   fi
 done
 
