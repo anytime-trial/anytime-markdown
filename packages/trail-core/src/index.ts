@@ -7,3 +7,6 @@ export { formatLocalDate, formatLocalTime, formatLocalDateTime, toLocalDateKey }
 // Domain layer
 export * from './domain';
 export * from './importance';
+
+export type { ManualElement, ManualRelationship, IManualElementProvider } from './c4/manualTypes';
+export { mergeManualIntoC4Model } from './c4/mergeManual';

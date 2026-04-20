@@ -33,7 +33,7 @@ import {
   analyze,
   trailToC4,
 } from '@anytime-markdown/trail-core';
-import type { TrailGraph, IC4ModelStore, C4ModelEntry, C4ModelResult, TrailMessageCommit, MessageCommitInput } from '@anytime-markdown/trail-core';
+import type { TrailGraph, IC4ModelStore, C4ModelEntry, C4ModelResult, TrailMessageCommit, MessageCommitInput, ManualElement, ManualRelationship } from '@anytime-markdown/trail-core';
 import { matchCommitsToMessages } from '@anytime-markdown/trail-core';
 import { JsonlSessionReader } from './JsonlSessionReader';
 import { ExecFileGitService } from './ExecFileGitService';
@@ -1694,6 +1694,174 @@ export class TrailDatabase {
 
     this.save();
     return { imported, skipped, commitsResolved, releasesResolved, releasesAnalyzed, coverageImported, messageCommitsBackfilled };
+  }
+
+  saveManualElement(
+    repoName: string,
+    input: { type: string; name: string; description?: string; external: boolean; parentId: string | null },
+  ): string {
+    const db = this.ensureDb();
+    const prefix = this.getTypePrefix(input.type);
+    const nextN = this.getNextManualSequence(repoName, prefix) + 1;
+    const id = `${prefix}${nextN}`;
+    const now = new Date().toISOString();
+    db.run(
+      `INSERT INTO c4_manual_elements
+         (repo_name, element_id, type, name, description, external, parent_id, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [repoName, id, input.type, input.name, input.description ?? null, input.external ? 1 : 0, input.parentId, now],
+    );
+    this.save();
+    return id;
+  }
+
+  updateManualElement(
+    repoName: string,
+    elementId: string,
+    changes: { name?: string; description?: string; external?: boolean },
+  ): void {
+    const db = this.ensureDb();
+    const now = new Date().toISOString();
+    const sets: string[] = [];
+    const vals: (string | number | null)[] = [];
+    if (changes.name !== undefined) { sets.push('name = ?'); vals.push(changes.name); }
+    if (changes.description !== undefined) { sets.push('description = ?'); vals.push(changes.description); }
+    if (changes.external !== undefined) { sets.push('external = ?'); vals.push(changes.external ? 1 : 0); }
+    if (sets.length === 0) return;
+    sets.push('updated_at = ?');
+    vals.push(now, repoName, elementId);
+    db.run(
+      `UPDATE c4_manual_elements SET ${sets.join(', ')} WHERE repo_name = ? AND element_id = ?`,
+      vals,
+    );
+    this.save();
+  }
+
+  deleteManualElement(repoName: string, elementId: string): void {
+    const db = this.ensureDb();
+    db.run(
+      `DELETE FROM c4_manual_relationships WHERE repo_name = ? AND (from_id = ? OR to_id = ?)`,
+      [repoName, elementId, elementId],
+    );
+    db.run(
+      `DELETE FROM c4_manual_elements WHERE repo_name = ? AND element_id = ?`,
+      [repoName, elementId],
+    );
+    this.save();
+  }
+
+  getManualElements(repoName: string): readonly ManualElement[] {
+    const db = this.ensureDb();
+    const result = db.exec(
+      `SELECT element_id, type, name, description, external, parent_id, updated_at
+         FROM c4_manual_elements WHERE repo_name = ? ORDER BY element_id`,
+      [repoName],
+    );
+    const rows = result[0]?.values ?? [];
+    return rows.map((row) => ({
+      id: String(row[0]),
+      type: String(row[1]) as ManualElement['type'],
+      name: String(row[2]),
+      description: row[3] == null ? undefined : String(row[3]),
+      external: Boolean(row[4]),
+      parentId: row[5] == null ? null : String(row[5]),
+      updatedAt: String(row[6]),
+    }));
+  }
+
+  saveManualRelationship(
+    repoName: string,
+    input: { fromId: string; toId: string; label?: string; technology?: string },
+  ): string {
+    const db = this.ensureDb();
+    const nextN = this.getNextManualSequence(repoName, 'rel_manual_') + 1;
+    const id = `rel_manual_${nextN}`;
+    const now = new Date().toISOString();
+    db.run(
+      `INSERT INTO c4_manual_relationships
+         (repo_name, rel_id, from_id, to_id, label, technology, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [repoName, id, input.fromId, input.toId, input.label ?? null, input.technology ?? null, now],
+    );
+    this.save();
+    return id;
+  }
+
+  deleteManualRelationship(repoName: string, relId: string): void {
+    const db = this.ensureDb();
+    db.run(
+      `DELETE FROM c4_manual_relationships WHERE repo_name = ? AND rel_id = ?`,
+      [repoName, relId],
+    );
+    this.save();
+  }
+
+  getManualRelationships(repoName: string): readonly ManualRelationship[] {
+    const db = this.ensureDb();
+    const result = db.exec(
+      `SELECT rel_id, from_id, to_id, label, technology, updated_at
+         FROM c4_manual_relationships WHERE repo_name = ? ORDER BY rel_id`,
+      [repoName],
+    );
+    const rows = result[0]?.values ?? [];
+    return rows.map((row) => ({
+      id: String(row[0]),
+      fromId: String(row[1]),
+      toId: String(row[2]),
+      label: row[3] == null ? undefined : String(row[3]),
+      technology: row[4] == null ? undefined : String(row[4]),
+      updatedAt: String(row[5]),
+    }));
+  }
+
+  insertManualElementRaw(repoName: string, e: ManualElement): void {
+    const db = this.ensureDb();
+    db.run(
+      `INSERT OR REPLACE INTO c4_manual_elements
+         (repo_name, element_id, type, name, description, external, parent_id, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [repoName, e.id, e.type, e.name, e.description ?? null, e.external ? 1 : 0, e.parentId, e.updatedAt],
+    );
+    this.save();
+  }
+
+  insertManualRelationshipRaw(repoName: string, r: ManualRelationship): void {
+    const db = this.ensureDb();
+    db.run(
+      `INSERT OR REPLACE INTO c4_manual_relationships
+         (repo_name, rel_id, from_id, to_id, label, technology, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [repoName, r.id, r.fromId, r.toId, r.label ?? null, r.technology ?? null, r.updatedAt],
+    );
+    this.save();
+  }
+
+  private getTypePrefix(type: string): string {
+    switch (type) {
+      case 'person': return 'person_';
+      case 'system': return 'sys_manual_';
+      case 'container': return 'pkg_manual_';
+      case 'component': return 'cmp_manual_';
+      default: throw new Error(`Unknown manual element type: ${type}`);
+    }
+  }
+
+  private getNextManualSequence(repoName: string, prefix: string): number {
+    const db = this.ensureDb();
+    const table = prefix === 'rel_manual_' ? 'c4_manual_relationships' : 'c4_manual_elements';
+    const col = prefix === 'rel_manual_' ? 'rel_id' : 'element_id';
+    const result = db.exec(
+      `SELECT ${col} FROM ${table} WHERE repo_name = ? AND ${col} LIKE ?`,
+      [repoName, `${prefix}%`],
+    );
+    const rows = result[0]?.values ?? [];
+    let max = 0;
+    for (const row of rows) {
+      const id = String(row[0]);
+      const n = Number.parseInt(id.substring(prefix.length), 10);
+      if (Number.isFinite(n) && n > max) max = n;
+    }
+    return max;
   }
 
   saveCurrentGraph(graph: TrailGraph, tsconfigPath: string, commitId: string, repoName: string): void {
