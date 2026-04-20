@@ -20,7 +20,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     this.client = null;
   }
 
-  async clearAll(): Promise<void> {
+  async unsafeClearAll(): Promise<void> {
     // Supabase の statement timeout を避けるため、全テーブルをページング削除する。
     // 先に子テーブル(messages)を消してから親(sessions)を消すことで、
     // sessions 削除時の CASCADE 負荷を最小化する。
@@ -251,7 +251,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
   /**
    * trail_current_graphs を全削除する（洗い替え同期の前処理）。
    */
-  async clearCurrentGraphs(): Promise<void> {
+  async unsafeClearCurrentGraphs(): Promise<void> {
     const { error } = await this.ensureClient()
       .from('trail_current_graphs')
       .delete()
@@ -262,7 +262,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
   /**
    * trail_release_graphs を全削除する（洗い替え同期の前処理）。
    */
-  async clearReleaseGraphs(): Promise<void> {
+  async unsafeClearReleaseGraphs(): Promise<void> {
     const { error } = await this.ensureClient()
       .from('trail_release_graphs')
       .delete()
@@ -302,7 +302,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     if (error) throw new Error(`Supabase upsert release graph failed: ${error.message}`);
   }
 
-  async clearMessageToolCalls(): Promise<void> {
+  async unsafeClearMessageToolCalls(): Promise<void> {
     await this.deleteAllPaged('trail_message_tool_calls', 'id');
   }
 

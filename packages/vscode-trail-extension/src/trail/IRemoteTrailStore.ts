@@ -4,7 +4,11 @@ import type { ManualElement, ManualRelationship } from '@anytime-markdown/trail-
 export interface IRemoteTrailStore {
   connect(): Promise<void>;
   close(): Promise<void>;
-  clearAll(): Promise<void>;
+  /**
+   * [DESTRUCTIVE] リモートの全テーブルを一括削除する。
+   * 呼び出し後は即座に upsert で復元する前提で使うこと。
+   */
+  unsafeClearAll(): Promise<void>;
   getExistingSessionIds(): Promise<readonly string[]>;
   getExistingSyncedAt(): Promise<ReadonlyMap<string, string>>;
   upsertSessions(rows: readonly SessionRow[]): Promise<void>;
@@ -43,8 +47,10 @@ export interface IRemoteTrailStore {
     duration_ms: number;
     estimated_cost_usd: number;
   }[]): Promise<void>;
-  clearCurrentGraphs(): Promise<void>;
-  clearReleaseGraphs(): Promise<void>;
+  /** [DESTRUCTIVE] current_graphs テーブルを全削除する（洗い替え同期用）。 */
+  unsafeClearCurrentGraphs(): Promise<void>;
+  /** [DESTRUCTIVE] release_graphs テーブルを全削除する（洗い替え同期用）。 */
+  unsafeClearReleaseGraphs(): Promise<void>;
   upsertCurrentGraph(repoName: string, graphJson: string, commitId: string): Promise<void>;
   upsertReleaseGraph(tag: string, graphJson: string): Promise<void>;
   listManualElements(repoName: string): Promise<readonly ManualElement[]>;
@@ -53,7 +59,8 @@ export interface IRemoteTrailStore {
   listManualRelationships(repoName: string): Promise<readonly ManualRelationship[]>;
   upsertManualRelationship(repoName: string, rel: ManualRelationship): Promise<void>;
   deleteManualRelationship(repoName: string, relId: string): Promise<void>;
-  clearMessageToolCalls(): Promise<void>;
+  /** [DESTRUCTIVE] message_tool_calls テーブルを全削除する（洗い替え同期用）。 */
+  unsafeClearMessageToolCalls(): Promise<void>;
   upsertMessageToolCalls(rows: readonly {
     id: number;
     session_id: string;

@@ -41,7 +41,7 @@ export class SyncService {
     onProgress?: (progress: SyncProgress) => void,
   ): Promise<SyncResult> {
     onProgress?.({ message: 'Clearing remote tables...' });
-    await this.store.clearAll();
+    await this.store.unsafeClearAll();
 
     onProgress?.({ message: 'Fetching local sessions...' });
     const localSessions = this.trailDb.getSessions();
@@ -104,7 +104,7 @@ export class SyncService {
     // Sync message_tool_calls（洗い替え: clear → upsert）
     try {
       onProgress?.({ message: 'Syncing message tool calls...' });
-      await this.store.clearMessageToolCalls();
+      await this.store.unsafeClearMessageToolCalls();
       const toolCallRows = this.trailDb.getAllMessageToolCalls(messageCutoff);
       if (toolCallRows.length > 0) {
         await this.store.upsertMessageToolCalls(toolCallRows);
@@ -134,7 +134,7 @@ export class SyncService {
     try {
       const currents = this.trailDb.listCurrentGraphs().filter((row) => row.repoName === 'anytime-markdown');
       onProgress?.({ message: `Syncing ${currents.length} current TrailGraphs (wash-away)...` });
-      await this.store.clearCurrentGraphs();
+      await this.store.unsafeClearCurrentGraphs();
       for (const row of currents) {
         await this.store.upsertCurrentGraph(row.repoName, JSON.stringify(row.graph), row.commitId);
       }
@@ -148,7 +148,7 @@ export class SyncService {
       const graphIds = this.trailDb.getTrailGraphIds();
       const releaseIds = graphIds.filter((id) => id !== 'current');
       onProgress?.({ message: `Syncing ${releaseIds.length} release TrailGraphs (wash-away)...` });
-      await this.store.clearReleaseGraphs();
+      await this.store.unsafeClearReleaseGraphs();
       for (const id of releaseIds) {
         const graph = this.trailDb.getTrailGraph(id);
         if (!graph) continue;

@@ -15,7 +15,7 @@ class FakeRemoteStore implements IRemoteTrailStore {
 
   async connect(): Promise<void> {}
   async close(): Promise<void> {}
-  async clearAll(): Promise<void> {}
+  async unsafeClearAll(): Promise<void> {}
   async getExistingSessionIds(): Promise<readonly string[]> { return []; }
   async getExistingSyncedAt(): Promise<ReadonlyMap<string, string>> { return new Map(); }
   async upsertSessions(): Promise<void> {}
@@ -27,11 +27,11 @@ class FakeRemoteStore implements IRemoteTrailStore {
   async upsertSessionCosts(): Promise<void> {}
   async upsertAllSessionCosts(): Promise<void> {}
   async upsertDailyCounts(): Promise<void> {}
-  async clearCurrentGraphs(): Promise<void> {}
-  async clearReleaseGraphs(): Promise<void> {}
+  async unsafeClearCurrentGraphs(): Promise<void> {}
+  async unsafeClearReleaseGraphs(): Promise<void> {}
   async upsertCurrentGraph(): Promise<void> {}
   async upsertReleaseGraph(): Promise<void> {}
-  async clearMessageToolCalls(): Promise<void> {}
+  async unsafeClearMessageToolCalls(): Promise<void> {}
   async upsertMessageToolCalls(): Promise<void> {}
 
   async listManualElements(repoName: string): Promise<readonly ManualElement[]> {
