@@ -154,6 +154,10 @@ describe('c4_manual_elements CRUD', () => {
     const inMemoryDb = new SQL.Database();
     const db = new TrailDatabase('/tmp');
     (db as unknown as Record<string, unknown>).db = inMemoryDb;
+    // CRITICAL: neutralize save() so CRUD methods don't write to ~/.claude/trail/trail.db.
+    // TrailDatabase.saveManualElement/update/delete all call this.save() internally,
+    // which would overwrite the real DB with the in-memory test DB.
+    (db as unknown as Record<string, () => void>).save = () => { /* no-op for tests */ };
     (db as unknown as Record<string, () => void>).createTables();
     return db;
   }
