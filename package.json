@@ -7,7 +7,8 @@
     "version:sync": "npm version --no-git-tag-version --workspaces",
     "postinstall": "rm -rf node_modules/next-auth/node_modules/@auth",
     "lint": "eslint packages/markdown-core/src packages/web-app/src",
-    "lint:fix": "eslint --fix packages/markdown-core/src packages/web-app/src"
+    "lint:fix": "eslint --fix packages/markdown-core/src packages/web-app/src",
+    "prepare": "husky"
   },
   "workspaces": [
     "packages/markdown-core",
@@ -44,6 +45,7 @@
     "@next/eslint-plugin-next": "^16.1.6",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-simple-import-sort": "^12.1.1",
+    "husky": "9.1.7",
     "raw-loader": "4.0.2",
     "typescript-eslint": "^8.57.0"
   },

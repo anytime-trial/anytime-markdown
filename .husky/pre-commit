@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# anytime-markdown pre-commit hook
+# テストファイル変更時に保護領域への書き込みリスクを静的検査する
+
+bash "$(git rev-parse --show-toplevel)/scripts/check-test-safety.sh"
