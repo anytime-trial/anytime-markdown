@@ -5,6 +5,8 @@
 -- 先頭で全テーブルを DROP し、その後に CREATE TABLE を実行する。
 -- FK 依存順序に注意し、子テーブル → 親テーブルの順で DROP する。
 
+DROP TABLE IF EXISTS trail_c4_manual_relationships CASCADE;
+DROP TABLE IF EXISTS trail_c4_manual_elements CASCADE;
 DROP TABLE IF EXISTS trail_message_tool_calls CASCADE;
 DROP TABLE IF EXISTS trail_release_features CASCADE;
 DROP TABLE IF EXISTS trail_release_files CASCADE;
@@ -185,6 +187,33 @@ CREATE TABLE IF NOT EXISTS trail_message_tool_calls (
     UNIQUE (session_id, message_uuid, call_index)
 );
 
+-- C4 手動追加要素（拡張 SQLite の c4_manual_elements と対応）
+CREATE TABLE IF NOT EXISTS trail_c4_manual_elements (
+    repo_name   TEXT NOT NULL,
+    element_id  TEXT NOT NULL,
+    type        TEXT NOT NULL,
+    name        TEXT NOT NULL,
+    description TEXT,
+    external    BOOLEAN NOT NULL DEFAULT FALSE,
+    parent_id   TEXT,
+    updated_at  TEXT NOT NULL,
+    synced_at   TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (repo_name, element_id)
+);
+
+-- C4 手動追加関係（拡張 SQLite の c4_manual_relationships と対応）
+CREATE TABLE IF NOT EXISTS trail_c4_manual_relationships (
+    repo_name   TEXT NOT NULL,
+    rel_id      TEXT NOT NULL,
+    from_id     TEXT NOT NULL,
+    to_id       TEXT NOT NULL,
+    label       TEXT,
+    technology  TEXT,
+    updated_at  TEXT NOT NULL,
+    synced_at   TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (repo_name, rel_id)
+);
+
 -- インデックス
 CREATE INDEX IF NOT EXISTS idx_trail_messages_session ON trail_messages(session_id);
 CREATE INDEX IF NOT EXISTS idx_trail_messages_type ON trail_messages(type);
@@ -250,3 +279,11 @@ CREATE POLICY "trail_release_features_all" ON trail_release_features FOR ALL USI
 ALTER TABLE trail_message_tool_calls ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "trail_message_tool_calls_all" ON trail_message_tool_calls;
 CREATE POLICY "trail_message_tool_calls_all" ON trail_message_tool_calls FOR ALL USING (true) WITH CHECK (true);
+
+ALTER TABLE trail_c4_manual_elements ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "trail_c4_manual_elements_all" ON trail_c4_manual_elements;
+CREATE POLICY "trail_c4_manual_elements_all" ON trail_c4_manual_elements FOR ALL USING (true) WITH CHECK (true);
+
+ALTER TABLE trail_c4_manual_relationships ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "trail_c4_manual_relationships_all" ON trail_c4_manual_relationships;
+CREATE POLICY "trail_c4_manual_relationships_all" ON trail_c4_manual_relationships FOR ALL USING (true) WITH CHECK (true);
