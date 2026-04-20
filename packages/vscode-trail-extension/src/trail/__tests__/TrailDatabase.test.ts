@@ -3,6 +3,7 @@ const sqlAsmActual = require('/anytime-markdown/node_modules/sql.js/dist/sql-asm
 (global as Record<string, unknown>).__non_webpack_require__ = (_path: string) => sqlAsmActual;
 
 import { TrailDatabase, estimateCost, INSERT_MESSAGE } from '../TrailDatabase';
+import { createTestTrailDatabase } from './support/createTestDb';
 
 describe('estimateCost', () => {
   it('should calculate sonnet cost with all 4 token types', () => {
@@ -148,19 +149,8 @@ describe('TrailDatabase.getImportedFileMap', () => {
 });
 
 describe('c4_manual_elements CRUD', () => {
-  async function createDb(): Promise<TrailDatabase> {
-    const initSqlJs = sqlAsmActual as typeof import('sql.js').default;
-    const SQL = await initSqlJs();
-    const inMemoryDb = new SQL.Database();
-    const db = new TrailDatabase('/tmp');
-    (db as unknown as Record<string, unknown>).db = inMemoryDb;
-    // CRITICAL: neutralize save() so CRUD methods don't write to ~/.claude/trail/trail.db.
-    // TrailDatabase.saveManualElement/update/delete all call this.save() internally,
-    // which would overwrite the real DB with the in-memory test DB.
-    (db as unknown as Record<string, () => void>).save = () => { /* no-op for tests */ };
-    (db as unknown as Record<string, () => void>).createTables();
-    return db;
-  }
+  // Factory-only construction — see support/createTestDb.ts for safety rationale.
+  const createDb = createTestTrailDatabase;
 
   it('inserts a manual element and reads it back', async () => {
     const db = await createDb();

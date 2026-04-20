@@ -5,16 +5,9 @@ import { TrailDatabase } from '../TrailDatabase';
 import { SyncService } from '../SyncService';
 import type { IRemoteTrailStore } from '../IRemoteTrailStore';
 import type { ManualElement, ManualRelationship } from '@anytime-markdown/trail-core';
+import { createTestTrailDatabase } from './support/createTestDb';
 
-async function createDb(): Promise<TrailDatabase> {
-  const initSqlJs = sqlAsmActual as typeof import('sql.js').default;
-  const SQL = await initSqlJs();
-  const inMemoryDb = new SQL.Database();
-  const db = new TrailDatabase('/tmp');
-  (db as unknown as Record<string, unknown>).db = inMemoryDb;
-  (db as unknown as Record<string, () => void>).createTables();
-  return db;
-}
+const createDb = createTestTrailDatabase;
 
 class FakeRemoteStore implements IRemoteTrailStore {
   elements: ManualElement[] = [];

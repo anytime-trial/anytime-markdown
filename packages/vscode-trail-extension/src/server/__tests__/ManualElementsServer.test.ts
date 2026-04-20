@@ -7,16 +7,7 @@ jest.mock('@anytime-markdown/trail-core/c4', () => ({ fetchC4Model: jest.fn() })
 
 import { TrailDatabase } from '../../trail/TrailDatabase';
 import { TrailDataServer } from '../TrailDataServer';
-
-async function createTestDb(): Promise<TrailDatabase> {
-  const initSqlJs = sqlAsmActual as typeof import('sql.js').default;
-  const SQL = await initSqlJs();
-  const inMemoryDb = new SQL.Database();
-  const db = new TrailDatabase('/tmp');
-  (db as unknown as Record<string, unknown>).db = inMemoryDb;
-  (db as unknown as Record<string, () => void>).createTables();
-  return db;
-}
+import { createTestTrailDatabase } from '../../trail/__tests__/support/createTestDb';
 
 describe('manual elements REST API', () => {
   let server: TrailDataServer;
@@ -24,7 +15,7 @@ describe('manual elements REST API', () => {
   let port: number;
 
   beforeEach(async () => {
-    db = await createTestDb();
+    db = await createTestTrailDatabase();
     server = new TrailDataServer('/tmp', db);
     await server.start(0);
     port = server.port;
