@@ -310,10 +310,16 @@ const renderPerson: SpecialShapeRenderer = (ctx, node, selected, _isDragging, fi
 const renderRect: SpecialShapeRenderer = (ctx, node, selected, _isDragging, fill) => {
   const { x, y, width, height, style } = node;
   const radius = style.borderRadius ?? 0;
+  const canvasBg = getCurrentColors().canvasBg;
 
   applyShadow(ctx, style);
-  ctx.fillStyle = fill;
   if (radius > 0) {
+    // Fill with solid background first to hide content behind the rect,
+    // then overlay the (potentially semi-transparent) fill color.
+    ctx.fillStyle = canvasBg;
+    drawRoundedRect(ctx, x, y, width, height, radius);
+    ctx.fill();
+    ctx.fillStyle = fill;
     drawRoundedRect(ctx, x, y, width, height, radius);
     ctx.fill();
     clearShadow(ctx);
@@ -321,6 +327,9 @@ const renderRect: SpecialShapeRenderer = (ctx, node, selected, _isDragging, fill
     drawRoundedRect(ctx, x, y, width, height, radius);
     ctx.stroke();
   } else {
+    ctx.fillStyle = canvasBg;
+    ctx.fillRect(x, y, width, height);
+    ctx.fillStyle = fill;
     ctx.fillRect(x, y, width, height);
     clearShadow(ctx);
     setupStroke(ctx, style, selected);
