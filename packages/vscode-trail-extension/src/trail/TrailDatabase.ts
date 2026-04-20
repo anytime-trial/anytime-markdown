@@ -48,8 +48,11 @@ const DEFAULT_DB_DIR = path.join(os.homedir(), '.claude', 'trail');
 
 export { assertNotProductionWriteDuringTests } from './TrailDatabase.guard';
 import { ITrailStorage, FileTrailStorage } from './ITrailStorage';
+import { DatabaseIntegrityMonitor, type IntegrityAlert } from './DatabaseIntegrityMonitor';
 export type { ITrailStorage } from './ITrailStorage';
 export { FileTrailStorage, InMemoryTrailStorage } from './ITrailStorage';
+export { DatabaseIntegrityMonitor } from './DatabaseIntegrityMonitor';
+export type { IntegrityAlert } from './DatabaseIntegrityMonitor';
 
 const SKIP_TYPES = new Set([
   'file-history-snapshot',
@@ -375,6 +378,8 @@ export class TrailDatabase {
   private db: Database | null = null;
   private readonly dbPath: string;
   private readonly storage: ITrailStorage;
+  private readonly integrityMonitor = new DatabaseIntegrityMonitor();
+  private onIntegrityAlert: ((alerts: readonly IntegrityAlert[]) => void) | null = null;
 
   /**
    * @param distPath sql-asm.js の配置ディレクトリ
@@ -392,6 +397,11 @@ export class TrailDatabase {
       this.dbPath = path.join(dbDir, 'trail.db');
       this.storage = new FileTrailStorage(this.dbPath);
     }
+  }
+
+  /** IntegrityMonitor が異常を検知したときに呼ばれるハンドラを登録。 */
+  setIntegrityAlertHandler(handler: (alerts: readonly IntegrityAlert[]) => void): void {
+    this.onIntegrityAlert = handler;
   }
 
   async init(): Promise<void> {
@@ -1054,6 +1064,10 @@ export class TrailDatabase {
 
   save(): void {
     const db = this.ensureDb();
+    const alerts = this.integrityMonitor.recordAndDetect(db);
+    if (alerts.length > 0 && this.onIntegrityAlert) {
+      this.onIntegrityAlert(alerts);
+    }
     const data = db.export();
     this.storage.save(data);
   }

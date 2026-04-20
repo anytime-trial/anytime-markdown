@@ -364,6 +364,14 @@ export async function activate(context: vscode.ExtensionContext) {
 		? dbStoragePathSetting
 		: wsRootForDb ? path.join(wsRootForDb, dbStoragePathSetting) : undefined;
 	trailDb = new TrailDatabase(extensionDistPath, dbStorageDir);
+	trailDb.setIntegrityAlertHandler((alerts) => {
+		for (const a of alerts) {
+			TrailLogger.warn(
+				`[DatabaseIntegrity] Suspicious data loss in "${a.table}": ${a.previous} → ${a.current} rows ` +
+					`(loss rate ${(a.lossRate * 100).toFixed(1)}%). Inspect write history immediately.`,
+			);
+		}
+	});
 	C4Panel.setTrailDatabase(trailDb);
 	const gitRoot = wsRootForDb;
 	trailDataServer = new TrailDataServer(extensionDistPath, trailDb, gitRoot);
