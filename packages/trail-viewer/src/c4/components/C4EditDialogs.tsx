@@ -6,9 +6,13 @@ import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
 import FormControlLabel from '@mui/material/FormControlLabel';
+import InputAdornment from '@mui/material/InputAdornment';
 import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
+import SearchIcon from '@mui/icons-material/Search';
 import { memo, useCallback, useEffect, useState } from 'react';
+import { SERVICE_CATALOG, filterServices } from '@anytime-markdown/trail-core';
+import type { ServiceEntry } from '@anytime-markdown/trail-core';
 
 // ---------------------------------------------------------------------------
 //  Types
@@ -22,6 +26,7 @@ export interface ElementFormData {
   description: string;
   external: boolean;
   parentId?: string | null;
+  serviceType?: string;
 }
 
 export interface RelationshipFormData {
@@ -30,6 +35,94 @@ export interface RelationshipFormData {
   label: string;
   technology: string;
 }
+
+// ---------------------------------------------------------------------------
+//  ServicePicker
+// ---------------------------------------------------------------------------
+
+interface ServicePickerProps {
+  readonly value: string;
+  readonly onChange: (id: string) => void;
+}
+
+const ServicePicker = memo(({ value, onChange }: Readonly<ServicePickerProps>) => {
+  const [query, setQuery] = useState('');
+  const filtered = filterServices(query);
+
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+      <TextField
+        size="small"
+        placeholder="サービス名で検索..."
+        value={query}
+        onChange={e => setQuery(e.target.value)}
+        slotProps={{
+          input: {
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon sx={{ fontSize: 16 }} />
+              </InputAdornment>
+            ),
+          },
+        }}
+      />
+      <Box sx={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(4, 1fr)',
+        gap: 0.5,
+        maxHeight: 160,
+        overflowY: 'auto',
+      }}>
+        {filtered.map(entry => (
+          <ServiceCard
+            key={entry.id}
+            entry={entry}
+            selected={entry.id === value}
+            onClick={() => onChange(entry.id === value ? '' : entry.id)}
+          />
+        ))}
+      </Box>
+    </Box>
+  );
+});
+ServicePicker.displayName = 'ServicePicker';
+
+interface ServiceCardProps {
+  readonly entry: ServiceEntry;
+  readonly selected: boolean;
+  readonly onClick: () => void;
+}
+
+const ServiceCard = memo(({ entry, selected, onClick }: Readonly<ServiceCardProps>) => (
+  <Box
+    onClick={onClick}
+    sx={{
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      gap: 0.25,
+      p: 0.75,
+      borderRadius: 1,
+      cursor: 'pointer',
+      border: '1px solid',
+      borderColor: selected ? 'primary.main' : 'divider',
+      bgcolor: selected ? 'primary.main' + '1a' : 'transparent',
+      '&:hover': { borderColor: 'primary.main', bgcolor: 'action.hover' },
+    }}
+  >
+    <Box
+      component="svg"
+      viewBox="0 0 24 24"
+      sx={{ width: 20, height: 20, fill: entry.brandColor }}
+    >
+      <path d={entry.iconPath} />
+    </Box>
+    <Box sx={{ fontSize: 9, textAlign: 'center', lineHeight: 1.2, wordBreak: 'break-all' }}>
+      {entry.label}
+    </Box>
+  </Box>
+));
+ServiceCard.displayName = 'ServiceCard';
 
 // ---------------------------------------------------------------------------
 //  AddElementDialog
@@ -57,6 +150,7 @@ export const AddElementDialog = memo(({ open, elementType, initial, onSubmit, on
   const [description, setDescription] = useState('');
   const [external, setExternal] = useState(true);
   const [parentId, setParentId] = useState<string>('');
+  const [serviceType, setServiceType] = useState('');
 
   useEffect(() => {
     if (open) {
@@ -64,6 +158,7 @@ export const AddElementDialog = memo(({ open, elementType, initial, onSubmit, on
       setDescription(initial?.description ?? '');
       setExternal(initial?.external ?? true);
       setParentId(initial?.parentId ?? '');
+      setServiceType(initial?.serviceType ?? '');
     }
   }, [open, initial]);
 
@@ -77,9 +172,10 @@ export const AddElementDialog = memo(({ open, elementType, initial, onSubmit, on
       description: description.trim(),
       external,
       parentId: needsParent ? (parentId || null) : null,
+      serviceType: serviceType || undefined,
     });
     onClose();
-  }, [name, description, external, elementType, parentId, needsParent, onSubmit, onClose]);
+  }, [name, description, external, elementType, parentId, needsParent, serviceType, onSubmit, onClose]);
 
   const typeLabel = ELEMENT_TYPE_LABELS[elementType];
   const title = initial?.name ? `Edit ${typeLabel}` : `Add ${typeLabel}`;
@@ -125,6 +221,20 @@ export const AddElementDialog = memo(({ open, elementType, initial, onSubmit, on
                 <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
               ))}
             </TextField>
+          )}
+          {elementType === 'container' && (
+            <Box>
+              <Box sx={{ fontSize: 12, color: 'text.secondary', mb: 0.5 }}>
+                外部サービス（任意）
+              </Box>
+              <ServicePicker value={serviceType} onChange={(id) => {
+                setServiceType(id);
+                if (id && !name.trim()) {
+                  const entry = SERVICE_CATALOG.find(s => s.id === id);
+                  if (entry) setName(entry.label);
+                }
+              }} />
+            </Box>
           )}
         </Box>
       </DialogContent>

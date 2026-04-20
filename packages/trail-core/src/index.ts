@@ -10,3 +10,6 @@ export * from './importance';
 
 export type { ManualElement, ManualRelationship, IManualElementProvider } from './c4/manualTypes';
 export { mergeManualIntoC4Model } from './c4/mergeManual';
+
+export type { ServiceEntry } from './c4/services/catalog';
+export { SERVICE_CATALOG, findService, filterServices } from './c4/services/catalog';

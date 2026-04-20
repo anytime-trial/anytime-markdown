@@ -30,6 +30,7 @@ export interface AddElementRequest {
   description?: string;
   external?: boolean;
   parentId?: string | null;
+  serviceType?: string;
 }
 
 export interface AddRelationshipRequest {

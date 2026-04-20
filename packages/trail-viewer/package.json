@@ -12,7 +12,8 @@
   },
   "dependencies": {
     "@anytime-markdown/trail-core": "*",
-    "@mui/x-charts": "9.0.1"
+    "@mui/x-charts": "9.0.1",
+    "simple-icons": "16.17.0"
   },
   "peerDependencies": {
     "@anytime-markdown/graph-core": "*",
