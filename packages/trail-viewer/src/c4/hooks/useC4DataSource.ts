@@ -447,7 +447,9 @@ export function useC4DataSource(serverUrl: string): C4DataSourceResult {
     setDocLinks,
   );
 
-  // Refetch just the C4 model (used after manual element edits)
+  // Refetch just the C4 model (used after manual element edits).
+  // Accessed via ref inside handleWsMessage to keep that callback stable
+  // — otherwise the WebSocket would reconnect every time selectedRepo changes.
   const refetchModel = useCallback(async (): Promise<void> => {
     if (serverUrl === undefined) return;
     const repoQuery = selectedRepo ? `&repo=${encodeURIComponent(selectedRepo)}` : '';
@@ -463,7 +465,12 @@ export function useC4DataSource(serverUrl: string): C4DataSourceResult {
     } catch {
       // ignore transient fetch errors
     }
-  }, [serverUrl, selectedRelease, selectedRepo, setRemoteModel, setRemoteBoundaries, setFeatureMatrix]);
+  }, [serverUrl, selectedRelease, selectedRepo]);
+
+  const refetchModelRef = useRef(refetchModel);
+  useEffect(() => {
+    refetchModelRef.current = refetchModel;
+  }, [refetchModel]);
 
   // Manual element CRUD
   const addElement = useCallback(async (data: AddElementRequest): Promise<void> => {
@@ -536,12 +543,12 @@ export function useC4DataSource(serverUrl: string): C4DataSourceResult {
           conflicts: Array.isArray(parsed.conflicts) ? parsed.conflicts : [],
         });
       } else if (isWsModelNotification(parsed)) {
-        void refetchModel();
+        void refetchModelRef.current();
       }
     } catch {
       // Malformed message — ignore
     }
-  }, [refetchModel]);
+  }, []);
 
   // WebSocket connect / reconnect
   useEffect(() => {
