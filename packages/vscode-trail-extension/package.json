@@ -152,6 +152,12 @@
         "icon": "$(graph-line)"
       },
       {
+        "command": "anytime-trail.restoreBackup",
+        "title": "%command.restoreBackup%",
+        "category": "Anytime Trail",
+        "icon": "$(discard)"
+      },
+      {
         "command": "anytime-trail.importTrailData",
         "title": "Refresh Trail Data",
         "category": "Anytime Trail",

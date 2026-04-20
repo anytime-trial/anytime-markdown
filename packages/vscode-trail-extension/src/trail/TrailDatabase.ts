@@ -51,6 +51,7 @@ import { ITrailStorage, FileTrailStorage } from './ITrailStorage';
 import { DatabaseIntegrityMonitor, type IntegrityAlert } from './DatabaseIntegrityMonitor';
 export type { ITrailStorage } from './ITrailStorage';
 export { FileTrailStorage, InMemoryTrailStorage } from './ITrailStorage';
+export type { BackupEntry } from './ITrailStorage';
 export { DatabaseIntegrityMonitor } from './DatabaseIntegrityMonitor';
 export type { IntegrityAlert } from './DatabaseIntegrityMonitor';
 
@@ -402,6 +403,27 @@ export class TrailDatabase {
   /** IntegrityMonitor が異常を検知したときに呼ばれるハンドラを登録。 */
   setIntegrityAlertHandler(handler: (alerts: readonly IntegrityAlert[]) => void): void {
     this.onIntegrityAlert = handler;
+  }
+
+  /** 利用可能な世代バックアップを新しい順で返す。FileTrailStorage 以外では空配列。 */
+  listBackups(): readonly import('./ITrailStorage').BackupEntry[] {
+    if (this.storage instanceof FileTrailStorage) {
+      return this.storage.listBackups();
+    }
+    return [];
+  }
+
+  /**
+   * 指定世代のバックアップから DB を復元する。復元後にメモリ内の DB は
+   * 古いままなので、呼び出し元は拡張機能を再起動する必要がある。
+   * FileTrailStorage 以外が注入されている場合は例外を投げる。
+   */
+  restoreFromBackup(generation: number): { restoredFrom: string; safetyCopy: string | null } {
+    if (!(this.storage instanceof FileTrailStorage)) {
+      throw new Error('restoreFromBackup is only supported with FileTrailStorage');
+    }
+    this.close();
+    return this.storage.restoreFromBackup(generation);
   }
 
   async init(): Promise<void> {

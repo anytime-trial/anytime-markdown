@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { assertNotProductionWriteDuringTests } from './TrailDatabase.guard';
 
 /**
@@ -21,18 +22,34 @@ export interface ITrailStorage {
 }
 
 /**
+ * 世代管理バックアップの 1 エントリ。UI に表示する際の情報源。
+ */
+export interface BackupEntry {
+  /** 世代番号（1 が最新、3 が最古） */
+  readonly generation: number;
+  /** バックアップファイルの絶対パス（.bak.N.gz） */
+  readonly path: string;
+  /** バックアップ作成日時 */
+  readonly mtime: Date;
+  /** gzip 圧縮後のバイト数 */
+  readonly compressedSize: number;
+}
+
+/**
  * ファイルシステム上の SQLite DB に読み書きする本番用ストレージ。
  *
  * 破壊的副作用（writeFileSync）を持つ。コンストラクタは絶対パスを要求し、
  * `~/.claude` や `~/.vscode-server` 配下への書き込みはテスト環境で例外を投げる。
  *
  * セッション（このインスタンスの生存期間）内で最初の save() 呼び出し時に
- * 既存 DB を 3 世代までローテーションバックアップする（.bak.1 → .bak.2 → .bak.3）。
- * これにより、バグや誤操作で save() が破壊的データを書き込んでも
- * .bak.1 からロールバック可能。
+ * 既存 DB を 3 世代まで gzip 圧縮してローテーションバックアップする
+ * （.bak.1.gz → .bak.2.gz → .bak.3.gz）。SQLite ファイルは冗長性が高く、
+ * level 1 でも 30〜50% 程度まで縮むためディスク使用量を大幅に抑えられる。
  */
 export class FileTrailStorage implements ITrailStorage {
-  private static readonly BACKUP_GENERATIONS = 3;
+  static readonly BACKUP_GENERATIONS = 3;
+  /** gzip 圧縮レベル。起動時のブロッキング時間を短縮するため level 1 を採用。 */
+  private static readonly GZIP_LEVEL = 1;
   private backupDone = false;
 
   constructor(private readonly dbPath: string) {}
@@ -60,24 +77,75 @@ export class FileTrailStorage implements ITrailStorage {
   }
 
   /**
-   * 既存 DB ファイルを .bak.1 へ、.bak.1 → .bak.2 → .bak.3 とシフトする。
-   * .bak.3 は上書きで破棄される。エラーは swallow せず throw するが、
-   * DB ファイルが存在しないケース（新規）は通常動作として無視する。
+   * 既存 DB ファイルを .bak.1.gz へ、.bak.1.gz → .bak.2.gz → .bak.3.gz と
+   * シフトする。.bak.3.gz は上書きで破棄される。DB ファイルが存在しない
+   * ケース（新規）は通常動作として無視する。
    */
   private rotateBackups(): void {
     if (!fs.existsSync(this.dbPath)) return;
-    const oldest = `${this.dbPath}.bak.${FileTrailStorage.BACKUP_GENERATIONS}`;
+    const oldest = this.backupPath(FileTrailStorage.BACKUP_GENERATIONS);
     if (fs.existsSync(oldest)) {
       fs.unlinkSync(oldest);
     }
     for (let gen = FileTrailStorage.BACKUP_GENERATIONS - 1; gen >= 1; gen -= 1) {
-      const src = `${this.dbPath}.bak.${gen}`;
-      const dst = `${this.dbPath}.bak.${gen + 1}`;
+      const src = this.backupPath(gen);
+      const dst = this.backupPath(gen + 1);
       if (fs.existsSync(src)) {
         fs.renameSync(src, dst);
       }
     }
-    fs.copyFileSync(this.dbPath, `${this.dbPath}.bak.1`);
+    const dbBuffer = fs.readFileSync(this.dbPath);
+    const gz = zlib.gzipSync(dbBuffer, { level: FileTrailStorage.GZIP_LEVEL });
+    fs.writeFileSync(this.backupPath(1), gz);
+  }
+
+  /** 世代番号からバックアップファイルの絶対パスを導出。 */
+  private backupPath(generation: number): string {
+    return `${this.dbPath}.bak.${generation}.gz`;
+  }
+
+  /**
+   * 現存する世代バックアップを新しい順で返す。UI 表示向け。
+   */
+  listBackups(): readonly BackupEntry[] {
+    const entries: BackupEntry[] = [];
+    for (let gen = 1; gen <= FileTrailStorage.BACKUP_GENERATIONS; gen += 1) {
+      const bakPath = this.backupPath(gen);
+      if (!fs.existsSync(bakPath)) continue;
+      const stat = fs.statSync(bakPath);
+      entries.push({
+        generation: gen,
+        path: bakPath,
+        mtime: stat.mtime,
+        compressedSize: stat.size,
+      });
+    }
+    return entries;
+  }
+
+  /**
+   * 指定世代のバックアップを展開して DB ファイルへ復元する。
+   * 復元前に現在の DB をタイムスタンプ付きの安全コピー（.restore-safety-<epoch>）
+   * として退避する。VS Code はメモリ内の DB を保持しているため、
+   * 呼び出し後に拡張機能を再起動（ウィンドウリロード）する必要がある。
+   *
+   * @throws 指定世代のバックアップが存在しない場合 Error を投げる
+   */
+  restoreFromBackup(generation: number): { restoredFrom: string; safetyCopy: string | null } {
+    assertNotProductionWriteDuringTests(this.dbPath);
+    const bakPath = this.backupPath(generation);
+    if (!fs.existsSync(bakPath)) {
+      throw new Error(`Backup not found: ${bakPath}`);
+    }
+    let safetyCopy: string | null = null;
+    if (fs.existsSync(this.dbPath)) {
+      safetyCopy = `${this.dbPath}.restore-safety-${Date.now()}`;
+      fs.copyFileSync(this.dbPath, safetyCopy);
+    }
+    const compressed = fs.readFileSync(bakPath);
+    const decompressed = zlib.gunzipSync(compressed);
+    fs.writeFileSync(this.dbPath, decompressed);
+    return { restoredFrom: bakPath, safetyCopy };
   }
 }
 

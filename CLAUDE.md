@@ -104,4 +104,4 @@ UI / 画面コンポーネントの実装・修正時は、以下の仕様書を
 ### 参考
 
 - 事故対応: `/Shared/anytime-markdown-docs/proposal/20260420-trail-db-test-data-loss-prevention.ja.md`
-- ベストプラクティス: `/Shared/anytime-markdown-docs/proposal/20260420-trail-data-safety-best-practices.ja.md`
+- 永続データ保護仕様: `/Shared/anytime-markdown-docs/spec/40.trail-viewer/requirements/trail-persistent-data-protection.ja.md`

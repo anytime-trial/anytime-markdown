@@ -15,6 +15,7 @@
   "command.dsmAnalyze": "Trail: 依存関係を解析",
   "command.aiMemoryRefresh": "Memory を更新",
   "command.openTrailViewer": "Trail ビューアを開く",
+  "command.restoreBackup": "Trail DB をバックアップから復元",
   "view.dashboard": "ダッシュボード",
   "viewsWelcome.dashboard": "[$(graph-line) Trail Viewerを開く](command:anytime-trail.openTrailViewer)",
   "view.database": "データベース",

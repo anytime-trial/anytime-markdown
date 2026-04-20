@@ -450,6 +450,60 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 
 	context.subscriptions.push(
+		vscode.commands.registerCommand('anytime-trail.restoreBackup', async () => {
+			if (!trailDb) {
+				vscode.window.showErrorMessage('Trail DB is not initialized.');
+				return;
+			}
+			const entries = trailDb.listBackups();
+			if (entries.length === 0) {
+				vscode.window.showInformationMessage(
+					'No backups available yet. Backups are created on the first save of each VS Code session.',
+				);
+				return;
+			}
+			const items = entries.map((e) => ({
+				label: `$(history) Generation ${e.generation}`,
+				description: e.mtime.toLocaleString(),
+				detail: `${(e.compressedSize / 1024 / 1024).toFixed(2)} MB (gzip) · ${e.path}`,
+				generation: e.generation,
+			}));
+			const picked = await vscode.window.showQuickPick(items, {
+				title: 'Restore Trail DB from backup',
+				placeHolder: 'Select a generation to restore (current DB will be saved as .restore-safety-*)',
+				ignoreFocusOut: true,
+			});
+			if (!picked) return;
+			const confirm = await vscode.window.showWarningMessage(
+				`Restore Trail DB from generation ${picked.generation}? ` +
+				'The current DB will be backed up to a .restore-safety-* file. ' +
+				'You must reload the VS Code window after restore for changes to take effect.',
+				{ modal: true },
+				'Restore',
+			);
+			if (confirm !== 'Restore') return;
+			try {
+				const result = trailDb.restoreFromBackup(picked.generation);
+				TrailLogger.info(
+					`Trail DB restored from ${result.restoredFrom}; safety copy at ${result.safetyCopy ?? '(none)'}`,
+				);
+				const reload = await vscode.window.showInformationMessage(
+					`Restored from generation ${picked.generation}. Reload the window now?`,
+					'Reload Window',
+				);
+				if (reload === 'Reload Window') {
+					await vscode.commands.executeCommand('workbench.action.reloadWindow');
+				}
+			} catch (err) {
+				TrailLogger.error('Trail DB restore failed', err);
+				vscode.window.showErrorMessage(
+					`Restore failed: ${err instanceof Error ? err.message : String(err)}`,
+				);
+			}
+		}),
+	);
+
+	context.subscriptions.push(
 		vscode.commands.registerCommand('anytime-trail.importTrailData', async () => {
 			const repoName = vscode.workspace.workspaceFolders?.[0]?.name ?? '(no workspace)';
 			if (!trailDb) {

@@ -15,6 +15,7 @@
   "command.dsmAnalyze": "Trail: Analyze Dependencies",
   "command.aiMemoryRefresh": "Refresh Memory",
   "command.openTrailViewer": "Open Trail Viewer",
+  "command.restoreBackup": "Restore Trail DB from Backup",
   "view.dashboard": "Dashboard",
   "viewsWelcome.dashboard": "[$(graph-line) Open Trail Viewer](command:anytime-trail.openTrailViewer)",
   "view.database": "Database",
