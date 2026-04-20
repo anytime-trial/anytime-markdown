@@ -21,6 +21,8 @@ export interface C4Element {
   readonly manual?: boolean;
   /** ワークスペース解析で検出されなくなった要素か */
   readonly deleted?: boolean;
+  /** 外部サービス種別（SERVICE_CATALOG の id） */
+  readonly serviceType?: string;
 }
 
 /** C4リレーションシップ */
@@ -106,6 +108,7 @@ export interface C4TreeNode {
   readonly technology?: string;
   readonly description?: string;
   readonly deleted?: boolean;
+  readonly serviceType?: string;
   readonly children: readonly C4TreeNode[];
 }
 

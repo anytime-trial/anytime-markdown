@@ -20,6 +20,7 @@ export function mergeManualIntoC4Model(
     ...(e.description ? { description: e.description } : {}),
     ...(e.external ? { external: true } : {}),
     ...(e.parentId ? { parent: e.parentId } : {}),
+    ...(e.serviceType ? { serviceType: e.serviceType } : {}),
     manual: true,
   }));
 

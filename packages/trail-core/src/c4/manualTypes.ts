@@ -8,6 +8,7 @@ export interface ManualElement {
   readonly external: boolean;
   readonly parentId: string | null;
   readonly updatedAt: string;
+  readonly serviceType?: string;
 }
 
 export interface ManualRelationship {

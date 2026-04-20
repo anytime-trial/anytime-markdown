@@ -69,4 +69,15 @@ describe('mergeManualIntoC4Model', () => {
     const result = mergeManualIntoC4Model(baseModel, [], manualRels);
     expect(result.relationships).toHaveLength(1);
   });
+
+  it('serviceType is propagated from ManualElement to C4Element', () => {
+    const manualElements: ManualElement[] = [{
+      id: 'pkg_manual_1', type: 'container', name: 'Supabase',
+      external: true, parentId: null, updatedAt: '2026-04-20T00:00:00.000Z',
+      serviceType: 'supabase',
+    }];
+    const result = mergeManualIntoC4Model(baseModel, manualElements, []);
+    const elem = result.elements.find(e => e.id === 'pkg_manual_1');
+    expect(elem?.serviceType).toBe('supabase');
+  });
 });
