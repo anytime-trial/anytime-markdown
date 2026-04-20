@@ -165,4 +165,49 @@ export class SyncService {
       errors,
     };
   }
+
+  async syncManualElements(repoName: string): Promise<void> {
+    const [localElements, remoteElements] = await Promise.all([
+      Promise.resolve(this.trailDb.getManualElements(repoName)),
+      this.store.listManualElements(repoName),
+    ]);
+    const localMap = new Map(localElements.map(e => [e.id, e]));
+    const remoteMap = new Map(remoteElements.map(e => [e.id, e]));
+    const allIds = new Set([...localMap.keys(), ...remoteMap.keys()]);
+
+    for (const id of allIds) {
+      const l = localMap.get(id);
+      const r = remoteMap.get(id);
+      if (l && !r) {
+        await this.store.upsertManualElement(repoName, l);
+      } else if (!l && r) {
+        this.trailDb.insertManualElementRaw(repoName, r);
+      } else if (l && r && l.updatedAt !== r.updatedAt) {
+        if (l.updatedAt > r.updatedAt) {
+          await this.store.upsertManualElement(repoName, l);
+        } else {
+          this.trailDb.insertManualElementRaw(repoName, r);
+        }
+      }
+    }
+
+    const [localRels, remoteRels] = await Promise.all([
+      Promise.resolve(this.trailDb.getManualRelationships(repoName)),
+      this.store.listManualRelationships(repoName),
+    ]);
+    const localRelMap = new Map(localRels.map(r => [r.id, r]));
+    const remoteRelMap = new Map(remoteRels.map(r => [r.id, r]));
+    const allRelIds = new Set([...localRelMap.keys(), ...remoteRelMap.keys()]);
+
+    for (const id of allRelIds) {
+      const l = localRelMap.get(id);
+      const r = remoteRelMap.get(id);
+      if (l && !r) await this.store.upsertManualRelationship(repoName, l);
+      else if (!l && r) this.trailDb.insertManualRelationshipRaw(repoName, r);
+      else if (l && r && l.updatedAt !== r.updatedAt) {
+        if (l.updatedAt > r.updatedAt) await this.store.upsertManualRelationship(repoName, l);
+        else this.trailDb.insertManualRelationshipRaw(repoName, r);
+      }
+    }
+  }
 }
