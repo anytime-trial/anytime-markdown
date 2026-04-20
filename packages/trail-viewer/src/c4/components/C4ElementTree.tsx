@@ -26,6 +26,11 @@ import Typography from '@mui/material/Typography';
 import type { Dispatch, FC } from 'react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 
+import InputAdornment from '@mui/material/InputAdornment';
+import SearchIcon from '@mui/icons-material/Search';
+import TextField from '@mui/material/TextField';
+import { filterTreeBySearch } from '@anytime-markdown/trail-core/c4';
+import { useTrailI18n } from '../../i18n';
 import { DOC_TYPE_COLORS, getC4Colors } from '../c4Theme';
 import { getTokens } from '../../theme/designTokens';
 
@@ -310,6 +315,14 @@ interface C4ElementTreeProps {
 }
 
 export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onSelect, onCheckedChange, onRemoveElement, onPurgeDeleted, docLinks, onDocLinkClick, exports, onExportSelect, selectedExportId, isDark, checkReset }) => {
+  const { t } = useTrailI18n();
+  const [searchText, setSearchText] = useState('');
+
+  const filteredTree = useMemo(
+    () => filterTreeBySearch(tree, searchText),
+    [tree, searchText],
+  );
+
   const colors = useMemo(() => getC4Colors(isDark ?? true), [isDark]);
   const { scrollbarSx } = useMemo(() => getTokens(isDark ?? true), [isDark]);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => {
@@ -417,6 +430,19 @@ export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onS
     }
   }, [checkReset]);
 
+  useEffect(() => {
+    if (!searchText.trim()) return;
+    const ids = new Set<string>();
+    function collectIds(nodes: readonly C4TreeNode[]): void {
+      for (const n of nodes) {
+        ids.add(n.id);
+        if (n.children.length > 0) collectIds(n.children);
+      }
+    }
+    collectIds(filteredTree);
+    setExpanded(ids);
+  }, [searchText, filteredTree]);
+
   // checkedIds の変更を親に通知（useEffect で render 後に実行）
   useEffect(() => {
     onCheckedChange?.(checkedIds);
@@ -433,6 +459,28 @@ export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onS
         ...scrollbarSx,
       }}
     >
+      <Box sx={{ px: 1, py: 0.5, flexShrink: 0, borderBottom: `1px solid ${colors.border}` }}>
+        <TextField
+          size="small"
+          fullWidth
+          value={searchText}
+          onChange={e => setSearchText(e.target.value)}
+          placeholder={t('c4.elementPanel.searchPlaceholder')}
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                </InputAdornment>
+              ),
+            },
+          }}
+          sx={{
+            '& .MuiOutlinedInput-root': { fontSize: '0.75rem' },
+            '& .MuiOutlinedInput-input': { py: 0.5 },
+          }}
+        />
+      </Box>
       {hasDeletedElements && onPurgeDeleted && (
         <Box sx={{ display: 'flex', justifyContent: 'flex-end', px: 0.5, py: 0.25, borderBottom: `1px solid ${colors.border}`, flexShrink: 0 }}>
           <Tooltip title="Remove all deleted elements" placement="left">
@@ -448,7 +496,7 @@ export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onS
         </Box>
       )}
       <List dense disablePadding sx={{ flex: 1, overflowY: 'auto', ...scrollbarSx }}>
-        {tree.map(node => (
+        {filteredTree.map(node => (
           <TreeNodeItem
             key={node.id}
             node={node}
