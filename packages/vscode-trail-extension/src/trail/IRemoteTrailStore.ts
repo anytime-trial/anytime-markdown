@@ -1,4 +1,5 @@
 import type { SessionRow, MessageRow, SessionCommitRow, ReleaseFileRow, ReleaseFeatureRow, ReleaseRow } from './TrailDatabase';
+import type { ManualElement, ManualRelationship } from '@anytime-markdown/trail-core';
 
 export interface IRemoteTrailStore {
   connect(): Promise<void>;
@@ -46,6 +47,12 @@ export interface IRemoteTrailStore {
   clearReleaseGraphs(): Promise<void>;
   upsertCurrentGraph(repoName: string, graphJson: string, commitId: string): Promise<void>;
   upsertReleaseGraph(tag: string, graphJson: string): Promise<void>;
+  listManualElements(repoName: string): Promise<readonly ManualElement[]>;
+  upsertManualElement(repoName: string, element: ManualElement): Promise<void>;
+  deleteManualElement(repoName: string, elementId: string): Promise<void>;
+  listManualRelationships(repoName: string): Promise<readonly ManualRelationship[]>;
+  upsertManualRelationship(repoName: string, rel: ManualRelationship): Promise<void>;
+  deleteManualRelationship(repoName: string, relId: string): Promise<void>;
   clearMessageToolCalls(): Promise<void>;
   upsertMessageToolCalls(rows: readonly {
     id: number;

@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { SessionRow, MessageRow, SessionCommitRow, ReleaseFileRow, ReleaseFeatureRow, ReleaseRow } from './TrailDatabase';
 import type { IRemoteTrailStore } from './IRemoteTrailStore';
+import type { ManualElement, ManualRelationship } from '@anytime-markdown/trail-core';
 import { TrailLogger } from '../utils/TrailLogger';
 
 export class SupabaseTrailStore implements IRemoteTrailStore {
@@ -331,6 +332,88 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
         .upsert(rows.slice(i, i + CHUNK), { onConflict: 'session_id,message_uuid,call_index' });
       if (error) throw new Error(`Supabase upsert trail_message_tool_calls failed: ${error.message}`);
     }
+  }
+
+  async listManualElements(repoName: string): Promise<readonly ManualElement[]> {
+    const { data, error } = await this.ensureClient()
+      .from('trail_c4_manual_elements')
+      .select('*')
+      .eq('repo_name', repoName);
+    if (error) throw new Error(`Supabase listManualElements failed: ${error.message}`);
+    return (data ?? []).map(row => ({
+      id: String(row.element_id),
+      type: String(row.type) as ManualElement['type'],
+      name: String(row.name),
+      description: row.description ?? undefined,
+      external: Boolean(row.external),
+      parentId: row.parent_id ?? null,
+      updatedAt: String(row.updated_at),
+    }));
+  }
+
+  async upsertManualElement(repoName: string, e: ManualElement): Promise<void> {
+    const { error } = await this.ensureClient()
+      .from('trail_c4_manual_elements')
+      .upsert({
+        repo_name: repoName,
+        element_id: e.id,
+        type: e.type,
+        name: e.name,
+        description: e.description ?? null,
+        external: e.external,
+        parent_id: e.parentId,
+        updated_at: e.updatedAt,
+      }, { onConflict: 'repo_name,element_id' });
+    if (error) throw new Error(`Supabase upsertManualElement failed: ${error.message}`);
+  }
+
+  async deleteManualElement(repoName: string, elementId: string): Promise<void> {
+    const { error } = await this.ensureClient()
+      .from('trail_c4_manual_elements')
+      .delete()
+      .eq('repo_name', repoName)
+      .eq('element_id', elementId);
+    if (error) throw new Error(`Supabase deleteManualElement failed: ${error.message}`);
+  }
+
+  async listManualRelationships(repoName: string): Promise<readonly ManualRelationship[]> {
+    const { data, error } = await this.ensureClient()
+      .from('trail_c4_manual_relationships')
+      .select('*')
+      .eq('repo_name', repoName);
+    if (error) throw new Error(`Supabase listManualRelationships failed: ${error.message}`);
+    return (data ?? []).map(row => ({
+      id: String(row.rel_id),
+      fromId: String(row.from_id),
+      toId: String(row.to_id),
+      label: row.label ?? undefined,
+      technology: row.technology ?? undefined,
+      updatedAt: String(row.updated_at),
+    }));
+  }
+
+  async upsertManualRelationship(repoName: string, rel: ManualRelationship): Promise<void> {
+    const { error } = await this.ensureClient()
+      .from('trail_c4_manual_relationships')
+      .upsert({
+        repo_name: repoName,
+        rel_id: rel.id,
+        from_id: rel.fromId,
+        to_id: rel.toId,
+        label: rel.label ?? null,
+        technology: rel.technology ?? null,
+        updated_at: rel.updatedAt,
+      }, { onConflict: 'repo_name,rel_id' });
+    if (error) throw new Error(`Supabase upsertManualRelationship failed: ${error.message}`);
+  }
+
+  async deleteManualRelationship(repoName: string, relId: string): Promise<void> {
+    const { error } = await this.ensureClient()
+      .from('trail_c4_manual_relationships')
+      .delete()
+      .eq('repo_name', repoName)
+      .eq('rel_id', relId);
+    if (error) throw new Error(`Supabase deleteManualRelationship failed: ${error.message}`);
   }
 
   private ensureClient(): SupabaseClient {

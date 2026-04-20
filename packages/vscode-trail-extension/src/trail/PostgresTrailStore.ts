@@ -401,6 +401,13 @@ export class PostgresTrailStore implements IRemoteTrailStore {
     }
   }
 
+  async listManualElements(): Promise<never> { throw new Error('PostgresTrailStore.listManualElements not implemented'); }
+  async upsertManualElement(): Promise<never> { throw new Error('PostgresTrailStore.upsertManualElement not implemented'); }
+  async deleteManualElement(): Promise<never> { throw new Error('PostgresTrailStore.deleteManualElement not implemented'); }
+  async listManualRelationships(): Promise<never> { throw new Error('PostgresTrailStore.listManualRelationships not implemented'); }
+  async upsertManualRelationship(): Promise<never> { throw new Error('PostgresTrailStore.upsertManualRelationship not implemented'); }
+  async deleteManualRelationship(): Promise<never> { throw new Error('PostgresTrailStore.deleteManualRelationship not implemented'); }
+
   private ensurePool(): Pool {
     if (!this.pool) throw new Error('PostgresTrailStore not connected');
     return this.pool;
