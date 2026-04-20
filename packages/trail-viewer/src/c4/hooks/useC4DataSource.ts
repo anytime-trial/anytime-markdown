@@ -24,6 +24,21 @@ export interface AnalysisProgress {
   percent: number;
 }
 
+export interface AddElementRequest {
+  type: string;
+  name: string;
+  description?: string;
+  external?: boolean;
+  parentId?: string | null;
+}
+
+export interface AddRelationshipRequest {
+  fromId: string;
+  toId: string;
+  label?: string;
+  technology?: string;
+}
+
 interface C4DataSourceResult {
   c4Model: C4Model | null;
   boundaries: readonly BoundaryInfo[];
@@ -44,6 +59,11 @@ interface C4DataSourceResult {
   setSelectedRelease: (release: string) => void;
   selectedRepo: string;
   setSelectedRepo: (repo: string) => void;
+  addElement: (data: AddElementRequest) => Promise<void>;
+  updateElement: (id: string, changes: { name?: string; description?: string; external?: boolean }) => Promise<void>;
+  removeElement: (id: string) => Promise<void>;
+  addRelationship: (data: AddRelationshipRequest) => Promise<void>;
+  removeRelationship: (id: string) => Promise<void>;
 }
 
 interface WsModelMessage {
@@ -119,6 +139,12 @@ function isWsModelMessage(v: unknown): v is WsModelMessage {
   if (typeof v !== 'object' || v === null) return false;
   const obj = v as Record<string, unknown>;
   return obj.type === 'model-updated' && 'model' in obj && 'boundaries' in obj;
+}
+
+function isWsModelNotification(v: unknown): v is { type: 'model-updated' } {
+  if (typeof v !== 'object' || v === null) return false;
+  const obj = v as Record<string, unknown>;
+  return obj.type === 'model-updated' && !('model' in obj);
 }
 
 function isWsDsmMatrixMessage(v: unknown): v is WsDsmMatrixMessage {
@@ -421,6 +447,60 @@ export function useC4DataSource(serverUrl: string): C4DataSourceResult {
     setDocLinks,
   );
 
+  // Refetch just the C4 model (used after manual element edits)
+  const refetchModel = useCallback(async (): Promise<void> => {
+    if (serverUrl === undefined) return;
+    const repoQuery = selectedRepo ? `&repo=${encodeURIComponent(selectedRepo)}` : '';
+    const url = `${serverUrl}/api/c4/model?release=${encodeURIComponent(selectedRelease)}${repoQuery}`;
+    try {
+      const res = await fetch(url).catch(() => null);
+      const json = await readJson(res);
+      if (isModelPayload(json)) {
+        setRemoteModel(json.model);
+        setRemoteBoundaries(json.boundaries);
+        setFeatureMatrix(json.featureMatrix ?? null);
+      }
+    } catch {
+      // ignore transient fetch errors
+    }
+  }, [serverUrl, selectedRelease, selectedRepo, setRemoteModel, setRemoteBoundaries, setFeatureMatrix]);
+
+  // Manual element CRUD
+  const addElement = useCallback(async (data: AddElementRequest): Promise<void> => {
+    if (!selectedRepo) return;
+    const url = `${serverUrl}/api/c4/manual-elements?repoName=${encodeURIComponent(selectedRepo)}`;
+    await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+    await refetchModel();
+  }, [serverUrl, selectedRepo, refetchModel]);
+
+  const updateElement = useCallback(async (id: string, changes: { name?: string; description?: string; external?: boolean }): Promise<void> => {
+    if (!selectedRepo) return;
+    const url = `${serverUrl}/api/c4/manual-elements/${encodeURIComponent(id)}?repoName=${encodeURIComponent(selectedRepo)}`;
+    await fetch(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(changes) });
+    await refetchModel();
+  }, [serverUrl, selectedRepo, refetchModel]);
+
+  const removeElement = useCallback(async (id: string): Promise<void> => {
+    if (!selectedRepo) return;
+    const url = `${serverUrl}/api/c4/manual-elements/${encodeURIComponent(id)}?repoName=${encodeURIComponent(selectedRepo)}`;
+    await fetch(url, { method: 'DELETE' });
+    await refetchModel();
+  }, [serverUrl, selectedRepo, refetchModel]);
+
+  const addRelationship = useCallback(async (data: AddRelationshipRequest): Promise<void> => {
+    if (!selectedRepo) return;
+    const url = `${serverUrl}/api/c4/manual-relationships?repoName=${encodeURIComponent(selectedRepo)}`;
+    await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+    await refetchModel();
+  }, [serverUrl, selectedRepo, refetchModel]);
+
+  const removeRelationship = useCallback(async (id: string): Promise<void> => {
+    if (!selectedRepo) return;
+    const url = `${serverUrl}/api/c4/manual-relationships/${encodeURIComponent(id)}?repoName=${encodeURIComponent(selectedRepo)}`;
+    await fetch(url, { method: 'DELETE' });
+    await refetchModel();
+  }, [serverUrl, selectedRepo, refetchModel]);
+
   // WebSocket message handler
   const handleWsMessage = useCallback((event: MessageEvent) => {
     try {
@@ -455,11 +535,13 @@ export function useC4DataSource(serverUrl: string): C4DataSourceResult {
           agents: parsed.agents,
           conflicts: Array.isArray(parsed.conflicts) ? parsed.conflicts : [],
         });
+      } else if (isWsModelNotification(parsed)) {
+        void refetchModel();
       }
     } catch {
       // Malformed message — ignore
     }
-  }, []);
+  }, [refetchModel]);
 
   // WebSocket connect / reconnect
   useEffect(() => {
@@ -548,5 +630,10 @@ export function useC4DataSource(serverUrl: string): C4DataSourceResult {
     setSelectedRelease,
     selectedRepo,
     setSelectedRepo,
+    addElement,
+    updateElement,
+    removeElement,
+    addRelationship,
+    removeRelationship,
   };
 }

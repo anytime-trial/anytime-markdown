@@ -4,6 +4,7 @@ import type { ManualElement, ManualRelationship } from '../manualTypes';
 
 describe('mergeManualIntoC4Model', () => {
   const baseModel: C4Model = {
+    level: 'container',
     elements: [
       { id: 'pkg_web-app', type: 'container', name: 'web-app' },
       { id: 'pkg_trail-core', type: 'container', name: 'trail-core' },

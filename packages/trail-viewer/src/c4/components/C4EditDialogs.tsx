@@ -14,11 +14,14 @@ import { memo, useCallback, useEffect, useState } from 'react';
 //  Types
 // ---------------------------------------------------------------------------
 
+export type C4ElementKind = 'person' | 'system' | 'container' | 'component';
+
 export interface ElementFormData {
-  type: 'person' | 'system';
+  type: C4ElementKind;
   name: string;
   description: string;
   external: boolean;
+  parentId?: string | null;
 }
 
 export interface RelationshipFormData {
@@ -34,36 +37,56 @@ export interface RelationshipFormData {
 
 interface AddElementDialogProps {
   readonly open: boolean;
-  readonly elementType: 'person' | 'system';
+  readonly elementType: C4ElementKind;
   readonly initial?: Partial<ElementFormData>;
   readonly onSubmit: (data: ElementFormData) => void;
   readonly onClose: () => void;
+  /** Parent element candidates (for container/component). */
+  readonly parentCandidates?: readonly ElementOption[];
 }
 
-export const AddElementDialog = memo(({ open, elementType, initial, onSubmit, onClose }: Readonly<AddElementDialogProps>) => {
+const ELEMENT_TYPE_LABELS: Record<C4ElementKind, string> = {
+  person: 'Person',
+  system: 'System',
+  container: 'Container',
+  component: 'Component',
+};
+
+export const AddElementDialog = memo(({ open, elementType, initial, onSubmit, onClose, parentCandidates }: Readonly<AddElementDialogProps>) => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [external, setExternal] = useState(true);
+  const [parentId, setParentId] = useState<string>('');
 
   useEffect(() => {
     if (open) {
       setName(initial?.name ?? '');
       setDescription(initial?.description ?? '');
       setExternal(initial?.external ?? true);
+      setParentId(initial?.parentId ?? '');
     }
   }, [open, initial]);
 
+  const needsParent = elementType === 'container' || elementType === 'component';
+
   const handleSubmit = useCallback(() => {
     if (!name.trim()) return;
-    onSubmit({ type: elementType, name: name.trim(), description: description.trim(), external });
+    onSubmit({
+      type: elementType,
+      name: name.trim(),
+      description: description.trim(),
+      external,
+      parentId: needsParent ? (parentId || null) : null,
+    });
     onClose();
-  }, [name, description, external, elementType, onSubmit, onClose]);
+  }, [name, description, external, elementType, parentId, needsParent, onSubmit, onClose]);
 
-  const title = elementType === 'person' ? 'Add Person' : 'Add System';
+  const typeLabel = ELEMENT_TYPE_LABELS[elementType];
+  const title = initial?.name ? `Edit ${typeLabel}` : `Add ${typeLabel}`;
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
-      <DialogTitle>{initial?.name ? 'Edit Element' : title}</DialogTitle>
+      <DialogTitle>{title}</DialogTitle>
       <DialogContent>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
           <TextField
@@ -88,6 +111,20 @@ export const AddElementDialog = memo(({ open, elementType, initial, onSubmit, on
               control={<Checkbox checked={external} onChange={e => setExternal(e.target.checked)} />}
               label="External system"
             />
+          )}
+          {needsParent && parentCandidates && parentCandidates.length > 0 && (
+            <TextField
+              label="Parent"
+              select
+              value={parentId}
+              onChange={e => setParentId(e.target.value)}
+              size="small"
+            >
+              <MenuItem value="">None</MenuItem>
+              {parentCandidates.map(c => (
+                <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+              ))}
+            </TextField>
           )}
         </Box>
       </DialogContent>
