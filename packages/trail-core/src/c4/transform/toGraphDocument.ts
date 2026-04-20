@@ -116,9 +116,10 @@ export function c4ToGraphDocument(
       const frame = doc.nodes.find(n => n.id === existingFrameId);
       if (frame && !frame.metadata?.c4Type) {
         const serviceEntry = elem.serviceType ? findService(elem.serviceType) : undefined;
+        const baseColors = C4_COLORS[elem.type] ?? EXTERNAL_COLOR;
         const nodeColors = serviceEntry
           ? { fill: `${serviceEntry.brandColor}26`, stroke: serviceEntry.brandColor }
-          : C4_COLORS[elem.type] ?? EXTERNAL_COLOR;
+          : { fill: `${baseColors.fill}26`, stroke: baseColors.fill };
         const colors = FRAME_COLORS[elem.type] ?? { fill: 'transparent', stroke: '#444444' };
         frame.metadata = {
           ...frame.metadata,
@@ -143,9 +144,10 @@ export function c4ToGraphDocument(
     boundaryIdMap.set(elem.id, frameId);
     const serviceEntry = elem.serviceType ? findService(elem.serviceType) : undefined;
     const colors = FRAME_COLORS[elem.type] ?? { fill: 'transparent', stroke: '#444444' };
+    const baseColors = C4_COLORS[elem.type] ?? EXTERNAL_COLOR;
     const nodeColors = serviceEntry
       ? { fill: `${serviceEntry.brandColor}26`, stroke: serviceEntry.brandColor }
-      : C4_COLORS[elem.type] ?? EXTERNAL_COLOR;
+      : { fill: `${baseColors.fill}26`, stroke: baseColors.fill };
     const node: GraphNode = {
       id: frameId,
       type: 'frame',
