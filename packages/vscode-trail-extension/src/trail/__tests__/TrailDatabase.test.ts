@@ -147,6 +147,72 @@ describe('TrailDatabase.getImportedFileMap', () => {
   });
 });
 
+describe('c4_manual_elements CRUD', () => {
+  async function createDb(): Promise<TrailDatabase> {
+    const initSqlJs = sqlAsmActual as typeof import('sql.js').default;
+    const SQL = await initSqlJs();
+    const inMemoryDb = new SQL.Database();
+    const db = new TrailDatabase('/tmp');
+    (db as unknown as Record<string, unknown>).db = inMemoryDb;
+    (db as unknown as Record<string, () => void>).createTables();
+    return db;
+  }
+
+  it('inserts a manual element and reads it back', async () => {
+    const db = await createDb();
+    const id = db.saveManualElement('repo-a', {
+      type: 'person', name: 'User', description: 'End user', external: false, parentId: null,
+    });
+    expect(id).toBe('person_1');
+    const list = db.getManualElements('repo-a');
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ id: 'person_1', type: 'person', name: 'User' });
+    db.close();
+  });
+
+  it('allocates sequential ids by type', async () => {
+    const db = await createDb();
+    const a = db.saveManualElement('repo-a', { type: 'person', name: 'A', external: false, parentId: null });
+    const b = db.saveManualElement('repo-a', { type: 'person', name: 'B', external: false, parentId: null });
+    const c = db.saveManualElement('repo-a', { type: 'system', name: 'C', external: false, parentId: null });
+    expect(a).toBe('person_1');
+    expect(b).toBe('person_2');
+    expect(c).toBe('sys_manual_1');
+    db.close();
+  });
+
+  it('isolates by repo_name', async () => {
+    const db = await createDb();
+    db.saveManualElement('repo-a', { type: 'person', name: 'A', external: false, parentId: null });
+    db.saveManualElement('repo-b', { type: 'person', name: 'B', external: false, parentId: null });
+    expect(db.getManualElements('repo-a')).toHaveLength(1);
+    expect(db.getManualElements('repo-b')).toHaveLength(1);
+    db.close();
+  });
+
+  it('updates an existing manual element', async () => {
+    const db = await createDb();
+    const id = db.saveManualElement('repo-a', { type: 'person', name: 'Old', external: false, parentId: null });
+    db.updateManualElement('repo-a', id, { name: 'New', description: 'desc', external: true });
+    const list = db.getManualElements('repo-a');
+    expect(list[0].name).toBe('New');
+    expect(list[0].description).toBe('desc');
+    expect(list[0].external).toBe(true);
+    db.close();
+  });
+
+  it('deletes a manual element and cascades relationships', async () => {
+    const db = await createDb();
+    const a = db.saveManualElement('repo-a', { type: 'person', name: 'A', external: false, parentId: null });
+    const b = db.saveManualElement('repo-a', { type: 'system', name: 'B', external: false, parentId: null });
+    db.saveManualRelationship('repo-a', { fromId: a, toId: b });
+    db.deleteManualElement('repo-a', a);
+    expect(db.getManualElements('repo-a')).toHaveLength(1);
+    expect(db.getManualRelationships('repo-a')).toHaveLength(0);
+    db.close();
+  });
+});
+
 describe('TrailDatabase.getLastImportedAt', () => {
   it('セッションがない場合はnullを返す', async () => {
     // DB_PATH はハードコードされているため、init() をモックして空のインメモリDBを使用する
