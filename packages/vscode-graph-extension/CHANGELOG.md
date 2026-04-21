@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+
+- Integrate webview with `@anytime-markdown/graph-viewer` package — webview becomes a thin wrapper around `GraphEditor` via a `PersistenceAdapter` bridge. Eliminates duplicated `GraphCanvas`, `TextEditOverlay`, and related hooks.
+
 ## [0.1.5] - 2026-04-18
 
 ### Graph Core (graph-core)

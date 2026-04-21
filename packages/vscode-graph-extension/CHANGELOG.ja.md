@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+### 変更
+
+- webview を `@anytime-markdown/graph-viewer` パッケージに統合。`PersistenceAdapter` ブリッジ経由で `GraphEditor` を呼び出す薄いラッパーに変更し、`GraphCanvas`・`TextEditOverlay` 等の重複実装を削除
+
 ## [0.1.5] - 2026-04-18
 
 ### Graph Core (graph-core)

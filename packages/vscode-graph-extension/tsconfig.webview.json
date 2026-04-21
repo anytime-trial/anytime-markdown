@@ -10,20 +10,18 @@
     "outDir": "out/webview",
     "paths": {
       "@anytime-markdown/graph-core": ["../graph-core/src/index.ts"],
-      "@anytime-markdown/graph-core/*": ["../graph-core/*"]
+      "@anytime-markdown/graph-core/*": ["../graph-core/*"],
+      "@anytime-markdown/graph-viewer": ["../graph-viewer/src/index.ts"],
+      "@anytime-markdown/graph-viewer/*": ["../graph-viewer/*"]
     }
   },
   "include": [
     "src/webview/**/*",
     "../graph-core/src/**/*",
-    "../web-app/src/app/graph/components/ToolBar.tsx",
-    "../web-app/src/app/graph/components/ShapeIcons.tsx",
-    "../web-app/src/app/graph/components/PropertyPanel.tsx",
-    "../web-app/src/app/graph/components/ShapeHoverBar.tsx",
-    "../web-app/src/app/graph/components/DocEditorModal.tsx",
-    "../web-app/src/app/graph/types.ts"
+    "../graph-viewer/src/**/*"
   ],
   "exclude": [
-    "../graph-core/src/__tests__/**/*"
+    "../graph-core/src/__tests__/**/*",
+    "../graph-viewer/src/__tests__/**/*"
   ]
 }

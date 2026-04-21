@@ -23,6 +23,7 @@ import { type AlignType,createDocument, createNode, type GraphDocument,ToolType,
 import type { DataMappingConfig } from '../types/dataMapping';
 import type { NodeFilterConfig } from '../types/nodeFilter';
 import { EMPTY_FILTER } from '../types/nodeFilter';
+import type { PersistenceAdapter, SaveStatus } from '../types/persistence';
 import { DetailPanel } from './DetailPanel';
 import { DocEditorModal } from './DocEditorModal';
 import { FilterPanel } from './FilterPanel';
@@ -69,6 +70,20 @@ interface GraphEditorProps {
   onThemeModeChange?: (mode: 'light' | 'dark') => void;
   locale?: string;
   onLocaleChange?: (locale: string) => void;
+  persistence?: PersistenceAdapter;
+}
+
+function useDefaultIndexedDbAdapter(document: GraphDocument): PersistenceAdapter {
+  const status = useAutoSave(document);
+  return {
+    loadInitial: async () => {
+      const lastId = getLastDocumentId();
+      if (!lastId) return null;
+      return (await loadDocument(lastId)) ?? null;
+    },
+    save: () => {},
+    status,
+  };
 }
 
 export function GraphEditor({
@@ -76,6 +91,7 @@ export function GraphEditor({
   onThemeModeChange,
   locale = 'ja',
   onLocaleChange,
+  persistence,
 }: Readonly<GraphEditorProps> = {}) {
   const isDark = themeMode === 'dark';
   const [tool, setTool] = useState<ToolType>('select');
@@ -154,21 +170,26 @@ export function GraphEditor({
     setConfirmDialog({ open: false, title: '', message: '', onConfirm: () => {} });
   }, []);
 
+  const defaultAdapter = useDefaultIndexedDbAdapter(state.document);
+  const adapter = persistence ?? defaultAdapter;
+  const saveStatus: SaveStatus = adapter.status;
+
   useEffect(() => {
-    const lastId = getLastDocumentId();
-    if (lastId) {
-      loadDocument(lastId).then(doc => {
-        if (doc) dispatch({ type: 'SET_DOCUMENT', doc });
-      });
-    }
-  }, [dispatch]);
+    let cancelled = false;
+    Promise.resolve(adapter.loadInitial()).then((doc) => {
+      if (!cancelled && doc) dispatch({ type: 'SET_DOCUMENT', doc });
+    });
+    return () => { cancelled = true; };
+  }, [adapter, dispatch]);
 
   // ドキュメント切替時に画像キャッシュをクリア
   useEffect(() => {
     clearImageCache();
   }, [state.document.id]);
 
-  const saveStatus = useAutoSave(state.document);
+  useEffect(() => {
+    adapter.save(state.document);
+  }, [adapter, state.document]);
 
   const canvasAriaLabel = `${t('graphCanvas')}: ${state.document.nodes.length} nodes, ${state.document.edges.length} edges`;
 
