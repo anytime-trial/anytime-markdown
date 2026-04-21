@@ -45,6 +45,12 @@ export function buildLevelView(doc: GraphDocument, level: number): GraphDocument
   );
   const maxFrameDepth = hasSystemFrame ? level : level - 1;
 
+  // 子要素を持つフレーム ID の集合（子なしフレームは rect に変換する）
+  const framesWithChildren = new Set<string>();
+  for (const n of doc.nodes) {
+    if (n.groupId) framesWithChildren.add(n.groupId);
+  }
+
   const visibleNodes: GraphNode[] = [];
   const visibleNodeIds = new Set<string>();
 
@@ -52,7 +58,9 @@ export function buildLevelView(doc: GraphDocument, level: number): GraphDocument
     if (node.type === 'frame') {
       const depth = getFrameDepth(node, doc.nodes);
       if (depth > maxFrameDepth) continue;
-      if (depth === maxFrameDepth) {
+      // depth == maxFrameDepth、または子要素なしの中間フレーム（手動登録等）は rect に変換
+      const isLeaf = depth === maxFrameDepth || !framesWithChildren.has(node.id);
+      if (isLeaf) {
         const c4NodeFill = node.metadata?.c4NodeFill as string | undefined;
         const c4NodeStroke = node.metadata?.c4NodeStroke as string | undefined;
         visibleNodes.push({
