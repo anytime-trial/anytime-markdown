@@ -9,6 +9,10 @@ import {
   listRelationships,
   addRelationship,
   removeRelationship,
+  listGroups,
+  addGroup,
+  updateGroup,
+  removeGroup,
 } from './client.js';
 
 export interface McpTrailOptions {
@@ -167,6 +171,68 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
       const opts = resolveOptions({ serverUrl, repoName: repoName ?? options.repoName, ...options });
       await removeRelationship(opts.serverUrl, opts.repoName, id);
       return { content: [{ type: 'text' as const, text: `Removed relationship ${id}` }] };
+    },
+  );
+
+  server.tool(
+    'list_groups',
+    'List all manual C4 groups with their IDs and member element IDs.',
+    { ...commonParams },
+    async ({ repoName, serverUrl }) => {
+      const opts = resolveOptions({ serverUrl, repoName: repoName ?? options.repoName, ...options });
+      const groups = await listGroups(opts.serverUrl, opts.repoName);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(groups, null, 2) }] };
+    },
+  );
+
+  server.tool(
+    'add_group',
+    'Create a visual group for a set of C4 elements',
+    {
+      memberIds: z.array(z.string()).min(2).describe('Element IDs to include in the group (minimum 2)'),
+      label: z.string().optional().describe('Optional label for the group'),
+      ...commonParams,
+    },
+    async ({ memberIds, label, repoName, serverUrl }) => {
+      const opts = resolveOptions({ serverUrl, repoName: repoName ?? options.repoName, ...options });
+      const result = await addGroup(opts.serverUrl, opts.repoName, {
+        memberIds,
+        ...(label ? { label } : {}),
+      });
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.tool(
+    'update_group',
+    'Update the label or members of a group',
+    {
+      id: z.string().describe('Group ID to update'),
+      label: z.string().nullable().optional().describe('New label (null to clear)'),
+      memberIds: z.array(z.string()).min(2).optional().describe('New member list (minimum 2)'),
+      ...commonParams,
+    },
+    async ({ id, label, memberIds, repoName, serverUrl }) => {
+      const opts = resolveOptions({ serverUrl, repoName: repoName ?? options.repoName, ...options });
+      await updateGroup(opts.serverUrl, opts.repoName, id, {
+        ...(memberIds !== undefined ? { memberIds } : {}),
+        ...(label !== undefined ? { label } : {}),
+      });
+      return { content: [{ type: 'text' as const, text: `Updated group ${id}` }] };
+    },
+  );
+
+  server.tool(
+    'remove_group',
+    'Remove a visual group (members are not deleted)',
+    {
+      id: z.string().describe('Group ID to remove'),
+      ...commonParams,
+    },
+    async ({ id, repoName, serverUrl }) => {
+      const opts = resolveOptions({ serverUrl, repoName: repoName ?? options.repoName, ...options });
+      await removeGroup(opts.serverUrl, opts.repoName, id);
+      return { content: [{ type: 'text' as const, text: `Removed group ${id}` }] };
     },
   );
 

@@ -440,6 +440,23 @@ export class TrailDataServer {
       this.handleDeleteManualRelationship(res, parsed, relMatch[1]);
       return;
     }
+    if (method === 'GET' && pathname === '/api/c4/manual-groups') {
+      this.handleListManualGroups(res, parsed);
+      return;
+    }
+    if (method === 'POST' && pathname === '/api/c4/manual-groups') {
+      void this.handleCreateManualGroup(req, res, parsed);
+      return;
+    }
+    const groupMatch = /^\/api\/c4\/manual-groups\/([^/]+)$/.exec(pathname);
+    if (groupMatch && method === 'PATCH') {
+      void this.handleUpdateManualGroup(req, res, parsed, groupMatch[1]);
+      return;
+    }
+    if (groupMatch && method === 'DELETE') {
+      this.handleDeleteManualGroup(res, parsed, groupMatch[1]);
+      return;
+    }
 
     res.writeHead(404);
     res.end();
@@ -1496,6 +1513,51 @@ export class TrailDataServer {
     const repoName = url.searchParams.get('repoName');
     if (!repoName) { res.writeHead(400); res.end('repoName required'); return; }
     this.trailDb.deleteManualRelationship(repoName, id);
+    res.writeHead(204); res.end();
+    this.notify('model-updated');
+  }
+
+  private handleListManualGroups(res: http.ServerResponse, url: URL): void {
+    const repoName = url.searchParams.get('repoName');
+    if (!repoName) { res.writeHead(400); res.end('repoName required'); return; }
+    const groups = this.trailDb.getManualGroups(repoName);
+    res.writeHead(200, JSON_HEADERS);
+    res.end(JSON.stringify(groups));
+  }
+
+  private async handleCreateManualGroup(req: http.IncomingMessage, res: http.ServerResponse, url: URL): Promise<void> {
+    const repoName = url.searchParams.get('repoName');
+    if (!repoName) { res.writeHead(400); res.end('repoName required'); return; }
+    const body = await this.readJsonBody(req) as Record<string, unknown>;
+    if (!Array.isArray(body?.memberIds) || body.memberIds.length < 2) {
+      res.writeHead(400); res.end('memberIds must have at least 2 elements'); return;
+    }
+    const id = this.trailDb.saveManualGroup(repoName, {
+      memberIds: body.memberIds.map(String),
+      label: body.label ? String(body.label) : undefined,
+    });
+    const group = this.trailDb.getManualGroups(repoName).find(g => g.id === id);
+    res.writeHead(201, JSON_HEADERS);
+    res.end(JSON.stringify({ group }));
+    this.notify('model-updated');
+  }
+
+  private async handleUpdateManualGroup(req: http.IncomingMessage, res: http.ServerResponse, url: URL, id: string): Promise<void> {
+    const repoName = url.searchParams.get('repoName');
+    if (!repoName) { res.writeHead(400); res.end('repoName required'); return; }
+    const body = await this.readJsonBody(req) as Record<string, unknown>;
+    this.trailDb.updateManualGroup(repoName, id, {
+      memberIds: Array.isArray(body.memberIds) ? body.memberIds.map(String) : undefined,
+      label: 'label' in body ? (body.label == null ? null : String(body.label)) : undefined,
+    });
+    res.writeHead(204); res.end();
+    this.notify('model-updated');
+  }
+
+  private handleDeleteManualGroup(res: http.ServerResponse, url: URL, id: string): void {
+    const repoName = url.searchParams.get('repoName');
+    if (!repoName) { res.writeHead(400); res.end('repoName required'); return; }
+    this.trailDb.deleteManualGroup(repoName, id);
     res.writeHead(204); res.end();
     this.notify('model-updated');
   }

@@ -255,3 +255,12 @@ export const CREATE_C4_MANUAL_RELATIONSHIPS = `CREATE TABLE IF NOT EXISTS c4_man
   updated_at  TEXT NOT NULL,
   PRIMARY KEY (repo_name, rel_id)
 )`;
+
+export const CREATE_C4_MANUAL_GROUPS = `CREATE TABLE IF NOT EXISTS c4_manual_groups (
+  repo_name  TEXT NOT NULL,
+  group_id   TEXT NOT NULL,
+  member_ids TEXT NOT NULL,
+  label      TEXT,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (repo_name, group_id)
+)`;

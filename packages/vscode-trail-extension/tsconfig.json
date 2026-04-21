@@ -5,7 +5,15 @@
     "moduleResolution": "node16",
     "outDir": "out",
     "lib": ["ES2023", "DOM"],
-    "types": ["node", "jest"]
+    "types": ["node", "jest"],
+    "paths": {
+      "@anytime-markdown/trail-core": ["../trail-core/src/index.ts"],
+      "@anytime-markdown/trail-core/*": ["../trail-core/src/*"],
+      "@anytime-markdown/graph-core": ["../graph-core/src/index.ts"],
+      "@anytime-markdown/graph-core/*": ["../graph-core/src/*"],
+      "@anytime-markdown/trail-viewer": ["../trail-viewer/src/index.ts"],
+      "@anytime-markdown/trail-viewer/*": ["../trail-viewer/src/*"]
+    }
   },
   "include": ["src/**/*"],
   "exclude": ["src/c4/webview/**/*"]

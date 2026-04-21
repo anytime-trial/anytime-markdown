@@ -89,3 +89,35 @@ export async function removeRelationship(
 ): Promise<void> {
   return request(serverUrl, `/api/c4/manual-relationships/${encodeURIComponent(id)}?repoName=${encodeURIComponent(repoName)}`, 'DELETE');
 }
+
+export async function listGroups(
+  serverUrl: string,
+  repoName: string,
+): Promise<unknown> {
+  return request(serverUrl, `/api/c4/manual-groups?repoName=${encodeURIComponent(repoName)}`, 'GET');
+}
+
+export async function addGroup(
+  serverUrl: string,
+  repoName: string,
+  body: { memberIds: string[]; label?: string },
+): Promise<unknown> {
+  return request(serverUrl, `/api/c4/manual-groups?repoName=${encodeURIComponent(repoName)}`, 'POST', body);
+}
+
+export async function updateGroup(
+  serverUrl: string,
+  repoName: string,
+  id: string,
+  body: { memberIds?: string[]; label?: string | null },
+): Promise<void> {
+  return request(serverUrl, `/api/c4/manual-groups/${encodeURIComponent(id)}?repoName=${encodeURIComponent(repoName)}`, 'PATCH', body);
+}
+
+export async function removeGroup(
+  serverUrl: string,
+  repoName: string,
+  id: string,
+): Promise<void> {
+  return request(serverUrl, `/api/c4/manual-groups/${encodeURIComponent(id)}?repoName=${encodeURIComponent(repoName)}`, 'DELETE');
+}

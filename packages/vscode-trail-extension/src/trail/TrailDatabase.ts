@@ -27,13 +27,14 @@ import {
   CREATE_MESSAGE_COMMITS,
   CREATE_C4_MANUAL_ELEMENTS,
   CREATE_C4_MANUAL_RELATIONSHIPS,
+  CREATE_C4_MANUAL_GROUPS,
   DEFAULT_SKILL_MODELS,
   extractSkillName,
   buildReleaseFromGitData,
   analyze,
   trailToC4,
 } from '@anytime-markdown/trail-core';
-import type { TrailGraph, IC4ModelStore, C4ModelEntry, C4ModelResult, TrailMessageCommit, MessageCommitInput, ManualElement, ManualRelationship } from '@anytime-markdown/trail-core';
+import type { TrailGraph, IC4ModelStore, C4ModelEntry, C4ModelResult, TrailMessageCommit, MessageCommitInput, ManualElement, ManualRelationship, ManualGroup } from '@anytime-markdown/trail-core';
 import { matchCommitsToMessages } from '@anytime-markdown/trail-core';
 import { JsonlSessionReader } from './JsonlSessionReader';
 import { ExecFileGitService } from './ExecFileGitService';
@@ -477,6 +478,7 @@ export class TrailDatabase {
     }
     db.run(CREATE_C4_MANUAL_ELEMENTS);
     db.run(CREATE_C4_MANUAL_RELATIONSHIPS);
+    db.run(CREATE_C4_MANUAL_GROUPS);
     // 既存 DB 向け: UNIQUE 制約をインデックスとして追加（新規 DB は CREATE TABLE の UNIQUE 制約で対応済み）
     try {
       db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_mtc_unique ON message_tool_calls(message_uuid, call_index)');
@@ -1887,6 +1889,65 @@ export class TrailDatabase {
       [repoName, r.id, r.fromId, r.toId, r.label ?? null, r.technology ?? null, r.updatedAt],
     );
     this.save();
+  }
+
+  saveManualGroup(
+    repoName: string,
+    input: { memberIds: string[]; label?: string },
+  ): string {
+    const db = this.ensureDb();
+    const result = db.exec(
+      `SELECT group_id FROM c4_manual_groups WHERE repo_name = ? AND group_id LIKE 'grp_manual_%'`,
+      [repoName],
+    );
+    const maxN = (result[0]?.values ?? []).reduce((m: number, row) => {
+      const n = Number.parseInt(String(row[0]).substring('grp_manual_'.length), 10);
+      return Number.isFinite(n) && n > m ? n : m;
+    }, 0);
+    const id = `grp_manual_${maxN + 1}`;
+    const now = new Date().toISOString();
+    db.run(
+      `INSERT INTO c4_manual_groups (repo_name, group_id, member_ids, label, updated_at)
+       VALUES (?, ?, ?, ?, ?)`,
+      [repoName, id, JSON.stringify(input.memberIds), input.label ?? null, now],
+    );
+    this.save();
+    return id;
+  }
+
+  updateManualGroup(
+    repoName: string,
+    groupId: string,
+    changes: { memberIds?: string[]; label?: string | null },
+  ): void {
+    const db = this.ensureDb();
+    const sets: string[] = ['updated_at = ?'];
+    const values: (string | null)[] = [new Date().toISOString()];
+    if (changes.memberIds !== undefined) { sets.push('member_ids = ?'); values.push(JSON.stringify(changes.memberIds)); }
+    if ('label' in changes) { sets.push('label = ?'); values.push(changes.label ?? null); }
+    values.push(repoName, groupId);
+    db.run(`UPDATE c4_manual_groups SET ${sets.join(', ')} WHERE repo_name = ? AND group_id = ?`, values);
+    this.save();
+  }
+
+  deleteManualGroup(repoName: string, groupId: string): void {
+    const db = this.ensureDb();
+    db.run(`DELETE FROM c4_manual_groups WHERE repo_name = ? AND group_id = ?`, [repoName, groupId]);
+    this.save();
+  }
+
+  getManualGroups(repoName: string): readonly ManualGroup[] {
+    const db = this.ensureDb();
+    const result = db.exec(
+      `SELECT group_id, member_ids, label, updated_at FROM c4_manual_groups WHERE repo_name = ? ORDER BY group_id`,
+      [repoName],
+    );
+    return (result[0]?.values ?? []).map((row) => ({
+      id: String(row[0]),
+      memberIds: JSON.parse(String(row[1])) as string[],
+      label: row[2] == null ? undefined : String(row[2]),
+      updatedAt: String(row[3]),
+    }));
   }
 
   private getTypePrefix(type: string): string {
