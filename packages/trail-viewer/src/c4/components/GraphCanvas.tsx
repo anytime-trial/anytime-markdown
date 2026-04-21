@@ -1,5 +1,5 @@
-import type { GraphDocument, SelectionState, Viewport } from '@anytime-markdown/graph-core';
-import { render, nodeIntersection } from '@anytime-markdown/graph-core/engine';
+import type { GraphDocument, GraphGroup, GraphNode, SelectionState, Viewport } from '@anytime-markdown/graph-core';
+import { render, nodeIntersection, hitTestGroup, hitTestNode, screenToWorld } from '@anytime-markdown/graph-core/engine';
 import type { Action } from '@anytime-markdown/graph-core/state';
 import { useCanvasBase } from '@anytime-markdown/graph-core';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -16,20 +16,23 @@ interface C4GraphCanvasProps {
   readonly onNodeSelect?: (nodeId: string | null) => void;
   readonly onNodeDoubleClick?: (nodeId: string) => void;
   readonly onNodeContextMenu?: (c4Id: string, x: number, y: number, nodeType: string) => void;
+  readonly onGroupContextMenu?: (groupId: string, x: number, y: number) => void;
   readonly isDark?: boolean;
 }
 
 const EMPTY_SELECTION: SelectionState = { nodeIds: [], edgeIds: [] };
 
-export function GraphCanvas({ document, viewport, dispatch, canvasRef, selectedNodeId, centerOnSelect, overlayMap, claudeActivityMap, onNodeSelect, onNodeDoubleClick, onNodeContextMenu, isDark }: Readonly<C4GraphCanvasProps>) {
+export function GraphCanvas({ document, viewport, dispatch, canvasRef, selectedNodeId, centerOnSelect, overlayMap, claudeActivityMap, onNodeSelect, onNodeDoubleClick, onNodeContextMenu, onGroupContextMenu, isDark }: Readonly<C4GraphCanvasProps>) {
   const rafRef = useRef<number>(0);
   const viewportRef = useRef(viewport);
   const dispatchRef = useRef(dispatch);
   const nodesRef = useRef(document.nodes);
+  const groupsRef = useRef<readonly GraphGroup[]>(document.groups ?? []);
   const [isFocused, setIsFocused] = useState(false);
   viewportRef.current = viewport;
   dispatchRef.current = dispatch;
   nodesRef.current = document.nodes;
+  groupsRef.current = document.groups ?? [];
 
   // Selection state
   const selectionRef = useRef<string[]>(selectedNodeId ? [selectedNodeId] : []);
@@ -42,6 +45,9 @@ export function GraphCanvas({ document, viewport, dispatch, canvasRef, selectedN
     canvasRef,
     getViewport: () => viewportRef.current,
     getNodes: () => nodesRef.current,
+    getGroups: () => groupsRef.current,
+    getSelection: () => ({ nodeIds: selectionRef.current, edgeIds: [] }),
+    dispatch: (action) => dispatchRef.current(action as Action),
     skipFrames: false,
     setViewport: (vp) => dispatchRef.current({ type: 'SET_VIEWPORT', viewport: vp }),
     setSelection: (sel) => {
@@ -161,6 +167,7 @@ export function GraphCanvas({ document, viewport, dispatch, canvasRef, selectedN
         height: h,
         nodes: activityStyledNodes,
         edges: resolvedEdges,
+        groups: groupsRef.current,
         viewport: viewportRef.current,
         selection: sel.length > 0 ? { nodeIds: sel, edgeIds: [] } : EMPTY_SELECTION,
         showGrid: false,
@@ -175,6 +182,39 @@ export function GraphCanvas({ document, viewport, dispatch, canvasRef, selectedN
     rafRef.current = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(rafRef.current);
   }, [activityStyledNodes, resolvedEdges, canvasRef, canvas]);
+
+  const nodeMap = useMemo(
+    () => new Map<string, GraphNode>(document.nodes.map(n => [n.id, n])),
+    [document.nodes],
+  );
+
+  // グループ右クリック検出を含む拡張コンテキストメニュー
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!onGroupContextMenu) {
+      canvas.handleContextMenu(e);
+      return;
+    }
+    const cvs = canvasRef.current;
+    if (!cvs) return;
+    const rect = cvs.getBoundingClientRect();
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+    const world = screenToWorld(viewportRef.current, sx, sy);
+
+    // ノードが hit する場合は node コンテキストメニューを優先
+    for (let i = document.nodes.length - 1; i >= 0; i--) {
+      if (hitTestNode(document.nodes[i], world.x, world.y)) {
+        canvas.handleContextMenu(e);
+        return;
+      }
+    }
+    // グループ hit test
+    const group = hitTestGroup(world.x, world.y, groupsRef.current, nodeMap);
+    if (group) {
+      onGroupContextMenu(group.id, e.clientX, e.clientY);
+    }
+  }, [canvas, canvasRef, document.nodes, nodeMap, onGroupContextMenu]);
 
   const getCursor = useCallback(() => {
     const mode = canvas.getDragMode();
@@ -207,7 +247,7 @@ export function GraphCanvas({ document, viewport, dispatch, canvasRef, selectedN
       onMouseUp={canvas.handleMouseUp}
       onMouseLeave={canvas.handleMouseUp}
       onDoubleClick={canvas.handleDoubleClick}
-      onContextMenu={canvas.handleContextMenu}
+      onContextMenu={handleContextMenu}
     />
   );
 }
