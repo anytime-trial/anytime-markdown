@@ -18,8 +18,7 @@
   "include": [
     "src/webview/**/*",
     "../graph-core/src/**/*",
-    "../graph-viewer/src/**/*",
-    "../markdown-core/src/i18n/*.json"
+    "../graph-viewer/src/**/*"
   ],
   "exclude": [
     "../graph-core/src/__tests__/**/*",

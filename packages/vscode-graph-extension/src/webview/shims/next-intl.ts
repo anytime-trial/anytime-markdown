@@ -1,6 +1,6 @@
 /* next-intl shim for VS Code webview (webpack) */
-import messagesEn from '../../../../markdown-core/src/i18n/en.json';
-import messagesJa from '../../../../markdown-core/src/i18n/ja.json';
+import messagesEn from '../../../../graph-viewer/src/i18n/en.json';
+import messagesJa from '../../../../graph-viewer/src/i18n/ja.json';
 
 type Messages = Record<string, Record<string, string>>;
 const allMessages: Record<string, Messages> = {
