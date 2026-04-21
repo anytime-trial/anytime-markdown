@@ -8,7 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
-- English UI support — the webview now honors `vscode.env.language` (falls back to English when not Japanese) by loading both `ja.json` and `en.json` from `markdown-core/src/i18n/` through a rewritten `next-intl` shim. Removes the hand-maintained `graph-messages-ja.json`.
+- English UI support — the webview now honors `vscode.env.language` (falls back to English when not Japanese) by loading both `ja.json` and `en.json` from `graph-viewer/src/i18n/` through a rewritten `next-intl` shim. Removes the hand-maintained `graph-messages-ja.json`.
+- Manifest NLS — `package.json` strings (displayName, description, custom editor display name, command title, activity bar title) now flow through `package.nls.json` / `package.nls.ja.json` so the Marketplace listing and VS Code UI respect the installed language.
 
 ### Changed
 

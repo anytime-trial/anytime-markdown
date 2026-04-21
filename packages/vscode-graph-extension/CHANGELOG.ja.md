@@ -8,7 +8,8 @@
 
 ### 追加
 
-- 英語 UI 対応。webview が `vscode.env.language` に応じて日本語／英語を切り替えるようになった（日本語以外は英語）。`next-intl` shim を書き換え、`markdown-core/src/i18n/` の `ja.json` と `en.json` を共通利用する。手書きの `graph-messages-ja.json` は削除
+- 英語 UI 対応。webview が `vscode.env.language` に応じて日本語／英語を切り替えるようになった（日本語以外は英語）。`next-intl` shim を書き換え、`graph-viewer/src/i18n/` の `ja.json` と `en.json` を共通利用する。手書きの `graph-messages-ja.json` は削除
+- マニフェスト NLS 対応。`package.json` の文言（displayName・description・カスタムエディタ名・コマンドタイトル・アクティビティバー名）を `package.nls.json` / `package.nls.ja.json` 経由にし、Marketplace 表示と VS Code UI が言語設定に追従するようになった
 
 ### 変更
 

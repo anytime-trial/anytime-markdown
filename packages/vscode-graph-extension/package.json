@@ -1,7 +1,7 @@
 {
   "name": "anytime-graph",
-  "displayName": "Anytime Graph",
-  "description": "Graph whiteboard editor for VS Code",
+  "displayName": "%displayName%",
+  "description": "%description%",
   "version": "0.1.5",
   "license": "MIT",
   "publisher": "anytime-trial",
@@ -29,7 +29,7 @@
       "activitybar": [
         {
           "id": "anytimeGraph",
-          "title": "Anytime Graph",
+          "title": "%viewsContainers.anytimeGraph.title%",
           "icon": "images/graph-activitybar.svg"
         }
       ]
@@ -37,7 +37,7 @@
     "customEditors": [
       {
         "viewType": "anytimeGraph",
-        "displayName": "Graph Editor",
+        "displayName": "%customEditor.displayName%",
         "selector": [
           {
             "filenamePattern": "*.graph"
@@ -49,7 +49,7 @@
     "commands": [
       {
         "command": "anytime-graph.newGraph",
-        "title": "Anytime Graph: New Graph"
+        "title": "%command.newGraph%"
       }
     ]
   },
