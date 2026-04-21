@@ -7,7 +7,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import {
   pan, zoom, screenToWorld, hitTestNode, drawSelectionRect,
 } from '../engine/index';
-import type { GraphNode, Viewport, SelectionState } from '../types';
+import type { GraphNode, GraphGroup, Viewport, SelectionState } from '../types';
 
 // ---------------------------------------------------------------------------
 //  Types
@@ -50,6 +50,8 @@ export interface UseCanvasBaseOptions {
   readonly onPaste?: () => void;
   /** Delete キー押下時のコールバック（未指定の場合 dispatch DELETE_SELECTED） */
   readonly onDelete?: () => void;
+  /** 現在のグループ一覧を取得する（Shift+G での DELETE_GROUP に使用） */
+  readonly getGroups?: () => readonly GraphGroup[];
 }
 
 export interface UseCanvasBaseReturn {
@@ -104,6 +106,7 @@ export function useCanvasBase(options: UseCanvasBaseOptions): UseCanvasBaseRetur
     onCopy,
     onPaste,
     onDelete,
+    getGroups,
   } = options;
 
   // --- Refs ---
@@ -284,15 +287,31 @@ export function useCanvasBase(options: UseCanvasBaseOptions): UseCanvasBaseRetur
           e.preventDefault();
           onPaste?.();
           return;
-        case 'g':
-          e.preventDefault();
-          if (e.shiftKey) {
-            editorDispatch?.({ type: 'UNGROUP_SELECTED' });
-          } else {
-            editorDispatch?.({ type: 'GROUP_SELECTED', groupId: crypto.randomUUID() });
-          }
-          return;
       }
+    }
+
+    // g: グループ化 / Shift+G: グループ解除
+    if (!e.ctrlKey && !e.metaKey && e.key === 'g') {
+      e.preventDefault();
+      const sel = getSelection?.();
+      if (sel && sel.nodeIds.length >= 2) {
+        editorDispatch?.({ type: 'CREATE_GROUP', memberIds: sel.nodeIds });
+      }
+      return;
+    }
+    if (!e.ctrlKey && !e.metaKey && e.key === 'G' && e.shiftKey) {
+      e.preventDefault();
+      const sel = getSelection?.();
+      const groups = getGroups?.() ?? [];
+      if (sel) {
+        const selectedIds = new Set(sel.nodeIds);
+        for (const g of groups) {
+          if (g.memberIds.some(id => selectedIds.has(id))) {
+            editorDispatch?.({ type: 'DELETE_GROUP', id: g.id });
+          }
+        }
+      }
+      return;
     }
 
     // Viewport navigation
@@ -324,7 +343,7 @@ export function useCanvasBase(options: UseCanvasBaseOptions): UseCanvasBaseRetur
         setViewport({ ...vp, scale: vp.scale * 0.9 });
         break;
     }
-  }, [getViewport, setViewport, setSelection, getNodes, getSelection, editorDispatch, enableSpacePan, canvasRef, onCopy, onPaste, onDelete]);
+  }, [getViewport, setViewport, setSelection, getNodes, getSelection, editorDispatch, enableSpacePan, canvasRef, onCopy, onPaste, onDelete, getGroups]);
 
   // --- Key up (Space release) ---
   const handleKeyUp = useCallback((e: React.KeyboardEvent) => {

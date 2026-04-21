@@ -256,25 +256,20 @@ describe('graphReducer', () => {
     expect(next.document.nodes.find(n => n.id === 'n2')!.y).toBe(100);
   });
 
-  it('GROUP_SELECTED assigns groupId to selected nodes', () => {
+  it('CREATE_GROUP creates a group with selected memberIds', () => {
     let state = makeState();
-    state = graphReducer(state, { type: 'SET_SELECTION', selection: { nodeIds: ['n1', 'n2'], edgeIds: [] } });
-    state = graphReducer(state, { type: 'GROUP_SELECTED', groupId: 'g1' });
-    expect(state.document.nodes.find(n => n.id === 'n1')!.groupId).toBe('g1');
-    expect(state.document.nodes.find(n => n.id === 'n2')!.groupId).toBe('g1');
+    state = graphReducer(state, { type: 'CREATE_GROUP', memberIds: ['n1', 'n2'] });
+    expect(state.document.groups).toHaveLength(1);
+    expect(state.document.groups![0].memberIds).toEqual(['n1', 'n2']);
   });
 
-  it('UNGROUP_SELECTED removes groupId from grouped nodes', () => {
+  it('DELETE_GROUP removes the group', () => {
     let state = makeState();
-    // Group nodes first
-    state = graphReducer(state, { type: 'SET_SELECTION', selection: { nodeIds: ['n1', 'n2'], edgeIds: [] } });
-    state = graphReducer(state, { type: 'GROUP_SELECTED', groupId: 'g1' });
-    // Select one grouped node and ungroup
-    state = graphReducer(state, { type: 'SET_SELECTION', selection: { nodeIds: ['n1'], edgeIds: [] } });
-    state = graphReducer(state, { type: 'UNGROUP_SELECTED' });
-    // Both nodes in group g1 should be ungrouped (UNGROUP removes groupId from all nodes sharing the group)
-    expect(state.document.nodes.find(n => n.id === 'n1')!.groupId).toBeUndefined();
-    expect(state.document.nodes.find(n => n.id === 'n2')!.groupId).toBeUndefined();
+    state = graphReducer(state, { type: 'CREATE_GROUP', memberIds: ['n1', 'n2'] });
+    const groupId = state.document.groups![0].id;
+    state = graphReducer(state, { type: 'DELETE_GROUP', id: groupId });
+    expect(state.document.groups).toHaveLength(0);
+    expect(state.document.nodes).toHaveLength(2);
   });
 
   it('SET_DOCUMENT replaces the entire document', () => {

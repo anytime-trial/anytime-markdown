@@ -1,5 +1,5 @@
 import {
-  GraphDocument, GraphNode, GraphEdge, SelectionState, HistoryEntry,
+  GraphDocument, GraphNode, GraphEdge, GraphGroup, SelectionState, HistoryEntry,
   Viewport, createDocument,
 } from '../types';
 
@@ -25,8 +25,11 @@ export type Action =
   | { type: 'RESIZE_NODE'; id: string; x: number; y: number; width: number; height: number }
   /** 複数ノードの位置を一括更新。ドラッグ中に毎フレーム発行。履歴は記録しない */
   | { type: 'SET_NODE_POSITIONS'; updates: Array<{ id: string; x: number; y: number }> }
-  | { type: 'GROUP_SELECTED'; groupId: string }
-  | { type: 'UNGROUP_SELECTED' }
+  | { type: 'CREATE_GROUP'; memberIds: string[]; label?: string }
+  | { type: 'DELETE_GROUP'; id: string }
+  | { type: 'UPDATE_GROUP_LABEL'; id: string; label: string }
+  | { type: 'ADD_TO_GROUP'; groupId: string; nodeId: string }
+  | { type: 'REMOVE_FROM_GROUP'; groupId: string; nodeId: string }
   | { type: 'PASTE_NODES'; nodes: GraphNode[]; edges: GraphEdge[] }
   | { type: 'ALIGN_NODES'; updates: Array<{ id: string; x?: number; y?: number }> }
   | { type: 'BRING_TO_FRONT'; nodeIds: string[] }
@@ -42,6 +45,7 @@ function pushHistory(state: GraphState): GraphState {
   const entry: HistoryEntry = {
     nodes: structuredClone(state.document.nodes),
     edges: structuredClone(state.document.edges),
+    groups: structuredClone(state.document.groups ?? []),
     selection: { ...state.selection },
   };
   const history = state.history.slice(0, state.historyIndex + 1);
@@ -181,32 +185,73 @@ export function graphReducer(state: GraphState, action: Action): GraphState {
       };
     }
 
-    case 'GROUP_SELECTED': {
+    case 'CREATE_GROUP': {
+      if (action.memberIds.length < 2) return state;
+      const s = pushHistory(state);
+      const newGroup: GraphGroup = {
+        id: crypto.randomUUID(),
+        memberIds: [...action.memberIds],
+        label: action.label,
+      };
+      return {
+        ...s,
+        document: {
+          ...s.document,
+          groups: [...(s.document.groups ?? []), newGroup],
+        },
+      };
+    }
+
+    case 'DELETE_GROUP': {
       const s = pushHistory(state);
       return {
         ...s,
         document: {
           ...s.document,
-          nodes: s.document.nodes.map(n =>
-            state.selection.nodeIds.includes(n.id) ? { ...n, groupId: action.groupId } : n,
+          groups: (s.document.groups ?? []).filter(g => g.id !== action.id),
+        },
+      };
+    }
+
+    case 'UPDATE_GROUP_LABEL': {
+      const s = pushHistory(state);
+      return {
+        ...s,
+        document: {
+          ...s.document,
+          groups: (s.document.groups ?? []).map(g =>
+            g.id === action.id ? { ...g, label: action.label } : g,
           ),
         },
       };
     }
 
-    case 'UNGROUP_SELECTED': {
+    case 'ADD_TO_GROUP': {
       const s = pushHistory(state);
-      const groupIds = new Set(
-        s.document.nodes.filter(n => state.selection.nodeIds.includes(n.id) && n.groupId).map(n => n.groupId),
-      );
       return {
         ...s,
         document: {
           ...s.document,
-          nodes: s.document.nodes.map(n =>
-            n.groupId && groupIds.has(n.groupId) ? { ...n, groupId: undefined } : n,
+          groups: (s.document.groups ?? []).map(g =>
+            g.id === action.groupId && !g.memberIds.includes(action.nodeId)
+              ? { ...g, memberIds: [...g.memberIds, action.nodeId] }
+              : g,
           ),
         },
+      };
+    }
+
+    case 'REMOVE_FROM_GROUP': {
+      const s = pushHistory(state);
+      const groups = (s.document.groups ?? []).reduce<GraphGroup[]>((acc, g) => {
+        if (g.id !== action.groupId) { acc.push(g); return acc; }
+        const memberIds = g.memberIds.filter(id => id !== action.nodeId);
+        if (memberIds.length >= 2) acc.push({ ...g, memberIds });
+        return acc;
+      }, []);
+      return {
+        ...s,
+        document: { ...s.document, groups },
       };
     }
 
@@ -285,6 +330,7 @@ export function graphReducer(state: GraphState, action: Action): GraphState {
           ...state.document,
           nodes: structuredClone(entry.nodes),
           edges: structuredClone(entry.edges),
+          groups: structuredClone(entry.groups ?? []),
         },
         selection: entry.selection ?? { nodeIds: [], edgeIds: [] },
       };
@@ -301,6 +347,7 @@ export function graphReducer(state: GraphState, action: Action): GraphState {
           ...state.document,
           nodes: structuredClone(entry.nodes),
           edges: structuredClone(entry.edges),
+          groups: structuredClone(entry.groups ?? []),
         },
         selection: entry.selection ?? { nodeIds: [], edgeIds: [] },
       };

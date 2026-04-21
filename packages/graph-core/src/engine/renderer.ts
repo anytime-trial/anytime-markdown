@@ -1,4 +1,4 @@
-import { GraphNode, GraphEdge, Viewport, SelectionState } from '../types';
+import { GraphNode, GraphEdge, GraphGroup, Viewport, SelectionState } from '../types';
 import { CanvasColors, getCanvasColors, FONT_FAMILY } from '../theme';
 import { FONT_SIZE_TOOLTIP, URL_TRUNCATE_LENGTH } from './constants';
 import { getVisibleBounds, isNodeVisible, isEdgeVisible } from './culling';
@@ -15,6 +15,7 @@ export interface RenderOptions {
   height: number;
   nodes: readonly GraphNode[];
   edges: readonly GraphEdge[];
+  groups?: readonly GraphGroup[];
   viewport: Viewport;
   selection: SelectionState;
   showGrid: boolean;
@@ -33,7 +34,7 @@ interface VisibleElements {
 
 export function render(options: RenderOptions): void {
   const {
-    ctx, width, height, nodes, edges, viewport, selection,
+    ctx, width, height, nodes, edges, groups, viewport, selection,
     showGrid, hoverNodeId, mouseWorldX, mouseWorldY, draggingNodeIds,
     isDark = true,
   } = options;
@@ -49,7 +50,9 @@ export function render(options: RenderOptions): void {
   if (showGrid) drawGrid(ctx, viewport, width, height, colors);
 
   const { frameNodes, nonFrameNodes, visibleEdges } = computeVisibleElements(nodes, edges, viewport, width, height);
+  const nodeMap = new Map(nodes.map(n => [n.id, n]));
 
+  if (groups?.length) drawGroups(ctx, groups, nodeMap, colors);
   visibleEdges.forEach(e => drawEdge(ctx, e, selection.edgeIds.includes(e.id), colors));
   frameNodes.forEach(n => drawNode(ctx, n, selection.nodeIds.includes(n.id), false, colors));
   nonFrameNodes.forEach(n => {
@@ -228,5 +231,65 @@ export function drawGrid(
     ctx.lineTo(endX, y);
   }
   ctx.stroke();
+  ctx.restore();
+}
+
+const GROUP_PADDING = 16;
+
+export interface GroupBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export function computeGroupBounds(
+  memberIds: readonly string[],
+  nodeMap: Map<string, GraphNode>,
+): GroupBounds | null {
+  const members = memberIds.map(id => nodeMap.get(id)).filter((n): n is GraphNode => n !== undefined);
+  if (members.length === 0) return null;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const n of members) {
+    minX = Math.min(minX, n.x);
+    minY = Math.min(minY, n.y);
+    maxX = Math.max(maxX, n.x + n.width);
+    maxY = Math.max(maxY, n.y + n.height);
+  }
+  return {
+    x: minX - GROUP_PADDING,
+    y: minY - GROUP_PADDING,
+    width: maxX - minX + GROUP_PADDING * 2,
+    height: maxY - minY + GROUP_PADDING * 2,
+  };
+}
+
+function drawGroups(
+  ctx: CanvasRenderingContext2D,
+  groups: readonly GraphGroup[],
+  nodeMap: Map<string, GraphNode>,
+  colors: CanvasColors,
+): void {
+  ctx.save();
+  ctx.strokeStyle = colors.panelBorder;
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  ctx.fillStyle = 'transparent';
+
+  for (const g of groups) {
+    const bounds = computeGroupBounds(g.memberIds, nodeMap);
+    if (!bounds) continue;
+    ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
+    if (g.label) {
+      ctx.save();
+      ctx.setLineDash([]);
+      ctx.font = `10px ${FONT_FAMILY}`;
+      ctx.fillStyle = colors.textSecondary;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText(g.label, bounds.x + 4, bounds.y + 4);
+      ctx.restore();
+    }
+  }
   ctx.restore();
 }

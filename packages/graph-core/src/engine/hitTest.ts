@@ -1,4 +1,5 @@
-import { GraphNode, GraphEdge } from '../types';
+import { GraphNode, GraphEdge, GraphGroup } from '../types';
+import { computeGroupBounds } from './renderer';
 import {
   HANDLE_SIZE, EDGE_TOLERANCE, CONNECTION_POINT_RADIUS, ENDPOINT_HANDLE_RADIUS,
   FRAME_TITLE_HEIGHT, FRAME_ICON_RIGHT_MARGIN,
@@ -355,4 +356,29 @@ function hitTestClosestEdge(
       : { type: 'edge', id: edges[i].id };
   }
   return bestResult;
+}
+
+
+/** グループのヒットテスト。ノード上のクリックは除外し、枠内空白・破線枠のクリックのみヒット */
+export function hitTestGroup(
+  wx: number,
+  wy: number,
+  groups: readonly GraphGroup[],
+  nodeMap: Map<string, GraphNode>,
+): GraphGroup | null {
+  for (let i = groups.length - 1; i >= 0; i--) {
+    const g = groups[i];
+    const bounds = computeGroupBounds(g.memberIds, nodeMap);
+    if (!bounds) continue;
+    const { x, y, width, height } = bounds;
+    if (wx < x || wx > x + width || wy < y || wy > y + height) continue;
+    // ノード上のクリックは除外
+    const onNode = g.memberIds.some(id => {
+      const n = nodeMap.get(id);
+      return n && wx >= n.x && wx <= n.x + n.width && wy >= n.y && wy <= n.y + n.height;
+    });
+    if (onNode) continue;
+    return g;
+  }
+  return null;
 }
