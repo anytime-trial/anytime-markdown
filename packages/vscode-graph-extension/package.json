@@ -73,6 +73,7 @@
     "@anytime-markdown/graph-core": "*",
     "@anytime-markdown/graph-viewer": "*",
     "@anytime-markdown/trail-core": "*",
+    "@anytime-markdown/vscode-common": "*",
     "@emotion/react": "11.14.0",
     "@emotion/styled": "11.14.0",
     "@mui/icons-material": "7.3.7",

@@ -7,12 +7,14 @@
 		"paths": {
 			"@anytime-markdown/markdown-core": ["../markdown-core/src/index.ts"],
 			"@anytime-markdown/markdown-core/*": ["../markdown-core/*"],
+			"@anytime-markdown/vscode-common/webview": ["../vscode-common/src/webview/index.ts"],
 			"@/*": ["../markdown-core/src/*"]
 		}
 	},
 	"include": [
 		"src/webview/**/*",
-		"../markdown-core/src/**/*"
+		"../markdown-core/src/**/*",
+		"../vscode-common/src/webview/**/*"
 	],
 	"exclude": [
 		"../markdown-core/src/__tests__/**/*",

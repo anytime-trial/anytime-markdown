@@ -1,8 +1,9 @@
 import * as vscode from 'vscode';
 import { randomBytes } from 'node:crypto';
+import { resolveLocale } from '@anytime-markdown/vscode-common';
 
-function resolveLocale(): 'ja' | 'en' {
-	return (vscode.env.language || '').startsWith('ja') ? 'ja' : 'en';
+function currentLocale(): 'ja' | 'en' {
+	return resolveLocale(undefined, vscode.env.language);
 }
 
 export class GraphEditorProvider implements vscode.CustomTextEditorProvider {
@@ -33,7 +34,7 @@ export class GraphEditorProvider implements vscode.CustomTextEditorProvider {
 			],
 		};
 
-		const locale = resolveLocale();
+		const locale = currentLocale();
 		webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, locale);
 
 		// Send initial document content to webview
@@ -67,7 +68,7 @@ export class GraphEditorProvider implements vscode.CustomTextEditorProvider {
 
 		// Send locale info to webview shim
 		const sendLocale = () => {
-			webviewPanel.webview.postMessage({ type: 'locale', locale: resolveLocale() });
+			webviewPanel.webview.postMessage({ type: 'locale', locale: currentLocale() });
 		};
 
 		// Track edits originating from webview to avoid echo

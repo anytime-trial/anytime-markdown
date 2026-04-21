@@ -12,13 +12,15 @@
       "@anytime-markdown/graph-core": ["../graph-core/src/index.ts"],
       "@anytime-markdown/graph-core/*": ["../graph-core/*"],
       "@anytime-markdown/graph-viewer": ["../graph-viewer/src/index.ts"],
-      "@anytime-markdown/graph-viewer/*": ["../graph-viewer/*"]
+      "@anytime-markdown/graph-viewer/*": ["../graph-viewer/*"],
+      "@anytime-markdown/vscode-common/webview": ["../vscode-common/src/webview/index.ts"]
     }
   },
   "include": [
     "src/webview/**/*",
     "../graph-core/src/**/*",
-    "../graph-viewer/src/**/*"
+    "../graph-viewer/src/**/*",
+    "../vscode-common/src/webview/**/*"
   ],
   "exclude": [
     "../graph-core/src/__tests__/**/*",

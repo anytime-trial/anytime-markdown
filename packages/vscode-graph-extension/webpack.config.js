@@ -63,7 +63,7 @@ const webviewConfig = {
     rules: [
       {
         test: /\.tsx?$/,
-        exclude: /node_modules[\\/](?!@anytime-markdown[\\/](graph-core|graph-viewer))/,
+        exclude: /node_modules[\\/](?!@anytime-markdown[\\/](graph-core|graph-viewer|vscode-common))/,
         use: [
           {
             loader: 'ts-loader',
