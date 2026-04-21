@@ -110,13 +110,23 @@ const ServiceCard = memo(({ entry, selected, onClick }: Readonly<ServiceCardProp
       '&:hover': { borderColor: 'primary.main', bgcolor: 'action.hover' },
     }}
   >
-    <Box
-      component="svg"
-      viewBox="0 0 24 24"
-      sx={{ width: 20, height: 20, fill: entry.brandColor }}
-    >
-      <path d={entry.iconPath} />
-    </Box>
+    {entry.iconBody ? (
+      <Box
+        component="svg"
+        viewBox={entry.iconViewBox ?? '0 0 24 24'}
+        sx={{ width: 20, height: 20 }}
+        // iconBody is static, developer-authored SVG content (not user input)
+        dangerouslySetInnerHTML={{ __html: entry.iconBody }}
+      />
+    ) : (
+      <Box
+        component="svg"
+        viewBox="0 0 24 24"
+        sx={{ width: 20, height: 20, fill: entry.brandColor }}
+      >
+        <path d={entry.iconPath} />
+      </Box>
+    )}
     <Box sx={{ fontSize: 9, textAlign: 'center', lineHeight: 1.2, wordBreak: 'break-all' }}>
       {entry.label}
     </Box>
