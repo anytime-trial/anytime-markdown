@@ -219,7 +219,7 @@ export function GraphCanvas({ document, viewport, dispatch, canvasRef, selectedN
   const getCursor = useCallback(() => {
     const mode = canvas.getDragMode();
     if (mode === 'select-rect') return 'crosshair';
-    if (mode === 'pan') return 'grabbing';
+    if (mode === 'pan' || mode === 'move') return 'grabbing';
     return 'default';
   }, [canvas]);
 

@@ -2,7 +2,7 @@ import { GraphNode, GraphEdge, GraphGroup } from '../types';
 import { computeGroupBounds } from './renderer';
 import {
   HANDLE_SIZE, EDGE_TOLERANCE, CONNECTION_POINT_RADIUS, ENDPOINT_HANDLE_RADIUS,
-  FRAME_TITLE_HEIGHT, FRAME_ICON_RIGHT_MARGIN,
+  FRAME_TITLE_HEIGHT, FRAME_ICON_RIGHT_MARGIN, FRAME_BORDER_WIDTH,
   PARALLELOGRAM_OFFSET_RATIO,
   CYLINDER_ELLIPSE_HEIGHT_RATIO, CYLINDER_ELLIPSE_MAX_HEIGHT,
 } from './constants';
@@ -43,6 +43,27 @@ export function hitTestFrameCollapse(node: GraphNode, wx: number, wy: number): b
   const iconX = node.x + node.width - FRAME_ICON_RIGHT_MARGIN - iconSize;
   const iconY = node.y + (titleH - iconSize) / 2;
   return wx >= iconX && wx <= iconX + iconSize && wy >= iconY && wy <= iconY + iconSize;
+}
+
+/**
+ * frame の「つかみ領域」（タイトルバーまたは枠線）にヒットするか判定する。
+ * true のとき frame + 全子ノードのドラッグを開始（Z 挙動）。
+ * false のとき内部余白 = 子ノード領域として扱い、ドラッグをスルーさせる。
+ */
+export function hitTestFrameBody(point: { x: number; y: number }, frame: GraphNode): boolean {
+  if (frame.type !== 'frame') return false;
+  const { x, y, width, height } = frame;
+  // タイトルバー
+  if (point.y >= y && point.y <= y + FRAME_TITLE_HEIGHT
+      && point.x >= x && point.x <= x + width) return true;
+  // 枠線（内側 FRAME_BORDER_WIDTH px の帯）
+  const inBounds = point.x >= x && point.x <= x + width && point.y >= y && point.y <= y + height;
+  if (!inBounds) return false;
+  const onLeft = point.x <= x + FRAME_BORDER_WIDTH;
+  const onRight = point.x >= x + width - FRAME_BORDER_WIDTH;
+  const onTop = point.y <= y + FRAME_BORDER_WIDTH;
+  const onBottom = point.y >= y + height - FRAME_BORDER_WIDTH;
+  return onLeft || onRight || onTop || onBottom;
 }
 
 function pointInRect(px: number, py: number, x: number, y: number, w: number, h: number): boolean {

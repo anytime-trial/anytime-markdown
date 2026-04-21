@@ -84,6 +84,9 @@ export const FRAME_PADDING = 40;
 /** フレームの折りたたみ/展開アイコンサイズ (px) */
 export const FRAME_COLLAPSE_ICON_SIZE = 10;
 
+/** フレームのつかみ判定に使う枠線幅 (px) */
+export const FRAME_BORDER_WIDTH = 4;
+
 /** フレームのタイトルテキスト左余白 (px) */
 export const FRAME_TITLE_TEXT_LEFT = 12;
 

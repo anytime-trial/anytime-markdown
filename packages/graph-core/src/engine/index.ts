@@ -14,7 +14,7 @@ export {
 } from './overlays';
 export {
   hitTest, hitTestNode, hitTestEdge, hitTestEdgeSegment, hitTestWaypointHandle, hitTestResizeHandles,
-  hitTestGroup,
+  hitTestGroup, hitTestFrameBody,
 } from './hitTest';
 export type { HitResult, HitTestContext, ResizeHandle, ConnectionSide, EdgeEndpointEnd } from './hitTest';
 export { screenToWorld, worldToScreen, pan, zoom, fitToContent } from './viewport';

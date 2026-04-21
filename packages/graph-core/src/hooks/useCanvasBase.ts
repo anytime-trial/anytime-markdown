@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 
 import {
-  pan, zoom, screenToWorld, hitTestNode, drawSelectionRect,
+  pan, zoom, screenToWorld, hitTestNode, hitTestFrameBody, drawSelectionRect,
 } from '../engine/index';
 import type { GraphNode, GraphGroup, Viewport, SelectionState } from '../types';
 
@@ -13,7 +13,7 @@ import type { GraphNode, GraphGroup, Viewport, SelectionState } from '../types';
 //  Types
 // ---------------------------------------------------------------------------
 
-export type DragMode = 'none' | 'pan' | 'select-rect';
+export type DragMode = 'none' | 'pan' | 'select-rect' | 'move';
 
 export interface SelectRect {
   readonly x1: number;
@@ -116,6 +116,8 @@ export function useCanvasBase(options: UseCanvasBaseOptions): UseCanvasBaseRetur
     startScreenY: number;
     startWorldX: number;
     startWorldY: number;
+    moveIds?: string[];
+    initialPositions?: Map<string, { x: number; y: number }>;
   }>({ mode: 'none', startScreenX: 0, startScreenY: 0, startWorldX: 0, startWorldY: 0 });
 
   const selectRectRef = useRef<SelectRect | null>(null);
@@ -166,9 +168,42 @@ export function useCanvasBase(options: UseCanvasBaseOptions): UseCanvasBaseRetur
     if (e.button === 0) {
       const hit = nodeAtScreen(sx, sy);
       if (hit) {
+        // frame ノード hit: Z 挙動 — タイトル/枠線のみドラッグ対象
+        if (hit.type === 'frame') {
+          const onBody = hitTestFrameBody({ x: world.x, y: world.y }, hit);
+          if (onBody && editorDispatch) {
+            // タイトル/枠線 → frame + 全 groupId 子ノードをドラッグ
+            const nodes = getNodes();
+            const childIds = nodes.filter(n => n.groupId === hit.id).map(n => n.id);
+            const moveIds = [hit.id, ...childIds];
+            const initialPositions = new Map(
+              nodes.filter(n => moveIds.includes(n.id)).map(n => [n.id, { x: n.x, y: n.y }]),
+            );
+            onNodeClick?.(hit);
+            setSelection({ nodeIds: moveIds, edgeIds: [] });
+            editorDispatch({ type: 'SNAPSHOT' });
+            dragRef.current = { mode: 'move', startScreenX: sx, startScreenY: sy, startWorldX: world.x, startWorldY: world.y, moveIds, initialPositions };
+          } else {
+            // 内部余白 → 子ノード領域としてスルー（パン開始）
+            if (!e.shiftKey) {
+              onNodeClick?.(null);
+              setSelection(EMPTY_SELECTION);
+            }
+            dragRef.current = { mode: 'select-rect', startScreenX: sx, startScreenY: sy, startWorldX: world.x, startWorldY: world.y };
+            selectRectRef.current = { x1: world.x, y1: world.y, x2: world.x, y2: world.y };
+          }
+          return;
+        }
+        // 通常ノード hit
         onNodeClick?.(hit);
         setSelection({ nodeIds: [hit.id], edgeIds: [] });
-        dragRef.current = { mode: 'pan', startScreenX: sx, startScreenY: sy, startWorldX: world.x, startWorldY: world.y };
+        if (editorDispatch) {
+          const initialPositions = new Map([[hit.id, { x: hit.x, y: hit.y }]]);
+          editorDispatch({ type: 'SNAPSHOT' });
+          dragRef.current = { mode: 'move', startScreenX: sx, startScreenY: sy, startWorldX: world.x, startWorldY: world.y, moveIds: [hit.id], initialPositions };
+        } else {
+          dragRef.current = { mode: 'pan', startScreenX: sx, startScreenY: sy, startWorldX: world.x, startWorldY: world.y };
+        }
       } else {
         if (!e.shiftKey) {
           onNodeClick?.(null);
@@ -178,7 +213,7 @@ export function useCanvasBase(options: UseCanvasBaseOptions): UseCanvasBaseRetur
         selectRectRef.current = { x1: world.x, y1: world.y, x2: world.x, y2: world.y };
       }
     }
-  }, [screenPos, getViewport, nodeAtScreen, onNodeClick, setSelection]);
+  }, [screenPos, getViewport, nodeAtScreen, onNodeClick, setSelection, getNodes, editorDispatch]);
 
   // --- Mouse move ---
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
@@ -195,12 +230,25 @@ export function useCanvasBase(options: UseCanvasBaseOptions): UseCanvasBaseRetur
       setViewport(pan(getViewport(), dx, dy));
     }
 
+    if (drag.mode === 'move' && drag.moveIds && drag.initialPositions) {
+      const vp = getViewport();
+      const world = screenToWorld(vp, sx, sy);
+      const dx = world.x - drag.startWorldX;
+      const dy = world.y - drag.startWorldY;
+      const updates = drag.moveIds.flatMap(id => {
+        const init = drag.initialPositions!.get(id);
+        if (!init) return [];
+        return [{ id, x: init.x + dx, y: init.y + dy }];
+      });
+      editorDispatch?.({ type: 'SET_NODE_POSITIONS', updates });
+    }
+
     if (drag.mode === 'select-rect') {
       const vp = getViewport();
       const world = screenToWorld(vp, sx, sy);
       selectRectRef.current = { x1: drag.startWorldX, y1: drag.startWorldY, x2: world.x, y2: world.y };
     }
-  }, [screenPos, getViewport, setViewport]);
+  }, [screenPos, getViewport, setViewport, editorDispatch]);
 
   // --- Mouse up ---
   const handleMouseUp = useCallback(() => {
@@ -225,7 +273,7 @@ export function useCanvasBase(options: UseCanvasBaseOptions): UseCanvasBaseRetur
     }
 
     dragRef.current = { mode: 'none', startScreenX: 0, startScreenY: 0, startWorldX: 0, startWorldY: 0 };
-  }, [getNodes, setSelection, skipFrames]);
+  }, [getNodes, setSelection, skipFrames, editorDispatch]);
 
   // --- Double click ---
   const handleDoubleClick = useCallback((e: React.MouseEvent) => {
