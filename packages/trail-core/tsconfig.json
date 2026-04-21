@@ -6,7 +6,10 @@
     "lib": ["ES2023"],
     "noEmit": true,
     "isolatedModules": true,
-    "declaration": true
+    "declaration": true,
+    "paths": {
+      "@anytime-markdown/graph-core": ["../graph-core/src/index.ts"]
+    }
   },
   "include": ["src/**/*"]
 }

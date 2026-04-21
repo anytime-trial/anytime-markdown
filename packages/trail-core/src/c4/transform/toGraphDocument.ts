@@ -1,8 +1,9 @@
 import type { C4Model, C4Element, C4ElementType, BoundaryInfo } from '../types';
+import type { ManualGroup } from '../manualTypes';
 import { findService } from '../services/catalog';
 import type {
   NodeType, NodeStyle, EdgeStyle,
-  GraphNode, GraphEdge, GraphDocument,
+  GraphNode, GraphEdge, GraphDocument, GraphGroup,
 } from '@anytime-markdown/graph-core';
 
 // --- Node mapping ---
@@ -73,6 +74,7 @@ function buildNodeText(elem: C4Element): string {
 export function c4ToGraphDocument(
   model: C4Model,
   boundaries?: readonly BoundaryInfo[],
+  manualGroups?: readonly ManualGroup[],
 ): GraphDocument {
   idCounter = 0;
   const now = Date.now();
@@ -246,6 +248,20 @@ export function c4ToGraphDocument(
       style: DEFAULT_EDGE_STYLE,
       label: rel.label,
     });
+  }
+
+  // --- Phase 5: ManualGroup を GraphGroup に変換 ---
+  if (manualGroups && manualGroups.length > 0) {
+    const groups: GraphGroup[] = [];
+    for (const mg of manualGroups) {
+      const memberIds = mg.memberIds
+        .map(c4Id => allIdMap.get(c4Id))
+        .filter((id): id is string => id !== undefined);
+      if (memberIds.length >= 2) {
+        groups.push({ id: mg.id, memberIds, label: mg.label });
+      }
+    }
+    if (groups.length > 0) doc.groups = groups;
   }
 
   return doc;
