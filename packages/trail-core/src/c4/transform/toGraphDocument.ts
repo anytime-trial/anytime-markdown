@@ -164,6 +164,7 @@ export function c4ToGraphDocument(
         c4Type: elem.type,
         c4NodeFill: nodeColors.fill,
         c4NodeStroke: nodeColors.stroke,
+        ...(elem.manual ? { manual: 1 } : {}),
         ...(serviceEntry?.iconBody ? {
           serviceIconBody: serviceEntry.iconBody,
           serviceIconViewBox: serviceEntry.iconViewBox ?? '0 0 24 24',
@@ -216,6 +217,7 @@ export function c4ToGraphDocument(
       metadata: {
         c4Id: elem.id,
         c4Type: elem.type,
+        ...(elem.manual ? { manual: 1 } : {}),
         ...(serviceEntry?.iconBody ? {
           serviceIconBody: serviceEntry.iconBody,
           serviceIconViewBox: serviceEntry.iconViewBox ?? '0 0 24 24',

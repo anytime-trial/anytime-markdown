@@ -247,8 +247,38 @@ export function layoutWithSubgroups(
   const childOrigins = layoutFrameChildren(frameOrder, childrenOf, intraEdgesOf, direction, levelGap, nodeSpacing);
   layoutRootNodes(doc, frameMap, orphanNodes, interEdges, nodeToDeepestFrame, direction, levelGap, nodeSpacing);
   translateChildrenToAbsolute(frameOrder, childrenOf, childOrigins);
+  placeManualAtBottom(doc, levelGap);
   packGroupMembers(doc, nodeSpacing);
   updateEdgeEndpoints(doc);
+}
+
+/**
+ * metadata.manual === 1 のノードを同じ親フレーム内の最下段に配置する。
+ * C4 モデルで手動登録要素を自動検出要素より下に配置するために使う。
+ */
+function placeManualAtBottom(doc: GraphDocument, levelGap: number): void {
+  // Group nodes by parent frame (undefined = root level)
+  const byParent = new Map<string | undefined, GraphNode[]>();
+  for (const node of doc.nodes) {
+    if (node.type === 'frame' && !node.groupId) continue; // skip root-level frames
+    const key = node.groupId;
+    const list = byParent.get(key) ?? [];
+    list.push(node);
+    byParent.set(key, list);
+  }
+
+  for (const [, siblings] of byParent) {
+    const manuals = siblings.filter(n => n.metadata?.manual === 1);
+    const autos = siblings.filter(n => n.metadata?.manual !== 1);
+    if (manuals.length === 0 || autos.length === 0) continue;
+
+    const maxAutoY = Math.max(...autos.map(n => n.y + n.height));
+    const minManualY = Math.min(...manuals.map(n => n.y));
+    const dy = maxAutoY + levelGap - minManualY;
+    if (dy > 0) {
+      for (const n of manuals) n.y += dy;
+    }
+  }
 }
 
 /**
