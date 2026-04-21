@@ -80,4 +80,42 @@ describe('EdgeExtractor', () => {
     const result = edgeExtractor.extractWithDiagnostics();
     expect(result.edges).toEqual(edges);
   });
+
+  describe('importKind metadata', () => {
+    it('static import is tagged as static', () => {
+      const staticEdge = edges.find(
+        e => e.type === 'import' && e.source.includes('index.ts') && e.target.includes('utils.ts'),
+      );
+      expect(staticEdge).toBeDefined();
+      expect(staticEdge?.importKind).toBe('static');
+    });
+
+    it('type-only import is tagged as type', () => {
+      const typeEdge = edges.find(
+        e => e.type === 'import' && e.source.includes('importPatterns.ts') && e.target.includes('types.ts') && e.importKind === 'type',
+      );
+      expect(typeEdge).toBeDefined();
+    });
+
+    it('re-export is tagged as reexport', () => {
+      const reexportEdge = edges.find(
+        e => e.type === 'import' && e.source.includes('importPatterns.ts') && e.target.includes('utils.ts') && e.importKind === 'reexport',
+      );
+      expect(reexportEdge).toBeDefined();
+    });
+
+    it('dynamic import is tagged as dynamic', () => {
+      const dynamicEdge = edges.find(
+        e => e.type === 'import' && e.source.includes('importPatterns.ts') && e.target.includes('utils.ts') && e.importKind === 'dynamic',
+      );
+      expect(dynamicEdge).toBeDefined();
+    });
+
+    it('type-position ImportTypeNode is tagged as type', () => {
+      const typeImportEdges = edges.filter(
+        e => e.type === 'import' && e.source.includes('importPatterns.ts') && e.target.includes('utils.ts') && e.importKind === 'type',
+      );
+      expect(typeImportEdges.length).toBeGreaterThanOrEqual(1);
+    });
+  });
 });

@@ -1,6 +1,6 @@
 import ts from 'typescript';
 import path from 'node:path';
-import type { TrailEdge, TrailNode } from '../model/types';
+import type { ImportKind, TrailEdge, TrailNode } from '../model/types';
 import type { ProjectAnalyzer } from './ProjectAnalyzer';
 
 export interface EdgeExtractorResult {
@@ -113,21 +113,19 @@ export class EdgeExtractor {
     const sourceRelative = path.relative(root, sourceFile.fileName);
     const sourceFileNodeId = `file::${sourceRelative}`;
 
-    ts.forEachChild(sourceFile, (node) => {
-      if (!ts.isImportDeclaration(node)) {
-        return;
-      }
-
-      const moduleSpecifierText = (node.moduleSpecifier as ts.StringLiteral)
-        .text;
-      const moduleSymbol = checker.getSymbolAtLocation(node.moduleSpecifier);
+    const pushEdge = (
+      moduleSpecifier: ts.Expression | undefined,
+      kind: ImportKind,
+    ): void => {
+      if (!moduleSpecifier || !ts.isStringLiteralLike(moduleSpecifier)) return;
+      const moduleSpecifierText = moduleSpecifier.text;
+      const moduleSymbol = checker.getSymbolAtLocation(moduleSpecifier);
       if (!moduleSymbol) {
         diagnostics.push(
           `Import source file not found: ${moduleSpecifierText} (in ${sourceRelative})`,
         );
         return;
       }
-
       const declarations = moduleSymbol.getDeclarations();
       if (!declarations || declarations.length === 0) {
         diagnostics.push(
@@ -135,19 +133,50 @@ export class EdgeExtractor {
         );
         return;
       }
-
       const targetFile = declarations[0].getSourceFile();
       const targetRelative = path.relative(root, targetFile.fileName);
       const targetFileNodeId = `file::${targetRelative}`;
+      if (sourceFileNodeId === targetFileNodeId) return;
+      edges.push({
+        source: sourceFileNodeId,
+        target: targetFileNodeId,
+        type: 'import',
+        importKind: kind,
+      });
+    };
 
-      if (sourceFileNodeId !== targetFileNodeId) {
-        edges.push({
-          source: sourceFileNodeId,
-          target: targetFileNodeId,
-          type: 'import',
-        });
+    // Pattern 2 (dynamic import) と Pattern 6 (ImportTypeNode) は式・型の任意位置に現れるため再帰的に探索する
+    const visit = (node: ts.Node): void => {
+      // Pattern 2: import('pkg') の動的 import
+      if (
+        ts.isCallExpression(node)
+        && node.expression.kind === ts.SyntaxKind.ImportKeyword
+        && node.arguments.length >= 1
+      ) {
+        pushEdge(node.arguments[0], 'dynamic');
       }
-    });
+      // Pattern 6: 型位置の import('pkg').X
+      if (ts.isImportTypeNode(node)) {
+        const arg = node.argument;
+        if (ts.isLiteralTypeNode(arg) && ts.isStringLiteralLike(arg.literal)) {
+          pushEdge(arg.literal, 'type');
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+
+    // Pattern 1 (static / type-only import) と Pattern 3 (re-export) はトップレベル宣言のみ
+    for (const statement of sourceFile.statements) {
+      if (ts.isImportDeclaration(statement)) {
+        const isTypeOnly = statement.importClause?.isTypeOnly === true;
+        pushEdge(statement.moduleSpecifier, isTypeOnly ? 'type' : 'static');
+      } else if (ts.isExportDeclaration(statement) && statement.moduleSpecifier) {
+        const isTypeOnly = statement.isTypeOnly === true;
+        pushEdge(statement.moduleSpecifier, isTypeOnly ? 'type' : 'reexport');
+      }
+    }
+
+    visit(sourceFile);
   }
 
   private extractCallEdges(
@@ -367,7 +396,7 @@ export class EdgeExtractor {
     const result: TrailEdge[] = [];
 
     for (const edge of edges) {
-      const key = `${edge.source}|${edge.target}|${edge.type}`;
+      const key = `${edge.source}|${edge.target}|${edge.type}|${edge.importKind ?? ''}`;
       if (!seen.has(key)) {
         seen.add(key);
         result.push(edge);
