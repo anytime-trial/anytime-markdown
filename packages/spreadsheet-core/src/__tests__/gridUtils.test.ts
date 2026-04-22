@@ -1,12 +1,12 @@
 import {
   columnLabel,
   createEmptyGrid,
-  isInDataRange,
-  DEFAULT_GRID_ROWS,
   DEFAULT_GRID_COLS,
-} from "../../components/spreadsheet/spreadsheetUtils";
+  DEFAULT_GRID_ROWS,
+  isInDataRange,
+} from "../utils/gridUtils";
 
-describe("spreadsheetUtils", () => {
+describe("gridUtils", () => {
   describe("columnLabel", () => {
     test("0 → A", () => expect(columnLabel(0)).toBe("A"));
     test("1 → B", () => expect(columnLabel(1)).toBe("B"));
