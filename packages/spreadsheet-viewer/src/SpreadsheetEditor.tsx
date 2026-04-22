@@ -18,6 +18,7 @@ interface SpreadsheetEditorProps {
     readonly headerRight?: React.ReactNode;
     readonly showApply?: boolean;
     readonly showRange?: boolean;
+    readonly showToolbar?: boolean;
     readonly onDirtyChange?: (dirty: boolean) => void;
     readonly onClose?: () => void;
     readonly onUndo?: () => void;
@@ -48,6 +49,7 @@ export const SpreadsheetEditor: React.FC<Readonly<SpreadsheetEditorProps>> = ({
     headerRight,
     showApply = false,
     showRange = false,
+    showToolbar = false,
     onDirtyChange,
     onClose,
     onUndo,
@@ -117,6 +119,7 @@ export const SpreadsheetEditor: React.FC<Readonly<SpreadsheetEditorProps>> = ({
                     gridCols={gridCols}
                     showApply={showApply}
                     showRange={showRange}
+                    showToolbar={showToolbar}
                     onDirtyChange={onDirtyChange}
                     onClose={onClose}
                     onUndo={onUndo}

@@ -325,6 +325,7 @@ function SpreadsheetEditContent({ editor, getPos, isDark, onDirtyChange, onClose
         gridCols={gridCols}
         showApply
         showRange
+        showToolbar
         onDirtyChange={onDirtyChange}
         onClose={onClose}
         onUndo={handleUndo}
