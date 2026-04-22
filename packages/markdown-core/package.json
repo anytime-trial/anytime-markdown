@@ -16,6 +16,7 @@
     "test": "jest"
   },
   "dependencies": {
+    "@anytime-markdown/spreadsheet-core": "*",
     "@tiptap/core": "3.20.0",
     "@tiptap/extension-code-block-lowlight": "3.20.0",
     "@tiptap/extension-highlight": "3.20.0",
