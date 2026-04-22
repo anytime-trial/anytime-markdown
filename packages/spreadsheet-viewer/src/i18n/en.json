@@ -35,6 +35,9 @@
     "exportCsv": "Export CSV",
     "importTsv": "Import TSV",
     "exportTsv": "Export TSV",
-    "invalidJson": "Failed to load file"
+    "invalidJson": "Failed to load file",
+    "sheetAdd": "Add Sheet",
+    "sheetDelete": "Delete Sheet",
+    "sheetRename": "Rename Sheet"
   }
 }

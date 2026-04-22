@@ -35,6 +35,9 @@
     "exportCsv": "CSV をダウンロード",
     "importTsv": "TSV を読み込む",
     "exportTsv": "TSV をダウンロード",
-    "invalidJson": "ファイルを読み込めませんでした"
+    "invalidJson": "ファイルを読み込めませんでした",
+    "sheetAdd": "シートを追加",
+    "sheetDelete": "シートを削除",
+    "sheetRename": "シート名を変更"
   }
 }
