@@ -6,6 +6,14 @@
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-04-22
+
+### 追加
+
+- `SpreadsheetEditor`: CSV/TSV インポート・エクスポートツールバー付きページレベルコンポーネント
+- i18n キー追加: `importCsv`・`exportCsv`・`importTsv`・`exportTsv`・`invalidJson`
+- `spreadsheet-core` の `SheetAdapter`・`SheetSnapshot`・`createInMemorySheetAdapter`・`parseCsv`・`serializeCsv` を re-export
+
 ## [0.1.0] - 2026-04-22
 
 ### 追加

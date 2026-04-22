@@ -30,6 +30,11 @@
     "spreadsheetFilterDeselectAll": "Deselect All",
     "spreadsheetFilterSearch": "Search values...",
     "spreadsheetFilterApply": "Apply",
-    "spreadsheetFilterNoMatch": "No matching values"
+    "spreadsheetFilterNoMatch": "No matching values",
+    "importCsv": "Import CSV",
+    "exportCsv": "Export CSV",
+    "importTsv": "Import TSV",
+    "exportTsv": "Export TSV",
+    "invalidJson": "Failed to load file"
   }
 }

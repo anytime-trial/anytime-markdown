@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-04-22
+
+### Added
+
+- `SpreadsheetEditor`: page-level component with CSV/TSV import/export toolbar
+- i18n keys: `importCsv`, `exportCsv`, `importTsv`, `exportTsv`, `invalidJson`
+- Re-exports `SheetAdapter`, `SheetSnapshot`, `createInMemorySheetAdapter`, `parseCsv`, `serializeCsv` from `spreadsheet-core`
+
 ## [0.1.0] - 2026-04-22
 
 ### Added
