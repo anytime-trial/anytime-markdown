@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Extracted spreadsheet functionality into `@anytime-markdown/spreadsheet-core` and `@anytime-markdown/spreadsheet-viewer` packages
+- Migrated `TableNodeView` to the `SheetAdapter` interface via `createTiptapSheetAdapter`
+- Removed the legacy `components/spreadsheet/` directory and the tiptap table wrappers `useSpreadsheetSync`
+- Moved viewer-only i18n keys to `spreadsheet-viewer`; `markdown-core/i18n/index.ts` merges them before re-exporting
+
 ## [0.11.4] - 2026-04-19
 
 ### Added

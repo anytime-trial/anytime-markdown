@@ -7,6 +7,13 @@
 
 ## [Unreleased]
 
+### 変更
+
+- スプレッドシート機能を `@anytime-markdown/spreadsheet-core` / `@anytime-markdown/spreadsheet-viewer` の 2 パッケージに切り出し
+- `TableNodeView` を `SheetAdapter` interface 経由に変更（`createTiptapSheetAdapter`）
+- `components/spreadsheet/` と `utils/tableHelpers.ts` の tiptap table 操作ラッパー `useSpreadsheetSync` を削除
+- viewer 専用 i18n キーを `spreadsheet-viewer` に移動し、`markdown-core/i18n/index.ts` でマージしてエクスポート
+
 ## [0.11.4] - 2026-04-19
 
 ### 追加
