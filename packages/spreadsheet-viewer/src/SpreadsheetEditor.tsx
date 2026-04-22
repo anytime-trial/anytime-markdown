@@ -108,7 +108,7 @@ export const SpreadsheetEditor: React.FC<Readonly<SpreadsheetEditorProps>> = ({
                     onChange={handleFileChange}
                 />
             </Stack>
-            <Box sx={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+            <Box sx={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
                 <SpreadsheetGrid
                     adapter={adapter}
                     isDark={isDark}
