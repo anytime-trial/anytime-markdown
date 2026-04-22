@@ -2,31 +2,31 @@ import type { EditorSettings } from "../useEditorSettings";
 
 // ── エディタ背景色 ──
 export const DEFAULT_DARK_BG = "#0D1117";
-export const DEFAULT_LIGHT_BG = "#E8E6E1";
+export const DEFAULT_LIGHT_BG = "#F2EFE8";
 
 // ── エディタ文字色 ──
 export const DEFAULT_DARK_TEXT = "#E2E8F0";
-export const DEFAULT_LIGHT_TEXT = "#111827";
+export const DEFAULT_LIGHT_TEXT = "#1F1E1C";
 
 // ── UI テキスト色（MUI テーマ準拠） ──
 export const DARK_TEXT_PRIMARY = "#ffffffde";
 export const DARK_TEXT_SECONDARY = "#ffffff99";
 export const DARK_TEXT_DISABLED = "#ffffff73";
-export const LIGHT_TEXT_PRIMARY = "#000000de";
-export const LIGHT_TEXT_SECONDARY = "#00000099";
-export const LIGHT_TEXT_DISABLED = "#00000061";
+export const LIGHT_TEXT_PRIMARY = "#1F1E1C";
+export const LIGHT_TEXT_SECONDARY = "#5C5A55";
+export const LIGHT_TEXT_DISABLED = "#A9A6A0";
 
 // ── コードブロック背景色 ──
 export const DEFAULT_DARK_CODE_BG = "#161B22";
-export const DEFAULT_LIGHT_CODE_BG = "#F5F5F0";
+export const DEFAULT_LIGHT_CODE_BG = "#EBE8DF";
 
 // ── 見出しセクション背景色 ──
 export const DEFAULT_DARK_HEADING_BG = "#1A202C";
-export const DEFAULT_LIGHT_HEADING_BG = "#DDDCD8";
+export const DEFAULT_LIGHT_HEADING_BG = "#DDD9CE";
 
 // ── 見出しリンク色 ──
 export const DEFAULT_DARK_HEADING_LINK = "#63B3ED";
-export const DEFAULT_LIGHT_HEADING_LINK = "#1A1A1A";
+export const DEFAULT_LIGHT_HEADING_LINK = "#1F1E1C";
 
 // ── 見出し装飾色（ボーダー・背景グラデーション） ──
 export const DEFAULT_DARK_H1_BORDER = "rgba(99,179,237,0.12)";
@@ -34,11 +34,11 @@ export const DEFAULT_DARK_H2_BORDER = "rgba(99,179,237,0.6)";
 export const DEFAULT_DARK_H3_BORDER = "rgba(99,179,237,0.35)";
 export const DEFAULT_DARK_H1_GRADIENT = "rgba(99,179,237,0.12)";
 export const DEFAULT_DARK_H2_GRADIENT = "rgba(99,179,237,0.08)";
-export const DEFAULT_LIGHT_H1_BORDER = "rgba(0,0,0,0.06)";
-export const DEFAULT_LIGHT_H2_BORDER = "rgba(0,0,0,0.25)";
-export const DEFAULT_LIGHT_H3_BORDER = "rgba(0,0,0,0.15)";
-export const DEFAULT_LIGHT_H1_GRADIENT = "rgba(0,0,0,0.06)";
-export const DEFAULT_LIGHT_H2_GRADIENT = "rgba(0,0,0,0.04)";
+export const DEFAULT_LIGHT_H1_BORDER = "rgba(31,30,28,0.06)";
+export const DEFAULT_LIGHT_H2_BORDER = "rgba(31,30,28,0.25)";
+export const DEFAULT_LIGHT_H3_BORDER = "rgba(31,30,28,0.15)";
+export const DEFAULT_LIGHT_H1_GRADIENT = "rgba(31,30,28,0.06)";
+export const DEFAULT_LIGHT_H2_GRADIENT = "rgba(31,30,28,0.04)";
 
 // ── シンタックスハイライト色（GitHub テーマ準拠） ──
 export const HLJS_DARK = {
@@ -71,9 +71,9 @@ export const HLJS_LIGHT = {
 
 // ── テーブルセル背景色 ──
 export const DEFAULT_DARK_TABLE_CELL_BG = "#161B22";
-export const DEFAULT_LIGHT_TABLE_CELL_BG = "#E8E6E1";
+export const DEFAULT_LIGHT_TABLE_CELL_BG = "#EBE8DF";
 export const DEFAULT_DARK_TABLE_HEADER_BG = "#1A202C";
-export const DEFAULT_LIGHT_TABLE_HEADER_BG = "#DDDCD8";
+export const DEFAULT_LIGHT_TABLE_HEADER_BG = "#DDD9CE";
 
 // ── インラインコード色 ──
 export const DEFAULT_DARK_INLINE_CODE = undefined; // getGrey で動的取得
@@ -139,13 +139,13 @@ export function getTextDisabled(isDark: boolean): string {
 
 // ── UI 背景色（MUI テーマ準拠） ──
 export const DARK_BG_PAPER = "#121212";
-export const LIGHT_BG_PAPER = "#fff";
+export const LIGHT_BG_PAPER = "#FBF9F3";
 export const DARK_ACTION_HOVER = "rgba(255,255,255,0.08)";
-export const LIGHT_ACTION_HOVER = "rgba(0,0,0,0.04)";
+export const LIGHT_ACTION_HOVER = "rgba(31,30,28,0.04)";
 export const DARK_ACTION_SELECTED = "rgba(255,255,255,0.16)";
-export const LIGHT_ACTION_SELECTED = "rgba(0,0,0,0.08)";
+export const LIGHT_ACTION_SELECTED = "rgba(31,30,28,0.08)";
 export const DARK_DIVIDER = "rgba(255,255,255,0.12)";
-export const LIGHT_DIVIDER = "rgba(0,0,0,0.12)";
+export const LIGHT_DIVIDER = "rgba(31,30,28,0.12)";
 
 /** ダーク/ライトモードに応じた UI 背景色を返すヘルパー */
 export function getBgPaper(isDark: boolean): string {
@@ -166,33 +166,33 @@ export const DARK_PRIMARY_MAIN = "#90caf9";
 export const DARK_PRIMARY_DARK = "#42a5f5";
 export const DARK_PRIMARY_LIGHT = "#e3f2fd";
 export const DARK_PRIMARY_CONTRAST = "rgba(0,0,0,0.87)";
-export const LIGHT_PRIMARY_MAIN = "#1976d2";
-export const LIGHT_PRIMARY_DARK = "#1565c0";
-export const LIGHT_PRIMARY_LIGHT = "#42a5f5";
-export const LIGHT_PRIMARY_CONTRAST = "#fff";
+export const LIGHT_PRIMARY_MAIN = "#3D4A52";
+export const LIGHT_PRIMARY_DARK = "#222A30";
+export const LIGHT_PRIMARY_LIGHT = "#8A918F";
+export const LIGHT_PRIMARY_CONTRAST = "#FBF9F3";
 
 export const DARK_ERROR_MAIN = "#f44336";
-export const LIGHT_ERROR_MAIN = "#d32f2f";
+export const LIGHT_ERROR_MAIN = "#6B2A20";
 
-export const DARK_WARNING_MAIN = "#ffa726";
-export const DARK_WARNING_LIGHT = "#ffb74d";
-export const LIGHT_WARNING_MAIN = "#ed6c02";
-export const LIGHT_WARNING_LIGHT = "#ff9800";
+export const DARK_WARNING_MAIN = "#9B7BD8";
+export const DARK_WARNING_LIGHT = "#B89FE8";
+export const LIGHT_WARNING_MAIN = "#4A5A6B";
+export const LIGHT_WARNING_LIGHT = "#5D6E80";
 
 export const DARK_SUCCESS_MAIN = "#66bb6a";
-export const LIGHT_SUCCESS_MAIN = "#2e7d32";
+export const LIGHT_SUCCESS_MAIN = "#4B5A3E";
 
 // ── セマンティックカラー背景（alpha） ──
 export const DARK_ERROR_BG = "rgba(239,83,80,0.12)";
-export const DARK_WARNING_BG = "rgba(255,167,38,0.12)";
+export const DARK_WARNING_BG = "rgba(155,123,216,0.14)";
 export const DARK_SUCCESS_BG = "rgba(102,187,106,0.12)";
 export const DARK_INFO_MAIN = "#42a5f5";
 export const DARK_INFO_BG = "rgba(66,165,245,0.12)";
-export const LIGHT_ERROR_BG = "rgba(211,47,47,0.08)";
-export const LIGHT_WARNING_BG = "rgba(237,108,2,0.08)";
-export const LIGHT_SUCCESS_BG = "rgba(46,125,50,0.08)";
-export const LIGHT_INFO_MAIN = "#0288d1";
-export const LIGHT_INFO_BG = "rgba(2,136,209,0.08)";
+export const LIGHT_ERROR_BG = "rgba(107,42,32,0.08)";
+export const LIGHT_WARNING_BG = "rgba(74,90,107,0.10)";
+export const LIGHT_SUCCESS_BG = "rgba(75,90,62,0.08)";
+export const LIGHT_INFO_MAIN = "#3D4A52";
+export const LIGHT_INFO_BG = "rgba(61,74,82,0.08)";
 
 export const DARK_GREY_100 = "#f5f5f5";
 export const DARK_GREY_300 = "#e0e0e0";
