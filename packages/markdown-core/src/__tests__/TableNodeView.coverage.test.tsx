@@ -89,7 +89,7 @@ jest.mock("../utils/tableHelpers", () => ({
   moveTableColumn: jest.fn(),
 }));
 
-jest.mock("../components/spreadsheet/SpreadsheetGrid", () => ({
+jest.mock("@anytime-markdown/spreadsheet-viewer", () => ({
   SpreadsheetGrid: () => <div data-testid="spreadsheet-grid" />,
 }));
 
