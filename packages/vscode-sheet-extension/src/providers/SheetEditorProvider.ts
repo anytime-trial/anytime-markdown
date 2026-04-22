@@ -52,23 +52,27 @@ export class SheetEditorProvider implements vscode.CustomTextEditorProvider {
 		const format = formatOf(document.uri);
 		webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, locale);
 
+		const EMPTY_WORKBOOK = {
+			version: 2,
+			sheets: [{ name: 'Sheet1', cells: [['']], alignments: [[null]], range: { rows: 1, cols: 1 } }],
+			activeSheet: 0,
+		};
+
 		const sendSnapshot = () => {
+			if (format !== 'sheet') {
+				webviewPanel.webview.postMessage({ type: 'init', format, text: document.getText() });
+				return;
+			}
 			try {
 				const text = document.getText();
-				let snapshot;
-				if (format === 'sheet') {
-					snapshot = JSON.parse(text.length > 0 ? text : '{"cells":[[""]],"alignments":[[null]],"range":{"rows":1,"cols":1}}');
+				const parsed = JSON.parse(text.length > 0 ? text : '{}') as Record<string, unknown>;
+				if (parsed.version === 2 && Array.isArray(parsed.sheets)) {
+					webviewPanel.webview.postMessage({ type: 'init', format, workbook: parsed });
 				} else {
-					webviewPanel.webview.postMessage({ type: 'init', format, text });
-					return;
+					webviewPanel.webview.postMessage({ type: 'init', format, workbook: EMPTY_WORKBOOK });
 				}
-				webviewPanel.webview.postMessage({ type: 'init', format, snapshot });
 			} catch {
-				webviewPanel.webview.postMessage({
-					type: 'init',
-					format,
-					snapshot: { cells: [['']], alignments: [[null]], range: { rows: 1, cols: 1 } },
-				});
+				webviewPanel.webview.postMessage({ type: 'init', format, workbook: EMPTY_WORKBOOK });
 			}
 		};
 
@@ -94,7 +98,7 @@ export class SheetEditorProvider implements vscode.CustomTextEditorProvider {
 				case 'edit': {
 					let serialized: string;
 					if (format === 'sheet') {
-						serialized = JSON.stringify(message.snapshot, null, 2);
+						serialized = JSON.stringify({ version: 2, ...(message.workbook as object) }, null, 2);
 					} else {
 						serialized = message.text as string;
 					}
