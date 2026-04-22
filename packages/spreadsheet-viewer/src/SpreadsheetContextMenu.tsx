@@ -11,17 +11,20 @@ import ListItemIcon from "@mui/material/ListItemIcon";
 import ListItemText from "@mui/material/ListItemText";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
-import type { Editor } from "@tiptap/react";
+import type {
+  CellAlign,
+  ContextMenuState,
+  DataRange,
+  SheetAdapter,
+  SheetSnapshot,
+} from "@anytime-markdown/spreadsheet-core";
 import React, { useCallback } from "react";
 
-import { moveTableColumn,moveTableRow } from "../../utils/tableHelpers";
-import type { ContextMenuState, DataRange } from "./spreadsheetTypes";
-
 interface SpreadsheetContextMenuProps {
+  readonly adapter: SheetAdapter;
   readonly contextMenu: ContextMenuState;
   readonly dataRange: DataRange;
   readonly grid: string[][];
-  readonly editor: Editor;
   readonly onClose: () => void;
   readonly onInsertRow: (index: number) => void;
   readonly onDeleteRow: (index: number) => void;
@@ -36,12 +39,112 @@ interface SpreadsheetContextMenuProps {
   readonly t: (key: string) => string;
 }
 
+/* ------------------------------------------------------------------ */
+/*  Snapshot builders（pure functions）                                 */
+/* ------------------------------------------------------------------ */
+
+function makeEmptyRow(cols: number): string[] {
+  return Array.from({ length: cols }, () => "");
+}
+
+function makeEmptyAlignRow(cols: number): CellAlign[] {
+  return Array.from<CellAlign>({ length: cols }).fill(null);
+}
+
+function insertRowSnapshot(snapshot: SheetSnapshot, at: number): SheetSnapshot {
+  const cells = snapshot.cells.map((r) => [...r]);
+  const alignments = snapshot.alignments.map((r) => [...r]);
+  cells.splice(at, 0, makeEmptyRow(snapshot.range.cols));
+  alignments.splice(at, 0, makeEmptyAlignRow(snapshot.range.cols));
+  return {
+    cells,
+    alignments,
+    range: { rows: snapshot.range.rows + 1, cols: snapshot.range.cols },
+  };
+}
+
+function deleteRowSnapshot(snapshot: SheetSnapshot, at: number): SheetSnapshot {
+  if (snapshot.range.rows <= 1) return snapshot;
+  const cells = snapshot.cells.map((r) => [...r]);
+  const alignments = snapshot.alignments.map((r) => [...r]);
+  cells.splice(at, 1);
+  alignments.splice(at, 1);
+  return {
+    cells,
+    alignments,
+    range: { rows: snapshot.range.rows - 1, cols: snapshot.range.cols },
+  };
+}
+
+function insertColSnapshot(snapshot: SheetSnapshot, at: number): SheetSnapshot {
+  const cells = snapshot.cells.map((row) => {
+    const next = [...row];
+    next.splice(at, 0, "");
+    return next;
+  });
+  const alignments = snapshot.alignments.map((row) => {
+    const next = [...row];
+    next.splice(at, 0, null);
+    return next;
+  });
+  return {
+    cells,
+    alignments,
+    range: { rows: snapshot.range.rows, cols: snapshot.range.cols + 1 },
+  };
+}
+
+function deleteColSnapshot(snapshot: SheetSnapshot, at: number): SheetSnapshot {
+  if (snapshot.range.cols <= 1) return snapshot;
+  const cells = snapshot.cells.map((row) => {
+    const next = [...row];
+    next.splice(at, 1);
+    return next;
+  });
+  const alignments = snapshot.alignments.map((row) => {
+    const next = [...row];
+    next.splice(at, 1);
+    return next;
+  });
+  return {
+    cells,
+    alignments,
+    range: { rows: snapshot.range.rows, cols: snapshot.range.cols - 1 },
+  };
+}
+
+function swapRowsSnapshot(snapshot: SheetSnapshot, a: number, b: number): SheetSnapshot {
+  const cells = snapshot.cells.map((r) => [...r]);
+  const alignments = snapshot.alignments.map((r) => [...r]);
+  [cells[a], cells[b]] = [cells[b], cells[a]];
+  [alignments[a], alignments[b]] = [alignments[b], alignments[a]];
+  return { cells, alignments, range: snapshot.range };
+}
+
+function swapColsSnapshot(snapshot: SheetSnapshot, a: number, b: number): SheetSnapshot {
+  const cells = snapshot.cells.map((row) => {
+    const next = [...row];
+    [next[a], next[b]] = [next[b], next[a]];
+    return next;
+  });
+  const alignments = snapshot.alignments.map((row) => {
+    const next = [...row];
+    [next[a], next[b]] = [next[b], next[a]];
+    return next;
+  });
+  return { cells, alignments, range: snapshot.range };
+}
+
+/* ------------------------------------------------------------------ */
+/*  Component                                                           */
+/* ------------------------------------------------------------------ */
+
 export const SpreadsheetContextMenu = React.memo(
   function SpreadsheetContextMenu({
+    adapter,
     contextMenu,
     dataRange,
     grid,
-    editor,
     onClose,
     onInsertRow,
     onDeleteRow,
@@ -56,7 +159,6 @@ export const SpreadsheetContextMenu = React.memo(
     t,
   }: Readonly<SpreadsheetContextMenuProps>) {
     const { anchorX, anchorY, target } = contextMenu;
-    // row/col ハンドラ用に index を持つ target を抽出（cell の場合は使われない）
     const indexTarget = target.type !== "cell" ? target : null;
 
     const handleInsertRowAbove = useCallback(() => {
@@ -64,116 +166,116 @@ export const SpreadsheetContextMenu = React.memo(
       const inData = indexTarget.index < dataRange.rows;
       onInsertRow(indexTarget.index);
       if (inData) {
-        editor.chain().addRowBefore().run();
+        adapter.replaceAll(insertRowSnapshot(adapter.getSnapshot(), indexTarget.index));
         setDataRange({ ...dataRange, rows: dataRange.rows + 1 });
       }
       onClose();
-    }, [indexTarget, dataRange, editor, onInsertRow, setDataRange, onClose]);
+    }, [indexTarget, dataRange, adapter, onInsertRow, setDataRange, onClose]);
 
     const handleInsertRowBelow = useCallback(() => {
       if (!indexTarget) return;
       const inData = indexTarget.index < dataRange.rows;
       onInsertRow(indexTarget.index + 1);
       if (inData) {
-        editor.chain().addRowAfter().run();
+        adapter.replaceAll(insertRowSnapshot(adapter.getSnapshot(), indexTarget.index + 1));
         setDataRange({ ...dataRange, rows: dataRange.rows + 1 });
       }
       onClose();
-    }, [indexTarget, dataRange, editor, onInsertRow, setDataRange, onClose]);
+    }, [indexTarget, dataRange, adapter, onInsertRow, setDataRange, onClose]);
 
     const handleDeleteRow = useCallback(() => {
       if (!indexTarget) return;
       const inData = indexTarget.index < dataRange.rows;
       onDeleteRow(indexTarget.index);
       if (inData) {
-        editor.chain().deleteRow().run();
+        adapter.replaceAll(deleteRowSnapshot(adapter.getSnapshot(), indexTarget.index));
         setDataRange({
           ...dataRange,
           rows: Math.max(1, dataRange.rows - 1),
         });
       }
       onClose();
-    }, [indexTarget, dataRange, editor, onDeleteRow, setDataRange, onClose]);
+    }, [indexTarget, dataRange, adapter, onDeleteRow, setDataRange, onClose]);
 
     const handleMoveRowUp = useCallback(() => {
       if (!indexTarget) return;
       const inData = indexTarget.index < dataRange.rows;
-      if (inData) {
-        moveTableRow(editor, "up");
+      if (inData && indexTarget.index > 0) {
+        adapter.replaceAll(swapRowsSnapshot(adapter.getSnapshot(), indexTarget.index, indexTarget.index - 1));
       } else {
         onSwapRows(indexTarget.index, indexTarget.index - 1);
       }
       onClose();
-    }, [indexTarget, dataRange, editor, onSwapRows, onClose]);
+    }, [indexTarget, dataRange, adapter, onSwapRows, onClose]);
 
     const handleMoveRowDown = useCallback(() => {
       if (!indexTarget) return;
       const inData = indexTarget.index < dataRange.rows;
-      if (inData) {
-        moveTableRow(editor, "down");
+      if (inData && indexTarget.index < dataRange.rows - 1) {
+        adapter.replaceAll(swapRowsSnapshot(adapter.getSnapshot(), indexTarget.index, indexTarget.index + 1));
       } else {
         onSwapRows(indexTarget.index, indexTarget.index + 1);
       }
       onClose();
-    }, [indexTarget, dataRange, editor, onSwapRows, onClose]);
+    }, [indexTarget, dataRange, adapter, onSwapRows, onClose]);
 
     const handleInsertColLeft = useCallback(() => {
       if (!indexTarget) return;
       const inData = indexTarget.index < dataRange.cols;
       onInsertCol(indexTarget.index);
       if (inData) {
-        editor.chain().addColumnBefore().run();
+        adapter.replaceAll(insertColSnapshot(adapter.getSnapshot(), indexTarget.index));
         setDataRange({ ...dataRange, cols: dataRange.cols + 1 });
       }
       onClose();
-    }, [indexTarget, dataRange, editor, onInsertCol, setDataRange, onClose]);
+    }, [indexTarget, dataRange, adapter, onInsertCol, setDataRange, onClose]);
 
     const handleInsertColRight = useCallback(() => {
       if (!indexTarget) return;
       const inData = indexTarget.index < dataRange.cols;
       onInsertCol(indexTarget.index + 1);
       if (inData) {
-        editor.chain().addColumnAfter().run();
+        adapter.replaceAll(insertColSnapshot(adapter.getSnapshot(), indexTarget.index + 1));
         setDataRange({ ...dataRange, cols: dataRange.cols + 1 });
       }
       onClose();
-    }, [indexTarget, dataRange, editor, onInsertCol, setDataRange, onClose]);
+    }, [indexTarget, dataRange, adapter, onInsertCol, setDataRange, onClose]);
 
     const handleDeleteCol = useCallback(() => {
       if (!indexTarget) return;
       const inData = indexTarget.index < dataRange.cols;
       onDeleteCol(indexTarget.index);
       if (inData) {
-        editor.chain().deleteColumn().run();
+        adapter.replaceAll(deleteColSnapshot(adapter.getSnapshot(), indexTarget.index));
         setDataRange({
           ...dataRange,
           cols: Math.max(1, dataRange.cols - 1),
         });
       }
       onClose();
-    }, [indexTarget, dataRange, editor, onDeleteCol, setDataRange, onClose]);
+    }, [indexTarget, dataRange, adapter, onDeleteCol, setDataRange, onClose]);
 
     const handleMoveColLeft = useCallback(() => {
       if (!indexTarget) return;
       const inData = indexTarget.index < dataRange.cols;
-      if (inData) {
-        moveTableColumn(editor, "left");
+      if (inData && indexTarget.index > 0) {
+        adapter.replaceAll(swapColsSnapshot(adapter.getSnapshot(), indexTarget.index, indexTarget.index - 1));
       } else {
         onSwapCols(indexTarget.index, indexTarget.index - 1);
       }
       onClose();
-    }, [indexTarget, dataRange, editor, onSwapCols, onClose]);
+    }, [indexTarget, dataRange, adapter, onSwapCols, onClose]);
 
     const handleMoveColRight = useCallback(() => {
       if (!indexTarget) return;
       const inData = indexTarget.index < dataRange.cols;
-      if (inData) {
-        moveTableColumn(editor, "right");
+      if (inData && indexTarget.index < dataRange.cols - 1) {
+        adapter.replaceAll(swapColsSnapshot(adapter.getSnapshot(), indexTarget.index, indexTarget.index + 1));
       } else {
         onSwapCols(indexTarget.index, indexTarget.index + 1);
       }
       onClose();
-    }, [indexTarget, dataRange, editor, onSwapCols, onClose]);
+    }, [indexTarget, dataRange, adapter, onSwapCols, onClose]);
 
     /** コピー対象のセル範囲を target の種類に応じて返す */
     const getTargetCells = useCallback((): { startRow: number; startCol: number; endRow: number; endCol: number } | null => {
@@ -207,14 +309,18 @@ export const SpreadsheetContextMenu = React.memo(
     const handleCopy = useCallback(() => {
       const range = getTargetCells();
       if (!range) return;
-      navigator.clipboard.writeText(rangesToTsv(range)).catch(() => {/* ignore */});
+      navigator.clipboard.writeText(rangesToTsv(range)).catch((err) => {
+        console.warn("[SpreadsheetContextMenu] copy failed", err);
+      });
       onClose();
     }, [getTargetCells, rangesToTsv, onClose]);
 
     const handleCut = useCallback(() => {
       const range = getTargetCells();
       if (!range) return;
-      navigator.clipboard.writeText(rangesToTsv(range)).catch(() => {/* ignore */});
+      navigator.clipboard.writeText(rangesToTsv(range)).catch((err) => {
+        console.warn("[SpreadsheetContextMenu] cut copy failed", err);
+      });
       for (let r = range.startRow; r <= range.endRow; r++) {
         for (let c = range.startCol; c <= range.endCol; c++) {
           setCellValue(r, c, "");
@@ -238,7 +344,9 @@ export const SpreadsheetContextMenu = React.memo(
             }
           }
         }
-      }).catch(() => {/* ignore */});
+      }).catch((err) => {
+        console.warn("[SpreadsheetContextMenu] paste failed", err);
+      });
       onClose();
     }, [getTargetCells, grid, setCellValue, onClose]);
 
