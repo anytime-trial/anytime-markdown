@@ -2,6 +2,8 @@ import graphEnMessages from '@anytime-markdown/graph-viewer/src/i18n/en.json';
 import graphJaMessages from '@anytime-markdown/graph-viewer/src/i18n/ja.json';
 import enMessages from '@anytime-markdown/markdown-core/src/i18n/en.json';
 import jaMessages from '@anytime-markdown/markdown-core/src/i18n/ja.json';
+import spreadsheetEnMessages from '@anytime-markdown/spreadsheet-viewer/src/i18n/en.json';
+import spreadsheetJaMessages from '@anytime-markdown/spreadsheet-viewer/src/i18n/ja.json';
 import { cookies } from 'next/headers';
 import { getRequestConfig } from 'next-intl/server';
 
@@ -9,8 +11,8 @@ const supportedLocales = ['ja', 'en'] as const;
 type Locale = (typeof supportedLocales)[number];
 const defaultLocale: Locale = 'ja';
 
-const mergedJa = { ...jaMessages, ...graphJaMessages };
-const mergedEn = { ...enMessages, ...graphEnMessages };
+const mergedJa = { ...jaMessages, ...graphJaMessages, ...spreadsheetJaMessages };
+const mergedEn = { ...enMessages, ...graphEnMessages, ...spreadsheetEnMessages };
 const messagesByLocale: Record<Locale, typeof mergedJa> = { ja: mergedJa, en: mergedEn };
 
 export default getRequestConfig(async () => {

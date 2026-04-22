@@ -288,14 +288,14 @@ function getTableGridOptions(editor: Editor) {
 }
 
 /** Spreadsheet edit mode content (extracted to reduce cognitive complexity). */
-function SpreadsheetEditContent({ editor, getPos, isDark, t, onDirtyChange, onClose }: Readonly<{
+function SpreadsheetEditContent({ editor, getPos, isDark, onDirtyChange, onClose }: Readonly<{
   editor: Editor;
   getPos: NodeViewProps["getPos"];
   isDark: boolean;
-  t: (key: string) => string;
   onDirtyChange: (dirty: boolean) => void;
   onClose: () => void;
 }>) {
+  const tSheet = useTranslations("Spreadsheet");
   const { gridRows, gridCols } = getTableGridOptions(editor);
   const adapter = useMemo(
     () =>
@@ -320,7 +320,7 @@ function SpreadsheetEditContent({ editor, getPos, isDark, t, onDirtyChange, onCl
       <SpreadsheetGrid
         adapter={adapter}
         isDark={isDark}
-        t={t}
+        t={tSheet}
         gridRows={gridRows}
         gridCols={gridCols}
         onDirtyChange={onDirtyChange}
@@ -365,7 +365,6 @@ function TableContentArea({ showCompare, editOpen, collapsed, highlightedCompare
         editor={editor}
         getPos={getPos}
         isDark={isDark}
-        t={t}
         onDirtyChange={onDirtyChange}
         onClose={onSpreadsheetClose}
       />
