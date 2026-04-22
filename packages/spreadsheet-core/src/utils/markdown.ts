@@ -14,9 +14,10 @@ function parseAlignment(cell: string): CellAlign {
     return null;
 }
 
-/** セパレータ行かどうかを判定する（`| --- | :---: |` 等） */
+/** セパレータ行かどうかを判定する（GFM: 各セルは `:?-+:?` 形式） */
 function isSeparatorRow(line: string): boolean {
-    return /^\|[\s|:=-]+\|$/.test(line.trim());
+    const cells = line.split('|').slice(1, -1);
+    return cells.length > 0 && cells.every((c) => /^\s*:?-+:?\s*$/.test(c));
 }
 
 /**
