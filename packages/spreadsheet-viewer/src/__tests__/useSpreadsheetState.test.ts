@@ -1,9 +1,11 @@
-import { renderHook, act } from "@testing-library/react";
-import { useSpreadsheetState } from "../../components/spreadsheet/useSpreadsheetState";
+import { act, renderHook } from "@testing-library/react";
+
 import {
-  DEFAULT_GRID_ROWS,
   DEFAULT_GRID_COLS,
-} from "../../components/spreadsheet/spreadsheetUtils";
+  DEFAULT_GRID_ROWS,
+} from "@anytime-markdown/spreadsheet-core";
+
+import { useSpreadsheetState } from "../hooks/useSpreadsheetState";
 
 describe("useSpreadsheetState", () => {
   const DEFAULT_ROWS = 5;
@@ -176,7 +178,6 @@ describe("useSpreadsheetState", () => {
       act(() => {
         result.current.insertRow(0);
       });
-      // Last row data is dropped
       expect(result.current.grid[DEFAULT_GRID_ROWS - 1][0]).toBe("");
     });
   });

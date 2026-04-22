@@ -1,7 +1,15 @@
-import { useCallback,useState } from "react";
+import { useCallback, useState } from "react";
 
-import type { CellAlign, DataRange,SpreadsheetSelection } from "./spreadsheetTypes";
-import { createEmptyGrid,DEFAULT_GRID_COLS, DEFAULT_GRID_ROWS } from "./spreadsheetUtils";
+import type {
+  CellAlign,
+  DataRange,
+  SpreadsheetSelection,
+} from "@anytime-markdown/spreadsheet-core";
+import {
+  createEmptyGrid,
+  DEFAULT_GRID_COLS,
+  DEFAULT_GRID_ROWS,
+} from "@anytime-markdown/spreadsheet-core";
 
 interface UseSpreadsheetStateParams {
   readonly initialRows: number;
