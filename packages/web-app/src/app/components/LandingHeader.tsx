@@ -17,6 +17,7 @@ export default function LandingHeader() {
   const t = useTranslations('Landing');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const showGraph = process.env.NEXT_PUBLIC_SHOW_GRAPH === '1';
+  const showSheet = process.env.NEXT_PUBLIC_SHOW_SHEET === '1';
   const showPlaylist = process.env.NEXT_PUBLIC_SHOW_PLAYLIST === '1';
 
 
@@ -87,6 +88,15 @@ export default function LandingHeader() {
               sx={{ textTransform: 'none', color: 'text.secondary', fontWeight: 600, fontSize: '0.85rem', display: { xs: 'none', sm: 'inline-flex' } }}
             >
               {t('graphPage')}
+            </Button>
+          )}
+          {showSheet && (
+            <Button
+              component={NextLink}
+              href="/sheet"
+              sx={{ textTransform: 'none', color: 'text.secondary', fontWeight: 600, fontSize: '0.85rem', display: { xs: 'none', sm: 'inline-flex' } }}
+            >
+              {t('sheetPage')}
             </Button>
           )}
           {showPlaylist && (
@@ -162,6 +172,11 @@ export default function LandingHeader() {
             {showGraph && (
               <ListItemButton component={NextLink} href="/graph" onClick={() => setDrawerOpen(false)}>
                 <ListItemText primary={t('graphPage')} />
+              </ListItemButton>
+            )}
+            {showSheet && (
+              <ListItemButton component={NextLink} href="/sheet" onClick={() => setDrawerOpen(false)}>
+                <ListItemText primary={t('sheetPage')} />
               </ListItemButton>
             )}
             {showPlaylist && (

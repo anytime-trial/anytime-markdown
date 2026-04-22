@@ -23,6 +23,7 @@
     "packages/vscode-common",
     "packages/vscode-markdown-extension",
     "packages/vscode-graph-extension",
+    "packages/vscode-sheet-extension",
     "packages/vscode-trail-extension",
     "packages/vscode-history-extension",
     "packages/vscode-extension-pack",

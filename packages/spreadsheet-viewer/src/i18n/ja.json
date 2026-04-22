@@ -30,6 +30,11 @@
     "spreadsheetFilterDeselectAll": "すべて解除",
     "spreadsheetFilterSearch": "値を検索...",
     "spreadsheetFilterApply": "適用",
-    "spreadsheetFilterNoMatch": "一致する値がありません"
+    "spreadsheetFilterNoMatch": "一致する値がありません",
+    "importCsv": "CSV を読み込む",
+    "exportCsv": "CSV をダウンロード",
+    "importTsv": "TSV を読み込む",
+    "exportTsv": "TSV をダウンロード",
+    "invalidJson": "ファイルを読み込めませんでした"
   }
 }

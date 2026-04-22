@@ -26,6 +26,7 @@
   "extensionPack": [
     "anytime-trial.anytime-markdown",
     "anytime-trial.anytime-graph",
+    "anytime-trial.anytime-sheet",
     "anytime-trial.anytime-history",
     "anytime-trial.anytime-trail"
   ]

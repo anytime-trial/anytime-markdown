@@ -6,6 +6,13 @@
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-04-22
+
+### 追加
+
+- `InMemorySheetAdapter`: テストおよびスタンドアロン用途向けの `SheetAdapter` インメモリ実装
+- `parseCsv` / `serializeCsv`: RFC 4180 準拠の CSV/TSV パーサ・シリアライザ
+
 ## [0.1.0] - 2026-04-22
 
 ### 追加

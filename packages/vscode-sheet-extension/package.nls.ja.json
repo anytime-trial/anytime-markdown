@@ -1,0 +1,7 @@
+{
+  "displayName": "Anytime Sheet",
+  "description": "VS Code 向けスプレッドシートエディタ（.sheet / .csv / .tsv 対応）",
+  "viewsContainers.anytimeSheet.title": "Anytime Sheet",
+  "customEditor.displayName": "シートエディタ",
+  "command.newSheet": "Anytime Sheet: 新しいシートを作成"
+}

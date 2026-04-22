@@ -10,6 +10,9 @@ const config = {
   ],
   moduleFileExtensions: ["ts", "tsx", "js", "jsx", "json"],
   maxWorkers: 1,
+  moduleNameMapper: {
+    "^@anytime-markdown/spreadsheet-core$": "<rootDir>/../spreadsheet-core/src/index.ts",
+  },
 };
 
 module.exports = config;
