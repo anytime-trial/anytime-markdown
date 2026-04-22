@@ -17,6 +17,7 @@ interface SpreadsheetEditorProps {
     readonly gridCols?: number;
     readonly headerRight?: React.ReactNode;
     readonly showApply?: boolean;
+    readonly showRange?: boolean;
 }
 
 type Format = "csv" | "tsv";
@@ -42,6 +43,7 @@ export const SpreadsheetEditor: React.FC<Readonly<SpreadsheetEditorProps>> = ({
     gridCols,
     headerRight,
     showApply = false,
+    showRange = false,
 }) => {
     const t = useTranslations("Spreadsheet");
     const fallbackAdapter = useMemo(() => createInMemorySheetAdapter(), []);
@@ -106,6 +108,7 @@ export const SpreadsheetEditor: React.FC<Readonly<SpreadsheetEditorProps>> = ({
                     gridRows={gridRows}
                     gridCols={gridCols}
                     showApply={showApply}
+                    showRange={showRange}
                 />
             </Box>
         </Box>

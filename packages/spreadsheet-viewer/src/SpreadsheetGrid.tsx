@@ -76,6 +76,8 @@ interface SpreadsheetGridProps {
   readonly onRedo?: () => void;
   /** 適用ボタンを表示するか（デフォルト: true） */
   readonly showApply?: boolean;
+  /** データ範囲の青枠とリサイズハンドルを表示するか（デフォルト: true） */
+  readonly showRange?: boolean;
 }
 
 /* ------------------------------------------------------------------ */
@@ -145,6 +147,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
   onUndo,
   onRedo,
   showApply = true,
+  showRange = true,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -498,11 +501,13 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     const drLeft = ROW_NUM_WIDTH;
     const drTop = topOffset + rowHeight;
 
-    ctx.strokeStyle = primaryColor;
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.rect(drLeft, drTop, drRight - drLeft, drBottom - drTop);
-    ctx.stroke();
+    if (showRange) {
+      ctx.strokeStyle = primaryColor;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.rect(drLeft, drTop, drRight - drLeft, drBottom - drTop);
+      ctx.stroke();
+    }
 
     {
       const headerRowVi = gridRowToVisualIndex(0);
@@ -726,10 +731,12 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
       }
     }
 
-    const handleX = drRight - 5;
-    const handleY = drBottom - 5;
-    ctx.fillStyle = primaryColor;
-    ctx.fillRect(handleX, handleY, 10, 10);
+    if (showRange) {
+      const handleX = drRight - 5;
+      const handleY = drBottom - 5;
+      ctx.fillStyle = primaryColor;
+      ctx.fillRect(handleX, handleY, 10, 10);
+    }
 
     if (reorderDrag?.targetIndex != null) {
       ctx.strokeStyle = primaryColor;
@@ -752,7 +759,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
   }, [
     alignments, bgColor, borderColor, dataRange, editing, getColWidth, getColX, grid, GRID_COLS, gridRowToVisualIndex,
     headerBg, headerTextColor, hiddenRows, previewRange, primaryColor, reorderDrag, rowHeight, selectedBg,
-    selection, textColor, topOffset, totalHeight, totalWidth, visibleRows,
+    selection, showRange, textColor, topOffset, totalHeight, totalWidth, visibleRows,
   ]);
 
   useEffect(() => {
@@ -968,8 +975,8 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     if (!coords) return;
     const { x, y } = coords;
 
-    const nearRight = isNearRightEdge(x);
-    const nearBottom = isNearBottomEdge(y);
+    const nearRight = showRange && isNearRightEdge(x);
+    const nearBottom = showRange && isNearBottomEdge(y);
 
     let edge: "right" | "bottom" | "corner" | null = null;
     if (nearRight && nearBottom) edge = "corner";
@@ -1164,8 +1171,8 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     if (!coords) return;
     const { x, y } = coords;
 
-    const nearRight = isNearRightEdge(x);
-    const nearBottom = isNearBottomEdge(y);
+    const nearRight = showRange && isNearRightEdge(x);
+    const nearBottom = showRange && isNearBottomEdge(y);
 
     if (nearRight && nearBottom) {
       canvas.style.cursor = "nwse-resize";

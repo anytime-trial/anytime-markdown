@@ -50,7 +50,7 @@ export function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <SpreadsheetEditor key={localeKey} themeMode={themeMode} adapter={adapter} showApply />
+      <SpreadsheetEditor key={localeKey} themeMode={themeMode} adapter={adapter} showApply showRange />
     </ThemeProvider>
   );
 }
