@@ -1,7 +1,9 @@
 import { mergeAttributes,Node } from "@tiptap/core";
 import { ReactNodeViewRenderer } from "@tiptap/react";
+import type MarkdownIt from "markdown-it";
 
 import { ImageRowNodeView } from "./ImageRowNodeView";
+import { wrapImageRow } from "./markdownItRules/wrapImageRow";
 
 export const ImageRow = Node.create({
   name: "imageRow",
@@ -24,5 +26,17 @@ export const ImageRow = Node.create({
 
   addNodeView() {
     return ReactNodeViewRenderer(ImageRowNodeView);
+  },
+
+  addStorage() {
+    return {
+      markdown: {
+        parse: {
+          setup: (md: MarkdownIt) => {
+            wrapImageRow(md);
+          },
+        },
+      },
+    };
   },
 });
