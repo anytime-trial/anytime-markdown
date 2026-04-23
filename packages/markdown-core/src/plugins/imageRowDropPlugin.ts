@@ -126,6 +126,32 @@ export function applyDropAction(
   return true;
 }
 
+const DROP_CURSOR_CLASS = "image-row-drop-cursor-vertical";
+
+function removeDropCursors(view: EditorView): void {
+  const parent = view.dom.parentElement;
+  if (!parent) return;
+  parent.querySelectorAll(`.${DROP_CURSOR_CLASS}`).forEach((el) => el.remove());
+}
+
+function renderDropCursor(view: EditorView, decision: DropDecision): void {
+  removeDropCursors(view);
+  if (decision.action !== "wrap-left" && decision.action !== "wrap-right") return;
+  const parent = view.dom.parentElement;
+  if (!parent) return;
+  const rect = decision.targetElement.getBoundingClientRect();
+  const parentRect = view.dom.getBoundingClientRect();
+  const cursorEl = document.createElement("div");
+  cursorEl.className = DROP_CURSOR_CLASS;
+  cursorEl.style.top = `${rect.top - parentRect.top}px`;
+  cursorEl.style.height = `${rect.height}px`;
+  cursorEl.style.left =
+    decision.action === "wrap-left"
+      ? `${rect.left - parentRect.left - 2}px`
+      : `${rect.right - parentRect.left}px`;
+  parent.appendChild(cursorEl);
+}
+
 export const imageRowDropPluginKey = new PluginKey("imageRowDrop");
 
 export const imageRowDropPlugin = new Plugin({
@@ -160,7 +186,28 @@ export const imageRowDropPlugin = new Plugin({
       })();
       if (!target) return false;
       event.preventDefault();
+      removeDropCursors(view);
       return applyDropAction(view, target, decision);
+    },
+    handleDOMEvents: {
+      dragover(view, event) {
+        const dragEvent = event as DragEvent;
+        const decision = computeDropTarget({
+          view,
+          clientX: dragEvent.clientX,
+          clientY: dragEvent.clientY,
+        });
+        renderDropCursor(view, decision);
+        return false;
+      },
+      dragleave(view) {
+        removeDropCursors(view);
+        return false;
+      },
+      drop(view) {
+        removeDropCursors(view);
+        return false;
+      },
     },
   },
 });
