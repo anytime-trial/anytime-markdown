@@ -1,7 +1,7 @@
 import { aggregateDsmToC4ComponentLevel, aggregateDsmToC4ContainerLevel, aggregateDsmToC4SystemLevel, buildElementTree, buildLevelView, c4ToGraphDocument, collectDescendantIds, computeColorMap, filterDsmMatrix, filterModelForDrill, filterTreeByLevel, sortDsmMatrixByName } from '@anytime-markdown/trail-core/c4';
 import type { BoundaryInfo, C4Element, C4Model, C4ReleaseEntry, ComplexityMatrix, CoverageDiffMatrix, CoverageMatrix, DocLink, DsmMatrix, FeatureMatrix, ImportanceMatrix, ManualGroup, MetricOverlay } from '@anytime-markdown/trail-core/c4';
 import type { GraphDocument, GraphNode } from '@anytime-markdown/graph-core';
-import { engine, layoutWithSubgroups, state as graphState } from '@anytime-markdown/graph-core';
+import { engine, layoutWithSubgroups, MinimapCanvas, state as graphState } from '@anytime-markdown/graph-core';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import FilterAltOffIcon from '@mui/icons-material/FilterAltOff';
@@ -1092,6 +1092,13 @@ export function C4ViewerCore({
                 onNodeContextMenu={handleNodeContextMenu}
               />
               <OverlayLegend overlay={metricOverlay} isDark={isDark} dsmMax={dsmMax} />
+              <MinimapCanvas
+                nodes={state.document.nodes}
+                viewport={state.document.viewport}
+                mainCanvasRef={canvasRef}
+                onViewportChange={(vp) => dispatch({ type: 'SET_VIEWPORT', viewport: vp })}
+                isDark={isDark}
+              />
               {showContextMenu && contextMenu && (
                 <>
                   {/* オーバーレイ: メニュー外クリックで閉じる */}
