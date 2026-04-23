@@ -332,13 +332,15 @@ export function buildImageWrapperSx(showBorder: boolean, isDark: boolean, inside
   const borderColor = showBorder ? getDivider(isDark) : "transparent";
   // imageRow 内では常に hover / selected 時のみツールバー表示
   const hideToolbar = !showBorder || insideImageRow;
+  // display: none で完全にレイアウトから外す。opacity:0/max-height:0 だと
+  // 非表示でもツールバーの min-content 幅が親要素を押し広げ、flex 配下の
+  // 画像ブロックが親幅を取って縦積みになる。
   const hiddenToolbarSx = hideToolbar ? {
     "& > [data-block-toolbar]": {
-      maxHeight: 0, opacity: 0, py: 0, overflow: "hidden",
-      transition: "opacity 120ms",
+      display: "none",
     },
     "&:hover > [data-block-toolbar], &[data-selected='true'] > [data-block-toolbar]": {
-      maxHeight: "none", opacity: 1, py: undefined, overflow: "visible",
+      display: "flex",
     },
   } : {};
   return { border: 1, borderRadius: 1, overflow: "hidden", my: 1, borderColor, ...hiddenToolbarSx };
