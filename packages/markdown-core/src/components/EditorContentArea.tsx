@@ -10,6 +10,7 @@ import { getEditorPaperSx } from "../styles/editorStyles";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import { EditorContextMenu } from "./EditorContextMenu";
 import { FrontmatterBlock } from "./FrontmatterBlock";
+import { MarkdownMinimap } from "./MarkdownMinimap";
 import { SearchReplaceBar } from "./SearchReplaceBar";
 import { SourceModeEditor } from "./SourceModeEditor";
 import { SourceSearchBar } from "./SourceSearchBar";
@@ -133,13 +134,18 @@ export function EditorContentArea({
         <div ref={frontmatterRef}>
           <FrontmatterBlock frontmatter={frontmatterText} onChange={handleFrontmatterChange} readOnly={readonlyMode || reviewMode} defaultCollapsed={true} t={t} />
         </div>
-        <Paper
-          id="md-editor-content"
-          variant="outlined"
-          sx={getEditorPaperSx(theme, settings, adjustedEditorHeight, { readonlyMode, noScroll })}
-        >
-          <div ref={editorMountCallback} style={{ display: "contents" }} />
-        </Paper>
+        <Box sx={{ position: "relative" }}>
+          <Paper
+            id="md-editor-content"
+            variant="outlined"
+            sx={getEditorPaperSx(theme, settings, adjustedEditorHeight, { readonlyMode, noScroll })}
+          >
+            <div ref={editorMountCallback} style={{ display: "contents" }} />
+          </Paper>
+          {!sourceMode && editor && (
+            <MarkdownMinimap editor={editor} editorHeight={adjustedEditorHeight} />
+          )}
+        </Box>
       </Box>
     </Box>
   );
