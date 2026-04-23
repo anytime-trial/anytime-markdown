@@ -19,8 +19,8 @@ jest.mock("../useEditorSettings", () => ({
 }));
 
 // --- Helpers ---
-const GREEN = "rgba(#2e7d32,0.18)";
-const RED = "rgba(#d32f2f,0.18)";
+const GREEN = "rgba(#4B5A3E,0.18)";
+const RED = "rgba(#6B2A20,0.18)";
 const LINE_H = 16 * 1.5; // 24
 const PAD = 16;
 

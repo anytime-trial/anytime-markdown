@@ -72,14 +72,14 @@ describe("SettingsPanel", () => {
   });
 
   it("handles theme toggle change to light", () => {
-    render(<SettingsPanel open={true} width={260} onClose={jest.fn()} />);
+    render(<SettingsPanel open={true} width={260} onClose={jest.fn()} onThemeModeChange={mockSetThemeMode} />);
     const lightBtn = screen.getByText("Light");
     fireEvent.click(lightBtn);
     expect(mockSetThemeMode).toHaveBeenCalledWith("light");
   });
 
   it("handles language toggle change to Japanese", () => {
-    render(<SettingsPanel open={true} width={260} onClose={jest.fn()} />);
+    render(<SettingsPanel open={true} width={260} onClose={jest.fn()} locale="en" onLocaleChange={mockSetLocale} />);
     const jaBtn = screen.getByText("Japanese");
     fireEvent.click(jaBtn);
     expect(mockSetLocale).toHaveBeenCalledWith("ja");

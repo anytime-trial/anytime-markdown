@@ -98,6 +98,15 @@ describe("GraphCanvas", () => {
       return 0;
     });
     jest.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: jest.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: jest.fn(),
+        removeEventListener: jest.fn(),
+      })),
+    });
   });
 
   afterEach(() => {
@@ -266,7 +275,12 @@ describe("GraphCanvas", () => {
     const velocityRef = { current: { vx: 10, vy: 10 } };
     Object.defineProperty(window, "matchMedia", {
       writable: true,
-      value: jest.fn().mockReturnValue({ matches: false }),
+      value: jest.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: jest.fn(),
+        removeEventListener: jest.fn(),
+      })),
     });
 
     render(
@@ -283,7 +297,12 @@ describe("GraphCanvas", () => {
     const velocityRef = { current: { vx: 10, vy: 10 } };
     Object.defineProperty(window, "matchMedia", {
       writable: true,
-      value: jest.fn().mockReturnValue({ matches: true }),
+      value: jest.fn().mockImplementation((query: string) => ({
+        matches: true,
+        media: query,
+        addEventListener: jest.fn(),
+        removeEventListener: jest.fn(),
+      })),
     });
 
     render(
@@ -560,7 +579,12 @@ describe("GraphCanvas", () => {
     const velocityRef = { current: { vx: 5, vy: 5 } };
     Object.defineProperty(window, "matchMedia", {
       writable: true,
-      value: jest.fn().mockReturnValue({ matches: false }),
+      value: jest.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: jest.fn(),
+        removeEventListener: jest.fn(),
+      })),
     });
 
     render(

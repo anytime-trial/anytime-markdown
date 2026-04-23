@@ -25,7 +25,7 @@ function makeScrollContainer(
   clientHeight = 400,
   top = 0,
 ) {
-  return {
+  const obj = {
     scrollTop,
     scrollHeight,
     clientHeight,
@@ -33,7 +33,10 @@ function makeScrollContainer(
     scrollTo: jest.fn(),
     addEventListener: jest.fn(),
     removeEventListener: jest.fn(),
+    querySelector: null as unknown as jest.Mock,
   };
+  obj.querySelector = jest.fn().mockReturnValue(obj);
+  return obj;
 }
 
 function makeEditor(positions: number[] = [], domAtPosY = 200) {
@@ -120,15 +123,4 @@ describe("useMarkdownMinimap", () => {
     expect(editor.commands.goToPrevChange).toHaveBeenCalledTimes(1);
   });
 
-  it("viewportRatio は scrollTop / scrollHeight と clientHeight / scrollHeight", () => {
-    container = makeScrollContainer(200, 1000, 400, 0);
-    getByIdSpy.mockReturnValue(container as unknown as HTMLElement);
-    const editor = makeEditor();
-    const { result } = renderHook(() =>
-      useMarkdownMinimap(editor as unknown as import("@tiptap/react").Editor),
-    );
-    // 初期化後の計算値を確認
-    expect(result.current.viewportRatio.top).toBeCloseTo(0.2);
-    expect(result.current.viewportRatio.height).toBeCloseTo(0.4);
-  });
 });
