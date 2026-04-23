@@ -3,14 +3,19 @@
 import { Box } from "@mui/material";
 import type { NodeViewProps } from "@tiptap/react";
 import { NodeViewContent, NodeViewWrapper } from "@tiptap/react";
+import { useTranslations } from "next-intl";
 
-export function ImageRowNodeView({ selected }: Readonly<NodeViewProps>) {
+export function ImageRowNodeView({ node, selected }: Readonly<NodeViewProps>) {
+  const t = useTranslations();
+  const count = node.childCount;
   return (
     <NodeViewWrapper
       as="div"
       data-image-row=""
       data-selected={selected ? "true" : "false"}
       className="image-row"
+      role="group"
+      aria-label={t("imageRowAriaLabel", { count })}
     >
       <Box
         component={NodeViewContent}

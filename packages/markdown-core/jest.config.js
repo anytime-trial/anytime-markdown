@@ -9,6 +9,7 @@ const config = {
   moduleFileExtensions: ["ts", "tsx", "js", "jsx", "json"],
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/src/$1",
+    "^next-intl$": "<rootDir>/__mocks__/next-intl.ts",
   },
   maxWorkers: 2,
   collectCoverageFrom: [
