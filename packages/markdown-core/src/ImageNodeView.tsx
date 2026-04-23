@@ -347,7 +347,9 @@ export function buildImageWrapperSx(showBorder: boolean, isDark: boolean, inside
       display: "flex",
     },
   } : {};
-  return { border: 1, borderRadius: 1, overflow: "hidden", my: 1, borderColor, ...hiddenToolbarSx };
+  // imageRow 外では画像サイズにフィット。imageRow 内はグリッドセル幅に従う。
+  const widthSx = insideImageRow ? {} : { width: "fit-content", maxWidth: "100%" };
+  return { border: 1, borderRadius: 1, overflow: "hidden", my: 1, borderColor, ...widthSx, ...hiddenToolbarSx };
 }
 
 /** Determine whether the image's parent node is imageRow. */
