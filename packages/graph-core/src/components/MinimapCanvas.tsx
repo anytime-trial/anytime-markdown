@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { fitToContent, screenToWorld } from '../engine/viewport';
+import ZoomInIcon from '@mui/icons-material/ZoomIn';
+import ZoomOutIcon from '@mui/icons-material/ZoomOut';
+import IconButton from '@mui/material/IconButton';
+
+import { fitToContent, screenToWorld, zoom } from '../engine/viewport';
 import { getCanvasColors } from '../theme';
 import type { GraphNode, Viewport } from '../types';
 
@@ -26,6 +30,7 @@ type DragState =
   | null;
 
 const PAD = 10;
+const ZOOM_DELTA = 300;
 
 function computeBounds(nodes: readonly GraphNode[]) {
   if (nodes.length === 0) return null;
@@ -85,6 +90,19 @@ export function MinimapCanvas({
     return mx >= p1.x && mx <= p2.x && my >= p1.y && my <= p2.y;
   }, [mainCanvasRef, viewport, toMinimap]);
 
+  // ズームボタン: メインキャンバス中央を基点に拡大縮小
+  const handleZoomIn = useCallback(() => {
+    const mainCanvas = mainCanvasRef.current;
+    if (!mainCanvas) return;
+    onViewportChange(zoom(viewport, mainCanvas.clientWidth / 2, mainCanvas.clientHeight / 2, -ZOOM_DELTA));
+  }, [mainCanvasRef, viewport, onViewportChange]);
+
+  const handleZoomOut = useCallback(() => {
+    const mainCanvas = mainCanvasRef.current;
+    if (!mainCanvas) return;
+    onViewportChange(zoom(viewport, mainCanvas.clientWidth / 2, mainCanvas.clientHeight / 2, ZOOM_DELTA));
+  }, [mainCanvasRef, viewport, onViewportChange]);
+
   // 描画
   useEffect(() => {
     const canvas = minimapRef.current;
@@ -120,7 +138,6 @@ export function MinimapCanvas({
     if (mainCanvas) {
       const cw = mainCanvas.clientWidth;
       const ch = mainCanvas.clientHeight;
-      // ビューポートドラッグ中はプレビュー位置を使う
       const vp = (drag?.mode === 'viewport' && hasMoved)
         ? {
             ...viewport,
@@ -167,7 +184,6 @@ export function MinimapCanvas({
     const pos = getRelativePos(e);
     if (!pos) return;
     if (isInsideViewportRect(pos.x, pos.y)) {
-      // ビューポート矩形内: パンドラッグモード
       setDrag({
         mode: 'viewport',
         startX: pos.x, startY: pos.y,
@@ -176,7 +192,6 @@ export function MinimapCanvas({
         initialOffsetY: viewport.offsetY,
       });
     } else {
-      // ビューポート矩形外: 選択ドラッグモード
       setDrag({ mode: 'select', startX: pos.x, startY: pos.y, currentX: pos.x, currentY: pos.y });
     }
   }, [getRelativePos, isInsideViewportRect, viewport.offsetX, viewport.offsetY]);
@@ -187,7 +202,6 @@ export function MinimapCanvas({
     if (!pos) return;
 
     if (drag.mode === 'viewport') {
-      // リアルタイムでビューポートを更新
       const dmx = pos.x - drag.startX;
       const dmy = pos.y - drag.startY;
       onViewportChange({
@@ -206,16 +220,14 @@ export function MinimapCanvas({
     const ch = mainCanvas.clientHeight;
 
     if (drag.mode === 'viewport') {
-      // mousemove で既に更新済み。何もしない
+      // mousemove で既に更新済み
     } else if (hasMoved) {
-      // 選択範囲にフィット
       const tl = toWorld(Math.min(drag.startX, drag.currentX), Math.min(drag.startY, drag.currentY));
       const br = toWorld(Math.max(drag.startX, drag.currentX), Math.max(drag.startY, drag.currentY));
       if (br.x > tl.x && br.y > tl.y) {
         onViewportChange(fitToContent(cw, ch, { minX: tl.x, minY: tl.y, maxX: br.x, maxY: br.y }, 20));
       }
     } else {
-      // クリック（移動なし）: クリック位置を中心にパン
       const pos = getRelativePos(e);
       if (pos) {
         const worldPos = toWorld(pos.x, pos.y);
@@ -229,7 +241,6 @@ export function MinimapCanvas({
     setDrag(null);
   }, [drag, hasMoved, toWorld, mainCanvasRef, viewport, onViewportChange, getRelativePos]);
 
-  // カーソル: ビューポート矩形上では move、それ以外は crosshair
   const handleMouseMoveForCursor = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     handleMouseMove(e);
     if (!drag) {
@@ -240,9 +251,17 @@ export function MinimapCanvas({
     }
   }, [drag, handleMouseMove, getRelativePos, isInsideViewportRect]);
 
+  const btnStyle: React.CSSProperties = {
+    position: 'absolute',
+    bottom: 2,
+    padding: 2,
+    color: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)',
+    backgroundColor: isDark ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.35)',
+    borderRadius: 4,
+  };
+
   return (
-    <canvas
-      ref={minimapRef}
+    <div
       style={{
         position: 'absolute',
         top: 8,
@@ -251,16 +270,39 @@ export function MinimapCanvas({
         height,
         borderRadius: 8,
         border: `1px solid ${colors.panelBorder}`,
-        cursor: 'crosshair',
         backdropFilter: 'blur(8px)',
         zIndex: 10,
         boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+        overflow: 'hidden',
       }}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMoveForCursor}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={() => setDrag(null)}
-      aria-label="Minimap: click to pan, drag viewport rect to pan, drag outside to zoom to selection"
-    />
+    >
+      <canvas
+        ref={minimapRef}
+        style={{ width: '100%', height: '100%', display: 'block', cursor: 'crosshair' }}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMoveForCursor}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={() => setDrag(null)}
+        aria-label="Minimap: click to pan, drag viewport rect to pan, drag outside to zoom to selection"
+      />
+      <IconButton
+        size="small"
+        onClick={handleZoomOut}
+        aria-label="Zoom out"
+        style={{ ...btnStyle, right: 26 }}
+        sx={{ fontSize: '0.9rem' }}
+      >
+        <ZoomOutIcon fontSize="inherit" />
+      </IconButton>
+      <IconButton
+        size="small"
+        onClick={handleZoomIn}
+        aria-label="Zoom in"
+        style={{ ...btnStyle, right: 2 }}
+        sx={{ fontSize: '0.9rem' }}
+      >
+        <ZoomInIcon fontSize="inherit" />
+      </IconButton>
+    </div>
   );
 }
