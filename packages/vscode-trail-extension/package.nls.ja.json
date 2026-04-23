@@ -10,6 +10,7 @@
   "command.c4SetLevel": "C4 詳細レベルを設定",
   "config.c4AnalyzeExcludePatterns": "C4 ワークスペース解析で `tsconfig.json` を検索する際に除外するディレクトリ名。これらの文字列を含むパスがフィルタリングされます。",
   "config.database.storagePath": "`trail.db` の保存ディレクトリ。絶対パスまたはワークスペースルートからの相対パス。空の場合は `.vscode/` を使用します。",
+  "config.database.backupGenerations": "`trail.db` のバックアップ世代数。各世代は `.bak.N.gz` として DB ファイルと同じディレクトリに gzip 圧縮で保存されます。範囲: 1〜10。",
   "config.claudeStatus.directory": "`claude-code-status.json` の保存ディレクトリ。絶対パスまたはワークスペースルートからの相対パス。空の場合は `.vscode/` を使用します。",
   "command.dsmShow": "Trail: DSMを表示",
   "command.dsmAnalyze": "Trail: 依存関係を解析",

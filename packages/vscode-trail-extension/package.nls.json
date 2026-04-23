@@ -10,6 +10,7 @@
   "command.c4SetLevel": "Set C4 Detail Level",
   "config.c4AnalyzeExcludePatterns": "Directory names to exclude when searching for `tsconfig.json` during C4 workspace analysis. Paths containing any of these strings will be filtered out.",
   "config.database.storagePath": "Directory where `trail.db` is stored. Absolute path or relative to workspace root. Defaults to `.vscode/` when empty.",
+  "config.database.backupGenerations": "Number of gzip-compressed backup generations to keep for `trail.db`. Each generation is stored as `.bak.N.gz` next to the database file. Range: 1–10.",
   "config.claudeStatus.directory": "Directory where `claude-code-status.json` is stored. Absolute path or relative to workspace root. Defaults to `.vscode/` when empty.",
   "command.dsmShow": "Trail: Show DSM",
   "command.dsmAnalyze": "Trail: Analyze Dependencies",

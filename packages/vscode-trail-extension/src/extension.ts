@@ -363,7 +363,8 @@ export async function activate(context: vscode.ExtensionContext) {
 	const dbStorageDir = path.isAbsolute(dbStoragePathSetting)
 		? dbStoragePathSetting
 		: wsRootForDb ? path.join(wsRootForDb, dbStoragePathSetting) : undefined;
-	trailDb = new TrailDatabase(extensionDistPath, dbStorageDir);
+	const backupGenerations = vscode.workspace.getConfiguration('anytimeTrail.database').get<number>('backupGenerations', 1);
+	trailDb = new TrailDatabase(extensionDistPath, dbStorageDir, backupGenerations);
 	trailDb.setIntegrityAlertHandler((alerts) => {
 		for (const a of alerts) {
 			TrailLogger.warn(

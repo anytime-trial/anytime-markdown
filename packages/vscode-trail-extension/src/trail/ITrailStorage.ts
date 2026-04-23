@@ -47,12 +47,18 @@ export interface BackupEntry {
  * level 1 でも 30〜50% 程度まで縮むためディスク使用量を大幅に抑えられる。
  */
 export class FileTrailStorage implements ITrailStorage {
-  static readonly BACKUP_GENERATIONS = 3;
+  /** デフォルトのバックアップ世代数。VS Code 設定で上書き可能。 */
+  static readonly DEFAULT_BACKUP_GENERATIONS = 1;
+  /** @deprecated Use DEFAULT_BACKUP_GENERATIONS */
+  static readonly BACKUP_GENERATIONS = FileTrailStorage.DEFAULT_BACKUP_GENERATIONS;
   /** gzip 圧縮レベル。起動時のブロッキング時間を短縮するため level 1 を採用。 */
   private static readonly GZIP_LEVEL = 1;
   private backupDone = false;
 
-  constructor(private readonly dbPath: string) {}
+  constructor(
+    private readonly dbPath: string,
+    private readonly backupGenerations: number = FileTrailStorage.DEFAULT_BACKUP_GENERATIONS,
+  ) {}
 
   get identifier(): string {
     return this.dbPath;
@@ -83,11 +89,11 @@ export class FileTrailStorage implements ITrailStorage {
    */
   private rotateBackups(): void {
     if (!fs.existsSync(this.dbPath)) return;
-    const oldest = this.backupPath(FileTrailStorage.BACKUP_GENERATIONS);
+    const oldest = this.backupPath(this.backupGenerations);
     if (fs.existsSync(oldest)) {
       fs.unlinkSync(oldest);
     }
-    for (let gen = FileTrailStorage.BACKUP_GENERATIONS - 1; gen >= 1; gen -= 1) {
+    for (let gen = this.backupGenerations - 1; gen >= 1; gen -= 1) {
       const src = this.backupPath(gen);
       const dst = this.backupPath(gen + 1);
       if (fs.existsSync(src)) {
@@ -109,7 +115,7 @@ export class FileTrailStorage implements ITrailStorage {
    */
   listBackups(): readonly BackupEntry[] {
     const entries: BackupEntry[] = [];
-    for (let gen = 1; gen <= FileTrailStorage.BACKUP_GENERATIONS; gen += 1) {
+    for (let gen = 1; gen <= this.backupGenerations; gen += 1) {
       const bakPath = this.backupPath(gen);
       if (!fs.existsSync(bakPath)) continue;
       const stat = fs.statSync(bakPath);

@@ -390,6 +390,7 @@ export class TrailDatabase {
   constructor(
     private readonly distPath: string,
     storageDirOrStorage?: string | ITrailStorage,
+    backupGenerations?: number,
   ) {
     if (storageDirOrStorage !== undefined && typeof storageDirOrStorage !== 'string') {
       this.storage = storageDirOrStorage;
@@ -397,7 +398,7 @@ export class TrailDatabase {
     } else {
       const dbDir = storageDirOrStorage ?? DEFAULT_DB_DIR;
       this.dbPath = path.join(dbDir, 'trail.db');
-      this.storage = new FileTrailStorage(this.dbPath);
+      this.storage = new FileTrailStorage(this.dbPath, backupGenerations);
     }
   }
 
