@@ -68,7 +68,6 @@ export function applyDropAction(
   let targetImageNode: ProseMirrorNode | null = null;
   let targetImagePos = -1;
   let parentIsImageRow = false;
-  let targetIndexInParent = -1;
 
   // 直下が image の場合
   for (let depth = $target.depth; depth >= 0; depth--) {
@@ -79,7 +78,6 @@ export function applyDropAction(
       if (depth > 0) {
         const parent = $target.node(depth - 1);
         parentIsImageRow = parent.type.name === "imageRow";
-        targetIndexInParent = $target.index(depth - 1);
       }
       break;
     }
@@ -89,7 +87,6 @@ export function applyDropAction(
       targetImageNode = maybeChild;
       targetImagePos = $target.posAtIndex($target.indexAfter(depth), depth);
       parentIsImageRow = node.type.name === "imageRow";
-      targetIndexInParent = $target.indexAfter(depth);
       break;
     }
   }

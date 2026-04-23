@@ -38,11 +38,11 @@ import markdownAllJa from "../constants/templates/markdownEmbedAll.ja.md";
 import welcomeJa from "../constants/templates/welcome.md";
 import welcomeEn from "../constants/templates/welcome-en.md";
 import type { TranslationFn } from "../types";
-import { insertImagesFromFiles } from "./slashCommandImageInsert";
 import { extractHeadings, getEditorStorage } from "../types";
 import { preprocessMarkdown } from "../utils/frontmatterHelpers";
 import { preserveBlankLines, sanitizeMarkdown } from "../utils/sanitizeMarkdown";
 import { generateTocMarkdown } from "../utils/tocHelpers";
+import { insertImagesFromFiles } from "./slashCommandImageInsert";
 
 /** blockquote を作成し admonitionType を設定する */
 function setAdmonition(editor: Editor, type: string): void {
