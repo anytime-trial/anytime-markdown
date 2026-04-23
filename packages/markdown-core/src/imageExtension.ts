@@ -2,6 +2,7 @@ import Image from "@tiptap/extension-image";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 
 import { ImageNodeView } from "./ImageNodeView";
+import { imageMarkdownSpec } from "./markdownItRules/imageSerializer";
 
 export const CustomImage = Image.extend({
   draggable: true,
@@ -9,6 +10,7 @@ export const CustomImage = Image.extend({
   addStorage() {
     return {
       onEditImage: null as ((data: { pos: number; src: string; alt: string }) => void) | null,
+      markdown: imageMarkdownSpec,
     };
   },
 
