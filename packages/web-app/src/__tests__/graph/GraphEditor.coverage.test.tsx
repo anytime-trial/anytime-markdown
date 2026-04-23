@@ -109,6 +109,7 @@ jest.mock("@anytime-markdown/graph-core", () => ({
     createdAt: Date.now(),
     updatedAt: Date.now(),
   }),
+  MinimapCanvas: () => null,
 }));
 
 jest.mock("@anytime-markdown/graph-core/engine", () => ({
