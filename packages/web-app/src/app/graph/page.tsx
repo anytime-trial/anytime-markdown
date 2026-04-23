@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic';
 
+import LandingHeader from '../components/LandingHeader';
 import { useLocaleSwitch } from '../LocaleProvider';
 import { useThemeMode } from '../providers';
 
@@ -14,11 +15,15 @@ export default function GraphPage() {
   const { themeMode, setThemeMode } = useThemeMode();
   const { locale, setLocale } = useLocaleSwitch();
   return (
-    <GraphEditor
-      themeMode={themeMode}
-      onThemeModeChange={setThemeMode}
-      locale={locale}
-      onLocaleChange={setLocale}
-    />
+    <>
+      <LandingHeader />
+      <GraphEditor
+        containerHeight="calc(100vh - 64px)"
+        themeMode={themeMode}
+        onThemeModeChange={setThemeMode}
+        locale={locale}
+        onLocaleChange={setLocale}
+      />
+    </>
   );
 }
