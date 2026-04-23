@@ -1,6 +1,5 @@
 "use client";
 
-import { Box } from "@mui/material";
 import type { NodeViewProps } from "@tiptap/react";
 import { NodeViewContent, NodeViewWrapper } from "@tiptap/react";
 import { useTranslations } from "next-intl";
@@ -17,16 +16,17 @@ export function ImageRowNodeView({ node, selected }: Readonly<NodeViewProps>) {
       role="group"
       aria-label={t("imageRowAriaLabel", { count })}
     >
-      <Box
-        component={NodeViewContent}
-        sx={{
+      <NodeViewContent
+        as="div"
+        className="image-row-content"
+        data-image-row-content=""
+        style={{
           display: "flex",
           flexWrap: "wrap",
-          gap: 1,
+          gap: 8,
           alignItems: "flex-start",
-          my: 1,
+          margin: "8px 0",
         }}
-        data-image-row-content=""
       />
     </NodeViewWrapper>
   );

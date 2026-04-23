@@ -172,14 +172,15 @@ export function getBlockStyles(theme: Theme, settings: EditorSettings): SxProps<
       "0%, 100%": { opacity: 1 },
       "50%": { opacity: 0 },
     },
-    "& .image-row, & [data-image-row]": {
+    // imageRow の flex レイアウトは NodeViewContent (data-image-row-content) に適用する。
+    // DOM 構造: [data-image-row] > [data-image-row-content] > [data-image-block]+
+    "& [data-image-row-content]": {
       display: "flex",
       flexWrap: "wrap",
       gap: "8px",
       alignItems: "flex-start",
-      my: 1,
     },
-    "& .image-row > [data-image-block], & [data-image-row] > [data-image-block]": {
+    "& [data-image-row-content] > .image-node-wrapper, & [data-image-row-content] > [data-image-block]": {
       marginTop: "0 !important",
       marginBottom: "0 !important",
       minWidth: "120px",
