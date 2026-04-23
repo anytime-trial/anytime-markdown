@@ -472,7 +472,7 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: Readon
         t={t}
       />
       <Box sx={buildImageWrapperSx(showBorder, isDark, insideImageRow)}>
-        {showBlockToolbar && (
+        {showBlockToolbar && !(insideImageRow && !isSelected) && (
           <BlockInlineToolbar
             label={t("image")}
             onDelete={onDeleteAction}
