@@ -1,5 +1,5 @@
 import { hitTest, hitTestNode, hitTestEdge, hitTestResizeHandles } from '@anytime-markdown/graph-core/engine';
-import { GraphNode, GraphEdge, DEFAULT_NODE_STYLE, DEFAULT_EDGE_STYLE } from '../../../app/graph/types';
+import { GraphNode, GraphEdge, DEFAULT_NODE_STYLE, DEFAULT_EDGE_STYLE } from '@anytime-markdown/graph-viewer/src/types';
 
 const rectNode: GraphNode = {
   id: 'r1', type: 'rect', x: 100, y: 100, width: 200, height: 100,

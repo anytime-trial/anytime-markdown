@@ -20,7 +20,7 @@ jest.mock("@anytime-markdown/graph-core", () => ({
   }),
 }));
 
-import { PropertyPanel } from "../../app/graph/components/PropertyPanel";
+import { PropertyPanel } from "@anytime-markdown/graph-viewer/src/components/PropertyPanel";
 
 const makeNode = (overrides: any = {}) => ({
   id: "n1",

@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2023", "DOM"],
+    "noEmit": true,
+    "isolatedModules": true,
+    "declaration": true,
+    "jsx": "react-jsx",
+    "paths": {
+      "@anytime-markdown/spreadsheet-core": ["../spreadsheet-core/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*"]
+}

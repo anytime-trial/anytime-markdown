@@ -21,7 +21,7 @@ jest.mock("@anytime-markdown/graph-core", () => ({
   }),
 }));
 
-import { DocEditorModal } from "../../app/graph/components/DocEditorModal";
+import { DocEditorModal } from "@anytime-markdown/graph-viewer/src/components/DocEditorModal";
 
 describe("DocEditorModal", () => {
   const defaultProps = {

@@ -61,6 +61,8 @@ export class ProjectAnalyzer {
     }
 
     // このtsconfig自体のファイルを解析
+    // include パターンに *.ts のみ指定されている場合、.tsx/.mts も自動追加する
+    this.normalizeIncludePatterns(rawConfig);
     const parsed = ts.parseJsonConfigFileContent(
       rawConfig,
       ts.sys,
@@ -71,10 +73,66 @@ export class ProjectAnalyzer {
       outFileNames.push(...parsed.fileNames);
     }
 
-    // 最初に読み込んだ tsconfig の options を採用
+    // 最初に読み込んだ tsconfig の options を採用し、以降は paths のみマージする
+    // paths はパッケージごとに異なるエイリアスを持つため、全 tsconfig から収集する必要がある
+    // paths の値は baseUrl からの相対パスのため、マージ前に絶対パスへ変換する
     if (visited.size === 1 || Object.keys(outOptions).length === 0) {
       Object.assign(outOptions, parsed.options);
+      if (parsed.options.paths && parsed.options.baseUrl) {
+        outOptions.paths = this.resolvePathsToAbsolute(parsed.options.paths, parsed.options.baseUrl);
+        outOptions.baseUrl = '/';
+      }
+    } else if (parsed.options.paths && parsed.options.baseUrl) {
+      const resolved = this.resolvePathsToAbsolute(parsed.options.paths, parsed.options.baseUrl);
+      outOptions.paths = { ...outOptions.paths, ...resolved };
     }
+
+    // tsconfig.json と同階層の tsconfig.*.json を自動検出して追加処理する
+    // （webview・node など複数コンパイル単位を持つパッケージに対応）
+    if (path.basename(normalized) === 'tsconfig.json') {
+      for (const sibling of this.findSiblingTsconfigs(configDir)) {
+        this.collectFiles(sibling, outFileNames, outOptions, visited);
+      }
+    }
+  }
+
+  private resolvePathsToAbsolute(
+    paths: ts.MapLike<string[]>,
+    baseUrl: string,
+  ): ts.MapLike<string[]> {
+    const result: ts.MapLike<string[]> = {};
+    for (const [key, values] of Object.entries(paths)) {
+      result[key] = values.map(v =>
+        path.isAbsolute(v) ? v : path.resolve(baseUrl, v),
+      );
+    }
+    return result;
+  }
+
+  private findSiblingTsconfigs(dir: string): string[] {
+    try {
+      return fs
+        .readdirSync(dir)
+        .filter(f => /^tsconfig\..+\.json$/.test(f))
+        .map(f => path.join(dir, f))
+        .filter(f => fs.existsSync(f));
+    } catch {
+      return [];
+    }
+  }
+
+  private normalizeIncludePatterns(rawConfig: Record<string, unknown>): void {
+    const include = rawConfig['include'];
+    if (!Array.isArray(include)) return;
+
+    const extended: string[] = [];
+    for (const pattern of include) {
+      extended.push(pattern);
+      if (typeof pattern === 'string' && /\*\.m?ts$/.test(pattern)) {
+        extended.push(`${pattern}x`);
+      }
+    }
+    rawConfig['include'] = [...new Set(extended)];
   }
 
   getProgram(): ts.Program {

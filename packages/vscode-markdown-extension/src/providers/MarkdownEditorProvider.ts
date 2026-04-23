@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { randomBytes } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { resolveLocale } from '@anytime-markdown/vscode-common';
 export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
   public static readonly viewType = 'anytimeMarkdown';
 
@@ -176,8 +177,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     const resolveLanguage = (): 'en' | 'ja' => {
       const config = vscode.workspace.getConfiguration('anytimeMarkdown');
       const lang = config.get<string>('language', 'auto');
-      if (lang === 'en' || lang === 'ja') { return lang; }
-      return (vscode.env.language || '').startsWith('ja') ? 'ja' : 'en';
+      return resolveLocale(lang, vscode.env.language);
     };
 
     const sendTheme = () => {
@@ -743,7 +743,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     const nonce = randomBytes(16).toString('hex');
 
     return `<!DOCTYPE html>
-<html lang="${(vscode.env.language || '').startsWith('ja') ? 'ja' : 'en'}">
+<html lang="${resolveLocale(undefined, vscode.env.language)}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">

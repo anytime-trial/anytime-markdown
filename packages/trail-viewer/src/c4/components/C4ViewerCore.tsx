@@ -1,7 +1,7 @@
 import { aggregateDsmToC4ComponentLevel, aggregateDsmToC4ContainerLevel, aggregateDsmToC4SystemLevel, buildElementTree, buildLevelView, c4ToGraphDocument, collectDescendantIds, computeColorMap, filterDsmMatrix, filterModelForDrill, filterTreeByLevel, sortDsmMatrixByName } from '@anytime-markdown/trail-core/c4';
-import type { BoundaryInfo, C4Element, C4Model, C4ReleaseEntry, ComplexityMatrix, CoverageDiffMatrix, CoverageMatrix, DocLink, DsmMatrix, FeatureMatrix, ImportanceMatrix, MetricOverlay } from '@anytime-markdown/trail-core/c4';
+import type { BoundaryInfo, C4Element, C4Model, C4ReleaseEntry, ComplexityMatrix, CoverageDiffMatrix, CoverageMatrix, DocLink, DsmMatrix, FeatureMatrix, ImportanceMatrix, ManualGroup, MetricOverlay } from '@anytime-markdown/trail-core/c4';
 import type { GraphDocument, GraphNode } from '@anytime-markdown/graph-core';
-import { engine, layoutWithSubgroups, state as graphState } from '@anytime-markdown/graph-core';
+import { engine, layoutWithSubgroups, MinimapCanvas, state as graphState } from '@anytime-markdown/graph-core';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import FilterAltOffIcon from '@mui/icons-material/FilterAltOff';
@@ -32,7 +32,7 @@ const FILTER_CHECKABLE_TYPES = new Set(['container', 'containerDb', 'component']
 /** ドリルダウン時のスコープに含まれる型 */
 const DRILL_SCOPE_TYPES = new Set(['system', 'container', 'containerDb', 'component'] as const);
 import { AddElementDialog, AddRelationshipDialog } from './C4EditDialogs';
-import type { ElementFormData, RelationshipFormData } from './C4EditDialogs';
+import type { C4ElementKind, ElementFormData, RelationshipFormData } from './C4EditDialogs';
 import type { ExportedSymbol, FlowGraph } from '@anytime-markdown/trail-core/analyzer';
 import { C4ElementTree } from './C4ElementTree';
 import { CoverageCanvas } from './CoverageCanvas';
@@ -89,6 +89,7 @@ export interface C4ViewerCoreProps {
   readonly claudeActivity?: import('../hooks/useC4DataSource').ClaudeActivityState | null;
   readonly multiAgentActivity?: import('../hooks/useC4DataSource').MultiAgentActivityState | null;
   readonly onResetClaudeActivity?: () => void;
+  readonly manualGroups?: readonly ManualGroup[];
 }
 
 export function C4ViewerCore({
@@ -121,6 +122,7 @@ export function C4ViewerCore({
   claudeActivity,
   multiAgentActivity,
   onResetClaudeActivity,
+  manualGroups,
 }: Readonly<C4ViewerCoreProps>) {
   const { t } = useTrailI18n();
   const colors = useMemo(() => getC4Colors(isDark), [isDark]);
@@ -236,8 +238,8 @@ export function C4ViewerCore({
   const pendingFitCountRef = useRef(0);
 
   // --- Editing state ---
-  const [addElementType, setAddElementType] = useState<'person' | 'system' | null>(null);
-  const [editElement, setEditElement] = useState<{ id: string; type: 'person' | 'system'; name: string; description: string; external: boolean } | null>(null);
+  const [addElementType, setAddElementType] = useState<C4ElementKind | null>(null);
+  const [editElement, setEditElement] = useState<{ id: string; type: C4ElementKind; name: string; description: string; external: boolean; parentId?: string | null } | null>(null);
   const [addRelOpen, setAddRelOpen] = useState(false);
 
   const handleElementSelect = useCallback(async (id: string) => {
@@ -308,6 +310,12 @@ export function C4ViewerCore({
     return c4Model.elements.find(e => e.id === selectedElementId)?.manual === true;
   }, [selectedElementId, c4Model]);
 
+  const selectedSystemId = useMemo(() => {
+    if (!selectedElementId || !c4Model) return null;
+    const elem = c4Model.elements.find(e => e.id === selectedElementId);
+    return elem?.type === 'system' ? elem.id : null;
+  }, [selectedElementId, c4Model]);
+
   useEffect(() => {
     if (!c4Model) return;
 
@@ -352,7 +360,7 @@ export function C4ViewerCore({
       };
     }
 
-    const doc = c4ToGraphDocument(filteredModel, boundaryInfos);
+    const doc = c4ToGraphDocument(filteredModel, boundaryInfos, manualGroups);
     layoutWithSubgroups(doc, 'TB', 180, 60);
     setFullDoc(doc);
     let viewDoc = currentLevel < 4
@@ -375,7 +383,7 @@ export function C4ViewerCore({
     }
 
     dispatch({ type: 'SET_DOCUMENT', doc: viewDoc });
-  }, [c4Model, boundaryInfos, drillStack, currentLevel, checkedPackageIds, soloFrameId]);
+  }, [c4Model, boundaryInfos, drillStack, currentLevel, checkedPackageIds, soloFrameId, manualGroups]);
 
   /** 右クリックメニューを表示する */
   const handleNodeContextMenu = useCallback(
@@ -972,11 +980,21 @@ export function C4ViewerCore({
           </Button>
         )}
       </Toolbar>
-      {currentLevel === 1 && (
+      {(currentLevel === 1 || currentLevel === 2 || currentLevel === 3) && (
         <Toolbar variant="dense" sx={{ gap: 1, bgcolor: colors.bgSecondary, borderBottom: `1px solid ${colors.border}`, minHeight: 36, px: { xs: 2, md: 3 } }}>
           <Typography variant="caption" sx={{ color: colors.textMuted, mr: 1, fontSize: '0.7rem' }}>Edit</Typography>
-          <Button size="small" startIcon={<PersonIcon sx={{ fontSize: 16 }} />} onClick={() => setAddElementType('person')} sx={toolbarButtonSx} aria-label="Add Person">Person</Button>
-          <Button size="small" startIcon={<AddIcon sx={{ fontSize: 16 }} />} onClick={() => setAddElementType('system')} sx={toolbarButtonSx} aria-label="Add System">System</Button>
+          {currentLevel === 1 && (
+            <>
+              <Button size="small" startIcon={<PersonIcon sx={{ fontSize: 16 }} />} onClick={() => setAddElementType('person')} sx={toolbarButtonSx} aria-label="Add Person">Person</Button>
+              <Button size="small" startIcon={<AddIcon sx={{ fontSize: 16 }} />} onClick={() => setAddElementType('system')} sx={toolbarButtonSx} aria-label="Add System">System</Button>
+            </>
+          )}
+          {currentLevel === 2 && (
+            <Button size="small" startIcon={<AddIcon sx={{ fontSize: 16 }} />} onClick={() => setAddElementType('container')} disabled={!selectedSystemId} sx={toolbarButtonSx} aria-label="Add Container">Container</Button>
+          )}
+          {currentLevel === 3 && (
+            <Button size="small" startIcon={<AddIcon sx={{ fontSize: 16 }} />} onClick={() => setAddElementType('component')} sx={toolbarButtonSx} aria-label="Add Component">Component</Button>
+          )}
           <Button size="small" startIcon={<LinkIcon sx={{ fontSize: 16 }} />} onClick={() => setAddRelOpen(true)} disabled={!selectedElementId} sx={toolbarButtonSx} aria-label="Add Relationship">Rel</Button>
           <Button size="small" startIcon={<DeleteIcon sx={{ fontSize: 16 }} />} onClick={handleDeleteSelected} disabled={!selectedIsManual} sx={{ ...toolbarButtonSx, ...(selectedIsManual && { color: '#ef5350' }) }} aria-label="Delete selected">Del</Button>
         </Toolbar>
@@ -1066,13 +1084,21 @@ export function C4ViewerCore({
                 onNodeDoubleClick={(nodeId) => {
                   if (!c4Model) return;
                   const elem = c4Model.elements.find(e => e.id === nodeId);
-                  if (elem?.manual && (elem.type === 'person' || elem.type === 'system')) {
-                    setEditElement({ id: elem.id, type: elem.type, name: elem.name, description: elem.description ?? '', external: elem.external ?? false });
+                  const editableTypes: readonly string[] = ['person', 'system', 'container', 'component'];
+                  if (elem?.manual && editableTypes.includes(elem.type)) {
+                    setEditElement({ id: elem.id, type: elem.type as C4ElementKind, name: elem.name, description: elem.description ?? '', external: elem.external ?? false });
                   }
                 }}
                 onNodeContextMenu={handleNodeContextMenu}
               />
               <OverlayLegend overlay={metricOverlay} isDark={isDark} dsmMax={dsmMax} />
+              <MinimapCanvas
+                nodes={state.document.nodes}
+                viewport={state.document.viewport}
+                mainCanvasRef={canvasRef}
+                onViewportChange={(vp) => dispatch({ type: 'SET_VIEWPORT', viewport: vp })}
+                isDark={isDark}
+              />
               {showContextMenu && contextMenu && (
                 <>
                   {/* オーバーレイ: メニュー外クリックで閉じる */}
@@ -1246,8 +1272,14 @@ export function C4ViewerCore({
       <AddElementDialog
         open={addElementType !== null && !editElement}
         elementType={addElementType ?? 'person'}
+        initial={addElementType === 'container' && selectedSystemId ? { parentId: selectedSystemId } : undefined}
         onSubmit={handleAddElement}
         onClose={() => setAddElementType(null)}
+        parentCandidates={
+          addElementType === 'component'
+            ? (c4Model?.elements.filter(e => e.type === 'container').map(e => ({ id: e.id, name: e.name })) ?? [])
+            : undefined
+        }
       />
       <AddElementDialog
         open={editElement !== null}
@@ -1255,6 +1287,13 @@ export function C4ViewerCore({
         initial={editElement ?? undefined}
         onSubmit={handleUpdateElement}
         onClose={() => setEditElement(null)}
+        parentCandidates={
+          editElement?.type === 'container'
+            ? (c4Model?.elements.filter(e => e.type === 'system').map(e => ({ id: e.id, name: e.name })) ?? [])
+            : editElement?.type === 'component'
+            ? (c4Model?.elements.filter(e => e.type === 'container').map(e => ({ id: e.id, name: e.name })) ?? [])
+            : undefined
+        }
       />
       {selectedElementId && (
         <AddRelationshipDialog

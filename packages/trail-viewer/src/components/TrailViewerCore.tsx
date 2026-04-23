@@ -197,17 +197,12 @@ function TrailViewerCoreInner({
         {tokenBudgets.length > 0 && (
           <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', px: 2, flexShrink: 0 }}>
             {tokenBudgets.map((tb, idx) => (
-              <Box key={tb.sessionId} sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                {idx > 0 && <Box sx={{ width: '1px', height: 48, bgcolor: colors.border, flexShrink: 0 }} />}
-                <SessionBudgetBadge
-                  tokenBudget={tb}
-                  sessionLabel={t('tokenBudget.session')}
-                  turnsLabel={t('tokenBudget.turns')}
-                  colors={colors}
-                />
+              <Box key={tb.sessionId} sx={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                {idx > 0 && <Box sx={{ width: '1px', height: 24, bgcolor: colors.border, flexShrink: 0 }} />}
+                <SessionBudgetBadge tokenBudget={tb} colors={colors} />
               </Box>
             ))}
-            <Box sx={{ width: '1px', height: 48, bgcolor: colors.border, flexShrink: 0 }} />
+            <Box sx={{ width: '1px', height: 24, bgcolor: colors.border, flexShrink: 0 }} />
             <TokenBudgetIndicator
               label={t('tokenBudget.daily')}
               current={tokenBudgets[0].dailyTokens}
@@ -336,63 +331,31 @@ function TrailViewerCoreInner({
   );
 }
 
-interface SessionBudgetBadgeProps {
-  readonly tokenBudget: import('../hooks/useTrailDataSource').TokenBudgetStatus;
-  readonly sessionLabel: string;
-  readonly turnsLabel: string;
-  readonly colors: ReturnType<typeof getTokens>['colors'];
-}
+function SessionBudgetBadge({ tokenBudget, colors }: Readonly<{
+  tokenBudget: import('../hooks/useTrailDataSource').TokenBudgetStatus;
+  colors: ReturnType<typeof getTokens>['colors'];
+}>) {
+  const color = resolveTokenColor(tokenBudget.sessionTokens, tokenBudget.sessionLimitTokens, tokenBudget.alertThresholdPct, colors);
+  const tooltipText = tokenBudget.sessionLimitTokens != null
+    ? `${tokenBudget.sessionTokens.toLocaleString()} / ${tokenBudget.sessionLimitTokens.toLocaleString()} tokens · ${tokenBudget.messageCount} messages`
+    : `${tokenBudget.sessionTokens.toLocaleString()} tokens · ${tokenBudget.messageCount} messages`;
 
-const BADGE_COL_WIDTH = 72;
-const BADGE_COL_GAP = 8;
-const BADGE_TOTAL_WIDTH = BADGE_COL_WIDTH * 2 + BADGE_COL_GAP;
-
-function SessionBudgetBadge({ tokenBudget, sessionLabel, turnsLabel, colors }: Readonly<SessionBudgetBadgeProps>) {
   return (
-    <Box sx={{ width: BADGE_TOTAL_WIDTH, flexShrink: 0 }}>
-      <Typography
-        variant="caption"
-        component="div"
-        sx={{
-          width: '100%',
-          textAlign: 'center',
-          color: colors.textSecondary,
-          fontSize: '0.65rem',
-          fontFamily: 'monospace',
-          lineHeight: 1.2,
-          mb: '2px',
-        }}
-      >
-        {tokenBudget.sessionId.slice(0, 8)}
-      </Typography>
-      <Box sx={{ display: 'flex' }}>
-        <Box sx={{ width: BADGE_COL_WIDTH, display: 'flex', justifyContent: 'center' }}>
-          <TokenBudgetIndicator
-            label={sessionLabel}
-            current={tokenBudget.sessionTokens}
-            limit={tokenBudget.sessionLimitTokens}
-            threshold={tokenBudget.alertThresholdPct}
-            colors={colors}
-          />
-        </Box>
-        <Box sx={{ width: BADGE_COL_GAP, flexShrink: 0 }} />
-        <Box
-          sx={{
-            width: BADGE_COL_WIDTH,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-          }}
-        >
-          <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.65rem' }}>
-            {turnsLabel}
+    <Tooltip title={tooltipText} placement="bottom">
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+        <Typography sx={{ color: colors.textSecondary, fontSize: '0.6rem', fontFamily: 'monospace', lineHeight: 1 }}>
+          {tokenBudget.sessionId.slice(0, 8)}
+        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'baseline', gap: '5px' }}>
+          <Typography sx={{ color, fontSize: '0.7rem', fontFamily: 'monospace', lineHeight: 1, fontWeight: 500 }}>
+            {formatTokens(tokenBudget.sessionTokens)}
           </Typography>
-          <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.7rem' }}>
-            {tokenBudget.turnCount}
+          <Typography sx={{ color: colors.textSecondary, fontSize: '0.65rem', lineHeight: 1 }}>
+            {tokenBudget.messageCount}
           </Typography>
         </Box>
       </Box>
-    </Box>
+    </Tooltip>
   );
 }
 
@@ -435,9 +398,9 @@ function TokenBudgetIndicator({ label, current, limit, threshold, colors }: Read
 
   if (limit === null) {
     return (
-      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 64 }}>
-        <Typography variant="caption" sx={{ color, fontSize: '0.65rem' }}>{label}</Typography>
-        <Typography variant="caption" sx={{ color, fontSize: '0.7rem' }}>{formatTokens(current)}</Typography>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+        <Typography sx={{ color: colors.textSecondary, fontSize: '0.6rem', lineHeight: 1 }}>{label}</Typography>
+        <Typography sx={{ color, fontSize: '0.7rem', fontFamily: 'monospace', lineHeight: 1, fontWeight: 500 }}>{formatTokens(current)}</Typography>
       </Box>
     );
   }
@@ -447,14 +410,14 @@ function TokenBudgetIndicator({ label, current, limit, threshold, colors }: Read
 
   return (
     <Tooltip title={tooltipText} placement="bottom">
-      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 64 }}>
-        <Typography variant="caption" sx={{ color, fontSize: '0.65rem' }}>{label}</Typography>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+        <Typography sx={{ color: colors.textSecondary, fontSize: '0.6rem', lineHeight: 1 }}>{label}</Typography>
         <LinearProgress
           variant="determinate"
           value={pct}
-          sx={{ width: 60, height: 4, borderRadius: 2, bgcolor: colors.border, '& .MuiLinearProgress-bar': { bgcolor: color } }}
+          sx={{ width: 40, height: 2, borderRadius: 1, bgcolor: colors.border, '& .MuiLinearProgress-bar': { bgcolor: color } }}
         />
-        <Typography variant="caption" sx={{ color, fontSize: '0.65rem' }}>
+        <Typography sx={{ color, fontSize: '0.6rem', fontFamily: 'monospace', lineHeight: 1 }}>
           {formatTokens(current)}/{formatTokens(limit)}
         </Typography>
       </Box>

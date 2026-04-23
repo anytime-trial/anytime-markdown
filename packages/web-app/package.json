@@ -1,6 +1,6 @@
 {
   "name": "@anytime-markdown/web-app",
-  "version": "0.15.2",
+  "version": "0.16.0",
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -17,6 +17,7 @@
   "dependencies": {
     "@anytime-markdown/cms-core": "*",
     "@anytime-markdown/graph-core": "*",
+    "@anytime-markdown/graph-viewer": "*",
     "@anytime-markdown/markdown-core": "*",
     "@anytime-markdown/trail-viewer": "*",
     "@auth/core": "0.41.1",

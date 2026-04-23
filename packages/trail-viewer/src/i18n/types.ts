@@ -195,6 +195,7 @@ export interface TrailI18n {
   'c4.clearFrameFilter': string;
   'c4.copyPath': string;
   'c4.frameFilter.reset': string;
+  'c4.elementPanel.searchPlaceholder': string;
   // combined (analytics)
   'analytics.combined.tool': string;
   'analytics.combined.count': string;

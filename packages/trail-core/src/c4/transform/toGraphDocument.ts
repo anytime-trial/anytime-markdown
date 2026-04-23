@@ -1,7 +1,9 @@
 import type { C4Model, C4Element, C4ElementType, BoundaryInfo } from '../types';
+import type { ManualGroup } from '../manualTypes';
+import { findService } from '../services/catalog';
 import type {
   NodeType, NodeStyle, EdgeStyle,
-  GraphNode, GraphEdge, GraphDocument,
+  GraphNode, GraphEdge, GraphDocument, GraphGroup,
 } from '@anytime-markdown/graph-core';
 
 // --- Node mapping ---
@@ -72,6 +74,7 @@ function buildNodeText(elem: C4Element): string {
 export function c4ToGraphDocument(
   model: C4Model,
   boundaries?: readonly BoundaryInfo[],
+  manualGroups?: readonly ManualGroup[],
 ): GraphDocument {
   idCounter = 0;
   const now = Date.now();
@@ -105,26 +108,48 @@ export function c4ToGraphDocument(
     }
   }
 
-  // --- Phase 2: 境界要素をフレームとして生成 ---
+  // --- Phase 2: 境界要素をフレームとして生成（2パス）---
+  // Pass 2a: 全境界要素のフレームノードを生成（groupId は未設定）
   for (const elem of model.elements) {
     if (!BOUNDARY_TYPES.has(elem.type) || elem.external) continue;
     if (boundaryIdMap.has(elem.id)) {
-      // Phase 1 で作成済み → groupId のみ更新
-      if (elem.boundaryId && boundaryIdMap.has(elem.boundaryId)) {
-        const existingFrameId = boundaryIdMap.get(elem.id)!;
-        const frame = doc.nodes.find(n => n.id === existingFrameId);
-        if (frame) {
-          frame.groupId = boundaryIdMap.get(elem.boundaryId);
-        }
+      // Phase 1 で作成済み → c4Type / 色 / スタイルを補完する（groupId は 2b で設定）
+      const existingFrameId = boundaryIdMap.get(elem.id)!;
+      const frame = doc.nodes.find(n => n.id === existingFrameId);
+      if (frame && !frame.metadata?.c4Type) {
+        const serviceEntry = elem.serviceType ? findService(elem.serviceType) : undefined;
+        const baseColors = C4_COLORS[elem.type] ?? EXTERNAL_COLOR;
+        const nodeColors = serviceEntry
+          ? { fill: `${serviceEntry.brandColor}26`, stroke: serviceEntry.brandColor }
+          : { fill: `${baseColors.fill}26`, stroke: baseColors.fill };
+        const colors = FRAME_COLORS[elem.type] ?? { fill: 'transparent', stroke: '#444444' };
+        frame.metadata = {
+          ...frame.metadata,
+          c4Type: elem.type,
+          c4NodeFill: nodeColors.fill,
+          c4NodeStroke: nodeColors.stroke,
+          ...(serviceEntry?.iconBody ? {
+            serviceIconBody: serviceEntry.iconBody,
+            serviceIconViewBox: serviceEntry.iconViewBox ?? '0 0 24 24',
+          } : serviceEntry?.iconPath ? {
+            serviceIconPath: serviceEntry.iconPath,
+            serviceColor: serviceEntry.brandColor,
+          } : {}),
+        };
+        frame.style = { ...DEFAULT_STYLE, fill: colors.fill, stroke: colors.stroke };
+        frame.text = buildNodeText(elem);
       }
       continue;
     }
 
     const frameId = nextId();
     boundaryIdMap.set(elem.id, frameId);
+    const serviceEntry = elem.serviceType ? findService(elem.serviceType) : undefined;
     const colors = FRAME_COLORS[elem.type] ?? { fill: 'transparent', stroke: '#444444' };
-
-    const nodeColors = C4_COLORS[elem.type] ?? EXTERNAL_COLOR;
+    const baseColors = C4_COLORS[elem.type] ?? EXTERNAL_COLOR;
+    const nodeColors = serviceEntry
+      ? { fill: `${serviceEntry.brandColor}26`, stroke: serviceEntry.brandColor }
+      : { fill: `${baseColors.fill}26`, stroke: baseColors.fill };
     const node: GraphNode = {
       id: frameId,
       type: 'frame',
@@ -134,12 +159,32 @@ export function c4ToGraphDocument(
       height: 300,
       text: buildNodeText(elem),
       style: { ...DEFAULT_STYLE, fill: colors.fill, stroke: colors.stroke },
-      metadata: { c4Id: elem.id, c4Type: elem.type, c4NodeFill: nodeColors.fill, c4NodeStroke: nodeColors.stroke },
-      ...(elem.boundaryId && boundaryIdMap.has(elem.boundaryId)
-        ? { groupId: boundaryIdMap.get(elem.boundaryId) }
-        : {}),
+      metadata: {
+        c4Id: elem.id,
+        c4Type: elem.type,
+        c4NodeFill: nodeColors.fill,
+        c4NodeStroke: nodeColors.stroke,
+        ...(elem.manual ? { manual: 1 } : {}),
+        ...(serviceEntry?.iconBody ? {
+          serviceIconBody: serviceEntry.iconBody,
+          serviceIconViewBox: serviceEntry.iconViewBox ?? '0 0 24 24',
+        } : serviceEntry?.iconPath ? {
+          serviceIconPath: serviceEntry.iconPath,
+          serviceColor: serviceEntry.brandColor,
+        } : {}),
+      },
     };
     doc.nodes.push(node);
+  }
+
+  // Pass 2b: 全境界要素の groupId を設定（2a 完了後に boundaryIdMap が揃っている）
+  for (const elem of model.elements) {
+    if (!BOUNDARY_TYPES.has(elem.type) || elem.external) continue;
+    if (!elem.boundaryId || !boundaryIdMap.has(elem.boundaryId)) continue;
+    const frameId = boundaryIdMap.get(elem.id);
+    if (!frameId) continue;
+    const frame = doc.nodes.find(n => n.id === frameId);
+    if (frame) frame.groupId = boundaryIdMap.get(elem.boundaryId);
   }
 
   // --- Phase 3: その他の要素をノードとして生成 ---
@@ -148,7 +193,10 @@ export function c4ToGraphDocument(
     if (BOUNDARY_TYPES.has(elem.type) && !elem.external) continue; // フレームとして既に生成済み
 
     const mapping = NODE_MAP[elem.type];
-    const colors = elem.external ? EXTERNAL_COLOR : C4_COLORS[elem.type];
+    const serviceEntry = elem.serviceType ? findService(elem.serviceType) : undefined;
+    const colors = serviceEntry
+      ? { fill: `${serviceEntry.brandColor}26`, stroke: serviceEntry.brandColor }
+      : elem.external ? EXTERNAL_COLOR : C4_COLORS[elem.type];
     const nodeId = nextId();
     elemIdMap.set(elem.id, nodeId);
 
@@ -166,7 +214,18 @@ export function c4ToGraphDocument(
         stroke: colors.stroke,
         ...(elem.external ? { dashed: true } : {}),
       },
-      metadata: { c4Id: elem.id, c4Type: elem.type },
+      metadata: {
+        c4Id: elem.id,
+        c4Type: elem.type,
+        ...(elem.manual ? { manual: 1 } : {}),
+        ...(serviceEntry?.iconBody ? {
+          serviceIconBody: serviceEntry.iconBody,
+          serviceIconViewBox: serviceEntry.iconViewBox ?? '0 0 24 24',
+        } : serviceEntry?.iconPath ? {
+          serviceIconPath: serviceEntry.iconPath,
+          serviceColor: serviceEntry.brandColor,
+        } : {}),
+      },
       ...(elem.boundaryId && boundaryIdMap.has(elem.boundaryId)
         ? { groupId: boundaryIdMap.get(elem.boundaryId) }
         : {}),
@@ -191,6 +250,20 @@ export function c4ToGraphDocument(
       style: DEFAULT_EDGE_STYLE,
       label: rel.label,
     });
+  }
+
+  // --- Phase 5: ManualGroup を GraphGroup に変換 ---
+  if (manualGroups && manualGroups.length > 0) {
+    const groups: GraphGroup[] = [];
+    for (const mg of manualGroups) {
+      const memberIds = mg.memberIds
+        .map(c4Id => allIdMap.get(c4Id))
+        .filter((id): id is string => id !== undefined);
+      if (memberIds.length >= 2) {
+        groups.push({ id: mg.id, memberIds, label: mg.label });
+      }
+    }
+    if (groups.length > 0) doc.groups = groups;
   }
 
   return doc;

@@ -12,7 +12,7 @@ jest.mock("@anytime-markdown/graph-core/engine", () => ({
   }),
 }));
 
-import { useTouchInteraction } from "../../app/graph/hooks/useTouchInteraction";
+import { useTouchInteraction } from "@anytime-markdown/graph-viewer/src/hooks/useTouchInteraction";
 
 function createMockCanvas(): HTMLCanvasElement {
   const canvas = document.createElement("canvas");

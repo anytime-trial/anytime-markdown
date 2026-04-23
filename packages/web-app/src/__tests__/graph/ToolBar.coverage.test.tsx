@@ -20,7 +20,7 @@ jest.mock("@anytime-markdown/graph-core", () => ({
   }),
 }));
 
-import { GraphToolBar } from "../../app/graph/components/ToolBar";
+import { GraphToolBar } from "@anytime-markdown/graph-viewer/src/components/ToolBar";
 
 const defaultProps = {
   tool: "select" as any,

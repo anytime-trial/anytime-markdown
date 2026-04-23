@@ -17,9 +17,10 @@ jest.mock("../app/LocaleProvider", () => ({
 import LandingHeader from "../app/components/LandingHeader";
 
 describe("LandingHeader", () => {
-  it("renders the app title", () => {
+  it("renders the wordmark", () => {
     render(<LandingHeader />);
-    expect(screen.getByText("Anytime Markdown")).toBeTruthy();
+    expect(screen.getByText("Anytime")).toBeTruthy();
+    expect(screen.getByText("TRAIL")).toBeTruthy();
   });
 
   it("renders navigation buttons", () => {

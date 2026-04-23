@@ -38,6 +38,22 @@ jest.mock("@anytime-markdown/markdown-core", () => {
     DEFAULT_PRESET_NAME: "professional",
     getPreset: (name: string) => presets[name] ?? presets.professional,
     isPresetName: (name: string) => !!presets[name],
+    getBgPaper: (isDark: boolean) => isDark ? "#121212" : "#FBF9F3",
+    getDivider: (isDark: boolean) => isDark ? "rgba(255,255,255,0.12)" : "rgba(31,30,28,0.12)",
+    getTextPrimary: (isDark: boolean) => isDark ? "#ffffffde" : "#1F1E1C",
+    getTextSecondary: (isDark: boolean) => isDark ? "#ffffff99" : "#5C5A55",
+    getTextDisabled: (isDark: boolean) => isDark ? "#ffffff73" : "#A9A6A0",
+    getActionHover: (isDark: boolean) => isDark ? "rgba(255,255,255,0.08)" : "rgba(31,30,28,0.04)",
+    getActionSelected: (isDark: boolean) => isDark ? "rgba(255,255,255,0.16)" : "rgba(31,30,28,0.08)",
+    getPrimaryMain: (isDark: boolean) => isDark ? "#90CAF9" : "#3D4A52",
+    getPrimaryDark: (isDark: boolean) => isDark ? "#42A5F5" : "#222A30",
+    getPrimaryLight: (isDark: boolean) => isDark ? "#E3F2FD" : "#8A918F",
+    getPrimaryContrast: (isDark: boolean) => isDark ? "rgba(0,0,0,0.87)" : "#FBF9F3",
+    getErrorMain: (isDark: boolean) => isDark ? "#F44336" : "#6B2A20",
+    getWarningMain: (isDark: boolean) => isDark ? "#9B7BD8" : "#4A5A6B",
+    getWarningLight: (isDark: boolean) => isDark ? "#B89FE8" : "#5D6E80",
+    getSuccessMain: (isDark: boolean) => isDark ? "#66BB6A" : "#4B5A3E",
+    getInfoMain: (isDark: boolean) => isDark ? "#42A5F5" : "#3D4A52",
   };
 });
 

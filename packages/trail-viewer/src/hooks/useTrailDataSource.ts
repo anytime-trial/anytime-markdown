@@ -88,6 +88,7 @@ export function useTrailDataSource(serverUrl: string): TrailDataSourceResult {
   const [costOptimization, setCostOptimization] = useState<CostOptimizationData | null>(null);
   const [releases, setReleases] = useState<readonly TrailRelease[]>([]);
   const [tokenBudgetMap, setTokenBudgetMap] = useState<ReadonlyMap<string, TokenBudgetStatus>>(new Map());
+  const tokenBudgetTimerRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -353,6 +354,16 @@ export function useTrailDataSource(serverUrl: string): TrailDataSourceResult {
     void fetchReleases();
   }, [fetchSessions, baseUrl, refreshAnalytics, fetchReleases]);
 
+  // --- Token budget timer cleanup on unmount ---
+
+  useEffect(() => {
+    const timers = tokenBudgetTimerRef.current;
+    return () => {
+      for (const timer of timers.values()) clearTimeout(timer);
+      timers.clear();
+    };
+  }, []);
+
   // --- WebSocket (only when serverUrl is an absolute URL) ---
 
   useEffect(() => {
@@ -382,6 +393,18 @@ export function useTrailDataSource(serverUrl: string): TrailDataSourceResult {
               next.set(status.sessionId, status);
               return next;
             });
+            const existing = tokenBudgetTimerRef.current.get(status.sessionId);
+            if (existing) clearTimeout(existing);
+            const timer = setTimeout(() => {
+              setTokenBudgetMap(prev => {
+                if (!prev.has(status.sessionId)) return prev;
+                const next = new Map(prev);
+                next.delete(status.sessionId);
+                return next;
+              });
+              tokenBudgetTimerRef.current.delete(status.sessionId);
+            }, 5 * 60 * 1000);
+            tokenBudgetTimerRef.current.set(status.sessionId, timer);
           }
         } catch {
           // Malformed message — ignore

@@ -96,12 +96,12 @@ describe('graphReducer', () => {
     const state = createInitialState();
     expect(state.selection.nodeIds).toEqual([]);
 
-    // ADD_NODE: pushHistory saves selection=[] (before), then sets selection=['sel-node']
+    // ADD_NODE: stores AFTER-state (nodes=[sel-node], selection=['sel-node'])
     const node = createNode('rect', 50, 50, { id: 'sel-node' });
     const afterAdd = graphReducer(state, { type: 'ADD_NODE', node });
     expect(afterAdd.selection.nodeIds).toEqual(['sel-node']);
 
-    // UNDO: restores history entry at index 0 which has selection=[] (initial)
+    // UNDO: restores history[0] = initial state, selection=[]
     const afterUndo = graphReducer(afterAdd, { type: 'UNDO' });
     expect(afterUndo.document.nodes).toHaveLength(0);
     expect(afterUndo.selection.nodeIds).toEqual([]);
@@ -110,22 +110,21 @@ describe('graphReducer', () => {
   it('should restore selection across multiple undo steps', () => {
     const state = makeState(); // nodes=[n1,n2], selection=[]
 
-    // Select n1, then update it (pushHistory saves selection=['n1'])
+    // Select n1, then update it
     let s = graphReducer(state, { type: 'SET_SELECTION', selection: { nodeIds: ['n1'], edgeIds: [] } });
     s = graphReducer(s, { type: 'UPDATE_NODE', id: 'n1', changes: { text: 'Updated' } });
     expect(s.selection.nodeIds).toEqual(['n1']); // UPDATE_NODE doesn't change selection
 
-    // Select n2, then update it (pushHistory saves selection=['n1'] — current at that point)
+    // Select n2, then update it
     s = graphReducer(s, { type: 'SET_SELECTION', selection: { nodeIds: ['n2'], edgeIds: [] } });
     s = graphReducer(s, { type: 'UPDATE_NODE', id: 'n2', changes: { text: 'Updated B' } });
     expect(s.selection.nodeIds).toEqual(['n2']);
 
-    // UNDO: goes to historyIndex-1, which is the entry saved by the first UPDATE_NODE
-    // That entry captured selection=['n1'] (the selection at the time of first UPDATE_NODE)
+    // UNDO: restores AFTER-state of first UPDATE_NODE → selection=['n1']
     s = graphReducer(s, { type: 'UNDO' });
     expect(s.selection.nodeIds).toEqual(['n1']);
 
-    // UNDO again: goes to historyIndex-1 (initial entry), which has selection=[]
+    // UNDO again: restores history[0] (initial state) → selection=[]
     s = graphReducer(s, { type: 'UNDO' });
     expect(s.selection.nodeIds).toEqual([]);
   });
@@ -256,25 +255,20 @@ describe('graphReducer', () => {
     expect(next.document.nodes.find(n => n.id === 'n2')!.y).toBe(100);
   });
 
-  it('GROUP_SELECTED assigns groupId to selected nodes', () => {
+  it('CREATE_GROUP creates a group with selected memberIds', () => {
     let state = makeState();
-    state = graphReducer(state, { type: 'SET_SELECTION', selection: { nodeIds: ['n1', 'n2'], edgeIds: [] } });
-    state = graphReducer(state, { type: 'GROUP_SELECTED', groupId: 'g1' });
-    expect(state.document.nodes.find(n => n.id === 'n1')!.groupId).toBe('g1');
-    expect(state.document.nodes.find(n => n.id === 'n2')!.groupId).toBe('g1');
+    state = graphReducer(state, { type: 'CREATE_GROUP', memberIds: ['n1', 'n2'] });
+    expect(state.document.groups).toHaveLength(1);
+    expect(state.document.groups![0].memberIds).toEqual(['n1', 'n2']);
   });
 
-  it('UNGROUP_SELECTED removes groupId from grouped nodes', () => {
+  it('DELETE_GROUP removes the group', () => {
     let state = makeState();
-    // Group nodes first
-    state = graphReducer(state, { type: 'SET_SELECTION', selection: { nodeIds: ['n1', 'n2'], edgeIds: [] } });
-    state = graphReducer(state, { type: 'GROUP_SELECTED', groupId: 'g1' });
-    // Select one grouped node and ungroup
-    state = graphReducer(state, { type: 'SET_SELECTION', selection: { nodeIds: ['n1'], edgeIds: [] } });
-    state = graphReducer(state, { type: 'UNGROUP_SELECTED' });
-    // Both nodes in group g1 should be ungrouped (UNGROUP removes groupId from all nodes sharing the group)
-    expect(state.document.nodes.find(n => n.id === 'n1')!.groupId).toBeUndefined();
-    expect(state.document.nodes.find(n => n.id === 'n2')!.groupId).toBeUndefined();
+    state = graphReducer(state, { type: 'CREATE_GROUP', memberIds: ['n1', 'n2'] });
+    const groupId = state.document.groups![0].id;
+    state = graphReducer(state, { type: 'DELETE_GROUP', id: groupId });
+    expect(state.document.groups).toHaveLength(0);
+    expect(state.document.nodes).toHaveLength(2);
   });
 
   it('SET_DOCUMENT replaces the entire document', () => {
@@ -301,11 +295,11 @@ describe('graphReducer', () => {
   it('should restore selection on REDO', () => {
     const state = createInitialState();
 
-    // ADD_NODE(r1): pushHistory saves selection=[], then sets selection=['r1']
+    // ADD_NODE(r1): stores AFTER-state → selection=['r1']
     const node1 = createNode('rect', 10, 10, { id: 'r1' });
     let s = graphReducer(state, { type: 'ADD_NODE', node: node1 });
 
-    // ADD_NODE(r2): pushHistory saves selection=['r1'], then sets selection=['r2']
+    // ADD_NODE(r2): stores AFTER-state → selection=['r2']
     const node2 = createNode('rect', 100, 100, { id: 'r2' });
     s = graphReducer(s, { type: 'ADD_NODE', node: node2 });
 
@@ -314,12 +308,12 @@ describe('graphReducer', () => {
     s = graphReducer(s, { type: 'UNDO' });
     expect(s.selection.nodeIds).toEqual([]);
 
-    // REDO: restores entry with selection=[] (saved before first ADD_NODE)
-    s = graphReducer(s, { type: 'REDO' });
-    expect(s.selection.nodeIds).toEqual([]);
-
-    // REDO again: restores entry with selection=['r1'] (saved before second ADD_NODE)
+    // REDO: restores AFTER-state of first ADD_NODE → selection=['r1']
     s = graphReducer(s, { type: 'REDO' });
     expect(s.selection.nodeIds).toEqual(['r1']);
+
+    // REDO again: restores AFTER-state of second ADD_NODE → selection=['r2']
+    s = graphReducer(s, { type: 'REDO' });
+    expect(s.selection.nodeIds).toEqual(['r2']);
   });
 });

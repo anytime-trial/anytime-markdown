@@ -11,6 +11,7 @@ import type {
   DsmMatrix,
   FeatureMatrix,
   ImportanceMatrix,
+  ManualGroup,
 } from '@anytime-markdown/trail-core/c4';
 
 // ---------------------------------------------------------------------------
@@ -22,6 +23,22 @@ export interface AnalysisProgress {
   phase: string;
   /** 0〜100 の進捗率（-1 で不定） */
   percent: number;
+}
+
+export interface AddElementRequest {
+  type: string;
+  name: string;
+  description?: string;
+  external?: boolean;
+  parentId?: string | null;
+  serviceType?: string;
+}
+
+export interface AddRelationshipRequest {
+  fromId: string;
+  toId: string;
+  label?: string;
+  technology?: string;
 }
 
 interface C4DataSourceResult {
@@ -44,6 +61,15 @@ interface C4DataSourceResult {
   setSelectedRelease: (release: string) => void;
   selectedRepo: string;
   setSelectedRepo: (repo: string) => void;
+  addElement: (data: AddElementRequest) => Promise<void>;
+  updateElement: (id: string, changes: { name?: string; description?: string; external?: boolean }) => Promise<void>;
+  removeElement: (id: string) => Promise<void>;
+  addRelationship: (data: AddRelationshipRequest) => Promise<void>;
+  removeRelationship: (id: string) => Promise<void>;
+  manualGroups: readonly ManualGroup[];
+  addGroup: (memberIds: readonly string[], label?: string) => Promise<void>;
+  updateGroup: (id: string, changes: { memberIds?: readonly string[]; label?: string | null }) => Promise<void>;
+  removeGroup: (id: string) => Promise<void>;
 }
 
 interface WsModelMessage {
@@ -119,6 +145,12 @@ function isWsModelMessage(v: unknown): v is WsModelMessage {
   if (typeof v !== 'object' || v === null) return false;
   const obj = v as Record<string, unknown>;
   return obj.type === 'model-updated' && 'model' in obj && 'boundaries' in obj;
+}
+
+function isWsModelNotification(v: unknown): v is { type: 'model-updated' } {
+  if (typeof v !== 'object' || v === null) return false;
+  const obj = v as Record<string, unknown>;
+  return obj.type === 'model-updated' && !('model' in obj);
 }
 
 function isWsDsmMatrixMessage(v: unknown): v is WsDsmMatrixMessage {
@@ -399,6 +431,7 @@ export function useC4DataSource(serverUrl: string): C4DataSourceResult {
   const [releases, setReleases] = useState<readonly C4ReleaseEntry[]>([]);
   const [selectedRelease, setSelectedRelease] = useState<string>('current');
   const [selectedRepo, setSelectedRepo] = useState<string>('');
+  const [manualGroups, setManualGroups] = useState<readonly ManualGroup[]>([]);
 
   // Refs
   const wsRef = useRef<WebSocket | null>(null);
@@ -420,6 +453,113 @@ export function useC4DataSource(serverUrl: string): C4DataSourceResult {
     setReleases,
     setDocLinks,
   );
+
+  // Refetch just the C4 model (used after manual element edits).
+  // Accessed via ref inside handleWsMessage to keep that callback stable
+  // — otherwise the WebSocket would reconnect every time selectedRepo changes.
+  const refetchModel = useCallback(async (): Promise<void> => {
+    if (serverUrl === undefined) return;
+    const repoQuery = selectedRepo ? `&repo=${encodeURIComponent(selectedRepo)}` : '';
+    const url = `${serverUrl}/api/c4/model?release=${encodeURIComponent(selectedRelease)}${repoQuery}`;
+    try {
+      const res = await fetch(url).catch(() => null);
+      const json = await readJson(res);
+      if (isModelPayload(json)) {
+        setRemoteModel(json.model);
+        setRemoteBoundaries(json.boundaries);
+        setFeatureMatrix(json.featureMatrix ?? null);
+      }
+    } catch {
+      // ignore transient fetch errors
+    }
+  }, [serverUrl, selectedRelease, selectedRepo]);
+
+  const refetchModelRef = useRef(refetchModel);
+  useEffect(() => {
+    refetchModelRef.current = refetchModel;
+  }, [refetchModel]);
+
+  // Refetch manual groups from the server
+  const refetchManualGroups = useCallback(async (): Promise<void> => {
+    if (serverUrl === undefined || !selectedRepo) {
+      setManualGroups([]);
+      return;
+    }
+    try {
+      const url = `${serverUrl}/api/c4/manual-groups?repoName=${encodeURIComponent(selectedRepo)}`;
+      const res = await fetch(url).catch(() => null);
+      const json = await readJson(res);
+      if (Array.isArray(json)) {
+        setManualGroups(json as ManualGroup[]);
+      }
+    } catch {
+      // ignore transient fetch errors
+    }
+  }, [serverUrl, selectedRepo]);
+
+  useEffect(() => {
+    void refetchManualGroups();
+  }, [refetchManualGroups]);
+
+  // Manual element CRUD
+  const addElement = useCallback(async (data: AddElementRequest): Promise<void> => {
+    if (!selectedRepo) return;
+    const url = `${serverUrl}/api/c4/manual-elements?repoName=${encodeURIComponent(selectedRepo)}`;
+    await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+    await refetchModel();
+  }, [serverUrl, selectedRepo, refetchModel]);
+
+  const updateElement = useCallback(async (id: string, changes: { name?: string; description?: string; external?: boolean }): Promise<void> => {
+    if (!selectedRepo) return;
+    const url = `${serverUrl}/api/c4/manual-elements/${encodeURIComponent(id)}?repoName=${encodeURIComponent(selectedRepo)}`;
+    await fetch(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(changes) });
+    await refetchModel();
+  }, [serverUrl, selectedRepo, refetchModel]);
+
+  const removeElement = useCallback(async (id: string): Promise<void> => {
+    if (!selectedRepo) return;
+    const url = `${serverUrl}/api/c4/manual-elements/${encodeURIComponent(id)}?repoName=${encodeURIComponent(selectedRepo)}`;
+    await fetch(url, { method: 'DELETE' });
+    await refetchModel();
+  }, [serverUrl, selectedRepo, refetchModel]);
+
+  const addRelationship = useCallback(async (data: AddRelationshipRequest): Promise<void> => {
+    if (!selectedRepo) return;
+    const url = `${serverUrl}/api/c4/manual-relationships?repoName=${encodeURIComponent(selectedRepo)}`;
+    await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+    await refetchModel();
+  }, [serverUrl, selectedRepo, refetchModel]);
+
+  const removeRelationship = useCallback(async (id: string): Promise<void> => {
+    if (!selectedRepo) return;
+    const url = `${serverUrl}/api/c4/manual-relationships/${encodeURIComponent(id)}?repoName=${encodeURIComponent(selectedRepo)}`;
+    await fetch(url, { method: 'DELETE' });
+    await refetchModel();
+  }, [serverUrl, selectedRepo, refetchModel]);
+
+  const addGroup = useCallback(async (memberIds: readonly string[], label?: string): Promise<void> => {
+    if (!selectedRepo) return;
+    const url = `${serverUrl}/api/c4/manual-groups?repoName=${encodeURIComponent(selectedRepo)}`;
+    await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ memberIds: [...memberIds], label }) });
+    await refetchManualGroups();
+  }, [serverUrl, selectedRepo, refetchManualGroups]);
+
+  const updateGroup = useCallback(async (id: string, changes: { memberIds?: readonly string[]; label?: string | null }): Promise<void> => {
+    if (!selectedRepo) return;
+    const url = `${serverUrl}/api/c4/manual-groups/${encodeURIComponent(id)}?repoName=${encodeURIComponent(selectedRepo)}`;
+    const body: Record<string, unknown> = {};
+    if (changes.memberIds !== undefined) body.memberIds = [...changes.memberIds];
+    if (changes.label !== undefined) body.label = changes.label;
+    await fetch(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    await refetchManualGroups();
+  }, [serverUrl, selectedRepo, refetchManualGroups]);
+
+  const removeGroup = useCallback(async (id: string): Promise<void> => {
+    if (!selectedRepo) return;
+    const url = `${serverUrl}/api/c4/manual-groups/${encodeURIComponent(id)}?repoName=${encodeURIComponent(selectedRepo)}`;
+    await fetch(url, { method: 'DELETE' });
+    await refetchManualGroups();
+  }, [serverUrl, selectedRepo, refetchManualGroups]);
 
   // WebSocket message handler
   const handleWsMessage = useCallback((event: MessageEvent) => {
@@ -455,6 +595,8 @@ export function useC4DataSource(serverUrl: string): C4DataSourceResult {
           agents: parsed.agents,
           conflicts: Array.isArray(parsed.conflicts) ? parsed.conflicts : [],
         });
+      } else if (isWsModelNotification(parsed)) {
+        void refetchModelRef.current();
       }
     } catch {
       // Malformed message — ignore
@@ -548,5 +690,14 @@ export function useC4DataSource(serverUrl: string): C4DataSourceResult {
     setSelectedRelease,
     selectedRepo,
     setSelectedRepo,
+    addElement,
+    updateElement,
+    removeElement,
+    addRelationship,
+    removeRelationship,
+    manualGroups,
+    addGroup,
+    updateGroup,
+    removeGroup,
   };
 }

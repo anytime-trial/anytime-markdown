@@ -2,7 +2,7 @@
   "name": "anytime-trail",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {
@@ -150,6 +150,12 @@
         "title": "%command.openTrailViewer%",
         "category": "Anytime Trail",
         "icon": "$(graph-line)"
+      },
+      {
+        "command": "anytime-trail.restoreBackup",
+        "title": "%command.restoreBackup%",
+        "category": "Anytime Trail",
+        "icon": "$(discard)"
       },
       {
         "command": "anytime-trail.importTrailData",
@@ -321,6 +327,13 @@
           "type": "string",
           "default": "",
           "markdownDescription": "%config.database.storagePath%"
+        },
+        "anytimeTrail.database.backupGenerations": {
+          "type": "number",
+          "default": 1,
+          "minimum": 1,
+          "maximum": 10,
+          "markdownDescription": "%config.database.backupGenerations%"
         },
         "anytimeTrail.claudeStatus.directory": {
           "type": "string",

@@ -59,6 +59,7 @@ export function buildElementTree(
       ...(el.technology ? { technology: el.technology } : {}),
       ...(el.description ? { description: el.description } : {}),
       ...(el.deleted ? { deleted: true } : {}),
+      ...(el.serviceType ? { serviceType: el.serviceType } : {}),
       children,
     };
   }

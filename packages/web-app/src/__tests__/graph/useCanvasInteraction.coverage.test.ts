@@ -31,7 +31,7 @@ jest.mock("@anytime-markdown/graph-core/engine", () => ({
 }));
 
 // Mock types
-jest.mock("../../app/graph/types", () => ({
+jest.mock("@anytime-markdown/graph-viewer/src/types", () => ({
   createNode: (type: string, x: number, y: number, overrides: any = {}, _isDark?: boolean) => ({
     id: "new-node-1",
     type,
@@ -52,7 +52,7 @@ jest.mock("../../app/graph/types", () => ({
   }),
 }));
 
-import { useCanvasInteraction } from "../../app/graph/hooks/useCanvasInteraction";
+import { useCanvasInteraction } from "@anytime-markdown/graph-viewer/src/hooks/useCanvasInteraction";
 
 function createMockCanvas(): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
@@ -81,7 +81,7 @@ const makeEdge = (id: string, fromNodeId?: string, toNodeId?: string) => ({
   type: "connector" as const,
   from: { nodeId: fromNodeId, x: 0, y: 0 },
   to: { nodeId: toNodeId, x: 100, y: 100 },
-  style: { stroke: "#fff", strokeWidth: 2, routing: "orthogonal" },
+  style: { stroke: "#fff", strokeWidth: 2, routing: "orthogonal" as const },
 });
 
 describe("useCanvasInteraction", () => {
@@ -744,7 +744,7 @@ describe("useCanvasInteraction", () => {
   });
 
   it("handles cursor change for different hit types in select mode", () => {
-    const node = makeNode("n1");
+    const node = makeNode("n1") as ReturnType<typeof makeNode> & { url?: string };
     node.url = "https://example.com";
     mockHitTest.mockReturnValue({ type: "node", id: "n1" });
 

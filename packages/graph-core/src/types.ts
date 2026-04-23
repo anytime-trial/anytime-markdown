@@ -99,11 +99,18 @@ export interface Viewport {
   scale: number;
 }
 
+export interface GraphGroup {
+  id: string;
+  memberIds: string[];
+  label?: string;
+}
+
 export interface GraphDocument {
   id: string;
   name: string;
   nodes: GraphNode[];
   edges: GraphEdge[];
+  groups?: GraphGroup[];
   viewport: Viewport;
   createdAt: number;
   updatedAt: number;
@@ -117,6 +124,7 @@ export interface SelectionState {
 export interface HistoryEntry {
   nodes: GraphNode[];
   edges: GraphEdge[];
+  groups?: GraphGroup[];
   selection?: SelectionState;
 }
 
@@ -249,6 +257,7 @@ export function createDocument(name: string): GraphDocument {
     name,
     nodes: [],
     edges: [],
+    groups: [],
     viewport: { ...DEFAULT_VIEWPORT },
     createdAt: now,
     updatedAt: now,

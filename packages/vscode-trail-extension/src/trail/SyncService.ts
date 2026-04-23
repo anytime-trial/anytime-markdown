@@ -41,7 +41,7 @@ export class SyncService {
     onProgress?: (progress: SyncProgress) => void,
   ): Promise<SyncResult> {
     onProgress?.({ message: 'Clearing remote tables...' });
-    await this.store.clearAll();
+    await this.store.unsafeClearAll();
 
     onProgress?.({ message: 'Fetching local sessions...' });
     const localSessions = this.trailDb.getSessions();
@@ -104,7 +104,7 @@ export class SyncService {
     // Sync message_tool_calls（洗い替え: clear → upsert）
     try {
       onProgress?.({ message: 'Syncing message tool calls...' });
-      await this.store.clearMessageToolCalls();
+      await this.store.unsafeClearMessageToolCalls();
       const toolCallRows = this.trailDb.getAllMessageToolCalls(messageCutoff);
       if (toolCallRows.length > 0) {
         await this.store.upsertMessageToolCalls(toolCallRows);
@@ -134,7 +134,7 @@ export class SyncService {
     try {
       const currents = this.trailDb.listCurrentGraphs().filter((row) => row.repoName === 'anytime-markdown');
       onProgress?.({ message: `Syncing ${currents.length} current TrailGraphs (wash-away)...` });
-      await this.store.clearCurrentGraphs();
+      await this.store.unsafeClearCurrentGraphs();
       for (const row of currents) {
         await this.store.upsertCurrentGraph(row.repoName, JSON.stringify(row.graph), row.commitId);
       }
@@ -148,7 +148,7 @@ export class SyncService {
       const graphIds = this.trailDb.getTrailGraphIds();
       const releaseIds = graphIds.filter((id) => id !== 'current');
       onProgress?.({ message: `Syncing ${releaseIds.length} release TrailGraphs (wash-away)...` });
-      await this.store.clearReleaseGraphs();
+      await this.store.unsafeClearReleaseGraphs();
       for (const id of releaseIds) {
         const graph = this.trailDb.getTrailGraph(id);
         if (!graph) continue;
@@ -159,10 +159,66 @@ export class SyncService {
       errors++;
     }
 
+    // Sync manual C4 elements (two-way merge) per repository
+    try {
+      const repoNames = [...new Set(this.trailDb.listCurrentGraphs().map(r => r.repoName))];
+      for (const repoName of repoNames) {
+        await this.syncManualElements(repoName);
+      }
+    } catch (e) {
+      TrailLogger.error('Failed to sync manual C4 elements', e);
+      errors++;
+    }
+
     return {
       synced,
       skipped: 0,
       errors,
     };
+  }
+
+  async syncManualElements(repoName: string): Promise<void> {
+    const [localElements, remoteElements] = await Promise.all([
+      Promise.resolve(this.trailDb.getManualElements(repoName)),
+      this.store.listManualElements(repoName),
+    ]);
+    const localMap = new Map(localElements.map(e => [e.id, e]));
+    const remoteMap = new Map(remoteElements.map(e => [e.id, e]));
+    const allIds = new Set([...localMap.keys(), ...remoteMap.keys()]);
+
+    for (const id of allIds) {
+      const l = localMap.get(id);
+      const r = remoteMap.get(id);
+      if (l && !r) {
+        await this.store.upsertManualElement(repoName, l);
+      } else if (!l && r) {
+        this.trailDb.insertManualElementRaw(repoName, r);
+      } else if (l && r && l.updatedAt !== r.updatedAt) {
+        if (l.updatedAt > r.updatedAt) {
+          await this.store.upsertManualElement(repoName, l);
+        } else {
+          this.trailDb.insertManualElementRaw(repoName, r);
+        }
+      }
+    }
+
+    const [localRels, remoteRels] = await Promise.all([
+      Promise.resolve(this.trailDb.getManualRelationships(repoName)),
+      this.store.listManualRelationships(repoName),
+    ]);
+    const localRelMap = new Map(localRels.map(r => [r.id, r]));
+    const remoteRelMap = new Map(remoteRels.map(r => [r.id, r]));
+    const allRelIds = new Set([...localRelMap.keys(), ...remoteRelMap.keys()]);
+
+    for (const id of allRelIds) {
+      const l = localRelMap.get(id);
+      const r = remoteRelMap.get(id);
+      if (l && !r) await this.store.upsertManualRelationship(repoName, l);
+      else if (!l && r) this.trailDb.insertManualRelationshipRaw(repoName, r);
+      else if (l && r && l.updatedAt !== r.updatedAt) {
+        if (l.updatedAt > r.updatedAt) await this.store.upsertManualRelationship(repoName, l);
+        else this.trailDb.insertManualRelationshipRaw(repoName, r);
+      }
+    }
   }
 }

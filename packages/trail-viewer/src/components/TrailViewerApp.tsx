@@ -19,15 +19,6 @@ import type { TrailLocale } from '../i18n/types';
 
 const EMPTY_FILTER: TrailFilter = {};
 
-// C4 編集コマンド名（TrailDataServer 側のメッセージ type と一致）
-const C4_CMD = {
-  ADD_ELEMENT: 'add-element',
-  UPDATE_ELEMENT: 'update-element',
-  ADD_RELATIONSHIP: 'add-relationship',
-  REMOVE_ELEMENT: 'remove-element',
-  PURGE_DELETED: 'purge-deleted-elements',
-} as const;
-
 export interface TrailViewerAppProps {
   /** Data source URL. Use '' for same-origin (Next.js relative). */
   readonly serverUrl: string;
@@ -59,39 +50,36 @@ export function TrailViewerApp({
   const c4 = useC4DataSource(serverUrl);
   const sendCommand = c4.sendCommand;
 
-  // 編集系: editable=true のときのみ sendCommand を呼ぶ。useCallback の依存は
-  // 安定参照の sendCommand と editable のみ（c4 オブジェクト全体に依存させない）。
+  // effectiveEditable: editing is only possible when a repo is selected
+  const effectiveEditable = editable && !!c4.selectedRepo;
+
   const onAddElement = useCallback(
-    (data: ElementFormData) => editable && sendCommand(C4_CMD.ADD_ELEMENT, { element: data }),
-    [editable, sendCommand],
+    (data: ElementFormData) => {
+      if (!effectiveEditable) return;
+      void c4.addElement({ type: data.type, name: data.name, description: data.description || undefined, external: data.external, parentId: data.parentId ?? null, serviceType: data.serviceType });
+    },
+    [effectiveEditable, c4],
   );
   const onUpdateElement = useCallback(
-    (id: string, data: ElementFormData) =>
-      editable &&
-      sendCommand(C4_CMD.UPDATE_ELEMENT, {
-        id,
-        changes: { name: data.name, description: data.description || undefined, external: data.external },
-      }),
-    [editable, sendCommand],
+    (id: string, data: ElementFormData) => {
+      if (!effectiveEditable) return;
+      void c4.updateElement(id, { name: data.name, description: data.description || undefined, external: data.external });
+    },
+    [effectiveEditable, c4],
   );
   const onAddRelationship = useCallback(
-    (data: RelationshipFormData) =>
-      editable &&
-      sendCommand(C4_CMD.ADD_RELATIONSHIP, {
-        from: data.from,
-        to: data.to,
-        label: data.label || undefined,
-        technology: data.technology || undefined,
-      }),
-    [editable, sendCommand],
+    (data: RelationshipFormData) => {
+      if (!effectiveEditable) return;
+      void c4.addRelationship({ fromId: data.from, toId: data.to, label: data.label || undefined, technology: data.technology || undefined });
+    },
+    [effectiveEditable, c4],
   );
   const onRemoveElement = useCallback(
-    (id: string) => editable && sendCommand(C4_CMD.REMOVE_ELEMENT, { id }),
-    [editable, sendCommand],
-  );
-  const onPurgeDeleted = useCallback(
-    () => editable && sendCommand(C4_CMD.PURGE_DELETED),
-    [editable, sendCommand],
+    (id: string) => {
+      if (!effectiveEditable) return;
+      void c4.removeElement(id);
+    },
+    [effectiveEditable, c4],
   );
 
   // onDocLinkClick が未指定の場合、WebSocket 経由でサーバーにファイルを開かせる
@@ -149,12 +137,12 @@ export function TrailViewerApp({
     onUpdateElement,
     onAddRelationship,
     onRemoveElement,
-    onPurgeDeleted,
     onDocLinkClick: handleDocLinkClick,
     serverUrl,
     claudeActivity: c4.claudeActivity,
     multiAgentActivity: c4.multiAgentActivity,
     onResetClaudeActivity: () => sendCommand('reset-claude-activity'),
+    manualGroups: c4.manualGroups,
   };
 
   return (

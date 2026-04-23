@@ -1,0 +1,27 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "isolatedModules": true,
+    "outDir": "out/webview",
+    "paths": {
+      "@anytime-markdown/spreadsheet-core": ["../spreadsheet-core/src/index.ts"],
+      "@anytime-markdown/spreadsheet-viewer": ["../spreadsheet-viewer/src/index.ts"],
+      "@anytime-markdown/vscode-common/webview": ["../vscode-common/src/webview/index.ts"]
+    }
+  },
+  "include": [
+    "src/webview/**/*",
+    "../spreadsheet-core/src/**/*",
+    "../spreadsheet-viewer/src/**/*",
+    "../vscode-common/src/webview/**/*"
+  ],
+  "exclude": [
+    "../spreadsheet-core/src/__tests__/**/*",
+    "../spreadsheet-viewer/src/__tests__/**/*"
+  ]
+}

@@ -6,6 +6,21 @@
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-04-23
+
+### 追加
+
+- `/graph` ページに `LandingHeader` を追加
+- スプレッドシートエディタ用 `/sheet` ページを追加（`NEXT_PUBLIC_SHOW_SHEET` フィーチャーフラグ）
+- テーマ対応スクロールバースタイルを追加（ダーク: amber / ライト: ink）
+
+### 変更
+
+- ランディングヘッダーのロゴを Anytime Trail ワードマークに変更
+- MUI テーマパレットを拡張: `data-theme` 属性・sumi-e 見出しボーダー
+- `/sheet` ページを `InMemoryWorkbookAdapter` に切り替え
+- テストファイルの TypeScript エラー 73 件を解消
+
 ## [0.15.2] - 2026-04-19
 
 ### 追加

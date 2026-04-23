@@ -5,7 +5,7 @@ jest.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
 }));
 
-import { ContextMenu } from "../../app/graph/components/ContextMenu";
+import { ContextMenu } from "@anytime-markdown/graph-viewer/src/components/ContextMenu";
 
 describe("ContextMenu", () => {
   const defaultProps = {

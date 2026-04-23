@@ -1,5 +1,5 @@
 import { screenToWorld, worldToScreen, pan, zoom, fitToContent } from '@anytime-markdown/graph-core/engine';
-import { Viewport } from '../../../app/graph/types';
+import { Viewport } from '@anytime-markdown/graph-viewer/src/types';
 
 describe('screenToWorld', () => {
   it('should convert with no offset/scale', () => {

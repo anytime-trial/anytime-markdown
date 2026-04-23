@@ -3,12 +3,12 @@ import { renderHook, act } from "@testing-library/react";
 const mockSaveDocument = jest.fn().mockResolvedValue(undefined);
 const mockSetLastDocumentId = jest.fn();
 
-jest.mock("../../app/graph/store/graphStorage", () => ({
+jest.mock("@anytime-markdown/graph-viewer/src/store/graphStorage", () => ({
   saveDocument: (...args: any[]) => mockSaveDocument(...args),
   setLastDocumentId: (...args: any[]) => mockSetLastDocumentId(...args),
 }));
 
-import { useAutoSave } from "../../app/graph/hooks/useAutoSave";
+import { useAutoSave } from "@anytime-markdown/graph-viewer/src/hooks/useAutoSave";
 
 const makeDoc = (id = "doc1") => ({
   id,

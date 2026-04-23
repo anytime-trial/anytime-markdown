@@ -1,0 +1,7 @@
+{
+  "displayName": "Anytime Graph",
+  "description": "VS Code 用のグラフホワイトボードエディタ",
+  "viewsContainers.anytimeGraph.title": "Anytime Graph",
+  "customEditor.displayName": "グラフエディタ",
+  "command.newGraph": "Anytime Graph: 新規グラフ"
+}

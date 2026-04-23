@@ -161,6 +161,14 @@ export class C4Panel implements C4DataProvider {
     C4Panel.dataServer?.notifyClaudeActivity([], [], []);
   }
 
+  public getManualElements(repoName: string): readonly import('@anytime-markdown/trail-core').ManualElement[] {
+    return C4Panel.trailDb?.getManualElements(repoName) ?? [];
+  }
+
+  public getManualRelationships(repoName: string): readonly import('@anytime-markdown/trail-core').ManualRelationship[] {
+    return C4Panel.trailDb?.getManualRelationships(repoName) ?? [];
+  }
+
   // -------------------------------------------------------------------------
   //  Commands
   // -------------------------------------------------------------------------

@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-04-23
+
+### Added
+
+- `LandingHeader` on `/graph` page
+- `/sheet` page for spreadsheet editor (behind `NEXT_PUBLIC_SHOW_SHEET` feature flag)
+- Theme-aware scrollbar styles (amber dark / ink light)
+
+### Changed
+
+- Replace landing header logo with Anytime Trail wordmark
+- Expand MUI theme palette: `data-theme` attribute, sumi-e heading borders
+- Switch `/sheet` page to `InMemoryWorkbookAdapter`
+- Resolve 73 pre-existing TypeScript errors in test files
+
 ## [0.15.2] - 2026-04-19
 
 ### Added

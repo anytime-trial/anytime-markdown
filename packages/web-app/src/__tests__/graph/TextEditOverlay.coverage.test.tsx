@@ -20,7 +20,7 @@ jest.mock("@anytime-markdown/graph-core/engine", () => ({
   worldToScreen: (_vp: any, x: number, y: number) => ({ x, y }),
 }));
 
-import { TextEditOverlay } from "../../app/graph/components/TextEditOverlay";
+import { TextEditOverlay } from "@anytime-markdown/graph-viewer/src/components/TextEditOverlay";
 
 const makeNode = (text = "hello") => ({
   id: "n1",

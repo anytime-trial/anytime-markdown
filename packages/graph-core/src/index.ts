@@ -6,3 +6,5 @@ export * from './theme';
 export * from './io/index';
 export { useCanvasBase } from './hooks/useCanvasBase';
 export type { UseCanvasBaseOptions, UseCanvasBaseReturn, DragMode, SelectRect } from './hooks/useCanvasBase';
+export { MinimapCanvas } from './components/MinimapCanvas';
+export type { MinimapCanvasProps } from './components/MinimapCanvas';

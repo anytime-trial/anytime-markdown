@@ -1,4 +1,5 @@
 import type { C4TreeNode, DocLink } from '@anytime-markdown/trail-core/c4';
+import { findService } from '@anytime-markdown/trail-core/c4';
 import type { ExportedSymbol } from '@anytime-markdown/trail-core/analyzer';
 import type { Action } from '@anytime-markdown/graph-core/state';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
@@ -26,14 +27,40 @@ import Typography from '@mui/material/Typography';
 import type { Dispatch, FC } from 'react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 
+import InputAdornment from '@mui/material/InputAdornment';
+import SearchIcon from '@mui/icons-material/Search';
+import TextField from '@mui/material/TextField';
+import { filterTreeBySearch } from '@anytime-markdown/trail-core/c4';
+import { useTrailI18n } from '../../i18n';
 import { DOC_TYPE_COLORS, getC4Colors } from '../c4Theme';
 import { getTokens } from '../../theme/designTokens';
 
 const INDENT_PX = 20;
 
 /** C4要素タイプに対応するアイコン */
-function TypeIcon({ type }: Readonly<{ type: C4TreeNode['type'] }>) {
+function TypeIcon({ type, serviceType }: Readonly<{ type: C4TreeNode['type']; serviceType?: string }>) {
   const sx = { fontSize: 16 };
+
+  if (type === 'container' && serviceType) {
+    const entry = findService(serviceType);
+    if (entry?.iconBody) {
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${entry.iconViewBox ?? '0 0 24 24'}">${entry.iconBody}</svg>`;
+      const dataUri = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+      return <Box component="img" src={dataUri} alt={entry.label} sx={{ width: 16, height: 16, flexShrink: 0 }} />;
+    }
+    if (entry?.iconPath) {
+      return (
+        <Box
+          component="svg"
+          viewBox="0 0 24 24"
+          sx={{ width: 16, height: 16, flexShrink: 0, fill: entry.brandColor }}
+        >
+          <path d={entry.iconPath} />
+        </Box>
+      );
+    }
+  }
+
   switch (type) {
     case 'person': return <PersonIcon sx={sx} />;
     case 'system':
@@ -153,7 +180,7 @@ const TreeNodeItem: FC<TreeNodeItemProps> = memo(({ node, depth, selectedId, onS
           />
         )}
         <ListItemIcon sx={{ minWidth: 24 }}>
-          <TypeIcon type={node.type} />
+          <TypeIcon type={node.type} serviceType={node.serviceType} />
         </ListItemIcon>
         <ListItemText
           primary={node.name}
@@ -310,6 +337,14 @@ interface C4ElementTreeProps {
 }
 
 export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onSelect, onCheckedChange, onRemoveElement, onPurgeDeleted, docLinks, onDocLinkClick, exports, onExportSelect, selectedExportId, isDark, checkReset }) => {
+  const { t } = useTrailI18n();
+  const [searchText, setSearchText] = useState('');
+
+  const filteredTree = useMemo(
+    () => filterTreeBySearch(tree, searchText),
+    [tree, searchText],
+  );
+
   const colors = useMemo(() => getC4Colors(isDark ?? true), [isDark]);
   const { scrollbarSx } = useMemo(() => getTokens(isDark ?? true), [isDark]);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => {
@@ -417,6 +452,19 @@ export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onS
     }
   }, [checkReset]);
 
+  useEffect(() => {
+    if (!searchText.trim()) return;
+    const ids = new Set<string>();
+    function collectIds(nodes: readonly C4TreeNode[]): void {
+      for (const n of nodes) {
+        ids.add(n.id);
+        if (n.children.length > 0) collectIds(n.children);
+      }
+    }
+    collectIds(filteredTree);
+    setExpanded(ids);
+  }, [searchText, filteredTree]);
+
   // checkedIds の変更を親に通知（useEffect で render 後に実行）
   useEffect(() => {
     onCheckedChange?.(checkedIds);
@@ -433,6 +481,28 @@ export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onS
         ...scrollbarSx,
       }}
     >
+      <Box sx={{ px: 1, py: 0.5, flexShrink: 0, borderBottom: `1px solid ${colors.border}` }}>
+        <TextField
+          size="small"
+          fullWidth
+          value={searchText}
+          onChange={e => setSearchText(e.target.value)}
+          placeholder={t('c4.elementPanel.searchPlaceholder')}
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                </InputAdornment>
+              ),
+            },
+          }}
+          sx={{
+            '& .MuiOutlinedInput-root': { fontSize: '0.75rem' },
+            '& .MuiOutlinedInput-input': { py: 0.5 },
+          }}
+        />
+      </Box>
       {hasDeletedElements && onPurgeDeleted && (
         <Box sx={{ display: 'flex', justifyContent: 'flex-end', px: 0.5, py: 0.25, borderBottom: `1px solid ${colors.border}`, flexShrink: 0 }}>
           <Tooltip title="Remove all deleted elements" placement="left">
@@ -448,7 +518,7 @@ export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onS
         </Box>
       )}
       <List dense disablePadding sx={{ flex: 1, overflowY: 'auto', ...scrollbarSx }}>
-        {tree.map(node => (
+        {filteredTree.map(node => (
           <TreeNodeItem
             key={node.id}
             node={node}

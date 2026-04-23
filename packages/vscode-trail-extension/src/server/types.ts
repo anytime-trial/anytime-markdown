@@ -77,7 +77,9 @@ export interface TokenBudgetUpdatedMessage {
   readonly messageCount: number;
 }
 
-export type ServerMessage = DsmUpdatedMessage | AnalysisProgressMessage | DocLinksUpdatedMessage | ImportanceUpdatedMessage | ClaudeActivityUpdatedMessage | MultiAgentActivityMessage | TokenBudgetUpdatedMessage;
+export interface ModelUpdatedMessage { readonly type: 'model-updated'; }
+
+export type ServerMessage = DsmUpdatedMessage | AnalysisProgressMessage | DocLinksUpdatedMessage | ImportanceUpdatedMessage | ClaudeActivityUpdatedMessage | MultiAgentActivityMessage | TokenBudgetUpdatedMessage | ModelUpdatedMessage;
 
 // ---------------------------------------------------------------------------
 //  Client → Server messages

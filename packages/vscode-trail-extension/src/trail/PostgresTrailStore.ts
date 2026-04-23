@@ -18,7 +18,7 @@ export class PostgresTrailStore implements IRemoteTrailStore {
     }
   }
 
-  async clearAll(): Promise<void> {
+  async unsafeClearAll(): Promise<void> {
     const pool = this.ensurePool();
     // CASCADE により messages / session_commits / session_costs / release_files / release_features も消える
     await pool.query('DELETE FROM trail_sessions');
@@ -306,12 +306,12 @@ export class PostgresTrailStore implements IRemoteTrailStore {
     }
   }
 
-  async clearCurrentGraphs(): Promise<void> {
+  async unsafeClearCurrentGraphs(): Promise<void> {
     const pool = this.ensurePool();
     await pool.query('DELETE FROM trail_current_graphs');
   }
 
-  async clearReleaseGraphs(): Promise<void> {
+  async unsafeClearReleaseGraphs(): Promise<void> {
     const pool = this.ensurePool();
     await pool.query('DELETE FROM trail_release_graphs');
   }
@@ -340,7 +340,7 @@ export class PostgresTrailStore implements IRemoteTrailStore {
     );
   }
 
-  async clearMessageToolCalls(): Promise<void> {
+  async unsafeClearMessageToolCalls(): Promise<void> {
     await this.ensurePool().query('DELETE FROM trail_message_tool_calls');
   }
 
@@ -400,6 +400,13 @@ export class PostgresTrailStore implements IRemoteTrailStore {
       );
     }
   }
+
+  async listManualElements(): Promise<never> { throw new Error('PostgresTrailStore.listManualElements not implemented'); }
+  async upsertManualElement(): Promise<never> { throw new Error('PostgresTrailStore.upsertManualElement not implemented'); }
+  async deleteManualElement(): Promise<never> { throw new Error('PostgresTrailStore.deleteManualElement not implemented'); }
+  async listManualRelationships(): Promise<never> { throw new Error('PostgresTrailStore.listManualRelationships not implemented'); }
+  async upsertManualRelationship(): Promise<never> { throw new Error('PostgresTrailStore.upsertManualRelationship not implemented'); }
+  async deleteManualRelationship(): Promise<never> { throw new Error('PostgresTrailStore.deleteManualRelationship not implemented'); }
 
   private ensurePool(): Pool {
     if (!this.pool) throw new Error('PostgresTrailStore not connected');

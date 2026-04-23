@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-04-23
+
+### Added
+
+- `backupGenerations` VS Code setting: configures the number of backup generations to retain
+- Manual groups persistence (Supabase, Web API, TrailDataServer, MCP)
+- Group rendering, keyboard shortcuts, and `GroupLabelDialog` in Trail Viewer
+- `MinimapCanvas` added to C4 tab in Trail Viewer
+- MCP server for C4 model element and relationship management (`list_relationships`, `GET /api/c4/manual-relationships`)
+
+### Trail Core (trail-core)
+
+- Add `ManualGroup` type and service catalog icons (framework, runtime, language, GitHub, VS Code, AI)
+- Extract dynamic/re-export/type import edges with metadata
+
 ## [0.8.0] - 2026-04-19
 
 ### Added

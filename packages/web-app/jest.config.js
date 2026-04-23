@@ -10,6 +10,8 @@ const config = {
   moduleNameMapper: {
     "^@anytime-markdown/markdown-core/src/(.*)$": "<rootDir>/../markdown-core/src/$1",
     "^@anytime-markdown/markdown-core$": "<rootDir>/../markdown-core/src/index.ts",
+    "^@anytime-markdown/graph-viewer/src/(.*)$": "<rootDir>/../graph-viewer/src/$1",
+    "^@anytime-markdown/graph-viewer$": "<rootDir>/../graph-viewer/src/index.ts",
     "^next-auth/providers/(.*)$": "<rootDir>/src/__mocks__/next-auth-provider.js",
     "^next-auth(.*)$": "<rootDir>/src/__mocks__/next-auth.js",
   },

@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-04-23
+
+### Added
+
+- Include `anytime-trial.anytime-sheet` in the extension pack
+
 ## [0.2.2] - 2026-04-18
 
 ### Changed

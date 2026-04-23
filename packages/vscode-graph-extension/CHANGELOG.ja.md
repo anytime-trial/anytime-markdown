@@ -6,6 +6,24 @@
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-04-23
+
+### 追加
+
+- 英語 UI 対応: webview が `vscode.env.language` に応じて日本語／英語を切り替え（書き直した `next-intl` shim で `graph-viewer/src/i18n/` を使用）
+- マニフェスト NLS 対応: `package.nls.json` / `package.nls.ja.json` で Marketplace 表示と VS Code UI の言語設定に追従
+- `GraphEditor` に `containerHeight` prop を追加
+
+### 変更
+
+- webview を `@anytime-markdown/graph-viewer` パッケージに統合（`PersistenceAdapter` ブリッジ経由）。`GraphCanvas` 等の重複実装を削除
+
+### Graph Core (graph-core)
+
+- ビューポートのドラッグパン・ズームボタン付き `MinimapCanvas` を追加
+- `LIGHT_COLORS` を sumi-e デザインシステムパレットに統一
+- フレーム Z 動作を追加（`hitTestFrameBody`・フレーム内ノードドラッグ）
+
 ## [0.1.5] - 2026-04-18
 
 ### Graph Core (graph-core)

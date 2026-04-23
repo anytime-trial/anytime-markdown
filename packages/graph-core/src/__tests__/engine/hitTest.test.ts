@@ -1,4 +1,4 @@
-import { hitTest, hitTestNode, hitTestEdge, hitTestResizeHandles, hitTestEdgeSegment } from '../../engine/hitTest';
+import { hitTest, hitTestNode, hitTestEdge, hitTestResizeHandles, hitTestEdgeSegment, hitTestFrameBody } from '../../engine/hitTest';
 import { GraphNode, GraphEdge, DEFAULT_NODE_STYLE, DEFAULT_EDGE_STYLE } from '../../types';
 
 const rectNode: GraphNode = {
@@ -292,5 +292,49 @@ describe('hitTestEdgeSegment', () => {
     const result = hitTestEdgeSegment(edge, 100, 50, 1);
     expect(result).not.toBeNull();
     expect(result!.segmentDirection).toBe('horizontal');
+  });
+});
+
+describe('hitTestFrameBody', () => {
+  const frameNode: GraphNode = {
+    id: 'f1', type: 'frame', x: 10, y: 10, width: 200, height: 150,
+    text: 'Frame', style: DEFAULT_NODE_STYLE,
+  };
+
+  it('returns true when clicking the title bar', () => {
+    // FRAME_TITLE_HEIGHT = 28; click at y=20 is within title bar
+    expect(hitTestFrameBody({ x: 50, y: 20 }, frameNode)).toBe(true);
+  });
+
+  it('returns true when clicking the left border strip', () => {
+    // FRAME_BORDER_WIDTH = 4; click at x=12 is within 4px of left edge (x=10)
+    expect(hitTestFrameBody({ x: 12, y: 80 }, frameNode)).toBe(true);
+  });
+
+  it('returns true when clicking the right border strip', () => {
+    // right edge = x + width = 210; click at x=208 is within 4px
+    expect(hitTestFrameBody({ x: 208, y: 80 }, frameNode)).toBe(true);
+  });
+
+  it('returns true when clicking the bottom border strip', () => {
+    // bottom edge = y + height = 160; click at y=158 is within 4px
+    expect(hitTestFrameBody({ x: 100, y: 158 }, frameNode)).toBe(true);
+  });
+
+  it('returns false when clicking inner empty area (child territory)', () => {
+    // Center of frame, well away from title and borders
+    expect(hitTestFrameBody({ x: 100, y: 80 }, frameNode)).toBe(false);
+  });
+
+  it('returns false for non-frame node', () => {
+    const rectNode2: GraphNode = {
+      id: 'r99', type: 'rect', x: 10, y: 10, width: 200, height: 150,
+      text: '', style: DEFAULT_NODE_STYLE,
+    };
+    expect(hitTestFrameBody({ x: 50, y: 20 }, rectNode2)).toBe(false);
+  });
+
+  it('returns false when clicking outside the frame', () => {
+    expect(hitTestFrameBody({ x: 0, y: 0 }, frameNode)).toBe(false);
   });
 });

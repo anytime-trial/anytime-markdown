@@ -1,16 +1,19 @@
 {
   "name": "anytime-markdown-monorepo",
-  "version": "0.11.4",
+  "version": "0.12.0",
   "license": "MIT",
   "private": true,
   "scripts": {
     "version:sync": "npm version --no-git-tag-version --workspaces",
     "postinstall": "rm -rf node_modules/next-auth/node_modules/@auth",
     "lint": "eslint packages/markdown-core/src packages/web-app/src",
-    "lint:fix": "eslint --fix packages/markdown-core/src packages/web-app/src"
+    "lint:fix": "eslint --fix packages/markdown-core/src packages/web-app/src",
+    "prepare": "husky"
   },
   "workspaces": [
     "packages/markdown-core",
+    "packages/spreadsheet-core",
+    "packages/spreadsheet-viewer",
     "packages/graph-core",
     "packages/mcp-markdown",
     "packages/mcp-graph",
@@ -20,13 +23,15 @@
     "packages/vscode-common",
     "packages/vscode-markdown-extension",
     "packages/vscode-graph-extension",
+    "packages/vscode-sheet-extension",
     "packages/vscode-trail-extension",
     "packages/vscode-history-extension",
     "packages/vscode-extension-pack",
     "packages/web-app",
     "packages/mobile-app",
     "packages/trail-core",
-    "packages/trail-viewer"
+    "packages/trail-viewer",
+    "packages/graph-viewer"
   ],
   "overrides": {
     "serialize-javascript": "7.0.5",
@@ -44,6 +49,7 @@
     "@next/eslint-plugin-next": "^16.1.6",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-simple-import-sort": "^12.1.1",
+    "husky": "9.1.7",
     "raw-loader": "4.0.2",
     "typescript-eslint": "^8.57.0"
   },

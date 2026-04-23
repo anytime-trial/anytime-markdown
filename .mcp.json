@@ -16,6 +16,11 @@
       "env": {
         "DOTENV_CONFIG_PATH": "packages/web-app/.env.local"
       }
+    },
+    "mcp-trail": {
+      "command": "npx",
+      "args": ["tsx", "packages/mcp-trail/src/stdio.ts"],
+      "cwd": "/anytime-markdown"
     }
   }
 }

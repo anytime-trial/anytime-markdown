@@ -24,7 +24,7 @@ jest.mock("@anytime-markdown/graph-core/engine", () => ({
   worldToScreen: (_vp: any, x: number, y: number) => ({ x, y }),
 }));
 
-import { ShapeHoverBar } from "../../app/graph/components/ShapeHoverBar";
+import { ShapeHoverBar } from "@anytime-markdown/graph-viewer/src/components/ShapeHoverBar";
 
 const makeNode = (type: string) => ({
   id: "n1",

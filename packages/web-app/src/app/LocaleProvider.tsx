@@ -1,13 +1,19 @@
 'use client';
 
+import graphEnMessages from '@anytime-markdown/graph-viewer/src/i18n/en.json';
+import graphJaMessages from '@anytime-markdown/graph-viewer/src/i18n/ja.json';
 import enMessages from '@anytime-markdown/markdown-core/src/i18n/en.json';
 import jaMessages from '@anytime-markdown/markdown-core/src/i18n/ja.json';
+import spreadsheetEnMessages from '@anytime-markdown/spreadsheet-viewer/src/i18n/en.json';
+import spreadsheetJaMessages from '@anytime-markdown/spreadsheet-viewer/src/i18n/ja.json';
 import { NextIntlClientProvider } from 'next-intl';
 import { createContext, useCallback, useContext, useEffect, useMemo,useState } from 'react';
 
 type Locale = 'ja' | 'en';
 
-const messages: Record<Locale, typeof jaMessages> = { ja: jaMessages, en: enMessages };
+const mergedJa = { ...jaMessages, ...graphJaMessages, ...spreadsheetJaMessages };
+const mergedEn = { ...enMessages, ...graphEnMessages, ...spreadsheetEnMessages };
+const messages: Record<Locale, typeof mergedJa> = { ja: mergedJa, en: mergedEn };
 
 interface LocaleContextValue {
   locale: Locale;

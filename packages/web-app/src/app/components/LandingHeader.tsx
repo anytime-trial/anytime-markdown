@@ -5,9 +5,9 @@ import {
   AppBar, Box,   Button, Drawer, IconButton, List, ListItemButton, ListItemText,
 ToggleButton,
 ToggleButtonGroup, Toolbar, Typography, } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import NextLink from 'next/link';
 import { useTranslations } from 'next-intl';
-import Image from 'next/image';
 import { useState } from 'react';
 
 import { useLocaleSwitch } from '../LocaleProvider';
@@ -16,7 +16,12 @@ export default function LandingHeader() {
   const { locale, setLocale } = useLocaleSwitch();
   const t = useTranslations('Landing');
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+  const badgeCircle = isDark ? '#F5F3EC' : '#1F1E1C';
+  const badgeHoof   = isDark ? '#15171C' : '#FBF9F3';
   const showGraph = process.env.NEXT_PUBLIC_SHOW_GRAPH === '1';
+  const showSheet = process.env.NEXT_PUBLIC_SHOW_SHEET === '1';
   const showPlaylist = process.env.NEXT_PUBLIC_SHOW_PLAYLIST === '1';
 
 
@@ -33,23 +38,47 @@ export default function LandingHeader() {
       }}
     >
       <Toolbar sx={{ justifyContent: 'space-between', px: { xs: 2, md: 4 } }}>
-        <Typography
-          variant="h6"
+        <Box
           component={NextLink}
           href="/"
-          sx={{
-            fontWeight: 700,
-            letterSpacing: '-0.02em',
-            color: 'text.primary',
-            textDecoration: 'none',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 1,
-          }}
+          aria-label="Anytime Trail home"
+          sx={{ display: 'flex', alignItems: 'center', gap: 1, textDecoration: 'none' }}
         >
-          <Image src="/camel_face.png" alt="Anytime Markdown icon" width={28} height={28} style={{ borderRadius: 4 }} />
-          Anytime Markdown
-        </Typography>
+          <svg viewBox="0 0 48 48" width={32} height={32} aria-hidden="true" focusable="false">
+            <circle cx="24" cy="24" r="22" fill={badgeCircle} />
+            <g fill={badgeHoof} transform="translate(24 26)">
+              <path d="M -6 -2 Q -10 -8 -6 -13 Q -1 -17 3 -13 Q 7 -8 3 -2 Z" />
+              <path d="M 1 4 Q -3 -2 1 -7 Q 6 -11 10 -7 Q 14 -2 10 4 Z" />
+            </g>
+          </svg>
+          <Box sx={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
+            <Typography
+              component="span"
+              sx={{
+                fontFamily: 'Georgia, "Times New Roman", serif',
+                fontSize: '1.05rem',
+                fontWeight: 700,
+                letterSpacing: '-0.02em',
+                color: 'text.primary',
+                lineHeight: 1.15,
+              }}
+            >
+              Anytime
+            </Typography>
+            <Typography
+              component="span"
+              sx={{
+                fontFamily: 'ui-monospace, Menlo, monospace',
+                fontSize: '0.58rem',
+                letterSpacing: '0.22em',
+                color: 'secondary.main',
+                lineHeight: 1.2,
+              }}
+            >
+              TRAIL
+            </Typography>
+          </Box>
+        </Box>
 
         <Box component="nav" aria-label={t('ariaMainNavigation')} sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 } }}>
           <Button
@@ -87,6 +116,15 @@ export default function LandingHeader() {
               sx={{ textTransform: 'none', color: 'text.secondary', fontWeight: 600, fontSize: '0.85rem', display: { xs: 'none', sm: 'inline-flex' } }}
             >
               {t('graphPage')}
+            </Button>
+          )}
+          {showSheet && (
+            <Button
+              component={NextLink}
+              href="/sheet"
+              sx={{ textTransform: 'none', color: 'text.secondary', fontWeight: 600, fontSize: '0.85rem', display: { xs: 'none', sm: 'inline-flex' } }}
+            >
+              {t('sheetPage')}
             </Button>
           )}
           {showPlaylist && (
@@ -162,6 +200,11 @@ export default function LandingHeader() {
             {showGraph && (
               <ListItemButton component={NextLink} href="/graph" onClick={() => setDrawerOpen(false)}>
                 <ListItemText primary={t('graphPage')} />
+              </ListItemButton>
+            )}
+            {showSheet && (
+              <ListItemButton component={NextLink} href="/sheet" onClick={() => setDrawerOpen(false)}>
+                <ListItemText primary={t('sheetPage')} />
               </ListItemButton>
             )}
             {showPlaylist && (

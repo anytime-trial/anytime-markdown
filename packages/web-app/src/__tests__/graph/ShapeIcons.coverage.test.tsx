@@ -6,7 +6,7 @@ import {
   ParallelogramShapeIcon,
   StickyNoteShapeIcon,
   CylinderShapeIcon,
-} from "../../app/graph/components/ShapeIcons";
+} from "@anytime-markdown/graph-viewer/src/components/ShapeIcons";
 
 describe("ShapeIcons", () => {
   it("renders DiamondShapeIcon", () => {

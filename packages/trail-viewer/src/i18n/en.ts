@@ -181,6 +181,7 @@ export const en: TrailI18n = {
   'c4.clearFrameFilter': 'Clear Frame Filter',
   'c4.copyPath': 'Copy Path',
   'c4.frameFilter.reset': 'Reset',
+  'c4.elementPanel.searchPlaceholder': 'Search elements...',
   'analytics.combined.tool': 'Tool',
   'analytics.combined.count': 'Count',
   'analytics.combined.tokens': 'Tokens',

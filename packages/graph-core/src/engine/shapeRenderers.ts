@@ -310,10 +310,16 @@ const renderPerson: SpecialShapeRenderer = (ctx, node, selected, _isDragging, fi
 const renderRect: SpecialShapeRenderer = (ctx, node, selected, _isDragging, fill) => {
   const { x, y, width, height, style } = node;
   const radius = style.borderRadius ?? 0;
+  const canvasBg = getCurrentColors().canvasBg;
 
   applyShadow(ctx, style);
-  ctx.fillStyle = fill;
   if (radius > 0) {
+    // Fill with solid background first to hide content behind the rect,
+    // then overlay the (potentially semi-transparent) fill color.
+    ctx.fillStyle = canvasBg;
+    drawRoundedRect(ctx, x, y, width, height, radius);
+    ctx.fill();
+    ctx.fillStyle = fill;
     drawRoundedRect(ctx, x, y, width, height, radius);
     ctx.fill();
     clearShadow(ctx);
@@ -321,12 +327,45 @@ const renderRect: SpecialShapeRenderer = (ctx, node, selected, _isDragging, fill
     drawRoundedRect(ctx, x, y, width, height, radius);
     ctx.stroke();
   } else {
+    ctx.fillStyle = canvasBg;
+    ctx.fillRect(x, y, width, height);
+    ctx.fillStyle = fill;
     ctx.fillRect(x, y, width, height);
     clearShadow(ctx);
     setupStroke(ctx, style, selected);
     ctx.strokeRect(x, y, width, height);
   }
+
+  const iconBody = node.metadata?.serviceIconBody as string | undefined;
+  const iconViewBox = node.metadata?.serviceIconViewBox as string | undefined;
+  const iconPath = node.metadata?.serviceIconPath as string | undefined;
+  const iconColor = node.metadata?.serviceColor as string | undefined;
+  if (iconBody) {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${iconViewBox ?? '0 0 24 24'}">${iconBody}</svg>`;
+    const dataUri = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+    const img = getOrLoadImage(dataUri);
+    if (img) ctx.drawImage(img, x + 6, y + 6, 14, 14);
+  } else if (typeof iconPath === 'string' && typeof iconColor === 'string') {
+    drawServiceIcon(ctx, iconPath, iconColor, x + 6, y + 6, 14);
+  }
 };
+
+function drawServiceIcon(
+  ctx: CanvasRenderingContext2D,
+  svgPath: string,
+  color: string,
+  x: number,
+  y: number,
+  size: number,
+): void {
+  const scale = size / 24;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+  ctx.fillStyle = color;
+  ctx.fill(new Path2D(svgPath));
+  ctx.restore();
+}
 
 /** パスベースのドキュメントアイコンを描画 */
 function drawDocIcon(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number): void {

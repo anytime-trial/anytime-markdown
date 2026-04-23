@@ -66,6 +66,8 @@ export interface C4DataProvider {
   handleCluster(enabled: boolean): void;
   handleRefresh(): void;
   handleResetClaudeActivity(): void;
+  getManualElements(repoName: string): readonly import('@anytime-markdown/trail-core').ManualElement[];
+  getManualRelationships(repoName: string): readonly import('@anytime-markdown/trail-core').ManualRelationship[];
 }
 
 // ---------------------------------------------------------------------------
@@ -193,8 +195,16 @@ export class TrailDataServer {
 
   get clientCount(): number { return this.clients.size; }
 
-  notify(type: 'dsm-updated' | 'importance-updated'): void {
+  notify(type: 'dsm-updated' | 'importance-updated' | 'model-updated'): void {
     if (this.clients.size === 0) return;
+
+    if (type === 'model-updated') {
+      const payload = JSON.stringify({ type: 'model-updated' });
+      for (const ws of this.clients) {
+        ws.send(payload);
+      }
+      return;
+    }
 
     const provider = this.getC4Provider?.();
     if (!provider) return;
@@ -401,6 +411,50 @@ export class TrailDataServer {
       const symbolId = parsed.searchParams.get('symbolId') ?? '';
       const type = (parsed.searchParams.get('type') ?? 'control') as 'control' | 'call';
       void this.handleC4FlowchartEndpoint(res, componentId, symbolId, type);
+      return;
+    }
+
+    if (method === 'POST' && pathname === '/api/c4/manual-elements') {
+      void this.handleCreateManualElement(req, res, parsed);
+      return;
+    }
+    const elemMatch = /^\/api\/c4\/manual-elements\/([^/]+)$/.exec(pathname);
+    if (elemMatch && method === 'PATCH') {
+      void this.handleUpdateManualElement(req, res, parsed, elemMatch[1]);
+      return;
+    }
+    if (elemMatch && method === 'DELETE') {
+      this.handleDeleteManualElement(res, parsed, elemMatch[1]);
+      return;
+    }
+    if (method === 'GET' && pathname === '/api/c4/manual-relationships') {
+      this.handleListManualRelationships(res, parsed);
+      return;
+    }
+    if (method === 'POST' && pathname === '/api/c4/manual-relationships') {
+      void this.handleCreateManualRelationship(req, res, parsed);
+      return;
+    }
+    const relMatch = /^\/api\/c4\/manual-relationships\/([^/]+)$/.exec(pathname);
+    if (relMatch && method === 'DELETE') {
+      this.handleDeleteManualRelationship(res, parsed, relMatch[1]);
+      return;
+    }
+    if (method === 'GET' && pathname === '/api/c4/manual-groups') {
+      this.handleListManualGroups(res, parsed);
+      return;
+    }
+    if (method === 'POST' && pathname === '/api/c4/manual-groups') {
+      void this.handleCreateManualGroup(req, res, parsed);
+      return;
+    }
+    const groupMatch = /^\/api\/c4\/manual-groups\/([^/]+)$/.exec(pathname);
+    if (groupMatch && method === 'PATCH') {
+      void this.handleUpdateManualGroup(req, res, parsed, groupMatch[1]);
+      return;
+    }
+    if (groupMatch && method === 'DELETE') {
+      this.handleDeleteManualGroup(res, parsed, groupMatch[1]);
       return;
     }
 
@@ -631,7 +685,11 @@ export class TrailDataServer {
     const repoName = repo ?? (this.gitRoot ? path.basename(this.gitRoot) : undefined);
     const provider = this.getC4Provider?.();
     const store = this.trailDb.asC4ModelStore();
-    const payload = await fetchC4Model(store, releaseId, repoName, provider?.featureMatrix);
+    const manualProvider = provider && repoName ? {
+      getElements: async (repo: string) => provider.getManualElements(repo),
+      getRelationships: async (repo: string) => provider.getManualRelationships(repo),
+    } : undefined;
+    const payload = await fetchC4Model(store, releaseId, repoName, provider?.featureMatrix, manualProvider);
     if (payload) {
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(payload));
@@ -987,14 +1045,15 @@ export class TrailDataServer {
       for (const line of lines) {
         if (!line.trim()) continue;
         try {
-          const entry = JSON.parse(line) as { type?: string; message?: { usage?: { input_tokens?: number } } };
+          const entry = JSON.parse(line) as { type?: string; message?: { usage?: { input_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number } } };
           if (entry.type === 'user') {
             turnCount++;
             messageCount++;
           } else if (entry.type === 'assistant') {
             messageCount++;
-            if (entry.message?.usage?.input_tokens !== undefined) {
-              contextTokens = entry.message.usage.input_tokens;
+            const u = entry.message?.usage;
+            if (u !== undefined) {
+              contextTokens = (u.input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0);
             }
           }
         } catch { /* skip malformed line */ }
@@ -1390,6 +1449,138 @@ export class TrailDataServer {
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ graph: EMPTY_GRAPH }));
     }
+  }
+
+  private async handleCreateManualElement(req: http.IncomingMessage, res: http.ServerResponse, url: URL): Promise<void> {
+    const repoName = url.searchParams.get('repoName');
+    if (!repoName) { res.writeHead(400); res.end('repoName required'); return; }
+    const body = await this.readJsonBody(req);
+    if (!this.isValidElementInput(body)) { res.writeHead(400); res.end('invalid body'); return; }
+    const id = this.trailDb.saveManualElement(repoName, body);
+    const element = this.trailDb.getManualElements(repoName).find(e => e.id === id);
+    res.writeHead(201, JSON_HEADERS);
+    res.end(JSON.stringify({ element }));
+    this.notify('model-updated');
+  }
+
+  private async handleUpdateManualElement(req: http.IncomingMessage, res: http.ServerResponse, url: URL, id: string): Promise<void> {
+    const repoName = url.searchParams.get('repoName');
+    if (!repoName) { res.writeHead(400); res.end('repoName required'); return; }
+    const existing = this.trailDb.getManualElements(repoName).find(e => e.id === id);
+    if (!existing) { res.writeHead(404); res.end('not found'); return; }
+    const body = await this.readJsonBody(req);
+    this.trailDb.updateManualElement(repoName, id, body as { name?: string; description?: string; external?: boolean });
+    const updated = this.trailDb.getManualElements(repoName).find(e => e.id === id);
+    res.writeHead(200, JSON_HEADERS);
+    res.end(JSON.stringify({ element: updated }));
+    this.notify('model-updated');
+  }
+
+  private handleDeleteManualElement(res: http.ServerResponse, url: URL, id: string): void {
+    const repoName = url.searchParams.get('repoName');
+    if (!repoName) { res.writeHead(400); res.end('repoName required'); return; }
+    this.trailDb.deleteManualElement(repoName, id);
+    res.writeHead(204); res.end();
+    this.notify('model-updated');
+  }
+
+  private async handleCreateManualRelationship(req: http.IncomingMessage, res: http.ServerResponse, url: URL): Promise<void> {
+    const repoName = url.searchParams.get('repoName');
+    if (!repoName) { res.writeHead(400); res.end('repoName required'); return; }
+    const body = await this.readJsonBody(req) as Record<string, unknown>;
+    if (!body?.fromId || !body?.toId) { res.writeHead(400); res.end('invalid body'); return; }
+    const id = this.trailDb.saveManualRelationship(repoName, {
+      fromId: String(body.fromId),
+      toId: String(body.toId),
+      label: body.label ? String(body.label) : undefined,
+      technology: body.technology ? String(body.technology) : undefined,
+    });
+    const rel = this.trailDb.getManualRelationships(repoName).find(r => r.id === id);
+    res.writeHead(201, JSON_HEADERS);
+    res.end(JSON.stringify({ relationship: rel }));
+    this.notify('model-updated');
+  }
+
+  private handleListManualRelationships(res: http.ServerResponse, url: URL): void {
+    const repoName = url.searchParams.get('repoName');
+    if (!repoName) { res.writeHead(400); res.end('repoName required'); return; }
+    const relationships = this.trailDb.getManualRelationships(repoName);
+    res.writeHead(200, JSON_HEADERS);
+    res.end(JSON.stringify(relationships));
+  }
+
+  private handleDeleteManualRelationship(res: http.ServerResponse, url: URL, id: string): void {
+    const repoName = url.searchParams.get('repoName');
+    if (!repoName) { res.writeHead(400); res.end('repoName required'); return; }
+    this.trailDb.deleteManualRelationship(repoName, id);
+    res.writeHead(204); res.end();
+    this.notify('model-updated');
+  }
+
+  private handleListManualGroups(res: http.ServerResponse, url: URL): void {
+    const repoName = url.searchParams.get('repoName');
+    if (!repoName) { res.writeHead(400); res.end('repoName required'); return; }
+    const groups = this.trailDb.getManualGroups(repoName);
+    res.writeHead(200, JSON_HEADERS);
+    res.end(JSON.stringify(groups));
+  }
+
+  private async handleCreateManualGroup(req: http.IncomingMessage, res: http.ServerResponse, url: URL): Promise<void> {
+    const repoName = url.searchParams.get('repoName');
+    if (!repoName) { res.writeHead(400); res.end('repoName required'); return; }
+    const body = await this.readJsonBody(req) as Record<string, unknown>;
+    if (!Array.isArray(body?.memberIds) || body.memberIds.length < 2) {
+      res.writeHead(400); res.end('memberIds must have at least 2 elements'); return;
+    }
+    const id = this.trailDb.saveManualGroup(repoName, {
+      memberIds: body.memberIds.map(String),
+      label: body.label ? String(body.label) : undefined,
+    });
+    const group = this.trailDb.getManualGroups(repoName).find(g => g.id === id);
+    res.writeHead(201, JSON_HEADERS);
+    res.end(JSON.stringify({ group }));
+    this.notify('model-updated');
+  }
+
+  private async handleUpdateManualGroup(req: http.IncomingMessage, res: http.ServerResponse, url: URL, id: string): Promise<void> {
+    const repoName = url.searchParams.get('repoName');
+    if (!repoName) { res.writeHead(400); res.end('repoName required'); return; }
+    const body = await this.readJsonBody(req) as Record<string, unknown>;
+    this.trailDb.updateManualGroup(repoName, id, {
+      memberIds: Array.isArray(body.memberIds) ? body.memberIds.map(String) : undefined,
+      label: 'label' in body ? (body.label == null ? null : String(body.label)) : undefined,
+    });
+    res.writeHead(204); res.end();
+    this.notify('model-updated');
+  }
+
+  private handleDeleteManualGroup(res: http.ServerResponse, url: URL, id: string): void {
+    const repoName = url.searchParams.get('repoName');
+    if (!repoName) { res.writeHead(400); res.end('repoName required'); return; }
+    this.trailDb.deleteManualGroup(repoName, id);
+    res.writeHead(204); res.end();
+    this.notify('model-updated');
+  }
+
+  private isValidElementInput(body: unknown): body is { type: string; name: string; external: boolean; parentId: string | null; description?: string; serviceType?: string } {
+    if (typeof body !== 'object' || body === null) return false;
+    const b = body as Record<string, unknown>;
+    if (!['person', 'system', 'container', 'component'].includes(String(b.type))) return false;
+    if (typeof b.name !== 'string' || b.name.length === 0) return false;
+    if (b.serviceType !== undefined && typeof b.serviceType !== 'string') return false;
+    return true;
+  }
+
+  private readJsonBody(req: http.IncomingMessage): Promise<unknown> {
+    return new Promise((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      req.on('data', c => chunks.push(c as Buffer));
+      req.on('end', () => {
+        try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf-8'))); }
+        catch (e) { reject(e); }
+      });
+      req.on('error', reject);
+    });
   }
 }
 

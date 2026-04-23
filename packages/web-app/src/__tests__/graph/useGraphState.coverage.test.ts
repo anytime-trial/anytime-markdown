@@ -21,7 +21,7 @@ jest.mock("@anytime-markdown/graph-core/state", () => ({
   }),
 }));
 
-import { useGraphState } from "../../app/graph/hooks/useGraphState";
+import { useGraphState } from "@anytime-markdown/graph-viewer/src/hooks/useGraphState";
 
 describe("useGraphState", () => {
   it("returns initial state and dispatch", () => {

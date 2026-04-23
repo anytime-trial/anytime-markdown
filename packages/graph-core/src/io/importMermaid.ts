@@ -1,5 +1,6 @@
 import { createNode, createEdge, createDocument, type GraphDocument, type GraphNode, type GraphEdge } from '../types';
 import { createBody } from '../engine/physics/PhysicsBody';
+import { clusterByY } from '../engine/groupClustering';
 import { computeHierarchicalLayout } from '../engine/physics/hierarchical';
 import { parseNodeDef, parseEdge, tokenizeLine } from './mermaidParser';
 import type { ParsedNode, ParsedEdge, SubgraphInfo } from './mermaidParser';
@@ -247,7 +248,104 @@ export function layoutWithSubgroups(
   const childOrigins = layoutFrameChildren(frameOrder, childrenOf, intraEdgesOf, direction, levelGap, nodeSpacing);
   layoutRootNodes(doc, frameMap, orphanNodes, interEdges, nodeToDeepestFrame, direction, levelGap, nodeSpacing);
   translateChildrenToAbsolute(frameOrder, childrenOf, childOrigins);
+  packGroupMembers(doc, nodeSpacing);
   updateEdgeEndpoints(doc);
+}
+
+/**
+ * 兄弟ノード群のうち metadata.manual === 1 のノードを、関連線（intra-frame edges）で
+ * つながる非manual兄弟の平均 Y 位置に応じて最上段 or 最下段に振り分ける。
+ * 各 manual ノードは関連線が最短になる側に配置される。
+ * フレームサイズが拡張行の直下で切れるよう、フレーム内ローカル座標で
+ * フレームサイズ計算前に実行する必要がある。
+ */
+function splitManualTopBottom(
+  siblings: readonly GraphNode[],
+  edges: readonly GraphEdge[],
+  levelGap: number,
+): void {
+  const manuals = siblings.filter(n => n.metadata?.manual === 1);
+  const autos = siblings.filter(n => n.metadata?.manual !== 1);
+  if (manuals.length === 0 || autos.length === 0) return;
+
+  const minAutoY = Math.min(...autos.map(n => n.y));
+  const maxAutoY = Math.max(...autos.map(n => n.y + n.height));
+  const midY = (minAutoY + maxAutoY) / 2;
+
+  const autoMap = new Map(autos.map(n => [n.id, n]));
+
+  // manual ごとに接続先 non-manual の平均 Y を計算
+  function neighborAvgY(manualId: string): number | null {
+    let sum = 0;
+    let count = 0;
+    for (const e of edges) {
+      const fromId = e.from.nodeId;
+      const toId = e.to.nodeId;
+      if (!fromId || !toId) continue;
+      const neighborId = fromId === manualId ? toId : toId === manualId ? fromId : null;
+      if (!neighborId) continue;
+      const n = autoMap.get(neighborId);
+      if (!n) continue;
+      sum += n.y + n.height / 2;
+      count += 1;
+    }
+    return count > 0 ? sum / count : null;
+  }
+
+  const topManuals: GraphNode[] = [];
+  const bottomManuals: GraphNode[] = [];
+  for (const m of manuals) {
+    const avgY = neighborAvgY(m.id);
+    // 接続先なし or 中点より下 → 下段。上半分 → 上段
+    if (avgY !== null && avgY < midY) topManuals.push(m);
+    else bottomManuals.push(m);
+  }
+
+  if (topManuals.length > 0) {
+    const maxHeight = Math.max(...topManuals.map(n => n.height));
+    const topY = minAutoY - levelGap - maxHeight;
+    for (const n of topManuals) n.y = topY;
+  }
+  if (bottomManuals.length > 0) {
+    const bottomY = maxAutoY + levelGap;
+    for (const n of bottomManuals) n.y = bottomY;
+  }
+}
+
+/**
+ * group メンバーを近接配置する。関連付けエッジによる分散を上書きし、
+ * メンバーをセントロイド付近に横一列で密集させる。
+ * メンバーが複数の Y 帯域に分かれている場合は帯域ごとに独立して pack する
+ * （例: splitManualTopBottom で上下に振り分けられた場合）。
+ */
+function packGroupMembers(doc: GraphDocument, nodeSpacing: number): void {
+  const groups = doc.groups;
+  if (!groups || groups.length === 0) return;
+  const nodeMap = new Map(doc.nodes.map(n => [n.id, n]));
+
+  for (const group of groups) {
+    const members = group.memberIds
+      .map(id => nodeMap.get(id))
+      .filter((n): n is GraphNode => n !== undefined);
+    if (members.length < 2) continue;
+
+    // Y 方向にクラスタリング（同じ Y 行にあるメンバー同士を1クラスタとする）
+    const clusters = clusterByY(members);
+
+    // 各クラスタ独立に横一列で pack
+    for (const cluster of clusters) {
+      const centerX = cluster.reduce((s, n) => s + n.x + n.width / 2, 0) / cluster.length;
+      const centerY = cluster.reduce((s, n) => s + n.y + n.height / 2, 0) / cluster.length;
+      cluster.sort((a, b) => a.x - b.x);
+      const totalWidth = cluster.reduce((s, n) => s + n.width, 0) + (cluster.length - 1) * nodeSpacing;
+      let currentX = centerX - totalWidth / 2;
+      for (const member of cluster) {
+        member.x = currentX;
+        member.y = centerY - member.height / 2;
+        currentX += member.width + nodeSpacing;
+      }
+    }
+  }
 }
 
 /** parent -> direct children マップとルートレベルの孤立ノードを構築する */
@@ -357,6 +455,9 @@ function layoutFrameChildren(
       const body = bodies.get(child.id);
       if (body) { child.x = body.x; child.y = body.y; }
     }
+
+    // manual ノードを関連線の位置に応じて上段/下段に振り分け（フレームサイズ計算前）
+    splitManualTopBottom(children, edges, levelGap);
 
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const c of children) {

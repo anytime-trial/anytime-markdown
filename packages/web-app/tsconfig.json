@@ -21,7 +21,11 @@
       "@anytime-markdown/markdown-core/src/*": ["../markdown-core/src/*"],
       "@anytime-markdown/markdown-core": ["../markdown-core/src/index.ts"],
       "@anytime-markdown/graph-core": ["../graph-core/src/index.ts"],
-      "@anytime-markdown/graph-core/*": ["../graph-core/src/*"]
+      "@anytime-markdown/graph-core/*": ["../graph-core/src/*"],
+      "@anytime-markdown/graph-viewer": ["../graph-viewer/src/index.ts"],
+      "@anytime-markdown/graph-viewer/src/*": ["../graph-viewer/src/*"],
+      "@anytime-markdown/spreadsheet-core": ["../spreadsheet-core/src/index.ts"],
+      "@anytime-markdown/spreadsheet-viewer": ["../spreadsheet-viewer/src/index.ts"]
     }
   },
   "include": [

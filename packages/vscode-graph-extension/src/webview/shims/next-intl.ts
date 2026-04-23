@@ -1,15 +1,14 @@
-import messagesJa from './graph-messages-ja.json';
+/* next-intl shim for VS Code webview (webpack) */
+import { createNextIntlShim } from '@anytime-markdown/vscode-common/webview';
+import messagesEn from '../../../../graph-viewer/src/i18n/en.json';
+import messagesJa from '../../../../graph-viewer/src/i18n/ja.json';
 
 type Messages = Record<string, Record<string, string>>;
-const messages: Messages = messagesJa as unknown as Messages;
 
-export function useTranslations(namespace: string) {
-  const ns = (messages as Record<string, unknown>)[namespace] as Record<string, string> | undefined;
-  return function t(key: string): string {
-    return ns?.[key] ?? key;
-  };
-}
-
-export function useLocale(): string {
-  return 'ja';
-}
+export const { setLocale, useTranslations, useLocale } = createNextIntlShim(
+  {
+    ja: messagesJa as unknown as Messages,
+    en: messagesEn as unknown as Messages,
+  },
+  'ja',
+);

@@ -81,7 +81,7 @@ import {
   listDocuments,
   getLastDocumentId,
   setLastDocumentId,
-} from "../../app/graph/store/graphStorage";
+} from "@anytime-markdown/graph-viewer/src/store/graphStorage";
 
 const makeDoc = (id: string, name = "Test") => ({
   id,

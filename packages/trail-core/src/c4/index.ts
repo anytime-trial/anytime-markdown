@@ -27,6 +27,7 @@ export { c4ToMermaid } from './serializer/c4ToMermaid';
 export { buildLevelView, getFrameDepth } from './view/buildLevelView';
 export { filterModelForDrill } from './view/filterModelForDrill';
 export { buildElementTree, filterTreeByLevel } from './view/buildElementTree';
+export { filterTreeBySearch } from './view/filterTreeBySearch';
 export { collectDescendantIds } from './view/collectDescendants';
 export { enrichFeatureMatrixWithComponents } from './featureMatrix';
 
@@ -57,3 +58,15 @@ export type { MessageInput } from './metrics/computeComplexityMatrix';
 export { computeComplexityMatrix } from './metrics/computeComplexityMatrix';
 export { computeImportanceMatrix } from './metrics/computeImportanceMatrix';
 export type { ImportanceMatrix } from '../importance/types';
+
+export { mergeManualIntoC4Model } from './mergeManual';
+
+export type {
+  ManualElement,
+  ManualRelationship,
+  ManualGroup,
+  IManualElementProvider,
+} from './manualTypes';
+
+export type { ServiceEntry } from './services/catalog';
+export { SERVICE_CATALOG, findService, filterServices } from './services/catalog';

@@ -231,3 +231,36 @@ export const CREATE_MESSAGE_TOOL_CALLS = `CREATE TABLE IF NOT EXISTS message_too
   timestamp    TEXT NOT NULL,
   UNIQUE (message_uuid, call_index)
 )`;
+
+export const CREATE_C4_MANUAL_ELEMENTS = `CREATE TABLE IF NOT EXISTS c4_manual_elements (
+  repo_name    TEXT NOT NULL,
+  element_id   TEXT NOT NULL,
+  type         TEXT NOT NULL,
+  name         TEXT NOT NULL,
+  description  TEXT,
+  external     INTEGER NOT NULL DEFAULT 0,
+  parent_id    TEXT,
+  service_type TEXT,
+  updated_at   TEXT NOT NULL,
+  PRIMARY KEY (repo_name, element_id)
+)`;
+
+export const CREATE_C4_MANUAL_RELATIONSHIPS = `CREATE TABLE IF NOT EXISTS c4_manual_relationships (
+  repo_name   TEXT NOT NULL,
+  rel_id      TEXT NOT NULL,
+  from_id     TEXT NOT NULL,
+  to_id       TEXT NOT NULL,
+  label       TEXT,
+  technology  TEXT,
+  updated_at  TEXT NOT NULL,
+  PRIMARY KEY (repo_name, rel_id)
+)`;
+
+export const CREATE_C4_MANUAL_GROUPS = `CREATE TABLE IF NOT EXISTS c4_manual_groups (
+  repo_name  TEXT NOT NULL,
+  group_id   TEXT NOT NULL,
+  member_ids TEXT NOT NULL,
+  label      TEXT,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (repo_name, group_id)
+)`;

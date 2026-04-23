@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-04-23
+
+### Editor Core (markdown-core)
+
+- スクロール同期ビューポートインジケータ付き `MarkdownMinimap` コンポーネントを追加（クリックでジャンプ）
+- 見出し・diff マーカーの位置計算を行う `useMarkdownMinimap` フックを追加
+- sumi-e ライトパレットと violet warning カラーを適用
+- `TableNodeView` でスプレッドシートの `showApply`/`showRange` を有効化
+- スプレッドシート機能を `spreadsheet-core`/`spreadsheet-viewer` パッケージに切り出し
+
 ## [0.11.4] - 2026-04-19
 
 ### Editor Core (markdown-core)

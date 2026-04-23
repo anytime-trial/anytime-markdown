@@ -6,6 +6,18 @@
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-04-23
+
+### 追加
+
+- `MinimapCanvas` コンポーネント: ビューポートのドラッグパン・ズームイン/アウトボタン付きミニマップ
+- `MinimapCanvas` をパッケージ index からエクスポート
+- フレーム Z 動作: `useCanvasBase` に `hitTestFrameBody` とフレーム内ノードドラッグを追加
+
+### 変更
+
+- `LIGHT_COLORS` を sumi-e デザインシステムパレットに合わせて更新
+
 ## [0.1.5] - 2026-04-18
 
 ### 追加

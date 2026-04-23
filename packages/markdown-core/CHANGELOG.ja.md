@@ -7,6 +7,28 @@
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-04-23
+
+### 追加
+
+- `MarkdownMinimap` コンポーネント: スクロール同期ビューポートインジケータ付きドキュメントミニマップ（クリックでジャンプ）
+- `useMarkdownMinimap` フック: 見出し・diff マーカーの位置をスクロール比率リストとして計算
+
+### 修正
+
+- ミニマップのスクロールコンテナが `.tiptap` 要素を正しく追跡するよう修正
+- ミニマップがスクロールバーに重ならないよう修正
+- ミニマップのビューポートインジケータを削除
+
+### 変更
+
+- スプレッドシート機能を `@anytime-markdown/spreadsheet-core` / `@anytime-markdown/spreadsheet-viewer` の 2 パッケージに切り出し
+- `TableNodeView` を `SheetAdapter` interface 経由に変更（`createTiptapSheetAdapter`）
+- `components/spreadsheet/` と `utils/tableHelpers.ts` の tiptap table 操作ラッパー `useSpreadsheetSync` を削除
+- viewer 専用 i18n キーを `spreadsheet-viewer` に移動し、`markdown-core/i18n/index.ts` でマージしてエクスポート
+- デザインシステムテーマに sumi-e ライトパレットと violet warning カラーを適用
+- `TableNodeView` スプレッドシートエディタで `showApply` / `showRange` を有効化
+
 ## [0.11.4] - 2026-04-19
 
 ### 追加

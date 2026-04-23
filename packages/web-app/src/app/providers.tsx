@@ -3,6 +3,10 @@
 import {
   ACCENT_COLOR, ConfirmProvider, DEFAULT_DARK_BG, DEFAULT_LIGHT_BG,
   DEFAULT_PRESET_NAME, getPreset, isPresetName,
+  getBgPaper, getDivider, getTextPrimary, getTextSecondary, getTextDisabled,
+  getActionHover, getActionSelected,
+  getPrimaryMain, getPrimaryDark, getPrimaryLight, getPrimaryContrast,
+  getErrorMain, getWarningMain, getWarningLight, getSuccessMain, getInfoMain,
   type ThemePresetName,
 } from '@anytime-markdown/markdown-core';
 import { Capacitor } from '@capacitor/core';
@@ -49,7 +53,7 @@ function updateStatusBar(mode: ThemeMode) {
   if (!Capacitor.isNativePlatform()) return;
   const isLight = mode === 'light';
   StatusBar.setStyle({ style: isLight ? Style.Light : Style.Dark });
-  StatusBar.setBackgroundColor({ color: isLight ? '#FFFFFF' : '#121212' });
+  StatusBar.setBackgroundColor({ color: isLight ? '#FBF9F3' : '#121212' });
 }
 
 export function Providers({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -78,6 +82,7 @@ export function Providers({ children }: Readonly<{ children: React.ReactNode }>)
   }, []);
 
   useEffect(() => {
+    document.documentElement.setAttribute('data-theme', themeMode);
     updateStatusBar(themeMode);
   }, [themeMode]);
 
@@ -104,9 +109,9 @@ export function Providers({ children }: Readonly<{ children: React.ReactNode }>)
         document.documentElement.style.setProperty('--editor-heading-border-h2', 'rgba(100,160,210,0.5)');
         document.documentElement.style.setProperty('--editor-heading-border-h3', 'rgba(100,160,210,0.35)');
       } else {
-        document.documentElement.style.setProperty('--editor-heading-border-h1', 'rgba(160,120,60,0.5)');
-        document.documentElement.style.setProperty('--editor-heading-border-h2', 'rgba(160,120,60,0.4)');
-        document.documentElement.style.setProperty('--editor-heading-border-h3', 'rgba(160,120,60,0.35)');
+        document.documentElement.style.setProperty('--editor-heading-border-h1', 'rgba(31,30,28,0.50)');
+        document.documentElement.style.setProperty('--editor-heading-border-h2', 'rgba(31,30,28,0.40)');
+        document.documentElement.style.setProperty('--editor-heading-border-h3', 'rgba(31,30,28,0.35)');
       }
       // 不規則な角丸（手書きの四角形風）
       document.documentElement.style.setProperty('--editor-heading-radius-h1', '12px 8px 10px 6px');
@@ -166,15 +171,41 @@ export function Providers({ children }: Readonly<{ children: React.ReactNode }>)
 
   const preset = getPreset(presetName);
 
-  const theme = useMemo(() => createTheme({
-    palette: {
-      mode: themeMode,
-      secondary: { main: ACCENT_COLOR, contrastText: '#000000' },
-      background: { default: themeMode === 'dark' ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG },
-    },
-    shape: { borderRadius: preset.borderRadius.md },
-    typography: { fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif' },
-  }), [themeMode, preset]);
+  const theme = useMemo(() => {
+    const isDark = themeMode === 'dark';
+    return createTheme({
+      palette: {
+        mode: themeMode,
+        secondary: { main: ACCENT_COLOR, contrastText: '#000000' },
+        background: {
+          default: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
+          paper: getBgPaper(isDark),
+        },
+        primary: {
+          main: getPrimaryMain(isDark),
+          dark: getPrimaryDark(isDark),
+          light: getPrimaryLight(isDark),
+          contrastText: getPrimaryContrast(isDark),
+        },
+        text: {
+          primary: getTextPrimary(isDark),
+          secondary: getTextSecondary(isDark),
+          disabled: getTextDisabled(isDark),
+        },
+        divider: getDivider(isDark),
+        success: { main: getSuccessMain(isDark) },
+        warning: { main: getWarningMain(isDark), light: getWarningLight(isDark) },
+        error: { main: getErrorMain(isDark) },
+        info: { main: getInfoMain(isDark) },
+        action: {
+          hover: getActionHover(isDark),
+          selected: getActionSelected(isDark),
+        },
+      },
+      shape: { borderRadius: preset.borderRadius.md },
+      typography: { fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif' },
+    });
+  }, [themeMode, preset]);
 
   const themeModeValue = useMemo(() => ({ themeMode, setThemeMode }), [themeMode, setThemeMode]);
   const presetValue = useMemo(() => ({ presetName, setPresetName }), [presetName, setPresetName]);

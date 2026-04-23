@@ -1,0 +1,7 @@
+{
+  "displayName": "Anytime Graph",
+  "description": "Graph whiteboard editor for VS Code",
+  "viewsContainers.anytimeGraph.title": "Anytime Graph",
+  "customEditor.displayName": "Graph Editor",
+  "command.newGraph": "Anytime Graph: New Graph"
+}

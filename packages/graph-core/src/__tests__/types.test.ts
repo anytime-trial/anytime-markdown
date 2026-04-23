@@ -66,8 +66,8 @@ describe('getCanvasColors', () => {
 
   it('should return light colors when isDark is false', () => {
     const colors = getCanvasColors(false);
-    expect(colors.canvasBg).toBe('#F5F5F0');
-    expect(colors.textPrimary).toBe('#1A1A1A');
+    expect(colors.canvasBg).toBe('#F2EFE8');
+    expect(colors.textPrimary).toBe('#1F1E1C');
   });
 });
 

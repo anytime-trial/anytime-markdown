@@ -11,7 +11,7 @@ import {
   hitTestConnectionPoint,
   bestSides,
 } from '@anytime-markdown/graph-core/engine';
-import { GraphNode, GraphEdge, DEFAULT_NODE_STYLE, DEFAULT_EDGE_STYLE } from '../../../app/graph/types';
+import { GraphNode, GraphEdge, DEFAULT_NODE_STYLE, DEFAULT_EDGE_STYLE } from '@anytime-markdown/graph-viewer/src/types';
 
 const rectNode: GraphNode = {
   id: 'r1',
@@ -100,14 +100,14 @@ describe('nodeIntersection', () => {
 
 describe('computeOrthogonalPath', () => {
   it('should return array of points', () => {
-    const path = computeOrthogonalPath({ x: 0, y: 0 }, { x: 100, y: 100 }, 'right', 'left');
+    const path = computeOrthogonalPath(rectNode, ellipseNode);
     expect(path.length).toBeGreaterThan(0);
   });
 });
 
 describe('computeBezierPath', () => {
   it('should return control points', () => {
-    const path = computeBezierPath({ x: 0, y: 0 }, { x: 100, y: 100 }, 'right', 'left');
+    const path = computeBezierPath(rectNode, ellipseNode);
     expect(path.length).toBe(4);
   });
 });
@@ -129,8 +129,7 @@ describe('bestSides', () => {
 
 describe('nearestConnectionPoint', () => {
   it('should return closest connection point', () => {
-    const points = getConnectionPoints(rectNode);
-    const nearest = nearestConnectionPoint(points, 200, 50);
+    const nearest = nearestConnectionPoint(rectNode, 200, 50);
     expect(nearest).toBeDefined();
   });
 });

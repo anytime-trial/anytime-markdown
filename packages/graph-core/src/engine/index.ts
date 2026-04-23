@@ -1,5 +1,6 @@
 export { render, drawGrid } from './renderer';
 export type { RenderOptions } from './renderer';
+export { clusterByY } from './groupClustering';
 export {
   drawRoundedRect, clearImageCache,
   drawDiamond, drawParallelogram, drawCylinderBody, drawCylinderTop,
@@ -14,6 +15,7 @@ export {
 } from './overlays';
 export {
   hitTest, hitTestNode, hitTestEdge, hitTestEdgeSegment, hitTestWaypointHandle, hitTestResizeHandles,
+  hitTestGroup, hitTestFrameBody,
 } from './hitTest';
 export type { HitResult, HitTestContext, ResizeHandle, ConnectionSide, EdgeEndpointEnd } from './hitTest';
 export { screenToWorld, worldToScreen, pan, zoom, fitToContent } from './viewport';
@@ -37,6 +39,7 @@ export type { ViewportAnimation } from './animation';
 export { getVisibleBounds, isNodeVisible, isEdgeVisible } from './culling';
 export type { VisibleBounds } from './culling';
 export * as physics from './physics/index';
+export type { LayoutAlgorithm } from './physics/types';
 export { linearScale, interpolateColor } from './dataMapping';
 export { findShortestPath } from './graphTraversal';
 export type { PathResult } from './graphTraversal';

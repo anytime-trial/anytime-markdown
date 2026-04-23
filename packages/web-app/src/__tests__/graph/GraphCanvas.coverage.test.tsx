@@ -1,5 +1,6 @@
 import { render, fireEvent, act } from "@testing-library/react";
 import React from "react";
+import type { EdgeType } from "@anytime-markdown/graph-core";
 
 jest.mock("@anytime-markdown/graph-core", () => ({
   getCanvasColors: () => ({
@@ -45,7 +46,7 @@ const mockCtx = {
 
 HTMLCanvasElement.prototype.getContext = jest.fn().mockReturnValue(mockCtx) as any;
 
-import { GraphCanvas } from "../../app/graph/components/GraphCanvas";
+import { GraphCanvas } from "@anytime-markdown/graph-viewer/src/components/GraphCanvas";
 
 const makeNode = (id: string, x = 100, y = 100) => ({
   id,
@@ -58,13 +59,12 @@ const makeNode = (id: string, x = 100, y = 100) => ({
   style: { fill: "#fff", stroke: "#000", strokeWidth: 2, fontSize: 14, fontFamily: "sans-serif" },
 });
 
-const makeEdge = (id: string, type = "connector", fromNodeId?: string, toNodeId?: string) => ({
+const makeEdge = (id: string, type: EdgeType = "connector", fromNodeId?: string, toNodeId?: string) => ({
   id,
-  type: type as any,
+  type,
   from: { nodeId: fromNodeId, x: 0, y: 0 },
   to: { nodeId: toNodeId, x: 100, y: 100 },
-  style: { stroke: "#fff", strokeWidth: 2, routing: "orthogonal" },
-  manualMidpoint: undefined,
+  style: { stroke: "#fff", strokeWidth: 2, routing: "orthogonal" as const },
 });
 
 const defaultProps = {
@@ -98,6 +98,15 @@ describe("GraphCanvas", () => {
       return 0;
     });
     jest.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: jest.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: jest.fn(),
+        removeEventListener: jest.fn(),
+      })),
+    });
   });
 
   afterEach(() => {
@@ -152,7 +161,7 @@ describe("GraphCanvas", () => {
   it("resolves connector edges with bezier routing", () => {
     const node1 = makeNode("n1", 0, 0);
     const node2 = makeNode("n2", 300, 300);
-    const edge = { ...makeEdge("e1", "connector", "n1", "n2"), style: { stroke: "#fff", strokeWidth: 2, routing: "bezier" } };
+    const edge = { ...makeEdge("e1", "connector", "n1", "n2"), style: { stroke: "#fff", strokeWidth: 2, routing: "bezier" as const } };
 
     render(
       <GraphCanvas {...defaultProps} nodes={[node1, node2]} edges={[edge]} />
@@ -180,7 +189,7 @@ describe("GraphCanvas", () => {
             fromY: 0,
             toX: 100,
             toY: 100,
-            edgeType: "arrow",
+            edgeType: "connector" as const,
             snapNodeId: undefined,
           },
         }}
@@ -234,7 +243,7 @@ describe("GraphCanvas", () => {
             fromY: 0,
             toX: 0,
             toY: 0,
-            guides: [{ type: "vertical" as const, x: 100, y1: 0, y2: 200 }],
+            guides: [{ axis: "x" as const, position: 100, from: 0, to: 200 }],
           },
         }}
       />
@@ -266,7 +275,12 @@ describe("GraphCanvas", () => {
     const velocityRef = { current: { vx: 10, vy: 10 } };
     Object.defineProperty(window, "matchMedia", {
       writable: true,
-      value: jest.fn().mockReturnValue({ matches: false }),
+      value: jest.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: jest.fn(),
+        removeEventListener: jest.fn(),
+      })),
     });
 
     render(
@@ -283,7 +297,12 @@ describe("GraphCanvas", () => {
     const velocityRef = { current: { vx: 10, vy: 10 } };
     Object.defineProperty(window, "matchMedia", {
       writable: true,
-      value: jest.fn().mockReturnValue({ matches: true }),
+      value: jest.fn().mockImplementation((query: string) => ({
+        matches: true,
+        media: query,
+        addEventListener: jest.fn(),
+        removeEventListener: jest.fn(),
+      })),
     });
 
     render(
@@ -459,7 +478,7 @@ describe("GraphCanvas", () => {
     const node1 = makeNode("n1", 0, 0);
     const node2 = makeNode("n2", 300, 300);
     const edge1 = makeEdge("e1", "connector", "n1", "n2");
-    const edge2 = makeEdge("e2", "arrow", "n1", "n2");
+    const edge2 = makeEdge("e2", "line", "n1", "n2");
     const edge3 = makeEdge("e3", "line");
 
     render(
@@ -560,7 +579,12 @@ describe("GraphCanvas", () => {
     const velocityRef = { current: { vx: 5, vy: 5 } };
     Object.defineProperty(window, "matchMedia", {
       writable: true,
-      value: jest.fn().mockReturnValue({ matches: false }),
+      value: jest.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: jest.fn(),
+        removeEventListener: jest.fn(),
+      })),
     });
 
     render(

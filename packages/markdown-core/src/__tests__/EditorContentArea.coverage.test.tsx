@@ -293,6 +293,8 @@ describe("EditorContentArea - coverage", () => {
     const mockOpenSearch = jest.fn();
     const mockEditor = {
       commands: { openSearch: mockOpenSearch },
+      on: jest.fn(),
+      off: jest.fn(),
     } as any;
 
     render(
@@ -316,6 +318,8 @@ describe("EditorContentArea - coverage", () => {
     const mockOpenSearch = jest.fn();
     const mockEditor = {
       commands: { openSearch: mockOpenSearch },
+      on: jest.fn(),
+      off: jest.fn(),
     } as any;
 
     render(

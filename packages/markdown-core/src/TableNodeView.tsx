@@ -19,7 +19,8 @@ import { BlockInlineToolbar } from "./components/codeblock/BlockInlineToolbar";
 import { DeleteBlockDialog } from "./components/codeblock/DeleteBlockDialog";
 import { EditDialogHeader } from "./components/EditDialogHeader";
 import { SearchReplaceBar } from "./components/SearchReplaceBar";
-import { SpreadsheetGrid } from "./components/spreadsheet/SpreadsheetGrid";
+import { SpreadsheetGrid } from "@anytime-markdown/spreadsheet-viewer";
+import { createTiptapSheetAdapter } from "./spreadsheet/TiptapSheetAdapter";
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getActionHover, getActionSelected, getBgPaper, getDivider, getErrorMain, getTextSecondary } from "./constants/colors";
 import { SMALL_CAPTION_FONT_SIZE } from "./constants/dimensions";
 import { Z_FULLSCREEN } from "./constants/zIndex";
@@ -287,21 +288,48 @@ function getTableGridOptions(editor: Editor) {
 }
 
 /** Spreadsheet edit mode content (extracted to reduce cognitive complexity). */
-function SpreadsheetEditContent({ editor, isDark, t, onDirtyChange, onClose }: Readonly<{
-  editor: Editor; isDark: boolean; t: (key: string) => string;
-  onDirtyChange: (dirty: boolean) => void; onClose: () => void;
+function SpreadsheetEditContent({ editor, getPos, isDark, onDirtyChange, onClose }: Readonly<{
+  editor: Editor;
+  getPos: NodeViewProps["getPos"];
+  isDark: boolean;
+  onDirtyChange: (dirty: boolean) => void;
+  onClose: () => void;
 }>) {
+  const tSheet = useTranslations("Spreadsheet");
   const { gridRows, gridCols } = getTableGridOptions(editor);
+  const adapter = useMemo(
+    () =>
+      createTiptapSheetAdapter(
+        editor,
+        () => {
+          if (typeof getPos !== "function") return null;
+          const pos = getPos();
+          if (typeof pos !== "number") return null;
+          const node = editor.state.doc.nodeAt(pos);
+          if (!node || node.type.name !== "table") return null;
+          return { node, pos };
+        },
+        { readOnly: !editor.isEditable },
+      ),
+    [editor, getPos],
+  );
+  const handleUndo = useCallback(() => { editor.chain().undo().run(); }, [editor]);
+  const handleRedo = useCallback(() => { editor.chain().redo().run(); }, [editor]);
   return (
     <>
       <SpreadsheetGrid
-        editor={editor}
+        adapter={adapter}
         isDark={isDark}
-        t={t}
+        t={tSheet}
         gridRows={gridRows}
         gridCols={gridCols}
+        showApply
+        showRange
+        showHeaderRow
         onDirtyChange={onDirtyChange}
         onClose={onClose}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
       />
       {/* ProseMirror table hidden but kept in DOM for sync */}
       <Box sx={{ display: "none" }}>
@@ -312,11 +340,13 @@ function SpreadsheetEditContent({ editor, isDark, t, onDirtyChange, onClose }: R
 }
 
 /** Table content area dispatcher: compare view, spreadsheet edit, or inline table (extracted to reduce cognitive complexity). */
-function TableContentArea({ showCompare, editOpen, collapsed, highlightedCompareHtml, tableSx, editor, isDark, onDirtyChange, onSpreadsheetClose, onTableDoubleClick, t }: Readonly<{
+function TableContentArea({ showCompare, editOpen, collapsed, highlightedCompareHtml, tableSx, editor, getPos, isDark, onDirtyChange, onSpreadsheetClose, onTableDoubleClick, t }: Readonly<{
   showCompare: boolean; editOpen: boolean; collapsed: boolean;
   highlightedCompareHtml: string | null;
   tableSx: Record<string, unknown>;
-  editor: Editor; isDark: boolean;
+  editor: Editor;
+  getPos: NodeViewProps["getPos"];
+  isDark: boolean;
   onDirtyChange: (dirty: boolean) => void;
   onSpreadsheetClose: () => void;
   onTableDoubleClick: (() => void) | undefined;
@@ -336,8 +366,8 @@ function TableContentArea({ showCompare, editOpen, collapsed, highlightedCompare
     return (
       <SpreadsheetEditContent
         editor={editor}
+        getPos={getPos}
         isDark={isDark}
-        t={t}
         onDirtyChange={onDirtyChange}
         onClose={onSpreadsheetClose}
       />
@@ -466,6 +496,7 @@ export function TableNodeView({ editor, node, getPos }: Readonly<NodeViewProps>)
           highlightedCompareHtml={highlightedCompareHtml}
           tableSx={tableSx}
           editor={editor}
+          getPos={getPos}
           isDark={isDark}
           onDirtyChange={handleDirtyChange}
           onSpreadsheetClose={handleSpreadsheetClose}

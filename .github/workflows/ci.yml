@@ -163,6 +163,30 @@ jobs:
         run: npx jest --maxWorkers=1
         working-directory: packages/vscode-history-extension
 
+      # trail-extension のテストは保護領域（~/.claude, ~/.vscode-server）への
+      # 書き込みが禁止されているため、HOME を使い捨てディレクトリに差し替えて
+      # 万一 guard を通過しても本物のユーザーデータを汚染しない構成にする。
+      - name: Run trail extension tests (isolated HOME)
+        if: github.event_name == 'pull_request' && github.base_ref == 'master'
+        working-directory: packages/vscode-trail-extension
+        env:
+          # 一時 HOME を指定して、拡張機能の本番パスフォールバックが
+          # 仮にガードを貫通した場合でも RUNNER_TEMP 内で完結するようにする。
+          # ガード自体（assertNotProductionWriteDuringTests）はこのパスを
+          # 保護対象と判定するため書き込みは例外となる。
+          HOME: ${{ runner.temp }}/trail-test-home
+        run: |
+          mkdir -p "$HOME"
+          npx jest --maxWorkers=1
+          # ガード・ファクトリが機能していれば、このディレクトリに .claude
+          # / .vscode-server は作られないはず。作られていればテストが
+          # 保護領域に書き込んでいる証拠なので CI を落とす。
+          if [ -e "$HOME/.claude" ] || [ -e "$HOME/.vscode-server" ]; then
+            echo "::error::Protected-path side effect detected under isolated HOME"
+            find "$HOME" -maxdepth 3 -type f | head -20
+            exit 1
+          fi
+
       - name: Build history extension
         if: (github.event_name == 'pull_request' && github.base_ref == 'master') || github.ref == 'refs/heads/master'
         run: npm run package
@@ -197,6 +221,24 @@ jobs:
         with:
           name: vsix-trail-ci
           path: packages/vscode-trail-extension/*.vsix
+          retention-days: 3
+
+      - name: Build sheet extension
+        if: (github.event_name == 'pull_request' && github.base_ref == 'master') || github.ref == 'refs/heads/master'
+        run: npm run package
+        working-directory: packages/vscode-sheet-extension
+
+      - name: Package sheet VSIX
+        if: (github.event_name == 'pull_request' && github.base_ref == 'master') || github.ref == 'refs/heads/master'
+        run: npx vsce package --no-dependencies
+        working-directory: packages/vscode-sheet-extension
+
+      - name: Upload sheet VSIX artifact
+        if: github.ref == 'refs/heads/master'
+        uses: actions/upload-artifact@v4
+        with:
+          name: vsix-sheet-ci
+          path: packages/vscode-sheet-extension/*.vsix
           retention-days: 3
 
       - name: Package extension pack VSIX
@@ -544,6 +586,69 @@ jobs:
           tag_name: ${{ steps.version.outputs.version }}
           name: Anytime Trail ${{ steps.version.outputs.version }}
           files: packages/vscode-trail-extension/*.vsix
+          generate_release_notes: true
+
+  publish-sheet:
+    if: github.ref == 'refs/heads/master'
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Get version from package.json
+        id: version
+        run: echo "version=sheet-v$(node -p "require('./packages/vscode-sheet-extension/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Check if tag already exists
+        id: tag_check
+        run: |
+          if git rev-parse "${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip if already released
+        if: steps.tag_check.outputs.exists == 'true'
+        run: echo "Tag ${{ steps.version.outputs.version }} already exists. Skipping sheet release."
+
+      - name: Download VSIX from CI
+        if: steps.tag_check.outputs.exists == 'false'
+        uses: actions/download-artifact@v4
+        with:
+          name: vsix-sheet-ci
+          path: packages/vscode-sheet-extension
+
+      - uses: actions/setup-node@v6
+        if: steps.tag_check.outputs.exists == 'false'
+        with:
+          node-version-file: '.node-version'
+
+      - name: Publish to Marketplace
+        if: steps.tag_check.outputs.exists == 'false'
+        run: npx vsce publish --packagePath *.vsix --pat "$VSCE_PAT"
+        working-directory: packages/vscode-sheet-extension
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+
+      - name: Create git tag
+        if: steps.tag_check.outputs.exists == 'false'
+        run: |
+          git tag ${{ steps.version.outputs.version }}
+          git push origin ${{ steps.version.outputs.version }}
+
+      - name: Create GitHub Release
+        if: steps.tag_check.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: Anytime Sheet ${{ steps.version.outputs.version }}
+          files: packages/vscode-sheet-extension/*.vsix
           generate_release_notes: true
 
   publish-extension-pack:
