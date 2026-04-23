@@ -184,7 +184,15 @@ export function getBlockStyles(theme: Theme, settings: EditorSettings): SxProps<
     },
     "& [data-image-row-content] > *": {
       flex: "0 0 auto",
+      // 内側の image-node-wrapper が block で親幅に伸びるのを防ぎ、
+      // コンテンツ（画像）の自然サイズに沿って幅を決める
+      width: "max-content",
       minWidth: "120px",
+      maxWidth: "100%",
+    },
+    // 内側の image-node-wrapper 自身も content-size で固定
+    "& [data-image-row-content] .image-node-wrapper": {
+      width: "max-content",
       maxWidth: "100%",
     },
     // 内側画像の上下 margin を打ち消してフレックス gap に揃える

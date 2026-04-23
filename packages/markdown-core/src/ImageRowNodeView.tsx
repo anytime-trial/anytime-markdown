@@ -26,6 +26,8 @@ export function ImageRowNodeView({ node, selected }: Readonly<NodeViewProps>) {
           gap: 8,
           alignItems: "flex-start",
           margin: "8px 0",
+          // DEBUG: 新コード適用確認用の赤枠（消してください）
+          outline: "3px dashed red",
         }}
       />
     </NodeViewWrapper>
