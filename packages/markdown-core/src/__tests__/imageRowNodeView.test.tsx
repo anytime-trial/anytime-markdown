@@ -1,19 +1,18 @@
 import { buildImageWrapperSx } from "../ImageNodeView";
 
 describe("buildImageWrapperSx hover toolbar behavior", () => {
-  test("inside imageRow: hides toolbar by default", () => {
+  test("inside imageRow: hides toolbar by default (display:none to exclude from layout)", () => {
     const sx = buildImageWrapperSx(true, false, true) as Record<string, unknown>;
     const hidden = sx["& > [data-block-toolbar]"] as Record<string, unknown> | undefined;
     expect(hidden).toBeDefined();
-    expect(hidden?.opacity).toBe(0);
-    expect(hidden?.maxHeight).toBe(0);
+    expect(hidden?.display).toBe("none");
   });
 
   test("inside imageRow: shows toolbar on hover", () => {
     const sx = buildImageWrapperSx(true, false, true) as Record<string, unknown>;
     const hover = sx["&:hover > [data-block-toolbar], &[data-selected='true'] > [data-block-toolbar]"] as Record<string, unknown> | undefined;
     expect(hover).toBeDefined();
-    expect(hover?.opacity).toBe(1);
+    expect(hover?.display).toBe("flex");
   });
 
   test("standalone image with showBorder: toolbar visible (no hidden rule)", () => {
@@ -26,8 +25,8 @@ describe("buildImageWrapperSx hover toolbar behavior", () => {
     const sx = buildImageWrapperSx(false, false, false) as Record<string, unknown>;
     const hidden = sx["& > [data-block-toolbar]"] as Record<string, unknown> | undefined;
     expect(hidden).toBeDefined();
-    expect(hidden?.opacity).toBe(0);
+    expect(hidden?.display).toBe("none");
     const hover = sx["&:hover > [data-block-toolbar], &[data-selected='true'] > [data-block-toolbar]"] as Record<string, unknown> | undefined;
-    expect(hover?.opacity).toBe(1);
+    expect(hover?.display).toBe("flex");
   });
 });
