@@ -40,6 +40,7 @@ import { GifBlock } from "./extensions/gifExtension";
 import { HeadingFoldExtension } from "./extensions/headingFoldExtension";
 import { HeadingNumberExtension } from "./extensions/headingNumberExtension";
 import { CustomImage } from "./imageExtension";
+import { ImageRow } from "./imageRowExtension";
 import { CustomTable } from "./tableExtension";
 
 /**
@@ -277,6 +278,7 @@ export function getBaseExtensions(options?: { disableComments?: boolean; disable
     Highlight.configure({ multicolor: false }),
     Underline,
     LinkExtension.configure({ openOnClick: false, validate: () => true, isAllowedUri: () => true }),
+    ImageRow,
     CustomImage.configure({ inline: false, allowBase64: true }),
     TaskList,
     TaskItem.configure({

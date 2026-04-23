@@ -3,6 +3,7 @@ import StarterKit from "@tiptap/starter-kit";
 import { TableKit } from "@tiptap/extension-table";
 import { Markdown } from "tiptap-markdown";
 import Image from "@tiptap/extension-image";
+import { ImageRow } from "../imageRowExtension";
 import Link from "@tiptap/extension-link";
 import Highlight from "@tiptap/extension-highlight";
 import Underline from "@tiptap/extension-underline";
@@ -95,7 +96,8 @@ export function createTestEditor({
   if (withMarkdown) {
     extensions.push(
       Markdown.configure({ html: true }),
-      Image,
+      ImageRow,
+      Image.configure({ inline: false }),
       Link.configure({ openOnClick: false, isAllowedUri: () => true }),
       Highlight,
       Underline,
