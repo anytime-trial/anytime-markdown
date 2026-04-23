@@ -1,6 +1,6 @@
 'use client';
 
-import { exportToDrawio, exportToSvg, importFromDrawio, importFromMermaid, layoutWithSubgroups } from '@anytime-markdown/graph-core';
+import { exportToDrawio, exportToSvg, importFromDrawio, importFromMermaid, layoutWithSubgroups, MinimapCanvas } from '@anytime-markdown/graph-core';
 import type { LayoutAlgorithm } from '@anytime-markdown/graph-core/engine';
 import { clearImageCache, physics,ViewportAnimation } from '@anytime-markdown/graph-core/engine';
 import { Box, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Typography } from '@mui/material';
@@ -669,6 +669,13 @@ export function GraphEditor({
           highlightNodeIds={highlightNodeIds}
           highlightEdgeIds={highlightEdgeIds}
           originNodeId={originNodeId}
+        />
+        <MinimapCanvas
+          nodes={state.document.nodes}
+          viewport={state.document.viewport}
+          mainCanvasRef={canvasRef}
+          onViewportChange={(vp) => dispatch({ type: 'SET_VIEWPORT', viewport: vp })}
+          isDark={isDark}
         />
         {state.document.nodes.length === 0 && (
           <Box sx={{
