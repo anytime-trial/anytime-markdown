@@ -2,7 +2,7 @@
   "name": "anytime-sheet",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": { "type": "git", "url": "https://github.com/anytime-trial/anytime-markdown.git" },

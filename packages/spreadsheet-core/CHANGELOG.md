@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-04-23
+
+### Added
+
+- `WorkbookAdapter` interface: multi-sheet abstraction (`getSheets` / `getActiveSheetIndex` / `setActiveSheet` / `subscribe`)
+- `InMemoryWorkbookAdapter`: in-memory implementation of `WorkbookAdapter`
+- `SheetData` and `WorkbookSnapshot` types for multi-sheet document representation
+- `parseMarkdownTable` / `serializeMarkdownTable`: round-trip conversion between Markdown GFM tables and `SheetSnapshot`
+- Exported markdown utils (`parseMarkdownTable`, `serializeMarkdownTable`) from package index
+
+### Fixed
+
+- `parseMarkdownTable`: use GFM-compliant separator row detection (colon-only cells treated as alignment markers)
+
+### Changed
+
+- `showApply` and `showRange` props default to `false`; must be explicitly enabled
+
 ## [0.2.0] - 2026-04-22
 
 ### Added

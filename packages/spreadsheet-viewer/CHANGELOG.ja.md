@@ -6,6 +6,29 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-04-23
+
+### 追加
+
+- `SheetTabs` コンポーネント: マルチシートナビゲーション用タブバー（追加・名前変更・削除）
+- `SpreadsheetEditor` に `workbookAdapter` prop: マルチシートドキュメントのサポート
+- シートタブ操作の i18n キー: `addSheet`・`deleteSheet`・`renameSheet`・`sheetName`
+- `SpreadsheetGrid` に `showHeaderRow` prop（`TableNodeView` でのみデフォルト有効）
+- `SpreadsheetEditor` に `showToolbar` prop（Markdown テーブルエディタでのみデフォルト有効）
+- `SpreadsheetEditor` に `headerRight` スロット prop: カスタムツールバー要素の挿入
+- `spreadsheet-core` の `parseMarkdownTable` / `serializeMarkdownTable` を re-export
+
+### 修正
+
+- `SpreadsheetGrid` ラッパーへの `display:flex` 追加によってスクロール位置が壊れる問題を修正
+
+### 変更
+
+- キャンバスのスクロールバーをエディタに合わせてスリム化（6px・テーマ対応）
+- シートビューアの色・レイアウトをデザインシステムトークンに統一
+- `showRange` のデフォルトを `false` に変更（データ範囲ボーダーはオプトイン）
+- `showApply` のデフォルトを `false` に変更（Apply ボタンはオプトイン）
+
 ## [0.2.0] - 2026-04-22
 
 ### 追加

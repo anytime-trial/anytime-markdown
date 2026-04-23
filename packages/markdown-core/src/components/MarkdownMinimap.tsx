@@ -86,7 +86,6 @@ export function MarkdownMinimap({
       >
         {markerRatios.map((ratio, i) => (
           <Box
-            // eslint-disable-next-line react/no-array-index-key
             key={i}
             sx={{
               position: "absolute",

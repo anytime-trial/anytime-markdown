@@ -6,6 +6,24 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-04-23
+
+### 追加
+
+- `WorkbookAdapter` インターフェース: マルチシート抽象化（`getSheets` / `getActiveSheetIndex` / `setActiveSheet` / `subscribe`）
+- `InMemoryWorkbookAdapter`: `WorkbookAdapter` のインメモリ実装
+- `SheetData` / `WorkbookSnapshot` 型: マルチシートドキュメント表現
+- `parseMarkdownTable` / `serializeMarkdownTable`: GFM テーブル ↔ `SheetSnapshot` の双方向変換
+- パッケージ index から markdown ユーティリティ（`parseMarkdownTable`・`serializeMarkdownTable`）を export
+
+### 修正
+
+- `parseMarkdownTable`: コロンのみのセルを GFM 準拠の配置マーカーとして扱うセパレータ行検出に修正
+
+### 変更
+
+- `showApply` / `showRange` prop のデフォルトを `false` に変更（利用時は明示的に有効化が必要）
+
 ## [0.2.0] - 2026-04-22
 
 ### 追加

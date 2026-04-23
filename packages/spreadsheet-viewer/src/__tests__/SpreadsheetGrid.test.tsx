@@ -31,7 +31,7 @@ describe("SpreadsheetGrid", () => {
       { readOnly: true },
     );
     const { getByRole } = render(
-      <SpreadsheetGrid adapter={adapter} isDark={false} t={t} />,
+      <SpreadsheetGrid adapter={adapter} isDark={false} t={t} showApply />,
     );
     const applyButton = getByRole("button", { name: "spreadsheetApply" }) as HTMLButtonElement;
     expect(applyButton.disabled).toBe(true);
