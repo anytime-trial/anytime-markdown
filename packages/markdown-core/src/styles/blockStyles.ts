@@ -173,19 +173,28 @@ export function getBlockStyles(theme: Theme, settings: EditorSettings): SxProps<
       "50%": { opacity: 0 },
     },
     // imageRow の flex レイアウトは NodeViewContent (data-image-row-content) に適用する。
-    // DOM 構造: [data-image-row] > [data-image-row-content] > [data-image-block]+
+    // 実際の DOM: [data-image-row-content] > (react-renderer | data-node-view-content-react) >
+    //              .image-node-wrapper > ... > img
+    // tiptap-react のラッパーは固定 class を持たないので、直下 * をフレックスアイテム化する。
     "& [data-image-row-content]": {
       display: "flex",
       flexWrap: "wrap",
       gap: "8px",
       alignItems: "flex-start",
     },
-    "& [data-image-row-content] > .image-node-wrapper, & [data-image-row-content] > [data-image-block]": {
-      marginTop: "0 !important",
-      marginBottom: "0 !important",
+    "& [data-image-row-content] > *": {
+      flex: "0 0 auto",
       minWidth: "120px",
       maxWidth: "100%",
-      flex: "0 1 auto",
+    },
+    // 内側画像の上下 margin を打ち消してフレックス gap に揃える
+    "& [data-image-row-content] .image-node-wrapper": {
+      marginTop: "0 !important",
+      marginBottom: "0 !important",
+    },
+    "& [data-image-row-content] .image-node-wrapper > .MuiBox-root": {
+      marginTop: "0 !important",
+      marginBottom: "0 !important",
     },
     "& .image-row[data-selected='true'], & [data-image-row][data-selected='true']": {
       outline: `2px solid ${getPrimaryMain(isDark)}`,
