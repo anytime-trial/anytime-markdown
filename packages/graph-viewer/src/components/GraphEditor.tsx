@@ -71,6 +71,7 @@ interface GraphEditorProps {
   locale?: string;
   onLocaleChange?: (locale: string) => void;
   persistence?: PersistenceAdapter;
+  containerHeight?: string;
 }
 
 function useDefaultIndexedDbAdapter(document: GraphDocument): PersistenceAdapter {
@@ -91,6 +92,7 @@ export function GraphEditor({
   locale = 'ja',
   onLocaleChange,
   persistence,
+  containerHeight = '100vh',
 }: Readonly<GraphEditorProps> = {}) {
   const isDark = themeMode === 'dark';
   const [tool, setTool] = useState<ToolType>('select');
@@ -598,7 +600,7 @@ export function GraphEditor({
   }, [setHoverTargetId]);
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden' }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: containerHeight, width: '100vw', overflow: 'hidden' }}>
       <GraphToolBar
         tool={tool}
         onToolChange={setTool}
