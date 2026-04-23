@@ -134,11 +134,15 @@ export function EditorContentArea({
         <div ref={frontmatterRef}>
           <FrontmatterBlock frontmatter={frontmatterText} onChange={handleFrontmatterChange} readOnly={readonlyMode || reviewMode} defaultCollapsed={true} t={t} />
         </div>
-        <Box sx={{ position: "relative" }}>
+        <Box sx={{ display: "flex", alignItems: "flex-start" }}>
           <Paper
             id="md-editor-content"
             variant="outlined"
-            sx={getEditorPaperSx(theme, settings, adjustedEditorHeight, { readonlyMode, noScroll })}
+            sx={Object.assign(
+              {},
+              getEditorPaperSx(theme, settings, adjustedEditorHeight, { readonlyMode, noScroll }),
+              { flex: 1, minWidth: 0 },
+            )}
           >
             <div ref={editorMountCallback} style={{ display: "contents" }} />
           </Paper>

@@ -48,11 +48,9 @@ export function MarkdownMinimap({
   return (
     <Box
       sx={{
-        position: "absolute",
-        top: 0,
-        right: 0,
         width: BAR_WIDTH,
         height: editorHeight,
+        flexShrink: 0,
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
