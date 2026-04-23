@@ -6,14 +6,23 @@
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-04-23
+
 ### 追加
 
-- 英語 UI 対応。webview が `vscode.env.language` に応じて日本語／英語を切り替えるようになった（日本語以外は英語）。`next-intl` shim を書き換え、`graph-viewer/src/i18n/` の `ja.json` と `en.json` を共通利用する。手書きの `graph-messages-ja.json` は削除
-- マニフェスト NLS 対応。`package.json` の文言（displayName・description・カスタムエディタ名・コマンドタイトル・アクティビティバー名）を `package.nls.json` / `package.nls.ja.json` 経由にし、Marketplace 表示と VS Code UI が言語設定に追従するようになった
+- 英語 UI 対応: webview が `vscode.env.language` に応じて日本語／英語を切り替え（書き直した `next-intl` shim で `graph-viewer/src/i18n/` を使用）
+- マニフェスト NLS 対応: `package.nls.json` / `package.nls.ja.json` で Marketplace 表示と VS Code UI の言語設定に追従
+- `GraphEditor` に `containerHeight` prop を追加
 
 ### 変更
 
-- webview を `@anytime-markdown/graph-viewer` パッケージに統合。`PersistenceAdapter` ブリッジ経由で `GraphEditor` を呼び出す薄いラッパーに変更し、`GraphCanvas`・`TextEditOverlay` 等の重複実装を削除
+- webview を `@anytime-markdown/graph-viewer` パッケージに統合（`PersistenceAdapter` ブリッジ経由）。`GraphCanvas` 等の重複実装を削除
+
+### Graph Core (graph-core)
+
+- ビューポートのドラッグパン・ズームボタン付き `MinimapCanvas` を追加
+- `LIGHT_COLORS` を sumi-e デザインシステムパレットに統一
+- フレーム Z 動作を追加（`hitTestFrameBody`・フレーム内ノードドラッグ）
 
 ## [0.1.5] - 2026-04-18
 

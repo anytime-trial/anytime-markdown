@@ -6,14 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-04-23
+
 ### Added
 
-- English UI support — the webview now honors `vscode.env.language` (falls back to English when not Japanese) by loading both `ja.json` and `en.json` from `graph-viewer/src/i18n/` through a rewritten `next-intl` shim. Removes the hand-maintained `graph-messages-ja.json`.
-- Manifest NLS — `package.json` strings (displayName, description, custom editor display name, command title, activity bar title) now flow through `package.nls.json` / `package.nls.ja.json` so the Marketplace listing and VS Code UI respect the installed language.
+- English UI support — the webview now honors `vscode.env.language` (falls back to English when not Japanese) via a rewritten `next-intl` shim using `graph-viewer/src/i18n/`
+- Manifest NLS — `package.nls.json` / `package.nls.ja.json` for Marketplace listing and VS Code UI language support
+- `containerHeight` prop to `GraphEditor` for layout flexibility
 
 ### Changed
 
-- Integrate webview with `@anytime-markdown/graph-viewer` package — webview becomes a thin wrapper around `GraphEditor` via a `PersistenceAdapter` bridge. Eliminates duplicated `GraphCanvas`, `TextEditOverlay`, and related hooks.
+- Webview integrated with `@anytime-markdown/graph-viewer` package via `PersistenceAdapter` bridge; eliminates duplicated `GraphCanvas` and related hooks
+
+### Graph Core (graph-core)
+
+- Add `MinimapCanvas` with viewport drag-to-pan and zoom buttons
+- Align `LIGHT_COLORS` with sumi-e design system palette
+- Add frame Z-behavior (hitTestFrameBody, node drag inside frames)
 
 ## [0.1.5] - 2026-04-18
 

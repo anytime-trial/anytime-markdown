@@ -7,12 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-04-23
+
+### Added
+
+- `MarkdownMinimap` component: document minimap with scroll-synced viewport indicator and click-to-jump
+- `useMarkdownMinimap` hook: computes heading/diff marker positions as scroll ratio list
+
+### Fixed
+
+- Minimap scroll container now tracks `.tiptap` element for correct scroll sync
+- Minimap no longer overlaps the scrollbar
+- Removed viewport indicator from minimap rendering
+
 ### Changed
 
 - Extracted spreadsheet functionality into `@anytime-markdown/spreadsheet-core` and `@anytime-markdown/spreadsheet-viewer` packages
 - Migrated `TableNodeView` to the `SheetAdapter` interface via `createTiptapSheetAdapter`
 - Removed the legacy `components/spreadsheet/` directory and the tiptap table wrappers `useSpreadsheetSync`
 - Moved viewer-only i18n keys to `spreadsheet-viewer`; `markdown-core/i18n/index.ts` merges them before re-exporting
+- Applied sumi-e light palette and violet warning colors to the design system theme
+- Enabled `showApply` and `showRange` in `TableNodeView` spreadsheet editor
 
 ## [0.11.4] - 2026-04-19
 

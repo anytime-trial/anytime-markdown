@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-04-23
+
+### 追加
+
+- `anytime-trial.anytime-sheet` を extension pack に追加
+
 ## [0.2.2] - 2026-04-18
 
 ### 変更

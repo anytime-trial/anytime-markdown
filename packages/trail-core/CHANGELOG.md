@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-04-23
+
+### Added
+
+- `ManualGroup` type and conversion to `GraphGroup` in `c4ToGraphDocument`
+- Dynamic, re-export, and type import edge extraction with metadata
+- Framework, runtime, and language icons to service catalog
+- GitHub, VS Code, and AI service icons to service catalog
+
 ## [0.8.0] - 2026-04-19
 
 ### Added

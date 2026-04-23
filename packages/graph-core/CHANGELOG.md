@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-04-23
+
+### Added
+
+- `MinimapCanvas` component: overview minimap with viewport drag-to-pan and zoom in/out buttons
+- Exported `MinimapCanvas` from package index
+- Frame Z-behavior: `hitTestFrameBody` and node drag inside frames in `useCanvasBase`
+
+### Changed
+
+- `LIGHT_COLORS` aligned with sumi-e design system palette
+
 ## [0.1.5] - 2026-04-18
 
 ### Added

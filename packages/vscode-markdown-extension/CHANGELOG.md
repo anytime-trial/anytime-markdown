@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-04-23
+
+### Editor Core (markdown-core)
+
+- Add `MarkdownMinimap` component with scroll-synced viewport indicator and click-to-jump
+- Add `useMarkdownMinimap` hook for heading/diff marker position calculation
+- Apply sumi-e light palette and violet warning colors
+- Enable spreadsheet `showApply`/`showRange` in `TableNodeView`
+- Extract spreadsheet functionality to `spreadsheet-core`/`spreadsheet-viewer` packages
+
 ## [0.11.4] - 2026-04-19
 
 ### Editor Core (markdown-core)

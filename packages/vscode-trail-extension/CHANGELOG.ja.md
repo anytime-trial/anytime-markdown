@@ -6,6 +6,21 @@
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-04-23
+
+### 追加
+
+- `backupGenerations` VS Code 設定: 保持するバックアップ世代数を設定可能
+- ManualGroups の永続化（Supabase・Web API・TrailDataServer・MCP）
+- Trail Viewer にグループ描画・キーボードショートカット・`GroupLabelDialog` を追加
+- Trail Viewer の C4 タブに `MinimapCanvas` を追加
+- C4 モデル要素・関係管理 MCP サーバー（`list_relationships`・`GET /api/c4/manual-relationships`）
+
+### Trail Core (trail-core)
+
+- `ManualGroup` 型とサービスカタログアイコン（フレームワーク・ランタイム・言語・GitHub・VS Code・AI）を追加
+- 動的インポート・再エクスポート・型インポートのエッジをメタデータ付きで抽出
+
 ## [0.8.0] - 2026-04-19
 
 ### 追加

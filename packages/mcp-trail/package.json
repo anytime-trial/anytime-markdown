@@ -1,6 +1,6 @@
 {
   "name": "@anytime-markdown/mcp-trail",
-  "version": "0.1.0",
+  "version": "0.9.0",
   "license": "MIT",
   "private": true,
   "main": "src/index.ts",
