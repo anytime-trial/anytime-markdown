@@ -347,8 +347,8 @@ export function buildImageWrapperSx(showBorder: boolean, isDark: boolean, inside
       display: "flex",
     },
   } : {};
-  // imageRow 外では画像サイズにフィット。imageRow 内はグリッドセル幅に従う。
-  const widthSx = insideImageRow ? {} : { width: "fit-content", maxWidth: "100%" };
+  // 画像サイズに合わせて border フレームを縮める（単独・imageRow 両方）
+  const widthSx = { width: "fit-content", maxWidth: "100%" };
   return { border: 1, borderRadius: 1, overflow: "hidden", my: 1, borderColor, ...widthSx, ...hiddenToolbarSx };
 }
 
