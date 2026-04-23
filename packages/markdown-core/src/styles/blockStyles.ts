@@ -183,11 +183,13 @@ export function getBlockStyles(theme: Theme, settings: EditorSettings): SxProps<
       alignItems: "flex-start",
     },
     "& [data-image-row-content] > *": {
-      minWidth: 0,
-      // DEBUG: 診断用 — 黄色背景で CSS 適用を確認
-      backgroundColor: "yellow !important" as unknown as string,
+      // grid items の min-width: auto を打ち消して 1fr に正しく収まるようにする
+      minWidth: "0 !important" as unknown as string,
+      maxWidth: "100%",
+      overflow: "hidden",
     },
     "& [data-image-row-content] .image-node-wrapper": {
+      minWidth: "0 !important" as unknown as string,
       maxWidth: "100%",
     },
     "& [data-image-row-content] img": {
