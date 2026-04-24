@@ -1,4 +1,5 @@
 import { importFromMermaid, layoutWithSubgroups } from '../io/importMermaid';
+import { createNode, createEdge, createDocument } from '../types';
 
 describe('importFromMermaid', () => {
   describe('basic node shapes', () => {
@@ -302,6 +303,104 @@ describe('importFromMermaid', () => {
       const { doc } = importFromMermaid('flowchart TD\n  A --> B');
       const ids = [...doc.nodes.map(n => n.id), ...doc.edges.map(e => e.id)];
       expect(new Set(ids).size).toBe(ids.length);
+    });
+  });
+
+  describe('layoutWithSubgroups – manual nodes (splitManualTopBottom)', () => {
+    it('should place manual node below auto nodes when no connected edges', () => {
+      const doc = createDocument('test');
+      const frame = createNode('frame', 0, 0, { id: 'frame1', width: 400, height: 300, text: 'Frame' });
+      const auto1 = createNode('rect', 100, 50, { id: 'auto1', width: 100, height: 60, text: 'Auto1' });
+      const auto2 = createNode('rect', 100, 130, { id: 'auto2', width: 100, height: 60, text: 'Auto2' });
+      const manual1 = createNode('rect', 100, 220, {
+        id: 'manual1', width: 100, height: 60, text: 'Manual1', metadata: { manual: 1 },
+      });
+      auto1.groupId = 'frame1';
+      auto2.groupId = 'frame1';
+      manual1.groupId = 'frame1';
+      doc.nodes.push(frame, auto1, auto2, manual1);
+
+      layoutWithSubgroups(doc, 'TB', 60, 30);
+
+      const updatedManual = doc.nodes.find(n => n.id === 'manual1')!;
+      const updatedAuto1 = doc.nodes.find(n => n.id === 'auto1')!;
+      const updatedAuto2 = doc.nodes.find(n => n.id === 'auto2')!;
+      const maxAutoY = Math.max(updatedAuto1.y + updatedAuto1.height, updatedAuto2.y + updatedAuto2.height);
+      expect(updatedManual.y).toBeGreaterThanOrEqual(maxAutoY);
+    });
+
+    it('should not throw when manual node is connected to an auto node', () => {
+      const doc = createDocument('test');
+      const frame = createNode('frame', 0, 0, { id: 'frame1', width: 400, height: 400, text: 'Frame' });
+      const auto1 = createNode('rect', 100, 20, { id: 'auto1', width: 100, height: 60, text: 'AutoTop' });
+      const auto2 = createNode('rect', 100, 200, { id: 'auto2', width: 100, height: 60, text: 'AutoBottom' });
+      const manual1 = createNode('rect', 100, 100, {
+        id: 'manual1', width: 100, height: 60, text: 'Manual1', metadata: { manual: 1 },
+      });
+      auto1.groupId = 'frame1';
+      auto2.groupId = 'frame1';
+      manual1.groupId = 'frame1';
+      const edge = createEdge('connector',
+        { nodeId: 'manual1', x: 150, y: 130 },
+        { nodeId: 'auto1', x: 150, y: 50 },
+      );
+      doc.nodes.push(frame, auto1, auto2, manual1);
+      doc.edges.push(edge);
+
+      expect(() => layoutWithSubgroups(doc, 'TB', 60, 30)).not.toThrow();
+      const updatedManual = doc.nodes.find(n => n.id === 'manual1')!;
+      expect(updatedManual.y).toBeDefined();
+    });
+  });
+
+  describe('layoutWithSubgroups – groups (packGroupMembers)', () => {
+    it('should pack group members into a row', () => {
+      const doc = createDocument('test');
+      const n1 = createNode('rect', 0, 0, { id: 'n1', width: 80, height: 60, text: 'N1' });
+      const n2 = createNode('rect', 200, 0, { id: 'n2', width: 80, height: 60, text: 'N2' });
+      const n3 = createNode('rect', 400, 0, { id: 'n3', width: 80, height: 60, text: 'N3' });
+      doc.nodes.push(n1, n2, n3);
+      doc.groups = [{ id: 'g1', memberIds: ['n1', 'n2', 'n3'] }];
+
+      layoutWithSubgroups(doc, 'TB', 60, 20);
+
+      const packed = doc.nodes.filter(n => ['n1', 'n2', 'n3'].includes(n.id));
+      const ys = packed.map(n => n.y);
+      expect(Math.max(...ys) - Math.min(...ys)).toBeLessThan(5);
+    });
+
+    it('should not throw for groups with fewer than 2 members', () => {
+      const doc = createDocument('test');
+      const n1 = createNode('rect', 10, 10, { id: 'n1', width: 80, height: 60, text: 'N1' });
+      doc.nodes.push(n1);
+      doc.groups = [{ id: 'g1', memberIds: ['n1'] }];
+
+      expect(() => layoutWithSubgroups(doc, 'TB', 60, 20)).not.toThrow();
+      const updated = doc.nodes.find(n => n.id === 'n1')!;
+      expect(updated).toBeDefined();
+    });
+
+    it('should handle empty groups array', () => {
+      const { doc, direction } = importFromMermaid('flowchart TD\n  A --> B');
+      doc.groups = [];
+      expect(() => layoutWithSubgroups(doc, direction, 60, 20)).not.toThrow();
+    });
+  });
+
+  describe('layoutWithSubgroups – nested frames (resolveRootFrame)', () => {
+    it('should handle deeply nested subgraphs with cross-boundary edges', () => {
+      const mmd = `flowchart TD
+  subgraph Outer [Outer]
+    subgraph Inner [Inner]
+      A[Node A]
+    end
+    B[Node B]
+  end
+  C[Node C] --> A`;
+      const { doc, direction } = importFromMermaid(mmd);
+      expect(() => layoutWithSubgroups(doc, direction, 120, 40)).not.toThrow();
+      const nodeA = doc.nodes.find(n => n.text === 'Node A');
+      expect(nodeA).toBeDefined();
     });
   });
 });

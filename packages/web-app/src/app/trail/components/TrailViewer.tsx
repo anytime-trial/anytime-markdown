@@ -1,13 +1,11 @@
 'use client';
 
+import type { DocLink } from '@anytime-markdown/trail-core/c4';
+import { TrailViewerApp } from '@anytime-markdown/trail-viewer';
 import { useCallback } from 'react';
 
-import { TrailViewerApp } from '@anytime-markdown/trail-viewer';
-import type { DocLink } from '@anytime-markdown/trail-core/c4';
-
-import { useThemeMode } from '../../providers';
 import { useLocaleSwitch } from '../../LocaleProvider';
-
+import { useThemeMode } from '../../providers';
 import { TrailErrorBoundary } from './TrailErrorBoundary';
 
 /**

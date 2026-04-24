@@ -40,7 +40,24 @@ import { GifBlock } from "./extensions/gifExtension";
 import { HeadingFoldExtension } from "./extensions/headingFoldExtension";
 import { HeadingNumberExtension } from "./extensions/headingNumberExtension";
 import { CustomImage } from "./imageExtension";
+import { ImageRow } from "./imageRowExtension";
+import { imagePastePlugin } from "./plugins/imagePastePlugin";
+import { imageRowDropPlugin } from "./plugins/imageRowDropPlugin";
 import { CustomTable } from "./tableExtension";
+
+const ImagePasteExtension = Extension.create({
+  name: "imagePasteExtension",
+  addProseMirrorPlugins() {
+    return [imagePastePlugin];
+  },
+});
+
+const ImageRowDropExtension = Extension.create({
+  name: "imageRowDropExtension",
+  addProseMirrorPlugins() {
+    return [imageRowDropPlugin];
+  },
+});
 
 /**
  * tiptap-markdown の MarkdownTightLists は bulletList / orderedList のみ対象。
@@ -117,6 +134,8 @@ export function getBaseExtensions(options?: { disableComments?: boolean; disable
       codeBlock: false,
       hardBreak: false,
       blockquote: false, // AdmonitionBlockquote で置換
+      link: false, // LinkExtension.configure() を個別追加するため無効化
+      underline: false, // Underline を個別追加するため無効化
       bold: { HTMLAttributes: {}, },
       italic: { HTMLAttributes: {}, },
       strike: { HTMLAttributes: {}, },
@@ -277,7 +296,10 @@ export function getBaseExtensions(options?: { disableComments?: boolean; disable
     Highlight.configure({ multicolor: false }),
     Underline,
     LinkExtension.configure({ openOnClick: false, validate: () => true, isAllowedUri: () => true }),
+    ImageRow,
     CustomImage.configure({ inline: false, allowBase64: true }),
+    ImagePasteExtension,
+    ImageRowDropExtension,
     TaskList,
     TaskItem.configure({
       nested: true,

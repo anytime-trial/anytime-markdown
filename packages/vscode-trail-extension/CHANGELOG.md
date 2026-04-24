@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-04-24
+
+### Changed
+
+- Restructure README around vision and current capabilities
+- Update extension icon and marketplace logo to `anytime-control-256`
+
+### Fixed
+
+- Path traversal vulnerabilities in `TrailDataServer` (hardened path handling)
+- Add missing `touchedFiles` field to `PerAgentState` initialization
+
+### Trail Core (trail-core)
+
+- No changes (version aligned with extension)
+
 ## [0.9.0] - 2026-04-23
 
 ### Added

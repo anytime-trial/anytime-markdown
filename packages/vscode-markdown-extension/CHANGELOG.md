@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-04-24
+
+### Added
+
+- Inject embed providers into the webview via extension messaging (`fetchOgp` / `fetchOembed` / `fetchRss` proxy)
+- Inline OGP / SSRF helpers and `rssFetch` implementation to satisfy `rootDir` constraints
+- Refresh extension icon and marketplace logo to `anytime-markdown-128`
+- Refresh README with language links and AI gutter highlight section
+
+### Editor Core (markdown-core)
+
+- Add embed block system with URL classifier, SSRF guard, and provider interface
+- Add embed node views for OGP card, YouTube, Figma, Spotify, Twitter, and Drawio
+- Add `/embed` slash command and embed edit dialog
+- Add embed update detection with badge UI (RSS discovery, OGP / RSS fingerprint, seen store)
+- Support image-style width resize for embed card variant and persist width through markdown roundtrip
+- Fix embed layout gaps by switching `imageRow` from grid to flex and restoring `block` display
+
 ## [0.12.0] - 2026-04-23
 
 ### Editor Core (markdown-core)

@@ -1,6 +1,5 @@
-import { NextResponse } from "next/server";
-
 import type { DocLink } from "@anytime-markdown/trail-core/c4";
+import { NextResponse } from "next/server";
 
 /**
  * GET /api/docs-index

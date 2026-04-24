@@ -67,8 +67,8 @@ describe('FileTrailStorage', () => {
 
   it('new session shifts generations: bak.1 → bak.2, original → bak.1', () => {
     fs.writeFileSync(dbPath, Buffer.from('A'));
-    new FileTrailStorage(dbPath).save(Buffer.from('B'));
-    new FileTrailStorage(dbPath).save(Buffer.from('C'));
+    new FileTrailStorage(dbPath, 3).save(Buffer.from('B'));
+    new FileTrailStorage(dbPath, 3).save(Buffer.from('C'));
 
     expect(fs.readFileSync(dbPath).toString()).toBe('C');
     expect(readBak(1)).toBe('B');
@@ -78,10 +78,10 @@ describe('FileTrailStorage', () => {
 
   it('keeps at most 3 generations; oldest is discarded', () => {
     fs.writeFileSync(dbPath, Buffer.from('G0'));
-    new FileTrailStorage(dbPath).save(Buffer.from('G1'));
-    new FileTrailStorage(dbPath).save(Buffer.from('G2'));
-    new FileTrailStorage(dbPath).save(Buffer.from('G3'));
-    new FileTrailStorage(dbPath).save(Buffer.from('G4'));
+    new FileTrailStorage(dbPath, 3).save(Buffer.from('G1'));
+    new FileTrailStorage(dbPath, 3).save(Buffer.from('G2'));
+    new FileTrailStorage(dbPath, 3).save(Buffer.from('G3'));
+    new FileTrailStorage(dbPath, 3).save(Buffer.from('G4'));
 
     expect(fs.readFileSync(dbPath).toString()).toBe('G4');
     expect(readBak(1)).toBe('G3');
@@ -105,10 +105,10 @@ describe('FileTrailStorage', () => {
 
     it('returns entries in newest-first order with metadata', () => {
       fs.writeFileSync(dbPath, Buffer.from('A'));
-      new FileTrailStorage(dbPath).save(Buffer.from('B'));
-      new FileTrailStorage(dbPath).save(Buffer.from('C'));
+      new FileTrailStorage(dbPath, 3).save(Buffer.from('B'));
+      new FileTrailStorage(dbPath, 3).save(Buffer.from('C'));
 
-      const entries = new FileTrailStorage(dbPath).listBackups();
+      const entries = new FileTrailStorage(dbPath, 3).listBackups();
       expect(entries).toHaveLength(2);
       expect(entries[0].generation).toBe(1);
       expect(entries[1].generation).toBe(2);

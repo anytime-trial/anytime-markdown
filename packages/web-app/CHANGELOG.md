@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-04-24
+
+### Added
+
+- `/api/ogp` route with SSRF guard and `rawHtml` response for RSS discovery
+- `/api/oembed` route for Twitter embeds
+- `/api/rss` route with `fetchRss` provider implementation
+- Inject embed providers via `EmbedProvidersBoundary` for web clients
+- Add embed provider domains (YouTube / Figma / Spotify / Twitter / Drawio) to CSP `frame-src`
+- Change browser tab favicon to brand logo
+
+### Changed
+
+- Allow all HTTPS images in CSP `img-src` for embed / OGP thumbnails
+- Update Next.js 16.2.3 → 16.2.4 for security fixes
+
+### Fixed
+
+- ESLint import-sort warnings and remove non-null assertion
+
 ## [0.16.0] - 2026-04-23
 
 ### Added

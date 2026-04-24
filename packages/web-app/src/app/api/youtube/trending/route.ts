@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+
 import type { YouTubeVideo } from "../../../../lib/youtube";
 
 export async function GET() {

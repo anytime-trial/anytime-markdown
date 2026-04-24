@@ -3,6 +3,7 @@
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import EditIcon from "@mui/icons-material/Edit";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
+import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import ImageIcon from "@mui/icons-material/Image";
 import LinkIcon from "@mui/icons-material/Link";
 import ScreenshotMonitorIcon from "@mui/icons-material/ScreenshotMonitor";
@@ -98,42 +99,34 @@ function handleCropComplete(
 
 // --- Extracted sub-component: Image toolbar extra info ---
 function ImageToolbarExtra({
-  alt, src, imgError, isCompareLeft, isEditable, collapsed, annotations, onAnnotationOpen, onEdit, onEditUrl, onScreenCapture, isDark, t,
+  alt, imgError, isCompareLeft, isEditable, collapsed, annotations, onAnnotationOpen, onEdit, onEditUrl, isDark, t,
 }: Readonly<{
-  alt: string; src: string; imgError: boolean;
+  alt: string; imgError: boolean;
   isCompareLeft: boolean; isEditable: boolean; collapsed: boolean;
   annotations: ImageAnnotation[]; onAnnotationOpen: () => void;
   onEdit?: () => void;
   onEditUrl?: () => void;
-  onScreenCapture?: () => void;
   isDark: boolean;
   t: (key: string) => string;
 }>) {
   const iconSx = { fontSize: 16, color: getTextSecondary(isDark) };
-  let srcDisplay: string;
-  if (src?.startsWith("data:")) srcDisplay = "(base64)";
-  else if (src) srcDisplay = `(${src})`;
-  else srcDisplay = "";
   return (
     <>
-      <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
-      {alt ? (
-        <Typography variant="caption" sx={{ color: getTextSecondary(isDark), fontSize: HANDLEBAR_CAPTION_FONT_SIZE, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, flexShrink: 1 }}>
-          {alt}
-        </Typography>
-      ) : (
-        <Tooltip title={t("imageNoAltWarning")} placement="top">
-          <WarningAmberIcon sx={{ fontSize: 14, color: getWarningMain(isDark) }} />
-        </Tooltip>
+      {!alt && (
+        <>
+          <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
+          <Tooltip title={t("imageNoAltWarning")} placement="top">
+            <WarningAmberIcon sx={{ fontSize: 14, color: getWarningMain(isDark) }} />
+          </Tooltip>
+        </>
       )}
-      <Typography variant="caption" sx={{ color: getTextDisabled(isDark), fontSize: HANDLEBAR_CAPTION_FONT_SIZE, fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
-        {srcDisplay}
-      </Typography>
       {imgError && (
-        <Typography variant="caption" sx={{ color: getErrorMain(isDark), fontSize: HANDLEBAR_CAPTION_FONT_SIZE, fontWeight: 600, flexShrink: 0, display: "flex", alignItems: "center", gap: 0.25 }}>
-          <ErrorOutlineIcon sx={{ fontSize: 14 }} />
-          {t("imageNotFound")}
-        </Typography>
+        <>
+          <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
+          <Tooltip title={t("imageNotFound")} placement="top">
+            <ErrorOutlineIcon sx={{ fontSize: 14, color: getErrorMain(isDark) }} />
+          </Tooltip>
+        </>
       )}
       {!isCompareLeft && isEditable && !collapsed && (
         <>
@@ -157,13 +150,6 @@ function ImageToolbarExtra({
               <ChatBubbleOutlineIcon sx={{ fontSize: 16, color: annotations.length > 0 ? getPrimaryMain(isDark) : getTextSecondary(isDark) }} />
             </IconButton>
           </Tooltip>
-          {onScreenCapture && (
-            <Tooltip title={t("screenCapture")} placement="top">
-              <IconButton size="small" sx={{ p: 0.25 }} onClick={onScreenCapture} aria-label={t("screenCapture")}>
-                <ScreenshotMonitorIcon sx={iconSx} />
-              </IconButton>
-            </Tooltip>
-          )}
         </>
       )}
     </>
@@ -255,11 +241,15 @@ function ImageWithResize({
   );
 }
 
-function ImageEditDialog({ editOpen, setEditOpen, src, imgError, imgSize, onCrop, isDark, t }: Readonly<{
+function ImageEditDialog({ editOpen, setEditOpen, src, imgError, imgSize, onCrop, onExport, onScreenCapture, isDark, t }: Readonly<{
   editOpen: boolean; setEditOpen: (v: boolean) => void;
   src: string; imgError: boolean; imgSize: { w: number; h: number; nw: number; nh: number } | null;
-  onCrop: (croppedDataUrl: string) => void; isDark: boolean; t: (key: string) => string;
+  onCrop: (croppedDataUrl: string) => void;
+  onExport?: () => void;
+  onScreenCapture?: () => void;
+  isDark: boolean; t: (key: string) => string;
 }>) {
+  const iconSx = { fontSize: 18, color: getTextSecondary(isDark) };
   return (
     <EditDialogWrapper open={editOpen} onClose={() => setEditOpen(false)} ariaLabelledBy="image-edit-title">
       <EditDialogHeader
@@ -273,7 +263,21 @@ function ImageEditDialog({ editOpen, setEditOpen, src, imgError, imgSize, onCrop
           <ImageCropTool src={src} onCrop={onCrop} t={t} />
         )}
       </Box>
-      <Box sx={{ display: "flex", alignItems: "center", px: 2, py: 0.5, borderTop: 1, borderColor: getDivider(isDark), gap: 1 }}>
+      <Box sx={{ display: "flex", alignItems: "center", px: 2, py: 0.5, borderTop: 1, borderColor: getDivider(isDark), gap: 0.5 }}>
+        {onScreenCapture && (
+          <Tooltip title={t("screenCapture")} placement="top">
+            <IconButton size="small" sx={{ p: 0.5 }} onClick={onScreenCapture} aria-label={t("screenCapture")}>
+              <ScreenshotMonitorIcon sx={iconSx} />
+            </IconButton>
+          </Tooltip>
+        )}
+        {onExport && (
+          <Tooltip title={t("capture")} placement="top">
+            <IconButton size="small" sx={{ p: 0.5 }} onClick={onExport} aria-label={t("capture")}>
+              <FileDownloadIcon sx={iconSx} />
+            </IconButton>
+          </Tooltip>
+        )}
         <Box sx={{ flex: 1 }} />
         <Typography variant="caption" sx={{ color: getTextDisabled(isDark), fontSize: STATUSBAR_FONT_SIZE, fontFamily: "monospace", whiteSpace: "nowrap" }}>
           {imgSize ? `${imgSize.nw}x${imgSize.nh}` : ""}{imgSize && src?.startsWith("data:") ? " / " : ""}{src?.startsWith("data:") ? formatDataUrlSize(src) : ""}
@@ -328,14 +332,37 @@ function computeImageInteractionFlags(collapsed: boolean, isCompareLeft: boolean
 }
 
 /** Build the wrapper Box sx style (extracted to reduce cognitive complexity). */
-function buildImageWrapperSx(showBorder: boolean, isDark: boolean) {
+export function buildImageWrapperSx(showBorder: boolean, isDark: boolean, insideImageRow: boolean) {
   const borderColor = showBorder ? getDivider(isDark) : "transparent";
-  const hiddenToolbarSx = showBorder ? {} : {
+  // imageRow 内では常に hover / selected 時のみツールバー表示
+  const hideToolbar = !showBorder || insideImageRow;
+  // display: none で完全にレイアウトから外す。opacity:0/max-height:0 だと
+  // 非表示でもツールバーの min-content 幅が親要素を押し広げ、flex 配下の
+  // 画像ブロックが親幅を取って縦積みになる。
+  const hiddenToolbarSx = hideToolbar ? {
     "& > [data-block-toolbar]": {
-      maxHeight: 0, opacity: 0, py: 0, overflow: "hidden",
+      display: "none",
     },
-  };
-  return { border: 1, borderRadius: 1, overflow: "hidden", my: 1, borderColor, ...hiddenToolbarSx };
+    "&:hover > [data-block-toolbar], &[data-selected='true'] > [data-block-toolbar]": {
+      display: "flex",
+    },
+  } : {};
+  // 画像サイズに合わせて border フレームを縮める（単独・imageRow 両方）
+  const widthSx = { width: "fit-content", maxWidth: "100%" };
+  return { border: 1, borderRadius: 1, overflow: "hidden", my: 1, borderColor, ...widthSx, ...hiddenToolbarSx };
+}
+
+/** Determine whether the image's parent node is imageRow. */
+function isInsideImageRow(editor: NodeViewProps["editor"], getPos: NodeViewProps["getPos"]): boolean {
+  if (typeof getPos !== "function") return false;
+  const pos = getPos();
+  if (pos == null) return false;
+  try {
+    const $pos = editor.state.doc.resolve(pos);
+    return $pos.parent?.type.name === "imageRow";
+  } catch {
+    return false;
+  }
 }
 
 /** Image content area: either error placeholder or resizable image (extracted to reduce cognitive complexity). */
@@ -431,8 +458,15 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: Readon
   const onScreenCaptureAction = hasScreenCapture ? () => setScreenCaptureOpen(true) : undefined;
   const onImageDoubleClick = isEditable ? undefined : () => setEditOpen(true);
 
+  const insideImageRow = isInsideImageRow(editor, getPos);
+
   return (
-    <NodeViewWrapper className="image-node-wrapper">
+    <NodeViewWrapper
+      className="image-node-wrapper"
+      data-image-block=""
+      data-inside-image-row={insideImageRow ? "true" : "false"}
+      data-selected={isSelected ? "true" : "false"}
+    >
       <ImageEditDialog
         editOpen={editOpen}
         setEditOpen={setEditOpen}
@@ -440,21 +474,21 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: Readon
         imgError={imgError}
         imgSize={imgSize}
         onCrop={onCrop}
+        onExport={canInteract ? handleCapture : undefined}
+        onScreenCapture={onScreenCaptureAction}
         isDark={isDark}
         t={t}
       />
-      <Box sx={buildImageWrapperSx(showBorder, isDark)}>
-        {showBlockToolbar && (
+      <Box sx={buildImageWrapperSx(showBorder, isDark, insideImageRow)}>
+        {showBlockToolbar && !(insideImageRow && !isSelected) && (
           <BlockInlineToolbar
             label={t("image")}
             onDelete={onDeleteAction}
-            onExport={handleCapture}
             labelOnly={isCompareLeftEditable}
             collapsed={collapsed}
             extra={
               <ImageToolbarExtra
                 alt={alt}
-                src={src}
                 imgError={imgError}
                 isCompareLeft={isCompareLeft}
                 isEditable={isEditable}
@@ -463,7 +497,6 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: Readon
                 onAnnotationOpen={() => setAnnotationOpen(true)}
                 onEdit={onEditAction}
                 onEditUrl={onEditUrlAction}
-                onScreenCapture={onScreenCaptureAction}
                 isDark={isDark}
                 t={t}
               />

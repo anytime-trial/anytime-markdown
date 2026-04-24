@@ -1,9 +1,8 @@
+import { buildSourceMatrix } from "@anytime-markdown/trail-core/c4";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-import { buildSourceMatrix } from "@anytime-markdown/trail-core/c4";
-
-import { NO_STORE_HEADERS, createC4ModelStore } from "../../../../lib/api-helpers";
+import { createC4ModelStore,NO_STORE_HEADERS } from "../../../../lib/api-helpers";
 
 /**
  * GET /api/c4/dsm?release=...&repo=...

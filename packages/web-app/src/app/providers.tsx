@@ -2,11 +2,11 @@
 
 import {
   ACCENT_COLOR, ConfirmProvider, DEFAULT_DARK_BG, DEFAULT_LIGHT_BG,
-  DEFAULT_PRESET_NAME, getPreset, isPresetName,
-  getBgPaper, getDivider, getTextPrimary, getTextSecondary, getTextDisabled,
-  getActionHover, getActionSelected,
-  getPrimaryMain, getPrimaryDark, getPrimaryLight, getPrimaryContrast,
-  getErrorMain, getWarningMain, getWarningLight, getSuccessMain, getInfoMain,
+  DEFAULT_PRESET_NAME,   getActionHover, getActionSelected,
+  getBgPaper, getDivider,   getErrorMain, getInfoMain,
+getPreset, getPrimaryContrast,
+getPrimaryDark, getPrimaryLight,   getPrimaryMain, getSuccessMain, getTextDisabled,
+getTextPrimary, getTextSecondary, getWarningLight, getWarningMain, isPresetName,
   type ThemePresetName,
 } from '@anytime-markdown/markdown-core';
 import { Capacitor } from '@capacitor/core';

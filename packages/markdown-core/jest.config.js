@@ -2,6 +2,7 @@
 const config = {
   coverageReporters: ["json", "text", "lcov", "clover", "json-summary"],
   testEnvironment: "jsdom",
+  setupFiles: ["<rootDir>/jest.setup.ts"],
   transform: {
     "^.+\\.tsx?$": "ts-jest",
   },
@@ -9,6 +10,7 @@ const config = {
   moduleFileExtensions: ["ts", "tsx", "js", "jsx", "json"],
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/src/$1",
+    "^next-intl$": "<rootDir>/__mocks__/next-intl.ts",
   },
   maxWorkers: 2,
   collectCoverageFrom: [

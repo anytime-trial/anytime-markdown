@@ -205,19 +205,6 @@ describe("ImageNodeView - coverage", () => {
     expect(screen.queryByRole("img")).toBeNull();
   });
 
-  // --- src が空 ---
-  test("src が空文字列の場合の表示", () => {
-    setup({ nodeAttrs: { src: "", alt: "no src" }, isSelected: true });
-    // src 表示が空
-    expect(screen.getByText("no src")).toBeTruthy();
-  });
-
-  // --- base64 src サイズ表示 ---
-  test("base64 src の場合 (base64) 表示", () => {
-    setup({ nodeAttrs: { src: "data:image/png;base64,abc123" }, isSelected: true });
-    expect(screen.getByText("(base64)")).toBeTruthy();
-  });
-
   // --- annotations 有りの表示 ---
   test("annotations がある場合にアノテーションボタンが表示される", () => {
     const annotations = JSON.stringify([{ id: "a1", type: "rect", x1: 0, y1: 0, x2: 50, y2: 50, color: "#f00" }]);

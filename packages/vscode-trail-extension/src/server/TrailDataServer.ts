@@ -1104,6 +1104,11 @@ export class TrailDataServer {
           res.end(JSON.stringify({ error: 'sessionId required' }));
           return;
         }
+        if (!/^[a-zA-Z0-9_-]{1,128}$/.test(sessionId)) {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'Invalid sessionId' }));
+          return;
+        }
 
         const { contextTokens, turnCount, messageCount } = TrailDataServer.getSessionStatsFromJsonl(sessionId);
         const dbDaily = this.trailDb.getDailyTokensToday();
@@ -1361,10 +1366,15 @@ export class TrailDataServer {
           .map(el => el.id),
       );
 
+      const normalizedRoot = projectRoot.endsWith(path.sep) ? projectRoot : `${projectRoot}${path.sep}`;
       const sourceFiles = [];
       for (const node of graph.nodes) {
         if (!codeElementIds.has(node.id)) continue;
-        const absolutePath = path.join(projectRoot, node.filePath);
+        const absolutePath = path.resolve(projectRoot, node.filePath);
+        if (!absolutePath.startsWith(normalizedRoot)) {
+          TrailLogger.warn(`[/api/c4/exports] path traversal blocked: ${node.filePath}`);
+          continue;
+        }
         try {
           const content = fs.readFileSync(absolutePath, 'utf-8');
           sourceFiles.push(createSourceFile(node.filePath, content));
@@ -1409,10 +1419,15 @@ export class TrailDataServer {
           .map(el => el.id),
       );
 
+      const normalizedFlowRoot = projectRoot.endsWith(path.sep) ? projectRoot : `${projectRoot}${path.sep}`;
       const sourceFiles = [];
       for (const node of graph.nodes) {
         if (!codeElementIds.has(node.id)) continue;
-        const absolutePath = path.join(projectRoot, node.filePath);
+        const absolutePath = path.resolve(projectRoot, node.filePath);
+        if (!absolutePath.startsWith(normalizedFlowRoot)) {
+          TrailLogger.warn(`[/api/c4/flowchart] path traversal blocked: ${node.filePath}`);
+          continue;
+        }
         try {
           const content = fs.readFileSync(absolutePath, 'utf-8');
           sourceFiles.push(createSourceFile(node.filePath, content));

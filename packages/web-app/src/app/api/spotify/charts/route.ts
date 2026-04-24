@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { getClientCredentialsToken } from "../../../../lib/spotify";
+
 import type { SpotifyTrack } from "../../../../lib/spotify";
+import { getClientCredentialsToken } from "../../../../lib/spotify";
 
 export async function GET() {
   try {

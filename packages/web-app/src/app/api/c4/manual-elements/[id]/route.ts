@@ -1,6 +1,7 @@
+import { createClient } from '@supabase/supabase-js';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+
 import { resolveSupabaseEnv } from '../../../../../lib/supabase-env';
 
 export const dynamic = 'force-dynamic';

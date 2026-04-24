@@ -433,11 +433,12 @@ describe("slashCommandItems.extra", () => {
       (document.createElement as jest.Mock).mockRestore();
     });
 
-    it("ファイル選択時に FileReader で画像を読み込む", () => {
+    it("ファイル選択時に FileReader で画像を読み込む", async () => {
       const mockFile = new File(["data"], "test.png", { type: "image/png" });
       const mockInput = {
         type: "",
         accept: "",
+        multiple: false,
         onchange: null as (() => void) | null,
         files: [mockFile],
         click: jest.fn(),
@@ -446,9 +447,11 @@ describe("slashCommandItems.extra", () => {
 
       const mockReaderInstance = {
         onload: null as (() => void) | null,
+        onerror: null as (() => void) | null,
         result: "data:image/png;base64,abc",
+        error: null as unknown,
         readAsDataURL: jest.fn().mockImplementation(function (this: typeof mockReaderInstance) {
-          setTimeout(() => this.onload?.(), 0);
+          queueMicrotask(() => this.onload?.());
         }),
       };
       jest.spyOn(globalThis, "FileReader").mockImplementation(
@@ -461,8 +464,9 @@ describe("slashCommandItems.extra", () => {
 
       expect(mockReaderInstance.readAsDataURL).toHaveBeenCalledWith(mockFile);
 
-      // Trigger onload
-      mockReaderInstance.onload!();
+      // Flush the async insertImagesFromFiles pipeline.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
       expect(editor._chain.setImage).toHaveBeenCalledWith({
         src: "data:image/png;base64,abc",
         alt: "test.png",

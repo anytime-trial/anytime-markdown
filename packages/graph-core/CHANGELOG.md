@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-04-24
+
+### Added
+
+- Tests for `splitManualTopBottom`, `packGroupMembers`, and nested frame layout
+
 ## [0.2.0] - 2026-04-23
 
 ### Added

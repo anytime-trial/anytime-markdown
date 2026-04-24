@@ -1,5 +1,6 @@
-import { NextResponse, type NextRequest } from 'next/server';
 import type { QualityMetrics } from '@anytime-markdown/trail-core/domain/metrics';
+import { type NextRequest,NextResponse } from 'next/server';
+
 import { trailReaderRoute } from '../../../../lib/api-helpers';
 
 export const dynamic = 'force-dynamic';

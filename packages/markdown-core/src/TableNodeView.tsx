@@ -1,5 +1,6 @@
 "use client";
 
+import { SpreadsheetGrid } from "@anytime-markdown/spreadsheet-viewer";
 import FormatAlignCenterIcon from "@mui/icons-material/FormatAlignCenter";
 import FormatAlignLeftIcon from "@mui/icons-material/FormatAlignLeft";
 import FormatAlignRightIcon from "@mui/icons-material/FormatAlignRight";
@@ -19,13 +20,12 @@ import { BlockInlineToolbar } from "./components/codeblock/BlockInlineToolbar";
 import { DeleteBlockDialog } from "./components/codeblock/DeleteBlockDialog";
 import { EditDialogHeader } from "./components/EditDialogHeader";
 import { SearchReplaceBar } from "./components/SearchReplaceBar";
-import { SpreadsheetGrid } from "@anytime-markdown/spreadsheet-viewer";
-import { createTiptapSheetAdapter } from "./spreadsheet/TiptapSheetAdapter";
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getActionHover, getActionSelected, getBgPaper, getDivider, getErrorMain, getTextSecondary } from "./constants/colors";
 import { SMALL_CAPTION_FONT_SIZE } from "./constants/dimensions";
 import { Z_FULLSCREEN } from "./constants/zIndex";
 import { findCounterpartTableHtml, getMergeEditors } from "./contexts/MergeEditorsContext";
 import { useBlockNodeState } from "./hooks/useBlockNodeState";
+import { createTiptapSheetAdapter } from "./spreadsheet/TiptapSheetAdapter";
 import { useEditorSettingsContext } from "./useEditorSettings";
 import { moveTableColumn,moveTableRow } from "./utils/tableHelpers";
 
@@ -355,7 +355,7 @@ function TableContentArea({ showCompare, editOpen, collapsed, highlightedCompare
   if (showCompare) {
     return (
       <TableCompareView
-        highlightedCompareHtml={highlightedCompareHtml!}
+        highlightedCompareHtml={highlightedCompareHtml ?? ''}
         tableSx={tableSx}
         isDark={isDark}
         t={t}

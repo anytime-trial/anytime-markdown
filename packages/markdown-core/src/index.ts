@@ -158,5 +158,5 @@ export { ConfirmContext,ConfirmProvider } from './providers/ConfirmProvider';
 export type { DialogOptions } from './providers/types';
 
 // i18n messages
-export { enMessages as messagesEn, jaMessages as messagesJa } from './i18n';
 export type { MarkdownMessages } from './i18n';
+export { enMessages as messagesEn, jaMessages as messagesJa } from './i18n';

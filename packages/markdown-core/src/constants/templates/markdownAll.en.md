@@ -231,7 +231,7 @@ If the definition contains a URL, click the reference to open the page in a new 
 A picture is worth a thousand words. Screenshots and diagrams convey far more than text alone.\
 Use `/image` to pick a file, or `/screenshot` to capture and crop your screen. You can also add arrow, rectangle, and other annotations to inserted images.
 
-![Anytime Markdown](images/camel_markdown.png)
+![Anytime Markdown](images/anytime-markdown-128.png)
 
 ## Animated GIFs — Communicate with Motion
 

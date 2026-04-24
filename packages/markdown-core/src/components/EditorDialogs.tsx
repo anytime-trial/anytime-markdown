@@ -267,7 +267,7 @@ export const EditorDialogs = React.memo(function EditorDialogs({
         </DialogTitle>
         <DialogContent dividers>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-            <Box component="img" src={(globalThis as unknown as Record<string, unknown>).__LOGO_URI__ as string || "/images/camel_markdown.png"} alt="Anytime Markdown" sx={{ width: 40, height: 40 }} />
+            <Box component="img" src={(globalThis as unknown as Record<string, unknown>).__LOGO_URI__ as string || "/images/anytime-markdown-128.png"} alt="Anytime Markdown" sx={{ width: 40, height: 40 }} />
             <Typography variant="h6" sx={{ fontWeight: 700 }}>{t("versionName")}</Typography>
           </Box>
           <Typography variant="caption" sx={{ color: getTextSecondary(isDark) }}>v{APP_VERSION}</Typography>

@@ -1,18 +1,19 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { Alert, Box, CircularProgress, Grid, Snackbar, Typography } from '@mui/material';
 import { signIn } from 'next-auth/react';
-import { Box, Grid, Snackbar, Alert, CircularProgress, Typography } from '@mui/material';
-import { PlatformTabs, type Platform } from './components/PlatformTabs';
+import { useCallback,useEffect, useState } from 'react';
+
+import type { SpotifyTrack } from '../../lib/spotify';
+import { generatePlaylistName } from '../../lib/spotify';
+import type { YouTubeVideo } from '../../lib/youtube';
+import { generateYouTubePlaylistName } from '../../lib/youtube';
 import { CategoryTabs, type SpotifyCategory } from './components/CategoryTabs';
+import { CreatePlaylistDialog } from './components/CreatePlaylistDialog';
+import { type Platform,PlatformTabs } from './components/PlatformTabs';
+import { PlaylistFooter } from './components/PlaylistFooter';
 import { TrackCard } from './components/TrackCard';
 import { YouTubeVideoCard } from './components/YouTubeVideoCard';
-import { PlaylistFooter } from './components/PlaylistFooter';
-import { CreatePlaylistDialog } from './components/CreatePlaylistDialog';
-import { generatePlaylistName } from '../../lib/spotify';
-import { generateYouTubePlaylistName } from '../../lib/youtube';
-import type { SpotifyTrack } from '../../lib/spotify';
-import type { YouTubeVideo } from '../../lib/youtube';
 
 interface ChartsResponse { tracks: SpotifyTrack[] }
 interface NewReleasesResponse {

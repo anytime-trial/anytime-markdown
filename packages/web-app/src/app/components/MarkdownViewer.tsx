@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useLocaleSwitch } from '../LocaleProvider';
 import { usePreset, useThemeMode } from '../providers';
+import { EmbedProvidersBoundary } from '../providers/EmbedProvidersBoundary';
 
 const MarkdownEditorPage = dynamic(
   () => import('@anytime-markdown/markdown-core/src/MarkdownEditorPage'),
@@ -117,6 +118,7 @@ export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60
 
   return (
     <Box sx={{ minHeight, overflow: 'hidden' }}>
+      <EmbedProvidersBoundary>
       <MarkdownEditorPage
         key={editorKeyRef.current}
         externalContent={content}
@@ -134,6 +136,7 @@ export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60
         showFrontmatter={showFrontmatter}
         bottomOffset={bottomOffset}
       />
+      </EmbedProvidersBoundary>
     </Box>
   );
 }

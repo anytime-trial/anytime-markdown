@@ -1,6 +1,7 @@
 'use client';
 
 import { Box, Card, CardMedia, Checkbox, Typography } from '@mui/material';
+
 import type { YouTubeVideo } from '../../../lib/youtube';
 
 interface YouTubeVideoCardProps {

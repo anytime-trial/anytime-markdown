@@ -6,6 +6,26 @@
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-04-24
+
+### 追加
+
+- SSRF ガードと RSS 発見用 `rawHtml` レスポンスを備えた `/api/ogp` ルートを追加
+- Twitter 埋め込み用の `/api/oembed` ルートを追加
+- `fetchRss` プロバイダ実装付きの `/api/rss` ルートを追加
+- Web クライアント向けに `EmbedProvidersBoundary` 経由で埋め込みプロバイダを注入
+- CSP `frame-src` に埋め込みプロバイダドメイン（YouTube / Figma / Spotify / Twitter / Drawio）を追加
+- ブラウザタブのファビコンをブランドロゴに変更
+
+### 変更
+
+- 埋め込み / OGP サムネイル表示のため CSP `img-src` ですべての HTTPS 画像を許可
+- セキュリティ修正のため Next.js を 16.2.3 → 16.2.4 に更新
+
+### 修正
+
+- ESLint の import-sort 警告と非ヌルアサーションを修正
+
 ## [0.16.0] - 2026-04-23
 
 ### 追加

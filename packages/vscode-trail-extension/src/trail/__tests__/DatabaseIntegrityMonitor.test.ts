@@ -1,5 +1,5 @@
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const sqlAsmActual = require('/anytime-markdown/node_modules/sql.js/dist/sql-asm.js');
+const sqlAsmActual = require(require.resolve('sql.js/dist/sql-asm.js'));
 
 import { DatabaseIntegrityMonitor } from '../DatabaseIntegrityMonitor';
 

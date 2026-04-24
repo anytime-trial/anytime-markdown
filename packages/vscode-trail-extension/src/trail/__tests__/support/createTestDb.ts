@@ -16,7 +16,7 @@ import { TrailDatabase, InMemoryTrailStorage } from '../../TrailDatabase';
 
 // ts-jest + CommonJS のため require で直接読み込む
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const sqlAsmActual = require('/anytime-markdown/node_modules/sql.js/dist/sql-asm.js');
+const sqlAsmActual = require(require.resolve('sql.js/dist/sql-asm.js'));
 
 export async function createTestTrailDatabase(): Promise<TrailDatabase> {
   const initSqlJs = sqlAsmActual as typeof import('sql.js').default;

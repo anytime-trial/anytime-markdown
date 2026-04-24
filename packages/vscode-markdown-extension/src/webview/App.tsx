@@ -6,8 +6,10 @@ import { getVsCodeApi } from './vscodeApi';
 import { ACCENT_COLOR, ConfirmProvider, DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, STORAGE_KEY_CONTENT, STORAGE_KEY_SETTINGS } from '@anytime-markdown/markdown-core';
 import type { ThemePresetName } from '@anytime-markdown/markdown-core/src/constants/themePresets';
 import { getPreset } from '@anytime-markdown/markdown-core/src/constants/themePresets';
+import { EmbedProvidersProvider } from '@anytime-markdown/markdown-core/src/contexts/EmbedProvidersContext';
 import MarkdownEditorPage from '@anytime-markdown/markdown-core/src/MarkdownEditorPage';
 import { setLocale as setShimLocale } from './shims/next-intl';
+import { createVsCodeEmbedProviders } from './vscodeEmbedProviders';
 
 const vscode = getVsCodeApi();
 // markdown-core の EditorContextMenu から VS Code API にアクセスするため公開
@@ -414,6 +416,7 @@ export function App() {
 
   const [claudeEditing, setClaudeEditing] = useState(false);
   const [autoReload, setAutoReload] = useState(true);
+  const embedProviders = useMemo(() => createVsCodeEmbedProviders(), []);
 
   const handleModeChange = useCallback((mode: string) => {
     vscode.postMessage({ type: 'modeChanged', mode });
@@ -482,6 +485,7 @@ export function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <ConfirmProvider>
+        <EmbedProvidersProvider value={embedProviders}>
         <div style={{ position: 'relative', width: '100%', height: '100%' }}>
           <MarkdownEditorPage key={editorKey} hideToolbar sideToolbar hideSettings hideStatusBar readOnly={claudeEditing} externalCompareContent={compareContent} onCompareModeChange={handleCompareModeChange} onHeadingsChange={handleHeadingsChange} onCommentsChange={handleCommentsChange} onStatusChange={handleStatusChange} autoReload={autoReload} onModeChange={handleModeChange} themeMode={themeMode} presetName={presetName} showFrontmatter />
           {claudeEditing && (
@@ -509,6 +513,7 @@ export function App() {
             </div>
           )}
         </div>
+        </EmbedProvidersProvider>
       </ConfirmProvider>
     </ThemeProvider>
   );

@@ -1,6 +1,7 @@
-import type { NextResponse } from 'next/server';
-import { trailReaderRoute } from '../../../../lib/api-helpers';
 import type { TrailFilter } from '@anytime-markdown/trail-viewer';
+import type { NextResponse } from 'next/server';
+
+import { trailReaderRoute } from '../../../../lib/api-helpers';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;

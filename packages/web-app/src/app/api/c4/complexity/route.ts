@@ -1,11 +1,10 @@
+import type { MessageInput } from "@anytime-markdown/trail-core/c4";
+import { computeComplexityMatrix, fetchC4Model } from "@anytime-markdown/trail-core/c4";
+import { createClient } from "@supabase/supabase-js";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 
-import { computeComplexityMatrix, fetchC4Model } from "@anytime-markdown/trail-core/c4";
-import type { MessageInput } from "@anytime-markdown/trail-core/c4";
-
-import { NO_STORE_HEADERS, createC4ModelStore } from "../../../../lib/api-helpers";
+import { createC4ModelStore,NO_STORE_HEADERS } from "../../../../lib/api-helpers";
 import { resolveSupabaseEnv } from "../../../../lib/supabase-env";
 
 export const dynamic = 'force-dynamic';

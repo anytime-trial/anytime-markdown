@@ -1,12 +1,12 @@
 'use client';
 
+import { createInMemoryWorkbookAdapter } from '@anytime-markdown/spreadsheet-viewer';
 import { Box } from '@mui/material';
 import dynamic from 'next/dynamic';
 import { useMemo } from 'react';
 
 import LandingHeader from '../components/LandingHeader';
 import { useThemeMode } from '../providers';
-import { createInMemoryWorkbookAdapter } from '@anytime-markdown/spreadsheet-viewer';
 
 const SpreadsheetEditor = dynamic(
   () => import('@anytime-markdown/spreadsheet-viewer').then(m => ({ default: m.SpreadsheetEditor })),

@@ -125,6 +125,7 @@ export class ClaudeActivityTracker {
         activeElementIds: [],
         touchedElementIds: new Set(),
         plannedElementIds: new Set(),
+        touchedFiles: new Set(),
         branch: '',
         currentFile: '',
       };
@@ -157,6 +158,7 @@ export class ClaudeActivityTracker {
         activeElementIds: [],
         touchedElementIds: new Set(),
         plannedElementIds: new Set(),
+        touchedFiles: new Set(),
         branch: '',
         currentFile: '',
       };
@@ -182,6 +184,7 @@ export class ClaudeActivityTracker {
         activeElementIds: [],
         touchedElementIds: new Set(),
         plannedElementIds: new Set(),
+        touchedFiles: new Set(),
         branch: '',
         currentFile: '',
       };

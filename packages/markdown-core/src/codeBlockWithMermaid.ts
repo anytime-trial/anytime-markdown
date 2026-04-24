@@ -3,6 +3,11 @@ import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 
 import { CodeBlockNodeView } from "./MermaidNodeView";
+import {
+  EMBED_DATA_ATTR,
+  installEmbedFenceRenderer,
+  type MarkdownItLike,
+} from "./utils/embedFenceRenderer";
 
 interface MarkdownSerializerState {
   write: (text: string) => void;
@@ -15,8 +20,31 @@ export const CodeBlockWithMermaid = CodeBlockLowlight.extend({
   draggable: true,
 
   addAttributes() {
+    const parent = (this.parent?.() ?? {}) as Record<string, unknown>;
+    const parentLanguage = parent.language as Record<string, unknown> | undefined;
     return {
-      ...this.parent?.(),
+      ...parent,
+      language: {
+        ...(parentLanguage ?? {}),
+        default: null,
+        parseHTML: (element: HTMLElement) => {
+          const code = element.querySelector("code") ?? element;
+          const embedInfo = code.getAttribute(EMBED_DATA_ATTR);
+          if (embedInfo) return embedInfo;
+          const classes = (code.getAttribute("class") ?? "").split(/\s+/);
+          for (const cls of classes) {
+            if (cls.startsWith("language-")) {
+              return cls.slice("language-".length);
+            }
+          }
+          return null;
+        },
+        renderHTML: (attrs: { language?: string | null }) => {
+          if (!attrs.language) return {};
+          const first = attrs.language.split(/\s+/)[0];
+          return { class: `language-${first}` };
+        },
+      },
       collapsed: { default: false, rendered: false },
       codeCollapsed: { default: true, rendered: false },
       width: { default: null, rendered: false },
@@ -46,7 +74,11 @@ export const CodeBlockWithMermaid = CodeBlockLowlight.extend({
             state.closeBlock(node);
           }
         },
-        parse: {},
+        parse: {
+          setup(md: MarkdownItLike) {
+            installEmbedFenceRenderer(md);
+          },
+        },
       },
     };
   },

@@ -1,6 +1,7 @@
 'use client';
 
 import { Box, Card, CardMedia, Checkbox, Typography } from '@mui/material';
+
 import type { SpotifyTrack } from '../../../lib/spotify';
 
 interface TrackCardProps {

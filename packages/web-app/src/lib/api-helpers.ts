@@ -3,9 +3,8 @@
 // /api/* ルートで共通利用する小さなヘルパ群。
 // noStore ヘッダ、SupabaseTrailReader を使った薄いラッパー、SupabaseC4ModelStore 生成。
 
-import { NextResponse } from 'next/server';
-
 import { SupabaseC4ModelStore, SupabaseTrailReader } from '@anytime-markdown/trail-viewer/supabase';
+import { NextResponse } from 'next/server';
 
 import { resolveSupabaseEnv } from './supabase-env';
 

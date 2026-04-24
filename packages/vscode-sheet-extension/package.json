@@ -7,17 +7,12 @@
   "publisher": "anytime-trial",
   "repository": { "type": "git", "url": "https://github.com/anytime-trial/anytime-markdown.git" },
   "engines": { "vscode": "^1.109.0" },
-  "icon": "images/camel_sheet.png",
+  "icon": "images/anytime-sheet-128.png",
   "categories": ["Visualization"],
   "keywords": ["spreadsheet", "csv", "tsv", "sheet"],
   "activationEvents": [],
   "main": "./dist/extension.js",
   "contributes": {
-    "viewsContainers": {
-      "activitybar": [
-        { "id": "anytimeSheet", "title": "%viewsContainers.anytimeSheet.title%", "icon": "images/sheet-activitybar.svg" }
-      ]
-    },
     "customEditors": [
       {
         "viewType": "anytimeSheet",

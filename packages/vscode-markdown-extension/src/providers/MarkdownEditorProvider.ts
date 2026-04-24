@@ -664,6 +664,88 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       }
     };
 
+    const handleFetchOgp = async (message: Record<string, unknown>) => {
+      const requestId = typeof message.requestId === 'string' ? message.requestId : '';
+      const url = typeof message.url === 'string' ? message.url : '';
+      if (!requestId || !url) return;
+      try {
+        const { parseOgpHtml, assertSafeUrl } = await import('./embedFetchHelpers.js');
+        await assertSafeUrl(url);
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5_000);
+        const res = await fetch(url, {
+          signal: controller.signal,
+          headers: { 'User-Agent': 'anytime-markdown-ogp/1.0' },
+        });
+        clearTimeout(timeout);
+        if (!res.ok) throw new Error(`upstream-${res.status}`);
+        const ct = res.headers.get('content-type') ?? '';
+        if (!ct.includes('html')) throw new Error('unsupported-content');
+        const buf = await res.arrayBuffer();
+        if (buf.byteLength > 2 * 1024 * 1024) throw new Error('too-large');
+        const html = new TextDecoder().decode(Buffer.from(buf));
+        const data = parseOgpHtml(html, url);
+        ctx.webviewPanel.webview.postMessage({ type: 'ogpResult', requestId, data });
+      } catch (err) {
+        const error = err instanceof Error ? err.message : 'fetch-failed';
+        ctx.webviewPanel.webview.postMessage({ type: 'ogpResult', requestId, error });
+      }
+    };
+
+    const handleFetchOembed = async (message: Record<string, unknown>) => {
+      const requestId = typeof message.requestId === 'string' ? message.requestId : '';
+      const url = typeof message.url === 'string' ? message.url : '';
+      if (!requestId || !url) return;
+      try {
+        let parsed: URL;
+        try {
+          parsed = new URL(url);
+        } catch {
+          throw new Error('invalid-url');
+        }
+        const allowed = new Set(['twitter.com', 'x.com', 'www.twitter.com', 'www.x.com']);
+        if (!allowed.has(parsed.hostname)) throw new Error('host-not-allowed');
+        const endpoint = new URL('https://publish.twitter.com/oembed');
+        endpoint.searchParams.set('url', url);
+        endpoint.searchParams.set('omit_script', 'true');
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5_000);
+        const res = await fetch(endpoint.toString(), {
+          signal: controller.signal,
+          headers: { 'User-Agent': 'anytime-markdown-oembed/1.0' },
+        });
+        clearTimeout(timeout);
+        if (!res.ok) throw new Error(`upstream-${res.status}`);
+        const body = (await res.json()) as { html?: string; author_name?: string };
+        if (typeof body.html !== 'string') throw new Error('no-html');
+        const data = {
+          url,
+          provider: 'twitter' as const,
+          // webview 側で sanitizeTweetHtml にかけて描画するため、ここでは生 HTML を返す
+          html: body.html,
+          authorName: body.author_name ?? null,
+        };
+        ctx.webviewPanel.webview.postMessage({ type: 'oembedResult', requestId, data });
+      } catch (err) {
+        const error = err instanceof Error ? err.message : 'fetch-failed';
+        ctx.webviewPanel.webview.postMessage({ type: 'oembedResult', requestId, error });
+      }
+    };
+
+    const handleFetchRss = async (message: Record<string, unknown>) => {
+      const requestId = typeof message.requestId === 'string' ? message.requestId : '';
+      const feedUrl = typeof message.feedUrl === 'string' ? message.feedUrl : '';
+      if (!requestId || !feedUrl) return;
+      try {
+        const { fetchRssLatest } = await import('./rssFetch.js');
+        const data = await fetchRssLatest(feedUrl);
+        ctx.webviewPanel.webview.postMessage({ type: 'rssResult', requestId, data });
+      } catch (err) {
+        const error = err instanceof Error ? err.message : 'fetch-failed';
+        ctx.webviewPanel.webview.postMessage({ type: 'rssResult', requestId, error });
+      }
+    };
+
     webviewPanel.webview.onDidReceiveMessage(async (message: { type: string; [key: string]: unknown }) => {
       switch (message.type) {
         case 'ready': handleReady(message); break;
@@ -693,6 +775,9 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
           }
           break;
         case 'save': await handleSave(); break;
+        case 'fetchOgp': await handleFetchOgp(message); break;
+        case 'fetchOembed': await handleFetchOembed(message); break;
+        case 'fetchRss': await handleFetchRss(message); break;
       }
     });
 
@@ -738,7 +823,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       vscode.Uri.joinPath(this.context.extensionUri, 'dist', 'webview.js')
     );
     const logoUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.context.extensionUri, 'images', 'camel_markdown.png')
+      vscode.Uri.joinPath(this.context.extensionUri, 'images', 'anytime-markdown-128.png')
     );
     const nonce = randomBytes(16).toString('hex');
 

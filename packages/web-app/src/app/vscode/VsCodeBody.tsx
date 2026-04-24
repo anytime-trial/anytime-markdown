@@ -295,7 +295,7 @@ export default function VsCodeBody() {
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, mb: { xs: 6, md: 8 } }}>
             <Box
               component="img"
-              src="/images/camel_trail.png"
+              src="/images/anytime-control-256.png"
               alt="Anytime Trail icon"
               sx={{ width: 48, height: 48, borderRadius: 2 }}
             />
@@ -406,7 +406,7 @@ export default function VsCodeBody() {
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, mb: { xs: 6, md: 8 } }}>
             <Box
               component="img"
-              src="/images/camel_markdown.png"
+              src="/images/anytime-markdown-128.png"
               alt="Anytime Markdown icon"
               sx={{ width: 48, height: 48, borderRadius: 2 }}
             />

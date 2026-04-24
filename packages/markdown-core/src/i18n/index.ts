@@ -8,4 +8,4 @@ export type MarkdownMessages = typeof jaMessages;
 const _enAssertion: MarkdownMessages = enMessages;
 void _enAssertion;
 
-export { jaMessages, enMessages };
+export { enMessages,jaMessages };

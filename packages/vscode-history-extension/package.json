@@ -29,7 +29,7 @@
     "onView:anytimeHistory.graph",
     "onView:anytimeHistory.timeline"
   ],
-  "icon": "images/camel_git.png",
+  "icon": "images/anytime-history-128.png",
   "main": "./dist/extension.js",
   "contributes": {
     "viewsContainers": {

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+
 import { getClientCredentialsToken } from "../../../../lib/spotify";
 
 export async function GET() {

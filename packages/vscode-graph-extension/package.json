@@ -2,7 +2,7 @@
   "name": "anytime-graph",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {
@@ -12,7 +12,7 @@
   "engines": {
     "vscode": "^1.109.0"
   },
-  "icon": "images/camel_graph.png",
+  "icon": "images/anytime-graph-128.png",
   "categories": [
     "Visualization"
   ],

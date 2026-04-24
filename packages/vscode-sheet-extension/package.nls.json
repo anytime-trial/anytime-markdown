@@ -1,7 +1,6 @@
 {
   "displayName": "Anytime Sheet",
   "description": "Spreadsheet editor for .sheet, .csv and .tsv files in VS Code",
-  "viewsContainers.anytimeSheet.title": "Anytime Sheet",
   "customEditor.displayName": "Sheet Editor",
   "command.newSheet": "Anytime Sheet: New Sheet"
 }

@@ -14,6 +14,7 @@ export const metadata: Metadata = {
   description: 'Spec-Driven Development (SDD) Markdown editor with AI diff highlighting, image annotation, and image prompt support. WYSIWYG editing, Mermaid/PlantUML diagrams, Git integration. Visual Studio Code extension available. ハーネスエンジニアリング',
   manifest: '/manifest.json',
   icons: [
+    { rel: 'icon', url: '/icon.svg', type: 'image/svg+xml' },
     { rel: 'icon', url: '/favicon.ico', sizes: '32x32' },
     { rel: 'apple-touch-icon', url: '/icons/apple-touch-icon.png', sizes: '180x180' },
   ],

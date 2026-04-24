@@ -1,4 +1,5 @@
 import { Box, Container, Typography } from '@mui/material';
+
 import LandingHeader from '../components/LandingHeader';
 import { SpotifyPageContent } from './SpotifyPageContent';
 

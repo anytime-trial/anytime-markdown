@@ -1,13 +1,14 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { Alert, Box, CircularProgress, Grid, Snackbar, Typography } from '@mui/material';
 import { signIn } from 'next-auth/react';
-import { Box, Grid, Snackbar, Alert, CircularProgress, Typography } from '@mui/material';
-import { CategoryTabs, type SpotifyCategory } from './components/CategoryTabs';
-import { TrackCard } from './components/TrackCard';
-import { PlaylistFooter } from './components/PlaylistFooter';
-import { CreatePlaylistDialog } from './components/CreatePlaylistDialog';
+import { useCallback,useEffect, useState } from 'react';
+
 import type { SpotifyTrack } from '../../lib/spotify';
+import { CategoryTabs, type SpotifyCategory } from './components/CategoryTabs';
+import { CreatePlaylistDialog } from './components/CreatePlaylistDialog';
+import { PlaylistFooter } from './components/PlaylistFooter';
+import { TrackCard } from './components/TrackCard';
 
 interface ChartsResponse { tracks: SpotifyTrack[] }
 interface NewReleasesResponse {

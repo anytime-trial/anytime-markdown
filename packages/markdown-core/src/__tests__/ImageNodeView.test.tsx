@@ -188,20 +188,10 @@ describe("ImageNodeView", () => {
     expect(toolbar.querySelector("[data-testid='WarningAmberIcon']")).toBeTruthy();
   });
 
-  test("alt がある → alt テキスト表示", () => {
+  test("alt がある → warning アイコン非表示", () => {
     setup({ isSelected: true });
-    expect(screen.getByText("test image")).toBeTruthy();
-  });
-
-  // --- src display ---
-  test("base64 src → (base64) 表示", () => {
-    setup({ nodeAttrs: { src: "data:image/png;base64,abc123" }, isSelected: true });
-    expect(screen.getByText("(base64)")).toBeTruthy();
-  });
-
-  test("通常 src → URL 表示", () => {
-    setup({ isSelected: true });
-    expect(screen.getByText("(https://example.com/image.png)")).toBeTruthy();
+    const toolbar = screen.getByRole("toolbar");
+    expect(toolbar.querySelector("[data-testid='WarningAmberIcon']")).toBeFalsy();
   });
 
   // --- resize handle ---

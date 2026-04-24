@@ -9,6 +9,7 @@ import { useTranslations } from 'next-intl';
 import LandingHeader from '../components/LandingHeader';
 import { useLocaleSwitch } from '../LocaleProvider';
 import { usePreset, useThemeMode } from '../providers';
+import { EmbedProvidersBoundary } from '../providers/EmbedProvidersBoundary';
 import { useEditorPage } from './useEditorPage';
 
 function EditorLoading() {
@@ -67,6 +68,7 @@ export default function Page() {
       <LandingHeader />
       <Box id="md-page-wrapper" sx={{ display: "flex", flex: 1, overflow: "hidden" }}>
       <Box sx={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
+        <EmbedProvidersBoundary>
         <MarkdownEditorPage
           key={editorKey}
           themeMode={themeMode}
@@ -91,6 +93,7 @@ export default function Page() {
           gridRows={process.env.NEXT_PUBLIC_GRID_ROWS ? Number(process.env.NEXT_PUBLIC_GRID_ROWS) : undefined}
           gridCols={process.env.NEXT_PUBLIC_GRID_COLS ? Number(process.env.NEXT_PUBLIC_GRID_COLS) : undefined}
         />
+        </EmbedProvidersBoundary>
       </Box>
       <Snackbar
         open={!!ssoSnackbar}
