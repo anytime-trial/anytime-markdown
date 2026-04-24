@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-04-24
+
+### Changed
+
+- Update extension icon and marketplace logo to `anytime-graph-128`
+
+### Graph Core (graph-core)
+
+- Add tests for `splitManualTopBottom`, `packGroupMembers`, and nested frame layout
+
 ## [0.2.0] - 2026-04-23
 
 ### Added

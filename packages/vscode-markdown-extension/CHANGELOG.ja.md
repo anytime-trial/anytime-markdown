@@ -6,6 +6,24 @@
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-04-24
+
+### 追加
+
+- 拡張機能メッセージング経由で Webview に埋め込みプロバイダを注入（`fetchOgp` / `fetchOembed` / `fetchRss` プロキシ）
+- OGP / SSRF ヘルパーと `rssFetch` の実装を拡張内にインライン化し `rootDir` 制約を満たす
+- 拡張アイコンと Marketplace ロゴを `anytime-markdown-128` に刷新
+- README を言語リンクと AI ガターハイライトセクション付きに更新
+
+### Editor Core (markdown-core)
+
+- URL 判定・SSRF ガード・プロバイダ IF を含む埋め込みブロック基盤を追加
+- OGP カード・YouTube・Figma・Spotify・Twitter・Drawio の埋め込みノードビューを追加
+- `/embed` スラッシュコマンドと埋め込み編集ダイアログを追加
+- 埋め込み更新検知とバッジ UI を追加（RSS 発見・OGP / RSS フィンガープリント・既読ストア）
+- カードバリアントの image スタイル幅リサイズと Markdown ラウンドトリップでの幅永続化に対応
+- `imageRow` を grid から flex に切り替え、`block` 表示に戻して埋め込みの隙間を解消
+
 ## [0.12.0] - 2026-04-23
 
 ### Editor Core (markdown-core)

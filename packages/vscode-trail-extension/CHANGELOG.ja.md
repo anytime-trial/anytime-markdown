@@ -6,6 +6,22 @@
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-04-24
+
+### 変更
+
+- README をビジョンと現状提供機能の構成に再編成
+- 拡張アイコンと Marketplace ロゴを `anytime-control-256` に刷新
+
+### 修正
+
+- `TrailDataServer` のパストラバーサル脆弱性を修正（パス処理を堅牢化）
+- `PerAgentState` 初期化に不足していた `touchedFiles` フィールドを追加
+
+### Trail Core (trail-core)
+
+- コード変更なし（拡張機能のバージョンに揃える）
+
 ## [0.9.0] - 2026-04-23
 
 ### 追加

@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-04-24
+
+### Added
+
+- Embed block system: URL classifier, info string parser, SSRF guard, `EmbedProvider` interface
+- `EmbedProviders` context with `useEmbedData` hook (LocalStorage cache, in-flight de-duplication)
+- Embed node views: `OgpCardView` (card / compact), `YouTubeEmbedView`, `FigmaEmbedView`, `SpotifyEmbedView`, `TwitterEmbedView` (widgets.js), `DrawioEmbedView`
+- `EmbedNodeView` dispatcher and `EmbedBlock` codeBlock routing
+- `/embed` slash command and embed edit dialog
+- Embed update detection: `embedSeenStore`, OGP / RSS fingerprint utilities, `rssDiscovery`, `rssParser`, `fetchRss` provider interface, `embedUpdateCheck` entry point with badge UI
+- Tweet HTML sanitizer, OGP HTML parser
+- Image-style width resize for embed card variant; width persisted through the embed info string
+
+### Fixed
+
+- Preserve full embed info string through markdown roundtrip
+- Restore embed block layout from `inline-block` `fit-content` to `block`
+- Use flex instead of grid for `imageRow`; apply `fit-content` to the inner box to eliminate gaps
+- Use the Web Crypto API directly and polyfill jsdom `TextEncoder` / `crypto` for node tests
+
+### Changed
+
+- Tighten embed update detection internals
+
 ## [0.12.0] - 2026-04-23
 
 ### Added

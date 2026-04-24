@@ -99,10 +99,15 @@ describe("middleware", () => {
       expect(csp).toContain("default-src 'self'");
     });
 
-    it("blocks frames and objects", () => {
+    it("restricts frames to embed providers and blocks objects", () => {
       middleware(createMockRequest());
       const csp = mockResponseHeaders.get("Content-Security-Policy")!;
-      expect(csp).toContain("frame-src 'none'");
+      expect(csp).toContain("frame-src 'self'");
+      expect(csp).toContain("https://www.youtube.com");
+      expect(csp).toContain("https://www.figma.com");
+      expect(csp).toContain("https://open.spotify.com");
+      expect(csp).toContain("https://platform.twitter.com");
+      expect(csp).toContain("https://viewer.diagrams.net");
       expect(csp).toContain("object-src 'none'");
     });
   });

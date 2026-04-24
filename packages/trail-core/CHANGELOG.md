@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-04-24
+
+### Changed
+
+- Version aligned with `vscode-trail-extension` release (no code changes in `trail-core`)
+
 ## [0.9.0] - 2026-04-23
 
 ### Added

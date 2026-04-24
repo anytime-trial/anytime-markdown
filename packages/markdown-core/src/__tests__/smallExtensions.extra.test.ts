@@ -341,9 +341,9 @@ describe("CodeBlockWithMermaid (codeBlockWithMermaid)", () => {
       expect(output).not.toContain("```");
     });
 
-    it("parse is empty object", () => {
+    it("parse exposes a setup hook for the embed fence renderer", () => {
       const storage = getStorage(CodeBlockWithMermaid);
-      expect(storage.markdown.parse).toEqual({});
+      expect(typeof storage.markdown.parse.setup).toBe("function");
     });
   });
 });

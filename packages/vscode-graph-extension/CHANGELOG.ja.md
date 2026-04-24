@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-04-24
+
+### 変更
+
+- 拡張アイコンと Marketplace ロゴを `anytime-graph-128` に刷新
+
+### Graph Core (graph-core)
+
+- `splitManualTopBottom`・`packGroupMembers`・ネストしたフレームレイアウトのテストを追加
+
 ## [0.2.0] - 2026-04-23
 
 ### 追加

@@ -7,6 +7,30 @@
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-04-24
+
+### 追加
+
+- 埋め込みブロック基盤: URL 判定、info string パーサー、SSRF ガード、`EmbedProvider` インターフェース
+- `EmbedProviders` コンテキストと `useEmbedData` フック（LocalStorage キャッシュ、同一 URL リクエストの in-flight 重複排除）
+- 埋め込みノードビュー: `OgpCardView`（card / compact）、`YouTubeEmbedView`、`FigmaEmbedView`、`SpotifyEmbedView`、`TwitterEmbedView`（widgets.js）、`DrawioEmbedView`
+- `EmbedNodeView` ディスパッチャと codeBlock → `EmbedBlock` のルーティング
+- `/embed` スラッシュコマンドと埋め込み編集ダイアログ
+- 埋め込み更新検知: `embedSeenStore`、OGP / RSS フィンガープリントユーティリティ、`rssDiscovery`、`rssParser`、`fetchRss` プロバイダ IF、`embedUpdateCheck` エントリポイントとバッジ UI
+- ツイート HTML サニタイザー、OGP HTML パーサー
+- 埋め込みカードバリアントの image スタイル幅リサイズ（info string に幅を永続化）
+
+### 修正
+
+- 埋め込み info string を Markdown ラウンドトリップで保持するように修正
+- 埋め込みブロックの幅指定を `inline-block` / `fit-content` から `block` に戻す
+- `imageRow` を grid から flex に変更し、内側 Box に `fit-content` を適用して隙間を解消
+- Web Crypto API を直接使用し、jsdom の `TextEncoder` / `crypto` をポリフィル
+
+### 変更
+
+- 埋め込み更新検知の内部実装を整理
+
 ## [0.12.0] - 2026-04-23
 
 ### 追加
