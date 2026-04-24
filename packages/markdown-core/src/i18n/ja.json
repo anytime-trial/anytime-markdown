@@ -451,6 +451,7 @@
     "slashCodeBlock": "コードブロック",
     "slashTable": "テーブル",
     "slashHorizontalRule": "区切り線",
+    "slashEmbed": "URL 埋め込み（OGP カード）",
     "slashMermaid": "Mermaid 図",
     "slashPlantUml": "PlantUML 図",
     "slashMath": "数式",

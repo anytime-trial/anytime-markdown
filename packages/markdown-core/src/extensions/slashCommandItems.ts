@@ -13,6 +13,7 @@ import GifBoxIcon from "@mui/icons-material/GifBox";
 import HorizontalRuleIcon from "@mui/icons-material/HorizontalRule";
 import ImageIcon from "@mui/icons-material/Image";
 import InfoIcon from "@mui/icons-material/Info";
+import LinkIcon from "@mui/icons-material/Link";
 import IntegrationInstructionsIcon from "@mui/icons-material/IntegrationInstructions";
 import Looks3Icon from "@mui/icons-material/Looks3";
 import Looks4Icon from "@mui/icons-material/Looks4";
@@ -194,6 +195,15 @@ export const slashCommandItems: SlashCommandItem[] = [
     keywords: ["hr", "divider", "horizontal", "rule", "区切り", "水平線"],
     action: (editor) => {
       editor.chain().focus().setHorizontalRule().run();
+    },
+  },
+  {
+    id: "embed",
+    labelKey: "slashEmbed",
+    icon: React.createElement(LinkIcon, { fontSize: "small" }),
+    keywords: ["embed", "ogp", "url", "link", "bookmark", "カード", "埋め込み"],
+    action: (editor) => {
+      editor.chain().focus().setCodeBlock({ language: "embed" }).updateAttributes("codeBlock", { autoEditOpen: true }).run();
     },
   },
   {

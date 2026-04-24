@@ -451,6 +451,7 @@
     "slashCodeBlock": "Code Block",
     "slashTable": "Table",
     "slashHorizontalRule": "Divider",
+    "slashEmbed": "URL Embed (OGP Card)",
     "slashMermaid": "Mermaid Diagram",
     "slashPlantUml": "PlantUML Diagram",
     "slashMath": "Math Equation",
