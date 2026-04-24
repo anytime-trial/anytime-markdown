@@ -15,6 +15,7 @@ describe("TwitterEmbedView", () => {
                 html: '<blockquote class="twitter-tweet"><p>hi</p></blockquote>',
                 authorName: "user",
             }),
+            fetchRss: jest.fn(),
         };
         const { container } = render(
             <TwitterEmbedView
@@ -32,6 +33,7 @@ describe("TwitterEmbedView", () => {
         const providers: EmbedProviders = {
             fetchOgp: jest.fn(),
             fetchOembed: jest.fn().mockRejectedValue(new Error("boom")),
+            fetchRss: jest.fn(),
         };
         const { container } = render(
             <TwitterEmbedView

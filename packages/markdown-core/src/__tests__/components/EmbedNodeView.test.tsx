@@ -13,6 +13,7 @@ const makeProviders = (): EmbedProviders => ({
         favicon: null,
     }),
     fetchOembed: jest.fn(),
+    fetchRss: jest.fn(),
 });
 
 describe("EmbedNodeView", () => {

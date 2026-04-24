@@ -19,6 +19,7 @@ describe("useOgpData", () => {
         const providers: EmbedProviders = {
             fetchOgp: jest.fn().mockResolvedValue(makeOgp("https://a.example", "A")),
             fetchOembed: jest.fn(),
+            fetchRss: jest.fn(),
         };
         const { result } = renderHook(() => useOgpData("https://a.example", providers));
         expect(result.current.loading).toBe(true);
@@ -31,6 +32,7 @@ describe("useOgpData", () => {
         const providers: EmbedProviders = {
             fetchOgp: jest.fn().mockRejectedValue(new Error("boom")),
             fetchOembed: jest.fn(),
+            fetchRss: jest.fn(),
         };
         const { result } = renderHook(() => useOgpData("https://err.example", providers));
         await waitFor(() => expect(result.current.loading).toBe(false));
@@ -42,6 +44,7 @@ describe("useOgpData", () => {
         const providers: EmbedProviders = {
             fetchOgp: jest.fn().mockResolvedValue(makeOgp("https://cached.example", "C")),
             fetchOembed: jest.fn(),
+            fetchRss: jest.fn(),
         };
         const { result: r1, unmount } = renderHook(() =>
             useOgpData("https://cached.example", providers),
