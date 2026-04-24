@@ -537,6 +537,25 @@ export class TrailDatabase {
 
     this.migrateTimestampsToUTC(db);
     this.migrateToolUseResult(db);
+    this.migrateMessageCommitsToUserUuid(db);
+  }
+
+  /**
+   * 旧 matchCommitsToMessages は assistant メッセージ UUID を message_commits.message_uuid に
+   * 保存していたため、Lead Time / Commit Success Rate の計算（user UUID と突合）が常に空になる
+   * 不具合があった。既存データを破棄し、次回同期で user UUID ベースで再構築する。
+   */
+  private migrateMessageCommitsToUserUuid(db: Database): void {
+    db.run('CREATE TABLE IF NOT EXISTS _migrations (key TEXT PRIMARY KEY)');
+    const done = db.exec("SELECT 1 FROM _migrations WHERE key = 'message_commits_to_user_uuid'");
+    if (done[0]?.values?.length) return;
+
+    TrailLogger.info(
+      '[Migration] message_commits_to_user_uuid: clearing message_commits and resetting resolved timestamps for rebuild',
+    );
+    db.run('DELETE FROM message_commits');
+    db.run('UPDATE sessions SET message_commits_resolved_at = NULL');
+    db.run("INSERT INTO _migrations (key) VALUES ('message_commits_to_user_uuid')");
   }
 
   private migrateMessageCommitsSchema(db: Database): void {
