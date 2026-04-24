@@ -669,7 +669,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       const url = typeof message.url === 'string' ? message.url : '';
       if (!requestId || !url) return;
       try {
-        const { parseOgpHtml, assertSafeUrl } = await import('@anytime-markdown/markdown-core/embed-utils');
+        const { parseOgpHtml, assertSafeUrl } = await import('./embedFetchHelpers.js');
         await assertSafeUrl(url);
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 5_000);
