@@ -25,6 +25,7 @@ import {
   CREATE_MESSAGE_TOOL_CALLS,
   CREATE_MESSAGE_TOOL_CALLS_INDEXES,
   CREATE_MESSAGE_COMMITS,
+  CREATE_COMMIT_FILES,
   CREATE_C4_MANUAL_ELEMENTS,
   CREATE_C4_MANUAL_RELATIONSHIPS,
   CREATE_C4_MANUAL_GROUPS,
@@ -470,6 +471,8 @@ export class TrailDatabase {
     db.run(CREATE_SKILL_MODELS_TABLE);
     db.run(CREATE_SKILL_MODELS_RESOLVED_VIEW);
     db.run(CREATE_MESSAGE_COMMITS);
+    db.run(CREATE_COMMIT_FILES);
+    db.run('CREATE INDEX IF NOT EXISTS idx_commit_files_hash ON commit_files(commit_hash)');
     for (const sql of [...CREATE_INDEXES, ...CREATE_RELEASE_INDEXES]) {
       db.run(sql);
     }
@@ -538,6 +541,62 @@ export class TrailDatabase {
     this.migrateTimestampsToUTC(db);
     this.migrateToolUseResult(db);
     this.migrateMessageCommitsToUserUuid(db);
+  }
+
+  /**
+   * 既存 session_commits の各コミットに対して変更ファイルを commit_files にバックフィルする。
+   * ai-first-try-success-rate 指標がファイル overlap で failure 判定するために必要。
+   * importAll の先頭で gitRoot が確定している状態で呼ぶ。
+   */
+  private backfillCommitFiles(gitRoot: string, onProgress?: (msg: string) => void): void {
+    const db = this.ensureDb();
+    db.run('CREATE TABLE IF NOT EXISTS _migrations (key TEXT PRIMARY KEY)');
+    const done = db.exec("SELECT 1 FROM _migrations WHERE key = 'commit_files_backfill_v1'");
+    if (done[0]?.values?.length) return;
+
+    const commitRes = db.exec(
+      'SELECT DISTINCT commit_hash FROM session_commits WHERE NOT EXISTS (SELECT 1 FROM commit_files cf WHERE cf.commit_hash = session_commits.commit_hash)',
+    );
+    const hashes = commitRes[0]?.values.map((row) => row[0] as string) ?? [];
+    if (hashes.length === 0) {
+      db.run("INSERT OR IGNORE INTO _migrations (key) VALUES ('commit_files_backfill_v1')");
+      return;
+    }
+
+    onProgress?.(`Backfilling commit files for ${hashes.length} commits...`);
+    TrailLogger.info(`[Migration] commit_files_backfill_v1: backfilling file lists for ${hashes.length} commits`);
+
+    const insertStmt = db.prepare('INSERT OR IGNORE INTO commit_files (commit_hash, file_path) VALUES (?, ?)');
+    try {
+      let processed = 0;
+      let skipped = 0;
+      for (const hash of hashes) {
+        try {
+          const out = execFileSync('git', [
+            'show', '--no-patch', '--format=', '--numstat', hash,
+          ], { encoding: 'utf-8', timeout: 5_000, cwd: gitRoot });
+          for (const line of out.split('\n')) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            const parts = trimmed.split('\t');
+            const filePath = parts[2];
+            if (filePath) insertStmt.run([hash, filePath]);
+          }
+          processed++;
+        } catch {
+          // Commit may have been garbage-collected or outside this repo — skip.
+          skipped++;
+        }
+        if (processed % 50 === 0) {
+          onProgress?.(`Backfilling commit files: ${processed}/${hashes.length}`);
+        }
+      }
+      TrailLogger.info(`[Migration] commit_files_backfill_v1: processed=${processed}, skipped=${skipped}`);
+    } finally {
+      insertStmt.free();
+    }
+
+    db.run("INSERT OR IGNORE INTO _migrations (key) VALUES ('commit_files_backfill_v1')");
   }
 
   /**
@@ -1351,6 +1410,7 @@ export class TrailDatabase {
       let filesChanged = 0;
       let linesAdded = 0;
       let linesDeleted = 0;
+      const filePaths: string[] = [];
       try {
         const numstat = execFileSync('git', [
           'diff', '--numstat', `${hash}^..${hash}`,
@@ -1359,10 +1419,14 @@ export class TrailDatabase {
         for (const line of numstat.split('\n')) {
           const trimmed = line.trim();
           if (!trimmed) continue;
-          const [added, deleted] = trimmed.split('\t');
+          const parts = trimmed.split('\t');
+          const added = parts[0];
+          const deleted = parts[1];
+          const filePath = parts[2];
           filesChanged++;
           if (added !== '-') linesAdded += Number.parseInt(added, 10) || 0;
           if (deleted !== '-') linesDeleted += Number.parseInt(deleted, 10) || 0;
+          if (filePath) filePaths.push(filePath);
         }
       } catch {
         // Initial commit or other error — skip numstat
@@ -1372,6 +1436,20 @@ export class TrailDatabase {
         sessionId, hash, subject, author, committedAt,
         isAiAssisted, filesChanged, linesAdded, linesDeleted,
       ]);
+
+      if (filePaths.length > 0) {
+        const filesStmt = this.ensureDb().prepare(
+          'INSERT OR IGNORE INTO commit_files (commit_hash, file_path) VALUES (?, ?)',
+        );
+        try {
+          for (const fp of filePaths) {
+            filesStmt.run([hash, fp]);
+          }
+        } finally {
+          filesStmt.free();
+        }
+      }
+
       count++;
     }
 
@@ -1727,6 +1805,11 @@ export class TrailDatabase {
     onProgress?.('Rebuilding session stats...', 0);
     this.rebuildSessionStats();
     onProgress?.('Session stats rebuilt', 0);
+
+    // Phase 2a: backfill commit_files (one-time migration for existing commits)
+    if (gitRoot) {
+      this.backfillCommitFiles(gitRoot, (msg) => onProgress?.(msg, 0));
+    }
 
     // Phase 2: backfill message_commits
     onProgress?.('Backfilling message_commits...', 0);
@@ -3581,11 +3664,11 @@ export class TrailDatabase {
     releases: Array<{ id: string; tag_date: string; commit_hashes: string[]; fix_count: number }>;
     messages: Array<{ uuid: string; created_at: string; role: string; type: string }>;
     messageCommits: Array<{ message_uuid: string; detected_at: string; match_confidence: string }>;
-    commits: Array<{ hash: string; subject: string; committed_at: string; is_ai_assisted: boolean }>;
+    commits: Array<{ hash: string; subject: string; committed_at: string; is_ai_assisted: boolean; files: string[] }>;
     previousReleases: Array<{ id: string; tag_date: string; commit_hashes: string[]; fix_count: number }>;
     previousMessages: Array<{ uuid: string; created_at: string; role: string; type: string }>;
     previousMessageCommits: Array<{ message_uuid: string; detected_at: string; match_confidence: string }>;
-    previousCommits: Array<{ hash: string; subject: string; committed_at: string; is_ai_assisted: boolean }>;
+    previousCommits: Array<{ hash: string; subject: string; committed_at: string; is_ai_assisted: boolean; files: string[] }>;
   } {
     const db = this.ensureDb();
 
@@ -3643,16 +3726,39 @@ export class TrailDatabase {
       const res = db.exec(
         `SELECT commit_hash, commit_message, committed_at, is_ai_assisted
          FROM session_commits
-         WHERE committed_at >= ? AND committed_at <= ?`,
+         WHERE committed_at >= ? AND committed_at <= ?
+         GROUP BY commit_hash`,
         [f, t],
       );
       if (!res[0]) return [];
-      return res[0].values.map((row) => ({
+      const commits = res[0].values.map((row) => ({
         hash: row[0] as string,
         subject: (row[1] as string ?? '').split('\n')[0],
         committed_at: row[2] as string,
         is_ai_assisted: (row[3] as number) === 1,
+        files: [] as string[],
       }));
+      if (commits.length === 0) return commits;
+
+      const placeholders = commits.map(() => '?').join(',');
+      const filesRes = db.exec(
+        `SELECT commit_hash, file_path FROM commit_files WHERE commit_hash IN (${placeholders})`,
+        commits.map((c) => c.hash),
+      );
+      if (filesRes[0]) {
+        const byHash = new Map<string, string[]>();
+        for (const row of filesRes[0].values) {
+          const hash = row[0] as string;
+          const path = row[1] as string;
+          const list = byHash.get(hash);
+          if (list) list.push(path);
+          else byHash.set(hash, [path]);
+        }
+        for (const c of commits) {
+          c.files = byHash.get(c.hash) ?? [];
+        }
+      }
+      return commits;
     };
 
     return {

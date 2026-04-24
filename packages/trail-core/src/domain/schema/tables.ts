@@ -99,6 +99,12 @@ export const CREATE_SESSION_COMMITS = `CREATE TABLE IF NOT EXISTS session_commit
   PRIMARY KEY (session_id, commit_hash)
 )`;
 
+export const CREATE_COMMIT_FILES = `CREATE TABLE IF NOT EXISTS commit_files (
+  commit_hash TEXT NOT NULL,
+  file_path TEXT NOT NULL,
+  PRIMARY KEY (commit_hash, file_path)
+)`;
+
 export const CREATE_MESSAGE_COMMITS = `CREATE TABLE IF NOT EXISTS message_commits (
   message_uuid TEXT NOT NULL,
   session_id TEXT NOT NULL REFERENCES sessions(id),

@@ -10,6 +10,7 @@ type Commit = {
   subject: string;
   committed_at: string;
   is_ai_assisted: boolean;
+  files: string[];
 };
 
 type Inputs = {
@@ -22,6 +23,18 @@ function isFailureCommit(subject: string): boolean {
   if (/^fix(\([^)]*\))?[!]?:\s/.test(lower)) return true;
   if (/^revert(\([^)]*\))?[!]?:\s/.test(lower)) return true;
   if (/^hotfix(\([^)]*\))?[!]?:\s/.test(lower)) return true;
+  return false;
+}
+
+// AI コミットと fix コミットが少なくとも 1 ファイルを共有しているかで failure 判定する。
+// どちらかの files が空（未バックフィル・未取得）の場合は overlap を判定できないため
+// 楽観的に success とみなす。
+function hasFileOverlap(aiFiles: readonly string[], fixFiles: readonly string[]): boolean {
+  if (aiFiles.length === 0 || fixFiles.length === 0) return false;
+  const aiSet = new Set(aiFiles);
+  for (const f of fixFiles) {
+    if (aiSet.has(f)) return true;
+  }
   return false;
 }
 
@@ -40,17 +53,24 @@ function computeRate(inputs: Inputs, range: DateRange): {
     return t >= fromMs && t <= toMs;
   });
 
-  const allFixes = inputs.commits
+  const fixes = inputs.commits
     .filter((c) => isFailureCommit(c.subject))
-    .map((c) => new Date(c.committed_at).getTime())
-    .filter((t) => !Number.isNaN(t));
+    .map((c) => ({
+      ms: new Date(c.committed_at).getTime(),
+      files: c.files,
+    }))
+    .filter((f) => !Number.isNaN(f.ms));
 
   const successes: Array<{ date: string }> = [];
   for (const commit of aiCommitsInRange) {
     const commitMs = new Date(commit.committed_at).getTime();
     if (Number.isNaN(commitMs)) continue;
-    const hasFixInWindow = allFixes.some((fixMs) => fixMs > commitMs && fixMs - commitMs <= FIX_WINDOW_MS);
-    if (!hasFixInWindow) {
+    const failed = fixes.some(
+      (f) => f.ms > commitMs
+        && f.ms - commitMs <= FIX_WINDOW_MS
+        && hasFileOverlap(commit.files, f.files),
+    );
+    if (!failed) {
       successes.push({ date: commit.committed_at });
     }
   }

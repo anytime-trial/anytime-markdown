@@ -12,11 +12,11 @@ export interface QualityMetricsInputs {
   releases: Array<{ id: string; tag_date: string; commit_hashes: string[]; fix_count?: number }>;
   messages: Array<{ uuid: string; created_at: string; role: string; type: string }>;
   messageCommits: Array<{ message_uuid: string; detected_at: string; match_confidence: string }>;
-  commits: Array<{ hash: string; subject: string; committed_at: string; is_ai_assisted: boolean }>;
+  commits: Array<{ hash: string; subject: string; committed_at: string; is_ai_assisted: boolean; files: string[] }>;
   previousReleases?: Array<{ id: string; tag_date: string; commit_hashes: string[]; fix_count?: number }>;
   previousMessages?: Array<{ uuid: string; created_at: string; role: string; type: string }>;
   previousMessageCommits?: Array<{ message_uuid: string; detected_at: string; match_confidence: string }>;
-  previousCommits?: Array<{ hash: string; subject: string; committed_at: string; is_ai_assisted: boolean }>;
+  previousCommits?: Array<{ hash: string; subject: string; committed_at: string; is_ai_assisted: boolean; files: string[] }>;
 }
 
 const UNMEASURED: UnmeasuredMetric[] = [
