@@ -5,6 +5,7 @@ interface Props {
     spotifyType: string;
     spotifyId: string;
     variant: "card" | "compact";
+    widthOverride?: string;
 }
 
 function iframeHeightFor(type: string): number {
@@ -13,7 +14,7 @@ function iframeHeightFor(type: string): number {
     return 152;
 }
 
-export function SpotifyEmbedView({ spotifyType, spotifyId, variant }: Props) {
+export function SpotifyEmbedView({ spotifyType, spotifyId, variant, widthOverride }: Props) {
     const theme = useTheme();
     const pageUrl = `https://open.spotify.com/${spotifyType}/${spotifyId}`;
 
@@ -62,8 +63,8 @@ export function SpotifyEmbedView({ spotifyType, spotifyId, variant }: Props) {
     return (
         <Box
             sx={{
-                width: "100%",
-                maxWidth: 720,
+                width: widthOverride ?? "100%",
+                maxWidth: widthOverride ?? 720,
                 borderRadius: 1,
                 overflow: "hidden",
             }}

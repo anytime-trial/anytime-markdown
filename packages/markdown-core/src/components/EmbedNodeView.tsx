@@ -16,6 +16,8 @@ interface EmbedNodeViewProps {
     language: string;
     body: string;
     providers?: EmbedProviders | null;
+    /** card variant のリサイズで親が決定した幅（例: "640px"）。compact では無視される。 */
+    widthOverride?: string;
 }
 
 function extractUrl(body: string): string | null {
@@ -50,12 +52,13 @@ function PlaceholderBox({ message }: { message: string }) {
     );
 }
 
-export function EmbedNodeView({ language, body, providers }: EmbedNodeViewProps) {
+export function EmbedNodeView({ language, body, providers, widthOverride }: EmbedNodeViewProps) {
     const ctxProviders = useOptionalEmbedProviders();
     const effectiveProviders = providers ?? ctxProviders;
 
     const variantInfo = parseEmbedInfoString(language) ?? { variant: "card" as const };
     const url = extractUrl(body);
+    const effectiveWidth = variantInfo.variant === "card" ? widthOverride : undefined;
 
     if (!url) {
         return <PlaceholderBox message="有効な URL を入力してください" />;
@@ -67,10 +70,22 @@ export function EmbedNodeView({ language, body, providers }: EmbedNodeViewProps)
     }
 
     if (classified.kind === "youtube") {
-        return <YouTubeEmbedView videoId={classified.videoId} variant={variantInfo.variant} />;
+        return (
+            <YouTubeEmbedView
+                videoId={classified.videoId}
+                variant={variantInfo.variant}
+                widthOverride={effectiveWidth}
+            />
+        );
     }
     if (classified.kind === "figma") {
-        return <FigmaEmbedView path={classified.path} variant={variantInfo.variant} />;
+        return (
+            <FigmaEmbedView
+                path={classified.path}
+                variant={variantInfo.variant}
+                widthOverride={effectiveWidth}
+            />
+        );
     }
     if (classified.kind === "spotify") {
         return (
@@ -78,11 +93,18 @@ export function EmbedNodeView({ language, body, providers }: EmbedNodeViewProps)
                 spotifyType={classified.type}
                 spotifyId={classified.id}
                 variant={variantInfo.variant}
+                widthOverride={effectiveWidth}
             />
         );
     }
     if (classified.kind === "drawio") {
-        return <DrawioEmbedView url={classified.url} variant={variantInfo.variant} />;
+        return (
+            <DrawioEmbedView
+                url={classified.url}
+                variant={variantInfo.variant}
+                widthOverride={effectiveWidth}
+            />
+        );
     }
 
     if (!effectiveProviders) {
@@ -99,6 +121,7 @@ export function EmbedNodeView({ language, body, providers }: EmbedNodeViewProps)
                 url={classified.url}
                 variant={variantInfo.variant}
                 providers={effectiveProviders}
+                widthOverride={effectiveWidth}
             />
         );
     }
@@ -108,6 +131,7 @@ export function EmbedNodeView({ language, body, providers }: EmbedNodeViewProps)
             url={classified.url}
             variant={variantInfo.variant}
             providers={effectiveProviders}
+            widthOverride={effectiveWidth}
         />
     );
 }

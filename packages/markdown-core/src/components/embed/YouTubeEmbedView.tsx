@@ -4,9 +4,10 @@ import { Box, Stack, Typography, useTheme } from "@mui/material";
 interface Props {
     videoId: string;
     variant: "card" | "compact";
+    widthOverride?: string;
 }
 
-export function YouTubeEmbedView({ videoId, variant }: Props) {
+export function YouTubeEmbedView({ videoId, variant, widthOverride }: Props) {
     const theme = useTheme();
     const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
 
@@ -54,9 +55,9 @@ export function YouTubeEmbedView({ videoId, variant }: Props) {
         <Box
             sx={{
                 position: "relative",
-                width: "100%",
-                maxWidth: 720,
-                paddingTop: "min(56.25%, 405px)",
+                width: widthOverride ?? "100%",
+                maxWidth: widthOverride ?? 720,
+                paddingTop: "56.25%",
                 borderRadius: 1,
                 overflow: "hidden",
                 backgroundColor: theme.palette.background.paper,

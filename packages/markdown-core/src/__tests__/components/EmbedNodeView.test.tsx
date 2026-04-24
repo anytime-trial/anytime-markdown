@@ -66,4 +66,28 @@ describe("EmbedNodeView", () => {
         );
         expect(screen.queryByText(/埋め込めません/)).not.toBeNull();
     });
+
+    test("widthOverride を渡しても card variant は描画を維持する", () => {
+        const { container } = render(
+            <EmbedNodeView
+                language="embed"
+                body="https://www.youtube.com/watch?v=abc123"
+                widthOverride="512px"
+                providers={makeProviders()}
+            />,
+        );
+        expect(container.querySelector("iframe")).not.toBeNull();
+    });
+
+    test("widthOverride は compact variant では無視される (compact 1行表示)", () => {
+        const { container } = render(
+            <EmbedNodeView
+                language="embed compact"
+                body="https://www.youtube.com/watch?v=abc123"
+                widthOverride="512px"
+                providers={makeProviders()}
+            />,
+        );
+        expect(container.querySelector("iframe")).toBeNull();
+    });
 });

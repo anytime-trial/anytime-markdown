@@ -9,6 +9,7 @@ interface Props {
     url: string;
     variant: "card" | "compact";
     providers: EmbedProviders;
+    widthOverride?: string;
 }
 
 const WIDGETS_JS_SRC = "https://platform.twitter.com/widgets.js";
@@ -38,7 +39,7 @@ function extractTextExcerpt(html: string): string {
     return stripped.slice(0, 50);
 }
 
-export function TwitterEmbedView({ url, variant, providers }: Props) {
+export function TwitterEmbedView({ url, variant, providers, widthOverride }: Props) {
     const { loading, data, error } = useOembedData(url, providers);
     const theme = useTheme();
     const containerRef = useRef<HTMLDivElement | null>(null);
@@ -121,7 +122,7 @@ export function TwitterEmbedView({ url, variant, providers }: Props) {
     return (
         <Box
             ref={containerRef}
-            sx={{ maxWidth: 720 }}
+            sx={{ width: widthOverride ?? "100%", maxWidth: widthOverride ?? 720 }}
             dangerouslySetInnerHTML={{ __html: sanitizeTweetHtml(data.html) }}
         />
     );

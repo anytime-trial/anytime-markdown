@@ -9,6 +9,7 @@ interface Props {
     url: string;
     variant: "card" | "compact";
     providers: EmbedProviders;
+    widthOverride?: string;
 }
 
 function getDomain(url: string): string {
@@ -19,7 +20,7 @@ function getDomain(url: string): string {
     }
 }
 
-export function OgpCardView({ url, variant, providers }: Props) {
+export function OgpCardView({ url, variant, providers, widthOverride }: Props) {
     const { loading, data, error } = useOgpData(url, providers);
     const theme = useTheme();
 
@@ -28,11 +29,13 @@ export function OgpCardView({ url, variant, providers }: Props) {
     const textPrimary = theme.palette.text.primary;
     const textSecondary = theme.palette.text.secondary;
 
+    const cardWidthSx = widthOverride ? { width: widthOverride } : { width: "100%", maxWidth: 720 };
+
     if (loading) {
         if (variant === "compact") {
             return <Skeleton variant="rectangular" height={40} sx={{ maxWidth: 720 }} />;
         }
-        return <Skeleton variant="rectangular" height={140} sx={{ maxWidth: 720 }} />;
+        return <Skeleton variant="rectangular" height={140} sx={cardWidthSx} />;
     }
 
     const domain = getDomain(data?.url ?? url);
@@ -114,7 +117,7 @@ export function OgpCardView({ url, variant, providers }: Props) {
                     border: `1px solid ${borderColor}`,
                     borderRadius: 1,
                     backgroundColor: bg,
-                    maxWidth: 720,
+                    ...cardWidthSx,
                     height: 140,
                     display: "flex",
                     overflow: "hidden",

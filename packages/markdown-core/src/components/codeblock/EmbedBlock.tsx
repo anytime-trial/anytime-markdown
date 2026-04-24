@@ -3,12 +3,14 @@
 import { Box } from "@mui/material";
 import { useCallback, useRef } from "react";
 
+import { useBlockResize } from "../../hooks/useBlockResize";
 import { parseEmbedInfoString, type EmbedVariant } from "../../utils/embedInfoString";
 import { EmbedEditDialog } from "../EmbedEditDialog";
 import { EmbedNodeView } from "../EmbedNodeView";
 import { BlockInlineToolbar } from "./BlockInlineToolbar";
 import { CodeBlockFrame } from "./CodeBlockFrame";
 import { shouldShowBorder } from "./compareHelpers";
+import { ResizeGrip } from "./ResizeGrip";
 import type { CodeBlockSharedProps } from "./types";
 
 type EmbedBlockProps = Pick<
@@ -46,6 +48,20 @@ export function EmbedBlock(props: EmbedBlockProps) {
     const language = node.attrs.language as string;
     const variant: EmbedVariant = parseEmbedInfoString(language)?.variant ?? "card";
     const initialUrl = firstNonEmptyLine(code);
+    const resizable = variant === "card";
+
+    const {
+        resizing,
+        resizeWidth,
+        displayWidth,
+        handleResizePointerDown,
+        handleResizePointerMove,
+        handleResizePointerUp,
+    } = useBlockResize({
+        containerRef,
+        updateAttributes,
+        currentWidth: node.attrs.width as string | null | undefined,
+    });
 
     const handleApply = useCallback(
         (url: string, nextVariant: EmbedVariant) => {
@@ -82,6 +98,8 @@ export function EmbedBlock(props: EmbedBlockProps) {
         />
     );
 
+    const widthOverride = resizable ? displayWidth : undefined;
+
     return (
         <CodeBlockFrame
             toolbar={toolbar}
@@ -113,15 +131,27 @@ export function EmbedBlock(props: EmbedBlockProps) {
                 contentEditable={false}
                 onClick={selectNode}
                 onDoubleClick={() => setEditOpen(true)}
+                onPointerMove={handleResizePointerMove}
+                onPointerUp={handleResizePointerUp}
                 sx={{
                     p: 1.5,
                     cursor: "pointer",
-                    overflow: "auto",
-                    display: "flex",
-                    justifyContent: "flex-start",
+                    overflow: "hidden",
+                    display: "inline-block",
+                    position: "relative",
+                    width: widthOverride ?? "fit-content",
+                    maxWidth: "100%",
                 }}
             >
-                <EmbedNodeView language={language} body={code} />
+                <EmbedNodeView language={language} body={code} widthOverride={widthOverride} />
+                {resizable && (
+                    <ResizeGrip
+                        visible={isSelected && props.isEditable}
+                        resizing={resizing}
+                        resizeWidth={resizeWidth}
+                        onPointerDown={handleResizePointerDown}
+                    />
+                )}
             </Box>
         </CodeBlockFrame>
     );

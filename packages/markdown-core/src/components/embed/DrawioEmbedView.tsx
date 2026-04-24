@@ -4,6 +4,7 @@ import { Box, Stack, Typography, useTheme } from "@mui/material";
 interface Props {
     url: string;
     variant: "card" | "compact";
+    widthOverride?: string;
 }
 
 function extractFileName(url: string): string {
@@ -16,7 +17,7 @@ function extractFileName(url: string): string {
     }
 }
 
-export function DrawioEmbedView({ url, variant }: Props) {
+export function DrawioEmbedView({ url, variant, widthOverride }: Props) {
     const theme = useTheme();
 
     if (variant === "compact") {
@@ -66,8 +67,8 @@ export function DrawioEmbedView({ url, variant }: Props) {
         <Box
             sx={{
                 position: "relative",
-                width: "100%",
-                maxWidth: 720,
+                width: widthOverride ?? "100%",
+                maxWidth: widthOverride ?? 720,
                 paddingTop: "75%",
                 borderRadius: 1,
                 overflow: "hidden",

@@ -4,6 +4,7 @@ import { Box, Stack, Typography, useTheme } from "@mui/material";
 interface Props {
     path: string;
     variant: "card" | "compact";
+    widthOverride?: string;
 }
 
 function extractFileName(path: string): string {
@@ -11,7 +12,7 @@ function extractFileName(path: string): string {
     return segments.at(-1) ?? "Figma";
 }
 
-export function FigmaEmbedView({ path, variant }: Props) {
+export function FigmaEmbedView({ path, variant, widthOverride }: Props) {
     const theme = useTheme();
     const canonical = `https://www.figma.com${path}`;
 
@@ -62,8 +63,8 @@ export function FigmaEmbedView({ path, variant }: Props) {
         <Box
             sx={{
                 position: "relative",
-                width: "100%",
-                maxWidth: 720,
+                width: widthOverride ?? "100%",
+                maxWidth: widthOverride ?? 720,
                 paddingTop: "75%",
                 borderRadius: 1,
                 overflow: "hidden",
