@@ -3799,8 +3799,23 @@ export class TrailDatabase {
 
     const queryMessages = (f: string, t: string) => {
       const res = db.exec(
-        `SELECT uuid, timestamp, type, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens
-         FROM messages WHERE timestamp >= ? AND timestamp <= ? AND type = 'user'`,
+        `WITH user_msgs AS (
+           SELECT uuid, session_id, timestamp, type,
+                  LEAD(timestamp) OVER (PARTITION BY session_id ORDER BY timestamp) AS next_ts
+           FROM messages
+           WHERE type = 'user' AND timestamp >= ? AND timestamp <= ?
+         )
+         SELECT u.uuid, u.timestamp, u.type,
+                COALESCE(SUM(m.input_tokens), 0) AS input_tokens,
+                COALESCE(SUM(m.output_tokens), 0) AS output_tokens,
+                COALESCE(SUM(m.cache_read_tokens), 0) AS cache_read_tokens,
+                COALESCE(SUM(m.cache_creation_tokens), 0) AS cache_creation_tokens
+         FROM user_msgs u
+         LEFT JOIN messages m
+           ON m.session_id = u.session_id
+           AND m.timestamp >= u.timestamp
+           AND (u.next_ts IS NULL OR m.timestamp < u.next_ts)
+         GROUP BY u.uuid, u.timestamp, u.type`,
         [f, t],
       );
       if (!res[0]) return [];
