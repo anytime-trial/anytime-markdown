@@ -4,8 +4,8 @@ import { ACCENT_COLOR } from '@anytime-markdown/markdown-core';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import CodeIcon from '@mui/icons-material/Code';
+import FactCheckIcon from '@mui/icons-material/FactCheck';
 import ImageIcon from '@mui/icons-material/Image';
-import SyncIcon from '@mui/icons-material/Sync';
 import TimelineIcon from '@mui/icons-material/Timeline';
 import ViewCompactIcon from '@mui/icons-material/ViewCompact';
 import {
@@ -55,9 +55,9 @@ const MD_BENEFITS = [
 ] as const;
 
 const TRAIL_BENEFITS = [
-  { key: 'trail1', icon: <AccountTreeIcon aria-hidden="true" sx={{ fontSize: 40 }} /> },
-  { key: 'trail2', icon: <SyncIcon aria-hidden="true" sx={{ fontSize: 40 }} /> },
   { key: 'trail3', icon: <TimelineIcon aria-hidden="true" sx={{ fontSize: 40 }} /> },
+  { key: 'trail1', icon: <AccountTreeIcon aria-hidden="true" sx={{ fontSize: 40 }} /> },
+  { key: 'trail2', icon: <FactCheckIcon aria-hidden="true" sx={{ fontSize: 40 }} /> },
   { key: 'trail4', icon: <ImageIcon aria-hidden="true" sx={{ fontSize: 40 }} /> },
 ] as const;
 
