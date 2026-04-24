@@ -39,7 +39,7 @@ function parseSimpleYaml(content: string): Record<string, Record<string, number>
 function toThresholdsConfig(raw: Record<string, Record<string, number>>): Partial<ThresholdsConfig> {
   const partial: Partial<ThresholdsConfig> = {};
 
-  const keys = ['deploymentFrequency', 'leadTimeForChanges', 'changeFailureRate', 'aiFirstTrySuccessRate'] as const;
+  const keys = ['deploymentFrequency', 'leadTimePerLoc', 'tokensPerLoc', 'changeFailureRate', 'aiFirstTrySuccessRate'] as const;
   for (const k of keys) {
     const src = raw[k];
     if (!src) continue;
