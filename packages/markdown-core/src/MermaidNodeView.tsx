@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { DiagramBlock } from "./components/codeblock/DiagramBlock";
+import { EmbedBlock } from "./components/codeblock/EmbedBlock";
 import { HtmlPreviewBlock } from "./components/codeblock/HtmlPreviewBlock";
 import { MathBlock } from "./components/codeblock/MathBlock";
 import { RegularCodeBlock } from "./components/codeblock/RegularCodeBlock";
@@ -24,6 +25,7 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: Re
   const isMath = language === "math";
   const isHtml = language === "html";
   const isDiagram = language === "mermaid" || language === "plantuml";
+  const isEmbed = language === "embed" || (typeof language === "string" && language.startsWith("embed "));
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const isEditable = useEditorState({ editor, selector: (ctx) => !!ctx.editor?.isEditable });
@@ -36,7 +38,7 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: Re
 
   // autoEditOpen: スラッシュコマンドから作成された場合、即座に全画面編集を開く
   useEffect(() => {
-    if ((isDiagram || isMath || isHtml) && node.attrs.autoEditOpen) {
+    if ((isDiagram || isMath || isHtml || isEmbed) && node.attrs.autoEditOpen) {
       requestAnimationFrame(() => {
         updateAttributes({ autoEditOpen: false });
         setEditOpen(true);
@@ -50,8 +52,8 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: Re
     const pos = getPos();
     if (pos == null) return;
     editor.commands.setTextSelection(pos + 1);
-    if (!isDiagram && !isMath && !isHtml && codeCollapsed) updateAttributes({ codeCollapsed: false });
-  }, [editor, getPos, codeCollapsed, updateAttributes, isDiagram, isMath, isHtml]);
+    if (!isDiagram && !isMath && !isHtml && !isEmbed && codeCollapsed) updateAttributes({ codeCollapsed: false });
+  }, [editor, getPos, codeCollapsed, updateAttributes, isDiagram, isMath, isHtml, isEmbed]);
 
   // Auto-collapse code when deselected
   // codeCollapsed, updateAttributes は意図的に除外（選択解除時のみ発火させる）
@@ -151,6 +153,7 @@ export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: Re
 
   if (isMath) return <MathBlock {...shared} handleFsTextChange={handleFsTextChange} />;
   if (isHtml) return <HtmlPreviewBlock {...shared} handleFsTextChange={handleFsTextChange} />;
+  if (isEmbed) return <EmbedBlock {...shared} handleFsTextChange={handleFsTextChange} />;
   if (isDiagram) {
     return (
       <DiagramBlock
