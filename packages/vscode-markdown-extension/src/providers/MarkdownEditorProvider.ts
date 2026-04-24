@@ -732,6 +732,20 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       }
     };
 
+    const handleFetchRss = async (message: Record<string, unknown>) => {
+      const requestId = typeof message.requestId === 'string' ? message.requestId : '';
+      const feedUrl = typeof message.feedUrl === 'string' ? message.feedUrl : '';
+      if (!requestId || !feedUrl) return;
+      try {
+        const { fetchRssLatest } = await import('./rssFetch.js');
+        const data = await fetchRssLatest(feedUrl);
+        ctx.webviewPanel.webview.postMessage({ type: 'rssResult', requestId, data });
+      } catch (err) {
+        const error = err instanceof Error ? err.message : 'fetch-failed';
+        ctx.webviewPanel.webview.postMessage({ type: 'rssResult', requestId, error });
+      }
+    };
+
     webviewPanel.webview.onDidReceiveMessage(async (message: { type: string; [key: string]: unknown }) => {
       switch (message.type) {
         case 'ready': handleReady(message); break;
@@ -763,6 +777,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
         case 'save': await handleSave(); break;
         case 'fetchOgp': await handleFetchOgp(message); break;
         case 'fetchOembed': await handleFetchOembed(message); break;
+        case 'fetchRss': await handleFetchRss(message); break;
       }
     });
 

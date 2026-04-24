@@ -328,6 +328,7 @@
     "@anytime-markdown/markdown-core": "*",
     "@anytime-markdown/vscode-common": "*",
     "@emotion/react": "11.14.0",
+    "@xmldom/xmldom": "0.9.9",
     "@emotion/styled": "11.14.0",
     "@mui/icons-material": "7.3.7",
     "@mui/material": "7.3.7",

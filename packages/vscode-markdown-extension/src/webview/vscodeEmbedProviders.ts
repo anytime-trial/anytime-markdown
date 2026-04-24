@@ -2,6 +2,7 @@ import type {
   EmbedProviders,
   OembedData,
   OgpData,
+  RssLatestData,
 } from '@anytime-markdown/markdown-core/src/types/embedProvider';
 
 import { getVsCodeApi } from './vscodeApi';
@@ -16,8 +17,14 @@ type OembedResolver = {
   reject: (err: Error) => void;
 };
 
+type RssResolver = {
+  resolve: (data: RssLatestData) => void;
+  reject: (err: Error) => void;
+};
+
 const ogpWaiters = new Map<string, OgpResolver>();
 const oembedWaiters = new Map<string, OembedResolver>();
+const rssWaiters = new Map<string, RssResolver>();
 let installed = false;
 
 function ensureInstalled(): void {
@@ -49,6 +56,17 @@ function ensureInstalled(): void {
       } else {
         waiter.reject(new Error('no-data'));
       }
+    } else if (raw.type === 'rssResult') {
+      const waiter = rssWaiters.get(raw.requestId);
+      if (!waiter) return;
+      rssWaiters.delete(raw.requestId);
+      if (raw.error) {
+        waiter.reject(new Error(raw.error));
+      } else if (raw.data) {
+        waiter.resolve(raw.data as RssLatestData);
+      } else {
+        waiter.reject(new Error('no-data'));
+      }
     }
   });
 }
@@ -72,6 +90,12 @@ export function createVsCodeEmbedProviders(): EmbedProviders {
         const requestId = newId();
         oembedWaiters.set(requestId, { resolve, reject });
         vscode.postMessage({ type: 'fetchOembed', requestId, url });
+      }),
+    fetchRss: (feedUrl: string) =>
+      new Promise<RssLatestData>((resolve, reject) => {
+        const requestId = newId();
+        rssWaiters.set(requestId, { resolve, reject });
+        vscode.postMessage({ type: 'fetchRss', requestId, feedUrl });
       }),
   };
 }

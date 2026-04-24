@@ -71,7 +71,11 @@ export class EmbedCache {
     set(url: string, data: CacheValue): void {
         if (!hasLocalStorage()) return;
         try {
-            const payload = JSON.stringify({ data, savedAt: Date.now() } satisfies CachedEntry);
+            // Strip rawHtml before persisting — it's transient for RSS discovery only.
+            const stripped: CacheValue = "rawHtml" in data
+                ? { ...(data as OgpData), rawHtml: null }
+                : data;
+            const payload = JSON.stringify({ data: stripped, savedAt: Date.now() } satisfies CachedEntry);
             if (payload.length > MAX_ENTRY_BYTES) return;
             this.evictIfNeeded();
             window.localStorage.setItem(this.key(url), payload);

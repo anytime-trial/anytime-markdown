@@ -4,7 +4,7 @@ import { Box, Stack, Typography, useTheme } from "@mui/material";
 import { useOptionalEmbedProviders } from "../contexts/EmbedProvidersContext";
 import type { EmbedProviders } from "../types/embedProvider";
 import { classifyEmbedUrl } from "../utils/embedClassifier";
-import { parseEmbedInfoString } from "../utils/embedInfoString";
+import { parseEmbedInfoString, type EmbedBaseline } from "../utils/embedInfoString";
 import { DrawioEmbedView } from "./embed/DrawioEmbedView";
 import { FigmaEmbedView } from "./embed/FigmaEmbedView";
 import { OgpCardView } from "./embed/OgpCardView";
@@ -18,6 +18,8 @@ interface EmbedNodeViewProps {
     providers?: EmbedProviders | null;
     /** card variant のリサイズで親が決定した幅（例: "640px"）。compact では無視される。 */
     widthOverride?: string;
+    baseline?: EmbedBaseline;
+    onBaselineWrite?: (baseline: EmbedBaseline) => void;
 }
 
 function extractUrl(body: string): string | null {
@@ -52,7 +54,7 @@ function PlaceholderBox({ message }: { message: string }) {
     );
 }
 
-export function EmbedNodeView({ language, body, providers, widthOverride }: EmbedNodeViewProps) {
+export function EmbedNodeView({ language, body, providers, widthOverride, baseline, onBaselineWrite }: EmbedNodeViewProps) {
     const ctxProviders = useOptionalEmbedProviders();
     const effectiveProviders = providers ?? ctxProviders;
 
@@ -132,6 +134,8 @@ export function EmbedNodeView({ language, body, providers, widthOverride }: Embe
             variant={variantInfo.variant}
             providers={effectiveProviders}
             widthOverride={effectiveWidth}
+            baseline={baseline}
+            onBaselineWrite={onBaselineWrite}
         />
     );
 }

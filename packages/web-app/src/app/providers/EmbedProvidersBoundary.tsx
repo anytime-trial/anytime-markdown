@@ -5,6 +5,7 @@ import type {
   EmbedProviders,
   OembedData,
   OgpData,
+  RssLatestData,
 } from '@anytime-markdown/markdown-core/src/types/embedProvider';
 import { useMemo, type ReactNode } from 'react';
 
@@ -20,7 +21,13 @@ async function fetchOembed(url: string): Promise<OembedData> {
   return (await res.json()) as OembedData;
 }
 
+async function fetchRss(feedUrl: string): Promise<RssLatestData> {
+  const res = await fetch(`/api/rss?url=${encodeURIComponent(feedUrl)}`);
+  if (!res.ok) throw new Error(await res.text());
+  return (await res.json()) as RssLatestData;
+}
+
 export function EmbedProvidersBoundary({ children }: { children: ReactNode }) {
-  const providers = useMemo<EmbedProviders>(() => ({ fetchOgp, fetchOembed }), []);
+  const providers = useMemo<EmbedProviders>(() => ({ fetchOgp, fetchOembed, fetchRss }), []);
   return <EmbedProvidersProvider value={providers}>{children}</EmbedProvidersProvider>;
 }

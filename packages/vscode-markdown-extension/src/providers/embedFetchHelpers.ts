@@ -9,6 +9,7 @@ export interface OgpData {
   image: string | null;
   siteName: string | null;
   favicon: string | null;
+  rawHtml?: string | null;
 }
 
 export function isPrivateAddress(ip: string): boolean {
@@ -104,5 +105,6 @@ export function parseOgpHtml(html: string, baseUrl: string): OgpData {
     image: absolutize(rawImage, baseUrl),
     siteName,
     favicon: absolutize(rawIcon, baseUrl),
+    rawHtml: html,
   };
 }

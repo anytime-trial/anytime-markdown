@@ -18,6 +18,7 @@ describe("parseOgpHtml", () => {
             image: "https://example.com/img.png",
             siteName: "S",
             favicon: "https://example.com/fav.ico",
+            rawHtml: html,
         });
     });
 

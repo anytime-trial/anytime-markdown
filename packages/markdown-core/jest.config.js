@@ -2,6 +2,7 @@
 const config = {
   coverageReporters: ["json", "text", "lcov", "clover", "json-summary"],
   testEnvironment: "jsdom",
+  setupFiles: ["<rootDir>/jest.setup.ts"],
   transform: {
     "^.+\\.tsx?$": "ts-jest",
   },

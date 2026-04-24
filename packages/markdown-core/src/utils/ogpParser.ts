@@ -61,5 +61,6 @@ export function parseOgpHtml(html: string, baseUrl: string): OgpData {
         image: absolutize(rawImage, baseUrl),
         siteName,
         favicon: absolutize(rawIcon, baseUrl),
+        rawHtml: html,
     };
 }

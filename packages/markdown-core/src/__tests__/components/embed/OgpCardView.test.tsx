@@ -13,6 +13,7 @@ const makeProviders = (data: Partial<OgpData>): EmbedProviders => ({
         favicon: data.favicon ?? null,
     }),
     fetchOembed: jest.fn(),
+    fetchRss: jest.fn(),
 });
 
 describe("OgpCardView", () => {
