@@ -4,7 +4,11 @@ import { Box } from "@mui/material";
 import { useCallback, useRef } from "react";
 
 import { useBlockResize } from "../../hooks/useBlockResize";
-import { parseEmbedInfoString, type EmbedVariant } from "../../utils/embedInfoString";
+import {
+    buildEmbedInfoString,
+    parseEmbedInfoString,
+    type EmbedVariant,
+} from "../../utils/embedInfoString";
 import { EmbedEditDialog } from "../EmbedEditDialog";
 import { EmbedNodeView } from "../EmbedNodeView";
 import { BlockInlineToolbar } from "./BlockInlineToolbar";
@@ -46,9 +50,29 @@ export function EmbedBlock(props: EmbedBlockProps) {
 
     const containerRef = useRef<HTMLDivElement>(null);
     const language = node.attrs.language as string;
-    const variant: EmbedVariant = parseEmbedInfoString(language)?.variant ?? "card";
+    const parsedInfo = parseEmbedInfoString(language) ?? { variant: "card" as const, width: null };
+    const variant: EmbedVariant = parsedInfo.variant;
+    const storedWidth = parsedInfo.width;
     const initialUrl = firstNonEmptyLine(code);
     const resizable = variant === "card";
+
+    // width は info string（language 属性）に永続化する。useBlockResize は
+    // updateAttributes({ width: "Npx" }) を呼ぶので、これを捕捉して
+    // language に embed info string として書き戻す。
+    const updateAttributesForResize = useCallback(
+        (attrs: Record<string, unknown>) => {
+            if (Object.prototype.hasOwnProperty.call(attrs, "width")) {
+                const nextWidth = attrs.width as string | null;
+                const nextLanguage = buildEmbedInfoString(variant, nextWidth);
+                const { width: _ignored, ...rest } = attrs;
+                void _ignored;
+                updateAttributes({ ...rest, language: nextLanguage, width: nextWidth });
+                return;
+            }
+            updateAttributes(attrs);
+        },
+        [updateAttributes, variant],
+    );
 
     const {
         resizing,
@@ -59,13 +83,14 @@ export function EmbedBlock(props: EmbedBlockProps) {
         handleResizePointerUp,
     } = useBlockResize({
         containerRef,
-        updateAttributes,
-        currentWidth: node.attrs.width as string | null | undefined,
+        updateAttributes: updateAttributesForResize,
+        currentWidth: storedWidth ?? (node.attrs.width as string | null | undefined),
     });
 
     const handleApply = useCallback(
         (url: string, nextVariant: EmbedVariant) => {
-            const nextLanguage = nextVariant === "compact" ? "embed compact" : "embed";
+            // variant 切替でも既存の width は保持する
+            const nextLanguage = buildEmbedInfoString(nextVariant, storedWidth);
             updateAttributes({ language: nextLanguage });
             if (editor && typeof getPos === "function") {
                 const pos = getPos();
@@ -84,7 +109,7 @@ export function EmbedBlock(props: EmbedBlockProps) {
             }
             setEditOpen(false);
         },
-        [editor, getPos, node.content.size, setEditOpen, updateAttributes],
+        [editor, getPos, node.content.size, setEditOpen, storedWidth, updateAttributes],
     );
 
     const toolbar = (
