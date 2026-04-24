@@ -3,7 +3,8 @@ import type { ThresholdsConfig } from './thresholds';
 import type { DateRange, MetricValue } from './types';
 import { buildTimeSeries } from './timeSeriesUtils';
 
-const FIX_WINDOW_MS = 168 * 60 * 60 * 1000; // 7 days
+export const AI_FIRST_TRY_FIX_WINDOW_MS = 168 * 60 * 60 * 1000; // 7 days
+const FIX_WINDOW_MS = AI_FIRST_TRY_FIX_WINDOW_MS;
 
 type Commit = {
   hash: string;
@@ -38,7 +39,7 @@ const NON_CODE_FILENAMES = new Set<string>([
   'poetry.lock',
 ]);
 
-function isCodeFile(path: string): boolean {
+export function isCodeFile(path: string): boolean {
   const base = path.split('/').pop() ?? path;
   if (NON_CODE_FILENAMES.has(base)) return false;
   const dot = base.lastIndexOf('.');
@@ -49,6 +50,10 @@ function isCodeFile(path: string): boolean {
 
 function filterCodeFiles(files: readonly string[]): string[] {
   return files.filter(isCodeFile);
+}
+
+export function isAiFirstTryFailureCommit(subject: string): boolean {
+  return isFailureCommit(subject);
 }
 
 function isFailureCommit(subject: string): boolean {

@@ -16,8 +16,14 @@ import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import type { SxProps, Theme } from '@mui/material/styles';
-import { BarChart } from '@mui/x-charts/BarChart';
-import { LineChart } from '@mui/x-charts/LineChart';
+import { BarChart, BarPlot } from '@mui/x-charts/BarChart';
+import { LineChart, LinePlot, MarkPlot } from '@mui/x-charts/LineChart';
+import { ChartsContainer } from '@mui/x-charts/ChartsContainer';
+import { ChartsXAxis } from '@mui/x-charts/ChartsXAxis';
+import { ChartsYAxis } from '@mui/x-charts/ChartsYAxis';
+import { ChartsTooltip } from '@mui/x-charts/ChartsTooltip';
+import { ChartsGrid } from '@mui/x-charts/ChartsGrid';
+import { ChartsLegend } from '@mui/x-charts/ChartsLegend';
 import { formatLocalTime, toLocalDateKey } from '@anytime-markdown/trail-core/formatDate';
 import { extractCommitPrefix } from '@anytime-markdown/trail-core/domain';
 import type { AnalyticsData, CombinedData, CombinedPeriodMode, CombinedRangeDays, CostOptimizationData, ToolMetrics, TrailMessage, TrailSession, TrailSessionCommit, TrailTokenUsage } from '../parser/types';
@@ -1448,6 +1454,7 @@ function CombinedChartsContent({ data, periodDays, activeChart, toolMetric, mode
     const skillRows = (data.skillStats ?? []).filter(r => r.period >= cutoffStr);
     const modelRows = (data.modelStats ?? []).filter(r => r.period >= cutoffStr);
     const commitRows = (data.commitPrefixStats ?? []).filter(r => r.period >= cutoffStr);
+    const aiRateRows = (data.aiFirstTryRate ?? []).filter(r => r.period >= cutoffStr);
     const allPeriods = [...new Set(toolRows.map(r => r.period))].sort();
     const labels = allPeriods.map(p => p.length > 5 ? p.slice(5) : p);
     const modelPeriods = [...new Set(modelRows.map(r => r.period))].sort();
@@ -1478,6 +1485,7 @@ function CombinedChartsContent({ data, periodDays, activeChart, toolMetric, mode
       skillRows,
       modelRows,
       commitRows,
+      aiRateRows,
       allPeriods,
       labels,
       modelPeriods,
@@ -1594,7 +1602,7 @@ function CombinedChartsContent({ data, periodDays, activeChart, toolMetric, mode
   }, [axisInfo, modelMetric]);
 
   if (!axisInfo) return null;
-  const { toolRows, errTools, tools, skills, models, commitPrefixes, allPeriods, modelPeriods, commitPeriods } = axisInfo;
+  const { toolRows, errTools, tools, skills, models, commitPrefixes, aiRateRows, allPeriods, modelPeriods, commitPeriods, commitLabels } = axisInfo;
   const hideZero = (v: number | null) => (v == null || v === 0 ? null : String(v));
   const canDrill = periodDays < 90 && !!onDateClick;
   const makeAxisClick = (periods: readonly string[]) =>
@@ -1689,24 +1697,59 @@ function CombinedChartsContent({ data, periodDays, activeChart, toolMetric, mode
     if (commitPrefixes.length === 0) {
       return <Typography variant="body2" color="text.secondary">0</Typography>;
     }
+    const rateByPeriod = new Map<string, number | null>();
+    for (const r of aiRateRows) {
+      rateByPeriod.set(r.period, r.sampleSize > 0 ? r.rate : null);
+    }
+    const augmentedDataset = commitDataset.map((row, i) => ({
+      ...row,
+      rate: rateByPeriod.get(commitPeriods[i]) ?? null,
+    }));
+
+    const barSeries = commitPrefixes.map((prefix, i) => ({
+      type: 'bar' as const,
+      dataKey: `c${i}`,
+      label: prefix,
+      stack: 'total',
+      color: toolPalette[i % toolPalette.length],
+      yAxisId: 'countAxis',
+    }));
+    const lineSeries = [{
+      type: 'line' as const,
+      dataKey: 'rate',
+      label: 'AI 1 発成功率 (%)',
+      color: '#F06292',
+      yAxisId: 'rateAxis',
+      showMark: true,
+      connectNulls: true,
+      valueFormatter: (v: number | null) => v == null ? '-' : `${v.toFixed(1)}%`,
+    }];
+
     return (
       <Paper elevation={0} sx={{ ...cardSx, p: 2 }}>
-        <BarChart
-          dataset={commitDataset}
-          xAxis={[{ scaleType: 'band', dataKey: 'period' }]}
-          yAxis={[{ valueFormatter: fmtNum }]}
-          series={commitPrefixes.map((prefix, i) => ({
-            dataKey: `c${i}`,
-            label: prefix,
-            stack: 'total',
-            color: toolPalette[i % toolPalette.length],
-            valueFormatter: hideZero,
-          }))}
-          height={240}
-          margin={{ left: 16, right: 8, top: 8, bottom: 40 }}
-          slotProps={{ legend: { direction: 'horizontal', position: { vertical: 'bottom', horizontal: 'center' } } }}
+        <ChartsContainer
+          dataset={augmentedDataset}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          series={[...barSeries, ...lineSeries] as any}
+          xAxis={[{ id: 'period', scaleType: 'band', dataKey: 'period' }]}
+          yAxis={[
+            { id: 'countAxis', valueFormatter: fmtNum },
+            { id: 'rateAxis', min: 0, max: 100, position: 'right', valueFormatter: (v: number) => `${v}%` },
+          ]}
+          height={260}
+          margin={{ left: 16, right: 48, top: 8, bottom: 40 }}
           onAxisClick={makeAxisClick(commitPeriods)}
-        />
+        >
+          <ChartsGrid horizontal />
+          <BarPlot />
+          <LinePlot />
+          <MarkPlot />
+          <ChartsXAxis axisId="period" />
+          <ChartsYAxis axisId="countAxis" />
+          <ChartsYAxis axisId="rateAxis" />
+          <ChartsLegend direction="horizontal" />
+          <ChartsTooltip />
+        </ChartsContainer>
       </Paper>
     );
   }

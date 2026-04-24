@@ -264,7 +264,7 @@ export function useTrailDataSource(serverUrl: string): TrailDataSourceResult {
     async (period: CombinedPeriodMode, rangeDays: CombinedRangeDays): Promise<CombinedData> => {
       const empty: CombinedData = {
         toolCounts: [],
-        errorRate: [], skillStats: [], modelStats: [], commitPrefixStats: [],
+        errorRate: [], skillStats: [], modelStats: [], commitPrefixStats: [], aiFirstTryRate: [],
       };
       try {
         const res = await fetch(`${baseUrl}/api/trail/combined?period=${period}&rangeDays=${rangeDays}`);

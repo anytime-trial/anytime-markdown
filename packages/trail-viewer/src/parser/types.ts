@@ -115,12 +115,19 @@ export interface CombinedCommitPrefix {
   readonly count: number;
 }
 
+export interface CombinedAiFirstTryRate {
+  readonly period: string;
+  readonly rate: number;      // 0-100
+  readonly sampleSize: number;
+}
+
 export interface CombinedData {
   readonly toolCounts: readonly CombinedToolCount[];
   readonly errorRate: readonly CombinedError[];
   readonly skillStats: readonly CombinedSkill[];
   readonly modelStats: readonly CombinedModel[];
   readonly commitPrefixStats: readonly CombinedCommitPrefix[];
+  readonly aiFirstTryRate: readonly CombinedAiFirstTryRate[];
 }
 
 export type CombinedPeriodMode = 'day' | 'week';

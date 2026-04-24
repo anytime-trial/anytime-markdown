@@ -2,7 +2,12 @@ export { computeQualityMetrics } from './computeQualityMetrics';
 export type { QualityMetricsInputs } from './computeQualityMetrics';
 export { computeDeploymentFrequency } from './deploymentFrequency';
 export { computeLeadTimeForChanges } from './leadTimeForChanges';
-export { computeAiFirstTrySuccessRate } from './aiFirstTrySuccessRate';
+export {
+  computeAiFirstTrySuccessRate,
+  isCodeFile,
+  isAiFirstTryFailureCommit,
+  AI_FIRST_TRY_FIX_WINDOW_MS,
+} from './aiFirstTrySuccessRate';
 export { computeChangeFailureRate } from './changeFailureRate';
 export { classifyDoraLevel, mergeThresholds, DEFAULT_THRESHOLDS } from './thresholds';
 export type { ThresholdsConfig, ThresholdLevels } from './thresholds';

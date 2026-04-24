@@ -35,6 +35,9 @@ import {
   analyze,
   trailToC4,
   extractCommitPrefix,
+  isCodeFile,
+  isAiFirstTryFailureCommit,
+  AI_FIRST_TRY_FIX_WINDOW_MS,
 } from '@anytime-markdown/trail-core';
 import type { TrailGraph, IC4ModelStore, C4ModelEntry, C4ModelResult, TrailMessageCommit, MessageCommitInput, ManualElement, ManualRelationship, ManualGroup } from '@anytime-markdown/trail-core';
 import { matchCommitsToMessages } from '@anytime-markdown/trail-core';
@@ -224,6 +227,7 @@ interface CombinedData {
   readonly skillStats: readonly { period: string; skill: string; count: number; costUsd: number }[];
   readonly modelStats: readonly { period: string; model: string; count: number; tokens: number }[];
   readonly commitPrefixStats: readonly { period: string; prefix: string; count: number }[];
+  readonly aiFirstTryRate: readonly { period: string; rate: number; sampleSize: number }[];
 }
 
 interface RawLine {
@@ -3231,20 +3235,66 @@ export class TrailDatabase {
       tokens: Number(r['tokens'] ?? 0),
     }));
 
-    // Commit prefix stats: session_commits のコミットを Conventional Commits プレフィクスで集計。
-    // 手動コミットが複数セッションに重複登録されるため DISTINCT commit_hash で排除する。
+    // Commit stats: session_commits を取得し、AI 1 発成功率のファイル overlap 判定に必要な
+    // committed_at / is_ai_assisted / commit_files を一緒に取る。分母の fix 検出のために
+    // 期間末尾から 168h 先のコミットも取得する。手動コミットが複数セッションに重複登録される
+    // ため DISTINCT commit_hash で排除する。
+    const commitWindowSec = Math.round(AI_FIRST_TRY_FIX_WINDOW_MS / 1000);
     const commitResult = db.exec(
-      `SELECT ${commitPeriodExpr} AS period, commit_hash, commit_message
+      `SELECT ${commitPeriodExpr} AS period, commit_hash, commit_message,
+              committed_at, is_ai_assisted
        FROM session_commits
        WHERE committed_at >= DATETIME('now', '-${rangeDays} days')
+         AND committed_at <= DATETIME('now', '+${commitWindowSec} seconds')
        GROUP BY commit_hash`,
     );
+    type CommitRow = {
+      period: string;
+      hash: string;
+      subject: string;
+      committed_at: string;
+      is_ai_assisted: boolean;
+      files: string[];
+    };
+    const commitRows: CommitRow[] = toRows(commitResult).map(r => ({
+      period: String(r['period'] ?? ''),
+      hash: String(r['commit_hash'] ?? ''),
+      subject: String(r['commit_message'] ?? '').split('\n')[0],
+      committed_at: String(r['committed_at'] ?? ''),
+      is_ai_assisted: Number(r['is_ai_assisted'] ?? 0) === 1,
+      files: [],
+    }));
+
+    // Batch-fetch commit_files for all commit hashes in the window
+    if (commitRows.length > 0) {
+      const hashPlaceholders = commitRows.map(() => '?').join(',');
+      const filesResult = db.exec(
+        `SELECT commit_hash, file_path FROM commit_files WHERE commit_hash IN (${hashPlaceholders})`,
+        commitRows.map(c => c.hash),
+      );
+      if (filesResult[0]) {
+        const byHash = new Map<string, string[]>();
+        for (const row of filesResult[0].values) {
+          const h = String(row[0] ?? '');
+          const p = String(row[1] ?? '');
+          const list = byHash.get(h);
+          if (list) list.push(p);
+          else byHash.set(h, [p]);
+        }
+        for (const c of commitRows) {
+          c.files = byHash.get(c.hash) ?? [];
+        }
+      }
+    }
+
+    // Commit prefix stats: 期間内 (未来拡張分は除外) のコミットだけを集計対象とする
+    const cutoffPeriodRes = db.exec(`SELECT ${commitPeriodExpr.replace('committed_at', `DATE('now')`)} AS period`);
+    const todayPeriod = String(cutoffPeriodRes[0]?.values?.[0]?.[0] ?? '');
     const prefixMap = new Map<string, number>();
-    for (const r of toRows(commitResult)) {
-      const p = String(r['period'] ?? '');
-      const subject = String(r['commit_message'] ?? '').split('\n')[0];
-      const prefix = extractCommitPrefix(subject);
-      const k = `${p}::${prefix}`;
+    for (const c of commitRows) {
+      if (c.period > todayPeriod) continue;  // skip future-window rows
+      const prefix = extractCommitPrefix(c.subject);
+      const k = `${c.period}::${prefix}`;
       prefixMap.set(k, (prefixMap.get(k) ?? 0) + 1);
     }
     const commitPrefixStats = [...prefixMap.entries()].map(([k, count]) => {
@@ -3252,12 +3302,45 @@ export class TrailDatabase {
       return { period: k.slice(0, sep), prefix: k.slice(sep + 2), count };
     });
 
+    // AI First-Try Success Rate per period
+    const fixes = commitRows
+      .filter(c => isAiFirstTryFailureCommit(c.subject))
+      .map(c => ({ ms: Date.parse(c.committed_at), codeFiles: c.files.filter(isCodeFile) }))
+      .filter(f => !Number.isNaN(f.ms));
+    const rateAgg = new Map<string, { total: number; success: number }>();
+    for (const c of commitRows) {
+      if (!c.is_ai_assisted) continue;
+      if (c.period > todayPeriod) continue;
+      const codeFiles = c.files.filter(isCodeFile);
+      if (c.files.length > 0 && codeFiles.length === 0) continue;
+      const commitMs = Date.parse(c.committed_at);
+      if (Number.isNaN(commitMs)) continue;
+      const aiSet = new Set(codeFiles);
+      const failed = fixes.some(f =>
+        f.ms > commitMs &&
+        f.ms - commitMs <= AI_FIRST_TRY_FIX_WINDOW_MS &&
+        (aiSet.size > 0 && f.codeFiles.length > 0 && f.codeFiles.some(fp => aiSet.has(fp))),
+      );
+      const e = rateAgg.get(c.period) ?? { total: 0, success: 0 };
+      e.total += 1;
+      if (!failed) e.success += 1;
+      rateAgg.set(c.period, e);
+    }
+    const aiFirstTryRate = [...rateAgg.entries()]
+      .map(([period, { total, success }]) => ({
+        period,
+        rate: total === 0 ? 0 : (success / total) * 100,
+        sampleSize: total,
+      }))
+      .sort((a, b) => a.period.localeCompare(b.period));
+
     return {
       toolCounts,
       errorRate,
       skillStats,
       modelStats,
       commitPrefixStats,
+      aiFirstTryRate,
     };
   }
 
