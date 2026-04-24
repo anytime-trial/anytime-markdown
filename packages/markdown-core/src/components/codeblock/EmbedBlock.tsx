@@ -7,6 +7,7 @@ import { useBlockResize } from "../../hooks/useBlockResize";
 import {
     buildEmbedInfoString,
     parseEmbedInfoString,
+    type EmbedBaseline,
     type EmbedVariant,
 } from "../../utils/embedInfoString";
 import { EmbedEditDialog } from "../EmbedEditDialog";
@@ -50,9 +51,22 @@ export function EmbedBlock(props: EmbedBlockProps) {
 
     const containerRef = useRef<HTMLDivElement>(null);
     const language = node.attrs.language as string;
-    const parsedInfo = parseEmbedInfoString(language) ?? { variant: "card" as const, width: null };
+    const parsedInfo = parseEmbedInfoString(language) ?? {
+        variant: "card" as const,
+        width: null,
+        rssFeedUrl: null,
+        baselineRssGuid: null,
+        baselineOgpHash: null,
+        rssChecked: false,
+    };
     const variant: EmbedVariant = parsedInfo.variant;
     const storedWidth = parsedInfo.width;
+    const baseline: EmbedBaseline = {
+        rssFeedUrl: parsedInfo.rssFeedUrl,
+        baselineRssGuid: parsedInfo.baselineRssGuid,
+        baselineOgpHash: parsedInfo.baselineOgpHash,
+        rssChecked: parsedInfo.rssChecked,
+    };
     const initialUrl = firstNonEmptyLine(code);
     const resizable = variant === "card";
 
@@ -63,7 +77,7 @@ export function EmbedBlock(props: EmbedBlockProps) {
         (attrs: Record<string, unknown>) => {
             if (Object.prototype.hasOwnProperty.call(attrs, "width")) {
                 const nextWidth = attrs.width as string | null;
-                const nextLanguage = buildEmbedInfoString(variant, nextWidth);
+                const nextLanguage = buildEmbedInfoString(variant, nextWidth, baseline);
                 const { width: _ignored, ...rest } = attrs;
                 void _ignored;
                 updateAttributes({ ...rest, language: nextLanguage, width: nextWidth });
@@ -71,7 +85,15 @@ export function EmbedBlock(props: EmbedBlockProps) {
             }
             updateAttributes(attrs);
         },
-        [updateAttributes, variant],
+        [updateAttributes, variant, baseline],
+    );
+
+    const writeBaseline = useCallback(
+        (newBaseline: EmbedBaseline) => {
+            const nextLanguage = buildEmbedInfoString(variant, storedWidth, newBaseline);
+            updateAttributes({ language: nextLanguage });
+        },
+        [updateAttributes, variant, storedWidth],
     );
 
     const {
@@ -89,8 +111,8 @@ export function EmbedBlock(props: EmbedBlockProps) {
 
     const handleApply = useCallback(
         (url: string, nextVariant: EmbedVariant) => {
-            // variant 切替でも既存の width は保持する
-            const nextLanguage = buildEmbedInfoString(nextVariant, storedWidth);
+            // variant 切替でも既存の width / baseline は保持する
+            const nextLanguage = buildEmbedInfoString(nextVariant, storedWidth, baseline);
             updateAttributes({ language: nextLanguage });
             if (editor && typeof getPos === "function") {
                 const pos = getPos();
@@ -109,7 +131,7 @@ export function EmbedBlock(props: EmbedBlockProps) {
             }
             setEditOpen(false);
         },
-        [editor, getPos, node.content.size, setEditOpen, storedWidth, updateAttributes],
+        [editor, getPos, node.content.size, setEditOpen, storedWidth, updateAttributes, baseline],
     );
 
     const toolbar = (
@@ -168,7 +190,13 @@ export function EmbedBlock(props: EmbedBlockProps) {
                     maxWidth: widthOverride ?? 720,
                 }}
             >
-                <EmbedNodeView language={language} body={code} widthOverride={widthOverride} />
+                <EmbedNodeView
+                    language={language}
+                    body={code}
+                    widthOverride={widthOverride}
+                    baseline={baseline}
+                    onBaselineWrite={writeBaseline}
+                />
                 {resizable && (
                     <ResizeGrip
                         visible={isSelected && props.isEditable}

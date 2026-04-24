@@ -1,16 +1,28 @@
 import LinkIcon from "@mui/icons-material/Link";
 import { Box, Skeleton, Stack, Typography, useTheme } from "@mui/material";
-import type { CSSProperties } from "react";
+import { useCallback, type CSSProperties } from "react";
 
-import { useOgpData } from "../../hooks/useEmbedData";
+import { useEmbedUpdateCheck, useOgpData } from "../../hooks/useEmbedData";
 import type { EmbedProviders } from "../../types/embedProvider";
+import type { EmbedBaseline } from "../../utils/embedInfoString";
+import { markEmbedSeen } from "../../utils/embedSeenStore";
+import { EmbedUpdateBadge } from "../codeblock/EmbedUpdateBadge";
 
 interface Props {
     url: string;
     variant: "card" | "compact";
     providers: EmbedProviders;
     widthOverride?: string;
+    baseline?: EmbedBaseline;
+    onBaselineWrite?: (baseline: EmbedBaseline) => void;
 }
+
+const DEFAULT_BASELINE: EmbedBaseline = {
+    rssFeedUrl: null,
+    baselineRssGuid: null,
+    baselineOgpHash: null,
+    rssChecked: false,
+};
 
 function getDomain(url: string): string {
     try {
@@ -20,9 +32,26 @@ function getDomain(url: string): string {
     }
 }
 
-export function OgpCardView({ url, variant, providers, widthOverride }: Props) {
+export function OgpCardView({ url, variant, providers, widthOverride, baseline, onBaselineWrite }: Props) {
     const { loading, data, error } = useOgpData(url, providers);
     const theme = useTheme();
+
+    const effectiveBaseline = baseline ?? DEFAULT_BASELINE;
+    const handleInitialBaseline = useCallback(
+        (b: EmbedBaseline) => onBaselineWrite?.(b),
+        [onBaselineWrite],
+    );
+    const updateCheck = useEmbedUpdateCheck({
+        url,
+        ogpData: variant === "card" ? data : null,
+        providers,
+        baseline: effectiveBaseline,
+        onInitialBaseline: handleInitialBaseline,
+    });
+    const badgeVisible = variant === "card" && updateCheck.status === "unseen";
+    const handleBadgeClick = () => {
+        if (updateCheck.fingerprint) markEmbedSeen(url, updateCheck.fingerprint);
+    };
 
     const borderColor = theme.palette.divider;
     const bg = theme.palette.background.paper;
@@ -121,8 +150,14 @@ export function OgpCardView({ url, variant, providers, widthOverride }: Props) {
                     height: 140,
                     display: "flex",
                     overflow: "hidden",
+                    position: "relative",
                 }}
             >
+                <EmbedUpdateBadge
+                    visible={badgeVisible}
+                    newTitle={updateCheck.newTitle}
+                    onClick={handleBadgeClick}
+                />
                 <Stack sx={{ flex: 1, minWidth: 0, p: 1.5, justifyContent: "space-between" }}>
                     <Box sx={{ minHeight: 0, overflow: "hidden" }}>
                         <Typography

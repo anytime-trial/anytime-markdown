@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 
 import type { EmbedProviders, OembedData, OgpData } from "../types/embedProvider";
 import { EmbedCache } from "../utils/embedCache";
+import type { EmbedBaseline } from "../utils/embedInfoString";
+import { checkEmbedUpdate } from "../utils/embedUpdateCheck";
+import { isEmbedSeen } from "../utils/embedSeenStore";
 
 const inflight = new Map<string, Promise<OgpData | OembedData>>();
 const cache = new EmbedCache();
@@ -70,4 +73,67 @@ export function useOgpData(url: string, providers: EmbedProviders) {
 
 export function useOembedData(url: string, providers: EmbedProviders) {
     return useEmbedFetch<OembedData>(url, "oembed", providers.fetchOembed);
+}
+
+export type EmbedUpdateStatus = "loading" | "seen" | "unseen";
+
+interface UpdateCheckHookResult {
+    status: EmbedUpdateStatus;
+    fingerprint: string | null;
+    newTitle: string | null;
+}
+
+interface UpdateCheckParams {
+    url: string;
+    ogpData: OgpData | null;
+    providers: EmbedProviders;
+    baseline: EmbedBaseline;
+    onInitialBaseline: (baseline: EmbedBaseline) => void;
+    logger?: (level: "warn", msg: string) => void;
+}
+
+export function useEmbedUpdateCheck(params: UpdateCheckParams): UpdateCheckHookResult {
+    const { url, ogpData, providers, baseline, onInitialBaseline, logger } = params;
+    const [state, setState] = useState<UpdateCheckHookResult>({ status: "loading", fingerprint: null, newTitle: null });
+
+    useEffect(() => {
+        if (!ogpData) return;
+        let cancelled = false;
+        (async () => {
+            try {
+                const result = await checkEmbedUpdate({
+                    url,
+                    ogpData,
+                    ogpHtml: ogpData.rawHtml ?? null,
+                    providers,
+                    baseline,
+                    logger,
+                });
+                if (cancelled) return;
+                if (result.kind === "initial") {
+                    onInitialBaseline(result.baseline);
+                    setState({ status: "seen", fingerprint: result.fingerprint, newTitle: null });
+                    return;
+                }
+                if (result.kind === "updated") {
+                    const seen = isEmbedSeen(url, result.fingerprint);
+                    setState({
+                        status: seen ? "seen" : "unseen",
+                        fingerprint: result.fingerprint,
+                        newTitle: result.newTitle,
+                    });
+                    return;
+                }
+                setState({ status: "seen", fingerprint: null, newTitle: null });
+            } catch (e) {
+                logger?.("warn", `embed update check failed: ${url} - ${(e as Error).message}`);
+                if (!cancelled) setState({ status: "seen", fingerprint: null, newTitle: null });
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [url, ogpData, providers, baseline, onInitialBaseline, logger]);
+
+    return state;
 }
