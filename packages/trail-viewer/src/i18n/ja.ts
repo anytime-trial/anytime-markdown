@@ -190,6 +190,7 @@ export const ja: TrailI18n = {
 
   'analytics.combined.error': 'エラー',
   'analytics.combined.commitPrefix': 'コミット種別',
+  'analytics.commitPrefixChartTitle': 'コミット種別',
   'analytics.combined.skill': 'スキル',
   'analytics.combined.model': 'モデル',
 

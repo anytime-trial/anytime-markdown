@@ -19,6 +19,7 @@ import type { SxProps, Theme } from '@mui/material/styles';
 import { BarChart } from '@mui/x-charts/BarChart';
 import { LineChart } from '@mui/x-charts/LineChart';
 import { formatLocalTime, toLocalDateKey } from '@anytime-markdown/trail-core/formatDate';
+import { extractCommitPrefix } from '@anytime-markdown/trail-core/domain';
 import type { AnalyticsData, CombinedData, CombinedPeriodMode, CombinedRangeDays, CostOptimizationData, ToolMetrics, TrailMessage, TrailSession, TrailSessionCommit, TrailTokenUsage } from '../parser/types';
 import { useTrailTheme } from './TrailThemeContext';
 import { useTrailI18n } from '../i18n';
@@ -438,6 +439,91 @@ function SessionCacheTimeline({
           </Typography>
         </Box>
       )}
+    </Paper>
+  );
+}
+
+function SessionCommitPrefixChart({
+  sessionId,
+  fetchSessionCommits,
+}: Readonly<{
+  sessionId: string;
+  fetchSessionCommits: (id: string) => Promise<readonly TrailSessionCommit[]>;
+}>) {
+  const { cardSx, toolPalette } = useTrailTheme();
+  const { t } = useTrailI18n();
+  const [commits, setCommits] = useState<readonly TrailSessionCommit[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    void (async () => {
+      try {
+        const result = await fetchSessionCommits(sessionId);
+        if (!cancelled) setCommits(result);
+      } catch {
+        // ignore
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [sessionId, fetchSessionCommits]);
+
+  if (loading || commits.length === 0) return null;
+
+  const prefixCounts = new Map<string, number>();
+  for (const c of commits) {
+    const subject = (c.commitMessage ?? '').split('\n')[0];
+    const prefix = extractCommitPrefix(subject);
+    prefixCounts.set(prefix, (prefixCounts.get(prefix) ?? 0) + 1);
+  }
+  const sorted = [...prefixCounts.entries()].sort(([, a], [, b]) => b - a);
+
+  const entry: Record<string, string | number> = { metric: 'count' };
+  let total = 0;
+  for (let i = 0; i < sorted.length; i++) {
+    entry[`p${i}`] = sorted[i][1];
+    total += sorted[i][1];
+  }
+  const tickValues = niceTicks(total);
+
+  return (
+    <Paper elevation={0} sx={{ ...cardSx, pt: 2, pr: 2, pb: 0, pl: 0 }}>
+      <Typography variant="subtitle2" sx={{ mb: 1, px: 2 }}>
+        {t('analytics.commitPrefixChartTitle')}
+      </Typography>
+      <BarChart
+        dataset={[entry]}
+        layout="horizontal"
+        yAxis={[{ scaleType: 'band', dataKey: 'metric', categoryGapRatio: 0.25, tickLabelStyle: { display: 'none' } }]}
+        xAxis={[{ tickInterval: tickValues, valueFormatter: fmtNum }]}
+        series={sorted.map(([prefix, count], i) => ({
+          dataKey: `p${i}`,
+          label: `${prefix} (${count})`,
+          stack: 'total',
+          color: toolPalette[i % toolPalette.length],
+        }))}
+        height={70}
+        margin={{ left: 20, right: 16, top: 4, bottom: 16 }}
+        slots={{ legend: () => null }}
+      />
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, px: 2, pb: 1.5 }}>
+        {sorted.map(([prefix, count], i) => (
+          <Chip
+            key={prefix}
+            size="small"
+            label={`${prefix} (${count})`}
+            sx={{
+              bgcolor: toolPalette[i % toolPalette.length],
+              color: '#fff',
+              fontSize: '0.7rem',
+              height: 20,
+            }}
+          />
+        ))}
+      </Box>
     </Paper>
   );
 }
@@ -1161,11 +1247,17 @@ function DailySessionList({
                   <SessionCacheTimeline messages={timelineMessages} />
                 )}
                 {fetchSessionCommits && (
-                  <SessionCommitList
-                    sessionId={timelineSessionId!}
-                    usage={selectedSession.usage}
-                    fetchSessionCommits={fetchSessionCommits}
-                  />
+                  <>
+                    <SessionCommitPrefixChart
+                      sessionId={timelineSessionId!}
+                      fetchSessionCommits={fetchSessionCommits}
+                    />
+                    <SessionCommitList
+                      sessionId={timelineSessionId!}
+                      usage={selectedSession.usage}
+                      fetchSessionCommits={fetchSessionCommits}
+                    />
+                  </>
                 )}
               </Box>
             );

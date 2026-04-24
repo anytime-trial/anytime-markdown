@@ -34,6 +34,7 @@ import {
   buildReleaseFromGitData,
   analyze,
   trailToC4,
+  extractCommitPrefix,
 } from '@anytime-markdown/trail-core';
 import type { TrailGraph, IC4ModelStore, C4ModelEntry, C4ModelResult, TrailMessageCommit, MessageCommitInput, ManualElement, ManualRelationship, ManualGroup } from '@anytime-markdown/trail-core';
 import { matchCommitsToMessages } from '@anytime-markdown/trail-core';
@@ -316,12 +317,6 @@ export const INSERT_MESSAGE = `INSERT OR REPLACE INTO messages
 // ---------------------------------------------------------------------------
 //  Helpers
 // ---------------------------------------------------------------------------
-
-/** Conventional Commits のプレフィクス（scope・! 許容）を抽出する。該当しなければ 'other'。 */
-function extractCommitPrefix(subject: string): string {
-  const match = /^([a-z]+)(?:\([^)]*\))?!?:\s/i.exec(subject);
-  return match ? match[1].toLowerCase() : 'other';
-}
 
 function extractTextContent(
   content: string | readonly RawContentBlock[] | undefined,
