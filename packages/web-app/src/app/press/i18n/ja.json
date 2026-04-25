@@ -13,8 +13,8 @@
   },
   "headline": {
     "kicker": "This site is an experimental project",
-    "title1": "理（ことわり）を、",
-    "title2": "一図（いちず）に",
+    "title1": "<ruby>理<rt>ことわり</rt></ruby>を、",
+    "title2": "<ruby>一図<rt>いちず</rt></ruby>に",
     "byline": "Filed by <b>Claude Code</b> - Kiyotaka Ueda - 全文無料公開",
     "asideVert": "砂嵐を渡る、長い旅の供。",
     "asideEditor": "From the editor's desk",

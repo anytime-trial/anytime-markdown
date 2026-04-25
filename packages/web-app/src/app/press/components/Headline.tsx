@@ -14,9 +14,17 @@ export function Headline() {
       <div>
         <div className={styles.headlineKicker}>{tHead('kicker')}</div>
         <h1 className={styles.headlineTitle} lang={locale}>
-          {tHead('title1')}
+          {tHead.rich('title1', {
+            ruby: (chunks) => <ruby>{chunks}</ruby>,
+            rt: (chunks) => <rt>{chunks}</rt>,
+          })}
           <br />
-          <em>{tHead('title2')}</em>
+          <em>
+            {tHead.rich('title2', {
+              ruby: (chunks) => <ruby>{chunks}</ruby>,
+              rt: (chunks) => <rt>{chunks}</rt>,
+            })}
+          </em>
         </h1>
         <p className={styles.headlineDeck} lang={locale}>
           {tVsCode('heroDescription')}

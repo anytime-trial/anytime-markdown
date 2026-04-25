@@ -261,6 +261,22 @@
     color: var(--vermilion);
 }
 
+.headlineTitle ruby {
+    ruby-position: over;
+}
+
+.headlineTitle rt {
+    font-family: var(--font-mono);
+    font-size: 0.32em;
+    letter-spacing: 0.08em;
+    font-weight: 500;
+    color: var(--ink-faded);
+}
+
+.headlineTitle em rt {
+    color: var(--vermilion);
+}
+
 .headlineDeck {
     font-family: var(--font-display);
     font-style: italic;
