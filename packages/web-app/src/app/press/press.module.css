@@ -1,0 +1,30 @@
+.root {
+    --paper: #F2EDE2;
+    --paper-fold: #E8E0CF;
+    --ink: #15110A;
+    --ink-faded: #4A3F2E;
+    --ink-light: #8A7C66;
+    --rule: #15110A;
+    --vermilion: #B8341E;
+    --vermilion-wash: rgba(184, 52, 30, 0.06);
+
+    background: var(--paper);
+    color: var(--ink);
+    min-height: 100vh;
+}
+
+.root[data-cp-mode='dark'] {
+    --paper: #15110A;
+    --paper-fold: #1F1A10;
+    --ink: #EDE5D2;
+    --ink-faded: #B8AC92;
+    --ink-light: #6B6051;
+    --rule: #EDE5D2;
+    --vermilion: #C84A33;
+    --vermilion-wash: rgba(200, 74, 51, 0.10);
+}
+
+.headlineTitle {
+    font-size: 2rem;
+    margin: 2rem;
+}
