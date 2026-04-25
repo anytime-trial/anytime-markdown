@@ -3,11 +3,6 @@
     --font-body: var(--cp-font-body), 'Times New Roman', serif;
     --font-mono: var(--cp-font-mono), ui-monospace, 'Courier New', monospace;
 
-    font-family: var(--font-body);
-    line-height: 1.65;
-    -webkit-font-smoothing: antialiased;
-    text-rendering: optimizeLegibility;
-
     --paper: #F2EDE2;
     --paper-fold: #E8E0CF;
     --ink: #15110A;
@@ -17,9 +12,41 @@
     --vermilion: #B8341E;
     --vermilion-wash: rgba(184, 52, 30, 0.06);
 
+    --rule-hair: 0.5px;
+    --rule-thin: 1px;
+    --rule-bold: 2.5px;
+    --rule-mast: 5px;
+
+    --fs-mast: clamp(56px, 11vw, 168px);
+    --fs-deck: clamp(28px, 4.2vw, 56px);
+    --fs-lede: 20px;
+    --fs-body: 16px;
+    --fs-caption: 13px;
+    --fs-footnote: 11px;
+
+    --gutter: 24px;
+    --column-gap: 28px;
+
+    font-family: var(--font-body);
+    font-size: var(--fs-body);
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
     background: var(--paper);
     color: var(--ink);
     min-height: 100vh;
+    box-sizing: border-box;
+}
+
+.root *,
+.root *::before,
+.root *::after {
+    box-sizing: border-box;
+}
+
+.root a {
+    color: inherit;
+    text-decoration: none;
 }
 
 .root[data-cp-mode='dark'] {
@@ -31,6 +58,107 @@
     --rule: #EDE5D2;
     --vermilion: #C84A33;
     --vermilion-wash: rgba(200, 74, 51, 0.10);
+}
+
+/* ── マストヘッド ───────────────────────────────────── */
+.mast {
+    border-top: var(--rule-mast) solid var(--ink);
+    border-bottom: var(--rule-bold) solid var(--ink);
+    padding: 14px var(--gutter) 12px;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: end;
+    gap: 24px;
+    font-family: var(--font-display);
+    position: sticky;
+    top: 0;
+    background: var(--paper);
+    z-index: 50;
+}
+
+.mastEdition {
+    font-family: var(--font-mono);
+    font-size: var(--fs-footnote);
+    letter-spacing: 0.02em;
+    color: var(--ink-faded);
+    text-align: left;
+    line-height: 1.5;
+}
+
+.mastEdition b {
+    font-weight: 600;
+    color: var(--ink);
+}
+
+.mastTitle {
+    font-style: italic;
+    font-weight: 900;
+    font-size: clamp(24px, 4vw, 44px);
+    letter-spacing: -0.02em;
+    line-height: 1;
+    text-align: center;
+}
+
+.mastNav {
+    display: flex;
+    gap: 18px;
+    justify-content: flex-end;
+    align-items: center;
+    font-family: var(--font-body);
+    font-size: var(--fs-caption);
+    font-weight: 600;
+}
+
+.mastNav a {
+    border-bottom: 1.5px solid transparent;
+    padding-bottom: 2px;
+    transition: border-color 0.2s;
+}
+
+.mastNav a:hover {
+    border-color: var(--ink);
+}
+
+.mastNav a:focus-visible,
+.mastModeToggle:focus-visible {
+    outline: 2px solid var(--vermilion);
+    outline-offset: 2px;
+}
+
+.mastModeToggle {
+    background: transparent;
+    border: 0;
+    padding: 0 4px;
+    color: inherit;
+    cursor: pointer;
+    font-family: var(--font-mono);
+    font-size: var(--fs-caption);
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    line-height: 1;
+}
+
+.mastRules {
+    grid-column: 1 / -1;
+}
+
+.mastRulePair {
+    border-bottom: var(--rule-hair) solid var(--ink);
+    margin: 3px 0;
+}
+
+@media (max-width: 880px) {
+    .mast {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+    .mastTitle {
+        text-align: left;
+    }
+    .mastNav {
+        justify-content: flex-start;
+        flex-wrap: wrap;
+    }
 }
 
 .headlineTitle {
