@@ -19,6 +19,7 @@ DROP TABLE IF EXISTS trail_current_c4_models CASCADE;
 DROP TABLE IF EXISTS trail_c4_models CASCADE;
 DROP TABLE IF EXISTS trail_daily_counts CASCADE;
 DROP TABLE IF EXISTS trail_session_costs CASCADE;
+DROP TABLE IF EXISTS trail_commit_files CASCADE;
 DROP TABLE IF EXISTS trail_session_commits CASCADE;
 DROP TABLE IF EXISTS trail_messages CASCADE;
 DROP TABLE IF EXISTS trail_sessions CASCADE;
@@ -84,6 +85,13 @@ CREATE TABLE IF NOT EXISTS trail_session_commits (
     lines_added INTEGER NOT NULL DEFAULT 0,
     lines_deleted INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (session_id, commit_hash)
+);
+
+-- コミットごとの変更ファイル一覧。コミットは複数セッションに現れるためセッション非依存。
+CREATE TABLE IF NOT EXISTS trail_commit_files (
+    commit_hash TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    PRIMARY KEY (commit_hash, file_path)
 );
 
 CREATE TABLE IF NOT EXISTS trail_session_costs (
@@ -235,6 +243,7 @@ CREATE INDEX IF NOT EXISTS idx_trail_session_costs_session ON trail_session_cost
 CREATE INDEX IF NOT EXISTS idx_trail_daily_counts_date ON trail_daily_counts(date);
 CREATE INDEX IF NOT EXISTS idx_trail_daily_counts_kind ON trail_daily_counts(kind);
 CREATE INDEX IF NOT EXISTS idx_trail_session_commits_session ON trail_session_commits(session_id);
+CREATE INDEX IF NOT EXISTS idx_trail_commit_files_hash ON trail_commit_files(commit_hash);
 CREATE INDEX IF NOT EXISTS idx_trail_releases_released_at ON trail_releases(released_at);
 CREATE INDEX IF NOT EXISTS idx_trail_release_files_tag ON trail_release_files(release_tag);
 CREATE INDEX IF NOT EXISTS idx_trail_release_features_tag ON trail_release_features(release_tag);
@@ -259,6 +268,10 @@ CREATE POLICY "trail_messages_all" ON trail_messages FOR ALL USING (true) WITH C
 ALTER TABLE trail_session_commits ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "trail_session_commits_all" ON trail_session_commits;
 CREATE POLICY "trail_session_commits_all" ON trail_session_commits FOR ALL USING (true) WITH CHECK (true);
+
+ALTER TABLE trail_commit_files ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "trail_commit_files_all" ON trail_commit_files;
+CREATE POLICY "trail_commit_files_all" ON trail_commit_files FOR ALL USING (true) WITH CHECK (true);
 
 ALTER TABLE trail_session_costs ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "trail_session_costs_all" ON trail_session_costs;
