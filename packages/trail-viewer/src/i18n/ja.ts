@@ -73,6 +73,7 @@ export const ja: TrailI18n = {
   'analytics.groupProductivity': '生産性',
   'analytics.groupQuality': '品質',
   'analytics.groupToolMetrics': 'ツールメトリクス',
+  'analytics.groupDora': 'DORA',
   'analytics.toolUsageTitle': 'ツール使用状況',
   'analytics.sessionCacheTimelineTitle': 'セッションキャッシュタイムライン',
   'analytics.turns': 'ターン',

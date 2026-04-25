@@ -73,6 +73,7 @@ export const en: TrailI18n = {
   'analytics.groupProductivity': 'Productivity',
   'analytics.groupQuality': 'Quality',
   'analytics.groupToolMetrics': 'Tool Metrics',
+  'analytics.groupDora': 'DORA',
   'analytics.toolUsageTitle': 'Tool Usage',
   'analytics.sessionCacheTimelineTitle': 'Session Cache Timeline',
   'analytics.turns': 'turns',

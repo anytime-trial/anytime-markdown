@@ -15,6 +15,7 @@ import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
+import { useTheme } from '@mui/material/styles';
 import type { SxProps, Theme } from '@mui/material/styles';
 import { BarChart, BarPlot } from '@mui/x-charts/BarChart';
 import { LineChart, LinePlot, MarkPlot } from '@mui/x-charts/LineChart';
@@ -110,6 +111,8 @@ type PeriodDays = 7 | 30 | 90;
 interface MetricItem {
   readonly label: string;
   readonly value: string;
+  readonly badge?: { readonly label: string; readonly color: string };
+  readonly delta?: { readonly text: string; readonly color: string };
 }
 
 function CyclingCard({
@@ -140,12 +143,26 @@ function CyclingCard({
       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5, textAlign: 'left' }}>
         {groupName}
       </Typography>
-      <Typography variant="h5" sx={{ mt: 0.5 }}>
-        {current.value}
-      </Typography>
-      <Typography variant="caption" color="text.secondary">
-        {current.label}
-      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, mt: 0.5 }}>
+        <Typography variant="h5">{current.value}</Typography>
+        {current.badge && (
+          <Chip
+            label={current.badge.label}
+            size="small"
+            sx={{ backgroundColor: current.badge.color, color: '#fff', fontWeight: 700, height: 20, fontSize: 10 }}
+          />
+        )}
+      </Box>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Typography variant="caption" color="text.secondary">
+          {current.label}
+        </Typography>
+        {current.delta && (
+          <Typography variant="caption" sx={{ color: current.delta.color }}>
+            {current.delta.text}
+          </Typography>
+        )}
+      </Box>
       <Box sx={{ display: 'flex', justifyContent: 'center', gap: 0.5, mt: 1 }}>
         {items.map((item, i) => (
           <Box
@@ -163,15 +180,32 @@ function CyclingCard({
   );
 }
 
+function formatDoraValue(m: { value: number; unit: string }): string {
+  if (m.unit === 'perDay') {
+    return m.value >= 1 ? `${m.value.toFixed(1)}/day` : m.value > 0 ? `${(m.value * 7).toFixed(1)}/week` : '0/day';
+  }
+  if (m.unit === 'minPerLoc') {
+    return m.value < 60 ? `${m.value.toFixed(2)} min/LOC` : `${(m.value / 60).toFixed(1)} h/LOC`;
+  }
+  if (m.unit === 'tokensPerLoc') {
+    return m.value >= 1000 ? `${(m.value / 1000).toFixed(1)}k tok/LOC` : `${m.value.toFixed(0)} tok/LOC`;
+  }
+  return `${m.value.toFixed(1)}%`;
+}
+
 function OverviewCards({
   totals,
   sessions = [],
+  qualityMetrics = null,
 }: Readonly<{
   totals: AnalyticsData['totals'];
   sessions?: readonly TrailSession[];
+  qualityMetrics?: QualityMetrics | null;
 }>) {
   const { colors, cardSx } = useTrailTheme();
   const { t } = useTrailI18n();
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
   const [usageIdx, setUsageIdx] = useState(0);
   const [productivityIdx, setProductivityIdx] = useState(0);
   const [qualityIdx, setQualityIdx] = useState(0);
@@ -228,18 +262,38 @@ function OverviewCards({
         : '\u2014' },
   ];
 
-  const hasToolMetrics = totals.totalEdits > 0 || totals.totalBuildRuns > 0 || totals.totalTestRuns > 0;
-  const toolMetricsCards = [
-    { label: t('analytics.retryRate'), value: totals.totalEdits > 0
-        ? fmtPercent(totals.totalRetries / totals.totalEdits)
-        : '\u2014' },
-    { label: t('analytics.buildFailRate'), value: totals.totalBuildRuns > 0
-        ? fmtPercent(totals.totalBuildFails / totals.totalBuildRuns)
-        : '\u2014' },
-    { label: t('analytics.testFailRate'), value: totals.totalTestRuns > 0
-        ? fmtPercent(totals.totalTestFails / totals.totalTestRuns)
-        : '\u2014' },
-  ];
+  const DORA_ID_KEYS: Record<string, string> = {
+    deploymentFrequency: 'metrics.deploymentFrequency.name',
+    leadTimePerLoc: 'metrics.leadTimePerLoc.name',
+    tokensPerLoc: 'metrics.tokensPerLoc.name',
+    aiFirstTrySuccessRate: 'metrics.aiFirstTrySuccessRate.name',
+    changeFailureRate: 'metrics.changeFailureRate.name',
+  };
+  const LEVEL_COLORS: Record<string, string> = {
+    elite: isDark ? '#42A5F5' : '#1976D2',
+    high: isDark ? '#66BB6A' : '#2E7D32',
+    medium: isDark ? '#FFA726' : '#ED6C02',
+    low: isDark ? '#F44336' : '#D32F2F',
+  };
+  const LEVEL_LABELS: Record<string, string> = {
+    elite: 'Elite', high: 'High', medium: 'Medium', low: 'Low',
+  };
+  const doraCards = qualityMetrics
+    ? Object.values(qualityMetrics.metrics)
+        .filter((m) => m.sampleSize > 0)
+        .map((m) => {
+          const deltaPct = m.comparison?.deltaPct ?? null;
+          return {
+            value: formatDoraValue(m),
+            label: t((DORA_ID_KEYS[m.id] ?? m.id) as Parameters<typeof t>[0]),
+            badge: m.level ? { label: LEVEL_LABELS[m.level], color: LEVEL_COLORS[m.level] } : undefined,
+            delta: deltaPct != null ? {
+              text: `${deltaPct > 0 ? '↑' : deltaPct < 0 ? '↓' : '→'} ${Math.abs(deltaPct).toFixed(1)}%`,
+              color: deltaPct > 0 ? 'success.main' : deltaPct < 0 ? 'error.main' : 'text.secondary',
+            } : undefined,
+          };
+        })
+    : [];
 
   const cardStyle = { ...cardSx, flex: '1 1 140px', p: 2, minWidth: 140, textAlign: 'center' } as const;
 
@@ -270,12 +324,12 @@ function OverviewCards({
           cardStyle={cardStyle}
         />
       )}
-      {hasToolMetrics && (
+      {doraCards.length > 0 && (
         <CyclingCard
-          groupName={t('analytics.groupToolMetrics')}
-          items={toolMetricsCards}
+          groupName={t('analytics.groupDora')}
+          items={doraCards}
           index={toolIdx}
-          onCycle={() => setToolIdx((i) => (i + 1) % toolMetricsCards.length)}
+          onCycle={() => setToolIdx((i) => (i + 1) % doraCards.length)}
           cardStyle={cardStyle}
         />
       )}
@@ -2351,6 +2405,16 @@ export function AnalyticsPanel({ analytics, sessions = [], onSelectSession, onJu
   const { t } = useTrailI18n();
   const { scrollbarSx } = useTrailTheme();
   const [period, setPeriod] = useState<PeriodDays>(30);
+  const [overviewQualityMetrics, setOverviewQualityMetrics] = useState<QualityMetrics | null>(null);
+
+  useEffect(() => {
+    if (!fetchQualityMetrics) return;
+    const to = new Date();
+    const from = new Date(to.getTime() - 30 * 86_400_000);
+    void fetchQualityMetrics({ from: from.toISOString(), to: to.toISOString() }).then((result) => {
+      if (result) setOverviewQualityMetrics(result);
+    });
+  }, [fetchQualityMetrics]);
 
   if (!analytics) {
     return (
@@ -2364,7 +2428,7 @@ export function AnalyticsPanel({ analytics, sessions = [], onSelectSession, onJu
 
   return (
     <Box sx={{ overflow: 'auto', flex: 1, p: 2, display: 'flex', flexDirection: 'column', gap: 3, ...scrollbarSx }}>
-      <OverviewCards totals={analytics.totals} sessions={sessions} />
+      <OverviewCards totals={analytics.totals} sessions={sessions} qualityMetrics={overviewQualityMetrics} />
       <ToolUsageChart items={analytics.toolUsage} />
       <CombinedChartsSection
         dailyActivity={analytics.dailyActivity}

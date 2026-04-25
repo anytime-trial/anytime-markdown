@@ -83,6 +83,7 @@ export interface TrailI18n {
   'analytics.groupProductivity': string;
   'analytics.groupQuality': string;
   'analytics.groupToolMetrics': string;
+  'analytics.groupDora': string;
   'analytics.toolUsageTitle': string;
   'analytics.sessionCacheTimelineTitle': string;
   'analytics.turns': string;
