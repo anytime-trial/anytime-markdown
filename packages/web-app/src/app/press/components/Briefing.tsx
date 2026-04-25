@@ -7,7 +7,13 @@ interface BriefingItem {
   verdict: string;
 }
 
-const ITEMS: BriefingItem[] = [
+interface BriefingProps {
+  no: string;
+  items: BriefingItem[];
+  id?: string;
+}
+
+const PRIMARY_ITEMS: BriefingItem[] = [
   {
     num: 'i',
     head: 'Section-level diff',
@@ -40,17 +46,50 @@ const ITEMS: BriefingItem[] = [
   },
 ];
 
-export function Briefing() {
+const SECONDARY_ITEMS: BriefingItem[] = [
+  {
+    num: 'vi',
+    head: 'KaTeX, first-class',
+    body: '数式は LaTeX 記法のまま組版される。等幅フォントで誤魔化さない、印刷品質の式。',
+    verdict: '— shipped',
+  },
+  {
+    num: 'vii',
+    head: 'Mermaid for diagrams',
+    body: 'フロー図・状態遷移・C4 図はテキストで書き、git diff に乗せる。スクリーンショットは添付しない。',
+    verdict: '— shipped',
+  },
+  {
+    num: 'viii',
+    head: 'Inline AI margin notes',
+    body: 'AI の提案は本文を書き換えず、欄外に朱書きで残す。採否の決定は書き手の手元に。',
+    verdict: '— drafting',
+  },
+  {
+    num: 'ix',
+    head: 'Encrypted notebooks',
+    body: 'IndexedDB を AES-GCM で暗号化。鍵は手元の鍵、サーバには渡さない。',
+    verdict: '— v0.50',
+  },
+  {
+    num: 'x',
+    head: 'Mobile companion',
+    body: 'Capacitor で iOS / Android のスタンドアロン版。隊商と一緒に持ち歩ける編集机。',
+    verdict: '— in print',
+  },
+];
+
+export function Briefing({ no, items, id }: BriefingProps) {
   return (
-    <section className={styles.briefing} id="briefing">
+    <section className={styles.briefing} id={id}>
       <div className={styles.briefingLabel}>
         Field
         <br />
         <em>Notes.</em>
-        <small>BRIEFING ／ NO.003</small>
+        <small>{no}</small>
       </div>
       <ul className={styles.briefingList}>
-        {ITEMS.map((item) => (
+        {items.map((item) => (
           <li key={item.num}>
             <span className={styles.briefingNum}>{item.num}</span>
             <div className={styles.briefingHead}>
@@ -63,4 +102,12 @@ export function Briefing() {
       </ul>
     </section>
   );
+}
+
+export function BriefingPrimary() {
+  return <Briefing id="briefing" no="BRIEFING ／ NO.003" items={PRIMARY_ITEMS} />;
+}
+
+export function BriefingSecondary() {
+  return <Briefing no="BRIEFING ／ NO.004" items={SECONDARY_ITEMS} />;
 }

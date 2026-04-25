@@ -1,7 +1,7 @@
 'use client';
 
 import { useThemeMode } from '../providers';
-import { Briefing } from './components/Briefing';
+import { BriefingPrimary, BriefingSecondary } from './components/Briefing';
 import { Caravan } from './components/Caravan';
 import { Colophon } from './components/Colophon';
 import { CtaStrip } from './components/CtaStrip';
@@ -24,7 +24,8 @@ export function PressBody() {
       <Headline />
       <Caravan />
       <Dispatch />
-      <Briefing />
+      <BriefingPrimary />
+      <BriefingSecondary />
       <PullQuote />
       <Ticker />
       <CtaStrip />
