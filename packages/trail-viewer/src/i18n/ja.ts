@@ -192,6 +192,7 @@ export const ja: TrailI18n = {
 
   'analytics.combined.error': 'エラー',
   'analytics.combined.commitPrefix': 'コミット種別',
+  'analytics.combined.release': 'リリース',
   'analytics.combined.commitCount': 'コミット',
   'analytics.combined.loc': 'LOC',
   'analytics.combined.leadTime': 'Lead Time',

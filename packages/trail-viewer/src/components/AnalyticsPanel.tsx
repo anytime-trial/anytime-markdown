@@ -1495,7 +1495,7 @@ function DailyActivityChart({
 // ─── Behavior charts in Analytics ───────────────────────────────────────────
 
 type ChartMetric = 'count' | 'tokens';
-type CombinedChartKind = 'tools' | 'errors' | 'skills' | 'models' | 'commits';
+type CombinedChartKind = 'tools' | 'errors' | 'skills' | 'models' | 'commits' | 'releases';
 
 // スタック棒グラフの系列数が多すぎると描画・凡例・ツールチップが重くなるため、
 // 上位 N 件以外を "Others" に集約する。
@@ -2045,7 +2045,40 @@ function CombinedChartsContent({ data, periodDays, activeChart, toolMetric, mode
   );
 }
 
-type CombinedMetric = 'tokens' | 'tools' | 'errors' | 'skills' | 'models' | 'commits';
+function ReleasesBarChart({ timeSeries }: Readonly<{
+  timeSeries: ReadonlyArray<{ bucketStart: string; value: number }>;
+}>) {
+  const { cardSx } = useTrailTheme();
+  const { t } = useTrailI18n();
+
+  if (timeSeries.length === 0) {
+    return (
+      <Paper elevation={0} sx={{ ...cardSx, p: 2, minHeight: 240, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Typography variant="body2" color="text.secondary">{t('metrics.empty')}</Typography>
+      </Paper>
+    );
+  }
+
+  const fmt = new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric' });
+  const dataset = timeSeries.map((d) => ({
+    label: fmt.format(new Date(d.bucketStart)),
+    releases: d.value,
+  }));
+
+  return (
+    <Paper elevation={0} sx={{ ...cardSx, p: 2 }}>
+      <BarChart
+        dataset={dataset}
+        xAxis={[{ scaleType: 'band', dataKey: 'label' }]}
+        series={[{ dataKey: 'releases', label: t('analytics.combined.release'), color: '#4CAF50' }]}
+        height={240}
+        margin={{ left: 16, right: 8, top: 8, bottom: 40 }}
+      />
+    </Paper>
+  );
+}
+
+type CombinedMetric = 'tokens' | 'tools' | 'errors' | 'skills' | 'models' | 'commits' | 'releases';
 
 function CombinedChartsSection({
   dailyActivity,
@@ -2096,6 +2129,7 @@ function CombinedChartsSection({
       prefixes: ReadonlyArray<string>;
       series: ReadonlyArray<{ bucketStart: string; byPrefix: Readonly<Record<string, number>> }>;
     };
+    deploymentFrequency: ReadonlyArray<{ bucketStart: string; value: number }>;
   } | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   useEffect(() => { setSelectedDate(null); }, [period]);
@@ -2137,6 +2171,7 @@ function CombinedChartsSection({
           leadTimePerLoc: result.metrics.leadTimePerLoc.timeSeries,
           leadTimeUnmapped: result.leadTimeUnmappedTimeSeries ?? [],
           leadTimeByPrefix: result.leadTimeMinByPrefix ?? { prefixes: [], series: [] },
+          deploymentFrequency: result.metrics.deploymentFrequency.timeSeries,
         });
       }
     })();
@@ -2166,6 +2201,7 @@ function CombinedChartsSection({
             <ToggleButton value="tools" sx={toggleSx}>{t('analytics.combined.tool')}</ToggleButton>
             <ToggleButton value="errors" sx={toggleSx}>{t('analytics.combined.error')}</ToggleButton>
             <ToggleButton value="commits" sx={toggleSx}>{t('analytics.combined.commitPrefix')}</ToggleButton>
+            <ToggleButton value="releases" sx={toggleSx}>{t('analytics.combined.release')}</ToggleButton>
           </ToggleButtonGroup>
           <ToggleButtonGroup
             value={period}
@@ -2235,6 +2271,8 @@ function CombinedChartsSection({
           costOptimization={costOptimization}
           overlay={overlay}
         />
+      ) : metric === 'releases' ? (
+        <ReleasesBarChart timeSeries={overlay?.deploymentFrequency ?? []} />
       ) : fetchCombinedData ? (
         combinedLoading && !combinedData ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 240 }}>
