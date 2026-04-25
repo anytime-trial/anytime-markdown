@@ -18,6 +18,7 @@ import Typography from '@mui/material/Typography';
 import { useTheme } from '@mui/material/styles';
 import type { SxProps, Theme } from '@mui/material/styles';
 import { BarChart, BarPlot } from '@mui/x-charts/BarChart';
+import { PieChart } from '@mui/x-charts/PieChart';
 import { LinePlot, MarkPlot } from '@mui/x-charts/LineChart';
 import { ChartsDataProvider } from '@mui/x-charts/ChartsDataProvider';
 import { ChartsSurface } from '@mui/x-charts/ChartsSurface';
@@ -909,47 +910,31 @@ function SessionCommitPrefixChart({
     prefixCounts.set(prefix, (prefixCounts.get(prefix) ?? 0) + 1);
   }
   const sorted = [...prefixCounts.entries()].sort(([, a], [, b]) => b - a);
-
-  const entry: Record<string, string | number> = { metric: 'count' };
-  let total = 0;
-  for (let i = 0; i < sorted.length; i++) {
-    entry[`p${i}`] = sorted[i][1];
-    total += sorted[i][1];
-  }
-  const tickValues = niceTicks(total);
+  const pieData = sorted.map(([prefix, count], i) => ({
+    id: i,
+    value: count,
+    label: `${prefix} (${count})`,
+    color: toolPalette[i % toolPalette.length],
+  }));
 
   return (
-    <Paper elevation={0} sx={{ ...cardSx, pt: 2, pr: 2, pb: 0, pl: 0 }}>
-      <Typography variant="subtitle2" sx={{ mb: 1, px: 2 }}>
+    <Paper elevation={0} sx={{ ...cardSx, pt: 1.5, pb: 1, flex: 1, minWidth: 0 }}>
+      <Typography variant="subtitle2" sx={{ px: 1.5 }}>
         {t('analytics.commitPrefixChartTitle')}
       </Typography>
-      <BarChart
-        dataset={[entry]}
-        layout="horizontal"
-        yAxis={[{ scaleType: 'band', dataKey: 'metric', categoryGapRatio: 0.25, tickLabelStyle: { display: 'none' } }]}
-        xAxis={[{ tickInterval: tickValues, valueFormatter: fmtNum }]}
-        series={sorted.map(([prefix, count], i) => ({
-          dataKey: `p${i}`,
-          label: `${prefix} (${count})`,
-          stack: 'total',
-          color: toolPalette[i % toolPalette.length],
-        }))}
-        height={70}
-        margin={{ left: 20, right: 16, top: 4, bottom: 16 }}
+      <PieChart
+        series={[{ data: pieData, innerRadius: 28, outerRadius: 52, paddingAngle: 2, cornerRadius: 3 }]}
+        height={130}
+        margin={{ top: 8, right: 8, bottom: 8, left: 8 }}
         slots={{ legend: () => null }}
       />
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, px: 2, pb: 1.5 }}>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, px: 1.5, pb: 0.5 }}>
         {sorted.map(([prefix, count], i) => (
           <Chip
             key={prefix}
             size="small"
             label={`${prefix} (${count})`}
-            sx={{
-              bgcolor: toolPalette[i % toolPalette.length],
-              color: '#fff',
-              fontSize: '0.7rem',
-              height: 20,
-            }}
+            sx={{ bgcolor: toolPalette[i % toolPalette.length], color: '#fff', fontSize: '0.65rem', height: 18 }}
           />
         ))}
       </Box>
@@ -1328,7 +1313,7 @@ function SessionErrorChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMetrics 
   const errors = toolMetrics?.errorsByTool;
   if (!errors || errors.length === 0) {
     return (
-      <Paper elevation={0} sx={{ ...cardSx, pt: 2, pr: 2, pb: 0, pl: 2 }}>
+      <Paper elevation={0} sx={{ ...cardSx, p: 1.5, flex: 1, minWidth: 0 }}>
         <Typography variant="subtitle2" sx={{ mb: 0.5 }}>{t('analytics.combined.error')}</Typography>
         <Typography variant="body2" color="text.secondary">0</Typography>
       </Paper>
@@ -1336,32 +1321,32 @@ function SessionErrorChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMetrics 
   }
 
   const sorted = [...errors].sort((a, b) => b.count - a.count);
-  const entry: Record<string, string | number> = { metric: 'errors' };
-  let total = 0;
-  for (let i = 0; i < sorted.length; i++) {
-    entry[`e${i}`] = sorted[i].count;
-    total += sorted[i].count;
-  }
-  const tickValues = niceTicks(total);
+  const pieData = sorted.map((e, i) => ({
+    id: i,
+    value: e.count,
+    label: `${e.tool} (${e.count})`,
+    color: toolPalette[i % toolPalette.length],
+  }));
 
   return (
-    <Paper elevation={0} sx={{ ...cardSx, pt: 2, pr: 2, pb: 0, pl: 0 }}>
-      <Typography variant="subtitle2" sx={{ mb: 1, px: 2 }}>{t('analytics.combined.error')}</Typography>
-      <BarChart
-        dataset={[entry]}
-        layout="horizontal"
-        yAxis={[{ scaleType: 'band', dataKey: 'metric', categoryGapRatio: 0.25, tickLabelStyle: { display: 'none' } }]}
-        xAxis={[{ tickInterval: tickValues, valueFormatter: fmtTokens }]}
-        series={sorted.map((e, i) => ({
-          dataKey: `e${i}`,
-          label: e.tool,
-          stack: 'total',
-          color: toolPalette[i % toolPalette.length],
-        }))}
-        height={70}
-        margin={{ left: 20, right: 16, top: 4, bottom: 16 }}
+    <Paper elevation={0} sx={{ ...cardSx, pt: 1.5, pb: 1, flex: 1, minWidth: 0 }}>
+      <Typography variant="subtitle2" sx={{ px: 1.5 }}>{t('analytics.combined.error')}</Typography>
+      <PieChart
+        series={[{ data: pieData, innerRadius: 28, outerRadius: 52, paddingAngle: 2, cornerRadius: 3 }]}
+        height={130}
+        margin={{ top: 8, right: 8, bottom: 8, left: 8 }}
         slots={{ legend: () => null }}
       />
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, px: 1.5, pb: 0.5 }}>
+        {sorted.map((e, i) => (
+          <Chip
+            key={e.tool}
+            size="small"
+            label={`${e.tool} (${e.count})`}
+            sx={{ bgcolor: toolPalette[i % toolPalette.length], color: '#fff', fontSize: '0.65rem', height: 18 }}
+          />
+        ))}
+      </Box>
     </Paper>
   );
 }
@@ -1668,15 +1653,17 @@ function DailySessionList({
                   </Tooltip>
                 </Box>
                 <SessionMetricsPanel session={selectedSession} toolMetrics={sessionToolMetrics} />
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <SessionErrorChart toolMetrics={sessionToolMetrics} />
+                  {fetchSessionCommits && (
+                    <SessionCommitPrefixChart
+                      sessionId={timelineSessionId!}
+                      fetchSessionCommits={fetchSessionCommits}
+                    />
+                  )}
+                </Box>
                 <SessionSkillUsageChart toolMetrics={sessionToolMetrics} />
                 <SessionToolUsageChart toolMetrics={sessionToolMetrics} />
-                <SessionErrorChart toolMetrics={sessionToolMetrics} />
-                {fetchSessionCommits && (
-                  <SessionCommitPrefixChart
-                    sessionId={timelineSessionId!}
-                    fetchSessionCommits={fetchSessionCommits}
-                  />
-                )}
               </Box>
             );
           }
