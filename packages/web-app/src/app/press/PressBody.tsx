@@ -44,7 +44,7 @@ export function PressBody() {
       <Caravan />
       <Dispatch />
       <BriefingPrimary
-        embed={<TrailViewerEmbed containerHeight="clamp(300px, 42vh, 520px)" />}
+        embed={<TrailViewerEmbed containerHeight="clamp(400px, 62vh, 760px)" />}
         embedActions={
           <CtaActions
             primaryLabel={tCta('openViewer')}
