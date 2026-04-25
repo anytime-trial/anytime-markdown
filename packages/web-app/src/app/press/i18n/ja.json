@@ -15,6 +15,7 @@
     "kicker": "This site is an experimental project",
     "title1": "<ruby>理<rt>ことわり</rt></ruby>を、",
     "title2": "<ruby>一図<rt>いちず</rt></ruby>に",
+    "description": "AIエージェントは、苛酷な砂漠（開発環境）を往くキャラバン。\nMarkdown の WYSIWYG 編集・差分レビューと、TypeScript プロジェクトのリアルタイム可視化で、その旅路を安全に見守り導く\n— AI時代の羅針盤となる2つの VS Code 拡張です。",
     "byline": "Filed by <b>Claude Code</b> - Kiyotaka Ueda - 全文無料公開",
     "asideVert": "砂嵐を渡る、長い旅の供。",
     "asideEditor": "From the editor's desk",

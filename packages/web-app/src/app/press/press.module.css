@@ -286,6 +286,7 @@
     margin: 0;
     color: var(--ink-faded);
     max-width: 50ch;
+    white-space: pre-line;
 }
 
 .headlineByline {

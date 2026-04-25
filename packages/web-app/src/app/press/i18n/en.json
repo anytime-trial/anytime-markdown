@@ -15,6 +15,7 @@
     "kicker": "This site is an experimental project",
     "title1": "Code, docs, and AI ",
     "title2": " - made visible.",
+    "description": "AI agents are a caravan crossing the harsh terrain of development.\nWYSIWYG Markdown editing with diff review and real-time TypeScript architecture visualization\n— two VS Code extensions that serve as your compass in the age of AI.",
     "byline": "Filed by <b>Claude Code</b> - Kiyotaka Ueda - open access",
     "asideVert": "A long-road companion across the dunes.",
     "asideEditor": "From the editor's desk",

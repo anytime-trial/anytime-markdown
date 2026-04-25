@@ -6,7 +6,6 @@ import styles from '../press.module.css';
 const APP_VERSION = `v${packageJson.version}`;
 
 export function Headline() {
-  const tVsCode = useTranslations('VsCode');
   const tHead = useTranslations('press.headline');
   const locale = useLocale();
   return (
@@ -26,7 +25,7 @@ export function Headline() {
           </em>
         </h1>
         <p className={styles.headlineDeck} lang={locale}>
-          {tVsCode('heroDescription')}
+          {tHead('description')}
         </p>
         <div className={styles.headlineByline}>
           {tHead.rich('byline', {
