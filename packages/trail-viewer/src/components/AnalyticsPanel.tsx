@@ -476,16 +476,27 @@ function TurnLaneChart({
   );
 
   const toolRuns = useMemo(() =>
-    mergeRuns(assistantMsgs.map((m) => dominantTool(m.toolCalls))).filter((r) => r.value !== ''),
+    mergeRuns(assistantMsgs.map((m) => m.agentId ? '' : dominantTool(m.toolCalls))).filter((r) => r.value !== ''),
     [assistantMsgs],
   );
 
-  const agentRuns = useMemo(() =>
-    mergeRuns(assistantMsgs.map((m) => m.agentId ? dominantTool(m.toolCalls) : '')).filter((r) => r.value !== ''),
-    [assistantMsgs],
-  );
+  const subAgents = useMemo(() => {
+    const seen = new Map<string, string | undefined>();
+    for (const m of assistantMsgs) {
+      if (m.agentId && !seen.has(m.agentId)) seen.set(m.agentId, m.agentDescription);
+    }
+    return Array.from(seen.entries()).map(([id, description]) => ({ id, description }));
+  }, [assistantMsgs]);
 
-  const hasSubAgents = agentRuns.length > 0;
+  const subAgentRuns = useMemo(() =>
+    subAgents.map(({ id }) => ({
+      id,
+      runs: mergeRuns(assistantMsgs.map((m) =>
+        m.agentId === id ? dominantTool(m.toolCalls) : '',
+      )).filter((r) => r.value !== ''),
+    })),
+    [assistantMsgs, subAgents],
+  );
 
   const uniqueModels = useMemo(() => {
     const seen = new Set<string>();
@@ -509,7 +520,7 @@ function TurnLaneChart({
   const N = assistantMsgs.length;
   if (N === 0) return null;
 
-  const LABEL_W = 52;
+  const LABEL_W = 70;
   const PAD_R = 8;
   const plotW = Math.max(svgWidth - LABEL_W - PAD_R, 0);
   const colW = plotW / N;
@@ -520,8 +531,11 @@ function TurnLaneChart({
 
   const modelY = 0;
   const toolY = modelY + LANE_H + LANE_GAP;
-  const agentY = toolY + LANE_H + LANE_GAP;
-  const axisY = (hasSubAgents ? agentY + LANE_H : toolY + LANE_H) + 4;
+  const subAgentLaneY = (i: number) => toolY + LANE_H + LANE_GAP + i * (LANE_H + LANE_GAP);
+  const lastLaneBottom = subAgents.length > 0
+    ? subAgentLaneY(subAgents.length - 1) + LANE_H
+    : toolY + LANE_H;
+  const axisY = lastLaneBottom + 4;
   const totalH = axisY + AXIS_H;
 
   const toX = (i: number) => LABEL_W + i * colW;
@@ -541,24 +555,30 @@ function TurnLaneChart({
             width={Math.max((run.end - run.start + 1) * colW, 1)} height={LANE_H}
             fill={laneModelColor(run.value)} />
         ))}
-        {/* Tool lane (dominant tool per turn) */}
-        <text x={LABEL_W - 4} y={toolY + LANE_H / 2 + 4} textAnchor="end" fontSize={9} fill={colors.textSecondary}>Tools</text>
+        {/* Claude Code lane (main agent only) */}
+        <text x={LABEL_W - 4} y={toolY + LANE_H / 2 + 4} textAnchor="end" fontSize={9} fill={colors.textSecondary}>Claude Code</text>
         {toolRuns.map((run) => (
           <rect key={`t${run.start}`} x={toX(run.start)} y={toolY}
             width={Math.max((run.end - run.start + 1) * colW, 1)} height={LANE_H}
             fill={LANE_TOOL_COLORS[run.value as LaneTool]} />
         ))}
-        {/* Sub-agent lane */}
-        {hasSubAgents && (
-          <>
-            <text x={LABEL_W - 4} y={agentY + LANE_H / 2 + 4} textAnchor="end" fontSize={9} fill={colors.textSecondary}>Agents</text>
-            {agentRuns.map((run) => (
-              <rect key={`a${run.start}`} x={toX(run.start)} y={agentY}
-                width={Math.max((run.end - run.start + 1) * colW, 1)} height={LANE_H}
-                fill={LANE_TOOL_COLORS[run.value as LaneTool]} />
-            ))}
-          </>
-        )}
+        {/* SubAgent lanes — one per unique sub-agent */}
+        {subAgents.map(({ id }, i) => {
+          const y = subAgentLaneY(i);
+          const runs = subAgentRuns[i]?.runs ?? [];
+          return (
+            <g key={id}>
+              <text x={LABEL_W - 4} y={y + LANE_H / 2 + 4} textAnchor="end" fontSize={9} fill={colors.textSecondary}>
+                {`SubAgent ${i + 1}`}
+              </text>
+              {runs.map((run) => (
+                <rect key={`sa${i}-${run.start}`} x={toX(run.start)} y={y}
+                  width={Math.max((run.end - run.start + 1) * colW, 1)} height={LANE_H}
+                  fill={LANE_TOOL_COLORS[run.value as LaneTool]} />
+              ))}
+            </g>
+          );
+        })}
         {/* X-axis */}
         <line x1={LABEL_W} y1={axisY} x2={LABEL_W + plotW} y2={axisY} stroke={colors.border} strokeWidth={0.5} />
         {ticks.map((i) => {
