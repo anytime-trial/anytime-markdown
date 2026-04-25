@@ -6,18 +6,18 @@ import styles from '../press.module.css';
 const APP_VERSION = `v${packageJson.version}`;
 
 export function Headline() {
-  const t = useTranslations('VsCode');
+  const tVsCode = useTranslations('VsCode');
   const tHead = useTranslations('press.headline');
   return (
     <section className={styles.headline}>
       <div>
         <div className={styles.headlineKicker}>{tHead('kicker')}</div>
         <h1 className={styles.headlineTitle}>
-          {t('heroTitle1')}
+          {tHead('title1')}
           <br />
-          <em>{t('heroTitle2')}</em>
+          <em>{tHead('title2')}</em>
         </h1>
-        <p className={styles.headlineDeck}>{t('heroDescription')}</p>
+        <p className={styles.headlineDeck}>{tVsCode('heroDescription')}</p>
         <div className={styles.headlineByline}>
           {tHead.rich('byline', {
             b: (chunks) => <b>{chunks}</b>,
