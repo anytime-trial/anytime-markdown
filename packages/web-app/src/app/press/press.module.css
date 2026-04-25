@@ -256,7 +256,7 @@
     line-height: 1.15;
     margin: 0;
     color: var(--ink-faded);
-    max-width: 66ch;
+    max-width: 33ch;
 }
 
 .headlineByline {
