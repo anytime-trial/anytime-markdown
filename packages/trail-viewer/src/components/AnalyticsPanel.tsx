@@ -2059,8 +2059,9 @@ function ReleasesBarChart({ timeSeries }: Readonly<{
     );
   }
 
+  const fmt = new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric' });
   const dataset = timeSeries.map((d) => ({
-    label: new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric' }).format(new Date(d.bucketStart)),
+    label: fmt.format(new Date(d.bucketStart)),
     releases: d.value,
   }));
 
