@@ -113,28 +113,70 @@ export function Briefing({ no, items, id }: BriefingProps) {
 export function BriefingPrimary({ embed }: BriefingPrimaryProps) {
   return (
     <section className={styles.briefingWithEmbed} id="briefing">
-      <div className={styles.briefingEmbed}>
-        <div className={styles.trailFrameBar}>
-          <span
-            className={styles.trailFrameDot}
-            style={{ background: '#FF5F57' }}
-            aria-hidden="true"
-          />
-          <span
-            className={styles.trailFrameDot}
-            style={{ background: '#FFBD2E' }}
-            aria-hidden="true"
-          />
-          <span
-            className={styles.trailFrameDot}
-            style={{ background: '#28C840' }}
-            aria-hidden="true"
-          />
-          <span className={styles.trailFrameTitle}>
-            anytime-trail — trail viewer
-          </span>
+      <div className={styles.briefingLeft}>
+        <div className={styles.trailIntro}>
+          <header className={styles.trailIntroHeader}>
+            <span className={styles.trailIntroLabel}>
+              NO.005 ／ ANYTIME TRAIL
+            </span>
+            <h3 className={styles.trailIntroTitle}>
+              Anytime <em>Trail.</em>
+            </h3>
+          </header>
+          <ul className={styles.trailIntroList}>
+            <li>
+              <strong>構造の可視化</strong>
+              <p>
+                TypeScript プロジェクトを解析し、C4 アーキテクチャ図と DSM
+                （依存構造マトリクス）を自動生成。L1〜L4
+                でドリルダウンし、循環依存は赤枠でひと目で把握。
+              </p>
+            </li>
+            <li>
+              <strong>品質の可視化</strong>
+              <p>
+                テストデータを C4 図に重ねて表示し、テスト不足モジュールを一目で特定できる。
+              </p>
+            </li>
+            <li>
+              <strong>行動の可視化</strong>
+              <p>
+                Claude Code の作業ログを自動収集し、モデル別コスト・ツール使用量・コミット履歴を一元管理。AI
+                エージェントの編集箇所もグラフ上でリアルタイム追跡。
+              </p>
+            </li>
+            <li>
+              <strong>画像で誘導</strong>
+              <p>
+                Agent Note にスクリーンキャプチャやアノテーションを貼り、AI
+                に視覚的コンテキストを共有。スキルからノートを参照した作業もワンコマンド。
+              </p>
+            </li>
+          </ul>
         </div>
-        <div className={styles.trailFrameBody}>{embed}</div>
+        <div className={styles.briefingEmbed}>
+          <div className={styles.trailFrameBar}>
+            <span
+              className={styles.trailFrameDot}
+              style={{ background: '#FF5F57' }}
+              aria-hidden="true"
+            />
+            <span
+              className={styles.trailFrameDot}
+              style={{ background: '#FFBD2E' }}
+              aria-hidden="true"
+            />
+            <span
+              className={styles.trailFrameDot}
+              style={{ background: '#28C840' }}
+              aria-hidden="true"
+            />
+            <span className={styles.trailFrameTitle}>
+              anytime-trail — trail viewer
+            </span>
+          </div>
+          <div className={styles.trailFrameBody}>{embed}</div>
+        </div>
       </div>
       <div className={styles.briefingMain}>
         <header className={styles.briefingHeader}>
