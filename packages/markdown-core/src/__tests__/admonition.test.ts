@@ -11,16 +11,17 @@ import { preprocessAdmonition } from "../utils/admonitionHelpers";
 import { getMarkdownStorage } from "../types";
 
 function createAdmonitionEditor(md = ""): Editor {
-  // sanitizeMarkdown と同様に前処理を適用してから setContent
-  const preprocessed = preprocessAdmonition(md);
+  // commands.setContent() 経由で読み込むことで appendTransaction が発火する。
+  // new Editor({ content: ... }) では appendTransaction が発火しないため、
+  // 実際の applyMarkdownToEditor と同じ経路（commands.setContent）を使う。
   const editor = new Editor({
     extensions: [
       StarterKit.configure({ blockquote: false }),
       AdmonitionBlockquote,
       Markdown.configure({ html: true }),
     ],
-    content: preprocessed,
   });
+  editor.commands.setContent(md);
   return editor;
 }
 
@@ -161,6 +162,24 @@ describe("AdmonitionBlockquote", () => {
       expect(type1).toBe("note");
       expect(type2).toBe("note");
       expect(text1).toBe(text2);
+      editor.destroy();
+      editor2.destroy();
+    });
+
+    test("admonition 内のコードスパンでバックスラッシュが増幅しない", () => {
+      // regression: preprocessAdmonition が HTML blockquote に変換すると
+      // バッククォートが毎ラウンド escapeされて指数的に増幅するバグ
+      const input = "> [!NOTE]\n> Use `moduleResolution: \"node\"` for this.";
+      const editor = createAdmonitionEditor(input);
+      const output = getMarkdown(editor);
+
+      const editor2 = createAdmonitionEditor(output);
+      const output2 = getMarkdown(editor2);
+
+      // 連続ラウンドトリップで出力が安定すること
+      expect(output2).toBe(output);
+      // バッククォートが保持されること（エスケープされていないこと）
+      expect(output).toContain("`moduleResolution: \"node\"`");
       editor.destroy();
       editor2.destroy();
     });
