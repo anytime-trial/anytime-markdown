@@ -267,7 +267,7 @@
 
 .headlineTitle rt {
     font-family: var(--font-mono);
-    font-size: 0.32em;
+    font-size: 0.18em;
     letter-spacing: 0.08em;
     font-weight: 500;
     color: var(--ink-faded);
