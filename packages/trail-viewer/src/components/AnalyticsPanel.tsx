@@ -42,7 +42,7 @@ import { useDrawingArea, useXScale } from '@mui/x-charts/hooks';
 import { formatLocalTime, toLocalDateKey } from '@anytime-markdown/trail-core/formatDate';
 import { extractCommitPrefix } from '@anytime-markdown/trail-core/domain';
 import type { QualityMetrics, DateRange, ReleaseQualityBucket } from '@anytime-markdown/trail-core/domain/metrics';
-import type { AnalyticsData, CombinedData, CombinedPeriodMode, CombinedRangeDays, CostOptimizationData, ToolMetrics, TrailMessage, TrailSession, TrailSessionCommit, TrailTokenUsage } from '../parser/types';
+import type { AnalyticsData, CombinedData, CombinedPeriodMode, CombinedRangeDays, CostOptimizationData, ToolMetrics, TrailMessage, TrailSession, TrailSessionCommit, TrailTokenUsage, TrailToolCall } from '../parser/types';
 import { useTrailTheme } from './TrailThemeContext';
 import { useTrailI18n } from '../i18n';
 
@@ -444,6 +444,22 @@ function mergeRuns<T>(values: readonly T[]): Array<{ value: T; start: number; en
   return runs;
 }
 
+const AGENT_PALETTE = ['#E91E63', '#FF5722', '#009688', '#FF9800', '#3F51B5', '#795548'];
+
+function agentIdColor(agentId: string, palette: readonly string[]): string {
+  let hash = 0;
+  for (let i = 0; i < agentId.length; i++) hash = ((hash * 31) + agentId.charCodeAt(i)) >>> 0;
+  return palette[hash % palette.length];
+}
+
+function dominantTool(toolCalls: readonly TrailToolCall[] | undefined): LaneTool | '' {
+  if (!toolCalls || toolCalls.length === 0) return '';
+  for (const cat of LANE_TOOL_CATS) {
+    if (toolCalls.some((tc) => laneClassifyTool(tc.name) === cat)) return cat;
+  }
+  return '';
+}
+
 function TurnLaneChart({
   assistantMsgs,
   tickStep,
@@ -468,14 +484,16 @@ function TurnLaneChart({
   );
 
   const toolRuns = useMemo(() =>
-    LANE_TOOL_CATS.map((cat) => ({
-      cat,
-      runs: mergeRuns(
-        assistantMsgs.map((m) => (m.toolCalls ?? []).some((tc) => laneClassifyTool(tc.name) === cat)),
-      ).filter((r) => r.value),
-    })),
+    mergeRuns(assistantMsgs.map((m) => dominantTool(m.toolCalls))).filter((r) => r.value !== ''),
     [assistantMsgs],
   );
+
+  const agentRuns = useMemo(() =>
+    mergeRuns(assistantMsgs.map((m) => m.agentId ?? '')).filter((r) => r.value !== ''),
+    [assistantMsgs],
+  );
+
+  const hasSubAgents = agentRuns.length > 0;
 
   const uniqueModels = useMemo(() => {
     const seen = new Set<string>();
@@ -487,6 +505,15 @@ function TurnLaneChart({
     return result;
   }, [assistantMsgs]);
 
+  const usedToolCats = useMemo(() => {
+    const seen = new Set<LaneTool>();
+    for (const m of assistantMsgs) {
+      const d = dominantTool(m.toolCalls);
+      if (d !== '') seen.add(d);
+    }
+    return LANE_TOOL_CATS.filter((c) => seen.has(c));
+  }, [assistantMsgs]);
+
   const N = assistantMsgs.length;
   if (N === 0) return null;
 
@@ -495,14 +522,14 @@ function TurnLaneChart({
   const plotW = Math.max(svgWidth - LABEL_W - PAD_R, 0);
   const colW = plotW / N;
 
-  const MODEL_H = 16;
-  const TOOL_ROW_H = 4;
-  const TOOL_GAP = 2;
+  const LANE_H = 16;
   const LANE_GAP = 6;
   const AXIS_H = 16;
-  const toolY = MODEL_H + LANE_GAP;
-  const toolSectionH = LANE_TOOL_CATS.length * (TOOL_ROW_H + TOOL_GAP);
-  const axisY = toolY + toolSectionH + 4;
+
+  const modelY = 0;
+  const toolY = modelY + LANE_H + LANE_GAP;
+  const agentY = toolY + LANE_H + LANE_GAP;
+  const axisY = (hasSubAgents ? agentY + LANE_H : toolY + LANE_H) + 4;
   const totalH = axisY + AXIS_H;
 
   const toX = (i: number) => LABEL_W + i * colW;
@@ -515,43 +542,31 @@ function TurnLaneChart({
   return (
     <Box ref={containerRef} sx={{ mt: 0.5 }}>
       <svg width="100%" height={totalH} style={{ display: 'block', overflow: 'visible' }}>
-        {/* Model lane label */}
-        <text x={LABEL_W - 4} y={MODEL_H / 2 + 4} textAnchor="end" fontSize={9} fill={colors.textSecondary}>
-          Model
-        </text>
-        {/* Model strip — merged runs */}
+        {/* Model lane */}
+        <text x={LABEL_W - 4} y={modelY + LANE_H / 2 + 4} textAnchor="end" fontSize={9} fill={colors.textSecondary}>Model</text>
         {modelRuns.map((run) => (
-          <rect
-            key={`ml${run.start}`}
-            x={toX(run.start)}
-            y={0}
-            width={Math.max((run.end - run.start + 1) * colW, 1)}
-            height={MODEL_H}
-            fill={laneModelColor(run.value)}
-          />
+          <rect key={`m${run.start}`} x={toX(run.start)} y={modelY}
+            width={Math.max((run.end - run.start + 1) * colW, 1)} height={LANE_H}
+            fill={laneModelColor(run.value)} />
         ))}
-        {/* Tool lane label */}
-        <text x={LABEL_W - 4} y={toolY + toolSectionH / 2 + 4} textAnchor="end" fontSize={9} fill={colors.textSecondary}>
-          Tools
-        </text>
-        {/* Tool strips — merged runs */}
-        {toolRuns.map(({ cat, runs }, row) => {
-          const y = toolY + row * (TOOL_ROW_H + TOOL_GAP);
-          return (
-            <g key={cat}>
-              {runs.map((run) => (
-                <rect
-                  key={run.start}
-                  x={toX(run.start)}
-                  y={y}
-                  width={Math.max((run.end - run.start + 1) * colW, 1)}
-                  height={TOOL_ROW_H}
-                  fill={LANE_TOOL_COLORS[cat]}
-                />
-              ))}
-            </g>
-          );
-        })}
+        {/* Tool lane (dominant tool per turn) */}
+        <text x={LABEL_W - 4} y={toolY + LANE_H / 2 + 4} textAnchor="end" fontSize={9} fill={colors.textSecondary}>Tools</text>
+        {toolRuns.map((run) => (
+          <rect key={`t${run.start}`} x={toX(run.start)} y={toolY}
+            width={Math.max((run.end - run.start + 1) * colW, 1)} height={LANE_H}
+            fill={LANE_TOOL_COLORS[run.value as LaneTool]} />
+        ))}
+        {/* Sub-agent lane */}
+        {hasSubAgents && (
+          <>
+            <text x={LABEL_W - 4} y={agentY + LANE_H / 2 + 4} textAnchor="end" fontSize={9} fill={colors.textSecondary}>Agents</text>
+            {agentRuns.map((run) => (
+              <rect key={`a${run.start}`} x={toX(run.start)} y={agentY}
+                width={Math.max((run.end - run.start + 1) * colW, 1)} height={LANE_H}
+                fill={agentIdColor(run.value, AGENT_PALETTE)} />
+            ))}
+          </>
+        )}
         {/* X-axis */}
         <line x1={LABEL_W} y1={axisY} x2={LABEL_W + plotW} y2={axisY} stroke={colors.border} strokeWidth={0.5} />
         {ticks.map((i) => {
@@ -572,7 +587,7 @@ function TurnLaneChart({
             <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'text.secondary' }}>{model || 'unknown'}</Typography>
           </Box>
         ))}
-        {LANE_TOOL_CATS.map((cat) => (
+        {usedToolCats.map((cat) => (
           <Box key={cat} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <Box sx={{ width: 10, height: 10, borderRadius: '2px', bgcolor: LANE_TOOL_COLORS[cat] }} />
             <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'text.secondary' }}>{LANE_TOOL_LABELS[cat]}</Typography>
