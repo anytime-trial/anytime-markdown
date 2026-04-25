@@ -18,7 +18,7 @@ import Typography from '@mui/material/Typography';
 import { useTheme } from '@mui/material/styles';
 import type { SxProps, Theme } from '@mui/material/styles';
 import { BarChart, BarPlot } from '@mui/x-charts/BarChart';
-import { LineChart, LinePlot, MarkPlot } from '@mui/x-charts/LineChart';
+import { LinePlot, MarkPlot } from '@mui/x-charts/LineChart';
 import { ChartsDataProvider } from '@mui/x-charts/ChartsDataProvider';
 import { ChartsSurface } from '@mui/x-charts/ChartsSurface';
 import { ChartsWrapper } from '@mui/x-charts/ChartsWrapper';
@@ -634,48 +634,51 @@ function SessionCacheTimeline({
       </Box>
       {hasData ? (
         <>
-          <LineChart
-            dataset={dataset}
-            xAxis={[{ dataKey: 'turn', scaleType: 'point', tickInterval: (value: number) => value % tickStep === 0 }]}
+          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+          <ChartsDataProvider
+            dataset={dataset as any}
+            series={[
+              { type: 'line', dataKey: 'inputTokens', label: t('analytics.chartInput'), color: chartColors.input, showMark: false, yAxisId: 'tokens' },
+              { type: 'line', dataKey: 'outputTokens', label: t('analytics.chartOutput'), color: chartColors.output, showMark: false, yAxisId: 'tokens' },
+              { type: 'line', dataKey: 'cacheReadTokens', label: t('analytics.chartCacheRead'), color: chartColors.cacheRead, showMark: false, yAxisId: 'tokens' },
+              { type: 'line', dataKey: 'cacheCreationTokens', label: t('analytics.chartCacheWrite'), color: chartColors.cacheWrite, showMark: false, yAxisId: 'tokens' },
+              { type: 'line', dataKey: 'cumulativeMs', label: t('analytics.chartCumulativeInferenceTime'), color: chartColors.cumulativeTime, showMark: false, yAxisId: 'time', valueFormatter: (v: number | null) => (v == null ? '' : fmtDurationShort(v)) },
+            ]}
+            xAxis={[{ id: 'x', dataKey: 'turn', scaleType: 'point', tickInterval: (value: number) => value % tickStep === 0 }]}
             yAxis={[
               { id: 'tokens', valueFormatter: fmtTokens },
               { id: 'time', position: 'right', valueFormatter: fmtDurationShort },
             ]}
-            series={[
-              { dataKey: 'inputTokens', label: t('analytics.chartInput'), color: chartColors.input, showMark: false, yAxisId: 'tokens' },
-              { dataKey: 'outputTokens', label: t('analytics.chartOutput'), color: chartColors.output, showMark: false, yAxisId: 'tokens' },
-              { dataKey: 'cacheReadTokens', label: t('analytics.chartCacheRead'), color: chartColors.cacheRead, showMark: false, yAxisId: 'tokens' },
-              { dataKey: 'cacheCreationTokens', label: t('analytics.chartCacheWrite'), color: chartColors.cacheWrite, showMark: false, yAxisId: 'tokens' },
-              {
-                dataKey: 'cumulativeMs',
-                label: t('analytics.chartCumulativeInferenceTime'),
-                color: chartColors.cumulativeTime,
-                showMark: false,
-                yAxisId: 'time',
-                valueFormatter: (v) => (v == null ? '' : fmtDurationShort(v)),
-              },
-            ]}
             height={200}
             margin={{ left: 16, right: 16, top: 16, bottom: 0 }}
-            slotProps={{
-              legend: { direction: 'horizontal', position: { vertical: 'bottom', horizontal: 'center' } },
-            }}
           >
-            {commitTurns.map((turn) => (
-              <ChartsReferenceLine
-                key={`commit-${turn}`}
-                x={turn}
-                lineStyle={{ stroke: '#4CAF50', strokeWidth: 1.5, strokeDasharray: '4 2' }}
-              />
-            ))}
-            {errorTurns.map((turn) => (
-              <ChartsReferenceLine
-                key={`error-${turn}`}
-                x={turn}
-                lineStyle={{ stroke: '#F44336', strokeWidth: 1.5, strokeDasharray: '4 2' }}
-              />
-            ))}
-          </LineChart>
+            <ChartsWrapper legendDirection="horizontal" legendPosition={{ vertical: 'bottom', horizontal: 'center' }}>
+              <ChartsLegend />
+              <ChartsSurface>
+                <ChartsGrid horizontal />
+                <LinePlot />
+                <ChartsAxisHighlight x="line" />
+                <ChartsXAxis axisId="x" />
+                <ChartsYAxis axisId="tokens" />
+                <ChartsYAxis axisId="time" />
+                {commitTurns.map((turn) => (
+                  <ChartsReferenceLine
+                    key={`commit-${turn}`}
+                    x={turn}
+                    lineStyle={{ stroke: '#4CAF50', strokeWidth: 1.5, strokeDasharray: '4 2' }}
+                  />
+                ))}
+                {errorTurns.map((turn) => (
+                  <ChartsReferenceLine
+                    key={`error-${turn}`}
+                    x={turn}
+                    lineStyle={{ stroke: '#F44336', strokeWidth: 1.5, strokeDasharray: '4 2' }}
+                  />
+                ))}
+              </ChartsSurface>
+              <ChartsTooltip />
+            </ChartsWrapper>
+          </ChartsDataProvider>
           {(commitTurns.length > 0 || errorTurns.length > 0) && (
             <Box sx={{ display: 'flex', gap: 1.5, mt: 0.5, px: 1 }}>
               {commitTurns.length > 0 && (

@@ -612,6 +612,7 @@ export class TrailDataServer {
 
       const rawMessages: MessageRow[] = this.trailDb.getMessages(sessionId);
       const messageCommits = this.trailDb.getMessageCommitsBySession(sessionId);
+      const errorUuids = this.trailDb.getErrorMessageUuids(sessionId);
       const commitsByMessageUuid = new Map<string, string[]>();
       for (const mc of messageCommits) {
         const arr = commitsByMessageUuid.get(mc.messageUuid) ?? [];
@@ -638,6 +639,7 @@ export class TrailDataServer {
         timestamp: m.timestamp,
         isSidechain: m.is_sidechain === 1,
         triggerCommitHashes: commitsByMessageUuid.get(m.uuid),
+        hasToolError: errorUuids.has(m.uuid) ? true : undefined,
         agentId: m.agent_id,
         agentDescription: m.agent_description,
       }));

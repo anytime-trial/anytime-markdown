@@ -2600,6 +2600,22 @@ export class TrailDatabase {
     }));
   }
 
+  /** Return the set of message UUIDs that had at least one is_error=1 tool call in the session. */
+  getErrorMessageUuids(sessionId: string): Set<string> {
+    const db = this.ensureDb();
+    const result = db.exec(
+      'SELECT DISTINCT message_uuid FROM message_tool_calls WHERE session_id = ? AND is_error = 1',
+      [sessionId],
+    );
+    const uuids = new Set<string>();
+    if (result[0]) {
+      for (const row of result[0].values) {
+        if (typeof row[0] === 'string') uuids.add(row[0]);
+      }
+    }
+    return uuids;
+  }
+
   getMessages(sessionId: string): MessageRow[] {
     const db = this.ensureDb();
     const stmt = db.prepare(
