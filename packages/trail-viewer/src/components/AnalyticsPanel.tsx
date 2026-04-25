@@ -207,7 +207,6 @@ function OverviewCards({
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
   const [usageIdx, setUsageIdx] = useState(0);
-  const [toolIdx, setToolIdx] = useState(0);
   const totalTokens = totals.inputTokens + totals.outputTokens;
 
   const cards = [
@@ -262,15 +261,28 @@ function OverviewCards({
         onCycle={() => setUsageIdx((i) => (i + 1) % cards.length)}
         cardStyle={cardStyle}
       />
-      {doraCards.length > 0 && (
-        <CyclingCard
-          groupName={t('analytics.groupDora')}
-          items={doraCards}
-          index={toolIdx}
-          onCycle={() => setToolIdx((i) => (i + 1) % doraCards.length)}
-          cardStyle={cardStyle}
-        />
-      )}
+      {doraCards.map((card) => (
+        <Paper key={card.label} elevation={0} sx={cardStyle}>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5, textAlign: 'left' }}>
+            {card.label}
+          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, mt: 0.5 }}>
+            <Typography variant="h5">{card.value}</Typography>
+            {card.badge && (
+              <Chip
+                label={card.badge.label}
+                size="small"
+                sx={{ backgroundColor: card.badge.color, color: '#fff', fontWeight: 700, height: 20, fontSize: 10 }}
+              />
+            )}
+          </Box>
+          {card.delta && (
+            <Typography variant="caption" sx={{ color: card.delta.color }}>
+              {card.delta.text}
+            </Typography>
+          )}
+        </Paper>
+      ))}
     </Box>
   );
 }
