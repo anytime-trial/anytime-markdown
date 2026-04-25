@@ -210,16 +210,10 @@ function OverviewCards({
   const [productivityIdx, setProductivityIdx] = useState(0);
   const [qualityIdx, setQualityIdx] = useState(0);
   const [toolIdx, setToolIdx] = useState(0);
-  const totalInput = totals.inputTokens + totals.cacheReadTokens;
-  const cacheHitRate = totalInput > 0
-    ? fmtPercent(totals.cacheReadTokens / totalInput)
-    : '\u2014';
-
   const cards = [
     { label: t('analytics.totalSessions'), value: fmtNum(totals.sessions) },
     { label: t('analytics.totalTokens'), value: fmtTokens(totals.inputTokens + totals.outputTokens) },
     { label: t('analytics.estimatedCost'), value: fmtUsd(totals.estimatedCostUsd) },
-    { label: t('analytics.cacheHitRate'), value: cacheHitRate },
   ];
 
   const totalTokens = totals.inputTokens + totals.outputTokens;
