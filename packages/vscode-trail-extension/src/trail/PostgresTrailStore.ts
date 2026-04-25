@@ -402,6 +402,17 @@ export class PostgresTrailStore implements IRemoteTrailStore {
   }
 
   async listManualElements(): Promise<never> { throw new Error('PostgresTrailStore.listManualElements not implemented'); }
+  async upsertCommitFiles(rows: readonly { commit_hash: string; file_path: string }[]): Promise<void> {
+    if (rows.length === 0) return;
+    const pool = this.ensurePool();
+    for (const r of rows) {
+      await pool.query(
+        `INSERT INTO trail_commit_files (commit_hash, file_path) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+        [r.commit_hash, r.file_path],
+      );
+    }
+  }
+
   async upsertManualElement(): Promise<never> { throw new Error('PostgresTrailStore.upsertManualElement not implemented'); }
   async deleteManualElement(): Promise<never> { throw new Error('PostgresTrailStore.deleteManualElement not implemented'); }
   async listManualRelationships(): Promise<never> { throw new Error('PostgresTrailStore.listManualRelationships not implemented'); }
