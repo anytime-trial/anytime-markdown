@@ -3721,6 +3721,16 @@ export class TrailDatabase {
     });
   }
 
+  getReleasesInRange(from: string, to: string): Array<{ tag: string; released_at: string }> {
+    const db = this.ensureDb();
+    const res = db.exec(
+      `SELECT tag, released_at FROM releases WHERE released_at >= ? AND released_at <= ?`,
+      [from, to],
+    );
+    if (!res[0]) return [];
+    return res[0].values.map((row) => ({ tag: row[0] as string, released_at: row[1] as string }));
+  }
+
   getReleaseFiles(releaseTag: string): ReleaseFileRow[] {
     const db = this.ensureDb();
     const result = db.exec(

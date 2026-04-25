@@ -55,6 +55,7 @@ export interface AnalyticsPanelProps {
   readonly costOptimization?: CostOptimizationData | null;
   readonly fetchCombinedData?: (period: CombinedPeriodMode, rangeDays: CombinedRangeDays) => Promise<CombinedData>;
   readonly fetchQualityMetrics?: (range: DateRange) => Promise<QualityMetrics | null>;
+  readonly fetchDeploymentFrequency?: (range: DateRange, bucket: 'day' | 'week') => Promise<ReadonlyArray<{ bucketStart: string; value: number }>>;
 }
 
 // ---------------------------------------------------------------------------
@@ -2094,6 +2095,7 @@ function CombinedChartsSection({
   costOptimization,
   fetchCombinedData,
   fetchQualityMetrics,
+  fetchDeploymentFrequency,
 }: Readonly<{
   dailyActivity: AnalyticsData['dailyActivity'];
   sessions: readonly TrailSession[];
@@ -2108,6 +2110,7 @@ function CombinedChartsSection({
   costOptimization?: CostOptimizationData | null;
   fetchCombinedData?: (period: CombinedPeriodMode, rangeDays: CombinedRangeDays) => Promise<CombinedData>;
   fetchQualityMetrics?: (range: DateRange) => Promise<QualityMetrics | null>;
+  fetchDeploymentFrequency?: (range: DateRange, bucket: 'day' | 'week') => Promise<ReadonlyArray<{ bucketStart: string; value: number }>>;
 }>) {
   const { colors } = useTrailTheme();
   const { t } = useTrailI18n();
@@ -2119,6 +2122,8 @@ function CombinedChartsSection({
   const [combinedData, setCombinedData] = useState<CombinedData | null>(null);
   const [combinedLoading, setCombinedLoading] = useState(false);
   const [overlayLoading, setOverlayLoading] = useState(false);
+  const [releasesTimeSeries, setReleasesTimeSeries] = useState<ReadonlyArray<{ bucketStart: string; value: number }>>([]);
+  const [releasesLoading, setReleasesLoading] = useState(false);
   const [overlay, setOverlay] = useState<{
     bucket: 'day' | 'week';
     tokens: ReadonlyArray<{ bucketStart: string; value: number }>;
@@ -2182,6 +2187,24 @@ function CombinedChartsSection({
     })();
     return () => { mounted = false; };
   }, [fetchQualityMetrics, period]);
+
+  useEffect(() => {
+    if (!fetchDeploymentFrequency) return;
+    const now = new Date();
+    const to = now.toISOString();
+    const from = new Date(now.getTime() - period * 86_400_000).toISOString();
+    const bucket: 'day' | 'week' = period >= 90 ? 'week' : 'day';
+    let mounted = true;
+    setReleasesLoading(true);
+    void (async () => {
+      const result = await fetchDeploymentFrequency({ from, to }, bucket);
+      if (mounted) {
+        setReleasesTimeSeries(result);
+        setReleasesLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [fetchDeploymentFrequency, period]);
 
   const toggleSx = {
     color: colors.textSecondary,
@@ -2277,12 +2300,12 @@ function CombinedChartsSection({
           overlay={overlay}
         />
       ) : metric === 'releases' ? (
-        overlayLoading ? (
+        releasesLoading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 240 }}>
             <CircularProgress size={32} />
           </Box>
         ) : (
-          <ReleasesBarChart timeSeries={overlay?.deploymentFrequency ?? []} />
+          <ReleasesBarChart timeSeries={releasesTimeSeries} />
         )
       ) : fetchCombinedData ? (
         combinedLoading && !combinedData ? (
@@ -2318,7 +2341,7 @@ function CombinedChartsSection({
   );
 }
 
-export function AnalyticsPanel({ analytics, sessions = [], onSelectSession, onJumpToTrace, fetchSessionMessages, fetchSessionCommits, fetchSessionToolMetrics, fetchDayToolMetrics, costOptimization, fetchCombinedData, fetchQualityMetrics }: Readonly<AnalyticsPanelProps>) {
+export function AnalyticsPanel({ analytics, sessions = [], onSelectSession, onJumpToTrace, fetchSessionMessages, fetchSessionCommits, fetchSessionToolMetrics, fetchDayToolMetrics, costOptimization, fetchCombinedData, fetchQualityMetrics, fetchDeploymentFrequency }: Readonly<AnalyticsPanelProps>) {
   const { t } = useTrailI18n();
   const { scrollbarSx } = useTrailTheme();
   const [period, setPeriod] = useState<PeriodDays>(30);
@@ -2351,6 +2374,7 @@ export function AnalyticsPanel({ analytics, sessions = [], onSelectSession, onJu
         costOptimization={costOptimization}
         fetchCombinedData={fetchCombinedData}
         fetchQualityMetrics={fetchQualityMetrics}
+        fetchDeploymentFrequency={fetchDeploymentFrequency}
       />
     </Box>
   );

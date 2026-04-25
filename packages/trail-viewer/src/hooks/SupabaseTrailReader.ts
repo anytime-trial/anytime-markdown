@@ -13,7 +13,7 @@ import type {
 } from '../parser/types';
 // AnalyticsData は trail-core の共通型を使用（React 依存を避け、server-safe にする）
 import type { AnalyticsData, ITrailReader, TrailRelease } from '@anytime-markdown/trail-core/domain';
-import { computeQualityMetrics } from '@anytime-markdown/trail-core/domain/metrics';
+import { computeDeploymentFrequency, computeQualityMetrics } from '@anytime-markdown/trail-core/domain/metrics';
 import type { DateRange, QualityMetrics } from '@anytime-markdown/trail-core/domain/metrics';
 import { calculateCost, normalizeModelName } from '@anytime-markdown/trail-core/domain/engine';
 
@@ -916,5 +916,24 @@ export class SupabaseTrailReader implements ITrailReader {
       },
       range,
     );
+  }
+
+  async getDeploymentFrequency(
+    range: DateRange,
+    bucket: 'day' | 'week',
+  ): Promise<ReadonlyArray<{ bucketStart: string; value: number }>> {
+    const { data } = await this.client
+      .from('trail_releases')
+      .select('released_at')
+      .gte('released_at', range.from)
+      .lte('released_at', range.to);
+    const releases = (data ?? []) as Array<{ released_at: string }>;
+    const { timeSeries } = computeDeploymentFrequency(
+      releases.map((r) => ({ tag_date: r.released_at })),
+      range,
+      range,
+      bucket,
+    );
+    return timeSeries;
   }
 }

@@ -40,6 +40,7 @@ export interface TrailDataSourceResult {
   readonly fetchReleases: () => Promise<readonly TrailRelease[]>;
   readonly fetchCombinedData: (period: CombinedPeriodMode, rangeDays: CombinedRangeDays) => Promise<CombinedData>;
   readonly fetchQualityMetrics: (range: DateRange) => Promise<QualityMetrics | null>;
+  readonly fetchDeploymentFrequency: (range: DateRange, bucket: 'day' | 'week') => Promise<ReadonlyArray<{ bucketStart: string; value: number }>>;
   readonly tokenBudgets: readonly TokenBudgetStatus[];
 }
 
@@ -298,6 +299,27 @@ export function useTrailDataSource(serverUrl: string): TrailDataSourceResult {
     [baseUrl],
   );
 
+  // --- Fetch deployment frequency (lightweight: releases only) ---
+
+  const fetchDeploymentFrequency = useCallback(
+    async (range: DateRange, bucket: 'day' | 'week'): Promise<ReadonlyArray<{ bucketStart: string; value: number }>> => {
+      const url = `${baseUrl}/api/trail/deployment-frequency?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}&bucket=${bucket}`;
+      try {
+        const res = await fetch(url);
+        if (!res.ok) {
+          const body = await res.text().catch(() => '');
+          console.error(`[fetchDeploymentFrequency] HTTP ${res.status}: ${body}`);
+          return [];
+        }
+        return (await res.json()) as ReadonlyArray<{ bucketStart: string; value: number }>;
+      } catch (err) {
+        console.error('[fetchDeploymentFrequency] request failed', err);
+        return [];
+      }
+    },
+    [baseUrl],
+  );
+
   // --- Search sessions ---
 
   const searchSessions = useCallback(
@@ -466,6 +488,7 @@ export function useTrailDataSource(serverUrl: string): TrailDataSourceResult {
     fetchReleases,
     fetchCombinedData,
     fetchQualityMetrics,
+    fetchDeploymentFrequency,
     tokenBudgets,
   };
 }
