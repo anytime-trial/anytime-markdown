@@ -902,6 +902,43 @@
     flex-wrap: wrap;
 }
 
+.foldLogo {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.foldLogoBadge circle {
+    fill: var(--ink);
+}
+
+.foldLogoHoof {
+    fill: var(--paper);
+}
+
+.foldLogoText {
+    display: inline-flex;
+    flex-direction: column;
+    line-height: 1;
+}
+
+.foldLogoTitle {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+    line-height: 1.15;
+}
+
+.foldLogoSubtitle {
+    font-family: var(--font-mono);
+    font-size: 0.58rem;
+    letter-spacing: 0.22em;
+    color: var(--vermilion);
+    line-height: 1.2;
+}
+
 .foldStamp {
     border: var(--rule-thin) solid var(--vermilion);
     color: var(--vermilion);

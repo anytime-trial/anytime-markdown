@@ -83,6 +83,29 @@ export function Colophon() {
       </section>
       <div className={styles.fold}>
         <span>{t('foldCopy')}</span>
+        <div className={styles.foldLogo} aria-label="Anytime Trail">
+          <svg
+            viewBox="0 0 48 48"
+            width={28}
+            height={28}
+            aria-hidden="true"
+            focusable="false"
+            className={styles.foldLogoBadge}
+          >
+            <circle cx="24" cy="24" r="22" />
+            <g
+              className={styles.foldLogoHoof}
+              transform="translate(24 26)"
+            >
+              <path d="M -6 -2 Q -10 -8 -6 -13 Q -1 -17 3 -13 Q 7 -8 3 -2 Z" />
+              <path d="M 1 4 Q -3 -2 1 -7 Q 6 -11 10 -7 Q 14 -2 10 4 Z" />
+            </g>
+          </svg>
+          <span className={styles.foldLogoText}>
+            <span className={styles.foldLogoTitle}>Anytime</span>
+            <span className={styles.foldLogoSubtitle}>TRAIL</span>
+          </span>
+        </div>
       </div>
     </footer>
   );
