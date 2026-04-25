@@ -99,6 +99,8 @@ export const en: TrailI18n = {
   'analytics.outputRatio': 'Output Ratio',
   'analytics.contextGrowth': 'Context Growth',
   'analytics.netLines': 'Net Lines',
+  'analytics.metricMessages': 'Messages',
+  'analytics.metricErrors': 'Errors',
   'analytics.metricFiles': 'Files',
   'analytics.metricDuration': 'Duration',
   'analytics.avgInterval': 'Avg Interval',

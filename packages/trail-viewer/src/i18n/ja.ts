@@ -99,6 +99,8 @@ export const ja: TrailI18n = {
   'analytics.outputRatio': '出力比率',
   'analytics.contextGrowth': 'コンテキスト増加',
   'analytics.netLines': '正味行数',
+  'analytics.metricMessages': 'メッセージ数',
+  'analytics.metricErrors': 'エラー数',
   'analytics.metricFiles': 'ファイル',
   'analytics.metricDuration': '所要時間',
   'analytics.avgInterval': '平均間隔',

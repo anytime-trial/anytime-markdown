@@ -686,6 +686,10 @@ function SessionMetricsPanel({ session, toolMetrics }: Readonly<{
   const cardStyle = { ...cardSx, p: 2, minWidth: 160, flex: '1 1 160px', textAlign: 'center' } as const;
 
   const usageCards = [
+    { label: t('analytics.totalTokens'), value: fmtTokens(totalTokens) },
+    { label: t('analytics.estimatedCost'), value: fmtUsd(cost) },
+    { label: t('analytics.metricMessages'), value: fmtNum(s.messageCount) },
+    { label: t('analytics.metricErrors'), value: (s.errorCount ?? 0) > 0 ? fmtNum(s.errorCount!) : '\u2014' },
     { label: t('analytics.cacheHit'), value: cacheInput > 0 ? fmtPercent(cacheHitRate) : '\u2014' },
     { label: t('analytics.outputRatio'), value: cacheInput > 0 ? fmtPercent(outputRatio) : '\u2014' },
     { label: t('analytics.contextGrowth'), value: s.messageCount > 0 ? `${fmtTokens(Math.round(contextGrowth))}/step` : '\u2014' },

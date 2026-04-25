@@ -109,6 +109,8 @@ export interface TrailI18n {
   'analytics.outputRatio': string;
   'analytics.contextGrowth': string;
   'analytics.netLines': string;
+  'analytics.metricMessages': string;
+  'analytics.metricErrors': string;
   'analytics.metricFiles': string;
   'analytics.metricDuration': string;
   'analytics.avgInterval': string;
