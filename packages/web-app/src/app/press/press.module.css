@@ -1,4 +1,13 @@
 .root {
+    --font-display: var(--cp-font-display), 'Times New Roman', serif;
+    --font-body: var(--cp-font-body), 'Times New Roman', serif;
+    --font-mono: var(--cp-font-mono), ui-monospace, 'Courier New', monospace;
+
+    font-family: var(--font-body);
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+
     --paper: #F2EDE2;
     --paper-fold: #E8E0CF;
     --ink: #15110A;
