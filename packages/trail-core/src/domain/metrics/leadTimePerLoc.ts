@@ -1,15 +1,13 @@
 import { classifyDoraLevel, DEFAULT_THRESHOLDS } from './thresholds';
 import type { ThresholdsConfig } from './thresholds';
 import type { DateRange, MetricValue } from './types';
-import { buildRatioTimeSeries } from './timeSeriesUtils';
+import { buildRatioTimeSeries, VALID_MESSAGE_COMMIT_CONFIDENCES } from './timeSeriesUtils';
 
 type Inputs = {
   messages: Array<{ uuid: string; created_at: string }>;
   messageCommits: Array<{ message_uuid: string; commit_hash: string; detected_at: string; match_confidence: string }>;
   commits: Array<{ hash: string; lines_added?: number; lines_deleted?: number }>;
 };
-
-const VALID_CONFIDENCES = new Set(['realtime', 'high', 'medium']);
 
 interface CommitSample {
   date: string;
@@ -38,7 +36,7 @@ function computeCommitSamples(inputs: Inputs, range: DateRange): CommitSample[] 
   const byCommit = new Map<string, Aggregate>();
 
   for (const mc of inputs.messageCommits) {
-    if (!VALID_CONFIDENCES.has(mc.match_confidence)) continue;
+    if (!VALID_MESSAGE_COMMIT_CONFIDENCES.has(mc.match_confidence as 'realtime' | 'high' | 'medium')) continue;
     const msgAt = msgMap.get(mc.message_uuid);
     if (!msgAt) continue;
 

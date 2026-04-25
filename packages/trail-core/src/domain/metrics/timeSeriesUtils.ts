@@ -103,3 +103,5 @@ export function buildRatioTimeSeries(
       value: acc.den > 0 ? acc.num / acc.den : 0,
     }));
 }
+
+export const VALID_MESSAGE_COMMIT_CONFIDENCES = new Set(['realtime', 'high', 'medium'] as const);
