@@ -38,6 +38,7 @@ import { ChartsGrid } from '@mui/x-charts/ChartsGrid';
 import { ChartsLegend } from '@mui/x-charts/ChartsLegend';
 import { ChartsAxisHighlight } from '@mui/x-charts/ChartsAxisHighlight';
 import { ChartsReferenceLine } from '@mui/x-charts/ChartsReferenceLine';
+import { useDrawingArea, useXScale } from '@mui/x-charts/hooks';
 import { formatLocalTime, toLocalDateKey } from '@anytime-markdown/trail-core/formatDate';
 import { extractCommitPrefix } from '@anytime-markdown/trail-core/domain';
 import type { QualityMetrics, DateRange, ReleaseQualityBucket } from '@anytime-markdown/trail-core/domain/metrics';
@@ -371,6 +372,35 @@ function countCompactDrops(msgs: readonly TrailMessage[]): number {
 }
 
 // ---------------------------------------------------------------------------
+//  CommitMarkers — inverted-triangle markers rendered inside ChartsSurface
+// ---------------------------------------------------------------------------
+
+function CommitMarkers({ turns }: Readonly<{ turns: readonly number[] }>) {
+  const { top } = useDrawingArea();
+  const xScale = useXScale();
+  if (turns.length === 0) return null;
+  const SIZE = 6;
+  return (
+    <>
+      {turns.map((turn) => {
+        const cx = xScale(turn as never) as number | undefined;
+        if (cx == null) return null;
+        // Inverted triangle: apex points down, base at top of chart area
+        const points = `${cx - SIZE},${top - 2} ${cx + SIZE},${top - 2} ${cx},${top + SIZE * 1.2}`;
+        return (
+          <polygon
+            key={turn}
+            points={points}
+            fill="#4CAF50"
+            opacity={0.9}
+          />
+        );
+      })}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
 //  TurnLaneChart — model & tool-usage lanes aligned to turn count
 // ---------------------------------------------------------------------------
 
@@ -668,6 +698,7 @@ function SessionCacheTimeline({
                     lineStyle={{ stroke: '#4CAF50', strokeWidth: 1.5, strokeDasharray: '4 2' }}
                   />
                 ))}
+                <CommitMarkers turns={commitTurns} />
                 {errorTurns.map((turn) => (
                   <ChartsReferenceLine
                     key={`error-${turn}`}

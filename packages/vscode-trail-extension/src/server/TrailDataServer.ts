@@ -619,6 +619,28 @@ export class TrailDataServer {
         arr.push(mc.commitHash);
         commitsByMessageUuid.set(mc.messageUuid, arr);
       }
+      // Fallback: if message_commits is not yet resolved, match session commits
+      // to assistant messages by timestamp proximity (last assistant before commit).
+      if (commitsByMessageUuid.size === 0) {
+        const sessionCommits = this.trailDb.getSessionCommits(sessionId);
+        if (sessionCommits.length > 0) {
+          const assistantMsgs = rawMessages
+            .filter((m) => m.type === 'assistant' && m.timestamp)
+            .sort((a, b) => (a.timestamp < b.timestamp ? -1 : 1));
+          for (const commit of sessionCommits) {
+            let lastBefore: MessageRow | undefined;
+            for (const msg of assistantMsgs) {
+              if (msg.timestamp <= commit.committed_at) lastBefore = msg;
+              else break;
+            }
+            if (lastBefore) {
+              const arr = commitsByMessageUuid.get(lastBefore.uuid) ?? [];
+              arr.push(commit.commit_hash);
+              commitsByMessageUuid.set(lastBefore.uuid, arr);
+            }
+          }
+        }
+      }
       const messages = rawMessages.map((m) => ({
         uuid: m.uuid,
         parentUuid: m.parent_uuid,
