@@ -22,33 +22,27 @@ interface BriefingPrimaryProps {
 const PRIMARY_ITEMS: BriefingItem[] = [
   {
     num: 'i',
-    head: 'Section-level diff',
-    body: '行ではなく、節 (section) ごとに差分を取る。AIに書き直されても、構造の変化が一瞥で分かる。',
+    head: '構造の可視化',
+    body: 'TypeScript プロジェクトを解析し、C4 アーキテクチャ図と DSM（依存構造マトリクス）を自動生成。L1〜L4 でドリルダウンし、循環依存は赤枠でひと目で把握。',
     verdict: '— shipped',
   },
   {
     num: 'ii',
-    head: 'Three-mode switching',
-    body: 'WYSIWYG ／ Outline ／ Source。同じ机の上で、三冊のノートを開きっぱなしにできる。',
+    head: '品質の可視化',
+    body: 'テストデータを C4 図に重ねて表示し、テスト不足モジュールを一目で特定できる。',
     verdict: '— shipped',
   },
   {
     num: 'iii',
-    head: 'Spec-driven, AI-collaborative',
-    body: '仕様 (spec) を最上流の聖典とし、AI への指示も仕様の一部として版管理される。',
+    head: '行動の可視化',
+    body: 'Claude Code の作業ログを自動収集し、モデル別コスト・ツール使用量・コミット履歴を一元管理。AI エージェントの編集箇所もグラフ上でリアルタイム追跡。',
     verdict: '— shipped',
   },
   {
     num: 'iv',
-    head: 'Offline, single-binary export',
-    body: '記事一本を、画像とフォントごと一つの HTML に圧縮。誰の許可もなく送れる。',
-    verdict: '— v0.42',
-  },
-  {
-    num: 'v',
-    head: 'VS Code companion',
-    body: '本紙とは別に、VS Code 拡張 (Anytime Trail) が C4 アーキテクチャ図を生成する。',
-    verdict: '— in print',
+    head: '画像で誘導',
+    body: 'Agent Note にスクリーンキャプチャやアノテーションを貼り、AI に視覚的コンテキストを共有。スキルからノートを参照した作業もワンコマンド。',
+    verdict: '— shipped',
   },
 ];
 
@@ -113,70 +107,28 @@ export function Briefing({ no, items, id }: BriefingProps) {
 export function BriefingPrimary({ embed }: BriefingPrimaryProps) {
   return (
     <section className={styles.briefingWithEmbed} id="briefing">
-      <div className={styles.briefingLeft}>
-        <div className={styles.trailIntro}>
-          <header className={styles.trailIntroHeader}>
-            <span className={styles.trailIntroLabel}>
-              NO.005 ／ ANYTIME TRAIL
-            </span>
-            <h3 className={styles.trailIntroTitle}>
-              Anytime <em>Trail.</em>
-            </h3>
-          </header>
-          <ul className={styles.trailIntroList}>
-            <li>
-              <strong>構造の可視化</strong>
-              <p>
-                TypeScript プロジェクトを解析し、C4 アーキテクチャ図と DSM
-                （依存構造マトリクス）を自動生成。L1〜L4
-                でドリルダウンし、循環依存は赤枠でひと目で把握。
-              </p>
-            </li>
-            <li>
-              <strong>品質の可視化</strong>
-              <p>
-                テストデータを C4 図に重ねて表示し、テスト不足モジュールを一目で特定できる。
-              </p>
-            </li>
-            <li>
-              <strong>行動の可視化</strong>
-              <p>
-                Claude Code の作業ログを自動収集し、モデル別コスト・ツール使用量・コミット履歴を一元管理。AI
-                エージェントの編集箇所もグラフ上でリアルタイム追跡。
-              </p>
-            </li>
-            <li>
-              <strong>画像で誘導</strong>
-              <p>
-                Agent Note にスクリーンキャプチャやアノテーションを貼り、AI
-                に視覚的コンテキストを共有。スキルからノートを参照した作業もワンコマンド。
-              </p>
-            </li>
-          </ul>
+      <div className={styles.briefingEmbed}>
+        <div className={styles.trailFrameBar}>
+          <span
+            className={styles.trailFrameDot}
+            style={{ background: '#FF5F57' }}
+            aria-hidden="true"
+          />
+          <span
+            className={styles.trailFrameDot}
+            style={{ background: '#FFBD2E' }}
+            aria-hidden="true"
+          />
+          <span
+            className={styles.trailFrameDot}
+            style={{ background: '#28C840' }}
+            aria-hidden="true"
+          />
+          <span className={styles.trailFrameTitle}>
+            anytime-trail — trail viewer
+          </span>
         </div>
-        <div className={styles.briefingEmbed}>
-          <div className={styles.trailFrameBar}>
-            <span
-              className={styles.trailFrameDot}
-              style={{ background: '#FF5F57' }}
-              aria-hidden="true"
-            />
-            <span
-              className={styles.trailFrameDot}
-              style={{ background: '#FFBD2E' }}
-              aria-hidden="true"
-            />
-            <span
-              className={styles.trailFrameDot}
-              style={{ background: '#28C840' }}
-              aria-hidden="true"
-            />
-            <span className={styles.trailFrameTitle}>
-              anytime-trail — trail viewer
-            </span>
-          </div>
-          <div className={styles.trailFrameBody}>{embed}</div>
-        </div>
+        <div className={styles.trailFrameBody}>{embed}</div>
       </div>
       <div className={styles.briefingMain}>
         <header className={styles.briefingHeader}>
