@@ -16,7 +16,7 @@ export function Masthead() {
   const toggleLocale = () => {
     setLocale(locale === 'ja' ? 'en' : 'ja');
   };
-  const nextLocaleLabel = locale === 'ja' ? 'EN' : 'JA';
+  const currentLocaleLabel = locale === 'ja' ? 'JA' : 'EN';
   return (
     <header className={styles.mast}>
       <div className={styles.mastEdition}>
@@ -39,7 +39,7 @@ export function Masthead() {
           title={t('localeAria')}
           className={styles.mastLocaleToggle}
         >
-          {nextLocaleLabel}
+          {currentLocaleLabel}
         </button>
         <button
           type="button"
