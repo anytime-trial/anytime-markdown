@@ -13,8 +13,8 @@ import type {
 } from '../parser/types';
 // AnalyticsData は trail-core の共通型を使用（React 依存を避け、server-safe にする）
 import type { AnalyticsData, ITrailReader, TrailRelease } from '@anytime-markdown/trail-core/domain';
-import { computeDeploymentFrequency, computeQualityMetrics } from '@anytime-markdown/trail-core/domain/metrics';
-import type { DateRange, QualityMetrics } from '@anytime-markdown/trail-core/domain/metrics';
+import { computeDeploymentFrequency, computeQualityMetrics, computeReleaseQualityTimeSeries } from '@anytime-markdown/trail-core/domain/metrics';
+import type { DateRange, QualityMetrics, ReleaseQualityBucket } from '@anytime-markdown/trail-core/domain/metrics';
 import { calculateCost, normalizeModelName } from '@anytime-markdown/trail-core/domain/engine';
 
 // ---------------------------------------------------------------------------
@@ -935,5 +935,69 @@ export class SupabaseTrailReader implements ITrailReader {
       bucket,
     );
     return timeSeries;
+  }
+
+  async getDeploymentFrequencyQuality(
+    range: DateRange,
+    bucket: 'day' | 'week',
+  ): Promise<ReadonlyArray<ReleaseQualityBucket>> {
+    const FIX_WINDOW_MS = 168 * 60 * 60 * 1000;
+    const extendedTo = new Date(new Date(range.to).getTime() + FIX_WINDOW_MS).toISOString();
+
+    const [{ data: releaseData }, { data: commitData }] = await Promise.all([
+      this.client
+        .from('trail_releases')
+        .select('released_at')
+        .gte('released_at', range.from)
+        .lte('released_at', range.to),
+      this.client
+        .from('trail_session_commits')
+        .select('commit_hash, subject, committed_at')
+        .gte('committed_at', range.from)
+        .lte('committed_at', extendedTo),
+    ]);
+
+    const releases = (releaseData ?? []) as Array<{ released_at: string }>;
+    const rawCommits = (commitData ?? []) as Array<{ commit_hash: string; subject: string; committed_at: string }>;
+
+    const seenHashes = new Set<string>();
+    const uniqueCommits = rawCommits.filter(({ commit_hash }) => {
+      if (seenHashes.has(commit_hash)) return false;
+      seenHashes.add(commit_hash);
+      return true;
+    });
+
+    const hashes = uniqueCommits.map((c) => c.commit_hash);
+    let rawFiles: Array<{ commit_hash: string; file_path: string }> = [];
+    if (hashes.length > 0) {
+      const { data } = await this.client
+        .from('trail_commit_files')
+        .select('commit_hash, file_path')
+        .in('commit_hash', hashes);
+      rawFiles = (data ?? []) as Array<{ commit_hash: string; file_path: string }>;
+    }
+
+    const filesByHash = new Map<string, string[]>();
+    for (const { commit_hash, file_path } of rawFiles) {
+      const arr = filesByHash.get(commit_hash);
+      if (arr) arr.push(file_path);
+      else filesByHash.set(commit_hash, [file_path]);
+    }
+
+    const commits = uniqueCommits.map(({ commit_hash, subject, committed_at }) => ({
+      hash: commit_hash,
+      subject,
+      committed_at,
+      files: filesByHash.get(commit_hash) ?? [],
+    }));
+
+    return computeReleaseQualityTimeSeries(
+      {
+        releases: releases.map((r) => ({ tag_date: r.released_at })),
+        commits,
+      },
+      range,
+      bucket,
+    );
   }
 }

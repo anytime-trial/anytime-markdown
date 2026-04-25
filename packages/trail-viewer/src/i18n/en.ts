@@ -193,6 +193,8 @@ export const en: TrailI18n = {
   'analytics.combined.error': 'Error',
   'analytics.combined.commitPrefix': 'Commits',
   'analytics.combined.release': 'Release',
+  'analytics.combined.releaseSucceeded': 'Succeeded',
+  'analytics.combined.releaseFailed': 'Failed',
   'analytics.combined.commitCount': 'Commits',
   'analytics.combined.loc': 'LOC',
   'analytics.combined.leadTime': 'Lead Time',

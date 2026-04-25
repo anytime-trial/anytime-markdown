@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { AnalyticsData, CombinedData, CombinedPeriodMode, CombinedRangeDays, CostOptimizationData, ToolMetrics, TrailFilter, TrailMessage, TrailPromptEntry, TrailSession, TrailSessionCommit } from '../parser/types';
 import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
-import type { DateRange, QualityMetrics } from '@anytime-markdown/trail-core/domain/metrics';
+import type { DateRange, QualityMetrics, ReleaseQualityBucket } from '@anytime-markdown/trail-core/domain/metrics';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -41,6 +41,7 @@ export interface TrailDataSourceResult {
   readonly fetchCombinedData: (period: CombinedPeriodMode, rangeDays: CombinedRangeDays) => Promise<CombinedData>;
   readonly fetchQualityMetrics: (range: DateRange) => Promise<QualityMetrics | null>;
   readonly fetchDeploymentFrequency: (range: DateRange, bucket: 'day' | 'week') => Promise<ReadonlyArray<{ bucketStart: string; value: number }>>;
+  readonly fetchReleaseQuality: (range: DateRange, bucket: 'day' | 'week') => Promise<ReadonlyArray<ReleaseQualityBucket>>;
   readonly tokenBudgets: readonly TokenBudgetStatus[];
 }
 
@@ -320,6 +321,27 @@ export function useTrailDataSource(serverUrl: string): TrailDataSourceResult {
     [baseUrl],
   );
 
+  // --- Fetch release quality (stacked: succeeded + failed) ---
+
+  const fetchReleaseQuality = useCallback(
+    async (range: DateRange, bucket: 'day' | 'week'): Promise<ReadonlyArray<ReleaseQualityBucket>> => {
+      const url = `${baseUrl}/api/trail/deployment-frequency-quality?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}&bucket=${bucket}`;
+      try {
+        const res = await fetch(url);
+        if (!res.ok) {
+          const body = await res.text().catch(() => '');
+          console.error(`[fetchReleaseQuality] HTTP ${res.status}: ${body}`);
+          return [];
+        }
+        return (await res.json()) as ReadonlyArray<ReleaseQualityBucket>;
+      } catch (err) {
+        console.error('[fetchReleaseQuality] request failed', err);
+        return [];
+      }
+    },
+    [baseUrl],
+  );
+
   // --- Search sessions ---
 
   const searchSessions = useCallback(
@@ -489,6 +511,7 @@ export function useTrailDataSource(serverUrl: string): TrailDataSourceResult {
     fetchCombinedData,
     fetchQualityMetrics,
     fetchDeploymentFrequency,
+    fetchReleaseQuality,
     tokenBudgets,
   };
 }

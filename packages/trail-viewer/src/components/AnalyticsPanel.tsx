@@ -38,7 +38,7 @@ import { ChartsLegend } from '@mui/x-charts/ChartsLegend';
 import { ChartsAxisHighlight } from '@mui/x-charts/ChartsAxisHighlight';
 import { formatLocalTime, toLocalDateKey } from '@anytime-markdown/trail-core/formatDate';
 import { extractCommitPrefix } from '@anytime-markdown/trail-core/domain';
-import type { QualityMetrics, DateRange } from '@anytime-markdown/trail-core/domain/metrics';
+import type { QualityMetrics, DateRange, ReleaseQualityBucket } from '@anytime-markdown/trail-core/domain/metrics';
 import type { AnalyticsData, CombinedData, CombinedPeriodMode, CombinedRangeDays, CostOptimizationData, ToolMetrics, TrailMessage, TrailSession, TrailSessionCommit, TrailTokenUsage } from '../parser/types';
 import { useTrailTheme } from './TrailThemeContext';
 import { useTrailI18n } from '../i18n';
@@ -56,6 +56,7 @@ export interface AnalyticsPanelProps {
   readonly fetchCombinedData?: (period: CombinedPeriodMode, rangeDays: CombinedRangeDays) => Promise<CombinedData>;
   readonly fetchQualityMetrics?: (range: DateRange) => Promise<QualityMetrics | null>;
   readonly fetchDeploymentFrequency?: (range: DateRange, bucket: 'day' | 'week') => Promise<ReadonlyArray<{ bucketStart: string; value: number }>>;
+  readonly fetchReleaseQuality?: (range: DateRange, bucket: 'day' | 'week') => Promise<ReadonlyArray<ReleaseQualityBucket>>;
 }
 
 // ---------------------------------------------------------------------------
@@ -2047,7 +2048,7 @@ function CombinedChartsContent({ data, periodDays, activeChart, toolMetric, mode
 }
 
 function ReleasesBarChart({ timeSeries }: Readonly<{
-  timeSeries: ReadonlyArray<{ bucketStart: string; value: number }>;
+  timeSeries: ReadonlyArray<ReleaseQualityBucket>;
 }>) {
   const { cardSx } = useTrailTheme();
   const { t } = useTrailI18n();
@@ -2063,7 +2064,8 @@ function ReleasesBarChart({ timeSeries }: Readonly<{
   const fmt = new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric' });
   const dataset = timeSeries.map((d) => ({
     label: fmt.format(new Date(d.bucketStart)),
-    releases: d.value,
+    succeeded: d.succeeded,
+    failed: d.failed,
   }));
 
   return (
@@ -2071,7 +2073,10 @@ function ReleasesBarChart({ timeSeries }: Readonly<{
       <BarChart
         dataset={dataset}
         xAxis={[{ scaleType: 'band', dataKey: 'label' }]}
-        series={[{ dataKey: 'releases', label: t('analytics.combined.release'), color: '#4CAF50' }]}
+        series={[
+          { dataKey: 'succeeded', label: t('analytics.combined.releaseSucceeded'), color: '#4CAF50', stack: 'releases' },
+          { dataKey: 'failed', label: t('analytics.combined.releaseFailed'), color: '#f44336', stack: 'releases' },
+        ]}
         height={240}
         margin={{ left: 16, right: 8, top: 8, bottom: 40 }}
       />
@@ -2095,7 +2100,7 @@ function CombinedChartsSection({
   costOptimization,
   fetchCombinedData,
   fetchQualityMetrics,
-  fetchDeploymentFrequency,
+  fetchReleaseQuality,
 }: Readonly<{
   dailyActivity: AnalyticsData['dailyActivity'];
   sessions: readonly TrailSession[];
@@ -2110,7 +2115,7 @@ function CombinedChartsSection({
   costOptimization?: CostOptimizationData | null;
   fetchCombinedData?: (period: CombinedPeriodMode, rangeDays: CombinedRangeDays) => Promise<CombinedData>;
   fetchQualityMetrics?: (range: DateRange) => Promise<QualityMetrics | null>;
-  fetchDeploymentFrequency?: (range: DateRange, bucket: 'day' | 'week') => Promise<ReadonlyArray<{ bucketStart: string; value: number }>>;
+  fetchReleaseQuality?: (range: DateRange, bucket: 'day' | 'week') => Promise<ReadonlyArray<ReleaseQualityBucket>>;
 }>) {
   const { colors } = useTrailTheme();
   const { t } = useTrailI18n();
@@ -2122,7 +2127,7 @@ function CombinedChartsSection({
   const [combinedData, setCombinedData] = useState<CombinedData | null>(null);
   const [combinedLoading, setCombinedLoading] = useState(false);
   const [overlayLoading, setOverlayLoading] = useState(false);
-  const [releasesTimeSeries, setReleasesTimeSeries] = useState<ReadonlyArray<{ bucketStart: string; value: number }>>([]);
+  const [releasesTimeSeries, setReleasesTimeSeries] = useState<ReadonlyArray<ReleaseQualityBucket>>([]);
   const [releasesLoading, setReleasesLoading] = useState(false);
   const [overlay, setOverlay] = useState<{
     bucket: 'day' | 'week';
@@ -2162,7 +2167,7 @@ function CombinedChartsSection({
 
   useEffect(() => {
     if (!fetchQualityMetrics) return;
-    if (metric === 'releases') return; // Release chart uses fetchDeploymentFrequency; skip heavy quality metrics fetch
+    if (metric === 'releases') return; // Release chart uses fetchReleaseQuality; skip heavy quality metrics fetch
     const now = new Date();
     const to = now.toISOString();
     const from = new Date(now.getTime() - period * 86_400_000).toISOString();
@@ -2190,7 +2195,7 @@ function CombinedChartsSection({
   }, [fetchQualityMetrics, period, metric]);
 
   useEffect(() => {
-    if (!fetchDeploymentFrequency) return;
+    if (!fetchReleaseQuality) return;
     const now = new Date();
     const to = now.toISOString();
     const from = new Date(now.getTime() - period * 86_400_000).toISOString();
@@ -2198,14 +2203,14 @@ function CombinedChartsSection({
     let mounted = true;
     setReleasesLoading(true);
     void (async () => {
-      const result = await fetchDeploymentFrequency({ from, to }, bucket);
+      const result = await fetchReleaseQuality({ from, to }, bucket);
       if (mounted) {
         setReleasesTimeSeries(result);
         setReleasesLoading(false);
       }
     })();
     return () => { mounted = false; };
-  }, [fetchDeploymentFrequency, period]);
+  }, [fetchReleaseQuality, period]);
 
   const toggleSx = {
     color: colors.textSecondary,
@@ -2342,7 +2347,7 @@ function CombinedChartsSection({
   );
 }
 
-export function AnalyticsPanel({ analytics, sessions = [], onSelectSession, onJumpToTrace, fetchSessionMessages, fetchSessionCommits, fetchSessionToolMetrics, fetchDayToolMetrics, costOptimization, fetchCombinedData, fetchQualityMetrics, fetchDeploymentFrequency }: Readonly<AnalyticsPanelProps>) {
+export function AnalyticsPanel({ analytics, sessions = [], onSelectSession, onJumpToTrace, fetchSessionMessages, fetchSessionCommits, fetchSessionToolMetrics, fetchDayToolMetrics, costOptimization, fetchCombinedData, fetchQualityMetrics, fetchDeploymentFrequency, fetchReleaseQuality }: Readonly<AnalyticsPanelProps>) {
   const { t } = useTrailI18n();
   const { scrollbarSx } = useTrailTheme();
   const [period, setPeriod] = useState<PeriodDays>(30);
@@ -2375,7 +2380,7 @@ export function AnalyticsPanel({ analytics, sessions = [], onSelectSession, onJu
         costOptimization={costOptimization}
         fetchCombinedData={fetchCombinedData}
         fetchQualityMetrics={fetchQualityMetrics}
-        fetchDeploymentFrequency={fetchDeploymentFrequency}
+        fetchReleaseQuality={fetchReleaseQuality}
       />
     </Box>
   );

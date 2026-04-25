@@ -59,6 +59,7 @@ export interface TrailViewerCoreProps {
   readonly fetchCombinedData?: AnalyticsPanelProps['fetchCombinedData'];
   readonly fetchQualityMetrics?: import('./MetricsPanel').MetricsPanelProps['fetchQualityMetrics'];
   readonly fetchDeploymentFrequency?: AnalyticsPanelProps['fetchDeploymentFrequency'];
+  readonly fetchReleaseQuality?: AnalyticsPanelProps['fetchReleaseQuality'];
   readonly tokenBudgets?: readonly import('../hooks/useTrailDataSource').TokenBudgetStatus[];
   /** C4 viewer props. When provided, the C4 tab is shown. */
   readonly c4?: C4Props;
@@ -97,6 +98,7 @@ function TrailViewerCoreInner({
   fetchCombinedData,
   fetchQualityMetrics,
   fetchDeploymentFrequency,
+  fetchReleaseQuality,
   tokenBudgets = [],
   c4,
 }: Readonly<TrailViewerCoreProps>) {
@@ -235,6 +237,7 @@ function TrailViewerCoreInner({
           fetchCombinedData={fetchCombinedData}
           fetchQualityMetrics={fetchQualityMetrics}
           fetchDeploymentFrequency={fetchDeploymentFrequency}
+          fetchReleaseQuality={fetchReleaseQuality}
         />
       </Box>
 

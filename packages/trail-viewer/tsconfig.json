@@ -12,7 +12,8 @@
       "@anytime-markdown/graph-core": ["../graph-core/src/index.ts"],
       "@anytime-markdown/graph-core/engine": ["../graph-core/src/engine/index.ts"],
       "@anytime-markdown/graph-core/state": ["../graph-core/src/state/index.ts"],
-      "@anytime-markdown/trail-core/c4": ["../trail-core/src/c4/index.ts"]
+      "@anytime-markdown/trail-core/c4": ["../trail-core/src/c4/index.ts"],
+      "@anytime-markdown/trail-core/domain/metrics": ["../trail-core/src/domain/metrics/index.ts"]
     }
   },
   "include": ["src/**/*"]

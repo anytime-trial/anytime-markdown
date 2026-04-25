@@ -168,6 +168,7 @@ export function TrailViewerApp({
       fetchCombinedData={dataSource.fetchCombinedData}
       fetchQualityMetrics={dataSource.fetchQualityMetrics}
       fetchDeploymentFrequency={dataSource.fetchDeploymentFrequency}
+      fetchReleaseQuality={dataSource.fetchReleaseQuality}
       tokenBudgets={dataSource.tokenBudgets}
       c4={c4Props}
     />
