@@ -207,11 +207,9 @@ function OverviewCards({
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
   const [usageIdx, setUsageIdx] = useState(0);
-  const [productivityIdx, setProductivityIdx] = useState(0);
   const [qualityIdx, setQualityIdx] = useState(0);
   const [toolIdx, setToolIdx] = useState(0);
   const totalTokens = totals.inputTokens + totals.outputTokens;
-  const hasLines = totals.totalLinesAdded > 0;
 
   const cards = [
     { label: t('analytics.totalSessions'), value: fmtNum(totals.sessions) },
@@ -219,15 +217,6 @@ function OverviewCards({
     { label: t('analytics.estimatedCost'), value: fmtUsd(totals.estimatedCostUsd) },
     { label: t('analytics.totalCommits'), value: fmtNum(totals.totalCommits) },
     { label: t('analytics.linesAdded'), value: fmtNum(totals.totalLinesAdded) },
-  ];
-
-  const commitCards = [
-    { label: t('analytics.tokensPerLine'), value: hasLines
-        ? fmtTokens(Math.round(totalTokens / totals.totalLinesAdded))
-        : '\u2014' },
-    { label: t('analytics.costPerLine'), value: hasLines
-        ? fmtUsd(totals.estimatedCostUsd / totals.totalLinesAdded)
-        : '\u2014' },
   ];
 
   const totalDurationHours = totals.totalSessionDurationMs / 3_600_000;
@@ -301,15 +290,6 @@ function OverviewCards({
         onCycle={() => setUsageIdx((i) => (i + 1) % cards.length)}
         cardStyle={cardStyle}
       />
-      {totals.totalCommits > 0 && (
-        <CyclingCard
-          groupName={t('analytics.groupProductivity')}
-          items={commitCards}
-          index={productivityIdx}
-          onCycle={() => setProductivityIdx((i) => (i + 1) % commitCards.length)}
-          cardStyle={cardStyle}
-        />
-      )}
       {totals.totalCommits > 0 && (
         <CyclingCard
           groupName={t('analytics.groupQuality')}
