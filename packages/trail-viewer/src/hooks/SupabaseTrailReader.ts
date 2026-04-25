@@ -15,6 +15,7 @@ import type {
 import type { AnalyticsData, ITrailReader, TrailRelease } from '@anytime-markdown/trail-core/domain';
 import { computeQualityMetrics } from '@anytime-markdown/trail-core/domain/metrics';
 import type { DateRange, QualityMetrics } from '@anytime-markdown/trail-core/domain/metrics';
+import { calculateCost, normalizeModelName } from '@anytime-markdown/trail-core/domain/engine';
 
 // ---------------------------------------------------------------------------
 // Row shapes returned by Supabase (snake_case DB columns)
@@ -768,7 +769,7 @@ export class SupabaseTrailReader implements ITrailReader {
     const fetchAssistantMessages = async (f: string, t: string) => {
       const { data } = await this.client
         .from('trail_messages')
-        .select('session_id, timestamp, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens')
+        .select('session_id, timestamp, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, model')
         .eq('type', 'assistant')
         .gte('timestamp', f)
         .lte('timestamp', t);
@@ -779,6 +780,7 @@ export class SupabaseTrailReader implements ITrailReader {
         output_tokens: number;
         cache_read_tokens: number;
         cache_creation_tokens: number;
+        model: string | null;
       }>;
     };
     const fetchCommits = async (f: string, t: string): Promise<CommitRow[]> => {
@@ -792,8 +794,8 @@ export class SupabaseTrailReader implements ITrailReader {
 
     const aggregateTokensByUser = (
       users: ReadonlyArray<MessageRow>,
-      assistants: ReadonlyArray<{ session_id: string; timestamp: string; input_tokens: number; output_tokens: number; cache_read_tokens: number; cache_creation_tokens: number }>,
-    ): Map<string, { input: number; output: number; cr: number; cc: number }> => {
+      assistants: ReadonlyArray<{ session_id: string; timestamp: string; input_tokens: number; output_tokens: number; cache_read_tokens: number; cache_creation_tokens: number; model: string | null }>,
+    ): Map<string, { input: number; output: number; cr: number; cc: number; cost: number }> => {
       const usersBySession = new Map<string, MessageRow[]>();
       for (const u of users) {
         const arr = usersBySession.get(u.session_id);
@@ -803,8 +805,8 @@ export class SupabaseTrailReader implements ITrailReader {
       for (const arr of usersBySession.values()) {
         arr.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
       }
-      const tokensByUuid = new Map<string, { input: number; output: number; cr: number; cc: number }>();
-      for (const u of users) tokensByUuid.set(u.uuid, { input: 0, output: 0, cr: 0, cc: 0 });
+      const tokensByUuid = new Map<string, { input: number; output: number; cr: number; cc: number; cost: number }>();
+      for (const u of users) tokensByUuid.set(u.uuid, { input: 0, output: 0, cr: 0, cc: 0, cost: 0 });
       for (const a of assistants) {
         const sessionUsers = usersBySession.get(a.session_id);
         if (!sessionUsers) continue;
@@ -823,10 +825,20 @@ export class SupabaseTrailReader implements ITrailReader {
         if (idx === -1) continue;
         const t = tokensByUuid.get(sessionUsers[idx].uuid);
         if (!t) continue;
-        t.input += a.input_tokens ?? 0;
-        t.output += a.output_tokens ?? 0;
-        t.cr += a.cache_read_tokens ?? 0;
-        t.cc += a.cache_creation_tokens ?? 0;
+        const inputToks = a.input_tokens ?? 0;
+        const outputToks = a.output_tokens ?? 0;
+        const crToks = a.cache_read_tokens ?? 0;
+        const ccToks = a.cache_creation_tokens ?? 0;
+        t.input += inputToks;
+        t.output += outputToks;
+        t.cr += crToks;
+        t.cc += ccToks;
+        t.cost += calculateCost(normalizeModelName(a.model ?? ''), {
+          inputTokens: inputToks,
+          outputTokens: outputToks,
+          cacheReadTokens: crToks,
+          cacheCreationTokens: ccToks,
+        });
       }
       return tokensByUuid;
     };
@@ -849,7 +861,7 @@ export class SupabaseTrailReader implements ITrailReader {
       {
         releases: curReleases.map((r) => ({ id: r.tag, tag_date: r.released_at, commit_hashes: [], fix_count: r.fix_count })),
         messages: curMessages.map((m) => {
-          const t = curTokens.get(m.uuid) ?? { input: 0, output: 0, cr: 0, cc: 0 };
+          const t = curTokens.get(m.uuid) ?? { input: 0, output: 0, cr: 0, cc: 0, cost: 0 };
           return {
             uuid: m.uuid,
             created_at: m.timestamp,
@@ -860,6 +872,7 @@ export class SupabaseTrailReader implements ITrailReader {
             output_tokens: t.output,
             cache_read_tokens: t.cr,
             cache_creation_tokens: t.cc,
+            cost_usd: t.cost,
           };
         }),
         messageCommits: [],
@@ -875,7 +888,7 @@ export class SupabaseTrailReader implements ITrailReader {
         })),
         previousReleases: prevReleases.map((r) => ({ id: r.tag, tag_date: r.released_at, commit_hashes: [], fix_count: r.fix_count })),
         previousMessages: prevMessages.map((m) => {
-          const t = prevTokens.get(m.uuid) ?? { input: 0, output: 0, cr: 0, cc: 0 };
+          const t = prevTokens.get(m.uuid) ?? { input: 0, output: 0, cr: 0, cc: 0, cost: 0 };
           return {
             uuid: m.uuid,
             created_at: m.timestamp,
@@ -886,6 +899,7 @@ export class SupabaseTrailReader implements ITrailReader {
             output_tokens: t.output,
             cache_read_tokens: t.cr,
             cache_creation_tokens: t.cc,
+            cost_usd: t.cost,
           };
         }),
         previousMessageCommits: [],
