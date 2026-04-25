@@ -11,6 +11,7 @@ import { useTrailTheme } from './TrailThemeContext';
 
 const LANE_HEIGHT = 40; // px per lane/track
 const PLOT_TOP = 8;
+const MAX_SUBAGENT_TRACKS = 5; // scrollbar appears when subagents exceed this
 const COLLAPSED_HEIGHT = 32;
 const STORAGE_KEY = 'trail.timeline.collapsed';
 const LANE_LABEL_WIDTH = 88;
@@ -229,7 +230,11 @@ export function TraceTimeline({
 
   // user(1) + ai(1) + subagent(subTrackCount) + system(1)
   const totalLaneCount = 3 + subTrackCount;
-  const timelineHeight = totalLaneCount * LANE_HEIGHT + TIME_AXIS_HEIGHT + PLOT_TOP;
+  const totalContentHeight = totalLaneCount * LANE_HEIGHT; // plot area pixel height
+  const timelineHeight = totalContentHeight + TIME_AXIS_HEIGHT + PLOT_TOP;
+  const maxTimelineHeight = (3 + MAX_SUBAGENT_TRACKS) * LANE_HEIGHT + TIME_AXIS_HEIGHT + PLOT_TOP;
+  const displayHeight = Math.min(timelineHeight, maxTimelineHeight);
+  const needsScroll = timelineHeight > maxTimelineHeight;
   const laneHeightPct = 100 / totalLaneCount;
   // Lane indices: user=0, ai=1, subagent[i]=2+i, system=2+subTrackCount
   const systemLaneIndex = 2 + subTrackCount;
@@ -335,7 +340,7 @@ export function TraceTimeline({
   return (
     <Box
       sx={{
-        height: collapsed ? COLLAPSED_HEIGHT : timelineHeight,
+        height: collapsed ? COLLAPSED_HEIGHT : displayHeight,
         bgcolor: colors.charcoal,
         borderBottom: `1px solid ${colors.border}`,
         position: 'relative',
@@ -363,59 +368,72 @@ export function TraceTimeline({
 
       {!collapsed && (
         <>
-          {/* Lane labels */}
+          {/* Scrollable wrapper: covers plot area (excludes time axis) */}
           <Box
             sx={{
               position: 'absolute',
               top: plotTop,
               left: 0,
-              width: LANE_LABEL_WIDTH,
-              display: 'flex',
-              flexDirection: 'column',
-            }}
-          >
-            {/* User */}
-            <Box sx={{ height: LANE_HEIGHT, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', pr: 1, borderRight: `1px solid ${colors.border}` }}>
-              <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.7rem' }}>User</Typography>
-            </Box>
-            {/* AI */}
-            <Box sx={{ height: LANE_HEIGHT, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', pr: 1, borderRight: `1px solid ${colors.border}` }}>
-              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: 1.1 }}>
-                <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.7rem' }}>Claude Code</Typography>
-                {session?.version && (
-                  <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.6rem', opacity: 0.7 }}>
-                    v{session.version}
-                  </Typography>
-                )}
-              </Box>
-            </Box>
-            {/* Subagent (spans subTrackCount tracks) */}
-            <Box sx={{ height: subTrackCount * LANE_HEIGHT, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', pr: 1, borderRight: `1px solid ${colors.border}` }}>
-              <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.7rem' }}>
-                Subagent
-                {subagentTracks.length > 0 && (
-                  <Box component="span" sx={{ ml: 0.5, color: colors.textSecondary, opacity: 0.6 }}>
-                    ×{subagentTracks.length}
-                  </Box>
-                )}
-              </Typography>
-            </Box>
-            {/* System */}
-            <Box sx={{ height: LANE_HEIGHT, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', pr: 1, borderRight: `1px solid ${colors.border}` }}>
-              <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.7rem' }}>System</Typography>
-            </Box>
-          </Box>
-
-          {/* Plot area */}
-          <Box
-            sx={{
-              position: 'absolute',
-              top: plotTop,
-              left: plotLeft,
-              right: plotRight,
+              right: 0,
               bottom: plotBottom,
+              overflowY: needsScroll ? 'auto' : 'hidden',
             }}
           >
+            {/* Inner container: full content height, provides scroll target */}
+            <Box sx={{ position: 'relative', height: totalContentHeight }}>
+              {/* Lane labels */}
+              <Box
+                sx={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: LANE_LABEL_WIDTH,
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}
+              >
+                {/* User */}
+                <Box sx={{ height: LANE_HEIGHT, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', pr: 1, borderRight: `1px solid ${colors.border}` }}>
+                  <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.7rem' }}>User</Typography>
+                </Box>
+                {/* AI */}
+                <Box sx={{ height: LANE_HEIGHT, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', pr: 1, borderRight: `1px solid ${colors.border}` }}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: 1.1 }}>
+                    <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.7rem' }}>Claude Code</Typography>
+                    {session?.version && (
+                      <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.6rem', opacity: 0.7 }}>
+                        v{session.version}
+                      </Typography>
+                    )}
+                  </Box>
+                </Box>
+                {/* Subagent (spans subTrackCount tracks) */}
+                <Box sx={{ height: subTrackCount * LANE_HEIGHT, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', pr: 1, borderRight: `1px solid ${colors.border}` }}>
+                  <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.7rem' }}>
+                    Subagent
+                    {subagentTracks.length > 0 && (
+                      <Box component="span" sx={{ ml: 0.5, color: colors.textSecondary, opacity: 0.6 }}>
+                        ×{subagentTracks.length}
+                      </Box>
+                    )}
+                  </Typography>
+                </Box>
+                {/* System */}
+                <Box sx={{ height: LANE_HEIGHT, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', pr: 1, borderRight: `1px solid ${colors.border}` }}>
+                  <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.7rem' }}>System</Typography>
+                </Box>
+              </Box>
+
+              {/* Plot area */}
+              <Box
+                sx={{
+                  position: 'absolute',
+                  top: 0,
+                  left: plotLeft,
+                  right: plotRight,
+                  bottom: 0,
+                }}
+              >
             {/* Lane background separators */}
             {Array.from({ length: totalLaneCount }, (_, i) => (
               <Box
@@ -621,7 +639,9 @@ export function TraceTimeline({
                   </Tooltip>
                 );
               })}
-          </Box>
+              </Box>{/* Plot area */}
+            </Box>{/* Inner container */}
+          </Box>{/* Scrollable wrapper */}
 
           {/* Time axis */}
           <Box
