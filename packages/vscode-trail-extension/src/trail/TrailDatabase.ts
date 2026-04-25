@@ -137,7 +137,6 @@ export interface MessageRow {
   readonly git_branch: string | null;
   readonly agent_id?: string | null;
   readonly agent_description?: string | null;
-  readonly skill?: string | null;
 }
 
 export interface SessionCommitRow {
@@ -2631,6 +2630,25 @@ export class TrailDatabase {
       }
     }
     return uuids;
+  }
+
+  getSkillsBySession(sessionId: string): Map<string, string> {
+    const db = this.ensureDb();
+    const result = db.exec(
+      'SELECT message_uuid, skill_name FROM message_tool_calls WHERE session_id = ? AND skill_name IS NOT NULL GROUP BY message_uuid',
+      [sessionId],
+    );
+    const map = new Map<string, string>();
+    if (result[0]) {
+      for (const row of result[0].values) {
+        const uuid = row[0];
+        const skill = row[1];
+        if (typeof uuid === 'string' && typeof skill === 'string') {
+          map.set(uuid, skill);
+        }
+      }
+    }
+    return map;
   }
 
   getTurnExecMsBySession(sessionId: string): Map<string, number> {
