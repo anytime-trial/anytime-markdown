@@ -210,17 +210,18 @@ function OverviewCards({
   const [productivityIdx, setProductivityIdx] = useState(0);
   const [qualityIdx, setQualityIdx] = useState(0);
   const [toolIdx, setToolIdx] = useState(0);
-  const cards = [
-    { label: t('analytics.totalSessions'), value: fmtNum(totals.sessions) },
-    { label: t('analytics.totalTokens'), value: fmtTokens(totals.inputTokens + totals.outputTokens) },
-    { label: t('analytics.estimatedCost'), value: fmtUsd(totals.estimatedCostUsd) },
-  ];
-
   const totalTokens = totals.inputTokens + totals.outputTokens;
   const hasLines = totals.totalLinesAdded > 0;
-  const commitCards = [
+
+  const cards = [
+    { label: t('analytics.totalSessions'), value: fmtNum(totals.sessions) },
+    { label: t('analytics.totalTokens'), value: fmtTokens(totalTokens) },
+    { label: t('analytics.estimatedCost'), value: fmtUsd(totals.estimatedCostUsd) },
     { label: t('analytics.totalCommits'), value: fmtNum(totals.totalCommits) },
     { label: t('analytics.linesAdded'), value: fmtNum(totals.totalLinesAdded) },
+  ];
+
+  const commitCards = [
     { label: t('analytics.tokensPerLine'), value: hasLines
         ? fmtTokens(Math.round(totalTokens / totals.totalLinesAdded))
         : '\u2014' },
