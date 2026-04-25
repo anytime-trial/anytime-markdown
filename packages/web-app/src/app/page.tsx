@@ -1,30 +1,29 @@
 import type { Metadata } from 'next';
 
-import VsCodeBody from './vscode/VsCodeBody';
+import { PressBody } from './press/PressBody';
+
+const TITLE = 'Caravan Press · Anytime Markdown';
+const DESCRIPTION =
+  'A newspaper-press dispatch of Anytime Markdown — slow writing, by design. Browser-only markdown editor for Spec-Driven Development.';
 
 export const metadata: Metadata = {
-  title: 'Anytime Markdown - SDD × AI Markdown Editor',
-  description:
-    'Spec-Driven Development (SDD) Markdown editor for AI collaboration. AI diff highlighting, image annotation, image prompt. Visual Studio Code extension available. ハーネスエンジニアリング',
-  alternates: {
-    canonical: '/',
-  },
+  title: TITLE,
+  description: DESCRIPTION,
+  alternates: { canonical: '/' },
   openGraph: {
-    title: 'Anytime Markdown - SDD × AI Markdown Editor',
-    description:
-      'Spec-Driven Development (SDD) Markdown editor with AI diff highlighting, image annotation, and image prompt. Visual Studio Code extension.',
-    url: process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.anytime-trial.com',
     type: 'website',
+    url: process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.anytime-trial.com',
+    title: TITLE,
+    description: DESCRIPTION,
     siteName: 'Anytime Markdown',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Anytime Markdown - SDD × AI Markdown Editor',
-    description:
-      'Spec-Driven Development (SDD) Markdown editor with AI diff highlighting, image annotation, and image prompt. Visual Studio Code extension.',
+    title: TITLE,
+    description: DESCRIPTION,
   },
 };
 
 export default function Page() {
-  return <VsCodeBody />;
+  return <PressBody />;
 }
