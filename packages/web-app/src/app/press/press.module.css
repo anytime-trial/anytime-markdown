@@ -750,3 +750,15 @@
     transform: rotate(-3deg);
     font-size: 12px;
 }
+
+/* ── ProgressRule スクロール連動 ─────────────────────── */
+.progressRule {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 2px;
+    background: var(--vermilion);
+    z-index: 100;
+    width: 0;
+    transition: width 0.05s linear;
+}
