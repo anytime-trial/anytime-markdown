@@ -1429,13 +1429,6 @@ function DailySessionList({
                 <SessionSkillUsageChart toolMetrics={sessionToolMetrics} />
                 <SessionToolUsageChart toolMetrics={sessionToolMetrics} />
                 <SessionErrorChart toolMetrics={sessionToolMetrics} />
-                {timelineLoading ? (
-                  <Paper elevation={0} sx={{ ...cardSx, mt: 1, p: 1.5, height: 270, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Typography variant="body2" color="text.secondary">{t('sessionList.loadingTimeline')}</Typography>
-                  </Paper>
-                ) : (
-                  <SessionCacheTimeline messages={timelineMessages} />
-                )}
                 {fetchSessionCommits && (
                   <>
                     <SessionCommitPrefixChart
@@ -1459,11 +1452,19 @@ function DailySessionList({
               <SessionSkillUsageChart toolMetrics={dayAggToolMetrics} />
               <SessionToolUsageChart toolMetrics={dayAggToolMetrics} />
               <SessionErrorChart toolMetrics={dayAggToolMetrics} />
-              <SessionCacheTimeline messages={[]} />
             </Box>
           );
         })()}
       </Box>
+      {timelineSessionId && (
+        timelineLoading ? (
+          <Paper elevation={0} sx={{ ...cardSx, mt: 1, p: 1.5, height: 270, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Typography variant="body2" color="text.secondary">{t('sessionList.loadingTimeline')}</Typography>
+          </Paper>
+        ) : (
+          <SessionCacheTimeline messages={timelineMessages} />
+        )
+      )}
     </Paper>
   );
 }
