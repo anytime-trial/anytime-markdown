@@ -161,4 +161,6 @@ export type TrailMessage = _TrailMessage & {
   readonly hasToolError?: boolean;
   /** True when this assistant turn ran a git commit bash command */
   readonly hasCommit?: boolean;
+  /** Tool execution time in ms (nextUserMsg.timestamp - assistantMsg.timestamp) */
+  readonly toolExecMs?: number;
 };

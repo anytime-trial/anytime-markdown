@@ -2632,6 +2632,25 @@ export class TrailDatabase {
     return uuids;
   }
 
+  getTurnExecMsBySession(sessionId: string): Map<string, number> {
+    const db = this.ensureDb();
+    const result = db.exec(
+      'SELECT message_uuid, turn_exec_ms FROM message_tool_calls WHERE session_id = ? GROUP BY message_uuid',
+      [sessionId],
+    );
+    const map = new Map<string, number>();
+    if (result[0]) {
+      for (const row of result[0].values) {
+        const uuid = row[0];
+        const ms = row[1];
+        if (typeof uuid === 'string' && typeof ms === 'number' && ms > 0) {
+          map.set(uuid, ms);
+        }
+      }
+    }
+    return map;
+  }
+
   getMessages(sessionId: string): MessageRow[] {
     const db = this.ensureDb();
     const stmt = db.prepare(

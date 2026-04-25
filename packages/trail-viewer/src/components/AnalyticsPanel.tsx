@@ -731,10 +731,11 @@ function SessionCacheTimeline({
     let cumulativeMs = 0;
     return assistantMsgs.map((m, i) => {
       const parent = m.parentUuid ? byUuid.get(m.parentUuid) : undefined;
-      if (parent?.timestamp && m.timestamp) {
-        const delta = new Date(m.timestamp).getTime() - new Date(parent.timestamp).getTime();
-        if (delta > 0) cumulativeMs += delta;
-      }
+      const apiInferenceMs = (parent?.timestamp && m.timestamp)
+        ? Math.max(0, new Date(m.timestamp).getTime() - new Date(parent.timestamp).getTime())
+        : 0;
+      const toolExecMs = m.toolExecMs ?? 0;
+      cumulativeMs += apiInferenceMs + toolExecMs;
       return {
         turn: i + 1,
         inputTokens: m.usage?.inputTokens ?? 0,
@@ -742,6 +743,8 @@ function SessionCacheTimeline({
         cacheReadTokens: m.usage?.cacheReadTokens ?? 0,
         cacheCreationTokens: m.usage?.cacheCreationTokens ?? 0,
         cumulativeMs,
+        apiInferenceMs,
+        toolExecMs,
       };
     });
   }, [assistantMsgs, byUuid]);
@@ -875,6 +878,42 @@ function SessionCacheTimeline({
               )}
             </Box>
           )}
+          {/* Timing Breakdown: API Inference + Tool Exec stacked bars + Cum. Inference line */}
+          <Box sx={{ mt: 1, mb: 0.5 }}>
+            <Typography variant="caption" sx={{ px: 1, color: colors.textSecondary }}>
+              {t('analytics.timingBreakdownTitle')}
+            </Typography>
+          </Box>
+          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+          <ChartsDataProvider
+            dataset={dataset as any}
+            series={[
+              { type: 'bar' as const, dataKey: 'apiInferenceMs', label: t('analytics.chartApiInferenceTime'), color: chartColors.apiInference, stack: 'timing', yAxisId: 'perTurn', valueFormatter: (v: number | null) => (v == null ? '' : fmtDurationShort(v)) },
+              { type: 'bar' as const, dataKey: 'toolExecMs', label: t('analytics.chartToolExecTime'), color: chartColors.toolExec, stack: 'timing', yAxisId: 'perTurn', valueFormatter: (v: number | null) => (v == null ? '' : fmtDurationShort(v)) },
+              { type: 'line' as const, dataKey: 'cumulativeMs', label: t('analytics.chartCumulativeInferenceTime'), color: chartColors.cumulativeTime, showMark: false, yAxisId: 'cumTime', valueFormatter: (v: number | null) => (v == null ? '' : fmtDurationShort(v)) },
+            ]}
+            xAxis={[{ id: 'x', dataKey: 'turn', scaleType: 'band', tickInterval: (value: number) => value % tickStep === 0 }]}
+            yAxis={[
+              { id: 'perTurn', valueFormatter: fmtDurationShort },
+              { id: 'cumTime', position: 'right', valueFormatter: fmtDurationShort },
+            ]}
+            height={160}
+            margin={{ left: 16, right: 16, top: 4, bottom: 0 }}
+          >
+            <ChartsWrapper legendDirection="horizontal" legendPosition={{ vertical: 'bottom', horizontal: 'center' }}>
+              <ChartsLegend />
+              <ChartsSurface>
+                <ChartsGrid horizontal />
+                <BarPlot />
+                <LinePlot />
+                <ChartsAxisHighlight x="band" />
+                <ChartsXAxis axisId="x" />
+                <ChartsYAxis axisId="perTurn" />
+                <ChartsYAxis axisId="cumTime" />
+              </ChartsSurface>
+              <ChartsTooltip />
+            </ChartsWrapper>
+          </ChartsDataProvider>
           <TurnLaneChart assistantMsgs={assistantMsgs} tickStep={tickStep} />
         </>
       ) : (

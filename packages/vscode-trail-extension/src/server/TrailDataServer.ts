@@ -611,6 +611,7 @@ export class TrailDataServer {
       }
 
       const rawMessages: MessageRow[] = this.trailDb.getMessages(sessionId);
+      const toolExecMsMap = this.trailDb.getTurnExecMsBySession(sessionId);
       const messageCommits = this.trailDb.getMessageCommitsBySession(sessionId);
       const errorUuids = this.trailDb.getErrorMessageUuids(sessionId);
       const gitCommitUuids = this.trailDb.getGitCommitMessageUuids(sessionId);
@@ -672,6 +673,7 @@ export class TrailDataServer {
         hasCommit: gitCommitUuids.has(m.uuid) ? true : undefined,
         agentId: m.agent_id,
         agentDescription: m.agent_description,
+        toolExecMs: toolExecMsMap.get(m.uuid),
       }));
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ session, messages }));

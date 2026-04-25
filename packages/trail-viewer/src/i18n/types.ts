@@ -123,6 +123,9 @@ export interface TrailI18n {
   'analytics.chartOutput': string;
   'analytics.chartCacheRead': string;
   'analytics.chartCacheWrite': string;
+  'analytics.chartApiInferenceTime': string;
+  'analytics.chartToolExecTime': string;
+  'analytics.timingBreakdownTitle': string;
   // chart
   'chart.tokenUsage': string;
   'chart.estimatedCost': string;
