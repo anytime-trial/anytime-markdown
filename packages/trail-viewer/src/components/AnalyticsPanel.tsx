@@ -1668,7 +1668,6 @@ function DailySessionList({
                   </Tooltip>
                 </Box>
                 <SessionMetricsPanel session={selectedSession} toolMetrics={sessionToolMetrics} />
-                <SessionModelUsageChart toolMetrics={sessionToolMetrics} />
                 <SessionSkillUsageChart toolMetrics={sessionToolMetrics} />
                 <SessionToolUsageChart toolMetrics={sessionToolMetrics} />
                 <SessionErrorChart toolMetrics={sessionToolMetrics} />
