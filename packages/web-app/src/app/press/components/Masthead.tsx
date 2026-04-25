@@ -28,10 +28,8 @@ export function Masthead() {
         {t('titlePrefix')} <em>{t('titleEm')}</em>
       </div>
       <nav className={styles.mastNav}>
-        <a href="#dispatch">{t('navDispatch')}</a>
-        <a href="#briefing">{t('navBriefing')}</a>
-        <a href="#archive">{t('navArchive')}</a>
-        <a href="#cta">{t('navSubscribe')}</a>
+        <a href="#markdown">{t('navMarkdown')}</a>
+        <a href="#trail">{t('navTrail')}</a>
         <button
           type="button"
           onClick={toggleLocale}

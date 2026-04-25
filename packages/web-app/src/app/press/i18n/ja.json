@@ -5,10 +5,8 @@
     "title": "Anytime Trial",
     "titleEm": "Trial",
     "titlePrefix": "Anytime",
-    "navDispatch": "Dispatch",
-    "navBriefing": "Briefing",
-    "navArchive": "Archive",
-    "navSubscribe": "Subscribe",
+    "navMarkdown": "Markdown",
+    "navTrail": "Trail",
     "localeAria": "Switch to English",
     "themeAria": "Toggle theme mode",
     "themeTitle": "Toggle mode"

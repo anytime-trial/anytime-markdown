@@ -99,7 +99,7 @@ export function BriefingPrimary({ embed, embedActions }: BriefingEmbedProps) {
   }));
   return (
     <BriefingWithEmbed
-      id="briefing"
+      id="trail"
       no={tBriefing('primaryNo')}
       embedTitle={tBriefing('trailEmbedTitle')}
       items={items}
@@ -125,6 +125,7 @@ export function BriefingSecondary({ embed, embedActions }: BriefingEmbedProps) {
   }));
   return (
     <BriefingWithEmbed
+      id="markdown"
       no={tBriefing('secondaryNo')}
       embedTitle={tBriefing('markdownEmbedTitle')}
       items={items}
