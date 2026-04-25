@@ -8,19 +8,24 @@ export function CtaStrip() {
       <h2 className={styles.ctaHeading}>
         Open the notebook. <em>Begin the dispatch.</em>
       </h2>
-      <div className={styles.ctaActions}>
-        <Link href="/markdown" className={`${styles.btn} ${styles.btnStamp}`}>
-          Online Editor <span className={styles.btnArrow}>→</span>
-        </Link>
-        <a
-          className={styles.btn}
-          href="https://marketplace.visualstudio.com/items?itemName=anytime-trial.anytime-markdown"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          VS Code Extension <span className={styles.btnArrow}>→</span>
-        </a>
-      </div>
     </section>
+  );
+}
+
+export function CtaActions() {
+  return (
+    <div className={styles.ctaActions}>
+      <Link href="/markdown" className={`${styles.btn} ${styles.btnStamp}`}>
+        Online Editor <span className={styles.btnArrow}>→</span>
+      </Link>
+      <a
+        className={styles.btn}
+        href="https://marketplace.visualstudio.com/items?itemName=anytime-trial.anytime-markdown"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        VS Code Extension <span className={styles.btnArrow}>→</span>
+      </a>
+    </div>
   );
 }

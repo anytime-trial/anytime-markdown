@@ -6,7 +6,7 @@ import { useThemeMode } from '../providers';
 import { BriefingPrimary, BriefingSecondary } from './components/Briefing';
 import { Caravan } from './components/Caravan';
 import { Colophon } from './components/Colophon';
-import { CtaStrip } from './components/CtaStrip';
+import { CtaActions, CtaStrip } from './components/CtaStrip';
 import { Dispatch } from './components/Dispatch';
 import { Headline } from './components/Headline';
 import { Masthead } from './components/Masthead';
@@ -55,10 +55,11 @@ export function PressBody() {
             />
           </div>
         }
+        embedActions={<CtaActions />}
       />
-      <CtaStrip />
       <PullQuote />
       <Ticker />
+      <CtaStrip />
       <Colophon />
     </div>
   );

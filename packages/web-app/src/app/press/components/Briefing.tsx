@@ -21,10 +21,12 @@ interface BriefingWithEmbedProps {
   items: BriefingItem[];
   embed: ReactNode;
   embedTitle: string;
+  embedActions?: ReactNode;
 }
 
 interface BriefingEmbedProps {
   embed: ReactNode;
+  embedActions?: ReactNode;
 }
 
 const PRIMARY_ITEMS: BriefingItem[] = [
@@ -106,29 +108,35 @@ function BriefingWithEmbed({
   items,
   embed,
   embedTitle,
+  embedActions,
 }: BriefingWithEmbedProps) {
   return (
     <section className={styles.briefingWithEmbed} id={id}>
-      <div className={styles.briefingEmbed}>
-        <div className={styles.trailFrameBar}>
-          <span
-            className={styles.trailFrameDot}
-            style={{ background: '#FF5F57' }}
-            aria-hidden="true"
-          />
-          <span
-            className={styles.trailFrameDot}
-            style={{ background: '#FFBD2E' }}
-            aria-hidden="true"
-          />
-          <span
-            className={styles.trailFrameDot}
-            style={{ background: '#28C840' }}
-            aria-hidden="true"
-          />
-          <span className={styles.trailFrameTitle}>{embedTitle}</span>
+      <div className={styles.briefingLeftStack}>
+        <div className={styles.briefingEmbed}>
+          <div className={styles.trailFrameBar}>
+            <span
+              className={styles.trailFrameDot}
+              style={{ background: '#FF5F57' }}
+              aria-hidden="true"
+            />
+            <span
+              className={styles.trailFrameDot}
+              style={{ background: '#FFBD2E' }}
+              aria-hidden="true"
+            />
+            <span
+              className={styles.trailFrameDot}
+              style={{ background: '#28C840' }}
+              aria-hidden="true"
+            />
+            <span className={styles.trailFrameTitle}>{embedTitle}</span>
+          </div>
+          <div className={styles.trailFrameBody}>{embed}</div>
         </div>
-        <div className={styles.trailFrameBody}>{embed}</div>
+        {embedActions ? (
+          <div className={styles.briefingEmbedActions}>{embedActions}</div>
+        ) : null}
       </div>
       <div className={styles.briefingMain}>
         <header className={styles.briefingHeader}>
@@ -154,7 +162,7 @@ function BriefingWithEmbed({
   );
 }
 
-export function BriefingPrimary({ embed }: BriefingEmbedProps) {
+export function BriefingPrimary({ embed, embedActions }: BriefingEmbedProps) {
   return (
     <BriefingWithEmbed
       id="briefing"
@@ -162,17 +170,19 @@ export function BriefingPrimary({ embed }: BriefingEmbedProps) {
       embedTitle="anytime-trail — trail viewer"
       items={PRIMARY_ITEMS}
       embed={embed}
+      embedActions={embedActions}
     />
   );
 }
 
-export function BriefingSecondary({ embed }: BriefingEmbedProps) {
+export function BriefingSecondary({ embed, embedActions }: BriefingEmbedProps) {
   return (
     <BriefingWithEmbed
       no="BRIEFING ／ NO.004"
       embedTitle="anytime-markdown — markdown editor"
       items={SECONDARY_ITEMS}
       embed={embed}
+      embedActions={embedActions}
     />
   );
 }
