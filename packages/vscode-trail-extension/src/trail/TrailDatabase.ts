@@ -3813,10 +3813,13 @@ export class TrailDatabase {
          FROM user_msgs u
          LEFT JOIN messages m
            ON m.session_id = u.session_id
+           AND m.type = 'assistant'
            AND m.timestamp >= u.timestamp
            AND (u.next_ts IS NULL OR m.timestamp < u.next_ts)
+           AND m.timestamp >= ?
+           AND m.timestamp <= ?
          GROUP BY u.uuid, u.timestamp, u.type`,
-        [f, t],
+        [f, t, f, t],
       );
       if (!res[0]) return [];
       return res[0].values.map((row) => ({
