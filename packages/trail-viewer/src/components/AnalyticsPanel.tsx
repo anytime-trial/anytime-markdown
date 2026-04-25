@@ -1775,13 +1775,16 @@ function CombinedChartsContent({ data, periodDays, activeChart, toolMetric, mode
     if (commitPrefixes.length === 0) {
       return <Typography variant="body2" color="text.secondary">0</Typography>;
     }
+    const showRate = commitMetric === 'count';
     const rateByPeriod = new Map<string, number | null>();
-    for (const r of aiRateRows) {
-      rateByPeriod.set(r.period, r.sampleSize > 0 ? r.rate : null);
+    if (showRate) {
+      for (const r of aiRateRows) {
+        rateByPeriod.set(r.period, r.sampleSize > 0 ? r.rate : null);
+      }
     }
     const augmentedDataset = commitDataset.map((row, i) => ({
       ...row,
-      rate: rateByPeriod.get(commitPeriods[i]) ?? null,
+      rate: showRate ? (rateByPeriod.get(commitPeriods[i]) ?? null) : null,
     }));
 
     const barSeries = commitPrefixes.map((prefix, i) => ({
@@ -1792,7 +1795,7 @@ function CombinedChartsContent({ data, periodDays, activeChart, toolMetric, mode
       color: toolPalette[i % toolPalette.length],
       yAxisId: 'countAxis',
     }));
-    const lineSeries = [{
+    const lineSeries = showRate ? [{
       type: 'line' as const,
       dataKey: 'rate',
       label: 'AI 1 発成功率 (%)',
@@ -1801,7 +1804,14 @@ function CombinedChartsContent({ data, periodDays, activeChart, toolMetric, mode
       showMark: true,
       connectNulls: true,
       valueFormatter: (v: number | null) => v == null ? '-' : `${v.toFixed(1)}%`,
-    }];
+    }] : [];
+
+    const yAxisConfig = showRate
+      ? [
+          { id: 'countAxis', valueFormatter: fmtTokens },
+          { id: 'rateAxis', min: 0, max: 100, position: 'right' as const, valueFormatter: (v: number) => `${v}%` },
+        ]
+      : [{ id: 'countAxis', valueFormatter: fmtTokens }];
 
     return (
       <Paper elevation={0} sx={{ ...cardSx, p: 2 }}>
@@ -1810,12 +1820,9 @@ function CombinedChartsContent({ data, periodDays, activeChart, toolMetric, mode
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           series={[...barSeries, ...lineSeries] as any}
           xAxis={[{ id: 'period', scaleType: 'band', dataKey: 'period' }]}
-          yAxis={[
-            { id: 'countAxis', valueFormatter: fmtTokens },
-            { id: 'rateAxis', min: 0, max: 100, position: 'right', valueFormatter: (v: number) => `${v}%` },
-          ]}
+          yAxis={yAxisConfig}
           height={260}
-          margin={{ left: 16, right: 48, top: 8, bottom: 40 }}
+          margin={{ left: 16, right: showRate ? 48 : 8, top: 8, bottom: 40 }}
           onAxisClick={makeAxisClick(commitPeriods)}
         >
           <ChartsWrapper legendDirection="horizontal" legendPosition={{ vertical: 'bottom', horizontal: 'center' }}>
@@ -1823,12 +1830,12 @@ function CombinedChartsContent({ data, periodDays, activeChart, toolMetric, mode
             <ChartsSurface>
               <ChartsGrid horizontal />
               <BarPlot />
-              <LinePlot />
-              <MarkPlot />
+              {showRate && <LinePlot />}
+              {showRate && <MarkPlot />}
               <ChartsAxisHighlight x="band" />
               <ChartsXAxis axisId="period" />
               <ChartsYAxis axisId="countAxis" />
-              <ChartsYAxis axisId="rateAxis" />
+              {showRate && <ChartsYAxis axisId="rateAxis" />}
             </ChartsSurface>
             <ChartsTooltip />
           </ChartsWrapper>
