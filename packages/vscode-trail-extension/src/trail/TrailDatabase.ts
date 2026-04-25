@@ -3798,40 +3798,91 @@ export class TrailDatabase {
     };
 
     const queryMessages = (f: string, t: string) => {
-      const res = db.exec(
-        `WITH user_msgs AS (
-           SELECT uuid, session_id, timestamp, type,
-                  LEAD(timestamp) OVER (PARTITION BY session_id ORDER BY timestamp) AS next_ts
-           FROM messages
-           WHERE type = 'user' AND timestamp >= ? AND timestamp <= ?
-         )
-         SELECT u.uuid, u.timestamp, u.type,
-                COALESCE(SUM(m.input_tokens), 0) AS input_tokens,
-                COALESCE(SUM(m.output_tokens), 0) AS output_tokens,
-                COALESCE(SUM(m.cache_read_tokens), 0) AS cache_read_tokens,
-                COALESCE(SUM(m.cache_creation_tokens), 0) AS cache_creation_tokens
-         FROM user_msgs u
-         LEFT JOIN messages m
-           ON m.session_id = u.session_id
-           AND m.type = 'assistant'
-           AND m.timestamp >= u.timestamp
-           AND (u.next_ts IS NULL OR m.timestamp < u.next_ts)
-           AND m.timestamp >= ?
-           AND m.timestamp <= ?
-         GROUP BY u.uuid, u.timestamp, u.type`,
-        [f, t, f, t],
+      // Two simple range scans + in-memory turn aggregation.
+      // The previous CTE+LEAD+LEFT JOIN+GROUP BY took >1min on sql.js (WASM SQLite).
+      const userRes = db.exec(
+        `SELECT uuid, session_id, timestamp, type
+         FROM messages
+         WHERE type = 'user' AND timestamp >= ? AND timestamp <= ?`,
+        [f, t],
       );
-      if (!res[0]) return [];
-      return res[0].values.map((row) => ({
+      if (!userRes[0]) return [];
+
+      type UserRow = { uuid: string; session_id: string; timestamp: string; type: string };
+      const userMessages: UserRow[] = userRes[0].values.map((row) => ({
         uuid: row[0] as string,
-        created_at: row[1] as string,
-        role: row[2] as string,
-        type: 'text',
-        input_tokens: (row[3] as number) ?? 0,
-        output_tokens: (row[4] as number) ?? 0,
-        cache_read_tokens: (row[5] as number) ?? 0,
-        cache_creation_tokens: (row[6] as number) ?? 0,
+        session_id: row[1] as string,
+        timestamp: row[2] as string,
+        type: row[3] as string,
       }));
+
+      const usersBySession = new Map<string, UserRow[]>();
+      for (const u of userMessages) {
+        const arr = usersBySession.get(u.session_id);
+        if (arr) arr.push(u);
+        else usersBySession.set(u.session_id, [u]);
+      }
+      for (const arr of usersBySession.values()) {
+        arr.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+      }
+
+      type Tokens = { input: number; output: number; cr: number; cc: number };
+      const tokensByUserUuid = new Map<string, Tokens>();
+      for (const u of userMessages) {
+        tokensByUserUuid.set(u.uuid, { input: 0, output: 0, cr: 0, cc: 0 });
+      }
+
+      const asstRes = db.exec(
+        `SELECT session_id, timestamp, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens
+         FROM messages
+         WHERE type = 'assistant' AND timestamp >= ? AND timestamp <= ?`,
+        [f, t],
+      );
+
+      if (asstRes[0]) {
+        for (const row of asstRes[0].values) {
+          const sessionId = row[0] as string;
+          const asstTs = row[1] as string;
+          const sessionUsers = usersBySession.get(sessionId);
+          if (!sessionUsers) continue;
+
+          // Binary search: find the latest user message with timestamp <= asstTs.
+          let lo = 0;
+          let hi = sessionUsers.length - 1;
+          let idx = -1;
+          while (lo <= hi) {
+            const mid = (lo + hi) >>> 1;
+            if (sessionUsers[mid].timestamp <= asstTs) {
+              idx = mid;
+              lo = mid + 1;
+            } else {
+              hi = mid - 1;
+            }
+          }
+          if (idx === -1) continue;
+
+          const tokens = tokensByUserUuid.get(sessionUsers[idx].uuid);
+          if (!tokens) continue;
+          tokens.input += (row[2] as number) ?? 0;
+          tokens.output += (row[3] as number) ?? 0;
+          tokens.cr += (row[4] as number) ?? 0;
+          tokens.cc += (row[5] as number) ?? 0;
+        }
+      }
+
+      return userMessages.map((u) => {
+        const tokens = tokensByUserUuid.get(u.uuid) ?? { input: 0, output: 0, cr: 0, cc: 0 };
+        return {
+          uuid: u.uuid,
+          created_at: u.timestamp,
+          role: u.type,
+          type: 'text',
+          input_tokens: tokens.input,
+          output_tokens: tokens.output,
+          cache_read_tokens: tokens.cr,
+          cache_creation_tokens: tokens.cc,
+        };
+      });
     };
 
     const queryMessageCommits = (f: string, t: string) => {
