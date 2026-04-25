@@ -328,3 +328,86 @@
         animation: none;
     }
 }
+
+/* ── 記事ボディ・3段組み ───────────────────────────── */
+.dispatch {
+    padding: 48px var(--gutter);
+    border-bottom: var(--rule-bold) solid var(--ink);
+}
+
+.dispatchHeader {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    border-bottom: var(--rule-thin) solid var(--ink);
+    padding-bottom: 8px;
+    margin-bottom: 24px;
+    font-family: var(--font-display);
+}
+
+.dispatchNum {
+    font-family: var(--font-mono);
+    font-size: var(--fs-footnote);
+    color: var(--vermilion);
+    font-weight: 600;
+    letter-spacing: 0.12em;
+}
+
+.dispatchSection {
+    font-style: italic;
+    font-weight: 700;
+    font-size: 28px;
+    margin: 0;
+}
+
+.dispatchSection em {
+    font-weight: 400;
+}
+
+.dispatchMeta {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: var(--fs-footnote);
+    color: var(--ink-faded);
+}
+
+.columns {
+    column-count: 3;
+    column-gap: var(--column-gap);
+    column-rule: var(--rule-hair) solid var(--ink-light);
+    font-family: var(--font-body);
+    line-height: 1.75;
+    text-align: justify;
+    hyphens: auto;
+}
+
+@media (max-width: 880px) {
+    .columns {
+        column-count: 1;
+    }
+}
+
+.columns p {
+    margin: 0 0 1em;
+}
+
+.columns p:first-child::first-letter {
+    font-family: var(--font-display);
+    font-size: 5.2em;
+    font-weight: 900;
+    float: left;
+    line-height: 0.85;
+    margin: 0.06em 0.08em 0 0;
+    color: var(--ink);
+}
+
+.columns h3 {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 700;
+    font-size: 17px;
+    margin: 1.4em 0 0.4em;
+    break-after: avoid;
+    border-top: var(--rule-thin) solid var(--ink);
+    padding-top: 6px;
+}

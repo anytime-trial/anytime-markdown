@@ -2,6 +2,7 @@
 
 import { useThemeMode } from '../providers';
 import { Caravan } from './components/Caravan';
+import { Dispatch } from './components/Dispatch';
 import { Headline } from './components/Headline';
 import { Masthead } from './components/Masthead';
 import { bodoni, jetbrains, shippori } from './fonts';
@@ -15,6 +16,7 @@ export function PressBody() {
       <Masthead />
       <Headline />
       <Caravan />
+      <Dispatch />
     </div>
   );
 }
