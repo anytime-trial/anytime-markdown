@@ -6,6 +6,7 @@ import { Caravan } from './components/Caravan';
 import { Dispatch } from './components/Dispatch';
 import { Headline } from './components/Headline';
 import { Masthead } from './components/Masthead';
+import { PullQuote } from './components/PullQuote';
 import { bodoni, jetbrains, shippori } from './fonts';
 import styles from './press.module.css';
 
@@ -19,6 +20,7 @@ export function PressBody() {
       <Caravan />
       <Dispatch />
       <Briefing />
+      <PullQuote />
     </div>
   );
 }

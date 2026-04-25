@@ -501,3 +501,37 @@
     letter-spacing: 0.05em;
     white-space: nowrap;
 }
+
+/* ── PullQuote ─────────────────────────────────────── */
+.pullQuote {
+    padding: 56px var(--gutter);
+    border-bottom: var(--rule-bold) solid var(--ink);
+    display: grid;
+    grid-template-columns: 1fr;
+    max-width: 1100px;
+}
+
+.pullQuote q {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: clamp(32px, 5vw, 64px);
+    font-weight: 400;
+    line-height: 1.1;
+    letter-spacing: -0.015em;
+    color: var(--ink);
+    quotes: '“' '”';
+    display: block;
+    text-indent: -0.4em;
+}
+
+.pullQuote q::before {
+    color: var(--vermilion);
+}
+
+.pullQuoteAttr {
+    margin-top: 28px;
+    font-family: var(--font-mono);
+    font-size: var(--fs-footnote);
+    color: var(--ink-faded);
+    letter-spacing: 0.1em;
+}
