@@ -1364,7 +1364,10 @@ function DailyActivityChart({
     const series = mode === 'tokens' ? overlay.tokens : overlay.cost;
     const map = new Map<string, number>();
     for (const b of series) {
-      map.set(toLocalDateKey(b.bucketStart), b.value);
+      const localDate = toLocalDateKey(b.bucketStart);
+      // trail-core buildRatioTimeSeries uses Sunday-anchored weeks; align to Friday
+      const key = overlay.bucket === 'week' ? toFridayWeekKey(localDate) : localDate;
+      map.set(key, b.value);
     }
     return map;
   }, [overlay, mode]);
@@ -1386,7 +1389,7 @@ function DailyActivityChart({
         cacheCreationTokens: isTokens ? d.cacheCreationTokens : 0,
         actualCost: isTokens ? 0 : (costEntry?.actual ?? d.estimatedCostUsd),
         skillCost: isTokens ? 0 : (costEntry?.skill ?? 0),
-        overlayValue: overlayByDate.get(d.date) ?? null,
+        overlayValue: overlayByDate.get(period === 90 ? toFridayWeekKey(d.date) : d.date) ?? null,
       };
     });
     return period === 90 ? groupByWeek(dailyDataset) : dailyDataset;
