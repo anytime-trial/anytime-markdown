@@ -1825,11 +1825,11 @@ function CombinedChartsContent({ data, periodDays, activeChart, toolMetric, mode
             ] as any}
             xAxis={[{ id: 'period', scaleType: 'band', dataKey: 'period' }]}
             yAxis={[
-              { id: 'minAxis', valueFormatter: (v: number) => fmtMin(v) },
+              { id: 'minAxis', valueFormatter: fmtTokens },
               { id: 'ratioAxis', position: 'right' as const, valueFormatter: (v: number) => v.toFixed(2) },
             ]}
             height={260}
-            margin={{ left: 48, right: 56, top: 8, bottom: 40 }}
+            margin={{ left: 16, right: 56, top: 8, bottom: 40 }}
             onAxisClick={canDrill
               ? (_e: MouseEvent, d: { dataIndex: number } | null) => {
                   const idx = d?.dataIndex;
