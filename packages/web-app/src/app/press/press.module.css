@@ -11,6 +11,7 @@
     --rule: #15110A;
     --vermilion: #B8341E;
     --vermilion-wash: rgba(184, 52, 30, 0.06);
+    --noise-opacity: 1;
 
     --rule-hair: 0.5px;
     --rule-thin: 1px;
@@ -58,6 +59,28 @@
     --rule: #EDE5D2;
     --vermilion: #C84A33;
     --vermilion-wash: rgba(200, 74, 51, 0.10);
+    --noise-opacity: 0.4;
+}
+
+.root::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    opacity: var(--noise-opacity);
+    background-image:
+        radial-gradient(circle at 20% 30%, currentColor 0.5px, transparent 1px),
+        radial-gradient(circle at 70% 60%, currentColor 0.5px, transparent 1px),
+        radial-gradient(circle at 40% 80%, currentColor 0.5px, transparent 1px);
+    background-size: 7px 7px, 11px 11px, 13px 13px;
+    color: rgba(21, 17, 10, 0.025);
+    mix-blend-mode: multiply;
+}
+
+.root[data-cp-mode='dark']::before {
+    color: rgba(255, 240, 210, 0.04);
+    mix-blend-mode: screen;
 }
 
 /* ── マストヘッド ───────────────────────────────────── */
