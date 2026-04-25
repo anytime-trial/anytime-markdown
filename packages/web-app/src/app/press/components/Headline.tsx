@@ -7,16 +7,16 @@ export function Headline() {
         <div className={styles.headlineKicker}>
           no.001 — a quiet manifesto for browser-native writing
         </div>
-        <h1 className={styles.headlineTitle}>
-          Write
+        <h1 className={styles.headlineTitle} lang="ja">
+          コードも文書もAIも
           <br />
-          Markdown,
-          <br />
-          <em>Beautifully.</em>
+          <em>見える化する</em>
         </h1>
-        <p className={styles.headlineDeck}>
-          A free, open-source markdown editor that works entirely in your
-          browser. No sign-up, no server — your words stay yours.
+        <p className={styles.headlineDeck} lang="ja">
+          AIエージェントは、苛酷な砂漠（開発環境）を往くキャラバン。Markdown
+          の WYSIWYG 編集・差分レビューと、TypeScript
+          プロジェクトのリアルタイム可視化で、その旅路を安全に見守り導く —
+          AI時代の羅針盤となる 2 つの VS Code 拡張です。
         </p>
         <div className={styles.headlineByline}>
           Filed by <b>The Caravan Press</b> · Anytime Trail · 隊商出版部 ·
