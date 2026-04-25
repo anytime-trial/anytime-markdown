@@ -18,9 +18,7 @@
     "asideEditor": "From the editor's desk",
     "asideBody": "Faster tools lead writers astray. <vermilion>Anytime Markdown</vermilion> walks at the writer's pace.",
     "asideMeta1": "☞ Founded: 2024",
-    "asideMeta2": "☞ Edition: v0.42.1",
-    "asideMeta3Label": "☞ Issued: ",
-    "asideMeta3Value": "browser-only"
+    "asideMeta2": "☞ Edition: v0.42.1"
   },
   "caravan": {
     "tick": "— in transit · caravan crossing the desert —"

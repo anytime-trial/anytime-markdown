@@ -38,11 +38,6 @@ export function Headline() {
           {tHead('asideMeta1')}
           <br />
           {tHead('asideMeta2')}
-          <br />
-          {tHead('asideMeta3Label')}
-          <span className={styles.textVermilion}>
-            {tHead('asideMeta3Value')}
-          </span>
         </div>
       </aside>
     </section>
