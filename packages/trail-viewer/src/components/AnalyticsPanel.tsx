@@ -871,12 +871,10 @@ function SessionCacheTimeline({
               { type: 'line', dataKey: 'outputTokens', label: t('analytics.chartOutput'), color: chartColors.output, showMark: false, yAxisId: 'tokens' },
               { type: 'line', dataKey: 'cacheReadTokens', label: t('analytics.chartCacheRead'), color: chartColors.cacheRead, showMark: false, yAxisId: 'tokens' },
               { type: 'line', dataKey: 'cacheCreationTokens', label: t('analytics.chartCacheWrite'), color: chartColors.cacheWrite, showMark: false, yAxisId: 'tokens' },
-              { type: 'line', dataKey: 'cumulativeMs', label: t('analytics.chartCumulativeInferenceTime'), color: chartColors.cumulativeTime, showMark: false, yAxisId: 'time', valueFormatter: (v: number | null) => (v == null ? '' : fmtDurationShort(v)) },
             ]}
             xAxis={[{ id: 'x', dataKey: 'turn', scaleType: 'point', tickInterval: (value: number) => value % tickStep === 0 }]}
             yAxis={[
               { id: 'tokens', valueFormatter: fmtTokens },
-              { id: 'time', position: 'right', valueFormatter: fmtDurationShort },
             ]}
             height={200}
             margin={{ left: 16, right: 16, top: 16, bottom: 0 }}
@@ -889,7 +887,6 @@ function SessionCacheTimeline({
                 <ChartsAxisHighlight x="line" />
                 <ChartsXAxis axisId="x" />
                 <ChartsYAxis axisId="tokens" />
-                <ChartsYAxis axisId="time" />
                 {commitTurns.map((turn) => (
                   <ChartsReferenceLine
                     key={`commit-${turn}`}
