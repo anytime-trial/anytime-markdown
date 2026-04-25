@@ -67,9 +67,10 @@
     "dispatch": "Dispatch",
     "privacyPolicy": "Privacy policy",
     "license": "License · MIT",
+    "edit": "Edit",
     "onlineEditor": "Anytime Markdown",
     "trailArchitecture": "Anytime Trail · architecture",
-    "github": "GitHub repository",
+    "github": "Github",
     "foldCopy": "© 2026 Kiyotaka Ueda featuring Claude Code",
     "foldStamp": "approved · check"
   }

@@ -25,15 +25,6 @@ export function Colophon() {
             </li>
             <li>
               <a
-                href={GITHUB_LICENSE_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                {t('license')}
-              </a>
-            </li>
-            <li>
-              <a
                 href={GITHUB_REPO_URL}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -43,9 +34,18 @@ export function Colophon() {
             </li>
             {showDocsEdit ? (
               <li>
-                <Link href="/docs/edit">{tLanding('docsEditPage')}</Link>
+                <Link href="/docs/edit">{t('edit')}</Link>
               </li>
             ) : null}
+            <li>
+              <a
+                href={GITHUB_LICENSE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {t('license')}
+              </a>
+            </li>
           </ul>
         </div>
         <div>
