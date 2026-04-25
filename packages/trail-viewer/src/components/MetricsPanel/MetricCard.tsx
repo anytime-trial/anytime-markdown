@@ -44,14 +44,24 @@ function levelColor(level: DoraLevel, isDark: boolean) {
   }
 }
 
+function deltaArrow(deltaPct: number): string {
+  if (deltaPct > 0) return '↑';
+  if (deltaPct < 0) return '↓';
+  return '→';
+}
+
+function deltaColor(deltaPct: number): string {
+  if (deltaPct > 0) return 'success.main';
+  if (deltaPct < 0) return 'error.main';
+  return 'text.secondary';
+}
+
 function DeltaBadge({ deltaPct }: Readonly<{ deltaPct: number | null }>) {
   const { t } = useTrailI18n();
   if (deltaPct === null) return <Typography variant="caption" color="text.disabled">{t('metrics.noLevel')}</Typography>;
-  const arrow = deltaPct > 0 ? '↑' : deltaPct < 0 ? '↓' : '→';
-  const color = deltaPct > 0 ? 'success.main' : deltaPct < 0 ? 'error.main' : 'text.secondary';
   return (
-    <Typography variant="caption" sx={{ color }}>
-      {arrow} {Math.abs(deltaPct).toFixed(1)}%
+    <Typography variant="caption" sx={{ color: deltaColor(deltaPct) }}>
+      {deltaArrow(deltaPct)} {Math.abs(deltaPct).toFixed(1)}%
     </Typography>
   );
 }
