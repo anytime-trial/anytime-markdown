@@ -312,10 +312,11 @@
     letter-spacing: 0;
 }
 
-.headlineAsideStampWrap {
-    margin-top: 24px;
+.headlineAsideFooter {
     display: flex;
-    justify-content: center;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
 }
 
 .textVermilion {

@@ -37,13 +37,13 @@ export function Headline() {
           })}
         </div>
         <hr />
-        <div className={styles.headlineAsideMeta}>
-          {tHead('asideMeta1')}
-          <br />
-          {tHead('asideMeta2Label')}
-          {APP_VERSION}
-        </div>
-        <div className={styles.headlineAsideStampWrap}>
+        <div className={styles.headlineAsideFooter}>
+          <div className={styles.headlineAsideMeta}>
+            {tHead('asideMeta1')}
+            <br />
+            {tHead('asideMeta2Label')}
+            {APP_VERSION}
+          </div>
           <span className={styles.foldStamp}>{tHead('approvedStamp')}</span>
         </div>
       </aside>
