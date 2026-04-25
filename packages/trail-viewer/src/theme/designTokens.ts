@@ -59,6 +59,7 @@ const darkChartColors = {
   cumulativeTime: '#CE93D8',
   primary: '#90CAF9',
   skill: '#8b5cf6',
+  overlayPerLoc: '#FFB74D',
 } as const;
 
 const darkAvatarColors = {
@@ -109,6 +110,7 @@ const lightChartColors: ThemeChartColors = {
   cumulativeTime: '#7B1FA2',
   primary: '#1976D2',
   skill: '#7c3aed',
+  overlayPerLoc: '#E65100',
 } as const;
 
 const lightAvatarColors: ThemeAvatarColors = {
@@ -156,6 +158,7 @@ export interface ThemeChartColors {
   readonly cumulativeTime: string;
   readonly primary: string;
   readonly skill: string;
+  readonly overlayPerLoc: string;
 }
 
 export interface ThemeAvatarColors {

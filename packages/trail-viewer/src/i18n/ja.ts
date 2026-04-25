@@ -116,6 +116,8 @@ export const ja: TrailI18n = {
   'chart.estimatedCost': '推定コスト',
   'chart.tokens': 'トークン',
   'chart.cost': 'コスト',
+  'chart.tokensPerLoc': 'トークン/LOC',
+  'chart.costPerLoc': 'コスト/LOC',
   'cost.title': 'コスト最適化',
   'cost.current': '現状',
   'cost.optimized': '最適化後',

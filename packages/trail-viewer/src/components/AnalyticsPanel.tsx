@@ -26,6 +26,7 @@ import { ChartsGrid } from '@mui/x-charts/ChartsGrid';
 import { ChartsLegend } from '@mui/x-charts/ChartsLegend';
 import { formatLocalTime, toLocalDateKey } from '@anytime-markdown/trail-core/formatDate';
 import { extractCommitPrefix } from '@anytime-markdown/trail-core/domain';
+import type { QualityMetrics, DateRange } from '@anytime-markdown/trail-core/domain/metrics';
 import type { AnalyticsData, CombinedData, CombinedPeriodMode, CombinedRangeDays, CostOptimizationData, ToolMetrics, TrailMessage, TrailSession, TrailSessionCommit, TrailTokenUsage } from '../parser/types';
 import { useTrailTheme } from './TrailThemeContext';
 import { useTrailI18n } from '../i18n';
@@ -41,6 +42,7 @@ export interface AnalyticsPanelProps {
   readonly fetchDayToolMetrics?: (date: string) => Promise<ToolMetrics | null>;
   readonly costOptimization?: CostOptimizationData | null;
   readonly fetchCombinedData?: (period: CombinedPeriodMode, rangeDays: CombinedRangeDays) => Promise<CombinedData>;
+  readonly fetchQualityMetrics?: (range: DateRange) => Promise<QualityMetrics>;
 }
 
 // ---------------------------------------------------------------------------
@@ -1288,6 +1290,7 @@ type ChartEntry = {
   date: string; fullDate: string;
   inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheCreationTokens: number;
   actualCost: number; skillCost: number;
+  overlayValue: number | null;
 };
 
 function toFridayWeekKey(dateStr: string): string {
@@ -1303,19 +1306,26 @@ function toFridayWeekKey(dateStr: string): string {
 }
 
 function groupByWeek(entries: readonly ChartEntry[]): ChartEntry[] {
-  const map = new Map<string, ChartEntry>();
+  const map = new Map<string, ChartEntry & { _overlayCount: number }>();
   for (const d of entries) {
     const key = toFridayWeekKey(d.fullDate);
-    const e = map.get(key) ?? { date: key.slice(5), fullDate: key, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, actualCost: 0, skillCost: 0 };
+    const e = map.get(key) ?? { date: key.slice(5), fullDate: key, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, actualCost: 0, skillCost: 0, overlayValue: null, _overlayCount: 0 };
     e.inputTokens += d.inputTokens;
     e.outputTokens += d.outputTokens;
     e.cacheReadTokens += d.cacheReadTokens;
     e.cacheCreationTokens += d.cacheCreationTokens;
     e.actualCost += d.actualCost;
     e.skillCost += d.skillCost;
+    if (d.overlayValue != null) {
+      e.overlayValue = (e.overlayValue ?? 0) + d.overlayValue;
+      e._overlayCount += 1;
+    }
     map.set(key, e);
   }
-  return [...map.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, v]) => v);
+  return [...map.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, v]) => {
+    const { _overlayCount, overlayValue, ...rest } = v;
+    return { ...rest, overlayValue: _overlayCount > 0 && overlayValue != null ? overlayValue / _overlayCount : null };
+  });
 }
 
 function DailyActivityChart({
@@ -1324,14 +1334,21 @@ function DailyActivityChart({
   mode,
   onDateClick,
   costOptimization,
+  overlay,
 }: Readonly<{
   items: AnalyticsData['dailyActivity'];
   period: PeriodDays;
   mode: DailyViewMode;
   onDateClick?: (fullDate: string) => void;
   costOptimization?: CostOptimizationData | null;
+  overlay?: {
+    bucket: 'day' | 'week';
+    tokens: ReadonlyArray<{ bucketStart: string; value: number }>;
+    cost: ReadonlyArray<{ bucketStart: string; value: number }>;
+  } | null;
 }>) {
   const { chartColors, cardSx } = useTrailTheme();
+  const { t } = useTrailI18n();
 
   const costByDate = useMemo(() => {
     const map = new Map<string, { actual: number; skill: number }>();
@@ -1341,6 +1358,16 @@ function DailyActivityChart({
     }
     return map;
   }, [costOptimization]);
+
+  const overlayByDate = useMemo(() => {
+    if (!overlay) return new Map<string, number>();
+    const series = mode === 'tokens' ? overlay.tokens : overlay.cost;
+    const map = new Map<string, number>();
+    for (const b of series) {
+      map.set(toLocalDateKey(b.bucketStart), b.value);
+    }
+    return map;
+  }, [overlay, mode]);
 
   const dataset = useMemo(() => {
     const cutoff = new Date();
@@ -1359,16 +1386,28 @@ function DailyActivityChart({
         cacheCreationTokens: isTokens ? d.cacheCreationTokens : 0,
         actualCost: isTokens ? 0 : (costEntry?.actual ?? d.estimatedCostUsd),
         skillCost: isTokens ? 0 : (costEntry?.skill ?? 0),
+        overlayValue: overlayByDate.get(d.date) ?? null,
       };
     });
     return period === 90 ? groupByWeek(dailyDataset) : dailyDataset;
-  }, [items, period, mode, costByDate]);
+  }, [items, period, mode, costByDate, overlayByDate]);
 
   if (items.length === 0) return null;
 
   const isTokens = mode === 'tokens';
   const yFormatter = isTokens ? fmtTokens : fmtUsdShort;
   const seriesFormatter = (v: number | null) => (v == null || v === 0 ? null : yFormatter(v));
+  const hasOverlay = overlay != null;
+  const overlayLabel = isTokens ? t('chart.tokensPerLoc') : t('chart.costPerLoc');
+  const overlayFormatter = (v: number | null) => {
+    if (v == null) return null;
+    if (isTokens) return `${v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v.toFixed(0)} tok/LOC`;
+    return v >= 0.01 ? `$${v.toFixed(4)}/LOC` : `¢${(v * 100).toFixed(2)}/LOC`;
+  };
+  const rightAxisFormatter = (v: number) => {
+    if (isTokens) return v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v.toFixed(0);
+    return v >= 0.01 ? `$${v.toFixed(2)}` : `¢${(v * 100).toFixed(1)}`;
+  };
 
   const handleAxisClick = (_event: MouseEvent, data: { dataIndex: number } | null) => {
     const idx = data?.dataIndex;
@@ -1376,28 +1415,52 @@ function DailyActivityChart({
     onDateClick?.(dataset[idx].fullDate);
   };
 
+  const barSeries = isTokens ? [
+    { type: 'bar' as const, dataKey: 'inputTokens', label: 'Input', stack: 'a', color: chartColors.input, yAxisId: 'left', valueFormatter: seriesFormatter },
+    { type: 'bar' as const, dataKey: 'outputTokens', label: 'Output', stack: 'a', color: chartColors.output, yAxisId: 'left', valueFormatter: seriesFormatter },
+    { type: 'bar' as const, dataKey: 'cacheReadTokens', label: 'Cache Read', stack: 'a', color: chartColors.cacheRead, yAxisId: 'left', valueFormatter: seriesFormatter },
+    { type: 'bar' as const, dataKey: 'cacheCreationTokens', label: 'Cache Write', stack: 'a', color: chartColors.cacheWrite, yAxisId: 'left', valueFormatter: seriesFormatter },
+  ] : [
+    { type: 'bar' as const, dataKey: 'actualCost', label: 'Current', color: chartColors.primary, yAxisId: 'left', valueFormatter: seriesFormatter },
+    { type: 'bar' as const, dataKey: 'skillCost', label: 'Optimized', color: chartColors.skill, yAxisId: 'left', valueFormatter: seriesFormatter },
+  ];
+
+  const overlaySeries = hasOverlay ? [{
+    type: 'line' as const,
+    dataKey: 'overlayValue',
+    label: overlayLabel,
+    color: chartColors.overlayPerLoc,
+    yAxisId: 'right',
+    connectNulls: true,
+    showMark: true,
+    valueFormatter: overlayFormatter,
+  }] : [];
+
   return (
     <Paper elevation={0} sx={{ ...cardSx, p: 2 }}>
-      <BarChart
+      <ChartsContainer
         dataset={dataset}
-        xAxis={[{ scaleType: 'band', dataKey: 'date' }]}
-        yAxis={[{ valueFormatter: yFormatter }]}
-        series={isTokens ? [
-          { dataKey: 'inputTokens', label: 'Input', stack: 'a', color: chartColors.input, valueFormatter: seriesFormatter },
-          { dataKey: 'outputTokens', label: 'Output', stack: 'a', color: chartColors.output, valueFormatter: seriesFormatter },
-          { dataKey: 'cacheReadTokens', label: 'Cache Read', stack: 'a', color: chartColors.cacheRead, valueFormatter: seriesFormatter },
-          { dataKey: 'cacheCreationTokens', label: 'Cache Write', stack: 'a', color: chartColors.cacheWrite, valueFormatter: seriesFormatter },
-        ] : [
-          { dataKey: 'actualCost', label: 'Current', color: chartColors.primary, valueFormatter: seriesFormatter },
-          { dataKey: 'skillCost', label: 'Optimized', color: chartColors.skill, valueFormatter: seriesFormatter },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        series={[...barSeries, ...overlaySeries] as any}
+        xAxis={[{ id: 'date', scaleType: 'band', dataKey: 'date' }]}
+        yAxis={[
+          { id: 'left', valueFormatter: yFormatter },
+          { id: 'right', position: 'right', valueFormatter: rightAxisFormatter },
         ]}
         height={240}
-        margin={{ left: 16, right: 8, top: 8, bottom: 40 }}
-        slotProps={{
-          legend: { direction: 'horizontal', position: { vertical: 'bottom', horizontal: 'center' } },
-        }}
+        margin={{ left: 16, right: hasOverlay ? 56 : 8, top: 8, bottom: 40 }}
         onAxisClick={period === 90 ? undefined : handleAxisClick}
-      />
+      >
+        <ChartsGrid horizontal />
+        <BarPlot />
+        {hasOverlay && <LinePlot />}
+        {hasOverlay && <MarkPlot />}
+        <ChartsXAxis axisId="date" />
+        <ChartsYAxis axisId="left" />
+        {hasOverlay && <ChartsYAxis axisId="right" />}
+        <ChartsLegend direction="horizontal" />
+        <ChartsTooltip />
+      </ChartsContainer>
     </Paper>
   );
 }
@@ -1795,6 +1858,7 @@ function CombinedChartsSection({
   fetchDayToolMetrics,
   costOptimization,
   fetchCombinedData,
+  fetchQualityMetrics,
 }: Readonly<{
   dailyActivity: AnalyticsData['dailyActivity'];
   sessions: readonly TrailSession[];
@@ -1808,6 +1872,7 @@ function CombinedChartsSection({
   fetchDayToolMetrics?: (date: string) => Promise<ToolMetrics | null>;
   costOptimization?: CostOptimizationData | null;
   fetchCombinedData?: (period: CombinedPeriodMode, rangeDays: CombinedRangeDays) => Promise<CombinedData>;
+  fetchQualityMetrics?: (range: DateRange) => Promise<QualityMetrics>;
 }>) {
   const { colors } = useTrailTheme();
   const { t } = useTrailI18n();
@@ -1817,6 +1882,11 @@ function CombinedChartsSection({
   const [modelMetric, setModelMetric] = useState<ChartMetric>('count');
   const [combinedData, setCombinedData] = useState<CombinedData | null>(null);
   const [combinedLoading, setCombinedLoading] = useState(false);
+  const [overlay, setOverlay] = useState<{
+    bucket: 'day' | 'week';
+    tokens: ReadonlyArray<{ bucketStart: string; value: number }>;
+    cost: ReadonlyArray<{ bucketStart: string; value: number }>;
+  } | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   useEffect(() => { setSelectedDate(null); }, [period]);
   const handleDateClick = (fullDate: string) => {
@@ -1839,6 +1909,25 @@ function CombinedChartsSection({
     })();
     return () => { mounted = false; };
   }, [fetchCombinedData, period]);
+
+  useEffect(() => {
+    if (!fetchQualityMetrics) return;
+    const now = new Date();
+    const to = now.toISOString();
+    const from = new Date(now.getTime() - period * 86_400_000).toISOString();
+    let mounted = true;
+    void (async () => {
+      const result = await fetchQualityMetrics({ from, to });
+      if (mounted) {
+        setOverlay({
+          bucket: result.bucket,
+          tokens: result.metrics.tokensPerLoc.timeSeries,
+          cost: result.costPerLocTimeSeries ?? [],
+        });
+      }
+    })();
+    return () => { mounted = false; };
+  }, [fetchQualityMetrics, period]);
 
   const toggleSx = {
     color: colors.textSecondary,
@@ -1918,6 +2007,7 @@ function CombinedChartsSection({
           mode={tokenMode}
           onDateClick={handleDateClick}
           costOptimization={costOptimization}
+          overlay={overlay}
         />
       ) : fetchCombinedData ? (
         combinedLoading && !combinedData ? (
@@ -1951,7 +2041,7 @@ function CombinedChartsSection({
   );
 }
 
-export function AnalyticsPanel({ analytics, sessions = [], onSelectSession, onJumpToTrace, fetchSessionMessages, fetchSessionCommits, fetchSessionToolMetrics, fetchDayToolMetrics, costOptimization, fetchCombinedData }: Readonly<AnalyticsPanelProps>) {
+export function AnalyticsPanel({ analytics, sessions = [], onSelectSession, onJumpToTrace, fetchSessionMessages, fetchSessionCommits, fetchSessionToolMetrics, fetchDayToolMetrics, costOptimization, fetchCombinedData, fetchQualityMetrics }: Readonly<AnalyticsPanelProps>) {
   const { t } = useTrailI18n();
   const { scrollbarSx } = useTrailTheme();
   const [period, setPeriod] = useState<PeriodDays>(30);
@@ -1983,6 +2073,7 @@ export function AnalyticsPanel({ analytics, sessions = [], onSelectSession, onJu
         fetchDayToolMetrics={fetchDayToolMetrics}
         costOptimization={costOptimization}
         fetchCombinedData={fetchCombinedData}
+        fetchQualityMetrics={fetchQualityMetrics}
       />
     </Box>
   );

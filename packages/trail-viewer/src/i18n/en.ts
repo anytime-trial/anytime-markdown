@@ -116,6 +116,8 @@ export const en: TrailI18n = {
   'chart.estimatedCost': 'Estimated Cost',
   'chart.tokens': 'Tokens',
   'chart.cost': 'Cost',
+  'chart.tokensPerLoc': 'Tokens/LOC',
+  'chart.costPerLoc': 'Cost/LOC',
   'cost.title': 'Cost Optimization',
   'cost.current': 'Current',
   'cost.optimized': 'Optimized',

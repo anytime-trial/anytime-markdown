@@ -125,6 +125,8 @@ export interface TrailI18n {
   'chart.estimatedCost': string;
   'chart.tokens': string;
   'chart.cost': string;
+  'chart.tokensPerLoc': string;
+  'chart.costPerLoc': string;
   // cost optimization
   'cost.title': string;
   'cost.current': string;
