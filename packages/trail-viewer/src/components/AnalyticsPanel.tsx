@@ -135,15 +135,19 @@ function CyclingCard({
       sx={{
         ...cardStyle,
         cursor: 'pointer',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
         '&:hover': { backgroundColor: 'action.hover' },
         userSelect: 'none',
       }}
       onClick={onCycle}
     >
-      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5, textAlign: 'left' }}>
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5, alignSelf: 'flex-start' }}>
         {groupName}
       </Typography>
-      <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, mt: 0.5 }}>
+      <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
         <Typography variant="h5">{current.value}</Typography>
         {current.badge && (
           <Chip
@@ -154,7 +158,7 @@ function CyclingCard({
         )}
       </Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Typography variant="caption" color="text.secondary">
+        <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center' }}>
           {current.label}
         </Typography>
         {current.delta && (
