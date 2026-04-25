@@ -43,4 +43,5 @@ export interface QualityMetrics {
     changeFailureRate: MetricValue;
   };
   unmeasured: UnmeasuredMetric[];
+  costPerLocTimeSeries?: ReadonlyArray<{ bucketStart: string; value: number }>;
 }

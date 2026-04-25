@@ -2,7 +2,7 @@ export { computeQualityMetrics } from './computeQualityMetrics';
 export type { QualityMetricsInputs } from './computeQualityMetrics';
 export { computeDeploymentFrequency } from './deploymentFrequency';
 export { computeLeadTimePerLoc } from './leadTimePerLoc';
-export { computeTokensPerLoc } from './tokensPerLoc';
+export { computeTokensPerLoc, computeTokensAndCostPerLocTimeSeries } from './tokensPerLoc';
 export {
   computeAiFirstTrySuccessRate,
   isCodeFile,

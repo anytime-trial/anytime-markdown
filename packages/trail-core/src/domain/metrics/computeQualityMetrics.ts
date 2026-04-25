@@ -1,6 +1,6 @@
 import { computeDeploymentFrequency } from './deploymentFrequency';
 import { computeLeadTimePerLoc } from './leadTimePerLoc';
-import { computeTokensPerLoc } from './tokensPerLoc';
+import { computeTokensPerLoc, computeTokensAndCostPerLocTimeSeries } from './tokensPerLoc';
 import { computeAiFirstTrySuccessRate } from './aiFirstTrySuccessRate';
 import { computeChangeFailureRate } from './changeFailureRate';
 import { DEFAULT_THRESHOLDS } from './thresholds';
@@ -21,6 +21,7 @@ export interface QualityMetricsInputs {
     output_tokens?: number;
     cache_read_tokens?: number;
     cache_creation_tokens?: number;
+    cost_usd?: number;
   }>;
   messageCommits: Array<{
     message_uuid: string;
@@ -49,6 +50,7 @@ export interface QualityMetricsInputs {
     output_tokens?: number;
     cache_read_tokens?: number;
     cache_creation_tokens?: number;
+    cost_usd?: number;
   }>;
   previousMessageCommits?: Array<{
     message_uuid: string;
@@ -164,6 +166,12 @@ export function computeQualityMetrics(
     thresholds,
   );
 
+  const { cost: costPerLocTimeSeries } = computeTokensAndCostPerLocTimeSeries(
+    productivityInputs,
+    range,
+    bucket,
+  );
+
   return {
     range,
     previousRange,
@@ -176,5 +184,6 @@ export function computeQualityMetrics(
       changeFailureRate,
     },
     unmeasured: UNMEASURED,
+    costPerLocTimeSeries,
   };
 }
