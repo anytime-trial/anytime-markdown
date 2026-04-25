@@ -19,7 +19,7 @@
     --rule-mast: 5px;
 
     --fs-mast: clamp(36px, 7vw, 108px);
-    --fs-deck: clamp(14px, 2.1vw, 28px);
+    --fs-deck: clamp(11px, 1.65vw, 22px);
     --fs-lede: 20px;
     --fs-body: 16px;
     --fs-caption: 13px;
