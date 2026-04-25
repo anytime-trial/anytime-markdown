@@ -161,7 +161,122 @@
     }
 }
 
+/* ── ヘッドライン段組み ────────────────────────────── */
+.headline {
+    padding: 36px var(--gutter) 28px;
+    border-bottom: var(--rule-bold) solid var(--ink);
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 48px;
+    align-items: end;
+}
+
+@media (max-width: 880px) {
+    .headline {
+        grid-template-columns: 1fr;
+        gap: 24px;
+    }
+}
+
+.headlineKicker {
+    font-family: var(--font-mono);
+    font-size: var(--fs-footnote);
+    letter-spacing: 0.18em;
+    text-transform: lowercase;
+    color: var(--ink-faded);
+    margin-bottom: 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.headlineKicker::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--ink-faded);
+}
+
 .headlineTitle {
-    font-size: 2rem;
-    margin: 2rem;
+    font-family: var(--font-display);
+    font-size: var(--fs-mast);
+    line-height: 0.88;
+    letter-spacing: -0.035em;
+    font-weight: 900;
+    margin: 0 0 18px;
+    text-align: left;
+    hyphens: none;
+}
+
+.headlineTitle em {
+    font-style: italic;
+    font-weight: 400;
+}
+
+.headlineDeck {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 400;
+    font-size: var(--fs-deck);
+    line-height: 1.15;
+    margin: 0;
+    color: var(--ink-faded);
+    max-width: 22ch;
+}
+
+.headlineByline {
+    font-family: var(--font-mono);
+    font-size: var(--fs-footnote);
+    color: var(--ink-faded);
+    border-top: var(--rule-thin) solid var(--ink);
+    padding-top: 10px;
+    margin-top: 24px;
+}
+
+.headlineByline b {
+    color: var(--ink);
+    font-weight: 600;
+}
+
+.headlineAside {
+    border-left: var(--rule-thin) solid var(--ink);
+    padding: 0 0 0 24px;
+    font-family: var(--font-body);
+    font-size: var(--fs-caption);
+    line-height: 1.9;
+    color: var(--ink-faded);
+}
+
+.vert {
+    writing-mode: vertical-rl;
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--ink);
+    height: 220px;
+    margin-bottom: 16px;
+    letter-spacing: 0.1em;
+}
+
+.headlineAside hr {
+    border: 0;
+    border-top: var(--rule-thin) solid var(--ink-light);
+    margin: 14px 0;
+}
+
+.headlineAsideEditor {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 15px;
+}
+
+.headlineAsideMeta {
+    font-family: var(--font-mono);
+    color: var(--ink);
+    letter-spacing: 0;
+}
+
+.textVermilion {
+    color: var(--vermilion);
 }
