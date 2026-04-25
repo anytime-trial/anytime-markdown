@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Box from '@mui/material/Box';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -369,6 +369,159 @@ function countCompactDrops(msgs: readonly TrailMessage[]): number {
   return count;
 }
 
+// ---------------------------------------------------------------------------
+//  TurnLaneChart — model & tool-usage lanes aligned to turn count
+// ---------------------------------------------------------------------------
+
+const LANE_TOOL_CATS = ['bash', 'edit', 'write', 'read', 'task', 'other'] as const;
+type LaneTool = (typeof LANE_TOOL_CATS)[number];
+
+const LANE_TOOL_COLORS: Record<LaneTool, string> = {
+  bash: '#4CAF50', edit: '#2196F3', write: '#9C27B0',
+  read: '#757575', task: '#FFB300', other: '#FF9800',
+};
+const LANE_TOOL_LABELS: Record<LaneTool, string> = {
+  bash: 'Bash', edit: 'Edit', write: 'Write', read: 'Read', task: 'Task', other: 'Other',
+};
+
+function laneClassifyTool(name: string): LaneTool {
+  if (name === 'Bash') return 'bash';
+  if (name === 'Edit' || name === 'MultiEdit') return 'edit';
+  if (name === 'Write') return 'write';
+  if (name === 'Read' || name === 'Glob' || name === 'Grep') return 'read';
+  if (name === 'Task' || name.startsWith('mcp__')) return 'task';
+  return 'other';
+}
+
+function laneModelColor(model: string): string {
+  if (model.includes('opus')) return '#7C4DFF';
+  if (model.includes('sonnet')) return '#42A5F5';
+  if (model.includes('haiku')) return '#66BB6A';
+  return '#90A4AE';
+}
+
+function TurnLaneChart({
+  assistantMsgs,
+  tickStep,
+}: Readonly<{ assistantMsgs: readonly TrailMessage[]; tickStep: number }>) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [svgWidth, setSvgWidth] = useState(600);
+  const { colors } = useTrailTheme();
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const obs = new ResizeObserver((entries) => {
+      setSvgWidth(entries[0].contentRect.width);
+    });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  const toolUsage = useMemo(() =>
+    LANE_TOOL_CATS.map((cat) => ({
+      cat,
+      turns: assistantMsgs.map((m) =>
+        (m.toolCalls ?? []).some((tc) => laneClassifyTool(tc.name) === cat),
+      ),
+    })),
+    [assistantMsgs],
+  );
+
+  const uniqueModels = useMemo(() => {
+    const seen = new Set<string>();
+    const result: string[] = [];
+    for (const m of assistantMsgs) {
+      const model = m.model ?? '';
+      if (!seen.has(model)) { seen.add(model); result.push(model); }
+    }
+    return result;
+  }, [assistantMsgs]);
+
+  const N = assistantMsgs.length;
+  if (N === 0) return null;
+
+  const LABEL_W = 52;
+  const PAD_R = 8;
+  const plotW = Math.max(svgWidth - LABEL_W - PAD_R, 0);
+  const colW = plotW / N;
+
+  const MODEL_H = 16;
+  const TOOL_ROW_H = 4;
+  const TOOL_GAP = 2;
+  const LANE_GAP = 6;
+  const AXIS_H = 16;
+  const toolY = MODEL_H + LANE_GAP;
+  const toolSectionH = LANE_TOOL_CATS.length * (TOOL_ROW_H + TOOL_GAP);
+  const axisY = toolY + toolSectionH + 4;
+  const totalH = axisY + AXIS_H;
+
+  const toX = (i: number) => LABEL_W + i * colW;
+
+  const ticks: number[] = [];
+  for (let i = 0; i < N; i++) {
+    if ((i + 1) % tickStep === 0) ticks.push(i);
+  }
+
+  return (
+    <Box ref={containerRef} sx={{ mt: 0.5 }}>
+      <svg width="100%" height={totalH} style={{ display: 'block', overflow: 'visible' }}>
+        {/* Model lane label */}
+        <text x={LABEL_W - 4} y={MODEL_H / 2 + 4} textAnchor="end" fontSize={9} fill={colors.textSecondary}>
+          Model
+        </text>
+        {/* Model strip */}
+        {assistantMsgs.map((m, i) => (
+          <rect key={`ml${i}`} x={toX(i)} y={0} width={Math.max(colW, 1)} height={MODEL_H} fill={laneModelColor(m.model ?? '')} />
+        ))}
+        {/* Tool lane label */}
+        <text x={LABEL_W - 4} y={toolY + toolSectionH / 2 + 4} textAnchor="end" fontSize={9} fill={colors.textSecondary}>
+          Tools
+        </text>
+        {/* Tool strips */}
+        {toolUsage.map(({ cat, turns }, row) => {
+          const y = toolY + row * (TOOL_ROW_H + TOOL_GAP);
+          return (
+            <g key={cat}>
+              {turns.map((used, i) =>
+                used
+                  ? <rect key={i} x={toX(i)} y={y} width={Math.max(colW, 1)} height={TOOL_ROW_H} fill={LANE_TOOL_COLORS[cat]} />
+                  : null,
+              )}
+            </g>
+          );
+        })}
+        {/* X-axis */}
+        <line x1={LABEL_W} y1={axisY} x2={LABEL_W + plotW} y2={axisY} stroke={colors.border} strokeWidth={0.5} />
+        {ticks.map((i) => {
+          const x = toX(i) + colW / 2;
+          return (
+            <g key={i}>
+              <line x1={x} y1={axisY} x2={x} y2={axisY + 3} stroke={colors.border} strokeWidth={0.5} />
+              <text x={x} y={axisY + 13} textAnchor="middle" fontSize={9} fill={colors.textSecondary}>{i + 1}</text>
+            </g>
+          );
+        })}
+      </svg>
+      {/* Legend */}
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, pl: `${LABEL_W}px`, mt: 0.5 }}>
+        {uniqueModels.map((model) => (
+          <Box key={model} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Box sx={{ width: 10, height: 10, borderRadius: '2px', bgcolor: laneModelColor(model) }} />
+            <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'text.secondary' }}>{model || 'unknown'}</Typography>
+          </Box>
+        ))}
+        {LANE_TOOL_CATS.map((cat) => (
+          <Box key={cat} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Box sx={{ width: 10, height: 10, borderRadius: '2px', bgcolor: LANE_TOOL_COLORS[cat] }} />
+            <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'text.secondary' }}>{LANE_TOOL_LABELS[cat]}</Typography>
+          </Box>
+        ))}
+      </Box>
+    </Box>
+  );
+}
+
 function SessionCacheTimeline({
   messages,
 }: Readonly<{
@@ -435,33 +588,36 @@ function SessionCacheTimeline({
         )}
       </Box>
       {hasData ? (
-        <LineChart
-          dataset={dataset}
-          xAxis={[{ dataKey: 'turn', scaleType: 'point', tickInterval: (value: number) => value % tickStep === 0 }]}
-          yAxis={[
-            { id: 'tokens', valueFormatter: fmtTokens },
-            { id: 'time', position: 'right', valueFormatter: fmtDurationShort },
-          ]}
-          series={[
-            { dataKey: 'inputTokens', label: t('analytics.chartInput'), color: chartColors.input, showMark: false, yAxisId: 'tokens' },
-            { dataKey: 'outputTokens', label: t('analytics.chartOutput'), color: chartColors.output, showMark: false, yAxisId: 'tokens' },
-            { dataKey: 'cacheReadTokens', label: t('analytics.chartCacheRead'), color: chartColors.cacheRead, showMark: false, yAxisId: 'tokens' },
-            { dataKey: 'cacheCreationTokens', label: t('analytics.chartCacheWrite'), color: chartColors.cacheWrite, showMark: false, yAxisId: 'tokens' },
-            {
-              dataKey: 'cumulativeMs',
-              label: t('analytics.chartCumulativeInferenceTime'),
-              color: chartColors.cumulativeTime,
-              showMark: false,
-              yAxisId: 'time',
-              valueFormatter: (v) => (v == null ? '' : fmtDurationShort(v)),
-            },
-          ]}
-          height={200}
-          margin={{ left: 16, right: 16, top: 16, bottom: 0 }}
-          slotProps={{
-            legend: { direction: 'horizontal', position: { vertical: 'bottom', horizontal: 'center' } },
-          }}
-        />
+        <>
+          <LineChart
+            dataset={dataset}
+            xAxis={[{ dataKey: 'turn', scaleType: 'point', tickInterval: (value: number) => value % tickStep === 0 }]}
+            yAxis={[
+              { id: 'tokens', valueFormatter: fmtTokens },
+              { id: 'time', position: 'right', valueFormatter: fmtDurationShort },
+            ]}
+            series={[
+              { dataKey: 'inputTokens', label: t('analytics.chartInput'), color: chartColors.input, showMark: false, yAxisId: 'tokens' },
+              { dataKey: 'outputTokens', label: t('analytics.chartOutput'), color: chartColors.output, showMark: false, yAxisId: 'tokens' },
+              { dataKey: 'cacheReadTokens', label: t('analytics.chartCacheRead'), color: chartColors.cacheRead, showMark: false, yAxisId: 'tokens' },
+              { dataKey: 'cacheCreationTokens', label: t('analytics.chartCacheWrite'), color: chartColors.cacheWrite, showMark: false, yAxisId: 'tokens' },
+              {
+                dataKey: 'cumulativeMs',
+                label: t('analytics.chartCumulativeInferenceTime'),
+                color: chartColors.cumulativeTime,
+                showMark: false,
+                yAxisId: 'time',
+                valueFormatter: (v) => (v == null ? '' : fmtDurationShort(v)),
+              },
+            ]}
+            height={200}
+            margin={{ left: 16, right: 16, top: 16, bottom: 0 }}
+            slotProps={{
+              legend: { direction: 'horizontal', position: { vertical: 'bottom', horizontal: 'center' } },
+            }}
+          />
+          <TurnLaneChart assistantMsgs={assistantMsgs} tickStep={tickStep} />
+        </>
       ) : (
         <Box sx={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px dashed ${colors.border}`, borderRadius: 1 }}>
           <Typography variant="body2" sx={{ color: colors.textSecondary }}>
