@@ -672,15 +672,6 @@
     font-weight: 900;
 }
 
-.briefingHeaderNo {
-    font-family: var(--font-mono);
-    font-size: var(--fs-footnote);
-    color: var(--ink-faded);
-    letter-spacing: 0.15em;
-    margin-left: auto;
-    white-space: nowrap;
-}
-
 .briefingListInline {
     border-top: 0;
 }

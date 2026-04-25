@@ -37,8 +37,6 @@
     "editorBody": "This site is an experimental project where design, implementation, and testing are all carried out by <vermilion>Claude Code</vermilion> (an AI coding assistant), with humans only providing instructions. We use Anytime Markdown itself to grasp specifications and verify test content during development. The source code is published on <github>GitHub</github>."
   },
   "briefing": {
-    "primaryNo": "BRIEFING ／ NO.003",
-    "secondaryNo": "BRIEFING ／ NO.004",
     "trailEmbedTitle": "anytime-trail — trail viewer",
     "markdownEmbedTitle": "anytime-markdown — markdown editor",
     "shipped": "— shipped",

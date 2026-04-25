@@ -11,7 +11,6 @@ interface BriefingItem {
 }
 
 interface BriefingWithEmbedProps {
-  no: string;
   id?: string;
   items: BriefingItem[];
   embed: ReactNode;
@@ -30,7 +29,6 @@ const MARKDOWN_KEYS = ['md3', 'md1', 'md2'] as const;
 const ROMAN = ['i', 'ii', 'iii', 'iv'] as const;
 
 function BriefingWithEmbed({
-  no,
   id,
   items,
   embed,
@@ -69,7 +67,6 @@ function BriefingWithEmbed({
       <div className={styles.briefingMain}>
         <header className={styles.briefingHeader}>
           <span className={styles.briefingHeaderTitle}>{title}</span>
-          <small className={styles.briefingHeaderNo}>{no}</small>
         </header>
         <ul className={`${styles.briefingList} ${styles.briefingListInline}`}>
           {items.map((item) => (
@@ -100,7 +97,6 @@ export function BriefingPrimary({ embed, embedActions }: BriefingEmbedProps) {
   return (
     <BriefingWithEmbed
       id="trail"
-      no={tBriefing('primaryNo')}
       embedTitle={tBriefing('trailEmbedTitle')}
       items={items}
       embed={embed}
@@ -126,7 +122,6 @@ export function BriefingSecondary({ embed, embedActions }: BriefingEmbedProps) {
   return (
     <BriefingWithEmbed
       id="markdown"
-      no={tBriefing('secondaryNo')}
       embedTitle={tBriefing('markdownEmbedTitle')}
       items={items}
       embed={embed}
