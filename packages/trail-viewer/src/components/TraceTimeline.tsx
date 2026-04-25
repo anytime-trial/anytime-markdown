@@ -577,7 +577,8 @@ export function TraceTimeline({
                 const topPct = laneBasePct + trackIndex * trackHeightPct + trackHeightPct * 0.35;
                 const heightPct = trackHeightPct * 0.3;
                 const color = msg.agentId ? getAgentColor(msg.agentId) : toolColors.plain;
-                const tooltipLabel = `[subagent] ${msg.timestamp}${msg.agentId ? ` · ${msg.agentId.slice(0, 8)}` : ''}${msg.agentDescription ? ` (${msg.agentDescription})` : ''}`;
+                const toolSuffix = msg.toolNames.length > 0 ? ` · ${Array.from(new Set(msg.toolNames)).join(', ')}` : '';
+                const tooltipLabel = `[subagent] ${msg.timestamp}${msg.agentId ? ` · ${msg.agentId.slice(0, 8)}` : ''}${msg.agentDescription ? ` (${msg.agentDescription})` : ''}${toolSuffix}`;
                 return (
                   <Tooltip key={msg.uuid} title={tooltipLabel} placement="top">
                     <Box
