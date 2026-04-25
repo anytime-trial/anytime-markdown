@@ -1,6 +1,7 @@
 'use client';
 
 import { useThemeMode } from '../providers';
+import { Caravan } from './components/Caravan';
 import { Headline } from './components/Headline';
 import { Masthead } from './components/Masthead';
 import { bodoni, jetbrains, shippori } from './fonts';
@@ -13,6 +14,7 @@ export function PressBody() {
     <div className={`${styles.root} ${fontClasses}`} data-cp-mode={themeMode}>
       <Masthead />
       <Headline />
+      <Caravan />
     </div>
   );
 }

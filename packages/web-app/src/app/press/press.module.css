@@ -280,3 +280,51 @@
 .textVermilion {
     color: var(--vermilion);
 }
+
+/* ── キャラバン進行帯 ───────────────────────────────── */
+.caravan {
+    border-bottom: var(--rule-bold) solid var(--ink);
+    overflow: hidden;
+    position: relative;
+    height: 88px;
+    background: var(--paper);
+}
+
+.caravan svg {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 200%;
+    height: 100%;
+    transform: translateY(-50%);
+    animation: caravanWalk 60s linear infinite;
+}
+
+.caravanTick {
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: var(--font-mono);
+    font-size: var(--fs-footnote);
+    color: var(--ink-faded);
+    letter-spacing: 0.15em;
+    background: var(--paper);
+    padding: 0 12px;
+    z-index: 1;
+}
+
+@keyframes caravanWalk {
+    from {
+        transform: translate(0, -50%);
+    }
+    to {
+        transform: translate(-50%, -50%);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .caravan svg {
+        animation: none;
+    }
+}
