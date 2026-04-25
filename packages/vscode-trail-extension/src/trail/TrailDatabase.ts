@@ -38,6 +38,8 @@ import {
   isCodeFile,
   isAiFirstTryFailureCommit,
   AI_FIRST_TRY_FIX_WINDOW_MS,
+  calculateCost,
+  normalizeModelName,
 } from '@anytime-markdown/trail-core';
 import type { TrailGraph, IC4ModelStore, C4ModelEntry, C4ModelResult, TrailMessageCommit, MessageCommitInput, ManualElement, ManualRelationship, ManualGroup } from '@anytime-markdown/trail-core';
 import { matchCommitsToMessages } from '@anytime-markdown/trail-core';
@@ -3773,11 +3775,11 @@ export class TrailDatabase {
 
   getQualityMetricsInputs(from: string, to: string, prevFrom: string, prevTo: string): {
     releases: Array<{ id: string; tag_date: string; commit_hashes: string[]; fix_count: number }>;
-    messages: Array<{ uuid: string; created_at: string; role: string; type: string; session_id: string; input_tokens: number; output_tokens: number; cache_read_tokens: number; cache_creation_tokens: number }>;
+    messages: Array<{ uuid: string; created_at: string; role: string; type: string; session_id: string; input_tokens: number; output_tokens: number; cache_read_tokens: number; cache_creation_tokens: number; cost_usd: number }>;
     messageCommits: Array<{ message_uuid: string; commit_hash: string; detected_at: string; match_confidence: string }>;
     commits: Array<{ hash: string; subject: string; committed_at: string; is_ai_assisted: boolean; files: string[]; lines_added: number; lines_deleted: number; session_id: string }>;
     previousReleases: Array<{ id: string; tag_date: string; commit_hashes: string[]; fix_count: number }>;
-    previousMessages: Array<{ uuid: string; created_at: string; role: string; type: string; session_id: string; input_tokens: number; output_tokens: number; cache_read_tokens: number; cache_creation_tokens: number }>;
+    previousMessages: Array<{ uuid: string; created_at: string; role: string; type: string; session_id: string; input_tokens: number; output_tokens: number; cache_read_tokens: number; cache_creation_tokens: number; cost_usd: number }>;
     previousMessageCommits: Array<{ message_uuid: string; commit_hash: string; detected_at: string; match_confidence: string }>;
     previousCommits: Array<{ hash: string; subject: string; committed_at: string; is_ai_assisted: boolean; files: string[]; lines_added: number; lines_deleted: number }>;
   } {
@@ -3826,14 +3828,14 @@ export class TrailDatabase {
         arr.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
       }
 
-      type Tokens = { input: number; output: number; cr: number; cc: number };
+      type Tokens = { input: number; output: number; cr: number; cc: number; cost: number };
       const tokensByUserUuid = new Map<string, Tokens>();
       for (const u of userMessages) {
-        tokensByUserUuid.set(u.uuid, { input: 0, output: 0, cr: 0, cc: 0 });
+        tokensByUserUuid.set(u.uuid, { input: 0, output: 0, cr: 0, cc: 0, cost: 0 });
       }
 
       const asstRes = db.exec(
-        `SELECT session_id, timestamp, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens
+        `SELECT session_id, timestamp, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, model
          FROM messages
          WHERE type = 'assistant' AND timestamp >= ? AND timestamp <= ?`,
         [f, t],
@@ -3863,15 +3865,26 @@ export class TrailDatabase {
 
           const tokens = tokensByUserUuid.get(sessionUsers[idx].uuid);
           if (!tokens) continue;
-          tokens.input += (row[2] as number) ?? 0;
-          tokens.output += (row[3] as number) ?? 0;
-          tokens.cr += (row[4] as number) ?? 0;
-          tokens.cc += (row[5] as number) ?? 0;
+          const inputToks = (row[2] as number) ?? 0;
+          const outputToks = (row[3] as number) ?? 0;
+          const crToks = (row[4] as number) ?? 0;
+          const ccToks = (row[5] as number) ?? 0;
+          const model = (row[6] as string | null) ?? '';
+          tokens.input += inputToks;
+          tokens.output += outputToks;
+          tokens.cr += crToks;
+          tokens.cc += ccToks;
+          tokens.cost += calculateCost(normalizeModelName(model), {
+            inputTokens: inputToks,
+            outputTokens: outputToks,
+            cacheReadTokens: crToks,
+            cacheCreationTokens: ccToks,
+          });
         }
       }
 
       return userMessages.map((u) => {
-        const tokens = tokensByUserUuid.get(u.uuid) ?? { input: 0, output: 0, cr: 0, cc: 0 };
+        const tokens = tokensByUserUuid.get(u.uuid) ?? { input: 0, output: 0, cr: 0, cc: 0, cost: 0 };
         return {
           uuid: u.uuid,
           created_at: u.timestamp,
@@ -3882,6 +3895,7 @@ export class TrailDatabase {
           output_tokens: tokens.output,
           cache_read_tokens: tokens.cr,
           cache_creation_tokens: tokens.cc,
+          cost_usd: tokens.cost,
         };
       });
     };
