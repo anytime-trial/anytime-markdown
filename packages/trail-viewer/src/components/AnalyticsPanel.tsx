@@ -1500,12 +1500,15 @@ function capTopN(
   return { displayKeys: [...top, OTHERS_LABEL], keyMap };
 }
 
-function CombinedChartsContent({ data, periodDays, activeChart, toolMetric, modelMetric, onDateClick }: Readonly<{
+type CommitMetric = 'count' | 'loc';
+
+function CombinedChartsContent({ data, periodDays, activeChart, toolMetric, modelMetric, commitMetric, onDateClick }: Readonly<{
   data: CombinedData | null;
   periodDays: PeriodDays;
   activeChart: CombinedChartKind;
   toolMetric: ChartMetric;
   modelMetric: ChartMetric;
+  commitMetric: CommitMetric;
   onDateClick?: (fullDate: string) => void;
 }>) {
   const { cardSx, toolPalette } = useTrailTheme();
@@ -1632,20 +1635,21 @@ function CombinedChartsContent({ data, periodDays, activeChart, toolMetric, mode
   const commitDataset = useMemo(() => {
     if (!axisInfo) return [];
     const { commitRows, commitPeriods, commitLabels, commitPrefixes, commitMap } = axisInfo;
-    const countMap = new Map<string, number>();
+    const valMap = new Map<string, number>();
     for (const r of commitRows) {
       const displayKey = commitMap.get(r.prefix) ?? r.prefix;
       const key = `${r.period}::${displayKey}`;
-      countMap.set(key, (countMap.get(key) ?? 0) + r.count);
+      const value = commitMetric === 'loc' ? (r.linesAdded ?? 0) : r.count;
+      valMap.set(key, (valMap.get(key) ?? 0) + value);
     }
     return commitPeriods.map((p, pi) => {
       const entry: Record<string, string | number> = { period: commitLabels[pi] };
       for (let i = 0; i < commitPrefixes.length; i++) {
-        entry[`c${i}`] = countMap.get(`${p}::${commitPrefixes[i]}`) ?? 0;
+        entry[`c${i}`] = valMap.get(`${p}::${commitPrefixes[i]}`) ?? 0;
       }
       return entry;
     });
-  }, [axisInfo]);
+  }, [axisInfo, commitMetric]);
 
   const modelDataset = useMemo(() => {
     if (!axisInfo) return [];
@@ -1883,6 +1887,7 @@ function CombinedChartsSection({
   const [tokenMode, setTokenMode] = useState<DailyViewMode>('tokens');
   const [toolMetric, setToolMetric] = useState<ChartMetric>('count');
   const [modelMetric, setModelMetric] = useState<ChartMetric>('count');
+  const [commitMetric, setCommitMetric] = useState<CommitMetric>('count');
   const [combinedData, setCombinedData] = useState<CombinedData | null>(null);
   const [combinedLoading, setCombinedLoading] = useState(false);
   const [overlay, setOverlay] = useState<{
@@ -2002,6 +2007,17 @@ function CombinedChartsSection({
             <ToggleButton value="tokens" sx={toggleSx}>{t('analytics.combined.tokens')}</ToggleButton>
           </ToggleButtonGroup>
         )}
+        {metric === 'commits' && (
+          <ToggleButtonGroup
+            value={commitMetric}
+            exclusive
+            onChange={(_e, v: CommitMetric | null) => { if (v) setCommitMetric(v); }}
+            size="small"
+          >
+            <ToggleButton value="count" sx={toggleSx}>{t('analytics.combined.commitCount')}</ToggleButton>
+            <ToggleButton value="loc" sx={toggleSx}>{t('analytics.combined.loc')}</ToggleButton>
+          </ToggleButtonGroup>
+        )}
       </Box>
       {metric === 'tokens' ? (
         <DailyActivityChart
@@ -2024,6 +2040,7 @@ function CombinedChartsSection({
             activeChart={metric}
             toolMetric={toolMetric}
             modelMetric={modelMetric}
+            commitMetric={commitMetric}
             onDateClick={handleDateClick}
           />
         )
