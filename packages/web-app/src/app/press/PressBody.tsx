@@ -1,6 +1,7 @@
 'use client';
 
 import { useThemeMode } from '../providers';
+import { Briefing } from './components/Briefing';
 import { Caravan } from './components/Caravan';
 import { Dispatch } from './components/Dispatch';
 import { Headline } from './components/Headline';
@@ -17,6 +18,7 @@ export function PressBody() {
       <Headline />
       <Caravan />
       <Dispatch />
+      <Briefing />
     </div>
   );
 }

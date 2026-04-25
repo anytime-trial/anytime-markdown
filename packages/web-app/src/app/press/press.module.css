@@ -411,3 +411,93 @@
     border-top: var(--rule-thin) solid var(--ink);
     padding-top: 6px;
 }
+
+/* ── Briefing 罫線台帳 ───────────────────────────────── */
+.briefing {
+    padding: 36px var(--gutter);
+    border-bottom: var(--rule-bold) solid var(--ink);
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 48px;
+}
+
+@media (max-width: 880px) {
+    .briefing {
+        grid-template-columns: 1fr;
+        gap: 24px;
+    }
+}
+
+.briefingLabel {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 900;
+    font-size: 64px;
+    line-height: 0.85;
+    letter-spacing: -0.03em;
+}
+
+.briefingLabel small {
+    display: block;
+    font-style: normal;
+    font-family: var(--font-mono);
+    font-size: var(--fs-footnote);
+    color: var(--ink-faded);
+    margin-top: 14px;
+    letter-spacing: 0.15em;
+    font-weight: 400;
+}
+
+.briefingList {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    border-top: var(--rule-bold) solid var(--ink);
+}
+
+.briefingList li {
+    display: grid;
+    grid-template-columns: 56px 1fr auto;
+    gap: 18px;
+    padding: 18px 0;
+    border-bottom: var(--rule-thin) solid var(--ink-light);
+    align-items: baseline;
+}
+
+.briefingList li:last-child {
+    border-bottom: var(--rule-bold) solid var(--ink);
+}
+
+.briefingNum {
+    font-family: var(--font-mono);
+    font-size: var(--fs-footnote);
+    color: var(--vermilion);
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    padding-top: 4px;
+}
+
+.briefingHead {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-style: italic;
+    font-size: 22px;
+}
+
+.briefingHead p {
+    font-family: var(--font-body);
+    font-style: normal;
+    font-weight: 400;
+    font-size: var(--fs-body);
+    margin: 4px 0 0;
+    color: var(--ink-faded);
+}
+
+.briefingVerdict {
+    font-family: var(--font-mono);
+    font-size: var(--fs-footnote);
+    color: var(--ink-faded);
+    text-align: right;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+}
