@@ -21,22 +21,40 @@ describe('classifyDoraLevel', () => {
     });
   });
 
-  describe('leadTimeForChanges', () => {
-    it('elite: < 24 hours', () => {
-      expect(classifyDoraLevel('leadTimeForChanges', 0)).toBe('elite');
-      expect(classifyDoraLevel('leadTimeForChanges', 23.9)).toBe('elite');
+  describe('leadTimePerLoc', () => {
+    it('elite: < 1 min/LOC', () => {
+      expect(classifyDoraLevel('leadTimePerLoc', 0)).toBe('elite');
+      expect(classifyDoraLevel('leadTimePerLoc', 0.99)).toBe('elite');
     });
-    it('high: >= 24 and < 168', () => {
-      expect(classifyDoraLevel('leadTimeForChanges', 24)).toBe('high');
-      expect(classifyDoraLevel('leadTimeForChanges', 100)).toBe('high');
+    it('high: >= 1 and < 5', () => {
+      expect(classifyDoraLevel('leadTimePerLoc', 1)).toBe('high');
+      expect(classifyDoraLevel('leadTimePerLoc', 4)).toBe('high');
     });
-    it('medium: >= 168 and < 720', () => {
-      expect(classifyDoraLevel('leadTimeForChanges', 168)).toBe('medium');
-      expect(classifyDoraLevel('leadTimeForChanges', 500)).toBe('medium');
+    it('medium: >= 5 and < 20', () => {
+      expect(classifyDoraLevel('leadTimePerLoc', 5)).toBe('medium');
+      expect(classifyDoraLevel('leadTimePerLoc', 19)).toBe('medium');
     });
-    it('low: >= 720', () => {
-      expect(classifyDoraLevel('leadTimeForChanges', 720)).toBe('low');
-      expect(classifyDoraLevel('leadTimeForChanges', 1000)).toBe('low');
+    it('low: >= 20', () => {
+      expect(classifyDoraLevel('leadTimePerLoc', 20)).toBe('low');
+      expect(classifyDoraLevel('leadTimePerLoc', 100)).toBe('low');
+    });
+  });
+
+  describe('tokensPerLoc', () => {
+    it('elite: < 2000', () => {
+      expect(classifyDoraLevel('tokensPerLoc', 0)).toBe('elite');
+      expect(classifyDoraLevel('tokensPerLoc', 1999)).toBe('elite');
+    });
+    it('high: >= 2000 and < 10000', () => {
+      expect(classifyDoraLevel('tokensPerLoc', 2000)).toBe('high');
+      expect(classifyDoraLevel('tokensPerLoc', 9999)).toBe('high');
+    });
+    it('medium: >= 10000 and < 50000', () => {
+      expect(classifyDoraLevel('tokensPerLoc', 10000)).toBe('medium');
+      expect(classifyDoraLevel('tokensPerLoc', 49999)).toBe('medium');
+    });
+    it('low: >= 50000', () => {
+      expect(classifyDoraLevel('tokensPerLoc', 50000)).toBe('low');
     });
   });
 
@@ -80,7 +98,8 @@ describe('classifyDoraLevel', () => {
     it('uses custom thresholds when provided', () => {
       const custom: ThresholdsConfig = {
         deploymentFrequency: { elite: 2, high: 1, medium: 0.5 },
-        leadTimeForChanges: { elite: 12, high: 72, medium: 360 },
+        leadTimePerLoc: { elite: 0.5, high: 3, medium: 15 },
+        tokensPerLoc: { elite: 1_000, high: 8_000, medium: 40_000 },
         changeFailureRate: { elite: 10, high: 20, medium: 30 },
         aiFirstTrySuccessRate: { elite: 95, high: 80, medium: 65 },
       };
@@ -102,7 +121,7 @@ describe('mergeThresholds', () => {
     };
     const merged = mergeThresholds(user, DEFAULT_THRESHOLDS);
     expect(merged.deploymentFrequency.elite).toBe(2);
-    expect(merged.leadTimeForChanges).toEqual(DEFAULT_THRESHOLDS.leadTimeForChanges);
+    expect(merged.leadTimePerLoc).toEqual(DEFAULT_THRESHOLDS.leadTimePerLoc);
   });
 
   it('falls back to default for NaN values', () => {
@@ -114,11 +133,11 @@ describe('mergeThresholds', () => {
     expect(merged.deploymentFrequency.high).toBe(0.5);
   });
 
-  it('falls back to default for negative values in leadTimeForChanges', () => {
+  it('falls back to default for negative values in leadTimePerLoc', () => {
     const user: Partial<ThresholdsConfig> = {
-      leadTimeForChanges: { elite: -1, high: 168, medium: 720 },
+      leadTimePerLoc: { elite: -1, high: 5, medium: 20 },
     };
     const merged = mergeThresholds(user, DEFAULT_THRESHOLDS);
-    expect(merged.leadTimeForChanges.elite).toBe(DEFAULT_THRESHOLDS.leadTimeForChanges.elite);
+    expect(merged.leadTimePerLoc.elite).toBe(DEFAULT_THRESHOLDS.leadTimePerLoc.elite);
   });
 });

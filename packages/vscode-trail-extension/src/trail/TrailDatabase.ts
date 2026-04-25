@@ -3773,13 +3773,13 @@ export class TrailDatabase {
 
   getQualityMetricsInputs(from: string, to: string, prevFrom: string, prevTo: string): {
     releases: Array<{ id: string; tag_date: string; commit_hashes: string[]; fix_count: number }>;
-    messages: Array<{ uuid: string; created_at: string; role: string; type: string }>;
-    messageCommits: Array<{ message_uuid: string; detected_at: string; match_confidence: string }>;
-    commits: Array<{ hash: string; subject: string; committed_at: string; is_ai_assisted: boolean; files: string[] }>;
+    messages: Array<{ uuid: string; created_at: string; role: string; type: string; input_tokens: number; output_tokens: number; cache_read_tokens: number; cache_creation_tokens: number }>;
+    messageCommits: Array<{ message_uuid: string; commit_hash: string; detected_at: string; match_confidence: string }>;
+    commits: Array<{ hash: string; subject: string; committed_at: string; is_ai_assisted: boolean; files: string[]; lines_added: number; lines_deleted: number }>;
     previousReleases: Array<{ id: string; tag_date: string; commit_hashes: string[]; fix_count: number }>;
-    previousMessages: Array<{ uuid: string; created_at: string; role: string; type: string }>;
-    previousMessageCommits: Array<{ message_uuid: string; detected_at: string; match_confidence: string }>;
-    previousCommits: Array<{ hash: string; subject: string; committed_at: string; is_ai_assisted: boolean; files: string[] }>;
+    previousMessages: Array<{ uuid: string; created_at: string; role: string; type: string; input_tokens: number; output_tokens: number; cache_read_tokens: number; cache_creation_tokens: number }>;
+    previousMessageCommits: Array<{ message_uuid: string; commit_hash: string; detected_at: string; match_confidence: string }>;
+    previousCommits: Array<{ hash: string; subject: string; committed_at: string; is_ai_assisted: boolean; files: string[]; lines_added: number; lines_deleted: number }>;
   } {
     const db = this.ensureDb();
 
@@ -3799,8 +3799,27 @@ export class TrailDatabase {
 
     const queryMessages = (f: string, t: string) => {
       const res = db.exec(
-        `SELECT uuid, timestamp, type FROM messages WHERE timestamp >= ? AND timestamp <= ? AND type = 'user'`,
-        [f, t],
+        `WITH user_msgs AS (
+           SELECT uuid, session_id, timestamp, type,
+                  LEAD(timestamp) OVER (PARTITION BY session_id ORDER BY timestamp) AS next_ts
+           FROM messages
+           WHERE type = 'user' AND timestamp >= ? AND timestamp <= ?
+         )
+         SELECT u.uuid, u.timestamp, u.type,
+                COALESCE(SUM(m.input_tokens), 0) AS input_tokens,
+                COALESCE(SUM(m.output_tokens), 0) AS output_tokens,
+                COALESCE(SUM(m.cache_read_tokens), 0) AS cache_read_tokens,
+                COALESCE(SUM(m.cache_creation_tokens), 0) AS cache_creation_tokens
+         FROM user_msgs u
+         LEFT JOIN messages m
+           ON m.session_id = u.session_id
+           AND m.type = 'assistant'
+           AND m.timestamp >= u.timestamp
+           AND (u.next_ts IS NULL OR m.timestamp < u.next_ts)
+           AND m.timestamp >= ?
+           AND m.timestamp <= ?
+         GROUP BY u.uuid, u.timestamp, u.type`,
+        [f, t, f, t],
       );
       if (!res[0]) return [];
       return res[0].values.map((row) => ({
@@ -3808,12 +3827,16 @@ export class TrailDatabase {
         created_at: row[1] as string,
         role: row[2] as string,
         type: 'text',
+        input_tokens: (row[3] as number) ?? 0,
+        output_tokens: (row[4] as number) ?? 0,
+        cache_read_tokens: (row[5] as number) ?? 0,
+        cache_creation_tokens: (row[6] as number) ?? 0,
       }));
     };
 
     const queryMessageCommits = (f: string, t: string) => {
       const res = db.exec(
-        `SELECT mc.message_uuid, mc.detected_at, mc.match_confidence
+        `SELECT mc.message_uuid, mc.commit_hash, mc.detected_at, mc.match_confidence
          FROM message_commits mc
          INNER JOIN messages m ON mc.message_uuid = m.uuid
          WHERE m.timestamp >= ? AND m.timestamp <= ?`,
@@ -3822,8 +3845,9 @@ export class TrailDatabase {
       if (!res[0]) return [];
       return res[0].values.map((row) => ({
         message_uuid: row[0] as string,
-        detected_at: row[1] as string,
-        match_confidence: row[2] as string,
+        commit_hash: row[1] as string,
+        detected_at: row[2] as string,
+        match_confidence: row[3] as string,
       }));
     };
 
@@ -3835,7 +3859,8 @@ export class TrailDatabase {
 
     const queryCommits = (f: string, t: string) => {
       const res = db.exec(
-        `SELECT commit_hash, commit_message, committed_at, is_ai_assisted
+        `SELECT commit_hash, commit_message, committed_at, is_ai_assisted,
+                MAX(lines_added) as lines_added, MAX(lines_deleted) as lines_deleted
          FROM session_commits
          WHERE committed_at >= ? AND committed_at <= ?
          GROUP BY commit_hash`,
@@ -3848,6 +3873,8 @@ export class TrailDatabase {
         committed_at: row[2] as string,
         is_ai_assisted: (row[3] as number) === 1,
         files: [] as string[],
+        lines_added: (row[4] as number) ?? 0,
+        lines_deleted: (row[5] as number) ?? 0,
       }));
       if (commits.length === 0) return commits;
 

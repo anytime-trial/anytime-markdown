@@ -2,14 +2,15 @@ export type DoraLevel = 'elite' | 'high' | 'medium' | 'low';
 
 export type MetricId =
   | 'deploymentFrequency'
-  | 'leadTimeForChanges'
+  | 'leadTimePerLoc'
+  | 'tokensPerLoc'
   | 'aiFirstTrySuccessRate'
   | 'changeFailureRate';
 
 export interface MetricValue {
   id: MetricId;
   value: number;
-  unit: 'perDay' | 'hours' | 'percent';
+  unit: 'perDay' | 'hours' | 'percent' | 'minPerLoc' | 'tokensPerLoc';
   sampleSize: number;
   level?: DoraLevel;
   comparison?: {
@@ -36,7 +37,8 @@ export interface QualityMetrics {
   bucket: 'day' | 'week';
   metrics: {
     deploymentFrequency: MetricValue;
-    leadTimeForChanges: MetricValue;
+    leadTimePerLoc: MetricValue;
+    tokensPerLoc: MetricValue;
     aiFirstTrySuccessRate: MetricValue;
     changeFailureRate: MetricValue;
   };

@@ -1,5 +1,6 @@
 import { computeDeploymentFrequency } from './deploymentFrequency';
-import { computeLeadTimeForChanges } from './leadTimeForChanges';
+import { computeLeadTimePerLoc } from './leadTimePerLoc';
+import { computeTokensPerLoc } from './tokensPerLoc';
 import { computeAiFirstTrySuccessRate } from './aiFirstTrySuccessRate';
 import { computeChangeFailureRate } from './changeFailureRate';
 import { DEFAULT_THRESHOLDS } from './thresholds';
@@ -10,13 +11,57 @@ export type { DateRange };
 
 export interface QualityMetricsInputs {
   releases: Array<{ id: string; tag_date: string; commit_hashes: string[]; fix_count?: number }>;
-  messages: Array<{ uuid: string; created_at: string; role: string; type: string }>;
-  messageCommits: Array<{ message_uuid: string; detected_at: string; match_confidence: string }>;
-  commits: Array<{ hash: string; subject: string; committed_at: string; is_ai_assisted: boolean; files: string[] }>;
+  messages: Array<{
+    uuid: string;
+    created_at: string;
+    role: string;
+    type: string;
+    input_tokens?: number;
+    output_tokens?: number;
+    cache_read_tokens?: number;
+    cache_creation_tokens?: number;
+  }>;
+  messageCommits: Array<{
+    message_uuid: string;
+    detected_at: string;
+    match_confidence: string;
+    commit_hash: string;
+  }>;
+  commits: Array<{
+    hash: string;
+    subject: string;
+    committed_at: string;
+    is_ai_assisted: boolean;
+    files: string[];
+    lines_added?: number;
+    lines_deleted?: number;
+  }>;
   previousReleases?: Array<{ id: string; tag_date: string; commit_hashes: string[]; fix_count?: number }>;
-  previousMessages?: Array<{ uuid: string; created_at: string; role: string; type: string }>;
-  previousMessageCommits?: Array<{ message_uuid: string; detected_at: string; match_confidence: string }>;
-  previousCommits?: Array<{ hash: string; subject: string; committed_at: string; is_ai_assisted: boolean; files: string[] }>;
+  previousMessages?: Array<{
+    uuid: string;
+    created_at: string;
+    role: string;
+    type: string;
+    input_tokens?: number;
+    output_tokens?: number;
+    cache_read_tokens?: number;
+    cache_creation_tokens?: number;
+  }>;
+  previousMessageCommits?: Array<{
+    message_uuid: string;
+    detected_at: string;
+    match_confidence: string;
+    commit_hash: string;
+  }>;
+  previousCommits?: Array<{
+    hash: string;
+    subject: string;
+    committed_at: string;
+    is_ai_assisted: boolean;
+    files: string[];
+    lines_added?: number;
+    lines_deleted?: number;
+  }>;
 }
 
 const UNMEASURED: UnmeasuredMetric[] = [
@@ -67,11 +112,24 @@ export function computeQualityMetrics(
   const leadTimeInputs = {
     messages: inputs.messages,
     messageCommits: inputs.messageCommits,
+    commits: inputs.commits,
   };
   const leadTimePrevInputs = hasPrevious
-    ? { messages: inputs.previousMessages ?? [], messageCommits: inputs.previousMessageCommits ?? [] }
+    ? {
+        messages: inputs.previousMessages ?? [],
+        messageCommits: inputs.previousMessageCommits ?? [],
+        commits: inputs.previousCommits ?? [],
+      }
     : undefined;
-  const leadTimeForChanges = computeLeadTimeForChanges(
+  const leadTimePerLoc = computeLeadTimePerLoc(
+    leadTimeInputs,
+    range,
+    previousRange,
+    bucket,
+    leadTimePrevInputs,
+    thresholds,
+  );
+  const tokensPerLoc = computeTokensPerLoc(
     leadTimeInputs,
     range,
     previousRange,
@@ -110,7 +168,8 @@ export function computeQualityMetrics(
     bucket,
     metrics: {
       deploymentFrequency,
-      leadTimeForChanges,
+      leadTimePerLoc,
+      tokensPerLoc,
       aiFirstTrySuccessRate,
       changeFailureRate,
     },

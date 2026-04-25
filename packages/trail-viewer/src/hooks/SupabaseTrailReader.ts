@@ -768,17 +768,51 @@ export class SupabaseTrailReader implements ITrailReader {
     ]);
 
     // trail_message_commits は現状 Supabase 未同期のため空配列。
-    // Lead Time / Prompt→Commit 成功率は sampleSize=0 で「データなし」表示になる。
+    // Lead Time per LOC / Tokens per LOC は sampleSize=0 で「データなし」表示になる。
     return computeQualityMetrics(
       {
         releases: curReleases.map((r) => ({ id: r.tag, tag_date: r.released_at, commit_hashes: [], fix_count: r.fix_count })),
-        messages: curMessages.map((m) => ({ uuid: m.uuid, created_at: m.timestamp, role: m.type, type: 'text' })),
+        messages: curMessages.map((m) => ({
+          uuid: m.uuid,
+          created_at: m.timestamp,
+          role: m.type,
+          type: 'text',
+          input_tokens: 0,
+          output_tokens: 0,
+          cache_read_tokens: 0,
+          cache_creation_tokens: 0,
+        })),
         messageCommits: [],
-        commits: curCommits.map((c) => ({ hash: c.commit_hash, subject: (c.commit_message ?? '').split('\n')[0], committed_at: c.committed_at, is_ai_assisted: false, files: [] })),
+        commits: curCommits.map((c) => ({
+          hash: c.commit_hash,
+          subject: (c.commit_message ?? '').split('\n')[0],
+          committed_at: c.committed_at,
+          is_ai_assisted: false,
+          files: [],
+          lines_added: 0,
+          lines_deleted: 0,
+        })),
         previousReleases: prevReleases.map((r) => ({ id: r.tag, tag_date: r.released_at, commit_hashes: [], fix_count: r.fix_count })),
-        previousMessages: prevMessages.map((m) => ({ uuid: m.uuid, created_at: m.timestamp, role: m.type, type: 'text' })),
+        previousMessages: prevMessages.map((m) => ({
+          uuid: m.uuid,
+          created_at: m.timestamp,
+          role: m.type,
+          type: 'text',
+          input_tokens: 0,
+          output_tokens: 0,
+          cache_read_tokens: 0,
+          cache_creation_tokens: 0,
+        })),
         previousMessageCommits: [],
-        previousCommits: prevCommits.map((c) => ({ hash: c.commit_hash, subject: (c.commit_message ?? '').split('\n')[0], committed_at: c.committed_at, is_ai_assisted: false, files: [] })),
+        previousCommits: prevCommits.map((c) => ({
+          hash: c.commit_hash,
+          subject: (c.commit_message ?? '').split('\n')[0],
+          committed_at: c.committed_at,
+          is_ai_assisted: false,
+          files: [],
+          lines_added: 0,
+          lines_deleted: 0,
+        })),
       },
       range,
     );

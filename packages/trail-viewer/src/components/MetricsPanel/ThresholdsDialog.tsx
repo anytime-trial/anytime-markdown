@@ -66,10 +66,16 @@ export function ThresholdsDialog({ open, onOpen, onClose, isVsCode = false }: Re
                 <TableCell>≥ {t2.deploymentFrequency.medium.toFixed(4)}/day</TableCell>
               </TableRow>
               <TableRow>
-                <TableCell>{t('metrics.leadTimeForChanges.name')}</TableCell>
-                <TableCell>&lt; {t2.leadTimeForChanges.elite}h</TableCell>
-                <TableCell>&lt; {t2.leadTimeForChanges.high}h</TableCell>
-                <TableCell>&lt; {t2.leadTimeForChanges.medium}h</TableCell>
+                <TableCell>{t('metrics.leadTimePerLoc.name')}</TableCell>
+                <TableCell>&lt; {t2.leadTimePerLoc.elite} min/LOC</TableCell>
+                <TableCell>&lt; {t2.leadTimePerLoc.high} min/LOC</TableCell>
+                <TableCell>&lt; {t2.leadTimePerLoc.medium} min/LOC</TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell>{t('metrics.tokensPerLoc.name')}</TableCell>
+                <TableCell>&lt; {(t2.tokensPerLoc.elite / 1000).toFixed(1)}k tok/LOC</TableCell>
+                <TableCell>&lt; {(t2.tokensPerLoc.high / 1000).toFixed(1)}k tok/LOC</TableCell>
+                <TableCell>&lt; {(t2.tokensPerLoc.medium / 1000).toFixed(1)}k tok/LOC</TableCell>
               </TableRow>
               <TableRow>
                 <TableCell>{t('metrics.changeFailureRate.name')}</TableCell>

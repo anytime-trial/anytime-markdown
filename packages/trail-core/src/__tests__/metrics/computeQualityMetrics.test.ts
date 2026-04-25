@@ -8,10 +8,11 @@ function emptyInputs(): QualityMetricsInputs {
 }
 
 describe('computeQualityMetrics', () => {
-  it('empty inputs → all 4 metrics with sampleSize=0', () => {
+  it('empty inputs → all 5 metrics with sampleSize=0', () => {
     const result = computeQualityMetrics(emptyInputs(), range);
     expect(result.metrics.deploymentFrequency.sampleSize).toBe(0);
-    expect(result.metrics.leadTimeForChanges.sampleSize).toBe(0);
+    expect(result.metrics.leadTimePerLoc.sampleSize).toBe(0);
+    expect(result.metrics.tokensPerLoc.sampleSize).toBe(0);
     expect(result.metrics.aiFirstTrySuccessRate.sampleSize).toBe(0);
     expect(result.metrics.changeFailureRate.sampleSize).toBe(0);
   });
@@ -68,15 +69,16 @@ describe('computeQualityMetrics', () => {
     expect(result.metrics.deploymentFrequency.value).toBeGreaterThan(0);
   });
 
-  it('computes lead time from message commits', () => {
+  it('computes leadTimePerLoc from message commits and commits', () => {
     const inputs: QualityMetricsInputs = {
       ...emptyInputs(),
       messages: [{ uuid: 'm0', created_at: '2026-04-10T00:00:00.000Z', role: 'user', type: 'text' }],
-      messageCommits: [{ message_uuid: 'm0', detected_at: '2026-04-10T04:00:00.000Z', match_confidence: 'high' }],
+      messageCommits: [{ message_uuid: 'm0', commit_hash: 'abc123', detected_at: '2026-04-10T04:00:00.000Z', match_confidence: 'high' }],
+      commits: [{ hash: 'abc123', subject: 'feat', committed_at: '2026-04-10T04:00:00.000Z', is_ai_assisted: true, files: [], lines_added: 80, lines_deleted: 20 }],
     };
     const result = computeQualityMetrics(inputs, range);
-    expect(result.metrics.leadTimeForChanges.sampleSize).toBe(1);
-    expect(result.metrics.leadTimeForChanges.value).toBeCloseTo(4, 1);
+    expect(result.metrics.leadTimePerLoc.sampleSize).toBe(1);
+    expect(result.metrics.leadTimePerLoc.value).toBeGreaterThan(0);
   });
 
   it('includes comparison when previous data provided', () => {

@@ -21,6 +21,16 @@ function formatValue(m: MetricValue): string {
       ? `${m.value.toFixed(1)}h`
       : `${(m.value / 24).toFixed(1)}d`;
   }
+  if (m.unit === 'minPerLoc') {
+    return m.value < 60
+      ? `${m.value.toFixed(2)} min/LOC`
+      : `${(m.value / 60).toFixed(1)} h/LOC`;
+  }
+  if (m.unit === 'tokensPerLoc') {
+    return m.value >= 1000
+      ? `${(m.value / 1000).toFixed(1)}k tok/LOC`
+      : `${m.value.toFixed(0)} tok/LOC`;
+  }
   return `${m.value.toFixed(1)}%`;
 }
 
@@ -53,7 +63,8 @@ export interface MetricCardProps {
 
 const NAME_KEYS: Record<string, string> = {
   deploymentFrequency: 'metrics.deploymentFrequency.name',
-  leadTimeForChanges: 'metrics.leadTimeForChanges.name',
+  leadTimePerLoc: 'metrics.leadTimePerLoc.name',
+  tokensPerLoc: 'metrics.tokensPerLoc.name',
   aiFirstTrySuccessRate: 'metrics.aiFirstTrySuccessRate.name',
   changeFailureRate: 'metrics.changeFailureRate.name',
 };

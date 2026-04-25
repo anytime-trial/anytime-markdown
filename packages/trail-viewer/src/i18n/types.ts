@@ -216,8 +216,10 @@ export interface TrailI18n {
   'metrics.period.last90d': string;
   'metrics.deploymentFrequency.name': string;
   'metrics.deploymentFrequency.description': string;
-  'metrics.leadTimeForChanges.name': string;
-  'metrics.leadTimeForChanges.description': string;
+  'metrics.leadTimePerLoc.name': string;
+  'metrics.leadTimePerLoc.description': string;
+  'metrics.tokensPerLoc.name': string;
+  'metrics.tokensPerLoc.description': string;
   'metrics.aiFirstTrySuccessRate.name': string;
   'metrics.aiFirstTrySuccessRate.description': string;
   'metrics.changeFailureRate.name': string;
