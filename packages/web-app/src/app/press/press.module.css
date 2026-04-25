@@ -143,12 +143,14 @@
 }
 
 .mastNav a:focus-visible,
-.mastModeToggle:focus-visible {
+.mastModeToggle:focus-visible,
+.mastLocaleToggle:focus-visible {
     outline: 2px solid var(--vermilion);
     outline-offset: 2px;
 }
 
-.mastModeToggle {
+.mastModeToggle,
+.mastLocaleToggle {
     background: transparent;
     border: 0;
     padding: 0 4px;
@@ -159,6 +161,16 @@
     font-weight: 600;
     letter-spacing: 0.1em;
     line-height: 1;
+}
+
+.mastLocaleToggle {
+    border-bottom: 1.5px solid transparent;
+    padding-bottom: 2px;
+    transition: border-color 0.2s;
+}
+
+.mastLocaleToggle:hover {
+    border-color: var(--ink);
 }
 
 .mastRules {
