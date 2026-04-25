@@ -52,8 +52,8 @@
 }
 
 .root[data-cp-mode='dark'] {
-    --paper: #15110A;
-    --paper-fold: #1F1A10;
+    --paper: #0D1117;
+    --paper-fold: #161B27;
     --ink: #EDE5D2;
     --ink-faded: #B8AC92;
     --ink-light: #6B6051;
