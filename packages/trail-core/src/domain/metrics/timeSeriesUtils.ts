@@ -64,3 +64,42 @@ export function median(values: number[]): number {
     ? sorted[mid]
     : (sorted[mid - 1] + sorted[mid]) / 2;
 }
+
+export function buildRatioTimeSeries(
+  samples: Array<{ date: string; numerator: number; denominator: number }>,
+  range: DateRange,
+  bucket: 'day' | 'week',
+): Array<{ bucketStart: string; value: number }> {
+  const fromMs = new Date(range.from).getTime();
+  const toMs = new Date(range.to).getTime();
+  const bucketFn = bucket === 'day' ? startOfDayUTC : startOfWeekUTC;
+
+  type Acc = { num: number; den: number };
+  const buckets = new Map<number, Acc>();
+
+  let cursor = bucketFn(fromMs);
+  while (cursor <= toMs) {
+    buckets.set(cursor, { num: 0, den: 0 });
+    cursor += bucket === 'day' ? 86_400_000 : 7 * 86_400_000;
+  }
+
+  for (const s of samples) {
+    const evMs = new Date(s.date).getTime();
+    if (evMs < fromMs || evMs > toMs) continue;
+    const key = bucketFn(evMs);
+    const acc = buckets.get(key);
+    if (acc) {
+      acc.num += s.numerator;
+      acc.den += s.denominator;
+    } else {
+      buckets.set(key, { num: s.numerator, den: s.denominator });
+    }
+  }
+
+  return Array.from(buckets.entries())
+    .sort(([a], [b]) => a - b)
+    .map(([ms, acc]) => ({
+      bucketStart: new Date(ms).toISOString(),
+      value: acc.den > 0 ? acc.num / acc.den : 0,
+    }));
+}
