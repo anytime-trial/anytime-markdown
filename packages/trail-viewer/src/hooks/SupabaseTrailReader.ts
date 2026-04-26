@@ -688,9 +688,43 @@ export class SupabaseTrailReader implements ITrailReader {
         .map(([k, e]) => { const [p, model] = splitKey(k); return { period: p, model, ...e }; })
         .sort((a, b) => a.period.localeCompare(b.period) || b.count - a.count);
 
-      // commitPrefixStats / aiFirstTryRate は session_commits + commit_files ベースのため
-      // Supabase 側は未対応（空配列）。
-      return { toolCounts, errorRate, skillStats, modelStats, commitPrefixStats: [], aiFirstTryRate: [] };
+      const cutoffIso = new Date(cutoffMs).toISOString();
+      const { data: commitData } = await this.client
+        .from('trail_session_commits')
+        .select('commit_hash, commit_message, committed_at, lines_added')
+        .gte('committed_at', cutoffIso);
+
+      const toJSTDate = (isoStr: string): string => {
+        const ms = new Date(isoStr).getTime();
+        const jstMs = ms + getIanaOffsetMs('Asia/Tokyo', new Date(ms));
+        const d = new Date(jstMs);
+        return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+      };
+
+      const extractPrefix = (subject: string): string => {
+        const m = /^([a-z]+)(?:\([^)]*\))?!?:\s/i.exec(subject);
+        return m ? m[1].toLowerCase() : 'other';
+      };
+      const seenHashes = new Set<string>();
+      const prefixMap = new Map<string, { count: number; linesAdded: number }>();
+      for (const c of (commitData ?? []) as Array<{ commit_hash: string; commit_message: string; committed_at: string; lines_added: number }>) {
+        if (seenHashes.has(c.commit_hash)) continue;
+        seenHashes.add(c.commit_hash);
+        const subject = (c.commit_message ?? '').split('\n')[0];
+        const prefix = extractPrefix(subject);
+        const p = periodKey(toJSTDate(c.committed_at));
+        const k = `${p}::${prefix}`;
+        const e = prefixMap.get(k) ?? { count: 0, linesAdded: 0 };
+        e.count++;
+        e.linesAdded += c.lines_added ?? 0;
+        prefixMap.set(k, e);
+      }
+
+      const commitPrefixStats = [...prefixMap.entries()]
+        .map(([k, e]) => { const [p, prefix] = splitKey(k); return { period: p, prefix, count: e.count, linesAdded: e.linesAdded }; })
+        .sort((a, b) => a.period.localeCompare(b.period));
+
+      return { toolCounts, errorRate, skillStats, modelStats, commitPrefixStats, aiFirstTryRate: [] };
     } catch {
       return null;
     }
