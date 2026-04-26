@@ -60,9 +60,6 @@ export function Colophon() {
             <li>
               <Link href="/report">{tLanding('reportPage')}</Link>
             </li>
-            <li>
-              <Link href="/docs">{tLanding('sitesPage')}</Link>
-            </li>
             {showGraph ? (
               <li>
                 <Link href="/graph">{tLanding('graphPage')}</Link>
