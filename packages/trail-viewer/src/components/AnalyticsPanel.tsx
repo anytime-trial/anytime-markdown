@@ -429,12 +429,13 @@ function CommitMarkers({ markers }: Readonly<{ markers: readonly CommitMarkerDat
   const xScale = useXScale();
   if (markers.length === 0) return null;
   const SIZE = 6;
+  const HEIGHT = 9;
   return (
     <>
       {markers.map(({ turn, agentLabel, commitHash, commitPrefix }) => {
         const cx = xScale(turn as never) as number | undefined;
         if (cx == null) return null;
-        const points = `${cx - SIZE},${top - 2} ${cx + SIZE},${top - 2} ${cx},${top + SIZE * 1.2}`;
+        const points = `${cx - SIZE},${top - HEIGHT} ${cx + SIZE},${top - HEIGHT} ${cx},${top}`;
         return (
           <Tooltip
             key={turn}
@@ -462,12 +463,13 @@ function ErrorMarkers({ markers }: Readonly<{ markers: readonly ErrorMarkerData[
   const xScale = useXScale();
   if (markers.length === 0) return null;
   const SIZE = 4;
+  const HEIGHT = 6;
   return (
     <>
       {markers.map(({ turn, agentLabel, toolName }) => {
         const cx = xScale(turn as never) as number | undefined;
         if (cx == null) return null;
-        const points = `${cx - SIZE},${top - 2} ${cx + SIZE},${top - 2} ${cx},${top + SIZE * 1.2}`;
+        const points = `${cx - SIZE},${top - HEIGHT} ${cx + SIZE},${top - HEIGHT} ${cx},${top}`;
         return (
           <Tooltip
             key={turn}
@@ -633,31 +635,6 @@ function TurnLaneChart({
     [assistantMsgs, subAgents],
   );
 
-  const uniqueModels = useMemo(() => {
-    const seen = new Set<string>();
-    const result: string[] = [];
-    for (const m of assistantMsgs) {
-      const model = m.model ?? '';
-      if (!seen.has(model)) { seen.add(model); result.push(model); }
-    }
-    return result;
-  }, [assistantMsgs]);
-
-  const uniqueSkills = useMemo(() => {
-    const seen = new Set<string>();
-    for (const m of assistantMsgs) { if (m.skill) seen.add(m.skill); }
-    return Array.from(seen);
-  }, [assistantMsgs]);
-
-  const usedToolCats = useMemo(() => {
-    const seen = new Set<LaneTool>();
-    for (const m of assistantMsgs) {
-      const d = dominantTool(m.toolCalls);
-      if (d !== '') seen.add(d);
-    }
-    return LANE_TOOL_CATS.filter((c) => seen.has(c));
-  }, [assistantMsgs]);
-
   const N = assistantMsgs.length;
   if (N === 0) return null;
 
@@ -776,27 +753,58 @@ function TurnLaneChart({
           );
         })}
       </svg>
-      {/* Legend */}
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, pl: `${LABEL_W}px`, mt: 0.5 }}>
-        {uniqueModels.map((model) => (
-          <Box key={model} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <Box sx={{ width: 10, height: 10, borderRadius: '2px', bgcolor: laneModelColor(model) }} />
-            <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'text.secondary' }}>{model || 'unknown'}</Typography>
-          </Box>
-        ))}
-        {uniqueSkills.map((skill) => (
-          <Box key={skill} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <Box sx={{ width: 10, height: 3, borderRadius: '1px', bgcolor: laneSkillColor(skill) }} />
-            <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'text.secondary' }}>{skill}</Typography>
-          </Box>
-        ))}
-        {usedToolCats.map((cat) => (
-          <Box key={cat} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <Box sx={{ width: 10, height: 10, borderRadius: '2px', bgcolor: LANE_TOOL_COLORS[cat] }} />
-            <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'text.secondary' }}>{LANE_TOOL_LABELS[cat]}</Typography>
-          </Box>
-        ))}
-      </Box>
+    </Box>
+  );
+}
+
+function TurnLaneChartLegend({
+  assistantMsgs,
+}: Readonly<{ assistantMsgs: readonly TrailMessage[] }>) {
+  const uniqueModels = useMemo(() => {
+    const seen = new Set<string>();
+    const result: string[] = [];
+    for (const m of assistantMsgs) {
+      const model = m.model ?? '';
+      if (!seen.has(model)) { seen.add(model); result.push(model); }
+    }
+    return result;
+  }, [assistantMsgs]);
+
+  const uniqueSkills = useMemo(() => {
+    const seen = new Set<string>();
+    for (const m of assistantMsgs) { if (m.skill) seen.add(m.skill); }
+    return Array.from(seen);
+  }, [assistantMsgs]);
+
+  const usedToolCats = useMemo(() => {
+    const seen = new Set<LaneTool>();
+    for (const m of assistantMsgs) {
+      const d = dominantTool(m.toolCalls);
+      if (d !== '') seen.add(d);
+    }
+    return LANE_TOOL_CATS.filter((c) => seen.has(c));
+  }, [assistantMsgs]);
+
+  return (
+    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, pl: '60px', mt: 0.5 }}>
+      {uniqueModels.map((model) => (
+        <Box key={model} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Box sx={{ width: 10, height: 10, borderRadius: '2px', bgcolor: laneModelColor(model) }} />
+          <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'text.secondary' }}>{model || 'unknown'}</Typography>
+        </Box>
+      ))}
+      {uniqueSkills.map((skill) => (
+        <Box key={skill} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Box sx={{ width: 10, height: 3, borderRadius: '1px', bgcolor: laneSkillColor(skill) }} />
+          <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'text.secondary' }}>{skill}</Typography>
+        </Box>
+      ))}
+      {usedToolCats.map((cat) => (
+        <Box key={cat} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Box sx={{ width: 10, height: 10, borderRadius: '2px', bgcolor: LANE_TOOL_COLORS[cat] }} />
+          <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'text.secondary' }}>{LANE_TOOL_LABELS[cat]}</Typography>
+        </Box>
+      ))}
     </Box>
   );
 }
@@ -835,7 +843,7 @@ function StackedReferenceLines({
       sx={{
         position: 'absolute',
         top: 0, left: 0,
-        width: '100%', height: '100%',
+        width: '100%', height: 'calc(100% - 16px)',
         pointerEvents: 'none',
       }}
     >
@@ -969,6 +977,7 @@ function SessionCacheTimeline({
         )}
       </Box>
       {hasData ? (
+        <>
         <Box sx={{ position: 'relative' }}>
           {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
           <ChartsDataProvider
@@ -1040,6 +1049,8 @@ function SessionCacheTimeline({
             totalTurns={totalTurns}
           />
         </Box>
+        <TurnLaneChartLegend assistantMsgs={assistantMsgs} />
+        </>
       ) : (
         <Box sx={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px dashed ${colors.border}`, borderRadius: 1 }}>
           <Typography variant="body2" sx={{ color: colors.textSecondary }}>
