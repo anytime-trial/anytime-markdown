@@ -650,13 +650,13 @@ function TurnLaneChart({
   const plotW = Math.max(svgWidth - LABEL_W - PAD_R, 0);
   const colW = plotW / N;
 
-  const LANE_H = 16;
+  const TOOL_LANE_H = 16;
+  const SKILL_LINE_H = 3;
+  const LANE_H = TOOL_LANE_H + SKILL_LINE_H;
   const LANE_GAP = 6;
   const AXIS_H = 16;
 
   const MODEL_LINE_H = 3;
-  const SKILL_LINE_H = 3;
-  const SKILL_MODEL_GAP = 2;
   const toolY = 0;
   const subAgentLaneY = (i: number) => toolY + LANE_H + LANE_GAP + i * (LANE_H + LANE_GAP);
   const lastLaneBottom = subAgents.length > 0
@@ -676,14 +676,14 @@ function TurnLaneChart({
     <Box ref={containerRef} sx={{ mt: 0.5 }}>
       <svg width="100%" height={totalH} style={{ display: 'block', overflow: 'visible' }}>
         {/* Claude Code lane (main agent only) */}
-        <text x={LABEL_W - 4} y={toolY + LANE_H / 2 + 4} textAnchor="end" fontSize={9} fill={colors.textSecondary}>Claude Code</text>
+        <text x={LABEL_W - 4} y={toolY + TOOL_LANE_H / 2 + 4} textAnchor="end" fontSize={9} fill={colors.textSecondary}>Claude Code</text>
         {toolRuns.map((run) => (
           <rect key={`t${run.start}`} x={toX(run.start)} y={toolY}
-            width={Math.max((run.end - run.start + 1) * colW, 1)} height={LANE_H}
+            width={Math.max((run.end - run.start + 1) * colW, 1)} height={TOOL_LANE_H}
             fill={LANE_TOOL_COLORS[run.value as LaneTool]} />
         ))}
         {mainModelRuns.filter((r) => r.value).map((run) => (
-          <rect key={`tm${run.start}`} x={toX(run.start)} y={toolY + LANE_H - MODEL_LINE_H}
+          <rect key={`tm${run.start}`} x={toX(run.start)} y={toolY + TOOL_LANE_H - MODEL_LINE_H}
             width={Math.max((run.end - run.start + 1) * colW, 1)} height={MODEL_LINE_H}
             fill={laneModelColor(run.value)} />
         ))}
@@ -693,8 +693,8 @@ function TurnLaneChart({
           const cx = toX(run.start) + naturalW / 2;
           return (
             <rect key={`ts${run.start}`} data-skill={run.value}
-              x={cx - w / 2} y={toolY}
-              width={w} height={LANE_H - MODEL_LINE_H}
+              x={cx - w / 2} y={toolY + TOOL_LANE_H}
+              width={w} height={SKILL_LINE_H}
               fill={laneSkillColor(run.value)} />
           );
         })}
@@ -706,16 +706,16 @@ function TurnLaneChart({
           const skillRunsForAgent = subAgentSkillRuns[i]?.runs ?? [];
           return (
             <g key={id}>
-              <text x={LABEL_W - 4} y={y + LANE_H / 2 + 4} textAnchor="end" fontSize={9} fill={colors.textSecondary}>
+              <text x={LABEL_W - 4} y={y + TOOL_LANE_H / 2 + 4} textAnchor="end" fontSize={9} fill={colors.textSecondary}>
                 {`SubAgent ${i + 1}`}
               </text>
               {toolRunsForAgent.map((run) => (
                 <rect key={`sa${i}-${run.start}`} x={toX(run.start)} y={y}
-                  width={Math.max((run.end - run.start + 1) * colW, 1)} height={LANE_H}
+                  width={Math.max((run.end - run.start + 1) * colW, 1)} height={TOOL_LANE_H}
                   fill={LANE_TOOL_COLORS[run.value as LaneTool]} />
               ))}
               {modelRunsForAgent.filter((r) => r.value).map((run) => (
-                <rect key={`sam${i}-${run.start}`} x={toX(run.start)} y={y + LANE_H - MODEL_LINE_H}
+                <rect key={`sam${i}-${run.start}`} x={toX(run.start)} y={y + TOOL_LANE_H - MODEL_LINE_H}
                   width={Math.max((run.end - run.start + 1) * colW, 1)} height={MODEL_LINE_H}
                   fill={laneModelColor(run.value)} />
               ))}
@@ -725,8 +725,8 @@ function TurnLaneChart({
                 const cx = toX(run.start) + naturalW / 2;
                 return (
                   <rect key={`sas${i}-${run.start}`}
-                    x={cx - w / 2} y={y}
-                    width={w} height={LANE_H - MODEL_LINE_H}
+                    x={cx - w / 2} y={y + TOOL_LANE_H}
+                    width={w} height={SKILL_LINE_H}
                     fill={laneSkillColor(run.value)} />
                 );
               })}
