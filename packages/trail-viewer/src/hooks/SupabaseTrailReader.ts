@@ -792,13 +792,7 @@ export class SupabaseTrailReader implements ITrailReader {
       return results;
     };
     const fetchAssistantMessages = async (f: string, t: string) => {
-      const { data } = await this.client
-        .from('trail_messages')
-        .select('session_id, timestamp, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, model')
-        .eq('type', 'assistant')
-        .gte('timestamp', f)
-        .lte('timestamp', t);
-      return (data ?? []) as Array<{
+      type AssistantRow = {
         session_id: string;
         timestamp: string;
         input_tokens: number;
@@ -806,7 +800,25 @@ export class SupabaseTrailReader implements ITrailReader {
         cache_read_tokens: number;
         cache_creation_tokens: number;
         model: string | null;
-      }>;
+      };
+      const PAGE_SIZE = 1000;
+      const results: AssistantRow[] = [];
+      let offset = 0;
+      while (true) {
+        const { data } = await this.client
+          .from('trail_messages')
+          .select('session_id, timestamp, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, model')
+          .eq('type', 'assistant')
+          .gte('timestamp', f)
+          .lte('timestamp', t)
+          .order('timestamp', { ascending: true })
+          .range(offset, offset + PAGE_SIZE - 1);
+        const rows = (data ?? []) as AssistantRow[];
+        results.push(...rows);
+        if (rows.length < PAGE_SIZE) break;
+        offset += PAGE_SIZE;
+      }
+      return results;
     };
     const fetchCommits = async (f: string, t: string): Promise<CommitRow[]> => {
       const PAGE_SIZE = 1000;
