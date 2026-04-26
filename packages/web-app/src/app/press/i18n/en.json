@@ -58,6 +58,11 @@
     "heading": "Today's Top Stories",
     "poweredBy": "via The Guardian"
   },
+  "charts": {
+    "label": "MUSIC · NEW RELEASES",
+    "heading": "Charts",
+    "poweredBy": "via Spotify"
+  },
   "ticker": {
     "item1": "open source · MIT licensed",
     "item2": "browser-only · zero servers",

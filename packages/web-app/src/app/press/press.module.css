@@ -1199,3 +1199,185 @@
         animation: none;
     }
 }
+
+/* ── Spotify Charts 音楽面 ──────────────────────────── */
+.charts {
+    padding: 48px var(--gutter);
+    border-bottom: var(--rule-bold) solid var(--ink);
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: 48px;
+    align-items: start;
+}
+
+@media (max-width: 880px) {
+    .charts {
+        grid-template-columns: 1fr;
+        gap: 24px;
+    }
+}
+
+.chartsHeader {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border-right: var(--rule-thin) solid var(--ink);
+    padding-right: 48px;
+}
+
+@media (max-width: 880px) {
+    .chartsHeader {
+        flex-direction: row;
+        align-items: baseline;
+        border-right: 0;
+        padding-right: 0;
+        border-bottom: var(--rule-thin) solid var(--ink);
+        padding-bottom: 12px;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+}
+
+.chartsLabel {
+    font-family: var(--font-mono);
+    font-size: var(--fs-footnote);
+    color: var(--vermilion);
+    font-weight: 600;
+    letter-spacing: 0.12em;
+}
+
+.chartsHeading {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 900;
+    font-size: clamp(28px, 3vw, 40px);
+    line-height: 1;
+    letter-spacing: -0.03em;
+    margin: 0;
+}
+
+.chartsMeta {
+    margin-top: auto;
+    font-family: var(--font-mono);
+    font-size: var(--fs-footnote);
+    color: var(--ink-faded);
+}
+
+@media (max-width: 880px) {
+    .chartsMeta {
+        margin-top: 0;
+        margin-left: auto;
+    }
+}
+
+.chartsList {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    border-top: var(--rule-bold) solid var(--ink);
+}
+
+.chartsItem {
+    display: grid;
+    grid-template-columns: 32px 48px 1fr auto;
+    gap: 16px;
+    padding: 14px 0;
+    border-bottom: var(--rule-hair) solid var(--ink-light);
+    align-items: center;
+}
+
+.chartsItem:last-child {
+    border-bottom: var(--rule-bold) solid var(--ink);
+}
+
+.chartsRank {
+    font-family: var(--font-mono);
+    font-size: var(--fs-caption);
+    font-weight: 600;
+    color: var(--vermilion);
+    letter-spacing: 0.05em;
+    line-height: 1;
+}
+
+.chartsArt {
+    display: block;
+    width: 48px;
+    height: 48px;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+.chartsInfo {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.chartsTrackName {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    border-bottom: 1px solid transparent;
+    transition: color 0.15s, border-color 0.15s;
+    text-decoration: none;
+}
+
+.chartsTrackName:hover {
+    color: var(--vermilion);
+    border-bottom-color: var(--vermilion);
+}
+
+.chartsTrackName:focus-visible {
+    outline: 2px solid var(--vermilion);
+    outline-offset: 2px;
+    border-radius: 1px;
+}
+
+.chartsArtist {
+    font-family: var(--font-mono);
+    font-size: var(--fs-footnote);
+    color: var(--ink-faded);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.chartsDate {
+    font-family: var(--font-mono);
+    font-size: var(--fs-footnote);
+    color: var(--ink-faded);
+    white-space: nowrap;
+    letter-spacing: 0.02em;
+}
+
+.chartsItemSkeleton {
+    height: 76px;
+    border-bottom: var(--rule-hair) solid var(--ink-light);
+    position: relative;
+    overflow: hidden;
+}
+
+.chartsItemSkeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.06) 50%,
+        transparent 100%
+    );
+    animation: newsfrontShimmer 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .chartsItemSkeleton::after {
+        animation: none;
+    }
+}

@@ -58,6 +58,11 @@
     "heading": "本日の重大ニュース",
     "poweredBy": "via The Guardian"
   },
+  "charts": {
+    "label": "MUSIC · 新譜",
+    "heading": "注目の新譜",
+    "poweredBy": "via Spotify"
+  },
   "ticker": {
     "item1": "open source · MIT licensed",
     "item2": "browser-only · zero servers",
