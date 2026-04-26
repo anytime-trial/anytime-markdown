@@ -587,11 +587,11 @@
 
 .briefingList li {
     display: grid;
-    grid-template-columns: 56px 1fr auto;
-    gap: 18px;
-    padding: 18px 0;
+    grid-template-columns: 24px 1fr;
+    gap: 3px 8px;
+    padding: 14px 0;
     border-bottom: var(--rule-thin) solid var(--ink-light);
-    align-items: baseline;
+    align-items: start;
 }
 
 .briefingList li:last-child {
@@ -627,23 +627,10 @@
     font-family: var(--font-mono);
     font-size: var(--fs-footnote);
     color: var(--ink-faded);
-    text-align: right;
+    grid-column: 2;
+    text-align: left;
     letter-spacing: 0.05em;
     white-space: nowrap;
-}
-
-@media (max-width: 880px) {
-    .briefingList li {
-        grid-template-columns: 24px 1fr;
-        gap: 3px 8px;
-        padding: 12px 0;
-        align-items: start;
-    }
-
-    .briefingVerdict {
-        grid-column: 2;
-        text-align: left;
-    }
 }
 
 /* ── Briefing (Trail Viewer 埋め込み版) ────────────── */
