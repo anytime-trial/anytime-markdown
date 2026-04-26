@@ -809,12 +809,23 @@ export class SupabaseTrailReader implements ITrailReader {
       }>;
     };
     const fetchCommits = async (f: string, t: string): Promise<CommitRow[]> => {
-      const { data } = await this.client
-        .from('trail_session_commits')
-        .select('commit_hash, commit_message, committed_at, session_id, is_ai_assisted, lines_added, lines_deleted')
-        .gte('committed_at', f)
-        .lte('committed_at', t);
-      return (data ?? []) as CommitRow[];
+      const PAGE_SIZE = 1000;
+      const results: CommitRow[] = [];
+      let offset = 0;
+      while (true) {
+        const { data } = await this.client
+          .from('trail_session_commits')
+          .select('commit_hash, commit_message, committed_at, session_id, is_ai_assisted, lines_added, lines_deleted')
+          .gte('committed_at', f)
+          .lte('committed_at', t)
+          .order('committed_at', { ascending: true })
+          .range(offset, offset + PAGE_SIZE - 1);
+        const rows = (data ?? []) as CommitRow[];
+        results.push(...rows);
+        if (rows.length < PAGE_SIZE) break;
+        offset += PAGE_SIZE;
+      }
+      return results;
     };
     const fetchFilesByHashes = async (hashes: string[]): Promise<Map<string, string[]>> => {
       if (hashes.length === 0) return new Map();
