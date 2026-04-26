@@ -23,7 +23,6 @@ import {
 } from '@mui/material';
 
 import LandingHeader from '../../components/LandingHeader';
-import SiteFooter from '../../components/SiteFooter';
 import CategoryAreaPanel from './CardAreaPanel';
 import FileListPanel from './FileListPanel';
 import { useLayoutEditor } from './useLayoutEditor';
@@ -81,7 +80,6 @@ export default function EditBody() {
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1 }} role="status">
           <CircularProgress aria-label={tCommon('loading')} />
         </Box>
-        <SiteFooter />
       </Box>
     );
   }
@@ -159,8 +157,6 @@ export default function EditBody() {
           />
         </Box>
       </Container>
-      <SiteFooter />
-
       {/* ファイル削除確認ダイアログ */}
       <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)} aria-labelledby="delete-dialog-title">
         <DialogTitle id="delete-dialog-title">{t('docsDelete')}</DialogTitle>

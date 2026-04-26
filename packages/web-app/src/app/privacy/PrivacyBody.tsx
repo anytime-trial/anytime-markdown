@@ -7,7 +7,6 @@ import Typography from '@mui/material/Typography';
 import { useTranslations } from 'next-intl';
 
 import LandingHeader from '../components/LandingHeader';
-import SiteFooter from '../components/SiteFooter';
 
 function Section({ title, children }: Readonly<{ title: string; children: React.ReactNode }>) {
   return (
@@ -98,7 +97,6 @@ export default function PrivacyBody() {
         </Section>
 
       </Container>
-      <SiteFooter />
     </Box>
   );
 }

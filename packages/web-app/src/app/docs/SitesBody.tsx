@@ -18,7 +18,6 @@ import { useTranslations } from 'next-intl';
 
 import type { LayoutCategory } from '../../types/layout';
 import LandingHeader from '../components/LandingHeader';
-import SiteFooter from '../components/SiteFooter';
 
 interface SitesBodyProps {
   initialData: {
@@ -197,7 +196,6 @@ export default function SitesBody({ initialData }: Readonly<SitesBodyProps>) {
           </Grid>
         )}
       </Container>
-      <SiteFooter />
     </Box>
   );
 }
