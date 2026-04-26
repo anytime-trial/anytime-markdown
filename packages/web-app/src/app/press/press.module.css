@@ -1933,6 +1933,10 @@
         border-right: none;
         border-bottom: var(--rule-thin) solid var(--ink);
     }
+    .ghTrendingColumn:nth-child(2),
+    .ghTrendingColumn:last-child {
+        padding-top: 32px;
+    }
     .ghTrendingColumn:last-child {
         border-bottom: none;
         padding-bottom: 0;
