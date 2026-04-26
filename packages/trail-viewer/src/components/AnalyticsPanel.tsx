@@ -842,8 +842,8 @@ function StackedReferenceLines({
       ref={ref}
       sx={{
         position: 'absolute',
-        top: 0, left: 0,
-        width: '100%', height: 'calc(100% - 16px)',
+        top: '16px', left: 0,
+        width: '100%', height: 'calc(100% - 32px)',
         pointerEvents: 'none',
       }}
     >
