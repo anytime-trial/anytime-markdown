@@ -452,7 +452,7 @@
 }
 
 .root[data-cp-mode='dark'] .caravanCamelImg {
-    filter: invert(1) sepia(0.2) brightness(0.9);
+    filter: brightness(0) invert(1);
 }
 
 .caravanOasisItem {
