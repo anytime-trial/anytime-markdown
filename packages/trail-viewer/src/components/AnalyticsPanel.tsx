@@ -554,7 +554,14 @@ function dominantTool(toolCalls: readonly TrailToolCall[] | undefined): LaneTool
 function TurnLaneChart({
   assistantMsgs,
   tickStep,
-}: Readonly<{ assistantMsgs: readonly TrailMessage[]; tickStep: number }>) {
+  commitTurns,
+  errorTurns,
+}: Readonly<{
+  assistantMsgs: readonly TrailMessage[];
+  tickStep: number;
+  commitTurns?: readonly number[];
+  errorTurns?: readonly number[];
+}>) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [svgWidth, setSvgWidth] = useState(600);
   const { colors } = useTrailTheme();
@@ -654,8 +661,8 @@ function TurnLaneChart({
   const N = assistantMsgs.length;
   if (N === 0) return null;
 
-  const LABEL_W = 70;
-  const PAD_R = 8;
+  const LABEL_W = 60;
+  const PAD_R = 40;
   const plotW = Math.max(svgWidth - LABEL_W - PAD_R, 0);
   const colW = plotW / N;
 
@@ -740,6 +747,21 @@ function TurnLaneChart({
                 );
               })}
             </g>
+          );
+        })}
+        {/* Commit/Error reference lines spanning all lanes */}
+        {commitTurns?.map((turn) => {
+          const x = toX(turn - 1) + colW / 2;
+          return (
+            <line key={`rl-commit-${turn}`} x1={x} y1={0} x2={x} y2={axisY}
+              stroke="#4CAF50" strokeWidth={1.5} strokeDasharray="4 2" />
+          );
+        })}
+        {errorTurns?.map((turn) => {
+          const x = toX(turn - 1) + colW / 2;
+          return (
+            <line key={`rl-error-${turn}`} x1={x} y1={0} x2={x} y2={axisY}
+              stroke="#F44336" strokeWidth={1.5} strokeDasharray="4 2" />
           );
         })}
         {/* X-axis */}
@@ -904,7 +926,7 @@ function SessionCacheTimeline({
               { id: 'toolTokens', position: 'right', valueFormatter: fmtTokens },
             ]}
             height={200}
-            margin={{ left: 16, right: 16, top: 16, bottom: 0 }}
+            margin={{ left: 60, right: 40, top: 16, bottom: 0 }}
           >
             <ChartsWrapper legendDirection="horizontal" legendPosition={{ vertical: 'bottom', horizontal: 'center' }}>
               <ChartsLegend />
@@ -972,7 +994,7 @@ function SessionCacheTimeline({
               { id: 'cumTime', position: 'right', valueFormatter: fmtDurationShort },
             ]}
             height={160}
-            margin={{ left: 16, right: 16, top: 4, bottom: 0 }}
+            margin={{ left: 60, right: 40, top: 4, bottom: 0 }}
           >
             <ChartsWrapper legendDirection="horizontal" legendPosition={{ vertical: 'bottom', horizontal: 'center' }}>
               <ChartsLegend />
@@ -984,11 +1006,30 @@ function SessionCacheTimeline({
                 <ChartsXAxis axisId="x" />
                 <ChartsYAxis axisId="perTurn" />
                 <ChartsYAxis axisId="cumTime" />
+                {commitTurns.map((turn) => (
+                  <ChartsReferenceLine
+                    key={`tcommit-${turn}`}
+                    x={turn}
+                    lineStyle={{ stroke: '#4CAF50', strokeWidth: 1.5, strokeDasharray: '4 2' }}
+                  />
+                ))}
+                {errorTurns.map((turn) => (
+                  <ChartsReferenceLine
+                    key={`terror-${turn}`}
+                    x={turn}
+                    lineStyle={{ stroke: '#F44336', strokeWidth: 1.5, strokeDasharray: '4 2' }}
+                  />
+                ))}
               </ChartsSurface>
               <ChartsTooltip />
             </ChartsWrapper>
           </ChartsDataProvider>
-          <TurnLaneChart assistantMsgs={assistantMsgs} tickStep={tickStep} />
+          <TurnLaneChart
+            assistantMsgs={assistantMsgs}
+            tickStep={tickStep}
+            commitTurns={commitTurns}
+            errorTurns={errorTurns}
+          />
         </>
       ) : (
         <Box sx={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px dashed ${colors.border}`, borderRadius: 1 }}>
