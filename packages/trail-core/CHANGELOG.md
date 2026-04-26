@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-04-26
+
+### Added
+
+- `source` column to `sessions` table to distinguish log origins
+
 ## [0.11.0] - 2026-04-26
 
 - Version bump to stay in sync with trail-viewer and vscode-trail-extension (no core changes)

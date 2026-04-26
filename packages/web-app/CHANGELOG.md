@@ -6,6 +6,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-04-26
+
+### Added
+
+- Seasonal vignette (水墨画風 ink wash style) to masthead, updated daily via deterministic day seed
+- 二十四節気 (24 solar terms) display in masthead edition line
+- 和風月名 (traditional Japanese month names) in masthead edition date (JA locale)
+- 漢数字 (kanji numerals) for day and year in masthead edition date (JA locale)
+- 大字 (formal kanji: 壱弐参肆伍陸漆捌玖拾) for kanji numeral conversion
+- 十二支の刻 (zodiac hour) in masthead replacing 朝刊 (JA locale)
+- GitHub Trending section (daily/weekly/monthly top 5) on press page
+- Latest daily/weekly reports section on press page
+- Docs section on press page using CMS layout data
+- `#news` anchor link to Masthead nav
+- Dynamic edition date in masthead (always shows today)
+
+### Changed
+
+- News source reverted to The Guardian API
+- `PressDocsSection` redesigned to colophon-style flat list
+- Press page sections reordered
+- Restored `/docs/edit` and updated middleware redirect target to `/docs/view`
+
+### Fixed
+
+- `docs/view` breadcrumb now links to home
+- Press-reports category filter uses `includes` match
+- `pressDocs` link font changed to `font-body` for consistency
+- `pressDocs` item font size increased to `fs-body` (16px)
+- News section heading renamed to "本日のニュース" / "Today's News"
+- Added `scroll-margin-top` to newsfront section anchor
+
 ## [0.19.0] - 2026-04-26
 
 ### Added

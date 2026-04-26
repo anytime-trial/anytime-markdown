@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-04-26
+
+### Trail Core (trail-core)
+
+- Added `source` column to `sessions` table to distinguish log origins
+
 ## [0.11.0] - 2026-04-26
 
 ### Fixed
