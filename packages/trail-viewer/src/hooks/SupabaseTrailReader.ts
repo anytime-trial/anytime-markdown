@@ -769,15 +769,25 @@ export class SupabaseTrailReader implements ITrailReader {
     };
     const fetchMessagesBySessionIds = async (sessionIds: string[]): Promise<MessageRow[]> => {
       if (sessionIds.length === 0) return [];
-      const BATCH = 200;
+      const SESSION_BATCH = 200;
+      const PAGE_SIZE = 1000;
       const results: MessageRow[] = [];
-      for (let i = 0; i < sessionIds.length; i += BATCH) {
-        const { data } = await this.client
-          .from('trail_messages')
-          .select('uuid, timestamp, type, session_id, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens')
-          .eq('type', 'user')
-          .in('session_id', sessionIds.slice(i, i + BATCH));
-        results.push(...(data ?? []) as MessageRow[]);
+      for (let i = 0; i < sessionIds.length; i += SESSION_BATCH) {
+        const batchIds = sessionIds.slice(i, i + SESSION_BATCH);
+        let offset = 0;
+        while (true) {
+          const { data } = await this.client
+            .from('trail_messages')
+            .select('uuid, timestamp, type, session_id, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens')
+            .eq('type', 'user')
+            .in('session_id', batchIds)
+            .order('timestamp', { ascending: true })
+            .range(offset, offset + PAGE_SIZE - 1);
+          const rows = (data ?? []) as MessageRow[];
+          results.push(...rows);
+          if (rows.length < PAGE_SIZE) break;
+          offset += PAGE_SIZE;
+        }
       }
       return results;
     };
