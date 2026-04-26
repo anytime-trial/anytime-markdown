@@ -660,7 +660,7 @@ function TurnLaneChart({
   const colW = plotW / N;
 
   const TOOL_LANE_H = 16;
-  const SKILL_LINE_H = 3;
+  const SKILL_LINE_H = 16;
   const LANE_H = TOOL_LANE_H + SKILL_LINE_H;
   const LANE_GAP = 6;
   const AXIS_H = 16;
