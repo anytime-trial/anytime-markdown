@@ -1771,6 +1771,9 @@
     .pressDocs_grid {
         grid-template-columns: 1fr;
     }
+    .pressDocs_grid > div + div {
+        margin-top: 24px;
+    }
 }
 
 .pressDocs_colTitle {
