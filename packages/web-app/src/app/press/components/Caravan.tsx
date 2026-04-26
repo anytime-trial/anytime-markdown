@@ -96,8 +96,8 @@ export function Caravan() {
             <img
               src="/images/camel_transparent.png"
               alt=""
-              width={60}
-              height={60}
+              width={15}
+              height={15}
               className={styles.caravanCamelImg}
             />
           </span>
