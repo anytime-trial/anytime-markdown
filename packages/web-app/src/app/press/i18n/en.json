@@ -56,9 +56,7 @@
   "news": {
     "label": "DISPATCH · BREAKING",
     "heading": "Today's Top Stories",
-    "poweredBy": "via Hacker News",
-    "scoreLabel": "pts",
-    "commentsLabel": "comments"
+    "poweredBy": "via The Guardian"
   },
   "ticker": {
     "item1": "open source · MIT licensed",

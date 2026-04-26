@@ -1,65 +1,73 @@
 import { NextResponse } from 'next/server';
 
 export interface NewsArticle {
-    id: number;
+    id: string;
     title: string;
+    description: string;
     url: string;
     source: string;
     author: string;
     publishedAt: string;
-    score: number;
-    comments: number;
+    section: string;
 }
 
-interface HNAlgoliaHit {
-    objectID: string;
-    story_id?: number;
-    title: string;
-    url?: string;
-    author: string;
-    created_at: string;
-    points: number | null;
-    num_comments: number | null;
+interface GuardianResult {
+    id: string;
+    type: string;
+    sectionId: string;
+    sectionName: string;
+    webPublicationDate: string;
+    webTitle: string;
+    webUrl: string;
+    fields?: {
+        trailText?: string;
+        byline?: string;
+    };
 }
 
-interface HNAlgoliaResponse {
-    hits: HNAlgoliaHit[];
+interface GuardianResponse {
+    response: {
+        status: string;
+        results: GuardianResult[];
+    };
 }
 
 const REVALIDATE = 3600;
 
-function extractDomain(url: string): string {
-    try {
-        return new URL(url).hostname.replace(/^www\./, '');
-    } catch {
-        return url;
-    }
-}
-
 export async function GET() {
     try {
-        const res = await fetch(
-            'https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=8',
-            { next: { revalidate: REVALIDATE } },
-        );
+        const apiKey = process.env.GUARDIAN_API_KEY ?? 'test';
+
+        const url = new URL('https://content.guardianapis.com/search');
+        url.searchParams.set('section', 'world|politics|business|us-news');
+        url.searchParams.set('show-fields', 'trailText,byline');
+        url.searchParams.set('page-size', '8');
+        url.searchParams.set('order-by', 'newest');
+        // liveblog は本文が空になりがちなので article のみに絞る
+        url.searchParams.set('type', 'article');
+        url.searchParams.set('api-key', apiKey);
+
+        const res = await fetch(url.toString(), {
+            next: { revalidate: REVALIDATE },
+        });
         if (!res.ok) {
-            return NextResponse.json({ error: 'HN API unavailable' }, { status: 502 });
+            return NextResponse.json({ error: 'Guardian API unavailable' }, { status: 502 });
         }
 
-        const data = (await res.json()) as HNAlgoliaResponse;
+        const data = (await res.json()) as GuardianResponse;
 
-        const articles: NewsArticle[] = data.hits
-            .filter((h) => Boolean(h.url))
+        const articles: NewsArticle[] = data.response.results
+            .filter((r) => r.fields?.trailText)
             .slice(0, 3)
-            .map((h) => ({
-                id: h.story_id ?? Number(h.objectID),
-                title: h.title,
-                url: h.url!,
-                source: extractDomain(h.url!),
-                author: h.author,
-                publishedAt: h.created_at,
-                score: h.points ?? 0,
-                comments: h.num_comments ?? 0,
+            .map((r) => ({
+                id: r.id,
+                title: r.webTitle,
+                description: r.fields?.trailText ?? '',
+                url: r.webUrl,
+                source: 'The Guardian',
+                author: r.fields?.byline ?? 'Guardian staff',
+                publishedAt: r.webPublicationDate,
+                section: r.sectionName,
             }));
 
         return NextResponse.json({ articles });

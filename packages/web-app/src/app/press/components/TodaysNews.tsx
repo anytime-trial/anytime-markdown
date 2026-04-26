@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
+import DOMPurify from 'dompurify';
 import { useTranslations } from 'next-intl';
 
 import type { NewsArticle } from '../../api/news/route';
@@ -62,7 +63,7 @@ export function TodaysNews() {
                     {articles.map((article, i) => (
                         <article key={article.id} className={styles.newsfrontArticle}>
                             <span className={styles.newsfrontKicker}>
-                                {String(i + 1).padStart(2, '0')} · {article.source}
+                                {String(i + 1).padStart(2, '0')} · {article.section}
                             </span>
                             <h3 className={styles.newsfrontHeadline}>
                                 <a
@@ -74,6 +75,14 @@ export function TodaysNews() {
                                     {article.title}
                                 </a>
                             </h3>
+                            {article.description && (
+                                <p
+                                    className={styles.newsfrontLead}
+                                    dangerouslySetInnerHTML={{
+                                        __html: DOMPurify.sanitize(article.description),
+                                    }}
+                                />
+                            )}
                             <div className={styles.newsfrontByline}>
                                 <span>{article.author}</span>
                                 <span aria-hidden="true">·</span>
@@ -81,13 +90,7 @@ export function TodaysNews() {
                                     {formatRelativeTime(article.publishedAt)}
                                 </time>
                                 <span aria-hidden="true">·</span>
-                                <span>
-                                    {article.score} {t('scoreLabel')}
-                                </span>
-                                <span aria-hidden="true">·</span>
-                                <span>
-                                    {article.comments} {t('commentsLabel')}
-                                </span>
+                                <span>{article.source}</span>
                             </div>
                         </article>
                     ))}
