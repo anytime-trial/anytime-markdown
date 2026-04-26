@@ -1,6 +1,12 @@
+'use client';
+
+import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 
 import styles from '../press.module.css';
+
+const LOOP_MS = 60_000;       // one full caravan animation cycle
+const SHOW_MS = LOOP_MS * 2;  // visible for 2 loops (~2 min)
 
 const CAMEL_PATH =
   'M0 28 L4 18 L8 14 L8 8 Q12 2 18 4 L20 8 L18 14 L24 16 L34 12 L38 18 L42 18 L42 22 L46 28 L42 32 L42 38 L40 38 L38 32 L20 32 L18 38 L16 38 L14 32 L4 32 Z';
@@ -35,7 +41,33 @@ const OASES: ReadonlyArray<readonly [string, number]> = [
 const HOOFPRINTS = [60, 200, 320, 540, 700, 940, 1080, 1240, 1450, 1740, 1880, 2160];
 
 export function Caravan() {
+  const [oasisVisible, setOasisVisible] = useState(false);
   const t = useTranslations('press.caravan');
+
+  useEffect(() => {
+    let showTimer: ReturnType<typeof setTimeout>;
+    let hideTimer: ReturnType<typeof setTimeout>;
+
+    function scheduleShow(delayMs: number) {
+      showTimer = setTimeout(() => {
+        setOasisVisible(true);
+        hideTimer = setTimeout(() => {
+          setOasisVisible(false);
+          // Next appearance: random 40-60 min after hide
+          scheduleShow(2_400_000 + Math.random() * 1_200_000);
+        }, SHOW_MS);
+      }, delayMs);
+    }
+
+    // First appearance: random within the first hour
+    scheduleShow(Math.random() * 3_600_000);
+
+    return () => {
+      clearTimeout(showTimer);
+      clearTimeout(hideTimer);
+    };
+  }, []);
+
   return (
     <div className={styles.caravan}>
       <span className={styles.caravanTick}>{t('tick')}</span>
@@ -75,7 +107,7 @@ export function Caravan() {
         {OASES.map(([left, bottom]) => (
           <span
             key={left}
-            className={styles.caravanOasisItem}
+            className={`${styles.caravanOasisItem}${oasisVisible ? ` ${styles.caravanOasisVisible}` : ''}`}
             style={{ left, bottom }}
           >
             <svg viewBox="0 0 36 58" width="36" height="58" fill="none">

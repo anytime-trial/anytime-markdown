@@ -442,9 +442,18 @@
     to   { transform: translateX(-50%); }
 }
 
-.caravanCamelItem,
+.caravanCamelItem {
+    position: absolute;
+}
+
 .caravanOasisItem {
     position: absolute;
+    opacity: 0;
+    transition: opacity 3s ease;
+}
+
+.caravanOasisVisible {
+    opacity: 1;
 }
 
 .caravanSun1,
@@ -486,6 +495,9 @@
     .caravanSun1,
     .caravanSun2 {
         animation: none;
+    }
+    .caravanOasisItem {
+        transition: none;
     }
 }
 
