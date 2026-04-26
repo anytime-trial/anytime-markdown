@@ -4,12 +4,61 @@ import { useEffect, useState } from 'react';
 
 import { useTranslations } from 'next-intl';
 
-import type { TrendingRepo } from '../../api/github-trending/route';
+import type { TrendingRepo, TrendingResponse } from '../../api/github-trending/route';
 import styles from '../press.module.css';
 
-interface TrendingResponse {
-    repos: TrendingRepo[];
-    since: string;
+function RankingColumn({
+    label,
+    repos,
+}: Readonly<{ label: string; repos: TrendingRepo[] }>) {
+    return (
+        <div className={styles.ghTrendingColumn}>
+            <div className={styles.ghTrendingColumnHeader}>{label}</div>
+            <ol className={styles.ghTrendingList}>
+                {repos.map((repo, i) => (
+                    <li key={repo.id} className={styles.ghTrendingItem}>
+                        <span className={styles.ghTrendingRank}>
+                            {String(i + 1).padStart(2, '0')}
+                        </span>
+                        <div className={styles.ghTrendingBody}>
+                            <h3 className={styles.ghTrendingName}>
+                                <a
+                                    href={repo.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className={styles.ghTrendingLink}
+                                >
+                                    <span className={styles.ghTrendingOwner}>{repo.owner}</span>
+                                    <span className={styles.ghTrendingSep}>/</span>
+                                    {repo.name}
+                                </a>
+                            </h3>
+                            {repo.description && (
+                                <p className={styles.ghTrendingDesc}>{repo.description}</p>
+                            )}
+                            <div className={styles.ghTrendingMeta}>
+                                {repo.language && (
+                                    <span className={styles.ghTrendingLang}>{repo.language}</span>
+                                )}
+                                <span className={styles.ghTrendingStars}>★ {repo.stars.toLocaleString()}</span>
+                            </div>
+                        </div>
+                    </li>
+                ))}
+            </ol>
+        </div>
+    );
+}
+
+function SkeletonColumn() {
+    return (
+        <div className={styles.ghTrendingColumn}>
+            <div className={`${styles.ghTrendingColumnHeader} ${styles.ghTrendingSkeletonHeader}`} />
+            {[0, 1, 2, 3, 4].map((i) => (
+                <div key={i} className={styles.ghTrendingSkeletonItem} />
+            ))}
+        </div>
+    );
 }
 
 export function GithubTrending() {
@@ -33,56 +82,31 @@ export function GithubTrending() {
         return () => { cancelled = true; };
     }, []);
 
-    if (!loading && !data?.repos.length) return null;
+    if (!loading && !data?.daily.length && !data?.weekly.length && !data?.monthly.length) return null;
 
     return (
         <section className={styles.ghTrending}>
             <div className={styles.ghTrendingHeader}>
                 <span className={styles.ghTrendingLabel}>{t('label')}</span>
                 <h2 className={styles.ghTrendingHeading}>{t('heading')}</h2>
-                <span className={styles.ghTrendingMeta}>{t('poweredBy')}</span>
+                <span className={styles.ghTrendingPoweredBy}>{t('poweredBy')}</span>
             </div>
 
-            {loading ? (
-                <div className={styles.ghTrendingSkeleton}>
-                    {[0, 1, 2, 3, 4, 5].map((i) => (
-                        <div key={i} className={styles.ghTrendingSkeletonItem} />
-                    ))}
-                </div>
-            ) : (
-                <ol className={styles.ghTrendingList}>
-                    {data?.repos.map((repo, i) => (
-                        <li key={repo.id} className={styles.ghTrendingItem}>
-                            <span className={styles.ghTrendingRank}>
-                                {String(i + 1).padStart(2, '0')}
-                            </span>
-                            <div className={styles.ghTrendingBody}>
-                                <h3 className={styles.ghTrendingName}>
-                                    <a
-                                        href={repo.url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className={styles.ghTrendingLink}
-                                    >
-                                        <span className={styles.ghTrendingOwner}>{repo.owner}</span>
-                                        <span className={styles.ghTrendingSep}>/</span>
-                                        {repo.name}
-                                    </a>
-                                </h3>
-                                {repo.description && (
-                                    <p className={styles.ghTrendingDesc}>{repo.description}</p>
-                                )}
-                            </div>
-                            <div className={styles.ghTrendingStats}>
-                                {repo.language && (
-                                    <span className={styles.ghTrendingLang}>{repo.language}</span>
-                                )}
-                                <span className={styles.ghTrendingStars}>★ {repo.stars.toLocaleString()}</span>
-                            </div>
-                        </li>
-                    ))}
-                </ol>
-            )}
+            <div className={styles.ghTrendingColumns}>
+                {loading ? (
+                    <>
+                        <SkeletonColumn />
+                        <SkeletonColumn />
+                        <SkeletonColumn />
+                    </>
+                ) : (
+                    <>
+                        <RankingColumn label={t('labelDaily')} repos={data?.daily ?? []} />
+                        <RankingColumn label={t('labelWeekly')} repos={data?.weekly ?? []} />
+                        <RankingColumn label={t('labelMonthly')} repos={data?.monthly ?? []} />
+                    </>
+                )}
+            </div>
         </section>
     );
 }

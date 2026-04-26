@@ -74,7 +74,10 @@
   "githubTrending": {
     "label": "GITHUB · トレンド",
     "heading": "GitHub トレンド",
-    "poweredBy": "via GitHub"
+    "poweredBy": "via GitHub",
+    "labelDaily": "DAILY",
+    "labelWeekly": "WEEKLY",
+    "labelMonthly": "MONTHLY"
   },
   "pressReports": {
     "label": "REPORT · レポート",
