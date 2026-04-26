@@ -27,6 +27,7 @@ export interface TrailDataSourceResult {
   readonly analytics: AnalyticsData | null;
   readonly connected: boolean;
   readonly loading: boolean;
+  readonly sessionsLoading: boolean;
   readonly error: string | null;
   readonly loadSession: (id: string) => void;
   readonly searchSessions: (filter: TrailFilter) => void;
@@ -93,6 +94,7 @@ export function useTrailDataSource(serverUrl: string): TrailDataSourceResult {
   const tokenBudgetTimerRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Refs
@@ -107,7 +109,7 @@ export function useTrailDataSource(serverUrl: string): TrailDataSourceResult {
 
   const fetchSessions = useCallback(
     async (filter?: TrailFilter, isInitial = false): Promise<void> => {
-      setLoading(true);
+      setSessionsLoading(true);
       setError(null);
       try {
         const queryString = filter ? buildQueryString(filter) : '';
@@ -132,7 +134,7 @@ export function useTrailDataSource(serverUrl: string): TrailDataSourceResult {
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch sessions');
       } finally {
-        setLoading(false);
+        setSessionsLoading(false);
       }
     },
     [baseUrl],
@@ -497,6 +499,7 @@ export function useTrailDataSource(serverUrl: string): TrailDataSourceResult {
     analytics,
     connected,
     loading,
+    sessionsLoading,
     error,
     loadSession,
     searchSessions,

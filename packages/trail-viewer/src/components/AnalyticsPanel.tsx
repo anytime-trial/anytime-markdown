@@ -1612,6 +1612,12 @@ function DailySessionList({
     [],
   );
   const daySessions = sessions.filter((s) => toLocalDateKey(s.startTime) === date);
+  const sessionCountLabel = daySessions.length !== 1
+    ? t('sessionList.sessions')
+    : t('sessionList.session');
+  const headerLabel = sessionsLoading
+    ? '...'
+    : `${daySessions.length} ${sessionCountLabel}`;
 
   useEffect(() => {
     if (!fetchDayToolMetrics) {
@@ -1652,9 +1658,7 @@ function DailySessionList({
     <Paper elevation={0} sx={{ ...cardSx, mt: 1, p: 1.5 }}>
       <Box sx={{ mb: 1 }}>
         <Typography variant="subtitle2">
-          {date} — {sessionsLoading
-            ? '...'
-            : `${daySessions.length} ${daySessions.length !== 1 ? t('sessionList.sessions') : t('sessionList.session')}`}
+          {date} — {headerLabel}
         </Typography>
       </Box>
       <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', lg: 'row' } }}>
