@@ -6,6 +6,13 @@
 
 ## [Unreleased]
 
+## [0.13.2] - 2026-04-26
+
+### Editor Core (markdown-core)
+
+- admonition ブロック内バックスラッシュ増幅バグを修正
+- `ReadonlyToolbar` からダーク/ライトモード切り替えアイコンを削除
+
 ## [0.13.1] - 2026-04-25
 
 ### Editor Core (markdown-core)

@@ -1,6 +1,5 @@
 import DOMPurify from "dompurify";
 
-import { preprocessAdmonition } from "./admonitionHelpers";
 import { preprocessComments } from "./commentHelpers";
 import { preprocessFootnoteRefs } from "./footnoteHelpers";
 import { preprocessMathBlock } from "./mathHelpers";
@@ -310,7 +309,6 @@ function sanitizeNonCodePart(part: string): string {
 
 export function sanitizeMarkdown(md: string): string {
   md = preprocessMathBlock(md);
-  md = preprocessAdmonition(md);
   md = escapeTableCodeSpanPipes(md);
   md = preprocessFootnoteRefs(md);
   md = preprocessComments(md);

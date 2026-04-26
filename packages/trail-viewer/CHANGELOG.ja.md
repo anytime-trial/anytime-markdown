@@ -6,6 +6,59 @@
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-04-26
+
+### 追加
+
+- ターンごとの API 推論時間とツール実行時間を示す Timing Breakdown チャートを追加
+- Session Timeline にツール/スキルモード切り替えトグルを追加
+- Session Timeline にツール使用トークンバーを追加（右 Y 軸）
+- Session Timeline の全チャートにコミット・エラー参照線を追加
+- Session Timeline 下に Turn Lane Chart を追加（ターンごとのモデル/ツール/スキルストライプ表示）
+- サブエージェントのトラック数に応じた動的タイムライン高さ（5つ以上でスクロールバー）
+- エージェントごとのサブエージェントレーンを追加（支配的ツールカラーで着色）
+- エラーの逆三角形マーカーとホバーツールチップを追加
+- コミット三角形マーカーとタイムスタンプベースのフォールバック検出を追加
+- サブエージェントタイムラインのツールチップにツール名を表示
+- セッション Usage カードにトークン・コスト・メッセージ数・エラー数を追加
+- DORA メトリクスを個別の展開可能な概要カードとして追加
+- Error/CommitType 円グラフの中央に合計数を表示
+
+### 変更
+
+- 3チャートレイアウトを単一スタック Session Timeline に統合（Session Cache Timeline から改名）
+- 全チャートの X 軸を揃え、幅全体にまたがる参照線を追加
+- Error/CommitType バーチャートを横並びの円グラフに変更
+- TurnLaneChart のモデルバーを細いモデルカラーストライプに変更
+- SessionCacheTimeline をセッションリスト下に移動（全幅表示）
+- セッション Usage/Productivity カードのメトリクスを再編成；Total Commits / Lines Added を Usage カードに移動
+- DORA メトリクスを個別カードに展開；Lines Added → Total LOC に改名
+- TurnLaneChart で連続する同一モデル/ツールの実行を単一矩形に統合
+- スキルバーの高さを 8px に設定、ツール/モデルバー下の独立行として表示
+
+### 削除
+
+- 日次サマリービューから `SessionModelUsageChart` を削除
+- Quality Metrics タブを削除
+- OverviewCards から Quality・Productivity 集約カードを削除
+- セッション詳細から Related Commits テーブルを削除
+- セッション詳細からモデル使用チャートを削除
+- Usage 概要カードからキャッシュヒット率を削除
+- Session Timeline トークンチャートから累積推論量を削除
+
+### 修正
+
+- TurnLaneChart でスキルストライプが表示されない問題を修正
+- 破線参照線を X 軸でクリップし、チャート上部に固定
+- 全チャート X 軸を揃えるため Y 軸幅を明示的に設定
+- コミットプレフィックス正規表現を修正；session_commits ハッシュフォールバックを追加
+- セッション読み込み中に DailySessionList でローディングスピナーを表示
+- `sessionsLoading` を `loadSession` のローディング状態から分離
+
+### パフォーマンス
+
+- `getSessions` から重い `trail_message_tool_calls`・`trail_session_commits` クエリを除去
+
 ## [0.10.0] - 2026-04-25
 
 ### 追加

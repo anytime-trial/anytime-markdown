@@ -56,7 +56,6 @@ describe("DocsViewBody - no key", () => {
     mockSearchParams = new URLSearchParams("");
     render(<DocsViewBody />);
     expect(screen.getByText("docsViewNoUrl")).toBeTruthy();
-    expect(screen.getByTestId("site-footer")).toBeTruthy();
   });
 });
 

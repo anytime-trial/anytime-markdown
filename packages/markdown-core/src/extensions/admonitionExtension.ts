@@ -2,9 +2,8 @@
  * Admonition / Callout Extension
  *
  * StarterKit の Blockquote を拡張し、GitHub 互換の `> [!NOTE]` 記法をサポートする。
- * - sanitizeMarkdown の preprocessAdmonition で前処理（> [!TYPE] → HTML blockquote）
- * - parseHTML で data-admonition-type を検出
- * - appendTransaction でユーザー入力時の [!TYPE] を検出
+ * - parseHTML で data-admonition-type 属性付き blockquote を検出
+ * - appendTransaction で setContent / ユーザー入力時の [!TYPE] を検出（初期ロードにも対応）
  * - serialize で `> [!TYPE]` ヘッダーを出力
  *
  * 対応タイプ: NOTE, TIP, IMPORTANT, WARNING, CAUTION

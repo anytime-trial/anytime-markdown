@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Box from '@mui/material/Box';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -15,9 +15,11 @@ import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
+import { useTheme } from '@mui/material/styles';
 import type { SxProps, Theme } from '@mui/material/styles';
 import { BarChart, BarPlot } from '@mui/x-charts/BarChart';
-import { LineChart, LinePlot, MarkPlot } from '@mui/x-charts/LineChart';
+import { PieChart } from '@mui/x-charts/PieChart';
+import { LinePlot, MarkPlot } from '@mui/x-charts/LineChart';
 import { ChartsDataProvider } from '@mui/x-charts/ChartsDataProvider';
 import { ChartsSurface } from '@mui/x-charts/ChartsSurface';
 import { ChartsWrapper } from '@mui/x-charts/ChartsWrapper';
@@ -36,10 +38,12 @@ import { ChartsLabelMark } from '@mui/x-charts/ChartsLabel';
 import { ChartsGrid } from '@mui/x-charts/ChartsGrid';
 import { ChartsLegend } from '@mui/x-charts/ChartsLegend';
 import { ChartsAxisHighlight } from '@mui/x-charts/ChartsAxisHighlight';
+import { ChartsReferenceLine } from '@mui/x-charts/ChartsReferenceLine';
+import { useDrawingArea, useXScale } from '@mui/x-charts/hooks';
 import { formatLocalTime, toLocalDateKey } from '@anytime-markdown/trail-core/formatDate';
 import { extractCommitPrefix } from '@anytime-markdown/trail-core/domain';
 import type { QualityMetrics, DateRange, ReleaseQualityBucket } from '@anytime-markdown/trail-core/domain/metrics';
-import type { AnalyticsData, CombinedData, CombinedPeriodMode, CombinedRangeDays, CostOptimizationData, ToolMetrics, TrailMessage, TrailSession, TrailSessionCommit, TrailTokenUsage } from '../parser/types';
+import type { AnalyticsData, CombinedData, CombinedPeriodMode, CombinedRangeDays, CostOptimizationData, ToolMetrics, TrailMessage, TrailSession, TrailSessionCommit, TrailTokenUsage, TrailToolCall } from '../parser/types';
 import { useTrailTheme } from './TrailThemeContext';
 import { useTrailI18n } from '../i18n';
 
@@ -57,6 +61,7 @@ export interface AnalyticsPanelProps {
   readonly fetchQualityMetrics?: (range: DateRange) => Promise<QualityMetrics | null>;
   readonly fetchDeploymentFrequency?: (range: DateRange, bucket: 'day' | 'week') => Promise<ReadonlyArray<{ bucketStart: string; value: number }>>;
   readonly fetchReleaseQuality?: (range: DateRange, bucket: 'day' | 'week') => Promise<ReadonlyArray<ReleaseQualityBucket>>;
+  readonly sessionsLoading?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -84,6 +89,21 @@ function fmtTokens(n: number): string {
 }
 
 // Return up to ~5 "nice" tick values covering [0, max]. Minimum step is 1 (no fractions).
+function PieCenterLabel({ value, color }: Readonly<{ value: number; color: string }>) {
+  const { width, height, left, top } = useDrawingArea();
+  return (
+    <text
+      x={left + width / 2}
+      y={top + height / 2}
+      textAnchor="middle"
+      dominantBaseline="central"
+      style={{ fontSize: '1.5rem', fontWeight: 600, fill: color, pointerEvents: 'none' }}
+    >
+      {value}
+    </text>
+  );
+}
+
 function niceTicks(max: number): number[] {
   if (max <= 0) return [0];
   const rough = max / 4;
@@ -110,6 +130,8 @@ type PeriodDays = 7 | 30 | 90;
 interface MetricItem {
   readonly label: string;
   readonly value: string;
+  readonly badge?: { readonly label: string; readonly color: string };
+  readonly delta?: { readonly text: string; readonly color: string };
 }
 
 function CyclingCard({
@@ -132,20 +154,38 @@ function CyclingCard({
       sx={{
         ...cardStyle,
         cursor: 'pointer',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
         '&:hover': { backgroundColor: 'action.hover' },
         userSelect: 'none',
       }}
       onClick={onCycle}
     >
-      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5, textAlign: 'left' }}>
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5, alignSelf: 'flex-start' }}>
         {groupName}
       </Typography>
-      <Typography variant="h5" sx={{ mt: 0.5 }}>
-        {current.value}
-      </Typography>
-      <Typography variant="caption" color="text.secondary">
-        {current.label}
-      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
+        <Typography variant="h5">{current.value}</Typography>
+        {current.badge && (
+          <Chip
+            label={current.badge.label}
+            size="small"
+            sx={{ backgroundColor: current.badge.color, color: '#fff', fontWeight: 700, height: 20, fontSize: 10 }}
+          />
+        )}
+      </Box>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center' }}>
+          {current.label}
+        </Typography>
+        {current.delta && (
+          <Typography variant="caption" sx={{ color: current.delta.color }}>
+            {current.delta.text}
+          </Typography>
+        )}
+      </Box>
       <Box sx={{ display: 'flex', justifyContent: 'center', gap: 0.5, mt: 1 }}>
         {items.map((item, i) => (
           <Box
@@ -163,83 +203,75 @@ function CyclingCard({
   );
 }
 
+function formatDoraValue(m: { value: number; unit: string }): string {
+  if (m.unit === 'perDay') {
+    return m.value >= 1 ? `${m.value.toFixed(1)}/day` : m.value > 0 ? `${(m.value * 7).toFixed(1)}/week` : '0/day';
+  }
+  if (m.unit === 'minPerLoc') {
+    return m.value < 60 ? `${m.value.toFixed(2)} min/LOC` : `${(m.value / 60).toFixed(1)} h/LOC`;
+  }
+  if (m.unit === 'tokensPerLoc') {
+    return m.value >= 1000 ? `${(m.value / 1000).toFixed(1)}k tok/LOC` : `${m.value.toFixed(0)} tok/LOC`;
+  }
+  return `${m.value.toFixed(1)}%`;
+}
+
 function OverviewCards({
   totals,
   sessions = [],
+  qualityMetrics = null,
 }: Readonly<{
   totals: AnalyticsData['totals'];
   sessions?: readonly TrailSession[];
+  qualityMetrics?: QualityMetrics | null;
 }>) {
   const { colors, cardSx } = useTrailTheme();
   const { t } = useTrailI18n();
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
   const [usageIdx, setUsageIdx] = useState(0);
-  const [productivityIdx, setProductivityIdx] = useState(0);
-  const [qualityIdx, setQualityIdx] = useState(0);
-  const [toolIdx, setToolIdx] = useState(0);
-  const totalInput = totals.inputTokens + totals.cacheReadTokens;
-  const cacheHitRate = totalInput > 0
-    ? fmtPercent(totals.cacheReadTokens / totalInput)
-    : '\u2014';
+  const totalTokens = totals.inputTokens + totals.outputTokens;
 
   const cards = [
     { label: t('analytics.totalSessions'), value: fmtNum(totals.sessions) },
-    { label: t('analytics.totalTokens'), value: fmtTokens(totals.inputTokens + totals.outputTokens) },
+    { label: t('analytics.totalTokens'), value: fmtTokens(totalTokens) },
     { label: t('analytics.estimatedCost'), value: fmtUsd(totals.estimatedCostUsd) },
-    { label: t('analytics.cacheHitRate'), value: cacheHitRate },
-  ];
-
-  const totalTokens = totals.inputTokens + totals.outputTokens;
-  const hasLines = totals.totalLinesAdded > 0;
-  const commitCards = [
     { label: t('analytics.totalCommits'), value: fmtNum(totals.totalCommits) },
     { label: t('analytics.linesAdded'), value: fmtNum(totals.totalLinesAdded) },
-    { label: t('analytics.tokensPerLine'), value: hasLines
-        ? fmtTokens(Math.round(totalTokens / totals.totalLinesAdded))
-        : '\u2014' },
-    { label: t('analytics.costPerLine'), value: hasLines
-        ? fmtUsd(totals.estimatedCostUsd / totals.totalLinesAdded)
-        : '\u2014' },
   ];
 
-  const totalDurationHours = totals.totalSessionDurationMs / 3_600_000;
-
-  const sessionsWithContext = sessions.filter(
-    (s) => s.messageCount > 0 && (s.peakContextTokens ?? 0) > 0,
-  );
-  const avgContextGrowth = sessionsWithContext.length > 0
-    ? sessionsWithContext.reduce(
-        (sum, s) => sum + ((s.peakContextTokens ?? 0) - (s.initialContextTokens ?? 0)) / s.messageCount,
-        0,
-      ) / sessionsWithContext.length
-    : 0;
-
-  const efficiencyCards = [
-    { label: t('analytics.aiCommitPercent'), value: totals.totalCommits > 0
-        ? fmtPercent(totals.totalAiAssistedCommits / totals.totalCommits)
-        : '\u2014' },
-    { label: t('analytics.avgLinesPerHour'), value: totalDurationHours > 0 && totals.totalLinesAdded > 0
-        ? fmtNum(Math.round(totals.totalLinesAdded / totalDurationHours))
-        : '\u2014' },
-    { label: t('analytics.avgCostPerHour'), value: totalDurationHours > 0
-        ? fmtUsd(totals.estimatedCostUsd / totalDurationHours)
-        : '\u2014' },
-    { label: t('analytics.avgContextGrowth'), value: avgContextGrowth > 0
-        ? `${fmtTokens(Math.round(avgContextGrowth))}/step`
-        : '\u2014' },
-  ];
-
-  const hasToolMetrics = totals.totalEdits > 0 || totals.totalBuildRuns > 0 || totals.totalTestRuns > 0;
-  const toolMetricsCards = [
-    { label: t('analytics.retryRate'), value: totals.totalEdits > 0
-        ? fmtPercent(totals.totalRetries / totals.totalEdits)
-        : '\u2014' },
-    { label: t('analytics.buildFailRate'), value: totals.totalBuildRuns > 0
-        ? fmtPercent(totals.totalBuildFails / totals.totalBuildRuns)
-        : '\u2014' },
-    { label: t('analytics.testFailRate'), value: totals.totalTestRuns > 0
-        ? fmtPercent(totals.totalTestFails / totals.totalTestRuns)
-        : '\u2014' },
-  ];
+  const DORA_ID_KEYS: Record<string, string> = {
+    deploymentFrequency: 'metrics.deploymentFrequency.name',
+    leadTimePerLoc: 'metrics.leadTimePerLoc.name',
+    tokensPerLoc: 'metrics.tokensPerLoc.name',
+    aiFirstTrySuccessRate: 'metrics.aiFirstTrySuccessRate.name',
+    changeFailureRate: 'metrics.changeFailureRate.name',
+  };
+  const LEVEL_COLORS: Record<string, string> = {
+    elite: isDark ? '#42A5F5' : '#1976D2',
+    high: isDark ? '#66BB6A' : '#2E7D32',
+    medium: isDark ? '#FFA726' : '#ED6C02',
+    low: isDark ? '#F44336' : '#D32F2F',
+  };
+  const LEVEL_LABELS: Record<string, string> = {
+    elite: 'Elite', high: 'High', medium: 'Medium', low: 'Low',
+  };
+  const doraCards = qualityMetrics
+    ? Object.values(qualityMetrics.metrics)
+        .filter((m) => m.sampleSize > 0)
+        .map((m) => {
+          const deltaPct = m.comparison?.deltaPct ?? null;
+          return {
+            value: formatDoraValue(m),
+            label: t((DORA_ID_KEYS[m.id] ?? m.id) as Parameters<typeof t>[0]),
+            badge: m.level ? { label: LEVEL_LABELS[m.level], color: LEVEL_COLORS[m.level] } : undefined,
+            delta: deltaPct != null ? {
+              text: `${deltaPct > 0 ? '↑' : deltaPct < 0 ? '↓' : '→'} ${Math.abs(deltaPct).toFixed(1)}%`,
+              color: deltaPct > 0 ? 'success.main' : deltaPct < 0 ? 'error.main' : 'text.secondary',
+            } : undefined,
+          };
+        })
+    : [];
 
   const cardStyle = { ...cardSx, flex: '1 1 140px', p: 2, minWidth: 140, textAlign: 'center' } as const;
 
@@ -252,33 +284,28 @@ function OverviewCards({
         onCycle={() => setUsageIdx((i) => (i + 1) % cards.length)}
         cardStyle={cardStyle}
       />
-      {totals.totalCommits > 0 && (
-        <CyclingCard
-          groupName={t('analytics.groupProductivity')}
-          items={commitCards}
-          index={productivityIdx}
-          onCycle={() => setProductivityIdx((i) => (i + 1) % commitCards.length)}
-          cardStyle={cardStyle}
-        />
-      )}
-      {totals.totalCommits > 0 && (
-        <CyclingCard
-          groupName={t('analytics.groupQuality')}
-          items={efficiencyCards}
-          index={qualityIdx}
-          onCycle={() => setQualityIdx((i) => (i + 1) % efficiencyCards.length)}
-          cardStyle={cardStyle}
-        />
-      )}
-      {hasToolMetrics && (
-        <CyclingCard
-          groupName={t('analytics.groupToolMetrics')}
-          items={toolMetricsCards}
-          index={toolIdx}
-          onCycle={() => setToolIdx((i) => (i + 1) % toolMetricsCards.length)}
-          cardStyle={cardStyle}
-        />
-      )}
+      {doraCards.map((card) => (
+        <Paper key={card.label} elevation={0} sx={{ ...cardStyle, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5, alignSelf: 'flex-start' }}>
+            {card.label}
+          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
+            <Typography variant="h5">{card.value}</Typography>
+            {card.badge && (
+              <Chip
+                label={card.badge.label}
+                size="small"
+                sx={{ backgroundColor: card.badge.color, color: '#fff', fontWeight: 700, height: 20, fontSize: 10 }}
+              />
+            )}
+          </Box>
+          {card.delta && (
+            <Typography variant="caption" sx={{ color: card.delta.color }}>
+              {card.delta.text}
+            </Typography>
+          )}
+        </Paper>
+      ))}
     </Box>
   );
 }
@@ -361,6 +388,487 @@ function countCompactDrops(msgs: readonly TrailMessage[]): number {
   return count;
 }
 
+// ---------------------------------------------------------------------------
+//  Marker types & helpers
+// ---------------------------------------------------------------------------
+
+interface CommitMarkerData {
+  readonly turn: number;
+  readonly agentLabel: string;
+  readonly commitHash: string;
+  readonly commitPrefix: string;
+}
+
+interface ErrorMarkerData {
+  readonly turn: number;
+  readonly agentLabel: string;
+  readonly toolName: string;
+}
+
+function parseCommitSubject(cmd: string): string {
+  // heredoc: <<'EOF' ... EOF  (Claude Code standard format)
+  const heredocMatch = /<<'?EOF'?\n([\s\S]+?)\n\s*EOF/.exec(cmd);
+  if (heredocMatch) return heredocMatch[1].trim().split('\n')[0].trim();
+  // simple -m "..."
+  const simpleMatch = /-m\s+"((?:[^"\\]|\\.)*)"/.exec(cmd);
+  if (simpleMatch) return simpleMatch[1].replace(/\\n/g, '\n').split('\n')[0].trim();
+  return '';
+}
+
+function extractPrefixWithScope(subject: string): string {
+  const match = /^([a-z]+(?:\([^)]*\))?!?):/i.exec(subject);
+  return match ? match[1] : subject.slice(0, 40);
+}
+
+// ---------------------------------------------------------------------------
+//  CommitMarkers / ErrorMarkers — inverted-triangle markers with tooltips
+// ---------------------------------------------------------------------------
+
+function CommitMarkers({ markers }: Readonly<{ markers: readonly CommitMarkerData[] }>) {
+  const { top } = useDrawingArea();
+  const xScale = useXScale();
+  if (markers.length === 0) return null;
+  const SIZE = 6;
+  const HEIGHT = 9;
+  return (
+    <>
+      {markers.map(({ turn, agentLabel, commitHash, commitPrefix }) => {
+        const cx = xScale(turn as never) as number | undefined;
+        if (cx == null) return null;
+        const points = `${cx - SIZE},${top - HEIGHT} ${cx + SIZE},${top - HEIGHT} ${cx},${top}`;
+        return (
+          <Tooltip
+            key={turn}
+            placement="top"
+            title={
+              <Box sx={{ p: 0.25 }}>
+                <Typography variant="caption" sx={{ fontWeight: 'bold', display: 'block' }}>{agentLabel}</Typography>
+                {commitHash && <Typography variant="caption" sx={{ display: 'block' }}>ID: {commitHash}</Typography>}
+                {commitPrefix && <Typography variant="caption" sx={{ display: 'block' }}>{commitPrefix}</Typography>}
+              </Box>
+            }
+          >
+            <g style={{ cursor: 'pointer' }}>
+              <polygon points={points} fill="#4CAF50" opacity={0.9} />
+            </g>
+          </Tooltip>
+        );
+      })}
+    </>
+  );
+}
+
+function ErrorMarkers({ markers }: Readonly<{ markers: readonly ErrorMarkerData[] }>) {
+  const { top } = useDrawingArea();
+  const xScale = useXScale();
+  if (markers.length === 0) return null;
+  const SIZE = 4;
+  const HEIGHT = 6;
+  return (
+    <>
+      {markers.map(({ turn, agentLabel, toolName }) => {
+        const cx = xScale(turn as never) as number | undefined;
+        if (cx == null) return null;
+        const points = `${cx - SIZE},${top - HEIGHT} ${cx + SIZE},${top - HEIGHT} ${cx},${top}`;
+        return (
+          <Tooltip
+            key={turn}
+            placement="top"
+            title={
+              <Box sx={{ p: 0.25 }}>
+                <Typography variant="caption" sx={{ fontWeight: 'bold', display: 'block' }}>{agentLabel}</Typography>
+                {toolName && <Typography variant="caption" sx={{ display: 'block' }}>Tool: {toolName}</Typography>}
+              </Box>
+            }
+          >
+            <g style={{ cursor: 'pointer' }}>
+              <polygon points={points} fill="#F44336" opacity={0.9} />
+            </g>
+          </Tooltip>
+        );
+      })}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+//  TurnLaneChart — model & tool-usage lanes aligned to turn count
+// ---------------------------------------------------------------------------
+
+const LANE_TOOL_CATS = ['bash', 'edit', 'write', 'read', 'task', 'other'] as const;
+type LaneTool = (typeof LANE_TOOL_CATS)[number];
+
+const LANE_TOOL_COLORS: Record<LaneTool, string> = {
+  bash: '#4CAF50', edit: '#2196F3', write: '#9C27B0',
+  read: '#757575', task: '#FFB300', other: '#FF9800',
+};
+const LANE_TOOL_LABELS: Record<LaneTool, string> = {
+  bash: 'Bash', edit: 'Edit', write: 'Write', read: 'Read', task: 'Task', other: 'Other',
+};
+
+function laneClassifyTool(name: string): LaneTool {
+  if (name === 'Bash') return 'bash';
+  if (name === 'Edit' || name === 'MultiEdit') return 'edit';
+  if (name === 'Write') return 'write';
+  if (name === 'Read' || name === 'Glob' || name === 'Grep') return 'read';
+  if (name === 'Task' || name.startsWith('mcp__')) return 'task';
+  return 'other';
+}
+
+function laneModelColor(model: string): string {
+  if (model.includes('opus')) return '#7C4DFF';
+  if (model.includes('sonnet')) return '#42A5F5';
+  if (model.includes('haiku')) return '#66BB6A';
+  return '#90A4AE';
+}
+
+const SKILL_COLOR_PALETTE = [
+  '#EC4899', '#14B8A6', '#F59E0B', '#8b5cf6', '#EF4444', '#10B981', '#3B82F6', '#F97316',
+];
+
+function laneSkillColor(skill: string): string {
+  let hash = 0;
+  for (let i = 0; i < skill.length; i++) hash = ((hash * 31) + skill.charCodeAt(i)) & 0xFFFFFF;
+  return SKILL_COLOR_PALETTE[Math.abs(hash) % SKILL_COLOR_PALETTE.length];
+}
+
+function mergeRuns<T>(values: readonly T[]): Array<{ value: T; start: number; end: number }> {
+  const runs: Array<{ value: T; start: number; end: number }> = [];
+  for (let i = 0; i < values.length; i++) {
+    const last = runs.at(-1);
+    if (last && last.value === values[i]) {
+      last.end = i;
+    } else {
+      runs.push({ value: values[i], start: i, end: i });
+    }
+  }
+  return runs;
+}
+
+function dominantTool(toolCalls: readonly TrailToolCall[] | undefined): LaneTool | '' {
+  if (!toolCalls || toolCalls.length === 0) return '';
+  for (const cat of LANE_TOOL_CATS) {
+    if (toolCalls.some((tc) => laneClassifyTool(tc.name) === cat)) return cat;
+  }
+  return '';
+}
+
+function TurnLaneChart({
+  assistantMsgs,
+  tickStep,
+  commitTurns,
+  errorTurns,
+}: Readonly<{
+  assistantMsgs: readonly TrailMessage[];
+  tickStep: number;
+  commitTurns?: readonly number[];
+  errorTurns?: readonly number[];
+}>) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [svgWidth, setSvgWidth] = useState(600);
+  const { colors } = useTrailTheme();
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const obs = new ResizeObserver((entries) => {
+      setSvgWidth(entries[0].contentRect.width);
+    });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  const mainModelRuns = useMemo(() =>
+    mergeRuns(assistantMsgs.map((m) => m.agentId ? '' : (m.model ?? ''))),
+    [assistantMsgs],
+  );
+
+  const toolRuns = useMemo(() =>
+    mergeRuns(assistantMsgs.map((m) => m.agentId ? '' : dominantTool(m.toolCalls))).filter((r) => r.value !== ''),
+    [assistantMsgs],
+  );
+
+  const subAgents = useMemo(() => {
+    const seen = new Map<string, string | undefined>();
+    for (const m of assistantMsgs) {
+      if (m.agentId && !seen.has(m.agentId)) seen.set(m.agentId, m.agentDescription);
+    }
+    return Array.from(seen.entries()).map(([id, description]) => ({ id, description }));
+  }, [assistantMsgs]);
+
+  const subAgentRuns = useMemo(() =>
+    subAgents.map(({ id }) => ({
+      id,
+      runs: mergeRuns(assistantMsgs.map((m) =>
+        m.agentId === id ? dominantTool(m.toolCalls) : '',
+      )).filter((r) => r.value !== ''),
+    })),
+    [assistantMsgs, subAgents],
+  );
+
+  const subAgentModelRuns = useMemo(() =>
+    subAgents.map(({ id }) => ({
+      id,
+      runs: mergeRuns(assistantMsgs.map((m) => m.agentId === id ? (m.model ?? '') : '')),
+    })),
+    [assistantMsgs, subAgents],
+  );
+
+  const mainSkillRuns = useMemo(() => {
+    let current = '';
+    const values = assistantMsgs.map((m) => {
+      if (!m.agentId && m.skill) current = m.skill;
+      return m.agentId ? '' : current;
+    });
+    return mergeRuns(values).filter((r) => r.value !== '');
+  }, [assistantMsgs]);
+
+  const subAgentSkillRuns = useMemo(() =>
+    subAgents.map(({ id }) => {
+      let current = '';
+      const values = assistantMsgs.map((m) => {
+        if (m.agentId === id && m.skill) current = m.skill;
+        return m.agentId === id ? current : '';
+      });
+      return { id, runs: mergeRuns(values).filter((r) => r.value !== '') };
+    }),
+    [assistantMsgs, subAgents],
+  );
+
+  const N = assistantMsgs.length;
+  if (N === 0) return null;
+
+  const LABEL_W = 60;
+  const PAD_R = 60;
+  const plotW = Math.max(svgWidth - LABEL_W - PAD_R, 0);
+  const colW = plotW / N;
+
+  const TOOL_LANE_H = 16;
+  const SKILL_LINE_H = 8;
+  const LANE_H = TOOL_LANE_H + SKILL_LINE_H;
+  const LANE_GAP = 6;
+  const AXIS_H = 16;
+
+  const MODEL_LINE_H = 3;
+  const toolY = 0;
+  const subAgentLaneY = (i: number) => toolY + LANE_H + LANE_GAP + i * (LANE_H + LANE_GAP);
+  const lastLaneBottom = subAgents.length > 0
+    ? subAgentLaneY(subAgents.length - 1) + LANE_H
+    : toolY + LANE_H;
+  const axisY = lastLaneBottom + 4;
+  const totalH = axisY + AXIS_H;
+
+  const toX = (i: number) => LABEL_W + i * colW;
+
+  const ticks: number[] = [];
+  for (let i = 0; i < N; i++) {
+    if ((i + 1) % tickStep === 0) ticks.push(i);
+  }
+
+  return (
+    <Box ref={containerRef} sx={{ mt: 0.5 }}>
+      <svg width="100%" height={totalH} style={{ display: 'block', overflow: 'visible' }}>
+        {/* Claude Code lane (main agent only) */}
+        <text x={LABEL_W - 4} y={toolY + TOOL_LANE_H / 2 + 4} textAnchor="end" fontSize={9} fill={colors.textSecondary}>Claude Code</text>
+        {toolRuns.map((run) => (
+          <rect key={`t${run.start}`} x={toX(run.start)} y={toolY}
+            width={Math.max((run.end - run.start + 1) * colW, 1)} height={TOOL_LANE_H}
+            fill={LANE_TOOL_COLORS[run.value as LaneTool]} />
+        ))}
+        {mainModelRuns.filter((r) => r.value).map((run) => (
+          <rect key={`tm${run.start}`} x={toX(run.start)} y={toolY + TOOL_LANE_H - MODEL_LINE_H}
+            width={Math.max((run.end - run.start + 1) * colW, 1)} height={MODEL_LINE_H}
+            fill={laneModelColor(run.value)} />
+        ))}
+        {mainSkillRuns.map((run) => {
+          const naturalW = (run.end - run.start + 1) * colW;
+          const w = Math.max(naturalW, 5);
+          const cx = toX(run.start) + naturalW / 2;
+          return (
+            <rect key={`ts${run.start}`} data-skill={run.value}
+              x={cx - w / 2} y={toolY + TOOL_LANE_H}
+              width={w} height={SKILL_LINE_H}
+              fill={laneSkillColor(run.value)} />
+          );
+        })}
+        {/* SubAgent lanes — one per unique sub-agent */}
+        {subAgents.map(({ id }, i) => {
+          const y = subAgentLaneY(i);
+          const toolRunsForAgent = subAgentRuns[i]?.runs ?? [];
+          const modelRunsForAgent = subAgentModelRuns[i]?.runs ?? [];
+          const skillRunsForAgent = subAgentSkillRuns[i]?.runs ?? [];
+          return (
+            <g key={id}>
+              <text x={LABEL_W - 4} y={y + TOOL_LANE_H / 2 + 4} textAnchor="end" fontSize={9} fill={colors.textSecondary}>
+                {`SubAgent ${i + 1}`}
+              </text>
+              {toolRunsForAgent.map((run) => (
+                <rect key={`sa${i}-${run.start}`} x={toX(run.start)} y={y}
+                  width={Math.max((run.end - run.start + 1) * colW, 1)} height={TOOL_LANE_H}
+                  fill={LANE_TOOL_COLORS[run.value as LaneTool]} />
+              ))}
+              {modelRunsForAgent.filter((r) => r.value).map((run) => (
+                <rect key={`sam${i}-${run.start}`} x={toX(run.start)} y={y + TOOL_LANE_H - MODEL_LINE_H}
+                  width={Math.max((run.end - run.start + 1) * colW, 1)} height={MODEL_LINE_H}
+                  fill={laneModelColor(run.value)} />
+              ))}
+              {skillRunsForAgent.map((run) => {
+                const naturalW = (run.end - run.start + 1) * colW;
+                const w = Math.max(naturalW, 5);
+                const cx = toX(run.start) + naturalW / 2;
+                return (
+                  <rect key={`sas${i}-${run.start}`}
+                    x={cx - w / 2} y={y + TOOL_LANE_H}
+                    width={w} height={SKILL_LINE_H}
+                    fill={laneSkillColor(run.value)} />
+                );
+              })}
+            </g>
+          );
+        })}
+        {/* Commit/Error reference lines spanning all lanes */}
+        {commitTurns?.map((turn) => {
+          const x = toX(turn - 1) + colW / 2;
+          return (
+            <line key={`rl-commit-${turn}`} x1={x} y1={0} x2={x} y2={axisY}
+              stroke="#4CAF50" strokeWidth={1.5} strokeDasharray="4 2" />
+          );
+        })}
+        {errorTurns?.map((turn) => {
+          const x = toX(turn - 1) + colW / 2;
+          return (
+            <line key={`rl-error-${turn}`} x1={x} y1={0} x2={x} y2={axisY}
+              stroke="#F44336" strokeWidth={1.5} strokeDasharray="4 2" />
+          );
+        })}
+        {/* X-axis */}
+        <line x1={LABEL_W} y1={axisY} x2={LABEL_W + plotW} y2={axisY} stroke={colors.border} strokeWidth={0.5} />
+        {ticks.map((i) => {
+          const x = toX(i) + colW / 2;
+          return (
+            <g key={i}>
+              <line x1={x} y1={axisY} x2={x} y2={axisY + 3} stroke={colors.border} strokeWidth={0.5} />
+              <text x={x} y={axisY + 13} textAnchor="middle" fontSize={9} fill={colors.textSecondary}>{i + 1}</text>
+            </g>
+          );
+        })}
+      </svg>
+    </Box>
+  );
+}
+
+function TurnLaneChartLegend({
+  assistantMsgs,
+}: Readonly<{ assistantMsgs: readonly TrailMessage[] }>) {
+  const uniqueModels = useMemo(() => {
+    const seen = new Set<string>();
+    const result: string[] = [];
+    for (const m of assistantMsgs) {
+      const model = m.model ?? '';
+      if (!seen.has(model)) { seen.add(model); result.push(model); }
+    }
+    return result;
+  }, [assistantMsgs]);
+
+  const uniqueSkills = useMemo(() => {
+    const seen = new Set<string>();
+    for (const m of assistantMsgs) { if (m.skill) seen.add(m.skill); }
+    return Array.from(seen);
+  }, [assistantMsgs]);
+
+  const usedToolCats = useMemo(() => {
+    const seen = new Set<LaneTool>();
+    for (const m of assistantMsgs) {
+      const d = dominantTool(m.toolCalls);
+      if (d !== '') seen.add(d);
+    }
+    return LANE_TOOL_CATS.filter((c) => seen.has(c));
+  }, [assistantMsgs]);
+
+  return (
+    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, pl: '60px', mt: 0.5 }}>
+      {uniqueModels.map((model) => (
+        <Box key={model} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Box sx={{ width: 10, height: 10, borderRadius: '2px', bgcolor: laneModelColor(model) }} />
+          <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'text.secondary' }}>{model || 'unknown'}</Typography>
+        </Box>
+      ))}
+      {uniqueSkills.map((skill) => (
+        <Box key={skill} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Box sx={{ width: 10, height: 3, borderRadius: '1px', bgcolor: laneSkillColor(skill) }} />
+          <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'text.secondary' }}>{skill}</Typography>
+        </Box>
+      ))}
+      {usedToolCats.map((cat) => (
+        <Box key={cat} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Box sx={{ width: 10, height: 10, borderRadius: '2px', bgcolor: LANE_TOOL_COLORS[cat] }} />
+          <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'text.secondary' }}>{LANE_TOOL_LABELS[cat]}</Typography>
+        </Box>
+      ))}
+    </Box>
+  );
+}
+
+function StackedReferenceLines({
+  commitTurns,
+  errorTurns,
+  totalTurns,
+}: Readonly<{
+  commitTurns: readonly number[];
+  errorTurns: readonly number[];
+  totalTurns: number;
+}>) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(0);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new ResizeObserver((entries) => {
+      setWidth(entries[0].contentRect.width);
+    });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  const LABEL_W = 60;
+  const PAD_R = 60;
+  const plotW = Math.max(width - LABEL_W - PAD_R, 0);
+  const colW = totalTurns > 0 ? plotW / totalTurns : 0;
+  const turnX = (turn: number) => LABEL_W + (turn - 0.5) * colW;
+
+  return (
+    <Box
+      ref={ref}
+      sx={{
+        position: 'absolute',
+        top: '16px', left: 0,
+        width: '100%', height: 'calc(100% - 32px)',
+        pointerEvents: 'none',
+      }}
+    >
+      {width > 0 && totalTurns > 0 && (
+        <svg width="100%" height="100%" style={{ display: 'block' }}>
+          {commitTurns.map((turn) => (
+            <line key={`oc-${turn}`}
+              x1={turnX(turn)} y1={0}
+              x2={turnX(turn)} y2="100%"
+              stroke="#4CAF50" strokeWidth={1.5} strokeDasharray="4 2"
+            />
+          ))}
+          {errorTurns.map((turn) => (
+            <line key={`oe-${turn}`}
+              x1={turnX(turn)} y1={0}
+              x2={turnX(turn)} y2="100%"
+              stroke="#F44336" strokeWidth={1.5} strokeDasharray="4 2"
+            />
+          ))}
+        </svg>
+      )}
+    </Box>
+  );
+}
+
 function SessionCacheTimeline({
   messages,
 }: Readonly<{
@@ -371,6 +879,7 @@ function SessionCacheTimeline({
   const assistantMsgs = messages.filter((m) => m.type === 'assistant' && m.usage);
   const hasData = assistantMsgs.length > 0;
   const compactDrops = useMemo(() => countCompactDrops(assistantMsgs), [assistantMsgs]);
+  const [mode, setMode] = useState<'tool' | 'skill'>('tool');
 
   const byUuid = useMemo(() => {
     const map = new Map<string, TrailMessage>();
@@ -380,22 +889,69 @@ function SessionCacheTimeline({
 
   const dataset = useMemo(() => {
     let cumulativeMs = 0;
+    let currentSkill = '';
     return assistantMsgs.map((m, i) => {
       const parent = m.parentUuid ? byUuid.get(m.parentUuid) : undefined;
-      if (parent?.timestamp && m.timestamp) {
-        const delta = new Date(m.timestamp).getTime() - new Date(parent.timestamp).getTime();
-        if (delta > 0) cumulativeMs += delta;
-      }
+      const apiInferenceMs = (parent?.timestamp && m.timestamp)
+        ? Math.max(0, new Date(m.timestamp).getTime() - new Date(parent.timestamp).getTime())
+        : 0;
+      const toolExecMs = m.toolExecMs ?? 0;
+      cumulativeMs += apiInferenceMs + toolExecMs;
+      const inputTokens = m.usage?.inputTokens ?? 0;
+      const outputTokens = m.usage?.outputTokens ?? 0;
+      const hasTool = (m.toolCalls?.length ?? 0) > 0;
+      if (!m.agentId && m.skill) currentSkill = m.skill;
+      const skillActive = !m.agentId && currentSkill !== '';
       return {
         turn: i + 1,
-        inputTokens: m.usage?.inputTokens ?? 0,
-        outputTokens: m.usage?.outputTokens ?? 0,
+        inputTokens,
+        outputTokens,
         cacheReadTokens: m.usage?.cacheReadTokens ?? 0,
         cacheCreationTokens: m.usage?.cacheCreationTokens ?? 0,
+        toolUsageTokens: hasTool ? inputTokens + outputTokens : 0,
+        skillUsageTokens: skillActive ? inputTokens + outputTokens : 0,
+        skillExecMs: skillActive ? apiInferenceMs + toolExecMs : 0,
         cumulativeMs,
+        apiInferenceMs,
+        toolExecMs,
       };
     });
   }, [assistantMsgs, byUuid]);
+
+  const agentIndexMap = useMemo(() => {
+    const map = new Map<string, number>();
+    let idx = 0;
+    for (const m of assistantMsgs) {
+      if (m.agentId && !map.has(m.agentId)) map.set(m.agentId, ++idx);
+    }
+    return map;
+  }, [assistantMsgs]);
+
+  const commitMarkers = useMemo<readonly CommitMarkerData[]>(() =>
+    assistantMsgs.flatMap((m, i) => {
+      if (!((m.triggerCommitHashes && m.triggerCommitHashes.length > 0) || m.hasCommit)) return [];
+      const agentLabel = m.agentId ? `SubAgent ${agentIndexMap.get(m.agentId) ?? '?'}` : 'Claude Code';
+      const commitHash = m.triggerCommitHashes?.[0]?.slice(0, 8) ?? '';
+      const bashCmd = m.toolCalls?.find((tc) => tc.name === 'Bash')?.input?.command;
+      const subject = typeof bashCmd === 'string' ? parseCommitSubject(bashCmd) : '';
+      const commitPrefix = extractPrefixWithScope(subject);
+      return [{ turn: i + 1, agentLabel, commitHash, commitPrefix }];
+    }),
+    [assistantMsgs, agentIndexMap],
+  );
+
+  const errorMarkers = useMemo<readonly ErrorMarkerData[]>(() =>
+    assistantMsgs.flatMap((m, i) => {
+      if (!m.hasToolError) return [];
+      const agentLabel = m.agentId ? `SubAgent ${agentIndexMap.get(m.agentId) ?? '?'}` : 'Claude Code';
+      const toolName = dominantTool(m.toolCalls) || m.toolCalls?.[0]?.name || '';
+      return [{ turn: i + 1, agentLabel, toolName }];
+    }),
+    [assistantMsgs, agentIndexMap],
+  );
+
+  const commitTurns = useMemo(() => commitMarkers.map((m) => m.turn), [commitMarkers]);
+  const errorTurns = useMemo(() => errorMarkers.map((m) => m.turn), [errorMarkers]);
 
   const totalTurns = dataset.length;
   const tickStep = totalTurns <= 5 ? 1
@@ -425,35 +981,98 @@ function SessionCacheTimeline({
             />
           </Tooltip>
         )}
+        <Box sx={{ flex: 1 }} />
+        <ToggleButtonGroup
+          size="small"
+          exclusive
+          value={mode}
+          onChange={(_, v: 'tool' | 'skill' | null) => { if (v) setMode(v); }}
+          sx={{ '& .MuiToggleButton-root': { py: 0.25, px: 1, fontSize: '0.7rem' } }}
+        >
+          <ToggleButton value="tool">{t('analytics.modeTool')}</ToggleButton>
+          <ToggleButton value="skill">{t('analytics.modeSkill')}</ToggleButton>
+        </ToggleButtonGroup>
       </Box>
       {hasData ? (
-        <LineChart
-          dataset={dataset}
-          xAxis={[{ dataKey: 'turn', scaleType: 'point', tickInterval: (value: number) => value % tickStep === 0 }]}
-          yAxis={[
-            { id: 'tokens', valueFormatter: fmtTokens },
-            { id: 'time', position: 'right', valueFormatter: fmtDurationShort },
-          ]}
-          series={[
-            { dataKey: 'inputTokens', label: t('analytics.chartInput'), color: chartColors.input, showMark: false, yAxisId: 'tokens' },
-            { dataKey: 'outputTokens', label: t('analytics.chartOutput'), color: chartColors.output, showMark: false, yAxisId: 'tokens' },
-            { dataKey: 'cacheReadTokens', label: t('analytics.chartCacheRead'), color: chartColors.cacheRead, showMark: false, yAxisId: 'tokens' },
-            { dataKey: 'cacheCreationTokens', label: t('analytics.chartCacheWrite'), color: chartColors.cacheWrite, showMark: false, yAxisId: 'tokens' },
-            {
-              dataKey: 'cumulativeMs',
-              label: t('analytics.chartCumulativeInferenceTime'),
-              color: chartColors.cumulativeTime,
-              showMark: false,
-              yAxisId: 'time',
-              valueFormatter: (v) => (v == null ? '' : fmtDurationShort(v)),
-            },
-          ]}
-          height={200}
-          margin={{ left: 16, right: 16, top: 16, bottom: 0 }}
-          slotProps={{
-            legend: { direction: 'horizontal', position: { vertical: 'bottom', horizontal: 'center' } },
-          }}
-        />
+        <>
+        <Box sx={{ position: 'relative' }}>
+          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+          <ChartsDataProvider
+            dataset={dataset as any}
+            series={[
+              mode === 'tool'
+                ? { type: 'bar' as const, dataKey: 'toolUsageTokens', label: t('analytics.chartToolUsageTokens'), color: chartColors.toolExec, yAxisId: 'toolTokens', valueFormatter: (v: number | null) => (v == null ? '' : fmtTokens(v)) }
+                : { type: 'bar' as const, dataKey: 'skillUsageTokens', label: t('analytics.chartSkillUsageTokens'), color: chartColors.skill, yAxisId: 'toolTokens', valueFormatter: (v: number | null) => (v == null ? '' : fmtTokens(v)) },
+              { type: 'line', dataKey: 'inputTokens', label: t('analytics.chartInput'), color: chartColors.input, showMark: false, yAxisId: 'tokens' },
+              { type: 'line', dataKey: 'outputTokens', label: t('analytics.chartOutput'), color: chartColors.output, showMark: false, yAxisId: 'tokens' },
+              { type: 'line', dataKey: 'cacheReadTokens', label: t('analytics.chartCacheRead'), color: chartColors.cacheRead, showMark: false, yAxisId: 'tokens' },
+              { type: 'line', dataKey: 'cacheCreationTokens', label: t('analytics.chartCacheWrite'), color: chartColors.cacheWrite, showMark: false, yAxisId: 'tokens' },
+            ]}
+            xAxis={[{ id: 'x', dataKey: 'turn', scaleType: 'band', tickInterval: (value: number) => value % tickStep === 0 }]}
+            yAxis={[
+              { id: 'tokens', valueFormatter: fmtTokens, width: 50 },
+              { id: 'toolTokens', position: 'right', valueFormatter: fmtTokens, width: 50 },
+            ]}
+            height={200}
+            margin={{ left: 10, right: 10, top: 16, bottom: 0 }}
+          >
+            <ChartsWrapper>
+              <ChartsSurface>
+                <ChartsGrid horizontal />
+                <BarPlot />
+                <LinePlot />
+                <ChartsAxisHighlight x="band" />
+                <ChartsYAxis axisId="tokens" />
+                <ChartsYAxis axisId="toolTokens" />
+                <CommitMarkers markers={commitMarkers} />
+                <ErrorMarkers markers={errorMarkers} />
+              </ChartsSurface>
+              <ChartsTooltip />
+            </ChartsWrapper>
+          </ChartsDataProvider>
+          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+          <ChartsDataProvider
+            dataset={dataset as any}
+            series={mode === 'tool' ? [
+              { type: 'bar' as const, dataKey: 'apiInferenceMs', label: t('analytics.chartApiInferenceTime'), color: chartColors.apiInference, stack: 'timing', yAxisId: 'perTurn', valueFormatter: (v: number | null) => (v == null ? '' : fmtDurationShort(v)) },
+              { type: 'bar' as const, dataKey: 'toolExecMs', label: t('analytics.chartToolExecTime'), color: chartColors.toolExec, stack: 'timing', yAxisId: 'perTurn', valueFormatter: (v: number | null) => (v == null ? '' : fmtDurationShort(v)) },
+              { type: 'line' as const, dataKey: 'cumulativeMs', label: t('analytics.chartCumulativeInferenceTime'), color: chartColors.cumulativeTime, showMark: false, yAxisId: 'cumTime', valueFormatter: (v: number | null) => (v == null ? '' : fmtDurationShort(v)) },
+            ] : [
+              { type: 'bar' as const, dataKey: 'skillExecMs', label: t('analytics.chartSkillExecTime'), color: chartColors.skill, yAxisId: 'perTurn', valueFormatter: (v: number | null) => (v == null ? '' : fmtDurationShort(v)) },
+              { type: 'line' as const, dataKey: 'cumulativeMs', label: t('analytics.chartCumulativeInferenceTime'), color: chartColors.cumulativeTime, showMark: false, yAxisId: 'cumTime', valueFormatter: (v: number | null) => (v == null ? '' : fmtDurationShort(v)) },
+            ]}
+            xAxis={[{ id: 'x', dataKey: 'turn', scaleType: 'band', tickInterval: (value: number) => value % tickStep === 0 }]}
+            yAxis={[
+              { id: 'perTurn', valueFormatter: fmtDurationShort, width: 50 },
+              { id: 'cumTime', position: 'right', valueFormatter: fmtDurationShort, width: 50 },
+            ]}
+            height={140}
+            margin={{ left: 10, right: 10, top: 0, bottom: 0 }}
+          >
+            <ChartsWrapper>
+              <ChartsSurface>
+                <ChartsGrid horizontal />
+                <BarPlot />
+                <LinePlot />
+                <ChartsAxisHighlight x="band" />
+                <ChartsYAxis axisId="perTurn" />
+                <ChartsYAxis axisId="cumTime" />
+              </ChartsSurface>
+              <ChartsTooltip />
+            </ChartsWrapper>
+          </ChartsDataProvider>
+          <TurnLaneChart
+            assistantMsgs={assistantMsgs}
+            tickStep={tickStep}
+          />
+          <StackedReferenceLines
+            commitTurns={commitTurns}
+            errorTurns={errorTurns}
+            totalTurns={totalTurns}
+          />
+        </Box>
+        <TurnLaneChartLegend assistantMsgs={assistantMsgs} />
+        </>
       ) : (
         <Box sx={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px dashed ${colors.border}`, borderRadius: 1 }}>
           <Typography variant="body2" sx={{ color: colors.textSecondary }}>
@@ -472,7 +1091,7 @@ function SessionCommitPrefixChart({
   sessionId: string;
   fetchSessionCommits: (id: string) => Promise<readonly TrailSessionCommit[]>;
 }>) {
-  const { cardSx, toolPalette } = useTrailTheme();
+  const { colors, cardSx, toolPalette } = useTrailTheme();
   const { t } = useTrailI18n();
   const [commits, setCommits] = useState<readonly TrailSessionCommit[]>([]);
   const [loading, setLoading] = useState(true);
@@ -493,7 +1112,18 @@ function SessionCommitPrefixChart({
     return () => { cancelled = true; };
   }, [sessionId, fetchSessionCommits]);
 
-  if (loading || commits.length === 0) return null;
+  if (loading) return null;
+
+  if (commits.length === 0) {
+    return (
+      <Paper elevation={0} sx={{ ...cardSx, pt: 1.5, pb: 1, flex: 1, minWidth: 0 }}>
+        <Typography variant="subtitle2" sx={{ px: 1.5 }}>{t('analytics.commitPrefixChartTitle')}</Typography>
+        <Box sx={{ height: 130, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Typography variant="h5" sx={{ color: colors.textSecondary }}>0</Typography>
+        </Box>
+      </Paper>
+    );
+  }
 
   const prefixCounts = new Map<string, number>();
   for (const c of commits) {
@@ -502,47 +1132,33 @@ function SessionCommitPrefixChart({
     prefixCounts.set(prefix, (prefixCounts.get(prefix) ?? 0) + 1);
   }
   const sorted = [...prefixCounts.entries()].sort(([, a], [, b]) => b - a);
-
-  const entry: Record<string, string | number> = { metric: 'count' };
-  let total = 0;
-  for (let i = 0; i < sorted.length; i++) {
-    entry[`p${i}`] = sorted[i][1];
-    total += sorted[i][1];
-  }
-  const tickValues = niceTicks(total);
+  const pieData = sorted.map(([prefix, count], i) => ({
+    id: i,
+    value: count,
+    label: `${prefix} (${count})`,
+    color: toolPalette[i % toolPalette.length],
+  }));
 
   return (
-    <Paper elevation={0} sx={{ ...cardSx, pt: 2, pr: 2, pb: 0, pl: 0 }}>
-      <Typography variant="subtitle2" sx={{ mb: 1, px: 2 }}>
+    <Paper elevation={0} sx={{ ...cardSx, pt: 1.5, pb: 1, flex: 1, minWidth: 0 }}>
+      <Typography variant="subtitle2" sx={{ px: 1.5 }}>
         {t('analytics.commitPrefixChartTitle')}
       </Typography>
-      <BarChart
-        dataset={[entry]}
-        layout="horizontal"
-        yAxis={[{ scaleType: 'band', dataKey: 'metric', categoryGapRatio: 0.25, tickLabelStyle: { display: 'none' } }]}
-        xAxis={[{ tickInterval: tickValues, valueFormatter: fmtNum }]}
-        series={sorted.map(([prefix, count], i) => ({
-          dataKey: `p${i}`,
-          label: `${prefix} (${count})`,
-          stack: 'total',
-          color: toolPalette[i % toolPalette.length],
-        }))}
-        height={70}
-        margin={{ left: 20, right: 16, top: 4, bottom: 16 }}
+      <PieChart
+        series={[{ data: pieData, innerRadius: 28, outerRadius: 52, paddingAngle: 2, cornerRadius: 3 }]}
+        height={130}
+        margin={{ top: 8, right: 8, bottom: 8, left: 8 }}
         slots={{ legend: () => null }}
-      />
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, px: 2, pb: 1.5 }}>
+      >
+        <PieCenterLabel value={commits.length} color={colors.textPrimary} />
+      </PieChart>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, px: 1.5, pb: 0.5 }}>
         {sorted.map(([prefix, count], i) => (
           <Chip
             key={prefix}
             size="small"
             label={`${prefix} (${count})`}
-            sx={{
-              bgcolor: toolPalette[i % toolPalette.length],
-              color: '#fff',
-              fontSize: '0.7rem',
-              height: 20,
-            }}
+            sx={{ bgcolor: toolPalette[i % toolPalette.length], color: '#fff', fontSize: '0.65rem', height: 18 }}
           />
         ))}
       </Box>
@@ -678,20 +1294,24 @@ function SessionMetricsPanel({ session, toolMetrics }: Readonly<{
   const cardStyle = { ...cardSx, p: 2, minWidth: 160, flex: '1 1 160px', textAlign: 'center' } as const;
 
   const usageCards = [
-    { label: t('analytics.tokensPerStep'), value: s.messageCount > 0 ? fmtTokens(Math.round(totalTokens / s.messageCount)) : '\u2014' },
-    { label: t('analytics.costPerStep'), value: s.messageCount > 0 ? fmtUsd(cost / s.messageCount) : '\u2014' },
+    { label: t('analytics.totalTokens'), value: fmtTokens(totalTokens) },
+    { label: t('analytics.estimatedCost'), value: fmtUsd(cost) },
+    { label: t('analytics.metricMessages'), value: fmtNum(s.messageCount) },
+    { label: t('analytics.metricErrors'), value: (s.errorCount ?? 0) > 0 ? fmtNum(s.errorCount!) : '\u2014' },
     { label: t('analytics.cacheHit'), value: cacheInput > 0 ? fmtPercent(cacheHitRate) : '\u2014' },
     { label: t('analytics.outputRatio'), value: cacheInput > 0 ? fmtPercent(outputRatio) : '\u2014' },
     { label: t('analytics.contextGrowth'), value: s.messageCount > 0 ? `${fmtTokens(Math.round(contextGrowth))}/step` : '\u2014' },
-  ];
-
-  const productivityCards = [
-    { label: t('analytics.linesPerHour'), value: durationHours > 0 && linesAdded > 0 ? fmtNum(Math.round(linesAdded / durationHours)) : '\u2014' },
-    { label: t('analytics.costPerHour'), value: durationHours > 0 ? fmtUsd(cost / durationHours) : '\u2014' },
-    { label: t('analytics.costPerCommit'), value: (s.commitStats?.commits ?? 0) > 0 ? fmtUsd(cost / s.commitStats!.commits) : '\u2014' },
     { label: t('analytics.netLines'), value: linesAdded > 0 || linesDeleted > 0 ? `+${fmtNum(linesAdded)} / -${fmtNum(linesDeleted)}` : '\u2014' },
     { label: t('analytics.metricFiles'), value: (s.commitStats?.filesChanged ?? 0) > 0 ? fmtNum(s.commitStats!.filesChanged) : '\u2014' },
     { label: t('analytics.metricDuration'), value: durationMs > 0 ? fmtDuration(durationMs) : '\u2014' },
+  ];
+
+  const productivityCards = [
+    { label: t('analytics.tokensPerStep'), value: s.messageCount > 0 ? fmtTokens(Math.round(totalTokens / s.messageCount)) : '\u2014' },
+    { label: t('analytics.costPerStep'), value: s.messageCount > 0 ? fmtUsd(cost / s.messageCount) : '\u2014' },
+    { label: t('analytics.linesPerHour'), value: durationHours > 0 && linesAdded > 0 ? fmtNum(Math.round(linesAdded / durationHours)) : '\u2014' },
+    { label: t('analytics.costPerHour'), value: durationHours > 0 ? fmtUsd(cost / durationHours) : '\u2014' },
+    { label: t('analytics.costPerCommit'), value: (s.commitStats?.commits ?? 0) > 0 ? fmtUsd(cost / s.commitStats!.commits) : '\u2014' },
     { label: t('analytics.avgInterval'), value: s.messageCount > 1 ? fmtDuration(durationMs / (s.messageCount - 1)) : '\u2014' },
   ];
 
@@ -733,224 +1353,146 @@ function SessionMetricsPanel({ session, toolMetrics }: Readonly<{
 
 type SessionToolMetric = 'count' | 'tokens' | 'duration';
 
-function SessionModelUsageChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMetrics | null }>) {
-  const { cardSx, toolPalette } = useTrailTheme();
-  const { t } = useTrailI18n();
-  const [metric, setMetric] = useState<SessionToolMetric>('count');
-  const usage = toolMetrics?.modelUsage;
-  if (!usage || usage.length === 0) {
-    return (
-      <Paper elevation={0} sx={{ ...cardSx, pt: 2, pr: 2, pb: 0, pl: 2 }}>
-        <Typography variant="subtitle2" sx={{ mb: 0.5 }}>{t('analytics.combined.model')}</Typography>
-        <Typography variant="body2" color="text.secondary">0</Typography>
-      </Paper>
-    );
-  }
-
-  const getValue = (e: { count: number; tokens: number; durationMs: number }): number =>
-    metric === 'tokens' ? e.tokens
-    : metric === 'duration' ? Math.round(e.durationMs / 1000)
-    : e.count;
-
-  const sorted = [...usage].sort((a, b) => getValue(b) - getValue(a));
-
-  const entry: Record<string, string | number> = { metric: metric === 'tokens' ? 'tokens' : metric === 'duration' ? 'sec' : 'count' };
-  let total = 0;
-  for (let i = 0; i < sorted.length; i++) {
-    const v = getValue(sorted[i]);
-    entry[`m${i}`] = v;
-    total += v;
-  }
-  const tickValues = niceTicks(total);
-
-  return (
-    <Paper elevation={0} sx={{ ...cardSx, pt: 2, pr: 2, pb: 0, pl: 0 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, px: 2 }}>
-        <Typography variant="subtitle2">{t('analytics.combined.model')}</Typography>
-        <ToggleButtonGroup size="small" exclusive value={metric} onChange={(_, v: SessionToolMetric | null) => { if (v) setMetric(v); }}>
-          <ToggleButton value="count">{t('analytics.combined.count')}</ToggleButton>
-          <ToggleButton value="tokens">{t('analytics.combined.tokens')}</ToggleButton>
-          <ToggleButton value="duration">{t('analytics.combined.duration')}</ToggleButton>
-        </ToggleButtonGroup>
-      </Box>
-      <BarChart
-        dataset={[entry]}
-        layout="horizontal"
-        yAxis={[{ scaleType: 'band', dataKey: 'metric', categoryGapRatio: 0.25, tickLabelStyle: { display: 'none' } }]}
-        xAxis={[{ tickInterval: tickValues, valueFormatter: metric === 'duration' ? fmtDurationShort : fmtTokens }]}
-        series={sorted.map((e, i) => ({
-          dataKey: `m${i}`,
-          label: e.model,
-          stack: 'total',
-          color: toolPalette[i % toolPalette.length],
-        }))}
-        height={70}
-        margin={{ left: 20, right: 16, top: 4, bottom: 16 }}
-        slots={{ legend: () => null }}
-      />
-    </Paper>
-  );
-}
-
 function SessionToolUsageChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMetrics | null }>) {
-  const { cardSx, toolPalette } = useTrailTheme();
+  const { colors, cardSx, toolPalette } = useTrailTheme();
   const { t } = useTrailI18n();
-  const [metric, setMetric] = useState<SessionToolMetric>('count');
   const usage = toolMetrics?.toolUsage;
   if (!usage || usage.length === 0) {
     return (
-      <Paper elevation={0} sx={{ ...cardSx, pt: 2, pr: 2, pb: 0, pl: 2 }}>
-        <Typography variant="subtitle2" sx={{ mb: 0.5 }}>{t('analytics.toolUsageTitle')}</Typography>
-        <Typography variant="body2" color="text.secondary">0</Typography>
+      <Paper elevation={0} sx={{ ...cardSx, pt: 1.5, pb: 1, flex: 1, minWidth: 0 }}>
+        <Typography variant="subtitle2" sx={{ px: 1.5 }}>{t('analytics.toolUsageTitle')}</Typography>
+        <Box sx={{ height: 130, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Typography variant="h5" sx={{ color: colors.textSecondary }}>0</Typography>
+        </Box>
       </Paper>
     );
   }
 
-  const getValue = (e: { count: number; tokens: number; durationMs: number }): number =>
-    metric === 'tokens' ? e.tokens
-    : metric === 'duration' ? Math.round(e.durationMs / 1000)
-    : e.count;
-
-  const sorted = [...usage].sort((a, b) => getValue(b) - getValue(a));
-
-  // 1行の積算横棒: Y軸=メトリクス名、各ツールが色分けでスタック
-  const entry: Record<string, string | number> = { metric: metric === 'tokens' ? 'tokens' : metric === 'duration' ? 'sec' : 'count' };
-  let total = 0;
-  for (let i = 0; i < sorted.length; i++) {
-    const v = getValue(sorted[i]);
-    entry[`t${i}`] = v;
-    total += v;
-  }
-  const tickValues = niceTicks(total);
+  const sorted = [...usage].sort((a, b) => b.count - a.count);
+  const pieData = sorted.map((e, i) => ({
+    id: i,
+    value: e.count,
+    label: `${e.tool} (${e.count})`,
+    color: toolPalette[i % toolPalette.length],
+  }));
 
   return (
-    <Paper elevation={0} sx={{ ...cardSx, pt: 2, pr: 2, pb: 0, pl: 0 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, px: 2 }}>
-        <Typography variant="subtitle2">{t('analytics.toolUsageTitle')}</Typography>
-        <ToggleButtonGroup size="small" exclusive value={metric} onChange={(_, v: SessionToolMetric | null) => { if (v) setMetric(v); }}>
-          <ToggleButton value="count">{t('analytics.combined.count')}</ToggleButton>
-          <ToggleButton value="tokens">{t('analytics.combined.tokens')}</ToggleButton>
-          <ToggleButton value="duration">{t('analytics.combined.duration')}</ToggleButton>
-        </ToggleButtonGroup>
-      </Box>
-      <BarChart
-        dataset={[entry]}
-        layout="horizontal"
-        yAxis={[{ scaleType: 'band', dataKey: 'metric', categoryGapRatio: 0.25, tickLabelStyle: { display: 'none' } }]}
-        xAxis={[{ tickInterval: tickValues, valueFormatter: metric === 'duration' ? fmtDurationShort : fmtTokens }]}
-        series={sorted.map((e, i) => ({
-          dataKey: `t${i}`,
-          label: e.tool,
-          stack: 'total',
-          color: toolPalette[i % toolPalette.length],
-        }))}
-        height={70}
-        margin={{ left: 20, right: 16, top: 4, bottom: 16 }}
+    <Paper elevation={0} sx={{ ...cardSx, pt: 1.5, pb: 1, flex: 1, minWidth: 0 }}>
+      <Typography variant="subtitle2" sx={{ px: 1.5 }}>{t('analytics.toolUsageTitle')}</Typography>
+      <PieChart
+        series={[{ data: pieData, innerRadius: 28, outerRadius: 52, paddingAngle: 2, cornerRadius: 3 }]}
+        height={130}
+        margin={{ top: 8, right: 8, bottom: 8, left: 8 }}
         slots={{ legend: () => null }}
-      />
+      >
+        <PieCenterLabel value={sorted.reduce((s, e) => s + e.count, 0)} color={colors.textPrimary} />
+      </PieChart>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, px: 1.5, pb: 0.5 }}>
+        {sorted.map((e, i) => (
+          <Chip
+            key={e.tool}
+            size="small"
+            label={`${e.tool} (${e.count})`}
+            sx={{ bgcolor: toolPalette[i % toolPalette.length], color: '#fff', fontSize: '0.65rem', height: 18 }}
+          />
+        ))}
+      </Box>
     </Paper>
   );
 }
 
 function SessionSkillUsageChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMetrics | null }>) {
-  const { cardSx, toolPalette } = useTrailTheme();
+  const { colors, cardSx, toolPalette } = useTrailTheme();
   const { t } = useTrailI18n();
-  const [metric, setMetric] = useState<SessionToolMetric>('count');
   const usage = toolMetrics?.skillUsage;
   if (!usage || usage.length === 0) {
     return (
-      <Paper elevation={0} sx={{ ...cardSx, pt: 2, pr: 2, pb: 0, pl: 2 }}>
-        <Typography variant="subtitle2" sx={{ mb: 0.5 }}>{t('analytics.combined.skill')}</Typography>
-        <Typography variant="body2" color="text.secondary">0</Typography>
+      <Paper elevation={0} sx={{ ...cardSx, pt: 1.5, pb: 1, flex: 1, minWidth: 0 }}>
+        <Typography variant="subtitle2" sx={{ px: 1.5 }}>{t('analytics.combined.skill')}</Typography>
+        <Box sx={{ height: 130, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Typography variant="h5" sx={{ color: colors.textSecondary }}>0</Typography>
+        </Box>
       </Paper>
     );
   }
 
-  const getValue = (e: { count: number; tokens: number; durationMs: number }): number =>
-    metric === 'tokens' ? e.tokens
-    : metric === 'duration' ? Math.round(e.durationMs / 1000)
-    : e.count;
-
-  const sorted = [...usage].sort((a, b) => getValue(b) - getValue(a));
-
-  const entry: Record<string, string | number> = { metric: metric === 'tokens' ? 'tokens' : metric === 'duration' ? 'sec' : 'count' };
-  let total = 0;
-  for (let i = 0; i < sorted.length; i++) {
-    const v = getValue(sorted[i]);
-    entry[`s${i}`] = v;
-    total += v;
-  }
-  const tickValues = niceTicks(total);
+  const sorted = [...usage].sort((a, b) => b.count - a.count);
+  const pieData = sorted.map((e, i) => ({
+    id: i,
+    value: e.count,
+    label: `${e.skill} (${e.count})`,
+    color: toolPalette[i % toolPalette.length],
+  }));
 
   return (
-    <Paper elevation={0} sx={{ ...cardSx, pt: 2, pr: 2, pb: 0, pl: 0 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, px: 2 }}>
-        <Typography variant="subtitle2">{t('analytics.combined.skill')}</Typography>
-        <ToggleButtonGroup size="small" exclusive value={metric} onChange={(_, v: SessionToolMetric | null) => { if (v) setMetric(v); }}>
-          <ToggleButton value="count">{t('analytics.combined.count')}</ToggleButton>
-          <ToggleButton value="tokens">{t('analytics.combined.tokens')}</ToggleButton>
-          <ToggleButton value="duration">{t('analytics.combined.duration')}</ToggleButton>
-        </ToggleButtonGroup>
-      </Box>
-      <BarChart
-        dataset={[entry]}
-        layout="horizontal"
-        yAxis={[{ scaleType: 'band', dataKey: 'metric', categoryGapRatio: 0.25, tickLabelStyle: { display: 'none' } }]}
-        xAxis={[{ tickInterval: tickValues, valueFormatter: metric === 'duration' ? fmtDurationShort : fmtTokens }]}
-        series={sorted.map((e, i) => ({
-          dataKey: `s${i}`,
-          label: e.skill,
-          stack: 'total',
-          color: toolPalette[i % toolPalette.length],
-        }))}
-        height={70}
-        margin={{ left: 20, right: 16, top: 4, bottom: 16 }}
+    <Paper elevation={0} sx={{ ...cardSx, pt: 1.5, pb: 1, flex: 1, minWidth: 0 }}>
+      <Typography variant="subtitle2" sx={{ px: 1.5 }}>{t('analytics.combined.skill')}</Typography>
+      <PieChart
+        series={[{ data: pieData, innerRadius: 28, outerRadius: 52, paddingAngle: 2, cornerRadius: 3 }]}
+        height={130}
+        margin={{ top: 8, right: 8, bottom: 8, left: 8 }}
         slots={{ legend: () => null }}
-      />
+      >
+        <PieCenterLabel value={sorted.reduce((s, e) => s + e.count, 0)} color={colors.textPrimary} />
+      </PieChart>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, px: 1.5, pb: 0.5 }}>
+        {sorted.map((e, i) => (
+          <Chip
+            key={e.skill}
+            size="small"
+            label={`${e.skill} (${e.count})`}
+            sx={{ bgcolor: toolPalette[i % toolPalette.length], color: '#fff', fontSize: '0.65rem', height: 18 }}
+          />
+        ))}
+      </Box>
     </Paper>
   );
 }
 
 function SessionErrorChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMetrics | null }>) {
-  const { cardSx, toolPalette } = useTrailTheme();
+  const { colors, cardSx, toolPalette } = useTrailTheme();
   const { t } = useTrailI18n();
   const errors = toolMetrics?.errorsByTool;
   if (!errors || errors.length === 0) {
     return (
-      <Paper elevation={0} sx={{ ...cardSx, pt: 2, pr: 2, pb: 0, pl: 2 }}>
-        <Typography variant="subtitle2" sx={{ mb: 0.5 }}>{t('analytics.combined.error')}</Typography>
-        <Typography variant="body2" color="text.secondary">0</Typography>
+      <Paper elevation={0} sx={{ ...cardSx, pt: 1.5, pb: 1, flex: 1, minWidth: 0 }}>
+        <Typography variant="subtitle2" sx={{ px: 1.5 }}>{t('analytics.combined.error')}</Typography>
+        <Box sx={{ height: 130, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Typography variant="h5" sx={{ color: colors.textSecondary }}>0</Typography>
+        </Box>
       </Paper>
     );
   }
 
   const sorted = [...errors].sort((a, b) => b.count - a.count);
-  const entry: Record<string, string | number> = { metric: 'errors' };
-  let total = 0;
-  for (let i = 0; i < sorted.length; i++) {
-    entry[`e${i}`] = sorted[i].count;
-    total += sorted[i].count;
-  }
-  const tickValues = niceTicks(total);
+  const pieData = sorted.map((e, i) => ({
+    id: i,
+    value: e.count,
+    label: `${e.tool} (${e.count})`,
+    color: toolPalette[i % toolPalette.length],
+  }));
 
   return (
-    <Paper elevation={0} sx={{ ...cardSx, pt: 2, pr: 2, pb: 0, pl: 0 }}>
-      <Typography variant="subtitle2" sx={{ mb: 1, px: 2 }}>{t('analytics.combined.error')}</Typography>
-      <BarChart
-        dataset={[entry]}
-        layout="horizontal"
-        yAxis={[{ scaleType: 'band', dataKey: 'metric', categoryGapRatio: 0.25, tickLabelStyle: { display: 'none' } }]}
-        xAxis={[{ tickInterval: tickValues, valueFormatter: fmtTokens }]}
-        series={sorted.map((e, i) => ({
-          dataKey: `e${i}`,
-          label: e.tool,
-          stack: 'total',
-          color: toolPalette[i % toolPalette.length],
-        }))}
-        height={70}
-        margin={{ left: 20, right: 16, top: 4, bottom: 16 }}
+    <Paper elevation={0} sx={{ ...cardSx, pt: 1.5, pb: 1, flex: 1, minWidth: 0 }}>
+      <Typography variant="subtitle2" sx={{ px: 1.5 }}>{t('analytics.combined.error')}</Typography>
+      <PieChart
+        series={[{ data: pieData, innerRadius: 28, outerRadius: 52, paddingAngle: 2, cornerRadius: 3 }]}
+        height={130}
+        margin={{ top: 8, right: 8, bottom: 8, left: 8 }}
         slots={{ legend: () => null }}
-      />
+      >
+        <PieCenterLabel value={sorted.reduce((s, e) => s + e.count, 0)} color={colors.textPrimary} />
+      </PieChart>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, px: 1.5, pb: 0.5 }}>
+        {sorted.map((e, i) => (
+          <Chip
+            key={e.tool}
+            size="small"
+            label={`${e.tool} (${e.count})`}
+            sx={{ bgcolor: toolPalette[i % toolPalette.length], color: '#fff', fontSize: '0.65rem', height: 18 }}
+          />
+        ))}
+      </Box>
     </Paper>
   );
 }
@@ -1041,6 +1583,7 @@ function buildDaySession(date: string, daySessions: readonly TrailSession[]): Tr
 function DailySessionList({
   date,
   sessions,
+  sessionsLoading,
   onSelectSession,
   onJumpToTrace,
   fetchSessionMessages,
@@ -1050,6 +1593,7 @@ function DailySessionList({
 }: Readonly<{
   date: string;
   sessions: readonly TrailSession[];
+  sessionsLoading?: boolean;
   onSelectSession?: (id: string) => void;
   onJumpToTrace?: (session: TrailSession) => void;
   fetchSessionMessages?: (id: string) => Promise<readonly TrailMessage[]>;
@@ -1077,6 +1621,12 @@ function DailySessionList({
     [],
   );
   const daySessions = sessions.filter((s) => toLocalDateKey(s.startTime) === date);
+  const sessionCountLabel = daySessions.length !== 1
+    ? t('sessionList.sessions')
+    : t('sessionList.session');
+  const headerLabel = sessionsLoading
+    ? '...'
+    : `${daySessions.length} ${sessionCountLabel}`;
 
   useEffect(() => {
     if (!fetchDayToolMetrics) {
@@ -1117,13 +1667,17 @@ function DailySessionList({
     <Paper elevation={0} sx={{ ...cardSx, mt: 1, p: 1.5 }}>
       <Box sx={{ mb: 1 }}>
         <Typography variant="subtitle2">
-          {date} — {daySessions.length} {daySessions.length !== 1 ? t('sessionList.sessions') : t('sessionList.session')}
+          {date} — {headerLabel}
         </Typography>
       </Box>
       <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', lg: 'row' } }}>
         {/* Left: fixed height matches right column when session selected */}
-        <Box sx={{ flex: 1, minWidth: 0, overflowY: 'auto', ...scrollbarSx, ...(daySessions.length > 0 ? { height: { lg: 726 } } : { maxHeight: { lg: 726 } }) }}>
-          {daySessions.length === 0 ? (
+        <Box sx={{ flex: 1, minWidth: 0, overflowY: 'auto', ...scrollbarSx, ...((daySessions.length > 0 || sessionsLoading) ? { height: { lg: 726 } } : { maxHeight: { lg: 726 } }) }}>
+          {sessionsLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
+              <CircularProgress size={24} />
+            </Box>
+          ) : daySessions.length === 0 ? (
             <Typography variant="body2" color="text.secondary">{t('sessionList.noSessionsFound')}</Typography>
           ) : (
             <Table size="small" stickyHeader>
@@ -1257,45 +1811,43 @@ function DailySessionList({
                   </Tooltip>
                 </Box>
                 <SessionMetricsPanel session={selectedSession} toolMetrics={sessionToolMetrics} />
-                <SessionModelUsageChart toolMetrics={sessionToolMetrics} />
-                <SessionSkillUsageChart toolMetrics={sessionToolMetrics} />
-                <SessionToolUsageChart toolMetrics={sessionToolMetrics} />
-                <SessionErrorChart toolMetrics={sessionToolMetrics} />
-                {timelineLoading ? (
-                  <Paper elevation={0} sx={{ ...cardSx, mt: 1, p: 1.5, height: 270, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Typography variant="body2" color="text.secondary">{t('sessionList.loadingTimeline')}</Typography>
-                  </Paper>
-                ) : (
-                  <SessionCacheTimeline messages={timelineMessages} />
-                )}
-                {fetchSessionCommits && (
-                  <>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <SessionErrorChart toolMetrics={sessionToolMetrics} />
+                  {fetchSessionCommits && (
                     <SessionCommitPrefixChart
                       sessionId={timelineSessionId!}
                       fetchSessionCommits={fetchSessionCommits}
                     />
-                    <SessionCommitList
-                      sessionId={timelineSessionId!}
-                      usage={selectedSession.usage}
-                      fetchSessionCommits={fetchSessionCommits}
-                    />
-                  </>
-                )}
+                  )}
+                </Box>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <SessionSkillUsageChart toolMetrics={sessionToolMetrics} />
+                  <SessionToolUsageChart toolMetrics={sessionToolMetrics} />
+                </Box>
               </Box>
             );
           }
           return (
             <Box sx={{ flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 1, width: { lg: 600 } }}>
               <SessionMetricsPanel session={buildDaySession(date, daySessions)} toolMetrics={dayAggToolMetrics} />
-              <SessionModelUsageChart toolMetrics={dayAggToolMetrics} />
-              <SessionSkillUsageChart toolMetrics={dayAggToolMetrics} />
-              <SessionToolUsageChart toolMetrics={dayAggToolMetrics} />
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <SessionSkillUsageChart toolMetrics={dayAggToolMetrics} />
+                <SessionToolUsageChart toolMetrics={dayAggToolMetrics} />
+              </Box>
               <SessionErrorChart toolMetrics={dayAggToolMetrics} />
-              <SessionCacheTimeline messages={[]} />
             </Box>
           );
         })()}
       </Box>
+      {timelineSessionId && (
+        timelineLoading ? (
+          <Paper elevation={0} sx={{ ...cardSx, mt: 1, p: 1.5, height: 270, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Typography variant="body2" color="text.secondary">{t('sessionList.loadingTimeline')}</Typography>
+          </Paper>
+        ) : (
+          <SessionCacheTimeline messages={timelineMessages} />
+        )
+      )}
     </Paper>
   );
 }
@@ -2089,6 +2641,7 @@ type CombinedMetric = 'tokens' | 'tools' | 'errors' | 'skills' | 'models' | 'com
 function CombinedChartsSection({
   dailyActivity,
   sessions,
+  sessionsLoading,
   period,
   setPeriod,
   onSelectSession,
@@ -2104,6 +2657,7 @@ function CombinedChartsSection({
 }: Readonly<{
   dailyActivity: AnalyticsData['dailyActivity'];
   sessions: readonly TrailSession[];
+  sessionsLoading?: boolean;
   period: PeriodDays;
   setPeriod: (v: PeriodDays) => void;
   onSelectSession?: (id: string) => void;
@@ -2335,6 +2889,7 @@ function CombinedChartsSection({
         <DailySessionList
           date={selectedDate}
           sessions={sessions}
+          sessionsLoading={sessionsLoading}
           onSelectSession={onSelectSession}
           onJumpToTrace={onJumpToTrace}
           fetchSessionMessages={fetchSessionMessages}
@@ -2347,10 +2902,20 @@ function CombinedChartsSection({
   );
 }
 
-export function AnalyticsPanel({ analytics, sessions = [], onSelectSession, onJumpToTrace, fetchSessionMessages, fetchSessionCommits, fetchSessionToolMetrics, fetchDayToolMetrics, costOptimization, fetchCombinedData, fetchQualityMetrics, fetchDeploymentFrequency, fetchReleaseQuality }: Readonly<AnalyticsPanelProps>) {
+export function AnalyticsPanel({ analytics, sessions = [], sessionsLoading, onSelectSession, onJumpToTrace, fetchSessionMessages, fetchSessionCommits, fetchSessionToolMetrics, fetchDayToolMetrics, costOptimization, fetchCombinedData, fetchQualityMetrics, fetchDeploymentFrequency, fetchReleaseQuality }: Readonly<AnalyticsPanelProps>) {
   const { t } = useTrailI18n();
   const { scrollbarSx } = useTrailTheme();
   const [period, setPeriod] = useState<PeriodDays>(30);
+  const [overviewQualityMetrics, setOverviewQualityMetrics] = useState<QualityMetrics | null>(null);
+
+  useEffect(() => {
+    if (!fetchQualityMetrics) return;
+    const to = new Date();
+    const from = new Date(to.getTime() - 30 * 86_400_000);
+    void fetchQualityMetrics({ from: from.toISOString(), to: to.toISOString() }).then((result) => {
+      if (result) setOverviewQualityMetrics(result);
+    });
+  }, [fetchQualityMetrics]);
 
   if (!analytics) {
     return (
@@ -2364,11 +2929,12 @@ export function AnalyticsPanel({ analytics, sessions = [], onSelectSession, onJu
 
   return (
     <Box sx={{ overflow: 'auto', flex: 1, p: 2, display: 'flex', flexDirection: 'column', gap: 3, ...scrollbarSx }}>
-      <OverviewCards totals={analytics.totals} sessions={sessions} />
+      <OverviewCards totals={analytics.totals} sessions={sessions} qualityMetrics={overviewQualityMetrics} />
       <ToolUsageChart items={analytics.toolUsage} />
       <CombinedChartsSection
         dailyActivity={analytics.dailyActivity}
         sessions={sessions}
+        sessionsLoading={sessionsLoading}
         period={period}
         setPeriod={setPeriod}
         onSelectSession={onSelectSession}

@@ -152,7 +152,26 @@ export function parseSession(
   }
 
   const filtered = parsedRaws.filter((raw) => !shouldSkip(raw));
-  const messages = filtered.map(convertMessage);
+  const rawMessages = filtered.map(convertMessage);
+
+  // Detect which assistant messages had tool-error responses.
+  // A user message with is_error=true in a tool_result block is the response
+  // to the assistant message identified by its parentUuid.
+  const errorAssistantUuids = new Set<string>();
+  for (const raw of parsedRaws) {
+    if (raw.type !== 'user' || !raw.parentUuid) continue;
+    if (!Array.isArray(raw.message?.content)) continue;
+    const hasError = (raw.message.content as readonly RawContentBlock[]).some(
+      (block) => block.type === 'tool_result' && block.is_error === true,
+    );
+    if (hasError) errorAssistantUuids.add(raw.parentUuid);
+  }
+
+  const messages: TrailMessage[] = rawMessages.map((m) =>
+    m.type === 'assistant' && errorAssistantUuids.has(m.uuid)
+      ? { ...m, hasToolError: true }
+      : m,
+  );
 
   const firstRaw = filtered[0];
   const firstAssistant = filtered.find((r) => r.type === 'assistant');

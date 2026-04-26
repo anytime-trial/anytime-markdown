@@ -14,6 +14,10 @@ jest.mock("../app/LocaleProvider", () => ({
   useLocaleSwitch: () => ({ locale: "en", setLocale: jest.fn() }),
 }));
 
+jest.mock("../app/providers", () => ({
+  useThemeMode: () => ({ themeMode: "light", setThemeMode: jest.fn() }),
+}));
+
 import LandingHeader from "../app/components/LandingHeader";
 
 beforeAll(() => {
@@ -29,25 +33,23 @@ describe("LandingHeader mobile drawer", () => {
     render(<LandingHeader />);
     const menuButton = screen.getByLabelText("ariaMenu");
     fireEvent.click(menuButton);
-    // Drawer should open with navigation items
-    expect(screen.getAllByText("graphPage").length).toBeGreaterThanOrEqual(1);
+    // Drawer should show locale and theme toggles
+    expect(screen.getAllByText("EN").length).toBeGreaterThanOrEqual(2);
   });
 
-  it("closes drawer when navigation item clicked", () => {
+  it("closes drawer when locale button in drawer is clicked", () => {
     render(<LandingHeader />);
     const menuButton = screen.getByLabelText("ariaMenu");
     fireEvent.click(menuButton);
-    // Click a nav item in the drawer
-    const graphLinks = screen.getAllByText("graphPage");
-    // Click the one inside the drawer (second occurrence)
-    if (graphLinks.length > 1) {
-      fireEvent.click(graphLinks[graphLinks.length - 1]);
+    const enButtons = screen.getAllByText("EN");
+    if (enButtons.length > 1) {
+      fireEvent.click(enButtons[enButtons.length - 1]);
     }
   });
 
-  it("renders Graph link in desktop nav", () => {
+  it("renders locale toggle in desktop nav", () => {
     render(<LandingHeader />);
-    expect(screen.getAllByText("graphPage").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("EN").length).toBeGreaterThanOrEqual(1);
   });
 
   it("renders mobile language toggle in drawer", () => {
@@ -64,7 +66,7 @@ describe("LandingHeader mobile drawer", () => {
     jest.spyOn(require("../app/LocaleProvider"), "useLocaleSwitch").mockReturnValue({ locale: "en", setLocale: mockSetLocale });
 
     render(<LandingHeader />);
-    const jaButtons = screen.getAllByText("JA");
+    const jaButtons = screen.queryAllByText("JA");
     if (jaButtons.length > 0) {
       fireEvent.click(jaButtons[0]);
     }
@@ -74,20 +76,20 @@ describe("LandingHeader mobile drawer", () => {
     render(<LandingHeader />);
     const menuButton = screen.getByLabelText("ariaMenu");
     fireEvent.click(menuButton);
-    const jaButtons = screen.getAllByText("JA");
+    const jaButtons = screen.queryAllByText("JA");
     // Click last JA button (mobile one in drawer)
     if (jaButtons.length > 1) {
       fireEvent.click(jaButtons[jaButtons.length - 1]);
     }
   });
 
-  it("closes drawer by clicking sitesPage link", () => {
+  it("closes drawer by clicking theme toggle in drawer", () => {
     render(<LandingHeader />);
     const menuButton = screen.getByLabelText("ariaMenu");
     fireEvent.click(menuButton);
-    const links = screen.getAllByText("sitesPage");
-    if (links.length > 1) {
-      fireEvent.click(links[links.length - 1]);
+    const themeButtons = screen.getAllByLabelText("ariaTheme");
+    if (themeButtons.length > 1) {
+      fireEvent.click(themeButtons[themeButtons.length - 1]);
     }
   });
 

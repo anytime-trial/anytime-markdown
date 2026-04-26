@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-04-26
+
+### Fixed
+
+- Added `/api/trail/days/:date/tool-metrics` endpoint to `TrailDataServer`
+
+### Trail Viewer (trail-viewer)
+
+- Timing Breakdown chart, Tool/Skill mode toggle, and TurnLaneChart in Session Timeline
+- Error/CommitType bar charts replaced with side-by-side pie charts
+- DORA metrics as individual overview cards
+- Sub-agent lane with dominant-tool coloring; dynamic timeline height
+- Removed Quality Metrics tab and several legacy chart/card components
+- Performance: removed heavy queries from `getSessions`
+
 ## [0.10.0] - 2026-04-25
 
 ### Added

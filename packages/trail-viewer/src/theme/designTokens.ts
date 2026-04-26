@@ -60,6 +60,8 @@ const darkChartColors = {
   primary: '#90CAF9',
   skill: '#8b5cf6',
   overlayPerLoc: '#FFB74D',
+  apiInference: '#26C6DA',
+  toolExec: '#FF7043',
 } as const;
 
 const darkAvatarColors = {
@@ -111,6 +113,8 @@ const lightChartColors: ThemeChartColors = {
   primary: '#1976D2',
   skill: '#7c3aed',
   overlayPerLoc: '#E65100',
+  apiInference: '#00838F',
+  toolExec: '#E64A19',
 } as const;
 
 const lightAvatarColors: ThemeAvatarColors = {
@@ -159,6 +163,8 @@ export interface ThemeChartColors {
   readonly primary: string;
   readonly skill: string;
   readonly overlayPerLoc: string;
+  readonly apiInference: string;
+  readonly toolExec: string;
 }
 
 export interface ThemeAvatarColors {

@@ -19,7 +19,6 @@ import { useMemo } from 'react';
 import { buildArchiveMonths, paginate } from '../../lib/reportUtils';
 import type { ReportMeta } from '../../types/report';
 import LandingHeader from '../components/LandingHeader';
-import SiteFooter from '../components/SiteFooter';
 
 const PER_PAGE = 10;
 const RECENT_COUNT = 5;
@@ -322,7 +321,6 @@ export default function ReportListBody({ reports, currentPage, filterMonth }: Re
         </Grid>
       </Container>
 
-      <SiteFooter />
     </Box>
   );
 }

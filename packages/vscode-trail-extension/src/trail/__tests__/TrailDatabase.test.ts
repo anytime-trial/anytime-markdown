@@ -134,6 +134,50 @@ describe('TrailDatabase.getImportedFileMap', () => {
   });
 });
 
+describe('TrailDatabase.getDayToolMetrics', () => {
+  it('aggregates tool/skill/error/model rows for the given date', async () => {
+    const db = await createTestTrailDatabase();
+    const inMemoryDb = (db as unknown as Record<string, unknown>).db as import('sql.js').Database;
+
+    const insert = (date: string, kind: string, key: string, count: number, tokens: number, durationMs: number) => {
+      inMemoryDb.run(
+        `INSERT INTO daily_counts (date, kind, key, count, tokens, duration_ms) VALUES (?, ?, ?, ?, ?, ?)`,
+        [date, kind, key, count, tokens, durationMs],
+      );
+    };
+    // Target date rows
+    insert('2026-04-25', 'tool', 'Bash', 10, 1000, 5000);
+    insert('2026-04-25', 'tool', 'Read', 3, 200, 100);
+    insert('2026-04-25', 'skill', 'design-md', 2, 0, 0);
+    insert('2026-04-25', 'error', 'Bash', 4, 0, 0);
+    insert('2026-04-25', 'model', 'claude-opus-4-7', 5, 50000, 0);
+    // Other-date row should be ignored
+    insert('2026-04-24', 'tool', 'Bash', 99, 9999, 9999);
+
+    const result = db.getDayToolMetrics('2026-04-25');
+    expect(result).not.toBeNull();
+    expect(result!.toolUsage).toEqual([
+      { tool: 'Bash', count: 10, tokens: 1000, durationMs: 5000 },
+      { tool: 'Read', count: 3, tokens: 200, durationMs: 100 },
+    ]);
+    expect(result!.skillUsage).toEqual([{ skill: 'design-md', count: 2, tokens: 0, durationMs: 0 }]);
+    expect(result!.errorsByTool).toEqual([{ tool: 'Bash', count: 4 }]);
+    expect(result!.modelUsage).toEqual([{ model: 'claude-opus-4-7', count: 5, tokens: 50000, durationMs: 0 }]);
+    db.close();
+  });
+
+  it('returns empty arrays when no rows match the date', async () => {
+    const db = await createTestTrailDatabase();
+    const result = db.getDayToolMetrics('2026-04-25');
+    expect(result).not.toBeNull();
+    expect(result!.toolUsage).toEqual([]);
+    expect(result!.skillUsage).toEqual([]);
+    expect(result!.errorsByTool).toEqual([]);
+    expect(result!.modelUsage).toEqual([]);
+    db.close();
+  });
+});
+
 describe('c4_manual_elements CRUD', () => {
   // Factory-only construction — see support/createTestDb.ts for safety rationale.
   const createDb = createTestTrailDatabase;

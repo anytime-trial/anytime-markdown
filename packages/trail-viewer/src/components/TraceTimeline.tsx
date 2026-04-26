@@ -9,27 +9,15 @@ import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import type { TrailMessage, TrailSession, TrailTreeNode } from '../parser/types';
 import { useTrailTheme } from './TrailThemeContext';
 
-const TIMELINE_HEIGHT = 200;
+const LANE_HEIGHT = 40; // px per lane/track
+const PLOT_TOP = 8;
+const MAX_SUBAGENT_TRACKS = 5; // scrollbar appears when subagents exceed this
 const COLLAPSED_HEIGHT = 32;
 const STORAGE_KEY = 'trail.timeline.collapsed';
 const LANE_LABEL_WIDTH = 88;
 const TIME_AXIS_HEIGHT = 24;
 
 type LaneKind = 'user' | 'assistant' | 'system' | 'subagent';
-
-const LANES: readonly { readonly kind: LaneKind; readonly label: string }[] = [
-  { kind: 'user', label: 'User' },
-  { kind: 'assistant', label: 'AI' },
-  { kind: 'subagent', label: 'Subagent' },
-  { kind: 'system', label: 'System' },
-];
-
-const LANE_INDEX: Readonly<Record<LaneKind, number>> = {
-  user: 0,
-  assistant: 1,
-  subagent: 2,
-  system: 3,
-};
 
 const AGENT_PALETTE = [
   '#FF6B6B', '#4ECDC4', '#FFD93D', '#6A4C93', '#1982C4',
@@ -240,6 +228,17 @@ export function TraceTimeline({
     return map;
   }, [subagentTracks]);
 
+  // user(1) + ai(1) + subagent(subTrackCount) + system(1)
+  const totalLaneCount = 3 + subTrackCount;
+  const totalContentHeight = totalLaneCount * LANE_HEIGHT; // plot area pixel height
+  const timelineHeight = totalContentHeight + TIME_AXIS_HEIGHT + PLOT_TOP;
+  const maxTimelineHeight = (3 + MAX_SUBAGENT_TRACKS) * LANE_HEIGHT + TIME_AXIS_HEIGHT + PLOT_TOP;
+  const displayHeight = Math.min(timelineHeight, maxTimelineHeight);
+  const needsScroll = timelineHeight > maxTimelineHeight;
+  const laneHeightPct = 100 / totalLaneCount;
+  // Lane indices: user=0, ai=1, subagent[i]=2+i, system=2+subTrackCount
+  const systemLaneIndex = 2 + subTrackCount;
+
   const { rangeStart, rangeEnd } = useMemo(() => {
     const sStart = session?.startTime ? Date.parse(session.startTime) : NaN;
     const sEnd = session?.endTime ? Date.parse(session.endTime) : NaN;
@@ -267,15 +266,13 @@ export function TraceTimeline({
 
   const plotLeft = LANE_LABEL_WIDTH;
   const plotRight = 36;
-  const plotTop = 8;
+  const plotTop = PLOT_TOP;
   const plotBottom = TIME_AXIS_HEIGHT;
-
-  const laneHeightPct = 100 / LANES.length;
 
   const toPct = useCallback((ms: number): number => ((ms - rangeStart) / duration) * 100, [rangeStart, duration]);
 
-  function laneCenterPct(kind: LaneKind): number {
-    return LANE_INDEX[kind] * laneHeightPct + laneHeightPct * 0.5;
+  function laneCenterPct(laneIndex: number): number {
+    return laneIndex * laneHeightPct + laneHeightPct * 0.5;
   }
 
   // Compute AI turn spans (single horizontal bar per turn)
@@ -343,7 +340,7 @@ export function TraceTimeline({
   return (
     <Box
       sx={{
-        height: collapsed ? COLLAPSED_HEIGHT : TIMELINE_HEIGHT,
+        height: collapsed ? COLLAPSED_HEIGHT : displayHeight,
         bgcolor: colors.charcoal,
         borderBottom: `1px solid ${colors.border}`,
         position: 'relative',
@@ -371,76 +368,83 @@ export function TraceTimeline({
 
       {!collapsed && (
         <>
-          {/* Lane labels */}
+          {/* Scrollable wrapper: covers plot area (excludes time axis) */}
           <Box
             sx={{
               position: 'absolute',
               top: plotTop,
               left: 0,
-              width: LANE_LABEL_WIDTH,
+              right: 0,
               bottom: plotBottom,
-              display: 'flex',
-              flexDirection: 'column',
+              overflowY: needsScroll ? 'auto' : 'hidden',
             }}
           >
-            {LANES.map((lane) => (
+            {/* Inner container: full content height, provides scroll target */}
+            <Box sx={{ position: 'relative', height: totalContentHeight }}>
+              {/* Lane labels */}
               <Box
-                key={lane.kind}
                 sx={{
-                  flex: 1,
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: LANE_LABEL_WIDTH,
                   display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'flex-end',
-                  pr: 1,
-                  borderRight: `1px solid ${colors.border}`,
+                  flexDirection: 'column',
                 }}
               >
-                {lane.kind === 'assistant' ? (
+                {/* User */}
+                <Box sx={{ height: LANE_HEIGHT, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', pr: 1, borderRight: `1px solid ${colors.border}` }}>
+                  <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.7rem' }}>User</Typography>
+                </Box>
+                {/* AI */}
+                <Box sx={{ height: LANE_HEIGHT, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', pr: 1, borderRight: `1px solid ${colors.border}` }}>
                   <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: 1.1 }}>
-                    <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.7rem' }}>
-                      Claude Code
-                    </Typography>
+                    <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.7rem' }}>Claude Code</Typography>
                     {session?.version && (
                       <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.6rem', opacity: 0.7 }}>
                         v{session.version}
                       </Typography>
                     )}
                   </Box>
-                ) : (
+                </Box>
+                {/* Subagent (spans subTrackCount tracks) */}
+                <Box sx={{ height: subTrackCount * LANE_HEIGHT, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', pr: 1, borderRight: `1px solid ${colors.border}` }}>
                   <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.7rem' }}>
-                    {lane.label}
-                    {lane.kind === 'subagent' && subagentTracks.length > 0 && (
+                    Subagent
+                    {subagentTracks.length > 0 && (
                       <Box component="span" sx={{ ml: 0.5, color: colors.textSecondary, opacity: 0.6 }}>
                         ×{subagentTracks.length}
                       </Box>
                     )}
                   </Typography>
-                )}
+                </Box>
+                {/* System */}
+                <Box sx={{ height: LANE_HEIGHT, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', pr: 1, borderRight: `1px solid ${colors.border}` }}>
+                  <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.7rem' }}>System</Typography>
+                </Box>
               </Box>
-            ))}
-          </Box>
 
-          {/* Plot area */}
-          <Box
-            sx={{
-              position: 'absolute',
-              top: plotTop,
-              left: plotLeft,
-              right: plotRight,
-              bottom: plotBottom,
-            }}
-          >
-            {/* Lane background separators */}
-            {LANES.map((lane, i) => (
+              {/* Plot area */}
               <Box
-                key={`lane-bg-${lane.kind}`}
+                sx={{
+                  position: 'absolute',
+                  top: 0,
+                  left: plotLeft,
+                  right: plotRight,
+                  bottom: 0,
+                }}
+              >
+            {/* Lane background separators */}
+            {Array.from({ length: totalLaneCount }, (_, i) => (
+              <Box
+                key={`lane-bg-${i}`}
                 sx={{
                   position: 'absolute',
                   top: `${i * laneHeightPct}%`,
                   left: 0,
                   right: 0,
                   height: `${laneHeightPct}%`,
-                  borderBottom: i < LANES.length - 1 ? `1px dashed ${colors.border}` : 'none',
+                  borderBottom: i < totalLaneCount - 1 ? `1px dashed ${colors.border}` : 'none',
                 }}
               />
             ))}
@@ -458,8 +462,8 @@ export function TraceTimeline({
               aria-hidden="true"
             >
               {connectors.map((c) => {
-                const userY = laneCenterPct('user');
-                const aiY = laneCenterPct('assistant');
+                const userY = laneCenterPct(0);
+                const aiY = laneCenterPct(1);
                 return (
                   <line
                     key={c.key}
@@ -489,7 +493,7 @@ export function TraceTimeline({
               .filter((m) => m.laneKind === 'user')
               .map((msg) => {
                 const leftPct = toPct(msg.ms);
-                const topPct = LANE_INDEX.user * laneHeightPct + laneHeightPct * 0.35;
+                const topPct = laneHeightPct * 0.35; // user lane index = 0
                 const heightPct = laneHeightPct * 0.3;
                 return (
                   <Tooltip key={msg.uuid} title={`[user] ${msg.timestamp}`} placement="top">
@@ -519,7 +523,7 @@ export function TraceTimeline({
 
             {/* AI turn bars (one per turn, spanning the turn duration) */}
             {aiTurnBars.map((bar) => {
-              const topPct = LANE_INDEX.assistant * laneHeightPct + laneHeightPct * 0.35;
+              const topPct = 1 * laneHeightPct + laneHeightPct * 0.35; // ai lane index = 1
               const heightPct = laneHeightPct * 0.3;
               const toolSuffix = bar.toolNames.length > 0 ? ` · ${Array.from(new Set(bar.toolNames)).join(', ')}` : '';
               const durMs = bar.endMs - bar.startMs;
@@ -571,13 +575,12 @@ export function TraceTimeline({
               .filter((m) => m.laneKind === 'subagent')
               .map((msg) => {
                 const leftPct = toPct(msg.ms);
-                const laneBasePct = LANE_INDEX.subagent * laneHeightPct;
                 const trackIndex = msg.agentId ? subagentIndex.get(msg.agentId) ?? 0 : 0;
-                const trackHeightPct = laneHeightPct / subTrackCount;
-                const topPct = laneBasePct + trackIndex * trackHeightPct + trackHeightPct * 0.35;
-                const heightPct = trackHeightPct * 0.3;
+                const topPct = (2 + trackIndex) * laneHeightPct + laneHeightPct * 0.35;
+                const heightPct = laneHeightPct * 0.3;
                 const color = msg.agentId ? getAgentColor(msg.agentId) : toolColors.plain;
-                const tooltipLabel = `[subagent] ${msg.timestamp}${msg.agentId ? ` · ${msg.agentId.slice(0, 8)}` : ''}${msg.agentDescription ? ` (${msg.agentDescription})` : ''}`;
+                const toolSuffix = msg.toolNames.length > 0 ? ` · ${Array.from(new Set(msg.toolNames)).join(', ')}` : '';
+                const tooltipLabel = `[subagent] ${msg.timestamp}${msg.agentId ? ` · ${msg.agentId.slice(0, 8)}` : ''}${msg.agentDescription ? ` (${msg.agentDescription})` : ''}${toolSuffix}`;
                 return (
                   <Tooltip key={msg.uuid} title={tooltipLabel} placement="top">
                     <Box
@@ -609,7 +612,7 @@ export function TraceTimeline({
               .filter((m) => m.laneKind === 'system')
               .map((msg) => {
                 const leftPct = toPct(msg.ms);
-                const topPct = LANE_INDEX.system * laneHeightPct + laneHeightPct * 0.35;
+                const topPct = systemLaneIndex * laneHeightPct + laneHeightPct * 0.35;
                 const heightPct = laneHeightPct * 0.3;
                 return (
                   <Tooltip key={msg.uuid} title={`[system] ${msg.timestamp}`} placement="top">
@@ -636,7 +639,9 @@ export function TraceTimeline({
                   </Tooltip>
                 );
               })}
-          </Box>
+              </Box>{/* Plot area */}
+            </Box>{/* Inner container */}
+          </Box>{/* Scrollable wrapper */}
 
           {/* Time axis */}
           <Box

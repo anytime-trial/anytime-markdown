@@ -2,28 +2,28 @@
 
 import MenuIcon from '@mui/icons-material/Menu';
 import {
-  AppBar, Box,   Button, Drawer, IconButton, List, ListItemButton, ListItemText,
-ToggleButton,
-ToggleButtonGroup, Toolbar, Typography, } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
+  AppBar, Box, Button, Drawer, IconButton,
+  Toolbar, Typography,
+} from '@mui/material';
 import NextLink from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 
 import { useLocaleSwitch } from '../LocaleProvider';
+import { useThemeMode } from '../providers';
 
 export default function LandingHeader() {
   const { locale, setLocale } = useLocaleSwitch();
+  const { themeMode, setThemeMode } = useThemeMode();
   const t = useTranslations('Landing');
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
+  const isDark = themeMode === 'dark';
   const badgeCircle = isDark ? '#F5F3EC' : '#1F1E1C';
   const badgeHoof   = isDark ? '#15171C' : '#FBF9F3';
-  const showGraph = process.env.NEXT_PUBLIC_SHOW_GRAPH === '1';
-  const showSheet = process.env.NEXT_PUBLIC_SHOW_SHEET === '1';
-  const showPlaylist = process.env.NEXT_PUBLIC_SHOW_PLAYLIST === '1';
 
+  const toggleLocale = () => setLocale(locale === 'ja' ? 'en' : 'ja');
+  const toggleTheme = () => setThemeMode(isDark ? 'light' : 'dark');
+  const currentLocaleLabel = locale === 'ja' ? 'JA' : 'EN';
 
   return (
     <AppBar
@@ -80,89 +80,41 @@ export default function LandingHeader() {
           </Box>
         </Box>
 
-        <Box component="nav" aria-label={t('ariaMainNavigation')} sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 } }}>
+        <Box component="nav" aria-label={t('ariaMainNavigation')} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
           <Button
-            component={NextLink}
-            href="/markdown"
-            sx={{ textTransform: 'none', color: 'text.secondary', fontWeight: 600, fontSize: '0.85rem', display: { xs: 'none', sm: 'inline-flex' } }}
-          >
-            {t('openEditor')}
-          </Button>
-          <Button
-            component={NextLink}
-            href="/trail"
-            sx={{ textTransform: 'none', color: 'text.secondary', fontWeight: 600, fontSize: '0.85rem', display: { xs: 'none', sm: 'inline-flex' } }}
-          >
-            {t('trailViewerPage')}
-          </Button>
-          <Button
-            component={NextLink}
-            href="/report"
-            sx={{ textTransform: 'none', color: 'text.secondary', fontWeight: 600, fontSize: '0.85rem', display: { xs: 'none', sm: 'inline-flex' } }}
-          >
-            {t('reportPage')}
-          </Button>
-          <Button
-            component={NextLink}
-            href="/docs"
-            sx={{ textTransform: 'none', color: 'text.secondary', fontWeight: 600, fontSize: '0.85rem', display: { xs: 'none', sm: 'inline-flex' } }}
-          >
-            {t('sitesPage')}
-          </Button>
-          {showGraph && (
-            <Button
-              component={NextLink}
-              href="/graph"
-              sx={{ textTransform: 'none', color: 'text.secondary', fontWeight: 600, fontSize: '0.85rem', display: { xs: 'none', sm: 'inline-flex' } }}
-            >
-              {t('graphPage')}
-            </Button>
-          )}
-          {showSheet && (
-            <Button
-              component={NextLink}
-              href="/sheet"
-              sx={{ textTransform: 'none', color: 'text.secondary', fontWeight: 600, fontSize: '0.85rem', display: { xs: 'none', sm: 'inline-flex' } }}
-            >
-              {t('sheetPage')}
-            </Button>
-          )}
-          {showPlaylist && (
-            <Button
-              component={NextLink}
-              href="/playlist"
-              sx={{ textTransform: 'none', color: 'text.secondary', fontWeight: 600, fontSize: '0.85rem', display: { xs: 'none', sm: 'inline-flex' } }}
-            >
-              {t('playlistPage')}
-            </Button>
-          )}
-
-          <ToggleButtonGroup
-            value={locale}
-            exclusive
-            onChange={(_, val) => { if (val) setLocale(val); }}
-            size="small"
+            onClick={toggleLocale}
             aria-label={t('ariaLanguage')}
+            size="small"
             sx={{
               display: { xs: 'none', sm: 'inline-flex' },
-              '& .MuiToggleButton-root': {
-                px: 1.5,
-                py: 0.25,
-                fontSize: '0.75rem',
-                fontWeight: 600,
-                textTransform: 'none',
-                borderColor: 'divider',
-                color: 'text.secondary',
-                '&.Mui-selected': {
-                  color: 'text.primary',
-                  bgcolor: 'action.selected',
-                },
-              },
+              minWidth: 0,
+              px: 1.5,
+              py: 0.25,
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              color: 'text.secondary',
+              '&:hover': { color: 'text.primary' },
             }}
           >
-            <ToggleButton value="en" aria-label="English">EN</ToggleButton>
-            <ToggleButton value="ja" aria-label="Japanese">JA</ToggleButton>
-          </ToggleButtonGroup>
+            {currentLocaleLabel}
+          </Button>
+
+          <Button
+            onClick={toggleTheme}
+            aria-label={t('ariaTheme')}
+            size="small"
+            sx={{
+              display: { xs: 'none', sm: 'inline-flex' },
+              minWidth: 0,
+              px: 1.5,
+              py: 0.25,
+              fontSize: '1rem',
+              color: 'text.secondary',
+              '&:hover': { color: 'text.primary' },
+            }}
+          >
+            ◐
+          </Button>
 
           <IconButton
             aria-label={t('ariaMenu')}
@@ -184,56 +136,25 @@ export default function LandingHeader() {
         aria-label={t('ariaMobileNavigation')}
       >
         <Box sx={{ width: 220, pt: 2 }} component="nav" aria-label={t('ariaMobileNavigation')}>
-          <List>
-            <ListItemButton component={NextLink} href="/markdown" onClick={() => setDrawerOpen(false)}>
-              <ListItemText primary={t('openEditor')} />
-            </ListItemButton>
-            <ListItemButton component={NextLink} href="/trail" onClick={() => setDrawerOpen(false)}>
-              <ListItemText primary={t('trailViewerPage')} />
-            </ListItemButton>
-            <ListItemButton component={NextLink} href="/report" onClick={() => setDrawerOpen(false)}>
-              <ListItemText primary={t('reportPage')} />
-            </ListItemButton>
-            <ListItemButton component={NextLink} href="/docs" onClick={() => setDrawerOpen(false)}>
-              <ListItemText primary={t('sitesPage')} />
-            </ListItemButton>
-            {showGraph && (
-              <ListItemButton component={NextLink} href="/graph" onClick={() => setDrawerOpen(false)}>
-                <ListItemText primary={t('graphPage')} />
-              </ListItemButton>
-            )}
-            {showSheet && (
-              <ListItemButton component={NextLink} href="/sheet" onClick={() => setDrawerOpen(false)}>
-                <ListItemText primary={t('sheetPage')} />
-              </ListItemButton>
-            )}
-            {showPlaylist && (
-              <ListItemButton component={NextLink} href="/playlist" onClick={() => setDrawerOpen(false)}>
-                <ListItemText primary={t('playlistPage')} />
-              </ListItemButton>
-            )}
-          </List>
-          <Box sx={{ px: 2, pt: 1 }}>
-            <ToggleButtonGroup
-              value={locale}
-              exclusive
-              onChange={(_, val) => { if (val) setLocale(val); }}
+          <Box sx={{ px: 2, pt: 1, display: 'flex', gap: 1 }}>
+            <Button
+              onClick={() => { toggleLocale(); setDrawerOpen(false); }}
+              aria-label={t('ariaLanguage')}
               size="small"
               fullWidth
-              aria-label={t('ariaLanguage')}
-              sx={{
-                '& .MuiToggleButton-root': {
-                  px: 1.5,
-                  py: 0.5,
-                  fontSize: '0.8rem',
-                  fontWeight: 600,
-                  textTransform: 'none',
-                },
-              }}
+              sx={{ fontWeight: 600, fontSize: '0.8rem', color: 'text.secondary' }}
             >
-              <ToggleButton value="en" aria-label="English">EN</ToggleButton>
-              <ToggleButton value="ja" aria-label="Japanese">JA</ToggleButton>
-            </ToggleButtonGroup>
+              {currentLocaleLabel}
+            </Button>
+            <Button
+              onClick={() => { toggleTheme(); setDrawerOpen(false); }}
+              aria-label={t('ariaTheme')}
+              size="small"
+              fullWidth
+              sx={{ fontSize: '1rem', color: 'text.secondary' }}
+            >
+              ◐
+            </Button>
           </Box>
         </Box>
       </Drawer>

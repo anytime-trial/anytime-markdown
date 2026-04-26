@@ -9,7 +9,6 @@ import { useTranslations } from 'next-intl';
 import type { ReportMeta } from '../../../types/report';
 import LandingHeader from '../../components/LandingHeader';
 import MarkdownViewer from '../../components/MarkdownViewer';
-import SiteFooter from '../../components/SiteFooter';
 
 interface ReportDetailBodyProps {
   report: { meta: ReportMeta; content: string } | null;
@@ -29,7 +28,6 @@ export default function ReportDetailBody({ report }: Readonly<ReportDetailBodyPr
         <Container maxWidth="md" sx={{ flex: 1, py: 6 }}>
           <Alert severity="error">{t('reportLoadError')}</Alert>
         </Container>
-        <SiteFooter />
       </Box>
     );
   }
@@ -129,8 +127,6 @@ export default function ReportDetailBody({ report }: Readonly<ReportDetailBodyPr
           noScroll
         />
       </Container>
-
-      <SiteFooter />
     </Box>
   );
 }

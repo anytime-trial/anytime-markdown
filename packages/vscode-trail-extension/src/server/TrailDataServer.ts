@@ -24,7 +24,7 @@ import type { TrailGraph } from '@anytime-markdown/trail-core';
 import { WebSocketServer, type WebSocket } from 'ws';
 
 import type { ClientMessage, ServerMessage } from './types';
-import type { TrailDatabase, SessionRow, MessageRow, AnalyticsData, CostOptimizationData } from '../trail/TrailDatabase';
+import type { TrailDatabase, SessionRow, MessageRow, SessionCommitRow, AnalyticsData, CostOptimizationData } from '../trail/TrailDatabase';
 import { MetricsThresholdsLoader } from '../trail/MetricsThresholdsLoader';
 import { computeDeploymentFrequency, computeQualityMetrics, computeReleaseQualityTimeSeries } from '@anytime-markdown/trail-core/domain/metrics';
 import { TrailLogger } from '../utils/TrailLogger';
@@ -362,6 +362,12 @@ export class TrailDataServer {
       return;
     }
 
+    const dayToolMetricsMatch = /^\/api\/trail\/days\/([^/]+)\/tool-metrics$/.exec(pathname);
+    if (dayToolMetricsMatch && method === 'GET') {
+      this.handleGetDayToolMetrics(res, decodeURIComponent(dayToolMetricsMatch[1]));
+      return;
+    }
+
     const sessionMatch = /^\/api\/trail\/sessions\/([^/]+)$/.exec(pathname);
     if (sessionMatch && method === 'GET') {
       this.handleGetSession(res, decodeURIComponent(sessionMatch[1]));
@@ -605,12 +611,44 @@ export class TrailDataServer {
       }
 
       const rawMessages: MessageRow[] = this.trailDb.getMessages(sessionId);
+      const toolExecMsMap = this.trailDb.getTurnExecMsBySession(sessionId);
+      const skillsMap = this.trailDb.getSkillsBySession(sessionId);
       const messageCommits = this.trailDb.getMessageCommitsBySession(sessionId);
+      const errorUuids = this.trailDb.getErrorMessageUuids(sessionId);
+      const gitCommitUuids = this.trailDb.getGitCommitMessageUuids(sessionId);
       const commitsByMessageUuid = new Map<string, string[]>();
       for (const mc of messageCommits) {
         const arr = commitsByMessageUuid.get(mc.messageUuid) ?? [];
         arr.push(mc.commitHash);
         commitsByMessageUuid.set(mc.messageUuid, arr);
+      }
+      // message_commits stores user message UUIDs; map back to the parent assistant UUID
+      const commitsByAssistantUuid = new Map<string, string[]>();
+      for (const m of rawMessages) {
+        const hashes = commitsByMessageUuid.get(m.uuid);
+        if (hashes && m.parent_uuid) commitsByAssistantUuid.set(m.parent_uuid, hashes);
+      }
+      // Fallback: for sessions where message_commits is not yet backfilled,
+      // match git-commit assistant messages to session_commits by timestamp proximity.
+      if (commitsByAssistantUuid.size === 0) {
+        const sessionCommitsList = this.trailDb.getSessionCommits(sessionId);
+        if (sessionCommitsList.length > 0) {
+          for (const m of rawMessages) {
+            if (!gitCommitUuids.has(m.uuid) || !m.timestamp) continue;
+            const msgTime = new Date(m.timestamp).getTime();
+            let closest: SessionCommitRow | null = null;
+            let closestDiff = Infinity;
+            for (const sc of sessionCommitsList) {
+              if (!sc.committed_at) continue;
+              const diff = new Date(sc.committed_at).getTime() - msgTime;
+              if (diff >= 0 && diff < 300_000 && diff < closestDiff) {
+                closest = sc;
+                closestDiff = diff;
+              }
+            }
+            if (closest) commitsByAssistantUuid.set(m.uuid, [closest.commit_hash]);
+          }
+        }
       }
       const messages = rawMessages.map((m) => ({
         uuid: m.uuid,
@@ -631,9 +669,13 @@ export class TrailDataServer {
           : undefined,
         timestamp: m.timestamp,
         isSidechain: m.is_sidechain === 1,
-        triggerCommitHashes: commitsByMessageUuid.get(m.uuid),
+        triggerCommitHashes: commitsByAssistantUuid.get(m.uuid) ?? commitsByMessageUuid.get(m.uuid),
+        hasToolError: errorUuids.has(m.uuid) ? true : undefined,
+        hasCommit: gitCommitUuids.has(m.uuid) ? true : undefined,
         agentId: m.agent_id,
         agentDescription: m.agent_description,
+        toolExecMs: toolExecMsMap.get(m.uuid),
+        skill: skillsMap.get(m.uuid),
       }));
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ session, messages }));
@@ -683,6 +725,29 @@ export class TrailDataServer {
     } catch {
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: 'Failed to get tool metrics' }));
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  //  API: GET /api/trail/days/:date/tool-metrics
+  // -------------------------------------------------------------------------
+
+  private handleGetDayToolMetrics(
+    res: http.ServerResponse,
+    date: string,
+  ): void {
+    try {
+      const metrics = this.trailDb.getDayToolMetrics(date);
+      if (metrics === null) {
+        res.writeHead(500, JSON_HEADERS);
+        res.end(JSON.stringify({ error: 'Failed to get day tool metrics' }));
+        return;
+      }
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify(metrics));
+    } catch {
+      res.writeHead(500, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'Failed to get day tool metrics' }));
     }
   }
 

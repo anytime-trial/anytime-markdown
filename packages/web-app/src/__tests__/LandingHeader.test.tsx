@@ -14,6 +14,10 @@ jest.mock("../app/LocaleProvider", () => ({
   useLocaleSwitch: () => ({ locale: "en", setLocale: jest.fn() }),
 }));
 
+jest.mock("../app/providers", () => ({
+  useThemeMode: () => ({ themeMode: "light", setThemeMode: jest.fn() }),
+}));
+
 import LandingHeader from "../app/components/LandingHeader";
 
 describe("LandingHeader", () => {
@@ -23,14 +27,13 @@ describe("LandingHeader", () => {
     expect(screen.getByText("TRAIL")).toBeTruthy();
   });
 
-  it("renders navigation buttons", () => {
+  it("renders theme toggle button", () => {
     render(<LandingHeader />);
-    expect(screen.getByText("sitesPage")).toBeTruthy();
+    expect(screen.getAllByText("◐").length).toBeGreaterThanOrEqual(1);
   });
 
-  it("renders language toggle buttons", () => {
+  it("renders current locale toggle button", () => {
     render(<LandingHeader />);
-    expect(screen.getByText("EN")).toBeTruthy();
-    expect(screen.getByText("JA")).toBeTruthy();
+    expect(screen.getAllByText("EN").length).toBeGreaterThanOrEqual(1);
   });
 });

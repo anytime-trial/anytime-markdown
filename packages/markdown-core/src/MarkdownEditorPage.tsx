@@ -639,8 +639,6 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
           onToggleOutline={handleToggleOutline}
           fontSize={settings.fontSize}
           onFontSizeChange={(size) => updateSettings({ fontSize: size })}
-          themeMode={themeMode}
-          onThemeModeChange={onThemeModeChange}
           presetName={presetName}
           onPresetChange={onPresetChange}
           t={t}

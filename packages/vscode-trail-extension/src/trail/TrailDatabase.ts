@@ -2600,6 +2600,97 @@ export class TrailDatabase {
     }));
   }
 
+  /** Return the set of message UUIDs that executed a git commit Bash command in the session. */
+  getGitCommitMessageUuids(sessionId: string): Set<string> {
+    const db = this.ensureDb();
+    const result = db.exec(
+      "SELECT DISTINCT message_uuid FROM message_tool_calls WHERE session_id = ? AND tool_name = 'Bash' AND command LIKE '%git commit%'",
+      [sessionId],
+    );
+    const uuids = new Set<string>();
+    if (result[0]) {
+      for (const row of result[0].values) {
+        if (typeof row[0] === 'string') uuids.add(row[0]);
+      }
+    }
+    return uuids;
+  }
+
+  /** Return the set of message UUIDs that had at least one is_error=1 tool call in the session. */
+  getErrorMessageUuids(sessionId: string): Set<string> {
+    const db = this.ensureDb();
+    const result = db.exec(
+      'SELECT DISTINCT message_uuid FROM message_tool_calls WHERE session_id = ? AND is_error = 1',
+      [sessionId],
+    );
+    const uuids = new Set<string>();
+    if (result[0]) {
+      for (const row of result[0].values) {
+        if (typeof row[0] === 'string') uuids.add(row[0]);
+      }
+    }
+    return uuids;
+  }
+
+  getSkillsBySession(sessionId: string): Map<string, string> {
+    const db = this.ensureDb();
+    const map = new Map<string, string>();
+
+    // Primary: message_tool_calls.skill_name (populated for sessions imported after skill column was added)
+    const tcResult = db.exec(
+      'SELECT message_uuid, skill_name FROM message_tool_calls WHERE session_id = ? AND skill_name IS NOT NULL GROUP BY message_uuid',
+      [sessionId],
+    );
+    if (tcResult[0]) {
+      for (const row of tcResult[0].values) {
+        const uuid = row[0];
+        const skill = row[1];
+        if (typeof uuid === 'string' && typeof skill === 'string') {
+          map.set(uuid, skill);
+        }
+      }
+    }
+
+    // Fallback: parse messages.tool_calls directly for sessions where skill_name was not backfilled
+    const msgResult = db.exec(
+      "SELECT uuid, tool_calls FROM messages WHERE session_id = ? AND type = 'assistant' AND tool_calls IS NOT NULL",
+      [sessionId],
+    );
+    if (msgResult[0]) {
+      for (const row of msgResult[0].values) {
+        const uuid = row[0];
+        const toolCallsJson = row[1];
+        if (typeof uuid === 'string' && typeof toolCallsJson === 'string' && !map.has(uuid)) {
+          const skill = extractSkillName(toolCallsJson);
+          if (skill) {
+            map.set(uuid, skill);
+          }
+        }
+      }
+    }
+
+    return map;
+  }
+
+  getTurnExecMsBySession(sessionId: string): Map<string, number> {
+    const db = this.ensureDb();
+    const result = db.exec(
+      'SELECT message_uuid, turn_exec_ms FROM message_tool_calls WHERE session_id = ? GROUP BY message_uuid',
+      [sessionId],
+    );
+    const map = new Map<string, number>();
+    if (result[0]) {
+      for (const row of result[0].values) {
+        const uuid = row[0];
+        const ms = row[1];
+        if (typeof uuid === 'string' && typeof ms === 'number' && ms > 0) {
+          map.set(uuid, ms);
+        }
+      }
+    }
+    return map;
+  }
+
   getMessages(sessionId: string): MessageRow[] {
     const db = this.ensureDb();
     const stmt = db.prepare(
@@ -3027,6 +3118,80 @@ export class TrailDatabase {
       };
     } catch {
       return zero;
+    }
+  }
+
+  /**
+   * 指定日の tool/skill/error/model 利用統計を daily_counts から集計して返す。
+   * Activity タブで日付バーを選択した直後に表示する右側パネル用。
+   */
+  getDayToolMetrics(date: string): {
+    totalRetries: number;
+    totalEdits: number;
+    totalBuildRuns: number;
+    totalBuildFails: number;
+    totalTestRuns: number;
+    totalTestFails: number;
+    toolUsage: { tool: string; count: number; tokens: number; durationMs: number }[];
+    skillUsage: { skill: string; count: number; tokens: number; durationMs: number }[];
+    errorsByTool: { tool: string; count: number }[];
+    modelUsage: { model: string; count: number; tokens: number; durationMs: number }[];
+  } | null {
+    try {
+      const db = this.ensureDb();
+      const result = db.exec(
+        `SELECT kind, key, count, tokens, duration_ms
+         FROM daily_counts
+         WHERE date = ? AND kind IN ('tool', 'skill', 'error', 'model')`,
+        [date],
+      );
+      if (!result[0]) {
+        return {
+          totalRetries: 0, totalEdits: 0, totalBuildRuns: 0, totalBuildFails: 0,
+          totalTestRuns: 0, totalTestFails: 0,
+          toolUsage: [], skillUsage: [], errorsByTool: [], modelUsage: [],
+        };
+      }
+
+      const toolMap = new Map<string, { count: number; tokens: number; durationMs: number }>();
+      const skillMap = new Map<string, { count: number; tokens: number; durationMs: number }>();
+      const errMap = new Map<string, number>();
+      const modelMap = new Map<string, { count: number; tokens: number; durationMs: number }>();
+
+      for (const row of result[0].values) {
+        const kind = String(row[0] ?? '');
+        const key = String(row[1] ?? '');
+        const count = Number(row[2] ?? 0);
+        const tokens = Number(row[3] ?? 0);
+        const durationMs = Number(row[4] ?? 0);
+        if (kind === 'tool') {
+          const e = toolMap.get(key) ?? { count: 0, tokens: 0, durationMs: 0 };
+          e.count += count; e.tokens += tokens; e.durationMs += durationMs;
+          toolMap.set(key, e);
+        } else if (kind === 'skill') {
+          const e = skillMap.get(key) ?? { count: 0, tokens: 0, durationMs: 0 };
+          e.count += count; e.tokens += tokens; e.durationMs += durationMs;
+          skillMap.set(key, e);
+        } else if (kind === 'error') {
+          errMap.set(key, (errMap.get(key) ?? 0) + count);
+        } else if (kind === 'model') {
+          const e = modelMap.get(key) ?? { count: 0, tokens: 0, durationMs: 0 };
+          e.count += count; e.tokens += tokens; e.durationMs += durationMs;
+          modelMap.set(key, e);
+        }
+      }
+
+      return {
+        totalRetries: 0, totalEdits: 0, totalBuildRuns: 0, totalBuildFails: 0,
+        totalTestRuns: 0, totalTestFails: 0,
+        toolUsage: [...toolMap.entries()].map(([tool, e]) => ({ tool, ...e })).sort((a, b) => b.count - a.count),
+        skillUsage: [...skillMap.entries()].map(([skill, e]) => ({ skill, ...e })).sort((a, b) => b.count - a.count),
+        errorsByTool: [...errMap.entries()].map(([tool, count]) => ({ tool, count })).sort((a, b) => b.count - a.count),
+        modelUsage: [...modelMap.entries()].map(([model, e]) => ({ model, ...e })).sort((a, b) => b.count - a.count),
+      };
+    } catch (e) {
+      TrailLogger.error(`getDayToolMetrics failed for date=${date}`, e);
+      return null;
     }
   }
 

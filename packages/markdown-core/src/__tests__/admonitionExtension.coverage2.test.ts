@@ -10,18 +10,17 @@ import { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import { Markdown } from "tiptap-markdown";
 import { AdmonitionBlockquote } from "../extensions/admonitionExtension";
-import { preprocessAdmonition } from "../utils/admonitionHelpers";
 
 function createEditor(md = ""): Editor {
-  const preprocessed = preprocessAdmonition(md);
-  return new Editor({
+  const editor = new Editor({
     extensions: [
       StarterKit.configure({ blockquote: false }),
       AdmonitionBlockquote,
       Markdown.configure({ html: true }),
     ],
-    content: preprocessed,
   });
+  editor.commands.setContent(md);
+  return editor;
 }
 
 describe("AdmonitionBlockquote - keyboard shortcuts", () => {
