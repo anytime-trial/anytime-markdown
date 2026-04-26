@@ -1431,11 +1431,11 @@
 
 .weatherGrid {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(6, 1fr);
     gap: 0;
 }
 
-@media (max-width: 880px) {
+@media (max-width: 1080px) {
     .weatherGrid {
         grid-template-columns: repeat(3, 1fr);
     }
@@ -1460,7 +1460,7 @@
     border-right: 0;
 }
 
-@media (max-width: 880px) {
+@media (max-width: 1080px) {
     .weatherCard:nth-child(3n) {
         border-right: 0;
     }
