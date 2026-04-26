@@ -170,6 +170,7 @@ export function TrailViewerApp({
       fetchDeploymentFrequency={dataSource.fetchDeploymentFrequency}
       fetchReleaseQuality={dataSource.fetchReleaseQuality}
       tokenBudgets={dataSource.tokenBudgets}
+      sessionsLoading={dataSource.loading}
       c4={c4Props}
     />
   );

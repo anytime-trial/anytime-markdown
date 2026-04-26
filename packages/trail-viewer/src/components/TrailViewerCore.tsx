@@ -60,6 +60,7 @@ export interface TrailViewerCoreProps {
   readonly fetchDeploymentFrequency?: AnalyticsPanelProps['fetchDeploymentFrequency'];
   readonly fetchReleaseQuality?: AnalyticsPanelProps['fetchReleaseQuality'];
   readonly tokenBudgets?: readonly import('../hooks/useTrailDataSource').TokenBudgetStatus[];
+  readonly sessionsLoading?: boolean;
   /** C4 viewer props. When provided, the C4 tab is shown. */
   readonly c4?: C4Props;
 }
@@ -99,6 +100,7 @@ function TrailViewerCoreInner({
   fetchDeploymentFrequency,
   fetchReleaseQuality,
   tokenBudgets = [],
+  sessionsLoading,
   c4,
 }: Readonly<TrailViewerCoreProps>) {
   const { t } = useTrailI18n();
@@ -225,6 +227,7 @@ function TrailViewerCoreInner({
         <AnalyticsPanel
           analytics={analytics}
           sessions={allSessions ?? sessions}
+          sessionsLoading={sessionsLoading}
           onSelectSession={onSelectSession}
           onJumpToTrace={handleJumpToTrace}
           fetchSessionMessages={fetchSessionMessages}

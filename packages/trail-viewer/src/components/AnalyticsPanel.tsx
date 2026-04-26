@@ -61,6 +61,7 @@ export interface AnalyticsPanelProps {
   readonly fetchQualityMetrics?: (range: DateRange) => Promise<QualityMetrics | null>;
   readonly fetchDeploymentFrequency?: (range: DateRange, bucket: 'day' | 'week') => Promise<ReadonlyArray<{ bucketStart: string; value: number }>>;
   readonly fetchReleaseQuality?: (range: DateRange, bucket: 'day' | 'week') => Promise<ReadonlyArray<ReleaseQualityBucket>>;
+  readonly sessionsLoading?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -1565,6 +1566,7 @@ function buildDaySession(date: string, daySessions: readonly TrailSession[]): Tr
 function DailySessionList({
   date,
   sessions,
+  sessionsLoading,
   onSelectSession,
   onJumpToTrace,
   fetchSessionMessages,
@@ -1574,6 +1576,7 @@ function DailySessionList({
 }: Readonly<{
   date: string;
   sessions: readonly TrailSession[];
+  sessionsLoading?: boolean;
   onSelectSession?: (id: string) => void;
   onJumpToTrace?: (session: TrailSession) => void;
   fetchSessionMessages?: (id: string) => Promise<readonly TrailMessage[]>;
@@ -1641,13 +1644,19 @@ function DailySessionList({
     <Paper elevation={0} sx={{ ...cardSx, mt: 1, p: 1.5 }}>
       <Box sx={{ mb: 1 }}>
         <Typography variant="subtitle2">
-          {date} — {daySessions.length} {daySessions.length !== 1 ? t('sessionList.sessions') : t('sessionList.session')}
+          {date} — {sessionsLoading
+            ? '...'
+            : `${daySessions.length} ${daySessions.length !== 1 ? t('sessionList.sessions') : t('sessionList.session')}`}
         </Typography>
       </Box>
       <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', lg: 'row' } }}>
         {/* Left: fixed height matches right column when session selected */}
-        <Box sx={{ flex: 1, minWidth: 0, overflowY: 'auto', ...scrollbarSx, ...(daySessions.length > 0 ? { height: { lg: 726 } } : { maxHeight: { lg: 726 } }) }}>
-          {daySessions.length === 0 ? (
+        <Box sx={{ flex: 1, minWidth: 0, overflowY: 'auto', ...scrollbarSx, ...((daySessions.length > 0 || sessionsLoading) ? { height: { lg: 726 } } : { maxHeight: { lg: 726 } }) }}>
+          {sessionsLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
+              <CircularProgress size={24} />
+            </Box>
+          ) : daySessions.length === 0 ? (
             <Typography variant="body2" color="text.secondary">{t('sessionList.noSessionsFound')}</Typography>
           ) : (
             <Table size="small" stickyHeader>
@@ -2608,6 +2617,7 @@ type CombinedMetric = 'tokens' | 'tools' | 'errors' | 'skills' | 'models' | 'com
 function CombinedChartsSection({
   dailyActivity,
   sessions,
+  sessionsLoading,
   period,
   setPeriod,
   onSelectSession,
@@ -2623,6 +2633,7 @@ function CombinedChartsSection({
 }: Readonly<{
   dailyActivity: AnalyticsData['dailyActivity'];
   sessions: readonly TrailSession[];
+  sessionsLoading?: boolean;
   period: PeriodDays;
   setPeriod: (v: PeriodDays) => void;
   onSelectSession?: (id: string) => void;
@@ -2854,6 +2865,7 @@ function CombinedChartsSection({
         <DailySessionList
           date={selectedDate}
           sessions={sessions}
+          sessionsLoading={sessionsLoading}
           onSelectSession={onSelectSession}
           onJumpToTrace={onJumpToTrace}
           fetchSessionMessages={fetchSessionMessages}
@@ -2866,7 +2878,7 @@ function CombinedChartsSection({
   );
 }
 
-export function AnalyticsPanel({ analytics, sessions = [], onSelectSession, onJumpToTrace, fetchSessionMessages, fetchSessionCommits, fetchSessionToolMetrics, fetchDayToolMetrics, costOptimization, fetchCombinedData, fetchQualityMetrics, fetchDeploymentFrequency, fetchReleaseQuality }: Readonly<AnalyticsPanelProps>) {
+export function AnalyticsPanel({ analytics, sessions = [], sessionsLoading, onSelectSession, onJumpToTrace, fetchSessionMessages, fetchSessionCommits, fetchSessionToolMetrics, fetchDayToolMetrics, costOptimization, fetchCombinedData, fetchQualityMetrics, fetchDeploymentFrequency, fetchReleaseQuality }: Readonly<AnalyticsPanelProps>) {
   const { t } = useTrailI18n();
   const { scrollbarSx } = useTrailTheme();
   const [period, setPeriod] = useState<PeriodDays>(30);
@@ -2898,6 +2910,7 @@ export function AnalyticsPanel({ analytics, sessions = [], onSelectSession, onJu
       <CombinedChartsSection
         dailyActivity={analytics.dailyActivity}
         sessions={sessions}
+        sessionsLoading={sessionsLoading}
         period={period}
         setPeriod={setPeriod}
         onSelectSession={onSelectSession}
