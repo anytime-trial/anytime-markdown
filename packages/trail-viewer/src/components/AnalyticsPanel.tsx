@@ -693,8 +693,8 @@ function TurnLaneChart({
           const cx = toX(run.start) + naturalW / 2;
           return (
             <rect key={`ts${run.start}`} data-skill={run.value}
-              x={cx - w / 2} y={toolY + LANE_H - MODEL_LINE_H - SKILL_LINE_H}
-              width={w} height={SKILL_LINE_H}
+              x={cx - w / 2} y={toolY}
+              width={w} height={LANE_H - MODEL_LINE_H}
               fill={laneSkillColor(run.value)} />
           );
         })}
@@ -725,8 +725,8 @@ function TurnLaneChart({
                 const cx = toX(run.start) + naturalW / 2;
                 return (
                   <rect key={`sas${i}-${run.start}`}
-                    x={cx - w / 2} y={y + LANE_H - MODEL_LINE_H - SKILL_LINE_H}
-                    width={w} height={SKILL_LINE_H}
+                    x={cx - w / 2} y={y}
+                    width={w} height={LANE_H - MODEL_LINE_H}
                     fill={laneSkillColor(run.value)} />
                 );
               })}
