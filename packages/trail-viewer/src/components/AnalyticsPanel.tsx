@@ -892,7 +892,7 @@ function SessionCacheTimeline({
           <ChartsDataProvider
             dataset={dataset as any}
             series={[
-              { type: 'bar' as const, dataKey: 'toolUsageTokens', label: t('analytics.chartToolUsageTokens'), color: chartColors.toolExec, yAxisId: 'tokens', valueFormatter: (v: number | null) => (v == null ? '' : fmtTokens(v)) },
+              { type: 'bar' as const, dataKey: 'toolUsageTokens', label: t('analytics.chartToolUsageTokens'), color: chartColors.toolExec, yAxisId: 'toolTokens', valueFormatter: (v: number | null) => (v == null ? '' : fmtTokens(v)) },
               { type: 'line', dataKey: 'inputTokens', label: t('analytics.chartInput'), color: chartColors.input, showMark: false, yAxisId: 'tokens' },
               { type: 'line', dataKey: 'outputTokens', label: t('analytics.chartOutput'), color: chartColors.output, showMark: false, yAxisId: 'tokens' },
               { type: 'line', dataKey: 'cacheReadTokens', label: t('analytics.chartCacheRead'), color: chartColors.cacheRead, showMark: false, yAxisId: 'tokens' },
@@ -901,6 +901,7 @@ function SessionCacheTimeline({
             xAxis={[{ id: 'x', dataKey: 'turn', scaleType: 'band', tickInterval: (value: number) => value % tickStep === 0 }]}
             yAxis={[
               { id: 'tokens', valueFormatter: fmtTokens },
+              { id: 'toolTokens', position: 'right', valueFormatter: fmtTokens },
             ]}
             height={200}
             margin={{ left: 16, right: 16, top: 16, bottom: 0 }}
@@ -914,6 +915,7 @@ function SessionCacheTimeline({
                 <ChartsAxisHighlight x="band" />
                 <ChartsXAxis axisId="x" />
                 <ChartsYAxis axisId="tokens" />
+                <ChartsYAxis axisId="toolTokens" />
                 {commitTurns.map((turn) => (
                   <ChartsReferenceLine
                     key={`commit-${turn}`}
