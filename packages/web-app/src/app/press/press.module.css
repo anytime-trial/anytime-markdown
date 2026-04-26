@@ -418,6 +418,19 @@
     }
 }
 
+.caravanCamels {
+    position: absolute;
+    width: 200%;
+    height: 100%;
+    left: 0;
+    top: 0;
+    animation: caravanWalk 60s linear infinite;
+}
+
+.caravanCamelItem {
+    position: absolute;
+}
+
 .caravanSun1,
 .caravanSun2 {
     position: absolute;
@@ -452,9 +465,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .caravan svg {
-        animation: none;
-    }
+    .caravan svg,
+    .caravanCamels,
     .caravanSun1,
     .caravanSun2 {
         animation: none;
