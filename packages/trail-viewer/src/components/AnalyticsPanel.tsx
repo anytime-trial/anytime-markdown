@@ -605,16 +605,24 @@ function TurnLaneChart({
     [assistantMsgs, subAgents],
   );
 
-  const mainSkillRuns = useMemo(() =>
-    mergeRuns(assistantMsgs.map((m) => m.agentId ? '' : (m.skill ?? ''))).filter((r) => r.value !== ''),
-    [assistantMsgs],
-  );
+  const mainSkillRuns = useMemo(() => {
+    let current = '';
+    const values = assistantMsgs.map((m) => {
+      if (!m.agentId && m.skill) current = m.skill;
+      return m.agentId ? '' : current;
+    });
+    return mergeRuns(values).filter((r) => r.value !== '');
+  }, [assistantMsgs]);
 
   const subAgentSkillRuns = useMemo(() =>
-    subAgents.map(({ id }) => ({
-      id,
-      runs: mergeRuns(assistantMsgs.map((m) => m.agentId === id ? (m.skill ?? '') : '')).filter((r) => r.value !== ''),
-    })),
+    subAgents.map(({ id }) => {
+      let current = '';
+      const values = assistantMsgs.map((m) => {
+        if (m.agentId === id && m.skill) current = m.skill;
+        return m.agentId === id ? current : '';
+      });
+      return { id, runs: mergeRuns(values).filter((r) => r.value !== '') };
+    }),
     [assistantMsgs, subAgents],
   );
 
