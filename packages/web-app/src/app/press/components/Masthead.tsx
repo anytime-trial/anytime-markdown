@@ -6,8 +6,17 @@ import { useLocaleSwitch } from '../../LocaleProvider';
 import { useThemeMode } from '../../providers';
 import styles from '../press.module.css';
 
-function formatTodayEdition(): string {
-  return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date());
+const WAFUU_TSUKIMEI = ['睦月', '如月', '弥生', '卯月', '皐月', '水無月', '文月', '葉月', '長月', '神無月', '霜月', '師走'] as const;
+
+function formatTodayEdition(locale: string): string {
+  const today = new Date();
+  const day = today.getDate();
+  const year = today.getFullYear();
+  if (locale === 'ja') {
+    const month = WAFUU_TSUKIMEI[today.getMonth()];
+    return `${day} ${month} ${year}`;
+  }
+  return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).format(today);
 }
 
 // [month, day, jaName, enName]
@@ -66,7 +75,7 @@ export function Masthead() {
       <div className={styles.mastEdition}>
         <b>{t('editionVolume')}</b>
         <br />
-        Edition of {formatTodayEdition()} · {getCurrentSolarTerm(locale)} {t('editionDateSuffix')}
+        Edition of {formatTodayEdition(locale)} · {getCurrentSolarTerm(locale)} {t('editionDateSuffix')}
       </div>
       <div className={styles.mastTitle}>
         {t('titlePrefix')} <em>{t('titleEm')}</em>
