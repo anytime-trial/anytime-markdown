@@ -6,6 +6,10 @@ import { useLocaleSwitch } from '../../LocaleProvider';
 import { useThemeMode } from '../../providers';
 import styles from '../press.module.css';
 
+function formatTodayEdition(): string {
+  return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date());
+}
+
 export function Masthead() {
   const t = useTranslations('press.masthead');
   const { themeMode, setThemeMode } = useThemeMode();
@@ -22,7 +26,7 @@ export function Masthead() {
       <div className={styles.mastEdition}>
         <b>{t('editionVolume')}</b>
         <br />
-        {t('editionDate')}
+        Edition of {formatTodayEdition()} {t('editionDateSuffix')}
       </div>
       <div className={styles.mastTitle}>
         {t('titlePrefix')} <em>{t('titleEm')}</em>
