@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useLocaleSwitch } from '../../LocaleProvider';
 import { useThemeMode } from '../../providers';
 import styles from '../press.module.css';
+import { SeasonalVignette } from './SeasonalVignette';
 
 const WAFUU_TSUKIMEI = ['睦月', '如月', '弥生', '卯月', '皐月', '水無月', '文月', '葉月', '長月', '神無月', '霜月', '師走'] as const;
 const KANJI_DIGITS = ['零', '壱', '弐', '参', '肆', '伍', '陸', '漆', '捌', '玖'] as const;
@@ -93,6 +94,7 @@ export function Masthead() {
   const currentLocaleLabel = locale === 'ja' ? 'JA' : 'EN';
   return (
     <header className={styles.mast}>
+      <SeasonalVignette />
       <div className={styles.mastEdition}>
         <b>{t('editionVolume')}</b>
         <br />

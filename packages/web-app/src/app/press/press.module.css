@@ -100,6 +100,27 @@
     z-index: 50;
 }
 
+.mastVignette {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: min(280px, 28vw);
+    pointer-events: none;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    color: var(--ink);
+}
+
+@media (max-width: 560px) {
+    .mastVignette {
+        width: 140px;
+        opacity: 0.6;
+    }
+}
+
 .mastEdition {
     font-family: var(--font-mono);
     font-size: var(--fs-footnote);
