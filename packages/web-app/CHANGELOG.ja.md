@@ -22,6 +22,9 @@
 - モバイル briefing リストの行間をNewspaper スタイルに合わせて詰める
 - ≤600px 時に shipped バッジを description の下に移動
 - Press dispatch セクションから №/DISPATCH ラベルと filed タイムスタンプを削除
+- ≤560px 時に縦積みされる docs カテゴリカラム間に上マージンを追加
+- SVG sun サークルおよび camel パスを固定サイズ CSS 要素に置換し、狭いビューポートでの潰れを防止
+- `.caravan svg` セレクタが広すぎて camel SVG が 0px に潰れる問題を修正
 
 ## [0.20.0] - 2026-04-26
 

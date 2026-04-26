@@ -22,6 +22,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Tighten mobile briefing list spacing to match newspaper style
 - Move shipped badge below description on mobile (≤600px)
 - Remove №/DISPATCH label and filed timestamp from press dispatch section
+- Add top margin between stacked doc category columns at ≤560px
+- Replace SVG sun circles and camel paths with fixed-size CSS elements to prevent squishing on narrow viewports
+- Fix camel SVGs squished to 0px by over-broad `.caravan svg` selector
 
 ## [0.20.0] - 2026-04-26
 
