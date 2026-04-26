@@ -385,7 +385,7 @@
     background: var(--paper);
 }
 
-.caravan svg {
+.caravan > svg {
     position: absolute;
     left: 0;
     top: 50%;
@@ -424,7 +424,12 @@
     height: 100%;
     left: 0;
     top: 0;
-    animation: caravanWalk 60s linear infinite;
+    animation: caravanCamelsWalk 60s linear infinite;
+}
+
+@keyframes caravanCamelsWalk {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
 }
 
 .caravanCamelItem {
