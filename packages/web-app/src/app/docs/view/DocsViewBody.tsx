@@ -2,7 +2,7 @@
 
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import DescriptionIcon from '@mui/icons-material/Description';
-import FolderIcon from '@mui/icons-material/Folder';
+import HomeIcon from '@mui/icons-material/Home';
 import { Alert, Box, Breadcrumbs, Container, Link as MuiLink, Typography } from '@mui/material';
 import NextLink from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -63,7 +63,7 @@ export default function DocsViewBody({ docTitle }: Readonly<{ docTitle?: string 
         <Container maxWidth="md" sx={{ flex: 1, py: 6 }}>
           <MuiLink
             component={NextLink}
-            href="/docs"
+            href="/"
             sx={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -74,8 +74,8 @@ export default function DocsViewBody({ docTitle }: Readonly<{ docTitle?: string 
               '&:hover': { color: 'primary.main' },
             }}
           >
-            <FolderIcon sx={{ fontSize: 18 }} />
-            {t('docsPage')}
+            <HomeIcon sx={{ fontSize: 18 }} />
+            {t('backToHome')}
           </MuiLink>
           <Alert severity="error">{t('docsViewNoUrl')}</Alert>
         </Container>
@@ -103,7 +103,7 @@ export default function DocsViewBody({ docTitle }: Readonly<{ docTitle?: string 
         >
           <MuiLink
             component={NextLink}
-            href="/docs"
+            href="/"
             underline="hover"
             sx={{
               display: 'inline-flex',
@@ -115,8 +115,8 @@ export default function DocsViewBody({ docTitle }: Readonly<{ docTitle?: string 
               '&:hover': { color: 'primary.main' },
             }}
           >
-            <FolderIcon sx={{ fontSize: 15 }} />
-            {t('docsPage')}
+            <HomeIcon sx={{ fontSize: 15 }} />
+            {t('backToHome')}
           </MuiLink>
           <Typography
             sx={{
