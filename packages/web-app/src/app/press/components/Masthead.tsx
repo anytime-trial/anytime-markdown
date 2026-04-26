@@ -28,6 +28,7 @@ export function Masthead() {
         {t('titlePrefix')} <em>{t('titleEm')}</em>
       </div>
       <nav className={styles.mastNav}>
+        <a href="#news">{t('navNews')}</a>
         <a href="#markdown">{t('navMarkdown')}</a>
         <a href="#trail">{t('navTrail')}</a>
         <button

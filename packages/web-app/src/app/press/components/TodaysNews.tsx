@@ -45,7 +45,7 @@ export function TodaysNews() {
     }, []);
 
     return (
-        <section className={styles.newsfront}>
+        <section id="news" className={styles.newsfront}>
             <div className={styles.newsfrontHeader}>
                 <span className={styles.newsfrontLabel}>{t('label')}</span>
                 <h2 className={styles.newsfrontHeading}>{t('heading')}</h2>
