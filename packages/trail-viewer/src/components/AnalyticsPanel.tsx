@@ -801,6 +801,66 @@ function TurnLaneChart({
   );
 }
 
+function StackedReferenceLines({
+  commitTurns,
+  errorTurns,
+  totalTurns,
+}: Readonly<{
+  commitTurns: readonly number[];
+  errorTurns: readonly number[];
+  totalTurns: number;
+}>) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(0);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new ResizeObserver((entries) => {
+      setWidth(entries[0].contentRect.width);
+    });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  const LABEL_W = 60;
+  const PAD_R = 60;
+  const plotW = Math.max(width - LABEL_W - PAD_R, 0);
+  const colW = totalTurns > 0 ? plotW / totalTurns : 0;
+  const turnX = (turn: number) => LABEL_W + (turn - 0.5) * colW;
+
+  return (
+    <Box
+      ref={ref}
+      sx={{
+        position: 'absolute',
+        top: 0, left: 0,
+        width: '100%', height: '100%',
+        pointerEvents: 'none',
+      }}
+    >
+      {width > 0 && totalTurns > 0 && (
+        <svg width="100%" height="100%" style={{ display: 'block' }}>
+          {commitTurns.map((turn) => (
+            <line key={`oc-${turn}`}
+              x1={turnX(turn)} y1={0}
+              x2={turnX(turn)} y2="100%"
+              stroke="#4CAF50" strokeWidth={1.5} strokeDasharray="4 2"
+            />
+          ))}
+          {errorTurns.map((turn) => (
+            <line key={`oe-${turn}`}
+              x1={turnX(turn)} y1={0}
+              x2={turnX(turn)} y2="100%"
+              stroke="#F44336" strokeWidth={1.5} strokeDasharray="4 2"
+            />
+          ))}
+        </svg>
+      )}
+    </Box>
+  );
+}
+
 function SessionCacheTimeline({
   messages,
 }: Readonly<{
@@ -909,7 +969,7 @@ function SessionCacheTimeline({
         )}
       </Box>
       {hasData ? (
-        <>
+        <Box sx={{ position: 'relative' }}>
           {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
           <ChartsDataProvider
             dataset={dataset as any}
@@ -928,58 +988,20 @@ function SessionCacheTimeline({
             height={200}
             margin={{ left: 10, right: 10, top: 16, bottom: 0 }}
           >
-            <ChartsWrapper legendDirection="horizontal" legendPosition={{ vertical: 'bottom', horizontal: 'center' }}>
-              <ChartsLegend />
+            <ChartsWrapper>
               <ChartsSurface>
                 <ChartsGrid horizontal />
                 <BarPlot />
                 <LinePlot />
                 <ChartsAxisHighlight x="band" />
-                <ChartsXAxis axisId="x" />
                 <ChartsYAxis axisId="tokens" />
                 <ChartsYAxis axisId="toolTokens" />
-                {commitTurns.map((turn) => (
-                  <ChartsReferenceLine
-                    key={`commit-${turn}`}
-                    x={turn}
-                    lineStyle={{ stroke: '#4CAF50', strokeWidth: 1.5, strokeDasharray: '4 2' }}
-                  />
-                ))}
                 <CommitMarkers markers={commitMarkers} />
-                {errorTurns.map((turn) => (
-                  <ChartsReferenceLine
-                    key={`error-${turn}`}
-                    x={turn}
-                    lineStyle={{ stroke: '#F44336', strokeWidth: 1.5, strokeDasharray: '4 2' }}
-                  />
-                ))}
                 <ErrorMarkers markers={errorMarkers} />
               </ChartsSurface>
               <ChartsTooltip />
             </ChartsWrapper>
           </ChartsDataProvider>
-          {(commitTurns.length > 0 || errorTurns.length > 0) && (
-            <Box sx={{ display: 'flex', gap: 1.5, mt: 0.5, px: 1 }}>
-              {commitTurns.length > 0 && (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  <Box sx={{ width: 16, height: 2, background: 'repeating-linear-gradient(to right, #4CAF50 0px, #4CAF50 4px, transparent 4px, transparent 6px)' }} />
-                  <Typography variant="caption" sx={{ color: '#4CAF50', fontSize: '0.65rem' }}>{t('analytics.relatedCommits')}</Typography>
-                </Box>
-              )}
-              {errorTurns.length > 0 && (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  <Box sx={{ width: 16, height: 2, background: 'repeating-linear-gradient(to right, #F44336 0px, #F44336 4px, transparent 4px, transparent 6px)' }} />
-                  <Typography variant="caption" sx={{ color: '#F44336', fontSize: '0.65rem' }}>{t('analytics.metricErrors')}</Typography>
-                </Box>
-              )}
-            </Box>
-          )}
-          {/* Timing Breakdown: API Inference + Tool Exec stacked bars + Cum. Inference line */}
-          <Box sx={{ mt: 1, mb: 0.5 }}>
-            <Typography variant="caption" sx={{ px: 1, color: colors.textSecondary }}>
-              {t('analytics.timingBreakdownTitle')}
-            </Typography>
-          </Box>
           {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
           <ChartsDataProvider
             dataset={dataset as any}
@@ -993,33 +1015,17 @@ function SessionCacheTimeline({
               { id: 'perTurn', valueFormatter: fmtDurationShort, width: 50 },
               { id: 'cumTime', position: 'right', valueFormatter: fmtDurationShort, width: 50 },
             ]}
-            height={160}
-            margin={{ left: 10, right: 10, top: 4, bottom: 0 }}
+            height={140}
+            margin={{ left: 10, right: 10, top: 0, bottom: 0 }}
           >
-            <ChartsWrapper legendDirection="horizontal" legendPosition={{ vertical: 'bottom', horizontal: 'center' }}>
-              <ChartsLegend />
+            <ChartsWrapper>
               <ChartsSurface>
                 <ChartsGrid horizontal />
                 <BarPlot />
                 <LinePlot />
                 <ChartsAxisHighlight x="band" />
-                <ChartsXAxis axisId="x" />
                 <ChartsYAxis axisId="perTurn" />
                 <ChartsYAxis axisId="cumTime" />
-                {commitTurns.map((turn) => (
-                  <ChartsReferenceLine
-                    key={`tcommit-${turn}`}
-                    x={turn}
-                    lineStyle={{ stroke: '#4CAF50', strokeWidth: 1.5, strokeDasharray: '4 2' }}
-                  />
-                ))}
-                {errorTurns.map((turn) => (
-                  <ChartsReferenceLine
-                    key={`terror-${turn}`}
-                    x={turn}
-                    lineStyle={{ stroke: '#F44336', strokeWidth: 1.5, strokeDasharray: '4 2' }}
-                  />
-                ))}
               </ChartsSurface>
               <ChartsTooltip />
             </ChartsWrapper>
@@ -1027,10 +1033,13 @@ function SessionCacheTimeline({
           <TurnLaneChart
             assistantMsgs={assistantMsgs}
             tickStep={tickStep}
+          />
+          <StackedReferenceLines
             commitTurns={commitTurns}
             errorTurns={errorTurns}
+            totalTurns={totalTurns}
           />
-        </>
+        </Box>
       ) : (
         <Box sx={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px dashed ${colors.border}`, borderRadius: 1 }}>
           <Typography variant="body2" sx={{ color: colors.textSecondary }}>
