@@ -418,8 +418,45 @@
     }
 }
 
+.caravanSun1,
+.caravanSun2 {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #B8341E;
+    transform: translateY(-50%);
+    z-index: 1;
+}
+
+.caravanSun1 {
+    top: 25%;
+    animation: caravanSun1Walk 60s linear infinite;
+}
+
+.caravanSun2 {
+    top: 27.5%;
+    animation: caravanSun2Walk 60s linear infinite;
+}
+
+/* cx=220 → 220/2400 * 200% = 18.33% of container */
+@keyframes caravanSun1Walk {
+    from { left: 18.33%; }
+    to   { left: -81.67%; }
+}
+
+/* cx=1420 → 1420/2400 * 200% = 118.33% of container */
+@keyframes caravanSun2Walk {
+    from { left: 118.33%; }
+    to   { left: 18.33%; }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .caravan svg {
+        animation: none;
+    }
+    .caravanSun1,
+    .caravanSun2 {
         animation: none;
     }
 }

@@ -47,9 +47,9 @@ export function Caravan() {
             <circle key={cx} cx={cx} cy="74" r="1.4" />
           ))}
         </g>
-        <circle cx="220" cy="20" r="6" fill="#B8341E" />
-        <circle cx="1420" cy="22" r="6" fill="#B8341E" />
       </svg>
+      <span className={styles.caravanSun1} aria-hidden="true" />
+      <span className={styles.caravanSun2} aria-hidden="true" />
     </div>
   );
 }
