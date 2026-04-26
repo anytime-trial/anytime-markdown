@@ -999,6 +999,7 @@
 .newsfront {
     padding: 48px var(--gutter);
     border-bottom: var(--rule-bold) solid var(--ink);
+    scroll-margin-top: 120px;
 }
 
 .newsfrontHeader {
