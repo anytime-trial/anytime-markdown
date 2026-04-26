@@ -922,11 +922,11 @@ function SessionCacheTimeline({
             ]}
             xAxis={[{ id: 'x', dataKey: 'turn', scaleType: 'band', tickInterval: (value: number) => value % tickStep === 0 }]}
             yAxis={[
-              { id: 'tokens', valueFormatter: fmtTokens },
-              { id: 'toolTokens', position: 'right', valueFormatter: fmtTokens },
+              { id: 'tokens', valueFormatter: fmtTokens, width: 50 },
+              { id: 'toolTokens', position: 'right', valueFormatter: fmtTokens, width: 50 },
             ]}
             height={200}
-            margin={{ left: 60, right: 40, top: 16, bottom: 0 }}
+            margin={{ left: 10, right: 10, top: 16, bottom: 0 }}
           >
             <ChartsWrapper legendDirection="horizontal" legendPosition={{ vertical: 'bottom', horizontal: 'center' }}>
               <ChartsLegend />
@@ -990,11 +990,11 @@ function SessionCacheTimeline({
             ]}
             xAxis={[{ id: 'x', dataKey: 'turn', scaleType: 'band', tickInterval: (value: number) => value % tickStep === 0 }]}
             yAxis={[
-              { id: 'perTurn', valueFormatter: fmtDurationShort },
-              { id: 'cumTime', position: 'right', valueFormatter: fmtDurationShort },
+              { id: 'perTurn', valueFormatter: fmtDurationShort, width: 50 },
+              { id: 'cumTime', position: 'right', valueFormatter: fmtDurationShort, width: 50 },
             ]}
             height={160}
-            margin={{ left: 60, right: 40, top: 4, bottom: 0 }}
+            margin={{ left: 10, right: 10, top: 4, bottom: 0 }}
           >
             <ChartsWrapper legendDirection="horizontal" legendPosition={{ vertical: 'bottom', horizontal: 'center' }}>
               <ChartsLegend />
