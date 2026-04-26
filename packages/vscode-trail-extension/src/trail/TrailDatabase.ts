@@ -109,6 +109,7 @@ export interface SessionRow {
   readonly interruption_reason?: string | null;
   readonly interruption_context_tokens?: number;
   readonly compact_count?: number;
+  readonly source?: string;
 }
 
 export interface MessageRow {
@@ -300,8 +301,8 @@ interface RawContentBlock {
 const INSERT_SESSION = `INSERT OR REPLACE INTO sessions
   (id, slug, project, repo_name, version, entrypoint, model,
    start_time, end_time, message_count,
-   file_path, file_size, imported_at)
-  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`;
+   file_path, file_size, imported_at, source)
+  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`;
 
 const INSERT_SESSION_COST = `INSERT OR REPLACE INTO session_costs
   (session_id, model, input_tokens, output_tokens,
@@ -510,6 +511,7 @@ export class TrailDatabase {
       'ALTER TABLE sessions ADD COLUMN interruption_context_tokens INTEGER',
       'ALTER TABLE sessions ADD COLUMN compact_count INTEGER',
       'ALTER TABLE sessions ADD COLUMN message_commits_resolved_at TEXT',
+      "ALTER TABLE sessions ADD COLUMN source TEXT NOT NULL DEFAULT 'claude_code'",
     ];
     for (const sql of sessionAlters) {
       try { db.run(sql); } catch { /* Column already exists */ }
@@ -1522,7 +1524,7 @@ export class TrailDatabase {
         db.run(INSERT_SESSION, [
           sessionId, slug, projectName, repoName, version,
           entrypoint, model, startTime, endTime, messageCount,
-          filePath, fileSize, importedAt,
+          filePath, fileSize, importedAt, 'claude_code',
         ]);
       }
 

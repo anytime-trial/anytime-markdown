@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS trail_sessions (
     interruption_reason TEXT,
     interruption_context_tokens INTEGER,
     compact_count INTEGER,
+    source TEXT NOT NULL DEFAULT 'claude_code',
     synced_at TIMESTAMPTZ DEFAULT NOW()
 );
 

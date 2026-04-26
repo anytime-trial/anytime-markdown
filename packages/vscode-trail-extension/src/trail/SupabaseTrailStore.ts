@@ -89,6 +89,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
       interruption_reason: r.interruption_reason ?? null,
       interruption_context_tokens: r.interruption_context_tokens ?? null,
       compact_count: r.compact_count ?? null,
+      source: r.source ?? 'claude_code',
       synced_at: new Date().toISOString(),
     }));
     const { error } = await this.ensureClient()

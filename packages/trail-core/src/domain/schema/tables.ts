@@ -21,7 +21,8 @@ export const CREATE_SESSIONS = `CREATE TABLE IF NOT EXISTS sessions (
   git_branch TEXT,
   interruption_reason TEXT,
   interruption_context_tokens INTEGER,
-  message_commits_resolved_at TEXT
+  message_commits_resolved_at TEXT,
+  source TEXT NOT NULL DEFAULT 'claude_code'
 )`;
 
 export const CREATE_SESSION_COSTS = `CREATE TABLE IF NOT EXISTS session_costs (
