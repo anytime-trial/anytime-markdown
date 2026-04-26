@@ -11,73 +11,64 @@ export interface NewsArticle {
     section: string;
 }
 
-// WSJ RSS feeds for politics/economics
-const WSJ_FEEDS = [
-    { url: 'https://feeds.wsj.com/wsj/xml/rss/3_7014.xml', section: 'Business' },
-    { url: 'https://feeds.wsj.com/wsj/xml/rss/3_7085.xml', section: 'World' },
-];
+interface GuardianResult {
+    id: string;
+    type: string;
+    sectionId: string;
+    sectionName: string;
+    webPublicationDate: string;
+    webTitle: string;
+    webUrl: string;
+    fields?: {
+        trailText?: string;
+        byline?: string;
+    };
+}
+
+interface GuardianResponse {
+    response: {
+        status: string;
+        results: GuardianResult[];
+    };
+}
 
 const REVALIDATE = 3600;
 
-function extractTag(xml: string, tag: string): string {
-    const match = new RegExp(
-        `<${tag}[^>]*>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?<\\/${tag}>`,
-    ).exec(xml);
-    return match?.[1]?.trim() ?? '';
-}
-
-function parseItems(xml: string, fallbackSection: string): NewsArticle[] {
-    const itemBlocks = xml.match(/<item>([\s\S]*?)<\/item>/g) ?? [];
-    return itemBlocks.map((block) => {
-        const pubDateRaw = extractTag(block, 'pubDate');
-        const publishedAt = pubDateRaw ? new Date(pubDateRaw).toISOString() : new Date().toISOString();
-        const guid = extractTag(block, 'guid');
-        const link = extractTag(block, 'link');
-        return {
-            id: guid || link,
-            title: extractTag(block, 'title'),
-            description: extractTag(block, 'description'),
-            url: link || guid,
-            source: 'The Wall Street Journal',
-            author: extractTag(block, 'author') || 'WSJ Staff',
-            publishedAt,
-            section: extractTag(block, 'category') || fallbackSection,
-        };
-    });
-}
-
 export async function GET() {
     try {
-        const results = await Promise.allSettled(
-            WSJ_FEEDS.map(({ url, section }) =>
-                fetch(url, {
-                    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; RSS reader)' },
-                    next: { revalidate: REVALIDATE },
-                }).then(async (res) => {
-                    if (!res.ok) throw new Error(`WSJ feed ${url} returned ${res.status}`);
-                    return parseItems(await res.text(), section);
-                }),
-            ),
-        );
+        const apiKey = process.env.GUARDIAN_API_KEY ?? 'test';
 
-        const allArticles: NewsArticle[] = [];
-        for (const result of results) {
-            if (result.status === 'fulfilled') {
-                allArticles.push(...result.value);
-            }
+        const url = new URL('https://content.guardianapis.com/search');
+        url.searchParams.set('section', 'world|politics|business|us-news');
+        url.searchParams.set('show-fields', 'trailText,byline');
+        url.searchParams.set('page-size', '8');
+        url.searchParams.set('order-by', 'newest');
+        // liveblog は本文が空になりがちなので article のみに絞る
+        url.searchParams.set('type', 'article');
+        url.searchParams.set('api-key', apiKey);
+
+        const res = await fetch(url.toString(), {
+            next: { revalidate: REVALIDATE },
+        });
+        if (!res.ok) {
+            return NextResponse.json({ error: 'Guardian API unavailable' }, { status: 502 });
         }
 
-        if (allArticles.length === 0) {
-            return NextResponse.json({ error: 'WSJ feeds unavailable' }, { status: 502 });
-        }
+        const data = (await res.json()) as GuardianResponse;
 
-        // Sort newest first, take top 3
-        allArticles.sort(
-            (a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime(),
-        );
-        const articles = allArticles
-            .filter((a) => a.title && a.url)
-            .slice(0, 3);
+        const articles: NewsArticle[] = data.response.results
+            .filter((r) => r.fields?.trailText)
+            .slice(0, 3)
+            .map((r) => ({
+                id: r.id,
+                title: r.webTitle,
+                description: r.fields?.trailText ?? '',
+                url: r.webUrl,
+                source: 'The Guardian',
+                author: r.fields?.byline ?? 'Guardian staff',
+                publishedAt: r.webPublicationDate,
+                section: r.sectionName,
+            }));
 
         return NextResponse.json({ articles });
     } catch (e) {
