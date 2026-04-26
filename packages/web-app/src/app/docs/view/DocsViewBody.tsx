@@ -10,7 +10,6 @@ import { useTranslations } from 'next-intl';
 
 import LandingHeader from '../../components/LandingHeader';
 import MarkdownViewer from '../../components/MarkdownViewer';
-import SiteFooter from '../../components/SiteFooter';
 import { useLocaleSwitch } from '../../LocaleProvider';
 
 /**
@@ -80,7 +79,6 @@ export default function DocsViewBody({ docTitle }: Readonly<{ docTitle?: string 
           </MuiLink>
           <Alert severity="error">{t('docsViewNoUrl')}</Alert>
         </Container>
-        <SiteFooter />
       </Box>
     );
   }
