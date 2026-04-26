@@ -6,6 +6,17 @@
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-04-26
+
+### 追加
+
+- `LandingHeader` にテーマトグルボタンを追加
+
+### 変更
+
+- `LandingHeader` のロケール `ToggleButtonGroup` をコンパクトなトグルボタンに変更
+- `/docs`・`/docs/view`・`/docs/edit`・`/report`・`/report/[slug]`・`/privacy` から `SiteFooter` を削除
+
 ## [0.18.0] - 2026-04-25
 
 ### 追加

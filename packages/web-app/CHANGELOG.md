@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-04-26
+
+### Added
+
+- Theme toggle button in `LandingHeader`
+
+### Changed
+
+- Replaced locale `ToggleButtonGroup` with a compact toggle button in `LandingHeader`
+- Removed `SiteFooter` from `/docs`, `/docs/view`, `/docs/edit`, `/report`, `/report/[slug]`, and `/privacy`
+
 ## [0.18.0] - 2026-04-25
 
 ### Added

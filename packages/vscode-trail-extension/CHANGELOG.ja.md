@@ -6,6 +6,21 @@
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-04-26
+
+### 修正
+
+- `TrailDataServer` に `/api/trail/days/:date/tool-metrics` エンドポイントを追加
+
+### Trail Viewer (trail-viewer)
+
+- Session Timeline に Timing Breakdown チャート・ツール/スキルモード切り替え・TurnLaneChart を追加
+- Error/CommitType バーチャートを横並び円グラフに変更
+- DORA メトリクスを個別概要カードとして追加
+- サブエージェントレーン（支配的ツールカラー）と動的タイムライン高さを追加
+- Quality Metrics タブと旧チャート/カードコンポーネントを削除
+- パフォーマンス: `getSessions` から重いクエリを除去
+
 ## [0.10.0] - 2026-04-25
 
 ### 追加

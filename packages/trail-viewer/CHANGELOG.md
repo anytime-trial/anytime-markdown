@@ -6,6 +6,59 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-04-26
+
+### Added
+
+- Timing Breakdown chart showing API inference time and tool execution time per turn
+- Tool/Skill mode toggle on Session Timeline to switch chart focus
+- Tool usage token bars on Session Timeline (right y-axis)
+- Commit and error reference lines spanning all charts in Session Timeline
+- TurnLaneChart below Session Timeline with model/tool stripes and skill stripe per turn
+- Dynamic timeline height based on sub-agent track count; scrollbar added for 5+ sub-agents
+- Sub-agent lane per agent with dominant-tool coloring (replacing individual tool rows)
+- Error inverted triangle markers with hover tooltips
+- Commit triangle markers with timestamp-based fallback detection
+- Tool names shown in sub-agent timeline tooltip
+- Tokens, cost, messages, and error count in session Usage card
+- DORA metrics as individual expandable overview cards
+- Total count displayed in center of Error/CommitType pie charts
+
+### Changed
+
+- Merged 3-chart layout into single stacked Session Timeline (renamed from Session Cache Timeline)
+- X-axes aligned across all charts with reference lines spanning the full width
+- Error/CommitType bar charts replaced with side-by-side pie charts
+- Model bar replaced with thin model-color stripe per lane in TurnLaneChart
+- SessionCacheTimeline moved below session list for full-width display
+- Session Usage/Productivity card metrics reorganized; Total Commits / Lines Added moved to Usage card
+- DORA metrics expanded into individual cards; Lines Added renamed to Total LOC
+- Consecutive same-model/tool runs merged into single rect in TurnLaneChart
+- Skill bar height set to 8px, rendered as separate row below tool/model bar
+
+### Removed
+
+- `SessionModelUsageChart` from day summary view
+- Quality Metrics tab
+- Quality and Productivity aggregate cards from OverviewCards
+- Related Commits table from session detail
+- Model usage chart from session detail
+- Cache Hit Rate from Usage overview cards
+- Cumulative Inference from Session Timeline token chart
+
+### Fixed
+
+- Skill stripe now visible in TurnLaneChart
+- Dashed reference lines clipped at X-axis and anchored to chart top
+- Y-axis widths set explicitly to keep all chart X-axes aligned
+- Commit prefix regex corrected; session_commits hash fallback added
+- Loading spinner shown in DailySessionList while sessions are loading
+- `sessionsLoading` isolated from `loadSession` loading state
+
+### Performance
+
+- Removed heavy `trail_message_tool_calls` and `trail_session_commits` queries from `getSessions`
+
 ## [0.10.0] - 2026-04-25
 
 ### Added

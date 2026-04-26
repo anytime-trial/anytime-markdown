@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-04-26
+
+- Version bump to stay in sync with trail-viewer and vscode-trail-extension (no core changes)
+
 ## [0.10.0] - 2026-04-25
 
 ### Added

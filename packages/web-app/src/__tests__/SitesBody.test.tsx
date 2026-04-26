@@ -27,10 +27,9 @@ jest.mock("../app/components/SiteFooter", () => ({
 import SitesBody from "../app/docs/SitesBody";
 
 describe("SitesBody", () => {
-  it("renders header and footer", () => {
+  it("renders header", () => {
     render(<SitesBody initialData={{ categories: [] }} />);
     expect(screen.getByTestId("landing-header")).toBeTruthy();
-    expect(screen.getByTestId("site-footer")).toBeTruthy();
   });
 
   it("renders empty state when no categories", () => {

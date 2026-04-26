@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.13.2] - 2026-04-26
+
+### Fixed
+
+- Backslash characters no longer multiply inside admonition blocks
+
+### Changed
+
+- Removed dark/light mode toggle icon from `ReadonlyToolbar`
+
 ## [0.13.1] - 2026-04-25
 
 ### Changed

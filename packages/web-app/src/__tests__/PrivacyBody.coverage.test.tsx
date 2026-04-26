@@ -26,6 +26,10 @@ jest.mock("../app/LocaleProvider", () => ({
   useLocaleSwitch: () => ({ locale: "en", setLocale: jest.fn() }),
 }));
 
+jest.mock("../app/providers", () => ({
+  useThemeMode: () => ({ themeMode: "light", setThemeMode: jest.fn() }),
+}));
+
 import PrivacyBody from "../app/privacy/PrivacyBody";
 
 describe("PrivacyBody - Section and P coverage", () => {
