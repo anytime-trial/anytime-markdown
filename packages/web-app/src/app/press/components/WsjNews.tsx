@@ -60,7 +60,7 @@ export function WsjNews() {
                 </div>
             ) : (
                 <div className={styles.newsfrontColumns}>
-                    {articles.map((article, i) => (
+                    {articles.slice(0, 3).map((article, i) => (
                         <article key={article.id} className={styles.newsfrontArticle}>
                             <span className={styles.newsfrontKicker}>
                                 {String(i + 1).padStart(2, '0')} · {article.section}
