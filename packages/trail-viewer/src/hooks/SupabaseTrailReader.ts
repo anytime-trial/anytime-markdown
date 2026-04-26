@@ -91,7 +91,7 @@ export class SupabaseTrailReader implements ITrailReader {
   async getSessions(filters?: TrailFilter): Promise<readonly TrailSession[]> {
     let query = this.client
       .from('trail_sessions')
-      .select('*, trail_session_costs(*), trail_session_commits(commit_hash, lines_added, lines_deleted, files_changed)')
+      .select('*, trail_session_costs(*)')
       .order('start_time', { ascending: false });
 
     if (filters?.project) {
@@ -107,32 +107,7 @@ export class SupabaseTrailReader implements ITrailReader {
     const { data, error } = await query;
     if (error) throw new Error(`Supabase getSessions failed: ${error.message}`);
 
-    const sessions = data ?? [];
-    const sessionIds = sessions.map((r: SessionDbRow) => r.id);
-    const errorCountMap = new Map<string, number>();
-    const subAgentCountMap = new Map<string, number>();
-    if (sessionIds.length > 0) {
-      const { data: errData } = await this.client
-        .from('trail_message_tool_calls')
-        .select('session_id')
-        .in('session_id', sessionIds)
-        .eq('is_error', 1);
-      for (const row of (errData ?? []) as { session_id: string }[]) {
-        errorCountMap.set(row.session_id, (errorCountMap.get(row.session_id) ?? 0) + 1);
-      }
-      const { data: agentData } = await this.client
-        .from('trail_message_tool_calls')
-        .select('session_id')
-        .in('session_id', sessionIds)
-        .eq('tool_name', 'Agent');
-      for (const row of (agentData ?? []) as { session_id: string }[]) {
-        subAgentCountMap.set(row.session_id, (subAgentCountMap.get(row.session_id) ?? 0) + 1);
-      }
-    }
-
-    return sessions.map((r: SessionDbRow & { trail_session_commits?: readonly CommitDbRow[] }) =>
-      this.toTrailSession(r, r.trail_session_commits ?? [], errorCountMap.get(r.id), subAgentCountMap.get(r.id)),
-    );
+    return (data ?? []).map((r: SessionDbRow) => this.toTrailSession(r, [], undefined, undefined));
   }
 
   async getMessages(sessionId: string): Promise<readonly TrailMessage[]> {
