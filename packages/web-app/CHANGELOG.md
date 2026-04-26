@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.20.1] - 2026-04-26
+
+### Fixed
+
+- Limit WSJ news articles to 3 on press page
+- Stack latest reports section vertically at ≤880px viewport
+- Place Anytime Trail title full-width at top, embed and list side by side below
+- Always place briefing verdict below description regardless of viewport width
+- Extend briefing mobile layout breakpoint from 600px to 880px
+- Add top padding to 2nd/3rd trending columns on mobile
+- Stack news section header vertically on mobile (≤880px)
+- Shrink mobile briefing number column from 56px to 24px
+- Reduce mobile briefing column gap from 18px to 10px
+- Tighten mobile briefing list spacing to match newspaper style
+- Move shipped badge below description on mobile (≤600px)
+- Remove №/DISPATCH label and filed timestamp from press dispatch section
+- Add top margin between stacked doc category columns at ≤560px
+- Replace SVG sun circles and camel paths with fixed-size CSS elements to prevent squishing on narrow viewports
+- Fix camel SVGs squished to 0px by over-broad `.caravan svg` selector
+
 ## [0.20.0] - 2026-04-26
 
 ### Added

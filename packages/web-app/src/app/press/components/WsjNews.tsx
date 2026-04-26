@@ -1,9 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-
 import DOMPurify from 'dompurify';
 import { useTranslations } from 'next-intl';
+import { useEffect, useState } from 'react';
 
 import type { WsjArticle } from '../../api/news/wsj/route';
 import styles from '../press.module.css';
@@ -60,7 +59,7 @@ export function WsjNews() {
                 </div>
             ) : (
                 <div className={styles.newsfrontColumns}>
-                    {articles.map((article, i) => (
+                    {articles.slice(0, 3).map((article, i) => (
                         <article key={article.id} className={styles.newsfrontArticle}>
                             <span className={styles.newsfrontKicker}>
                                 {String(i + 1).padStart(2, '0')} · {article.section}

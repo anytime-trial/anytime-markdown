@@ -1,11 +1,10 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 
-import { useTranslations } from 'next-intl';
-
-import type { PressReportsResponse } from '../../api/press-reports/route';
 import type { ReportMeta } from '../../../types/report';
+import type { PressReportsResponse } from '../../api/press-reports/route';
 import styles from '../press.module.css';
 
 function ReportCard({ report, label }: Readonly<{ report: ReportMeta; label: string }>) {

@@ -385,7 +385,7 @@
     background: var(--paper);
 }
 
-.caravan svg {
+.caravan > svg {
     position: absolute;
     left: 0;
     top: 50%;
@@ -418,8 +418,62 @@
     }
 }
 
+.caravanCamels {
+    position: absolute;
+    width: 200%;
+    height: 100%;
+    left: 0;
+    top: 0;
+    animation: caravanCamelsWalk 60s linear infinite;
+}
+
+@keyframes caravanCamelsWalk {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+}
+
+.caravanCamelItem {
+    position: absolute;
+}
+
+.caravanSun1,
+.caravanSun2 {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #B8341E;
+    transform: translateY(-50%);
+    z-index: 1;
+}
+
+.caravanSun1 {
+    top: 25%;
+    animation: caravanSun1Walk 60s linear infinite;
+}
+
+.caravanSun2 {
+    top: 27.5%;
+    animation: caravanSun2Walk 60s linear infinite;
+}
+
+/* cx=220 → 220/2400 * 200% = 18.33% of container */
+@keyframes caravanSun1Walk {
+    from { left: 18.33%; }
+    to   { left: -81.67%; }
+}
+
+/* cx=1420 → 1420/2400 * 200% = 118.33% of container */
+@keyframes caravanSun2Walk {
+    from { left: 118.33%; }
+    to   { left: 18.33%; }
+}
+
 @media (prefers-reduced-motion: reduce) {
-    .caravan svg {
+    .caravan svg,
+    .caravanCamels,
+    .caravanSun1,
+    .caravanSun2 {
         animation: none;
     }
 }
@@ -440,14 +494,6 @@
     font-family: var(--font-display);
 }
 
-.dispatchNum {
-    font-family: var(--font-mono);
-    font-size: var(--fs-footnote);
-    color: var(--vermilion);
-    font-weight: 600;
-    letter-spacing: 0.12em;
-}
-
 .dispatchSection {
     font-style: italic;
     font-weight: 700;
@@ -457,13 +503,6 @@
 
 .dispatchSection em {
     font-weight: 400;
-}
-
-.dispatchMeta {
-    margin-left: auto;
-    font-family: var(--font-mono);
-    font-size: var(--fs-footnote);
-    color: var(--ink-faded);
 }
 
 .columns {
@@ -602,11 +641,11 @@
 
 .briefingList li {
     display: grid;
-    grid-template-columns: 56px 1fr auto;
-    gap: 18px;
-    padding: 18px 0;
+    grid-template-columns: 24px 1fr;
+    gap: 3px 8px;
+    padding: 14px 0;
     border-bottom: var(--rule-thin) solid var(--ink-light);
-    align-items: baseline;
+    align-items: start;
 }
 
 .briefingList li:last-child {
@@ -642,7 +681,8 @@
     font-family: var(--font-mono);
     font-size: var(--fs-footnote);
     color: var(--ink-faded);
-    text-align: right;
+    grid-column: 2;
+    text-align: left;
     letter-spacing: 0.05em;
     white-space: nowrap;
 }
@@ -653,7 +693,8 @@
     border-bottom: var(--rule-bold) solid var(--ink);
     display: grid;
     grid-template-columns: 1.4fr 1fr;
-    gap: 48px;
+    grid-template-rows: auto auto;
+    gap: 32px 48px;
     align-items: start;
     scroll-margin-top: 120px;
 }
@@ -715,6 +756,7 @@
     border-bottom: var(--rule-bold) solid var(--ink);
     padding-bottom: 14px;
     margin-bottom: 0;
+    grid-column: 1 / -1;
 }
 
 .briefingHeaderTitle {
@@ -1064,6 +1106,16 @@
 }
 
 @media (max-width: 880px) {
+    .newsfrontHeader {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
+
+    .newsfrontMeta {
+        margin-left: 0;
+    }
+
     .newsfrontColumns {
         grid-template-columns: 1fr;
         gap: 32px;
@@ -1598,7 +1650,7 @@
     gap: 0;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 880px) {
     .pressReportsGrid {
         grid-template-columns: 1fr;
     }
@@ -1616,7 +1668,7 @@
     padding-left: 32px;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 880px) {
     .pressReportCard {
         border-right: none;
         border-bottom: var(--rule-thin) solid var(--ink);
@@ -1773,6 +1825,9 @@
     .pressDocs_grid {
         grid-template-columns: 1fr;
     }
+    .pressDocs_grid > div + div {
+        margin-top: 24px;
+    }
 }
 
 .pressDocs_colTitle {
@@ -1923,6 +1978,10 @@
         padding: 0 0 32px;
         border-right: none;
         border-bottom: var(--rule-thin) solid var(--ink);
+    }
+    .ghTrendingColumn:nth-child(2),
+    .ghTrendingColumn:last-child {
+        padding-top: 32px;
     }
     .ghTrendingColumn:last-child {
         border-bottom: none;

@@ -1,8 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-
 import { useLocale, useTranslations } from 'next-intl';
+import { useEffect, useState } from 'react';
 
 import type { WeatherCity } from '../../api/weather/route';
 import styles from '../press.module.css';

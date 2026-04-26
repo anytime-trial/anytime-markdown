@@ -1,9 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-
 import DOMPurify from 'dompurify';
 import { useTranslations } from 'next-intl';
+import { useEffect, useState } from 'react';
 
 import type { NewsArticle } from '../../api/news/route';
 import styles from '../press.module.css';

@@ -29,8 +29,6 @@
     "tick": "— in transit · caravan crossing the desert —"
   },
   "dispatch": {
-    "num": "№002 ／ DISPATCH",
-    "meta": "filed 04:12 JST",
     "titlePrefix": "Why a Camel? — ",
     "titleEm": "Companionship, not Control.",
     "lead": "The horse gallops fast on paved roads but falters against the unknown or heavy context. The camel (AI agents) carries the entire codebase and thinks through sandstorms (errors) where faster tools falter — a long-distance runner. In the caravan, the camel is no beast of burden but a comrade who reads the leader's intent.",

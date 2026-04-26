@@ -10,12 +10,10 @@ export function Dispatch() {
   return (
     <section className={styles.dispatch} id="dispatch">
       <header className={styles.dispatchHeader}>
-        <span className={styles.dispatchNum}>{tDispatch('num')}</span>
         <h2 className={styles.dispatchSection}>
           {tDispatch('titlePrefix')}
           <em>{tDispatch('titleEm')}</em>
         </h2>
-        <span className={styles.dispatchMeta}>{tDispatch('meta')}</span>
       </header>
       <div className={styles.columns}>
         <div className={`${styles.column} ${styles.columnLead}`}>

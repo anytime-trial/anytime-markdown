@@ -38,6 +38,9 @@ function BriefingWithEmbed({
 }: BriefingWithEmbedProps) {
   return (
     <section className={styles.briefingWithEmbed} id={id}>
+      <header className={styles.briefingHeader}>
+        <span className={styles.briefingHeaderTitle}>{title}</span>
+      </header>
       <div className={styles.briefingLeftStack}>
         <div className={styles.briefingEmbed}>
           <div className={styles.trailFrameBar}>
@@ -65,9 +68,6 @@ function BriefingWithEmbed({
         ) : null}
       </div>
       <div className={styles.briefingMain}>
-        <header className={styles.briefingHeader}>
-          <span className={styles.briefingHeaderTitle}>{title}</span>
-        </header>
         <ul className={`${styles.briefingList} ${styles.briefingListInline}`}>
           {items.map((item) => (
             <li key={item.num}>

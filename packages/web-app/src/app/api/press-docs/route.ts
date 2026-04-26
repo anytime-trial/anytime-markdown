@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { fetchLayoutData } from '../../../lib/s3Client';
 import type { LayoutData } from '../../../types/layout';
 
-export type { LayoutData, LayoutCategory, LayoutCategoryItem } from '../../../types/layout';
+export type { LayoutCategory, LayoutCategoryItem,LayoutData } from '../../../types/layout';
 
 export const revalidate = 1800;
 

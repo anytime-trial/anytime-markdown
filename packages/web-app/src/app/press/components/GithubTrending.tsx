@@ -1,8 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-
 import { useTranslations } from 'next-intl';
+import { useEffect, useState } from 'react';
 
 import type { TrendingRepo, TrendingResponse } from '../../api/github-trending/route';
 import styles from '../press.module.css';
