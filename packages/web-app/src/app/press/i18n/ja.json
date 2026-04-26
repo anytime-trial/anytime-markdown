@@ -71,6 +71,12 @@
     "labelJp": "JAPAN",
     "labelGlobal": "GLOBAL"
   },
+  "pressReports": {
+    "label": "REPORT · レポート",
+    "heading": "最新レポート",
+    "labelDaily": "DAILY",
+    "labelWeekly": "WEEKLY"
+  },
   "ticker": {
     "item1": "open source · MIT licensed",
     "item2": "browser-only · zero servers",

@@ -1536,3 +1536,164 @@
         animation: none;
     }
 }
+
+/* ── Press Reports ─────────────────────────────────────────── */
+
+.pressReports {
+    padding: 48px var(--gutter);
+    border-bottom: var(--rule-bold) solid var(--ink);
+}
+
+.pressReportsHeader {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    border-bottom: var(--rule-thin) solid var(--ink);
+    padding-bottom: 10px;
+    margin-bottom: 28px;
+}
+
+.pressReportsLabel {
+    font-family: var(--font-mono);
+    font-size: var(--fs-footnote);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-faded);
+    white-space: nowrap;
+}
+
+.pressReportsHeading {
+    font-family: var(--font-display);
+    font-size: var(--fs-section);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0;
+    color: var(--ink);
+}
+
+.pressReportsGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+}
+
+@media (max-width: 640px) {
+    .pressReportsGrid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.pressReportCard {
+    padding: 24px 0;
+    border-right: var(--rule-thin) solid var(--ink);
+    padding-right: 32px;
+}
+
+.pressReportCard:last-child {
+    border-right: none;
+    padding-right: 0;
+    padding-left: 32px;
+}
+
+@media (max-width: 640px) {
+    .pressReportCard {
+        border-right: none;
+        border-bottom: var(--rule-thin) solid var(--ink);
+        padding-right: 0;
+    }
+    .pressReportCard:last-child {
+        border-bottom: none;
+        padding-left: 0;
+    }
+}
+
+.pressReportCardLabel {
+    font-family: var(--font-mono);
+    font-size: var(--fs-footnote);
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--vermilion);
+    display: block;
+    margin-bottom: 10px;
+}
+
+.pressReportCardTitle {
+    font-family: var(--font-display);
+    font-size: clamp(18px, 2.2vw, 26px);
+    font-weight: 700;
+    line-height: 1.25;
+    margin: 0 0 12px;
+    color: var(--ink);
+}
+
+.pressReportCardLink {
+    color: inherit;
+    text-decoration: none;
+}
+
+.pressReportCardLink:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.pressReportCardLink:focus-visible {
+    outline: 2px solid var(--vermilion);
+    outline-offset: 2px;
+    border-radius: 2px;
+}
+
+.pressReportCardExcerpt {
+    font-family: var(--font-body);
+    font-size: var(--fs-body);
+    line-height: 1.65;
+    color: var(--ink-faded);
+    margin: 0 0 14px;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.pressReportCardMeta {
+    font-family: var(--font-mono);
+    font-size: var(--fs-footnote);
+    color: var(--ink-faded);
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.pressReportsSkeleton {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+}
+
+.pressReportsSkeletonItem {
+    height: 120px;
+    border-radius: 2px;
+    background: var(--ink-light);
+    opacity: 0.15;
+    position: relative;
+    overflow: hidden;
+}
+
+.pressReportsSkeletonItem::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.06) 50%,
+        transparent 100%
+    );
+    animation: newsfrontShimmer 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pressReportsSkeletonItem::after {
+        animation: none;
+    }
+}
