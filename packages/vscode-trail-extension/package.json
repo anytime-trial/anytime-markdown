@@ -23,8 +23,8 @@
     "analysis"
   ],
   "activationEvents": [
-"onCommand:anytime-trail.c4Analyze",
-"onCommand:anytime-trail.c4View",
+    "onCommand:anytime-trail.c4Analyze",
+    "onCommand:anytime-trail.c4View",
     "onCommand:anytime-trail.dsmAnalyze",
     "onView:anytimeTrail.database",
     "onView:anytimeTrail.c4Elements"
@@ -115,12 +115,12 @@
         "title": "%command.copyContextPath%",
         "icon": "$(clippy)"
       },
-{
+      {
         "command": "anytime-trail.c4Analyze",
         "title": "%command.c4Analyze%",
         "icon": "$(symbol-class)"
       },
-{
+      {
         "command": "anytime-trail.c4View",
         "title": "%command.c4View%",
         "icon": "$(open-preview)"
@@ -212,7 +212,7 @@
           "when": "view == anytimeTrail.c4Elements",
           "group": "navigation@1"
         },
-{
+        {
           "command": "anytime-trail.aiMemoryRefresh",
           "when": "view == anytimeTrail.aiMemory",
           "group": "navigation"
@@ -281,10 +281,17 @@
           "items": {
             "type": "object",
             "properties": {
-              "path": { "type": "string" },
-              "label": { "type": "string" }
+              "path": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              }
             },
-            "required": ["path", "label"]
+            "required": [
+              "path",
+              "label"
+            ]
           },
           "default": [],
           "markdownDescription": "解析対象リポジトリのリスト。`path`（絶対パス）と `label`（表示名）を指定する。"
@@ -364,12 +371,18 @@
           "markdownDescription": "%config.claudeStatus.directory%"
         },
         "anytimeTrail.budget.dailyLimitTokens": {
-          "type": ["number", "null"],
+          "type": [
+            "number",
+            "null"
+          ],
           "default": null,
           "markdownDescription": "日次トークン上限。`null` で無効。"
         },
         "anytimeTrail.budget.sessionLimitTokens": {
-          "type": ["number", "null"],
+          "type": [
+            "number",
+            "null"
+          ],
           "default": null,
           "markdownDescription": "セッションあたりのトークン上限。`null` で無効。"
         },
@@ -402,6 +415,11 @@
     "@anytime-markdown/trail-core": "*",
     "@anytime-markdown/vscode-common": "*",
     "@supabase/supabase-js": "2.103.0",
+    "graphology": "0.26.0",
+    "graphology-communities-louvain": "2.0.2",
+    "graphology-layout": "0.6.1",
+    "graphology-layout-forceatlas2": "0.10.1",
+    "graphology-shortest-path": "2.1.0",
     "pg": "8.20.0",
     "sql.js": "1.12.0",
     "typescript": "5.9.3",
