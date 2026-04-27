@@ -300,7 +300,7 @@
             ]
           },
           "default": [],
-          "markdownDescription": "解析対象リポジトリのリスト。`path`（絶対パス）と `label`（表示名）を指定する。"
+          "markdownDescription": "解析対象リポジトリのリスト。`path`（絶対パス）と `label`（表示名）を指定する。空配列の場合は現在のワークスペースをデフォルト解析対象とし、`anytimeTrail.docsPath` が設定されていれば Docs としても追加する。"
         },
         "anytimeTrail.codeGraph.autoRefresh": {
           "type": "boolean",
