@@ -33,6 +33,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Claude Code CLI のインストール
 RUN npm install -g @anthropic-ai/claude-code
 
+# OpenAI Codex CLI のインストール
+RUN npm install -g @openai/codex
+
 # Playwright のシステム依存パッケージのインストール（root で実行）
 RUN npx playwright install-deps
 

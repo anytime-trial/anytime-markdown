@@ -11,6 +11,7 @@ services:
       - ${HOME}/.ssh:/home/node/.ssh:cached                    # SSH鍵を共有（git push/pull 用）
       - ${HOME}/.claude:/home/node/.claude:cached              # Claude Code 設定を共有（CLAUDE.md など）
       - ${HOME}/.gemini:/home/node/.gemini:cached              # gemini 設定を共有（AGENT.md など）
+      - ${HOME}/.codex:/home/node/.codex:cached                # codex 設定・認証を共有
       - ${HOME}/Shared:/Shared                                 # Shared
 
 
