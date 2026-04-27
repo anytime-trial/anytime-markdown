@@ -19,7 +19,8 @@
     "./domain/schema": "./src/domain/schema/index.ts",
     "./domain/reader": "./src/domain/reader/index.ts",
     "./domain/metrics": "./src/domain/metrics/index.ts",
-    "./c4": "./src/c4/index.ts"
+    "./c4": "./src/c4/index.ts",
+    "./codeGraph": "./src/codeGraph.ts"
   },
   "bin": {
     "trail-core": "./bin/trail.js"

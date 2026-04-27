@@ -32,6 +32,7 @@ import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
 
 import { C4ViewerCore } from '../c4/components/C4ViewerCore';
 import type { C4ViewerCoreProps } from '../c4/components/C4ViewerCore';
+import { CodeGraphPanel } from './CodeGraphPanel';
 
 /** C4-related props forwarded to the embedded C4ViewerCore. */
 type C4Props = Omit<C4ViewerCoreProps, 'isDark' | 'containerHeight'>;
@@ -63,6 +64,8 @@ export interface TrailViewerCoreProps {
   readonly sessionsLoading?: boolean;
   /** C4 viewer props. When provided, the C4 tab is shown. */
   readonly c4?: C4Props;
+  /** Code graph props. When provided, the Graph tab is shown. */
+  readonly codeGraph?: { readonly serverUrl: string };
 }
 
 const SESSION_LIST_WIDTH = 300;
@@ -102,6 +105,7 @@ function TrailViewerCoreInner({
   tokenBudgets = [],
   sessionsLoading,
   c4,
+  codeGraph,
 }: Readonly<TrailViewerCoreProps>) {
   const { t } = useTrailI18n();
   const tokens = useMemo(() => getTokens(isDark ?? true), [isDark]);
@@ -197,6 +201,7 @@ function TrailViewerCoreInner({
           <Tab id="trail-tab-2" aria-controls="trail-panel-2" label={t('viewer.prompts')} />
           <Tab id="trail-tab-3" aria-controls="trail-panel-3" label={t('releases.title')} />
           {c4 && <Tab id="trail-tab-4" aria-controls="trail-panel-4" label={t('viewer.c4')} />}
+          {codeGraph && <Tab id="trail-tab-5" aria-controls="trail-panel-5" label="Graph" />}
         </Tabs>
         {tokenBudgets.length > 0 && (
           <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', px: 2, flexShrink: 0 }}>
@@ -324,6 +329,17 @@ function TrailViewerCoreInner({
           sx={{ display: activeTab !== 4 ? 'none' : 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}
         >
           <C4ViewerCore isDark={isDark} containerHeight="100%" {...c4} />
+        </Box>
+      )}
+
+      {codeGraph && (
+        <Box
+          role="tabpanel"
+          id="trail-panel-5"
+          aria-labelledby="trail-tab-5"
+          sx={{ display: activeTab !== 5 ? 'none' : 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}
+        >
+          <CodeGraphPanel serverUrl={codeGraph.serverUrl} isDark={isDark} />
         </Box>
       )}
     </Box>

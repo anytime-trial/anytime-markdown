@@ -28,6 +28,8 @@ import type { TrailDatabase, SessionRow, MessageRow, SessionCommitRow, Analytics
 import { MetricsThresholdsLoader } from '../trail/MetricsThresholdsLoader';
 import { computeDeploymentFrequency, computeQualityMetrics, computeReleaseQualityTimeSeries } from '@anytime-markdown/trail-core/domain/metrics';
 import { TrailLogger } from '../utils/TrailLogger';
+import type { CodeGraphService } from '../graph/CodeGraphService';
+import { GraphQueryEngine } from '../graph/GraphQueryEngine';
 
 // ---------------------------------------------------------------------------
 //  Constants
@@ -95,11 +97,17 @@ export class TrailDataServer {
     alertThresholdPct: 80,
   };
 
+  private codeGraphService: CodeGraphService | undefined;
+
   constructor(
     private readonly distPath: string,
     private readonly trailDb: TrailDatabase,
     private readonly gitRoot?: string,
   ) {}
+
+  setCodeGraphService(service: CodeGraphService): void {
+    this.codeGraphService = service;
+  }
 
   // -------------------------------------------------------------------------
   //  Public API
@@ -474,8 +482,94 @@ export class TrailDataServer {
       return;
     }
 
+    if (pathname === '/api/code-graph' && method === 'GET') {
+      this.handleCodeGraphEndpoint(res);
+      return;
+    }
+    if (pathname === '/api/code-graph/query' && method === 'GET') {
+      this.handleCodeGraphQuery(res, parsed.searchParams.get('q') ?? '');
+      return;
+    }
+    if (pathname === '/api/code-graph/explain' && method === 'GET') {
+      this.handleCodeGraphExplain(res, parsed.searchParams.get('id') ?? '');
+      return;
+    }
+    if (pathname === '/api/code-graph/path' && method === 'GET') {
+      this.handleCodeGraphPath(
+        res,
+        parsed.searchParams.get('from') ?? '',
+        parsed.searchParams.get('to') ?? '',
+      );
+      return;
+    }
+
     res.writeHead(404);
     res.end();
+  }
+
+  // -------------------------------------------------------------------------
+  //  Code graph endpoints
+  // -------------------------------------------------------------------------
+
+  private handleCodeGraphEndpoint(res: http.ServerResponse): void {
+    const graph = this.codeGraphService?.getGraph();
+    if (!graph) {
+      res.writeHead(404, JSON_HEADERS);
+      res.end('{}');
+      return;
+    }
+    res.writeHead(200, JSON_HEADERS);
+    res.end(JSON.stringify(graph));
+  }
+
+  private handleCodeGraphQuery(res: http.ServerResponse, q: string): void {
+    const graph = this.codeGraphService?.getGraph();
+    if (!graph) {
+      res.writeHead(404, JSON_HEADERS);
+      res.end('{}');
+      return;
+    }
+    const engine = new GraphQueryEngine(graph);
+    res.writeHead(200, JSON_HEADERS);
+    res.end(JSON.stringify(engine.query(q)));
+  }
+
+  private handleCodeGraphExplain(res: http.ServerResponse, id: string): void {
+    const graph = this.codeGraphService?.getGraph();
+    if (!graph) {
+      res.writeHead(404, JSON_HEADERS);
+      res.end('{}');
+      return;
+    }
+    const engine = new GraphQueryEngine(graph);
+    const result = engine.explain(id);
+    res.writeHead(result ? 200 : 404, JSON_HEADERS);
+    res.end(JSON.stringify(result ?? {}));
+  }
+
+  private handleCodeGraphPath(res: http.ServerResponse, from: string, to: string): void {
+    const graph = this.codeGraphService?.getGraph();
+    if (!graph) {
+      res.writeHead(404, JSON_HEADERS);
+      res.end('{}');
+      return;
+    }
+    const engine = new GraphQueryEngine(graph);
+    res.writeHead(200, JSON_HEADERS);
+    res.end(JSON.stringify(engine.path(from, to)));
+  }
+
+  notifyCodeGraphUpdated(): void {
+    if (this.clients.size === 0) return;
+    const payload = JSON.stringify({ type: 'code-graph-updated' } satisfies ServerMessage);
+    for (const ws of this.clients) ws.send(payload);
+  }
+
+  notifyCodeGraphProgress(phase: string, percent: number): void {
+    if (this.clients.size === 0) return;
+    const message: ServerMessage = { type: 'code-graph-progress', phase, percent };
+    const payload = JSON.stringify(message);
+    for (const ws of this.clients) ws.send(payload);
   }
 
   // -------------------------------------------------------------------------
@@ -1354,9 +1448,6 @@ export class TrailDataServer {
   }
 
   private handleWsMessage(data: unknown): void {
-    const provider = this.getC4Provider?.();
-    if (!provider) return;
-
     let parsed: unknown;
     try {
       parsed = JSON.parse(String(data));
@@ -1365,6 +1456,19 @@ export class TrailDataServer {
     }
 
     if (!isClientMessage(parsed)) return;
+
+    if (parsed.type === 'generate-code-graph') {
+      if (this.codeGraphService) {
+        void this.codeGraphService
+          .generate((phase, percent) => this.notifyCodeGraphProgress(phase, percent))
+          .then(() => this.notifyCodeGraphUpdated())
+          .catch((err) => TrailLogger.error('Failed to generate code graph', err));
+      }
+      return;
+    }
+
+    const provider = this.getC4Provider?.();
+    if (!provider) return;
     this.dispatchClientMessage(parsed, provider);
   }
 
@@ -1387,6 +1491,9 @@ export class TrailDataServer {
         break;
       case 'reset-claude-activity':
         provider.handleResetClaudeActivity();
+        break;
+      case 'generate-code-graph':
+        // handled in handleWsMessage before requiring provider
         break;
     }
   }
@@ -1736,7 +1843,7 @@ export class TrailDataServer {
 export function isClientMessage(data: unknown): data is ClientMessage {
   if (typeof data !== 'object' || data === null) return false;
   const msg = data as Record<string, unknown>;
-  const validTypes = ['set-level', 'cluster', 'refresh', 'open-doc-link', 'reset-claude-activity'];
+  const validTypes = ['set-level', 'cluster', 'refresh', 'open-doc-link', 'reset-claude-activity', 'generate-code-graph'];
   return typeof msg.type === 'string' && validTypes.includes(msg.type);
 }
 

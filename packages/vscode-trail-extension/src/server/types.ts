@@ -79,7 +79,17 @@ export interface TokenBudgetUpdatedMessage {
 
 export interface ModelUpdatedMessage { readonly type: 'model-updated'; }
 
-export type ServerMessage = DsmUpdatedMessage | AnalysisProgressMessage | DocLinksUpdatedMessage | ImportanceUpdatedMessage | ClaudeActivityUpdatedMessage | MultiAgentActivityMessage | TokenBudgetUpdatedMessage | ModelUpdatedMessage;
+export interface CodeGraphUpdatedMessage {
+  readonly type: 'code-graph-updated';
+}
+
+export interface CodeGraphProgressMessage {
+  readonly type: 'code-graph-progress';
+  readonly phase: string;
+  readonly percent: number;
+}
+
+export type ServerMessage = DsmUpdatedMessage | AnalysisProgressMessage | DocLinksUpdatedMessage | ImportanceUpdatedMessage | ClaudeActivityUpdatedMessage | MultiAgentActivityMessage | TokenBudgetUpdatedMessage | ModelUpdatedMessage | CodeGraphUpdatedMessage | CodeGraphProgressMessage;
 
 // ---------------------------------------------------------------------------
 //  Client → Server messages
@@ -108,9 +118,14 @@ export interface ResetClaudeActivityCommand {
   readonly type: 'reset-claude-activity';
 }
 
+export interface GenerateCodeGraphCommand {
+  readonly type: 'generate-code-graph';
+}
+
 export type ClientMessage =
   | SetLevelCommand
   | ClusterCommand
   | RefreshCommand
   | OpenDocLinkCommand
-  | ResetClaudeActivityCommand;
+  | ResetClaudeActivityCommand
+  | GenerateCodeGraphCommand;
