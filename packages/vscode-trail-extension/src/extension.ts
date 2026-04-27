@@ -388,6 +388,9 @@ export async function activate(context: vscode.ExtensionContext) {
 	const outputDir = expandWorkspace(rawOutputDir);
 	const configuredRepos = codeGraphCfg.get<Array<{ path: string; label: string }>>('repositories', []);
 	const codeGraphAutoRefresh = codeGraphCfg.get<boolean>('autoRefresh', false);
+	const c4ExcludePatterns = vscode.workspace
+		.getConfiguration('anytimeTrail.c4')
+		.get<string[]>('analyzeExcludePatterns', []);
 	const codeGraphService = new CodeGraphService({
 		repositories: configuredRepos.map((r, i) => ({
 			id: String(i),
@@ -395,6 +398,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			path: expandWorkspace(r.path),
 		})),
 		outputDir,
+		excludePatterns: c4ExcludePatterns,
 	});
 	trailDataServer.setCodeGraphService(codeGraphService);
 	void codeGraphService.loadFromDisk().then(() => {

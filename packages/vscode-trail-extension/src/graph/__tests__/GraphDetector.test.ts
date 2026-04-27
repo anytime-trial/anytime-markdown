@@ -35,4 +35,12 @@ describe('GraphDetector', () => {
     const allFiles = [...detector.detectCodeFiles(), ...detector.detectDocFiles()];
     expect(allFiles.every((f) => !f.includes('node_modules'))).toBe(true);
   });
+
+  it('honors extra exclude patterns', () => {
+    fs.mkdirSync(path.join(tmpDir, '.claude'), { recursive: true });
+    fs.writeFileSync(path.join(tmpDir, '.claude', 'note.md'), '');
+    const detector = new GraphDetector(tmpDir, ['.claude']);
+    const files = detector.detectDocFiles();
+    expect(files.every((f) => !f.includes('.claude'))).toBe(true);
+  });
 });

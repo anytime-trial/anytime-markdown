@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const EXCLUDE_DIRS = new Set([
+const DEFAULT_EXCLUDE_DIRS = new Set([
   'node_modules',
   'dist',
   '.next',
@@ -17,7 +17,18 @@ const CODE_EXTS = new Set(['.ts', '.tsx']);
 const DOC_EXTS = new Set(['.md', '.txt']);
 
 export class GraphDetector {
-  constructor(private readonly rootPath: string) {}
+  private readonly excludeDirs: Set<string>;
+
+  constructor(
+    private readonly rootPath: string,
+    extraExcludePatterns: readonly string[] = [],
+  ) {
+    this.excludeDirs = new Set(DEFAULT_EXCLUDE_DIRS);
+    for (const p of extraExcludePatterns) {
+      const trimmed = p.trim();
+      if (trimmed) this.excludeDirs.add(trimmed);
+    }
+  }
 
   detectCodeFiles(): string[] {
     return this.walk(this.rootPath, CODE_EXTS);
@@ -37,7 +48,7 @@ export class GraphDetector {
     }
     for (const entry of entries) {
       if (entry.isDirectory()) {
-        if (!EXCLUDE_DIRS.has(entry.name)) {
+        if (!this.excludeDirs.has(entry.name)) {
           results.push(...this.walk(path.join(dir, entry.name), exts));
         }
       } else if (exts.has(path.extname(entry.name))) {
