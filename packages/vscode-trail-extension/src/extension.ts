@@ -381,11 +381,11 @@ export async function activate(context: vscode.ExtensionContext) {
 	setupC4OnServer(trailDataServer);
 
 	// Code graph service
-	const codeGraphCfg = vscode.workspace.getConfiguration('anytimeTrail');
-	const rawOutputDir = codeGraphCfg.get<string>('codeGraph.outputDir', '${workspaceFolder}/.vscode/graphify-out');
+	const codeGraphCfg = vscode.workspace.getConfiguration('anytimeTrail.codeGraph');
+	const rawOutputDir = codeGraphCfg.get<string>('outputDir', '${workspaceFolder}/.vscode/graphify-out');
 	const outputDir = wsRootForDb ? rawOutputDir.replace('${workspaceFolder}', wsRootForDb) : rawOutputDir;
-	const codeGraphRepos = codeGraphCfg.get<Array<{ path: string; label: string }>>('codeGraph.repositories', []);
-	const codeGraphAutoRefresh = codeGraphCfg.get<boolean>('codeGraph.autoRefresh', false);
+	const codeGraphRepos = codeGraphCfg.get<Array<{ path: string; label: string }>>('repositories', []);
+	const codeGraphAutoRefresh = codeGraphCfg.get<boolean>('autoRefresh', false);
 	const codeGraphService = new CodeGraphService({
 		repositories: codeGraphRepos.map((r, i) => ({ id: String(i), label: r.label, path: r.path })),
 		outputDir,
