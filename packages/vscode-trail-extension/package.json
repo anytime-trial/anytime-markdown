@@ -183,6 +183,12 @@
         "command": "anytime-trail.aiMemoryRefresh",
         "title": "%command.aiMemoryRefresh%",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "anytime-trail.generateCodeGraph",
+        "title": "Generate Code Graph",
+        "category": "Anytime Trail",
+        "icon": "$(graph)"
       }
     ],
     "menus": {

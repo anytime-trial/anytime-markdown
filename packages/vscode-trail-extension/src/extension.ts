@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import { C4Panel } from './c4/C4Panel';
 import { TrailPanel } from './trail/TrailPanel';
 import { TrailDataServer } from './server/TrailDataServer';
+import { CodeGraphService } from './graph/CodeGraphService';
 import { TrailDatabase } from './trail/TrailDatabase';
 import { registerC4Commands } from './commands/c4Commands';
 import { TrailLogger } from './utils/TrailLogger';
@@ -378,6 +379,39 @@ export async function activate(context: vscode.ExtensionContext) {
 	trailDataServer = new TrailDataServer(extensionDistPath, trailDb, gitRoot);
 	TrailPanel.setDataServer(trailDataServer);
 	setupC4OnServer(trailDataServer);
+
+	// Code graph service
+	const codeGraphCfg = vscode.workspace.getConfiguration('anytimeTrail');
+	const rawOutputDir = codeGraphCfg.get<string>('codeGraph.outputDir', '${workspaceFolder}/.vscode/graphify-out');
+	const outputDir = wsRootForDb ? rawOutputDir.replace('${workspaceFolder}', wsRootForDb) : rawOutputDir;
+	const codeGraphRepos = codeGraphCfg.get<Array<{ path: string; label: string }>>('codeGraph.repositories', []);
+	const codeGraphAutoRefresh = codeGraphCfg.get<boolean>('codeGraph.autoRefresh', false);
+	const codeGraphService = new CodeGraphService({
+		repositories: codeGraphRepos.map((r, i) => ({ id: String(i), label: r.label, path: r.path })),
+		outputDir,
+	});
+	trailDataServer.setCodeGraphService(codeGraphService);
+	void codeGraphService.loadFromDisk().then(() => {
+		if (codeGraphAutoRefresh) {
+			return codeGraphService.generate((phase, percent) => trailDataServer?.notifyCodeGraphProgress(phase, percent))
+				.then(() => trailDataServer?.notifyCodeGraphUpdated());
+		}
+		return undefined;
+	}).catch((err) => TrailLogger.error('Failed to initialize code graph', err));
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('anytime-trail.generateCodeGraph', async () => {
+			try {
+				await codeGraphService.generate((phase, percent) => trailDataServer?.notifyCodeGraphProgress(phase, percent));
+				trailDataServer?.notifyCodeGraphUpdated();
+				vscode.window.showInformationMessage('Code graph generated.');
+			} catch (err) {
+				TrailLogger.error('Failed to generate code graph', err);
+				vscode.window.showErrorMessage(`Code graph generation failed: ${(err as Error).message}`);
+			}
+		}),
+	);
+
 	const trailPort = vscode.workspace.getConfiguration('anytimeTrail.trailServer').get<number>('port', 19841);
 
 	// Supabase store（設定が揃っている場合のみ初期化）
