@@ -53,6 +53,7 @@ function ChartColumn({ label, albums, loading }: Readonly<ChartColumnProps>) {
                                     {formatRank(i + 1)}
                                 </span>
                                 {thumb && (
+                                    // eslint-disable-next-line @next/next/no-img-element
                                     <img
                                         src={thumb}
                                         alt={`${album.name} ジャケット`}
