@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 
+import { extractErrorMessage } from '../../../lib/api-helpers';
+
 export interface TrendingRepo {
     id: number;
     fullName: string;
@@ -17,10 +19,9 @@ export interface TrendingResponse {
     monthly: TrendingRepo[];
 }
 
+export const dynamic = 'force-dynamic';
 const REVALIDATE_SECONDS = 3600;
 const PER_PAGE = 5;
-
-export const revalidate = 3600;
 
 function daysAgoIso(days: number): string {
     const d = new Date();
@@ -63,7 +64,7 @@ export async function GET() {
         ]);
         return NextResponse.json({ daily, weekly, monthly } satisfies TrendingResponse);
     } catch (e) {
-        const message = e instanceof Error ? e.message : 'Unknown error';
+        const message = extractErrorMessage(e);
         console.error(`[/api/github-trending] ${message}`, e instanceof Error ? e.stack : e);
         return NextResponse.json({ daily: [], weekly: [], monthly: [] } satisfies TrendingResponse);
     }

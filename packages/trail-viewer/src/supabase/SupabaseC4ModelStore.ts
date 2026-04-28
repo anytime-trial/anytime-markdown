@@ -6,8 +6,8 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { C4Model } from '@anytime-markdown/trail-core/c4';
-import { trailToC4 } from '@anytime-markdown/trail-core';
-import type { TrailGraph } from '@anytime-markdown/trail-core';
+import { trailToC4 } from '@anytime-markdown/trail-core/transform';
+import type { TrailGraph } from '@anytime-markdown/trail-core/model';
 import type {
   C4ModelEntry,
   C4ModelResult,

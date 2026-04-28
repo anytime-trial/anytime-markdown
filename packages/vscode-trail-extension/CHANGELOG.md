@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-04-28
+
+### Added
+
+- Integrated code graph service and related HTTP/WS command handling in the extension flow
+
+### Trail Core (trail-core)
+
+- Added code graph pipeline (detect/extract/build/cluster/layout/query/orchestrate)
+- Added code graph repository scope and exclude-pattern configuration support
+
 ## [0.12.0] - 2026-04-26
 
 ### Trail Core (trail-core)

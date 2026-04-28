@@ -6,6 +6,17 @@
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-04-28
+
+### 追加
+
+- 拡張機能フローに Code Graph サービス統合と関連 HTTP/WS コマンド処理を追加
+
+### Trail Core (trail-core)
+
+- Code Graph パイプライン（detect/extract/build/cluster/layout/query/orchestrate）を追加
+- Code Graph のリポジトリ範囲・除外パターン設定対応を追加
+
 ## [0.12.0] - 2026-04-26
 
 ### Trail Core (trail-core)
@@ -356,4 +367,3 @@
 - C4 ビューアのズーム関数に deltaY を直接渡す
 - C4 ホイールズームの webview スクロールキャプチャを防止
 - 拡張機能に typescript をバンドルしてモジュール未検出を解決
-

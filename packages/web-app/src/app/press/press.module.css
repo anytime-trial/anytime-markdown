@@ -383,6 +383,16 @@
     position: relative;
     height: 88px;
     background: var(--paper);
+    color: var(--rule);
+    --caravan-muted: var(--ink-light);
+}
+
+.root[data-cp-mode='dark'] .caravan {
+    --caravan-muted: rgba(237, 229, 210, 0.45);
+}
+
+.caravanMuted {
+    color: var(--caravan-muted);
 }
 
 .caravan > svg {
@@ -392,7 +402,7 @@
     width: 200%;
     height: 100%;
     transform: translateY(-50%);
-    animation: caravanWalk 60s linear infinite;
+    animation: caravanWalk 360s linear infinite;
 }
 
 .caravanTick {
@@ -424,7 +434,7 @@
     height: 100%;
     left: 0;
     top: 0;
-    animation: caravanCamelsWalk 60s linear infinite;
+    animation: caravanCamelsWalk 200s linear infinite;
 }
 
 @keyframes caravanCamelsWalk {
@@ -436,25 +446,44 @@
     position: absolute;
 }
 
+.caravanCamelImg {
+    display: block;
+    transform: scaleX(-1);
+}
+
+.root[data-cp-mode='dark'] .caravanCamelImg {
+    filter: invert(1) sepia(0.2) brightness(0.9);
+}
+
+.caravanOasisItem {
+    position: absolute;
+    opacity: 0;
+    transition: opacity 3s ease;
+}
+
+.caravanOasisVisible {
+    opacity: 1;
+}
+
 .caravanSun1,
 .caravanSun2 {
     position: absolute;
     width: 12px;
     height: 12px;
     border-radius: 50%;
-    background: #B8341E;
+    background: var(--vermilion);
     transform: translateY(-50%);
     z-index: 1;
 }
 
 .caravanSun1 {
     top: 25%;
-    animation: caravanSun1Walk 60s linear infinite;
+    animation: caravanSun1Walk 600s linear infinite;
 }
 
 .caravanSun2 {
     top: 27.5%;
-    animation: caravanSun2Walk 60s linear infinite;
+    animation: caravanSun2Walk 600s linear infinite;
 }
 
 /* cx=220 → 220/2400 * 200% = 18.33% of container */
@@ -475,6 +504,9 @@
     .caravanSun1,
     .caravanSun2 {
         animation: none;
+    }
+    .caravanOasisItem {
+        transition: none;
     }
 }
 

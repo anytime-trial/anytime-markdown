@@ -6,6 +6,19 @@
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-04-28
+
+### 追加
+
+- Code Graph パイプライン（detector / extractor / builder / clusterer / layout / query engine / orchestrator）を追加
+- Trail 拡張クライアント向けに Code Graph の HTTP/WS メッセージ型と API 連携を追加
+- Code Graph 解析のリポジトリ範囲・除外パターン設定を追加
+
+### 変更
+
+- Code Graph の既定リポジトリ解決をワークスペース基準に変更
+- Code Graph 設定参照を section スコープの accessor に限定
+
 ## [0.12.0] - 2026-04-26
 
 ### 追加

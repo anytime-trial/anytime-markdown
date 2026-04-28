@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 
+import { extractErrorMessage } from '../../../lib/api-helpers';
+
 export interface NewsArticle {
     id: string;
     title: string;
@@ -72,7 +74,7 @@ export async function GET() {
 
         return NextResponse.json({ articles });
     } catch (e) {
-        const message = e instanceof Error ? e.message : 'Unknown error';
+        const message = extractErrorMessage(e);
         console.error(`[/api/news] ${message}`, e instanceof Error ? e.stack : e);
         return NextResponse.json({ error: message }, { status: 500 });
     }

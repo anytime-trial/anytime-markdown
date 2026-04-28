@@ -2,7 +2,7 @@
 // Kept intentionally in sync with markdown-core/src/utils/rssParser.ts.
 import { DOMParser } from '@xmldom/xmldom';
 
-import { assertSafeUrl } from './embedFetchHelpers.js';
+import { assertSafeUrl } from './embedFetchHelpers';
 
 export interface RssLatest {
   guid: string;
@@ -31,11 +31,7 @@ export function parseRssLatestXml(xml: string): RssLatest | null {
   let doc: Document;
   try {
     doc = new DOMParser({
-      errorHandler: {
-        warning: () => undefined,
-        error: () => undefined,
-        fatalError: () => undefined,
-      },
+      errorHandler: () => undefined,
     }).parseFromString(xml, 'text/xml') as unknown as Document;
   } catch {
     return null;

@@ -17,7 +17,7 @@
   "dependencies": {
     "@anytime-markdown/graph-core": "*",
     "@modelcontextprotocol/sdk": "1.27.1",
-    "@xmldom/xmldom": "^0.9.9",
+    "@xmldom/xmldom": "^0.9.10",
     "zod": "3.25.76"
   },
   "devDependencies": {

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.13.3] - 2026-04-28
+
+### Editor Core (markdown-core)
+
+- Reworked embed excerpt and OGP/frontmatter parsing to avoid regex backtracking hotspots (`S5852`)
+- Updated comment escaping and regex string literals for Sonar compliance (`S7780`)
+
 ## [0.13.2] - 2026-04-26
 
 ### Editor Core (markdown-core)

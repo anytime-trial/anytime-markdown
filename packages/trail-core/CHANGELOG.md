@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-04-28
+
+### Added
+
+- Code graph pipeline: detector, extractor, builder, clusterer, layout, query engine, and orchestrator
+- Code graph HTTP/WS message types and endpoint integration for Trail extension clients
+- Configuration support for repository scoping and exclude patterns in code graph analysis
+
+### Changed
+
+- Default code graph repository resolution to workspace scope
+- Narrow code graph configuration reads to section-scoped accessors
+
 ## [0.12.0] - 2026-04-26
 
 ### Added

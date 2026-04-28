@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-04-28
+
+### Added
+
+- Added Code Graph tab and panel UI in Trail viewer
+- Added `CodeGraphCanvas` (sigma.js) and `useCodeGraph` hook for graph visualization
+
+### Fixed
+
+- Deferred sigma initialization until container dimensions are available
+- Tolerated invalid x/y coordinates in code graph rendering path
+
 ## [0.11.0] - 2026-04-26
 
 ### Added

@@ -8,6 +8,11 @@ import { NextResponse } from 'next/server';
 
 import { resolveSupabaseEnv } from './supabase-env';
 
+/** unknown 型の catch 値からエラーメッセージ文字列を取得する。 */
+export function extractErrorMessage(e: unknown): string {
+  return e instanceof Error ? e.message : 'Unknown error';
+}
+
 /** Cache-Control: no-store ヘッダ。Next.js のレスポンスキャッシュとブラウザキャッシュを抑止する。 */
 export const NO_STORE_HEADERS: Record<string, string> = {
   'Cache-Control': 'no-store, must-revalidate',

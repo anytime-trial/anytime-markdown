@@ -23,7 +23,7 @@ import { ImageAnnotationDialog } from "./components/ImageAnnotationDialog";
 import { ImageCropTool } from "./components/ImageCropTool";
 import { ScreenCaptureDialog } from "./components/ScreenCaptureDialog";
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getActionHover, getDivider, getErrorMain, getPrimaryMain, getTextDisabled, getTextSecondary, getWarningMain } from "./constants/colors";
-import { HANDLEBAR_CAPTION_FONT_SIZE, SMALL_CAPTION_FONT_SIZE, STATUSBAR_FONT_SIZE } from "./constants/dimensions";
+import { SMALL_CAPTION_FONT_SIZE, STATUSBAR_FONT_SIZE } from "./constants/dimensions";
 import { useBlockCapture } from "./hooks/useBlockCapture";
 import { useBlockNodeState } from "./hooks/useBlockNodeState";
 import { useBlockResize } from "./hooks/useBlockResize";

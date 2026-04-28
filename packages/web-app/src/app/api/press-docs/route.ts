@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { extractErrorMessage } from '../../../lib/api-helpers';
 import { fetchLayoutData } from '../../../lib/s3Client';
 import type { LayoutData } from '../../../types/layout';
 
@@ -12,7 +13,7 @@ export async function GET() {
         const data: LayoutData = await fetchLayoutData();
         return NextResponse.json(data);
     } catch (e) {
-        const message = e instanceof Error ? e.message : 'Unknown error';
+        const message = extractErrorMessage(e);
         console.error(`[/api/press-docs] ${message}`, e instanceof Error ? e.stack : e);
         return NextResponse.json({ categories: [] } satisfies LayoutData);
     }

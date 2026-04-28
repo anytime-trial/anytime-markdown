@@ -24,11 +24,7 @@ export function parseRssLatest(xml: string): RssLatest | null {
     let doc: Document;
     try {
         doc = new DOMParser({
-            errorHandler: {
-                warning: () => undefined,
-                error: () => undefined,
-                fatalError: () => undefined,
-            },
+            errorHandler: () => undefined,
         }).parseFromString(xml, "text/xml") as unknown as Document;
     } catch {
         return null;

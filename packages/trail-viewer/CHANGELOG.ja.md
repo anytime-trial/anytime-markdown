@@ -6,6 +6,18 @@
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-04-28
+
+### 追加
+
+- Trail viewer に Code Graph タブとパネル UI を追加
+- グラフ可視化向けに `CodeGraphCanvas`（sigma.js）と `useCodeGraph` フックを追加
+
+### 修正
+
+- コンテナ寸法が確定するまで sigma 初期化を遅延
+- Code Graph 描画で無効な x/y 座標を許容して回帰を防止
+
 ## [0.11.0] - 2026-04-26
 
 ### 追加

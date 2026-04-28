@@ -6,6 +6,13 @@
 
 ## [Unreleased]
 
+## [0.13.3] - 2026-04-28
+
+### Editor Core (markdown-core)
+
+- 埋め込み抜粋抽出と OGP/frontmatter 解析を見直し、正規表現バックトラッキング由来の Hotspot（`S5852`）を回避
+- コメントのエスケープ処理と正規表現文字列を調整し、Sonar 指摘（`S7780`）に対応
+
 ## [0.13.2] - 2026-04-26
 
 ### Editor Core (markdown-core)

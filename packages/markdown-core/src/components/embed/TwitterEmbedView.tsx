@@ -35,8 +35,39 @@ function loadWidgetsJs(): void {
 }
 
 function extractTextExcerpt(html: string): string {
-    const stripped = html.replaceAll(/<[^>]+>/g, " ").replaceAll(/\s+/g, " ").trim();
-    return stripped.slice(0, 50);
+    let text = "";
+    let inTag = false;
+    let prevSpace = true;
+
+    for (const ch of html) {
+        if (ch === "<") {
+            inTag = true;
+            continue;
+        }
+        if (ch === ">") {
+            inTag = false;
+            if (!prevSpace) {
+                text += " ";
+                prevSpace = true;
+            }
+            continue;
+        }
+        if (inTag) continue;
+
+        const isSpace = ch === " " || ch === "\n" || ch === "\r" || ch === "\t" || ch === "\f";
+        if (isSpace) {
+            if (!prevSpace) {
+                text += " ";
+                prevSpace = true;
+            }
+            continue;
+        }
+
+        text += ch;
+        prevSpace = false;
+    }
+
+    return text.trim().slice(0, 50);
 }
 
 export function TwitterEmbedView({ url, variant, providers, widthOverride }: Props) {

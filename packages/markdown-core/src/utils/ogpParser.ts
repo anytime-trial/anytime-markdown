@@ -1,33 +1,100 @@
 import type { OgpData } from "../types/embedProvider";
 
-function extractMeta(html: string, attr: "property" | "name", key: string): string | null {
-    const escapedKey = key.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const re = new RegExp(
-        `<meta\\s+[^>]*${attr}\\s*=\\s*["']${escapedKey}["'][^>]*content\\s*=\\s*["']([^"']*)["']`,
-        "i",
-    );
-    const m1 = re.exec(html);
-    if (m1) return m1[1];
-    const re2 = new RegExp(
-        `<meta\\s+[^>]*content\\s*=\\s*["']([^"']*)["'][^>]*${attr}\\s*=\\s*["']${escapedKey}["']`,
-        "i",
-    );
-    const m2 = re2.exec(html);
-    return m2 ? m2[1] : null;
+function parseTagAttributes(tag: string): Record<string, string> {
+    const attrs: Record<string, string> = {};
+    const end = tag.endsWith(">") ? tag.length - 1 : tag.length;
+    let i = 0;
+
+    while (i < end && tag[i] !== " ") i += 1;
+    while (i < end) {
+        while (i < end && (tag[i] === " " || tag[i] === "\t" || tag[i] === "\n" || tag[i] === "\r" || tag[i] === "/")) i += 1;
+        if (i >= end) break;
+
+        const nameStart = i;
+        while (i < end && tag[i] !== "=" && tag[i] !== " " && tag[i] !== "\t" && tag[i] !== "\n" && tag[i] !== "\r" && tag[i] !== ">") i += 1;
+        const name = tag.slice(nameStart, i).toLowerCase();
+        if (!name) break;
+
+        while (i < end && (tag[i] === " " || tag[i] === "\t" || tag[i] === "\n" || tag[i] === "\r")) i += 1;
+        if (i >= end || tag[i] !== "=") {
+            attrs[name] = "";
+            continue;
+        }
+        i += 1;
+        while (i < end && (tag[i] === " " || tag[i] === "\t" || tag[i] === "\n" || tag[i] === "\r")) i += 1;
+        if (i >= end) {
+            attrs[name] = "";
+            break;
+        }
+
+        let value = "";
+        const quote = tag[i];
+        if (quote === `"` || quote === "'") {
+            i += 1;
+            const valueStart = i;
+            while (i < end && tag[i] !== quote) i += 1;
+            value = tag.slice(valueStart, i);
+            if (i < end && tag[i] === quote) i += 1;
+        } else {
+            const valueStart = i;
+            while (i < end && tag[i] !== " " && tag[i] !== "\t" && tag[i] !== "\n" && tag[i] !== "\r" && tag[i] !== ">") i += 1;
+            value = tag.slice(valueStart, i);
+        }
+
+        attrs[name] = value;
+    }
+
+    return attrs;
 }
 
 function extractTitle(html: string): string | null {
-    const m = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html);
-    return m ? m[1].trim() : null;
+    const lower = html.toLowerCase();
+    const titleStart = lower.indexOf("<title");
+    if (titleStart < 0) return null;
+    const openEnd = html.indexOf(">", titleStart);
+    if (openEnd < 0) return null;
+    const closeStart = lower.indexOf("</title>", openEnd + 1);
+    if (closeStart < 0) return null;
+    return html.slice(openEnd + 1, closeStart).trim();
+}
+
+function findFirstTagAttributes(html: string, tagName: string, predicate: (attrs: Record<string, string>) => boolean): Record<string, string> | null {
+    const lower = html.toLowerCase();
+    const needle = `<${tagName}`;
+    let from = 0;
+    while (true) {
+        const start = lower.indexOf(needle, from);
+        if (start < 0) return null;
+        const end = html.indexOf(">", start);
+        if (end < 0) return null;
+        const attrs = parseTagAttributes(html.slice(start, end + 1));
+        if (predicate(attrs)) return attrs;
+        from = end + 1;
+    }
+}
+
+function extractMeta(html: string, attr: "property" | "name", key: string): string | null {
+    const target = key.toLowerCase();
+    const attrs = findFirstTagAttributes(
+        html,
+        "meta",
+        (metaAttrs) => metaAttrs[attr]?.toLowerCase() === target && typeof metaAttrs.content === "string",
+    );
+    if (!attrs) return null;
+    return attrs.content ?? null;
 }
 
 function extractIconHref(html: string): string | null {
-    const re = /<link\s+[^>]*rel\s*=\s*["'](?:shortcut\s+)?icon["'][^>]*href\s*=\s*["']([^"']*)["']/i;
-    const m = re.exec(html);
-    if (m) return m[1];
-    const re2 = /<link\s+[^>]*href\s*=\s*["']([^"']*)["'][^>]*rel\s*=\s*["'](?:shortcut\s+)?icon["']/i;
-    const m2 = re2.exec(html);
-    return m2 ? m2[1] : null;
+    const attrs = findFirstTagAttributes(html, "link", (linkAttrs) => {
+        const rel = (linkAttrs.rel ?? "").toLowerCase();
+        const relTokens = rel
+            .split(" ")
+            .map((token) => token.trim())
+            .filter(Boolean);
+        return relTokens.includes("icon") && typeof linkAttrs.href === "string";
+    });
+    if (!attrs) return null;
+    return attrs.href ?? null;
 }
 
 function absolutize(maybeUrl: string | null, base: string): string | null {

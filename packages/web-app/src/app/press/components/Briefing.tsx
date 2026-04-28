@@ -24,6 +24,7 @@ interface BriefingEmbedProps {
   embedActions?: ReactNode;
 }
 
+const TRAFFIC_LIGHT_COLORS = ['#FF5F57', '#FFBD2E', '#28C840'] as const;
 const TRAIL_KEYS = ['trail1', 'trail2', 'trail3', 'trail4'] as const;
 const MARKDOWN_KEYS = ['md3', 'md1', 'md2'] as const;
 const ROMAN = ['i', 'ii', 'iii', 'iv'] as const;
@@ -44,21 +45,14 @@ function BriefingWithEmbed({
       <div className={styles.briefingLeftStack}>
         <div className={styles.briefingEmbed}>
           <div className={styles.trailFrameBar}>
-            <span
-              className={styles.trailFrameDot}
-              style={{ background: '#FF5F57' }}
-              aria-hidden="true"
-            />
-            <span
-              className={styles.trailFrameDot}
-              style={{ background: '#FFBD2E' }}
-              aria-hidden="true"
-            />
-            <span
-              className={styles.trailFrameDot}
-              style={{ background: '#28C840' }}
-              aria-hidden="true"
-            />
+            {TRAFFIC_LIGHT_COLORS.map((color) => (
+              <span
+                key={color}
+                className={styles.trailFrameDot}
+                style={{ background: color }}
+                aria-hidden="true"
+              />
+            ))}
             <span className={styles.trailFrameTitle}>{embedTitle}</span>
           </div>
           <div className={styles.trailFrameBody}>{embed}</div>

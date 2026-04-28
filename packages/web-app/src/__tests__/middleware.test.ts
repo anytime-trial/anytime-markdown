@@ -1,8 +1,8 @@
 /**
- * middleware.ts のユニットテスト
+ * proxy.ts のユニットテスト
  *
  * jsdom には Web API の Request/Response がないため、
- * next/server をモックして middleware のロジックを検証する。
+ * next/server をモックして proxy のロジックを検証する。
  */
 
 const TEST_UUID = "550e8400-e29b-41d4-a716-446655440000";
@@ -40,18 +40,18 @@ function createMockRequest(pathname = "/"): { headers: Headers; nextUrl: { pathn
   return { headers: new Headers(), nextUrl: { pathname }, url: `http://localhost:3000${pathname}` };
 }
 
-describe("middleware", () => {
+describe("proxy", () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { middleware } = require("../middleware");
+  const { proxy } = require("../proxy");
 
   describe("nonce handling", () => {
     it("sets x-nonce on request headers", () => {
-      middleware(createMockRequest());
+      proxy(createMockRequest());
       expect(capturedRequestHeaders.get("x-nonce")).toBe(TEST_NONCE);
     });
 
     it("includes nonce in CSP script-src", () => {
-      middleware(createMockRequest());
+      proxy(createMockRequest());
       const csp = capturedRequestHeaders.get("Content-Security-Policy")!;
       expect(csp).toContain(`'nonce-${TEST_NONCE}'`);
     });
@@ -59,19 +59,19 @@ describe("middleware", () => {
 
   describe("CSP header", () => {
     it("sets CSP on response headers", () => {
-      middleware(createMockRequest());
+      proxy(createMockRequest());
       expect(mockResponseHeaders.get("Content-Security-Policy")).toBeTruthy();
     });
 
     it("request and response CSP headers are identical", () => {
-      middleware(createMockRequest());
+      proxy(createMockRequest());
       expect(capturedRequestHeaders.get("Content-Security-Policy")).toBe(
         mockResponseHeaders.get("Content-Security-Policy")
       );
     });
 
     it("contains all required directives", () => {
-      middleware(createMockRequest());
+      proxy(createMockRequest());
       const csp = mockResponseHeaders.get("Content-Security-Policy")!;
 
       const requiredDirectives = [
@@ -94,13 +94,13 @@ describe("middleware", () => {
     });
 
     it("includes self in default-src", () => {
-      middleware(createMockRequest());
+      proxy(createMockRequest());
       const csp = mockResponseHeaders.get("Content-Security-Policy")!;
       expect(csp).toContain("default-src 'self'");
     });
 
     it("restricts frames to embed providers and blocks objects", () => {
-      middleware(createMockRequest());
+      proxy(createMockRequest());
       const csp = mockResponseHeaders.get("Content-Security-Policy")!;
       expect(csp).toContain("frame-src 'self'");
       expect(csp).toContain("https://www.youtube.com");
@@ -125,14 +125,14 @@ describe("middleware", () => {
 
     it("excludes unsafe-eval in production", () => {
       (process.env as Record<string, string>).NODE_ENV = "production";
-      middleware(createMockRequest());
+      proxy(createMockRequest());
       const csp = mockResponseHeaders.get("Content-Security-Policy")!;
       expect(csp).not.toContain("unsafe-eval");
     });
 
     it("includes unsafe-eval in development", () => {
       (process.env as Record<string, string>).NODE_ENV = "development";
-      middleware(createMockRequest());
+      proxy(createMockRequest());
       const csp = mockResponseHeaders.get("Content-Security-Policy")!;
       expect(csp).toContain("'unsafe-eval'");
     });
@@ -141,7 +141,7 @@ describe("middleware", () => {
 
 describe("config", () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { config } = require("../middleware");
+  const { config } = require("../proxy");
 
   it("has matcher that excludes api and static routes", () => {
     expect(config.matcher).toBeDefined();

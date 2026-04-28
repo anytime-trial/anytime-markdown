@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 
+import { extractErrorMessage } from '../../../lib/api-helpers';
+
 export interface WeatherCity {
     key: string;
     nameEn: string;
@@ -77,7 +79,7 @@ export async function GET() {
         const cities = await Promise.all(CITIES.map(fetchCity));
         return NextResponse.json({ cities });
     } catch (e) {
-        const message = e instanceof Error ? e.message : 'Unknown error';
+        const message = extractErrorMessage(e);
         console.error(`[/api/weather] ${message}`, e instanceof Error ? e.stack : e);
         return NextResponse.json({ error: message }, { status: 500 });
     }

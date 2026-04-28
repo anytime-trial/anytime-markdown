@@ -1,6 +1,6 @@
 {
   "name": "anytime-markdown-monorepo",
-  "version": "0.13.2",
+  "version": "0.13.3",
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -44,7 +44,7 @@
       "@auth/core": "0.41.1"
     },
     "handlebars": "4.7.9",
-    "@xmldom/xmldom": "0.9.9",
+    "@xmldom/xmldom": "0.9.10",
     "brace-expansion": "1.1.13"
   },
   "devDependencies": {
@@ -57,6 +57,7 @@
   },
   "dependencies": {
     "@auth/core": "0.41.1",
+    "@xmldom/xmldom": "0.9.10",
     "next": "16.2.4"
   }
 }

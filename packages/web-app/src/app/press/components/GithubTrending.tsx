@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 
 import type { TrendingRepo, TrendingResponse } from '../../api/github-trending/route';
 import styles from '../press.module.css';
+import { formatRank } from '../utils';
 
 function RankingColumn({
     label,
@@ -17,7 +18,7 @@ function RankingColumn({
                 {repos.map((repo, i) => (
                     <li key={repo.id} className={styles.ghTrendingItem}>
                         <span className={styles.ghTrendingRank}>
-                            {String(i + 1).padStart(2, '0')}
+                            {formatRank(i + 1)}
                         </span>
                         <div className={styles.ghTrendingBody}>
                             <h3 className={styles.ghTrendingName}>

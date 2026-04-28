@@ -4,6 +4,7 @@ import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 
 import styles from '../press.module.css';
+import { formatRank } from '../utils';
 
 interface SpotifyAlbum {
     id: string;
@@ -49,9 +50,10 @@ function ChartColumn({ label, albums, loading }: Readonly<ChartColumnProps>) {
                         return (
                             <li key={album.id} className={styles.chartsItem}>
                                 <span className={styles.chartsRank} aria-label={`${i + 1}位`}>
-                                    {String(i + 1).padStart(2, '0')}
+                                    {formatRank(i + 1)}
                                 </span>
                                 {thumb && (
+                                    // eslint-disable-next-line @next/next/no-img-element
                                     <img
                                         src={thumb}
                                         alt={`${album.name} ジャケット`}

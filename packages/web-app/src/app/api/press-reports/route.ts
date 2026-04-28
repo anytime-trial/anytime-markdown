@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { extractErrorMessage } from '../../../lib/api-helpers';
 import { listReports } from '../../../lib/reportClient';
 import type { ReportMeta } from '../../../types/report';
 
@@ -17,7 +18,7 @@ export async function GET() {
         const weekly = reports.find((r) => r.category?.toLowerCase().includes('weekly')) ?? null;
         return NextResponse.json({ daily, weekly } satisfies PressReportsResponse);
     } catch (e) {
-        const message = e instanceof Error ? e.message : 'Unknown error';
+        const message = extractErrorMessage(e);
         console.error(`[/api/press-reports] ${message}`, e instanceof Error ? e.stack : e);
         return NextResponse.json({ daily: null, weekly: null } satisfies PressReportsResponse);
     }

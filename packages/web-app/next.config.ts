@@ -3,6 +3,8 @@ import withBundleAnalyzerInit from '@next/bundle-analyzer';
 import withSerwistInit from '@serwist/next';
 import createNextIntlPlugin from 'next-intl/plugin';
 
+process.env.SERWIST_SUPPRESS_TURBOPACK_WARNING = '1';
+
 const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 const withBundleAnalyzer = withBundleAnalyzerInit({
   enabled: process.env.ANALYZE === 'true',

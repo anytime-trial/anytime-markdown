@@ -48,6 +48,9 @@ export default tseslint.config(
   {
     files: ["packages/web-app/**/*.{ts,tsx}"],
     plugins: { "@next/next": nextPlugin },
-    rules: nextPlugin.configs.recommended.rules,
+    rules: {
+      ...nextPlugin.configs.recommended.rules,
+      "@next/next/no-html-link-for-pages": "off",
+    },
   },
 );

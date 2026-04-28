@@ -271,10 +271,13 @@ function WinterMotif({ day }: Readonly<{ day: number }>) {
 
 // ─── メインコンポーネント ─────────────────────────────────
 
+const _today = new Date();
+const CURRENT_SEASON = getSeason(_today.getMonth() + 1);
+const DAY_SEED = getDaySeed();
+
 export function SeasonalVignette() {
-  const today = new Date();
-  const season = getSeason(today.getMonth() + 1);
-  const day = getDaySeed();
+  const season = CURRENT_SEASON;
+  const day = DAY_SEED;
 
   return (
     <div className={styles.mastVignette} aria-hidden="true">

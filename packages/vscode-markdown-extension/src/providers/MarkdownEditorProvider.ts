@@ -669,7 +669,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       const url = typeof message.url === 'string' ? message.url : '';
       if (!requestId || !url) return;
       try {
-        const { parseOgpHtml, assertSafeUrl } = await import('./embedFetchHelpers.js');
+        const { parseOgpHtml, assertSafeUrl } = await import('./embedFetchHelpers');
         await assertSafeUrl(url);
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 5_000);
@@ -737,7 +737,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       const feedUrl = typeof message.feedUrl === 'string' ? message.feedUrl : '';
       if (!requestId || !feedUrl) return;
       try {
-        const { fetchRssLatest } = await import('./rssFetch.js');
+        const { fetchRssLatest } = await import('./rssFetch');
         const data = await fetchRssLatest(feedUrl);
         ctx.webviewPanel.webview.postMessage({ type: 'rssResult', requestId, data });
       } catch (err) {

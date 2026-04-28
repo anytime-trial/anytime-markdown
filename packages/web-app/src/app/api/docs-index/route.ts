@@ -16,29 +16,64 @@ const CACHE_MAX_AGE = 300; // 5 min
 
 /** フロントマターの c4Scope / title / type / date を抽出する */
 function parseFrontmatter(raw: string): Pick<DocLink, "title" | "type" | "c4Scope" | "date"> | null {
-  const fmMatch = /^---\r?\n([\s\S]*?)\r?\n---/.exec(raw);
-  if (!fmMatch) return null;
-  const fm = fmMatch[1];
+  const normalized = raw.replaceAll("\r\n", "\n");
+  const lines = normalized.split("\n");
+  if (lines[0] !== "---") return null;
+
+  let endLineIndex = -1;
+  for (let i = 1; i < lines.length; i += 1) {
+    if (lines[i] === "---") {
+      endLineIndex = i;
+      break;
+    }
+  }
+  if (endLineIndex < 0) return null;
+
+  const fmLines = lines.slice(1, endLineIndex);
+
+  const trimQuotes = (value: string): string => {
+    const trimmed = value.trim();
+    if (trimmed.length >= 2) {
+      const first = trimmed[0];
+      const last = trimmed[trimmed.length - 1];
+      if ((first === `"` && last === `"`) || (first === "'" && last === "'")) {
+        return trimmed.slice(1, -1);
+      }
+    }
+    return trimmed;
+  };
+
+  const parseScalar = (line: string, key: string): string | null => {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith(`${key}:`)) return null;
+    return trimQuotes(trimmed.slice(key.length + 1));
+  };
 
   // c4Scope (YAML array)
   const scopeLines: string[] = [];
   let inScope = false;
-  for (const line of fm.split(/\r?\n/)) {
-    if (/^c4Scope\s*:/.test(line)) {
+  for (const line of fmLines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("c4Scope:")) {
       inScope = true;
       // inline value (e.g. c4Scope: ["a"])
-      const inline = /\[([^\]]*)\]/.exec(line);
-      if (inline) {
+      const start = line.indexOf("[");
+      const end = line.lastIndexOf("]");
+      if (start >= 0 && end > start) {
+        const inline = line.slice(start + 1, end);
         scopeLines.push(
-          ...inline[1].split(",").map((s) => s.trim().replaceAll(/^["']|["']$/g, "")).filter(Boolean),
+          ...inline
+            .split(",")
+            .map((s) => trimQuotes(s))
+            .filter(Boolean),
         );
         inScope = false;
       }
       continue;
     }
     if (inScope) {
-      if (/^\s+-\s+/.test(line)) {
-        scopeLines.push(line.replace(/^\s+-\s+/, "").trim().replaceAll(/^["']|["']$/g, ""));
+      if (trimmed.startsWith("- ")) {
+        scopeLines.push(trimQuotes(trimmed.slice(2)));
       } else {
         inScope = false;
       }
@@ -46,15 +81,21 @@ function parseFrontmatter(raw: string): Pick<DocLink, "title" | "type" | "c4Scop
   }
   if (scopeLines.length === 0) return null;
 
-  const titleMatch = /^title\s*:\s*"?(.+?)"?\s*$/m.exec(fm);
-  const typeMatch = /^type\s*:\s*"?(\w+)"?\s*$/m.exec(fm);
-  const dateMatch = /^date\s*:\s*"?(\d{4}-\d{2}-\d{2})"?\s*$/m.exec(fm);
+  let title: string | null = null;
+  let type: string | null = null;
+  let date: string | null = null;
+  for (const line of fmLines) {
+    if (title === null) title = parseScalar(line, "title");
+    if (type === null) type = parseScalar(line, "type");
+    if (date === null) date = parseScalar(line, "date");
+    if (title !== null && type !== null && date !== null) break;
+  }
 
   return {
-    title: titleMatch?.[1] ?? "Untitled",
-    type: typeMatch?.[1] ?? "unknown",
+    title: title ?? "Untitled",
+    type: type ?? "unknown",
     c4Scope: scopeLines,
-    date: dateMatch?.[1] ?? "",
+    date: date ?? "",
   };
 }
 

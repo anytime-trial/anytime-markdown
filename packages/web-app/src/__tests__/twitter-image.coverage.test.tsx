@@ -8,7 +8,7 @@ import * as twitterImage from "../app/twitter-image";
 
 describe("twitter-image", () => {
   it("re-exports opengraph-image members", () => {
-    expect(twitterImage.runtime).toBe("edge");
+    expect(twitterImage.runtime).toBe("nodejs");
     expect(twitterImage.alt).toBeDefined();
     expect(twitterImage.size).toBeDefined();
     expect(twitterImage.contentType).toBeDefined();

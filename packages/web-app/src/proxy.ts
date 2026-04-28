@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   // 本番環境では /docs/edit へのアクセスを /docs/view にリダイレクト
   if (
     request.nextUrl.pathname.startsWith("/docs/edit") &&

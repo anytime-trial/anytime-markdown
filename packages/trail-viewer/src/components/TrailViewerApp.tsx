@@ -172,6 +172,7 @@ export function TrailViewerApp({
       tokenBudgets={dataSource.tokenBudgets}
       sessionsLoading={dataSource.sessionsLoading}
       c4={c4Props}
+      codeGraph={{ serverUrl }}
     />
   );
 }

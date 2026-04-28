@@ -24,6 +24,8 @@ import { WsjNews } from './components/WsjNews';
 import { bodoni, jetbrains, shippori, yujiBoku } from './fonts';
 import styles from './press.module.css';
 
+const FONT_CLASSES = `${bodoni.variable} ${shippori.variable} ${jetbrains.variable} ${yujiBoku.variable}`;
+
 const TrailViewerEmbed = dynamic(
   () =>
     import('../trail/components/TrailViewer').then((m) => ({
@@ -42,9 +44,8 @@ const MARKDOWN_PREVIEW_HEIGHT = 'clamp(300px, 42vh, 520px)';
 export function PressBody() {
   const { themeMode } = useThemeMode();
   const tCta = useTranslations('press.cta');
-  const fontClasses = `${bodoni.variable} ${shippori.variable} ${jetbrains.variable} ${yujiBoku.variable}`;
   return (
-    <div className={`${styles.root} ${fontClasses}`} data-cp-mode={themeMode}>
+    <div className={`${styles.root} ${FONT_CLASSES}`} data-cp-mode={themeMode}>
       <ProgressRule />
       <Masthead />
       <Headline />

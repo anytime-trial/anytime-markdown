@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-04-28
+
+### Added
+
+- Added/expanded press-page visual features (parallax caravan, oasis timing, seasonal vignette refinements)
+
+### Changed
+
+- Refactored shared press utilities to reduce duplication and improve maintainability
+
+### Fixed
+
+- Fixed press-page responsive and visual regressions (layout breakpoints, icon sizing, dark-mode camel rendering)
+- Updated WSJ RSS parsing string handling to satisfy Sonar escape recommendations
+- Applied docs-index frontmatter parsing hardening to avoid regex backtracking hotspots
+
 ## [0.20.1] - 2026-04-26
 
 ### Fixed
