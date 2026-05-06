@@ -531,6 +531,22 @@ ALTER TABLE trail_release_coverage ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "trail_release_coverage_all" ON trail_release_coverage;
 CREATE POLICY "trail_release_coverage_all" ON trail_release_coverage FOR ALL USING (true) WITH CHECK (true);
 
+ALTER TABLE trail_current_file_analysis ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "trail_current_file_analysis_all" ON trail_current_file_analysis;
+CREATE POLICY "trail_current_file_analysis_all" ON trail_current_file_analysis FOR ALL USING (true) WITH CHECK (true);
+
+ALTER TABLE trail_release_file_analysis ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "trail_release_file_analysis_all" ON trail_release_file_analysis;
+CREATE POLICY "trail_release_file_analysis_all" ON trail_release_file_analysis FOR ALL USING (true) WITH CHECK (true);
+
+ALTER TABLE trail_current_function_analysis ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "trail_current_function_analysis_all" ON trail_current_function_analysis;
+CREATE POLICY "trail_current_function_analysis_all" ON trail_current_function_analysis FOR ALL USING (true) WITH CHECK (true);
+
+ALTER TABLE trail_release_function_analysis ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "trail_release_function_analysis_all" ON trail_release_function_analysis;
+CREATE POLICY "trail_release_function_analysis_all" ON trail_release_function_analysis FOR ALL USING (true) WITH CHECK (true);
+
 ALTER TABLE trail_current_code_graphs ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "trail_current_code_graphs_all" ON trail_current_code_graphs;
 CREATE POLICY "trail_current_code_graphs_all" ON trail_current_code_graphs FOR ALL USING (true) WITH CHECK (true);
