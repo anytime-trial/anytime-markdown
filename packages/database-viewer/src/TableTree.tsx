@@ -42,15 +42,15 @@ export const TableTree: React.FC<Readonly<TableTreeProps>> = ({
   const empty = filtered && filtered.tables.length === 0 && filtered.views.length === 0;
 
   return (
-    <Stack sx={{ p: 1, height: "100%", overflow: "hidden" }}>
+    <Stack sx={{ p: 1, flex: 1, minHeight: 0, overflow: "hidden" }}>
       <TextField
         size="small"
         placeholder={t("treeSearchPlaceholder")}
         value={filter}
         onChange={(e) => setFilter(e.target.value)}
-        sx={{ mb: 1 }}
+        sx={{ mb: 1, flexShrink: 0 }}
       />
-      <Box sx={{ overflow: "auto", flexGrow: 1 }}>
+      <Box sx={{ overflow: "auto", flexGrow: 1, minHeight: 0 }}>
         {empty ? <Typography>{t("treeEmpty")}</Typography> : null}
         {filtered && filtered.tables.length > 0 ? (
           <>

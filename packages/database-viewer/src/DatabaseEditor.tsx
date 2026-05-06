@@ -198,7 +198,17 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
 
   return (
     <Stack direction="row" sx={{ height: "100%", overflow: "hidden" }}>
-      <Box sx={{ width: 280, borderRight: 1, borderColor: "divider", overflow: "auto" }}>
+      <Box
+        sx={{
+          width: 280,
+          flexShrink: 0,
+          borderRight: 1,
+          borderColor: "divider",
+          display: "flex",
+          flexDirection: "column",
+          minHeight: 0,
+        }}
+      >
         <TableTree schema={schema} selected={activeTabId} onSelect={handleSelect} />
       </Box>
       <Stack sx={{ flexGrow: 1, minWidth: 0, minHeight: 0, overflow: "hidden" }}>
