@@ -13,7 +13,12 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.window.registerCustomEditorProvider(
       "anytimeDatabase.sqlite",
       provider,
-      { supportsMultipleEditorsPerDocument: false },
+      {
+        supportsMultipleEditorsPerDocument: false,
+        // タブ切替時に WebView を破棄せず状態保持。これがないと別のタブに移動して
+        // 戻った時に webview の React state が初期化され "Loading database..." に戻る。
+        webviewOptions: { retainContextWhenHidden: true },
+      },
     ),
     logger,
   );
