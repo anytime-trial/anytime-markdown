@@ -1,7 +1,7 @@
 "use client";
 
 import { Box } from "@mui/material";
-import React from "react";
+import React, { useSyncExternalStore } from "react";
 import type { SheetAdapter } from "@anytime-markdown/spreadsheet-core";
 import {
   type PaginationProps,
@@ -19,6 +19,12 @@ export const ResultGrid: React.FC<Readonly<ResultGridProps>> = ({
   pagination,
   themeMode,
 }) => {
+  // 対象テーブル / クエリ結果のカラム数だけグリッド列を表示する
+  const colCount = useSyncExternalStore(
+    (l) => adapter.subscribe(l),
+    () => adapter.getColumnHeaders?.().length ?? 0,
+    () => 0,
+  );
   return (
     <Box sx={{ flexGrow: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
       <SpreadsheetEditor
@@ -27,6 +33,7 @@ export const ResultGrid: React.FC<Readonly<ResultGridProps>> = ({
         themeMode={themeMode}
         showImportExport={false}
         showToolbar={false}
+        gridCols={colCount > 0 ? colCount : undefined}
       />
     </Box>
   );
