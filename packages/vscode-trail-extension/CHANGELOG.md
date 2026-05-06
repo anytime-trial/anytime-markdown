@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ### Changed
 
 - `.trail/analyze-exclude` is now interpreted as `.gitignore`-compatible. The `**/<pattern>/**` auto-wrap in `AnalyzePipeline` is removed so users can write `!` negation and `/dist`-style root-anchored patterns directly. `GraphDetector` now also accepts an `ignore` instance
+- `computeAndPersistImportance` now also receives the `analyze-exclude` `Ignore` and applies it to every SourceFile picked up by the TypeScript compiler. Patterns like `__tests__/` or `*.test.ts` in `analyze-exclude` finally also propagate to importance analysis (and thus `current_file_analysis` / `current_function_analysis`) consistently
 
 ## [0.17.0] - 2026-05-06
 
