@@ -5,3 +5,5 @@ export * from './limitDetection';
 export * from './sqlMutationCheck';
 export * from './BetterSqlite3Adapter';
 export * from './SqlJsAdapter';
+export * from './messaging';
+export * from './RemoteDatabaseAdapter';
