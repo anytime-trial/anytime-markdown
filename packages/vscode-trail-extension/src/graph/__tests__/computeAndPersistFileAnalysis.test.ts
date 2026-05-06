@@ -82,7 +82,8 @@ describe('computeAndPersistFileAnalysis', () => {
   });
 
   it('CodeGraph に孤立ノード 1 件 → orphan=true, deadCodeScore=45', async () => {
-    // ノード "repo:packages/core/src/a.ts" が存在し in-degree=0（orphan）
+    // ノード "repo:packages/core/src/a" が存在し in-degree=0（orphan）。
+    // lineCountByFile に対応する .ts エントリがあるとき、拡張子復元して登録する。
     const graph = makeMinimalCodeGraph({
       nodes: [
         {
@@ -115,7 +116,7 @@ describe('computeAndPersistFileAnalysis', () => {
       repoName: REPO_NAME,
       trailDb: db as unknown as TrailDatabase,
       scored: [],
-      lineCountByFile: new Map(),
+      lineCountByFile: new Map([['packages/core/src/a.ts', 12]]),
     });
 
     // CodeGraph ノード由来のファイルが 1 件追加される
@@ -123,8 +124,9 @@ describe('computeAndPersistFileAnalysis', () => {
     expect(capturedRows).toHaveLength(1);
 
     const row = capturedRows[0];
-    // 拡張子なし相対パス（node.id の "repo:" を除いた部分）
-    expect(row.filePath).toBe('packages/core/src/a');
+    // .ts 拡張子が復元されたパスで登録される
+    expect(row.filePath).toBe('packages/core/src/a.ts');
+    expect(row.lineCount).toBe(12);
     expect(row.signals.orphan).toBe(true);
     // functionCount=0 なので fanInZero は false
     expect(row.signals.fanInZero).toBe(false);
@@ -132,6 +134,55 @@ describe('computeAndPersistFileAnalysis', () => {
     expect(row.signals.isolatedCommunity).toBe(true);
     // deadCodeScore = orphan(45) + isolatedCommunity(5) = 50
     expect(row.deadCodeScore).toBe(50);
+  });
+
+  it('CodeGraph node が lineCountByFile に対応エントリを持たない場合は skip', async () => {
+    // stale な node や doc 等は登録対象外
+    const graph = makeMinimalCodeGraph({
+      nodes: [
+        {
+          id: 'repo:packages/stale/removed',
+          label: 'removed',
+          repo: 'repo',
+          package: 'stale',
+          fileType: 'code',
+          community: 0,
+          communityLabel: 'c0',
+          x: 0, y: 0, size: 0,
+        },
+        {
+          id: 'repo:packages/docs/README',
+          label: 'README',
+          repo: 'repo',
+          package: 'docs',
+          fileType: 'document',
+          community: 0,
+          communityLabel: 'c0',
+          x: 0, y: 0, size: 0,
+        },
+      ],
+      edges: [],
+    });
+    const db = makeMockDb({
+      getCurrentCodeGraph: jest.fn().mockReturnValue(graph),
+    });
+
+    let capturedRows: FileAnalysisRow[] = [];
+    db.upsertCurrentFileAnalysis.mockImplementation((rows: FileAnalysisRow[]) => {
+      capturedRows = rows;
+    });
+
+    const result = await computeAndPersistFileAnalysis({
+      analysisRoot: ANALYSIS_ROOT,
+      repoName: REPO_NAME,
+      trailDb: db as unknown as TrailDatabase,
+      scored: [],
+      // どちらの node にも対応するエントリが無い
+      lineCountByFile: new Map(),
+    });
+
+    expect(result.fileRows).toBe(0);
+    expect(capturedRows).toHaveLength(0);
   });
 
   it('scored ありのとき functionRows に全関数が含まれる', async () => {
