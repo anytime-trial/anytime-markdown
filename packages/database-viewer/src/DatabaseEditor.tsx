@@ -201,8 +201,8 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
       <Box sx={{ width: 280, borderRight: 1, borderColor: "divider", overflow: "auto" }}>
         <TableTree schema={schema} selected={activeTabId} onSelect={handleSelect} />
       </Box>
-      <Stack sx={{ flexGrow: 1, minWidth: 0 }}>
-        <Stack direction="row" alignItems="center" spacing={1} sx={{ p: 1 }}>
+      <Stack sx={{ flexGrow: 1, minWidth: 0, minHeight: 0, overflow: "hidden" }}>
+        <Stack direction="row" alignItems="center" spacing={1} sx={{ p: 1, flexShrink: 0 }}>
           {adapter.capabilities.readOnly ? (
             <Chip size="small" color="default" label="read-only" />
           ) : null}

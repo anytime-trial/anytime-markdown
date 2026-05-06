@@ -130,7 +130,7 @@ export const SpreadsheetEditor: React.FC<Readonly<SpreadsheetEditorProps>> = ({
 
     const showHeader = showImportExport || headerRight !== undefined;
     return (
-        <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
+        <Box sx={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
             {showHeader ? (
                 <Stack direction="row" spacing={1} sx={{ p: 1, flexShrink: 0 }}>
                     {showImportExport ? (

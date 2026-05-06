@@ -46,7 +46,14 @@ export const PaginationBar: React.FC<Readonly<PaginationProps>> = ({
             direction="row"
             alignItems="center"
             spacing={1}
-            sx={{ px: 1, py: 0.5, borderTop: 1, borderColor: "divider" }}
+            sx={{
+                px: 1,
+                py: 0.5,
+                borderTop: 1,
+                borderColor: "divider",
+                flexShrink: 0,
+                bgcolor: "background.paper",
+            }}
         >
             <IconButton size="small" disabled={disabled || clampedPage <= 1} onClick={() => goto(1)} aria-label={t("first")}>
                 <FirstPageIcon fontSize="small" />
