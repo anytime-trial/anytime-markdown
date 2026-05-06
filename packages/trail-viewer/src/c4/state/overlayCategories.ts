@@ -12,7 +12,7 @@ export type OverlayCategory =
 
 export const OVERLAY_CATEGORY_DEFAULTS: Record<Exclude<OverlayCategory, 'none'>, MetricOverlay> = {
   coverage: 'coverage-lines',
-  dsm: 'dsm-out',
+  dsm: 'dsm-cyclic',
   'edit-complexity': 'edit-complexity-most',
   importance: 'importance',
   hotspot: 'hotspot-frequency',
