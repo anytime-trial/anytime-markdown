@@ -50,7 +50,28 @@ export const TableTree: React.FC<Readonly<TableTreeProps>> = ({
         onChange={(e) => setFilter(e.target.value)}
         sx={{ mb: 1, flexShrink: 0 }}
       />
-      <Box sx={{ overflow: "auto", flexGrow: 1, minHeight: 0 }}>
+      <Box
+        sx={{
+          overflow: "auto",
+          flexGrow: 1,
+          minHeight: 0,
+          // VS Code WebView でも視認できる太さ・コントラストの scrollbar を明示
+          scrollbarWidth: "auto",
+          scrollbarColor:
+            "rgba(255,255,255,0.55) rgba(255,255,255,0.05)",
+          "&::-webkit-scrollbar": { width: 12, height: 12 },
+          "&::-webkit-scrollbar-track": {
+            background: "rgba(255,255,255,0.05)",
+          },
+          "&::-webkit-scrollbar-thumb": {
+            background: "rgba(255,255,255,0.45)",
+            borderRadius: 3,
+          },
+          "&::-webkit-scrollbar-thumb:hover": {
+            background: "rgba(255,255,255,0.6)",
+          },
+        }}
+      >
         {empty ? <Typography>{t("treeEmpty")}</Typography> : null}
         {filtered && filtered.tables.length > 0 ? (
           <>
