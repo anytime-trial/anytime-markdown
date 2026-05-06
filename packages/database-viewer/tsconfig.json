@@ -8,6 +8,7 @@
     "isolatedModules": true,
     "declaration": true,
     "jsx": "react-jsx",
+    "resolveJsonModule": true,
     "paths": {
       "@anytime-markdown/spreadsheet-core": ["../spreadsheet-core/src/index.ts"],
       "@anytime-markdown/spreadsheet-viewer": ["../spreadsheet-viewer/src/index.ts"],
