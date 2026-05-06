@@ -42,30 +42,23 @@ const extensionConfig = {
     ],
   },
   plugins: [
+    // dist/node_modules/<pkg> に native binary を含む依存ツリーを丸ごと配置する。
+    // Node の標準解決で require('better-sqlite3') が dist/node_modules/better-sqlite3 に
+    // hit するため、NODE_PATH の手当ては不要。
     new CopyPlugin({
       patterns: [
         {
-          from: path.resolve(
-            __dirname,
-            '../../node_modules/better-sqlite3/build/Release/better_sqlite3.node',
-          ),
-          to: path.resolve(__dirname, 'dist/native/better_sqlite3.node'),
+          from: path.resolve(__dirname, '../../node_modules/better-sqlite3'),
+          to: path.resolve(__dirname, 'dist/node_modules/better-sqlite3'),
+          globOptions: { ignore: ['**/src/**', '**/deps/**', '**/binding.gyp'] },
         },
         {
-          from: path.resolve(__dirname, '../../node_modules/better-sqlite3/package.json'),
-          to: path.resolve(__dirname, 'dist/native/package.json'),
-          transform(content) {
-            const pkg = JSON.parse(content.toString());
-            return JSON.stringify(
-              {
-                name: pkg.name,
-                version: pkg.version,
-                main: 'better_sqlite3.node',
-              },
-              null,
-              2,
-            );
-          },
+          from: path.resolve(__dirname, '../../node_modules/bindings'),
+          to: path.resolve(__dirname, 'dist/node_modules/bindings'),
+        },
+        {
+          from: path.resolve(__dirname, '../../node_modules/file-uri-to-path'),
+          to: path.resolve(__dirname, 'dist/node_modules/file-uri-to-path'),
         },
       ],
     }),

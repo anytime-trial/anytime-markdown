@@ -14,6 +14,12 @@ import { isMutationSql } from './sqlMutationCheck';
 export interface BetterSqlite3AdapterOptions {
   readonly filePath: string;
   readonly openMode: OpenMode;
+  /**
+   * better-sqlite3 の native binary (.node) への絶対パス。
+   * 指定すると bindings パッケージの探索を回避する (Node 24 で stack trace 互換性
+   * の問題があるため、VS Code 拡張のような bundled 環境では明示推奨)。
+   */
+  readonly nativeBinding?: string;
 }
 
 export class BetterSqlite3Adapter implements DatabaseAdapter {
@@ -26,11 +32,16 @@ export class BetterSqlite3Adapter implements DatabaseAdapter {
   constructor(opts: BetterSqlite3AdapterOptions) {
     this.displayName = `SQLite (${opts.filePath})`;
     const readonly = opts.openMode === 'readonly';
-    // 遅延 require: VS Code 拡張で extension.ts の NODE_PATH 設定後に解決される必要があるため、
-    // モジュール先頭の static import ではなくコンストラクタ内で require する
+    // 遅延 require: VS Code 拡張のように bundle された環境では、
+    // モジュール先頭で static import すると require 解決パスが不安定になるため
+    // コンストラクタ内で require する
     // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
     const DatabaseCtor = require('better-sqlite3') as typeof Database;
-    this.db = new DatabaseCtor(opts.filePath, { readonly, fileMustExist: true });
+    this.db = new DatabaseCtor(opts.filePath, {
+      readonly,
+      fileMustExist: true,
+      ...(opts.nativeBinding ? { nativeBinding: opts.nativeBinding } : {}),
+    });
     this.capabilities = {
       readOnly: readonly,
       canTransactionalSave: !readonly,

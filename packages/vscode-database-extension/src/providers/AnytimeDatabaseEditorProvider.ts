@@ -1,9 +1,22 @@
 import * as fs from "node:fs";
+import * as path from "node:path";
 import * as vscode from "vscode";
 import { BetterSqlite3Adapter } from "@anytime-markdown/database-core/BetterSqlite3Adapter";
 import { setupIpcBridge } from "../ipcBridge";
 import { AnytimeDatabaseLogger } from "../logger";
 import { DatabaseDocument } from "./DatabaseDocument";
+
+// VSIX 配布時、native binary は dist/node_modules/better-sqlite3/build/Release/ に配置される。
+// __dirname (= dist/providers) からの相対で絶対パスを解決する。
+const NATIVE_BINDING_PATH = path.resolve(
+  __dirname,
+  "..",
+  "node_modules",
+  "better-sqlite3",
+  "build",
+  "Release",
+  "better_sqlite3.node",
+);
 
 export class AnytimeDatabaseEditorProvider
   implements vscode.CustomEditorProvider<DatabaseDocument>
@@ -27,6 +40,7 @@ export class AnytimeDatabaseEditorProvider
     const adapter = new BetterSqlite3Adapter({
       filePath: uri.fsPath,
       openMode,
+      nativeBinding: NATIVE_BINDING_PATH,
     });
     this.logger.info(`opened ${uri.fsPath} mode=${openMode}`);
     return new DatabaseDocument(uri, adapter);
