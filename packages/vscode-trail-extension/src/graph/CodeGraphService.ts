@@ -176,7 +176,10 @@ export class CodeGraphService {
       return undefined;
     }
     try {
-      return analyze({ tsconfigPath });
+      // analyze-exclude を反映する。TrailGraph 生成時から test や除外ディレクトリを
+      // 落とすことで、後段の CodeGraph 経由の current_file_analysis にも流入しない。
+      const exclude = loadAnalyzeExclude(repo.path);
+      return analyze({ tsconfigPath, exclude });
     } catch (err) {
       TrailLogger.error(
         `[CodeGraphService] analyze() failed for ${repo.label} (${tsconfigPath})`,
