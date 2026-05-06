@@ -1722,7 +1722,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
   /* ---------------------------------------------------------------- */
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
+    <Box sx={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow: "hidden" }}>
       {showToolbar && <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: getDivider(isDark), px: 1, py: 0.25, gap: 0.5, flexShrink: 0 }}>
         <ToggleButtonGroup exclusive size="small" sx={{ height: 24 }} onChange={handleAlignChange} disabled={readOnly}>
           <ToggleButton value="left" aria-label={t("alignLeft")} sx={{ px: 0.5, py: 0.125 }}>
@@ -1836,12 +1836,13 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
         sx={{
           overflow: "auto",
           flex: 1,
+          minHeight: 0,
           position: "relative",
           fontSize: 13,
           lineHeight: "24px",
-          scrollbarWidth: "thin",
-          scrollbarColor: isDark ? "rgba(255,255,255,0.45) transparent" : "rgba(0,0,0,0.4) transparent",
-          "&::-webkit-scrollbar": { width: 6, height: 6 },
+          scrollbarWidth: "auto",
+          scrollbarColor: isDark ? "rgba(255,255,255,0.55) rgba(255,255,255,0.05)" : "rgba(0,0,0,0.5) rgba(0,0,0,0.05)",
+          "&::-webkit-scrollbar": { width: 12, height: 12 },
           "&::-webkit-scrollbar-track": { background: "transparent" },
           "&::-webkit-scrollbar-thumb": {
             background: isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.4)",
