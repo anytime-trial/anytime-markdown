@@ -128,16 +128,12 @@ export function C4ViewerCore({
   // リリース entry と current entry 両方からリポジトリを収集する
   const repoOptions = useMemo(() => {
     const seen = new Set<string>();
-    const order: string[] = [];
     for (const r of releases) {
       const key = r.repoName ?? (r.tag === CURRENT_RELEASE_TAG ? '' : UNKNOWN_REPO_KEY);
       if (!key) continue;
-      if (!seen.has(key)) {
-        seen.add(key);
-        order.push(key);
-      }
+      seen.add(key);
     }
-    return order;
+    return Array.from(seen).sort((a, b) => a.localeCompare(b));
   }, [releases]);
 
   const [selectedRepoInternal, setSelectedRepoInternal] = useState<string>(() => repoOptions[0] ?? '');
