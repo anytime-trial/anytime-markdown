@@ -1,0 +1,39 @@
+name: Build anytime-database VSIX (per-platform)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master, develop]
+    paths:
+      - "packages/vscode-database-extension/**"
+      - "packages/database-core/**"
+      - "packages/database-viewer/**"
+      - ".github/workflows/build-anytime-database.yml"
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [linux-x64, linux-arm64, darwin-x64, darwin-arm64, win32-x64, win32-arm64]
+    runs-on: ${{ startsWith(matrix.target, 'darwin-arm') && 'macos-14' || startsWith(matrix.target, 'darwin') && 'macos-13' || startsWith(matrix.target, 'linux') && 'ubuntu-22.04' || 'windows-2022' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm ci
+      - name: Rebuild better-sqlite3 for ARM64
+        if: matrix.target == 'linux-arm64' || matrix.target == 'win32-arm64'
+        run: npm rebuild --workspace=anytime-database better-sqlite3 --target_arch=arm64
+      - name: Build extension
+        run: npm run package --workspace=anytime-database
+      - name: Package VSIX
+        run: npx @vscode/vsce package --no-dependencies --target ${{ matrix.target }} --out anytime-database-${{ matrix.target }}.vsix
+        working-directory: packages/vscode-database-extension
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: anytime-database-${{ matrix.target }}
+          path: packages/vscode-database-extension/anytime-database-*.vsix
