@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import ignore from 'ignore';
 import { toUTC, getSqliteTzOffset } from './dateUtils';
 import {
   CREATE_SESSIONS,
@@ -6889,10 +6890,14 @@ export class TrailDatabase {
           );
         }
 
-        // 解析実行
+        // 解析実行（excludePatterns は legacy のディレクトリ名配列。.gitignore 互換に変換）
+        const exclude = ignore();
+        if (excludePatterns.length > 0) {
+          exclude.add([...excludePatterns]);
+        }
         const graph = analyzeFn({
           tsconfigPath: worktreeTsconfig,
-          exclude: excludePatterns.map(p => `**/${p}/**`),
+          exclude,
         });
 
         // 保存（tsconfigPath は canonical パスを記録）

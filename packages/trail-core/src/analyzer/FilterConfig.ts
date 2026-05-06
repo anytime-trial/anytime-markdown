@@ -1,7 +1,12 @@
+import type { Ignore } from 'ignore';
 import type { TrailNode, TrailEdge } from '../model/types';
 
 export interface FilterConfig {
-  readonly exclude: readonly string[];
+  /**
+   * `.gitignore` 互換の Ignore インスタンス。`ignores(filePath)` が true を返した
+   * ノードは除外される。空 Ignore（何も add していない）は何もマッチしない。
+   */
+  readonly exclude: Ignore;
   readonly includeTests: boolean;
 }
 
@@ -16,10 +21,8 @@ export function applyFilter(
     if (!config.includeTests && TEST_PATTERN.test(node.filePath)) {
       return false;
     }
-    for (const pattern of config.exclude) {
-      if (matchGlob(node.filePath, pattern)) {
-        return false;
-      }
+    if (node.filePath !== '' && config.exclude.ignores(node.filePath)) {
+      return false;
     }
     return true;
   });
@@ -31,24 +34,4 @@ export function applyFilter(
   );
 
   return { nodes: [...filteredNodes], edges: [...filteredEdges] };
-}
-
-const MAX_PATTERN_LENGTH = 1000;
-
-export function matchGlob(filePath: string, pattern: string): boolean {
-  if (pattern.length > MAX_PATTERN_LENGTH) {
-    return false;
-  }
-
-  try {
-    const regex = pattern
-      .replaceAll('**', '\0')
-      .replaceAll('*', '\x01')
-      .replaceAll(/[.+?^${}()|[\]\\]/g, String.raw`\$&`)
-      .replaceAll('\x01', '[^/]*')
-      .replaceAll('\0', '.*');
-    return new RegExp(`^${regex}$`).test(filePath);
-  } catch {
-    return false;
-  }
 }

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Switch `.trail/analyze-exclude` syntax to `.gitignore`-compatible (via the `ignore` package). Now supports `!` negation, `/`-prefix root anchoring, `*.spec.ts` file globs, `dir/` directory-only, and `**` recursive matching. **Breaking:** `AnalyzeOptions.exclude` type changed from `readonly string[]` to `Ignore`
+- `loadAnalyzeExclude` return type changed from `string[]` to `Ignore`
+- `FilterConfig.exclude` is now `Ignore`. Removed `matchGlob` and `parseAnalyzeExclude`
+
 ## [0.17.0] - 2026-05-06
 
 ### Added

@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+### 変更
+
+- `.trail/analyze-exclude` の解釈を `.gitignore` 互換に変更。`AnalyzePipeline` の `**/<pattern>/**` 自動ラップを撤去し、ユーザーが `!` 否定や `/dist` 等の root 固定パターンを直接書ける。`GraphDetector` が `ignore` インスタンスを受け取れるよう拡張
+
 ## [0.17.0] - 2026-05-06
 
 ### 追加

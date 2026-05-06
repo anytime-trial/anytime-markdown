@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+### 変更
+
+- `.trail/analyze-exclude` の文法を `.gitignore` 互換に変更（`ignore` パッケージ採用）。`!` 否定 / `/` 先頭固定 / `*.spec.ts` ファイル glob / `dir/` ディレクトリ専用 / `**` 再帰が利用可能に。`AnalyzeOptions.exclude` の型を `readonly string[]` から `Ignore` に変更（Breaking change）
+- `loadAnalyzeExclude` の戻り値を `string[]` から `Ignore` に変更
+- `FilterConfig.exclude` の型を `Ignore` に変更し、`matchGlob` / `parseAnalyzeExclude` を削除
+
 ## [0.17.0] - 2026-05-06
 
 ### 追加

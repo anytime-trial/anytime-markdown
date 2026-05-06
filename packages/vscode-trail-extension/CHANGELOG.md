@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+
+- `.trail/analyze-exclude` is now interpreted as `.gitignore`-compatible. The `**/<pattern>/**` auto-wrap in `AnalyzePipeline` is removed so users can write `!` negation and `/dist`-style root-anchored patterns directly. `GraphDetector` now also accepts an `ignore` instance
+
 ## [0.17.0] - 2026-05-06
 
 ### Added
