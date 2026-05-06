@@ -12,6 +12,21 @@ echo "=== Anytime Database: Build & Install ==="
 cd "$REPO_ROOT"
 npm install --ignore-scripts 2>/dev/null || npm install
 
+# VS Code Extension Host は Node 22 系で動作するため、ホスト Node のバージョン
+# (24 等) 向け prebuild が node_modules に置かれている場合は VSIX で
+# NODE_MODULE_VERSION 不一致エラーになる。VSCODE_NODE_TARGET (例: 22.20.0) を
+# 指定して better-sqlite3 の prebuild を VS Code 用に置換する。
+VSCODE_NODE_TARGET="${VSCODE_NODE_TARGET:-22.20.0}"
+echo "Resolving better-sqlite3 prebuild for Node ${VSCODE_NODE_TARGET}..."
+(
+  cd "$REPO_ROOT/node_modules/better-sqlite3"
+  npx prebuild-install --target="$VSCODE_NODE_TARGET" --runtime=node \
+    --download-host=https://github.com/WiseLibs/better-sqlite3/releases/download \
+    >/dev/null 2>&1 || {
+      echo "WARNING: prebuild-install failed, current binary will be used as-is" >&2
+    }
+)
+
 echo "Building..."
 cd "$EXT_DIR"
 # NOTE: webpack 完了後に Node 24 で稀に segfault (exit 139) を出すが、
