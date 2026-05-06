@@ -1,9 +1,6 @@
 import * as vscode from "vscode";
-import type {
-  BetterSqlite3Adapter,
-  RpcMethod,
-  RpcResultMessage,
-} from "@anytime-markdown/database-core";
+import type { BetterSqlite3Adapter } from "@anytime-markdown/database-core/BetterSqlite3Adapter";
+import type { RpcMethod, RpcResultMessage } from "@anytime-markdown/database-core";
 import { isMutationSql } from "@anytime-markdown/database-core";
 
 export function setupIpcBridge(

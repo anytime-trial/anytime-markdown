@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 import * as vscode from "vscode";
-import { BetterSqlite3Adapter } from "@anytime-markdown/database-core";
+import { BetterSqlite3Adapter } from "@anytime-markdown/database-core/BetterSqlite3Adapter";
 import { setupIpcBridge } from "../ipcBridge";
 import { AnytimeDatabaseLogger } from "../logger";
 import { DatabaseDocument } from "./DatabaseDocument";

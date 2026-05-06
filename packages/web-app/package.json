@@ -17,9 +17,13 @@
   },
   "dependencies": {
     "@anytime-markdown/cms-core": "*",
+    "@anytime-markdown/database-core": "*",
+    "@anytime-markdown/database-viewer": "*",
     "@anytime-markdown/graph-core": "*",
     "@anytime-markdown/graph-viewer": "*",
     "@anytime-markdown/markdown-core": "*",
+    "@anytime-markdown/spreadsheet-core": "*",
+    "@anytime-markdown/spreadsheet-viewer": "*",
     "@anytime-markdown/trace-core": "*",
     "@anytime-markdown/trace-viewer": "*",
     "@anytime-markdown/trail-viewer": "*",
@@ -51,6 +55,7 @@
     "plotly.js-gl3d-dist-min": "3.4.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "sql.js": "1.12.0",
     "zod": "4.3.6"
   },
   "devDependencies": {
@@ -63,6 +68,7 @@
     "@types/plantuml-encoder": "1.4.2",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
+    "@types/sql.js": "1.4.9",
     "jest": "30.2.0",
     "jest-environment-jsdom": "30.2.0",
     "raw-loader": "4.0.2",

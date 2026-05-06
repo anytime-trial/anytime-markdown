@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import type { BetterSqlite3Adapter } from "@anytime-markdown/database-core";
+import type { BetterSqlite3Adapter } from "@anytime-markdown/database-core/BetterSqlite3Adapter";
 
 export class DatabaseDocument implements vscode.CustomDocument {
   private dirty = false;

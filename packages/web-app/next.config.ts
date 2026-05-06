@@ -18,17 +18,30 @@ const isCapacitorBuild = !isCloudflare && process.env.CAPACITOR_BUILD === 'true'
 const nextConfig: NextConfig = {
   devIndicators: false,
   transpilePackages: [
+    '@anytime-markdown/database-core',
+    '@anytime-markdown/database-viewer',
     '@anytime-markdown/markdown-core',
+    '@anytime-markdown/spreadsheet-core',
+    '@anytime-markdown/spreadsheet-viewer',
     '@anytime-markdown/trace-core',
     '@anytime-markdown/trace-viewer',
     '@anytime-markdown/trail-viewer',
   ],
+  // sql.js は Node 用 require('fs'/'path'/'crypto') を含むためサーバ側では external 扱い
+  serverExternalPackages: ['sql.js'],
   turbopack: {
     rules: {
       '*.md': {
         loaders: ['raw-loader'],
         as: '*.js',
       },
+    },
+    resolveAlias: {
+      // sql.js (WASM) は Node 用 require('fs'/'path'/'crypto') を含むため
+      // ブラウザバンドルでは noop に解決して dead code として除去する
+      fs: { browser: './src/lib/sqlJsNoopShim.ts' },
+      path: { browser: './src/lib/sqlJsNoopShim.ts' },
+      crypto: { browser: './src/lib/sqlJsNoopShim.ts' },
     },
   },
   ...(isCapacitorBuild && {
@@ -66,11 +79,21 @@ const nextConfig: NextConfig = {
       ];
     },
   }),
-  webpack: (config) => {
+  webpack: (config, { isServer }) => {
     config.module.rules.push({
       test: /\.md$/,
       type: 'asset/source',
     });
+    // sql.js (WASM) は Node 用 fs/path/crypto API を持つため、ブラウザバンドルでは無効化
+    if (!isServer) {
+      config.resolve = config.resolve ?? {};
+      config.resolve.fallback = {
+        ...(config.resolve.fallback ?? {}),
+        fs: false,
+        path: false,
+        crypto: false,
+      };
+    }
     return config;
   },
 };

@@ -7,14 +7,14 @@ import {
   databaseViewerEnMessages,
   databaseViewerJaMessages,
 } from "@anytime-markdown/database-viewer";
-import { RemoteDatabaseAdapter } from "@anytime-markdown/database-core/src/RemoteDatabaseAdapter";
+import { RemoteDatabaseAdapter } from "@anytime-markdown/database-core/RemoteDatabaseAdapter";
 import type {
   ExtToWvMessage,
   InitMessage,
   MessageTransport,
   WvToExtMessage,
-} from "@anytime-markdown/database-core/src/messaging";
-import type { SchemaInfo } from "@anytime-markdown/database-core/src/types";
+} from "@anytime-markdown/database-core/messaging";
+import type { SchemaInfo } from "@anytime-markdown/database-core/types";
 import {
   spreadsheetViewerEnMessages,
   spreadsheetViewerJaMessages,

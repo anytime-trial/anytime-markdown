@@ -7,7 +7,12 @@
   "types": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./src/*": "./src/*"
+    "./SqlJsAdapter": "./src/SqlJsAdapter.ts",
+    "./BetterSqlite3Adapter": "./src/BetterSqlite3Adapter.ts",
+    "./RemoteDatabaseAdapter": "./src/RemoteDatabaseAdapter.ts",
+    "./PaginatedSqlSheetAdapter": "./src/PaginatedSqlSheetAdapter.ts",
+    "./messaging": "./src/messaging.ts",
+    "./types": "./src/types.ts"
   },
   "scripts": {
     "test": "jest --maxWorkers=1"
