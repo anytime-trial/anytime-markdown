@@ -53,7 +53,9 @@ describe('PaginatedSqlSheetAdapter', () => {
     let count = 0;
     sa.subscribe(() => (count += 1));
     await sa.loadPage(1, 25);
-    expect(sa.getSnapshot().cells).toEqual([['a', 'b'], ['1', 'a'], ['2', 'b']]);
+    // カラム名は getColumnHeaders 経由、cells は純粋にデータ行のみ
+    expect(sa.getSnapshot().cells).toEqual([['1', 'a'], ['2', 'b']]);
+    expect(sa.getColumnHeaders()).toEqual(['a', 'b']);
     expect(count).toBe(1);
   });
 

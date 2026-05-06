@@ -20,6 +20,7 @@ const EMPTY_SNAPSHOT: SheetSnapshot = {
 export class PaginatedSqlSheetAdapter implements SheetAdapter {
   readonly readOnly = true;
   private snapshot: SheetSnapshot = EMPTY_SNAPSHOT;
+  private columnHeaders: ReadonlyArray<string> = [];
   private readonly listeners = new Set<() => void>();
   private readonly adapter: DatabaseAdapter;
   private readonly tableName: string;
@@ -31,6 +32,10 @@ export class PaginatedSqlSheetAdapter implements SheetAdapter {
 
   getSnapshot(): SheetSnapshot {
     return this.snapshot;
+  }
+
+  getColumnHeaders(): ReadonlyArray<string> {
+    return this.columnHeaders;
   }
 
   subscribe(listener: () => void): () => void {
@@ -61,12 +66,16 @@ export class PaginatedSqlSheetAdapter implements SheetAdapter {
       limit: pageSize,
       offset: (page - 1) * pageSize,
     });
-    this.snapshot = toSnapshot(result);
-    this.notify();
+    this.applyResult(result);
   }
 
   applyQueryResult(result: QueryResult): void {
-    this.snapshot = toSnapshot(result);
+    this.applyResult(result);
+  }
+
+  private applyResult(r: QueryResult): void {
+    this.columnHeaders = r.columns;
+    this.snapshot = toSnapshot(r);
     this.notify();
   }
 
@@ -76,10 +85,10 @@ export class PaginatedSqlSheetAdapter implements SheetAdapter {
 }
 
 function toSnapshot(r: QueryResult): SheetSnapshot {
-  const headerRow: string[] = r.columns.map((c) => c);
-  const dataRows: string[][] = r.rows.map((row) => row.map((v) => v));
-  const cells = [headerRow, ...dataRows];
-  const cols = headerRow.length;
+  // カラム名は SheetAdapter.getColumnHeaders 経由で SpreadsheetGrid の列ヘッダ
+  // (A/B/C…) に表示するため、cells には含めない
+  const cells: string[][] = r.rows.map((row) => row.map((v) => v));
+  const cols = r.columns.length;
   const alignments: CellAlign[][] = cells.map((row) => row.map(() => null));
   return {
     cells,

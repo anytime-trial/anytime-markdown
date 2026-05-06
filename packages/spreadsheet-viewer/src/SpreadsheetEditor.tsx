@@ -96,6 +96,13 @@ export const SpreadsheetEditor: React.FC<Readonly<SpreadsheetEditorProps>> = ({
     }, [workbookAdapter, workbookSnap?.activeSheet]);
 
     const effectiveAdapter = workbookSheetAdapter ?? adapter;
+    // adapter が getColumnHeaders を実装していれば SpreadsheetGrid の列ヘッダ
+    // (A/B/C…) の代わりに表示する。useSyncExternalStore で snapshot 更新に追従。
+    const columnHeaders = useSyncExternalStore(
+        (l) => effectiveAdapter.subscribe(l),
+        () => effectiveAdapter.getColumnHeaders?.(),
+        () => undefined,
+    );
 
     const handleImportClick = useCallback((format: Format) => {
         setPendingFormat(format);
@@ -162,6 +169,7 @@ export const SpreadsheetEditor: React.FC<Readonly<SpreadsheetEditorProps>> = ({
                     showApply={showApply}
                     showRange={showRange}
                     showToolbar={showToolbar}
+                    columnHeaders={columnHeaders}
                     onDirtyChange={onDirtyChange}
                     onClose={onClose}
                     onUndo={onUndo}
