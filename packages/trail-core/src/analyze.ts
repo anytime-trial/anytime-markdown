@@ -1,3 +1,5 @@
+import ignore, { type Ignore } from 'ignore';
+
 import type { TrailGraph } from './model/types';
 import type { FilterConfig } from './analyzer/FilterConfig';
 import { ProjectAnalyzer } from './analyzer/ProjectAnalyzer';
@@ -7,7 +9,11 @@ import { applyFilter } from './analyzer/FilterConfig';
 
 export interface AnalyzeOptions {
   readonly tsconfigPath: string;
-  readonly exclude?: readonly string[];
+  /**
+   * `.gitignore` 互換の Ignore インスタンス。`loadAnalyzeExclude` の戻り値を
+   * そのまま渡す想定。未指定時は空 Ignore（何も除外しない）。
+   */
+  readonly exclude?: Ignore;
   readonly includeTests?: boolean;
   /** 進捗通知コールバック（フェーズ名を受け取る） */
   readonly onProgress?: (phase: string) => void;
@@ -29,7 +35,7 @@ export function analyze(options: AnalyzeOptions): TrailGraph {
 
   report('Filtering results...');
   const filterConfig: FilterConfig = {
-    exclude: options.exclude ?? [],
+    exclude: options.exclude ?? ignore(),
     includeTests: options.includeTests ?? false,
   };
 

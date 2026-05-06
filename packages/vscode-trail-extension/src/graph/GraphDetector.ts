@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import ignore, { type Ignore } from 'ignore';
 
 const DEFAULT_EXCLUDE_DIRS = new Set([
   'node_modules',
@@ -17,16 +18,22 @@ const CODE_EXTS = new Set(['.ts', '.tsx']);
 const DOC_EXTS = new Set(['.md', '.txt']);
 
 export class GraphDetector {
-  private readonly excludeDirs: Set<string>;
+  private readonly userIgnore: Ignore;
 
   constructor(
     private readonly rootPath: string,
-    extraExcludePatterns: readonly string[] = [],
+    extraExcludePatterns: readonly string[] | Ignore = [],
   ) {
-    this.excludeDirs = new Set(DEFAULT_EXCLUDE_DIRS);
-    for (const p of extraExcludePatterns) {
-      const trimmed = p.trim();
-      if (trimmed) this.excludeDirs.add(trimmed);
+    if (Array.isArray(extraExcludePatterns)) {
+      this.userIgnore = ignore();
+      const patterns = extraExcludePatterns
+        .map(p => p.trim())
+        .filter(p => p !== '');
+      if (patterns.length > 0) {
+        this.userIgnore.add(patterns);
+      }
+    } else {
+      this.userIgnore = extraExcludePatterns as Ignore;
     }
   }
 
@@ -51,14 +58,23 @@ export class GraphDetector {
       return results;
     }
     for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
       if (entry.isDirectory()) {
-        if (!this.excludeDirs.has(entry.name)) {
-          results.push(...this.walk(path.join(dir, entry.name), match));
-        }
+        if (DEFAULT_EXCLUDE_DIRS.has(entry.name)) continue;
+        const relPath = toPosixRelative(this.rootPath, fullPath);
+        if (relPath !== '' && this.userIgnore.ignores(`${relPath}/`)) continue;
+        results.push(...this.walk(fullPath, match));
       } else if (entry.isFile() && match(entry)) {
-        results.push(path.join(dir, entry.name));
+        const relPath = toPosixRelative(this.rootPath, fullPath);
+        if (relPath !== '' && this.userIgnore.ignores(relPath)) continue;
+        results.push(fullPath);
       }
     }
     return results;
   }
+}
+
+function toPosixRelative(rootPath: string, fullPath: string): string {
+  const rel = path.relative(rootPath, fullPath);
+  return rel.split(path.sep).join('/');
 }

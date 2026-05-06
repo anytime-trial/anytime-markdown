@@ -92,10 +92,10 @@ export async function runAnalyzeCurrentCodePipeline(
   } catch (err) {
     warnings.push(`seedAnalyzeExclude failed: ${err instanceof Error ? err.message : String(err)}`);
   }
-  const excludePatterns = loadAnalyzeExclude(analysisRoot);
+  const exclude = loadAnalyzeExclude(analysisRoot);
   const graph = analyze({
     tsconfigPath,
-    exclude: excludePatterns.map((p) => `**/${p}/**`),
+    exclude,
     onProgress: (phase) => {
       TrailLogger.info(`C4 analysis [${repoName}]: ${phase}`);
       const percent = phasePercent(phase);
