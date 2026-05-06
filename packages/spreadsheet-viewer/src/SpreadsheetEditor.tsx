@@ -8,6 +8,7 @@ import { Box, Button, Stack } from "@mui/material";
 import { useTranslations } from "next-intl";
 import React, { useCallback, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
+import { PaginationBar, type PaginationProps } from "./PaginationBar";
 import { SheetTabs } from "./SheetTabs";
 import { SpreadsheetGrid } from "./SpreadsheetGrid";
 
@@ -24,6 +25,7 @@ interface SpreadsheetEditorProps {
     readonly onClose?: () => void;
     readonly onUndo?: () => void;
     readonly onRedo?: () => void;
+    readonly pagination?: PaginationProps;
 }
 
 type Format = "csv" | "tsv";
@@ -62,6 +64,7 @@ export const SpreadsheetEditor: React.FC<Readonly<SpreadsheetEditorProps>> = ({
     onClose,
     onUndo,
     onRedo,
+    pagination,
 }) => {
     const t = useTranslations("Spreadsheet");
     const fallbackAdapter = useMemo(() => createInMemorySheetAdapter(), []);
@@ -164,6 +167,7 @@ export const SpreadsheetEditor: React.FC<Readonly<SpreadsheetEditorProps>> = ({
                     onReorder={(from, to) => workbookAdapter.reorderSheet(from, to)}
                 />
             )}
+            {pagination ? <PaginationBar {...pagination} /> : null}
         </Box>
     );
 };

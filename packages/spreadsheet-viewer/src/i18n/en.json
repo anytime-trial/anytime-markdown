@@ -39,5 +39,14 @@
     "sheetAdd": "Add Sheet",
     "sheetDelete": "Delete Sheet",
     "sheetRename": "Rename Sheet"
+  },
+  "Pager": {
+    "first": "« First",
+    "prev": "‹ Prev",
+    "next": "Next ›",
+    "last": "Last »",
+    "pageSize": "rows/page",
+    "totalRows": "Total {count} rows",
+    "pageOfTotal": "Page {page} / {total}"
   }
 }
