@@ -7,10 +7,9 @@ import { AnytimeDatabaseLogger } from "../logger";
 import { DatabaseDocument } from "./DatabaseDocument";
 
 // VSIX 配布時、native binary は dist/node_modules/better-sqlite3/build/Release/ に配置される。
-// __dirname (= dist/providers) からの相対で絶対パスを解決する。
+// webpack でバンドル後の __dirname は dist/ (extension.js の配置先)。
 const NATIVE_BINDING_PATH = path.resolve(
   __dirname,
-  "..",
   "node_modules",
   "better-sqlite3",
   "build",
