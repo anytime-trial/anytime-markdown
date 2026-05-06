@@ -51,6 +51,12 @@ const extensionConfig = {
   },
   resolve: {
     extensions: ['.ts', '.js'],
+    // tsconfig が NodeNext / Node16 のため import 側に `.js` 拡張子を付ける必要があり
+    // (例: `await import('./computeAndPersistFileAnalysis.js')`)、実体が `.ts` のときに
+    // webpack が解決できず「Cannot find module」を埋め込むのを防ぐ。
+    extensionAlias: {
+      '.js': ['.ts', '.js'],
+    },
   },
   // typescript の内部プラグインローダーが動的 require を使うため
   // 「Critical dependency: the request of a dependency is an expression」警告
