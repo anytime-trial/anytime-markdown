@@ -28,4 +28,18 @@ describe('ProjectAnalyzer', () => {
       expect(f.fileName).not.toContain('node_modules');
     }
   });
+
+  it('should exclude .d.ts declaration files', () => {
+    const analyzer = new ProjectAnalyzer(
+      path.join(FIXTURES, 'tsconfig.json'),
+    );
+    const sourceFiles = analyzer.getSourceFiles();
+    for (const f of sourceFiles) {
+      expect(f.isDeclarationFile).toBe(false);
+      expect(f.fileName.endsWith('.d.ts')).toBe(false);
+    }
+    // 直接対象として include させた typesOnly.d.ts も除外されること
+    const names = sourceFiles.map(f => path.relative(FIXTURES, f.fileName));
+    expect(names).not.toContain(path.join('src', 'typesOnly.d.ts'));
+  });
 });
