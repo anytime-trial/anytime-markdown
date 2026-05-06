@@ -7,3 +7,4 @@ export * from './BetterSqlite3Adapter';
 export * from './SqlJsAdapter';
 export * from './messaging';
 export * from './RemoteDatabaseAdapter';
+export * from './PaginatedSqlSheetAdapter';
