@@ -2336,7 +2336,10 @@ export class TrailDataServer {
     }
   }
 
-  async computeAndPersistImportance(tsconfigPath?: string): Promise<{
+  async computeAndPersistImportance(
+    tsconfigPath?: string,
+    exclude?: import('ignore').Ignore,
+  ): Promise<{
     scored: import('@anytime-markdown/trail-core/importance').ScoredFunction[];
     fileAggregates: Map<string, import('@anytime-markdown/trail-core/deadCode').FileImportanceAggregate>;
     lineCountByFile: ReadonlyMap<string, number>;
@@ -2355,10 +2358,18 @@ export class TrailDataServer {
       const { TypeScriptAdapter, ImportanceAnalyzer } = await import('@anytime-markdown/trail-core/importance');
       const { aggregateImportanceToFile } = await import('@anytime-markdown/trail-core/deadCode');
       const adapter = TypeScriptAdapter.fromTsConfig(resolvedTsconfig);
+      const resolvedDir = path.dirname(path.resolve(resolvedTsconfig));
+      const isExcluded = (sf: { isDeclarationFile: boolean; fileName: string }): boolean => {
+        if (sf.isDeclarationFile || sf.fileName.includes('node_modules')) return true;
+        if (!exclude) return false;
+        const relPath = path.relative(resolvedDir, sf.fileName).split(path.sep).join('/');
+        if (relPath === '' || relPath.startsWith('../')) return false;
+        return exclude.ignores(relPath);
+      };
       const allSourceFiles = adapter
         .getProgram()
         .getSourceFiles()
-        .filter((sf) => !sf.isDeclarationFile && !sf.fileName.includes('node_modules'))
+        .filter((sf) => !isExcluded(sf))
         .map((sf) => sf.fileName);
       const analyzer = new ImportanceAnalyzer(adapter);
       let scored: ReturnType<typeof analyzer.analyze>;
@@ -2371,9 +2382,8 @@ export class TrailDataServer {
       const fileAggregates = aggregateImportanceToFile(scored);
       // SourceFile の行数を相対パスでインデックスする（tsconfig ディレクトリ基準）
       const lineCountByFile = new Map<string, number>();
-      const resolvedDir = path.dirname(path.resolve(resolvedTsconfig));
       for (const sf of adapter.getProgram().getSourceFiles()) {
-        if (sf.isDeclarationFile || sf.fileName.includes('node_modules')) continue;
+        if (isExcluded(sf)) continue;
         const relPath = path.relative(resolvedDir, sf.fileName);
         const loc = sf.getLineAndCharacterOfPosition(sf.end).line + 1;
         lineCountByFile.set(relPath, loc);

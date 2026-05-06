@@ -9,6 +9,7 @@
 ### 変更
 
 - `.trail/analyze-exclude` の解釈を `.gitignore` 互換に変更。`AnalyzePipeline` の `**/<pattern>/**` 自動ラップを撤去し、ユーザーが `!` 否定や `/dist` 等の root 固定パターンを直接書ける。`GraphDetector` が `ignore` インスタンスを受け取れるよう拡張
+- `computeAndPersistImportance` も `analyze-exclude` の `Ignore` を受け取り、TS Compiler が拾った全 SourceFile に同じ除外規約を適用。これにより `__tests__/` や `*.test.ts` といった analyze-exclude 設定が importance 解析（→ `current_file_analysis` / `current_function_analysis`）にも一貫して効くようになった
 
 ## [0.17.0] - 2026-05-06
 

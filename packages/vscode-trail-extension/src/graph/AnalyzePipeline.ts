@@ -124,7 +124,7 @@ export async function runAnalyzeCurrentCodePipeline(
   let importanceResult: Awaited<ReturnType<typeof trailDataServer.computeAndPersistImportance>> = null;
   try {
     onProgress?.('Computing importance scores...');
-    importanceResult = await trailDataServer.computeAndPersistImportance(tsconfigPath);
+    importanceResult = await trailDataServer.computeAndPersistImportance(tsconfigPath, exclude);
     TrailLogger.info(`C4 analysis [${repoName}]: importance scores computed`);
   } catch (err) {
     const msg = `importance computation failed: ${err instanceof Error ? err.message : String(err)}`;
