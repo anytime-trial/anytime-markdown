@@ -27,6 +27,7 @@
     "anytime-trial.anytime-markdown",
     "anytime-trial.anytime-graph",
     "anytime-trial.anytime-sheet",
+    "anytime-trial.anytime-database",
     "anytime-trial.anytime-history",
     "anytime-trial.anytime-trail"
   ]

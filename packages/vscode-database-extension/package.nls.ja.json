@@ -1,0 +1,11 @@
+{
+  "displayName": "Anytime Database",
+  "description": "VS Code 内で SQLite データベースを閲覧・クエリできる拡張機能。",
+  "customEditor.displayName": "Anytime Database",
+  "config.openMode.title": "オープンモード",
+  "config.openMode.description": "SQLite ファイルを開くモード。readwrite は書き込み SQL と dirty/save UX を許可、readonly は OPEN_READONLY で開き書込を拒否する。",
+  "config.queryMaxRows.title": "クエリ最大行数",
+  "config.queryMaxRows.description": "SQL Run の結果として表示する最大行数。これを超える結果は切り詰められ、警告バナーが表示される。",
+  "config.warnThresholdMs.title": "警告しきい値 (ms)",
+  "config.warnThresholdMs.description": "指定 ms を超えてクエリが完了した場合に警告を表示する。"
+}
