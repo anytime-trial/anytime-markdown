@@ -4,3 +4,4 @@ export * from './identifier';
 export * from './limitDetection';
 export * from './sqlMutationCheck';
 export * from './BetterSqlite3Adapter';
+export * from './SqlJsAdapter';

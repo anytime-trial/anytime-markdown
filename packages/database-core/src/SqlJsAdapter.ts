@@ -1,0 +1,159 @@
+import initSqlJs from 'sql.js';
+import type { Database, SqlJsStatic } from 'sql.js';
+import type { DatabaseAdapter } from './DatabaseAdapter';
+import type {
+  ColumnInfo,
+  DatabaseCapabilities,
+  OpenMode,
+  QueryResult,
+  SchemaInfo,
+  TableInfo,
+} from './types';
+import { assertSafeIdentifier } from './identifier';
+import { isMutationSql } from './sqlMutationCheck';
+
+export interface SqlJsAdapterOptions {
+  readonly bytes: Uint8Array;
+  readonly openMode: OpenMode;
+  readonly locateWasm?: (file: string) => string;
+}
+
+export class SqlJsAdapter implements DatabaseAdapter {
+  readonly id = 'sqlite-sqljs' as const;
+  readonly displayName = 'SQLite (sql.js)';
+  readonly capabilities: DatabaseCapabilities;
+  private db: Database;
+
+  static async create(opts: SqlJsAdapterOptions): Promise<SqlJsAdapter> {
+    const SQL: SqlJsStatic = await initSqlJs(
+      opts.locateWasm ? { locateFile: opts.locateWasm } : {},
+    );
+    const db = new SQL.Database(opts.bytes);
+    return new SqlJsAdapter(db, opts.openMode);
+  }
+
+  private constructor(db: Database, openMode: OpenMode) {
+    this.db = db;
+    this.capabilities = {
+      readOnly: openMode === 'readonly',
+      canTransactionalSave: false,
+      canExportBytes: true,
+    };
+  }
+
+  async listSchema(): Promise<SchemaInfo> {
+    const stmt = this.db.prepare(
+      "SELECT name, type FROM sqlite_master WHERE type IN ('table','view') AND name NOT LIKE 'sqlite_%' ORDER BY type, name",
+    );
+    const tables: TableInfo[] = [];
+    const views: TableInfo[] = [];
+    while (stmt.step()) {
+      const row = stmt.getAsObject() as { name: string; type: string };
+      const safe = assertSafeIdentifier(row.name);
+      const columns = this.collectColumns(safe);
+      const info: TableInfo = { name: safe, columns };
+      if (row.type === 'table') tables.push(info);
+      else views.push(info);
+    }
+    stmt.free();
+    return { tables, views };
+  }
+
+  private collectColumns(table: string): ColumnInfo[] {
+    const stmt = this.db.prepare(`PRAGMA table_info("${table}")`);
+    const out: ColumnInfo[] = [];
+    while (stmt.step()) {
+      const r = stmt.getAsObject() as {
+        name: string;
+        type: string;
+        notnull: number;
+        pk: number;
+      };
+      out.push({
+        name: r.name,
+        type: r.type,
+        notNull: r.notnull === 1,
+        primaryKey: r.pk === 1,
+      });
+    }
+    stmt.free();
+    return out;
+  }
+
+  async selectRows(p: {
+    table: string;
+    limit: number;
+    offset: number;
+  }): Promise<QueryResult> {
+    const safe = assertSafeIdentifier(p.table);
+    const start = performance.now();
+    const stmt = this.db.prepare(`SELECT * FROM "${safe}" LIMIT ? OFFSET ?`);
+    stmt.bind([p.limit, p.offset]);
+    const columns = stmt.getColumnNames();
+    const rows: string[][] = [];
+    while (stmt.step()) {
+      rows.push(stmt.get().map(formatCell));
+    }
+    stmt.free();
+    return {
+      columns,
+      rows,
+      executionTimeMs: performance.now() - start,
+      isMutation: false,
+    };
+  }
+
+  async countRows(table: string): Promise<number> {
+    const safe = assertSafeIdentifier(table);
+    const stmt = this.db.prepare(`SELECT COUNT(*) AS n FROM "${safe}"`);
+    stmt.step();
+    const row = stmt.getAsObject() as { n: number };
+    stmt.free();
+    return row.n;
+  }
+
+  async executeSql(sql: string): Promise<QueryResult> {
+    if (this.capabilities.readOnly && isMutationSql(sql)) {
+      throw new Error('database is opened in read-only mode');
+    }
+    const start = performance.now();
+    const stmt = this.db.prepare(sql);
+    const columns = stmt.getColumnNames();
+    if (columns.length > 0) {
+      const rows: string[][] = [];
+      while (stmt.step()) rows.push(stmt.get().map(formatCell));
+      stmt.free();
+      return {
+        columns,
+        rows,
+        executionTimeMs: performance.now() - start,
+        isMutation: false,
+      };
+    }
+    stmt.step();
+    stmt.free();
+    const changes = this.db.getRowsModified();
+    return {
+      columns: [],
+      rows: [],
+      rowsAffected: changes,
+      executionTimeMs: performance.now() - start,
+      isMutation: true,
+    };
+  }
+
+  exportBytes(): Uint8Array {
+    return this.db.export();
+  }
+
+  async dispose(): Promise<void> {
+    this.db.close();
+  }
+}
+
+function formatCell(v: unknown): string {
+  if (v === null || v === undefined) return '';
+  if (v instanceof Uint8Array) return `<BLOB:${v.byteLength}b>`;
+  if (typeof v === 'object') return JSON.stringify(v);
+  return String(v);
+}
