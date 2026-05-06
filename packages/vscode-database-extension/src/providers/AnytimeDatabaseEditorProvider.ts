@@ -150,6 +150,9 @@ export class AnytimeDatabaseEditorProvider
 <meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline' ${webview.cspSource}; img-src ${webview.cspSource} data:; font-src ${webview.cspSource};">
 <title>Anytime Database</title>
+<style>
+  html, body, #root { height: 100%; margin: 0; padding: 0; overflow: hidden; }
+</style>
 </head><body>
 <div id="root"></div>
 <script nonce="${nonce}" src="${scriptUri}"></script>
