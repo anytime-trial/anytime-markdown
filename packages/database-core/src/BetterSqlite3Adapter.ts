@@ -1,4 +1,4 @@
-import Database from 'better-sqlite3';
+import type Database from 'better-sqlite3';
 import type { DatabaseAdapter } from './DatabaseAdapter';
 import type {
   ColumnInfo,
@@ -26,7 +26,11 @@ export class BetterSqlite3Adapter implements DatabaseAdapter {
   constructor(opts: BetterSqlite3AdapterOptions) {
     this.displayName = `SQLite (${opts.filePath})`;
     const readonly = opts.openMode === 'readonly';
-    this.db = new Database(opts.filePath, { readonly, fileMustExist: true });
+    // 遅延 require: VS Code 拡張で extension.ts の NODE_PATH 設定後に解決される必要があるため、
+    // モジュール先頭の static import ではなくコンストラクタ内で require する
+    // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+    const DatabaseCtor = require('better-sqlite3') as typeof Database;
+    this.db = new DatabaseCtor(opts.filePath, { readonly, fileMustExist: true });
     this.capabilities = {
       readOnly: readonly,
       canTransactionalSave: !readonly,
