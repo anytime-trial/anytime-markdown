@@ -114,8 +114,8 @@ export async function computeAndPersistFileAnalysis(
   }
 
   // 7. 全ファイルパス（相対）の universe を収集
-  //    = importance 解析対象 ∪ code graph ノード
-  const allRelFilePaths = collectAllRelFilePaths(fileAggregates, codeGraph, repoName);
+  //    = importance 解析対象 ∪ code graph ノード（lineCountByFile で拡張子復元）
+  const allRelFilePaths = collectAllRelFilePaths(fileAggregates, codeGraph, repoName, lineCountByFile);
 
   // 8. FileAnalysisRow を構築
   const fileRows: FileAnalysisRow[] = [];
@@ -292,37 +292,48 @@ function buildRelPathNoExtToNodeIdIndex(
  * - importance 解析対象のファイル（fileAggregates のキー）
  * - CodeGraph のノード（node.id から逆引き）
  *
- * CodeGraph のノードは拡張子なしなので、完全な拡張子を復元できない。
- * そのため CodeGraph 由来のパスは拡張子なし相対パスとして追加し、
- * fileAggregates 側に拡張子ありのものがあれば preferring する。
+ * CodeGraph のノード id は `<repo>:<stripExt(relPath)>` 形式で拡張子が剥がれている。
+ * 当該 noExt パスを `lineCountByFile` の key (TS Compiler が認識している `.ts` /
+ * `.tsx` の相対パス) と突き合わせて拡張子付きに復元する。
  *
- * NOTE: CodeGraph ノードで拡張子が復元できない場合、
- * file row の filePath は拡張子なし（例: "packages/core/src/foo"）になる。
- * これは現状許容し、後のフェーズで改善する。
+ * 復元できない node (実在する `.ts` / `.tsx` ソースに対応しない stale な node や
+ * code 以外の fileType) はテーブルに登録しない。これにより
+ * `current_file_analysis.file_path` 列は常に `.ts` / `.tsx` で終わる。
  */
 function collectAllRelFilePaths(
   fileAggregates: ReadonlyMap<string, unknown>,
   graph: CodeGraph | null,
   repoName: string,
+  lineCountByFile: ReadonlyMap<string, number>,
 ): Set<string> {
   const out = new Set<string>();
   // importance 解析済みファイル（相対パス、拡張子あり）
   for (const k of fileAggregates.keys()) out.add(k);
-  // CodeGraph のノード（拡張子なし相対パス）
-  if (graph) {
-    const prefix = `${repoName}:`;
-    for (const n of graph.nodes) {
-      if (!n.id.startsWith(prefix)) continue;
-      const relPathNoExt = n.id.slice(prefix.length);
-      // fileAggregates に拡張子ありのものがあれば既に追加済み
-      // → stripExt で照合してなければ追加
-      const alreadyCovered = [...fileAggregates.keys()].some(
-        (k) => stripExt(k) === relPathNoExt,
-      );
-      if (!alreadyCovered) {
-        out.add(relPathNoExt);
-      }
-    }
+  if (!graph) return out;
+
+  // noExt → withExt の逆引きインデックス。lineCountByFile のキーは
+  // tsconfig ディレクトリ基準の相対パス (拡張子付き)。
+  const noExtToWithExt = new Map<string, string>();
+  for (const key of lineCountByFile.keys()) {
+    noExtToWithExt.set(stripExt(key), key);
+  }
+
+  const prefix = `${repoName}:`;
+  for (const n of graph.nodes) {
+    if (n.fileType !== 'code') continue;
+    if (!n.id.startsWith(prefix)) continue;
+    const relPathNoExt = n.id.slice(prefix.length);
+
+    // 既に fileAggregates にあれば重複追加しない
+    const alreadyCovered = [...fileAggregates.keys()].some(
+      (k) => stripExt(k) === relPathNoExt,
+    );
+    if (alreadyCovered) continue;
+
+    // TS Compiler が拾った実ファイルのみ登録対象とする
+    const withExt = noExtToWithExt.get(relPathNoExt);
+    if (!withExt) continue;
+    out.add(withExt);
   }
   return out;
 }
