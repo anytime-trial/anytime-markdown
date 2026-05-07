@@ -24,7 +24,7 @@ export function useHotspot(options: UseHotspotOptions): UseHotspotResult {
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    if (!enabled || !serverUrl) {
+    if (!enabled || serverUrl === undefined) {
       abortRef.current?.abort();
       setData(null);
       setLoading(false);
