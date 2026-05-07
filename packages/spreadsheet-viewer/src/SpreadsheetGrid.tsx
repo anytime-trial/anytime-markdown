@@ -1036,6 +1036,20 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     return adapter.subscribe(handler);
   }, [adapter, initGrid, setDataRange, setAlignments, GRID_COLS, GRID_ROWS]);
 
+  // gridRows / gridCols prop が外部から変更された時に grid / alignments を
+  // 新サイズで再初期化する。これがないと grid 配列のサイズが古いままとなり、
+  // grid[r] や alignments[r] が undefined となって drawGrid がクラッシュする
+  // (例: ResultGrid で pageSize=50 → 100 への切替)。
+  useEffect(() => {
+    const snap = adapter.getSnapshot();
+    const data = snap.cells.map((r) => [...r]) as string[][];
+    initGrid(data);
+    const fullAligns: CellAlign[][] = Array.from({ length: GRID_ROWS }, (_, r) =>
+      Array.from({ length: GRID_COLS }, (_, c) => snap.alignments[r]?.[c] ?? null),
+    );
+    setAlignments(fullAligns);
+  }, [GRID_ROWS, GRID_COLS, adapter, initGrid, setAlignments]);
+
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
