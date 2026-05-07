@@ -6,6 +6,16 @@ export interface SchemaInfo {
 export interface TableInfo {
   readonly name: string;
   readonly columns: ReadonlyArray<ColumnInfo>;
+  readonly foreignKeys?: ReadonlyArray<ForeignKeyInfo>;
+}
+
+export interface ForeignKeyInfo {
+  /** 自テーブル側のカラム名 */
+  readonly fromColumn: string;
+  /** 参照先テーブル名 */
+  readonly toTable: string;
+  /** 参照先カラム名 */
+  readonly toColumn: string;
 }
 
 export interface ColumnInfo {

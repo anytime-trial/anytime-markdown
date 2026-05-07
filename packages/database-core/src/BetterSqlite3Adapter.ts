@@ -3,6 +3,7 @@ import type { DatabaseAdapter } from './DatabaseAdapter';
 import type {
   ColumnInfo,
   DatabaseCapabilities,
+  ForeignKeyInfo,
   OpenMode,
   QueryResult,
   SchemaInfo,
@@ -82,7 +83,26 @@ export class BetterSqlite3Adapter implements DatabaseAdapter {
         notNull: c.notnull === 1,
         primaryKey: c.pk === 1,
       }));
-      const info: TableInfo = { name: safe, columns };
+      let foreignKeys: ForeignKeyInfo[] | undefined;
+      if (r.type === 'table') {
+        const fkRows = this.db.pragma(`foreign_key_list("${safe}")`) as ReadonlyArray<{
+          id: number;
+          seq: number;
+          table: string;
+          from: string;
+          to: string | null;
+        }>;
+        if (fkRows.length > 0) {
+          foreignKeys = fkRows.map((fk) => ({
+            fromColumn: fk.from,
+            toTable: fk.table,
+            toColumn: fk.to ?? '',
+          }));
+        }
+      }
+      const info: TableInfo = foreignKeys
+        ? { name: safe, columns, foreignKeys }
+        : { name: safe, columns };
       if (r.type === 'table') tables.push(info);
       else views.push(info);
     }

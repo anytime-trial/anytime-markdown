@@ -4,6 +4,7 @@ import type { DatabaseAdapter } from './DatabaseAdapter';
 import type {
   ColumnInfo,
   DatabaseCapabilities,
+  ForeignKeyInfo,
   OpenMode,
   QueryResult,
   SchemaInfo,
@@ -51,12 +52,36 @@ export class SqlJsAdapter implements DatabaseAdapter {
       const row = stmt.getAsObject() as { name: string; type: string };
       const safe = assertSafeIdentifier(row.name);
       const columns = this.collectColumns(safe);
-      const info: TableInfo = { name: safe, columns };
+      const foreignKeys = row.type === 'table' ? this.collectForeignKeys(safe) : undefined;
+      const info: TableInfo = foreignKeys && foreignKeys.length > 0
+        ? { name: safe, columns, foreignKeys }
+        : { name: safe, columns };
       if (row.type === 'table') tables.push(info);
       else views.push(info);
     }
     stmt.free();
     return { tables, views };
+  }
+
+  private collectForeignKeys(table: string): ForeignKeyInfo[] {
+    const stmt = this.db.prepare(`PRAGMA foreign_key_list("${table}")`);
+    const out: ForeignKeyInfo[] = [];
+    while (stmt.step()) {
+      const r = stmt.getAsObject() as {
+        id: number;
+        seq: number;
+        table: string;
+        from: string;
+        to: string | null;
+      };
+      out.push({
+        fromColumn: r.from,
+        toTable: r.table,
+        toColumn: r.to ?? '',
+      });
+    }
+    stmt.free();
+    return out;
   }
 
   private collectColumns(table: string): ColumnInfo[] {
