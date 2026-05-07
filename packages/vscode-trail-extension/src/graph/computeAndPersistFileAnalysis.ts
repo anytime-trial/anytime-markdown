@@ -100,6 +100,10 @@ export async function computeAndPersistFileAnalysis(
 
   // 5. 90 日以内のチャーン（commit_files.file_path = git 相対パス）
   const churnMap = trailDb.getCommitFilesChurnSince(repoName, sinceIso);
+  // 5b. 全期間の commit 履歴（noRecentChurn 判定用）
+  // churnMap は 90 日窓のみ返すため、それを hasHistory として使うと
+  // hasHistory && churn===0 が論理的に成立しない。全期間の履歴を別途取得する。
+  const everChurned = trailDb.getCommitFilesEverChurned(repoName);
 
   // 6. カバレッジ（coverage file_path = 絶対パス → 相対化）
   const coverageRows = trailDb.getCurrentCoverage(repoName);
@@ -136,7 +140,7 @@ export async function computeAndPersistFileAnalysis(
 
     // commit churn（git 相対パスと照合。通常 relPath と一致する）
     const churn = churnMap.get(relPath) ?? 0;
-    const hasHistory = churnMap.has(relPath);
+    const hasHistory = everChurned.has(relPath);
 
     // カバレッジ
     const coveragePct = coverageMap.get(relPath);
