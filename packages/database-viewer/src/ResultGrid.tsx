@@ -13,6 +13,8 @@ export interface ResultGridProps {
   readonly pagination?: PaginationProps;
   readonly themeMode?: "light" | "dark";
   readonly onColumnHeaderDoubleClick?: (col: number) => void;
+  /** 行数 (= 行/ページ設定値) に合わせてグリッドの表示行数を絞る */
+  readonly visibleRowCount?: number;
 }
 
 export const ResultGrid: React.FC<Readonly<ResultGridProps>> = ({
@@ -20,6 +22,7 @@ export const ResultGrid: React.FC<Readonly<ResultGridProps>> = ({
   pagination,
   themeMode,
   onColumnHeaderDoubleClick,
+  visibleRowCount,
 }) => {
   // 対象テーブル / クエリ結果のカラム数だけグリッド列を表示する
   const colCount = useSyncExternalStore(
@@ -36,6 +39,7 @@ export const ResultGrid: React.FC<Readonly<ResultGridProps>> = ({
         showImportExport={false}
         showToolbar={false}
         gridCols={colCount > 0 ? colCount : undefined}
+        gridRows={visibleRowCount && visibleRowCount > 0 ? visibleRowCount : undefined}
         onColumnHeaderDoubleClick={onColumnHeaderDoubleClick}
       />
     </Box>

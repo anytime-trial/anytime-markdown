@@ -336,6 +336,7 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
               pagination={pagination}
               themeMode={themeMode}
               onColumnHeaderDoubleClick={handleColumnHeaderDoubleClick}
+              visibleRowCount={activeTab.pageSize}
             />
           </>
         ) : (
