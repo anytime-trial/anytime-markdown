@@ -25,6 +25,7 @@
     "tabClose": "タブを閉じる",
     "tabAddQuery": "新しいクエリタブを開く",
     "databaseLabel": "データベース",
+    "showErd": "ER図",
     "showSchema": "スキーマを表示",
     "schemaColName": "カラム名",
     "schemaColType": "型",

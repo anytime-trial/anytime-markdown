@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@anytime-markdown/database-core": "*",
+    "@anytime-markdown/graph-core": "*",
     "@anytime-markdown/spreadsheet-core": "*",
     "@anytime-markdown/spreadsheet-viewer": "*"
   },

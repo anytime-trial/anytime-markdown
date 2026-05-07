@@ -25,6 +25,8 @@ export interface TableTreeProps {
   readonly selected: string | null;
   readonly onSelect: (name: string) => void;
   readonly onShowSchema?: (name: string) => void;
+  /** データベーススキーマ (DB ノード) を右クリック → ER図表示の要求 */
+  readonly onShowErd?: () => void;
   /** ツリー最上位に表示するスキーマ名 (例: "main" や DB ファイル名) */
   readonly databaseName?: string;
 }
@@ -34,6 +36,7 @@ export const TableTree: React.FC<Readonly<TableTreeProps>> = ({
   selected,
   onSelect,
   onShowSchema,
+  onShowErd,
   databaseName,
 }) => {
   const t = useTranslations("Database");
@@ -42,7 +45,8 @@ export const TableTree: React.FC<Readonly<TableTreeProps>> = ({
   const [menu, setMenu] = useState<{
     anchorX: number;
     anchorY: number;
-    tableName: string;
+    /** "table" or "view" の場合はテーブル名、"db" は DB スキーマ全体 */
+    target: { type: "table"; name: string } | { type: "db" };
   } | null>(null);
   const closeMenu = (): void => setMenu(null);
 
@@ -94,6 +98,10 @@ export const TableTree: React.FC<Readonly<TableTreeProps>> = ({
         <List dense disablePadding>
           <ListItemButton
             onClick={() => setDbExpanded((v) => !v)}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setMenu({ anchorX: e.clientX, anchorY: e.clientY, target: { type: "db" } });
+            }}
             sx={{ py: 0.5 }}
           >
             <ListItemIcon sx={{ minWidth: 28 }}>
@@ -121,7 +129,7 @@ export const TableTree: React.FC<Readonly<TableTreeProps>> = ({
                         onClick={() => onSelect(tab.name)}
                         onContextMenu={(e) => {
                           e.preventDefault();
-                          setMenu({ anchorX: e.clientX, anchorY: e.clientY, tableName: tab.name });
+                          setMenu({ anchorX: e.clientX, anchorY: e.clientY, target: { type: "table", name: tab.name } });
                         }}
                         sx={{ pl: 2 }}
                       >
@@ -144,7 +152,7 @@ export const TableTree: React.FC<Readonly<TableTreeProps>> = ({
                         onClick={() => onSelect(v.name)}
                         onContextMenu={(e) => {
                           e.preventDefault();
-                          setMenu({ anchorX: e.clientX, anchorY: e.clientY, tableName: v.name });
+                          setMenu({ anchorX: e.clientX, anchorY: e.clientY, target: { type: "table", name: v.name } });
                         }}
                         sx={{ pl: 2 }}
                       >
@@ -166,14 +174,26 @@ export const TableTree: React.FC<Readonly<TableTreeProps>> = ({
           menu ? { top: menu.anchorY, left: menu.anchorX } : undefined
         }
       >
-        <MenuItem
-          onClick={() => {
-            if (menu && onShowSchema) onShowSchema(menu.tableName);
-            closeMenu();
-          }}
-        >
-          {t("showSchema")}
-        </MenuItem>
+        {menu?.target.type === "table" ? (
+          <MenuItem
+            onClick={() => {
+              if (menu.target.type === "table" && onShowSchema) onShowSchema(menu.target.name);
+              closeMenu();
+            }}
+          >
+            {t("showSchema")}
+          </MenuItem>
+        ) : null}
+        {menu?.target.type === "db" ? (
+          <MenuItem
+            onClick={() => {
+              if (onShowErd) onShowErd();
+              closeMenu();
+            }}
+          >
+            {t("showErd")}
+          </MenuItem>
+        ) : null}
       </Menu>
     </Stack>
   );

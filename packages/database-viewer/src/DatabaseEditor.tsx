@@ -22,6 +22,7 @@ import {
   PaginatedSqlSheetAdapter,
   hasTopLevelLimit,
 } from "@anytime-markdown/database-core";
+import { ErdView } from "./ErdView";
 import { ResultGrid } from "./ResultGrid";
 import { SqlEditorPanel, type SqlEditorPanelHandle, type SqlRunResult } from "./SqlEditorPanel";
 import { TableTree } from "./TableTree";
@@ -41,11 +42,11 @@ const DEFAULT_PAGE_SIZE = 50;
 
 interface TableTabState {
   readonly id: string;
-  /** テーブル選択タブの場合に対応するテーブル名。クエリ専用タブは undefined */
+  /** テーブル選択タブの場合に対応するテーブル名。クエリ / ER 図タブは undefined */
   readonly tableName?: string;
   readonly label: string;
-  /** タブの種別: "table"=テーブルデータ表示 (内側で data/schema 切替可)、"query"=空クエリ */
-  readonly kind: "table" | "query";
+  /** タブの種別 */
+  readonly kind: "table" | "query" | "erd";
   /** "table" タブの内側ビュー: "data"=テーブルデータ一覧、"schema"=スキーマ表示 */
   view: "data" | "schema";
   page: number;
@@ -193,6 +194,38 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
     },
     [adapter],
   );
+
+  // データベーススキーマ右クリック → ER 図タブを生成 (or 既存タブにフォーカス)
+  const handleShowErd = useCallback(() => {
+    const id = "erd:main";
+    setTabs((prev) => {
+      const existing = prev.find((x) => x.id === id);
+      if (existing) {
+        setActiveTabId(id);
+        return prev;
+      }
+      // ER タブ用 sheetAdapter (使わないがインタフェース上必要)
+      const sa = new PaginatedSqlSheetAdapter({
+        databaseAdapter: adapter,
+        tableName: "",
+      });
+      adaptersRef.current.set(id, sa);
+      const next: TableTabState = {
+        id,
+        label: "ER図",
+        kind: "erd",
+        view: "data",
+        page: 1,
+        pageSize: DEFAULT_PAGE_SIZE,
+        totalRows: 0,
+        mode: "query",
+        sql: "",
+        sheetAdapter: sa,
+      };
+      return [...prev, next];
+    });
+    setActiveTabId(id);
+  }, [adapter]);
 
   // タブ内の view (data/schema) 切替を immutable に
   const setActiveTabView = useCallback(
@@ -355,6 +388,7 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
           selected={activeTabId}
           onSelect={handleSelect}
           onShowSchema={handleShowSchema}
+          onShowErd={handleShowErd}
           databaseName={databaseName}
         />
       </Box>
@@ -417,52 +451,56 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
           </Box>
         ) : null}
         {activeTab ? (
-          <>
-            <SqlEditorPanel
-              ref={sqlPanelRef}
-              key={activeTab.id}
-              value={activeTab.sql}
-              onValueChange={(s) => {
-                activeTab.sql = s;
-                tick();
-              }}
-              onRun={handleRun}
-              readOnly={adapter.capabilities.readOnly}
-            />
-            {activeTab.kind === "table" ? (
-              <Box
-                sx={{
-                  borderBottom: 1,
-                  borderColor: "divider",
-                  flexShrink: 0,
+          activeTab.kind === "erd" ? (
+            <ErdView schema={schema} themeMode={themeMode} />
+          ) : (
+            <>
+              <SqlEditorPanel
+                ref={sqlPanelRef}
+                key={activeTab.id}
+                value={activeTab.sql}
+                onValueChange={(s) => {
+                  activeTab.sql = s;
+                  tick();
                 }}
-              >
-                <Tabs
-                  value={activeTab.view}
-                  onChange={(_, v) => setActiveTabView(v as "data" | "schema")}
-                  sx={{ minHeight: 32 }}
+                onRun={handleRun}
+                readOnly={adapter.capabilities.readOnly}
+              />
+              {activeTab.kind === "table" ? (
+                <Box
+                  sx={{
+                    borderBottom: 1,
+                    borderColor: "divider",
+                    flexShrink: 0,
+                  }}
                 >
-                  <Tab
-                    value="data"
-                    label={t("viewData")}
-                    sx={{ textTransform: "none", minHeight: 32, py: 0.25 }}
-                  />
-                  <Tab
-                    value="schema"
-                    label={t("viewSchema")}
-                    sx={{ textTransform: "none", minHeight: 32, py: 0.25 }}
-                  />
-                </Tabs>
-              </Box>
-            ) : null}
-            <ResultGrid
-              adapter={activeTab.sheetAdapter}
-              pagination={activeTab.view === "data" ? pagination : undefined}
-              themeMode={themeMode}
-              onColumnHeaderDoubleClick={handleColumnHeaderDoubleClick}
-              visibleRowCount={activeTab.pageSize}
-            />
-          </>
+                  <Tabs
+                    value={activeTab.view}
+                    onChange={(_, v) => setActiveTabView(v as "data" | "schema")}
+                    sx={{ minHeight: 32 }}
+                  >
+                    <Tab
+                      value="data"
+                      label={t("viewData")}
+                      sx={{ textTransform: "none", minHeight: 32, py: 0.25 }}
+                    />
+                    <Tab
+                      value="schema"
+                      label={t("viewSchema")}
+                      sx={{ textTransform: "none", minHeight: 32, py: 0.25 }}
+                    />
+                  </Tabs>
+                </Box>
+              ) : null}
+              <ResultGrid
+                adapter={activeTab.sheetAdapter}
+                pagination={activeTab.view === "data" ? pagination : undefined}
+                themeMode={themeMode}
+                onColumnHeaderDoubleClick={handleColumnHeaderDoubleClick}
+                visibleRowCount={activeTab.pageSize}
+              />
+            </>
+          )
         ) : (
           <Stack
             sx={{ flexGrow: 1, minHeight: 0, overflow: "auto", p: 2 }}

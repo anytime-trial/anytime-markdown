@@ -25,6 +25,7 @@
     "tabClose": "Close tab",
     "tabAddQuery": "Open new query tab",
     "databaseLabel": "Database",
+    "showErd": "ER Diagram",
     "showSchema": "Show schema",
     "schemaColName": "Column",
     "schemaColType": "Type",
