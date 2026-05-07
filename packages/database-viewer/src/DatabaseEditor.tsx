@@ -39,9 +39,11 @@ const DEFAULT_PAGE_SIZE = 50;
 
 interface TableTabState {
   readonly id: string;
-  /** テーブル選択タブの場合に対応するテーブル名。クエリ専用タブは undefined */
+  /** テーブル選択タブの場合に対応するテーブル名。クエリ / スキーマ専用タブは undefined */
   readonly tableName?: string;
   readonly label: string;
+  /** タブの種別: "table"=テーブルデータ表示、"query"=空クエリ、"schema"=スキーマ表示 */
+  readonly kind: "table" | "query" | "schema";
   page: number;
   pageSize: number;
   totalRows: number;
@@ -103,6 +105,7 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
           id: tableName,
           tableName,
           label: tableName,
+          kind: "table",
           page: 1,
           pageSize: DEFAULT_PAGE_SIZE,
           totalRows: 0,
@@ -130,6 +133,7 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
     const next: TableTabState = {
       id,
       label,
+      kind: "query",
       page: 1,
       pageSize: DEFAULT_PAGE_SIZE,
       totalRows: 0,
@@ -141,8 +145,64 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
     setActiveTabId(id);
   }, [adapter]);
 
+  // テーブル一覧の右クリック → スキーマ表示タブを生成
+  const handleShowSchema = useCallback(
+    (tableName: string) => {
+      const id = `schema:${tableName}`;
+      // 既に開いていればフォーカス
+      const existing = tabs.find((x) => x.id === id);
+      if (existing) {
+        setActiveTabId(id);
+        return;
+      }
+      // schema 情報からカラム行を構築
+      const allTables = [...(schema?.tables ?? []), ...(schema?.views ?? [])];
+      const target = allTables.find((x) => x.name === tableName);
+      if (!target) return;
+
+      const sheetAdapter = new PaginatedSqlSheetAdapter({
+        databaseAdapter: adapter,
+        tableName: "",
+      });
+      adaptersRef.current.set(id, sheetAdapter);
+      // QueryResult 形に整形して applyQueryResult で注入
+      sheetAdapter.applyQueryResult({
+        columns: [
+          t("schemaColName"),
+          t("schemaColType"),
+          t("schemaColNotNull"),
+          t("schemaColPk"),
+        ],
+        rows: target.columns.map((c) => [
+          c.name,
+          c.type,
+          c.notNull ? "✓" : "",
+          c.primaryKey ? "✓" : "",
+        ]),
+        executionTimeMs: 0,
+        isMutation: false,
+      });
+      const next: TableTabState = {
+        id,
+        label: `Schema: ${tableName}`,
+        kind: "schema",
+        page: 1,
+        pageSize: DEFAULT_PAGE_SIZE,
+        totalRows: target.columns.length,
+        mode: "query",
+        sql: `PRAGMA table_info("${tableName}");`,
+        sheetAdapter,
+      };
+      setTabs((prev) => [...prev, next]);
+      setActiveTabId(id);
+    },
+    [adapter, schema, tabs, t],
+  );
+
   // タブが追加された/ページが変わった時に SELECT を発行
   useEffect(() => {
+    // schema タブは applyQueryResult で固定表示なので何もしない
+    if (activeTab?.kind === "schema") return;
     if (!activeTab || activeTab.mode !== "table" || !activeTab.tableName) return;
     const tableName = activeTab.tableName;
     void adapter
@@ -258,7 +318,12 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
           minHeight: 0,
         }}
       >
-        <TableTree schema={schema} selected={activeTabId} onSelect={handleSelect} />
+        <TableTree
+          schema={schema}
+          selected={activeTabId}
+          onSelect={handleSelect}
+          onShowSchema={handleShowSchema}
+        />
       </Box>
       <Stack sx={{ flexGrow: 1, minWidth: 0, minHeight: 0, overflow: "hidden" }}>
         <Stack direction="row" alignItems="center" spacing={1} sx={{ p: 1, flexShrink: 0 }}>

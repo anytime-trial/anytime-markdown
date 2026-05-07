@@ -5,6 +5,8 @@ import {
   List,
   ListItemButton,
   ListItemText,
+  Menu,
+  MenuItem,
   Stack,
   TextField,
   Typography,
@@ -17,15 +19,23 @@ export interface TableTreeProps {
   readonly schema: SchemaInfo | null;
   readonly selected: string | null;
   readonly onSelect: (name: string) => void;
+  readonly onShowSchema?: (name: string) => void;
 }
 
 export const TableTree: React.FC<Readonly<TableTreeProps>> = ({
   schema,
   selected,
   onSelect,
+  onShowSchema,
 }) => {
   const t = useTranslations("Database");
   const [filter, setFilter] = useState("");
+  const [menu, setMenu] = useState<{
+    anchorX: number;
+    anchorY: number;
+    tableName: string;
+  } | null>(null);
+  const closeMenu = (): void => setMenu(null);
 
   const filtered = useMemo(() => {
     if (!schema) return null;
@@ -84,6 +94,10 @@ export const TableTree: React.FC<Readonly<TableTreeProps>> = ({
                   key={tab.name}
                   selected={selected === tab.name}
                   onClick={() => onSelect(tab.name)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setMenu({ anchorX: e.clientX, anchorY: e.clientY, tableName: tab.name });
+                  }}
                 >
                   <ListItemText primary={tab.name} />
                 </ListItemButton>
@@ -102,6 +116,10 @@ export const TableTree: React.FC<Readonly<TableTreeProps>> = ({
                   key={v.name}
                   selected={selected === v.name}
                   onClick={() => onSelect(v.name)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setMenu({ anchorX: e.clientX, anchorY: e.clientY, tableName: v.name });
+                  }}
                 >
                   <ListItemText primary={v.name} />
                 </ListItemButton>
@@ -110,6 +128,23 @@ export const TableTree: React.FC<Readonly<TableTreeProps>> = ({
           </>
         ) : null}
       </Box>
+      <Menu
+        open={menu !== null}
+        onClose={closeMenu}
+        anchorReference="anchorPosition"
+        anchorPosition={
+          menu ? { top: menu.anchorY, left: menu.anchorX } : undefined
+        }
+      >
+        <MenuItem
+          onClick={() => {
+            if (menu && onShowSchema) onShowSchema(menu.tableName);
+            closeMenu();
+          }}
+        >
+          {t("showSchema")}
+        </MenuItem>
+      </Menu>
     </Stack>
   );
 };
