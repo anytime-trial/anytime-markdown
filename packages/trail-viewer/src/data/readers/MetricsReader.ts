@@ -96,7 +96,9 @@ export class MetricsReader {
       // Phase 1 の trail_messages keyset pagination (~2.46s) を事前計算済の
       // index scan に置換。Phase 5d の trail_user_message_costs MV と異なり、
       // assistant 応答の有無に関係なく全 user message を含む (Approach A)。
-      const SESSION_BATCH = 500;
+      // 200 を超えると IN (...) 句で URL が ~7KB を超え PostgREST 経由で
+      // "TypeError: fetch failed" になるため fetchSessionSources と揃える。
+      const SESSION_BATCH = 200;
       const results: UserMessageHeader[] = [];
       for (let i = 0; i < sessionIds.length; i += SESSION_BATCH) {
         const batchIds = sessionIds.slice(i, i + SESSION_BATCH);
@@ -148,7 +150,9 @@ export class MetricsReader {
       if (sessionIds.length === 0) return new Map();
       // Phase 5d: Materialized View (trail_user_message_costs) を直接 SELECT。
       // RPC 経由の DISTINCT ON join (3.25s) を事前計算済の index scan に置換。
-      const SESSION_BATCH = 500;
+      // 200 を超えると IN (...) 句で URL が ~7KB を超え PostgREST 経由で
+      // "TypeError: fetch failed" になるため fetchSessionSources と揃える。
+      const SESSION_BATCH = 200;
       type Row = {
         user_uuid: string;
         model: string;
