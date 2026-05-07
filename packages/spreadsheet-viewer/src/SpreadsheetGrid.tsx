@@ -282,8 +282,9 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     if (override !== undefined) return override;
     if (settings.widthMode === "fixed") return settings.fixedWidth;
     let maxWidth = AUTO_WIDTH_MIN;
-    for (let r = 0; r < Math.min(dataRange.rows, GRID_ROWS); r++) {
-      const text = grid[r][col];
+    const limit = Math.min(dataRange.rows, GRID_ROWS, grid.length);
+    for (let r = 0; r < limit; r++) {
+      const text = grid[r]?.[col];
       if (text) {
         const w = text.length * AUTO_WIDTH_CHAR_PX + AUTO_WIDTH_PADDING;
         if (w > maxWidth) maxWidth = w;
@@ -363,7 +364,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     for (let c = 0; c < dataRange.cols; c++) {
       const vals = new Set<string>();
       for (let r = 1; r < dataRange.rows; r++) {
-        vals.add(grid[r][c]);
+        vals.add(grid[r]?.[c] ?? "");
       }
       map.set(c, Array.from(vals).sort());
     }
@@ -376,7 +377,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     const hidden = new Set<number>();
     for (let r = 1; r < GRID_ROWS; r++) {
       for (const [colIdx, filter] of filters) {
-        if (!filter.selectedValues.has(grid[r][colIdx])) {
+        if (!filter.selectedValues.has(grid[r]?.[colIdx] ?? "")) {
           hidden.add(r);
           break;
         }
@@ -627,8 +628,10 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     for (let vi = startVi; vi < endVi; vi++) {
       const r = visibleRows[vi];
       const rh = getRowHeightByVi(vi);
+      const gridRow = grid[r];
+      if (!gridRow) continue;
       for (let c = startCol; c < endCol; c++) {
-        const value = grid[r][c];
+        const value = gridRow[c];
         if (editing?.row === r && editing?.col === c) continue;
 
         const cw = getColWidth(c);
@@ -709,7 +712,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
       ctx.font = "600 13px -apple-system, BlinkMacSystemFont, sans-serif";
       ctx.textBaseline = "middle";
       for (let c = startCol; c < endCol; c++) {
-        const value = grid[0][c];
+        const value = grid[0]?.[c];
         if (!value) continue;
         const cw = getColWidth(c);
         const cellLeft = getColX(c);
@@ -1162,7 +1165,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
 
   const startEditing = useCallback((row: number, col: number) => {
     if (readOnly) return;
-    const value = grid[row][col];
+    const value = grid[row]?.[col] ?? "";
     setEditing({ row, col, value });
     setEditValue(value);
   }, [grid, readOnly]);
@@ -1662,7 +1665,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
         for (let r = anchor.minR; r <= anchor.maxR; r++) {
           const cells: string[] = [];
           if (includeRowHeaders) cells.push(rowHeaders[r] ?? '');
-          for (let c = anchor.minC; c <= anchor.maxC; c++) cells.push(grid[r][c]);
+          for (let c = anchor.minC; c <= anchor.maxC; c++) cells.push(grid[r]?.[c] ?? "");
           lines.push(cells.join("\t"));
         }
         navigator.clipboard.writeText(lines.join("\n")).catch((err) => {
@@ -1687,7 +1690,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
             for (let c = 0; c < lines[r].length; c++) {
               const targetRow = anchor.minR + r;
               const targetCol = anchor.minC + c;
-              if (targetRow < grid.length && targetCol < grid[0].length) {
+              if (targetRow < grid.length && targetCol < (grid[0]?.length ?? 0)) {
                 setCellValue(targetRow, targetCol, lines[r][c]);
               }
             }
