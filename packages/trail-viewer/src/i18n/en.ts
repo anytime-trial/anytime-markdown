@@ -225,6 +225,7 @@ export const en: TrailI18n = {
   'c4.popup.metric.complexity': 'Complexity',
   'c4.popup.metric.importance': 'Importance',
   'c4.popup.metric.defectRisk': 'Defect',
+  'c4.popup.metric.churn': 'Churn',
   'c4.popup.metric.loc': 'LOC',
   'c4.popup.metric.files': 'Files',
   'c4.popup.metric.functionCount': 'Functions',

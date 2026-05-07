@@ -225,6 +225,7 @@ export const ja: TrailI18n = {
   'c4.popup.metric.complexity': '複雑度',
   'c4.popup.metric.importance': '重要度',
   'c4.popup.metric.defectRisk': '欠陥リスク',
+  'c4.popup.metric.churn': 'Churn',
   'c4.popup.metric.loc': 'LOC',
   'c4.popup.metric.files': 'ファイル',
   'c4.popup.metric.functionCount': '関数',

@@ -228,15 +228,16 @@ export function C4ViewerCore({
     granularity: 'commit',
   });
   const isHotspotOverlay = metricOverlay === 'hotspot-frequency' || metricOverlay === 'hotspot-risk';
+  // popup でも値を表示するため overlay 選択に関わらず常に fetch する。
   const { data: hotspotResponse, loading: hotspotLoading } = useHotspot({
-    enabled: isHotspotOverlay,
+    enabled: true,
     serverUrl,
     period: hotspotValue.period,
     granularity: hotspotValue.granularity,
     repo: selectedRepo || undefined,
   });
   const { entries: drEntries } = useDefectRisk({
-    enabled: metricOverlay === 'defect-risk',
+    enabled: true,
     serverUrl,
     windowDays: drWindowDays,
     halfLifeDays: 90,
@@ -750,7 +751,7 @@ export function C4ViewerCore({
   }, [coverageMatrix, c4Model, currentLevel]);
 
   const defectRiskMap = useMemo<ReadonlyMap<string, number> | null>(() => {
-    if (metricOverlay !== 'defect-risk' || drEntries.length === 0 || !c4Model) return null;
+    if (drEntries.length === 0 || !c4Model) return null;
     const elementById = buildC4ElementById(c4Model.elements);
     const map = new Map<string, number>();
     for (const entry of drEntries) {
@@ -759,7 +760,7 @@ export function C4ViewerCore({
       }
     }
     return map;
-  }, [metricOverlay, drEntries, c4Model]);
+  }, [drEntries, c4Model]);
 
   const levelFilteredDefectRiskMap = useMemo<ReadonlyMap<string, number> | null>(() => {
     if (!defectRiskMap || !c4Model) return defectRiskMap;
@@ -771,10 +772,10 @@ export function C4ViewerCore({
   }, [defectRiskMap, c4Model, elementTypeById, levelTargetType]);
 
   const hotspotMap = useMemo<HotspotMap | null>(() => {
-    if (!isHotspotOverlay || !hotspotResponse || !c4Model) return null;
+    if (!hotspotResponse || !c4Model) return null;
     const fileHotspots = computeFileHotspot(hotspotResponse.files);
     return aggregateHotspotToC4(fileHotspots, c4Model, complexityMatrix ?? null);
-  }, [isHotspotOverlay, hotspotResponse, c4Model, complexityMatrix]);
+  }, [hotspotResponse, c4Model, complexityMatrix]);
 
   const levelFilteredHotspotMap = useMemo<HotspotMap | null>(() => {
     if (!hotspotMap || !c4Model) return hotspotMap;
@@ -1075,6 +1076,7 @@ export function C4ViewerCore({
     const complexity = complexityMatrix?.entries.find(entry => entry.elementId === element.id) ?? null;
     const importance = importanceMatrix?.[element.id] ?? null;
     const defectRisk = defectRiskMap?.get(element.id) ?? null;
+    const hotspot = hotspotMap?.get(element.id) ?? null;
     const community = resolveSelectedElementCommunity({
       element,
       c4Model,
@@ -1088,8 +1090,8 @@ export function C4ViewerCore({
     const sizeMetrics = sizeEntry
       ? { loc: sizeEntry.loc, locMax: sizeEntry.locMax, fileCount: sizeEntry.files, functionCount: sizeEntry.functions }
       : { loc: null, locMax: null, fileCount: null, functionCount: null };
-    return { element, incoming, outgoing, documents, coverage, complexity, importance, defectRisk, community, sizeMetrics };
-  }, [c4Model, complexityMatrix, coverageMatrix, defectRiskMap, docLinks, importanceMatrix, selectedElementId, communityOverlayL3, communityOverlayL4, codeGraph, sizeMatrix, dsmDegreeMap]);
+    return { element, incoming, outgoing, documents, coverage, complexity, importance, defectRisk, hotspot, community, sizeMetrics };
+  }, [c4Model, complexityMatrix, coverageMatrix, defectRiskMap, hotspotMap, docLinks, importanceMatrix, selectedElementId, communityOverlayL3, communityOverlayL4, codeGraph, sizeMatrix, dsmDegreeMap]);
 
   const { data: elementFunctions, loading: elementFunctionsLoading } = useElementFunctions({
     serverUrl,
@@ -1800,13 +1802,23 @@ export function C4ViewerCore({
                           );
                         })}
                       </Box>
-                      <Box sx={{ mt: 0.75 }}>
-                        <Typography variant="caption" sx={{ display: 'block', color: colors.textMuted, fontSize: '0.58rem' }}>
-                          {t('c4.popup.metric.defectRisk')}
-                        </Typography>
-                        <Typography variant="body2" sx={{ color: colors.text, fontSize: '0.72rem', fontWeight: 700 }}>
-                          {selectedElementInfo.defectRisk != null ? Math.round(selectedElementInfo.defectRisk) : '-'}
-                        </Typography>
+                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0.5, mt: 0.75 }}>
+                        <Box>
+                          <Typography variant="caption" sx={{ display: 'block', color: colors.textMuted, fontSize: '0.58rem' }}>
+                            {t('c4.popup.metric.defectRisk')}
+                          </Typography>
+                          <Typography variant="body2" sx={{ color: colors.text, fontSize: '0.72rem', fontWeight: 700 }}>
+                            {selectedElementInfo.defectRisk != null ? Math.round(selectedElementInfo.defectRisk) : '-'}
+                          </Typography>
+                        </Box>
+                        <Box>
+                          <Typography variant="caption" sx={{ display: 'block', color: colors.textMuted, fontSize: '0.58rem' }}>
+                            {t('c4.popup.metric.churn')}
+                          </Typography>
+                          <Typography variant="body2" sx={{ color: colors.text, fontSize: '0.72rem', fontWeight: 700 }}>
+                            {selectedElementInfo.hotspot?.churn ?? '-'}
+                          </Typography>
+                        </Box>
                       </Box>
                     </Box>
                     <Box sx={{ mt: 1 }}>

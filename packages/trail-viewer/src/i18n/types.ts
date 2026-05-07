@@ -273,6 +273,7 @@ export interface TrailI18n {
   'c4.popup.metric.complexity': string;
   'c4.popup.metric.importance': string;
   'c4.popup.metric.defectRisk': string;
+  'c4.popup.metric.churn': string;
   'c4.popup.metric.loc': string;
   'c4.popup.metric.files': string;
   'c4.popup.metric.functionCount': string;
