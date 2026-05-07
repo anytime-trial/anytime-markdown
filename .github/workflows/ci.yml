@@ -74,6 +74,16 @@ jobs:
         run: npx jest --maxWorkers=1
         working-directory: packages/mcp-graph
 
+      - name: Run database-core tests with coverage
+        if: github.event_name == 'pull_request' && github.base_ref == 'master'
+        run: npx jest --maxWorkers=1 --coverage --coverageReporters=lcov
+        working-directory: packages/database-core
+
+      - name: Run database-viewer tests with coverage
+        if: github.event_name == 'pull_request' && github.base_ref == 'master'
+        run: npx jest --maxWorkers=1 --coverage --coverageReporters=lcov
+        working-directory: packages/database-viewer
+
       - name: Run cms-core tests with coverage
         if: github.event_name == 'pull_request' && github.base_ref == 'master'
         run: npx jest --maxWorkers=1 --coverage --coverageReporters=lcov
