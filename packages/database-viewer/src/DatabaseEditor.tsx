@@ -100,7 +100,7 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
           pageSize: DEFAULT_PAGE_SIZE,
           totalRows: 0,
           mode: "table",
-          sql: `SELECT * FROM "${tableName}" LIMIT 100`,
+          sql: `SELECT * FROM "${tableName}" LIMIT 100;`,
           sheetAdapter,
         };
         setActiveTabId(tableName);
