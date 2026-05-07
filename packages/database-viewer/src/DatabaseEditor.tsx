@@ -76,6 +76,10 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
   // tabs を入れると毎回再生成されてしまうので useRef で保持する。
   const adaptersRef = useRef(new Map<string, PaginatedSqlSheetAdapter>());
   const sqlPanelRef = useRef<SqlEditorPanelHandle | null>(null);
+  // t は useTranslations の戻り値。useEffect の依存に直接入れると毎レンダ走る
+  // 可能性があるため、ref で保持して effect 内では参照する
+  const tRef = useRef(t);
+  tRef.current = t;
 
   useEffect(() => {
     if (!schema) {
@@ -152,13 +156,50 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
   // テーブル一覧の右クリック → 該当テーブルのタブを開き、内側を schema view に
   const handleShowSchema = useCallback(
     (tableName: string) => {
-      handleSelect(tableName);
-      setTabs((prev) =>
-        prev.map((x) => (x.id === tableName ? { ...x, view: "schema" } : x)),
-      );
+      setTabs((prev) => {
+        const existing = prev.find((x) => x.tableName === tableName);
+        if (existing) {
+          return prev.map((x) =>
+            x.id === existing.id ? { ...x, view: "schema" as const } : x,
+          );
+        }
+        let sa = adaptersRef.current.get(tableName);
+        if (!sa) {
+          sa = new PaginatedSqlSheetAdapter({
+            databaseAdapter: adapter,
+            tableName,
+          });
+          adaptersRef.current.set(tableName, sa);
+        }
+        const next: TableTabState = {
+          id: tableName,
+          tableName,
+          label: tableName,
+          kind: "table",
+          view: "schema",
+          page: 1,
+          pageSize: DEFAULT_PAGE_SIZE,
+          totalRows: 0,
+          mode: "table",
+          sql: `SELECT * FROM "${tableName}" LIMIT ${DEFAULT_PAGE_SIZE};`,
+          sheetAdapter: sa,
+        };
+        return [...prev, next];
+      });
       setActiveTabId(tableName);
     },
-    [handleSelect],
+    [adapter],
+  );
+
+  // タブ内の view (data/schema) 切替を immutable に
+  const setActiveTabView = useCallback(
+    (view: "data" | "schema") => {
+      if (!activeTabId) return;
+      setTabs((prev) =>
+        prev.map((x) => (x.id === activeTabId ? { ...x, view } : x)),
+      );
+    },
+    [activeTabId],
   );
 
   // タブが追加された/ページが変わった時に SELECT を発行 (data view のみ)
@@ -171,12 +212,13 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
       const allTables = [...(schema?.tables ?? []), ...(schema?.views ?? [])];
       const target = allTables.find((x) => x.name === tableName);
       if (!target) return;
+      const tt = tRef.current;
       activeTab.sheetAdapter.applyQueryResult({
         columns: [
-          t("schemaColName"),
-          t("schemaColType"),
-          t("schemaColNotNull"),
-          t("schemaColPk"),
+          tt("schemaColName"),
+          tt("schemaColType"),
+          tt("schemaColNotNull"),
+          tt("schemaColPk"),
         ],
         rows: target.columns.map((c) => [
           c.name,
@@ -203,7 +245,7 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
         tick();
       });
     void activeTab.sheetAdapter.loadPage(activeTab.page, activeTab.pageSize);
-  }, [activeTab, activeTab?.page, activeTab?.pageSize, activeTab?.mode, activeTab?.tableName, activeTab?.view, schema, adapter, tick, t]);
+  }, [activeTab, activeTab?.page, activeTab?.pageSize, activeTab?.mode, activeTab?.tableName, activeTab?.view, schema, adapter, tick]);
 
   const closeTab = useCallback(
     (id: string) => {
@@ -393,10 +435,7 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
               >
                 <Tabs
                   value={activeTab.view}
-                  onChange={(_, v) => {
-                    activeTab.view = v as "data" | "schema";
-                    tick();
-                  }}
+                  onChange={(_, v) => setActiveTabView(v as "data" | "schema")}
                   sx={{ minHeight: 32 }}
                 >
                   <Tab
