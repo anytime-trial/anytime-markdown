@@ -29,6 +29,8 @@
     "schemaColType": "型",
     "schemaColNotNull": "NOT NULL",
     "schemaColPk": "PK",
+    "viewData": "データ",
+    "viewSchema": "スキーマ",
     "errorFileNotFound": "ファイルが見つかりません",
     "errorInvalidDb": "SQLite データベースとして開けません",
     "errorLockBusy": "他のプロセスが書込ロックを取得しています。Read-only で開き直しますか?",

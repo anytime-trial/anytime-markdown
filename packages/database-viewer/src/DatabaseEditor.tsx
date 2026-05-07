@@ -39,11 +39,13 @@ const DEFAULT_PAGE_SIZE = 50;
 
 interface TableTabState {
   readonly id: string;
-  /** テーブル選択タブの場合に対応するテーブル名。クエリ / スキーマ専用タブは undefined */
+  /** テーブル選択タブの場合に対応するテーブル名。クエリ専用タブは undefined */
   readonly tableName?: string;
   readonly label: string;
-  /** タブの種別: "table"=テーブルデータ表示、"query"=空クエリ、"schema"=スキーマ表示 */
-  readonly kind: "table" | "query" | "schema";
+  /** タブの種別: "table"=テーブルデータ表示 (内側で data/schema 切替可)、"query"=空クエリ */
+  readonly kind: "table" | "query";
+  /** "table" タブの内側ビュー: "data"=テーブルデータ一覧、"schema"=スキーマ表示 */
+  view: "data" | "schema";
   page: number;
   pageSize: number;
   totalRows: number;
@@ -106,6 +108,7 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
           tableName,
           label: tableName,
           kind: "table",
+          view: "data",
           page: 1,
           pageSize: DEFAULT_PAGE_SIZE,
           totalRows: 0,
@@ -134,6 +137,7 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
       id,
       label,
       kind: "query",
+      view: "data",
       page: 1,
       pageSize: DEFAULT_PAGE_SIZE,
       totalRows: 0,
@@ -145,28 +149,29 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
     setActiveTabId(id);
   }, [adapter]);
 
-  // テーブル一覧の右クリック → スキーマ表示タブを生成
+  // テーブル一覧の右クリック → 該当テーブルのタブを開き、内側を schema view に
   const handleShowSchema = useCallback(
     (tableName: string) => {
-      const id = `schema:${tableName}`;
-      // 既に開いていればフォーカス
-      const existing = tabs.find((x) => x.id === id);
-      if (existing) {
-        setActiveTabId(id);
-        return;
-      }
-      // schema 情報からカラム行を構築
+      handleSelect(tableName);
+      setTabs((prev) =>
+        prev.map((x) => (x.id === tableName ? { ...x, view: "schema" } : x)),
+      );
+      setActiveTabId(tableName);
+    },
+    [handleSelect],
+  );
+
+  // タブが追加された/ページが変わった時に SELECT を発行 (data view のみ)
+  useEffect(() => {
+    if (!activeTab || activeTab.kind !== "table" || !activeTab.tableName) return;
+    if (activeTab.mode !== "table") return;
+    const tableName = activeTab.tableName;
+    if (activeTab.view === "schema") {
+      // schema view 切替時はカラム情報を applyQueryResult で注入
       const allTables = [...(schema?.tables ?? []), ...(schema?.views ?? [])];
       const target = allTables.find((x) => x.name === tableName);
       if (!target) return;
-
-      const sheetAdapter = new PaginatedSqlSheetAdapter({
-        databaseAdapter: adapter,
-        tableName: "",
-      });
-      adaptersRef.current.set(id, sheetAdapter);
-      // QueryResult 形に整形して applyQueryResult で注入
-      sheetAdapter.applyQueryResult({
+      activeTab.sheetAdapter.applyQueryResult({
         columns: [
           t("schemaColName"),
           t("schemaColType"),
@@ -182,29 +187,11 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
         executionTimeMs: 0,
         isMutation: false,
       });
-      const next: TableTabState = {
-        id,
-        label: `Schema: ${tableName}`,
-        kind: "schema",
-        page: 1,
-        pageSize: DEFAULT_PAGE_SIZE,
-        totalRows: target.columns.length,
-        mode: "query",
-        sql: `PRAGMA table_info("${tableName}");`,
-        sheetAdapter,
-      };
-      setTabs((prev) => [...prev, next]);
-      setActiveTabId(id);
-    },
-    [adapter, schema, tabs, t],
-  );
-
-  // タブが追加された/ページが変わった時に SELECT を発行
-  useEffect(() => {
-    // schema タブは applyQueryResult で固定表示なので何もしない
-    if (activeTab?.kind === "schema") return;
-    if (!activeTab || activeTab.mode !== "table" || !activeTab.tableName) return;
-    const tableName = activeTab.tableName;
+      activeTab.totalRows = target.columns.length;
+      tick();
+      return;
+    }
+    // data view: SELECT 発行
     void adapter
       .countRows(tableName)
       .then((n) => {
@@ -216,7 +203,7 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
         tick();
       });
     void activeTab.sheetAdapter.loadPage(activeTab.page, activeTab.pageSize);
-  }, [activeTab, activeTab?.page, activeTab?.pageSize, activeTab?.mode, activeTab?.tableName, adapter, tick]);
+  }, [activeTab, activeTab?.page, activeTab?.pageSize, activeTab?.mode, activeTab?.tableName, activeTab?.view, schema, adapter, tick, t]);
 
   const closeTab = useCallback(
     (id: string) => {
@@ -396,9 +383,38 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
               onRun={handleRun}
               readOnly={adapter.capabilities.readOnly}
             />
+            {activeTab.kind === "table" ? (
+              <Box
+                sx={{
+                  borderBottom: 1,
+                  borderColor: "divider",
+                  flexShrink: 0,
+                }}
+              >
+                <Tabs
+                  value={activeTab.view}
+                  onChange={(_, v) => {
+                    activeTab.view = v as "data" | "schema";
+                    tick();
+                  }}
+                  sx={{ minHeight: 32 }}
+                >
+                  <Tab
+                    value="data"
+                    label={t("viewData")}
+                    sx={{ textTransform: "none", minHeight: 32, py: 0.25 }}
+                  />
+                  <Tab
+                    value="schema"
+                    label={t("viewSchema")}
+                    sx={{ textTransform: "none", minHeight: 32, py: 0.25 }}
+                  />
+                </Tabs>
+              </Box>
+            ) : null}
             <ResultGrid
               adapter={activeTab.sheetAdapter}
-              pagination={pagination}
+              pagination={activeTab.view === "data" ? pagination : undefined}
               themeMode={themeMode}
               onColumnHeaderDoubleClick={handleColumnHeaderDoubleClick}
               visibleRowCount={activeTab.pageSize}

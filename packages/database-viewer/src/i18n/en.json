@@ -29,6 +29,8 @@
     "schemaColType": "Type",
     "schemaColNotNull": "NOT NULL",
     "schemaColPk": "PK",
+    "viewData": "Data",
+    "viewSchema": "Schema",
     "errorFileNotFound": "File not found",
     "errorInvalidDb": "Cannot open as SQLite database",
     "errorLockBusy": "Another process holds a write lock. Reopen as read-only?",
