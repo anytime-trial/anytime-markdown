@@ -4,8 +4,13 @@
     "module": "Node16",
     "moduleResolution": "Node16",
     "outDir": "out",
-    "lib": ["ES2022"],
-    "types": ["node"]
+    "lib": ["ES2023", "DOM"],
+    "types": ["node"],
+    "paths": {
+      "@anytime-markdown/trail-db": ["../trail-db/src/index.ts"],
+      "@anytime-markdown/trail-core": ["../trail-core/src/index.ts"],
+      "@anytime-markdown/trail-core/*": ["../trail-core/src/*"]
+    }
   },
   "include": ["src/**/*.ts"],
   "exclude": ["src/webview/**"]

@@ -20,6 +20,8 @@ const extensionConfig = {
   externals: {
     vscode: 'commonjs vscode',
     'better-sqlite3': 'commonjs better-sqlite3',
+    bufferutil: 'commonjs bufferutil',
+    'utf-8-validate': 'commonjs utf-8-validate',
   },
   resolve: {
     extensions: ['.ts', '.js'],
@@ -28,7 +30,7 @@ const extensionConfig = {
     rules: [
       {
         test: /\.ts$/,
-        exclude: /node_modules[\\/](?!@anytime-markdown[\\/](database-core|spreadsheet-core|spreadsheet-viewer))/,
+        exclude: /node_modules[\\/](?!@anytime-markdown[\\/](database-core|spreadsheet-core|spreadsheet-viewer|trail-db|trail-core|graph-core))/,
         use: [
           {
             loader: 'ts-loader',
@@ -59,6 +61,11 @@ const extensionConfig = {
         {
           from: path.resolve(__dirname, '../../node_modules/file-uri-to-path'),
           to: path.resolve(__dirname, 'dist/node_modules/file-uri-to-path'),
+        },
+        // trail-db (Trail Database panel) が sql.js を使うため、asm 版を dist にコピー
+        {
+          from: path.resolve(__dirname, '../../node_modules/sql.js/dist/sql-asm.js'),
+          to: 'sql-asm.js',
         },
       ],
     }),
