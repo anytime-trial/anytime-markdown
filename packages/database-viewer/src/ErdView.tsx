@@ -140,7 +140,7 @@ function buildBaseCards(tables: ReadonlyArray<TableInfo>, edges: ReadonlyArray<E
 function inferEdges(schema: SchemaInfo): ErdEdge[] {
   const list: ErdEdge[] = [];
   const seen = new Set<string>();
-  // 1. 明示的な FK
+  // 明示的な FK のみを採用 (ヒューリスティック推定は廃止)
   for (const t of schema.tables) {
     for (const fk of t.foreignKeys ?? []) {
       const id = `${t.name}.${fk.fromColumn}->${fk.toTable}.${fk.toColumn}`;
@@ -153,64 +153,6 @@ function inferEdges(schema: SchemaInfo): ErdEdge[] {
         toTable: fk.toTable,
         toColumn: fk.toColumn,
       });
-    }
-  }
-
-  // 2. ヒューリスティック: PK が "id" の他テーブルに対し、自テーブルに `<table>_id` カラムがあれば link
-  const allTables = schema.tables;
-  const pkByTable = new Map<string, ColumnInfo[]>();
-  for (const t of allTables) {
-    pkByTable.set(t.name, t.columns.filter((c) => c.primaryKey));
-  }
-  for (const from of allTables) {
-    for (const fc of from.columns) {
-      // パターン A: <table>_id 形式
-      const m = /^(.+)_id$/.exec(fc.name);
-      if (m) {
-        const baseName = m[1];
-        const candidates = [baseName, baseName + "s", baseName + "es"]; // 単純化
-        for (const cand of candidates) {
-          const target = allTables.find((tt) => tt.name === cand);
-          if (target && target.name !== from.name) {
-            const targetPk = pkByTable.get(target.name)?.[0];
-            if (!targetPk) break;
-            const id = `${from.name}.${fc.name}->${target.name}.${targetPk.name}`;
-            if (seen.has(id)) break;
-            seen.add(id);
-            list.push({
-              id,
-              fromTable: from.name,
-              fromColumn: fc.name,
-              toTable: target.name,
-              toColumn: targetPk.name,
-            });
-            break;
-          }
-        }
-      }
-    }
-  }
-
-  // 3. ヒューリスティック: 同名カラムが他テーブルの PK にある場合 (例: id 自体は除外)
-  for (const from of allTables) {
-    for (const fc of from.columns) {
-      if (fc.primaryKey) continue;
-      if (fc.name === "id") continue;
-      for (const to of allTables) {
-        if (to.name === from.name) continue;
-        const matchedPk = (pkByTable.get(to.name) ?? []).find((p) => p.name === fc.name);
-        if (!matchedPk) continue;
-        const id = `${from.name}.${fc.name}->${to.name}.${matchedPk.name}`;
-        if (seen.has(id)) continue;
-        seen.add(id);
-        list.push({
-          id,
-          fromTable: from.name,
-          fromColumn: fc.name,
-          toTable: to.name,
-          toColumn: matchedPk.name,
-        });
-      }
     }
   }
   return list;
