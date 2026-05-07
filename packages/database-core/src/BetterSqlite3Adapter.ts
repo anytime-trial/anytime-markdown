@@ -81,7 +81,9 @@ export class BetterSqlite3Adapter implements DatabaseAdapter {
         name: c.name,
         type: c.type,
         notNull: c.notnull === 1,
-        primaryKey: c.pk === 1,
+        // pk は「PK の中の順番 (1=最初, 2=2 番目...)」。0 は PK ではないことを示すので、
+        // 複合 PK にも対応するため > 0 で判定する。
+        primaryKey: c.pk > 0,
       }));
       let foreignKeys: ForeignKeyInfo[] | undefined;
       if (r.type === 'table') {

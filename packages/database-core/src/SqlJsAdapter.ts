@@ -98,7 +98,9 @@ export class SqlJsAdapter implements DatabaseAdapter {
         name: r.name,
         type: r.type,
         notNull: r.notnull === 1,
-        primaryKey: r.pk === 1,
+        // pk は「PK の中の順番 (1=最初, 2=2 番目...)」。0 は PK ではないことを示すので、
+        // 複合 PK にも対応するため > 0 で判定する。
+        primaryKey: r.pk > 0,
       });
     }
     stmt.free();
