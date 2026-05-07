@@ -702,7 +702,7 @@ export class TrailDatabase {
   private onIntegrityAlert: ((alerts: readonly IntegrityAlert[]) => void) | null = null;
 
   /**
-   * @param distPath sql-asm.js の配置ディレクトリ
+   * @param distPath sql-wasm.js / sql-wasm.wasm の配置ディレクトリ
    * @param storageDirOrStorage ディレクトリ文字列（互換 API）または ITrailStorage を直接注入
    */
   private readonly logger: DbLogger;
@@ -1268,12 +1268,18 @@ export class TrailDatabase {
   }
 
   async init(): Promise<void> {
-    // Load sql-asm.js from dist/ directory using __non_webpack_require__
-    // to bypass webpack bundling (bundling breaks sql.js module system)
-    const sqlAsmPath = path.join(this.distPath, 'sql-asm.js');
+    // Load sql-wasm.js from dist/ directory using __non_webpack_require__
+    // to bypass webpack bundling (bundling breaks sql.js module system).
+    // sql-wasm は asm.js (16MB ヒープ) より大きい WebAssembly ヒープ (最大 2GB)
+    // を使えるため、大規模リポジトリの code graph 保存時の OOM を回避できる。
+    // sql-wasm.wasm は sql-wasm.js と同じディレクトリに配置される必要があり、
+    // initSqlJs に locateFile callback で distPath を伝える。
+    const sqlWasmPath = path.join(this.distPath, 'sql-wasm.js');
     // eslint-disable-next-line @typescript-eslint/no-require-imports, no-undef
-    const initSqlJs = __non_webpack_require__(sqlAsmPath) as typeof import('sql.js').default;
-    const SQL = await initSqlJs();
+    const initSqlJs = __non_webpack_require__(sqlWasmPath) as typeof import('sql.js').default;
+    const SQL = await initSqlJs({
+      locateFile: (file: string) => path.join(this.distPath, file),
+    });
     console.log('[TrailDatabase] sql.js initialized, storage =', this.storage.identifier);
 
     const initial = this.storage.readInitialBytes();

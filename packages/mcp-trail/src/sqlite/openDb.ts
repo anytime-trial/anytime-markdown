@@ -10,13 +10,19 @@ let cachedSqlJs: SqlJsModule | undefined;
 async function loadSqlJs(): Promise<SqlJsModule> {
   if (cachedSqlJs) return cachedSqlJs;
 
-  // 配布パッケージ (webpack バンドル) では同じ dist/ ディレクトリに sql-asm.js が
-  // 配置される前提 (CopyWebpackPlugin) で __non_webpack_require__ で動的にロードする。
+  // 配布パッケージ (webpack バンドル) では同じ dist/ ディレクトリに sql-wasm.js
+  // と sql-wasm.wasm が配置される前提 (CopyWebpackPlugin) で
+  // __non_webpack_require__ で動的にロードする。
   // sql.js を webpack に取り込むとモジュールシステムが壊れるため。
-  const sqlAsmPath = path.join(__dirname, 'sql-asm.js');
-  if (typeof __non_webpack_require__ !== 'undefined' && fs.existsSync(sqlAsmPath)) {
-    const initSqlJs = (__non_webpack_require__ as NodeJS.Require)(sqlAsmPath) as () => Promise<SqlJsModule>;
-    cachedSqlJs = await initSqlJs();
+  // sql-wasm 採用理由: asm.js (16MB ヒープ固定) では大規模リポジトリの
+  // code graph 保存時に OOM するため、最大 2GB ヒープの WASM を使う。
+  const sqlWasmPath = path.join(__dirname, 'sql-wasm.js');
+  if (typeof __non_webpack_require__ !== 'undefined' && fs.existsSync(sqlWasmPath)) {
+    type InitSqlJs = (config?: { locateFile?: (file: string) => string }) => Promise<SqlJsModule>;
+    const initSqlJs = (__non_webpack_require__ as NodeJS.Require)(sqlWasmPath) as InitSqlJs;
+    cachedSqlJs = await initSqlJs({
+      locateFile: (file: string) => path.join(__dirname, file),
+    });
     return cachedSqlJs;
   }
 

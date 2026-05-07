@@ -62,10 +62,15 @@ const extensionConfig = {
           from: path.resolve(__dirname, '../../node_modules/file-uri-to-path'),
           to: path.resolve(__dirname, 'dist/node_modules/file-uri-to-path'),
         },
-        // trail-db (Trail Database panel) が sql.js を使うため、asm 版を dist にコピー
+        // trail-db (Trail Database panel) が sql.js を使うため、WASM 版 + .wasm を dist/ にコピー
+        // (asm.js は 16MB ヒープ固定で大規模リポジトリの code graph 保存時に OOM するため)。
         {
-          from: path.resolve(__dirname, '../../node_modules/sql.js/dist/sql-asm.js'),
-          to: 'sql-asm.js',
+          from: path.resolve(__dirname, '../../node_modules/sql.js/dist/sql-wasm.js'),
+          to: 'sql-wasm.js',
+        },
+        {
+          from: path.resolve(__dirname, '../../node_modules/sql.js/dist/sql-wasm.wasm'),
+          to: 'sql-wasm.wasm',
         },
       ],
     }),
