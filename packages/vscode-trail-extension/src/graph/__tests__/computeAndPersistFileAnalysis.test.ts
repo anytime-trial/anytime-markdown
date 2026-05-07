@@ -19,6 +19,7 @@ type MockTrailDb = {
   getCurrentCodeGraph: jest.Mock;
   getCurrentCoverage: jest.Mock;
   getCommitFilesChurnSince: jest.Mock;
+  getCommitFilesEverChurned: jest.Mock;
   clearCurrentFileAnalysis: jest.Mock;
   upsertCurrentFileAnalysis: jest.Mock;
   clearCurrentFunctionAnalysis: jest.Mock;
@@ -46,6 +47,7 @@ function makeMockDb(overrides: Partial<MockTrailDb> = {}): MockTrailDb {
     getCurrentCodeGraph: jest.fn().mockReturnValue(null),
     getCurrentCoverage: jest.fn().mockReturnValue([]),
     getCommitFilesChurnSince: jest.fn().mockReturnValue(new Map()),
+    getCommitFilesEverChurned: jest.fn().mockReturnValue(new Set()),
     clearCurrentFileAnalysis: jest.fn(),
     upsertCurrentFileAnalysis: jest.fn(),
     clearCurrentFunctionAnalysis: jest.fn(),
@@ -282,9 +284,11 @@ describe('computeAndPersistFileAnalysis', () => {
       importanceScore: 5,
     };
 
-    const churnMap = new Map([['packages/core/src/old.ts', 0]]);
+    // churnMap は 90 日窓のみ → 古いファイルは含まれない
+    // everChurned は全期間 → 古いファイルが含まれる
     const db = makeMockDb({
-      getCommitFilesChurnSince: jest.fn().mockReturnValue(churnMap),
+      getCommitFilesChurnSince: jest.fn().mockReturnValue(new Map()),
+      getCommitFilesEverChurned: jest.fn().mockReturnValue(new Set(['packages/core/src/old.ts'])),
     });
 
     let capturedFileRows: FileAnalysisRow[] = [];
@@ -395,5 +399,77 @@ describe('computeAndPersistFileAnalysis', () => {
     expect(fileRow).toBeDefined();
     // コミット履歴自体がない場合は noRecentChurn=false（データなしは false positiveにしない）
     expect(fileRow!.signals.noRecentChurn).toBe(false);
+  });
+
+  it('signal_no_recent_churn=true when file is in everChurned but has zero recent churn', async () => {
+    const relPath = 'packages/core/src/legacy.ts';
+    const fn: ScoredFunction = {
+      id: `file::/root/${relPath}::legacyFunc`,
+      name: 'legacyFunc',
+      filePath: `/root/${relPath}`,
+      startLine: 1,
+      endLine: 3,
+      language: 'typescript',
+      metrics: { fanIn: 1, cognitiveComplexity: 0, cyclomaticComplexity: 1, dataMutationScore: 0, sideEffectScore: 0, lineCount: 3 },
+      importanceScore: 5,
+    };
+    const db = makeMockDb({
+      // 90 日以内には登場しない
+      getCommitFilesChurnSince: jest.fn().mockReturnValue(new Map()),
+      // 全期間履歴には登場する
+      getCommitFilesEverChurned: jest.fn().mockReturnValue(new Set([relPath])),
+    });
+
+    let captured: FileAnalysisRow[] = [];
+    db.upsertCurrentFileAnalysis.mockImplementation((rows: FileAnalysisRow[]) => {
+      captured = rows;
+    });
+
+    await computeAndPersistFileAnalysis({
+      analysisRoot: ANALYSIS_ROOT,
+      repoName: REPO_NAME,
+      trailDb: db as unknown as TrailDatabase,
+      scored: [fn],
+      lineCountByFile: new Map(),
+    });
+
+    const row = captured.find((r) => r.filePath === relPath);
+    expect(row).toBeDefined();
+    expect(row!.signals.noRecentChurn).toBe(true);
+  });
+
+  it('signal_no_recent_churn=false when file has no commit history at all (everChurned 空)', async () => {
+    const relPath = 'packages/core/src/brand-new.ts';
+    const fn: ScoredFunction = {
+      id: `file::/root/${relPath}::brandNewFunc`,
+      name: 'brandNewFunc',
+      filePath: `/root/${relPath}`,
+      startLine: 1,
+      endLine: 3,
+      language: 'typescript',
+      metrics: { fanIn: 1, cognitiveComplexity: 0, cyclomaticComplexity: 1, dataMutationScore: 0, sideEffectScore: 0, lineCount: 3 },
+      importanceScore: 5,
+    };
+    const db = makeMockDb({
+      getCommitFilesChurnSince: jest.fn().mockReturnValue(new Map()),
+      getCommitFilesEverChurned: jest.fn().mockReturnValue(new Set()),
+    });
+
+    let captured: FileAnalysisRow[] = [];
+    db.upsertCurrentFileAnalysis.mockImplementation((rows: FileAnalysisRow[]) => {
+      captured = rows;
+    });
+
+    await computeAndPersistFileAnalysis({
+      analysisRoot: ANALYSIS_ROOT,
+      repoName: REPO_NAME,
+      trailDb: db as unknown as TrailDatabase,
+      scored: [fn],
+      lineCountByFile: new Map(),
+    });
+
+    const row = captured.find((r) => r.filePath === relPath);
+    expect(row).toBeDefined();
+    expect(row!.signals.noRecentChurn).toBe(false);
   });
 });

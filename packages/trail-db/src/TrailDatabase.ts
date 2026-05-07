@@ -6972,6 +6972,27 @@ export class TrailDatabase {
     return out;
   }
 
+  /**
+   * 指定リポジトリで過去に 1 回でも commit に登場した file_path 集合を返す。
+   * 期間制約なし。dead code 解析の `hasHistory` 判定で使う
+   * (`getCommitFilesChurnSince` は 90 日窓のみ返すため `hasHistory && churn===0` が常に false になる問題への対応)。
+   */
+  getCommitFilesEverChurned(repoName: string): Set<string> {
+    const db = this.ensureDb();
+    const result = db.exec(
+      `SELECT DISTINCT cf.file_path
+       FROM commit_files cf
+       JOIN session_commits sc ON sc.commit_hash = cf.commit_hash
+       JOIN sessions s ON s.id = sc.session_id
+       WHERE s.repo_name = ?`,
+      [repoName],
+    );
+    const out = new Set<string>();
+    const values = result[0]?.values ?? [];
+    for (const r of values) out.add(String(r[0] ?? ''));
+    return out;
+  }
+
   getCommitFiles(commitHashes: string[]): Array<{ repo_name: string; commit_hash: string; file_path: string }> {
     if (commitHashes.length === 0) return [];
     const db = this.ensureDb();
