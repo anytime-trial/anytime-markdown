@@ -333,14 +333,14 @@ function ColumnRow({
   column,
   isDark,
   y,
-  showAnchor,
+  anchorSides,
   anchorColor,
 }: Readonly<{
   column: ColumnInfo;
   isDark: boolean;
   y: number;
-  /** カラム外側 (左右端) にコネクタアンカー菱形を表示するか */
-  showAnchor: boolean;
+  /** アンカー菱形を描く辺 (edge 端と同じ辺のみ表示) */
+  anchorSides: { left: boolean; right: boolean };
   anchorColor: string;
 }>): React.ReactElement {
   const textColor = isDark ? "rgba(255,255,255,0.87)" : "rgba(0,0,0,0.87)";
@@ -376,22 +376,21 @@ function ColumnRow({
       >
         {column.type || "—"}
       </text>
-      {showAnchor ? (
-        <>
-          {/* カラム行の左右端に外向きアンカー菱形 */}
-          <polygon
-            points={`-6,${ROW_HEIGHT / 2 - 4} 0,${ROW_HEIGHT / 2} -6,${ROW_HEIGHT / 2 + 4} -12,${ROW_HEIGHT / 2}`}
-            fill={anchorColor}
-            stroke={anchorColor}
-            strokeWidth={0.5}
-          />
-          <polygon
-            points={`${CARD_WIDTH + 6},${ROW_HEIGHT / 2 - 4} ${CARD_WIDTH},${ROW_HEIGHT / 2} ${CARD_WIDTH + 6},${ROW_HEIGHT / 2 + 4} ${CARD_WIDTH + 12},${ROW_HEIGHT / 2}`}
-            fill={anchorColor}
-            stroke={anchorColor}
-            strokeWidth={0.5}
-          />
-        </>
+      {anchorSides.left ? (
+        <polygon
+          points={`-6,${ROW_HEIGHT / 2 - 4} 0,${ROW_HEIGHT / 2} -6,${ROW_HEIGHT / 2 + 4} -12,${ROW_HEIGHT / 2}`}
+          fill={anchorColor}
+          stroke={anchorColor}
+          strokeWidth={0.5}
+        />
+      ) : null}
+      {anchorSides.right ? (
+        <polygon
+          points={`${CARD_WIDTH + 6},${ROW_HEIGHT / 2 - 4} ${CARD_WIDTH},${ROW_HEIGHT / 2} ${CARD_WIDTH + 6},${ROW_HEIGHT / 2 + 4} ${CARD_WIDTH + 12},${ROW_HEIGHT / 2}`}
+          fill={anchorColor}
+          stroke={anchorColor}
+          strokeWidth={0.5}
+        />
       ) : null}
     </g>
   );
@@ -402,7 +401,7 @@ function TableCardSvg({
   isDark,
   dimmed,
   selected,
-  anchorCols,
+  anchorSidesByCol,
   anchorColor,
   onPointerDownHeader,
   onClick,
@@ -411,8 +410,8 @@ function TableCardSvg({
   isDark: boolean;
   dimmed: boolean;
   selected: boolean;
-  /** アンカー菱形を表示するカラム名集合 (= edge に関係するカラム) */
-  anchorCols: ReadonlySet<string>;
+  /** カラム名 → そのカラム行で描くアンカーの辺 */
+  anchorSidesByCol: ReadonlyMap<string, { left: boolean; right: boolean }>;
   anchorColor: string;
   onPointerDownHeader: (e: React.PointerEvent) => void;
   onClick: (e: React.MouseEvent) => void;
@@ -466,7 +465,7 @@ function TableCardSvg({
           column={c}
           isDark={isDark}
           y={HEADER_HEIGHT + i * ROW_HEIGHT}
-          showAnchor={anchorCols.has(c.name)}
+          anchorSides={anchorSidesByCol.get(c.name) ?? { left: false, right: false }}
           anchorColor={anchorColor}
         />
       ))}
@@ -793,13 +792,28 @@ export const ErdView: React.FC<Readonly<ErdViewProps>> = ({ schema, themeMode = 
   void KeyIcon;
   const edgeColor = isDark ? "rgba(120,170,255,0.85)" : "rgba(0,90,220,0.85)";
 
-  // 各テーブル毎に edge に登場するカラム名集合を作成 (アンカー描画用)
-  const anchorColsByTable = new Map<string, Set<string>>();
+  // 各テーブル毎に edge の起点・終点が来る辺 (left/right) を集計してアンカーを描く
+  const anchorSidesByTable = new Map<string, Map<string, { left: boolean; right: boolean }>>();
+  const ensureCol = (table: string, col: string): { left: boolean; right: boolean } => {
+    if (!anchorSidesByTable.has(table)) anchorSidesByTable.set(table, new Map());
+    const map = anchorSidesByTable.get(table)!;
+    if (!map.has(col)) map.set(col, { left: false, right: false });
+    return map.get(col)!;
+  };
   for (const e of edges) {
-    if (!anchorColsByTable.has(e.fromTable)) anchorColsByTable.set(e.fromTable, new Set());
-    anchorColsByTable.get(e.fromTable)!.add(e.fromColumn);
-    if (!anchorColsByTable.has(e.toTable)) anchorColsByTable.set(e.toTable, new Set());
-    anchorColsByTable.get(e.toTable)!.add(e.toColumn);
+    const fromCard = cardByTable.get(e.fromTable);
+    const toCard = cardByTable.get(e.toTable);
+    if (!fromCard || !toCard) continue;
+    const fromCx = fromCard.node.x + fromCard.node.width / 2;
+    const toCx = toCard.node.x + toCard.node.width / 2;
+    const fromSide = toCx >= fromCx ? "right" : "left";
+    const toSide = fromCx >= toCx ? "right" : "left";
+    const fromEntry = ensureCol(e.fromTable, e.fromColumn);
+    if (fromSide === "right") fromEntry.right = true;
+    else fromEntry.left = true;
+    const toEntry = ensureCol(e.toTable, e.toColumn);
+    if (toSide === "right") toEntry.right = true;
+    else toEntry.left = true;
   }
 
   return (
@@ -886,7 +900,7 @@ export const ErdView: React.FC<Readonly<ErdViewProps>> = ({ schema, themeMode = 
                 isDark={isDark}
                 dimmed={dimmed}
                 selected={sel}
-                anchorCols={anchorColsByTable.get(c.table.name) ?? new Set()}
+                anchorSidesByCol={anchorSidesByTable.get(c.table.name) ?? new Map()}
                 anchorColor={edgeColor}
                 onPointerDownHeader={onCardHeaderPointerDown(c.table.name)}
                 onClick={(e) => {
