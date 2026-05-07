@@ -25,6 +25,9 @@ export interface SqlRunResult {
 
 export interface SqlEditorPanelProps {
   readonly initialSql?: string;
+  /** controlled mode: 値を親で保持する場合に指定 */
+  readonly value?: string;
+  readonly onValueChange?: (sql: string) => void;
   readonly onRun: (sql: string) => Promise<SqlRunResult>;
   readonly disabled?: boolean;
   readonly readOnly?: boolean;
@@ -32,12 +35,23 @@ export interface SqlEditorPanelProps {
 
 export const SqlEditorPanel: React.FC<Readonly<SqlEditorPanelProps>> = ({
   initialSql = "",
+  value,
+  onValueChange,
   onRun,
   disabled,
 }) => {
   const t = useTranslations("Database");
   const [expanded, setExpanded] = useState(true);
-  const [sql, setSql] = useState(initialSql);
+  const [internalSql, setInternalSql] = useState(initialSql);
+  const isControlled = value !== undefined;
+  const sql = isControlled ? (value ?? "") : internalSql;
+  const setSql = (s: string): void => {
+    if (isControlled) {
+      onValueChange?.(s);
+    } else {
+      setInternalSql(s);
+    }
+  };
   const [running, setRunning] = useState(false);
   const [last, setLast] = useState<SqlRunResult | null>(null);
 

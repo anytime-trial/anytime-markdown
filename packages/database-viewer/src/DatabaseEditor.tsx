@@ -42,6 +42,8 @@ interface TableTabState {
   pageSize: number;
   totalRows: number;
   mode: "table" | "query";
+  /** タブごとの SQL 入力欄バッファ */
+  sql: string;
   // 各タブ専用の SheetAdapter (selectRows 結果 / executeSql 結果を保持)
   sheetAdapter: PaginatedSqlSheetAdapter;
 }
@@ -98,6 +100,7 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
           pageSize: DEFAULT_PAGE_SIZE,
           totalRows: 0,
           mode: "table",
+          sql: `SELECT * FROM "${tableName}" LIMIT 100`,
           sheetAdapter,
         };
         setActiveTabId(tableName);
@@ -217,11 +220,6 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
             <Chip size="small" color="default" label="read-only" />
           ) : null}
         </Stack>
-        <SqlEditorPanel
-          onRun={handleRun}
-          readOnly={adapter.capabilities.readOnly}
-          disabled={!activeTab}
-        />
         {tabs.length > 0 ? (
           <Box sx={{ borderBottom: 1, borderColor: "divider", flexShrink: 0 }}>
             <Tabs
@@ -257,18 +255,36 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
           </Box>
         ) : null}
         {activeTab ? (
-          <ResultGrid
-            adapter={activeTab.sheetAdapter}
-            pagination={pagination}
-            themeMode={themeMode}
-          />
+          <>
+            <SqlEditorPanel
+              key={activeTab.id}
+              value={activeTab.sql}
+              onValueChange={(s) => {
+                activeTab.sql = s;
+                tick();
+              }}
+              onRun={handleRun}
+              readOnly={adapter.capabilities.readOnly}
+            />
+            <ResultGrid
+              adapter={activeTab.sheetAdapter}
+              pagination={pagination}
+              themeMode={themeMode}
+            />
+          </>
         ) : (
           <Stack
-            alignItems="center"
-            justifyContent="center"
-            sx={{ flexGrow: 1, p: 4 }}
+            sx={{ flexGrow: 1, minHeight: 0, overflow: "auto", p: 2 }}
+            spacing={2}
           >
-            <Typography color="text.secondary">{t("selectTablePrompt")}</Typography>
+            <SqlEditorPanel
+              onRun={handleRun}
+              readOnly={adapter.capabilities.readOnly}
+              disabled
+            />
+            <Typography color="text.secondary" sx={{ textAlign: "center" }}>
+              {t("selectTablePrompt")}
+            </Typography>
           </Stack>
         )}
       </Stack>
