@@ -37,6 +37,7 @@ export class TypeScriptAdapter implements ILanguageAdapter {
       this.program = ts.createProgram(filePathsOrProgram as string[], {
         target: ts.ScriptTarget.ES2022,
         strict: true,
+        jsx: ts.JsxEmit.ReactJSX,
       });
     } else {
       this.program = filePathsOrProgram as ts.Program;
@@ -79,26 +80,61 @@ export class TypeScriptAdapter implements ILanguageAdapter {
 
   private countCallsInNode(node: ts.Node, checker: ts.TypeChecker, map: Map<string, number>): void {
     if (ts.isCallExpression(node)) {
-      let symbol = checker.getSymbolAtLocation(node.expression);
-      // import エイリアスを解決
-      if (symbol && (symbol.flags & ts.SymbolFlags.Alias)) {
-        symbol = checker.getAliasedSymbol(symbol);
-      }
-      if (symbol) {
-        for (const decl of symbol.getDeclarations() ?? []) {
-          if (!this.isFunctionLike(decl) || !this.hasFunctionName(decl)) continue;
-          const sf = decl.getSourceFile();
-          if (sf.isDeclarationFile || sf.fileName.includes('node_modules')) continue;
-          const relPath = path.relative(process.cwd(), sf.fileName);
-          const name = this.getFunctionName(decl as FunctionLikeNode);
-          if (name) {
-            const id = `file::${relPath}::${name}`;
-            map.set(id, (map.get(id) ?? 0) + 1);
-          }
-        }
-      }
+      this.countSymbolUsage(node.expression, checker, map);
+    } else if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
+      this.countSymbolUsage(node.tagName, checker, map);
     }
     ts.forEachChild(node, child => this.countCallsInNode(child, checker, map));
+  }
+
+  /** CallExpression / JSX tag に共通する fan-in カウント処理。 */
+  private countSymbolUsage(expr: ts.Node, checker: ts.TypeChecker, map: Map<string, number>): void {
+    let symbol = checker.getSymbolAtLocation(expr);
+    if (!symbol) return;
+    // import エイリアスを解決
+    if (symbol.flags & ts.SymbolFlags.Alias) {
+      symbol = checker.getAliasedSymbol(symbol);
+    }
+    for (const id of this.resolveFunctionIdsFromSymbol(symbol)) {
+      map.set(id, (map.get(id) ?? 0) + 1);
+    }
+  }
+
+  /** symbol が指す関数群の ID (`file::<relPath>::<name>`) を返す */
+  private resolveFunctionIdsFromSymbol(symbol: ts.Symbol): string[] {
+    const result: string[] = [];
+    for (const decl of symbol.getDeclarations() ?? []) {
+      const id = this.tryBuildFunctionId(decl);
+      if (id) result.push(id);
+    }
+    return result;
+  }
+
+  /**
+   * declaration を以下のいずれかに分類し、対応する関数 ID を返す。
+   *   (a) function Foo() {} / class method
+   *   (b) const Foo = () => {} / const Foo = function() {}
+   * memo / forwardRef ラップ (initializer が CallExpression) は対象外
+   * (Issue #108 で追跡)。
+   */
+  private tryBuildFunctionId(decl: ts.Declaration): string | null {
+    const sf = decl.getSourceFile();
+    if (sf.isDeclarationFile || sf.fileName.includes('node_modules')) return null;
+    const relPath = path.relative(process.cwd(), sf.fileName);
+
+    if (this.isFunctionLike(decl) && this.hasFunctionName(decl)) {
+      const name = this.getFunctionName(decl as FunctionLikeNode);
+      return name ? `file::${relPath}::${name}` : null;
+    }
+    if (
+      ts.isVariableDeclaration(decl) &&
+      ts.isIdentifier(decl.name) &&
+      decl.initializer &&
+      (ts.isArrowFunction(decl.initializer) || ts.isFunctionExpression(decl.initializer))
+    ) {
+      return `file::${relPath}::${decl.name.text}`;
+    }
+    return null;
   }
 
   extractFunctions(filePaths: string[]): FunctionInfo[] {
