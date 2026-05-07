@@ -279,19 +279,33 @@ function ColumnRow({
 function TableCardSvg({
   card,
   isDark,
+  dimmed,
+  selected,
   onPointerDownHeader,
+  onClick,
 }: Readonly<{
   card: TableCard;
   isDark: boolean;
+  dimmed: boolean;
+  selected: boolean;
   onPointerDownHeader: (e: React.PointerEvent) => void;
+  onClick: (e: React.MouseEvent) => void;
 }>): React.ReactElement {
   const { node, table } = card;
-  const headerFill = isDark ? "#0e1116" : "#e9ecef";
+  const headerFill = selected
+    ? (isDark ? "#1f3a5f" : "#cfe1ff")
+    : (isDark ? "#0e1116" : "#e9ecef");
   const headerText = isDark ? "rgba(255,255,255,0.92)" : "rgba(0,0,0,0.87)";
   const cardFill = isDark ? "#181c22" : "#ffffff";
-  const stroke = isDark ? "#3a4148" : "#c8ccd1";
+  const stroke = selected ? "#3aa0ff" : (isDark ? "#3a4148" : "#c8ccd1");
+  const strokeWidth = selected ? 2 : 1;
   return (
-    <g transform={`translate(${node.x}, ${node.y})`}>
+    <g
+      transform={`translate(${node.x}, ${node.y})`}
+      opacity={dimmed ? 0.18 : 1}
+      onClick={onClick}
+      style={{ cursor: dimmed ? "default" : "pointer" }}
+    >
       <rect
         x={0}
         y={0}
@@ -301,7 +315,7 @@ function TableCardSvg({
         ry={6}
         fill={cardFill}
         stroke={stroke}
-        strokeWidth={1}
+        strokeWidth={strokeWidth}
       />
       <rect
         x={0}
@@ -476,6 +490,19 @@ export const ErdView: React.FC<Readonly<ErdViewProps>> = ({ schema, themeMode = 
   const containerRef = useRef<HTMLDivElement>(null);
   const [viewSize, setViewSize] = useState({ width: 800, height: 600 });
   const [viewport, setViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
+  // 選択中のテーブル名 (クリックで設定、背景クリック / 同じテーブル再クリックで解除)
+  const [selectedTable, setSelectedTable] = useState<string | null>(null);
+
+  // 選択中テーブルと直接 edge で接続するテーブル名集合
+  const relatedTables = useMemo<ReadonlySet<string>>(() => {
+    if (!selectedTable) return new Set();
+    const set = new Set<string>([selectedTable]);
+    for (const e of edges) {
+      if (e.fromTable === selectedTable) set.add(e.toTable);
+      else if (e.toTable === selectedTable) set.add(e.fromTable);
+    }
+    return set;
+  }, [selectedTable, edges]);
 
   // ResizeObserver で view size を追跡
   useEffect(() => {
@@ -511,8 +538,9 @@ export const ErdView: React.FC<Readonly<ErdViewProps>> = ({ schema, themeMode = 
   const handlePointerDownBackground = useCallback(
     (e: React.PointerEvent<SVGSVGElement>): void => {
       const target = e.target as Element;
-      // 背景 (rect.erd-bg) のみパン
+      // 背景 (rect.erd-bg) のみパン + 選択解除
       if (!target.classList?.contains("erd-bg")) return;
+      setSelectedTable(null);
       e.currentTarget.setPointerCapture?.(e.pointerId);
       dragRef.current = {
         kind: "pan",
@@ -685,21 +713,39 @@ export const ErdView: React.FC<Readonly<ErdViewProps>> = ({ schema, themeMode = 
             const toBorder = rectBorderPoint(toCx, toCy, toCard.node.width, toCard.height, fromX, fromY);
             const midX = (fromX + toBorder.x) / 2;
             const path = `M ${fromX} ${fromY} L ${midX} ${fromY} L ${midX} ${toBorder.y} L ${toBorder.x} ${toBorder.y}`;
+            const isRelated =
+              !selectedTable || e.fromTable === selectedTable || e.toTable === selectedTable;
             return (
-              <g key={e.id}>
-                <path d={path} fill="none" stroke={edgeColor} strokeWidth={1.5} markerEnd="url(#erd-arrow)" />
+              <g key={e.id} opacity={isRelated ? 1 : 0.12}>
+                <path
+                  d={path}
+                  fill="none"
+                  stroke={edgeColor}
+                  strokeWidth={isRelated && selectedTable ? 2 : 1.5}
+                  markerEnd="url(#erd-arrow)"
+                />
                 <circle cx={fromX} cy={fromY} r={3} fill={edgeColor} />
               </g>
             );
           })}
-          {cards.map((c) => (
-            <TableCardSvg
-              key={c.node.id}
-              card={c}
-              isDark={isDark}
-              onPointerDownHeader={onCardHeaderPointerDown(c.table.name)}
-            />
-          ))}
+          {cards.map((c) => {
+            const dimmed = selectedTable !== null && !relatedTables.has(c.table.name);
+            const sel = selectedTable === c.table.name;
+            return (
+              <TableCardSvg
+                key={c.node.id}
+                card={c}
+                isDark={isDark}
+                dimmed={dimmed}
+                selected={sel}
+                onPointerDownHeader={onCardHeaderPointerDown(c.table.name)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedTable((prev) => (prev === c.table.name ? null : c.table.name));
+                }}
+              />
+            );
+          })}
         </g>
       </svg>
       {/* Toolbar */}
