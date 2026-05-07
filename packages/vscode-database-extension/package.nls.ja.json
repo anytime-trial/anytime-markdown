@@ -1,6 +1,10 @@
 {
   "displayName": "Anytime Database",
   "description": "VS Code 内で SQLite データベースを閲覧・クエリできる拡張機能。",
+  "viewsContainer.title": "Anytime Database",
+  "view.database": "データベース",
+  "command.syncToSupabase": "同期",
+  "command.reconnectSupabase": "再接続",
   "customEditor.displayName": "Anytime Database",
   "config.openMode.title": "オープンモード",
   "config.openMode.description": "SQLite ファイルを開くモード。readwrite は書き込み SQL と dirty/save UX を許可、readonly は OPEN_READONLY で開き書込を拒否する。",

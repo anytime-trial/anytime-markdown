@@ -1,6 +1,10 @@
 {
   "displayName": "Anytime Database",
   "description": "Browse and query SQLite databases inside VS Code.",
+  "viewsContainer.title": "Anytime Database",
+  "view.database": "Database",
+  "command.syncToSupabase": "Sync",
+  "command.reconnectSupabase": "Reconnect",
   "customEditor.displayName": "Anytime Database",
   "config.openMode.title": "Open Mode",
   "config.openMode.description": "How to open SQLite files. 'readwrite' allows write SQL and dirty/save UX. 'readonly' opens with OPEN_READONLY and rejects mutations.",
