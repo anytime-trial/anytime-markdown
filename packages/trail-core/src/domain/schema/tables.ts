@@ -3,8 +3,12 @@
 // 設計原則:
 // - STRICT: 型を強制 (SQLite 3.37+)。INSERT 時に型違反でエラー
 // - boolean は INTEGER + CHECK (col IN (0,1))
-// - timestamp は TEXT。常に UTC ISO 8601 + Z (`YYYY-MM-DDTHH:mm:ss.sssZ`、24 文字) を強制する
-//   GLOB CHECK で書式違反を SQL 層で弾く。空文字 / NULL は移行期のため例外として許容
+// - timestamp は TEXT で NULL-able。常に UTC ISO 8601 + Z (`YYYY-MM-DDTHH:mm:ss.sssZ`、24 文字)
+//   を強制する。GLOB CHECK で書式違反を SQL 層で弾く。NULL / 空文字は移行期の互換性のため
+//   許容しているが、新規書き込みは ISO 8601 を必須とし、欠落は NULL を推奨する
+// - DEFAULT '' は意味論的に曖昧 (空文字とデータ未設定が区別不能) なため、timestamp 列では
+//   廃止し NULL-able とした。テキスト列 (slug / repo_name / commit_message 等) では空文字も
+//   有効値であるため DEFAULT '' を維持する
 // - JSON 列は CHECK (json_valid(col)) で構造妥当性を担保
 // - FK は明示し、親削除時の動作 (CASCADE / RESTRICT) を必ず指定
 // - 複合 PK の参照は複合 FK を使う
@@ -23,20 +27,20 @@ export const CREATE_SESSIONS = `CREATE TABLE IF NOT EXISTS sessions (
   version TEXT NOT NULL DEFAULT '',
   entrypoint TEXT NOT NULL DEFAULT '',
   model TEXT NOT NULL DEFAULT '',
-  start_time TEXT NOT NULL DEFAULT '' CHECK (start_time = '' OR start_time GLOB ${TS_GLOB_MS} OR start_time GLOB ${TS_GLOB_NO_MS}),
-  end_time TEXT NOT NULL DEFAULT '' CHECK (end_time = '' OR end_time GLOB ${TS_GLOB_MS} OR end_time GLOB ${TS_GLOB_NO_MS}),
+  start_time TEXT CHECK (start_time IS NULL OR start_time = '' OR start_time GLOB ${TS_GLOB_MS} OR start_time GLOB ${TS_GLOB_NO_MS}),
+  end_time TEXT CHECK (end_time IS NULL OR end_time = '' OR end_time GLOB ${TS_GLOB_MS} OR end_time GLOB ${TS_GLOB_NO_MS}),
   message_count INTEGER NOT NULL DEFAULT 0,
   file_path TEXT NOT NULL DEFAULT '',
   file_size INTEGER NOT NULL DEFAULT 0,
-  imported_at TEXT NOT NULL DEFAULT '' CHECK (imported_at = '' OR imported_at GLOB ${TS_GLOB_MS} OR imported_at GLOB ${TS_GLOB_NO_MS}),
-  commits_resolved_at TEXT CHECK (commits_resolved_at IS NULL OR commits_resolved_at GLOB ${TS_GLOB_MS} OR commits_resolved_at GLOB ${TS_GLOB_NO_MS}),
+  imported_at TEXT CHECK (imported_at IS NULL OR imported_at = '' OR imported_at GLOB ${TS_GLOB_MS} OR imported_at GLOB ${TS_GLOB_NO_MS}),
+  commits_resolved_at TEXT CHECK (commits_resolved_at IS NULL OR commits_resolved_at = '' OR commits_resolved_at GLOB ${TS_GLOB_MS} OR commits_resolved_at GLOB ${TS_GLOB_NO_MS}),
   -- Pre-aggregated stats (populated in rebuildSessionStats after importAll).
   peak_context_tokens INTEGER,
   initial_context_tokens INTEGER,
   git_branch TEXT,
   interruption_reason TEXT,
   interruption_context_tokens INTEGER,
-  message_commits_resolved_at TEXT CHECK (message_commits_resolved_at IS NULL OR message_commits_resolved_at GLOB ${TS_GLOB_MS} OR message_commits_resolved_at GLOB ${TS_GLOB_NO_MS}),
+  message_commits_resolved_at TEXT CHECK (message_commits_resolved_at IS NULL OR message_commits_resolved_at = '' OR message_commits_resolved_at GLOB ${TS_GLOB_MS} OR message_commits_resolved_at GLOB ${TS_GLOB_NO_MS}),
   source TEXT NOT NULL DEFAULT 'claude_code'
     CHECK (source IN ('claude_code', 'codex', 'gemini', 'cursor', 'other'))
 ) STRICT`;
@@ -89,7 +93,7 @@ export const CREATE_MESSAGES = `CREATE TABLE IF NOT EXISTS messages (
   cache_creation_tokens INTEGER NOT NULL DEFAULT 0,
   service_tier TEXT,
   speed TEXT,
-  timestamp TEXT NOT NULL DEFAULT '' CHECK (timestamp = '' OR timestamp GLOB ${TS_GLOB_MS} OR timestamp GLOB ${TS_GLOB_NO_MS}),
+  timestamp TEXT CHECK (timestamp IS NULL OR timestamp = '' OR timestamp GLOB ${TS_GLOB_MS} OR timestamp GLOB ${TS_GLOB_NO_MS}),
   is_sidechain INTEGER NOT NULL DEFAULT 0 CHECK (is_sidechain IN (0, 1)),
   is_meta INTEGER NOT NULL DEFAULT 0 CHECK (is_meta IN (0, 1)),
   cwd TEXT,
@@ -112,7 +116,7 @@ export const CREATE_SESSION_COMMITS = `CREATE TABLE IF NOT EXISTS session_commit
   commit_hash TEXT NOT NULL,
   commit_message TEXT NOT NULL DEFAULT '',
   author TEXT NOT NULL DEFAULT '',
-  committed_at TEXT NOT NULL DEFAULT '' CHECK (committed_at = '' OR committed_at GLOB ${TS_GLOB_MS} OR committed_at GLOB ${TS_GLOB_NO_MS}),
+  committed_at TEXT CHECK (committed_at IS NULL OR committed_at = '' OR committed_at GLOB ${TS_GLOB_MS} OR committed_at GLOB ${TS_GLOB_NO_MS}),
   is_ai_assisted INTEGER NOT NULL DEFAULT 0 CHECK (is_ai_assisted IN (0, 1)),
   files_changed INTEGER NOT NULL DEFAULT 0,
   lines_added INTEGER NOT NULL DEFAULT 0,
@@ -151,7 +155,7 @@ export const CREATE_CURRENT_GRAPHS = `CREATE TABLE IF NOT EXISTS current_graphs 
   tsconfig_path TEXT NOT NULL,
   project_root  TEXT NOT NULL,
   analyzed_at   TEXT NOT NULL CHECK (analyzed_at GLOB ${TS_GLOB_MS} OR analyzed_at GLOB ${TS_GLOB_NO_MS}),
-  updated_at    TEXT NOT NULL DEFAULT '' CHECK (updated_at = '' OR updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS})
+  updated_at    TEXT CHECK (updated_at IS NULL OR updated_at = '' OR updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS})
 ) STRICT`;
 
 export const CREATE_RELEASE_GRAPHS = `CREATE TABLE IF NOT EXISTS release_graphs (
@@ -160,7 +164,7 @@ export const CREATE_RELEASE_GRAPHS = `CREATE TABLE IF NOT EXISTS release_graphs 
   tsconfig_path TEXT NOT NULL,
   project_root  TEXT NOT NULL,
   analyzed_at   TEXT NOT NULL CHECK (analyzed_at GLOB ${TS_GLOB_MS} OR analyzed_at GLOB ${TS_GLOB_NO_MS}),
-  updated_at    TEXT NOT NULL DEFAULT '' CHECK (updated_at = '' OR updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS})
+  updated_at    TEXT CHECK (updated_at IS NULL OR updated_at = '' OR updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS})
 ) STRICT`;
 
 export const CREATE_SKILL_MODELS = `CREATE TABLE IF NOT EXISTS skill_models (
@@ -180,7 +184,7 @@ FROM skill_models s`;
 
 export const CREATE_RELEASES = `CREATE TABLE IF NOT EXISTS releases (
   tag TEXT PRIMARY KEY,
-  released_at TEXT NOT NULL DEFAULT '' CHECK (released_at = '' OR released_at GLOB ${TS_GLOB_MS} OR released_at GLOB ${TS_GLOB_NO_MS}),
+  released_at TEXT CHECK (released_at IS NULL OR released_at = '' OR released_at GLOB ${TS_GLOB_MS} OR released_at GLOB ${TS_GLOB_NO_MS}),
   prev_tag TEXT REFERENCES releases(tag) ON DELETE SET NULL,
   repo_name TEXT NOT NULL DEFAULT '',
   package_tags TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(package_tags)),
@@ -195,7 +199,7 @@ export const CREATE_RELEASES = `CREATE TABLE IF NOT EXISTS releases (
   other_count INTEGER NOT NULL DEFAULT 0,
   affected_packages TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(affected_packages)),
   duration_days REAL NOT NULL DEFAULT 0,
-  resolved_at TEXT CHECK (resolved_at IS NULL OR resolved_at GLOB ${TS_GLOB_MS} OR resolved_at GLOB ${TS_GLOB_NO_MS})
+  resolved_at TEXT CHECK (resolved_at IS NULL OR resolved_at = '' OR resolved_at GLOB ${TS_GLOB_MS} OR resolved_at GLOB ${TS_GLOB_NO_MS})
 ) STRICT`;
 
 export const CREATE_RELEASE_FILES = `CREATE TABLE IF NOT EXISTS release_files (
@@ -243,7 +247,7 @@ export const CREATE_CURRENT_COVERAGE = `CREATE TABLE IF NOT EXISTS current_cover
   branches_total     INTEGER NOT NULL DEFAULT 0,
   branches_covered   INTEGER NOT NULL DEFAULT 0,
   branches_pct       REAL    NOT NULL DEFAULT 0,
-  updated_at         TEXT    NOT NULL DEFAULT '' CHECK (updated_at = '' OR updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS}),
+  updated_at         TEXT CHECK (updated_at IS NULL OR updated_at = '' OR updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS}),
   PRIMARY KEY (repo_name, package, file_path)
 ) STRICT`;
 
@@ -309,15 +313,15 @@ export const CREATE_C4_MANUAL_GROUPS = `CREATE TABLE IF NOT EXISTS c4_manual_gro
 export const CREATE_CURRENT_CODE_GRAPHS = `CREATE TABLE IF NOT EXISTS current_code_graphs (
   repo_name    TEXT PRIMARY KEY,
   graph_json   TEXT NOT NULL CHECK (json_valid(graph_json)),
-  generated_at TEXT NOT NULL DEFAULT '' CHECK (generated_at = '' OR generated_at GLOB ${TS_GLOB_MS} OR generated_at GLOB ${TS_GLOB_NO_MS}),
-  updated_at   TEXT NOT NULL DEFAULT '' CHECK (updated_at = '' OR updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS})
+  generated_at TEXT CHECK (generated_at IS NULL OR generated_at = '' OR generated_at GLOB ${TS_GLOB_MS} OR generated_at GLOB ${TS_GLOB_NO_MS}),
+  updated_at   TEXT CHECK (updated_at IS NULL OR updated_at = '' OR updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS})
 ) STRICT`;
 
 export const CREATE_RELEASE_CODE_GRAPHS = `CREATE TABLE IF NOT EXISTS release_code_graphs (
   release_tag  TEXT PRIMARY KEY REFERENCES releases(tag) ON DELETE CASCADE,
   graph_json   TEXT NOT NULL CHECK (json_valid(graph_json)),
-  generated_at TEXT NOT NULL DEFAULT '' CHECK (generated_at = '' OR generated_at GLOB ${TS_GLOB_MS} OR generated_at GLOB ${TS_GLOB_NO_MS}),
-  updated_at   TEXT NOT NULL DEFAULT '' CHECK (updated_at = '' OR updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS})
+  generated_at TEXT CHECK (generated_at IS NULL OR generated_at = '' OR generated_at GLOB ${TS_GLOB_MS} OR generated_at GLOB ${TS_GLOB_NO_MS}),
+  updated_at   TEXT CHECK (updated_at IS NULL OR updated_at = '' OR updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS})
 ) STRICT`;
 
 export const CREATE_CURRENT_CODE_GRAPH_COMMUNITIES = `CREATE TABLE IF NOT EXISTS current_code_graph_communities (
@@ -326,8 +330,8 @@ export const CREATE_CURRENT_CODE_GRAPH_COMMUNITIES = `CREATE TABLE IF NOT EXISTS
   label        TEXT    NOT NULL DEFAULT '',
   name         TEXT    NOT NULL DEFAULT '',
   summary      TEXT    NOT NULL DEFAULT '',
-  generated_at TEXT    NOT NULL DEFAULT '' CHECK (generated_at = '' OR generated_at GLOB ${TS_GLOB_MS} OR generated_at GLOB ${TS_GLOB_NO_MS}),
-  updated_at   TEXT    NOT NULL DEFAULT '' CHECK (updated_at = '' OR updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS}),
+  generated_at TEXT CHECK (generated_at IS NULL OR generated_at = '' OR generated_at GLOB ${TS_GLOB_MS} OR generated_at GLOB ${TS_GLOB_NO_MS}),
+  updated_at   TEXT CHECK (updated_at IS NULL OR updated_at = '' OR updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS}),
   PRIMARY KEY (repo_name, community_id)
 ) STRICT`;
 
@@ -337,8 +341,8 @@ export const CREATE_RELEASE_CODE_GRAPH_COMMUNITIES = `CREATE TABLE IF NOT EXISTS
   label        TEXT    NOT NULL DEFAULT '',
   name         TEXT    NOT NULL DEFAULT '',
   summary      TEXT    NOT NULL DEFAULT '',
-  generated_at TEXT    NOT NULL DEFAULT '' CHECK (generated_at = '' OR generated_at GLOB ${TS_GLOB_MS} OR generated_at GLOB ${TS_GLOB_NO_MS}),
-  updated_at   TEXT    NOT NULL DEFAULT '' CHECK (updated_at = '' OR updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS}),
+  generated_at TEXT CHECK (generated_at IS NULL OR generated_at = '' OR generated_at GLOB ${TS_GLOB_MS} OR generated_at GLOB ${TS_GLOB_NO_MS}),
+  updated_at   TEXT CHECK (updated_at IS NULL OR updated_at = '' OR updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS}),
   PRIMARY KEY (release_tag, community_id)
 ) STRICT`;
 
