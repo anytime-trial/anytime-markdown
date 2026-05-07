@@ -33,13 +33,13 @@ export const CREATE_CURRENT_COVERAGE_INDEXES = [
 ];
 
 export const CREATE_MESSAGE_TOOL_CALLS_INDEXES = [
-  'CREATE INDEX IF NOT EXISTS idx_mtc_session   ON message_tool_calls(session_id)',
-  'CREATE INDEX IF NOT EXISTS idx_mtc_tool_name ON message_tool_calls(tool_name)',
-  'CREATE INDEX IF NOT EXISTS idx_mtc_timestamp ON message_tool_calls(timestamp)',
-  'CREATE INDEX IF NOT EXISTS idx_mtc_skill     ON message_tool_calls(skill_name)',
-  'CREATE INDEX IF NOT EXISTS idx_mtc_is_error  ON message_tool_calls(is_error)',
+  'CREATE INDEX IF NOT EXISTS idx_message_tool_calls_session_id ON message_tool_calls(session_id)',
+  'CREATE INDEX IF NOT EXISTS idx_message_tool_calls_tool_name ON message_tool_calls(tool_name)',
+  'CREATE INDEX IF NOT EXISTS idx_message_tool_calls_timestamp ON message_tool_calls(timestamp)',
+  'CREATE INDEX IF NOT EXISTS idx_message_tool_calls_skill_name ON message_tool_calls(skill_name)',
+  'CREATE INDEX IF NOT EXISTS idx_message_tool_calls_is_error ON message_tool_calls(is_error)',
   // N-gram自己結合用複合インデックス: (session_id, turn_index, call_index)
-  'CREATE INDEX IF NOT EXISTS idx_mtc_turn ON message_tool_calls(session_id, turn_index, call_index)',
+  'CREATE INDEX IF NOT EXISTS idx_message_tool_calls_session_turn ON message_tool_calls(session_id, turn_index, call_index)',
   // 期間集計用複合インデックス: timestamp + turn特定
-  'CREATE INDEX IF NOT EXISTS idx_mtc_ts_turn ON message_tool_calls(timestamp, session_id, turn_index)',
+  'CREATE INDEX IF NOT EXISTS idx_message_tool_calls_timestamp_turn ON message_tool_calls(timestamp, session_id, turn_index)',
 ] as const;
