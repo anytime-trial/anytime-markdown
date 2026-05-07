@@ -333,7 +333,16 @@ function ColumnRow({
   column,
   isDark,
   y,
-}: Readonly<{ column: ColumnInfo; isDark: boolean; y: number }>): React.ReactElement {
+  showAnchor,
+  anchorColor,
+}: Readonly<{
+  column: ColumnInfo;
+  isDark: boolean;
+  y: number;
+  /** カラム外側 (左右端) にコネクタアンカー菱形を表示するか */
+  showAnchor: boolean;
+  anchorColor: string;
+}>): React.ReactElement {
   const textColor = isDark ? "rgba(255,255,255,0.87)" : "rgba(0,0,0,0.87)";
   const typeColor = isDark ? "rgba(255,180,84,0.85)" : "rgba(180,90,0,0.85)";
   const dimText = isDark ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.55)";
@@ -367,6 +376,23 @@ function ColumnRow({
       >
         {column.type || "—"}
       </text>
+      {showAnchor ? (
+        <>
+          {/* カラム行の左右端に外向きアンカー菱形 */}
+          <polygon
+            points={`-6,${ROW_HEIGHT / 2 - 4} 0,${ROW_HEIGHT / 2} -6,${ROW_HEIGHT / 2 + 4} -12,${ROW_HEIGHT / 2}`}
+            fill={anchorColor}
+            stroke={anchorColor}
+            strokeWidth={0.5}
+          />
+          <polygon
+            points={`${CARD_WIDTH + 6},${ROW_HEIGHT / 2 - 4} ${CARD_WIDTH},${ROW_HEIGHT / 2} ${CARD_WIDTH + 6},${ROW_HEIGHT / 2 + 4} ${CARD_WIDTH + 12},${ROW_HEIGHT / 2}`}
+            fill={anchorColor}
+            stroke={anchorColor}
+            strokeWidth={0.5}
+          />
+        </>
+      ) : null}
     </g>
   );
 }
@@ -376,6 +402,8 @@ function TableCardSvg({
   isDark,
   dimmed,
   selected,
+  anchorCols,
+  anchorColor,
   onPointerDownHeader,
   onClick,
 }: Readonly<{
@@ -383,6 +411,9 @@ function TableCardSvg({
   isDark: boolean;
   dimmed: boolean;
   selected: boolean;
+  /** アンカー菱形を表示するカラム名集合 (= edge に関係するカラム) */
+  anchorCols: ReadonlySet<string>;
+  anchorColor: string;
   onPointerDownHeader: (e: React.PointerEvent) => void;
   onClick: (e: React.MouseEvent) => void;
 }>): React.ReactElement {
@@ -430,7 +461,14 @@ function TableCardSvg({
         {table.name}
       </text>
       {table.columns.map((c, i) => (
-        <ColumnRow key={c.name} column={c} isDark={isDark} y={HEADER_HEIGHT + i * ROW_HEIGHT} />
+        <ColumnRow
+          key={c.name}
+          column={c}
+          isDark={isDark}
+          y={HEADER_HEIGHT + i * ROW_HEIGHT}
+          showAnchor={anchorCols.has(c.name)}
+          anchorColor={anchorColor}
+        />
       ))}
     </g>
   );
@@ -755,6 +793,15 @@ export const ErdView: React.FC<Readonly<ErdViewProps>> = ({ schema, themeMode = 
   void KeyIcon;
   const edgeColor = isDark ? "rgba(120,170,255,0.85)" : "rgba(0,90,220,0.85)";
 
+  // 各テーブル毎に edge に登場するカラム名集合を作成 (アンカー描画用)
+  const anchorColsByTable = new Map<string, Set<string>>();
+  for (const e of edges) {
+    if (!anchorColsByTable.has(e.fromTable)) anchorColsByTable.set(e.fromTable, new Set());
+    anchorColsByTable.get(e.fromTable)!.add(e.fromColumn);
+    if (!anchorColsByTable.has(e.toTable)) anchorColsByTable.set(e.toTable, new Set());
+    anchorColsByTable.get(e.toTable)!.add(e.toColumn);
+  }
+
   return (
     <Box
       ref={containerRef}
@@ -799,18 +846,21 @@ export const ErdView: React.FC<Readonly<ErdViewProps>> = ({ schema, themeMode = 
             const toCard = cardByTable.get(e.toTable);
             if (!fromCard || !toCard) return null;
             const fromColIdx = fromCard.table.columns.findIndex((c) => c.name === e.fromColumn);
+            const toColIdx = toCard.table.columns.findIndex((c) => c.name === e.toColumn);
             const fromY =
               fromCard.node.y + HEADER_HEIGHT + (fromColIdx < 0 ? 0 : fromColIdx) * ROW_HEIGHT + ROW_HEIGHT / 2;
+            const toY =
+              toCard.node.y + HEADER_HEIGHT + (toColIdx < 0 ? 0 : toColIdx) * ROW_HEIGHT + ROW_HEIGHT / 2;
             const fromCx = fromCard.node.x + fromCard.node.width / 2;
             const toCx = toCard.node.x + toCard.node.width / 2;
-            const toCy = toCard.node.y + toCard.height / 2;
+            // from / to ともに「相手側に近い側」のカード境界をアンカー位置として選ぶ
             const fromX = toCx >= fromCx ? fromCard.node.x + fromCard.node.width : fromCard.node.x;
-            const toBorder = rectBorderPoint(toCx, toCy, toCard.node.width, toCard.height, fromX, fromY);
+            const toX = fromCx >= toCx ? toCard.node.x + toCard.node.width : toCard.node.x;
             // 自身のカード以外を障害物として登録
             const obstacles: RectBox[] = cards
               .filter((c) => c.table.name !== e.fromTable && c.table.name !== e.toTable)
               .map((c) => ({ x: c.node.x, y: c.node.y, width: c.node.width, height: c.height }));
-            const path = routeAroundObstacles(fromX, fromY, toBorder.x, toBorder.y, obstacles);
+            const path = routeAroundObstacles(fromX, fromY, toX, toY, obstacles);
             const isRelated =
               !selectedTable || e.fromTable === selectedTable || e.toTable === selectedTable;
             return (
@@ -836,6 +886,8 @@ export const ErdView: React.FC<Readonly<ErdViewProps>> = ({ schema, themeMode = 
                 isDark={isDark}
                 dimmed={dimmed}
                 selected={sel}
+                anchorCols={anchorColsByTable.get(c.table.name) ?? new Set()}
+                anchorColor={edgeColor}
                 onPointerDownHeader={onCardHeaderPointerDown(c.table.name)}
                 onClick={(e) => {
                   e.stopPropagation();
