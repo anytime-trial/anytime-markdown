@@ -35,7 +35,7 @@ export interface DatabaseEditorProps {
 }
 
 const PAGE_SIZES: ReadonlyArray<number> = [25, 50, 100];
-const DEFAULT_PAGE_SIZE = 100;
+const DEFAULT_PAGE_SIZE = 50;
 
 interface TableTabState {
   readonly id: string;
@@ -107,7 +107,7 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
           pageSize: DEFAULT_PAGE_SIZE,
           totalRows: 0,
           mode: "table",
-          sql: `SELECT * FROM "${tableName}" LIMIT 100;`,
+          sql: `SELECT * FROM "${tableName}" LIMIT ${DEFAULT_PAGE_SIZE};`,
           sheetAdapter,
         };
         setActiveTabId(tableName);
