@@ -6,7 +6,8 @@ import CenterFocusStrongIcon from "@mui/icons-material/CenterFocusStrong";
 import ZoomInIcon from "@mui/icons-material/ZoomIn";
 import ZoomOutIcon from "@mui/icons-material/ZoomOut";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { GraphNode } from "@anytime-markdown/graph-core";
+import type { GraphEdge, GraphNode } from "@anytime-markdown/graph-core";
+import { engine } from "@anytime-markdown/graph-core";
 import type { ColumnInfo, SchemaInfo, TableInfo } from "@anytime-markdown/database-core";
 
 export interface ErdViewProps {
@@ -44,7 +45,8 @@ interface Viewport {
   readonly zoom: number;
 }
 
-function buildBaseCards(tables: ReadonlyArray<TableInfo>): TableCard[] {
+function buildBaseCards(tables: ReadonlyArray<TableInfo>, edges: ReadonlyArray<ErdEdge>): TableCard[] {
+  // 初期グリッド配置 (一旦並べる)
   const cards: TableCard[] = [];
   for (let idx = 0; idx < tables.length; idx++) {
     const table = tables[idx];
@@ -74,6 +76,62 @@ function buildBaseCards(tables: ReadonlyArray<TableInfo>): TableCard[] {
       text: table.name,
     };
     cards.push({ node, table, height });
+  }
+
+  // Sugiyama-style hierarchical layout で配置を最適化 (線の重なりを最小化)
+  if (cards.length > 0) {
+    const bodies = new Map<string, engine.physics.PhysicsBody>();
+    for (const c of cards) {
+      bodies.set(c.node.id, {
+        id: c.node.id,
+        x: c.node.x,
+        y: c.node.y,
+        vx: 0,
+        vy: 0,
+        fx: 0,
+        fy: 0,
+        width: c.node.width,
+        height: c.height,
+        fixed: false,
+        mass: 1,
+      });
+    }
+    const graphEdges: GraphEdge[] = edges.map((e) => ({
+      id: e.id,
+      type: "connector",
+      from: { nodeId: `table:${e.fromTable}`, x: 0, y: 0 },
+      to: { nodeId: `table:${e.toTable}`, x: 0, y: 0 },
+      style: {
+        stroke: "#888",
+        strokeWidth: 1,
+        routing: "orthogonal",
+      },
+    }));
+    // 横方向 (LR) 配置: 参照元 → 参照先 が左→右で並ぶようにする
+    engine.physics.computeHierarchicalLayout(bodies, graphEdges, "LR", 360, 60);
+    // 計算結果を反映 (上端 y を 0 ベース、左端 x を PADDING に正規化)
+    let minX = Infinity;
+    let minY = Infinity;
+    for (const c of cards) {
+      const b = bodies.get(c.node.id);
+      if (!b) continue;
+      minX = Math.min(minX, b.x);
+      minY = Math.min(minY, b.y);
+    }
+    if (!Number.isFinite(minX)) minX = 0;
+    if (!Number.isFinite(minY)) minY = 0;
+    return cards.map((c) => {
+      const b = bodies.get(c.node.id);
+      if (!b) return c;
+      return {
+        ...c,
+        node: {
+          ...c.node,
+          x: PADDING + (b.x - minX),
+          y: PADDING + (b.y - minY),
+        },
+      };
+    });
   }
   return cards;
 }
@@ -358,10 +416,16 @@ function Minimap({ cards, viewport, viewSize, worldBounds, onChange, isDark }: R
 export const ErdView: React.FC<Readonly<ErdViewProps>> = ({ schema, themeMode = "dark" }) => {
   const isDark = themeMode === "dark";
 
+  // edges を先に計算してから layout に利用する
+  const inferredEdges = useMemo<ErdEdge[]>(() => {
+    if (!schema) return [];
+    return inferEdges(schema);
+  }, [schema]);
+
   const baseCards = useMemo(() => {
     if (!schema) return [];
-    return buildBaseCards([...schema.tables, ...schema.views]);
-  }, [schema]);
+    return buildBaseCards([...schema.tables, ...schema.views], inferredEdges);
+  }, [schema, inferredEdges]);
 
   // ノード位置オーバーライド (ドラッグで更新)
   const [positions, setPositions] = useState<Map<string, { x: number; y: number }>>(new Map());
@@ -388,10 +452,7 @@ export const ErdView: React.FC<Readonly<ErdViewProps>> = ({ schema, themeMode = 
     return m;
   }, [cards]);
 
-  const edges = useMemo<ErdEdge[]>(() => {
-    if (!schema) return [];
-    return inferEdges(schema);
-  }, [schema]);
+  const edges = inferredEdges;
 
   const worldBounds = useMemo(() => {
     if (cards.length === 0) {
