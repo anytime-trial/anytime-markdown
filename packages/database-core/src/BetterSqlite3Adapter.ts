@@ -95,11 +95,18 @@ export class BetterSqlite3Adapter implements DatabaseAdapter {
           to: string | null;
         }>;
         if (fkRows.length > 0) {
-          foreignKeys = fkRows.map((fk) => ({
-            fromColumn: fk.from,
-            toTable: fk.table,
-            toColumn: fk.to ?? '',
-          }));
+          // 複合 FK の場合 id ごとに seq=0,1,... の複数行が返る。
+          // ER 図表示では各 FK を 1 本の代表線として扱うため、id ごとに最後の seq
+          // (通常 element/id 系カラム) を採用する。
+          const grouped = new Map<number, ForeignKeyInfo>();
+          for (const fk of fkRows) {
+            grouped.set(fk.id, {
+              fromColumn: fk.from,
+              toTable: fk.table,
+              toColumn: fk.to ?? '',
+            });
+          }
+          foreignKeys = [...grouped.values()];
         }
       }
       const info: TableInfo = foreignKeys

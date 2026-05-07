@@ -245,6 +245,39 @@ const FK_DEFS = [
     )`,
   },
   {
+    name: "c4_manual_elements",
+    columns: ["repo_name","element_id","type","name","description","external","parent_id","service_type","updated_at"],
+    ddl: `CREATE TABLE c4_manual_elements__new (
+      repo_name    TEXT NOT NULL,
+      element_id   TEXT NOT NULL,
+      type         TEXT NOT NULL,
+      name         TEXT NOT NULL,
+      description  TEXT,
+      external     INTEGER NOT NULL DEFAULT 0,
+      parent_id    TEXT,
+      service_type TEXT,
+      updated_at   TEXT NOT NULL,
+      PRIMARY KEY (repo_name, element_id),
+      FOREIGN KEY (repo_name, parent_id) REFERENCES c4_manual_elements(repo_name, element_id)
+    )`,
+  },
+  {
+    name: "c4_manual_relationships",
+    columns: ["repo_name","rel_id","from_id","to_id","label","technology","updated_at"],
+    ddl: `CREATE TABLE c4_manual_relationships__new (
+      repo_name   TEXT NOT NULL,
+      rel_id      TEXT NOT NULL,
+      from_id     TEXT NOT NULL,
+      to_id       TEXT NOT NULL,
+      label       TEXT,
+      technology  TEXT,
+      updated_at  TEXT NOT NULL,
+      PRIMARY KEY (repo_name, rel_id),
+      FOREIGN KEY (repo_name, from_id) REFERENCES c4_manual_elements(repo_name, element_id),
+      FOREIGN KEY (repo_name, to_id)   REFERENCES c4_manual_elements(repo_name, element_id)
+    )`,
+  },
+  {
     name: "release_function_analysis",
     columns: ["release_tag","repo_name","file_path","function_name","start_line","end_line","language","fan_in","cognitive_complexity","cyclomatic_complexity","data_mutation_score","side_effect_score","line_count","importance_score","signal_fan_in_zero","analyzed_at"],
     ddl: `CREATE TABLE release_function_analysis__new (

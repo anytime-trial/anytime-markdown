@@ -258,7 +258,8 @@ export const CREATE_C4_MANUAL_ELEMENTS = `CREATE TABLE IF NOT EXISTS c4_manual_e
   parent_id    TEXT,
   service_type TEXT,
   updated_at   TEXT NOT NULL,
-  PRIMARY KEY (repo_name, element_id)
+  PRIMARY KEY (repo_name, element_id),
+  FOREIGN KEY (repo_name, parent_id) REFERENCES c4_manual_elements(repo_name, element_id)
 )`;
 
 export const CREATE_C4_MANUAL_RELATIONSHIPS = `CREATE TABLE IF NOT EXISTS c4_manual_relationships (
@@ -269,7 +270,9 @@ export const CREATE_C4_MANUAL_RELATIONSHIPS = `CREATE TABLE IF NOT EXISTS c4_man
   label       TEXT,
   technology  TEXT,
   updated_at  TEXT NOT NULL,
-  PRIMARY KEY (repo_name, rel_id)
+  PRIMARY KEY (repo_name, rel_id),
+  FOREIGN KEY (repo_name, from_id) REFERENCES c4_manual_elements(repo_name, element_id),
+  FOREIGN KEY (repo_name, to_id)   REFERENCES c4_manual_elements(repo_name, element_id)
 )`;
 
 export const CREATE_C4_MANUAL_GROUPS = `CREATE TABLE IF NOT EXISTS c4_manual_groups (

@@ -65,7 +65,10 @@ export class SqlJsAdapter implements DatabaseAdapter {
 
   private collectForeignKeys(table: string): ForeignKeyInfo[] {
     const stmt = this.db.prepare(`PRAGMA foreign_key_list("${table}")`);
-    const out: ForeignKeyInfo[] = [];
+    // 複合 FK の場合 id ごとに seq=0,1,... の複数行が返る。
+    // ER 図では 1 つの FK を 1 本の代表線として扱うため、id ごとに最後の seq
+    // (通常 element/id 系のカラム) を採用する。
+    const grouped = new Map<number, ForeignKeyInfo>();
     while (stmt.step()) {
       const r = stmt.getAsObject() as {
         id: number;
@@ -74,14 +77,14 @@ export class SqlJsAdapter implements DatabaseAdapter {
         from: string;
         to: string | null;
       };
-      out.push({
+      grouped.set(r.id, {
         fromColumn: r.from,
         toTable: r.table,
         toColumn: r.to ?? '',
       });
     }
     stmt.free();
-    return out;
+    return [...grouped.values()];
   }
 
   private collectColumns(table: string): ColumnInfo[] {
