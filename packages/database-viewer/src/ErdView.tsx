@@ -108,7 +108,8 @@ function buildBaseCards(tables: ReadonlyArray<TableInfo>, edges: ReadonlyArray<E
       },
     }));
     // 横方向 (LR) 配置: 参照元 → 参照先 が左→右で並ぶようにする
-    engine.physics.computeHierarchicalLayout(bodies, graphEdges, "LR", 360, 60);
+    // levelGap / nodeSpacing は線の重なり低減のため広めに取る
+    engine.physics.computeHierarchicalLayout(bodies, graphEdges, "LR", 480, 100);
     // 計算結果を反映 (上端 y を 0 ベース、左端 x を PADDING に正規化)
     let minX = Infinity;
     let minY = Infinity;
@@ -232,6 +233,100 @@ function rectBorderPoint(
   const tY = halfH / Math.abs(dy || 1);
   const t = Math.min(tX, tY);
   return { x: cx + dx * t, y: cy + dy * t };
+}
+
+interface RectBox {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+/** 線分 (vertical / horizontal 限定) が rect と交差するか */
+function segmentIntersectsRect(
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  rect: RectBox,
+  margin: number,
+): boolean {
+  const rx1 = rect.x - margin;
+  const ry1 = rect.y - margin;
+  const rx2 = rect.x + rect.width + margin;
+  const ry2 = rect.y + rect.height + margin;
+  const minX = Math.min(ax, bx);
+  const maxX = Math.max(ax, bx);
+  const minY = Math.min(ay, by);
+  const maxY = Math.max(ay, by);
+  return maxX >= rx1 && minX <= rx2 && maxY >= ry1 && minY <= ry2;
+}
+
+/**
+ * orthogonal 経路 (横→縦→横) のセグメントが obstacles と交差するか確認し、
+ * 交差する場合は midX を障害物外にずらすか、上下に迂回する経路を返す。
+ * 単純化のため、3 セグメント (h, v, h) で障害物を避けられる midX を線形探索する。
+ */
+function routeAroundObstacles(
+  fromX: number,
+  fromY: number,
+  toX: number,
+  toY: number,
+  obstacles: readonly RectBox[],
+  margin = 16,
+): string {
+  const pathFor = (mid: number): string =>
+    `M ${fromX} ${fromY} L ${mid} ${fromY} L ${mid} ${toY} L ${toX} ${toY}`;
+  const segmentsClear = (mid: number): boolean => {
+    for (const r of obstacles) {
+      if (segmentIntersectsRect(fromX, fromY, mid, fromY, r, margin)) return false;
+      if (segmentIntersectsRect(mid, fromY, mid, toY, r, margin)) return false;
+      if (segmentIntersectsRect(mid, toY, toX, toY, r, margin)) return false;
+    }
+    return true;
+  };
+  const baseMid = (fromX + toX) / 2;
+  if (segmentsClear(baseMid)) return pathFor(baseMid);
+  // 障害物の左右境界を候補に試す
+  const candidates: number[] = [];
+  for (const r of obstacles) {
+    candidates.push(r.x - margin - 4);
+    candidates.push(r.x + r.width + margin + 4);
+  }
+  // 探索順は baseMid に近い順
+  candidates.sort((a, b) => Math.abs(a - baseMid) - Math.abs(b - baseMid));
+  for (const m of candidates) {
+    if (segmentsClear(m)) return pathFor(m);
+  }
+  // どうしても見つからない: 上 or 下から大きく迂回 (5 セグメント)
+  const detourMargin = margin + 24;
+  const overY = Math.min(...obstacles.map((r) => r.y - detourMargin), fromY, toY) - 16;
+  const underY = Math.max(...obstacles.map((r) => r.y + r.height + detourMargin), fromY, toY) + 16;
+  const candidatesY = [overY, underY].sort(
+    (a, b) => Math.abs(a - fromY) + Math.abs(a - toY) - (Math.abs(b - fromY) + Math.abs(b - toY)),
+  );
+  for (const detourY of candidatesY) {
+    const xLeft = Math.min(fromX, toX) - 30;
+    const xRight = Math.max(fromX, toX) + 30;
+    for (const detourX of [xRight, xLeft]) {
+      const path = `M ${fromX} ${fromY} L ${detourX} ${fromY} L ${detourX} ${detourY} L ${toX} ${detourY} L ${toX} ${toY}`;
+      let ok = true;
+      for (const r of obstacles) {
+        if (
+          segmentIntersectsRect(fromX, fromY, detourX, fromY, r, margin) ||
+          segmentIntersectsRect(detourX, fromY, detourX, detourY, r, margin) ||
+          segmentIntersectsRect(detourX, detourY, toX, detourY, r, margin) ||
+          segmentIntersectsRect(toX, detourY, toX, toY, r, margin)
+        ) {
+          ok = false;
+          break;
+        }
+      }
+      if (ok) return path;
+    }
+  }
+  // 最終フォールバック
+  return pathFor(baseMid);
 }
 
 function ColumnRow({
@@ -711,8 +806,11 @@ export const ErdView: React.FC<Readonly<ErdViewProps>> = ({ schema, themeMode = 
             const toCy = toCard.node.y + toCard.height / 2;
             const fromX = toCx >= fromCx ? fromCard.node.x + fromCard.node.width : fromCard.node.x;
             const toBorder = rectBorderPoint(toCx, toCy, toCard.node.width, toCard.height, fromX, fromY);
-            const midX = (fromX + toBorder.x) / 2;
-            const path = `M ${fromX} ${fromY} L ${midX} ${fromY} L ${midX} ${toBorder.y} L ${toBorder.x} ${toBorder.y}`;
+            // 自身のカード以外を障害物として登録
+            const obstacles: RectBox[] = cards
+              .filter((c) => c.table.name !== e.fromTable && c.table.name !== e.toTable)
+              .map((c) => ({ x: c.node.x, y: c.node.y, width: c.node.width, height: c.height }));
+            const path = routeAroundObstacles(fromX, fromY, toBorder.x, toBorder.y, obstacles);
             const isRelated =
               !selectedTable || e.fromTable === selectedTable || e.toTable === selectedTable;
             return (
