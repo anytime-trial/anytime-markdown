@@ -26,12 +26,20 @@ class DbDetailTreeItem extends vscode.TreeItem {
 class BackupsRootTreeItem extends vscode.TreeItem {
   readonly kind = 'backupsRoot' as const;
   constructor(count: number) {
-    super('Backups', count > 0
-      ? vscode.TreeItemCollapsibleState.Collapsed
-      : vscode.TreeItemCollapsibleState.None);
+    super(
+      vscode.l10n.t('Backups'),
+      count > 0
+        ? vscode.TreeItemCollapsibleState.Collapsed
+        : vscode.TreeItemCollapsibleState.None,
+    );
     this.contextValue = 'backupsRoot';
     this.iconPath = new vscode.ThemeIcon('archive');
-    this.description = count > 0 ? `${count} generation${count === 1 ? '' : 's'}` : 'None';
+    this.description =
+      count === 0
+        ? vscode.l10n.t('None')
+        : count === 1
+          ? vscode.l10n.t('1 generation')
+          : vscode.l10n.t('{0} generations', count);
   }
 }
 
@@ -39,18 +47,19 @@ class BackupsRootTreeItem extends vscode.TreeItem {
 class BackupTreeItem extends vscode.TreeItem {
   readonly kind = 'backup' as const;
   constructor(generation: number, mtime: Date, compressedBytes: number) {
-    super(`Generation ${generation}`, vscode.TreeItemCollapsibleState.None);
+    const label = vscode.l10n.t('Generation {0}', generation);
+    super(label, vscode.TreeItemCollapsibleState.None);
     this.contextValue = 'backupEntry';
     this.iconPath = new vscode.ThemeIcon('history');
     this.description = mtime.toLocaleString();
     const mb = (compressedBytes / 1024 / 1024).toFixed(2);
-    this.tooltip = `Generation ${generation}\n${mtime.toLocaleString()}\n${mb} MB (gzip)`;
+    this.tooltip = `${label}\n${mtime.toLocaleString()}\n${mb} MB (gzip)`;
   }
 }
 
 class ImportingTreeItem extends vscode.TreeItem {
   constructor() {
-    super('$(loading~spin) Syncing...', vscode.TreeItemCollapsibleState.None);
+    super(vscode.l10n.t('$(loading~spin) Syncing...'), vscode.TreeItemCollapsibleState.None);
   }
 }
 
@@ -125,15 +134,25 @@ export class DatabaseProvider implements vscode.TreeDataProvider<AnyTreeItem> {
       if (element.contextValue === 'sqliteDb') {
         const backups = this.trailDb.listBackups();
         return [
-          new DbDetailTreeItem('Status', this.sqliteStatus),
-          new DbDetailTreeItem('最終インポート', this.sqliteLastImported ? formatLocalDateTime(this.sqliteLastImported) : '未実行'),
+          new DbDetailTreeItem(vscode.l10n.t('Status'), this.sqliteStatus),
+          new DbDetailTreeItem(
+            vscode.l10n.t('Last imported'),
+            this.sqliteLastImported
+              ? formatLocalDateTime(this.sqliteLastImported)
+              : vscode.l10n.t('Not run'),
+          ),
           new BackupsRootTreeItem(backups.length),
         ];
       }
       if (element.contextValue === 'supabaseDb' || element.contextValue === 'postgresDb') {
         return [
-          new DbDetailTreeItem('Status', this.remoteStatus),
-          new DbDetailTreeItem('最終同期', this.remoteLastSynced ? formatLocalDateTime(this.remoteLastSynced) : '未実行'),
+          new DbDetailTreeItem(vscode.l10n.t('Status'), this.remoteStatus),
+          new DbDetailTreeItem(
+            vscode.l10n.t('Last synced'),
+            this.remoteLastSynced
+              ? formatLocalDateTime(this.remoteLastSynced)
+              : vscode.l10n.t('Not run'),
+          ),
         ];
       }
     }

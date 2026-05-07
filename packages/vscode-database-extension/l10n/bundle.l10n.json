@@ -1,0 +1,12 @@
+{
+  "Status": "Status",
+  "Last imported": "Last imported",
+  "Last synced": "Last synced",
+  "Not run": "Not run",
+  "Backups": "Backups",
+  "None": "None",
+  "1 generation": "1 generation",
+  "{0} generations": "{0} generations",
+  "Generation {0}": "Generation {0}",
+  "$(loading~spin) Syncing...": "$(loading~spin) Syncing..."
+}

@@ -1,0 +1,12 @@
+{
+  "Status": "ステータス",
+  "Last imported": "最終インポート",
+  "Last synced": "最終同期",
+  "Not run": "未実行",
+  "Backups": "バックアップ",
+  "None": "なし",
+  "1 generation": "1 世代",
+  "{0} generations": "{0} 世代",
+  "Generation {0}": "世代 {0}",
+  "$(loading~spin) Syncing...": "$(loading~spin) 同期中..."
+}
