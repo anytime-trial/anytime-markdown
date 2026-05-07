@@ -23,6 +23,7 @@ interface SpreadsheetEditorProps {
     readonly showRange?: boolean;
     readonly showImportExport?: boolean;
     readonly showToolbar?: boolean;
+    readonly onColumnHeaderDoubleClick?: (col: number) => void;
     readonly onDirtyChange?: (dirty: boolean) => void;
     readonly onClose?: () => void;
     readonly onUndo?: () => void;
@@ -64,6 +65,7 @@ export const SpreadsheetEditor: React.FC<Readonly<SpreadsheetEditorProps>> = ({
     showRange = false,
     showImportExport = true,
     showToolbar = true,
+    onColumnHeaderDoubleClick,
     onDirtyChange,
     onClose,
     onUndo,
@@ -170,6 +172,7 @@ export const SpreadsheetEditor: React.FC<Readonly<SpreadsheetEditorProps>> = ({
                     showRange={showRange}
                     showToolbar={showToolbar}
                     columnHeaders={columnHeaders}
+                    onColumnHeaderDoubleClick={onColumnHeaderDoubleClick}
                     onDirtyChange={onDirtyChange}
                     onClose={onClose}
                     onUndo={onUndo}

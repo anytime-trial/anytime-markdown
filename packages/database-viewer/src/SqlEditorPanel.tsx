@@ -13,7 +13,7 @@ import {
   Typography,
 } from "@mui/material";
 import { useTranslations } from "next-intl";
-import React, { useState } from "react";
+import React, { forwardRef, useImperativeHandle, useRef, useState } from "react";
 
 export interface SqlRunResult {
   readonly columns: ReadonlyArray<string>;
@@ -33,13 +33,18 @@ export interface SqlEditorPanelProps {
   readonly readOnly?: boolean;
 }
 
-export const SqlEditorPanel: React.FC<Readonly<SqlEditorPanelProps>> = ({
+export interface SqlEditorPanelHandle {
+  /** カーソル位置 (selection range) に文字列を挿入する */
+  insertText(text: string): void;
+}
+
+export const SqlEditorPanel = forwardRef<SqlEditorPanelHandle, SqlEditorPanelProps>(function SqlEditorPanel({
   initialSql = "",
   value,
   onValueChange,
   onRun,
   disabled,
-}) => {
+}, ref) {
   const t = useTranslations("Database");
   const [expanded, setExpanded] = useState(true);
   const [internalSql, setInternalSql] = useState(initialSql);
@@ -52,8 +57,35 @@ export const SqlEditorPanel: React.FC<Readonly<SqlEditorPanelProps>> = ({
       setInternalSql(s);
     }
   };
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [running, setRunning] = useState(false);
   const [last, setLast] = useState<SqlRunResult | null>(null);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      insertText: (text: string) => {
+        const ta = textareaRef.current;
+        if (!ta) {
+          setSql(sql + text);
+          return;
+        }
+        const start = ta.selectionStart ?? sql.length;
+        const end = ta.selectionEnd ?? sql.length;
+        const newSql = sql.slice(0, start) + text + sql.slice(end);
+        setSql(newSql);
+        // 次フレームでカーソルを挿入後の位置に移動
+        requestAnimationFrame(() => {
+          const t2 = textareaRef.current;
+          if (!t2) return;
+          t2.focus();
+          const cursor = start + text.length;
+          t2.setSelectionRange(cursor, cursor);
+        });
+      },
+    }),
+    [sql, setSql],
+  );
 
   const onClickRun = async (): Promise<void> => {
     setRunning(true);
@@ -95,6 +127,7 @@ export const SqlEditorPanel: React.FC<Readonly<SqlEditorPanelProps>> = ({
       <Collapse in={expanded}>
         <Stack sx={{ p: 1 }} spacing={1}>
           <TextareaAutosize
+            ref={textareaRef}
             minRows={4}
             maxRows={12}
             value={sql}
@@ -124,4 +157,4 @@ export const SqlEditorPanel: React.FC<Readonly<SqlEditorPanelProps>> = ({
       </Collapse>
     </Box>
   );
-};
+});

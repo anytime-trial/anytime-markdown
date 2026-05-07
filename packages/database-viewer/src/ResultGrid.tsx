@@ -12,12 +12,14 @@ export interface ResultGridProps {
   readonly adapter: SheetAdapter;
   readonly pagination?: PaginationProps;
   readonly themeMode?: "light" | "dark";
+  readonly onColumnHeaderDoubleClick?: (col: number) => void;
 }
 
 export const ResultGrid: React.FC<Readonly<ResultGridProps>> = ({
   adapter,
   pagination,
   themeMode,
+  onColumnHeaderDoubleClick,
 }) => {
   // 対象テーブル / クエリ結果のカラム数だけグリッド列を表示する
   const colCount = useSyncExternalStore(
@@ -34,6 +36,7 @@ export const ResultGrid: React.FC<Readonly<ResultGridProps>> = ({
         showImportExport={false}
         showToolbar={false}
         gridCols={colCount > 0 ? colCount : undefined}
+        onColumnHeaderDoubleClick={onColumnHeaderDoubleClick}
       />
     </Box>
   );

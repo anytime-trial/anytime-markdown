@@ -23,7 +23,7 @@ import {
   hasTopLevelLimit,
 } from "@anytime-markdown/database-core";
 import { ResultGrid } from "./ResultGrid";
-import { SqlEditorPanel, type SqlRunResult } from "./SqlEditorPanel";
+import { SqlEditorPanel, type SqlEditorPanelHandle, type SqlRunResult } from "./SqlEditorPanel";
 import { TableTree } from "./TableTree";
 
 export interface DatabaseEditorProps {
@@ -71,6 +71,7 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
   // sheetAdapter インスタンスはタブが生成された時に 1 度作る。useMemo は依存配列に
   // tabs を入れると毎回再生成されてしまうので useRef で保持する。
   const adaptersRef = useRef(new Map<string, PaginatedSqlSheetAdapter>());
+  const sqlPanelRef = useRef<SqlEditorPanelHandle | null>(null);
 
   useEffect(() => {
     if (!schema) {
@@ -215,6 +216,20 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
     [activeTab, adapter, queryMaxRows, onMutationExecuted, t, tick],
   );
 
+  // テーブルデータグリッドの列ヘッダをダブルクリック → SQL 入力欄のカーソル位置に列名を挿入
+  const handleColumnHeaderDoubleClick = useCallback(
+    (col: number) => {
+      if (!activeTab) return;
+      const headers = activeTab.sheetAdapter.getColumnHeaders();
+      const name = headers[col];
+      if (!name) return;
+      // 列名にスペースや特殊記号が含まれる場合はダブルクォートで囲んで安全に
+      const ident = /^[A-Za-z_][A-Za-z0-9_]*$/.test(name) ? name : `"${name.replace(/"/g, '""')}"`;
+      sqlPanelRef.current?.insertText(ident);
+    },
+    [activeTab],
+  );
+
   const pagination = useMemo(() => {
     if (!activeTab || activeTab.mode !== "table") return undefined;
     return {
@@ -306,6 +321,7 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
         {activeTab ? (
           <>
             <SqlEditorPanel
+              ref={sqlPanelRef}
               key={activeTab.id}
               value={activeTab.sql}
               onValueChange={(s) => {
@@ -319,6 +335,7 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
               adapter={activeTab.sheetAdapter}
               pagination={pagination}
               themeMode={themeMode}
+              onColumnHeaderDoubleClick={handleColumnHeaderDoubleClick}
             />
           </>
         ) : (

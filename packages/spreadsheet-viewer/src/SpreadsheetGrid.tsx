@@ -110,6 +110,8 @@ interface SpreadsheetGridProps {
   readonly groupRowHeight?: number;
   /** 行グループヘッダー1列あたりの幅 px（デフォルト: 80） */
   readonly groupColWidth?: number;
+  /** 列ヘッダ部分をダブルクリックした時に呼ばれる（コールバック未指定時はノーオペ） */
+  readonly onColumnHeaderDoubleClick?: (col: number) => void;
 }
 
 /* ------------------------------------------------------------------ */
@@ -195,6 +197,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
   rowHeaderGroups,
   groupRowHeight = 20,
   groupColWidth = 80,
+  onColumnHeaderDoubleClick,
 }) => {
   const innerROW_NUM_WIDTH = rowHeaderWidth ?? DEFAULT_ROW_NUM_WIDTH;
   const rowGroupWidth = (rowHeaderGroups?.length ?? 0) * groupColWidth;
@@ -1217,11 +1220,25 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
   }, [getCanvasCoords, getHeaderCol, getRowNum, getGridCoords, setSelection, setEditing, selection, dataRange, ROW_NUM_WIDTH, HEADER_HEIGHT]);
 
   const handleCanvasDoubleClick = useCallback((e: React.MouseEvent) => {
+    // 列ヘッダ領域 (y < topOffset, x >= ROW_NUM_WIDTH) のダブルクリック
+    if (onColumnHeaderDoubleClick) {
+      const coords = getCanvasCoords(e);
+      if (coords) {
+        const { x, y } = coords;
+        if (y < topOffset && y >= 0 && x >= ROW_NUM_WIDTH) {
+          const col = getColAtX(x);
+          if (col >= 0 && col < GRID_COLS) {
+            onColumnHeaderDoubleClick(col);
+            return;
+          }
+        }
+      }
+    }
     const cell = getGridCoords(e);
     if (cell) {
       startEditing(cell.row, cell.col);
     }
-  }, [getGridCoords, startEditing]);
+  }, [getCanvasCoords, getColAtX, getGridCoords, onColumnHeaderDoubleClick, startEditing, topOffset, ROW_NUM_WIDTH, GRID_COLS]);
 
   const handleCanvasContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
