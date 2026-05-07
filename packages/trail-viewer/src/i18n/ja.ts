@@ -308,6 +308,30 @@ export const ja: TrailI18n = {
   'c4.overlay.sizeLoc': 'LOC(Max)',
   'c4.overlay.sizeFiles': 'ファイル数',
   'c4.overlay.sizeFunctions': '関数数',
+  'c4.overlayHelp.coverage': 'Coverage',
+  'c4.overlayHelp.coverage.description':
+    'lcov.info から計算したテストカバレッジ % (Lines / Branches / Functions)。\n各ファイルの値を親コンテナまで巻き上げ集約。\nテストやレポート未生成のパッケージは色なし。',
+  'c4.overlayHelp.dsmNeighbors': 'DSM Neighbors',
+  'c4.overlayHelp.dsmNeighbors.description':
+    'DSM 行列における隣接ノード数。out=依存先, in=被依存。\n0 を青、最大値を赤として線形補間。',
+  'c4.overlayHelp.dsmCyclic': 'DSM Cyclic',
+  'c4.overlayHelp.dsmCyclic.description':
+    '循環依存に関与する要素を赤、健全な要素を緑で表示。\nTarjan 法で強連結成分 (SCC) を検出。',
+  'c4.overlayHelp.editComplexity': 'Edit Complexity',
+  'c4.overlayHelp.editComplexity.description':
+    'Claude Code の 1 メッセージ (1 ターン) を 4 クラスに分類して着色。\n優先順位: high > multi-file > search > low\n· high: outputTokens > 3000 かつ ユニークツール種別 ≥ 3\n· multi-file: Edit/Write/NotebookEdit を含み ユニーク編集ファイル数 ≥ 3\n· search: tool 呼び出しが Grep/Glob/Read/WebSearch/WebFetch のみ\n· low: 上記いずれにも該当しない\n要素ごとに最頻 (most) または最高 (highest) クラスを集計。',
+  'c4.overlayHelp.importance': 'Importance',
+  'c4.overlayHelp.importance.description':
+    '依存関係から計算した重要度スコア (0–100)。\n高 (≥70) を赤、中 (40–69) を黄、低 (<40) を緑で表示。',
+  'c4.overlayHelp.defectRisk': 'Defect Risk',
+  'c4.overlayHelp.defectRisk.description':
+    'コード履歴 (churn・co-change・author 数) から計算した欠陥リスクスコア (0–1)。\n高 (≥0.7) を赤、中 (0.35–0.7) を黄、低 (<0.35) を緑で表示。',
+  'c4.overlayHelp.deadCode': 'Dead Code',
+  'c4.overlayHelp.deadCode.description':
+    '未使用度スコア (0–100)。orphan / fan-in 0 / 低 churn / coverage 0 / 孤立コミュニティ等のシグナルを合算。\n高 (≥70) を赤、中 (40–69) を黄、低 (<40) を緑で表示。',
+  'c4.overlayHelp.size': 'Size',
+  'c4.overlayHelp.size.description':
+    'サイズメトリクスを 3 段階で着色 (緑=小, 黄=中, 赤=大)。閾値は指標により異なる:\n· LOC: <500 / 500–999 / ≥1000\n· Files: <20 / 20–49 / ≥50\n· Functions: <10 / 10–49 / ≥50',
   'c4.hotspot.controls.period': '期間',
   'c4.hotspot.controls.granularity': '粒度',
   'c4.hotspot.controls.granularityCommit': 'Commit',

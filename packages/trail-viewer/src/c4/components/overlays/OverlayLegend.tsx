@@ -1,7 +1,80 @@
-import { Box, Typography } from '@mui/material';
+import { Box, Tooltip, Typography } from '@mui/material';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import type { MetricOverlay } from '@anytime-markdown/trail-core/c4';
 import { getC4Colors } from '../../../theme/c4Tokens';
+import { useTrailI18n } from '../../../i18n/context';
+import type { TrailI18n } from '../../../i18n/types';
 import { COVERAGE_HIGH, COVERAGE_LOW, COVERAGE_MID, COVERAGE_NONE, METRIC_LEGEND_BLUE } from '../../c4MetricColors';
+
+type TrailI18nKey = keyof TrailI18n;
+
+function getOverlayHelpKeys(
+  overlay: MetricOverlay,
+): { titleKey: TrailI18nKey; descKey: TrailI18nKey } | null {
+  if (overlay === 'coverage-lines' || overlay === 'coverage-branches' || overlay === 'coverage-functions') {
+    return { titleKey: 'c4.overlayHelp.coverage', descKey: 'c4.overlayHelp.coverage.description' };
+  }
+  if (overlay === 'dsm-out' || overlay === 'dsm-in') {
+    return { titleKey: 'c4.overlayHelp.dsmNeighbors', descKey: 'c4.overlayHelp.dsmNeighbors.description' };
+  }
+  if (overlay === 'dsm-cyclic') {
+    return { titleKey: 'c4.overlayHelp.dsmCyclic', descKey: 'c4.overlayHelp.dsmCyclic.description' };
+  }
+  if (overlay === 'edit-complexity-most' || overlay === 'edit-complexity-highest') {
+    return { titleKey: 'c4.overlayHelp.editComplexity', descKey: 'c4.overlayHelp.editComplexity.description' };
+  }
+  if (overlay === 'importance') {
+    return { titleKey: 'c4.overlayHelp.importance', descKey: 'c4.overlayHelp.importance.description' };
+  }
+  if (overlay === 'defect-risk') {
+    return { titleKey: 'c4.overlayHelp.defectRisk', descKey: 'c4.overlayHelp.defectRisk.description' };
+  }
+  if (overlay === 'dead-code-score') {
+    return { titleKey: 'c4.overlayHelp.deadCode', descKey: 'c4.overlayHelp.deadCode.description' };
+  }
+  if (overlay === 'size-loc' || overlay === 'size-files' || overlay === 'size-functions') {
+    return { titleKey: 'c4.overlayHelp.size', descKey: 'c4.overlayHelp.size.description' };
+  }
+  return null;
+}
+
+function MetricHelpHeader({
+  overlay,
+  textColor,
+}: Readonly<{ overlay: MetricOverlay; textColor: string }>) {
+  const { t } = useTrailI18n();
+  const help = getOverlayHelpKeys(overlay);
+  if (!help) return null;
+  const title = t(help.titleKey);
+  const description = t(help.descKey);
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 0.5, minHeight: 16 }}>
+      <Typography variant="caption" sx={{ fontSize: '0.65rem', fontWeight: 700, opacity: 0.85, lineHeight: 1 }}>
+        {title}
+      </Typography>
+      <Tooltip
+        arrow
+        placement="left-start"
+        title={
+          <Box sx={{ p: 0.5 }}>
+            <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', mb: 0.5, fontSize: '0.7rem' }}>
+              {title}
+            </Typography>
+            <Typography variant="caption" sx={{ display: 'block', whiteSpace: 'pre-line', fontSize: '0.7rem', lineHeight: 1.5 }}>
+              {description}
+            </Typography>
+          </Box>
+        }
+        slotProps={{ tooltip: { sx: { maxWidth: 320 } } }}
+      >
+        <HelpOutlineIcon
+          aria-label={title}
+          sx={{ fontSize: 14, color: textColor, opacity: 0.7, cursor: 'help', flexShrink: 0 }}
+        />
+      </Tooltip>
+    </Box>
+  );
+}
 
 export interface CommunityLegendItem {
   readonly community: number;
@@ -185,6 +258,7 @@ export function OverlayLegend({ overlay, isDark, dsmMax, communityLegend, commun
       {hasCommunity && hasMetric && (
         <Box sx={{ height: '1px', bgcolor: dividerColor, my: 0.25 }} />
       )}
+      {hasMetric && <MetricHelpHeader overlay={overlay} textColor={textColor} />}
       {metricItems}
     </Box>
   );
