@@ -1,6 +1,5 @@
 "use client";
 
-import KeyIcon from "@mui/icons-material/VpnKey";
 import { Box, IconButton, Stack, Tooltip } from "@mui/material";
 import CenterFocusStrongIcon from "@mui/icons-material/CenterFocusStrong";
 import ZoomInIcon from "@mui/icons-material/ZoomIn";
@@ -582,13 +581,17 @@ export const ErdView: React.FC<Readonly<ErdViewProps>> = ({ schema, themeMode = 
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => {
+    const update = (): void => {
       const r = el.getBoundingClientRect();
-      setViewSize({ width: r.width, height: r.height });
-    });
+      setViewSize((prev) =>
+        prev.width === r.width && prev.height === r.height
+          ? prev
+          : { width: r.width, height: r.height },
+      );
+    };
+    const ro = new ResizeObserver(update);
     ro.observe(el);
-    const r = el.getBoundingClientRect();
-    setViewSize({ width: r.width, height: r.height });
+    update();
     return () => ro.disconnect();
   }, []);
 
@@ -730,33 +733,48 @@ export const ErdView: React.FC<Readonly<ErdViewProps>> = ({ schema, themeMode = 
     });
   }, [viewSize]);
 
-  if (!schema) return null;
-  void KeyIcon;
   const edgeColor = isDark ? "rgba(120,170,255,0.85)" : "rgba(0,90,220,0.85)";
 
   // 各テーブル毎に edge の起点・終点が来る辺 (left/right) を集計してアンカーを描く
-  const anchorSidesByTable = new Map<string, Map<string, { left: boolean; right: boolean }>>();
-  const ensureCol = (table: string, col: string): { left: boolean; right: boolean } => {
-    if (!anchorSidesByTable.has(table)) anchorSidesByTable.set(table, new Map());
-    const map = anchorSidesByTable.get(table)!;
-    if (!map.has(col)) map.set(col, { left: false, right: false });
-    return map.get(col)!;
-  };
-  for (const e of edges) {
-    const fromCard = cardByTable.get(e.fromTable);
-    const toCard = cardByTable.get(e.toTable);
-    if (!fromCard || !toCard) continue;
-    const fromCx = fromCard.node.x + fromCard.node.width / 2;
-    const toCx = toCard.node.x + toCard.node.width / 2;
-    const fromSide = toCx >= fromCx ? "right" : "left";
-    const toSide = fromCx >= toCx ? "right" : "left";
-    const fromEntry = ensureCol(e.fromTable, e.fromColumn);
-    if (fromSide === "right") fromEntry.right = true;
-    else fromEntry.left = true;
-    const toEntry = ensureCol(e.toTable, e.toColumn);
-    if (toSide === "right") toEntry.right = true;
-    else toEntry.left = true;
-  }
+  const anchorSidesByTable = useMemo<
+    ReadonlyMap<string, ReadonlyMap<string, { left: boolean; right: boolean }>>
+  >(() => {
+    const result = new Map<string, Map<string, { left: boolean; right: boolean }>>();
+    const ensureCol = (
+      table: string,
+      col: string,
+    ): { left: boolean; right: boolean } => {
+      let map = result.get(table);
+      if (!map) {
+        map = new Map();
+        result.set(table, map);
+      }
+      let entry = map.get(col);
+      if (!entry) {
+        entry = { left: false, right: false };
+        map.set(col, entry);
+      }
+      return entry;
+    };
+    for (const e of edges) {
+      const fromCard = cardByTable.get(e.fromTable);
+      const toCard = cardByTable.get(e.toTable);
+      if (!fromCard || !toCard) continue;
+      const fromCx = fromCard.node.x + fromCard.node.width / 2;
+      const toCx = toCard.node.x + toCard.node.width / 2;
+      const fromSide = toCx >= fromCx ? "right" : "left";
+      const toSide = fromCx >= toCx ? "right" : "left";
+      const fromEntry = ensureCol(e.fromTable, e.fromColumn);
+      if (fromSide === "right") fromEntry.right = true;
+      else fromEntry.left = true;
+      const toEntry = ensureCol(e.toTable, e.toColumn);
+      if (toSide === "right") toEntry.right = true;
+      else toEntry.left = true;
+    }
+    return result;
+  }, [edges, cardByTable]);
+
+  if (!schema) return null;
 
   return (
     <Box

@@ -87,9 +87,14 @@ export class AnytimeDatabaseEditorProvider
     // WebView の useEffect 完了 (ready 送信) を待ってから init を送る handshake。
     // ready 受信前に html 設定直後の postMessage を打つと、listener 未登録のため取りこぼす。
     let initSent = false;
+    let fallbackTimer: NodeJS.Timeout | undefined;
     const sendInit = (): void => {
       if (initSent) return;
       initSent = true;
+      if (fallbackTimer) {
+        clearTimeout(fallbackTimer);
+        fallbackTimer = undefined;
+      }
       this.logger.info("sending init to webview");
       void panel.webview.postMessage(initMessage);
     };
@@ -99,7 +104,15 @@ export class AnytimeDatabaseEditorProvider
       }),
     );
     // フォールバック: ready が一定時間届かなかった場合も送る（UI の永続的な hang を回避）
-    setTimeout(sendInit, 1500);
+    fallbackTimer = setTimeout(sendInit, 1500);
+    subs.push({
+      dispose: () => {
+        if (fallbackTimer) {
+          clearTimeout(fallbackTimer);
+          fallbackTimer = undefined;
+        }
+      },
+    });
 
     subs.push(
       vscode.workspace.onDidChangeConfiguration((e) => {

@@ -39,6 +39,7 @@ export interface DatabaseEditorProps {
 
 const PAGE_SIZES: ReadonlyArray<number> = [25, 50, 100];
 const DEFAULT_PAGE_SIZE = 50;
+const ERD_TAB_ID = "erd:main";
 
 interface TableTabState {
   readonly id: string;
@@ -48,15 +49,15 @@ interface TableTabState {
   /** タブの種別 */
   readonly kind: "table" | "query" | "erd";
   /** "table" タブの内側ビュー: "data"=テーブルデータ一覧、"schema"=スキーマ表示 */
-  view: "data" | "schema";
-  page: number;
-  pageSize: number;
-  totalRows: number;
-  mode: "table" | "query";
+  readonly view: "data" | "schema";
+  readonly page: number;
+  readonly pageSize: number;
+  readonly totalRows: number;
+  readonly mode: "table" | "query";
   /** タブごとの SQL 入力欄バッファ */
-  sql: string;
-  // 各タブ専用の SheetAdapter (selectRows 結果 / executeSql 結果を保持)
-  sheetAdapter: PaginatedSqlSheetAdapter;
+  readonly sql: string;
+  // 各タブ専用の SheetAdapter (selectRows 結果 / executeSql 結果を保持。内部状態を mutate する)
+  readonly sheetAdapter: PaginatedSqlSheetAdapter;
 }
 
 export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
@@ -72,18 +73,18 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
   const [tabs, setTabs] = useState<ReadonlyArray<TableTabState>>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const queryTabCounterRef = useRef(0);
-  // ページング状態を React 再レンダで反映するため version カウンタを更新する
-  const [, forceRender] = useState(0);
-  const tick = useCallback(() => forceRender((v) => v + 1), []);
 
   // sheetAdapter インスタンスはタブが生成された時に 1 度作る。useMemo は依存配列に
   // tabs を入れると毎回再生成されてしまうので useRef で保持する。
   const adaptersRef = useRef(new Map<string, PaginatedSqlSheetAdapter>());
   const sqlPanelRef = useRef<SqlEditorPanelHandle | null>(null);
-  // t は useTranslations の戻り値。useEffect の依存に直接入れると毎レンダ走る
-  // 可能性があるため、ref で保持して effect 内では参照する
-  const tRef = useRef(t);
-  tRef.current = t;
+
+  const updateTab = useCallback(
+    (id: string, updater: (tab: TableTabState) => TableTabState) => {
+      setTabs((prev) => prev.map((x) => (x.id === id ? updater(x) : x)));
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!schema) {
@@ -197,11 +198,10 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
 
   // データベーススキーマ右クリック → ER 図タブを生成 (or 既存タブにフォーカス)
   const handleShowErd = useCallback(() => {
-    const id = "erd:main";
     setTabs((prev) => {
-      const existing = prev.find((x) => x.id === id);
+      const existing = prev.find((x) => x.id === ERD_TAB_ID);
       if (existing) {
-        setActiveTabId(id);
+        setActiveTabId(ERD_TAB_ID);
         return prev;
       }
       // ER タブ用 sheetAdapter (使わないがインタフェース上必要)
@@ -209,9 +209,9 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
         databaseAdapter: adapter,
         tableName: "",
       });
-      adaptersRef.current.set(id, sa);
+      adaptersRef.current.set(ERD_TAB_ID, sa);
       const next: TableTabState = {
-        id,
+        id: ERD_TAB_ID,
         label: "ER図",
         kind: "erd",
         view: "data",
@@ -224,7 +224,7 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
       };
       return [...prev, next];
     });
-    setActiveTabId(id);
+    setActiveTabId(ERD_TAB_ID);
   }, [adapter]);
 
   // タブ内の view (data/schema) 切替を immutable に
@@ -243,18 +243,18 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
     if (!activeTab || activeTab.kind !== "table" || !activeTab.tableName) return;
     if (activeTab.mode !== "table") return;
     const tableName = activeTab.tableName;
+    const tabId = activeTab.id;
     if (activeTab.view === "schema") {
       // schema view 切替時はカラム情報を applyQueryResult で注入
       const allTables = [...(schema?.tables ?? []), ...(schema?.views ?? [])];
       const target = allTables.find((x) => x.name === tableName);
       if (!target) return;
-      const tt = tRef.current;
       activeTab.sheetAdapter.applyQueryResult({
         columns: [
-          tt("schemaColName"),
-          tt("schemaColType"),
-          tt("schemaColNotNull"),
-          tt("schemaColPk"),
+          t("schemaColName"),
+          t("schemaColType"),
+          t("schemaColNotNull"),
+          t("schemaColPk"),
         ],
         rows: target.columns.map((c) => [
           c.name,
@@ -265,23 +265,20 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
         executionTimeMs: 0,
         isMutation: false,
       });
-      activeTab.totalRows = target.columns.length;
-      tick();
+      updateTab(tabId, (x) => ({ ...x, totalRows: target.columns.length }));
       return;
     }
     // data view: SELECT 発行
     void adapter
       .countRows(tableName)
       .then((n) => {
-        activeTab.totalRows = n;
-        tick();
+        updateTab(tabId, (x) => ({ ...x, totalRows: n }));
       })
       .catch(() => {
-        activeTab.totalRows = 0;
-        tick();
+        updateTab(tabId, (x) => ({ ...x, totalRows: 0 }));
       });
     void activeTab.sheetAdapter.loadPage(activeTab.page, activeTab.pageSize);
-  }, [activeTab, activeTab?.page, activeTab?.pageSize, activeTab?.mode, activeTab?.tableName, activeTab?.view, schema, adapter, tick]);
+  }, [activeTab, schema, adapter, t, updateTab]);
 
   const closeTab = useCallback(
     (id: string) => {
@@ -319,8 +316,7 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
         const truncated = result.rows.length > queryMaxRows;
         const displayRows = truncated ? result.rows.slice(0, queryMaxRows) : result.rows;
         activeTab.sheetAdapter.applyQueryResult({ ...result, rows: displayRows });
-        activeTab.mode = "query";
-        tick();
+        updateTab(activeTab.id, (x) => ({ ...x, mode: "query" }));
         if (result.isMutation) onMutationExecuted?.();
         return {
           columns: result.columns,
@@ -338,7 +334,7 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
         };
       }
     },
-    [activeTab, adapter, queryMaxRows, onMutationExecuted, t, tick],
+    [activeTab, adapter, queryMaxRows, onMutationExecuted, t, updateTab],
   );
 
   // テーブルデータグリッドの列ヘッダをダブルクリック → SQL 入力欄のカーソル位置に列名を挿入
@@ -349,7 +345,7 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
       const name = headers[col];
       if (!name) return;
       // 列名にスペースや特殊記号が含まれる場合はダブルクォートで囲んで安全に
-      const ident = /^[A-Za-z_][A-Za-z0-9_]*$/.test(name) ? name : `"${name.replace(/"/g, '""')}"`;
+      const ident = /^[A-Za-z_][A-Za-z0-9_]*$/.test(name) ? name : `"${name.replaceAll('"', '""')}"`;
       sqlPanelRef.current?.insertText(ident);
     },
     [activeTab],
@@ -357,18 +353,17 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
 
   const pagination = useMemo(() => {
     if (!activeTab || activeTab.mode !== "table") return undefined;
+    const tabId = activeTab.id;
     return {
       page: activeTab.page,
       pageSize: activeTab.pageSize,
       totalRows: activeTab.totalRows,
       availablePageSizes: PAGE_SIZES,
       onChange: ({ page: p, pageSize: ps }: { page: number; pageSize: number }) => {
-        activeTab.page = p;
-        activeTab.pageSize = ps;
-        tick();
+        updateTab(tabId, (x) => ({ ...x, page: p, pageSize: ps }));
       },
     };
-  }, [activeTab, activeTab?.page, activeTab?.pageSize, activeTab?.totalRows, activeTab?.mode, tick]);
+  }, [activeTab, updateTab]);
 
   return (
     <Stack direction="row" sx={{ height: "100%", overflow: "hidden" }}>
@@ -460,8 +455,7 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
                 key={activeTab.id}
                 value={activeTab.sql}
                 onValueChange={(s) => {
-                  activeTab.sql = s;
-                  tick();
+                  updateTab(activeTab.id, (x) => ({ ...x, sql: s }));
                 }}
                 onRun={handleRun}
                 readOnly={adapter.capabilities.readOnly}

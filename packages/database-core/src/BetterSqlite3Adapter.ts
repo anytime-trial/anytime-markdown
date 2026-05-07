@@ -49,7 +49,10 @@ export class BetterSqlite3Adapter implements DatabaseAdapter {
       canExportBytes: false,
     };
     if (!readonly) {
-      this.db.exec('PRAGMA journal_mode = WAL');
+      const mode = this.db.pragma('journal_mode', { simple: true }) as string | undefined;
+      if (mode?.toLowerCase() !== 'wal') {
+        this.db.exec('PRAGMA journal_mode = WAL');
+      }
       this.beginTransaction();
     }
   }

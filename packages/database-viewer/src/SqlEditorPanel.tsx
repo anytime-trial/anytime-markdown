@@ -44,6 +44,7 @@ export const SqlEditorPanel = forwardRef<SqlEditorPanelHandle, SqlEditorPanelPro
   onValueChange,
   onRun,
   disabled,
+  readOnly,
 }, ref) {
   const t = useTranslations("Database");
   const [expanded, setExpanded] = useState(true);
@@ -133,6 +134,7 @@ export const SqlEditorPanel = forwardRef<SqlEditorPanelHandle, SqlEditorPanelPro
             value={sql}
             onChange={(e) => setSql(e.target.value)}
             placeholder="SELECT * FROM ..."
+            readOnly={readOnly}
             style={{ fontFamily: "monospace", fontSize: 13, padding: 8 }}
           />
           <Stack direction="row" spacing={1}>
@@ -140,11 +142,11 @@ export const SqlEditorPanel = forwardRef<SqlEditorPanelHandle, SqlEditorPanelPro
               variant="contained"
               size="small"
               onClick={onClickRun}
-              disabled={disabled || running || sql.trim().length === 0}
+              disabled={disabled || running || readOnly || sql.trim().length === 0}
             >
               {t("sqlRun")}
             </Button>
-            <Button size="small" onClick={() => setSql("")}>
+            <Button size="small" onClick={() => setSql("")} disabled={readOnly}>
               {t("sqlClear")}
             </Button>
           </Stack>
