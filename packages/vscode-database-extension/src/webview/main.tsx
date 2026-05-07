@@ -45,10 +45,16 @@ function makeTransport(): MessageTransport {
   };
 }
 
+function basename(filePath: string): string {
+  // ファイルパス末尾のディレクトリ区切り後のセグメントを取り出す (Win/POSIX 両対応)
+  const last = Math.max(filePath.lastIndexOf("/"), filePath.lastIndexOf("\\"));
+  return last >= 0 ? filePath.slice(last + 1) : filePath;
+}
+
 const App: React.FC = () => {
   const [adapter, setAdapter] = useState<RemoteDatabaseAdapter | null>(null);
   const [schema, setSchema] = useState<SchemaInfo | null>(null);
-  const [config, setConfig] = useState<{ queryMaxRows: number } | null>(null);
+  const [config, setConfig] = useState<{ queryMaxRows: number; fileName: string } | null>(null);
 
   useEffect(() => {
     const transport = makeTransport();
@@ -61,7 +67,7 @@ const App: React.FC = () => {
       });
       setAdapter(a);
       setSchema(init.schema);
-      setConfig({ queryMaxRows: init.config.queryMaxRows });
+      setConfig({ queryMaxRows: init.config.queryMaxRows, fileName: init.config.fileName });
     });
     vscode.postMessage({ type: "ready" });
     return () => off();
@@ -76,6 +82,7 @@ const App: React.FC = () => {
       queryMaxRows={config.queryMaxRows}
       themeMode={isDark ? "dark" : "light"}
       onMutationExecuted={() => vscode.postMessage({ type: "markDirty" })}
+      databaseName={basename(config.fileName)}
     />
   );
 };

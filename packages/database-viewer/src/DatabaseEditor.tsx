@@ -32,6 +32,8 @@ export interface DatabaseEditorProps {
   readonly queryMaxRows: number;
   readonly themeMode?: "light" | "dark";
   readonly onMutationExecuted?: () => void;
+  /** ツリー最上位に表示するスキーマ / DB 名 (例: "trail_test.db") */
+  readonly databaseName?: string;
 }
 
 const PAGE_SIZES: ReadonlyArray<number> = [25, 50, 100];
@@ -62,6 +64,7 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
   queryMaxRows,
   themeMode,
   onMutationExecuted,
+  databaseName,
 }) => {
   const t = useTranslations("Database");
   const [schema, setSchema] = useState<SchemaInfo | null>(initialSchema ?? null);
@@ -352,6 +355,7 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
           selected={activeTabId}
           onSelect={handleSelect}
           onShowSchema={handleShowSchema}
+          databaseName={databaseName}
         />
       </Box>
       <Stack sx={{ flexGrow: 1, minWidth: 0, minHeight: 0, overflow: "hidden" }}>

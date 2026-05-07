@@ -24,6 +24,7 @@
     "selectTablePrompt": "Select a table from the list on the left",
     "tabClose": "Close tab",
     "tabAddQuery": "Open new query tab",
+    "databaseLabel": "Database",
     "showSchema": "Show schema",
     "schemaColName": "Column",
     "schemaColType": "Type",

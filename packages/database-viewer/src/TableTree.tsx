@@ -1,9 +1,14 @@
 "use client";
 
+import ExpandLessIcon from "@mui/icons-material/ExpandLess";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import StorageIcon from "@mui/icons-material/Storage";
 import {
   Box,
+  Collapse,
   List,
   ListItemButton,
+  ListItemIcon,
   ListItemText,
   Menu,
   MenuItem,
@@ -20,6 +25,8 @@ export interface TableTreeProps {
   readonly selected: string | null;
   readonly onSelect: (name: string) => void;
   readonly onShowSchema?: (name: string) => void;
+  /** ツリー最上位に表示するスキーマ名 (例: "main" や DB ファイル名) */
+  readonly databaseName?: string;
 }
 
 export const TableTree: React.FC<Readonly<TableTreeProps>> = ({
@@ -27,9 +34,11 @@ export const TableTree: React.FC<Readonly<TableTreeProps>> = ({
   selected,
   onSelect,
   onShowSchema,
+  databaseName,
 }) => {
   const t = useTranslations("Database");
   const [filter, setFilter] = useState("");
+  const [dbExpanded, setDbExpanded] = useState(true);
   const [menu, setMenu] = useState<{
     anchorX: number;
     anchorY: number;
@@ -82,51 +91,72 @@ export const TableTree: React.FC<Readonly<TableTreeProps>> = ({
           },
         }}
       >
-        {empty ? <Typography>{t("treeEmpty")}</Typography> : null}
-        {filtered && filtered.tables.length > 0 ? (
-          <>
-            <Typography variant="caption" sx={{ pl: 1, color: "text.secondary" }}>
-              {t("treeTablesGroup")}
-            </Typography>
-            <List dense>
-              {filtered.tables.map((tab) => (
-                <ListItemButton
-                  key={tab.name}
-                  selected={selected === tab.name}
-                  onClick={() => onSelect(tab.name)}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    setMenu({ anchorX: e.clientX, anchorY: e.clientY, tableName: tab.name });
-                  }}
-                >
-                  <ListItemText primary={tab.name} />
-                </ListItemButton>
-              ))}
-            </List>
-          </>
-        ) : null}
-        {filtered && filtered.views.length > 0 ? (
-          <>
-            <Typography variant="caption" sx={{ pl: 1, color: "text.secondary" }}>
-              {t("treeViewsGroup")}
-            </Typography>
-            <List dense>
-              {filtered.views.map((v) => (
-                <ListItemButton
-                  key={v.name}
-                  selected={selected === v.name}
-                  onClick={() => onSelect(v.name)}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    setMenu({ anchorX: e.clientX, anchorY: e.clientY, tableName: v.name });
-                  }}
-                >
-                  <ListItemText primary={v.name} />
-                </ListItemButton>
-              ))}
-            </List>
-          </>
-        ) : null}
+        <List dense disablePadding>
+          <ListItemButton
+            onClick={() => setDbExpanded((v) => !v)}
+            sx={{ py: 0.5 }}
+          >
+            <ListItemIcon sx={{ minWidth: 28 }}>
+              <StorageIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText
+              primary={databaseName ?? t("databaseLabel")}
+              primaryTypographyProps={{ fontWeight: 600 }}
+            />
+            {dbExpanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+          </ListItemButton>
+          <Collapse in={dbExpanded} timeout="auto" unmountOnExit>
+            <Box sx={{ pl: 2 }}>
+              {empty ? <Typography sx={{ pl: 1, py: 0.5 }}>{t("treeEmpty")}</Typography> : null}
+              {filtered && filtered.tables.length > 0 ? (
+                <>
+                  <Typography variant="caption" sx={{ pl: 1, color: "text.secondary" }}>
+                    {t("treeTablesGroup")}
+                  </Typography>
+                  <List dense disablePadding>
+                    {filtered.tables.map((tab) => (
+                      <ListItemButton
+                        key={tab.name}
+                        selected={selected === tab.name}
+                        onClick={() => onSelect(tab.name)}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          setMenu({ anchorX: e.clientX, anchorY: e.clientY, tableName: tab.name });
+                        }}
+                        sx={{ pl: 2 }}
+                      >
+                        <ListItemText primary={tab.name} />
+                      </ListItemButton>
+                    ))}
+                  </List>
+                </>
+              ) : null}
+              {filtered && filtered.views.length > 0 ? (
+                <>
+                  <Typography variant="caption" sx={{ pl: 1, color: "text.secondary" }}>
+                    {t("treeViewsGroup")}
+                  </Typography>
+                  <List dense disablePadding>
+                    {filtered.views.map((v) => (
+                      <ListItemButton
+                        key={v.name}
+                        selected={selected === v.name}
+                        onClick={() => onSelect(v.name)}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          setMenu({ anchorX: e.clientX, anchorY: e.clientY, tableName: v.name });
+                        }}
+                        sx={{ pl: 2 }}
+                      >
+                        <ListItemText primary={v.name} />
+                      </ListItemButton>
+                    ))}
+                  </List>
+                </>
+              ) : null}
+            </Box>
+          </Collapse>
+        </List>
       </Box>
       <Menu
         open={menu !== null}
