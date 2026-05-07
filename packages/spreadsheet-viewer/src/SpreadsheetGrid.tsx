@@ -269,7 +269,12 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
 
   const rowHeight = settings.heightMode === "fixed" ? settings.fixedHeight : DEFAULT_ROW_HEIGHT;
 
+  // 列ヘッダドラッグで設定された個別の幅オーバーライド (col index -> width px)
+  const [colWidthOverrides, setColWidthOverrides] = useState<ReadonlyMap<number, number>>(new Map());
+
   const getColWidth = useCallback((col: number): number => {
+    const override = colWidthOverrides.get(col);
+    if (override !== undefined) return override;
     if (settings.widthMode === "fixed") return settings.fixedWidth;
     let maxWidth = AUTO_WIDTH_MIN;
     for (let r = 0; r < Math.min(dataRange.rows, GRID_ROWS); r++) {
@@ -280,7 +285,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
       }
     }
     return Math.min(maxWidth, AUTO_WIDTH_MAX);
-  }, [settings.widthMode, settings.fixedWidth, grid, dataRange.rows, GRID_ROWS]);
+  }, [colWidthOverrides, settings.widthMode, settings.fixedWidth, grid, dataRange.rows, GRID_ROWS]);
 
   const getColX = useCallback((col: number): number => {
     let x = ROW_NUM_WIDTH;
@@ -1049,6 +1054,23 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     return Math.abs(x - edgeX) < RESIZE_HANDLE_THRESHOLD;
   }, [dataRange.cols, getColX]);
 
+  /** 列ヘッダ領域 (y < topOffset) で列の右端付近にある場合、その列インデックスを返す。 */
+  const findColEdgeAtX = useCallback(
+    (x: number, y: number): number | null => {
+      if (y >= topOffset) return null;
+      if (x < ROW_NUM_WIDTH) return null;
+      let accX = ROW_NUM_WIDTH;
+      for (let c = 0; c < GRID_COLS; c++) {
+        accX += getColWidth(c);
+        if (Math.abs(x - accX) < RESIZE_HANDLE_THRESHOLD) {
+          return c;
+        }
+      }
+      return null;
+    },
+    [topOffset, ROW_NUM_WIDTH, GRID_COLS, getColWidth],
+  );
+
   const isNearBottomEdge = useCallback((y: number): boolean => {
     const edgeY = topOffset + visibleDataRowCount * rowHeight;
     return Math.abs(y - edgeY) < RESIZE_HANDLE_THRESHOLD;
@@ -1177,6 +1199,31 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     const coords = getCanvasCoords(e);
     if (!coords) return;
     const { x, y } = coords;
+
+    // 列ヘッダ右端ドラッグで個別列幅をリサイズ
+    const colEdge = findColEdgeAtX(x, y);
+    if (colEdge !== null) {
+      e.preventDefault();
+      const startClientX = e.clientX;
+      const startWidth = getColWidth(colEdge);
+      const onMove = (ev: MouseEvent): void => {
+        const dx = ev.clientX - startClientX;
+        const newWidth = Math.max(40, Math.min(800, startWidth + dx));
+        setColWidthOverrides((prev) => {
+          const next = new Map(prev);
+          next.set(colEdge, newWidth);
+          return next;
+        });
+      };
+      const onUp = (): void => {
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+        suppressClickRef.current = true;
+      };
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+      return;
+    }
 
     const nearRight = showRange && isNearRightEdge(x);
     const nearBottom = showRange && isNearBottomEdge(y);
@@ -1362,7 +1409,8 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
       }
     }
   }, [
-    getCanvasCoords, getColAtX, getColX, isNearRightEdge, isNearBottomEdge, dataRange, rowHeight, topOffset,
+    getCanvasCoords, getColAtX, getColX, isNearRightEdge, isNearBottomEdge, findColEdgeAtX, getColWidth,
+    dataRange, rowHeight, topOffset,
     handleDataRangeChange, setSelection, swapRows, swapCols, visibleRows, visibleDataRowCount,
     GRID_COLS, GRID_ROWS,
   ]);
@@ -1376,8 +1424,11 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
 
     const nearRight = showRange && isNearRightEdge(x);
     const nearBottom = showRange && isNearBottomEdge(y);
+    const colEdge = findColEdgeAtX(x, y);
 
-    if (nearRight && nearBottom) {
+    if (colEdge !== null) {
+      canvas.style.cursor = "col-resize";
+    } else if (nearRight && nearBottom) {
       canvas.style.cursor = "nwse-resize";
     } else if (nearRight && y >= topOffset && y <= topOffset + dataRange.rows * rowHeight) {
       canvas.style.cursor = "col-resize";
@@ -1390,7 +1441,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     } else {
       canvas.style.cursor = "cell";
     }
-  }, [getCanvasCoords, getColX, isNearRightEdge, isNearBottomEdge, dataRange, rowHeight, topOffset]);
+  }, [getCanvasCoords, getColX, isNearRightEdge, isNearBottomEdge, findColEdgeAtX, dataRange, rowHeight, topOffset]);
 
   /* ---------------------------------------------------------------- */
   /*  Canvas keyboard events                                           */
