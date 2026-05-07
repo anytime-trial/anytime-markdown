@@ -1,6 +1,6 @@
 import * as path from 'node:path';
 
-import { analyze } from '@anytime-markdown/trail-core/analyze';
+import { analyzeWithProgram } from '@anytime-markdown/trail-core/analyze';
 import { ExecFileGitService } from '@anytime-markdown/trail-db';
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
 
@@ -93,7 +93,11 @@ export async function runAnalyzeCurrentCodePipeline(
     warnings.push(`seedAnalyzeExclude failed: ${err instanceof Error ? err.message : String(err)}`);
   }
   const exclude = loadAnalyzeExclude(analysisRoot);
-  const graph = analyze({
+  // Program を保持して後段の computeAndPersistImportance で再利用する。
+  // これにより同一 tsconfig に対する ts.Program の二重構築 (~数秒〜数十秒) を回避し、
+  // かつ analyze() と Importance 解析の対象ファイル集合が完全一致する
+  // (両者が同じ Program を見るため C4 model と file-analysis の drift が原理的に起きない)。
+  const { graph, program } = analyzeWithProgram({
     tsconfigPath,
     exclude,
     onProgress: (phase) => {
@@ -124,7 +128,15 @@ export async function runAnalyzeCurrentCodePipeline(
   let importanceResult: Awaited<ReturnType<typeof trailDataServer.computeAndPersistImportance>> = null;
   try {
     onProgress?.('Computing importance scores...');
-    importanceResult = await trailDataServer.computeAndPersistImportance(tsconfigPath, exclude);
+    // analyzeWithProgram で構築した Program を再利用する (Program 二重構築の回避)。
+    // trail-core と vscode-trail-extension は別の typescript インスタンスを持つが、
+    // ts.Program は構造的に互換 (バージョン 5.8.x / 5.9.x で API が安定) なので
+    // unknown 経由でキャストする。
+    importanceResult = await trailDataServer.computeAndPersistImportance(
+      tsconfigPath,
+      exclude,
+      program as unknown as import('typescript').Program,
+    );
     TrailLogger.info(`C4 analysis [${repoName}]: importance scores computed`);
   } catch (err) {
     const msg = `importance computation failed: ${err instanceof Error ? err.message : String(err)}`;

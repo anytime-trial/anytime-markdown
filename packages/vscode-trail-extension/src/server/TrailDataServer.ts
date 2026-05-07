@@ -2337,8 +2337,13 @@ export class TrailDataServer {
   }
 
   async computeAndPersistImportance(
-    tsconfigPath?: string,
-    exclude?: import('ignore').Ignore,
+    tsconfigPath: string,
+    exclude: import('ignore').Ignore | undefined,
+    /**
+     * `analyzeWithProgram` で構築済みの ts.Program。
+     * analyze() と完全に同じ対象ファイル集合で重要度計算を行うため必須。
+     */
+    program: import('typescript').Program,
   ): Promise<{
     scored: import('@anytime-markdown/trail-core/importance').ScoredFunction[];
     fileAggregates: Map<string, import('@anytime-markdown/trail-core/deadCode').FileImportanceAggregate>;
@@ -2347,18 +2352,17 @@ export class TrailDataServer {
     if (this.importanceComputing) return null;
     this.importanceComputing = true;
     try {
-      const repoName = this.gitRoot ? path.basename(this.gitRoot) : undefined;
-      const resolvedTsconfig = tsconfigPath ?? this.trailDb.getCurrentTsconfigPath(repoName);
-      if (!resolvedTsconfig) {
-        TrailLogger.warn('[importance] tsconfig path not available, skipping importance computation');
-        return null;
-      }
       // C4 model is no longer needed here — element aggregation now happens in the REST endpoint at fetch time.
       // We compute per-function ScoredFunction[] and per-file aggregate, leaving element-level aggregation to consumers.
       const { TypeScriptAdapter, ImportanceAnalyzer } = await import('@anytime-markdown/trail-core/importance');
       const { aggregateImportanceToFile } = await import('@anytime-markdown/trail-core/deadCode');
-      const adapter = TypeScriptAdapter.fromTsConfig(resolvedTsconfig);
-      const resolvedDir = path.dirname(path.resolve(resolvedTsconfig));
+      // TypeScriptAdapter は trail-core 側の typescript (5.8.x) で定義された
+      // ts.Program を期待する。本拡張機能側 (5.9.x) との型差異を吸収するため
+      // unknown 経由でキャストする (Program API は構造的に互換)。
+      const adapter = TypeScriptAdapter.fromProgram(
+        program as unknown as Parameters<typeof TypeScriptAdapter.fromProgram>[0],
+      );
+      const resolvedDir = path.dirname(path.resolve(tsconfigPath));
       const isExcluded = (sf: { isDeclarationFile: boolean; fileName: string }): boolean => {
         if (sf.isDeclarationFile || sf.fileName.includes('node_modules')) return true;
         if (!exclude) return false;

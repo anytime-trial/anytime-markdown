@@ -1,4 +1,5 @@
 import ignore, { type Ignore } from 'ignore';
+import type ts from 'typescript';
 
 import type { TrailGraph } from './model/types';
 import type { FilterConfig } from './analyzer/FilterConfig';
@@ -19,7 +20,22 @@ export interface AnalyzeOptions {
   readonly onProgress?: (phase: string) => void;
 }
 
-export function analyze(options: AnalyzeOptions): TrailGraph {
+export interface AnalyzeWithProgramResult {
+  readonly graph: TrailGraph;
+  /**
+   * 解析に使用した ts.Program。後段の ImportanceAnalyzer 等で再利用することで
+   * 同一 tsconfig に対する Program の二重構築 (~数秒〜数十秒のコスト) を回避する。
+   * 呼び出し側が解析パイプライン全体を保持している間は GC されない。
+   */
+  readonly program: ts.Program;
+  readonly projectRoot: string;
+}
+
+/**
+ * `analyze` と同じ解析を実行し、TrailGraph に加えて構築済みの ts.Program を返す。
+ * 後段の Importance 解析等で同一 Program を共有したい場合に使う。
+ */
+export function analyzeWithProgram(options: AnalyzeOptions): AnalyzeWithProgramResult {
   const report = options.onProgress ?? (() => {});
 
   report('Loading project...');
@@ -41,7 +57,7 @@ export function analyze(options: AnalyzeOptions): TrailGraph {
 
   const { nodes, edges } = applyFilter(rawNodes, rawEdges, filterConfig);
 
-  return {
+  const graph: TrailGraph = {
     nodes,
     edges,
     metadata: {
@@ -50,4 +66,10 @@ export function analyze(options: AnalyzeOptions): TrailGraph {
       fileCount: nodes.filter(n => n.type === 'file').length,
     },
   };
+
+  return { graph, program: analyzer.getProgram(), projectRoot: analyzer.getProjectRoot() };
+}
+
+export function analyze(options: AnalyzeOptions): TrailGraph {
+  return analyzeWithProgram(options).graph;
 }

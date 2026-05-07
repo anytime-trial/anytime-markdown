@@ -95,28 +95,6 @@ describe('TypeScriptAdapter.computeFanInMap', () => {
   });
 });
 
-describe('TypeScriptAdapter.fromTsConfig', () => {
-  it('creates adapter from tsconfig path', () => {
-    const tsconfigPath = path.resolve(__dirname, '../../../tsconfig.json');
-    const adapter = TypeScriptAdapter.fromTsConfig(tsconfigPath);
-    expect(adapter.language).toBe('typescript');
-  });
-
-  it('throws on non-existent tsconfig', () => {
-    expect(() =>
-      TypeScriptAdapter.fromTsConfig('/path/to/nonexistent/tsconfig.json')
-    ).toThrow('Failed to read tsconfig');
-  });
-
-  it('extracts functions from files in tsconfig', () => {
-    const tsconfigPath = path.resolve(__dirname, '../../../tsconfig.json');
-    const adapter = TypeScriptAdapter.fromTsConfig(tsconfigPath);
-    const fixtureFile = path.join(FIXTURE_DIR, 'mutations.ts');
-    const functions = adapter.extractFunctions([fixtureFile]);
-    expect(functions.length).toBeGreaterThan(0);
-  });
-});
-
 describe('TypeScriptAdapter.computeMetrics: cyclomaticComplexity', () => {
   let adapter: TypeScriptAdapter;
   let functions: ReturnType<TypeScriptAdapter['extractFunctions']>;

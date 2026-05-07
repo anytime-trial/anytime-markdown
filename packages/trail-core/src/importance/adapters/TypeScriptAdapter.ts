@@ -28,65 +28,33 @@ export class TypeScriptAdapter implements ILanguageAdapter {
   /** id → AST ノードのキャッシュ */
   private readonly nodeCache = new Map<string, FunctionLikeNode>();
 
-  constructor(filePaths: string[]) {
-    this.program = ts.createProgram(filePaths, {
-      target: ts.ScriptTarget.ES2022,
-      strict: true,
-    });
+  /**
+   * @param filePathsOrProgram ファイルパス配列 (新規 Program 構築) または
+   *   既存 ts.Program (ProjectAnalyzer 等で構築済みのものを再利用する場合)
+   */
+  constructor(filePathsOrProgram: readonly string[] | ts.Program) {
+    if (Array.isArray(filePathsOrProgram)) {
+      this.program = ts.createProgram(filePathsOrProgram as string[], {
+        target: ts.ScriptTarget.ES2022,
+        strict: true,
+      });
+    } else {
+      this.program = filePathsOrProgram as ts.Program;
+    }
     // binding を実行して parent プロパティを設定する
     this.program.getTypeChecker();
   }
 
-  static fromTsConfig(tsconfigPath: string): TypeScriptAdapter {
-    const absolutePath = path.resolve(tsconfigPath);
-    const allFiles = TypeScriptAdapter.collectFilesFromTsConfig(absolutePath, new Set());
-    if (allFiles.length === 0) {
-      throw new Error(`No files matched in tsconfig: ${absolutePath}`);
-    }
-    return new TypeScriptAdapter(allFiles);
-  }
-
-  private static collectFilesFromTsConfig(absolutePath: string, visited: Set<string>): string[] {
-    if (visited.has(absolutePath)) return [];
-    visited.add(absolutePath);
-
-    const configFile = ts.readConfigFile(absolutePath, ts.sys.readFile);
-    if (configFile.error) {
-      throw new Error(
-        `Failed to read tsconfig: ${ts.flattenDiagnosticMessageText(configFile.error.messageText, '\n')}`,
-      );
-    }
-    const configDir = path.dirname(absolutePath);
-    const parsed = ts.parseJsonConfigFileContent(configFile.config, ts.sys, configDir);
-    if (parsed.errors.length > 0) {
-      const message = parsed.errors
-        .map(e => ts.flattenDiagnosticMessageText(e.messageText, '\n'))
-        .join('\n');
-      throw new Error(`Failed to parse tsconfig: ${message}`);
-    }
-
-    if (parsed.fileNames.length > 0) {
-      return parsed.fileNames;
-    }
-
-    // fileNames が空の場合は project references から再帰収集
-    const refs = configFile.config?.references as Array<{ path: string }> | undefined;
-    if (!refs || refs.length === 0) return [];
-
-    const allFiles: string[] = [];
-    for (const ref of refs) {
-      const refResolved = path.resolve(configDir, ref.path);
-      const refTsconfig = path.extname(refResolved)
-        ? refResolved
-        : path.join(refResolved, 'tsconfig.json');
-      try {
-        const files = TypeScriptAdapter.collectFilesFromTsConfig(refTsconfig, visited);
-        allFiles.push(...files);
-      } catch {
-        // 読み込めない参照はスキップ
-      }
-    }
-    return allFiles;
+  /**
+   * 既存の ts.Program (analyze() / ProjectAnalyzer で構築済みのもの) を
+   * ラップして TypeScriptAdapter として使う。
+   *
+   * これにより Program 構築コスト (~数秒〜数十秒) を二重に支払わずに済み、
+   * かつ ProjectAnalyzer と Importance 解析の対象ファイル集合が完全に一致する
+   * (両者が同じ Program を見るため drift が原理的に起きない)。
+   */
+  static fromProgram(program: ts.Program): TypeScriptAdapter {
+    return new TypeScriptAdapter(program);
   }
 
   getProgram(): ts.Program {
