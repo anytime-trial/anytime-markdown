@@ -1,5 +1,6 @@
 "use client";
 
+import AddIcon from "@mui/icons-material/Add";
 import CloseIcon from "@mui/icons-material/Close";
 import {
   Box,
@@ -8,6 +9,7 @@ import {
   Stack,
   Tab,
   Tabs,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import { useTranslations } from "next-intl";
@@ -36,8 +38,10 @@ const PAGE_SIZES: ReadonlyArray<number> = [25, 50, 100];
 const DEFAULT_PAGE_SIZE = 100;
 
 interface TableTabState {
-  readonly id: string; // tableName と同義（同名タブは 1 つに集約）
-  readonly tableName: string;
+  readonly id: string;
+  /** テーブル選択タブの場合に対応するテーブル名。クエリ専用タブは undefined */
+  readonly tableName?: string;
+  readonly label: string;
   page: number;
   pageSize: number;
   totalRows: number;
@@ -59,6 +63,7 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
   const [schema, setSchema] = useState<SchemaInfo | null>(initialSchema ?? null);
   const [tabs, setTabs] = useState<ReadonlyArray<TableTabState>>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
+  const queryTabCounterRef = useRef(0);
   // ページング状態を React 再レンダで反映するため version カウンタを更新する
   const [, forceRender] = useState(0);
   const tick = useCallback(() => forceRender((v) => v + 1), []);
@@ -96,6 +101,7 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
         const next: TableTabState = {
           id: tableName,
           tableName,
+          label: tableName,
           page: 1,
           pageSize: DEFAULT_PAGE_SIZE,
           totalRows: 0,
@@ -110,11 +116,36 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
     [adapter],
   );
 
+  // SQL クエリ専用の新規タブを追加する (テーブル名なし、空 SQL から開始)
+  const handleAddQueryTab = useCallback(() => {
+    queryTabCounterRef.current += 1;
+    const id = `query-${queryTabCounterRef.current}`;
+    const label = `Query ${queryTabCounterRef.current}`;
+    const sheetAdapter = new PaginatedSqlSheetAdapter({
+      databaseAdapter: adapter,
+      tableName: "",
+    });
+    adaptersRef.current.set(id, sheetAdapter);
+    const next: TableTabState = {
+      id,
+      label,
+      page: 1,
+      pageSize: DEFAULT_PAGE_SIZE,
+      totalRows: 0,
+      mode: "query",
+      sql: "",
+      sheetAdapter,
+    };
+    setTabs((prev) => [...prev, next]);
+    setActiveTabId(id);
+  }, [adapter]);
+
   // タブが追加された/ページが変わった時に SELECT を発行
   useEffect(() => {
-    if (!activeTab || activeTab.mode !== "table") return;
+    if (!activeTab || activeTab.mode !== "table" || !activeTab.tableName) return;
+    const tableName = activeTab.tableName;
     void adapter
-      .countRows(activeTab.tableName)
+      .countRows(tableName)
       .then((n) => {
         activeTab.totalRows = n;
         tick();
@@ -124,7 +155,7 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
         tick();
       });
     void activeTab.sheetAdapter.loadPage(activeTab.page, activeTab.pageSize);
-  }, [activeTab, activeTab?.page, activeTab?.pageSize, activeTab?.mode, adapter, tick]);
+  }, [activeTab, activeTab?.page, activeTab?.pageSize, activeTab?.mode, activeTab?.tableName, adapter, tick]);
 
   const closeTab = useCallback(
     (id: string) => {
@@ -221,7 +252,15 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
           ) : null}
         </Stack>
         {tabs.length > 0 ? (
-          <Box sx={{ borderBottom: 1, borderColor: "divider", flexShrink: 0 }}>
+          <Box
+            sx={{
+              borderBottom: 1,
+              borderColor: "divider",
+              flexShrink: 0,
+              display: "flex",
+              alignItems: "center",
+            }}
+          >
             <Tabs
               value={activeTabId ?? false}
               onChange={(_, v) => setActiveTabId(v as string)}
@@ -234,7 +273,7 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
                   value={tab.id}
                   label={
                     <Stack direction="row" alignItems="center" spacing={0.5}>
-                      <span>{tab.tableName}</span>
+                      <span>{tab.label}</span>
                       <IconButton
                         size="small"
                         aria-label={t("tabClose")}
@@ -252,6 +291,16 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
                 />
               ))}
             </Tabs>
+            <Tooltip title={t("tabAddQuery")}>
+              <IconButton
+                size="small"
+                onClick={handleAddQueryTab}
+                aria-label={t("tabAddQuery")}
+                sx={{ mx: 0.5 }}
+              >
+                <AddIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
           </Box>
         ) : null}
         {activeTab ? (
