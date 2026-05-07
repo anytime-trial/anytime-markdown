@@ -305,7 +305,7 @@ export const en: TrailI18n = {
   'c4.overlay.groupDeadCode': 'Dead Code',
   'c4.overlay.deadCodeScore': 'Score',
   'c4.overlay.groupSize': 'Size',
-  'c4.overlay.sizeLoc': 'LOC',
+  'c4.overlay.sizeLoc': 'LOC(Max)',
   'c4.overlay.sizeFiles': 'Files',
   'c4.overlay.sizeFunctions': 'Functions',
   'c4.hotspot.controls.period': 'Period',

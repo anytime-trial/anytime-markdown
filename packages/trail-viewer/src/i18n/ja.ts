@@ -305,7 +305,7 @@ export const ja: TrailI18n = {
   'c4.overlay.groupDeadCode': '未使用コード',
   'c4.overlay.deadCodeScore': 'スコア',
   'c4.overlay.groupSize': 'サイズ',
-  'c4.overlay.sizeLoc': 'LOC',
+  'c4.overlay.sizeLoc': 'LOC(Max)',
   'c4.overlay.sizeFiles': 'ファイル数',
   'c4.overlay.sizeFunctions': '関数数',
   'c4.hotspot.controls.period': '期間',

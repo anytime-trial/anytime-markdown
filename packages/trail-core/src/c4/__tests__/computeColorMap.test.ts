@@ -248,12 +248,13 @@ describe('computeColorMap — dead-code-score', () => {
 });
 
 describe('computeColorMap — size-loc', () => {
+  // 色判定は locMax (単一ファイル最大行数) を見るため、loc (合計) とは別の値で検証する
   const sizeMatrix = {
-    big:    { loc: 1500, files: 0, functions: 0 },
-    mid:    { loc:  600, files: 0, functions: 0 },
-    small:  { loc:  100, files: 0, functions: 0 },
+    big:    { loc: 99999, locMax: 1500, files: 0, functions: 0 },
+    mid:    { loc: 99999, locMax:  600, files: 0, functions: 0 },
+    small:  { loc: 99999, locMax:  100, files: 0, functions: 0 },
   };
-  it('1000+ 赤、500-999 黄、未満は緑', () => {
+  it('locMax 1000+ 赤、500-999 黄、未満は緑 (loc は色判定に使われない)', () => {
     const m = computeColorMap('size-loc', null, null, null, null, null, null, null, sizeMatrix);
     expect(m.get('big')).toBe('#c62828');
     expect(m.get('mid')).toBe('#f9a825');
@@ -267,9 +268,9 @@ describe('computeColorMap — size-loc', () => {
 
 describe('computeColorMap — size-files', () => {
   const sizeMatrix = {
-    big:   { loc: 0, files: 60, functions: 0 },
-    mid:   { loc: 0, files: 30, functions: 0 },
-    small: { loc: 0, files:  5, functions: 0 },
+    big:   { loc: 0, locMax: 0, files: 60, functions: 0 },
+    mid:   { loc: 0, locMax: 0, files: 30, functions: 0 },
+    small: { loc: 0, locMax: 0, files:  5, functions: 0 },
   };
   it('50+ 赤、20-49 黄、未満は緑', () => {
     const m = computeColorMap('size-files', null, null, null, null, null, null, null, sizeMatrix);
@@ -281,9 +282,9 @@ describe('computeColorMap — size-files', () => {
 
 describe('computeColorMap — size-functions', () => {
   const sizeMatrix = {
-    big:   { loc: 0, files: 0, functions: 60 },
-    mid:   { loc: 0, files: 0, functions: 25 },
-    small: { loc: 0, files: 0, functions:  5 },
+    big:   { loc: 0, locMax: 0, files: 0, functions: 60 },
+    mid:   { loc: 0, locMax: 0, files: 0, functions: 25 },
+    small: { loc: 0, locMax: 0, files: 0, functions:  5 },
   };
   it('50+ 赤、10-49 黄、未満は緑', () => {
     const m = computeColorMap('size-functions', null, null, null, null, null, null, null, sizeMatrix);

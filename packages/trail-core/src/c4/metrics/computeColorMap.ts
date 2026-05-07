@@ -221,12 +221,16 @@ export function computeColorMap(
   }
 
   // ── Size metrics (LOC / files / functions) ──
+  // size-loc は単一ファイルの最大行数 (locMax) で色判定する。
+  // 集約レベル (component / container / system) で SUM ベースだと
+  // 大きな package がほぼ全て赤になり差が見えなくなるため、
+  // 「巨大ファイルが含まれているか」を可視化する Max ベースに統一する。
   if (overlay === 'size-loc' || overlay === 'size-files' || overlay === 'size-functions') {
     if (!sizeMatrix) return new Map();
     const colorFn = overlay === 'size-loc' ? sizeLocColor
       : overlay === 'size-files' ? sizeFilesColor
       : sizeFunctionsColor;
-    const field = overlay === 'size-loc' ? 'loc'
+    const field: keyof SizeMatrix[string] = overlay === 'size-loc' ? 'locMax'
       : overlay === 'size-files' ? 'files'
       : 'functions';
     const map = new Map<string, string>();
