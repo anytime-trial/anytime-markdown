@@ -1,10 +1,28 @@
 "use client";
 
 import KeyIcon from "@mui/icons-material/VpnKey";
-import { Box } from "@mui/material";
-import React, { useMemo } from "react";
+import { Box, IconButton, Stack, Tooltip } from "@mui/material";
+import CenterFocusStrongIcon from "@mui/icons-material/CenterFocusStrong";
+import ZoomInIcon from "@mui/icons-material/ZoomIn";
+import ZoomOutIcon from "@mui/icons-material/ZoomOut";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { GraphNode } from "@anytime-markdown/graph-core";
 import type { ColumnInfo, SchemaInfo, TableInfo } from "@anytime-markdown/database-core";
+
+export interface ErdViewProps {
+  readonly schema: SchemaInfo | null;
+  readonly themeMode?: "light" | "dark";
+}
+
+const CARD_WIDTH = 280;
+const HEADER_HEIGHT = 36;
+const ROW_HEIGHT = 28;
+const COLS = 4;
+const GAP_X = 60;
+const GAP_Y = 80;
+const PADDING = 40;
+const MIN_ZOOM = 0.2;
+const MAX_ZOOM = 2.5;
 
 interface ErdEdge {
   readonly id: string;
@@ -14,7 +32,131 @@ interface ErdEdge {
   readonly toColumn: string;
 }
 
-/** 直線が矩形 (cx-w/2..cx+w/2, cy-h/2..cy+h/2) と交わる点を求める。中心 (cx,cy) から外向き */
+interface TableCard {
+  readonly node: GraphNode;
+  readonly table: TableInfo;
+  readonly height: number;
+}
+
+interface Viewport {
+  readonly x: number;
+  readonly y: number;
+  readonly zoom: number;
+}
+
+function buildBaseCards(tables: ReadonlyArray<TableInfo>): TableCard[] {
+  const cards: TableCard[] = [];
+  for (let idx = 0; idx < tables.length; idx++) {
+    const table = tables[idx];
+    const row = Math.floor(idx / COLS);
+    const col = idx % COLS;
+    const height = HEADER_HEIGHT + table.columns.length * ROW_HEIGHT;
+    const rowSlice = tables.slice(row * COLS, row * COLS + COLS);
+    const rowMaxH = Math.max(
+      ...rowSlice.map((tt) => HEADER_HEIGHT + tt.columns.length * ROW_HEIGHT),
+      HEADER_HEIGHT,
+    );
+    const node: GraphNode = {
+      id: `table:${table.name}`,
+      type: "rect",
+      x: PADDING + col * (CARD_WIDTH + GAP_X),
+      y: PADDING + row * (rowMaxH + GAP_Y),
+      width: CARD_WIDTH,
+      height,
+      style: {
+        fill: "#1e2228",
+        stroke: "#3a4148",
+        strokeWidth: 1,
+        fontSize: 13,
+        fontFamily: "system-ui, sans-serif",
+        borderRadius: 6,
+      },
+      text: table.name,
+    };
+    cards.push({ node, table, height });
+  }
+  return cards;
+}
+
+function inferEdges(schema: SchemaInfo): ErdEdge[] {
+  const list: ErdEdge[] = [];
+  const seen = new Set<string>();
+  // 1. 明示的な FK
+  for (const t of schema.tables) {
+    for (const fk of t.foreignKeys ?? []) {
+      const id = `${t.name}.${fk.fromColumn}->${fk.toTable}.${fk.toColumn}`;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      list.push({
+        id,
+        fromTable: t.name,
+        fromColumn: fk.fromColumn,
+        toTable: fk.toTable,
+        toColumn: fk.toColumn,
+      });
+    }
+  }
+
+  // 2. ヒューリスティック: PK が "id" の他テーブルに対し、自テーブルに `<table>_id` カラムがあれば link
+  const allTables = schema.tables;
+  const pkByTable = new Map<string, ColumnInfo[]>();
+  for (const t of allTables) {
+    pkByTable.set(t.name, t.columns.filter((c) => c.primaryKey));
+  }
+  for (const from of allTables) {
+    for (const fc of from.columns) {
+      // パターン A: <table>_id 形式
+      const m = /^(.+)_id$/.exec(fc.name);
+      if (m) {
+        const baseName = m[1];
+        const candidates = [baseName, baseName + "s", baseName + "es"]; // 単純化
+        for (const cand of candidates) {
+          const target = allTables.find((tt) => tt.name === cand);
+          if (target && target.name !== from.name) {
+            const targetPk = pkByTable.get(target.name)?.[0];
+            if (!targetPk) break;
+            const id = `${from.name}.${fc.name}->${target.name}.${targetPk.name}`;
+            if (seen.has(id)) break;
+            seen.add(id);
+            list.push({
+              id,
+              fromTable: from.name,
+              fromColumn: fc.name,
+              toTable: target.name,
+              toColumn: targetPk.name,
+            });
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  // 3. ヒューリスティック: 同名カラムが他テーブルの PK にある場合 (例: id 自体は除外)
+  for (const from of allTables) {
+    for (const fc of from.columns) {
+      if (fc.primaryKey) continue;
+      if (fc.name === "id") continue;
+      for (const to of allTables) {
+        if (to.name === from.name) continue;
+        const matchedPk = (pkByTable.get(to.name) ?? []).find((p) => p.name === fc.name);
+        if (!matchedPk) continue;
+        const id = `${from.name}.${fc.name}->${to.name}.${matchedPk.name}`;
+        if (seen.has(id)) continue;
+        seen.add(id);
+        list.push({
+          id,
+          fromTable: from.name,
+          fromColumn: fc.name,
+          toTable: to.name,
+          toColumn: matchedPk.name,
+        });
+      }
+    }
+  }
+  return list;
+}
+
 function rectBorderPoint(
   cx: number,
   cy: number,
@@ -34,53 +176,6 @@ function rectBorderPoint(
   return { x: cx + dx * t, y: cy + dy * t };
 }
 
-export interface ErdViewProps {
-  readonly schema: SchemaInfo | null;
-  readonly themeMode?: "light" | "dark";
-}
-
-const CARD_WIDTH = 280;
-const HEADER_HEIGHT = 36;
-const ROW_HEIGHT = 28;
-const COLS = 4; // 横方向の最大カラム数
-const GAP_X = 60;
-const GAP_Y = 80;
-const PADDING = 40;
-
-interface TableCard {
-  readonly node: GraphNode;
-  readonly table: TableInfo;
-  readonly height: number;
-}
-
-function buildCards(tables: ReadonlyArray<TableInfo>): TableCard[] {
-  const cards: TableCard[] = [];
-  tables.forEach((table, idx) => {
-    const row = Math.floor(idx / COLS);
-    const col = idx % COLS;
-    const height = HEADER_HEIGHT + table.columns.length * ROW_HEIGHT;
-    const node: GraphNode = {
-      id: `table:${table.name}`,
-      type: "rect",
-      x: PADDING + col * (CARD_WIDTH + GAP_X),
-      y: PADDING + row * (Math.max(...tables.slice(row * COLS, row * COLS + COLS).map((tt) => HEADER_HEIGHT + tt.columns.length * ROW_HEIGHT), HEADER_HEIGHT) + GAP_Y),
-      width: CARD_WIDTH,
-      height,
-      style: {
-        fill: "#1e2228",
-        stroke: "#3a4148",
-        strokeWidth: 1,
-        fontSize: 13,
-        fontFamily: "system-ui, sans-serif",
-        borderRadius: 6,
-      },
-      text: table.name,
-    };
-    cards.push({ node, table, height });
-  });
-  return cards;
-}
-
 function ColumnRow({
   column,
   isDark,
@@ -94,13 +189,10 @@ function ColumnRow({
   return (
     <g transform={`translate(0, ${y})`}>
       <line x1={0} x2={CARD_WIDTH} y1={0} y2={0} stroke={isDark ? "#2a2f36" : "#d0d4d9"} strokeWidth={0.5} />
-      {/* PK / NOT NULL marker */}
       <g transform={`translate(14, ${ROW_HEIGHT / 2})`}>
         {column.primaryKey ? (
-          // 鍵アイコン代わりの星形マーカー
           <circle r={5} fill="#f5b400" stroke="#a37b00" strokeWidth={0.5} />
         ) : (
-          // 菱形マーカー: 塗り = NOT NULL, 中抜き = NULL
           <polygon
             points="0,-5 5,0 0,5 -5,0"
             fill={markerFill}
@@ -129,7 +221,12 @@ function ColumnRow({
 function TableCardSvg({
   card,
   isDark,
-}: Readonly<{ card: TableCard; isDark: boolean }>): React.ReactElement {
+  onPointerDownHeader,
+}: Readonly<{
+  card: TableCard;
+  isDark: boolean;
+  onPointerDownHeader: (e: React.PointerEvent) => void;
+}>): React.ReactElement {
   const { node, table } = card;
   const headerFill = isDark ? "#0e1116" : "#e9ecef";
   const headerText = isDark ? "rgba(255,255,255,0.92)" : "rgba(0,0,0,0.87)";
@@ -137,7 +234,6 @@ function TableCardSvg({
   const stroke = isDark ? "#3a4148" : "#c8ccd1";
   return (
     <g transform={`translate(${node.x}, ${node.y})`}>
-      {/* card body */}
       <rect
         x={0}
         y={0}
@@ -149,13 +245,23 @@ function TableCardSvg({
         stroke={stroke}
         strokeWidth={1}
       />
-      {/* header */}
-      <rect x={0} y={0} width={CARD_WIDTH} height={HEADER_HEIGHT} rx={6} ry={6} fill={headerFill} />
-      <rect x={0} y={HEADER_HEIGHT - 6} width={CARD_WIDTH} height={6} fill={headerFill} />
-      <text x={14} y={HEADER_HEIGHT / 2 + 5} fontSize={14} fontWeight={600} fill={headerText}>
+      <rect
+        x={0}
+        y={0}
+        width={CARD_WIDTH}
+        height={HEADER_HEIGHT}
+        rx={6}
+        ry={6}
+        fill={headerFill}
+        style={{ cursor: "move" }}
+        onPointerDown={onPointerDownHeader}
+      />
+      <rect x={0} y={HEADER_HEIGHT - 6} width={CARD_WIDTH} height={6} fill={headerFill}
+        style={{ cursor: "move" }} onPointerDown={onPointerDownHeader} />
+      <text x={14} y={HEADER_HEIGHT / 2 + 5} fontSize={14} fontWeight={600} fill={headerText}
+        pointerEvents="none">
         {table.name}
       </text>
-      {/* columns */}
       {table.columns.map((c, i) => (
         <ColumnRow key={c.name} column={c} isDark={isDark} y={HEADER_HEIGHT + i * ROW_HEIGHT} />
       ))}
@@ -163,68 +269,329 @@ function TableCardSvg({
   );
 }
 
-export const ErdView: React.FC<Readonly<ErdViewProps>> = ({ schema, themeMode = "dark" }) => {
-  const isDark = themeMode === "dark";
-  const cards = useMemo(() => {
-    if (!schema) return [];
-    const tables = [...schema.tables, ...schema.views];
-    return buildCards(tables);
-  }, [schema]);
+interface MinimapProps {
+  readonly cards: readonly TableCard[];
+  readonly viewport: Viewport;
+  readonly viewSize: { width: number; height: number };
+  readonly worldBounds: { minX: number; minY: number; maxX: number; maxY: number };
+  readonly onChange: (vp: Viewport) => void;
+  readonly isDark: boolean;
+}
 
-  // 外部キー関係のエッジ
-  const edges = useMemo<ErdEdge[]>(() => {
-    if (!schema) return [];
-    const list: ErdEdge[] = [];
-    for (const t of schema.tables) {
-      for (const fk of t.foreignKeys ?? []) {
-        list.push({
-          id: `${t.name}.${fk.fromColumn}->${fk.toTable}.${fk.toColumn}`,
-          fromTable: t.name,
-          fromColumn: fk.fromColumn,
-          toTable: fk.toTable,
-          toColumn: fk.toColumn,
-        });
-      }
-    }
-    return list;
-  }, [schema]);
+const MINIMAP_W = 200;
+const MINIMAP_H = 130;
 
-  const { totalWidth, totalHeight } = useMemo(() => {
-    if (cards.length === 0) return { totalWidth: 800, totalHeight: 600 };
-    const maxX = Math.max(...cards.map((c) => c.node.x + c.node.width));
-    const maxY = Math.max(...cards.map((c) => c.node.y + c.height));
-    return { totalWidth: maxX + PADDING, totalHeight: maxY + PADDING };
-  }, [cards]);
+function Minimap({ cards, viewport, viewSize, worldBounds, onChange, isDark }: Readonly<MinimapProps>): React.ReactElement {
+  const w = worldBounds.maxX - worldBounds.minX || 1;
+  const h = worldBounds.maxY - worldBounds.minY || 1;
+  const scale = Math.min(MINIMAP_W / w, MINIMAP_H / h);
+  const ox = (MINIMAP_W - w * scale) / 2 - worldBounds.minX * scale;
+  const oy = (MINIMAP_H - h * scale) / 2 - worldBounds.minY * scale;
 
-  if (!schema) return null;
-  // KeyIcon import is referenced for future PK marker enhancement; tree-shake-safe.
-  void KeyIcon;
+  // current viewport rect in world coords
+  const visX = -viewport.x / viewport.zoom;
+  const visY = -viewport.y / viewport.zoom;
+  const visW = viewSize.width / viewport.zoom;
+  const visH = viewSize.height / viewport.zoom;
 
-  const cardByTable = new Map<string, TableCard>();
-  cards.forEach((c) => cardByTable.set(c.table.name, c));
-  const edgeColor = isDark ? "rgba(120,170,255,0.85)" : "rgba(0,90,220,0.85)";
+  const handlePointerDown = (e: React.PointerEvent<SVGSVGElement>): void => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const wx = (mx - ox) / scale;
+    const wy = (my - oy) / scale;
+    onChange({
+      ...viewport,
+      x: -(wx - viewSize.width / 2 / viewport.zoom) * viewport.zoom,
+      y: -(wy - viewSize.height / 2 / viewport.zoom) * viewport.zoom,
+    });
+  };
 
   return (
     <Box
       sx={{
-        flexGrow: 1,
-        minHeight: 0,
-        overflow: "auto",
-        background: isDark ? "#0c0e10" : "#f5f7fa",
-        // VS Code WebView 用にスクロールバーを視認できる太さに
-        scrollbarWidth: "auto",
-        scrollbarColor: isDark
-          ? "rgba(255,255,255,0.55) rgba(255,255,255,0.05)"
-          : "rgba(0,0,0,0.5) rgba(0,0,0,0.05)",
-        "&::-webkit-scrollbar": { width: 12, height: 12 },
-        "&::-webkit-scrollbar-thumb": {
-          background: isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.4)",
-          borderRadius: 3,
-        },
+        position: "absolute",
+        right: 16,
+        bottom: 16,
+        width: MINIMAP_W,
+        height: MINIMAP_H,
+        borderRadius: 1,
+        overflow: "hidden",
+        border: 1,
+        borderColor: isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)",
+        background: isDark ? "rgba(0,0,0,0.6)" : "rgba(255,255,255,0.85)",
+        backdropFilter: "blur(2px)",
       }}
     >
-      <svg width={totalWidth} height={totalHeight}>
-        {/* dot grid background */}
+      <svg
+        width={MINIMAP_W}
+        height={MINIMAP_H}
+        onPointerDown={handlePointerDown}
+        style={{ cursor: "pointer" }}
+      >
+        {cards.map((c) => (
+          <rect
+            key={c.node.id}
+            x={ox + c.node.x * scale}
+            y={oy + c.node.y * scale}
+            width={c.node.width * scale}
+            height={c.height * scale}
+            fill={isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.25)"}
+            stroke={isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)"}
+            strokeWidth={0.5}
+          />
+        ))}
+        <rect
+          x={ox + visX * scale}
+          y={oy + visY * scale}
+          width={visW * scale}
+          height={visH * scale}
+          fill="none"
+          stroke="#3aa0ff"
+          strokeWidth={1.5}
+        />
+      </svg>
+    </Box>
+  );
+}
+
+export const ErdView: React.FC<Readonly<ErdViewProps>> = ({ schema, themeMode = "dark" }) => {
+  const isDark = themeMode === "dark";
+
+  const baseCards = useMemo(() => {
+    if (!schema) return [];
+    return buildBaseCards([...schema.tables, ...schema.views]);
+  }, [schema]);
+
+  // ノード位置オーバーライド (ドラッグで更新)
+  const [positions, setPositions] = useState<Map<string, { x: number; y: number }>>(new Map());
+
+  // baseCards 更新時に positions をリセット (新しいスキーマ)
+  useEffect(() => {
+    setPositions(new Map());
+  }, [baseCards]);
+
+  const cards = useMemo<TableCard[]>(() => {
+    return baseCards.map((c) => {
+      const override = positions.get(c.node.id);
+      if (!override) return c;
+      return {
+        ...c,
+        node: { ...c.node, x: override.x, y: override.y },
+      };
+    });
+  }, [baseCards, positions]);
+
+  const cardByTable = useMemo(() => {
+    const m = new Map<string, TableCard>();
+    cards.forEach((c) => m.set(c.table.name, c));
+    return m;
+  }, [cards]);
+
+  const edges = useMemo<ErdEdge[]>(() => {
+    if (!schema) return [];
+    return inferEdges(schema);
+  }, [schema]);
+
+  const worldBounds = useMemo(() => {
+    if (cards.length === 0) {
+      return { minX: 0, minY: 0, maxX: 800, maxY: 600 };
+    }
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const c of cards) {
+      minX = Math.min(minX, c.node.x);
+      minY = Math.min(minY, c.node.y);
+      maxX = Math.max(maxX, c.node.x + c.node.width);
+      maxY = Math.max(maxY, c.node.y + c.height);
+    }
+    return {
+      minX: minX - PADDING,
+      minY: minY - PADDING,
+      maxX: maxX + PADDING,
+      maxY: maxY + PADDING,
+    };
+  }, [cards]);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [viewSize, setViewSize] = useState({ width: 800, height: 600 });
+  const [viewport, setViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
+
+  // ResizeObserver で view size を追跡
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      const r = el.getBoundingClientRect();
+      setViewSize({ width: r.width, height: r.height });
+    });
+    ro.observe(el);
+    const r = el.getBoundingClientRect();
+    setViewSize({ width: r.width, height: r.height });
+    return () => ro.disconnect();
+  }, []);
+
+  // ドラッグ状態
+  const dragRef = useRef<
+    | { kind: "card"; tableName: string; offsetX: number; offsetY: number }
+    | { kind: "pan"; startX: number; startY: number; startVpX: number; startVpY: number }
+    | null
+  >(null);
+
+  const screenToWorld = useCallback(
+    (sx: number, sy: number): { x: number; y: number } => {
+      return {
+        x: (sx - viewport.x) / viewport.zoom,
+        y: (sy - viewport.y) / viewport.zoom,
+      };
+    },
+    [viewport],
+  );
+
+  const handlePointerDownBackground = useCallback(
+    (e: React.PointerEvent<SVGSVGElement>): void => {
+      const target = e.target as Element;
+      // 背景 (rect.erd-bg) のみパン
+      if (!target.classList?.contains("erd-bg")) return;
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+      dragRef.current = {
+        kind: "pan",
+        startX: e.clientX,
+        startY: e.clientY,
+        startVpX: viewport.x,
+        startVpY: viewport.y,
+      };
+    },
+    [viewport],
+  );
+
+  const onCardHeaderPointerDown = useCallback(
+    (tableName: string) => (e: React.PointerEvent): void => {
+      e.stopPropagation();
+      const card = cardByTable.get(tableName);
+      if (!card) return;
+      const rect = (e.currentTarget as Element).closest("svg")?.getBoundingClientRect();
+      if (!rect) return;
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+      const wp = screenToWorld(sx, sy);
+      dragRef.current = {
+        kind: "card",
+        tableName,
+        offsetX: wp.x - card.node.x,
+        offsetY: wp.y - card.node.y,
+      };
+      (e.currentTarget as Element).closest("svg")?.setPointerCapture?.(e.pointerId);
+    },
+    [cardByTable, screenToWorld],
+  );
+
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent<SVGSVGElement>): void => {
+      const drag = dragRef.current;
+      if (!drag) return;
+      if (drag.kind === "pan") {
+        const dx = e.clientX - drag.startX;
+        const dy = e.clientY - drag.startY;
+        setViewport((v) => ({ ...v, x: drag.startVpX + dx, y: drag.startVpY + dy }));
+      } else {
+        const rect = e.currentTarget.getBoundingClientRect();
+        const sx = e.clientX - rect.left;
+        const sy = e.clientY - rect.top;
+        const wp = screenToWorld(sx, sy);
+        const x = wp.x - drag.offsetX;
+        const y = wp.y - drag.offsetY;
+        setPositions((prev) => {
+          const next = new Map(prev);
+          next.set(`table:${drag.tableName}`, { x, y });
+          return next;
+        });
+      }
+    },
+    [screenToWorld],
+  );
+
+  const handlePointerUp = useCallback(
+    (e: React.PointerEvent<SVGSVGElement>): void => {
+      dragRef.current = null;
+      e.currentTarget.releasePointerCapture?.(e.pointerId);
+    },
+    [],
+  );
+
+  const handleWheel = useCallback(
+    (e: React.WheelEvent<SVGSVGElement>): void => {
+      e.preventDefault();
+      const rect = e.currentTarget.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+      // zoom を更新するが、マウス位置を world 上で固定するように viewport を補正
+      const factor = Math.exp(-e.deltaY * 0.0015);
+      setViewport((v) => {
+        const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, v.zoom * factor));
+        const wpX = (sx - v.x) / v.zoom;
+        const wpY = (sy - v.y) / v.zoom;
+        return {
+          zoom: newZoom,
+          x: sx - wpX * newZoom,
+          y: sy - wpY * newZoom,
+        };
+      });
+    },
+    [],
+  );
+
+  const fitToContent = useCallback(() => {
+    const w = worldBounds.maxX - worldBounds.minX;
+    const h = worldBounds.maxY - worldBounds.minY;
+    if (w <= 0 || h <= 0 || viewSize.width <= 0 || viewSize.height <= 0) return;
+    const zoom = Math.min(viewSize.width / w, viewSize.height / h, 1);
+    setViewport({
+      zoom,
+      x: -worldBounds.minX * zoom + (viewSize.width - w * zoom) / 2,
+      y: -worldBounds.minY * zoom + (viewSize.height - h * zoom) / 2,
+    });
+  }, [worldBounds, viewSize]);
+
+  const zoomBy = useCallback((factor: number) => {
+    setViewport((v) => {
+      const cx = viewSize.width / 2;
+      const cy = viewSize.height / 2;
+      const wpX = (cx - v.x) / v.zoom;
+      const wpY = (cy - v.y) / v.zoom;
+      const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, v.zoom * factor));
+      return {
+        zoom: newZoom,
+        x: cx - wpX * newZoom,
+        y: cy - wpY * newZoom,
+      };
+    });
+  }, [viewSize]);
+
+  if (!schema) return null;
+  void KeyIcon;
+  const edgeColor = isDark ? "rgba(120,170,255,0.85)" : "rgba(0,90,220,0.85)";
+
+  return (
+    <Box
+      ref={containerRef}
+      sx={{
+        flexGrow: 1,
+        minHeight: 0,
+        position: "relative",
+        overflow: "hidden",
+        background: isDark ? "#0c0e10" : "#f5f7fa",
+      }}
+    >
+      <svg
+        width="100%"
+        height="100%"
+        onPointerDown={handlePointerDownBackground}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerLeave={handlePointerUp}
+        onWheel={handleWheel}
+        style={{ display: "block", touchAction: "none" }}
+      >
         <defs>
           <pattern id="erd-grid" width={20} height={20} patternUnits="userSpaceOnUse">
             <circle cx={1} cy={1} r={0.8} fill={isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)"} />
@@ -241,45 +608,77 @@ export const ErdView: React.FC<Readonly<ErdViewProps>> = ({ schema, themeMode = 
             <path d="M 0 0 L 10 5 L 0 10 z" fill={edgeColor} />
           </marker>
         </defs>
-        <rect x={0} y={0} width={totalWidth} height={totalHeight} fill="url(#erd-grid)" />
-        {/* edges (描画前にカードを描く方が良いが、矢印はカードの上にも見える orth 配置で問題なし) */}
-        {edges.map((e) => {
-          const fromCard = cardByTable.get(e.fromTable);
-          const toCard = cardByTable.get(e.toTable);
-          if (!fromCard || !toCard) return null;
-          // 自テーブル側はカラム行の中央 Y を計算
-          const fromColIdx = fromCard.table.columns.findIndex((c) => c.name === e.fromColumn);
-          const fromY = fromCard.node.y + HEADER_HEIGHT + (fromColIdx < 0 ? 0 : fromColIdx) * ROW_HEIGHT + ROW_HEIGHT / 2;
-          const fromCx = fromCard.node.x + fromCard.node.width / 2;
-          // 参照先カード中央
-          const toCx = toCard.node.x + toCard.node.width / 2;
-          const toCy = toCard.node.y + toCard.height / 2;
-          // 自テーブルからは横方向 (left/right) の境界を起点にしたい → fromCx 比較
-          const fromX = toCx >= fromCx
-            ? fromCard.node.x + fromCard.node.width
-            : fromCard.node.x;
-          // 参照先カードは中心方向の境界
-          const toBorder = rectBorderPoint(toCx, toCy, toCard.node.width, toCard.height, fromX, fromY);
-          // 中間点 (orthogonal-ish): fromX を起点に水平 → 中点で垂直 → toBorder
-          const midX = (fromX + toBorder.x) / 2;
-          const path = `M ${fromX} ${fromY} L ${midX} ${fromY} L ${midX} ${toBorder.y} L ${toBorder.x} ${toBorder.y}`;
-          return (
-            <g key={e.id}>
-              <path
-                d={path}
-                fill="none"
-                stroke={edgeColor}
-                strokeWidth={1.5}
-                markerEnd="url(#erd-arrow)"
-              />
-              <circle cx={fromX} cy={fromY} r={3} fill={edgeColor} />
-            </g>
-          );
-        })}
-        {cards.map((c) => (
-          <TableCardSvg key={c.node.id} card={c} isDark={isDark} />
-        ))}
+        <rect className="erd-bg" x={0} y={0} width="100%" height="100%" fill="url(#erd-grid)" />
+        <g transform={`translate(${viewport.x}, ${viewport.y}) scale(${viewport.zoom})`}>
+          {edges.map((e) => {
+            const fromCard = cardByTable.get(e.fromTable);
+            const toCard = cardByTable.get(e.toTable);
+            if (!fromCard || !toCard) return null;
+            const fromColIdx = fromCard.table.columns.findIndex((c) => c.name === e.fromColumn);
+            const fromY =
+              fromCard.node.y + HEADER_HEIGHT + (fromColIdx < 0 ? 0 : fromColIdx) * ROW_HEIGHT + ROW_HEIGHT / 2;
+            const fromCx = fromCard.node.x + fromCard.node.width / 2;
+            const toCx = toCard.node.x + toCard.node.width / 2;
+            const toCy = toCard.node.y + toCard.height / 2;
+            const fromX = toCx >= fromCx ? fromCard.node.x + fromCard.node.width : fromCard.node.x;
+            const toBorder = rectBorderPoint(toCx, toCy, toCard.node.width, toCard.height, fromX, fromY);
+            const midX = (fromX + toBorder.x) / 2;
+            const path = `M ${fromX} ${fromY} L ${midX} ${fromY} L ${midX} ${toBorder.y} L ${toBorder.x} ${toBorder.y}`;
+            return (
+              <g key={e.id}>
+                <path d={path} fill="none" stroke={edgeColor} strokeWidth={1.5} markerEnd="url(#erd-arrow)" />
+                <circle cx={fromX} cy={fromY} r={3} fill={edgeColor} />
+              </g>
+            );
+          })}
+          {cards.map((c) => (
+            <TableCardSvg
+              key={c.node.id}
+              card={c}
+              isDark={isDark}
+              onPointerDownHeader={onCardHeaderPointerDown(c.table.name)}
+            />
+          ))}
+        </g>
       </svg>
+      {/* Toolbar */}
+      <Stack
+        direction="row"
+        spacing={0.5}
+        sx={{
+          position: "absolute",
+          left: 16,
+          top: 16,
+          background: isDark ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.85)",
+          borderRadius: 1,
+          p: 0.5,
+          backdropFilter: "blur(2px)",
+        }}
+      >
+        <Tooltip title="Zoom in">
+          <IconButton size="small" onClick={() => zoomBy(1.2)}>
+            <ZoomInIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title="Zoom out">
+          <IconButton size="small" onClick={() => zoomBy(1 / 1.2)}>
+            <ZoomOutIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title="Fit">
+          <IconButton size="small" onClick={fitToContent}>
+            <CenterFocusStrongIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      </Stack>
+      <Minimap
+        cards={cards}
+        viewport={viewport}
+        viewSize={viewSize}
+        worldBounds={worldBounds}
+        onChange={setViewport}
+        isDark={isDark}
+      />
     </Box>
   );
 };
