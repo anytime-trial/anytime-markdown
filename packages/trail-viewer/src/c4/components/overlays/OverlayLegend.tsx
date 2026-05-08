@@ -162,50 +162,75 @@ interface SegmentBarItem {
   readonly label: string;
 }
 
-function SegmentBar({ segments, textColor }: Readonly<{ segments: readonly SegmentBarItem[]; textColor: string }>) {
+function SegmentBar({
+  segments,
+  boundaries,
+  textColor,
+}: Readonly<{
+  segments: readonly SegmentBarItem[];
+  /** 各区間の境界に表示する閾値ラベル。長さは segments.length - 1。指定時はセグメント中央の label は使われない */
+  boundaries?: readonly string[];
+  textColor: string;
+}>) {
+  const ariaLabel = boundaries
+    ? `boundaries: ${boundaries.join(', ')}`
+    : segments.map((s) => s.label).join(' / ');
   return (
     <Box sx={{ width: '100%' }}>
       <Box
         role="img"
-        aria-label={segments.map((s) => s.label).join(' / ')}
+        aria-label={ariaLabel}
         sx={{ display: 'flex', width: '100%', height: 10, borderRadius: 0.5, overflow: 'hidden' }}
       >
         {segments.map((s) => (
           <Box key={s.label} sx={{ flex: 1, bgcolor: s.color }} />
         ))}
       </Box>
-      <Box sx={{ display: 'flex', mt: 0.25 }}>
-        {segments.map((s) => (
-          <Typography
-            key={s.label}
-            variant="caption"
-            sx={{ flex: 1, fontSize: '0.65rem', lineHeight: 1, color: textColor, textAlign: 'center' }}
-          >
-            {s.label}
-          </Typography>
-        ))}
-      </Box>
+      {boundaries ? (
+        <Box sx={{ position: 'relative', height: 12, mt: 0.25 }}>
+          {boundaries.map((b, i) => (
+            <Typography
+              key={b}
+              variant="caption"
+              sx={{
+                position: 'absolute',
+                left: `${((i + 1) / segments.length) * 100}%`,
+                transform: 'translateX(-50%)',
+                fontSize: '0.65rem',
+                lineHeight: 1,
+                color: textColor,
+              }}
+            >
+              {b}
+            </Typography>
+          ))}
+        </Box>
+      ) : (
+        <Box sx={{ display: 'flex', mt: 0.25 }}>
+          {segments.map((s) => (
+            <Typography
+              key={s.label}
+              variant="caption"
+              sx={{ flex: 1, fontSize: '0.65rem', lineHeight: 1, color: textColor, textAlign: 'center' }}
+            >
+              {s.label}
+            </Typography>
+          ))}
+        </Box>
+      )}
     </Box>
   );
 }
 
-const SIZE_LOC_SEGMENTS: readonly SegmentBarItem[] = [
-  { color: COVERAGE_LOW, label: '≥ 1000' },
-  { color: COVERAGE_MID, label: '500–999' },
-  { color: COVERAGE_HIGH, label: '< 500' },
+const SIZE_3_SEGMENTS: readonly SegmentBarItem[] = [
+  { color: COVERAGE_LOW, label: 'high' },
+  { color: COVERAGE_MID, label: 'mid' },
+  { color: COVERAGE_HIGH, label: 'low' },
 ];
 
-const SIZE_FILES_SEGMENTS: readonly SegmentBarItem[] = [
-  { color: COVERAGE_LOW, label: '≥ 50' },
-  { color: COVERAGE_MID, label: '20–49' },
-  { color: COVERAGE_HIGH, label: '< 20' },
-];
-
-const SIZE_FUNCTIONS_SEGMENTS: readonly SegmentBarItem[] = [
-  { color: COVERAGE_LOW, label: '≥ 50' },
-  { color: COVERAGE_MID, label: '10–49' },
-  { color: COVERAGE_HIGH, label: '< 10' },
-];
+const SIZE_LOC_BOUNDARIES = ['1000', '500'] as const;
+const SIZE_FILES_BOUNDARIES = ['50', '20'] as const;
+const SIZE_FUNCTIONS_BOUNDARIES = ['50', '10'] as const;
 
 const DSM_CYCLIC_SEGMENTS: readonly SegmentBarItem[] = [
   { color: COVERAGE_HIGH, label: 'ok' },
@@ -267,11 +292,11 @@ function getOverlayMetricItems(
         </>
       );
     case 'size-loc':
-      return <SegmentBar segments={SIZE_LOC_SEGMENTS} textColor={textColor} />;
+      return <SegmentBar segments={SIZE_3_SEGMENTS} boundaries={SIZE_LOC_BOUNDARIES} textColor={textColor} />;
     case 'size-files':
-      return <SegmentBar segments={SIZE_FILES_SEGMENTS} textColor={textColor} />;
+      return <SegmentBar segments={SIZE_3_SEGMENTS} boundaries={SIZE_FILES_BOUNDARIES} textColor={textColor} />;
     case 'size-functions':
-      return <SegmentBar segments={SIZE_FUNCTIONS_SEGMENTS} textColor={textColor} />;
+      return <SegmentBar segments={SIZE_3_SEGMENTS} boundaries={SIZE_FUNCTIONS_BOUNDARIES} textColor={textColor} />;
     case 'none':
     case 'fcmap':
       return null;
