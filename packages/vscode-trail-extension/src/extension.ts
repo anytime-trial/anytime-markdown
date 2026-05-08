@@ -28,6 +28,8 @@ import { DatabaseProvider } from './trail/DatabaseProvider';
 import { TrailPanel } from './trail/TrailPanel';
 import { resolveWatchedRepos } from './utils/resolveWatchedRepos';
 import { TrailLogger } from './utils/TrailLogger';
+import { createMemoryCoreRunner } from './utils/memoryCoreRunner';
+import type { MemoryCoreRunner } from './utils/memoryCoreRunner';
 
 let trailDataServer: TrailDataServer | undefined;
 let trailDb: TrailDatabase | undefined;
@@ -436,6 +438,17 @@ export async function activate(context: vscode.ExtensionContext) {
 	const backupGenerations = dbConfig.get<number>('backupGenerations', 1);
 	const backupIntervalDays = dbConfig.get<number>('backupIntervalDays', 1);
 	trailDb = new TrailDatabase(extensionDistPath, dbStorageDir, backupGenerations, TrailLogger, backupIntervalDays);
+
+	// Memory Core runner — initialized after dbStorageDir is known
+	const memoryCoreOutputChannel = vscode.window.createOutputChannel('Memory Core');
+	let memoryCoreRunner: MemoryCoreRunner | null = null;
+	if (dbStorageDir) {
+		const trailDbPath = path.join(dbStorageDir, 'trail.db');
+		memoryCoreRunner = createMemoryCoreRunner({
+			outputChannel: memoryCoreOutputChannel,
+			trailDbPath,
+		});
+	}
 	trailDb.setIntegrityAlertHandler((alerts) => {
 		for (const a of alerts) {
 			TrailLogger.warn(
@@ -525,6 +538,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			analyze,
 		);
 		trailDataServer?.notifySessionsUpdated();
+		await memoryCoreRunner?.runAfterImport();
 		return { ...result, durationMs: Date.now() - startedAt };
 	};
 
@@ -803,6 +817,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				databaseProvider.setImporting(false);
 
 				trailDataServer?.notifySessionsUpdated();
+				await memoryCoreRunner?.runAfterImport();
 
 				vscode.window.showInformationMessage(
 					`Trail: imported ${result.imported} sessions, ${result.commitsResolved} commits linked, ${result.releasesResolved} releases resolved, ${result.releasesAnalyzed} releases analyzed, ${result.coverageImported} coverage entries (${result.skipped} skipped)`,

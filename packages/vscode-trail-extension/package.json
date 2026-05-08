@@ -392,6 +392,7 @@
   },
   "dependencies": {
     "@anytime-markdown/graph-core": "*",
+    "@anytime-markdown/memory-core": "*",
     "@anytime-markdown/mcp-trail": "*",
     "@anytime-markdown/trail-core": "*",
     "@anytime-markdown/trail-db": "*",
