@@ -260,6 +260,7 @@ export interface TrailI18n {
   'c4.copyPath': string;
   'c4.frameFilter.reset': string;
   'c4.elementPanel.searchPlaceholder': string;
+  'c4.elementPanel.searchClear': string;
   'c4.elementPanel.tabLayer': string;
   'c4.elementPanel.tabCommunity': string;
   'c4.elementPanel.communityUnavailable': string;

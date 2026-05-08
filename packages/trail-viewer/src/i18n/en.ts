@@ -211,6 +211,7 @@ export const en: TrailI18n = {
   'c4.copyPath': 'Copy Path',
   'c4.frameFilter.reset': 'Reset',
   'c4.elementPanel.searchPlaceholder': 'Search elements...',
+  'c4.elementPanel.searchClear': 'Clear search',
   'c4.elementPanel.tabLayer': 'Layer',
   'c4.elementPanel.tabCommunity': 'Community',
   'c4.elementPanel.communityUnavailable': 'Code graph required',

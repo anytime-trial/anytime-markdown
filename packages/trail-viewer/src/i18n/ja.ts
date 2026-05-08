@@ -211,6 +211,7 @@ export const ja: TrailI18n = {
   'c4.copyPath': 'パスをコピー',
   'c4.frameFilter.reset': 'Reset',
   'c4.elementPanel.searchPlaceholder': '要素を検索...',
+  'c4.elementPanel.searchClear': '検索をクリア',
   'c4.elementPanel.tabLayer': 'レイヤー',
   'c4.elementPanel.tabCommunity': 'コミュニティ',
   'c4.elementPanel.communityUnavailable': 'コードグラフが必要です',
