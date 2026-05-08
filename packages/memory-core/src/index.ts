@@ -10,3 +10,5 @@ export { runConversationBackfill } from './pipeline/runConversationBackfill';
 export type { BackfillResult } from './pipeline/runConversationBackfill';
 export { ingestAstFacts } from './ingest/code/astFunctionLevel';
 export type { AstFactInput, AstFactStats } from './ingest/code/astFunctionLevel';
+export { extractDecisionComments } from './ingest/code/extractComments';
+export type { ExtractCommentsInput, ExtractCommentsStats } from './ingest/code/extractComments';
