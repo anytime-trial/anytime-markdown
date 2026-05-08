@@ -1,4 +1,4 @@
-import type { FileHotspotRow, TrendGranularity, TrendPeriod } from '@anytime-markdown/trail-core/c4';
+import type { FileHotspotRow, HotspotGranularity, TrendPeriod } from '@anytime-markdown/trail-core/c4';
 import { computeFileHotspot } from '@anytime-markdown/trail-core/c4';
 import { createClient } from '@supabase/supabase-js';
 import type { NextRequest } from 'next/server';
@@ -10,7 +10,7 @@ import { resolveSupabaseEnv } from '../../../lib/supabase-env';
 export const dynamic = 'force-dynamic';
 
 const PERIODS: readonly TrendPeriod[] = ['7d', '30d', '90d', 'all'];
-const GRANULARITIES: readonly TrendGranularity[] = ['commit', 'session', 'subagent'];
+const GRANULARITIES: readonly HotspotGranularity[] = ['commit', 'session'];
 const ALL_PERIOD_FROM = '1970-01-01T00:00:00.000Z';
 const MS_PER_DAY = 86_400_000;
 const EDIT_TOOLS = ['Edit', 'Write', 'NotebookEdit'] as const;
@@ -20,9 +20,9 @@ function parsePeriod(raw: string | null): TrendPeriod | null {
   return PERIODS.includes(raw as TrendPeriod) ? (raw as TrendPeriod) : null;
 }
 
-function parseGranularity(raw: string | null): TrendGranularity | null {
+function parseGranularity(raw: string | null): HotspotGranularity | null {
   if (raw === null) return 'commit';
-  return GRANULARITIES.includes(raw as TrendGranularity) ? (raw as TrendGranularity) : null;
+  return GRANULARITIES.includes(raw as HotspotGranularity) ? (raw as HotspotGranularity) : null;
 }
 
 function computePeriodRange(period: TrendPeriod): { from: string; to: string } {
@@ -34,7 +34,7 @@ function computePeriodRange(period: TrendPeriod): { from: string; to: string } {
   return { from, to };
 }
 
-function emptyResponse(period: TrendPeriod, granularity: TrendGranularity, from: string, to: string): NextResponse {
+function emptyResponse(period: TrendPeriod, granularity: HotspotGranularity, from: string, to: string): NextResponse {
   return NextResponse.json(
     { period, granularity, from, to, files: [] as readonly FileHotspotRow[] },
     { headers: NO_STORE_HEADERS },
@@ -112,35 +112,14 @@ async function fetchCommitGranularityRows(
   return rows;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function fetchSubagentMessageUuids(supabase: any, from: string, to: string): Promise<Set<string>> {
-  const result = new Set<string>();
-  for (let offset = 0; ; offset += 1000) {
-    const { data, error } = await supabase
-      .from('trail_messages')
-      .select('uuid')
-      .gte('timestamp', from)
-      .lte('timestamp', to)
-      .not('subagent_type', 'is', null)
-      .range(offset, offset + 999);
-    if (error || !data || data.length === 0) break;
-    for (const r of data as Array<{ uuid: string }>) result.add(r.uuid);
-    if (data.length < 1000) break;
-  }
-  return result;
-}
-
 async function fetchToolCallGranularityRows(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
   from: string,
   to: string,
   repo: string | undefined,
-  subagentOnly: boolean,
 ): Promise<FileHotspotRow[]> {
   const repoSessionIds = repo ? await fetchSessionIdsForRepo(supabase, repo) : null;
-  const subagentMsgUuids = subagentOnly ? await fetchSubagentMessageUuids(supabase, from, to) : null;
-  if (subagentMsgUuids && subagentMsgUuids.size === 0) return [];
 
   const fileChurn = new Map<string, number>();
   for (let offset = 0; ; offset += 1000) {
@@ -156,7 +135,6 @@ async function fetchToolCallGranularityRows(
     for (const r of data as Array<{ session_id: string; file_path: string; message_uuid: string }>) {
       if (!r.file_path) continue;
       if (repoSessionIds && !repoSessionIds.has(r.session_id)) continue;
-      if (subagentMsgUuids && !subagentMsgUuids.has(r.message_uuid)) continue;
       fileChurn.set(r.file_path, (fileChurn.get(r.file_path) ?? 0) + 1);
     }
     if (data.length < 1000) break;
@@ -186,7 +164,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const granularity = parseGranularity(sp.get('granularity'));
   if (granularity === null) {
     return NextResponse.json(
-      { error: "granularity must be one of 'commit', 'session', or 'subagent'" },
+      { error: "granularity must be one of 'commit' or 'session'" },
       { status: 400 },
     );
   }
@@ -202,7 +180,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     if (granularity === 'commit') {
       rows = await fetchCommitGranularityRows(supabase, from, to, repo);
     } else {
-      rows = await fetchToolCallGranularityRows(supabase, from, to, repo, granularity === 'subagent');
+      rows = await fetchToolCallGranularityRows(supabase, from, to, repo);
     }
     const files = computeFileHotspot(rows);
     return NextResponse.json(

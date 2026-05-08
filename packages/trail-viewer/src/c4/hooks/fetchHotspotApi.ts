@@ -1,14 +1,14 @@
-import type { FileHotspotRow, TrendGranularity, TrendPeriod } from '@anytime-markdown/trail-core/c4';
+import type { FileHotspotRow, HotspotGranularity, TrendPeriod } from '@anytime-markdown/trail-core/c4';
 
 export interface HotspotFetchParams {
   readonly period: TrendPeriod;
-  readonly granularity: TrendGranularity;
+  readonly granularity: HotspotGranularity;
   readonly repo?: string;
 }
 
 export interface HotspotResponse {
   readonly period: TrendPeriod;
-  readonly granularity: TrendGranularity;
+  readonly granularity: HotspotGranularity;
   readonly from: string;
   readonly to: string;
   readonly files: readonly FileHotspotRow[];

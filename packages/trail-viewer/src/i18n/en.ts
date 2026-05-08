@@ -340,7 +340,6 @@ export const en: TrailI18n = {
   'c4.hotspot.controls.granularity': 'Granularity',
   'c4.hotspot.controls.granularityCommit': 'Commit',
   'c4.hotspot.controls.granularitySession': 'Session',
-  'c4.hotspot.controls.granularitySubagent': 'Subagent',
   'c4.trend.title': 'Activity Trend',
   'c4.trend.loading': 'Loading trend...',
   'c4.trend.seriesCommit': 'Commit',

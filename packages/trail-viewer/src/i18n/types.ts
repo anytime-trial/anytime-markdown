@@ -246,7 +246,6 @@ export interface TrailI18n {
   'c4.hotspot.controls.granularity': string;
   'c4.hotspot.controls.granularityCommit': string;
   'c4.hotspot.controls.granularitySession': string;
-  'c4.hotspot.controls.granularitySubagent': string;
   'c4.trend.title': string;
   'c4.trend.loading': string;
   'c4.trend.seriesCommit': string;

@@ -33,6 +33,7 @@ export type {
   HeatmapCell,
   HeatmapMatrix,
   HotspotEntry,
+  HotspotGranularity,
   HotspotMap,
   TrendBucket,
   TrendBucketSize,
