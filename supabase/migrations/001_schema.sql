@@ -703,13 +703,31 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_trail_user_message_costs
     ON trail_user_message_costs (user_uuid, model);
 
 -- import 完了後に呼ぶ refresh function。
--- CONCURRENTLY refresh により MV が存在する間は古いデータで read 可能。
+-- SECURITY DEFINER + statement_timeout=0 で anon キーから RPC 呼び出ししても
+-- PostgREST のクエリタイムアウトに引っ掛からず完走する (postgres 権限で実行)。
+-- pg_class.relispopulated で MV が初回 (未 populate) かを判定し、
+-- 初回は非 CONCURRENT、以降は CONCURRENT で REFRESH する
+-- (CONCURRENTLY は populate 済 MV にしか使えない PostgreSQL 仕様への対処)。
 CREATE OR REPLACE FUNCTION refresh_trail_user_message_costs()
 RETURNS void
-LANGUAGE sql
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET statement_timeout = 0
 AS $$
-    REFRESH MATERIALIZED VIEW CONCURRENTLY trail_user_message_costs;
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_class
+        WHERE relname = 'trail_user_message_costs'
+          AND relkind = 'm'
+          AND relispopulated
+    ) THEN
+        REFRESH MATERIALIZED VIEW CONCURRENTLY trail_user_message_costs;
+    ELSE
+        REFRESH MATERIALIZED VIEW trail_user_message_costs;
+    END IF;
+END;
 $$;
+GRANT EXECUTE ON FUNCTION refresh_trail_user_message_costs() TO anon, authenticated;
 
 -- =====================================================================
 -- Phase 5e: trail_user_messages_meta Materialized View
@@ -739,9 +757,28 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_trail_user_messages_meta
     ON trail_user_messages_meta (uuid);
 
 -- import 完了後に呼ぶ refresh function。
+-- SECURITY DEFINER + statement_timeout=0 で anon キーから RPC 呼び出ししても
+-- PostgREST のクエリタイムアウトに引っ掛からず完走する (postgres 権限で実行)。
+-- pg_class.relispopulated で MV が初回 (未 populate) かを判定し、
+-- 初回は非 CONCURRENT、以降は CONCURRENT で REFRESH する
+-- (CONCURRENTLY は populate 済 MV にしか使えない PostgreSQL 仕様への対処)。
 CREATE OR REPLACE FUNCTION refresh_trail_user_messages_meta()
 RETURNS void
-LANGUAGE sql
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET statement_timeout = 0
 AS $$
-    REFRESH MATERIALIZED VIEW CONCURRENTLY trail_user_messages_meta;
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_class
+        WHERE relname = 'trail_user_messages_meta'
+          AND relkind = 'm'
+          AND relispopulated
+    ) THEN
+        REFRESH MATERIALIZED VIEW CONCURRENTLY trail_user_messages_meta;
+    ELSE
+        REFRESH MATERIALIZED VIEW trail_user_messages_meta;
+    END IF;
+END;
 $$;
+GRANT EXECUTE ON FUNCTION refresh_trail_user_messages_meta() TO anon, authenticated;
