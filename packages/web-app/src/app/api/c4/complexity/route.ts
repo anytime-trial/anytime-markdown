@@ -21,6 +21,13 @@ export const dynamic = 'force-dynamic';
  *
  * 返却形状: { complexityMatrix: ComplexityMatrix } | 204 No Content
  */
+
+type RpcRow = {
+  output_tokens: number | null;
+  tool_names: string[] | null;
+  edited_file_paths: string[] | null;
+};
+
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const repoParam = request.nextUrl.searchParams.get("repo") ?? undefined;
 
@@ -33,10 +40,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const supabase = createClient(env.url, env.anonKey);
 
-    // クライアントが selectedRepo='' の状態で叩くと repo パラメータが付かず、
-    // fetchC4Model('current', undefined) が null になり elements 空 → entries 空。
-    // VS Code 拡張は gitRoot から repo を補完しているため、
-    // Web アプリでも trail_current_graphs から最初の repo に fallback する。
     let repo = repoParam;
     if (!repo) {
       const { data } = await supabase
@@ -48,62 +51,26 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       if (data?.repo_name) repo = data.repo_name;
     }
 
-    // Supabase の Postgres API はデフォルトで 1000 行制限のため、
-    // tool_calls を含む assistant メッセージを全件取得するためにページネーションする
-    // (拡張機能の TrailDataServer は trail.db を直接全件読むため制限を受けない)。
-    type MessageRow = { tool_calls: string | null; output_tokens: number | null };
-    async function fetchAllAssistantMessages(): Promise<MessageRow[]> {
-      const out: MessageRow[] = [];
-      const PAGE = 1000;
-      for (let offset = 0; ; offset += PAGE) {
-        const { data, error } = await supabase
-          .from('trail_messages')
-          .select('tool_calls, output_tokens')
-          .eq('type', 'assistant')
-          .not('tool_calls', 'is', null)
-          .range(offset, offset + PAGE - 1);
-        if (error) throw error;
-        if (!data || data.length === 0) break;
-        out.push(...(data as MessageRow[]));
-        if (data.length < PAGE) break;
-      }
-      return out;
-    }
-
-    const [payload, messageRows] = await Promise.all([
+    // get_complexity_tool_summary RPC: DB 側で tool_calls JSON を展開し
+    // ツール名・ファイルパスのみ返す。old_string/content 等の大容量フィールドを
+    // 転送しないため Netlify 関数の OOM を防止する。
+    const [payload, rpcResult] = await Promise.all([
       fetchC4Model(store, 'current', repo),
-      fetchAllAssistantMessages().catch((err) => {
-        console.error('[/api/c4/complexity] trail_messages query failed:', err);
-        return null;
-      }),
+      supabase.rpc('get_complexity_tool_summary'),
     ]);
 
-    if (messageRows === null) {
+    if (rpcResult.error) {
+      console.error('[/api/c4/complexity] rpc failed:', rpcResult.error.message);
       return new NextResponse(null, { status: 204 });
     }
 
-    // C4 モデルが取得できない場合は空の elements でフォールバック（items は enabled になる）
     const elements = payload?.model.elements ?? [];
 
-    const messages: MessageInput[] = messageRows.map(row => {
-      let toolCallNames: string[] = [];
-      let editedFilePaths: string[] = [];
-      if (row.tool_calls) {
-        try {
-          const calls = JSON.parse(String(row.tool_calls)) as { name?: string; input?: Record<string, unknown> }[];
-          if (Array.isArray(calls)) {
-            toolCallNames = calls.map(c => c.name ?? '').filter(Boolean);
-            editedFilePaths = calls
-              .filter(c => c.name === 'Edit' || c.name === 'Write')
-              .map(c => (typeof c.input?.file_path === 'string' ? c.input.file_path : ''))
-              .filter(Boolean);
-          }
-        } catch {
-          // malformed tool_calls — skip
-        }
-      }
-      return { outputTokens: Number(row.output_tokens), toolCallNames, editedFilePaths };
-    });
+    const messages: MessageInput[] = (rpcResult.data as RpcRow[] ?? []).map((row) => ({
+      outputTokens: Number(row.output_tokens ?? 0),
+      toolCallNames: row.tool_names ?? [],
+      editedFilePaths: row.edited_file_paths ?? [],
+    }));
 
     const complexityMatrix = computeComplexityMatrix(messages, elements);
     return NextResponse.json({ complexityMatrix }, { headers: NO_STORE_HEADERS });

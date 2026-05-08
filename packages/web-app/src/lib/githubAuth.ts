@@ -5,6 +5,9 @@ import Spotify from "next-auth/providers/spotify";
 
 const result = NextAuth({
   secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
+  // Netlify は VERCEL/CF_PAGES 環境変数がないため @auth/core の自動検知が効かない。
+  // AUTH_TRUST_HOST か AUTH_URL がない場合でも信頼する（reverse proxy 後段で動作）。
+  trustHost: true,
   providers: [
     GitHub({
       clientId: process.env.GITHUB_CLIENT_ID ?? "",

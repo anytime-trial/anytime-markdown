@@ -756,6 +756,38 @@ CREATE INDEX IF NOT EXISTS idx_trail_user_messages_meta_session
 CREATE UNIQUE INDEX IF NOT EXISTS uq_trail_user_messages_meta
     ON trail_user_messages_meta (uuid);
 
+-- complexity overlay: tool_calls の JSON を DB 側で展開し、ツール名とファイルパスのみ返す。
+-- old_string / new_string / content などの大容量フィールドを Netlify 関数に転送しないため
+-- OOM → 502 を防止する。SECURITY DEFINER + statement_timeout=0 でタイムアウトを回避。
+CREATE OR REPLACE FUNCTION get_complexity_tool_summary()
+RETURNS TABLE(
+  output_tokens INTEGER,
+  tool_names TEXT[],
+  edited_file_paths TEXT[]
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET statement_timeout = 0
+AS $$
+  SELECT
+    m.output_tokens,
+    ARRAY(
+      SELECT tc->>'name'
+      FROM jsonb_array_elements(m.tool_calls::jsonb) AS tc
+      WHERE (tc->>'name') IS NOT NULL
+    ) AS tool_names,
+    ARRAY(
+      SELECT tc->'input'->>'file_path'
+      FROM jsonb_array_elements(m.tool_calls::jsonb) AS tc
+      WHERE (tc->>'name') IN ('Edit', 'Write', 'NotebookEdit')
+        AND (tc->'input'->>'file_path') IS NOT NULL
+    ) AS edited_file_paths
+  FROM trail_messages m
+  WHERE m.type = 'assistant'
+    AND m.tool_calls IS NOT NULL;
+$$;
+
 -- import 完了後に呼ぶ refresh function。
 -- SECURITY DEFINER + statement_timeout=0 で anon キーから RPC 呼び出ししても
 -- PostgREST のクエリタイムアウトに引っ掛からず完走する (postgres 権限で実行)。

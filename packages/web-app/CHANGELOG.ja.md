@@ -6,6 +6,14 @@
 
 ## [Unreleased]
 
+## [0.26.1] - 2026-05-08
+
+### 修正
+
+- Auth.js に `trustHost: true` を追加し、Netlify 上での「server configuration」エラーを解消（Vercel/Cloudflare 以外の環境では自動信頼検知が効かない）
+- `/api/c4/complexity` を `get_complexity_tool_summary` Supabase RPC に切り替え、OOM 起因の 502 を解消（`tool_calls` JSON に `old_string`/`content` などの大容量フィールドが含まれ Netlify 関数のメモリを枯渇させていた）
+- `get_complexity_tool_summary` Postgres 関数をスキーマに追加（ツール名とファイルパスのみを DB 側で展開して返す）
+
 ## [0.26.0] - 2026-05-08
 
 ### 追加
