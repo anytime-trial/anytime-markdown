@@ -4,7 +4,7 @@ import type { MetricOverlay } from '@anytime-markdown/trail-core/c4';
 import { getC4Colors } from '../../../theme/c4Tokens';
 import { useTrailI18n } from '../../../i18n/context';
 import type { TrailI18n } from '../../../i18n/types';
-import { COVERAGE_HIGH, COVERAGE_LOW, COVERAGE_MID, COVERAGE_NONE, METRIC_LEGEND_BLUE } from '../../c4MetricColors';
+import { COVERAGE_HIGH, COVERAGE_LOW, COVERAGE_MID, METRIC_LEGEND_BLUE } from '../../c4MetricColors';
 
 type TrailI18nKey = keyof TrailI18n;
 
@@ -123,11 +123,11 @@ const HOTSPOT_FREQ_RGB = '232, 160, 18';
 const HOTSPOT_RISK_RGB = '232, 80, 28';
 
 function GradientBar({
-  baseRgb,
+  background,
   lowLabel,
   highLabel,
   textColor,
-}: Readonly<{ baseRgb: string; lowLabel: string; highLabel: string; textColor: string }>) {
+}: Readonly<{ background: string; lowLabel: string; highLabel: string; textColor: string }>) {
   return (
     <Box sx={{ width: '100%' }}>
       <Box
@@ -137,7 +137,7 @@ function GradientBar({
           width: '100%',
           height: 10,
           borderRadius: 0.5,
-          background: `linear-gradient(to right, rgba(${baseRgb}, 0.10), rgba(${baseRgb}, 1.0))`,
+          background,
         }}
       />
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.25 }}>
@@ -152,6 +152,10 @@ function GradientBar({
   );
 }
 
+const HOTSPOT_FREQ_GRADIENT = `linear-gradient(to right, rgba(${HOTSPOT_FREQ_RGB}, 0.10), rgba(${HOTSPOT_FREQ_RGB}, 1.0))`;
+const HOTSPOT_RISK_GRADIENT = `linear-gradient(to right, rgba(${HOTSPOT_RISK_RGB}, 0.10), rgba(${HOTSPOT_RISK_RGB}, 1.0))`;
+const COVERAGE_GRADIENT = `linear-gradient(to right, ${COVERAGE_LOW}, ${COVERAGE_MID}, ${COVERAGE_HIGH})`;
+
 function getOverlayMetricItems(
   overlay: MetricOverlay,
   dsmMax: number | undefined,
@@ -161,14 +165,7 @@ function getOverlayMetricItems(
     case 'coverage-lines':
     case 'coverage-branches':
     case 'coverage-functions':
-      return (
-        <>
-          <Swatch color={COVERAGE_HIGH} label="≥ 80%" />
-          <Swatch color={COVERAGE_MID} label="50–79%" />
-          <Swatch color={COVERAGE_LOW} label="< 50%" />
-          <Swatch color={COVERAGE_NONE} label="—" />
-        </>
-      );
+      return <GradientBar background={COVERAGE_GRADIENT} lowLabel="< 50%" highLabel="≥ 80%" textColor={textColor} />;
     case 'dsm-out':
     case 'dsm-in':
       return (
@@ -211,9 +208,9 @@ function getOverlayMetricItems(
         </>
       );
     case 'hotspot-frequency':
-      return <GradientBar baseRgb={HOTSPOT_FREQ_RGB} lowLabel="low" highLabel="high" textColor={textColor} />;
+      return <GradientBar background={HOTSPOT_FREQ_GRADIENT} lowLabel="low" highLabel="high" textColor={textColor} />;
     case 'hotspot-risk':
-      return <GradientBar baseRgb={HOTSPOT_RISK_RGB} lowLabel="low" highLabel="high" textColor={textColor} />;
+      return <GradientBar background={HOTSPOT_RISK_GRADIENT} lowLabel="low" highLabel="high" textColor={textColor} />;
     case 'dead-code-score':
       return (
         <>
