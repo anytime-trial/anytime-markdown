@@ -111,7 +111,16 @@ export function fromTrailGraph(opts: {
     return stats;
   }
 
-  // ── 2. Collect unique packages ───────────────────────────────────────────
+  // ── 2. Determine valid_from: graph.generatedAt if valid, else recordedAt ──
+  let validFrom = recordedAt;
+  if (typeof graph.generatedAt === 'string' && graph.generatedAt.length > 0) {
+    const parsed = new Date(graph.generatedAt);
+    if (!Number.isNaN(parsed.getTime())) {
+      validFrom = graph.generatedAt;
+    }
+  }
+
+  // ── 3. Collect unique packages ───────────────────────────────────────────
   const packageNames = new Set<string>();
   for (const node of codeNodes) {
     if (node.package) {
@@ -119,7 +128,7 @@ export function fromTrailGraph(opts: {
     }
   }
 
-  // ── 3. Upsert Package entities ───────────────────────────────────────────
+  // ── 4. Upsert Package entities ───────────────────────────────────────────
   const packageIdMap = new Map<string, string>(); // package name → entity id
 
   for (const pkgName of packageNames) {
@@ -127,16 +136,20 @@ export function fromTrailGraph(opts: {
     const eId = entityId('Package', canonName);
     packageIdMap.set(pkgName, eId);
 
+    // Collect repo from first code node in this package for attributes_json
+    const firstNodeInPkg = codeNodes.find((n) => n.package === pkgName);
+    const pkgAttributes = JSON.stringify({ repo: firstNodeInPkg?.repo ?? repoName });
+
     try {
       db.run(
         `INSERT INTO memory_entities
            (id, type, canonical_name, display_name,
             aliases_json, tags_json, attributes_json,
             first_seen_at, last_updated_at, recorded_at)
-         VALUES (?, 'Package', ?, ?, '[]', '[]', '{}', ?, ?, ?)
+         VALUES (?, 'Package', ?, ?, '[]', '[]', ?, ?, ?, ?)
          ON CONFLICT(type, canonical_name) DO UPDATE SET
            last_updated_at = excluded.last_updated_at`,
-        [eId, canonName, pkgName, recordedAt, recordedAt, recordedAt]
+        [eId, canonName, pkgName, pkgAttributes, recordedAt, recordedAt, recordedAt]
       );
       stats.packages_upserted += 1;
     } catch (err) {
@@ -147,10 +160,17 @@ export function fromTrailGraph(opts: {
     }
   }
 
-  // ── 4. Upsert File entities and insert Package→relates_to→File edges ─────
+  // ── 5. Upsert File entities and insert Package→relates_to→File edges ─────
+  const sourceRef = `current_code_graphs#${repoName}`;
+
   for (const node of codeNodes) {
     const fileCanonName = canonicalize(node.id);
     const fileEId = entityId('File', fileCanonName);
+    const fileAttributes = JSON.stringify({
+      repo: node.repo,
+      package: node.package,
+      label: node.label,
+    });
 
     try {
       db.run(
@@ -158,10 +178,10 @@ export function fromTrailGraph(opts: {
            (id, type, canonical_name, display_name,
             aliases_json, tags_json, attributes_json,
             first_seen_at, last_updated_at, recorded_at)
-         VALUES (?, 'File', ?, ?, '[]', '[]', '{}', ?, ?, ?)
+         VALUES (?, 'File', ?, ?, '[]', '[]', ?, ?, ?, ?)
          ON CONFLICT(type, canonical_name) DO UPDATE SET
            last_updated_at = excluded.last_updated_at`,
-        [fileEId, fileCanonName, node.id, recordedAt, recordedAt, recordedAt]
+        [fileEId, fileCanonName, node.id, fileAttributes, recordedAt, recordedAt, recordedAt]
       );
       stats.files_upserted += 1;
     } catch (err) {
@@ -192,7 +212,7 @@ export function fromTrailGraph(opts: {
               confidence, confidence_label, modality)
            VALUES (?, ?, 'relates_to', ?, ?, ?, 'code', ?, 1.0, 'EXTRACTED', 'asserted')
            ON CONFLICT(id) DO NOTHING`,
-          [edId, pkgEId, fileEId, recordedAt, recordedAt, repoName]
+          [edId, pkgEId, fileEId, validFrom, recordedAt, sourceRef]
         );
         stats.edges_inserted += 1;
       } catch (err) {

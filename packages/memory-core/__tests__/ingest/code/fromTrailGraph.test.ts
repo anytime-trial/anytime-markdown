@@ -291,7 +291,7 @@ describe('fromTrailGraph', () => {
   }, 30000);
 
   // ── FTG-6: edge source_type = 'code' ─────────────────────────────────────
-  test('FTG-6: edges have source_type = "code" and source_ref = repo_name', async () => {
+  test('FTG-6: edges have source_type = "code" and source_ref = "current_code_graphs#<repo>"', async () => {
     const memDb = await makeMemoryDb();
     const trailDb = makeTrailDb(SQL);
 
@@ -314,8 +314,108 @@ describe('fromTrailGraph', () => {
     expect(edgeRows[0]?.values).toHaveLength(1);
     const [sourceType, sourceRef, predicate] = edgeRows[0].values[0];
     expect(sourceType).toBe('code');
-    expect(sourceRef).toBe('my-repo');
+    expect(sourceRef).toBe('current_code_graphs#my-repo');
     expect(predicate).toBe('relates_to');
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
+
+  // ── FTG-9: attributes_json populated correctly ────────────────────────────
+  test('FTG-9: Package attributes_json has repo; File attributes_json has repo/package/label', async () => {
+    const memDb = await makeMemoryDb();
+    const trailDb = makeTrailDb(SQL);
+
+    insertGraph(trailDb, 'my-repo', [
+      {
+        id: 'src/index.ts',
+        label: 'index.ts',
+        repo: 'my-repo',
+        package: 'my-pkg',
+        fileType: 'code',
+      },
+    ]);
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    fromTrailGraph({
+      db: memDb,
+      repoName: 'my-repo',
+      recordedAt: RECORDED_AT,
+      logger: silentLogger,
+    });
+
+    // Package attributes_json
+    const pkgStmt = memDb.prepare(
+      `SELECT attributes_json FROM memory_entities WHERE type = 'Package'`
+    );
+    pkgStmt.step();
+    const pkgRow = pkgStmt.getAsObject();
+    pkgStmt.free();
+    expect(JSON.parse(pkgRow['attributes_json'] as string)).toEqual({ repo: 'my-repo' });
+
+    // File attributes_json
+    const fileStmt = memDb.prepare(
+      `SELECT attributes_json FROM memory_entities WHERE type = 'File'`
+    );
+    fileStmt.step();
+    const fileRow = fileStmt.getAsObject();
+    fileStmt.free();
+    expect(JSON.parse(fileRow['attributes_json'] as string)).toEqual({
+      repo: 'my-repo',
+      package: 'my-pkg',
+      label: 'index.ts',
+    });
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
+
+  // ── FTG-10: valid_from uses graph.generatedAt ─────────────────────────────
+  test('FTG-10: edges valid_from = graph.generatedAt when present and valid', async () => {
+    const memDb = await makeMemoryDb();
+    const trailDb = makeTrailDb(SQL);
+    const GENERATED_AT = '2025-12-01T08:00:00.000Z';
+
+    // Insert a graph where generatedAt differs from RECORDED_AT
+    const graphJson = JSON.stringify({
+      generatedAt: GENERATED_AT,
+      nodes: [
+        {
+          id: 'src/index.ts',
+          label: 'index.ts',
+          repo: 'my-repo',
+          package: 'my-pkg',
+          fileType: 'code',
+          community: 0,
+          communityLabel: '',
+          x: 0,
+          y: 0,
+          size: 1,
+        },
+      ],
+      edges: [],
+      communities: {},
+      godNodes: [],
+    });
+    trailDb.run(
+      `INSERT INTO current_code_graphs (repo_name, graph_json, generated_at, updated_at)
+       VALUES (?, ?, ?, ?)`,
+      ['my-repo', graphJson, GENERATED_AT, RECORDED_AT]
+    );
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    fromTrailGraph({
+      db: memDb,
+      repoName: 'my-repo',
+      recordedAt: RECORDED_AT,
+      logger: silentLogger,
+    });
+
+    const edgeRows = memDb.exec(`SELECT valid_from FROM memory_edges`);
+    expect(edgeRows[0]?.values).toHaveLength(1);
+    expect(edgeRows[0].values[0][0]).toBe(GENERATED_AT);
 
     trailDb.close();
     memDb.close();
