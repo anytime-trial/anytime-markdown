@@ -15,6 +15,7 @@ export const ja: TrailI18n = {
   'filter.searchPlaceholder': '検索...',
   'filter.workspace': 'ワークスペース',
   'filter.searchLabel': 'セッション検索',
+  'filter.searchClear': '検索をクリア',
   'sessionList.noSessions': 'セッションが見つかりません',
   'sessionList.messages': '件',
   'sessionList.session': 'セッション',

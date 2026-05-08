@@ -15,6 +15,7 @@ export const en: TrailI18n = {
   'filter.searchPlaceholder': 'Search...',
   'filter.workspace': 'Workspace',
   'filter.searchLabel': 'Search sessions',
+  'filter.searchClear': 'Clear search',
   'sessionList.noSessions': 'No sessions found',
   'sessionList.messages': 'messages',
   'sessionList.session': 'session',
