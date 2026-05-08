@@ -148,8 +148,12 @@ export class ProjectAnalyzer {
   }
 
   getSourceFiles(): readonly ts.SourceFile[] {
+    // `.d.ts` は型宣言のみで実装を持たないため、importance / dead-code /
+    // complexity 等のコード解析には不適。`isDeclarationFile` を使って TS
+    // Compiler の判定で確実に除外する（拡張子ベースより堅牢: `.d.cts` /
+    // `.d.mts` / 自動生成 declaration もカバーする）。
     return this.program
       .getSourceFiles()
-      .filter(f => !f.fileName.includes('node_modules'));
+      .filter(f => !f.fileName.includes('node_modules') && !f.isDeclarationFile);
   }
 }

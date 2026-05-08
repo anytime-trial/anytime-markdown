@@ -1,0 +1,40 @@
+{
+  "name": "@anytime-markdown/database-core",
+  "version": "0.1.0",
+  "license": "MIT",
+  "private": true,
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./SqlJsAdapter": "./src/SqlJsAdapter.ts",
+    "./BetterSqlite3Adapter": "./src/BetterSqlite3Adapter.ts",
+    "./RemoteDatabaseAdapter": "./src/RemoteDatabaseAdapter.ts",
+    "./PaginatedSqlSheetAdapter": "./src/PaginatedSqlSheetAdapter.ts",
+    "./messaging": "./src/messaging.ts",
+    "./types": "./src/types.ts"
+  },
+  "scripts": {
+    "test": "jest --maxWorkers=1"
+  },
+  "dependencies": {
+    "@anytime-markdown/spreadsheet-core": "*"
+  },
+  "peerDependencies": {
+    "better-sqlite3": "^12.9.0",
+    "sql.js": "^1.12.0"
+  },
+  "peerDependenciesMeta": {
+    "better-sqlite3": { "optional": true },
+    "sql.js": { "optional": true }
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "7.6.13",
+    "@types/jest": "30.0.0",
+    "@types/sql.js": "1.4.9",
+    "better-sqlite3": "12.9.0",
+    "jest": "30.2.0",
+    "sql.js": "1.12.0",
+    "ts-jest": "29.4.6"
+  }
+}

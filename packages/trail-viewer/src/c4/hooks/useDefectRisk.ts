@@ -24,7 +24,7 @@ export function useDefectRisk(options: UseDefectRiskOptions): UseDefectRiskResul
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    if (!enabled || !serverUrl) {
+    if (!enabled || serverUrl === undefined) {
       abortRef.current?.abort();
       setEntries([]);
       setLoading(false);

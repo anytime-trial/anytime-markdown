@@ -95,28 +95,6 @@ describe('TypeScriptAdapter.computeFanInMap', () => {
   });
 });
 
-describe('TypeScriptAdapter.fromTsConfig', () => {
-  it('creates adapter from tsconfig path', () => {
-    const tsconfigPath = path.resolve(__dirname, '../../../tsconfig.json');
-    const adapter = TypeScriptAdapter.fromTsConfig(tsconfigPath);
-    expect(adapter.language).toBe('typescript');
-  });
-
-  it('throws on non-existent tsconfig', () => {
-    expect(() =>
-      TypeScriptAdapter.fromTsConfig('/path/to/nonexistent/tsconfig.json')
-    ).toThrow('Failed to read tsconfig');
-  });
-
-  it('extracts functions from files in tsconfig', () => {
-    const tsconfigPath = path.resolve(__dirname, '../../../tsconfig.json');
-    const adapter = TypeScriptAdapter.fromTsConfig(tsconfigPath);
-    const fixtureFile = path.join(FIXTURE_DIR, 'mutations.ts');
-    const functions = adapter.extractFunctions([fixtureFile]);
-    expect(functions.length).toBeGreaterThan(0);
-  });
-});
-
 describe('TypeScriptAdapter.computeMetrics: cyclomaticComplexity', () => {
   let adapter: TypeScriptAdapter;
   let functions: ReturnType<TypeScriptAdapter['extractFunctions']>;
@@ -139,5 +117,41 @@ describe('TypeScriptAdapter.computeMetrics: cyclomaticComplexity', () => {
     if (!fn) throw new Error('nestedBranch not found in fixture');
     const metrics = adapter.computeMetrics(fn);
     expect(metrics.cyclomaticComplexity).toBe(3);
+  });
+});
+
+describe('TypeScriptAdapter.computeFanInMap (JSX & arrow const)', () => {
+  const JSX_COMPONENT = path.join(FIXTURE_DIR, 'jsxComponent.tsx');
+  const JSX_CONSUMER = path.join(FIXTURE_DIR, 'jsxConsumer.tsx');
+  const ARROW_CONST = path.join(FIXTURE_DIR, 'arrowConst.ts');
+
+  it('counts <ArrowComp /> self-closing JSX usage as fanIn=1', () => {
+    const adapter = new TypeScriptAdapter([JSX_COMPONENT, JSX_CONSUMER]);
+    const map = adapter.computeFanInMap();
+    const arrowId = [...map.keys()].find((k) => k.endsWith('::ArrowComp'));
+    expect(arrowId).toBeDefined();
+    expect(map.get(arrowId!)).toBe(1);
+  });
+
+  it('counts <PlainComp/> + <PlainComp></PlainComp> as fanIn=2', () => {
+    const adapter = new TypeScriptAdapter([JSX_COMPONENT, JSX_CONSUMER]);
+    const map = adapter.computeFanInMap();
+    const plainId = [...map.keys()].find((k) => k.endsWith('::PlainComp'));
+    expect(plainId).toBeDefined();
+    expect(map.get(plainId!)).toBe(2);
+  });
+
+  it('counts arrow-bound const callers as fanIn=2 (regression for symbol→VariableDeclaration resolution)', () => {
+    const adapter = new TypeScriptAdapter([ARROW_CONST]);
+    const map = adapter.computeFanInMap();
+    const arrowFnId = [...map.keys()].find((k) => k.endsWith('::arrowFn'));
+    expect(arrowFnId).toBeDefined();
+    expect(map.get(arrowFnId!)).toBe(2);
+  });
+
+  it('does not count host elements like <span> in fanIn map', () => {
+    const adapter = new TypeScriptAdapter([JSX_COMPONENT, JSX_CONSUMER]);
+    const map = adapter.computeFanInMap();
+    expect([...map.keys()].some((k) => k.endsWith('::span') || k.endsWith('::div'))).toBe(false);
   });
 });

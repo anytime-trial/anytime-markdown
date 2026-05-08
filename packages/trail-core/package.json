@@ -1,6 +1,6 @@
 {
   "name": "@anytime-markdown/trail-core",
-  "version": "0.17.0",
+  "version": "0.18.0",
   "license": "MIT",
   "private": true,
   "main": "src/index.ts",
@@ -47,6 +47,7 @@
     "typescript": "5.8.3"
   },
   "dependencies": {
+    "ignore": "7.0.5",
     "minimatch": "9.0.9",
     "simple-icons": "16.17.0"
   }

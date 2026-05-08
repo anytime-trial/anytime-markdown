@@ -10,7 +10,7 @@ import Select from '@mui/material/Select';
 import Typography from '@mui/material/Typography';
 
 import type {
-  TrendGranularity,
+  HotspotGranularity,
   TrendPeriod,
 } from '@anytime-markdown/trail-core/c4';
 
@@ -18,7 +18,7 @@ import { useTrailI18n } from '../../../i18n/context';
 
 export interface HotspotControlsValue {
   readonly period: TrendPeriod;
-  readonly granularity: TrendGranularity;
+  readonly granularity: HotspotGranularity;
 }
 
 export interface HotspotControlsProps {
@@ -34,7 +34,7 @@ export interface HotspotControlsProps {
 }
 
 const PERIOD_OPTIONS: ReadonlyArray<TrendPeriod> = ['7d', '30d', '90d', 'all'];
-const GRANULARITY_OPTIONS: ReadonlyArray<TrendGranularity> = ['commit', 'session', 'subagent'];
+const GRANULARITY_OPTIONS: ReadonlyArray<HotspotGranularity> = ['commit', 'session'];
 
 export function HotspotControls({
   value,
@@ -48,7 +48,7 @@ export function HotspotControls({
   const { t } = useTrailI18n();
   if (!enabled) return null;
   const handlePeriod = (period: TrendPeriod): void => onChange({ ...value, period });
-  const handleGranularity = (granularity: TrendGranularity): void =>
+  const handleGranularity = (granularity: HotspotGranularity): void =>
     onChange({ ...value, granularity });
   return (
     <Box
@@ -110,7 +110,7 @@ export function HotspotControls({
         </FormLabel>
         <RadioGroup
           value={value.granularity}
-          onChange={(e) => handleGranularity(String(e.target.value) as TrendGranularity)}
+          onChange={(e) => handleGranularity(String(e.target.value) as HotspotGranularity)}
           aria-label={t('c4.hotspot.controls.granularity')}
         >
           {GRANULARITY_OPTIONS.map((g) => (
@@ -122,9 +122,7 @@ export function HotspotControls({
                 <Typography variant="caption">
                   {g === 'commit'
                     ? t('c4.hotspot.controls.granularityCommit')
-                    : g === 'session'
-                      ? t('c4.hotspot.controls.granularitySession')
-                      : t('c4.hotspot.controls.granularitySubagent')}
+                    : t('c4.hotspot.controls.granularitySession')}
                 </Typography>
               }
               sx={{ m: 0 }}

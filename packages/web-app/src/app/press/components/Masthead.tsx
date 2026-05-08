@@ -1,6 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
+import { useEffect, useState } from 'react';
 
 import { useLocaleSwitch } from '../../LocaleProvider';
 import { useThemeMode } from '../../providers';
@@ -85,6 +86,13 @@ export function Masthead() {
   const t = useTranslations('press.masthead');
   const { themeMode, setThemeMode } = useThemeMode();
   const { locale, setLocale } = useLocaleSwitch();
+  const [editionLine, setEditionLine] = useState<string | null>(null);
+  useEffect(() => {
+    const date = formatTodayEdition(locale);
+    const term = getCurrentSolarTerm(locale);
+    const tail = locale === 'ja' ? getCurrentJikoku() : t('editionDateSuffix').replace(/^·\s*/, '');
+    setEditionLine(`Edition of ${date} · ${term} · ${tail}`);
+  }, [locale, t]);
   const toggleMode = () => {
     setThemeMode(themeMode === 'dark' ? 'light' : 'dark');
   };
@@ -95,10 +103,10 @@ export function Masthead() {
   return (
     <header className={styles.mast}>
       <SeasonalVignette />
-      <div className={styles.mastEdition}>
+      <div className={styles.mastEdition} suppressHydrationWarning>
         <b>{t('editionVolume')}</b>
         <br />
-        Edition of {formatTodayEdition(locale)} · {getCurrentSolarTerm(locale)} · {locale === 'ja' ? getCurrentJikoku() : t('editionDateSuffix').replace(/^·\s*/, '')}
+        {editionLine ?? ' '}
       </div>
       <div className={styles.mastTitle}>
         {t('titlePrefix')} <em>{t('titleEm')}</em>

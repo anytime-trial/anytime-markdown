@@ -19,6 +19,7 @@ export interface TrailI18n {
   'analytics.chartCumulativeInferenceTime': string;
   'analytics.openInTraces': string;
   'filter.searchLabel': string;
+  'filter.searchClear': string;
   // sessionList
   'sessionList.noSessions': string;
   'sessionList.messages': string;
@@ -224,11 +225,28 @@ export interface TrailI18n {
   'c4.overlay.sizeLoc': string;
   'c4.overlay.sizeFiles': string;
   'c4.overlay.sizeFunctions': string;
+  'c4.overlayHelp.coverage': string;
+  'c4.overlayHelp.coverage.description': string;
+  'c4.overlayHelp.dsmNeighbors': string;
+  'c4.overlayHelp.dsmNeighbors.description': string;
+  'c4.overlayHelp.dsmCyclic': string;
+  'c4.overlayHelp.dsmCyclic.description': string;
+  'c4.overlayHelp.editComplexity': string;
+  'c4.overlayHelp.editComplexity.description': string;
+  'c4.overlayHelp.importance': string;
+  'c4.overlayHelp.importance.description': string;
+  'c4.overlayHelp.defectRisk': string;
+  'c4.overlayHelp.defectRisk.description': string;
+  'c4.overlayHelp.hotspot': string;
+  'c4.overlayHelp.hotspot.description': string;
+  'c4.overlayHelp.deadCode': string;
+  'c4.overlayHelp.deadCode.description': string;
+  'c4.overlayHelp.size': string;
+  'c4.overlayHelp.size.description': string;
   'c4.hotspot.controls.period': string;
   'c4.hotspot.controls.granularity': string;
   'c4.hotspot.controls.granularityCommit': string;
   'c4.hotspot.controls.granularitySession': string;
-  'c4.hotspot.controls.granularitySubagent': string;
   'c4.trend.title': string;
   'c4.trend.loading': string;
   'c4.trend.seriesCommit': string;
@@ -243,6 +261,7 @@ export interface TrailI18n {
   'c4.copyPath': string;
   'c4.frameFilter.reset': string;
   'c4.elementPanel.searchPlaceholder': string;
+  'c4.elementPanel.searchClear': string;
   'c4.elementPanel.tabLayer': string;
   'c4.elementPanel.tabCommunity': string;
   'c4.elementPanel.communityUnavailable': string;
@@ -257,6 +276,7 @@ export interface TrailI18n {
   'c4.popup.metric.complexity': string;
   'c4.popup.metric.importance': string;
   'c4.popup.metric.defectRisk': string;
+  'c4.popup.metric.churn': string;
   'c4.popup.metric.loc': string;
   'c4.popup.metric.files': string;
   'c4.popup.metric.functionCount': string;

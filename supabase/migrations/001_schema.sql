@@ -41,12 +41,12 @@ CREATE TABLE IF NOT EXISTS trail_sessions (
     model TEXT NOT NULL DEFAULT '',
     version TEXT NOT NULL DEFAULT '',
     entrypoint TEXT NOT NULL DEFAULT '',
-    start_time TEXT NOT NULL DEFAULT '',
-    end_time TEXT NOT NULL DEFAULT '',
+    start_time TEXT,
+    end_time TEXT,
     message_count INTEGER NOT NULL DEFAULT 0,
     file_path TEXT NOT NULL DEFAULT '',
     file_size INTEGER NOT NULL DEFAULT 0,
-    imported_at TEXT NOT NULL DEFAULT '',
+    imported_at TEXT,
     commits_resolved_at TEXT,
     -- Pre-aggregated stats (mirrored from local SQLite at sync time)
     peak_context_tokens INTEGER,
@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS trail_messages (
     cache_creation_tokens INTEGER NOT NULL DEFAULT 0,
     service_tier TEXT,
     speed TEXT,
-    timestamp TEXT NOT NULL DEFAULT '',
+    timestamp TEXT,
     is_sidechain INTEGER NOT NULL DEFAULT 0,
     is_meta INTEGER NOT NULL DEFAULT 0,
     cwd TEXT,
@@ -102,7 +102,7 @@ CREATE TABLE IF NOT EXISTS trail_session_commits (
     commit_hash TEXT NOT NULL,
     commit_message TEXT NOT NULL DEFAULT '',
     author TEXT NOT NULL DEFAULT '',
-    committed_at TEXT NOT NULL DEFAULT '',
+    committed_at TEXT,
     is_ai_assisted INTEGER NOT NULL DEFAULT 0,
     files_changed INTEGER NOT NULL DEFAULT 0,
     lines_added INTEGER NOT NULL DEFAULT 0,
@@ -149,7 +149,7 @@ CREATE TABLE IF NOT EXISTS trail_daily_counts (
 CREATE TABLE IF NOT EXISTS trail_release_graphs (
     tag        TEXT PRIMARY KEY,
     graph_json TEXT NOT NULL,
-    updated_at TEXT NOT NULL DEFAULT '',
+    updated_at TEXT,
     synced_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -158,13 +158,13 @@ CREATE TABLE IF NOT EXISTS trail_current_graphs (
     repo_name  TEXT PRIMARY KEY,
     commit_id  TEXT NOT NULL DEFAULT '',
     graph_json TEXT NOT NULL,
-    updated_at TEXT NOT NULL DEFAULT '',
+    updated_at TEXT,
     synced_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS trail_releases (
     tag TEXT PRIMARY KEY,
-    released_at TEXT NOT NULL DEFAULT '',
+    released_at TEXT,
     prev_tag TEXT,
     repo_name TEXT NOT NULL DEFAULT '',
     package_tags TEXT NOT NULL DEFAULT '[]',
@@ -275,7 +275,7 @@ CREATE TABLE IF NOT EXISTS trail_current_coverage (
   branches_total     INTEGER NOT NULL DEFAULT 0,
   branches_covered   INTEGER NOT NULL DEFAULT 0,
   branches_pct       REAL    NOT NULL DEFAULT 0,
-  updated_at         TEXT    NOT NULL DEFAULT '',
+  updated_at         TEXT,
   PRIMARY KEY (repo_name, package, file_path)
 );
 
@@ -393,8 +393,8 @@ CREATE TABLE IF NOT EXISTS trail_release_function_analysis (
 CREATE TABLE IF NOT EXISTS trail_current_code_graphs (
   repo_name    TEXT PRIMARY KEY,
   graph_json   TEXT NOT NULL,
-  generated_at TEXT NOT NULL DEFAULT '',
-  updated_at   TEXT NOT NULL DEFAULT ''
+  generated_at TEXT,
+  updated_at   TEXT
 );
 
 -- コードグラフコミュニティ（ローカル current_code_graph_communities と対応）
@@ -405,8 +405,8 @@ CREATE TABLE IF NOT EXISTS trail_current_code_graph_communities (
   name         TEXT    NOT NULL DEFAULT '',
   summary      TEXT    NOT NULL DEFAULT '',
   mappings_json TEXT NULL,
-  generated_at TEXT    NOT NULL DEFAULT '',
-  updated_at   TEXT    NOT NULL DEFAULT '',
+  generated_at TEXT,
+  updated_at   TEXT,
   PRIMARY KEY (repo_name, community_id)
 );
 
@@ -414,8 +414,8 @@ CREATE TABLE IF NOT EXISTS trail_current_code_graph_communities (
 CREATE TABLE IF NOT EXISTS trail_release_code_graphs (
   release_tag  TEXT PRIMARY KEY REFERENCES trail_releases(tag) ON DELETE CASCADE,
   graph_json   TEXT NOT NULL,
-  generated_at TEXT NOT NULL DEFAULT '',
-  updated_at   TEXT NOT NULL DEFAULT ''
+  generated_at TEXT,
+  updated_at   TEXT
 );
 
 -- コードグラフ リリースコミュニティ（ローカル release_code_graph_communities と対応）
@@ -425,8 +425,8 @@ CREATE TABLE IF NOT EXISTS trail_release_code_graph_communities (
   label        TEXT    NOT NULL DEFAULT '',
   name         TEXT    NOT NULL DEFAULT '',
   summary      TEXT    NOT NULL DEFAULT '',
-  generated_at TEXT    NOT NULL DEFAULT '',
-  updated_at   TEXT    NOT NULL DEFAULT '',
+  generated_at TEXT,
+  updated_at   TEXT,
   PRIMARY KEY (release_tag, community_id)
 );
 
@@ -530,6 +530,22 @@ CREATE POLICY "trail_current_coverage_all" ON trail_current_coverage FOR ALL USI
 ALTER TABLE trail_release_coverage ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "trail_release_coverage_all" ON trail_release_coverage;
 CREATE POLICY "trail_release_coverage_all" ON trail_release_coverage FOR ALL USING (true) WITH CHECK (true);
+
+ALTER TABLE trail_current_file_analysis ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "trail_current_file_analysis_all" ON trail_current_file_analysis;
+CREATE POLICY "trail_current_file_analysis_all" ON trail_current_file_analysis FOR ALL USING (true) WITH CHECK (true);
+
+ALTER TABLE trail_release_file_analysis ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "trail_release_file_analysis_all" ON trail_release_file_analysis;
+CREATE POLICY "trail_release_file_analysis_all" ON trail_release_file_analysis FOR ALL USING (true) WITH CHECK (true);
+
+ALTER TABLE trail_current_function_analysis ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "trail_current_function_analysis_all" ON trail_current_function_analysis;
+CREATE POLICY "trail_current_function_analysis_all" ON trail_current_function_analysis FOR ALL USING (true) WITH CHECK (true);
+
+ALTER TABLE trail_release_function_analysis ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "trail_release_function_analysis_all" ON trail_release_function_analysis;
+CREATE POLICY "trail_release_function_analysis_all" ON trail_release_function_analysis FOR ALL USING (true) WITH CHECK (true);
 
 ALTER TABLE trail_current_code_graphs ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "trail_current_code_graphs_all" ON trail_current_code_graphs;
@@ -687,13 +703,31 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_trail_user_message_costs
     ON trail_user_message_costs (user_uuid, model);
 
 -- import 完了後に呼ぶ refresh function。
--- CONCURRENTLY refresh により MV が存在する間は古いデータで read 可能。
+-- SECURITY DEFINER + statement_timeout=0 で anon キーから RPC 呼び出ししても
+-- PostgREST のクエリタイムアウトに引っ掛からず完走する (postgres 権限で実行)。
+-- pg_class.relispopulated で MV が初回 (未 populate) かを判定し、
+-- 初回は非 CONCURRENT、以降は CONCURRENT で REFRESH する
+-- (CONCURRENTLY は populate 済 MV にしか使えない PostgreSQL 仕様への対処)。
 CREATE OR REPLACE FUNCTION refresh_trail_user_message_costs()
 RETURNS void
-LANGUAGE sql
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET statement_timeout = 0
 AS $$
-    REFRESH MATERIALIZED VIEW CONCURRENTLY trail_user_message_costs;
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_class
+        WHERE relname = 'trail_user_message_costs'
+          AND relkind = 'm'
+          AND relispopulated
+    ) THEN
+        REFRESH MATERIALIZED VIEW CONCURRENTLY trail_user_message_costs;
+    ELSE
+        REFRESH MATERIALIZED VIEW trail_user_message_costs;
+    END IF;
+END;
 $$;
+GRANT EXECUTE ON FUNCTION refresh_trail_user_message_costs() TO anon, authenticated;
 
 -- =====================================================================
 -- Phase 5e: trail_user_messages_meta Materialized View
@@ -723,9 +757,28 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_trail_user_messages_meta
     ON trail_user_messages_meta (uuid);
 
 -- import 完了後に呼ぶ refresh function。
+-- SECURITY DEFINER + statement_timeout=0 で anon キーから RPC 呼び出ししても
+-- PostgREST のクエリタイムアウトに引っ掛からず完走する (postgres 権限で実行)。
+-- pg_class.relispopulated で MV が初回 (未 populate) かを判定し、
+-- 初回は非 CONCURRENT、以降は CONCURRENT で REFRESH する
+-- (CONCURRENTLY は populate 済 MV にしか使えない PostgreSQL 仕様への対処)。
 CREATE OR REPLACE FUNCTION refresh_trail_user_messages_meta()
 RETURNS void
-LANGUAGE sql
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET statement_timeout = 0
 AS $$
-    REFRESH MATERIALIZED VIEW CONCURRENTLY trail_user_messages_meta;
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_class
+        WHERE relname = 'trail_user_messages_meta'
+          AND relkind = 'm'
+          AND relispopulated
+    ) THEN
+        REFRESH MATERIALIZED VIEW CONCURRENTLY trail_user_messages_meta;
+    ELSE
+        REFRESH MATERIALIZED VIEW trail_user_messages_meta;
+    END IF;
+END;
 $$;
+GRANT EXECUTE ON FUNCTION refresh_trail_user_messages_meta() TO anon, authenticated;

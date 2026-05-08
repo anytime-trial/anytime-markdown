@@ -42,10 +42,17 @@ const extensionConfig = {
   },
   plugins: [
     new CopyPlugin({
-      patterns: [{
-        from: path.resolve(__dirname, '../../node_modules/sql.js/dist/sql-asm.js'),
-        to: 'sql-asm.js',
-      }],
+      // sql-wasm.js + sql-wasm.wasm を dist/ に配置 (TrailDatabase が locateFile で同階層を探す)。
+      patterns: [
+        {
+          from: path.resolve(__dirname, '../../node_modules/sql.js/dist/sql-wasm.js'),
+          to: 'sql-wasm.js',
+        },
+        {
+          from: path.resolve(__dirname, '../../node_modules/sql.js/dist/sql-wasm.wasm'),
+          to: 'sql-wasm.wasm',
+        },
+      ],
     }),
   ],
   devtool: 'nosources-source-map',

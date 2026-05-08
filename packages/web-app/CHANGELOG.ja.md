@@ -6,6 +6,23 @@
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-05-08
+
+### 追加
+
+- `/database` ルート: ブラウザ上で `SqlJsAdapter` を使った SQLite ファイル閲覧画面を追加
+
+### 修正
+
+- defect-risk・hotspot overlay が web-app でも正しく動作するよう修正
+- Masthead で SSR/CSR 時刻ズレによるハイドレーションエラーを修正
+- `/api/c4/complexity` の Supabase クエリをページネーション化してレスポンスサイズ超過を回避
+- Materialized View の refresh 関数を `SECURITY DEFINER` 化し、初回は非 CONCURRENT 実行に変更
+
+### セキュリティ
+
+- `file_analysis` / `function_analysis` などの Supabase テーブルに RLS ポリシーを追加
+
 ## [0.25.0] - 2026-05-06
 
 ### 追加

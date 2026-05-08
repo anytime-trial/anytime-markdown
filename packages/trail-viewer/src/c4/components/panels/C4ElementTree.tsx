@@ -4,6 +4,7 @@ import type { Action } from '@anytime-markdown/graph-core/state';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import AddIcon from '@mui/icons-material/Add';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import ClearIcon from '@mui/icons-material/Clear';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
 import CodeIcon from '@mui/icons-material/Code';
@@ -529,6 +530,18 @@ export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onS
                   <SearchIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
                 </InputAdornment>
               ),
+              endAdornment: searchText ? (
+                <InputAdornment position="end">
+                  <IconButton
+                    size="small"
+                    aria-label={t('c4.elementPanel.searchClear')}
+                    onClick={() => setSearchText('')}
+                    sx={{ p: 0.25, color: 'text.secondary' }}
+                  >
+                    <ClearIcon sx={{ fontSize: 14 }} />
+                  </IconButton>
+                </InputAdornment>
+              ) : undefined,
             },
           }}
           sx={{

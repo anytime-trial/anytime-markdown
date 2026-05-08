@@ -1,7 +1,91 @@
-import { Box, Typography } from '@mui/material';
+import { Box, Tooltip, Typography } from '@mui/material';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import type { MetricOverlay } from '@anytime-markdown/trail-core/c4';
 import { getC4Colors } from '../../../theme/c4Tokens';
-import { COVERAGE_HIGH, COVERAGE_LOW, COVERAGE_MID, COVERAGE_NONE, METRIC_LEGEND_BLUE } from '../../c4MetricColors';
+import { useTrailI18n } from '../../../i18n/context';
+import type { TrailI18n } from '../../../i18n/types';
+import { COVERAGE_HIGH, COVERAGE_LOW, COVERAGE_MID, METRIC_LEGEND_BLUE } from '../../c4MetricColors';
+
+type TrailI18nKey = keyof TrailI18n;
+
+function assertNever(value: never): never {
+  throw new Error(`Unhandled MetricOverlay: ${String(value)}`);
+}
+
+function getOverlayHelpKeys(
+  overlay: MetricOverlay,
+): { titleKey: TrailI18nKey; descKey: TrailI18nKey } | null {
+  switch (overlay) {
+    case 'coverage-lines':
+    case 'coverage-branches':
+    case 'coverage-functions':
+      return { titleKey: 'c4.overlayHelp.coverage', descKey: 'c4.overlayHelp.coverage.description' };
+    case 'dsm-out':
+    case 'dsm-in':
+      return { titleKey: 'c4.overlayHelp.dsmNeighbors', descKey: 'c4.overlayHelp.dsmNeighbors.description' };
+    case 'dsm-cyclic':
+      return { titleKey: 'c4.overlayHelp.dsmCyclic', descKey: 'c4.overlayHelp.dsmCyclic.description' };
+    case 'edit-complexity-most':
+    case 'edit-complexity-highest':
+      return { titleKey: 'c4.overlayHelp.editComplexity', descKey: 'c4.overlayHelp.editComplexity.description' };
+    case 'importance':
+      return { titleKey: 'c4.overlayHelp.importance', descKey: 'c4.overlayHelp.importance.description' };
+    case 'defect-risk':
+      return { titleKey: 'c4.overlayHelp.defectRisk', descKey: 'c4.overlayHelp.defectRisk.description' };
+    case 'hotspot-frequency':
+    case 'hotspot-risk':
+      return { titleKey: 'c4.overlayHelp.hotspot', descKey: 'c4.overlayHelp.hotspot.description' };
+    case 'dead-code-score':
+      return { titleKey: 'c4.overlayHelp.deadCode', descKey: 'c4.overlayHelp.deadCode.description' };
+    case 'size-loc':
+    case 'size-files':
+    case 'size-functions':
+      return { titleKey: 'c4.overlayHelp.size', descKey: 'c4.overlayHelp.size.description' };
+    case 'none':
+    case 'fcmap':
+      return null;
+    default:
+      return assertNever(overlay);
+  }
+}
+
+function MetricHelpHeader({
+  overlay,
+  textColor,
+}: Readonly<{ overlay: MetricOverlay; textColor: string }>) {
+  const { t } = useTrailI18n();
+  const help = getOverlayHelpKeys(overlay);
+  if (!help) return null;
+  const title = t(help.titleKey);
+  const description = t(help.descKey);
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 0.5, minHeight: 16 }}>
+      <Typography variant="caption" sx={{ fontSize: '0.65rem', fontWeight: 700, opacity: 0.85, lineHeight: 1 }}>
+        {title}
+      </Typography>
+      <Tooltip
+        arrow
+        placement="left-start"
+        title={
+          <Box sx={{ p: 0.5 }}>
+            <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', mb: 0.5, fontSize: '0.7rem' }}>
+              {title}
+            </Typography>
+            <Typography variant="caption" sx={{ display: 'block', whiteSpace: 'pre-line', fontSize: '0.7rem', lineHeight: 1.5 }}>
+              {description}
+            </Typography>
+          </Box>
+        }
+        slotProps={{ tooltip: { sx: { maxWidth: 320 } } }}
+      >
+        <HelpOutlineIcon
+          aria-label={title}
+          sx={{ fontSize: 14, color: textColor, opacity: 0.7, cursor: 'help', flexShrink: 0 }}
+        />
+      </Tooltip>
+    </Box>
+  );
+}
 
 export interface CommunityLegendItem {
   readonly community: number;
@@ -15,6 +99,8 @@ interface OverlayLegendProps {
   readonly isDark: boolean;
   /** DSM依存数の最大値（dsm-out/in の場合に表示） */
   readonly dsmMax?: number;
+  /** size-loc/files/functions オーバーレイの実データ最大値（左端ラベルに表示） */
+  readonly sizeMax?: number;
   /** Community オーバーレイ凡例（指定時はメトリクス凡例の上に表示） */
   readonly communityLegend?: readonly CommunityLegendItem[];
   /** 凡例タイトル（i18n 済み文字列） */
@@ -34,7 +120,267 @@ function Swatch({ color, label }: Readonly<{ color: string; label: string }>) {
   );
 }
 
-export function OverlayLegend({ overlay, isDark, dsmMax, communityLegend, communityTitle, inline }: Readonly<OverlayLegendProps>) {
+// Hotspot 凡例で参照する色は computeColorMap.ts の HOTSPOT_FREQ_BASE / HOTSPOT_RISK_BASE と一致させる。
+const HOTSPOT_FREQ_RGB = '232, 160, 18';
+const HOTSPOT_RISK_RGB = '232, 80, 28';
+
+function GradientBar({
+  background,
+  lowLabel,
+  highLabel,
+  textColor,
+}: Readonly<{ background: string; lowLabel: string; highLabel: string; textColor: string }>) {
+  return (
+    <Box sx={{ width: '100%' }}>
+      <Box
+        role="img"
+        aria-label={`${lowLabel} → ${highLabel}`}
+        sx={{
+          width: '100%',
+          height: 10,
+          borderRadius: 0.5,
+          background,
+        }}
+      />
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.25 }}>
+        <Typography variant="caption" sx={{ fontSize: '0.65rem', lineHeight: 1, color: textColor }}>
+          {lowLabel}
+        </Typography>
+        <Typography variant="caption" sx={{ fontSize: '0.65rem', lineHeight: 1, color: textColor }}>
+          {highLabel}
+        </Typography>
+      </Box>
+    </Box>
+  );
+}
+
+const HOTSPOT_FREQ_GRADIENT = `linear-gradient(to right, rgba(${HOTSPOT_FREQ_RGB}, 0.10), rgba(${HOTSPOT_FREQ_RGB}, 1.0))`;
+const HOTSPOT_RISK_GRADIENT = `linear-gradient(to right, rgba(${HOTSPOT_RISK_RGB}, 0.10), rgba(${HOTSPOT_RISK_RGB}, 1.0))`;
+const DSM_NEIGHBORS_GRADIENT = `linear-gradient(to right, ${METRIC_LEGEND_BLUE}, ${COVERAGE_LOW})`;
+
+interface SegmentBarItem {
+  readonly color: string;
+  readonly label: string;
+}
+
+function SegmentBar({
+  segments,
+  boundaries,
+  startLabel,
+  endLabel,
+  textColor,
+}: Readonly<{
+  segments: readonly SegmentBarItem[];
+  /** 各区間の境界に表示する閾値ラベル。長さは segments.length - 1。指定時はセグメント中央の label は使われない */
+  boundaries?: readonly string[];
+  /** 境界モードで両端の左 (0%) に表示するラベル */
+  startLabel?: string;
+  /** 境界モードで両端の右 (100%) に表示するラベル */
+  endLabel?: string;
+  textColor: string;
+}>) {
+  const ariaLabel = boundaries
+    ? `boundaries: ${boundaries.join(', ')}`
+    : segments.map((s) => s.label).join(' / ');
+  const tickPositions = boundaries?.map((label, i) => ({
+    label,
+    leftPct: ((i + 1) / segments.length) * 100,
+    transform: 'translateX(-50%)',
+  })) ?? [];
+  if (boundaries) {
+    if (startLabel !== undefined) {
+      tickPositions.unshift({ label: startLabel, leftPct: 0, transform: 'translateX(0)' });
+    }
+    if (endLabel !== undefined) {
+      tickPositions.push({ label: endLabel, leftPct: 100, transform: 'translateX(-100%)' });
+    }
+  }
+  return (
+    <Box sx={{ width: '100%' }}>
+      <Box
+        role="img"
+        aria-label={ariaLabel}
+        sx={{ display: 'flex', width: '100%', height: 10, borderRadius: 0.5, overflow: 'hidden' }}
+      >
+        {segments.map((s) => (
+          <Box key={s.label} sx={{ flex: 1, bgcolor: s.color }} />
+        ))}
+      </Box>
+      {boundaries ? (
+        <Box sx={{ position: 'relative', height: 12, mt: 0.25 }}>
+          {tickPositions.map((t) => (
+            <Typography
+              key={t.label}
+              variant="caption"
+              sx={{
+                position: 'absolute',
+                left: `${t.leftPct}%`,
+                transform: t.transform,
+                fontSize: '0.65rem',
+                lineHeight: 1,
+                color: textColor,
+              }}
+            >
+              {t.label}
+            </Typography>
+          ))}
+        </Box>
+      ) : (
+        <Box sx={{ display: 'flex', mt: 0.25 }}>
+          {segments.map((s) => (
+            <Typography
+              key={s.label}
+              variant="caption"
+              sx={{ flex: 1, fontSize: '0.65rem', lineHeight: 1, color: textColor, textAlign: 'center' }}
+            >
+              {s.label}
+            </Typography>
+          ))}
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+const ASCENDING_BAD_SEGMENTS: readonly SegmentBarItem[] = [
+  { color: COVERAGE_HIGH, label: 'low' },
+  { color: COVERAGE_MID, label: 'mid' },
+  { color: COVERAGE_LOW, label: 'high' },
+];
+
+const ASCENDING_GOOD_SEGMENTS: readonly SegmentBarItem[] = [
+  { color: COVERAGE_LOW, label: 'low' },
+  { color: COVERAGE_MID, label: 'mid' },
+  { color: COVERAGE_HIGH, label: 'high' },
+];
+
+const SIZE_LOC_BOUNDARIES = ['500', '1000'] as const;
+const SIZE_FILES_BOUNDARIES = ['20', '50'] as const;
+const SIZE_FUNCTIONS_BOUNDARIES = ['10', '50'] as const;
+const COVERAGE_BOUNDARIES = ['50', '80'] as const;
+const IMPORTANCE_BOUNDARIES = ['40', '70'] as const;
+const DEFECT_RISK_BOUNDARIES = ['0.35', '0.7'] as const;
+const DEAD_CODE_BOUNDARIES = ['40', '70'] as const;
+
+const DSM_CYCLIC_SEGMENTS: readonly SegmentBarItem[] = [
+  { color: COVERAGE_HIGH, label: 'ok' },
+  { color: COVERAGE_LOW, label: 'cyclic' },
+];
+
+function getOverlayMetricItems(
+  overlay: MetricOverlay,
+  dsmMax: number | undefined,
+  sizeMax: number | undefined,
+  textColor: string,
+): React.ReactNode {
+  switch (overlay) {
+    case 'coverage-lines':
+    case 'coverage-branches':
+    case 'coverage-functions':
+      return (
+        <SegmentBar
+          segments={ASCENDING_GOOD_SEGMENTS}
+          boundaries={COVERAGE_BOUNDARIES}
+          startLabel="0%"
+          endLabel="100%"
+          textColor={textColor}
+        />
+      );
+    case 'dsm-out':
+    case 'dsm-in':
+      return (
+        <GradientBar
+          background={DSM_NEIGHBORS_GRADIENT}
+          lowLabel="0"
+          highLabel={`max${dsmMax !== undefined ? ` (${dsmMax})` : ''}`}
+          textColor={textColor}
+        />
+      );
+    case 'dsm-cyclic':
+      return <SegmentBar segments={DSM_CYCLIC_SEGMENTS} textColor={textColor} />;
+    case 'edit-complexity-most':
+    case 'edit-complexity-highest':
+      return (
+        <>
+          <Swatch color={COVERAGE_LOW} label="high" />
+          <Swatch color={COVERAGE_MID} label="multi-file" />
+          <Swatch color={METRIC_LEGEND_BLUE} label="search" />
+          <Swatch color={COVERAGE_HIGH} label="low" />
+        </>
+      );
+    case 'importance':
+      return (
+        <SegmentBar
+          segments={ASCENDING_BAD_SEGMENTS}
+          boundaries={IMPORTANCE_BOUNDARIES}
+          startLabel="0"
+          endLabel="100"
+          textColor={textColor}
+        />
+      );
+    case 'defect-risk':
+      return (
+        <SegmentBar
+          segments={ASCENDING_BAD_SEGMENTS}
+          boundaries={DEFECT_RISK_BOUNDARIES}
+          startLabel="0"
+          endLabel="1"
+          textColor={textColor}
+        />
+      );
+    case 'hotspot-frequency':
+      return <GradientBar background={HOTSPOT_FREQ_GRADIENT} lowLabel="low" highLabel="high" textColor={textColor} />;
+    case 'hotspot-risk':
+      return <GradientBar background={HOTSPOT_RISK_GRADIENT} lowLabel="low" highLabel="high" textColor={textColor} />;
+    case 'dead-code-score':
+      return (
+        <SegmentBar
+          segments={ASCENDING_BAD_SEGMENTS}
+          boundaries={DEAD_CODE_BOUNDARIES}
+          startLabel="0"
+          endLabel="100"
+          textColor={textColor}
+        />
+      );
+    case 'size-loc':
+      return (
+        <SegmentBar
+          segments={ASCENDING_BAD_SEGMENTS}
+          boundaries={SIZE_LOC_BOUNDARIES}
+          startLabel="0"
+          endLabel={sizeMax !== undefined ? String(sizeMax) : undefined}
+          textColor={textColor}
+        />
+      );
+    case 'size-files':
+      return (
+        <SegmentBar
+          segments={ASCENDING_BAD_SEGMENTS}
+          boundaries={SIZE_FILES_BOUNDARIES}
+          startLabel="0"
+          endLabel={sizeMax !== undefined ? String(sizeMax) : undefined}
+          textColor={textColor}
+        />
+      );
+    case 'size-functions':
+      return (
+        <SegmentBar
+          segments={ASCENDING_BAD_SEGMENTS}
+          boundaries={SIZE_FUNCTIONS_BOUNDARIES}
+          startLabel="0"
+          endLabel={sizeMax !== undefined ? String(sizeMax) : undefined}
+          textColor={textColor}
+        />
+      );
+    case 'none':
+    case 'fcmap':
+      return null;
+    default:
+      return assertNever(overlay);
+  }
+}
+
+export function OverlayLegend({ overlay, isDark, dsmMax, sizeMax, communityLegend, communityTitle, inline }: Readonly<OverlayLegendProps>) {
   const hasCommunity = !!communityLegend && communityLegend.length > 0;
   const hasMetric = overlay !== 'none';
   if (!hasCommunity && !hasMetric) return null;
@@ -44,89 +390,7 @@ export function OverlayLegend({ overlay, isDark, dsmMax, communityLegend, commun
   const textColor = colors.overlayLegendText;
   const dividerColor = colors.border;
 
-  let metricItems: React.ReactNode = null;
-
-  if (overlay === 'coverage-lines' || overlay === 'coverage-branches' || overlay === 'coverage-functions') {
-    metricItems = (
-      <>
-        <Swatch color={COVERAGE_HIGH} label="≥ 80%" />
-        <Swatch color={COVERAGE_MID} label="50–79%" />
-        <Swatch color={COVERAGE_LOW} label="< 50%" />
-        <Swatch color={COVERAGE_NONE} label="—" />
-      </>
-    );
-  } else if (overlay === 'dsm-out' || overlay === 'dsm-in') {
-    metricItems = (
-      <>
-        <Swatch color={COVERAGE_LOW} label={`max${dsmMax !== undefined ? ` (${dsmMax})` : ''}`} />
-        <Swatch color={METRIC_LEGEND_BLUE} label="0" />
-      </>
-    );
-  } else if (overlay === 'dsm-cyclic') {
-    metricItems = (
-      <>
-        <Swatch color={COVERAGE_LOW} label="cyclic" />
-        <Swatch color={COVERAGE_HIGH} label="ok" />
-      </>
-    );
-  } else if (overlay === 'edit-complexity-most' || overlay === 'edit-complexity-highest') {
-    metricItems = (
-      <>
-        <Swatch color={COVERAGE_LOW} label="high" />
-        <Swatch color={COVERAGE_MID} label="multi-file" />
-        <Swatch color={METRIC_LEGEND_BLUE} label="search" />
-        <Swatch color={COVERAGE_HIGH} label="low" />
-      </>
-    );
-  } else if (overlay === 'importance') {
-    metricItems = (
-      <>
-        <Swatch color={COVERAGE_LOW} label="≥ 70" />
-        <Swatch color={COVERAGE_MID} label="40–69" />
-        <Swatch color={COVERAGE_HIGH} label="< 40" />
-      </>
-    );
-  } else if (overlay === 'defect-risk') {
-    metricItems = (
-      <>
-        <Swatch color={COVERAGE_LOW} label="≥ 0.7" />
-        <Swatch color={COVERAGE_MID} label="0.35–0.7" />
-        <Swatch color={COVERAGE_HIGH} label="< 0.35" />
-      </>
-    );
-  } else if (overlay === 'dead-code-score') {
-    metricItems = (
-      <>
-        <Swatch color="#f44336" label="≥ 70" />
-        <Swatch color="#ffc107" label="40–69" />
-        <Swatch color="#4caf50" label="< 40" />
-      </>
-    );
-  } else if (overlay === 'size-loc') {
-    metricItems = (
-      <>
-        <Swatch color="#c62828" label="≥ 1000" />
-        <Swatch color="#f9a825" label="500–999" />
-        <Swatch color="#2e7d32" label="< 500" />
-      </>
-    );
-  } else if (overlay === 'size-files') {
-    metricItems = (
-      <>
-        <Swatch color="#c62828" label="≥ 50" />
-        <Swatch color="#f9a825" label="20–49" />
-        <Swatch color="#2e7d32" label="< 20" />
-      </>
-    );
-  } else if (overlay === 'size-functions') {
-    metricItems = (
-      <>
-        <Swatch color="#c62828" label="≥ 50" />
-        <Swatch color="#f9a825" label="10–49" />
-        <Swatch color="#2e7d32" label="< 10" />
-      </>
-    );
-  }
+  const metricItems = hasMetric ? getOverlayMetricItems(overlay, dsmMax, sizeMax, textColor) : null;
 
   const positionSx = inline
     ? {}
@@ -185,6 +449,7 @@ export function OverlayLegend({ overlay, isDark, dsmMax, communityLegend, commun
       {hasCommunity && hasMetric && (
         <Box sx={{ height: '1px', bgcolor: dividerColor, my: 0.25 }} />
       )}
+      {hasMetric && <MetricHelpHeader overlay={overlay} textColor={textColor} />}
       {metricItems}
     </Box>
   );

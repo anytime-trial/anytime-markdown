@@ -6,6 +6,13 @@
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-05-08
+
+### 追加
+
+- ページネーションデータ操作用 `PaginationBar` コンポーネントを追加
+- ツールバーの表示制御用 `showImportExport`・`showToolbar` prop を追加
+
 ## [0.4.1] - 2026-05-04
 
 ### 追加

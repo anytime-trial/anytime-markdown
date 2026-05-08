@@ -15,6 +15,7 @@ export const en: TrailI18n = {
   'filter.searchPlaceholder': 'Search...',
   'filter.workspace': 'Workspace',
   'filter.searchLabel': 'Search sessions',
+  'filter.searchClear': 'Clear search',
   'sessionList.noSessions': 'No sessions found',
   'sessionList.messages': 'messages',
   'sessionList.session': 'session',
@@ -211,6 +212,7 @@ export const en: TrailI18n = {
   'c4.copyPath': 'Copy Path',
   'c4.frameFilter.reset': 'Reset',
   'c4.elementPanel.searchPlaceholder': 'Search elements...',
+  'c4.elementPanel.searchClear': 'Clear search',
   'c4.elementPanel.tabLayer': 'Layer',
   'c4.elementPanel.tabCommunity': 'Community',
   'c4.elementPanel.communityUnavailable': 'Code graph required',
@@ -225,6 +227,7 @@ export const en: TrailI18n = {
   'c4.popup.metric.complexity': 'Complexity',
   'c4.popup.metric.importance': 'Importance',
   'c4.popup.metric.defectRisk': 'Defect',
+  'c4.popup.metric.churn': 'Churn',
   'c4.popup.metric.loc': 'LOC',
   'c4.popup.metric.files': 'Files',
   'c4.popup.metric.functionCount': 'Functions',
@@ -305,14 +308,40 @@ export const en: TrailI18n = {
   'c4.overlay.groupDeadCode': 'Dead Code',
   'c4.overlay.deadCodeScore': 'Score',
   'c4.overlay.groupSize': 'Size',
-  'c4.overlay.sizeLoc': 'LOC',
+  'c4.overlay.sizeLoc': 'LOC(Max)',
   'c4.overlay.sizeFiles': 'Files',
   'c4.overlay.sizeFunctions': 'Functions',
+  'c4.overlayHelp.coverage': 'Coverage',
+  'c4.overlayHelp.coverage.description':
+    'Test coverage % from lcov.info (Lines / Branches / Functions).\nFile-level values are rolled up to parent containers.\nPackages without tests or reports have no color.',
+  'c4.overlayHelp.dsmNeighbors': 'DSM Neighbors',
+  'c4.overlayHelp.dsmNeighbors.description':
+    'Number of neighbor nodes in the DSM matrix. out = dependencies, in = dependents.\nLinearly interpolated from blue (0) to red (max).',
+  'c4.overlayHelp.dsmCyclic': 'DSM Cyclic',
+  'c4.overlayHelp.dsmCyclic.description':
+    'Highlights elements involved in cyclic dependencies (red) vs healthy ones (green).\nDetected via Tarjan’s strongly connected components (SCC).',
+  'c4.overlayHelp.editComplexity': 'Edit Complexity',
+  'c4.overlayHelp.editComplexity.description':
+    'Classifies each Claude Code message (1 turn) into 4 complexity classes.\nPriority: high > multi-file > search > low\n· high: outputTokens > 3000 and unique tool kinds ≥ 3\n· multi-file: includes Edit/Write/NotebookEdit and unique edited files ≥ 3\n· search: all tool calls are Grep/Glob/Read/WebSearch/WebFetch\n· low: none of the above\nElements are colored by most frequent or highest class.',
+  'c4.overlayHelp.importance': 'Importance',
+  'c4.overlayHelp.importance.description':
+    'Importance score (0–100) computed from dependency relationships.\nHigh (≥70) red, medium (40–69) yellow, low (<40) green.',
+  'c4.overlayHelp.defectRisk': 'Defect Risk',
+  'c4.overlayHelp.defectRisk.description':
+    'Defect-risk score (0–1) computed from code history (churn, co-change, author count).\nHigh (≥0.7) red, medium (0.35–0.7) yellow, low (<0.35) green.',
+  'c4.overlayHelp.hotspot': 'Hotspot',
+  'c4.overlayHelp.hotspot.description':
+    'Hotspot indicator (0–1) from file change frequency (churn) and complexity.\n· Frequency: activity based on normalized churn (churnNorm)\n· Risk: combined risk score of churn × complexity\nDarker color = more active / higher risk.',
+  'c4.overlayHelp.deadCode': 'Dead Code',
+  'c4.overlayHelp.deadCode.description':
+    'Dead-code score (0–100) aggregating signals: orphan, zero fan-in, low churn, zero coverage, isolated community.\nHigh (≥70) red, medium (40–69) yellow, low (<40) green.',
+  'c4.overlayHelp.size': 'Size',
+  'c4.overlayHelp.size.description':
+    'Size metrics colored in 3 tiers (green=small, yellow=medium, red=large). Thresholds depend on metric:\n· LOC: <500 / 500–999 / ≥1000\n· Files: <20 / 20–49 / ≥50\n· Functions: <10 / 10–49 / ≥50',
   'c4.hotspot.controls.period': 'Period',
   'c4.hotspot.controls.granularity': 'Granularity',
   'c4.hotspot.controls.granularityCommit': 'Commit',
   'c4.hotspot.controls.granularitySession': 'Session',
-  'c4.hotspot.controls.granularitySubagent': 'Subagent',
   'c4.trend.title': 'Activity Trend',
   'c4.trend.loading': 'Loading trend...',
   'c4.trend.seriesCommit': 'Commit',

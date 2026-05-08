@@ -8,6 +8,7 @@ import { Box, Button, Stack } from "@mui/material";
 import { useTranslations } from "next-intl";
 import React, { useCallback, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
+import { PaginationBar, type PaginationProps } from "./PaginationBar";
 import { SheetTabs } from "./SheetTabs";
 import { SpreadsheetGrid } from "./SpreadsheetGrid";
 
@@ -20,10 +21,14 @@ interface SpreadsheetEditorProps {
     readonly headerRight?: React.ReactNode;
     readonly showApply?: boolean;
     readonly showRange?: boolean;
+    readonly showImportExport?: boolean;
+    readonly showToolbar?: boolean;
+    readonly onColumnHeaderDoubleClick?: (col: number) => void;
     readonly onDirtyChange?: (dirty: boolean) => void;
     readonly onClose?: () => void;
     readonly onUndo?: () => void;
     readonly onRedo?: () => void;
+    readonly pagination?: PaginationProps;
 }
 
 type Format = "csv" | "tsv";
@@ -58,10 +63,14 @@ export const SpreadsheetEditor: React.FC<Readonly<SpreadsheetEditorProps>> = ({
     headerRight,
     showApply = false,
     showRange = false,
+    showImportExport = true,
+    showToolbar = true,
+    onColumnHeaderDoubleClick,
     onDirtyChange,
     onClose,
     onUndo,
     onRedo,
+    pagination,
 }) => {
     const t = useTranslations("Spreadsheet");
     const fallbackAdapter = useMemo(() => createInMemorySheetAdapter(), []);
@@ -89,6 +98,13 @@ export const SpreadsheetEditor: React.FC<Readonly<SpreadsheetEditorProps>> = ({
     }, [workbookAdapter, workbookSnap?.activeSheet]);
 
     const effectiveAdapter = workbookSheetAdapter ?? adapter;
+    // adapter が getColumnHeaders を実装していれば SpreadsheetGrid の列ヘッダ
+    // (A/B/C…) の代わりに表示する。useSyncExternalStore で snapshot 更新に追従。
+    const columnHeaders = useSyncExternalStore(
+        (l) => effectiveAdapter.subscribe(l),
+        () => effectiveAdapter.getColumnHeaders?.(),
+        () => undefined,
+    );
 
     const handleImportClick = useCallback((format: Format) => {
         setPendingFormat(format);
@@ -114,30 +130,37 @@ export const SpreadsheetEditor: React.FC<Readonly<SpreadsheetEditorProps>> = ({
         triggerDownload(`sheet.${ext}`, text, mime);
     }, [effectiveAdapter]);
 
+    const showHeader = showImportExport || headerRight !== undefined;
     return (
-        <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
-            <Stack direction="row" spacing={1} sx={{ p: 1, flexShrink: 0 }}>
-                <Button size="small" startIcon={<UploadIcon />} onClick={() => handleImportClick("csv")}>
-                    {t("importCsv")}
-                </Button>
-                <Button size="small" startIcon={<DownloadIcon />} onClick={() => handleExport("csv")}>
-                    {t("exportCsv")}
-                </Button>
-                <Button size="small" startIcon={<UploadIcon />} onClick={() => handleImportClick("tsv")}>
-                    {t("importTsv")}
-                </Button>
-                <Button size="small" startIcon={<DownloadIcon />} onClick={() => handleExport("tsv")}>
-                    {t("exportTsv")}
-                </Button>
-                {headerRight}
-                <input
-                    ref={inputRef}
-                    type="file"
-                    accept=".csv,.tsv,text/csv,text/tab-separated-values"
-                    hidden
-                    onChange={handleFileChange}
-                />
-            </Stack>
+        <Box sx={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
+            {showHeader ? (
+                <Stack direction="row" spacing={1} sx={{ p: 1, flexShrink: 0 }}>
+                    {showImportExport ? (
+                        <>
+                            <Button size="small" startIcon={<UploadIcon />} onClick={() => handleImportClick("csv")}>
+                                {t("importCsv")}
+                            </Button>
+                            <Button size="small" startIcon={<DownloadIcon />} onClick={() => handleExport("csv")}>
+                                {t("exportCsv")}
+                            </Button>
+                            <Button size="small" startIcon={<UploadIcon />} onClick={() => handleImportClick("tsv")}>
+                                {t("importTsv")}
+                            </Button>
+                            <Button size="small" startIcon={<DownloadIcon />} onClick={() => handleExport("tsv")}>
+                                {t("exportTsv")}
+                            </Button>
+                        </>
+                    ) : null}
+                    {headerRight}
+                    <input
+                        ref={inputRef}
+                        type="file"
+                        accept=".csv,.tsv,text/csv,text/tab-separated-values"
+                        hidden
+                        onChange={handleFileChange}
+                    />
+                </Stack>
+            ) : null}
             <Box sx={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
                 <SpreadsheetGrid
                     adapter={effectiveAdapter}
@@ -147,6 +170,9 @@ export const SpreadsheetEditor: React.FC<Readonly<SpreadsheetEditorProps>> = ({
                     gridCols={gridCols}
                     showApply={showApply}
                     showRange={showRange}
+                    showToolbar={showToolbar}
+                    columnHeaders={columnHeaders}
+                    onColumnHeaderDoubleClick={onColumnHeaderDoubleClick}
                     onDirtyChange={onDirtyChange}
                     onClose={onClose}
                     onUndo={onUndo}
@@ -164,6 +190,7 @@ export const SpreadsheetEditor: React.FC<Readonly<SpreadsheetEditorProps>> = ({
                     onReorder={(from, to) => workbookAdapter.reorderSheet(from, to)}
                 />
             )}
+            {pagination ? <PaginationBar {...pagination} /> : null}
         </Box>
     );
 };

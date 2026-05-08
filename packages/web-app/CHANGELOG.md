@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-05-08
+
+### Added
+
+- `/database` route: SQLite file viewer using `SqlJsAdapter` in the browser
+
+### Fixed
+
+- Defect-risk and hotspot overlays now work correctly in the web app
+- Masthead hydration error caused by SSR/CSR timestamp mismatch
+- `/api/c4/complexity` Supabase query paginated to avoid response size limits
+- Materialized view refresh function uses `SECURITY DEFINER` and non-concurrent initial refresh
+
+### Security
+
+- Added RLS policies for `file_analysis`, `function_analysis`, and related Supabase tables
+
 ## [0.25.0] - 2026-05-06
 
 ### Added

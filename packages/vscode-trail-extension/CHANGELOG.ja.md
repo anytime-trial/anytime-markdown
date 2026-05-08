@@ -6,6 +6,30 @@
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-05-08
+
+### 修正
+
+- `collectAllRelFilePaths` が CodeGraph node のファイル拡張子を `.ts`/`.tsx` に正しく復元するよう修正
+- `CodeGraphService.runAnalyze` が `analyze-exclude` パターンを適用するよう修正
+- importance analyzer が `analyze-exclude` パターンを適用するよう修正
+- Extension webpack 設定に `extensionAlias` を追加し TypeScript パス解決を修正
+- `noRecentChurn` の recent 窓を 90 日から 30 日に短縮
+- TypeScript の `moduleResolution` を `bundler` に変更
+
+### 変更
+
+- `.trail/analyze-exclude` の解釈を `.gitignore` 互換に変更。`AnalyzePipeline` の `**/<pattern>/**` 自動ラップを撤去; `!` 否定や `/dist` 形式の root 固定パターンを直接記述可能に。`GraphDetector` も `ignore` インスタンスを受け取れるよう拡張
+- `computeAndPersistImportance` が `analyze-exclude` の `Ignore` インスタンスを受け取り、全 SourceFile に除外規約を適用。`__tests__/` や `*.test.ts` 等のパターンが importance 解析にも一貫して効くようになった
+
+### Trail Core (trail-core)
+
+- `.trail/analyze-exclude` が `.gitignore` 互換に; `AnalyzeOptions.exclude` の型を `string[]` から `Ignore` に変更
+- `analyze()` が `ts.Program` を `ImportanceAnalyzer` と共有するよう変更
+- `mapFileToC4Elements` の絶対パスマッチング修正
+- `ProjectAnalyzer.getSourceFiles` が `.d.ts` ファイルを除外するよう修正
+- SQLite スキーマに ISO 8601 + Z CHECK 制約と統一されたインデックス命名を追加
+
 ## [0.17.0] - 2026-05-06
 
 ### 追加

@@ -51,6 +51,12 @@ const extensionConfig = {
   },
   resolve: {
     extensions: ['.ts', '.js'],
+    // tsconfig が NodeNext / Node16 のため import 側に `.js` 拡張子を付ける必要があり
+    // (例: `await import('./computeAndPersistFileAnalysis.js')`)、実体が `.ts` のときに
+    // webpack が解決できず「Cannot find module」を埋め込むのを防ぐ。
+    extensionAlias: {
+      '.js': ['.ts', '.js'],
+    },
   },
   // typescript の内部プラグインローダーが動的 require を使うため
   // 「Critical dependency: the request of a dependency is an expression」警告
@@ -81,10 +87,20 @@ const extensionConfig = {
   },
   plugins: [
     new CopyPlugin({
-      patterns: [{
-        from: path.resolve(__dirname, '../../node_modules/sql.js/dist/sql-asm.js'),
-        to: 'sql-asm.js',
-      }],
+      // sql-wasm.js は initSqlJs() の locateFile で sql-wasm.wasm を同階層から
+      // 読み込むため、両ファイルを dist/ に配置する。asm.js (16MB ヒープ固定)
+      // 比で WASM は最大 2GB ヒープを使えるため大規模リポジトリの code graph
+      // 保存時の OOM を回避できる。
+      patterns: [
+        {
+          from: path.resolve(__dirname, '../../node_modules/sql.js/dist/sql-wasm.js'),
+          to: 'sql-wasm.js',
+        },
+        {
+          from: path.resolve(__dirname, '../../node_modules/sql.js/dist/sql-wasm.wasm'),
+          to: 'sql-wasm.wasm',
+        },
+      ],
     }),
     ...buildBundleAnalyzerPlugins('extension'),
   ],
@@ -158,7 +174,7 @@ const mcpTrailServerConfig = {
   // mcp-trail サーバーは Node プロセスとして子プロセス起動するため
   // vscode API を参照しない。sql.js は WASM で webpack に取り込むと
   // モジュール解決が壊れるため、ランタイムで __non_webpack_require__ で
-  // dist/sql-asm.js を動的ロードする。webpack で取り込まないように除外する。
+  // dist/sql-wasm.js を動的ロードする。webpack で取り込まないように除外する。
   externals: {
     'sql.js': 'commonjs sql.js',
   },
@@ -187,7 +203,7 @@ const mcpTrailServerConfig = {
     ],
   },
   // __dirname / __filename を runtime 値のまま残す。
-  // sql.js の locate (sql-asm.js) を dist/ から探すために必要。
+  // sql.js の locate (sql-wasm.js / sql-wasm.wasm) を dist/ から探すために必要。
   node: {
     __dirname: false,
     __filename: false,

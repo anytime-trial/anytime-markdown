@@ -2,19 +2,31 @@
 	"files": [],
 	"references": [
 		{ "path": "packages/graph-core" },
+		{ "path": "packages/graph-viewer" },
 		{ "path": "packages/trail-core" },
 		{ "path": "packages/trail-viewer" },
+		{ "path": "packages/trail-db" },
+		{ "path": "packages/trace-core" },
+		{ "path": "packages/trace-viewer" },
+		{ "path": "packages/trace-agent-node" },
+		{ "path": "packages/spreadsheet-core" },
+		{ "path": "packages/spreadsheet-viewer" },
 		{ "path": "packages/markdown-core" },
 		{ "path": "packages/cms-core" },
+		{ "path": "packages/database-core" },
+		{ "path": "packages/database-viewer" },
 		{ "path": "packages/web-app" },
 		{ "path": "packages/mcp-markdown" },
 		{ "path": "packages/mcp-graph" },
 		{ "path": "packages/mcp-cms" },
 		{ "path": "packages/mcp-cms-remote" },
+		{ "path": "packages/mcp-trail" },
 		{ "path": "packages/vscode-common" },
 		{ "path": "packages/vscode-markdown-extension" },
 		{ "path": "packages/vscode-graph-extension" },
 		{ "path": "packages/vscode-trail-extension" },
-		{ "path": "packages/vscode-history-extension" }
+		{ "path": "packages/vscode-history-extension" },
+		{ "path": "packages/vscode-database-extension" },
+		{ "path": "packages/vscode-sheet-extension" }
 	]
 }

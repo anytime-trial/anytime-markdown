@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2023", "DOM"],
+    "noEmit": true,
+    "isolatedModules": true,
+    "declaration": true,
+    "jsx": "react-jsx",
+    "resolveJsonModule": true,
+    "paths": {
+      "@anytime-markdown/spreadsheet-core": ["../spreadsheet-core/src/index.ts"],
+      "@anytime-markdown/spreadsheet-viewer": ["../spreadsheet-viewer/src/index.ts"],
+      "@anytime-markdown/database-core": ["../database-core/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*"]
+}

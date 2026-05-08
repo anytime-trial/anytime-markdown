@@ -25,4 +25,10 @@ export interface SheetAdapter {
 
   /** 外部からテキスト（CSV/TSV）を注入する */
   applyText?(text: string): void;
+
+  /**
+   * カラム名を返す。指定された場合 SpreadsheetGrid の列ヘッダ (A/B/C…) の代わりに
+   * 表示される。DB のテーブル列名等を表示するときに使用する。
+   */
+  getColumnHeaders?(): ReadonlyArray<string>;
 }

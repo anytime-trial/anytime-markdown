@@ -1,6 +1,8 @@
 export { SpreadsheetGrid } from "./SpreadsheetGrid";
 export { SpreadsheetEditor } from "./SpreadsheetEditor";
 export { SpreadsheetContextMenu } from "./SpreadsheetContextMenu";
+export { PaginationBar } from "./PaginationBar";
+export type { PaginationProps } from "./PaginationBar";
 export { useSpreadsheetState } from "./hooks/useSpreadsheetState";
 export { getDivider } from "./styles";
 export { enMessages as spreadsheetViewerEnMessages, jaMessages as spreadsheetViewerJaMessages } from "./i18n";

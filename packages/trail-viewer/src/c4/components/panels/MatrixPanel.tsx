@@ -1,5 +1,5 @@
-import type { C4Element, C4ElementType, C4Model, ComplexityMatrix, CoverageMatrix, DsmMatrix, DsmNode } from '@anytime-markdown/trail-core/c4';
-import { aggregateDsmToC4CodeLevel, aggregateDsmToC4ComponentLevel, aggregateDsmToC4ContainerLevel, buildC4ElementById, collectDescendantIds, computeCommunityOverlay, filterDsmMatrix, mapFileToC4Elements, sortDsmMatrixByName } from '@anytime-markdown/trail-core/c4';
+import type { C4Element, C4ElementType, C4Model, ComplexityMatrix, CoverageMatrix } from '@anytime-markdown/trail-core/c4';
+import { buildC4ElementById, collectDescendantIds, computeCommunityOverlay, mapFileToC4Elements } from '@anytime-markdown/trail-core/c4';
 import type { CellAlign, HeaderSpan } from '@anytime-markdown/spreadsheet-core';
 import { SpreadsheetGrid, createInMemorySheetAdapter, spreadsheetViewerEnMessages } from '@anytime-markdown/spreadsheet-viewer';
 import Box from '@mui/material/Box';
@@ -8,32 +8,15 @@ import ButtonGroup from '@mui/material/ButtonGroup';
 import Typography from '@mui/material/Typography';
 import { useMemo, useState } from 'react';
 
-import { getDsmCellBackground, getC4Colors } from '../../../theme/c4Tokens';
+import { getC4Colors } from '../../../theme/c4Tokens';
 import { getCoverageColor } from '../../c4MetricColors';
 import { useCodeGraph } from '../../../hooks/useCodeGraph';
 import { useHotspot } from '../../hooks/useHotspot';
 import { communityColor } from '../../../components/communityColors';
 
 // ---------------------------------------------------------------------------
-// Package group helpers
+// Header span helpers
 // ---------------------------------------------------------------------------
-
-/**
- * DSM ノード列からパッケージ別スパンを計算する。
- * component レベルのノードに対し C4 要素の boundaryId（親コンテナ）でグルーピングする。
- */
-function buildDsmPackageSpans(
-  nodes: readonly DsmNode[],
-  elements: readonly C4Element[],
-): readonly HeaderSpan[] | null {
-  const elementById = new Map(elements.map(el => [el.id, el]));
-  const keys = nodes.map(node => {
-    const el = elementById.get(node.id);
-    return (el?.boundaryId ? elementById.get(el.boundaryId)?.name : undefined) ?? '';
-  });
-  const spans = buildSpansFromKey(keys);
-  return spans.length > 1 ? spans : null;
-}
 
 function buildSpansFromKey(keys: readonly string[]): HeaderSpan[] {
   const spans: HeaderSpan[] = [];
@@ -55,20 +38,6 @@ function buildSpansFromKey(keys: readonly string[]): HeaderSpan[] {
 // ---------------------------------------------------------------------------
 // Matrix → SheetSnapshot converters
 // ---------------------------------------------------------------------------
-
-function dsmToSheet(matrix: DsmMatrix) {
-  const { nodes } = matrix;
-  const n = nodes.length;
-  const headerRow = ['', ...nodes.map(nd => nd.name)];
-  const dataRows = nodes.map((nd, i) => [
-    nd.name,
-    ...matrix.adjacency[i].map(v => (v === 0 ? '' : String(v))),
-  ]);
-  const cells = [headerRow, ...dataRows];
-  const alignments = cells.map(r => r.map((_, ci): CellAlign => ci === 0 ? 'right' : null));
-  return { cells, alignments, range: { rows: n + 1, cols: n + 1 } };
-}
-
 
 function buildCoverageBreadcrumb(
   elementId: string,
@@ -133,7 +102,6 @@ function makeSheetResult(sheet: { cells: string[][]; alignments: CellAlign[][]; 
 // ---------------------------------------------------------------------------
 
 export interface MatrixPanelProps {
-  readonly dsmMatrix: DsmMatrix | null;
   readonly coverageMatrix: CoverageMatrix | null;
   readonly complexityMatrix?: ComplexityMatrix | null;
   readonly c4Model: C4Model | null;
@@ -145,8 +113,6 @@ export interface MatrixPanelProps {
   readonly isActive?: boolean;
   /** Community 配色の有効/無効。C4 ビューの Community トグルと連動させるため外部制御する。省略時は false。 */
   readonly isCommunityColor?: boolean;
-  /** マウント時の初期ビュー (DSM / Coverage)。省略時は 'coverage'。 */
-  readonly initialMatrixView?: 'dsm' | 'coverage';
   /** マウント時の初期レベル。省略時は 'component'。 */
   readonly initialLevel?: 'package' | 'component' | 'code';
   /** 指定要素の子孫 (descendants) のみに絞り込む。省略時はフィルタなし。 */
@@ -154,7 +120,6 @@ export interface MatrixPanelProps {
 }
 
 export function MatrixPanel({
-  dsmMatrix,
   coverageMatrix,
   complexityMatrix,
   c4Model,
@@ -164,13 +129,11 @@ export function MatrixPanel({
   isDark = false,
   isActive = true,
   isCommunityColor = false,
-  initialMatrixView = 'coverage',
   initialLevel = 'component',
   filterElementId = null,
 }: Readonly<MatrixPanelProps>) {
   const colors = useMemo(() => getC4Colors(isDark), [isDark]);
 
-  const [matrixView, setMatrixView] = useState<'dsm' | 'coverage'>(initialMatrixView);
   const [level, setLevel] = useState<'package' | 'component' | 'code'>(initialLevel);
 
   const { graph: codeGraph } = useCodeGraph(serverUrl ?? '', {
@@ -224,26 +187,8 @@ export function MatrixPanel({
     return { ...coverageMatrix, entries };
   }, [coverageMatrix, c4Model, level, filterScopeIds]);
 
-  const filteredDsmMatrix = useMemo(() => {
-    if (!dsmMatrix) return null;
-    if (!c4Model) return sortDsmMatrixByName(dsmMatrix);
-    let m =
-      level === 'package' ? aggregateDsmToC4ContainerLevel(dsmMatrix, c4Model.elements) :
-      level === 'code'    ? aggregateDsmToC4CodeLevel(dsmMatrix, c4Model.elements) :
-                               aggregateDsmToC4ComponentLevel(dsmMatrix, c4Model.elements);
-    if (filterScopeIds) {
-      m = filterDsmMatrix(m, filterScopeIds);
-    }
-    return sortDsmMatrixByName(m);
-  }, [dsmMatrix, level, c4Model, filterScopeIds]);
-
-  const dsmPackageSpans = useMemo(() => {
-    if (level === 'package' || !filteredDsmMatrix || !c4Model) return null;
-    return buildDsmPackageSpans(filteredDsmMatrix.nodes, c4Model.elements);
-  }, [level, filteredDsmMatrix, c4Model]);
-
-  const dsmNodeColorMap = useMemo(() => {
-    if (!codeGraph || !c4Model || !filteredDsmMatrix) return null;
+  const communityColorByElement = useMemo(() => {
+    if (!codeGraph || !c4Model) return null;
     const overlay = computeCommunityOverlay(c4Model, codeGraph, 3, selectedRepo ?? null);
     if (!overlay || overlay.size === 0) return null;
     const map = new Map<string, string>();
@@ -251,51 +196,24 @@ export function MatrixPanel({
       map.set(elementId, communityColor(entry.dominantCommunity));
     }
     return map;
-  }, [codeGraph, c4Model, filteredDsmMatrix, selectedRepo]);
+  }, [codeGraph, c4Model, selectedRepo]);
 
-  const dsmResult = useMemo(
-    () => filteredDsmMatrix ? makeSheetResult(dsmToSheet(filteredDsmMatrix)) : null,
-    [filteredDsmMatrix],
-  );
   const coverageResult = useMemo(
     () => filteredCoverageMatrix && c4Model
       ? makeSheetResult(coverageToSheet(filteredCoverageMatrix, c4Model, complexityMatrix ?? null, churnCountMap))
       : null,
     [filteredCoverageMatrix, c4Model, complexityMatrix, churnCountMap],
   );
-  const activeResult = matrixView === 'coverage' ? coverageResult : dsmResult;
 
-  const activeAdapter = activeResult?.adapter ?? null;
-  const activeColHeaders = activeResult?.colHeaders;
-  const activeRowHeaders = activeResult?.rowHeaders;
+  const activeAdapter = coverageResult?.adapter ?? null;
+  const activeColHeaders = coverageResult?.colHeaders;
+  const activeRowHeaders = coverageResult?.rowHeaders;
 
   const gridDimensions = useMemo(() => {
     if (!activeAdapter) return { rows: 51, cols: 15 };
     const snap = activeAdapter.getSnapshot();
     return { rows: snap.range.rows, cols: snap.range.cols };
   }, [activeAdapter]);
-
-  const dsmMaxValue = useMemo(() => {
-    if (!filteredDsmMatrix) return 1;
-    return Math.max(1, ...filteredDsmMatrix.adjacency.map(row => Math.max(0, ...row)));
-  }, [filteredDsmMatrix]);
-
-  const dsmCellBackground = useMemo(
-    () => getDsmCellBackground(colors, dsmMaxValue),
-    [colors, dsmMaxValue],
-  );
-
-  const dsmRowHeaderBackground = useMemo(() => {
-    if (!dsmNodeColorMap || !filteredDsmMatrix) return undefined;
-    const nodes = filteredDsmMatrix.nodes;
-    return (rowIndex: number) => dsmNodeColorMap.get(nodes[rowIndex]?.id ?? '');
-  }, [dsmNodeColorMap, filteredDsmMatrix]);
-
-  const dsmColHeaderBackground = useMemo(() => {
-    if (!dsmNodeColorMap || !filteredDsmMatrix) return undefined;
-    const nodes = filteredDsmMatrix.nodes;
-    return (colIndex: number) => dsmNodeColorMap.get(nodes[colIndex]?.id ?? '');
-  }, [dsmNodeColorMap, filteredDsmMatrix]);
 
   // Coverage ビュー: L3=コンテナ列、L4=コンテナ列+コンポーネント列
   const coverageRowHeaderGroups = useMemo(() => {
@@ -324,10 +242,10 @@ export function MatrixPanel({
 
   // Coverage ビュー: 行ヘッダーにコミュニティ色
   const coverageRowHeaderBackground = useMemo(() => {
-    if (!dsmNodeColorMap || !filteredCoverageMatrix) return undefined;
+    if (!communityColorByElement || !filteredCoverageMatrix) return undefined;
     const entries = filteredCoverageMatrix.entries;
-    return (rowIndex: number) => dsmNodeColorMap.get(entries[rowIndex]?.elementId ?? '');
-  }, [dsmNodeColorMap, filteredCoverageMatrix]);
+    return (rowIndex: number) => communityColorByElement.get(entries[rowIndex]?.elementId ?? '');
+  }, [communityColorByElement, filteredCoverageMatrix]);
 
   // Coverage ビュー: セルを coverage overlay 色（Lines/Branches/Functions 共通の閾値）で塗りつぶし
   const coverageCellBackground = useMemo(() => {
@@ -356,26 +274,6 @@ export function MatrixPanel({
       {/* Toolbar */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 1, py: 0.5, borderBottom: `1px solid ${colors.border}`, flexShrink: 0, flexWrap: 'wrap' }}>
         <ButtonGroup size="small">
-          {(['coverage', 'dsm'] as const).map((view) => {
-            const label = view === 'dsm' ? 'DSM' : 'Metrics';
-            const isDisabled = view === 'coverage' && !coverageMatrix;
-            return (
-              <Button
-                key={view}
-                size="small"
-                disabled={isDisabled}
-                aria-pressed={matrixView === view}
-                aria-label={`Show ${label} matrix`}
-                onClick={() => setMatrixView(view)}
-                sx={{ ...toolbarButtonSx, ...(matrixView === view && { bgcolor: toolbarButtonActiveBg }) }}
-              >
-                {label}
-              </Button>
-            );
-          })}
-        </ButtonGroup>
-
-        <ButtonGroup size="small">
           {(['package', 'component', 'code'] as const).map((lv) => (
             <Button
               key={lv}
@@ -394,7 +292,7 @@ export function MatrixPanel({
       <Box sx={{ flex: 1, display: 'flex', minHeight: 0 }}>
         {activeAdapter ? (
           <SpreadsheetGrid
-            key={`${matrixView}-${level}`}
+            key={`coverage-${level}`}
             adapter={activeAdapter}
             isDark={isDark}
             t={sheetT}
@@ -402,43 +300,22 @@ export function MatrixPanel({
             showRange={false}
             showToolbar={false}
             columnHeaders={activeColHeaders}
-            rotateColumnHeaders={matrixView === 'dsm'}
-            cellSize={matrixView === 'dsm' ? 28 : undefined}
             rowHeaders={activeRowHeaders}
             rowHeaderWidth={
-              level === 'code' && matrixView === 'coverage' ? 280 :
-              level === 'code' && matrixView === 'dsm'      ? 240 :
-              level === 'component'                         ? 200 :
+              level === 'code'      ? 280 :
+              level === 'component' ? 200 :
               120
             }
-            columnHeaderGroups={matrixView === 'dsm' && dsmPackageSpans ? [dsmPackageSpans] : undefined}
-            rowHeaderGroups={
-              matrixView === 'dsm' && dsmPackageSpans ? [dsmPackageSpans] :
-              matrixView === 'coverage' && coverageRowHeaderGroups ? coverageRowHeaderGroups :
-              undefined
-            }
+            rowHeaderGroups={coverageRowHeaderGroups}
             gridRows={gridDimensions.rows}
             gridCols={gridDimensions.cols}
-            getCellDisplayText={matrixView === 'dsm' ? () => '' : undefined}
-            getCellBackground={
-              matrixView === 'dsm' ? dsmCellBackground :
-              matrixView === 'coverage' ? coverageCellBackground :
-              undefined
-            }
-            getRowHeaderBackground={
-              !isCommunityColor ? undefined :
-              matrixView === 'dsm' ? dsmRowHeaderBackground :
-              matrixView === 'coverage' ? coverageRowHeaderBackground :
-              undefined
-            }
-            getColumnHeaderBackground={
-              isCommunityColor && matrixView === 'dsm' ? dsmColHeaderBackground : undefined
-            }
+            getCellBackground={coverageCellBackground}
+            getRowHeaderBackground={isCommunityColor ? coverageRowHeaderBackground : undefined}
           />
         ) : (
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
             <Typography variant="body2" sx={{ color: colors.textSecondary }}>
-              Import a C4 model to view DSM
+              Import a C4 model to view metrics
             </Typography>
           </Box>
         )}

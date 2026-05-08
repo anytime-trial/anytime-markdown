@@ -56,6 +56,8 @@ export type TrendPeriod = '7d' | '30d' | '90d' | 'all';
 
 export type TrendGranularity = 'commit' | 'session' | 'subagent';
 
+export type HotspotGranularity = 'commit' | 'session';
+
 export type ActivityTrend =
   | { readonly type: 'single-series'; readonly bucketSize: TrendBucketSize; readonly buckets: readonly TrendBucket[] }
   | {

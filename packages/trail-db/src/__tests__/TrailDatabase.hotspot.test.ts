@@ -130,52 +130,6 @@ describe('TrailDatabase.fetchHotspotRows', () => {
     expect(map.get('b.ts')).toBe(1);
   });
 
-  test('subagent granularity excludes calls without subagent_type', () => {
-    insertMessage(db, 'm1', 's1', '2026-04-25T10:00:00.000Z', 'general-purpose');
-    insertMessage(db, 'm2', 's1', '2026-04-25T11:00:00.000Z', null);
-    insertToolCall(db, 'm1', 's1', 'Edit', 'a.ts', 0, '2026-04-25T10:00:00.000Z');
-    insertToolCall(db, 'm2', 's1', 'Edit', 'a.ts', 0, '2026-04-25T11:00:00.000Z');
-    const rows = db.fetchHotspotRows({
-      from: '2026-04-23T00:00:00.000Z',
-      to: '2026-04-30T00:00:00.000Z',
-      granularity: 'subagent',
-    });
-    expect(rows.find((r) => r.filePath === 'a.ts')?.churn).toBe(1);
-  });
-
-  test('subagent granularity includes codex-linked sessions', () => {
-    // CC parent session + delegation marker
-    inner(db).run(
-      `INSERT INTO sessions (
-         id, slug, repo_name, version, entrypoint, model, start_time, end_time,
-         message_count, file_path, file_size, imported_at, source
-       ) VALUES ('cc1', 'cc1', 'r', '0', '', '', '2026-04-25T10:00:00.000Z', '2026-04-25T11:00:00.000Z', 0, '', 0, '', 'claude_code')`,
-    );
-    inner(db).run(
-      `INSERT INTO messages (uuid, session_id, type, timestamp, source_tool_assistant_uuid)
-       VALUES ('cc1-child', 'cc1', 'assistant', '2026-04-25T10:01:00.000Z', 'p-uuid')`,
-    );
-    // codex session in same repo, time-overlapping
-    inner(db).run(
-      `INSERT INTO sessions (
-         id, slug, repo_name, version, entrypoint, model, start_time, end_time,
-         message_count, file_path, file_size, imported_at, source
-       ) VALUES ('codex1', 'codex1', 'r', '0', '', '', '2026-04-25T10:02:00.000Z', '2026-04-25T10:05:00.000Z', 0, '', 0, '', 'codex')`,
-    );
-    inner(db).run(
-      `INSERT INTO messages (uuid, session_id, type, timestamp)
-       VALUES ('cm1', 'codex1', 'assistant', '2026-04-25T10:03:00.000Z')`,
-    );
-    insertToolCall(db, 'cm1', 'codex1', 'Edit', 'src/c.ts', 0, '2026-04-25T10:03:00.000Z');
-
-    const rows = db.fetchHotspotRows({
-      from: '2026-04-25T00:00:00.000Z',
-      to: '2026-04-26T00:00:00.000Z',
-      granularity: 'subagent',
-    });
-    expect(rows.find((r) => r.filePath === 'src/c.ts')?.churn).toBe(1);
-  });
-
   test('EXPLAIN QUERY PLAN uses an index for commit granularity', () => {
     const plan = inner(db).exec(
       `EXPLAIN QUERY PLAN

@@ -28,65 +28,34 @@ export class TypeScriptAdapter implements ILanguageAdapter {
   /** id → AST ノードのキャッシュ */
   private readonly nodeCache = new Map<string, FunctionLikeNode>();
 
-  constructor(filePaths: string[]) {
-    this.program = ts.createProgram(filePaths, {
-      target: ts.ScriptTarget.ES2022,
-      strict: true,
-    });
+  /**
+   * @param filePathsOrProgram ファイルパス配列 (新規 Program 構築) または
+   *   既存 ts.Program (ProjectAnalyzer 等で構築済みのものを再利用する場合)
+   */
+  constructor(filePathsOrProgram: readonly string[] | ts.Program) {
+    if (Array.isArray(filePathsOrProgram)) {
+      this.program = ts.createProgram(filePathsOrProgram as string[], {
+        target: ts.ScriptTarget.ES2022,
+        strict: true,
+        jsx: ts.JsxEmit.ReactJSX,
+      });
+    } else {
+      this.program = filePathsOrProgram as ts.Program;
+    }
     // binding を実行して parent プロパティを設定する
     this.program.getTypeChecker();
   }
 
-  static fromTsConfig(tsconfigPath: string): TypeScriptAdapter {
-    const absolutePath = path.resolve(tsconfigPath);
-    const allFiles = TypeScriptAdapter.collectFilesFromTsConfig(absolutePath, new Set());
-    if (allFiles.length === 0) {
-      throw new Error(`No files matched in tsconfig: ${absolutePath}`);
-    }
-    return new TypeScriptAdapter(allFiles);
-  }
-
-  private static collectFilesFromTsConfig(absolutePath: string, visited: Set<string>): string[] {
-    if (visited.has(absolutePath)) return [];
-    visited.add(absolutePath);
-
-    const configFile = ts.readConfigFile(absolutePath, ts.sys.readFile);
-    if (configFile.error) {
-      throw new Error(
-        `Failed to read tsconfig: ${ts.flattenDiagnosticMessageText(configFile.error.messageText, '\n')}`,
-      );
-    }
-    const configDir = path.dirname(absolutePath);
-    const parsed = ts.parseJsonConfigFileContent(configFile.config, ts.sys, configDir);
-    if (parsed.errors.length > 0) {
-      const message = parsed.errors
-        .map(e => ts.flattenDiagnosticMessageText(e.messageText, '\n'))
-        .join('\n');
-      throw new Error(`Failed to parse tsconfig: ${message}`);
-    }
-
-    if (parsed.fileNames.length > 0) {
-      return parsed.fileNames;
-    }
-
-    // fileNames が空の場合は project references から再帰収集
-    const refs = configFile.config?.references as Array<{ path: string }> | undefined;
-    if (!refs || refs.length === 0) return [];
-
-    const allFiles: string[] = [];
-    for (const ref of refs) {
-      const refResolved = path.resolve(configDir, ref.path);
-      const refTsconfig = path.extname(refResolved)
-        ? refResolved
-        : path.join(refResolved, 'tsconfig.json');
-      try {
-        const files = TypeScriptAdapter.collectFilesFromTsConfig(refTsconfig, visited);
-        allFiles.push(...files);
-      } catch {
-        // 読み込めない参照はスキップ
-      }
-    }
-    return allFiles;
+  /**
+   * 既存の ts.Program (analyze() / ProjectAnalyzer で構築済みのもの) を
+   * ラップして TypeScriptAdapter として使う。
+   *
+   * これにより Program 構築コスト (~数秒〜数十秒) を二重に支払わずに済み、
+   * かつ ProjectAnalyzer と Importance 解析の対象ファイル集合が完全に一致する
+   * (両者が同じ Program を見るため drift が原理的に起きない)。
+   */
+  static fromProgram(program: ts.Program): TypeScriptAdapter {
+    return new TypeScriptAdapter(program);
   }
 
   getProgram(): ts.Program {
@@ -111,26 +80,61 @@ export class TypeScriptAdapter implements ILanguageAdapter {
 
   private countCallsInNode(node: ts.Node, checker: ts.TypeChecker, map: Map<string, number>): void {
     if (ts.isCallExpression(node)) {
-      let symbol = checker.getSymbolAtLocation(node.expression);
-      // import エイリアスを解決
-      if (symbol && (symbol.flags & ts.SymbolFlags.Alias)) {
-        symbol = checker.getAliasedSymbol(symbol);
-      }
-      if (symbol) {
-        for (const decl of symbol.getDeclarations() ?? []) {
-          if (!this.isFunctionLike(decl) || !this.hasFunctionName(decl)) continue;
-          const sf = decl.getSourceFile();
-          if (sf.isDeclarationFile || sf.fileName.includes('node_modules')) continue;
-          const relPath = path.relative(process.cwd(), sf.fileName);
-          const name = this.getFunctionName(decl as FunctionLikeNode);
-          if (name) {
-            const id = `file::${relPath}::${name}`;
-            map.set(id, (map.get(id) ?? 0) + 1);
-          }
-        }
-      }
+      this.countSymbolUsage(node.expression, checker, map);
+    } else if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
+      this.countSymbolUsage(node.tagName, checker, map);
     }
     ts.forEachChild(node, child => this.countCallsInNode(child, checker, map));
+  }
+
+  /** CallExpression / JSX tag に共通する fan-in カウント処理。 */
+  private countSymbolUsage(expr: ts.Node, checker: ts.TypeChecker, map: Map<string, number>): void {
+    let symbol = checker.getSymbolAtLocation(expr);
+    if (!symbol) return;
+    // import エイリアスを解決
+    if (symbol.flags & ts.SymbolFlags.Alias) {
+      symbol = checker.getAliasedSymbol(symbol);
+    }
+    for (const id of this.resolveFunctionIdsFromSymbol(symbol)) {
+      map.set(id, (map.get(id) ?? 0) + 1);
+    }
+  }
+
+  /** symbol が指す関数群の ID (`file::<relPath>::<name>`) を返す */
+  private resolveFunctionIdsFromSymbol(symbol: ts.Symbol): string[] {
+    const result: string[] = [];
+    for (const decl of symbol.getDeclarations() ?? []) {
+      const id = this.tryBuildFunctionId(decl);
+      if (id) result.push(id);
+    }
+    return result;
+  }
+
+  /**
+   * declaration を以下のいずれかに分類し、対応する関数 ID を返す。
+   *   (a) function Foo() {} / class method
+   *   (b) const Foo = () => {} / const Foo = function() {}
+   * memo / forwardRef ラップ (initializer が CallExpression) は対象外
+   * (Issue #108 で追跡)。
+   */
+  private tryBuildFunctionId(decl: ts.Declaration): string | null {
+    const sf = decl.getSourceFile();
+    if (sf.isDeclarationFile || sf.fileName.includes('node_modules')) return null;
+    const relPath = path.relative(process.cwd(), sf.fileName);
+
+    if (this.isFunctionLike(decl) && this.hasFunctionName(decl)) {
+      const name = this.getFunctionName(decl as FunctionLikeNode);
+      return name ? `file::${relPath}::${name}` : null;
+    }
+    if (
+      ts.isVariableDeclaration(decl) &&
+      ts.isIdentifier(decl.name) &&
+      decl.initializer &&
+      (ts.isArrowFunction(decl.initializer) || ts.isFunctionExpression(decl.initializer))
+    ) {
+      return `file::${relPath}::${decl.name.text}`;
+    }
+    return null;
   }
 
   extractFunctions(filePaths: string[]): FunctionInfo[] {

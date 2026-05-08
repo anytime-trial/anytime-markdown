@@ -1,0 +1,15 @@
+{
+  "displayName": "Anytime Database",
+  "description": "Browse and query SQLite databases inside VS Code.",
+  "viewsContainer.title": "Anytime Database",
+  "view.database": "Database",
+  "command.syncToSupabase": "Sync",
+  "command.reconnectSupabase": "Reconnect",
+  "customEditor.displayName": "Anytime Database",
+  "config.openMode.title": "Open Mode",
+  "config.openMode.description": "How to open SQLite files. 'readwrite' allows write SQL and dirty/save UX. 'readonly' opens with OPEN_READONLY and rejects mutations.",
+  "config.queryMaxRows.title": "Query Max Rows",
+  "config.queryMaxRows.description": "Maximum number of rows displayed for SQL Run results. Larger results are truncated with a warning banner.",
+  "config.warnThresholdMs.title": "Warn Threshold (ms)",
+  "config.warnThresholdMs.description": "Show a warning when a query takes longer than this number of milliseconds."
+}

@@ -88,7 +88,7 @@ export interface AnalyzeAllPipelineResult {
 
 const HOTSPOT_PERIODS = ['7d', '30d', '90d', 'all'] as const;
 type HotspotPeriod = typeof HOTSPOT_PERIODS[number];
-const HOTSPOT_GRANULARITIES = ['commit', 'session', 'subagent'] as const;
+const HOTSPOT_GRANULARITIES = ['commit', 'session'] as const;
 type HotspotGranularity = typeof HOTSPOT_GRANULARITIES[number];
 const ACTIVITY_TREND_GRANULARITIES = ['commit', 'session', 'subagent', 'defect'] as const;
 type ActivityTrendGranularity = typeof ACTIVITY_TREND_GRANULARITIES[number];
@@ -892,7 +892,7 @@ export class TrailDataServer {
     }
     const granularity = parseHotspotGranularity(params.get('granularity'));
     if (granularity === null) {
-      this.sendError(res, 400, "granularity must be one of 'commit', 'session', or 'subagent'");
+      this.sendError(res, 400, "granularity must be one of 'commit' or 'session'");
       return;
     }
     const repo = params.get('repo') ?? undefined;
@@ -2336,7 +2336,15 @@ export class TrailDataServer {
     }
   }
 
-  async computeAndPersistImportance(tsconfigPath?: string): Promise<{
+  async computeAndPersistImportance(
+    tsconfigPath: string,
+    exclude: import('ignore').Ignore | undefined,
+    /**
+     * `analyzeWithProgram` で構築済みの ts.Program。
+     * analyze() と完全に同じ対象ファイル集合で重要度計算を行うため必須。
+     */
+    program: import('typescript').Program,
+  ): Promise<{
     scored: import('@anytime-markdown/trail-core/importance').ScoredFunction[];
     fileAggregates: Map<string, import('@anytime-markdown/trail-core/deadCode').FileImportanceAggregate>;
     lineCountByFile: ReadonlyMap<string, number>;
@@ -2344,21 +2352,28 @@ export class TrailDataServer {
     if (this.importanceComputing) return null;
     this.importanceComputing = true;
     try {
-      const repoName = this.gitRoot ? path.basename(this.gitRoot) : undefined;
-      const resolvedTsconfig = tsconfigPath ?? this.trailDb.getCurrentTsconfigPath(repoName);
-      if (!resolvedTsconfig) {
-        TrailLogger.warn('[importance] tsconfig path not available, skipping importance computation');
-        return null;
-      }
       // C4 model is no longer needed here — element aggregation now happens in the REST endpoint at fetch time.
       // We compute per-function ScoredFunction[] and per-file aggregate, leaving element-level aggregation to consumers.
       const { TypeScriptAdapter, ImportanceAnalyzer } = await import('@anytime-markdown/trail-core/importance');
       const { aggregateImportanceToFile } = await import('@anytime-markdown/trail-core/deadCode');
-      const adapter = TypeScriptAdapter.fromTsConfig(resolvedTsconfig);
+      // TypeScriptAdapter は trail-core 側の typescript (5.8.x) で定義された
+      // ts.Program を期待する。本拡張機能側 (5.9.x) との型差異を吸収するため
+      // unknown 経由でキャストする (Program API は構造的に互換)。
+      const adapter = TypeScriptAdapter.fromProgram(
+        program as unknown as Parameters<typeof TypeScriptAdapter.fromProgram>[0],
+      );
+      const resolvedDir = path.dirname(path.resolve(tsconfigPath));
+      const isExcluded = (sf: { isDeclarationFile: boolean; fileName: string }): boolean => {
+        if (sf.isDeclarationFile || sf.fileName.includes('node_modules')) return true;
+        if (!exclude) return false;
+        const relPath = path.relative(resolvedDir, sf.fileName).split(path.sep).join('/');
+        if (relPath === '' || relPath.startsWith('../')) return false;
+        return exclude.ignores(relPath);
+      };
       const allSourceFiles = adapter
         .getProgram()
         .getSourceFiles()
-        .filter((sf) => !sf.isDeclarationFile && !sf.fileName.includes('node_modules'))
+        .filter((sf) => !isExcluded(sf))
         .map((sf) => sf.fileName);
       const analyzer = new ImportanceAnalyzer(adapter);
       let scored: ReturnType<typeof analyzer.analyze>;
@@ -2371,9 +2386,8 @@ export class TrailDataServer {
       const fileAggregates = aggregateImportanceToFile(scored);
       // SourceFile の行数を相対パスでインデックスする（tsconfig ディレクトリ基準）
       const lineCountByFile = new Map<string, number>();
-      const resolvedDir = path.dirname(path.resolve(resolvedTsconfig));
       for (const sf of adapter.getProgram().getSourceFiles()) {
-        if (sf.isDeclarationFile || sf.fileName.includes('node_modules')) continue;
+        if (isExcluded(sf)) continue;
         const relPath = path.relative(resolvedDir, sf.fileName);
         const loc = sf.getLineAndCharacterOfPosition(sf.end).line + 1;
         lineCountByFile.set(relPath, loc);

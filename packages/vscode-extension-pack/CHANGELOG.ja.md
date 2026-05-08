@@ -6,6 +6,13 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-05-08
+
+### 変更
+
+- `anytime-trial.anytime-database` をパックに追加
+- バンドルされている拡張機能のバージョンを更新: anytime-trail 0.18.0、anytime-sheet 0.4.2
+
 ## [0.3.1] - 2026-05-04
 
 ### 変更

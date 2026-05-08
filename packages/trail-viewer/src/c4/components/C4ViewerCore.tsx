@@ -128,16 +128,12 @@ export function C4ViewerCore({
   // リリース entry と current entry 両方からリポジトリを収集する
   const repoOptions = useMemo(() => {
     const seen = new Set<string>();
-    const order: string[] = [];
     for (const r of releases) {
       const key = r.repoName ?? (r.tag === CURRENT_RELEASE_TAG ? '' : UNKNOWN_REPO_KEY);
       if (!key) continue;
-      if (!seen.has(key)) {
-        seen.add(key);
-        order.push(key);
-      }
+      seen.add(key);
     }
-    return order;
+    return Array.from(seen).sort((a, b) => a.localeCompare(b));
   }, [releases]);
 
   const [selectedRepoInternal, setSelectedRepoInternal] = useState<string>(() => repoOptions[0] ?? '');
@@ -202,7 +198,6 @@ export function C4ViewerCore({
   const [showCoverage, setShowCoverage] = useState(false);
   const [showAncestorEdges, setShowAncestorEdges] = useState(false);
   const [matrixPopup, setMatrixPopup] = useState<{
-    readonly view: 'dsm' | 'coverage';
     readonly initialLevel: 'package' | 'component' | 'code';
     readonly filterElementId: string | null;
   } | null>(null);
@@ -212,16 +207,16 @@ export function C4ViewerCore({
   const [showGraphPopup, setShowGraphPopup] = useState(false);
   const [graphPopupSize, setGraphPopupSize] = useState<ResizablePopupSize | null>(null);
   const [graphPopupMaximized, setGraphPopupMaximized] = useState(false);
-  const openMatrixForElement = useCallback((view: 'dsm' | 'coverage', element: C4Element) => {
+  const openMatrixForElement = useCallback((element: C4Element) => {
     setShowGraphPopup(false);
     if (element.type === 'container' || element.type === 'containerDb') {
-      setMatrixPopup({ view, initialLevel: 'component', filterElementId: element.id });
+      setMatrixPopup({ initialLevel: 'component', filterElementId: element.id });
     } else if (element.type === 'component') {
-      setMatrixPopup({ view, initialLevel: 'code', filterElementId: element.id });
+      setMatrixPopup({ initialLevel: 'code', filterElementId: element.id });
     } else if (element.type === 'code') {
-      setMatrixPopup({ view, initialLevel: 'code', filterElementId: element.boundaryId ?? null });
+      setMatrixPopup({ initialLevel: 'code', filterElementId: element.boundaryId ?? null });
     } else {
-      setMatrixPopup({ view, initialLevel: 'component', filterElementId: null });
+      setMatrixPopup({ initialLevel: 'component', filterElementId: null });
     }
   }, []);
   const [metricOverlay, setMetricOverlay] = useState<MetricOverlay>('none');
@@ -233,15 +228,16 @@ export function C4ViewerCore({
     granularity: 'commit',
   });
   const isHotspotOverlay = metricOverlay === 'hotspot-frequency' || metricOverlay === 'hotspot-risk';
+  // popup でも値を表示するため overlay 選択に関わらず常に fetch する。
   const { data: hotspotResponse, loading: hotspotLoading } = useHotspot({
-    enabled: isHotspotOverlay,
+    enabled: true,
     serverUrl,
     period: hotspotValue.period,
     granularity: hotspotValue.granularity,
     repo: selectedRepo || undefined,
   });
   const { entries: drEntries } = useDefectRisk({
-    enabled: metricOverlay === 'defect-risk',
+    enabled: true,
     serverUrl,
     windowDays: drWindowDays,
     halfLifeDays: 90,
@@ -650,6 +646,27 @@ export function C4ViewerCore({
     return m;
   }, [dsmMatrix, currentLevel, c4Model, checkedPackageIds]);
 
+  // 要素選択 popup の DSM In/Out 表示用。dsmMatrix を 4 レベルすべてに集約して
+  // 要素 ID → {in, out} の Map を作成する。currentLevel に依存しないため、
+  // 異なるレベルの要素を選択しても DSM オーバーレイ着色と一貫したカウントを返せる。
+  const dsmDegreeMap = useMemo<ReadonlyMap<string, { readonly in: number; readonly out: number }> | null>(() => {
+    if (!dsmMatrix || !c4Model) return null;
+    const map = new Map<string, { in: number; out: number }>();
+    const fillFromMatrix = (m: DsmMatrix) => {
+      for (let i = 0; i < m.nodes.length; i++) {
+        const out = m.adjacency[i].reduce((s: number, v: number) => s + (v > 0 ? 1 : 0), 0);
+        const inDeg = m.adjacency.reduce((s: number, row: readonly number[]) => s + (row[i] > 0 ? 1 : 0), 0);
+        map.set(m.nodes[i].id, { in: inDeg, out });
+      }
+    };
+    // L4 (code) は dsmMatrix がそのままファイル単位なのでそのまま使う
+    fillFromMatrix(dsmMatrix);
+    fillFromMatrix(aggregateDsmToC4ComponentLevel(dsmMatrix, c4Model.elements));
+    fillFromMatrix(aggregateDsmToC4ContainerLevel(dsmMatrix, c4Model.elements));
+    fillFromMatrix(aggregateDsmToC4SystemLevel(dsmMatrix, c4Model.elements));
+    return map;
+  }, [dsmMatrix, c4Model]);
+
   // importanceMatrix は WebSocket でリポジトリ非依存に push されるため、
   // 現在の c4Model.elements とキーが一致するかでデータの有無を判定する
   const hasImportanceData = useMemo(() => {
@@ -734,7 +751,7 @@ export function C4ViewerCore({
   }, [coverageMatrix, c4Model, currentLevel]);
 
   const defectRiskMap = useMemo<ReadonlyMap<string, number> | null>(() => {
-    if (metricOverlay !== 'defect-risk' || drEntries.length === 0 || !c4Model) return null;
+    if (drEntries.length === 0 || !c4Model) return null;
     const elementById = buildC4ElementById(c4Model.elements);
     const map = new Map<string, number>();
     for (const entry of drEntries) {
@@ -743,7 +760,7 @@ export function C4ViewerCore({
       }
     }
     return map;
-  }, [metricOverlay, drEntries, c4Model]);
+  }, [drEntries, c4Model]);
 
   const levelFilteredDefectRiskMap = useMemo<ReadonlyMap<string, number> | null>(() => {
     if (!defectRiskMap || !c4Model) return defectRiskMap;
@@ -755,10 +772,10 @@ export function C4ViewerCore({
   }, [defectRiskMap, c4Model, elementTypeById, levelTargetType]);
 
   const hotspotMap = useMemo<HotspotMap | null>(() => {
-    if (!isHotspotOverlay || !hotspotResponse || !c4Model) return null;
+    if (!hotspotResponse || !c4Model) return null;
     const fileHotspots = computeFileHotspot(hotspotResponse.files);
     return aggregateHotspotToC4(fileHotspots, c4Model, complexityMatrix ?? null);
-  }, [isHotspotOverlay, hotspotResponse, c4Model, complexityMatrix]);
+  }, [hotspotResponse, c4Model, complexityMatrix]);
 
   const levelFilteredHotspotMap = useMemo<HotspotMap | null>(() => {
     if (!hotspotMap || !c4Model) return hotspotMap;
@@ -1017,6 +1034,21 @@ export function C4ViewerCore({
     return max;
   }, [metricOverlay, filteredDsmMatrix]);
 
+  const sizeMax = useMemo(() => {
+    if (!levelFilteredSizeMatrix) return undefined;
+    let key: 'loc' | 'files' | 'functions' | null = null;
+    if (metricOverlay === 'size-loc') key = 'loc';
+    else if (metricOverlay === 'size-files') key = 'files';
+    else if (metricOverlay === 'size-functions') key = 'functions';
+    if (key === null) return undefined;
+    let max = 0;
+    for (const entry of Object.values(levelFilteredSizeMatrix)) {
+      const v = entry[key];
+      if (v > max) max = v;
+    }
+    return max > 0 ? max : undefined;
+  }, [metricOverlay, levelFilteredSizeMatrix]);
+
   const excludedDescendantIds = useMemo(() => {
     if (!c4Model || !checkedPackageIds) return null;
     const excluded = new Set<string>();
@@ -1047,17 +1079,19 @@ export function C4ViewerCore({
     if (!c4Model || !selectedElementId) return null;
     const element = c4Model.elements.find(e => e.id === selectedElementId);
     if (!element) return null;
-    let incoming = 0;
-    let outgoing = 0;
-    for (const rel of c4Model.relationships) {
-      if (rel.to === element.id) incoming++;
-      if (rel.from === element.id) outgoing++;
-    }
+    // DSM In/Out は dsm-out / dsm-in オーバーレイと同じソース (dsmMatrix) を参照する。
+    // 旧実装は c4Model.relationships を数えていたが、これは codeGraphToC4 が
+    // 生成するレベル別 dedup 結果 + 手動 relationships で、DSM オーバーレイの
+    // 着色値とずれていた (system レベルでは relationships 0 件、手動定義時は超過)。
+    const dsmDegree = dsmDegreeMap?.get(element.id) ?? null;
+    const incoming = dsmDegree?.in ?? null;
+    const outgoing = dsmDegree?.out ?? null;
     const documents = (docLinks ?? []).filter(doc => matchesDocScope(doc.c4Scope, element.id));
     const coverage = coverageMatrix?.entries.find(entry => entry.elementId === element.id) ?? null;
     const complexity = complexityMatrix?.entries.find(entry => entry.elementId === element.id) ?? null;
     const importance = importanceMatrix?.[element.id] ?? null;
     const defectRisk = defectRiskMap?.get(element.id) ?? null;
+    const hotspot = hotspotMap?.get(element.id) ?? null;
     const community = resolveSelectedElementCommunity({
       element,
       c4Model,
@@ -1065,37 +1099,14 @@ export function C4ViewerCore({
       communityOverlayL4,
       communitySummaries: codeGraph?.communitySummaries,
     });
-    const sizeMetrics = (() => {
-      if (!coverageMatrix) return { loc: null, fileCount: null, functionCount: null };
-      if (element.type === 'code') {
-        return {
-          loc: coverage?.lines.total ?? null,
-          fileCount: coverage ? 1 : null,
-          functionCount: coverage?.functions.total ?? null,
-        };
-      }
-      const descendantIds = collectDescendantIds(c4Model.elements, element.id);
-      let loc = 0;
-      let fileCount = 0;
-      let functionCount = 0;
-      let hasData = false;
-      for (const id of descendantIds) {
-        const desc = c4Model.elements.find(e => e.id === id);
-        if (desc?.type !== 'code') continue;
-        const entry = coverageMatrix.entries.find(e => e.elementId === id);
-        if (entry) {
-          loc += entry.lines.total;
-          fileCount += 1;
-          functionCount += entry.functions.total;
-          hasData = true;
-        }
-      }
-      return hasData
-        ? { loc, fileCount, functionCount }
-        : { loc: null, fileCount: null, functionCount: null };
-    })();
-    return { element, incoming, outgoing, documents, coverage, complexity, importance, defectRisk, community, sizeMetrics };
-  }, [c4Model, complexityMatrix, coverageMatrix, defectRiskMap, docLinks, importanceMatrix, selectedElementId, communityOverlayL3, communityOverlayL4, codeGraph]);
+    // size overlay と同じソース (fileAnalysisEntries → sizeMatrix) を参照する。
+    // coverage の lines.total は計測対象外ファイルで 0 になり overlay 着色と乖離するため使わない。
+    const sizeEntry = sizeMatrix?.[element.id];
+    const sizeMetrics = sizeEntry
+      ? { loc: sizeEntry.loc, locMax: sizeEntry.locMax, fileCount: sizeEntry.files, functionCount: sizeEntry.functions }
+      : { loc: null, locMax: null, fileCount: null, functionCount: null };
+    return { element, incoming, outgoing, documents, coverage, complexity, importance, defectRisk, hotspot, community, sizeMetrics };
+  }, [c4Model, complexityMatrix, coverageMatrix, defectRiskMap, hotspotMap, docLinks, importanceMatrix, selectedElementId, communityOverlayL3, communityOverlayL4, codeGraph, sizeMatrix, dsmDegreeMap]);
 
   const { data: elementFunctions, loading: elementFunctionsLoading } = useElementFunctions({
     serverUrl,
@@ -1451,7 +1462,7 @@ export function C4ViewerCore({
                               setMatrixPopup(prev => {
                                 if (prev) return null;
                                 setShowGraphPopup(false);
-                                return { view: 'coverage', initialLevel: 'component', filterElementId: null };
+                                return { initialLevel: 'component', filterElementId: null };
                               });
                             }}
                             aria-pressed={showMatrixPopup}
@@ -1476,12 +1487,12 @@ export function C4ViewerCore({
                       aria-label={t('c4.overlay.label')}
                     >
                       <MenuItem value="none" sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.none')}</MenuItem>
-                      <MenuItem value="dsm" sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.groupDsm')}</MenuItem>
-                      <MenuItem value="size" sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.groupSize')}</MenuItem>
-                      <MenuItem value="coverage" sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.groupCoverage')}</MenuItem>
-                      <MenuItem value="importance" sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.groupImportance')}</MenuItem>
-                      <MenuItem value="edit-complexity" sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.groupEditComplexity')}</MenuItem>
-                      <MenuItem value="dead-code" sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.groupDeadCode')}</MenuItem>
+                      <MenuItem value="dsm" disabled={!filteredDsmMatrix || filteredDsmMatrix.nodes.length === 0} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.groupDsm')}</MenuItem>
+                      <MenuItem value="size" disabled={!sizeMatrix} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.groupSize')}</MenuItem>
+                      <MenuItem value="coverage" disabled={!coverageMatrix || coverageMatrix.entries.length === 0} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.groupCoverage')}</MenuItem>
+                      <MenuItem value="importance" disabled={!hasImportanceData} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.groupImportance')}</MenuItem>
+                      <MenuItem value="edit-complexity" disabled={!complexityMatrix || complexityMatrix.entries.length === 0} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.groupEditComplexity')}</MenuItem>
+                      <MenuItem value="dead-code" disabled={!deadCodeMatrix} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.groupDeadCode')}</MenuItem>
                       <MenuItem value="hotspot" sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.groupHotspot')}</MenuItem>
                     </Select>
                   </Box>
@@ -1507,9 +1518,9 @@ export function C4ViewerCore({
                           <MenuItem key="functions" value="coverage-functions" disabled={!coverageMatrix} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.coverageFunctions')}</MenuItem>,
                         ]}
                         {overlayCategory === 'dsm' && isCategoryDataAvailable && [
+                          <MenuItem key="cyclic" value="dsm-cyclic" disabled={!filteredDsmMatrix} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.dsmCyclic')}</MenuItem>,
                           <MenuItem key="out" value="dsm-out" disabled={!filteredDsmMatrix} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.dsmOut')}</MenuItem>,
                           <MenuItem key="in" value="dsm-in" disabled={!filteredDsmMatrix} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.dsmIn')}</MenuItem>,
-                          <MenuItem key="cyclic" value="dsm-cyclic" disabled={!filteredDsmMatrix} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.dsmCyclic')}</MenuItem>,
                         ]}
                         {overlayCategory === 'edit-complexity' && isCategoryDataAvailable && [
                           <MenuItem key="most" value="edit-complexity-most" disabled={!complexityMatrix} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.editComplexityMost')}</MenuItem>,
@@ -1538,6 +1549,7 @@ export function C4ViewerCore({
                     overlay={metricOverlay}
                     isDark={isDark}
                     dsmMax={dsmMax}
+                    sizeMax={sizeMax}
                     inline
                   />
                   <Box sx={{ borderTop: `1px solid ${colors.border}`, mx: -1.5 }} />
@@ -1594,8 +1606,7 @@ export function C4ViewerCore({
                   i18nResize={t('c4.popup.resize')}
                 >
                   <MatrixPanel
-                    key={`${matrixPopup?.view ?? 'coverage'}-${matrixPopup?.initialLevel ?? 'component'}-${matrixPopup?.filterElementId ?? ''}`}
-                    dsmMatrix={dsmMatrix}
+                    key={`${matrixPopup?.initialLevel ?? 'component'}-${matrixPopup?.filterElementId ?? ''}`}
                     coverageMatrix={coverageMatrix}
                     complexityMatrix={complexityMatrix}
                     c4Model={c4Model}
@@ -1605,7 +1616,6 @@ export function C4ViewerCore({
                     isDark={isDark}
                     isActive={showMatrixPopup}
                     isCommunityColor={showCommunity}
-                    initialMatrixView={matrixPopup?.view ?? 'coverage'}
                     initialLevel={matrixPopup?.initialLevel ?? 'component'}
                     filterElementId={matrixPopup?.filterElementId ?? null}
                   />
@@ -1713,28 +1723,16 @@ export function C4ViewerCore({
                     </Typography>
                   )}
                   <Box sx={{ borderTop: `1px solid ${colors.border}`, mt: 1.25, pt: 1 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
-                      <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.68rem', fontWeight: 700 }}>
-                        DSM
-                      </Typography>
-                      <Tooltip title={t('viewer.tab.matrix')}>
-                        <IconButton
-                          size="small"
-                          onClick={() => openMatrixForElement('dsm', selectedElementInfo.element)}
-                          aria-label={t('viewer.tab.matrix')}
-                          sx={{ ...toolbarButtonSx, p: 0.25 }}
-                        >
-                          <TableChartIcon sx={{ fontSize: 14 }} />
-                        </IconButton>
-                      </Tooltip>
-                    </Box>
+                    <Typography variant="caption" sx={{ display: 'block', color: colors.textSecondary, fontSize: '0.68rem', fontWeight: 700, mb: 0.5 }}>
+                      DSM
+                    </Typography>
                     <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
                       <Box>
                         <Typography variant="caption" sx={{ display: 'block', color: colors.textMuted, fontSize: '0.62rem' }}>
                           In
                         </Typography>
                         <Typography variant="body2" sx={{ color: colors.text, fontSize: '0.8rem', fontWeight: 700 }}>
-                          {selectedElementInfo.incoming}
+                          {selectedElementInfo.incoming ?? '-'}
                         </Typography>
                       </Box>
                       <Box>
@@ -1742,7 +1740,7 @@ export function C4ViewerCore({
                           Out
                         </Typography>
                         <Typography variant="body2" sx={{ color: colors.text, fontSize: '0.8rem', fontWeight: 700 }}>
-                          {selectedElementInfo.outgoing}
+                          {selectedElementInfo.outgoing ?? '-'}
                         </Typography>
                       </Box>
                     </Box>
@@ -1758,7 +1756,7 @@ export function C4ViewerCore({
                       <Tooltip title={t('viewer.tab.matrix')}>
                         <IconButton
                           size="small"
-                          onClick={() => openMatrixForElement('coverage', selectedElementInfo.element)}
+                          onClick={() => openMatrixForElement(selectedElementInfo.element)}
                           aria-label={t('viewer.tab.matrix')}
                           sx={{ ...toolbarButtonSx, p: 0.25 }}
                         >
@@ -1772,16 +1770,28 @@ export function C4ViewerCore({
                       </Typography>
                       <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 0.5 }}>
                         {([
-                          { key: 'loc', value: selectedElementInfo.sizeMetrics.loc },
-                          { key: 'files', value: selectedElementInfo.sizeMetrics.fileCount },
-                          { key: 'functionCount', value: selectedElementInfo.sizeMetrics.functionCount },
-                        ] as const).map(({ key, value }) => (
+                          {
+                            key: 'loc',
+                            // LOC は SUM(MAX) 形式。MAX は size-loc オーバーレイの色判定にも使用される。
+                            display: selectedElementInfo.sizeMetrics.loc != null
+                              ? `${selectedElementInfo.sizeMetrics.loc}(${selectedElementInfo.sizeMetrics.locMax ?? '-'})`
+                              : '-',
+                          },
+                          {
+                            key: 'files',
+                            display: selectedElementInfo.sizeMetrics.fileCount ?? '-',
+                          },
+                          {
+                            key: 'functionCount',
+                            display: selectedElementInfo.sizeMetrics.functionCount ?? '-',
+                          },
+                        ] as const).map(({ key, display }) => (
                           <Box key={key}>
                             <Typography variant="caption" sx={{ display: 'block', color: colors.textMuted, fontSize: '0.58rem' }}>
                               {t(`c4.popup.metric.${key}`)}
                             </Typography>
                             <Typography variant="body2" sx={{ color: colors.text, fontSize: '0.72rem', fontWeight: 700 }}>
-                              {value ?? '-'}
+                              {display}
                             </Typography>
                           </Box>
                         ))}
@@ -1808,13 +1818,23 @@ export function C4ViewerCore({
                           );
                         })}
                       </Box>
-                      <Box sx={{ mt: 0.75 }}>
-                        <Typography variant="caption" sx={{ display: 'block', color: colors.textMuted, fontSize: '0.58rem' }}>
-                          {t('c4.popup.metric.defectRisk')}
-                        </Typography>
-                        <Typography variant="body2" sx={{ color: colors.text, fontSize: '0.72rem', fontWeight: 700 }}>
-                          {selectedElementInfo.defectRisk != null ? Math.round(selectedElementInfo.defectRisk) : '-'}
-                        </Typography>
+                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0.5, mt: 0.75 }}>
+                        <Box>
+                          <Typography variant="caption" sx={{ display: 'block', color: colors.textMuted, fontSize: '0.58rem' }}>
+                            {t('c4.popup.metric.defectRisk')}
+                          </Typography>
+                          <Typography variant="body2" sx={{ color: colors.text, fontSize: '0.72rem', fontWeight: 700 }}>
+                            {selectedElementInfo.defectRisk != null ? Math.round(selectedElementInfo.defectRisk) : '-'}
+                          </Typography>
+                        </Box>
+                        <Box>
+                          <Typography variant="caption" sx={{ display: 'block', color: colors.textMuted, fontSize: '0.58rem' }}>
+                            {t('c4.popup.metric.churn')}
+                          </Typography>
+                          <Typography variant="body2" sx={{ color: colors.text, fontSize: '0.72rem', fontWeight: 700 }}>
+                            {selectedElementInfo.hotspot?.churn ?? '-'}
+                          </Typography>
+                        </Box>
                       </Box>
                     </Box>
                     <Box sx={{ mt: 1 }}>

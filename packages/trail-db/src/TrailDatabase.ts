@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import ignore from 'ignore';
 import { toUTC, getSqliteTzOffset } from './dateUtils';
 import {
   CREATE_SESSIONS,
@@ -701,7 +702,7 @@ export class TrailDatabase {
   private onIntegrityAlert: ((alerts: readonly IntegrityAlert[]) => void) | null = null;
 
   /**
-   * @param distPath sql-asm.js の配置ディレクトリ
+   * @param distPath sql-wasm.js / sql-wasm.wasm の配置ディレクトリ
    * @param storageDirOrStorage ディレクトリ文字列（互換 API）または ITrailStorage を直接注入
    */
   private readonly logger: DbLogger;
@@ -1267,12 +1268,18 @@ export class TrailDatabase {
   }
 
   async init(): Promise<void> {
-    // Load sql-asm.js from dist/ directory using __non_webpack_require__
-    // to bypass webpack bundling (bundling breaks sql.js module system)
-    const sqlAsmPath = path.join(this.distPath, 'sql-asm.js');
+    // Load sql-wasm.js from dist/ directory using __non_webpack_require__
+    // to bypass webpack bundling (bundling breaks sql.js module system).
+    // sql-wasm は asm.js (16MB ヒープ) より大きい WebAssembly ヒープ (最大 2GB)
+    // を使えるため、大規模リポジトリの code graph 保存時の OOM を回避できる。
+    // sql-wasm.wasm は sql-wasm.js と同じディレクトリに配置される必要があり、
+    // initSqlJs に locateFile callback で distPath を伝える。
+    const sqlWasmPath = path.join(this.distPath, 'sql-wasm.js');
     // eslint-disable-next-line @typescript-eslint/no-require-imports, no-undef
-    const initSqlJs = __non_webpack_require__(sqlAsmPath) as typeof import('sql.js').default;
-    const SQL = await initSqlJs();
+    const initSqlJs = __non_webpack_require__(sqlWasmPath) as typeof import('sql.js').default;
+    const SQL = await initSqlJs({
+      locateFile: (file: string) => path.join(this.distPath, file),
+    });
     console.log('[TrailDatabase] sql.js initialized, storage =', this.storage.identifier);
 
     const initial = this.storage.readInitialBytes();
@@ -1356,7 +1363,7 @@ export class TrailDatabase {
     db.run(CREATE_C4_MANUAL_GROUPS);
     // 既存 DB 向け: UNIQUE 制約をインデックスとして追加（新規 DB は CREATE TABLE の UNIQUE 制約で対応済み）
     try {
-      db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_mtc_unique ON message_tool_calls(message_uuid, call_index)');
+      db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_message_tool_calls_message_uuid_call_index ON message_tool_calls(message_uuid, call_index)');
     } catch {
       // Already exists — ignore
     }
@@ -2673,13 +2680,13 @@ export class TrailDatabase {
     const db = this.ensureDb();
     db.run(
       `INSERT INTO session_commit_resolutions (session_id, repo_name, resolved_at)
-         VALUES (?, ?, datetime('now'))
+         VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
          ON CONFLICT(session_id, repo_name) DO UPDATE SET resolved_at = excluded.resolved_at`,
       [sessionId, repoName],
     );
     // 既存挙動の互換: 主リポジトリ解決時も sessions.commits_resolved_at を更新
     db.run(
-      "UPDATE sessions SET commits_resolved_at = datetime('now') WHERE id = ?",
+      "UPDATE sessions SET commits_resolved_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
       [sessionId],
     );
   }
@@ -3521,7 +3528,7 @@ export class TrailDatabase {
     db.run(
       `INSERT OR REPLACE INTO current_graphs
          (repo_name, commit_id, graph_json, tsconfig_path, project_root, analyzed_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
+       VALUES (?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`,
       [
         repoName,
         commitId,
@@ -3562,7 +3569,7 @@ export class TrailDatabase {
     db.run(
       `INSERT OR REPLACE INTO release_graphs
          (tag, graph_json, tsconfig_path, project_root, analyzed_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, datetime('now'))`,
+       VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`,
       [
         tag,
         JSON.stringify(graph),
@@ -3595,7 +3602,7 @@ export class TrailDatabase {
     db.run(
       `INSERT OR REPLACE INTO current_code_graphs
          (repo_name, graph_json, generated_at, updated_at)
-       VALUES (?, ?, ?, datetime('now'))`,
+       VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`,
       [repoName, JSON.stringify(stored), stored.generatedAt],
     );
     // 新しいグラフに存在しない古いコミュニティのみ削除（AI 要約を保持するため全削除はしない）
@@ -3612,12 +3619,12 @@ export class TrailDatabase {
     const stmt = db.prepare(
       `INSERT INTO current_code_graph_communities
          (repo_name, community_id, label, name, summary, generated_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+       VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
        ON CONFLICT(repo_name, community_id) DO UPDATE SET
          label      = excluded.label,
          name       = CASE WHEN excluded.name    != '' THEN excluded.name    ELSE name    END,
          summary    = CASE WHEN excluded.summary != '' THEN excluded.summary ELSE summary END,
-         updated_at = datetime('now')`,
+         updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`,
     );
     for (const c of communities) {
       stmt.run([repoName, c.id, c.label, c.name, c.summary]);
@@ -3725,7 +3732,7 @@ export class TrailDatabase {
       db.run(
         `INSERT OR REPLACE INTO current_code_graph_communities
            (repo_name, community_id, label, name, summary, generated_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+         VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`,
         [repoName, c.community_id, c.label ?? existingLabel ?? '', c.name, c.summary],
       );
     }
@@ -3746,11 +3753,11 @@ export class TrailDatabase {
       db.run(
         `INSERT INTO current_code_graph_communities
            (repo_name, community_id, label, name, summary, generated_at, updated_at)
-         VALUES (?, ?, '', ?, ?, datetime('now'), datetime('now'))
+         VALUES (?, ?, '', ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
          ON CONFLICT(repo_name, community_id) DO UPDATE SET
            name = excluded.name,
            summary = excluded.summary,
-           updated_at = datetime('now')`,
+           updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`,
         [repoName, r.communityId, r.name, r.summary],
       );
     }
@@ -3788,10 +3795,10 @@ export class TrailDatabase {
       db.run(
         `INSERT INTO current_code_graph_communities
            (repo_name, community_id, label, name, summary, generated_at, updated_at, mappings_json)
-         VALUES (?, ?, '', '', '', datetime('now'), datetime('now'), ?)
+         VALUES (?, ?, '', '', '', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), ?)
          ON CONFLICT(repo_name, community_id) DO UPDATE SET
            mappings_json = excluded.mappings_json,
-           updated_at = datetime('now')`,
+           updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`,
         [repoName, r.communityId, JSON.stringify(r.mappings)],
       );
       if (found) updated++;
@@ -3836,14 +3843,14 @@ export class TrailDatabase {
     db.run(
       `INSERT OR REPLACE INTO release_code_graphs
          (release_tag, graph_json, generated_at, updated_at)
-       VALUES (?, ?, ?, datetime('now'))`,
+       VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`,
       [tag, JSON.stringify(stored), stored.generatedAt],
     );
     db.run('DELETE FROM release_code_graph_communities WHERE release_tag = ?', [tag]);
     const stmt = db.prepare(
       `INSERT INTO release_code_graph_communities
          (release_tag, community_id, label, name, summary, generated_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+       VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`,
     );
     for (const c of communities) {
       stmt.run([tag, c.id, c.label, c.name, c.summary]);
@@ -6889,10 +6896,14 @@ export class TrailDatabase {
           );
         }
 
-        // 解析実行
+        // 解析実行（excludePatterns は legacy のディレクトリ名配列。.gitignore 互換に変換）
+        const exclude = ignore();
+        if (excludePatterns.length > 0) {
+          exclude.add([...excludePatterns]);
+        }
         const graph = analyzeFn({
           tsconfigPath: worktreeTsconfig,
-          exclude: excludePatterns.map(p => `**/${p}/**`),
+          exclude,
         });
 
         // 保存（tsconfigPath は canonical パスを記録）
@@ -6958,6 +6969,27 @@ export class TrailDatabase {
     for (const r of values) {
       out.set(String(r[0] ?? ''), Number(r[1] ?? 0));
     }
+    return out;
+  }
+
+  /**
+   * 指定リポジトリで過去に 1 回でも commit に登場した file_path 集合を返す。
+   * 期間制約なし。dead code 解析の `hasHistory` 判定で使う
+   * (`getCommitFilesChurnSince` は recent 窓のみ返すため `hasHistory && churn===0` が常に false になる問題への対応)。
+   */
+  getCommitFilesEverChurned(repoName: string): Set<string> {
+    const db = this.ensureDb();
+    const result = db.exec(
+      `SELECT DISTINCT cf.file_path
+       FROM commit_files cf
+       JOIN session_commits sc ON sc.commit_hash = cf.commit_hash
+       JOIN sessions s ON s.id = sc.session_id
+       WHERE s.repo_name = ?`,
+      [repoName],
+    );
+    const out = new Set<string>();
+    const values = result[0]?.values ?? [];
+    for (const r of values) out.add(String(r[0] ?? ''));
     return out;
   }
 
@@ -7509,28 +7541,11 @@ export class TrailDatabase {
   fetchHotspotRows(params: {
     from: string;
     to: string;
-    granularity: 'commit' | 'session' | 'subagent';
+    granularity: 'commit' | 'session';
     repo?: string;
   }): ReadonlyArray<{ readonly filePath: string; readonly churn: number }> {
     const db = this.ensureDb();
     const { from, to, granularity, repo } = params;
-
-    if (granularity === 'subagent') {
-      const activityRows = this.fetchSubagentActivityRows({
-        from,
-        to,
-        toolNames: SESSION_COUPLING_EDIT_TOOLS,
-        repo,
-      });
-      const churnByFile = new Map<string, number>();
-      for (const r of activityRows) {
-        if (!r.filePath) continue;
-        churnByFile.set(r.filePath, (churnByFile.get(r.filePath) ?? 0) + 1);
-      }
-      return Array.from(churnByFile.entries())
-        .map(([filePath, churn]) => ({ filePath, churn }))
-        .sort((a, b) => b.churn - a.churn);
-    }
 
     const sql = repo
       ? HOTSPOT_SQL_BY_GRANULARITY_WITH_REPO[granularity]
@@ -7762,7 +7777,7 @@ export class TrailDatabase {
   }
 }
 
-const HOTSPOT_SQL_BY_GRANULARITY: Record<'commit' | 'session' | 'subagent', string> = {
+const HOTSPOT_SQL_BY_GRANULARITY: Record<'commit' | 'session', string> = {
   commit: `
     SELECT cf.file_path AS filePath, COUNT(DISTINCT cf.commit_hash) AS churn
     FROM commit_files cf
@@ -7781,21 +7796,10 @@ const HOTSPOT_SQL_BY_GRANULARITY: Record<'commit' | 'session' | 'subagent', stri
     GROUP BY mtc.file_path
     ORDER BY churn DESC
   `,
-  subagent: `
-    SELECT mtc.file_path AS filePath, COUNT(*) AS churn
-    FROM message_tool_calls mtc
-    INNER JOIN messages m ON mtc.message_uuid = m.uuid
-    WHERE m.timestamp >= ? AND m.timestamp <= ?
-      AND mtc.tool_name IN ('Edit', 'Write', 'NotebookEdit')
-      AND mtc.file_path IS NOT NULL
-      AND m.subagent_type IS NOT NULL
-    GROUP BY mtc.file_path
-    ORDER BY churn DESC
-  `,
 };
 
 // repo フィルタ付きの hotspot SQL（params: from, to, repo）
-const HOTSPOT_SQL_BY_GRANULARITY_WITH_REPO: Record<'commit' | 'session' | 'subagent', string> = {
+const HOTSPOT_SQL_BY_GRANULARITY_WITH_REPO: Record<'commit' | 'session', string> = {
   commit: `
     SELECT cf.file_path AS filePath, COUNT(DISTINCT cf.commit_hash) AS churn
     FROM commit_files cf
@@ -7815,19 +7819,6 @@ const HOTSPOT_SQL_BY_GRANULARITY_WITH_REPO: Record<'commit' | 'session' | 'subag
       AND s.repo_name = ?
       AND mtc.tool_name IN ('Edit', 'Write', 'NotebookEdit')
       AND mtc.file_path IS NOT NULL
-    GROUP BY mtc.file_path
-    ORDER BY churn DESC
-  `,
-  subagent: `
-    SELECT mtc.file_path AS filePath, COUNT(*) AS churn
-    FROM message_tool_calls mtc
-    INNER JOIN messages m ON mtc.message_uuid = m.uuid
-    INNER JOIN sessions s ON s.id = m.session_id
-    WHERE m.timestamp >= ? AND m.timestamp <= ?
-      AND s.repo_name = ?
-      AND mtc.tool_name IN ('Edit', 'Write', 'NotebookEdit')
-      AND mtc.file_path IS NOT NULL
-      AND m.subagent_type IS NOT NULL
     GROUP BY mtc.file_path
     ORDER BY churn DESC
   `,

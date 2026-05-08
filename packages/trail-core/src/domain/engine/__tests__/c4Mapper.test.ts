@@ -58,6 +58,13 @@ describe('mapFileToC4Elements', () => {
     expect(res).toEqual([]);
   });
 
+  test('absolute path is normalized to package fallback', () => {
+    const byId2 = buildC4ElementById([{ id: 'pkg_bar', type: 'container', name: 'Bar' }]);
+    const res = mapFileToC4Elements('/anytime-markdown/packages/bar/src/index.ts', byId2);
+    expect(res).toHaveLength(1);
+    expect(res[0]).toMatchObject({ elementId: 'pkg_bar', matchType: 'package_fallback' });
+  });
+
   test('exact match traverses boundaryId chain', () => {
     const byId2 = buildC4ElementById([EL_FILE_WITH_BOUNDARY, EL_PKG, EL_SYS]);
     const res = mapFileToC4Elements('src/bar.ts', byId2);

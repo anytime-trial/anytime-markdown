@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-05-08
+
+### Fixed
+
+- `collectAllRelFilePaths` now correctly restores CodeGraph node file extensions to `.ts`/`.tsx`
+- `CodeGraphService.runAnalyze` now respects `analyze-exclude` patterns
+- Importance analyzer now respects `analyze-exclude` patterns
+- Extension webpack config now includes `extensionAlias` for correct TypeScript path resolution
+- `noRecentChurn` recent window shortened from 90 to 30 days
+- TypeScript `moduleResolution` changed to `bundler` in tsconfig
+
+### Changed
+
+- `.trail/analyze-exclude` is now interpreted as `.gitignore`-compatible. The auto-wrap `**/<pattern>/**` in `AnalyzePipeline` is removed; users can write `!` negation and `/dist`-style root-anchored patterns directly. `GraphDetector` now accepts an `ignore` instance
+- `computeAndPersistImportance` now receives the `analyze-exclude` `Ignore` instance and applies exclusion to every SourceFile, making patterns like `__tests__/` propagate to importance analysis consistently
+
+### Trail Core (trail-core)
+
+- `.trail/analyze-exclude` now uses `.gitignore`-compatible syntax; `AnalyzeOptions.exclude` type changed from `string[]` to `Ignore`
+- `analyze()` now shares `ts.Program` with `ImportanceAnalyzer`
+- `mapFileToC4Elements` absolute path matching fixed
+- `ProjectAnalyzer.getSourceFiles` now excludes `.d.ts` files
+- SQLite schema: ISO 8601 + Z CHECK constraints and unified index naming added
+
 ## [0.17.0] - 2026-05-06
 
 ### Added

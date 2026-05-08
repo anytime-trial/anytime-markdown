@@ -39,5 +39,14 @@
     "sheetAdd": "シートを追加",
     "sheetDelete": "シートを削除",
     "sheetRename": "シート名を変更"
+  },
+  "Pager": {
+    "first": "« 先頭",
+    "prev": "‹ 前",
+    "next": "次 ›",
+    "last": "末尾 »",
+    "pageSize": "行/ページ",
+    "totalRows": "合計 {count} 行",
+    "pageOfTotal": "ページ {page} / {total}"
   }
 }

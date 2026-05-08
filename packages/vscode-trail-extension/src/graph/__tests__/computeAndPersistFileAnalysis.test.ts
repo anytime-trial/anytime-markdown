@@ -19,6 +19,7 @@ type MockTrailDb = {
   getCurrentCodeGraph: jest.Mock;
   getCurrentCoverage: jest.Mock;
   getCommitFilesChurnSince: jest.Mock;
+  getCommitFilesEverChurned: jest.Mock;
   clearCurrentFileAnalysis: jest.Mock;
   upsertCurrentFileAnalysis: jest.Mock;
   clearCurrentFunctionAnalysis: jest.Mock;
@@ -46,6 +47,7 @@ function makeMockDb(overrides: Partial<MockTrailDb> = {}): MockTrailDb {
     getCurrentCodeGraph: jest.fn().mockReturnValue(null),
     getCurrentCoverage: jest.fn().mockReturnValue([]),
     getCommitFilesChurnSince: jest.fn().mockReturnValue(new Map()),
+    getCommitFilesEverChurned: jest.fn().mockReturnValue(new Set()),
     clearCurrentFileAnalysis: jest.fn(),
     upsertCurrentFileAnalysis: jest.fn(),
     clearCurrentFunctionAnalysis: jest.fn(),
@@ -82,7 +84,8 @@ describe('computeAndPersistFileAnalysis', () => {
   });
 
   it('CodeGraph に孤立ノード 1 件 → orphan=true, deadCodeScore=45', async () => {
-    // ノード "repo:packages/core/src/a.ts" が存在し in-degree=0（orphan）
+    // ノード "repo:packages/core/src/a" が存在し in-degree=0（orphan）。
+    // lineCountByFile に対応する .ts エントリがあるとき、拡張子復元して登録する。
     const graph = makeMinimalCodeGraph({
       nodes: [
         {
@@ -115,7 +118,7 @@ describe('computeAndPersistFileAnalysis', () => {
       repoName: REPO_NAME,
       trailDb: db as unknown as TrailDatabase,
       scored: [],
-      lineCountByFile: new Map(),
+      lineCountByFile: new Map([['packages/core/src/a.ts', 12]]),
     });
 
     // CodeGraph ノード由来のファイルが 1 件追加される
@@ -123,8 +126,9 @@ describe('computeAndPersistFileAnalysis', () => {
     expect(capturedRows).toHaveLength(1);
 
     const row = capturedRows[0];
-    // 拡張子なし相対パス（node.id の "repo:" を除いた部分）
-    expect(row.filePath).toBe('packages/core/src/a');
+    // .ts 拡張子が復元されたパスで登録される
+    expect(row.filePath).toBe('packages/core/src/a.ts');
+    expect(row.lineCount).toBe(12);
     expect(row.signals.orphan).toBe(true);
     // functionCount=0 なので fanInZero は false
     expect(row.signals.fanInZero).toBe(false);
@@ -132,6 +136,55 @@ describe('computeAndPersistFileAnalysis', () => {
     expect(row.signals.isolatedCommunity).toBe(true);
     // deadCodeScore = orphan(45) + isolatedCommunity(5) = 50
     expect(row.deadCodeScore).toBe(50);
+  });
+
+  it('CodeGraph node が lineCountByFile に対応エントリを持たない場合は skip', async () => {
+    // stale な node や doc 等は登録対象外
+    const graph = makeMinimalCodeGraph({
+      nodes: [
+        {
+          id: 'repo:packages/stale/removed',
+          label: 'removed',
+          repo: 'repo',
+          package: 'stale',
+          fileType: 'code',
+          community: 0,
+          communityLabel: 'c0',
+          x: 0, y: 0, size: 0,
+        },
+        {
+          id: 'repo:packages/docs/README',
+          label: 'README',
+          repo: 'repo',
+          package: 'docs',
+          fileType: 'document',
+          community: 0,
+          communityLabel: 'c0',
+          x: 0, y: 0, size: 0,
+        },
+      ],
+      edges: [],
+    });
+    const db = makeMockDb({
+      getCurrentCodeGraph: jest.fn().mockReturnValue(graph),
+    });
+
+    let capturedRows: FileAnalysisRow[] = [];
+    db.upsertCurrentFileAnalysis.mockImplementation((rows: FileAnalysisRow[]) => {
+      capturedRows = rows;
+    });
+
+    const result = await computeAndPersistFileAnalysis({
+      analysisRoot: ANALYSIS_ROOT,
+      repoName: REPO_NAME,
+      trailDb: db as unknown as TrailDatabase,
+      scored: [],
+      // どちらの node にも対応するエントリが無い
+      lineCountByFile: new Map(),
+    });
+
+    expect(result.fileRows).toBe(0);
+    expect(capturedRows).toHaveLength(0);
   });
 
   it('scored ありのとき functionRows に全関数が含まれる', async () => {
@@ -231,9 +284,11 @@ describe('computeAndPersistFileAnalysis', () => {
       importanceScore: 5,
     };
 
-    const churnMap = new Map([['packages/core/src/old.ts', 0]]);
+    // churnMap は 90 日窓のみ → 古いファイルは含まれない
+    // everChurned は全期間 → 古いファイルが含まれる
     const db = makeMockDb({
-      getCommitFilesChurnSince: jest.fn().mockReturnValue(churnMap),
+      getCommitFilesChurnSince: jest.fn().mockReturnValue(new Map()),
+      getCommitFilesEverChurned: jest.fn().mockReturnValue(new Set(['packages/core/src/old.ts'])),
     });
 
     let capturedFileRows: FileAnalysisRow[] = [];
@@ -344,5 +399,77 @@ describe('computeAndPersistFileAnalysis', () => {
     expect(fileRow).toBeDefined();
     // コミット履歴自体がない場合は noRecentChurn=false（データなしは false positiveにしない）
     expect(fileRow!.signals.noRecentChurn).toBe(false);
+  });
+
+  it('signal_no_recent_churn=true when file is in everChurned but has zero recent churn', async () => {
+    const relPath = 'packages/core/src/legacy.ts';
+    const fn: ScoredFunction = {
+      id: `file::/root/${relPath}::legacyFunc`,
+      name: 'legacyFunc',
+      filePath: `/root/${relPath}`,
+      startLine: 1,
+      endLine: 3,
+      language: 'typescript',
+      metrics: { fanIn: 1, cognitiveComplexity: 0, cyclomaticComplexity: 1, dataMutationScore: 0, sideEffectScore: 0, lineCount: 3 },
+      importanceScore: 5,
+    };
+    const db = makeMockDb({
+      // 90 日以内には登場しない
+      getCommitFilesChurnSince: jest.fn().mockReturnValue(new Map()),
+      // 全期間履歴には登場する
+      getCommitFilesEverChurned: jest.fn().mockReturnValue(new Set([relPath])),
+    });
+
+    let captured: FileAnalysisRow[] = [];
+    db.upsertCurrentFileAnalysis.mockImplementation((rows: FileAnalysisRow[]) => {
+      captured = rows;
+    });
+
+    await computeAndPersistFileAnalysis({
+      analysisRoot: ANALYSIS_ROOT,
+      repoName: REPO_NAME,
+      trailDb: db as unknown as TrailDatabase,
+      scored: [fn],
+      lineCountByFile: new Map(),
+    });
+
+    const row = captured.find((r) => r.filePath === relPath);
+    expect(row).toBeDefined();
+    expect(row!.signals.noRecentChurn).toBe(true);
+  });
+
+  it('signal_no_recent_churn=false when file has no commit history at all (everChurned 空)', async () => {
+    const relPath = 'packages/core/src/brand-new.ts';
+    const fn: ScoredFunction = {
+      id: `file::/root/${relPath}::brandNewFunc`,
+      name: 'brandNewFunc',
+      filePath: `/root/${relPath}`,
+      startLine: 1,
+      endLine: 3,
+      language: 'typescript',
+      metrics: { fanIn: 1, cognitiveComplexity: 0, cyclomaticComplexity: 1, dataMutationScore: 0, sideEffectScore: 0, lineCount: 3 },
+      importanceScore: 5,
+    };
+    const db = makeMockDb({
+      getCommitFilesChurnSince: jest.fn().mockReturnValue(new Map()),
+      getCommitFilesEverChurned: jest.fn().mockReturnValue(new Set()),
+    });
+
+    let captured: FileAnalysisRow[] = [];
+    db.upsertCurrentFileAnalysis.mockImplementation((rows: FileAnalysisRow[]) => {
+      captured = rows;
+    });
+
+    await computeAndPersistFileAnalysis({
+      analysisRoot: ANALYSIS_ROOT,
+      repoName: REPO_NAME,
+      trailDb: db as unknown as TrailDatabase,
+      scored: [fn],
+      lineCountByFile: new Map(),
+    });
+
+    const row = captured.find((r) => r.filePath === relPath);
+    expect(row).toBeDefined();
+    expect(row!.signals.noRecentChurn).toBe(false);
   });
 });

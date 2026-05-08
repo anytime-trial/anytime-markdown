@@ -6,6 +6,24 @@
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-05-08
+
+### 追加
+
+- SQLite スキーマに ISO 8601 + Z 形式の CHECK 制約と `strftime('%Y-%m-%dT%H:%M:%fZ', 'now')` デフォルトを追加; インデックス命名を `idx_<テーブル>_<カラム>` 形式に統一
+
+### 変更
+
+- `.trail/analyze-exclude` の文法を `.gitignore` 互換に変更（`ignore` パッケージ採用）。`!` 否定・`/` 先頭固定・`*.spec.ts` ファイル glob・`dir/` ディレクトリ専用・`**` 再帰が利用可能に。**Breaking:** `AnalyzeOptions.exclude` の型を `readonly string[]` から `Ignore` に変更
+- `loadAnalyzeExclude` の戻り値を `string[]` から `Ignore` に変更
+- `FilterConfig.exclude` の型を `Ignore` に変更し、`matchGlob` / `parseAnalyzeExclude` を削除
+- `analyze()` が TypeScript `ts.Program` を `ImportanceAnalyzer` と共有するよう変更
+
+### 修正
+
+- `mapFileToC4Elements` が絶対パスにマッチせず entries が常に空になっていた問題を修正
+- `ProjectAnalyzer.getSourceFiles` が `.d.ts` 宣言ファイルを除外するよう修正
+
 ## [0.17.0] - 2026-05-06
 
 ### 追加

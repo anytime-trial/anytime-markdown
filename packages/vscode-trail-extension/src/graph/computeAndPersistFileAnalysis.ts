@@ -56,7 +56,11 @@ export interface ComputeAndPersistFileAnalysisOpts {
   readonly lineCountByFile: ReadonlyMap<string, number>;
 }
 
-const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
+/** noRecentChurn 判定の "recent" 窓 (日)。trail.db の取り込み履歴が短い (47 日程度) ため
+ *  従来の 90 日では everChurned == recentChurn となりシグナルが発火しない。30 日に短縮して
+ *  発火可能にする。git 履歴インポート期間が長くなれば再考。 */
+const RECENT_CHURN_WINDOW_DAYS = 30;
+const RECENT_CHURN_WINDOW_MS = RECENT_CHURN_WINDOW_DAYS * 24 * 60 * 60 * 1000;
 /** コミュニティサイズがこの値以下を "isolated" とみなす。 */
 const ISOLATED_COMMUNITY_THRESHOLD = 3;
 
@@ -65,7 +69,7 @@ export async function computeAndPersistFileAnalysis(
 ): Promise<{ fileRows: number; functionRows: number }> {
   const { analysisRoot, repoName, trailDb, scored, lineCountByFile } = opts;
   const analyzedAt = new Date().toISOString();
-  const sinceIso = new Date(Date.now() - NINETY_DAYS_MS).toISOString();
+  const sinceIso = new Date(Date.now() - RECENT_CHURN_WINDOW_MS).toISOString();
 
   // 1. .trail/dead-code-ignore ルール読み込み
   const ignorePath = path.join(analysisRoot, '.trail', 'dead-code-ignore');
@@ -98,8 +102,12 @@ export async function computeAndPersistFileAnalysis(
   //    値: node.id（例 "anytime-markdown:packages/core/src/foo"）
   const relPathNoExtToNodeId = buildRelPathNoExtToNodeIdIndex(codeGraph, repoName);
 
-  // 5. 90 日以内のチャーン（commit_files.file_path = git 相対パス）
+  // 5. recent 窓 (RECENT_CHURN_WINDOW_DAYS 日) 以内のチャーン（commit_files.file_path = git 相対パス）
   const churnMap = trailDb.getCommitFilesChurnSince(repoName, sinceIso);
+  // 5b. 全期間の commit 履歴（noRecentChurn 判定用）
+  // churnMap は recent 窓のみ返すため、それを hasHistory として使うと
+  // hasHistory && churn===0 が論理的に成立しない。全期間の履歴を別途取得する。
+  const everChurned = trailDb.getCommitFilesEverChurned(repoName);
 
   // 6. カバレッジ（coverage file_path = 絶対パス → 相対化）
   const coverageRows = trailDb.getCurrentCoverage(repoName);
@@ -114,8 +122,8 @@ export async function computeAndPersistFileAnalysis(
   }
 
   // 7. 全ファイルパス（相対）の universe を収集
-  //    = importance 解析対象 ∪ code graph ノード
-  const allRelFilePaths = collectAllRelFilePaths(fileAggregates, codeGraph, repoName);
+  //    = importance 解析対象 ∪ code graph ノード（lineCountByFile で拡張子復元）
+  const allRelFilePaths = collectAllRelFilePaths(fileAggregates, codeGraph, repoName, lineCountByFile);
 
   // 8. FileAnalysisRow を構築
   const fileRows: FileAnalysisRow[] = [];
@@ -136,7 +144,7 @@ export async function computeAndPersistFileAnalysis(
 
     // commit churn（git 相対パスと照合。通常 relPath と一致する）
     const churn = churnMap.get(relPath) ?? 0;
-    const hasHistory = churnMap.has(relPath);
+    const hasHistory = everChurned.has(relPath);
 
     // カバレッジ
     const coveragePct = coverageMap.get(relPath);
@@ -151,7 +159,7 @@ export async function computeAndPersistFileAnalysis(
       orphan: hasNode && inDeg === 0,
       // fanInZero: importance 解析対象で全関数の fanIn 合計が 0
       fanInZero: agg.functionCount > 0 && agg.fanInTotal === 0,
-      // noRecentChurn: コミット履歴があるがこの 90 日変更なし
+      // noRecentChurn: コミット履歴があるが recent 窓内 (30 日) は変更なし
       noRecentChurn: hasHistory && churn === 0,
       // zeroCoverage: カバレッジデータがあり、行カバレッジが 0%
       zeroCoverage: coverageKnown && (coveragePct ?? 0) === 0,
@@ -292,37 +300,48 @@ function buildRelPathNoExtToNodeIdIndex(
  * - importance 解析対象のファイル（fileAggregates のキー）
  * - CodeGraph のノード（node.id から逆引き）
  *
- * CodeGraph のノードは拡張子なしなので、完全な拡張子を復元できない。
- * そのため CodeGraph 由来のパスは拡張子なし相対パスとして追加し、
- * fileAggregates 側に拡張子ありのものがあれば preferring する。
+ * CodeGraph のノード id は `<repo>:<stripExt(relPath)>` 形式で拡張子が剥がれている。
+ * 当該 noExt パスを `lineCountByFile` の key (TS Compiler が認識している `.ts` /
+ * `.tsx` の相対パス) と突き合わせて拡張子付きに復元する。
  *
- * NOTE: CodeGraph ノードで拡張子が復元できない場合、
- * file row の filePath は拡張子なし（例: "packages/core/src/foo"）になる。
- * これは現状許容し、後のフェーズで改善する。
+ * 復元できない node (実在する `.ts` / `.tsx` ソースに対応しない stale な node や
+ * code 以外の fileType) はテーブルに登録しない。これにより
+ * `current_file_analysis.file_path` 列は常に `.ts` / `.tsx` で終わる。
  */
 function collectAllRelFilePaths(
   fileAggregates: ReadonlyMap<string, unknown>,
   graph: CodeGraph | null,
   repoName: string,
+  lineCountByFile: ReadonlyMap<string, number>,
 ): Set<string> {
   const out = new Set<string>();
   // importance 解析済みファイル（相対パス、拡張子あり）
   for (const k of fileAggregates.keys()) out.add(k);
-  // CodeGraph のノード（拡張子なし相対パス）
-  if (graph) {
-    const prefix = `${repoName}:`;
-    for (const n of graph.nodes) {
-      if (!n.id.startsWith(prefix)) continue;
-      const relPathNoExt = n.id.slice(prefix.length);
-      // fileAggregates に拡張子ありのものがあれば既に追加済み
-      // → stripExt で照合してなければ追加
-      const alreadyCovered = [...fileAggregates.keys()].some(
-        (k) => stripExt(k) === relPathNoExt,
-      );
-      if (!alreadyCovered) {
-        out.add(relPathNoExt);
-      }
-    }
+  if (!graph) return out;
+
+  // noExt → withExt の逆引きインデックス。lineCountByFile のキーは
+  // tsconfig ディレクトリ基準の相対パス (拡張子付き)。
+  const noExtToWithExt = new Map<string, string>();
+  for (const key of lineCountByFile.keys()) {
+    noExtToWithExt.set(stripExt(key), key);
+  }
+
+  const prefix = `${repoName}:`;
+  for (const n of graph.nodes) {
+    if (n.fileType !== 'code') continue;
+    if (!n.id.startsWith(prefix)) continue;
+    const relPathNoExt = n.id.slice(prefix.length);
+
+    // 既に fileAggregates にあれば重複追加しない
+    const alreadyCovered = [...fileAggregates.keys()].some(
+      (k) => stripExt(k) === relPathNoExt,
+    );
+    if (alreadyCovered) continue;
+
+    // TS Compiler が拾った実ファイルのみ登録対象とする
+    const withExt = noExtToWithExt.get(relPathNoExt);
+    if (!withExt) continue;
+    out.add(withExt);
   }
   return out;
 }
