@@ -56,7 +56,11 @@ export interface ComputeAndPersistFileAnalysisOpts {
   readonly lineCountByFile: ReadonlyMap<string, number>;
 }
 
-const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
+/** noRecentChurn 判定の "recent" 窓 (日)。trail.db の取り込み履歴が短い (47 日程度) ため
+ *  従来の 90 日では everChurned == recentChurn となりシグナルが発火しない。30 日に短縮して
+ *  発火可能にする。git 履歴インポート期間が長くなれば再考。 */
+const RECENT_CHURN_WINDOW_DAYS = 30;
+const RECENT_CHURN_WINDOW_MS = RECENT_CHURN_WINDOW_DAYS * 24 * 60 * 60 * 1000;
 /** コミュニティサイズがこの値以下を "isolated" とみなす。 */
 const ISOLATED_COMMUNITY_THRESHOLD = 3;
 
@@ -65,7 +69,7 @@ export async function computeAndPersistFileAnalysis(
 ): Promise<{ fileRows: number; functionRows: number }> {
   const { analysisRoot, repoName, trailDb, scored, lineCountByFile } = opts;
   const analyzedAt = new Date().toISOString();
-  const sinceIso = new Date(Date.now() - NINETY_DAYS_MS).toISOString();
+  const sinceIso = new Date(Date.now() - RECENT_CHURN_WINDOW_MS).toISOString();
 
   // 1. .trail/dead-code-ignore ルール読み込み
   const ignorePath = path.join(analysisRoot, '.trail', 'dead-code-ignore');
@@ -98,10 +102,10 @@ export async function computeAndPersistFileAnalysis(
   //    値: node.id（例 "anytime-markdown:packages/core/src/foo"）
   const relPathNoExtToNodeId = buildRelPathNoExtToNodeIdIndex(codeGraph, repoName);
 
-  // 5. 90 日以内のチャーン（commit_files.file_path = git 相対パス）
+  // 5. recent 窓 (RECENT_CHURN_WINDOW_DAYS 日) 以内のチャーン（commit_files.file_path = git 相対パス）
   const churnMap = trailDb.getCommitFilesChurnSince(repoName, sinceIso);
   // 5b. 全期間の commit 履歴（noRecentChurn 判定用）
-  // churnMap は 90 日窓のみ返すため、それを hasHistory として使うと
+  // churnMap は recent 窓のみ返すため、それを hasHistory として使うと
   // hasHistory && churn===0 が論理的に成立しない。全期間の履歴を別途取得する。
   const everChurned = trailDb.getCommitFilesEverChurned(repoName);
 
@@ -155,7 +159,7 @@ export async function computeAndPersistFileAnalysis(
       orphan: hasNode && inDeg === 0,
       // fanInZero: importance 解析対象で全関数の fanIn 合計が 0
       fanInZero: agg.functionCount > 0 && agg.fanInTotal === 0,
-      // noRecentChurn: コミット履歴があるがこの 90 日変更なし
+      // noRecentChurn: コミット履歴があるが recent 窓内 (30 日) は変更なし
       noRecentChurn: hasHistory && churn === 0,
       // zeroCoverage: カバレッジデータがあり、行カバレッジが 0%
       zeroCoverage: coverageKnown && (coveragePct ?? 0) === 0,
