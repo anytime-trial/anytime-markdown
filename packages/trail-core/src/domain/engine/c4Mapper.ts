@@ -35,11 +35,18 @@ export function mapFileToC4Elements(
   filePath: string,
   elementById: ReadonlyMap<string, C4Element>,
 ): C4MappingResult[] {
+  // tool_calls の input.file_path は Claude Code が絶対パス
+  // (`/anytime-markdown/packages/...`) で記録するため、`packages/`
+  // 出現位置以降に正規化して相対化する。Strategy 1 の `file::` 完全一致と
+  // Strategy 2 の `^packages/` fallback の両方で必要。
+  const pkgIdx = filePath.indexOf('packages/');
+  const normalizedPath = pkgIdx > 0 ? filePath.slice(pkgIdx) : filePath;
+
   const results: C4MappingResult[] = [];
   const seen = new Set<string>();
 
   // 1. Exact file match
-  const fileId = `file::${filePath}`;
+  const fileId = `file::${normalizedPath}`;
   const fileEl = elementById.get(fileId);
   if (fileEl) {
     results.push({
@@ -68,7 +75,7 @@ export function mapFileToC4Elements(
   }
 
   // 2. Package fallback: packages/xxx/ -> pkg_xxx
-  const pkgMatch = /^packages\/([^/]+)\//.exec(filePath);
+  const pkgMatch = /^packages\/([^/]+)\//.exec(normalizedPath);
   if (pkgMatch) {
     const pkgId = `pkg_${pkgMatch[1]}`;
     const pkgEl = elementById.get(pkgId);

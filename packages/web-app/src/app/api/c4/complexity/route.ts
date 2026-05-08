@@ -22,7 +22,7 @@ export const dynamic = 'force-dynamic';
  * 返却形状: { complexityMatrix: ComplexityMatrix } | 204 No Content
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  const repo = request.nextUrl.searchParams.get("repo") ?? undefined;
+  const repoParam = request.nextUrl.searchParams.get("repo") ?? undefined;
 
   const env = resolveSupabaseEnv();
   if (!env) return new NextResponse(null, { status: 204 });
@@ -32,6 +32,21 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   try {
     const supabase = createClient(env.url, env.anonKey);
+
+    // クライアントが selectedRepo='' の状態で叩くと repo パラメータが付かず、
+    // fetchC4Model('current', undefined) が null になり elements 空 → entries 空。
+    // VS Code 拡張は gitRoot から repo を補完しているため、
+    // Web アプリでも trail_current_graphs から最初の repo に fallback する。
+    let repo = repoParam;
+    if (!repo) {
+      const { data } = await supabase
+        .from('trail_current_graphs')
+        .select('repo_name')
+        .order('repo_name', { ascending: true })
+        .limit(1)
+        .maybeSingle<{ repo_name: string }>();
+      if (data?.repo_name) repo = data.repo_name;
+    }
 
     // Supabase の Postgres API はデフォルトで 1000 行制限のため、
     // tool_calls を含む assistant メッセージを全件取得するためにページネーションする
