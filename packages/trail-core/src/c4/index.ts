@@ -85,6 +85,7 @@ export {
 export type {
   FileHotspotRow,
   HotspotEntry,
+  HotspotGranularity,
   HotspotMap,
   ActivityHeatmapRow,
   HeatmapAxis,

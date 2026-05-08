@@ -7541,28 +7541,11 @@ export class TrailDatabase {
   fetchHotspotRows(params: {
     from: string;
     to: string;
-    granularity: 'commit' | 'session' | 'subagent';
+    granularity: 'commit' | 'session';
     repo?: string;
   }): ReadonlyArray<{ readonly filePath: string; readonly churn: number }> {
     const db = this.ensureDb();
     const { from, to, granularity, repo } = params;
-
-    if (granularity === 'subagent') {
-      const activityRows = this.fetchSubagentActivityRows({
-        from,
-        to,
-        toolNames: SESSION_COUPLING_EDIT_TOOLS,
-        repo,
-      });
-      const churnByFile = new Map<string, number>();
-      for (const r of activityRows) {
-        if (!r.filePath) continue;
-        churnByFile.set(r.filePath, (churnByFile.get(r.filePath) ?? 0) + 1);
-      }
-      return Array.from(churnByFile.entries())
-        .map(([filePath, churn]) => ({ filePath, churn }))
-        .sort((a, b) => b.churn - a.churn);
-    }
 
     const sql = repo
       ? HOTSPOT_SQL_BY_GRANULARITY_WITH_REPO[granularity]
@@ -7794,7 +7777,7 @@ export class TrailDatabase {
   }
 }
 
-const HOTSPOT_SQL_BY_GRANULARITY: Record<'commit' | 'session' | 'subagent', string> = {
+const HOTSPOT_SQL_BY_GRANULARITY: Record<'commit' | 'session', string> = {
   commit: `
     SELECT cf.file_path AS filePath, COUNT(DISTINCT cf.commit_hash) AS churn
     FROM commit_files cf
@@ -7813,21 +7796,10 @@ const HOTSPOT_SQL_BY_GRANULARITY: Record<'commit' | 'session' | 'subagent', stri
     GROUP BY mtc.file_path
     ORDER BY churn DESC
   `,
-  subagent: `
-    SELECT mtc.file_path AS filePath, COUNT(*) AS churn
-    FROM message_tool_calls mtc
-    INNER JOIN messages m ON mtc.message_uuid = m.uuid
-    WHERE m.timestamp >= ? AND m.timestamp <= ?
-      AND mtc.tool_name IN ('Edit', 'Write', 'NotebookEdit')
-      AND mtc.file_path IS NOT NULL
-      AND m.subagent_type IS NOT NULL
-    GROUP BY mtc.file_path
-    ORDER BY churn DESC
-  `,
 };
 
 // repo フィルタ付きの hotspot SQL（params: from, to, repo）
-const HOTSPOT_SQL_BY_GRANULARITY_WITH_REPO: Record<'commit' | 'session' | 'subagent', string> = {
+const HOTSPOT_SQL_BY_GRANULARITY_WITH_REPO: Record<'commit' | 'session', string> = {
   commit: `
     SELECT cf.file_path AS filePath, COUNT(DISTINCT cf.commit_hash) AS churn
     FROM commit_files cf
@@ -7847,19 +7819,6 @@ const HOTSPOT_SQL_BY_GRANULARITY_WITH_REPO: Record<'commit' | 'session' | 'subag
       AND s.repo_name = ?
       AND mtc.tool_name IN ('Edit', 'Write', 'NotebookEdit')
       AND mtc.file_path IS NOT NULL
-    GROUP BY mtc.file_path
-    ORDER BY churn DESC
-  `,
-  subagent: `
-    SELECT mtc.file_path AS filePath, COUNT(*) AS churn
-    FROM message_tool_calls mtc
-    INNER JOIN messages m ON mtc.message_uuid = m.uuid
-    INNER JOIN sessions s ON s.id = m.session_id
-    WHERE m.timestamp >= ? AND m.timestamp <= ?
-      AND s.repo_name = ?
-      AND mtc.tool_name IN ('Edit', 'Write', 'NotebookEdit')
-      AND mtc.file_path IS NOT NULL
-      AND m.subagent_type IS NOT NULL
     GROUP BY mtc.file_path
     ORDER BY churn DESC
   `,

@@ -88,7 +88,7 @@ export interface AnalyzeAllPipelineResult {
 
 const HOTSPOT_PERIODS = ['7d', '30d', '90d', 'all'] as const;
 type HotspotPeriod = typeof HOTSPOT_PERIODS[number];
-const HOTSPOT_GRANULARITIES = ['commit', 'session', 'subagent'] as const;
+const HOTSPOT_GRANULARITIES = ['commit', 'session'] as const;
 type HotspotGranularity = typeof HOTSPOT_GRANULARITIES[number];
 const ACTIVITY_TREND_GRANULARITIES = ['commit', 'session', 'subagent', 'defect'] as const;
 type ActivityTrendGranularity = typeof ACTIVITY_TREND_GRANULARITIES[number];
@@ -892,7 +892,7 @@ export class TrailDataServer {
     }
     const granularity = parseHotspotGranularity(params.get('granularity'));
     if (granularity === null) {
-      this.sendError(res, 400, "granularity must be one of 'commit', 'session', or 'subagent'");
+      this.sendError(res, 400, "granularity must be one of 'commit' or 'session'");
       return;
     }
     const repo = params.get('repo') ?? undefined;
