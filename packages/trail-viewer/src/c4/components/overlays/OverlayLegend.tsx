@@ -99,6 +99,8 @@ interface OverlayLegendProps {
   readonly isDark: boolean;
   /** DSM依存数の最大値（dsm-out/in の場合に表示） */
   readonly dsmMax?: number;
+  /** size-loc/files/functions オーバーレイの実データ最大値（左端ラベルに表示） */
+  readonly sizeMax?: number;
   /** Community オーバーレイ凡例（指定時はメトリクス凡例の上に表示） */
   readonly communityLegend?: readonly CommunityLegendItem[];
   /** 凡例タイトル（i18n 済み文字列） */
@@ -165,16 +167,35 @@ interface SegmentBarItem {
 function SegmentBar({
   segments,
   boundaries,
+  startLabel,
+  endLabel,
   textColor,
 }: Readonly<{
   segments: readonly SegmentBarItem[];
   /** 各区間の境界に表示する閾値ラベル。長さは segments.length - 1。指定時はセグメント中央の label は使われない */
   boundaries?: readonly string[];
+  /** 境界モードで両端の左 (0%) に表示するラベル */
+  startLabel?: string;
+  /** 境界モードで両端の右 (100%) に表示するラベル */
+  endLabel?: string;
   textColor: string;
 }>) {
   const ariaLabel = boundaries
     ? `boundaries: ${boundaries.join(', ')}`
     : segments.map((s) => s.label).join(' / ');
+  const tickPositions = boundaries?.map((label, i) => ({
+    label,
+    leftPct: ((i + 1) / segments.length) * 100,
+    transform: 'translateX(-50%)',
+  })) ?? [];
+  if (boundaries) {
+    if (startLabel !== undefined) {
+      tickPositions.unshift({ label: startLabel, leftPct: 0, transform: 'translateX(0)' });
+    }
+    if (endLabel !== undefined) {
+      tickPositions.push({ label: endLabel, leftPct: 100, transform: 'translateX(-100%)' });
+    }
+  }
   return (
     <Box sx={{ width: '100%' }}>
       <Box
@@ -188,20 +209,20 @@ function SegmentBar({
       </Box>
       {boundaries ? (
         <Box sx={{ position: 'relative', height: 12, mt: 0.25 }}>
-          {boundaries.map((b, i) => (
+          {tickPositions.map((t) => (
             <Typography
-              key={b}
+              key={t.label}
               variant="caption"
               sx={{
                 position: 'absolute',
-                left: `${((i + 1) / segments.length) * 100}%`,
-                transform: 'translateX(-50%)',
+                left: `${t.leftPct}%`,
+                transform: t.transform,
                 fontSize: '0.65rem',
                 lineHeight: 1,
                 color: textColor,
               }}
             >
-              {b}
+              {t.label}
             </Typography>
           ))}
         </Box>
@@ -240,6 +261,7 @@ const DSM_CYCLIC_SEGMENTS: readonly SegmentBarItem[] = [
 function getOverlayMetricItems(
   overlay: MetricOverlay,
   dsmMax: number | undefined,
+  sizeMax: number | undefined,
   textColor: string,
 ): React.ReactNode {
   switch (overlay) {
@@ -292,11 +314,35 @@ function getOverlayMetricItems(
         </>
       );
     case 'size-loc':
-      return <SegmentBar segments={SIZE_3_SEGMENTS} boundaries={SIZE_LOC_BOUNDARIES} textColor={textColor} />;
+      return (
+        <SegmentBar
+          segments={SIZE_3_SEGMENTS}
+          boundaries={SIZE_LOC_BOUNDARIES}
+          startLabel={sizeMax !== undefined ? String(sizeMax) : undefined}
+          endLabel="0"
+          textColor={textColor}
+        />
+      );
     case 'size-files':
-      return <SegmentBar segments={SIZE_3_SEGMENTS} boundaries={SIZE_FILES_BOUNDARIES} textColor={textColor} />;
+      return (
+        <SegmentBar
+          segments={SIZE_3_SEGMENTS}
+          boundaries={SIZE_FILES_BOUNDARIES}
+          startLabel={sizeMax !== undefined ? String(sizeMax) : undefined}
+          endLabel="0"
+          textColor={textColor}
+        />
+      );
     case 'size-functions':
-      return <SegmentBar segments={SIZE_3_SEGMENTS} boundaries={SIZE_FUNCTIONS_BOUNDARIES} textColor={textColor} />;
+      return (
+        <SegmentBar
+          segments={SIZE_3_SEGMENTS}
+          boundaries={SIZE_FUNCTIONS_BOUNDARIES}
+          startLabel={sizeMax !== undefined ? String(sizeMax) : undefined}
+          endLabel="0"
+          textColor={textColor}
+        />
+      );
     case 'none':
     case 'fcmap':
       return null;
@@ -305,7 +351,7 @@ function getOverlayMetricItems(
   }
 }
 
-export function OverlayLegend({ overlay, isDark, dsmMax, communityLegend, communityTitle, inline }: Readonly<OverlayLegendProps>) {
+export function OverlayLegend({ overlay, isDark, dsmMax, sizeMax, communityLegend, communityTitle, inline }: Readonly<OverlayLegendProps>) {
   const hasCommunity = !!communityLegend && communityLegend.length > 0;
   const hasMetric = overlay !== 'none';
   if (!hasCommunity && !hasMetric) return null;
@@ -315,7 +361,7 @@ export function OverlayLegend({ overlay, isDark, dsmMax, communityLegend, commun
   const textColor = colors.overlayLegendText;
   const dividerColor = colors.border;
 
-  const metricItems = hasMetric ? getOverlayMetricItems(overlay, dsmMax, textColor) : null;
+  const metricItems = hasMetric ? getOverlayMetricItems(overlay, dsmMax, sizeMax, textColor) : null;
 
   const positionSx = inline
     ? {}

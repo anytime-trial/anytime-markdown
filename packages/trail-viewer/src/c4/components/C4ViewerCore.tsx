@@ -1034,6 +1034,21 @@ export function C4ViewerCore({
     return max;
   }, [metricOverlay, filteredDsmMatrix]);
 
+  const sizeMax = useMemo(() => {
+    if (!levelFilteredSizeMatrix) return undefined;
+    let key: 'loc' | 'files' | 'functions' | null = null;
+    if (metricOverlay === 'size-loc') key = 'loc';
+    else if (metricOverlay === 'size-files') key = 'files';
+    else if (metricOverlay === 'size-functions') key = 'functions';
+    if (key === null) return undefined;
+    let max = 0;
+    for (const entry of Object.values(levelFilteredSizeMatrix)) {
+      const v = entry[key];
+      if (v > max) max = v;
+    }
+    return max > 0 ? max : undefined;
+  }, [metricOverlay, levelFilteredSizeMatrix]);
+
   const excludedDescendantIds = useMemo(() => {
     if (!c4Model || !checkedPackageIds) return null;
     const excluded = new Set<string>();
@@ -1534,6 +1549,7 @@ export function C4ViewerCore({
                     overlay={metricOverlay}
                     isDark={isDark}
                     dsmMax={dsmMax}
+                    sizeMax={sizeMax}
                     inline
                   />
                   <Box sx={{ borderTop: `1px solid ${colors.border}`, mx: -1.5 }} />
