@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.26.1] - 2026-05-08
+
+### Fixed
+
+- Auth.js `trustHost: true` added to resolve "server configuration" error on Netlify (non-Vercel/non-CF environments lack automatic trust detection)
+- `/api/c4/complexity` switched to `get_complexity_tool_summary` Supabase RPC to avoid OOM-induced 502 errors (tool_calls JSON contained large `old_string`/`content` fields that exhausted Netlify function memory)
+- Added `get_complexity_tool_summary` Postgres function to schema (extracts only tool names and file paths server-side)
+
 ## [0.26.0] - 2026-05-08
 
 ### Added
