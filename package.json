@@ -40,7 +40,8 @@
     "packages/mcp-trail",
     "packages/trace-core",
     "packages/trace-agent-node",
-    "packages/trace-viewer"
+    "packages/trace-viewer",
+    "packages/memory-core"
   ],
   "overrides": {
     "serialize-javascript": "7.0.5",
