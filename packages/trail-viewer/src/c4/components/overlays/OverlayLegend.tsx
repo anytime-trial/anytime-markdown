@@ -155,6 +155,8 @@ function GradientBar({
 const HOTSPOT_FREQ_GRADIENT = `linear-gradient(to right, rgba(${HOTSPOT_FREQ_RGB}, 0.10), rgba(${HOTSPOT_FREQ_RGB}, 1.0))`;
 const HOTSPOT_RISK_GRADIENT = `linear-gradient(to right, rgba(${HOTSPOT_RISK_RGB}, 0.10), rgba(${HOTSPOT_RISK_RGB}, 1.0))`;
 const COVERAGE_GRADIENT = `linear-gradient(to right, ${COVERAGE_LOW}, ${COVERAGE_MID}, ${COVERAGE_HIGH})`;
+const DSM_NEIGHBORS_GRADIENT = `linear-gradient(to right, ${METRIC_LEGEND_BLUE}, ${COVERAGE_LOW})`;
+const DSM_CYCLIC_GRADIENT = `linear-gradient(to right, ${COVERAGE_HIGH}, ${COVERAGE_LOW})`;
 
 function getOverlayMetricItems(
   overlay: MetricOverlay,
@@ -169,18 +171,15 @@ function getOverlayMetricItems(
     case 'dsm-out':
     case 'dsm-in':
       return (
-        <>
-          <Swatch color={COVERAGE_LOW} label={`max${dsmMax !== undefined ? ` (${dsmMax})` : ''}`} />
-          <Swatch color={METRIC_LEGEND_BLUE} label="0" />
-        </>
+        <GradientBar
+          background={DSM_NEIGHBORS_GRADIENT}
+          lowLabel="0"
+          highLabel={`max${dsmMax !== undefined ? ` (${dsmMax})` : ''}`}
+          textColor={textColor}
+        />
       );
     case 'dsm-cyclic':
-      return (
-        <>
-          <Swatch color={COVERAGE_LOW} label="cyclic" />
-          <Swatch color={COVERAGE_HIGH} label="ok" />
-        </>
-      );
+      return <GradientBar background={DSM_CYCLIC_GRADIENT} lowLabel="ok" highLabel="cyclic" textColor={textColor} />;
     case 'edit-complexity-most':
     case 'edit-complexity-highest':
       return (
@@ -192,13 +191,7 @@ function getOverlayMetricItems(
         </>
       );
     case 'importance':
-      return (
-        <>
-          <Swatch color={COVERAGE_LOW} label="≥ 70" />
-          <Swatch color={COVERAGE_MID} label="40–69" />
-          <Swatch color={COVERAGE_HIGH} label="< 40" />
-        </>
-      );
+      return <GradientBar background={COVERAGE_GRADIENT} lowLabel="≥ 70" highLabel="< 40" textColor={textColor} />;
     case 'defect-risk':
       return (
         <>
@@ -220,29 +213,11 @@ function getOverlayMetricItems(
         </>
       );
     case 'size-loc':
-      return (
-        <>
-          <Swatch color="#c62828" label="≥ 1000" />
-          <Swatch color="#f9a825" label="500–999" />
-          <Swatch color="#2e7d32" label="< 500" />
-        </>
-      );
+      return <GradientBar background={COVERAGE_GRADIENT} lowLabel="≥ 1000" highLabel="< 500" textColor={textColor} />;
     case 'size-files':
-      return (
-        <>
-          <Swatch color="#c62828" label="≥ 50" />
-          <Swatch color="#f9a825" label="20–49" />
-          <Swatch color="#2e7d32" label="< 20" />
-        </>
-      );
+      return <GradientBar background={COVERAGE_GRADIENT} lowLabel="≥ 50" highLabel="< 20" textColor={textColor} />;
     case 'size-functions':
-      return (
-        <>
-          <Swatch color="#c62828" label="≥ 50" />
-          <Swatch color="#f9a825" label="10–49" />
-          <Swatch color="#2e7d32" label="< 10" />
-        </>
-      );
+      return <GradientBar background={COVERAGE_GRADIENT} lowLabel="≥ 50" highLabel="< 10" textColor={textColor} />;
     case 'none':
     case 'fcmap':
       return null;
