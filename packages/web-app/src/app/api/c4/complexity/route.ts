@@ -32,24 +32,45 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   try {
     const supabase = createClient(env.url, env.anonKey);
-    const [payload, messagesResult] = await Promise.all([
+
+    // Supabase の Postgres API はデフォルトで 1000 行制限のため、
+    // tool_calls を含む assistant メッセージを全件取得するためにページネーションする
+    // (拡張機能の TrailDataServer は trail.db を直接全件読むため制限を受けない)。
+    type MessageRow = { tool_calls: string | null; output_tokens: number | null };
+    async function fetchAllAssistantMessages(): Promise<MessageRow[]> {
+      const out: MessageRow[] = [];
+      const PAGE = 1000;
+      for (let offset = 0; ; offset += PAGE) {
+        const { data, error } = await supabase
+          .from('trail_messages')
+          .select('tool_calls, output_tokens')
+          .eq('type', 'assistant')
+          .not('tool_calls', 'is', null)
+          .range(offset, offset + PAGE - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        out.push(...(data as MessageRow[]));
+        if (data.length < PAGE) break;
+      }
+      return out;
+    }
+
+    const [payload, messageRows] = await Promise.all([
       fetchC4Model(store, 'current', repo),
-      supabase
-        .from('trail_messages')
-        .select('tool_calls, output_tokens')
-        .eq('type', 'assistant')
-        .not('tool_calls', 'is', null),
+      fetchAllAssistantMessages().catch((err) => {
+        console.error('[/api/c4/complexity] trail_messages query failed:', err);
+        return null;
+      }),
     ]);
 
-    if (messagesResult.error) {
-      console.error('[/api/c4/complexity] trail_messages query failed:', messagesResult.error.message);
+    if (messageRows === null) {
       return new NextResponse(null, { status: 204 });
     }
 
     // C4 モデルが取得できない場合は空の elements でフォールバック（items は enabled になる）
     const elements = payload?.model.elements ?? [];
 
-    const messages: MessageInput[] = (messagesResult.data ?? []).map(row => {
+    const messages: MessageInput[] = messageRows.map(row => {
       let toolCallNames: string[] = [];
       let editedFilePaths: string[] = [];
       if (row.tool_calls) {
