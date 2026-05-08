@@ -247,7 +247,7 @@ export function ingestAstFacts(input: AstFactInput): AstFactStats {
           recordedAt,
         ]
       );
-      stats.facts_inserted += 1;
+      if (db.getRowsModified() > 0) stats.facts_inserted += 1;
     } catch (err) {
       logger.error(
         `[memory-core] astFunctionLevel: failed to insert fact type="${factType}" ` +
@@ -284,7 +284,7 @@ export function ingestAstFacts(input: AstFactInput): AstFactStats {
          ON CONFLICT(id) DO NOTHING`,
         [eId, sourceEntityId, predicate, targetEntityId, recordedAt, recordedAt, `code_fact:${fId}`]
       );
-      stats.edges_inserted += 1;
+      if (db.getRowsModified() > 0) stats.edges_inserted += 1;
     } catch (err) {
       logger.error(
         `[memory-core] astFunctionLevel: failed to insert edge pred="${predicate}" ` +

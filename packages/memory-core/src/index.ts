@@ -8,3 +8,5 @@ export { runConversationIncremental } from './pipeline/runConversationIncrementa
 export type { IncrementalResult } from './pipeline/runConversationIncremental';
 export { runConversationBackfill } from './pipeline/runConversationBackfill';
 export type { BackfillResult } from './pipeline/runConversationBackfill';
+export { ingestAstFacts } from './ingest/code/astFunctionLevel';
+export type { AstFactInput, AstFactStats } from './ingest/code/astFunctionLevel';
