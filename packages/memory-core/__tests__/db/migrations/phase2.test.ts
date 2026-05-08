@@ -59,7 +59,7 @@ describe('Phase 2 migration', () => {
     close();
   }, 30000);
 
-  test('memory_code_facts STRICT rejects bad type', async () => {
+  test('memory_code_facts CHECK rejects invalid fact_type', async () => {
     const { db, close } = await openFresh();
 
     expect(() => {
