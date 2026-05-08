@@ -155,16 +155,7 @@ export function persistEpisodeFacts(opts: {
     const eId = edgeId(subjectId, rel.predicate, objectId, episode.message_uuid_start);
     const edgeRecordedAt = recordedAt;
 
-    // Apply single_active rule (invalidates old conflicting edges)
-    const { invalidated_edge_ids } = applySingleActiveRule(db, {
-      id: eId,
-      subject_entity_id: subjectId,
-      predicate: rel.predicate,
-      object_entity_id: objectId,
-      recorded_at: edgeRecordedAt,
-    });
-    stats.edges_invalidated += invalidated_edge_ids.length;
-
+    // Insert the new edge first so the FK in memory_edge_invalidations.superseding_edge_id resolves.
     try {
       db.run(
         `INSERT INTO memory_edges
@@ -189,7 +180,18 @@ export function persistEpisodeFacts(opts: {
         `[memory-core] persist: failed to insert edge id=${eId} predicate=${rel.predicate}`,
         err
       );
+      continue;
     }
+
+    // Apply single_active rule after insert so superseding_edge_id FK is satisfied.
+    const { invalidated_edge_ids } = applySingleActiveRule(db, {
+      id: eId,
+      subject_entity_id: subjectId,
+      predicate: rel.predicate,
+      object_entity_id: objectId,
+      recorded_at: edgeRecordedAt,
+    });
+    stats.edges_invalidated += invalidated_edge_ids.length;
   }
 
   // ── 4. Insert episode_entities ───────────────────────────────────────────
@@ -252,15 +254,6 @@ export function persistEpisodeFacts(opts: {
 
     // asked_by edge: Question → session_id (object_literal)
     const askedById = edgeId(qId, 'asked_by', episode.session_id, episode.message_uuid_start);
-    const { invalidated_edge_ids: invAsked } = applySingleActiveRule(db, {
-      id: askedById,
-      subject_entity_id: qId,
-      predicate: 'asked_by',
-      object_literal: episode.session_id,
-      recorded_at: recordedAt,
-    });
-    stats.edges_invalidated += invAsked.length;
-
     try {
       db.run(
         `INSERT INTO memory_edges
@@ -278,6 +271,14 @@ export function persistEpisodeFacts(opts: {
         err
       );
     }
+    const { invalidated_edge_ids: invAsked } = applySingleActiveRule(db, {
+      id: askedById,
+      subject_entity_id: qId,
+      predicate: 'asked_by',
+      object_literal: episode.session_id,
+      recorded_at: recordedAt,
+    });
+    stats.edges_invalidated += invAsked.length;
 
     // answered_in edge: Question → session_id (object_literal)
     const answeredInId = edgeId(
@@ -286,15 +287,6 @@ export function persistEpisodeFacts(opts: {
       episode.session_id,
       episode.message_uuid_start
     );
-    // answered_in is multiple_active — no invalidation needed, but run rule anyway
-    applySingleActiveRule(db, {
-      id: answeredInId,
-      subject_entity_id: qId,
-      predicate: 'answered_in',
-      object_literal: episode.session_id,
-      recorded_at: recordedAt,
-    });
-
     try {
       db.run(
         `INSERT INTO memory_edges
@@ -312,6 +304,14 @@ export function persistEpisodeFacts(opts: {
         err
       );
     }
+    // answered_in is multiple_active — no invalidation expected, rule is no-op
+    applySingleActiveRule(db, {
+      id: answeredInId,
+      subject_entity_id: qId,
+      predicate: 'answered_in',
+      object_literal: episode.session_id,
+      recorded_at: recordedAt,
+    });
   }
 
   return stats;
