@@ -16,6 +16,7 @@
     "test:coverage": "jest --coverage --maxWorkers=1"
   },
   "dependencies": {
+    "@anytime-markdown/memory-core": "*",
     "@anytime-markdown/trail-core": "*",
     "@modelcontextprotocol/sdk": "1.27.1",
     "sql.js": "1.12.0",

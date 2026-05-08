@@ -4,6 +4,7 @@ import { analyzeCurrentCodeWithProgress } from './client.js';
 import { probeServerAlive } from './probe.js';
 import { route } from './router.js';
 import type { RouteOpts } from './router.js';
+import { SearchMemoryInputSchema, handleSearchMemory } from './tools/searchMemory.js';
 
 export interface McpTrailOptions {
   serverUrl?: string;
@@ -344,6 +345,27 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
     async ({ mappings, repoName, serverUrl }) => {
       const opts = buildRouteOpts({ repoName, serverUrl }, options);
       const result = await route('upsert_community_mappings', { mappings }, opts);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  //  Memory graph search (memory-core)
+  // -------------------------------------------------------------------------
+
+  server.tool(
+    'search_memory',
+    'Search the memory graph for entities, relationships, and conversation episodes related to the query',
+    {
+      query: SearchMemoryInputSchema.shape.query,
+      entity_types: SearchMemoryInputSchema.shape.entity_types,
+      source_type: SearchMemoryInputSchema.shape.source_type,
+      since: SearchMemoryInputSchema.shape.since,
+      limit: SearchMemoryInputSchema.shape.limit,
+      hops: SearchMemoryInputSchema.shape.hops,
+    },
+    async (args) => {
+      const result = await handleSearchMemory(args);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
