@@ -148,5 +148,9 @@ INSERT OR IGNORE INTO memory_relation_types(predicate, cardinality, directionali
   ('authored_by',  'single_active',   'subject_to_object', 'コミット→人物'),
   ('works_on',     'multiple_active', 'subject_to_object', '人物→プロジェクト/タスク'),
   ('uses',         'multiple_active', 'subject_to_object', 'プロジェクト→ライブラリ/ツール'),
-  ('asked_by',     'single_active',   'subject_to_object', 'Question→Person（F22）'),
-  ('answered_in',  'multiple_active', 'subject_to_object', 'Question→Episode（F22）');
+  ('asked_by',        'single_active',   'subject_to_object', 'Question→Person（F22）'),
+  ('answered_in',     'multiple_active', 'subject_to_object', 'Question→Episode（F22）'),
+  ('fixes',           'multiple_active', 'subject_to_object', 'コミット/PR→Bug'),
+  ('affects',         'multiple_active', 'subject_to_object', 'Bug/Decision→Package/File'),
+  ('caused_by',       'multiple_active', 'subject_to_object', 'Bug→根本原因 Concept/Decision/Rule'),
+  ('introduced_by',   'multiple_active', 'subject_to_object', 'Bug→Commit');

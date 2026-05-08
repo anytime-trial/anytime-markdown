@@ -36,13 +36,13 @@ describe('migrations', () => {
     delete process.env.MEMORY_CORE_DB_PATH;
   }, 30000);
 
-  test('seed data: 11 relation types inserted', async () => {
+  test('seed data: 15 relation types inserted', async () => {
     process.env.MEMORY_CORE_DB_PATH = tmpDb;
     const { db, close } = await openMemoryCoreDb();
 
     const result = db.exec('SELECT COUNT(*) FROM memory_relation_types');
     const count = result[0]?.values[0][0] as number;
-    expect(count).toBe(11);
+    expect(count).toBe(15);
 
     close();
     delete process.env.MEMORY_CORE_DB_PATH;

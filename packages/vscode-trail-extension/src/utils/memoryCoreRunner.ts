@@ -44,52 +44,55 @@ export function createMemoryCoreRunner(opts: {
 
         logger.info('Opening memory-core DB');
         const memDb = await openMemoryCoreDb(opts.dbPath);
-
         try {
           logger.info(`Attaching trail DB: ${opts.trailDbPath}`);
-          await attachTrailDbReadOnly(memDb.db, opts.trailDbPath);
+          const attachHandle = await attachTrailDbReadOnly(memDb.db, opts.trailDbPath);
+          try {
+            const ollama = createOllamaClient();
 
-          const ollama = createOllamaClient();
-
-          // Check pipeline state to decide incremental vs backfill
-          const stmt = memDb.db.prepare(
-            `SELECT last_processed_at FROM memory_pipeline_state WHERE scope = ?`,
-          );
-          stmt.bind(['conversation_incremental']);
-          let lastProcessedAt = '';
-          if (stmt.step()) {
-            lastProcessedAt =
-              (stmt.getAsObject()['last_processed_at'] as string) ?? '';
-          }
-          stmt.free();
-
-          const isFirstRun = !lastProcessedAt;
-
-          if (isFirstRun) {
-            logger.info('First run detected — running backfill (7 days)');
-            const result = await runConversationBackfill({
-              db: memDb.db,
-              ollama,
-              sinceDays: 7,
-              logger,
-            });
-            logger.info(
-              `Backfill complete: status=${result.status}, items_processed=${result.items_processed}, ` +
-                `entities_inserted=${result.entities_inserted}, edges_inserted=${result.edges_inserted}`,
+            // Check pipeline state to decide incremental vs backfill
+            const stmt = memDb.db.prepare(
+              `SELECT last_processed_at FROM memory_pipeline_state WHERE scope = ?`,
             );
-          } else {
-            logger.info(
-              `Running incremental (since ${lastProcessedAt})`,
-            );
-            const result = await runConversationIncremental({
-              db: memDb.db,
-              ollama,
-              logger,
-            });
-            logger.info(
-              `Incremental complete: status=${result.status}, items_processed=${result.items_processed}, ` +
-                `entities_inserted=${result.entities_inserted}, edges_inserted=${result.edges_inserted}`,
-            );
+            stmt.bind(['conversation_incremental']);
+            let lastProcessedAt = '';
+            if (stmt.step()) {
+              lastProcessedAt =
+                (stmt.getAsObject()['last_processed_at'] as string) ?? '';
+            }
+            stmt.free();
+
+            const isFirstRun = !lastProcessedAt;
+
+            if (isFirstRun) {
+              logger.info('First run detected — running backfill (7 days)');
+              const result = await runConversationBackfill({
+                db: memDb.db,
+                ollama,
+                sinceDays: 7,
+                logger,
+              });
+              logger.info(
+                `Backfill complete: status=${result.status}, items_processed=${result.items_processed}, ` +
+                  `entities_inserted=${result.entities_inserted}, edges_inserted=${result.edges_inserted}`,
+              );
+            } else {
+              logger.info(
+                `Running incremental (since ${lastProcessedAt})`,
+              );
+              const result = await runConversationIncremental({
+                db: memDb.db,
+                ollama,
+                logger,
+              });
+              logger.info(
+                `Incremental complete: status=${result.status}, items_processed=${result.items_processed}, ` +
+                  `entities_inserted=${result.entities_inserted}, edges_inserted=${result.edges_inserted}`,
+              );
+            }
+          } finally {
+            // Release the WASM heap copy of trail DB (~800MB) after every run.
+            attachHandle.trailHandle.close();
           }
         } finally {
           memDb.save();
