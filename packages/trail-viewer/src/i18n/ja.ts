@@ -327,6 +327,9 @@ export const ja: TrailI18n = {
   'c4.overlayHelp.defectRisk': 'Defect Risk',
   'c4.overlayHelp.defectRisk.description':
     'コード履歴 (churn・co-change・author 数) から計算した欠陥リスクスコア (0–1)。\n高 (≥0.7) を赤、中 (0.35–0.7) を黄、低 (<0.35) を緑で表示。',
+  'c4.overlayHelp.hotspot': 'Hotspot',
+  'c4.overlayHelp.hotspot.description':
+    'ファイル変更頻度 (churn) と複雑度から計算するホットスポット指標 (0–1)。\n· Frequency: 正規化 churn (churnNorm) に基づく活動量\n· Risk: churn × complexity の合成リスクスコア\n色が濃いほど活発／高リスク。',
   'c4.overlayHelp.deadCode': 'Dead Code',
   'c4.overlayHelp.deadCode.description':
     '未使用度スコア (0–100)。orphan / fan-in 0 / 低 churn / coverage 0 / 孤立コミュニティ等のシグナルを合算。\n高 (≥70) を赤、中 (40–69) を黄、低 (<40) を緑で表示。',

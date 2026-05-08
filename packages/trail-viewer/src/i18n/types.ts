@@ -236,6 +236,8 @@ export interface TrailI18n {
   'c4.overlayHelp.importance.description': string;
   'c4.overlayHelp.defectRisk': string;
   'c4.overlayHelp.defectRisk.description': string;
+  'c4.overlayHelp.hotspot': string;
+  'c4.overlayHelp.hotspot.description': string;
   'c4.overlayHelp.deadCode': string;
   'c4.overlayHelp.deadCode.description': string;
   'c4.overlayHelp.size': string;

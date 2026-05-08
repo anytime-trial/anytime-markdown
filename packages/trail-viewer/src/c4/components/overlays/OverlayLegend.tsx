@@ -8,34 +8,45 @@ import { COVERAGE_HIGH, COVERAGE_LOW, COVERAGE_MID, COVERAGE_NONE, METRIC_LEGEND
 
 type TrailI18nKey = keyof TrailI18n;
 
+function assertNever(value: never): never {
+  throw new Error(`Unhandled MetricOverlay: ${String(value)}`);
+}
+
 function getOverlayHelpKeys(
   overlay: MetricOverlay,
 ): { titleKey: TrailI18nKey; descKey: TrailI18nKey } | null {
-  if (overlay === 'coverage-lines' || overlay === 'coverage-branches' || overlay === 'coverage-functions') {
-    return { titleKey: 'c4.overlayHelp.coverage', descKey: 'c4.overlayHelp.coverage.description' };
+  switch (overlay) {
+    case 'coverage-lines':
+    case 'coverage-branches':
+    case 'coverage-functions':
+      return { titleKey: 'c4.overlayHelp.coverage', descKey: 'c4.overlayHelp.coverage.description' };
+    case 'dsm-out':
+    case 'dsm-in':
+      return { titleKey: 'c4.overlayHelp.dsmNeighbors', descKey: 'c4.overlayHelp.dsmNeighbors.description' };
+    case 'dsm-cyclic':
+      return { titleKey: 'c4.overlayHelp.dsmCyclic', descKey: 'c4.overlayHelp.dsmCyclic.description' };
+    case 'edit-complexity-most':
+    case 'edit-complexity-highest':
+      return { titleKey: 'c4.overlayHelp.editComplexity', descKey: 'c4.overlayHelp.editComplexity.description' };
+    case 'importance':
+      return { titleKey: 'c4.overlayHelp.importance', descKey: 'c4.overlayHelp.importance.description' };
+    case 'defect-risk':
+      return { titleKey: 'c4.overlayHelp.defectRisk', descKey: 'c4.overlayHelp.defectRisk.description' };
+    case 'hotspot-frequency':
+    case 'hotspot-risk':
+      return { titleKey: 'c4.overlayHelp.hotspot', descKey: 'c4.overlayHelp.hotspot.description' };
+    case 'dead-code-score':
+      return { titleKey: 'c4.overlayHelp.deadCode', descKey: 'c4.overlayHelp.deadCode.description' };
+    case 'size-loc':
+    case 'size-files':
+    case 'size-functions':
+      return { titleKey: 'c4.overlayHelp.size', descKey: 'c4.overlayHelp.size.description' };
+    case 'none':
+    case 'fcmap':
+      return null;
+    default:
+      return assertNever(overlay);
   }
-  if (overlay === 'dsm-out' || overlay === 'dsm-in') {
-    return { titleKey: 'c4.overlayHelp.dsmNeighbors', descKey: 'c4.overlayHelp.dsmNeighbors.description' };
-  }
-  if (overlay === 'dsm-cyclic') {
-    return { titleKey: 'c4.overlayHelp.dsmCyclic', descKey: 'c4.overlayHelp.dsmCyclic.description' };
-  }
-  if (overlay === 'edit-complexity-most' || overlay === 'edit-complexity-highest') {
-    return { titleKey: 'c4.overlayHelp.editComplexity', descKey: 'c4.overlayHelp.editComplexity.description' };
-  }
-  if (overlay === 'importance') {
-    return { titleKey: 'c4.overlayHelp.importance', descKey: 'c4.overlayHelp.importance.description' };
-  }
-  if (overlay === 'defect-risk') {
-    return { titleKey: 'c4.overlayHelp.defectRisk', descKey: 'c4.overlayHelp.defectRisk.description' };
-  }
-  if (overlay === 'dead-code-score') {
-    return { titleKey: 'c4.overlayHelp.deadCode', descKey: 'c4.overlayHelp.deadCode.description' };
-  }
-  if (overlay === 'size-loc' || overlay === 'size-files' || overlay === 'size-functions') {
-    return { titleKey: 'c4.overlayHelp.size', descKey: 'c4.overlayHelp.size.description' };
-  }
-  return null;
 }
 
 function MetricHelpHeader({
@@ -107,6 +118,142 @@ function Swatch({ color, label }: Readonly<{ color: string; label: string }>) {
   );
 }
 
+// Hotspot 凡例で参照する色は computeColorMap.ts の HOTSPOT_FREQ_BASE / HOTSPOT_RISK_BASE と一致させる。
+const HOTSPOT_FREQ_RGB = '232, 160, 18';
+const HOTSPOT_RISK_RGB = '232, 80, 28';
+
+function GradientBar({
+  baseRgb,
+  lowLabel,
+  highLabel,
+  textColor,
+}: Readonly<{ baseRgb: string; lowLabel: string; highLabel: string; textColor: string }>) {
+  return (
+    <Box sx={{ width: '100%' }}>
+      <Box
+        role="img"
+        aria-label={`${lowLabel} → ${highLabel}`}
+        sx={{
+          width: '100%',
+          height: 10,
+          borderRadius: 0.5,
+          background: `linear-gradient(to right, rgba(${baseRgb}, 0.10), rgba(${baseRgb}, 1.0))`,
+        }}
+      />
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.25 }}>
+        <Typography variant="caption" sx={{ fontSize: '0.65rem', lineHeight: 1, color: textColor }}>
+          {lowLabel}
+        </Typography>
+        <Typography variant="caption" sx={{ fontSize: '0.65rem', lineHeight: 1, color: textColor }}>
+          {highLabel}
+        </Typography>
+      </Box>
+    </Box>
+  );
+}
+
+function getOverlayMetricItems(
+  overlay: MetricOverlay,
+  dsmMax: number | undefined,
+  textColor: string,
+): React.ReactNode {
+  switch (overlay) {
+    case 'coverage-lines':
+    case 'coverage-branches':
+    case 'coverage-functions':
+      return (
+        <>
+          <Swatch color={COVERAGE_HIGH} label="≥ 80%" />
+          <Swatch color={COVERAGE_MID} label="50–79%" />
+          <Swatch color={COVERAGE_LOW} label="< 50%" />
+          <Swatch color={COVERAGE_NONE} label="—" />
+        </>
+      );
+    case 'dsm-out':
+    case 'dsm-in':
+      return (
+        <>
+          <Swatch color={COVERAGE_LOW} label={`max${dsmMax !== undefined ? ` (${dsmMax})` : ''}`} />
+          <Swatch color={METRIC_LEGEND_BLUE} label="0" />
+        </>
+      );
+    case 'dsm-cyclic':
+      return (
+        <>
+          <Swatch color={COVERAGE_LOW} label="cyclic" />
+          <Swatch color={COVERAGE_HIGH} label="ok" />
+        </>
+      );
+    case 'edit-complexity-most':
+    case 'edit-complexity-highest':
+      return (
+        <>
+          <Swatch color={COVERAGE_LOW} label="high" />
+          <Swatch color={COVERAGE_MID} label="multi-file" />
+          <Swatch color={METRIC_LEGEND_BLUE} label="search" />
+          <Swatch color={COVERAGE_HIGH} label="low" />
+        </>
+      );
+    case 'importance':
+      return (
+        <>
+          <Swatch color={COVERAGE_LOW} label="≥ 70" />
+          <Swatch color={COVERAGE_MID} label="40–69" />
+          <Swatch color={COVERAGE_HIGH} label="< 40" />
+        </>
+      );
+    case 'defect-risk':
+      return (
+        <>
+          <Swatch color={COVERAGE_LOW} label="≥ 0.7" />
+          <Swatch color={COVERAGE_MID} label="0.35–0.7" />
+          <Swatch color={COVERAGE_HIGH} label="< 0.35" />
+        </>
+      );
+    case 'hotspot-frequency':
+      return <GradientBar baseRgb={HOTSPOT_FREQ_RGB} lowLabel="low" highLabel="high" textColor={textColor} />;
+    case 'hotspot-risk':
+      return <GradientBar baseRgb={HOTSPOT_RISK_RGB} lowLabel="low" highLabel="high" textColor={textColor} />;
+    case 'dead-code-score':
+      return (
+        <>
+          <Swatch color="#f44336" label="≥ 70" />
+          <Swatch color="#ffc107" label="40–69" />
+          <Swatch color="#4caf50" label="< 40" />
+        </>
+      );
+    case 'size-loc':
+      return (
+        <>
+          <Swatch color="#c62828" label="≥ 1000" />
+          <Swatch color="#f9a825" label="500–999" />
+          <Swatch color="#2e7d32" label="< 500" />
+        </>
+      );
+    case 'size-files':
+      return (
+        <>
+          <Swatch color="#c62828" label="≥ 50" />
+          <Swatch color="#f9a825" label="20–49" />
+          <Swatch color="#2e7d32" label="< 20" />
+        </>
+      );
+    case 'size-functions':
+      return (
+        <>
+          <Swatch color="#c62828" label="≥ 50" />
+          <Swatch color="#f9a825" label="10–49" />
+          <Swatch color="#2e7d32" label="< 10" />
+        </>
+      );
+    case 'none':
+    case 'fcmap':
+      return null;
+    default:
+      return assertNever(overlay);
+  }
+}
+
 export function OverlayLegend({ overlay, isDark, dsmMax, communityLegend, communityTitle, inline }: Readonly<OverlayLegendProps>) {
   const hasCommunity = !!communityLegend && communityLegend.length > 0;
   const hasMetric = overlay !== 'none';
@@ -117,89 +264,7 @@ export function OverlayLegend({ overlay, isDark, dsmMax, communityLegend, commun
   const textColor = colors.overlayLegendText;
   const dividerColor = colors.border;
 
-  let metricItems: React.ReactNode = null;
-
-  if (overlay === 'coverage-lines' || overlay === 'coverage-branches' || overlay === 'coverage-functions') {
-    metricItems = (
-      <>
-        <Swatch color={COVERAGE_HIGH} label="≥ 80%" />
-        <Swatch color={COVERAGE_MID} label="50–79%" />
-        <Swatch color={COVERAGE_LOW} label="< 50%" />
-        <Swatch color={COVERAGE_NONE} label="—" />
-      </>
-    );
-  } else if (overlay === 'dsm-out' || overlay === 'dsm-in') {
-    metricItems = (
-      <>
-        <Swatch color={COVERAGE_LOW} label={`max${dsmMax !== undefined ? ` (${dsmMax})` : ''}`} />
-        <Swatch color={METRIC_LEGEND_BLUE} label="0" />
-      </>
-    );
-  } else if (overlay === 'dsm-cyclic') {
-    metricItems = (
-      <>
-        <Swatch color={COVERAGE_LOW} label="cyclic" />
-        <Swatch color={COVERAGE_HIGH} label="ok" />
-      </>
-    );
-  } else if (overlay === 'edit-complexity-most' || overlay === 'edit-complexity-highest') {
-    metricItems = (
-      <>
-        <Swatch color={COVERAGE_LOW} label="high" />
-        <Swatch color={COVERAGE_MID} label="multi-file" />
-        <Swatch color={METRIC_LEGEND_BLUE} label="search" />
-        <Swatch color={COVERAGE_HIGH} label="low" />
-      </>
-    );
-  } else if (overlay === 'importance') {
-    metricItems = (
-      <>
-        <Swatch color={COVERAGE_LOW} label="≥ 70" />
-        <Swatch color={COVERAGE_MID} label="40–69" />
-        <Swatch color={COVERAGE_HIGH} label="< 40" />
-      </>
-    );
-  } else if (overlay === 'defect-risk') {
-    metricItems = (
-      <>
-        <Swatch color={COVERAGE_LOW} label="≥ 0.7" />
-        <Swatch color={COVERAGE_MID} label="0.35–0.7" />
-        <Swatch color={COVERAGE_HIGH} label="< 0.35" />
-      </>
-    );
-  } else if (overlay === 'dead-code-score') {
-    metricItems = (
-      <>
-        <Swatch color="#f44336" label="≥ 70" />
-        <Swatch color="#ffc107" label="40–69" />
-        <Swatch color="#4caf50" label="< 40" />
-      </>
-    );
-  } else if (overlay === 'size-loc') {
-    metricItems = (
-      <>
-        <Swatch color="#c62828" label="≥ 1000" />
-        <Swatch color="#f9a825" label="500–999" />
-        <Swatch color="#2e7d32" label="< 500" />
-      </>
-    );
-  } else if (overlay === 'size-files') {
-    metricItems = (
-      <>
-        <Swatch color="#c62828" label="≥ 50" />
-        <Swatch color="#f9a825" label="20–49" />
-        <Swatch color="#2e7d32" label="< 20" />
-      </>
-    );
-  } else if (overlay === 'size-functions') {
-    metricItems = (
-      <>
-        <Swatch color="#c62828" label="≥ 50" />
-        <Swatch color="#f9a825" label="10–49" />
-        <Swatch color="#2e7d32" label="< 10" />
-      </>
-    );
-  }
+  const metricItems = hasMetric ? getOverlayMetricItems(overlay, dsmMax, textColor) : null;
 
   const positionSx = inline
     ? {}

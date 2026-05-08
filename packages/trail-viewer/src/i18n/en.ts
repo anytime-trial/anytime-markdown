@@ -327,6 +327,9 @@ export const en: TrailI18n = {
   'c4.overlayHelp.defectRisk': 'Defect Risk',
   'c4.overlayHelp.defectRisk.description':
     'Defect-risk score (0–1) computed from code history (churn, co-change, author count).\nHigh (≥0.7) red, medium (0.35–0.7) yellow, low (<0.35) green.',
+  'c4.overlayHelp.hotspot': 'Hotspot',
+  'c4.overlayHelp.hotspot.description':
+    'Hotspot indicator (0–1) from file change frequency (churn) and complexity.\n· Frequency: activity based on normalized churn (churnNorm)\n· Risk: combined risk score of churn × complexity\nDarker color = more active / higher risk.',
   'c4.overlayHelp.deadCode': 'Dead Code',
   'c4.overlayHelp.deadCode.description':
     'Dead-code score (0–100) aggregating signals: orphan, zero fan-in, low churn, zero coverage, isolated community.\nHigh (≥70) red, medium (40–69) yellow, low (<40) green.',
