@@ -156,8 +156,6 @@ function GradientBar({
 
 const HOTSPOT_FREQ_GRADIENT = `linear-gradient(to right, rgba(${HOTSPOT_FREQ_RGB}, 0.10), rgba(${HOTSPOT_FREQ_RGB}, 1.0))`;
 const HOTSPOT_RISK_GRADIENT = `linear-gradient(to right, rgba(${HOTSPOT_RISK_RGB}, 0.10), rgba(${HOTSPOT_RISK_RGB}, 1.0))`;
-const COVERAGE_GRADIENT = `linear-gradient(to right, ${COVERAGE_LOW}, ${COVERAGE_MID}, ${COVERAGE_HIGH})`;
-const IMPORTANCE_GRADIENT = `linear-gradient(to right, ${COVERAGE_HIGH}, ${COVERAGE_MID}, ${COVERAGE_LOW})`;
 const DSM_NEIGHBORS_GRADIENT = `linear-gradient(to right, ${METRIC_LEGEND_BLUE}, ${COVERAGE_LOW})`;
 
 interface SegmentBarItem {
@@ -244,15 +242,25 @@ function SegmentBar({
   );
 }
 
-const SIZE_3_SEGMENTS: readonly SegmentBarItem[] = [
+const ASCENDING_BAD_SEGMENTS: readonly SegmentBarItem[] = [
   { color: COVERAGE_HIGH, label: 'low' },
   { color: COVERAGE_MID, label: 'mid' },
   { color: COVERAGE_LOW, label: 'high' },
 ];
 
+const ASCENDING_GOOD_SEGMENTS: readonly SegmentBarItem[] = [
+  { color: COVERAGE_LOW, label: 'low' },
+  { color: COVERAGE_MID, label: 'mid' },
+  { color: COVERAGE_HIGH, label: 'high' },
+];
+
 const SIZE_LOC_BOUNDARIES = ['500', '1000'] as const;
 const SIZE_FILES_BOUNDARIES = ['20', '50'] as const;
 const SIZE_FUNCTIONS_BOUNDARIES = ['10', '50'] as const;
+const COVERAGE_BOUNDARIES = ['50', '80'] as const;
+const IMPORTANCE_BOUNDARIES = ['40', '70'] as const;
+const DEFECT_RISK_BOUNDARIES = ['0.35', '0.7'] as const;
+const DEAD_CODE_BOUNDARIES = ['40', '70'] as const;
 
 const DSM_CYCLIC_SEGMENTS: readonly SegmentBarItem[] = [
   { color: COVERAGE_HIGH, label: 'ok' },
@@ -269,7 +277,15 @@ function getOverlayMetricItems(
     case 'coverage-lines':
     case 'coverage-branches':
     case 'coverage-functions':
-      return <GradientBar background={COVERAGE_GRADIENT} lowLabel="< 50%" highLabel="≥ 80%" textColor={textColor} />;
+      return (
+        <SegmentBar
+          segments={ASCENDING_GOOD_SEGMENTS}
+          boundaries={COVERAGE_BOUNDARIES}
+          startLabel="0%"
+          endLabel="100%"
+          textColor={textColor}
+        />
+      );
     case 'dsm-out':
     case 'dsm-in':
       return (
@@ -293,14 +309,24 @@ function getOverlayMetricItems(
         </>
       );
     case 'importance':
-      return <GradientBar background={IMPORTANCE_GRADIENT} lowLabel="< 40" highLabel="≥ 70" textColor={textColor} />;
+      return (
+        <SegmentBar
+          segments={ASCENDING_BAD_SEGMENTS}
+          boundaries={IMPORTANCE_BOUNDARIES}
+          startLabel="0"
+          endLabel="100"
+          textColor={textColor}
+        />
+      );
     case 'defect-risk':
       return (
-        <>
-          <Swatch color={COVERAGE_LOW} label="≥ 0.7" />
-          <Swatch color={COVERAGE_MID} label="0.35–0.7" />
-          <Swatch color={COVERAGE_HIGH} label="< 0.35" />
-        </>
+        <SegmentBar
+          segments={ASCENDING_BAD_SEGMENTS}
+          boundaries={DEFECT_RISK_BOUNDARIES}
+          startLabel="0"
+          endLabel="1"
+          textColor={textColor}
+        />
       );
     case 'hotspot-frequency':
       return <GradientBar background={HOTSPOT_FREQ_GRADIENT} lowLabel="low" highLabel="high" textColor={textColor} />;
@@ -308,16 +334,18 @@ function getOverlayMetricItems(
       return <GradientBar background={HOTSPOT_RISK_GRADIENT} lowLabel="low" highLabel="high" textColor={textColor} />;
     case 'dead-code-score':
       return (
-        <>
-          <Swatch color="#f44336" label="≥ 70" />
-          <Swatch color="#ffc107" label="40–69" />
-          <Swatch color="#4caf50" label="< 40" />
-        </>
+        <SegmentBar
+          segments={ASCENDING_BAD_SEGMENTS}
+          boundaries={DEAD_CODE_BOUNDARIES}
+          startLabel="0"
+          endLabel="100"
+          textColor={textColor}
+        />
       );
     case 'size-loc':
       return (
         <SegmentBar
-          segments={SIZE_3_SEGMENTS}
+          segments={ASCENDING_BAD_SEGMENTS}
           boundaries={SIZE_LOC_BOUNDARIES}
           startLabel="0"
           endLabel={sizeMax !== undefined ? String(sizeMax) : undefined}
@@ -327,7 +355,7 @@ function getOverlayMetricItems(
     case 'size-files':
       return (
         <SegmentBar
-          segments={SIZE_3_SEGMENTS}
+          segments={ASCENDING_BAD_SEGMENTS}
           boundaries={SIZE_FILES_BOUNDARIES}
           startLabel="0"
           endLabel={sizeMax !== undefined ? String(sizeMax) : undefined}
@@ -337,7 +365,7 @@ function getOverlayMetricItems(
     case 'size-functions':
       return (
         <SegmentBar
-          segments={SIZE_3_SEGMENTS}
+          segments={ASCENDING_BAD_SEGMENTS}
           boundaries={SIZE_FUNCTIONS_BOUNDARIES}
           startLabel="0"
           endLabel={sizeMax !== undefined ? String(sizeMax) : undefined}
