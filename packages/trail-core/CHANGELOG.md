@@ -7,11 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-05-08
+
+### Added
+
+- Timestamp format enforcement: ISO 8601 + Z CHECK constraints and `strftime('%Y-%m-%dT%H:%M:%fZ', 'now')` defaults added to SQLite schema; index naming unified to `idx_<table>_<column>` convention
+
 ### Changed
 
-- Switch `.trail/analyze-exclude` syntax to `.gitignore`-compatible (via the `ignore` package). Now supports `!` negation, `/`-prefix root anchoring, `*.spec.ts` file globs, `dir/` directory-only, and `**` recursive matching. **Breaking:** `AnalyzeOptions.exclude` type changed from `readonly string[]` to `Ignore`
+- `.trail/analyze-exclude` now uses `.gitignore`-compatible syntax (via `ignore` package). Supports `!` negation, `/`-prefix root anchoring, `*.spec.ts` file globs, `dir/` directory-only, and `**` recursive matching. **Breaking:** `AnalyzeOptions.exclude` type changed from `readonly string[]` to `Ignore`
 - `loadAnalyzeExclude` return type changed from `string[]` to `Ignore`
-- `FilterConfig.exclude` is now `Ignore`. Removed `matchGlob` and `parseAnalyzeExclude`
+- `FilterConfig.exclude` is now `Ignore`; removed `matchGlob` and `parseAnalyzeExclude`
+- `analyze()` now shares the TypeScript `ts.Program` with `ImportanceAnalyzer`
+
+### Fixed
+
+- `mapFileToC4Elements` failed to match absolute paths, resulting in empty entries
+- `ProjectAnalyzer.getSourceFiles` now excludes `.d.ts` declaration files
 
 ## [0.17.0] - 2026-05-06
 

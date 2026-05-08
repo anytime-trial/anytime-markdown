@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-05-08
+
+### Added
+
+- C4 overlay legend: discrete segment bars for coverage, importance, defect-risk, dead-code, DSM-cyclic, and size metrics
+- C4 overlay legend: gradient horizontal bar for coverage (3-color continuous)
+- C4 overlay legend: boundary labels for size threshold markers; maximum value on left, 0 on right
+- C4 overlay legend: values increase left-to-right consistently across all overlay types
+- C4 overlay legend: `?` icon with help tooltip for each overlay type
+- Hotspot: churn metric added to popup; defect-risk/hotspot gates removed
+- Element tree search box: clear icon
+- Message tab filter: unified width with C4 model filter; clear button added
+- Overlay selector: repository dropdown sorted ascending
+- Overlay selector: data-independent overlays disabled until data is available; DSM overlay selected by default
+
+### Fixed
+
+- Hotspot overlay legend not displaying
+- MetricsReader materialized view query URL length overflow workaround
+
+### Changed
+
+- MatrixPanel: DSM view removed; popup metrics realigned with overlay metrics
+- Hotspot: `subagent` granularity option removed
+
 ## [0.15.0] - 2026-05-04
 
 ### Added

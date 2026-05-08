@@ -6,6 +6,17 @@
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-05-08
+
+### Spreadsheet Core (spreadsheet-core)
+
+- ページネーション対応のための `SheetAdapter.getPageCount` メソッドを追加
+
+### Spreadsheet Viewer (spreadsheet-viewer)
+
+- ページネーションデータ操作用 `PaginationBar` コンポーネントを追加
+- ツールバーの表示制御用 `showImportExport`・`showToolbar` prop を追加
+
 ## [0.4.1] - 2026-05-04
 
 ### 変更

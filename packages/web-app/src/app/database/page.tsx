@@ -1,8 +1,6 @@
 "use client";
 
-import { Box, Button, Stack } from "@mui/material";
-import React, { Suspense, useEffect, useState } from "react";
-import { NextIntlClientProvider } from "next-intl";
+import type { DatabaseAdapter } from "@anytime-markdown/database-core";
 import {
   DatabaseEditor,
   databaseViewerEnMessages,
@@ -12,7 +10,10 @@ import {
   spreadsheetViewerEnMessages,
   spreadsheetViewerJaMessages,
 } from "@anytime-markdown/spreadsheet-viewer";
-import type { DatabaseAdapter } from "@anytime-markdown/database-core";
+import { Box, Button, Stack } from "@mui/material";
+import { NextIntlClientProvider } from "next-intl";
+import React, { Suspense, useEffect, useState } from "react";
+
 import { DatabaseFilePicker } from "./DatabaseFilePicker";
 
 const QUERY_MAX_ROWS_DEFAULT = 1000;

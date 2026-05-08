@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-05-08
+
+### Spreadsheet Core (spreadsheet-core)
+
+- `SheetAdapter.getPageCount` method added for pagination support
+
+### Spreadsheet Viewer (spreadsheet-viewer)
+
+- `PaginationBar` component for navigating paginated spreadsheet data
+- `showImportExport` and `showToolbar` props to control toolbar visibility
+
 ## [0.4.1] - 2026-05-04
 
 ### Changed

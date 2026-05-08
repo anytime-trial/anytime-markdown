@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-05-08
+
+### Changed
+
+- Added `anytime-trial.anytime-database` to the extension pack
+- Updated bundled extension versions: anytime-trail 0.18.0, anytime-sheet 0.4.2
+
 ## [0.3.1] - 2026-05-04
 
 ### Changed

@@ -1,8 +1,8 @@
 "use client";
 
 import { Box, Button, Stack, Typography } from "@mui/material";
-import React, { useRef } from "react";
 import { useTranslations } from "next-intl";
+import React, { useRef } from "react";
 
 export interface DatabaseFilePickerProps {
   readonly onPick: (file: File) => void;
