@@ -24,7 +24,8 @@ async function main() {
   // 最新タグ取得
   let latestTag;
   try {
-    latestTag = execSync('git describe --tags --abbrev=0', { encoding: 'utf-8' }).trim();
+    latestTag = execSync('git tag --sort=-creatordate | head -1', { encoding: 'utf-8', shell: true }).trim();
+    if (!latestTag) throw new Error('no tags');
   } catch {
     console.error('[import-coverage] No git tags found. Create a release tag first.');
     process.exit(1);
@@ -62,6 +63,8 @@ async function main() {
       continue;
     }
 
+    const toPct = (v) => (typeof v === 'number' ? v : null);
+
     for (const [key, entry] of Object.entries(summary)) {
       if (!entry?.lines || !entry?.statements || !entry?.functions || !entry?.branches) continue;
 
@@ -77,10 +80,10 @@ async function main() {
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           latestTag, pkgDir, filePath,
-          entry.lines.total, entry.lines.covered, entry.lines.pct,
-          entry.statements.total, entry.statements.covered, entry.statements.pct,
-          entry.functions.total, entry.functions.covered, entry.functions.pct,
-          entry.branches.total, entry.branches.covered, entry.branches.pct,
+          entry.lines.total, entry.lines.covered, toPct(entry.lines.pct),
+          entry.statements.total, entry.statements.covered, toPct(entry.statements.pct),
+          entry.functions.total, entry.functions.covered, toPct(entry.functions.pct),
+          entry.branches.total, entry.branches.covered, toPct(entry.branches.pct),
         ],
       );
       count++;
