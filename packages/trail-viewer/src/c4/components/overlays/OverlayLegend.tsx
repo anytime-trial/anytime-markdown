@@ -156,7 +156,61 @@ const HOTSPOT_FREQ_GRADIENT = `linear-gradient(to right, rgba(${HOTSPOT_FREQ_RGB
 const HOTSPOT_RISK_GRADIENT = `linear-gradient(to right, rgba(${HOTSPOT_RISK_RGB}, 0.10), rgba(${HOTSPOT_RISK_RGB}, 1.0))`;
 const COVERAGE_GRADIENT = `linear-gradient(to right, ${COVERAGE_LOW}, ${COVERAGE_MID}, ${COVERAGE_HIGH})`;
 const DSM_NEIGHBORS_GRADIENT = `linear-gradient(to right, ${METRIC_LEGEND_BLUE}, ${COVERAGE_LOW})`;
-const DSM_CYCLIC_GRADIENT = `linear-gradient(to right, ${COVERAGE_HIGH}, ${COVERAGE_LOW})`;
+
+interface SegmentBarItem {
+  readonly color: string;
+  readonly label: string;
+}
+
+function SegmentBar({ segments, textColor }: Readonly<{ segments: readonly SegmentBarItem[]; textColor: string }>) {
+  return (
+    <Box sx={{ width: '100%' }}>
+      <Box
+        role="img"
+        aria-label={segments.map((s) => s.label).join(' / ')}
+        sx={{ display: 'flex', width: '100%', height: 10, borderRadius: 0.5, overflow: 'hidden' }}
+      >
+        {segments.map((s) => (
+          <Box key={s.label} sx={{ flex: 1, bgcolor: s.color }} />
+        ))}
+      </Box>
+      <Box sx={{ display: 'flex', mt: 0.25 }}>
+        {segments.map((s) => (
+          <Typography
+            key={s.label}
+            variant="caption"
+            sx={{ flex: 1, fontSize: '0.65rem', lineHeight: 1, color: textColor, textAlign: 'center' }}
+          >
+            {s.label}
+          </Typography>
+        ))}
+      </Box>
+    </Box>
+  );
+}
+
+const SIZE_LOC_SEGMENTS: readonly SegmentBarItem[] = [
+  { color: COVERAGE_LOW, label: '≥ 1000' },
+  { color: COVERAGE_MID, label: '500–999' },
+  { color: COVERAGE_HIGH, label: '< 500' },
+];
+
+const SIZE_FILES_SEGMENTS: readonly SegmentBarItem[] = [
+  { color: COVERAGE_LOW, label: '≥ 50' },
+  { color: COVERAGE_MID, label: '20–49' },
+  { color: COVERAGE_HIGH, label: '< 20' },
+];
+
+const SIZE_FUNCTIONS_SEGMENTS: readonly SegmentBarItem[] = [
+  { color: COVERAGE_LOW, label: '≥ 50' },
+  { color: COVERAGE_MID, label: '10–49' },
+  { color: COVERAGE_HIGH, label: '< 10' },
+];
+
+const DSM_CYCLIC_SEGMENTS: readonly SegmentBarItem[] = [
+  { color: COVERAGE_HIGH, label: 'ok' },
+  { color: COVERAGE_LOW, label: 'cyclic' },
+];
 
 function getOverlayMetricItems(
   overlay: MetricOverlay,
@@ -179,7 +233,7 @@ function getOverlayMetricItems(
         />
       );
     case 'dsm-cyclic':
-      return <GradientBar background={DSM_CYCLIC_GRADIENT} lowLabel="ok" highLabel="cyclic" textColor={textColor} />;
+      return <SegmentBar segments={DSM_CYCLIC_SEGMENTS} textColor={textColor} />;
     case 'edit-complexity-most':
     case 'edit-complexity-highest':
       return (
@@ -213,11 +267,11 @@ function getOverlayMetricItems(
         </>
       );
     case 'size-loc':
-      return <GradientBar background={COVERAGE_GRADIENT} lowLabel="≥ 1000" highLabel="< 500" textColor={textColor} />;
+      return <SegmentBar segments={SIZE_LOC_SEGMENTS} textColor={textColor} />;
     case 'size-files':
-      return <GradientBar background={COVERAGE_GRADIENT} lowLabel="≥ 50" highLabel="< 20" textColor={textColor} />;
+      return <SegmentBar segments={SIZE_FILES_SEGMENTS} textColor={textColor} />;
     case 'size-functions':
-      return <GradientBar background={COVERAGE_GRADIENT} lowLabel="≥ 50" highLabel="< 10" textColor={textColor} />;
+      return <SegmentBar segments={SIZE_FUNCTIONS_SEGMENTS} textColor={textColor} />;
     case 'none':
     case 'fcmap':
       return null;
