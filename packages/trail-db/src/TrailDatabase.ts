@@ -6975,7 +6975,7 @@ export class TrailDatabase {
   /**
    * 指定リポジトリで過去に 1 回でも commit に登場した file_path 集合を返す。
    * 期間制約なし。dead code 解析の `hasHistory` 判定で使う
-   * (`getCommitFilesChurnSince` は 90 日窓のみ返すため `hasHistory && churn===0` が常に false になる問題への対応)。
+   * (`getCommitFilesChurnSince` は recent 窓のみ返すため `hasHistory && churn===0` が常に false になる問題への対応)。
    */
   getCommitFilesEverChurned(repoName: string): Set<string> {
     const db = this.ensureDb();
