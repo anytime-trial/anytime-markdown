@@ -31,3 +31,8 @@ export type { AgentReviewInput, AgentReviewFinding } from './types/AgentReviewIn
 
 export { runSpecIncremental } from './pipeline/runSpecIncremental';
 export type { SpecIncrementalResult } from './pipeline/runSpecIncremental';
+
+export { listRecurringBugs } from './retrieve/listRecurringBugs';
+export type { RecurringBugGroup, BugFixSummary } from './retrieve/listRecurringBugs';
+export { getBugHistory } from './retrieve/getBugHistory';
+export type { BugHistoryEntry, CausedByRef } from './retrieve/getBugHistory';

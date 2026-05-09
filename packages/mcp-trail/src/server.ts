@@ -5,6 +5,8 @@ import { probeServerAlive } from './probe.js';
 import { route } from './router.js';
 import type { RouteOpts } from './router.js';
 import { SearchMemoryInputSchema, handleSearchMemory } from './tools/searchMemory.js';
+import { ListRecurringBugsInputSchema, handleListRecurringBugs } from './tools/listRecurringBugs.js';
+import { GetBugHistoryInputSchema, handleGetBugHistory } from './tools/getBugHistory.js';
 
 export interface McpTrailOptions {
   serverUrl?: string;
@@ -345,6 +347,41 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
     async ({ mappings, repoName, serverUrl }) => {
       const opts = buildRouteOpts({ repoName, serverUrl }, options);
       const result = await route('upsert_community_mappings', { mappings }, opts);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  //  Bug history tools (memory-core)
+  // -------------------------------------------------------------------------
+
+  server.tool(
+    'list_recurring_bugs',
+    'List recurring bug groups filtered by package, file path, or root-cause entity within a time window',
+    {
+      package: ListRecurringBugsInputSchema.shape.package,
+      file_path: ListRecurringBugsInputSchema.shape.file_path,
+      caused_by_entity_id: ListRecurringBugsInputSchema.shape.caused_by_entity_id,
+      windowDays: ListRecurringBugsInputSchema.shape.windowDays,
+      minCount: ListRecurringBugsInputSchema.shape.minCount,
+    },
+    async (args) => {
+      const result = await handleListRecurringBugs(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.tool(
+    'get_bug_history',
+    'Retrieve bug fix history with affected file paths and root-cause entity references',
+    {
+      package: GetBugHistoryInputSchema.shape.package,
+      file_path: GetBugHistoryInputSchema.shape.file_path,
+      category: GetBugHistoryInputSchema.shape.category,
+      limit: GetBugHistoryInputSchema.shape.limit,
+    },
+    async (args) => {
+      const result = await handleGetBugHistory(args);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
