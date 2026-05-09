@@ -13,7 +13,8 @@ import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
 import { useTrailTheme } from '../../TrailThemeContext';
 import { useTrailI18n } from '../../../i18n';
 
-function fmtLoc(v: number): string {
+function fmtLoc(v: number | null): string {
+  if (v == null) return '';
   if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
   if (v >= 1_000) return `${(v / 1_000).toFixed(1)}k`;
   return v.toString();
@@ -50,7 +51,7 @@ export function ReleasesLocChart({ releases }: Readonly<{ releases: readonly Tra
             connectNulls: true,
             showMark: dataset.length <= 30,
             yAxisId: 'loc',
-            valueFormatter: (v: number | null) => v == null ? null : fmtLoc(v),
+            valueFormatter: (v: number | null) => fmtLoc(v),
           },
           {
             type: 'bar' as const,
@@ -63,11 +64,11 @@ export function ReleasesLocChart({ releases }: Readonly<{ releases: readonly Tra
         ] as any}
         xAxis={[{ id: 'tag', scaleType: 'band', dataKey: 'tag' }]}
         yAxis={[
-          { id: 'loc', position: 'left', valueFormatter: (v: number) => fmtLoc(v) },
-          { id: 'fix', position: 'right', tickMinStep: 1 },
+          { id: 'loc', valueFormatter: fmtLoc, width: 56 },
+          { id: 'fix', position: 'right', tickMinStep: 1, width: 40 },
         ]}
         height={280}
-        margin={{ left: 56, right: 48, top: 8, bottom: 60 }}
+        margin={{ left: 0, right: 0, top: 8, bottom: 60 }}
       >
         <ChartsWrapper>
           <ChartsSurface>
