@@ -28,3 +28,6 @@ export { runAgentRunWatchdog } from './ingest/review/agentRunWatchdog';
 export type { AgentRunWatchdogResult } from './ingest/review/agentRunWatchdog';
 export { AgentReviewInputSchema, AgentReviewFindingSchema } from './types/AgentReviewInput';
 export type { AgentReviewInput, AgentReviewFinding } from './types/AgentReviewInput';
+
+export { runSpecIncremental } from './pipeline/runSpecIncremental';
+export type { SpecIncrementalResult } from './pipeline/runSpecIncremental';
