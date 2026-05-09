@@ -12,3 +12,5 @@ export { ingestAstFacts } from './ingest/code/astFunctionLevel';
 export type { AstFactInput, AstFactStats } from './ingest/code/astFunctionLevel';
 export { extractDecisionComments } from './ingest/code/extractComments';
 export type { ExtractCommentsInput, ExtractCommentsStats } from './ingest/code/extractComments';
+export { extractCommitRationale } from './ingest/code/extractCommitRationale';
+export type { ExtractRationaleInput, ExtractRationaleStats } from './ingest/code/extractCommitRationale';
