@@ -4,6 +4,8 @@ export { openMemoryCoreDb } from './db/connection';
 export type { MemoryCoreDb } from './db/connection';
 export { attachTrailDbReadOnly } from './db/attach';
 export { createOllamaClient } from './ollama/client';
+export type { OllamaClient } from './ollama/client';
+export type { MemoryLogger } from './logger';
 export { runConversationIncremental } from './pipeline/runConversationIncremental';
 export type { IncrementalResult } from './pipeline/runConversationIncremental';
 export { runConversationBackfill } from './pipeline/runConversationBackfill';
@@ -24,5 +26,5 @@ export { ingestAgentReviewResult } from './ingest/review/ingestAgentReviewResult
 export type { IngestAgentReviewResult } from './ingest/review/ingestAgentReviewResult';
 export { runAgentRunWatchdog } from './ingest/review/agentRunWatchdog';
 export type { AgentRunWatchdogResult } from './ingest/review/agentRunWatchdog';
-export { AgentReviewInputSchema } from './types/AgentReviewInput';
+export { AgentReviewInputSchema, AgentReviewFindingSchema } from './types/AgentReviewInput';
 export type { AgentReviewInput, AgentReviewFinding } from './types/AgentReviewInput';

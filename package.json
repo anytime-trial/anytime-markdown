@@ -41,7 +41,8 @@
     "packages/trace-core",
     "packages/trace-agent-node",
     "packages/trace-viewer",
-    "packages/memory-core"
+    "packages/memory-core",
+    "packages/review-agent"
   ],
   "overrides": {
     "serialize-javascript": "7.0.5",
