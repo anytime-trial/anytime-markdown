@@ -66,6 +66,8 @@ export interface TrailI18n {
   // analytics
   'analytics.totalSessions': string;
   'analytics.totalSessions.description': string;
+  'analytics.tokens': string;
+  'analytics.cost': string;
   'analytics.totalTokens': string;
   'analytics.totalTokens.description': string;
   'analytics.estimatedCost': string;
