@@ -27,6 +27,9 @@ export interface SessionDbRow {
   readonly interruption_reason: string | null;
   readonly interruption_context_tokens: number | null;
   readonly compact_count: number | null;
+  readonly sub_agent_count: number | null;
+  readonly error_count: number | null;
+  readonly assistant_message_count: number | null;
   readonly file_path?: string | null;
   readonly source?: 'claude_code' | 'codex' | null;
   readonly trail_session_costs?: readonly SessionCostDbRow[];

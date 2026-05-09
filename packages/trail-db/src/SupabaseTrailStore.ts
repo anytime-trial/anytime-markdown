@@ -96,7 +96,10 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
       initial_context_tokens: r.initial_context_tokens ?? null,
       interruption_reason: r.interruption_reason ?? null,
       interruption_context_tokens: r.interruption_context_tokens ?? null,
-      compact_count: r.compact_count ?? null,
+      compact_count:             r.compact_count             ?? null,
+      sub_agent_count:           r.sub_agent_count           ?? 0,
+      error_count:               r.error_count               ?? 0,
+      assistant_message_count:   r.assistant_message_count   ?? 0,
       source: r.source ?? 'claude_code',
       synced_at: new Date().toISOString(),
     }));
