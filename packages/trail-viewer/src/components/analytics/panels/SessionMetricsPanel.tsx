@@ -28,8 +28,9 @@ export function SessionMetricsPanel({ session, toolMetrics }: Readonly<{
   const cost = sessionCost(s);
   const durationMs = new Date(s.endTime).getTime() - new Date(s.startTime).getTime();
   const durationHours = durationMs / 3_600_000;
-  const contextGrowth = s.messageCount > 0
-    ? ((s.peakContextTokens ?? 0) - (s.initialContextTokens ?? 0)) / s.messageCount
+  const turnCount = s.assistantMessageCount ?? s.messageCount;
+  const contextGrowth = turnCount > 0
+    ? ((s.peakContextTokens ?? 0) - (s.initialContextTokens ?? 0)) / turnCount
     : 0;
   const linesAdded = s.commitStats?.linesAdded ?? 0;
   const tm = toolMetrics;
@@ -41,16 +42,16 @@ export function SessionMetricsPanel({ session, toolMetrics }: Readonly<{
     { label: t('analytics.tokens'), value: fmtTokens(totalTokens), tooltip: t('analytics.totalTokens.description') },
     { label: t('analytics.cost'), value: fmtUsd(cost), tooltip: t('analytics.estimatedCost.description') },
     { label: t('analytics.metricErrors'), value: (s.errorCount ?? 0) > 0 ? fmtNum(s.errorCount!) : '—', tooltip: t('analytics.metricErrors.description') },
-    { label: t('analytics.contextGrowth'), value: s.messageCount > 0 ? `${fmtTokens(Math.round(contextGrowth))}/step` : '—', tooltip: t('analytics.contextGrowth.description') },
+    { label: t('analytics.contextGrowth'), value: turnCount > 0 ? `${fmtTokens(Math.round(contextGrowth))}/turn` : '—', tooltip: t('analytics.contextGrowth.description') },
   ];
 
   const productivityCards = [
-    { label: t('analytics.tokensPerStep'), value: s.messageCount > 0 ? fmtTokens(Math.round(totalTokens / s.messageCount)) : '—', tooltip: t('analytics.tokensPerStep.description') },
-    { label: t('analytics.costPerStep'), value: s.messageCount > 0 ? fmtUsd(cost / s.messageCount) : '—', tooltip: t('analytics.costPerStep.description') },
+    { label: t('analytics.tokensPerStep'), value: turnCount > 0 ? fmtTokens(Math.round(totalTokens / turnCount)) : '—', tooltip: t('analytics.tokensPerStep.description') },
+    { label: t('analytics.costPerStep'), value: turnCount > 0 ? fmtUsd(cost / turnCount) : '—', tooltip: t('analytics.costPerStep.description') },
     { label: t('analytics.linesPerHour'), value: durationHours > 0 && linesAdded > 0 ? fmtNum(Math.round(linesAdded / durationHours)) : '—', tooltip: t('analytics.linesPerHour.description') },
     { label: t('analytics.costPerHour'), value: durationHours > 0 ? fmtUsd(cost / durationHours) : '—', tooltip: t('analytics.costPerHour.description') },
     { label: t('analytics.costPerCommit'), value: (s.commitStats?.commits ?? 0) > 0 ? fmtUsd(cost / s.commitStats!.commits) : '—', tooltip: t('analytics.costPerCommit.description') },
-    { label: t('analytics.avgInterval'), value: s.messageCount > 1 ? fmtDuration(durationMs / (s.messageCount - 1)) : '—', tooltip: t('analytics.avgInterval.description') },
+    { label: t('analytics.avgInterval'), value: turnCount > 1 ? fmtDuration(durationMs / (turnCount - 1)) : '—', tooltip: t('analytics.avgInterval.description') },
   ];
 
   const qualityCards = [
