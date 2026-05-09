@@ -19,8 +19,10 @@ import type {
   DateRange,
   ReleaseQualityBucket,
 } from '@anytime-markdown/trail-core/domain/metrics';
+import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
 
 export interface AnalyticsPanelProps {
+  readonly releases?: readonly TrailRelease[];
   readonly analytics: AnalyticsData | null;
   readonly sessions?: readonly TrailSession[];
   readonly onSelectSession?: (id: string) => void;

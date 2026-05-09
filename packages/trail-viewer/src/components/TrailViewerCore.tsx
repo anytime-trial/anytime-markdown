@@ -460,6 +460,7 @@ function TrailViewerCoreInner({
           <Suspense fallback={<AnalyticsPanelSkeleton />}>
             <AnalyticsPanel
               analytics={analytics}
+              releases={releases}
               sessions={allSessions ?? sessions}
               sessionsLoading={sessionsLoading}
               onSelectSession={onSelectSession}

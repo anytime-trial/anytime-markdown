@@ -11,6 +11,7 @@ import { ToolUsageChart } from './charts/ToolUsageChart';
 
 export function AnalyticsPanel({
   analytics,
+  releases,
   sessions = [],
   sessionsLoading,
   onSelectSession,
@@ -107,6 +108,7 @@ export function AnalyticsPanel({
       <ToolUsageChart items={analytics.toolUsage} />
       <CombinedChartsSection
         dailyActivity={analytics.dailyActivity}
+        releases={releases}
         sessions={sessions}
         sessionsLoading={sessionsLoading}
         period={period}

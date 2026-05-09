@@ -197,6 +197,8 @@ export interface TrailI18n {
   'releases.repository': string;
   'releases.unknownRepo': string;
   'releases.openPopup': string;
+  'releases.totalLoc': string;
+  'releases.releaseCount': string;
   'c4.releases': string;
   'c4.releaseRepository': string;
   'c4.unknownRepo': string;

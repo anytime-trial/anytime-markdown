@@ -21,6 +21,7 @@ import type {
   QualityMetrics,
   ReleaseQualityBucket,
 } from '@anytime-markdown/trail-core/domain/metrics';
+import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
 import { useTrailTheme } from '../../TrailThemeContext';
 import { useTrailI18n } from '../../../i18n';
 import type {
@@ -32,12 +33,13 @@ import type {
   PeriodDays,
 } from '../types';
 import { DailyActivityChart } from '../charts/DailyActivityChart';
-import { ReleasesBarChart } from '../charts/ReleasesBarChart';
+import { ReleasesLocChart } from '../charts/ReleasesLocChart';
 import { CombinedChartsContent } from '../charts/combined/CombinedChartsContent';
 import { DailySessionList } from './DailySessionList';
 
 export function CombinedChartsSection({
   dailyActivity,
+  releases,
   sessions,
   sessionsLoading,
   period,
@@ -57,6 +59,7 @@ export function CombinedChartsSection({
   onOpenMessagesPopup,
 }: Readonly<{
   dailyActivity: AnalyticsData['dailyActivity'];
+  releases?: readonly TrailRelease[];
   sessions: readonly TrailSession[];
   sessionsLoading?: boolean;
   period: PeriodDays;
@@ -87,8 +90,6 @@ export function CombinedChartsSection({
   const [combinedData, setCombinedData] = useState<CombinedData | null>(null);
   const [combinedLoading, setCombinedLoading] = useState(false);
   const [, setOverlayLoading] = useState(false);
-  const [releasesTimeSeries, setReleasesTimeSeries] = useState<ReadonlyArray<ReleaseQualityBucket>>([]);
-  const [releasesLoading, setReleasesLoading] = useState(false);
   const [overlay, setOverlay] = useState<{
     bucket: 'day' | 'week';
     tokens: ReadonlyArray<{ bucketStart: string; value: number }>;
@@ -153,24 +154,6 @@ export function CombinedChartsSection({
     })();
     return () => { mounted = false; };
   }, [fetchQualityMetrics, period, metric]);
-
-  useEffect(() => {
-    if (!fetchReleaseQuality) return;
-    const now = new Date();
-    const to = now.toISOString();
-    const from = new Date(now.getTime() - period * 86_400_000).toISOString();
-    const bucket: 'day' | 'week' = period >= 90 ? 'week' : 'day';
-    let mounted = true;
-    setReleasesLoading(true);
-    void (async () => {
-      const result = await fetchReleaseQuality({ from, to }, bucket);
-      if (mounted) {
-        setReleasesTimeSeries(result);
-        setReleasesLoading(false);
-      }
-    })();
-    return () => { mounted = false; };
-  }, [fetchReleaseQuality, period]);
 
   const toggleSx = {
     color: colors.textSecondary,
@@ -440,13 +423,7 @@ export function CombinedChartsSection({
           overlay={overlay}
         />
       ) : metric === 'releases' ? (
-        releasesLoading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 240 }}>
-            <CircularProgress size={32} />
-          </Box>
-        ) : (
-          <ReleasesBarChart timeSeries={releasesTimeSeries} />
-        )
+        <ReleasesLocChart releases={releases ?? []} />
       ) : fetchCombinedData ? (
         combinedLoading && !combinedData ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 240 }}>
