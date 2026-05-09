@@ -861,13 +861,30 @@ export class TrailDatabase {
         const tcRows = tcResult[0]?.values ?? [];
         if (tcRows.length === 0) return [];
 
+        // Phase 1.5: session start_time を取得し、日付キーを session 基準で算出するための Map 構築
+        const sessionIds1 = [...new Set(tcRows.map((r) => r[0] as string))];
+        const SQLITE_VAR_LIMIT = 999;
+        const sessionDateMap = new Map<string, string>();
+        this.fetchInBatches(sessionIds1, SQLITE_VAR_LIMIT, (batch) => {
+          const placeholders = batch.map(() => '?').join(',');
+          const sResult = db.exec(
+            `SELECT id, start_time FROM sessions WHERE id IN (${placeholders})`,
+            batch as string[],
+          );
+          for (const r of sResult[0]?.values ?? []) {
+            const sid = r[0] as string;
+            const st = r[1] as string;
+            if (st) sessionDateMap.set(sid, this.computeDateInSqliteTz(st, tzOffset));
+          }
+          return [];
+        });
+
         // Phase 2: 出現する message_uuid 集合
         const messageUuids = new Set<string>();
         for (const row of tcRows) messageUuids.add(row[1] as string);
 
         // Phase 3: messages を uuid IN (?) でバッチ取得し msg_tokens Map 構築
         // LEFT JOIN semantics 保持: 該当行が無い uuid は Map に入らず後段で 0 扱い
-        const SQLITE_VAR_LIMIT = 999;
         const msgTokensByUuid = new Map<string, number>();
         const uuidList = [...messageUuids];
         this.fetchInBatches(uuidList, SQLITE_VAR_LIMIT, (batch) => {
@@ -907,7 +924,8 @@ export class TrailDatabase {
           const turnExecMs = Number(row[5] ?? 0);
 
           const tool = this.applyToolMcpAlias(toolName);
-          const date = this.computeDateInSqliteTz(timestamp, tzOffset);
+          // session start_time 基準の日付（未取得の場合は tool call timestamp にフォールバック）
+          const date = sessionDateMap.get(sessionId) ?? this.computeDateInSqliteTz(timestamp, tzOffset);
 
           const msgTokens = msgTokensByUuid.get(messageUuid) ?? 0;
           const tInMsg = toolsInMsg.get(messageUuid) ?? 1;
@@ -1245,14 +1263,17 @@ export class TrailDatabase {
         // Step 5: messages から派生した session_id 集合に対する sessions を id IN バッチ取得
         const sessionIds = [...new Set([...msgInfoMap.values()].map((m) => m.sessionId))];
         const sessionSourceMap = new Map<string, string>();
+        const sessionStartTsMap = new Map<string, string>(); // session_id → start_time (UTC ISO)
         this.fetchInBatches(sessionIds, SQLITE_VAR_LIMIT, (batch) => {
           const placeholders = batch.map(() => '?').join(',');
           const sessResult = db.exec(
-            `SELECT id, source FROM sessions WHERE id IN (${placeholders})`,
+            `SELECT id, source, start_time FROM sessions WHERE id IN (${placeholders})`,
             batch as string[],
           );
           for (const r of sessResult[0]?.values ?? []) {
             sessionSourceMap.set(r[0] as string, r[1] as string);
+            const st = r[2] as string | null;
+            if (st) sessionStartTsMap.set(r[0] as string, st);
           }
           return [];
         });
@@ -1278,13 +1299,14 @@ export class TrailDatabase {
           const source = sessionSourceMap.get(m.sessionId);
           if (source === undefined) continue; // INNER JOIN sessions
 
-          // WHERE DATE(m.timestamp, tzOffset) >= cutoffDate （文字列比較）
-          const messageDate = this.computeDateInSqliteTz(m.timestamp, tzOffset);
-          if (messageDate < cutoffDate) continue;
+          // session start_time 基準でフィルタ・期間キー算出（フォールバック: message timestamp）
+          const sessionTs = sessionStartTsMap.get(m.sessionId) ?? m.timestamp;
+          const sessionDate = this.computeDateInSqliteTz(sessionTs, tzOffset);
+          if (sessionDate < cutoffDate) continue;
 
           const periodKey = period === 'day'
-            ? messageDate
-            : this.computeWeekInSqliteTz(m.timestamp, tzOffset);
+            ? sessionDate
+            : this.computeWeekInSqliteTz(sessionTs, tzOffset);
           const tool = this.applyToolMcpAlias(toolName);
 
           const tInMsg = toolsInMsg.get(messageUuid) ?? 1;
@@ -2428,15 +2450,15 @@ export class TrailDatabase {
         estimated_cost_usd = daily_counts.estimated_cost_usd + excluded.estimated_cost_usd`;
     const stmt = db.prepare(INSERT_DC);
 
-    // ── kind='cost_actual' : assistant メッセージ日次トークン・コスト ──
+    // ── kind='cost_actual' : assistant メッセージ日次トークン・コスト（session start_time 基準）──
     const actual = db.exec(
-      `SELECT DATE(m.timestamp, '${tzOffset}'), COALESCE(m.model,''), s.source,
+      `SELECT DATE(s.start_time, '${tzOffset}'), COALESCE(m.model,''), s.source,
         SUM(input_tokens), SUM(output_tokens),
         SUM(cache_read_tokens), SUM(cache_creation_tokens)
        FROM messages m
        INNER JOIN sessions s ON s.id = m.session_id
        WHERE m.type = 'assistant'
-       GROUP BY DATE(m.timestamp, '${tzOffset}'), m.model, s.source`,
+       GROUP BY DATE(s.start_time, '${tzOffset}'), m.model, s.source`,
     );
     for (const row of actual[0]?.values ?? []) {
       const d = String(row[0]); const m = String(row[1]); const source = String(row[2]) as PricingSource;
@@ -2455,17 +2477,18 @@ export class TrailDatabase {
          AND m.skill NOT IN (SELECT skill FROM skill_models)`,
     );
 
-    // ── kind='cost_skill' : スキル推奨モデルでの仮想コスト ──
+    // ── kind='cost_skill' : スキル推奨モデルでの仮想コスト（session start_time 基準）──
     const skill = db.exec(
-      `SELECT DATE(a.timestamp, '${tzOffset}'),
+      `SELECT DATE(s.start_time, '${tzOffset}'),
         COALESCE(sm.recommended_model, 'sonnet'),
         COUNT(*) AS msg_count,
         SUM(a.input_tokens), SUM(a.output_tokens),
         SUM(a.cache_read_tokens), SUM(a.cache_creation_tokens)
        FROM messages a
+       JOIN sessions s ON s.id = a.session_id
        LEFT JOIN skill_models_resolved sm ON a.skill = sm.skill
        WHERE a.type = 'assistant'
-       GROUP BY DATE(a.timestamp, '${tzOffset}'),
+       GROUP BY DATE(s.start_time, '${tzOffset}'),
          COALESCE(sm.recommended_model, 'sonnet')`,
     );
     for (const row of skill[0]?.values ?? []) {
@@ -2481,12 +2504,13 @@ export class TrailDatabase {
       stmt.run([row.date, 'tool', row.tool, row.count, row.tokens, 0, 0, 0, 0, row.durationMs, 0]);
     }
 
-    // ── kind='skill' : スキル別日次集計 ──
+    // ── kind='skill' : スキル別日次集計（session start_time 基準）──
     const skillCounts = db.exec(
-      `SELECT DATE(timestamp, '${tzOffset}') AS d, skill_name, COUNT(*) AS count
-       FROM message_tool_calls
-       WHERE skill_name IS NOT NULL
-       GROUP BY d, skill_name`,
+      `SELECT DATE(s.start_time, '${tzOffset}') AS d, mtc.skill_name, COUNT(*) AS count
+       FROM message_tool_calls mtc
+       JOIN sessions s ON s.id = mtc.session_id
+       WHERE mtc.skill_name IS NOT NULL
+       GROUP BY d, mtc.skill_name`,
     );
     for (const row of skillCounts[0]?.values ?? []) {
       stmt.run([String(row[0]), 'skill', String(row[1] ?? ''), Number(row[2] ?? 0), 0, 0, 0, 0, 0, 0, 0]);
@@ -2510,9 +2534,9 @@ export class TrailDatabase {
       stmt.run([String(row[0]), 'error', String(row[1] ?? ''), Number(row[2] ?? 0), 0, 0, 0, 0, 0, 0, 0]);
     }
 
-    // ── kind='model' : assistant メッセージ数のモデル別日次集計 ──
+    // ── kind='model' : assistant メッセージ数のモデル別日次集計（session start_time 基準）──
     const modelCounts = db.exec(
-      `SELECT DATE(m.timestamp, '${tzOffset}') AS d,
+      `SELECT DATE(s.start_time, '${tzOffset}') AS d,
               s.source,
               COALESCE(m.model, '') AS model,
               COUNT(*) AS count,
@@ -5875,9 +5899,9 @@ export class TrailDatabase {
       // json functions may not be available
     }
 
-    // Daily activity from messages with source-aware factor (last 90 days)
+    // Daily activity from messages — grouped by session start_time date (same basis as session list)
     const dailyMsgResult = db.exec(
-      `SELECT DATE(m.timestamp, '${tzOffset}') AS date,
+      `SELECT DATE(s.start_time, '${tzOffset}') AS date,
         s.source,
         SUM(COALESCE(m.input_tokens,0)) AS raw_input,
         SUM(COALESCE(m.output_tokens,0)) AS raw_output,
@@ -5890,7 +5914,7 @@ export class TrailDatabase {
        FROM messages m
        JOIN sessions s ON s.id = m.session_id
        WHERE m.type = 'assistant'
-         AND DATE(m.timestamp, '${tzOffset}') >= DATE('now', '${tzOffset}', '-180 days')
+         AND DATE(s.start_time, '${tzOffset}') >= DATE('now', '${tzOffset}', '-180 days')
        GROUP BY date, s.source
        ORDER BY date`,
     );
@@ -6129,7 +6153,7 @@ export class TrailDatabase {
     }));
 
     const modelResult = db.exec(
-      `SELECT ${messagePeriodExpr} AS period,
+      `SELECT ${sessionStartPeriodExpr} AS period,
               COALESCE(m.model, '') AS model,
               s.source,
               COUNT(*) AS count,
@@ -6139,7 +6163,7 @@ export class TrailDatabase {
                        THEN 1 ELSE 0 END) AS token_missing_turns
        FROM messages m
        INNER JOIN sessions s ON s.id = m.session_id
-       WHERE m.type = 'assistant' AND DATE(m.timestamp, '${tzOffset}') >= ${cutoff}
+       WHERE m.type = 'assistant' AND DATE(s.start_time, '${tzOffset}') >= ${cutoff}
        GROUP BY period, COALESCE(m.model, ''), s.source`,
     );
     const modelAggMap = new Map<string, { count: number; tokens: number; totalTurns: number; missingTurns: number }>();
@@ -6174,7 +6198,7 @@ export class TrailDatabase {
     });
 
     const agentTokenResult = db.exec(
-      `SELECT ${messagePeriodExpr} AS period,
+      `SELECT ${sessionStartPeriodExpr} AS period,
               CASE WHEN s.source = 'codex' THEN 'Codex' ELSE 'Claude Code' END AS agent,
               SUM(COALESCE(m.input_tokens,0) + COALESCE(m.output_tokens,0) + COALESCE(m.cache_read_tokens,0) + COALESCE(m.cache_creation_tokens,0)) AS tokens,
               SUM(CASE WHEN m.type = 'assistant' THEN 1 ELSE 0 END) AS token_total_turns,
@@ -6185,7 +6209,7 @@ export class TrailDatabase {
                   END) AS token_missing_turns
        FROM messages m
        JOIN sessions s ON s.id = m.session_id
-       WHERE DATE(m.timestamp, '${tzOffset}') >= ${cutoff}
+       WHERE DATE(s.start_time, '${tzOffset}') >= ${cutoff}
        GROUP BY period, agent`,
     );
     const agentCostResult = db.exec(
@@ -6329,16 +6353,16 @@ export class TrailDatabase {
       repoCountMap.set(k, (repoCountMap.get(k) ?? 0) + 1);
     }
 
-    // Repository stats: TOKEN は messages JOIN sessions で集計
+    // Repository stats: TOKEN は messages JOIN sessions で集計（session start_time 基準）
     const repoTokenResult = db.exec(
-      `SELECT ${messagePeriodExpr} AS period,
+      `SELECT ${sessionStartPeriodExpr} AS period,
               s.repo_name,
               SUM(COALESCE(m.input_tokens,0) + COALESCE(m.output_tokens,0)
                   + COALESCE(m.cache_read_tokens,0) + COALESCE(m.cache_creation_tokens,0)) AS tokens
        FROM messages m
        JOIN sessions s ON s.id = m.session_id
        WHERE m.type = 'assistant'
-         AND DATE(m.timestamp, '${tzOffset}') >= ${cutoff}
+         AND DATE(s.start_time, '${tzOffset}') >= ${cutoff}
          AND s.repo_name != ''
        GROUP BY period, s.repo_name`,
     );

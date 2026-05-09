@@ -4,10 +4,10 @@ import { BarChart } from '@mui/x-charts/BarChart';
 import { useMemo } from 'react';
 import { useTrailTheme } from '../../../TrailThemeContext';
 import { useTrailI18n } from '../../../../i18n';
-import { fmtPercent, fmtTokens } from '../../../../domain/analytics/formatters';
+import { fmtNum, fmtPercent, fmtTokens } from '../../../../domain/analytics/formatters';
 import type { ChartMetric } from '../../types';
 import type { CombinedAxisInfo } from './axisInfo';
-import { hideZero, makeAxisClick } from './axisInfo';
+import { makeAxisClick } from './axisInfo';
 
 export function ToolsCombinedChart({
   axisInfo,
@@ -42,6 +42,11 @@ export function ToolsCombinedChart({
     });
   }, [toolRows, allPeriods, labels, tools, toolMap, toolMetric]);
 
+  const tooltipFormatter = (v: number | null): string | null => {
+    if (v == null || v === 0) return null;
+    return toolMetric === 'tokens' ? fmtTokens(v) : fmtNum(v);
+  };
+
   const toolSeriesLabel = (tool: string): string => {
     const missing = toolMissingByDisplay.get(tool);
     const rate = missing && missing.total > 0 ? missing.missing / missing.total : 0;
@@ -63,7 +68,7 @@ export function ToolsCombinedChart({
           label: toolSeriesLabel(tool),
           stack: 'total',
           color: toolPalette[i % toolPalette.length],
-          valueFormatter: hideZero,
+          valueFormatter: tooltipFormatter,
         }))}
         height={240}
         margin={{ left: 16, right: 8, top: 8, bottom: 60 }}

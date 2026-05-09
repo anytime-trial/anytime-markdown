@@ -3,10 +3,10 @@ import Paper from '@mui/material/Paper';
 import { BarChart } from '@mui/x-charts/BarChart';
 import { useTrailTheme } from '../../../TrailThemeContext';
 import { useTrailI18n } from '../../../../i18n';
-import { fmtPercent, fmtTokens, fmtUsd } from '../../../../domain/analytics/formatters';
+import { fmtNum, fmtPercent, fmtTokens, fmtUsd } from '../../../../domain/analytics/formatters';
 import type { AgentMetric } from '../../types';
 import type { CombinedAxisInfo } from './axisInfo';
-import { hideZero, makeAxisClick } from './axisInfo';
+import { makeAxisClick } from './axisInfo';
 
 export function AgentsCombinedChart({
   axisInfo,
@@ -41,6 +41,13 @@ export function AgentsCombinedChart({
     });
   }, [agentRows, agentPeriods, agentLabels, agents, agentMap, agentMetric]);
 
+  const tooltipFormatter = (v: number | null): string | null => {
+    if (v == null || v === 0) return null;
+    if (agentMetric === 'cost') return fmtUsd(v);
+    if (agentMetric === 'tokens') return fmtTokens(v);
+    return fmtNum(v);
+  };
+
   const agentSeriesLabel = (agent: string): string => {
     const missing = agentMissingByDisplay.get(agent);
     const rate = missing && missing.total > 0 ? missing.missing / missing.total : 0;
@@ -58,7 +65,7 @@ export function AgentsCombinedChart({
           label: agentSeriesLabel(agent),
           stack: 'total',
           color: toolPalette[i % toolPalette.length],
-          valueFormatter: hideZero,
+          valueFormatter: tooltipFormatter,
         }))}
         height={240}
         margin={{ left: 16, right: 8, top: 8, bottom: 60 }}

@@ -6,7 +6,7 @@ import { useTrailTheme } from '../../../TrailThemeContext';
 import { fmtNum, fmtTokens } from '../../../../domain/analytics/formatters';
 import type { ChartMetric } from '../../types';
 import type { CombinedAxisInfo } from './axisInfo';
-import { hideZero, makeAxisClick } from './axisInfo';
+import { makeAxisClick } from './axisInfo';
 
 export function ReposCombinedChart({
   axisInfo,
@@ -40,6 +40,11 @@ export function ReposCombinedChart({
     });
   }, [repoRows, repoPeriods, repoLabels, repos, repoMap, repoMetric]);
 
+  const tooltipFormatter = (v: number | null): string | null => {
+    if (v == null || v === 0) return null;
+    return repoMetric === 'tokens' ? fmtTokens(v) : fmtNum(v);
+  };
+
   if (repos.length === 0) {
     return <Typography variant="body2" color="text.secondary">0</Typography>;
   }
@@ -55,7 +60,7 @@ export function ReposCombinedChart({
           label: repo,
           stack: 'total',
           color: toolPalette[i % toolPalette.length],
-          valueFormatter: hideZero,
+          valueFormatter: tooltipFormatter,
         }))}
         height={240}
         margin={{ left: 16, right: 8, top: 8, bottom: 60 }}

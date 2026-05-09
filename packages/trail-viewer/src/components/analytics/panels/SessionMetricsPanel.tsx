@@ -35,7 +35,6 @@ export function SessionMetricsPanel({ session, toolMetrics }: Readonly<{
     { label: t('analytics.netLines'), value: s.commitStats != null ? fmtNum(grossLines) : '—', tooltip: t('analytics.netLines.description') },
     { label: t('analytics.tokens'), value: fmtTokens(totalTokens), tooltip: t('analytics.totalTokens.description') },
     { label: t('analytics.cost'), value: fmtUsd(cost), tooltip: t('analytics.estimatedCost.description') },
-    { label: t('analytics.metricErrors'), value: (s.errorCount ?? 0) > 0 ? fmtNum(s.errorCount!) : '—', tooltip: t('analytics.metricErrors.description') },
   ];
 
   const productivityCards = [
