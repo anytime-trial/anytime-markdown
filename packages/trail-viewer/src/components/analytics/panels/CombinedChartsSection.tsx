@@ -53,6 +53,7 @@ export function CombinedChartsSection({
   fetchQualityMetrics,
   fetchReleaseQuality,
   onOpenReleasesPopup,
+  onOpenPromptsPopup,
 }: Readonly<{
   dailyActivity: AnalyticsData['dailyActivity'];
   sessions: readonly TrailSession[];
@@ -70,6 +71,7 @@ export function CombinedChartsSection({
   fetchQualityMetrics?: (range: DateRange) => Promise<QualityMetrics | null>;
   fetchReleaseQuality?: (range: DateRange, bucket: 'day' | 'week') => Promise<ReadonlyArray<ReleaseQualityBucket>>;
   onOpenReleasesPopup?: () => void;
+  onOpenPromptsPopup?: () => void;
 }>) {
   const { colors } = useTrailTheme();
   const { t } = useTrailI18n();
@@ -195,7 +197,42 @@ export function CombinedChartsSection({
               <ToggleButton value="models" data-chart-kind="models" sx={toggleSx}>{t('analytics.combined.model')}</ToggleButton>
             </Tooltip>
             <Tooltip title={t('analytics.combined.skill.description')} arrow placement="top">
-              <ToggleButton value="skills" data-chart-kind="skills" sx={toggleSx}>{t('analytics.combined.skill')}</ToggleButton>
+              <ToggleButton value="skills" data-chart-kind="skills" sx={{ ...toggleSx, gap: 0.75, pr: 0.75 }}>
+                <Box component="span">{t('analytics.combined.skill')}</Box>
+                <Tooltip title={t('prompt.openPopup')} arrow placement="top">
+                  <Box
+                    component="span"
+                    role="button"
+                    tabIndex={onOpenPromptsPopup ? 0 : -1}
+                    aria-label={t('prompt.openPopup')}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onOpenPromptsPopup?.();
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== 'Enter' && event.key !== ' ') return;
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onOpenPromptsPopup?.();
+                    }}
+                    sx={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 20,
+                      height: 20,
+                      borderRadius: 1,
+                      color: colors.textSecondary,
+                      opacity: onOpenPromptsPopup ? 1 : 0.35,
+                      cursor: onOpenPromptsPopup ? 'pointer' : 'default',
+                      '&:hover': onOpenPromptsPopup ? { bgcolor: colors.hoverBg, color: colors.iceBlue } : undefined,
+                    }}
+                  >
+                    <OpenInNewIcon sx={{ fontSize: 14 }} />
+                  </Box>
+                </Tooltip>
+              </ToggleButton>
             </Tooltip>
             <Tooltip title={t('analytics.combined.tool.description')} arrow placement="top">
               <ToggleButton value="tools" data-chart-kind="tools" sx={toggleSx}>{t('analytics.combined.tool')}</ToggleButton>

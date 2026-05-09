@@ -24,6 +24,7 @@ export function AnalyticsPanel({
   fetchQualityMetrics,
   fetchReleaseQuality,
   onOpenReleasesPopup,
+  onOpenPromptsPopup,
 }: Readonly<AnalyticsPanelProps>) {
   const { t } = useTrailI18n();
   const { scrollbarSx } = useTrailTheme();
@@ -120,6 +121,7 @@ export function AnalyticsPanel({
         fetchQualityMetrics={fetchQualityMetrics}
         fetchReleaseQuality={fetchReleaseQuality}
         onOpenReleasesPopup={onOpenReleasesPopup}
+        onOpenPromptsPopup={onOpenPromptsPopup}
       />
     </Box>
   );

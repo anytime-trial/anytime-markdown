@@ -167,6 +167,7 @@ export const en: TrailI18n = {
   'eval.selectSession': 'Select a session to evaluate',
   'prompt.noPrompts': 'No prompts found',
   'prompt.selectPrompt': 'Select a prompt to view',
+  'prompt.openPopup': 'Open prompts in a popup',
   'releases.version': 'Version',
   'releases.date': 'Release Date',
   'releases.interval': 'Interval',

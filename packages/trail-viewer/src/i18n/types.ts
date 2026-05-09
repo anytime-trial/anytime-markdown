@@ -178,6 +178,7 @@ export interface TrailI18n {
   // prompt
   'prompt.noPrompts': string;
   'prompt.selectPrompt': string;
+  'prompt.openPopup': string;
   // releases
   'releases.version': string;
   'releases.date': string;

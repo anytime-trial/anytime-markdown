@@ -171,6 +171,9 @@ function TrailViewerCoreInner({
   const [releasesPopupOpen, setReleasesPopupOpen] = useState(false);
   const [releasesPopupSize, setReleasesPopupSize] = useState<ResizablePopupSize | null>(null);
   const [releasesPopupMaximized, setReleasesPopupMaximized] = useState(false);
+  const [promptsPopupOpen, setPromptsPopupOpen] = useState(false);
+  const [promptsPopupSize, setPromptsPopupSize] = useState<ResizablePopupSize | null>(null);
+  const [promptsPopupMaximized, setPromptsPopupMaximized] = useState(false);
   const [visitedTabs, setVisitedTabs] = useState<ReadonlySet<number>>(
     () => new Set([normalizedInitialTab]),
   );
@@ -387,6 +390,7 @@ function TrailViewerCoreInner({
               fetchDeploymentFrequency={fetchDeploymentFrequency}
               fetchReleaseQuality={fetchReleaseQuality}
               onOpenReleasesPopup={() => setReleasesPopupOpen(true)}
+              onOpenPromptsPopup={() => setPromptsPopupOpen(true)}
             />
           </Suspense>
         </Box>
@@ -514,6 +518,28 @@ function TrailViewerCoreInner({
           i18nResize={t('c4.popup.resize')}
         >
           <ReleasesPanel releases={releases ?? []} />
+        </ResizablePopup>
+      )}
+      {promptsPopupOpen && (
+        <ResizablePopup
+          title={t('viewer.tab.prompts')}
+          ariaLabel={t('viewer.tab.prompts')}
+          onClose={() => setPromptsPopupOpen(false)}
+          isDark={isDark ?? true}
+          colors={c4Colors}
+          size={promptsPopupSize}
+          onSizeChange={setPromptsPopupSize}
+          maximized={promptsPopupMaximized}
+          onMaximizedChange={setPromptsPopupMaximized}
+          defaultMaxWidth={1120}
+          centered
+          toolbarButtonSx={popupToolbarButtonSx}
+          i18nMaximize={t('c4.popup.maximize')}
+          i18nRestore={t('c4.popup.restore')}
+          i18nClose={t('c4.popup.close')}
+          i18nResize={t('c4.popup.resize')}
+        >
+          <PromptManager prompts={prompts} />
         </ResizablePopup>
       )}
     </Box>

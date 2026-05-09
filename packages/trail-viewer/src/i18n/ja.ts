@@ -167,6 +167,7 @@ export const ja: TrailI18n = {
   'eval.selectSession': '評価するセッションを選択してください',
   'prompt.noPrompts': 'プロンプトが見つかりません',
   'prompt.selectPrompt': '表示するプロンプトを選択してください',
+  'prompt.openPopup': 'プロンプトをポップアップで開く',
   'releases.version': 'バージョン',
   'releases.date': 'リリース日',
   'releases.interval': '間隔',
