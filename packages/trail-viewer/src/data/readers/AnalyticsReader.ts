@@ -39,7 +39,7 @@ export class AnalyticsReader {
 
     let totalInput = 0, totalOutput = 0, totalCacheRead = 0, totalCacheCreation = 0;
     let totalEstimatedCost = 0;
-    type DailyEntry = { sessions: number; inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheCreationTokens: number; estimatedCostUsd: number; commits: number; linesAdded: number };
+    type DailyEntry = { sessions: number; inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheCreationTokens: number; estimatedCostUsd: number; commits: number; linesAdded: number; linesDeleted: number };
     const dailyMap = new Map<string, DailyEntry>();
 
     if (sessions.length > 0) {
@@ -60,7 +60,7 @@ export class AnalyticsReader {
       for (const s of sessions as Array<{ id: string; start_time?: string }>) {
         if (s.start_time) {
           const date = toJSTDate(s.start_time);
-          const entry = dailyMap.get(date) ?? { sessions: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, estimatedCostUsd: 0, commits: 0, linesAdded: 0 };
+          const entry = dailyMap.get(date) ?? { sessions: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, estimatedCostUsd: 0, commits: 0, linesAdded: 0, linesDeleted: 0 };
           entry.sessions += 1;
           dailyMap.set(date, entry);
         }
@@ -69,9 +69,10 @@ export class AnalyticsReader {
       for (const c of allCommits) {
         if (c.committed_at) {
           const date = toJSTDate(c.committed_at);
-          const entry = dailyMap.get(date) ?? { sessions: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, estimatedCostUsd: 0, commits: 0, linesAdded: 0 };
+          const entry = dailyMap.get(date) ?? { sessions: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, estimatedCostUsd: 0, commits: 0, linesAdded: 0, linesDeleted: 0 };
           entry.commits += 1;
           entry.linesAdded += c.lines_added;
+          entry.linesDeleted += c.lines_deleted;
           dailyMap.set(date, entry);
         }
       }
@@ -106,7 +107,7 @@ export class AnalyticsReader {
         const start = startBySessionId.get(c.session_id);
         if (start) {
           const date = toJSTDate(start);
-          const entry = dailyMap.get(date) ?? { sessions: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, estimatedCostUsd: 0, commits: 0, linesAdded: 0 };
+          const entry = dailyMap.get(date) ?? { sessions: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, estimatedCostUsd: 0, commits: 0, linesAdded: 0, linesDeleted: 0 };
           entry.inputTokens += inp;
           entry.outputTokens += out;
           entry.cacheReadTokens += crd;
