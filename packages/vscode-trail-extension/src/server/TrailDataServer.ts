@@ -38,12 +38,6 @@ import { TrailLogger } from '../utils/TrailLogger';
 import type { CodeGraphService } from '../graph/CodeGraphService';
 import { GraphQueryEngine } from '../graph/GraphQueryEngine';
 
-const NO_CACHE_HEADERS = {
-  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-  Pragma: 'no-cache',
-  Expires: '0',
-} as const;
-
 // ---------------------------------------------------------------------------
 //  Constants
 // ---------------------------------------------------------------------------
@@ -206,7 +200,6 @@ export class TrailDataServer {
   private wsServer: WebSocketServer | undefined;
   private readonly clients = new Set<WebSocket>();
   private readonly staticCache = new Map<string, Buffer>();
-  private readonly assetVersion = String(Date.now());
   private rateLimitCount = 0;
   private rateLimitReset = 0;
   private cachedHtml: string | undefined;
@@ -1138,8 +1131,8 @@ export class TrailDataServer {
   // -------------------------------------------------------------------------
 
   private serveStandaloneHtml(res: http.ServerResponse): void {
-    this.cachedHtml ??= buildStandaloneHtml(this.assetVersion);
-    res.writeHead(200, { 'Content-Type': 'text/html', ...NO_CACHE_HEADERS });
+    this.cachedHtml ??= buildStandaloneHtml();
+    res.writeHead(200, { 'Content-Type': 'text/html' });
     res.end(this.cachedHtml);
   }
 
@@ -1151,7 +1144,7 @@ export class TrailDataServer {
     const cached = this.staticCache.get(filename);
     if (cached) {
       const contentType = filename.endsWith('.map') ? 'application/json' : 'application/javascript';
-      res.writeHead(200, { 'Content-Type': contentType, ...NO_CACHE_HEADERS });
+      res.writeHead(200, { 'Content-Type': contentType });
       res.end(cached);
       return;
     }
@@ -1165,7 +1158,7 @@ export class TrailDataServer {
       }
       this.staticCache.set(filename, data);
       const contentType = filename.endsWith('.map') ? 'application/json' : 'application/javascript';
-      res.writeHead(200, { 'Content-Type': contentType, ...NO_CACHE_HEADERS });
+      res.writeHead(200, { 'Content-Type': contentType });
       res.end(data);
     });
   }
@@ -3288,7 +3281,7 @@ function scanPromptFiles(): PromptEntry[] {
 //  Standalone HTML builder
 // ---------------------------------------------------------------------------
 
-function buildStandaloneHtml(assetVersion: string): string {
+function buildStandaloneHtml(): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -3299,7 +3292,7 @@ function buildStandaloneHtml(assetVersion: string): string {
 </head>
 <body>
   <div id="root"></div>
-  <script src="/trailstandalone.js?v=${assetVersion}"></script>
+  <script src="/trailstandalone.js"></script>
 </body>
 </html>`;
 }
