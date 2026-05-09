@@ -174,7 +174,9 @@ function TrailViewerCoreInner({
   const [promptsPopupOpen, setPromptsPopupOpen] = useState(false);
   const [promptsPopupSize, setPromptsPopupSize] = useState<ResizablePopupSize | null>(null);
   const [promptsPopupMaximized, setPromptsPopupMaximized] = useState(false);
-  const [messagesPopupOpen, setMessagesPopupOpen] = useState(false);
+  // 旧 Messages タブ (value=1) のレガシー URL / embed (?tab=1 / initialTab={1})
+  // からの初回マウント時にメッセージポップアップを自動で開く。
+  const [messagesPopupOpen, setMessagesPopupOpen] = useState(() => initialTab === 1);
   const [messagesPopupSize, setMessagesPopupSize] = useState<ResizablePopupSize | null>(null);
   const [messagesPopupMaximized, setMessagesPopupMaximized] = useState(false);
   const [visitedTabs, setVisitedTabs] = useState<ReadonlySet<number>>(
