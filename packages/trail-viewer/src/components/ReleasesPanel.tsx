@@ -17,6 +17,7 @@ import { formatLocalDate } from '@anytime-markdown/trail-core/formatDate';
 import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
 import { useTrailI18n } from '../i18n';
 import { useTrailTheme } from './TrailThemeContext';
+import { getReleaseTableColumns } from './releaseColumns';
 
 const UNKNOWN_REPO_KEY = '__unknown__';
 
@@ -117,6 +118,7 @@ export function ReleasesPanel({ releases }: Readonly<ReleasesPanelProps>): React
   const handleRepoChange = (event: SelectChangeEvent<string>): void => {
     setSelectedRepo(event.target.value);
   };
+  const columns = getReleaseTableColumns();
 
   if (releases.length === 0) {
     return (
@@ -149,22 +151,14 @@ export function ReleasesPanel({ releases }: Readonly<ReleasesPanelProps>): React
       <Table size="small" stickyHeader>
         <TableHead>
           <TableRow>
-            <TableCell>{t('releases.version')}</TableCell>
-            <TableCell>{t('releases.date')}</TableCell>
-            <TableCell align="right">{t('releases.interval')}</TableCell>
-            <TableCell align="right">{t('releases.steps')}</TableCell>
-            <TableCell align="right">{t('releases.files')}</TableCell>
-            <TableCell align="right">{t('releases.commits')}</TableCell>
-            <TableCell>{t('releases.breakdown')}</TableCell>
-            <TableCell align="right">{t('releases.stepsPerDay')}</TableCell>
-            <TableCell align="right">{t('releases.fixRate')}</TableCell>
-            <TableCell>{t('releases.packages')}</TableCell>
+            {columns.map((column) => (
+              <TableCell key={column.key} align={column.align}>{t(column.i18nKey)}</TableCell>
+            ))}
           </TableRow>
         </TableHead>
         <TableBody>
           {filteredReleases.map((release) => {
             const steps = release.linesAdded + release.linesDeleted;
-            const stepsPerDay = release.durationDays > 0 ? steps / release.durationDays : 0;
             const fixRate = release.commitCount > 0 ? release.fixCount / release.commitCount : 0;
 
             return (
@@ -199,20 +193,8 @@ export function ReleasesPanel({ releases }: Readonly<ReleasesPanelProps>): React
                 </TableCell>
                 <TableCell align="right">
                   <Typography variant="body2">
-                    {stepsPerDay > 0 ? fmtNum(Math.round(stepsPerDay)) : '—'}
-                  </Typography>
-                </TableCell>
-                <TableCell align="right">
-                  <Typography variant="body2">
                     {release.commitCount > 0 ? fmtPercent(fixRate) : '—'}
                   </Typography>
-                </TableCell>
-                <TableCell>
-                  <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                    {release.affectedPackages.map((pkg) => (
-                      <Chip key={pkg} label={pkg} size="small" sx={{ height: 18, fontSize: '0.65rem' }} />
-                    ))}
-                  </Box>
                 </TableCell>
               </TableRow>
             );
