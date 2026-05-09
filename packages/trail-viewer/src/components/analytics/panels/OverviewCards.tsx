@@ -149,7 +149,7 @@ export function OverviewCards({
             <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, flexWrap: 'wrap', justifyContent: 'center' }}>
               <Typography variant="h3">{card.primary}</Typography>
               {card.unit && (
-                <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10, lineHeight: 1 }}>{card.unit}</Typography>
+                <Typography component="span" sx={{ fontSize: 9, lineHeight: 1, color: 'text.secondary' }}>{card.unit}</Typography>
               )}
               {card.badge && (
                 <Chip
