@@ -505,8 +505,8 @@ function TrailViewerCoreInner({
           onSizeChange={setReleasesPopupSize}
           maximized={releasesPopupMaximized}
           onMaximizedChange={setReleasesPopupMaximized}
-          defaultLeft={16}
           defaultMaxWidth={1120}
+          centered
           toolbarButtonSx={popupToolbarButtonSx}
           i18nMaximize={t('c4.popup.maximize')}
           i18nRestore={t('c4.popup.restore')}

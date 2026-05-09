@@ -26,10 +26,12 @@ export interface ResizablePopupProps {
   readonly onSizeChange: (size: ResizablePopupSize) => void;
   readonly maximized: boolean;
   readonly onMaximizedChange: (maximized: boolean) => void;
-  /** size === null のときに使う初期 left オフセット（px） */
+  /** size === null のときに使う初期 left オフセット（px）。`centered` 指定時は無視される。 */
   readonly defaultLeft?: number;
   /** size === null のときに使う maxWidth（px） */
   readonly defaultMaxWidth?: number;
+  /** size === null のときに親領域の中央に水平方向で寄せる。デフォルト false。 */
+  readonly centered?: boolean;
   readonly toolbarButtonSx: SxProps<Theme>;
   readonly i18nMaximize: string;
   readonly i18nRestore: string;
@@ -48,6 +50,7 @@ export function ResizablePopup({
   title, ariaLabel, onClose, isDark, colors,
   size, onSizeChange, maximized, onMaximizedChange,
   defaultLeft = 244, defaultMaxWidth = 960,
+  centered = false,
   toolbarButtonSx,
   i18nMaximize, i18nRestore, i18nClose, i18nResize,
   children,
@@ -102,8 +105,14 @@ export function ResizablePopup({
   const sizeSx = maximized
     ? { top: MARGIN, left: MARGIN, right: MARGIN, bottom: MARGIN }
     : size
-      ? { top: MARGIN, left: defaultLeft, width: size.width, height: size.height }
-      : { top: MARGIN, left: defaultLeft, right: MARGIN, maxWidth: defaultMaxWidth, height: `calc(100% - ${MARGIN * 2}px)` };
+      ? centered
+        // 中央寄せモードでリサイズ済みの場合は left/right に同値を入れて margin auto で中央維持。
+        ? { top: MARGIN, left: MARGIN, right: MARGIN, marginLeft: 'auto', marginRight: 'auto', width: size.width, height: size.height }
+        : { top: MARGIN, left: defaultLeft, width: size.width, height: size.height }
+      : centered
+        // position: absolute でも left/right + margin auto で水平中央寄せが効く。
+        ? { top: MARGIN, left: MARGIN, right: MARGIN, marginLeft: 'auto', marginRight: 'auto', maxWidth: defaultMaxWidth, height: `calc(100% - ${MARGIN * 2}px)` }
+        : { top: MARGIN, left: defaultLeft, right: MARGIN, maxWidth: defaultMaxWidth, height: `calc(100% - ${MARGIN * 2}px)` };
 
   return (
     <Box ref={rootRef} role="dialog" aria-label={ariaLabel} sx={{ ...baseSx, ...sizeSx }}>
