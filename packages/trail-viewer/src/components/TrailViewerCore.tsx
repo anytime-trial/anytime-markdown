@@ -25,6 +25,7 @@ import { ReleasesPanel } from './ReleasesPanel';
 import { SessionList } from './SessionList';
 import { StatsBar } from './StatsBar';
 import { TrailThemeProvider } from './TrailThemeContext';
+import { CommitCategoryProvider } from './CommitCategoryContext';
 import { getTokens } from '../theme/designTokens';
 import { getC4Colors } from '../theme/c4Tokens';
 import { TrailLocaleProvider, useTrailI18n } from '../i18n';
@@ -114,6 +115,8 @@ export interface TrailViewerCoreProps {
   readonly wsConnected?: boolean;
   /** TrailDataServer のベース URL（Memory パネルの /api/memory/* に使用）。 */
   readonly serverUrl?: string;
+  /** `.trail/commit-categories.json` から読み込んだカテゴリマップ。省略時はデフォルトを使用。 */
+  readonly commitCategories?: ReadonlyMap<string, number>;
 }
 
 const SESSION_LIST_WIDTH = 300;
@@ -122,7 +125,9 @@ export function TrailViewerCore(props: Readonly<TrailViewerCoreProps>) {
   return (
     <TrailLocaleProvider locale={props.locale}>
       <TrailThemeProvider isDark={props.isDark ?? true}>
-        <TrailViewerCoreInner {...props} />
+        <CommitCategoryProvider categories={props.commitCategories}>
+          <TrailViewerCoreInner {...props} />
+        </CommitCategoryProvider>
       </TrailThemeProvider>
     </TrailLocaleProvider>
   );
