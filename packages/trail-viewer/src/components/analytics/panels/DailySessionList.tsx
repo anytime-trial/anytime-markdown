@@ -274,17 +274,17 @@ export function DailySessionList({
                 </Box>
                 <SessionMetricsPanel session={selectedSession} toolMetrics={sessionToolMetrics} />
                 <Box sx={{ display: 'flex', gap: 1 }}>
+                  <SessionToolUsageChart toolMetrics={sessionToolMetrics} />
                   <SessionErrorChart toolMetrics={sessionToolMetrics} />
+                </Box>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <SessionSkillUsageChart toolMetrics={sessionToolMetrics} />
                   {fetchSessionCommits && (
                     <SessionCommitPrefixChart
                       sessionId={timelineSessionId!}
                       fetchSessionCommits={fetchSessionCommits}
                     />
                   )}
-                </Box>
-                <Box sx={{ display: 'flex', gap: 1 }}>
-                  <SessionSkillUsageChart toolMetrics={sessionToolMetrics} />
-                  <SessionToolUsageChart toolMetrics={sessionToolMetrics} />
                 </Box>
               </Box>
             );
@@ -293,17 +293,17 @@ export function DailySessionList({
             <Box sx={{ flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 1, width: { lg: 600 } }}>
               <SessionMetricsPanel session={buildDaySession(date, daySessions)} toolMetrics={dayAggToolMetrics} />
               <Box sx={{ display: 'flex', gap: 1 }}>
+                <SessionToolUsageChart toolMetrics={dayAggToolMetrics} />
                 <SessionErrorChart toolMetrics={dayAggToolMetrics} />
+              </Box>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <SessionSkillUsageChart toolMetrics={dayAggToolMetrics} />
                 {fetchSessionCommits && (
                   <DayCommitPrefixChart
                     sessionIds={daySessions.map((s) => s.id)}
                     fetchSessionCommits={fetchSessionCommits}
                   />
                 )}
-              </Box>
-              <Box sx={{ display: 'flex', gap: 1 }}>
-                <SessionSkillUsageChart toolMetrics={dayAggToolMetrics} />
-                <SessionToolUsageChart toolMetrics={dayAggToolMetrics} />
               </Box>
             </Box>
           );
