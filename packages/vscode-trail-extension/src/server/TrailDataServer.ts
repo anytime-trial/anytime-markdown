@@ -19,6 +19,7 @@ import {
   parseCoverage,
 } from '@anytime-markdown/trail-core/c4';
 import { analyze } from '@anytime-markdown/trail-core/analyze';
+import { loadCommitCategories } from '@anytime-markdown/trail-core/commitCategories';
 import type { FileCoverage, MessageInput } from '@anytime-markdown/trail-core/c4';
 import type {
   C4Model,
@@ -729,6 +730,15 @@ export class TrailDataServer {
     }
     if (pathname === '/api/trace/file' && method === 'GET') {
       this.handleTraceFile(res, parsed.searchParams.get('name') ?? '');
+      return;
+    }
+
+    if (pathname === '/api/config/commit-categories' && method === 'GET') {
+      const map = loadCommitCategories(this.gitRoot ?? process.cwd());
+      const obj: Record<string, number> = {};
+      for (const [k, v] of map) obj[k] = v;
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify(obj));
       return;
     }
 
