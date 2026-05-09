@@ -23,6 +23,7 @@ export function AnalyticsPanel({
   fetchCombinedData,
   fetchQualityMetrics,
   fetchReleaseQuality,
+  onOpenReleasesPopup,
 }: Readonly<AnalyticsPanelProps>) {
   const { t } = useTrailI18n();
   const { scrollbarSx } = useTrailTheme();
@@ -118,6 +119,7 @@ export function AnalyticsPanel({
         fetchCombinedData={fetchCombinedData}
         fetchQualityMetrics={fetchQualityMetrics}
         fetchReleaseQuality={fetchReleaseQuality}
+        onOpenReleasesPopup={onOpenReleasesPopup}
       />
     </Box>
   );

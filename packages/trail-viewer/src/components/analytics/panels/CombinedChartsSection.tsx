@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
+import IconButton from '@mui/material/IconButton';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Tooltip from '@mui/material/Tooltip';
@@ -51,6 +53,7 @@ export function CombinedChartsSection({
   fetchCombinedData,
   fetchQualityMetrics,
   fetchReleaseQuality,
+  onOpenReleasesPopup,
 }: Readonly<{
   dailyActivity: AnalyticsData['dailyActivity'];
   sessions: readonly TrailSession[];
@@ -67,6 +70,7 @@ export function CombinedChartsSection({
   fetchCombinedData?: (period: CombinedPeriodMode, rangeDays: CombinedRangeDays) => Promise<CombinedData>;
   fetchQualityMetrics?: (range: DateRange) => Promise<QualityMetrics | null>;
   fetchReleaseQuality?: (range: DateRange, bucket: 'day' | 'week') => Promise<ReadonlyArray<ReleaseQualityBucket>>;
+  onOpenReleasesPopup?: () => void;
 }>) {
   const { colors } = useTrailTheme();
   const { t } = useTrailI18n();
@@ -210,6 +214,27 @@ export function CombinedChartsSection({
               <ToggleButton value="releases" sx={toggleSx}>{t('analytics.combined.release')}</ToggleButton>
             </Tooltip>
           </ToggleButtonGroup>
+          <Tooltip title={t('releases.openPopup')} arrow placement="top">
+            <span>
+              <IconButton
+                size="small"
+                onClick={onOpenReleasesPopup}
+                disabled={!onOpenReleasesPopup}
+                aria-label={t('releases.openPopup')}
+                sx={{
+                  color: colors.textSecondary,
+                  border: 1,
+                  borderColor: colors.border,
+                  borderRadius: 1,
+                  width: 32,
+                  height: 32,
+                  '&:hover': { bgcolor: colors.hoverBg, color: colors.iceBlue },
+                }}
+              >
+                <OpenInNewIcon sx={{ fontSize: 16 }} />
+              </IconButton>
+            </span>
+          </Tooltip>
           <ToggleButtonGroup
             value={period}
             exclusive

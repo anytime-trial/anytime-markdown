@@ -181,6 +181,7 @@ export const ja: TrailI18n = {
   'releases.noReleases': 'リリースデータがありません',
   'releases.repository': 'リポジトリ',
   'releases.unknownRepo': '(未設定)',
+  'releases.openPopup': 'リリースタブを別ウィンドウで開く',
   'c4.releases': 'リリース',
   'c4.releaseRepository': 'リポジトリ',
   'c4.unknownRepo': '(未設定)',

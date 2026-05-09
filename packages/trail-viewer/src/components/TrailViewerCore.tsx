@@ -101,6 +101,8 @@ export interface TrailViewerCoreProps {
   readonly onJumpToSource?: (loc: SourceLocation) => void;
   /** 初期表示タブ番号（0=Analytics, 1=Traces, 2=Prompts, 3=Releases, 4=C4, 5=Trace）*/
   readonly initialTab?: number;
+  /** Opens the Releases tab in a separate popup/window. */
+  readonly onOpenReleasesPopup?: () => void;
   /**
    * WebSocket 経由でコマンドを送る関数。perf-report の送出に使う。
    * Web アプリ版では disableWebSocket=true により no-op になる。
@@ -149,6 +151,7 @@ function TrailViewerCoreInner({
   traceFiles,
   onJumpToSource,
   initialTab,
+  onOpenReleasesPopup,
   sendCommand,
   wsConnected = false,
 }: Readonly<TrailViewerCoreProps>) {
@@ -376,6 +379,7 @@ function TrailViewerCoreInner({
               fetchQualityMetrics={fetchQualityMetrics}
               fetchDeploymentFrequency={fetchDeploymentFrequency}
               fetchReleaseQuality={fetchReleaseQuality}
+              onOpenReleasesPopup={onOpenReleasesPopup}
             />
           </Suspense>
         </Box>
@@ -495,4 +499,3 @@ function TrailViewerCoreInner({
     </Box>
   );
 }
-
