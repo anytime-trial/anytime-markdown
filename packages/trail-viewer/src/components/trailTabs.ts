@@ -1,6 +1,6 @@
 import type { TrailI18n } from '../i18n/types';
 
-export type TrailViewerTabValue = 0 | 1 | 2 | 4 | 5;
+export type TrailViewerTabValue = 0 | 1 | 4 | 5;
 
 export interface TrailViewerTabDef {
   readonly value: TrailViewerTabValue;
@@ -22,7 +22,6 @@ export function getTrailViewerTabDefs({
   const tabs: TrailViewerTabDef[] = [
     { value: 0, id: 'trail-tab-0', panelId: 'trail-panel-0', i18nKey: 'viewer.tab.analytics', preloadIndex: 0 },
     { value: 1, id: 'trail-tab-1', panelId: 'trail-panel-1', i18nKey: 'viewer.tab.messages', preloadIndex: 1 },
-    { value: 2, id: 'trail-tab-2', panelId: 'trail-panel-2', i18nKey: 'viewer.tab.prompts' },
   ];
 
   if (hasC4) {

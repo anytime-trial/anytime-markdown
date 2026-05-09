@@ -456,15 +456,6 @@ function TrailViewerCoreInner({
         </Box>
       )}
 
-      <Box
-        role="tabpanel"
-        id="trail-panel-2"
-        aria-labelledby="trail-tab-2"
-        sx={{ display: activeTab !== 2 ? 'none' : 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}
-      >
-        <PromptManager prompts={prompts} />
-      </Box>
-
       {c4 && visitedTabs.has(4) && (
         <Box
           role="tabpanel"
