@@ -31,7 +31,7 @@ export interface TrailI18n {
   'sessionList.tokensHeader': string;
   'sessionList.costHeader': string;
   'sessionList.messagesHeader': string;
-  'sessionList.commitsHeader': string;
+  'sessionList.locHeader': string;
   'sessionList.maxChip': string;
   'sessionList.nrChip': string;
   'sessionList.interruptedMaxTokens': string;

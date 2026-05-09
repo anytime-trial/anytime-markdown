@@ -140,7 +140,7 @@ export function DailySessionList({
                   <TableCell align="right">{t('sessionList.messagesHeader')}</TableCell>
                   <TableCell align="right">{t('sessionList.errorsHeader')}</TableCell>
                   <TableCell align="right">{t('sessionList.subAgents')}</TableCell>
-                  <TableCell align="right">{t('sessionList.commitsHeader')}</TableCell>
+                  <TableCell align="right">{t('sessionList.locHeader')}</TableCell>
                   <TableCell align="right" sx={{ width: 36 }} />
                 </TableRow>
               </TableHead>
@@ -216,7 +216,7 @@ export function DailySessionList({
                     </TableCell>
                     <TableCell align="right" sx={{ fontFamily: 'monospace', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
                       {s.commitStats
-                        ? `${s.commitStats.commits} (+${fmtNum(s.commitStats.linesAdded)}/-${fmtNum(s.commitStats.linesDeleted)})`
+                        ? `${fmtNum(s.commitStats.linesAdded - s.commitStats.linesDeleted)} (+${fmtNum(s.commitStats.linesAdded)}/-${fmtNum(s.commitStats.linesDeleted)})`
                         : '—'}
                     </TableCell>
                     <TableCell align="right" sx={{ p: 0.5 }}>
