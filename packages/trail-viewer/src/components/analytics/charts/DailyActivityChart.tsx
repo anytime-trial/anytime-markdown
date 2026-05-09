@@ -55,10 +55,10 @@ export function DailyActivityChart({
   }, [costOptimization]);
 
   const overlayByDate = useMemo(() => {
-    if (!overlay) return new Map<string, number>();
-    const series = mode === 'tokens' ? overlay.tokens : overlay.cost;
+    // tokens mode: tokensPerLoc is computed directly from items in dataset
+    if (!overlay || mode === 'tokens') return new Map<string, number>();
     const map = new Map<string, number>();
-    for (const b of series) {
+    for (const b of overlay.cost) {
       const localDate = toLocalDateKey(b.bucketStart);
       // trail-core buildRatioTimeSeries uses Sunday-anchored weeks; align to Friday
       const key = overlay.bucket === 'week' ? toFridayWeekKey(localDate) : localDate;
@@ -76,6 +76,16 @@ export function DailyActivityChart({
     const isTokens = mode === 'tokens';
     const dailyDataset: ChartEntry[] = filtered.map((d) => {
       const costEntry = costByDate.get(d.date);
+      let overlayValue: number | null = null;
+      if (isTokens) {
+        // Compute tokensPerLoc directly from dailyActivity to match the day card formula
+        const grossLoc = d.linesAdded + d.linesDeleted;
+        if (grossLoc > 0) {
+          overlayValue = (d.inputTokens + d.outputTokens + d.cacheReadTokens + d.cacheCreationTokens) / grossLoc;
+        }
+      } else {
+        overlayValue = overlayByDate.get(overlayBucket === 'week' ? toFridayWeekKey(d.date) : d.date) ?? null;
+      }
       return {
         date: d.date.slice(5),
         fullDate: d.date,
@@ -85,7 +95,7 @@ export function DailyActivityChart({
         cacheCreationTokens: isTokens ? d.cacheCreationTokens : 0,
         actualCost: isTokens ? 0 : (costEntry?.actual ?? d.estimatedCostUsd),
         skillCost: isTokens ? 0 : (costEntry?.skill ?? 0),
-        overlayValue: overlayByDate.get(overlayBucket === 'week' ? toFridayWeekKey(d.date) : d.date) ?? null,
+        overlayValue,
       };
     });
     return period === 90 ? groupByWeek(dailyDataset) : dailyDataset;
@@ -96,7 +106,8 @@ export function DailyActivityChart({
   const isTokens = mode === 'tokens';
   const yFormatter = isTokens ? fmtTokens : fmtUsdShort;
   const seriesFormatter = (v: number | null) => (v == null || v === 0 ? null : yFormatter(v));
-  const hasOverlay = overlay != null;
+  // tokens mode always shows tokensPerLoc overlay (computed from items); cost mode needs external overlay
+  const hasOverlay = isTokens || overlay != null;
   const overlayLabel = isTokens ? t('chart.tokensPerLoc') : t('chart.costPerLoc');
   const overlayFormatter = (v: number | null) => {
     if (v == null) return null;
