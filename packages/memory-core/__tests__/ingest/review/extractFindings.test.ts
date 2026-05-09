@@ -6,7 +6,6 @@ import type { ParsedFinding } from '../../../src/ingest/review/findingHelpers';
 
 function makeFinding(overrides: Partial<ParsedFinding> & { finding_index: number }): ParsedFinding {
   return {
-    finding_index: overrides.finding_index,
     target_file_path: null,
     target_symbol: null,
     target_line_start: null,

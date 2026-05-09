@@ -20,3 +20,7 @@ export { extractCommitRationale } from './ingest/code/extractCommitRationale';
 export type { ExtractRationaleInput, ExtractRationaleStats } from './ingest/code/extractCommitRationale';
 export { runReviewIncremental } from './pipeline/runReviewIncremental';
 export type { ReviewIncrementalResult } from './pipeline/runReviewIncremental';
+export { ingestAgentReviewResult } from './ingest/review/ingestAgentReviewResult';
+export type { IngestAgentReviewResult } from './ingest/review/ingestAgentReviewResult';
+export { AgentReviewInputSchema } from './types/AgentReviewInput';
+export type { AgentReviewInput, AgentReviewFinding } from './types/AgentReviewInput';
