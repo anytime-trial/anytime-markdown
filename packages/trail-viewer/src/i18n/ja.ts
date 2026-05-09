@@ -95,6 +95,8 @@ export const ja: TrailI18n = {
   'analytics.tokensPerStep.description': '1ターンあたりの平均トークン消費量',
   'analytics.costPerStep': 'コスト/ターン',
   'analytics.costPerStep.description': '1ターンあたりの平均コスト（USD）',
+  'analytics.tokensPerLoc': 'トークン/LOC',
+  'analytics.tokensPerLoc.description': '追加行数1行あたりの平均トークン消費量',
   'analytics.linesPerHour': '行数/時間',
   'analytics.linesPerHour.description': '1時間あたりの平均追加行数',
   'analytics.costPerHour': 'コスト/時間',

@@ -95,6 +95,8 @@ export const en: TrailI18n = {
   'analytics.tokensPerStep.description': 'Average token consumption per turn',
   'analytics.costPerStep': 'Cost/Turn',
   'analytics.costPerStep.description': 'Average cost per turn (USD)',
+  'analytics.tokensPerLoc': 'Tokens/LOC',
+  'analytics.tokensPerLoc.description': 'Average token consumption per line added',
   'analytics.linesPerHour': 'Lines/Hour',
   'analytics.linesPerHour.description': 'Average lines added per hour',
   'analytics.costPerHour': 'Cost/Hour',

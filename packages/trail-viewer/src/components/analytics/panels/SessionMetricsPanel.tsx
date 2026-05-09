@@ -45,6 +45,7 @@ export function SessionMetricsPanel({ session, toolMetrics }: Readonly<{
   const productivityCards = [
     { label: t('analytics.tokensPerStep'), value: turnCount > 0 ? fmtTokens(Math.round(totalTokens / turnCount)) : '—', tooltip: t('analytics.tokensPerStep.description') },
     { label: t('analytics.costPerStep'), value: turnCount > 0 ? fmtUsd(cost / turnCount) : '—', tooltip: t('analytics.costPerStep.description') },
+    { label: t('analytics.tokensPerLoc'), value: linesAdded > 0 ? fmtNum(Math.round(totalTokens / linesAdded)) : '—', tooltip: t('analytics.tokensPerLoc.description') },
   ];
 
   const qualityCards = [

@@ -104,6 +104,8 @@ export interface TrailI18n {
   'analytics.tokensPerStep.description': string;
   'analytics.costPerStep': string;
   'analytics.costPerStep.description': string;
+  'analytics.tokensPerLoc': string;
+  'analytics.tokensPerLoc.description': string;
   'analytics.linesPerHour': string;
   'analytics.linesPerHour.description': string;
   'analytics.costPerHour': string;
