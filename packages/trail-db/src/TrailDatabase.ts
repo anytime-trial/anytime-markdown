@@ -5411,7 +5411,7 @@ export class TrailDatabase {
 
       const BUILD_RE = /\b(npm run build|npx tsc|tsc\b|webpack|vite build|esbuild|rollup)\b/;
       const TEST_RE = /\b(jest|vitest|npm run test|npm test|npx jest)\b/;
-      const FAIL_RE = /error|FAIL|ERR!|exit code [1-9]|non-zero exit|Command failed/i;
+      const FAIL_RE = /ERR!|exit code [1-9]|non-zero exit|Command failed/i;
 
       let totalEdits = 0;
       let totalRetries = 0;
