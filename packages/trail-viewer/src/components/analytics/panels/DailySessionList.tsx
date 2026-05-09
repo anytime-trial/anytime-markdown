@@ -133,14 +133,14 @@ export function DailySessionList({
             <Table size="small" stickyHeader>
               <TableHead>
                 <TableRow sx={{ '& .MuiTableCell-head': { color: colors.textSecondary, borderColor: colors.border, bgcolor: colors.midnightNavy } }}>
-                  <TableCell>Agent</TableCell>
                   <TableCell>{t('sessionList.timeHeader')}</TableCell>
+                  <TableCell>Agent</TableCell>
+                  <TableCell align="right">{t('sessionList.locHeader')}</TableCell>
                   <TableCell align="right">{t('sessionList.tokensHeader')}</TableCell>
                   <TableCell align="right">{t('sessionList.costHeader')}</TableCell>
                   <TableCell align="right">{t('sessionList.messagesHeader')}</TableCell>
                   <TableCell align="right">{t('sessionList.errorsHeader')}</TableCell>
                   <TableCell align="right">{t('sessionList.subAgents')}</TableCell>
-                  <TableCell align="right">{t('sessionList.locHeader')}</TableCell>
                   <TableCell align="right" sx={{ width: 36 }} />
                 </TableRow>
               </TableHead>
@@ -153,9 +153,6 @@ export function DailySessionList({
                     sx={{ cursor: 'pointer', '& .MuiTableCell-root': { borderColor: colors.border } }}
                     onClick={() => handleSessionClick(s.id)}
                   >
-                    <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
-                      {s.source ?? 'claude_code'}
-                    </TableCell>
                     <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
                       {formatLocalTime(s.startTime)}–{formatLocalTime(s.endTime)}
                       {s.interruption?.interrupted && (
@@ -174,6 +171,14 @@ export function DailySessionList({
                           />
                         </Tooltip>
                       )}
+                    </TableCell>
+                    <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
+                      {s.source ?? 'claude_code'}
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontFamily: 'monospace', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
+                      {s.commitStats
+                        ? `${fmtNum(s.commitStats.linesAdded - s.commitStats.linesDeleted)} (+${fmtNum(s.commitStats.linesAdded)}/-${fmtNum(s.commitStats.linesDeleted)})`
+                        : '—'}
                     </TableCell>
                     <TableCell align="right">
                       {fmtTokens(s.usage.inputTokens + s.usage.outputTokens + s.usage.cacheReadTokens + s.usage.cacheCreationTokens)}
@@ -213,11 +218,6 @@ export function DailySessionList({
                     </TableCell>
                     <TableCell align="right">
                       {s.subAgentCount != null && s.subAgentCount > 0 ? fmtNum(s.subAgentCount) : '—'}
-                    </TableCell>
-                    <TableCell align="right" sx={{ fontFamily: 'monospace', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
-                      {s.commitStats
-                        ? `${fmtNum(s.commitStats.linesAdded - s.commitStats.linesDeleted)} (+${fmtNum(s.commitStats.linesAdded)}/-${fmtNum(s.commitStats.linesDeleted)})`
-                        : '—'}
                     </TableCell>
                     <TableCell align="right" sx={{ p: 0.5 }}>
                       {onJumpToTrace && (
