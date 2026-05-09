@@ -11,6 +11,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DocLink } from '@anytime-markdown/trail-core/c4';
 
 import { TrailViewerCore } from './TrailViewerCore';
+import { openReleasesPopup } from './releasePopupUrl';
 import { useTrailDataSource } from '../hooks/useTrailDataSource';
 import { useC4DataSource } from '../c4/hooks/useC4DataSource';
 import { useTraceFiles } from '../hooks/useTraceFiles';
@@ -41,6 +42,8 @@ export interface TrailViewerAppProps {
   readonly initialTab?: number;
   /** C4 ビューアの初期表示レベル（1=L1 Context, 2=L2 Container, 3=L3 Component, 4=L4 Code）*/
   readonly initialC4Level?: number;
+  /** Releases タブを別ウィンドウで開く処理。未指定なら現在 URL の tab=3 を開く。 */
+  readonly onOpenReleasesPopup?: () => void;
   /**
    * WebSocket 接続を無効化する。
    * web アプリなど WebSocket サーバーが存在しない場合に true を渡す。
@@ -58,6 +61,7 @@ export function TrailViewerApp({
   onDocLinkClick,
   initialTab,
   initialC4Level,
+  onOpenReleasesPopup,
   disableWebSocket = false,
 }: Readonly<TrailViewerAppProps>) {
   const dataSource = useTrailDataSource(serverUrl);
@@ -215,6 +219,7 @@ export function TrailViewerApp({
       c4={c4Props}
       traceFiles={traceFiles.length > 0 ? traceFiles : undefined}
       initialTab={initialTab}
+      onOpenReleasesPopup={onOpenReleasesPopup ?? openReleasesPopup}
       sendCommand={sendCommand}
       wsConnected={c4.connected}
     />

@@ -8,5 +8,8 @@ import { TrailViewerApp } from '@anytime-markdown/trail-viewer';
  * c4 dataSource の sendCommand に変換される。
  */
 export function StandaloneTrailViewer({ isDark = true }: Readonly<{ isDark?: boolean }>) {
-  return <TrailViewerApp serverUrl={globalThis.location.origin} isDark={isDark} editable />;
+  const initialTabParam = new URLSearchParams(globalThis.location.search).get('tab');
+  const initialTab = initialTabParam === null ? undefined : Number(initialTabParam);
+
+  return <TrailViewerApp serverUrl={globalThis.location.origin} isDark={isDark} editable initialTab={initialTab} />;
 }
