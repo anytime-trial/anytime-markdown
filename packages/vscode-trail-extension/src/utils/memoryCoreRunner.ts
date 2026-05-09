@@ -12,6 +12,7 @@ import {
   runReviewIncremental,
   runSpecIncremental,
   runAgentRunWatchdog,
+  runDriftDetection,
 } from '@anytime-markdown/memory-core';
 
 export interface MemoryCoreRunner {
@@ -170,6 +171,18 @@ export function createMemoryCoreRunner(opts: {
               `[${new Date().toISOString()}] [INFO] Spec incremental: status=${specResult.status}, items_processed=${specResult.items_processed}, ` +
                 `items_skipped=${specResult.items_skipped}, entities_inserted=${specResult.entities_inserted}, ` +
                 `edges_inserted=${specResult.edges_inserted}, duration_ms=${specResult.duration_ms}`,
+            );
+
+            // ── Drift detection pipeline ─────────────────────────────────────
+            logger.info(`[${new Date().toISOString()}] [INFO] Running drift detection`);
+            const driftResult = await runDriftDetection({
+              db: memDb.db,
+              logger,
+            });
+            logger.info(
+              `[${new Date().toISOString()}] [INFO] Drift detection: status=${driftResult.status}, ` +
+                `events_inserted=${driftResult.events_inserted}, events_updated=${driftResult.events_updated}, ` +
+                `events_resolved=${driftResult.events_resolved}, duration_ms=${driftResult.duration_ms}`,
             );
           } finally {
             // Release the WASM heap copy of trail DB (~800MB) after every run.

@@ -58,3 +58,6 @@ export { explainDrift } from './retrieve/explainDrift';
 export type { ExplainDriftResult, DriftSourceEvidence } from './retrieve/explainDrift';
 export { resolveDrift } from './retrieve/resolveDrift';
 export type { ResolveDriftResult } from './retrieve/resolveDrift';
+
+export { runDriftDetection } from './pipeline/runDriftDetection';
+export type { DriftDetectionResult } from './pipeline/runDriftDetection';
