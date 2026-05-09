@@ -7,6 +7,9 @@ import type { RouteOpts } from './router.js';
 import { SearchMemoryInputSchema, handleSearchMemory } from './tools/searchMemory.js';
 import { ListRecurringBugsInputSchema, handleListRecurringBugs } from './tools/listRecurringBugs.js';
 import { GetBugHistoryInputSchema, handleGetBugHistory } from './tools/getBugHistory.js';
+import { ListUnaddressedReviewFindingsInputSchema, handleListUnaddressedReviewFindings } from './tools/listUnaddressedReviewFindings.js';
+import { GetReviewHistoryInputSchema, handleGetReviewHistory } from './tools/getReviewHistory.js';
+import { LinkReviewToCommitInputSchema, handleLinkReviewToCommit } from './tools/linkReviewToCommit.js';
 
 export interface McpTrailOptions {
   serverUrl?: string;
@@ -382,6 +385,57 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
     },
     async (args) => {
       const result = await handleGetBugHistory(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  //  Review tools (memory-core)
+  // -------------------------------------------------------------------------
+
+  server.tool(
+    'list_unaddressed_review_findings',
+    'List review findings that have not yet been addressed, with optional severity/age/category filters',
+    {
+      severity: ListUnaddressedReviewFindingsInputSchema.shape.severity,
+      daysSinceMin: ListUnaddressedReviewFindingsInputSchema.shape.daysSinceMin,
+      target_file_path: ListUnaddressedReviewFindingsInputSchema.shape.target_file_path,
+      category: ListUnaddressedReviewFindingsInputSchema.shape.category,
+      limit: ListUnaddressedReviewFindingsInputSchema.shape.limit,
+    },
+    async (args) => {
+      const result = await handleListUnaddressedReviewFindings(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.tool(
+    'get_review_history',
+    'Retrieve review history with findings, optionally including linked bug entities via precedes edges',
+    {
+      target_file_path: GetReviewHistoryInputSchema.shape.target_file_path,
+      package: GetReviewHistoryInputSchema.shape.package,
+      category: GetReviewHistoryInputSchema.shape.category,
+      include_precedes_bugs: GetReviewHistoryInputSchema.shape.include_precedes_bugs,
+      limit: GetReviewHistoryInputSchema.shape.limit,
+    },
+    async (args) => {
+      const result = await handleGetReviewHistory(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.tool(
+    'link_review_to_commit',
+    'Mark a review finding as addressed by a specific commit, inserting an addresses edge',
+    {
+      finding_id: LinkReviewToCommitInputSchema.shape.finding_id,
+      commit_sha: LinkReviewToCommitInputSchema.shape.commit_sha,
+      addressed_at: LinkReviewToCommitInputSchema.shape.addressed_at,
+      override_auto: LinkReviewToCommitInputSchema.shape.override_auto,
+    },
+    async (args) => {
+      const result = await handleLinkReviewToCommit(args);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );

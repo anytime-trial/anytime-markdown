@@ -36,3 +36,10 @@ export { listRecurringBugs } from './retrieve/listRecurringBugs';
 export type { RecurringBugGroup, BugFixSummary } from './retrieve/listRecurringBugs';
 export { getBugHistory } from './retrieve/getBugHistory';
 export type { BugHistoryEntry, CausedByRef } from './retrieve/getBugHistory';
+
+export { listUnaddressedReviewFindings } from './retrieve/listUnaddressedReviewFindings';
+export type { UnaddressedReviewFinding } from './retrieve/listUnaddressedReviewFindings';
+export { getReviewHistory } from './retrieve/getReviewHistory';
+export type { ReviewHistoryEntry, ReviewFindingSummary } from './retrieve/getReviewHistory';
+export { linkReviewToCommit } from './retrieve/linkReviewToCommit';
+export type { LinkReviewToCommitResult } from './retrieve/linkReviewToCommit';
