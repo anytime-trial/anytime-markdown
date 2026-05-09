@@ -10,7 +10,6 @@ export type {
   TrailEvaluation,
 } from './types';
 
-export { parseSession } from './parseSession';
 export { buildMessageTree } from './buildMessageTree';
 export { filterMessages } from './filterMessages';
 export { aggregateUsage } from './aggregateUsage';
