@@ -42,7 +42,7 @@ export interface AnalyticsData {
     readonly estimatedCostUsd: number;
     readonly commits: number;
     readonly linesAdded: number;
-    readonly linesDeleted: number;
+    readonly linesDeleted?: number;
   }[];
 }
 

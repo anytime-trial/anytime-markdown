@@ -5804,7 +5804,7 @@ export class TrailDatabase {
        WHERE DATE(s.start_time, '${tzOffset}') >= DATE('now', '${tzOffset}', '-180 days')
        GROUP BY date, s.source`,
     );
-    type DailyEntry = { sessions: number; inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheCreationTokens: number; estimatedCostUsd: number; commits: number; linesAdded: number };
+    type DailyEntry = { sessions: number; inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheCreationTokens: number; estimatedCostUsd: number; commits: number; linesAdded: number; linesDeleted: number };
     const dailyMap = new Map<string, DailyEntry>();
     for (const row of dailyMsgResult[0]?.values ?? []) {
       const date = String(row[0]);
@@ -5817,7 +5817,7 @@ export class TrailDatabase {
       const missingTurns = Number(row[7]);
       const observed = totalTurns - missingTurns;
       const factor = observed > 0 ? totalTurns / observed : 1;
-      const entry = dailyMap.get(date) ?? { sessions: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, estimatedCostUsd: 0, commits: 0, linesAdded: 0 };
+      const entry = dailyMap.get(date) ?? { sessions: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, estimatedCostUsd: 0, commits: 0, linesAdded: 0, linesDeleted: 0 };
       entry.inputTokens += Math.round(rawInput * factor);
       entry.outputTokens += Math.round(rawOutput * factor);
       entry.cacheReadTokens += Math.round(rawCacheRead * factor);
@@ -5829,7 +5829,7 @@ export class TrailDatabase {
       const source = String(row[1] ?? '');
       const rawCost = Number(row[2]);
       const factor = factorBySource.get(source) ?? 1;
-      const entry = dailyMap.get(date) ?? { sessions: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, estimatedCostUsd: 0, commits: 0, linesAdded: 0 };
+      const entry = dailyMap.get(date) ?? { sessions: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, estimatedCostUsd: 0, commits: 0, linesAdded: 0, linesDeleted: 0 };
       entry.estimatedCostUsd += rawCost * factor;
       dailyMap.set(date, entry);
     }
@@ -5839,12 +5839,13 @@ export class TrailDatabase {
       `SELECT date,
               SUM(sessions) AS sessions,
               SUM(commits) AS commits,
-              SUM(loc) AS loc
+              SUM(loc_added) AS loc_added,
+              SUM(loc_deleted) AS loc_deleted
        FROM (
-         SELECT DATE(start_time, '${tzOffset}') AS date, COUNT(*) AS sessions, 0 AS commits, 0 AS loc
+         SELECT DATE(start_time, '${tzOffset}') AS date, COUNT(*) AS sessions, 0 AS commits, 0 AS loc_added, 0 AS loc_deleted
          FROM sessions WHERE start_time != '' GROUP BY date
          UNION ALL
-         SELECT DATE(committed_at, '${tzOffset}') AS date, 0 AS sessions, COUNT(*) AS commits, SUM(lines_added) AS loc
+         SELECT DATE(committed_at, '${tzOffset}') AS date, 0 AS sessions, COUNT(*) AS commits, SUM(lines_added) AS loc_added, SUM(lines_deleted) AS loc_deleted
          FROM session_commits WHERE committed_at != '' GROUP BY date
        )
        WHERE date >= DATE('now', '${tzOffset}', '-180 days')
@@ -5852,10 +5853,11 @@ export class TrailDatabase {
     );
     for (const row of dailyStatsResult[0]?.values ?? []) {
       const date = String(row[0]);
-      const entry = dailyMap.get(date) ?? { sessions: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, estimatedCostUsd: 0, commits: 0, linesAdded: 0 };
+      const entry = dailyMap.get(date) ?? { sessions: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, estimatedCostUsd: 0, commits: 0, linesAdded: 0, linesDeleted: 0 };
       entry.sessions += Number(row[1]);
       entry.commits += Number(row[2]);
       entry.linesAdded += Number(row[3]);
+      entry.linesDeleted += Number(row[4]);
       dailyMap.set(date, entry);
     }
 
