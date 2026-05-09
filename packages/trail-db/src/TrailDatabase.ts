@@ -199,6 +199,9 @@ export interface SessionRow {
   readonly interruption_reason?: string | null;
   readonly interruption_context_tokens?: number;
   readonly compact_count?: number;
+  readonly sub_agent_count?: number | null;
+  readonly error_count?: number | null;
+  readonly assistant_message_count?: number | null;
   readonly source?: string;
 }
 
@@ -1381,6 +1384,9 @@ export class TrailDatabase {
       'ALTER TABLE sessions ADD COLUMN compact_count INTEGER',
       'ALTER TABLE sessions ADD COLUMN message_commits_resolved_at TEXT',
       "ALTER TABLE sessions ADD COLUMN source TEXT NOT NULL DEFAULT 'claude_code'",
+      'ALTER TABLE sessions ADD COLUMN sub_agent_count INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE sessions ADD COLUMN error_count INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE sessions ADD COLUMN assistant_message_count INTEGER NOT NULL DEFAULT 0',
     ];
     for (const sql of sessionAlters) {
       try { db.run(sql); } catch { /* Column already exists */ }
@@ -1455,6 +1461,11 @@ export class TrailDatabase {
     } catch (e) {
       this.logger.warn(`backfillRepoName_v1 (init) failed (non-fatal): ${e instanceof Error ? e.message : String(e)}`);
     }
+    try {
+      this.backfillDerivedCounts_v1();
+    } catch (e) {
+      this.logger.warn(`backfillDerivedCounts_v1 (init) failed (non-fatal): ${e instanceof Error ? e.message : String(e)}`);
+    }
     // ALTER TABLE / backfill 等のスキーマ変更をディスクに永続化する。
     // save() を呼ばないと _migrations フラグが保存されず、次回起動で再実行される。
     this.save();
@@ -1509,6 +1520,32 @@ export class TrailDatabase {
       `[Migration] repo_name_backfill_v1: session_commits non-empty=${String(updatedCommits)}, commit_files non-empty=${String(updatedFiles)}`,
     );
     db.run("INSERT OR IGNORE INTO _migrations (key) VALUES ('repo_name_backfill_v1')");
+  }
+
+  private backfillDerivedCounts_v1(): void {
+    const db = this.ensureDb();
+    db.run('CREATE TABLE IF NOT EXISTS _migrations (key TEXT PRIMARY KEY)');
+    const done = db.exec("SELECT 1 FROM _migrations WHERE key = 'derived_counts_backfill_v1'");
+    if (done[0]?.values?.length) return;
+
+    const startedAt = Date.now();
+    db.run(
+      `UPDATE sessions SET
+         sub_agent_count = COALESCE((
+           SELECT COUNT(*) FROM message_tool_calls
+           WHERE session_id = sessions.id AND tool_name = 'Agent'
+         ), 0),
+         error_count = COALESCE((
+           SELECT COUNT(*) FROM message_tool_calls
+           WHERE session_id = sessions.id AND is_error = 1
+         ), 0),
+         assistant_message_count = COALESCE((
+           SELECT COUNT(*) FROM messages
+           WHERE session_id = sessions.id AND type = 'assistant' AND is_meta = 0
+         ), 0)`,
+    );
+    db.run("INSERT OR IGNORE INTO _migrations (key) VALUES ('derived_counts_backfill_v1')");
+    this.logger.info(`[Migration] derived_counts_backfill_v1: done (${Date.now() - startedAt}ms)`);
   }
 
   private backfillSourceToolLinkFields(): void {
@@ -2264,6 +2301,22 @@ export class TrailDatabase {
            WHERE session_id = sessions.id AND type = 'assistant' AND is_meta = 0
          ) WHERE prev_cr >= 50000 AND cache_read_tokens <= prev_cr * 0.3
        ), 0)`,
+    );
+
+    db.run(
+      `UPDATE sessions SET
+         sub_agent_count = COALESCE((
+           SELECT COUNT(*) FROM message_tool_calls
+           WHERE session_id = sessions.id AND tool_name = 'Agent'
+         ), 0),
+         error_count = COALESCE((
+           SELECT COUNT(*) FROM message_tool_calls
+           WHERE session_id = sessions.id AND is_error = 1
+         ), 0),
+         assistant_message_count = COALESCE((
+           SELECT COUNT(*) FROM messages
+           WHERE session_id = sessions.id AND type = 'assistant' AND is_meta = 0
+         ), 0)`,
     );
   }
 

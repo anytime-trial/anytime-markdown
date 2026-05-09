@@ -200,7 +200,14 @@ export function DailySessionList({
                     <TableCell align="right">
                       {fmtUsd(sessionCost(s))}
                     </TableCell>
-                    <TableCell align="right">{fmtNum(s.messageCount)}</TableCell>
+                    <TableCell align="right">
+                      {fmtNum(s.messageCount)}
+                      {s.assistantMessageCount != null && s.assistantMessageCount > 0 && (
+                        <Typography component="span" variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.7em' }}>
+                          ({fmtNum(s.assistantMessageCount)} {t('analytics.turns')})
+                        </Typography>
+                      )}
+                    </TableCell>
                     <TableCell align="right">
                       {s.errorCount != null && s.errorCount > 0 ? fmtNum(s.errorCount) : '—'}
                     </TableCell>

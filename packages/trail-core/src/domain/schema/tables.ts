@@ -41,6 +41,9 @@ export const CREATE_SESSIONS = `CREATE TABLE IF NOT EXISTS sessions (
   interruption_reason TEXT,
   interruption_context_tokens INTEGER,
   message_commits_resolved_at TEXT CHECK (message_commits_resolved_at IS NULL OR message_commits_resolved_at = '' OR message_commits_resolved_at GLOB ${TS_GLOB_MS} OR message_commits_resolved_at GLOB ${TS_GLOB_NO_MS}),
+  sub_agent_count         INTEGER NOT NULL DEFAULT 0,
+  error_count             INTEGER NOT NULL DEFAULT 0,
+  assistant_message_count INTEGER NOT NULL DEFAULT 0,
   source TEXT NOT NULL DEFAULT 'claude_code'
     CHECK (source IN ('claude_code', 'codex', 'gemini', 'cursor', 'other'))
 ) STRICT`;

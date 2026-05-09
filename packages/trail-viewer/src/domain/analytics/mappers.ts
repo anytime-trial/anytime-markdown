@@ -17,8 +17,6 @@ export function extractWorkspace(filePath: string | undefined | null): string | 
 export function toTrailSession(
   r: SessionDbRow,
   commits: readonly CommitDbRow[],
-  errorCount?: number,
-  subAgentCount?: number,
 ): TrailSession {
   const commitStats = commits.length > 0
     ? {
@@ -66,8 +64,10 @@ export function toTrailSession(
       cacheCreationTokens: totalCacheCreation,
     },
     estimatedCostUsd: totalCostUsd,
-    errorCount: errorCount && errorCount > 0 ? errorCount : undefined,
-    subAgentCount: subAgentCount && subAgentCount > 0 ? subAgentCount : undefined,
+    errorCount: r.error_count && r.error_count > 0 ? r.error_count : undefined,
+    subAgentCount: r.sub_agent_count && r.sub_agent_count > 0 ? r.sub_agent_count : undefined,
+    assistantMessageCount: r.assistant_message_count && r.assistant_message_count > 0
+      ? r.assistant_message_count : undefined,
   };
 }
 
