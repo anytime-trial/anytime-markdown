@@ -9,9 +9,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { DocLink } from '@anytime-markdown/trail-core/c4';
-import { DEFAULT_COMMIT_CATEGORIES } from '@anytime-markdown/trail-core/commitCategories';
-import { DEFAULT_TOOL_CATEGORIES } from '@anytime-markdown/trail-core/toolCategories';
-import { DEFAULT_SKILL_CATEGORIES } from '@anytime-markdown/trail-core/skillCategories';
+import { DEFAULT_COMMIT_CATEGORIES, DEFAULT_COMMIT_CATEGORY_LABELS } from '@anytime-markdown/trail-core/commitCategories';
+import { DEFAULT_TOOL_CATEGORIES, DEFAULT_TOOL_CATEGORY_LABELS } from '@anytime-markdown/trail-core/toolCategories';
+import { DEFAULT_SKILL_CATEGORIES, DEFAULT_SKILL_CATEGORY_LABELS } from '@anytime-markdown/trail-core/skillCategories';
 
 import { TrailViewerCore } from './TrailViewerCore';
 import { useTrailDataSource } from '../hooks/useTrailDataSource';
@@ -67,12 +67,12 @@ export function TrailViewerApp({
   const c4 = useC4DataSource(serverUrl, disableWebSocket);
   const sendCommand = c4.sendCommand;
 
-  const [commitCategories, setCommitCategories] = useState<ReadonlyMap<string, number>>(
-    DEFAULT_COMMIT_CATEGORIES,
-  );
-  const [toolCategories, setToolCategories] = useState<ReadonlyMap<string, number>>(
-    DEFAULT_TOOL_CATEGORIES,
-  );
+  const [commitCategories, setCommitCategories] = useState<ReadonlyMap<string, number>>(DEFAULT_COMMIT_CATEGORIES);
+  const [commitCategoryLabels, setCommitCategoryLabels] = useState<ReadonlyMap<number, string>>(DEFAULT_COMMIT_CATEGORY_LABELS);
+  const [toolCategories, setToolCategories] = useState<ReadonlyMap<string, number>>(DEFAULT_TOOL_CATEGORIES);
+  const [toolCategoryLabels, setToolCategoryLabels] = useState<ReadonlyMap<number, string>>(DEFAULT_TOOL_CATEGORY_LABELS);
+  const [skillCategories, setSkillCategories] = useState<ReadonlyMap<string, number>>(DEFAULT_SKILL_CATEGORIES);
+  const [skillCategoryLabels, setSkillCategoryLabels] = useState<ReadonlyMap<number, string>>(DEFAULT_SKILL_CATEGORY_LABELS);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,10 +80,10 @@ export function TrailViewerApp({
       try {
         const res = await fetch(`${serverUrl}/api/config/commit-categories`);
         if (!res.ok) return;
-        const json = await res.json() as Record<string, number>;
-        if (!cancelled && typeof json === 'object' && json !== null) {
-          setCommitCategories(new Map(Object.entries(json)));
-        }
+        const json = await res.json() as { entries?: Record<string, number>; categories?: Record<string, string> };
+        if (cancelled || typeof json !== 'object' || json === null) return;
+        if (json.entries) setCommitCategories(new Map(Object.entries(json.entries) as [string, number][]));
+        if (json.categories) setCommitCategoryLabels(new Map(Object.entries(json.categories).map(([k, v]) => [Number(k), v])));
       } catch {
         // サーバーが未対応の場合はデフォルトのままにする
       }
@@ -91,20 +91,16 @@ export function TrailViewerApp({
     return () => { cancelled = true; };
   }, [serverUrl]);
 
-  const [skillCategories, setSkillCategories] = useState<ReadonlyMap<string, number>>(
-    DEFAULT_SKILL_CATEGORIES,
-  );
-
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
         const res = await fetch(`${serverUrl}/api/config/tool-categories`);
         if (!res.ok) return;
-        const json = await res.json() as Record<string, number>;
-        if (!cancelled && typeof json === 'object' && json !== null) {
-          setToolCategories(new Map(Object.entries(json)));
-        }
+        const json = await res.json() as { entries?: Record<string, number>; categories?: Record<string, string> };
+        if (cancelled || typeof json !== 'object' || json === null) return;
+        if (json.entries) setToolCategories(new Map(Object.entries(json.entries) as [string, number][]));
+        if (json.categories) setToolCategoryLabels(new Map(Object.entries(json.categories).map(([k, v]) => [Number(k), v])));
       } catch {
         // サーバーが未対応の場合はデフォルトのままにする
       }
@@ -118,10 +114,10 @@ export function TrailViewerApp({
       try {
         const res = await fetch(`${serverUrl}/api/config/skill-categories`);
         if (!res.ok) return;
-        const json = await res.json() as Record<string, number>;
-        if (!cancelled && typeof json === 'object' && json !== null) {
-          setSkillCategories(new Map(Object.entries(json)));
-        }
+        const json = await res.json() as { entries?: Record<string, number>; categories?: Record<string, string> };
+        if (cancelled || typeof json !== 'object' || json === null) return;
+        if (json.entries) setSkillCategories(new Map(Object.entries(json.entries) as [string, number][]));
+        if (json.categories) setSkillCategoryLabels(new Map(Object.entries(json.categories).map(([k, v]) => [Number(k), v])));
       } catch {
         // サーバーが未対応の場合はデフォルトのままにする
       }
@@ -284,8 +280,11 @@ export function TrailViewerApp({
       wsConnected={c4.connected}
       serverUrl={serverUrl}
       commitCategories={commitCategories}
+      commitCategoryLabels={commitCategoryLabels}
       toolCategories={toolCategories}
+      toolCategoryLabels={toolCategoryLabels}
       skillCategories={skillCategories}
+      skillCategoryLabels={skillCategoryLabels}
     />
   );
 }

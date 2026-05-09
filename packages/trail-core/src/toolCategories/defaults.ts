@@ -1,3 +1,11 @@
+export const DEFAULT_TOOL_CATEGORY_LABELS: ReadonlyMap<number, string> = new Map<number, string>([
+  [0, 'ファイル操作'],
+  [1, 'Web・ブラウザ'],
+  [2, 'コード解析'],
+  [3, 'タスク管理'],
+  [4, 'その他'],
+]);
+
 export const DEFAULT_TOOL_CATEGORIES: ReadonlyMap<string, number> = new Map<string, number>([
   // 0: ファイル操作
   ['Bash', 0], ['Read', 0], ['Edit', 0], ['Grep', 0], ['Write', 0], ['Glob', 0],

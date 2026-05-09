@@ -32,10 +32,8 @@ export function CommitsCombinedChart({
   onDateClick?: (date: string) => void;
 }>) {
   const { cardSx, commitCategoryColors } = useTrailTheme();
-  const { getCategory } = useCommitCategory();
+  const { getCategory, getCategoryLabel } = useCommitCategory();
   const { commitRows, commitPeriods, commitLabels, commitPrefixes, aiRateRows } = axisInfo;
-
-  const CATEGORY_LABELS = ['計画的開発', '事後対応', 'その他'] as const;
 
   const commitDataset = useMemo(() => {
     const valMap = new Map<string, number>();
@@ -73,7 +71,7 @@ export function CommitsCombinedChart({
   const barSeries = ([0, 1, 2] as const).map((cat) => ({
     type: 'bar' as const,
     dataKey: `c${cat}`,
-    label: CATEGORY_LABELS[cat],
+    label: getCategoryLabel(cat),
     stack: 'total',
     color: commitCategoryColors[cat],
     yAxisId: 'countAxis',

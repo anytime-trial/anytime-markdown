@@ -3,6 +3,12 @@
  * キーは extractCommitPrefix が返す lowercase prefix。
  * 値: 0=計画的開発 / 1=事後対応（不具合） / 2=その他
  */
+export const DEFAULT_COMMIT_CATEGORY_LABELS: ReadonlyMap<number, string> = new Map<number, string>([
+  [0, '計画的開発'],
+  [1, '事後対応（不具合）'],
+  [2, 'その他'],
+]);
+
 export const DEFAULT_COMMIT_CATEGORIES: ReadonlyMap<string, number> = new Map<string, number>([
   ['feat', 0], ['refactor', 0], ['docs', 0], ['test', 0], ['perf', 0],
   ['style', 0], ['a11y', 0], ['ci', 0], ['build', 0], ['chore', 0], ['i18n', 0],

@@ -8,7 +8,6 @@ import type { CombinedAxisInfo } from './axisInfo';
 import { hideZero, makeAxisClick } from './axisInfo';
 import { useSkillCategory } from '../../../SkillCategoryContext';
 
-const SKILL_CATEGORY_LABELS = ['開発フロー', 'ドキュメント', '調査・分析', 'AIツール', 'その他'] as const;
 const CATEGORIES = [0, 1, 2, 3, 4] as const;
 
 export function SkillsCombinedChart({
@@ -21,7 +20,7 @@ export function SkillsCombinedChart({
   onDateClick?: (date: string) => void;
 }>) {
   const { cardSx, skillCategoryColors } = useTrailTheme();
-  const { getSkillCategory } = useSkillCategory();
+  const { getSkillCategory, getSkillCategoryLabel } = useSkillCategory();
   const { skillRows, allPeriods, labels } = axisInfo;
 
   const dataset = useMemo(() => {
@@ -52,7 +51,7 @@ export function SkillsCombinedChart({
         yAxis={[{ valueFormatter: fmtNum }]}
         series={CATEGORIES.map((cat) => ({
           dataKey: `s${cat}`,
-          label: SKILL_CATEGORY_LABELS[cat],
+          label: getSkillCategoryLabel(cat),
           stack: 'total',
           color: skillCategoryColors[cat],
           valueFormatter: hideZero,

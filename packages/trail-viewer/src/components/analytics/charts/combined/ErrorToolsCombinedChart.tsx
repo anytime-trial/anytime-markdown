@@ -35,10 +35,9 @@ export function ErrorToolsCombinedChart({
   onDateClick?: (date: string) => void;
 }>) {
   const { cardSx, toolCategoryColors } = useTrailTheme();
-  const { getToolCategory } = useToolCategory();
+  const { getToolCategory, getToolCategoryLabel } = useToolCategory();
   const { errorRows, allPeriods, labels, qualityRates } = axisInfo;
 
-  const TOOL_CATEGORY_LABELS = ['ファイル操作', 'Web・ブラウザ', 'コード解析', 'タスク管理', 'その他'] as const;
   const CATEGORIES = [0, 1, 2, 3, 4] as const;
 
   const rateByPeriod = useMemo(() => {
@@ -76,7 +75,7 @@ export function ErrorToolsCombinedChart({
   const barSeries = CATEGORIES.map((cat) => ({
     type: 'bar' as const,
     dataKey: `e${cat}`,
-    label: TOOL_CATEGORY_LABELS[cat],
+    label: getToolCategoryLabel(cat),
     stack: 'total',
     color: toolCategoryColors[cat],
     yAxisId: 'countAxis',

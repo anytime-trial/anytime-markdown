@@ -119,10 +119,16 @@ export interface TrailViewerCoreProps {
   readonly serverUrl?: string;
   /** `.trail/commit-categories.json` から読み込んだカテゴリマップ。省略時はデフォルトを使用。 */
   readonly commitCategories?: ReadonlyMap<string, number>;
+  /** `.trail/commit-categories.json` の categories フィールドから読み込んだラベルマップ。 */
+  readonly commitCategoryLabels?: ReadonlyMap<number, string>;
   /** `.trail/tool-categories.json` から読み込んだカテゴリマップ。省略時はデフォルトを使用。 */
   readonly toolCategories?: ReadonlyMap<string, number>;
+  /** `.trail/tool-categories.json` の categories フィールドから読み込んだラベルマップ。 */
+  readonly toolCategoryLabels?: ReadonlyMap<number, string>;
   /** `.trail/skill-categories.json` から読み込んだカテゴリマップ。省略時はデフォルトを使用。 */
   readonly skillCategories?: ReadonlyMap<string, number>;
+  /** `.trail/skill-categories.json` の categories フィールドから読み込んだラベルマップ。 */
+  readonly skillCategoryLabels?: ReadonlyMap<number, string>;
 }
 
 const SESSION_LIST_WIDTH = 300;
@@ -131,9 +137,9 @@ export function TrailViewerCore(props: Readonly<TrailViewerCoreProps>) {
   return (
     <TrailLocaleProvider locale={props.locale}>
       <TrailThemeProvider isDark={props.isDark ?? true}>
-        <CommitCategoryProvider categories={props.commitCategories}>
-          <ToolCategoryProvider categories={props.toolCategories}>
-            <SkillCategoryProvider categories={props.skillCategories}>
+        <CommitCategoryProvider categories={props.commitCategories} categoryLabels={props.commitCategoryLabels}>
+          <ToolCategoryProvider categories={props.toolCategories} categoryLabels={props.toolCategoryLabels}>
+            <SkillCategoryProvider categories={props.skillCategories} categoryLabels={props.skillCategoryLabels}>
               <TrailViewerCoreInner {...props} />
             </SkillCategoryProvider>
           </ToolCategoryProvider>

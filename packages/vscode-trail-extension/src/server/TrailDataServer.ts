@@ -19,9 +19,9 @@ import {
   parseCoverage,
 } from '@anytime-markdown/trail-core/c4';
 import { analyze } from '@anytime-markdown/trail-core/analyze';
-import { loadCommitCategories } from '@anytime-markdown/trail-core/commitCategories';
-import { loadToolCategories } from '@anytime-markdown/trail-core/toolCategories';
-import { loadSkillCategories } from '@anytime-markdown/trail-core/skillCategories';
+import { loadCommitCategories, loadCommitCategoryLabels } from '@anytime-markdown/trail-core/commitCategories';
+import { loadToolCategories, loadToolCategoryLabels } from '@anytime-markdown/trail-core/toolCategories';
+import { loadSkillCategories, loadSkillCategoryLabels } from '@anytime-markdown/trail-core/skillCategories';
 import type { FileCoverage, MessageInput } from '@anytime-markdown/trail-core/c4';
 import type {
   C4Model,
@@ -736,29 +736,35 @@ export class TrailDataServer {
     }
 
     if (pathname === '/api/config/commit-categories' && method === 'GET') {
-      const map = loadCommitCategories(this.gitRoot ?? process.cwd());
-      const obj: Record<string, number> = {};
-      for (const [k, v] of map) obj[k] = v;
+      const root = this.gitRoot ?? process.cwd();
+      const entries: Record<string, number> = {};
+      for (const [k, v] of loadCommitCategories(root)) entries[k] = v;
+      const categories: Record<string, string> = {};
+      for (const [k, v] of loadCommitCategoryLabels(root)) categories[String(k)] = v;
       res.writeHead(200, JSON_HEADERS);
-      res.end(JSON.stringify(obj));
+      res.end(JSON.stringify({ entries, categories }));
       return;
     }
 
     if (pathname === '/api/config/tool-categories' && method === 'GET') {
-      const map = loadToolCategories(this.gitRoot ?? process.cwd());
-      const obj: Record<string, number> = {};
-      for (const [k, v] of map) obj[k] = v;
+      const root = this.gitRoot ?? process.cwd();
+      const entries: Record<string, number> = {};
+      for (const [k, v] of loadToolCategories(root)) entries[k] = v;
+      const categories: Record<string, string> = {};
+      for (const [k, v] of loadToolCategoryLabels(root)) categories[String(k)] = v;
       res.writeHead(200, JSON_HEADERS);
-      res.end(JSON.stringify(obj));
+      res.end(JSON.stringify({ entries, categories }));
       return;
     }
 
     if (pathname === '/api/config/skill-categories' && method === 'GET') {
-      const map = loadSkillCategories(this.gitRoot ?? process.cwd());
-      const obj: Record<string, number> = {};
-      for (const [k, v] of map) obj[k] = v;
+      const root = this.gitRoot ?? process.cwd();
+      const entries: Record<string, number> = {};
+      for (const [k, v] of loadSkillCategories(root)) entries[k] = v;
+      const categories: Record<string, string> = {};
+      for (const [k, v] of loadSkillCategoryLabels(root)) categories[String(k)] = v;
       res.writeHead(200, JSON_HEADERS);
-      res.end(JSON.stringify(obj));
+      res.end(JSON.stringify({ entries, categories }));
       return;
     }
 

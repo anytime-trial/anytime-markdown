@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { CommitCategoriesFile } from './types';
-import { DEFAULT_COMMIT_CATEGORIES } from './defaults';
+import { DEFAULT_COMMIT_CATEGORIES, DEFAULT_COMMIT_CATEGORY_LABELS } from './defaults';
 
 /**
  * `<workspaceRoot>/.trail/commit-categories.json` を読み込み、
@@ -37,4 +37,21 @@ export function loadCommitCategories(workspaceRoot: string): ReadonlyMap<string,
     map.set(prefix.toLowerCase(), cat);
   }
   return map;
+}
+
+export function loadCommitCategoryLabels(workspaceRoot: string): ReadonlyMap<number, string> {
+  const file = path.join(workspaceRoot, '.trail', 'commit-categories.json');
+  try {
+    const raw = fs.readFileSync(file, 'utf-8');
+    const parsed = JSON.parse(raw) as CommitCategoriesFile;
+    if (!parsed.categories || typeof parsed.categories !== 'object') return DEFAULT_COMMIT_CATEGORY_LABELS;
+    const map = new Map<number, string>();
+    for (const [k, v] of Object.entries(parsed.categories)) {
+      const n = Number(k);
+      if (Number.isInteger(n) && typeof v === 'string' && v.length > 0) map.set(n, v);
+    }
+    return map.size > 0 ? map : DEFAULT_COMMIT_CATEGORY_LABELS;
+  } catch {
+    return DEFAULT_COMMIT_CATEGORY_LABELS;
+  }
 }

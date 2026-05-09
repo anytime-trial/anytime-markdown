@@ -1,3 +1,11 @@
+export const DEFAULT_SKILL_CATEGORY_LABELS: ReadonlyMap<number, string> = new Map<number, string>([
+  [0, '開発フロー'],
+  [1, 'ドキュメント'],
+  [2, '調査・分析'],
+  [3, 'AIツール'],
+  [4, 'その他'],
+]);
+
 export const DEFAULT_SKILL_CATEGORIES: ReadonlyMap<string, number> = new Map<string, number>([
   // 0: 開発フロー — superpowers:* はデフォルト 0、個別上書きあり
   ['superpowers:*', 0],

@@ -9,7 +9,6 @@ import type { CombinedAxisInfo } from './axisInfo';
 import { makeAxisClick } from './axisInfo';
 import { useToolCategory } from '../../../ToolCategoryContext';
 
-const TOOL_CATEGORY_LABELS = ['ファイル操作', 'Web・ブラウザ', 'コード解析', 'タスク管理', 'その他'] as const;
 const CATEGORIES = [0, 1, 2, 3, 4] as const;
 
 export function ToolsCombinedChart({
@@ -24,7 +23,7 @@ export function ToolsCombinedChart({
   onDateClick?: (date: string) => void;
 }>) {
   const { cardSx, toolCategoryColors } = useTrailTheme();
-  const { getToolCategory } = useToolCategory();
+  const { getToolCategory, getToolCategoryLabel } = useToolCategory();
   const { toolRows, allPeriods, labels } = axisInfo;
 
   const dataset = useMemo(() => {
@@ -62,7 +61,7 @@ export function ToolsCombinedChart({
         yAxis={[{ valueFormatter: fmtTokens }]}
         series={CATEGORIES.map((cat) => ({
           dataKey: `t${cat}`,
-          label: TOOL_CATEGORY_LABELS[cat],
+          label: getToolCategoryLabel(cat),
           stack: 'total',
           color: toolCategoryColors[cat],
           valueFormatter: tooltipFormatter,
