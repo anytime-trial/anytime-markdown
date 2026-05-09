@@ -11,7 +11,6 @@ import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { formatLocalTime, toLocalDateKey } from '@anytime-markdown/trail-core/formatDate';
 import { useTrailTheme } from '../../TrailThemeContext';
@@ -56,18 +55,6 @@ export function DailySessionList({
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [sessionToolMetrics, setSessionToolMetrics] = useState<ToolMetrics | null>(null);
   const [dayAggToolMetrics, setDayAggToolMetrics] = useState<ToolMetrics | null>(null);
-  const [copiedSessionId, setCopiedSessionId] = useState<string | null>(null);
-
-  const handleCopySessionId = useCallback(
-    (id: string) => (e: React.MouseEvent) => {
-      e.stopPropagation();
-      void navigator.clipboard.writeText(id).then(() => {
-        setCopiedSessionId(id);
-        setTimeout(() => setCopiedSessionId(null), 2000);
-      });
-    },
-    [],
-  );
   const daySessions = sessions.filter((s) => toLocalDateKey(s.startTime) === date);
   const sessionCountLabel = daySessions.length !== 1
     ? t('sessionList.sessions')
@@ -156,32 +143,18 @@ export function DailySessionList({
                     onClick={() => handleSessionClick(s.id)}
                   >
                     <TableCell sx={{ maxWidth: 200, minWidth: 120 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5 }}>
-                        <Box sx={{ flex: 1, minWidth: 0 }}>
-                          <Typography
-                            variant="body2"
-                            sx={{ fontWeight: 600, color: colors.iceBlue, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                          >
-                            {s.slug ?? s.id.slice(0, 8)}
-                          </Typography>
-                          <Typography
-                            variant="caption"
-                            sx={{ color: colors.textSecondary, fontFamily: 'monospace', display: 'block' }}
-                          >
-                            {s.id.slice(0, 8)}
-                          </Typography>
-                        </Box>
-                        <Tooltip title={copiedSessionId === s.id ? t('sessionList.copied') : t('sessionList.copyId')}>
-                          <IconButton
-                            size="small"
-                            onClick={handleCopySessionId(s.id)}
-                            sx={{ p: 0.25, color: colors.textSecondary, '&:hover': { color: colors.iceBlue }, flexShrink: 0 }}
-                            aria-label={t('sessionList.copyId')}
-                          >
-                            <ContentCopyIcon sx={{ fontSize: 12 }} />
-                          </IconButton>
-                        </Tooltip>
-                      </Box>
+                      <Typography
+                        variant="body2"
+                        sx={{ fontWeight: 600, color: colors.iceBlue, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                      >
+                        {s.slug ?? s.id.slice(0, 8)}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        sx={{ color: colors.textSecondary, fontFamily: 'monospace', display: 'block' }}
+                      >
+                        {s.id.slice(0, 8)}
+                      </Typography>
                     </TableCell>
                     <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
                       {formatLocalTime(s.startTime)}–{formatLocalTime(s.endTime)}
