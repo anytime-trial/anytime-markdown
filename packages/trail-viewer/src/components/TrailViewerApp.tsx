@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { DocLink } from '@anytime-markdown/trail-core/c4';
+import { DEFAULT_COMMIT_CATEGORIES } from '@anytime-markdown/trail-core/commitCategories';
 
 import { TrailViewerCore } from './TrailViewerCore';
 import { useTrailDataSource } from '../hooks/useTrailDataSource';
@@ -63,6 +64,27 @@ export function TrailViewerApp({
   const dataSource = useTrailDataSource(serverUrl);
   const c4 = useC4DataSource(serverUrl, disableWebSocket);
   const sendCommand = c4.sendCommand;
+
+  const [commitCategories, setCommitCategories] = useState<ReadonlyMap<string, number>>(
+    DEFAULT_COMMIT_CATEGORIES,
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`${serverUrl}/api/config/commit-categories`);
+        if (!res.ok) return;
+        const json = await res.json() as Record<string, number>;
+        if (!cancelled && typeof json === 'object' && json !== null) {
+          setCommitCategories(new Map(Object.entries(json)));
+        }
+      } catch {
+        // サーバーが未対応の場合はデフォルトのままにする
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [serverUrl]);
 
   const fetchTraceList = useCallback(async () => {
     const res = await fetch(`${serverUrl}/api/trace/list`);
@@ -218,6 +240,7 @@ export function TrailViewerApp({
       sendCommand={sendCommand}
       wsConnected={c4.connected}
       serverUrl={serverUrl}
+      commitCategories={commitCategories}
     />
   );
 }
