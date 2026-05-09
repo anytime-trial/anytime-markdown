@@ -31,31 +31,28 @@ export function CommitsCombinedChart({
   canDrill: boolean;
   onDateClick?: (date: string) => void;
 }>) {
-  const { cardSx } = useTrailTheme();
-  const { getCategoryColor, getCategory } = useCommitCategory();
-  const { commitRows, commitPeriods, commitLabels, commitPrefixes, commitMap, aiRateRows } = axisInfo;
+  const { cardSx, commitCategoryColors } = useTrailTheme();
+  const { getCategory } = useCommitCategory();
+  const { commitRows, commitPeriods, commitLabels, commitPrefixes, aiRateRows } = axisInfo;
 
-  const sortedCommitPrefixes = useMemo(
-    () => [...commitPrefixes].sort((a, b) => getCategory(a) - getCategory(b)),
-    [commitPrefixes, getCategory],
-  );
+  const CATEGORY_LABELS = ['計画的開発', '事後対応', 'その他'] as const;
 
   const commitDataset = useMemo(() => {
     const valMap = new Map<string, number>();
     for (const r of commitRows) {
-      const displayKey = commitMap.get(r.prefix) ?? r.prefix;
-      const key = `${r.period}::${displayKey}`;
+      const cat = getCategory(r.prefix);
+      const key = `${r.period}::${cat}`;
       const value = commitMetric === 'loc' ? (r.linesAdded ?? 0) + (r.linesDeleted ?? 0) : r.count;
       valMap.set(key, (valMap.get(key) ?? 0) + value);
     }
     return commitPeriods.map((p, pi) => {
       const entry: Record<string, string | number> = { period: commitLabels[pi] };
-      for (let i = 0; i < sortedCommitPrefixes.length; i++) {
-        entry[`c${i}`] = valMap.get(`${p}::${sortedCommitPrefixes[i]}`) ?? 0;
-      }
+      entry['c0'] = valMap.get(`${p}::0`) ?? 0;
+      entry['c1'] = valMap.get(`${p}::1`) ?? 0;
+      entry['c2'] = valMap.get(`${p}::2`) ?? 0;
       return entry;
     });
-  }, [commitRows, commitPeriods, commitLabels, sortedCommitPrefixes, commitMap, commitMetric]);
+  }, [commitRows, commitPeriods, commitLabels, commitMetric, getCategory]);
 
   if (commitPrefixes.length === 0) {
     return <Typography variant="body2" color="text.secondary">0</Typography>;
@@ -73,12 +70,12 @@ export function CommitsCombinedChart({
     rate: showRate ? (rateByPeriod.get(commitPeriods[i]) ?? null) : null,
   }));
 
-  const barSeries = sortedCommitPrefixes.map((prefix, i) => ({
+  const barSeries = ([0, 1, 2] as const).map((cat) => ({
     type: 'bar' as const,
-    dataKey: `c${i}`,
-    label: prefix,
+    dataKey: `c${cat}`,
+    label: CATEGORY_LABELS[cat],
     stack: 'total',
-    color: getCategoryColor(prefix),
+    color: commitCategoryColors[cat],
     yAxisId: 'countAxis',
   }));
   const lineSeries = showRate ? [{

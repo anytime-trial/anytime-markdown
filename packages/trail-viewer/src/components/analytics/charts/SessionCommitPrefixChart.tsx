@@ -19,7 +19,7 @@ export function SessionCommitPrefixChart({
   fetchSessionCommits: (id: string) => Promise<readonly TrailSessionCommit[]>;
 }>) {
   const { colors, cardSx } = useTrailTheme();
-  const { getCategory } = useCommitCategory();
+  const { getCategoryColor } = useCommitCategory();
   const { t } = useTrailI18n();
   const [commits, setCommits] = useState<readonly TrailSessionCommit[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,23 +53,19 @@ export function SessionCommitPrefixChart({
     );
   }
 
-  const { commitCategoryColors } = useTrailTheme();
-  const categoryCounts = new Map<number, number>();
+  const prefixCounts = new Map<string, number>();
   for (const c of commits) {
     const subject = (c.commitMessage ?? '').split('\n')[0];
     const prefix = extractCommitPrefix(subject);
-    const cat = getCategory(prefix);
-    categoryCounts.set(cat, (categoryCounts.get(cat) ?? 0) + 1);
+    prefixCounts.set(prefix, (prefixCounts.get(prefix) ?? 0) + 1);
   }
-  const CATEGORY_LABELS = ['計画的開発', '事後対応', 'その他'];
-  const pieData = [...categoryCounts.entries()]
-    .sort(([a], [b]) => a - b)
-    .map(([cat, count]) => ({
-      id: cat,
-      value: count,
-      label: `${CATEGORY_LABELS[cat] ?? 'その他'} (${count})`,
-      color: commitCategoryColors[cat] ?? commitCategoryColors[2],
-    }));
+  const sorted = [...prefixCounts.entries()].sort(([, a], [, b]) => b - a);
+  const pieData = sorted.map(([prefix, count], i) => ({
+    id: i,
+    value: count,
+    label: `${prefix} (${count})`,
+    color: getCategoryColor(prefix),
+  }));
 
   return (
     <Paper elevation={0} sx={{ ...cardSx, pt: 1.5, pb: 1, flex: 1, minWidth: 0 }}>
