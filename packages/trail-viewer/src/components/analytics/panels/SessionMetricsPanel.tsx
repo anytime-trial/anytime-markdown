@@ -26,9 +26,6 @@ export function SessionMetricsPanel({ session, toolMetrics }: Readonly<{
   const totalTokens = s.usage.inputTokens + s.usage.outputTokens + s.usage.cacheReadTokens + s.usage.cacheCreationTokens;
   const cost = sessionCost(s);
   const turnCount = s.assistantMessageCount ?? s.messageCount;
-  const contextGrowth = turnCount > 0
-    ? ((s.peakContextTokens ?? 0) - (s.initialContextTokens ?? 0)) / turnCount
-    : 0;
   const linesAdded = s.commitStats?.linesAdded ?? 0;
   const tm = toolMetrics;
 
@@ -39,7 +36,6 @@ export function SessionMetricsPanel({ session, toolMetrics }: Readonly<{
     { label: t('analytics.tokens'), value: fmtTokens(totalTokens), tooltip: t('analytics.totalTokens.description') },
     { label: t('analytics.cost'), value: fmtUsd(cost), tooltip: t('analytics.estimatedCost.description') },
     { label: t('analytics.metricErrors'), value: (s.errorCount ?? 0) > 0 ? fmtNum(s.errorCount!) : '—', tooltip: t('analytics.metricErrors.description') },
-    { label: t('analytics.contextGrowth'), value: turnCount > 0 ? `${fmtTokens(Math.round(contextGrowth))}/turn` : '—', tooltip: t('analytics.contextGrowth.description') },
   ];
 
   const productivityCards = [

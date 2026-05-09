@@ -116,8 +116,6 @@ export interface TrailI18n {
   'analytics.cacheHit.description': string;
   'analytics.outputRatio': string;
   'analytics.outputRatio.description': string;
-  'analytics.contextGrowth': string;
-  'analytics.contextGrowth.description': string;
   'analytics.netLines': string;
   'analytics.netLines.description': string;
   'analytics.metricMessages': string;

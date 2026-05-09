@@ -107,8 +107,6 @@ export const en: TrailI18n = {
   'analytics.cacheHit.description': 'Ratio of cache-read tokens to total input tokens',
   'analytics.outputRatio': 'Output Ratio',
   'analytics.outputRatio.description': 'Ratio of output tokens to total input tokens',
-  'analytics.contextGrowth': 'Context Growth',
-  'analytics.contextGrowth.description': 'Average context token growth per step',
   'analytics.netLines': 'Gross Added LOC',
   'analytics.netLines.description': 'Lines added and deleted in commits',
   'analytics.metricMessages': 'Messages',

@@ -107,8 +107,6 @@ export const ja: TrailI18n = {
   'analytics.cacheHit.description': 'キャッシュ読み取りトークンが総入力トークンに占める割合',
   'analytics.outputRatio': '出力比率',
   'analytics.outputRatio.description': '出力トークンが総入力トークンに占める割合',
-  'analytics.contextGrowth': 'コンテキスト増加',
-  'analytics.contextGrowth.description': '1ステップあたりのコンテキストトークン増加量の平均',
   'analytics.netLines': 'Gross Added LOC',
   'analytics.netLines.description': 'コミットで追加された行数と削除された行数',
   'analytics.metricMessages': 'メッセージ数',
