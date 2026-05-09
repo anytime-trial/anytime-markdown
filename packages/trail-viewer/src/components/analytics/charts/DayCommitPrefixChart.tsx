@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import Box from '@mui/material/Box';
-import Chip from '@mui/material/Chip';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import { PieChart } from '@mui/x-charts/PieChart';
@@ -82,16 +81,6 @@ export function DayCommitPrefixChart({
       >
         <PieCenterLabel value={commits.length} color={colors.textPrimary} />
       </PieChart>
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, px: 1.5, pb: 0.5 }}>
-        {sorted.map(([prefix, count]) => (
-          <Chip
-            key={prefix}
-            size="small"
-            label={`${prefix} (${count})`}
-            sx={{ bgcolor: getCategoryColor(prefix), color: '#fff', fontSize: '0.65rem', height: 18 }}
-          />
-        ))}
-      </Box>
     </Paper>
   );
 }
