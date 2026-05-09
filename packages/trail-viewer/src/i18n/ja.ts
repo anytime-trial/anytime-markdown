@@ -272,7 +272,7 @@ export const ja: TrailI18n = {
   'analytics.combined.error.description': 'エラーが発生したツール別の分布推移を表示',
   'analytics.combined.repository': 'リポジトリ',
   'analytics.combined.repository.description': 'リポジトリ別のコミット数・トークン消費量の推移を表示',
-  'analytics.combined.commitPrefix': 'コミット種別',
+  'analytics.combined.commitPrefix': 'コミット',
   'analytics.combined.commitPrefix.description': 'コミット種別（feat/fix/refactor 等）の推移を表示',
   'analytics.combined.release': 'リリース',
   'analytics.combined.release.description': 'リリース頻度・品質の推移を表示',
