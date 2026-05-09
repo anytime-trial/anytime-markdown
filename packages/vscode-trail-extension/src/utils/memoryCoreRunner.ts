@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import * as path from 'path';
 import * as vscode from 'vscode';
 import {
   openMemoryCoreDb,
@@ -6,6 +7,7 @@ import {
   createOllamaClient,
   runConversationIncremental,
   runConversationBackfill,
+  runCodeIncremental,
 } from '@anytime-markdown/memory-core';
 
 export interface MemoryCoreRunner {
@@ -90,6 +92,26 @@ export function createMemoryCoreRunner(opts: {
                   `entities_inserted=${result.entities_inserted}, edges_inserted=${result.edges_inserted}`,
               );
             }
+
+            // ── Code incremental pipeline ────────────────────────────────
+            const gitRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
+            const tsconfigPath =
+              process.env['MEMORY_CORE_TSCONFIG'] ??
+              path.join(gitRoot, 'tsconfig.json');
+            const repoName = path.basename(gitRoot);
+            logger.info(`Running code incremental (repo=${repoName}, tsconfig=${tsconfigPath})`);
+            const codeResult = await runCodeIncremental({
+              db: memDb.db,
+              repoName,
+              tsconfigPath,
+              gitRoot,
+              logger,
+            });
+            logger.info(
+              `Code incremental: status=${codeResult.status}, items_processed=${codeResult.items_processed}, ` +
+                `entities_inserted=${codeResult.entities_inserted}, edges_inserted=${codeResult.edges_inserted}, ` +
+                `duration_ms=${codeResult.duration_ms}`,
+            );
           } finally {
             // Release the WASM heap copy of trail DB (~800MB) after every run.
             attachHandle.trailHandle.close();

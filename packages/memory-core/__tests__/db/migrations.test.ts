@@ -42,7 +42,8 @@ describe('migrations', () => {
 
     const result = db.exec('SELECT COUNT(*) FROM memory_relation_types');
     const count = result[0]?.values[0][0] as number;
-    expect(count).toBe(15);
+    // Phase 1: 15 seeds, Phase 2 adds rationale_for + imports_module = 17 total
+    expect(count).toBe(17);
 
     close();
     delete process.env.MEMORY_CORE_DB_PATH;
@@ -59,7 +60,7 @@ describe('migrations', () => {
       const { db: db2, close: close2 } = await openMemoryCoreDb();
       const result = db2.exec('SELECT COUNT(*) FROM _migrations');
       const count = result[0]?.values[0][0] as number;
-      expect(count).toBe(1); // still only 1 migration entry
+      expect(count).toBe(2); // migration 1 + migration 2, each applied once
       close2();
     } finally {
       try {

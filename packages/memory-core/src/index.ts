@@ -8,3 +8,11 @@ export { runConversationIncremental } from './pipeline/runConversationIncrementa
 export type { IncrementalResult } from './pipeline/runConversationIncremental';
 export { runConversationBackfill } from './pipeline/runConversationBackfill';
 export type { BackfillResult } from './pipeline/runConversationBackfill';
+export { runCodeIncremental } from './pipeline/runCodeIncremental';
+export type { CodeIncrementalResult } from './pipeline/runCodeIncremental';
+export { ingestAstFacts } from './ingest/code/astFunctionLevel';
+export type { AstFactInput, AstFactStats } from './ingest/code/astFunctionLevel';
+export { extractDecisionComments } from './ingest/code/extractComments';
+export type { ExtractCommentsInput, ExtractCommentsStats } from './ingest/code/extractComments';
+export { extractCommitRationale } from './ingest/code/extractCommitRationale';
+export type { ExtractRationaleInput, ExtractRationaleStats } from './ingest/code/extractCommitRationale';

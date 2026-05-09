@@ -110,6 +110,7 @@ export function OverviewCards({
           const formatted = formatDoraValue(m);
           return {
             primary: formatted.primary,
+            suffix: formatted.suffix,
             unit: formatted.unit,
             label: t((DORA_ID_KEYS[m.id] ?? m.id) as Parameters<typeof t>[0]),
             tooltip: DORA_DESCRIPTION_KEYS[m.id] ? t(DORA_DESCRIPTION_KEYS[m.id] as Parameters<typeof t>[0]) : undefined,
@@ -122,7 +123,7 @@ export function OverviewCards({
         })
     : [];
 
-  const cardStyle = { ...cardSx, flex: '1 1 140px', p: 2, minWidth: 140, textAlign: 'center', height: '150px' } as const;
+  const cardStyle = { ...cardSx, flex: '1 1 140px', p: 2, minWidth: 140, textAlign: 'center', minHeight: '150px' } as const;
 
   return (
     <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
@@ -134,7 +135,7 @@ export function OverviewCards({
         cardStyle={cardStyle}
       />
       {doraCards.map((card) => (
-        <Paper key={card.label} elevation={0} sx={{ ...cardStyle, display: 'flex', flexDirection: 'column' }}>
+        <Paper key={card.label} elevation={0} sx={{ ...cardStyle, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5, gap: 0.5 }}>
             <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'left' }}>
               {card.label}
@@ -146,8 +147,11 @@ export function OverviewCards({
             )}
           </Box>
           <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
-              <Typography variant="h3">{card.primary}</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, flexWrap: 'wrap', justifyContent: 'center' }}>
+              <Typography variant="h3">
+                {card.primary}
+                {card.suffix && <span style={{ fontSize: '0.45em', fontWeight: 'inherit' }}>{card.suffix}</span>}
+              </Typography>
               {card.unit && (
                 <Typography variant="caption" color="text.secondary">{card.unit}</Typography>
               )}

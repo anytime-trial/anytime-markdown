@@ -29,6 +29,7 @@ export function CyclingCard({
         cursor: 'pointer',
         display: 'flex',
         flexDirection: 'column',
+        overflow: 'hidden',
         '&:hover': { backgroundColor: 'action.hover' },
         userSelect: 'none',
       }}
@@ -45,7 +46,7 @@ export function CyclingCard({
         )}
       </Box>
       <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 1, flexWrap: 'wrap' }}>
           <Typography variant="h3">{current.value}</Typography>
           {current.badge && (
             <Chip

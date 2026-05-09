@@ -4,6 +4,7 @@ import {
   createOllamaClient,
   runConversationIncremental,
   runConversationBackfill,
+  runCodeIncremental,
 } from '@anytime-markdown/memory-core';
 import * as fsMod from 'fs';
 import { createMemoryCoreRunner } from '../memoryCoreRunner';
@@ -14,6 +15,13 @@ jest.mock('@anytime-markdown/memory-core', () => ({
   createOllamaClient: jest.fn(),
   runConversationIncremental: jest.fn(),
   runConversationBackfill: jest.fn(),
+  runCodeIncremental: jest.fn().mockResolvedValue({
+    status: 'success',
+    items_processed: 0,
+    entities_inserted: 0,
+    edges_inserted: 0,
+    duration_ms: 0,
+  }),
 }));
 
 jest.mock('fs', () => ({
@@ -95,6 +103,7 @@ describe('createMemoryCoreRunner.runAfterImport', () => {
     );
     expect(runConversationBackfill).toHaveBeenCalledTimes(1);
     expect(runConversationIncremental).not.toHaveBeenCalled();
+    expect(runCodeIncremental).toHaveBeenCalledTimes(1);
     expect(memDb.save).toHaveBeenCalledTimes(1);
     expect(memDb.close).toHaveBeenCalledTimes(1);
   });
@@ -116,6 +125,7 @@ describe('createMemoryCoreRunner.runAfterImport', () => {
 
     expect(runConversationIncremental).toHaveBeenCalledTimes(1);
     expect(runConversationBackfill).not.toHaveBeenCalled();
+    expect(runCodeIncremental).toHaveBeenCalledTimes(1);
     expect(memDb.save).toHaveBeenCalledTimes(1);
     expect(memDb.close).toHaveBeenCalledTimes(1);
   });
