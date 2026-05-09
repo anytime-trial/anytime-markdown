@@ -27,7 +27,8 @@
     "./c4/metrics/computeImportanceMatrix": "./src/c4/metrics/computeImportanceMatrix.ts",
     "./codeGraph": "./src/codeGraph.ts",
     "./deadCode": "./src/deadCode/index.ts",
-    "./analyzeExclude": "./src/analyzeExclude/index.ts"
+    "./analyzeExclude": "./src/analyzeExclude/index.ts",
+    "./commitCategories": "./src/commitCategories/index.ts"
   },
   "scripts": {
     "test": "jest --maxWorkers=1"
