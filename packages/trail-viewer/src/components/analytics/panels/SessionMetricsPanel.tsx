@@ -45,7 +45,6 @@ export function SessionMetricsPanel({ session, toolMetrics }: Readonly<{
     { label: t('analytics.contextGrowth'), value: s.messageCount > 0 ? `${fmtTokens(Math.round(contextGrowth))}/step` : '—', tooltip: t('analytics.contextGrowth.description') },
     { label: t('analytics.netLines'), value: linesAdded > 0 || linesDeleted > 0 ? `+${fmtNum(linesAdded)} / -${fmtNum(linesDeleted)}` : '—', tooltip: t('analytics.netLines.description') },
     { label: t('analytics.metricFiles'), value: (s.commitStats?.filesChanged ?? 0) > 0 ? fmtNum(s.commitStats!.filesChanged) : '—', tooltip: t('analytics.metricFiles.description') },
-    { label: t('analytics.metricDuration'), value: durationMs > 0 ? fmtDuration(durationMs) : '—', tooltip: t('analytics.metricDuration.description') },
   ];
 
   const productivityCards = [
