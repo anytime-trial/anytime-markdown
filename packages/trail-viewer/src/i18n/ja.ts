@@ -68,7 +68,7 @@ export const ja: TrailI18n = {
   'analytics.linesAdded': '総追加 LOC',
   'analytics.linesAdded.description': 'セッションのコミットで追加された総行数（LOC）',
   'analytics.totalLoc': 'Total LOC',
-  'analytics.totalLoc.description': '追加行数から削除行数を差し引いた正味変更行数',
+  'analytics.totalLoc.description': '最新リリース時点のコードスナップショット行数',
   'analytics.retryRate': 'リトライ率',
   'analytics.retryRate.description': '編集試行のうちリトライが発生した割合',
   'analytics.groupUsage': '使用量',

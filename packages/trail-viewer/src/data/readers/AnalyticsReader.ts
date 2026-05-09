@@ -122,11 +122,16 @@ export class AnalyticsReader {
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, v]) => ({ date, ...v }));
 
-    // Fetch current total LOC from current_coverage
+    // Fetch current total LOC from latest release snapshot
     const { data: locData } = await this.client
-      .from('trail_current_coverage')
-      .select('lines_total');
-    const totalLoc = (locData ?? []).reduce((s, r) => s + (r.lines_total ?? 0), 0);
+      .from('trail_releases')
+      .select('total_lines')
+      .not('released_at', 'is', null)
+      .neq('released_at', '')
+      .gt('total_lines', 0)
+      .order('released_at', { ascending: false })
+      .limit(1);
+    const totalLoc = locData?.[0]?.total_lines ?? 0;
 
     const totals = {
       sessions: sessions.length,

@@ -68,7 +68,7 @@ export const en: TrailI18n = {
   'analytics.linesAdded': 'Gross Added LOC',
   'analytics.linesAdded.description': 'Total lines of code added in session commits (LOC)',
   'analytics.totalLoc': 'Total LOC',
-  'analytics.totalLoc.description': 'Net change in lines (added minus deleted)',
+  'analytics.totalLoc.description': 'Total lines of code at the latest release snapshot',
   'analytics.retryRate': 'Retry Rate',
   'analytics.retryRate.description': 'Ratio of retried edits to total edits',
   'analytics.groupUsage': 'Usage',

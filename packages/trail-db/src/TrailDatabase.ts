@@ -6035,8 +6035,10 @@ export class TrailDatabase {
       durationResult[0]?.values[0]?.[0] ?? 0,
     );
 
-    // Current total LOC from current_coverage
-    const locResult = db.exec(`SELECT COALESCE(SUM(lines_total), 0) FROM current_coverage`);
+    // Current total LOC from latest release snapshot
+    const locResult = db.exec(
+      `SELECT COALESCE(total_lines, 0) FROM releases WHERE total_lines > 0 AND released_at IS NOT NULL AND released_at != '' ORDER BY released_at DESC LIMIT 1`,
+    );
     const totalLoc = Number(locResult[0]?.values[0]?.[0] ?? 0);
 
     // Tool-call-based metrics (Retry Rate, Build/Test Fail Rate)
