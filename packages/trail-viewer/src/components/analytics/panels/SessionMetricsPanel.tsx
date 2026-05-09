@@ -4,7 +4,6 @@ import { useTrailTheme } from '../../TrailThemeContext';
 import { useTrailI18n } from '../../../i18n';
 import type { ToolMetrics, TrailSession } from '../../../domain/parser/types';
 import {
-  fmtDuration,
   fmtNum,
   fmtPercent,
   fmtTokens,
@@ -26,8 +25,6 @@ export function SessionMetricsPanel({ session, toolMetrics }: Readonly<{
   const s = session;
   const totalTokens = s.usage.inputTokens + s.usage.outputTokens + s.usage.cacheReadTokens + s.usage.cacheCreationTokens;
   const cost = sessionCost(s);
-  const durationMs = new Date(s.endTime).getTime() - new Date(s.startTime).getTime();
-  const durationHours = durationMs / 3_600_000;
   const turnCount = s.assistantMessageCount ?? s.messageCount;
   const contextGrowth = turnCount > 0
     ? ((s.peakContextTokens ?? 0) - (s.initialContextTokens ?? 0)) / turnCount
@@ -48,10 +45,6 @@ export function SessionMetricsPanel({ session, toolMetrics }: Readonly<{
   const productivityCards = [
     { label: t('analytics.tokensPerStep'), value: turnCount > 0 ? fmtTokens(Math.round(totalTokens / turnCount)) : '—', tooltip: t('analytics.tokensPerStep.description') },
     { label: t('analytics.costPerStep'), value: turnCount > 0 ? fmtUsd(cost / turnCount) : '—', tooltip: t('analytics.costPerStep.description') },
-    { label: t('analytics.linesPerHour'), value: durationHours > 0 && linesAdded > 0 ? fmtNum(Math.round(linesAdded / durationHours)) : '—', tooltip: t('analytics.linesPerHour.description') },
-    { label: t('analytics.costPerHour'), value: durationHours > 0 ? fmtUsd(cost / durationHours) : '—', tooltip: t('analytics.costPerHour.description') },
-    { label: t('analytics.costPerCommit'), value: (s.commitStats?.commits ?? 0) > 0 ? fmtUsd(cost / s.commitStats!.commits) : '—', tooltip: t('analytics.costPerCommit.description') },
-    { label: t('analytics.avgInterval'), value: turnCount > 1 ? fmtDuration(durationMs / (turnCount - 1)) : '—', tooltip: t('analytics.avgInterval.description') },
   ];
 
   const qualityCards = [
