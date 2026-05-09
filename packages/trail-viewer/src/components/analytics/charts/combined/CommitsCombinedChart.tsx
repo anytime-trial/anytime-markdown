@@ -38,7 +38,7 @@ export function CommitsCombinedChart({
     for (const r of commitRows) {
       const displayKey = commitMap.get(r.prefix) ?? r.prefix;
       const key = `${r.period}::${displayKey}`;
-      const value = commitMetric === 'loc' ? (r.linesAdded ?? 0) : r.count;
+      const value = commitMetric === 'loc' ? (r.linesAdded ?? 0) + (r.linesDeleted ?? 0) : r.count;
       valMap.set(key, (valMap.get(key) ?? 0) + value);
     }
     return commitPeriods.map((p, pi) => {

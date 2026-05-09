@@ -309,6 +309,7 @@ export class CombinedDataReader {
         subject?: string | null;
         committed_at: string;
         lines_added: number | null;
+        lines_deleted: number | null;
       };
 
       const fetchDailyCounts = async (): Promise<DcRow[]> => {
@@ -361,7 +362,7 @@ export class CombinedDataReader {
         for (let offset = 0; ; offset += 1000) {
           let { data, error } = await this.client
             .from('trail_session_commits')
-            .select(`session_id,repo_name,commit_hash,${column},committed_at,lines_added`)
+            .select(`session_id,repo_name,commit_hash,${column},committed_at,lines_added,lines_deleted`)
             .gte('committed_at', cutoffIso)
             .order('committed_at', { ascending: true })
             .range(offset, offset + 999);
@@ -369,7 +370,7 @@ export class CombinedDataReader {
             column = 'subject';
             const fallback = await this.client
               .from('trail_session_commits')
-              .select('session_id,repo_name,commit_hash,subject,committed_at,lines_added')
+              .select('session_id,repo_name,commit_hash,subject,committed_at,lines_added,lines_deleted')
               .gte('committed_at', cutoffIso)
               .order('committed_at', { ascending: true })
               .range(offset, offset + 999);
@@ -564,7 +565,7 @@ export class CombinedDataReader {
         return m ? m[1].toLowerCase() : 'other';
       };
       const seenHashes = new Set<string>();
-      const prefixMap = new Map<string, { count: number; linesAdded: number }>();
+      const prefixMap = new Map<string, { count: number; linesAdded: number; linesDeleted: number }>();
       const repoCommitCountMap = new Map<string, number>();
       // 旧実装は session_commits を 2 度フェッチしていた (Loop 4: agent.loc, Loop 5: prefix/repo)。
       // 同じ条件・同じテーブルなので allCommitRows 1 回の取得から両者を導出する。
@@ -586,14 +587,15 @@ export class CombinedDataReader {
         const prefix = extractPrefix(subject);
         const p = periodKey(toJSTDate(c.committed_at));
         const commitKey = `${p}::${prefix}`;
-        const e = prefixMap.get(commitKey) ?? { count: 0, linesAdded: 0 };
+        const e = prefixMap.get(commitKey) ?? { count: 0, linesAdded: 0, linesDeleted: 0 };
         e.count++;
         e.linesAdded += c.lines_added ?? 0;
+        e.linesDeleted += c.lines_deleted ?? 0;
         prefixMap.set(commitKey, e);
       }
 
       const commitPrefixStats = [...prefixMap.entries()]
-        .map(([k, e]) => { const [p, prefix] = splitKey(k); return { period: p, prefix, count: e.count, linesAdded: e.linesAdded }; })
+        .map(([k, e]) => { const [p, prefix] = splitKey(k); return { period: p, prefix, count: e.count, linesAdded: e.linesAdded, linesDeleted: e.linesDeleted }; })
         .sort((a, b) => a.period.localeCompare(b.period));
 
       const repoKeys = new Set([...repoCommitCountMap.keys(), ...repoTokenMap.keys()]);

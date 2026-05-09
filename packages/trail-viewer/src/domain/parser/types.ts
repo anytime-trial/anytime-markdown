@@ -102,6 +102,7 @@ export interface CombinedCommitPrefix {
   readonly prefix: string;
   readonly count: number;
   readonly linesAdded: number;
+  readonly linesDeleted: number;
 }
 
 export interface CombinedRepository {

@@ -337,7 +337,7 @@ interface CombinedData {
     period: string; agent: string; tokens: number; costUsd: number; loc: number;
     tokenMissingRate: number; tokenTotalTurns: number; tokenMissingTurns: number;
   }[];
-  readonly commitPrefixStats: readonly { period: string; prefix: string; count: number; linesAdded: number }[];
+  readonly commitPrefixStats: readonly { period: string; prefix: string; count: number; linesAdded: number; linesDeleted: number }[];
   readonly aiFirstTryRate: readonly { period: string; rate: number; sampleSize: number }[];
   readonly repoStats: readonly { period: string; repoName: string; count: number; tokens: number }[];
 }
@@ -6277,7 +6277,8 @@ export class TrailDatabase {
     const commitWindowSec = Math.round(AI_FIRST_TRY_FIX_WINDOW_MS / 1000);
     const commitResult = db.exec(
       `SELECT ${commitPeriodExpr} AS period, repo_name, commit_hash, commit_message,
-              committed_at, is_ai_assisted, COALESCE(lines_added, 0) AS lines_added
+              committed_at, is_ai_assisted, COALESCE(lines_added, 0) AS lines_added,
+              COALESCE(lines_deleted, 0) AS lines_deleted
        FROM session_commits
        WHERE committed_at >= DATETIME('now', '-${rangeDays} days')
          AND committed_at <= DATETIME('now', '+${commitWindowSec} seconds')
@@ -6291,6 +6292,7 @@ export class TrailDatabase {
       committed_at: string;
       is_ai_assisted: boolean;
       linesAdded: number;
+      linesDeleted: number;
       files: string[];
     };
     const commitRows: CommitRow[] = toRows(commitResult).map(r => ({
@@ -6301,6 +6303,7 @@ export class TrailDatabase {
       committed_at: String(r['committed_at'] ?? ''),
       is_ai_assisted: Number(r['is_ai_assisted'] ?? 0) === 1,
       linesAdded: Number(r['lines_added'] ?? 0),
+      linesDeleted: Number(r['lines_deleted'] ?? 0),
       files: [],
     }));
 
@@ -6329,19 +6332,20 @@ export class TrailDatabase {
     // Commit prefix stats: 期間内 (未来拡張分は除外) のコミットだけを集計対象とする
     const cutoffPeriodRes = db.exec(`SELECT ${commitPeriodExpr.replace('committed_at', `DATE('now')`)} AS period`);
     const todayPeriod = String(cutoffPeriodRes[0]?.values?.[0]?.[0] ?? '');
-    const prefixMap = new Map<string, { count: number; linesAdded: number }>();
+    const prefixMap = new Map<string, { count: number; linesAdded: number; linesDeleted: number }>();
     for (const c of commitRows) {
       if (c.period > todayPeriod) continue;  // skip future-window rows
       const prefix = extractCommitPrefix(c.subject);
       const k = `${c.period}::${prefix}`;
-      const cur = prefixMap.get(k) ?? { count: 0, linesAdded: 0 };
+      const cur = prefixMap.get(k) ?? { count: 0, linesAdded: 0, linesDeleted: 0 };
       cur.count += 1;
       cur.linesAdded += c.linesAdded;
+      cur.linesDeleted += c.linesDeleted;
       prefixMap.set(k, cur);
     }
     const commitPrefixStats = [...prefixMap.entries()].map(([k, v]) => {
       const sep = k.indexOf('::');
-      return { period: k.slice(0, sep), prefix: k.slice(sep + 2), count: v.count, linesAdded: v.linesAdded };
+      return { period: k.slice(0, sep), prefix: k.slice(sep + 2), count: v.count, linesAdded: v.linesAdded, linesDeleted: v.linesDeleted };
     });
 
     // Repository stats: COUNT は commitRows を再利用（既に repo_name+commit_hash で重複排除済み）
