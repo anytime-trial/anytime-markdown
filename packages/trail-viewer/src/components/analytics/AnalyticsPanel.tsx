@@ -57,13 +57,13 @@ export function AnalyticsPanel({
         current.tokens += (d.inputTokens + d.outputTokens);
         current.cost += d.estimatedCostUsd;
         current.commits += d.commits;
-        current.loc += d.linesAdded + (d.linesDeleted ?? 0);
+        current.loc += d.linesAdded;
       } else if (date >= previousFrom) {
         previous.sessions += d.sessions;
         previous.tokens += (d.inputTokens + d.outputTokens);
         previous.cost += d.estimatedCostUsd;
         previous.commits += d.commits;
-        previous.loc += d.linesAdded + (d.linesDeleted ?? 0);
+        previous.loc += d.linesAdded;
       }
     }
 
