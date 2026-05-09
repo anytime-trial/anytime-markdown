@@ -181,6 +181,7 @@ export async function runCodeIncremental(opts: {
   upsertPipelineState(db, { status: 'running' });
 
   const totals = { items_processed: 0, entities_inserted: 0, edges_inserted: 0 };
+  let hasIngestFailure = false;
 
   // ── 4. git rev-parse HEAD ────────────────────────────────────────────────
   let commitSha: string | null = null;
@@ -209,9 +210,9 @@ export async function runCodeIncremental(opts: {
       status: 'error',
       error_detail: err instanceof Error ? (err.stack ?? err.message) : String(err),
     });
-    finalizePipelineRun(db, rId, startedAt, 'partial', totals);
+    finalizePipelineRun(db, rId, startedAt, 'error', totals);
     return {
-      status: 'partial',
+      status: 'error',
       ...totals,
       duration_ms: Date.now() - startMs,
     };
@@ -232,6 +233,7 @@ export async function runCodeIncremental(opts: {
     totals.edges_inserted += stats.edges_inserted;
   } catch (err) {
     logger.error(`[memory-core] runCodeIncremental: fromTrailGraph failed`, err);
+    hasIngestFailure = true;
   }
 
   // ── 7. ingestAstFacts ────────────────────────────────────────────────────
@@ -242,6 +244,7 @@ export async function runCodeIncremental(opts: {
     totals.edges_inserted += stats.edges_inserted;
   } catch (err) {
     logger.error(`[memory-core] runCodeIncremental: ingestAstFacts failed`, err);
+    hasIngestFailure = true;
   }
 
   // ── 8. extractDecisionComments ───────────────────────────────────────────
@@ -251,6 +254,7 @@ export async function runCodeIncremental(opts: {
     totals.edges_inserted += stats.edges_inserted;
   } catch (err) {
     logger.error(`[memory-core] runCodeIncremental: extractDecisionComments failed`, err);
+    hasIngestFailure = true;
   }
 
   // ── 9. extractCommitRationale ────────────────────────────────────────────
@@ -266,16 +270,19 @@ export async function runCodeIncremental(opts: {
     totals.edges_inserted += stats.edges_inserted;
   } catch (err) {
     logger.error(`[memory-core] runCodeIncremental: extractCommitRationale failed`, err);
+    hasIngestFailure = true;
   }
+
+  const finalStatus = hasIngestFailure ? 'partial' : 'success';
 
   // ── 10. UPDATE pipeline_state ────────────────────────────────────────────
   upsertPipelineState(db, { status: 'idle', last_processed_at: graphUpdatedAt });
 
   // ── 11. finalize pipeline_run ────────────────────────────────────────────
-  finalizePipelineRun(db, rId, startedAt, 'success', totals);
+  finalizePipelineRun(db, rId, startedAt, finalStatus, totals);
 
   return {
-    status: 'success',
+    status: finalStatus,
     ...totals,
     duration_ms: Date.now() - startMs,
   };

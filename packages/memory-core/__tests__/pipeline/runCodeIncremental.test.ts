@@ -273,8 +273,8 @@ describe('runCodeIncremental', () => {
     });
   });
 
-  describe('status=partial on invalid tsconfigPath', () => {
-    it('records failed_item and returns partial when analyzeWithProgram throws', async () => {
+  describe('status=error on invalid tsconfigPath', () => {
+    it('records failed_item and returns error when analyzeWithProgram throws', async () => {
       // Override mock to throw for this test
       const { analyzeWithProgram } = jest.requireMock('@anytime-markdown/trail-core/analyze') as {
         analyzeWithProgram: jest.Mock;
@@ -296,7 +296,7 @@ describe('runCodeIncremental', () => {
         logger: silentLogger,
       });
 
-      expect(result.status).toBe('partial');
+      expect(result.status).toBe('error');
 
       // A failed_item row should be recorded with scope='code'
       const failedRows = memDb.exec(
@@ -305,12 +305,12 @@ describe('runCodeIncremental', () => {
       expect(failedRows[0]?.values.length).toBeGreaterThanOrEqual(1);
       expect(failedRows[0]?.values[0][1]).toBe('/nonexistent/tsconfig.json');
 
-      // Pipeline_run should exist and be finalized as partial
+      // Pipeline_run should exist and be finalized as error
       expect(countPipelineRuns(memDb)).toBe(1);
       const runRows = memDb.exec(
         `SELECT status FROM memory_pipeline_runs WHERE scope = 'code_incremental'`
       );
-      expect(runRows[0]?.values[0][0]).toBe('partial');
+      expect(runRows[0]?.values[0][0]).toBe('error');
     });
   });
 });
