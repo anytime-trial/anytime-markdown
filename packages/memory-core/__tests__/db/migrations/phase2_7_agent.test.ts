@@ -229,7 +229,7 @@ describe('Phase 2.7 migration (007_phase2_7_agent)', () => {
     const { db: db2, close: close2 } = await openMemoryCoreDb();
     const result = db2.exec('SELECT COUNT(*) FROM _migrations');
     const count = result[0]?.values[0][0] as number;
-    expect(count).toBe(7);
+    expect(count).toBe(8);
     close2();
   }, 30000);
 
