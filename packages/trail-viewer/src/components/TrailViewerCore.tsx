@@ -174,6 +174,9 @@ function TrailViewerCoreInner({
   const [promptsPopupOpen, setPromptsPopupOpen] = useState(false);
   const [promptsPopupSize, setPromptsPopupSize] = useState<ResizablePopupSize | null>(null);
   const [promptsPopupMaximized, setPromptsPopupMaximized] = useState(false);
+  const [messagesPopupOpen, setMessagesPopupOpen] = useState(false);
+  const [messagesPopupSize, setMessagesPopupSize] = useState<ResizablePopupSize | null>(null);
+  const [messagesPopupMaximized, setMessagesPopupMaximized] = useState(false);
   const [visitedTabs, setVisitedTabs] = useState<ReadonlySet<number>>(
     () => new Set([normalizedInitialTab]),
   );
@@ -305,6 +308,60 @@ function TrailViewerCoreInner({
     '&:disabled': { color: c4Colors.textMuted },
   } as const;
 
+  // メッセージタブとメッセージポップアップの両方で同じ JSX を使うため変数化。
+  // 親 state を共有するので filter / 選択セッション / メッセージは両者で同期する。
+  const messagesTabContent = (
+    <>
+      <FilterBar
+        filter={filter}
+        sessions={allSessions ?? sessions}
+        onChange={onFilterChange}
+      />
+
+      <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+        <Box
+          sx={{
+            width: SESSION_LIST_WIDTH,
+            minWidth: SESSION_LIST_WIDTH,
+            borderRight: 1,
+            borderColor: colors.border,
+            overflowY: 'auto',
+            ...scrollbarSx,
+          }}
+        >
+          <SessionList
+            sessions={visibleSessions}
+            selectedId={selectedSessionId}
+            onSelect={onSelectSession}
+          />
+        </Box>
+
+        <Box sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <Suspense fallback={<TabSkeleton height="100%" />}>
+            <MessageTimeline
+              nodes={buildMessageTree(messages)}
+              session={selectedSession}
+              onSelectMessage={() => { /* scroll handled inside component */ }}
+            />
+            {selectedSessionId && messages.length > 0 ? (
+              <Box sx={{ flex: 1, overflow: 'auto', ...scrollbarSx }}>
+                <TraceTree nodes={buildMessageTree(messages)} />
+              </Box>
+            ) : (
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
+                <Typography variant="body2" sx={{ color: colors.textSecondary }}>
+                  {selectedSessionId ? t('viewer.loading') : t('viewer.selectSession')}
+                </Typography>
+              </Box>
+            )}
+          </Suspense>
+        </Box>
+      </Box>
+
+      <StatsBar session={selectedSession} messages={messages} />
+    </>
+  );
+
   return (
     <Box
       sx={{
@@ -391,6 +448,7 @@ function TrailViewerCoreInner({
               fetchReleaseQuality={fetchReleaseQuality}
               onOpenReleasesPopup={() => setReleasesPopupOpen(true)}
               onOpenPromptsPopup={() => setPromptsPopupOpen(true)}
+              onOpenMessagesPopup={() => setMessagesPopupOpen(true)}
             />
           </Suspense>
         </Box>
@@ -403,56 +461,7 @@ function TrailViewerCoreInner({
           aria-labelledby="trail-tab-1"
           sx={{ display: activeTab !== 1 ? 'none' : 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}
         >
-          {/* FilterBar */}
-          <FilterBar
-            filter={filter}
-            sessions={allSessions ?? sessions}
-            onChange={onFilterChange}
-          />
-
-          {/* SessionList + Content area */}
-          <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-            <Box
-              sx={{
-                width: SESSION_LIST_WIDTH,
-                minWidth: SESSION_LIST_WIDTH,
-                borderRight: 1,
-                borderColor: colors.border,
-                overflowY: 'auto',
-                ...scrollbarSx,
-              }}
-            >
-              <SessionList
-                sessions={visibleSessions}
-                selectedId={selectedSessionId}
-                onSelect={onSelectSession}
-              />
-            </Box>
-
-            <Box sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-              <Suspense fallback={<TabSkeleton height="100%" />}>
-                <MessageTimeline
-                  nodes={buildMessageTree(messages)}
-                  session={selectedSession}
-                  onSelectMessage={() => { /* scroll handled inside component */ }}
-                />
-                {selectedSessionId && messages.length > 0 ? (
-                  <Box sx={{ flex: 1, overflow: 'auto', ...scrollbarSx }}>
-                    <TraceTree nodes={buildMessageTree(messages)} />
-                  </Box>
-                ) : (
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
-                    <Typography variant="body2" sx={{ color: colors.textSecondary }}>
-                      {selectedSessionId ? t('viewer.loading') : t('viewer.selectSession')}
-                    </Typography>
-                  </Box>
-                )}
-              </Suspense>
-            </Box>
-          </Box>
-
-          {/* StatsBar */}
-          <StatsBar session={selectedSession} messages={messages} />
+          {messagesTabContent}
         </Box>
       )}
 
@@ -531,6 +540,28 @@ function TrailViewerCoreInner({
           i18nResize={t('c4.popup.resize')}
         >
           <PromptManager prompts={prompts} />
+        </ResizablePopup>
+      )}
+      {messagesPopupOpen && (
+        <ResizablePopup
+          title={t('viewer.tab.messages')}
+          ariaLabel={t('viewer.tab.messages')}
+          onClose={() => setMessagesPopupOpen(false)}
+          isDark={isDark ?? true}
+          colors={c4Colors}
+          size={messagesPopupSize}
+          onSizeChange={setMessagesPopupSize}
+          maximized={messagesPopupMaximized}
+          onMaximizedChange={setMessagesPopupMaximized}
+          defaultMaxWidth={1280}
+          centered
+          toolbarButtonSx={popupToolbarButtonSx}
+          i18nMaximize={t('c4.popup.maximize')}
+          i18nRestore={t('c4.popup.restore')}
+          i18nClose={t('c4.popup.close')}
+          i18nResize={t('c4.popup.resize')}
+        >
+          {messagesTabContent}
         </ResizablePopup>
       )}
     </Box>

@@ -54,6 +54,7 @@ export const ja: TrailI18n = {
   'message.type.user': 'ユーザーメッセージ',
   'message.type.assistant': 'アシスタントメッセージ',
   'message.type.system': 'システムメッセージ',
+  'message.openPopup': 'メッセージをポップアップで開く',
   'analytics.totalSessions': '総セッション数',
   'analytics.totalSessions.description': '期間内に記録されたセッションの総数',
   'analytics.totalTokens': '総トークン数',

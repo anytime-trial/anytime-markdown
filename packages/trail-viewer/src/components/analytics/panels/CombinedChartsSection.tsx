@@ -54,6 +54,7 @@ export function CombinedChartsSection({
   fetchReleaseQuality,
   onOpenReleasesPopup,
   onOpenPromptsPopup,
+  onOpenMessagesPopup,
 }: Readonly<{
   dailyActivity: AnalyticsData['dailyActivity'];
   sessions: readonly TrailSession[];
@@ -72,6 +73,7 @@ export function CombinedChartsSection({
   fetchReleaseQuality?: (range: DateRange, bucket: 'day' | 'week') => Promise<ReadonlyArray<ReleaseQualityBucket>>;
   onOpenReleasesPopup?: () => void;
   onOpenPromptsPopup?: () => void;
+  onOpenMessagesPopup?: () => void;
 }>) {
   const { colors } = useTrailTheme();
   const { t } = useTrailI18n();
@@ -191,7 +193,42 @@ export function CombinedChartsSection({
               <ToggleButton value="tokens" sx={toggleSx}>{t('chart.tokenUsage')}</ToggleButton>
             </Tooltip>
             <Tooltip title={t('analytics.combined.agent.description')} arrow placement="top">
-              <ToggleButton value="agents" data-chart-kind="agents" sx={toggleSx}>{t('analytics.combined.agent')}</ToggleButton>
+              <ToggleButton value="agents" data-chart-kind="agents" sx={{ ...toggleSx, gap: 0.75, pr: 0.75 }}>
+                <Box component="span">{t('analytics.combined.agent')}</Box>
+                <Tooltip title={t('message.openPopup')} arrow placement="top">
+                  <Box
+                    component="span"
+                    role="button"
+                    tabIndex={onOpenMessagesPopup ? 0 : -1}
+                    aria-label={t('message.openPopup')}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onOpenMessagesPopup?.();
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== 'Enter' && event.key !== ' ') return;
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onOpenMessagesPopup?.();
+                    }}
+                    sx={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 20,
+                      height: 20,
+                      borderRadius: 1,
+                      color: colors.textSecondary,
+                      opacity: onOpenMessagesPopup ? 1 : 0.35,
+                      cursor: onOpenMessagesPopup ? 'pointer' : 'default',
+                      '&:hover': onOpenMessagesPopup ? { bgcolor: colors.hoverBg, color: colors.iceBlue } : undefined,
+                    }}
+                  >
+                    <OpenInNewIcon sx={{ fontSize: 14 }} />
+                  </Box>
+                </Tooltip>
+              </ToggleButton>
             </Tooltip>
             <Tooltip title={t('analytics.combined.model.description')} arrow placement="top">
               <ToggleButton value="models" data-chart-kind="models" sx={toggleSx}>{t('analytics.combined.model')}</ToggleButton>

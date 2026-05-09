@@ -36,6 +36,7 @@ export interface AnalyticsPanelProps {
   readonly fetchReleaseQuality?: (range: DateRange, bucket: 'day' | 'week') => Promise<ReadonlyArray<ReleaseQualityBucket>>;
   readonly onOpenReleasesPopup?: () => void;
   readonly onOpenPromptsPopup?: () => void;
+  readonly onOpenMessagesPopup?: () => void;
   readonly sessionsLoading?: boolean;
 }
 

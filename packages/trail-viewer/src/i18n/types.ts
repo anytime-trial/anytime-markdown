@@ -62,6 +62,7 @@ export interface TrailI18n {
   'message.type.user': string;
   'message.type.assistant': string;
   'message.type.system': string;
+  'message.openPopup': string;
   // analytics
   'analytics.totalSessions': string;
   'analytics.totalSessions.description': string;

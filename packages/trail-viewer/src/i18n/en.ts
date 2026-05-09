@@ -54,6 +54,7 @@ export const en: TrailI18n = {
   'message.type.user': 'User message',
   'message.type.assistant': 'Assistant message',
   'message.type.system': 'System message',
+  'message.openPopup': 'Open messages in a popup',
   'analytics.totalSessions': 'Total Sessions',
   'analytics.totalSessions.description': 'Total number of sessions recorded in the period',
   'analytics.totalTokens': 'Total Tokens',
