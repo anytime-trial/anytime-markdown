@@ -21,6 +21,7 @@ import {
 import { analyze } from '@anytime-markdown/trail-core/analyze';
 import { loadCommitCategories } from '@anytime-markdown/trail-core/commitCategories';
 import { loadToolCategories } from '@anytime-markdown/trail-core/toolCategories';
+import { loadSkillCategories } from '@anytime-markdown/trail-core/skillCategories';
 import type { FileCoverage, MessageInput } from '@anytime-markdown/trail-core/c4';
 import type {
   C4Model,
@@ -745,6 +746,15 @@ export class TrailDataServer {
 
     if (pathname === '/api/config/tool-categories' && method === 'GET') {
       const map = loadToolCategories(this.gitRoot ?? process.cwd());
+      const obj: Record<string, number> = {};
+      for (const [k, v] of map) obj[k] = v;
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify(obj));
+      return;
+    }
+
+    if (pathname === '/api/config/skill-categories' && method === 'GET') {
+      const map = loadSkillCategories(this.gitRoot ?? process.cwd());
       const obj: Record<string, number> = {};
       for (const [k, v] of map) obj[k] = v;
       res.writeHead(200, JSON_HEADERS);

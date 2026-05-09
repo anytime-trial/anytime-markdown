@@ -11,6 +11,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DocLink } from '@anytime-markdown/trail-core/c4';
 import { DEFAULT_COMMIT_CATEGORIES } from '@anytime-markdown/trail-core/commitCategories';
 import { DEFAULT_TOOL_CATEGORIES } from '@anytime-markdown/trail-core/toolCategories';
+import { DEFAULT_SKILL_CATEGORIES } from '@anytime-markdown/trail-core/skillCategories';
 
 import { TrailViewerCore } from './TrailViewerCore';
 import { useTrailDataSource } from '../hooks/useTrailDataSource';
@@ -90,6 +91,10 @@ export function TrailViewerApp({
     return () => { cancelled = true; };
   }, [serverUrl]);
 
+  const [skillCategories, setSkillCategories] = useState<ReadonlyMap<string, number>>(
+    DEFAULT_SKILL_CATEGORIES,
+  );
+
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -99,6 +104,23 @@ export function TrailViewerApp({
         const json = await res.json() as Record<string, number>;
         if (!cancelled && typeof json === 'object' && json !== null) {
           setToolCategories(new Map(Object.entries(json)));
+        }
+      } catch {
+        // サーバーが未対応の場合はデフォルトのままにする
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [serverUrl]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`${serverUrl}/api/config/skill-categories`);
+        if (!res.ok) return;
+        const json = await res.json() as Record<string, number>;
+        if (!cancelled && typeof json === 'object' && json !== null) {
+          setSkillCategories(new Map(Object.entries(json)));
         }
       } catch {
         // サーバーが未対応の場合はデフォルトのままにする
@@ -263,6 +285,7 @@ export function TrailViewerApp({
       serverUrl={serverUrl}
       commitCategories={commitCategories}
       toolCategories={toolCategories}
+      skillCategories={skillCategories}
     />
   );
 }

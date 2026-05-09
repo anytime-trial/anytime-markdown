@@ -6,6 +6,7 @@ import { useTrailTheme } from '../../../TrailThemeContext';
 import { fmtNum } from '../../../../domain/analytics/formatters';
 import type { CombinedAxisInfo } from './axisInfo';
 import { hideZero, makeAxisClick } from './axisInfo';
+import { useSkillCategory } from '../../../SkillCategoryContext';
 
 export function SkillsCombinedChart({
   axisInfo,
@@ -16,8 +17,14 @@ export function SkillsCombinedChart({
   canDrill: boolean;
   onDateClick?: (date: string) => void;
 }>) {
-  const { cardSx, toolPalette } = useTrailTheme();
+  const { cardSx } = useTrailTheme();
+  const { getSkillCategory, getSkillCategoryColor } = useSkillCategory();
   const { skillRows, allPeriods, labels, skills, skillMap } = axisInfo;
+
+  const sortedSkills = useMemo(
+    () => [...skills].sort((a, b) => getSkillCategory(a) - getSkillCategory(b)),
+    [skills, getSkillCategory],
+  );
 
   const dataset = useMemo(() => {
     const countMap = new Map<string, number>();
@@ -28,14 +35,14 @@ export function SkillsCombinedChart({
     }
     return allPeriods.map((p, pi) => {
       const entry: Record<string, string | number> = { period: labels[pi] };
-      for (let i = 0; i < skills.length; i++) {
-        entry[`s${i}`] = countMap.get(`${p}::${skills[i]}`) ?? 0;
+      for (let i = 0; i < sortedSkills.length; i++) {
+        entry[`s${i}`] = countMap.get(`${p}::${sortedSkills[i]}`) ?? 0;
       }
       return entry;
     });
-  }, [skillRows, allPeriods, labels, skills, skillMap]);
+  }, [skillRows, allPeriods, labels, sortedSkills, skillMap]);
 
-  if (skills.length === 0) {
+  if (sortedSkills.length === 0) {
     return <Typography variant="body2" color="text.secondary">0</Typography>;
   }
 
@@ -45,11 +52,11 @@ export function SkillsCombinedChart({
         dataset={dataset}
         xAxis={[{ scaleType: 'band', dataKey: 'period' }]}
         yAxis={[{ valueFormatter: fmtNum }]}
-        series={skills.map((skill, i) => ({
+        series={sortedSkills.map((skill, i) => ({
           dataKey: `s${i}`,
           label: skill,
           stack: 'total',
-          color: toolPalette[i % toolPalette.length],
+          color: getSkillCategoryColor(skill),
           valueFormatter: hideZero,
         }))}
         height={240}

@@ -238,6 +238,8 @@ export interface TrailThemeTokens {
   readonly commitCategoryColors: readonly [string, string, string];
   /** ツールカテゴリ色。[0]=ファイル操作, [1]=Web・ブラウザ, [2]=コード解析, [3]=タスク管理, [4]=その他 */
   readonly toolCategoryColors: readonly [string, string, string, string, string];
+  /** スキルカテゴリ色。[0]=開発フロー, [1]=ドキュメント, [2]=調査・分析, [3]=AIツール, [4]=その他 */
+  readonly skillCategoryColors: readonly [string, string, string, string, string];
   readonly toolActionColors: ThemeToolActionColors;
   readonly modelColors: ThemeModelColors;
   readonly modelCostColors: ThemeModelCostColors;
@@ -355,6 +357,9 @@ export function getTokens(isDark: boolean): TrailThemeTokens {
     toolCategoryColors: isDark
       ? ['#90CAF9', '#4DD0E1', '#CE93D8', '#FFB74D', 'rgba(255,255,255,0.35)']
       : ['#1565C0', '#00838F', '#7B1FA2',  '#E65100', 'rgba(0,0,0,0.30)'],
+    skillCategoryColors: isDark
+      ? ['#66BB6A', '#4DD0E1', '#CE93D8', '#FFB74D', 'rgba(255,255,255,0.35)']
+      : ['#2E7D32', '#00838F', '#7B1FA2',  '#E65100', 'rgba(0,0,0,0.30)'],
     toolActionColors,
     modelColors,
     modelCostColors,

@@ -35,6 +35,10 @@
     "./toolCategories": {
       "browser": "./src/toolCategories/browser.ts",
       "default": "./src/toolCategories/index.ts"
+    },
+    "./skillCategories": {
+      "browser": "./src/skillCategories/browser.ts",
+      "default": "./src/skillCategories/index.ts"
     }
   },
   "scripts": {
