@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
-import IconButton from '@mui/material/IconButton';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Tooltip from '@mui/material/Tooltip';
@@ -211,30 +210,44 @@ export function CombinedChartsSection({
               <ToggleButton value="commits" data-chart-kind="commits" sx={toggleSx}>{t('analytics.combined.commitPrefix')}</ToggleButton>
             </Tooltip>
             <Tooltip title={t('analytics.combined.release.description')} arrow placement="top">
-              <ToggleButton value="releases" sx={toggleSx}>{t('analytics.combined.release')}</ToggleButton>
+              <ToggleButton value="releases" sx={{ ...toggleSx, gap: 0.75, pr: 0.75 }}>
+                <Box component="span">{t('analytics.combined.release')}</Box>
+                <Tooltip title={t('releases.openPopup')} arrow placement="top">
+                  <Box
+                    component="span"
+                    role="button"
+                    tabIndex={onOpenReleasesPopup ? 0 : -1}
+                    aria-label={t('releases.openPopup')}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onOpenReleasesPopup?.();
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== 'Enter' && event.key !== ' ') return;
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onOpenReleasesPopup?.();
+                    }}
+                    sx={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 20,
+                      height: 20,
+                      borderRadius: 1,
+                      color: colors.textSecondary,
+                      opacity: onOpenReleasesPopup ? 1 : 0.35,
+                      cursor: onOpenReleasesPopup ? 'pointer' : 'default',
+                      '&:hover': onOpenReleasesPopup ? { bgcolor: colors.hoverBg, color: colors.iceBlue } : undefined,
+                    }}
+                  >
+                    <OpenInNewIcon sx={{ fontSize: 14 }} />
+                  </Box>
+                </Tooltip>
+              </ToggleButton>
             </Tooltip>
           </ToggleButtonGroup>
-          <Tooltip title={t('releases.openPopup')} arrow placement="top">
-            <span>
-              <IconButton
-                size="small"
-                onClick={onOpenReleasesPopup}
-                disabled={!onOpenReleasesPopup}
-                aria-label={t('releases.openPopup')}
-                sx={{
-                  color: colors.textSecondary,
-                  border: 1,
-                  borderColor: colors.border,
-                  borderRadius: 1,
-                  width: 32,
-                  height: 32,
-                  '&:hover': { bgcolor: colors.hoverBg, color: colors.iceBlue },
-                }}
-              >
-                <OpenInNewIcon sx={{ fontSize: 16 }} />
-              </IconButton>
-            </span>
-          </Tooltip>
           <ToggleButtonGroup
             value={period}
             exclusive

@@ -26,14 +26,17 @@ import { SessionList } from './SessionList';
 import { StatsBar } from './StatsBar';
 import { TrailThemeProvider } from './TrailThemeContext';
 import { getTokens } from '../theme/designTokens';
+import { getC4Colors } from '../theme/c4Tokens';
 import { TrailLocaleProvider, useTrailI18n } from '../i18n';
 import type { TrailLocale } from '../i18n';
 import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
+import { getTrailViewerTabDefs, normalizeTrailInitialTab } from './trailTabs';
 import { AnalyticsPanelSkeleton } from './shared/AnalyticsPanelSkeleton';
 import { C4PanelSkeleton } from './shared/C4PanelSkeleton';
 import { TabSkeleton } from './shared/TabSkeleton';
 
 import type { C4ViewerCoreProps } from '../c4/components/C4ViewerCore';
+import { ResizablePopup, type ResizablePopupSize } from '../c4/components/widgets/ResizablePopup';
 import { useC4SequenceData } from '../c4/hooks/useC4SequenceData';
 
 const AnalyticsPanel = lazyWithPreload(() =>
@@ -99,10 +102,8 @@ export interface TrailViewerCoreProps {
   readonly traceFiles?: readonly TraceFileSource[];
   /** Called when user clicks a node to jump to source. */
   readonly onJumpToSource?: (loc: SourceLocation) => void;
-  /** 初期表示タブ番号（0=Analytics, 1=Traces, 2=Prompts, 3=Releases, 4=C4, 5=Trace）*/
+  /** 初期表示タブ番号（0=Analytics, 1=Messages, 2=Prompts, 4=C4, 5=Trace）*/
   readonly initialTab?: number;
-  /** Opens the Releases tab in a separate popup/window. */
-  readonly onOpenReleasesPopup?: () => void;
   /**
    * WebSocket 経由でコマンドを送る関数。perf-report の送出に使う。
    * Web アプリ版では disableWebSocket=true により no-op になる。
@@ -151,16 +152,27 @@ function TrailViewerCoreInner({
   traceFiles,
   onJumpToSource,
   initialTab,
-  onOpenReleasesPopup,
   sendCommand,
   wsConnected = false,
 }: Readonly<TrailViewerCoreProps>) {
   const { t } = useTrailI18n();
   const tokens = useMemo(() => getTokens(isDark ?? true), [isDark]);
   const { colors, scrollbarSx } = tokens;
-  const [activeTab, setActiveTab] = useState(initialTab ?? 0);
+  const c4Colors = useMemo(() => getC4Colors(isDark ?? true), [isDark]);
+  const tabDefs = useMemo(
+    () => getTrailViewerTabDefs({ hasC4: !!c4, hasTrace: !!traceFiles }),
+    [c4, traceFiles],
+  );
+  const normalizedInitialTab = useMemo(
+    () => normalizeTrailInitialTab(initialTab, { hasC4: !!c4, hasTrace: !!traceFiles }),
+    [initialTab, c4, traceFiles],
+  );
+  const [activeTab, setActiveTab] = useState<number>(normalizedInitialTab);
+  const [releasesPopupOpen, setReleasesPopupOpen] = useState(false);
+  const [releasesPopupSize, setReleasesPopupSize] = useState<ResizablePopupSize | null>(null);
+  const [releasesPopupMaximized, setReleasesPopupMaximized] = useState(false);
   const [visitedTabs, setVisitedTabs] = useState<ReadonlySet<number>>(
-    () => new Set([initialTab ?? 0]),
+    () => new Set([normalizedInitialTab]),
   );
   const visitTab = useCallback((tab: number) => {
     setActiveTab(tab);
@@ -277,6 +289,18 @@ function TrailViewerCoreInner({
   const selectedSession =
     (allSessions ?? sessions).find((s) => s.id === selectedSessionId)
     ?? visibleSessions.find((s) => s.id === selectedSessionId);
+  const popupToolbarButtonSx = {
+    textTransform: 'none',
+    color: c4Colors.accent,
+    borderColor: c4Colors.border,
+    fontWeight: 600,
+    fontSize: '0.875rem',
+    borderRadius: '8px',
+    transition: '250ms cubic-bezier(0.4, 0, 0.2, 1)',
+    '&:hover': { bgcolor: c4Colors.hover },
+    '&:focus-visible': { outline: `2px solid ${c4Colors.accent}`, outlineOffset: '2px' },
+    '&:disabled': { color: c4Colors.textMuted },
+  } as const;
 
   return (
     <Box
@@ -324,34 +348,17 @@ function TrailViewerCoreInner({
             '& .MuiTabs-indicator': { backgroundColor: colors.iceBlue },
           }}
         >
-          <Tab
-            id="trail-tab-0"
-            aria-controls="trail-panel-0"
-            label={t('viewer.tab.analytics')}
-            onMouseEnter={() => preloadTab(0)}
-            onFocus={() => preloadTab(0)}
-          />
-          <Tab
-            id="trail-tab-1"
-            aria-controls="trail-panel-1"
-            label={t('viewer.tab.messages')}
-            onMouseEnter={() => preloadTab(1)}
-            onFocus={() => preloadTab(1)}
-          />
-          <Tab id="trail-tab-2" aria-controls="trail-panel-2" label={t('viewer.tab.prompts')} />
-          <Tab id="trail-tab-3" aria-controls="trail-panel-3" label={t('viewer.tab.releases')} />
-          {c4 && (
+          {tabDefs.map((tab) => (
             <Tab
-              id="trail-tab-4"
-              aria-controls="trail-panel-4"
-              label={t('viewer.tab.model')}
-              onMouseEnter={() => preloadTab(4)}
-              onFocus={() => preloadTab(4)}
+              key={tab.value}
+              value={tab.value}
+              id={tab.id}
+              aria-controls={tab.panelId}
+              label={t(tab.i18nKey)}
+              onMouseEnter={tab.preloadIndex === undefined ? undefined : () => preloadTab(tab.preloadIndex!)}
+              onFocus={tab.preloadIndex === undefined ? undefined : () => preloadTab(tab.preloadIndex!)}
             />
-          )}
-          {(traceFiles || c4) && (
-            <Tab id="trail-tab-5" aria-controls="trail-panel-5" label={t('viewer.tab.trace')} />
-          )}
+          ))}
         </Tabs>
 
       </Box>
@@ -379,7 +386,7 @@ function TrailViewerCoreInner({
               fetchQualityMetrics={fetchQualityMetrics}
               fetchDeploymentFrequency={fetchDeploymentFrequency}
               fetchReleaseQuality={fetchReleaseQuality}
-              onOpenReleasesPopup={onOpenReleasesPopup}
+              onOpenReleasesPopup={() => setReleasesPopupOpen(true)}
             />
           </Suspense>
         </Box>
@@ -454,15 +461,6 @@ function TrailViewerCoreInner({
         <PromptManager prompts={prompts} />
       </Box>
 
-      <Box
-        role="tabpanel"
-        id="trail-panel-3"
-        aria-labelledby="trail-tab-3"
-        sx={{ display: activeTab !== 3 ? 'none' : 'flex', flexDirection: 'column', flex: 1, overflow: 'auto', ...scrollbarSx }}
-      >
-        <ReleasesPanel releases={releases ?? []} />
-      </Box>
-
       {c4 && visitedTabs.has(4) && (
         <Box
           role="tabpanel"
@@ -495,6 +493,28 @@ function TrailViewerCoreInner({
             c4Sequence={c4SequenceState.model}
           />
         </Box>
+      )}
+      {releasesPopupOpen && (
+        <ResizablePopup
+          title={t('viewer.tab.releases')}
+          ariaLabel={t('viewer.tab.releases')}
+          onClose={() => setReleasesPopupOpen(false)}
+          isDark={isDark ?? true}
+          colors={c4Colors}
+          size={releasesPopupSize}
+          onSizeChange={setReleasesPopupSize}
+          maximized={releasesPopupMaximized}
+          onMaximizedChange={setReleasesPopupMaximized}
+          defaultLeft={16}
+          defaultMaxWidth={1120}
+          toolbarButtonSx={popupToolbarButtonSx}
+          i18nMaximize={t('c4.popup.maximize')}
+          i18nRestore={t('c4.popup.restore')}
+          i18nClose={t('c4.popup.close')}
+          i18nResize={t('c4.popup.resize')}
+        >
+          <ReleasesPanel releases={releases ?? []} />
+        </ResizablePopup>
       )}
     </Box>
   );
