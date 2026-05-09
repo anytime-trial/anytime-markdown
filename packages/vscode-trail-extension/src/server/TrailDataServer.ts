@@ -1196,8 +1196,6 @@ export class TrailDataServer {
       const sessionIds = rawSessions.map((s) => s.id);
       const rawSessionById = new Map(rawSessions.map((s) => [s.id, s] as const));
       const commitStats = this.trailDb.getSessionCommitStats(sessionIds);
-      const errorCounts = this.trailDb.getSessionErrorCounts(sessionIds);
-      const subAgentCounts = this.trailDb.getSessionSubAgentCounts(sessionIds);
       const distinctAgentIdCounts = this.trailDb.getSessionDistinctAgentIdCounts(sessionIds);
       const delegatedTrackCounts = this.trailDb.getSessionDelegatedTrackCounts(sessionIds);
       const linkedCodexSessionIdsByParent = new Map<string, Set<string>>();
@@ -1217,8 +1215,6 @@ export class TrailDataServer {
         .filter((s) => !((s.source as string | undefined) === 'codex' && consumedCodexSessionIds.has(s.id)))
         .map((s) => {
         const cStats = commitStats.get(s.id);
-        const errorCount = errorCounts.get(s.id);
-        const subAgentCount = subAgentCounts.get(s.id);
         const distinctAgentIdCount = distinctAgentIdCounts.get(s.id) ?? 0;
         const delegatedTrackCount = delegatedTrackCounts.get(s.id) ?? 0;
         const linkedCodexIds = linkedCodexSessionIdsByParent.get(s.id) ?? new Set<string>();
@@ -1240,7 +1236,7 @@ export class TrailDataServer {
           linkedMessageCount += linkedSession.message_count ?? 0;
         }
         const codexTrackCount = Math.max(linkedCodexCount, delegatedTrackCount);
-        const resolvedSubAgentCount = Math.max(subAgentCount ?? 0, distinctAgentIdCount + codexTrackCount);
+        const resolvedSubAgentCount = Math.max(s.sub_agent_count ?? 0, distinctAgentIdCount + codexTrackCount);
         const interruptionReason = (s.interruption_reason ?? null) as 'max_tokens' | 'no_response' | null;
         return {
           id: s.id,
@@ -1269,9 +1265,11 @@ export class TrailDataServer {
             ? { commits: cStats.commits, linesAdded: cStats.linesAdded,
                 linesDeleted: cStats.linesDeleted, filesChanged: cStats.filesChanged }
             : undefined,
-          errorCount: errorCount != null && errorCount > 0 ? errorCount : undefined,
+          errorCount: s.error_count != null && s.error_count > 0 ? s.error_count : undefined,
           subAgentCount: resolvedSubAgentCount > 0 ? resolvedSubAgentCount : undefined,
           compactCount: s.compact_count != null && s.compact_count > 0 ? s.compact_count : undefined,
+          assistantMessageCount: s.assistant_message_count != null && s.assistant_message_count > 0
+            ? s.assistant_message_count : undefined,
         };
         });
       res.writeHead(200, JSON_HEADERS);
