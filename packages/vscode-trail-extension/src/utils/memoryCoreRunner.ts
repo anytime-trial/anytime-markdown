@@ -8,6 +8,7 @@ import {
   runConversationIncremental,
   runConversationBackfill,
   runCodeIncremental,
+  runBugHistoryIncremental,
 } from '@anytime-markdown/memory-core';
 
 export interface MemoryCoreRunner {
@@ -111,6 +112,20 @@ export function createMemoryCoreRunner(opts: {
               `Code incremental: status=${codeResult.status}, items_processed=${codeResult.items_processed}, ` +
                 `entities_inserted=${codeResult.entities_inserted}, edges_inserted=${codeResult.edges_inserted}, ` +
                 `duration_ms=${codeResult.duration_ms}`,
+            );
+
+            // ── Bug history pipeline ─────────────────────────────────────
+            logger.info(`Running bug history incremental (repo=${repoName})`);
+            const bugResult = await runBugHistoryIncremental({
+              db: memDb.db,
+              repoName,
+              repoRoot: gitRoot,
+              logger,
+            });
+            logger.info(
+              `Bug history: status=${bugResult.status}, items_processed=${bugResult.items_processed}, ` +
+                `bugs_inserted=${bugResult.bugs_inserted}, edges_inserted=${bugResult.edges_inserted}, ` +
+                `duration_ms=${bugResult.duration_ms}`,
             );
           } finally {
             // Release the WASM heap copy of trail DB (~800MB) after every run.

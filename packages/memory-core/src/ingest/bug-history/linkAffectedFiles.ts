@@ -26,7 +26,7 @@ function extractPackageName(filePath: string): string {
 export function linkAffectedFiles(input: LinkAffectedFilesInput): LinkAffectedFilesResult {
   const { db, bugEntityId, commitSha, repoName, recordedAt, valid_from, logger } = input;
 
-  let rows: { values: (string | number | null)[][] } | undefined;
+  let rows: { values: unknown[][] } | undefined;
   try {
     const result = db.exec(
       `SELECT file_path FROM trail.commit_files WHERE commit_hash = ? AND repo_name = ?`,

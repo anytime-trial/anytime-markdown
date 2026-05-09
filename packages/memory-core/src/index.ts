@@ -10,6 +10,8 @@ export { runConversationBackfill } from './pipeline/runConversationBackfill';
 export type { BackfillResult } from './pipeline/runConversationBackfill';
 export { runCodeIncremental } from './pipeline/runCodeIncremental';
 export type { CodeIncrementalResult } from './pipeline/runCodeIncremental';
+export { runBugHistoryIncremental } from './pipeline/runBugHistoryIncremental';
+export type { BugHistoryIncrementalResult } from './pipeline/runBugHistoryIncremental';
 export { ingestAstFacts } from './ingest/code/astFunctionLevel';
 export type { AstFactInput, AstFactStats } from './ingest/code/astFunctionLevel';
 export { extractDecisionComments } from './ingest/code/extractComments';
