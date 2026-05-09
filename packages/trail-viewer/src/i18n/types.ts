@@ -374,6 +374,8 @@ export interface TrailI18n {
   'memory.bug.history': string;
   'memory.bug.filterPackage': string;
   'memory.bug.filterCategory': string;
+  'memory.bug.causedBy.title': string;
+  'memory.bug.causedBy.empty': string;
   // review sub-tab
   'memory.review.empty': string;
   'memory.review.unaddressed': string;

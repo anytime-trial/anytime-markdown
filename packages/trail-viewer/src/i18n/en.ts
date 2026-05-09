@@ -380,6 +380,8 @@ export const en: TrailI18n = {
   'memory.bug.history': 'Bug fix history',
   'memory.bug.filterPackage': 'Package',
   'memory.bug.filterCategory': 'Category',
+  'memory.bug.causedBy.title': 'Causal entities',
+  'memory.bug.causedBy.empty': 'No causal entities',
   'memory.review.empty': 'No review records',
   'memory.review.unaddressed': 'Unaddressed findings',
   'memory.review.history': 'Review history',

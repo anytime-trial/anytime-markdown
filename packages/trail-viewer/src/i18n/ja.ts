@@ -380,6 +380,8 @@ export const ja: TrailI18n = {
   'memory.bug.history': 'バグ修正履歴',
   'memory.bug.filterPackage': 'パッケージ',
   'memory.bug.filterCategory': 'カテゴリ',
+  'memory.bug.causedBy.title': '原因エンティティ',
+  'memory.bug.causedBy.empty': '原因エンティティなし',
   'memory.review.empty': 'レビュー記録はありません',
   'memory.review.unaddressed': '未対応フィンディング',
   'memory.review.history': 'レビュー履歴',
