@@ -587,6 +587,37 @@ describe('extractCommitRationale', () => {
     memDb.close();
   });
 
+  // ECR-16: multi-line rationale body is captured in full
+  test('ECR-16: multi-line rationale body captured without truncation', async () => {
+    const memDb = await makeMemoryDb();
+    const trailDb = makeTrailDb();
+    insertSession(trailDb, 'session-1');
+    insertCommit(trailDb, {
+      sessionId: 'session-1',
+      commitHash: 'multiline00000',
+      commitMessage:
+        'feat: X\n\nRationale: line1\nline2 continued\n\nOther: something else',
+    });
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    extractCommitRationale({
+      db: memDb,
+      repoName: REPO,
+      sinceCommittedAt: null,
+      recordedAt: RECORDED_AT,
+      logger: silentLogger,
+    });
+
+    const rows = memDb.exec(`SELECT summary FROM memory_entities WHERE type = 'Decision'`);
+    const summary = rows[0]?.values[0][0] as string;
+    expect(summary).toContain('line1');
+    expect(summary).toContain('line2 continued');
+
+    trailDb.close();
+    memDb.close();
+  });
+
   // ECR-15: same commit_hash in multiple sessions → deduplicated by GROUP BY
   test('ECR-15: same commit_hash across multiple sessions → processed once', async () => {
     const memDb = await makeMemoryDb();

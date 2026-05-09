@@ -30,10 +30,13 @@ export interface ExtractRationaleStats {
  *   - end of string
  *
  * The `i` flag makes Rationale/Reason match case-insensitively.
- * The `m` flag makes ^ match at line start.
+ * The `m` flag is intentionally omitted: with `m`, `$` in the lookahead
+ * matches end-of-line instead of end-of-string, causing [\s\S]+? to stop
+ * after the first line and truncate multi-line rationale bodies.
+ * Instead, `(?:^|\n)` is used to anchor the match at line start.
  */
 const RATIONALE_PATTERN =
-  /^(?:Rationale|Reason|理由)\s*[：:]\s*([\s\S]+?)(?=\n\s*\n|\n[A-Z][a-z]+\s*[：:]|$)/im;
+  /(?:^|\n)(?:Rationale|Reason|理由)\s*[：:]\s*([\s\S]+?)(?=\n\s*\n|\n[A-Z][a-z]+\s*[：:]|$)/i;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -124,8 +127,12 @@ export function extractCommitRationale(input: ExtractRationaleInput): ExtractRat
       const commitAttributes = JSON.stringify({ committed_at: committedAt });
 
       try {
+        // INSERT OR IGNORE (not REPLACE): Commit data is immutable. INSERT OR REPLACE
+        // internally does DELETE+INSERT, which triggers ON DELETE SET NULL on
+        // memory_edges.object_entity_id and then violates a NOT NULL constraint on
+        // re-runs that already have edges pointing to this Commit entity.
         db.run(
-          `INSERT OR REPLACE INTO memory_entities
+          `INSERT OR IGNORE INTO memory_entities
              (id, type, canonical_name, display_name,
               aliases_json, tags_json, attributes_json,
               first_seen_at, last_updated_at, recorded_at)
