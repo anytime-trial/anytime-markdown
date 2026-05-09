@@ -110,6 +110,7 @@ export function OverviewCards({
           const formatted = formatDoraValue(m);
           return {
             primary: formatted.primary,
+            suffix: formatted.suffix,
             unit: formatted.unit,
             label: t((DORA_ID_KEYS[m.id] ?? m.id) as Parameters<typeof t>[0]),
             tooltip: DORA_DESCRIPTION_KEYS[m.id] ? t(DORA_DESCRIPTION_KEYS[m.id] as Parameters<typeof t>[0]) : undefined,
@@ -147,9 +148,12 @@ export function OverviewCards({
           </Box>
           <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, flexWrap: 'wrap', justifyContent: 'center' }}>
-              <Typography variant="h3">{card.primary}</Typography>
+              <Typography variant="h3">
+                {card.primary}
+                {card.suffix && <span style={{ fontSize: '0.45em', fontWeight: 'inherit' }}>{card.suffix}</span>}
+              </Typography>
               {card.unit && (
-                <Typography variant="caption" color="text.secondary" style={{ fontSize: '9px', lineHeight: 1 }}>{card.unit}</Typography>
+                <Typography variant="caption" color="text.secondary">{card.unit}</Typography>
               )}
               {card.badge && (
                 <Chip
