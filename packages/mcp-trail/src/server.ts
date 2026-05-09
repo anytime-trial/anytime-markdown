@@ -14,6 +14,9 @@ import { RunReviewAgentInputSchema, handleRunReviewAgent } from './tools/runRevi
 import { GetReviewRunStatusInputSchema, handleGetReviewRunStatus } from './tools/getReviewRunStatus.js';
 import { ListReviewRunsInputSchema, handleListReviewRuns } from './tools/listReviewRuns.js';
 import { ListReviewTargetHintsInputSchema, handleListReviewTargetHints } from './tools/listReviewTargetHints.js';
+import { DetectDriftInputSchema, handleDetectDrift } from './tools/detectDrift.js';
+import { ExplainDriftInputSchema, handleExplainDrift } from './tools/explainDrift.js';
+import { ResolveDriftInputSchema, handleResolveDrift } from './tools/resolveDrift.js';
 
 export interface McpTrailOptions {
   serverUrl?: string;
@@ -354,6 +357,51 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
     async ({ mappings, repoName, serverUrl }) => {
       const opts = buildRouteOpts({ repoName, serverUrl }, options);
       const result = await route('upsert_community_mappings', { mappings }, opts);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  //  Drift detection tools (memory-core)
+  // -------------------------------------------------------------------------
+
+  server.tool(
+    'detect_drift',
+    'Query persisted drift events with optional filters for severity, drift_type, subject entity, and time range',
+    {
+      unresolved_only: DetectDriftInputSchema.shape.unresolved_only,
+      severity: DetectDriftInputSchema.shape.severity,
+      drift_type: DetectDriftInputSchema.shape.drift_type,
+      subject_id: DetectDriftInputSchema.shape.subject_id,
+      since: DetectDriftInputSchema.shape.since,
+      limit: DetectDriftInputSchema.shape.limit,
+    },
+    async (args) => {
+      const result = await handleDetectDrift(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.tool(
+    'explain_drift',
+    'Return the 5-source (conversation/spec/code/bug_history/review) evidence for a specific drift event',
+    { event_id: ExplainDriftInputSchema.shape.event_id },
+    async (args) => {
+      const result = await handleExplainDrift(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.tool(
+    'resolve_drift',
+    'Mark a drift event as resolved with a resolution note',
+    {
+      event_id: ResolveDriftInputSchema.shape.event_id,
+      resolution_note: ResolveDriftInputSchema.shape.resolution_note,
+      resolved_at: ResolveDriftInputSchema.shape.resolved_at,
+    },
+    async (args) => {
+      const result = await handleResolveDrift(args);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );

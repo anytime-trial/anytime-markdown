@@ -51,3 +51,10 @@ export type { ReviewRunStatus } from './retrieve/getReviewRunStatus';
 export { listReviewRuns } from './retrieve/listReviewRuns';
 export { listReviewTargetHints } from './retrieve/listReviewTargetHints';
 export type { ReviewTargetHint } from './retrieve/listReviewTargetHints';
+
+export { detectDrift } from './retrieve/detectDrift';
+export type { DriftEventSummary, DetectDriftInput } from './retrieve/detectDrift';
+export { explainDrift } from './retrieve/explainDrift';
+export type { ExplainDriftResult, DriftSourceEvidence } from './retrieve/explainDrift';
+export { resolveDrift } from './retrieve/resolveDrift';
+export type { ResolveDriftResult } from './retrieve/resolveDrift';
