@@ -132,8 +132,6 @@ export interface TrailI18n {
   'analytics.buildFail.description': string;
   'analytics.testFail': string;
   'analytics.testFail.description': string;
-  'analytics.metricInterrupted': string;
-  'analytics.metricInterrupted.description': string;
   'analytics.loadingAnalytics': string;
   'analytics.chartInput': string;
   'analytics.chartOutput': string;

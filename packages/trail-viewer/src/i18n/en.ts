@@ -123,8 +123,6 @@ export const en: TrailI18n = {
   'analytics.buildFail.description': 'Ratio of failed builds to total build runs',
   'analytics.testFail': 'Test Fail',
   'analytics.testFail.description': 'Ratio of failed tests to total test runs',
-  'analytics.metricInterrupted': 'Interrupted',
-  'analytics.metricInterrupted.description': 'Whether the session was interrupted (max_tokens or no response)',
   'analytics.loadingAnalytics': 'Loading analytics...',
   'analytics.chartInput': 'Input',
   'analytics.chartOutput': 'Output',

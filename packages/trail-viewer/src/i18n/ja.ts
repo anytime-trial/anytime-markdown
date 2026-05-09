@@ -123,8 +123,6 @@ export const ja: TrailI18n = {
   'analytics.buildFail.description': 'ビルド実行のうち失敗した割合',
   'analytics.testFail': 'テスト失敗',
   'analytics.testFail.description': 'テスト実行のうち失敗した割合',
-  'analytics.metricInterrupted': '中断',
-  'analytics.metricInterrupted.description': 'セッションが中断された場合にその理由（max_tokens または応答なし）を表示',
   'analytics.loadingAnalytics': '分析データを読み込み中...',
   'analytics.chartInput': '入力',
   'analytics.chartOutput': '出力',
