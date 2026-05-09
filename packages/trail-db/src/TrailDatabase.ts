@@ -5967,8 +5967,16 @@ export class TrailDatabase {
          SELECT DATE(start_time, '${tzOffset}') AS date, COUNT(*) AS sessions, 0 AS commits, 0 AS loc_added, 0 AS loc_deleted
          FROM sessions WHERE start_time != '' GROUP BY date
          UNION ALL
-         SELECT DATE(committed_at, '${tzOffset}') AS date, 0 AS sessions, COUNT(*) AS commits, SUM(lines_added) AS loc_added, SUM(lines_deleted) AS loc_deleted
-         FROM (SELECT DISTINCT repo_name, commit_hash, committed_at, lines_added, lines_deleted FROM session_commits WHERE committed_at != '')
+         SELECT date, 0 AS sessions, COUNT(*) AS commits, SUM(lines_added) AS loc_added, SUM(lines_deleted) AS loc_deleted
+         FROM (
+           SELECT DATE(s.start_time, '${tzOffset}') AS date, sc.repo_name, sc.commit_hash,
+                  MAX(COALESCE(sc.lines_added, 0)) AS lines_added,
+                  MAX(COALESCE(sc.lines_deleted, 0)) AS lines_deleted
+           FROM session_commits sc
+           JOIN sessions s ON sc.session_id = s.id
+           WHERE sc.committed_at != '' AND s.start_time != ''
+           GROUP BY DATE(s.start_time, '${tzOffset}'), sc.repo_name, sc.commit_hash
+         )
          GROUP BY date
        )
        WHERE date >= DATE('now', '${tzOffset}', '-180 days')
@@ -5993,7 +6001,10 @@ export class TrailDatabase {
       `SELECT COUNT(*) AS total_commits,
         COALESCE(SUM(lines_added), 0) AS total_lines_added,
         COALESCE(SUM(lines_deleted), 0) AS total_lines_deleted
-      FROM (SELECT DISTINCT repo_name, commit_hash, lines_added, lines_deleted FROM session_commits)`,
+      FROM (
+        SELECT repo_name, commit_hash, MAX(COALESCE(lines_added, 0)) AS lines_added, MAX(COALESCE(lines_deleted, 0)) AS lines_deleted
+        FROM session_commits GROUP BY repo_name, commit_hash
+      )`,
     );
     const cr = commitTotals[0]?.values[0] ?? [0, 0, 0];
     const totalCommits = Number(cr[0]);
@@ -6276,14 +6287,21 @@ export class TrailDatabase {
     // 期間末尾から 168h 先のコミットも取得する。手動コミットが複数セッションに重複登録される
     // ため repo_name + commit_hash で排除する。
     const commitWindowSec = Math.round(AI_FIRST_TRY_FIX_WINDOW_MS / 1000);
+    const sessionDateExpr = period === 'week'
+      ? `strftime('%Y-W%W', s.start_time, '${tzOffset}')`
+      : `DATE(s.start_time, '${tzOffset}')`;
     const commitResult = db.exec(
-      `SELECT ${commitPeriodExpr} AS period, repo_name, commit_hash, commit_message,
-              committed_at, is_ai_assisted, COALESCE(lines_added, 0) AS lines_added,
-              COALESCE(lines_deleted, 0) AS lines_deleted
-       FROM session_commits
-       WHERE committed_at >= DATETIME('now', '-${rangeDays} days')
-         AND committed_at <= DATETIME('now', '+${commitWindowSec} seconds')
-       GROUP BY repo_name, commit_hash`,
+      `SELECT ${sessionDateExpr} AS period, sc.repo_name, sc.commit_hash,
+              MAX(sc.commit_message) AS commit_message,
+              MIN(sc.committed_at) AS committed_at,
+              MAX(sc.is_ai_assisted) AS is_ai_assisted,
+              MAX(COALESCE(sc.lines_added, 0)) AS lines_added,
+              MAX(COALESCE(sc.lines_deleted, 0)) AS lines_deleted
+       FROM session_commits sc
+       JOIN sessions s ON sc.session_id = s.id
+       WHERE sc.committed_at >= DATETIME('now', '-${rangeDays} days')
+         AND sc.committed_at <= DATETIME('now', '+${commitWindowSec} seconds')
+       GROUP BY ${sessionDateExpr}, sc.repo_name, sc.commit_hash`,
     );
     type CommitRow = {
       period: string;
@@ -6330,8 +6348,8 @@ export class TrailDatabase {
       }
     }
 
-    // Commit prefix stats: 期間内 (未来拡張分は除外) のコミットだけを集計対象とする
-    const cutoffPeriodRes = db.exec(`SELECT ${commitPeriodExpr.replace('committed_at', `DATE('now')`)} AS period`);
+    // Commit prefix stats: 期間内のコミットだけを集計 (period はセッション開始日基準)
+    const cutoffPeriodRes = db.exec(`SELECT ${sessionDateExpr.replace('s.start_time', `DATE('now')`)} AS period`);
     const todayPeriod = String(cutoffPeriodRes[0]?.values?.[0]?.[0] ?? '');
     const prefixMap = new Map<string, { count: number; linesAdded: number; linesDeleted: number }>();
     for (const c of commitRows) {
