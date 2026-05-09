@@ -37,6 +37,7 @@ import { aggregateScoresToC4 } from '@anytime-markdown/trail-core/deadCode';
 import { TrailLogger } from '../utils/TrailLogger';
 import type { CodeGraphService } from '../graph/CodeGraphService';
 import { GraphQueryEngine } from '../graph/GraphQueryEngine';
+import { MemoryApiHandler } from './MemoryApiHandler';
 
 // ---------------------------------------------------------------------------
 //  Constants
@@ -235,6 +236,7 @@ export class TrailDataServer {
   };
 
   private codeGraphService: CodeGraphService | undefined;
+  private readonly memoryApi = new MemoryApiHandler();
 
   constructor(
     private readonly distPath: string,
@@ -727,6 +729,195 @@ export class TrailDataServer {
     }
     if (pathname === '/api/trace/file' && method === 'GET') {
       this.handleTraceFile(res, parsed.searchParams.get('name') ?? '');
+      return;
+    }
+
+    // -------------------------------------------------------------------------
+    //  Memory API endpoints
+    // -------------------------------------------------------------------------
+    if (pathname === '/api/memory/status' && method === 'GET') {
+      void this.memoryApi.handleStatus().then((data) => {
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify(data));
+      }).catch((err: unknown) => {
+        TrailLogger.error(`[/api/memory/status] ${String(err)}`);
+        res.writeHead(500); res.end();
+      });
+      return;
+    }
+
+    if (pathname === '/api/memory/drift/events' && method === 'GET') {
+      const p = parsed.searchParams;
+      void this.memoryApi.listDriftEvents({
+        unresolvedOnly: p.get('unresolvedOnly') === 'true',
+        severity: p.get('severity') ?? undefined,
+        driftType: p.get('driftType') ?? undefined,
+        since: p.get('since') ?? undefined,
+        limit: clampInt(p.get('limit'), 50, 1, 200),
+      }).then((data) => {
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify(data));
+      }).catch((err: unknown) => {
+        TrailLogger.error(`[/api/memory/drift/events] ${String(err)}`);
+        res.writeHead(500); res.end();
+      });
+      return;
+    }
+
+    if (pathname.startsWith('/api/memory/drift/events/') && method === 'GET') {
+      const eventId = pathname.slice('/api/memory/drift/events/'.length);
+      void this.memoryApi.getDriftEventDetail(eventId).then((data) => {
+        if (!data) { res.writeHead(404); res.end(); return; }
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify(data));
+      }).catch((err: unknown) => {
+        TrailLogger.error(`[/api/memory/drift/events/:id] ${String(err)}`);
+        res.writeHead(500); res.end();
+      });
+      return;
+    }
+
+    if (pathname.startsWith('/api/memory/drift/events/') && method === 'POST') {
+      const eventId = pathname.slice('/api/memory/drift/events/'.length).replace(/\/resolve$/, '');
+      void this.readJsonBody(req).then(async (body) => {
+        const note = typeof (body as Record<string, unknown>)['resolutionNote'] === 'string'
+          ? (body as Record<string, string>)['resolutionNote']
+          : '';
+        const data = await this.memoryApi.resolveDriftEvent(eventId, note);
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify(data));
+      }).catch((err: unknown) => {
+        TrailLogger.error(`[/api/memory/drift/events/:id POST] ${String(err)}`);
+        res.writeHead(500); res.end();
+      });
+      return;
+    }
+
+    if (pathname === '/api/memory/bugs/recurring' && method === 'GET') {
+      const p = parsed.searchParams;
+      void this.memoryApi.listRecurringBugs({
+        package: p.get('pkg') ?? undefined,
+        windowDays: p.get('windowDays') ? clampInt(p.get('windowDays'), 90, 1, 365) : undefined,
+        limit: clampInt(p.get('limit'), 20, 1, 200),
+      }).then((data) => {
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify(data));
+      }).catch((err: unknown) => {
+        TrailLogger.error(`[/api/memory/bugs/recurring] ${String(err)}`);
+        res.writeHead(500); res.end();
+      });
+      return;
+    }
+
+    if (pathname === '/api/memory/bugs/history' && method === 'GET') {
+      const p = parsed.searchParams;
+      void this.memoryApi.getBugHistory({
+        package: p.get('pkg') ?? undefined,
+        filePath: p.get('filePath') ?? undefined,
+        category: p.get('category') ?? undefined,
+        limit: clampInt(p.get('limit'), 50, 1, 200),
+      }).then((data) => {
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify(data));
+      }).catch((err: unknown) => {
+        TrailLogger.error(`[/api/memory/bugs/history] ${String(err)}`);
+        res.writeHead(500); res.end();
+      });
+      return;
+    }
+
+    if (pathname === '/api/memory/reviews/unaddressed' && method === 'GET') {
+      const p = parsed.searchParams;
+      void this.memoryApi.listUnaddressedReviewFindings({
+        category: p.get('category') ?? undefined,
+        severity: p.get('severity') ?? undefined,
+        daysSinceMin: p.get('daysSinceMin') ? clampInt(p.get('daysSinceMin'), 0, 0, 365) : undefined,
+        limit: clampInt(p.get('limit'), 50, 1, 200),
+      }).then((data) => {
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify(data));
+      }).catch((err: unknown) => {
+        TrailLogger.error(`[/api/memory/reviews/unaddressed] ${String(err)}`);
+        res.writeHead(500); res.end();
+      });
+      return;
+    }
+
+    if (pathname === '/api/memory/reviews/history' && method === 'GET') {
+      const p = parsed.searchParams;
+      void this.memoryApi.getReviewHistory({
+        targetFilePath: p.get('targetFilePath') ?? undefined,
+        package: p.get('pkg') ?? undefined,
+        limit: clampInt(p.get('limit'), 50, 1, 200),
+      }).then((data) => {
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify(data));
+      }).catch((err: unknown) => {
+        TrailLogger.error(`[/api/memory/reviews/history] ${String(err)}`);
+        res.writeHead(500); res.end();
+      });
+      return;
+    }
+
+    if (pathname === '/api/memory/pipeline/runs' && method === 'GET') {
+      const p = parsed.searchParams;
+      void this.memoryApi.listPipelineRuns({
+        scope: p.get('scope') ?? undefined,
+        status: p.get('status') ?? undefined,
+        since: p.get('since') ?? undefined,
+        limit: clampInt(p.get('limit'), 50, 1, 200),
+      }).then((data) => {
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify(data));
+      }).catch((err: unknown) => {
+        TrailLogger.error(`[/api/memory/pipeline/runs] ${String(err)}`);
+        res.writeHead(500); res.end();
+      });
+      return;
+    }
+
+    if (pathname === '/api/memory/pipeline/failed' && method === 'GET') {
+      const p = parsed.searchParams;
+      void this.memoryApi.listFailedItems({
+        scope: p.get('scope') ?? undefined,
+        limit: clampInt(p.get('limit'), 50, 1, 200),
+      }).then((data) => {
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify(data));
+      }).catch((err: unknown) => {
+        TrailLogger.error(`[/api/memory/pipeline/failed] ${String(err)}`);
+        res.writeHead(500); res.end();
+      });
+      return;
+    }
+
+    if (pathname === '/api/memory/entities/top' && method === 'GET') {
+      const p = parsed.searchParams;
+      void this.memoryApi.listTopEntities({
+        type: p.get('type') ?? undefined,
+        limit: clampInt(p.get('limit'), 20, 1, 200),
+      }).then((data) => {
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify(data));
+      }).catch((err: unknown) => {
+        TrailLogger.error(`[/api/memory/entities/top] ${String(err)}`);
+        res.writeHead(500); res.end();
+      });
+      return;
+    }
+
+    if (pathname === '/api/memory/edges/invalidations' && method === 'GET') {
+      const p = parsed.searchParams;
+      void this.memoryApi.listInvalidations({
+        since: p.get('since') ?? undefined,
+        limit: clampInt(p.get('limit'), 50, 1, 200),
+      }).then((data) => {
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify(data));
+      }).catch((err: unknown) => {
+        TrailLogger.error(`[/api/memory/edges/invalidations] ${String(err)}`);
+        res.writeHead(500); res.end();
+      });
       return;
     }
 

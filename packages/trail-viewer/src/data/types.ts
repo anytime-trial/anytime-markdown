@@ -67,3 +67,102 @@ export interface CommitDbRow {
   readonly lines_added: number;
   readonly lines_deleted: number;
 }
+
+// ---------------------------------------------------------------------------
+//  Memory API response types (mirrored from MemoryApiHandler in vscode-trail-extension)
+// ---------------------------------------------------------------------------
+
+export interface MemoryDriftEventRow {
+  readonly id: string;
+  readonly subjectEntityId: string;
+  readonly subjectDisplayName: string;
+  readonly predicate: string;
+  readonly driftType: string;
+  readonly severity: string;
+  readonly conversationValue: string | null;
+  readonly specValue: string | null;
+  readonly codeValue: string | null;
+  readonly detectedAt: string;
+  readonly resolvedAt: string | null;
+  readonly resolutionNote: string;
+}
+
+export interface MemoryDriftEventDetail extends MemoryDriftEventRow {
+  readonly detailJson: unknown;
+}
+
+export interface MemoryRecurringBugRow {
+  readonly id: string;
+  readonly subjectEntityId: string;
+  readonly subjectDisplayName: string;
+  readonly driftType: string;
+  readonly severity: string;
+  readonly detectedAt: string;
+}
+
+export interface MemoryBugHistoryRow {
+  readonly id: string;
+  readonly commitSha: string;
+  readonly bugEntityId: string;
+  readonly package: string;
+  readonly category: string;
+  readonly subjectSummary: string;
+  readonly committedAt: string;
+}
+
+export interface MemoryUnaddressedReviewFindingRow {
+  readonly id: string;
+  readonly reviewId: string;
+  readonly targetFilePath: string | null;
+  readonly category: string;
+  readonly severity: string;
+  readonly findingText: string;
+  readonly recordedAt: string;
+}
+
+export interface MemoryReviewHistoryRow {
+  readonly id: string;
+  readonly reviewId: string;
+  readonly title: string;
+  readonly reviewedAt: string;
+  readonly targetFilePath: string | null;
+  readonly category: string;
+  readonly severity: string;
+  readonly findingText: string;
+  readonly addressedCommitSha: string | null;
+  readonly addressedAt: string | null;
+}
+
+export interface MemoryPipelineRunRow {
+  readonly id: string;
+  readonly scope: string;
+  readonly startedAt: string;
+  readonly completedAt: string | null;
+  readonly status: string;
+  readonly itemsProcessed: number;
+  readonly errorMessage: string | null;
+}
+
+export interface MemoryFailedItemRow {
+  readonly scope: string;
+  readonly itemKey: string;
+  readonly failedAt: string;
+  readonly reason: string;
+  readonly attemptCount: number;
+}
+
+export interface MemoryTopEntityRow {
+  readonly id: string;
+  readonly type: string;
+  readonly canonicalName: string;
+  readonly displayName: string;
+  readonly lastUpdatedAt: string;
+}
+
+export interface MemoryInvalidationRow {
+  readonly id: string;
+  readonly edgeId: string;
+  readonly invalidatedAt: string;
+  readonly reason: string;
+  readonly supersedingEdgeId: string | null;
+}
