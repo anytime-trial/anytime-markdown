@@ -234,6 +234,8 @@ export interface TrailThemeTokens {
   readonly commitColors: Readonly<{
     feat: string; fix: string; refactor: string; test: string; other: string;
   }>;
+  /** カテゴリ色。[0]=計画的開発(緑), [1]=事後対応(赤), [2]=その他(黄) */
+  readonly commitCategoryColors: readonly [string, string, string];
   readonly toolActionColors: ThemeToolActionColors;
   readonly modelColors: ThemeModelColors;
   readonly modelCostColors: ThemeModelCostColors;
@@ -345,6 +347,9 @@ export function getTokens(isDark: boolean): TrailThemeTokens {
     },
     toolPalette: isDark ? darkToolPalette : lightToolPalette,
     commitColors: isDark ? darkCommitColors : lightCommitColors,
+    commitCategoryColors: isDark
+      ? ['#66BB6A', '#EF5350', '#FFA726']  // 緑・赤・黄 (dark)
+      : ['#388E3C', '#D32F2F', '#F57C00'], // 緑・赤・黄 (light)
     toolActionColors,
     modelColors,
     modelCostColors,

@@ -13,6 +13,7 @@ import { ChartsGrid } from '@mui/x-charts/ChartsGrid';
 import { ChartsLegend } from '@mui/x-charts/ChartsLegend';
 import { ChartsAxisHighlight } from '@mui/x-charts/ChartsAxisHighlight';
 import { useTrailTheme } from '../../../TrailThemeContext';
+import { useCommitCategory } from '../../../CommitCategoryContext';
 import { fmtTokens } from '../../../../domain/analytics/formatters';
 import { LEAD_TIME_LOC_COLOR } from '../../../../theme/designTokens';
 import type { CommitMetric } from '../../types';
@@ -30,7 +31,8 @@ export function CommitsCombinedChart({
   canDrill: boolean;
   onDateClick?: (date: string) => void;
 }>) {
-  const { cardSx, toolPalette } = useTrailTheme();
+  const { cardSx } = useTrailTheme();
+  const { getCategoryColor } = useCommitCategory();
   const { commitRows, commitPeriods, commitLabels, commitPrefixes, commitMap, aiRateRows } = axisInfo;
 
   const commitDataset = useMemo(() => {
@@ -71,7 +73,7 @@ export function CommitsCombinedChart({
     dataKey: `c${i}`,
     label: prefix,
     stack: 'total',
-    color: toolPalette[i % toolPalette.length],
+    color: getCategoryColor(prefix),
     yAxisId: 'countAxis',
   }));
   const lineSeries = showRate ? [{
