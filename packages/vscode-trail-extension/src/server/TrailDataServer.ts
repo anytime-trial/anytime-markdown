@@ -2022,6 +2022,9 @@ export class TrailDataServer {
         filesChanged: row.files_changed,
         linesAdded: row.lines_added,
         linesDeleted: row.lines_deleted,
+        // ReleasesPanel が release.totalLines.toLocaleString() を呼ぶため number で返す。
+        // total_lines マイグレーション以前の行や未集計行では NULL になり得るので 0 にフォールバック。
+        totalLines: row.total_lines ?? 0,
         featCount: row.feat_count,
         fixCount: row.fix_count,
         refactorCount: row.refactor_count,
