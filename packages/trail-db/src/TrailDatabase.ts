@@ -2492,16 +2492,17 @@ export class TrailDatabase {
       stmt.run([String(row[0]), 'skill', String(row[1] ?? ''), Number(row[2] ?? 0), 0, 0, 0, 0, 0, 0, 0]);
     }
 
-    // ── kind='error' : ツール別エラー日次集計 ──
+    // ── kind='error' : ツール別エラー日次集計（session start_time 基準）──
     const errors = db.exec(
-      `SELECT DATE(timestamp, '${tzOffset}') AS d,
+      `SELECT DATE(s.start_time, '${tzOffset}') AS d,
               CASE
-                WHEN tool_name LIKE 'mcp\\_\\_%\\_\\_%' ESCAPE '\\'
-                THEN SUBSTR(tool_name, 1, INSTR(SUBSTR(tool_name, 6), '__') + 4)
-                ELSE tool_name
+                WHEN mtc.tool_name LIKE 'mcp\\_\\_%\\_\\_%' ESCAPE '\\'
+                THEN SUBSTR(mtc.tool_name, 1, INSTR(SUBSTR(mtc.tool_name, 6), '__') + 4)
+                ELSE mtc.tool_name
               END AS tool,
-              SUM(is_error) AS err_count
-       FROM message_tool_calls
+              SUM(mtc.is_error) AS err_count
+       FROM message_tool_calls mtc
+       JOIN sessions s ON s.id = mtc.session_id
        GROUP BY d, tool
        HAVING err_count > 0`,
     );
@@ -6085,11 +6086,20 @@ export class TrailDatabase {
       };
     });
 
+    // エラー集計: session start_time 基準（daily_counts の timestamp 基準と一致させる）
     const errResult = db.exec(
-      `SELECT ${periodExpr} AS period, key AS tool, SUM(count) AS err_count
-       FROM daily_counts
-       WHERE kind = 'error' AND date >= ${cutoff}
-       GROUP BY period, key`,
+      `SELECT ${sessionStartPeriodExpr} AS period,
+              CASE
+                WHEN mtc.tool_name LIKE 'mcp\\_\\_%\\_\\_%' ESCAPE '\\'
+                THEN SUBSTR(mtc.tool_name, 1, INSTR(SUBSTR(mtc.tool_name, 6), '__') + 4)
+                ELSE mtc.tool_name
+              END AS tool,
+              COUNT(*) AS err_count
+       FROM message_tool_calls mtc
+       JOIN sessions s ON s.id = mtc.session_id
+       WHERE mtc.is_error = 1
+         AND DATE(s.start_time, '${tzOffset}') >= DATE('now', '${tzOffset}', '-${rangeDays} days')
+       GROUP BY period, tool`,
     );
     const errByPeriod = new Map<string, { byTool: Record<string, number> }>();
     for (const r of toRows(errResult)) {

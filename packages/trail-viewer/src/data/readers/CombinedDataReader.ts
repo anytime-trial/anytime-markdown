@@ -317,7 +317,7 @@ export class CombinedDataReader {
           const { data, error } = await this.client
             .from('trail_daily_counts')
             .select('date,kind,key,count,tokens,duration_ms')
-            .in('kind', ['skill', 'error', 'tool', 'model'])
+            .in('kind', ['skill', 'tool', 'model'])
             .gte('date', cutoffDate)
             .range(offset, offset + 999);
           if (error || !data || data.length === 0) break;
@@ -407,7 +407,6 @@ export class CombinedDataReader {
         return parts.length >= 3 ? `${parts[0]}__${parts[1]}` : name;
       };
 
-      const errMap = new Map<string, { err: number; total: number; byTool: Record<string, number> }>();
       const skillMap = new Map<string, number>();
       // tool: key = `${periodKey}|${toolName}`, value = { count, tokens, durationMs }
       const toolDcMap = new Map<string, { count: number; tokens: number; durationMs: number }>();
@@ -416,12 +415,7 @@ export class CombinedDataReader {
 
       for (const r of allDcRows) {
         const p = periodKey(r.date);
-        if (r.kind === 'error') {
-          const ef = errMap.get(p) ?? { err: 0, total: 0, byTool: {} };
-          ef.err += r.count;
-          ef.byTool[r.key] = (ef.byTool[r.key] ?? 0) + r.count;
-          errMap.set(p, ef);
-        } else if (r.kind === 'skill') {
+        if (r.kind === 'skill') {
           const k = `${p}::${r.key}`;
           skillMap.set(k, (skillMap.get(k) ?? 0) + r.count);
         } else if (r.kind === 'tool') {
@@ -440,23 +434,10 @@ export class CombinedDataReader {
         }
       }
 
-      // Populate errMap.total from tool daily_counts
-      for (const [k, e] of toolDcMap.entries()) {
-        const p = k.slice(0, k.indexOf('|'));
-        const ef = errMap.get(p) ?? { err: 0, total: 0, byTool: {} };
-        ef.total += e.count;
-        errMap.set(p, ef);
-      }
-
       const splitKey = (k: string): [string, string] => {
         const sep = k.indexOf('::');
         return [k.slice(0, sep), k.slice(sep + 2)];
       };
-
-      const errorRate = [...errMap.entries()]
-        .filter(([, e]) => e.total > 0)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([p, e]) => ({ period: p, rate: e.err / e.total, byTool: e.byTool }));
 
       const skillStats = [...skillMap.entries()]
         .map(([k, count]) => { const [p, skill] = splitKey(k); return { period: p, skill, count, costUsd: 0 }; })
@@ -472,8 +453,42 @@ export class CombinedDataReader {
         if (s.repo_name) repoNameById.set(s.id, s.repo_name);
       }
 
-      // === Phase B: session_costs と session_commits を並列取得 ===
-      const [allCostRows, allCommitRows] = await Promise.all([fetchSessionCosts(), fetchSessionCommits()]);
+      // エラー集計: session start_time 基準（daily_counts の timestamp 基準と異なる）
+      const fetchSessionErrors = async (): Promise<Map<string, Record<string, number>>> => {
+        const result = new Map<string, Record<string, number>>();
+        const sids = [...sessionStartById.keys()];
+        const BATCH = 200;
+        for (let i = 0; i < sids.length; i += BATCH) {
+          const batch = sids.slice(i, i + BATCH);
+          for (let offset = 0; ; offset += 1000) {
+            const { data } = await this.client
+              .from('trail_message_tool_calls')
+              .select('session_id,tool_name')
+              .in('session_id', batch)
+              .eq('is_error', 1)
+              .range(offset, offset + 999);
+            if (!data || data.length === 0) break;
+            for (const r of data as { session_id: string; tool_name: string }[]) {
+              const start = sessionStartById.get(r.session_id);
+              if (!start) continue;
+              const p = periodKey(toJSTDate(start));
+              const tool = normalizeTool(r.tool_name);
+              const byTool = result.get(p) ?? {};
+              byTool[tool] = (byTool[tool] ?? 0) + 1;
+              result.set(p, byTool);
+            }
+            if (data.length < 1000) break;
+          }
+        }
+        return result;
+      };
+
+      // === Phase B: session_costs / session_commits / session errors を並列取得 ===
+      const [allCostRows, allCommitRows, errByPeriodTool] = await Promise.all([fetchSessionCosts(), fetchSessionCommits(), fetchSessionErrors()]);
+
+      const errorRate = [...errByPeriodTool.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([p, byTool]) => ({ period: p, rate: 0, byTool }));
 
       const repoTokenMap = new Map<string, number>();
       const agentMap = new Map<string, { tokens: number; costUsd: number; loc: number }>();
