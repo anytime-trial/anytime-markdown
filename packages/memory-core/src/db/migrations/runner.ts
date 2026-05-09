@@ -5,6 +5,8 @@ import * as path from 'path';
 const MIGRATIONS: { version: number; file: string }[] = [
   { version: 1, file: '001_initial.sql' },
   { version: 2, file: '002_phase2.sql' },
+  { version: 3, file: '003_phase2_5.sql' },
+  { version: 4, file: '004_pipeline_scope.sql' },
 ];
 
 export function runMigrations(db: Database): void {

@@ -87,8 +87,8 @@ export function installTrailReadonlyGuard(db: Database): void {
     return originalRun(sql, params);
   };
 
-  (db as unknown as Record<string, unknown>).exec = function (sql: string) {
+  (db as unknown as Record<string, unknown>).exec = function (sql: string, params?: BindParams) {
     checkSql(sql);
-    return originalExec(sql);
+    return (originalExec as (sql: string, params?: BindParams) => ReturnType<Database['exec']>)(sql, params);
   };
 }

@@ -172,4 +172,80 @@ describe('extractFactsFromEpisode', () => {
     const promptUsed: string = (ollama.generate as jest.Mock).mock.calls[0][0].prompt;
     expect(promptUsed).toContain('Question entity を抽出してください');
   });
+
+  // Phase 2.5: Bug entity + caused_by edge
+  test('Bug entity type is accepted by zod schema', async () => {
+    const ollama = makeOllama({
+      summary: 'Bug found in web-app',
+      entities: [
+        {
+          type: 'Bug',
+          name: 'ログイン画面のリグレッション',
+          aliases: [],
+          tags: [],
+          attributes: { category: 'regression', severity: 'error' },
+        },
+      ],
+      relations: [],
+    });
+    const result = await extractFactsFromEpisode({ ollama, episode: episodeBase, logger: mockLogger });
+    expect(result).not.toBeNull();
+    expect(result!.entities).toHaveLength(1);
+    expect(result!.entities[0].type).toBe('Bug');
+  });
+
+  test('caused_by predicate is accepted by zod schema', async () => {
+    const ollama = makeOllama({
+      summary: 'Bug caused by bad assumption',
+      entities: [
+        { type: 'Bug', name: 'Auth token bug', aliases: [], tags: [], attributes: {} },
+        { type: 'Concept', name: 'JWT expiry assumption', aliases: [], tags: [], attributes: {} },
+      ],
+      relations: [
+        {
+          subject: { type: 'Bug', name: 'Auth token bug' },
+          predicate: 'caused_by',
+          object: { type: 'Concept', name: 'JWT expiry assumption' },
+          valid_from: null,
+          confidence: 0.75,
+        },
+      ],
+    });
+    const result = await extractFactsFromEpisode({ ollama, episode: episodeBase, logger: mockLogger });
+    expect(result).not.toBeNull();
+    expect(result!.relations).toHaveLength(1);
+    expect(result!.relations[0].predicate).toBe('caused_by');
+    expect(result!.relations[0].confidence).toBe(0.75);
+  });
+
+  test('Bug + caused_by instructions present in system prompt', async () => {
+    const ollama = makeOllama({ summary: 'test', entities: [], relations: [] });
+    await extractFactsFromEpisode({ ollama, episode: episodeBase, logger: mockLogger });
+    const promptUsed: string = (ollama.generate as jest.Mock).mock.calls[0][0].prompt;
+    expect(promptUsed).toContain('Bug');
+    expect(promptUsed).toContain('caused_by');
+    expect(promptUsed).toContain('why-why-why');
+  });
+
+  test('Bug entity processed twice → schema validates identically (deterministic)', async () => {
+    const bugPayload = {
+      summary: 'repeated bug',
+      entities: [{ type: 'Bug', name: 'same bug', aliases: [], tags: [], attributes: {} }],
+      relations: [],
+    };
+    const ollama1 = makeOllama(bugPayload);
+    const ollama2 = makeOllama(bugPayload);
+    const result1 = await extractFactsFromEpisode({
+      ollama: ollama1,
+      episode: episodeBase,
+      logger: mockLogger,
+    });
+    const result2 = await extractFactsFromEpisode({
+      ollama: ollama2,
+      episode: episodeBase,
+      logger: mockLogger,
+    });
+    expect(result1!.entities[0].type).toBe('Bug');
+    expect(result2!.entities[0].type).toBe('Bug');
+  });
 });
