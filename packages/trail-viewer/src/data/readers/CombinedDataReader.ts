@@ -179,7 +179,7 @@ export class CombinedDataReader {
         .from('trail_daily_counts')
         .select('kind,key,count,tokens,duration_ms')
         .eq('date', date)
-        .in('kind', ['tool', 'skill', 'error', 'model']),
+        .in('kind', ['tool', 'skill', 'model']),
       this.client
         .from('trail_sessions')
         .select('id')
@@ -204,8 +204,6 @@ export class CombinedDataReader {
         const e = skillMap.get(r.key) ?? { count: 0, tokens: 0, durationMs: 0 };
         e.count += r.count; e.tokens += r.tokens; e.durationMs += r.duration_ms;
         skillMap.set(r.key, e);
-      } else if (r.kind === 'error') {
-        errMap.set(r.key, (errMap.get(r.key) ?? 0) + r.count);
       } else if (r.kind === 'model') {
         const e = modelMap.get(r.key) ?? { count: 0, tokens: 0, durationMs: 0 };
         e.count += r.count; e.tokens += r.tokens; e.durationMs += r.duration_ms;
@@ -220,6 +218,12 @@ export class CombinedDataReader {
     let totalBuildFails = 0;
     let totalTestRuns = 0;
     let totalTestFails = 0;
+
+    const normalizeTool = (name: string): string => {
+      if (!name.startsWith('mcp__')) return name;
+      const parts = name.split('__');
+      return parts.length >= 3 ? `${parts[0]}__${parts[1]}` : name;
+    };
 
     const sessionIds = (sessionResult.data ?? []).map((s: { id: string }) => s.id);
     if (sessionIds.length > 0) {
@@ -239,6 +243,10 @@ export class CombinedDataReader {
             .range(offset, offset + 999);
           if (!td || td.length === 0) break;
           for (const r of td as TcRow[]) {
+            if (r.is_error) {
+              const tool = normalizeTool(r.tool_name);
+              errMap.set(tool, (errMap.get(tool) ?? 0) + 1);
+            }
             if (r.tool_name === 'Edit' || r.tool_name === 'Write') {
               totalEdits++;
               if (r.file_path) {
