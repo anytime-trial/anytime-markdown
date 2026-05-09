@@ -178,8 +178,8 @@ describe('Phase 2 migration', () => {
     const { db: db2, close: close2 } = await openMemoryCoreDb();
     const result = db2.exec('SELECT COUNT(*) FROM _migrations');
     const count = result[0]?.values[0][0] as number;
-    // Both migration 1 and 2 applied, each exactly once
-    expect(count).toBe(2);
+    // migrations 1–4, each applied exactly once
+    expect(count).toBe(4);
     close2();
   }, 30000);
 });

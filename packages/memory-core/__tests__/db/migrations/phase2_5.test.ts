@@ -83,7 +83,7 @@ describe('Phase 2.5 migration', () => {
     close();
   }, 30000);
 
-  test('_migrations has version=3 entry', async () => {
+  test('_migrations has version=3 and version=4 entries', async () => {
     const { db, close } = await openFresh();
 
     const result = db.exec('SELECT version FROM _migrations ORDER BY version');
@@ -92,6 +92,7 @@ describe('Phase 2.5 migration', () => {
     expect(versions).toContain(1);
     expect(versions).toContain(2);
     expect(versions).toContain(3);
+    expect(versions).toContain(4);
 
     close();
   }, 30000);
@@ -108,7 +109,7 @@ describe('Phase 2.5 migration', () => {
     const { db: db2, close: close2 } = await openMemoryCoreDb();
     const result = db2.exec('SELECT COUNT(*) FROM _migrations');
     const count = result[0]?.values[0][0] as number;
-    expect(count).toBe(3);
+    expect(count).toBe(4); // migrations 1–4, each applied once
     close2();
   }, 30000);
 
