@@ -28,9 +28,6 @@ export function SessionMetricsPanel({ session, toolMetrics }: Readonly<{
   const cost = sessionCost(s);
   const durationMs = new Date(s.endTime).getTime() - new Date(s.startTime).getTime();
   const durationHours = durationMs / 3_600_000;
-  const cacheInput = s.usage.inputTokens + s.usage.cacheReadTokens;
-  const cacheHitRate = cacheInput > 0 ? s.usage.cacheReadTokens / cacheInput : 0;
-  const outputRatio = cacheInput > 0 ? s.usage.outputTokens / cacheInput : 0;
   const contextGrowth = s.messageCount > 0
     ? ((s.peakContextTokens ?? 0) - (s.initialContextTokens ?? 0)) / s.messageCount
     : 0;
@@ -45,8 +42,6 @@ export function SessionMetricsPanel({ session, toolMetrics }: Readonly<{
     { label: t('analytics.estimatedCost'), value: fmtUsd(cost), tooltip: t('analytics.estimatedCost.description') },
     { label: t('analytics.metricMessages'), value: fmtNum(s.messageCount), tooltip: t('analytics.metricMessages.description') },
     { label: t('analytics.metricErrors'), value: (s.errorCount ?? 0) > 0 ? fmtNum(s.errorCount!) : '—', tooltip: t('analytics.metricErrors.description') },
-    { label: t('analytics.cacheHit'), value: cacheInput > 0 ? fmtPercent(cacheHitRate) : '—', tooltip: t('analytics.cacheHit.description') },
-    { label: t('analytics.outputRatio'), value: cacheInput > 0 ? fmtPercent(outputRatio) : '—', tooltip: t('analytics.outputRatio.description') },
     { label: t('analytics.contextGrowth'), value: s.messageCount > 0 ? `${fmtTokens(Math.round(contextGrowth))}/step` : '—', tooltip: t('analytics.contextGrowth.description') },
     { label: t('analytics.netLines'), value: linesAdded > 0 || linesDeleted > 0 ? `+${fmtNum(linesAdded)} / -${fmtNum(linesDeleted)}` : '—', tooltip: t('analytics.netLines.description') },
     { label: t('analytics.metricFiles'), value: (s.commitStats?.filesChanged ?? 0) > 0 ? fmtNum(s.commitStats!.filesChanged) : '—', tooltip: t('analytics.metricFiles.description') },
