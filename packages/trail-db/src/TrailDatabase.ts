@@ -6446,14 +6446,14 @@ export class TrailDatabase {
 
     // Build / Test fail rate per period
     const buildTestResult = db.exec(
-      `SELECT ${sessionStartPeriodExpr} AS period,
+      `SELECT period,
               SUM(CASE WHEN cmd_type = 'build' THEN 1 ELSE 0 END) AS build_runs,
               SUM(CASE WHEN cmd_type = 'build' AND is_error = 1 THEN 1 ELSE 0 END) AS build_fails,
               SUM(CASE WHEN cmd_type = 'test' THEN 1 ELSE 0 END) AS test_runs,
               SUM(CASE WHEN cmd_type = 'test' AND is_error = 1 THEN 1 ELSE 0 END) AS test_fails
        FROM (
-         SELECT mtc.is_error,
-                s.start_time,
+         SELECT ${sessionStartPeriodExpr} AS period,
+                mtc.is_error,
                 CASE
                   WHEN mtc.command LIKE '%npm run build%' OR mtc.command LIKE '%npx tsc%'
                     OR mtc.command LIKE '% tsc %' OR mtc.command LIKE '% tsc'
