@@ -5646,23 +5646,15 @@ export class TrailDatabase {
       const result = db.exec(
         `SELECT kind, key, count, tokens, duration_ms
          FROM daily_counts
-         WHERE date = ? AND kind IN ('tool', 'skill', 'error', 'model')`,
+         WHERE date = ? AND kind IN ('tool', 'skill', 'model')`,
         [date],
       );
-      if (!result[0]) {
-        return {
-          totalRetries, totalEdits, totalBuildRuns, totalBuildFails,
-          totalTestRuns, totalTestFails,
-          toolUsage: [], skillUsage: [], errorsByTool: [], modelUsage: [],
-        };
-      }
 
       const toolMap = new Map<string, { count: number; tokens: number; durationMs: number }>();
       const skillMap = new Map<string, { count: number; tokens: number; durationMs: number }>();
-      const errMap = new Map<string, number>();
       const modelMap = new Map<string, { count: number; tokens: number; durationMs: number }>();
 
-      for (const row of result[0].values) {
+      for (const row of result[0]?.values ?? []) {
         const kind = String(row[0] ?? '');
         const key = String(row[1] ?? '');
         const count = Number(row[2] ?? 0);
@@ -5676,13 +5668,33 @@ export class TrailDatabase {
           const e = skillMap.get(key) ?? { count: 0, tokens: 0, durationMs: 0 };
           e.count += count; e.tokens += tokens; e.durationMs += durationMs;
           skillMap.set(key, e);
-        } else if (kind === 'error') {
-          errMap.set(key, (errMap.get(key) ?? 0) + count);
         } else if (kind === 'model') {
           const e = modelMap.get(key) ?? { count: 0, tokens: 0, durationMs: 0 };
           e.count += count; e.tokens += tokens; e.durationMs += durationMs;
           modelMap.set(key, e);
         }
+      }
+
+      // errorsByTool: session start_time 基準で集計（セッション一覧の errorCount と同じスコープ）
+      const errResult = db.exec(
+        `SELECT CASE
+                  WHEN mtc.tool_name LIKE 'mcp\\_\\_%\\_\\_%' ESCAPE '\\'
+                  THEN SUBSTR(mtc.tool_name, 1, INSTR(SUBSTR(mtc.tool_name, 6), '__') + 4)
+                  ELSE mtc.tool_name
+                END AS tool,
+                COUNT(*) AS count
+         FROM message_tool_calls mtc
+         JOIN sessions s ON s.id = mtc.session_id
+         WHERE DATE(s.start_time, '+540 minutes') = ? AND mtc.is_error = 1
+         GROUP BY tool
+         ORDER BY count DESC`,
+        [date],
+      );
+      const errMap = new Map<string, number>();
+      for (const row of errResult[0]?.values ?? []) {
+        const tool = String(row[0] ?? '');
+        const count = Number(row[1] ?? 0);
+        errMap.set(tool, (errMap.get(tool) ?? 0) + count);
       }
 
       return {
