@@ -122,7 +122,7 @@ export function OverviewCards({
         })
     : [];
 
-  const cardStyle = { ...cardSx, flex: '1 1 140px', p: 2, minWidth: 140, textAlign: 'center', height: '150px' } as const;
+  const cardStyle = { ...cardSx, flex: '1 1 140px', p: 2, minWidth: 140, textAlign: 'center', minHeight: '150px' } as const;
 
   return (
     <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
@@ -134,7 +134,7 @@ export function OverviewCards({
         cardStyle={cardStyle}
       />
       {doraCards.map((card) => (
-        <Paper key={card.label} elevation={0} sx={{ ...cardStyle, display: 'flex', flexDirection: 'column' }}>
+        <Paper key={card.label} elevation={0} sx={{ ...cardStyle, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5, gap: 0.5 }}>
             <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'left' }}>
               {card.label}
@@ -146,10 +146,10 @@ export function OverviewCards({
             )}
           </Box>
           <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, flexWrap: 'wrap', justifyContent: 'center' }}>
               <Typography variant="h3">{card.primary}</Typography>
               {card.unit && (
-                <Typography variant="caption" color="text.secondary">{card.unit}</Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10, lineHeight: 1 }}>{card.unit}</Typography>
               )}
               {card.badge && (
                 <Chip
