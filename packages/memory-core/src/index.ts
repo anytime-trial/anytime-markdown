@@ -22,5 +22,7 @@ export { runReviewIncremental } from './pipeline/runReviewIncremental';
 export type { ReviewIncrementalResult } from './pipeline/runReviewIncremental';
 export { ingestAgentReviewResult } from './ingest/review/ingestAgentReviewResult';
 export type { IngestAgentReviewResult } from './ingest/review/ingestAgentReviewResult';
+export { runAgentRunWatchdog } from './ingest/review/agentRunWatchdog';
+export type { AgentRunWatchdogResult } from './ingest/review/agentRunWatchdog';
 export { AgentReviewInputSchema } from './types/AgentReviewInput';
 export type { AgentReviewInput, AgentReviewFinding } from './types/AgentReviewInput';

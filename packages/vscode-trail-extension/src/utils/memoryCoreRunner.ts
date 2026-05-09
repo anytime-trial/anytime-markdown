@@ -10,6 +10,7 @@ import {
   runCodeIncremental,
   runBugHistoryIncremental,
   runReviewIncremental,
+  runAgentRunWatchdog,
 } from '@anytime-markdown/memory-core';
 
 export interface MemoryCoreRunner {
@@ -52,6 +53,12 @@ export function createMemoryCoreRunner(opts: {
           logger.info(`Attaching trail DB: ${opts.trailDbPath}`);
           const attachHandle = await attachTrailDbReadOnly(memDb.db, opts.trailDbPath);
           try {
+            // Timeout stale agent runs before starting pipelines
+            const watchdogResult = runAgentRunWatchdog({ db: memDb.db, logger });
+            if (watchdogResult.stale_count > 0) {
+              logger.info(`Agent watchdog: ${watchdogResult.stale_count} stale run(s) timed out`);
+            }
+
             const ollama = createOllamaClient();
 
             // Check pipeline state to decide incremental vs backfill
