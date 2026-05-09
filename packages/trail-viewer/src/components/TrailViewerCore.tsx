@@ -287,9 +287,9 @@ function TrailViewerCoreInner({
       const query = session.slug || session.id;
       onFilterChange({ ...filter, workspace: session.workspace ?? filter.workspace, searchText: query });
       onSelectSession(session.id);
-      visitTab(1);
+      setMessagesPopupOpen(true);
     },
-    [filter, onFilterChange, onSelectSession, visitTab],
+    [filter, onFilterChange, onSelectSession],
   );
 
   const selectedSession =
@@ -451,17 +451,6 @@ function TrailViewerCoreInner({
               onOpenMessagesPopup={() => setMessagesPopupOpen(true)}
             />
           </Suspense>
-        </Box>
-      )}
-
-      {visitedTabs.has(1) && (
-        <Box
-          role="tabpanel"
-          id="trail-panel-1"
-          aria-labelledby="trail-tab-1"
-          sx={{ display: activeTab !== 1 ? 'none' : 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}
-        >
-          {messagesTabContent}
         </Box>
       )}
 
