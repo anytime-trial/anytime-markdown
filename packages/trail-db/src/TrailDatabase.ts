@@ -5968,7 +5968,8 @@ export class TrailDatabase {
          FROM sessions WHERE start_time != '' GROUP BY date
          UNION ALL
          SELECT DATE(committed_at, '${tzOffset}') AS date, 0 AS sessions, COUNT(*) AS commits, SUM(lines_added) AS loc_added, SUM(lines_deleted) AS loc_deleted
-         FROM session_commits WHERE committed_at != '' GROUP BY date
+         FROM (SELECT DISTINCT repo_name, commit_hash, committed_at, lines_added, lines_deleted FROM session_commits WHERE committed_at != '')
+         GROUP BY date
        )
        WHERE date >= DATE('now', '${tzOffset}', '-180 days')
        GROUP BY date`,
@@ -5992,7 +5993,7 @@ export class TrailDatabase {
       `SELECT COUNT(*) AS total_commits,
         COALESCE(SUM(lines_added), 0) AS total_lines_added,
         COALESCE(SUM(lines_deleted), 0) AS total_lines_deleted
-      FROM session_commits`,
+      FROM (SELECT DISTINCT repo_name, commit_hash, lines_added, lines_deleted FROM session_commits)`,
     );
     const cr = commitTotals[0]?.values[0] ?? [0, 0, 0];
     const totalCommits = Number(cr[0]);
