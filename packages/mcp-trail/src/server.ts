@@ -10,6 +10,10 @@ import { GetBugHistoryInputSchema, handleGetBugHistory } from './tools/getBugHis
 import { ListUnaddressedReviewFindingsInputSchema, handleListUnaddressedReviewFindings } from './tools/listUnaddressedReviewFindings.js';
 import { GetReviewHistoryInputSchema, handleGetReviewHistory } from './tools/getReviewHistory.js';
 import { LinkReviewToCommitInputSchema, handleLinkReviewToCommit } from './tools/linkReviewToCommit.js';
+import { RunReviewAgentInputSchema, handleRunReviewAgent } from './tools/runReviewAgent.js';
+import { GetReviewRunStatusInputSchema, handleGetReviewRunStatus } from './tools/getReviewRunStatus.js';
+import { ListReviewRunsInputSchema, handleListReviewRuns } from './tools/listReviewRuns.js';
+import { ListReviewTargetHintsInputSchema, handleListReviewTargetHints } from './tools/listReviewTargetHints.js';
 
 export interface McpTrailOptions {
   serverUrl?: string;
@@ -350,6 +354,63 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
     async ({ mappings, repoName, serverUrl }) => {
       const opts = buildRouteOpts({ repoName, serverUrl }, options);
       const result = await route('upsert_community_mappings', { mappings }, opts);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  //  Review agent tools (memory-core)
+  // -------------------------------------------------------------------------
+
+  server.tool(
+    'run_review_agent',
+    'Register a review agent run request and return a run_id immediately (actual agent execution is delegated)',
+    {
+      trigger_kind: RunReviewAgentInputSchema.shape.trigger_kind,
+      target_kind: RunReviewAgentInputSchema.shape.target_kind,
+      target_refs: RunReviewAgentInputSchema.shape.target_refs,
+      prompt_kind: RunReviewAgentInputSchema.shape.prompt_kind,
+      model: RunReviewAgentInputSchema.shape.model,
+    },
+    async (args) => {
+      const result = await handleRunReviewAgent(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.tool(
+    'get_review_run_status',
+    'Get the status of a review agent run by run_id',
+    { run_id: GetReviewRunStatusInputSchema.shape.run_id },
+    async (args) => {
+      const result = await handleGetReviewRunStatus(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.tool(
+    'list_review_runs',
+    'List review agent runs with optional filters for trigger_kind, status, target_kind, model, and since',
+    {
+      trigger_kind: ListReviewRunsInputSchema.shape.trigger_kind,
+      status: ListReviewRunsInputSchema.shape.status,
+      target_kind: ListReviewRunsInputSchema.shape.target_kind,
+      model: ListReviewRunsInputSchema.shape.model,
+      since: ListReviewRunsInputSchema.shape.since,
+      limit: ListReviewRunsInputSchema.shape.limit,
+    },
+    async (args) => {
+      const result = await handleListReviewRuns(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.tool(
+    'list_review_target_hints',
+    'List prioritized review target candidates based on drift events, recent bug fixes, and unreviewed files',
+    { limit: ListReviewTargetHintsInputSchema.shape.limit },
+    async (args) => {
+      const result = await handleListReviewTargetHints(args);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );

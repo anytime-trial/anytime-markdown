@@ -43,3 +43,11 @@ export { getReviewHistory } from './retrieve/getReviewHistory';
 export type { ReviewHistoryEntry, ReviewFindingSummary } from './retrieve/getReviewHistory';
 export { linkReviewToCommit } from './retrieve/linkReviewToCommit';
 export type { LinkReviewToCommitResult } from './retrieve/linkReviewToCommit';
+
+export { runReviewAgent } from './retrieve/runReviewAgent';
+export type { RunReviewAgentResult } from './retrieve/runReviewAgent';
+export { getReviewRunStatus } from './retrieve/getReviewRunStatus';
+export type { ReviewRunStatus } from './retrieve/getReviewRunStatus';
+export { listReviewRuns } from './retrieve/listReviewRuns';
+export { listReviewTargetHints } from './retrieve/listReviewTargetHints';
+export type { ReviewTargetHint } from './retrieve/listReviewTargetHints';
