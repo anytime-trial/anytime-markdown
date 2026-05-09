@@ -1039,6 +1039,89 @@ export class TrailDatabase {
   }
 
   /**
+   * 指定日 (JST) のセッション start_time 基準で tool/skill 別利用集計。
+   * getDayToolMetrics 用: daily_counts (timestamp 基準) の代替。
+   * aggregateBySessionInternal と同実装だが WHERE が session start_time date。
+   */
+  private aggregateByDayInternal(
+    date: string,
+    groupKeyColumn: 'tool_name' | 'skill_name',
+    skipNullKey: boolean,
+  ): readonly { key: string; count: number; tokens: number; durationMs: number }[] {
+    const db = this.ensureDb();
+    const nullFilter = skipNullKey ? ` AND mtc.${groupKeyColumn} IS NOT NULL` : '';
+    const tcResult = db.exec(
+      `SELECT mtc.message_uuid, mtc.turn_index, mtc.session_id,
+              mtc.${groupKeyColumn} AS key_col,
+              COALESCE(mtc.turn_exec_ms, 0) AS turn_exec_ms
+       FROM message_tool_calls mtc
+       JOIN sessions s ON s.id = mtc.session_id
+       WHERE DATE(s.start_time, '+540 minutes') = ?${nullFilter}`,
+      [date],
+    );
+    const tcRows = tcResult[0]?.values ?? [];
+    if (tcRows.length === 0) return [];
+
+    const messageUuids = new Set<string>();
+    for (const row of tcRows) messageUuids.add(row[0] as string);
+
+    const SQLITE_VAR_LIMIT = 999;
+    const msgTokensByUuid = new Map<string, number>();
+    this.fetchInBatches([...messageUuids], SQLITE_VAR_LIMIT, (batch) => {
+      const placeholders = batch.map(() => '?').join(',');
+      const msgResult = db.exec(
+        `SELECT uuid, COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0) AS msg_tokens
+         FROM messages WHERE uuid IN (${placeholders})`,
+        batch as string[],
+      );
+      for (const r of msgResult[0]?.values ?? []) {
+        msgTokensByUuid.set(r[0] as string, r[1] as number);
+      }
+      return [];
+    });
+
+    const TURN_KEY_SEP = '\x1f';
+    const toolsInMsg = new Map<string, number>();
+    const toolsInTurn = new Map<string, number>();
+    for (const row of tcRows) {
+      const messageUuid = row[0] as string;
+      const turnKey = `${row[2]}${TURN_KEY_SEP}${row[1]}`;
+      toolsInMsg.set(messageUuid, (toolsInMsg.get(messageUuid) ?? 0) + 1);
+      toolsInTurn.set(turnKey, (toolsInTurn.get(turnKey) ?? 0) + 1);
+    }
+
+    type Agg = { count: number; tokens: number; duration: number };
+    const aggMap = new Map<string, Agg>();
+    for (const row of tcRows) {
+      const messageUuid = row[0] as string;
+      const turnIndex = row[1];
+      const sessionId = row[2] as string;
+      const rawKey = row[3] as string | null;
+      const turnExecMs = Number(row[4] ?? 0);
+      if (rawKey === null) continue;
+      const key = groupKeyColumn === 'tool_name' ? this.applyToolMcpAlias(rawKey) : rawKey;
+
+      const msgTokens = msgTokensByUuid.get(messageUuid) ?? 0;
+      const tInMsg = toolsInMsg.get(messageUuid) ?? 1;
+      const tokensContrib = Math.round(msgTokens / tInMsg);
+
+      const turnKey = `${sessionId}${TURN_KEY_SEP}${turnIndex}`;
+      const tInTurn = toolsInTurn.get(turnKey) ?? 1;
+      const durationContrib = Math.round(turnExecMs / tInTurn);
+
+      const cur = aggMap.get(key) ?? { count: 0, tokens: 0, duration: 0 };
+      cur.count += 1;
+      cur.tokens += tokensContrib;
+      cur.duration += durationContrib;
+      aggMap.set(key, cur);
+    }
+
+    return [...aggMap.entries()]
+      .map(([key, agg]) => ({ key, count: agg.count, tokens: agg.tokens, durationMs: agg.duration }))
+      .sort((a, b) => b.count - a.count);
+  }
+
+  /**
    * 系統 2 (tool): セッション内の tool 別利用集計。
    * computeToolMetrics の toolUsage 用 (L4948 起源)。
    */
@@ -5643,36 +5726,38 @@ export class TrailDatabase {
       const totalTestRuns = Number(testRes[0]?.values[0]?.[0] ?? 0);
       const totalTestFails = Number(testRes[0]?.values[0]?.[1] ?? 0);
 
-      const result = db.exec(
-        `SELECT kind, key, count, tokens, duration_ms
-         FROM daily_counts
-         WHERE date = ? AND kind IN ('tool', 'skill', 'model')`,
-        [date],
+      // tool/skill: session start_time 基準（errorsByTool と同スコープ）
+      const toolRows = this.aggregateByDayInternal(date, 'tool_name', false);
+      const toolMap = new Map<string, { count: number; tokens: number; durationMs: number }>(
+        toolRows.map((r) => [r.key, { count: r.count, tokens: r.tokens, durationMs: r.durationMs }]),
       );
 
-      const toolMap = new Map<string, { count: number; tokens: number; durationMs: number }>();
-      const skillMap = new Map<string, { count: number; tokens: number; durationMs: number }>();
-      const modelMap = new Map<string, { count: number; tokens: number; durationMs: number }>();
+      const skillRows = this.aggregateByDayInternal(date, 'skill_name', true);
+      const skillMap = new Map<string, { count: number; tokens: number; durationMs: number }>(
+        skillRows.map((r) => [r.key, { count: r.count, tokens: r.tokens, durationMs: r.durationMs }]),
+      );
 
-      for (const row of result[0]?.values ?? []) {
-        const kind = String(row[0] ?? '');
-        const key = String(row[1] ?? '');
+      // model: session start_time 基準
+      const modelResult = db.exec(
+        `SELECT COALESCE(m.model, '') AS model, s.source,
+                COUNT(*) AS count,
+                CAST(SUM(COALESCE(m.input_tokens, 0) + COALESCE(m.output_tokens, 0)) AS INTEGER) AS tokens
+         FROM messages m
+         JOIN sessions s ON s.id = m.session_id
+         WHERE DATE(s.start_time, '+540 minutes') = ? AND m.type = 'assistant'
+         GROUP BY COALESCE(m.model, ''), s.source`,
+        [date],
+      );
+      const modelMap = new Map<string, { count: number; tokens: number; durationMs: number }>();
+      for (const row of modelResult[0]?.values ?? []) {
+        const source = String(row[1] ?? '') as PricingSource;
+        const model = resolvePricingModelName(String(row[0] ?? ''), source);
         const count = Number(row[2] ?? 0);
         const tokens = Number(row[3] ?? 0);
-        const durationMs = Number(row[4] ?? 0);
-        if (kind === 'tool') {
-          const e = toolMap.get(key) ?? { count: 0, tokens: 0, durationMs: 0 };
-          e.count += count; e.tokens += tokens; e.durationMs += durationMs;
-          toolMap.set(key, e);
-        } else if (kind === 'skill') {
-          const e = skillMap.get(key) ?? { count: 0, tokens: 0, durationMs: 0 };
-          e.count += count; e.tokens += tokens; e.durationMs += durationMs;
-          skillMap.set(key, e);
-        } else if (kind === 'model') {
-          const e = modelMap.get(key) ?? { count: 0, tokens: 0, durationMs: 0 };
-          e.count += count; e.tokens += tokens; e.durationMs += durationMs;
-          modelMap.set(key, e);
-        }
+        const e = modelMap.get(model) ?? { count: 0, tokens: 0, durationMs: 0 };
+        e.count += count;
+        e.tokens += tokens;
+        modelMap.set(model, e);
       }
 
       // errorsByTool: session start_time 基準で集計（セッション一覧の errorCount と同じスコープ）
