@@ -5967,15 +5967,16 @@ export class TrailDatabase {
          SELECT DATE(start_time, '${tzOffset}') AS date, COUNT(*) AS sessions, 0 AS commits, 0 AS loc_added, 0 AS loc_deleted
          FROM sessions WHERE start_time != '' GROUP BY date
          UNION ALL
-         SELECT date, 0 AS sessions, COUNT(*) AS commits, SUM(lines_added) AS loc_added, SUM(lines_deleted) AS loc_deleted
+         SELECT date, 0 AS sessions, SUM(commit_count) AS commits, SUM(lines_added) AS loc_added, SUM(lines_deleted) AS loc_deleted
          FROM (
-           SELECT DATE(s.start_time, '${tzOffset}') AS date, sc.repo_name, sc.commit_hash,
-                  MAX(COALESCE(sc.lines_added, 0)) AS lines_added,
-                  MAX(COALESCE(sc.lines_deleted, 0)) AS lines_deleted
+           SELECT DATE(s.start_time, '${tzOffset}') AS date,
+                  COUNT(*) AS commit_count,
+                  SUM(COALESCE(sc.lines_added, 0)) AS lines_added,
+                  SUM(COALESCE(sc.lines_deleted, 0)) AS lines_deleted
            FROM session_commits sc
            JOIN sessions s ON sc.session_id = s.id
            WHERE sc.committed_at != '' AND s.start_time != ''
-           GROUP BY DATE(s.start_time, '${tzOffset}'), sc.repo_name, sc.commit_hash
+           GROUP BY s.id
          )
          GROUP BY date
        )
@@ -6301,7 +6302,7 @@ export class TrailDatabase {
        JOIN sessions s ON sc.session_id = s.id
        WHERE sc.committed_at >= DATETIME('now', '-${rangeDays} days')
          AND sc.committed_at <= DATETIME('now', '+${commitWindowSec} seconds')
-       GROUP BY ${sessionDateExpr}, sc.repo_name, sc.commit_hash`,
+       GROUP BY sc.session_id, sc.repo_name, sc.commit_hash`,
     );
     type CommitRow = {
       period: string;
