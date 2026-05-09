@@ -268,7 +268,7 @@ export const ja: TrailI18n = {
   'analytics.combined.count.description': '選択期間内の呼び出し・発生回数',
   'analytics.combined.tokens': 'トークン',
   'analytics.combined.tokens.description': '選択期間内のトークン消費量',
-  'analytics.combined.error': 'エラー',
+  'analytics.combined.error': 'Tool Error',
   'analytics.combined.error.description': 'エラーが発生したツール別の分布推移を表示',
   'analytics.combined.repository': 'リポジトリ',
   'analytics.combined.repository.description': 'リポジトリ別のコミット数・トークン消費量の推移を表示',
