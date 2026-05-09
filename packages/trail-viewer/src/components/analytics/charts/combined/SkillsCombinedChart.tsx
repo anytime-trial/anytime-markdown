@@ -8,6 +8,9 @@ import type { CombinedAxisInfo } from './axisInfo';
 import { hideZero, makeAxisClick } from './axisInfo';
 import { useSkillCategory } from '../../../SkillCategoryContext';
 
+const SKILL_CATEGORY_LABELS = ['開発フロー', 'ドキュメント', '調査・分析', 'AIツール', 'その他'] as const;
+const CATEGORIES = [0, 1, 2, 3, 4] as const;
+
 export function SkillsCombinedChart({
   axisInfo,
   canDrill,
@@ -17,32 +20,27 @@ export function SkillsCombinedChart({
   canDrill: boolean;
   onDateClick?: (date: string) => void;
 }>) {
-  const { cardSx } = useTrailTheme();
-  const { getSkillCategory, getSkillCategoryColor } = useSkillCategory();
-  const { skillRows, allPeriods, labels, skills, skillMap } = axisInfo;
-
-  const sortedSkills = useMemo(
-    () => [...skills].sort((a, b) => getSkillCategory(a) - getSkillCategory(b)),
-    [skills, getSkillCategory],
-  );
+  const { cardSx, skillCategoryColors } = useTrailTheme();
+  const { getSkillCategory } = useSkillCategory();
+  const { skillRows, allPeriods, labels } = axisInfo;
 
   const dataset = useMemo(() => {
-    const countMap = new Map<string, number>();
+    const valMap = new Map<string, number>();
     for (const r of skillRows) {
-      const displayKey = skillMap.get(r.skill) ?? r.skill;
-      const key = `${r.period}::${displayKey}`;
-      countMap.set(key, (countMap.get(key) ?? 0) + r.count);
+      const cat = getSkillCategory(r.skill);
+      const key = `${r.period}::${cat}`;
+      valMap.set(key, (valMap.get(key) ?? 0) + r.count);
     }
     return allPeriods.map((p, pi) => {
       const entry: Record<string, string | number> = { period: labels[pi] };
-      for (let i = 0; i < sortedSkills.length; i++) {
-        entry[`s${i}`] = countMap.get(`${p}::${sortedSkills[i]}`) ?? 0;
+      for (const cat of CATEGORIES) {
+        entry[`s${cat}`] = valMap.get(`${p}::${cat}`) ?? 0;
       }
       return entry;
     });
-  }, [skillRows, allPeriods, labels, sortedSkills, skillMap]);
+  }, [skillRows, allPeriods, labels, getSkillCategory]);
 
-  if (sortedSkills.length === 0) {
+  if (skillRows.length === 0) {
     return <Typography variant="body2" color="text.secondary">0</Typography>;
   }
 
@@ -52,11 +50,11 @@ export function SkillsCombinedChart({
         dataset={dataset}
         xAxis={[{ scaleType: 'band', dataKey: 'period' }]}
         yAxis={[{ valueFormatter: fmtNum }]}
-        series={sortedSkills.map((skill, i) => ({
-          dataKey: `s${i}`,
-          label: skill,
+        series={CATEGORIES.map((cat) => ({
+          dataKey: `s${cat}`,
+          label: SKILL_CATEGORY_LABELS[cat],
           stack: 'total',
-          color: getSkillCategoryColor(skill),
+          color: skillCategoryColors[cat],
           valueFormatter: hideZero,
         }))}
         height={240}

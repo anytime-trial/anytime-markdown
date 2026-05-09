@@ -3,12 +3,14 @@ import Typography from '@mui/material/Typography';
 import { BarChart } from '@mui/x-charts/BarChart';
 import { useMemo } from 'react';
 import { useTrailTheme } from '../../../TrailThemeContext';
-import { useTrailI18n } from '../../../../i18n';
-import { fmtNum, fmtPercent, fmtTokens } from '../../../../domain/analytics/formatters';
+import { fmtNum, fmtTokens } from '../../../../domain/analytics/formatters';
 import type { ChartMetric } from '../../types';
 import type { CombinedAxisInfo } from './axisInfo';
 import { makeAxisClick } from './axisInfo';
 import { useToolCategory } from '../../../ToolCategoryContext';
+
+const TOOL_CATEGORY_LABELS = ['ファイル操作', 'Web・ブラウザ', 'コード解析', 'タスク管理', 'その他'] as const;
+const CATEGORIES = [0, 1, 2, 3, 4] as const;
 
 export function ToolsCombinedChart({
   axisInfo,
@@ -21,43 +23,31 @@ export function ToolsCombinedChart({
   canDrill: boolean;
   onDateClick?: (date: string) => void;
 }>) {
-  const { cardSx } = useTrailTheme();
-  const { getToolCategory, getToolCategoryColor } = useToolCategory();
-  const { t } = useTrailI18n();
-  const { toolRows, allPeriods, labels, tools, toolMap, toolMissingByDisplay } = axisInfo;
-
-  const sortedTools = useMemo(
-    () => [...tools].sort((a, b) => getToolCategory(a) - getToolCategory(b)),
-    [tools, getToolCategory],
-  );
+  const { cardSx, toolCategoryColors } = useTrailTheme();
+  const { getToolCategory } = useToolCategory();
+  const { toolRows, allPeriods, labels } = axisInfo;
 
   const dataset = useMemo(() => {
     const getValue = (r: { count: number; tokens?: number }): number =>
       toolMetric === 'tokens' ? (r.tokens ?? 0) : r.count;
     const valMap = new Map<string, number>();
     for (const r of toolRows) {
-      const displayKey = toolMap.get(r.tool) ?? r.tool;
-      const key = `${r.period}::${displayKey}`;
+      const cat = getToolCategory(r.tool);
+      const key = `${r.period}::${cat}`;
       valMap.set(key, (valMap.get(key) ?? 0) + getValue(r));
     }
     return allPeriods.map((p, pi) => {
       const entry: Record<string, string | number> = { period: labels[pi] };
-      for (let i = 0; i < sortedTools.length; i++) {
-        entry[`t${i}`] = valMap.get(`${p}::${sortedTools[i]}`) ?? 0;
+      for (const cat of CATEGORIES) {
+        entry[`t${cat}`] = valMap.get(`${p}::${cat}`) ?? 0;
       }
       return entry;
     });
-  }, [toolRows, allPeriods, labels, sortedTools, toolMap, toolMetric]);
+  }, [toolRows, allPeriods, labels, toolMetric, getToolCategory]);
 
   const tooltipFormatter = (v: number | null): string | null => {
     if (v == null || v === 0) return null;
     return toolMetric === 'tokens' ? fmtTokens(v) : fmtNum(v);
-  };
-
-  const toolSeriesLabel = (tool: string): string => {
-    const missing = toolMissingByDisplay.get(tool);
-    const rate = missing && missing.total > 0 ? missing.missing / missing.total : 0;
-    return rate > 0 ? `${tool} (${t('analytics.combined.missingRate')} ${fmtPercent(rate)})` : tool;
   };
 
   if (toolRows.length === 0) {
@@ -70,11 +60,11 @@ export function ToolsCombinedChart({
         dataset={dataset}
         xAxis={[{ scaleType: 'band', dataKey: 'period' }]}
         yAxis={[{ valueFormatter: fmtTokens }]}
-        series={sortedTools.map((tool, i) => ({
-          dataKey: `t${i}`,
-          label: toolSeriesLabel(tool),
+        series={CATEGORIES.map((cat) => ({
+          dataKey: `t${cat}`,
+          label: TOOL_CATEGORY_LABELS[cat],
           stack: 'total',
-          color: getToolCategoryColor(tool),
+          color: toolCategoryColors[cat],
           valueFormatter: tooltipFormatter,
         }))}
         height={240}

@@ -34,14 +34,12 @@ export function ErrorToolsCombinedChart({
   canDrill: boolean;
   onDateClick?: (date: string) => void;
 }>) {
-  const { cardSx } = useTrailTheme();
-  const { getToolCategory, getToolCategoryColor } = useToolCategory();
-  const { errorRows, allPeriods, labels, errTools, errMap, qualityRates } = axisInfo;
+  const { cardSx, toolCategoryColors } = useTrailTheme();
+  const { getToolCategory } = useToolCategory();
+  const { errorRows, allPeriods, labels, qualityRates } = axisInfo;
 
-  const sortedErrTools = useMemo(
-    () => [...errTools].sort((a, b) => getToolCategory(a) - getToolCategory(b)),
-    [errTools, getToolCategory],
-  );
+  const TOOL_CATEGORY_LABELS = ['ファイル操作', 'Web・ブラウザ', 'コード解析', 'タスク管理', 'その他'] as const;
+  const CATEGORIES = [0, 1, 2, 3, 4] as const;
 
   const rateByPeriod = useMemo(() => {
     const m = new Map<string, { retry: number | null; build: number | null; test: number | null }>();
@@ -55,15 +53,15 @@ export function ErrorToolsCombinedChart({
     const valMap = new Map<string, number>();
     for (const r of errorRows) {
       for (const [tool, v] of Object.entries(r.byTool)) {
-        const displayKey = errMap.get(tool) ?? tool;
-        const key = `${r.period}::${displayKey}`;
+        const cat = getToolCategory(tool);
+        const key = `${r.period}::${cat}`;
         valMap.set(key, (valMap.get(key) ?? 0) + v);
       }
     }
     return allPeriods.map((p, pi) => {
       const entry: Record<string, string | number | null> = { period: labels[pi] };
-      for (let i = 0; i < sortedErrTools.length; i++) {
-        entry[`e${i}`] = valMap.get(`${p}::${sortedErrTools[i]}`) ?? 0;
+      for (const cat of CATEGORIES) {
+        entry[`e${cat}`] = valMap.get(`${p}::${cat}`) ?? 0;
       }
       const rates = rateByPeriod.get(p);
       entry['retry'] = rates?.retry ?? null;
@@ -71,16 +69,16 @@ export function ErrorToolsCombinedChart({
       entry['testFail'] = rates?.test ?? null;
       return entry;
     });
-  }, [errorRows, allPeriods, labels, sortedErrTools, errMap, rateByPeriod]);
+  }, [errorRows, allPeriods, labels, getToolCategory, rateByPeriod]);
 
   const hasRates = qualityRates.length > 0;
 
-  const barSeries = sortedErrTools.map((tool, i) => ({
+  const barSeries = CATEGORIES.map((cat) => ({
     type: 'bar' as const,
-    dataKey: `e${i}`,
-    label: tool,
+    dataKey: `e${cat}`,
+    label: TOOL_CATEGORY_LABELS[cat],
     stack: 'total',
-    color: getToolCategoryColor(tool),
+    color: toolCategoryColors[cat],
     yAxisId: 'countAxis',
     valueFormatter: hideZero,
   }));
@@ -96,7 +94,7 @@ export function ErrorToolsCombinedChart({
     ...(hasRates ? [{ id: 'rateAxis', min: 0, max: 100, position: 'right' as const, valueFormatter: rightAxisFmt }] : []),
   ];
 
-  if (sortedErrTools.length === 0 && !hasRates) {
+  if (errorRows.length === 0 && !hasRates) {
     return (
       <Paper elevation={0} sx={{ ...cardSx, p: 2 }}>
         <Typography variant="body2" color="text.secondary">0</Typography>
