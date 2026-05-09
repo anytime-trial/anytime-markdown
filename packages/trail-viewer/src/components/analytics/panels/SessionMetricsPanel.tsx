@@ -26,13 +26,13 @@ export function SessionMetricsPanel({ session, toolMetrics }: Readonly<{
   const totalTokens = s.usage.inputTokens + s.usage.outputTokens + s.usage.cacheReadTokens + s.usage.cacheCreationTokens;
   const cost = sessionCost(s);
   const turnCount = s.assistantMessageCount ?? s.messageCount;
-  const linesAdded = s.commitStats?.linesAdded ?? 0;
+  const grossLines = (s.commitStats?.linesAdded ?? 0) + (s.commitStats?.linesDeleted ?? 0);
   const tm = toolMetrics;
 
   const cardStyle = { ...cardSx, p: 2, minWidth: 160, flex: '1 1 160px', textAlign: 'center' } as const;
 
   const usageCards = [
-    { label: t('analytics.netLines'), value: s.commitStats != null ? fmtNum(linesAdded) : '—', tooltip: t('analytics.netLines.description') },
+    { label: t('analytics.netLines'), value: s.commitStats != null ? fmtNum(grossLines) : '—', tooltip: t('analytics.netLines.description') },
     { label: t('analytics.tokens'), value: fmtTokens(totalTokens), tooltip: t('analytics.totalTokens.description') },
     { label: t('analytics.cost'), value: fmtUsd(cost), tooltip: t('analytics.estimatedCost.description') },
     { label: t('analytics.metricErrors'), value: (s.errorCount ?? 0) > 0 ? fmtNum(s.errorCount!) : '—', tooltip: t('analytics.metricErrors.description') },
@@ -41,7 +41,7 @@ export function SessionMetricsPanel({ session, toolMetrics }: Readonly<{
   const productivityCards = [
     { label: t('analytics.tokensPerStep'), value: turnCount > 0 ? fmtTokens(Math.round(totalTokens / turnCount)) : '—', tooltip: t('analytics.tokensPerStep.description') },
     { label: t('analytics.costPerStep'), value: turnCount > 0 ? fmtUsd(cost / turnCount) : '—', tooltip: t('analytics.costPerStep.description') },
-    { label: t('analytics.tokensPerLoc'), value: linesAdded > 0 ? fmtNum(Math.round(totalTokens / linesAdded)) : '—', tooltip: t('analytics.tokensPerLoc.description') },
+    { label: t('analytics.tokensPerLoc'), value: grossLines > 0 ? fmtNum(Math.round(totalTokens / grossLines)) : '—', tooltip: t('analytics.tokensPerLoc.description') },
   ];
 
   const qualityCards = [

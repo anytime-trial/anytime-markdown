@@ -177,7 +177,7 @@ export function DailySessionList({
                     </TableCell>
                     <TableCell align="right" sx={{ fontFamily: 'monospace', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
                       {s.commitStats
-                        ? `${fmtNum(s.commitStats.linesAdded - s.commitStats.linesDeleted)} (+${fmtNum(s.commitStats.linesAdded)}/-${fmtNum(s.commitStats.linesDeleted)})`
+                        ? `${fmtNum(s.commitStats.linesAdded + s.commitStats.linesDeleted)} (+${fmtNum(s.commitStats.linesAdded)}/-${fmtNum(s.commitStats.linesDeleted)})`
                         : '—'}
                     </TableCell>
                     <TableCell align="right">
