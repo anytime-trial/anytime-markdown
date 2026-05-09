@@ -10,6 +10,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { DocLink } from '@anytime-markdown/trail-core/c4';
 import { DEFAULT_COMMIT_CATEGORIES } from '@anytime-markdown/trail-core/commitCategories';
+import { DEFAULT_TOOL_CATEGORIES } from '@anytime-markdown/trail-core/toolCategories';
 
 import { TrailViewerCore } from './TrailViewerCore';
 import { useTrailDataSource } from '../hooks/useTrailDataSource';
@@ -68,6 +69,9 @@ export function TrailViewerApp({
   const [commitCategories, setCommitCategories] = useState<ReadonlyMap<string, number>>(
     DEFAULT_COMMIT_CATEGORIES,
   );
+  const [toolCategories, setToolCategories] = useState<ReadonlyMap<string, number>>(
+    DEFAULT_TOOL_CATEGORIES,
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -78,6 +82,23 @@ export function TrailViewerApp({
         const json = await res.json() as Record<string, number>;
         if (!cancelled && typeof json === 'object' && json !== null) {
           setCommitCategories(new Map(Object.entries(json)));
+        }
+      } catch {
+        // サーバーが未対応の場合はデフォルトのままにする
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [serverUrl]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`${serverUrl}/api/config/tool-categories`);
+        if (!res.ok) return;
+        const json = await res.json() as Record<string, number>;
+        if (!cancelled && typeof json === 'object' && json !== null) {
+          setToolCategories(new Map(Object.entries(json)));
         }
       } catch {
         // サーバーが未対応の場合はデフォルトのままにする
@@ -241,6 +262,7 @@ export function TrailViewerApp({
       wsConnected={c4.connected}
       serverUrl={serverUrl}
       commitCategories={commitCategories}
+      toolCategories={toolCategories}
     />
   );
 }

@@ -6,6 +6,7 @@ import { useTrailTheme } from '../../../TrailThemeContext';
 import { fmtTokens } from '../../../../domain/analytics/formatters';
 import type { CombinedAxisInfo } from './axisInfo';
 import { hideZero, makeAxisClick } from './axisInfo';
+import { useToolCategory } from '../../../ToolCategoryContext';
 
 export function ErrorToolsCombinedChart({
   axisInfo,
@@ -16,8 +17,14 @@ export function ErrorToolsCombinedChart({
   canDrill: boolean;
   onDateClick?: (date: string) => void;
 }>) {
-  const { cardSx, toolPalette } = useTrailTheme();
+  const { cardSx } = useTrailTheme();
+  const { getToolCategory, getToolCategoryColor } = useToolCategory();
   const { errorRows, allPeriods, labels, errTools, errMap } = axisInfo;
+
+  const sortedErrTools = useMemo(
+    () => [...errTools].sort((a, b) => getToolCategory(a) - getToolCategory(b)),
+    [errTools, getToolCategory],
+  );
 
   const dataset = useMemo(() => {
     const valMap = new Map<string, number>();
@@ -30,27 +37,27 @@ export function ErrorToolsCombinedChart({
     }
     return allPeriods.map((p, pi) => {
       const entry: Record<string, string | number> = { period: labels[pi] };
-      for (let i = 0; i < errTools.length; i++) {
-        entry[`e${i}`] = valMap.get(`${p}::${errTools[i]}`) ?? 0;
+      for (let i = 0; i < sortedErrTools.length; i++) {
+        entry[`e${i}`] = valMap.get(`${p}::${sortedErrTools[i]}`) ?? 0;
       }
       return entry;
     });
-  }, [errorRows, allPeriods, labels, errTools, errMap]);
+  }, [errorRows, allPeriods, labels, sortedErrTools, errMap]);
 
   return (
     <Paper elevation={0} sx={{ ...cardSx, p: 2 }}>
-      {errTools.length === 0 ? (
+      {sortedErrTools.length === 0 ? (
         <Typography variant="body2" color="text.secondary">0</Typography>
       ) : (
         <BarChart
           dataset={dataset}
           xAxis={[{ scaleType: 'band', dataKey: 'period' }]}
           yAxis={[{ valueFormatter: fmtTokens }]}
-          series={errTools.map((tool, i) => ({
+          series={sortedErrTools.map((tool, i) => ({
             dataKey: `e${i}`,
             label: tool,
             stack: 'total',
-            color: toolPalette[i % toolPalette.length],
+            color: getToolCategoryColor(tool),
             valueFormatter: hideZero,
           }))}
           height={240}

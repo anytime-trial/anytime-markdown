@@ -31,6 +31,10 @@
     "./commitCategories": {
       "browser": "./src/commitCategories/browser.ts",
       "default": "./src/commitCategories/index.ts"
+    },
+    "./toolCategories": {
+      "browser": "./src/toolCategories/browser.ts",
+      "default": "./src/toolCategories/index.ts"
     }
   },
   "scripts": {

@@ -8,6 +8,7 @@ import { fmtNum, fmtPercent, fmtTokens } from '../../../../domain/analytics/form
 import type { ChartMetric } from '../../types';
 import type { CombinedAxisInfo } from './axisInfo';
 import { makeAxisClick } from './axisInfo';
+import { useToolCategory } from '../../../ToolCategoryContext';
 
 export function ToolsCombinedChart({
   axisInfo,
@@ -20,9 +21,15 @@ export function ToolsCombinedChart({
   canDrill: boolean;
   onDateClick?: (date: string) => void;
 }>) {
-  const { cardSx, toolPalette } = useTrailTheme();
+  const { cardSx } = useTrailTheme();
+  const { getToolCategory, getToolCategoryColor } = useToolCategory();
   const { t } = useTrailI18n();
   const { toolRows, allPeriods, labels, tools, toolMap, toolMissingByDisplay } = axisInfo;
+
+  const sortedTools = useMemo(
+    () => [...tools].sort((a, b) => getToolCategory(a) - getToolCategory(b)),
+    [tools, getToolCategory],
+  );
 
   const dataset = useMemo(() => {
     const getValue = (r: { count: number; tokens?: number }): number =>
@@ -35,12 +42,12 @@ export function ToolsCombinedChart({
     }
     return allPeriods.map((p, pi) => {
       const entry: Record<string, string | number> = { period: labels[pi] };
-      for (let i = 0; i < tools.length; i++) {
-        entry[`t${i}`] = valMap.get(`${p}::${tools[i]}`) ?? 0;
+      for (let i = 0; i < sortedTools.length; i++) {
+        entry[`t${i}`] = valMap.get(`${p}::${sortedTools[i]}`) ?? 0;
       }
       return entry;
     });
-  }, [toolRows, allPeriods, labels, tools, toolMap, toolMetric]);
+  }, [toolRows, allPeriods, labels, sortedTools, toolMap, toolMetric]);
 
   const tooltipFormatter = (v: number | null): string | null => {
     if (v == null || v === 0) return null;
@@ -63,11 +70,11 @@ export function ToolsCombinedChart({
         dataset={dataset}
         xAxis={[{ scaleType: 'band', dataKey: 'period' }]}
         yAxis={[{ valueFormatter: fmtTokens }]}
-        series={tools.map((tool, i) => ({
+        series={sortedTools.map((tool, i) => ({
           dataKey: `t${i}`,
           label: toolSeriesLabel(tool),
           stack: 'total',
-          color: toolPalette[i % toolPalette.length],
+          color: getToolCategoryColor(tool),
           valueFormatter: tooltipFormatter,
         }))}
         height={240}
