@@ -35,13 +35,18 @@ export function CyclingCard({
       }}
       onClick={onCycle}
     >
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5, gap: 0.5 }}>
-        <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'left' }}>
-          {`${groupName}：${current.label}`}
-        </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 0.5, gap: 0.5 }}>
+        <Box sx={{ textAlign: 'left' }}>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.3 }}>
+            {groupName}
+          </Typography>
+          <Typography variant="caption" sx={{ display: 'block', lineHeight: 1.3, fontWeight: 600 }}>
+            {current.label}
+          </Typography>
+        </Box>
         {current.tooltip && (
           <Tooltip title={current.tooltip} arrow placement="top">
-            <HelpOutlineIcon sx={{ fontSize: 12, color: 'text.disabled', cursor: 'help', flexShrink: 0 }} />
+            <HelpOutlineIcon sx={{ fontSize: 12, color: 'text.disabled', cursor: 'help', flexShrink: 0, mt: 0.2 }} />
           </Tooltip>
         )}
       </Box>

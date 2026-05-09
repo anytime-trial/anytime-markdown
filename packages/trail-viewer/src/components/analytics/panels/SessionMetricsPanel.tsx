@@ -18,9 +18,9 @@ export function SessionMetricsPanel({ session, toolMetrics }: Readonly<{
 }>) {
   const { cardSx } = useTrailTheme();
   const { t } = useTrailI18n();
-  const [usageIdx, setUsageIdx] = useState(1);
-  const [productivityIdx, setProductivityIdx] = useState(1);
-  const [qualityIdx, setQualityIdx] = useState(1);
+  const [usageIdx, setUsageIdx] = useState(0);
+  const [productivityIdx, setProductivityIdx] = useState(0);
+  const [qualityIdx, setQualityIdx] = useState(0);
 
   const s = session;
   const totalTokens = s.usage.inputTokens + s.usage.outputTokens + s.usage.cacheReadTokens + s.usage.cacheCreationTokens;
