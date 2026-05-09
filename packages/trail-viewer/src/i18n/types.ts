@@ -393,6 +393,12 @@ export interface TrailI18n {
   'memory.runs.filterStatus': string;
   'memory.runs.failedItems': string;
   'memory.runs.topEntities': string;
+  'memory.runs.timeline': string;
+  'memory.runs.invalidations': string;
+  'memory.runs.status.running': string;
+  'memory.runs.status.success': string;
+  'memory.runs.status.partial': string;
+  'memory.runs.status.error': string;
 
   // metrics
   'metrics.deploymentFrequency.name': string;

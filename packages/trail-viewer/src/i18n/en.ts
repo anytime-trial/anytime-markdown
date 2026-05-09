@@ -397,4 +397,10 @@ export const en: TrailI18n = {
   'memory.runs.filterStatus': 'Status',
   'memory.runs.failedItems': 'Failed items',
   'memory.runs.topEntities': 'Entities',
+  'memory.runs.timeline': 'Pipeline runs',
+  'memory.runs.invalidations': 'Invalidation history',
+  'memory.runs.status.running': 'Running',
+  'memory.runs.status.success': 'Success',
+  'memory.runs.status.partial': 'Partial',
+  'memory.runs.status.error': 'Error',
 };

@@ -397,4 +397,10 @@ export const ja: TrailI18n = {
   'memory.runs.filterStatus': 'ステータス',
   'memory.runs.failedItems': '失敗アイテム',
   'memory.runs.topEntities': 'エンティティ一覧',
+  'memory.runs.timeline': 'パイプライン実行',
+  'memory.runs.invalidations': '無効化履歴',
+  'memory.runs.status.running': '実行中',
+  'memory.runs.status.success': '成功',
+  'memory.runs.status.partial': '部分成功',
+  'memory.runs.status.error': 'エラー',
 };
