@@ -16,6 +16,7 @@
     "./formatDate": "./src/formatDate.ts",
     "./domain": "./src/domain/index.ts",
     "./domain/model": "./src/domain/model/index.ts",
+    "./domain/model/commitPrefix": "./src/domain/model/commitPrefix.ts",
     "./domain/port": "./src/domain/port/index.ts",
     "./domain/usecase": "./src/domain/usecase/index.ts",
     "./domain/engine": "./src/domain/engine/index.ts",
