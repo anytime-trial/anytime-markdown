@@ -146,6 +146,9 @@ export function extractDecisionComments(input: ExtractCommentsInput): ExtractCom
     // Track processed comment positions to avoid O(N²) duplicates
     const seenCommentPositions = new Set<number>();
 
+    // Upsert File entity once per file (not once per comment)
+    const targetId = upsertFileEntity(db, filePath, recordedAt, logger);
+
     function visit(node: ts.Node): void {
       const commentRanges =
         ts.getLeadingCommentRanges(sourceText, node.getFullStart()) ?? [];
@@ -169,11 +172,10 @@ export function extractDecisionComments(input: ExtractCommentsInput): ExtractCom
         // Determine target entity: symbol name if the annotated node has one,
         // otherwise fall back to the File entity.
         const symbolName = namedNodeIdent(node);
-        const targetId = upsertFileEntity(db, filePath, recordedAt, logger);
 
-        // Decision canonical_name: sha1(filePath:line:text) sliced to 16 chars
+        // Decision canonical_name: sha1(repoName:filePath:line:text) sliced to 16 chars
         const canonName = createHash('sha1')
-          .update(`${filePath}:${line}:${text}`)
+          .update(`${repoName}:${filePath}:${line}:${text}`)
           .digest('hex')
           .slice(0, 16);
 
