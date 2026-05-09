@@ -33,13 +33,18 @@ export function OverviewCards({
 
   const cards: MetricItem[] = [
     {
-      label: t('analytics.totalSessions'),
-      value: fmtNum(totals.sessions),
-      tooltip: t('analytics.totalSessions.description'),
-      delta: totals.comparison?.sessions?.deltaPct != null ? {
-        text: `${totals.comparison.sessions.deltaPct > 0 ? '↑' : totals.comparison.sessions.deltaPct < 0 ? '↓' : '→'} ${Math.abs(totals.comparison.sessions.deltaPct).toFixed(1)}%`,
-        color: totals.comparison.sessions.deltaPct > 0 ? 'success.main' : totals.comparison.sessions.deltaPct < 0 ? 'error.main' : 'text.secondary',
+      label: t('analytics.linesAdded'),
+      value: fmtNum(totals.totalLinesAdded),
+      tooltip: t('analytics.linesAdded.description'),
+      delta: totals.comparison?.loc?.deltaPct != null ? {
+        text: `${totals.comparison.loc.deltaPct > 0 ? '↑' : totals.comparison.loc.deltaPct < 0 ? '↓' : '→'} ${Math.abs(totals.comparison.loc.deltaPct).toFixed(1)}%`,
+        color: totals.comparison.loc.deltaPct > 0 ? 'success.main' : totals.comparison.loc.deltaPct < 0 ? 'error.main' : 'text.secondary',
       } : undefined,
+    },
+    {
+      label: t('analytics.totalLoc'),
+      value: fmtNum(totals.totalLoc),
+      tooltip: t('analytics.totalLoc.description'),
     },
     {
       label: t('analytics.totalTokens'),
@@ -69,18 +74,13 @@ export function OverviewCards({
       } : undefined,
     },
     {
-      label: t('analytics.linesAdded'),
-      value: fmtNum(totals.totalLinesAdded),
-      tooltip: t('analytics.linesAdded.description'),
-      delta: totals.comparison?.loc?.deltaPct != null ? {
-        text: `${totals.comparison.loc.deltaPct > 0 ? '↑' : totals.comparison.loc.deltaPct < 0 ? '↓' : '→'} ${Math.abs(totals.comparison.loc.deltaPct).toFixed(1)}%`,
-        color: totals.comparison.loc.deltaPct > 0 ? 'success.main' : totals.comparison.loc.deltaPct < 0 ? 'error.main' : 'text.secondary',
+      label: t('analytics.totalSessions'),
+      value: fmtNum(totals.sessions),
+      tooltip: t('analytics.totalSessions.description'),
+      delta: totals.comparison?.sessions?.deltaPct != null ? {
+        text: `${totals.comparison.sessions.deltaPct > 0 ? '↑' : totals.comparison.sessions.deltaPct < 0 ? '↓' : '→'} ${Math.abs(totals.comparison.sessions.deltaPct).toFixed(1)}%`,
+        color: totals.comparison.sessions.deltaPct > 0 ? 'success.main' : totals.comparison.sessions.deltaPct < 0 ? 'error.main' : 'text.secondary',
       } : undefined,
-    },
-    {
-      label: t('analytics.totalLoc'),
-      value: fmtNum(totals.totalLoc),
-      tooltip: t('analytics.totalLoc.description'),
     },
   ];
 
