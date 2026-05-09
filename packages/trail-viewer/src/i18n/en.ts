@@ -170,6 +170,7 @@ export const en: TrailI18n = {
   'releases.version': 'Version',
   'releases.date': 'Release Date',
   'releases.interval': 'Interval',
+  'releases.totalSteps': 'Total Steps',
   'releases.steps': 'Steps',
   'releases.files': 'Files',
   'releases.commits': 'Commits',

@@ -4,6 +4,7 @@ export type ReleaseTableColumnKey =
   | 'version'
   | 'date'
   | 'interval'
+  | 'totalSteps'
   | 'steps'
   | 'files'
   | 'commits'
@@ -20,6 +21,7 @@ const RELEASE_TABLE_COLUMNS: ReadonlyArray<ReleaseTableColumn> = [
   { key: 'version', i18nKey: 'releases.version' },
   { key: 'date', i18nKey: 'releases.date' },
   { key: 'interval', i18nKey: 'releases.interval', align: 'right' },
+  { key: 'totalSteps', i18nKey: 'releases.totalSteps', align: 'right' },
   { key: 'steps', i18nKey: 'releases.steps', align: 'right' },
   { key: 'files', i18nKey: 'releases.files', align: 'right' },
   { key: 'commits', i18nKey: 'releases.commits', align: 'right' },

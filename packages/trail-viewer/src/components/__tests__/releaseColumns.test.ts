@@ -6,6 +6,7 @@ describe('release table columns', () => {
       'version',
       'date',
       'interval',
+      'totalSteps',
       'steps',
       'files',
       'commits',

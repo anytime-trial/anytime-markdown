@@ -10,6 +10,7 @@ export interface TrailRelease {
   readonly filesChanged: number;
   readonly linesAdded: number;
   readonly linesDeleted: number;
+  readonly totalLines: number;
   readonly featCount: number;
   readonly fixCount: number;
   readonly refactorCount: number;
@@ -29,6 +30,7 @@ export interface ReleaseRow {
   readonly files_changed: number;
   readonly lines_added: number;
   readonly lines_deleted: number;
+  readonly total_lines: number;
   readonly feat_count: number;
   readonly fix_count: number;
   readonly refactor_count: number;

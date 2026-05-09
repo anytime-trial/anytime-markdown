@@ -51,6 +51,7 @@ describe('buildReleaseFromGitData', () => {
       filesChanged: 10,
       linesAdded: 500,
       linesDeleted: 200,
+      totalLines: 12345,
       affectedPackages: ['trail-core', 'trail-viewer'],
     };
 
@@ -65,6 +66,7 @@ describe('buildReleaseFromGitData', () => {
     expect(release.durationDays).toBeCloseTo(1.43, 1);
     expect(release.linesAdded).toBe(500);
     expect(release.linesDeleted).toBe(200);
+    expect(release.totalLines).toBe(12345);
   });
 
   it('prevReleasedAt が null の場合 durationDays は 0', () => {
@@ -79,6 +81,7 @@ describe('buildReleaseFromGitData', () => {
       filesChanged: 100,
       linesAdded: 5000,
       linesDeleted: 0,
+      totalLines: 5000,
       affectedPackages: ['trail-core'],
     };
 

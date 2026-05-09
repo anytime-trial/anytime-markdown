@@ -1385,6 +1385,7 @@ export class TrailDatabase {
     for (const sql of sessionAlters) {
       try { db.run(sql); } catch { /* Column already exists */ }
     }
+    try { db.run('ALTER TABLE releases ADD COLUMN total_lines INTEGER NOT NULL DEFAULT 0'); } catch { /* Column already exists */ }
     this.migrateDropSessionsProjectColumn(db);
     const messageAlters = [
       'ALTER TABLE messages ADD COLUMN rule_recommended_model TEXT',
@@ -6730,6 +6731,22 @@ export class TrailDatabase {
       if (existing[0]?.values?.length) {
         // Release exists — backfill release_files if missing
         const prevTag = i + 1 < tags.length ? tags[i + 1] : null;
+        const totalLinesResult = db.exec(`SELECT total_lines FROM releases WHERE tag = '${tag.replaceAll("'", "''")}'`);
+        const existingTotalLines = Number(totalLinesResult[0]?.values?.[0]?.[0] ?? 0);
+        if (existingTotalLines === 0) {
+          const snapshotLines = git.getSnapshotLineCount(tag);
+          if (snapshotLines > 0) {
+            try {
+              db.run(
+                `UPDATE releases SET total_lines = ? WHERE tag = ?`,
+                [snapshotLines, tag],
+              );
+              count++;
+            } catch {
+              // ignore backfill failures
+            }
+          }
+        }
         if (prevTag) {
           const filesExist = db.exec(
             `SELECT COUNT(*) FROM release_files WHERE release_tag = '${tag.replaceAll("'", "''")}'`,
@@ -6763,6 +6780,7 @@ export class TrailDatabase {
         ? git.getDiffStats(prevTag, tag)
         : { filesChanged: 0, linesAdded: 0, linesDeleted: 0 };
       const packages = prevTag ? git.getChangedPackages(prevTag, tag) : [];
+      const totalLines = git.getSnapshotLineCount(tag);
 
       const release = buildReleaseFromGitData({
         tag,
@@ -6775,6 +6793,7 @@ export class TrailDatabase {
         filesChanged: stats.filesChanged,
         linesAdded: stats.linesAdded,
         linesDeleted: stats.linesDeleted,
+        totalLines,
         affectedPackages: packages,
       });
 
@@ -6782,9 +6801,10 @@ export class TrailDatabase {
         `INSERT OR REPLACE INTO releases (
           tag, released_at, prev_tag, repo_name, package_tags,
           commit_count, files_changed, lines_added, lines_deleted,
+          total_lines,
           feat_count, fix_count, refactor_count, test_count, other_count,
           affected_packages, duration_days
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           release.tag,
           release.releasedAt,
@@ -6795,6 +6815,7 @@ export class TrailDatabase {
           release.filesChanged,
           release.linesAdded,
           release.linesDeleted,
+          release.totalLines,
           release.featCount,
           release.fixCount,
           release.refactorCount,

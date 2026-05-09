@@ -27,6 +27,7 @@ export interface ReleaseGitData {
   readonly filesChanged: number;
   readonly linesAdded: number;
   readonly linesDeleted: number;
+  readonly totalLines: number;
   readonly affectedPackages: readonly string[];
 }
 
@@ -65,6 +66,7 @@ export function buildReleaseFromGitData(data: ReleaseGitData): TrailRelease {
     filesChanged: data.filesChanged,
     linesAdded: data.linesAdded,
     linesDeleted: data.linesDeleted,
+    totalLines: data.totalLines,
     featCount,
     fixCount,
     refactorCount,

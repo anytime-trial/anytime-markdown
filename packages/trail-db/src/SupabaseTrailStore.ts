@@ -239,6 +239,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
       tag: r.tag, released_at: r.released_at, prev_tag: r.prev_tag ?? null,
       repo_name: r.repo_name, package_tags: r.package_tags, commit_count: r.commit_count,
       files_changed: r.files_changed, lines_added: r.lines_added, lines_deleted: r.lines_deleted,
+      total_lines: r.total_lines,
       feat_count: r.feat_count, fix_count: r.fix_count, refactor_count: r.refactor_count,
       test_count: r.test_count, other_count: r.other_count,
       affected_packages: r.affected_packages, duration_days: r.duration_days,

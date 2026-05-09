@@ -172,6 +172,7 @@ CREATE TABLE IF NOT EXISTS trail_releases (
     files_changed INTEGER NOT NULL DEFAULT 0,
     lines_added INTEGER NOT NULL DEFAULT 0,
     lines_deleted INTEGER NOT NULL DEFAULT 0,
+    total_lines INTEGER NOT NULL DEFAULT 0,
     feat_count INTEGER NOT NULL DEFAULT 0,
     fix_count INTEGER NOT NULL DEFAULT 0,
     refactor_count INTEGER NOT NULL DEFAULT 0,

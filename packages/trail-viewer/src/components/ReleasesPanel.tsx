@@ -18,6 +18,7 @@ import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
 import { useTrailI18n } from '../i18n';
 import { useTrailTheme } from './TrailThemeContext';
 import { getReleaseTableColumns } from './releaseColumns';
+import { formatReleaseStepDisplay } from './releaseStepDisplay';
 
 const UNKNOWN_REPO_KEY = '__unknown__';
 
@@ -159,6 +160,7 @@ export function ReleasesPanel({ releases }: Readonly<ReleasesPanelProps>): React
         <TableBody>
           {filteredReleases.map((release) => {
             const steps = release.linesAdded + release.linesDeleted;
+            const stepDisplay = formatReleaseStepDisplay(release);
             const fixRate = release.commitCount > 0 ? release.fixCount / release.commitCount : 0;
 
             return (
@@ -180,7 +182,23 @@ export function ReleasesPanel({ releases }: Readonly<ReleasesPanelProps>): React
                   </Typography>
                 </TableCell>
                 <TableCell align="right">
-                  <Typography variant="body2">{fmtNum(steps)}</Typography>
+                  <Typography variant="body2">{fmtNum(release.totalLines)}</Typography>
+                </TableCell>
+                <TableCell align="right">
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: 1.05 }}>
+                    <Typography variant="body2" sx={{ lineHeight: 1.1 }}>{stepDisplay.total}</Typography>
+                    <Typography
+                      component="span"
+                      sx={{
+                        color: 'text.secondary',
+                        fontSize: '0.62rem',
+                        lineHeight: 1,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {stepDisplay.breakdown}
+                    </Typography>
+                  </Box>
                 </TableCell>
                 <TableCell align="right">
                   <Typography variant="body2">{fmtNum(release.filesChanged)}</Typography>

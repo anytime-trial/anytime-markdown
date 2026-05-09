@@ -25,6 +25,7 @@ export interface IGitService {
   getCommitSubjects(fromTag: string, toTag: string): readonly string[];
   getDiffStats(fromTag: string, toTag: string): { filesChanged: number; linesAdded: number; linesDeleted: number };
   getFileStatsByRange(fromTag: string, toTag: string): readonly FileStatEntry[];
+  getSnapshotLineCount(tag: string): number;
   getChangedPackages(fromTag: string, toTag: string): readonly string[];
   getHeadCommit(): string;
 }

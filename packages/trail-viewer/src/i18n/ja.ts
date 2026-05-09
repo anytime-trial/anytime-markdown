@@ -170,6 +170,7 @@ export const ja: TrailI18n = {
   'releases.version': 'バージョン',
   'releases.date': 'リリース日',
   'releases.interval': '間隔',
+  'releases.totalSteps': '総ステップ数',
   'releases.steps': 'ステップ数',
   'releases.files': 'ファイル数',
   'releases.commits': 'コミット数',

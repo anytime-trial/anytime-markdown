@@ -182,6 +182,7 @@ export interface TrailI18n {
   'releases.version': string;
   'releases.date': string;
   'releases.interval': string;
+  'releases.totalSteps': string;
   'releases.steps': string;
   'releases.files': string;
   'releases.commits': string;

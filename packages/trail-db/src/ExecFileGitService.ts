@@ -5,7 +5,73 @@ import type {
   MergeCommitEntry,
   FileStatEntry,
 } from '@anytime-markdown/trail-core';
+import { isCodeFile } from '@anytime-markdown/trail-core';
 import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+const SNAPSHOT_SKIP_DIRS = new Set([
+  '.git',
+  '.claude',
+  '.vscode',
+  '.worktrees',
+  '.next',
+  'build',
+  'coverage',
+  'dist',
+  'node_modules',
+  'out',
+]);
+
+function countTextLines(text: string): number {
+  if (text.length === 0) return 0;
+  const matches = text.match(/\r\n|\r|\n/g);
+  const lineBreaks = matches?.length ?? 0;
+  return lineBreaks > 0 ? lineBreaks : 1;
+}
+
+function shouldSkipSnapshotPath(relativePath: string): boolean {
+  const parts = relativePath.split(/[\\/]/);
+  return parts.some((part) => SNAPSHOT_SKIP_DIRS.has(part));
+}
+
+function countSnapshotLines(rootDir: string): number {
+  let total = 0;
+  const stack = [rootDir];
+
+  while (stack.length > 0) {
+    const dir = stack.pop();
+    if (!dir) continue;
+
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      const relativePath = path.relative(rootDir, fullPath);
+      if (shouldSkipSnapshotPath(relativePath)) continue;
+      if (entry.isDirectory()) {
+        stack.push(fullPath);
+        continue;
+      }
+      if (!entry.isFile() || !isCodeFile(relativePath.replaceAll(path.sep, '/'))) continue;
+
+      try {
+        const content = fs.readFileSync(fullPath, 'utf-8');
+        total += countTextLines(content);
+      } catch {
+        // unreadable/binary-like files are skipped
+      }
+    }
+  }
+
+  return total;
+}
 
 function toUTC(iso: string): string {
   try {
@@ -198,6 +264,39 @@ export class ExecFileGitService implements IGitService {
       linesDeleted: s.deleted,
       changeType: s.changeType,
     }));
+  }
+
+  getSnapshotLineCount(tag: string): number {
+    const commitHash = this.getTagCommitHash(tag);
+    if (!commitHash) return 0;
+
+    const worktreeRoot = fs.mkdtempSync(path.join(os.tmpdir(), `trail-snapshot-${tag.replaceAll('/', '-')}-`));
+    try {
+      execFileSync('git', ['worktree', 'add', '--detach', worktreeRoot, commitHash], {
+        encoding: 'utf-8',
+        timeout: 30_000,
+        cwd: this.gitRoot,
+        stdio: 'pipe',
+      });
+      return countSnapshotLines(worktreeRoot);
+    } catch {
+      return 0;
+    } finally {
+      try {
+        execFileSync('git', ['worktree', 'remove', worktreeRoot, '--force'], {
+          encoding: 'utf-8',
+          timeout: 30_000,
+          cwd: this.gitRoot,
+          stdio: 'pipe',
+        });
+      } catch {
+        try {
+          fs.rmSync(worktreeRoot, { recursive: true, force: true });
+        } catch {
+          // ignore cleanup errors
+        }
+      }
+    }
   }
 
   getHeadCommit(): string {

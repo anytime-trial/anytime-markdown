@@ -249,6 +249,17 @@ describe('TrailDatabase.migrateDropSessionsProjectColumn', () => {
   });
 });
 
+describe('TrailDatabase releases schema', () => {
+  it('includes total_lines column', async () => {
+    const db = await createTestTrailDatabase();
+    const inMemoryDb = (db as unknown as Record<string, unknown>).db as import('sql.js').Database;
+    const result = inMemoryDb.exec('PRAGMA table_info(releases)');
+    const columns = (result[0]?.values ?? []).map((row) => String(row[1] ?? ''));
+    expect(columns).toContain('total_lines');
+    db.close();
+  });
+});
+
 describe('TrailDatabase.importSession - Codex token usage', () => {
   it('attaches token_count usage to the latest assistant message even after tool output', async () => {
     const db = await createTestTrailDatabase();
