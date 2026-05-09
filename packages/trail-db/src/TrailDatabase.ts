@@ -5592,6 +5592,57 @@ export class TrailDatabase {
   } | null {
     try {
       const db = this.ensureDb();
+
+      const editRes = db.exec(
+        `SELECT COUNT(*) FROM message_tool_calls mtc
+         JOIN sessions s ON s.id = mtc.session_id
+         WHERE DATE(s.start_time, '+540 minutes') = ? AND mtc.tool_name IN ('Edit', 'Write')`,
+        [date],
+      );
+      const totalEdits = Number(editRes[0]?.values[0]?.[0] ?? 0);
+
+      const retryRes = db.exec(
+        `SELECT COALESCE(SUM(edit_count - 1), 0)
+         FROM (
+           SELECT COUNT(*) AS edit_count
+           FROM message_tool_calls mtc
+           JOIN sessions s ON s.id = mtc.session_id
+           WHERE DATE(s.start_time, '+540 minutes') = ?
+             AND mtc.tool_name IN ('Edit', 'Write') AND mtc.file_path IS NOT NULL AND mtc.file_path != ''
+           GROUP BY mtc.session_id, mtc.file_path HAVING COUNT(*) > 1
+         )`,
+        [date],
+      );
+      const totalRetries = Number(retryRes[0]?.values[0]?.[0] ?? 0);
+
+      const buildRes = db.exec(
+        `SELECT COUNT(*), COALESCE(SUM(mtc.is_error), 0)
+         FROM message_tool_calls mtc
+         JOIN sessions s ON s.id = mtc.session_id
+         WHERE DATE(s.start_time, '+540 minutes') = ? AND mtc.tool_name = 'Bash' AND (
+           mtc.command LIKE '%npm run build%' OR mtc.command LIKE '%npx tsc%' OR
+           mtc.command LIKE '% tsc %' OR mtc.command LIKE '% tsc' OR mtc.command LIKE 'tsc %' OR
+           mtc.command LIKE '%webpack%' OR mtc.command LIKE '%vite build%' OR
+           mtc.command LIKE '%esbuild%' OR mtc.command LIKE '%rollup%'
+         )`,
+        [date],
+      );
+      const totalBuildRuns = Number(buildRes[0]?.values[0]?.[0] ?? 0);
+      const totalBuildFails = Number(buildRes[0]?.values[0]?.[1] ?? 0);
+
+      const testRes = db.exec(
+        `SELECT COUNT(*), COALESCE(SUM(mtc.is_error), 0)
+         FROM message_tool_calls mtc
+         JOIN sessions s ON s.id = mtc.session_id
+         WHERE DATE(s.start_time, '+540 minutes') = ? AND mtc.tool_name = 'Bash' AND (
+           mtc.command LIKE '%jest%' OR mtc.command LIKE '%vitest%' OR
+           mtc.command LIKE '%npm run test%' OR mtc.command LIKE '%npm test%'
+         )`,
+        [date],
+      );
+      const totalTestRuns = Number(testRes[0]?.values[0]?.[0] ?? 0);
+      const totalTestFails = Number(testRes[0]?.values[0]?.[1] ?? 0);
+
       const result = db.exec(
         `SELECT kind, key, count, tokens, duration_ms
          FROM daily_counts
@@ -5600,8 +5651,8 @@ export class TrailDatabase {
       );
       if (!result[0]) {
         return {
-          totalRetries: 0, totalEdits: 0, totalBuildRuns: 0, totalBuildFails: 0,
-          totalTestRuns: 0, totalTestFails: 0,
+          totalRetries, totalEdits, totalBuildRuns, totalBuildFails,
+          totalTestRuns, totalTestFails,
           toolUsage: [], skillUsage: [], errorsByTool: [], modelUsage: [],
         };
       }
@@ -5635,8 +5686,8 @@ export class TrailDatabase {
       }
 
       return {
-        totalRetries: 0, totalEdits: 0, totalBuildRuns: 0, totalBuildFails: 0,
-        totalTestRuns: 0, totalTestFails: 0,
+        totalRetries, totalEdits, totalBuildRuns, totalBuildFails,
+        totalTestRuns, totalTestFails,
         toolUsage: [...toolMap.entries()].map(([tool, e]) => ({ tool, ...e })).sort((a, b) => b.count - a.count),
         skillUsage: [...skillMap.entries()].map(([skill, e]) => ({ skill, ...e })).sort((a, b) => b.count - a.count),
         errorsByTool: [...errMap.entries()].map(([tool, count]) => ({ tool, count })).sort((a, b) => b.count - a.count),

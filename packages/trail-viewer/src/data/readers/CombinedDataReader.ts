@@ -170,22 +170,32 @@ export class CombinedDataReader {
   }
 
   async getDayToolMetrics(date: string): Promise<ToolMetrics | null> {
-    const { data, error } = await this.client
-      .from('trail_daily_counts')
-      .select('kind,key,count,tokens,duration_ms')
-      .eq('date', date)
-      .in('kind', ['tool', 'skill', 'error', 'model']);
-    if (error || !data) return null;
+    // Convert JST date to UTC range for trail_sessions.start_time (UTC ISO 8601)
+    const jstDayStartUtc = new Date(`${date}T00:00:00+09:00`).toISOString();
+    const jstDayEndUtc = new Date(`${date}T23:59:59.999+09:00`).toISOString();
+
+    const [dailyResult, sessionResult] = await Promise.all([
+      this.client
+        .from('trail_daily_counts')
+        .select('kind,key,count,tokens,duration_ms')
+        .eq('date', date)
+        .in('kind', ['tool', 'skill', 'error', 'model']),
+      this.client
+        .from('trail_sessions')
+        .select('id')
+        .gte('start_time', jstDayStartUtc)
+        .lte('start_time', jstDayEndUtc),
+    ]);
+
+    if (dailyResult.error || !dailyResult.data) return null;
 
     type Row = { kind: string; key: string; count: number; tokens: number; duration_ms: number };
-    const rows = data as Row[];
-
     const toolMap = new Map<string, { count: number; tokens: number; durationMs: number }>();
     const skillMap = new Map<string, { count: number; tokens: number; durationMs: number }>();
     const errMap = new Map<string, number>();
     const modelMap = new Map<string, { count: number; tokens: number; durationMs: number }>();
 
-    for (const r of rows) {
+    for (const r of dailyResult.data as Row[]) {
       if (r.kind === 'tool') {
         const e = toolMap.get(r.key) ?? { count: 0, tokens: 0, durationMs: 0 };
         e.count += r.count; e.tokens += r.tokens; e.durationMs += r.duration_ms;
@@ -203,9 +213,59 @@ export class CombinedDataReader {
       }
     }
 
+    // Compute retry/build/test metrics from message_tool_calls for the day's sessions
+    let totalEdits = 0;
+    let totalRetries = 0;
+    let totalBuildRuns = 0;
+    let totalBuildFails = 0;
+    let totalTestRuns = 0;
+    let totalTestFails = 0;
+
+    const sessionIds = (sessionResult.data ?? []).map((s: { id: string }) => s.id);
+    if (sessionIds.length > 0) {
+      type TcRow = { session_id: string; tool_name: string; file_path: string | null; command: string | null; is_error: number };
+      const BUILD_RE = /npm run build|npx tsc|\btsc\b|webpack|vite build|esbuild|rollup/;
+      const TEST_RE = /jest|vitest|npm run test|npm test/;
+      const editFileMap = new Map<string, number>();
+
+      const BATCH = 200;
+      for (let i = 0; i < sessionIds.length; i += BATCH) {
+        const batch = sessionIds.slice(i, i + BATCH);
+        for (let offset = 0; ; offset += 1000) {
+          const { data: td } = await this.client
+            .from('trail_message_tool_calls')
+            .select('session_id,tool_name,file_path,command,is_error')
+            .in('session_id', batch)
+            .range(offset, offset + 999);
+          if (!td || td.length === 0) break;
+          for (const r of td as TcRow[]) {
+            if (r.tool_name === 'Edit' || r.tool_name === 'Write') {
+              totalEdits++;
+              if (r.file_path) {
+                const key = `${r.session_id}:${r.file_path}`;
+                editFileMap.set(key, (editFileMap.get(key) ?? 0) + 1);
+              }
+            } else if (r.tool_name === 'Bash' && r.command) {
+              if (BUILD_RE.test(r.command)) {
+                totalBuildRuns++;
+                if (r.is_error) totalBuildFails++;
+              } else if (TEST_RE.test(r.command)) {
+                totalTestRuns++;
+                if (r.is_error) totalTestFails++;
+              }
+            }
+          }
+          if (td.length < 1000) break;
+        }
+      }
+      for (const count of editFileMap.values()) {
+        if (count > 1) totalRetries += count - 1;
+      }
+    }
+
     return {
-      totalRetries: 0, totalEdits: 0, totalBuildRuns: 0, totalBuildFails: 0,
-      totalTestRuns: 0, totalTestFails: 0,
+      totalRetries, totalEdits, totalBuildRuns, totalBuildFails,
+      totalTestRuns, totalTestFails,
       toolUsage: [...toolMap.entries()].map(([tool, e]) => ({ tool, ...e })).sort((a, b) => b.count - a.count),
       skillUsage: [...skillMap.entries()].map(([skill, e]) => ({ skill, ...e })).sort((a, b) => b.count - a.count),
       errorsByTool: [...errMap.entries()].map(([tool, count]) => ({ tool, count })).sort((a, b) => b.count - a.count),
