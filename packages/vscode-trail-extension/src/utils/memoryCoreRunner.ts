@@ -10,6 +10,7 @@ import {
   runCodeIncremental,
   runBugHistoryIncremental,
   runReviewIncremental,
+  runSpecIncremental,
   runAgentRunWatchdog,
 } from '@anytime-markdown/memory-core';
 
@@ -153,6 +154,22 @@ export function createMemoryCoreRunner(opts: {
               `Review incremental: status=${reviewResult.status}, items_processed=${reviewResult.items_processed}, ` +
                 `reviews_inserted=${reviewResult.reviews_inserted}, findings_inserted=${reviewResult.findings_inserted}, ` +
                 `edges_inserted=${reviewResult.edges_inserted}, duration_ms=${reviewResult.duration_ms}`,
+            );
+
+            // ── Spec incremental pipeline ────────────────────────────────────
+            const specRoot = process.env['MEMORY_CORE_SPEC_DIR'] ?? '/Shared/anytime-markdown-docs/spec';
+            logger.info(`[${new Date().toISOString()}] [INFO] Running spec incremental (specRoot=${specRoot})`);
+            const specResult = await runSpecIncremental({
+              db: memDb.db,
+              specRoot,
+              ollama,
+              model: process.env['MEMORY_CORE_GEN_MODEL'] ?? 'qwen3.5:9b',
+              logger,
+            });
+            logger.info(
+              `[${new Date().toISOString()}] [INFO] Spec incremental: status=${specResult.status}, items_processed=${specResult.items_processed}, ` +
+                `items_skipped=${specResult.items_skipped}, entities_inserted=${specResult.entities_inserted}, ` +
+                `edges_inserted=${specResult.edges_inserted}, duration_ms=${specResult.duration_ms}`,
             );
           } finally {
             // Release the WASM heap copy of trail DB (~800MB) after every run.
