@@ -1,6 +1,7 @@
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import { LinePlot, MarkPlot } from '@mui/x-charts/LineChart';
+import { BarPlot } from '@mui/x-charts/BarChart';
 import { ChartsDataProvider } from '@mui/x-charts/ChartsDataProvider';
 import { ChartsSurface } from '@mui/x-charts/ChartsSurface';
 import { ChartsWrapper } from '@mui/x-charts/ChartsWrapper';
@@ -25,7 +26,7 @@ export function ReleasesLocChart({ releases }: Readonly<{ releases: readonly Tra
   const dataset = [...releases]
     .filter((r) => r.totalLines > 0 && r.releasedAt)
     .sort((a, b) => a.releasedAt.localeCompare(b.releasedAt))
-    .map((r) => ({ tag: r.tag, totalLines: r.totalLines }));
+    .map((r) => ({ tag: r.tag, totalLines: r.totalLines, fixCount: r.fixCount ?? 0 }));
 
   if (dataset.length === 0) {
     return (
@@ -40,27 +41,43 @@ export function ReleasesLocChart({ releases }: Readonly<{ releases: readonly Tra
       <ChartsDataProvider
         dataset={dataset}
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        series={[{
-          type: 'line' as const,
-          dataKey: 'totalLines',
-          label: t('releases.totalLoc'),
-          color: colors.iceBlue,
-          connectNulls: true,
-          showMark: dataset.length <= 30,
-          valueFormatter: (v: number | null) => v == null ? null : fmtLoc(v),
-        }] as any}
+        series={[
+          {
+            type: 'line' as const,
+            dataKey: 'totalLines',
+            label: t('releases.totalLoc'),
+            color: colors.iceBlue,
+            connectNulls: true,
+            showMark: dataset.length <= 30,
+            yAxisId: 'loc',
+            valueFormatter: (v: number | null) => v == null ? null : fmtLoc(v),
+          },
+          {
+            type: 'bar' as const,
+            dataKey: 'fixCount',
+            label: t('releases.fixCount'),
+            color: colors.warning,
+            yAxisId: 'fix',
+            valueFormatter: (v: number | null) => v == null ? '' : String(v),
+          },
+        ] as any}
         xAxis={[{ id: 'tag', scaleType: 'band', dataKey: 'tag' }]}
-        yAxis={[{ valueFormatter: (v: number) => fmtLoc(v) }]}
+        yAxis={[
+          { id: 'loc', position: 'left', valueFormatter: (v: number) => fmtLoc(v) },
+          { id: 'fix', position: 'right', tickMinStep: 1 },
+        ]}
         height={280}
-        margin={{ left: 56, right: 16, top: 8, bottom: 60 }}
+        margin={{ left: 56, right: 48, top: 8, bottom: 60 }}
       >
         <ChartsWrapper>
           <ChartsSurface>
             <ChartsGrid horizontal />
+            <BarPlot />
             <LinePlot />
             <MarkPlot />
             <ChartsXAxis axisId="tag" tickLabelStyle={{ fontSize: 10 }} />
-            <ChartsYAxis />
+            <ChartsYAxis axisId="loc" />
+            <ChartsYAxis axisId="fix" />
           </ChartsSurface>
           <ChartsTooltip />
         </ChartsWrapper>

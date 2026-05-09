@@ -187,6 +187,7 @@ export const ja: TrailI18n = {
   'releases.openPopup': 'リリースタブを別ウィンドウで開く',
   'releases.totalLoc': 'Total LOC',
   'releases.releaseCount': 'リリース回数',
+  'releases.fixCount': 'Fix 件数',
   'c4.releases': 'リリース',
   'c4.releaseRepository': 'リポジトリ',
   'c4.unknownRepo': '(未設定)',

@@ -187,6 +187,7 @@ export const en: TrailI18n = {
   'releases.openPopup': 'Open Releases tab in a separate window',
   'releases.totalLoc': 'Total LOC',
   'releases.releaseCount': 'Release Count',
+  'releases.fixCount': 'Fix Count',
   'c4.releases': 'Releases',
   'c4.releaseRepository': 'Repository',
   'c4.unknownRepo': '(unknown)',
