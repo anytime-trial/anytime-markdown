@@ -43,7 +43,6 @@ import {
   extractSkillName,
   buildReleaseFromGitData,
   trailToC4,
-  extractCommitPrefix,
   isCodeFile,
   isAiFirstTryFailureCommit,
   AI_FIRST_TRY_FIX_WINDOW_MS,
@@ -60,6 +59,7 @@ import type { TrailGraph, IC4ModelStore, C4ModelEntry, C4ModelResult, TrailMessa
 import { matchCommitsToMessages, computeDefectRisk, type CommitRiskRow, type DefectRiskEntry } from '@anytime-markdown/trail-core';
 import type { AnalyzeOptions } from '@anytime-markdown/trail-core/analyze';
 
+import { aggregateQualityRates, aggregateCommitPrefixStats } from './combinedDataAggregators';
 export type AnalyzeFunction = (options: AnalyzeOptions) => TrailGraph;
 import type { CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
 import { splitCodeGraph, composeCodeGraph } from '@anytime-markdown/trail-core/codeGraph';
@@ -6353,21 +6353,7 @@ export class TrailDatabase {
     // Commit prefix stats: 期間内のコミットだけを集計 (period はセッション開始日基準)
     const cutoffPeriodRes = db.exec(`SELECT ${sessionDateExpr.replace('s.start_time', `DATE('now')`)} AS period`);
     const todayPeriod = String(cutoffPeriodRes[0]?.values?.[0]?.[0] ?? '');
-    const prefixMap = new Map<string, { count: number; linesAdded: number; linesDeleted: number }>();
-    for (const c of commitRows) {
-      if (c.period > todayPeriod) continue;  // skip future-window rows
-      const prefix = extractCommitPrefix(c.subject);
-      const k = `${c.period}::${prefix}`;
-      const cur = prefixMap.get(k) ?? { count: 0, linesAdded: 0, linesDeleted: 0 };
-      cur.count += 1;
-      cur.linesAdded += c.linesAdded;
-      cur.linesDeleted += c.linesDeleted;
-      prefixMap.set(k, cur);
-    }
-    const commitPrefixStats = [...prefixMap.entries()].map(([k, v]) => {
-      const sep = k.indexOf('::');
-      return { period: k.slice(0, sep), prefix: k.slice(sep + 2), count: v.count, linesAdded: v.linesAdded, linesDeleted: v.linesDeleted };
-    });
+    const commitPrefixStats = aggregateCommitPrefixStats(commitRows, todayPeriod);
 
     // Repository stats: COUNT は commitRows を再利用（既に repo_name+commit_hash で重複排除済み）
     const repoCountMap = new Map<string, number>();
@@ -6499,34 +6485,7 @@ export class TrailDatabase {
        GROUP BY period`,
     );
 
-    type QualityEntry = { buildRuns: number; buildFails: number; testRuns: number; testFails: number; edits: number; retries: number };
-    const qualityMap = new Map<string, QualityEntry>();
-    const getQuality = (p: string) => {
-      const cur = qualityMap.get(p) ?? { buildRuns: 0, buildFails: 0, testRuns: 0, testFails: 0, edits: 0, retries: 0 };
-      qualityMap.set(p, cur);
-      return cur;
-    };
-    for (const r of toRows(buildTestResult)) {
-      const e = getQuality(String(r['period'] ?? ''));
-      e.buildRuns += Number(r['build_runs'] ?? 0);
-      e.buildFails += Number(r['build_fails'] ?? 0);
-      e.testRuns += Number(r['test_runs'] ?? 0);
-      e.testFails += Number(r['test_fails'] ?? 0);
-    }
-    for (const r of toRows(editCountResult)) {
-      getQuality(String(r['period'] ?? '')).edits += Number(r['total_edits'] ?? 0);
-    }
-    for (const r of toRows(retryResult)) {
-      getQuality(String(r['period'] ?? '')).retries += Number(r['total_retries'] ?? 0);
-    }
-    const qualityRates = [...qualityMap.entries()]
-      .map(([p, e]) => ({
-        period: p,
-        retryRate: e.edits > 0 ? (e.retries / e.edits) * 100 : null,
-        buildFailRate: e.buildRuns > 0 ? (e.buildFails / e.buildRuns) * 100 : null,
-        testFailRate: e.testRuns > 0 ? (e.testFails / e.testRuns) * 100 : null,
-      }))
-      .sort((a, b) => a.period.localeCompare(b.period));
+    const qualityRates = aggregateQualityRates(toRows(buildTestResult), toRows(editCountResult), toRows(retryResult));
 
     return {
       toolCounts,
