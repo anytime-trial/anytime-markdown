@@ -9,6 +9,7 @@ import {
   runConversationBackfill,
   runCodeIncremental,
   runBugHistoryIncremental,
+  runReviewIncremental,
 } from '@anytime-markdown/memory-core';
 
 export interface MemoryCoreRunner {
@@ -126,6 +127,25 @@ export function createMemoryCoreRunner(opts: {
               `Bug history: status=${bugResult.status}, items_processed=${bugResult.items_processed}, ` +
                 `bugs_inserted=${bugResult.bugs_inserted}, edges_inserted=${bugResult.edges_inserted}, ` +
                 `duration_ms=${bugResult.duration_ms}`,
+            );
+
+            // ── Review incremental pipeline ──────────────────────────────────
+            const reviewDir =
+              process.env['MEMORY_CORE_REVIEW_DIR'] ??
+              '/Shared/anytime-markdown-docs/review';
+            logger.info(`Running review incremental (repo=${repoName}, dir=${reviewDir})`);
+            const reviewResult = await runReviewIncremental({
+              db: memDb.db,
+              repoName,
+              reviewDir,
+              ollama,
+              model: process.env['MEMORY_CORE_GEN_MODEL'] ?? 'qwen3.5:9b',
+              logger,
+            });
+            logger.info(
+              `Review incremental: status=${reviewResult.status}, items_processed=${reviewResult.items_processed}, ` +
+                `reviews_inserted=${reviewResult.reviews_inserted}, findings_inserted=${reviewResult.findings_inserted}, ` +
+                `edges_inserted=${reviewResult.edges_inserted}, duration_ms=${reviewResult.duration_ms}`,
             );
           } finally {
             // Release the WASM heap copy of trail DB (~800MB) after every run.

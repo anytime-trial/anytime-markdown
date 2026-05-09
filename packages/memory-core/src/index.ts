@@ -18,3 +18,5 @@ export { extractDecisionComments } from './ingest/code/extractComments';
 export type { ExtractCommentsInput, ExtractCommentsStats } from './ingest/code/extractComments';
 export { extractCommitRationale } from './ingest/code/extractCommitRationale';
 export type { ExtractRationaleInput, ExtractRationaleStats } from './ingest/code/extractCommitRationale';
+export { runReviewIncremental } from './pipeline/runReviewIncremental';
+export type { ReviewIncrementalResult } from './pipeline/runReviewIncremental';
