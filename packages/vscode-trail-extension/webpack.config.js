@@ -86,6 +86,11 @@ const extensionConfig = {
     ],
   },
   plugins: [
+    // VS Code extension host exposes a throwing navigator getter in Node.
+    // Supabase's environment detection must see navigator as absent.
+    new webpack.DefinePlugin({
+      navigator: 'undefined',
+    }),
     new CopyPlugin({
       // sql-wasm.js は initSqlJs() の locateFile で sql-wasm.wasm を同階層から
       // 読み込むため、両ファイルを dist/ に配置する。asm.js (16MB ヒープ固定)

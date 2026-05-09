@@ -3,6 +3,7 @@
 'use strict';
 
 const path = require('path');
+const webpack = require('webpack');
 const CopyPlugin = require('copy-webpack-plugin');
 
 /** @typedef {import('webpack').Configuration} WebpackConfig **/
@@ -41,6 +42,11 @@ const extensionConfig = {
     ],
   },
   plugins: [
+    // VS Code extension host exposes a throwing navigator getter in Node.
+    // Supabase's environment detection must see navigator as absent.
+    new webpack.DefinePlugin({
+      navigator: 'undefined',
+    }),
     new CopyPlugin({
       // sql-wasm.js + sql-wasm.wasm を dist/ に配置 (TrailDatabase が locateFile で同階層を探す)。
       patterns: [
