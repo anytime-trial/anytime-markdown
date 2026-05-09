@@ -56,14 +56,14 @@ export function DailySessionList({
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [sessionToolMetrics, setSessionToolMetrics] = useState<ToolMetrics | null>(null);
   const [dayAggToolMetrics, setDayAggToolMetrics] = useState<ToolMetrics | null>(null);
-  const [copiedSessionId, setCopiedSessionId] = useState(false);
+  const [copiedSessionId, setCopiedSessionId] = useState<string | null>(null);
 
   const handleCopySessionId = useCallback(
     (id: string) => (e: React.MouseEvent) => {
       e.stopPropagation();
       void navigator.clipboard.writeText(id).then(() => {
-        setCopiedSessionId(true);
-        setTimeout(() => setCopiedSessionId(false), 2000);
+        setCopiedSessionId(id);
+        setTimeout(() => setCopiedSessionId(null), 2000);
       });
     },
     [],
@@ -134,6 +134,7 @@ export function DailySessionList({
             <Table size="small" stickyHeader>
               <TableHead>
                 <TableRow sx={{ '& .MuiTableCell-head': { color: colors.textSecondary, borderColor: colors.border, bgcolor: colors.midnightNavy } }}>
+                  <TableCell>Session</TableCell>
                   <TableCell>{t('sessionList.timeHeader')}</TableCell>
                   <TableCell>Agent</TableCell>
                   <TableCell align="right">{t('sessionList.locHeader')}</TableCell>
@@ -154,6 +155,34 @@ export function DailySessionList({
                     sx={{ cursor: 'pointer', '& .MuiTableCell-root': { borderColor: colors.border } }}
                     onClick={() => handleSessionClick(s.id)}
                   >
+                    <TableCell sx={{ maxWidth: 200, minWidth: 120 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5 }}>
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Typography
+                            variant="body2"
+                            sx={{ fontWeight: 600, color: colors.iceBlue, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                          >
+                            {s.slug ?? s.id.slice(0, 8)}
+                          </Typography>
+                          <Typography
+                            variant="caption"
+                            sx={{ color: colors.textSecondary, fontFamily: 'monospace', display: 'block' }}
+                          >
+                            {s.id.slice(0, 8)}
+                          </Typography>
+                        </Box>
+                        <Tooltip title={copiedSessionId === s.id ? t('sessionList.copied') : t('sessionList.copyId')}>
+                          <IconButton
+                            size="small"
+                            onClick={handleCopySessionId(s.id)}
+                            sx={{ p: 0.25, color: colors.textSecondary, '&:hover': { color: colors.iceBlue }, flexShrink: 0 }}
+                            aria-label={t('sessionList.copyId')}
+                          >
+                            <ContentCopyIcon sx={{ fontSize: 12 }} />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                    </TableCell>
                     <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
                       {formatLocalTime(s.startTime)}–{formatLocalTime(s.endTime)}
                       {s.interruption?.interrupted && (
@@ -250,28 +279,6 @@ export function DailySessionList({
           if (selectedSession) {
             return (
               <Box sx={{ flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 1, width: { lg: 600 } }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 0.5 }}>
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      {selectedSession.slug ?? selectedSession.id.slice(0, 8)}
-                    </Typography>
-                    {selectedSession.slug && (
-                      <Typography variant="caption" sx={{ color: colors.textSecondary, fontFamily: 'monospace', display: 'block' }}>
-                        {selectedSession.id}
-                      </Typography>
-                    )}
-                  </Box>
-                  <Tooltip title={copiedSessionId ? t('sessionList.copied') : t('sessionList.copyId')}>
-                    <IconButton
-                      size="small"
-                      onClick={handleCopySessionId(selectedSession.id)}
-                      sx={{ p: 0.5, color: colors.textSecondary, '&:hover': { color: colors.iceBlue } }}
-                      aria-label={t('sessionList.copyId')}
-                    >
-                      <ContentCopyIcon sx={{ fontSize: 14 }} />
-                    </IconButton>
-                  </Tooltip>
-                </Box>
                 <SessionMetricsPanel session={selectedSession} toolMetrics={sessionToolMetrics} />
                 <Box sx={{ display: 'flex', gap: 1 }}>
                   <SessionToolUsageChart toolMetrics={sessionToolMetrics} />
