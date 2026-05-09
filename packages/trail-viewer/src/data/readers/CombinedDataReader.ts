@@ -604,7 +604,7 @@ export class CombinedDataReader {
         return { period: p, repoName, count: repoCommitCountMap.get(k) ?? 0, tokens: repoTokenMap.get(k) ?? 0 };
       }).sort((a, b) => a.period.localeCompare(b.period));
 
-      return { toolCounts, errorRate, skillStats, modelStats, agentStats, commitPrefixStats, aiFirstTryRate: [], repoStats };
+      return { toolCounts, errorRate, skillStats, modelStats, agentStats, commitPrefixStats, aiFirstTryRate: [], repoStats, qualityRates: [] };
     } catch (e) {
       console.error('[CombinedDataReader.getCombinedData] failed', e);
       return null;

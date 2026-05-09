@@ -73,6 +73,8 @@ export function computeCombinedAxisInfo(data: CombinedData | null, periodDays: P
     toolMissingByDisplay.set(displayKey, cur);
   }
 
+  const qualityRates = (data.qualityRates ?? []).filter(r => r.period >= cutoffStr);
+
   return {
     toolRows,
     errorRows,
@@ -81,6 +83,7 @@ export function computeCombinedAxisInfo(data: CombinedData | null, periodDays: P
     agentRows,
     commitRows,
     aiRateRows,
+    qualityRates,
     allPeriods,
     labels,
     modelPeriods,

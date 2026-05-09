@@ -90,6 +90,7 @@ export function useAnalyticsData(serverUrl: string): AnalyticsDataResult {
         commitPrefixStats: [],
         aiFirstTryRate: [],
         repoStats: [],
+        qualityRates: [],
       };
       try {
         const res = await fetch(`${baseUrl}/api/trail/combined?period=${period}&rangeDays=${rangeDays}`);

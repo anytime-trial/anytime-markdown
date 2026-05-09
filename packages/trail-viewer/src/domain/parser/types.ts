@@ -118,6 +118,13 @@ export interface CombinedAiFirstTryRate {
   readonly sampleSize: number;
 }
 
+export interface CombinedQualityRate {
+  readonly period: string;
+  readonly retryRate: number | null;    // retries / edits × 100 (0-100 %)
+  readonly buildFailRate: number | null; // fails / runs × 100 (0-100 %)
+  readonly testFailRate: number | null;  // fails / runs × 100 (0-100 %)
+}
+
 export interface CombinedData {
   readonly toolCounts: readonly CombinedToolCount[];
   readonly errorRate: readonly CombinedError[];
@@ -127,6 +134,7 @@ export interface CombinedData {
   readonly commitPrefixStats: readonly CombinedCommitPrefix[];
   readonly aiFirstTryRate: readonly CombinedAiFirstTryRate[];
   readonly repoStats: readonly CombinedRepository[];
+  readonly qualityRates: readonly CombinedQualityRate[];
 }
 
 export type CombinedPeriodMode = 'day' | 'week';

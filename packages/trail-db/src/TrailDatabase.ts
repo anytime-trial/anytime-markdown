@@ -340,6 +340,7 @@ interface CombinedData {
   readonly commitPrefixStats: readonly { period: string; prefix: string; count: number; linesAdded: number; linesDeleted: number }[];
   readonly aiFirstTryRate: readonly { period: string; rate: number; sampleSize: number }[];
   readonly repoStats: readonly { period: string; repoName: string; count: number; tokens: number }[];
+  readonly qualityRates: readonly { period: string; retryRate: number | null; buildFailRate: number | null; testFailRate: number | null }[];
 }
 
 interface RawLine {
@@ -6443,6 +6444,90 @@ export class TrailDatabase {
       }))
       .sort((a, b) => a.period.localeCompare(b.period));
 
+    // Build / Test fail rate per period
+    const buildTestResult = db.exec(
+      `SELECT ${sessionStartPeriodExpr} AS period,
+              SUM(CASE WHEN cmd_type = 'build' THEN 1 ELSE 0 END) AS build_runs,
+              SUM(CASE WHEN cmd_type = 'build' AND is_error = 1 THEN 1 ELSE 0 END) AS build_fails,
+              SUM(CASE WHEN cmd_type = 'test' THEN 1 ELSE 0 END) AS test_runs,
+              SUM(CASE WHEN cmd_type = 'test' AND is_error = 1 THEN 1 ELSE 0 END) AS test_fails
+       FROM (
+         SELECT mtc.is_error,
+                s.start_time,
+                CASE
+                  WHEN mtc.command LIKE '%npm run build%' OR mtc.command LIKE '%npx tsc%'
+                    OR mtc.command LIKE '% tsc %' OR mtc.command LIKE '% tsc'
+                    OR mtc.command LIKE 'tsc %'
+                    OR mtc.command LIKE '%webpack%' OR mtc.command LIKE '%vite build%'
+                    OR mtc.command LIKE '%esbuild%' OR mtc.command LIKE '%rollup%'
+                    THEN 'build'
+                  WHEN mtc.command LIKE '%jest%' OR mtc.command LIKE '%vitest%'
+                    OR mtc.command LIKE '%npm run test%' OR mtc.command LIKE '%npm test%'
+                    THEN 'test'
+                  ELSE NULL
+                END AS cmd_type
+         FROM message_tool_calls mtc
+         JOIN sessions s ON s.id = mtc.session_id
+         WHERE mtc.tool_name = 'Bash'
+           AND DATE(s.start_time, '${tzOffset}') >= DATE('now', '${tzOffset}', '-${rangeDays} days')
+       )
+       WHERE cmd_type IS NOT NULL
+       GROUP BY period`,
+    );
+
+    // Retry rate per period: retries = (edit_count - 1) per (session, file) groups with count > 1
+    const editCountResult = db.exec(
+      `SELECT ${sessionStartPeriodExpr} AS period, COUNT(*) AS total_edits
+       FROM message_tool_calls mtc
+       JOIN sessions s ON s.id = mtc.session_id
+       WHERE mtc.tool_name IN ('Edit', 'Write')
+         AND DATE(s.start_time, '${tzOffset}') >= DATE('now', '${tzOffset}', '-${rangeDays} days')
+       GROUP BY period`,
+    );
+    const retryResult = db.exec(
+      `SELECT period, SUM(cnt - 1) AS total_retries
+       FROM (
+         SELECT ${sessionStartPeriodExpr} AS period, COUNT(*) AS cnt
+         FROM message_tool_calls mtc
+         JOIN sessions s ON s.id = mtc.session_id
+         WHERE mtc.tool_name IN ('Edit', 'Write')
+           AND mtc.file_path IS NOT NULL AND mtc.file_path != ''
+           AND DATE(s.start_time, '${tzOffset}') >= DATE('now', '${tzOffset}', '-${rangeDays} days')
+         GROUP BY ${sessionStartPeriodExpr}, mtc.session_id, mtc.file_path
+         HAVING COUNT(*) > 1
+       )
+       GROUP BY period`,
+    );
+
+    type QualityEntry = { buildRuns: number; buildFails: number; testRuns: number; testFails: number; edits: number; retries: number };
+    const qualityMap = new Map<string, QualityEntry>();
+    const getQuality = (p: string) => {
+      const cur = qualityMap.get(p) ?? { buildRuns: 0, buildFails: 0, testRuns: 0, testFails: 0, edits: 0, retries: 0 };
+      qualityMap.set(p, cur);
+      return cur;
+    };
+    for (const r of toRows(buildTestResult)) {
+      const e = getQuality(String(r['period'] ?? ''));
+      e.buildRuns += Number(r['build_runs'] ?? 0);
+      e.buildFails += Number(r['build_fails'] ?? 0);
+      e.testRuns += Number(r['test_runs'] ?? 0);
+      e.testFails += Number(r['test_fails'] ?? 0);
+    }
+    for (const r of toRows(editCountResult)) {
+      getQuality(String(r['period'] ?? '')).edits += Number(r['total_edits'] ?? 0);
+    }
+    for (const r of toRows(retryResult)) {
+      getQuality(String(r['period'] ?? '')).retries += Number(r['total_retries'] ?? 0);
+    }
+    const qualityRates = [...qualityMap.entries()]
+      .map(([p, e]) => ({
+        period: p,
+        retryRate: e.edits > 0 ? (e.retries / e.edits) * 100 : null,
+        buildFailRate: e.buildRuns > 0 ? (e.buildFails / e.buildRuns) * 100 : null,
+        testFailRate: e.testRuns > 0 ? (e.testFails / e.testRuns) * 100 : null,
+      }))
+      .sort((a, b) => a.period.localeCompare(b.period));
+
     return {
       toolCounts,
       errorRate,
@@ -6452,6 +6537,7 @@ export class TrailDatabase {
       commitPrefixStats,
       aiFirstTryRate,
       repoStats,
+      qualityRates,
     };
   }
 
