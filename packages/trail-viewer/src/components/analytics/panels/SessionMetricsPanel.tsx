@@ -37,13 +37,12 @@ export function SessionMetricsPanel({ session, toolMetrics }: Readonly<{
   const cardStyle = { ...cardSx, p: 2, minWidth: 160, flex: '1 1 160px', textAlign: 'center' } as const;
 
   const usageCards = [
+    { label: t('analytics.netLines'), value: linesAdded > 0 ? fmtNum(linesAdded) : '—', tooltip: t('analytics.netLines.description') },
     { label: t('analytics.tokens'), value: fmtTokens(totalTokens), tooltip: t('analytics.totalTokens.description') },
     { label: t('analytics.cost'), value: fmtUsd(cost), tooltip: t('analytics.estimatedCost.description') },
     { label: t('analytics.metricMessages'), value: fmtNum(s.messageCount), tooltip: t('analytics.metricMessages.description') },
     { label: t('analytics.metricErrors'), value: (s.errorCount ?? 0) > 0 ? fmtNum(s.errorCount!) : '—', tooltip: t('analytics.metricErrors.description') },
     { label: t('analytics.contextGrowth'), value: s.messageCount > 0 ? `${fmtTokens(Math.round(contextGrowth))}/step` : '—', tooltip: t('analytics.contextGrowth.description') },
-    { label: t('analytics.netLines'), value: linesAdded > 0 ? fmtNum(linesAdded) : '—', tooltip: t('analytics.netLines.description') },
-    { label: t('analytics.metricFiles'), value: (s.commitStats?.filesChanged ?? 0) > 0 ? fmtNum(s.commitStats!.filesChanged) : '—', tooltip: t('analytics.metricFiles.description') },
   ];
 
   const productivityCards = [
