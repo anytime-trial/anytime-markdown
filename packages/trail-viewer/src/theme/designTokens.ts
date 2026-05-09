@@ -234,12 +234,12 @@ export interface TrailThemeTokens {
   readonly commitColors: Readonly<{
     feat: string; fix: string; refactor: string; test: string; other: string;
   }>;
-  /** カテゴリ色。[0]=計画的開発(緑), [1]=事後対応(赤), [2]=その他(黄) */
-  readonly commitCategoryColors: readonly [string, string, string];
-  /** ツールカテゴリ色。[0]=ファイル操作, [1]=Web・ブラウザ, [2]=コード解析, [3]=タスク管理, [4]=その他 */
-  readonly toolCategoryColors: readonly [string, string, string, string, string];
-  /** スキルカテゴリ色。[0]=開発フロー, [1]=ドキュメント, [2]=調査・分析, [3]=AIツール, [4]=その他 */
-  readonly skillCategoryColors: readonly [string, string, string, string, string];
+  /** カテゴリ色パレット（先頭3色が定義済み。それ以外は Context で動的生成）*/
+  readonly commitCategoryColors: readonly string[];
+  /** ツールカテゴリ色パレット（先頭5色が定義済み。それ以外は Context で動的生成）*/
+  readonly toolCategoryColors: readonly string[];
+  /** スキルカテゴリ色パレット（先頭5色が定義済み。それ以外は Context で動的生成）*/
+  readonly skillCategoryColors: readonly string[];
   readonly toolActionColors: ThemeToolActionColors;
   readonly modelColors: ThemeModelColors;
   readonly modelCostColors: ThemeModelCostColors;

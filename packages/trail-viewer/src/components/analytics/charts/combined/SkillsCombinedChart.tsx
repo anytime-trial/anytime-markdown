@@ -8,8 +8,6 @@ import type { CombinedAxisInfo } from './axisInfo';
 import { hideZero, makeAxisClick } from './axisInfo';
 import { useSkillCategory } from '../../../SkillCategoryContext';
 
-const CATEGORIES = [0, 1, 2, 3, 4] as const;
-
 export function SkillsCombinedChart({
   axisInfo,
   canDrill,
@@ -19,8 +17,8 @@ export function SkillsCombinedChart({
   canDrill: boolean;
   onDateClick?: (date: string) => void;
 }>) {
-  const { cardSx, skillCategoryColors } = useTrailTheme();
-  const { getSkillCategory, getSkillCategoryLabel } = useSkillCategory();
+  const { cardSx } = useTrailTheme();
+  const { getSkillCategory, getSkillCategoryLabel, getSkillCategoryColorByIndex, skillCategoryKeys } = useSkillCategory();
   const { skillRows, allPeriods, labels } = axisInfo;
 
   const dataset = useMemo(() => {
@@ -32,12 +30,12 @@ export function SkillsCombinedChart({
     }
     return allPeriods.map((p, pi) => {
       const entry: Record<string, string | number> = { period: labels[pi] };
-      for (const cat of CATEGORIES) {
+      for (const cat of skillCategoryKeys) {
         entry[`s${cat}`] = valMap.get(`${p}::${cat}`) ?? 0;
       }
       return entry;
     });
-  }, [skillRows, allPeriods, labels, getSkillCategory]);
+  }, [skillRows, allPeriods, labels, getSkillCategory, skillCategoryKeys]);
 
   if (skillRows.length === 0) {
     return <Typography variant="body2" color="text.secondary">0</Typography>;
@@ -49,11 +47,11 @@ export function SkillsCombinedChart({
         dataset={dataset}
         xAxis={[{ scaleType: 'band', dataKey: 'period' }]}
         yAxis={[{ valueFormatter: fmtNum }]}
-        series={CATEGORIES.map((cat) => ({
+        series={skillCategoryKeys.map((cat) => ({
           dataKey: `s${cat}`,
           label: getSkillCategoryLabel(cat),
           stack: 'total',
-          color: skillCategoryColors[cat],
+          color: getSkillCategoryColorByIndex(cat),
           valueFormatter: hideZero,
         }))}
         height={240}

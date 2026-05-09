@@ -34,11 +34,9 @@ export function ErrorToolsCombinedChart({
   canDrill: boolean;
   onDateClick?: (date: string) => void;
 }>) {
-  const { cardSx, toolCategoryColors } = useTrailTheme();
-  const { getToolCategory, getToolCategoryLabel } = useToolCategory();
+  const { cardSx } = useTrailTheme();
+  const { getToolCategory, getToolCategoryLabel, getToolCategoryColorByIndex, toolCategoryKeys } = useToolCategory();
   const { errorRows, allPeriods, labels, qualityRates } = axisInfo;
-
-  const CATEGORIES = [0, 1, 2, 3, 4] as const;
 
   const rateByPeriod = useMemo(() => {
     const m = new Map<string, { retry: number | null; build: number | null; test: number | null }>();
@@ -59,7 +57,7 @@ export function ErrorToolsCombinedChart({
     }
     return allPeriods.map((p, pi) => {
       const entry: Record<string, string | number | null> = { period: labels[pi] };
-      for (const cat of CATEGORIES) {
+      for (const cat of toolCategoryKeys) {
         entry[`e${cat}`] = valMap.get(`${p}::${cat}`) ?? 0;
       }
       const rates = rateByPeriod.get(p);
@@ -68,16 +66,16 @@ export function ErrorToolsCombinedChart({
       entry['testFail'] = rates?.test ?? null;
       return entry;
     });
-  }, [errorRows, allPeriods, labels, getToolCategory, rateByPeriod]);
+  }, [errorRows, allPeriods, labels, getToolCategory, rateByPeriod, toolCategoryKeys]);
 
   const hasRates = qualityRates.length > 0;
 
-  const barSeries = CATEGORIES.map((cat) => ({
+  const barSeries = toolCategoryKeys.map((cat) => ({
     type: 'bar' as const,
     dataKey: `e${cat}`,
     label: getToolCategoryLabel(cat),
     stack: 'total',
-    color: toolCategoryColors[cat],
+    color: getToolCategoryColorByIndex(cat),
     yAxisId: 'countAxis',
     valueFormatter: hideZero,
   }));

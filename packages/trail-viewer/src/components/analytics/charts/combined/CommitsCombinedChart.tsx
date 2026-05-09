@@ -31,8 +31,8 @@ export function CommitsCombinedChart({
   canDrill: boolean;
   onDateClick?: (date: string) => void;
 }>) {
-  const { cardSx, commitCategoryColors } = useTrailTheme();
-  const { getCategory, getCategoryLabel } = useCommitCategory();
+  const { cardSx } = useTrailTheme();
+  const { getCategory, getCategoryLabel, getCategoryColorByIndex, categoryKeys } = useCommitCategory();
   const { commitRows, commitPeriods, commitLabels, commitPrefixes, aiRateRows } = axisInfo;
 
   const commitDataset = useMemo(() => {
@@ -45,12 +45,12 @@ export function CommitsCombinedChart({
     }
     return commitPeriods.map((p, pi) => {
       const entry: Record<string, string | number> = { period: commitLabels[pi] };
-      entry['c0'] = valMap.get(`${p}::0`) ?? 0;
-      entry['c1'] = valMap.get(`${p}::1`) ?? 0;
-      entry['c2'] = valMap.get(`${p}::2`) ?? 0;
+      for (const cat of categoryKeys) {
+        entry[`c${cat}`] = valMap.get(`${p}::${cat}`) ?? 0;
+      }
       return entry;
     });
-  }, [commitRows, commitPeriods, commitLabels, commitMetric, getCategory]);
+  }, [commitRows, commitPeriods, commitLabels, commitMetric, getCategory, categoryKeys]);
 
   if (commitPrefixes.length === 0) {
     return <Typography variant="body2" color="text.secondary">0</Typography>;
@@ -68,12 +68,12 @@ export function CommitsCombinedChart({
     rate: showRate ? (rateByPeriod.get(commitPeriods[i]) ?? null) : null,
   }));
 
-  const barSeries = ([0, 1, 2] as const).map((cat) => ({
+  const barSeries = categoryKeys.map((cat) => ({
     type: 'bar' as const,
     dataKey: `c${cat}`,
     label: getCategoryLabel(cat),
     stack: 'total',
-    color: commitCategoryColors[cat],
+    color: getCategoryColorByIndex(cat),
     yAxisId: 'countAxis',
   }));
   const lineSeries = showRate ? [{

@@ -33,7 +33,7 @@ export function loadCommitCategories(workspaceRoot: string): ReadonlyMap<string,
   const map = new Map<string, number>();
   for (const [prefix, entry] of Object.entries(parsed.entries)) {
     const cat = entry?.category;
-    if (typeof cat !== 'number' || !Number.isInteger(cat) || cat < 0 || cat > 2) continue;
+    if (typeof cat !== 'number' || !Number.isInteger(cat) || cat < 0) continue;
     map.set(prefix.toLowerCase(), cat);
   }
   return map;

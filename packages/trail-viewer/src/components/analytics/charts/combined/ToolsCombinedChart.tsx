@@ -9,8 +9,6 @@ import type { CombinedAxisInfo } from './axisInfo';
 import { makeAxisClick } from './axisInfo';
 import { useToolCategory } from '../../../ToolCategoryContext';
 
-const CATEGORIES = [0, 1, 2, 3, 4] as const;
-
 export function ToolsCombinedChart({
   axisInfo,
   toolMetric,
@@ -22,8 +20,8 @@ export function ToolsCombinedChart({
   canDrill: boolean;
   onDateClick?: (date: string) => void;
 }>) {
-  const { cardSx, toolCategoryColors } = useTrailTheme();
-  const { getToolCategory, getToolCategoryLabel } = useToolCategory();
+  const { cardSx } = useTrailTheme();
+  const { getToolCategory, getToolCategoryLabel, getToolCategoryColorByIndex, toolCategoryKeys } = useToolCategory();
   const { toolRows, allPeriods, labels } = axisInfo;
 
   const dataset = useMemo(() => {
@@ -37,12 +35,12 @@ export function ToolsCombinedChart({
     }
     return allPeriods.map((p, pi) => {
       const entry: Record<string, string | number> = { period: labels[pi] };
-      for (const cat of CATEGORIES) {
+      for (const cat of toolCategoryKeys) {
         entry[`t${cat}`] = valMap.get(`${p}::${cat}`) ?? 0;
       }
       return entry;
     });
-  }, [toolRows, allPeriods, labels, toolMetric, getToolCategory]);
+  }, [toolRows, allPeriods, labels, toolMetric, getToolCategory, toolCategoryKeys]);
 
   const tooltipFormatter = (v: number | null): string | null => {
     if (v == null || v === 0) return null;
@@ -59,11 +57,11 @@ export function ToolsCombinedChart({
         dataset={dataset}
         xAxis={[{ scaleType: 'band', dataKey: 'period' }]}
         yAxis={[{ valueFormatter: fmtTokens }]}
-        series={CATEGORIES.map((cat) => ({
+        series={toolCategoryKeys.map((cat) => ({
           dataKey: `t${cat}`,
           label: getToolCategoryLabel(cat),
           stack: 'total',
-          color: toolCategoryColors[cat],
+          color: getToolCategoryColorByIndex(cat),
           valueFormatter: tooltipFormatter,
         }))}
         height={240}
