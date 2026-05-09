@@ -25,6 +25,7 @@ import { SessionErrorChart } from '../charts/SessionErrorChart';
 import { SessionSkillUsageChart } from '../charts/SessionSkillUsageChart';
 import { SessionToolUsageChart } from '../charts/SessionToolUsageChart';
 import { SessionCommitPrefixChart } from '../charts/SessionCommitPrefixChart';
+import { DayCommitPrefixChart } from '../charts/DayCommitPrefixChart';
 import { SessionMetricsPanel } from './SessionMetricsPanel';
 
 export function DailySessionList({
@@ -292,10 +293,18 @@ export function DailySessionList({
             <Box sx={{ flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 1, width: { lg: 600 } }}>
               <SessionMetricsPanel session={buildDaySession(date, daySessions)} toolMetrics={dayAggToolMetrics} />
               <Box sx={{ display: 'flex', gap: 1 }}>
+                <SessionErrorChart toolMetrics={dayAggToolMetrics} />
+                {fetchSessionCommits && (
+                  <DayCommitPrefixChart
+                    sessionIds={daySessions.map((s) => s.id)}
+                    fetchSessionCommits={fetchSessionCommits}
+                  />
+                )}
+              </Box>
+              <Box sx={{ display: 'flex', gap: 1 }}>
                 <SessionSkillUsageChart toolMetrics={dayAggToolMetrics} />
                 <SessionToolUsageChart toolMetrics={dayAggToolMetrics} />
               </Box>
-              <SessionErrorChart toolMetrics={dayAggToolMetrics} />
             </Box>
           );
         })()}
