@@ -42,7 +42,7 @@ export function SessionCommitList({
   }, [sessionId, fetchSessionCommits]);
 
   const totalAdded = commits.reduce((sum, c) => sum + c.linesAdded, 0);
-  const totalTokens = usage.inputTokens + usage.outputTokens;
+  const totalTokens = usage.inputTokens + usage.outputTokens + usage.cacheReadTokens + usage.cacheCreationTokens;
   const tokensPerLine = totalAdded > 0 ? Math.round(totalTokens / totalAdded) : 0;
 
   if (loading) {

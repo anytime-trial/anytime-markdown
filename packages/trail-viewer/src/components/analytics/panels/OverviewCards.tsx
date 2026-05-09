@@ -29,7 +29,7 @@ export function OverviewCards({
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
   const [usageIdx, setUsageIdx] = useState(0);
-  const totalTokens = totals.inputTokens + totals.outputTokens;
+  const totalTokens = totals.inputTokens + totals.outputTokens + totals.cacheReadTokens + totals.cacheCreationTokens;
 
   const cards: MetricItem[] = [
     {

@@ -24,7 +24,7 @@ export function SessionMetricsPanel({ session, toolMetrics }: Readonly<{
   const [qualityIdx, setQualityIdx] = useState(0);
 
   const s = session;
-  const totalTokens = s.usage.inputTokens + s.usage.outputTokens;
+  const totalTokens = s.usage.inputTokens + s.usage.outputTokens + s.usage.cacheReadTokens + s.usage.cacheCreationTokens;
   const cost = sessionCost(s);
   const durationMs = new Date(s.endTime).getTime() - new Date(s.startTime).getTime();
   const durationHours = durationMs / 3_600_000;
