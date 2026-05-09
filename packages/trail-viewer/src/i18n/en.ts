@@ -291,7 +291,7 @@ export const en: TrailI18n = {
   'analytics.combined.model': 'Model',
   'analytics.combined.model.description': 'Show model call counts and token consumption trend',
   'analytics.combined.agent': 'Agent',
-  'analytics.combined.agent.description': 'Show sub-agent token, cost, and LOC trend',
+  'analytics.combined.agent.description': 'Show agent token, cost, and LOC trend',
   'analytics.combined.missingRate': 'missing',
 
   'metrics.deploymentFrequency.name': 'Deployment Frequency',

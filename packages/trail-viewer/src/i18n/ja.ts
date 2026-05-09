@@ -291,7 +291,7 @@ export const ja: TrailI18n = {
   'analytics.combined.model': 'モデル',
   'analytics.combined.model.description': 'モデル別の呼び出し回数・トークン消費量の推移を表示',
   'analytics.combined.agent': 'エージェント',
-  'analytics.combined.agent.description': 'サブエージェント別のトークン消費量・コスト・LOC 推移を表示',
+  'analytics.combined.agent.description': 'エージェント別のトークン消費量・コスト・LOC 推移を表示',
   'analytics.combined.missingRate': '欠損',
 
   'metrics.deploymentFrequency.name': 'デプロイ頻度',
