@@ -31,3 +31,33 @@ export type { AgentReviewInput, AgentReviewFinding } from './types/AgentReviewIn
 
 export { runSpecIncremental } from './pipeline/runSpecIncremental';
 export type { SpecIncrementalResult } from './pipeline/runSpecIncremental';
+
+export { listRecurringBugs } from './retrieve/listRecurringBugs';
+export type { RecurringBugGroup, BugFixSummary } from './retrieve/listRecurringBugs';
+export { getBugHistory } from './retrieve/getBugHistory';
+export type { BugHistoryEntry, CausedByRef } from './retrieve/getBugHistory';
+
+export { listUnaddressedReviewFindings } from './retrieve/listUnaddressedReviewFindings';
+export type { UnaddressedReviewFinding } from './retrieve/listUnaddressedReviewFindings';
+export { getReviewHistory } from './retrieve/getReviewHistory';
+export type { ReviewHistoryEntry, ReviewFindingSummary } from './retrieve/getReviewHistory';
+export { linkReviewToCommit } from './retrieve/linkReviewToCommit';
+export type { LinkReviewToCommitResult } from './retrieve/linkReviewToCommit';
+
+export { runReviewAgent } from './retrieve/runReviewAgent';
+export type { RunReviewAgentResult } from './retrieve/runReviewAgent';
+export { getReviewRunStatus } from './retrieve/getReviewRunStatus';
+export type { ReviewRunStatus } from './retrieve/getReviewRunStatus';
+export { listReviewRuns } from './retrieve/listReviewRuns';
+export { listReviewTargetHints } from './retrieve/listReviewTargetHints';
+export type { ReviewTargetHint } from './retrieve/listReviewTargetHints';
+
+export { detectDrift } from './retrieve/detectDrift';
+export type { DriftEventSummary, DetectDriftInput } from './retrieve/detectDrift';
+export { explainDrift } from './retrieve/explainDrift';
+export type { ExplainDriftResult, DriftSourceEvidence } from './retrieve/explainDrift';
+export { resolveDrift } from './retrieve/resolveDrift';
+export type { ResolveDriftResult } from './retrieve/resolveDrift';
+
+export { runDriftDetection } from './pipeline/runDriftDetection';
+export type { DriftDetectionResult } from './pipeline/runDriftDetection';
