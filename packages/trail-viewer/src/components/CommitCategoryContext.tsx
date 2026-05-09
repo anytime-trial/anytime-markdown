@@ -4,10 +4,12 @@ import { useTrailTheme } from './TrailThemeContext';
 
 interface CommitCategoryContextValue {
   getCategoryColor: (prefix: string) => string;
+  getCategory: (prefix: string) => number;
 }
 
 const CommitCategoryContext = createContext<CommitCategoryContextValue>({
   getCategoryColor: () => '#9E9E9E',
+  getCategory: () => 2,
 });
 
 export function CommitCategoryProvider({
@@ -22,6 +24,7 @@ export function CommitCategoryProvider({
 
   const value = useMemo<CommitCategoryContextValue>(
     () => ({
+      getCategory: (prefix: string) => map.get(prefix) ?? 2,
       getCategoryColor: (prefix: string) => {
         const cat = map.get(prefix) ?? 2;
         return commitCategoryColors[cat] ?? commitCategoryColors[2];

@@ -32,8 +32,13 @@ export function CommitsCombinedChart({
   onDateClick?: (date: string) => void;
 }>) {
   const { cardSx } = useTrailTheme();
-  const { getCategoryColor } = useCommitCategory();
+  const { getCategoryColor, getCategory } = useCommitCategory();
   const { commitRows, commitPeriods, commitLabels, commitPrefixes, commitMap, aiRateRows } = axisInfo;
+
+  const sortedCommitPrefixes = useMemo(
+    () => [...commitPrefixes].sort((a, b) => getCategory(a) - getCategory(b)),
+    [commitPrefixes, getCategory],
+  );
 
   const commitDataset = useMemo(() => {
     const valMap = new Map<string, number>();
@@ -45,12 +50,12 @@ export function CommitsCombinedChart({
     }
     return commitPeriods.map((p, pi) => {
       const entry: Record<string, string | number> = { period: commitLabels[pi] };
-      for (let i = 0; i < commitPrefixes.length; i++) {
-        entry[`c${i}`] = valMap.get(`${p}::${commitPrefixes[i]}`) ?? 0;
+      for (let i = 0; i < sortedCommitPrefixes.length; i++) {
+        entry[`c${i}`] = valMap.get(`${p}::${sortedCommitPrefixes[i]}`) ?? 0;
       }
       return entry;
     });
-  }, [commitRows, commitPeriods, commitLabels, commitPrefixes, commitMap, commitMetric]);
+  }, [commitRows, commitPeriods, commitLabels, sortedCommitPrefixes, commitMap, commitMetric]);
 
   if (commitPrefixes.length === 0) {
     return <Typography variant="body2" color="text.secondary">0</Typography>;
@@ -68,7 +73,7 @@ export function CommitsCombinedChart({
     rate: showRate ? (rateByPeriod.get(commitPeriods[i]) ?? null) : null,
   }));
 
-  const barSeries = commitPrefixes.map((prefix, i) => ({
+  const barSeries = sortedCommitPrefixes.map((prefix, i) => ({
     type: 'bar' as const,
     dataKey: `c${i}`,
     label: prefix,
