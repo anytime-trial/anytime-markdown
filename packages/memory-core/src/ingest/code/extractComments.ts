@@ -13,6 +13,8 @@ export interface ExtractCommentsInput {
   repoName: string;
   commitSha: string | null;
   recordedAt: string;
+  /** Absolute path to the git repository root. Used to normalize file paths to relative. Defaults to process.cwd(). */
+  gitRoot?: string;
   logger: MemoryLogger;
 }
 
@@ -130,15 +132,36 @@ function upsertFileEntity(
  */
 export function extractDecisionComments(input: ExtractCommentsInput): ExtractCommentsStats {
   const { db, program, repoName, commitSha: _commitSha, recordedAt, logger } = input;
+  const gitRoot = input.gitRoot ?? process.cwd();
+
+  // Normalize the gitRoot to a posix-style path with trailing separator stripped
+  const normalizedGitRoot = gitRoot.replace(/\\/g, '/').replace(/\/$/, '');
+
+  /**
+   * Convert an absolute TypeScript compiler path to a project-relative posix path.
+   * Only normalizes when the path is actually under gitRoot; otherwise returns
+   * the original absolute path unchanged (e.g. for temp-dir test fixtures).
+   */
+  function toRelPath(absPath: string): string {
+    const normalized = absPath.replace(/\\/g, '/');
+    if (normalized.startsWith(normalizedGitRoot + '/')) {
+      return normalized.slice(normalizedGitRoot.length + 1);
+    }
+    if (normalized === normalizedGitRoot) {
+      return '.';
+    }
+    // Path is not under gitRoot — return the absolute path as-is
+    return absPath;
+  }
 
   const stats: ExtractCommentsStats = { decisions_inserted: 0, edges_inserted: 0 };
 
   for (const sourceFile of program.getSourceFiles()) {
-    const filePath = sourceFile.fileName;
+    const relFilePath = toRelPath(sourceFile.fileName);
 
     // Skip declaration files and node_modules
     if (sourceFile.isDeclarationFile) continue;
-    if (filePath.includes('node_modules')) continue;
+    if (relFilePath.includes('node_modules')) continue;
 
     // Use getFullText() to include leading trivia (comments before first node).
     // getText() strips file-level leading trivia.
@@ -147,7 +170,7 @@ export function extractDecisionComments(input: ExtractCommentsInput): ExtractCom
     const seenCommentPositions = new Set<number>();
 
     // Upsert File entity once per file (not once per comment)
-    const targetId = upsertFileEntity(db, filePath, recordedAt, logger);
+    const targetId = upsertFileEntity(db, relFilePath, recordedAt, logger);
 
     function visit(node: ts.Node): void {
       const commentRanges =
@@ -173,9 +196,9 @@ export function extractDecisionComments(input: ExtractCommentsInput): ExtractCom
         // otherwise fall back to the File entity.
         const symbolName = namedNodeIdent(node);
 
-        // Decision canonical_name: sha1(repoName:filePath:line:text) sliced to 16 chars
+        // Decision canonical_name: sha1(repoName:relFilePath:line:text) sliced to 16 chars
         const canonName = createHash('sha1')
-          .update(`${repoName}:${filePath}:${line}:${text}`)
+          .update(`${repoName}:${relFilePath}:${line}:${text}`)
           .digest('hex')
           .slice(0, 16);
 
@@ -206,14 +229,14 @@ export function extractDecisionComments(input: ExtractCommentsInput): ExtractCom
         } catch (err) {
           logger.error(
             `[memory-core] extractComments: failed to upsert Decision entity ` +
-              `file="${filePath}" line=${line}`,
+              `file="${relFilePath}" line=${line}`,
             err
           );
           continue;
         }
 
         // Insert rationale_for edge: Decision → rationale_for → File
-        const sourceRef = `code_fact:comment:${filePath}#${line}`;
+        const sourceRef = `code_fact:comment:${relFilePath}#${line}`;
         const edgeId = entityId('edge', `rationale_for:${decisionId}:${targetId}:comment:${line}`);
 
         try {
@@ -230,7 +253,7 @@ export function extractDecisionComments(input: ExtractCommentsInput): ExtractCom
         } catch (err) {
           logger.error(
             `[memory-core] extractComments: failed to insert edge ` +
-              `file="${filePath}" line=${line}`,
+              `file="${relFilePath}" line=${line}`,
             err
           );
         }

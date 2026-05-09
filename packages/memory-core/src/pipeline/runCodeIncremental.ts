@@ -249,7 +249,7 @@ export async function runCodeIncremental(opts: {
 
   // ── 8. extractDecisionComments ───────────────────────────────────────────
   try {
-    const stats = extractDecisionComments({ db, program, repoName, commitSha, recordedAt, logger });
+    const stats = extractDecisionComments({ db, program, repoName, commitSha, recordedAt, gitRoot, logger });
     totals.entities_inserted += stats.decisions_inserted;
     totals.edges_inserted += stats.edges_inserted;
   } catch (err) {

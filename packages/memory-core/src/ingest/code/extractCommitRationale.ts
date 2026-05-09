@@ -92,11 +92,13 @@ export function extractCommitRationale(input: ExtractRationaleInput): ExtractRat
       ? `SELECT commit_hash, commit_message, committed_at
            FROM trail.session_commits
            WHERE repo_name = ? AND committed_at > ?
+             AND (committed_at IS NULL OR committed_at != '')
            GROUP BY commit_hash
            ORDER BY committed_at`
       : `SELECT commit_hash, commit_message, committed_at
            FROM trail.session_commits
            WHERE repo_name = ?
+             AND (committed_at IS NULL OR committed_at != '')
            GROUP BY commit_hash
            ORDER BY committed_at`;
 
@@ -112,7 +114,8 @@ export function extractCommitRationale(input: ExtractRationaleInput): ExtractRat
       const row = stmt.getAsObject();
       const commitHash = row['commit_hash'] as string;
       const commitMessage = row['commit_message'] as string;
-      const committedAt = (row['committed_at'] as string | null) ?? recordedAt;
+      const rawCommittedAt = row['committed_at'] as string | null;
+      const committedAt = rawCommittedAt && rawCommittedAt !== '' ? rawCommittedAt : recordedAt;
 
       stats.commits_processed += 1;
 
