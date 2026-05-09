@@ -31,6 +31,7 @@ import { TrailLocaleProvider, useTrailI18n } from '../i18n';
 import type { TrailLocale } from '../i18n';
 import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
 import { getTrailViewerTabDefs, normalizeTrailInitialTab } from './trailTabs';
+import { MemoryPanel } from './MemoryPanel';
 import { AnalyticsPanelSkeleton } from './shared/AnalyticsPanelSkeleton';
 import { C4PanelSkeleton } from './shared/C4PanelSkeleton';
 import { TabSkeleton } from './shared/TabSkeleton';
@@ -111,6 +112,8 @@ export interface TrailViewerCoreProps {
   readonly sendCommand?: (cmd: string, payload?: unknown) => void;
   /** WebSocket が接続済みか。usePerfReporter の queue flush 判定に使う。 */
   readonly wsConnected?: boolean;
+  /** TrailDataServer のベース URL（Memory パネルの /api/memory/* に使用）。 */
+  readonly serverUrl?: string;
 }
 
 const SESSION_LIST_WIDTH = 300;
@@ -154,6 +157,7 @@ function TrailViewerCoreInner({
   initialTab,
   sendCommand,
   wsConnected = false,
+  serverUrl = '',
 }: Readonly<TrailViewerCoreProps>) {
   const { t } = useTrailI18n();
   const tokens = useMemo(() => getTokens(isDark ?? true), [isDark]);
@@ -489,6 +493,18 @@ function TrailViewerCoreInner({
           />
         </Box>
       )}
+
+      {visitedTabs.has(6) && (
+        <Box
+          role="tabpanel"
+          id="trail-panel-6"
+          aria-labelledby="trail-tab-6"
+          sx={{ display: activeTab !== 6 ? 'none' : 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}
+        >
+          <MemoryPanel serverUrl={serverUrl} />
+        </Box>
+      )}
+
       {releasesPopupOpen && (
         <ResizablePopup
           title={t('viewer.tab.releases')}

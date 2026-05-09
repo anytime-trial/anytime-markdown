@@ -217,6 +217,7 @@ export function TrailViewerApp({
       initialTab={initialTab}
       sendCommand={sendCommand}
       wsConnected={c4.connected}
+      serverUrl={serverUrl}
     />
   );
 }

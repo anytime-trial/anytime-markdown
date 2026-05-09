@@ -347,6 +347,47 @@ export interface TrailI18n {
   'analytics.combined.agent.description': string;
   'analytics.combined.missingRate': string;
 
+  // memory tab
+  'viewer.tab.memory': string;
+  'memory.loading': string;
+  'memory.noDb': string;
+  'memory.noDb.description': string;
+  'memory.drift.tab': string;
+  'memory.bug.tab': string;
+  'memory.review.tab': string;
+  'memory.runs.tab': string;
+  // drift sub-tab
+  'memory.drift.empty': string;
+  'memory.drift.severity.info': string;
+  'memory.drift.severity.warn': string;
+  'memory.drift.severity.error': string;
+  'memory.drift.unresolvedOnly': string;
+  'memory.drift.filterSeverity': string;
+  'memory.drift.filterType': string;
+  'memory.drift.resolve': string;
+  'memory.drift.resolved': string;
+  'memory.drift.resolutionNote': string;
+  'memory.drift.detail': string;
+  // bug sub-tab
+  'memory.bug.empty': string;
+  'memory.bug.recurring': string;
+  'memory.bug.history': string;
+  'memory.bug.filterPackage': string;
+  'memory.bug.filterCategory': string;
+  // review sub-tab
+  'memory.review.empty': string;
+  'memory.review.unaddressed': string;
+  'memory.review.history': string;
+  'memory.review.filterFile': string;
+  'memory.review.filterSeverity': string;
+  'memory.review.filterCategory': string;
+  // pipeline sub-tab
+  'memory.runs.empty': string;
+  'memory.runs.filterScope': string;
+  'memory.runs.filterStatus': string;
+  'memory.runs.failedItems': string;
+  'memory.runs.topEntities': string;
+
   // metrics
   'metrics.deploymentFrequency.name': string;
   'metrics.deploymentFrequency.description': string;
