@@ -500,6 +500,7 @@ function TrailViewerCoreInner({
           onMaximizedChange={setReleasesPopupMaximized}
           defaultMaxWidth={1120}
           centered
+          withBackdrop
           toolbarButtonSx={popupToolbarButtonSx}
           i18nMaximize={t('c4.popup.maximize')}
           i18nRestore={t('c4.popup.restore')}
@@ -522,6 +523,7 @@ function TrailViewerCoreInner({
           onMaximizedChange={setPromptsPopupMaximized}
           defaultMaxWidth={1120}
           centered
+          withBackdrop
           toolbarButtonSx={popupToolbarButtonSx}
           i18nMaximize={t('c4.popup.maximize')}
           i18nRestore={t('c4.popup.restore')}
@@ -544,6 +546,7 @@ function TrailViewerCoreInner({
           onMaximizedChange={setMessagesPopupMaximized}
           defaultMaxWidth={1280}
           centered
+          withBackdrop
           toolbarButtonSx={popupToolbarButtonSx}
           i18nMaximize={t('c4.popup.maximize')}
           i18nRestore={t('c4.popup.restore')}

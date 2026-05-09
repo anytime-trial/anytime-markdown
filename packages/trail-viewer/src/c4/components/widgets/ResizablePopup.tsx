@@ -32,6 +32,8 @@ export interface ResizablePopupProps {
   readonly defaultMaxWidth?: number;
   /** size === null のときに親領域の中央に水平方向で寄せる。デフォルト false。 */
   readonly centered?: boolean;
+  /** ポップアップ背後を覆う半透明 + ぼかしの backdrop を表示する。デフォルト false。 */
+  readonly withBackdrop?: boolean;
   readonly toolbarButtonSx: SxProps<Theme>;
   readonly i18nMaximize: string;
   readonly i18nRestore: string;
@@ -51,6 +53,7 @@ export function ResizablePopup({
   size, onSizeChange, maximized, onMaximizedChange,
   defaultLeft = 244, defaultMaxWidth = 960,
   centered = false,
+  withBackdrop = false,
   toolbarButtonSx,
   i18nMaximize, i18nRestore, i18nClose, i18nResize,
   children,
@@ -115,6 +118,20 @@ export function ResizablePopup({
         : { top: MARGIN, left: defaultLeft, right: MARGIN, maxWidth: defaultMaxWidth, height: `calc(100% - ${MARGIN * 2}px)` };
 
   return (
+    <>
+      {withBackdrop && (
+        <Box
+          aria-hidden
+          sx={{
+            position: 'absolute',
+            inset: 0,
+            backdropFilter: 'blur(10px)',
+            WebkitBackdropFilter: 'blur(10px)',
+            bgcolor: isDark ? 'rgba(0,0,0,0.35)' : 'rgba(0,0,0,0.15)',
+            zIndex: 10,
+          }}
+        />
+      )}
     <Box ref={rootRef} role="dialog" aria-label={ariaLabel} sx={{ ...baseSx, ...sizeSx }}>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 1.5, py: 0.75, borderBottom: `1px solid ${colors.border}`, flexShrink: 0 }}>
         <Typography variant="caption" sx={{ color: colors.text, fontSize: '0.8rem', fontWeight: 600 }}>
@@ -174,5 +191,6 @@ export function ResizablePopup({
         />
       )}
     </Box>
+    </>
   );
 }
