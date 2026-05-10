@@ -82,7 +82,13 @@ export function createOllamaClient(options: OllamaClientOptions = {}): OllamaCli
 
   return {
     async generate({ model, prompt, format, options }: GenerateOptions): Promise<GenerateResult> {
-      const data = await post<{ response: string }>('/api/generate', { model, prompt, format, stream: false, options });
+      // `think` must be a top-level field (not inside options) per the Ollama API spec for Qwen3
+      const think = typeof options?.['think'] === 'boolean' ? options['think'] : undefined;
+      const restOptions = options ? Object.fromEntries(Object.entries(options).filter(([k]) => k !== 'think')) : undefined;
+      const body: Record<string, unknown> = { model, prompt, format, stream: false };
+      if (think !== undefined) body['think'] = think;
+      if (restOptions && Object.keys(restOptions).length > 0) body['options'] = restOptions;
+      const data = await post<{ response: string }>('/api/generate', body);
       return { response: stripThinkingBlocks(data.response) };
     },
 
