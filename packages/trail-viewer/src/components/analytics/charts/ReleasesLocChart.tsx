@@ -79,7 +79,7 @@ export function ReleasesLocChart({ releases }: Readonly<{ releases: readonly Tra
         height={300}
         margin={{ left: 0, right: 0, top: 8, bottom: 60 }}
       >
-        <ChartsWrapper>
+        <ChartsWrapper legendPosition={{ vertical: 'bottom', horizontal: 'center' }}>
           <ChartsSurface>
             <ChartsGrid horizontal />
             <BarPlot />
