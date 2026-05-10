@@ -303,16 +303,18 @@ export function CombinedChartsSection({
               </ToggleButton>
             </Tooltip>
           </ToggleButtonGroup>
-          <ToggleButtonGroup
-            value={period}
-            exclusive
-            onChange={(_e, v: PeriodDays | null) => { if (v !== null) setPeriod(v); }}
-            size="small"
-          >
-            <ToggleButton value={7} sx={toggleSx}>{`7${t('releases.days')}`}</ToggleButton>
-            <ToggleButton value={30} sx={toggleSx}>{`30${t('releases.days')}`}</ToggleButton>
-            <ToggleButton value={90} sx={toggleSx}>{`90${t('releases.days')}`}</ToggleButton>
-          </ToggleButtonGroup>
+          {metric !== 'releases' && (
+            <ToggleButtonGroup
+              value={period}
+              exclusive
+              onChange={(_e, v: PeriodDays | null) => { if (v !== null) setPeriod(v); }}
+              size="small"
+            >
+              <ToggleButton value={7} sx={toggleSx}>{`7${t('releases.days')}`}</ToggleButton>
+              <ToggleButton value={30} sx={toggleSx}>{`30${t('releases.days')}`}</ToggleButton>
+              <ToggleButton value={90} sx={toggleSx}>{`90${t('releases.days')}`}</ToggleButton>
+            </ToggleButtonGroup>
+          )}
         </Box>
         {metric === 'tokens' && (
           <ToggleButtonGroup
