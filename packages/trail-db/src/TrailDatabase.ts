@@ -778,10 +778,14 @@ export class TrailDatabase {
    * `getSqliteTzOffset()` の出力形式（"+540 minutes" / "-300 minutes"）を期待する。
    * ISO 8601 timestamp を UTC ms に変換 → オフセット分加算 → YYYY-MM-DD を抽出。
    */
-  private computeDateInSqliteTz(isoTimestamp: string, tzOffset: string): string {
+  private computeDateInSqliteTz(isoTimestamp: string | null | undefined, tzOffset: string): string {
+    if (!isoTimestamp) return '';
     const m = /^([+-])(\d+) minutes$/.exec(tzOffset);
     const ms = Date.parse(isoTimestamp);
-    if (!m || Number.isNaN(ms)) return isoTimestamp.slice(0, 10);
+    if (!m || Number.isNaN(ms)) {
+      const head = isoTimestamp.slice(0, 10);
+      return /^\d{4}-\d{2}-\d{2}$/.test(head) ? head : '';
+    }
     const sign = m[1] === '+' ? 1 : -1;
     const offsetMin = sign * Number(m[2]);
     const shifted = new Date(ms + offsetMin * 60000);
@@ -2452,6 +2456,22 @@ export class TrailDatabase {
         estimated_cost_usd = daily_counts.estimated_cost_usd + excluded.estimated_cost_usd`;
     const stmt = db.prepare(INSERT_DC);
 
+    // start_time が空文字 / NULL のセッションは DATE() が NULL を返し、
+    // sql.js → JS で String(null) === 'null' となって daily_counts.date GLOB CHECK を
+    // 違反させる。日次集計から除外する。
+    const SESSION_DATE_FILTER = "s.start_time IS NOT NULL AND s.start_time != ''";
+
+    // YYYY-MM-DD 以外の date を弾く defense-in-depth ガード。
+    const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+    let droppedDates = 0;
+    const runWithDateGuard = (date: string, params: readonly (string | number)[]): void => {
+      if (!DATE_RE.test(date)) {
+        droppedDates++;
+        return;
+      }
+      stmt.run([date, ...params]);
+    };
+
     // ── kind='cost_actual' : assistant メッセージ日次トークン・コスト（session start_time 基準）──
     const actual = db.exec(
       `SELECT DATE(s.start_time, '${tzOffset}'), COALESCE(m.model,''), s.source,
@@ -2459,15 +2479,15 @@ export class TrailDatabase {
         SUM(cache_read_tokens), SUM(cache_creation_tokens)
        FROM messages m
        INNER JOIN sessions s ON s.id = m.session_id
-       WHERE m.type = 'assistant'
+       WHERE m.type = 'assistant' AND ${SESSION_DATE_FILTER}
        GROUP BY DATE(s.start_time, '${tzOffset}'), m.model, s.source`,
     );
     for (const row of actual[0]?.values ?? []) {
-      const d = String(row[0]); const m = String(row[1]); const source = String(row[2]) as PricingSource;
+      const d = String(row[0] ?? ''); const m = String(row[1]); const source = String(row[2]) as PricingSource;
       const inp = Number(row[3]); const outp = Number(row[4]);
       const cr = Number(row[5]); const cc = Number(row[6]);
       const billingModel = resolvePricingModelName(m, source);
-      stmt.run([d, 'cost_actual', billingModel, 0, 0, inp, outp, cr, cc, 0, estimateCost(m, inp, outp, cr, cc, source)]);
+      runWithDateGuard(d, ['cost_actual', billingModel, 0, 0, inp, outp, cr, cc, 0, estimateCost(m, inp, outp, cr, cc, source)]);
     }
 
     // Auto-register new skills that are not yet in skill_models
@@ -2489,21 +2509,21 @@ export class TrailDatabase {
        FROM messages a
        JOIN sessions s ON s.id = a.session_id
        LEFT JOIN skill_models_resolved sm ON a.skill = sm.skill
-       WHERE a.type = 'assistant'
+       WHERE a.type = 'assistant' AND ${SESSION_DATE_FILTER}
        GROUP BY DATE(s.start_time, '${tzOffset}'),
          COALESCE(sm.recommended_model, 'sonnet')`,
     );
     for (const row of skill[0]?.values ?? []) {
-      const d = String(row[0]); const m = String(row[1]);
+      const d = String(row[0] ?? ''); const m = String(row[1]);
       const cnt = Number(row[2]);
       const inp = Number(row[3]); const outp = Number(row[4]);
       const cr = Number(row[5]); const cc = Number(row[6]);
-      stmt.run([d, 'cost_skill', m, cnt, 0, inp, outp, cr, cc, 0, estimateCost(m, inp, outp, cr, cc)]);
+      runWithDateGuard(d, ['cost_skill', m, cnt, 0, inp, outp, cr, cc, 0, estimateCost(m, inp, outp, cr, cc)]);
     }
 
     // ── kind='tool' : メッセージトークン/ターン時間按分のツール別日次集計 ──
     for (const row of this.aggregateToolUsageByDateRange(tzOffset)) {
-      stmt.run([row.date, 'tool', row.tool, row.count, row.tokens, 0, 0, 0, 0, row.durationMs, 0]);
+      runWithDateGuard(row.date, ['tool', row.tool, row.count, row.tokens, 0, 0, 0, 0, row.durationMs, 0]);
     }
 
     // ── kind='skill' : スキル別日次集計（session start_time 基準）──
@@ -2511,11 +2531,11 @@ export class TrailDatabase {
       `SELECT DATE(s.start_time, '${tzOffset}') AS d, mtc.skill_name, COUNT(*) AS count
        FROM message_tool_calls mtc
        JOIN sessions s ON s.id = mtc.session_id
-       WHERE mtc.skill_name IS NOT NULL
+       WHERE mtc.skill_name IS NOT NULL AND ${SESSION_DATE_FILTER}
        GROUP BY d, mtc.skill_name`,
     );
     for (const row of skillCounts[0]?.values ?? []) {
-      stmt.run([String(row[0]), 'skill', String(row[1] ?? ''), Number(row[2] ?? 0), 0, 0, 0, 0, 0, 0, 0]);
+      runWithDateGuard(String(row[0] ?? ''), ['skill', String(row[1] ?? ''), Number(row[2] ?? 0), 0, 0, 0, 0, 0, 0, 0]);
     }
 
     // ── kind='error' : ツール別エラー日次集計（session start_time 基準）──
@@ -2529,11 +2549,12 @@ export class TrailDatabase {
               SUM(mtc.is_error) AS err_count
        FROM message_tool_calls mtc
        JOIN sessions s ON s.id = mtc.session_id
+       WHERE ${SESSION_DATE_FILTER}
        GROUP BY d, tool
        HAVING err_count > 0`,
     );
     for (const row of errors[0]?.values ?? []) {
-      stmt.run([String(row[0]), 'error', String(row[1] ?? ''), Number(row[2] ?? 0), 0, 0, 0, 0, 0, 0, 0]);
+      runWithDateGuard(String(row[0] ?? ''), ['error', String(row[1] ?? ''), Number(row[2] ?? 0), 0, 0, 0, 0, 0, 0, 0]);
     }
 
     // ── kind='model' : assistant メッセージ数のモデル別日次集計（session start_time 基準）──
@@ -2545,16 +2566,20 @@ export class TrailDatabase {
               CAST(SUM(COALESCE(m.input_tokens, 0) + COALESCE(m.output_tokens, 0)) AS INTEGER) AS tokens
        FROM messages m
        INNER JOIN sessions s ON s.id = m.session_id
-       WHERE m.type = 'assistant'
+       WHERE m.type = 'assistant' AND ${SESSION_DATE_FILTER}
        GROUP BY d, s.source, COALESCE(m.model, '')`,
     );
     for (const row of modelCounts[0]?.values ?? []) {
       const source = String(row[1]) as PricingSource;
       const model = resolvePricingModelName(String(row[2] ?? ''), source);
-      stmt.run([String(row[0]), 'model', model, Number(row[3] ?? 0), Number(row[4] ?? 0), 0, 0, 0, 0, 0, 0]);
+      runWithDateGuard(String(row[0] ?? ''), ['model', model, Number(row[3] ?? 0), Number(row[4] ?? 0), 0, 0, 0, 0, 0, 0]);
     }
 
     stmt.free();
+
+    if (droppedDates > 0) {
+      this.logger.warn(`rebuildDailyCounts: dropped ${droppedDates} rows with non-YYYY-MM-DD date (likely sessions without start_time)`);
+    }
   }
 
   /** 当日（JST）の input + output トークン合計を返す。 */
@@ -3018,9 +3043,17 @@ export class TrailDatabase {
     try {
       // Insert/update session metadata only for main session files
       if (!isSubagent) {
+        // start_time / end_time が空のままだと daily_counts 集計で
+        // DATE('') が NULL を返し JS String(null) === 'null' で CHECK 違反になる。
+        // 空はそもそも意味のあるタイムスタンプではないため NULL に正規化する。
+        const startTimeOrNull: string | null = startTime || null;
+        const endTimeOrNull: string | null = endTime || null;
+        if (!startTime) {
+          this.logger.warn(`importSession: ${filePath} has no parseable timestamp; storing start_time as NULL`);
+        }
         db.run(INSERT_SESSION, [
           sessionId, slug, repoName, version,
-          entrypoint, model, startTime, endTime, messageCount,
+          entrypoint, model, startTimeOrNull, endTimeOrNull, messageCount,
           filePath, fileSize, importedAt, source,
         ]);
       }

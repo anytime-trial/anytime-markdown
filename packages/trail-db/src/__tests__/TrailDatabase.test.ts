@@ -372,6 +372,47 @@ describe('TrailDatabase.rebuildDailyCounts', () => {
 
     db.close();
   });
+
+  it('skips sessions with empty start_time without violating daily_counts CHECK', async () => {
+    // Regression: JSONL に timestamp が一度も現れないセッションは start_time = '' で
+    // INSERT され、DATE('') が NULL → JS String(null) === 'null' → daily_counts.date
+    // の GLOB CHECK に違反していた (2026-05-10 v0.18.0 で報告)。
+    const db = await createTestTrailDatabase();
+    const inner = (db as unknown as { db: import('sql.js').Database }).db;
+    inner.run(
+      `INSERT INTO sessions (id, slug, repo_name, version, entrypoint, model,
+         start_time, end_time, message_count, file_path, file_size, imported_at, source)
+       VALUES
+         ('s-empty','','repo','','','','','',1,'/tmp/empty.jsonl',1,'','claude_code'),
+         ('s-valid','','repo','','','','2026-04-29T00:00:00Z','2026-04-29T00:01:00Z',1,'/tmp/valid.jsonl',1,'','claude_code')`,
+    );
+    inner.run(
+      `INSERT INTO messages
+         (uuid, session_id, type, model, timestamp, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens)
+       VALUES
+         ('m-empty','s-empty','assistant','claude-opus-4-7','2026-04-29T00:00:10Z',10,20,30,0),
+         ('m-valid','s-valid','assistant','claude-opus-4-7','2026-04-29T00:00:20Z',40,50,60,0)`,
+    );
+    inner.run(
+      `INSERT INTO message_tool_calls
+         (session_id, message_uuid, turn_index, call_index, tool_name, timestamp)
+       VALUES
+         ('s-empty','m-empty',0,0,'Bash','2026-04-29T00:00:11Z'),
+         ('s-valid','m-valid',0,0,'Bash','2026-04-29T00:00:21Z')`,
+    );
+
+    expect(() => {
+      (db as unknown as Record<string, () => void>).rebuildDailyCounts();
+    }).not.toThrow();
+
+    const dates = inner.exec(`SELECT DISTINCT date FROM daily_counts ORDER BY date`)[0]?.values ?? [];
+    for (const [d] of dates) {
+      expect(String(d)).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    }
+    expect(dates.map((r) => r[0])).toEqual(['2026-04-29']);
+
+    db.close();
+  });
 });
 
 describe('TrailDatabase.getDayToolMetrics', () => {
