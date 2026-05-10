@@ -10,7 +10,7 @@ import type { OllamaClient } from '../ollama/client';
 const SCOPE = 'conversation_backfill';
 const QUARANTINE_THRESHOLD = 3;
 const DEFAULT_SINCE_DAYS = 7;
-const PROGRESS_LOG_INTERVAL = 100;
+const PROGRESS_LOG_INTERVAL = 10;
 
 export interface BackfillResult {
   status: 'success' | 'partial' | 'error';
@@ -168,9 +168,24 @@ export async function runConversationBackfill(opts: {
   let finalStatus: 'success' | 'partial' | 'error' = 'success';
 
   // ── 3. Iterate sessions ──────────────────────────────────────────────────
+  // Pre-count sessions for progress display
+  const sessionList = [...readMessagesSince(db, sinceISO)];
+  const totalSessions = sessionList.length;
+  const totalEpisodes = sessionList.reduce(
+    (sum, { messages }) => sum + splitEpisodes(messages).length, 0
+  );
+  logger.info(
+    `[memory-core] backfill: ${totalSessions} sessions, ${totalEpisodes} episodes to process (since ${sinceDays}d ago)`
+  );
+
+  let sessionIdx = 0;
   try {
-    for (const { messages } of readMessagesSince(db, sinceISO)) {
+    for (const { session_id, messages } of sessionList) {
+      sessionIdx += 1;
       const episodes = splitEpisodes(messages);
+      logger.info(
+        `[memory-core] backfill: session ${sessionIdx}/${totalSessions} — ${session_id.slice(0, 12)} (${episodes.length} episodes)`
+      );
 
       for (const episode of episodes) {
         totals.items_processed += 1;
@@ -178,7 +193,7 @@ export async function runConversationBackfill(opts: {
         // Progress log every PROGRESS_LOG_INTERVAL episodes
         if (totals.items_processed % PROGRESS_LOG_INTERVAL === 0) {
           logger.info(
-            `[memory] backfill progress: ${totals.items_processed} episodes processed`
+            `[memory-core] backfill progress: ${totals.items_processed}/${totalEpisodes} episodes`
           );
         }
 
