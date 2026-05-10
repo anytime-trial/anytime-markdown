@@ -200,6 +200,7 @@ export interface TrailI18n {
   'releases.totalLoc': string;
   'releases.releaseCount': string;
   'releases.releaseTimeMin': string;
+  'releases.releaseTimeMin.description': string;
   'c4.releases': string;
   'c4.releaseRepository': string;
   'c4.unknownRepo': string;

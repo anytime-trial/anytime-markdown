@@ -188,6 +188,7 @@ export const ja: TrailI18n = {
   'releases.totalLoc': 'Total LOC',
   'releases.releaseCount': 'リリース回数',
   'releases.releaseTimeMin': 'リリース時間',
+  'releases.releaseTimeMin.description': '最初のコミットからリリースタグまでの平均時間（計測値があるリリースのみ）',
   'c4.releases': 'リリース',
   'c4.releaseRepository': 'リポジトリ',
   'c4.unknownRepo': '(未設定)',

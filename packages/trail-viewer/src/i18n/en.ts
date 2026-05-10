@@ -188,6 +188,7 @@ export const en: TrailI18n = {
   'releases.totalLoc': 'Total LOC',
   'releases.releaseCount': 'Release Count',
   'releases.releaseTimeMin': 'Release Time',
+  'releases.releaseTimeMin.description': 'Average time from first commit to release tag (releases with measured time only)',
   'c4.releases': 'Releases',
   'c4.releaseRepository': 'Repository',
   'c4.unknownRepo': '(unknown)',

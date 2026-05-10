@@ -23,8 +23,7 @@ function fmtLoc(v: number | null): string {
 
 function fmtMin(v: number | null): string {
   if (v == null) return '';
-  if (v >= 60) return `${Math.round(v / 60)}h`;
-  return `${Math.round(v)}m`;
+  return `${Math.round(v)}`;
 }
 
 export function ReleasesLocChart({ releases }: Readonly<{ releases: readonly TrailRelease[] }>) {

@@ -7,6 +7,7 @@ import Typography from '@mui/material/Typography';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { useTheme } from '@mui/material/styles';
 import type { QualityMetrics } from '@anytime-markdown/trail-core/domain/metrics';
+import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
 import { useTrailTheme } from '../../TrailThemeContext';
 import { useTrailI18n } from '../../../i18n';
 import type { AnalyticsData, TrailSession } from '../../../domain/parser/types';
@@ -15,14 +16,20 @@ import { CyclingCard } from '../widgets/CyclingCard';
 import { formatDoraValue } from '../widgets/DoraValueDisplay';
 import type { MetricItem } from '../types';
 
+function fmtMinutes(minutes: number): string {
+  return `${Math.round(minutes)}`;
+}
+
 export function OverviewCards({
   totals,
   sessions = [],
   qualityMetrics = null,
+  releases = [],
 }: Readonly<{
   totals: AnalyticsData['totals'];
   sessions?: readonly TrailSession[];
   qualityMetrics?: QualityMetrics | null;
+  releases?: readonly TrailRelease[];
 }>) {
   const { cardSx, doraColors } = useTrailTheme();
   const { t } = useTrailI18n();
@@ -102,9 +109,24 @@ export function OverviewCards({
   const LEVEL_LABELS: Record<string, string> = {
     elite: 'Elite', high: 'High', medium: 'Medium', low: 'Low',
   };
+  const measuredReleases = [...releases]
+    .filter((r) => r.releaseTimeMin != null && r.releaseTimeMin > 0)
+    .sort((a, b) => new Date(b.releasedAt).getTime() - new Date(a.releasedAt).getTime());
+  const currentAvgMin = measuredReleases[0]?.releaseTimeMin ?? null;
+  const previousAvgMin = measuredReleases[1]?.releaseTimeMin ?? null;
+  const releaseTimeDeltaPct =
+    currentAvgMin != null && previousAvgMin != null && previousAvgMin > 0
+      ? ((currentAvgMin - previousAvgMin) / previousAvgMin) * 100
+      : null;
+  const releaseTimeLevel = currentAvgMin == null ? null
+    : currentAvgMin < 30 ? 'elite'
+    : currentAvgMin < 60 ? 'high'
+    : currentAvgMin < 120 ? 'medium'
+    : 'low';
+
   const doraCards = qualityMetrics
     ? Object.values(qualityMetrics.metrics)
-        .filter((m) => m.sampleSize > 0)
+        .filter((m) => m.sampleSize > 0 && m.id !== 'leadTimePerLoc' && m.id !== 'deploymentFrequency')
         .map((m) => {
           const deltaPct = m.comparison?.deltaPct ?? null;
           const formatted = formatDoraValue(m);
@@ -122,6 +144,21 @@ export function OverviewCards({
           };
         })
     : [];
+
+  if (currentAvgMin != null) {
+    doraCards.push({
+      primary: fmtMinutes(currentAvgMin),
+      suffix: undefined,
+      unit: 'min',
+      label: t('releases.releaseTimeMin'),
+      tooltip: t('releases.releaseTimeMin.description'),
+      badge: releaseTimeLevel ? { label: LEVEL_LABELS[releaseTimeLevel], color: LEVEL_COLORS[releaseTimeLevel] } : undefined,
+      delta: releaseTimeDeltaPct != null ? {
+        text: `${releaseTimeDeltaPct > 0 ? '↑' : releaseTimeDeltaPct < 0 ? '↓' : '→'} ${Math.abs(releaseTimeDeltaPct).toFixed(1)}%`,
+        color: releaseTimeDeltaPct > 0 ? 'error.main' : releaseTimeDeltaPct < 0 ? 'success.main' : 'text.secondary',
+      } : undefined,
+    });
+  }
 
   const cardStyle = { ...cardSx, flex: '1 1 140px', p: 2, minWidth: 140, textAlign: 'center', minHeight: '150px' } as const;
 
