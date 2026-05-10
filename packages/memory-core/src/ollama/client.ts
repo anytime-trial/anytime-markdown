@@ -1,5 +1,6 @@
 // URL.hostname returns '[::1]' (with brackets) for IPv6 literals in Node.js
-const ALLOWED_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
+// host.docker.internal is the Docker special hostname that routes to the host machine (WSL2/macOS)
+const ALLOWED_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]', 'host.docker.internal']);
 
 function makeError(code: string): Error {
   const err = new Error(code);
