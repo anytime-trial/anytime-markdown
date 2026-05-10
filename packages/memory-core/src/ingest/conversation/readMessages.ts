@@ -12,14 +12,19 @@ export function* readMessagesSince(
   db: Database,
   sinceISO: string
 ): Generator<{ session_id: string; messages: Message[] }> {
-  // Collect all qualifying messages, ordered so we can group by session
+  // Collect all qualifying messages, ordered so we can group by session.
+  // trail.messages は assistant 行に text_content、user 行に user_content を
+  // 入れている (trail-db importSession の規約)。message_excerpt 列は存在しない
+  // ため COALESCE(text_content, user_content) で抽出する。
   const stmt = db.prepare(
     `SELECT
        m.uuid,
        m.session_id,
        m.type,
        m.timestamp,
-       m.message_excerpt AS text_excerpt
+       COALESCE(SUBSTR(m.text_content, 1, 2048),
+                SUBSTR(m.user_content, 1, 2048),
+                '') AS text_excerpt
      FROM trail.messages m
      JOIN trail.sessions s ON s.id = m.session_id
      WHERE m.timestamp IS NOT NULL

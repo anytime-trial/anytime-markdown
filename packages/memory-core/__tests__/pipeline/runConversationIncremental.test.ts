@@ -24,7 +24,8 @@ function makeTrailDb(SQL: ReturnType<typeof initSqlJs> extends Promise<infer T> 
        session_id TEXT NOT NULL,
        type TEXT NOT NULL,
        timestamp TEXT NOT NULL,
-       message_excerpt TEXT
+       text_content TEXT,
+       user_content TEXT
      ) STRICT`
   );
   return trailDb;
@@ -42,10 +43,11 @@ function insertMessage(
   timestamp: string,
   excerpt: string
 ): void {
+  const isUser = type === 'user';
   trailDb.run(
-    `INSERT INTO messages (uuid, session_id, type, timestamp, message_excerpt)
-     VALUES (?, ?, ?, ?, ?)`,
-    [uuid, sessionId, type, timestamp, excerpt]
+    `INSERT INTO messages (uuid, session_id, type, timestamp, text_content, user_content)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [uuid, sessionId, type, timestamp, isUser ? null : excerpt, isUser ? excerpt : null]
   );
 }
 

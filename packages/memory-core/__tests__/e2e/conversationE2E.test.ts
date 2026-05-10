@@ -39,7 +39,8 @@ function makeTrailDb(SQL: SqlJsStatic): Database {
     session_id      TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
     type            TEXT NOT NULL,
     timestamp       TEXT,
-    message_excerpt TEXT
+    text_content    TEXT,
+    user_content    TEXT
   ) STRICT`);
   return db;
 }
@@ -56,10 +57,11 @@ function insertMessage(
   timestamp: string,
   excerpt: string
 ): void {
+  const isUser = type === 'user';
   trailDb.run(
-    `INSERT INTO messages (uuid, session_id, type, timestamp, message_excerpt)
-     VALUES (?, ?, ?, ?, ?)`,
-    [uuid, sessionId, type, timestamp, excerpt]
+    `INSERT INTO messages (uuid, session_id, type, timestamp, text_content, user_content)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [uuid, sessionId, type, timestamp, isUser ? null : excerpt, isUser ? excerpt : null]
   );
 }
 
