@@ -60,10 +60,12 @@ export function ReleasesLocChart({ releases }: Readonly<{ releases: readonly Tra
             valueFormatter: (v: number | null) => fmtLoc(v),
           },
           {
-            type: 'bar' as const,
+            type: 'line' as const,
             dataKey: 'releaseTimeMin',
             label: t('releases.releaseTimeMin'),
             color: colors.warning,
+            connectNulls: true,
+            showMark: dataset.length <= 30,
             yAxisId: 'time',
             valueFormatter: fmtMin,
           },
