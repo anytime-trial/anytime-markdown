@@ -8,6 +8,8 @@ const makeMetrics = (overrides: Partial<FunctionMetrics> = {}): FunctionMetrics 
   dataMutationScore: 0,
   sideEffectScore: 0,
   lineCount: 1,
+  fanOut: 0,
+  distinctCallees: 0,
   ...overrides,
 });
 
