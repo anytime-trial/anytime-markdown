@@ -78,6 +78,121 @@ export class TypeScriptAdapter implements ILanguageAdapter {
     return fanInMap;
   }
 
+  /**
+   * caller 側（関数 body 内）を走査し、関数ID → fanOut/distinctCallees のマップを返す。
+   * fanOut  = body 内の呼び出し式の総数（解決できなかったものも含む）
+   * distinctCallees = 解決できた callee 関数 ID の集合サイズ
+   * ネスト関数定義の内部には踏み込まない。
+   */
+  computeFanOutMap(): Map<string, { fanOut: number; distinctCallees: number }> {
+    const checker = this.program.getTypeChecker();
+    const result = new Map<string, { fanOut: number; distinctCallees: number }>();
+
+    for (const sourceFile of this.program.getSourceFiles()) {
+      if (sourceFile.isDeclarationFile || sourceFile.fileName.includes('node_modules')) continue;
+      this.visitFanOutForFile(sourceFile, checker, result);
+    }
+
+    return result;
+  }
+
+  private visitFanOutForFile(
+    sourceFile: ts.SourceFile,
+    checker: ts.TypeChecker,
+    result: Map<string, { fanOut: number; distinctCallees: number }>,
+  ): void {
+    const self = this;
+    function visitTopLevel(node: ts.Node): void {
+      if (
+        ts.isFunctionDeclaration(node) ||
+        ts.isMethodDeclaration(node) ||
+        ts.isArrowFunction(node) ||
+        ts.isFunctionExpression(node)
+      ) {
+        const info = self.toFunctionInfoFromNode(node as FunctionLikeNode, sourceFile);
+        if (info) {
+          const counter = { fanOut: 0, distinctCallees: 0 };
+          const calleesSet = new Set<string>();
+          self.countFanOutInBody(node as FunctionLikeNode, checker, counter, calleesSet);
+          counter.distinctCallees = calleesSet.size;
+          result.set(info.id, counter);
+        }
+        // ネスト関数は独立して visitTopLevel で処理するため body の中も再帰する
+        ts.forEachChild(node, visitTopLevel);
+      } else {
+        ts.forEachChild(node, visitTopLevel);
+      }
+    }
+    ts.forEachChild(sourceFile, visitTopLevel);
+  }
+
+  /**
+   * 関数の body 内を走査して CallExpression / JSX タグをカウントする。
+   * ただし子の関数定義（FunctionDeclaration / MethodDeclaration / ArrowFunction / FunctionExpression）
+   * の内部には踏み込まない（ネスト関数は独立してカウントする）。
+   */
+  private countFanOutInBody(
+    fnNode: FunctionLikeNode,
+    checker: ts.TypeChecker,
+    counter: { fanOut: number; distinctCallees: number },
+    calleesSet: Set<string>,
+  ): void {
+    const self = this;
+    function walk(node: ts.Node): void {
+      // ネスト関数定義の内部には踏み込まない（自分自身が FunctionLike ならスキップ）
+      if (
+        ts.isFunctionDeclaration(node) ||
+        ts.isMethodDeclaration(node) ||
+        ts.isArrowFunction(node) ||
+        ts.isFunctionExpression(node)
+      ) {
+        return;
+      }
+      if (ts.isCallExpression(node)) {
+        counter.fanOut++;
+        self.collectCalleeId(node.expression, checker, calleesSet);
+      } else if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
+        counter.fanOut++;
+        self.collectCalleeId(node.tagName, checker, calleesSet);
+      }
+      ts.forEachChild(node, (child) => {
+        // ネスト関数定義の内部には踏み込まない
+        if (
+          ts.isFunctionDeclaration(child) ||
+          ts.isMethodDeclaration(child) ||
+          ts.isArrowFunction(child) ||
+          ts.isFunctionExpression(child)
+        ) {
+          return;
+        }
+        walk(child);
+      });
+    }
+    if (fnNode.body) {
+      ts.forEachChild(fnNode.body, walk);
+    }
+  }
+
+  /** callee 識別子のシンボルを解決して calleesSet に関数 ID を追加する */
+  private collectCalleeId(expr: ts.Node, checker: ts.TypeChecker, calleesSet: Set<string>): void {
+    let symbol = checker.getSymbolAtLocation(expr);
+    if (!symbol) return;
+    if (symbol.flags & ts.SymbolFlags.Alias) {
+      symbol = checker.getAliasedSymbol(symbol);
+    }
+    for (const id of this.resolveFunctionIdsFromSymbol(symbol)) {
+      calleesSet.add(id);
+    }
+  }
+
+  /** extractFunctions と同じ情報を AST ノードから直接生成する（nodeCache 非経由） */
+  private toFunctionInfoFromNode(node: FunctionLikeNode, sourceFile: ts.SourceFile): { id: string; name: string } | null {
+    const name = this.getFunctionName(node);
+    if (!name) return null;
+    const relPath = path.relative(process.cwd(), sourceFile.fileName);
+    return { id: `file::${relPath}::${name}`, name };
+  }
+
   private countCallsInNode(node: ts.Node, checker: ts.TypeChecker, map: Map<string, number>): void {
     if (ts.isCallExpression(node)) {
       this.countSymbolUsage(node.expression, checker, map);
