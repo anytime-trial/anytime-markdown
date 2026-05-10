@@ -11,6 +11,8 @@ export { runConversationIncremental } from './pipeline/runConversationIncrementa
 export type { IncrementalResult } from './pipeline/runConversationIncremental';
 export { runConversationBackfill } from './pipeline/runConversationBackfill';
 export type { BackfillResult } from './pipeline/runConversationBackfill';
+export { runPipelineWatchdog } from './pipeline/pipelineWatchdog';
+export type { PipelineWatchdogResult } from './pipeline/pipelineWatchdog';
 export { runCodeIncremental } from './pipeline/runCodeIncremental';
 export type { CodeIncrementalResult } from './pipeline/runCodeIncremental';
 export { runBugHistoryIncremental } from './pipeline/runBugHistoryIncremental';

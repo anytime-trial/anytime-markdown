@@ -13,6 +13,7 @@ import {
   runReviewIncremental,
   runSpecIncremental,
   runAgentRunWatchdog,
+  runPipelineWatchdog,
   runDriftDetection,
   setSqlJsLoader,
 } from '@anytime-markdown/memory-core';
@@ -93,6 +94,15 @@ export function createMemoryCoreRunner(opts: {
             const watchdogResult = runAgentRunWatchdog({ db: memDb.db, logger });
             if (watchdogResult.stale_count > 0) {
               logger.info(`Agent watchdog: ${watchdogResult.stale_count} stale run(s) timed out`);
+            }
+
+            // Recover pipeline_runs / pipeline_state left in 'running' state by a
+            // previous crash or VS Code reload, so the next pipeline isn't blocked.
+            const pipelineWd = runPipelineWatchdog({ db: memDb.db, logger });
+            if (pipelineWd.stale_runs > 0 || pipelineWd.stale_states > 0) {
+              logger.info(
+                `Pipeline watchdog: ${pipelineWd.stale_runs} stale run(s), ${pipelineWd.stale_states} orphan state(s) cleaned`,
+              );
             }
 
             const ollama = createOllamaClient();

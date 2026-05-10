@@ -26,7 +26,7 @@ function edgeId(
     .slice(0, 16);
 }
 
-function episodeId(sessionId: string, messageUuidStart: string): string {
+export function episodeId(sessionId: string, messageUuidStart: string): string {
   return createHash('sha1')
     .update(`${sessionId}:${messageUuidStart}`)
     .digest('hex')

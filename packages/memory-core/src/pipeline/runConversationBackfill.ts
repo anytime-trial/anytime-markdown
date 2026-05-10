@@ -3,7 +3,7 @@ import { Database } from 'sql.js';
 import { splitEpisodes } from '../canonical/splitEpisodes';
 import { extractFactsFromEpisode } from '../ingest/conversation/extractFacts';
 import { readMessagesSince } from '../ingest/conversation/readMessages';
-import { persistEpisodeFacts, type PersistStats } from '../ingest/conversation/persist';
+import { episodeId, persistEpisodeFacts, type PersistStats } from '../ingest/conversation/persist';
 import { noopLogger, type MemoryLogger } from '../logger';
 import type { OllamaClient } from '../ollama/client';
 
@@ -15,6 +15,7 @@ const PROGRESS_LOG_INTERVAL = 10;
 export interface BackfillResult {
   status: 'success' | 'partial' | 'error';
   items_processed: number;
+  items_skipped: number;
   entities_inserted: number;
   entities_updated: number;
   edges_inserted: number;
@@ -161,8 +162,13 @@ export async function runConversationBackfill(opts: {
   upsertPipelineState(db, { status: 'running' });
 
   // Accumulators
-  const totals: PersistStats & { items_processed: number; items_failed: number } = {
+  const totals: PersistStats & {
+    items_processed: number;
+    items_skipped: number;
+    items_failed: number;
+  } = {
     items_processed: 0,
+    items_skipped: 0,
     entities_inserted: 0,
     entities_updated: 0,
     edges_inserted: 0,
@@ -181,8 +187,25 @@ export async function runConversationBackfill(opts: {
   const totalEpisodes = sessionList.reduce(
     (sum, { messages }) => sum + splitEpisodes(messages).length, 0
   );
+
+  // Preload episode ids that already exist in memory_episodes (within sinceISO window).
+  // When backfill is interrupted (VS Code reload, OS shutdown), persistEpisodeFacts
+  // is idempotent but extractFactsFromEpisode is not — re-running the LLM extraction
+  // on thousands of already-persisted episodes wastes ~10s/episode. Skipping them
+  // makes the next backfill effectively a resume.
+  const existingIds = new Set<string>();
+  const existsRows = db.exec(
+    `SELECT id FROM memory_episodes WHERE valid_from >= ?`,
+    [sinceISO]
+  );
+  for (const row of existsRows[0]?.values ?? []) {
+    existingIds.add(row[0] as string);
+  }
+
+  const toProcess = totalEpisodes - existingIds.size;
   logger.info(
-    `[memory-core] backfill: ${totalSessions} sessions, ${totalEpisodes} episodes to process (since ${sinceDays}d ago)`
+    `[memory-core] backfill: ${totalSessions} sessions, ${totalEpisodes} episodes ` +
+    `(${existingIds.size} already persisted, ${toProcess} to process, since ${sinceDays}d ago)`
   );
   save?.();
 
@@ -197,12 +220,21 @@ export async function runConversationBackfill(opts: {
       save?.();
 
       for (const episode of episodes) {
+        const epId = episodeId(episode.session_id, episode.message_uuid_start);
+        if (existingIds.has(epId)) {
+          totals.items_skipped += 1;
+          if (episode.valid_from > maxTimestamp) {
+            maxTimestamp = episode.valid_from;
+          }
+          continue;
+        }
+
         totals.items_processed += 1;
 
         // Progress log every PROGRESS_LOG_INTERVAL episodes
         if (totals.items_processed % PROGRESS_LOG_INTERVAL === 0) {
           logger.info(
-            `[memory-core] backfill progress: ${totals.items_processed}/${totalEpisodes} episodes`
+            `[memory-core] backfill progress: ${totals.items_processed}/${toProcess} episodes processed (${totals.items_skipped} skipped)`
           );
           save?.();
         }
