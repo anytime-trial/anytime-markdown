@@ -72,8 +72,14 @@ const QuestionSchema = z.object({
 
 const ExtractionResultSchema = z.object({
   summary: z.string().nullable().optional().transform(v => v ?? ''),
-  entities: z.array(EntitySchema).optional().default([]),
-  relations: z.array(RelationSchema).optional().default([]),
+  // Use .catch(null) to silently drop items with unknown type/predicate instead of
+  // failing the whole episode, then filter out the nulls.
+  entities: z.array(EntitySchema.catch(null as unknown as z.infer<typeof EntitySchema>))
+    .optional().default([])
+    .transform(arr => arr.filter((x): x is z.infer<typeof EntitySchema> => x !== null)),
+  relations: z.array(RelationSchema.catch(null as unknown as z.infer<typeof RelationSchema>))
+    .optional().default([])
+    .transform(arr => arr.filter((x): x is z.infer<typeof RelationSchema> => x !== null)),
   questions: z.array(QuestionSchema).optional().default([]),
 });
 
