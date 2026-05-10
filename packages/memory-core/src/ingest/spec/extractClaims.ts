@@ -73,7 +73,7 @@ export async function extractClaims(
 
   let responseText: string;
   try {
-    const result = await ollama.generate({ model, prompt, format: 'json' });
+    const result = await ollama.generate({ model, prompt, format: 'json', options: { think: false } });
     responseText = result.response;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

@@ -21,6 +21,8 @@ export interface GenerateOptions {
   model: string;
   prompt: string;
   format?: string;
+  /** Ollama model options (e.g. `{ think: false }` to disable thinking mode in Qwen3). */
+  options?: Record<string, unknown>;
 }
 
 export interface GenerateResult {
@@ -79,8 +81,8 @@ export function createOllamaClient(options: OllamaClientOptions = {}): OllamaCli
   }
 
   return {
-    async generate({ model, prompt, format }: GenerateOptions): Promise<GenerateResult> {
-      const data = await post<{ response: string }>('/api/generate', { model, prompt, format, stream: false });
+    async generate({ model, prompt, format, options }: GenerateOptions): Promise<GenerateResult> {
+      const data = await post<{ response: string }>('/api/generate', { model, prompt, format, stream: false, options });
       return { response: stripThinkingBlocks(data.response) };
     },
 
