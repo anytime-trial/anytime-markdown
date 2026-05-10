@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 let channel: vscode.OutputChannel | undefined;
 
 function getChannel(): vscode.OutputChannel {
-  channel ??= vscode.window.createOutputChannel('Anytime Git');
+  channel ??= vscode.window.createOutputChannel('Anytime History');
   return channel;
 }
 
