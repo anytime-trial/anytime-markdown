@@ -3,6 +3,8 @@
 import { DatabaseI18nProvider } from '@anytime-markdown/database-viewer';
 import { GraphI18nProvider } from '@anytime-markdown/graph-viewer';
 import { MarkdownCoreI18nProvider } from '@anytime-markdown/markdown-core';
+import markdownCoreEnMessages from '@anytime-markdown/markdown-core/src/i18n/en.json';
+import markdownCoreJaMessages from '@anytime-markdown/markdown-core/src/i18n/ja.json';
 import { SpreadsheetI18nProvider } from '@anytime-markdown/spreadsheet-viewer';
 import { NextIntlClientProvider } from 'next-intl';
 import { createContext, useCallback, useContext, useEffect, useMemo,useState } from 'react';
@@ -12,10 +14,10 @@ import pressJaMessages from './press/i18n/ja.json';
 
 type Locale = 'ja' | 'en';
 
-const messages: Record<Locale, { press: typeof pressJaMessages }> = {
-  ja: { press: pressJaMessages },
-  en: { press: pressEnMessages },
-};
+const messages = {
+  ja: { ...markdownCoreJaMessages, press: pressJaMessages },
+  en: { ...markdownCoreEnMessages, press: pressEnMessages },
+} satisfies Record<Locale, Record<string, unknown>>;
 
 interface LocaleContextValue {
   locale: Locale;
