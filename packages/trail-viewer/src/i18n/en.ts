@@ -271,7 +271,7 @@ export const en: TrailI18n = {
   'analytics.combined.count.description': 'Number of calls or occurrences in the selected period',
   'analytics.combined.tokens': 'Tokens',
   'analytics.combined.tokens.description': 'Token consumption in the selected period',
-  'analytics.combined.error': 'Tool Error',
+  'analytics.combined.error': 'Error',
   'analytics.combined.error.description': 'Show distribution trend of errors by tool',
   'analytics.combined.repository': 'Repository',
   'analytics.combined.repository.description': 'Show commit count and token consumption trend by repository',
