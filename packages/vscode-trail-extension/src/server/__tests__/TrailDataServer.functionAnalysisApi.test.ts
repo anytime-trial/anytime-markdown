@@ -33,6 +33,8 @@ const sampleFn = (
   lineCount: 10,
   importanceScore: 50,
   signalFanInZero: fanIn === 0,
+  fanOut: 0,
+  distinctCallees: 0,
   analyzedAt: '2026-05-05T00:00:00.000Z',
 });
 

@@ -202,6 +202,8 @@ describe('computeAndPersistFileAnalysis', () => {
         dataMutationScore: 1,
         sideEffectScore: 0,
         lineCount: 10,
+        fanOut: 0,
+        distinctCallees: 0,
       },
       importanceScore: 60,
     };
@@ -244,6 +246,8 @@ describe('computeAndPersistFileAnalysis', () => {
         dataMutationScore: 0,
         sideEffectScore: 0,
         lineCount: 5,
+        fanOut: 0,
+        distinctCallees: 0,
       },
       importanceScore: 10,
     };
@@ -280,7 +284,7 @@ describe('computeAndPersistFileAnalysis', () => {
       startLine: 1,
       endLine: 3,
       language: 'typescript',
-      metrics: { fanIn: 1, cognitiveComplexity: 0, cyclomaticComplexity: 1, dataMutationScore: 0, sideEffectScore: 0, lineCount: 3 },
+      metrics: { fanIn: 1, cognitiveComplexity: 0, cyclomaticComplexity: 1, dataMutationScore: 0, sideEffectScore: 0, lineCount: 3, fanOut: 0, distinctCallees: 0 },
       importanceScore: 5,
     };
 
@@ -319,7 +323,7 @@ describe('computeAndPersistFileAnalysis', () => {
       startLine: 1,
       endLine: 3,
       language: 'typescript',
-      metrics: { fanIn: 1, cognitiveComplexity: 0, cyclomaticComplexity: 1, dataMutationScore: 0, sideEffectScore: 0, lineCount: 3 },
+      metrics: { fanIn: 1, cognitiveComplexity: 0, cyclomaticComplexity: 1, dataMutationScore: 0, sideEffectScore: 0, lineCount: 3, fanOut: 0, distinctCallees: 0 },
       importanceScore: 5,
     };
 
@@ -373,7 +377,7 @@ describe('computeAndPersistFileAnalysis', () => {
       startLine: 1,
       endLine: 3,
       language: 'typescript',
-      metrics: { fanIn: 1, cognitiveComplexity: 0, cyclomaticComplexity: 1, dataMutationScore: 0, sideEffectScore: 0, lineCount: 3 },
+      metrics: { fanIn: 1, cognitiveComplexity: 0, cyclomaticComplexity: 1, dataMutationScore: 0, sideEffectScore: 0, lineCount: 3, fanOut: 0, distinctCallees: 0 },
       importanceScore: 5,
     };
 
@@ -410,7 +414,7 @@ describe('computeAndPersistFileAnalysis', () => {
       startLine: 1,
       endLine: 3,
       language: 'typescript',
-      metrics: { fanIn: 1, cognitiveComplexity: 0, cyclomaticComplexity: 1, dataMutationScore: 0, sideEffectScore: 0, lineCount: 3 },
+      metrics: { fanIn: 1, cognitiveComplexity: 0, cyclomaticComplexity: 1, dataMutationScore: 0, sideEffectScore: 0, lineCount: 3, fanOut: 0, distinctCallees: 0 },
       importanceScore: 5,
     };
     const db = makeMockDb({
@@ -447,7 +451,7 @@ describe('computeAndPersistFileAnalysis', () => {
       startLine: 1,
       endLine: 3,
       language: 'typescript',
-      metrics: { fanIn: 1, cognitiveComplexity: 0, cyclomaticComplexity: 1, dataMutationScore: 0, sideEffectScore: 0, lineCount: 3 },
+      metrics: { fanIn: 1, cognitiveComplexity: 0, cyclomaticComplexity: 1, dataMutationScore: 0, sideEffectScore: 0, lineCount: 3, fanOut: 0, distinctCallees: 0 },
       importanceScore: 5,
     };
     const db = makeMockDb({

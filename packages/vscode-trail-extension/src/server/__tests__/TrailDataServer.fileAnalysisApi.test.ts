@@ -32,6 +32,11 @@ const sampleRow = (filePath: string, importanceScore: number, deadCodeScore: num
   },
   isIgnored: false,
   ignoreReason: '',
+  crossPkgInCount: 0,
+  externalConsumerPkgs: 0,
+  totalInCount: 0,
+  isBarrel: false,
+  centralityScore: 0,
   analyzedAt: new Date().toISOString(),
 });
 

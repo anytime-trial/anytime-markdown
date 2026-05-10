@@ -6464,8 +6464,10 @@ export class TrailDatabase {
           dead_code_score,
           signal_orphan, signal_fan_in_zero, signal_no_recent_churn,
           signal_zero_coverage, signal_isolated_community,
-          is_ignored, ignore_reason, analyzed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          is_ignored, ignore_reason,
+          cross_pkg_in_count, external_consumer_pkgs, total_in_count, is_barrel, centrality_score,
+          analyzed_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           r.repoName, r.filePath,
           r.importanceScore, r.fanInTotal, r.cognitiveComplexityMax, r.lineCount, r.cyclomaticComplexityMax, r.functionCount,
@@ -6475,7 +6477,9 @@ export class TrailDatabase {
           r.signals.noRecentChurn ? 1 : 0,
           r.signals.zeroCoverage ? 1 : 0,
           r.signals.isolatedCommunity ? 1 : 0,
-          r.isIgnored ? 1 : 0, r.ignoreReason, r.analyzedAt,
+          r.isIgnored ? 1 : 0, r.ignoreReason,
+          r.crossPkgInCount, r.externalConsumerPkgs, r.totalInCount, r.isBarrel ? 1 : 0, r.centralityScore,
+          r.analyzedAt,
         ],
       );
     }
@@ -6514,6 +6518,12 @@ export class TrailDatabase {
       },
       isIgnored: Number(r[14] ?? 0) === 1,
       ignoreReason: String(r[15] ?? ''),
+      // centrality fields: populated by upsert; SELECT is extended in Task 8
+      crossPkgInCount: 0,
+      externalConsumerPkgs: 0,
+      totalInCount: 0,
+      isBarrel: false,
+      centralityScore: 0,
       analyzedAt: String(r[16] ?? ''),
     }));
   }
@@ -6535,8 +6545,10 @@ export class TrailDatabase {
           dead_code_score,
           signal_orphan, signal_fan_in_zero, signal_no_recent_churn,
           signal_zero_coverage, signal_isolated_community,
-          is_ignored, ignore_reason, analyzed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          is_ignored, ignore_reason,
+          cross_pkg_in_count, external_consumer_pkgs, total_in_count, is_barrel, centrality_score,
+          analyzed_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           releaseTag, r.repoName, r.filePath,
           r.importanceScore, r.fanInTotal, r.cognitiveComplexityMax, r.lineCount, r.cyclomaticComplexityMax, r.functionCount,
@@ -6546,7 +6558,9 @@ export class TrailDatabase {
           r.signals.noRecentChurn ? 1 : 0,
           r.signals.zeroCoverage ? 1 : 0,
           r.signals.isolatedCommunity ? 1 : 0,
-          r.isIgnored ? 1 : 0, r.ignoreReason, r.analyzedAt,
+          r.isIgnored ? 1 : 0, r.ignoreReason,
+          r.crossPkgInCount, r.externalConsumerPkgs, r.totalInCount, r.isBarrel ? 1 : 0, r.centralityScore,
+          r.analyzedAt,
         ],
       );
     }
@@ -6584,6 +6598,11 @@ export class TrailDatabase {
       },
       isIgnored: Number(r[14] ?? 0) === 1,
       ignoreReason: String(r[15] ?? ''),
+      crossPkgInCount: 0,
+      externalConsumerPkgs: 0,
+      totalInCount: 0,
+      isBarrel: false,
+      centralityScore: 0,
       analyzedAt: String(r[16] ?? ''),
     }));
   }
@@ -6607,13 +6626,17 @@ export class TrailDatabase {
           repo_name, file_path, function_name, start_line,
           end_line, language, fan_in, cognitive_complexity, cyclomatic_complexity,
           data_mutation_score, side_effect_score, line_count,
-          importance_score, signal_fan_in_zero, analyzed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          importance_score, signal_fan_in_zero,
+          fan_out, distinct_callees,
+          analyzed_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           r.repoName, r.filePath, r.functionName, r.startLine,
           r.endLine, r.language, r.fanIn, r.cognitiveComplexity, r.cyclomaticComplexity,
           r.dataMutationScore, r.sideEffectScore, r.lineCount,
-          r.importanceScore, r.signalFanInZero ? 1 : 0, r.analyzedAt,
+          r.importanceScore, r.signalFanInZero ? 1 : 0,
+          r.fanOut, r.distinctCallees,
+          r.analyzedAt,
         ],
       );
     }
@@ -6646,6 +6669,8 @@ export class TrailDatabase {
       lineCount: Number(r[11] ?? 0),
       importanceScore: Number(r[12] ?? 0),
       signalFanInZero: Number(r[13] ?? 0) === 1,
+      fanOut: 0,
+      distinctCallees: 0,
       analyzedAt: String(r[14] ?? ''),
     }));
   }
@@ -6665,13 +6690,17 @@ export class TrailDatabase {
           release_tag, repo_name, file_path, function_name, start_line,
           end_line, language, fan_in, cognitive_complexity, cyclomatic_complexity,
           data_mutation_score, side_effect_score, line_count,
-          importance_score, signal_fan_in_zero, analyzed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          importance_score, signal_fan_in_zero,
+          fan_out, distinct_callees,
+          analyzed_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           releaseTag, r.repoName, r.filePath, r.functionName, r.startLine,
           r.endLine, r.language, r.fanIn, r.cognitiveComplexity, r.cyclomaticComplexity,
           r.dataMutationScore, r.sideEffectScore, r.lineCount,
-          r.importanceScore, r.signalFanInZero ? 1 : 0, r.analyzedAt,
+          r.importanceScore, r.signalFanInZero ? 1 : 0,
+          r.fanOut, r.distinctCallees,
+          r.analyzedAt,
         ],
       );
     }
@@ -6704,6 +6733,8 @@ export class TrailDatabase {
       lineCount: Number(r[11] ?? 0),
       importanceScore: Number(r[12] ?? 0),
       signalFanInZero: Number(r[13] ?? 0) === 1,
+      fanOut: 0,
+      distinctCallees: 0,
       analyzedAt: String(r[14] ?? ''),
     }));
   }
@@ -7141,7 +7172,9 @@ export class TrailDatabase {
     dead_code_score: number;
     signal_orphan: number; signal_fan_in_zero: number; signal_no_recent_churn: number;
     signal_zero_coverage: number; signal_isolated_community: number;
-    is_ignored: number; ignore_reason: string; analyzed_at: string;
+    is_ignored: number; ignore_reason: string;
+    cross_pkg_in_count: number; external_consumer_pkgs: number; total_in_count: number; is_barrel: number; centrality_score: number;
+    analyzed_at: string;
     line_count: number; cyclomatic_complexity_max: number;
   }> {
     const db = this.ensureDb();
@@ -7168,6 +7201,11 @@ export class TrailDatabase {
       signal_isolated_community: Number(r[11] ?? 0),
       is_ignored: Number(r[12] ?? 0),
       ignore_reason: String(r[13] ?? ''),
+      cross_pkg_in_count: 0,
+      external_consumer_pkgs: 0,
+      total_in_count: 0,
+      is_barrel: 0,
+      centrality_score: 0,
       analyzed_at: String(r[14] ?? ''),
       line_count: Number(r[15] ?? 0),
       cyclomatic_complexity_max: Number(r[16] ?? 0),
@@ -7180,7 +7218,9 @@ export class TrailDatabase {
     dead_code_score: number;
     signal_orphan: number; signal_fan_in_zero: number; signal_no_recent_churn: number;
     signal_zero_coverage: number; signal_isolated_community: number;
-    is_ignored: number; ignore_reason: string; analyzed_at: string;
+    is_ignored: number; ignore_reason: string;
+    cross_pkg_in_count: number; external_consumer_pkgs: number; total_in_count: number; is_barrel: number; centrality_score: number;
+    analyzed_at: string;
     line_count: number; cyclomatic_complexity_max: number;
   }> {
     const db = this.ensureDb();
@@ -7208,6 +7248,11 @@ export class TrailDatabase {
       signal_isolated_community: Number(r[12] ?? 0),
       is_ignored: Number(r[13] ?? 0),
       ignore_reason: String(r[14] ?? ''),
+      cross_pkg_in_count: 0,
+      external_consumer_pkgs: 0,
+      total_in_count: 0,
+      is_barrel: 0,
+      centrality_score: 0,
       analyzed_at: String(r[15] ?? ''),
       line_count: Number(r[16] ?? 0),
       cyclomatic_complexity_max: Number(r[17] ?? 0),
@@ -7219,7 +7264,9 @@ export class TrailDatabase {
     end_line: number; language: string;
     fan_in: number; cognitive_complexity: number; data_mutation_score: number;
     side_effect_score: number; line_count: number; importance_score: number;
-    signal_fan_in_zero: number; analyzed_at: string;
+    signal_fan_in_zero: number;
+    fan_out: number; distinct_callees: number;
+    analyzed_at: string;
     cyclomatic_complexity: number;
   }> {
     const db = this.ensureDb();
@@ -7246,6 +7293,8 @@ export class TrailDatabase {
       line_count: Number(r[10] ?? 0),
       importance_score: Number(r[11] ?? 0),
       signal_fan_in_zero: Number(r[12] ?? 0),
+      fan_out: 0,
+      distinct_callees: 0,
       analyzed_at: String(r[13] ?? ''),
       cyclomatic_complexity: Number(r[14] ?? 0),
     }));
@@ -7256,7 +7305,9 @@ export class TrailDatabase {
     end_line: number; language: string;
     fan_in: number; cognitive_complexity: number; data_mutation_score: number;
     side_effect_score: number; line_count: number; importance_score: number;
-    signal_fan_in_zero: number; analyzed_at: string;
+    signal_fan_in_zero: number;
+    fan_out: number; distinct_callees: number;
+    analyzed_at: string;
     cyclomatic_complexity: number;
   }> {
     const db = this.ensureDb();
@@ -7284,6 +7335,8 @@ export class TrailDatabase {
       line_count: Number(r[11] ?? 0),
       importance_score: Number(r[12] ?? 0),
       signal_fan_in_zero: Number(r[13] ?? 0),
+      fan_out: 0,
+      distinct_callees: 0,
       analyzed_at: String(r[14] ?? ''),
       cyclomatic_complexity: Number(r[15] ?? 0),
     }));
