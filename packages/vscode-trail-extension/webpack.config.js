@@ -96,6 +96,8 @@ const extensionConfig = {
       // 読み込むため、両ファイルを dist/ に配置する。asm.js (16MB ヒープ固定)
       // 比で WASM は最大 2GB ヒープを使えるため大規模リポジトリの code graph
       // 保存時の OOM を回避できる。
+      // memory-core の migrations/*.sql は runner が path.join(__dirname, file)
+      // で読むため、webpack バンドル後の dist/ 直下にコピーする。
       patterns: [
         {
           from: path.resolve(__dirname, '../../node_modules/sql.js/dist/sql-wasm.js'),
@@ -104,6 +106,10 @@ const extensionConfig = {
         {
           from: path.resolve(__dirname, '../../node_modules/sql.js/dist/sql-wasm.wasm'),
           to: 'sql-wasm.wasm',
+        },
+        {
+          from: path.resolve(__dirname, '../memory-core/src/db/migrations/*.sql'),
+          to: '[name][ext]',
         },
       ],
     }),
