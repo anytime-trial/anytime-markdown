@@ -4,7 +4,7 @@ import { exportToDrawio, exportToSvg, importFromDrawio, importFromMermaid, layou
 import type { LayoutAlgorithm } from '@anytime-markdown/graph-core/engine';
 import { clearImageCache, physics,ViewportAnimation } from '@anytime-markdown/graph-core/engine';
 import { Box, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Typography } from '@mui/material';
-import { useTranslations } from 'next-intl';
+import { GraphI18nProvider, useGraphT } from '../i18n/context';
 import React, { useCallback, useEffect, useMemo,useRef, useState } from 'react';
 
 import {
@@ -86,7 +86,7 @@ function useDefaultIndexedDbAdapter(document: GraphDocument): PersistenceAdapter
   return { loadInitial, save, status };
 }
 
-export function GraphEditor({
+function GraphEditorInner({
   themeMode = 'dark',
   onThemeModeChange,
   locale = 'ja',
@@ -159,7 +159,7 @@ export function GraphEditor({
     return ranges;
   }, [state.document.nodes]);
   const [docEditNodeId, setDocEditNodeId] = useState<string | null>(null);
-  const t = useTranslations('Graph');
+  const t = useGraphT('Graph');
   const [liveMessage, setLiveMessage] = useState('');
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
@@ -798,5 +798,13 @@ export function GraphEditor({
         </DialogActions>
       </Dialog>
     </Box>
+  );
+}
+
+export function GraphEditor({ locale, ...rest }: Readonly<GraphEditorProps> = {}) {
+  return (
+    <GraphI18nProvider locale={locale}>
+      <GraphEditorInner locale={locale} {...rest} />
+    </GraphI18nProvider>
   );
 }

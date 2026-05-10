@@ -28,6 +28,8 @@ import {
 } from "@anytime-markdown/spreadsheet-core";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { useSpreadsheetT } from "./i18n/context";
+
 import { SpreadsheetContextMenu } from "./SpreadsheetContextMenu";
 import { getDivider } from "./styles";
 import { useSpreadsheetState } from "./hooks/useSpreadsheetState";
@@ -63,7 +65,6 @@ interface CellSizeSettings {
 interface SpreadsheetGridProps {
   readonly adapter: SheetAdapter;
   readonly isDark: boolean;
-  readonly t: (key: string) => string;
   /** グリッドの行数（デフォルト: 51） */
   readonly gridRows?: number;
   /** グリッドの列数（デフォルト: 15） */
@@ -173,7 +174,6 @@ function handleCellClick(
 export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
   adapter,
   isDark,
-  t,
   gridRows: GRID_ROWS = DEFAULT_GRID_ROWS,
   gridCols: GRID_COLS = DEFAULT_GRID_COLS,
   onDirtyChange,
@@ -199,6 +199,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
   groupColWidth = 80,
   onColumnHeaderDoubleClick,
 }) => {
+  const t = useSpreadsheetT("Spreadsheet");
   const innerROW_NUM_WIDTH = rowHeaderWidth ?? DEFAULT_ROW_NUM_WIDTH;
   const rowGroupWidth = (rowHeaderGroups?.length ?? 0) * groupColWidth;
   const ROW_NUM_WIDTH = innerROW_NUM_WIDTH + rowGroupWidth;

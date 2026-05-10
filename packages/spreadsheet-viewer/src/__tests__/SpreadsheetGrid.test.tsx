@@ -1,11 +1,12 @@
 import { render } from "@testing-library/react";
 import React from "react";
 
+import { SpreadsheetI18nProvider } from "../i18n/context";
 import { SpreadsheetGrid } from "../SpreadsheetGrid";
 import { createMockAdapter } from "./support/createMockAdapter";
 
-function t(key: string): string {
-  return key;
+function wrap(ui: React.ReactElement) {
+  return render(<SpreadsheetI18nProvider locale="en">{ui}</SpreadsheetI18nProvider>);
 }
 
 describe("SpreadsheetGrid", () => {
@@ -15,9 +16,7 @@ describe("SpreadsheetGrid", () => {
       alignments: [[null, null], [null, null]],
       range: { rows: 2, cols: 2 },
     });
-    const { container } = render(
-      <SpreadsheetGrid adapter={adapter} isDark={false} t={t} />,
-    );
+    const { container } = wrap(<SpreadsheetGrid adapter={adapter} isDark={false} />);
     expect(container.querySelector("canvas")).toBeTruthy();
   });
 
@@ -30,10 +29,8 @@ describe("SpreadsheetGrid", () => {
       },
       { readOnly: true },
     );
-    const { getByRole } = render(
-      <SpreadsheetGrid adapter={adapter} isDark={false} t={t} showApply />,
-    );
-    const applyButton = getByRole("button", { name: "spreadsheetApply" }) as HTMLButtonElement;
+    const { getByRole } = wrap(<SpreadsheetGrid adapter={adapter} isDark={false} showApply />);
+    const applyButton = getByRole("button", { name: "Apply" }) as HTMLButtonElement;
     expect(applyButton.disabled).toBe(true);
   });
 
@@ -44,7 +41,7 @@ describe("SpreadsheetGrid", () => {
       range: { rows: 1, cols: 1 },
     });
     expect(() => {
-      render(<SpreadsheetGrid adapter={adapter} isDark={false} t={t} />);
+      wrap(<SpreadsheetGrid adapter={adapter} isDark={false} />);
     }).not.toThrow();
   });
 });

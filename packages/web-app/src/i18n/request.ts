@@ -1,7 +1,5 @@
 import { databaseViewerEnMessages, databaseViewerJaMessages } from '@anytime-markdown/database-viewer';
-import { messagesEn as graphEnMessages, messagesJa as graphJaMessages } from '@anytime-markdown/graph-viewer';
 import { messagesEn as enMessages, messagesJa as jaMessages } from '@anytime-markdown/markdown-core';
-import { spreadsheetViewerEnMessages as spreadsheetEnMessages, spreadsheetViewerJaMessages as spreadsheetJaMessages } from '@anytime-markdown/spreadsheet-viewer';
 import { cookies } from 'next/headers';
 import { getRequestConfig } from 'next-intl/server';
 
@@ -14,15 +12,11 @@ const defaultLocale: Locale = 'ja';
 
 const mergedJa = {
   ...jaMessages,
-  ...graphJaMessages,
-  ...spreadsheetJaMessages,
   ...databaseViewerJaMessages,
   press: pressJaMessages,
 };
 const mergedEn = {
   ...enMessages,
-  ...graphEnMessages,
-  ...spreadsheetEnMessages,
   ...databaseViewerEnMessages,
   press: pressEnMessages,
 };

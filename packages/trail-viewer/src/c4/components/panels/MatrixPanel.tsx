@@ -1,7 +1,7 @@
 import type { C4Element, C4ElementType, C4Model, ComplexityMatrix, CoverageMatrix } from '@anytime-markdown/trail-core/c4';
 import { buildC4ElementById, collectDescendantIds, computeCommunityOverlay, mapFileToC4Elements } from '@anytime-markdown/trail-core/c4';
 import type { CellAlign, HeaderSpan } from '@anytime-markdown/spreadsheet-core';
-import { SpreadsheetGrid, createInMemorySheetAdapter, spreadsheetViewerEnMessages } from '@anytime-markdown/spreadsheet-viewer';
+import { SpreadsheetGrid, createInMemorySheetAdapter } from '@anytime-markdown/spreadsheet-viewer';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import ButtonGroup from '@mui/material/ButtonGroup';
@@ -83,8 +83,6 @@ function coverageToSheet(
   const alignments = cells.map(r => r.map((): CellAlign => 'right'));
   return { cells, alignments, range: { rows: cells.length, cols: 7 } };
 }
-
-const sheetT = (key: string) => (spreadsheetViewerEnMessages.Spreadsheet as Record<string, string>)[key] ?? key;
 
 function makeSheetResult(sheet: { cells: string[][]; alignments: CellAlign[][]; range: { rows: number; cols: number } }) {
   const colHeaders = sheet.cells[0]?.slice(1) ?? [];
@@ -295,7 +293,6 @@ export function MatrixPanel({
             key={`coverage-${level}`}
             adapter={activeAdapter}
             isDark={isDark}
-            t={sheetT}
             showApply={false}
             showRange={false}
             showToolbar={false}

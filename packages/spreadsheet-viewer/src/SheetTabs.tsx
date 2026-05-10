@@ -2,8 +2,9 @@
 
 import AddIcon from "@mui/icons-material/Add";
 import { Box, IconButton, Menu, MenuItem, Typography } from "@mui/material";
-import { useTranslations } from "next-intl";
 import React, { useCallback, useRef, useState } from "react";
+
+import { useSpreadsheetT } from "./i18n/context";
 
 interface SheetTabsProps {
   readonly sheets: readonly string[];
@@ -24,7 +25,7 @@ export function SheetTabs({
   onRename,
   onReorder,
 }: Readonly<SheetTabsProps>) {
-  const t = useTranslations("Spreadsheet");
+  const t = useSpreadsheetT("Spreadsheet");
 
   const [menuAnchor, setMenuAnchor] = useState<{ el: HTMLElement; index: number } | null>(null);
 

@@ -3,7 +3,7 @@
 import { getCanvasColors } from '@anytime-markdown/graph-core';
 import { Close as CloseIcon, DarkMode as DarkModeIcon, LightMode as LightModeIcon } from '@mui/icons-material';
 import { Box, IconButton, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
-import { useTranslations } from 'next-intl';
+import { useGraphT } from '../i18n/context';
 import React from 'react';
 
 interface SettingsPanelProps {
@@ -17,7 +17,7 @@ interface SettingsPanelProps {
 }
 
 export function SettingsPanel({ open, width, onClose, themeMode = 'dark', onThemeModeChange, locale = 'ja', onLocaleChange }: Readonly<SettingsPanelProps>) {
-  const t = useTranslations('Graph');
+  const t = useGraphT('Graph');
   const isDark = themeMode === 'dark';
   const colors = getCanvasColors(isDark);
 

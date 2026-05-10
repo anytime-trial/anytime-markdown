@@ -1,6 +1,6 @@
 "use client";
 
-import { SpreadsheetGrid } from "@anytime-markdown/spreadsheet-viewer";
+import { SpreadsheetGrid, SpreadsheetI18nProvider } from "@anytime-markdown/spreadsheet-viewer";
 import FormatAlignCenterIcon from "@mui/icons-material/FormatAlignCenter";
 import FormatAlignLeftIcon from "@mui/icons-material/FormatAlignLeft";
 import FormatAlignRightIcon from "@mui/icons-material/FormatAlignRight";
@@ -295,7 +295,6 @@ function SpreadsheetEditContent({ editor, getPos, isDark, onDirtyChange, onClose
   onDirtyChange: (dirty: boolean) => void;
   onClose: () => void;
 }>) {
-  const tSheet = useTranslations("Spreadsheet");
   const { gridRows, gridCols } = getTableGridOptions(editor);
   const adapter = useMemo(
     () =>
@@ -316,11 +315,10 @@ function SpreadsheetEditContent({ editor, getPos, isDark, onDirtyChange, onClose
   const handleUndo = useCallback(() => { editor.chain().undo().run(); }, [editor]);
   const handleRedo = useCallback(() => { editor.chain().redo().run(); }, [editor]);
   return (
-    <>
+    <SpreadsheetI18nProvider>
       <SpreadsheetGrid
         adapter={adapter}
         isDark={isDark}
-        t={tSheet}
         gridRows={gridRows}
         gridCols={gridCols}
         showApply
@@ -335,7 +333,7 @@ function SpreadsheetEditContent({ editor, getPos, isDark, onDirtyChange, onClose
       <Box sx={{ display: "none" }}>
         <NodeViewContent<"table"> as="table" />
       </Box>
-    </>
+    </SpreadsheetI18nProvider>
   );
 }
 

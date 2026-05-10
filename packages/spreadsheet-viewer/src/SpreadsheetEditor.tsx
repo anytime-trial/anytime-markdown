@@ -5,14 +5,15 @@ import { createInMemorySheetAdapter, parseCsv, serializeCsv } from "@anytime-mar
 import DownloadIcon from "@mui/icons-material/Download";
 import UploadIcon from "@mui/icons-material/Upload";
 import { Box, Button, Stack } from "@mui/material";
-import { useTranslations } from "next-intl";
 import React, { useCallback, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
+import { SpreadsheetI18nProvider, useSpreadsheetT } from "./i18n/context";
 import { PaginationBar, type PaginationProps } from "./PaginationBar";
 import { SheetTabs } from "./SheetTabs";
 import { SpreadsheetGrid } from "./SpreadsheetGrid";
 
 interface SpreadsheetEditorProps {
+    readonly locale?: string;
     readonly themeMode?: "light" | "dark";
     readonly adapter?: SheetAdapter;
     readonly workbookAdapter?: WorkbookAdapter;
@@ -54,7 +55,9 @@ function useWorkbookSnapshot(adapter: WorkbookAdapter | undefined) {
     );
 }
 
-export const SpreadsheetEditor: React.FC<Readonly<SpreadsheetEditorProps>> = ({
+type InnerProps = Omit<SpreadsheetEditorProps, "locale">;
+
+function SpreadsheetEditorInner({
     themeMode = "light",
     adapter: externalAdapter,
     workbookAdapter,
@@ -71,8 +74,8 @@ export const SpreadsheetEditor: React.FC<Readonly<SpreadsheetEditorProps>> = ({
     onUndo,
     onRedo,
     pagination,
-}) => {
-    const t = useTranslations("Spreadsheet");
+}: Readonly<InnerProps>) {
+    const t = useSpreadsheetT("Spreadsheet");
     const fallbackAdapter = useMemo(() => createInMemorySheetAdapter(), []);
     const adapter = externalAdapter ?? fallbackAdapter;
     const isDark = themeMode === "dark";
@@ -98,8 +101,6 @@ export const SpreadsheetEditor: React.FC<Readonly<SpreadsheetEditorProps>> = ({
     }, [workbookAdapter, workbookSnap?.activeSheet]);
 
     const effectiveAdapter = workbookSheetAdapter ?? adapter;
-    // adapter が getColumnHeaders を実装していれば SpreadsheetGrid の列ヘッダ
-    // (A/B/C…) の代わりに表示する。useSyncExternalStore で snapshot 更新に追従。
     const columnHeaders = useSyncExternalStore(
         (l) => effectiveAdapter.subscribe(l),
         () => effectiveAdapter.getColumnHeaders?.(),
@@ -165,7 +166,6 @@ export const SpreadsheetEditor: React.FC<Readonly<SpreadsheetEditorProps>> = ({
                 <SpreadsheetGrid
                     adapter={effectiveAdapter}
                     isDark={isDark}
-                    t={t}
                     gridRows={gridRows}
                     gridCols={gridCols}
                     showApply={showApply}
@@ -193,4 +193,13 @@ export const SpreadsheetEditor: React.FC<Readonly<SpreadsheetEditorProps>> = ({
             {pagination ? <PaginationBar {...pagination} /> : null}
         </Box>
     );
-};
+}
+
+export const SpreadsheetEditor: React.FC<Readonly<SpreadsheetEditorProps>> = ({
+    locale,
+    ...rest
+}) => (
+    <SpreadsheetI18nProvider locale={locale}>
+        <SpreadsheetEditorInner {...rest} />
+    </SpreadsheetI18nProvider>
+);

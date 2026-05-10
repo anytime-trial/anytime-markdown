@@ -1,4 +1,4 @@
-import { enMessages, jaMessages } from '@anytime-markdown/spreadsheet-viewer/src/i18n';
+import { spreadsheetViewerEnMessages as enMessages, spreadsheetViewerJaMessages as jaMessages } from '@anytime-markdown/spreadsheet-viewer';
 
 type MessageTree = Record<string, unknown>;
 

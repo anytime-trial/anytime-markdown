@@ -15,11 +15,6 @@ import type {
   WvToExtMessage,
 } from "@anytime-markdown/database-core/messaging";
 import type { SchemaInfo } from "@anytime-markdown/database-core/types";
-import {
-  spreadsheetViewerEnMessages,
-  spreadsheetViewerJaMessages,
-} from "@anytime-markdown/spreadsheet-viewer";
-
 declare const acquireVsCodeApi: () => {
   postMessage: (m: WvToExtMessage) => void;
 };
@@ -91,8 +86,8 @@ const lang =
   typeof navigator !== "undefined" && navigator.language.startsWith("ja") ? "ja" : "en";
 const messages =
   lang === "ja"
-    ? { ...spreadsheetViewerJaMessages, ...databaseViewerJaMessages }
-    : { ...spreadsheetViewerEnMessages, ...databaseViewerEnMessages };
+    ? { ...databaseViewerJaMessages }
+    : { ...databaseViewerEnMessages };
 
 const rootEl = document.getElementById("root");
 if (rootEl) {
