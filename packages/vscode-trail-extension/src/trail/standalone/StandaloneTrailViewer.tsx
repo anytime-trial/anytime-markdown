@@ -1,4 +1,9 @@
+import type { TrailLocale } from '@anytime-markdown/trail-viewer';
 import { TrailViewerApp } from '@anytime-markdown/trail-viewer';
+
+function detectLocale(): TrailLocale {
+  return globalThis.navigator?.language.startsWith('ja') ? 'ja' : 'en';
+}
 
 /**
  * VS Code 拡張機能の Trail Viewer ラッパー。
@@ -8,5 +13,5 @@ import { TrailViewerApp } from '@anytime-markdown/trail-viewer';
  * c4 dataSource の sendCommand に変換される。
  */
 export function StandaloneTrailViewer({ isDark = true }: Readonly<{ isDark?: boolean }>) {
-  return <TrailViewerApp serverUrl={globalThis.location.origin} isDark={isDark} editable />;
+  return <TrailViewerApp serverUrl={globalThis.location.origin} isDark={isDark} editable locale={detectLocale()} />;
 }

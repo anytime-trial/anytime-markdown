@@ -1,5 +1,6 @@
 'use client';
 
+import { databaseViewerEnMessages, databaseViewerJaMessages } from '@anytime-markdown/database-viewer';
 import graphEnMessages from '@anytime-markdown/graph-viewer/src/i18n/en.json';
 import graphJaMessages from '@anytime-markdown/graph-viewer/src/i18n/ja.json';
 import enMessages from '@anytime-markdown/markdown-core/src/i18n/en.json';
@@ -18,12 +19,14 @@ const mergedJa = {
   ...jaMessages,
   ...graphJaMessages,
   ...spreadsheetJaMessages,
+  ...databaseViewerJaMessages,
   press: pressJaMessages,
 };
 const mergedEn = {
   ...enMessages,
   ...graphEnMessages,
   ...spreadsheetEnMessages,
+  ...databaseViewerEnMessages,
   press: pressEnMessages,
 };
 const messages: Record<Locale, typeof mergedJa> = { ja: mergedJa, en: mergedEn };
