@@ -12,7 +12,7 @@ export function activate(context: vscode.ExtensionContext) {
 	);
 
 	// Timeline view: アクティブな markdown ファイルの git 履歴を表示
-	const timelineOutput = vscode.window.createOutputChannel('Anytime Markdown Timeline');
+	const timelineOutput = vscode.window.createOutputChannel('Anytime Markdown');
 	context.subscriptions.push(timelineOutput);
 	const timelineProvider = new TimelineProvider(
 		'anytime-markdown.compareWithCommit',
