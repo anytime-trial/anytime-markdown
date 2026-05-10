@@ -21,6 +21,11 @@ const sample = (filePath: string, deadCodeScore: number): FileAnalysisRow => ({
   },
   isIgnored: false,
   ignoreReason: '',
+  crossPkgInCount: 0,
+  externalConsumerPkgs: 0,
+  totalInCount: 0,
+  isBarrel: false,
+  centralityScore: 0,
   analyzedAt: '2026-05-05T00:00:00Z',
 });
 

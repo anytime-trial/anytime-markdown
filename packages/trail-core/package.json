@@ -40,7 +40,8 @@
     "./skillCategories": {
       "browser": "./src/skillCategories/browser.ts",
       "default": "./src/skillCategories/index.ts"
-    }
+    },
+    "./centrality": "./src/centrality/index.ts"
   },
   "scripts": {
     "test": "jest --maxWorkers=1"

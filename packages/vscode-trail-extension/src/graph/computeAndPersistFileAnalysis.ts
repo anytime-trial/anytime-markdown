@@ -44,6 +44,7 @@ import type {
 } from '@anytime-markdown/trail-core/deadCode';
 import type { ScoredFunction } from '@anytime-markdown/trail-core/importance';
 import type { CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
+import { computeCentrality } from '@anytime-markdown/trail-core/centrality';
 
 export interface ComputeAndPersistFileAnalysisOpts {
   /** ワークスペースの絶対パス。git リポジトリルートと一致することを想定。 */
@@ -125,6 +126,42 @@ export async function computeAndPersistFileAnalysis(
   //    = importance 解析対象 ∪ code graph ノード（lineCountByFile で拡張子復元）
   const allRelFilePaths = collectAllRelFilePaths(fileAggregates, codeGraph, repoName, lineCountByFile);
 
+  // 8a. centrality を計算
+  //     CodeGraph.edges は node id (repoName:relPathNoExt) 形式のため、
+  //     computeCentrality が期待する relPath (拡張子あり) に変換する
+  const noExtToWithExt = new Map<string, string>();
+  for (const key of lineCountByFile.keys()) {
+    noExtToWithExt.set(stripExt(key), key);
+  }
+  const nodeIdToRelPath = new Map<string, string>();
+  if (codeGraph) {
+    const prefix = `${repoName}:`;
+    for (const n of codeGraph.nodes) {
+      if (!n.id.startsWith(prefix)) continue;
+      const relPathNoExt = n.id.slice(prefix.length);
+      const withExt =
+        noExtToWithExt.get(relPathNoExt) ??
+        (lineCountByFile.has(`${relPathNoExt}.ts`) ? `${relPathNoExt}.ts` : `${relPathNoExt}.tsx`);
+      if (!nodeIdToRelPath.has(n.id)) {
+        nodeIdToRelPath.set(n.id, withExt);
+      }
+    }
+  }
+  const centralityEdges = (codeGraph?.edges ?? [])
+    .map((e) => ({ source: nodeIdToRelPath.get(e.source) ?? '', target: nodeIdToRelPath.get(e.target) ?? '' }))
+    .filter((e) => e.source && e.target);
+
+  const fileMetadata: Record<string, { functionCount: number; cognitiveComplexityMax: number }> = {};
+  for (const [relPath, agg] of fileAggregates.entries()) {
+    fileMetadata[relPath] = {
+      functionCount: (agg as { functionCount?: number }).functionCount ?? 0,
+      cognitiveComplexityMax: (agg as { cognitiveComplexityMax?: number }).cognitiveComplexityMax ?? 0,
+    };
+  }
+
+  const centralityResults = computeCentrality({ edges: centralityEdges }, fileMetadata);
+  const centralityMap = new Map(centralityResults.map((c) => [c.filePath, c]));
+
   // 8. FileAnalysisRow を構築
   const fileRows: FileAnalysisRow[] = [];
   for (const relPath of allRelFilePaths) {
@@ -175,6 +212,7 @@ export async function computeAndPersistFileAnalysis(
 
     const lineCount = lineCountByFile.get(relPath) ?? 0;
     const cyclomaticComplexityMax = agg.cyclomaticComplexityMax;
+    const c = centralityMap.get(relPath);
     fileRows.push({
       repoName,
       filePath: relPath,
@@ -188,6 +226,11 @@ export async function computeAndPersistFileAnalysis(
       signals,
       isIgnored,
       ignoreReason,
+      crossPkgInCount: c?.crossPkgIn ?? 0,
+      externalConsumerPkgs: c?.externalConsumerPkgs ?? 0,
+      totalInCount: c?.totalIn ?? 0,
+      isBarrel: c?.isBarrel ?? false,
+      centralityScore: c?.centralityScore ?? 0,
       analyzedAt,
     });
   }
@@ -208,6 +251,8 @@ export async function computeAndPersistFileAnalysis(
     lineCount: fn.metrics.lineCount,
     importanceScore: fn.importanceScore,
     signalFanInZero: fn.metrics.fanIn === 0,
+    fanOut: fn.metrics.fanOut,
+    distinctCallees: fn.metrics.distinctCallees,
     analyzedAt,
   }));
 

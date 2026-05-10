@@ -1,4 +1,4 @@
-import type { ImportanceMatrix } from '@anytime-markdown/trail-core/c4';
+import type { ImportanceMatrix, CentralityMatrix } from '@anytime-markdown/trail-core/c4';
 
 export interface DeadCodeSignalsApi {
   readonly orphan: boolean;
@@ -19,6 +19,10 @@ export interface FileAnalysisApiEntry {
   readonly signals: DeadCodeSignalsApi;
   readonly isIgnored: boolean;
   readonly ignoreReason: string;
+  readonly centralityScore: number;
+  readonly crossPkgInCount: number;
+  readonly externalConsumerPkgs: number;
+  readonly isBarrel: boolean;
 }
 
 export interface FileAnalysisApiResponse {
@@ -26,6 +30,7 @@ export interface FileAnalysisApiResponse {
   readonly elementMatrix: {
     readonly importance: ImportanceMatrix;
     readonly deadCodeScore: Record<string, number>;
+    readonly centrality: CentralityMatrix;
   };
 }
 

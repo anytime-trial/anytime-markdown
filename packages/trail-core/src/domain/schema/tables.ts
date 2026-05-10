@@ -372,6 +372,11 @@ export const CREATE_CURRENT_FILE_ANALYSIS = `CREATE TABLE IF NOT EXISTS current_
   signal_isolated_community  INTEGER NOT NULL DEFAULT 0 CHECK (signal_isolated_community IN (0, 1)),
   is_ignored                 INTEGER NOT NULL DEFAULT 0 CHECK (is_ignored IN (0, 1)),
   ignore_reason              TEXT NOT NULL DEFAULT '',
+  cross_pkg_in_count     INTEGER NOT NULL DEFAULT 0,
+  external_consumer_pkgs INTEGER NOT NULL DEFAULT 0,
+  total_in_count         INTEGER NOT NULL DEFAULT 0,
+  is_barrel              INTEGER NOT NULL DEFAULT 0 CHECK (is_barrel IN (0, 1)),
+  centrality_score       REAL    NOT NULL DEFAULT 0,
   analyzed_at                TEXT NOT NULL CHECK (analyzed_at GLOB ${TS_GLOB_MS} OR analyzed_at GLOB ${TS_GLOB_NO_MS}),
   PRIMARY KEY (repo_name, file_path)
 ) STRICT`;
@@ -394,6 +399,11 @@ export const CREATE_RELEASE_FILE_ANALYSIS = `CREATE TABLE IF NOT EXISTS release_
   signal_isolated_community  INTEGER NOT NULL DEFAULT 0 CHECK (signal_isolated_community IN (0, 1)),
   is_ignored                 INTEGER NOT NULL DEFAULT 0 CHECK (is_ignored IN (0, 1)),
   ignore_reason              TEXT NOT NULL DEFAULT '',
+  cross_pkg_in_count     INTEGER NOT NULL DEFAULT 0,
+  external_consumer_pkgs INTEGER NOT NULL DEFAULT 0,
+  total_in_count         INTEGER NOT NULL DEFAULT 0,
+  is_barrel              INTEGER NOT NULL DEFAULT 0 CHECK (is_barrel IN (0, 1)),
+  centrality_score       REAL    NOT NULL DEFAULT 0,
   analyzed_at                TEXT NOT NULL CHECK (analyzed_at GLOB ${TS_GLOB_MS} OR analyzed_at GLOB ${TS_GLOB_NO_MS}),
   PRIMARY KEY (release_tag, repo_name, file_path)
 ) STRICT`;
@@ -413,6 +423,8 @@ export const CREATE_CURRENT_FUNCTION_ANALYSIS = `CREATE TABLE IF NOT EXISTS curr
   line_count             INTEGER NOT NULL DEFAULT 0,
   importance_score       REAL    NOT NULL DEFAULT 0,
   signal_fan_in_zero     INTEGER NOT NULL DEFAULT 0 CHECK (signal_fan_in_zero IN (0, 1)),
+  fan_out          INTEGER NOT NULL DEFAULT 0,
+  distinct_callees INTEGER NOT NULL DEFAULT 0,
   analyzed_at            TEXT NOT NULL CHECK (analyzed_at GLOB ${TS_GLOB_MS} OR analyzed_at GLOB ${TS_GLOB_NO_MS}),
   PRIMARY KEY (repo_name, file_path, function_name, start_line)
 ) STRICT`;
@@ -433,6 +445,8 @@ export const CREATE_RELEASE_FUNCTION_ANALYSIS = `CREATE TABLE IF NOT EXISTS rele
   line_count             INTEGER NOT NULL DEFAULT 0,
   importance_score       REAL    NOT NULL DEFAULT 0,
   signal_fan_in_zero     INTEGER NOT NULL DEFAULT 0 CHECK (signal_fan_in_zero IN (0, 1)),
+  fan_out          INTEGER NOT NULL DEFAULT 0,
+  distinct_callees INTEGER NOT NULL DEFAULT 0,
   analyzed_at            TEXT NOT NULL CHECK (analyzed_at GLOB ${TS_GLOB_MS} OR analyzed_at GLOB ${TS_GLOB_NO_MS}),
   PRIMARY KEY (release_tag, repo_name, file_path, function_name, start_line)
 ) STRICT`;
@@ -446,4 +460,6 @@ export const CREATE_FILE_ANALYSIS_INDEXES = [
     ON current_function_analysis (repo_name, fan_in)`,
   `CREATE INDEX IF NOT EXISTS idx_current_function_analysis_importance
     ON current_function_analysis (repo_name, importance_score DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_current_file_analysis_centrality
+    ON current_file_analysis (repo_name, centrality_score DESC)`,
 ];

@@ -2,6 +2,7 @@ import { detectCycles } from '../dsm/detectCycles';
 import type { DsmMatrix } from '../dsm/types';
 import type { CoverageMatrix, ComplexityMatrix, MetricOverlay, ComplexityClass } from '../types';
 import type { ImportanceMatrix } from '../../importance/types';
+import type { CentralityMatrix } from '../../centrality/types';
 import type { HotspotMap } from '../../hotspot/types';
 import type { SizeMatrix } from './buildSizeMatrix';
 
@@ -119,6 +120,7 @@ export function computeColorMap(
   hotspotMap: HotspotMap | null = null,
   deadCodeMatrix: Record<string, number> | null = null,
   sizeMatrix: SizeMatrix | null = null,
+  centralityMatrix: CentralityMatrix | null = null,
 ): Map<string, string> {
   if (overlay === 'none') return new Map();
 
@@ -189,6 +191,16 @@ export function computeColorMap(
     if (!importanceMatrix) return new Map();
     const map = new Map<string, string>();
     for (const [elementId, score] of Object.entries(importanceMatrix)) {
+      map.set(elementId, importanceHeatColor(score));
+    }
+    return map;
+  }
+
+  // ── Centrality ──
+  if (overlay === 'centrality') {
+    if (!centralityMatrix) return new Map();
+    const map = new Map<string, string>();
+    for (const [elementId, score] of Object.entries(centralityMatrix)) {
       map.set(elementId, importanceHeatColor(score));
     }
     return map;
