@@ -70,7 +70,7 @@ describe('GET /api/c4/file-analysis', () => {
     expect(res.status).toBe(200);
     const body = await res.json() as {
       entries: unknown[];
-      elementMatrix: { importance: Record<string, number>; deadCodeScore: Record<string, number> };
+      elementMatrix: { importance: Record<string, number>; deadCodeScore: Record<string, number>; centrality: Record<string, number>; functionRoles: Record<string, unknown> };
     };
     expect(body.entries).toEqual([]);
     expect(body.elementMatrix.importance).toEqual({});
@@ -97,7 +97,7 @@ describe('GET /api/c4/file-analysis', () => {
         isIgnored: boolean;
         ignoreReason: string;
       }>;
-      elementMatrix: { importance: Record<string, number>; deadCodeScore: Record<string, number> };
+      elementMatrix: { importance: Record<string, number>; deadCodeScore: Record<string, number>; centrality: Record<string, number>; functionRoles: Record<string, unknown> };
     };
 
     expect(body.entries).toHaveLength(2);
@@ -115,6 +115,8 @@ describe('GET /api/c4/file-analysis', () => {
     // elementMatrix keys must exist (even when C4 model is null → elements=[])
     expect(body.elementMatrix).toHaveProperty('importance');
     expect(body.elementMatrix).toHaveProperty('deadCodeScore');
+    expect(body.elementMatrix).toHaveProperty('centrality');
+    expect(body.elementMatrix).toHaveProperty('functionRoles');
   });
 
   it('tag=current uses getCurrentFileAnalysis; other tag uses getReleaseFileAnalysis', async () => {

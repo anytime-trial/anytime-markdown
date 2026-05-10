@@ -37,7 +37,8 @@ import type { TrailDatabase, SessionRow, MessageRow, SessionCommitRow, Analytics
 import { MetricsThresholdsLoader } from '@anytime-markdown/trail-db';
 import { computeDeploymentFrequency, computeQualityMetrics, computeReleaseQualityTimeSeries } from '@anytime-markdown/trail-core/domain/metrics';
 import { aggregateScoresToC4 } from '@anytime-markdown/trail-core/deadCode';
-import { aggregateCentralityToC4 } from '@anytime-markdown/trail-core/centrality';
+import { aggregateCentralityToC4, aggregateRolesToC4 } from '@anytime-markdown/trail-core/centrality';
+import type { ClassifiedFunction } from '@anytime-markdown/trail-core/centrality';
 import { TrailLogger } from '../utils/TrailLogger';
 import type { CodeGraphService } from '../graph/CodeGraphService';
 import { GraphQueryEngine } from '../graph/GraphQueryEngine';
@@ -1934,6 +1935,17 @@ export class TrailDataServer {
       const deadCode = aggregateScoresToC4(deadCodeFileScores, elements);
       const centrality = aggregateCentralityToC4(centralityFileScores, elements);
 
+      // functionRoles 集計
+      const fnRows = tag === 'current'
+        ? this.trailDb.getCurrentFunctionAnalysis(repoName)
+        : this.trailDb.getReleaseFunctionAnalysis(tag, repoName);
+      const classified: ClassifiedFunction[] = fnRows.map((r) => ({
+        filePath: r.filePath,
+        functionName: r.functionName,
+        role: r.functionRole,
+      }));
+      const functionRoles = aggregateRolesToC4(classified, elements);
+
       const entries = rows.map((r) => ({
         filePath: r.filePath,
         importanceScore: r.importanceScore,
@@ -1955,7 +1967,7 @@ export class TrailDataServer {
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({
         entries,
-        elementMatrix: { importance, deadCodeScore: deadCode, centrality },
+        elementMatrix: { importance, deadCodeScore: deadCode, centrality, functionRoles },
       }));
     } catch (err) {
       TrailLogger.error('[/api/c4/file-analysis] failed', err);
