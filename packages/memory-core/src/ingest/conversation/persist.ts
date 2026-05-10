@@ -164,9 +164,8 @@ export function persistEpisodeFacts(opts: {
         );
         entityIdMap.set(mapKey, eId);
       } catch (err) {
-        logger.warn(
+        logger.warn?.(
           `[memory-core] persist: failed to auto-upsert endpoint ${mapKey}`,
-          err,
         );
       }
     }
@@ -175,7 +174,7 @@ export function persistEpisodeFacts(opts: {
     objectId = entityIdMap.get(objectMapKey);
 
     if (subjectId === undefined || objectId === undefined) {
-      logger.warn(
+      logger.warn?.(
         `[memory-core] persist: skipping edge "${rel.predicate}" — endpoint upsert failed ` +
           `(subject=${subjectMapKey}, object=${objectMapKey})`,
       );
