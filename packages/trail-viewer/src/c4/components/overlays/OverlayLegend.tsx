@@ -30,6 +30,8 @@ function getOverlayHelpKeys(
       return { titleKey: 'c4.overlayHelp.editComplexity', descKey: 'c4.overlayHelp.editComplexity.description' };
     case 'importance':
       return { titleKey: 'c4.overlayHelp.importance', descKey: 'c4.overlayHelp.importance.description' };
+    case 'centrality':
+      return { titleKey: 'c4.overlayHelp.centrality', descKey: 'c4.overlayHelp.centrality.description' };
     case 'defect-risk':
       return { titleKey: 'c4.overlayHelp.defectRisk', descKey: 'c4.overlayHelp.defectRisk.description' };
     case 'hotspot-frequency':
@@ -309,6 +311,7 @@ function getOverlayMetricItems(
         </>
       );
     case 'importance':
+    case 'centrality':
       return (
         <SegmentBar
           segments={ASCENDING_BAD_SEGMENTS}

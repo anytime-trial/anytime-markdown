@@ -96,6 +96,7 @@ export function C4ViewerCore({
   coverageMatrix,
   complexityMatrix,
   importanceMatrix,
+  centralityMatrix,
   deadCodeMatrix,
   fileAnalysisEntries = [],
   docLinks,
@@ -675,6 +676,12 @@ export function C4ViewerCore({
     return Object.keys(importanceMatrix).some((id) => ids.has(id));
   }, [importanceMatrix, c4Model]);
 
+  const hasCentralityData = useMemo(() => {
+    if (!centralityMatrix || !c4Model) return false;
+    const ids = new Set(c4Model.elements.map((e) => e.id));
+    return Object.keys(centralityMatrix).some((id) => ids.has(id));
+  }, [centralityMatrix, c4Model]);
+
   // sizeMatrix は isCategoryDataAvailable の依存配列で参照するため先に宣言する
   const sizeMatrix = useMemo<SizeMatrix | null>(() => {
     if (!fileAnalysisEntries || fileAnalysisEntries.length === 0 || !c4Model) return null;
@@ -732,6 +739,15 @@ export function C4ViewerCore({
     }
     return filtered;
   }, [importanceMatrix, c4Model, elementTypeById, levelTargetType]);
+
+  const levelFilteredCentralityMatrix = useMemo(() => {
+    if (!centralityMatrix || !c4Model) return centralityMatrix ?? null;
+    const filtered: Record<string, number> = {};
+    for (const [id, score] of Object.entries(centralityMatrix)) {
+      if (elementTypeById.get(id) === levelTargetType) filtered[id] = score;
+    }
+    return filtered;
+  }, [centralityMatrix, c4Model, elementTypeById, levelTargetType]);
 
   const levelFilteredComplexityMatrix = useMemo(() => {
     if (!complexityMatrix || !c4Model) return complexityMatrix ?? null;
@@ -808,8 +824,8 @@ export function C4ViewerCore({
   }, [sizeMatrix, c4Model, elementTypeById, levelTargetType]);
 
   const overlayMap = useMemo(
-    () => computeColorMap(metricOverlay, levelFilteredCoverageMatrix, filteredDsmMatrix, levelFilteredComplexityMatrix, levelFilteredImportanceMatrix, levelFilteredDefectRiskMap, levelFilteredHotspotMap, levelFilteredDeadCodeMatrix, levelFilteredSizeMatrix),
-    [metricOverlay, levelFilteredCoverageMatrix, filteredDsmMatrix, levelFilteredComplexityMatrix, levelFilteredImportanceMatrix, levelFilteredDefectRiskMap, levelFilteredHotspotMap, levelFilteredDeadCodeMatrix, levelFilteredSizeMatrix],
+    () => computeColorMap(metricOverlay, levelFilteredCoverageMatrix, filteredDsmMatrix, levelFilteredComplexityMatrix, levelFilteredImportanceMatrix, levelFilteredDefectRiskMap, levelFilteredHotspotMap, levelFilteredDeadCodeMatrix, levelFilteredSizeMatrix, levelFilteredCentralityMatrix),
+    [metricOverlay, levelFilteredCoverageMatrix, filteredDsmMatrix, levelFilteredComplexityMatrix, levelFilteredImportanceMatrix, levelFilteredDefectRiskMap, levelFilteredHotspotMap, levelFilteredDeadCodeMatrix, levelFilteredSizeMatrix, levelFilteredCentralityMatrix],
   );
 
   const effectiveOverlayMap = overlayMap;
@@ -1528,6 +1544,7 @@ export function C4ViewerCore({
                         ]}
                         {overlayCategory === 'importance' && [
                           <MenuItem key="importance" value="importance" disabled={!importanceMatrix} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.importance')}</MenuItem>,
+                          <MenuItem key="centrality" value="centrality" disabled={!hasCentralityData} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.centrality')}</MenuItem>,
                           <MenuItem key="defect-risk" value="defect-risk" sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.defectRisk')}</MenuItem>,
                         ]}
                         {overlayCategory === 'hotspot' && [
