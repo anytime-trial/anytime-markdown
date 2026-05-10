@@ -427,6 +427,7 @@ export const CREATE_CURRENT_FUNCTION_ANALYSIS = `CREATE TABLE IF NOT EXISTS curr
   signal_fan_in_zero     INTEGER NOT NULL DEFAULT 0 CHECK (signal_fan_in_zero IN (0, 1)),
   fan_out          INTEGER NOT NULL DEFAULT 0,
   distinct_callees INTEGER NOT NULL DEFAULT 0,
+  function_role    TEXT NOT NULL DEFAULT 'peripheral' CHECK (function_role IN ('hub','leaf','orchestrator','peripheral')),
   analyzed_at            TEXT NOT NULL CHECK (analyzed_at GLOB ${TS_GLOB_MS} OR analyzed_at GLOB ${TS_GLOB_NO_MS}),
   PRIMARY KEY (repo_name, file_path, function_name, start_line)
 ) STRICT`;
@@ -449,6 +450,7 @@ export const CREATE_RELEASE_FUNCTION_ANALYSIS = `CREATE TABLE IF NOT EXISTS rele
   signal_fan_in_zero     INTEGER NOT NULL DEFAULT 0 CHECK (signal_fan_in_zero IN (0, 1)),
   fan_out          INTEGER NOT NULL DEFAULT 0,
   distinct_callees INTEGER NOT NULL DEFAULT 0,
+  function_role    TEXT NOT NULL DEFAULT 'peripheral' CHECK (function_role IN ('hub','leaf','orchestrator','peripheral')),
   analyzed_at            TEXT NOT NULL CHECK (analyzed_at GLOB ${TS_GLOB_MS} OR analyzed_at GLOB ${TS_GLOB_NO_MS}),
   PRIMARY KEY (release_tag, repo_name, file_path, function_name, start_line)
 ) STRICT`;

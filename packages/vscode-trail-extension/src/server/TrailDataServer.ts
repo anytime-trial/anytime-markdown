@@ -2007,8 +2007,6 @@ export class TrailDataServer {
         importanceScore: r.importanceScore,
         functionRole: r.functionRole,
         signals: { fanInZero: r.signalFanInZero },
-        fanOut: r.fanOut,
-        distinctCallees: r.distinctCallees,
       }));
 
       res.writeHead(200, JSON_HEADERS);
