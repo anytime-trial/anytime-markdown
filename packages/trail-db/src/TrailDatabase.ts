@@ -1472,6 +1472,11 @@ export class TrailDatabase {
       'ALTER TABLE current_function_analysis ADD COLUMN distinct_callees INTEGER NOT NULL DEFAULT 0',
       'ALTER TABLE release_function_analysis ADD COLUMN fan_out INTEGER NOT NULL DEFAULT 0',
       'ALTER TABLE release_function_analysis ADD COLUMN distinct_callees INTEGER NOT NULL DEFAULT 0',
+      // C4 architecture overlay (UI / Logic 分類) の category 列。
+      // CHECK 制約は新規 DB の CREATE TABLE で付与し、既存 DB への ALTER では
+      // 型安全を trail-core の TS 型で担保する (centrality 列と同方針)。
+      "ALTER TABLE current_file_analysis ADD COLUMN category TEXT NOT NULL DEFAULT 'logic'",
+      "ALTER TABLE release_file_analysis ADD COLUMN category TEXT NOT NULL DEFAULT 'logic'",
     ]) {
       try { db.run(sql); } catch { /* Column already exists */ }
     }
