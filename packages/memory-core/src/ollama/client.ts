@@ -2,6 +2,11 @@
 // host.docker.internal is the Docker special hostname that routes to the host machine (WSL2/macOS)
 const ALLOWED_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]', 'host.docker.internal']);
 
+/** Qwen3 等の thinking モデルが出力する <think>...</think> ブロックを除去して本文だけ返す。 */
+function stripThinkingBlocks(text: string): string {
+  return text.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+}
+
 function makeError(code: string): Error {
   const err = new Error(code);
   (err as any).code = code;
@@ -76,7 +81,7 @@ export function createOllamaClient(options: OllamaClientOptions = {}): OllamaCli
   return {
     async generate({ model, prompt, format }: GenerateOptions): Promise<GenerateResult> {
       const data = await post<{ response: string }>('/api/generate', { model, prompt, format, stream: false });
-      return { response: data.response };
+      return { response: stripThinkingBlocks(data.response) };
     },
 
     async embeddings({ model, prompt }: EmbeddingsOptions): Promise<EmbeddingsResult> {

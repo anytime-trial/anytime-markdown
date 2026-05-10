@@ -107,12 +107,17 @@ export async function extractFactsFromEpisode(opts: {
     return null;
   }
 
+  if (!responseText) {
+    logger.error(`[memory-core] Empty response from Ollama for episode ${episode.message_uuid_start}`);
+    return null;
+  }
+
   let parsed: unknown;
   try {
     parsed = JSON.parse(responseText);
   } catch (err) {
     logger.error(
-      `[memory-core] JSON.parse failed for episode ${episode.message_uuid_start}`,
+      `[memory-core] JSON.parse failed for episode ${episode.message_uuid_start}: ${responseText.slice(0, 200)}`,
       err,
     );
     return null;
