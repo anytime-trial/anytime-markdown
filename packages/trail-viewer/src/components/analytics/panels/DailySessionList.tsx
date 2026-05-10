@@ -15,6 +15,7 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { formatLocalTime, toLocalDateKey } from '@anytime-markdown/trail-core/formatDate';
 import { useTrailTheme } from '../../TrailThemeContext';
 import { useTrailI18n } from '../../../i18n';
+import { agentBrandColors } from '../../../theme/designTokens';
 import type { ToolMetrics, TrailMessage, TrailSession, TrailSessionCommit } from '../../../domain/parser/types';
 import { fmtNum, fmtTokens, fmtUsd } from '../../../domain/analytics/formatters';
 import { sessionCost } from '../../../domain/analytics/calculators';
@@ -175,8 +176,21 @@ export function DailySessionList({
                         </Tooltip>
                       )}
                     </TableCell>
-                    <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
-                      {s.source ?? 'claude_code'}
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                      {(() => {
+                        const src = s.source ?? 'claude_code';
+                        const brandColor = agentBrandColors[src];
+                        return (
+                          <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
+                            {brandColor && (
+                              <Box sx={{ width: 8, height: 8, borderRadius: '2px', bgcolor: brandColor, flexShrink: 0 }} />
+                            )}
+                            <Typography component="span" sx={{ fontFamily: 'monospace', fontSize: '0.8rem', color: brandColor ?? 'text.secondary' }}>
+                              {src}
+                            </Typography>
+                          </Box>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell align="right" sx={{ fontFamily: 'monospace', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
                       {s.commitStats

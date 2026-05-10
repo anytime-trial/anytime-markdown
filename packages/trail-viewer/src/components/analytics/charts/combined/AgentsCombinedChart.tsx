@@ -4,6 +4,7 @@ import { BarChart } from '@mui/x-charts/BarChart';
 import { useTrailTheme } from '../../../TrailThemeContext';
 import { useTrailI18n } from '../../../../i18n';
 import { fmtNum, fmtPercent, fmtTokens, fmtUsd } from '../../../../domain/analytics/formatters';
+import { agentBrandColors } from '../../../../theme/designTokens';
 import type { AgentMetric } from '../../types';
 import type { CombinedAxisInfo } from './axisInfo';
 import { makeAxisClick } from './axisInfo';
@@ -64,7 +65,7 @@ export function AgentsCombinedChart({
           dataKey: `a${i}`,
           label: agentSeriesLabel(agent),
           stack: 'total',
-          color: toolPalette[i % toolPalette.length],
+          color: agentBrandColors[agent] ?? toolPalette[i % toolPalette.length],
           valueFormatter: tooltipFormatter,
         }))}
         height={240}

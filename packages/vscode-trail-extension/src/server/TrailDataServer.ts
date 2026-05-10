@@ -203,7 +203,6 @@ export class TrailDataServer {
   private httpServer: http.Server | undefined;
   private wsServer: WebSocketServer | undefined;
   private readonly clients = new Set<WebSocket>();
-  private readonly staticCache = new Map<string, Buffer>();
   private rateLimitCount = 0;
   private rateLimitReset = 0;
   private cachedHtml: string | undefined;
@@ -1368,14 +1367,6 @@ export class TrailDataServer {
   // -------------------------------------------------------------------------
 
   private serveStaticFile(res: http.ServerResponse, filename: string): void {
-    const cached = this.staticCache.get(filename);
-    if (cached) {
-      const contentType = filename.endsWith('.map') ? 'application/json' : 'application/javascript';
-      res.writeHead(200, { 'Content-Type': contentType });
-      res.end(cached);
-      return;
-    }
-
     const filePath = path.join(this.distPath, filename);
     fs.readFile(filePath, (err, data) => {
       if (err) {
@@ -1383,9 +1374,8 @@ export class TrailDataServer {
         res.end();
         return;
       }
-      this.staticCache.set(filename, data);
       const contentType = filename.endsWith('.map') ? 'application/json' : 'application/javascript';
-      res.writeHead(200, { 'Content-Type': contentType });
+      res.writeHead(200, { 'Content-Type': contentType, 'Cache-Control': 'no-cache, no-store, must-revalidate' });
       res.end(data);
     });
   }
