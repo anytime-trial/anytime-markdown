@@ -1,4 +1,4 @@
-import { messagesEn as markdownCoreEnMessages, messagesJa as markdownCoreJaMessages } from '@anytime-markdown/markdown-core';
+import { enMessages as markdownCoreEnMessages, jaMessages as markdownCoreJaMessages } from '@anytime-markdown/markdown-core/i18n/messages';
 import { cookies } from 'next/headers';
 import { getRequestConfig } from 'next-intl/server';
 

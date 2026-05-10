@@ -11,6 +11,7 @@
     "./constants": "./src/exports/constants.ts",
     "./types": "./src/exports/types.ts",
     "./embed-utils": "./src/exports/embedUtils.ts",
+    "./i18n/messages": "./src/i18n/index.ts",
     "./src/*": "./src/*"
   },
   "scripts": {
