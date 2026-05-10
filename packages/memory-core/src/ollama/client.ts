@@ -75,7 +75,7 @@ export function createOllamaClient(options: OllamaClientOptions = {}): OllamaCli
 
   return {
     async generate({ model, prompt, format }: GenerateOptions): Promise<GenerateResult> {
-      const data = await post<{ response: string }>('/api/generate', { model, prompt, format });
+      const data = await post<{ response: string }>('/api/generate', { model, prompt, format, stream: false });
       return { response: data.response };
     },
 
