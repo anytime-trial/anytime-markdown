@@ -2,8 +2,7 @@
 import { createNextIntlShim } from '@anytime-markdown/vscode-common/webview';
 import messagesEn from '../../../../markdown-core/src/i18n/en.json';
 import messagesJa from '../../../../markdown-core/src/i18n/ja.json';
-import spreadsheetMessagesEn from '../../../../spreadsheet-viewer/src/i18n/en.json';
-import spreadsheetMessagesJa from '../../../../spreadsheet-viewer/src/i18n/ja.json';
+import { enMessages as spreadsheetMessagesEn, jaMessages as spreadsheetMessagesJa } from '@anytime-markdown/spreadsheet-viewer/src/i18n';
 
 type Messages = Record<string, Record<string, string>>;
 

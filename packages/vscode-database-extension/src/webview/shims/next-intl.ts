@@ -1,8 +1,7 @@
 /* next-intl shim for VS Code webview (webpack) with parameter substitution */
 import dbMessagesEn from '../../../../database-viewer/src/i18n/en.json';
 import dbMessagesJa from '../../../../database-viewer/src/i18n/ja.json';
-import sheetMessagesEn from '../../../../spreadsheet-viewer/src/i18n/en.json';
-import sheetMessagesJa from '../../../../spreadsheet-viewer/src/i18n/ja.json';
+import { enMessages as sheetMessagesEn, jaMessages as sheetMessagesJa } from '@anytime-markdown/spreadsheet-viewer/src/i18n';
 
 type Messages = Record<string, Record<string, string>>;
 type Vars = Record<string, string | number>;
