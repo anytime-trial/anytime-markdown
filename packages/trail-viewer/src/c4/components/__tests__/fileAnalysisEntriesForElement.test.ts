@@ -27,6 +27,10 @@ const makeEntry = (filePath: string): FileAnalysisApiEntry => ({
   },
   isIgnored: false,
   ignoreReason: '',
+  centralityScore: 0,
+  crossPkgInCount: 0,
+  externalConsumerPkgs: 0,
+  isBarrel: false,
 });
 
 describe('fileAnalysisEntriesForElement', () => {

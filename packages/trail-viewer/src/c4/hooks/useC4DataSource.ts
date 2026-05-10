@@ -7,6 +7,7 @@ import type {
   BoundaryInfo,
   C4Model,
   C4ReleaseEntry,
+  CentralityMatrix,
   ComplexityMatrix,
   CoverageDiffMatrix,
   CoverageMatrix,
@@ -57,6 +58,7 @@ interface C4DataSourceResult {
   complexityMatrix: ComplexityMatrix | null;
   importanceMatrix: ImportanceMatrix | null;
   deadCodeMatrix: Record<string, number> | null;
+  centralityMatrix: CentralityMatrix | null;
   fileAnalysisEntries: readonly FileAnalysisApiEntry[];
   docLinks: readonly DocLink[];
   dsmMatrix: DsmMatrix | null;
@@ -97,6 +99,7 @@ export function useC4DataSource(serverUrl: string, disableWebSocket = false): C4
   const [complexityMatrix, setComplexityMatrix] = useState<ComplexityMatrix | null>(null);
   const [importanceMatrix, setImportanceMatrix] = useState<ImportanceMatrix | null>(null);
   const [deadCodeMatrix, setDeadCodeMatrix] = useState<Record<string, number> | null>(null);
+  const [centralityMatrix, setCentralityMatrix] = useState<CentralityMatrix | null>(null);
   const [fileAnalysisEntries, setFileAnalysisEntries] = useState<readonly FileAnalysisApiEntry[]>([]);
   const [analysisCompleteCounter, setAnalysisCompleteCounter] = useState(0);
   const [dsmMatrix, setDsmMatrix] = useState<DsmMatrix | null>(null);
@@ -264,11 +267,13 @@ export function useC4DataSource(serverUrl: string, disableWebSocket = false): C4
         if (!r) {
           setImportanceMatrix(null);
           setDeadCodeMatrix(null);
+          setCentralityMatrix(null);
           setFileAnalysisEntries([]);
           return;
         }
         setImportanceMatrix(r.elementMatrix.importance);
         setDeadCodeMatrix(r.elementMatrix.deadCodeScore);
+        setCentralityMatrix(r.elementMatrix.centrality);
         setFileAnalysisEntries(r.entries);
       } catch (err) {
         if ((err as { name?: string }).name === 'AbortError') return;
@@ -304,6 +309,7 @@ export function useC4DataSource(serverUrl: string, disableWebSocket = false): C4
     complexityMatrix,
     importanceMatrix,
     deadCodeMatrix,
+    centralityMatrix,
     fileAnalysisEntries,
     docLinks,
     dsmMatrix,

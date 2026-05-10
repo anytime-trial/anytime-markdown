@@ -2,6 +2,7 @@ import type {
   BoundaryInfo,
   C4Model,
   C4ReleaseEntry,
+  CentralityMatrix,
   ComplexityMatrix,
   CoverageDiffMatrix,
   CoverageMatrix,
@@ -27,6 +28,7 @@ export interface C4ViewerCoreProps {
   readonly complexityMatrix?: ComplexityMatrix | null;
   readonly importanceMatrix?: ImportanceMatrix | null;
   readonly deadCodeMatrix?: Record<string, number> | null;
+  readonly centralityMatrix?: CentralityMatrix | null;
   readonly fileAnalysisEntries?: readonly FileAnalysisApiEntry[];
   readonly docLinks?: readonly DocLink[];
   readonly connected?: boolean;
