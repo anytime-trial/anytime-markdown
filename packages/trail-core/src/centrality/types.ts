@@ -14,6 +14,7 @@ export interface FileMeta {
   readonly cognitiveComplexityMax: number;
 }
 
+<<<<<<< HEAD
 export interface CentralityWeights {
   readonly alpha: number;
   readonly beta: number;
@@ -27,3 +28,19 @@ export const DEFAULT_CENTRALITY_WEIGHTS: CentralityWeights = {
   gamma: 0.2,
   barrelPenalty: 0.5,
 };
+=======
+export type FunctionRole = 'hub' | 'leaf' | 'orchestrator' | 'peripheral';
+
+export interface ClassifiedFunction {
+  readonly filePath: string;
+  readonly functionName: string;
+  readonly role: FunctionRole;
+}
+
+export interface ClassifiedFunctionInput {
+  readonly filePath: string;
+  readonly functionName: string;
+  readonly fanIn: number;
+  readonly fanOut: number;
+}
+>>>>>>> ae5286da (feat(trail-core): add function role classifier (4 quadrants by median fan_in/out))
