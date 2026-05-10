@@ -96,7 +96,7 @@ export async function extractFactsFromEpisode(opts: {
   logger: MemoryLogger;
 }): Promise<ExtractionResult | null> {
   const { ollama, episode, logger } = opts;
-  const model = opts.model ?? process.env['MEMORY_CORE_GEN_MODEL'] ?? 'qwen3.5:9b';
+  const model = opts.model ?? process.env['MEMORY_CORE_GEN_MODEL'] ?? 'qwen2.5:7b';
 
   const hasQuestion = hasQuestionMark(episode.raw_excerpt);
   const prompt = hasQuestion

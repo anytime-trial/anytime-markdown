@@ -9,7 +9,7 @@ import type { OllamaClient } from '../ollama/client';
 
 const SCOPE = 'conversation_backfill';
 const QUARANTINE_THRESHOLD = 3;
-const DEFAULT_SINCE_DAYS = 7;
+const DEFAULT_SINCE_DAYS = 5;
 const PROGRESS_LOG_INTERVAL = 10;
 
 export interface BackfillResult {
@@ -138,9 +138,16 @@ export async function runConversationBackfill(opts: {
   sinceDays?: number;
   logger?: MemoryLogger;
   model?: string;
+  /**
+   * Persist the in-memory sql.js DB to the underlying file. Called at backfill
+   * start, each session start, and every progress-log interval so a VS Code
+   * reload mid-backfill loses at most PROGRESS_LOG_INTERVAL episodes of work.
+   */
+  save?: () => void;
 }): Promise<BackfillResult> {
   const { db, ollama, model } = opts;
   const logger = opts.logger ?? noopLogger;
+  const save = opts.save;
   const sinceDays = opts.sinceDays ?? DEFAULT_SINCE_DAYS;
 
   const startedAt = new Date().toISOString();
@@ -177,6 +184,7 @@ export async function runConversationBackfill(opts: {
   logger.info(
     `[memory-core] backfill: ${totalSessions} sessions, ${totalEpisodes} episodes to process (since ${sinceDays}d ago)`
   );
+  save?.();
 
   let sessionIdx = 0;
   try {
@@ -186,6 +194,7 @@ export async function runConversationBackfill(opts: {
       logger.info(
         `[memory-core] backfill: session ${sessionIdx}/${totalSessions} — ${session_id.slice(0, 12)} (${episodes.length} episodes)`
       );
+      save?.();
 
       for (const episode of episodes) {
         totals.items_processed += 1;
@@ -195,6 +204,7 @@ export async function runConversationBackfill(opts: {
           logger.info(
             `[memory-core] backfill progress: ${totals.items_processed}/${totalEpisodes} episodes`
           );
+          save?.();
         }
 
         // Track latest timestamp seen

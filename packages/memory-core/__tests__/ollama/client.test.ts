@@ -50,7 +50,7 @@ describe('createOllamaClient', () => {
       expect(mockFetch).toHaveBeenCalledTimes(1);
       const [url, init] = mockFetch.mock.calls[0];
       expect(url).toBe('http://localhost:11434/api/generate');
-      expect(JSON.parse(init.body)).toEqual({ model: 'llama3', prompt: 'Say hello', format: undefined });
+      expect(JSON.parse(init.body)).toEqual({ model: 'llama3', prompt: 'Say hello', stream: false });
     });
 
     it('passes format parameter when provided', async () => {
@@ -60,7 +60,7 @@ describe('createOllamaClient', () => {
       await client.generate({ model: 'llama3', prompt: 'Return JSON', format: 'json' });
 
       const [, init] = mockFetch.mock.calls[0];
-      expect(JSON.parse(init.body)).toEqual({ model: 'llama3', prompt: 'Return JSON', format: 'json' });
+      expect(JSON.parse(init.body)).toEqual({ model: 'llama3', prompt: 'Return JSON', format: 'json', stream: false });
     });
 
     it('throws with code "ollama_unreachable" when fetch throws TypeError (ECONNREFUSED)', async () => {
@@ -79,6 +79,17 @@ describe('createOllamaClient', () => {
       await expect(client.generate({ model: 'missing-model', prompt: 'test' })).rejects.toMatchObject({
         code: 'model_not_pulled',
       });
+    });
+
+    it('falls back to `thinking` field when `response` is empty (qwen3.5 etc.)', async () => {
+      const client = createOllamaClient({ baseUrl: 'http://localhost:11434' });
+      mockFetch.mockResolvedValueOnce(
+        makeResponse({ response: '', thinking: '{"hello":"world"}' }),
+      );
+
+      const result = await client.generate({ model: 'qwen3.5:9b', prompt: 'test', format: 'json' });
+
+      expect(result).toEqual({ response: '{"hello":"world"}' });
     });
   });
 

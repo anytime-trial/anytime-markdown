@@ -130,7 +130,7 @@ export async function runReviewIncremental(input: {
 }): Promise<ReviewIncrementalResult> {
   const { db, repoName, ollama } = input;
   const logger = input.logger ?? noopLogger;
-  const model = input.model ?? 'qwen3.5:9b';
+  const model = input.model ?? 'qwen2.5:7b';
   const reviewDir =
     input.reviewDir ?? process.env['MEMORY_CORE_REVIEW_DIR'] ?? DEFAULT_REVIEW_DIR;
 

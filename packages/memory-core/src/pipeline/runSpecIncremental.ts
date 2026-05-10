@@ -148,7 +148,7 @@ export async function runSpecIncremental(
 ): Promise<SpecIncrementalResult> {
   const { db, specRoot, ollama } = input;
   const logger = input.logger ?? noopLogger;
-  const model = input.model ?? process.env['MEMORY_CORE_GEN_MODEL'] ?? 'qwen3.5:9b';
+  const model = input.model ?? process.env['MEMORY_CORE_GEN_MODEL'] ?? 'qwen2.5:7b';
 
   const startTime = Date.now();
   const startedAt = new Date(startTime).toISOString();

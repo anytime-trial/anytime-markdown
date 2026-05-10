@@ -84,8 +84,11 @@ export function createOllamaClient(options: OllamaClientOptions = {}): OllamaCli
     async generate({ model, prompt, format, options }: GenerateOptions): Promise<GenerateResult> {
       const body: Record<string, unknown> = { model, prompt, format, stream: false };
       if (options && Object.keys(options).length > 0) body['options'] = options;
-      const data = await post<{ response: string }>('/api/generate', body);
-      return { response: stripThinkingBlocks(data.response) };
+      const data = await post<{ response: string; thinking?: string }>('/api/generate', body);
+      // Qwen3 系の thinking モデルはコンテンツを `thinking` フィールドに入れ、`response` を空にして返すことがある。
+      // その場合は thinking 側を本文として採用する。
+      const raw = data.response || data.thinking || '';
+      return { response: stripThinkingBlocks(raw) };
     },
 
     async embeddings({ model, prompt }: EmbeddingsOptions): Promise<EmbeddingsResult> {

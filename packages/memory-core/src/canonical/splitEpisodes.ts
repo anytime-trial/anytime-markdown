@@ -1,4 +1,4 @@
-const MAX_EXCERPT_BYTES = 4096;
+const MAX_EXCERPT_BYTES = 2048;
 
 export interface Message {
   uuid: string;

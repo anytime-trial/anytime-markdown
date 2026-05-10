@@ -67,7 +67,7 @@ export async function extractClaims(
 ): Promise<ExtractResult | null> {
   const { paragraphs, c4Scope, ollama, logger } = input;
   const model =
-    input.model ?? process.env['MEMORY_CORE_GEN_MODEL'] ?? 'qwen3.5:9b';
+    input.model ?? process.env['MEMORY_CORE_GEN_MODEL'] ?? 'qwen2.5:7b';
 
   const prompt = buildSpecPrompt({ paragraphs, c4Scope });
 

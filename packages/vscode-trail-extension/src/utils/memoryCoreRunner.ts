@@ -112,12 +112,13 @@ export function createMemoryCoreRunner(opts: {
             const isFirstRun = !lastProcessedAt;
 
             if (isFirstRun) {
-              logger.info('First run detected — running backfill (7 days)');
+              logger.info('First run detected — running backfill (5 days)');
               const result = await runConversationBackfill({
                 db: memDb.db,
                 ollama,
-                sinceDays: 7,
+                sinceDays: 5,
                 logger,
+                save: () => memDb.save(),
               });
               logger.info(
                 `Backfill complete: status=${result.status}, items_processed=${result.items_processed}, ` +
@@ -182,7 +183,7 @@ export function createMemoryCoreRunner(opts: {
               repoName,
               reviewDir,
               ollama,
-              model: process.env['MEMORY_CORE_GEN_MODEL'] ?? 'qwen3.5:9b',
+              model: process.env['MEMORY_CORE_GEN_MODEL'] ?? 'qwen2.5:7b',
               logger,
             });
             logger.info(
@@ -198,7 +199,7 @@ export function createMemoryCoreRunner(opts: {
               db: memDb.db,
               specRoot,
               ollama,
-              model: process.env['MEMORY_CORE_GEN_MODEL'] ?? 'qwen3.5:9b',
+              model: process.env['MEMORY_CORE_GEN_MODEL'] ?? 'qwen2.5:7b',
               logger,
             });
             logger.info(

@@ -215,8 +215,8 @@ describe('runConversationBackfill', () => {
     memDb.close();
   }, 30000);
 
-  // ── B4: progress log emitted every 100 episodes ───────────────────────────
-  test('B4: progress log is emitted at 100-episode intervals', async () => {
+  // ── B4: progress log emitted every 10 episodes ────────────────────────────
+  test('B4: progress log is emitted at 10-episode intervals', async () => {
     const memDb = await makeMemoryDb();
     const trailDb = makeTrailDb(SQL);
 
@@ -248,12 +248,12 @@ describe('runConversationBackfill', () => {
     expect(result.status).toBe('success');
     expect(result.items_processed).toBe(100);
 
-    // Should have logged exactly 1 progress message at episode 100
+    // PROGRESS_LOG_INTERVAL = 10 → 10 progress logs at 10, 20, ..., 100
     const progressLogs = infoMessages.filter((m) =>
-      m.includes('[memory] backfill progress:')
+      m.includes('[memory-core] backfill progress:')
     );
-    expect(progressLogs).toHaveLength(1);
-    expect(progressLogs[0]).toContain('100 episodes processed');
+    expect(progressLogs).toHaveLength(10);
+    expect(progressLogs[progressLogs.length - 1]).toContain('100/100 episodes');
 
     trailDb.close();
     memDb.close();
