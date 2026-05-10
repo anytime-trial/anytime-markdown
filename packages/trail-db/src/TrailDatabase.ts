@@ -125,6 +125,16 @@ export function stripWorktreePrefix(relPath: string): string {
   return relPath.replace(/^\.claude\/worktrees\/[^/]+\//, '');
 }
 
+/**
+ * SQL から読み出した category 値を FileAnalysisRow.category 型へ正規化する。
+ * 想定外の値は 'logic' にフォールバックする。
+ */
+function parseCategory(v: unknown): 'ui' | 'logic' | 'excluded' {
+  const s = String(v ?? 'logic');
+  if (s === 'ui' || s === 'logic' || s === 'excluded') return s;
+  return 'logic';
+}
+
 export type TemporalCouplingGranularity = 'commit' | 'session' | 'subagentType';
 export type ActivityTrendGranularity = 'commit' | 'session' | 'subagent' | 'defect';
 
@@ -6837,8 +6847,9 @@ export class TrailDatabase {
           signal_zero_coverage, signal_isolated_community,
           is_ignored, ignore_reason,
           cross_pkg_in_count, external_consumer_pkgs, total_in_count, is_barrel, centrality_score,
+          category,
           analyzed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           r.repoName, r.filePath,
           r.importanceScore, r.fanInTotal, r.cognitiveComplexityMax, r.lineCount, r.cyclomaticComplexityMax, r.functionCount,
@@ -6850,6 +6861,7 @@ export class TrailDatabase {
           r.signals.isolatedCommunity ? 1 : 0,
           r.isIgnored ? 1 : 0, r.ignoreReason,
           r.crossPkgInCount, r.externalConsumerPkgs, r.totalInCount, r.isBarrel ? 1 : 0, r.centralityScore,
+          r.category,
           r.analyzedAt,
         ],
       );
@@ -6867,6 +6879,7 @@ export class TrailDatabase {
               signal_zero_coverage, signal_isolated_community,
               is_ignored, ignore_reason,
               cross_pkg_in_count, external_consumer_pkgs, total_in_count, is_barrel, centrality_score,
+              category,
               analyzed_at
        FROM current_file_analysis WHERE repo_name = ?`,
       [repoName],
@@ -6896,7 +6909,8 @@ export class TrailDatabase {
       totalInCount: Number(r[18] ?? 0),
       isBarrel: Number(r[19] ?? 0) === 1,
       centralityScore: Number(r[20] ?? 0),
-      analyzedAt: String(r[21] ?? ''),
+      category: parseCategory(r[21]),
+      analyzedAt: String(r[22] ?? ''),
     }));
   }
 
@@ -6919,8 +6933,9 @@ export class TrailDatabase {
           signal_zero_coverage, signal_isolated_community,
           is_ignored, ignore_reason,
           cross_pkg_in_count, external_consumer_pkgs, total_in_count, is_barrel, centrality_score,
+          category,
           analyzed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           releaseTag, r.repoName, r.filePath,
           r.importanceScore, r.fanInTotal, r.cognitiveComplexityMax, r.lineCount, r.cyclomaticComplexityMax, r.functionCount,
@@ -6932,6 +6947,7 @@ export class TrailDatabase {
           r.signals.isolatedCommunity ? 1 : 0,
           r.isIgnored ? 1 : 0, r.ignoreReason,
           r.crossPkgInCount, r.externalConsumerPkgs, r.totalInCount, r.isBarrel ? 1 : 0, r.centralityScore,
+          r.category,
           r.analyzedAt,
         ],
       );
@@ -6948,6 +6964,7 @@ export class TrailDatabase {
               signal_zero_coverage, signal_isolated_community,
               is_ignored, ignore_reason,
               cross_pkg_in_count, external_consumer_pkgs, total_in_count, is_barrel, centrality_score,
+              category,
               analyzed_at
        FROM release_file_analysis WHERE release_tag = ? AND repo_name = ?`,
       [releaseTag, repoName],
@@ -6977,7 +6994,8 @@ export class TrailDatabase {
       totalInCount: Number(r[18] ?? 0),
       isBarrel: Number(r[19] ?? 0) === 1,
       centralityScore: Number(r[20] ?? 0),
-      analyzedAt: String(r[21] ?? ''),
+      category: parseCategory(r[21]),
+      analyzedAt: String(r[22] ?? ''),
     }));
   }
 
@@ -7642,13 +7660,14 @@ export class TrailDatabase {
     cross_pkg_in_count: number; external_consumer_pkgs: number; total_in_count: number; is_barrel: number; centrality_score: number;
     analyzed_at: string;
     line_count: number; cyclomatic_complexity_max: number;
+    category: string;
   }> {
     const db = this.ensureDb();
     const result = db.exec(
       `SELECT repo_name, file_path, importance_score, fan_in_total, cognitive_complexity_max, function_count,
               dead_code_score, signal_orphan, signal_fan_in_zero, signal_no_recent_churn,
               signal_zero_coverage, signal_isolated_community, is_ignored, ignore_reason, analyzed_at,
-              line_count, cyclomatic_complexity_max
+              line_count, cyclomatic_complexity_max, category
        FROM current_file_analysis`,
     );
     const values = result[0]?.values ?? [];
@@ -7675,6 +7694,7 @@ export class TrailDatabase {
       analyzed_at: String(r[14] ?? ''),
       line_count: Number(r[15] ?? 0),
       cyclomatic_complexity_max: Number(r[16] ?? 0),
+      category: parseCategory(r[17]),
     }));
   }
 
@@ -7688,13 +7708,14 @@ export class TrailDatabase {
     cross_pkg_in_count: number; external_consumer_pkgs: number; total_in_count: number; is_barrel: number; centrality_score: number;
     analyzed_at: string;
     line_count: number; cyclomatic_complexity_max: number;
+    category: string;
   }> {
     const db = this.ensureDb();
     const result = db.exec(
       `SELECT release_tag, repo_name, file_path, importance_score, fan_in_total, cognitive_complexity_max, function_count,
               dead_code_score, signal_orphan, signal_fan_in_zero, signal_no_recent_churn,
               signal_zero_coverage, signal_isolated_community, is_ignored, ignore_reason, analyzed_at,
-              line_count, cyclomatic_complexity_max
+              line_count, cyclomatic_complexity_max, category
        FROM release_file_analysis`,
     );
     const values = result[0]?.values ?? [];
@@ -7722,6 +7743,7 @@ export class TrailDatabase {
       analyzed_at: String(r[15] ?? ''),
       line_count: Number(r[16] ?? 0),
       cyclomatic_complexity_max: Number(r[17] ?? 0),
+      category: parseCategory(r[18]),
     }));
   }
 
