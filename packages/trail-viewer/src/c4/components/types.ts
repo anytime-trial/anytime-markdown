@@ -11,6 +11,7 @@ import type {
   FeatureMatrix,
   ImportanceMatrix,
   ManualGroup,
+  RoleMatrix,
 } from '@anytime-markdown/trail-core/c4';
 
 import type { FileAnalysisApiEntry } from '../hooks/fetchFileAnalysisApi';
@@ -29,6 +30,7 @@ export interface C4ViewerCoreProps {
   readonly importanceMatrix?: ImportanceMatrix | null;
   readonly deadCodeMatrix?: Record<string, number> | null;
   readonly centralityMatrix?: CentralityMatrix | null;
+  readonly roleMatrix?: RoleMatrix | null;
   readonly fileAnalysisEntries?: readonly FileAnalysisApiEntry[];
   readonly docLinks?: readonly DocLink[];
   readonly connected?: boolean;

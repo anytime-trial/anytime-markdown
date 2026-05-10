@@ -16,6 +16,7 @@ import type {
   FeatureMatrix,
   ImportanceMatrix,
   ManualGroup,
+  RoleMatrix,
 } from '@anytime-markdown/trail-core/c4';
 
 import {
@@ -59,6 +60,7 @@ interface C4DataSourceResult {
   importanceMatrix: ImportanceMatrix | null;
   deadCodeMatrix: Record<string, number> | null;
   centralityMatrix: CentralityMatrix | null;
+  roleMatrix: RoleMatrix | null;
   fileAnalysisEntries: readonly FileAnalysisApiEntry[];
   docLinks: readonly DocLink[];
   dsmMatrix: DsmMatrix | null;
@@ -100,6 +102,7 @@ export function useC4DataSource(serverUrl: string, disableWebSocket = false): C4
   const [importanceMatrix, setImportanceMatrix] = useState<ImportanceMatrix | null>(null);
   const [deadCodeMatrix, setDeadCodeMatrix] = useState<Record<string, number> | null>(null);
   const [centralityMatrix, setCentralityMatrix] = useState<CentralityMatrix | null>(null);
+  const [roleMatrix, setRoleMatrix] = useState<RoleMatrix | null>(null);
   const [fileAnalysisEntries, setFileAnalysisEntries] = useState<readonly FileAnalysisApiEntry[]>([]);
   const [analysisCompleteCounter, setAnalysisCompleteCounter] = useState(0);
   const [dsmMatrix, setDsmMatrix] = useState<DsmMatrix | null>(null);
@@ -268,12 +271,14 @@ export function useC4DataSource(serverUrl: string, disableWebSocket = false): C4
           setImportanceMatrix(null);
           setDeadCodeMatrix(null);
           setCentralityMatrix(null);
+          setRoleMatrix(null);
           setFileAnalysisEntries([]);
           return;
         }
         setImportanceMatrix(r.elementMatrix.importance);
         setDeadCodeMatrix(r.elementMatrix.deadCodeScore);
         setCentralityMatrix(r.elementMatrix.centrality);
+        setRoleMatrix(r.elementMatrix.functionRoles);
         setFileAnalysisEntries(r.entries);
       } catch (err) {
         if ((err as { name?: string }).name === 'AbortError') return;
@@ -310,6 +315,7 @@ export function useC4DataSource(serverUrl: string, disableWebSocket = false): C4
     importanceMatrix,
     deadCodeMatrix,
     centralityMatrix,
+    roleMatrix,
     fileAnalysisEntries,
     docLinks,
     dsmMatrix,

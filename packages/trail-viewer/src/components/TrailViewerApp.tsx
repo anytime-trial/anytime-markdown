@@ -226,6 +226,7 @@ export function TrailViewerApp({
     importanceMatrix: c4.importanceMatrix,
     deadCodeMatrix: c4.deadCodeMatrix,
     centralityMatrix: c4.centralityMatrix,
+    roleMatrix: c4.roleMatrix,
     fileAnalysisEntries: c4.fileAnalysisEntries,
     docLinks: c4.docLinks,
     connected: c4.connected,

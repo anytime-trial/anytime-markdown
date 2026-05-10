@@ -1,4 +1,4 @@
-import type { ImportanceMatrix, CentralityMatrix } from '@anytime-markdown/trail-core/c4';
+import type { CentralityMatrix, ImportanceMatrix, RoleMatrix } from '@anytime-markdown/trail-core/c4';
 
 export interface DeadCodeSignalsApi {
   readonly orphan: boolean;
@@ -34,6 +34,7 @@ export interface FileAnalysisApiResponse {
     readonly importance: ImportanceMatrix;
     readonly deadCodeScore: Record<string, number>;
     readonly centrality: CentralityMatrix;
+    readonly functionRoles: RoleMatrix;
   };
 }
 
