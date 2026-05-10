@@ -1444,6 +1444,27 @@ export class TrailDatabase {
     db.run(CREATE_RELEASE_FILE_ANALYSIS);
     db.run(CREATE_CURRENT_FUNCTION_ANALYSIS);
     db.run(CREATE_RELEASE_FUNCTION_ANALYSIS);
+    // architectural centrality 関連カラムの追加。既存 DB に対して
+    // CREATE TABLE IF NOT EXISTS は no-op になるため ALTER TABLE で補う。
+    // CHECK 制約は ALTER ADD COLUMN では付かないが、insert 経路は trail-core の型で守る。
+    for (const sql of [
+      'ALTER TABLE current_file_analysis ADD COLUMN cross_pkg_in_count INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE current_file_analysis ADD COLUMN external_consumer_pkgs INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE current_file_analysis ADD COLUMN total_in_count INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE current_file_analysis ADD COLUMN is_barrel INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE current_file_analysis ADD COLUMN centrality_score REAL NOT NULL DEFAULT 0',
+      'ALTER TABLE release_file_analysis ADD COLUMN cross_pkg_in_count INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE release_file_analysis ADD COLUMN external_consumer_pkgs INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE release_file_analysis ADD COLUMN total_in_count INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE release_file_analysis ADD COLUMN is_barrel INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE release_file_analysis ADD COLUMN centrality_score REAL NOT NULL DEFAULT 0',
+      'ALTER TABLE current_function_analysis ADD COLUMN fan_out INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE current_function_analysis ADD COLUMN distinct_callees INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE release_function_analysis ADD COLUMN fan_out INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE release_function_analysis ADD COLUMN distinct_callees INTEGER NOT NULL DEFAULT 0',
+    ]) {
+      try { db.run(sql); } catch { /* Column already exists */ }
+    }
     for (const idx of CREATE_FILE_ANALYSIS_INDEXES) {
       db.run(idx);
     }
