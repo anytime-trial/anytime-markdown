@@ -105,7 +105,7 @@ export async function extractFactsFromEpisode(opts: {
 
   let responseText: string;
   try {
-    const result = await ollama.generate({ model, prompt, format: 'json', options: { think: false } });
+    const result = await ollama.generate({ model, prompt, format: 'json' });
     responseText = result.response;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

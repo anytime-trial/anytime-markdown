@@ -63,7 +63,9 @@ export function buildConversationPrompt(episode: EpisodeInput): string {
     OUTPUT_INSTRUCTIONS,
   ].join('\n\n');
 
-  return `${systemPrompt}\n\n${episode.raw_excerpt}`;
+  // /no_think disables thinking mode at the model level (Qwen3 etc.) without
+  // relying on the Ollama-version-specific `think: false` API parameter.
+  return `/no_think\n\n${systemPrompt}\n\n${episode.raw_excerpt}`;
 }
 
 export function buildConversationPromptNoQuestion(episode: EpisodeInput): string {
@@ -73,5 +75,5 @@ export function buildConversationPromptNoQuestion(episode: EpisodeInput): string
     OUTPUT_INSTRUCTIONS,
   ].join('\n\n');
 
-  return `${systemPrompt}\n\n${episode.raw_excerpt}`;
+  return `/no_think\n\n${systemPrompt}\n\n${episode.raw_excerpt}`;
 }

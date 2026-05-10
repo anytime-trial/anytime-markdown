@@ -44,7 +44,7 @@ export async function refineCategories(input: {
 
     llm_calls++;
     try {
-      const result = await ollama.generate({ model, prompt, format: 'json', options: { think: false } });
+      const result = await ollama.generate({ model, prompt, format: 'json' });
       const parsed = JSON.parse(result.response);
       const validated = LLMResultSchema.parse(parsed);
       finding.category = validated.category;
