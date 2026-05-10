@@ -91,6 +91,7 @@ jest.mock("../utils/tableHelpers", () => ({
 
 jest.mock("@anytime-markdown/spreadsheet-viewer", () => ({
   SpreadsheetGrid: () => <div data-testid="spreadsheet-grid" />,
+  SpreadsheetI18nProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 import { TableNodeView } from "../TableNodeView";

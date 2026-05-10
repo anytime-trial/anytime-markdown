@@ -1,7 +1,7 @@
 "use client";
 
 import { Box, CircularProgress, Typography } from '@mui/material';
-import { useTranslations } from 'next-intl';
+import { useMarkdownT } from '../../i18n/context';
 
 type FullPageLoaderProps = {
   minHeight?: string;
@@ -9,7 +9,7 @@ type FullPageLoaderProps = {
 };
 
 const FullPageLoader: React.FC<FullPageLoaderProps> = ({ minHeight = '60vh', ariaLabel }) => {
-  const t = useTranslations('Common');
+  const t = useMarkdownT('Common');
   return (
     <Box role="status" sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight, gap: 2 }}>
       <CircularProgress aria-label={ariaLabel ?? t('loading')} />

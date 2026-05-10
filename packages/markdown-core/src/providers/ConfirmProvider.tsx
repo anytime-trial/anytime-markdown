@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from 'next-intl';
+import { useMarkdownT } from '../i18n/context';
 import React, { useCallback, useMemo, useState } from 'react';
 
 import ConfirmDialog from './ConfirmDialog';
@@ -28,7 +28,7 @@ export const ConfirmProvider = ({
 }: {
   children: React.ReactNode
 }): React.JSX.Element => {
-  const tc = useTranslations("Common");
+  const tc = useMarkdownT("Common");
   const [options, setOptions] = useState<DialogOptions>({ ...DEFAULT_OPTIONS });
   const [resolverFunctions, setResolverFunctions] = useState<[() => void, () => void] | []>([]);
   const [resolve, reject] = resolverFunctions;

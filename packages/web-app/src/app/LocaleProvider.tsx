@@ -1,8 +1,8 @@
 'use client';
 
-import { databaseViewerEnMessages, databaseViewerJaMessages } from '@anytime-markdown/database-viewer';
+import { DatabaseI18nProvider } from '@anytime-markdown/database-viewer';
 import { GraphI18nProvider } from '@anytime-markdown/graph-viewer';
-import { messagesEn as enMessages, messagesJa as jaMessages } from '@anytime-markdown/markdown-core';
+import { MarkdownCoreI18nProvider } from '@anytime-markdown/markdown-core';
 import { SpreadsheetI18nProvider } from '@anytime-markdown/spreadsheet-viewer';
 import { NextIntlClientProvider } from 'next-intl';
 import { createContext, useCallback, useContext, useEffect, useMemo,useState } from 'react';
@@ -12,17 +12,10 @@ import pressJaMessages from './press/i18n/ja.json';
 
 type Locale = 'ja' | 'en';
 
-const mergedJa = {
-  ...jaMessages,
-  ...databaseViewerJaMessages,
-  press: pressJaMessages,
+const messages: Record<Locale, { press: typeof pressJaMessages }> = {
+  ja: { press: pressJaMessages },
+  en: { press: pressEnMessages },
 };
-const mergedEn = {
-  ...enMessages,
-  ...databaseViewerEnMessages,
-  press: pressEnMessages,
-};
-const messages: Record<Locale, typeof mergedJa> = { ja: mergedJa, en: mergedEn };
 
 interface LocaleContextValue {
   locale: Locale;
@@ -75,13 +68,17 @@ export function LocaleProvider({ serverLocale, children }: Readonly<LocaleProvid
 
   return (
     <LocaleContext.Provider value={ctx}>
-      <SpreadsheetI18nProvider locale={locale}>
-        <GraphI18nProvider locale={locale}>
-          <NextIntlClientProvider locale={locale} messages={messages[locale]} timeZone="UTC">
-            {children}
-          </NextIntlClientProvider>
-        </GraphI18nProvider>
-      </SpreadsheetI18nProvider>
+      <MarkdownCoreI18nProvider locale={locale}>
+        <SpreadsheetI18nProvider locale={locale}>
+          <GraphI18nProvider locale={locale}>
+            <DatabaseI18nProvider locale={locale}>
+              <NextIntlClientProvider locale={locale} messages={messages[locale]} timeZone="UTC">
+                {children}
+              </NextIntlClientProvider>
+            </DatabaseI18nProvider>
+          </GraphI18nProvider>
+        </SpreadsheetI18nProvider>
+      </MarkdownCoreI18nProvider>
     </LocaleContext.Provider>
   );
 }

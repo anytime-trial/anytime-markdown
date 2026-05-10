@@ -1,5 +1,5 @@
 import type { Editor } from "@tiptap/react";
-import { useTranslations } from "next-intl";
+import { useMarkdownT } from "../i18n/context";
 import type { Dispatch, SetStateAction } from "react";
 import { useCallback, useRef } from "react";
 
@@ -58,7 +58,7 @@ export function useEditorFileOps({
   const { notification, setNotification, showNotification } = useNotification();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const confirm = useConfirm();
-  const t = useTranslations("MarkdownEditor");
+  const t = useMarkdownT("MarkdownEditor");
 
   /** エディタからフロントマター付き Markdown を取得する */
   const getFullMarkdown = useCallback(() => {

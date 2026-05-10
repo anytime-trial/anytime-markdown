@@ -1,12 +1,7 @@
 import { CssBaseline, ThemeProvider, createTheme } from "@mui/material";
-import { NextIntlClientProvider } from "next-intl";
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import {
-  DatabaseEditor,
-  databaseViewerEnMessages,
-  databaseViewerJaMessages,
-} from "@anytime-markdown/database-viewer";
+import { DatabaseEditor } from "@anytime-markdown/database-viewer";
 import { RemoteDatabaseAdapter } from "@anytime-markdown/database-core/RemoteDatabaseAdapter";
 import type {
   ExtToWvMessage,
@@ -78,25 +73,17 @@ const App: React.FC = () => {
       themeMode={isDark ? "dark" : "light"}
       onMutationExecuted={() => vscode.postMessage({ type: "markDirty" })}
       databaseName={basename(config.fileName)}
+      locale={typeof navigator !== "undefined" && navigator.language.startsWith("ja") ? "ja" : "en"}
     />
   );
 };
 
-const lang =
-  typeof navigator !== "undefined" && navigator.language.startsWith("ja") ? "ja" : "en";
-const messages =
-  lang === "ja"
-    ? { ...databaseViewerJaMessages }
-    : { ...databaseViewerEnMessages };
-
 const rootEl = document.getElementById("root");
 if (rootEl) {
   createRoot(rootEl).render(
-    <NextIntlClientProvider locale={lang} messages={messages as Record<string, unknown>}>
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <App />
-      </ThemeProvider>
-    </NextIntlClientProvider>,
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <App />
+    </ThemeProvider>,
   );
 }

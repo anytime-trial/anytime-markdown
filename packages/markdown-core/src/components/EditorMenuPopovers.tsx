@@ -20,7 +20,7 @@ import {
   useTheme,
 } from "@mui/material";
 import type { Editor } from "@tiptap/react";
-import { useLocale } from "next-intl";
+import { useMarkdownLocale } from "../i18n/context";
 import React, { useMemo } from "react";
 
 import { getDivider } from "../constants/colors";
@@ -106,7 +106,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
   onOpenSettings,
   t,
 }: EditorMenuPopoversProps) {
-  const locale = useLocale();
+  const locale = useMarkdownLocale();
   const isDark = useTheme().palette.mode === "dark";
   const builtinTemplates = useMemo(() => getBuiltinTemplates(locale), [locale]);
 

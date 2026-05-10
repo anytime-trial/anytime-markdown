@@ -11,7 +11,7 @@ import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { Box, Divider, IconButton, Tooltip, Typography, useTheme } from "@mui/material";
 import type { NodeViewProps } from "@tiptap/react";
 import { NodeViewWrapper } from "@tiptap/react";
-import { useTranslations } from "next-intl";
+import { useMarkdownT } from "./i18n/context";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AnnotationOverlay } from "./components/AnnotationOverlay";
@@ -447,7 +447,7 @@ function buildImageActions(
 }
 
 export function ImageNodeView({ editor, node, updateAttributes, getPos }: Readonly<NodeViewProps>) {
-  const t = useTranslations("MarkdownEditor");
+  const t = useMarkdownT("MarkdownEditor");
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const {

@@ -1,5 +1,3 @@
-import { databaseViewerEnMessages, databaseViewerJaMessages } from '@anytime-markdown/database-viewer';
-import { messagesEn as enMessages, messagesJa as jaMessages } from '@anytime-markdown/markdown-core';
 import { cookies } from 'next/headers';
 import { getRequestConfig } from 'next-intl/server';
 
@@ -10,16 +8,8 @@ const supportedLocales = ['ja', 'en'] as const;
 type Locale = (typeof supportedLocales)[number];
 const defaultLocale: Locale = 'ja';
 
-const mergedJa = {
-  ...jaMessages,
-  ...databaseViewerJaMessages,
-  press: pressJaMessages,
-};
-const mergedEn = {
-  ...enMessages,
-  ...databaseViewerEnMessages,
-  press: pressEnMessages,
-};
+const mergedJa = { press: pressJaMessages };
+const mergedEn = { press: pressEnMessages };
 const messagesByLocale: Record<Locale, typeof mergedJa> = { ja: mergedJa, en: mergedEn };
 
 export default getRequestConfig(async () => {

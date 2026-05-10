@@ -13,7 +13,7 @@ import { Box, Button, Dialog, DialogActions, DialogContent, DialogContentText, D
 import type { Fragment } from "@tiptap/pm/model";
 import type { Editor, NodeViewProps } from "@tiptap/react";
 import { NodeViewContent, NodeViewWrapper } from "@tiptap/react";
-import { useTranslations } from "next-intl";
+import { useMarkdownT } from "./i18n/context";
 import { useCallback, useMemo, useRef, useState } from "react";
 
 import { BlockInlineToolbar } from "./components/codeblock/BlockInlineToolbar";
@@ -440,7 +440,7 @@ function buildDialogPaperProps(
 }
 
 export function TableNodeView({ editor, node, getPos }: Readonly<NodeViewProps>) {
-  const t = useTranslations("MarkdownEditor");
+  const t = useMarkdownT("MarkdownEditor");
   const isDark = useTheme().palette.mode === "dark";
   const settings = useEditorSettingsContext();
   const {
