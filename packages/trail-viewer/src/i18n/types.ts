@@ -258,6 +258,14 @@ export interface TrailI18n {
   'c4.overlayHelp.size.description': string;
   'c4.overlayHelp.architectureUi': string;
   'c4.overlayHelp.architectureUi.description': string;
+  'c4.overlay.groupStructure': string;
+  'c4.overlay.functionRoles': string;
+  'c4.overlayHelp.functionRoles': string;
+  'c4.overlayHelp.functionRoles.description': string;
+  'c4.functionRole.hub': string;
+  'c4.functionRole.orchestrator': string;
+  'c4.functionRole.leaf': string;
+  'c4.functionRole.peripheral': string;
   'c4.hotspot.controls.period': string;
   'c4.hotspot.controls.granularity': string;
   'c4.hotspot.controls.granularityCommit': string;

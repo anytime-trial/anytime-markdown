@@ -6,6 +6,7 @@ export type OverlayCategory =
   | 'dsm'
   | 'edit-complexity'
   | 'importance'
+  | 'structure'
   | 'hotspot'
   | 'dead-code'
   | 'size'
@@ -16,6 +17,7 @@ export const OVERLAY_CATEGORY_DEFAULTS: Record<Exclude<OverlayCategory, 'none'>,
   dsm: 'dsm-cyclic',
   'edit-complexity': 'edit-complexity-most',
   importance: 'importance',
+  structure: 'centrality',
   hotspot: 'hotspot-frequency',
   'dead-code': 'dead-code-score',
   size: 'size-loc',

@@ -1,4 +1,4 @@
-import { Box, Tooltip, Typography } from '@mui/material';
+import { Box, Stack, Tooltip, Typography } from '@mui/material';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import type { MetricOverlay } from '@anytime-markdown/trail-core/c4';
 import { getC4Colors } from '../../../theme/c4Tokens';
@@ -45,6 +45,8 @@ function getOverlayHelpKeys(
       return { titleKey: 'c4.overlayHelp.size', descKey: 'c4.overlayHelp.size.description' };
     case 'architecture-ui':
       return { titleKey: 'c4.overlayHelp.architectureUi', descKey: 'c4.overlayHelp.architectureUi.description' };
+    case 'function-roles':
+      return { titleKey: 'c4.overlayHelp.functionRoles', descKey: 'c4.overlayHelp.functionRoles.description' };
     case 'none':
     case 'fcmap':
       return null;
@@ -278,6 +280,7 @@ function getOverlayMetricItems(
   dsmMax: number | undefined,
   sizeMax: number | undefined,
   textColor: string,
+  t: (key: TrailI18nKey) => string,
 ): React.ReactNode {
   switch (overlay) {
     case 'coverage-lines':
@@ -388,6 +391,15 @@ function getOverlayMetricItems(
           textColor={textColor}
         />
       );
+    case 'function-roles':
+      return (
+        <Stack direction="row" spacing={1} flexWrap="wrap">
+          <Swatch color="#c62828" label={t('c4.functionRole.hub')} />
+          <Swatch color="#f9a825" label={t('c4.functionRole.orchestrator')} />
+          <Swatch color="#2e7d32" label={t('c4.functionRole.leaf')} />
+          <Swatch color="#9e9e9e" label={t('c4.functionRole.peripheral')} />
+        </Stack>
+      );
     case 'none':
     case 'fcmap':
       return null;
@@ -397,6 +409,7 @@ function getOverlayMetricItems(
 }
 
 export function OverlayLegend({ overlay, isDark, dsmMax, sizeMax, communityLegend, communityTitle, inline }: Readonly<OverlayLegendProps>) {
+  const { t } = useTrailI18n();
   const hasCommunity = !!communityLegend && communityLegend.length > 0;
   const hasMetric = overlay !== 'none';
   if (!hasCommunity && !hasMetric) return null;
@@ -406,7 +419,7 @@ export function OverlayLegend({ overlay, isDark, dsmMax, sizeMax, communityLegen
   const textColor = colors.overlayLegendText;
   const dividerColor = colors.border;
 
-  const metricItems = hasMetric ? getOverlayMetricItems(overlay, dsmMax, sizeMax, textColor) : null;
+  const metricItems = hasMetric ? getOverlayMetricItems(overlay, dsmMax, sizeMax, textColor, t) : null;
 
   const positionSx = inline
     ? {}
