@@ -228,6 +228,7 @@ export function TrailViewerApp({
     centralityMatrix: c4.centralityMatrix,
     roleMatrix: c4.roleMatrix,
     fileAnalysisEntries: c4.fileAnalysisEntries,
+    functionAnalysisEntries: c4.functionAnalysisEntries,
     docLinks: c4.docLinks,
     connected: c4.connected,
     analysisProgress: c4.analysisProgress,

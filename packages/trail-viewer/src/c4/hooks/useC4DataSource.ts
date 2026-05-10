@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { FileAnalysisApiEntry } from './fetchFileAnalysisApi';
 import { fetchFileAnalysis } from './fetchFileAnalysisApi';
+import type { FunctionAnalysisApiEntry } from './fetchFunctionAnalysisApi';
+import { fetchFunctionAnalysis } from './fetchFunctionAnalysisApi';
 
 import type {
   BoundaryInfo,
@@ -62,6 +64,7 @@ interface C4DataSourceResult {
   centralityMatrix: CentralityMatrix | null;
   roleMatrix: RoleMatrix | null;
   fileAnalysisEntries: readonly FileAnalysisApiEntry[];
+  functionAnalysisEntries: readonly FunctionAnalysisApiEntry[];
   docLinks: readonly DocLink[];
   dsmMatrix: DsmMatrix | null;
   connected: boolean;
@@ -104,6 +107,7 @@ export function useC4DataSource(serverUrl: string, disableWebSocket = false): C4
   const [centralityMatrix, setCentralityMatrix] = useState<CentralityMatrix | null>(null);
   const [roleMatrix, setRoleMatrix] = useState<RoleMatrix | null>(null);
   const [fileAnalysisEntries, setFileAnalysisEntries] = useState<readonly FileAnalysisApiEntry[]>([]);
+  const [functionAnalysisEntries, setFunctionAnalysisEntries] = useState<readonly FunctionAnalysisApiEntry[]>([]);
   const [analysisCompleteCounter, setAnalysisCompleteCounter] = useState(0);
   const [dsmMatrix, setDsmMatrix] = useState<DsmMatrix | null>(null);
   const [docLinks, setDocLinks] = useState<readonly DocLink[]>([]);
@@ -289,6 +293,25 @@ export function useC4DataSource(serverUrl: string, disableWebSocket = false): C4
     return () => ctrl.abort();
   }, [serverUrl, selectedRepo, selectedRelease, analysisCompleteCounter]);
 
+  // REST fetch: function-analysis (per-function fanIn / fanOut / role)
+  useEffect(() => {
+    if (!selectedRepo) return;
+    const ctrl = new AbortController();
+    void (async () => {
+      try {
+        const tag = selectedRelease || 'current';
+        const r = await fetchFunctionAnalysis(serverUrl, selectedRepo, tag, ctrl.signal);
+        setFunctionAnalysisEntries(r?.entries ?? []);
+      } catch (err) {
+        if ((err as { name?: string }).name === 'AbortError') return;
+        // eslint-disable-next-line no-console
+        console.error('[useC4DataSource] fetchFunctionAnalysis failed', err);
+        setFunctionAnalysisEntries([]);
+      }
+    })();
+    return () => ctrl.abort();
+  }, [serverUrl, selectedRepo, selectedRelease, analysisCompleteCounter]);
+
   // sendCommand
   const sendCommand = useCallback(
     (cmd: string, payload?: unknown) => {
@@ -317,6 +340,7 @@ export function useC4DataSource(serverUrl: string, disableWebSocket = false): C4
     centralityMatrix,
     roleMatrix,
     fileAnalysisEntries,
+    functionAnalysisEntries,
     docLinks,
     dsmMatrix,
     connected,

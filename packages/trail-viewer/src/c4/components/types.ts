@@ -15,6 +15,7 @@ import type {
 } from '@anytime-markdown/trail-core/c4';
 
 import type { FileAnalysisApiEntry } from '../hooks/fetchFileAnalysisApi';
+import type { FunctionAnalysisApiEntry } from '../hooks/fetchFunctionAnalysisApi';
 
 import type { ElementFormData, RelationshipFormData } from './dialogs/C4EditDialogs';
 
@@ -32,6 +33,7 @@ export interface C4ViewerCoreProps {
   readonly centralityMatrix?: CentralityMatrix | null;
   readonly roleMatrix?: RoleMatrix | null;
   readonly fileAnalysisEntries?: readonly FileAnalysisApiEntry[];
+  readonly functionAnalysisEntries?: readonly FunctionAnalysisApiEntry[];
   readonly docLinks?: readonly DocLink[];
   readonly connected?: boolean;
   readonly analysisProgress?: { phase: string; percent: number } | null;
