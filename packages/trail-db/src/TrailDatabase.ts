@@ -7024,15 +7024,15 @@ export class TrailDatabase {
           end_line, language, fan_in, cognitive_complexity, cyclomatic_complexity,
           data_mutation_score, side_effect_score, line_count,
           importance_score, signal_fan_in_zero,
-          fan_out, distinct_callees,
+          fan_out, distinct_callees, function_role,
           analyzed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           r.repoName, r.filePath, r.functionName, r.startLine,
           r.endLine, r.language, r.fanIn, r.cognitiveComplexity, r.cyclomaticComplexity,
           r.dataMutationScore, r.sideEffectScore, r.lineCount,
           r.importanceScore, r.signalFanInZero ? 1 : 0,
-          r.fanOut, r.distinctCallees,
+          r.fanOut, r.distinctCallees, r.functionRole,
           r.analyzedAt,
         ],
       );
@@ -7047,7 +7047,7 @@ export class TrailDatabase {
               end_line, language, fan_in, cognitive_complexity, cyclomatic_complexity,
               data_mutation_score, side_effect_score, line_count,
               importance_score, signal_fan_in_zero,
-              fan_out, distinct_callees,
+              fan_out, distinct_callees, function_role,
               analyzed_at
        FROM current_function_analysis WHERE repo_name = ?`,
       [repoName],
@@ -7070,7 +7070,8 @@ export class TrailDatabase {
       signalFanInZero: Number(r[13] ?? 0) === 1,
       fanOut: Number(r[14] ?? 0),
       distinctCallees: Number(r[15] ?? 0),
-      analyzedAt: String(r[16] ?? ''),
+      functionRole: (['hub', 'leaf', 'orchestrator', 'peripheral'].includes(String(r[16] ?? '')) ? String(r[16]) : 'peripheral') as 'hub' | 'leaf' | 'orchestrator' | 'peripheral',
+      analyzedAt: String(r[17] ?? ''),
     }));
   }
 
@@ -7090,15 +7091,15 @@ export class TrailDatabase {
           end_line, language, fan_in, cognitive_complexity, cyclomatic_complexity,
           data_mutation_score, side_effect_score, line_count,
           importance_score, signal_fan_in_zero,
-          fan_out, distinct_callees,
+          fan_out, distinct_callees, function_role,
           analyzed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           releaseTag, r.repoName, r.filePath, r.functionName, r.startLine,
           r.endLine, r.language, r.fanIn, r.cognitiveComplexity, r.cyclomaticComplexity,
           r.dataMutationScore, r.sideEffectScore, r.lineCount,
           r.importanceScore, r.signalFanInZero ? 1 : 0,
-          r.fanOut, r.distinctCallees,
+          r.fanOut, r.distinctCallees, r.functionRole,
           r.analyzedAt,
         ],
       );
@@ -7113,7 +7114,7 @@ export class TrailDatabase {
               end_line, language, fan_in, cognitive_complexity, cyclomatic_complexity,
               data_mutation_score, side_effect_score, line_count,
               importance_score, signal_fan_in_zero,
-              fan_out, distinct_callees,
+              fan_out, distinct_callees, function_role,
               analyzed_at
        FROM release_function_analysis WHERE release_tag = ? AND repo_name = ?`,
       [releaseTag, repoName],
@@ -7136,7 +7137,8 @@ export class TrailDatabase {
       signalFanInZero: Number(r[13] ?? 0) === 1,
       fanOut: Number(r[14] ?? 0),
       distinctCallees: Number(r[15] ?? 0),
-      analyzedAt: String(r[16] ?? ''),
+      functionRole: (['hub', 'leaf', 'orchestrator', 'peripheral'].includes(String(r[16] ?? '')) ? String(r[16]) : 'peripheral') as 'hub' | 'leaf' | 'orchestrator' | 'peripheral',
+      analyzedAt: String(r[17] ?? ''),
     }));
   }
 

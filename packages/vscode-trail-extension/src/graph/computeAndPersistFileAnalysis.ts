@@ -44,7 +44,8 @@ import type {
 } from '@anytime-markdown/trail-core/deadCode';
 import type { ScoredFunction } from '@anytime-markdown/trail-core/importance';
 import type { CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
-import { computeCentrality } from '@anytime-markdown/trail-core/centrality';
+import { computeCentrality, classifyFunctionRoles } from '@anytime-markdown/trail-core/centrality';
+import type { FunctionRole } from '@anytime-markdown/trail-core/centrality';
 import type { FileCategory } from '@anytime-markdown/trail-core/classify';
 
 export interface ComputeAndPersistFileAnalysisOpts {
@@ -244,25 +245,45 @@ export async function computeAndPersistFileAnalysis(
   }
 
   // 9. FunctionAnalysisRow を構築（filePath を相対パスに変換）
-  const functionRows: FunctionAnalysisRow[] = scored.map((fn) => ({
-    repoName,
-    filePath: path.relative(analysisRoot, fn.filePath),
-    functionName: fn.name,
-    startLine: fn.startLine,
-    endLine: fn.endLine,
-    language: fn.language,
-    fanIn: fn.metrics.fanIn,
-    cognitiveComplexity: fn.metrics.cognitiveComplexity,
-    cyclomaticComplexity: fn.metrics.cyclomaticComplexity,
-    dataMutationScore: fn.metrics.dataMutationScore,
-    sideEffectScore: fn.metrics.sideEffectScore,
-    lineCount: fn.metrics.lineCount,
-    importanceScore: fn.importanceScore,
-    signalFanInZero: fn.metrics.fanIn === 0,
-    fanOut: fn.metrics.fanOut,
-    distinctCallees: fn.metrics.distinctCallees,
-    analyzedAt,
-  }));
+  // 9a. classifyFunctionRoles で全関数の role を計算
+  const classifiedFunctions = classifyFunctionRoles(
+    scored.map((fn) => ({
+      filePath: path.relative(analysisRoot, fn.filePath),
+      functionName: fn.name,
+      fanIn: fn.metrics.fanIn,
+      fanOut: fn.metrics.fanOut,
+    })),
+  );
+  // 9b. filePath::functionName をキーにした role マップ
+  const roleMap = new Map<string, FunctionRole>();
+  for (const cf of classifiedFunctions) {
+    roleMap.set(`${cf.filePath}::${cf.functionName}`, cf.role);
+  }
+
+  const functionRows: FunctionAnalysisRow[] = scored.map((fn) => {
+    const relFilePath = path.relative(analysisRoot, fn.filePath);
+    const roleKey = `${relFilePath}::${fn.name}`;
+    return {
+      repoName,
+      filePath: relFilePath,
+      functionName: fn.name,
+      startLine: fn.startLine,
+      endLine: fn.endLine,
+      language: fn.language,
+      fanIn: fn.metrics.fanIn,
+      cognitiveComplexity: fn.metrics.cognitiveComplexity,
+      cyclomaticComplexity: fn.metrics.cyclomaticComplexity,
+      dataMutationScore: fn.metrics.dataMutationScore,
+      sideEffectScore: fn.metrics.sideEffectScore,
+      lineCount: fn.metrics.lineCount,
+      importanceScore: fn.importanceScore,
+      signalFanInZero: fn.metrics.fanIn === 0,
+      fanOut: fn.metrics.fanOut,
+      distinctCallees: fn.metrics.distinctCallees,
+      functionRole: roleMap.get(roleKey) ?? 'peripheral',
+      analyzedAt,
+    };
+  });
 
   // 10. 洗い替え方式で永続化（CLAUDE.md 21.2 Supabase / 同期方式）
   trailDb.clearCurrentFileAnalysis(repoName);

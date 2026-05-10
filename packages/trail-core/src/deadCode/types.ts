@@ -1,3 +1,5 @@
+import type { FunctionRole } from '../centrality/types';
+
 export interface DeadCodeSignals {
   readonly orphan: boolean;
   readonly fanInZero: boolean;
@@ -51,6 +53,7 @@ export interface FunctionAnalysisRow {
   readonly signalFanInZero: boolean;
   readonly fanOut: number;
   readonly distinctCallees: number;
+  readonly functionRole: FunctionRole;
   /** UTC ISO 8601 (e.g. 2026-05-05T01:23:45.000Z) */
   readonly analyzedAt: string;
 }
