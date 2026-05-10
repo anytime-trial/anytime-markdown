@@ -11,8 +11,8 @@ export interface ILanguageAdapter {
   /** 対象ファイル群から関数情報を抽出する */
   extractFunctions(filePaths: string[]): FunctionInfo[];
 
-  /** fanIn を除くメトリクスを計算する */
-  computeMetrics(fn: FunctionInfo): Omit<FunctionMetrics, 'fanIn'>;
+  /** fanIn / fanOut / distinctCallees を除くメトリクスを計算する */
+  computeMetrics(fn: FunctionInfo): Omit<FunctionMetrics, 'fanIn' | 'fanOut' | 'distinctCallees'>;
 
   /**
    * プログラム全体の CallExpression を走査し、関数ID → 呼び出し回数 のマップを返す。

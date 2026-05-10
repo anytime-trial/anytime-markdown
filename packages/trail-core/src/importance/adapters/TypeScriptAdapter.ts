@@ -331,7 +331,7 @@ export class TypeScriptAdapter implements ILanguageAdapter {
     return null;
   }
 
-  computeMetrics(fn: FunctionInfo): Omit<FunctionMetrics, 'fanIn'> {
+  computeMetrics(fn: FunctionInfo): Omit<FunctionMetrics, 'fanIn' | 'fanOut' | 'distinctCallees'> {
     const node = this.nodeCache.get(fn.id);
     if (!node) {
       return { cognitiveComplexity: 0, cyclomaticComplexity: 0, dataMutationScore: 0, sideEffectScore: 0, lineCount: 0 };
