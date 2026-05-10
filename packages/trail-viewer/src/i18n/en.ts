@@ -203,6 +203,7 @@ export const en: TrailI18n = {
   'c4.overlay.editComplexityHighest': 'Highest',
   'c4.overlay.groupImportance': 'Importance',
   'c4.overlay.importance': 'Importance score',
+  'c4.overlay.centrality': 'Architectural Centrality',
   'c4.overlay.defectRisk': 'Defect risk',
   'c4.claudeActivity.reset': 'Clear edit history',
   'c4.multiAgent.badge': 'agents',
@@ -326,6 +327,9 @@ export const en: TrailI18n = {
   'c4.overlayHelp.importance': 'Importance',
   'c4.overlayHelp.importance.description':
     'Importance score (0–100) computed from dependency relationships.\nHigh (≥70) red, medium (40–69) yellow, low (<40) green.',
+  'c4.overlayHelp.centrality': 'Architectural Centrality',
+  'c4.overlayHelp.centrality.description':
+    'Degree of cross-package fan-in (architectural centrality).\nFoundational packages depended upon by many others rank higher.\nHigh (≥70) red, medium (40–69) yellow, low (<40) green.',
   'c4.overlayHelp.defectRisk': 'Defect Risk',
   'c4.overlayHelp.defectRisk.description':
     'Defect-risk score (0–1) computed from code history (churn, co-change, author count).\nHigh (≥0.7) red, medium (0.35–0.7) yellow, low (<0.35) green.',

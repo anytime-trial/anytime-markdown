@@ -215,6 +215,7 @@ export interface TrailI18n {
   'c4.overlay.editComplexityHighest': string;
   'c4.overlay.groupImportance': string;
   'c4.overlay.importance': string;
+  'c4.overlay.centrality': string;
   'c4.overlay.defectRisk': string;
   'c4.overlay.groupHotspot': string;
   'c4.overlay.hotspotFrequency': string;
@@ -235,6 +236,8 @@ export interface TrailI18n {
   'c4.overlayHelp.editComplexity.description': string;
   'c4.overlayHelp.importance': string;
   'c4.overlayHelp.importance.description': string;
+  'c4.overlayHelp.centrality': string;
+  'c4.overlayHelp.centrality.description': string;
   'c4.overlayHelp.defectRisk': string;
   'c4.overlayHelp.defectRisk.description': string;
   'c4.overlayHelp.hotspot': string;

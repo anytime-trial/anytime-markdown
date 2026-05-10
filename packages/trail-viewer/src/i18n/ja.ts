@@ -203,6 +203,7 @@ export const ja: TrailI18n = {
   'c4.overlay.editComplexityHighest': '最高',
   'c4.overlay.groupImportance': '重要度',
   'c4.overlay.importance': '重要度スコア',
+  'c4.overlay.centrality': '構造的中心性',
   'c4.overlay.defectRisk': '欠陥リスク',
   'c4.claudeActivity.reset': '編集履歴をクリア',
   'c4.multiAgent.badge': 'agents',
@@ -326,6 +327,9 @@ export const ja: TrailI18n = {
   'c4.overlayHelp.importance': 'Importance',
   'c4.overlayHelp.importance.description':
     '依存関係から計算した重要度スコア (0–100)。\n高 (≥70) を赤、中 (40–69) を黄、低 (<40) を緑で表示。',
+  'c4.overlayHelp.centrality': '構造的中心性',
+  'c4.overlayHelp.centrality.description':
+    '他パッケージから依存される度合い (architectural centrality)。\nスコアは cross-package fan-in を中心に算出され、基盤パッケージほど高くなる。\n高 (≥70) を赤、中 (40–69) を黄、低 (<40) を緑で表示。',
   'c4.overlayHelp.defectRisk': 'Defect Risk',
   'c4.overlayHelp.defectRisk.description':
     'コード履歴 (churn・co-change・author 数) から計算した欠陥リスクスコア (0–1)。\n高 (≥0.7) を赤、中 (0.35–0.7) を黄、低 (<0.35) を緑で表示。',
