@@ -44,6 +44,11 @@ const extensionConfig = {
     ],
   },
   plugins: [
+    // VS Code extension host exposes a throwing navigator getter in Node.
+    // Supabase's environment detection must see navigator as absent.
+    new webpack.DefinePlugin({
+      navigator: 'undefined',
+    }),
     // dist/node_modules/<pkg> に native binary を含む依存ツリーを丸ごと配置する。
     // Node の標準解決で require('better-sqlite3') が dist/node_modules/better-sqlite3 に
     // hit するため、NODE_PATH の手当ては不要。

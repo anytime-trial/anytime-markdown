@@ -22,7 +22,9 @@ const extensionConfig = {
     vscode: 'commonjs vscode'
   },
   resolve: {
-    extensions: ['.ts', '.js']
+    extensions: ['.ts', '.js'],
+    // TypeScript Node16 mode uses .js extensions in imports; resolve them as .ts first.
+    extensionAlias: { '.js': ['.ts', '.js'] },
   },
   module: {
     rules: [
