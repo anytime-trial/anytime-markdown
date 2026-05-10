@@ -9,6 +9,7 @@ import { ChartsXAxis } from '@mui/x-charts/ChartsXAxis';
 import { ChartsYAxis } from '@mui/x-charts/ChartsYAxis';
 import { ChartsTooltip } from '@mui/x-charts/ChartsTooltip';
 import { ChartsGrid } from '@mui/x-charts/ChartsGrid';
+import { ChartsLegend } from '@mui/x-charts/ChartsLegend';
 import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
 import { useTrailTheme } from '../../TrailThemeContext';
 import { useTrailI18n } from '../../../i18n';
@@ -75,7 +76,7 @@ export function ReleasesLocChart({ releases }: Readonly<{ releases: readonly Tra
           { id: 'loc', valueFormatter: fmtLoc, width: 56 },
           { id: 'time', position: 'right', valueFormatter: fmtMin, width: 48 },
         ]}
-        height={280}
+        height={300}
         margin={{ left: 0, right: 0, top: 8, bottom: 60 }}
       >
         <ChartsWrapper>
@@ -89,6 +90,7 @@ export function ReleasesLocChart({ releases }: Readonly<{ releases: readonly Tra
             <ChartsYAxis axisId="time" />
           </ChartsSurface>
           <ChartsTooltip />
+          <ChartsLegend direction="horizontal" />
         </ChartsWrapper>
       </ChartsDataProvider>
     </Paper>
