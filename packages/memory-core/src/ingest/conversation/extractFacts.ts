@@ -71,7 +71,7 @@ const QuestionSchema = z.object({
 });
 
 const ExtractionResultSchema = z.object({
-  summary: z.string(),
+  summary: z.string().optional().default(''),
   entities: z.array(EntitySchema).optional().default([]),
   relations: z.array(RelationSchema).optional().default([]),
   questions: z.array(QuestionSchema).optional().default([]),
