@@ -31,6 +31,7 @@ import type {
   CommitMetric,
   DailyViewMode,
   PeriodDays,
+  ToolChartMetric,
 } from '../types';
 import { DailyActivityChart } from '../charts/DailyActivityChart';
 import { ReleasesLocChart } from '../charts/ReleasesLocChart';
@@ -82,7 +83,7 @@ export function CombinedChartsSection({
   const { t } = useTrailI18n();
   const [metric, setMetric] = useState<CombinedMetric>('tokens');
   const [tokenMode, setTokenMode] = useState<DailyViewMode>('tokens');
-  const [toolMetric, setToolMetric] = useState<ChartMetric>('count');
+  const [toolMetric, setToolMetric] = useState<ToolChartMetric>('count');
   const [modelMetric, setModelMetric] = useState<ChartMetric>('count');
   const [agentMetric, setAgentMetric] = useState<AgentMetric>('tokens');
   const [commitMetric, setCommitMetric] = useState<CommitMetric>('count');
@@ -257,9 +258,6 @@ export function CombinedChartsSection({
             <Tooltip title={t('analytics.combined.tool.description')} arrow placement="top">
               <ToggleButton value="tools" data-chart-kind="tools" sx={toggleSx}>{t('analytics.combined.tool')}</ToggleButton>
             </Tooltip>
-            <Tooltip title={t('analytics.combined.error.description')} arrow placement="top">
-              <ToggleButton value="errors" data-chart-kind="errors" sx={toggleSx}>{t('analytics.combined.error')}</ToggleButton>
-            </Tooltip>
             <Tooltip title={t('analytics.combined.repository.description')} arrow placement="top">
               <ToggleButton value="repos" data-chart-kind="repos" sx={toggleSx}>{t('analytics.combined.repository')}</ToggleButton>
             </Tooltip>
@@ -335,7 +333,7 @@ export function CombinedChartsSection({
           <ToggleButtonGroup
             value={toolMetric}
             exclusive
-            onChange={(_e, v: ChartMetric | null) => { if (v) setToolMetric(v); }}
+            onChange={(_e, v: ToolChartMetric | null) => { if (v) setToolMetric(v); }}
             size="small"
           >
             <Tooltip title={t('analytics.combined.count.description')} arrow placement="top">
@@ -343,6 +341,9 @@ export function CombinedChartsSection({
             </Tooltip>
             <Tooltip title={t('analytics.combined.tokens.description')} arrow placement="top">
               <ToggleButton value="tokens" sx={toggleSx}>{t('analytics.combined.tokens')}</ToggleButton>
+            </Tooltip>
+            <Tooltip title={t('analytics.combined.error.description')} arrow placement="top">
+              <ToggleButton value="error" sx={toggleSx}>{t('analytics.combined.error')}</ToggleButton>
             </Tooltip>
           </ToggleButtonGroup>
         )}
