@@ -234,6 +234,8 @@ export interface TrailI18n {
   'c4.overlay.sizeLoc': string;
   'c4.overlay.sizeFiles': string;
   'c4.overlay.sizeFunctions': string;
+  'c4.overlay.groupArchitecture': string;
+  'c4.overlay.architectureUi': string;
   'c4.overlayHelp.coverage': string;
   'c4.overlayHelp.coverage.description': string;
   'c4.overlayHelp.dsmNeighbors': string;
@@ -254,6 +256,8 @@ export interface TrailI18n {
   'c4.overlayHelp.deadCode.description': string;
   'c4.overlayHelp.size': string;
   'c4.overlayHelp.size.description': string;
+  'c4.overlayHelp.architectureUi': string;
+  'c4.overlayHelp.architectureUi.description': string;
   'c4.hotspot.controls.period': string;
   'c4.hotspot.controls.granularity': string;
   'c4.hotspot.controls.granularityCommit': string;

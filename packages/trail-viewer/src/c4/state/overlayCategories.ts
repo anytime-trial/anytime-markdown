@@ -8,7 +8,8 @@ export type OverlayCategory =
   | 'importance'
   | 'hotspot'
   | 'dead-code'
-  | 'size';
+  | 'size'
+  | 'architecture';
 
 export const OVERLAY_CATEGORY_DEFAULTS: Record<Exclude<OverlayCategory, 'none'>, MetricOverlay> = {
   coverage: 'coverage-lines',
@@ -18,4 +19,5 @@ export const OVERLAY_CATEGORY_DEFAULTS: Record<Exclude<OverlayCategory, 'none'>,
   hotspot: 'hotspot-frequency',
   'dead-code': 'dead-code-score',
   size: 'size-loc',
+  architecture: 'architecture-ui',
 };

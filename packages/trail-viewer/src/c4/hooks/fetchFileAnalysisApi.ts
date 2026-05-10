@@ -23,6 +23,9 @@ export interface FileAnalysisApiEntry {
   readonly crossPkgInCount: number;
   readonly externalConsumerPkgs: number;
   readonly isBarrel: boolean;
+  /** UI / Logic 分類。サーバー旧版が返さない場合に備え、消費側で 'logic' へ
+   *  フォールバックすること */
+  readonly category?: 'ui' | 'logic' | 'excluded';
 }
 
 export interface FileAnalysisApiResponse {

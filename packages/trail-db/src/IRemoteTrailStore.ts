@@ -130,6 +130,7 @@ export interface IRemoteTrailStore {
     cross_pkg_in_count: number; external_consumer_pkgs: number; total_in_count: number; is_barrel: number; centrality_score: number;
     analyzed_at: string;
     line_count: number; cyclomatic_complexity_max: number;
+    category: string;
   }[]): Promise<void>;
   /** [DESTRUCTIVE] trail_release_file_analysis を全削除する（洗い替え同期用）。 */
   unsafeClearReleaseFileAnalysis(): Promise<void>;
@@ -143,6 +144,7 @@ export interface IRemoteTrailStore {
     cross_pkg_in_count: number; external_consumer_pkgs: number; total_in_count: number; is_barrel: number; centrality_score: number;
     analyzed_at: string;
     line_count: number; cyclomatic_complexity_max: number;
+    category: string;
   }[]): Promise<void>;
   /** [DESTRUCTIVE] trail_current_function_analysis を全削除する（洗い替え同期用）。 */
   unsafeClearCurrentFunctionAnalysis(): Promise<void>;

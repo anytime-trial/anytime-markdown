@@ -26,6 +26,7 @@ const sample = (filePath: string, deadCodeScore: number): FileAnalysisRow => ({
   totalInCount: 0,
   isBarrel: false,
   centralityScore: 0,
+  category: 'logic',
   analyzedAt: '2026-05-05T00:00:00Z',
 });
 
@@ -116,5 +117,18 @@ describe('TrailDatabase: AST メトリクス round-trip', () => {
     if (rows.length !== 1) throw new Error('Expected 1 row');
     expect(rows[0].lineCount).toBe(200);
     expect(rows[0].cyclomaticComplexityMax).toBe(5);
+  });
+
+  it('category 列が round-trip で保持される (ui / logic / excluded)', () => {
+    db.upsertCurrentFileAnalysis([
+      { ...sample('Component.tsx', 0), category: 'ui' },
+      { ...sample('util.ts', 0), category: 'logic' },
+      { ...sample('types.ts', 0), category: 'excluded' },
+    ]);
+    const rows = db.getCurrentFileAnalysis('repo');
+    const byPath = new Map(rows.map((r) => [r.filePath, r.category]));
+    expect(byPath.get('Component.tsx')).toBe('ui');
+    expect(byPath.get('util.ts')).toBe('logic');
+    expect(byPath.get('types.ts')).toBe('excluded');
   });
 });

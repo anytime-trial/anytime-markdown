@@ -293,3 +293,38 @@ describe('computeColorMap — size-functions', () => {
     expect(m.get('small')).toBe('#2e7d32');
   });
 });
+
+describe('computeColorMap — architecture-ui', () => {
+  const matrix = {
+    allUi:   { uiCount: 5, logicCount: 0, ratio: 1 },
+    allLogic:{ uiCount: 0, logicCount: 5, ratio: 0 },
+    half:    { uiCount: 1, logicCount: 1, ratio: 0.5 },
+    noData:  { uiCount: 0, logicCount: 0, ratio: undefined },
+  };
+
+  it('ratio=1 (全 UI) は青 #1976d2', () => {
+    const m = computeColorMap('architecture-ui', null, null, null, null, null, null, null, null, null, matrix);
+    expect(m.get('allUi')).toBe('#1976d2');
+  });
+
+  it('ratio=0 (全 logic) は灰 #757575', () => {
+    const m = computeColorMap('architecture-ui', null, null, null, null, null, null, null, null, null, matrix);
+    expect(m.get('allLogic')).toBe('#757575');
+  });
+
+  it('ratio=0.5 (混在) は中間色を線形補間で返す', () => {
+    const m = computeColorMap('architecture-ui', null, null, null, null, null, null, null, null, null, matrix);
+    // 0.5 補間: r = (0x75 + 0x19) / 2 = 0x47, g = (0x75 + 0x76) / 2 ≒ 0x76, b = (0x75 + 0xd2) / 2 ≒ 0xa4
+    expect(m.get('half')).toBe('#4776a4');
+  });
+
+  it('ratio=undefined (集計対象なし) はマップに含まれない', () => {
+    const m = computeColorMap('architecture-ui', null, null, null, null, null, null, null, null, null, matrix);
+    expect(m.has('noData')).toBe(false);
+  });
+
+  it('matrix が null のとき空マップを返す', () => {
+    const m = computeColorMap('architecture-ui', null, null, null, null, null, null, null, null, null, null);
+    expect(m.size).toBe(0);
+  });
+});

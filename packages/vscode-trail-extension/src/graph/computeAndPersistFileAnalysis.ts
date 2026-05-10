@@ -45,6 +45,7 @@ import type {
 import type { ScoredFunction } from '@anytime-markdown/trail-core/importance';
 import type { CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
 import { computeCentrality } from '@anytime-markdown/trail-core/centrality';
+import type { FileCategory } from '@anytime-markdown/trail-core/classify';
 
 export interface ComputeAndPersistFileAnalysisOpts {
   /** ワークスペースの絶対パス。git リポジトリルートと一致することを想定。 */
@@ -55,6 +56,11 @@ export interface ComputeAndPersistFileAnalysisOpts {
   readonly scored: readonly ScoredFunction[];
   /** ファイル相対パス → 行数のマップ（tsconfig ディレクトリ基準の相対パス） */
   readonly lineCountByFile: ReadonlyMap<string, number>;
+  /**
+   * ファイル相対パス → UI / Logic 分類のマップ。
+   * 未指定 / 該当キーなしのファイルは 'logic' とみなす。
+   */
+  readonly categoryByFile?: ReadonlyMap<string, FileCategory>;
 }
 
 /** noRecentChurn 判定の "recent" 窓 (日)。trail.db の取り込み履歴が短い (47 日程度) ため
@@ -68,7 +74,7 @@ const ISOLATED_COMMUNITY_THRESHOLD = 3;
 export async function computeAndPersistFileAnalysis(
   opts: ComputeAndPersistFileAnalysisOpts,
 ): Promise<{ fileRows: number; functionRows: number }> {
-  const { analysisRoot, repoName, trailDb, scored, lineCountByFile } = opts;
+  const { analysisRoot, repoName, trailDb, scored, lineCountByFile, categoryByFile } = opts;
   const analyzedAt = new Date().toISOString();
   const sinceIso = new Date(Date.now() - RECENT_CHURN_WINDOW_MS).toISOString();
 
@@ -213,6 +219,7 @@ export async function computeAndPersistFileAnalysis(
     const lineCount = lineCountByFile.get(relPath) ?? 0;
     const cyclomaticComplexityMax = agg.cyclomaticComplexityMax;
     const c = centralityMap.get(relPath);
+    const category = categoryByFile?.get(relPath) ?? 'logic';
     fileRows.push({
       repoName,
       filePath: relPath,
@@ -231,6 +238,7 @@ export async function computeAndPersistFileAnalysis(
       totalInCount: c?.totalIn ?? 0,
       isBarrel: c?.isBarrel ?? false,
       centralityScore: c?.centralityScore ?? 0,
+      category,
       analyzedAt,
     });
   }

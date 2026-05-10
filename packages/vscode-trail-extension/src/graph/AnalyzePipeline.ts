@@ -190,6 +190,17 @@ export async function runAnalyzeCurrentCodePipeline(
   try {
     onProgress?.('Computing file analysis...');
     if (importanceResult) {
+      // C4 architecture overlay 用に各ファイルを UI / Logic に分類する。
+      // analyzeWithProgram で構築した program を再利用するため追加コストは AST 走査のみ。
+      const { classifyAllFiles } = await import('@anytime-markdown/trail-core/classify');
+      const categoryByFile = classifyAllFiles(
+        program as unknown as import('typescript').Program,
+        analysisRoot,
+      );
+      TrailLogger.info(
+        `C4 analysis [${repoName}]: classified ${categoryByFile.size} files (ui/logic/excluded)`,
+      );
+
       const { computeAndPersistFileAnalysis } = await import('./computeAndPersistFileAnalysis.js');
       const { fileRows, functionRows } = await computeAndPersistFileAnalysis({
         analysisRoot,
@@ -197,6 +208,7 @@ export async function runAnalyzeCurrentCodePipeline(
         trailDb,
         scored: importanceResult.scored,
         lineCountByFile: importanceResult.lineCountByFile,
+        categoryByFile,
       });
       TrailLogger.info(
         `C4 analysis [${repoName}]: file_analysis=${fileRows} function_analysis=${functionRows}`,

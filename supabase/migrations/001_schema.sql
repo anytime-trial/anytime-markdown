@@ -322,6 +322,8 @@ CREATE TABLE IF NOT EXISTS trail_current_file_analysis (
   signal_isolated_community  INTEGER          NOT NULL DEFAULT 0,
   is_ignored                 INTEGER          NOT NULL DEFAULT 0,
   ignore_reason              TEXT             NOT NULL DEFAULT '',
+  category                   TEXT             NOT NULL DEFAULT 'logic'
+                             CHECK (category IN ('ui', 'logic', 'excluded')),
   analyzed_at                TEXT             NOT NULL,
   PRIMARY KEY (repo_name, file_path)
 );
@@ -349,6 +351,8 @@ CREATE TABLE IF NOT EXISTS trail_release_file_analysis (
   signal_isolated_community  INTEGER          NOT NULL DEFAULT 0,
   is_ignored                 INTEGER          NOT NULL DEFAULT 0,
   ignore_reason              TEXT             NOT NULL DEFAULT '',
+  category                   TEXT             NOT NULL DEFAULT 'logic'
+                             CHECK (category IN ('ui', 'logic', 'excluded')),
   analyzed_at                TEXT             NOT NULL,
   PRIMARY KEY (release_tag, repo_name, file_path)
 );

@@ -25,6 +25,11 @@ export interface FileAnalysisRow {
   readonly totalInCount: number;
   readonly isBarrel: boolean;
   readonly centralityScore: number;
+  /**
+   * UI / Logic 分類。C4 architecture overlay の集計に使う。
+   * classifyFile() の戻り値と一致 ('ui' | 'logic' | 'excluded')。
+   */
+  readonly category: 'ui' | 'logic' | 'excluded';
   /** UTC ISO 8601 (e.g. 2026-05-05T01:23:45.000Z) */
   readonly analyzedAt: string;
 }

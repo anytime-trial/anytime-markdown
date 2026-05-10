@@ -187,7 +187,8 @@ export type MetricOverlay =
   | 'dead-code-score'
   | 'size-loc'
   | 'size-files'
-  | 'size-functions';
+  | 'size-functions'
+  | 'architecture-ui';
 
 /** 複雑度分類（classifyByFeatures の label に対応） */
 export type ComplexityClass =

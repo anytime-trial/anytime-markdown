@@ -413,6 +413,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     signal_zero_coverage: number; signal_isolated_community: number;
     is_ignored: number; ignore_reason: string; analyzed_at: string;
     line_count: number; cyclomatic_complexity_max: number;
+    category: string;
   }[]): Promise<void> {
     if (rows.length === 0) return;
     const CHUNK = 500;
@@ -437,6 +438,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     signal_zero_coverage: number; signal_isolated_community: number;
     is_ignored: number; ignore_reason: string; analyzed_at: string;
     line_count: number; cyclomatic_complexity_max: number;
+    category: string;
   }[]): Promise<void> {
     if (rows.length === 0) return;
     const CHUNK = 500;

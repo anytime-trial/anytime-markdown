@@ -320,6 +320,8 @@ export const en: TrailI18n = {
   'c4.overlay.sizeLoc': 'LOC(Max)',
   'c4.overlay.sizeFiles': 'Files',
   'c4.overlay.sizeFunctions': 'Functions',
+  'c4.overlay.groupArchitecture': 'Architecture',
+  'c4.overlay.architectureUi': 'UI',
   'c4.overlayHelp.coverage': 'Coverage',
   'c4.overlayHelp.coverage.description':
     'Test coverage % from lcov.info (Lines / Branches / Functions).\nFile-level values are rolled up to parent containers.\nPackages without tests or reports have no color.',
@@ -350,6 +352,9 @@ export const en: TrailI18n = {
   'c4.overlayHelp.size': 'Size',
   'c4.overlayHelp.size.description':
     'Size metrics colored in 3 tiers (green=small, yellow=medium, red=large). Thresholds depend on metric:\n· LOC: <500 / 500–999 / ≥1000\n· Files: <20 / 20–49 / ≥50\n· Functions: <10 / 10–49 / ≥50',
+  'c4.overlayHelp.architectureUi': 'Architecture: UI / Logic',
+  'c4.overlayHelp.architectureUi.description':
+    'Ratio of View-coupled code (UI) vs pure logic.\nClassification rules:\n· UI: .tsx / react import / useXxx (custom hook) / theme / i18n /\n  ProseMirror / TipTap / Webview Panel\n· Logic: .ts not matching any UI rule\n· Excluded: *.test.tsx / *.stories.tsx / type-only files\n\nL4 (file) is binary (UI=blue / Logic=gray); L3/L2 are linearly interpolated by UI ratio.',
   'c4.hotspot.controls.period': 'Period',
   'c4.hotspot.controls.granularity': 'Granularity',
   'c4.hotspot.controls.granularityCommit': 'Commit',

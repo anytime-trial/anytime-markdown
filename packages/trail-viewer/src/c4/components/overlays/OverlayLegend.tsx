@@ -43,6 +43,8 @@ function getOverlayHelpKeys(
     case 'size-files':
     case 'size-functions':
       return { titleKey: 'c4.overlayHelp.size', descKey: 'c4.overlayHelp.size.description' };
+    case 'architecture-ui':
+      return { titleKey: 'c4.overlayHelp.architectureUi', descKey: 'c4.overlayHelp.architectureUi.description' };
     case 'none':
     case 'fcmap':
       return null;
@@ -159,6 +161,8 @@ function GradientBar({
 const HOTSPOT_FREQ_GRADIENT = `linear-gradient(to right, rgba(${HOTSPOT_FREQ_RGB}, 0.10), rgba(${HOTSPOT_FREQ_RGB}, 1.0))`;
 const HOTSPOT_RISK_GRADIENT = `linear-gradient(to right, rgba(${HOTSPOT_RISK_RGB}, 0.10), rgba(${HOTSPOT_RISK_RGB}, 1.0))`;
 const DSM_NEIGHBORS_GRADIENT = `linear-gradient(to right, ${METRIC_LEGEND_BLUE}, ${COVERAGE_LOW})`;
+// computeColorMap.ts の architectureUiColor() と同じ値を使う (Logic=#757575 / UI=#1976d2)
+const ARCHITECTURE_UI_GRADIENT = 'linear-gradient(to right, #757575, #1976d2)';
 
 interface SegmentBarItem {
   readonly color: string;
@@ -372,6 +376,15 @@ function getOverlayMetricItems(
           boundaries={SIZE_FUNCTIONS_BOUNDARIES}
           startLabel="0"
           endLabel={sizeMax !== undefined ? String(sizeMax) : undefined}
+          textColor={textColor}
+        />
+      );
+    case 'architecture-ui':
+      return (
+        <GradientBar
+          background={ARCHITECTURE_UI_GRADIENT}
+          lowLabel="Logic"
+          highLabel="UI"
           textColor={textColor}
         />
       );
