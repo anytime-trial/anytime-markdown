@@ -11,6 +11,7 @@ import HubIcon from '@mui/icons-material/Hub';
 import LayersIcon from '@mui/icons-material/Layers';
 import LinkIcon from '@mui/icons-material/Link';
 import TableChartIcon from '@mui/icons-material/TableChart';
+import ScatterPlotIcon from '@mui/icons-material/ScatterPlot';
 import TimelineIcon from '@mui/icons-material/Timeline';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import Box from '@mui/material/Box';
@@ -27,6 +28,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer, useRef, us
 import { useTrailI18n } from '../../i18n';
 import { CONTEXT_MENU_SHADOW, DOC_TYPE_COLORS, DOC_TYPE_FALLBACK_COLOR, getC4Colors, LOADING_OVERLAY_BG, POPUP_SHADOW } from '../../theme/c4Tokens';
 import type { FileAnalysisApiEntry } from '../hooks/fetchFileAnalysisApi';
+import type { FunctionAnalysisApiEntry } from '../hooks/fetchFunctionAnalysisApi';
 import { useC4GhostEdges } from '../hooks/useC4GhostEdges';
 import { useDefectRisk } from '../hooks/useDefectRisk';
 import { useHotspot } from '../hooks/useHotspot';
@@ -34,6 +36,8 @@ import { useTemporalCoupling } from '../hooks/useTemporalCoupling';
 import { useElementFunctions } from '../hooks/useElementFunctions';
 import { DeadCodeDetailSection } from './panels/DeadCodeDetailSection';
 import { fileAnalysisEntriesForElement } from './fileAnalysisEntriesForElement';
+import { FunctionScatterPlot } from './panels/FunctionScatterPlot';
+import { functionAnalysisEntriesForElement } from './functionAnalysisEntriesForElement';
 import { ResizablePopup, type ResizablePopupSize } from './widgets/ResizablePopup';
 import GroupWorkIcon from '@mui/icons-material/GroupWork';
 
@@ -100,6 +104,7 @@ export function C4ViewerCore({
   roleMatrix,
   deadCodeMatrix,
   fileAnalysisEntries = [],
+  functionAnalysisEntries = [],
   docLinks,
   connected,
   analysisProgress,
@@ -206,11 +211,16 @@ export function C4ViewerCore({
   const showMatrixPopup = matrixPopup !== null;
   const [matrixPopupSize, setMatrixPopupSize] = useState<ResizablePopupSize | null>(null);
   const [matrixPopupMaximized, setMatrixPopupMaximized] = useState(false);
+  const [scatterPopup, setScatterPopup] = useState<{ filterElementId: string | null } | null>(null);
+  const showScatterPopup = scatterPopup !== null;
+  const [scatterPopupSize, setScatterPopupSize] = useState<ResizablePopupSize | null>(null);
+  const [scatterPopupMaximized, setScatterPopupMaximized] = useState(false);
   const [showGraphPopup, setShowGraphPopup] = useState(false);
   const [graphPopupSize, setGraphPopupSize] = useState<ResizablePopupSize | null>(null);
   const [graphPopupMaximized, setGraphPopupMaximized] = useState(false);
   const openMatrixForElement = useCallback((element: C4Element) => {
     setShowGraphPopup(false);
+    setScatterPopup(null);
     if (element.type === 'container' || element.type === 'containerDb') {
       setMatrixPopup({ initialLevel: 'component', filterElementId: element.id });
     } else if (element.type === 'component') {
@@ -1490,6 +1500,7 @@ export function C4ViewerCore({
                               setShowGraphPopup(prev => {
                                 const next = !prev;
                                 if (next) setMatrixPopup(null);
+                                if (next) setScatterPopup(null);
                                 return next;
                               });
                             }}
@@ -1511,6 +1522,7 @@ export function C4ViewerCore({
                               setMatrixPopup(prev => {
                                 if (prev) return null;
                                 setShowGraphPopup(false);
+                                setScatterPopup(null);
                                 return { initialLevel: 'component', filterElementId: null };
                               });
                             }}
@@ -1523,6 +1535,28 @@ export function C4ViewerCore({
                             }}
                           >
                             <TableChartIcon sx={{ fontSize: 14 }} />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title={t('viewer.tab.scatter')}>
+                          <IconButton
+                            size="small"
+                            onClick={() => {
+                              setScatterPopup(prev => {
+                                if (prev) return null;
+                                setShowGraphPopup(false);
+                                setMatrixPopup(null);
+                                return { filterElementId: null };
+                              });
+                            }}
+                            aria-pressed={showScatterPopup}
+                            aria-label={t('viewer.tab.scatter')}
+                            sx={{
+                              ...toolbarButtonSx,
+                              p: 0.25,
+                              ...(showScatterPopup && { bgcolor: toolbarButtonActiveBg }),
+                            }}
+                          >
+                            <ScatterPlotIcon sx={{ fontSize: 14 }} />
                           </IconButton>
                         </Tooltip>
                       </Box>
@@ -1676,6 +1710,40 @@ export function C4ViewerCore({
                     isCommunityColor={showCommunity}
                     initialLevel={matrixPopup?.initialLevel ?? 'component'}
                     filterElementId={matrixPopup?.filterElementId ?? null}
+                  />
+                </ResizablePopup>
+              )}
+              {showScatterPopup && (
+                <ResizablePopup
+                  title={t('viewer.tab.scatter')}
+                  ariaLabel={t('viewer.tab.scatter')}
+                  onClose={() => setScatterPopup(null)}
+                  isDark={isDark}
+                  colors={colors}
+                  size={scatterPopupSize}
+                  onSizeChange={setScatterPopupSize}
+                  maximized={scatterPopupMaximized}
+                  onMaximizedChange={setScatterPopupMaximized}
+                  toolbarButtonSx={toolbarButtonSx}
+                  i18nMaximize={t('c4.popup.maximize')}
+                  i18nRestore={t('c4.popup.restore')}
+                  i18nClose={t('c4.popup.close')}
+                  i18nResize={t('c4.popup.resize')}
+                >
+                  <FunctionScatterPlot
+                    entries={
+                      scatterPopup?.filterElementId
+                        ? functionAnalysisEntriesForElement(
+                            functionAnalysisEntries,
+                            scatterPopup.filterElementId,
+                            c4Model?.elements ?? [],
+                          )
+                        : functionAnalysisEntries
+                    }
+                    filterElementId={scatterPopup?.filterElementId ?? null}
+                    t={t as (key: string) => string}
+                    colors={colors}
+                    onFunctionOpen={(filePath, _fnName, _startLine) => onOpenFile?.(filePath)}
                   />
                 </ResizablePopup>
               )}
@@ -2384,6 +2452,28 @@ export function C4ViewerCore({
                         {t('c4.copyPath')}
                       </button>
                     )}
+                    <button
+                      type="button"
+                      style={{
+                        display: 'block',
+                        width: '100%',
+                        padding: '6px 16px',
+                        textAlign: 'left',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: 14,
+                        color: colors.contextMenuText,
+                      }}
+                      onClick={() => {
+                        setScatterPopup({ filterElementId: contextMenu.c4Id });
+                        setShowGraphPopup(false);
+                        setMatrixPopup(null);
+                        setContextMenu(null);
+                      }}
+                    >
+                      {t('c4.contextMenu.openScatter')}
+                    </button>
                     {canShowManualActions && (
                       <>
                         <button

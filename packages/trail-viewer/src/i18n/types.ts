@@ -9,6 +9,7 @@ export interface TrailI18n {
   'viewer.tab.model': string;
   'viewer.tab.matrix': string;
   'viewer.tab.graph': string;
+  'viewer.tab.scatter': string;
   'viewer.tab.trace': string;
   'viewer.loading': string;
   'viewer.selectSession': string;
@@ -282,6 +283,7 @@ export interface TrailI18n {
   'c4.showOnlyThisFrame': string;
   'c4.clearFrameFilter': string;
   'c4.copyPath': string;
+  'c4.contextMenu.openScatter': string;
   'c4.frameFilter.reset': string;
   'c4.elementPanel.searchPlaceholder': string;
   'c4.elementPanel.searchClear': string;
