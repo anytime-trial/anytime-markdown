@@ -140,14 +140,44 @@ export function persistEpisodeFacts(opts: {
     const subjectMapKey = `${rel.subject.type}:${subjectCanon}`;
     const objectMapKey = `${rel.object.type}:${objectCanon}`;
 
-    const subjectId = entityIdMap.get(subjectMapKey);
-    const objectId = entityIdMap.get(objectMapKey);
+    let subjectId = entityIdMap.get(subjectMapKey);
+    let objectId = entityIdMap.get(objectMapKey);
+
+    // Auto-upsert relation endpoints that the model referenced but omitted from entities[]
+    for (const [mapKey, endpoint, idVar] of [
+      [subjectMapKey, rel.subject, subjectId] as const,
+      [objectMapKey, rel.object, objectId] as const,
+    ]) {
+      if (idVar !== undefined) continue;
+      const canon = canonicalize(endpoint.name);
+      const eId = entityId(endpoint.type, canon);
+      try {
+        db.run(
+          `INSERT INTO memory_entities
+             (id, type, canonical_name, display_name,
+              aliases_json, tags_json, attributes_json,
+              first_seen_at, last_updated_at, recorded_at)
+           VALUES (?, ?, ?, ?, '[]', '[]', '{}', ?, ?, ?)
+           ON CONFLICT(type, canonical_name) DO UPDATE SET
+             last_updated_at = excluded.last_updated_at`,
+          [eId, endpoint.type, canon, endpoint.name, recordedAt, recordedAt, recordedAt],
+        );
+        entityIdMap.set(mapKey, eId);
+      } catch (err) {
+        logger.warn(
+          `[memory-core] persist: failed to auto-upsert endpoint ${mapKey}`,
+          err,
+        );
+      }
+    }
+
+    subjectId = entityIdMap.get(subjectMapKey);
+    objectId = entityIdMap.get(objectMapKey);
 
     if (subjectId === undefined || objectId === undefined) {
-      // Skip edges whose endpoints were not successfully upserted
-      logger.error(
-        `[memory-core] persist: skipping edge "${rel.predicate}" — subject or object entity not found ` +
-          `(subject=${subjectMapKey}, object=${objectMapKey})`
+      logger.warn(
+        `[memory-core] persist: skipping edge "${rel.predicate}" — endpoint upsert failed ` +
+          `(subject=${subjectMapKey}, object=${objectMapKey})`,
       );
       continue;
     }
