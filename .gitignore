@@ -32,3 +32,6 @@ test-results/
 packages/web-app/public/sw.js
 
 skills-lock.json
+
+# Supabase CLI cache
+supabase/.temp/
