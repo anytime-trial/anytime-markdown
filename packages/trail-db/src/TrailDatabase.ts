@@ -7213,7 +7213,7 @@ export class TrailDatabase {
         if (relMs < startMs) continue;
         const elapsedMs = relMs - startMs;
         const elapsedMin = elapsedMs / 60_000;
-        if (elapsedMin > 360) continue; // 6 時間超はスキップ
+        if (elapsedMin > 720) continue; // 12 時間超はスキップ
         if (minElapsed === null || elapsedMin < minElapsed) {
           minElapsed = elapsedMin;
         }
