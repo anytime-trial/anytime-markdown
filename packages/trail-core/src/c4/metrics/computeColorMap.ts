@@ -2,7 +2,7 @@ import { detectCycles } from '../dsm/detectCycles';
 import type { DsmMatrix } from '../dsm/types';
 import type { CoverageMatrix, ComplexityMatrix, MetricOverlay, ComplexityClass } from '../types';
 import type { ImportanceMatrix } from '../../importance/types';
-import type { CentralityMatrix } from '../../centrality/types';
+import type { CentralityMatrix, RoleMatrix } from '../../centrality/types';
 import type { HotspotMap } from '../../hotspot/types';
 import type { SizeMatrix } from './buildSizeMatrix';
 import type { ArchitectureMatrix } from './buildArchitectureMatrix';
@@ -103,6 +103,12 @@ function architectureUiColor(ratio: number): string {
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 }
 
+// ─── Function-roles categorical colors ───
+const COLOR_ROLE_HUB        = '#c62828';
+const COLOR_ROLE_LEAF       = '#2e7d32';
+const COLOR_ROLE_ORCH       = '#f9a825';
+const COLOR_ROLE_PERIPHERAL = '#9e9e9e';
+
 const HOTSPOT_FREQ_BASE = { r: 232, g: 160, b: 18 } as const; // amber #E8A012
 const HOTSPOT_RISK_BASE = { r: 232, g: 80, b: 28 } as const;  // red-orange #E8501C
 
@@ -138,6 +144,7 @@ export function computeColorMap(
   sizeMatrix: SizeMatrix | null = null,
   centralityMatrix: CentralityMatrix | null = null,
   architectureMatrix: ArchitectureMatrix | null = null,
+  roleMatrix: RoleMatrix | null = null,
 ): Map<string, string> {
   if (overlay === 'none') return new Map();
 
@@ -219,6 +226,21 @@ export function computeColorMap(
     const map = new Map<string, string>();
     for (const [elementId, score] of Object.entries(centralityMatrix)) {
       map.set(elementId, importanceHeatColor(score));
+    }
+    return map;
+  }
+
+  // ── Function Roles ──
+  if (overlay === 'function-roles') {
+    if (!roleMatrix) return new Map();
+    const map = new Map<string, string>();
+    for (const [elementId, entry] of Object.entries(roleMatrix)) {
+      const color =
+        entry.dominantRole === 'hub'         ? COLOR_ROLE_HUB
+        : entry.dominantRole === 'leaf'      ? COLOR_ROLE_LEAF
+        : entry.dominantRole === 'orchestrator' ? COLOR_ROLE_ORCH
+        : COLOR_ROLE_PERIPHERAL;
+      map.set(elementId, color);
     }
     return map;
   }

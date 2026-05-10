@@ -180,6 +180,7 @@ export type MetricOverlay =
   | 'edit-complexity-highest'
   | 'importance'
   | 'centrality'
+  | 'function-roles'
   | 'defect-risk'
   | 'hotspot-frequency'
   | 'hotspot-risk'

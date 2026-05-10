@@ -71,6 +71,7 @@ export type { MessageInput } from './metrics/computeComplexityMatrix';
 export { computeComplexityMatrix } from './metrics/computeComplexityMatrix';
 export type { ImportanceMatrix } from '../importance/types';
 export type { CentralityMatrix } from '../centrality/types';
+export type { RoleMatrix, FunctionRole, ElementRoleEntry } from '../centrality/types';
 
 export { mergeManualIntoC4Model } from './mergeManual';
 

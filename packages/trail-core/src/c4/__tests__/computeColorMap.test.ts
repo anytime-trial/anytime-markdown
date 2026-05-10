@@ -294,6 +294,7 @@ describe('computeColorMap — size-functions', () => {
   });
 });
 
+<<<<<<< HEAD
 describe('computeColorMap — architecture-ui', () => {
   const matrix = {
     allUi:   { uiCount: 5, logicCount: 0, ratio: 1 },
@@ -325,6 +326,24 @@ describe('computeColorMap — architecture-ui', () => {
 
   it('matrix が null のとき空マップを返す', () => {
     const m = computeColorMap('architecture-ui', null, null, null, null, null, null, null, null, null, null);
+=======
+describe('computeColorMap — function-roles', () => {
+  const roleMatrix = {
+    hub:         { dominantRole: 'hub' as const,         totalFunctions: 5, counts: { hub: 5, leaf: 0, orchestrator: 0, peripheral: 0 } },
+    leaf:        { dominantRole: 'leaf' as const,        totalFunctions: 5, counts: { hub: 0, leaf: 5, orchestrator: 0, peripheral: 0 } },
+    orchestrator:{ dominantRole: 'orchestrator' as const,totalFunctions: 5, counts: { hub: 0, leaf: 0, orchestrator: 5, peripheral: 0 } },
+    peripheral:  { dominantRole: 'peripheral' as const,  totalFunctions: 5, counts: { hub: 0, leaf: 0, orchestrator: 0, peripheral: 5 } },
+  };
+  it('各 dominantRole に対応する 4 色を返す', () => {
+    const m = computeColorMap('function-roles', null, null, null, null, null, null, null, null, null, roleMatrix);
+    expect(m.get('hub')).toBe('#c62828');
+    expect(m.get('leaf')).toBe('#2e7d32');
+    expect(m.get('orchestrator')).toBe('#f9a825');
+    expect(m.get('peripheral')).toBe('#9e9e9e');
+  });
+  it('roleMatrix が null なら空 Map を返す', () => {
+    const m = computeColorMap('function-roles', null, null, null);
+>>>>>>> ca6d98aa (feat(trail-core): add 'function-roles' MetricOverlay with 4-color categorical palette)
     expect(m.size).toBe(0);
   });
 });
