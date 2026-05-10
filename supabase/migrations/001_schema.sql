@@ -373,6 +373,9 @@ CREATE TABLE IF NOT EXISTS trail_current_function_analysis (
   line_count             INTEGER          NOT NULL DEFAULT 0,
   importance_score       DOUBLE PRECISION NOT NULL DEFAULT 0,
   signal_fan_in_zero     INTEGER          NOT NULL DEFAULT 0,
+  fan_out                INTEGER          NOT NULL DEFAULT 0,
+  distinct_callees       INTEGER          NOT NULL DEFAULT 0,
+  function_role          TEXT             NOT NULL DEFAULT 'peripheral' CHECK (function_role IN ('hub','leaf','orchestrator','peripheral')),
   analyzed_at            TEXT             NOT NULL,
   PRIMARY KEY (repo_name, file_path, function_name, start_line)
 );
@@ -394,6 +397,9 @@ CREATE TABLE IF NOT EXISTS trail_release_function_analysis (
   line_count             INTEGER          NOT NULL DEFAULT 0,
   importance_score       DOUBLE PRECISION NOT NULL DEFAULT 0,
   signal_fan_in_zero     INTEGER          NOT NULL DEFAULT 0,
+  fan_out                INTEGER          NOT NULL DEFAULT 0,
+  distinct_callees       INTEGER          NOT NULL DEFAULT 0,
+  function_role          TEXT             NOT NULL DEFAULT 'peripheral' CHECK (function_role IN ('hub','leaf','orchestrator','peripheral')),
   analyzed_at            TEXT             NOT NULL,
   PRIMARY KEY (release_tag, repo_name, file_path, function_name, start_line)
 );

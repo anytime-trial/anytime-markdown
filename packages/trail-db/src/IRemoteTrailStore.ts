@@ -154,7 +154,7 @@ export interface IRemoteTrailStore {
     fan_in: number; cognitive_complexity: number; data_mutation_score: number;
     side_effect_score: number; line_count: number; importance_score: number;
     signal_fan_in_zero: number;
-    fan_out: number; distinct_callees: number;
+    fan_out: number; distinct_callees: number; function_role: string;
     analyzed_at: string;
     cyclomatic_complexity: number;
   }[]): Promise<void>;
@@ -166,7 +166,7 @@ export interface IRemoteTrailStore {
     fan_in: number; cognitive_complexity: number; data_mutation_score: number;
     side_effect_score: number; line_count: number; importance_score: number;
     signal_fan_in_zero: number;
-    fan_out: number; distinct_callees: number;
+    fan_out: number; distinct_callees: number; function_role: string;
     analyzed_at: string;
     cyclomatic_complexity: number;
   }[]): Promise<void>;

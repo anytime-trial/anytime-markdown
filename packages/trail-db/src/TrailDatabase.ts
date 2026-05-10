@@ -1472,6 +1472,8 @@ export class TrailDatabase {
       'ALTER TABLE current_function_analysis ADD COLUMN distinct_callees INTEGER NOT NULL DEFAULT 0',
       'ALTER TABLE release_function_analysis ADD COLUMN fan_out INTEGER NOT NULL DEFAULT 0',
       'ALTER TABLE release_function_analysis ADD COLUMN distinct_callees INTEGER NOT NULL DEFAULT 0',
+      "ALTER TABLE current_function_analysis ADD COLUMN function_role TEXT NOT NULL DEFAULT 'peripheral'",
+      "ALTER TABLE release_function_analysis ADD COLUMN function_role TEXT NOT NULL DEFAULT 'peripheral'",
       // C4 architecture overlay (UI / Logic 分類) の category 列。
       // CHECK 制約は新規 DB の CREATE TABLE で付与し、既存 DB への ALTER では
       // 型安全を trail-core の TS 型で担保する (centrality 列と同方針)。
@@ -7760,7 +7762,7 @@ export class TrailDatabase {
     fan_in: number; cognitive_complexity: number; data_mutation_score: number;
     side_effect_score: number; line_count: number; importance_score: number;
     signal_fan_in_zero: number;
-    fan_out: number; distinct_callees: number;
+    fan_out: number; distinct_callees: number; function_role: string;
     analyzed_at: string;
     cyclomatic_complexity: number;
   }> {
@@ -7769,7 +7771,9 @@ export class TrailDatabase {
       `SELECT repo_name, file_path, function_name, start_line,
               end_line, language, fan_in, cognitive_complexity,
               data_mutation_score, side_effect_score, line_count,
-              importance_score, signal_fan_in_zero, analyzed_at,
+              importance_score, signal_fan_in_zero,
+              fan_out, distinct_callees, function_role,
+              analyzed_at,
               cyclomatic_complexity
        FROM current_function_analysis`,
     );
@@ -7788,10 +7792,11 @@ export class TrailDatabase {
       line_count: Number(r[10] ?? 0),
       importance_score: Number(r[11] ?? 0),
       signal_fan_in_zero: Number(r[12] ?? 0),
-      fan_out: 0,
-      distinct_callees: 0,
-      analyzed_at: String(r[13] ?? ''),
-      cyclomatic_complexity: Number(r[14] ?? 0),
+      fan_out: Number(r[13] ?? 0),
+      distinct_callees: Number(r[14] ?? 0),
+      function_role: String(r[15] ?? 'peripheral'),
+      analyzed_at: String(r[16] ?? ''),
+      cyclomatic_complexity: Number(r[17] ?? 0),
     }));
   }
 
@@ -7801,7 +7806,7 @@ export class TrailDatabase {
     fan_in: number; cognitive_complexity: number; data_mutation_score: number;
     side_effect_score: number; line_count: number; importance_score: number;
     signal_fan_in_zero: number;
-    fan_out: number; distinct_callees: number;
+    fan_out: number; distinct_callees: number; function_role: string;
     analyzed_at: string;
     cyclomatic_complexity: number;
   }> {
@@ -7810,7 +7815,9 @@ export class TrailDatabase {
       `SELECT release_tag, repo_name, file_path, function_name, start_line,
               end_line, language, fan_in, cognitive_complexity,
               data_mutation_score, side_effect_score, line_count,
-              importance_score, signal_fan_in_zero, analyzed_at,
+              importance_score, signal_fan_in_zero,
+              fan_out, distinct_callees, function_role,
+              analyzed_at,
               cyclomatic_complexity
        FROM release_function_analysis`,
     );
@@ -7830,10 +7837,11 @@ export class TrailDatabase {
       line_count: Number(r[11] ?? 0),
       importance_score: Number(r[12] ?? 0),
       signal_fan_in_zero: Number(r[13] ?? 0),
-      fan_out: 0,
-      distinct_callees: 0,
-      analyzed_at: String(r[14] ?? ''),
-      cyclomatic_complexity: Number(r[15] ?? 0),
+      fan_out: Number(r[14] ?? 0),
+      distinct_callees: Number(r[15] ?? 0),
+      function_role: String(r[16] ?? 'peripheral'),
+      analyzed_at: String(r[17] ?? ''),
+      cyclomatic_complexity: Number(r[18] ?? 0),
     }));
   }
 

@@ -462,6 +462,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     side_effect_score: number; line_count: number; importance_score: number;
     signal_fan_in_zero: number; analyzed_at: string;
     cyclomatic_complexity: number;
+    fan_out: number; distinct_callees: number; function_role: string;
   }[]): Promise<void> {
     if (rows.length === 0) return;
     const CHUNK = 500;
@@ -485,6 +486,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     side_effect_score: number; line_count: number; importance_score: number;
     signal_fan_in_zero: number; analyzed_at: string;
     cyclomatic_complexity: number;
+    fan_out: number; distinct_callees: number; function_role: string;
   }[]): Promise<void> {
     if (rows.length === 0) return;
     const CHUNK = 500;
