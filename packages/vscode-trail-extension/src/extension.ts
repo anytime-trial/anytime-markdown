@@ -447,6 +447,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		memoryCoreRunner = createMemoryCoreRunner({
 			outputChannel: memoryCoreOutputChannel,
 			trailDbPath,
+			distPath: extensionDistPath,
 		});
 	}
 	trailDb.setIntegrityAlertHandler((alerts) => {

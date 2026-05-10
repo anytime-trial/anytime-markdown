@@ -3,6 +3,7 @@ export type { SearchInput, SearchResult, SearchEntity, SearchEdge, SearchEpisode
 export { openMemoryCoreDb } from './db/connection';
 export type { MemoryCoreDb } from './db/connection';
 export { attachTrailDbReadOnly } from './db/attach';
+export { setSqlJsLoader, loadSqlJsModule } from './db/sqlJsLoader';
 export { createOllamaClient } from './ollama/client';
 export type { OllamaClient } from './ollama/client';
 export type { MemoryLogger } from './logger';

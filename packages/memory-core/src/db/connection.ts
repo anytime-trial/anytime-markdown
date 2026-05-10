@@ -1,8 +1,9 @@
-import initSqlJs, { Database } from 'sql.js';
+import type { Database } from 'sql.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import { getMemoryCoreDbPath } from './paths';
 import { runMigrations } from './migrations/runner';
+import { loadSqlJsModule } from './sqlJsLoader';
 
 export interface MemoryCoreDb {
   db: Database;
@@ -15,7 +16,7 @@ export async function openMemoryCoreDb(dbPath?: string): Promise<MemoryCoreDb> {
   const dir = path.dirname(resolvedPath);
   fs.mkdirSync(dir, { recursive: true });
 
-  const SQL = await initSqlJs();
+  const SQL = await loadSqlJsModule();
   let db: Database;
 
   if (fs.existsSync(resolvedPath)) {

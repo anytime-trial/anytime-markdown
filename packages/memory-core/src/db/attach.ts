@@ -1,5 +1,6 @@
-import initSqlJs, { Database, SqlJsStatic } from 'sql.js';
+import type { Database, SqlJsStatic } from 'sql.js';
 import * as fs from 'fs';
+import { loadSqlJsModule } from './sqlJsLoader';
 
 /**
  * Attach trail.db to an existing memory-core db in read-only mode.
@@ -22,7 +23,7 @@ export async function attachTrailDbReadOnly(
   db: Database,
   trailDbPath: string
 ): Promise<AttachHandle> {
-  const SQL: SqlJsStatic = await initSqlJs();
+  const SQL: SqlJsStatic = await loadSqlJsModule();
   const data = fs.readFileSync(trailDbPath);
   const trailHandle = new SQL.Database(data);
 

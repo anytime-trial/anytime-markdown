@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import type initSqlJsFn from 'sql.js';
 import {
   openMemoryCoreDb,
   attachTrailDbReadOnly,
@@ -13,7 +14,33 @@ import {
   runSpecIncremental,
   runAgentRunWatchdog,
   runDriftDetection,
+  setSqlJsLoader,
 } from '@anytime-markdown/memory-core';
+
+// VS Code 拡張は webpack バンドル後の VSIX に node_modules を同梱しないため、
+// `import 'sql.js'` を webpack に解決させると UMD wrapper が壊れて activate に
+// 失敗する。dist/sql-wasm.js を __non_webpack_require__ で runtime 直接ロードして
+// 回避する (trail-db init() と同じパターン)。
+declare const __non_webpack_require__: ((id: string) => unknown) | undefined;
+
+let sqlJsLoaderInstalled = false;
+function installSqlJsLoaderOnce(distPath: string): void {
+  if (sqlJsLoaderInstalled) return;
+  sqlJsLoaderInstalled = true;
+  setSqlJsLoader(async () => {
+    const sqlWasmPath = path.join(distPath, 'sql-wasm.js');
+    if (typeof __non_webpack_require__ !== 'function') {
+      // webpack バンドル外で memoryCoreRunner が呼ばれた場合 (一部テストなど) の
+      // フォールバック。通常 require は webpack 経由でも動くが、sql.js の
+      // module.exports 代入が壊れるため拡張環境では発生しない想定。
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const initSqlJs = require('sql.js') as typeof initSqlJsFn;
+      return await initSqlJs({ locateFile: (file: string) => path.join(distPath, file) });
+    }
+    const initSqlJs = __non_webpack_require__(sqlWasmPath) as typeof initSqlJsFn;
+    return await initSqlJs({ locateFile: (file: string) => path.join(distPath, file) });
+  });
+}
 
 export interface MemoryCoreRunner {
   runAfterImport(): Promise<void>;
@@ -23,7 +50,14 @@ export function createMemoryCoreRunner(opts: {
   outputChannel: vscode.OutputChannel;
   trailDbPath: string;
   dbPath?: string;
+  /**
+   * sql.js (sql-wasm.js / sql-wasm.wasm) が CopyPlugin で配置されている dist
+   * ディレクトリ。指定された場合のみ memory-core の sql.js loader を
+   * `__non_webpack_require__` 経由で inject する (extension 起動時に必要)。
+   */
+  distPath?: string;
 }): MemoryCoreRunner {
+  if (opts.distPath) installSqlJsLoaderOnce(opts.distPath);
   return {
     async runAfterImport(): Promise<void> {
       const logger = {
