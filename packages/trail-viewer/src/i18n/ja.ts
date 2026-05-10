@@ -320,6 +320,8 @@ export const ja: TrailI18n = {
   'c4.overlay.sizeLoc': 'LOC(Max)',
   'c4.overlay.sizeFiles': 'ファイル数',
   'c4.overlay.sizeFunctions': '関数数',
+  'c4.overlay.groupArchitecture': 'アーキテクチャ',
+  'c4.overlay.architectureUi': 'UI',
   'c4.overlayHelp.coverage': 'Coverage',
   'c4.overlayHelp.coverage.description':
     'lcov.info から計算したテストカバレッジ % (Lines / Branches / Functions)。\n各ファイルの値を親コンテナまで巻き上げ集約。\nテストやレポート未生成のパッケージは色なし。',
@@ -350,6 +352,9 @@ export const ja: TrailI18n = {
   'c4.overlayHelp.size': 'Size',
   'c4.overlayHelp.size.description':
     'サイズメトリクスを 3 段階で着色 (緑=小, 黄=中, 赤=大)。閾値は指標により異なる:\n· LOC: <500 / 500–999 / ≥1000\n· Files: <20 / 20–49 / ≥50\n· Functions: <10 / 10–49 / ≥50',
+  'c4.overlayHelp.architectureUi': 'Architecture: UI / Logic',
+  'c4.overlayHelp.architectureUi.description':
+    'View に強く結合したコード (UI) と純粋ロジックの比率。\n判定ルール:\n· UI: .tsx / react import / useXxx (custom hook) / theme / i18n /\n  ProseMirror / TipTap / Webview Panel\n· Logic: 上記いずれにも該当しない .ts\n· Excluded: *.test.tsx / *.stories.tsx / 型定義のみ\n\nL4 (ファイル) は UI=青 / Logic=灰 の二値、L3/L2 は UI 率で線形補間。',
   'c4.hotspot.controls.period': '期間',
   'c4.hotspot.controls.granularity': '粒度',
   'c4.hotspot.controls.granularityCommit': 'Commit',

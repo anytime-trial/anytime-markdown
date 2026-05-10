@@ -1,8 +1,8 @@
 import type { GraphDocument, GraphNode } from '@anytime-markdown/graph-core';
 import { engine, layoutWithSubgroups, MinimapCanvas, state as graphState } from '@anytime-markdown/graph-core';
 import type { BoundaryInfo, C4Element, C4Model, C4ReleaseEntry, CommunityOverlayEntry, ComplexityMatrix, CoverageDiffMatrix, CoverageMatrix, DocLink, DsmMatrix, FeatureMatrix, HotspotMap, ImportanceMatrix, ManualGroup, MetricOverlay } from '@anytime-markdown/trail-core/c4';
-import { aggregateDsmToC4ComponentLevel, aggregateDsmToC4ContainerLevel, aggregateDsmToC4SystemLevel, aggregateHotspotToC4, buildC4ElementById, buildCommunityTree, buildElementTree, buildLevelView, buildSizeMatrix, c4ToGraphDocument, collectDescendantIds, computeColorMap, computeCommunityOverlay, computeFileHotspot, filterDsmMatrix, filterModelForDrill, filterTreeByLevel, mapFileToC4Elements, resolveSelectedElementCommunity, sortDsmMatrixByName } from '@anytime-markdown/trail-core/c4';
-import type { SizeMatrix } from '@anytime-markdown/trail-core/c4';
+import { aggregateDsmToC4ComponentLevel, aggregateDsmToC4ContainerLevel, aggregateDsmToC4SystemLevel, aggregateHotspotToC4, buildArchitectureMatrix, buildC4ElementById, buildCommunityTree, buildElementTree, buildLevelView, buildSizeMatrix, c4ToGraphDocument, collectDescendantIds, computeColorMap, computeCommunityOverlay, computeFileHotspot, filterDsmMatrix, filterModelForDrill, filterTreeByLevel, mapFileToC4Elements, resolveSelectedElementCommunity, sortDsmMatrixByName } from '@anytime-markdown/trail-core/c4';
+import type { ArchitectureFileEntry, ArchitectureMatrix, SizeMatrix } from '@anytime-markdown/trail-core/c4';
 import CloseIcon from '@mui/icons-material/Close';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
@@ -823,9 +823,28 @@ export function C4ViewerCore({
     return filtered;
   }, [sizeMatrix, c4Model, elementTypeById, levelTargetType]);
 
+  // アーキテクチャ overlay (UI / Logic) — fileAnalysisEntries.category を集計する
+  const architectureMatrix = useMemo<ArchitectureMatrix | null>(() => {
+    if (!fileAnalysisEntries || fileAnalysisEntries.length === 0 || !c4Model) return null;
+    const archEntries: ArchitectureFileEntry[] = fileAnalysisEntries.map((r) => ({
+      elementId: `file::${r.filePath}`,
+      category: r.category ?? 'logic',
+    }));
+    return buildArchitectureMatrix(archEntries, c4Model.elements);
+  }, [fileAnalysisEntries, c4Model]);
+
+  const levelFilteredArchitectureMatrix = useMemo<ArchitectureMatrix | null>(() => {
+    if (!architectureMatrix || !c4Model) return architectureMatrix;
+    const filtered: ArchitectureMatrix = {};
+    for (const [id, entry] of Object.entries(architectureMatrix)) {
+      if (elementTypeById.get(id) === levelTargetType) filtered[id] = entry;
+    }
+    return filtered;
+  }, [architectureMatrix, c4Model, elementTypeById, levelTargetType]);
+
   const overlayMap = useMemo(
-    () => computeColorMap(metricOverlay, levelFilteredCoverageMatrix, filteredDsmMatrix, levelFilteredComplexityMatrix, levelFilteredImportanceMatrix, levelFilteredDefectRiskMap, levelFilteredHotspotMap, levelFilteredDeadCodeMatrix, levelFilteredSizeMatrix, levelFilteredCentralityMatrix),
-    [metricOverlay, levelFilteredCoverageMatrix, filteredDsmMatrix, levelFilteredComplexityMatrix, levelFilteredImportanceMatrix, levelFilteredDefectRiskMap, levelFilteredHotspotMap, levelFilteredDeadCodeMatrix, levelFilteredSizeMatrix, levelFilteredCentralityMatrix],
+    () => computeColorMap(metricOverlay, levelFilteredCoverageMatrix, filteredDsmMatrix, levelFilteredComplexityMatrix, levelFilteredImportanceMatrix, levelFilteredDefectRiskMap, levelFilteredHotspotMap, levelFilteredDeadCodeMatrix, levelFilteredSizeMatrix, levelFilteredCentralityMatrix, levelFilteredArchitectureMatrix),
+    [metricOverlay, levelFilteredCoverageMatrix, filteredDsmMatrix, levelFilteredComplexityMatrix, levelFilteredImportanceMatrix, levelFilteredDefectRiskMap, levelFilteredHotspotMap, levelFilteredDeadCodeMatrix, levelFilteredSizeMatrix, levelFilteredCentralityMatrix, levelFilteredArchitectureMatrix],
   );
 
   const effectiveOverlayMap = overlayMap;
@@ -1510,6 +1529,7 @@ export function C4ViewerCore({
                       <MenuItem value="edit-complexity" disabled={!complexityMatrix || complexityMatrix.entries.length === 0} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.groupEditComplexity')}</MenuItem>
                       <MenuItem value="dead-code" disabled={!deadCodeMatrix} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.groupDeadCode')}</MenuItem>
                       <MenuItem value="hotspot" sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.groupHotspot')}</MenuItem>
+                      <MenuItem value="architecture" disabled={!architectureMatrix} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.groupArchitecture')}</MenuItem>
                     </Select>
                   </Box>
                   {overlayCategory !== 'none' && (
@@ -1558,6 +1578,9 @@ export function C4ViewerCore({
                           <MenuItem key="size-loc" value="size-loc" disabled={!sizeMatrix} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.sizeLoc')}</MenuItem>,
                           <MenuItem key="size-files" value="size-files" disabled={!sizeMatrix} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.sizeFiles')}</MenuItem>,
                           <MenuItem key="size-functions" value="size-functions" disabled={!sizeMatrix} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.sizeFunctions')}</MenuItem>,
+                        ]}
+                        {overlayCategory === 'architecture' && [
+                          <MenuItem key="architecture-ui" value="architecture-ui" disabled={!architectureMatrix} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.architectureUi')}</MenuItem>,
                         ]}
                       </Select>
                     </Box>

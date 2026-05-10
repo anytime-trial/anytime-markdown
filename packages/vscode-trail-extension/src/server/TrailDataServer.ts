@@ -1949,6 +1949,7 @@ export class TrailDataServer {
         crossPkgInCount: r.crossPkgInCount,
         externalConsumerPkgs: r.externalConsumerPkgs,
         isBarrel: r.isBarrel,
+        category: r.category,
       }));
 
       res.writeHead(200, JSON_HEADERS);
