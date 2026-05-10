@@ -1,4 +1,5 @@
-import { messagesEn as enMessages, messagesJa as jaMessages } from '@anytime-markdown/graph-viewer';
+import enMessages from '@anytime-markdown/graph-viewer/src/i18n/en.json';
+import jaMessages from '@anytime-markdown/graph-viewer/src/i18n/ja.json';
 
 type MessageTree = Record<string, unknown>;
 
