@@ -1,4 +1,9 @@
+import type { TrailLocale } from '@anytime-markdown/trail-viewer';
 import { TrailViewerApp } from '@anytime-markdown/trail-viewer';
+
+function detectLocale(): TrailLocale {
+  return globalThis.navigator?.language.startsWith('ja') ? 'ja' : 'en';
+}
 
 /**
  * VS Code 拡張機能の Trail Viewer ラッパー。
@@ -11,5 +16,5 @@ export function StandaloneTrailViewer({ isDark = true }: Readonly<{ isDark?: boo
   const initialTabParam = new URLSearchParams(globalThis.location.search).get('tab');
   const initialTab = initialTabParam === null ? undefined : Number(initialTabParam);
 
-  return <TrailViewerApp serverUrl={globalThis.location.origin} isDark={isDark} editable initialTab={initialTab} />;
+  return <TrailViewerApp serverUrl={globalThis.location.origin} isDark={isDark} editable locale={detectLocale()} initialTab={initialTab} />;
 }

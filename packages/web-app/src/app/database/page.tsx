@@ -1,17 +1,8 @@
 "use client";
 
 import type { DatabaseAdapter } from "@anytime-markdown/database-core";
-import {
-  DatabaseEditor,
-  databaseViewerEnMessages,
-  databaseViewerJaMessages,
-} from "@anytime-markdown/database-viewer";
-import {
-  spreadsheetViewerEnMessages,
-  spreadsheetViewerJaMessages,
-} from "@anytime-markdown/spreadsheet-viewer";
+import { DatabaseEditor } from "@anytime-markdown/database-viewer";
 import { Box, Button, Stack } from "@mui/material";
-import { NextIntlClientProvider } from "next-intl";
 import React, { Suspense, useEffect, useState } from "react";
 
 import { DatabaseFilePicker } from "./DatabaseFilePicker";
@@ -53,40 +44,31 @@ export default function DatabasePage(): React.ReactElement {
     URL.revokeObjectURL(url);
   };
 
-  const lang =
-    typeof navigator !== "undefined" && navigator.language.startsWith("ja") ? "ja" : "en";
-  const messages =
-    lang === "ja"
-      ? { ...spreadsheetViewerJaMessages, ...databaseViewerJaMessages }
-      : { ...spreadsheetViewerEnMessages, ...databaseViewerEnMessages };
-
   return (
-    <NextIntlClientProvider locale={lang} messages={messages as Record<string, unknown>}>
-      <Box sx={{ height: "100vh", display: "flex", flexDirection: "column" }}>
-        {!adapter ? (
-          <DatabaseFilePicker onPick={onPick} />
-        ) : (
-          <>
-            <Stack direction="row" spacing={1} sx={{ p: 1 }}>
-              <Button size="small" onClick={() => setAdapter(null)}>
-                Close
+    <Box sx={{ height: "100vh", display: "flex", flexDirection: "column" }}>
+      {!adapter ? (
+        <DatabaseFilePicker onPick={onPick} />
+      ) : (
+        <>
+          <Stack direction="row" spacing={1} sx={{ p: 1 }}>
+            <Button size="small" onClick={() => setAdapter(null)}>
+              Close
+            </Button>
+            {modified ? (
+              <Button size="small" variant="contained" onClick={onDownload}>
+                Download
               </Button>
-              {modified ? (
-                <Button size="small" variant="contained" onClick={onDownload}>
-                  Download
-                </Button>
-              ) : null}
-            </Stack>
-            <Suspense fallback={<div>Loading...</div>}>
-              <DatabaseEditor
-                adapter={adapter}
-                queryMaxRows={queryMaxRows}
-                onMutationExecuted={() => setModified(true)}
-              />
-            </Suspense>
-          </>
-        )}
-      </Box>
-    </NextIntlClientProvider>
+            ) : null}
+          </Stack>
+          <Suspense fallback={<div>Loading...</div>}>
+            <DatabaseEditor
+              adapter={adapter}
+              queryMaxRows={queryMaxRows}
+              onMutationExecuted={() => setModified(true)}
+            />
+          </Suspense>
+        </>
+      )}
+    </Box>
   );
 }
