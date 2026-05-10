@@ -6494,7 +6494,9 @@ export class TrailDatabase {
               dead_code_score,
               signal_orphan, signal_fan_in_zero, signal_no_recent_churn,
               signal_zero_coverage, signal_isolated_community,
-              is_ignored, ignore_reason, analyzed_at
+              is_ignored, ignore_reason,
+              cross_pkg_in_count, external_consumer_pkgs, total_in_count, is_barrel, centrality_score,
+              analyzed_at
        FROM current_file_analysis WHERE repo_name = ?`,
       [repoName],
     );
@@ -6518,13 +6520,12 @@ export class TrailDatabase {
       },
       isIgnored: Number(r[14] ?? 0) === 1,
       ignoreReason: String(r[15] ?? ''),
-      // centrality fields: populated by upsert; SELECT is extended in Task 8
-      crossPkgInCount: 0,
-      externalConsumerPkgs: 0,
-      totalInCount: 0,
-      isBarrel: false,
-      centralityScore: 0,
-      analyzedAt: String(r[16] ?? ''),
+      crossPkgInCount: Number(r[16] ?? 0),
+      externalConsumerPkgs: Number(r[17] ?? 0),
+      totalInCount: Number(r[18] ?? 0),
+      isBarrel: Number(r[19] ?? 0) === 1,
+      centralityScore: Number(r[20] ?? 0),
+      analyzedAt: String(r[21] ?? ''),
     }));
   }
 
@@ -6574,7 +6575,9 @@ export class TrailDatabase {
               dead_code_score,
               signal_orphan, signal_fan_in_zero, signal_no_recent_churn,
               signal_zero_coverage, signal_isolated_community,
-              is_ignored, ignore_reason, analyzed_at
+              is_ignored, ignore_reason,
+              cross_pkg_in_count, external_consumer_pkgs, total_in_count, is_barrel, centrality_score,
+              analyzed_at
        FROM release_file_analysis WHERE release_tag = ? AND repo_name = ?`,
       [releaseTag, repoName],
     );
@@ -6598,12 +6601,12 @@ export class TrailDatabase {
       },
       isIgnored: Number(r[14] ?? 0) === 1,
       ignoreReason: String(r[15] ?? ''),
-      crossPkgInCount: 0,
-      externalConsumerPkgs: 0,
-      totalInCount: 0,
-      isBarrel: false,
-      centralityScore: 0,
-      analyzedAt: String(r[16] ?? ''),
+      crossPkgInCount: Number(r[16] ?? 0),
+      externalConsumerPkgs: Number(r[17] ?? 0),
+      totalInCount: Number(r[18] ?? 0),
+      isBarrel: Number(r[19] ?? 0) === 1,
+      centralityScore: Number(r[20] ?? 0),
+      analyzedAt: String(r[21] ?? ''),
     }));
   }
 
@@ -6649,7 +6652,9 @@ export class TrailDatabase {
       `SELECT repo_name, file_path, function_name, start_line,
               end_line, language, fan_in, cognitive_complexity, cyclomatic_complexity,
               data_mutation_score, side_effect_score, line_count,
-              importance_score, signal_fan_in_zero, analyzed_at
+              importance_score, signal_fan_in_zero,
+              fan_out, distinct_callees,
+              analyzed_at
        FROM current_function_analysis WHERE repo_name = ?`,
       [repoName],
     );
@@ -6669,9 +6674,9 @@ export class TrailDatabase {
       lineCount: Number(r[11] ?? 0),
       importanceScore: Number(r[12] ?? 0),
       signalFanInZero: Number(r[13] ?? 0) === 1,
-      fanOut: 0,
-      distinctCallees: 0,
-      analyzedAt: String(r[14] ?? ''),
+      fanOut: Number(r[14] ?? 0),
+      distinctCallees: Number(r[15] ?? 0),
+      analyzedAt: String(r[16] ?? ''),
     }));
   }
 
@@ -6713,7 +6718,9 @@ export class TrailDatabase {
       `SELECT repo_name, file_path, function_name, start_line,
               end_line, language, fan_in, cognitive_complexity, cyclomatic_complexity,
               data_mutation_score, side_effect_score, line_count,
-              importance_score, signal_fan_in_zero, analyzed_at
+              importance_score, signal_fan_in_zero,
+              fan_out, distinct_callees,
+              analyzed_at
        FROM release_function_analysis WHERE release_tag = ? AND repo_name = ?`,
       [releaseTag, repoName],
     );
@@ -6733,9 +6740,9 @@ export class TrailDatabase {
       lineCount: Number(r[11] ?? 0),
       importanceScore: Number(r[12] ?? 0),
       signalFanInZero: Number(r[13] ?? 0) === 1,
-      fanOut: 0,
-      distinctCallees: 0,
-      analyzedAt: String(r[14] ?? ''),
+      fanOut: Number(r[14] ?? 0),
+      distinctCallees: Number(r[15] ?? 0),
+      analyzedAt: String(r[16] ?? ''),
     }));
   }
 

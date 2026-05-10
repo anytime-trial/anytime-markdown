@@ -34,6 +34,7 @@ import type { TrailDatabase, SessionRow, MessageRow, SessionCommitRow, Analytics
 import { MetricsThresholdsLoader } from '@anytime-markdown/trail-db';
 import { computeDeploymentFrequency, computeQualityMetrics, computeReleaseQualityTimeSeries } from '@anytime-markdown/trail-core/domain/metrics';
 import { aggregateScoresToC4 } from '@anytime-markdown/trail-core/deadCode';
+import { aggregateCentralityToC4 } from '@anytime-markdown/trail-core/centrality';
 import { TrailLogger } from '../utils/TrailLogger';
 import type { CodeGraphService } from '../graph/CodeGraphService';
 import { GraphQueryEngine } from '../graph/GraphQueryEngine';
@@ -1703,17 +1704,20 @@ export class TrailDataServer {
       const payload = await fetchC4Model(store, tag, repoName, undefined);
       const elements = payload?.model?.elements ?? [];
 
-      // file → element 集約 (importance / deadCodeScore)
+      // file → element 集約 (importance / deadCodeScore / centrality)
       const importanceFileScores: Record<string, number> = {};
       const deadCodeFileScores: Record<string, number> = {};
+      const centralityFileScores: Record<string, number> = {};
       for (const r of rows) {
         importanceFileScores[r.filePath] = r.importanceScore;
         deadCodeFileScores[r.filePath] = r.deadCodeScore;
+        centralityFileScores[r.filePath] = r.crossPkgInCount;
       }
       const importance = aggregateScoresToC4(importanceFileScores, elements);
       // dead-code-score は importance と同じく親要素にも伝播させ、
       // viewer 側で levelTargetType に応じてフィルタする（フレーム着色防止のため）
       const deadCode = aggregateScoresToC4(deadCodeFileScores, elements);
+      const centrality = aggregateCentralityToC4(centralityFileScores, elements);
 
       const entries = rows.map((r) => ({
         filePath: r.filePath,
@@ -1726,12 +1730,16 @@ export class TrailDataServer {
         signals: r.signals,
         isIgnored: r.isIgnored,
         ignoreReason: r.ignoreReason,
+        centralityScore: r.centralityScore,
+        crossPkgInCount: r.crossPkgInCount,
+        externalConsumerPkgs: r.externalConsumerPkgs,
+        isBarrel: r.isBarrel,
       }));
 
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({
         entries,
-        elementMatrix: { importance, deadCodeScore: deadCode },
+        elementMatrix: { importance, deadCodeScore: deadCode, centrality },
       }));
     } catch (err) {
       TrailLogger.error('[/api/c4/file-analysis] failed', err);
@@ -1768,6 +1776,8 @@ export class TrailDataServer {
         lineCount: r.lineCount,
         importanceScore: r.importanceScore,
         signals: { fanInZero: r.signalFanInZero },
+        fanOut: r.fanOut,
+        distinctCallees: r.distinctCallees,
       }));
 
       res.writeHead(200, JSON_HEADERS);
