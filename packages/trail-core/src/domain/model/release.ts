@@ -18,6 +18,7 @@ export interface TrailRelease {
   readonly otherCount: number;
   readonly affectedPackages: readonly string[];
   readonly durationDays: number;
+  readonly releaseTimeMin: number | null;
 }
 
 export interface ReleaseRow {
@@ -39,4 +40,5 @@ export interface ReleaseRow {
   readonly affected_packages: string;
   readonly duration_days: number;
   readonly resolved_at: string | null;
+  readonly release_time_min: number | null;
 }

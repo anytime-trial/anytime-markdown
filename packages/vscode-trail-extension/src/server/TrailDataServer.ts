@@ -2257,6 +2257,7 @@ export class TrailDataServer {
         otherCount: row.other_count,
         affectedPackages: JSON.parse(row.affected_packages) as string[],
         durationDays: row.duration_days,
+        releaseTimeMin: row.release_time_min ?? null,
       }));
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(releases));

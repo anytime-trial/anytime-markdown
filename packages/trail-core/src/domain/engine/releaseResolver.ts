@@ -74,5 +74,6 @@ export function buildReleaseFromGitData(data: ReleaseGitData): TrailRelease {
     otherCount,
     affectedPackages: data.affectedPackages,
     durationDays,
+    releaseTimeMin: null,
   };
 }

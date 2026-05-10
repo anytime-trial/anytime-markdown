@@ -1498,6 +1498,7 @@ export class TrailDatabase {
       try { db.run(sql); } catch { /* Column already exists */ }
     }
     try { db.run('ALTER TABLE releases ADD COLUMN total_lines INTEGER NOT NULL DEFAULT 0'); } catch { /* Column already exists */ }
+    try { db.run('ALTER TABLE releases ADD COLUMN release_time_min REAL'); } catch { /* Column already exists */ }
     this.migrateDropSessionsProjectColumn(db);
     const messageAlters = [
       'ALTER TABLE messages ADD COLUMN rule_recommended_model TEXT',
@@ -3328,6 +3329,13 @@ export class TrailDatabase {
         onProgress?.(`Releases resolved: ${releasesResolved}`, 0);
       } catch {
         // Skip release resolution errors
+      }
+      try {
+        onProgress?.('Resolving release times...', 0);
+        const timesResolved = this.resolveReleaseTimes();
+        onProgress?.(`Release times resolved: ${timesResolved}`, 0);
+      } catch {
+        // Skip release time resolution errors
       }
     }
 
@@ -7154,6 +7162,74 @@ export class TrailDatabase {
 
     if (count > 0) this.save();
     return count;
+  }
+
+  /**
+   * production-release スキルの開始時刻と releases.released_at の差分（分）を算出し
+   * release_time_min が未設定のリリースを一括更新する。
+   * マッチング条件: セッション開始から 6 時間（0.25 日）以内に released_at が入る最小経過時間。
+   */
+  resolveReleaseTimes(): number {
+    const db = this.ensureDb();
+
+    // production-release スキルのセッションごとの開始時刻を取得
+    const sessResult = db.exec(`
+      SELECT session_id, MIN(timestamp) AS skill_start
+      FROM messages
+      WHERE skill = 'production-release' AND type = 'assistant'
+      GROUP BY session_id
+    `);
+    if (!sessResult[0]?.values?.length) return 0;
+
+    type SessionStart = { session_id: string; skill_start: string };
+    const cols = sessResult[0].columns;
+    const sessions: SessionStart[] = sessResult[0].values.map((row) => {
+      const obj: Record<string, unknown> = {};
+      for (let i = 0; i < cols.length; i++) obj[cols[i]] = row[i];
+      return obj as unknown as SessionStart;
+    });
+
+    // release_time_min が NULL のリリースを対象
+    const relResult = db.exec(`
+      SELECT tag, released_at FROM releases
+      WHERE released_at IS NOT NULL AND released_at != '' AND release_time_min IS NULL
+    `);
+    if (!relResult[0]?.values?.length) return 0;
+
+    const relCols = relResult[0].columns;
+    const releases = relResult[0].values.map((row) => {
+      const obj: Record<string, unknown> = {};
+      for (let i = 0; i < relCols.length; i++) obj[relCols[i]] = row[i];
+      return obj as { tag: string; released_at: string };
+    });
+
+    let updated = 0;
+    for (const rel of releases) {
+      const relMs = new Date(rel.released_at).getTime();
+      let minElapsed: number | null = null;
+
+      for (const sess of sessions) {
+        const startMs = new Date(sess.skill_start).getTime();
+        if (relMs < startMs) continue;
+        const elapsedMs = relMs - startMs;
+        const elapsedMin = elapsedMs / 60_000;
+        if (elapsedMin > 360) continue; // 6 時間超はスキップ
+        if (minElapsed === null || elapsedMin < minElapsed) {
+          minElapsed = elapsedMin;
+        }
+      }
+
+      if (minElapsed !== null) {
+        try {
+          db.run('UPDATE releases SET release_time_min = ? WHERE tag = ?', [
+            Math.round(minElapsed * 10) / 10,
+            rel.tag,
+          ]);
+          updated++;
+        } catch { /* ignore */ }
+      }
+    }
+    return updated;
   }
 
   /**

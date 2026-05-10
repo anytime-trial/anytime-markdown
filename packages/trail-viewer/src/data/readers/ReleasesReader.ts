@@ -27,6 +27,7 @@ export class ReleasesReader {
       feat_count: number; fix_count: number; refactor_count: number;
       test_count: number; other_count: number;
       affected_packages: string; duration_days: number;
+      release_time_min?: number | null;
     }[]).map((r) => ({
       tag: r.tag,
       releasedAt: r.released_at,
@@ -45,6 +46,7 @@ export class ReleasesReader {
       otherCount: r.other_count,
       affectedPackages: JSON.parse(r.affected_packages) as string[],
       durationDays: r.duration_days,
+      releaseTimeMin: r.release_time_min ?? null,
     }));
   }
 

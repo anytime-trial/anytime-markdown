@@ -184,6 +184,7 @@ CREATE TABLE IF NOT EXISTS trail_releases (
     affected_packages TEXT NOT NULL DEFAULT '[]',
     duration_days REAL NOT NULL DEFAULT 0,
     resolved_at TEXT,
+    release_time_min REAL,
     synced_at TIMESTAMPTZ DEFAULT NOW()
 );
 

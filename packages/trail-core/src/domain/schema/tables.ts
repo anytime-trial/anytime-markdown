@@ -203,7 +203,8 @@ export const CREATE_RELEASES = `CREATE TABLE IF NOT EXISTS releases (
   other_count INTEGER NOT NULL DEFAULT 0,
   affected_packages TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(affected_packages)),
   duration_days REAL NOT NULL DEFAULT 0,
-  resolved_at TEXT CHECK (resolved_at IS NULL OR resolved_at = '' OR resolved_at GLOB ${TS_GLOB_MS} OR resolved_at GLOB ${TS_GLOB_NO_MS})
+  resolved_at TEXT CHECK (resolved_at IS NULL OR resolved_at = '' OR resolved_at GLOB ${TS_GLOB_MS} OR resolved_at GLOB ${TS_GLOB_NO_MS}),
+  release_time_min REAL
 ) STRICT`;
 
 export const CREATE_RELEASE_FILES = `CREATE TABLE IF NOT EXISTS release_files (

@@ -20,6 +20,12 @@ function fmtLoc(v: number | null): string {
   return v.toString();
 }
 
+function fmtMin(v: number | null): string {
+  if (v == null) return '';
+  if (v >= 60) return `${Math.round(v / 60)}h`;
+  return `${Math.round(v)}m`;
+}
+
 export function ReleasesLocChart({ releases }: Readonly<{ releases: readonly TrailRelease[] }>) {
   const { cardSx, colors } = useTrailTheme();
   const { t } = useTrailI18n();
@@ -27,7 +33,7 @@ export function ReleasesLocChart({ releases }: Readonly<{ releases: readonly Tra
   const dataset = [...releases]
     .filter((r) => r.totalLines > 0 && r.releasedAt)
     .sort((a, b) => a.releasedAt.localeCompare(b.releasedAt))
-    .map((r) => ({ tag: r.tag, totalLines: r.totalLines, fixCount: r.fixCount ?? 0 }));
+    .map((r) => ({ tag: r.tag, totalLines: r.totalLines, releaseTimeMin: r.releaseTimeMin ?? null }));
 
   if (dataset.length === 0) {
     return (
@@ -55,17 +61,17 @@ export function ReleasesLocChart({ releases }: Readonly<{ releases: readonly Tra
           },
           {
             type: 'bar' as const,
-            dataKey: 'fixCount',
-            label: t('releases.fixCount'),
+            dataKey: 'releaseTimeMin',
+            label: t('releases.releaseTimeMin'),
             color: colors.warning,
-            yAxisId: 'fix',
-            valueFormatter: (v: number | null) => v == null ? '' : String(v),
+            yAxisId: 'time',
+            valueFormatter: fmtMin,
           },
         ] as any}
         xAxis={[{ id: 'tag', scaleType: 'band', dataKey: 'tag' }]}
         yAxis={[
           { id: 'loc', valueFormatter: fmtLoc, width: 56 },
-          { id: 'fix', position: 'right', tickMinStep: 1, width: 40 },
+          { id: 'time', position: 'right', valueFormatter: fmtMin, width: 48 },
         ]}
         height={280}
         margin={{ left: 0, right: 0, top: 8, bottom: 60 }}
@@ -78,7 +84,7 @@ export function ReleasesLocChart({ releases }: Readonly<{ releases: readonly Tra
             <MarkPlot />
             <ChartsXAxis axisId="tag" tickLabelStyle={{ fontSize: 10 }} />
             <ChartsYAxis axisId="loc" />
-            <ChartsYAxis axisId="fix" />
+            <ChartsYAxis axisId="time" />
           </ChartsSurface>
           <ChartsTooltip />
         </ChartsWrapper>
