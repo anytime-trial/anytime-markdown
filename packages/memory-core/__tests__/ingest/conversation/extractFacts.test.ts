@@ -162,7 +162,7 @@ describe('extractFactsFromEpisode', () => {
     expect((ollama.generate as jest.Mock).mock.calls[0][0].format).toBe('json');
   });
 
-  test('passes default num_ctx=8192 + num_predict=1024 to ollama.generate', async () => {
+  test('passes default num_ctx=4096 + num_predict=1024 to ollama.generate', async () => {
     const oldCtx = process.env['MEMORY_CORE_NUM_CTX'];
     const oldPred = process.env['MEMORY_CORE_NUM_PREDICT'];
     delete process.env['MEMORY_CORE_NUM_CTX'];
@@ -171,7 +171,7 @@ describe('extractFactsFromEpisode', () => {
       const ollama = makeOllama({ summary: 'test', entities: [], relations: [] });
       await extractFactsFromEpisode({ ollama, episode: episodeBase, logger: mockLogger });
       const callArgs = (ollama.generate as jest.Mock).mock.calls[0][0];
-      expect(callArgs.options).toEqual({ num_ctx: 8192, num_predict: 1024 });
+      expect(callArgs.options).toEqual({ num_ctx: 4096, num_predict: 1024 });
     } finally {
       if (oldCtx === undefined) delete process.env['MEMORY_CORE_NUM_CTX'];
       else process.env['MEMORY_CORE_NUM_CTX'] = oldCtx;
@@ -182,12 +182,12 @@ describe('extractFactsFromEpisode', () => {
 
   test('MEMORY_CORE_NUM_CTX overrides default num_ctx', async () => {
     const oldCtx = process.env['MEMORY_CORE_NUM_CTX'];
-    process.env['MEMORY_CORE_NUM_CTX'] = '4096';
+    process.env['MEMORY_CORE_NUM_CTX'] = '8192';
     try {
       const ollama = makeOllama({ summary: 'test', entities: [], relations: [] });
       await extractFactsFromEpisode({ ollama, episode: episodeBase, logger: mockLogger });
       const callArgs = (ollama.generate as jest.Mock).mock.calls[0][0];
-      expect(callArgs.options.num_ctx).toBe(4096);
+      expect(callArgs.options.num_ctx).toBe(8192);
     } finally {
       if (oldCtx === undefined) delete process.env['MEMORY_CORE_NUM_CTX'];
       else process.env['MEMORY_CORE_NUM_CTX'] = oldCtx;
