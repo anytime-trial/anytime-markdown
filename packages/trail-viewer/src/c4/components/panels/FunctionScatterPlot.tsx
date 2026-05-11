@@ -1,7 +1,10 @@
 import * as React from 'react';
-import { Box, Stack, Typography } from '@mui/material';
+import { Box, IconButton, Stack, Tooltip, Typography } from '@mui/material';
+import ScatterPlotIcon from '@mui/icons-material/ScatterPlot';
+import PublicIcon from '@mui/icons-material/Public';
 import { BubbleCanvas } from '../../canvas/BubbleCanvas';
 import type { BubblePoint } from '../../canvas/BubbleCanvas';
+import { GalaxyCanvas } from '../../canvas/GalaxyCanvas';
 import type { FunctionRole } from '@anytime-markdown/trail-core/c4';
 import type { FunctionAnalysisApiEntry } from '../../hooks/fetchFunctionAnalysisApi';
 
@@ -109,12 +112,16 @@ function median(values: readonly number[]): number {
     : ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2;
 }
 
+type ViewMode = 'scatter' | 'galaxy';
+
 export const FunctionScatterPlot: React.FC<FunctionScatterPlotProps> = ({
   entries,
   t,
   colors,
   onFunctionOpen,
 }) => {
+  const [view, setView] = React.useState<ViewMode>('scatter');
+
   if (entries.length === 0) {
     return (
       <Box sx={{ borderTop: `1px solid ${colors.border}`, mt: 2, pt: 1, px: 1 }}>
@@ -145,13 +152,34 @@ export const FunctionScatterPlot: React.FC<FunctionScatterPlotProps> = ({
         flexDirection: 'column',
       }}
     >
-      {/* タイトル */}
-      <Typography
-        variant="subtitle2"
-        sx={{ color: colors.textSecondary, fontWeight: 700, mb: 0.5 }}
-      >
-        {t('c4.scatter.title')}
-      </Typography>
+      {/* タイトル + View 切替 toolbar */}
+      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 0.5 }}>
+        <Typography variant="subtitle2" sx={{ color: colors.textSecondary, fontWeight: 700 }}>
+          {t('c4.scatter.title')}
+        </Typography>
+        <Stack direction="row" spacing={0.25}>
+          <Tooltip title="Scatter">
+            <IconButton
+              size="small"
+              onClick={() => setView('scatter')}
+              sx={{ color: view === 'scatter' ? colors.text : colors.textMuted, p: 0.25 }}
+              aria-label="scatter view"
+            >
+              <ScatterPlotIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Galaxy">
+            <IconButton
+              size="small"
+              onClick={() => setView('galaxy')}
+              sx={{ color: view === 'galaxy' ? colors.text : colors.textMuted, p: 0.25 }}
+              aria-label="galaxy view"
+            >
+              <PublicIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          </Tooltip>
+        </Stack>
+      </Stack>
 
       {/* 凡例（色 = role, サイズ = complexity tier） */}
       <Stack direction="row" spacing={2} sx={{ mb: 1, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -205,17 +233,25 @@ export const FunctionScatterPlot: React.FC<FunctionScatterPlotProps> = ({
         </Stack>
       </Stack>
 
-      {/* バブルキャンバス: 残り高さを全て占有 */}
+      {/* キャンバス: 残り高さを全て占有 (Scatter / Galaxy 排他切替) */}
       <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        <BubbleCanvas
-          points={toBubblePoints(entries)}
-          height="100%"
-          onPointClick={(pt) => {
-            if (onFunctionOpen) {
-              onFunctionOpen(pt.file, pt.label, pt.startLine);
-            }
-          }}
-        />
+        {view === 'scatter' ? (
+          <BubbleCanvas
+            points={toBubblePoints(entries)}
+            height="100%"
+            onPointClick={(pt) => {
+              if (onFunctionOpen) {
+                onFunctionOpen(pt.file, pt.label, pt.startLine);
+              }
+            }}
+          />
+        ) : (
+          <GalaxyCanvas
+            entries={entries}
+            height="100%"
+            onFunctionOpen={onFunctionOpen}
+          />
+        )}
       </Box>
     </Box>
   );

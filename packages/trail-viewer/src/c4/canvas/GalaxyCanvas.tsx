@@ -54,22 +54,46 @@ interface ResolvedPoint {
   readonly communityId: string;
 }
 
-function resolveStaticPoints(layouts: readonly CommunityLayout[]): ResolvedPoint[] {
+/** Galaxy-wide slow rotation rate (radians per millisecond). ~10 min per cycle. */
+const GALAXY_ROTATION_RATE = 0.000001;
+
+/**
+ * Per-orbit angular velocity multiplier — combined with Kepler's 3rd law
+ * (1/sqrt(r)) gives a snappier orbit at innermost rings without being dizzying.
+ */
+const ORBIT_SPEED = 0.0005;
+
+function resolveAnimatedPoints(
+  layouts: readonly CommunityLayout[],
+  elapsedMs: number,
+): ResolvedPoint[] {
+  const galaxyTheta = elapsedMs * GALAXY_ROTATION_RATE;
+  const galSin = Math.sin(galaxyTheta);
+  const galCos = Math.cos(galaxyTheta);
+
   const out: ResolvedPoint[] = [];
   for (const community of layouts) {
+    // Galaxy rotation: rotate community center around the galactic origin.
+    const rcx = community.cx * galCos - community.cy * galSin;
+    const rcy = community.cx * galSin + community.cy * galCos;
+
     if (community.hub) {
       out.push({
         entry: community.hub,
         tier: assignComplexityTier(community.hub.cognitiveComplexity),
-        dataX: community.cx,
-        dataY: community.cy,
+        dataX: rcx,
+        dataY: rcy,
         isHub: true,
         communityId: community.id,
       });
     }
     for (const planet of community.planets) {
-      const px = community.cx + planet.orbitR * Math.cos(planet.orbitTheta0);
-      const py = community.cy + planet.orbitR * Math.sin(planet.orbitTheta0);
+      // Kepler's 3rd law: inner orbits sweep faster than outer ones.
+      const angularVelocity = 1 / Math.sqrt(Math.max(1, planet.orbitR));
+      const orbitTheta = planet.orbitTheta0 + elapsedMs * ORBIT_SPEED * angularVelocity;
+      // Orbit is relative to the (rotated) community center.
+      const px = rcx + planet.orbitR * Math.cos(orbitTheta);
+      const py = rcy + planet.orbitR * Math.sin(orbitTheta);
       out.push({
         entry: planet.entry,
         tier: assignComplexityTier(planet.entry.cognitiveComplexity),
@@ -104,10 +128,18 @@ export const GalaxyCanvas: React.FC<GalaxyCanvasProps> = ({
   const layouts = React.useMemo<readonly CommunityLayout[]>(() => {
     return computeGalaxyLayout(groupByCommunity(entries));
   }, [entries]);
+  // Layouts ref so the animation loop can pick up changes without re-binding.
+  const layoutsRef = React.useRef(layouts);
+  layoutsRef.current = layouts;
 
-  // Points in data-space for hit-testing + rendering (static, no orbit animation yet)
-  const pointsRef = React.useRef<ResolvedPoint[]>([]);
-  pointsRef.current = React.useMemo(() => resolveStaticPoints(layouts), [layouts]);
+  // Animation clock — restart when entries change so positions don't jump.
+  const animStartRef = React.useRef(performance.now());
+  React.useEffect(() => {
+    animStartRef.current = performance.now();
+  }, [entries]);
+
+  // Points in data-space, recomputed each frame in the animation loop.
+  const pointsRef = React.useRef<ResolvedPoint[]>(resolveAnimatedPoints(layouts, 0));
 
   // Drag / hover state
   const isDraggingRef = React.useRef(false);
@@ -289,32 +321,30 @@ export const GalaxyCanvas: React.FC<GalaxyCanvasProps> = ({
     };
   }, [isDark, layouts]);
 
-  // --- rAF helpers (pan inertia only; no orbit animation in Phase 2) ---
+  // --- rAF helpers ---
+  // The galaxy keeps spinning, so the loop runs continuously while the
+  // component is mounted. Each frame recomputes planet positions from
+  // (elapsedMs, layouts) before drawing and ticking pan inertia.
   const scheduleLoop = React.useCallback(() => {
     if (rafRef.current !== 0) return;
     const loop = () => {
       const canvas = canvasRef.current;
       const ctx = canvas?.getContext('2d');
-      if (canvas && ctx) drawRef.current(canvas, ctx);
-      const moving = physicsRef.current.tick();
-      if (moving || isDraggingRef.current) {
-        rafRef.current = requestAnimationFrame(loop);
-      } else {
-        rafRef.current = 0;
+      if (canvas && ctx) {
+        const elapsedMs = performance.now() - animStartRef.current;
+        pointsRef.current = resolveAnimatedPoints(layoutsRef.current, elapsedMs);
+        drawRef.current(canvas, ctx);
       }
+      physicsRef.current.tick();
+      rafRef.current = requestAnimationFrame(loop);
     };
     rafRef.current = requestAnimationFrame(loop);
   }, []);
 
+  // For one-off draws (e.g. theme change before the loop is running).
   const requestDraw = React.useCallback(() => {
-    if (rafRef.current !== 0) return;
-    rafRef.current = requestAnimationFrame(() => {
-      const canvas = canvasRef.current;
-      const ctx = canvas?.getContext('2d');
-      if (canvas && ctx) drawRef.current(canvas, ctx);
-      rafRef.current = 0;
-    });
-  }, []);
+    scheduleLoop();
+  }, [scheduleLoop]);
 
   // --- Hit testing ---
   const hitTest = React.useCallback((mx: number, my: number, h: number): ResolvedPoint | null => {
