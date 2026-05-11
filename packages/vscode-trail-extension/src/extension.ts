@@ -955,7 +955,8 @@ export async function activate(context: vscode.ExtensionContext) {
 	registerMcpRegistrationCommand(context, extensionDistPath);
 
 	// Ollama ステータスパネル
-	const ollamaProvider = new OllamaProvider();
+	const pipelineStatusPath = dbStorageDir ? path.join(dbStorageDir, 'pipeline-status.json') : undefined;
+	const ollamaProvider = new OllamaProvider({ statusFilePath: pipelineStatusPath });
 	vscode.window.createTreeView('anytimeTrail.ollama', {
 		treeDataProvider: ollamaProvider,
 	});
