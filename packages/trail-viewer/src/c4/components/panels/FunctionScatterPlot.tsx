@@ -2,9 +2,11 @@ import * as React from 'react';
 import { Box, IconButton, Stack, Tooltip, Typography } from '@mui/material';
 import ScatterPlotIcon from '@mui/icons-material/ScatterPlot';
 import PublicIcon from '@mui/icons-material/Public';
+import ApartmentIcon from '@mui/icons-material/Apartment';
 import { BubbleCanvas } from '../../canvas/BubbleCanvas';
 import type { BubblePoint } from '../../canvas/BubbleCanvas';
 import { GalaxyCanvas } from '../../canvas/GalaxyCanvas';
+import { CodeCityCanvas } from '../../canvas/CodeCityCanvas';
 import type { FunctionRole } from '@anytime-markdown/trail-core/c4';
 import type { FunctionAnalysisApiEntry } from '../../hooks/fetchFunctionAnalysisApi';
 
@@ -112,7 +114,7 @@ function median(values: readonly number[]): number {
     : ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2;
 }
 
-type ViewMode = 'scatter' | 'galaxy';
+type ViewMode = 'scatter' | 'galaxy' | 'city';
 
 export const FunctionScatterPlot: React.FC<FunctionScatterPlotProps> = ({
   entries,
@@ -178,6 +180,16 @@ export const FunctionScatterPlot: React.FC<FunctionScatterPlotProps> = ({
               <PublicIcon sx={{ fontSize: 16 }} />
             </IconButton>
           </Tooltip>
+          <Tooltip title="City">
+            <IconButton
+              size="small"
+              onClick={() => setView('city')}
+              sx={{ color: view === 'city' ? colors.text : colors.textMuted, p: 0.25 }}
+              aria-label="city view"
+            >
+              <ApartmentIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          </Tooltip>
         </Stack>
       </Stack>
 
@@ -233,9 +245,9 @@ export const FunctionScatterPlot: React.FC<FunctionScatterPlotProps> = ({
         </Stack>
       </Stack>
 
-      {/* キャンバス: 残り高さを全て占有 (Scatter / Galaxy 排他切替) */}
+      {/* キャンバス: 残り高さを全て占有 (Scatter / Galaxy / City 排他切替) */}
       <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        {view === 'scatter' ? (
+        {view === 'scatter' && (
           <BubbleCanvas
             points={toBubblePoints(entries)}
             height="100%"
@@ -245,12 +257,12 @@ export const FunctionScatterPlot: React.FC<FunctionScatterPlotProps> = ({
               }
             }}
           />
-        ) : (
-          <GalaxyCanvas
-            entries={entries}
-            height="100%"
-            onFunctionOpen={onFunctionOpen}
-          />
+        )}
+        {view === 'galaxy' && (
+          <GalaxyCanvas entries={entries} height="100%" onFunctionOpen={onFunctionOpen} />
+        )}
+        {view === 'city' && (
+          <CodeCityCanvas entries={entries} height="100%" onFunctionOpen={onFunctionOpen} />
         )}
       </Box>
     </Box>
