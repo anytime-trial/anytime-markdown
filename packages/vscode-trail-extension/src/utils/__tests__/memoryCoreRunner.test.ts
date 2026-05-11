@@ -9,20 +9,39 @@ import {
 import * as fsMod from 'fs';
 import { createMemoryCoreRunner } from '../memoryCoreRunner';
 
-jest.mock('@anytime-markdown/memory-core', () => ({
-  openMemoryCoreDb: jest.fn(),
-  attachTrailDbReadOnly: jest.fn(),
-  createOllamaClient: jest.fn(),
-  runConversationIncremental: jest.fn(),
-  runConversationBackfill: jest.fn(),
-  runCodeIncremental: jest.fn().mockResolvedValue({
+jest.mock('@anytime-markdown/memory-core', () => {
+  const ok = {
     status: 'success',
     items_processed: 0,
+    items_skipped: 0,
+    items_failed: 0,
     entities_inserted: 0,
+    entities_updated: 0,
     edges_inserted: 0,
+    edges_invalidated: 0,
+    events_inserted: 0,
+    events_updated: 0,
+    events_resolved: 0,
     duration_ms: 0,
-  }),
-}));
+  };
+  return {
+    openMemoryCoreDb: jest.fn(),
+    attachTrailDbReadOnly: jest.fn(),
+    createOllamaClient: jest.fn(),
+    runConversationIncremental: jest.fn(),
+    runConversationBackfill: jest.fn(),
+    runConversationFailedItemsRetry: jest.fn().mockResolvedValue(ok),
+    runCodeIncremental: jest.fn().mockResolvedValue(ok),
+    runBugHistoryIncremental: jest.fn().mockResolvedValue(ok),
+    runReviewIncremental: jest.fn().mockResolvedValue(ok),
+    runSpecIncremental: jest.fn().mockResolvedValue(ok),
+    runAgentRunWatchdog: jest.fn().mockResolvedValue(ok),
+    runPipelineWatchdog: jest.fn().mockResolvedValue(ok),
+    runDriftDetection: jest.fn().mockResolvedValue(ok),
+    runEmbeddingBackfill: jest.fn().mockResolvedValue(ok),
+    setSqlJsLoader: jest.fn(),
+  };
+});
 
 jest.mock('fs', () => ({
   existsSync: jest.fn().mockReturnValue(true),

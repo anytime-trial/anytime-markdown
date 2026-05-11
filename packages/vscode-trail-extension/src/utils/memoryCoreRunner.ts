@@ -16,6 +16,7 @@ import {
   runAgentRunWatchdog,
   runPipelineWatchdog,
   runDriftDetection,
+  runEmbeddingBackfill,
   setSqlJsLoader,
 } from '@anytime-markdown/memory-core';
 
@@ -245,6 +246,21 @@ export function createMemoryCoreRunner(opts: {
               `[${new Date().toISOString()}] [INFO] Drift detection: status=${driftResult.status}, ` +
                 `events_inserted=${driftResult.events_inserted}, events_updated=${driftResult.events_updated}, ` +
                 `events_resolved=${driftResult.events_resolved}, duration_ms=${driftResult.duration_ms}`,
+            );
+
+            // ── Embedding backfill ──────────────────────────────────────────
+            // 各パイプラインが追加した entity の embedding を bge-m3 で生成。
+            // NULL embedding のみ対象なので冪等 (毎回呼んでも追加分のみ処理)。
+            logger.info(`[${new Date().toISOString()}] [INFO] Running embedding backfill`);
+            const embedResult = await runEmbeddingBackfill({
+              db: memDb.db,
+              ollama,
+              logger,
+            });
+            logger.info(
+              `[${new Date().toISOString()}] [INFO] Embedding backfill: status=${embedResult.status}, ` +
+                `items_processed=${embedResult.items_processed}, items_skipped=${embedResult.items_skipped}, ` +
+                `items_failed=${embedResult.items_failed}`,
             );
           } finally {
             // Release the WASM heap copy of trail DB (~800MB) after every run.
