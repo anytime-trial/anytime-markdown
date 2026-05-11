@@ -40,6 +40,8 @@ export interface C4ViewerCoreProps {
   readonly onOpenFile?: (filePath: string) => void;
   /** L3 component 右クリックの「シーケンス表示」を選択したときのコールバック。 */
   readonly onShowSequence?: (elementId: string) => void;
+  /** L3 component popup の関数一覧から「関数ツリー表示」を選択したときのコールバック。 */
+  readonly onOpenFunctionTree?: (filePath: string, fnName: string, line?: number) => void;
   readonly containerHeight?: string;
   readonly releases?: readonly C4ReleaseEntry[];
   readonly selectedRelease?: string;

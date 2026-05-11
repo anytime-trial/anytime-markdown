@@ -3,6 +3,7 @@ import { engine, layoutWithSubgroups, MinimapCanvas, state as graphState } from 
 import type { BoundaryInfo, C4Element, C4Model, C4ReleaseEntry, CommunityOverlayEntry, ComplexityMatrix, CoverageDiffMatrix, CoverageMatrix, DocLink, DsmMatrix, FeatureMatrix, HotspotMap, ImportanceMatrix, ManualGroup, MetricOverlay } from '@anytime-markdown/trail-core/c4';
 import { aggregateDsmToC4ComponentLevel, aggregateDsmToC4ContainerLevel, aggregateDsmToC4SystemLevel, aggregateHotspotToC4, buildC4ElementById, buildCommunityTree, buildElementTree, buildLevelView, buildSizeMatrix, c4ToGraphDocument, collectDescendantIds, computeColorMap, computeCommunityOverlay, computeFileHotspot, filterDsmMatrix, filterModelForDrill, filterTreeByLevel, mapFileToC4Elements, resolveSelectedElementCommunity, sortDsmMatrixByName } from '@anytime-markdown/trail-core/c4';
 import type { SizeMatrix } from '@anytime-markdown/trail-core/c4';
+import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import CloseIcon from '@mui/icons-material/Close';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
@@ -109,6 +110,7 @@ export function C4ViewerCore({
   onDocLinkClick,
   onOpenFile,
   onShowSequence,
+  onOpenFunctionTree,
   containerHeight = '100vh',
   releases = [],
   selectedRelease = CURRENT_RELEASE_TAG,
@@ -2015,7 +2017,7 @@ export function C4ViewerCore({
                       ) : (
                         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
                           {elementFunctions.symbols.map(sym => (
-                            <Box key={sym.id} sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
+                            <Box key={sym.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                               <Typography
                                 component="span"
                                 sx={{
@@ -2047,6 +2049,20 @@ export function C4ViewerCore({
                               >
                                 :{sym.line + 1}
                               </Typography>
+                              {(sym.kind === 'function' || sym.kind === 'method') && onOpenFunctionTree && (
+                                <IconButton
+                                  size="small"
+                                  aria-label={t('c4.callHierarchy.showFunctionTree')}
+                                  title={t('c4.callHierarchy.showFunctionTree')}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onOpenFunctionTree(sym.filePath, sym.name, sym.line + 1);
+                                  }}
+                                  sx={{ p: 0.25, ml: 0.25, color: colors.textSecondary, '&:hover': { color: colors.codeLink } }}
+                                >
+                                  <AccountTreeIcon sx={{ fontSize: '0.85rem' }} />
+                                </IconButton>
+                              )}
                             </Box>
                           ))}
                         </Box>
