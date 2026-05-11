@@ -11,6 +11,8 @@ export { runConversationIncremental } from './pipeline/runConversationIncrementa
 export type { IncrementalResult } from './pipeline/runConversationIncremental';
 export { runConversationBackfill } from './pipeline/runConversationBackfill';
 export type { BackfillResult } from './pipeline/runConversationBackfill';
+export { runConversationFailedItemsRetry } from './pipeline/runConversationFailedItemsRetry';
+export type { FailedItemsRetryResult } from './pipeline/runConversationFailedItemsRetry';
 export { runPipelineWatchdog } from './pipeline/pipelineWatchdog';
 export type { PipelineWatchdogResult } from './pipeline/pipelineWatchdog';
 export { runCodeIncremental } from './pipeline/runCodeIncremental';
