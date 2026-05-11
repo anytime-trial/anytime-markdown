@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import { ChangesProvider, ChangesFileItem } from '../providers/ChangesProvider';
 import { TimelineProvider, TimelineItem } from '@anytime-markdown/vscode-common';
 import { isMarkdownFile } from './specDocsCommands';
+import { gitExec } from '../utils/gitExec';
 
 /** git の元コンテンツを提供する TextDocumentContentProvider */
 export class GitOriginalContentProvider implements vscode.TextDocumentContentProvider {
@@ -89,10 +90,10 @@ export function registerChangesCommands(
 			// git コマンドで変更前コンテンツを取得
 			let originalContent: string;
 			try {
-				const { execFileSync } = await import('node:child_process');
-				originalContent = group === 'staged'
-					? execFileSync('git', ['show', `HEAD:${filePath}`], { cwd: gitRoot, encoding: 'utf-8' })
-					: execFileSync('git', ['show', `:${filePath}`], { cwd: gitRoot, encoding: 'utf-8' });
+				const r = group === 'staged'
+					? await gitExec(['show', `HEAD:${filePath}`], { cwd: gitRoot })
+					: await gitExec(['show', `:${filePath}`], { cwd: gitRoot });
+				originalContent = r.stdout;
 			} catch {
 				originalContent = '';
 			}
