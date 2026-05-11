@@ -10,6 +10,7 @@ import type { OllamaClient } from '../ollama/client';
 const SCOPE = 'conversation_incremental';
 const DEFAULT_SINCE = '1970-01-01T00:00:00.000Z';
 const QUARANTINE_THRESHOLD = 3;
+const PROGRESS_LOG_INTERVAL = 50;
 
 export interface IncrementalResult {
   status: 'success' | 'partial' | 'error';
@@ -185,6 +186,13 @@ export async function runConversationIncremental(opts: {
 
       for (const episode of episodes) {
         totals.items_processed += 1;
+
+        if (totals.items_processed % PROGRESS_LOG_INTERVAL === 0) {
+          logger.info(
+            `[memory-core] conversation incremental progress: ${totals.items_processed} processed ` +
+              `(${totals.items_failed} failed, entities_inserted=${totals.entities_inserted})`
+          );
+        }
 
         // Track latest timestamp seen
         if (episode.valid_from > maxTimestamp) {
