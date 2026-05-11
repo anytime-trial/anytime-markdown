@@ -1,8 +1,17 @@
 import * as cp from 'node:child_process';
+import * as fs from 'node:fs';
 import * as vscode from 'vscode';
 import { TrailLogger } from '../utils/TrailLogger';
 
 const OLLAMA_API = 'http://localhost:11434/api/tags';
+
+function isInsideContainer(): boolean {
+  try {
+    return fs.existsSync('/.dockerenv');
+  } catch {
+    return false;
+  }
+}
 const FETCH_TIMEOUT_MS = 2000;
 const POLL_NORMAL_MS = 10_000;
 const POLL_FAST_MS = 3_000;
@@ -123,9 +132,10 @@ export class OllamaProvider
     child.on('error', (err) => {
       const code = (err as NodeJS.ErrnoException).code;
       if (code === 'ENOENT') {
-        vscode.window.showErrorMessage(
-          'ollama コマンドが見つかりません。インストールを確認してください。',
-        );
+        const msg = isInsideContainer()
+          ? 'Dev Container 内では ollama を直接起動できません。WSL ターミナルで `ollama serve` を実行してください。'
+          : 'ollama コマンドが見つかりません。インストールを確認してください。';
+        vscode.window.showErrorMessage(msg);
       } else {
         TrailLogger.error(`[OllamaProvider] spawn error: ${err.stack ?? String(err)}`);
       }

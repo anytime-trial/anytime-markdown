@@ -6,6 +6,10 @@ jest.mock('node:child_process', () => ({
   spawn: (...args: unknown[]) => mockSpawn(...(args as Parameters<typeof mockSpawn>)),
 }));
 
+// fs.existsSync モック（/.dockerenv 検出用）
+const mockExistsSync = jest.fn().mockReturnValue(false);
+jest.mock('node:fs', () => ({ existsSync: (...args: unknown[]) => mockExistsSync(...args) }));
+
 // fetch モック (Node 18+ built-in を上書き)
 const mockFetch = jest.fn();
 global.fetch = mockFetch as unknown as typeof global.fetch;
@@ -106,13 +110,12 @@ describe('OllamaProvider.startOllama()', () => {
     });
   });
 
-  it('ENOENT の場合は errorMessage を表示して終了', async () => {
+  it('ENOENT かつコンテナ外: 通常のインストール確認メッセージを表示', async () => {
     mockFetch.mockReturnValue(makeTimeoutError());
+    mockExistsSync.mockReturnValue(false); // /.dockerenv なし
 
     const enoentErr = new Error('spawn ollama ENOENT') as NodeJS.ErrnoException;
     enoentErr.code = 'ENOENT';
-
-    // spawn() は同期 throw せず 'error' イベントで ENOENT を通知する
     mockSpawn.mockImplementationOnce(() => ({
       unref: jest.fn(),
       on: jest.fn().mockImplementation((event: string, cb: (err: Error) => void) => {
@@ -124,6 +127,26 @@ describe('OllamaProvider.startOllama()', () => {
 
     expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
       'ollama コマンドが見つかりません。インストールを確認してください。',
+    );
+  });
+
+  it('ENOENT かつ Dev Container 内: WSL ターミナル案内メッセージを表示', async () => {
+    mockFetch.mockReturnValue(makeTimeoutError());
+    mockExistsSync.mockReturnValue(true); // /.dockerenv あり = コンテナ内
+
+    const enoentErr = new Error('spawn ollama ENOENT') as NodeJS.ErrnoException;
+    enoentErr.code = 'ENOENT';
+    mockSpawn.mockImplementationOnce(() => ({
+      unref: jest.fn(),
+      on: jest.fn().mockImplementation((event: string, cb: (err: Error) => void) => {
+        if (event === 'error') { cb(enoentErr); }
+      }),
+    }));
+
+    await provider.startOllama();
+
+    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
+      'Dev Container 内では ollama を直接起動できません。WSL ターミナルで `ollama serve` を実行してください。',
     );
   });
 });
