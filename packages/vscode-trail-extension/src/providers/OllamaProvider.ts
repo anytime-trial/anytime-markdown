@@ -107,23 +107,61 @@ function readPipelineStatus(filePath: string | undefined): PipelineStatusFile | 
   }
 }
 
-function formatPipelineDescription(p: PipelineStatusEntry): string {
+export function formatDuration(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return '';
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  const m = Math.floor(seconds / 60);
+  const s = Math.round(seconds % 60);
+  if (m < 60) return s === 0 ? `${m}m` : `${m}m${s}s`;
+  const h = Math.floor(m / 60);
+  const mm = m % 60;
+  return mm === 0 ? `${h}h` : `${h}h${mm}m`;
+}
+
+function elapsedSeconds(p: PipelineStatusEntry, now: number): number | null {
+  if (!p.started_at) return null;
+  const startedMs = new Date(p.started_at).getTime();
+  if (!Number.isFinite(startedMs)) return null;
+  return Math.max(0, (now - startedMs) / 1000);
+}
+
+function totalDurationSeconds(p: PipelineStatusEntry): number | null {
+  if (!p.started_at || !p.finished_at) return null;
+  const startedMs = new Date(p.started_at).getTime();
+  const finishedMs = new Date(p.finished_at).getTime();
+  if (!Number.isFinite(startedMs) || !Number.isFinite(finishedMs)) return null;
+  return Math.max(0, (finishedMs - startedMs) / 1000);
+}
+
+export function formatPipelineDescription(
+  p: PipelineStatusEntry,
+  now: number = Date.now(),
+): string {
   if (p.state === 'running') {
-    if (p.items_total && p.items_processed !== undefined) {
+    const elapsed = elapsedSeconds(p, now);
+    const elapsedStr = elapsed !== null ? formatDuration(elapsed) : '';
+    if (p.items_total && p.items_processed !== undefined && p.items_processed > 0 && elapsed) {
+      const remaining = ((p.items_total - p.items_processed) / p.items_processed) * elapsed;
+      const eta = remaining > 0 ? `, ~${formatDuration(remaining)} left` : '';
       const failed = p.items_failed ? ` (failed=${p.items_failed})` : '';
-      return `${p.items_processed}/${p.items_total}${failed}`;
+      return `${p.items_processed}/${p.items_total} (${elapsedStr}${eta})${failed}`;
+    }
+    if (p.items_total && p.items_processed !== undefined) {
+      return `${p.items_processed}/${p.items_total} (${elapsedStr})`;
     }
     if (p.items_processed !== undefined && p.items_processed > 0) {
-      return `${p.items_processed} processed`;
+      return `${p.items_processed} processed (${elapsedStr})`;
     }
-    return 'running';
+    return elapsedStr ? `running (${elapsedStr})` : 'running';
   }
   if (p.state === 'success' || p.state === 'partial') {
+    const dur = totalDurationSeconds(p);
+    const durStr = dur !== null ? ` in ${formatDuration(dur)}` : '';
     if (p.items_processed !== undefined && p.items_processed > 0) {
       const failed = p.items_failed ? ` (failed=${p.items_failed})` : '';
-      return `${p.items_processed} done${failed}`;
+      return `${p.items_processed} done${durStr}${failed}`;
     }
-    return 'done';
+    return `done${durStr}`;
   }
   if (p.state === 'error') {
     return p.message ? `error: ${p.message.slice(0, 60)}` : 'error';
@@ -179,8 +217,17 @@ export class OllamaProvider
       if (!fs.existsSync(this._statusFilePath)) return;
       const stat = fs.statSync(this._statusFilePath);
       const mtime = stat.mtimeMs;
-      if (mtime !== this._lastStatusFileMtime) {
+      const mtimeChanged = mtime !== this._lastStatusFileMtime;
+
+      // 経過時間の表示を tick させるため、running pipeline があれば mtime 変化なしでも refresh する。
+      const status = readPipelineStatus(this._statusFilePath);
+      const hasRunning =
+        status?.pipelines.some((p) => p.state === 'running') ?? false;
+
+      if (mtimeChanged) {
         this._lastStatusFileMtime = mtime;
+      }
+      if (mtimeChanged || hasRunning) {
         this._onDidChangeTreeData.fire();
       }
     } catch {

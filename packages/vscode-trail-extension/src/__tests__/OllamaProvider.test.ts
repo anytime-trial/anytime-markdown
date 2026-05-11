@@ -20,7 +20,7 @@ jest.mock('node:fs', () => ({
 const mockFetch = jest.fn();
 global.fetch = mockFetch as unknown as typeof global.fetch;
 
-import { OllamaProvider } from '../providers/OllamaProvider';
+import { OllamaProvider, formatDuration, formatPipelineDescription } from '../providers/OllamaProvider';
 
 function makeRunningResponse(models: string[]) {
   return Promise.resolve({
@@ -39,7 +39,7 @@ describe('OllamaProvider.getChildren()', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     // 構築時のポーリングが fetch を呼ぶので、デフォルトで stopped 相当を返す
-    mockFetch.mockReturnValue(makeTimeoutError());
+    mockFetch.mockImplementation(() => makeTimeoutError());
     provider = new OllamaProvider();
   });
 
@@ -61,7 +61,7 @@ describe('OllamaProvider.getChildren()', () => {
   });
 
   it('Ollama 停止中（fetch タイムアウト）: ヘッダー(stopped)のみ返す', async () => {
-    mockFetch.mockReturnValue(makeTimeoutError());
+    mockFetch.mockImplementation(() => makeTimeoutError());
 
     const children = await provider.getChildren();
 
@@ -104,7 +104,7 @@ describe('OllamaProvider.getChildren() — pipelines', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockFetch.mockReturnValue(makeTimeoutError());
+    mockFetch.mockImplementation(() => makeTimeoutError());
   });
 
   afterEach(() => {
@@ -125,8 +125,8 @@ describe('OllamaProvider.getChildren() — pipelines', () => {
       updated_at: '2026-05-11T22:00:00.000Z',
       run_id: 'r1',
       pipelines: [
-        { scope: 'embedding_backfill', state: 'running', items_processed: 150, items_total: 2484, items_failed: 0 },
-        { scope: 'spec_incremental', state: 'success', items_processed: 12, items_failed: 0 },
+        { scope: 'embedding_backfill', state: 'running', started_at: '2026-05-11T22:00:00.000Z', items_processed: 150, items_total: 2484, items_failed: 0 },
+        { scope: 'spec_incremental', state: 'success', started_at: '2026-05-11T21:55:00.000Z', finished_at: '2026-05-11T21:56:30.000Z', items_processed: 12, items_failed: 0 },
         { scope: 'drift_detection', state: 'pending' },
       ],
     }));
@@ -137,8 +137,9 @@ describe('OllamaProvider.getChildren() — pipelines', () => {
     const pipelineItems = children.filter((c) => c.kind === 'pipeline');
     expect(pipelineItems).toHaveLength(3);
     expect(pipelineItems[0].label).toBe('embedding_backfill');
-    expect(pipelineItems[0].description).toBe('150/2484');
-    expect(pipelineItems[1].description).toBe('12 done');
+    // running の description は (elapsed, ETA) を含む — 実時刻依存なので部分一致
+    expect(pipelineItems[0].description).toMatch(/^150\/2484 \(/);
+    expect(pipelineItems[1].description).toBe('12 done in 1m30s');
     expect(pipelineItems[2].description).toBe('');
 
     const sep = children.find((c) => c.kind === 'pipeline-separator');
@@ -153,6 +154,47 @@ describe('OllamaProvider.getChildren() — pipelines', () => {
     provider = new OllamaProvider({ statusFilePath: statusPath });
     const children = await provider.getChildren();
     expect(children.every((c) => c.kind !== 'pipeline')).toBe(true);
+  });
+
+  it('formatDuration: 秒/分/時の境界', () => {
+    expect(formatDuration(0)).toBe('0s');
+    expect(formatDuration(45)).toBe('45s');
+    expect(formatDuration(60)).toBe('1m');
+    expect(formatDuration(90)).toBe('1m30s');
+    expect(formatDuration(3600)).toBe('1h');
+    expect(formatDuration(3660)).toBe('1h1m');
+    expect(formatDuration(-1)).toBe('');
+  });
+
+  it('formatPipelineDescription: running 経過時間 + ETA を含む', () => {
+    const now = new Date('2026-05-11T22:10:00.000Z').getTime();
+    const desc = formatPipelineDescription(
+      {
+        scope: 'embedding_backfill',
+        state: 'running',
+        started_at: '2026-05-11T22:00:00.000Z', // 10 分前
+        items_processed: 100,
+        items_total: 1000,
+        items_failed: 0,
+      },
+      now,
+    );
+    // 100/1000 で 10 分経過 → 残り 900 件分の時間 = 90 分
+    expect(desc).toContain('100/1000');
+    expect(desc).toContain('10m');
+    expect(desc).toContain('~1h30m left');
+  });
+
+  it('formatPipelineDescription: success 完了時間表示', () => {
+    const desc = formatPipelineDescription({
+      scope: 'spec_incremental',
+      state: 'success',
+      started_at: '2026-05-11T22:00:00.000Z',
+      finished_at: '2026-05-11T22:05:00.000Z',
+      items_processed: 12,
+      items_failed: 0,
+    });
+    expect(desc).toBe('12 done in 5m');
   });
 
   it('error 状態: message を description に含む', async () => {
@@ -179,7 +221,7 @@ describe('OllamaProvider.startOllama()', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockFetch.mockReturnValue(makeTimeoutError());
+    mockFetch.mockImplementation(() => makeTimeoutError());
     provider = new OllamaProvider();
   });
 
@@ -199,7 +241,7 @@ describe('OllamaProvider.startOllama()', () => {
   });
 
   it('停止中なら spawn を呼び出す', async () => {
-    mockFetch.mockReturnValue(makeTimeoutError());
+    mockFetch.mockImplementation(() => makeTimeoutError());
 
     await provider.startOllama();
 
@@ -210,7 +252,7 @@ describe('OllamaProvider.startOllama()', () => {
   });
 
   it('ENOENT かつコンテナ外: 通常のインストール確認メッセージを表示', async () => {
-    mockFetch.mockReturnValue(makeTimeoutError());
+    mockFetch.mockImplementation(() => makeTimeoutError());
     mockExistsSync.mockReturnValue(false); // /.dockerenv なし
 
     const enoentErr = new Error('spawn ollama ENOENT') as NodeJS.ErrnoException;
@@ -230,7 +272,7 @@ describe('OllamaProvider.startOllama()', () => {
   });
 
   it('ENOENT かつ Dev Container 内: WSL ターミナル案内メッセージを表示', async () => {
-    mockFetch.mockReturnValue(makeTimeoutError());
+    mockFetch.mockImplementation(() => makeTimeoutError());
     mockExistsSync.mockReturnValue(true); // /.dockerenv あり = コンテナ内
 
     const enoentErr = new Error('spawn ollama ENOENT') as NodeJS.ErrnoException;
