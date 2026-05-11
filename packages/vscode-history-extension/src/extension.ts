@@ -92,7 +92,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	const setActiveRoot = (rootPath: string | null) => {
 		activeRoot = rootPath;
 		changesProvider?.setPrimaryRoot(rootPath);
-		graphProvider?.setTargetRoot(rootPath);
+		void graphProvider?.setTargetRoot(rootPath);
 	};
 
 	let previousRoots: string[] = [];
