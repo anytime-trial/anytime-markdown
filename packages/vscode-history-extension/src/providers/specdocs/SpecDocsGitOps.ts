@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
+import { gitExec } from '../../utils/gitExec';
 
 export interface SpecDocsGitOpsHost {
 	readonly roots: string[];
@@ -28,13 +29,11 @@ export async function switchBranch(host: SpecDocsGitOpsHost, rootPath?: string):
 		return;
 	}
 
-	const { execFileSync } = await import('node:child_process');
-
 	// ローカル＋リモートブランチ一覧を取得
 	let branches: string[];
 	try {
-		const output = execFileSync('git', ['branch', '-a', '--no-color'], { cwd: gitRoot, encoding: 'utf-8' });
-		branches = output.split('\n')
+		const r = await gitExec(['branch', '-a', '--no-color'], { cwd: gitRoot });
+		branches = r.stdout.split('\n')
 			.map(b => b.replace(/^\*?\s+/, '').trim())
 			.filter(b => b && !b.includes('HEAD'))
 			.map(b => b.replace(/^remotes\/origin\//, ''))
@@ -59,7 +58,7 @@ export async function switchBranch(host: SpecDocsGitOpsHost, rootPath?: string):
 	if (!selected || selected.label === currentBranch) { return; }
 
 	try {
-		execFileSync('git', ['checkout', selected.label], { cwd: gitRoot, encoding: 'utf-8' });
+		await gitExec(['checkout', selected.label], { cwd: gitRoot });
 		host.fireTreeDataChange();
 		vscode.window.showInformationMessage(`Switched to branch: ${selected.label}`);
 	} catch (e: unknown) {
