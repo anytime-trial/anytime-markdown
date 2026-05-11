@@ -53,6 +53,10 @@
         {
           "id": "anytimeTrail.database",
           "name": "%view.database%"
+        },
+        {
+          "id": "anytimeTrail.ollama",
+          "name": "%view.ollama%"
         }
       ]
     },
@@ -199,6 +203,12 @@
         "command": "anytime-trail.registerMcpToClaudeCode",
         "title": "%command.registerMcpToClaudeCode%",
         "category": "Anytime Trail"
+      },
+      {
+        "command": "anytime-trail.startOllama",
+        "title": "%command.startOllama%",
+        "category": "Anytime Trail",
+        "icon": "$(play)"
       }
     ],
     "mcpServerDefinitionProviders": [
@@ -274,6 +284,11 @@
           "when": "view == anytimeTrail.agentMapping && anytimeTrail.agentMapping.filterActive",
           "group": "navigation",
           "icon": "$(filter-filled)"
+        },
+        {
+          "command": "anytime-trail.startOllama",
+          "when": "view == anytimeTrail.ollama && !anytime-trail.ollamaRunning",
+          "group": "navigation"
         }
       ],
       "view/item/context": [
