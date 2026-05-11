@@ -3,7 +3,9 @@ import * as fs from 'node:fs';
 import * as vscode from 'vscode';
 import { TrailLogger } from '../utils/TrailLogger';
 
-const OLLAMA_API = 'http://localhost:11434/api/tags';
+const OLLAMA_PORT = 11434;
+const OLLAMA_PATH = '/api/tags';
+const FETCH_TIMEOUT_MS = 2000;
 
 function isInsideContainer(): boolean {
   try {
@@ -12,7 +14,6 @@ function isInsideContainer(): boolean {
     return false;
   }
 }
-const FETCH_TIMEOUT_MS = 2000;
 const POLL_NORMAL_MS = 10_000;
 const POLL_FAST_MS = 3_000;
 const FAST_POLL_DURATION_MS = 30_000;
@@ -41,22 +42,35 @@ interface OllamaStatus {
   models: string[];
 }
 
-async function fetchOllamaStatus(): Promise<OllamaStatus> {
+async function trySingleHost(host: string): Promise<OllamaStatus | null> {
+  const url = `http://${host}:${OLLAMA_PORT}${OLLAMA_PATH}`;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    const resp = await fetch(OLLAMA_API, { signal: controller.signal });
+    const resp = await fetch(url, { signal: controller.signal });
     if (!resp.ok) {
       return { running: true, models: [] };
     }
     const data = (await resp.json()) as { models?: { name: string }[] };
-    const models = data.models?.map((m) => m.name) ?? [];
-    return { running: true, models };
+    return { running: true, models: data.models?.map((m) => m.name) ?? [] };
   } catch {
-    return { running: false, models: [] };
+    return null;
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function fetchOllamaStatus(): Promise<OllamaStatus> {
+  // Dev Container 内では localhost がコンテナ自身を指すため host.docker.internal にもフォールバック
+  const hosts = isInsideContainer()
+    ? ['localhost', 'host.docker.internal']
+    : ['localhost'];
+
+  for (const host of hosts) {
+    const result = await trySingleHost(host);
+    if (result !== null) { return result; }
+  }
+  return { running: false, models: [] };
 }
 
 export class OllamaProvider

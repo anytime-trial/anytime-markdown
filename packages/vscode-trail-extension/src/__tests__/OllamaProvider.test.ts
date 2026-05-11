@@ -73,6 +73,24 @@ describe('OllamaProvider.getChildren()', () => {
     expect(children[0].kind).toBe('header');
     expect(children[0].label).toBe('起動中');
   });
+
+  it('Dev Container 内: localhost 失敗 → host.docker.internal にフォールバックして起動中を検出', async () => {
+    mockExistsSync.mockReturnValue(true); // コンテナ内
+    // URL で分岐: localhost は失敗、host.docker.internal は成功
+    mockFetch.mockImplementation((url: string) =>
+      (url as string).includes('host.docker.internal')
+        ? makeRunningResponse(['bge-m3'])
+        : makeTimeoutError(),
+    );
+
+    const children = await provider.getChildren();
+
+    const urls = mockFetch.mock.calls.map((c) => c[0] as string);
+    expect(urls).toContain('http://localhost:11434/api/tags');
+    expect(urls).toContain('http://host.docker.internal:11434/api/tags');
+    expect(children[0].label).toBe('起動中');
+    expect(children[1].label).toBe('bge-m3');
+  });
 });
 
 describe('OllamaProvider.startOllama()', () => {
