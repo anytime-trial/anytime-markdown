@@ -14,6 +14,7 @@ import { CodeGraphService } from './graph/CodeGraphService';
 import { AiNoteItem,AiNoteProvider } from './providers/AiNoteProvider';
 import { AgentMappingProvider } from './providers/AgentMappingProvider';
 import { McpTrailServerProvider } from './providers/McpTrailServerProvider';
+import { OllamaProvider } from './providers/OllamaProvider';
 import { TraceCodeLensProvider } from './providers/TraceCodeLensProvider';
 import { TraceScriptLensProvider } from './providers/TraceScriptLensProvider';
 import { TrailDataServer } from './server/TrailDataServer';
@@ -952,6 +953,18 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Claude Code (CLI) 向け登録ヘルパー
 	registerMcpRegistrationCommand(context, extensionDistPath);
+
+	// Ollama ステータスパネル
+	const ollamaProvider = new OllamaProvider();
+	vscode.window.createTreeView('anytimeTrail.ollama', {
+		treeDataProvider: ollamaProvider,
+	});
+	context.subscriptions.push(
+		ollamaProvider,
+		vscode.commands.registerCommand('anytime-trail.startOllama', () =>
+			ollamaProvider.startOllama(),
+		),
+	);
 }
 
 export function deactivate(): void {
