@@ -78,4 +78,36 @@ describe('SymbolExtractor', () => {
       expect(path.isAbsolute(node.filePath)).toBe(false);
     }
   });
+
+  it('should scope inner methods of non-exported container variables', () => {
+    const nodes = extractor.extract();
+    const fooExt = nodes.find(n => n.label === 'FooExt');
+    const barExt = nodes.find(n => n.label === 'BarExt');
+    expect(fooExt).toBeDefined();
+    expect(barExt).toBeDefined();
+    expect(fooExt?.exported).toBe(false);
+    expect(barExt?.exported).toBe(false);
+
+    const addAttrs = nodes.filter(n => n.label === 'addAttributes');
+    expect(addAttrs.length).toBe(2);
+
+    const ids = addAttrs.map(n => n.id);
+    expect(new Set(ids).size).toBe(2);
+    expect(ids).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/::FooExt::addAttributes$/),
+        expect.stringMatching(/::BarExt::addAttributes$/),
+      ]),
+    );
+
+    const fooAttrs = addAttrs.find(n => n.id.includes('::FooExt::'));
+    expect(fooAttrs?.parent).toBe(fooExt?.id);
+  });
+
+  it('should dedupe TypeScript function overloads to the implementation declaration', () => {
+    const nodes = extractor.extract();
+    const computeNodes = nodes.filter(n => n.label === 'compute');
+    expect(computeNodes.length).toBe(1);
+    expect(computeNodes[0].line).toBe(3);
+  });
 });

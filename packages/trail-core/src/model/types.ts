@@ -32,6 +32,7 @@ export interface TrailNode {
   readonly filePath: string;
   readonly line: number;
   readonly parent?: string;
+  readonly exported?: boolean;
 }
 
 export interface TrailEdge {
