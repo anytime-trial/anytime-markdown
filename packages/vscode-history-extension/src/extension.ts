@@ -43,18 +43,17 @@ export async function activate(context: vscode.ExtensionContext) {
 		let previousChangedPaths = new Set<string>();
 		const cp = changesProvider;
 		const ctv = changesTreeView;
-		const updateChangesBadge = () => {
-			const count = cp.getChangesCount();
+		const updateChangesBadge = async () => {
+			const count = await cp.getChangesCount();
 			ctv.badge = count > 0
 				? { value: count, tooltip: `${count} changes` }
 				: undefined;
-			cp.closeRemovedTabs(previousChangedPaths);
-			previousChangedPaths = cp.getChangedPaths();
+			await cp.closeRemovedTabs(previousChangedPaths);
+			previousChangedPaths = await cp.getChangedPaths();
 		};
-		cp.onDidChangeTreeData(updateChangesBadge);
+		cp.onDidChangeTreeData(() => { void updateChangesBadge(); });
 		setTimeout(() => {
-			updateChangesBadge();
-			previousChangedPaths = cp.getChangedPaths();
+			void updateChangesBadge();
 		}, 2000);
 
 		timelineProvider = new TimelineProvider(
@@ -102,7 +101,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		// ルート一覧が変わった場合のみ changesProvider を更新
 		if (JSON.stringify(roots) !== JSON.stringify(previousRoots)) {
 			previousRoots = roots;
-			changesProvider?.setTargetRoots(roots);
+			void changesProvider?.setTargetRoots(roots);
 		}
 		if (roots.length === 0) {
 			setActiveRoot(null);
@@ -117,7 +116,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	if (changesProvider) {
 		const cp = changesProvider;
 		setTimeout(() => {
-			cp.setTargetRoots(specDocsProvider.roots);
+			void cp.setTargetRoots(specDocsProvider.roots);
 			previousRoots = specDocsProvider.roots;
 			setActiveRoot(activeRoot);
 		}, 2000);
