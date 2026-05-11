@@ -35,6 +35,7 @@ export interface SpecIncrementalInput {
 
 const SCOPE = 'spec_incremental';
 const MAX_CONSECUTIVE_FAILURES = 5;
+const PROGRESS_LOG_INTERVAL = 50;
 
 // ── Private helpers ───────────────────────────────────────────────────────────
 
@@ -202,7 +203,16 @@ export async function runSpecIncremental(
     items_skipped = Math.max(0, totalMdCount - changedSpecs.length);
 
     // 3. Process each changed spec
+    logger.info(`[memory-core] spec incremental: ${changedSpecs.length} changed specs to process`);
+    let processedCount = 0;
     for (const spec of changedSpecs) {
+      processedCount += 1;
+      if (processedCount % PROGRESS_LOG_INTERVAL === 0) {
+        logger.info(
+          `[memory-core] spec incremental progress: ${processedCount}/${changedSpecs.length} ` +
+            `(failed=${items_failed})`
+        );
+      }
       const recordedAt = new Date().toISOString();
       try {
         // a. Read content

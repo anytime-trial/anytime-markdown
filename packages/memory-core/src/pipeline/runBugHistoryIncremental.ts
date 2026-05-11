@@ -12,6 +12,7 @@ import { noopLogger, type MemoryLogger } from '../logger';
 const SCOPE = 'bug_history_incremental';
 const DEFAULT_SINCE = '1970-01-01T00:00:00.000Z';
 const MAX_CONSECUTIVE_FAILURES = 5;
+const PROGRESS_LOG_INTERVAL = 50;
 
 export interface BugHistoryIncrementalResult {
   status: 'success' | 'partial' | 'error';
@@ -160,7 +161,16 @@ export async function runBugHistoryIncremental(opts: {
   let hasPartialFailure = false;
 
   // ── 4. Process each commit ────────────────────────────────────────────────
+  logger.info(`[memory-core] bug history incremental: ${rows.length} fix commits to process`);
+  let commitProcessed = 0;
   for (const row of rows) {
+    commitProcessed += 1;
+    if (commitProcessed % PROGRESS_LOG_INTERVAL === 0) {
+      logger.info(
+        `[memory-core] bug history incremental progress: ${commitProcessed}/${rows.length} ` +
+          `(bugs_inserted=${bugsInserted})`
+      );
+    }
     if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
       logger.info(`[memory-core] runBugHistoryIncremental: quarantine threshold reached`);
       hasPartialFailure = true;

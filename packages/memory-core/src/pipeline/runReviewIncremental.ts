@@ -15,6 +15,7 @@ const SCOPE_DOC = 'review_incremental';
 const SCOPE_SESSION = 'review_session_incremental';
 const DEFAULT_REVIEW_DIR = '/Shared/anytime-markdown-docs/review';
 const DEFAULT_SINCE = '1970-01-01T00:00:00.000Z';
+const PROGRESS_LOG_INTERVAL = 50;
 
 export interface ReviewIncrementalResult {
   status: 'success' | 'partial' | 'error';
@@ -169,9 +170,17 @@ export async function runReviewIncremental(input: {
       mdFiles = [];
     }
 
+    logger.info(`[memory-core] review incremental (Route A): ${mdFiles.length} review docs to process`);
+    let routeAProcessed = 0;
     for (const filePath of mdFiles) {
       const relPath = path.relative(path.dirname(reviewDir), filePath);
       totals.items_processed += 1;
+      routeAProcessed += 1;
+      if (routeAProcessed % PROGRESS_LOG_INTERVAL === 0) {
+        logger.info(
+          `[memory-core] review incremental Route A progress: ${routeAProcessed}/${mdFiles.length}`
+        );
+      }
 
       try {
         const content = fs.readFileSync(filePath, 'utf8');
@@ -249,8 +258,16 @@ export async function runReviewIncremental(input: {
 
     let maxReviewedAt = lastProcessedAt;
 
+    logger.info(`[memory-core] review incremental (Route B): ${sessions.length} sessions to process`);
+    let routeBProcessed = 0;
     for (const session of sessions) {
       totals.items_processed += 1;
+      routeBProcessed += 1;
+      if (routeBProcessed % PROGRESS_LOG_INTERVAL === 0) {
+        logger.info(
+          `[memory-core] review incremental Route B progress: ${routeBProcessed}/${sessions.length}`
+        );
+      }
       try {
         const refined = await refineCategories({
           findings: session.findings,
