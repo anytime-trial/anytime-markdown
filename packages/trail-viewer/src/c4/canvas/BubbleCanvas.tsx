@@ -248,17 +248,9 @@ export const BubbleCanvas: React.FC<BubbleCanvasProps> = ({
     const h = canvas.clientHeight || height;
     const physics = physicsRef.current;
     physics.fitToData(pointsRef.current, w, h);
-    const pts = pointsRef.current;
-    if (pts.length > 0) {
-      const xs = pts.map((p) => p.x);
-      const ys = pts.map((p) => p.y);
-      physics.setBounds({
-        minX: Math.min(...xs) - 2,
-        maxX: Math.max(...xs) + 2,
-        minY: Math.min(...ys) - 2,
-        maxY: Math.max(...ys) + 2,
-      });
-    }
+    // Pan bounds are intentionally unbounded (-Infinity .. +Infinity) so users
+    // can freely scroll past the data range — data-range bounds with spring
+    // back made the left side hard to inspect.
     requestDraw();
 
     // Wheel (needs non-passive for preventDefault)
@@ -291,16 +283,8 @@ export const BubbleCanvas: React.FC<BubbleCanvasProps> = ({
     const w = canvas.clientWidth || 600;
     const h = canvas.clientHeight || height;
     physicsRef.current.fitToData(points, w, h);
-    if (points.length > 0) {
-      const xs = points.map((p) => p.x);
-      const ys = points.map((p) => p.y);
-      physicsRef.current.setBounds({
-        minX: Math.min(...xs) - 2,
-        maxX: Math.max(...xs) + 2,
-        minY: Math.min(...ys) - 2,
-        maxY: Math.max(...ys) + 2,
-      });
-    }
+    // Pan bounds are intentionally unbounded — see comment in the initial
+    // setup effect above.
     requestDraw();
   }, [points, height, requestDraw]);
 
