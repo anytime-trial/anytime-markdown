@@ -37,6 +37,91 @@ const PAN_SENSITIVITY = 0.7;
 const ZOOM_LABEL_THRESHOLD = 2.5;
 const HIT_PADDING = 4;
 
+/** RGB tuple in 0..255 range. */
+type Rgb = readonly [number, number, number];
+
+function hexToRgb(hex: string): Rgb {
+  const m = /^#([0-9a-fA-F]{6})$/.exec(hex);
+  if (!m) return [128, 128, 128];
+  const raw = m[1]!;
+  return [parseInt(raw.slice(0, 2), 16), parseInt(raw.slice(2, 4), 16), parseInt(raw.slice(4, 6), 16)];
+}
+
+function rgbStr([r, g, b]: Rgb, alpha = 1): string {
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function scaleRgb(rgb: Rgb, factor: number): Rgb {
+  const cap = (c: number): number => Math.max(0, Math.min(255, Math.round(c * factor)));
+  return [cap(rgb[0]), cap(rgb[1]), cap(rgb[2])];
+}
+
+/**
+ * Draw a pseudo-3D sphere with radial shading + specular highlight.
+ * Light source is fixed at the upper-left of the sphere.
+ *
+ * - body: radial gradient from a bright "lit" patch (offset) to a dark limb
+ * - specular: small bright spot near the lit patch
+ * - rim: thin dark outline so the silhouette stays crisp on light/dark bg
+ */
+function drawSphere(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  r: number,
+  baseHex: string,
+  options: { glow?: boolean; isDark?: boolean } = {},
+): void {
+  const base = hexToRgb(baseHex);
+  const dark = options.isDark ?? true;
+
+  // Light direction (upper-left of the sphere, normalized to radius units)
+  const lightDx = -0.35;
+  const lightDy = -0.35;
+  const lx = cx + r * lightDx;
+  const ly = cy + r * lightDy;
+
+  // Optional star-like glow halo (used for hubs / suns)
+  if (options.glow) {
+    const haloR = r * 3.2;
+    const halo = ctx.createRadialGradient(cx, cy, r * 0.6, cx, cy, haloR);
+    halo.addColorStop(0, 'rgba(255,200,90,0.55)');
+    halo.addColorStop(0.35, 'rgba(255,160,60,0.22)');
+    halo.addColorStop(1, 'rgba(255,140,40,0)');
+    ctx.fillStyle = halo;
+    ctx.fillRect(cx - haloR, cy - haloR, haloR * 2, haloR * 2);
+  }
+
+  // Body gradient: lit patch (offset) → mid → dark limb
+  const grad = ctx.createRadialGradient(lx, ly, 0, cx, cy, r);
+  grad.addColorStop(0, rgbStr(scaleRgb(base, 1.6)));
+  grad.addColorStop(0.35, rgbStr(base));
+  grad.addColorStop(1, rgbStr(scaleRgb(base, 0.35)));
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Specular highlight (small bright spot)
+  if (r >= 3) {
+    const specR = r * 0.35;
+    const specCx = cx + r * (lightDx - 0.08);
+    const specCy = cy + r * (lightDy - 0.08);
+    const spec = ctx.createRadialGradient(specCx, specCy, 0, specCx, specCy, specR);
+    spec.addColorStop(0, options.glow ? 'rgba(255,250,220,0.85)' : 'rgba(255,255,255,0.65)');
+    spec.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = spec;
+    ctx.fillRect(specCx - specR, specCy - specR, specR * 2, specR * 2);
+  }
+
+  // Rim outline
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.strokeStyle = dark ? rgbStr(scaleRgb(base, 0.35), 0.55) : rgbStr(scaleRgb(base, 0.25), 0.4);
+  ctx.lineWidth = 0.6;
+  ctx.stroke();
+}
+
 interface TooltipState {
   readonly point: ResolvedPoint;
   readonly x: number;
@@ -296,35 +381,53 @@ export const GalaxyCanvas: React.FC<GalaxyCanvasProps> = ({
         }
       }
 
-      // ── Pass 1: planets + hubs (z-order: hubs drawn last) ────────────
+      // ── Galactic core: a large warm glow at the galaxy origin (0,0) ──
+      // After galaxy rotation the origin stays at (0,0), so just project (0,0).
+      {
+        const { sx: coreSx, sy: coreSy } = toScreen(0, 0);
+        const coreR = 90 * Math.sqrt(zoom);
+        if (
+          coreSx + coreR > 0 &&
+          coreSx - coreR < w &&
+          coreSy + coreR > 0 &&
+          coreSy - coreR < h
+        ) {
+          const coreGrad = ctx.createRadialGradient(coreSx, coreSy, 0, coreSx, coreSy, coreR);
+          coreGrad.addColorStop(0, dark ? 'rgba(255,220,180,0.25)' : 'rgba(255,200,120,0.20)');
+          coreGrad.addColorStop(0.4, dark ? 'rgba(255,180,120,0.12)' : 'rgba(255,180,80,0.10)');
+          coreGrad.addColorStop(1, 'rgba(255,160,60,0)');
+          ctx.fillStyle = coreGrad;
+          ctx.fillRect(coreSx - coreR, coreSy - coreR, coreR * 2, coreR * 2);
+        }
+      }
+
+      // ── Pass 1: planets + hubs as 3D spheres (z-order: hubs drawn last)
       const nonHubs = pts.filter((p) => !p.isHub);
       const hubs = pts.filter((p) => p.isHub);
       const drawPoint = (pt: ResolvedPoint) => {
         const { sx, sy } = toScreen(pt.dataX, pt.dataY);
         const baseR = pt.isHub ? HUB_BASE_RADIUS : BASE_RADIUS[pt.tier];
         const r = baseR * Math.sqrt(zoom);
-        if (sx + r < 0 || sx - r > w || sy + r < 0 || sy - r > h) return;
+        if (sx + r * 4 < 0 || sx - r * 4 > w || sy + r * 4 < 0 || sy - r * 4 > h) return;
 
-        // Hub glow
-        if (pt.isHub) {
-          const glow = ctx.createRadialGradient(sx, sy, 0, sx, sy, r * 2.5);
-          glow.addColorStop(0, 'rgba(255,180,60,0.4)');
-          glow.addColorStop(1, 'rgba(255,180,60,0)');
-          ctx.fillStyle = glow;
-          ctx.fillRect(sx - r * 2.5, sy - r * 2.5, r * 5, r * 5);
+        // Shadow under the sphere (subtle ground projection)
+        if (!pt.isHub && r >= 3) {
+          const shadowGrad = ctx.createRadialGradient(sx, sy + r * 1.0, 0, sx, sy + r * 1.0, r);
+          shadowGrad.addColorStop(0, 'rgba(0,0,0,0.25)');
+          shadowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = shadowGrad;
+          ctx.beginPath();
+          ctx.ellipse(sx, sy + r * 0.9, r * 0.9, r * 0.35, 0, 0, Math.PI * 2);
+          ctx.fill();
         }
 
-        ctx.beginPath();
-        ctx.arc(sx, sy, r, 0, Math.PI * 2);
-        ctx.fillStyle = pt.isHub ? ROLE_COLORS.hub : ROLE_COLORS[pt.entry.functionRole];
-        ctx.globalAlpha = pt.isHub ? 1 : 0.88;
-        ctx.fill();
-        ctx.globalAlpha = 1;
+        const baseHex = pt.isHub ? ROLE_COLORS.hub : ROLE_COLORS[pt.entry.functionRole];
+        drawSphere(ctx, sx, sy, r, baseHex, { glow: pt.isHub, isDark: dark });
 
         if (pt === hovered) {
           ctx.beginPath();
-          ctx.arc(sx, sy, r + 3, 0, Math.PI * 2);
-          ctx.strokeStyle = dark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.35)';
+          ctx.arc(sx, sy, r + 4, 0, Math.PI * 2);
+          ctx.strokeStyle = dark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.5)';
           ctx.lineWidth = 1.5;
           ctx.stroke();
         }
