@@ -89,6 +89,27 @@ function hasQuestionMark(text: string): boolean {
   return /[?？]/.test(text);
 }
 
+const DEFAULT_NUM_CTX = 8192;
+const DEFAULT_NUM_PREDICT = 1024;
+
+function resolveOllamaOptions(): Record<string, unknown> {
+  // OLLAMA_NUM_PARALLEL>1 で動かす場合、各並列スロットの effective context
+  // window は num_ctx/N に分割される。num_ctx=4096 + NUM_PARALLEL=2 では
+  // 各 slot 2048 token しかなく、長い episode で JSON output が途中で
+  // 切れる事象が観測されたため、既定で 8192 を渡す。
+  // 環境変数 MEMORY_CORE_NUM_CTX / MEMORY_CORE_NUM_PREDICT で運用側で
+  // 調整可。
+  const numCtxRaw = process.env['MEMORY_CORE_NUM_CTX'];
+  const numCtx = numCtxRaw && Number.isFinite(Number(numCtxRaw)) && Number(numCtxRaw) > 0
+    ? Number(numCtxRaw)
+    : DEFAULT_NUM_CTX;
+  const numPredictRaw = process.env['MEMORY_CORE_NUM_PREDICT'];
+  const numPredict = numPredictRaw && Number.isFinite(Number(numPredictRaw)) && Number(numPredictRaw) > 0
+    ? Number(numPredictRaw)
+    : DEFAULT_NUM_PREDICT;
+  return { num_ctx: numCtx, num_predict: numPredict };
+}
+
 export async function extractFactsFromEpisode(opts: {
   ollama: OllamaClient;
   episode: EpisodeInput;
@@ -105,7 +126,12 @@ export async function extractFactsFromEpisode(opts: {
 
   let responseText: string;
   try {
-    const result = await ollama.generate({ model, prompt, format: 'json' });
+    const result = await ollama.generate({
+      model,
+      prompt,
+      format: 'json',
+      options: resolveOllamaOptions(),
+    });
     responseText = result.response;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
