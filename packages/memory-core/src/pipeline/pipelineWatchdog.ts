@@ -26,10 +26,14 @@ export function runPipelineWatchdog(input: {
   const now = new Date().toISOString();
 
   // 1. Timeout stale running pipeline_runs.
+  // Staleness is judged by the most recent progress signal:
+  // last_heartbeat_at if the pipeline has reported progress, otherwise started_at.
+  // This lets long-running backfills (hours) survive the 10-minute timeout
+  // as long as they keep updating last_heartbeat_at.
   const staleRunRows = db.exec(
     `SELECT id FROM memory_pipeline_runs
      WHERE status = 'running'
-       AND julianday(started_at) < julianday(?) - CAST(? AS REAL) / 1440.0`,
+       AND julianday(COALESCE(last_heartbeat_at, started_at)) < julianday(?) - CAST(? AS REAL) / 1440.0`,
     [now, timeoutMinutes],
   );
   const runIds = (staleRunRows[0]?.values ?? []).map((r) => r[0] as string);
