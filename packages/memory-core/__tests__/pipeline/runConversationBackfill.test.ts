@@ -342,6 +342,67 @@ describe('runConversationBackfill', () => {
     memDb.close();
   }, 30000);
 
+  // ── B8: extract concurrency parallelizes Ollama calls ─────────────────────
+  test('B8: MEMORY_CORE_EXTRACT_CONCURRENCY=4 runs up to 4 extract calls in parallel', async () => {
+    const oldEnv = process.env.MEMORY_CORE_EXTRACT_CONCURRENCY;
+    process.env.MEMORY_CORE_EXTRACT_CONCURRENCY = '4';
+    try {
+      const memDb = await makeMemoryDb();
+      const trailDb = makeTrailDb(SQL);
+
+      // 1 session containing 8 user messages → splitEpisodes yields 8 episodes
+      // within a single session. Parallel batching happens per-session.
+      insertSession(trailDb, 'sess_b8');
+      for (let i = 0; i < 8; i++) {
+        const ts = new Date(Date.now() - 86_400_000 + i * 1000).toISOString();
+        insertMessage(trailDb, `msg_b8_${i}`, 'sess_b8', 'user', ts, `body ${i}`);
+      }
+      attachTrailDbFromHandle(memDb, trailDb);
+
+      let inFlight = 0;
+      let maxInFlight = 0;
+      const generate = jest.fn().mockImplementation(async () => {
+        inFlight++;
+        if (inFlight > maxInFlight) maxInFlight = inFlight;
+        // Small delay so multiple in-flight promises overlap.
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        inFlight--;
+        return {
+          response: JSON.stringify({
+            summary: 'test',
+            entities: [{ type: 'Tool', name: 'jest', aliases: [], tags: [], attributes: {} }],
+            relations: [],
+            questions: [],
+          }),
+        };
+      });
+      const ollama = { generate, embeddings: jest.fn() };
+
+      const result = await runConversationBackfill({
+        db: memDb,
+        ollama,
+        sinceDays: 7,
+        logger: silentLogger,
+      });
+
+      expect(result.status).toBe('success');
+      expect(result.items_processed).toBe(8);
+      // Parallel batching occurred (more than 1 in flight at some point).
+      expect(maxInFlight).toBeGreaterThanOrEqual(2);
+      // Never exceeds the configured concurrency.
+      expect(maxInFlight).toBeLessThanOrEqual(4);
+
+      trailDb.close();
+      memDb.close();
+    } finally {
+      if (oldEnv === undefined) {
+        delete process.env.MEMORY_CORE_EXTRACT_CONCURRENCY;
+      } else {
+        process.env.MEMORY_CORE_EXTRACT_CONCURRENCY = oldEnv;
+      }
+    }
+  }, 30000);
+
   // ── B5: 3 consecutive failures → quarantine ───────────────────────────────
   test('B5: 3 consecutive LLM failures → pipeline_state.status = quarantine', async () => {
     const memDb = await makeMemoryDb();
