@@ -136,6 +136,13 @@ export const FunctionScatterPlot: React.FC<FunctionScatterPlotProps> = ({
         mt: 2,
         pt: 1,
         px: 1,
+        // Fill the popup's flex content area so the BubbleCanvas can grow into
+        // the remaining height. minHeight:0 is required so the flex child can
+        // shrink below its intrinsic height (otherwise BubbleCanvas overflows).
+        flex: 1,
+        minHeight: 0,
+        display: 'flex',
+        flexDirection: 'column',
       }}
     >
       {/* タイトル */}
@@ -198,16 +205,18 @@ export const FunctionScatterPlot: React.FC<FunctionScatterPlotProps> = ({
         </Stack>
       </Stack>
 
-      {/* バブルキャンバス */}
-      <BubbleCanvas
-        points={toBubblePoints(entries)}
-        height={320}
-        onPointClick={(pt) => {
-          if (onFunctionOpen) {
-            onFunctionOpen(pt.file, pt.label, pt.startLine);
-          }
-        }}
-      />
+      {/* バブルキャンバス: 残り高さを全て占有 */}
+      <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        <BubbleCanvas
+          points={toBubblePoints(entries)}
+          height="100%"
+          onPointClick={(pt) => {
+            if (onFunctionOpen) {
+              onFunctionOpen(pt.file, pt.label, pt.startLine);
+            }
+          }}
+        />
+      </Box>
     </Box>
   );
 };

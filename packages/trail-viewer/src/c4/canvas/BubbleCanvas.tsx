@@ -21,7 +21,11 @@ export interface BubblePoint {
 export interface BubbleCanvasProps {
   readonly points: readonly BubblePoint[];
   readonly onPointClick?: (point: BubblePoint) => void;
-  readonly height?: number;
+  /**
+   * Outer container height. number → px, string → CSS unit ('100%' fills the
+   * flex parent's remaining height — useful inside a flex column popup).
+   */
+  readonly height?: number | string;
 }
 
 // Multiplier applied to mouse drag delta before passing to PanPhysics.pan.
@@ -245,7 +249,7 @@ export const BubbleCanvas: React.FC<BubbleCanvasProps> = ({
 
     // Initial fit
     const w = canvas.clientWidth || 600;
-    const h = canvas.clientHeight || height;
+    const h = canvas.clientHeight || (typeof height === 'number' ? height : 400);
     const physics = physicsRef.current;
     physics.fitToData(pointsRef.current, w, h);
     // Pan bounds are intentionally unbounded (-Infinity .. +Infinity) so users
@@ -281,7 +285,7 @@ export const BubbleCanvas: React.FC<BubbleCanvasProps> = ({
     const canvas = canvasRef.current;
     if (!canvas) return;
     const w = canvas.clientWidth || 600;
-    const h = canvas.clientHeight || height;
+    const h = canvas.clientHeight || (typeof height === 'number' ? height : 400);
     physicsRef.current.fitToData(points, w, h);
     // Pan bounds are intentionally unbounded — see comment in the initial
     // setup effect above.
