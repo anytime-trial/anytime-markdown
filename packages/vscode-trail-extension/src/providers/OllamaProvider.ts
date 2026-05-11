@@ -114,24 +114,25 @@ export class OllamaProvider
       vscode.window.showInformationMessage('Ollama は既に起動しています。');
       return;
     }
-    try {
-      const child = cp.spawn('ollama', ['serve'], {
-        detached: true,
-        stdio: 'ignore',
-      });
-      child.unref();
-      TrailLogger.info('[OllamaProvider] ollama serve spawned');
-    } catch (err: unknown) {
+
+    // spawn() は ENOENT を同期 throw せず 'error' イベントで通知する
+    const child = cp.spawn('ollama', ['serve'], {
+      detached: true,
+      stdio: 'ignore',
+    });
+    child.on('error', (err) => {
       const code = (err as NodeJS.ErrnoException).code;
       if (code === 'ENOENT') {
         vscode.window.showErrorMessage(
           'ollama コマンドが見つかりません。インストールを確認してください。',
         );
-        return;
+      } else {
+        TrailLogger.error(`[OllamaProvider] spawn error: ${err.stack ?? String(err)}`);
       }
-      TrailLogger.error(`[OllamaProvider] spawn failed: ${String(err)}`);
-      return;
-    }
+    });
+    child.unref();
+    TrailLogger.info('[OllamaProvider] ollama serve spawned');
+
     // 起動後 30 秒間はショートポーリング
     this._startPolling(POLL_FAST_MS);
     if (this._fastPollTimer !== undefined) {

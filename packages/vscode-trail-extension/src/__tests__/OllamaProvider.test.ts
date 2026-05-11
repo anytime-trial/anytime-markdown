@@ -108,11 +108,17 @@ describe('OllamaProvider.startOllama()', () => {
 
   it('ENOENT の場合は errorMessage を表示して終了', async () => {
     mockFetch.mockReturnValue(makeTimeoutError());
-    mockSpawn.mockImplementationOnce(() => {
-      const err = new Error('spawn ollama ENOENT') as NodeJS.ErrnoException;
-      err.code = 'ENOENT';
-      throw err;
-    });
+
+    const enoentErr = new Error('spawn ollama ENOENT') as NodeJS.ErrnoException;
+    enoentErr.code = 'ENOENT';
+
+    // spawn() は同期 throw せず 'error' イベントで ENOENT を通知する
+    mockSpawn.mockImplementationOnce(() => ({
+      unref: jest.fn(),
+      on: jest.fn().mockImplementation((event: string, cb: (err: Error) => void) => {
+        if (event === 'error') { cb(enoentErr); }
+      }),
+    }));
 
     await provider.startOllama();
 
