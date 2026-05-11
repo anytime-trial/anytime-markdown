@@ -129,7 +129,8 @@ describe('createMemoryCoreRunner.runAfterImport', () => {
     expect(runConversationBackfill).toHaveBeenCalledTimes(1);
     expect(runConversationIncremental).not.toHaveBeenCalled();
     expect(runCodeIncremental).toHaveBeenCalledTimes(1);
-    expect(memDb.save).toHaveBeenCalledTimes(1);
+    // pipeline 完了ごとに save (8 pipelines) + outer finally で 1 回 = 9 回
+    expect(memDb.save).toHaveBeenCalledTimes(9);
     expect(memDb.close).toHaveBeenCalledTimes(1);
   });
 
@@ -151,7 +152,8 @@ describe('createMemoryCoreRunner.runAfterImport', () => {
     expect(runConversationIncremental).toHaveBeenCalledTimes(1);
     expect(runConversationBackfill).not.toHaveBeenCalled();
     expect(runCodeIncremental).toHaveBeenCalledTimes(1);
-    expect(memDb.save).toHaveBeenCalledTimes(1);
+    // pipeline 完了ごとに save (8 pipelines) + outer finally で 1 回 = 9 回
+    expect(memDb.save).toHaveBeenCalledTimes(9);
     expect(memDb.close).toHaveBeenCalledTimes(1);
   });
 

@@ -174,6 +174,8 @@ export function createMemoryCoreRunner(opts: {
               statusWriter.finish('conversation_incremental', 'error', 0, 0, err instanceof Error ? err.message : String(err));
               throw err;
             }
+            // pipeline 完了ごとに save (リロード時のデータ消失を防ぐ)
+            { const t0 = Date.now(); memDb.save(); logger.info(`Saved (conversation_incremental): ${Date.now() - t0}ms`); }
 
             // ── Conversation failed-items retry ──────────────────────────
             // backfill / incremental で extraction が失敗した episode を
@@ -197,6 +199,7 @@ export function createMemoryCoreRunner(opts: {
               statusWriter.finish('conversation_failed_items_retry', 'error', 0, 0, err instanceof Error ? err.message : String(err));
               throw err;
             }
+            { const t0 = Date.now(); memDb.save(); logger.info(`Saved (failed_items_retry): ${Date.now() - t0}ms`); }
 
             // ── Code incremental pipeline ────────────────────────────────
             const gitRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
@@ -224,6 +227,7 @@ export function createMemoryCoreRunner(opts: {
               statusWriter.finish('code_incremental', 'error', 0, 0, err instanceof Error ? err.message : String(err));
               throw err;
             }
+            { const t0 = Date.now(); memDb.save(); logger.info(`Saved (code_incremental): ${Date.now() - t0}ms`); }
 
             // ── Bug history pipeline ─────────────────────────────────────
             logger.info(`Running bug history incremental (repo=${repoName})`);
@@ -245,6 +249,7 @@ export function createMemoryCoreRunner(opts: {
               statusWriter.finish('bug_history_incremental', 'error', 0, 0, err instanceof Error ? err.message : String(err));
               throw err;
             }
+            { const t0 = Date.now(); memDb.save(); logger.info(`Saved (bug_history_incremental): ${Date.now() - t0}ms`); }
 
             // ── Review incremental pipeline ──────────────────────────────────
             const reviewDir =
@@ -271,6 +276,7 @@ export function createMemoryCoreRunner(opts: {
               statusWriter.finish('review_incremental', 'error', 0, 0, err instanceof Error ? err.message : String(err));
               throw err;
             }
+            { const t0 = Date.now(); memDb.save(); logger.info(`Saved (review_incremental): ${Date.now() - t0}ms`); }
 
             // ── Spec incremental pipeline ────────────────────────────────────
             const specRoot = process.env['MEMORY_CORE_SPEC_DIR'] ?? '/Shared/anytime-markdown-docs/spec';
@@ -294,6 +300,7 @@ export function createMemoryCoreRunner(opts: {
               statusWriter.finish('spec_incremental', 'error', 0, 0, err instanceof Error ? err.message : String(err));
               throw err;
             }
+            { const t0 = Date.now(); memDb.save(); logger.info(`Saved (spec_incremental): ${Date.now() - t0}ms`); }
 
             // ── Drift detection pipeline ─────────────────────────────────────
             logger.info(`[${new Date().toISOString()}] [INFO] Running drift detection`);
@@ -313,6 +320,7 @@ export function createMemoryCoreRunner(opts: {
               statusWriter.finish('drift_detection', 'error', 0, 0, err instanceof Error ? err.message : String(err));
               throw err;
             }
+            { const t0 = Date.now(); memDb.save(); logger.info(`Saved (drift_detection): ${Date.now() - t0}ms`); }
 
             // ── Embedding backfill ──────────────────────────────────────────
             // 各パイプラインが追加した entity の embedding を bge-m3 で生成。
@@ -335,6 +343,7 @@ export function createMemoryCoreRunner(opts: {
               statusWriter.finish('embedding_backfill', 'error', 0, 0, err instanceof Error ? err.message : String(err));
               throw err;
             }
+            { const t0 = Date.now(); memDb.save(); logger.info(`Saved (embedding_backfill): ${Date.now() - t0}ms`); }
           } finally {
             // Release the WASM heap copy of trail DB (~800MB) after every run.
             attachHandle.trailHandle.close();
