@@ -99,11 +99,23 @@ export function ResizablePopup({
     bgcolor: isDark ? 'rgba(18,18,18,0.96)' : 'rgba(251,249,243,0.98)',
     color: colors.text,
     boxShadow: '0 8px 24px rgba(0,0,0,0.28)',
-    backdropFilter: 'blur(10px)',
+    // backdropFilter をこの要素自体に置くと position:fixed の containing block になり
+    // MUI X Charts の Popper tooltip がポップアップ起点でずれる。
+    // ::before 擬似要素に移動することで視覚効果を維持しつつ containing block 問題を回避する。
     display: 'flex',
     flexDirection: 'column' as const,
     overflow: 'hidden' as const,
     zIndex: 11,
+    '&::before': {
+      content: '""',
+      position: 'absolute',
+      inset: 0,
+      backdropFilter: 'blur(10px)',
+      WebkitBackdropFilter: 'blur(10px)',
+      borderRadius: 'inherit',
+      zIndex: -1,
+      pointerEvents: 'none',
+    },
   };
   const sizeSx = maximized
     ? { top: MARGIN, left: MARGIN, right: MARGIN, bottom: MARGIN }
