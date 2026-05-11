@@ -59,15 +59,62 @@ function insertPipelineRun(
   id: string,
   startedAt: string
 ): void {
+  // last_heartbeat_at is initialized to started_at so pipelineWatchdog has a
+  // valid signal from the very first moment of the run.
   db.run(
     `INSERT INTO memory_pipeline_runs
        (id, scope, started_at, status,
         items_processed, entities_inserted, entities_updated,
         edges_inserted, edges_invalidated, drifts_detected,
-        items_failed, duration_ms)
-     VALUES (?, ?, ?, 'running', 0, 0, 0, 0, 0, 0, 0, 0)`,
-    [id, SCOPE, startedAt]
+        items_failed, duration_ms, last_heartbeat_at)
+     VALUES (?, ?, ?, 'running', 0, 0, 0, 0, 0, 0, 0, 0, ?)`,
+    [id, SCOPE, startedAt, startedAt]
   );
+}
+
+function updateHeartbeatAndProgress(
+  db: Database,
+  id: string,
+  totals: PersistStats & { items_processed: number; items_failed: number }
+): void {
+  db.run(
+    `UPDATE memory_pipeline_runs SET
+       last_heartbeat_at = ?,
+       items_processed   = ?,
+       entities_inserted = ?,
+       entities_updated  = ?,
+       edges_inserted    = ?,
+       edges_invalidated = ?,
+       items_failed      = ?
+     WHERE id = ?`,
+    [
+      new Date().toISOString(),
+      totals.items_processed,
+      totals.entities_inserted,
+      totals.entities_updated,
+      totals.edges_inserted,
+      totals.edges_invalidated,
+      totals.items_failed,
+      id,
+    ]
+  );
+}
+
+function computeSinceISO(db: Database, sinceDays: number): string {
+  const sinceFromDays = new Date(Date.now() - sinceDays * 86_400_000).toISOString();
+  const rows = db.exec(
+    `SELECT last_processed_at FROM memory_pipeline_state WHERE scope = ?`,
+    [SCOPE]
+  );
+  const lastProcessedAt = (rows[0]?.values?.[0]?.[0] as string | undefined) ?? '';
+  // Resume from last_processed_at when it's set and newer than the sinceDays
+  // window. This avoids re-scanning sessions whose episodes are already
+  // persisted (existingIds still guards individual episodes, but skipping
+  // sessions entirely saves splitEpisodes + DB scan cost).
+  if (lastProcessedAt !== '' && lastProcessedAt > sinceFromDays) {
+    return lastProcessedAt;
+  }
+  return sinceFromDays;
 }
 
 function finalizePipelineRun(
@@ -154,8 +201,10 @@ export async function runConversationBackfill(opts: {
   const startedAt = new Date().toISOString();
   const rId = runId(startedAt);
 
-  // ── 1. Compute sinceISO from sinceDays ───────────────────────────────────
-  const sinceISO = new Date(Date.now() - sinceDays * 86_400_000).toISOString();
+  // ── 1. Compute sinceISO: max(sinceDays前, last_processed_at) ─────────────
+  // Resume from last_processed_at when it's set, so re-runs after VS Code
+  // reload don't re-scan sessions whose episodes are already in memory_episodes.
+  const sinceISO = computeSinceISO(db, sinceDays);
 
   // ── 2. Insert pipeline_run + mark state as running ───────────────────────
   insertPipelineRun(db, rId, startedAt);
@@ -207,6 +256,7 @@ export async function runConversationBackfill(opts: {
     `[memory-core] backfill: ${totalSessions} sessions, ${totalEpisodes} episodes ` +
     `(${existingIds.size} already persisted, ${toProcess} to process, since ${sinceDays}d ago)`
   );
+  updateHeartbeatAndProgress(db, rId, totals);
   save?.();
 
   let sessionIdx = 0;
@@ -217,6 +267,7 @@ export async function runConversationBackfill(opts: {
       logger.info(
         `[memory-core] backfill: session ${sessionIdx}/${totalSessions} — ${session_id.slice(0, 12)} (${episodes.length} episodes)`
       );
+      updateHeartbeatAndProgress(db, rId, totals);
       save?.();
 
       for (const episode of episodes) {
@@ -236,6 +287,7 @@ export async function runConversationBackfill(opts: {
           logger.info(
             `[memory-core] backfill progress: ${totals.items_processed}/${toProcess} episodes processed (${totals.items_skipped} skipped)`
           );
+          updateHeartbeatAndProgress(db, rId, totals);
           save?.();
         }
 
@@ -325,6 +377,14 @@ export async function runConversationBackfill(opts: {
           );
         }
       }
+
+      // After each session, advance last_processed_at so a future resume
+      // (VS Code reload, OS shutdown) can skip already-processed sessions
+      // via computeSinceISO() instead of re-scanning from sinceDays ago.
+      upsertPipelineState(db, {
+        status: 'running',
+        last_processed_at: maxTimestamp,
+      });
     }
   } catch (err) {
     logger.error(
