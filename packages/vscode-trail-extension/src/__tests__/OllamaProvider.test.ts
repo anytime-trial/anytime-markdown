@@ -6,9 +6,15 @@ jest.mock('node:child_process', () => ({
   spawn: (...args: unknown[]) => mockSpawn(...(args as Parameters<typeof mockSpawn>)),
 }));
 
-// fs.existsSync モック（/.dockerenv 検出用）
+// fs モック（/.dockerenv 検出 + status ファイル読み込み用）
 const mockExistsSync = jest.fn().mockReturnValue(false);
-jest.mock('node:fs', () => ({ existsSync: (...args: unknown[]) => mockExistsSync(...args) }));
+const mockReadFileSync = jest.fn();
+const mockStatSync = jest.fn();
+jest.mock('node:fs', () => ({
+  existsSync: (...args: unknown[]) => mockExistsSync(...args),
+  readFileSync: (...args: unknown[]) => mockReadFileSync(...args),
+  statSync: (...args: unknown[]) => mockStatSync(...args),
+}));
 
 // fetch モック (Node 18+ built-in を上書き)
 const mockFetch = jest.fn();
@@ -90,6 +96,81 @@ describe('OllamaProvider.getChildren()', () => {
     expect(urls).toContain('http://host.docker.internal:11434/api/tags');
     expect(children[0].label).toBe('起動中');
     expect(children[1].label).toBe('bge-m3');
+  });
+});
+
+describe('OllamaProvider.getChildren() — pipelines', () => {
+  let provider: OllamaProvider;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockFetch.mockReturnValue(makeTimeoutError());
+  });
+
+  afterEach(() => {
+    provider?.dispose();
+  });
+
+  it('statusFilePath なし: pipeline 行を表示しない', async () => {
+    provider = new OllamaProvider();
+    const children = await provider.getChildren();
+    expect(children.every((c) => c.kind !== 'pipeline')).toBe(true);
+    expect(children.every((c) => c.kind !== 'pipeline-separator')).toBe(true);
+  });
+
+  it('status ファイル存在 + running: header + separator + pipeline items を返す', async () => {
+    const statusPath = '/fake/pipeline-status.json';
+    mockExistsSync.mockImplementation((p: string) => p === statusPath);
+    mockReadFileSync.mockReturnValue(JSON.stringify({
+      updated_at: '2026-05-11T22:00:00.000Z',
+      run_id: 'r1',
+      pipelines: [
+        { scope: 'embedding_backfill', state: 'running', items_processed: 150, items_total: 2484, items_failed: 0 },
+        { scope: 'spec_incremental', state: 'success', items_processed: 12, items_failed: 0 },
+        { scope: 'drift_detection', state: 'pending' },
+      ],
+    }));
+
+    provider = new OllamaProvider({ statusFilePath: statusPath });
+    const children = await provider.getChildren();
+
+    const pipelineItems = children.filter((c) => c.kind === 'pipeline');
+    expect(pipelineItems).toHaveLength(3);
+    expect(pipelineItems[0].label).toBe('embedding_backfill');
+    expect(pipelineItems[0].description).toBe('150/2484');
+    expect(pipelineItems[1].description).toBe('12 done');
+    expect(pipelineItems[2].description).toBe('');
+
+    const sep = children.find((c) => c.kind === 'pipeline-separator');
+    expect(sep).toBeDefined();
+  });
+
+  it('破損 JSON: pipeline 行を表示しない', async () => {
+    const statusPath = '/fake/pipeline-status.json';
+    mockExistsSync.mockImplementation((p: string) => p === statusPath);
+    mockReadFileSync.mockReturnValue('not json {{{');
+
+    provider = new OllamaProvider({ statusFilePath: statusPath });
+    const children = await provider.getChildren();
+    expect(children.every((c) => c.kind !== 'pipeline')).toBe(true);
+  });
+
+  it('error 状態: message を description に含む', async () => {
+    const statusPath = '/fake/pipeline-status.json';
+    mockExistsSync.mockImplementation((p: string) => p === statusPath);
+    mockReadFileSync.mockReturnValue(JSON.stringify({
+      updated_at: '2026-05-11T22:00:00.000Z',
+      run_id: 'r1',
+      pipelines: [
+        { scope: 'code_incremental', state: 'error', message: 'tsconfig not found' },
+      ],
+    }));
+
+    provider = new OllamaProvider({ statusFilePath: statusPath });
+    const children = await provider.getChildren();
+    const p = children.find((c) => c.kind === 'pipeline');
+    expect(p?.description).toContain('error');
+    expect(p?.description).toContain('tsconfig not found');
   });
 });
 
