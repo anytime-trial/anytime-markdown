@@ -111,7 +111,9 @@ export const FunctionScatterPlot: React.FC<FunctionScatterPlotProps> = ({
   const _medianFanIn = median(entries.map((e) => e.fanIn));
   const _medianFanOut = median(entries.map((e) => e.fanOut));
 
-  // role ごとにエントリを分類
+  const bubbleSeries = buildBubbleSeries(entries);
+
+  // grouped は onItemClick で entry を逆引きするために必要
   const grouped: Record<FunctionRole, FunctionAnalysisApiEntry[]> = {
     hub: [],
     orchestrator: [],
@@ -122,30 +124,27 @@ export const FunctionScatterPlot: React.FC<FunctionScatterPlotProps> = ({
     grouped[entry.functionRole].push(entry);
   }
 
-  const series = ALL_ROLES.map((role) => ({
-    id: role,
-    label: role,
-    color: ROLE_COLORS[role],
-    markerSize: 6,
-    data: grouped[role].map((entry, idx) => ({
-      x: entry.fanIn,
-      y: entry.fanOut,
-      id: `${role}-${idx}`,
-    })),
-  }));
-
   const handleItemClick = (
     _event: React.MouseEvent<SVGElement, MouseEvent>,
     itemIdentifier: { seriesId: string | number; dataIndex: number },
   ): void => {
     if (!onFunctionOpen) return;
-    const roleKey = typeof itemIdentifier.seriesId === 'string'
-      ? (itemIdentifier.seriesId as FunctionRole)
-      : undefined;
-    if (roleKey === undefined) return;
-    const entry = grouped[roleKey]?.[itemIdentifier.dataIndex];
-    if (!entry) return;
-    onFunctionOpen(entry.filePath, entry.functionName, entry.startLine);
+    const seriesId = typeof itemIdentifier.seriesId === 'string' ? itemIdentifier.seriesId : '';
+    // series id は "hub-low" / "hub-mid" 等の形式。先頭セグメントが role
+    const roleKey = seriesId.split('-')[0] as FunctionRole | undefined;
+    if (!roleKey || !(roleKey in grouped)) return;
+    const tierEntries = bubbleSeries.find((s) => s.id === seriesId);
+    if (!tierEntries) return;
+    // dataIndex は buildBubbleSeries 内でのフィルタ済みインデックス
+    const matchedEntry = entries
+      .filter(
+        (e) =>
+          e.functionRole === roleKey &&
+          assignComplexityTier(e.cognitiveComplexity) === (seriesId.split('-')[1] as ComplexityTier),
+      )
+      [itemIdentifier.dataIndex];
+    if (!matchedEntry) return;
+    onFunctionOpen(matchedEntry.filePath, matchedEntry.functionName, matchedEntry.startLine);
   };
 
   return (
@@ -165,33 +164,62 @@ export const FunctionScatterPlot: React.FC<FunctionScatterPlotProps> = ({
         {t('c4.scatter.title')}
       </Typography>
 
-      {/* 凡例 */}
-      <Stack direction="row" spacing={1.5} sx={{ mb: 1, flexWrap: 'wrap' }}>
-        {ALL_ROLES.map((role) => (
-          <Stack key={role} direction="row" alignItems="center" spacing={0.5}>
-            <Box
-              sx={{
-                width: 10,
-                height: 10,
-                borderRadius: '50%',
-                bgcolor: ROLE_COLORS[role],
-                flexShrink: 0,
-              }}
-            />
-            <Typography
-              variant="caption"
-              sx={{ color: colors.textSecondary, fontSize: '0.65rem' }}
-            >
-              {role} ({grouped[role].length})
-            </Typography>
-          </Stack>
-        ))}
+      {/* 凡例（色 = role, サイズ = complexity tier） */}
+      <Stack direction="row" spacing={2} sx={{ mb: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+        {/* 色凡例 */}
+        <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap' }}>
+          {ALL_ROLES.map((role) => (
+            <Stack key={role} direction="row" alignItems="center" spacing={0.5}>
+              <Box
+                sx={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: '50%',
+                  bgcolor: ROLE_COLORS[role],
+                  flexShrink: 0,
+                }}
+              />
+              <Typography
+                variant="caption"
+                sx={{ color: colors.textSecondary, fontSize: '0.65rem' }}
+              >
+                {role}
+              </Typography>
+            </Stack>
+          ))}
+        </Stack>
+
+        {/* 区切り */}
+        <Box sx={{ width: '1px', height: 12, bgcolor: colors.border, flexShrink: 0 }} />
+
+        {/* サイズ凡例 */}
+        <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap', alignItems: 'center' }}>
+          {COMPLEXITY_TIERS.map((tierConfig) => (
+            <Stack key={tierConfig.tier} direction="row" alignItems="center" spacing={0.5}>
+              <Box
+                sx={{
+                  width: tierConfig.markerSize,
+                  height: tierConfig.markerSize,
+                  borderRadius: '50%',
+                  bgcolor: colors.textMuted,
+                  flexShrink: 0,
+                }}
+              />
+              <Typography
+                variant="caption"
+                sx={{ color: colors.textSecondary, fontSize: '0.65rem' }}
+              >
+                {tierConfig.label}
+              </Typography>
+            </Stack>
+          ))}
+        </Stack>
       </Stack>
 
       {/* 散布図 */}
       <Box sx={{ width: '100%', height: 320 }}>
         <ScatterChart
-          series={series}
+          series={bubbleSeries}
           grid={{ vertical: true, horizontal: true }}
           onItemClick={handleItemClick}
           hideLegend
