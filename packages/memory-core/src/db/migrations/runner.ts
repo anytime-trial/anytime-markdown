@@ -13,6 +13,7 @@ const MIGRATIONS: { version: number; file: string }[] = [
   { version: 8, file: '008_phase3.sql' },
   { version: 9, file: '009_phase4.sql' },
   { version: 10, file: '010_pipeline_heartbeat.sql' },
+  { version: 11, file: '011_failed_items_retry_scope.sql' },
 ];
 
 export function runMigrations(db: Database): void {
