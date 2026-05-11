@@ -308,6 +308,8 @@ export const BubbleCanvas: React.FC<BubbleCanvasProps> = ({
     requestDraw();
 
     // Wheel (needs non-passive for preventDefault)
+    // - factor 1.2 / 1/1.2: ~20% per wheel tick (より素早い拡大)
+    // - clamp 0.05 .. 500: 大きく拡大 (× 500) して密集領域を解読可能に
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       const rect = canvas.getBoundingClientRect();
@@ -316,8 +318,8 @@ export const BubbleCanvas: React.FC<BubbleCanvasProps> = ({
       const { viewX, viewY, zoom } = physicsRef.current;
       const anchorDataX = mouseX / zoom + viewX;
       const anchorDataY = (canvas.clientHeight - mouseY) / zoom + viewY;
-      const factor = e.deltaY < 0 ? 1.1 : 0.9;
-      const newZoom = Math.max(0.1, Math.min(50, physicsRef.current.zoom * factor));
+      const factor = e.deltaY < 0 ? 1.2 : 1 / 1.2;
+      const newZoom = Math.max(0.05, Math.min(500, physicsRef.current.zoom * factor));
       physicsRef.current.zoomAt(newZoom / zoom, anchorDataX, anchorDataY);
       requestDraw();
     };
