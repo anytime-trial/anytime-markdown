@@ -1,10 +1,10 @@
 import * as vscode from 'vscode';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
-import { execFileSync } from 'node:child_process';
 
 import type { ChangesFileItem } from './types';
 import { getChanges, getSyncInfo } from './GitStatusParser';
+import { gitExec } from '../../utils/gitExec';
 
 export interface GitOperationsHost {
 	readonly primaryGitRoot: string | null;
@@ -13,7 +13,7 @@ export interface GitOperationsHost {
 
 export async function stageFile(host: GitOperationsHost, item: ChangesFileItem): Promise<void> {
 	try {
-		execFileSync('git', ['add', '--', item.filePath], { cwd: item.gitRoot });
+		await gitExec(['add', '--', item.filePath], { cwd: item.gitRoot });
 		host.refresh();
 	} catch (e: unknown) {
 		const msg = e instanceof Error ? e.message : String(e);
@@ -23,7 +23,7 @@ export async function stageFile(host: GitOperationsHost, item: ChangesFileItem):
 
 export async function unstageFile(host: GitOperationsHost, item: ChangesFileItem): Promise<void> {
 	try {
-		execFileSync('git', ['reset', 'HEAD', '--', item.filePath], { cwd: item.gitRoot });
+		await gitExec(['reset', 'HEAD', '--', item.filePath], { cwd: item.gitRoot });
 		host.refresh();
 	} catch (e: unknown) {
 		const msg = e instanceof Error ? e.message : String(e);
@@ -35,7 +35,7 @@ export async function stageAll(host: GitOperationsHost, gitRoot?: string): Promi
 	const target = gitRoot ?? host.primaryGitRoot;
 	if (!target) return;
 	try {
-		execFileSync('git', ['add', '-A'], { cwd: target });
+		await gitExec(['add', '-A'], { cwd: target });
 		host.refresh();
 	} catch (e: unknown) {
 		const msg = e instanceof Error ? e.message : String(e);
@@ -47,7 +47,7 @@ export async function unstageAll(host: GitOperationsHost, gitRoot?: string): Pro
 	const target = gitRoot ?? host.primaryGitRoot;
 	if (!target) return;
 	try {
-		execFileSync('git', ['reset', 'HEAD'], { cwd: target });
+		await gitExec(['reset', 'HEAD'], { cwd: target });
 		host.refresh();
 	} catch (e: unknown) {
 		const msg = e instanceof Error ? e.message : String(e);
@@ -65,9 +65,9 @@ export async function discardAll(host: GitOperationsHost, gitRoot?: string): Pro
 	);
 	if (answer !== 'Discard All') return;
 	try {
-		execFileSync('git', ['checkout', '--', '.'], { cwd: target });
+		await gitExec(['checkout', '--', '.'], { cwd: target });
 		// 未追跡ファイルも削除
-		execFileSync('git', ['clean', '-fd'], { cwd: target });
+		await gitExec(['clean', '-fd'], { cwd: target });
 		host.refresh();
 	} catch (e: unknown) {
 		const msg = e instanceof Error ? e.message : String(e);
@@ -81,7 +81,7 @@ export async function commit(host: GitOperationsHost, gitRoot?: string): Promise
 		vscode.window.showWarningMessage('No Git repository found.');
 		return;
 	}
-	const { staged } = getChanges(target);
+	const { staged } = await getChanges(target);
 	if (staged.length === 0) {
 		vscode.window.showWarningMessage('No staged changes to commit.');
 		return;
@@ -92,7 +92,7 @@ export async function commit(host: GitOperationsHost, gitRoot?: string): Promise
 	});
 	if (!message) return;
 	try {
-		execFileSync('git', ['commit', '-m', message], { cwd: target });
+		await gitExec(['commit', '-m', message], { cwd: target });
 		vscode.window.showInformationMessage(`Committed: ${message}`);
 		host.refresh();
 	} catch (e: unknown) {
@@ -108,7 +108,7 @@ export async function push(host: GitOperationsHost, gitRoot?: string): Promise<v
 		return;
 	}
 	try {
-		execFileSync('git', ['push'], { cwd: target });
+		await gitExec(['push'], { cwd: target });
 		vscode.window.showInformationMessage('Push completed.');
 	} catch (e: unknown) {
 		const msg = e instanceof Error ? e.message : String(e);
@@ -120,12 +120,12 @@ export async function sync(host: GitOperationsHost, gitRoot?: string): Promise<v
 	const target = gitRoot ?? host.primaryGitRoot;
 	if (!target) { return; }
 	try {
-		const { ahead, behind } = getSyncInfo(target);
+		const { ahead, behind } = await getSyncInfo(target);
 		if (behind > 0) {
-			execFileSync('git', ['pull'], { cwd: target });
+			await gitExec(['pull'], { cwd: target });
 		}
 		if (ahead > 0) {
-			execFileSync('git', ['push'], { cwd: target });
+			await gitExec(['push'], { cwd: target });
 		}
 		vscode.window.showInformationMessage('Sync completed.');
 		host.refresh();
@@ -144,13 +144,18 @@ export async function discardChanges(host: GitOperationsHost, item: ChangesFileI
 	if (answer !== 'Discard') { return; }
 	try {
 		// untracked ファイルは git 管理外なので直接削除
-		const isUntracked = item.group === 'changes' &&
-			fs.existsSync(item.absPath) &&
-			(() => { try { execFileSync('git', ['ls-files', '--error-unmatch', '--', item.filePath], { cwd: item.gitRoot, stdio: 'pipe' }); return false; } catch { return true; } })();
+		let isUntracked = false;
+		if (item.group === 'changes' && fs.existsSync(item.absPath)) {
+			try {
+				await gitExec(['ls-files', '--error-unmatch', '--', item.filePath], { cwd: item.gitRoot });
+			} catch {
+				isUntracked = true;
+			}
+		}
 		if (isUntracked) {
 			fs.unlinkSync(item.absPath);
 		} else {
-			execFileSync('git', ['checkout', 'HEAD', '--', item.filePath], { cwd: item.gitRoot });
+			await gitExec(['checkout', 'HEAD', '--', item.filePath], { cwd: item.gitRoot });
 		}
 		await closeTab(item.absPath);
 		host.refresh();
