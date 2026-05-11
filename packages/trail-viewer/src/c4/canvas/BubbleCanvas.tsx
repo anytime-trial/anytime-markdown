@@ -131,7 +131,7 @@ export const BubbleCanvas: React.FC<BubbleCanvasProps> = ({
         ctx.stroke();
       }
 
-      // Bubbles
+      // ── Pass 1: bubble bodies (z-order preserved per input order) ─────
       for (const pt of pts) {
         const cx = (pt.x - viewX) * zoom;
         const cy = h - (pt.y - viewY) * zoom;
@@ -153,22 +153,72 @@ export const BubbleCanvas: React.FC<BubbleCanvasProps> = ({
           ctx.lineWidth = 1.5;
           ctx.stroke();
         }
+      }
 
-        // Labels (zoom-in only)
-        if (zoom >= ZOOM_LABEL_THRESHOLD && r >= LABEL_RADIUS_THRESHOLD) {
+      // ── Pass 2: labels with greedy collision avoidance + zoom LOD ─────
+      // Larger bubbles win label priority. Smaller bubbles whose labels would
+      // overlap an already-drawn label are skipped — keeping the chart legible
+      // even in dense regions. The dynamic radius threshold shrinks as zoom
+      // grows, so more labels appear when zoomed in.
+      if (zoom >= ZOOM_LABEL_THRESHOLD) {
+        const dynamicRadiusThreshold = Math.max(
+          LABEL_RADIUS_THRESHOLD,
+          24 / Math.sqrt(zoom),
+        );
+        const labelCandidates = [...pts]
+          .map((pt) => {
+            const cx = (pt.x - viewX) * zoom;
+            const cy = h - (pt.y - viewY) * zoom;
+            const r = BASE_RADIUS[pt.tier] * Math.sqrt(zoom);
+            return { pt, cx, cy, r };
+          })
+          .filter(
+            ({ cx, cy, r }) =>
+              !(cx + r < 0 || cx - r > w || cy + r < 0 || cy - r > h) &&
+              r >= dynamicRadiusThreshold,
+          )
+          .sort((a, b) => b.r - a.r);
+
+        const labelBoxes: { x: number; y: number; w: number; h: number }[] = [];
+
+        for (const { pt, cx, cy, r } of labelCandidates) {
           const fontSize = Math.min(11, r * 0.55);
-          ctx.fillStyle = 'rgba(255,255,255,0.95)';
+          const fileSize = Math.min(9, r * 0.42);
           ctx.font = `bold ${fontSize}px monospace`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'alphabetic';
           const maxChars = Math.max(3, Math.floor((r * 2) / (fontSize * 0.62)));
           const name =
             pt.label.length > maxChars ? pt.label.slice(0, maxChars - 1) + '…' : pt.label;
+          const fname = pt.file.split('/').at(-1) ?? pt.file;
+          const nameWidth = ctx.measureText(name).width;
+          ctx.font = `${fileSize}px monospace`;
+          const fnameWidth = ctx.measureText(fname).width;
+          const labelW = Math.max(nameWidth, fnameWidth);
+          const labelH = fontSize + fileSize + 4;
+          const box = {
+            x: cx - labelW / 2,
+            y: cy - fontSize / 2,
+            w: labelW,
+            h: labelH,
+          };
+          const overlaps = labelBoxes.some(
+            (b) =>
+              !(
+                box.x + box.w < b.x ||
+                box.x > b.x + b.w ||
+                box.y + box.h < b.y ||
+                box.y > b.y + b.h
+              ),
+          );
+          if (overlaps) continue;
+          labelBoxes.push(box);
+
+          ctx.fillStyle = 'rgba(255,255,255,0.95)';
+          ctx.font = `bold ${fontSize}px monospace`;
           ctx.fillText(name, cx, cy + 1);
-          const fileSize = Math.min(9, r * 0.42);
           ctx.font = `${fileSize}px monospace`;
           ctx.fillStyle = 'rgba(255,255,255,0.6)';
-          const fname = pt.file.split('/').at(-1) ?? pt.file;
           ctx.fillText(fname, cx, cy + fileSize + 3);
         }
       }
