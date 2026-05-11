@@ -89,16 +89,17 @@ function hasQuestionMark(text: string): boolean {
   return /[?？]/.test(text);
 }
 
-const DEFAULT_NUM_CTX = 8192;
+const DEFAULT_NUM_CTX = 4096;
 const DEFAULT_NUM_PREDICT = 1024;
 
 function resolveOllamaOptions(): Record<string, unknown> {
-  // OLLAMA_NUM_PARALLEL>1 で動かす場合、各並列スロットの effective context
-  // window は num_ctx/N に分割される。num_ctx=4096 + NUM_PARALLEL=2 では
-  // 各 slot 2048 token しかなく、長い episode で JSON output が途中で
-  // 切れる事象が観測されたため、既定で 8192 を渡す。
-  // 環境変数 MEMORY_CORE_NUM_CTX / MEMORY_CORE_NUM_PREDICT で運用側で
-  // 調整可。
+  // num_ctx=4096 + NUM_PARALLEL=2 では各 slot effective 2048 token のため
+  // 長い episode で JSON output が途中切断 (~1.4%) する。一度 num_ctx=8192
+  // を試したが、KV cache 倍化で wall-clock が +47% 遅化したため既定は
+  // 4096 に戻し、切断した episode は memory_failed_items 経由で後段
+  // (Phase 5 等) で再処理する設計を選ぶ。
+  // 失敗を抑えたい運用では MEMORY_CORE_NUM_CTX=8192 で override 可。
+  // 環境変数 MEMORY_CORE_NUM_PREDICT も同様に override 可。
   const numCtxRaw = process.env['MEMORY_CORE_NUM_CTX'];
   const numCtx = numCtxRaw && Number.isFinite(Number(numCtxRaw)) && Number(numCtxRaw) > 0
     ? Number(numCtxRaw)
