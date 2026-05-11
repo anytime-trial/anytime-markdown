@@ -816,8 +816,12 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 
 	context.subscriptions.push({
-		dispose: () => {
-			trailDataServer?.stop().catch(() => {});
+		dispose: async () => {
+			try {
+				await trailDataServer?.stop();
+			} catch (err) {
+				TrailLogger.error('Failed to stop trail data server (dispose)', err);
+			}
 			trailDb?.close();
 		},
 	});
@@ -938,8 +942,12 @@ export async function activate(context: vscode.ExtensionContext) {
 	registerMcpRegistrationCommand(context, extensionDistPath);
 }
 
-export function deactivate(): void {
-	trailDataServer?.stop().catch((err) => TrailLogger.error('Failed to stop trail data server', err));
+export async function deactivate(): Promise<void> {
+	try {
+		await trailDataServer?.stop();
+	} catch (err) {
+		TrailLogger.error('Failed to stop trail data server', err);
+	}
 	trailDb?.close();
 	TrailLogger.dispose();
 }
