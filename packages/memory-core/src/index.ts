@@ -69,3 +69,10 @@ export type { DriftDetectionResult } from './pipeline/runDriftDetection';
 
 export { runEmbeddingBackfill } from './pipeline/runEmbeddingBackfill';
 export type { EmbeddingBackfillResult } from './pipeline/runEmbeddingBackfill';
+
+export { PipelineStatusWriter } from './status/PipelineStatusWriter';
+export type {
+  PipelineStatusFile,
+  PipelineStatusEntry,
+  PipelineState,
+} from './status/PipelineStatusWriter';

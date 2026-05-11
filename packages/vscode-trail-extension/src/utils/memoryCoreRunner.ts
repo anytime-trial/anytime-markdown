@@ -17,8 +17,21 @@ import {
   runPipelineWatchdog,
   runDriftDetection,
   runEmbeddingBackfill,
+  PipelineStatusWriter,
   setSqlJsLoader,
 } from '@anytime-markdown/memory-core';
+import { randomUUID } from 'node:crypto';
+
+const PIPELINE_SCOPES = [
+  'conversation_incremental',
+  'conversation_failed_items_retry',
+  'code_incremental',
+  'bug_history_incremental',
+  'review_incremental',
+  'spec_incremental',
+  'drift_detection',
+  'embedding_backfill',
+];
 
 // VS Code 拡張は webpack バンドル後の VSIX に node_modules を同梱しないため、
 // `import 'sql.js'` を webpack に解決させると UMD wrapper が壊れて activate に
@@ -86,6 +99,11 @@ export function createMemoryCoreRunner(opts: {
           return;
         }
 
+        // Pipeline status writer — UI から realtime 表示するため (sql.js は in-memory)
+        const statusPath = path.join(path.dirname(opts.trailDbPath), 'pipeline-status.json');
+        const statusWriter = new PipelineStatusWriter(statusPath, randomUUID(), PIPELINE_SCOPES);
+        statusWriter.initialize();
+
         logger.info('Opening memory-core DB');
         const memDb = await openMemoryCoreDb(opts.dbPath);
         try {
@@ -123,32 +141,38 @@ export function createMemoryCoreRunner(opts: {
 
             const isFirstRun = !lastProcessedAt;
 
-            if (isFirstRun) {
-              logger.info('First run detected — running backfill (5 days)');
-              const result = await runConversationBackfill({
-                db: memDb.db,
-                ollama,
-                sinceDays: 5,
-                logger,
-                save: () => memDb.save(),
-              });
-              logger.info(
-                `Backfill complete: status=${result.status}, items_processed=${result.items_processed}, ` +
-                  `entities_inserted=${result.entities_inserted}, edges_inserted=${result.edges_inserted}`,
-              );
-            } else {
-              logger.info(
-                `Running incremental (since ${lastProcessedAt})`,
-              );
-              const result = await runConversationIncremental({
-                db: memDb.db,
-                ollama,
-                logger,
-              });
-              logger.info(
-                `Incremental complete: status=${result.status}, items_processed=${result.items_processed}, ` +
-                  `entities_inserted=${result.entities_inserted}, edges_inserted=${result.edges_inserted}`,
-              );
+            statusWriter.start('conversation_incremental');
+            try {
+              if (isFirstRun) {
+                logger.info('First run detected — running backfill (5 days)');
+                const result = await runConversationBackfill({
+                  db: memDb.db,
+                  ollama,
+                  sinceDays: 5,
+                  logger,
+                  save: () => memDb.save(),
+                });
+                logger.info(
+                  `Backfill complete: status=${result.status}, items_processed=${result.items_processed}, ` +
+                    `entities_inserted=${result.entities_inserted}, edges_inserted=${result.edges_inserted}`,
+                );
+                statusWriter.finish('conversation_incremental', result.status, result.items_processed, result.items_failed);
+              } else {
+                logger.info(`Running incremental (since ${lastProcessedAt})`);
+                const result = await runConversationIncremental({
+                  db: memDb.db,
+                  ollama,
+                  logger,
+                });
+                logger.info(
+                  `Incremental complete: status=${result.status}, items_processed=${result.items_processed}, ` +
+                    `entities_inserted=${result.entities_inserted}, edges_inserted=${result.edges_inserted}`,
+                );
+                statusWriter.finish('conversation_incremental', result.status, result.items_processed, result.items_failed);
+              }
+            } catch (err) {
+              statusWriter.finish('conversation_incremental', 'error', 0, 0, err instanceof Error ? err.message : String(err));
+              throw err;
             }
 
             // ── Conversation failed-items retry ──────────────────────────
@@ -156,16 +180,23 @@ export function createMemoryCoreRunner(opts: {
             // memory_failed_items から拾い直す。MEMORY_CORE_FAILED_RETRY_MAX
             // (既定 3) に達した item は永続 skip され、人手介入対象として残る。
             logger.info('Running conversation failed-items retry');
-            const retryResult = await runConversationFailedItemsRetry({
-              db: memDb.db,
-              ollama,
-              logger,
-              save: () => memDb.save(),
-            });
-            logger.info(
-              `Failed-items retry: status=${retryResult.status}, items_retried=${retryResult.items_retried}, ` +
-                `items_recovered=${retryResult.items_recovered}, items_failed=${retryResult.items_failed}`,
-            );
+            statusWriter.start('conversation_failed_items_retry');
+            try {
+              const retryResult = await runConversationFailedItemsRetry({
+                db: memDb.db,
+                ollama,
+                logger,
+                save: () => memDb.save(),
+              });
+              logger.info(
+                `Failed-items retry: status=${retryResult.status}, items_retried=${retryResult.items_retried}, ` +
+                  `items_recovered=${retryResult.items_recovered}, items_failed=${retryResult.items_failed}`,
+              );
+              statusWriter.finish('conversation_failed_items_retry', retryResult.status, retryResult.items_retried, retryResult.items_failed);
+            } catch (err) {
+              statusWriter.finish('conversation_failed_items_retry', 'error', 0, 0, err instanceof Error ? err.message : String(err));
+              throw err;
+            }
 
             // ── Code incremental pipeline ────────────────────────────────
             const gitRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
@@ -174,94 +205,136 @@ export function createMemoryCoreRunner(opts: {
               path.join(gitRoot, 'tsconfig.json');
             const repoName = path.basename(gitRoot);
             logger.info(`Running code incremental (repo=${repoName}, tsconfig=${tsconfigPath})`);
-            const codeResult = await runCodeIncremental({
-              db: memDb.db,
-              repoName,
-              tsconfigPath,
-              gitRoot,
-              logger,
-            });
-            logger.info(
-              `Code incremental: status=${codeResult.status}, items_processed=${codeResult.items_processed}, ` +
-                `entities_inserted=${codeResult.entities_inserted}, edges_inserted=${codeResult.edges_inserted}, ` +
-                `duration_ms=${codeResult.duration_ms}`,
-            );
+            statusWriter.start('code_incremental');
+            try {
+              const codeResult = await runCodeIncremental({
+                db: memDb.db,
+                repoName,
+                tsconfigPath,
+                gitRoot,
+                logger,
+              });
+              logger.info(
+                `Code incremental: status=${codeResult.status}, items_processed=${codeResult.items_processed}, ` +
+                  `entities_inserted=${codeResult.entities_inserted}, edges_inserted=${codeResult.edges_inserted}, ` +
+                  `duration_ms=${codeResult.duration_ms}`,
+              );
+              statusWriter.finish('code_incremental', codeResult.status === 'skipped' ? 'skipped' : codeResult.status, codeResult.items_processed, 0);
+            } catch (err) {
+              statusWriter.finish('code_incremental', 'error', 0, 0, err instanceof Error ? err.message : String(err));
+              throw err;
+            }
 
             // ── Bug history pipeline ─────────────────────────────────────
             logger.info(`Running bug history incremental (repo=${repoName})`);
-            const bugResult = await runBugHistoryIncremental({
-              db: memDb.db,
-              repoName,
-              repoRoot: gitRoot,
-              logger,
-            });
-            logger.info(
-              `Bug history: status=${bugResult.status}, items_processed=${bugResult.items_processed}, ` +
-                `bugs_inserted=${bugResult.bugs_inserted}, edges_inserted=${bugResult.edges_inserted}, ` +
-                `duration_ms=${bugResult.duration_ms}`,
-            );
+            statusWriter.start('bug_history_incremental');
+            try {
+              const bugResult = await runBugHistoryIncremental({
+                db: memDb.db,
+                repoName,
+                repoRoot: gitRoot,
+                logger,
+              });
+              logger.info(
+                `Bug history: status=${bugResult.status}, items_processed=${bugResult.items_processed}, ` +
+                  `bugs_inserted=${bugResult.bugs_inserted}, edges_inserted=${bugResult.edges_inserted}, ` +
+                  `duration_ms=${bugResult.duration_ms}`,
+              );
+              statusWriter.finish('bug_history_incremental', bugResult.status, bugResult.items_processed, 0);
+            } catch (err) {
+              statusWriter.finish('bug_history_incremental', 'error', 0, 0, err instanceof Error ? err.message : String(err));
+              throw err;
+            }
 
             // ── Review incremental pipeline ──────────────────────────────────
             const reviewDir =
               process.env['MEMORY_CORE_REVIEW_DIR'] ??
               '/Shared/anytime-markdown-docs/review';
             logger.info(`Running review incremental (repo=${repoName}, dir=${reviewDir})`);
-            const reviewResult = await runReviewIncremental({
-              db: memDb.db,
-              repoName,
-              reviewDir,
-              ollama,
-              model: process.env['MEMORY_CORE_GEN_MODEL'] ?? 'qwen2.5:7b',
-              logger,
-            });
-            logger.info(
-              `Review incremental: status=${reviewResult.status}, items_processed=${reviewResult.items_processed}, ` +
-                `reviews_inserted=${reviewResult.reviews_inserted}, findings_inserted=${reviewResult.findings_inserted}, ` +
-                `edges_inserted=${reviewResult.edges_inserted}, duration_ms=${reviewResult.duration_ms}`,
-            );
+            statusWriter.start('review_incremental');
+            try {
+              const reviewResult = await runReviewIncremental({
+                db: memDb.db,
+                repoName,
+                reviewDir,
+                ollama,
+                model: process.env['MEMORY_CORE_GEN_MODEL'] ?? 'qwen2.5:7b',
+                logger,
+              });
+              logger.info(
+                `Review incremental: status=${reviewResult.status}, items_processed=${reviewResult.items_processed}, ` +
+                  `reviews_inserted=${reviewResult.reviews_inserted}, findings_inserted=${reviewResult.findings_inserted}, ` +
+                  `edges_inserted=${reviewResult.edges_inserted}, duration_ms=${reviewResult.duration_ms}`,
+              );
+              statusWriter.finish('review_incremental', reviewResult.status, reviewResult.items_processed, 0);
+            } catch (err) {
+              statusWriter.finish('review_incremental', 'error', 0, 0, err instanceof Error ? err.message : String(err));
+              throw err;
+            }
 
             // ── Spec incremental pipeline ────────────────────────────────────
             const specRoot = process.env['MEMORY_CORE_SPEC_DIR'] ?? '/Shared/anytime-markdown-docs/spec';
             logger.info(`[${new Date().toISOString()}] [INFO] Running spec incremental (specRoot=${specRoot})`);
-            const specResult = await runSpecIncremental({
-              db: memDb.db,
-              specRoot,
-              ollama,
-              model: process.env['MEMORY_CORE_GEN_MODEL'] ?? 'qwen2.5:7b',
-              logger,
-            });
-            logger.info(
-              `[${new Date().toISOString()}] [INFO] Spec incremental: status=${specResult.status}, items_processed=${specResult.items_processed}, ` +
-                `items_skipped=${specResult.items_skipped}, entities_inserted=${specResult.entities_inserted}, ` +
-                `edges_inserted=${specResult.edges_inserted}, duration_ms=${specResult.duration_ms}`,
-            );
+            statusWriter.start('spec_incremental');
+            try {
+              const specResult = await runSpecIncremental({
+                db: memDb.db,
+                specRoot,
+                ollama,
+                model: process.env['MEMORY_CORE_GEN_MODEL'] ?? 'qwen2.5:7b',
+                logger,
+              });
+              logger.info(
+                `[${new Date().toISOString()}] [INFO] Spec incremental: status=${specResult.status}, items_processed=${specResult.items_processed}, ` +
+                  `items_skipped=${specResult.items_skipped}, entities_inserted=${specResult.entities_inserted}, ` +
+                  `edges_inserted=${specResult.edges_inserted}, duration_ms=${specResult.duration_ms}`,
+              );
+              statusWriter.finish('spec_incremental', specResult.status, specResult.items_processed, 0);
+            } catch (err) {
+              statusWriter.finish('spec_incremental', 'error', 0, 0, err instanceof Error ? err.message : String(err));
+              throw err;
+            }
 
             // ── Drift detection pipeline ─────────────────────────────────────
             logger.info(`[${new Date().toISOString()}] [INFO] Running drift detection`);
-            const driftResult = await runDriftDetection({
-              db: memDb.db,
-              logger,
-            });
-            logger.info(
-              `[${new Date().toISOString()}] [INFO] Drift detection: status=${driftResult.status}, ` +
-                `events_inserted=${driftResult.events_inserted}, events_updated=${driftResult.events_updated}, ` +
-                `events_resolved=${driftResult.events_resolved}, duration_ms=${driftResult.duration_ms}`,
-            );
+            statusWriter.start('drift_detection');
+            try {
+              const driftResult = await runDriftDetection({
+                db: memDb.db,
+                logger,
+              });
+              logger.info(
+                `[${new Date().toISOString()}] [INFO] Drift detection: status=${driftResult.status}, ` +
+                  `events_inserted=${driftResult.events_inserted}, events_updated=${driftResult.events_updated}, ` +
+                  `events_resolved=${driftResult.events_resolved}, duration_ms=${driftResult.duration_ms}`,
+              );
+              statusWriter.finish('drift_detection', driftResult.status, driftResult.events_inserted + driftResult.events_updated, 0);
+            } catch (err) {
+              statusWriter.finish('drift_detection', 'error', 0, 0, err instanceof Error ? err.message : String(err));
+              throw err;
+            }
 
             // ── Embedding backfill ──────────────────────────────────────────
             // 各パイプラインが追加した entity の embedding を bge-m3 で生成。
             // NULL embedding のみ対象なので冪等 (毎回呼んでも追加分のみ処理)。
             logger.info(`[${new Date().toISOString()}] [INFO] Running embedding backfill`);
-            const embedResult = await runEmbeddingBackfill({
-              db: memDb.db,
-              ollama,
-              logger,
-            });
-            logger.info(
-              `[${new Date().toISOString()}] [INFO] Embedding backfill: status=${embedResult.status}, ` +
-                `items_processed=${embedResult.items_processed}, items_skipped=${embedResult.items_skipped}, ` +
-                `items_failed=${embedResult.items_failed}`,
-            );
+            statusWriter.start('embedding_backfill');
+            try {
+              const embedResult = await runEmbeddingBackfill({
+                db: memDb.db,
+                ollama,
+                logger,
+              });
+              logger.info(
+                `[${new Date().toISOString()}] [INFO] Embedding backfill: status=${embedResult.status}, ` +
+                  `items_processed=${embedResult.items_processed}, items_skipped=${embedResult.items_skipped}, ` +
+                  `items_failed=${embedResult.items_failed}`,
+              );
+              statusWriter.finish('embedding_backfill', embedResult.status, embedResult.items_processed, embedResult.items_failed);
+            } catch (err) {
+              statusWriter.finish('embedding_backfill', 'error', 0, 0, err instanceof Error ? err.message : String(err));
+              throw err;
+            }
           } finally {
             // Release the WASM heap copy of trail DB (~800MB) after every run.
             attachHandle.trailHandle.close();
