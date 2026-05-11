@@ -19,6 +19,14 @@ import {
   parseCoverage,
 } from '@anytime-markdown/trail-core/c4';
 import { analyze } from '@anytime-markdown/trail-core/analyze';
+import {
+  buildIndex as buildCallHierarchyIndex,
+  traverse as traverseCallHierarchy,
+} from '@anytime-markdown/trail-core/c4/callHierarchy';
+import type {
+  CallHierarchyDirection,
+  CallHierarchyIndex,
+} from '@anytime-markdown/trail-core/c4/callHierarchy';
 import type { FileCoverage, MessageInput } from '@anytime-markdown/trail-core/c4';
 import type {
   C4Model,
@@ -209,6 +217,9 @@ export class TrailDataServer {
   private lastClaudeActivity: { activeElementIds: readonly string[]; touchedElementIds: readonly string[]; plannedElementIds: readonly string[] } | undefined;
   private lastMultiAgentActivity: { agents: readonly import('./types').AgentActivityEntry[]; conflicts: readonly import('./types').FileConflict[] } | undefined;
   private importanceComputing = false;
+  /** /api/c4/call-hierarchy 用の隣接リストキャッシュ。current_graphs ロード後に lazy 構築し、graph 更新時に invalidate */
+  private callHierarchyIndex: CallHierarchyIndex | null = null;
+  private callHierarchyIndexRepo: string | undefined;
   onOpenDocLink: ((docPath: string) => void) | undefined;
   onOpenFile: ((filePath: string) => void) | undefined;
   onTokenBudgetExceeded: ((status: import('./types').TokenBudgetUpdatedMessage) => void) | undefined;
@@ -629,6 +640,16 @@ export class TrailDataServer {
     if (pathname === '/api/c4/sequence' && method === 'GET') {
       const elementId = parsed.searchParams.get('elementId') ?? '';
       void this.handleC4SequenceEndpoint(res, elementId);
+      return;
+    }
+
+    if (pathname === '/api/c4/call-hierarchy' && method === 'GET') {
+      const file = parsed.searchParams.get('file') ?? '';
+      const fn = parsed.searchParams.get('fn') ?? '';
+      const direction = parsed.searchParams.get('direction') ?? 'callees';
+      const depth = parsed.searchParams.get('depth');
+      const line = parsed.searchParams.get('line');
+      void this.handleCallHierarchyEndpoint(res, file, fn, direction, depth, line);
       return;
     }
 
@@ -1114,6 +1135,8 @@ export class TrailDataServer {
   }
 
   notifyCodeGraphUpdated(): void {
+    this.callHierarchyIndex = null;
+    this.callHierarchyIndexRepo = undefined;
     if (this.clients.size === 0) return;
     const payload = JSON.stringify({ type: 'code-graph-updated' } satisfies ServerMessage);
     for (const ws of this.clients) ws.send(payload);
@@ -2697,6 +2720,97 @@ export class TrailDataServer {
       TrailLogger.error(`[/api/c4/sequence] error: elementId=${elementId}`, e);
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(emptyModel));
+    }
+  }
+
+  private getOrBuildCallHierarchyIndex(repoName: string | undefined): CallHierarchyIndex | null {
+    if (this.callHierarchyIndex && this.callHierarchyIndexRepo === repoName) {
+      return this.callHierarchyIndex;
+    }
+    const provider = this.getC4Provider?.();
+    const graph = provider?.trailGraph ?? this.trailDb.getCurrentGraph(repoName) ?? undefined;
+    if (!graph) return null;
+    this.callHierarchyIndex = buildCallHierarchyIndex({
+      nodes: graph.nodes,
+      edges: graph.edges,
+    });
+    this.callHierarchyIndexRepo = repoName;
+    return this.callHierarchyIndex;
+  }
+
+  private handleCallHierarchyEndpoint(
+    res: http.ServerResponse,
+    file: string,
+    fn: string,
+    direction: string,
+    depthParam: string | null,
+    lineParam: string | null,
+  ): void {
+    try {
+      if (!file || !fn) {
+        res.writeHead(400, JSON_HEADERS);
+        res.end(JSON.stringify({ error: 'file and fn query params are required' }));
+        return;
+      }
+      if (direction !== 'callers' && direction !== 'callees') {
+        res.writeHead(400, JSON_HEADERS);
+        res.end(JSON.stringify({ error: 'direction must be callers or callees' }));
+        return;
+      }
+      const depth = clampInt(depthParam, 1, 0, 10);
+      const requestedLine = lineParam !== null && lineParam !== '' ? Number.parseInt(lineParam, 10) : undefined;
+
+      const repoName = this.gitRoot ? path.basename(this.gitRoot) : undefined;
+      const index = this.getOrBuildCallHierarchyIndex(repoName);
+      if (!index) {
+        res.writeHead(503, JSON_HEADERS);
+        res.end(JSON.stringify({ error: 'graph not available' }));
+        return;
+      }
+
+      let target: { id: string } | undefined;
+      let fallback: { id: string } | undefined;
+      for (const node of index.nodes.values()) {
+        if (node.type !== 'function') continue;
+        if (node.filePath !== file) continue;
+        if (node.label !== fn) continue;
+        if (typeof requestedLine === 'number' && Number.isFinite(requestedLine)) {
+          if (node.line === requestedLine) {
+            target = node;
+            break;
+          }
+          fallback ??= node;
+        } else {
+          target = node;
+          break;
+        }
+      }
+      target ??= fallback;
+
+      if (!target) {
+        res.writeHead(404, JSON_HEADERS);
+        res.end(JSON.stringify({ error: 'function not found', file, fn }));
+        return;
+      }
+
+      const tree = traverseCallHierarchy(
+        index,
+        target.id,
+        direction as CallHierarchyDirection,
+        depth,
+      );
+      if (!tree) {
+        res.writeHead(404, JSON_HEADERS);
+        res.end(JSON.stringify({ error: 'function not in index' }));
+        return;
+      }
+
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify(tree));
+    } catch (e) {
+      TrailLogger.error('[/api/c4/call-hierarchy] failed', e);
+      res.writeHead(500, JSON_HEADERS);
+      res.end(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }));
     }
   }
 
