@@ -66,6 +66,3 @@ export type { ResolveDriftResult } from './retrieve/resolveDrift';
 
 export { runDriftDetection } from './pipeline/runDriftDetection';
 export type { DriftDetectionResult } from './pipeline/runDriftDetection';
-
-export { runEmbeddingBackfill } from './pipeline/runEmbeddingBackfill';
-export type { EmbeddingBackfillResult } from './pipeline/runEmbeddingBackfill';
