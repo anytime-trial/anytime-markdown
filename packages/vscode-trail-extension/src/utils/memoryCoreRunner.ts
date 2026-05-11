@@ -163,6 +163,7 @@ export function createMemoryCoreRunner(opts: {
                   db: memDb.db,
                   ollama,
                   logger,
+                  save: () => memDb.save(),
                 });
                 logger.info(
                   `Incremental complete: status=${result.status}, items_processed=${result.items_processed}, ` +
