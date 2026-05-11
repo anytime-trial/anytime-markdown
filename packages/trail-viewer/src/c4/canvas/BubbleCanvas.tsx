@@ -24,6 +24,12 @@ export interface BubbleCanvasProps {
   readonly height?: number;
 }
 
+// Multiplier applied to mouse drag delta before passing to PanPhysics.pan.
+// 1.0 = 1:1 (default), <1.0 dampens drag sensitivity so a small mouse motion
+// translates to a smaller view shift. 0.7 = "feels controlled" on high-DPI
+// trackpads / fast mice without losing responsiveness.
+const PAN_SENSITIVITY = 0.7;
+
 const ROLE_COLORS: Record<FunctionRole, string> = {
   hub: '#c62828',
   orchestrator: '#f9a825',
@@ -322,8 +328,8 @@ export const BubbleCanvas: React.FC<BubbleCanvasProps> = ({
       const h = (e.target as HTMLElement).clientHeight;
 
       if (isDraggingRef.current) {
-        const dx = mx - lastMouseRef.current.x;
-        const dy = my - lastMouseRef.current.y;
+        const dx = (mx - lastMouseRef.current.x) * PAN_SENSITIVITY;
+        const dy = (my - lastMouseRef.current.y) * PAN_SENSITIVITY;
         dragVxRef.current = -dx / physicsRef.current.zoom;
         dragVyRef.current = dy / physicsRef.current.zoom;
         physicsRef.current.pan(dx, dy);
