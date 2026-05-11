@@ -63,22 +63,35 @@ const GALAXY_ROTATION_RATE = 0.000001;
  */
 const ORBIT_SPEED = 0.0005;
 
+/**
+ * Per-community center positions after galaxy rotation. Useful for drawing
+ * inter-community edges without recomputing rotation per planet.
+ */
+interface RotatedCenter {
+  readonly id: string;
+  readonly rcx: number;
+  readonly rcy: number;
+}
+
 function resolveAnimatedPoints(
   layouts: readonly CommunityLayout[],
   elapsedMs: number,
-): ResolvedPoint[] {
+  hoveredCommunityId: string | null,
+): { points: ResolvedPoint[]; centers: RotatedCenter[] } {
   const galaxyTheta = elapsedMs * GALAXY_ROTATION_RATE;
   const galSin = Math.sin(galaxyTheta);
   const galCos = Math.cos(galaxyTheta);
 
-  const out: ResolvedPoint[] = [];
+  const points: ResolvedPoint[] = [];
+  const centers: RotatedCenter[] = [];
   for (const community of layouts) {
     // Galaxy rotation: rotate community center around the galactic origin.
     const rcx = community.cx * galCos - community.cy * galSin;
     const rcy = community.cx * galSin + community.cy * galCos;
+    centers.push({ id: community.id, rcx, rcy });
 
     if (community.hub) {
-      out.push({
+      points.push({
         entry: community.hub,
         tier: assignComplexityTier(community.hub.cognitiveComplexity),
         dataX: rcx,
@@ -87,14 +100,17 @@ function resolveAnimatedPoints(
         communityId: community.id,
       });
     }
+    // Slow this community's orbits while hovered so the user can read planet labels.
+    const orbitSpeedScale = community.id === hoveredCommunityId ? 0.15 : 1;
     for (const planet of community.planets) {
       // Kepler's 3rd law: inner orbits sweep faster than outer ones.
       const angularVelocity = 1 / Math.sqrt(Math.max(1, planet.orbitR));
-      const orbitTheta = planet.orbitTheta0 + elapsedMs * ORBIT_SPEED * angularVelocity;
+      const orbitTheta =
+        planet.orbitTheta0 + elapsedMs * ORBIT_SPEED * orbitSpeedScale * angularVelocity;
       // Orbit is relative to the (rotated) community center.
       const px = rcx + planet.orbitR * Math.cos(orbitTheta);
       const py = rcy + planet.orbitR * Math.sin(orbitTheta);
-      out.push({
+      points.push({
         entry: planet.entry,
         tier: assignComplexityTier(planet.entry.cognitiveComplexity),
         dataX: px,
@@ -104,7 +120,40 @@ function resolveAnimatedPoints(
       });
     }
   }
-  return out;
+  return { points, centers };
+}
+
+/**
+ * Build edges between communities that share the same parent directory.
+ * For "packages/trail-viewer" and "packages/memory-core", the parent
+ * "packages" matches → an edge is drawn between their centers.
+ *
+ * Returns pairs of indices into the centers array.
+ */
+function computeCommunityEdges(centers: readonly RotatedCenter[]): [number, number][] {
+  const byParent = new Map<string, number[]>();
+  for (let i = 0; i < centers.length; i++) {
+    const idx = centers[i]!.id.lastIndexOf('/');
+    if (idx < 0) continue;
+    const parent = centers[i]!.id.slice(0, idx);
+    let bucket = byParent.get(parent);
+    if (!bucket) {
+      bucket = [];
+      byParent.set(parent, bucket);
+    }
+    bucket.push(i);
+  }
+  const edges: [number, number][] = [];
+  for (const indices of byParent.values()) {
+    if (indices.length < 2) continue;
+    // Connect every pair within the same parent (small groups, OK).
+    for (let i = 0; i < indices.length; i++) {
+      for (let j = i + 1; j < indices.length; j++) {
+        edges.push([indices[i]!, indices[j]!]);
+      }
+    }
+  }
+  return edges;
 }
 
 export const GalaxyCanvas: React.FC<GalaxyCanvasProps> = ({
@@ -138,8 +187,12 @@ export const GalaxyCanvas: React.FC<GalaxyCanvasProps> = ({
     animStartRef.current = performance.now();
   }, [entries]);
 
-  // Points in data-space, recomputed each frame in the animation loop.
-  const pointsRef = React.useRef<ResolvedPoint[]>(resolveAnimatedPoints(layouts, 0));
+  // Points + community centers in data-space, recomputed each frame.
+  const initial = resolveAnimatedPoints(layouts, 0, null);
+  const pointsRef = React.useRef<ResolvedPoint[]>(initial.points);
+  const centersRef = React.useRef<RotatedCenter[]>(initial.centers);
+  // Community ID currently under the cursor — used to slow that system's orbits.
+  const hoveredCommunityIdRef = React.useRef<string | null>(null);
 
   // Drag / hover state
   const isDraggingRef = React.useRef(false);
@@ -195,11 +248,34 @@ export const GalaxyCanvas: React.FC<GalaxyCanvasProps> = ({
         sy: h - (dy - viewY) * zoom,
       });
 
-      // ── Orbit lines (subtle) ─────────────────────────────────────────
-      ctx.strokeStyle = dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)';
+      // ── Inter-community edges (parent-directory adjacency) ───────────
+      const centers = centersRef.current;
+      const edges = computeCommunityEdges(centers);
+      ctx.strokeStyle = dark ? 'rgba(120,180,255,0.10)' : 'rgba(40,80,160,0.10)';
       ctx.lineWidth = 1;
-      for (const community of layouts) {
-        const { sx: ccx, sy: ccy } = toScreen(community.cx, community.cy);
+      for (const [a, b] of edges) {
+        const { sx: ax, sy: ay } = toScreen(centers[a]!.rcx, centers[a]!.rcy);
+        const { sx: bx, sy: by } = toScreen(centers[b]!.rcx, centers[b]!.rcy);
+        ctx.beginPath();
+        ctx.moveTo(ax, ay);
+        ctx.lineTo(bx, by);
+        ctx.stroke();
+      }
+
+      // ── Orbit lines (subtle, brighter for the hovered community) ─────
+      const hoveredCommunityId = hoveredCommunityIdRef.current;
+      ctx.lineWidth = 1;
+      for (let i = 0; i < centers.length; i++) {
+        const c = centers[i]!;
+        const isHoveredCommunity = c.id === hoveredCommunityId;
+        ctx.strokeStyle = isHoveredCommunity
+          ? dark
+            ? 'rgba(255,200,120,0.35)'
+            : 'rgba(120,80,0,0.30)'
+          : dark
+            ? 'rgba(255,255,255,0.06)'
+            : 'rgba(0,0,0,0.05)';
+        const { sx: ccx, sy: ccy } = toScreen(c.rcx, c.rcy);
         for (const orbitR of [
           ORBIT_RADIUS.orchestrator,
           ORBIT_RADIUS.leaf,
@@ -332,7 +408,13 @@ export const GalaxyCanvas: React.FC<GalaxyCanvasProps> = ({
       const ctx = canvas?.getContext('2d');
       if (canvas && ctx) {
         const elapsedMs = performance.now() - animStartRef.current;
-        pointsRef.current = resolveAnimatedPoints(layoutsRef.current, elapsedMs);
+        const resolved = resolveAnimatedPoints(
+          layoutsRef.current,
+          elapsedMs,
+          hoveredCommunityIdRef.current,
+        );
+        pointsRef.current = resolved.points;
+        centersRef.current = resolved.centers;
         drawRef.current(canvas, ctx);
       }
       physicsRef.current.tick();
@@ -463,6 +545,7 @@ export const GalaxyCanvas: React.FC<GalaxyCanvasProps> = ({
       const hit = hitTest(mx, my, ch);
       if (hit !== hoveredRef.current) {
         hoveredRef.current = hit;
+        hoveredCommunityIdRef.current = hit ? hit.communityId : null;
         if (hit) {
           setTooltip({ point: hit, x: mx, y: my });
         } else {
@@ -487,6 +570,7 @@ export const GalaxyCanvas: React.FC<GalaxyCanvasProps> = ({
     isDraggingRef.current = false;
     if (hoveredRef.current !== null) {
       hoveredRef.current = null;
+      hoveredCommunityIdRef.current = null;
       setTooltip(null);
       requestDraw();
     }
