@@ -259,6 +259,150 @@ describe('runConversationBackfill', () => {
     memDb.close();
   }, 60000);
 
+  // ── B6: last_heartbeat_at is updated during backfill ──────────────────────
+  test('B6: last_heartbeat_at on memory_pipeline_runs is non-null after backfill', async () => {
+    const memDb = await makeMemoryDb();
+    const trailDb = makeTrailDb(SQL);
+
+    insertSession(trailDb, 'sess_recent');
+    insertMessage(trailDb, 'msg_recent', 'sess_recent', 'user', ts1DayAgo, 'recent message');
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const ollama = makeValidOllama();
+    const result = await runConversationBackfill({
+      db: memDb,
+      ollama,
+      sinceDays: 7,
+      logger: silentLogger,
+    });
+
+    expect(result.status).toBe('success');
+
+    // last_heartbeat_at must be populated (initialized at insertPipelineRun,
+    // then refreshed at each session start). It should match the ISO 8601
+    // format enforced by the migration 010 GLOB CHECK.
+    const rows = memDb.exec(
+      `SELECT last_heartbeat_at FROM memory_pipeline_runs WHERE scope = 'conversation_backfill'`
+    );
+    const heartbeat = rows[0]?.values[0]?.[0] as string | null;
+    expect(heartbeat).not.toBeNull();
+    expect(heartbeat).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z$/);
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
+
+  // ── B7: resumed run skips sessions older than last_processed_at ───────────
+  test('B7: resumed backfill with last_processed_at uses it as sinceISO (skips older sessions)', async () => {
+    const memDb = await makeMemoryDb();
+    const trailDb = makeTrailDb(SQL);
+
+    // 6 days ago session — first run will process it
+    insertSession(trailDb, 'sess_mid');
+    insertMessage(trailDb, 'msg_mid', 'sess_mid', 'user', ts6DaysAgo, 'mid message');
+
+    // 1 day ago session — both runs see it
+    insertSession(trailDb, 'sess_recent');
+    insertMessage(trailDb, 'msg_recent', 'sess_recent', 'user', ts1DayAgo, 'recent message');
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const ollama = makeValidOllama();
+    // First run: window=7 days → processes both sessions
+    const r1 = await runConversationBackfill({
+      db: memDb,
+      ollama,
+      sinceDays: 7,
+      logger: silentLogger,
+    });
+    expect(r1.items_processed).toBe(2);
+
+    // Simulate a resumed run. The state.last_processed_at should now be
+    // around ts1DayAgo (the latest valid_from from the first run + 1ms via
+    // the finalize step). A 7-day window would normally still include
+    // ts6DaysAgo, but computeSinceISO must pick last_processed_at because it
+    // is newer. So sess_mid is now outside the resumed window.
+    // existingIds skip would have caught the episodes individually anyway,
+    // but the test asserts the structural improvement: items_skipped stays 0
+    // because sess_mid is no longer visited at all (it's filtered out by SQL).
+    const r2 = await runConversationBackfill({
+      db: memDb,
+      ollama,
+      sinceDays: 7,
+      logger: silentLogger,
+    });
+    expect(r2.status).toBe('success');
+    // sess_mid is filtered out by sinceISO (newer than ts6DaysAgo).
+    // sess_recent's episode is already in existingIds → items_skipped counts it.
+    expect(r2.items_processed).toBe(0);
+    expect(r2.items_skipped).toBeLessThanOrEqual(1);
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
+
+  // ── B8: extract concurrency parallelizes Ollama calls ─────────────────────
+  test('B8: MEMORY_CORE_EXTRACT_CONCURRENCY=4 runs up to 4 extract calls in parallel', async () => {
+    const oldEnv = process.env.MEMORY_CORE_EXTRACT_CONCURRENCY;
+    process.env.MEMORY_CORE_EXTRACT_CONCURRENCY = '4';
+    try {
+      const memDb = await makeMemoryDb();
+      const trailDb = makeTrailDb(SQL);
+
+      // 1 session containing 8 user messages → splitEpisodes yields 8 episodes
+      // within a single session. Parallel batching happens per-session.
+      insertSession(trailDb, 'sess_b8');
+      for (let i = 0; i < 8; i++) {
+        const ts = new Date(Date.now() - 86_400_000 + i * 1000).toISOString();
+        insertMessage(trailDb, `msg_b8_${i}`, 'sess_b8', 'user', ts, `body ${i}`);
+      }
+      attachTrailDbFromHandle(memDb, trailDb);
+
+      let inFlight = 0;
+      let maxInFlight = 0;
+      const generate = jest.fn().mockImplementation(async () => {
+        inFlight++;
+        if (inFlight > maxInFlight) maxInFlight = inFlight;
+        // Small delay so multiple in-flight promises overlap.
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        inFlight--;
+        return {
+          response: JSON.stringify({
+            summary: 'test',
+            entities: [{ type: 'Tool', name: 'jest', aliases: [], tags: [], attributes: {} }],
+            relations: [],
+            questions: [],
+          }),
+        };
+      });
+      const ollama = { generate, embeddings: jest.fn() };
+
+      const result = await runConversationBackfill({
+        db: memDb,
+        ollama,
+        sinceDays: 7,
+        logger: silentLogger,
+      });
+
+      expect(result.status).toBe('success');
+      expect(result.items_processed).toBe(8);
+      // Parallel batching occurred (more than 1 in flight at some point).
+      expect(maxInFlight).toBeGreaterThanOrEqual(2);
+      // Never exceeds the configured concurrency.
+      expect(maxInFlight).toBeLessThanOrEqual(4);
+
+      trailDb.close();
+      memDb.close();
+    } finally {
+      if (oldEnv === undefined) {
+        delete process.env.MEMORY_CORE_EXTRACT_CONCURRENCY;
+      } else {
+        process.env.MEMORY_CORE_EXTRACT_CONCURRENCY = oldEnv;
+      }
+    }
+  }, 30000);
+
   // ── B5: 3 consecutive failures → quarantine ───────────────────────────────
   test('B5: 3 consecutive LLM failures → pipeline_state.status = quarantine', async () => {
     const memDb = await makeMemoryDb();

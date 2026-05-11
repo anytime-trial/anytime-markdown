@@ -29,6 +29,13 @@ function insertRunningRun(db: Database, id: string, scope: string, startedAt: st
   );
 }
 
+function setHeartbeat(db: Database, id: string, heartbeatAt: string): void {
+  db.run(
+    `UPDATE memory_pipeline_runs SET last_heartbeat_at = ? WHERE id = ?`,
+    [heartbeatAt, id],
+  );
+}
+
 function insertRunningState(db: Database, scope: string): void {
   db.run(
     `INSERT INTO memory_pipeline_state (scope, status, last_processed_at, error_detail)
@@ -106,6 +113,45 @@ describe('runPipelineWatchdog', () => {
       `SELECT status FROM memory_pipeline_runs WHERE id = 'run_live'`,
     );
     expect(runRows[0]?.values[0]?.[0]).toBe('running');
+
+    db.close();
+  });
+
+  test('W6: long-running run with fresh heartbeat is not flipped to error', async () => {
+    const db = await makeMemoryDb();
+    // started_at is 2 hours ago (would be stale by started_at alone)
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60_000).toISOString();
+    // but heartbeat was updated 1 minute ago — pipeline is alive
+    const oneMinAgo = new Date(Date.now() - 60_000).toISOString();
+    insertRunningRun(db, 'run_alive', 'conversation_backfill', twoHoursAgo);
+    setHeartbeat(db, 'run_alive', oneMinAgo);
+
+    const result = runPipelineWatchdog({ db, timeoutMinutes: 10, logger: silentLogger });
+
+    expect(result.stale_runs).toBe(0);
+    const rows = db.exec(`SELECT status FROM memory_pipeline_runs WHERE id = 'run_alive'`);
+    expect(rows[0]?.values[0]?.[0]).toBe('running');
+
+    db.close();
+  });
+
+  test('W7: long-running run with stale heartbeat is flipped to error/timeout', async () => {
+    const db = await makeMemoryDb();
+    // started_at is 2 hours ago and heartbeat was 15 minutes ago — no progress
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60_000).toISOString();
+    const fifteenMinAgo = new Date(Date.now() - 15 * 60_000).toISOString();
+    insertRunningRun(db, 'run_dead', 'conversation_backfill', twoHoursAgo);
+    setHeartbeat(db, 'run_dead', fifteenMinAgo);
+
+    const result = runPipelineWatchdog({ db, timeoutMinutes: 10, logger: silentLogger });
+
+    expect(result.stale_runs).toBe(1);
+    const rows = db.exec(
+      `SELECT status, error_detail FROM memory_pipeline_runs WHERE id = 'run_dead'`,
+    );
+    const row = rows[0]?.values[0];
+    expect(row?.[0]).toBe('error');
+    expect(row?.[1]).toBe('timeout');
 
     db.close();
   });

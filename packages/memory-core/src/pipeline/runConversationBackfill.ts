@@ -11,6 +11,15 @@ const SCOPE = 'conversation_backfill';
 const QUARANTINE_THRESHOLD = 3;
 const DEFAULT_SINCE_DAYS = 5;
 const PROGRESS_LOG_INTERVAL = 10;
+const DEFAULT_EXTRACT_CONCURRENCY = 2;
+
+function resolveExtractConcurrency(): number {
+  const raw = process.env['MEMORY_CORE_EXTRACT_CONCURRENCY'];
+  if (raw === undefined || raw === '') return DEFAULT_EXTRACT_CONCURRENCY;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 1) return DEFAULT_EXTRACT_CONCURRENCY;
+  return Math.floor(n);
+}
 
 export interface BackfillResult {
   status: 'success' | 'partial' | 'error';
@@ -59,15 +68,62 @@ function insertPipelineRun(
   id: string,
   startedAt: string
 ): void {
+  // last_heartbeat_at is initialized to started_at so pipelineWatchdog has a
+  // valid signal from the very first moment of the run.
   db.run(
     `INSERT INTO memory_pipeline_runs
        (id, scope, started_at, status,
         items_processed, entities_inserted, entities_updated,
         edges_inserted, edges_invalidated, drifts_detected,
-        items_failed, duration_ms)
-     VALUES (?, ?, ?, 'running', 0, 0, 0, 0, 0, 0, 0, 0)`,
-    [id, SCOPE, startedAt]
+        items_failed, duration_ms, last_heartbeat_at)
+     VALUES (?, ?, ?, 'running', 0, 0, 0, 0, 0, 0, 0, 0, ?)`,
+    [id, SCOPE, startedAt, startedAt]
   );
+}
+
+function updateHeartbeatAndProgress(
+  db: Database,
+  id: string,
+  totals: PersistStats & { items_processed: number; items_failed: number }
+): void {
+  db.run(
+    `UPDATE memory_pipeline_runs SET
+       last_heartbeat_at = ?,
+       items_processed   = ?,
+       entities_inserted = ?,
+       entities_updated  = ?,
+       edges_inserted    = ?,
+       edges_invalidated = ?,
+       items_failed      = ?
+     WHERE id = ?`,
+    [
+      new Date().toISOString(),
+      totals.items_processed,
+      totals.entities_inserted,
+      totals.entities_updated,
+      totals.edges_inserted,
+      totals.edges_invalidated,
+      totals.items_failed,
+      id,
+    ]
+  );
+}
+
+function computeSinceISO(db: Database, sinceDays: number): string {
+  const sinceFromDays = new Date(Date.now() - sinceDays * 86_400_000).toISOString();
+  const rows = db.exec(
+    `SELECT last_processed_at FROM memory_pipeline_state WHERE scope = ?`,
+    [SCOPE]
+  );
+  const lastProcessedAt = (rows[0]?.values?.[0]?.[0] as string | undefined) ?? '';
+  // Resume from last_processed_at when it's set and newer than the sinceDays
+  // window. This avoids re-scanning sessions whose episodes are already
+  // persisted (existingIds still guards individual episodes, but skipping
+  // sessions entirely saves splitEpisodes + DB scan cost).
+  if (lastProcessedAt !== '' && lastProcessedAt > sinceFromDays) {
+    return lastProcessedAt;
+  }
+  return sinceFromDays;
 }
 
 function finalizePipelineRun(
@@ -150,12 +206,15 @@ export async function runConversationBackfill(opts: {
   const logger = opts.logger ?? noopLogger;
   const save = opts.save;
   const sinceDays = opts.sinceDays ?? DEFAULT_SINCE_DAYS;
+  const extractConcurrency = resolveExtractConcurrency();
 
   const startedAt = new Date().toISOString();
   const rId = runId(startedAt);
 
-  // ── 1. Compute sinceISO from sinceDays ───────────────────────────────────
-  const sinceISO = new Date(Date.now() - sinceDays * 86_400_000).toISOString();
+  // ── 1. Compute sinceISO: max(sinceDays前, last_processed_at) ─────────────
+  // Resume from last_processed_at when it's set, so re-runs after VS Code
+  // reload don't re-scan sessions whose episodes are already in memory_episodes.
+  const sinceISO = computeSinceISO(db, sinceDays);
 
   // ── 2. Insert pipeline_run + mark state as running ───────────────────────
   insertPipelineRun(db, rId, startedAt);
@@ -207,6 +266,7 @@ export async function runConversationBackfill(opts: {
     `[memory-core] backfill: ${totalSessions} sessions, ${totalEpisodes} episodes ` +
     `(${existingIds.size} already persisted, ${toProcess} to process, since ${sinceDays}d ago)`
   );
+  updateHeartbeatAndProgress(db, rId, totals);
   save?.();
 
   let sessionIdx = 0;
@@ -217,8 +277,12 @@ export async function runConversationBackfill(opts: {
       logger.info(
         `[memory-core] backfill: session ${sessionIdx}/${totalSessions} — ${session_id.slice(0, 12)} (${episodes.length} episodes)`
       );
+      updateHeartbeatAndProgress(db, rId, totals);
       save?.();
 
+      // Partition episodes into skipped (already in DB) and to-extract.
+      // Doing this up-front lets us batch the LLM calls below.
+      const toExtract: typeof episodes = [];
       for (const episode of episodes) {
         const epId = episodeId(episode.session_id, episode.message_uuid_start);
         if (existingIds.has(epId)) {
@@ -226,105 +290,129 @@ export async function runConversationBackfill(opts: {
           if (episode.valid_from > maxTimestamp) {
             maxTimestamp = episode.valid_from;
           }
-          continue;
-        }
-
-        totals.items_processed += 1;
-
-        // Progress log every PROGRESS_LOG_INTERVAL episodes
-        if (totals.items_processed % PROGRESS_LOG_INTERVAL === 0) {
-          logger.info(
-            `[memory-core] backfill progress: ${totals.items_processed}/${toProcess} episodes processed (${totals.items_skipped} skipped)`
-          );
-          save?.();
-        }
-
-        // Track latest timestamp seen
-        if (episode.valid_from > maxTimestamp) {
-          maxTimestamp = episode.valid_from;
-        }
-
-        const recordedAt = new Date().toISOString();
-
-        let extracted;
-        try {
-          extracted = await extractFactsFromEpisode({
-            ollama,
-            episode: {
-              raw_excerpt: episode.raw_excerpt,
-              session_id: episode.session_id,
-              message_uuid_start: episode.message_uuid_start,
-              message_uuid_end: episode.message_uuid_end,
-              valid_from: episode.valid_from,
-            },
-            model,
-            logger,
-          });
-        } catch (err) {
-          logger.error(
-            `[memory-core] runConversationBackfill: unexpected error in extractFacts for episode ${episode.message_uuid_start}`,
-            err
-          );
-          extracted = null;
-        }
-
-        if (extracted === null) {
-          totals.items_failed += 1;
-          consecutiveFailures += 1;
-          recordFailedItem(
-            db,
-            `${episode.session_id}:${episode.message_uuid_start}`,
-            'extraction_failed',
-            `episode ${episode.message_uuid_start} in session ${episode.session_id}`
-          );
-
-          if (consecutiveFailures >= QUARANTINE_THRESHOLD) {
-            logger.error(
-              `[memory-core] runConversationBackfill: ${QUARANTINE_THRESHOLD} consecutive failures — entering quarantine`
-            );
-            upsertPipelineState(db, {
-              status: 'quarantine',
-              last_processed_at: maxTimestamp,
-              error_detail: `${QUARANTINE_THRESHOLD} consecutive extraction failures`,
-            });
-            finalizePipelineRun(db, rId, startedAt, 'partial', totals);
-            return {
-              status: 'partial',
-              ...totals,
-            };
-          }
-          continue;
-        }
-
-        // Reset consecutive failure counter on success
-        consecutiveFailures = 0;
-
-        try {
-          const persisted = persistEpisodeFacts({
-            db,
-            episode,
-            extracted,
-            recordedAt,
-            logger,
-          });
-          totals.entities_inserted += persisted.entities_inserted;
-          totals.entities_updated += persisted.entities_updated;
-          totals.edges_inserted += persisted.edges_inserted;
-          totals.edges_invalidated += persisted.edges_invalidated;
-        } catch (err) {
-          logger.error(
-            `[memory-core] runConversationBackfill: persist failed for episode ${episode.message_uuid_start}`,
-            err
-          );
-          totals.items_failed += 1;
-          recordFailedItem(
-            db,
-            `${episode.session_id}:${episode.message_uuid_start}`,
-            'persist_failed',
-            err instanceof Error ? (err.stack ?? err.message) : String(err)
-          );
+        } else {
+          toExtract.push(episode);
         }
       }
+
+      // Concurrent extraction (LLM I/O bound) + serial persist (sql.js is
+      // single-threaded WASM, not thread-safe). With CONCURRENCY=1 this is
+      // equivalent to the previous serial behavior.
+      for (let batchStart = 0; batchStart < toExtract.length; batchStart += extractConcurrency) {
+        const batch = toExtract.slice(batchStart, batchStart + extractConcurrency);
+        const recordedAt = new Date().toISOString();
+
+        const extracted = await Promise.all(
+          batch.map(async (ep) => {
+            try {
+              return await extractFactsFromEpisode({
+                ollama,
+                episode: {
+                  raw_excerpt: ep.raw_excerpt,
+                  session_id: ep.session_id,
+                  message_uuid_start: ep.message_uuid_start,
+                  message_uuid_end: ep.message_uuid_end,
+                  valid_from: ep.valid_from,
+                },
+                model,
+                logger,
+              });
+            } catch (err) {
+              logger.error(
+                `[memory-core] runConversationBackfill: unexpected error in extractFacts for episode ${ep.message_uuid_start}`,
+                err
+              );
+              return null;
+            }
+          })
+        );
+
+        // Serial persist + bookkeeping. consecutiveFailures advances by 1 per
+        // failed episode within the batch, mirroring the prior serial flow.
+        for (let j = 0; j < batch.length; j++) {
+          const episode = batch[j];
+          const ex = extracted[j];
+
+          totals.items_processed += 1;
+          if (episode.valid_from > maxTimestamp) {
+            maxTimestamp = episode.valid_from;
+          }
+
+          // Progress log every PROGRESS_LOG_INTERVAL episodes
+          if (totals.items_processed % PROGRESS_LOG_INTERVAL === 0) {
+            logger.info(
+              `[memory-core] backfill progress: ${totals.items_processed}/${toProcess} episodes processed (${totals.items_skipped} skipped)`
+            );
+            updateHeartbeatAndProgress(db, rId, totals);
+            save?.();
+          }
+
+          if (ex === null) {
+            totals.items_failed += 1;
+            consecutiveFailures += 1;
+            recordFailedItem(
+              db,
+              `${episode.session_id}:${episode.message_uuid_start}`,
+              'extraction_failed',
+              `episode ${episode.message_uuid_start} in session ${episode.session_id}`
+            );
+
+            if (consecutiveFailures >= QUARANTINE_THRESHOLD) {
+              logger.error(
+                `[memory-core] runConversationBackfill: ${QUARANTINE_THRESHOLD} consecutive failures — entering quarantine`
+              );
+              upsertPipelineState(db, {
+                status: 'quarantine',
+                last_processed_at: maxTimestamp,
+                error_detail: `${QUARANTINE_THRESHOLD} consecutive extraction failures`,
+              });
+              finalizePipelineRun(db, rId, startedAt, 'partial', totals);
+              return {
+                status: 'partial',
+                ...totals,
+              };
+            }
+            continue;
+          }
+
+          // Reset consecutive failure counter on success
+          consecutiveFailures = 0;
+
+          try {
+            const persisted = persistEpisodeFacts({
+              db,
+              episode,
+              extracted: ex,
+              recordedAt,
+              logger,
+            });
+            totals.entities_inserted += persisted.entities_inserted;
+            totals.entities_updated += persisted.entities_updated;
+            totals.edges_inserted += persisted.edges_inserted;
+            totals.edges_invalidated += persisted.edges_invalidated;
+          } catch (err) {
+            logger.error(
+              `[memory-core] runConversationBackfill: persist failed for episode ${episode.message_uuid_start}`,
+              err
+            );
+            totals.items_failed += 1;
+            recordFailedItem(
+              db,
+              `${episode.session_id}:${episode.message_uuid_start}`,
+              'persist_failed',
+              err instanceof Error ? (err.stack ?? err.message) : String(err)
+            );
+          }
+        }
+      }
+
+      // After each session, advance last_processed_at so a future resume
+      // (VS Code reload, OS shutdown) can skip already-processed sessions
+      // via computeSinceISO() instead of re-scanning from sinceDays ago.
+      upsertPipelineState(db, {
+        status: 'running',
+        last_processed_at: maxTimestamp,
+      });
     }
   } catch (err) {
     logger.error(
