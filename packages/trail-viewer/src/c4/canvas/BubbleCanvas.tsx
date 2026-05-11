@@ -26,6 +26,13 @@ export interface BubbleCanvasProps {
    * flex parent's remaining height — useful inside a flex column popup).
    */
   readonly height?: number | string;
+  /**
+   * When set, pans/zooms the camera onto this point and dims all other bubbles
+   * to ~30% opacity so the focused one stands out. Used by Tour Mode.
+   * Matching is done by (file, label, startLine) to be robust against
+   * `points` reference changes.
+   */
+  readonly focusPoint?: { readonly file: string; readonly label: string; readonly startLine: number } | null;
 }
 
 // Multiplier applied to mouse drag delta before passing to PanPhysics.pan.
@@ -61,6 +68,7 @@ export const BubbleCanvas: React.FC<BubbleCanvasProps> = ({
   points,
   onPointClick,
   height = 400,
+  focusPoint = null,
 }) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -77,6 +85,21 @@ export const BubbleCanvas: React.FC<BubbleCanvasProps> = ({
   const hoveredRef = React.useRef<BubblePoint | null>(null);
   const onClickRef = React.useRef(onPointClick);
   onClickRef.current = onPointClick;
+  // Tour focus: resolved to the matching BubblePoint so draw can highlight it.
+  const focusedPointRef = React.useRef<BubblePoint | null>(null);
+  React.useMemo(() => {
+    if (!focusPoint) {
+      focusedPointRef.current = null;
+      return;
+    }
+    const match = points.find(
+      (p) =>
+        p.file === focusPoint.file &&
+        p.label === focusPoint.label &&
+        p.startLine === focusPoint.startLine,
+    );
+    focusedPointRef.current = match ?? null;
+  }, [focusPoint, points]);
 
   // Drag state
   const isDraggingRef = React.useRef(false);
@@ -132,21 +155,38 @@ export const BubbleCanvas: React.FC<BubbleCanvasProps> = ({
       }
 
       // ── Pass 1: bubble bodies (z-order preserved per input order) ─────
+      const focused = focusedPointRef.current;
       for (const pt of pts) {
         const cx = (pt.x - viewX) * zoom;
         const cy = h - (pt.y - viewY) * zoom;
         const r = BASE_RADIUS[pt.tier] * Math.sqrt(zoom);
         if (cx + r < 0 || cx - r > w || cy + r < 0 || cy - r > h) continue;
 
+        const isFocusTarget = focused != null && pt === focused;
+        // Dim all non-focus bubbles when a tour focus is active.
+        const alpha = focused == null ? 0.85 : isFocusTarget ? 1.0 : 0.18;
+
         ctx.beginPath();
         ctx.arc(cx, cy, r, 0, Math.PI * 2);
         ctx.fillStyle = ROLE_COLORS[pt.role];
-        ctx.globalAlpha = 0.85;
+        ctx.globalAlpha = alpha;
         ctx.fill();
         ctx.globalAlpha = 1;
 
-        // Hover ring
-        if (pt === hovered) {
+        // Tour focus ring: pulsing-like double ring around the target
+        if (isFocusTarget) {
+          ctx.beginPath();
+          ctx.arc(cx, cy, r + 5, 0, Math.PI * 2);
+          ctx.strokeStyle = dark ? 'rgba(255,220,120,0.95)' : 'rgba(180,80,0,0.95)';
+          ctx.lineWidth = 2.5;
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.arc(cx, cy, r + 10, 0, Math.PI * 2);
+          ctx.strokeStyle = dark ? 'rgba(255,220,120,0.35)' : 'rgba(180,80,0,0.35)';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        } else if (pt === hovered) {
+          // Standard hover ring (suppressed while focused on a tour target).
           ctx.beginPath();
           ctx.arc(cx, cy, r + 3, 0, Math.PI * 2);
           ctx.strokeStyle = dark ? 'rgba(255,255,255,0.31)' : 'rgba(0,0,0,0.31)';
@@ -348,6 +388,37 @@ export const BubbleCanvas: React.FC<BubbleCanvasProps> = ({
   React.useEffect(() => {
     requestDraw();
   }, [isDark, requestDraw]);
+
+  // Tour focus: pan/zoom the camera onto the focus point.
+  React.useEffect(() => {
+    if (!focusPoint) {
+      requestDraw();
+      return;
+    }
+    const match = pointsRef.current.find(
+      (p) =>
+        p.file === focusPoint.file &&
+        p.label === focusPoint.label &&
+        p.startLine === focusPoint.startLine,
+    );
+    if (!match) {
+      requestDraw();
+      return;
+    }
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const w = canvas.clientWidth || 600;
+    const h = canvas.clientHeight || (typeof height === 'number' ? height : 400);
+    const physics = physicsRef.current;
+    // Target zoom: pick a level that comfortably shows the focus + labels.
+    const targetZoom = Math.max(8, Math.min(60, physics.zoom));
+    const zoomRatio = targetZoom / physics.zoom;
+    physics.zoomAt(zoomRatio, match.x, match.y);
+    // Center the focus point in the canvas.
+    physics.viewX = match.x - w / 2 / physics.zoom;
+    physics.viewY = match.y - h / 2 / physics.zoom;
+    requestDraw();
+  }, [focusPoint, height, requestDraw]);
 
   // --- Mouse event handlers ---
   const handleMouseDown = React.useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {

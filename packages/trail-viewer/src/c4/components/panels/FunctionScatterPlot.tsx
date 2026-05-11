@@ -3,12 +3,16 @@ import { Box, IconButton, Stack, Tooltip, Typography } from '@mui/material';
 import ScatterPlotIcon from '@mui/icons-material/ScatterPlot';
 import PublicIcon from '@mui/icons-material/Public';
 import ApartmentIcon from '@mui/icons-material/Apartment';
+import TourIcon from '@mui/icons-material/Tour';
 import { BubbleCanvas } from '../../canvas/BubbleCanvas';
 import type { BubblePoint } from '../../canvas/BubbleCanvas';
 import { GalaxyCanvas } from '../../canvas/GalaxyCanvas';
 import { CodeCityCanvas } from '../../canvas/CodeCityCanvas';
+import { TourMode } from '../../canvas/TourMode';
+import { selectTourTargets } from '../../canvas/tourTargets';
 import type { FunctionRole } from '@anytime-markdown/trail-core/c4';
 import type { FunctionAnalysisApiEntry } from '../../hooks/fetchFunctionAnalysisApi';
+import { useTheme } from '@mui/material/styles';
 
 interface Colors {
   readonly border: string;
@@ -123,6 +127,32 @@ export const FunctionScatterPlot: React.FC<FunctionScatterPlotProps> = ({
   onFunctionOpen,
 }) => {
   const [view, setView] = React.useState<ViewMode>('scatter');
+  const [tourActive, setTourActive] = React.useState(false);
+  const [tourTarget, setTourTarget] = React.useState<
+    { file: string; label: string; startLine: number } | null
+  >(null);
+  const muiTheme = useTheme();
+  const isDark = muiTheme.palette.mode === 'dark';
+
+  // Tour is currently scoped to the scatter view (galaxy/city support
+  // would require additional focus wiring). Switch to scatter on start.
+  const tourSteps = React.useMemo(() => selectTourTargets(entries), [entries]);
+
+  const startTour = (): void => {
+    if (tourSteps.length === 0) return;
+    setView('scatter');
+    setTourActive(true);
+  };
+  const stopTour = React.useCallback((): void => {
+    setTourActive(false);
+    setTourTarget(null);
+  }, []);
+  const handleStepChange = React.useCallback(
+    (target: { file: string; label: string; startLine: number } | null) => {
+      setTourTarget(target);
+    },
+    [],
+  );
 
   if (entries.length === 0) {
     return (
@@ -190,6 +220,28 @@ export const FunctionScatterPlot: React.FC<FunctionScatterPlotProps> = ({
               <ApartmentIcon sx={{ fontSize: 16 }} />
             </IconButton>
           </Tooltip>
+          {/* Tour Mode: scatter 限定で、重要関数を順番にハイライト */}
+          <Tooltip
+            title={
+              tourSteps.length === 0
+                ? 'No data for tour'
+                : tourActive
+                  ? 'Stop tour'
+                  : 'Start tour (top important functions)'
+            }
+          >
+            <span>
+              <IconButton
+                size="small"
+                onClick={tourActive ? stopTour : startTour}
+                disabled={tourSteps.length === 0}
+                sx={{ color: tourActive ? colors.text : colors.textMuted, p: 0.25 }}
+                aria-label={tourActive ? 'stop tour' : 'start tour'}
+              >
+                <TourIcon sx={{ fontSize: 16 }} />
+              </IconButton>
+            </span>
+          </Tooltip>
         </Stack>
       </Stack>
 
@@ -246,11 +298,20 @@ export const FunctionScatterPlot: React.FC<FunctionScatterPlotProps> = ({
       </Stack>
 
       {/* キャンバス: 残り高さを全て占有 (Scatter / Galaxy / City 排他切替) */}
-      <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <Box
+        sx={{
+          flex: 1,
+          minHeight: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          position: 'relative',
+        }}
+      >
         {view === 'scatter' && (
           <BubbleCanvas
             points={toBubblePoints(entries)}
             height="100%"
+            focusPoint={tourActive ? tourTarget : null}
             onPointClick={(pt) => {
               if (onFunctionOpen) {
                 onFunctionOpen(pt.file, pt.label, pt.startLine);
@@ -263,6 +324,14 @@ export const FunctionScatterPlot: React.FC<FunctionScatterPlotProps> = ({
         )}
         {view === 'city' && (
           <CodeCityCanvas entries={entries} height="100%" onFunctionOpen={onFunctionOpen} />
+        )}
+        {tourActive && view === 'scatter' && (
+          <TourMode
+            steps={tourSteps}
+            onStepChange={handleStepChange}
+            onClose={stopTour}
+            isDark={isDark}
+          />
         )}
       </Box>
     </Box>
