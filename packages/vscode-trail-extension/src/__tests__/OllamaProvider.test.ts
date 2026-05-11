@@ -71,7 +71,53 @@ describe('OllamaProvider.getChildren()', () => {
   });
 });
 
-// startOllama() テストはタスク 3 で追加する。
-// vscode は jest.config.js の moduleNameMapper 経由で src/__mocks__/vscode.ts に解決される。
-// window.showInformationMessage / window.showErrorMessage は既に jest.fn() として用意されている。
-void vscode;
+describe('OllamaProvider.startOllama()', () => {
+  let provider: OllamaProvider;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockFetch.mockReturnValue(makeTimeoutError());
+    provider = new OllamaProvider();
+  });
+
+  afterEach(() => {
+    provider.dispose();
+  });
+
+  it('既に起動中なら informationMessage を表示して spawn しない', async () => {
+    mockFetch.mockReturnValue(makeRunningResponse(['bge-m3']));
+
+    await provider.startOllama();
+
+    expect(mockSpawn).not.toHaveBeenCalled();
+    expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(
+      'Ollama は既に起動しています。',
+    );
+  });
+
+  it('停止中なら spawn を呼び出す', async () => {
+    mockFetch.mockReturnValue(makeTimeoutError());
+
+    await provider.startOllama();
+
+    expect(mockSpawn).toHaveBeenCalledWith('ollama', ['serve'], {
+      detached: true,
+      stdio: 'ignore',
+    });
+  });
+
+  it('ENOENT の場合は errorMessage を表示して終了', async () => {
+    mockFetch.mockReturnValue(makeTimeoutError());
+    mockSpawn.mockImplementationOnce(() => {
+      const err = new Error('spawn ollama ENOENT') as NodeJS.ErrnoException;
+      err.code = 'ENOENT';
+      throw err;
+    });
+
+    await provider.startOllama();
+
+    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
+      'ollama コマンドが見つかりません。インストールを確認してください。',
+    );
+  });
+});
