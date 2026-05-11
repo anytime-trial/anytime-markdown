@@ -8,6 +8,7 @@ import {
   createOllamaClient,
   runConversationIncremental,
   runConversationBackfill,
+  runConversationFailedItemsRetry,
   runCodeIncremental,
   runBugHistoryIncremental,
   runReviewIncremental,
@@ -148,6 +149,22 @@ export function createMemoryCoreRunner(opts: {
                   `entities_inserted=${result.entities_inserted}, edges_inserted=${result.edges_inserted}`,
               );
             }
+
+            // ── Conversation failed-items retry ──────────────────────────
+            // backfill / incremental で extraction が失敗した episode を
+            // memory_failed_items から拾い直す。MEMORY_CORE_FAILED_RETRY_MAX
+            // (既定 3) に達した item は永続 skip され、人手介入対象として残る。
+            logger.info('Running conversation failed-items retry');
+            const retryResult = await runConversationFailedItemsRetry({
+              db: memDb.db,
+              ollama,
+              logger,
+              save: () => memDb.save(),
+            });
+            logger.info(
+              `Failed-items retry: status=${retryResult.status}, items_retried=${retryResult.items_retried}, ` +
+                `items_recovered=${retryResult.items_recovered}, items_failed=${retryResult.items_failed}`,
+            );
 
             // ── Code incremental pipeline ────────────────────────────────
             const gitRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();

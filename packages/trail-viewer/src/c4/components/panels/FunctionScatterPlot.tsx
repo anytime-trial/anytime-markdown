@@ -1,6 +1,7 @@
 import * as React from 'react';
-import { ScatterChart } from '@mui/x-charts/ScatterChart';
 import { Box, Stack, Typography } from '@mui/material';
+import { BubbleCanvas } from '../../canvas/BubbleCanvas';
+import type { BubblePoint } from '../../canvas/BubbleCanvas';
 import type { FunctionRole } from '@anytime-markdown/trail-core/c4';
 import type { FunctionAnalysisApiEntry } from '../../hooks/fetchFunctionAnalysisApi';
 
@@ -80,6 +81,23 @@ export function buildBubbleSeries(
   return result;
 }
 
+export function toBubblePoints(
+  entries: readonly FunctionAnalysisApiEntry[],
+): BubblePoint[] {
+  return entries.map((e) => ({
+    x: e.fanIn,
+    y: e.fanOut,
+    role: e.functionRole,
+    tier: assignComplexityTier(e.cognitiveComplexity),
+    label: e.functionName,
+    file: e.filePath,
+    fanIn: e.fanIn,
+    fanOut: e.fanOut,
+    cc: e.cognitiveComplexity,
+    startLine: e.startLine,
+  }));
+}
+
 const ALL_ROLES: readonly FunctionRole[] = ['hub', 'orchestrator', 'leaf', 'peripheral'];
 
 function median(values: readonly number[]): number {
@@ -110,42 +128,6 @@ export const FunctionScatterPlot: React.FC<FunctionScatterPlotProps> = ({
   // 中央値は将来の軸アノテーション用に計算しておく
   const _medianFanIn = median(entries.map((e) => e.fanIn));
   const _medianFanOut = median(entries.map((e) => e.fanOut));
-
-  const bubbleSeries = buildBubbleSeries(entries);
-
-  // grouped は onItemClick で entry を逆引きするために必要
-  const grouped: Record<FunctionRole, FunctionAnalysisApiEntry[]> = {
-    hub: [],
-    orchestrator: [],
-    leaf: [],
-    peripheral: [],
-  };
-  for (const entry of entries) {
-    grouped[entry.functionRole].push(entry);
-  }
-
-  const handleItemClick = (
-    _event: React.MouseEvent<SVGElement, MouseEvent>,
-    itemIdentifier: { seriesId: string | number; dataIndex: number },
-  ): void => {
-    if (!onFunctionOpen) return;
-    const seriesId = typeof itemIdentifier.seriesId === 'string' ? itemIdentifier.seriesId : '';
-    // series id は "hub-low" / "hub-mid" 等の形式。先頭セグメントが role
-    const roleKey = seriesId.split('-')[0] as FunctionRole | undefined;
-    if (!roleKey || !(roleKey in grouped)) return;
-    const tierEntries = bubbleSeries.find((s) => s.id === seriesId);
-    if (!tierEntries) return;
-    // dataIndex は buildBubbleSeries 内でのフィルタ済みインデックス
-    const matchedEntry = entries
-      .filter(
-        (e) =>
-          e.functionRole === roleKey &&
-          assignComplexityTier(e.cognitiveComplexity) === (seriesId.split('-')[1] as ComplexityTier),
-      )
-      [itemIdentifier.dataIndex];
-    if (!matchedEntry) return;
-    onFunctionOpen(matchedEntry.filePath, matchedEntry.functionName, matchedEntry.startLine);
-  };
 
   return (
     <Box
@@ -216,16 +198,16 @@ export const FunctionScatterPlot: React.FC<FunctionScatterPlotProps> = ({
         </Stack>
       </Stack>
 
-      {/* 散布図 */}
-      <Box sx={{ width: '100%', height: 320 }}>
-        <ScatterChart
-          series={bubbleSeries}
-          grid={{ vertical: true, horizontal: true }}
-          onItemClick={handleItemClick}
-          hideLegend
-          sx={{ width: '100%', height: '100%' }}
-        />
-      </Box>
+      {/* バブルキャンバス */}
+      <BubbleCanvas
+        points={toBubblePoints(entries)}
+        height={320}
+        onPointClick={(pt) => {
+          if (onFunctionOpen) {
+            onFunctionOpen(pt.file, pt.label, pt.startLine);
+          }
+        }}
+      />
     </Box>
   );
 };
