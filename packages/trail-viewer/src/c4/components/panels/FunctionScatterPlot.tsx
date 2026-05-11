@@ -26,6 +26,60 @@ const ROLE_COLORS: Record<FunctionRole, string> = {
   peripheral: '#9e9e9e',
 };
 
+export type ComplexityTier = 'low' | 'mid' | 'high';
+
+export interface TierConfig {
+  readonly tier: ComplexityTier;
+  readonly markerSize: number;
+  readonly label: string;
+}
+
+export const COMPLEXITY_TIERS: readonly TierConfig[] = [
+  { tier: 'low',  markerSize: 4,  label: '0–4' },
+  { tier: 'mid',  markerSize: 9,  label: '5–14' },
+  { tier: 'high', markerSize: 16, label: '15+' },
+];
+
+export function assignComplexityTier(cognitiveComplexity: number): ComplexityTier {
+  if (cognitiveComplexity <= 4) return 'low';
+  if (cognitiveComplexity <= 14) return 'mid';
+  return 'high';
+}
+
+export interface BubbleSeriesItem {
+  readonly id: string;
+  readonly label: string;
+  readonly color: string;
+  readonly markerSize: number;
+  readonly data: ReadonlyArray<{ readonly x: number; readonly y: number; readonly id: string }>;
+}
+
+export function buildBubbleSeries(
+  entries: readonly FunctionAnalysisApiEntry[],
+): BubbleSeriesItem[] {
+  const result: BubbleSeriesItem[] = [];
+  for (const role of ALL_ROLES) {
+    for (const tierConfig of COMPLEXITY_TIERS) {
+      const filtered = entries.filter(
+        (e) => e.functionRole === role && assignComplexityTier(e.cognitiveComplexity) === tierConfig.tier,
+      );
+      if (filtered.length === 0) continue;
+      result.push({
+        id: `${role}-${tierConfig.tier}`,
+        label: `${role} (${tierConfig.label})`,
+        color: ROLE_COLORS[role],
+        markerSize: tierConfig.markerSize,
+        data: filtered.map((entry, idx) => ({
+          x: entry.fanIn,
+          y: entry.fanOut,
+          id: `${role}-${tierConfig.tier}-${idx}`,
+        })),
+      });
+    }
+  }
+  return result;
+}
+
 const ALL_ROLES: readonly FunctionRole[] = ['hub', 'orchestrator', 'leaf', 'peripheral'];
 
 function median(values: readonly number[]): number {
@@ -35,14 +89,6 @@ function median(values: readonly number[]): number {
   return sorted.length % 2 === 1
     ? (sorted[mid] ?? 0)
     : ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2;
-}
-
-function mapToMarkerSize(complexity: number): number {
-  if (complexity <= 0) return 4;
-  const logVal = Math.log1p(complexity);
-  const maxLog = Math.log1p(50);
-  const clamped = Math.min(logVal, maxLog);
-  return 4 + (clamped / maxLog) * 12;
 }
 
 export const FunctionScatterPlot: React.FC<FunctionScatterPlotProps> = ({
@@ -156,7 +202,3 @@ export const FunctionScatterPlot: React.FC<FunctionScatterPlotProps> = ({
   );
 };
 
-// markerSize は z 軸ではなく各 series の固定値として使用。
-// 個別マーカーサイズの動的変更は @mui/x-charts 9 の ScatterChart では未サポート。
-// mapToMarkerSize は将来の series 分割（複雑度 tier 別）に向けて保持。
-void mapToMarkerSize;
