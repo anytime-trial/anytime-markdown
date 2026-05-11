@@ -37,6 +37,47 @@ const PAN_SENSITIVITY = 0.7;
 const ZOOM_LABEL_THRESHOLD = 2.5;
 const HIT_PADDING = 4;
 
+/** Initial view: galaxy plane tilted so it reads as 3D (60° from horizontal). */
+const INITIAL_PITCH = Math.PI / 3;
+const INITIAL_YAW = 0;
+const PITCH_MIN = 0.05; // almost edge-on
+const PITCH_MAX = Math.PI / 2 - 0.05; // not quite top-down
+const ROTATE_SENSITIVITY = 0.006;
+
+/**
+ * Project a 3D point (x ground, y ground, z height) onto the 2D canvas.
+ *
+ * Camera yaw rotates around the world Z axis (vertical). Pitch then tilts the
+ * scene so that:
+ *   pitch = π/2 → top-down (data Y maps fully to screen Y, no height contribution)
+ *   pitch = 0   → edge-on (data Y disappears into the screen depth, only Z shows)
+ *
+ * Orthographic projection (no perspective foreshortening) — orbits stay as
+ * ellipses with predictable axes, which is easier to read than a perspective
+ * fish-eye.
+ */
+function project3D(
+  x: number,
+  y: number,
+  z: number,
+  pitch: number,
+  yaw: number,
+): { sx: number; sy: number } {
+  const cosY = Math.cos(yaw);
+  const sinY = Math.sin(yaw);
+  const x1 = x * cosY - y * sinY;
+  const y1 = x * sinY + y * cosY;
+  const cosP = Math.cos(pitch);
+  const sinP = Math.sin(pitch);
+  // At pitch=π/2 (top-down) sin=1 so y_proj = y1 (data Y fully visible).
+  // At pitch=0 (edge-on) sin=0, cos=1 so y_proj = z (only height shows).
+  const yProj = y1 * sinP + z * cosP;
+  return {
+    sx: x1,
+    sy: -yProj, // canvas Y grows downward; data Y grows upward
+  };
+}
+
 /** RGB tuple in 0..255 range. */
 type Rgb = readonly [number, number, number];
 
@@ -281,10 +322,14 @@ export const GalaxyCanvas: React.FC<GalaxyCanvasProps> = ({
 
   // Drag / hover state
   const isDraggingRef = React.useRef(false);
+  const isRotatingRef = React.useRef(false);
   const lastMouseRef = React.useRef({ x: 0, y: 0 });
   const dragVxRef = React.useRef(0);
   const dragVyRef = React.useRef(0);
   const hoveredRef = React.useRef<ResolvedPoint | null>(null);
+  // 3D camera angles (radians).
+  const pitchRef = React.useRef(INITIAL_PITCH);
+  const yawRef = React.useRef(INITIAL_YAW);
 
   const [tooltip, setTooltip] = React.useState<TooltipState | null>(null);
 
@@ -327,11 +372,20 @@ export const GalaxyCanvas: React.FC<GalaxyCanvasProps> = ({
         ctx.fillRect(((sx % w) + w) % w, ((sy % h) + h) % h, 1, 1);
       }
 
-      // Helper: data-space → screen
-      const toScreen = (dx: number, dy: number) => ({
-        sx: (dx - viewX) * zoom,
-        sy: h - (dy - viewY) * zoom,
-      });
+      // Helper: data-space (galaxy plane z=0) → screen via 3D projection.
+      // Pan/zoom are applied first (in data-space), then the camera yaw+pitch
+      // rotate the result, finally we shift to the canvas center.
+      const pitch = pitchRef.current;
+      const yaw = yawRef.current;
+      const cxScreen = w / 2;
+      const cyScreen = h / 2;
+      const toScreen = (dx: number, dy: number, dz = 0) => {
+        const tx = (dx - viewX) * zoom;
+        const ty = (dy - viewY) * zoom;
+        const tz = dz * zoom;
+        const p = project3D(tx, ty, tz, pitch, yaw);
+        return { sx: cxScreen + p.sx, sy: cyScreen + p.sy };
+      };
 
       // ── Inter-community edges (parent-directory adjacency) ───────────
       const centers = centersRef.current;
@@ -348,7 +402,10 @@ export const GalaxyCanvas: React.FC<GalaxyCanvasProps> = ({
       }
 
       // ── Orbit lines (subtle, brighter for the hovered community) ─────
+      // Orbits become ellipses under non-top-down pitch — sample the circle
+      // in data-space and project each sample so the ellipse is exact.
       const hoveredCommunityId = hoveredCommunityIdRef.current;
+      const ORBIT_SAMPLES = 64;
       ctx.lineWidth = 1;
       for (let i = 0; i < centers.length; i++) {
         const c = centers[i]!;
@@ -360,7 +417,6 @@ export const GalaxyCanvas: React.FC<GalaxyCanvasProps> = ({
           : dark
             ? 'rgba(255,255,255,0.06)'
             : 'rgba(0,0,0,0.05)';
-        const { sx: ccx, sy: ccy } = toScreen(c.rcx, c.rcy);
         for (const orbitR of [
           ORBIT_RADIUS.orchestrator,
           ORBIT_RADIUS.leaf,
@@ -368,15 +424,16 @@ export const GalaxyCanvas: React.FC<GalaxyCanvasProps> = ({
         ]) {
           const screenR = orbitR * zoom;
           if (screenR < 4) continue;
-          if (
-            ccx + screenR < 0 ||
-            ccx - screenR > w ||
-            ccy + screenR < 0 ||
-            ccy - screenR > h
-          )
-            continue;
           ctx.beginPath();
-          ctx.arc(ccx, ccy, screenR, 0, Math.PI * 2);
+          for (let k = 0; k <= ORBIT_SAMPLES; k++) {
+            const theta = (k / ORBIT_SAMPLES) * 2 * Math.PI;
+            const dx = c.rcx + orbitR * Math.cos(theta);
+            const dy = c.rcy + orbitR * Math.sin(theta);
+            const p = toScreen(dx, dy);
+            if (k === 0) ctx.moveTo(p.sx, p.sy);
+            else ctx.lineTo(p.sx, p.sy);
+          }
+          ctx.closePath();
           ctx.stroke();
         }
       }
@@ -496,7 +553,13 @@ export const GalaxyCanvas: React.FC<GalaxyCanvasProps> = ({
       ctx.font = '10px monospace';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'bottom';
-      ctx.fillText(`×${zoom.toFixed(1)}  ${layouts.length} systems`, 8, h - 4);
+      const pitchDeg = Math.round((pitch * 180) / Math.PI);
+      const yawDeg = Math.round((yaw * 180) / Math.PI) % 360;
+      ctx.fillText(
+        `×${zoom.toFixed(1)}  ${layouts.length} systems  pitch ${pitchDeg}°  yaw ${yawDeg}°  (Shift+drag to rotate)`,
+        8,
+        h - 4,
+      );
     };
   }, [isDark, layouts]);
 
@@ -531,23 +594,31 @@ export const GalaxyCanvas: React.FC<GalaxyCanvasProps> = ({
     scheduleLoop();
   }, [scheduleLoop]);
 
-  // --- Hit testing ---
-  const hitTest = React.useCallback((mx: number, my: number, h: number): ResolvedPoint | null => {
-    const { viewX, viewY, zoom } = physicsRef.current;
-    const pts = pointsRef.current;
-    // Reverse so hubs (drawn last) are tested first
-    for (let i = pts.length - 1; i >= 0; i--) {
-      const pt = pts[i]!;
-      const sx = (pt.dataX - viewX) * zoom;
-      const sy = h - (pt.dataY - viewY) * zoom;
-      const baseR = pt.isHub ? HUB_BASE_RADIUS : BASE_RADIUS[pt.tier];
-      const r = baseR * Math.sqrt(zoom) + HIT_PADDING;
-      const dx = mx - sx;
-      const dy = my - sy;
-      if (dx * dx + dy * dy <= r * r) return pt;
-    }
-    return null;
-  }, []);
+  // --- Hit testing (matches the 3D projection used in draw) ---
+  const hitTest = React.useCallback(
+    (mx: number, my: number, canvasW: number, canvasH: number): ResolvedPoint | null => {
+      const { viewX, viewY, zoom } = physicsRef.current;
+      const pitch = pitchRef.current;
+      const yaw = yawRef.current;
+      const cxScreen = canvasW / 2;
+      const cyScreen = canvasH / 2;
+      const pts = pointsRef.current;
+      // Reverse so hubs (drawn last) are tested first.
+      for (let i = pts.length - 1; i >= 0; i--) {
+        const pt = pts[i]!;
+        const p = project3D((pt.dataX - viewX) * zoom, (pt.dataY - viewY) * zoom, 0, pitch, yaw);
+        const sx = cxScreen + p.sx;
+        const sy = cyScreen + p.sy;
+        const baseR = pt.isHub ? HUB_BASE_RADIUS : BASE_RADIUS[pt.tier];
+        const r = baseR * Math.sqrt(zoom) + HIT_PADDING;
+        const dx = mx - sx;
+        const dy = my - sy;
+        if (dx * dx + dy * dy <= r * r) return pt;
+      }
+      return null;
+    },
+    [],
+  );
 
   // --- One-time setup: wheel + initial fit + cleanup ---
   React.useEffect(() => {
@@ -619,7 +690,9 @@ export const GalaxyCanvas: React.FC<GalaxyCanvasProps> = ({
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       if (e.button !== 0) return;
       const rect = (e.target as HTMLElement).getBoundingClientRect();
-      isDraggingRef.current = true;
+      // Shift+drag → camera rotation, otherwise plain pan.
+      isRotatingRef.current = e.shiftKey;
+      isDraggingRef.current = !e.shiftKey;
       lastMouseRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
       dragVxRef.current = 0;
       dragVyRef.current = 0;
@@ -630,10 +703,25 @@ export const GalaxyCanvas: React.FC<GalaxyCanvasProps> = ({
 
   const handleMouseMove = React.useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
-      const rect = (e.target as HTMLElement).getBoundingClientRect();
+      const target = e.target as HTMLElement;
+      const rect = target.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
-      const ch = (e.target as HTMLElement).clientHeight;
+      const cw = target.clientWidth;
+      const ch = target.clientHeight;
+
+      if (isRotatingRef.current) {
+        const dx = mx - lastMouseRef.current.x;
+        const dy = my - lastMouseRef.current.y;
+        yawRef.current += dx * ROTATE_SENSITIVITY;
+        pitchRef.current = Math.max(
+          PITCH_MIN,
+          Math.min(PITCH_MAX, pitchRef.current - dy * ROTATE_SENSITIVITY),
+        );
+        lastMouseRef.current = { x: mx, y: my };
+        requestDraw();
+        return;
+      }
 
       if (isDraggingRef.current) {
         const dx = (mx - lastMouseRef.current.x) * PAN_SENSITIVITY;
@@ -645,7 +733,7 @@ export const GalaxyCanvas: React.FC<GalaxyCanvasProps> = ({
         return;
       }
 
-      const hit = hitTest(mx, my, ch);
+      const hit = hitTest(mx, my, cw, ch);
       if (hit !== hoveredRef.current) {
         hoveredRef.current = hit;
         hoveredCommunityIdRef.current = hit ? hit.communityId : null;
@@ -663,14 +751,17 @@ export const GalaxyCanvas: React.FC<GalaxyCanvasProps> = ({
   );
 
   const handleMouseUp = React.useCallback(() => {
-    if (!isDraggingRef.current) return;
-    isDraggingRef.current = false;
-    physicsRef.current.applyImpulse(dragVxRef.current, dragVyRef.current);
+    if (isDraggingRef.current) {
+      isDraggingRef.current = false;
+      physicsRef.current.applyImpulse(dragVxRef.current, dragVyRef.current);
+    }
+    isRotatingRef.current = false;
     scheduleLoop();
   }, [scheduleLoop]);
 
   const handleMouseLeave = React.useCallback(() => {
     isDraggingRef.current = false;
+    isRotatingRef.current = false;
     if (hoveredRef.current !== null) {
       hoveredRef.current = null;
       hoveredCommunityIdRef.current = null;
@@ -681,11 +772,11 @@ export const GalaxyCanvas: React.FC<GalaxyCanvasProps> = ({
 
   const handleClick = React.useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
-      const rect = (e.target as HTMLElement).getBoundingClientRect();
+      const target = e.target as HTMLElement;
+      const rect = target.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
-      const ch = (e.target as HTMLElement).clientHeight;
-      const hit = hitTest(mx, my, ch);
+      const hit = hitTest(mx, my, target.clientWidth, target.clientHeight);
       if (hit && onClickRef.current) {
         onClickRef.current(hit.entry.filePath, hit.entry.functionName, hit.entry.startLine);
       }
