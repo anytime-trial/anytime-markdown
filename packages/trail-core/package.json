@@ -26,6 +26,7 @@
     "./c4": "./src/c4/index.ts",
     "./c4/services": "./src/c4/services/catalog.ts",
     "./c4/metrics/computeImportanceMatrix": "./src/c4/metrics/computeImportanceMatrix.ts",
+    "./c4/callHierarchy": "./src/c4/callHierarchy/index.ts",
     "./codeGraph": "./src/codeGraph.ts",
     "./deadCode": "./src/deadCode/index.ts",
     "./analyzeExclude": "./src/analyzeExclude/index.ts",

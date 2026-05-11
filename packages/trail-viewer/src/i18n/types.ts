@@ -11,6 +11,7 @@ export interface TrailI18n {
   'viewer.tab.graph': string;
   'viewer.tab.scatter': string;
   'viewer.tab.trace': string;
+  'viewer.tab.functionTree': string;
   'viewer.loading': string;
   'viewer.selectSession': string;
   'viewer.loaded': string;
@@ -438,5 +439,13 @@ export interface TrailI18n {
   'metrics.changeFailureRate.name': string;
   'metrics.changeFailureRate.description': string;
   'metrics.empty': string;
-
+  // c4 call hierarchy
+  'c4.callHierarchy.empty': string;
+  'c4.callHierarchy.tab.callers': string;
+  'c4.callHierarchy.tab.callees': string;
+  'c4.callHierarchy.loading': string;
+  'c4.callHierarchy.error': string;
+  'c4.callHierarchy.cycle': string;
+  'c4.callHierarchy.showFunctionTree': string;
+  'c4.callHierarchy.noChildren': string;
 }

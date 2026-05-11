@@ -49,6 +49,9 @@ const AnalyticsPanel = lazyWithPreload(() =>
 const C4ViewerCore = lazyWithPreload(() =>
   import('../c4/components/C4ViewerCore').then((m) => ({ default: m.C4ViewerCore })),
 );
+const CallHierarchyPanel = lazyWithPreload(() =>
+  import('../c4/components/panels/CallHierarchyPanel').then((m) => ({ default: m.CallHierarchyPanel })),
+);
 const MessageTimeline = lazyWithPreload(() =>
   import('./messages/MessageTimeline').then((m) => ({ default: m.MessageTimeline })),
 );
@@ -74,7 +77,7 @@ const preloadTab = (index: number) => {
 };
 
 /** C4-related props forwarded to the embedded C4ViewerCore. */
-type C4Props = Omit<C4ViewerCoreProps, 'isDark' | 'containerHeight' | 'onShowSequence'>;
+type C4Props = Omit<C4ViewerCoreProps, 'isDark' | 'containerHeight' | 'onShowSequence' | 'onOpenFunctionTree'>;
 
 export interface TrailViewerCoreProps {
   readonly isDark?: boolean;
@@ -218,6 +221,18 @@ function TrailViewerCoreInner({
   }, []);
   const [activeSequenceElementId, setActiveSequenceElementId] = useState<string | null>(null);
   const c4SequenceState = useC4SequenceData(c4?.serverUrl, activeSequenceElementId);
+  const [selectedFunctionForTree, setSelectedFunctionForTree] = useState<{
+    filePath: string;
+    fnName: string;
+    startLine?: number;
+  } | null>(null);
+  const handleOpenFunctionTree = useCallback(
+    (filePath: string, fnName: string, startLine?: number) => {
+      setSelectedFunctionForTree({ filePath, fnName, startLine });
+      visitTab(7);
+    },
+    [visitTab],
+  );
 
   // perf-report: 初回マウント時の描画開始〜React mount 完了の所要時間を計測。
   // sendCommand が undefined の場合は no-op send を渡し、計測値はキューにも積まない。
@@ -280,7 +295,7 @@ function TrailViewerCoreInner({
   const handleShowSequence = useCallback(
     (elementId: string) => {
       setActiveSequenceElementId(elementId);
-      visitTab(7);
+      visitTab(5);
     },
     [visitTab],
   );
@@ -494,6 +509,7 @@ function TrailViewerCoreInner({
               isDark={isDark}
               containerHeight="100%"
               onShowSequence={handleShowSequence}
+              onOpenFunctionTree={handleOpenFunctionTree}
               {...c4}
             />
           </Suspense>
@@ -524,6 +540,24 @@ function TrailViewerCoreInner({
           sx={{ display: activeTab !== 6 ? 'none' : 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}
         >
           <MemoryPanel serverUrl={serverUrl} />
+        </Box>
+      )}
+
+      {c4 && visitedTabs.has(7) && (
+        <Box
+          role="tabpanel"
+          id="trail-panel-7"
+          aria-labelledby="trail-tab-7"
+          sx={{ display: activeTab !== 7 ? 'none' : 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}
+        >
+          <Suspense fallback={<TabSkeleton height="100%" />}>
+            <CallHierarchyPanel
+              rootFunction={selectedFunctionForTree}
+              apiBaseUrl={c4.serverUrl ?? ''}
+              t={t as (key: string) => string}
+              isDark={isDark}
+            />
+          </Suspense>
         </Box>
       )}
 
