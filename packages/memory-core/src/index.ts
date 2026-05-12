@@ -117,3 +117,22 @@ export type {
   HybridSearchOptions,
   HybridSearchResult,
 } from './rag/hybridSearchMemory';
+
+export type { ChatMessage, ChatTurnInput, ChatChunk, ChatFilters } from './chat/types';
+export { buildPrompt } from './chat/promptBuilder';
+export type { BuildPromptInput, PromptSource } from './chat/promptBuilder';
+export { CitationStreamParser } from './chat/citationParser';
+export { ChatService } from './chat/ChatService';
+export type { ChatServiceOptions } from './chat/ChatService';
+
+export type {
+  ChatProvider,
+  ChatProviderChatOptions,
+  ChatStreamChunk,
+  EmbeddingProvider,
+  HealthCheckResult,
+} from './providers/types';
+export { OllamaChatProvider } from './providers/ollama/OllamaChatProvider';
+export type { OllamaChatProviderOptions } from './providers/ollama/OllamaChatProvider';
+export { OllamaEmbeddingProvider } from './providers/ollama/OllamaEmbeddingProvider';
+export type { OllamaEmbeddingProviderOptions } from './providers/ollama/OllamaEmbeddingProvider';
