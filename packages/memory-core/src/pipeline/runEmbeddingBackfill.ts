@@ -71,9 +71,9 @@ export async function runEmbeddingBackfill(opts: {
   db.run(
     `INSERT INTO memory_pipeline_runs
        (id, scope, status, started_at, finished_at, duration_ms,
-        items_processed, items_failed, episodes_processed,
+        items_processed, items_failed,
         entities_inserted, entities_updated, edges_inserted, edges_invalidated)
-     VALUES (?, ?, 'running', ?, NULL, 0, 0, 0, 0, 0, 0, 0, 0)`,
+     VALUES (?, ?, 'running', ?, NULL, 0, 0, 0, 0, 0, 0, 0)`,
     [id, SCOPE, startedAt]
   );
 

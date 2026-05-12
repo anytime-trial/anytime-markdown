@@ -62,7 +62,6 @@ async function makeDb() {
       duration_ms        INTEGER NOT NULL DEFAULT 0,
       items_processed    INTEGER NOT NULL DEFAULT 0,
       items_failed       INTEGER NOT NULL DEFAULT 0,
-      episodes_processed INTEGER NOT NULL DEFAULT 0,
       entities_inserted  INTEGER NOT NULL DEFAULT 0,
       entities_updated   INTEGER NOT NULL DEFAULT 0,
       edges_inserted     INTEGER NOT NULL DEFAULT 0,
