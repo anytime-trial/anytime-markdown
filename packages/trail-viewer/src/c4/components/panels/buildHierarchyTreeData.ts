@@ -5,6 +5,7 @@ export interface ApiHierarchyNode {
   line: number;
   children: ApiHierarchyNode[];
   cycle?: boolean;
+  revisited?: boolean;
 }
 
 export interface HierarchyTreeItem {
@@ -12,24 +13,33 @@ export interface HierarchyTreeItem {
   label: string;
   secondary: string;
   cycle: boolean;
+  revisited: boolean;
   filePath: string;
   line: number;
   children: HierarchyTreeItem[];
 }
 
+export interface HierarchyLabelDecorations {
+  readonly cycleLabel: string;
+  readonly revisitedLabel: string;
+}
+
 export function buildHierarchyTreeData(
   node: ApiHierarchyNode,
-  cycleLabel: string,
+  decorations: HierarchyLabelDecorations,
 ): HierarchyTreeItem {
   const cycle = node.cycle === true;
+  const revisited = node.revisited === true;
+  const suffix = cycle ? ` ${decorations.cycleLabel}` : revisited ? ` ${decorations.revisitedLabel}` : '';
   return {
     id: node.id,
-    label: cycle ? `${node.label} ${cycleLabel}` : node.label,
+    label: `${node.label}${suffix}`,
     secondary: `${node.filePath}:${node.line}`,
     cycle,
+    revisited,
     filePath: node.filePath,
     line: node.line,
-    children: node.children.map(child => buildHierarchyTreeData(child, cycleLabel)),
+    children: node.children.map(child => buildHierarchyTreeData(child, decorations)),
   };
 }
 

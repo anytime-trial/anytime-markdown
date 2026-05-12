@@ -440,4 +440,10 @@ export const ja: TrailI18n = {
   'c4.callHierarchy.cycle': '(循環)',
   'c4.callHierarchy.showFunctionTree': '関数ツリーを表示',
   'c4.callHierarchy.noChildren': '関連する関数がありません',
+  'c4.callHierarchy.scope': 'スコープ',
+  'c4.callHierarchy.scope.project': 'プロジェクト全体',
+  'c4.callHierarchy.scope.package': '同パッケージ',
+  'c4.callHierarchy.scope.file': '同ファイル',
+  'c4.callHierarchy.excludeTests': 'テスト除外',
+  'c4.callHierarchy.revisited': '(既出)',
 };

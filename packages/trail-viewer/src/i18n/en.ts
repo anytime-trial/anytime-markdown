@@ -440,4 +440,10 @@ export const en: TrailI18n = {
   'c4.callHierarchy.cycle': '(cycle)',
   'c4.callHierarchy.showFunctionTree': 'Show function tree',
   'c4.callHierarchy.noChildren': 'No related functions',
+  'c4.callHierarchy.scope': 'Scope',
+  'c4.callHierarchy.scope.project': 'Project',
+  'c4.callHierarchy.scope.package': 'Package',
+  'c4.callHierarchy.scope.file': 'File',
+  'c4.callHierarchy.excludeTests': 'Exclude tests',
+  'c4.callHierarchy.revisited': '(seen)',
 };
