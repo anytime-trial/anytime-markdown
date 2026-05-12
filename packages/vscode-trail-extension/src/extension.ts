@@ -464,11 +464,11 @@ export async function activate(context: vscode.ExtensionContext) {
 	TrailPanel.setDataServer(trailDataServer);
 	setupServerCallbacks(trailDataServer);
 
-	// Memory chat (MEMORY > Chat タブ) — Ollama 経由の RAG チャット
+	// Memory chat (MEMORY > Chat タブ) — Ollama 経由の RAG チャット。
+	// activate のクリティカルパスを伸ばさないよう、初期化は全て setImmediate に
+	// 非同期で逃がす。何らかの理由 (native binding 失敗、memory-core.db 破損等) で
+	// 初期化が失敗しても拡張全体の起動が止まらないよう try/catch でガード。
 	const memoryDbPath = path.join(os.homedir(), '.claude', 'memory-core', 'memory-core.db');
-	// webpack バンドル後 better-sqlite3 の require は dist/node_modules/ に
-	// CopyPlugin で同梱した実装を解決するが、native binary の自動探索が
-	// バンドル環境で失敗するため絶対パスで .node を明示する。
 	const memoryNativeBinding = path.join(
 		extensionDistPath,
 		'node_modules',
@@ -482,39 +482,47 @@ export async function activate(context: vscode.ExtensionContext) {
 			TrailLogger.info(ctx ? `${msg} ${JSON.stringify(ctx)}` : msg),
 		error: (msg: string, err?: unknown): void => TrailLogger.error(msg, err),
 	};
-	const { ChatBridge } = await import('./memory-chat/chatBridge');
-	const chatBridge = new ChatBridge({
-		memoryDbPath,
-		memoryNativeBinding,
-		getConfig: () => {
-			const cfg = vscode.workspace.getConfiguration('anytimeTrail.memory');
-			return {
-				baseUrl: cfg.get<string>('ollama.baseUrl') ?? 'http://localhost:11434',
-				chatModel: cfg.get<string>('chat.model') ?? 'qwen2.5-coder:14b',
-				embedModel: cfg.get<string>('embedding.model') ?? 'bge-m3',
-			};
-		},
-		logger: memoryLogger,
-	});
-	trailDataServer.setChatBridge(chatBridge);
-	context.subscriptions.push({ dispose: () => void chatBridge.dispose() });
+	setImmediate(() => {
+		void (async () => {
+			try {
+				const { ChatBridge } = await import('./memory-chat/chatBridge');
+				const chatBridge = new ChatBridge({
+					memoryDbPath,
+					memoryNativeBinding,
+					getConfig: () => {
+						const cfg = vscode.workspace.getConfiguration('anytimeTrail.memory');
+						return {
+							baseUrl: cfg.get<string>('ollama.baseUrl') ?? 'http://localhost:11434',
+							chatModel: cfg.get<string>('chat.model') ?? 'qwen2.5-coder:14b',
+							embedModel: cfg.get<string>('embedding.model') ?? 'bge-m3',
+						};
+					},
+					logger: memoryLogger,
+				});
+				trailDataServer!.setChatBridge(chatBridge);
+				context.subscriptions.push({ dispose: () => void chatBridge.dispose() });
 
-	// FTS5 インデックスのバックグラウンド再構築 (起動時 + cron)
-	const { RebuildScheduler } = await import('./memory-chat/rebuildScheduler');
-	const rebuildIntervalMin = vscode.workspace
-		.getConfiguration('anytimeTrail.memory.fts')
-		.get<number>('rebuildIntervalMinutes') ?? 60;
-	const rebuildScheduler = new RebuildScheduler({
-		memoryDbPath,
-		memoryNativeBinding,
-		logger: memoryLogger,
+				const { RebuildScheduler } = await import('./memory-chat/rebuildScheduler');
+				const rebuildIntervalMin = vscode.workspace
+					.getConfiguration('anytimeTrail.memory.fts')
+					.get<number>('rebuildIntervalMinutes') ?? 60;
+				const rebuildScheduler = new RebuildScheduler({
+					memoryDbPath,
+					memoryNativeBinding,
+					logger: memoryLogger,
+				});
+				context.subscriptions.push(rebuildScheduler.start(rebuildIntervalMin * 60 * 1000));
+				context.subscriptions.push(
+					vscode.commands.registerCommand('anytime-trail.memory.rebuildIndex', () =>
+						rebuildScheduler.runManual(),
+					),
+				);
+				TrailLogger.info('[memory-chat] initialized');
+			} catch (error) {
+				TrailLogger.error('[memory-chat] init failed', error);
+			}
+		})();
 	});
-	context.subscriptions.push(rebuildScheduler.start(rebuildIntervalMin * 60 * 1000));
-	context.subscriptions.push(
-		vscode.commands.registerCommand('anytime-trail.memory.rebuildIndex', () =>
-			rebuildScheduler.runManual(),
-		),
-	);
 
 	// Code graph service
 	const codeGraphRepos: { id: string; label: string; path: string }[] = [];
