@@ -448,4 +448,10 @@ export interface TrailI18n {
   'c4.callHierarchy.cycle': string;
   'c4.callHierarchy.showFunctionTree': string;
   'c4.callHierarchy.noChildren': string;
+  'c4.callHierarchy.scope': string;
+  'c4.callHierarchy.scope.project': string;
+  'c4.callHierarchy.scope.package': string;
+  'c4.callHierarchy.scope.file': string;
+  'c4.callHierarchy.excludeTests': string;
+  'c4.callHierarchy.revisited': string;
 }
