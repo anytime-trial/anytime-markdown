@@ -427,6 +427,26 @@ export interface TrailI18n {
   'memory.runs.status.partial': string;
   'memory.runs.status.error': string;
 
+  // memory > chat
+  'memory.chat.tab': string;
+  'memory.chat.placeholder': string;
+  'memory.chat.send': string;
+  'memory.chat.abort': string;
+  'memory.chat.rebuild': string;
+  'memory.chat.sources.title': string;
+  'memory.chat.sources.empty': string;
+  'memory.chat.filters.title': string;
+  'memory.chat.filters.allRepos': string;
+  'memory.chat.filters.currentRepo': string;
+  'memory.chat.setup.title': string;
+  'memory.chat.setup.step1': string;
+  'memory.chat.setup.step2': string;
+  'memory.chat.setup.step3': string;
+  'memory.chat.setup.recheck': string;
+  'memory.chat.empty': string;
+  'memory.chat.error': string;
+  'memory.chat.interrupted': string;
+
   // metrics
   'metrics.deploymentFrequency.name': string;
   'metrics.deploymentFrequency.description': string;

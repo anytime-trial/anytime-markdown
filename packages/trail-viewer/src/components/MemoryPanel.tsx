@@ -11,11 +11,12 @@ import { DriftPanel } from './memory/DriftPanel';
 import { BugHistoryPanel } from './memory/BugHistoryPanel';
 import { ReviewPanel } from './memory/ReviewPanel';
 import { PipelineRunsPanel } from './memory/PipelineRunsPanel';
+import { ChatPanel } from './memory/ChatPanel';
 import { MemoryReader } from '../data/readers/MemoryReader';
 import type { MemoryDriftEventRow } from '../data/types';
 
 function parseHashSubTab(hash: string): MemoryTabValue | null {
-  const match = /^#memory\/(drift|bug|review|runs)/.exec(hash);
+  const match = /^#memory\/(drift|bug|review|runs|chat)/.exec(hash);
   if (!match) return null;
   return match[1] as MemoryTabValue;
 }
@@ -130,6 +131,9 @@ export function MemoryPanel({ serverUrl }: Readonly<MemoryPanelProps>) {
             )}
             {def.value === 'runs' && (
               <PipelineRunsPanel reader={reader} />
+            )}
+            {def.value === 'chat' && (
+              <ChatPanel />
             )}
           </Box>
         ))}

@@ -54,24 +54,25 @@ interface EntityCandidate {
   embedding: Uint8Array | null;
 }
 
-export async function searchMemory(opts: {
+/**
+ * クエリベクトルに対しコサイン類似度で memory_entities をランク付けし
+ * 上位 `limit` 件を返す。RAG ハイブリッド検索からも参照される。
+ */
+export async function vectorTopK(opts: {
   db: MemoryDbConnection;
   ollama: OllamaClient;
   embedModel?: string;
-  input: SearchInput;
-}): Promise<SearchResult> {
-  const { db, ollama, embedModel, input } = opts;
-  const limit = input.limit ?? 20;
+  input: Pick<SearchInput, 'query' | 'entity_types' | 'since'>;
+  limit: number;
+}): Promise<SearchEntity[]> {
+  const { db, ollama, embedModel, input, limit } = opts;
 
-  // Step 1: get query embedding
   const embResult = await ollama.embeddings({
     model: embedModel ?? 'bge-m3',
     prompt: input.query,
   });
   const queryVec = Float32Array.from(embResult.embedding);
 
-  // Step 2: build SQL for candidates
-  // Soft-deleted entities (valid_until IS NOT NULL) are always excluded.
   const conditions: string[] = ['valid_until IS NULL'];
   const params: (string | number | null)[] = [];
 
@@ -86,25 +87,19 @@ export async function searchMemory(opts: {
     params.push(input.since);
   }
 
-  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  const whereClause = `WHERE ${conditions.join(' AND ')}`;
   const sql = `SELECT id, type, display_name, summary, embedding FROM memory_entities ${whereClause} LIMIT 200`;
-
   const rows = db.exec(sql, params.length > 0 ? params : undefined);
   const rawRows = rows[0]?.values ?? [];
 
-  // Step 3: decode embeddings and compute cosine similarity
   const scored: Array<{ candidate: EntityCandidate; score: number }> = [];
-
   for (const row of rawRows) {
     const id = row[0] as string;
     const type = row[1] as string;
     const display_name = row[2] as string;
     const summary = row[3] as string;
     const embBlob = toUint8ArrayOrNull(row[4] as SqlValue);
-
-    if (embBlob == null) {
-      continue;
-    }
+    if (embBlob == null) continue;
 
     let entityVec: Float32Array;
     try {
@@ -112,31 +107,38 @@ export async function searchMemory(opts: {
     } catch (_) {
       continue;
     }
-
     let score: number;
     try {
       score = cosineSimilarity(queryVec, entityVec);
     } catch (_) {
-      // dim mismatch — skip
       continue;
     }
-
     scored.push({
       candidate: { id, type, display_name, summary, embedding: embBlob },
       score,
     });
   }
 
-  // Step 4: sort and take top limit
   scored.sort((a, b) => b.score - a.score);
-  const topScored = scored.slice(0, limit);
-  const topEntities: SearchEntity[] = topScored.map(({ candidate, score }) => ({
+  return scored.slice(0, limit).map(({ candidate, score }) => ({
     id: candidate.id,
     type: candidate.type,
     display_name: candidate.display_name,
     summary: candidate.summary,
     score,
   }));
+}
+
+export async function searchMemory(opts: {
+  db: MemoryDbConnection;
+  ollama: OllamaClient;
+  embedModel?: string;
+  input: SearchInput;
+}): Promise<SearchResult> {
+  const { db, ollama, embedModel, input } = opts;
+  const limit = input.limit ?? 20;
+
+  const topEntities = await vectorTopK({ db, ollama, embedModel, input, limit });
 
   // Step 5/6: handle hops
   if ((input.hops ?? 1) === 0 || topEntities.length === 0) {

@@ -254,6 +254,7 @@ export class TrailDataServer {
 
   private codeGraphService: CodeGraphService | undefined;
   private readonly memoryApi = new MemoryApiHandler();
+  private chatBridge: import('../memory-chat/chatBridge').ChatBridge | undefined;
 
   constructor(
     private readonly distPath: string,
@@ -263,6 +264,10 @@ export class TrailDataServer {
 
   setCodeGraphService(service: CodeGraphService): void {
     this.codeGraphService = service;
+  }
+
+  setChatBridge(bridge: import('../memory-chat/chatBridge').ChatBridge): void {
+    this.chatBridge = bridge;
   }
 
   // -------------------------------------------------------------------------
@@ -299,8 +304,9 @@ export class TrailDataServer {
 
       this.clients.add(ws);
       ws.on('close', () => this.clients.delete(ws));
-      ws.on('message', (data: unknown) => this.handleWsMessage(data));
+      ws.on('message', (data: unknown) => this.handleWsMessage(data, ws));
       this.sendC4CurrentState(ws);
+      void this.chatBridge?.sendStatus(ws);
     });
 
     return new Promise<void>((resolve, reject) => {
@@ -2516,7 +2522,7 @@ export class TrailDataServer {
     }
   }
 
-  private handleWsMessage(data: unknown): void {
+  private handleWsMessage(data: unknown, ws?: WebSocket): void {
     let parsed: unknown;
     try {
       parsed = JSON.parse(String(data));
@@ -2525,6 +2531,19 @@ export class TrailDataServer {
     }
 
     if (!isClientMessage(parsed)) return;
+
+    if (parsed.type === 'chat.send') {
+      if (this.chatBridge && ws) void this.chatBridge.handleSend(parsed.query, ws);
+      return;
+    }
+    if (parsed.type === 'chat.abort') {
+      this.chatBridge?.handleAbort();
+      return;
+    }
+    if (parsed.type === 'provider.recheck') {
+      void this.chatBridge?.recheck([...this.clients]);
+      return;
+    }
 
     if (parsed.type === 'generate-code-graph') {
       if (this.codeGraphService) {
@@ -3429,7 +3448,19 @@ export class TrailDataServer {
 export function isClientMessage(data: unknown): data is ClientMessage {
   if (typeof data !== 'object' || data === null) return false;
   const msg = data as Record<string, unknown>;
-  const validTypes = ['set-level', 'cluster', 'refresh', 'open-doc-link', 'reset-claude-activity', 'generate-code-graph', 'open-file', 'perf-report'];
+  const validTypes = [
+    'set-level',
+    'cluster',
+    'refresh',
+    'open-doc-link',
+    'reset-claude-activity',
+    'generate-code-graph',
+    'open-file',
+    'perf-report',
+    'chat.send',
+    'chat.abort',
+    'provider.recheck',
+  ];
   return typeof msg.type === 'string' && validTypes.includes(msg.type);
 }
 

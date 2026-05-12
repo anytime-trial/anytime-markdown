@@ -1,4 +1,4 @@
-export { searchMemory } from './retrieve/searchMemory';
+export { searchMemory, vectorTopK } from './retrieve/searchMemory';
 export type { SearchInput, SearchResult, SearchEntity, SearchEdge, SearchEpisode } from './retrieve/searchMemory';
 export { openMemoryCoreDb } from './db/connection';
 export type { MemoryCoreDb, MemoryCoreDbDriver, OpenMemoryCoreDbOptions } from './db/connection';
@@ -91,3 +91,48 @@ export type {
   PipelineStatusEntry,
   PipelineState,
 } from './status/PipelineStatusWriter';
+
+export { runRagFtsRebuild } from './pipeline/runRagFtsRebuild';
+export type {
+  RunRagFtsRebuildInput,
+  RunRagFtsRebuildResult,
+  RunRagFtsRebuildTrigger,
+} from './pipeline/runRagFtsRebuild';
+export {
+  upsertEntityFts,
+  deleteEntityFts,
+  upsertEpisodeFts,
+  deleteEpisodeFts,
+  upsertDriftFts,
+  deleteDriftFts,
+  aliasesJsonToText,
+} from './rag/ftsSync';
+
+export { tokenizeForFts5 } from './rag/tokenizeForFts5';
+export { reciprocalRankFusion } from './rag/reciprocalRankFusion';
+export type { RankedItem, FusedItem, RankSource } from './rag/reciprocalRankFusion';
+export { hybridSearchMemory } from './rag/hybridSearchMemory';
+export type {
+  HybridSearchInput,
+  HybridSearchOptions,
+  HybridSearchResult,
+} from './rag/hybridSearchMemory';
+
+export type { ChatMessage, ChatTurnInput, ChatChunk, ChatFilters } from './chat/types';
+export { buildPrompt } from './chat/promptBuilder';
+export type { BuildPromptInput, PromptSource } from './chat/promptBuilder';
+export { CitationStreamParser } from './chat/citationParser';
+export { ChatService } from './chat/ChatService';
+export type { ChatServiceOptions } from './chat/ChatService';
+
+export type {
+  ChatProvider,
+  ChatProviderChatOptions,
+  ChatStreamChunk,
+  EmbeddingProvider,
+  HealthCheckResult,
+} from './providers/types';
+export { OllamaChatProvider } from './providers/ollama/OllamaChatProvider';
+export type { OllamaChatProviderOptions } from './providers/ollama/OllamaChatProvider';
+export { OllamaEmbeddingProvider } from './providers/ollama/OllamaEmbeddingProvider';
+export type { OllamaEmbeddingProviderOptions } from './providers/ollama/OllamaEmbeddingProvider';
