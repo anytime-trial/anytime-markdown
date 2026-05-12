@@ -6,6 +6,7 @@
  */
 
 import * as fs from 'fs';
+import { SqlJsMemoryDb } from '../../src/db/connection/SqlJsMemoryDb';
 import * as os from 'os';
 import * as path from 'path';
 import initSqlJs from 'sql.js';
@@ -97,7 +98,7 @@ function buildTrailDb(SQL: Awaited<ReturnType<typeof initSqlJs>>, opts: {
   withFixCommit: boolean;
   reviewerMessages?: Array<{ uuid: string; sessionId: string; ts: string; text: string }>;
 }) {
-  const db = new SQL.Database();
+  const db = SqlJsMemoryDb.fromDatabase(new SQL.Database());
   db.run('PRAGMA foreign_keys = ON');
 
   db.run(`CREATE TABLE sessions (

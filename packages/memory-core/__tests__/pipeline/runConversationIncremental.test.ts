@@ -1,4 +1,5 @@
 import initSqlJs from 'sql.js';
+import { SqlJsMemoryDb } from '../../src/db/connection/SqlJsMemoryDb';
 import type { Database } from 'sql.js';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { attachTrailDbFromHandle } from '../../src/db/attach';
@@ -7,16 +8,16 @@ import type { MemoryLogger } from '../../src/logger';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-async function makeMemoryDb(): Promise<Database> {
+async function makeMemoryDb(): Promise<SqlJsMemoryDb> {
   const SQL = await initSqlJs();
-  const db = new SQL.Database();
+  const db = SqlJsMemoryDb.fromDatabase(new SQL.Database());
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
 }
 
-function makeTrailDb(SQL: ReturnType<typeof initSqlJs> extends Promise<infer T> ? T : never): Database {
-  const trailDb = new SQL.Database();
+function makeTrailDb(SQL: ReturnType<typeof initSqlJs> extends Promise<infer T> ? T : never): SqlJsMemoryDb {
+  const trailDb = SqlJsMemoryDb.fromDatabase(new SQL.Database());
   trailDb.run(`CREATE TABLE sessions (id TEXT PRIMARY KEY) STRICT`);
   trailDb.run(
     `CREATE TABLE messages (
@@ -31,12 +32,12 @@ function makeTrailDb(SQL: ReturnType<typeof initSqlJs> extends Promise<infer T> 
   return trailDb;
 }
 
-function insertSession(trailDb: Database, id: string): void {
+function insertSession(trailDb: SqlJsMemoryDb, id: string): void {
   trailDb.run(`INSERT INTO sessions VALUES (?)`, [id]);
 }
 
 function insertMessage(
-  trailDb: Database,
+  trailDb: SqlJsMemoryDb,
   uuid: string,
   sessionId: string,
   type: string,

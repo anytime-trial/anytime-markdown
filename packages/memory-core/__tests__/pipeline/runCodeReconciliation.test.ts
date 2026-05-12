@@ -1,20 +1,21 @@
 import initSqlJs from 'sql.js';
+import { SqlJsMemoryDb } from '../../src/db/connection/SqlJsMemoryDb';
 import type { Database } from 'sql.js';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { runCodeReconciliation } from '../../src/pipeline/runCodeReconciliation';
 
 const RECORDED_AT = '2026-05-12T00:00:00.000Z';
 
-async function makeDb(): Promise<Database> {
+async function makeDb(): Promise<SqlJsMemoryDb> {
   const SQL = await initSqlJs();
-  const db = new SQL.Database();
+  const db = SqlJsMemoryDb.fromDatabase(new SQL.Database());
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
 }
 
 function insertEntity(
-  db: Database,
+  db: SqlJsMemoryDb,
   id: string,
   type: string,
   canon: string,
@@ -48,10 +49,8 @@ describe('runCodeReconciliation', () => {
     expect(result.soft_deleted).toBe(1);
 
     const stmt = db.prepare(`SELECT valid_until FROM memory_entities WHERE id = ?`);
-    stmt.bind(['fn-baz']);
-    stmt.step();
-    expect(stmt.getAsObject()['valid_until']).toBe('2026-05-12T01:00:00.000Z');
-    stmt.free();
+    expect(stmt.get('fn-baz')?.['valid_until']).toBe('2026-05-12T01:00:00.000Z');
+    stmt.free?.();
 
     db.close();
   });
@@ -72,10 +71,8 @@ describe('runCodeReconciliation', () => {
     expect(result.soft_deleted).toBe(0);
 
     const stmt = db.prepare(`SELECT valid_until FROM memory_entities WHERE id = ?`);
-    stmt.bind(['fn-old']);
-    stmt.step();
-    expect(stmt.getAsObject()['valid_until']).toBe('2026-01-01T00:00:00.000Z');
-    stmt.free();
+    expect(stmt.get('fn-old')?.['valid_until']).toBe('2026-01-01T00:00:00.000Z');
+    stmt.free?.();
 
     db.close();
   });
@@ -97,10 +94,8 @@ describe('runCodeReconciliation', () => {
 
     // repoB は影響なし
     const stmt = db.prepare(`SELECT valid_until FROM memory_entities WHERE id = ?`);
-    stmt.bind(['fn-b']);
-    stmt.step();
-    expect(stmt.getAsObject()['valid_until']).toBeNull();
-    stmt.free();
+    expect(stmt.get('fn-b')?.['valid_until']).toBeNull();
+    stmt.free?.();
 
     db.close();
   });
@@ -123,10 +118,8 @@ describe('runCodeReconciliation', () => {
 
     // Bug は影響なし
     const stmt = db.prepare(`SELECT valid_until FROM memory_entities WHERE id = ?`);
-    stmt.bind(['bug-1']);
-    stmt.step();
-    expect(stmt.getAsObject()['valid_until']).toBeNull();
-    stmt.free();
+    expect(stmt.get('bug-1')?.['valid_until']).toBeNull();
+    stmt.free?.();
 
     db.close();
   });

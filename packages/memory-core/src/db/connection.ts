@@ -9,8 +9,11 @@ import type { MemoryDbConnection } from './connection/types';
 export type MemoryCoreDbDriver = 'better-sqlite3' | 'sql.js';
 
 export interface MemoryCoreDb {
-  /** 新規コードはこちらを使う */
-  conn: MemoryDbConnection;
+  /**
+   * 新規コードはこちらを使う。`db` と同じ参照だが、命名で「新 IF」を明示する。
+   * テスト等で独自に MemoryCoreDb を生成する場合は省略可 (`db` を fallback とする)。
+   */
+  conn?: MemoryDbConnection;
   /**
    * sql.js 互換のエイリアス (移行中の既存呼出し用)。
    * 戻り値は MemoryDbConnection 互換のため、`db.exec(...)` / `db.run(...)` 等は

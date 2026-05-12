@@ -1,4 +1,5 @@
 import initSqlJs from 'sql.js';
+import { SqlJsMemoryDb } from '../../src/db/connection/SqlJsMemoryDb';
 import type { Database, SqlJsStatic } from 'sql.js';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { attachTrailDbFromHandle } from '../../src/db/attach';
@@ -69,15 +70,15 @@ beforeAll(async () => {
   SQL = await initSqlJs();
 });
 
-function makeMemoryDb(): Database {
-  const db = new SQL.Database();
+function makeMemoryDb(): SqlJsMemoryDb {
+  const db = SqlJsMemoryDb.fromDatabase(new SQL.Database());
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
 }
 
-function makeTrailDb(): Database {
-  const trailDb = new SQL.Database();
+function makeTrailDb(): SqlJsMemoryDb {
+  const trailDb = SqlJsMemoryDb.fromDatabase(new SQL.Database());
   // current_code_graphs
   trailDb.run(`
     CREATE TABLE current_code_graphs (
@@ -108,7 +109,7 @@ function makeTrailDb(): Database {
 }
 
 function insertCodeGraph(
-  trailDb: Database,
+  trailDb: SqlJsMemoryDb,
   repoName: string,
   updatedAt: string
 ): void {
@@ -139,23 +140,25 @@ function insertCodeGraph(
   );
 }
 
-function countPipelineRuns(db: Database): number {
+function countPipelineRuns(db: SqlJsMemoryDb): number {
   const result = db.exec(`SELECT COUNT(*) FROM memory_pipeline_runs WHERE scope = 'code_incremental'`);
   return result[0]?.values[0][0] as number ?? 0;
 }
 
-function getPipelineState(db: Database): { status: string; last_processed_at: string } | null {
+function getPipelineState(db: SqlJsMemoryDb): { status: string; last_processed_at: string } | null {
   const stmt = db.prepare(`SELECT status, last_processed_at FROM memory_pipeline_state WHERE scope = 'code_incremental'`);
-  if (stmt.step()) {
-    const row = stmt.getAsObject();
-    stmt.free();
-    return {
-      status: row['status'] as string,
-      last_processed_at: row['last_processed_at'] as string,
-    };
+  try {
+    const row = stmt.get();
+    if (row) {
+      return {
+        status: row['status'] as string,
+        last_processed_at: row['last_processed_at'] as string,
+      };
+    }
+    return null;
+  } finally {
+    stmt.free?.();
   }
-  stmt.free();
-  return null;
 }
 
 // ── Tests ────────────────────────────────────────────────────────────────────

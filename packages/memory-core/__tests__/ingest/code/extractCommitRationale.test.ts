@@ -1,4 +1,5 @@
 import { createHash } from 'crypto';
+import { SqlJsMemoryDb } from '../../../src/db/connection/SqlJsMemoryDb';
 import initSqlJs from 'sql.js';
 import type { Database, SqlJsStatic } from 'sql.js';
 import { runMigrations } from '../../../src/db/migrations/runner';
@@ -25,15 +26,15 @@ beforeAll(async () => {
   SQL = await initSqlJs();
 });
 
-async function makeMemoryDb(): Promise<Database> {
-  const db = new SQL.Database();
+async function makeMemoryDb(): Promise<SqlJsMemoryDb> {
+  const db = SqlJsMemoryDb.fromDatabase(new SQL.Database());
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
 }
 
-function makeTrailDb(): Database {
-  const trailDb = new SQL.Database();
+function makeTrailDb(): SqlJsMemoryDb {
+  const trailDb = SqlJsMemoryDb.fromDatabase(new SQL.Database());
   // Minimal schema matching trail.session_commits
   trailDb.run(`
     CREATE TABLE sessions (
@@ -54,7 +55,7 @@ function makeTrailDb(): Database {
   return trailDb;
 }
 
-function insertSession(trailDb: Database, sessionId: string): void {
+function insertSession(trailDb: SqlJsMemoryDb, sessionId: string): void {
   trailDb.run(
     `INSERT INTO sessions (id, started_at) VALUES (?, ?)`,
     [sessionId, RECORDED_AT]
@@ -62,7 +63,7 @@ function insertSession(trailDb: Database, sessionId: string): void {
 }
 
 function insertCommit(
-  trailDb: Database,
+  trailDb: SqlJsMemoryDb,
   opts: {
     sessionId: string;
     commitHash: string;
@@ -84,23 +85,23 @@ function insertCommit(
   );
 }
 
-function countEntities(db: Database, type: string): number {
-  const stmt = db.prepare(`SELECT COUNT(*) FROM memory_entities WHERE type = ?`);
-  stmt.bind([type]);
-  stmt.step();
-  const row = stmt.getAsObject();
-  stmt.free();
-  return (row['COUNT(*)'] as number) ?? 0;
+function countEntities(db: SqlJsMemoryDb, type: string): number {
+  const stmt = db.prepare(`SELECT COUNT(*) AS c FROM memory_entities WHERE type = ?`);
+  try {
+    return ((stmt.get(type)?.['c'] as number) ?? 0);
+  } finally {
+    stmt.free?.();
+  }
 }
 
-function countEdges(db: Database, predicate?: string): number {
+function countEdges(db: SqlJsMemoryDb, predicate?: string): number {
   if (predicate) {
-    const stmt = db.prepare(`SELECT COUNT(*) FROM memory_edges WHERE predicate = ?`);
-    stmt.bind([predicate]);
-    stmt.step();
-    const row = stmt.getAsObject();
-    stmt.free();
-    return (row['COUNT(*)'] as number) ?? 0;
+    const stmt = db.prepare(`SELECT COUNT(*) AS c FROM memory_edges WHERE predicate = ?`);
+    try {
+      return ((stmt.get(predicate)?.['c'] as number) ?? 0);
+    } finally {
+      stmt.free?.();
+    }
   }
   const result = db.exec(`SELECT COUNT(*) FROM memory_edges`);
   return (result[0]?.values[0][0] as number) ?? 0;
@@ -454,12 +455,11 @@ describe('extractCommitRationale', () => {
     const stmt = memDb.prepare(
       `SELECT id, canonical_name FROM memory_entities WHERE type = 'Decision'`
     );
-    stmt.step();
-    const row = stmt.getAsObject();
-    stmt.free();
+    const row = stmt.get();
+    stmt.free?.();
 
-    expect(row['id']).toBe(expectedDecisionId);
-    expect(row['canonical_name']).toBe(expectedCanonName);
+    expect(row?.['id']).toBe(expectedDecisionId);
+    expect(row?.['canonical_name']).toBe(expectedCanonName);
 
     trailDb.close();
     memDb.close();

@@ -1,4 +1,5 @@
 import initSqlJs from 'sql.js';
+import { SqlJsMemoryDb } from '../../../src/db/connection/SqlJsMemoryDb';
 import { linkAffectedFiles } from '../../../src/ingest/bug-history/linkAffectedFiles';
 import { attachTrailDbFromHandle } from '../../../src/db/attach';
 import { entityId } from '../../../src/canonical/entityId';
@@ -21,7 +22,7 @@ async function buildTestDb(commitSha: string, filePaths: string[], repoName = 'a
 
   // 2. Build trail DB in-memory using sql.js and attach via handle
   const SQL = await initSqlJs();
-  const trailHandle = new SQL.Database();
+  const trailHandle = SqlJsMemoryDb.fromDatabase(new SQL.Database());
   trailHandle.run('PRAGMA foreign_keys = ON');
   trailHandle.run(`CREATE TABLE commit_files (
     id INTEGER PRIMARY KEY,

@@ -13,6 +13,7 @@
  */
 
 import * as fs from 'fs';
+import { SqlJsMemoryDb } from '../../src/db/connection/SqlJsMemoryDb';
 import * as os from 'os';
 import * as path from 'path';
 import initSqlJs, { Database, SqlJsStatic } from 'sql.js';
@@ -32,8 +33,8 @@ const TS_GLOB_NO_MS = '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]T[0-2][0-9]:[0-
  *   - session_commits with one commit containing "Rationale:" in the body
  *   - current_code_graphs with one row for the given repoName
  */
-function makeTrailDb(SQL: SqlJsStatic, repoName: string): Database {
-  const db = new SQL.Database();
+function makeTrailDb(SQL: SqlJsStatic, repoName: string): SqlJsMemoryDb {
+  const db = SqlJsMemoryDb.fromDatabase(new SQL.Database());
   db.run('PRAGMA foreign_keys = ON');
 
   // sessions table (FK target for session_commits)
@@ -107,7 +108,7 @@ function makeTrailDb(SQL: SqlJsStatic, repoName: string): Database {
  *   - test-pkg-a: src/a/index.ts, src/a/utils.ts, src/a/types.ts
  *   - test-pkg-b: src/b/service.ts, src/b/helper.ts
  */
-function insertCodeGraph(trailDb: Database, repoName: string): void {
+function insertCodeGraph(trailDb: SqlJsMemoryDb, repoName: string): void {
   const generatedAt = '2026-01-15T12:00:00.000Z';
   const graphJson = JSON.stringify({
     generatedAt,
@@ -189,7 +190,7 @@ function insertCodeGraph(trailDb: Database, repoName: string): void {
 /** Opens an in-memory memory-core DB with Phase 1+2 migrations applied. */
 async function makeMemoryDb(): Promise<MemoryCoreDb> {
   const SQL = await initSqlJs();
-  const rawDb = new SQL.Database();
+  const rawDb = SqlJsMemoryDb.fromDatabase(new SQL.Database());
   rawDb.run('PRAGMA foreign_keys = ON');
 
   const { runMigrations } = await import('../../src/db/migrations/runner');
@@ -488,14 +489,12 @@ describe('E2E Phase 2: runCodeIncremental', () => {
       // Note: db.exec() has params dropped by the trail readonly guard, so
       // we use prepare/bind/step to pass parameters correctly.
       const edgeStmt = memDb.db.prepare(
-        `SELECT COUNT(*) FROM memory_edges
+        `SELECT COUNT(*) AS c FROM memory_edges
          WHERE object_entity_id = ? AND source_type = 'code'`
       );
-      edgeStmt.bind([utilsEntityId]);
-      edgeStmt.step();
-      const edgeCountRow = edgeStmt.getAsObject();
-      edgeStmt.free();
-      const edgeCount = edgeCountRow['COUNT(*)'] as number;
+      const edgeCountRow = edgeStmt.get(utilsEntityId);
+      edgeStmt.free?.();
+      const edgeCount = (edgeCountRow?.['c'] as number) ?? 0;
       expect(edgeCount).toBeGreaterThanOrEqual(1);
 
       trailDb.close();

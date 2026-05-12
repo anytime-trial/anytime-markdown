@@ -1,28 +1,44 @@
 import type { Database, SqlJsStatic } from 'sql.js';
 import * as fs from 'fs';
 import { loadSqlJsModule } from './sqlJsLoader';
+import { SqlJsMemoryDb } from './connection/SqlJsMemoryDb';
+import { BetterSqlite3MemoryDb } from './connection/BetterSqlite3MemoryDb';
+import type { MemoryDbConnection } from './connection/types';
 
 /**
  * Attach trail.db to an existing memory-core db in read-only mode.
  *
- * sql.js runs in a WASM in-memory VFS — ATTACH DATABASE with a host filesystem
- * path does not work. Instead, this function:
- *  1. Reads the trail.db bytes from disk
- *  2. Opens them as a second sql.js Database (in the same WASM module)
- *  3. ATTACHes it using the internal VFS filename
- *  4. Installs a write guard on db.run / db.exec to block mutations to trail.*
+ * Driver-aware implementation:
+ *  - sql.js: WASM in-memory VFS — reads bytes into a second Database and ATTACH by
+ *    internal filename; install a write guard on db.run / db.exec to block mutations
+ *    to trail.*.
+ *  - better-sqlite3: file-based ATTACH with `?mode=ro` URI. (write guard not yet
+ *    implemented for better-sqlite3 — relies on SQLite enforcing readonly mode.)
  *
- * The returned `trailHandle` must be closed alongside the main db.
+ * The returned `trailHandle` (sql.js path) must be closed alongside the main db.
  */
 export interface AttachHandle {
-  /** The sql.js Database holding the trail data — close this alongside the main db. */
-  trailHandle: Database;
+  /** The sql.js Database holding the trail data (sql.js path only). */
+  trailHandle?: Database;
 }
 
 export async function attachTrailDbReadOnly(
-  db: Database,
-  trailDbPath: string
+  db: MemoryDbConnection,
+  trailDbPath: string,
 ): Promise<AttachHandle> {
+  if (db instanceof SqlJsMemoryDb) {
+    return attachSqlJs(db.getRawDb(), trailDbPath);
+  }
+  if (db instanceof BetterSqlite3MemoryDb) {
+    db.attach(trailDbPath, 'trail', true);
+    return {};
+  }
+  throw new Error(
+    '[memory-core] attachTrailDbReadOnly: unsupported MemoryDbConnection implementation',
+  );
+}
+
+async function attachSqlJs(db: Database, trailDbPath: string): Promise<AttachHandle> {
   const SQL: SqlJsStatic = await loadSqlJsModule();
   const data = fs.readFileSync(trailDbPath);
   const trailHandle = new SQL.Database(data);
@@ -39,11 +55,21 @@ export async function attachTrailDbReadOnly(
 /**
  * Attach an already-open sql.js Database as trail (useful in tests).
  * The caller is responsible for the lifecycle of trailHandle.
+ *
+ * Accepts either a sql.js Database directly, or a MemoryDbConnection wrapping
+ * a sql.js Database (SqlJsMemoryDb). better-sqlite3 path is not supported here
+ * — use attachTrailDbReadOnly() with a file path.
  */
-export function attachTrailDbFromHandle(db: Database, trailHandle: Database): void {
-  const trailFilename = (trailHandle as unknown as { filename: string }).filename;
-  db.run(`ATTACH DATABASE '${trailFilename}' AS trail`);
-  installTrailReadonlyGuard(db);
+export function attachTrailDbFromHandle(
+  db: Database | MemoryDbConnection,
+  trailHandle: Database | MemoryDbConnection,
+): void {
+  const rawDb = db instanceof SqlJsMemoryDb ? db.getRawDb() : (db as Database);
+  const rawHandle =
+    trailHandle instanceof SqlJsMemoryDb ? trailHandle.getRawDb() : (trailHandle as Database);
+  const trailFilename = (rawHandle as unknown as { filename: string }).filename;
+  rawDb.run(`ATTACH DATABASE '${trailFilename}' AS trail`);
+  installTrailReadonlyGuard(rawDb);
 }
 
 export function installTrailReadonlyGuard(db: Database): void {

@@ -1,4 +1,5 @@
 import * as childProcess from 'child_process';
+import { SqlJsMemoryDb } from '../../../src/db/connection/SqlJsMemoryDb';
 import { inferIntroducedBy } from '../../../src/ingest/bug-history/inferIntroducedBy';
 import { attachTrailDbFromHandle } from '../../../src/db/attach';
 import { entityId } from '../../../src/canonical/entityId';
@@ -38,7 +39,7 @@ async function openTestDb() {
 
   // Create trail DB in memory with session_commits table
   const SQL = await initSqlJs();
-  const trailHandle = new SQL.Database();
+  const trailHandle = SqlJsMemoryDb.fromDatabase(new SQL.Database());
   trailHandle.run('PRAGMA foreign_keys = ON');
   trailHandle.run(`CREATE TABLE session_commits (
     id INTEGER PRIMARY KEY,

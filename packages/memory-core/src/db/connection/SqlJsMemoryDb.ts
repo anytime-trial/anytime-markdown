@@ -22,6 +22,16 @@ export class SqlJsMemoryDb implements MemoryDbConnection {
     return new SqlJsMemoryDb(new SQL.Database(bytes));
   }
 
+  /** 既存の sql.js Database インスタンスを wrap する (テスト・移行用)。 */
+  static fromDatabase(db: Database): SqlJsMemoryDb {
+    return new SqlJsMemoryDb(db);
+  }
+
+  /** 内部の sql.js Database を取得する (attach.ts 等の sql.js 固有 API 用)。 */
+  getRawDb(): Database {
+    return this.db;
+  }
+
   exec(sql: string, params?: ReadonlyArray<SqlValue>): ExecResultColumn[] {
     const bind = params ? (toBindArgs(params) as BindParams) : undefined;
     const result = this.db.exec(sql, bind) as unknown as ExecResultColumn[];

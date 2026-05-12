@@ -1,4 +1,5 @@
 import initSqlJs from 'sql.js';
+import { SqlJsMemoryDb } from '../../src/db/connection/SqlJsMemoryDb';
 import type { Database, SqlJsStatic } from 'sql.js';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { detectThreeSourceDrifts } from '../../src/drift/compare';
@@ -17,8 +18,8 @@ beforeAll(async () => {
   SQL = await initSqlJs();
 });
 
-function makeDb(): Database {
-  const db = new SQL.Database();
+function makeDb(): SqlJsMemoryDb {
+  const db = SqlJsMemoryDb.fromDatabase(new SQL.Database());
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
@@ -33,7 +34,7 @@ function edgeId(): string {
  * Insert a synthetic memory_edge. Inserts a placeholder entity first if needed.
  */
 function insertEdge(
-  db: Database,
+  db: SqlJsMemoryDb,
   opts: {
     subject: string;
     predicate: string;

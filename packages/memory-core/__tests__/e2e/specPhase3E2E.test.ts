@@ -8,6 +8,7 @@
  */
 
 import * as fs from 'fs';
+import { SqlJsMemoryDb } from '../../src/db/connection/SqlJsMemoryDb';
 import * as os from 'os';
 import * as path from 'path';
 import { createHash } from 'crypto';
@@ -56,8 +57,8 @@ type: "proposal"
 // ── Setup ─────────────────────────────────────────────────────────────────────
 
 let SQL: SqlJsStatic;
-let memDb: Database;
-let trailDb: Database;
+let memDb: SqlJsMemoryDb;
+let trailDb: SqlJsMemoryDb;
 let specRoot: string;
 
 const MOCK_CLAIMS_RESPONSE = JSON.stringify({
@@ -108,12 +109,12 @@ beforeAll(async () => {
   SQL = await initSqlJs();
 
   // 3. Create memory-core DB and apply migrations
-  memDb = new SQL.Database();
+  memDb = SqlJsMemoryDb.fromDatabase(new SQL.Database());
   memDb.run('PRAGMA foreign_keys = ON');
   runMigrations(memDb);
 
   // 4. Create synthetic trail DB with c4_manual_elements
-  trailDb = new SQL.Database();
+  trailDb = SqlJsMemoryDb.fromDatabase(new SQL.Database());
   trailDb.run('PRAGMA foreign_keys = ON');
   trailDb.run(
     `CREATE TABLE c4_manual_elements (

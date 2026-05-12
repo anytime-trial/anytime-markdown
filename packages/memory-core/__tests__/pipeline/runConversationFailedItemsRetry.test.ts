@@ -1,4 +1,5 @@
 import initSqlJs from 'sql.js';
+import { SqlJsMemoryDb } from '../../src/db/connection/SqlJsMemoryDb';
 import type { Database } from 'sql.js';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { attachTrailDbFromHandle } from '../../src/db/attach';
@@ -7,9 +8,9 @@ import type { MemoryLogger } from '../../src/logger';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-async function makeMemoryDb(): Promise<Database> {
+async function makeMemoryDb(): Promise<SqlJsMemoryDb> {
   const SQL = await initSqlJs();
-  const db = new SQL.Database();
+  const db = SqlJsMemoryDb.fromDatabase(new SQL.Database());
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
@@ -17,8 +18,8 @@ async function makeMemoryDb(): Promise<Database> {
 
 function makeTrailDb(
   SQL: ReturnType<typeof initSqlJs> extends Promise<infer T> ? T : never,
-): Database {
-  const trailDb = new SQL.Database();
+): SqlJsMemoryDb {
+  const trailDb = SqlJsMemoryDb.fromDatabase(new SQL.Database());
   trailDb.run(`CREATE TABLE sessions (id TEXT PRIMARY KEY) STRICT`);
   trailDb.run(
     `CREATE TABLE messages (
@@ -33,12 +34,12 @@ function makeTrailDb(
   return trailDb;
 }
 
-function insertSession(trailDb: Database, id: string): void {
+function insertSession(trailDb: SqlJsMemoryDb, id: string): void {
   trailDb.run(`INSERT INTO sessions VALUES (?)`, [id]);
 }
 
 function insertMessage(
-  trailDb: Database,
+  trailDb: SqlJsMemoryDb,
   uuid: string,
   sessionId: string,
   type: string,
@@ -54,7 +55,7 @@ function insertMessage(
 }
 
 function insertFailedItem(
-  memDb: Database,
+  memDb: SqlJsMemoryDb,
   scope: string,
   itemKey: string,
   attemptCount: number,
@@ -68,7 +69,7 @@ function insertFailedItem(
   );
 }
 
-function getFailedItem(memDb: Database, scope: string, itemKey: string): { attempt_count: number; reason: string } | null {
+function getFailedItem(memDb: SqlJsMemoryDb, scope: string, itemKey: string): { attempt_count: number; reason: string } | null {
   const rows = memDb.exec(
     `SELECT attempt_count, reason FROM memory_failed_items WHERE scope = ? AND item_key = ?`,
     [scope, itemKey]

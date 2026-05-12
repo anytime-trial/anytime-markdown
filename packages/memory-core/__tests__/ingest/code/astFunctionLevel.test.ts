@@ -1,4 +1,5 @@
 import initSqlJs from 'sql.js';
+import { SqlJsMemoryDb } from '../../../src/db/connection/SqlJsMemoryDb';
 import type { Database } from 'sql.js';
 import { runMigrations } from '../../../src/db/migrations/runner';
 import { ingestAstFacts } from '../../../src/ingest/code/astFunctionLevel';
@@ -40,31 +41,32 @@ const silentLogger: MemoryLogger = {
   error: () => {},
 };
 
-async function makeDb(): Promise<Database> {
+async function makeDb(): Promise<SqlJsMemoryDb> {
   const SQL = await initSqlJs();
-  const db = new SQL.Database();
+  const db = SqlJsMemoryDb.fromDatabase(new SQL.Database());
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
 }
 
-function countFacts(db: Database): number {
+function countFacts(db: SqlJsMemoryDb): number {
   const result = db.exec(`SELECT COUNT(*) FROM memory_code_facts`);
   return result[0]?.values[0][0] as number;
 }
 
-function countEdges(db: Database): number {
+function countEdges(db: SqlJsMemoryDb): number {
   const result = db.exec(`SELECT COUNT(*) FROM memory_edges`);
   return result[0]?.values[0][0] as number;
 }
 
-function countEntities(db: Database, type: string): number {
-  const stmt = db.prepare(`SELECT COUNT(*) FROM memory_entities WHERE type = ?`);
-  stmt.bind([type]);
-  stmt.step();
-  const row = stmt.getAsObject();
-  stmt.free();
-  return (row['COUNT(*)'] as number) ?? 0;
+function countEntities(db: SqlJsMemoryDb, type: string): number {
+  const stmt = db.prepare(`SELECT COUNT(*) AS c FROM memory_entities WHERE type = ?`);
+  try {
+    const row = stmt.get(type);
+    return ((row?.['c'] as number) ?? 0);
+  } finally {
+    stmt.free?.();
+  }
 }
 
 function makeFileNode(filePath: string, line = 1): TrailNode {
@@ -318,11 +320,9 @@ describe('ingestAstFacts', () => {
     const stmt = db.prepare(
       `SELECT id FROM memory_entities WHERE type = 'File' AND canonical_name = ?`
     );
-    stmt.bind([canonicalize(srcFile)]);
-    stmt.step();
-    const row = stmt.getAsObject();
-    stmt.free();
-    expect(row['id']).toBe(expectedId);
+    const row = stmt.get(canonicalize(srcFile));
+    stmt.free?.();
+    expect(row?.['id']).toBe(expectedId);
 
     db.close();
   }, 30000);
@@ -345,11 +345,9 @@ describe('ingestAstFacts', () => {
     const stmt = db.prepare(
       `SELECT id FROM memory_entities WHERE type = 'Library' AND canonical_name = ?`
     );
-    stmt.bind([canonicalize('zod')]);
-    stmt.step();
-    const row = stmt.getAsObject();
-    stmt.free();
-    expect(row['id']).toBe(expectedId);
+    const row = stmt.get(canonicalize('zod'));
+    stmt.free?.();
+    expect(row?.['id']).toBe(expectedId);
 
     db.close();
   }, 30000);
@@ -477,10 +475,9 @@ describe('ingestAstFacts', () => {
     // 同じ graph で再 ingest
     ingestAstFacts({ db, repoName: REPO, graph, commitSha: COMMIT_SHA, recordedAt: '2026-01-02T00:00:00.000Z', logger: silentLogger });
     const stmt = db.prepare(`SELECT embedding FROM memory_entities WHERE id = ?`);
-    stmt.bind([fnId]);
-    stmt.step();
-    const emb = stmt.getAsObject()['embedding'];
-    stmt.free();
+    const embRow = stmt.get(fnId);
+    const emb = embRow?.['embedding'];
+    stmt.free?.();
     expect(emb).not.toBeNull(); // preserved
 
     db.close();
@@ -499,10 +496,9 @@ describe('ingestAstFacts', () => {
 
     ingestAstFacts({ db, repoName: REPO, graph: graph2, commitSha: COMMIT_SHA, recordedAt: '2026-01-02T00:00:00.000Z', logger: silentLogger });
     const stmt = db.prepare(`SELECT embedding FROM memory_entities WHERE id = ?`);
-    stmt.bind([fnId]);
-    stmt.step();
-    const emb = stmt.getAsObject()['embedding'];
-    stmt.free();
+    const embRow = stmt.get(fnId);
+    const emb = embRow?.['embedding'];
+    stmt.free?.();
     expect(emb).toBeNull(); // invalidated
 
     db.close();

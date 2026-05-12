@@ -1,4 +1,5 @@
 import initSqlJs from 'sql.js';
+import { SqlJsMemoryDb } from '../../../src/db/connection/SqlJsMemoryDb';
 import type { Database, SqlJsStatic } from 'sql.js';
 import { attachTrailDbFromHandle } from '../../../src/db/attach';
 import { parseReviewSessions } from '../../../src/ingest/review/parseReviewSession';
@@ -15,8 +16,8 @@ beforeAll(async () => {
  * Create a minimal memory-core main DB (no migrations needed — we just need
  * the attach guard to work, which requires memory_failed_items table).
  */
-function makeMainDb(): Database {
-  const db = new SQL.Database();
+function makeMainDb(): SqlJsMemoryDb {
+  const db = SqlJsMemoryDb.fromDatabase(new SQL.Database());
   db.run('PRAGMA foreign_keys = ON');
   db.run(`
     CREATE TABLE IF NOT EXISTS memory_failed_items (
@@ -35,8 +36,8 @@ function makeMainDb(): Database {
 /**
  * Create an in-memory trail DB with just the messages table.
  */
-function makeTrailDb(): Database {
-  const db = new SQL.Database();
+function makeTrailDb(): SqlJsMemoryDb {
+  const db = SqlJsMemoryDb.fromDatabase(new SQL.Database());
   db.run(`
     CREATE TABLE messages (
       uuid TEXT PRIMARY KEY,
@@ -63,7 +64,7 @@ type InsertMsgOpts = {
   skill?: string | null;
 };
 
-function insertMsg(trailDb: Database, opts: InsertMsgOpts): void {
+function insertMsg(trailDb: SqlJsMemoryDb, opts: InsertMsgOpts): void {
   trailDb.run(
     `INSERT INTO messages
       (uuid, session_id, type, timestamp, text_content, tool_calls, subagent_type, skill)

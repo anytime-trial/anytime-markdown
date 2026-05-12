@@ -1,4 +1,5 @@
 import initSqlJs from 'sql.js';
+import { SqlJsMemoryDb } from '../../../src/db/connection/SqlJsMemoryDb';
 import type { Database } from 'sql.js';
 import { runMigrations } from '../../../src/db/migrations/runner';
 import { attachTrailDbFromHandle } from '../../../src/db/attach';
@@ -16,9 +17,9 @@ const silentLogger: MemoryLogger = {
   error: () => {},
 };
 
-async function makeMemoryDb(): Promise<Database> {
+async function makeMemoryDb(): Promise<SqlJsMemoryDb> {
   const SQL = await initSqlJs();
-  const db = new SQL.Database();
+  const db = SqlJsMemoryDb.fromDatabase(new SQL.Database());
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
@@ -26,8 +27,8 @@ async function makeMemoryDb(): Promise<Database> {
 
 function makeTrailDb(
   SQL: Awaited<ReturnType<typeof initSqlJs>>
-): Database {
-  const trailDb = new SQL.Database();
+): SqlJsMemoryDb {
+  const trailDb = SqlJsMemoryDb.fromDatabase(new SQL.Database());
   trailDb.run(`
     CREATE TABLE current_code_graphs (
       repo_name    TEXT PRIMARY KEY,
@@ -53,7 +54,7 @@ interface MockNode {
 }
 
 function insertGraph(
-  trailDb: Database,
+  trailDb: SqlJsMemoryDb,
   repoName: string,
   nodes: MockNode[]
 ): void {
@@ -87,18 +88,19 @@ function insertGraph(
   );
 }
 
-function countEntities(db: Database, type: string): number {
-  // Use prepare/bind/step because exec() with params is broken after
+function countEntities(db: SqlJsMemoryDb, type: string): number {
+  // Use prepare/get because exec() with params is broken after
   // installTrailReadonlyGuard wraps db.exec (guard drops the params arg).
-  const stmt = db.prepare(`SELECT COUNT(*) FROM memory_entities WHERE type = ?`);
-  stmt.bind([type]);
-  stmt.step();
-  const row = stmt.getAsObject();
-  stmt.free();
-  return (row['COUNT(*)'] as number) ?? 0;
+  const stmt = db.prepare(`SELECT COUNT(*) AS c FROM memory_entities WHERE type = ?`);
+  try {
+    const row = stmt.get(type);
+    return ((row?.['c'] as number) ?? 0);
+  } finally {
+    stmt.free?.();
+  }
 }
 
-function countEdges(db: Database): number {
+function countEdges(db: SqlJsMemoryDb): number {
   const result = db.exec(`SELECT COUNT(*) FROM memory_edges`);
   return result[0]?.values[0][0] as number;
 }
@@ -266,25 +268,20 @@ describe('fromTrailGraph', () => {
     });
 
     const expectedPkgId = entityId('Package', canonicalize('web-app'));
-    // Use prepare/bind/step — exec() with params is broken after guard wraps db.exec
     const pkgStmt = memDb.prepare(
       `SELECT id FROM memory_entities WHERE type = 'Package' AND canonical_name = ?`
     );
-    pkgStmt.bind([canonicalize('web-app')]);
-    pkgStmt.step();
-    const pkgRow = pkgStmt.getAsObject();
-    pkgStmt.free();
-    expect(pkgRow['id']).toBe(expectedPkgId);
+    const pkgRow = pkgStmt.get(canonicalize('web-app'));
+    pkgStmt.free?.();
+    expect(pkgRow?.['id']).toBe(expectedPkgId);
 
     const expectedFileId = entityId('File', canonicalize('packages/web-app/src/index.ts'));
     const fileStmt = memDb.prepare(
       `SELECT id FROM memory_entities WHERE type = 'File' AND canonical_name = ?`
     );
-    fileStmt.bind([canonicalize('packages/web-app/src/index.ts')]);
-    fileStmt.step();
-    const fileRow = fileStmt.getAsObject();
-    fileStmt.free();
-    expect(fileRow['id']).toBe(expectedFileId);
+    const fileRow = fileStmt.get(canonicalize('packages/web-app/src/index.ts'));
+    fileStmt.free?.();
+    expect(fileRow?.['id']).toBe(expectedFileId);
 
     trailDb.close();
     memDb.close();
@@ -349,19 +346,17 @@ describe('fromTrailGraph', () => {
     const pkgStmt = memDb.prepare(
       `SELECT attributes_json FROM memory_entities WHERE type = 'Package'`
     );
-    pkgStmt.step();
-    const pkgRow = pkgStmt.getAsObject();
-    pkgStmt.free();
-    expect(JSON.parse(pkgRow['attributes_json'] as string)).toEqual({ repo: 'my-repo' });
+    const pkgRow = pkgStmt.get();
+    pkgStmt.free?.();
+    expect(JSON.parse((pkgRow?.['attributes_json'] as string) ?? '{}')).toEqual({ repo: 'my-repo' });
 
     // File attributes_json
     const fileStmt = memDb.prepare(
       `SELECT attributes_json FROM memory_entities WHERE type = 'File'`
     );
-    fileStmt.step();
-    const fileRow = fileStmt.getAsObject();
-    fileStmt.free();
-    expect(JSON.parse(fileRow['attributes_json'] as string)).toEqual({
+    const fileRow = fileStmt.get();
+    fileStmt.free?.();
+    expect(JSON.parse((fileRow?.['attributes_json'] as string) ?? '{}')).toEqual({
       repo: 'my-repo',
       package: 'my-pkg',
       label: 'index.ts',

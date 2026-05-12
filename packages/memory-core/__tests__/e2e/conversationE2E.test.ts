@@ -10,6 +10,7 @@
  */
 
 import initSqlJs, { Database, SqlJsStatic } from 'sql.js';
+import { SqlJsMemoryDb } from '../../src/db/connection/SqlJsMemoryDb';
 import { startMockOllama, type MockOllamaServer } from './mockOllama';
 import { attachTrailDbFromHandle } from '../../src/db/attach';
 import { runConversationIncremental } from '../../src/pipeline/runConversationIncremental';
@@ -24,8 +25,8 @@ const silentLogger: MemoryLogger = {
   error: () => {},
 };
 
-function makeTrailDb(SQL: SqlJsStatic): Database {
-  const db = new SQL.Database();
+function makeTrailDb(SQL: SqlJsStatic): SqlJsMemoryDb {
+  const db = SqlJsMemoryDb.fromDatabase(new SQL.Database());
   db.run('PRAGMA foreign_keys = ON');
   db.run(`CREATE TABLE sessions (
     id        TEXT PRIMARY KEY,
@@ -45,12 +46,12 @@ function makeTrailDb(SQL: SqlJsStatic): Database {
   return db;
 }
 
-function insertSession(trailDb: Database, id: string): void {
+function insertSession(trailDb: SqlJsMemoryDb, id: string): void {
   trailDb.run(`INSERT INTO sessions (id) VALUES (?)`, [id]);
 }
 
 function insertMessage(
-  trailDb: Database,
+  trailDb: SqlJsMemoryDb,
   uuid: string,
   sessionId: string,
   type: string,
@@ -68,7 +69,7 @@ function insertMessage(
 /** Opens an in-memory memory-core DB without touching the filesystem. */
 async function makeMemoryDb(): Promise<MemoryCoreDb> {
   const SQL = await initSqlJs();
-  const rawDb = new SQL.Database();
+  const rawDb = SqlJsMemoryDb.fromDatabase(new SQL.Database());
   rawDb.run('PRAGMA foreign_keys = ON');
 
   // Run migrations manually (same as openMemoryCoreDb)
