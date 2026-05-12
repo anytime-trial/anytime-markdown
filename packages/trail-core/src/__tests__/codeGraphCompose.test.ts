@@ -1,4 +1,4 @@
-import { splitCodeGraph, composeCodeGraph } from '../codeGraph';
+import { splitCodeGraph, composeCodeGraph, computeStableKey } from '../codeGraph';
 import type { CodeGraph } from '../codeGraph';
 
 // テスト用のベースノード/エッジ/リポジトリ
@@ -52,9 +52,21 @@ describe('splitCodeGraph / composeCodeGraph round-trip', () => {
       const { communities } = splitCodeGraph(full);
       expect(communities).toHaveLength(2);
       const c0 = communities.find((c) => c.id === 0);
-      expect(c0).toEqual({ id: 0, label: 'Alpha', name: 'Alpha Group', summary: 'Core utilities.' });
+      expect(c0).toEqual({
+        id: 0,
+        label: 'Alpha',
+        name: 'Alpha Group',
+        summary: 'Core utilities.',
+        stableKey: computeStableKey(['n1']),
+      });
       const c1 = communities.find((c) => c.id === 1);
-      expect(c1).toEqual({ id: 1, label: 'Beta', name: 'Beta Group', summary: 'UI components.' });
+      expect(c1).toEqual({
+        id: 1,
+        label: 'Beta',
+        name: 'Beta Group',
+        summary: 'UI components.',
+        stableKey: computeStableKey(['n2']),
+      });
     });
 
     it('stored に communities / communitySummaries が含まれない', () => {
@@ -98,7 +110,85 @@ describe('splitCodeGraph / composeCodeGraph round-trip', () => {
     });
   });
 
-  describe('(c) 部分的な要約 - 一部の community_id のみ summary がある場合', () => {
+  describe('(c-stableKey) computeStableKey の決定論性 / 正規化', () => {
+    it('同一入力で同一キーを返す', () => {
+      const ids = ['repo:packages/a/src/x.ts', 'repo:packages/a/src/y.ts'];
+      expect(computeStableKey(ids)).toBe(computeStableKey(ids));
+    });
+
+    it('順序が違っても同一キーを返す（集合性）', () => {
+      const a = ['repo:packages/a/src/x.ts', 'repo:packages/a/src/y.ts', 'repo:packages/a/src/z.ts'];
+      const b = ['repo:packages/a/src/z.ts', 'repo:packages/a/src/x.ts', 'repo:packages/a/src/y.ts'];
+      expect(computeStableKey(a)).toBe(computeStableKey(b));
+    });
+
+    it('重複入力は 1 件扱い', () => {
+      const a = ['repo:packages/a/src/x.ts', 'repo:packages/a/src/y.ts'];
+      const b = ['repo:packages/a/src/x.ts', 'repo:packages/a/src/y.ts', 'repo:packages/a/src/x.ts'];
+      expect(computeStableKey(a)).toBe(computeStableKey(b));
+    });
+
+    it('Windows パスセパレータ（\\）と POSIX セパレータ（/）が同一キーを返す', () => {
+      const win = ['repo:packages\\a\\src\\x.ts'];
+      const posix = ['repo:packages/a/src/x.ts'];
+      expect(computeStableKey(win)).toBe(computeStableKey(posix));
+    });
+
+    it('リポジトリ名（"<repo>:" プレフィックス）が違っても同一キーを返す', () => {
+      // リネーム耐性: 同じ相対パスならリポジトリ名変更で stable_key は変わらない
+      const r1 = ['repo1:packages/a/src/x.ts', 'repo1:packages/a/src/y.ts'];
+      const r2 = ['repo2:packages/a/src/x.ts', 'repo2:packages/a/src/y.ts'];
+      expect(computeStableKey(r1)).toBe(computeStableKey(r2));
+    });
+
+    it('NFC / NFD で同一キーを返す（Unicode 正規化）', () => {
+      // U+00E9 (NFC: é, 1 codepoint) vs U+0065 U+0301 (NFD: e + 結合アクセント, 2 codepoints)
+      const nfc = ['repo:packages/café/src/x.ts'];
+      const nfd = ['repo:packages/café/src/x.ts'];
+      expect(computeStableKey(nfc)).toBe(computeStableKey(nfd));
+    });
+
+    it('空配列で固定値を返す（バージョン prefix のハッシュ）', () => {
+      // 空でもクラッシュせず決定論的に同じ値
+      expect(computeStableKey([])).toBe(computeStableKey([]));
+      expect(computeStableKey([]).length).toBe(16);
+    });
+
+    it('16 hex 文字列を返す', () => {
+      const key = computeStableKey(['repo:packages/a/src/x.ts']);
+      expect(key).toMatch(/^[0-9a-f]{16}$/);
+    });
+
+    it('異なるノード集合では異なるキーを返す', () => {
+      const a = computeStableKey(['repo:packages/a/src/x.ts']);
+      const b = computeStableKey(['repo:packages/a/src/y.ts']);
+      expect(a).not.toBe(b);
+    });
+  });
+
+  describe('(d) splitCodeGraph が stableKey をノード集合から算出する', () => {
+    const full: CodeGraph = {
+      ...baseGraph,
+      communities: { 0: 'Alpha', 1: 'Beta' },
+    };
+
+    it('community ID ごとに、所属ノード ID 集合の stableKey を埋める', () => {
+      const { communities } = splitCodeGraph(full);
+      const c0 = communities.find((c) => c.id === 0);
+      const c1 = communities.find((c) => c.id === 1);
+      expect(c0?.stableKey).toBe(computeStableKey(['n1']));
+      expect(c1?.stableKey).toBe(computeStableKey(['n2']));
+      expect(c0?.stableKey).not.toBe(c1?.stableKey);
+    });
+
+    it('同じノード集合のグラフを 2 回 split したら stableKey は完全一致', () => {
+      const a = splitCodeGraph(full).communities;
+      const b = splitCodeGraph(full).communities;
+      expect(a.map((c) => c.stableKey)).toEqual(b.map((c) => c.stableKey));
+    });
+  });
+
+  describe('(e) 部分的な要約 - 一部の community_id のみ summary がある場合', () => {
     const full: CodeGraph = {
       ...baseGraph,
       communities: { 0: 'Alpha', 1: 'Beta' },

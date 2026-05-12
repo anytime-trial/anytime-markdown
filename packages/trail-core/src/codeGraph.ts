@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 export interface CodeGraphRepository {
   readonly id: string;
   readonly label: string;
@@ -84,6 +86,46 @@ export interface StoredCommunity {
   readonly label: string;
   readonly name: string;
   readonly summary: string;
+  /**
+   * コミュニティ内ノード ID 集合のコンテンツハッシュ（v1: sha256 先頭 16hex）。
+   * community_id は Louvain 検出順の連番で再解析のたびに変動するが、stableKey は
+   * 「同じノード集合 → 同じキー」を保証する。AI 付与した name / summary / mappings_json を
+   * community_id の再採番から守るための引き継ぎキー。
+   */
+  readonly stableKey: string;
+}
+
+// stable_key 算出ロジック
+// ---------------------------------------------------------------------------
+
+/**
+ * stable_key のフォーマットバージョン。
+ * 上げると同一ノード集合でもキーが変わるため、全コミュニティの migration が必要になる。
+ */
+export const STABLE_KEY_VERSION = 'v1';
+
+/**
+ * コミュニティ内ノード ID 集合からコンテンツハッシュ（stable_key）を算出する。
+ *
+ * - 入力は順序非依存（Set + sort）
+ * - パスセパレータ（`\` → `/`）と Unicode 正規化（NFC）で OS 差を吸収
+ * - ノード ID の `<repo>:` プレフィックスは取り除く（リポジトリ名変更耐性）
+ * - SHA-256 の先頭 16 hex（64 bit）を採用（786 件規模で衝突確率実質ゼロ）
+ *
+ * @param memberNodeIds コミュニティに属するノード ID 配列（順序・重複問わず）
+ * @returns 16 文字の hex 文字列
+ */
+export function computeStableKey(memberNodeIds: readonly string[]): string {
+  const normalized = memberNodeIds.map(normalizeNodeId);
+  const sorted = [...new Set(normalized)].sort();
+  const payload = `${STABLE_KEY_VERSION}\n${sorted.join('\n')}`;
+  return createHash('sha256').update(payload, 'utf8').digest('hex').slice(0, 16);
+}
+
+function normalizeNodeId(nodeId: string): string {
+  const colon = nodeId.indexOf(':');
+  const relPath = colon >= 0 ? nodeId.slice(colon + 1) : nodeId;
+  return relPath.replace(/\\/g, '/').trim().normalize('NFC');
 }
 
 /**
@@ -104,15 +146,25 @@ export function splitCodeGraph(full: CodeGraph): {
     godNodes: full.godNodes,
   };
 
+  // 各コミュニティに属するノード ID を集計（stable_key 算出に必要）
+  const memberIdsByCommunity = new Map<number, string[]>();
+  for (const n of full.nodes) {
+    const arr = memberIdsByCommunity.get(n.community);
+    if (arr) arr.push(n.id);
+    else memberIdsByCommunity.set(n.community, [n.id]);
+  }
+
   const communities: StoredCommunity[] = Object.entries(full.communities).map(
     ([idStr, label]) => {
       const id = Number(idStr);
       const cs = full.communitySummaries?.[id];
+      const memberIds = memberIdsByCommunity.get(id) ?? [];
       return {
         id,
         label,
         name: cs?.name ?? '',
         summary: cs?.summary ?? '',
+        stableKey: computeStableKey(memberIds),
       };
     }
   );
