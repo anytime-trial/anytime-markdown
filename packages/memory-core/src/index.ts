@@ -91,3 +91,19 @@ export type {
   PipelineStatusEntry,
   PipelineState,
 } from './status/PipelineStatusWriter';
+
+export { runRagFtsRebuild } from './pipeline/runRagFtsRebuild';
+export type {
+  RunRagFtsRebuildInput,
+  RunRagFtsRebuildResult,
+  RunRagFtsRebuildTrigger,
+} from './pipeline/runRagFtsRebuild';
+export {
+  upsertEntityFts,
+  deleteEntityFts,
+  upsertEpisodeFts,
+  deleteEpisodeFts,
+  upsertDriftFts,
+  deleteDriftFts,
+  aliasesJsonToText,
+} from './rag/ftsSync';
