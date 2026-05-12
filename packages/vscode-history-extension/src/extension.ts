@@ -15,6 +15,7 @@ import { DatabaseProvider } from './providers/DatabaseProvider';
 import { registerSpecDocsCommands } from './commands/specDocsCommands';
 import { registerChangesCommands, GitOriginalContentProvider } from './commands/changesCommands';
 import { GitLogger } from './utils/GitLogger';
+import { gitExec } from './utils/gitExec';
 
 export async function activate(context: vscode.ExtensionContext) {
 	// Git 元コンテンツプロバイダー（diff 表示用）
@@ -43,18 +44,17 @@ export async function activate(context: vscode.ExtensionContext) {
 		let previousChangedPaths = new Set<string>();
 		const cp = changesProvider;
 		const ctv = changesTreeView;
-		const updateChangesBadge = () => {
-			const count = cp.getChangesCount();
+		const updateChangesBadge = async () => {
+			const count = await cp.getChangesCount();
 			ctv.badge = count > 0
 				? { value: count, tooltip: `${count} changes` }
 				: undefined;
-			cp.closeRemovedTabs(previousChangedPaths);
-			previousChangedPaths = cp.getChangedPaths();
+			await cp.closeRemovedTabs(previousChangedPaths);
+			previousChangedPaths = await cp.getChangedPaths();
 		};
-		cp.onDidChangeTreeData(updateChangesBadge);
+		cp.onDidChangeTreeData(() => { void updateChangesBadge(); });
 		setTimeout(() => {
-			updateChangesBadge();
-			previousChangedPaths = cp.getChangedPaths();
+			void updateChangesBadge();
 		}, 2000);
 
 		timelineProvider = new TimelineProvider(
@@ -93,7 +93,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	const setActiveRoot = (rootPath: string | null) => {
 		activeRoot = rootPath;
 		changesProvider?.setPrimaryRoot(rootPath);
-		graphProvider?.setTargetRoot(rootPath);
+		void graphProvider?.setTargetRoot(rootPath);
 	};
 
 	let previousRoots: string[] = [];
@@ -102,7 +102,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		// ルート一覧が変わった場合のみ changesProvider を更新
 		if (JSON.stringify(roots) !== JSON.stringify(previousRoots)) {
 			previousRoots = roots;
-			changesProvider?.setTargetRoots(roots);
+			void changesProvider?.setTargetRoots(roots);
 		}
 		if (roots.length === 0) {
 			setActiveRoot(null);
@@ -117,7 +117,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	if (changesProvider) {
 		const cp = changesProvider;
 		setTimeout(() => {
-			cp.setTargetRoots(specDocsProvider.roots);
+			void cp.setTargetRoots(specDocsProvider.roots);
 			previousRoots = specDocsProvider.roots;
 			setActiveRoot(activeRoot);
 		}, 2000);
@@ -147,15 +147,11 @@ export async function activate(context: vscode.ExtensionContext) {
 	if (hasWorkspace) {
 		const autoOpenGitRoots = async () => {
 			try {
-				const { execFileSync } = await import('node:child_process');
 				const folders = vscode.workspace.workspaceFolders;
 				if (!folders) return;
 				for (const folder of folders) {
 					try {
-						execFileSync('git', ['rev-parse', '--git-dir'], {
-							cwd: folder.uri.fsPath,
-							encoding: 'utf-8',
-						});
+						await gitExec(['rev-parse', '--git-dir'], { cwd: folder.uri.fsPath });
 						specDocsProvider.addRoot(folder.uri.fsPath);
 					} catch {
 						// git リポジトリでないフォルダはスキップ — 正常系

@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
 import * as path from 'node:path';
-import { execFileSync } from 'node:child_process';
 
 import { GitLogger } from '../utils/GitLogger';
+import { gitExec } from '../utils/gitExec';
 import {
 	ChangesRepoItem, ChangesGroupItem, ChangesFileItem, ChangesSyncItem,
 } from './changes/types';
@@ -38,7 +38,7 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem>
 	}
 
 	/** マークダウン管理のルートパス一覧に基づく git リポジトリを設定 */
-	setTargetRoots(rootPaths: string[]): void {
+	async setTargetRoots(rootPaths: string[]): Promise<void> {
 		// 既存の watcher を破棄
 		for (const w of this.watchers) { w.dispose(); }
 		this.watchers = [];
@@ -46,7 +46,8 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem>
 
 		for (const rootPath of rootPaths) {
 			try {
-				const gitRoot = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: rootPath, encoding: 'utf-8' }).trim();
+				const r = await gitExec(['rev-parse', '--show-toplevel'], { cwd: rootPath });
+				const gitRoot = r.stdout.trim();
 				// gitRoot の重複排除
 				if (!this.gitRootEntries.some(e => e.gitRoot === gitRoot)) {
 					this.gitRootEntries.push({ rootPath, gitRoot });
@@ -97,10 +98,10 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem>
 	}
 
 	/** 変更ファイルの総数を返す（全リポジトリ合計） */
-	getChangesCount(): number {
+	async getChangesCount(): Promise<number> {
 		let count = 0;
 		for (const entry of this.gitRootEntries) {
-			const { staged, unstaged } = getChanges(entry.gitRoot);
+			const { staged, unstaged } = await getChanges(entry.gitRoot);
 			count += staged.length + unstaged.length;
 		}
 		return count;
@@ -115,18 +116,20 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem>
 
 		if (!element) {
 			// 常にリポジトリノードを表示
-			return this.gitRootEntries.map(entry => {
-				const info = getRepoInfo(entry.gitRoot);
-				return new ChangesRepoItem(entry.gitRoot, info.repoName, info.branchName);
-			});
+			const items: ChangesRepoItem[] = [];
+			for (const entry of this.gitRootEntries) {
+				const info = await getRepoInfo(entry.gitRoot);
+				items.push(new ChangesRepoItem(entry.gitRoot, info.repoName, info.branchName));
+			}
+			return items;
 		}
 
 		if (element instanceof ChangesRepoItem) {
-			return this.getGroupItems(element.gitRoot);
+			return await this.getGroupItems(element.gitRoot);
 		}
 
 		if (element instanceof ChangesGroupItem) {
-			const { staged, unstaged } = getChanges(element.gitRoot);
+			const { staged, unstaged } = await getChanges(element.gitRoot);
 			let changes = element.group === 'staged' ? staged : unstaged;
 			if (this.mdOnly) {
 				changes = changes.filter(c => { const l = c.filePath.toLowerCase(); return l.endsWith('.md') || l.endsWith('.markdown'); });
@@ -137,8 +140,8 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem>
 		return [];
 	}
 
-	private getGroupItems(gitRoot: string): ChangesTreeItem[] {
-		const { staged, unstaged } = getChanges(gitRoot);
+	private async getGroupItems(gitRoot: string): Promise<ChangesTreeItem[]> {
+		const { staged, unstaged } = await getChanges(gitRoot);
 		const filterFn = this.mdOnly
 			? (c: ParsedChange) => { const l = c.filePath.toLowerCase(); return l.endsWith('.md') || l.endsWith('.markdown'); }
 			: () => true;
@@ -153,7 +156,7 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem>
 		}
 		// ローカル変更がない場合、リモートとの差分を表示
 		if (items.length === 0) {
-			const { ahead, behind } = getSyncInfo(gitRoot);
+			const { ahead, behind } = await getSyncInfo(gitRoot);
 			if (ahead > 0 || behind > 0) {
 				items.push(new ChangesSyncItem(ahead, behind, gitRoot));
 			}
@@ -175,15 +178,15 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem>
 
 	/** 変更一覧から消えたファイルのタブを閉じる */
 	async closeRemovedTabs(previousPaths: Set<string>): Promise<void> {
-		const currentPaths = this.getChangedPaths();
+		const currentPaths = await this.getChangedPaths();
 		return GitOps.closeRemovedTabs(currentPaths, previousPaths);
 	}
 
 	/** 現在の変更ファイルパス一覧を返す（全リポジトリ） */
-	getChangedPaths(): Set<string> {
+	async getChangedPaths(): Promise<Set<string>> {
 		const paths = new Set<string>();
 		for (const entry of this.gitRootEntries) {
-			const { staged, unstaged } = getChanges(entry.gitRoot);
+			const { staged, unstaged } = await getChanges(entry.gitRoot);
 			for (const c of staged) { paths.add(c.absPath); }
 			for (const c of unstaged) { paths.add(c.absPath); }
 		}

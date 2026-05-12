@@ -1,9 +1,9 @@
 import * as path from 'node:path';
-import { execFileSync } from 'node:child_process';
 
 import type { ParsedChange } from './types';
 import { parseStatusCode } from './types';
 import { GitLogger } from '../../utils/GitLogger';
+import { gitExec } from '../../utils/gitExec';
 
 /** git status の1行をパースして staged/unstaged に振り分ける */
 export function parseStatusLine(line: string, gitRoot: string): { staged?: ParsedChange; unstaged?: ParsedChange } {
@@ -32,13 +32,13 @@ export function parseStatusLine(line: string, gitRoot: string): { staged?: Parse
 }
 
 /** 未追跡ディレクトリ内のファイルを個別に展開する */
-export function expandUntrackedDir(gitRoot: string, dirPath: string): ParsedChange[] {
+export async function expandUntrackedDir(gitRoot: string, dirPath: string): Promise<ParsedChange[]> {
 	try {
-		const files = execFileSync(
-			'git', ['ls-files', '--others', '--exclude-standard', '--', dirPath],
-			{ cwd: gitRoot, encoding: 'utf-8' },
+		const { stdout } = await gitExec(
+			['ls-files', '--others', '--exclude-standard', '--', dirPath],
+			{ cwd: gitRoot },
 		);
-		return files.split('\n')
+		return stdout.split('\n')
 			.map(f => f.trim())
 			.filter(f => f.length > 0)
 			.map(f => ({
@@ -51,10 +51,11 @@ export function expandUntrackedDir(gitRoot: string, dirPath: string): ParsedChan
 }
 
 /** git status --porcelain の結果をパースして staged/unstaged に分類する */
-export function getChanges(gitRoot: string): { staged: ParsedChange[]; unstaged: ParsedChange[] } {
+export async function getChanges(gitRoot: string): Promise<{ staged: ParsedChange[]; unstaged: ParsedChange[] }> {
 	let output: string;
 	try {
-		output = execFileSync('git', ['status', '--porcelain'], { cwd: gitRoot, encoding: 'utf-8' });
+		const r = await gitExec(['status', '--porcelain'], { cwd: gitRoot });
+		output = r.stdout;
 	} catch {
 		return { staged: [], unstaged: [] };
 	}
@@ -68,7 +69,7 @@ export function getChanges(gitRoot: string): { staged: ParsedChange[]; unstaged:
 
 		// 未追跡ディレクトリ（?? dir/）は中のファイルを個別に展開
 		if (filePath.endsWith('/') && line.startsWith('?')) {
-			unstaged.push(...expandUntrackedDir(gitRoot, filePath));
+			unstaged.push(...await expandUntrackedDir(gitRoot, filePath));
 			continue;
 		}
 
@@ -81,26 +82,27 @@ export function getChanges(gitRoot: string): { staged: ParsedChange[]; unstaged:
 }
 
 /** リモートとの差分（ahead/behind）を取得 */
-export function getSyncInfo(gitRoot: string): { ahead: number; behind: number } {
+export async function getSyncInfo(gitRoot: string): Promise<{ ahead: number; behind: number }> {
 	let ahead = 0;
 	let behind = 0;
 	try {
-		const aheadOut = execFileSync('git', ['rev-list', '@{u}..HEAD', '--count'], { cwd: gitRoot, encoding: 'utf-8' }).trim();
-		ahead = Number.parseInt(aheadOut, 10) || 0;
+		const r = await gitExec(['rev-list', '@{u}..HEAD', '--count'], { cwd: gitRoot });
+		ahead = Number.parseInt(r.stdout.trim(), 10) || 0;
 	} catch { /* no upstream */ }
 	try {
-		const behindOut = execFileSync('git', ['rev-list', 'HEAD..@{u}', '--count'], { cwd: gitRoot, encoding: 'utf-8' }).trim();
-		behind = Number.parseInt(behindOut, 10) || 0;
+		const r = await gitExec(['rev-list', 'HEAD..@{u}', '--count'], { cwd: gitRoot });
+		behind = Number.parseInt(r.stdout.trim(), 10) || 0;
 	} catch { /* no upstream */ }
 	return { ahead, behind };
 }
 
 /** gitRoot のリポジトリ名とブランチ名を取得 */
-export function getRepoInfo(gitRoot: string): { repoName: string; branchName: string } {
+export async function getRepoInfo(gitRoot: string): Promise<{ repoName: string; branchName: string }> {
 	const repoName = path.basename(gitRoot);
 	let branchName = '';
 	try {
-		branchName = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: gitRoot, encoding: 'utf-8' }).trim();
+		const r = await gitExec(['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: gitRoot });
+		branchName = r.stdout.trim();
 	} catch (err) { GitLogger.warn(`Failed to get branch name for ${gitRoot}`); }
 	return { repoName, branchName };
 }
