@@ -209,6 +209,12 @@
         "title": "%command.startOllama%",
         "category": "Anytime Trail",
         "icon": "$(play)"
+      },
+      {
+        "command": "anytime-trail.killExtensionHost",
+        "title": "%command.killExtensionHost%",
+        "category": "Anytime Trail",
+        "icon": "$(debug-stop)"
       }
     ],
     "mcpServerDefinitionProviders": [
@@ -288,6 +294,11 @@
         {
           "command": "anytime-trail.startOllama",
           "when": "view == anytimeTrail.ollama && !anytime-trail.ollamaRunning",
+          "group": "navigation"
+        },
+        {
+          "command": "anytime-trail.killExtensionHost",
+          "when": "view == anytimeTrail.dashboard",
           "group": "navigation"
         }
       ],
