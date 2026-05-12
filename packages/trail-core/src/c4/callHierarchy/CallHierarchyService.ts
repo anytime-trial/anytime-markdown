@@ -3,6 +3,7 @@ import type {
   CallHierarchyDirection,
   CallHierarchyIndex,
   CallHierarchyNode,
+  CallHierarchyTraverseOptions,
 } from './types';
 
 export interface CallHierarchyGraphInput {
@@ -48,8 +49,13 @@ export function traverse(
   rootId: string,
   direction: CallHierarchyDirection,
   maxDepth: number,
+  options?: CallHierarchyTraverseOptions,
 ): CallHierarchyNode | null {
-  if (!index.nodes.has(rootId)) return null;
+  const rootNode = index.nodes.get(rootId);
+  if (!rootNode) return null;
+
+  const nodeFilter = options?.nodeFilter;
+  if (nodeFilter && !nodeFilter(rootNode)) return null;
 
   const adjacency = direction === 'callers' ? index.reverse : index.forward;
 
@@ -63,6 +69,11 @@ export function traverse(
       children: [],
     };
   };
+
+  // グローバル visited: traverse 呼び出し中で「展開対象として一度でも訪れた」ノード ID。
+  // 祖先パス上の cycle 検知とは別に、別ブランチでの再合流 (DAG) を revisited として畳む。
+  const globalVisited = new Set<string>();
+  globalVisited.add(rootId);
 
   const dfs = (
     id: string,
@@ -79,11 +90,21 @@ export function traverse(
 
     const children: CallHierarchyNode[] = [];
     for (const neighborId of neighbors) {
+      const neighborNode = index.nodes.get(neighborId);
+      if (neighborNode && nodeFilter && !nodeFilter(neighborNode)) continue;
+
       if (nextAncestors.has(neighborId)) {
         children.push({ ...buildNode(neighborId), cycle: true });
-      } else {
-        children.push(dfs(neighborId, depth - 1, nextAncestors));
+        continue;
       }
+
+      if (globalVisited.has(neighborId)) {
+        children.push({ ...buildNode(neighborId), revisited: true });
+        continue;
+      }
+
+      globalVisited.add(neighborId);
+      children.push(dfs(neighborId, depth - 1, nextAncestors));
     }
 
     return { ...base, children };

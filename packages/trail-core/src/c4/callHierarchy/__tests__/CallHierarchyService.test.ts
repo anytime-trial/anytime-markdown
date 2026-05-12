@@ -128,5 +128,82 @@ describe('CallHierarchyService', () => {
       expect(tree!.filePath).toBe('x.ts');
       expect(tree!.line).toBe(42);
     });
+
+    it('marks DAG re-merge as revisited (not cycle) with empty children', () => {
+      // A → B → D, A → C → D の DAG。B 経由で展開された D は、
+      // C 経由で再び現れた時点で revisited: true として畳まれる
+      const index = buildIndex({
+        nodes: [fn('a'), fn('b'), fn('c'), fn('d')],
+        edges: [callEdge('a', 'b'), callEdge('b', 'd'), callEdge('a', 'c'), callEdge('c', 'd')],
+      });
+      const tree = traverse(index, 'a', 'callees', 5);
+      expect(tree!.children.map(c => c.id)).toEqual(['b', 'c']);
+      const branchB = tree!.children.find(c => c.id === 'b');
+      const branchC = tree!.children.find(c => c.id === 'c');
+      expect(branchB!.children.map(c => c.id)).toEqual(['d']);
+      expect(branchB!.children[0].cycle).toBeUndefined();
+      expect(branchB!.children[0].revisited).toBeUndefined();
+      expect(branchC!.children.map(c => c.id)).toEqual(['d']);
+      expect(branchC!.children[0].revisited).toBe(true);
+      expect(branchC!.children[0].cycle).toBeUndefined();
+      expect(branchC!.children[0].children).toEqual([]);
+    });
+
+    it('distinguishes cycle (ancestor path) from revisited (sibling branch)', () => {
+      // A → B → A (cycle), A → C → B (revisited)
+      const index = buildIndex({
+        nodes: [fn('a'), fn('b'), fn('c')],
+        edges: [callEdge('a', 'b'), callEdge('b', 'a'), callEdge('a', 'c'), callEdge('c', 'b')],
+      });
+      const tree = traverse(index, 'a', 'callees', 5);
+      const branchB = tree!.children.find(c => c.id === 'b');
+      const branchC = tree!.children.find(c => c.id === 'c');
+      // B 経由で A はサイクル
+      expect(branchB!.children[0].id).toBe('a');
+      expect(branchB!.children[0].cycle).toBe(true);
+      expect(branchB!.children[0].revisited).toBeUndefined();
+      // C 経由で B は祖先ではないが既出 → revisited
+      expect(branchC!.children[0].id).toBe('b');
+      expect(branchC!.children[0].revisited).toBe(true);
+      expect(branchC!.children[0].cycle).toBeUndefined();
+    });
+
+    it('omits children for which nodeFilter returns false', () => {
+      const index = buildIndex({
+        nodes: [fn('a'), fn('b'), fn('c')],
+        edges: [callEdge('a', 'b'), callEdge('a', 'c')],
+      });
+      const tree = traverse(index, 'a', 'callees', 5, {
+        nodeFilter: node => node.id !== 'b',
+      });
+      expect(tree!.children.map(c => c.id)).toEqual(['c']);
+    });
+
+    it('returns null when nodeFilter rejects the root', () => {
+      const index = buildIndex({
+        nodes: [fn('a')],
+        edges: [],
+      });
+      const tree = traverse(index, 'a', 'callees', 5, {
+        nodeFilter: () => false,
+      });
+      expect(tree).toBeNull();
+    });
+
+    it('does not mark filtered-out node as revisited on another branch', () => {
+      // A → B → D, A → C → D で D を filter で除外
+      // → どちらの経路でも d は children に含まれず、revisited 判定対象にもならない
+      const index = buildIndex({
+        nodes: [fn('a'), fn('b'), fn('c'), fn('d')],
+        edges: [callEdge('a', 'b'), callEdge('b', 'd'), callEdge('a', 'c'), callEdge('c', 'd')],
+      });
+      const tree = traverse(index, 'a', 'callees', 5, {
+        nodeFilter: node => node.id !== 'd',
+      });
+      const branchB = tree!.children.find(c => c.id === 'b');
+      const branchC = tree!.children.find(c => c.id === 'c');
+      expect(branchB!.children).toEqual([]);
+      expect(branchC!.children).toEqual([]);
+    });
   });
 });
