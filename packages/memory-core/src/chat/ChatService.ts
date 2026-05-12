@@ -27,6 +27,7 @@ export class ChatService {
 
   async *streamTurn(input: ChatTurnInput): AsyncGenerator<ChatChunk> {
     const t0 = Date.now();
+    let firstTokenAt: number | null = null;
     const retrieveLimit = this.opts.retrieveLimit ?? 12;
 
     // 1. Hybrid retrieval
@@ -62,12 +63,16 @@ export class ChatService {
       })),
     };
 
+    const retrievalMs = Date.now() - t0;
+
     // 2. Prompt build
+    const tPromptStart = Date.now();
     const messages = buildPrompt({
       query: input.query,
       history: input.history,
       sources,
     });
+    const promptBuildMs = Date.now() - tPromptStart;
 
     // 3. Stream + citation parsing
     const parser = new CitationStreamParser();
@@ -82,6 +87,7 @@ export class ChatService {
         messages,
         signal: input.signal,
       })) {
+        if (firstTokenAt === null && ch.delta) firstTokenAt = Date.now();
         parser.feed(ch.delta, emit);
         while (pending.length > 0) {
           const c = pending.shift();
@@ -106,6 +112,17 @@ export class ChatService {
       if (c) yield c;
     }
 
-    yield { type: 'done', payload: { interrupted, totalMs: Date.now() - t0 } };
+    const totalMs = Date.now() - t0;
+    if (process.env.MEMORY_CHAT_PERF_LOG !== '0') {
+      log('INFO', 'streamTurn perf', {
+        retrieval_ms: retrievalMs,
+        prompt_build_ms: promptBuildMs,
+        first_token_ms: firstTokenAt !== null ? firstTokenAt - t0 : null,
+        total_ms: totalMs,
+        sources_count: sources.length,
+        interrupted,
+      });
+    }
+    yield { type: 'done', payload: { interrupted, totalMs } };
   }
 }

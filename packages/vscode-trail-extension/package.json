@@ -76,6 +76,11 @@
     ],
     "commands": [
       {
+        "command": "anytime-trail.memory.rebuildIndex",
+        "title": "%command.memory.rebuildIndex%",
+        "category": "Anytime Trail"
+      },
+      {
         "command": "anytime-trail.openAiNote",
         "title": "%command.openAiNote%",
         "category": "Anytime Trail",
@@ -398,6 +403,51 @@
           "minimum": 1,
           "maximum": 100,
           "markdownDescription": "上限に対する警告閾値（%）。"
+        },
+        "anytimeTrail.memory.ollama.baseUrl": {
+          "type": "string",
+          "default": "http://localhost:11434",
+          "markdownDescription": "%config.memory.ollama.baseUrl%"
+        },
+        "anytimeTrail.memory.chat.model": {
+          "type": "string",
+          "default": "qwen2.5-coder:14b",
+          "markdownDescription": "%config.memory.chat.model%"
+        },
+        "anytimeTrail.memory.embedding.model": {
+          "type": "string",
+          "default": "bge-m3",
+          "markdownDescription": "%config.memory.embedding.model%"
+        },
+        "anytimeTrail.memory.rag.bm25Limit": {
+          "type": "number",
+          "default": 30,
+          "minimum": 1,
+          "markdownDescription": "%config.memory.rag.bm25Limit%"
+        },
+        "anytimeTrail.memory.rag.vecLimit": {
+          "type": "number",
+          "default": 30,
+          "minimum": 1,
+          "markdownDescription": "%config.memory.rag.vecLimit%"
+        },
+        "anytimeTrail.memory.rag.finalLimit": {
+          "type": "number",
+          "default": 12,
+          "minimum": 1,
+          "markdownDescription": "%config.memory.rag.finalLimit%"
+        },
+        "anytimeTrail.memory.rag.rrfK": {
+          "type": "number",
+          "default": 60,
+          "minimum": 1,
+          "markdownDescription": "%config.memory.rag.rrfK%"
+        },
+        "anytimeTrail.memory.fts.rebuildIntervalMinutes": {
+          "type": "number",
+          "default": 60,
+          "minimum": 5,
+          "markdownDescription": "%config.memory.fts.rebuildIntervalMinutes%"
         }
       }
     }

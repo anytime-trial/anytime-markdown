@@ -80,6 +80,17 @@ function bm25Search(
   return (rows[0]?.values ?? []).map((r, i) => ({ id: r[0] as string, rank: i }));
 }
 
+function nowMs(): number {
+  return Date.now();
+}
+
+function logPerf(ctx: Record<string, unknown>): void {
+  if (process.env.MEMORY_CHAT_PERF_LOG === '0') return;
+  const ts = new Date().toISOString();
+  // eslint-disable-next-line no-console
+  console.log(`[${ts}] [INFO] hybridSearchMemory ${JSON.stringify(ctx)}`);
+}
+
 export async function hybridSearchMemory(opts: HybridSearchOptions): Promise<HybridSearchResult> {
   const { db, ollama, embedModel, input } = opts;
   const bm25Limit = input.bm25_limit ?? 30;
@@ -87,11 +98,13 @@ export async function hybridSearchMemory(opts: HybridSearchOptions): Promise<Hyb
   const rrfK = input.rrf_k ?? 60;
   const finalLimit = input.final_limit ?? 12;
 
+  const t0 = nowMs();
   // 1. BM25 (FTS5)
   const bm25Hits = bm25Search(db, input.query, bm25Limit, {
     entity_types: input.entity_types,
     since: input.since,
   });
+  const tBm25 = nowMs();
 
   // 2. Vector top-K
   const vecEntities = await vectorTopK({
@@ -106,9 +119,19 @@ export async function hybridSearchMemory(opts: HybridSearchOptions): Promise<Hyb
     limit: vecLimit,
   });
   const vecHits = vecEntities.map((e, i) => ({ id: e.id, rank: i }));
+  const tVec = nowMs();
 
   // 3. RRF
   const fused = reciprocalRankFusion(bm25Hits, vecHits, rrfK).slice(0, finalLimit);
+  const tRrf = nowMs();
+  logPerf({
+    bm25_ms: tBm25 - t0,
+    vec_ms: tVec - tBm25,
+    rrf_ms: tRrf - tVec,
+    bm25_hits: bm25Hits.length,
+    vec_hits: vecHits.length,
+    fused_count: fused.length,
+  });
   if (fused.length === 0) {
     return { entities: [], edges: [], episodes: [] };
   }

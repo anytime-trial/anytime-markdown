@@ -465,25 +465,40 @@ export async function activate(context: vscode.ExtensionContext) {
 	setupServerCallbacks(trailDataServer);
 
 	// Memory chat (MEMORY > Chat タブ) — Ollama 経由の RAG チャット
+	const memoryDbPath = path.join(os.homedir(), '.claude', 'memory-core', 'memory-core.db');
+	const memoryLogger = {
+		info: (msg: string, ctx?: Record<string, unknown>): void =>
+			TrailLogger.info(ctx ? `${msg} ${JSON.stringify(ctx)}` : msg),
+		error: (msg: string, err?: unknown): void => TrailLogger.error(msg, err),
+	};
 	const { ChatBridge } = await import('./memory-chat/chatBridge');
 	const chatBridge = new ChatBridge({
-		memoryDbPath: path.join(os.homedir(), '.claude', 'memory-core', 'memory-core.db'),
+		memoryDbPath,
 		getConfig: () => {
-			const cfg = vscode.workspace.getConfiguration('anytime-markdown.memory');
+			const cfg = vscode.workspace.getConfiguration('anytimeTrail.memory');
 			return {
 				baseUrl: cfg.get<string>('ollama.baseUrl') ?? 'http://localhost:11434',
 				chatModel: cfg.get<string>('chat.model') ?? 'qwen2.5-coder:14b',
 				embedModel: cfg.get<string>('embedding.model') ?? 'bge-m3',
 			};
 		},
-		logger: {
-			info: (msg: string, ctx?: Record<string, unknown>) =>
-				TrailLogger.info(ctx ? `${msg} ${JSON.stringify(ctx)}` : msg),
-			error: (msg: string, err?: unknown) => TrailLogger.error(msg, err),
-		},
+		logger: memoryLogger,
 	});
 	trailDataServer.setChatBridge(chatBridge);
 	context.subscriptions.push({ dispose: () => void chatBridge.dispose() });
+
+	// FTS5 インデックスのバックグラウンド再構築 (起動時 + cron)
+	const { RebuildScheduler } = await import('./memory-chat/rebuildScheduler');
+	const rebuildIntervalMin = vscode.workspace
+		.getConfiguration('anytimeTrail.memory.fts')
+		.get<number>('rebuildIntervalMinutes') ?? 60;
+	const rebuildScheduler = new RebuildScheduler({ memoryDbPath, logger: memoryLogger });
+	context.subscriptions.push(rebuildScheduler.start(rebuildIntervalMin * 60 * 1000));
+	context.subscriptions.push(
+		vscode.commands.registerCommand('anytime-trail.memory.rebuildIndex', () =>
+			rebuildScheduler.runManual(),
+		),
+	);
 
 	// Code graph service
 	const codeGraphRepos: { id: string; label: string; path: string }[] = [];
