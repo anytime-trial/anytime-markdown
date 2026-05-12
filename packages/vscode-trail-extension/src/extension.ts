@@ -971,6 +971,20 @@ export async function activate(context: vscode.ExtensionContext) {
 			ollamaProvider.startOllama(),
 		),
 	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('anytime-trail.killExtensionHost', async () => {
+			const answer = await vscode.window.showWarningMessage(
+				'Extension Host を kill しますか? VS Code が自動的に再起動します。',
+				{ modal: true, detail: `現プロセス pid=${process.pid} を終了します。Trail Data Server (port 19841) が hang した場合の最終手段です。` },
+				'Kill',
+			);
+			if (answer !== 'Kill') return;
+			TrailLogger.warn(`Extension Host kill requested by user (pid=${process.pid}). Exiting in 100ms.`);
+			// OutputChannel フラッシュ猶予を確保してから exit
+			setTimeout(() => process.exit(0), 100);
+		}),
+	);
 }
 
 export async function deactivate(): Promise<void> {
