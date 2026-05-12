@@ -466,6 +466,17 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Memory chat (MEMORY > Chat タブ) — Ollama 経由の RAG チャット
 	const memoryDbPath = path.join(os.homedir(), '.claude', 'memory-core', 'memory-core.db');
+	// webpack バンドル後 better-sqlite3 の require は dist/node_modules/ に
+	// CopyPlugin で同梱した実装を解決するが、native binary の自動探索が
+	// バンドル環境で失敗するため絶対パスで .node を明示する。
+	const memoryNativeBinding = path.join(
+		extensionDistPath,
+		'node_modules',
+		'better-sqlite3',
+		'build',
+		'Release',
+		'better_sqlite3.node',
+	);
 	const memoryLogger = {
 		info: (msg: string, ctx?: Record<string, unknown>): void =>
 			TrailLogger.info(ctx ? `${msg} ${JSON.stringify(ctx)}` : msg),
@@ -474,6 +485,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	const { ChatBridge } = await import('./memory-chat/chatBridge');
 	const chatBridge = new ChatBridge({
 		memoryDbPath,
+		memoryNativeBinding,
 		getConfig: () => {
 			const cfg = vscode.workspace.getConfiguration('anytimeTrail.memory');
 			return {
@@ -492,7 +504,11 @@ export async function activate(context: vscode.ExtensionContext) {
 	const rebuildIntervalMin = vscode.workspace
 		.getConfiguration('anytimeTrail.memory.fts')
 		.get<number>('rebuildIntervalMinutes') ?? 60;
-	const rebuildScheduler = new RebuildScheduler({ memoryDbPath, logger: memoryLogger });
+	const rebuildScheduler = new RebuildScheduler({
+		memoryDbPath,
+		memoryNativeBinding,
+		logger: memoryLogger,
+	});
 	context.subscriptions.push(rebuildScheduler.start(rebuildIntervalMin * 60 * 1000));
 	context.subscriptions.push(
 		vscode.commands.registerCommand('anytime-trail.memory.rebuildIndex', () =>

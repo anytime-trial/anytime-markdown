@@ -48,6 +48,12 @@ const extensionConfig = {
     // pg のオプションネイティブバインディング (pg-native) は未インストール。
     // pg.native を参照しない限りロードされないため外部化で OK。
     'pg-native': 'commonjs pg-native',
+    // memory-core が require('better-sqlite3') を呼ぶ。webpack に取り込ませると
+    // 内部の bindings ロジックが壊れて native binary を解決できないため、
+    // ランタイムで Node の require に解決させる。dist/node_modules/ に native
+    // binary 付きで配置するため CopyPlugin で同梱する。
+    'better-sqlite3': 'commonjs better-sqlite3',
+    bindings: 'commonjs bindings',
   },
   resolve: {
     extensions: ['.ts', '.js'],
@@ -98,6 +104,9 @@ const extensionConfig = {
       // 保存時の OOM を回避できる。
       // memory-core の migrations/*.sql は runner が path.join(__dirname, file)
       // で読むため、webpack バンドル後の dist/ 直下にコピーする。
+      // better-sqlite3 とその依存 (bindings / file-uri-to-path) は memory-core が
+      // require('better-sqlite3') する際に native binary 付きで解決できるよう
+      // dist/node_modules/ に丸ごとコピーする (vscode-database-extension と同じパターン)。
       patterns: [
         {
           from: path.resolve(__dirname, '../../node_modules/sql.js/dist/sql-wasm.js'),
@@ -110,6 +119,19 @@ const extensionConfig = {
         {
           from: path.resolve(__dirname, '../memory-core/src/db/migrations/*.sql'),
           to: '[name][ext]',
+        },
+        {
+          from: path.resolve(__dirname, '../../node_modules/better-sqlite3'),
+          to: path.resolve(__dirname, 'dist/node_modules/better-sqlite3'),
+          globOptions: { ignore: ['**/src/**', '**/deps/**', '**/binding.gyp'] },
+        },
+        {
+          from: path.resolve(__dirname, '../../node_modules/bindings'),
+          to: path.resolve(__dirname, 'dist/node_modules/bindings'),
+        },
+        {
+          from: path.resolve(__dirname, '../../node_modules/file-uri-to-path'),
+          to: path.resolve(__dirname, 'dist/node_modules/file-uri-to-path'),
         },
       ],
     }),
