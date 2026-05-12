@@ -152,10 +152,13 @@ export async function runConversationIncremental(opts: {
   model?: string;
   /** 進捗チェックポイント時に呼ばれる save コールバック (sql.js memDb の disk 書き込み)。 */
   save?: () => void;
+  /** 進捗チェックポイント時に呼ばれる progress callback (TreeView 表示用)。 */
+  progress?: (processed: number, failed: number) => void;
 }): Promise<IncrementalResult> {
   const { db, ollama, model } = opts;
   const logger = opts.logger ?? noopLogger;
   const save = opts.save;
+  const progress = opts.progress;
 
   const startedAt = new Date().toISOString();
   const rId = runId(startedAt);
@@ -200,6 +203,7 @@ export async function runConversationIncremental(opts: {
             save();
             logger.info(`[memory-core] conversation incremental: checkpoint save ${Date.now() - t0}ms`);
           }
+          if (progress) progress(totals.items_processed, totals.items_failed);
         }
 
         // Track latest timestamp seen

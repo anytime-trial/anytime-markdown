@@ -45,8 +45,13 @@ export async function runEmbeddingBackfill(opts: {
   ollama: OllamaClient;
   embedModel?: string;
   logger?: MemoryLogger;
+  /** 進捗 callback (total を初回・以降 processed/failed を更新) */
+  onTotal?: (total: number) => void;
+  progress?: (processed: number, failed: number) => void;
 }): Promise<EmbeddingBackfillResult> {
   const { db, ollama, embedModel = DEFAULT_EMBED_MODEL, logger = noopLogger } = opts;
+  const onTotal = opts.onTotal;
+  const progress = opts.progress;
 
   const startedAt = new Date().toISOString();
   const id = runId(startedAt);
@@ -60,6 +65,7 @@ export async function runEmbeddingBackfill(opts: {
   logger.info(
     `[memory-core] embedding backfill: ${totalNull} to process, ${totalSkip} already embedded`
   );
+  if (onTotal) onTotal(totalNull);
 
   // Start pipeline run
   db.run(
@@ -101,6 +107,7 @@ export async function runEmbeddingBackfill(opts: {
       logger.info(
         `[memory-core] embedding backfill progress: ${done}/${totalNull} (${counters.failed} failed)`
       );
+      if (progress) progress(counters.processed, counters.failed);
     }
   }
 

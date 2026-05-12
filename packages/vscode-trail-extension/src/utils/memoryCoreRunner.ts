@@ -141,7 +141,21 @@ export function createMemoryCoreRunner(opts: {
 
             const isFirstRun = !lastProcessedAt;
 
-            statusWriter.start('conversation_incremental');
+            // trail.db から user message 数を pre-count (ETA 表示用の概算 total)
+            let convTotalEstimate = 0;
+            try {
+              const stmt = memDb.db.prepare(
+                `SELECT COUNT(*) FROM trail.messages WHERE timestamp >= ? AND type = 'user'`,
+              );
+              stmt.bind([lastProcessedAt || '1970-01-01T00:00:00.000Z']);
+              if (stmt.step()) {
+                convTotalEstimate = (stmt.getAsObject()['COUNT(*)'] as number) ?? 0;
+              }
+              stmt.free();
+            } catch {
+              // ignore
+            }
+            statusWriter.start('conversation_incremental', convTotalEstimate || undefined);
             try {
               if (isFirstRun) {
                 logger.info('First run detected — running backfill (5 days)');
@@ -164,6 +178,8 @@ export function createMemoryCoreRunner(opts: {
                   ollama,
                   logger,
                   save: () => memDb.save(),
+                  progress: (processed, failed) =>
+                    statusWriter.update('conversation_incremental', processed, failed),
                 });
                 logger.info(
                   `Incremental complete: status=${result.status}, items_processed=${result.items_processed}, ` +
@@ -333,6 +349,9 @@ export function createMemoryCoreRunner(opts: {
                 db: memDb.db,
                 ollama,
                 logger,
+                onTotal: (total) => statusWriter.start('embedding_backfill', total),
+                progress: (processed, failed) =>
+                  statusWriter.update('embedding_backfill', processed, failed),
               });
               logger.info(
                 `[${new Date().toISOString()}] [INFO] Embedding backfill: status=${embedResult.status}, ` +
