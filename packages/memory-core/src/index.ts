@@ -1,4 +1,4 @@
-export { searchMemory } from './retrieve/searchMemory';
+export { searchMemory, vectorTopK } from './retrieve/searchMemory';
 export type { SearchInput, SearchResult, SearchEntity, SearchEdge, SearchEpisode } from './retrieve/searchMemory';
 export { openMemoryCoreDb } from './db/connection';
 export type { MemoryCoreDb, MemoryCoreDbDriver, OpenMemoryCoreDbOptions } from './db/connection';
@@ -107,3 +107,13 @@ export {
   deleteDriftFts,
   aliasesJsonToText,
 } from './rag/ftsSync';
+
+export { tokenizeForFts5 } from './rag/tokenizeForFts5';
+export { reciprocalRankFusion } from './rag/reciprocalRankFusion';
+export type { RankedItem, FusedItem, RankSource } from './rag/reciprocalRankFusion';
+export { hybridSearchMemory } from './rag/hybridSearchMemory';
+export type {
+  HybridSearchInput,
+  HybridSearchOptions,
+  HybridSearchResult,
+} from './rag/hybridSearchMemory';
