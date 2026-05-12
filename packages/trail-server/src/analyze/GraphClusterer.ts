@@ -1,6 +1,13 @@
 import type { C4Element } from '@anytime-markdown/trail-core/c4';
 import Graph from 'graphology';
 import louvain from 'graphology-communities-louvain';
+import seedrandom from 'seedrandom';
+
+// Louvain の rng を seedrandom で固定して決定論化する。
+// シード未固定だと同一入力でも community_id 採番順が変動し、
+// current_code_graph_communities.mappings_json が再解析のたびに失われる事故が起きる。
+// `v1` サフィックスは将来意図的にクラスタリング結果を変えたい時の踏み台。
+const LOUVAIN_SEED = 'anytime-trail:louvain:v1';
 
 export interface ClusterResult {
   /** nodeId → communityId */
@@ -25,7 +32,9 @@ export class GraphClusterer {
       }
     });
 
-    const communities = louvain(undirected) as Record<string, number>;
+    const communities = louvain(undirected, {
+      rng: seedrandom(LOUVAIN_SEED),
+    }) as Record<string, number>;
     const labels = buildCommunityLabels(graph, communities, c4Elements);
     return { communities, labels };
   }
