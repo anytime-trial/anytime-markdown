@@ -517,6 +517,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
   async upsertCurrentCodeGraphCommunities(rows: readonly {
     repo_name: string; community_id: number; label: string;
     name: string; summary: string; mappings_json: string | null;
+    stable_key: string;
     generated_at: string; updated_at: string;
   }[]): Promise<void> {
     if (rows.length === 0) return;
@@ -548,6 +549,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
   async upsertReleaseCodeGraphCommunities(rows: readonly {
     release_tag: string; community_id: number; label: string;
     name: string; summary: string;
+    stable_key: string;
     generated_at: string; updated_at: string;
   }[]): Promise<void> {
     if (rows.length === 0) return;

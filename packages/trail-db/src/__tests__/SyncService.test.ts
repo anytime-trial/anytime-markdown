@@ -42,9 +42,9 @@ class FakeRemoteStore implements IRemoteTrailStore {
   coverageRows: Array<{ repo_name: string; package: string; file_path: string; lines_total: number; lines_covered: number; lines_pct: number; statements_total: number; statements_covered: number; statements_pct: number; functions_total: number; functions_covered: number; functions_pct: number; branches_total: number; branches_covered: number; branches_pct: number; updated_at: string }> = [];
   releaseCoverageRows: Array<{ release_tag: string; package: string; file_path: string; lines_total: number; lines_covered: number; lines_pct: number; statements_total: number; statements_covered: number; statements_pct: number; functions_total: number; functions_covered: number; functions_pct: number; branches_total: number; branches_covered: number; branches_pct: number }> = [];
   codeGraphRows: Array<{ repo_name: string; graph_json: string; generated_at: string; updated_at: string }> = [];
-  codeGraphCommunityRows: Array<{ repo_name: string; community_id: number; label: string; name: string; summary: string; generated_at: string; updated_at: string }> = [];
+  codeGraphCommunityRows: Array<{ repo_name: string; community_id: number; label: string; name: string; summary: string; mappings_json: string | null; stable_key: string; generated_at: string; updated_at: string }> = [];
   releaseCodeGraphRows: Array<{ release_tag: string; graph_json: string; generated_at: string; updated_at: string }> = [];
-  releaseCodeGraphCommunityRows: Array<{ release_tag: string; community_id: number; label: string; name: string; summary: string; generated_at: string; updated_at: string }> = [];
+  releaseCodeGraphCommunityRows: Array<{ release_tag: string; community_id: number; label: string; name: string; summary: string; stable_key: string; generated_at: string; updated_at: string }> = [];
 
   async unsafeClearCurrentCoverage(): Promise<void> { this.coverageRows = []; }
   async upsertCurrentCoverage(rows: readonly { repo_name: string; package: string; file_path: string; lines_total: number; lines_covered: number; lines_pct: number; statements_total: number; statements_covered: number; statements_pct: number; functions_total: number; functions_covered: number; functions_pct: number; branches_total: number; branches_covered: number; branches_pct: number; updated_at: string }[]): Promise<void> {
@@ -66,14 +66,14 @@ class FakeRemoteStore implements IRemoteTrailStore {
   async upsertCurrentCodeGraphs(rows: readonly { repo_name: string; graph_json: string; generated_at: string; updated_at: string }[]): Promise<void> {
     this.codeGraphRows.push(...(rows as typeof this.codeGraphRows));
   }
-  async upsertCurrentCodeGraphCommunities(rows: readonly { repo_name: string; community_id: number; label: string; name: string; summary: string; generated_at: string; updated_at: string }[]): Promise<void> {
+  async upsertCurrentCodeGraphCommunities(rows: readonly { repo_name: string; community_id: number; label: string; name: string; summary: string; mappings_json: string | null; stable_key: string; generated_at: string; updated_at: string }[]): Promise<void> {
     this.codeGraphCommunityRows.push(...(rows as typeof this.codeGraphCommunityRows));
   }
   async unsafeClearReleaseCodeGraphs(): Promise<void> { this.releaseCodeGraphRows = []; this.releaseCodeGraphCommunityRows = []; }
   async upsertReleaseCodeGraphs(rows: readonly { release_tag: string; graph_json: string; generated_at: string; updated_at: string }[]): Promise<void> {
     this.releaseCodeGraphRows.push(...(rows as typeof this.releaseCodeGraphRows));
   }
-  async upsertReleaseCodeGraphCommunities(rows: readonly { release_tag: string; community_id: number; label: string; name: string; summary: string; generated_at: string; updated_at: string }[]): Promise<void> {
+  async upsertReleaseCodeGraphCommunities(rows: readonly { release_tag: string; community_id: number; label: string; name: string; summary: string; stable_key: string; generated_at: string; updated_at: string }[]): Promise<void> {
     this.releaseCodeGraphCommunityRows.push(...(rows as typeof this.releaseCodeGraphCommunityRows));
   }
 
