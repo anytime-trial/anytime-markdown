@@ -70,7 +70,8 @@ export async function searchMemory(opts: {
   const queryVec = Float32Array.from(embResult.embedding);
 
   // Step 2: build SQL for candidates
-  const conditions: string[] = [];
+  // Soft-deleted entities (valid_until IS NOT NULL) are always excluded.
+  const conditions: string[] = ['valid_until IS NULL'];
   const params: (string | number | null)[] = [];
 
   if (input.entity_types && input.entity_types.length > 0) {
