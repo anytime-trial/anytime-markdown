@@ -7,17 +7,20 @@ PRAGMA foreign_keys = OFF;
 BEGIN TRANSACTION;
 
 -- 1. FTS5 contentless ミラー (3 テーブル)
+-- contentless_delete=1 を指定して plain DELETE / INSERT OR REPLACE を可能にする (SQLite 3.43+)
 CREATE VIRTUAL TABLE IF NOT EXISTS memory_entities_fts USING fts5(
   display_name,
   summary,
   aliases_text,
   content='',
+  contentless_delete=1,
   tokenize='unicode61 remove_diacritics 2'
 );
 
 CREATE VIRTUAL TABLE IF NOT EXISTS memory_episodes_fts USING fts5(
   raw_excerpt,
   content='',
+  contentless_delete=1,
   tokenize='unicode61 remove_diacritics 2'
 );
 
@@ -28,6 +31,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS memory_drift_events_fts USING fts5(
   code_value,
   resolution_note,
   content='',
+  contentless_delete=1,
   tokenize='unicode61 remove_diacritics 2'
 );
 
