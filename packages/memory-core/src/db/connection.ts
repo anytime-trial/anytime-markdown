@@ -69,6 +69,19 @@ export async function openMemoryCoreDb(
   }
 
   conn.run('PRAGMA foreign_keys = ON');
+  // 並行アクセス対応: 拡張ホスト内で複数モジュール (memoryCoreRunner /
+  // ChatBridge / RebuildScheduler / MemoryApiHandler) が同じ memory-core.db を
+  // 開く可能性があるため WAL モードに切り替える (sql.js は WAL 未対応なので
+  // better-sqlite3 driver の時だけ)。あわせて busy_timeout=5000 を設定し、
+  // ロック競合は即時 fail ではなく 5 秒間リトライさせる。
+  if (driver === 'better-sqlite3') {
+    try {
+      conn.run('PRAGMA journal_mode = WAL');
+    } catch (_error) {
+      // 一部 SQLite ビルドで WAL 不可な場合に備え silent fallback (DELETE モードのまま)
+    }
+    conn.run('PRAGMA busy_timeout = 5000');
+  }
   runMigrations(conn);
 
   return {

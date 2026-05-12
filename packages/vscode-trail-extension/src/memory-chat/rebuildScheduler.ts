@@ -42,12 +42,18 @@ export class RebuildScheduler {
   constructor(private readonly opts: RebuildSchedulerOptions) {}
 
   start(intervalMs: number): vscode.Disposable {
-    // startup tick (await しない — extension activate を遅延させないため)
-    void this.tick('startup');
+    // memoryCoreRunner などの他コンシューマが activate 直後に同じ
+    // memory-core.db を開いて migration を走らせるため、startup tick は
+    // 10 秒遅らせて起動直後の write lock 競合を回避する。WAL +
+    // busy_timeout が連携接続を許容しても、初期化シーケンスは可能な限り
+    // 直列化したい。
+    const startupDelayMs = 10_000;
+    const startupTimer = setTimeout(() => void this.tick('startup'), startupDelayMs);
     const ms = Math.max(intervalMs, 5 * 60 * 1000); // floor 5min
     this.timer = setInterval(() => void this.tick('cron'), ms);
     return {
       dispose: () => {
+        clearTimeout(startupTimer);
         if (this.timer) clearInterval(this.timer);
         this.timer = null;
         try {

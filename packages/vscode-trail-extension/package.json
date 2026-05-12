@@ -461,10 +461,10 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run prepare-native && npm run package",
-    "prepare-native": "cd ../../node_modules/better-sqlite3 && npx prebuild-install --runtime=node --target=22.18.0",
+    "prepare-native": "node scripts/prepare-native-binding.cjs",
     "compile": "npm run prepare-native && webpack",
     "watch": "webpack --watch",
-    "package": "webpack --mode production --devtool hidden-source-map",
+    "package": "npm run prepare-native && webpack --mode production --devtool hidden-source-map",
     "test": "jest --maxWorkers=1"
   },
   "dependencies": {
