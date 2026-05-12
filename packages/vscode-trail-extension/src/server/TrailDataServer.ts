@@ -24,11 +24,13 @@ import { loadToolCategories, loadToolCategoryLabels } from '@anytime-markdown/tr
 import { loadSkillCategories, loadSkillCategoryLabels } from '@anytime-markdown/trail-core/skillCategories';
 import {
   buildIndex as buildCallHierarchyIndex,
+  buildCallHierarchyNodeFilter,
   traverse as traverseCallHierarchy,
 } from '@anytime-markdown/trail-core/c4/callHierarchy';
 import type {
   CallHierarchyDirection,
   CallHierarchyIndex,
+  CallHierarchyScope,
 } from '@anytime-markdown/trail-core/c4/callHierarchy';
 import type { FileCoverage, MessageInput } from '@anytime-markdown/trail-core/c4';
 import type {
@@ -655,7 +657,9 @@ export class TrailDataServer {
       const direction = parsed.searchParams.get('direction') ?? 'callees';
       const depth = parsed.searchParams.get('depth');
       const line = parsed.searchParams.get('line');
-      void this.handleCallHierarchyEndpoint(res, file, fn, direction, depth, line);
+      const scope = parsed.searchParams.get('scope') ?? 'project';
+      const excludeTests = parsed.searchParams.get('excludeTests') === 'true';
+      void this.handleCallHierarchyEndpoint(res, file, fn, direction, depth, line, scope, excludeTests);
       return;
     }
 
@@ -2988,6 +2992,8 @@ export class TrailDataServer {
     direction: string,
     depthParam: string | null,
     lineParam: string | null,
+    scope: string,
+    excludeTests: boolean,
   ): void {
     try {
       if (!file || !fn) {
@@ -2998,6 +3004,11 @@ export class TrailDataServer {
       if (direction !== 'callers' && direction !== 'callees') {
         res.writeHead(400, JSON_HEADERS);
         res.end(JSON.stringify({ error: 'direction must be callers or callees' }));
+        return;
+      }
+      if (scope !== 'project' && scope !== 'package' && scope !== 'file') {
+        res.writeHead(400, JSON_HEADERS);
+        res.end(JSON.stringify({ error: 'scope must be project, package, or file' }));
         return;
       }
       const depth = clampInt(depthParam, 1, 0, 10);
@@ -3011,8 +3022,8 @@ export class TrailDataServer {
         return;
       }
 
-      let target: { id: string } | undefined;
-      let fallback: { id: string } | undefined;
+      let target: { id: string; filePath: string } | undefined;
+      let fallback: { id: string; filePath: string } | undefined;
       for (const node of index.nodes.values()) {
         if (node.type !== 'function') continue;
         if (node.filePath !== file) continue;
@@ -3036,11 +3047,18 @@ export class TrailDataServer {
         return;
       }
 
+      const nodeFilter = buildCallHierarchyNodeFilter({
+        scope: scope as CallHierarchyScope,
+        excludeTests,
+        rootFilePath: target.filePath,
+      });
+
       const tree = traverseCallHierarchy(
         index,
         target.id,
         direction as CallHierarchyDirection,
         depth,
+        nodeFilter ? { nodeFilter } : undefined,
       );
       if (!tree) {
         res.writeHead(404, JSON_HEADERS);
