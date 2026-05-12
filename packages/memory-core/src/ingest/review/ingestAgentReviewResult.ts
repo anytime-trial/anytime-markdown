@@ -1,4 +1,5 @@
-import type { MemoryDbConnection } from '../../db/connection/types';
+import type { MemoryDbConnection, SqlValue } from '../../db/connection/types';
+import { toUint8ArrayOrNull } from '../../db/connection/blobUtil';
 import { AgentReviewInputSchema } from '../../types/AgentReviewInput';
 import { entityId } from '../../canonical/entityId';
 import type { OllamaClient } from '../../ollama/client';
@@ -215,7 +216,7 @@ export async function ingestAgentReviewResult(input: {
         if (newEmbedding.length > 0) {
           for (const row of candidateRows) {
             const existingEntityId = row[0] as string;
-            const existingBlob = row[1] as Uint8Array | null;
+            const existingBlob = toUint8ArrayOrNull(row[1] as SqlValue);
             if (!existingBlob || existingBlob.byteLength === 0) continue;
             const existingEmbedding = blobToFloat32(existingBlob);
             if (cosineSimilarity(newEmbedding, existingEmbedding) >= MERGE_THRESHOLD) {
