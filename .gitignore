@@ -35,3 +35,4 @@ skills-lock.json
 
 # Supabase CLI cache
 supabase/.temp/
+.superpowers/
