@@ -67,6 +67,7 @@ export interface AstFactInput {
 export interface AstFactStats {
   facts_inserted: number;
   edges_inserted: number;
+  function_entities_upserted: number;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -130,6 +131,80 @@ function upsertFileEntity(
 }
 
 /**
+ * Compute content hash for a Function entity. Used for embedding invalidation:
+ * when filePath / symbolName / parent change, embedding is set to NULL so the
+ * next runEmbeddingBackfill regenerates it.
+ *
+ * Future enhancement: include signature + docstring once trail-core exposes them.
+ */
+function computeFunctionHash(
+  repoName: string,
+  filePath: string,
+  symbolName: string,
+  parentId: string | undefined
+): string {
+  return createHash('sha1')
+    .update(`${repoName}\n${filePath}\n${symbolName}\n${parentId ?? ''}`)
+    .digest('hex')
+    .slice(0, 16);
+}
+
+/**
+ * Upsert a memory_entities row for a Function entity.
+ * Identity: (repo, filePath, symbolName, parent). Content hash invalidates
+ * embedding when any of these change.
+ *
+ * Returns the entity ID (always defined, even on partial failure).
+ */
+function upsertFunctionEntity(
+  db: Database,
+  repoName: string,
+  filePath: string,
+  symbolName: string,
+  parentId: string | undefined,
+  recordedAt: string,
+  logger: MemoryLogger
+): string {
+  const canonName = canonicalize(`${repoName}:${filePath}::${symbolName}`);
+  const eId = entityId('Function', canonName);
+  const contentHash = computeFunctionHash(repoName, filePath, symbolName, parentId);
+  // 現状 signature 抽出が無いため summary は最小限。trail-core が signature
+  // を出すようになったらここを差し替える。
+  const summary = `${symbolName} in ${filePath}`;
+  try {
+    db.run(
+      `INSERT INTO memory_entities
+         (id, type, canonical_name, display_name,
+          aliases_json, tags_json, attributes_json,
+          summary, content_hash, repo_name,
+          first_seen_at, last_updated_at, recorded_at)
+       VALUES (?, 'Function', ?, ?, '[]', '[]', '{}', ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(type, canonical_name) DO UPDATE SET
+         display_name    = excluded.display_name,
+         summary         = excluded.summary,
+         last_updated_at = excluded.last_updated_at,
+         valid_until     = NULL,
+         repo_name       = excluded.repo_name,
+         embedding       = CASE
+           WHEN memory_entities.content_hash IS NULL
+             OR memory_entities.content_hash != excluded.content_hash
+             THEN NULL
+           ELSE memory_entities.embedding
+         END,
+         content_hash    = excluded.content_hash`,
+      [eId, canonName, symbolName, summary, contentHash, repoName, recordedAt, recordedAt, recordedAt]
+    );
+  } catch (err) {
+    logger.error(
+      `[memory-core] astFunctionLevel: failed to upsert Function entity ` +
+        `path="${filePath}" symbol="${symbolName}"`,
+      err
+    );
+  }
+  return eId;
+}
+
+/**
  * Upsert a memory_entities row for a Library entity and return its entity ID.
  */
 function upsertLibraryEntity(
@@ -175,10 +250,11 @@ function upsertLibraryEntity(
  * Idempotent: duplicate (file_path, symbol_path, fact_type, fact_value, commit_sha)
  * tuples are silently ignored via INSERT OR IGNORE.
  */
-export function ingestAstFacts(input: AstFactInput): AstFactStats {
+export function ingestAstFacts(input: AstFactInput): AstFactStats & { current_entity_ids: Set<string> } {
   const { db, repoName, graph, commitSha, recordedAt, logger } = input;
 
-  const stats: AstFactStats = { facts_inserted: 0, edges_inserted: 0 };
+  const stats: AstFactStats = { facts_inserted: 0, edges_inserted: 0, function_entities_upserted: 0 };
+  const currentEntityIds = new Set<string>();
 
   // ── Build internal file path set ─────────────────────────────────────────
   const internalFilePaths = new Set<string>();
@@ -192,6 +268,24 @@ export function ingestAstFacts(input: AstFactInput): AstFactStats {
   const nodeById = new Map<string, TrailNode>();
   for (const node of graph.nodes) {
     nodeById.set(node.id, node);
+  }
+
+  // ── Upsert Function entities for function / class / interface nodes ──────
+  for (const node of graph.nodes) {
+    if (node.type !== 'function' && node.type !== 'class' && node.type !== 'interface') {
+      continue;
+    }
+    const fnEntityId = upsertFunctionEntity(
+      db,
+      repoName,
+      node.filePath,
+      node.label,
+      node.parent,
+      recordedAt,
+      logger,
+    );
+    currentEntityIds.add(fnEntityId);
+    stats.function_entities_upserted += 1;
   }
 
   // ── Process edges ─────────────────────────────────────────────────────────
@@ -294,10 +388,19 @@ export function ingestAstFacts(input: AstFactInput): AstFactStats {
     }
   }
 
+  // ── Track File entities for reconciliation ───────────────────────────────
+  // upsertFileEntity is called inside the edge loop, so we collect IDs here
+  // from the existing internal file set.
+  for (const filePath of internalFilePaths) {
+    const fileCanon = canonicalize(filePath);
+    currentEntityIds.add(entityId('File', fileCanon));
+  }
+
   logger.info(
     `[memory-core] astFunctionLevel: repo="${repoName}" ` +
-      `facts=${stats.facts_inserted} edges=${stats.edges_inserted}`
+      `facts=${stats.facts_inserted} edges=${stats.edges_inserted} ` +
+      `functions=${stats.function_entities_upserted}`
   );
 
-  return stats;
+  return { ...stats, current_entity_ids: currentEntityIds };
 }
