@@ -92,11 +92,21 @@ export class BetterSqlite3MemoryDb implements MemoryDbConnection {
   }
 
   attach(filePath: string, alias: string, readOnly = false): void {
-    const mode = readOnly ? '?mode=ro' : '';
     // ファイル名にシングルクォートが含まれるとエスケープが必要。SQLite の文字列リテラル仕様
     // (シングルクォート 2 個でエスケープ) に従う。
     const escaped = filePath.replace(/'/g, "''");
-    this.db.exec(`ATTACH DATABASE '${escaped}${mode}' AS ${alias}`);
+    // 注意: better-sqlite3 はデフォルトで SQLITE_OPEN_URI を有効にしていないため
+    // `?mode=ro` のような URI 引数はファイル名の一部として扱われ、その名前で
+    // 空 DB が新規作成される。read-only を要求する場合は URI ではなく
+    // 接続全体を read-only で開くか、アプリ層でガードする (installTrailReadonlyGuard
+    // 相当の write 阻止) のいずれか。ここでは plain ATTACH に留めて
+    // readOnly フラグは「呼び出し側の意図表明」としてだけ受け取る。
+    this.db.exec(`ATTACH DATABASE '${escaped}' AS ${alias}`);
+    if (readOnly) {
+      // SQLite の query_only は接続単位なので main DB の write もブロックしてしまう。
+      // ここではあえて何もしない。書き込み禁止は呼び出し側の責務とする (将来的に
+      // installTrailReadonlyGuard 相当を better-sqlite3 にも実装する余地あり)。
+    }
   }
 
   detach(alias: string): void {
