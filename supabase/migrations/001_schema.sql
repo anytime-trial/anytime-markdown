@@ -419,6 +419,7 @@ CREATE TABLE IF NOT EXISTS trail_current_code_graph_communities (
   label        TEXT    NOT NULL DEFAULT '',
   name         TEXT    NOT NULL DEFAULT '',
   summary      TEXT    NOT NULL DEFAULT '',
+  stable_key   TEXT    NOT NULL DEFAULT '',
   mappings_json TEXT NULL,
   generated_at TEXT,
   updated_at   TEXT,
@@ -468,6 +469,9 @@ CREATE INDEX IF NOT EXISTS idx_trail_release_features_tag ON trail_release_featu
 CREATE INDEX IF NOT EXISTS idx_trail_release_coverage_tag ON trail_release_coverage(release_tag);
 CREATE INDEX IF NOT EXISTS idx_trail_release_code_graphs_tag ON trail_release_code_graphs(release_tag);
 CREATE INDEX IF NOT EXISTS idx_trail_release_code_graph_communities_tag ON trail_release_code_graph_communities(release_tag);
+-- stable_key（ノード集合コンテンツハッシュ）による「同じノード集合のコミュニティ」高速検索
+CREATE INDEX IF NOT EXISTS idx_trail_ccgc_stable_key ON trail_current_code_graph_communities(repo_name, stable_key) WHERE stable_key != '';
+CREATE INDEX IF NOT EXISTS idx_trail_rcgc_stable_key ON trail_release_code_graph_communities(release_tag, stable_key) WHERE stable_key != '';
 CREATE INDEX IF NOT EXISTS idx_trail_mtc_session ON trail_message_tool_calls(session_id);
 CREATE INDEX IF NOT EXISTS idx_trail_mtc_timestamp ON trail_message_tool_calls(timestamp);
 
