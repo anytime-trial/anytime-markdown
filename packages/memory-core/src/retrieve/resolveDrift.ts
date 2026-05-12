@@ -1,4 +1,4 @@
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../db/connection/types';
 import type { MemoryLogger } from '../logger';
 
 export type ResolveDriftResult = {
@@ -6,7 +6,7 @@ export type ResolveDriftResult = {
 };
 
 export function resolveDrift(input: {
-  db: Database;
+  db: MemoryDbConnection;
   event_id: string;
   resolution_note: string;
   resolved_at?: string;
@@ -29,7 +29,7 @@ export function resolveDrift(input: {
     return { resolved: false };
   }
 
-  let changesRows: ReturnType<Database['exec']>;
+  let changesRows: ReturnType<MemoryDbConnection['exec']>;
   try {
     changesRows = db.exec('SELECT changes()');
   } catch (err) {

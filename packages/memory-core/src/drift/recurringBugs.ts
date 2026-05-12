@@ -1,10 +1,10 @@
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../db/connection/types';
 import type { MemoryLogger } from '../logger';
 import type { DriftEventInput } from './report';
 import { THRESHOLDS } from './policy';
 
 export function detectRegressionClusters(input: {
-  db: Database;
+  db: MemoryDbConnection;
   windowDays?: number;
   minCount?: number;
   logger: MemoryLogger;
@@ -16,7 +16,7 @@ export function detectRegressionClusters(input: {
     logger,
   } = input;
 
-  let rows: ReturnType<Database['exec']>;
+  let rows: ReturnType<MemoryDbConnection['exec']>;
   try {
     rows = db.exec(
       `SELECT json_each.value AS file_path, COUNT(*) AS cnt,
@@ -56,7 +56,7 @@ export function detectRegressionClusters(input: {
 }
 
 export function detectSpecViolationClusters(input: {
-  db: Database;
+  db: MemoryDbConnection;
   windowDays?: number;
   minCount?: number;
   minRatio?: number;
@@ -70,7 +70,7 @@ export function detectSpecViolationClusters(input: {
     logger,
   } = input;
 
-  let rows: ReturnType<Database['exec']>;
+  let rows: ReturnType<MemoryDbConnection['exec']>;
   try {
     rows = db.exec(
       `WITH pkg_total AS (
@@ -121,13 +121,13 @@ export function detectSpecViolationClusters(input: {
 }
 
 export function detectRecurringRootCauses(input: {
-  db: Database;
+  db: MemoryDbConnection;
   minBugs?: number;
   logger: MemoryLogger;
 }): DriftEventInput[] {
   const { db, minBugs = THRESHOLDS.recurringRootCauseMinBugs, logger } = input;
 
-  let rows: ReturnType<Database['exec']>;
+  let rows: ReturnType<MemoryDbConnection['exec']>;
   try {
     rows = db.exec(
       `SELECT object_entity_id AS root_cause,

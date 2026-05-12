@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../db/connection/types';
 import { encodeEmbedding } from '../embedding/codec';
 import { noopLogger, type MemoryLogger } from '../logger';
 import type { OllamaClient } from '../ollama/client';
@@ -22,7 +22,7 @@ function runId(startedAt: string): string {
     .slice(0, 16);
 }
 
-function recordFailedItem(db: Database, itemKey: string, reason: string, detail: string): void {
+function recordFailedItem(db: MemoryDbConnection, itemKey: string, reason: string, detail: string): void {
   const failedAt = new Date().toISOString();
   db.run(
     `INSERT INTO memory_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
@@ -41,7 +41,7 @@ function recordFailedItem(db: Database, itemKey: string, reason: string, detail:
  * are skipped.
  */
 export async function runEmbeddingBackfill(opts: {
-  db: Database;
+  db: MemoryDbConnection;
   ollama: OllamaClient;
   embedModel?: string;
   logger?: MemoryLogger;

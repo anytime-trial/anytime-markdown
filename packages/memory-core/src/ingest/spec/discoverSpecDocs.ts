@@ -1,14 +1,14 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, extname } from 'node:path';
 import { createHash } from 'node:crypto';
-import { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../../db/connection/types';
 import type { MemoryLogger } from '../../logger';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface DiscoverInput {
   specRoot: string;
-  db: Database;
+  db: MemoryDbConnection;
   logger: MemoryLogger;
 }
 

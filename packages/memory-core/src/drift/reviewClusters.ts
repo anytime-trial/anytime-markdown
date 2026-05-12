@@ -1,10 +1,10 @@
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../db/connection/types';
 import type { MemoryLogger } from '../logger';
 import type { DriftEventInput } from './report';
 import { THRESHOLDS, decideSeverity } from './policy';
 
 export function detectReviewUnfixed(input: {
-  db: Database;
+  db: MemoryDbConnection;
   daysOld?: number;
   minSeverity?: 'warn' | 'error';
   logger: MemoryLogger;
@@ -19,7 +19,7 @@ export function detectReviewUnfixed(input: {
   const severities = minSeverity === 'error' ? ['error'] : ['warn', 'error'];
   const placeholders = severities.map(() => '?').join(', ');
 
-  let rows: ReturnType<Database['exec']>;
+  let rows: ReturnType<MemoryDbConnection['exec']>;
   try {
     rows = db.exec(
       `SELECT id, finding_entity_id, target_file_path, severity, recorded_at
@@ -64,13 +64,13 @@ export function detectReviewUnfixed(input: {
 }
 
 export function detectReviewVsCode(input: {
-  db: Database;
+  db: MemoryDbConnection;
   existingSpecVsCodeKeys?: Set<string>;
   logger: MemoryLogger;
 }): DriftEventInput[] {
   const { db, existingSpecVsCodeKeys = new Set(), logger } = input;
 
-  let rows: ReturnType<Database['exec']>;
+  let rows: ReturnType<MemoryDbConnection['exec']>;
   try {
     rows = db.exec(
       `SELECT subject_entity_id, predicate,
@@ -119,7 +119,7 @@ export function detectReviewVsCode(input: {
 }
 
 export function detectRecurringReviewFindings(input: {
-  db: Database;
+  db: MemoryDbConnection;
   windowDays?: number;
   minCount?: number;
   logger: MemoryLogger;
@@ -134,7 +134,7 @@ export function detectRecurringReviewFindings(input: {
   const excludeCategories = THRESHOLDS.recurringReviewExcludeCategories as readonly string[];
   const placeholders = excludeCategories.map(() => '?').join(', ');
 
-  let rows: ReturnType<Database['exec']>;
+  let rows: ReturnType<MemoryDbConnection['exec']>;
   try {
     rows = db.exec(
       `SELECT target_file_path, category, COUNT(*) AS cnt,

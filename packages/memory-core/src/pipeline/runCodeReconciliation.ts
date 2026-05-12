@@ -1,4 +1,4 @@
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../db/connection/types';
 import { noopLogger, type MemoryLogger } from '../logger';
 
 export interface CodeReconciliationResult {
@@ -21,7 +21,7 @@ export interface CodeReconciliationResult {
  * rename detection (preserving edges) is deferred to a future phase.
  */
 export function runCodeReconciliation(opts: {
-  db: Database;
+  db: MemoryDbConnection;
   repoName: string;
   currentEntityIds: Set<string>;
   recordedAt: string;

@@ -1,4 +1,4 @@
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../db/connection/types';
 import type { MemoryLogger } from '../logger';
 
 export type DriftSourceEvidence = {
@@ -16,13 +16,13 @@ export type ExplainDriftResult = {
 };
 
 export function explainDrift(input: {
-  db: Database;
+  db: MemoryDbConnection;
   event_id: string;
   logger: MemoryLogger;
 }): ExplainDriftResult | null {
   const { db, event_id, logger } = input;
 
-  let eventRows: ReturnType<Database['exec']>;
+  let eventRows: ReturnType<MemoryDbConnection['exec']>;
   try {
     eventRows = db.exec(
       `SELECT id, subject_entity_id, predicate, drift_type, severity,

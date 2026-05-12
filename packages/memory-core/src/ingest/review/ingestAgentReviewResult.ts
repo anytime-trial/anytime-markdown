@@ -1,4 +1,4 @@
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../../db/connection/types';
 import { AgentReviewInputSchema } from '../../types/AgentReviewInput';
 import { entityId } from '../../canonical/entityId';
 import type { OllamaClient } from '../../ollama/client';
@@ -36,7 +36,7 @@ function blobToFloat32(blob: Uint8Array): Float32Array {
 }
 
 function recordFailedItem(
-  db: Database,
+  db: MemoryDbConnection,
   scope: string,
   itemKey: string,
   reason: string,
@@ -54,7 +54,7 @@ function recordFailedItem(
 }
 
 export async function ingestAgentReviewResult(input: {
-  db: Database;
+  db: MemoryDbConnection;
   input: unknown;
   ollama: OllamaClient;
   logger: MemoryLogger;

@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../db/connection/types';
 import { splitEpisodes } from '../canonical/splitEpisodes';
 import { extractFactsFromEpisode } from '../ingest/conversation/extractFacts';
 import { readMessagesSince } from '../ingest/conversation/readMessages';
@@ -29,7 +29,7 @@ function runId(startedAt: string): string {
     .slice(0, 16);
 }
 
-function readPipelineState(db: Database): {
+function readPipelineState(db: MemoryDbConnection): {
   last_processed_at: string;
   status: string;
 } {
@@ -50,7 +50,7 @@ function readPipelineState(db: Database): {
 }
 
 function upsertPipelineState(
-  db: Database,
+  db: MemoryDbConnection,
   opts: {
     status: string;
     last_processed_at?: string;
@@ -74,7 +74,7 @@ function upsertPipelineState(
 }
 
 function insertPipelineRun(
-  db: Database,
+  db: MemoryDbConnection,
   id: string,
   startedAt: string
 ): void {
@@ -90,7 +90,7 @@ function insertPipelineRun(
 }
 
 function finalizePipelineRun(
-  db: Database,
+  db: MemoryDbConnection,
   id: string,
   startedAt: string,
   status: 'success' | 'partial' | 'error',
@@ -125,7 +125,7 @@ function finalizePipelineRun(
   );
 }
 
-function recordFailedItem(db: Database, itemKey: string, reason: string, detail: string): void {
+function recordFailedItem(db: MemoryDbConnection, itemKey: string, reason: string, detail: string): void {
   const failedAt = new Date().toISOString();
   db.run(
     `INSERT INTO memory_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
@@ -146,7 +146,7 @@ function recordFailedItem(db: Database, itemKey: string, reason: string, detail:
  * attachTrailDbFromHandle / attachTrailDbReadOnly before calling this function.
  */
 export async function runConversationIncremental(opts: {
-  db: Database;
+  db: MemoryDbConnection;
   ollama: OllamaClient;
   logger?: MemoryLogger;
   model?: string;

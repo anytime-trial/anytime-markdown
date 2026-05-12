@@ -1,12 +1,12 @@
 import { createHash } from 'crypto';
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../../db/connection/types';
 import { entityId } from '../../canonical/entityId';
 import type { MemoryLogger } from '../../logger';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface ExtractRationaleInput {
-  db: Database;
+  db: MemoryDbConnection;
   repoName: string;
   /** ISO 8601 UTC cursor for incremental runs. Pass null to process all commits. */
   sinceCommittedAt: string | null;

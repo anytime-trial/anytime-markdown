@@ -1,4 +1,4 @@
-import { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../db/connection/types';
 import { createHash } from 'crypto';
 
 export interface EdgeInput {
@@ -11,7 +11,7 @@ export interface EdgeInput {
 }
 
 export function applySingleActiveRule(
-  db: Database,
+  db: MemoryDbConnection,
   newEdge: EdgeInput
 ): { invalidated_edge_ids: string[] } {
   // 1. Check cardinality of predicate

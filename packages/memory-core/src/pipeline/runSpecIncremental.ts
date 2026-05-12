@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../db/connection/types';
 import { discoverChangedSpecs } from '../ingest/spec/discoverSpecDocs';
 import { parseFrontmatter } from '../ingest/spec/parseFrontmatter';
 import { preFilterClaims } from '../ingest/spec/preFilterClaims';
@@ -24,7 +24,7 @@ export interface SpecIncrementalResult {
 }
 
 export interface SpecIncrementalInput {
-  db: Database;
+  db: MemoryDbConnection;
   specRoot: string;
   ollama: OllamaClient;
   model?: string;
@@ -39,7 +39,7 @@ const PROGRESS_LOG_INTERVAL = 50;
 
 // ── Private helpers ───────────────────────────────────────────────────────────
 
-function startPipelineRun(db: Database, scope: string, startedAt: string): string {
+function startPipelineRun(db: MemoryDbConnection, scope: string, startedAt: string): string {
   const runId = createHash('sha1')
     .update(`${scope}:${startedAt}`)
     .digest('hex')
@@ -55,7 +55,7 @@ function startPipelineRun(db: Database, scope: string, startedAt: string): strin
 }
 
 function finalizePipelineRun(
-  db: Database,
+  db: MemoryDbConnection,
   runId: string,
   opts: {
     status: string;
@@ -94,7 +94,7 @@ function finalizePipelineRun(
 }
 
 function upsertPipelineState(
-  db: Database,
+  db: MemoryDbConnection,
   scope: string,
   opts: { status: string; lastProcessedAt?: string; errorDetail?: string },
 ): void {
@@ -113,7 +113,7 @@ function upsertPipelineState(
 }
 
 function recordFailedItem(
-  db: Database,
+  db: MemoryDbConnection,
   scope: string,
   itemKey: string,
   reason: string,
@@ -128,7 +128,7 @@ function recordFailedItem(
   );
 }
 
-function ensurePredicateExists(db: Database, predicate: string): void {
+function ensurePredicateExists(db: MemoryDbConnection, predicate: string): void {
   db.run(
     `INSERT OR IGNORE INTO memory_relation_types
       (predicate, cardinality, directionality, description)

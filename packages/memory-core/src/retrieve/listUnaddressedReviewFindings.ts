@@ -1,4 +1,4 @@
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../db/connection/types';
 import type { MemoryLogger } from '../logger';
 
 export type UnaddressedReviewFinding = {
@@ -14,7 +14,7 @@ export type UnaddressedReviewFinding = {
 };
 
 export function listUnaddressedReviewFindings(input: {
-  db: Database;
+  db: MemoryDbConnection;
   severity?: string;
   daysSinceMin?: number;
   target_file_path?: string;
@@ -46,7 +46,7 @@ export function listUnaddressedReviewFindings(input: {
   params.push(limit);
 
   const where = conditions.join(' AND ');
-  let rows: ReturnType<Database['exec']>;
+  let rows: ReturnType<MemoryDbConnection['exec']>;
   try {
     rows = db.exec(
       `SELECT rf.id, rf.review_id, rf.category, rf.severity,

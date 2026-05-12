@@ -1,4 +1,4 @@
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../db/connection/types';
 import type { MemoryLogger } from '../logger';
 
 export type CausedByRef = {
@@ -20,7 +20,7 @@ export type BugHistoryEntry = {
 };
 
 export function getBugHistory(input: {
-  db: Database;
+  db: MemoryDbConnection;
   package?: string;
   file_path?: string;
   category?: string;
@@ -34,7 +34,7 @@ export function getBugHistory(input: {
 
   if (input.file_path != null) {
     // Use json_each join for file_path filter
-    let rows: ReturnType<Database['exec']>;
+    let rows: ReturnType<MemoryDbConnection['exec']>;
     try {
       const fileConds: string[] = [];
       const fileParams: (string | number)[] = [input.file_path];
@@ -65,7 +65,7 @@ export function getBugHistory(input: {
 
   const wherePart = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
 
-  let rows: ReturnType<Database['exec']>;
+  let rows: ReturnType<MemoryDbConnection['exec']>;
   try {
     rows = db.exec(
       `SELECT bf.id, bf.commit_sha, bf.package, bf.category,
@@ -86,8 +86,8 @@ export function getBugHistory(input: {
 }
 
 function buildEntries(
-  db: Database,
-  rows: ReturnType<Database['exec']>,
+  db: MemoryDbConnection,
+  rows: ReturnType<MemoryDbConnection['exec']>,
   logger: MemoryLogger,
 ): BugHistoryEntry[] {
   const entries: BugHistoryEntry[] = [];
@@ -126,8 +126,8 @@ function buildEntries(
   return entries;
 }
 
-function fetchCausedBy(db: Database, bugEntityId: string, logger: MemoryLogger): CausedByRef[] {
-  let rows: ReturnType<Database['exec']>;
+function fetchCausedBy(db: MemoryDbConnection, bugEntityId: string, logger: MemoryLogger): CausedByRef[] {
+  let rows: ReturnType<MemoryDbConnection['exec']>;
   try {
     rows = db.exec(
       `SELECT me.object_entity_id, ent.display_name, me.confidence_label

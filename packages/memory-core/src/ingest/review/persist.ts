@@ -1,4 +1,4 @@
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../../db/connection/types';
 import { entityId } from '../../canonical/entityId';
 import type { ParsedFinding } from './findingHelpers';
 import type { ParsedReviewDoc } from './parseReviewDoc';
@@ -39,7 +39,7 @@ function toReviewedAt(dateStr: string): string {
  * Upsert a ReviewFinding entity + memory_review_findings row + flagged edge.
  */
 export function upsertReviewFinding(
-  db: Database,
+  db: MemoryDbConnection,
   reviewEntityId: string,
   finding: ParsedFinding,
   recordedAt: string,
@@ -125,7 +125,7 @@ export function upsertReviewFinding(
  * Upsert a review document into memory_reviews + memory_entities + findings + edges.
  */
 export function upsertReviewDoc(
-  db: Database,
+  db: MemoryDbConnection,
   doc: ParsedReviewDoc,
   relPath: string,
   sourceHash: string,
@@ -260,7 +260,7 @@ export function upsertReviewDoc(
  * Upsert a review session into memory_reviews + memory_entities + findings.
  */
 export function upsertReviewSession(
-  db: Database,
+  db: MemoryDbConnection,
   session: ParsedReviewSession,
   recordedAt: string,
   logger: MemoryLogger,

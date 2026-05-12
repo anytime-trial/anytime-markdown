@@ -1,6 +1,6 @@
 import { createHash } from 'crypto';
 import { execFileSync } from 'child_process';
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../db/connection/types';
 import { fromTrailGraph } from '../ingest/code/fromTrailGraph';
 import { ingestAstFacts } from '../ingest/code/astFunctionLevel';
 import { extractDecisionComments } from '../ingest/code/extractComments';
@@ -29,7 +29,7 @@ function runId(startedAt: string): string {
     .slice(0, 16);
 }
 
-function readPipelineState(db: Database): { last_processed_at: string } {
+function readPipelineState(db: MemoryDbConnection): { last_processed_at: string } {
   const stmt = db.prepare(
     `SELECT last_processed_at FROM memory_pipeline_state WHERE scope = ?`
   );
@@ -44,7 +44,7 @@ function readPipelineState(db: Database): { last_processed_at: string } {
 }
 
 function upsertPipelineState(
-  db: Database,
+  db: MemoryDbConnection,
   opts: { status: string; last_processed_at?: string; error_detail?: string }
 ): void {
   const { status, last_processed_at, error_detail } = opts;
@@ -63,7 +63,7 @@ function upsertPipelineState(
   );
 }
 
-function insertPipelineRun(db: Database, id: string, startedAt: string): void {
+function insertPipelineRun(db: MemoryDbConnection, id: string, startedAt: string): void {
   db.run(
     `INSERT INTO memory_pipeline_runs
        (id, scope, started_at, status,
@@ -76,7 +76,7 @@ function insertPipelineRun(db: Database, id: string, startedAt: string): void {
 }
 
 function finalizePipelineRun(
-  db: Database,
+  db: MemoryDbConnection,
   id: string,
   startedAt: string,
   status: 'success' | 'partial' | 'error',
@@ -110,7 +110,7 @@ function finalizePipelineRun(
 }
 
 function recordFailedItem(
-  db: Database,
+  db: MemoryDbConnection,
   scope: string,
   itemKey: string,
   reason: string,
@@ -137,7 +137,7 @@ function recordFailedItem(
  * The trail DB must already be ATTACHed as "trail" on `db`.
  */
 export async function runCodeIncremental(opts: {
-  db: Database;
+  db: MemoryDbConnection;
   repoName: string;
   tsconfigPath: string;
   gitRoot: string;

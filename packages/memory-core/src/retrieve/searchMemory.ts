@@ -1,4 +1,4 @@
-import { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../db/connection/types';
 import { decodeEmbedding } from '../embedding/codec';
 import { cosineSimilarity } from '../embedding/cosine';
 import type { OllamaClient } from '../ollama/client';
@@ -54,7 +54,7 @@ interface EntityCandidate {
 }
 
 export async function searchMemory(opts: {
-  db: Database;
+  db: MemoryDbConnection;
   ollama: OllamaClient;
   embedModel?: string;
   input: SearchInput;

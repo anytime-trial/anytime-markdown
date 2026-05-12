@@ -1,4 +1,4 @@
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../db/connection/types';
 import type { MemoryLogger } from '../logger';
 import type { DriftEventInput } from './report';
 import { THRESHOLDS } from './policy';
@@ -30,7 +30,7 @@ type QuestionRow = {
 };
 
 export function detectRecurringQuestions(input: {
-  db: Database;
+  db: MemoryDbConnection;
   windowDays?: number;
   minCount?: number;
   cosineThreshold?: number;
@@ -44,7 +44,7 @@ export function detectRecurringQuestions(input: {
     logger,
   } = input;
 
-  let rows: ReturnType<Database['exec']>;
+  let rows: ReturnType<MemoryDbConnection['exec']>;
   try {
     rows = db.exec(
       `SELECT id, attributes_json, embedding

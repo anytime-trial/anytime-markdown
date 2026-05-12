@@ -1,6 +1,6 @@
 import { createHash } from 'crypto';
 import * as ts from 'typescript';
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../../db/connection/types';
 import { canonicalize } from '../../canonical/canonicalize';
 import { entityId } from '../../canonical/entityId';
 import type { MemoryLogger } from '../../logger';
@@ -8,7 +8,7 @@ import type { MemoryLogger } from '../../logger';
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface ExtractCommentsInput {
-  db: Database;
+  db: MemoryDbConnection;
   program: ts.Program;
   repoName: string;
   commitSha: string | null;
@@ -92,7 +92,7 @@ function namedNodeIdent(node: ts.Node): string | null {
  * Upsert a File entity and return its entity ID.
  */
 function upsertFileEntity(
-  db: Database,
+  db: MemoryDbConnection,
   filePath: string,
   recordedAt: string,
   logger: MemoryLogger

@@ -1,10 +1,10 @@
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../../db/connection/types';
 import { entityId } from '../../canonical/entityId';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type LinkAddressesInput = {
-  db: Database;
+  db: MemoryDbConnection;
   repoName: string;
   windowDays?: number; // default 30
   logger: { warn: (msg: string) => void };

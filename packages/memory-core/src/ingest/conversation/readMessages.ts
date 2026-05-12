@@ -1,4 +1,4 @@
-import { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../../db/connection/types';
 import type { Message } from '../../canonical/splitEpisodes';
 
 /**
@@ -9,7 +9,7 @@ import type { Message } from '../../canonical/splitEpisodes';
  * attachTrailDbFromHandle / attachTrailDbReadOnly.
  */
 export function* readMessagesSince(
-  db: Database,
+  db: MemoryDbConnection,
   sinceISO: string
 ): Generator<{ session_id: string; messages: Message[] }> {
   // Collect all qualifying messages, ordered so we can group by session.

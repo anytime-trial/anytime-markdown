@@ -1,4 +1,4 @@
-import type { Database, SqlJsStatic } from 'sql.js';
+import type { BindParams, Database, SqlJsStatic } from 'sql.js';
 import { loadSqlJsModule } from '../sqlJsLoader';
 import type {
   ExecResultColumn,
@@ -23,7 +23,7 @@ export class SqlJsMemoryDb implements MemoryDbConnection {
   }
 
   exec(sql: string, params?: ReadonlyArray<SqlValue>): ExecResultColumn[] {
-    const bind = params ? (toBindArgs(params) as unknown[]) : undefined;
+    const bind = params ? (toBindArgs(params) as BindParams) : undefined;
     const result = this.db.exec(sql, bind) as unknown as ExecResultColumn[];
     if (result.length > 0) return result;
 
@@ -47,7 +47,7 @@ export class SqlJsMemoryDb implements MemoryDbConnection {
   }
 
   run(sql: string, params?: ReadonlyArray<SqlValue>): void {
-    this.db.run(sql, params ? (toBindArgs(params) as unknown[]) : undefined);
+    this.db.run(sql, params ? (toBindArgs(params) as BindParams) : undefined);
   }
 
   execMany(sql: string): void {
@@ -60,13 +60,13 @@ export class SqlJsMemoryDb implements MemoryDbConnection {
     return {
       all(...params: SqlValue[]): RowObject[] {
         const rows: RowObject[] = [];
-        stmt.bind(toBindArgs(params) as unknown[]);
+        stmt.bind(toBindArgs(params) as BindParams);
         while (stmt.step()) rows.push(stmt.getAsObject() as RowObject);
         stmt.reset();
         return rows;
       },
       get(...params: SqlValue[]): RowObject | undefined {
-        stmt.bind(toBindArgs(params) as unknown[]);
+        stmt.bind(toBindArgs(params) as BindParams);
         const ok = stmt.step();
         if (!ok) {
           stmt.reset();
@@ -77,13 +77,13 @@ export class SqlJsMemoryDb implements MemoryDbConnection {
         return row;
       },
       run(...params: SqlValue[]): RunResult {
-        stmt.bind(toBindArgs(params) as unknown[]);
+        stmt.bind(toBindArgs(params) as BindParams);
         stmt.step();
         stmt.reset();
         return { changes: db.getRowsModified(), lastInsertRowid: 0 };
       },
       *iterate(...params: SqlValue[]): IterableIterator<RowObject> {
-        stmt.bind(toBindArgs(params) as unknown[]);
+        stmt.bind(toBindArgs(params) as BindParams);
         while (stmt.step()) yield stmt.getAsObject() as RowObject;
         stmt.reset();
       },
@@ -125,6 +125,12 @@ export class SqlJsMemoryDb implements MemoryDbConnection {
   }
 }
 
-function toBindArgs(params: ReadonlyArray<SqlValue>): ReadonlyArray<SqlValue> {
-  return params.map((v) => (v === undefined ? (null as SqlValue) : v));
+function toBindArgs(
+  params: ReadonlyArray<SqlValue>,
+): Array<string | number | Uint8Array | null> {
+  return params.map((v) => {
+    if (v === undefined || v === null) return null;
+    if (typeof v === 'bigint') return Number(v);
+    return v;
+  });
 }

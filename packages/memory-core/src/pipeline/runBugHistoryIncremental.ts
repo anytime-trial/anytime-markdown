@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../db/connection/types';
 import { parseFixCommit } from '../ingest/bug-history/parseFixCommit';
 import { buildBugEntity } from '../ingest/bug-history/buildBugEntity';
 import { linkAffectedFiles } from '../ingest/bug-history/linkAffectedFiles';
@@ -26,7 +26,7 @@ function runId(startedAt: string): string {
   return createHash('sha1').update(`${SCOPE}:${startedAt}`).digest('hex').slice(0, 16);
 }
 
-function readPipelineState(db: Database): string {
+function readPipelineState(db: MemoryDbConnection): string {
   const stmt = db.prepare(`SELECT last_processed_at FROM memory_pipeline_state WHERE scope = ?`);
   stmt.bind([SCOPE]);
   if (stmt.step()) {
@@ -39,7 +39,7 @@ function readPipelineState(db: Database): string {
 }
 
 function upsertPipelineState(
-  db: Database,
+  db: MemoryDbConnection,
   opts: { status: string; last_processed_at?: string; error_detail?: string }
 ): void {
   db.run(
@@ -56,7 +56,7 @@ function upsertPipelineState(
   );
 }
 
-function insertPipelineRun(db: Database, id: string, startedAt: string): void {
+function insertPipelineRun(db: MemoryDbConnection, id: string, startedAt: string): void {
   db.run(
     `INSERT INTO memory_pipeline_runs
        (id, scope, started_at, status,
@@ -69,7 +69,7 @@ function insertPipelineRun(db: Database, id: string, startedAt: string): void {
 }
 
 function finalizePipelineRun(
-  db: Database,
+  db: MemoryDbConnection,
   id: string,
   startedAt: string,
   status: 'success' | 'partial' | 'error',
@@ -90,7 +90,7 @@ function finalizePipelineRun(
   );
 }
 
-function recordFailedItem(db: Database, itemKey: string, reason: string, detail: string): void {
+function recordFailedItem(db: MemoryDbConnection, itemKey: string, reason: string, detail: string): void {
   db.run(
     `INSERT INTO memory_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
      VALUES (?, ?, ?, ?, ?, 1)
@@ -111,7 +111,7 @@ interface CommitRow {
 }
 
 export async function runBugHistoryIncremental(opts: {
-  db: Database;
+  db: MemoryDbConnection;
   repoName: string;
   repoRoot: string;
   logger?: MemoryLogger;

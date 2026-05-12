@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../../db/connection/types';
 import { canonicalize } from '../../canonical/canonicalize';
 import { entityId } from '../../canonical/entityId';
 import type { MemoryLogger } from '../../logger';
@@ -51,7 +51,7 @@ function codeEdgeId(subjectId: string, predicate: string, objectId: string): str
  * Idempotent: re-running with the same graph_json does not change row counts.
  */
 export function fromTrailGraph(opts: {
-  db: Database;
+  db: MemoryDbConnection;
   repoName: string;
   recordedAt: string;
   logger: MemoryLogger;

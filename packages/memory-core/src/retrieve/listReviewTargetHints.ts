@@ -1,4 +1,4 @@
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../db/connection/types';
 import type { MemoryLogger } from '../logger';
 
 export type ReviewTargetHint = {
@@ -8,7 +8,7 @@ export type ReviewTargetHint = {
 };
 
 export function listReviewTargetHints(input: {
-  db: Database;
+  db: MemoryDbConnection;
   limit?: number;
   logger: MemoryLogger;
 }): ReviewTargetHint[] {

@@ -1,4 +1,4 @@
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../../db/connection/types';
 import type { ParsedFinding } from './findingHelpers';
 import {
   inferCategory,
@@ -206,7 +206,7 @@ function groupIntoBlocks(
 const BODY_EXCERPT_MAX = 4096;
 
 export function parseReviewSessions(input: {
-  db: Database;
+  db: MemoryDbConnection;
   sinceISO: string;
   logger: { warn: (msg: string) => void };
 }): ParsedReviewSession[] {

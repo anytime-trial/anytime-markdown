@@ -1,10 +1,10 @@
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../../db/connection/types';
 import { canonicalize } from '../../canonical/canonicalize';
 import { entityId } from '../../canonical/entityId';
 import type { MemoryLogger } from '../../logger';
 
 export interface LinkAffectedFilesInput {
-  db: Database;
+  db: MemoryDbConnection;
   bugEntityId: string;
   commitSha: string;
   repoName: string;

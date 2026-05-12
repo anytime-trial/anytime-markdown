@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../../db/connection/types';
 import { entityId } from '../../canonical/entityId';
 import type { ParsedSpec } from './parseFrontmatter';
 import type { Claim } from './extractClaims';
@@ -7,7 +7,7 @@ import type { Claim } from './extractClaims';
 // ── Type defs ────────────────────────────────────────────────────────────────
 
 export interface UpsertSpecDocInput {
-  db: Database;
+  db: MemoryDbConnection;
   parsed: ParsedSpec;
   source_hash: string;
   recordedAt: string;
@@ -19,7 +19,7 @@ export interface UpsertSpecDocResult {
 }
 
 export interface UpsertSpecClaimsInput {
-  db: Database;
+  db: MemoryDbConnection;
   specDocId: string;
   specEntityId: string;
   claims: Claim[];
@@ -119,7 +119,7 @@ export function upsertSpecDoc(input: UpsertSpecDocInput): UpsertSpecDocResult {
 /**
  * Update summary of a spec document.
  */
-export function updateSpecDocSummary(db: Database, specDocId: string, summary: string): void {
+export function updateSpecDocSummary(db: MemoryDbConnection, specDocId: string, summary: string): void {
   db.run(`UPDATE memory_spec_documents SET summary = ? WHERE id = ?`, [summary, specDocId]);
 }
 
@@ -151,7 +151,7 @@ export function upsertSpecClaims(input: UpsertSpecClaimsInput): UpsertSpecClaims
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [subjectId, subjectType, claim.subject.name, claim.subject.name, subjectAttr, recordedAt, recordedAt, recordedAt],
     );
-    // sql.js Database.run() returns Database, not { changes }. Use getRowsModified via cast.
+    // sql.js MemoryDbConnection.run() returns MemoryDbConnection, not { changes }. Use getRowsModified via cast.
     if ((db as unknown as { getRowsModified?: () => number }).getRowsModified?.() ?? 1 > 0) {
       entities_inserted++;
     }

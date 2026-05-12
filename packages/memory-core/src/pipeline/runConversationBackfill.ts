@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../db/connection/types';
 import { splitEpisodes } from '../canonical/splitEpisodes';
 import { extractFactsFromEpisode } from '../ingest/conversation/extractFacts';
 import { readMessagesSince } from '../ingest/conversation/readMessages';
@@ -40,7 +40,7 @@ function runId(startedAt: string): string {
 }
 
 function upsertPipelineState(
-  db: Database,
+  db: MemoryDbConnection,
   opts: {
     status: string;
     last_processed_at?: string;
@@ -64,7 +64,7 @@ function upsertPipelineState(
 }
 
 function insertPipelineRun(
-  db: Database,
+  db: MemoryDbConnection,
   id: string,
   startedAt: string
 ): void {
@@ -82,7 +82,7 @@ function insertPipelineRun(
 }
 
 function updateHeartbeatAndProgress(
-  db: Database,
+  db: MemoryDbConnection,
   id: string,
   totals: PersistStats & { items_processed: number; items_failed: number }
 ): void {
@@ -109,7 +109,7 @@ function updateHeartbeatAndProgress(
   );
 }
 
-function computeSinceISO(db: Database, sinceDays: number): string {
+function computeSinceISO(db: MemoryDbConnection, sinceDays: number): string {
   const sinceFromDays = new Date(Date.now() - sinceDays * 86_400_000).toISOString();
   const rows = db.exec(
     `SELECT last_processed_at FROM memory_pipeline_state WHERE scope = ?`,
@@ -127,7 +127,7 @@ function computeSinceISO(db: Database, sinceDays: number): string {
 }
 
 function finalizePipelineRun(
-  db: Database,
+  db: MemoryDbConnection,
   id: string,
   startedAt: string,
   status: 'success' | 'partial' | 'error',
@@ -162,7 +162,7 @@ function finalizePipelineRun(
   );
 }
 
-function recordFailedItem(db: Database, itemKey: string, reason: string, detail: string): void {
+function recordFailedItem(db: MemoryDbConnection, itemKey: string, reason: string, detail: string): void {
   const failedAt = new Date().toISOString();
   db.run(
     `INSERT INTO memory_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
@@ -190,7 +190,7 @@ function recordFailedItem(db: Database, itemKey: string, reason: string, detail:
  * attachTrailDbFromHandle / attachTrailDbReadOnly before calling this function.
  */
 export async function runConversationBackfill(opts: {
-  db: Database;
+  db: MemoryDbConnection;
   ollama: OllamaClient;
   sinceDays?: number;
   logger?: MemoryLogger;
