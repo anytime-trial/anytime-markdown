@@ -120,13 +120,12 @@ export async function hybridSearchMemory(opts: HybridSearchOptions): Promise<Hyb
   const extraEntities = missingIds.length > 0 ? hydrateEntities(db, missingIds) : [];
   const extraById = new Map(extraEntities.map((e) => [e.id, e]));
 
-  const entities: FusedEntity[] = fused
-    .map((f) => {
-      const base = vecById.get(f.id) ?? extraById.get(f.id);
-      if (!base) return null;
-      return { ...base, score: f.score, sources: f.sources };
-    })
-    .filter((e): e is FusedEntity => e !== null);
+  const entities: FusedEntity[] = [];
+  for (const f of fused) {
+    const base = vecById.get(f.id) ?? extraById.get(f.id);
+    if (!base) continue;
+    entities.push({ ...base, score: f.score, sources: f.sources });
+  }
 
   // 5. hops=1 のときは searchMemory を fused id 集合で再実行して edges/episodes を取る
   if ((input.hops ?? 1) === 0) {

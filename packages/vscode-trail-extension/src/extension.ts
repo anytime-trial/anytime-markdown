@@ -464,6 +464,27 @@ export async function activate(context: vscode.ExtensionContext) {
 	TrailPanel.setDataServer(trailDataServer);
 	setupServerCallbacks(trailDataServer);
 
+	// Memory chat (MEMORY > Chat タブ) — Ollama 経由の RAG チャット
+	const { ChatBridge } = await import('./memory-chat/chatBridge');
+	const chatBridge = new ChatBridge({
+		memoryDbPath: path.join(os.homedir(), '.claude', 'memory-core', 'memory-core.db'),
+		getConfig: () => {
+			const cfg = vscode.workspace.getConfiguration('anytime-markdown.memory');
+			return {
+				baseUrl: cfg.get<string>('ollama.baseUrl') ?? 'http://localhost:11434',
+				chatModel: cfg.get<string>('chat.model') ?? 'qwen2.5-coder:14b',
+				embedModel: cfg.get<string>('embedding.model') ?? 'bge-m3',
+			};
+		},
+		logger: {
+			info: (msg: string, ctx?: Record<string, unknown>) =>
+				TrailLogger.info(ctx ? `${msg} ${JSON.stringify(ctx)}` : msg),
+			error: (msg: string, err?: unknown) => TrailLogger.error(msg, err),
+		},
+	});
+	trailDataServer.setChatBridge(chatBridge);
+	context.subscriptions.push({ dispose: () => void chatBridge.dispose() });
+
 	// Code graph service
 	const codeGraphRepos: { id: string; label: string; path: string }[] = [];
 	const analysisWorkspacePath = getEffectiveWorkspacePath();

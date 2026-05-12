@@ -83,7 +83,29 @@ export interface CodeGraphProgressMessage {
   readonly percent: number;
 }
 
-export type ServerMessage = DsmUpdatedMessage | AnalysisProgressMessage | DocLinksUpdatedMessage | ClaudeActivityUpdatedMessage | MultiAgentActivityMessage | TokenBudgetUpdatedMessage | ModelUpdatedMessage | CodeGraphUpdatedMessage | CodeGraphProgressMessage;
+export interface ProviderStatusMessage {
+  readonly type: 'provider.status';
+  readonly status: 'ready' | 'unavailable' | 'unknown';
+  readonly detail?: string;
+}
+
+export interface ChatChunkMessage {
+  readonly type: 'chat.chunk';
+  readonly chunk: unknown;
+}
+
+export type ServerMessage =
+  | DsmUpdatedMessage
+  | AnalysisProgressMessage
+  | DocLinksUpdatedMessage
+  | ClaudeActivityUpdatedMessage
+  | MultiAgentActivityMessage
+  | TokenBudgetUpdatedMessage
+  | ModelUpdatedMessage
+  | CodeGraphUpdatedMessage
+  | CodeGraphProgressMessage
+  | ProviderStatusMessage
+  | ChatChunkMessage;
 
 // ---------------------------------------------------------------------------
 //  Client → Server messages
@@ -133,6 +155,19 @@ export interface PerfReportCommand {
   readonly meta?: Record<string, unknown>;
 }
 
+export interface ChatSendCommand {
+  readonly type: 'chat.send';
+  readonly query: string;
+}
+
+export interface ChatAbortCommand {
+  readonly type: 'chat.abort';
+}
+
+export interface ProviderRecheckCommand {
+  readonly type: 'provider.recheck';
+}
+
 export type ClientMessage =
   | SetLevelCommand
   | ClusterCommand
@@ -141,4 +176,7 @@ export type ClientMessage =
   | ResetClaudeActivityCommand
   | GenerateCodeGraphCommand
   | OpenFileCommand
-  | PerfReportCommand;
+  | PerfReportCommand
+  | ChatSendCommand
+  | ChatAbortCommand
+  | ProviderRecheckCommand;
