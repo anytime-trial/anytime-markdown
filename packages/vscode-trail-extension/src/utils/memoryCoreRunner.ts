@@ -84,6 +84,13 @@ export function createMemoryCoreRunner(opts: {
    * `__non_webpack_require__` 経由で inject する (extension 起動時に必要)。
    */
   distPath?: string;
+  /**
+   * better-sqlite3 native binding (.node) への絶対パス。
+   * webpack バンドル後の拡張では `bindings` パッケージが native binary を
+   * 自動探索できず `getFileName(...).indexOf` で fail するため、絶対パスを
+   * 明示する必要がある (chatBridge / rebuildScheduler と同じ事情)。
+   */
+  nativeBinding?: string;
 }): MemoryCoreRunner {
   if (opts.distPath) installSqlJsLoaderOnce(opts.distPath);
   return {
@@ -117,7 +124,9 @@ export function createMemoryCoreRunner(opts: {
         statusWriter.initialize();
 
         logger.info('Opening memory-core DB');
-        const memDb = await openMemoryCoreDb(opts.dbPath);
+        const memDb = await openMemoryCoreDb(opts.dbPath, {
+          nativeBinding: opts.nativeBinding,
+        });
         try {
           logger.info(`Attaching trail DB: ${opts.trailDbPath}`);
           const attachHandle = await attachTrailDbReadOnly(memDb.db, opts.trailDbPath);

@@ -448,6 +448,14 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Memory Core runner — initialized after dbStorageDir is known
 	const memoryCoreOutputChannel = vscode.window.createOutputChannel('Memory Core');
+	const memoryCoreNativeBinding = path.join(
+		extensionDistPath,
+		'node_modules',
+		'better-sqlite3',
+		'build',
+		'Release',
+		'better_sqlite3.node',
+	);
 	let memoryCoreRunner: MemoryCoreRunner | null = null;
 	if (dbStorageDir) {
 		const trailDbPath = path.join(dbStorageDir, 'trail.db');
@@ -455,6 +463,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			outputChannel: memoryCoreOutputChannel,
 			trailDbPath,
 			distPath: extensionDistPath,
+			nativeBinding: memoryCoreNativeBinding,
 		});
 	}
 	trailDb.setIntegrityAlertHandler((alerts) => {
@@ -475,14 +484,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// 非同期で逃がす。何らかの理由 (native binding 失敗、memory-core.db 破損等) で
 	// 初期化が失敗しても拡張全体の起動が止まらないよう try/catch でガード。
 	const memoryDbPath = path.join(os.homedir(), '.claude', 'memory-core', 'memory-core.db');
-	const memoryNativeBinding = path.join(
-		extensionDistPath,
-		'node_modules',
-		'better-sqlite3',
-		'build',
-		'Release',
-		'better_sqlite3.node',
-	);
+	const memoryNativeBinding = memoryCoreNativeBinding;
 	const memoryLogger = {
 		info: (msg: string, ctx?: Record<string, unknown>): void =>
 			TrailLogger.info(ctx ? `${msg} ${JSON.stringify(ctx)}` : msg),
