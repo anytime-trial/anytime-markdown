@@ -301,7 +301,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
 
   server.tool(
     'list_communities',
-    'List code graph communities for a repo with their label / name / summary / mappings_json. Used by anytime-reverse-engineer skill for filtering and cache lookup.',
+    'List code graph communities for a repo with their label / name / summary / mappings_json / stableKey. Used by anytime-reverse-engineer skill for filtering and cache lookup. The stableKey is a content hash of the community member node IDs and is preserved across community_id re-numbering during re-analysis (use it as a cache key).',
     { ...commonParams },
     async ({ repoName, serverUrl }) => {
       const opts = buildRouteOpts({ repoName, serverUrl }, options);
