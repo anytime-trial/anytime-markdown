@@ -1,10 +1,14 @@
 import type { TrailGraph } from "@anytime-markdown/trail-core";
 import type { TrailNode } from "@anytime-markdown/trail-core/model";
 import {
+  buildCallHierarchyNodeFilter,
   buildIndex as buildCallHierarchyIndex,
   traverse as traverseCallHierarchy,
 } from "@anytime-markdown/trail-core/c4/callHierarchy";
-import type { CallHierarchyDirection } from "@anytime-markdown/trail-core/c4/callHierarchy";
+import type {
+  CallHierarchyDirection,
+  CallHierarchyScope,
+} from "@anytime-markdown/trail-core/c4/callHierarchy";
 import { createClient } from "@supabase/supabase-js";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
@@ -40,6 +44,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const depth = clampDepth(request.nextUrl.searchParams.get('depth'));
   const lineParam = request.nextUrl.searchParams.get('line');
   const repoParam = request.nextUrl.searchParams.get('repo') ?? undefined;
+  const scope = request.nextUrl.searchParams.get('scope') ?? 'project';
+  const excludeTests = request.nextUrl.searchParams.get('excludeTests') === 'true';
 
   if (!file || !fn) {
     return NextResponse.json(
@@ -50,6 +56,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (direction !== 'callers' && direction !== 'callees') {
     return NextResponse.json(
       { error: 'direction must be callers or callees' },
+      { status: 400, headers: NO_STORE_HEADERS },
+    );
+  }
+  if (scope !== 'project' && scope !== 'package' && scope !== 'file') {
+    return NextResponse.json(
+      { error: 'scope must be project, package, or file' },
       { status: 400, headers: NO_STORE_HEADERS },
     );
   }
@@ -107,7 +119,18 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    const tree = traverseCallHierarchy(index, target.id, direction as CallHierarchyDirection, depth);
+    const nodeFilter = buildCallHierarchyNodeFilter({
+      scope: scope as CallHierarchyScope,
+      excludeTests,
+      rootFilePath: target.filePath,
+    });
+    const tree = traverseCallHierarchy(
+      index,
+      target.id,
+      direction as CallHierarchyDirection,
+      depth,
+      nodeFilter ? { nodeFilter } : undefined,
+    );
     if (!tree) {
       return NextResponse.json(
         { error: 'function not in index' },
