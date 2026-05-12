@@ -577,8 +577,8 @@ export class MemoryApiHandler {
       const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
       bindValues.push(limit);
       const result = db.exec(
-        `SELECT id, scope, started_at, completed_at, status,
-                COALESCE(items_processed, 0) AS items_processed, error_message
+        `SELECT id, scope, started_at, finished_at, status,
+                COALESCE(items_processed, 0) AS items_processed, error_detail
          FROM memory_pipeline_runs
          ${where}
          ORDER BY started_at DESC
@@ -593,10 +593,10 @@ export class MemoryApiHandler {
           id: toStr(r['id']),
           scope: toStr(r['scope']),
           startedAt: toStr(r['started_at']),
-          completedAt: toNullStr(r['completed_at']),
+          completedAt: toNullStr(r['finished_at']),
           status: toStr(r['status']),
           itemsProcessed: toNum(r['items_processed']),
-          errorMessage: toNullStr(r['error_message']),
+          errorMessage: toNullStr(r['error_detail']),
         };
       });
     } catch (err) {
