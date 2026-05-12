@@ -816,12 +816,13 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 
 	context.subscriptions.push({
-		dispose: async () => {
-			try {
-				await trailDataServer?.stop();
-			} catch (err) {
+		dispose: () => {
+			// VS Code の Disposable は async dispose を await しないため fire-and-forget。
+			// 通常時は deactivate() 側で stop を await するので、ここはセーフティネット
+			// (stop() は idempotent)。エラーはログのみ確保する。
+			trailDataServer?.stop().catch((err) => {
 				TrailLogger.error('Failed to stop trail data server (dispose)', err);
-			}
+			});
 			trailDb?.close();
 		},
 	});
