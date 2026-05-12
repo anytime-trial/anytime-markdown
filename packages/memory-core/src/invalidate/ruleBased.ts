@@ -18,12 +18,9 @@ export function applySingleActiveRule(
   const cardStmt = db.prepare(
     `SELECT cardinality FROM memory_relation_types WHERE predicate = ?`
   );
-  cardStmt.bind([newEdge.predicate]);
-  let cardinality: string | undefined;
-  if (cardStmt.step()) {
-    cardinality = cardStmt.getAsObject()['cardinality'] as string | undefined;
-  }
-  cardStmt.free();
+  const cardRow = cardStmt.get(newEdge.predicate);
+  const cardinality = cardRow ? (cardRow['cardinality'] as string | undefined) : undefined;
+  cardStmt.free?.();
 
   if (cardinality !== 'single_active') {
     return { invalidated_edge_ids: [] };
@@ -34,12 +31,15 @@ export function applySingleActiveRule(
     `SELECT id FROM memory_edges
      WHERE subject_entity_id = ? AND predicate = ? AND valid_to IS NULL AND id != ?`
   );
-  activeStmt.bind([newEdge.subject_entity_id, newEdge.predicate, newEdge.id]);
   const ids: string[] = [];
-  while (activeStmt.step()) {
-    ids.push(activeStmt.getAsObject()['id'] as string);
+  for (const row of activeStmt.iterate(
+    newEdge.subject_entity_id,
+    newEdge.predicate,
+    newEdge.id,
+  )) {
+    ids.push(row['id'] as string);
   }
-  activeStmt.free();
+  activeStmt.free?.();
 
   // 3. Invalidate each old edge
   for (const oldId of ids) {

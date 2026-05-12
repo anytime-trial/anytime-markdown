@@ -32,12 +32,9 @@ export function* readMessagesSince(
        AND m.type IN ('user', 'assistant', 'system')
      ORDER BY m.session_id, m.timestamp`
   );
-  stmt.bind([sinceISO]);
-
   const sessionMap = new Map<string, Message[]>();
 
-  while (stmt.step()) {
-    const row = stmt.getAsObject();
+  for (const row of stmt.iterate(sinceISO)) {
     const uuid = row['uuid'] as string;
     const session_id = row['session_id'] as string;
     const rawType = row['type'] as string;
@@ -57,7 +54,7 @@ export function* readMessagesSince(
     }
     bucket.push({ uuid, session_id, type, timestamp, text_excerpt });
   }
-  stmt.free();
+  stmt.free?.();
 
   for (const [session_id, messages] of sessionMap) {
     yield { session_id, messages };

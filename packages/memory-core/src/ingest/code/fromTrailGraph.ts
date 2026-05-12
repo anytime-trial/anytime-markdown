@@ -73,13 +73,10 @@ export function fromTrailGraph(opts: {
     `SELECT graph_json FROM trail.current_code_graphs WHERE repo_name = ?`
   );
   try {
-    stmt.bind([repoName]);
-    if (stmt.step()) {
-      const row = stmt.getAsObject();
-      graphJson = row['graph_json'] as string;
-    }
+    const row = stmt.get(repoName);
+    if (row) graphJson = row['graph_json'] as string;
   } finally {
-    stmt.free();
+    stmt.free?.();
   }
 
   if (graphJson === null) {

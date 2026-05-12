@@ -36,17 +36,18 @@ function readPipelineState(db: MemoryDbConnection): {
   const stmt = db.prepare(
     `SELECT last_processed_at, status FROM memory_pipeline_state WHERE scope = ?`
   );
-  stmt.bind([SCOPE]);
-  if (stmt.step()) {
-    const row = stmt.getAsObject();
-    stmt.free();
-    return {
-      last_processed_at: (row['last_processed_at'] as string) || DEFAULT_SINCE,
-      status: (row['status'] as string) || 'idle',
-    };
+  try {
+    const row = stmt.get(SCOPE);
+    if (row) {
+      return {
+        last_processed_at: (row['last_processed_at'] as string) || DEFAULT_SINCE,
+        status: (row['status'] as string) || 'idle',
+      };
+    }
+    return { last_processed_at: DEFAULT_SINCE, status: 'idle' };
+  } finally {
+    stmt.free?.();
   }
-  stmt.free();
-  return { last_processed_at: DEFAULT_SINCE, status: 'idle' };
 }
 
 function upsertPipelineState(

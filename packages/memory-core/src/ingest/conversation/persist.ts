@@ -92,9 +92,8 @@ export function persistEpisodeFacts(opts: {
     const existsStmt = db.prepare(
       `SELECT id FROM memory_entities WHERE type = ? AND canonical_name = ?`
     );
-    existsStmt.bind([ent.type, canonName]);
-    const exists = existsStmt.step();
-    existsStmt.free();
+    const exists = existsStmt.get(ent.type, canonName) !== undefined;
+    existsStmt.free?.();
 
     try {
       db.run(

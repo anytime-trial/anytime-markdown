@@ -28,14 +28,13 @@ function runId(startedAt: string): string {
 
 function readPipelineState(db: MemoryDbConnection): string {
   const stmt = db.prepare(`SELECT last_processed_at FROM memory_pipeline_state WHERE scope = ?`);
-  stmt.bind([SCOPE]);
-  if (stmt.step()) {
-    const row = stmt.getAsObject();
-    stmt.free();
-    return (row['last_processed_at'] as string) || DEFAULT_SINCE;
+  try {
+    const row = stmt.get(SCOPE);
+    if (row) return (row['last_processed_at'] as string) || DEFAULT_SINCE;
+    return DEFAULT_SINCE;
+  } finally {
+    stmt.free?.();
   }
-  stmt.free();
-  return DEFAULT_SINCE;
 }
 
 function upsertPipelineState(
@@ -132,9 +131,7 @@ export async function runBugHistoryIncremental(opts: {
      WHERE repo_name = ? AND committed_at > ? AND commit_message LIKE 'fix%'
      ORDER BY committed_at`
   );
-  stmt.bind([repoName, lastProcessedAt]);
-  while (stmt.step()) {
-    const r = stmt.getAsObject();
+  for (const r of stmt.iterate(repoName, lastProcessedAt)) {
     rows.push({
       commit_hash: String(r['commit_hash'] ?? ''),
       commit_message: String(r['commit_message'] ?? ''),
@@ -143,7 +140,7 @@ export async function runBugHistoryIncremental(opts: {
       session_id: r['session_id'] != null ? String(r['session_id']) : null,
     });
   }
-  stmt.free();
+  stmt.free?.();
 
   if (rows.length === 0) {
     return { status: 'success', items_processed: 0, bugs_inserted: 0, edges_inserted: 0, duration_ms: 0 };

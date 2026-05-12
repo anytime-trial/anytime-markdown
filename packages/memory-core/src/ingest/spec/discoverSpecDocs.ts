@@ -92,14 +92,12 @@ export async function discoverChangedSpecs(input: DiscoverInput): Promise<Change
       const rel_path = rel.replace(/\\/g, '/'); // normalize path separators on Windows
 
       // Query DB for existing hash
-      stmt.bind([rel_path]);
+      const row = stmt.get(rel_path);
       let existingHash: string | null = null;
-      if (stmt.step()) {
-        const row = stmt.getAsObject();
+      if (row) {
         const val = row['source_hash'];
         existingHash = typeof val === 'string' ? val : null;
       }
-      stmt.reset();
 
       if (existingHash === null) {
         // Not found in DB → new file
@@ -111,7 +109,7 @@ export async function discoverChangedSpecs(input: DiscoverInput): Promise<Change
       // else: hash matches → skip (no change)
     }
   } finally {
-    stmt.free();
+    stmt.free?.();
   }
 
   return results;

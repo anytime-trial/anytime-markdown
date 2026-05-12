@@ -41,16 +41,15 @@ export function runCodeReconciliation(opts: {
        AND valid_until IS NULL`
   );
   try {
-    stmt.bind([opts.repoName]);
-    while (stmt.step()) {
-      const id = stmt.getAsObject()['id'] as string;
+    for (const row of stmt.iterate(opts.repoName)) {
+      const id = row['id'] as string;
       scanned += 1;
       if (!opts.currentEntityIds.has(id)) {
         toDelete.push(id);
       }
     }
   } finally {
-    stmt.free();
+    stmt.free?.();
   }
 
   let softDeleted = 0;

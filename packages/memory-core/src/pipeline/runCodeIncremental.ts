@@ -33,14 +33,13 @@ function readPipelineState(db: MemoryDbConnection): { last_processed_at: string 
   const stmt = db.prepare(
     `SELECT last_processed_at FROM memory_pipeline_state WHERE scope = ?`
   );
-  stmt.bind([SCOPE]);
-  if (stmt.step()) {
-    const row = stmt.getAsObject();
-    stmt.free();
-    return { last_processed_at: (row['last_processed_at'] as string) || DEFAULT_SINCE };
+  try {
+    const row = stmt.get(SCOPE);
+    if (row) return { last_processed_at: (row['last_processed_at'] as string) || DEFAULT_SINCE };
+    return { last_processed_at: DEFAULT_SINCE };
+  } finally {
+    stmt.free?.();
   }
-  stmt.free();
-  return { last_processed_at: DEFAULT_SINCE };
 }
 
 function upsertPipelineState(
@@ -156,12 +155,12 @@ export async function runCodeIncremental(opts: {
   const stmt = db.prepare(
     `SELECT updated_at FROM trail.current_code_graphs WHERE repo_name = ?`
   );
-  stmt.bind([repoName]);
-  if (stmt.step()) {
-    const row = stmt.getAsObject();
-    graphUpdatedAt = (row['updated_at'] as string) ?? null;
+  try {
+    const row = stmt.get(repoName);
+    if (row) graphUpdatedAt = (row['updated_at'] as string) ?? null;
+  } finally {
+    stmt.free?.();
   }
-  stmt.free();
 
   if (graphUpdatedAt === null) {
     logger.info(
