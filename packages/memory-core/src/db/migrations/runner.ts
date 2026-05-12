@@ -1,6 +1,6 @@
-import { Database } from 'sql.js';
 import * as fs from 'fs';
 import * as path from 'path';
+import type { MemoryDbConnection } from '../connection/types';
 
 const MIGRATIONS: { version: number; file: string }[] = [
   { version: 1, file: '001_initial.sql' },
@@ -17,23 +17,23 @@ const MIGRATIONS: { version: number; file: string }[] = [
   { version: 12, file: '012_function_entity_lifecycle.sql' },
 ];
 
-export function runMigrations(db: Database): void {
-  db.run(`CREATE TABLE IF NOT EXISTS _migrations (
+export function runMigrations(conn: MemoryDbConnection): void {
+  conn.execMany(`CREATE TABLE IF NOT EXISTS _migrations (
     version    INTEGER PRIMARY KEY,
     applied_at TEXT NOT NULL
   ) STRICT`);
 
-  const result = db.exec('SELECT version FROM _migrations');
-  const applied: number[] = (result[0]?.values ?? []).map((r) => r[0] as number);
+  const result = conn.exec('SELECT version FROM _migrations');
+  const applied: number[] = (result[0]?.values ?? []).map((r) => Number(r[0]));
 
   for (const migration of MIGRATIONS) {
     if (!applied.includes(migration.version)) {
       const sqlPath = path.join(__dirname, migration.file);
       const sql = fs.readFileSync(sqlPath, 'utf8');
-      db.run(sql);
-      db.run(
+      conn.execMany(sql);
+      conn.run(
         `INSERT INTO _migrations (version, applied_at) VALUES (?, ?)`,
-        [migration.version, new Date().toISOString()]
+        [migration.version, new Date().toISOString()],
       );
     }
   }
