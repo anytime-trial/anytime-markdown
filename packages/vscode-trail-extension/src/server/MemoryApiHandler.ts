@@ -1,4 +1,5 @@
 import initSqlJs, { type Database, type SqlValue } from 'sql.js';
+import { SqlJsMemoryDb } from '@anytime-markdown/memory-core';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -131,7 +132,7 @@ function toNum(v: unknown): number {
 }
 
 /** Map sql.js exec result row to typed object via column name */
-function mapRow<T>(columns: string[], values: unknown[]): T {
+function mapRow<T>(columns: ReadonlyArray<string>, values: ReadonlyArray<unknown>): T {
   const obj: Record<string, unknown> = {};
   for (let i = 0; i < columns.length; i++) {
     obj[columns[i]] = values[i];
@@ -158,24 +159,24 @@ export class MemoryApiHandler {
 
   // ---- open helpers ----
 
-  private async openReadOnly(): Promise<Database | null> {
+  private async openReadOnly(): Promise<SqlJsMemoryDb | null> {
     if (!fs.existsSync(this.dbPath)) return null;
     try {
       const SQL = await initSqlJs();
       const data = fs.readFileSync(this.dbPath);
-      return new SQL.Database(data);
+      return SqlJsMemoryDb.fromDatabase(new SQL.Database(data));
     } catch (err) {
       TrailLogger.error(`[MemoryApiHandler.openReadOnly] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       return null;
     }
   }
 
-  private async openReadWrite(): Promise<Database | null> {
+  private async openReadWrite(): Promise<SqlJsMemoryDb | null> {
     if (!fs.existsSync(this.dbPath)) return null;
     try {
       const SQL = await initSqlJs();
       const data = fs.readFileSync(this.dbPath);
-      const db = new SQL.Database(data);
+      const db = SqlJsMemoryDb.fromDatabase(new SQL.Database(data));
       db.run('PRAGMA foreign_keys = ON');
       return db;
     } catch (err) {
@@ -184,9 +185,9 @@ export class MemoryApiHandler {
     }
   }
 
-  private saveAndClose(db: Database): void {
+  private saveAndClose(db: SqlJsMemoryDb): void {
     try {
-      const data = db.export();
+      const data = db.exportBytes();
       fs.writeFileSync(this.dbPath, Buffer.from(data));
     } finally {
       db.close();
