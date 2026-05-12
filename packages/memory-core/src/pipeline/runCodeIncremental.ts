@@ -18,6 +18,8 @@ export interface CodeIncrementalResult {
   entities_inserted: number;
   edges_inserted: number;
   duration_ms: number;
+  /** ingestAstFacts が抽出した Function / File entity ID 集合。reconciliation で使用 */
+  current_entity_ids: Set<string>;
 }
 
 function runId(startedAt: string): string {
@@ -165,14 +167,14 @@ export async function runCodeIncremental(opts: {
     logger.info(
       `[memory-core] runCodeIncremental: no code graph found for repo "${repoName}" — skipping`
     );
-    return { status: 'skipped', items_processed: 0, entities_inserted: 0, edges_inserted: 0, duration_ms: 0 };
+    return { status: 'skipped', items_processed: 0, entities_inserted: 0, edges_inserted: 0, duration_ms: 0, current_entity_ids: new Set() };
   }
 
   if (graphUpdatedAt <= last_processed_at) {
     logger.info(
       `[memory-core] runCodeIncremental: graph not updated (updated_at=${graphUpdatedAt}, last_processed_at=${last_processed_at}) — skipping`
     );
-    return { status: 'skipped', items_processed: 0, entities_inserted: 0, edges_inserted: 0, duration_ms: 0 };
+    return { status: 'skipped', items_processed: 0, entities_inserted: 0, edges_inserted: 0, duration_ms: 0, current_entity_ids: new Set() };
   }
 
   // ── 3. Insert pipeline_run (running) ─────────────────────────────────────
@@ -215,6 +217,7 @@ export async function runCodeIncremental(opts: {
       status: 'error',
       ...totals,
       duration_ms: Date.now() - startMs,
+      current_entity_ids: new Set(),
     };
   }
 
@@ -237,11 +240,13 @@ export async function runCodeIncremental(opts: {
   }
 
   // ── 7. ingestAstFacts ────────────────────────────────────────────────────
+  const currentEntityIds = new Set<string>();
   try {
     const stats = ingestAstFacts({ db, repoName, graph, commitSha, recordedAt, logger });
     totals.items_processed += stats.facts_inserted;
-    totals.entities_inserted += stats.facts_inserted;
+    totals.entities_inserted += stats.facts_inserted + stats.function_entities_upserted;
     totals.edges_inserted += stats.edges_inserted;
+    for (const id of stats.current_entity_ids) currentEntityIds.add(id);
   } catch (err) {
     logger.error(`[memory-core] runCodeIncremental: ingestAstFacts failed`, err);
     hasIngestFailure = true;
@@ -285,5 +290,6 @@ export async function runCodeIncremental(opts: {
     status: finalStatus,
     ...totals,
     duration_ms: Date.now() - startMs,
+    current_entity_ids: currentEntityIds,
   };
 }

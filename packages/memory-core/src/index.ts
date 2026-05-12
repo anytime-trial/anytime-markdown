@@ -70,6 +70,9 @@ export type { DriftDetectionResult } from './pipeline/runDriftDetection';
 export { runEmbeddingBackfill } from './pipeline/runEmbeddingBackfill';
 export type { EmbeddingBackfillResult } from './pipeline/runEmbeddingBackfill';
 
+export { runCodeReconciliation } from './pipeline/runCodeReconciliation';
+export type { CodeReconciliationResult } from './pipeline/runCodeReconciliation';
+
 export { PipelineStatusWriter } from './status/PipelineStatusWriter';
 export type {
   PipelineStatusFile,

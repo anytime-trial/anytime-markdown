@@ -432,4 +432,95 @@ describe('ingestAstFacts', () => {
 
     db.close();
   }, 30000);
+
+  // ── Function entity creation ───────────────────────────────────────────────
+  test('Function node から Function entity を upsert する', async () => {
+    const db = await makeDb();
+    const graph = makeGraph(
+      [
+        makeFileNode('src/foo.ts'),
+        makeFunctionNode('src/foo.ts#bar', 'src/foo.ts', 10),
+        makeFunctionNode('src/foo.ts#baz', 'src/foo.ts', 20),
+      ],
+      [],
+    );
+    const result = ingestAstFacts({
+      db, repoName: REPO, graph, commitSha: COMMIT_SHA,
+      recordedAt: RECORDED_AT, logger: silentLogger,
+    });
+    expect(result.function_entities_upserted).toBe(2);
+    expect(countEntities(db, 'Function')).toBe(2);
+
+    const rows = db.exec(`SELECT display_name, content_hash, repo_name FROM memory_entities WHERE type='Function' ORDER BY display_name`);
+    expect(rows[0]?.values).toHaveLength(2);
+    expect(rows[0].values[0][0]).toBe('src/foo.ts#bar');
+    expect(rows[0].values[0][1]).toBeTruthy(); // content_hash not null
+    expect(rows[0].values[0][2]).toBe(REPO);
+
+    db.close();
+  });
+
+  test('既存 embedding は content_hash 不変なら維持される', async () => {
+    const db = await makeDb();
+    const graph = makeGraph(
+      [
+        makeFileNode('src/foo.ts'),
+        makeFunctionNode('src/foo.ts#bar', 'src/foo.ts'),
+      ],
+      [],
+    );
+    ingestAstFacts({ db, repoName: REPO, graph, commitSha: COMMIT_SHA, recordedAt: RECORDED_AT, logger: silentLogger });
+    // fake embedding を挿入
+    const fnId = entityId('Function', canonicalize(`${REPO}:src/foo.ts::src/foo.ts#bar`));
+    db.run(`UPDATE memory_entities SET embedding = ? WHERE id = ?`, [new Uint8Array([1, 2, 3]), fnId]);
+
+    // 同じ graph で再 ingest
+    ingestAstFacts({ db, repoName: REPO, graph, commitSha: COMMIT_SHA, recordedAt: '2026-01-02T00:00:00.000Z', logger: silentLogger });
+    const stmt = db.prepare(`SELECT embedding FROM memory_entities WHERE id = ?`);
+    stmt.bind([fnId]);
+    stmt.step();
+    const emb = stmt.getAsObject()['embedding'];
+    stmt.free();
+    expect(emb).not.toBeNull(); // preserved
+
+    db.close();
+  });
+
+  test('parent (class) が変わると content_hash 変化 → embedding が NULL に invalidate', async () => {
+    const db = await makeDb();
+    const node1: TrailNode = { ...makeFunctionNode('src/foo.ts#bar', 'src/foo.ts'), parent: 'classA' };
+    const node2: TrailNode = { ...makeFunctionNode('src/foo.ts#bar', 'src/foo.ts'), parent: 'classB' };
+    const graph1 = makeGraph([makeFileNode('src/foo.ts'), node1], []);
+    const graph2 = makeGraph([makeFileNode('src/foo.ts'), node2], []);
+
+    ingestAstFacts({ db, repoName: REPO, graph: graph1, commitSha: COMMIT_SHA, recordedAt: RECORDED_AT, logger: silentLogger });
+    const fnId = entityId('Function', canonicalize(`${REPO}:src/foo.ts::src/foo.ts#bar`));
+    db.run(`UPDATE memory_entities SET embedding = ? WHERE id = ?`, [new Uint8Array([1, 2, 3]), fnId]);
+
+    ingestAstFacts({ db, repoName: REPO, graph: graph2, commitSha: COMMIT_SHA, recordedAt: '2026-01-02T00:00:00.000Z', logger: silentLogger });
+    const stmt = db.prepare(`SELECT embedding FROM memory_entities WHERE id = ?`);
+    stmt.bind([fnId]);
+    stmt.step();
+    const emb = stmt.getAsObject()['embedding'];
+    stmt.free();
+    expect(emb).toBeNull(); // invalidated
+
+    db.close();
+  });
+
+  test('current_entity_ids に File + Function ID が含まれる', async () => {
+    const db = await makeDb();
+    const graph = makeGraph(
+      [
+        makeFileNode('src/foo.ts'),
+        makeFunctionNode('src/foo.ts#bar', 'src/foo.ts'),
+      ],
+      [],
+    );
+    const result = ingestAstFacts({ db, repoName: REPO, graph, commitSha: COMMIT_SHA, recordedAt: RECORDED_AT, logger: silentLogger });
+    expect(result.current_entity_ids.has(entityId('File', canonicalize('src/foo.ts')))).toBe(true);
+    expect(result.current_entity_ids.has(entityId('Function', canonicalize(`${REPO}:src/foo.ts::src/foo.ts#bar`)))).toBe(true);
+
+    db.close();
+  });
 });

@@ -31,7 +31,7 @@ jest.mock('@anytime-markdown/memory-core', () => {
     runConversationIncremental: jest.fn(),
     runConversationBackfill: jest.fn(),
     runConversationFailedItemsRetry: jest.fn().mockResolvedValue(ok),
-    runCodeIncremental: jest.fn().mockResolvedValue(ok),
+    runCodeIncremental: jest.fn().mockResolvedValue({ ...ok, current_entity_ids: new Set() }),
     runBugHistoryIncremental: jest.fn().mockResolvedValue(ok),
     runReviewIncremental: jest.fn().mockResolvedValue(ok),
     runSpecIncremental: jest.fn().mockResolvedValue(ok),
@@ -39,6 +39,7 @@ jest.mock('@anytime-markdown/memory-core', () => {
     runPipelineWatchdog: jest.fn().mockResolvedValue(ok),
     runDriftDetection: jest.fn().mockResolvedValue(ok),
     runEmbeddingBackfill: jest.fn().mockResolvedValue(ok),
+    runCodeReconciliation: jest.fn().mockReturnValue({ status: 'success', scanned: 0, soft_deleted: 0, duration_ms: 0 }),
     setSqlJsLoader: jest.fn(),
     PipelineStatusWriter: jest.fn().mockImplementation(() => ({
       initialize: jest.fn(),
@@ -130,7 +131,8 @@ describe('createMemoryCoreRunner.runAfterImport', () => {
     expect(runConversationIncremental).not.toHaveBeenCalled();
     expect(runCodeIncremental).toHaveBeenCalledTimes(1);
     // pipeline 完了ごとに save (8 pipelines) + outer finally で 1 回 = 9 回
-    expect(memDb.save).toHaveBeenCalledTimes(9);
+    // pipeline 完了ごとに save (9 pipelines: code_reconciliation 含む) + outer finally で 1 回 = 10 回
+    expect(memDb.save).toHaveBeenCalledTimes(10);
     expect(memDb.close).toHaveBeenCalledTimes(1);
   });
 
@@ -153,7 +155,8 @@ describe('createMemoryCoreRunner.runAfterImport', () => {
     expect(runConversationBackfill).not.toHaveBeenCalled();
     expect(runCodeIncremental).toHaveBeenCalledTimes(1);
     // pipeline 完了ごとに save (8 pipelines) + outer finally で 1 回 = 9 回
-    expect(memDb.save).toHaveBeenCalledTimes(9);
+    // pipeline 完了ごとに save (9 pipelines: code_reconciliation 含む) + outer finally で 1 回 = 10 回
+    expect(memDb.save).toHaveBeenCalledTimes(10);
     expect(memDb.close).toHaveBeenCalledTimes(1);
   });
 

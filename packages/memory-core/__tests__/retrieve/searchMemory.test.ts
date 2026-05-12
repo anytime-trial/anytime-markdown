@@ -137,4 +137,17 @@ describe('searchMemory', () => {
     expect(types.every((t) => t === 'Tool')).toBe(true);
     expect(result.entities.some((e) => e.id === 'person1')).toBe(false);
   });
+
+  it('valid_until がセットされた entity を検索結果から除外する', async () => {
+    // id1 を soft-delete
+    db.run(`UPDATE memory_entities SET valid_until = ? WHERE id = ?`, [now, 'id1']);
+
+    const result = await searchMemory({
+      db,
+      ollama: mockOllama,
+      input: { query: 'jest', limit: 10 },
+    });
+
+    expect(result.entities.some((e) => e.id === 'id1')).toBe(false);
+  });
 });
