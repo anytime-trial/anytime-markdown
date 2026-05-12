@@ -17,6 +17,7 @@ import {
   runPipelineWatchdog,
   runDriftDetection,
   runEmbeddingBackfill,
+  runCodeReconciliation,
   PipelineStatusWriter,
   setSqlJsLoader,
 } from '@anytime-markdown/memory-core';
@@ -26,6 +27,7 @@ const PIPELINE_SCOPES = [
   'conversation_incremental',
   'conversation_failed_items_retry',
   'code_incremental',
+  'code_reconciliation',
   'bug_history_incremental',
   'review_incremental',
   'spec_incremental',
@@ -233,6 +235,8 @@ export function createMemoryCoreRunner(opts: {
             const repoName = path.basename(gitRoot);
             logger.info(`Running code incremental (repo=${repoName}, tsconfig=${tsconfigPath})`);
             statusWriter.start('code_incremental');
+            let codeEntityIds = new Set<string>();
+            let codeWasSkipped = false;
             try {
               const codeResult = await runCodeIncremental({
                 db: memDb.db,
@@ -241,10 +245,12 @@ export function createMemoryCoreRunner(opts: {
                 gitRoot,
                 logger,
               });
+              codeEntityIds = codeResult.current_entity_ids;
+              codeWasSkipped = codeResult.status === 'skipped';
               logger.info(
                 `Code incremental: status=${codeResult.status}, items_processed=${codeResult.items_processed}, ` +
                   `entities_inserted=${codeResult.entities_inserted}, edges_inserted=${codeResult.edges_inserted}, ` +
-                  `duration_ms=${codeResult.duration_ms}`,
+                  `current_entity_ids=${codeEntityIds.size}, duration_ms=${codeResult.duration_ms}`,
               );
               statusWriter.finish('code_incremental', codeResult.status === 'skipped' ? 'skipped' : codeResult.status, codeResult.items_processed, 0);
             } catch (err) {
@@ -252,6 +258,36 @@ export function createMemoryCoreRunner(opts: {
               throw err;
             }
             { const t0 = Date.now(); saveAndReattach(); logger.info(`Saved (code_incremental): ${Date.now() - t0}ms`); }
+
+            // ── Code reconciliation pipeline ─────────────────────────────────
+            // code_incremental が skipped (graph 未更新) なら entity_ids が空なので
+            // snapshot に含まれない既存 entity が全て soft-delete されてしまう。
+            // skipped 時は reconciliation も skip する。
+            logger.info(`Running code reconciliation (repo=${repoName}, candidates=${codeEntityIds.size})`);
+            statusWriter.start('code_reconciliation');
+            try {
+              if (codeWasSkipped) {
+                logger.info(`Code reconciliation: skipped (code_incremental was skipped)`);
+                statusWriter.finish('code_reconciliation', 'skipped', 0, 0);
+              } else {
+                const reconResult = runCodeReconciliation({
+                  db: memDb.db,
+                  repoName,
+                  currentEntityIds: codeEntityIds,
+                  recordedAt: new Date().toISOString(),
+                  logger,
+                });
+                logger.info(
+                  `Code reconciliation: status=${reconResult.status}, scanned=${reconResult.scanned}, ` +
+                    `soft_deleted=${reconResult.soft_deleted}, duration_ms=${reconResult.duration_ms}`,
+                );
+                statusWriter.finish('code_reconciliation', reconResult.status, reconResult.soft_deleted, 0);
+              }
+            } catch (err) {
+              statusWriter.finish('code_reconciliation', 'error', 0, 0, err instanceof Error ? err.message : String(err));
+              throw err;
+            }
+            { const t0 = Date.now(); saveAndReattach(); logger.info(`Saved (code_reconciliation): ${Date.now() - t0}ms`); }
 
             // ── Bug history pipeline ─────────────────────────────────────
             logger.info(`Running bug history incremental (repo=${repoName})`);
