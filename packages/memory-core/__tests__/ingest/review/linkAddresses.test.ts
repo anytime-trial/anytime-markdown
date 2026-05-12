@@ -1,5 +1,7 @@
 import initSqlJs from 'sql.js';
+import { SqlJsMemoryDb } from '../../../src/db/connection/SqlJsMemoryDb';
 import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../../../src/db/connection/types';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -31,11 +33,11 @@ function makeLogger() {
 }
 
 type SetupResult = {
-  db: Database;
+  db: MemoryDbConnection;
   findingId: string;
   findingEntityId: string;
   reviewEntityId: string;
-  trailHandle: Database;
+  trailHandle: SqlJsMemoryDb;
   close: () => void;
 };
 
@@ -68,7 +70,7 @@ async function buildSetup(opts: {
 
   // 2. Build trail DB in-memory
   const SQL = await initSqlJs();
-  const trailHandle: Database = new SQL.Database();
+  const trailHandle: SqlJsMemoryDb = SqlJsMemoryDb.fromDatabase(new SQL.Database());
   trailHandle.run('PRAGMA foreign_keys = ON');
   trailHandle.run(`CREATE TABLE session_commits (
     commit_hash TEXT NOT NULL,

@@ -1,4 +1,4 @@
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../db/connection/types';
 import type { MemoryLogger } from '../logger';
 import { randomUUID } from 'crypto';
 
@@ -22,7 +22,7 @@ export type DriftDetectionResult = {
 };
 
 export async function runDriftDetection(input: {
-  db: Database;
+  db: MemoryDbConnection;
   logger: MemoryLogger;
 }): Promise<DriftDetectionResult> {
   const { db, logger } = input;

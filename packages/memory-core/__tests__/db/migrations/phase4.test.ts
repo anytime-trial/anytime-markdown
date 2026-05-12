@@ -1,4 +1,5 @@
 import * as os from 'os';
+import type { MemoryDbConnection } from '../../../src/db/connection/types';
 import * as path from 'path';
 import * as fs from 'fs';
 import type { Database } from 'sql.js';
@@ -10,7 +11,7 @@ function makeTmpDb(): string {
 
 const TS = '2026-01-01T00:00:00.000Z';
 
-function insertEntity(db: Database, id: string, canonicalName: string): void {
+function insertEntity(db: MemoryDbConnection, id: string, canonicalName: string): void {
   db.run(
     `INSERT INTO memory_entities
        (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
@@ -20,7 +21,7 @@ function insertEntity(db: Database, id: string, canonicalName: string): void {
 }
 
 function insertDriftEvent(
-  db: Database,
+  db: MemoryDbConnection,
   id: string,
   entityId: string,
   driftType = 'spec_vs_code',

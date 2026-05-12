@@ -1,9 +1,9 @@
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../db/connection/types';
 import type { MemoryLogger } from '../logger';
 import { entityId } from '../canonical/entityId';
 
 export type LinkReviewToCommitInput = {
-  db: Database;
+  db: MemoryDbConnection;
   finding_id: string;
   commit_sha: string;
   addressed_at?: string;
@@ -20,7 +20,7 @@ export function linkReviewToCommit(input: LinkReviewToCommitInput): LinkReviewTo
   const { db, finding_id, commit_sha, override_auto = false, logger } = input;
   const addressed_at = input.addressed_at ?? new Date().toISOString();
 
-  let findingRows: ReturnType<Database['exec']>;
+  let findingRows: ReturnType<MemoryDbConnection['exec']>;
   try {
     findingRows = db.exec(
       `SELECT addressed_commit_sha, finding_entity_id

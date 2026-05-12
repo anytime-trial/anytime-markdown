@@ -1,4 +1,4 @@
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../../db/connection/types';
 import type { MemoryLogger } from '../../logger';
 
 export interface AgentRunWatchdogResult {
@@ -6,7 +6,7 @@ export interface AgentRunWatchdogResult {
 }
 
 export function runAgentRunWatchdog(input: {
-  db: Database;
+  db: MemoryDbConnection;
   timeoutMinutes?: number;
   logger: MemoryLogger;
 }): AgentRunWatchdogResult {

@@ -1,4 +1,5 @@
 import initSqlJs from 'sql.js';
+import { SqlJsMemoryDb } from '../../src/db/connection/SqlJsMemoryDb';
 import type { Database, SqlJsStatic } from 'sql.js';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { postProcessF22 } from '../../src/drift/postProcessF22';
@@ -12,8 +13,8 @@ beforeAll(async () => {
   SQL = await initSqlJs();
 });
 
-function makeDb(): Database {
-  const db = new SQL.Database();
+function makeDb(): SqlJsMemoryDb {
+  const db = SqlJsMemoryDb.fromDatabase(new SQL.Database());
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
@@ -23,7 +24,7 @@ const TS = '2026-01-01T00:00:00.000Z';
 let seq = 0;
 
 function insertEntity(
-  db: Database,
+  db: SqlJsMemoryDb,
   opts: {
     id?: string;
     type?: string;
@@ -40,7 +41,7 @@ function insertEntity(
   return eid;
 }
 
-function insertReview(db: Database, id?: string): string {
+function insertReview(db: SqlJsMemoryDb, id?: string): string {
   const rid = id ?? `rev-${++seq}`;
   const reviewEntity = insertEntity(db, { id: `rev-ent-${rid}`, type: 'Review' });
   db.run(
@@ -53,7 +54,7 @@ function insertReview(db: Database, id?: string): string {
 }
 
 function insertReviewFinding(
-  db: Database,
+  db: SqlJsMemoryDb,
   opts: {
     id?: string;
     reviewId: string;

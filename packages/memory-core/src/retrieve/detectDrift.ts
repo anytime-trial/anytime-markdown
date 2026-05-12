@@ -1,4 +1,4 @@
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../db/connection/types';
 import type { MemoryLogger } from '../logger';
 
 export type DriftEventSummary = {
@@ -14,7 +14,7 @@ export type DriftEventSummary = {
 };
 
 export type DetectDriftInput = {
-  db: Database;
+  db: MemoryDbConnection;
   unresolved_only?: boolean;
   severity?: string;
   drift_type?: string;
@@ -53,7 +53,7 @@ export function detectDrift(input: DetectDriftInput): DriftEventSummary[] {
 
   const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
 
-  let rows: ReturnType<Database['exec']>;
+  let rows: ReturnType<MemoryDbConnection['exec']>;
   try {
     rows = db.exec(
       `SELECT id, subject_entity_id, predicate, drift_type, severity,

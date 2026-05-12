@@ -1,4 +1,5 @@
 import initSqlJs from 'sql.js';
+import { SqlJsMemoryDb } from '../../src/db/connection/SqlJsMemoryDb';
 import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
@@ -31,7 +32,7 @@ async function openTestDb(commits: TrailCommit[], files: TrailFile[]) {
   const { db, close } = await openMemoryCoreDb();
 
   const SQL = await initSqlJs();
-  const trailHandle = new SQL.Database();
+  const trailHandle = SqlJsMemoryDb.fromDatabase(new SQL.Database());
   trailHandle.run(`CREATE TABLE session_commits (
     id INTEGER PRIMARY KEY,
     commit_hash TEXT NOT NULL,

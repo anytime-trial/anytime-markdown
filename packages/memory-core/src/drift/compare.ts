@@ -1,4 +1,4 @@
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../db/connection/types';
 import { canonicalize } from '../canonical/canonicalize';
 import type { MemoryLogger } from '../logger';
 import { DriftType } from './policy';
@@ -29,7 +29,7 @@ function normalizeValue(value: string): string {
  * Returns edges where at least two sources disagree after normalization.
  */
 export function detectThreeSourceDrifts(input: {
-  db: Database;
+  db: MemoryDbConnection;
   minConfidence?: number;
   excludePredicates?: string[];
   logger: MemoryLogger;

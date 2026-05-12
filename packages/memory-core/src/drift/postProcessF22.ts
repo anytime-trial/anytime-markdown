@@ -1,9 +1,9 @@
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../db/connection/types';
 import type { MemoryLogger } from '../logger';
 import type { DriftEventInput } from './report';
 
 export function postProcessF22(input: {
-  db: Database;
+  db: MemoryDbConnection;
   driftEvents: DriftEventInput[];
   recordedAt: string;
   logger: MemoryLogger;
@@ -20,7 +20,7 @@ export function postProcessF22(input: {
     // drift event の ID を生成（report.ts と同一ロジック）
     const eventId = `drift:${event.subject_entity_id}:${event.predicate}:${event.drift_type}`;
 
-    let rows: ReturnType<Database['exec']>;
+    let rows: ReturnType<MemoryDbConnection['exec']>;
     try {
       rows = db.exec(
         `SELECT e.id, e.attributes_json

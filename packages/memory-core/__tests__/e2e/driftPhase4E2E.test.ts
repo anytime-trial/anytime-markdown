@@ -9,6 +9,7 @@
  */
 
 import initSqlJs from 'sql.js';
+import { SqlJsMemoryDb } from '../../src/db/connection/SqlJsMemoryDb';
 import type { Database, SqlJsStatic } from 'sql.js';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { runDriftDetection } from '../../src/pipeline/runDriftDetection';
@@ -17,7 +18,7 @@ import type { MemoryLogger } from '../../src/logger';
 const silentLogger: MemoryLogger = { info: () => {}, error: () => {} };
 
 let SQL: SqlJsStatic;
-let db: Database;
+let db: SqlJsMemoryDb;
 
 const NOW = new Date().toISOString().replace(/\.\d{3}Z$/, '.000Z');
 // 35 days ago — beyond the review_unfixed threshold (30 days)
@@ -38,7 +39,7 @@ function nextId(prefix: string): string {
   return `${prefix}-${++seq}`;
 }
 
-function insertEntity(d: Database, id: string, type = 'Package'): void {
+function insertEntity(d: SqlJsMemoryDb, id: string, type = 'Package'): void {
   d.run(
     `INSERT OR IGNORE INTO memory_entities
        (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
@@ -48,7 +49,7 @@ function insertEntity(d: Database, id: string, type = 'Package'): void {
 }
 
 function insertEdge(
-  d: Database,
+  d: SqlJsMemoryDb,
   opts: {
     subject: string;
     predicate: string;
@@ -70,7 +71,7 @@ function insertEdge(
 }
 
 function insertBugFix(
-  d: Database,
+  d: SqlJsMemoryDb,
   opts: {
     commitSha: string;
     bugEntityId: string;
@@ -91,7 +92,7 @@ function insertBugFix(
   );
 }
 
-function insertReview(d: Database): string {
+function insertReview(d: SqlJsMemoryDb): string {
   const rid = nextId('rev');
   const rentId = nextId('rev-ent');
   insertEntity(d, rentId, 'Review');
@@ -105,7 +106,7 @@ function insertReview(d: Database): string {
 }
 
 function insertReviewFinding(
-  d: Database,
+  d: SqlJsMemoryDb,
   opts: {
     reviewId: string;
     findingEntityId: string;
@@ -138,7 +139,7 @@ function makeEmbedding(values: [number, number, number, number]): Uint8Array {
 }
 
 function insertQuestion(
-  d: Database,
+  d: SqlJsMemoryDb,
   opts: { embedding: Uint8Array; targetSpecPath: string; lastUpdatedAt?: string },
 ): void {
   const eid = nextId('q');
@@ -156,7 +157,7 @@ function insertQuestion(
 
 beforeAll(async () => {
   SQL = await initSqlJs();
-  db = new SQL.Database();
+  db = SqlJsMemoryDb.fromDatabase(new SQL.Database());
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
 

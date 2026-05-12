@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../../db/connection/types';
 import { canonicalize } from '../../canonical/canonicalize';
 import { entityId } from '../../canonical/entityId';
 import type { Episode } from '../../canonical/splitEpisodes';
@@ -38,7 +38,7 @@ export function episodeId(sessionId: string, messageUuidStart: string): string {
  * Returns counts of rows affected.
  */
 export function persistEpisodeFacts(opts: {
-  db: Database;
+  db: MemoryDbConnection;
   episode: Episode;
   extracted: ExtractionResult;
   recordedAt: string;
@@ -92,9 +92,8 @@ export function persistEpisodeFacts(opts: {
     const existsStmt = db.prepare(
       `SELECT id FROM memory_entities WHERE type = ? AND canonical_name = ?`
     );
-    existsStmt.bind([ent.type, canonName]);
-    const exists = existsStmt.step();
-    existsStmt.free();
+    const exists = existsStmt.get(ent.type, canonName) !== undefined;
+    existsStmt.free?.();
 
     try {
       db.run(

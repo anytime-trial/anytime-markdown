@@ -1,4 +1,4 @@
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../db/connection/types';
 import type { MemoryLogger } from '../logger';
 
 export interface PipelineWatchdogResult {
@@ -17,7 +17,7 @@ export interface PipelineWatchdogResult {
  *   preserved so the next run can resume from where it left off).
  */
 export function runPipelineWatchdog(input: {
-  db: Database;
+  db: MemoryDbConnection;
   timeoutMinutes?: number;
   logger: MemoryLogger;
 }): PipelineWatchdogResult {

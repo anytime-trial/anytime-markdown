@@ -1,4 +1,4 @@
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../db/connection/types';
 import type { MemoryLogger } from '../logger';
 
 export type ReviewFindingSummary = {
@@ -29,7 +29,7 @@ export type ReviewHistoryEntry = {
 };
 
 export function getReviewHistory(input: {
-  db: Database;
+  db: MemoryDbConnection;
   target_file_path?: string;
   package?: string;
   category?: string;
@@ -54,7 +54,7 @@ export function getReviewHistory(input: {
 
   const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
 
-  let rows: ReturnType<Database['exec']>;
+  let rows: ReturnType<MemoryDbConnection['exec']>;
   try {
     rows = db.exec(
       `SELECT r.id, r.source_kind, r.source_ref, r.target_kind,
@@ -118,7 +118,7 @@ export function getReviewHistory(input: {
 
   if (include_precedes_bugs && findingEntityIds.size > 0) {
     for (const [findingId, entityId] of findingEntityIds) {
-      let edgeRows: ReturnType<Database['exec']>;
+      let edgeRows: ReturnType<MemoryDbConnection['exec']>;
       try {
         edgeRows = db.exec(
           `SELECT object_entity_id FROM memory_edges

@@ -1,10 +1,10 @@
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../../db/connection/types';
 import { canonicalize } from '../../canonical/canonicalize';
 import { entityId } from '../../canonical/entityId';
 import type { MemoryLogger } from '../../logger';
 
 export interface LinkAffectedFilesInput {
-  db: Database;
+  db: MemoryDbConnection;
   bugEntityId: string;
   commitSha: string;
   repoName: string;
@@ -26,7 +26,7 @@ function extractPackageName(filePath: string): string {
 export function linkAffectedFiles(input: LinkAffectedFilesInput): LinkAffectedFilesResult {
   const { db, bugEntityId, commitSha, repoName, recordedAt, valid_from, logger } = input;
 
-  let rows: { values: unknown[][] } | undefined;
+  let rows: { values: ReadonlyArray<ReadonlyArray<unknown>> } | undefined;
   try {
     const result = db.exec(
       `SELECT file_path FROM trail.commit_files WHERE commit_hash = ? AND repo_name = ?`,

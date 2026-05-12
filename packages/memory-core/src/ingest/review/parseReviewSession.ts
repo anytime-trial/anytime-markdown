@@ -1,4 +1,4 @@
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../../db/connection/types';
 import type { ParsedFinding } from './findingHelpers';
 import {
   inferCategory,
@@ -206,7 +206,7 @@ function groupIntoBlocks(
 const BODY_EXCERPT_MAX = 4096;
 
 export function parseReviewSessions(input: {
-  db: Database;
+  db: MemoryDbConnection;
   sinceISO: string;
   logger: { warn: (msg: string) => void };
 }): ParsedReviewSession[] {
@@ -223,12 +223,9 @@ export function parseReviewSessions(input: {
          OR m.skill IN ('superpowers:requesting-code-review', 'code-review-checklist', 'security-review'))
      ORDER BY m.session_id, m.timestamp`,
   );
-  stmt.bind([sinceISO]);
-
   const allRows: MsgRow[] = [];
 
-  while (stmt.step()) {
-    const row = stmt.getAsObject();
+  for (const row of stmt.iterate(sinceISO)) {
     allRows.push({
       uuid: row['uuid'] as string,
       session_id: row['session_id'] as string,
@@ -240,7 +237,7 @@ export function parseReviewSessions(input: {
       skill: (row['skill'] as string | null) ?? null,
     });
   }
-  stmt.free();
+  stmt.free?.();
 
   if (allRows.length === 0) return [];
 

@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../../db/connection/types';
 import { canonicalize } from '../../canonical/canonicalize';
 import { entityId } from '../../canonical/entityId';
 import type { MemoryLogger } from '../../logger';
@@ -56,7 +56,7 @@ interface TrailGraph {
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface AstFactInput {
-  db: Database;
+  db: MemoryDbConnection;
   repoName: string;
   graph: TrailGraph;
   commitSha: string | null;
@@ -103,7 +103,7 @@ function astEdgeId(subjectId: string, predicate: string, objectId: string): stri
  * Upsert a memory_entities row for a File entity and return its entity ID.
  */
 function upsertFileEntity(
-  db: Database,
+  db: MemoryDbConnection,
   filePath: string,
   recordedAt: string,
   logger: MemoryLogger
@@ -157,7 +157,7 @@ function computeFunctionHash(
  * Returns the entity ID (always defined, even on partial failure).
  */
 function upsertFunctionEntity(
-  db: Database,
+  db: MemoryDbConnection,
   repoName: string,
   filePath: string,
   symbolName: string,
@@ -208,7 +208,7 @@ function upsertFunctionEntity(
  * Upsert a memory_entities row for a Library entity and return its entity ID.
  */
 function upsertLibraryEntity(
-  db: Database,
+  db: MemoryDbConnection,
   moduleName: string,
   recordedAt: string,
   logger: MemoryLogger

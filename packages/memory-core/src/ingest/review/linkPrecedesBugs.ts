@@ -1,10 +1,10 @@
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../../db/connection/types';
 import { entityId } from '../../canonical/entityId';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type LinkPrecedesBugsInput = {
-  db: Database;
+  db: MemoryDbConnection;
   windowDays?: number; // default 60
   logger: { warn: (msg: string) => void };
 };

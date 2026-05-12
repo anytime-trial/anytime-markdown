@@ -1,4 +1,5 @@
-import { Database } from 'sql.js';
+import type { MemoryDbConnection, SqlValue } from '../db/connection/types';
+import { toUint8ArrayOrNull } from '../db/connection/blobUtil';
 import { decodeEmbedding } from '../embedding/codec';
 import { cosineSimilarity } from '../embedding/cosine';
 import type { OllamaClient } from '../ollama/client';
@@ -54,7 +55,7 @@ interface EntityCandidate {
 }
 
 export async function searchMemory(opts: {
-  db: Database;
+  db: MemoryDbConnection;
   ollama: OllamaClient;
   embedModel?: string;
   input: SearchInput;
@@ -99,7 +100,7 @@ export async function searchMemory(opts: {
     const type = row[1] as string;
     const display_name = row[2] as string;
     const summary = row[3] as string;
-    const embBlob = row[4] as Uint8Array | null;
+    const embBlob = toUint8ArrayOrNull(row[4] as SqlValue);
 
     if (embBlob == null) {
       continue;

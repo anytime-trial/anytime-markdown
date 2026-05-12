@@ -14,6 +14,7 @@
  */
 
 import * as fs from 'fs';
+import { SqlJsMemoryDb } from '../../src/db/connection/SqlJsMemoryDb';
 import * as os from 'os';
 import * as path from 'path';
 import initSqlJs, { Database, SqlJsStatic } from 'sql.js';
@@ -128,8 +129,8 @@ const COMMITS: CommitSeed[] = [
  *   - session_commits table (queried by runBugHistoryIncremental)
  *   - commit_files table (queried by linkAffectedFiles)
  */
-function makeTrailDb(SQL: SqlJsStatic, repoName: string, commits: CommitSeed[]): Database {
-  const db = new SQL.Database();
+function makeTrailDb(SQL: SqlJsStatic, repoName: string, commits: CommitSeed[]): SqlJsMemoryDb {
+  const db = SqlJsMemoryDb.fromDatabase(new SQL.Database());
   db.run('PRAGMA foreign_keys = ON');
 
   db.run(`CREATE TABLE sessions (
@@ -201,7 +202,7 @@ function makeTrailDb(SQL: SqlJsStatic, repoName: string, commits: CommitSeed[]):
 /** Opens an in-memory memory-core DB with all migrations applied. */
 async function makeMemoryDb(): Promise<MemoryCoreDb> {
   const SQL = await initSqlJs();
-  const rawDb = new SQL.Database();
+  const rawDb = SqlJsMemoryDb.fromDatabase(new SQL.Database());
   rawDb.run('PRAGMA foreign_keys = ON');
 
   const { runMigrations } = await import('../../src/db/migrations/runner');
@@ -217,8 +218,8 @@ async function makeMemoryDb(): Promise<MemoryCoreDb> {
 }
 
 /** Exports a sql.js Database to a temp file and returns the file path. */
-function exportToTempFile(db: Database, tmpDir: string, filename: string): string {
-  const data = db.export();
+function exportToTempFile(db: SqlJsMemoryDb, tmpDir: string, filename: string): string {
+  const data = db.exportBytes();
   const filePath = path.join(tmpDir, filename);
   fs.writeFileSync(filePath, data);
   return filePath;
@@ -331,7 +332,7 @@ describe('E2E Phase 2.5: runBugHistoryIncremental', () => {
         expect(pipeStatus).toBe('idle');
         expect(lastAt >= '2026-03-06T10:00:00.000Z').toBe(true);
       } finally {
-        handle.trailHandle.close();
+        handle.trailHandle?.close();
         memDb.close();
       }
     },
@@ -389,7 +390,7 @@ describe('E2E Phase 2.5: runBugHistoryIncremental', () => {
         );
         expect(fixesEdges[0]?.values[0][0] as number).toBe(6);
       } finally {
-        handle.trailHandle.close();
+        handle.trailHandle?.close();
         memDb.close();
       }
     },
@@ -444,13 +445,12 @@ describe('E2E Phase 2.5: runBugHistoryIncremental', () => {
 
         const sharedFileId = sharedFileRows[0].values[0][0] as string;
         const edgeStmt = memDb.db.prepare(
-          `SELECT COUNT(*) FROM memory_edges
+          `SELECT COUNT(*) AS c FROM memory_edges
            WHERE object_entity_id = ? AND predicate = 'affects'`
         );
-        edgeStmt.bind([sharedFileId]);
-        edgeStmt.step();
-        const edgeCount = edgeStmt.getAsObject()['COUNT(*)'] as number;
-        edgeStmt.free();
+        const edgeRow = edgeStmt.get(sharedFileId);
+        const edgeCount = (edgeRow?.['c'] as number) ?? 0;
+        edgeStmt.free?.();
         expect(edgeCount).toBeGreaterThanOrEqual(2);
 
         // Commit entities exist (6 fix commits → 6 Commit entities)
@@ -459,7 +459,7 @@ describe('E2E Phase 2.5: runBugHistoryIncremental', () => {
         );
         expect(commitCount[0]?.values[0][0] as number).toBe(6);
       } finally {
-        handle.trailHandle.close();
+        handle.trailHandle?.close();
         memDb.close();
       }
     },

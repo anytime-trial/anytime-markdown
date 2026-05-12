@@ -1,9 +1,9 @@
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../db/connection/types';
 import type { MemoryLogger } from '../logger';
 import { randomUUID } from 'crypto';
 
 export type RunReviewAgentInput = {
-  db: Database;
+  db: MemoryDbConnection;
   trigger_kind: 'mcp';
   target_kind: string;
   target_refs: string[];

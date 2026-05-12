@@ -1,4 +1,4 @@
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../db/connection/types';
 import type { MemoryLogger } from '../logger';
 
 export type ReviewRunStatus = {
@@ -22,13 +22,13 @@ export type ReviewRunStatus = {
 };
 
 export function getReviewRunStatus(input: {
-  db: Database;
+  db: MemoryDbConnection;
   run_id: string;
   logger: MemoryLogger;
 }): ReviewRunStatus | null {
   const { db, run_id, logger } = input;
 
-  let rows: ReturnType<Database['exec']>;
+  let rows: ReturnType<MemoryDbConnection['exec']>;
   try {
     rows = db.exec(
       `SELECT id, trigger_kind, target_kind, target_refs_json, model, prompt_kind,

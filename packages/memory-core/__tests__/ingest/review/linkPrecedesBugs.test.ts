@@ -1,4 +1,5 @@
 import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../../../src/db/connection/types';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -38,7 +39,7 @@ type SetupOpts = {
 };
 
 type SetupResult = {
-  db: Database;
+  db: MemoryDbConnection;
   findingId: string;
   findingEntityId: string;
   bugId: string;

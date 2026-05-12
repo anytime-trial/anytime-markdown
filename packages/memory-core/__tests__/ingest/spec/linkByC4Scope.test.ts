@@ -6,12 +6,14 @@
  * インメモリ trail DB を ATTACH する。
  */
 import initSqlJs from 'sql.js';
+import { SqlJsMemoryDb } from '../../../src/db/connection/SqlJsMemoryDb';
 import type { Database } from 'sql.js';
 import { openMemoryCoreDb } from '../../../src/db/connection';
 import { attachTrailDbFromHandle } from '../../../src/db/attach';
 import { linkByC4Scope } from '../../../src/ingest/spec/linkByC4Scope';
 import { entityId } from '../../../src/canonical/entityId';
 import type { MemoryLogger } from '../../../src/logger';
+import type { MemoryDbConnection } from '../../../src/db/connection/types';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -32,9 +34,9 @@ type TrailRow = { id: string; name: string };
  * attachTrailDbFromHandle で trail を ATTACH し、readonly ガードを設置する。
  */
 async function openFreshWithTrailRows(rows: TrailRow[]): Promise<{
-  db: Database;
+  db: MemoryDbConnection;
   mainPath: string;
-  trailDb: Database;
+  trailDb: SqlJsMemoryDb;
   cleanup: () => void;
 }> {
   const mainPath = makeTmpPath('main');
@@ -43,7 +45,7 @@ async function openFreshWithTrailRows(rows: TrailRow[]): Promise<{
 
   // trail DB をメモリで作成（同じ WASM モジュール内のインスタンス）
   const SQL = await initSqlJs();
-  const trailDb = new SQL.Database();
+  const trailDb = SqlJsMemoryDb.fromDatabase(new SQL.Database());
   trailDb.run(`
     CREATE TABLE c4_manual_elements (
       id          TEXT PRIMARY KEY,
@@ -77,9 +79,9 @@ async function openFreshWithTrailRows(rows: TrailRow[]): Promise<{
 /**
  * memory_spec_documents に必要な行を挿入する（FK 制約のために必要）。
  */
-function insertSpecDoc(db: Database, specDocId: string): void {
+function insertSpecDoc(db: MemoryDbConnection, specDocId: string): void {
   // installTrailReadonlyGuard 後は db.run のラッパー経由。trail.* でないため通過する。
-  const run = (db as unknown as { run: Database['run'] }).run.bind(db);
+  const run = (db as unknown as { run: SqlJsMemoryDb['run'] }).run.bind(db);
   run(
     `INSERT OR IGNORE INTO memory_spec_documents
        (id, rel_path, type, title, c4_scope_json, updated_at, source_hash, recorded_at)
@@ -91,8 +93,8 @@ function insertSpecDoc(db: Database, specDocId: string): void {
 /**
  * memory_entities に specEntityId の Concept entity を挿入する（edges の FK 制約のために必要）。
  */
-function insertSpecEntity(db: Database, specEntityId: string): void {
-  const run = (db as unknown as { run: Database['run'] }).run.bind(db);
+function insertSpecEntity(db: MemoryDbConnection, specEntityId: string): void {
+  const run = (db as unknown as { run: SqlJsMemoryDb['run'] }).run.bind(db);
   run(
     `INSERT OR IGNORE INTO memory_entities
        (id, type, canonical_name, display_name, attributes_json,

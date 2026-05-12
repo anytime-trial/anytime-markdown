@@ -1,4 +1,4 @@
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../db/connection/types';
 import type { MemoryLogger } from '../logger';
 
 export type BugFixSummary = {
@@ -16,7 +16,7 @@ export type RecurringBugGroup = {
 };
 
 export function listRecurringBugs(input: {
-  db: Database;
+  db: MemoryDbConnection;
   package?: string;
   file_path?: string;
   caused_by_entity_id?: string;
@@ -28,7 +28,7 @@ export function listRecurringBugs(input: {
   const results: RecurringBugGroup[] = [];
 
   if (input.package != null) {
-    let rows: ReturnType<Database['exec']>;
+    let rows: ReturnType<MemoryDbConnection['exec']>;
     try {
       rows = db.exec(
         `SELECT id, commit_sha, subject_summary, committed_at
@@ -55,7 +55,7 @@ export function listRecurringBugs(input: {
   }
 
   if (input.file_path != null) {
-    let rows: ReturnType<Database['exec']>;
+    let rows: ReturnType<MemoryDbConnection['exec']>;
     try {
       rows = db.exec(
         `SELECT memory_bug_fixes.id, commit_sha, subject_summary, committed_at
@@ -82,7 +82,7 @@ export function listRecurringBugs(input: {
   }
 
   if (input.caused_by_entity_id != null) {
-    let bugEntityRows: ReturnType<Database['exec']>;
+    let bugEntityRows: ReturnType<MemoryDbConnection['exec']>;
     try {
       bugEntityRows = db.exec(
         `SELECT DISTINCT subject_entity_id
@@ -102,7 +102,7 @@ export function listRecurringBugs(input: {
 
     const bugs: BugFixSummary[] = [];
     for (const bugEntityId of bugEntityIds) {
-      let fixRows: ReturnType<Database['exec']>;
+      let fixRows: ReturnType<MemoryDbConnection['exec']>;
       try {
         fixRows = db.exec(
           `SELECT id, commit_sha, subject_summary, committed_at

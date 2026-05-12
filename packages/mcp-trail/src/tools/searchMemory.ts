@@ -37,7 +37,7 @@ export async function handleSearchMemory(input: SearchMemoryInput): Promise<Sear
           input,
         });
       } finally {
-        attachHandle.trailHandle.close();
+        attachHandle.trailHandle?.close();
       }
     } else {
       const ollama = createOllamaClient(ollamaBaseUrl ? { baseUrl: ollamaBaseUrl } : {});

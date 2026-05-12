@@ -1,11 +1,11 @@
 import * as child_process from 'child_process';
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../../db/connection/types';
 import { entityId } from '../../canonical/entityId';
 import { parseFixCommit } from './parseFixCommit';
 import type { MemoryLogger } from '../../logger';
 
 export interface InferIntroducedByInput {
-  db: Database;
+  db: MemoryDbConnection;
   bugEntityId: string;
   fixCommitSha: string;
   affectedFilePaths: string[];
@@ -46,7 +46,7 @@ function parseBlameSha(blameOutput: string): string | null {
   return sha.length === 40 ? sha : null;
 }
 
-function isFix(db: Database, sha: string): boolean {
+function isFix(db: MemoryDbConnection, sha: string): boolean {
   try {
     const result = db.exec(
       `SELECT commit_message FROM trail.session_commits WHERE commit_hash = ? LIMIT 1`,

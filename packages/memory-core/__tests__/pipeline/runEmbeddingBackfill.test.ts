@@ -1,4 +1,5 @@
 import initSqlJs from 'sql.js';
+import { SqlJsMemoryDb } from '../../src/db/connection/SqlJsMemoryDb';
 import { runEmbeddingBackfill } from '../../src/pipeline/runEmbeddingBackfill';
 import type { OllamaClient } from '../../src/ollama/client';
 import { encodeEmbedding } from '../../src/embedding/codec';
@@ -24,7 +25,7 @@ function mockOllama(
 
 async function makeDb() {
   const SQL = await initSqlJs();
-  const db = new SQL.Database();
+  const db = SqlJsMemoryDb.fromDatabase(new SQL.Database());
   db.run(`
     CREATE TABLE memory_entities (
       id             TEXT PRIMARY KEY,

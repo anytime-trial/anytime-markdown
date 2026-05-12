@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../db/connection/types';
 import { splitEpisodes, type Message } from '../canonical/splitEpisodes';
 import { extractFactsFromEpisode } from '../ingest/conversation/extractFacts';
 import { persistEpisodeFacts, type PersistStats } from '../ingest/conversation/persist';
@@ -50,7 +50,7 @@ interface ReconstructedEpisode {
   raw_excerpt: string;
 }
 
-function loadFailedItems(db: Database, sourceScope: string, maxAttempts: number): FailedItemRow[] {
+function loadFailedItems(db: MemoryDbConnection, sourceScope: string, maxAttempts: number): FailedItemRow[] {
   const rows = db.exec(
     `SELECT scope, item_key, attempt_count
      FROM memory_failed_items
@@ -78,7 +78,7 @@ function parseItemKey(item_key: string): { session_id: string; message_uuid_star
 }
 
 function reconstructEpisode(
-  db: Database,
+  db: MemoryDbConnection,
   session_id: string,
   message_uuid_start: string,
 ): ReconstructedEpisode | null {
@@ -112,7 +112,7 @@ function reconstructEpisode(
   return eps.find((e) => e.message_uuid_start === message_uuid_start) ?? null;
 }
 
-function deleteFailedItem(db: Database, scope: string, item_key: string): void {
+function deleteFailedItem(db: MemoryDbConnection, scope: string, item_key: string): void {
   db.run(
     `DELETE FROM memory_failed_items WHERE scope = ? AND item_key = ?`,
     [scope, item_key]
@@ -120,7 +120,7 @@ function deleteFailedItem(db: Database, scope: string, item_key: string): void {
 }
 
 function recordFailedItem(
-  db: Database,
+  db: MemoryDbConnection,
   scope: string,
   item_key: string,
   reason: string,
@@ -140,7 +140,7 @@ function recordFailedItem(
 }
 
 function upsertPipelineState(
-  db: Database,
+  db: MemoryDbConnection,
   opts: { status: string; error_detail?: string },
 ): void {
   const { status, error_detail } = opts;
@@ -155,7 +155,7 @@ function upsertPipelineState(
   );
 }
 
-function insertPipelineRun(db: Database, id: string, startedAt: string): void {
+function insertPipelineRun(db: MemoryDbConnection, id: string, startedAt: string): void {
   db.run(
     `INSERT INTO memory_pipeline_runs
        (id, scope, started_at, status,
@@ -168,7 +168,7 @@ function insertPipelineRun(db: Database, id: string, startedAt: string): void {
 }
 
 function updateHeartbeatAndProgress(
-  db: Database,
+  db: MemoryDbConnection,
   id: string,
   totals: PersistStats & { items_processed: number; items_failed: number },
 ): void {
@@ -196,7 +196,7 @@ function updateHeartbeatAndProgress(
 }
 
 function finalizePipelineRun(
-  db: Database,
+  db: MemoryDbConnection,
   id: string,
   startedAt: string,
   status: 'success' | 'partial' | 'error',
@@ -251,7 +251,7 @@ export interface FailedItemsRetryResult {
  * The ATTACHed trail.db must already be present as alias "trail" before calling.
  */
 export async function runConversationFailedItemsRetry(opts: {
-  db: Database;
+  db: MemoryDbConnection;
   ollama: OllamaClient;
   logger?: MemoryLogger;
   model?: string;

@@ -1,14 +1,15 @@
 import initSqlJs from 'sql.js';
+import { SqlJsMemoryDb } from '../../src/db/connection/SqlJsMemoryDb';
 import type { Database } from 'sql.js';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { applySingleActiveRule } from '../../src/invalidate/ruleBased';
 
-let db: Database;
+let db: SqlJsMemoryDb;
 
 const NOW = '2026-01-01T00:00:00.000Z';
 const LATER = '2026-01-02T00:00:00.000Z';
 
-function insertEntity(d: Database, id: string): void {
+function insertEntity(d: SqlJsMemoryDb, id: string): void {
   d.run(
     `INSERT INTO memory_entities (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
      VALUES (?, 'Concept', ?, ?, ?, ?, ?)`,
@@ -17,7 +18,7 @@ function insertEntity(d: Database, id: string): void {
 }
 
 function insertEdge(
-  d: Database,
+  d: SqlJsMemoryDb,
   id: string,
   subjectId: string,
   predicate: string,
@@ -33,7 +34,7 @@ function insertEdge(
 
 beforeAll(async () => {
   const SQL = await initSqlJs();
-  db = new SQL.Database();
+  db = SqlJsMemoryDb.fromDatabase(new SQL.Database());
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
 

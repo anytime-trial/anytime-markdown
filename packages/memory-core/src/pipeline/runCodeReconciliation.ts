@@ -1,4 +1,4 @@
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../db/connection/types';
 import { noopLogger, type MemoryLogger } from '../logger';
 
 export interface CodeReconciliationResult {
@@ -21,7 +21,7 @@ export interface CodeReconciliationResult {
  * rename detection (preserving edges) is deferred to a future phase.
  */
 export function runCodeReconciliation(opts: {
-  db: Database;
+  db: MemoryDbConnection;
   repoName: string;
   currentEntityIds: Set<string>;
   recordedAt: string;
@@ -41,16 +41,15 @@ export function runCodeReconciliation(opts: {
        AND valid_until IS NULL`
   );
   try {
-    stmt.bind([opts.repoName]);
-    while (stmt.step()) {
-      const id = stmt.getAsObject()['id'] as string;
+    for (const row of stmt.iterate(opts.repoName)) {
+      const id = row['id'] as string;
       scanned += 1;
       if (!opts.currentEntityIds.has(id)) {
         toDelete.push(id);
       }
     }
   } finally {
-    stmt.free();
+    stmt.free?.();
   }
 
   let softDeleted = 0;

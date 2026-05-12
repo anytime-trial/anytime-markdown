@@ -1,9 +1,9 @@
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../../db/connection/types';
 import { entityId } from '../../canonical/entityId';
 import type { MemoryLogger } from '../../logger';
 
 export type LinkC4ScopeInput = {
-  db: Database;
+  db: MemoryDbConnection;
   specDocId: string;
   specEntityId: string;
   c4Scope: string[];

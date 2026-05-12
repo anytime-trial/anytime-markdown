@@ -24,33 +24,26 @@ function makeLogger(): MemoryLogger & { warns: string[]; infos: string[] } {
 }
 
 /**
- * Make a minimal sql.js Database mock.
+ * Make a minimal MemoryDbConnection mock.
  * rowResult: null means no row found; string means existing source_hash.
  */
 function makeDb(rowResult: string | null): {
   prepare: jest.Mock;
   _stmt: {
-    bind: jest.Mock;
-    step: jest.Mock;
-    getAsObject: jest.Mock;
-    reset: jest.Mock;
+    get: jest.Mock;
+    all: jest.Mock;
+    run: jest.Mock;
+    iterate: jest.Mock;
     free: jest.Mock;
   };
 } {
-  let stepped = false;
   const stmt = {
-    bind: jest.fn(() => { stepped = false; }),
-    step: jest.fn(() => {
-      if (rowResult !== null && !stepped) {
-        stepped = true;
-        return true;
-      }
-      return false;
+    get: jest.fn(() => (rowResult !== null ? { source_hash: rowResult } : undefined)),
+    all: jest.fn(() => (rowResult !== null ? [{ source_hash: rowResult }] : [])),
+    run: jest.fn(() => ({ changes: 0, lastInsertRowid: 0 })),
+    iterate: jest.fn(function* () {
+      if (rowResult !== null) yield { source_hash: rowResult };
     }),
-    getAsObject: jest.fn(() => {
-      return rowResult !== null ? { source_hash: rowResult } : {};
-    }),
-    reset: jest.fn(() => { stepped = false; }),
     free: jest.fn(),
   };
   return {

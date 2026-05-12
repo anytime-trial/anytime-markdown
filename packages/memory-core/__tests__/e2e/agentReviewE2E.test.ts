@@ -9,6 +9,7 @@
  */
 
 import * as os from 'os';
+import type { MemoryDbConnection } from '../../src/db/connection/types';
 import * as path from 'path';
 import * as fs from 'fs';
 import type { Database } from 'sql.js';
@@ -32,7 +33,7 @@ const TS_BASE = '2026-01-01T00:00:00.000Z';
 
 // ── DB helper ─────────────────────────────────────────────────────────────────
 
-async function openFresh(): Promise<{ db: Database; close: () => void }> {
+async function openFresh(): Promise<{ db: MemoryDbConnection; close: () => void }> {
   const tmpPath = path.join(os.tmpdir(), `agent-e2e-${process.pid}-${Date.now()}.db`);
   process.env.MEMORY_CORE_DB_PATH = tmpPath;
   const { db, close } = await openMemoryCoreDb();

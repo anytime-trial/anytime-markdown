@@ -113,10 +113,16 @@ export function createMemoryCoreRunner(opts: {
           const attachHandle = await attachTrailDbReadOnly(memDb.db, opts.trailDbPath);
           // sql.js の export() は sqlite3_close → sqlite3_open を内部実行するため
           // save() のたびに ATTACH が外れる。save 後に再度 ATTACH する必要がある。
-          const trailFilename = (attachHandle.trailHandle as unknown as { filename: string }).filename;
+          // (better-sqlite3 driver の場合 trailHandle は undefined のため filename は取れない
+          // が、save() が no-op なので reattach も不要。)
+          const trailFilename = attachHandle.trailHandle
+            ? (attachHandle.trailHandle as unknown as { filename: string }).filename
+            : null;
           const saveAndReattach = () => {
             memDb.save();
-            memDb.db.run(`ATTACH DATABASE '${trailFilename}' AS trail`);
+            if (trailFilename) {
+              memDb.db.run(`ATTACH DATABASE '${trailFilename}' AS trail`);
+            }
           };
           try {
             // Timeout stale agent runs before starting pipelines
@@ -140,13 +146,9 @@ export function createMemoryCoreRunner(opts: {
             const stmt = memDb.db.prepare(
               `SELECT last_processed_at FROM memory_pipeline_state WHERE scope = ?`,
             );
-            stmt.bind(['conversation_incremental']);
-            let lastProcessedAt = '';
-            if (stmt.step()) {
-              lastProcessedAt =
-                (stmt.getAsObject()['last_processed_at'] as string) ?? '';
-            }
-            stmt.free();
+            const stateRow = stmt.get('conversation_incremental');
+            const lastProcessedAt = (stateRow?.['last_processed_at'] as string) ?? '';
+            stmt.free?.();
 
             const isFirstRun = !lastProcessedAt;
 
@@ -154,13 +156,11 @@ export function createMemoryCoreRunner(opts: {
             let convTotalEstimate = 0;
             try {
               const stmt = memDb.db.prepare(
-                `SELECT COUNT(*) FROM trail.messages WHERE timestamp >= ? AND type = 'user'`,
+                `SELECT COUNT(*) AS c FROM trail.messages WHERE timestamp >= ? AND type = 'user'`,
               );
-              stmt.bind([lastProcessedAt || '1970-01-01T00:00:00.000Z']);
-              if (stmt.step()) {
-                convTotalEstimate = (stmt.getAsObject()['COUNT(*)'] as number) ?? 0;
-              }
-              stmt.free();
+              const countRow = stmt.get(lastProcessedAt || '1970-01-01T00:00:00.000Z');
+              convTotalEstimate = (countRow?.['c'] as number) ?? 0;
+              stmt.free?.();
             } catch {
               // ignore
             }
@@ -409,7 +409,8 @@ export function createMemoryCoreRunner(opts: {
             { const t0 = Date.now(); saveAndReattach(); logger.info(`Saved (embedding_backfill): ${Date.now() - t0}ms`); }
           } finally {
             // Release the WASM heap copy of trail DB (~800MB) after every run.
-            attachHandle.trailHandle.close();
+            // (better-sqlite3 driver の場合 trailHandle は undefined)
+            attachHandle.trailHandle?.close();
           }
         } finally {
           memDb.save();

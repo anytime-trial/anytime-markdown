@@ -1,9 +1,9 @@
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../db/connection/types';
 import type { MemoryLogger } from '../logger';
 import type { ReviewRunStatus } from './getReviewRunStatus';
 
 export function listReviewRuns(input: {
-  db: Database;
+  db: MemoryDbConnection;
   trigger_kind?: string;
   status?: string;
   target_kind?: string;
@@ -41,7 +41,7 @@ export function listReviewRuns(input: {
 
   const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
 
-  let rows: ReturnType<Database['exec']>;
+  let rows: ReturnType<MemoryDbConnection['exec']>;
   try {
     rows = db.exec(
       `SELECT id, trigger_kind, target_kind, target_refs_json, model, prompt_kind,

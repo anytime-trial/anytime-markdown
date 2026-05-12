@@ -1,8 +1,8 @@
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../../db/connection/types';
 import type { MemoryLogger } from '../../logger';
 
 export interface LinkRootCauseInput {
-  db: Database;
+  db: MemoryDbConnection;
   bugFixId: string;
   sessionId: string | null;
   committedAt: string;

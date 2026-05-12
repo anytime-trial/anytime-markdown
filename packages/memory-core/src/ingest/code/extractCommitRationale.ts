@@ -1,12 +1,12 @@
 import { createHash } from 'crypto';
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../../db/connection/types';
 import { entityId } from '../../canonical/entityId';
 import type { MemoryLogger } from '../../logger';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface ExtractRationaleInput {
-  db: Database;
+  db: MemoryDbConnection;
   repoName: string;
   /** ISO 8601 UTC cursor for incremental runs. Pass null to process all commits. */
   sinceCommittedAt: string | null;
@@ -104,14 +104,10 @@ export function extractCommitRationale(input: ExtractRationaleInput): ExtractRat
 
   const stmt = db.prepare(sql);
   try {
-    if (sinceCommittedAt !== null) {
-      stmt.bind([repoName, sinceCommittedAt]);
-    } else {
-      stmt.bind([repoName]);
-    }
+    const params: (string | null)[] =
+      sinceCommittedAt !== null ? [repoName, sinceCommittedAt] : [repoName];
 
-    while (stmt.step()) {
-      const row = stmt.getAsObject();
+    for (const row of stmt.iterate(...params)) {
       const commitHash = row['commit_hash'] as string;
       const commitMessage = row['commit_message'] as string;
       const rawCommittedAt = row['committed_at'] as string | null;
@@ -219,7 +215,7 @@ export function extractCommitRationale(input: ExtractRationaleInput): ExtractRat
       }
     }
   } finally {
-    stmt.free();
+    stmt.free?.();
   }
 
   logger.info(

@@ -1,4 +1,4 @@
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../db/connection/types';
 import type { MemoryLogger } from '../logger';
 import type { DriftType, Severity } from './policy';
 
@@ -35,7 +35,7 @@ function eventId(subjectId: string, predicate: string, driftType: string): strin
 }
 
 export function reportDriftEvents(input: {
-  db: Database;
+  db: MemoryDbConnection;
   candidates: DriftEventInput[];
   recordedAt: string;
   autoResolveStale?: boolean;

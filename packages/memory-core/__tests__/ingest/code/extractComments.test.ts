@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import { SqlJsMemoryDb } from '../../../src/db/connection/SqlJsMemoryDb';
 import * as os from 'os';
 import * as path from 'path';
 import * as ts from 'typescript';
@@ -22,9 +23,9 @@ const silentLogger: MemoryLogger = {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-async function makeDb(): Promise<Database> {
+async function makeDb(): Promise<SqlJsMemoryDb> {
   const SQL = await initSqlJs();
-  const db = new SQL.Database();
+  const db = SqlJsMemoryDb.fromDatabase(new SQL.Database());
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
@@ -60,19 +61,20 @@ function cleanupTmp(tmpDir: string): void {
   }
 }
 
-function countDecisions(db: Database): number {
+function countDecisions(db: SqlJsMemoryDb): number {
   const result = db.exec(`SELECT COUNT(*) FROM memory_entities WHERE type = 'Decision'`);
   return result[0]?.values[0][0] as number ?? 0;
 }
 
-function countEdges(db: Database, predicate?: string): number {
+function countEdges(db: SqlJsMemoryDb, predicate?: string): number {
   if (predicate) {
-    const stmt = db.prepare(`SELECT COUNT(*) FROM memory_edges WHERE predicate = ?`);
-    stmt.bind([predicate]);
-    stmt.step();
-    const row = stmt.getAsObject();
-    stmt.free();
-    return (row['COUNT(*)'] as number) ?? 0;
+    const stmt = db.prepare(`SELECT COUNT(*) AS c FROM memory_edges WHERE predicate = ?`);
+    try {
+      const row = stmt.get(predicate);
+      return ((row?.['c'] as number) ?? 0);
+    } finally {
+      stmt.free?.();
+    }
   }
   const result = db.exec(`SELECT COUNT(*) FROM memory_edges`);
   return result[0]?.values[0][0] as number ?? 0;

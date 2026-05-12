@@ -1,7 +1,7 @@
 import { createHash } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../db/connection/types';
 import { parseReviewDoc } from '../ingest/review/parseReviewDoc';
 import { parseReviewSessions } from '../ingest/review/parseReviewSession';
 import { refineCategories } from '../ingest/review/extractFindings';
@@ -28,20 +28,19 @@ export interface ReviewIncrementalResult {
 
 // ── Private helpers (same pattern as runBugHistoryIncremental.ts) ─────────────
 
-function readPipelineState(db: Database, scope: string): string {
+function readPipelineState(db: MemoryDbConnection, scope: string): string {
   const stmt = db.prepare(`SELECT last_processed_at FROM memory_pipeline_state WHERE scope = ?`);
-  stmt.bind([scope]);
-  if (stmt.step()) {
-    const row = stmt.getAsObject();
-    stmt.free();
-    return (row['last_processed_at'] as string) || DEFAULT_SINCE;
+  try {
+    const row = stmt.get(scope);
+    if (row) return (row['last_processed_at'] as string) || DEFAULT_SINCE;
+    return DEFAULT_SINCE;
+  } finally {
+    stmt.free?.();
   }
-  stmt.free();
-  return DEFAULT_SINCE;
 }
 
 function upsertPipelineState(
-  db: Database,
+  db: MemoryDbConnection,
   scope: string,
   opts: { status: string; last_processed_at?: string; error_detail?: string },
 ): void {
@@ -59,7 +58,7 @@ function upsertPipelineState(
   );
 }
 
-function insertPipelineRun(db: Database, id: string, scope: string, startedAt: string): void {
+function insertPipelineRun(db: MemoryDbConnection, id: string, scope: string, startedAt: string): void {
   db.run(
     `INSERT INTO memory_pipeline_runs
        (id, scope, started_at, status,
@@ -72,7 +71,7 @@ function insertPipelineRun(db: Database, id: string, scope: string, startedAt: s
 }
 
 function finalizePipelineRun(
-  db: Database,
+  db: MemoryDbConnection,
   id: string,
   startedAt: string,
   status: 'success' | 'partial' | 'error',
@@ -102,7 +101,7 @@ function finalizePipelineRun(
 }
 
 function recordFailedItem(
-  db: Database,
+  db: MemoryDbConnection,
   scope: string,
   itemKey: string,
   reason: string,
@@ -122,7 +121,7 @@ function recordFailedItem(
 // ── Main function ─────────────────────────────────────────────────────────────
 
 export async function runReviewIncremental(input: {
-  db: Database;
+  db: MemoryDbConnection;
   repoName: string;
   reviewDir?: string;
   ollama: OllamaClient;

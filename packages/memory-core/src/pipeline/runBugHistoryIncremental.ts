@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import type { Database } from 'sql.js';
+import type { MemoryDbConnection } from '../db/connection/types';
 import { parseFixCommit } from '../ingest/bug-history/parseFixCommit';
 import { buildBugEntity } from '../ingest/bug-history/buildBugEntity';
 import { linkAffectedFiles } from '../ingest/bug-history/linkAffectedFiles';
@@ -26,20 +26,19 @@ function runId(startedAt: string): string {
   return createHash('sha1').update(`${SCOPE}:${startedAt}`).digest('hex').slice(0, 16);
 }
 
-function readPipelineState(db: Database): string {
+function readPipelineState(db: MemoryDbConnection): string {
   const stmt = db.prepare(`SELECT last_processed_at FROM memory_pipeline_state WHERE scope = ?`);
-  stmt.bind([SCOPE]);
-  if (stmt.step()) {
-    const row = stmt.getAsObject();
-    stmt.free();
-    return (row['last_processed_at'] as string) || DEFAULT_SINCE;
+  try {
+    const row = stmt.get(SCOPE);
+    if (row) return (row['last_processed_at'] as string) || DEFAULT_SINCE;
+    return DEFAULT_SINCE;
+  } finally {
+    stmt.free?.();
   }
-  stmt.free();
-  return DEFAULT_SINCE;
 }
 
 function upsertPipelineState(
-  db: Database,
+  db: MemoryDbConnection,
   opts: { status: string; last_processed_at?: string; error_detail?: string }
 ): void {
   db.run(
@@ -56,7 +55,7 @@ function upsertPipelineState(
   );
 }
 
-function insertPipelineRun(db: Database, id: string, startedAt: string): void {
+function insertPipelineRun(db: MemoryDbConnection, id: string, startedAt: string): void {
   db.run(
     `INSERT INTO memory_pipeline_runs
        (id, scope, started_at, status,
@@ -69,7 +68,7 @@ function insertPipelineRun(db: Database, id: string, startedAt: string): void {
 }
 
 function finalizePipelineRun(
-  db: Database,
+  db: MemoryDbConnection,
   id: string,
   startedAt: string,
   status: 'success' | 'partial' | 'error',
@@ -90,7 +89,7 @@ function finalizePipelineRun(
   );
 }
 
-function recordFailedItem(db: Database, itemKey: string, reason: string, detail: string): void {
+function recordFailedItem(db: MemoryDbConnection, itemKey: string, reason: string, detail: string): void {
   db.run(
     `INSERT INTO memory_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
      VALUES (?, ?, ?, ?, ?, 1)
@@ -111,7 +110,7 @@ interface CommitRow {
 }
 
 export async function runBugHistoryIncremental(opts: {
-  db: Database;
+  db: MemoryDbConnection;
   repoName: string;
   repoRoot: string;
   logger?: MemoryLogger;
@@ -132,9 +131,7 @@ export async function runBugHistoryIncremental(opts: {
      WHERE repo_name = ? AND committed_at > ? AND commit_message LIKE 'fix%'
      ORDER BY committed_at`
   );
-  stmt.bind([repoName, lastProcessedAt]);
-  while (stmt.step()) {
-    const r = stmt.getAsObject();
+  for (const r of stmt.iterate(repoName, lastProcessedAt)) {
     rows.push({
       commit_hash: String(r['commit_hash'] ?? ''),
       commit_message: String(r['commit_message'] ?? ''),
@@ -143,7 +140,7 @@ export async function runBugHistoryIncremental(opts: {
       session_id: r['session_id'] != null ? String(r['session_id']) : null,
     });
   }
-  stmt.free();
+  stmt.free?.();
 
   if (rows.length === 0) {
     return { status: 'success', items_processed: 0, bugs_inserted: 0, edges_inserted: 0, duration_ms: 0 };

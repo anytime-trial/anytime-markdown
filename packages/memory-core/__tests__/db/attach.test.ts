@@ -1,4 +1,5 @@
 import initSqlJs from 'sql.js';
+import { SqlJsMemoryDb } from '../../src/db/connection/SqlJsMemoryDb';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -7,12 +8,12 @@ import { openMemoryCoreDb } from '../../src/db/connection';
 import type { Database } from 'sql.js';
 
 const tmpMemDb = path.join(os.tmpdir(), `memory-attach-test-${process.pid}-${Date.now()}.db`);
-let trailHandle: Database;
+let trailHandle: SqlJsMemoryDb;
 
 beforeAll(async () => {
   // Create minimal in-memory trail db (stays in the same WASM module)
   const SQL = await initSqlJs();
-  trailHandle = new SQL.Database();
+  trailHandle = SqlJsMemoryDb.fromDatabase(new SQL.Database());
   trailHandle.run(`CREATE TABLE sessions (id TEXT PRIMARY KEY, path TEXT) STRICT`);
   trailHandle.run("INSERT INTO sessions VALUES ('sess1', '/path')");
 });
