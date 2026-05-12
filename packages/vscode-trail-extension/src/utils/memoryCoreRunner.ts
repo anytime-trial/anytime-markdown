@@ -42,15 +42,25 @@ const PIPELINE_SCOPES = [
 declare const __non_webpack_require__: ((id: string) => unknown) | undefined;
 
 let sqlJsLoaderInstalled = false;
-function installSqlJsLoaderOnce(distPath: string): void {
+/**
+ * memory-core の sql.js loader を `__non_webpack_require__` 経由のものに
+ * 差し替える。webpack で sql.js を bundle すると UMD wrapper が壊れて
+ * `Cannot set properties of undefined (setting 'exports')` で fail するため
+ * 拡張側で必ず override する必要がある。
+ *
+ * memoryCoreRunner だけでなく MemoryApiHandler / chatBridge など sql.js を
+ * 触る他コンシューマでも使えるように export している。複数回呼んでも初回のみ
+ * 設定する (idempotent)。
+ */
+export function installSqlJsLoaderOnce(distPath: string): void {
   if (sqlJsLoaderInstalled) return;
   sqlJsLoaderInstalled = true;
   setSqlJsLoader(async () => {
     const sqlWasmPath = path.join(distPath, 'sql-wasm.js');
     if (typeof __non_webpack_require__ !== 'function') {
-      // webpack バンドル外で memoryCoreRunner が呼ばれた場合 (一部テストなど) の
-      // フォールバック。通常 require は webpack 経由でも動くが、sql.js の
-      // module.exports 代入が壊れるため拡張環境では発生しない想定。
+      // webpack バンドル外で呼ばれた場合 (一部テストなど) のフォールバック。
+      // 通常 require は webpack 経由でも動くが、sql.js の module.exports 代入が
+      // 壊れるため拡張環境では発生しない想定。
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const initSqlJs = require('sql.js') as typeof initSqlJsFn;
       return await initSqlJs({ locateFile: (file: string) => path.join(distPath, file) });

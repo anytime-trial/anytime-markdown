@@ -1,5 +1,5 @@
-import initSqlJs, { type Database, type SqlValue } from 'sql.js';
-import { SqlJsMemoryDb } from '@anytime-markdown/memory-core';
+import type { Database, SqlValue } from 'sql.js';
+import { SqlJsMemoryDb, loadSqlJsModule } from '@anytime-markdown/memory-core';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -162,7 +162,7 @@ export class MemoryApiHandler {
   private async openReadOnly(): Promise<SqlJsMemoryDb | null> {
     if (!fs.existsSync(this.dbPath)) return null;
     try {
-      const SQL = await initSqlJs();
+      const SQL = await loadSqlJsModule();
       const data = fs.readFileSync(this.dbPath);
       return SqlJsMemoryDb.fromDatabase(new SQL.Database(data));
     } catch (err) {
@@ -174,7 +174,7 @@ export class MemoryApiHandler {
   private async openReadWrite(): Promise<SqlJsMemoryDb | null> {
     if (!fs.existsSync(this.dbPath)) return null;
     try {
-      const SQL = await initSqlJs();
+      const SQL = await loadSqlJsModule();
       const data = fs.readFileSync(this.dbPath);
       const db = SqlJsMemoryDb.fromDatabase(new SQL.Database(data));
       db.run('PRAGMA foreign_keys = ON');

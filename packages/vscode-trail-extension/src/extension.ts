@@ -29,7 +29,7 @@ import { DatabaseProvider } from './trail/DatabaseProvider';
 import { TrailPanel } from './trail/TrailPanel';
 import { resolveWatchedRepos } from './utils/resolveWatchedRepos';
 import { TrailLogger } from './utils/TrailLogger';
-import { createMemoryCoreRunner } from './utils/memoryCoreRunner';
+import { createMemoryCoreRunner, installSqlJsLoaderOnce } from './utils/memoryCoreRunner';
 import type { MemoryCoreRunner } from './utils/memoryCoreRunner';
 
 let trailDataServer: TrailDataServer | undefined;
@@ -105,6 +105,12 @@ function setupServerCallbacks(server: TrailDataServer): void {
 
 export async function activate(context: vscode.ExtensionContext) {
 	extensionDistPath = path.join(context.extensionUri.fsPath, 'dist');
+
+	// sql.js を必要とする経路 (MemoryApiHandler / memoryCoreRunner) は webpack の
+	// 標準 import を使うと UMD wrapper が壊れて起動失敗する。activate の冒頭で
+	// `__non_webpack_require__` 経由のローダに差し替えておくことで、後段の
+	// `loadSqlJsModule()` 呼び出しが安全に sql-wasm.js を読み込めるようにする。
+	installSqlJsLoaderOnce(extensionDistPath);
 
 	// Claude Code hook を ~/.claude/settings.json に自動登録
 	const claudeStatusDirSetting = vscode.workspace.getConfiguration('anytimeTrail.claudeStatus').get<string>('directory', '.vscode/trail/agent-status') || '.vscode/trail/agent-status';
