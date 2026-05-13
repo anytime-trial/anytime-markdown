@@ -70,7 +70,7 @@ program
           startupDelayMs: config.scheduler.periodicImport.startupDelaySec * 1000,
         }),
       ],
-      logger.child('scheduler'),
+      logger,
     );
 
     const schedulerDisabledByEnv = process.env.TRAIL_DISABLE_SCHEDULER === '1';
