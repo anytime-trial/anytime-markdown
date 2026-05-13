@@ -133,7 +133,7 @@ export function MemoryPanel({ serverUrl }: Readonly<MemoryPanelProps>) {
               <PipelineRunsPanel reader={reader} />
             )}
             {def.value === 'chat' && (
-              <ChatPanel />
+              <ChatPanel serverUrl={serverUrl} />
             )}
           </Box>
         ))}
