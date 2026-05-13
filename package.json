@@ -33,6 +33,7 @@
     "packages/vscode-extension-pack",
     "packages/web-app",
     "packages/mobile-app",
+    "packages/trail-server",
     "packages/trail-core",
     "packages/trail-db",
     "packages/trail-viewer",
