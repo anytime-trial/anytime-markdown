@@ -6,8 +6,15 @@ export interface PeriodicImportConfig {
   startupDelaySec: number;
 }
 
+export interface MemoryCoreSchedulerConfig {
+  intervalSec: number;
+  runOnStart: boolean;
+  startupDelaySec: number;
+}
+
 export interface SchedulerConfig {
   periodicImport: PeriodicImportConfig;
+  memoryCore: MemoryCoreSchedulerConfig;
 }
 
 export interface TrailServerConfig {
@@ -22,6 +29,7 @@ const DEFAULT_CONFIG: TrailServerConfig = {
   gitRoots: [],
   scheduler: {
     periodicImport: { intervalSec: 60, runOnStart: true, startupDelaySec: 5 },
+    memoryCore: { intervalSec: 1800, runOnStart: true, startupDelaySec: 5 },
   },
 };
 
@@ -46,6 +54,11 @@ function mergeConfig(defaults: TrailServerConfig, overrides: Partial<TrailServer
         intervalSec: overrides.scheduler?.periodicImport?.intervalSec ?? defaults.scheduler.periodicImport.intervalSec,
         runOnStart: overrides.scheduler?.periodicImport?.runOnStart ?? defaults.scheduler.periodicImport.runOnStart,
         startupDelaySec: overrides.scheduler?.periodicImport?.startupDelaySec ?? defaults.scheduler.periodicImport.startupDelaySec,
+      },
+      memoryCore: {
+        intervalSec: overrides.scheduler?.memoryCore?.intervalSec ?? defaults.scheduler.memoryCore.intervalSec,
+        runOnStart: overrides.scheduler?.memoryCore?.runOnStart ?? defaults.scheduler.memoryCore.runOnStart,
+        startupDelaySec: overrides.scheduler?.memoryCore?.startupDelaySec ?? defaults.scheduler.memoryCore.startupDelaySec,
       },
     },
   };

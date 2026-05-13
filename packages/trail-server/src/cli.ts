@@ -4,12 +4,14 @@ import { homedir } from 'node:os';
 import { join, basename } from 'node:path';
 import { statSync } from 'node:fs';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
+import { MemoryCoreService, type MemoryCoreLogSink } from '@anytime-markdown/memory-core';
 import { TrailDataServer } from './server/TrailDataServer';
 import { DaemonLifecycle } from './runtime/DaemonLifecycle';
 import { ConsoleLogger, FileLogger, type Logger } from './runtime/Logger';
 import { loadConfig } from './runtime/Config';
 import { DaemonScheduler } from './runtime/DaemonScheduler';
 import { createPeriodicImportJob } from './jobs/PeriodicImportJob';
+import { createMemoryCorePipelineJob } from './jobs/MemoryCorePipelineJob';
 import { CodeGraphService } from './analyze/CodeGraphService';
 import {
   findTsconfigCandidates,
@@ -136,6 +138,25 @@ program
     const url = `http://${opts.host}:${actualPort}`;
     logger.info('daemon listening', { url });
 
+    // MemoryCoreService — daemon は memory-core ingest pipeline をホストする。
+    // pause/resume 状態は `${TRAIL_HOME}/memory-core-runner.json` に永続化され、
+    // VS Code 拡張 reload 後・daemon 再起動後も保持される。
+    const memoryCoreLogSink: MemoryCoreLogSink = {
+      appendLine: (msg: string) => logger.info(msg),
+    };
+    const memoryCorePrimaryGitRoot = effectiveGitRoots[0];
+    const memoryCoreService = new MemoryCoreService({
+      logSink: memoryCoreLogSink,
+      trailDbPath: join(dbStorageDir, 'trail.db'),
+      ...(memoryCorePrimaryGitRoot ? { gitRoot: memoryCorePrimaryGitRoot } : {}),
+      statePath: join(TRAIL_HOME, 'memory-core-runner.json'),
+    });
+    server.setMemoryCoreService(memoryCoreService);
+    logger.info('memory-core service wired', {
+      paused: memoryCoreService.getStatus().paused,
+      gitRoot: memoryCorePrimaryGitRoot ?? null,
+    });
+
     const scheduler = new DaemonScheduler(
       [
         createPeriodicImportJob({
@@ -144,6 +165,12 @@ program
           intervalMs: config.scheduler.periodicImport.intervalSec * 1000,
           runOnStart: config.scheduler.periodicImport.runOnStart,
           startupDelayMs: config.scheduler.periodicImport.startupDelaySec * 1000,
+        }),
+        createMemoryCorePipelineJob({
+          service: memoryCoreService,
+          intervalMs: config.scheduler.memoryCore.intervalSec * 1000,
+          runOnStart: config.scheduler.memoryCore.runOnStart,
+          startupDelayMs: config.scheduler.memoryCore.startupDelaySec * 1000,
         }),
       ],
       logger,
@@ -178,6 +205,7 @@ program
       logger.info('shutdown requested', { signal });
       try {
         await scheduler.stop();
+        await memoryCoreService.dispose();
         await server.stop();
         lc.removeDaemonJson();
         const closeFn = (trailDb as unknown as { close?: () => Promise<void> | void }).close;
@@ -224,7 +252,71 @@ program
     }
   });
 
+const ingestCmd = program
+  .command('ingest')
+  .description('Control memory-core ingest pipeline on the running daemon');
+
+ingestCmd
+  .command('pause')
+  .description('Pause periodic memory-core ingest on the running daemon')
+  .option('-r, --reason <reason>', 'pausedBy label sent to the daemon', 'cli')
+  .action(async (opts: { reason: string }) => {
+    await callDaemonMemoryCore('pause', { by: opts.reason });
+  });
+
+ingestCmd
+  .command('resume')
+  .description('Resume periodic memory-core ingest on the running daemon')
+  .action(async () => {
+    await callDaemonMemoryCore('resume');
+  });
+
+ingestCmd
+  .command('status')
+  .description('Show current memory-core ingest status from the running daemon')
+  .action(async () => {
+    await callDaemonMemoryCore('status');
+  });
+
 program.parse();
+
+async function callDaemonMemoryCore(
+  action: 'pause' | 'resume' | 'status',
+  body?: Record<string, unknown>,
+): Promise<void> {
+  const lc = new DaemonLifecycle({
+    jsonPath: join(TRAIL_HOME, 'daemon.json'),
+    lockPath: join(TRAIL_HOME, 'daemon.lock'),
+  });
+  const info = lc.readDaemonJson();
+  if (!info || !lc.isDaemonAlive()) {
+    console.error('No running daemon — start it with `anytime-trail-server start`');
+    process.exit(1);
+  }
+  const url = `${info.url}/api/memory-core/${action}`;
+  const method = action === 'status' ? 'GET' : 'POST';
+  try {
+    const res = await fetch(url, {
+      method,
+      ...(method === 'POST'
+        ? {
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(body ?? {}),
+          }
+        : {}),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      console.error(`HTTP ${res.status} from daemon: ${text}`);
+      process.exit(1);
+    }
+    const status = await res.json();
+    console.log(JSON.stringify(status, null, 2));
+  } catch (err) {
+    console.error('Failed to reach daemon:', err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  }
+}
 
 function createLogger(toStdout: boolean): Logger {
   const logDir = join(TRAIL_HOME, 'logs');
