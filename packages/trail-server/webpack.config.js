@@ -54,11 +54,11 @@ const serverConfig = {
       patterns: [
         {
           from: path.resolve(__dirname, '../../node_modules/sql.js/dist/sql-wasm.js'),
-          to: 'sql-wasm.js',
+          to: 'viewer-dist/sql-wasm.js',
         },
         {
           from: path.resolve(__dirname, '../../node_modules/sql.js/dist/sql-wasm.wasm'),
-          to: 'sql-wasm.wasm',
+          to: 'viewer-dist/sql-wasm.wasm',
         },
         {
           from: path.resolve(__dirname, '../memory-core/src/db/migrations/*.sql'),
