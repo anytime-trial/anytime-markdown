@@ -4,6 +4,7 @@ import type { Database } from 'sql.js';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { attachTrailDbFromHandle } from '../../src/db/attach';
 import { runConversationIncremental } from '../../src/pipeline/runConversationIncremental';
+import { episodeId } from '../../src/ingest/conversation/persist';
 import type { MemoryLogger } from '../../src/logger';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -319,4 +320,55 @@ describe('runConversationIncremental', () => {
     trailDb.close();
     memDb.close();
   }, 60000);
+
+  // ── I6: resumed run skips already-persisted episodes via existingIds preload
+  // Regression: incremental had no existingIds defense, so a resume after a
+  // partial run re-fed every already-persisted episode to Ollama (idempotent
+  // on the DB but wasted minutes of LLM time per episode).
+  test('I6: pre-persisted episodes are skipped on resume, no Ollama call', async () => {
+    const memDb = await makeMemoryDb();
+    const trailDb = makeTrailDb(SQL);
+
+    // 3 user messages in trail + matching memory_episodes rows (as if a
+    // prior run had already persisted them, then the cursor was lost).
+    for (let i = 0; i < 3; i++) {
+      const sessId = `sess_pre_${i}`;
+      const msgUuid = `msg_pre_${i}`;
+      const ts = `2026-02-01T0${i}:00:00.000Z`;
+      insertSession(trailDb, sessId);
+      insertMessage(trailDb, msgUuid, sessId, 'user', ts, `pre msg ${i}`);
+      const epId = episodeId(sessId, msgUuid);
+      memDb.run(
+        `INSERT INTO memory_episodes
+           (id, session_id, message_uuid_start, message_uuid_end,
+            agent_runtime, model, valid_from, recorded_at, raw_excerpt)
+         VALUES (?, ?, ?, ?, 'claude_code', 'unknown', ?, ?, '')`,
+        [epId, sessId, msgUuid, msgUuid, ts, ts]
+      );
+    }
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const ollama = makeValidOllama();
+    const result = await runConversationIncremental({
+      db: memDb,
+      ollama,
+      logger: silentLogger,
+    });
+
+    expect(result.status).toBe('success');
+    expect(ollama.generate).not.toHaveBeenCalled();
+    expect(result.entities_inserted).toBe(0);
+
+    // last_processed_at must still advance even though every episode was
+    // skipped (otherwise convTotalEstimate stays high after reload).
+    const stateRows = memDb.exec(
+      `SELECT last_processed_at FROM memory_pipeline_state WHERE scope = 'conversation_incremental'`
+    );
+    const lastProcessedAt = stateRows[0]?.values[0]?.[0] as string;
+    expect(lastProcessedAt > '2026-02-01T02:00:00.000Z').toBe(true);
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
 });

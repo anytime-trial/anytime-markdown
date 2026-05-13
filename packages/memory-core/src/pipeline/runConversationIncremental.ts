@@ -3,7 +3,7 @@ import type { MemoryDbConnection } from '../db/connection/types';
 import { splitEpisodes } from '../canonical/splitEpisodes';
 import { extractFactsFromEpisode } from '../ingest/conversation/extractFacts';
 import { readMessagesSince } from '../ingest/conversation/readMessages';
-import { persistEpisodeFacts, type PersistStats } from '../ingest/conversation/persist';
+import { episodeId, persistEpisodeFacts, type PersistStats } from '../ingest/conversation/persist';
 import { noopLogger, type MemoryLogger } from '../logger';
 import type { OllamaClient } from '../ollama/client';
 
@@ -15,6 +15,7 @@ const PROGRESS_LOG_INTERVAL = 50;
 export interface IncrementalResult {
   status: 'success' | 'partial' | 'error';
   items_processed: number;
+  items_skipped: number;
   entities_inserted: number;
   entities_updated: number;
   edges_inserted: number;
@@ -198,9 +199,27 @@ export async function runConversationIncremental(opts: {
   insertPipelineRun(db, rId, startedAt);
   upsertPipelineState(db, { status: 'running' });
 
+  // Preload episode ids already in memory_episodes within the sinceISO window.
+  // When a previous run was interrupted (VS Code reload mid-pipeline),
+  // persistEpisodeFacts is idempotent but extractFactsFromEpisode is not —
+  // re-feeding already-persisted episodes to Ollama wastes minutes per episode.
+  const existingIds = new Set<string>();
+  const existsRows = db.exec(
+    `SELECT id FROM memory_episodes WHERE valid_from >= ?`,
+    [sinceISO]
+  );
+  for (const row of existsRows[0]?.values ?? []) {
+    existingIds.add(row[0] as string);
+  }
+
   // Accumulators
-  const totals: PersistStats & { items_processed: number; items_failed: number } = {
+  const totals: PersistStats & {
+    items_processed: number;
+    items_skipped: number;
+    items_failed: number;
+  } = {
     items_processed: 0,
+    items_skipped: 0,
     entities_inserted: 0,
     entities_updated: 0,
     edges_inserted: 0,
@@ -218,33 +237,44 @@ export async function runConversationIncremental(opts: {
       const episodes = splitEpisodes(messages);
 
       for (const episode of episodes) {
+        // Track latest timestamp seen (used for cursor advancement at session
+        // boundary). Counted for every episode, even when skipped, so the
+        // cursor still moves forward on resume.
+        if (episode.valid_from > maxTimestamp) {
+          maxTimestamp = episode.valid_from;
+        }
+
+        // Skip episodes that were already persisted by a prior run. Resume
+        // after a VS Code reload: persistEpisodeFacts is idempotent, but
+        // extractFactsFromEpisode is not — re-running the LLM extraction on
+        // already-done episodes wastes minutes per episode.
+        const epId = episodeId(episode.session_id, episode.message_uuid_start);
+        if (existingIds.has(epId)) {
+          totals.items_skipped += 1;
+          continue;
+        }
+
         totals.items_processed += 1;
 
         if (totals.items_processed % PROGRESS_LOG_INTERVAL === 0) {
           logger.info(
             `[memory-core] conversation incremental progress: ${totals.items_processed} processed ` +
-              `(${totals.items_failed} failed, entities_inserted=${totals.entities_inserted})`
+              `(${totals.items_failed} failed, ${totals.items_skipped} skipped, ` +
+              `entities_inserted=${totals.entities_inserted})`
           );
-          // Persist progress to DB BEFORE save() so the disk snapshot reflects
-          // the checkpoint. Without this, a VS Code reload mid-run would lose
-          // items_processed (resets to 0) and last_processed_at (cursor never
-          // advances, so all episodes are re-extracted via LLM on resume).
+          // Persist items_processed (and other run counters) to DB BEFORE
+          // save() so the disk snapshot reflects the checkpoint. Cursor
+          // advancement happens at session boundary, not here, because
+          // session_id ordering ≠ timestamp ordering (UUIDs) — advancing
+          // mid-session could skip ahead of later-iterated sessions with
+          // earlier timestamps.
           updatePipelineRunProgress(db, rId, totals);
-          upsertPipelineState(db, {
-            status: 'running',
-            last_processed_at: maxTimestamp,
-          });
           if (save) {
             const t0 = Date.now();
             save();
             logger.info(`[memory-core] conversation incremental: checkpoint save ${Date.now() - t0}ms`);
           }
           if (progress) progress(totals.items_processed, totals.items_failed);
-        }
-
-        // Track latest timestamp seen
-        if (episode.valid_from > maxTimestamp) {
-          maxTimestamp = episode.valid_from;
         }
 
         const recordedAt = new Date().toISOString();
@@ -328,6 +358,14 @@ export async function runConversationIncremental(opts: {
           );
         }
       }
+
+      // After each session, advance last_processed_at so a future resume
+      // (VS Code reload, OS shutdown) can skip already-processed sessions
+      // and convTotalEstimate decreases to reflect completed work.
+      upsertPipelineState(db, {
+        status: 'running',
+        last_processed_at: maxTimestamp,
+      });
     }
   } catch (err) {
     logger.error(
