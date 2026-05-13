@@ -28,3 +28,6 @@ export type { MemoryCoreRunner, MemoryCoreOutputChannel } from './runtime/memory
 
 export type { Logger, LogLevel } from './runtime/Logger';
 export { ConsoleLogger, FileLogger } from './runtime/Logger';
+
+export { loadConfig } from './runtime/Config';
+export type { TrailServerConfig, SchedulerConfig, PeriodicImportConfig } from './runtime/Config';
