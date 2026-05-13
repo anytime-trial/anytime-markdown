@@ -4,8 +4,10 @@ import { homedir } from 'node:os';
 import { join, basename } from 'node:path';
 import { statSync } from 'node:fs';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
-import { MemoryCoreService, type MemoryCoreLogSink } from '@anytime-markdown/memory-core';
+import { MemoryCoreService, type MemoryCoreLogSink, BetterSqlite3MemoryDb } from '@anytime-markdown/memory-core';
+import { CREATE_EXTENSION_LOGS, CREATE_EXTENSION_LOGS_INDEXES } from '@anytime-markdown/trail-core/domain/schema';
 import { TrailDataServer } from './server/TrailDataServer';
+import { LogService } from './services/LogService';
 import { DaemonLifecycle } from './runtime/DaemonLifecycle';
 import { ConsoleLogger, FileLogger, type Logger } from './runtime/Logger';
 import { loadConfig } from './runtime/Config';
@@ -58,6 +60,17 @@ program
 
     const gitRoots = opts.gitRoots ? String(opts.gitRoots).split(',').filter(Boolean) : [];
     const server = new TrailDataServer(distPath, trailDb, logger, gitRoots[0]);
+
+    // extension_logs 専用 DB を better-sqlite3 で開き、LogService を wire する。
+    // trail.db (sql.js) とは別ファイルとし、WAL 競合と性能影響を避ける。
+    const extensionLogsDbPath = join(dbStorageDir, 'extension-logs.db');
+    const extensionLogsDb = new BetterSqlite3MemoryDb({ filePath: extensionLogsDbPath });
+    extensionLogsDb.run(CREATE_EXTENSION_LOGS);
+    for (const idx of CREATE_EXTENSION_LOGS_INDEXES) extensionLogsDb.run(idx);
+    extensionLogsDb.run('PRAGMA journal_mode=WAL');
+    const logService = new LogService(extensionLogsDb, server);
+    server.setLogService(logService);
+    logger.info('log streaming service wired', { dbPath: extensionLogsDbPath });
 
     const configPath = join(TRAIL_HOME, 'config.json');
     const config = loadConfig(configPath);
@@ -210,6 +223,7 @@ program
         lc.removeDaemonJson();
         const closeFn = (trailDb as unknown as { close?: () => Promise<void> | void }).close;
         if (typeof closeFn === 'function') await closeFn.call(trailDb);
+        try { extensionLogsDb.close(); } catch (err) { logger.error('extension-logs.db close failed', err); }
       } catch (err) {
         logger.error('shutdown failed', err);
       }

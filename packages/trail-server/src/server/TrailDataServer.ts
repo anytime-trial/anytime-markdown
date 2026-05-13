@@ -49,13 +49,16 @@ import { computeDeploymentFrequency, computeQualityMetrics, computeReleaseQualit
 import { aggregateScoresToC4 } from '@anytime-markdown/trail-core/deadCode';
 import { aggregateCentralityToC4, aggregateRolesToC4 } from '@anytime-markdown/trail-core/centrality';
 import type { ClassifiedFunction } from '@anytime-markdown/trail-core/centrality';
-import type { Logger } from '../runtime/Logger';
+import type { Logger, LogLevel } from '../runtime/Logger';
 import type { CodeGraphService } from '../analyze/CodeGraphService';
 import type { MemoryCoreService } from '@anytime-markdown/memory-core';
 import { GraphQueryEngine } from '../analyze/GraphQueryEngine';
 import { MemoryApiHandler } from './MemoryApiHandler';
 import type { LogService, PersistedLogEntry } from '../services/LogService';
+import { LogSink, combineLoggers } from '../services/LogSink';
 import { handleGetLogs, handlePostLogs } from './logsApi';
+
+const LOG_CLEANUP_INTERVAL_MS = 24 * 3600 * 1000;
 
 // ---------------------------------------------------------------------------
 //  Constants
@@ -260,11 +263,12 @@ export class TrailDataServer {
   private readonly memoryApi: MemoryApiHandler;
   private chatBridge: import('../memory-chat/chatBridge').ChatBridge | undefined;
   private logService: LogService | undefined;
+  private logCleanupTimer: NodeJS.Timeout | null = null;
 
   constructor(
     private readonly distPath: string,
     private readonly trailDb: TrailDatabase,
-    private readonly logger: Logger,
+    private logger: Logger,
     private readonly gitRoot?: string,
   ) {
     this.memoryApi = new MemoryApiHandler(this.logger.child('MemoryApiHandler'));
@@ -289,10 +293,21 @@ export class TrailDataServer {
 
   /**
    * extension_logs ストリーミング用の LogService を wire する。設定後は
-   * `POST /api/logs` と `GET /api/logs` が有効化される。未設定のうちは 503 を返す。
+   * `POST /api/logs` と `GET /api/logs` が有効化され、内部 logger が
+   * composite (OutputChannel + extension_logs) に置き換わる。未設定のうちは 503 を返す。
+   *
+   * `TRAIL_LOGS_MIN_LEVEL` 環境変数で LogSink の閾値を制御できる ('info'/'warn'/'error'/'debug')。
    */
   setLogService(service: LogService): void {
     this.logService = service;
+    const envMin = process.env.TRAIL_LOGS_MIN_LEVEL;
+    const minLevel: LogLevel = (envMin === 'info' || envMin === 'warn' || envMin === 'error')
+      ? envMin
+      : 'debug';
+    this.logger = combineLoggers(
+      this.logger,
+      new LogSink({ service, scope: 'TrailDataServer', minLevel }),
+    );
   }
 
   /** Broadcast log-batch to all connected WebSocket clients. */
@@ -353,11 +368,34 @@ export class TrailDataServer {
           reject(err);
         }
       });
-      server.listen(port, BIND_HOST, () => resolve());
+      server.listen(port, BIND_HOST, () => {
+        this.startLogCleanupTimer();
+        resolve();
+      });
     });
   }
 
+  private startLogCleanupTimer(): void {
+    if (this.logCleanupTimer) return;
+    // 起動直後 1 回 + 24h 周期で cleanup
+    this.runLogCleanup();
+    this.logCleanupTimer = setInterval(() => this.runLogCleanup(), LOG_CLEANUP_INTERVAL_MS);
+  }
+
+  private runLogCleanup(): void {
+    if (!this.logService) return;
+    try {
+      this.logService.cleanup();
+    } catch (err) {
+      this.logger.error('log cleanup failed', err);
+    }
+  }
+
   async stop(): Promise<void> {
+    if (this.logCleanupTimer) {
+      clearInterval(this.logCleanupTimer);
+      this.logCleanupTimer = null;
+    }
     for (const ws of this.clients) {
       ws.close();
     }
