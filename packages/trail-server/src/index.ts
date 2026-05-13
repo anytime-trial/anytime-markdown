@@ -31,3 +31,6 @@ export { ConsoleLogger, FileLogger } from './runtime/Logger';
 
 export { loadConfig } from './runtime/Config';
 export type { TrailServerConfig, SchedulerConfig, PeriodicImportConfig } from './runtime/Config';
+
+export { DaemonScheduler } from './runtime/DaemonScheduler';
+export type { ScheduledJob, JobResult } from './runtime/DaemonScheduler';
