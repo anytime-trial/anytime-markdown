@@ -50,8 +50,8 @@ import { aggregateScoresToC4 } from '@anytime-markdown/trail-core/deadCode';
 import { aggregateCentralityToC4, aggregateRolesToC4 } from '@anytime-markdown/trail-core/centrality';
 import type { ClassifiedFunction } from '@anytime-markdown/trail-core/centrality';
 import { TrailLogger } from '../runtime/TrailLoggerStub'; // TODO(P2): replace with real Logger
-import type { CodeGraphService } from '../../../vscode-trail-extension/src/graph/CodeGraphService'; // TODO(P1-b): remove after graph/ moves
-import { GraphQueryEngine } from '../../../vscode-trail-extension/src/graph/GraphQueryEngine'; // TODO(P1-b): remove after graph/ moves
+import type { CodeGraphService } from '../analyze/CodeGraphService';
+import { GraphQueryEngine } from '../analyze/GraphQueryEngine';
 import { MemoryApiHandler } from './MemoryApiHandler';
 
 // ---------------------------------------------------------------------------
