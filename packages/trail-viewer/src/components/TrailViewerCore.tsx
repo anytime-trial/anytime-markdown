@@ -58,6 +58,9 @@ const MessageTimeline = lazyWithPreload(() =>
 const TraceTree = lazyWithPreload(() =>
   import('./messages/TraceTree').then((m) => ({ default: m.TraceTree })),
 );
+const LogsTab = lazyWithPreload(() =>
+  import('./logs/LogsTab').then((m) => ({ default: m.LogsTab })),
+);
 
 const tabPreloaders: Record<number, (() => Promise<unknown>) | undefined> = {
   0: () => AnalyticsPanel.preload(),
@@ -556,6 +559,37 @@ function TrailViewerCoreInner({
               apiBaseUrl={c4.serverUrl ?? ''}
               t={t as (key: string) => string}
               isDark={isDark}
+            />
+          </Suspense>
+        </Box>
+      )}
+
+      {visitedTabs.has(8) && serverUrl && (
+        <Box
+          role="tabpanel"
+          id="trail-panel-8"
+          aria-labelledby="trail-tab-8"
+          sx={{ display: activeTab !== 8 ? 'none' : 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}
+        >
+          <Suspense fallback={<TabSkeleton height="100%" />}>
+            <LogsTab
+              baseUrl={serverUrl}
+              subscribe={(handler) => {
+                const wsUrl = serverUrl.replace(/^http/, 'ws');
+                const ws = new WebSocket(wsUrl);
+                ws.addEventListener('message', (ev) => {
+                  try {
+                    const data = typeof ev.data === 'string' ? ev.data : '';
+                    const msg = JSON.parse(data) as { type?: string };
+                    if (msg && msg.type === 'log-batch') {
+                      handler(msg as never);
+                    }
+                  } catch {
+                    /* noop */
+                  }
+                });
+                return () => ws.close();
+              }}
             />
           </Suspense>
         </Box>

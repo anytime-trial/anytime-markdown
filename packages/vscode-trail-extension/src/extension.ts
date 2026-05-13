@@ -30,6 +30,7 @@ import { DaemonClient } from './trail/DaemonClient';
 import { TrailPanel } from './trail/TrailPanel';
 import { resolveWatchedRepos } from './utils/resolveWatchedRepos';
 import { TrailLogger } from './utils/TrailLogger';
+import { DaemonSinkLogger } from './utils/DaemonSinkLogger';
 import { MemoryCoreService, installSqlJsLoaderOnce } from '@anytime-markdown/trail-server';
 
 let trailDataServer: TrailDataServer | undefined;
@@ -60,6 +61,20 @@ function getWatchedGitRoots(): string[] {
 function applyDocsPathConfig(): void {
 	const docsPath = vscode.workspace.getConfiguration('anytimeTrail.workspace').get<string>('docsPath', '');
 	trailDataServer?.setDocsPath(docsPath || undefined);
+}
+
+function wireDaemonLogSink(daemonUrl: string, context: vscode.ExtensionContext): void {
+	const cfg = vscode.workspace.getConfiguration('anytimeTrail.logs');
+	const minLevel = cfg.get<'debug' | 'info' | 'warn' | 'error'>('minLevel') ?? 'debug';
+	const sink = new DaemonSinkLogger({ baseUrl: daemonUrl, component: 'TrailLogger', minLevel });
+	TrailLogger.addSink(sink);
+	context.subscriptions.push({
+		dispose: (): void => {
+			TrailLogger.removeSink(sink);
+			void sink.dispose();
+		},
+	});
+	TrailLogger.info(`[DaemonSinkLogger] wired url=${daemonUrl} minLevel=${minLevel}`);
 }
 
 function setupServerCallbacks(server: TrailDataServer): void {
@@ -482,6 +497,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	if (externalDaemonInfo) {
 		TrailLogger.info(`[DaemonClient] Using external daemon at ${externalDaemonInfo.url} (pid=${externalDaemonInfo.pid})`);
 		TrailPanel.setDaemonUrl(externalDaemonInfo.url);
+		wireDaemonLogSink(externalDaemonInfo.url, context);
 	} else if (useExternalDaemon) {
 		TrailLogger.warn('[DaemonClient] anytimeTrail.daemon.useExternalDaemon=true but no live daemon found; falling back to local server mode');
 	}
@@ -799,7 +815,9 @@ export async function activate(context: vscode.ExtensionContext) {
 			try {
 				TrailLogger.info(`Trail Data Server: starting on port ${trailPort}...`);
 				await trailDataServer!.start(trailPort);
-				TrailLogger.info(`Trail Data Server started on port ${trailPort}`);
+				const actualPort = trailDataServer!.port;
+				TrailLogger.info(`Trail Data Server started on port ${actualPort}`);
+				wireDaemonLogSink(`http://127.0.0.1:${actualPort}`, context);
 
 				// トークン予算設定を反映
 				const budgetConfig = vscode.workspace.getConfiguration('anytimeTrail.budget');

@@ -424,6 +424,12 @@
           "maximum": 100,
           "markdownDescription": "上限に対する警告閾値（%）。"
         },
+        "anytimeTrail.logs.minLevel": {
+          "type": "string",
+          "enum": ["debug", "info", "warn", "error"],
+          "default": "debug",
+          "markdownDescription": "%config.logs.minLevel%"
+        },
         "anytimeTrail.memory.ollama.baseUrl": {
           "type": "string",
           "default": "http://localhost:11434",

@@ -89,6 +89,25 @@ export interface WsClaudeActivityMessage {
   plannedElementIds: string[];
 }
 
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+export type LogSource = 'extension' | 'daemon';
+
+export interface LogEntry {
+  readonly id: number;
+  readonly timestamp: string;
+  readonly level: LogLevel;
+  readonly source: LogSource;
+  readonly component: string;
+  readonly message: string;
+  readonly metadata?: unknown | null;
+  readonly stack?: string | null;
+}
+
+export interface WsLogBatchMessage {
+  type: 'log-batch';
+  logs: readonly LogEntry[];
+}
+
 export interface WsMultiAgentMessage {
   type: 'multi-agent-activity-updated';
   agents: AgentActivityEntry[];
@@ -195,6 +214,12 @@ export function isWsMultiAgentMessage(v: unknown): v is WsMultiAgentMessage {
   if (typeof v !== 'object' || v === null) return false;
   const obj = v as Record<string, unknown>;
   return obj.type === 'multi-agent-activity-updated' && Array.isArray(obj.agents);
+}
+
+export function isWsLogBatchMessage(v: unknown): v is WsLogBatchMessage {
+  if (typeof v !== 'object' || v === null) return false;
+  const obj = v as Record<string, unknown>;
+  return obj.type === 'log-batch' && Array.isArray(obj.logs);
 }
 
 export function isModelPayload(v: unknown): v is ModelPayload {

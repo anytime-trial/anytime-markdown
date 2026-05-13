@@ -8,6 +8,7 @@
   "config.database.backupIntervalDays": "Minimum interval in days between backups of `trail.db`. `0` = backup every session (legacy behavior). `1` (default) = at most once per day. Higher values reduce backup frequency.",
   "config.claudeStatus.directory": "Directory where `claude-code-status.json` is stored. Absolute path or relative to workspace root. Defaults to `.vscode/trail/agent-status`.",
   "config.memory.ollama.baseUrl": "Base URL of the Ollama server used by Memory Chat (default `http://localhost:11434`).",
+  "config.logs.minLevel": "Minimum log level to send to trail-server for persistence in extension_logs. Lower levels (debug) keep more detail but increase DB size.",
   "config.memory.chat.model": "Ollama model name used for chat responses (e.g. `qwen2.5-coder:14b`).",
   "config.memory.embedding.model": "Ollama model name used for query embeddings (default `bge-m3`).",
   "config.memory.rag.bm25Limit": "Number of BM25 candidates retrieved from FTS5 before reranking (default 30).",
