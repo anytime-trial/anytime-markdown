@@ -5,6 +5,7 @@ const sqlAsmActual = require(require.resolve('sql.js/dist/sql-asm.js')); // esli
 jest.mock('ws', () => ({ WebSocketServer: jest.fn(() => ({ on: jest.fn(), close: jest.fn((cb?: () => void) => cb?.()) })) }));
 jest.mock('@anytime-markdown/trail-core/c4', () => ({ fetchC4Model: jest.fn() }));
 
+import { makeMockLogger } from '../../__test-helpers__/mockLogger';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
 import { TrailDataServer } from '../TrailDataServer';
 import { createTestTrailDatabase } from '../../__tests__/support/createTestDb';
@@ -64,7 +65,7 @@ describe('GET /api/temporal-coupling?granularity=subagentType', () => {
   beforeEach(async () => {
     db = await createTestTrailDatabase();
     seedSubagentTypeData(db);
-    server = new TrailDataServer('/tmp', db);
+    server = new TrailDataServer('/tmp', db, makeMockLogger());
     await server.start(0);
     port = server.port;
   });

@@ -1,4 +1,25 @@
-// Jest グローバルセットアップ: 保護領域（ユーザーホーム配下の永続データ）への
+// ---------------------------------------------------------------------------
+//  makeMockLogger — P2 以降のテストで TrailDataServer / MemoryApiHandler に渡す
+//  軽量モック Logger。各テストファイルの冒頭で import せずにグローバル関数として使用可能。
+// ---------------------------------------------------------------------------
+export function makeMockLogger() {
+  const mock = {
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    child: jest.fn(),
+  } as const;
+  // child() は self を返す (deep スコープで再帰しない)
+  (mock.child as jest.Mock).mockReturnValue(mock);
+  return mock;
+}
+
+// globalThis に登録して import なしで使えるようにする
+(globalThis as Record<string, unknown>).makeMockLogger = makeMockLogger;
+
+// ---------------------------------------------------------------------------
+//  Jest グローバルセットアップ: 保護領域（ユーザーホーム配下の永続データ）への
 // 書き込みを全テストで禁止する。2026-04-20 の本番 DB 破壊事故を受けて追加。
 //
 // 保護領域:

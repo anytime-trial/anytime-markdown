@@ -7,6 +7,7 @@ jest.mock('@anytime-markdown/trail-core/c4', () => {
   return { ...actual, fetchC4Model: jest.fn() };
 });
 
+import { makeMockLogger } from '../../__test-helpers__/mockLogger';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
 import { TrailDataServer } from '../TrailDataServer';
 import { createTestTrailDatabase } from '../../__tests__/support/createTestDb';
@@ -47,7 +48,7 @@ describe('GET /api/activity-heatmap', () => {
   beforeEach(async () => {
     db = await createTestTrailDatabase();
     seed(db);
-    server = new TrailDataServer('/tmp', db);
+    server = new TrailDataServer('/tmp', db, makeMockLogger());
     await server.start(0);
     port = server.port;
   });

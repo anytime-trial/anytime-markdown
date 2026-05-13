@@ -2571,7 +2571,7 @@ export class TrailDataServer {
     }
     if (parsed.type === 'perf-report') {
       // TRAIL_DEBUG_PERF=1 の時のみ OutputChannel に出力（既定で常時 silent）
-      this.logger.debug({ metric: parsed.metric, ms: parsed.ms, meta: parsed.meta });
+      this.logger.debug('[perf-report]', { metric: String(parsed.metric), ms: Number(parsed.ms) });
       return;
     }
 
