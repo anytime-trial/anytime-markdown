@@ -25,3 +25,6 @@ export type { ChatBridgeLogger, ChatBridgeConfig, ChatBridgeDeps } from './memor
 
 export { installSqlJsLoaderOnce, createMemoryCoreRunner } from './runtime/memoryCoreRunner';
 export type { MemoryCoreRunner, MemoryCoreOutputChannel } from './runtime/memoryCoreRunner';
+
+export type { Logger, LogLevel } from './runtime/Logger';
+export { ConsoleLogger, FileLogger } from './runtime/Logger';
