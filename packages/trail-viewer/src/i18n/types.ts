@@ -12,6 +12,7 @@ export interface TrailI18n {
   'viewer.tab.scatter': string;
   'viewer.tab.trace': string;
   'viewer.tab.functionTree': string;
+  'viewer.tab.logs': string;
   'viewer.loading': string;
   'viewer.selectSession': string;
   'viewer.loaded': string;
@@ -474,4 +475,27 @@ export interface TrailI18n {
   'c4.callHierarchy.scope.file': string;
   'c4.callHierarchy.excludeTests': string;
   'c4.callHierarchy.revisited': string;
+  // logs (extension/daemon log streaming)
+  'logs.mode.live': string;
+  'logs.mode.history': string;
+  'logs.column.timestamp': string;
+  'logs.column.level': string;
+  'logs.column.source': string;
+  'logs.column.component': string;
+  'logs.column.message': string;
+  'logs.level.debug': string;
+  'logs.level.info': string;
+  'logs.level.warn': string;
+  'logs.level.error': string;
+  'logs.source.extension': string;
+  'logs.source.daemon': string;
+  'logs.action.pause': string;
+  'logs.action.resume': string;
+  'logs.action.clear': string;
+  'logs.action.autoScroll': string;
+  'logs.action.openOutputChannel': string;
+  'logs.action.loadMore': string;
+  'logs.filter.search': string;
+  'logs.empty': string;
+  'logs.paused': string;
 }
