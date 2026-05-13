@@ -481,7 +481,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	});
 	const gitRoot = wsRootForDb;
-	trailDataServer = new TrailDataServer(extensionDistPath, trailDb, gitRoot);
+	trailDataServer = new TrailDataServer(extensionDistPath, trailDb, TrailLogger.asLogger(), gitRoot);
 	TrailPanel.setDataServer(trailDataServer);
 	setupServerCallbacks(trailDataServer);
 

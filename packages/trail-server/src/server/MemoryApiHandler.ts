@@ -6,7 +6,7 @@ import * as path from 'node:path';
 
 import { resolveDrift } from '@anytime-markdown/memory-core';
 
-import { TrailLogger } from '../runtime/TrailLoggerStub'; // TODO(P2): replace with real Logger
+import type { Logger } from '../runtime/Logger';
 
 // ---------------------------------------------------------------------------
 //  Row types (mirrored in trail-viewer/src/data/types.ts)
@@ -146,8 +146,10 @@ function mapRow<T>(columns: ReadonlyArray<string>, values: ReadonlyArray<unknown
 
 export class MemoryApiHandler {
   private readonly dbPath: string;
+  private readonly logger: Logger;
 
-  constructor(dbPath?: string) {
+  constructor(logger: Logger, dbPath?: string) {
+    this.logger = logger;
     this.dbPath = dbPath ?? path.join(os.homedir(), '.claude', 'memory-core', 'memory-core.db');
   }
 
@@ -166,7 +168,7 @@ export class MemoryApiHandler {
       const data = fs.readFileSync(this.dbPath);
       return SqlJsMemoryDb.fromDatabase(new SQL.Database(data));
     } catch (err) {
-      TrailLogger.error(`[MemoryApiHandler.openReadOnly] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
+      this.logger.error(`[MemoryApiHandler.openReadOnly] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       return null;
     }
   }
@@ -180,7 +182,7 @@ export class MemoryApiHandler {
       db.run('PRAGMA foreign_keys = ON');
       return db;
     } catch (err) {
-      TrailLogger.error(`[MemoryApiHandler.openReadWrite] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
+      this.logger.error(`[MemoryApiHandler.openReadWrite] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       return null;
     }
   }
@@ -262,7 +264,7 @@ export class MemoryApiHandler {
         };
       });
     } catch (err) {
-      TrailLogger.error(`[MemoryApiHandler.listDriftEvents] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
+      this.logger.error(`[MemoryApiHandler.listDriftEvents] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       return [];
     } finally {
       db.close();
@@ -308,7 +310,7 @@ export class MemoryApiHandler {
         detailJson,
       };
     } catch (err) {
-      TrailLogger.error(`[MemoryApiHandler.getDriftEventDetail] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
+      this.logger.error(`[MemoryApiHandler.getDriftEventDetail] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       return null;
     } finally {
       db.close();
@@ -319,11 +321,11 @@ export class MemoryApiHandler {
     const db = await this.openReadWrite();
     if (!db) return { ok: false };
     try {
-      const result = resolveDrift({ db, event_id: eventId, resolution_note: resolutionNote, logger: TrailLogger });
+      const result = resolveDrift({ db, event_id: eventId, resolution_note: resolutionNote, logger: this.logger });
       this.saveAndClose(db);
       return { ok: result.resolved };
     } catch (err) {
-      TrailLogger.error(`[MemoryApiHandler.resolveDriftEvent] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
+      this.logger.error(`[MemoryApiHandler.resolveDriftEvent] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       db.close();
       return { ok: false };
     }
@@ -374,7 +376,7 @@ export class MemoryApiHandler {
         };
       });
     } catch (err) {
-      TrailLogger.error(`[MemoryApiHandler.listRecurringBugs] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
+      this.logger.error(`[MemoryApiHandler.listRecurringBugs] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       return [];
     } finally {
       db.close();
@@ -429,7 +431,7 @@ export class MemoryApiHandler {
         };
       });
     } catch (err) {
-      TrailLogger.error(`[MemoryApiHandler.getBugHistory] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
+      this.logger.error(`[MemoryApiHandler.getBugHistory] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       return [];
     } finally {
       db.close();
@@ -487,7 +489,7 @@ export class MemoryApiHandler {
         };
       });
     } catch (err) {
-      TrailLogger.error(`[MemoryApiHandler.listUnaddressedReviewFindings] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
+      this.logger.error(`[MemoryApiHandler.listUnaddressedReviewFindings] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       return [];
     } finally {
       db.close();
@@ -541,7 +543,7 @@ export class MemoryApiHandler {
         };
       });
     } catch (err) {
-      TrailLogger.error(`[MemoryApiHandler.getReviewHistory] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
+      this.logger.error(`[MemoryApiHandler.getReviewHistory] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       return [];
     } finally {
       db.close();
@@ -600,7 +602,7 @@ export class MemoryApiHandler {
         };
       });
     } catch (err) {
-      TrailLogger.error(`[MemoryApiHandler.listPipelineRuns] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
+      this.logger.error(`[MemoryApiHandler.listPipelineRuns] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       return [];
     } finally {
       db.close();
@@ -645,7 +647,7 @@ export class MemoryApiHandler {
         };
       });
     } catch (err) {
-      TrailLogger.error(`[MemoryApiHandler.listFailedItems] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
+      this.logger.error(`[MemoryApiHandler.listFailedItems] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       return [];
     } finally {
       db.close();
@@ -691,7 +693,7 @@ export class MemoryApiHandler {
         };
       });
     } catch (err) {
-      TrailLogger.error(`[MemoryApiHandler.listTopEntities] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
+      this.logger.error(`[MemoryApiHandler.listTopEntities] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       return [];
     } finally {
       db.close();
@@ -737,7 +739,7 @@ export class MemoryApiHandler {
         };
       });
     } catch (err) {
-      TrailLogger.error(`[MemoryApiHandler.listInvalidations] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
+      this.logger.error(`[MemoryApiHandler.listInvalidations] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       return [];
     } finally {
       db.close();
