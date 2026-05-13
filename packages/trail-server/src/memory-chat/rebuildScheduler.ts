@@ -1,4 +1,4 @@
-import * as vscode from 'vscode';
+import type { Disposable } from '../runtime/Disposable';
 import {
   openMemoryCoreDb,
   runRagFtsRebuild,
@@ -41,7 +41,7 @@ export class RebuildScheduler {
 
   constructor(private readonly opts: RebuildSchedulerOptions) {}
 
-  start(intervalMs: number): vscode.Disposable {
+  start(intervalMs: number): Disposable {
     // memoryCoreRunner などの他コンシューマが activate 直後に同じ
     // memory-core.db を開いて migration を走らせるため、startup tick は
     // 10 秒遅らせて起動直後の write lock 競合を回避する。WAL +

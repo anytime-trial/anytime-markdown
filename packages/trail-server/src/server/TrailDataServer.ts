@@ -254,7 +254,7 @@ export class TrailDataServer {
 
   private codeGraphService: CodeGraphService | undefined;
   private readonly memoryApi = new MemoryApiHandler();
-  private chatBridge: import('../../../vscode-trail-extension/src/memory-chat/chatBridge').ChatBridge | undefined; // TODO(P1-c): remove after memory-chat moves
+  private chatBridge: import('../memory-chat/chatBridge').ChatBridge | undefined;
 
   constructor(
     private readonly distPath: string,
@@ -266,7 +266,7 @@ export class TrailDataServer {
     this.codeGraphService = service;
   }
 
-  setChatBridge(bridge: import('../../../vscode-trail-extension/src/memory-chat/chatBridge').ChatBridge): void { // TODO(P1-c): remove after memory-chat moves
+  setChatBridge(bridge: import('../memory-chat/chatBridge').ChatBridge): void {
     this.chatBridge = bridge;
   }
 

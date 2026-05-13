@@ -1,6 +1,5 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import * as vscode from 'vscode';
 import type initSqlJsFn from 'sql.js';
 import {
   openMemoryCoreDb,
@@ -74,8 +73,17 @@ export interface MemoryCoreRunner {
   runAfterImport(): Promise<void>;
 }
 
+/**
+ * ホスト (VS Code 拡張 / CLI) が提供する出力チャネルの最小インタフェース。
+ * vscode.OutputChannel と同一形状のサブセット。
+ */
+export interface MemoryCoreOutputChannel {
+  append(msg: string): void;
+  appendLine(msg: string): void;
+}
+
 export function createMemoryCoreRunner(opts: {
-  outputChannel: vscode.OutputChannel;
+  outputChannel: MemoryCoreOutputChannel;
   trailDbPath: string;
   dbPath?: string;
   /**
@@ -91,6 +99,12 @@ export function createMemoryCoreRunner(opts: {
    * 明示する必要がある (chatBridge / rebuildScheduler と同じ事情)。
    */
   nativeBinding?: string;
+  /**
+   * Git working tree のルートパス。
+   * 拡張では vscode.workspace.workspaceFolders[0].uri.fsPath を渡す。
+   * CLI では --git-roots の先頭要素を渡す。省略時は process.cwd() にフォールバック。
+   */
+  gitRoot?: string;
 }): MemoryCoreRunner {
   if (opts.distPath) installSqlJsLoaderOnce(opts.distPath);
   return {
@@ -247,7 +261,7 @@ export function createMemoryCoreRunner(opts: {
             { const t0 = Date.now(); saveAndReattach(); logger.info(`Saved (failed_items_retry): ${Date.now() - t0}ms`); }
 
             // ── Code incremental pipeline ────────────────────────────────
-            const gitRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
+            const gitRoot = opts.gitRoot ?? process.cwd();
             const tsconfigPath =
               process.env['MEMORY_CORE_TSCONFIG'] ??
               path.join(gitRoot, 'tsconfig.json');
