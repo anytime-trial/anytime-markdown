@@ -30,11 +30,11 @@ import { DaemonClient } from './trail/DaemonClient';
 import { TrailPanel } from './trail/TrailPanel';
 import { resolveWatchedRepos } from './utils/resolveWatchedRepos';
 import { TrailLogger } from './utils/TrailLogger';
-import { createMemoryCoreRunner, installSqlJsLoaderOnce } from '@anytime-markdown/trail-server';
-import type { MemoryCoreRunner } from '@anytime-markdown/trail-server';
+import { MemoryCoreService, installSqlJsLoaderOnce } from '@anytime-markdown/trail-server';
 
 let trailDataServer: TrailDataServer | undefined;
 let trailDb: TrailDatabase | undefined;
+let memoryCoreService: MemoryCoreService | null = null;
 let extensionDistPath = '';
 
 function getEffectiveWorkspacePath(): string | undefined {
@@ -112,7 +112,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	TrailLogger.init(trailOutputChannel);
 	context.subscriptions.push(trailOutputChannel);
 
-	// sql.js を必要とする経路 (MemoryApiHandler / memoryCoreRunner) は webpack の
+	// sql.js を必要とする経路 (MemoryApiHandler / MemoryCoreService) は webpack の
 	// 標準 import を使うと UMD wrapper が壊れて起動失敗する。activate の冒頭で
 	// `__non_webpack_require__` 経由のローダに差し替えておくことで、後段の
 	// `loadSqlJsModule()` 呼び出しが安全に sql-wasm.js を読み込めるようにする。
@@ -452,7 +452,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	const backupIntervalDays = dbConfig.get<number>('backupIntervalDays', 1);
 	trailDb = new TrailDatabase(extensionDistPath, dbStorageDir, backupGenerations, TrailLogger, backupIntervalDays);
 
-	// Memory Core runner — initialized after dbStorageDir is known
+	// Memory Core output channel + native binding paths are needed by:
+	//   - MemoryCoreService (ingest pipeline ホスト)
+	//   - memory chat (ChatBridge / RebuildScheduler)
+	// なので拡張側の責務として早期に解決しておく。
 	const memoryCoreOutputChannel = vscode.window.createOutputChannel('Memory Core');
 	const memoryCoreNativeBinding = path.join(
 		extensionDistPath,
@@ -462,17 +465,6 @@ export async function activate(context: vscode.ExtensionContext) {
 		'Release',
 		'better_sqlite3.node',
 	);
-	let memoryCoreRunner: MemoryCoreRunner | null = null;
-	if (dbStorageDir) {
-		const trailDbPath = path.join(dbStorageDir, 'trail.db');
-		memoryCoreRunner = createMemoryCoreRunner({
-			outputChannel: memoryCoreOutputChannel,
-			trailDbPath,
-			distPath: extensionDistPath,
-			nativeBinding: memoryCoreNativeBinding,
-			gitRoot: wsRootForDb ?? process.cwd(),
-		});
-	}
 	trailDb.setIntegrityAlertHandler((alerts) => {
 		for (const a of alerts) {
 			TrailLogger.warn(
@@ -499,6 +491,37 @@ export async function activate(context: vscode.ExtensionContext) {
 	trailDataServer = new TrailDataServer(extensionDistPath, trailDb, TrailLogger.asLogger(), gitRoot);
 	TrailPanel.setDataServer(trailDataServer);
 	setupServerCallbacks(trailDataServer);
+
+	// MemoryCoreService — ingest pipeline を周期実行する長寿命サービス。
+	// useExternalDaemon=true かつ daemon が見つかった場合は二重実行防止のため
+	// 拡張側では起動しない (daemon が hosting する)。
+	// useExternalDaemon=true でも daemon 未検出時は fallback として拡張側で
+	// service を起動する (TrailPanel が local server URL を使うのと同じ paradigm)。
+	const hostMemoryCoreLocally = !(useExternalDaemon && externalDaemonInfo);
+	if (hostMemoryCoreLocally && dbStorageDir) {
+		const ingestConfig = vscode.workspace.getConfiguration('anytimeTrail.memory.ingest');
+		const intervalSec = ingestConfig.get<number>('intervalSec', 1800);
+		const runOnStart = ingestConfig.get<boolean>('runOnStart', true);
+		const startupDelaySec = ingestConfig.get<number>('startupDelaySec', 5);
+		const trailDbPath = path.join(dbStorageDir, 'trail.db');
+		memoryCoreService = new MemoryCoreService({
+			logSink: memoryCoreOutputChannel,
+			trailDbPath,
+			distPath: extensionDistPath,
+			nativeBinding: memoryCoreNativeBinding,
+			gitRoot: wsRootForDb ?? process.cwd(),
+		});
+		trailDataServer.setMemoryCoreService(memoryCoreService);
+		memoryCoreService.start(intervalSec * 1000, {
+			runOnStart,
+			startupDelayMs: startupDelaySec * 1000,
+		});
+		TrailLogger.info(
+			`[MemoryCore] service started: intervalSec=${intervalSec}, runOnStart=${runOnStart}, startupDelaySec=${startupDelaySec}`,
+		);
+	} else if (useExternalDaemon && externalDaemonInfo) {
+		TrailLogger.info('[MemoryCore] hosted by external daemon, skipping local service');
+	}
 
 	// Memory chat (MEMORY > Chat タブ) — Ollama 経由の RAG チャット。
 	// activate のクリティカルパスを伸ばさないよう、初期化は全て setImmediate に
@@ -629,7 +652,9 @@ export async function activate(context: vscode.ExtensionContext) {
 			analyze,
 		);
 		trailDataServer?.notifySessionsUpdated();
-		await memoryCoreRunner?.runAfterImport();
+		// service が null = useExternalDaemon に委譲中。daemon 側が periodic で回す
+		// ため拡張側ではここで no-op。
+		await memoryCoreService?.runOnce('import');
 		return { ...result, durationMs: Date.now() - startedAt };
 	};
 
@@ -914,7 +939,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				databaseProvider.setImporting(false);
 
 				trailDataServer?.notifySessionsUpdated();
-				await memoryCoreRunner?.runAfterImport();
+				await memoryCoreService?.runOnce('import');
 
 				vscode.window.showInformationMessage(
 					`Trail: imported ${result.imported} sessions, ${result.commitsResolved} commits linked, ${result.releasesResolved} releases resolved, ${result.releasesAnalyzed} releases analyzed, ${result.coverageImported} coverage entries (${result.skipped} skipped)`,
@@ -935,9 +960,106 @@ export async function activate(context: vscode.ExtensionContext) {
 			trailDataServer?.stop().catch((err) => {
 				TrailLogger.error('Failed to stop trail data server (dispose)', err);
 			});
+			memoryCoreService?.dispose().catch((err) => {
+				TrailLogger.error('Failed to dispose memory-core service', err);
+			});
 			trailDb?.close();
 		},
 	});
+
+	// Memory > Pause/Resume/Status Ingest コマンド。
+	// 拡張側で service をホストしている場合は直接呼ぶ。daemon 委譲中は
+	// daemon の HTTP API (TrailPanel.getDaemonUrl) を叩く。
+	context.subscriptions.push(
+		vscode.commands.registerCommand('anytime-trail.memory.pauseIngest', async () => {
+			try {
+				if (memoryCoreService) {
+					const status = await memoryCoreService.pause('vscode-command');
+					vscode.window.showInformationMessage(
+						`Memory Core: ingest paused (by=${status.pausedBy})`,
+					);
+					return;
+				}
+				const daemonUrl = TrailPanel.getDaemonUrl();
+				if (!daemonUrl) {
+					vscode.window.showWarningMessage('Memory Core: no local service and no daemon URL available');
+					return;
+				}
+				const res = await fetch(`${daemonUrl}/api/memory-core/pause`, {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({ by: 'vscode-command' }),
+				});
+				if (!res.ok) {
+					vscode.window.showErrorMessage(`Memory Core pause failed: HTTP ${res.status}`);
+					return;
+				}
+				vscode.window.showInformationMessage('Memory Core: ingest paused on daemon');
+			} catch (err) {
+				TrailLogger.error('pauseIngest failed', err);
+				vscode.window.showErrorMessage(
+					`Memory Core pause failed: ${err instanceof Error ? err.message : String(err)}`,
+				);
+			}
+		}),
+		vscode.commands.registerCommand('anytime-trail.memory.resumeIngest', async () => {
+			try {
+				if (memoryCoreService) {
+					await memoryCoreService.resume();
+					vscode.window.showInformationMessage('Memory Core: ingest resumed');
+					return;
+				}
+				const daemonUrl = TrailPanel.getDaemonUrl();
+				if (!daemonUrl) {
+					vscode.window.showWarningMessage('Memory Core: no local service and no daemon URL available');
+					return;
+				}
+				const res = await fetch(`${daemonUrl}/api/memory-core/resume`, { method: 'POST' });
+				if (!res.ok) {
+					vscode.window.showErrorMessage(`Memory Core resume failed: HTTP ${res.status}`);
+					return;
+				}
+				vscode.window.showInformationMessage('Memory Core: ingest resumed on daemon');
+			} catch (err) {
+				TrailLogger.error('resumeIngest failed', err);
+				vscode.window.showErrorMessage(
+					`Memory Core resume failed: ${err instanceof Error ? err.message : String(err)}`,
+				);
+			}
+		}),
+		vscode.commands.registerCommand('anytime-trail.memory.statusIngest', async () => {
+			try {
+				if (memoryCoreService) {
+					const s = memoryCoreService.getStatus();
+					vscode.window.showInformationMessage(
+						`Memory Core (local): paused=${s.paused}, ticksRun=${s.ticksRun}, ticksSkipped=${s.ticksSkipped}, ` +
+							`lastRunAt=${s.lastRunAt ?? '—'}, lastError=${s.lastError ?? '—'}`,
+					);
+					return;
+				}
+				const daemonUrl = TrailPanel.getDaemonUrl();
+				if (!daemonUrl) {
+					vscode.window.showWarningMessage('Memory Core: no local service and no daemon URL available');
+					return;
+				}
+				const res = await fetch(`${daemonUrl}/api/memory-core/status`);
+				if (!res.ok) {
+					vscode.window.showErrorMessage(`Memory Core status failed: HTTP ${res.status}`);
+					return;
+				}
+				const s = await res.json() as { paused: boolean; ticksRun: number; ticksSkipped: number; lastRunAt: string | null; lastError: string | null };
+				vscode.window.showInformationMessage(
+					`Memory Core (daemon): paused=${s.paused}, ticksRun=${s.ticksRun}, ticksSkipped=${s.ticksSkipped}, ` +
+						`lastRunAt=${s.lastRunAt ?? '—'}, lastError=${s.lastError ?? '—'}`,
+				);
+			} catch (err) {
+				TrailLogger.error('statusIngest failed', err);
+				vscode.window.showErrorMessage(
+					`Memory Core status failed: ${err instanceof Error ? err.message : String(err)}`,
+				);
+			}
+		}),
+	);
 
 	// Watch for configuration changes
 	context.subscriptions.push(
@@ -1087,6 +1209,11 @@ export async function deactivate(): Promise<void> {
 		await trailDataServer?.stop();
 	} catch (err) {
 		TrailLogger.error('Failed to stop trail data server', err);
+	}
+	try {
+		await memoryCoreService?.dispose();
+	} catch (err) {
+		TrailLogger.error('Failed to dispose memory-core service', err);
 	}
 	trailDb?.close();
 	TrailLogger.dispose();

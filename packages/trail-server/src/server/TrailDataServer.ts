@@ -51,6 +51,7 @@ import { aggregateCentralityToC4, aggregateRolesToC4 } from '@anytime-markdown/t
 import type { ClassifiedFunction } from '@anytime-markdown/trail-core/centrality';
 import type { Logger } from '../runtime/Logger';
 import type { CodeGraphService } from '../analyze/CodeGraphService';
+import type { MemoryCoreService } from '@anytime-markdown/memory-core';
 import { GraphQueryEngine } from '../analyze/GraphQueryEngine';
 import { MemoryApiHandler } from './MemoryApiHandler';
 
@@ -253,6 +254,7 @@ export class TrailDataServer {
   };
 
   private codeGraphService: CodeGraphService | undefined;
+  private memoryCoreService: MemoryCoreService | undefined;
   private readonly memoryApi: MemoryApiHandler;
   private chatBridge: import('../memory-chat/chatBridge').ChatBridge | undefined;
 
@@ -271,6 +273,15 @@ export class TrailDataServer {
 
   setChatBridge(bridge: import('../memory-chat/chatBridge').ChatBridge): void {
     this.chatBridge = bridge;
+  }
+
+  /**
+   * memory-core ingest サービスを wire する。設定後は
+   * `/api/memory-core/{pause,resume,status}` HTTP API が有効化される。
+   * service が未 set のうちは各 endpoint は 503 を返す。
+   */
+  setMemoryCoreService(service: MemoryCoreService): void {
+    this.memoryCoreService = service;
   }
 
   // -------------------------------------------------------------------------
@@ -486,6 +497,19 @@ export class TrailDataServer {
     }
     if (pathname === '/api/analyze/status' && method === 'GET') {
       this.handleAnalyzeStatus(res);
+      return;
+    }
+
+    if (pathname === '/api/memory-core/pause' && method === 'POST') {
+      this.handleMemoryCorePause(req, res);
+      return;
+    }
+    if (pathname === '/api/memory-core/resume' && method === 'POST') {
+      this.handleMemoryCoreResume(res);
+      return;
+    }
+    if (pathname === '/api/memory-core/status' && method === 'GET') {
+      this.handleMemoryCoreStatus(res);
       return;
     }
 
@@ -3429,6 +3453,61 @@ export class TrailDataServer {
   private handleAnalyzeStatus(res: http.ServerResponse): void {
     res.writeHead(200, JSON_HEADERS);
     res.end(JSON.stringify({ inProgress: this.analysisInProgress }));
+  }
+
+  private async handleMemoryCorePause(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+  ): Promise<void> {
+    if (!this.memoryCoreService) {
+      res.writeHead(503, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'memory-core service not registered' }));
+      return;
+    }
+    let by = 'http-api';
+    try {
+      const parsed = (await this.readJsonBody(req).catch(() => ({}))) as Record<string, unknown>;
+      if (typeof parsed.by === 'string' && parsed.by.length > 0) by = parsed.by;
+    } catch {
+      // 空 body 許容
+    }
+    try {
+      const status = await this.memoryCoreService.pause(by);
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify(status));
+    } catch (err) {
+      this.logger.error('handleMemoryCorePause failed', err);
+      res.writeHead(500, JSON_HEADERS);
+      res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+    }
+  }
+
+  private async handleMemoryCoreResume(res: http.ServerResponse): Promise<void> {
+    if (!this.memoryCoreService) {
+      res.writeHead(503, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'memory-core service not registered' }));
+      return;
+    }
+    try {
+      const status = await this.memoryCoreService.resume();
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify(status));
+    } catch (err) {
+      this.logger.error('handleMemoryCoreResume failed', err);
+      res.writeHead(500, JSON_HEADERS);
+      res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+    }
+  }
+
+  private handleMemoryCoreStatus(res: http.ServerResponse): void {
+    if (!this.memoryCoreService) {
+      res.writeHead(503, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'memory-core service not registered' }));
+      return;
+    }
+    const status = this.memoryCoreService.getStatus();
+    res.writeHead(200, JSON_HEADERS);
+    res.end(JSON.stringify(status));
   }
 
   private readJsonBody(req: http.IncomingMessage): Promise<unknown> {

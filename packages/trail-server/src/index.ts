@@ -26,11 +26,27 @@ export type { ChatBridgeLogger, ChatBridgeConfig, ChatBridgeDeps } from './memor
 export { installSqlJsLoaderOnce, createMemoryCoreRunner } from './runtime/memoryCoreRunner';
 export type { MemoryCoreRunner, MemoryCoreOutputChannel } from './runtime/memoryCoreRunner';
 
+export {
+  MemoryCoreService,
+  defaultStatePath as memoryCoreServiceDefaultStatePath,
+  defaultState as memoryCoreServiceDefaultState,
+  readState as memoryCoreServiceReadState,
+  writeState as memoryCoreServiceWriteState,
+  STATE_SCHEMA_VERSION as MEMORY_CORE_SERVICE_STATE_SCHEMA_VERSION,
+} from '@anytime-markdown/memory-core';
+export type {
+  MemoryCoreLogSink,
+  MemoryCoreServiceOptions,
+  MemoryCoreServiceStartOptions,
+  MemoryCoreServiceStatus,
+  RunReason as MemoryCoreRunReason,
+} from '@anytime-markdown/memory-core';
+
 export type { Logger, LogLevel } from './runtime/Logger';
 export { ConsoleLogger, FileLogger } from './runtime/Logger';
 
 export { loadConfig } from './runtime/Config';
-export type { TrailServerConfig, SchedulerConfig, PeriodicImportConfig } from './runtime/Config';
+export type { TrailServerConfig, SchedulerConfig, PeriodicImportConfig, MemoryCoreSchedulerConfig } from './runtime/Config';
 
 export { DaemonScheduler } from './runtime/DaemonScheduler';
 export type { ScheduledJob, JobResult } from './runtime/DaemonScheduler';
@@ -40,3 +56,6 @@ export type { DaemonInfo, DaemonLifecycleOptions } from './runtime/DaemonLifecyc
 
 export { createPeriodicImportJob } from './jobs/PeriodicImportJob';
 export type { PeriodicImportJobOptions } from './jobs/PeriodicImportJob';
+
+export { createMemoryCorePipelineJob } from './jobs/MemoryCorePipelineJob';
+export type { MemoryCorePipelineJobOptions } from './jobs/MemoryCorePipelineJob';

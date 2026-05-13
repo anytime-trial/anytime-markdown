@@ -13,7 +13,22 @@ describe('loadConfig', () => {
     expect(cfg.schemaVersion).toBe(1);
     expect(cfg.scheduler.periodicImport.intervalSec).toBe(60);
     expect(cfg.scheduler.periodicImport.runOnStart).toBe(true);
+    expect(cfg.scheduler.memoryCore.intervalSec).toBe(1800);
+    expect(cfg.scheduler.memoryCore.runOnStart).toBe(true);
+    expect(cfg.scheduler.memoryCore.startupDelaySec).toBe(5);
     expect(cfg.gitRoots).toEqual([]);
+  });
+
+  it('merges scheduler.memoryCore overrides', () => {
+    const p = join(dir, 'config.json');
+    writeFileSync(p, JSON.stringify({
+      scheduler: { memoryCore: { intervalSec: 600, runOnStart: false } },
+    }));
+    const cfg = loadConfig(p);
+    expect(cfg.scheduler.memoryCore.intervalSec).toBe(600);
+    expect(cfg.scheduler.memoryCore.runOnStart).toBe(false);
+    // unspecified field falls back to defaults
+    expect(cfg.scheduler.memoryCore.startupDelaySec).toBe(5);
   });
 
   it('merges file values over defaults', () => {
