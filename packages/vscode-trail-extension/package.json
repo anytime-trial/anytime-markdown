@@ -81,6 +81,21 @@
         "category": "Anytime Trail"
       },
       {
+        "command": "anytime-trail.memory.pauseIngest",
+        "title": "%command.memory.pauseIngest%",
+        "category": "Anytime Trail"
+      },
+      {
+        "command": "anytime-trail.memory.resumeIngest",
+        "title": "%command.memory.resumeIngest%",
+        "category": "Anytime Trail"
+      },
+      {
+        "command": "anytime-trail.memory.statusIngest",
+        "title": "%command.memory.statusIngest%",
+        "category": "Anytime Trail"
+      },
+      {
         "command": "anytime-trail.openAiNote",
         "title": "%command.openAiNote%",
         "category": "Anytime Trail",
@@ -453,6 +468,23 @@
           "default": 60,
           "minimum": 5,
           "markdownDescription": "%config.memory.fts.rebuildIntervalMinutes%"
+        },
+        "anytimeTrail.memory.ingest.intervalSec": {
+          "type": "number",
+          "default": 1800,
+          "minimum": 60,
+          "markdownDescription": "%config.memory.ingest.intervalSec%"
+        },
+        "anytimeTrail.memory.ingest.runOnStart": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%config.memory.ingest.runOnStart%"
+        },
+        "anytimeTrail.memory.ingest.startupDelaySec": {
+          "type": "number",
+          "default": 5,
+          "minimum": 0,
+          "markdownDescription": "%config.memory.ingest.startupDelaySec%"
         }
       }
     }
