@@ -106,6 +106,11 @@ function setupServerCallbacks(server: TrailDataServer): void {
 export async function activate(context: vscode.ExtensionContext) {
 	extensionDistPath = path.join(context.extensionUri.fsPath, 'dist');
 
+	// OutputChannel を早期に確定し、TrailLogger.asLogger() で Logger IF を提供する。
+	const trailOutputChannel = vscode.window.createOutputChannel('Anytime Trail');
+	TrailLogger.init(trailOutputChannel);
+	context.subscriptions.push(trailOutputChannel);
+
 	// sql.js を必要とする経路 (MemoryApiHandler / memoryCoreRunner) は webpack の
 	// 標準 import を使うと UMD wrapper が壊れて起動失敗する。activate の冒頭で
 	// `__non_webpack_require__` 経由のローダに差し替えておくことで、後段の
