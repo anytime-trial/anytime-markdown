@@ -358,6 +358,11 @@
           "default": 19841,
           "description": "Port number for the Trail Viewer server"
         },
+        "anytimeTrail.daemon.useExternalDaemon": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%config.daemon.useExternalDaemon%"
+        },
         "anytimeTrail.database.storagePath": {
           "type": "string",
           "default": "",

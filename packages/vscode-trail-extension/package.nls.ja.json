@@ -2,6 +2,7 @@
   "displayName": "Anytime Trail",
   "description": "VS Code 用 Trail セッション追跡、ダッシュボード",
   "viewsContainer.title": "Anytime Trail",
+  "config.daemon.useExternalDaemon": "外部で起動済みの trail-server デーモンを利用する。先に `npx anytime-trail-server start` を起動しておく必要がある。",
   "config.database.storagePath": "`trail.db` の保存ディレクトリ。絶対パスまたはワークスペースルートからの相対パス。空の場合は `.vscode/` を使用します。",
   "config.database.backupGenerations": "`trail.db` のバックアップ世代数。各世代は `.bak.N.gz` として DB ファイルと同じディレクトリに gzip 圧縮で保存されます。範囲: 1〜10。",
   "config.database.backupIntervalDays": "`trail.db` バックアップの最小間隔（日）。`0` = セッション毎（従来動作）。`1`（デフォルト）= 1日に最大1回。値を大きくするほどバックアップ頻度が下がります。",
