@@ -136,3 +136,17 @@ export { OllamaChatProvider } from './providers/ollama/OllamaChatProvider';
 export type { OllamaChatProviderOptions } from './providers/ollama/OllamaChatProvider';
 export { OllamaEmbeddingProvider } from './providers/ollama/OllamaEmbeddingProvider';
 export type { OllamaEmbeddingProviderOptions } from './providers/ollama/OllamaEmbeddingProvider';
+
+export { MemoryCoreService, defaultStatePath } from './service/MemoryCoreService';
+export { defaultState, readState, writeState, STATE_SCHEMA_VERSION } from './service/state';
+export type { ReadStateOptions } from './service/state';
+export { runMemoryCorePipeline } from './service/defaultMemoryCorePipelineRunner';
+export type {
+  MemoryCoreLogSink,
+  MemoryCoreServiceOptions,
+  MemoryCoreServiceStartOptions,
+  MemoryCoreServiceStatus,
+  PipelineLogger,
+  PipelineRunnerContext,
+  RunReason,
+} from './service/types';
