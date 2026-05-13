@@ -1,3 +1,157 @@
 #!/usr/bin/env node
-console.log('anytime-trail-server CLI (placeholder)');
-process.exit(0);
+import { Command } from 'commander';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import { TrailDatabase } from '@anytime-markdown/trail-db';
+import { TrailDataServer } from './server/TrailDataServer';
+import { DaemonLifecycle } from './runtime/DaemonLifecycle';
+import { ConsoleLogger, FileLogger, type Logger } from './runtime/Logger';
+
+const TRAIL_HOME = process.env.TRAIL_HOME ?? join(homedir(), '.claude', 'trail');
+const VERSION = '0.18.0';
+
+const program = new Command();
+program
+  .name('anytime-trail-server')
+  .description('Anytime Trail standalone daemon')
+  .version(VERSION);
+
+program
+  .command('start')
+  .description('Start the daemon (foreground)')
+  .option('-p, --port <port>', 'Port (0 for auto)', '0')
+  .option('-h, --host <host>', 'Bind host', '127.0.0.1')
+  .option('--git-roots <roots>', 'Comma-separated git roots', '')
+  .option('--no-stdout', 'Disable stdout logging')
+  .action(async (opts: { port: string; host: string; gitRoots: string; stdout: boolean }) => {
+    const lc = new DaemonLifecycle({
+      jsonPath: join(TRAIL_HOME, 'daemon.json'),
+      lockPath: join(TRAIL_HOME, 'daemon.lock'),
+    });
+
+    if (lc.isDaemonAlive()) {
+      const info = lc.readDaemonJson();
+      console.log(`Daemon already running on ${info?.url} (pid=${info?.pid})`);
+      process.exit(0);
+    }
+
+    const logger = createLogger(opts.stdout);
+    logger.info('starting daemon', { trailHome: TRAIL_HOME });
+
+    const dbStorageDir = join(TRAIL_HOME, 'db');
+    const distPath = join(__dirname, 'viewer-dist');
+    const trailDb = new TrailDatabase(distPath, dbStorageDir, 5, makeTrailLoggerAdapter(logger), 7);
+    await trailDb.init();
+
+    const gitRoots = opts.gitRoots ? String(opts.gitRoots).split(',').filter(Boolean) : [];
+    const server = new TrailDataServer(distPath, trailDb, logger, gitRoots[0]);
+
+    const port = Number.parseInt(String(opts.port), 10);
+    await server.start(port);
+    const actualPort = server.port;
+    const url = `http://${opts.host}:${actualPort}`;
+    logger.info('daemon listening', { url });
+
+    lc.writeDaemonJson({
+      schemaVersion: 1,
+      pid: process.pid,
+      host: opts.host,
+      port: actualPort,
+      url,
+      version: VERSION,
+      startedAt: new Date().toISOString(),
+      startedBy: 'cli',
+      dbPath: join(dbStorageDir, 'trail.db'),
+      gitRoots,
+      viewerDistPath: distPath,
+      pidStartTime: Date.now(),
+    });
+
+    const shutdown = async (signal: string) => {
+      logger.info('shutdown requested', { signal });
+      try {
+        await server.stop();
+        lc.removeDaemonJson();
+        const closeFn = (trailDb as unknown as { close?: () => Promise<void> | void }).close;
+        if (typeof closeFn === 'function') await closeFn.call(trailDb);
+      } catch (err) {
+        logger.error('shutdown failed', err);
+      }
+      process.exit(0);
+    };
+    process.on('SIGTERM', () => void shutdown('SIGTERM'));
+    process.on('SIGINT', () => void shutdown('SIGINT'));
+  });
+
+program
+  .command('status')
+  .description('Check daemon status')
+  .action(() => {
+    const lc = new DaemonLifecycle({
+      jsonPath: join(TRAIL_HOME, 'daemon.json'),
+      lockPath: join(TRAIL_HOME, 'daemon.lock'),
+    });
+    const info = lc.readDaemonJson();
+    if (!info) { console.log('Not running'); process.exit(1); }
+    if (!lc.isDaemonAlive()) { console.log(`Stale daemon.json (pid=${info.pid})`); process.exit(1); }
+    console.log(`Running on ${info.url} (pid=${info.pid})`);
+  });
+
+program
+  .command('stop')
+  .description('Stop the running daemon')
+  .action(() => {
+    const lc = new DaemonLifecycle({
+      jsonPath: join(TRAIL_HOME, 'daemon.json'),
+      lockPath: join(TRAIL_HOME, 'daemon.lock'),
+    });
+    const info = lc.readDaemonJson();
+    if (!info || !lc.isDaemonAlive()) { console.log('No running daemon'); process.exit(1); }
+    try {
+      process.kill(info.pid, 'SIGTERM');
+      console.log(`Sent SIGTERM to pid=${info.pid}`);
+    } catch (err) {
+      console.error('Failed to signal daemon', err);
+      process.exit(1);
+    }
+  });
+
+program.parse();
+
+function createLogger(toStdout: boolean): Logger {
+  const logDir = join(TRAIL_HOME, 'logs');
+  const today = new Date().toISOString().slice(0, 10);
+  const logPath = join(logDir, `daemon-${today}.log`);
+  const file = new FileLogger(logPath, 'info');
+  if (!toStdout) return file;
+
+  class CompositeLogger {
+    constructor(
+      private readonly a: Logger,
+      private readonly b: Logger,
+    ) {}
+    debug(m: string, meta?: Record<string, unknown>) { this.a.debug(m, meta); this.b.debug(m, meta); }
+    info(m: string, meta?: Record<string, unknown>) { this.a.info(m, meta); this.b.info(m, meta); }
+    warn(m: string, meta?: Record<string, unknown>) { this.a.warn(m, meta); this.b.warn(m, meta); }
+    error(m: string, e?: unknown, meta?: Record<string, unknown>) {
+      this.a.error(m, e, meta); this.b.error(m, e, meta);
+    }
+    child(scope: string): Logger {
+      return new CompositeLogger(this.a.child(scope), this.b.child(scope));
+    }
+  }
+  return new CompositeLogger(new ConsoleLogger('info'), file);
+}
+
+interface TrailLoggerLike {
+  info(msg: string): void;
+  warn(msg: string): void;
+  error(msg: string, err?: unknown): void;
+}
+function makeTrailLoggerAdapter(logger: Logger): TrailLoggerLike {
+  return {
+    info: (msg) => logger.info(msg),
+    warn: (msg) => logger.warn(msg),
+    error: (msg, err) => logger.error(msg, err),
+  };
+}
