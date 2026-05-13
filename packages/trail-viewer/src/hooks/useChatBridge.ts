@@ -5,11 +5,6 @@ export interface ChatBridgeStatus {
   readonly detail?: string;
 }
 
-export interface ChatBridgeHandlers {
-  readonly onChunk: (chunk: unknown) => void;
-  readonly onStatus: (s: ChatBridgeStatus) => void;
-}
-
 export interface ChatBridge extends ChatBridgeStatus {
   subscribe(handler: (chunk: unknown) => void): () => void;
   send(query: string): void;
@@ -17,53 +12,96 @@ export interface ChatBridge extends ChatBridgeStatus {
   recheck(): void;
 }
 
-interface VsCodeApi {
-  postMessage(msg: unknown): void;
+const RECONNECT_DELAY_MS = 3_000;
+const MAX_RETRIES = 5;
+
+function buildWsUrl(serverUrl: string): string | null {
+  if (!serverUrl) return null;
+  try {
+    const url = new URL(serverUrl);
+    const proto = url.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${proto}//${url.host}`;
+  } catch {
+    return null;
+  }
 }
 
-declare const acquireVsCodeApi: (() => VsCodeApi) | undefined;
-
-interface WindowWithVsCode {
-  __vscode?: VsCodeApi;
-  __chatHandlers?: Set<(chunk: unknown) => void>;
-}
-
-function getVsCodeApi(): VsCodeApi | null {
-  if (typeof window === 'undefined') return null;
-  const w = window as unknown as WindowWithVsCode;
-  if (w.__vscode) return w.__vscode;
-  if (typeof acquireVsCodeApi !== 'function') return null;
-  w.__vscode = acquireVsCodeApi();
-  return w.__vscode;
-}
-
-function getHandlerSet(): Set<(chunk: unknown) => void> {
-  if (typeof window === 'undefined') return new Set();
-  const w = window as unknown as WindowWithVsCode;
-  if (!w.__chatHandlers) w.__chatHandlers = new Set();
-  return w.__chatHandlers;
-}
-
-export function useChatBridge(): ChatBridge {
+export function useChatBridge(serverUrl: string): ChatBridge {
   const [status, setStatus] = useState<ChatBridgeStatus['status']>('unknown');
   const [detail, setDetail] = useState<string | undefined>();
-  const handlersRef = useRef(getHandlerSet());
+
+  const wsRef = useRef<WebSocket | null>(null);
+  const handlersRef = useRef<Set<(chunk: unknown) => void>>(new Set());
+  const retryCountRef = useRef(0);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const handler = (ev: MessageEvent): void => {
-      const msg = ev.data as { type?: string; [k: string]: unknown };
-      if (!msg || typeof msg.type !== 'string') return;
-      if (msg.type === 'provider.status') {
-        setStatus((msg.status as ChatBridgeStatus['status']) ?? 'unknown');
-        setDetail(msg.detail as string | undefined);
-      } else if (msg.type === 'chat.chunk') {
-        for (const h of handlersRef.current) h(msg.chunk);
+    const wsUrl = buildWsUrl(serverUrl);
+    if (!wsUrl) return;
+
+    function connect(): void {
+      const ws = new WebSocket(wsUrl as string);
+      wsRef.current = ws;
+
+      ws.addEventListener('open', () => {
+        retryCountRef.current = 0;
+      });
+
+      ws.addEventListener('message', (event: MessageEvent) => {
+        let parsed: { type?: unknown; status?: unknown; detail?: unknown; chunk?: unknown };
+        try {
+          parsed = JSON.parse(String(event.data));
+        } catch {
+          return;
+        }
+        if (parsed.type === 'provider.status') {
+          const next = typeof parsed.status === 'string' ? parsed.status : 'unknown';
+          setStatus(
+            next === 'ready' || next === 'unavailable' ? next : 'unknown',
+          );
+          setDetail(typeof parsed.detail === 'string' ? parsed.detail : undefined);
+        } else if (parsed.type === 'chat.chunk') {
+          for (const h of handlersRef.current) h(parsed.chunk);
+        }
+      });
+
+      ws.addEventListener('close', () => {
+        if (wsRef.current === ws) wsRef.current = null;
+        scheduleReconnect();
+      });
+
+      ws.addEventListener('error', () => {
+        try {
+          ws.close();
+        } catch {
+          // closing an already-closed socket can throw — ignore
+        }
+      });
+    }
+
+    function scheduleReconnect(): void {
+      if (retryCountRef.current >= MAX_RETRIES) return;
+      retryCountRef.current += 1;
+      retryTimerRef.current = setTimeout(connect, RECONNECT_DELAY_MS);
+    }
+
+    connect();
+
+    return () => {
+      if (retryTimerRef.current !== null) {
+        clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
+      if (wsRef.current) {
+        try {
+          wsRef.current.close();
+        } catch {
+          // ignore close errors on cleanup
+        }
+        wsRef.current = null;
       }
     };
-    window.addEventListener('message', handler);
-    return () => window.removeEventListener('message', handler);
-  }, []);
+  }, [serverUrl]);
 
   const subscribe = useCallback((h: (chunk: unknown) => void) => {
     handlersRef.current.add(h);
@@ -72,20 +110,28 @@ export function useChatBridge(): ChatBridge {
     };
   }, []);
 
-  const send = useCallback((query: string) => {
-    const api = getVsCodeApi();
-    api?.postMessage({ type: 'chat.send', query });
+  const sendPayload = useCallback((payload: unknown): void => {
+    const ws = wsRef.current;
+    if (!ws) return;
+    try {
+      ws.send(JSON.stringify(payload));
+    } catch {
+      // WS not yet open or already closed — drop silently; user can retry
+    }
   }, []);
 
-  const abort = useCallback(() => {
-    const api = getVsCodeApi();
-    api?.postMessage({ type: 'chat.abort' });
-  }, []);
-
-  const recheck = useCallback(() => {
-    const api = getVsCodeApi();
-    api?.postMessage({ type: 'provider.recheck' });
-  }, []);
+  const send = useCallback(
+    (query: string) => sendPayload({ type: 'chat.send', query }),
+    [sendPayload],
+  );
+  const abort = useCallback(
+    () => sendPayload({ type: 'chat.abort' }),
+    [sendPayload],
+  );
+  const recheck = useCallback(
+    () => sendPayload({ type: 'provider.recheck' }),
+    [sendPayload],
+  );
 
   return { status, detail, subscribe, send, abort, recheck };
 }

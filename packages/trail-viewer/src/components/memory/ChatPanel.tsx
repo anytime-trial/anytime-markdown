@@ -7,8 +7,12 @@ import { SourcesPanel } from './SourcesPanel';
 import { SetupGuide } from './SetupGuide';
 import type { ChatUiSource } from './chatReducer';
 
-export function ChatPanel() {
-  const bridge = useChatBridge();
+export interface ChatPanelProps {
+  readonly serverUrl: string;
+}
+
+export function ChatPanel({ serverUrl }: Readonly<ChatPanelProps>) {
+  const bridge = useChatBridge(serverUrl);
   const [sources, setSources] = useState<ReadonlyArray<ChatUiSource>>([]);
   const [repoScope, setRepoScope] = useState<RepoScope>('all');
 
