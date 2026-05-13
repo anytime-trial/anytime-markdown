@@ -8,6 +8,7 @@
   "config.database.backupIntervalDays": "`trail.db` バックアップの最小間隔（日）。`0` = セッション毎（従来動作）。`1`（デフォルト）= 1日に最大1回。値を大きくするほどバックアップ頻度が下がります。",
   "config.claudeStatus.directory": "`claude-code-status.json` の保存ディレクトリ。絶対パスまたはワークスペースルートからの相対パス。デフォルトは `.vscode/trail/agent-status`。",
   "config.memory.ollama.baseUrl": "Memory Chat が使用する Ollama サーバの Base URL (既定: `http://localhost:11434`)。",
+  "config.logs.minLevel": "trail-server に送信して `extension_logs` に永続化するログの最低レベル。`debug` で全件、`info` 以上で量を抑える。",
   "config.memory.chat.model": "チャット応答に使用する Ollama モデル名 (例: `qwen2.5-coder:14b`)。",
   "config.memory.embedding.model": "クエリ埋め込みに使用する Ollama モデル名 (既定: `bge-m3`)。",
   "config.memory.rag.bm25Limit": "FTS5 BM25 から取得する候補数 (既定 30)。",
