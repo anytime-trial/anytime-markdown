@@ -6,6 +6,9 @@ import { TrailDatabase } from '@anytime-markdown/trail-db';
 import { TrailDataServer } from './server/TrailDataServer';
 import { DaemonLifecycle } from './runtime/DaemonLifecycle';
 import { ConsoleLogger, FileLogger, type Logger } from './runtime/Logger';
+import { loadConfig } from './runtime/Config';
+import { DaemonScheduler } from './runtime/DaemonScheduler';
+import { createPeriodicImportJob } from './jobs/PeriodicImportJob';
 
 const TRAIL_HOME = process.env.TRAIL_HOME ?? join(homedir(), '.claude', 'trail');
 const VERSION = '0.18.0';
@@ -23,7 +26,8 @@ program
   .option('-h, --host <host>', 'Bind host', '127.0.0.1')
   .option('--git-roots <roots>', 'Comma-separated git roots', '')
   .option('--no-stdout', 'Disable stdout logging')
-  .action(async (opts: { port: string; host: string; gitRoots: string; stdout: boolean }) => {
+  .option('--no-scheduler', 'Disable background scheduler')
+  .action(async (opts: { port: string; host: string; gitRoots: string; stdout: boolean; scheduler: boolean }) => {
     const lc = new DaemonLifecycle({
       jsonPath: join(TRAIL_HOME, 'daemon.json'),
       lockPath: join(TRAIL_HOME, 'daemon.lock'),
@@ -52,6 +56,33 @@ program
     const url = `http://${opts.host}:${actualPort}`;
     logger.info('daemon listening', { url });
 
+    const configPath = join(TRAIL_HOME, 'config.json');
+    const config = loadConfig(configPath);
+    const effectiveGitRoots = gitRoots.length > 0 ? gitRoots : config.gitRoots;
+
+    const scheduler = new DaemonScheduler(
+      [
+        createPeriodicImportJob({
+          trailDb,
+          gitRoots: effectiveGitRoots,
+          intervalMs: config.scheduler.periodicImport.intervalSec * 1000,
+          runOnStart: config.scheduler.periodicImport.runOnStart,
+          startupDelayMs: config.scheduler.periodicImport.startupDelaySec * 1000,
+        }),
+      ],
+      logger,
+    );
+
+    const schedulerDisabledByEnv = process.env.TRAIL_DISABLE_SCHEDULER === '1';
+    const schedulerEnabled = opts.scheduler && !schedulerDisabledByEnv;
+    if (!schedulerEnabled) {
+      logger.info('scheduler disabled', {
+        reason: schedulerDisabledByEnv ? 'TRAIL_DISABLE_SCHEDULER=1' : '--no-scheduler',
+      });
+    } else {
+      scheduler.start();
+    }
+
     lc.writeDaemonJson({
       schemaVersion: 1,
       pid: process.pid,
@@ -70,6 +101,7 @@ program
     const shutdown = async (signal: string) => {
       logger.info('shutdown requested', { signal });
       try {
+        await scheduler.stop();
         await server.stop();
         lc.removeDaemonJson();
         const closeFn = (trailDb as unknown as { close?: () => Promise<void> | void }).close;
