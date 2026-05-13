@@ -45,6 +45,17 @@ export type {
 export type { Logger, LogLevel } from './runtime/Logger';
 export { ConsoleLogger, FileLogger } from './runtime/Logger';
 
+export { LogService } from './services/LogService';
+export type {
+  LogEntry,
+  LogSource,
+  PersistedLogEntry,
+  LogBroadcaster,
+  QueryParams,
+  QueryResult,
+} from './services/LogService';
+export { LogSink, combineLoggers } from './services/LogSink';
+
 export { loadConfig } from './runtime/Config';
 export type { TrailServerConfig, SchedulerConfig, PeriodicImportConfig, MemoryCoreSchedulerConfig } from './runtime/Config';
 
