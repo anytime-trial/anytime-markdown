@@ -1,4 +1,4 @@
-import type Database from 'better-sqlite3';
+import type { MemoryDbConnection, MemoryDbStatement, MemoryDbSqlValue as SqlValue } from '@anytime-markdown/memory-core';
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 export type LogSource = 'extension' | 'daemon';
@@ -36,65 +36,75 @@ export interface QueryResult {
   nextCursor: string | null;
 }
 
-export class LogService {
-  private readonly insertStmt;
+const HARD_LIMIT = 1_000_000;
 
+export class LogService {
   constructor(
-    private readonly db: Database.Database,
+    private readonly db: MemoryDbConnection,
     private readonly broadcaster: LogBroadcaster,
-  ) {
-    this.insertStmt = db.prepare(`
-      INSERT INTO extension_logs (timestamp, level, source, component, message, metadata, stack)
-      VALUES (@timestamp, @level, @source, @component, @message, @metadata, @stack)
-    `);
-  }
+  ) {}
 
   insertBatch(logs: LogEntry[], source: LogSource): void {
     if (logs.length === 0) return;
-    const tx = this.db.transaction((entries: LogEntry[]) => {
-      const inserted: PersistedLogEntry[] = [];
-      for (const e of entries) {
-        const info = this.insertStmt.run({
-          timestamp: e.timestamp,
-          level: e.level,
+    const stmt = this.db.prepare(`
+      INSERT INTO extension_logs (timestamp, level, source, component, message, metadata, stack)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+    const inserted: PersistedLogEntry[] = [];
+    this.db.run('BEGIN');
+    try {
+      for (const e of logs) {
+        const result = stmt.run(
+          e.timestamp,
+          e.level,
           source,
-          component: e.component,
-          message: e.message,
-          metadata: e.metadata != null ? JSON.stringify(e.metadata) : null,
-          stack: e.stack ?? null,
-        });
-        inserted.push({ ...e, id: Number(info.lastInsertRowid), source });
+          e.component,
+          e.message,
+          e.metadata != null ? JSON.stringify(e.metadata) : null,
+          e.stack ?? null,
+        );
+        inserted.push({ ...e, id: Number(result.lastInsertRowid), source });
       }
-      return inserted;
-    });
-    const inserted = tx(logs);
+      this.db.run('COMMIT');
+    } catch (err) {
+      this.db.run('ROLLBACK');
+      throw err;
+    } finally {
+      stmt.free?.();
+    }
     this.broadcaster.notifyLog(inserted);
   }
 
   queryLogs(params: QueryParams): QueryResult {
     const limit = Math.min(params.limit ?? 500, 1000);
     const conds: string[] = [];
-    const args: Record<string, unknown> = {};
+    const args: SqlValue[] = [];
 
     if (params.level && params.level.length > 0) {
-      conds.push(`level IN (${params.level.map((_, i) => `@level${i}`).join(',')})`);
-      params.level.forEach((l, i) => { args[`level${i}`] = l; });
+      conds.push(`level IN (${params.level.map(() => '?').join(',')})`);
+      for (const l of params.level) args.push(l);
     }
     if (params.source && params.source.length > 0) {
-      conds.push(`source IN (${params.source.map((_, i) => `@source${i}`).join(',')})`);
-      params.source.forEach((s, i) => { args[`source${i}`] = s; });
+      conds.push(`source IN (${params.source.map(() => '?').join(',')})`);
+      for (const s of params.source) args.push(s);
     }
     if (params.q) {
-      conds.push(`(message LIKE @q OR component LIKE @q)`);
-      args.q = `%${params.q}%`;
+      const like = `%${params.q}%`;
+      conds.push(`(message LIKE ? OR component LIKE ?)`);
+      args.push(like, like);
     }
-    if (params.since) { conds.push(`timestamp >= @since`); args.since = params.since; }
-    if (params.until) { conds.push(`timestamp < @until`); args.until = params.until; }
+    if (params.since) {
+      conds.push(`timestamp >= ?`);
+      args.push(params.since);
+    }
+    if (params.until) {
+      conds.push(`timestamp < ?`);
+      args.push(params.until);
+    }
     if (params.cursor) {
       const [ts, idStr] = params.cursor.split('_');
-      conds.push(`(timestamp < @cursorTs OR (timestamp = @cursorTs AND id < @cursorId))`);
-      args.cursorTs = ts;
-      args.cursorId = Number(idStr);
+      conds.push(`(timestamp < ? OR (timestamp = ? AND id < ?))`);
+      args.push(ts, ts, Number(idStr));
     }
 
     const where = conds.length > 0 ? `WHERE ${conds.join(' AND ')}` : '';
@@ -103,22 +113,32 @@ export class LogService {
       FROM extension_logs
       ${where}
       ORDER BY timestamp DESC, id DESC
-      LIMIT @limit
+      LIMIT ?
     `;
-    args.limit = limit + 1;
-    const rows = this.db.prepare(sql).all(args) as Array<{
-      id: number; timestamp: string; level: LogLevel; source: LogSource;
-      component: string; message: string; metadata: string | null; stack: string | null;
-    }>;
+    args.push(limit + 1);
+
+    const stmt = this.db.prepare(sql);
+    let rows: ReturnType<MemoryDbStatement['all']>;
+    try {
+      rows = stmt.all(...args);
+    } finally {
+      stmt.free?.();
+    }
 
     const hasMore = rows.length > limit;
     const sliced = hasMore ? rows.slice(0, limit) : rows;
     const logs: PersistedLogEntry[] = sliced.map((r) => ({
-      ...r,
-      metadata: r.metadata != null ? JSON.parse(r.metadata) : null,
+      id: Number(r.id),
+      timestamp: String(r.timestamp),
+      level: r.level as LogLevel,
+      source: r.source as LogSource,
+      component: String(r.component),
+      message: String(r.message),
+      metadata: r.metadata != null ? JSON.parse(String(r.metadata)) : null,
+      stack: r.stack != null ? String(r.stack) : null,
     }));
     const last = sliced[sliced.length - 1];
-    const nextCursor = hasMore && last ? `${last.timestamp}_${last.id}` : null;
+    const nextCursor = hasMore && last ? `${String(last.timestamp)}_${Number(last.id)}` : null;
     return { logs, nextCursor };
   }
 
@@ -126,19 +146,26 @@ export class LogService {
     const debugCutoff = new Date(now.getTime() - 3 * 24 * 3600 * 1000).toISOString();
     const infoCutoff = new Date(now.getTime() - 30 * 24 * 3600 * 1000).toISOString();
     const errCutoff = new Date(now.getTime() - 90 * 24 * 3600 * 1000).toISOString();
-    this.db.prepare(`DELETE FROM extension_logs WHERE level = 'debug' AND timestamp < ?`).run(debugCutoff);
-    this.db.prepare(`DELETE FROM extension_logs WHERE level = 'info' AND timestamp < ?`).run(infoCutoff);
-    this.db.prepare(`DELETE FROM extension_logs WHERE level IN ('warn','error') AND timestamp < ?`).run(errCutoff);
+    this.db.run(`DELETE FROM extension_logs WHERE level = 'debug' AND timestamp < ?`, [debugCutoff]);
+    this.db.run(`DELETE FROM extension_logs WHERE level = 'info' AND timestamp < ?`, [infoCutoff]);
+    this.db.run(`DELETE FROM extension_logs WHERE level IN ('warn','error') AND timestamp < ?`, [errCutoff]);
 
-    const HARD_LIMIT = 1_000_000;
-    const row = this.db.prepare(`SELECT COUNT(*) AS n FROM extension_logs`).get() as { n: number };
-    if (row.n > HARD_LIMIT) {
-      const excess = row.n - HARD_LIMIT;
-      this.db.prepare(`
-        DELETE FROM extension_logs WHERE id IN (
+    const countStmt = this.db.prepare(`SELECT COUNT(*) AS n FROM extension_logs`);
+    let n = 0;
+    try {
+      const row = countStmt.get();
+      n = Number(row?.n ?? 0);
+    } finally {
+      countStmt.free?.();
+    }
+    if (n > HARD_LIMIT) {
+      const excess = n - HARD_LIMIT;
+      this.db.run(
+        `DELETE FROM extension_logs WHERE id IN (
           SELECT id FROM extension_logs ORDER BY timestamp ASC, id ASC LIMIT ?
-        )
-      `).run(excess);
+        )`,
+        [excess],
+      );
     }
   }
 }
