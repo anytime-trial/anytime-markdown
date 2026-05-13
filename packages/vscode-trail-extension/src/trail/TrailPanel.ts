@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import type { TrailDataServer } from '../server/TrailDataServer';
+import type { TrailDataServer } from '@anytime-markdown/trail-server';
 
 /**
  * Trail ビューアの管理を担当するシングルトン。

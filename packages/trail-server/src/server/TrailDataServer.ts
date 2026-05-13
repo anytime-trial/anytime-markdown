@@ -49,9 +49,9 @@ import { computeDeploymentFrequency, computeQualityMetrics, computeReleaseQualit
 import { aggregateScoresToC4 } from '@anytime-markdown/trail-core/deadCode';
 import { aggregateCentralityToC4, aggregateRolesToC4 } from '@anytime-markdown/trail-core/centrality';
 import type { ClassifiedFunction } from '@anytime-markdown/trail-core/centrality';
-import { TrailLogger } from '../utils/TrailLogger';
-import type { CodeGraphService } from '../graph/CodeGraphService';
-import { GraphQueryEngine } from '../graph/GraphQueryEngine';
+import { TrailLogger } from '../runtime/TrailLoggerStub'; // TODO(P2): replace with real Logger
+import type { CodeGraphService } from '../../../vscode-trail-extension/src/graph/CodeGraphService'; // TODO(P1-b): remove after graph/ moves
+import { GraphQueryEngine } from '../../../vscode-trail-extension/src/graph/GraphQueryEngine'; // TODO(P1-b): remove after graph/ moves
 import { MemoryApiHandler } from './MemoryApiHandler';
 
 // ---------------------------------------------------------------------------
@@ -254,7 +254,7 @@ export class TrailDataServer {
 
   private codeGraphService: CodeGraphService | undefined;
   private readonly memoryApi = new MemoryApiHandler();
-  private chatBridge: import('../memory-chat/chatBridge').ChatBridge | undefined;
+  private chatBridge: import('../../../vscode-trail-extension/src/memory-chat/chatBridge').ChatBridge | undefined; // TODO(P1-c): remove after memory-chat moves
 
   constructor(
     private readonly distPath: string,
@@ -266,7 +266,7 @@ export class TrailDataServer {
     this.codeGraphService = service;
   }
 
-  setChatBridge(bridge: import('../memory-chat/chatBridge').ChatBridge): void {
+  setChatBridge(bridge: import('../../../vscode-trail-extension/src/memory-chat/chatBridge').ChatBridge): void { // TODO(P1-c): remove after memory-chat moves
     this.chatBridge = bridge;
   }
 

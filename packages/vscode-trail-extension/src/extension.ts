@@ -17,7 +17,7 @@ import { McpTrailServerProvider } from './providers/McpTrailServerProvider';
 import { OllamaProvider } from './providers/OllamaProvider';
 import { TraceCodeLensProvider } from './providers/TraceCodeLensProvider';
 import { TraceScriptLensProvider } from './providers/TraceScriptLensProvider';
-import { TrailDataServer } from './server/TrailDataServer';
+import { TrailDataServer } from '@anytime-markdown/trail-server';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
 import { analyze } from '@anytime-markdown/trail-core/analyze';
 import {

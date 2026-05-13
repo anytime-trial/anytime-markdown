@@ -6,7 +6,7 @@ import * as path from 'node:path';
 
 import { resolveDrift } from '@anytime-markdown/memory-core';
 
-import { TrailLogger } from '../utils/TrailLogger';
+import { TrailLogger } from '../runtime/TrailLoggerStub'; // TODO(P2): replace with real Logger
 
 // ---------------------------------------------------------------------------
 //  Row types (mirrored in trail-viewer/src/data/types.ts)

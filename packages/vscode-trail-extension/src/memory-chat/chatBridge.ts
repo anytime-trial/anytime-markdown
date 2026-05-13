@@ -14,7 +14,7 @@ import type { WebSocket } from 'ws';
 import type {
   ChatChunkMessage,
   ProviderStatusMessage,
-} from '../server/types';
+} from '@anytime-markdown/trail-server';
 
 export interface ChatBridgeLogger {
   info(msg: string, context?: Record<string, unknown>): void;

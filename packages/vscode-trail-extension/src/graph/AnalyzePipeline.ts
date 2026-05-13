@@ -7,7 +7,7 @@ import type { TrailDatabase } from '@anytime-markdown/trail-db';
 import { loadAnalyzeExclude, seedAnalyzeExclude } from '@anytime-markdown/trail-core/analyzeExclude';
 
 import { TrailLogger } from '../utils/TrailLogger';
-import type { TrailDataServer } from '../server/TrailDataServer';
+import type { TrailDataServer } from '@anytime-markdown/trail-server';
 import type { CodeGraphService } from './CodeGraphService';
 import { GraphDetector } from './GraphDetector';
 
