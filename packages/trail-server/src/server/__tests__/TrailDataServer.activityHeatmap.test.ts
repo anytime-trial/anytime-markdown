@@ -7,6 +7,7 @@ jest.mock('@anytime-markdown/trail-core/c4', () => {
   return { ...actual, fetchC4Model: jest.fn() };
 });
 
+import { makeMockLogger } from '../../__test-helpers__/mockLogger';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
 import { TrailDataServer } from '../TrailDataServer';
 import { createTestTrailDatabase } from '../../__tests__/support/createTestDb';
@@ -26,37 +27,20 @@ const seed = (db: TrailDatabase): void => {
      ) VALUES ('s1', 's1', 'r', '0', '', '', '', '', 0, '', 0, '')`,
   );
   inner(db).run(
-    `INSERT INTO session_commits (session_id, commit_hash, committed_at)
-     VALUES ('s1', 'h1', ?)`,
+    `INSERT INTO messages (uuid, session_id, parent_uuid, type, timestamp, subagent_type)
+     VALUES ('m1', 's1', NULL, 'assistant', ?, 'general-purpose')`,
     [recent],
   );
   inner(db).run(
-    `INSERT INTO commit_files (commit_hash, file_path) VALUES ('h1', 'a.ts')`,
+    `INSERT INTO message_tool_calls (
+       session_id, message_uuid, turn_index, call_index, tool_name, file_path,
+       command, skill_name, model, is_sidechain, turn_exec_ms, has_thinking, is_error, error_type, timestamp
+     ) VALUES ('s1', 'm1', 0, 0, 'Edit', 'src/auth.ts', NULL, NULL, NULL, 0, NULL, 0, 0, NULL, ?)`,
+    [recent],
   );
-
-  // current_graphs を seed し、loadCurrentC4Model() の trailToC4 経由で
-  // pkg_core / pkg_core/x / file::a.ts の C4 要素を生成させる。
-  const graph = {
-    nodes: [
-      {
-        id: 'file::a.ts',
-        label: 'a.ts',
-        type: 'file' as const,
-        filePath: 'packages/core/src/x/a.ts',
-        line: 0,
-      },
-    ],
-    edges: [],
-    metadata: {
-      projectRoot: 'packages/core',
-      analyzedAt: new Date().toISOString(),
-      fileCount: 1,
-    },
-  };
-  db.saveCurrentGraph(graph, '', 'h1', 'tmp');
 };
 
-describe('GET /api/activity-trend', () => {
+describe('GET /api/activity-heatmap', () => {
   let server: TrailDataServer;
   let db: TrailDatabase;
   let port: number;
@@ -64,7 +48,7 @@ describe('GET /api/activity-trend', () => {
   beforeEach(async () => {
     db = await createTestTrailDatabase();
     seed(db);
-    server = new TrailDataServer('/tmp', db, '/tmp');
+    server = new TrailDataServer('/tmp', db, makeMockLogger());
     await server.start(0);
     port = server.port;
   });
@@ -74,27 +58,26 @@ describe('GET /api/activity-trend', () => {
     db.close();
   });
 
-  it('returns single-series trend for component element', async () => {
+  it('returns heatmap with session-file mode', async () => {
     const res = await fetch(
-      `http://127.0.0.1:${port}/api/activity-trend?elementId=pkg_core/x&period=30d&granularity=commit`,
+      `http://127.0.0.1:${port}/api/activity-heatmap?mode=session-file&period=30d`,
     );
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.type).toBe('single-series');
-    expect(Array.isArray(body.buckets)).toBe(true);
-    const totals = body.buckets.reduce((s: number, b: { count: number }) => s + b.count, 0);
-    expect(totals).toBeGreaterThanOrEqual(1);
+    expect(body.mode).toBe('session-file');
+    expect(Array.isArray(body.rows)).toBe(true);
+    expect(Array.isArray(body.cells)).toBe(true);
   });
 
-  it('rejects missing elementId with 400', async () => {
-    const res = await fetch(`http://127.0.0.1:${port}/api/activity-trend?period=30d`);
+  it('rejects missing mode with 400', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/activity-heatmap`);
     expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain('mode');
   });
 
-  it('rejects malformed elementId with 400', async () => {
-    const res = await fetch(
-      `http://127.0.0.1:${port}/api/activity-trend?elementId=evil$$&period=30d`,
-    );
+  it('rejects invalid mode with 400', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/activity-heatmap?mode=foo`);
     expect(res.status).toBe(400);
   });
 });

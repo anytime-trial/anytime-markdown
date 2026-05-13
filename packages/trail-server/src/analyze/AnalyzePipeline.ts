@@ -6,7 +6,7 @@ import type { TrailDatabase } from '@anytime-markdown/trail-db';
 
 import { loadAnalyzeExclude, seedAnalyzeExclude } from '@anytime-markdown/trail-core/analyzeExclude';
 
-import { TrailLogger } from '../utils/TrailLogger';
+import type { Logger } from '../runtime/Logger';
 import type { TrailDataServer } from '../server/TrailDataServer';
 import type { CodeGraphService } from './CodeGraphService';
 import { GraphDetector } from './GraphDetector';
@@ -43,12 +43,22 @@ export function findTsconfigCandidates(analysisRoot: string): TsconfigCandidate[
     .sort((a, b) => (a.depth !== b.depth ? a.depth - b.depth : a.rel.localeCompare(b.rel)));
 }
 
+const NOOP_LOGGER: Logger = {
+  debug: () => {},
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+  child: () => NOOP_LOGGER,
+};
+
 export interface AnalyzeCurrentOpts {
   analysisRoot: string;
   tsconfigPath: string;
   trailDb: TrailDatabase;
   trailDataServer: TrailDataServer;
   codeGraphService: CodeGraphService;
+  /** Logger instance. Defaults to a no-op logger if not provided. */
+  logger?: Logger;
   /** UI 側（VS Code progress）の進捗コールバック。HTTP 経路では未指定。 */
   onProgress?: (phase: string, percent?: number) => void;
 }
@@ -77,6 +87,7 @@ export async function runAnalyzeCurrentCodePipeline(
   opts: AnalyzeCurrentOpts,
 ): Promise<AnalyzeCurrentResult> {
   const { analysisRoot, tsconfigPath, trailDb, trailDataServer, codeGraphService, onProgress } = opts;
+  const logger = opts.logger ?? NOOP_LOGGER;
   const startedAt = Date.now();
   const repoName = path.basename(analysisRoot);
   const warnings: string[] = [];
@@ -87,7 +98,7 @@ export async function runAnalyzeCurrentCodePipeline(
   try {
     const seeded = seedAnalyzeExclude(analysisRoot);
     if (seeded) {
-      TrailLogger.info(`C4 analysis [${repoName}]: .trail/analyze-exclude created`);
+      logger.info(`C4 analysis [${repoName}]: .trail/analyze-exclude created`);
     }
   } catch (err) {
     warnings.push(`seedAnalyzeExclude failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -101,14 +112,14 @@ export async function runAnalyzeCurrentCodePipeline(
     tsconfigPath,
     exclude,
     onProgress: (phase) => {
-      TrailLogger.info(`C4 analysis [${repoName}]: ${phase}`);
+      logger.info(`C4 analysis [${repoName}]: ${phase}`);
       const percent = phasePercent(phase);
       trailDataServer.notifyProgress(phase, percent);
       onProgress?.(phase, percent);
     },
   });
 
-  TrailLogger.info(
+  logger.info(
     `C4 analysis [${repoName}]: analyzed ${graph.metadata.fileCount} files, ${graph.nodes.length} nodes, ${graph.edges.length} edges`,
   );
 
@@ -116,12 +127,12 @@ export async function runAnalyzeCurrentCodePipeline(
   try {
     commitId = new ExecFileGitService(analysisRoot).getHeadCommit();
   } catch (err) {
-    TrailLogger.warn(
+    logger.warn(
       `C4 analysis [${repoName}]: getHeadCommit failed (not a git repo?): ${err instanceof Error ? err.message : String(err)}`,
     );
   }
   trailDb.saveCurrentGraph(graph, tsconfigPath, commitId, repoName);
-  TrailLogger.info(
+  logger.info(
     `C4 analysis [${repoName}]: TrailGraph saved to current_graphs (repo=${repoName}, commit=${commitId || 'unknown'})`,
   );
 
@@ -137,10 +148,10 @@ export async function runAnalyzeCurrentCodePipeline(
       exclude,
       program as unknown as import('typescript').Program,
     );
-    TrailLogger.info(`C4 analysis [${repoName}]: importance scores computed`);
+    logger.info(`C4 analysis [${repoName}]: importance scores computed`);
   } catch (err) {
     const msg = `importance computation failed: ${err instanceof Error ? err.message : String(err)}`;
-    TrailLogger.warn(`C4 analysis [${repoName}]: ${msg}`);
+    logger.warn(`C4 analysis [${repoName}]: ${msg}`);
     warnings.push(msg);
   }
 
@@ -156,21 +167,21 @@ export async function runAnalyzeCurrentCodePipeline(
     try {
       await codeGraphService.loadFromDb();
     } catch (err) {
-      TrailLogger.warn(`C4 analysis [${repoName}]: cache compose failed (loadFromDb): ${err instanceof Error ? err.message : String(err)}`);
+      logger.warn(`C4 analysis [${repoName}]: cache compose failed (loadFromDb): ${err instanceof Error ? err.message : String(err)}`);
     }
     trailDataServer.notifyCodeGraphUpdated();
   } catch (err) {
     const msg = `code graph generation failed: ${err instanceof Error ? err.message : String(err)}`;
-    TrailLogger.error(`C4 analysis [${repoName}]: ${msg}`, err);
+    logger.error(`C4 analysis [${repoName}]: ${msg}`, err);
     warnings.push(msg);
   }
 
   try {
     const count = trailDb.importCurrentCoverage(analysisRoot, repoName);
-    TrailLogger.info(`C4 analysis [${repoName}]: current_coverage updated (${count} entries)`);
+    logger.info(`C4 analysis [${repoName}]: current_coverage updated (${count} entries)`);
   } catch (err) {
     const msg = `importCurrentCoverage failed: ${err instanceof Error ? err.message : String(err)}`;
-    TrailLogger.warn(`C4 analysis [${repoName}]: ${msg}`);
+    logger.warn(`C4 analysis [${repoName}]: ${msg}`);
     warnings.push(msg);
   }
 
@@ -180,7 +191,7 @@ export async function runAnalyzeCurrentCodePipeline(
     const { seedDeadCodeIgnore } = await import('@anytime-markdown/trail-core/deadCode');
     const seeded = seedDeadCodeIgnore(analysisRoot);
     if (seeded) {
-      TrailLogger.info(`C4 analysis [${repoName}]: .trail/dead-code-ignore created`);
+      logger.info(`C4 analysis [${repoName}]: .trail/dead-code-ignore created`);
     }
   } catch (err) {
     warnings.push(`seedDeadCodeIgnore failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -197,7 +208,7 @@ export async function runAnalyzeCurrentCodePipeline(
         program as unknown as import('typescript').Program,
         analysisRoot,
       );
-      TrailLogger.info(
+      logger.info(
         `C4 analysis [${repoName}]: classified ${categoryByFile.size} files (ui/logic/excluded)`,
       );
 
@@ -210,15 +221,15 @@ export async function runAnalyzeCurrentCodePipeline(
         lineCountByFile: importanceResult.lineCountByFile,
         categoryByFile,
       });
-      TrailLogger.info(
+      logger.info(
         `C4 analysis [${repoName}]: file_analysis=${fileRows} function_analysis=${functionRows}`,
       );
     } else {
-      TrailLogger.warn(`C4 analysis [${repoName}]: skipping file analysis (no importance result)`);
+      logger.warn(`C4 analysis [${repoName}]: skipping file analysis (no importance result)`);
     }
   } catch (err) {
     const msg = `file analysis failed: ${err instanceof Error ? err.message : String(err)}`;
-    TrailLogger.warn(`C4 analysis [${repoName}]: ${msg}`);
+    logger.warn(`C4 analysis [${repoName}]: ${msg}`);
     warnings.push(msg);
   }
 

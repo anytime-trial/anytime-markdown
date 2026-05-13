@@ -1,12 +1,15 @@
+// __non_webpack_require__ はwebpackグローバル。テスト環境では sql-asm.js を直接ロードするよう差し替え
 const sqlAsmActual = require(require.resolve('sql.js/dist/sql-asm.js')); // eslint-disable-line @typescript-eslint/no-require-imports
 (global as Record<string, unknown>).__non_webpack_require__ = (_path: string) => sqlAsmActual;
 
 jest.mock('ws', () => ({ WebSocketServer: jest.fn(() => ({ on: jest.fn(), close: jest.fn((cb?: () => void) => cb?.()) })) }));
 jest.mock('@anytime-markdown/trail-core/c4', () => {
+  // 実際の trail-core/c4 を読み込みつつ fetchC4Model だけ noop に差し替える
   const actual = jest.requireActual('@anytime-markdown/trail-core/c4');
   return { ...actual, fetchC4Model: jest.fn() };
 });
 
+import { makeMockLogger } from '../../__test-helpers__/mockLogger';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
 import { TrailDataServer } from '../TrailDataServer';
 import { createTestTrailDatabase } from '../../__tests__/support/createTestDb';
@@ -23,23 +26,20 @@ const seed = (db: TrailDatabase): void => {
     `INSERT INTO sessions (
        id, slug, repo_name, version, entrypoint, model, start_time, end_time,
        message_count, file_path, file_size, imported_at
-     ) VALUES ('s1', 's1', 'r', '0', '', '', '', '', 0, '', 0, '')`,
+     ) VALUES (?, ?, 'r', '0', '', '', '', '', 0, '', 0, '')`,
+    ['s1', 's1'],
   );
   inner(db).run(
-    `INSERT INTO messages (uuid, session_id, parent_uuid, type, timestamp, subagent_type)
-     VALUES ('m1', 's1', NULL, 'assistant', ?, 'general-purpose')`,
+    `INSERT INTO session_commits (session_id, commit_hash, committed_at)
+     VALUES ('s1', 'h1', ?)`,
     [recent],
   );
   inner(db).run(
-    `INSERT INTO message_tool_calls (
-       session_id, message_uuid, turn_index, call_index, tool_name, file_path,
-       command, skill_name, model, is_sidechain, turn_exec_ms, has_thinking, is_error, error_type, timestamp
-     ) VALUES ('s1', 'm1', 0, 0, 'Edit', 'src/auth.ts', NULL, NULL, NULL, 0, NULL, 0, 0, NULL, ?)`,
-    [recent],
+    `INSERT INTO commit_files (commit_hash, file_path) VALUES ('h1', 'a.ts')`,
   );
 };
 
-describe('GET /api/activity-heatmap', () => {
+describe('GET /api/hotspot', () => {
   let server: TrailDataServer;
   let db: TrailDatabase;
   let port: number;
@@ -47,7 +47,7 @@ describe('GET /api/activity-heatmap', () => {
   beforeEach(async () => {
     db = await createTestTrailDatabase();
     seed(db);
-    server = new TrailDataServer('/tmp', db);
+    server = new TrailDataServer('/tmp', db, makeMockLogger());
     await server.start(0);
     port = server.port;
   });
@@ -57,26 +57,25 @@ describe('GET /api/activity-heatmap', () => {
     db.close();
   });
 
-  it('returns heatmap with session-file mode', async () => {
-    const res = await fetch(
-      `http://127.0.0.1:${port}/api/activity-heatmap?mode=session-file&period=30d`,
-    );
+  it('returns hotspot files with default period and granularity', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/hotspot`);
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.mode).toBe('session-file');
-    expect(Array.isArray(body.rows)).toBe(true);
-    expect(Array.isArray(body.cells)).toBe(true);
+    expect(body.period).toBe('30d');
+    expect(body.granularity).toBe('commit');
+    expect(Array.isArray(body.files)).toBe(true);
+    expect(body.files.find((r: { filePath: string }) => r.filePath === 'a.ts')).toBeDefined();
   });
 
-  it('rejects missing mode with 400', async () => {
-    const res = await fetch(`http://127.0.0.1:${port}/api/activity-heatmap`);
+  it('rejects invalid period with 400', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/hotspot?period=12h`);
     expect(res.status).toBe(400);
     const body = await res.json();
-    expect(body.error).toContain('mode');
+    expect(body.error).toContain('period');
   });
 
-  it('rejects invalid mode with 400', async () => {
-    const res = await fetch(`http://127.0.0.1:${port}/api/activity-heatmap?mode=foo`);
+  it('rejects invalid granularity with 400', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/hotspot?granularity=foo`);
     expect(res.status).toBe(400);
   });
 });

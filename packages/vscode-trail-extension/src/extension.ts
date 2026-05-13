@@ -10,27 +10,27 @@ import * as vscode from 'vscode';
 import { registerMcpRegistrationCommand } from './commands/mcpRegistrationCommand';
 import { registerTraceCommands } from './commands/traceCommands';
 import { installBundledSkills } from './installBundledSkills';
-import { CodeGraphService } from './graph/CodeGraphService';
 import { AiNoteItem,AiNoteProvider } from './providers/AiNoteProvider';
 import { AgentMappingProvider } from './providers/AgentMappingProvider';
 import { McpTrailServerProvider } from './providers/McpTrailServerProvider';
 import { OllamaProvider } from './providers/OllamaProvider';
 import { TraceCodeLensProvider } from './providers/TraceCodeLensProvider';
 import { TraceScriptLensProvider } from './providers/TraceScriptLensProvider';
-import { TrailDataServer } from './server/TrailDataServer';
-import { TrailDatabase } from '@anytime-markdown/trail-db';
-import { analyze } from '@anytime-markdown/trail-core/analyze';
 import {
+	TrailDataServer,
+	CodeGraphService,
 	findTsconfigCandidates,
 	runAnalyzeCurrentCodePipeline,
 	runAnalyzeReleaseCodePipeline,
-} from './graph/AnalyzePipeline';
+} from '@anytime-markdown/trail-server';
+import { TrailDatabase } from '@anytime-markdown/trail-db';
+import { analyze } from '@anytime-markdown/trail-core/analyze';
 import { DatabaseProvider } from './trail/DatabaseProvider';
 import { TrailPanel } from './trail/TrailPanel';
 import { resolveWatchedRepos } from './utils/resolveWatchedRepos';
 import { TrailLogger } from './utils/TrailLogger';
-import { createMemoryCoreRunner, installSqlJsLoaderOnce } from './utils/memoryCoreRunner';
-import type { MemoryCoreRunner } from './utils/memoryCoreRunner';
+import { createMemoryCoreRunner, installSqlJsLoaderOnce } from '@anytime-markdown/trail-server';
+import type { MemoryCoreRunner } from '@anytime-markdown/trail-server';
 
 let trailDataServer: TrailDataServer | undefined;
 let trailDb: TrailDatabase | undefined;
@@ -105,6 +105,11 @@ function setupServerCallbacks(server: TrailDataServer): void {
 
 export async function activate(context: vscode.ExtensionContext) {
 	extensionDistPath = path.join(context.extensionUri.fsPath, 'dist');
+
+	// OutputChannel を早期に確定し、TrailLogger.asLogger() で Logger IF を提供する。
+	const trailOutputChannel = vscode.window.createOutputChannel('Anytime Trail');
+	TrailLogger.init(trailOutputChannel);
+	context.subscriptions.push(trailOutputChannel);
 
 	// sql.js を必要とする経路 (MemoryApiHandler / memoryCoreRunner) は webpack の
 	// 標準 import を使うと UMD wrapper が壊れて起動失敗する。activate の冒頭で
@@ -464,6 +469,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			trailDbPath,
 			distPath: extensionDistPath,
 			nativeBinding: memoryCoreNativeBinding,
+			gitRoot: wsRootForDb ?? process.cwd(),
 		});
 	}
 	trailDb.setIntegrityAlertHandler((alerts) => {
@@ -475,7 +481,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	});
 	const gitRoot = wsRootForDb;
-	trailDataServer = new TrailDataServer(extensionDistPath, trailDb, gitRoot);
+	trailDataServer = new TrailDataServer(extensionDistPath, trailDb, TrailLogger.asLogger(), gitRoot);
 	TrailPanel.setDataServer(trailDataServer);
 	setupServerCallbacks(trailDataServer);
 
@@ -493,7 +499,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	setImmediate(() => {
 		void (async () => {
 			try {
-				const { ChatBridge } = await import('./memory-chat/chatBridge');
+				const { ChatBridge } = await import('@anytime-markdown/trail-server');
 				const chatBridge = new ChatBridge({
 					memoryDbPath,
 					memoryNativeBinding,
@@ -510,7 +516,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				trailDataServer!.setChatBridge(chatBridge);
 				context.subscriptions.push({ dispose: () => void chatBridge.dispose() });
 
-				const { RebuildScheduler } = await import('./memory-chat/rebuildScheduler');
+				const { RebuildScheduler } = await import('@anytime-markdown/trail-server');
 				const rebuildIntervalMin = vscode.workspace
 					.getConfiguration('anytimeTrail.memory.fts')
 					.get<number>('rebuildIntervalMinutes') ?? 60;

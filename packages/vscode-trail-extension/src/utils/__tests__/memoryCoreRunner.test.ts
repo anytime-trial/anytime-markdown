@@ -7,7 +7,7 @@ import {
   runCodeIncremental,
 } from '@anytime-markdown/memory-core';
 import * as fsMod from 'fs';
-import { createMemoryCoreRunner } from '../memoryCoreRunner';
+import { createMemoryCoreRunner } from '@anytime-markdown/trail-server';
 
 jest.mock('@anytime-markdown/memory-core', () => {
   const ok = {

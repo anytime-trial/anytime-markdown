@@ -7,6 +7,7 @@ jest.mock('@anytime-markdown/memory-core', () => ({
   resolveDrift: jest.fn(() => ({ resolved: true })),
 }));
 
+import { makeMockLogger } from '../../__test-helpers__/mockLogger';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -230,7 +231,7 @@ describe('MemoryApiHandler', () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'memory-api-test-'));
     dbPath = path.join(tmpDir, 'memory-core.db');
     await buildTestDb(dbPath);
-    handler = new (MemoryApiHandler as new (p: string) => MemoryApiHandler)(dbPath);
+    handler = new MemoryApiHandler(makeMockLogger(), dbPath);
   });
 
   afterAll(() => {
@@ -244,7 +245,7 @@ describe('MemoryApiHandler', () => {
     });
 
     it('returns exists:false when db file is absent', async () => {
-      const h = new (MemoryApiHandler as new (p: string) => MemoryApiHandler)(path.join(tmpDir, 'no-such.db'));
+      const h = new MemoryApiHandler(makeMockLogger(), path.join(tmpDir, 'no-such.db'));
       expect(await h.handleStatus()).toEqual({ exists: false });
     });
   });
@@ -267,7 +268,7 @@ describe('MemoryApiHandler', () => {
     });
 
     it('returns empty array when db is absent', async () => {
-      const h = new (MemoryApiHandler as new (p: string) => MemoryApiHandler)(path.join(tmpDir, 'no-such.db'));
+      const h = new MemoryApiHandler(makeMockLogger(), path.join(tmpDir, 'no-such.db'));
       expect(await h.listDriftEvents({})).toEqual([]);
     });
   });

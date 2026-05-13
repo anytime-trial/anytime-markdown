@@ -6,7 +6,7 @@ import type { TrailGraph } from '@anytime-markdown/trail-core';
 import type { C4Element } from '@anytime-markdown/trail-core/c4';
 import { loadAnalyzeExclude } from '@anytime-markdown/trail-core/analyzeExclude';
 
-import { TrailLogger } from '../utils/TrailLogger';
+import type { Logger } from '../runtime/Logger';
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
 import type { CodeGraph, CodeGraphEdge, CodeGraphNode, CodeGraphRepository } from './CodeGraph.types';
 import { GraphBuilder } from './GraphBuilder';
@@ -19,6 +19,8 @@ export interface CodeGraphServiceConfig {
   readonly repositories: readonly CodeGraphRepository[];
   /** ディレクトリ名で除外するパターン（GraphDetector のデフォルトに追加される） */
   readonly excludePatterns?: readonly string[];
+  /** Logger instance. Defaults to a no-op logger if not provided. */
+  readonly logger?: Logger;
   /**
    * クラスタリング時に参照する C4 element 一覧の取得関数（任意）。
    * 供給されない／空配列の場合は package 多数決にフォールバックする。
@@ -37,10 +39,21 @@ export type ProgressCallback = (phase: string, percent: number) => void;
 
 type NodeInput = Omit<CodeGraphNode, 'community' | 'communityLabel' | 'x' | 'y' | 'size'>;
 
+const NOOP_LOGGER: Logger = {
+  debug: () => {},
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+  child: () => NOOP_LOGGER,
+};
+
 export class CodeGraphService {
   private cached: CodeGraph | null = null;
+  private readonly logger: Logger;
 
-  constructor(private readonly config: CodeGraphServiceConfig) {}
+  constructor(private readonly config: CodeGraphServiceConfig) {
+    this.logger = config.logger ?? NOOP_LOGGER;
+  }
 
   getGraph(): CodeGraph | null {
     return this.cached;
@@ -56,7 +69,7 @@ export class CodeGraphService {
           return graph;
         }
       } catch (err) {
-        TrailLogger.warn(`[CodeGraphService] DB not ready in loadFromDb: ${err instanceof Error ? err.message : String(err)}`);
+        this.logger.warn(`[CodeGraphService] DB not ready in loadFromDb: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
     return null;
@@ -170,7 +183,7 @@ export class CodeGraphService {
   private runAnalyze(repo: CodeGraphRepository): TrailGraph | undefined {
     const tsconfigPath = path.join(repo.path, 'tsconfig.json');
     if (!fs.existsSync(tsconfigPath)) {
-      TrailLogger.info(
+      this.logger.info(
         `[CodeGraphService] tsconfig not found for ${repo.label}, skipping code analysis`,
       );
       return undefined;
@@ -181,7 +194,7 @@ export class CodeGraphService {
       const exclude = loadAnalyzeExclude(repo.path);
       return analyze({ tsconfigPath, exclude });
     } catch (err) {
-      TrailLogger.error(
+      this.logger.error(
         `[CodeGraphService] analyze() failed for ${repo.label} (${tsconfigPath})`,
         err,
       );
@@ -193,9 +206,9 @@ export class CodeGraphService {
     const repoName = this.config.repositories[0]?.label ?? path.basename(this.config.repositories[0]?.path ?? '');
     if (this.config.trailDb && repoName) {
       this.config.trailDb.saveCurrentCodeGraph(repoName, graph);
-      TrailLogger.info(`Code graph saved to DB (repo=${repoName})`);
+      this.logger.info(`Code graph saved to DB (repo=${repoName})`);
     } else {
-      TrailLogger.warn('[CodeGraphService] save() skipped: trailDb not configured');
+      this.logger.warn('[CodeGraphService] save() skipped: trailDb not configured');
     }
   }
 }

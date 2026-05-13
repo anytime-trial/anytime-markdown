@@ -473,6 +473,7 @@
     "@anytime-markdown/mcp-trail": "*",
     "@anytime-markdown/trail-core": "*",
     "@anytime-markdown/trail-db": "*",
+    "@anytime-markdown/trail-server": "*",
     "@anytime-markdown/vscode-common": "*",
     "@modelcontextprotocol/sdk": "1.27.1",
     "graphology": "0.26.0",

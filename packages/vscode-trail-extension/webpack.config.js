@@ -209,7 +209,7 @@ const trailStandaloneConfig = {
 const mcpTrailServerConfig = {
   target: 'node',
   mode: 'development',
-  entry: './src/server/mcp-trail-entry.ts',
+  entry: '../trail-server/src/server/mcp-trail-entry.ts',
   output: {
     path: path.resolve(__dirname, 'dist'),
     filename: 'mcp-trail-server.js',

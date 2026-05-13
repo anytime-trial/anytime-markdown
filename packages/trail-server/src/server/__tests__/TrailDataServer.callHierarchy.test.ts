@@ -8,6 +8,7 @@ jest.mock('@anytime-markdown/trail-core/c4', () => {
   return { ...actual, fetchC4Model: jest.fn().mockResolvedValue(null) };
 });
 
+import { makeMockLogger } from '../../__test-helpers__/mockLogger';
 import { TrailDataServer } from '../TrailDataServer';
 import { createTestTrailDatabase } from '../../__tests__/support/createTestDb';
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
@@ -63,7 +64,7 @@ describe('GET /api/c4/call-hierarchy', () => {
   beforeEach(async () => {
     db = await createTestTrailDatabase();
     db.saveCurrentGraph(fixtureGraph, '/tmp/repo/tsconfig.json', 'commit-1', 'repo');
-    server = new TrailDataServer('/tmp', db, '/tmp/repo');
+    server = new TrailDataServer('/tmp', db, makeMockLogger(), '/tmp/repo');
     await server.start(0);
     port = server.port;
   });

@@ -49,9 +49,9 @@ import { computeDeploymentFrequency, computeQualityMetrics, computeReleaseQualit
 import { aggregateScoresToC4 } from '@anytime-markdown/trail-core/deadCode';
 import { aggregateCentralityToC4, aggregateRolesToC4 } from '@anytime-markdown/trail-core/centrality';
 import type { ClassifiedFunction } from '@anytime-markdown/trail-core/centrality';
-import { TrailLogger } from '../utils/TrailLogger';
-import type { CodeGraphService } from '../graph/CodeGraphService';
-import { GraphQueryEngine } from '../graph/GraphQueryEngine';
+import type { Logger } from '../runtime/Logger';
+import type { CodeGraphService } from '../analyze/CodeGraphService';
+import { GraphQueryEngine } from '../analyze/GraphQueryEngine';
 import { MemoryApiHandler } from './MemoryApiHandler';
 
 // ---------------------------------------------------------------------------
@@ -253,14 +253,17 @@ export class TrailDataServer {
   };
 
   private codeGraphService: CodeGraphService | undefined;
-  private readonly memoryApi = new MemoryApiHandler();
+  private readonly memoryApi: MemoryApiHandler;
   private chatBridge: import('../memory-chat/chatBridge').ChatBridge | undefined;
 
   constructor(
     private readonly distPath: string,
     private readonly trailDb: TrailDatabase,
+    private readonly logger: Logger,
     private readonly gitRoot?: string,
-  ) {}
+  ) {
+    this.memoryApi = new MemoryApiHandler(this.logger.child('MemoryApiHandler'));
+  }
 
   setCodeGraphService(service: CodeGraphService): void {
     this.codeGraphService = service;
@@ -808,7 +811,7 @@ export class TrailDataServer {
         res.writeHead(200, JSON_HEADERS);
         res.end(JSON.stringify(data));
       }).catch((err: unknown) => {
-        TrailLogger.error(`[/api/memory/status] ${String(err)}`);
+        this.logger.error(`[/api/memory/status] ${String(err)}`);
         res.writeHead(500); res.end();
       });
       return;
@@ -826,7 +829,7 @@ export class TrailDataServer {
         res.writeHead(200, JSON_HEADERS);
         res.end(JSON.stringify(data));
       }).catch((err: unknown) => {
-        TrailLogger.error(`[/api/memory/drift/events] ${String(err)}`);
+        this.logger.error(`[/api/memory/drift/events] ${String(err)}`);
         res.writeHead(500); res.end();
       });
       return;
@@ -839,7 +842,7 @@ export class TrailDataServer {
         res.writeHead(200, JSON_HEADERS);
         res.end(JSON.stringify(data));
       }).catch((err: unknown) => {
-        TrailLogger.error(`[/api/memory/drift/events/:id] ${String(err)}`);
+        this.logger.error(`[/api/memory/drift/events/:id] ${String(err)}`);
         res.writeHead(500); res.end();
       });
       return;
@@ -855,7 +858,7 @@ export class TrailDataServer {
         res.writeHead(200, JSON_HEADERS);
         res.end(JSON.stringify(data));
       }).catch((err: unknown) => {
-        TrailLogger.error(`[/api/memory/drift/events/:id POST] ${String(err)}`);
+        this.logger.error(`[/api/memory/drift/events/:id POST] ${String(err)}`);
         res.writeHead(500); res.end();
       });
       return;
@@ -871,7 +874,7 @@ export class TrailDataServer {
         res.writeHead(200, JSON_HEADERS);
         res.end(JSON.stringify(data));
       }).catch((err: unknown) => {
-        TrailLogger.error(`[/api/memory/bugs/recurring] ${String(err)}`);
+        this.logger.error(`[/api/memory/bugs/recurring] ${String(err)}`);
         res.writeHead(500); res.end();
       });
       return;
@@ -888,7 +891,7 @@ export class TrailDataServer {
         res.writeHead(200, JSON_HEADERS);
         res.end(JSON.stringify(data));
       }).catch((err: unknown) => {
-        TrailLogger.error(`[/api/memory/bugs/history] ${String(err)}`);
+        this.logger.error(`[/api/memory/bugs/history] ${String(err)}`);
         res.writeHead(500); res.end();
       });
       return;
@@ -905,7 +908,7 @@ export class TrailDataServer {
         res.writeHead(200, JSON_HEADERS);
         res.end(JSON.stringify(data));
       }).catch((err: unknown) => {
-        TrailLogger.error(`[/api/memory/reviews/unaddressed] ${String(err)}`);
+        this.logger.error(`[/api/memory/reviews/unaddressed] ${String(err)}`);
         res.writeHead(500); res.end();
       });
       return;
@@ -921,7 +924,7 @@ export class TrailDataServer {
         res.writeHead(200, JSON_HEADERS);
         res.end(JSON.stringify(data));
       }).catch((err: unknown) => {
-        TrailLogger.error(`[/api/memory/reviews/history] ${String(err)}`);
+        this.logger.error(`[/api/memory/reviews/history] ${String(err)}`);
         res.writeHead(500); res.end();
       });
       return;
@@ -938,7 +941,7 @@ export class TrailDataServer {
         res.writeHead(200, JSON_HEADERS);
         res.end(JSON.stringify(data));
       }).catch((err: unknown) => {
-        TrailLogger.error(`[/api/memory/pipeline/runs] ${String(err)}`);
+        this.logger.error(`[/api/memory/pipeline/runs] ${String(err)}`);
         res.writeHead(500); res.end();
       });
       return;
@@ -953,7 +956,7 @@ export class TrailDataServer {
         res.writeHead(200, JSON_HEADERS);
         res.end(JSON.stringify(data));
       }).catch((err: unknown) => {
-        TrailLogger.error(`[/api/memory/pipeline/failed] ${String(err)}`);
+        this.logger.error(`[/api/memory/pipeline/failed] ${String(err)}`);
         res.writeHead(500); res.end();
       });
       return;
@@ -968,7 +971,7 @@ export class TrailDataServer {
         res.writeHead(200, JSON_HEADERS);
         res.end(JSON.stringify(data));
       }).catch((err: unknown) => {
-        TrailLogger.error(`[/api/memory/entities/top] ${String(err)}`);
+        this.logger.error(`[/api/memory/entities/top] ${String(err)}`);
         res.writeHead(500); res.end();
       });
       return;
@@ -983,7 +986,7 @@ export class TrailDataServer {
         res.writeHead(200, JSON_HEADERS);
         res.end(JSON.stringify(data));
       }).catch((err: unknown) => {
-        TrailLogger.error(`[/api/memory/edges/invalidations] ${String(err)}`);
+        this.logger.error(`[/api/memory/edges/invalidations] ${String(err)}`);
         res.writeHead(500); res.end();
       });
       return;
@@ -1133,7 +1136,7 @@ export class TrailDataServer {
       }));
     } catch (e) {
       const err = e instanceof Error ? e : new Error(String(e));
-      TrailLogger.error(`/api/temporal-coupling failed: ${err.message}\n${err.stack ?? ''}`);
+      this.logger.error(`/api/temporal-coupling failed: ${err.message}\n${err.stack ?? ''}`);
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: err.message }));
     }
@@ -1163,7 +1166,7 @@ export class TrailDataServer {
       res.end(JSON.stringify({ period, granularity, from, to, files }));
     } catch (e) {
       const err = e instanceof Error ? e : new Error(String(e));
-      TrailLogger.error(`/api/hotspot failed: ${err.message}\n${err.stack ?? ''}`);
+      this.logger.error(`/api/hotspot failed: ${err.message}\n${err.stack ?? ''}`);
       this.sendError(res, 500, err.message);
     }
   }
@@ -1210,7 +1213,7 @@ export class TrailDataServer {
       );
     } catch (e) {
       const err = e instanceof Error ? e : new Error(String(e));
-      TrailLogger.error(`/api/activity-heatmap failed: ${err.message}\n${err.stack ?? ''}`);
+      this.logger.error(`/api/activity-heatmap failed: ${err.message}\n${err.stack ?? ''}`);
       this.sendError(res, 500, err.message);
     }
   }
@@ -1265,7 +1268,7 @@ export class TrailDataServer {
       res.end(JSON.stringify({ elementId, period, granularity, from, to, ...trend }));
     } catch (e) {
       const err = e instanceof Error ? e : new Error(String(e));
-      TrailLogger.error(`/api/activity-trend failed: ${err.message}\n${err.stack ?? ''}`);
+      this.logger.error(`/api/activity-trend failed: ${err.message}\n${err.stack ?? ''}`);
       this.sendError(res, 500, err.message);
     }
   }
@@ -1297,7 +1300,7 @@ export class TrailDataServer {
         return;
       }
       const err = e instanceof Error ? e : new Error(String(e));
-      TrailLogger.error(`/api/trace/list failed: ${err.message}\n${err.stack ?? ''}`);
+      this.logger.error(`/api/trace/list failed: ${err.message}\n${err.stack ?? ''}`);
       this.sendError(res, 500, err.message);
     }
   }
@@ -1319,7 +1322,7 @@ export class TrailDataServer {
       const code = (e as NodeJS.ErrnoException).code;
       if (code === 'ENOENT') { this.sendError(res, 404, 'File not found'); return; }
       const err = e instanceof Error ? e : new Error(String(e));
-      TrailLogger.error(`/api/trace/file failed: ${filePath}: ${err.message}\n${err.stack ?? ''}`);
+      this.logger.error(`/api/trace/file failed: ${filePath}: ${err.message}\n${err.stack ?? ''}`);
       this.sendError(res, 500, err.message);
     }
   }
@@ -1337,7 +1340,7 @@ export class TrailDataServer {
       const result = await Promise.resolve(store.getCurrentC4Model(resolvedRepo));
       return result?.model ?? null;
     } catch (e) {
-      TrailLogger.warn(`asC4ModelStore.getCurrentC4Model failed: ${e instanceof Error ? e.message : String(e)}`);
+      this.logger.warn(`asC4ModelStore.getCurrentC4Model failed: ${e instanceof Error ? e.message : String(e)}`);
       return null;
     }
   }
@@ -1354,7 +1357,7 @@ export class TrailDataServer {
       res.end(JSON.stringify({ entries, computedAt, windowDays, halfLifeDays, totalFiles: entries.length }));
     } catch (e) {
       const err = e instanceof Error ? e : new Error(String(e));
-      TrailLogger.error(`/api/defect-risk failed: ${err.message}\n${err.stack ?? ''}`);
+      this.logger.error(`/api/defect-risk failed: ${err.message}\n${err.stack ?? ''}`);
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: err.message }));
     }
@@ -1763,7 +1766,7 @@ export class TrailDataServer {
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ matrix }));
     } catch (e) {
-      TrailLogger.error('Failed to build DSM', e);
+      this.logger.error('Failed to build DSM', e);
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: 'Failed to build DSM' }));
     }
@@ -1889,7 +1892,7 @@ export class TrailDataServer {
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ coverageMatrix, coverageDiff: null }));
     } catch (e) {
-      TrailLogger.error('[/api/c4/coverage] failed', e);
+      this.logger.error('[/api/c4/coverage] failed', e);
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ coverageMatrix: null, coverageDiff: null }));
     }
@@ -1923,7 +1926,7 @@ export class TrailDataServer {
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ docs: filtered }));
     } catch (e) {
-      TrailLogger.error('[/api/docs-index] failed', e);
+      this.logger.error('[/api/docs-index] failed', e);
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ docs: this.docLinks }));
     }
@@ -2003,7 +2006,7 @@ export class TrailDataServer {
         elementMatrix: { importance, deadCodeScore: deadCode, centrality, functionRoles },
       }));
     } catch (err) {
-      TrailLogger.error('[/api/c4/file-analysis] failed', err);
+      this.logger.error('[/api/c4/file-analysis] failed', err);
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
     }
@@ -2045,7 +2048,7 @@ export class TrailDataServer {
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ entries }));
     } catch (err) {
-      TrailLogger.error('[/api/c4/function-analysis] failed', err);
+      this.logger.error('[/api/c4/function-analysis] failed', err);
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
     }
@@ -2088,7 +2091,7 @@ export class TrailDataServer {
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ complexityMatrix }));
     } catch (e) {
-      TrailLogger.error('[/api/c4/complexity] failed', e);
+      this.logger.error('[/api/c4/complexity] failed', e);
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ complexityMatrix: null }));
     }
@@ -2180,7 +2183,7 @@ export class TrailDataServer {
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(data));
     } catch (e) {
-      TrailLogger.error('handleGetCombined failed', e);
+      this.logger.error('handleGetCombined failed', e);
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: 'Failed to get combined data' }));
     }
@@ -2215,7 +2218,7 @@ export class TrailDataServer {
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(metrics));
     } catch (e) {
-      TrailLogger.error('handleGetQualityMetrics failed', e);
+      this.logger.error('handleGetQualityMetrics failed', e);
       const msg = e instanceof Error ? `${e.message}\n${e.stack ?? ''}` : String(e);
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: 'Failed to get quality metrics', detail: msg }));
@@ -2241,7 +2244,7 @@ export class TrailDataServer {
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(result));
     } catch (e) {
-      TrailLogger.error('handleGetDeploymentFrequencyQuality failed', e);
+      this.logger.error('handleGetDeploymentFrequencyQuality failed', e);
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: 'Failed to get deployment frequency quality' }));
     }
@@ -2271,7 +2274,7 @@ export class TrailDataServer {
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(timeSeries));
     } catch (e) {
-      TrailLogger.error('handleGetDeploymentFrequency failed', e);
+      this.logger.error('handleGetDeploymentFrequency failed', e);
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: 'Failed to get deployment frequency' }));
     }
@@ -2550,7 +2553,7 @@ export class TrailDataServer {
         void this.codeGraphService
           .generate((phase, percent) => this.notifyCodeGraphProgress(phase, percent))
           .then(() => this.notifyCodeGraphUpdated())
-          .catch((err) => TrailLogger.error('Failed to generate code graph', err));
+          .catch((err) => this.logger.error('Failed to generate code graph', err));
       }
       return;
     }
@@ -2568,7 +2571,7 @@ export class TrailDataServer {
     }
     if (parsed.type === 'perf-report') {
       // TRAIL_DEBUG_PERF=1 の時のみ OutputChannel に出力（既定で常時 silent）
-      TrailLogger.debugPerf({ metric: parsed.metric, ms: parsed.ms, meta: parsed.meta });
+      this.logger.debug('[perf-report]', { metric: String(parsed.metric), ms: Number(parsed.ms) });
       return;
     }
 
@@ -2669,7 +2672,7 @@ export class TrailDataServer {
       try {
         scored = analyzer.analyze(allSourceFiles);
       } catch (err) {
-        TrailLogger.error('[importance] analyzer.analyze failed', err);
+        this.logger.error('[importance] analyzer.analyze failed', err);
         return null;
       }
       const fileAggregates = aggregateImportanceToFile(scored);
@@ -2753,7 +2756,7 @@ export class TrailDataServer {
       const resolved = await this.resolveModelAndGraph();
 
       if (!resolved) {
-        TrailLogger.warn(`[/api/c4/exports] model or graph not available for componentId=${componentId}`);
+        this.logger.warn(`[/api/c4/exports] model or graph not available for componentId=${componentId}`);
         res.writeHead(200, JSON_HEADERS);
         res.end(JSON.stringify({ symbols: [] }));
         return;
@@ -2774,14 +2777,14 @@ export class TrailDataServer {
         if (!codeElementIds.has(node.id)) continue;
         const absolutePath = path.resolve(projectRoot, node.filePath);
         if (!absolutePath.startsWith(normalizedRoot)) {
-          TrailLogger.warn(`[/api/c4/exports] path traversal blocked: ${node.filePath}`);
+          this.logger.warn(`[/api/c4/exports] path traversal blocked: ${node.filePath}`);
           continue;
         }
         try {
           const content = fs.readFileSync(absolutePath, 'utf-8');
           sourceFiles.push(createSourceFile(node.filePath, content));
         } catch (e) {
-          TrailLogger.error(`[/api/c4/exports] failed to read file: ${node.filePath}`, e);
+          this.logger.error(`[/api/c4/exports] failed to read file: ${node.filePath}`, e);
         }
       }
 
@@ -2789,7 +2792,7 @@ export class TrailDataServer {
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ symbols }));
     } catch (e) {
-      TrailLogger.error(`[/api/c4/exports] error: componentId=${componentId}`, e);
+      this.logger.error(`[/api/c4/exports] error: componentId=${componentId}`, e);
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ symbols: [] }));
     }
@@ -2823,7 +2826,7 @@ export class TrailDataServer {
       const normalizedRoot = projectRoot.endsWith(path.sep) ? projectRoot : `${projectRoot}${path.sep}`;
       const absolutePath = path.resolve(projectRoot, node.filePath);
       if (!absolutePath.startsWith(normalizedRoot)) {
-        TrailLogger.warn(`[/api/c4/functions] path traversal blocked: ${node.filePath}`);
+        this.logger.warn(`[/api/c4/functions] path traversal blocked: ${node.filePath}`);
         res.writeHead(200, JSON_HEADERS);
         res.end(JSON.stringify({ symbols: [] }));
         return;
@@ -2833,7 +2836,7 @@ export class TrailDataServer {
         const content = fs.readFileSync(absolutePath, 'utf-8');
         sourceFile = createSourceFile(node.filePath, content);
       } catch (e) {
-        TrailLogger.error(`[/api/c4/functions] failed to read file: ${node.filePath}`, e);
+        this.logger.error(`[/api/c4/functions] failed to read file: ${node.filePath}`, e);
         res.writeHead(200, JSON_HEADERS);
         res.end(JSON.stringify({ symbols: [] }));
         return;
@@ -2842,7 +2845,7 @@ export class TrailDataServer {
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ symbols }));
     } catch (e) {
-      TrailLogger.error(`[/api/c4/functions] error: elementId=${elementId}`, e);
+      this.logger.error(`[/api/c4/functions] error: elementId=${elementId}`, e);
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ symbols: [] }));
     }
@@ -2860,7 +2863,7 @@ export class TrailDataServer {
       const resolved = await this.resolveModelAndGraph();
 
       if (!resolved) {
-        TrailLogger.warn(`[/api/c4/flowchart] model or graph not available for componentId=${componentId}`);
+        this.logger.warn(`[/api/c4/flowchart] model or graph not available for componentId=${componentId}`);
         res.writeHead(200, JSON_HEADERS);
         res.end(JSON.stringify({ graph: EMPTY_GRAPH }));
         return;
@@ -2880,14 +2883,14 @@ export class TrailDataServer {
         if (!codeElementIds.has(node.id)) continue;
         const absolutePath = path.resolve(projectRoot, node.filePath);
         if (!absolutePath.startsWith(normalizedFlowRoot)) {
-          TrailLogger.warn(`[/api/c4/flowchart] path traversal blocked: ${node.filePath}`);
+          this.logger.warn(`[/api/c4/flowchart] path traversal blocked: ${node.filePath}`);
           continue;
         }
         try {
           const content = fs.readFileSync(absolutePath, 'utf-8');
           sourceFiles.push(createSourceFile(node.filePath, content));
         } catch (e) {
-          TrailLogger.error(`[/api/c4/flowchart] failed to read file: ${node.filePath}`, e);
+          this.logger.error(`[/api/c4/flowchart] failed to read file: ${node.filePath}`, e);
         }
       }
 
@@ -2915,7 +2918,7 @@ export class TrailDataServer {
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ graph: flowGraph }));
     } catch (e) {
-      TrailLogger.error(`[/api/c4/flowchart] error: componentId=${componentId}, symbolId=${symbolId}`, e);
+      this.logger.error(`[/api/c4/flowchart] error: componentId=${componentId}, symbolId=${symbolId}`, e);
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ graph: EMPTY_GRAPH }));
     }
@@ -2941,7 +2944,7 @@ export class TrailDataServer {
 
       const resolved = await this.resolveModelAndGraph();
       if (!resolved) {
-        TrailLogger.warn(`[/api/c4/sequence] model or graph not available for elementId=${elementId}`);
+        this.logger.warn(`[/api/c4/sequence] model or graph not available for elementId=${elementId}`);
         res.writeHead(200, JSON_HEADERS);
         res.end(JSON.stringify(emptyModel));
         return;
@@ -2968,14 +2971,14 @@ export class TrailDataServer {
         if (!codeElementIds.has(node.id)) continue;
         const absolutePath = path.resolve(projectRoot, node.filePath);
         if (!absolutePath.startsWith(normalizedRoot)) {
-          TrailLogger.warn(`[/api/c4/sequence] path traversal blocked: ${node.filePath}`);
+          this.logger.warn(`[/api/c4/sequence] path traversal blocked: ${node.filePath}`);
           continue;
         }
         try {
           const content = fs.readFileSync(absolutePath, 'utf-8');
           sourceFiles.set(node.filePath, createSourceFile(node.filePath, content));
         } catch (e) {
-          TrailLogger.error(`[/api/c4/sequence] failed to read file: ${node.filePath}`, e);
+          this.logger.error(`[/api/c4/sequence] failed to read file: ${node.filePath}`, e);
         }
       }
 
@@ -2983,7 +2986,7 @@ export class TrailDataServer {
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(sequenceModel));
     } catch (e) {
-      TrailLogger.error(`[/api/c4/sequence] error: elementId=${elementId}`, e);
+      this.logger.error(`[/api/c4/sequence] error: elementId=${elementId}`, e);
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(emptyModel));
     }
@@ -3088,7 +3091,7 @@ export class TrailDataServer {
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(tree));
     } catch (e) {
-      TrailLogger.error('[/api/c4/call-hierarchy] failed', e);
+      this.logger.error('[/api/c4/call-hierarchy] failed', e);
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }));
     }
@@ -3230,7 +3233,7 @@ export class TrailDataServer {
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ communities }));
     } catch (err) {
-      TrailLogger.error('handleListCommunities failed', err);
+      this.logger.error('handleListCommunities failed', err);
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
     }
@@ -3267,7 +3270,7 @@ export class TrailDataServer {
       this.notify('model-updated');
       this.notifyCodeGraphUpdated();
     } catch (err) {
-      TrailLogger.error('handleUpsertCommunitySummaries failed', err);
+      this.logger.error('handleUpsertCommunitySummaries failed', err);
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
     }
@@ -3304,7 +3307,7 @@ export class TrailDataServer {
       this.notify('model-updated');
       this.notifyCodeGraphUpdated();
     } catch (err) {
-      TrailLogger.error('handleUpsertCommunityMappings failed', err);
+      this.logger.error('handleUpsertCommunityMappings failed', err);
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
     }
@@ -3322,7 +3325,7 @@ export class TrailDataServer {
     try {
       await this.codeGraphService.loadFromDb();
     } catch (err) {
-      TrailLogger.warn(`[community-upsert] cache compose failed (loadFromDb): ${err instanceof Error ? err.message : String(err)}`);
+      this.logger.warn(`[community-upsert] cache compose failed (loadFromDb): ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
@@ -3359,7 +3362,7 @@ export class TrailDataServer {
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(result));
     } catch (err) {
-      TrailLogger.error('handleAnalyzeCurrent failed', err);
+      this.logger.error('handleAnalyzeCurrent failed', err);
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
     } finally {
@@ -3387,7 +3390,7 @@ export class TrailDataServer {
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(result));
     } catch (err) {
-      TrailLogger.error('handleAnalyzeRelease failed', err);
+      this.logger.error('handleAnalyzeRelease failed', err);
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
     } finally {
@@ -3415,7 +3418,7 @@ export class TrailDataServer {
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(result));
     } catch (err) {
-      TrailLogger.error('handleAnalyzeAll failed', err);
+      this.logger.error('handleAnalyzeAll failed', err);
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
     } finally {
