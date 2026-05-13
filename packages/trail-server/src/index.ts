@@ -34,3 +34,6 @@ export type { TrailServerConfig, SchedulerConfig, PeriodicImportConfig } from '.
 
 export { DaemonScheduler } from './runtime/DaemonScheduler';
 export type { ScheduledJob, JobResult } from './runtime/DaemonScheduler';
+
+export { createPeriodicImportJob } from './jobs/PeriodicImportJob';
+export type { PeriodicImportJobOptions } from './jobs/PeriodicImportJob';
