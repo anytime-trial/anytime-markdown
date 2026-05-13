@@ -90,6 +90,32 @@ function insertPipelineRun(
   );
 }
 
+function updatePipelineRunProgress(
+  db: MemoryDbConnection,
+  id: string,
+  totals: PersistStats & { items_processed: number; items_failed: number }
+): void {
+  db.run(
+    `UPDATE memory_pipeline_runs SET
+       items_processed   = ?,
+       entities_inserted = ?,
+       entities_updated  = ?,
+       edges_inserted    = ?,
+       edges_invalidated = ?,
+       items_failed      = ?
+     WHERE id = ?`,
+    [
+      totals.items_processed,
+      totals.entities_inserted,
+      totals.entities_updated,
+      totals.edges_inserted,
+      totals.edges_invalidated,
+      totals.items_failed,
+      id,
+    ]
+  );
+}
+
 function finalizePipelineRun(
   db: MemoryDbConnection,
   id: string,
@@ -199,6 +225,15 @@ export async function runConversationIncremental(opts: {
             `[memory-core] conversation incremental progress: ${totals.items_processed} processed ` +
               `(${totals.items_failed} failed, entities_inserted=${totals.entities_inserted})`
           );
+          // Persist progress to DB BEFORE save() so the disk snapshot reflects
+          // the checkpoint. Without this, a VS Code reload mid-run would lose
+          // items_processed (resets to 0) and last_processed_at (cursor never
+          // advances, so all episodes are re-extracted via LLM on resume).
+          updatePipelineRunProgress(db, rId, totals);
+          upsertPipelineState(db, {
+            status: 'running',
+            last_processed_at: maxTimestamp,
+          });
           if (save) {
             const t0 = Date.now();
             save();

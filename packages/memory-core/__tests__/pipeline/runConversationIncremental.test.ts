@@ -254,4 +254,69 @@ describe('runConversationIncremental', () => {
     trailDb.close();
     memDb.close();
   }, 30000);
+
+  // ── I5: checkpoint persists items_processed and last_processed_at mid-run ──
+  // Regression: previously the every-50-episode checkpoint only called save()
+  // (disk flush) but did NOT update memory_pipeline_runs.items_processed nor
+  // memory_pipeline_state.last_processed_at. After a VS Code reload mid-run,
+  // the disk snapshot still had items_processed=0 and the original cursor,
+  // causing the count to reset to 0 and the same episodes to be re-extracted.
+  test('I5: checkpoint persists items_processed and last_processed_at before save() fires', async () => {
+    const memDb = await makeMemoryDb();
+    const trailDb = makeTrailDb(SQL);
+
+    // 60 user messages across 60 sessions → 60 episodes, > 1 checkpoint interval (50)
+    const N = 60;
+    for (let i = 0; i < N; i++) {
+      const sessId = `sess_chk_${i.toString().padStart(3, '0')}`;
+      insertSession(trailDb, sessId);
+      const ts = new Date(Date.UTC(2026, 0, 1, 0, i, 0)).toISOString();
+      insertMessage(trailDb, `msg_chk_${i}`, sessId, 'user', ts, `chk message ${i}`);
+    }
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const ollama = makeValidOllama();
+
+    type Snapshot = { items_processed: number; last_processed_at: string };
+    const snapshots: Snapshot[] = [];
+    const save = (): void => {
+      const runRows = memDb.exec(
+        `SELECT items_processed FROM memory_pipeline_runs
+         WHERE scope = 'conversation_incremental'
+         ORDER BY started_at DESC LIMIT 1`
+      );
+      const stateRows = memDb.exec(
+        `SELECT last_processed_at FROM memory_pipeline_state
+         WHERE scope = 'conversation_incremental'`
+      );
+      snapshots.push({
+        items_processed: (runRows[0]?.values[0]?.[0] as number) ?? -1,
+        last_processed_at: (stateRows[0]?.values[0]?.[0] as string) ?? '',
+      });
+    };
+
+    await runConversationIncremental({
+      db: memDb,
+      ollama,
+      logger: silentLogger,
+      save,
+    });
+
+    // save() is called every PROGRESS_LOG_INTERVAL (=50) episodes, so we
+    // expect at least one mid-run snapshot at the 50-episode mark.
+    expect(snapshots.length).toBeGreaterThanOrEqual(1);
+    const first = snapshots[0];
+
+    // At the first checkpoint, both fields must already be persisted —
+    // otherwise a reload at this exact moment would lose all 50 episodes
+    // of progress.
+    expect(first.items_processed).toBe(50);
+    expect(first.last_processed_at).not.toBe('');
+    expect(first.last_processed_at).not.toBe('1970-01-01T00:00:00.000Z');
+    expect(first.last_processed_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+
+    trailDb.close();
+    memDb.close();
+  }, 60000);
 });
