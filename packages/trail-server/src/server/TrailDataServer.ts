@@ -54,6 +54,8 @@ import type { CodeGraphService } from '../analyze/CodeGraphService';
 import type { MemoryCoreService } from '@anytime-markdown/memory-core';
 import { GraphQueryEngine } from '../analyze/GraphQueryEngine';
 import { MemoryApiHandler } from './MemoryApiHandler';
+import type { LogService, PersistedLogEntry } from '../services/LogService';
+import { handleGetLogs, handlePostLogs } from './logsApi';
 
 // ---------------------------------------------------------------------------
 //  Constants
@@ -257,6 +259,7 @@ export class TrailDataServer {
   private memoryCoreService: MemoryCoreService | undefined;
   private readonly memoryApi: MemoryApiHandler;
   private chatBridge: import('../memory-chat/chatBridge').ChatBridge | undefined;
+  private logService: LogService | undefined;
 
   constructor(
     private readonly distPath: string,
@@ -282,6 +285,25 @@ export class TrailDataServer {
    */
   setMemoryCoreService(service: MemoryCoreService): void {
     this.memoryCoreService = service;
+  }
+
+  /**
+   * extension_logs ストリーミング用の LogService を wire する。設定後は
+   * `POST /api/logs` と `GET /api/logs` が有効化される。未設定のうちは 503 を返す。
+   */
+  setLogService(service: LogService): void {
+    this.logService = service;
+  }
+
+  /** Broadcast log-batch to all connected WebSocket clients. */
+  notifyLog(entries: PersistedLogEntry[]): void {
+    if (this.clients.size === 0 || entries.length === 0) return;
+    const payload = JSON.stringify({ type: 'log-batch', logs: entries });
+    for (const ws of this.clients) {
+      if (ws.readyState === 1 /* OPEN */) {
+        ws.send(payload);
+      }
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -510,6 +532,15 @@ export class TrailDataServer {
     }
     if (pathname === '/api/memory-core/status' && method === 'GET') {
       this.handleMemoryCoreStatus(res);
+      return;
+    }
+
+    if (pathname === '/api/logs' && method === 'POST') {
+      this.handlePostLogsRoute(req, res);
+      return;
+    }
+    if (pathname === '/api/logs' && method === 'GET') {
+      this.handleGetLogsRoute(res, parsed.searchParams);
       return;
     }
 
@@ -3508,6 +3539,46 @@ export class TrailDataServer {
     const status = this.memoryCoreService.getStatus();
     res.writeHead(200, JSON_HEADERS);
     res.end(JSON.stringify(status));
+  }
+
+  private handlePostLogsRoute(req: http.IncomingMessage, res: http.ServerResponse): void {
+    if (!this.logService) {
+      res.writeHead(503, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'log service not registered' }));
+      return;
+    }
+    const chunks: Buffer[] = [];
+    req.on('data', (c) => chunks.push(c as Buffer));
+    req.on('end', () => {
+      const body = Buffer.concat(chunks).toString('utf-8');
+      const result = handlePostLogs(body, this.logService!);
+      const headers = result.headers ?? {};
+      res.writeHead(result.status, headers);
+      if (result.body) res.end(result.body);
+      else res.end();
+    });
+    req.on('error', (err) => {
+      this.logger.error('handlePostLogsRoute request error', err);
+      try {
+        res.writeHead(500, JSON_HEADERS);
+        res.end(JSON.stringify({ error: 'request error' }));
+      } catch {
+        // best-effort
+      }
+    });
+  }
+
+  private handleGetLogsRoute(res: http.ServerResponse, params: URLSearchParams): void {
+    if (!this.logService) {
+      res.writeHead(503, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'log service not registered' }));
+      return;
+    }
+    const result = handleGetLogs(params, this.logService);
+    const headers = result.headers ?? {};
+    res.writeHead(result.status, headers);
+    if (result.body) res.end(result.body);
+    else res.end();
   }
 
   private readJsonBody(req: http.IncomingMessage): Promise<unknown> {
