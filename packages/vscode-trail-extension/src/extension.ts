@@ -26,6 +26,7 @@ import {
 import { TrailDatabase } from '@anytime-markdown/trail-db';
 import { analyze } from '@anytime-markdown/trail-core/analyze';
 import { DatabaseProvider } from './trail/DatabaseProvider';
+import { DaemonClient } from './trail/DaemonClient';
 import { TrailPanel } from './trail/TrailPanel';
 import { resolveWatchedRepos } from './utils/resolveWatchedRepos';
 import { TrailLogger } from './utils/TrailLogger';
@@ -480,6 +481,20 @@ export async function activate(context: vscode.ExtensionContext) {
 			);
 		}
 	});
+	// --- 外部デーモン検出 (Milestone C-2) ---
+	const useExternalDaemon = vscode.workspace
+		.getConfiguration('anytimeTrail.daemon')
+		.get<boolean>('useExternalDaemon', false);
+	const daemonClient = new DaemonClient({ logger: TrailLogger.asLogger() });
+	const externalDaemonInfo = useExternalDaemon ? daemonClient.detect() : undefined;
+	if (externalDaemonInfo) {
+		TrailLogger.info(`[DaemonClient] Using external daemon at ${externalDaemonInfo.url} (pid=${externalDaemonInfo.pid})`);
+		TrailPanel.setDaemonUrl(externalDaemonInfo.url);
+	} else if (useExternalDaemon) {
+		TrailLogger.warn('[DaemonClient] anytimeTrail.daemon.useExternalDaemon=true but no live daemon found; falling back to local server mode');
+	}
+	// --- 外部デーモン検出ここまで ---
+
 	const gitRoot = wsRootForDb;
 	trailDataServer = new TrailDataServer(extensionDistPath, trailDb, TrailLogger.asLogger(), gitRoot);
 	TrailPanel.setDataServer(trailDataServer);
@@ -751,45 +766,51 @@ export async function activate(context: vscode.ExtensionContext) {
 			databaseProvider.updateSqliteStatus('Error');
 			return; // DB 初期化失敗時はサーバー起動もスキップ
 		}
-		try {
-			TrailLogger.info(`Trail Data Server: starting on port ${trailPort}...`);
-			await trailDataServer!.start(trailPort);
-			TrailLogger.info(`Trail Data Server started on port ${trailPort}`);
+		// 外部デーモンが有効な場合はローカルサーバー起動をスキップ。
+		// ブラウザは TrailPanel.daemonUrl 経由でデーモンに直接アクセスする。
+		if (externalDaemonInfo) {
+			TrailLogger.info('[DaemonClient] Skipping local TrailDataServer.start — using external daemon');
+		} else {
+			try {
+				TrailLogger.info(`Trail Data Server: starting on port ${trailPort}...`);
+				await trailDataServer!.start(trailPort);
+				TrailLogger.info(`Trail Data Server started on port ${trailPort}`);
 
-			// トークン予算設定を反映
-			const budgetConfig = vscode.workspace.getConfiguration('anytimeTrail.budget');
-			trailDataServer!.setTokenBudgetConfig({
-				dailyLimitTokens: budgetConfig.get<number | null>('dailyLimitTokens', null),
-				sessionLimitTokens: budgetConfig.get<number | null>('sessionLimitTokens', null),
-				alertThresholdPct: budgetConfig.get<number>('alertThresholdPct', 80),
-			});
+				// トークン予算設定を反映
+				const budgetConfig = vscode.workspace.getConfiguration('anytimeTrail.budget');
+				trailDataServer!.setTokenBudgetConfig({
+					dailyLimitTokens: budgetConfig.get<number | null>('dailyLimitTokens', null),
+					sessionLimitTokens: budgetConfig.get<number | null>('sessionLimitTokens', null),
+					alertThresholdPct: budgetConfig.get<number>('alertThresholdPct', 80),
+				});
 
-			// 閾値超過時の VS Code 通知
-			trailDataServer!.onTokenBudgetExceeded = (status) => {
-				const sessionLabel = status.sessionId.slice(0, 8);
-				const messages: string[] = [];
-				if (status.dailyLimitTokens !== null && status.dailyTokens >= status.dailyLimitTokens * status.alertThresholdPct / 100) {
-					messages.push(`[${sessionLabel}] 本日のトークン使用量が上限の ${status.alertThresholdPct}% を超えました（${status.dailyTokens.toLocaleString()} / ${status.dailyLimitTokens.toLocaleString()}）`);
-				}
-				if (status.sessionLimitTokens !== null && status.sessionTokens >= status.sessionLimitTokens * status.alertThresholdPct / 100) {
-					messages.push(`[${sessionLabel}] 現セッションのトークン使用量が上限の ${status.alertThresholdPct}% を超えました（${status.sessionTokens.toLocaleString()} / ${status.sessionLimitTokens.toLocaleString()}）`);
-				}
-				for (const msg of messages) {
-					void vscode.window.showWarningMessage(msg);
-					TrailLogger.warn(msg);
-				}
-			};
-		} catch (err) {
-			TrailLogger.error('Trail Data Server failed to start', err);
-			const message = err instanceof Error ? err.message : String(err);
-			// EADDRINUSE は別 VS Code ウィンドウが同じポートを掴んでいるケースが圧倒的に多いので、
-			// OutputChannel のみだとユーザーが trail viewer 不通の原因に気付けない。
-			// 通知でポートと回復策を示す。
-			const isPortConflict = /EADDRINUSE|already in use/i.test(message);
-			const userMsg = isPortConflict
-				? `Trail Data Server failed to bind port ${trailPort} (already in use). 別の VS Code ウィンドウが同じポートを掴んでいる可能性が高いです。古いウィンドウを閉じるか anytimeTrail.viewer.port 設定で別ポートに変更してください。`
-				: `Trail Data Server failed to start: ${message}`;
-			void vscode.window.showErrorMessage(userMsg);
+				// 閾値超過時の VS Code 通知
+				trailDataServer!.onTokenBudgetExceeded = (status) => {
+					const sessionLabel = status.sessionId.slice(0, 8);
+					const messages: string[] = [];
+					if (status.dailyLimitTokens !== null && status.dailyTokens >= status.dailyLimitTokens * status.alertThresholdPct / 100) {
+						messages.push(`[${sessionLabel}] 本日のトークン使用量が上限の ${status.alertThresholdPct}% を超えました（${status.dailyTokens.toLocaleString()} / ${status.dailyLimitTokens.toLocaleString()}）`);
+					}
+					if (status.sessionLimitTokens !== null && status.sessionTokens >= status.sessionLimitTokens * status.alertThresholdPct / 100) {
+						messages.push(`[${sessionLabel}] 現セッションのトークン使用量が上限の ${status.alertThresholdPct}% を超えました（${status.sessionTokens.toLocaleString()} / ${status.sessionLimitTokens.toLocaleString()}）`);
+					}
+					for (const msg of messages) {
+						void vscode.window.showWarningMessage(msg);
+						TrailLogger.warn(msg);
+					}
+				};
+			} catch (err) {
+				TrailLogger.error('Trail Data Server failed to start', err);
+				const message = err instanceof Error ? err.message : String(err);
+				// EADDRINUSE は別 VS Code ウィンドウが同じポートを掴んでいるケースが圧倒的に多いので、
+				// OutputChannel のみだとユーザーが trail viewer 不通の原因に気付けない。
+				// 通知でポートと回復策を示す。
+				const isPortConflict = /EADDRINUSE|already in use/i.test(message);
+				const userMsg = isPortConflict
+					? `Trail Data Server failed to bind port ${trailPort} (already in use). 別の VS Code ウィンドウが同じポートを掴んでいる可能性が高いです。古いウィンドウを閉じるか anytimeTrail.viewer.port 設定で別ポートに変更してください。`
+					: `Trail Data Server failed to start: ${message}`;
+				void vscode.window.showErrorMessage(userMsg);
+			}
 		}
 	})().catch((err) => {
 		TrailLogger.error('Unexpected error during initialization', err);
