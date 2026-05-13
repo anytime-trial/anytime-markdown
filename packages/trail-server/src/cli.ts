@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { join, basename } from 'node:path';
+import { statSync } from 'node:fs';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
 import { TrailDataServer } from './server/TrailDataServer';
 import { DaemonLifecycle } from './runtime/DaemonLifecycle';
@@ -9,6 +10,12 @@ import { ConsoleLogger, FileLogger, type Logger } from './runtime/Logger';
 import { loadConfig } from './runtime/Config';
 import { DaemonScheduler } from './runtime/DaemonScheduler';
 import { createPeriodicImportJob } from './jobs/PeriodicImportJob';
+import { CodeGraphService } from './analyze/CodeGraphService';
+import {
+  findTsconfigCandidates,
+  runAnalyzeCurrentCodePipeline,
+  runAnalyzeReleaseCodePipeline,
+} from './analyze/AnalyzePipeline';
 
 const TRAIL_HOME = process.env.TRAIL_HOME ?? join(homedir(), '.claude', 'trail');
 const VERSION = '0.18.0';
@@ -50,15 +57,84 @@ program
     const gitRoots = opts.gitRoots ? String(opts.gitRoots).split(',').filter(Boolean) : [];
     const server = new TrailDataServer(distPath, trailDb, logger, gitRoots[0]);
 
+    const configPath = join(TRAIL_HOME, 'config.json');
+    const config = loadConfig(configPath);
+    const effectiveGitRoots = gitRoots.length > 0 ? gitRoots : config.gitRoots;
+
+    // Wire analyze pipeline if gitRoots are available
+    if (effectiveGitRoots.length > 0) {
+      const codeGraphRepos = effectiveGitRoots.map((p) => ({
+        id: basename(p),
+        label: basename(p),
+        path: p,
+      }));
+      const codeGraphService = new CodeGraphService({
+        repositories: codeGraphRepos,
+        trailDb,
+        logger,
+      });
+      server.setCodeGraphService(codeGraphService);
+
+      const primaryGitRoot = effectiveGitRoots[0]!;
+
+      server.onAnalyzeCurrentCode = async ({ workspacePath, tsconfigPath }) => {
+        const analysisRoot = workspacePath ?? primaryGitRoot;
+        let rootStat: ReturnType<typeof statSync>;
+        try { rootStat = statSync(analysisRoot); }
+        catch { throw new Error(`workspace path does not exist: ${analysisRoot}`); }
+        if (!rootStat.isDirectory()) {
+          throw new Error(`workspace path is not a directory: ${analysisRoot}`);
+        }
+
+        let resolvedTsconfig = tsconfigPath;
+        if (!resolvedTsconfig) {
+          const candidates = findTsconfigCandidates(analysisRoot);
+          if (candidates.length === 0) {
+            throw new Error(`No tsconfig.json found under ${analysisRoot}`);
+          }
+          resolvedTsconfig = candidates[0].fsPath;
+        }
+
+        return runAnalyzeCurrentCodePipeline({
+          analysisRoot,
+          tsconfigPath: resolvedTsconfig,
+          trailDb,
+          trailDataServer: server,
+          codeGraphService,
+          logger,
+        });
+      };
+
+      server.onAnalyzeReleaseCode = async () => {
+        return runAnalyzeReleaseCodePipeline({
+          trailDb,
+          codeGraphService,
+          gitRoot: primaryGitRoot,
+        });
+      };
+
+      server.onAnalyzeAll = async () => {
+        const startedAt = Date.now();
+        const result = await trailDb.importAll(
+          (message) => logger.info(`Trail import (HTTP): ${message}`),
+          effectiveGitRoots,
+        );
+        return { ...result, durationMs: Date.now() - startedAt };
+      };
+
+      logger.info('analyze pipeline wired', {
+        repos: codeGraphRepos.map((r) => r.id),
+        primary: primaryGitRoot,
+      });
+    } else {
+      logger.warn('analyze pipeline not wired — no gitRoots configured');
+    }
+
     const port = Number.parseInt(String(opts.port), 10);
     await server.start(port);
     const actualPort = server.port;
     const url = `http://${opts.host}:${actualPort}`;
     logger.info('daemon listening', { url });
-
-    const configPath = join(TRAIL_HOME, 'config.json');
-    const config = loadConfig(configPath);
-    const effectiveGitRoots = gitRoots.length > 0 ? gitRoots : config.gitRoots;
 
     const scheduler = new DaemonScheduler(
       [
