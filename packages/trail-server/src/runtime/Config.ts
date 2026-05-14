@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
+import type { Logger } from './Logger';
 
 export interface PeriodicImportConfig {
   intervalSec: number;
@@ -107,23 +108,29 @@ type ParsedConfig = {
   memory?: PartialMemoryConfig;
 };
 
-export function loadConfig(path: string): TrailServerConfig {
+export function loadConfig(path: string, logger?: Pick<Logger, 'warn'>): TrailServerConfig {
   if (!existsSync(path)) return DEFAULT_CONFIG;
   try {
     const raw = readFileSync(path, 'utf8');
     const parsed = JSON.parse(raw) as ParsedConfig;
-    return mergeConfig(DEFAULT_CONFIG, parsed, path);
+    return mergeConfig(DEFAULT_CONFIG, parsed, path, logger);
   } catch {
     return DEFAULT_CONFIG;
   }
 }
 
-function mergeConfig(defaults: TrailServerConfig, overrides: ParsedConfig, path?: string): TrailServerConfig {
+function mergeConfig(
+  defaults: TrailServerConfig,
+  overrides: ParsedConfig,
+  path: string,
+  logger?: Pick<Logger, 'warn'>,
+): TrailServerConfig {
   const ts = new Date().toISOString();
+  const warn = (msg: string) => logger ? logger.warn(msg) : console.warn(msg);
 
   if (overrides.schemaVersion === 1) {
-    console.warn(
-      `[${ts}] [WARN] Config: ${path ?? 'config.json'} uses schemaVersion 1. Migrate to schemaVersion 2 by moving scheduler.memoryCore.* to memory.ingest.*.`
+    warn(
+      `[${ts}] [WARN] Config: ${path} uses schemaVersion 1. Migrate to schemaVersion 2 by moving scheduler.memoryCore.* to memory.ingest.*.`
     );
   }
 
@@ -132,8 +139,8 @@ function mergeConfig(defaults: TrailServerConfig, overrides: ParsedConfig, path?
   let migratedIngest: Partial<IngestMemoryConfig> | undefined;
   if (overrides.scheduler?.memoryCore !== undefined) {
     if (overrides.schemaVersion === 1) {
-      console.warn(
-        `[${ts}] [WARN] Config: scheduler.memoryCore is deprecated. Move these settings to memory.ingest in ${path ?? 'config.json'}.`
+      warn(
+        `[${ts}] [WARN] Config: scheduler.memoryCore is deprecated. Move these settings to memory.ingest in ${path}.`
       );
     }
     const legacy = overrides.scheduler.memoryCore;
@@ -158,6 +165,7 @@ function mergeConfig(defaults: TrailServerConfig, overrides: ParsedConfig, path?
         runOnStart: overrides.scheduler?.periodicImport?.runOnStart ?? defaults.scheduler.periodicImport.runOnStart,
         startupDelaySec: overrides.scheduler?.periodicImport?.startupDelaySec ?? defaults.scheduler.periodicImport.startupDelaySec,
       },
+      // Kept for backward compat during Task 4 migration; remove once cli.ts switches to memory.ingest.*
       memoryCore: {
         intervalSec: overrides.scheduler?.memoryCore?.intervalSec ?? defaults.scheduler.memoryCore.intervalSec,
         runOnStart: overrides.scheduler?.memoryCore?.runOnStart ?? defaults.scheduler.memoryCore.runOnStart,

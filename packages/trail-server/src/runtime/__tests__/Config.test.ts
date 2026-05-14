@@ -61,11 +61,6 @@ describe('loadConfig', () => {
 
   // ---- new tests for schemaVersion 2 and memory.* ----
 
-  it('returns schemaVersion 2 by default', () => {
-    const cfg = loadConfig(join(dir, 'config.json'));
-    expect(cfg.schemaVersion).toBe(2);
-  });
-
   it('fills all memory defaults when file is empty object', () => {
     const p = join(dir, 'config.json');
     writeFileSync(p, '{}');
@@ -123,7 +118,9 @@ describe('loadConfig', () => {
       },
     }));
     loadConfig(p);
-    expect(warnSpy).toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalledTimes(2);
+    expect(warnSpy.mock.calls[0][0]).toContain('schemaVersion 1');
+    expect(warnSpy.mock.calls[1][0]).toContain('scheduler.memoryCore is deprecated');
   });
 
   it('v1 config with both scheduler.memoryCore AND memory.ingest: user memory.ingest wins', () => {

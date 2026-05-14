@@ -73,7 +73,7 @@ program
     logger.info('log streaming service wired', { dbPath: extensionLogsDbPath });
 
     const configPath = join(TRAIL_HOME, 'config.json');
-    const config = loadConfig(configPath);
+    const config = loadConfig(configPath, logger);
     const effectiveGitRoots = gitRoots.length > 0 ? gitRoots : config.gitRoots;
 
     // Wire analyze pipeline if gitRoots are available
