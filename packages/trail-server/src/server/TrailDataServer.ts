@@ -56,6 +56,7 @@ import type { MemoryCoreService } from '@anytime-markdown/memory-core';
 import { GraphQueryEngine } from '../analyze/GraphQueryEngine';
 import { MemoryApiHandler } from './MemoryApiHandler';
 import { PromptsApiHandler } from './PromptsApiHandler';
+import { C4ManualApiHandler } from './C4ManualApiHandler';
 import type { LogService, PersistedLogEntry } from '../services/LogService';
 import { LogSink, combineLoggers } from '../services/LogSink';
 import { handleGetLogs, handlePostLogs } from './logsApi';
@@ -267,6 +268,7 @@ export class TrailDataServer {
   private logCleanupTimer: NodeJS.Timeout | null = null;
   private dailyTokensCache: { value: number; expiresAt: number } | null = null;
   private readonly promptsApi: PromptsApiHandler;
+  private readonly c4ManualApi: C4ManualApiHandler;
 
   constructor(
     private readonly distPath: string,
@@ -276,6 +278,11 @@ export class TrailDataServer {
   ) {
     this.memoryApi = new MemoryApiHandler(this.logger.child('MemoryApiHandler'));
     this.promptsApi = new PromptsApiHandler(this.logger.child('PromptsApiHandler'));
+    this.c4ManualApi = new C4ManualApiHandler(
+      this.trailDb,
+      { notifyModelUpdated: () => this.notify('model-updated') },
+      this.logger.child('C4ManualApiHandler'),
+    );
   }
 
   setCodeGraphService(service: CodeGraphService): void {
@@ -781,46 +788,46 @@ export class TrailDataServer {
     }
 
     if (method === 'POST' && pathname === '/api/c4/manual-elements') {
-      void this.handleCreateManualElement(req, res, parsed);
+      void this.c4ManualApi.createElement(req, res, parsed);
       return;
     }
     const elemMatch = /^\/api\/c4\/manual-elements\/([^/]+)$/.exec(pathname);
     if (elemMatch && method === 'PATCH') {
-      void this.handleUpdateManualElement(req, res, parsed, elemMatch[1]);
+      void this.c4ManualApi.updateElement(req, res, parsed, elemMatch[1]);
       return;
     }
     if (elemMatch && method === 'DELETE') {
-      this.handleDeleteManualElement(res, parsed, elemMatch[1]);
+      this.c4ManualApi.deleteElement(res, parsed, elemMatch[1]);
       return;
     }
     if (method === 'GET' && pathname === '/api/c4/manual-relationships') {
-      this.handleListManualRelationships(res, parsed);
+      this.c4ManualApi.listRelationships(res, parsed);
       return;
     }
     if (method === 'POST' && pathname === '/api/c4/manual-relationships') {
-      void this.handleCreateManualRelationship(req, res, parsed);
+      void this.c4ManualApi.createRelationship(req, res, parsed);
       return;
     }
     const relMatch = /^\/api\/c4\/manual-relationships\/([^/]+)$/.exec(pathname);
     if (relMatch && method === 'DELETE') {
-      this.handleDeleteManualRelationship(res, parsed, relMatch[1]);
+      this.c4ManualApi.deleteRelationship(res, parsed, relMatch[1]);
       return;
     }
     if (method === 'GET' && pathname === '/api/c4/manual-groups') {
-      this.handleListManualGroups(res, parsed);
+      this.c4ManualApi.listGroups(res, parsed);
       return;
     }
     if (method === 'POST' && pathname === '/api/c4/manual-groups') {
-      void this.handleCreateManualGroup(req, res, parsed);
+      void this.c4ManualApi.createGroup(req, res, parsed);
       return;
     }
     const groupMatch = /^\/api\/c4\/manual-groups\/([^/]+)$/.exec(pathname);
     if (groupMatch && method === 'PATCH') {
-      void this.handleUpdateManualGroup(req, res, parsed, groupMatch[1]);
+      void this.c4ManualApi.updateGroup(req, res, parsed, groupMatch[1]);
       return;
     }
     if (groupMatch && method === 'DELETE') {
-      this.handleDeleteManualGroup(res, parsed, groupMatch[1]);
+      this.c4ManualApi.deleteGroup(res, parsed, groupMatch[1]);
       return;
     }
 
@@ -3222,126 +3229,6 @@ export class TrailDataServer {
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }));
     }
-  }
-
-  private async handleCreateManualElement(req: http.IncomingMessage, res: http.ServerResponse, url: URL): Promise<void> {
-    const repoName = url.searchParams.get('repoName');
-    if (!repoName) { res.writeHead(400); res.end('repoName required'); return; }
-    const body = await this.readJsonBody(req);
-    if (!this.isValidElementInput(body)) { res.writeHead(400); res.end('invalid body'); return; }
-    const id = this.trailDb.saveManualElement(repoName, body);
-    const element = this.trailDb.getManualElements(repoName).find(e => e.id === id);
-    res.writeHead(201, JSON_HEADERS);
-    res.end(JSON.stringify({ element }));
-    this.notify('model-updated');
-  }
-
-  private async handleUpdateManualElement(req: http.IncomingMessage, res: http.ServerResponse, url: URL, id: string): Promise<void> {
-    const repoName = url.searchParams.get('repoName');
-    if (!repoName) { res.writeHead(400); res.end('repoName required'); return; }
-    const existing = this.trailDb.getManualElements(repoName).find(e => e.id === id);
-    if (!existing) { res.writeHead(404); res.end('not found'); return; }
-    const body = await this.readJsonBody(req);
-    this.trailDb.updateManualElement(repoName, id, body as { name?: string; description?: string; external?: boolean });
-    const updated = this.trailDb.getManualElements(repoName).find(e => e.id === id);
-    res.writeHead(200, JSON_HEADERS);
-    res.end(JSON.stringify({ element: updated }));
-    this.notify('model-updated');
-  }
-
-  private handleDeleteManualElement(res: http.ServerResponse, url: URL, id: string): void {
-    const repoName = url.searchParams.get('repoName');
-    if (!repoName) { res.writeHead(400); res.end('repoName required'); return; }
-    this.trailDb.deleteManualElement(repoName, id);
-    res.writeHead(204); res.end();
-    this.notify('model-updated');
-  }
-
-  private async handleCreateManualRelationship(req: http.IncomingMessage, res: http.ServerResponse, url: URL): Promise<void> {
-    const repoName = url.searchParams.get('repoName');
-    if (!repoName) { res.writeHead(400); res.end('repoName required'); return; }
-    const body = await this.readJsonBody(req) as Record<string, unknown>;
-    if (!body?.fromId || !body?.toId) { res.writeHead(400); res.end('invalid body'); return; }
-    const id = this.trailDb.saveManualRelationship(repoName, {
-      fromId: String(body.fromId),
-      toId: String(body.toId),
-      label: body.label ? String(body.label) : undefined,
-      technology: body.technology ? String(body.technology) : undefined,
-    });
-    const rel = this.trailDb.getManualRelationships(repoName).find(r => r.id === id);
-    res.writeHead(201, JSON_HEADERS);
-    res.end(JSON.stringify({ relationship: rel }));
-    this.notify('model-updated');
-  }
-
-  private handleListManualRelationships(res: http.ServerResponse, url: URL): void {
-    const repoName = url.searchParams.get('repoName');
-    if (!repoName) { res.writeHead(400); res.end('repoName required'); return; }
-    const relationships = this.trailDb.getManualRelationships(repoName);
-    res.writeHead(200, JSON_HEADERS);
-    res.end(JSON.stringify(relationships));
-  }
-
-  private handleDeleteManualRelationship(res: http.ServerResponse, url: URL, id: string): void {
-    const repoName = url.searchParams.get('repoName');
-    if (!repoName) { res.writeHead(400); res.end('repoName required'); return; }
-    this.trailDb.deleteManualRelationship(repoName, id);
-    res.writeHead(204); res.end();
-    this.notify('model-updated');
-  }
-
-  private handleListManualGroups(res: http.ServerResponse, url: URL): void {
-    const repoName = url.searchParams.get('repoName');
-    if (!repoName) { res.writeHead(400); res.end('repoName required'); return; }
-    const groups = this.trailDb.getManualGroups(repoName);
-    res.writeHead(200, JSON_HEADERS);
-    res.end(JSON.stringify(groups));
-  }
-
-  private async handleCreateManualGroup(req: http.IncomingMessage, res: http.ServerResponse, url: URL): Promise<void> {
-    const repoName = url.searchParams.get('repoName');
-    if (!repoName) { res.writeHead(400); res.end('repoName required'); return; }
-    const body = await this.readJsonBody(req) as Record<string, unknown>;
-    if (!Array.isArray(body?.memberIds) || body.memberIds.length < 2) {
-      res.writeHead(400); res.end('memberIds must have at least 2 elements'); return;
-    }
-    const id = this.trailDb.saveManualGroup(repoName, {
-      memberIds: body.memberIds.map(String),
-      label: body.label ? String(body.label) : undefined,
-    });
-    const group = this.trailDb.getManualGroups(repoName).find(g => g.id === id);
-    res.writeHead(201, JSON_HEADERS);
-    res.end(JSON.stringify({ group }));
-    this.notify('model-updated');
-  }
-
-  private async handleUpdateManualGroup(req: http.IncomingMessage, res: http.ServerResponse, url: URL, id: string): Promise<void> {
-    const repoName = url.searchParams.get('repoName');
-    if (!repoName) { res.writeHead(400); res.end('repoName required'); return; }
-    const body = await this.readJsonBody(req) as Record<string, unknown>;
-    this.trailDb.updateManualGroup(repoName, id, {
-      memberIds: Array.isArray(body.memberIds) ? body.memberIds.map(String) : undefined,
-      label: 'label' in body ? (body.label == null ? null : String(body.label)) : undefined,
-    });
-    res.writeHead(204); res.end();
-    this.notify('model-updated');
-  }
-
-  private handleDeleteManualGroup(res: http.ServerResponse, url: URL, id: string): void {
-    const repoName = url.searchParams.get('repoName');
-    if (!repoName) { res.writeHead(400); res.end('repoName required'); return; }
-    this.trailDb.deleteManualGroup(repoName, id);
-    res.writeHead(204); res.end();
-    this.notify('model-updated');
-  }
-
-  private isValidElementInput(body: unknown): body is { type: string; name: string; external: boolean; parentId: string | null; description?: string; serviceType?: string } {
-    if (typeof body !== 'object' || body === null) return false;
-    const b = body as Record<string, unknown>;
-    if (!['person', 'system', 'container', 'component'].includes(String(b.type))) return false;
-    if (typeof b.name !== 'string' || b.name.length === 0) return false;
-    if (b.serviceType !== undefined && typeof b.serviceType !== 'string') return false;
-    return true;
   }
 
   // -------------------------------------------------------------------------
