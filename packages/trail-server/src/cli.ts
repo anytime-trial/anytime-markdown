@@ -5,6 +5,8 @@ import { join, basename } from 'node:path';
 import { statSync } from 'node:fs';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
 import { MemoryCoreService, type MemoryCoreLogSink, BetterSqlite3MemoryDb } from '@anytime-markdown/memory-core';
+import { ChatBridge } from './memory-chat/chatBridge';
+import { RebuildScheduler } from './memory-chat/rebuildScheduler';
 import { CREATE_EXTENSION_LOGS, CREATE_EXTENSION_LOGS_INDEXES } from '@anytime-markdown/trail-core/domain/schema';
 import { TrailDataServer } from './server/TrailDataServer';
 import { LogService } from './services/LogService';
@@ -22,6 +24,7 @@ import {
 } from './analyze/AnalyzePipeline';
 
 const TRAIL_HOME = process.env.TRAIL_HOME ?? join(homedir(), '.claude', 'trail');
+const MEMORY_DB_PATH = join(homedir(), '.claude', 'memory-core', 'memory-core.db');
 const VERSION = '0.18.0';
 
 const program = new Command();
@@ -163,11 +166,45 @@ program
       trailDbPath: join(dbStorageDir, 'trail.db'),
       ...(memoryCorePrimaryGitRoot ? { gitRoot: memoryCorePrimaryGitRoot } : {}),
       statePath: join(TRAIL_HOME, 'memory-core-runner.json'),
+      backfillDays: config.memory.conversation.backfillDays,
     });
     server.setMemoryCoreService(memoryCoreService);
     logger.info('memory-core service wired', {
       paused: memoryCoreService.getStatus().paused,
       gitRoot: memoryCorePrimaryGitRoot ?? null,
+    });
+
+    const memoryLogger = {
+      info: (msg: string, ctx?: Record<string, unknown>) =>
+        logger.info(ctx ? `${msg} ${JSON.stringify(ctx)}` : msg),
+      error: (msg: string, err?: unknown) => logger.error(msg, err),
+    };
+
+    const chatBridge = new ChatBridge({
+      memoryDbPath: MEMORY_DB_PATH,
+      getConfig: () => ({
+        baseUrl: config.memory.ollama.baseUrl,
+        chatModel: config.memory.chat.model,
+        embedModel: config.memory.embedding.model,
+        bm25Limit: config.memory.rag.bm25Limit,
+        vecLimit: config.memory.rag.vecLimit,
+        finalLimit: config.memory.rag.finalLimit,
+        rrfK: config.memory.rag.rrfK,
+      }),
+      logger: memoryLogger,
+    });
+    server.setChatBridge(chatBridge);
+    logger.info('chat bridge wired', { memoryDbPath: MEMORY_DB_PATH });
+
+    const rebuildScheduler = new RebuildScheduler({
+      memoryDbPath: MEMORY_DB_PATH,
+      logger: memoryLogger,
+    });
+    const rebuildSchedulerDisposable = rebuildScheduler.start(
+      config.memory.fts.rebuildIntervalMinutes * 60 * 1000,
+    );
+    logger.info('rebuild scheduler started', {
+      intervalMin: config.memory.fts.rebuildIntervalMinutes,
     });
 
     const scheduler = new DaemonScheduler(
@@ -181,9 +218,9 @@ program
         }),
         createMemoryCorePipelineJob({
           service: memoryCoreService,
-          intervalMs: config.scheduler.memoryCore.intervalSec * 1000,
-          runOnStart: config.scheduler.memoryCore.runOnStart,
-          startupDelayMs: config.scheduler.memoryCore.startupDelaySec * 1000,
+          intervalMs: config.memory.ingest.intervalSec * 1000,
+          runOnStart: config.memory.ingest.runOnStart,
+          startupDelayMs: config.memory.ingest.startupDelaySec * 1000,
         }),
       ],
       logger,
@@ -219,6 +256,9 @@ program
       try {
         await scheduler.stop();
         await memoryCoreService.dispose();
+        try { rebuildSchedulerDisposable.dispose(); } catch (err) { logger.error('rebuild scheduler dispose failed', err); }
+        // ChatBridge holds WebSocket connections; dispose after scheduler/ingest stop but before server closes.
+        try { await chatBridge.dispose(); } catch (err) { logger.error('chat bridge dispose failed', err); }
         await server.stop();
         lc.removeDaemonJson();
         const closeFn = (trailDb as unknown as { close?: () => Promise<void> | void }).close;
