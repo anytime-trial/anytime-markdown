@@ -8,6 +8,21 @@ const JSON_HEADERS = { 'Content-Type': 'application/json' } as const;
 
 export interface C4ManualApiNotifier {
   notifyModelUpdated(): void;
+  /** community upsert 後に code graph cache を invalidate するためのフック (任意) */
+  notifyCodeGraphUpdated?(): void;
+  /** community upsert 後に codeGraphService.loadFromDb() を呼ぶ (任意) */
+  refreshCodeGraphCache?(): Promise<void>;
+}
+
+export interface CommunitySummaryInput {
+  communityId: number;
+  name: string;
+  summary: string;
+}
+
+export interface CommunityMappingInput {
+  communityId: number;
+  mappings: ReadonlyArray<{ elementId: string; elementType: string; role: 'primary' | 'secondary' | 'dependency' }>;
 }
 
 interface ManualElementInput {
@@ -154,6 +169,91 @@ export class C4ManualApiHandler {
     this.trailDb.deleteManualGroup(repoName, id);
     res.writeHead(204); res.end();
     this.notifier.notifyModelUpdated();
+  }
+
+  // -------------------------------------------------------------------------
+  //  Communities (GET / upsert summaries / upsert mappings)
+  // -------------------------------------------------------------------------
+
+  listCommunities(res: http.ServerResponse, url: URL): void {
+    const repoName = url.searchParams.get('repoName') ?? url.searchParams.get('repo');
+    if (!repoName) {
+      res.writeHead(400, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'repoName required' }));
+      return;
+    }
+    try {
+      const communities = this.trailDb.listCurrentCodeGraphCommunities(repoName);
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify({ communities }));
+    } catch (err) {
+      this.logger.error('listCommunities failed', err);
+      res.writeHead(500, JSON_HEADERS);
+      res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+    }
+  }
+
+  async upsertCommunitySummaries(req: http.IncomingMessage, res: http.ServerResponse, url: URL): Promise<void> {
+    try {
+      const body = (await this.readJsonBody(req)) as {
+        repoName?: string;
+        summaries?: ReadonlyArray<CommunitySummaryInput>;
+      };
+      const repoName = body.repoName ?? url.searchParams.get('repoName') ?? url.searchParams.get('repo');
+      if (!repoName) {
+        res.writeHead(400, JSON_HEADERS);
+        res.end(JSON.stringify({ error: 'repoName required (in body or query)' }));
+        return;
+      }
+      if (!Array.isArray(body.summaries)) {
+        res.writeHead(400, JSON_HEADERS);
+        res.end(JSON.stringify({ error: 'summaries array required' }));
+        return;
+      }
+      const result = this.trailDb.upsertCurrentCodeGraphCommunitySummaries(repoName, body.summaries);
+      // codeGraphService の in-memory cache を DB と同期してから client に通知。
+      // これにより /api/code-graph が新しい communitySummaries を返し、
+      // useCodeGraph 側で WS 経由 refetch が走る → Reload Window 不要。
+      await this.notifier.refreshCodeGraphCache?.();
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify(result));
+      this.notifier.notifyModelUpdated();
+      this.notifier.notifyCodeGraphUpdated?.();
+    } catch (err) {
+      this.logger.error('upsertCommunitySummaries failed', err);
+      res.writeHead(500, JSON_HEADERS);
+      res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+    }
+  }
+
+  async upsertCommunityMappings(req: http.IncomingMessage, res: http.ServerResponse, url: URL): Promise<void> {
+    try {
+      const body = (await this.readJsonBody(req)) as {
+        repoName?: string;
+        mappings?: ReadonlyArray<CommunityMappingInput>;
+      };
+      const repoName = body.repoName ?? url.searchParams.get('repoName') ?? url.searchParams.get('repo');
+      if (!repoName) {
+        res.writeHead(400, JSON_HEADERS);
+        res.end(JSON.stringify({ error: 'repoName required (in body or query)' }));
+        return;
+      }
+      if (!Array.isArray(body.mappings)) {
+        res.writeHead(400, JSON_HEADERS);
+        res.end(JSON.stringify({ error: 'mappings array required' }));
+        return;
+      }
+      const result = this.trailDb.upsertCurrentCodeGraphCommunityMappings(repoName, body.mappings);
+      await this.notifier.refreshCodeGraphCache?.();
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify(result));
+      this.notifier.notifyModelUpdated();
+      this.notifier.notifyCodeGraphUpdated?.();
+    } catch (err) {
+      this.logger.error('upsertCommunityMappings failed', err);
+      res.writeHead(500, JSON_HEADERS);
+      res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+    }
   }
 
   // -------------------------------------------------------------------------

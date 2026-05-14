@@ -280,7 +280,11 @@ export class TrailDataServer {
     this.promptsApi = new PromptsApiHandler(this.logger.child('PromptsApiHandler'));
     this.c4ManualApi = new C4ManualApiHandler(
       this.trailDb,
-      { notifyModelUpdated: () => this.notify('model-updated') },
+      {
+        notifyModelUpdated: () => this.notify('model-updated'),
+        notifyCodeGraphUpdated: () => this.notifyCodeGraphUpdated(),
+        refreshCodeGraphCache: () => this.refreshCodeGraphCache(),
+      },
       this.logger.child('C4ManualApiHandler'),
     );
   }
@@ -683,15 +687,15 @@ export class TrailDataServer {
       return;
     }
     if (pathname === '/api/c4/communities' && method === 'GET') {
-      this.handleListCommunities(res, parsed);
+      this.c4ManualApi.listCommunities(res, parsed);
       return;
     }
     if (pathname === '/api/c4/communities/upsert-summaries' && method === 'POST') {
-      void this.handleUpsertCommunitySummaries(req, res, parsed);
+      void this.c4ManualApi.upsertCommunitySummaries(req, res, parsed);
       return;
     }
     if (pathname === '/api/c4/communities/upsert-mappings' && method === 'POST') {
-      void this.handleUpsertCommunityMappings(req, res, parsed);
+      void this.c4ManualApi.upsertCommunityMappings(req, res, parsed);
       return;
     }
     if (pathname === '/api/c4/dsm' && method === 'GET') {
@@ -3228,102 +3232,6 @@ export class TrailDataServer {
       this.logger.error('[/api/c4/call-hierarchy] failed', e);
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }));
-    }
-  }
-
-  // -------------------------------------------------------------------------
-  //  Community summary / mapping handlers (GET/POST /api/c4/communities/*)
-  // -------------------------------------------------------------------------
-
-  private handleListCommunities(res: http.ServerResponse, url: URL): void {
-    const repoName = url.searchParams.get('repoName') ?? url.searchParams.get('repo');
-    if (!repoName) {
-      res.writeHead(400, JSON_HEADERS);
-      res.end(JSON.stringify({ error: 'repoName required' }));
-      return;
-    }
-    try {
-      const communities = this.trailDb.listCurrentCodeGraphCommunities(repoName);
-      res.writeHead(200, JSON_HEADERS);
-      res.end(JSON.stringify({ communities }));
-    } catch (err) {
-      this.logger.error('handleListCommunities failed', err);
-      res.writeHead(500, JSON_HEADERS);
-      res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
-    }
-  }
-
-  private async handleUpsertCommunitySummaries(
-    req: http.IncomingMessage,
-    res: http.ServerResponse,
-    url: URL,
-  ): Promise<void> {
-    try {
-      const body = (await this.readJsonBody(req)) as {
-        repoName?: string;
-        summaries?: ReadonlyArray<{ communityId: number; name: string; summary: string }>;
-      };
-      const repoName = body.repoName ?? url.searchParams.get('repoName') ?? url.searchParams.get('repo');
-      if (!repoName) {
-        res.writeHead(400, JSON_HEADERS);
-        res.end(JSON.stringify({ error: 'repoName required (in body or query)' }));
-        return;
-      }
-      if (!Array.isArray(body.summaries)) {
-        res.writeHead(400, JSON_HEADERS);
-        res.end(JSON.stringify({ error: 'summaries array required' }));
-        return;
-      }
-      const result = this.trailDb.upsertCurrentCodeGraphCommunitySummaries(repoName, body.summaries);
-      // codeGraphService の in-memory cache を DB と同期してから client に通知。
-      // これにより /api/code-graph が新しい communitySummaries を返し、
-      // useCodeGraph 側で WS 経由 refetch が走る → Reload Window 不要。
-      await this.refreshCodeGraphCache();
-      res.writeHead(200, JSON_HEADERS);
-      res.end(JSON.stringify(result));
-      this.notify('model-updated');
-      this.notifyCodeGraphUpdated();
-    } catch (err) {
-      this.logger.error('handleUpsertCommunitySummaries failed', err);
-      res.writeHead(500, JSON_HEADERS);
-      res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
-    }
-  }
-
-  private async handleUpsertCommunityMappings(
-    req: http.IncomingMessage,
-    res: http.ServerResponse,
-    url: URL,
-  ): Promise<void> {
-    try {
-      const body = (await this.readJsonBody(req)) as {
-        repoName?: string;
-        mappings?: ReadonlyArray<{
-          communityId: number;
-          mappings: ReadonlyArray<{ elementId: string; elementType: string; role: 'primary' | 'secondary' | 'dependency' }>;
-        }>;
-      };
-      const repoName = body.repoName ?? url.searchParams.get('repoName') ?? url.searchParams.get('repo');
-      if (!repoName) {
-        res.writeHead(400, JSON_HEADERS);
-        res.end(JSON.stringify({ error: 'repoName required (in body or query)' }));
-        return;
-      }
-      if (!Array.isArray(body.mappings)) {
-        res.writeHead(400, JSON_HEADERS);
-        res.end(JSON.stringify({ error: 'mappings array required' }));
-        return;
-      }
-      const result = this.trailDb.upsertCurrentCodeGraphCommunityMappings(repoName, body.mappings);
-      await this.refreshCodeGraphCache();
-      res.writeHead(200, JSON_HEADERS);
-      res.end(JSON.stringify(result));
-      this.notify('model-updated');
-      this.notifyCodeGraphUpdated();
-    } catch (err) {
-      this.logger.error('handleUpsertCommunityMappings failed', err);
-      res.writeHead(500, JSON_HEADERS);
-      res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
     }
   }
 
