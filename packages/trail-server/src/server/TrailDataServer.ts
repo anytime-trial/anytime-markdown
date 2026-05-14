@@ -55,6 +55,8 @@ import type { AnalyzeCurrentResult, AnalyzeReleaseResult } from '../analyze/Anal
 import type { MemoryCoreService } from '@anytime-markdown/memory-core';
 import { GraphQueryEngine } from '../analyze/GraphQueryEngine';
 import { MemoryApiHandler } from './MemoryApiHandler';
+import { PromptsApiHandler } from './PromptsApiHandler';
+import { C4ManualApiHandler } from './C4ManualApiHandler';
 import type { LogService, PersistedLogEntry } from '../services/LogService';
 import { LogSink, combineLoggers } from '../services/LogSink';
 import { handleGetLogs, handlePostLogs } from './logsApi';
@@ -265,7 +267,8 @@ export class TrailDataServer {
   private logService: LogService | undefined;
   private logCleanupTimer: NodeJS.Timeout | null = null;
   private dailyTokensCache: { value: number; expiresAt: number } | null = null;
-  private promptsCache: { value: PromptEntry[]; expiresAt: number } | null = null;
+  private readonly promptsApi: PromptsApiHandler;
+  private readonly c4ManualApi: C4ManualApiHandler;
 
   constructor(
     private readonly distPath: string,
@@ -274,6 +277,16 @@ export class TrailDataServer {
     private readonly gitRoot?: string,
   ) {
     this.memoryApi = new MemoryApiHandler(this.logger.child('MemoryApiHandler'));
+    this.promptsApi = new PromptsApiHandler(this.logger.child('PromptsApiHandler'));
+    this.c4ManualApi = new C4ManualApiHandler(
+      this.trailDb,
+      {
+        notifyModelUpdated: () => this.notify('model-updated'),
+        notifyCodeGraphUpdated: () => this.notifyCodeGraphUpdated(),
+        refreshCodeGraphCache: () => this.refreshCodeGraphCache(),
+      },
+      this.logger.child('C4ManualApiHandler'),
+    );
   }
 
   setCodeGraphService(service: CodeGraphService): void {
@@ -598,7 +611,7 @@ export class TrailDataServer {
     }
 
     if (pathname === '/api/trail/prompts' && method === 'GET') {
-      this.handleGetPrompts(res);
+      this.promptsApi.handleGet(res);
       return;
     }
 
@@ -674,15 +687,15 @@ export class TrailDataServer {
       return;
     }
     if (pathname === '/api/c4/communities' && method === 'GET') {
-      this.handleListCommunities(res, parsed);
+      this.c4ManualApi.listCommunities(res, parsed);
       return;
     }
     if (pathname === '/api/c4/communities/upsert-summaries' && method === 'POST') {
-      void this.handleUpsertCommunitySummaries(req, res, parsed);
+      void this.c4ManualApi.upsertCommunitySummaries(req, res, parsed);
       return;
     }
     if (pathname === '/api/c4/communities/upsert-mappings' && method === 'POST') {
-      void this.handleUpsertCommunityMappings(req, res, parsed);
+      void this.c4ManualApi.upsertCommunityMappings(req, res, parsed);
       return;
     }
     if (pathname === '/api/c4/dsm' && method === 'GET') {
@@ -779,46 +792,46 @@ export class TrailDataServer {
     }
 
     if (method === 'POST' && pathname === '/api/c4/manual-elements') {
-      void this.handleCreateManualElement(req, res, parsed);
+      void this.c4ManualApi.createElement(req, res, parsed);
       return;
     }
     const elemMatch = /^\/api\/c4\/manual-elements\/([^/]+)$/.exec(pathname);
     if (elemMatch && method === 'PATCH') {
-      void this.handleUpdateManualElement(req, res, parsed, elemMatch[1]);
+      void this.c4ManualApi.updateElement(req, res, parsed, elemMatch[1]);
       return;
     }
     if (elemMatch && method === 'DELETE') {
-      this.handleDeleteManualElement(res, parsed, elemMatch[1]);
+      this.c4ManualApi.deleteElement(res, parsed, elemMatch[1]);
       return;
     }
     if (method === 'GET' && pathname === '/api/c4/manual-relationships') {
-      this.handleListManualRelationships(res, parsed);
+      this.c4ManualApi.listRelationships(res, parsed);
       return;
     }
     if (method === 'POST' && pathname === '/api/c4/manual-relationships') {
-      void this.handleCreateManualRelationship(req, res, parsed);
+      void this.c4ManualApi.createRelationship(req, res, parsed);
       return;
     }
     const relMatch = /^\/api\/c4\/manual-relationships\/([^/]+)$/.exec(pathname);
     if (relMatch && method === 'DELETE') {
-      this.handleDeleteManualRelationship(res, parsed, relMatch[1]);
+      this.c4ManualApi.deleteRelationship(res, parsed, relMatch[1]);
       return;
     }
     if (method === 'GET' && pathname === '/api/c4/manual-groups') {
-      this.handleListManualGroups(res, parsed);
+      this.c4ManualApi.listGroups(res, parsed);
       return;
     }
     if (method === 'POST' && pathname === '/api/c4/manual-groups') {
-      void this.handleCreateManualGroup(req, res, parsed);
+      void this.c4ManualApi.createGroup(req, res, parsed);
       return;
     }
     const groupMatch = /^\/api\/c4\/manual-groups\/([^/]+)$/.exec(pathname);
     if (groupMatch && method === 'PATCH') {
-      void this.handleUpdateManualGroup(req, res, parsed, groupMatch[1]);
+      void this.c4ManualApi.updateGroup(req, res, parsed, groupMatch[1]);
       return;
     }
     if (groupMatch && method === 'DELETE') {
-      this.handleDeleteManualGroup(res, parsed, groupMatch[1]);
+      this.c4ManualApi.deleteGroup(res, parsed, groupMatch[1]);
       return;
     }
 
@@ -2251,25 +2264,6 @@ export class TrailDataServer {
   //  API: GET /api/trail/prompts
   // -------------------------------------------------------------------------
 
-  private handleGetPrompts(res: http.ServerResponse): void {
-    const PROMPTS_TTL_MS = 30_000;
-    try {
-      const now = Date.now();
-      let prompts: PromptEntry[];
-      if (this.promptsCache && now < this.promptsCache.expiresAt) {
-        prompts = this.promptsCache.value;
-      } else {
-        prompts = scanPromptFiles();
-        this.promptsCache = { value: prompts, expiresAt: now + PROMPTS_TTL_MS };
-      }
-      res.writeHead(200, JSON_HEADERS);
-      res.end(JSON.stringify({ prompts }));
-    } catch (err) {
-      this.logger.error('[/api/trail/prompts] failed', err);
-      res.writeHead(500, JSON_HEADERS);
-      res.end(JSON.stringify({ error: 'Failed to read prompts' }));
-    }
-  }
 
   // -------------------------------------------------------------------------
   //  API: GET /api/trail/analytics
@@ -3241,222 +3235,6 @@ export class TrailDataServer {
     }
   }
 
-  private async handleCreateManualElement(req: http.IncomingMessage, res: http.ServerResponse, url: URL): Promise<void> {
-    const repoName = url.searchParams.get('repoName');
-    if (!repoName) { res.writeHead(400); res.end('repoName required'); return; }
-    const body = await this.readJsonBody(req);
-    if (!this.isValidElementInput(body)) { res.writeHead(400); res.end('invalid body'); return; }
-    const id = this.trailDb.saveManualElement(repoName, body);
-    const element = this.trailDb.getManualElements(repoName).find(e => e.id === id);
-    res.writeHead(201, JSON_HEADERS);
-    res.end(JSON.stringify({ element }));
-    this.notify('model-updated');
-  }
-
-  private async handleUpdateManualElement(req: http.IncomingMessage, res: http.ServerResponse, url: URL, id: string): Promise<void> {
-    const repoName = url.searchParams.get('repoName');
-    if (!repoName) { res.writeHead(400); res.end('repoName required'); return; }
-    const existing = this.trailDb.getManualElements(repoName).find(e => e.id === id);
-    if (!existing) { res.writeHead(404); res.end('not found'); return; }
-    const body = await this.readJsonBody(req);
-    this.trailDb.updateManualElement(repoName, id, body as { name?: string; description?: string; external?: boolean });
-    const updated = this.trailDb.getManualElements(repoName).find(e => e.id === id);
-    res.writeHead(200, JSON_HEADERS);
-    res.end(JSON.stringify({ element: updated }));
-    this.notify('model-updated');
-  }
-
-  private handleDeleteManualElement(res: http.ServerResponse, url: URL, id: string): void {
-    const repoName = url.searchParams.get('repoName');
-    if (!repoName) { res.writeHead(400); res.end('repoName required'); return; }
-    this.trailDb.deleteManualElement(repoName, id);
-    res.writeHead(204); res.end();
-    this.notify('model-updated');
-  }
-
-  private async handleCreateManualRelationship(req: http.IncomingMessage, res: http.ServerResponse, url: URL): Promise<void> {
-    const repoName = url.searchParams.get('repoName');
-    if (!repoName) { res.writeHead(400); res.end('repoName required'); return; }
-    const body = await this.readJsonBody(req) as Record<string, unknown>;
-    if (!body?.fromId || !body?.toId) { res.writeHead(400); res.end('invalid body'); return; }
-    const id = this.trailDb.saveManualRelationship(repoName, {
-      fromId: String(body.fromId),
-      toId: String(body.toId),
-      label: body.label ? String(body.label) : undefined,
-      technology: body.technology ? String(body.technology) : undefined,
-    });
-    const rel = this.trailDb.getManualRelationships(repoName).find(r => r.id === id);
-    res.writeHead(201, JSON_HEADERS);
-    res.end(JSON.stringify({ relationship: rel }));
-    this.notify('model-updated');
-  }
-
-  private handleListManualRelationships(res: http.ServerResponse, url: URL): void {
-    const repoName = url.searchParams.get('repoName');
-    if (!repoName) { res.writeHead(400); res.end('repoName required'); return; }
-    const relationships = this.trailDb.getManualRelationships(repoName);
-    res.writeHead(200, JSON_HEADERS);
-    res.end(JSON.stringify(relationships));
-  }
-
-  private handleDeleteManualRelationship(res: http.ServerResponse, url: URL, id: string): void {
-    const repoName = url.searchParams.get('repoName');
-    if (!repoName) { res.writeHead(400); res.end('repoName required'); return; }
-    this.trailDb.deleteManualRelationship(repoName, id);
-    res.writeHead(204); res.end();
-    this.notify('model-updated');
-  }
-
-  private handleListManualGroups(res: http.ServerResponse, url: URL): void {
-    const repoName = url.searchParams.get('repoName');
-    if (!repoName) { res.writeHead(400); res.end('repoName required'); return; }
-    const groups = this.trailDb.getManualGroups(repoName);
-    res.writeHead(200, JSON_HEADERS);
-    res.end(JSON.stringify(groups));
-  }
-
-  private async handleCreateManualGroup(req: http.IncomingMessage, res: http.ServerResponse, url: URL): Promise<void> {
-    const repoName = url.searchParams.get('repoName');
-    if (!repoName) { res.writeHead(400); res.end('repoName required'); return; }
-    const body = await this.readJsonBody(req) as Record<string, unknown>;
-    if (!Array.isArray(body?.memberIds) || body.memberIds.length < 2) {
-      res.writeHead(400); res.end('memberIds must have at least 2 elements'); return;
-    }
-    const id = this.trailDb.saveManualGroup(repoName, {
-      memberIds: body.memberIds.map(String),
-      label: body.label ? String(body.label) : undefined,
-    });
-    const group = this.trailDb.getManualGroups(repoName).find(g => g.id === id);
-    res.writeHead(201, JSON_HEADERS);
-    res.end(JSON.stringify({ group }));
-    this.notify('model-updated');
-  }
-
-  private async handleUpdateManualGroup(req: http.IncomingMessage, res: http.ServerResponse, url: URL, id: string): Promise<void> {
-    const repoName = url.searchParams.get('repoName');
-    if (!repoName) { res.writeHead(400); res.end('repoName required'); return; }
-    const body = await this.readJsonBody(req) as Record<string, unknown>;
-    this.trailDb.updateManualGroup(repoName, id, {
-      memberIds: Array.isArray(body.memberIds) ? body.memberIds.map(String) : undefined,
-      label: 'label' in body ? (body.label == null ? null : String(body.label)) : undefined,
-    });
-    res.writeHead(204); res.end();
-    this.notify('model-updated');
-  }
-
-  private handleDeleteManualGroup(res: http.ServerResponse, url: URL, id: string): void {
-    const repoName = url.searchParams.get('repoName');
-    if (!repoName) { res.writeHead(400); res.end('repoName required'); return; }
-    this.trailDb.deleteManualGroup(repoName, id);
-    res.writeHead(204); res.end();
-    this.notify('model-updated');
-  }
-
-  private isValidElementInput(body: unknown): body is { type: string; name: string; external: boolean; parentId: string | null; description?: string; serviceType?: string } {
-    if (typeof body !== 'object' || body === null) return false;
-    const b = body as Record<string, unknown>;
-    if (!['person', 'system', 'container', 'component'].includes(String(b.type))) return false;
-    if (typeof b.name !== 'string' || b.name.length === 0) return false;
-    if (b.serviceType !== undefined && typeof b.serviceType !== 'string') return false;
-    return true;
-  }
-
-  // -------------------------------------------------------------------------
-  //  Community summary / mapping handlers (GET/POST /api/c4/communities/*)
-  // -------------------------------------------------------------------------
-
-  private handleListCommunities(res: http.ServerResponse, url: URL): void {
-    const repoName = url.searchParams.get('repoName') ?? url.searchParams.get('repo');
-    if (!repoName) {
-      res.writeHead(400, JSON_HEADERS);
-      res.end(JSON.stringify({ error: 'repoName required' }));
-      return;
-    }
-    try {
-      const communities = this.trailDb.listCurrentCodeGraphCommunities(repoName);
-      res.writeHead(200, JSON_HEADERS);
-      res.end(JSON.stringify({ communities }));
-    } catch (err) {
-      this.logger.error('handleListCommunities failed', err);
-      res.writeHead(500, JSON_HEADERS);
-      res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
-    }
-  }
-
-  private async handleUpsertCommunitySummaries(
-    req: http.IncomingMessage,
-    res: http.ServerResponse,
-    url: URL,
-  ): Promise<void> {
-    try {
-      const body = (await this.readJsonBody(req)) as {
-        repoName?: string;
-        summaries?: ReadonlyArray<{ communityId: number; name: string; summary: string }>;
-      };
-      const repoName = body.repoName ?? url.searchParams.get('repoName') ?? url.searchParams.get('repo');
-      if (!repoName) {
-        res.writeHead(400, JSON_HEADERS);
-        res.end(JSON.stringify({ error: 'repoName required (in body or query)' }));
-        return;
-      }
-      if (!Array.isArray(body.summaries)) {
-        res.writeHead(400, JSON_HEADERS);
-        res.end(JSON.stringify({ error: 'summaries array required' }));
-        return;
-      }
-      const result = this.trailDb.upsertCurrentCodeGraphCommunitySummaries(repoName, body.summaries);
-      // codeGraphService の in-memory cache を DB と同期してから client に通知。
-      // これにより /api/code-graph が新しい communitySummaries を返し、
-      // useCodeGraph 側で WS 経由 refetch が走る → Reload Window 不要。
-      await this.refreshCodeGraphCache();
-      res.writeHead(200, JSON_HEADERS);
-      res.end(JSON.stringify(result));
-      this.notify('model-updated');
-      this.notifyCodeGraphUpdated();
-    } catch (err) {
-      this.logger.error('handleUpsertCommunitySummaries failed', err);
-      res.writeHead(500, JSON_HEADERS);
-      res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
-    }
-  }
-
-  private async handleUpsertCommunityMappings(
-    req: http.IncomingMessage,
-    res: http.ServerResponse,
-    url: URL,
-  ): Promise<void> {
-    try {
-      const body = (await this.readJsonBody(req)) as {
-        repoName?: string;
-        mappings?: ReadonlyArray<{
-          communityId: number;
-          mappings: ReadonlyArray<{ elementId: string; elementType: string; role: 'primary' | 'secondary' | 'dependency' }>;
-        }>;
-      };
-      const repoName = body.repoName ?? url.searchParams.get('repoName') ?? url.searchParams.get('repo');
-      if (!repoName) {
-        res.writeHead(400, JSON_HEADERS);
-        res.end(JSON.stringify({ error: 'repoName required (in body or query)' }));
-        return;
-      }
-      if (!Array.isArray(body.mappings)) {
-        res.writeHead(400, JSON_HEADERS);
-        res.end(JSON.stringify({ error: 'mappings array required' }));
-        return;
-      }
-      const result = this.trailDb.upsertCurrentCodeGraphCommunityMappings(repoName, body.mappings);
-      await this.refreshCodeGraphCache();
-      res.writeHead(200, JSON_HEADERS);
-      res.end(JSON.stringify(result));
-      this.notify('model-updated');
-      this.notifyCodeGraphUpdated();
-    } catch (err) {
-      this.logger.error('handleUpsertCommunityMappings failed', err);
-      res.writeHead(500, JSON_HEADERS);
-      res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
-    }
-  }
-
   /**
    * codeGraphService の in-memory cache を最新の DB 状態で再構築する。
    * MCP/HTTP 経由でコミュニティ name/summary/mappings_json が更新されたとき、
@@ -3791,140 +3569,6 @@ function parseLocalFrontmatter(raw: string): Omit<DocLink, 'path'> | null {
   };
 }
 
-// ---------------------------------------------------------------------------
-//  Prompt file scanner
-// ---------------------------------------------------------------------------
-
-interface PromptEntry {
-  id: string;
-  name: string;
-  content: string;
-  version: number;
-  tags: string[];
-  createdAt: string;
-  updatedAt: string;
-}
-
-function scanPromptFiles(): PromptEntry[] {
-  const claudeDir = path.join(os.homedir(), '.claude');
-  const prompts: PromptEntry[] = [];
-  let version = 1;
-
-  // Helper to add a prompt entry
-  function addFile(filePath: string, tags: string[]): void {
-    try {
-      const stat = fs.statSync(filePath);
-      if (!stat.isFile()) return;
-      const content = fs.readFileSync(filePath, 'utf-8');
-      const name = path.basename(filePath, '.md');
-      const relPath = path.relative(claudeDir, filePath);
-      const id = relPath.replaceAll(/[/\\. ]+/g, '-').toLowerCase();
-      prompts.push({
-        id,
-        name,
-        content,
-        version: version++,
-        tags,
-        createdAt: stat.birthtime.toISOString(),
-        updatedAt: stat.mtime.toISOString(),
-      });
-    } catch {
-      // skip
-    }
-  }
-
-  // 1. Global CLAUDE.md
-  addFile(path.join(claudeDir, 'CLAUDE.md'), ['main']);
-
-  // 2. Rules
-  const rulesDir = path.join(claudeDir, 'rules');
-  try {
-    for (const f of fs.readdirSync(rulesDir)) {
-      if (f.endsWith('.md')) {
-        addFile(path.join(rulesDir, f), ['rule']);
-      }
-    }
-  } catch {
-    // rules dir may not exist
-  }
-
-  // 3. Project CLAUDE.md files
-  const projectsDir = path.join(claudeDir, 'projects');
-  try {
-    for (const proj of fs.readdirSync(projectsDir)) {
-      const projClaudeMd = path.join(projectsDir, proj, 'CLAUDE.md');
-      if (fs.existsSync(projClaudeMd)) {
-        addFile(projClaudeMd, ['project', proj]);
-      }
-    }
-  } catch {
-    // projects dir may not exist
-  }
-
-  // 4. Memory
-  const memoryDir = path.join(claudeDir, 'projects');
-  try {
-    for (const proj of fs.readdirSync(memoryDir)) {
-      const memDir = path.join(memoryDir, proj, 'memory');
-      if (fs.existsSync(memDir) && fs.statSync(memDir).isDirectory()) {
-        for (const f of fs.readdirSync(memDir)) {
-          if (f.endsWith('.md')) {
-            addFile(path.join(memDir, f), ['memory', proj]);
-          }
-        }
-      }
-    }
-  } catch {
-    // skip
-  }
-
-  // 5. Skills (SKILL.md in each skill directory)
-  const skillsDir = path.join(claudeDir, 'skills');
-  try {
-    for (const skillName of fs.readdirSync(skillsDir)) {
-      const skillFile = path.join(skillsDir, skillName, 'SKILL.md');
-      if (fs.existsSync(skillFile)) {
-        addFile(skillFile, ['skill', skillName]);
-      }
-    }
-  } catch {
-    // skills dir may not exist
-  }
-
-  // 6. Scripts
-  const scriptsDir = path.join(claudeDir, 'scripts');
-  try {
-    for (const f of fs.readdirSync(scriptsDir)) {
-      const scriptFile = path.join(scriptsDir, f);
-      if (!fs.existsSync(scriptFile) || !fs.statSync(scriptFile).isFile()) continue;
-      addFile(scriptFile, ['script']);
-    }
-  } catch {
-    // scripts dir may not exist
-  }
-
-  // 7. settings.json
-  const settingsFile = path.join(claudeDir, 'settings.json');
-  try {
-    const stat = fs.statSync(settingsFile);
-    if (stat.isFile()) {
-      const content = fs.readFileSync(settingsFile, 'utf-8');
-      prompts.push({
-        id: 'settings-json',
-        name: 'settings.json',
-        content,
-        version: version++,
-        tags: ['config'],
-        createdAt: stat.birthtime.toISOString(),
-        updatedAt: stat.mtime.toISOString(),
-      });
-    }
-  } catch {
-    // skip
-  }
-
-  return prompts;
-}
 
 // ---------------------------------------------------------------------------
 //  Standalone HTML builder
