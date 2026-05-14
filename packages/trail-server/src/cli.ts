@@ -253,20 +253,18 @@ program
 
     const shutdown = async (signal: string) => {
       logger.info('shutdown requested', { signal });
+      try { await scheduler.stop(); } catch (err) { logger.error('scheduler stop failed', err); }
+      try { await memoryCoreService.dispose(); } catch (err) { logger.error('memory-core dispose failed', err); }
+      try { rebuildSchedulerDisposable.dispose(); } catch (err) { logger.error('rebuild scheduler dispose failed', err); }
+      // ChatBridge holds WebSocket connections; dispose after scheduler/ingest stop but before server closes.
+      try { await chatBridge.dispose(); } catch (err) { logger.error('chat bridge dispose failed', err); }
+      try { await server.stop(); } catch (err) { logger.error('server stop failed', err); }
+      lc.removeDaemonJson();
       try {
-        await scheduler.stop();
-        await memoryCoreService.dispose();
-        try { rebuildSchedulerDisposable.dispose(); } catch (err) { logger.error('rebuild scheduler dispose failed', err); }
-        // ChatBridge holds WebSocket connections; dispose after scheduler/ingest stop but before server closes.
-        try { await chatBridge.dispose(); } catch (err) { logger.error('chat bridge dispose failed', err); }
-        await server.stop();
-        lc.removeDaemonJson();
         const closeFn = (trailDb as unknown as { close?: () => Promise<void> | void }).close;
         if (typeof closeFn === 'function') await closeFn.call(trailDb);
-        try { extensionLogsDb.close(); } catch (err) { logger.error('extension-logs.db close failed', err); }
-      } catch (err) {
-        logger.error('shutdown failed', err);
-      }
+      } catch (err) { logger.error('trail db close failed', err); }
+      try { extensionLogsDb.close(); } catch (err) { logger.error('extension-logs.db close failed', err); }
       process.exit(0);
     };
     process.on('SIGTERM', () => void shutdown('SIGTERM'));
