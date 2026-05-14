@@ -48,8 +48,11 @@ const ClaimSchema = z.object({
   confidence: z.number().min(0).max(1),
 });
 
+// summary は本来必須としてプロンプトに記載しているが、qwen2.5 系を含む LLM が
+// 省略するケースが観測される (2026-05-14)。欠落で claims 全体を捨てるのは過剰なため、
+// optional + default '' に緩和し、欠落時のみ warn ログで記録する。
 const ExtractResultSchema = z.object({
-  summary: z.string(),
+  summary: z.string().optional().default(''),
   claims: z.array(ClaimSchema).default([]),
 });
 
@@ -105,6 +108,11 @@ export async function extractClaims(
   }
 
   const data = validated.data;
+  if (!hasSummaryField(parsed)) {
+    logger.warn?.(
+      `[memory-core] spec claim extraction: LLM omitted 'summary' field (continuing with empty summary)`,
+    );
+  }
   const filteredClaims = data.claims.filter(
     (c) => c.confidence >= MIN_CONFIDENCE,
   );
@@ -113,4 +121,9 @@ export async function extractClaims(
     summary: data.summary,
     claims: filteredClaims,
   };
+}
+
+function hasSummaryField(raw: unknown): boolean {
+  if (typeof raw !== 'object' || raw === null) return false;
+  return 'summary' in raw && typeof (raw as Record<string, unknown>)['summary'] === 'string';
 }
