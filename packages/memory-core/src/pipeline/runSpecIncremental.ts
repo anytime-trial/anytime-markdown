@@ -18,6 +18,7 @@ export interface SpecIncrementalResult {
   status: 'success' | 'partial' | 'error';
   items_processed: number;
   items_skipped: number;
+  items_failed: number;
   entities_inserted: number;
   edges_inserted: number;
   duration_ms: number;
@@ -234,9 +235,16 @@ export async function runSpecIncremental(
         }
 
         // b. Parse frontmatter
-        const parsed = parseFrontmatter({ rel_path: spec.rel_path, content });
-        if (!parsed) {
-          const detail = 'parseFrontmatter returned null (invalid or missing frontmatter)';
+        const parseResult = parseFrontmatter({ rel_path: spec.rel_path, content });
+        if (!parseResult.ok) {
+          if (parseResult.reason === 'missing') {
+            // No --- block: legacy file without frontmatter — soft skip, not a transient failure
+            logger.warn?.(`[${recordedAt}] [WARN] [memory-core] runSpecIncremental: skipping ${spec.rel_path} (no frontmatter)`);
+            items_skipped++;
+            continue;
+          }
+          // reason === 'invalid': has --- block but zod validation failed — data quality issue
+          const detail = `parseFrontmatter invalid: ${parseResult.detail}`;
           logger.error(`[${recordedAt}] [ERROR] [memory-core] runSpecIncremental: ${detail} for ${spec.rel_path}`);
           recordFailedItem(db, 'spec', spec.rel_path, 'parse_error', detail, recordedAt);
           items_failed++;
@@ -248,6 +256,7 @@ export async function runSpecIncremental(
           }
           continue;
         }
+        const parsed = parseResult.data;
 
         // c. Pre-filter claims
         const { paragraphs } = preFilterClaims(parsed.body);
@@ -386,6 +395,7 @@ export async function runSpecIncremental(
     status: finalStatus,
     items_processed,
     items_skipped,
+    items_failed,
     entities_inserted,
     edges_inserted,
     duration_ms: durationMs,

@@ -118,6 +118,15 @@ This spec has no YAML frontmatter.
 必須: 何かをしなければならない。
 `;
 
+// Has --- block but missing required `type` field — invalid, not just missing
+const INVALID_FRONTMATTER_CONTENT = `---
+title: "Bad Spec"
+date: "2026-01-01"
+---
+
+Body text here.
+`;
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('runSpecIncremental', () => {
@@ -213,10 +222,11 @@ describe('runSpecIncremental', () => {
     }
   });
 
-  test('spec without valid frontmatter → failed_items recorded, status success or partial', async () => {
+  // Missing frontmatter (no --- block) → soft skip: items_skipped, not items_failed
+  test('missing frontmatter file is items_skipped, not items_failed', async () => {
     const { db, cleanup } = await openTestDb();
     const { dir, cleanup: dirCleanup } = makeTmpSpecDir([
-      { name: 'bad.md', content: NO_FRONTMATTER_CONTENT },
+      { name: 'no-fm.md', content: NO_FRONTMATTER_CONTENT },
     ]);
     const mockOllama = makeMockOllama();
 
@@ -229,10 +239,110 @@ describe('runSpecIncremental', () => {
         logger: noopLogger,
       });
 
-      // Should not abort — status can be success (no other files) or partial
-      expect(['success', 'partial']).toContain(result.status);
+      expect(result.status).toBe('success');
+      expect(result.items_skipped).toBe(1);
+      expect(result.items_failed).toBe(0);
+      expect(result.items_processed).toBe(0);
 
-      // Failed item should be recorded
+      // No entry in memory_failed_items for this file
+      // db.exec always returns [{columns, values}] for SELECT; check values.length for row count
+      const failedRows = db.exec(
+        `SELECT item_key FROM memory_failed_items WHERE scope = 'spec' AND item_key = 'no-fm.md'`,
+      );
+      const matchingRowCount = failedRows[0]?.values.length ?? 0;
+      expect(matchingRowCount).toBe(0);
+    } finally {
+      dirCleanup();
+      cleanup();
+    }
+  });
+
+  // Invalid frontmatter (has --- block but zod fails) → hard error, triggers quarantine
+  test('invalid frontmatter still triggers quarantine after 5 consecutive failures', async () => {
+    const { db, cleanup } = await openTestDb();
+    const { dir, cleanup: dirCleanup } = makeTmpSpecDir([
+      { name: 'bad1.md', content: INVALID_FRONTMATTER_CONTENT },
+      { name: 'bad2.md', content: INVALID_FRONTMATTER_CONTENT },
+      { name: 'bad3.md', content: INVALID_FRONTMATTER_CONTENT },
+      { name: 'bad4.md', content: INVALID_FRONTMATTER_CONTENT },
+      { name: 'bad5.md', content: INVALID_FRONTMATTER_CONTENT },
+    ]);
+    const mockOllama = makeMockOllama();
+
+    try {
+      const result = await runSpecIncremental({
+        db,
+        specRoot: dir,
+        ollama: mockOllama,
+        model: 'test-model',
+        logger: noopLogger,
+      });
+
+      expect(result.status).toBe('partial');
+      expect(result.items_failed).toBe(5);
+      expect(result.items_skipped).toBe(0);
+      expect(result.items_processed).toBe(0);
+    } finally {
+      dirCleanup();
+      cleanup();
+    }
+  });
+
+  // 6 missing-frontmatter + 2 valid: missing skipped, valid processed, no quarantine
+  test('mixed missing + valid: missing skipped, valid processed, no quarantine', async () => {
+    const { db, cleanup } = await openTestDb();
+    const { dir, cleanup: dirCleanup } = makeTmpSpecDir([
+      { name: 'no-fm-1.md', content: NO_FRONTMATTER_CONTENT },
+      { name: 'no-fm-2.md', content: NO_FRONTMATTER_CONTENT },
+      { name: 'no-fm-3.md', content: NO_FRONTMATTER_CONTENT },
+      { name: 'no-fm-4.md', content: NO_FRONTMATTER_CONTENT },
+      { name: 'no-fm-5.md', content: NO_FRONTMATTER_CONTENT },
+      { name: 'no-fm-6.md', content: NO_FRONTMATTER_CONTENT },
+      { name: 'good1.md', content: VALID_SPEC_CONTENT },
+      { name: 'good2.md', content: VALID_SPEC_CONTENT },
+    ]);
+    const mockOllama = makeMockOllama();
+
+    try {
+      const result = await runSpecIncremental({
+        db,
+        specRoot: dir,
+        ollama: mockOllama,
+        model: 'test-model',
+        logger: noopLogger,
+      });
+
+      expect(result.status).toBe('success');
+      expect(result.items_skipped).toBe(6);
+      expect(result.items_processed).toBe(2);
+      expect(result.items_failed).toBe(0);
+    } finally {
+      dirCleanup();
+      cleanup();
+    }
+  });
+
+  // Existing tests updated to reflect new behavior: missing frontmatter → skipped, not failed
+
+  test('spec with invalid frontmatter (has --- block, bad type) → failed_items recorded', async () => {
+    const { db, cleanup } = await openTestDb();
+    const { dir, cleanup: dirCleanup } = makeTmpSpecDir([
+      { name: 'bad.md', content: INVALID_FRONTMATTER_CONTENT },
+    ]);
+    const mockOllama = makeMockOllama();
+
+    try {
+      const result = await runSpecIncremental({
+        db,
+        specRoot: dir,
+        ollama: mockOllama,
+        model: 'test-model',
+        logger: noopLogger,
+      });
+
+      expect(['success', 'partial']).toContain(result.status);
+      expect(result.items_failed).toBe(1);
+
       const failedRows = db.exec(
         `SELECT scope, item_key, reason FROM memory_failed_items WHERE scope = 'spec'`,
       );
@@ -244,7 +354,7 @@ describe('runSpecIncremental', () => {
     }
   });
 
-  test('mix of valid and invalid spec files → continues past failures', async () => {
+  test('mix of missing-frontmatter and valid spec files → continues past skips', async () => {
     const { db, cleanup } = await openTestDb();
     const { dir, cleanup: dirCleanup } = makeTmpSpecDir([
       { name: 'bad.md', content: NO_FRONTMATTER_CONTENT },
@@ -261,8 +371,8 @@ describe('runSpecIncremental', () => {
         logger: noopLogger,
       });
 
-      // At least the valid spec was processed
       expect(result.items_processed).toBeGreaterThanOrEqual(1);
+      expect(result.status).toBe('success');
     } finally {
       dirCleanup();
       cleanup();
