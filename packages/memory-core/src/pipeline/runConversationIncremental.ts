@@ -24,8 +24,11 @@ export interface IncrementalResult {
 }
 
 function runId(startedAt: string): string {
+  // better-sqlite3 移行で 1 プロセス内 2 連続実行が同一 ms に着地して UNIQUE
+  // 衝突するケースが出たため、nonce (高精度時刻) を加えてユニーク性を確保する。
+  const nonce = process.hrtime.bigint().toString(36);
   return createHash('sha1')
-    .update(`${SCOPE}:${startedAt}`)
+    .update(`${SCOPE}:${startedAt}:${nonce}`)
     .digest('hex')
     .slice(0, 16);
 }
