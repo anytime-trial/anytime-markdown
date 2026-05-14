@@ -114,7 +114,10 @@ export function loadConfig(path: string, logger?: Pick<Logger, 'warn'>): TrailSe
     const raw = readFileSync(path, 'utf8');
     const parsed = JSON.parse(raw) as ParsedConfig;
     return mergeConfig(DEFAULT_CONFIG, parsed, path, logger);
-  } catch {
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const warn = logger ? logger.warn.bind(logger) : console.warn;
+    warn(`[Config] failed to parse ${path}: ${message}. Using DEFAULT_CONFIG.`);
     return DEFAULT_CONFIG;
   }
 }

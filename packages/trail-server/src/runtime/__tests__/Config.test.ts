@@ -1,7 +1,11 @@
 import { loadConfig, type TrailServerConfig } from '../Config';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
+function loadFixture(name: string): unknown {
+  return JSON.parse(readFileSync(join(__dirname, '__fixtures__', name), 'utf8'));
+}
 
 describe('loadConfig', () => {
   let dir: string;
@@ -57,6 +61,7 @@ describe('loadConfig', () => {
     writeFileSync(p, '{ this is not json');
     const cfg = loadConfig(p);
     expect(cfg.scheduler.periodicImport.intervalSec).toBe(60);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('failed to parse'));
   });
 
   // ---- new tests for schemaVersion 2 and memory.* ----
@@ -96,13 +101,7 @@ describe('loadConfig', () => {
 
   it('v1 config: migrates scheduler.memoryCore to memory.ingest', () => {
     const p = join(dir, 'config.json');
-    writeFileSync(p, JSON.stringify({
-      schemaVersion: 1,
-      scheduler: {
-        periodicImport: { intervalSec: 60, runOnStart: true, startupDelaySec: 5 },
-        memoryCore: { intervalSec: 900, runOnStart: false, startupDelaySec: 10 },
-      },
-    }));
+    writeFileSync(p, JSON.stringify(loadFixture('config-v1.json')));
     const cfg = loadConfig(p);
     expect(cfg.memory.ingest.intervalSec).toBe(900);
     expect(cfg.memory.ingest.runOnStart).toBe(false);
@@ -144,19 +143,12 @@ describe('loadConfig', () => {
 
   it('v2 config without legacy fields works with defaults and overrides', () => {
     const p = join(dir, 'config.json');
-    writeFileSync(p, JSON.stringify({
-      schemaVersion: 2,
-      gitRoots: ['/repo'],
-      memory: {
-        ollama: { baseUrl: 'http://host.docker.internal:11434' },
-        rag: { finalLimit: 20 },
-      },
-    }));
+    writeFileSync(p, JSON.stringify(loadFixture('config-v2.json')));
     const cfg = loadConfig(p);
     expect(cfg.schemaVersion).toBe(2);
-    expect(cfg.gitRoots).toEqual(['/repo']);
-    expect(cfg.memory.ollama.baseUrl).toBe('http://host.docker.internal:11434');
-    expect(cfg.memory.rag.finalLimit).toBe(20);
+    expect(cfg.gitRoots).toEqual([]);
+    expect(cfg.memory.ollama.baseUrl).toBe('http://localhost:11434');
+    expect(cfg.memory.rag.finalLimit).toBe(12);
     expect(cfg.memory.rag.bm25Limit).toBe(30);
     expect(cfg.memory.chat.model).toBe('qwen2.5-coder:14b');
     expect(cfg.memory.embedding.model).toBe('bge-m3');

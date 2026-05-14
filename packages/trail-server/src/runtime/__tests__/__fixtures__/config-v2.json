@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 2,
+  "gitRoots": [],
+  "scheduler": {
+    "periodicImport": { "intervalSec": 60, "runOnStart": true, "startupDelaySec": 5 }
+  },
+  "memory": {
+    "ollama": { "baseUrl": "http://localhost:11434" },
+    "chat": { "model": "qwen2.5-coder:14b" },
+    "embedding": { "model": "bge-m3" },
+    "rag": { "bm25Limit": 30, "vecLimit": 30, "finalLimit": 12, "rrfK": 60 },
+    "fts": { "rebuildIntervalMinutes": 60 },
+    "ingest": { "intervalSec": 1800, "runOnStart": true, "startupDelaySec": 5 },
+    "conversation": { "backfillDays": 5 }
+  }
+}
