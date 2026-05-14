@@ -1,4 +1,5 @@
 import type { C4Element } from '@anytime-markdown/trail-core/c4';
+import { extractComponentName } from '@anytime-markdown/trail-core/transform';
 import Graph from 'graphology';
 import louvain from 'graphology-communities-louvain';
 import seedrandom from 'seedrandom';
@@ -93,22 +94,16 @@ function resolveDisplayName(
 
 /**
  * ノード ID（`${repo}:${relativePath}` 形式）から component セグメントを取り出す。
- * trail-core/transform/toC4.ts の extractComponentName と同等のロジック。
+ * trail-core/transform/toC4.ts の extractComponentName と regex を共有する。
+ *
+ * GraphClusterer は top-level "packages" も component とみなさない (community label の品質
+ * 維持のため) ため、共通関数の戻り値を post-filter する。
  */
 function extractComponentSegment(nodeId: string): string | undefined {
   const colon = nodeId.indexOf(':');
   const relPath = colon >= 0 ? nodeId.slice(colon + 1) : nodeId;
-
-  const withPkgSrc = /^packages\/[^/]+\/src\/([^/]+)\//.exec(relPath);
-  if (withPkgSrc) return withPkgSrc[1];
-
-  const withSrc = /^src\/([^/]+)\//.exec(relPath);
-  if (withSrc) return withSrc[1];
-
-  const topDir = /^([^/]+)\//.exec(relPath);
-  if (topDir && topDir[1] !== 'src' && topDir[1] !== 'packages') return topDir[1];
-
-  return undefined;
+  const result = extractComponentName(relPath);
+  return result === 'packages' ? undefined : result;
 }
 
 function pickTopName(bucket: ReadonlyMap<string, number>): string {

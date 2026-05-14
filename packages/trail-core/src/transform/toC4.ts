@@ -29,8 +29,11 @@ function resolvePackageName(
 /**
  * ファイルパスからコンポーネント名（src/ 直下のディレクトリ）を抽出する。
  * パッケージルート直下のファイルは undefined を返す。
+ *
+ * trail-server の GraphClusterer.extractComponentSegment はこの関数を経由して
+ * 同一ロジックを共有する（実装の drift を防止）。
  */
-function extractComponentName(filePath: string): string | undefined {
+export function extractComponentName(filePath: string): string | undefined {
   // packages/[pkg]/src/[dir]/... → dir
   const withPkgSrc = /^packages\/[^/]+\/src\/([^/]+)\//.exec(filePath);
   if (withPkgSrc) return withPkgSrc[1];
