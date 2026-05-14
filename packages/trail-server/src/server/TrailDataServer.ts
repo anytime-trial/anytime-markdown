@@ -53,10 +53,10 @@ import type { Logger, LogLevel } from '../runtime/Logger';
 import type { CodeGraphService } from '../analyze/CodeGraphService';
 import type { AnalyzeCurrentResult, AnalyzeReleaseResult } from '../analyze/AnalyzePipeline';
 import type { MemoryCoreService } from '@anytime-markdown/memory-core';
-import { GraphQueryEngine } from '../analyze/GraphQueryEngine';
 import { MemoryApiHandler } from './MemoryApiHandler';
 import { PromptsApiHandler } from './PromptsApiHandler';
 import { C4ManualApiHandler } from './C4ManualApiHandler';
+import { CodeGraphApiHandler } from './CodeGraphApiHandler';
 import type { LogService, PersistedLogEntry } from '../services/LogService';
 import { LogSink, combineLoggers } from '../services/LogSink';
 import { handleGetLogs, handlePostLogs } from './logsApi';
@@ -234,7 +234,6 @@ export class TrailDataServer {
   /** /api/c4/call-hierarchy 用の隣接リストキャッシュ。current_graphs ロード後に lazy 構築し、graph 更新時に invalidate */
   private callHierarchyIndex: CallHierarchyIndex | null = null;
   private callHierarchyIndexRepo: string | undefined;
-  private cachedGraphEngine: GraphQueryEngine | null = null;
   onOpenDocLink: ((docPath: string) => void) | undefined;
   onOpenFile: ((filePath: string) => void) | undefined;
   onTokenBudgetExceeded: ((status: import('./types').TokenBudgetUpdatedMessage) => void) | undefined;
@@ -269,6 +268,7 @@ export class TrailDataServer {
   private dailyTokensCache: { value: number; expiresAt: number } | null = null;
   private readonly promptsApi: PromptsApiHandler;
   private readonly c4ManualApi: C4ManualApiHandler;
+  private readonly codeGraphApi: CodeGraphApiHandler;
 
   constructor(
     private readonly distPath: string,
@@ -287,10 +287,12 @@ export class TrailDataServer {
       },
       this.logger.child('C4ManualApiHandler'),
     );
+    this.codeGraphApi = new CodeGraphApiHandler(this.trailDb, this.logger.child('CodeGraphApiHandler'));
   }
 
   setCodeGraphService(service: CodeGraphService): void {
     this.codeGraphService = service;
+    this.codeGraphApi.setCodeGraphService(service);
   }
 
   setChatBridge(bridge: import('../memory-chat/chatBridge').ChatBridge): void {
@@ -838,19 +840,19 @@ export class TrailDataServer {
     if (pathname === '/api/code-graph' && method === 'GET') {
       const releaseId = parsed.searchParams.get('release') ?? 'current';
       const repo = parsed.searchParams.get('repo') ?? undefined;
-      this.handleCodeGraphEndpoint(res, releaseId, repo);
+      this.codeGraphApi.handleGet(res, releaseId, repo);
       return;
     }
     if (pathname === '/api/code-graph/query' && method === 'GET') {
-      this.handleCodeGraphQuery(res, parsed.searchParams.get('q') ?? '');
+      this.codeGraphApi.handleQuery(res, parsed.searchParams.get('q') ?? '');
       return;
     }
     if (pathname === '/api/code-graph/explain' && method === 'GET') {
-      this.handleCodeGraphExplain(res, parsed.searchParams.get('id') ?? '');
+      this.codeGraphApi.handleExplain(res, parsed.searchParams.get('id') ?? '');
       return;
     }
     if (pathname === '/api/code-graph/path' && method === 'GET') {
-      this.handleCodeGraphPath(
+      this.codeGraphApi.handlePath(
         res,
         parsed.searchParams.get('from') ?? '',
         parsed.searchParams.get('to') ?? '',
@@ -1118,69 +1120,6 @@ export class TrailDataServer {
   // -------------------------------------------------------------------------
   //  Code graph endpoints
   // -------------------------------------------------------------------------
-
-  private handleCodeGraphEndpoint(res: http.ServerResponse, releaseId: string, repo?: string): void {
-    if (releaseId !== 'current') {
-      // 特定リリース: release_code_graphs から取得（repo 指定時は releases.repo_name で帰属確認）
-      const releaseTagBelongsToRepo = this.trailDb.getReleases()
-        .some((r) => r.tag === releaseId && (!repo || r.repo_name === repo));
-      if (!releaseTagBelongsToRepo) {
-        res.writeHead(404, JSON_HEADERS);
-        res.end('{}');
-        return;
-      }
-      const graph = this.trailDb.getReleaseCodeGraph(releaseId);
-      if (!graph) {
-        res.writeHead(404, JSON_HEADERS);
-        res.end('{}');
-        return;
-      }
-      res.writeHead(200, JSON_HEADERS);
-      res.end(JSON.stringify(graph));
-      return;
-    }
-
-    // current: codeGraphService キャッシュを使用（既存挙動）
-    const graph = this.codeGraphService?.getGraph();
-    if (!graph) {
-      res.writeHead(404, JSON_HEADERS);
-      res.end('{}');
-      return;
-    }
-    res.writeHead(200, JSON_HEADERS);
-    res.end(JSON.stringify(graph));
-  }
-
-  private getOrBuildGraphEngine(): GraphQueryEngine | null {
-    if (this.cachedGraphEngine) return this.cachedGraphEngine;
-    const graph = this.codeGraphService?.getGraph();
-    if (!graph) return null;
-    this.cachedGraphEngine = new GraphQueryEngine(graph);
-    return this.cachedGraphEngine;
-  }
-
-  private handleCodeGraphQuery(res: http.ServerResponse, q: string): void {
-    const engine = this.getOrBuildGraphEngine();
-    if (!engine) {
-      res.writeHead(404, JSON_HEADERS);
-      res.end('{}');
-      return;
-    }
-    res.writeHead(200, JSON_HEADERS);
-    res.end(JSON.stringify(engine.query(q)));
-  }
-
-  private handleCodeGraphExplain(res: http.ServerResponse, id: string): void {
-    const engine = this.getOrBuildGraphEngine();
-    if (!engine) {
-      res.writeHead(404, JSON_HEADERS);
-      res.end('{}');
-      return;
-    }
-    const result = engine.explain(id);
-    res.writeHead(result ? 200 : 404, JSON_HEADERS);
-    res.end(JSON.stringify(result ?? {}));
-  }
 
   private handleTemporalCoupling(res: http.ServerResponse, params: URLSearchParams): void {
     const repoName = params.get('repo')?.trim() ?? '';
@@ -1488,21 +1427,10 @@ export class TrailDataServer {
     }
   }
 
-  private handleCodeGraphPath(res: http.ServerResponse, from: string, to: string): void {
-    const engine = this.getOrBuildGraphEngine();
-    if (!engine) {
-      res.writeHead(404, JSON_HEADERS);
-      res.end('{}');
-      return;
-    }
-    res.writeHead(200, JSON_HEADERS);
-    res.end(JSON.stringify(engine.path(from, to)));
-  }
-
   notifyCodeGraphUpdated(): void {
     this.callHierarchyIndex = null;
     this.callHierarchyIndexRepo = undefined;
-    this.cachedGraphEngine = null;
+    this.codeGraphApi.invalidate();
     if (this.clients.size === 0) return;
     const payload = JSON.stringify({ type: 'code-graph-updated' } satisfies ServerMessage);
     for (const ws of this.clients) ws.send(payload);
