@@ -1,1 +1,1 @@
-export { trailToC4 } from './toC4';
+export { trailToC4, extractComponentName } from './toC4';
