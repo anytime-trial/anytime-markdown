@@ -35,7 +35,6 @@ import type {
 import type { FileCoverage, MessageInput } from '@anytime-markdown/trail-core/c4';
 import type {
   C4Model,
-  DocLink,
   DsmMatrix,
   FeatureMatrix,
 } from '@anytime-markdown/trail-core/c4';
@@ -53,10 +52,11 @@ import type { Logger, LogLevel } from '../runtime/Logger';
 import type { CodeGraphService } from '../analyze/CodeGraphService';
 import type { AnalyzeCurrentResult, AnalyzeReleaseResult } from '../analyze/AnalyzePipeline';
 import type { MemoryCoreService } from '@anytime-markdown/memory-core';
-import { GraphQueryEngine } from '../analyze/GraphQueryEngine';
 import { MemoryApiHandler } from './MemoryApiHandler';
 import { PromptsApiHandler } from './PromptsApiHandler';
 import { C4ManualApiHandler } from './C4ManualApiHandler';
+import { CodeGraphApiHandler } from './CodeGraphApiHandler';
+import { DocsApiHandler } from './DocsApiHandler';
 import type { LogService, PersistedLogEntry } from '../services/LogService';
 import { LogSink, combineLoggers } from '../services/LogSink';
 import { handleGetLogs, handlePostLogs } from './logsApi';
@@ -226,15 +226,12 @@ export class TrailDataServer {
   private rateLimitReset = 0;
   private cachedHtml: string | undefined;
   private getC4Provider: (() => C4DataProvider | undefined) | undefined;
-  private docLinks: readonly DocLink[] = [];
-  private docsPath: string | undefined;
   private lastClaudeActivity: { activeElementIds: readonly string[]; touchedElementIds: readonly string[]; plannedElementIds: readonly string[] } | undefined;
   private lastMultiAgentActivity: { agents: readonly import('./types').AgentActivityEntry[]; conflicts: readonly import('./types').FileConflict[] } | undefined;
   private importanceComputing = false;
   /** /api/c4/call-hierarchy 用の隣接リストキャッシュ。current_graphs ロード後に lazy 構築し、graph 更新時に invalidate */
   private callHierarchyIndex: CallHierarchyIndex | null = null;
   private callHierarchyIndexRepo: string | undefined;
-  private cachedGraphEngine: GraphQueryEngine | null = null;
   onOpenDocLink: ((docPath: string) => void) | undefined;
   onOpenFile: ((filePath: string) => void) | undefined;
   onTokenBudgetExceeded: ((status: import('./types').TokenBudgetUpdatedMessage) => void) | undefined;
@@ -269,6 +266,8 @@ export class TrailDataServer {
   private dailyTokensCache: { value: number; expiresAt: number } | null = null;
   private readonly promptsApi: PromptsApiHandler;
   private readonly c4ManualApi: C4ManualApiHandler;
+  private readonly codeGraphApi: CodeGraphApiHandler;
+  private readonly docsApi: DocsApiHandler;
 
   constructor(
     private readonly distPath: string,
@@ -287,10 +286,26 @@ export class TrailDataServer {
       },
       this.logger.child('C4ManualApiHandler'),
     );
+    this.codeGraphApi = new CodeGraphApiHandler(this.trailDb, this.logger.child('CodeGraphApiHandler'));
+    this.docsApi = new DocsApiHandler(
+      {
+        broadcastDocLinks: (docLinks) => {
+          if (this.clients.size === 0) return;
+          const payload = JSON.stringify({ type: 'doc-links-updated', docLinks });
+          for (const ws of this.clients) ws.send(payload);
+        },
+      },
+      {
+        getC4Store: () => this.trailDb.asC4ModelStore(),
+        getFeatureMatrix: () => this.getC4Provider?.()?.featureMatrix,
+      },
+      this.logger.child('DocsApiHandler'),
+    );
   }
 
   setCodeGraphService(service: CodeGraphService): void {
     this.codeGraphService = service;
+    this.codeGraphApi.setCodeGraphService(service);
   }
 
   setChatBridge(bridge: import('../memory-chat/chatBridge').ChatBridge): void {
@@ -488,20 +503,11 @@ export class TrailDataServer {
   }
 
   setDocsPath(docsPath: string | undefined): void {
-    this.docsPath = docsPath;
-    if (docsPath) {
-      this.scanDocLinks().catch((err) => {
-        this.logger.warn('[scanDocLinks] failed', err);
-      });
-    } else {
-      this.docLinks = [];
-    }
+    this.docsApi.setDocsPath(docsPath);
   }
 
   async scanDocLinks(): Promise<void> {
-    if (!this.docsPath) return;
-    this.docLinks = await scanLocalDocs(this.docsPath);
-    this.notifyDocLinks();
+    await this.docsApi.scan();
   }
 
   // -------------------------------------------------------------------------
@@ -709,13 +715,12 @@ export class TrailDataServer {
       return;
     }
     if (pathname === '/api/c4/doc-links' && method === 'GET') {
-      res.writeHead(200, JSON_HEADERS);
-      res.end(JSON.stringify({ docLinks: this.docLinks }));
+      this.docsApi.handleListDocLinks(res);
       return;
     }
     if (pathname === '/api/docs-index' && method === 'GET') {
       const repo = parsed.searchParams.get('repo') ?? undefined;
-      void this.handleDocsIndexEndpoint(res, repo);
+      void this.docsApi.handleDocsIndex(res, repo);
       return;
     }
     if (pathname === '/api/c4/coverage' && method === 'GET') {
@@ -838,19 +843,19 @@ export class TrailDataServer {
     if (pathname === '/api/code-graph' && method === 'GET') {
       const releaseId = parsed.searchParams.get('release') ?? 'current';
       const repo = parsed.searchParams.get('repo') ?? undefined;
-      this.handleCodeGraphEndpoint(res, releaseId, repo);
+      this.codeGraphApi.handleGet(res, releaseId, repo);
       return;
     }
     if (pathname === '/api/code-graph/query' && method === 'GET') {
-      this.handleCodeGraphQuery(res, parsed.searchParams.get('q') ?? '');
+      this.codeGraphApi.handleQuery(res, parsed.searchParams.get('q') ?? '');
       return;
     }
     if (pathname === '/api/code-graph/explain' && method === 'GET') {
-      this.handleCodeGraphExplain(res, parsed.searchParams.get('id') ?? '');
+      this.codeGraphApi.handleExplain(res, parsed.searchParams.get('id') ?? '');
       return;
     }
     if (pathname === '/api/code-graph/path' && method === 'GET') {
-      this.handleCodeGraphPath(
+      this.codeGraphApi.handlePath(
         res,
         parsed.searchParams.get('from') ?? '',
         parsed.searchParams.get('to') ?? '',
@@ -1118,69 +1123,6 @@ export class TrailDataServer {
   // -------------------------------------------------------------------------
   //  Code graph endpoints
   // -------------------------------------------------------------------------
-
-  private handleCodeGraphEndpoint(res: http.ServerResponse, releaseId: string, repo?: string): void {
-    if (releaseId !== 'current') {
-      // 特定リリース: release_code_graphs から取得（repo 指定時は releases.repo_name で帰属確認）
-      const releaseTagBelongsToRepo = this.trailDb.getReleases()
-        .some((r) => r.tag === releaseId && (!repo || r.repo_name === repo));
-      if (!releaseTagBelongsToRepo) {
-        res.writeHead(404, JSON_HEADERS);
-        res.end('{}');
-        return;
-      }
-      const graph = this.trailDb.getReleaseCodeGraph(releaseId);
-      if (!graph) {
-        res.writeHead(404, JSON_HEADERS);
-        res.end('{}');
-        return;
-      }
-      res.writeHead(200, JSON_HEADERS);
-      res.end(JSON.stringify(graph));
-      return;
-    }
-
-    // current: codeGraphService キャッシュを使用（既存挙動）
-    const graph = this.codeGraphService?.getGraph();
-    if (!graph) {
-      res.writeHead(404, JSON_HEADERS);
-      res.end('{}');
-      return;
-    }
-    res.writeHead(200, JSON_HEADERS);
-    res.end(JSON.stringify(graph));
-  }
-
-  private getOrBuildGraphEngine(): GraphQueryEngine | null {
-    if (this.cachedGraphEngine) return this.cachedGraphEngine;
-    const graph = this.codeGraphService?.getGraph();
-    if (!graph) return null;
-    this.cachedGraphEngine = new GraphQueryEngine(graph);
-    return this.cachedGraphEngine;
-  }
-
-  private handleCodeGraphQuery(res: http.ServerResponse, q: string): void {
-    const engine = this.getOrBuildGraphEngine();
-    if (!engine) {
-      res.writeHead(404, JSON_HEADERS);
-      res.end('{}');
-      return;
-    }
-    res.writeHead(200, JSON_HEADERS);
-    res.end(JSON.stringify(engine.query(q)));
-  }
-
-  private handleCodeGraphExplain(res: http.ServerResponse, id: string): void {
-    const engine = this.getOrBuildGraphEngine();
-    if (!engine) {
-      res.writeHead(404, JSON_HEADERS);
-      res.end('{}');
-      return;
-    }
-    const result = engine.explain(id);
-    res.writeHead(result ? 200 : 404, JSON_HEADERS);
-    res.end(JSON.stringify(result ?? {}));
-  }
 
   private handleTemporalCoupling(res: http.ServerResponse, params: URLSearchParams): void {
     const repoName = params.get('repo')?.trim() ?? '';
@@ -1488,21 +1430,10 @@ export class TrailDataServer {
     }
   }
 
-  private handleCodeGraphPath(res: http.ServerResponse, from: string, to: string): void {
-    const engine = this.getOrBuildGraphEngine();
-    if (!engine) {
-      res.writeHead(404, JSON_HEADERS);
-      res.end('{}');
-      return;
-    }
-    res.writeHead(200, JSON_HEADERS);
-    res.end(JSON.stringify(engine.path(from, to)));
-  }
-
   notifyCodeGraphUpdated(): void {
     this.callHierarchyIndex = null;
     this.callHierarchyIndexRepo = undefined;
-    this.cachedGraphEngine = null;
+    this.codeGraphApi.invalidate();
     if (this.clients.size === 0) return;
     const payload = JSON.stringify({ type: 'code-graph-updated' } satisfies ServerMessage);
     for (const ws of this.clients) ws.send(payload);
@@ -2029,40 +1960,6 @@ export class TrailDataServer {
       this.logger.error('[/api/c4/coverage] failed', e);
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ coverageMatrix: null, coverageDiff: null }));
-    }
-  }
-
-  private async handleDocsIndexEndpoint(res: http.ServerResponse, repo?: string): Promise<void> {
-    try {
-      // repo 指定なしは workspace global（全件返却）。後方互換。
-      if (!repo) {
-        res.writeHead(200, JSON_HEADERS);
-        res.end(JSON.stringify({ docs: this.docLinks }));
-        return;
-      }
-      // C4 モデルから repo の要素 ID 集合を構築し、
-      // doc.c4Scope のいずれかが要素 ID と完全一致または親パス（pkg_a/x の親 pkg_a）として
-      // ヒットするドキュメントだけを返す。
-      const store = this.trailDb.asC4ModelStore();
-      const provider = this.getC4Provider?.();
-      const payload = await fetchC4Model(store, 'current', repo, provider?.featureMatrix);
-      const elementIds = new Set((payload?.model.elements ?? []).map((e) => e.id));
-      if (elementIds.size === 0) {
-        res.writeHead(200, JSON_HEADERS);
-        res.end(JSON.stringify({ docs: [] }));
-        return;
-      }
-      const filtered = this.docLinks.filter((d) =>
-        d.c4Scope.some((scope) =>
-          elementIds.has(scope) || [...elementIds].some((id) => id.startsWith(scope + '/'))
-        )
-      );
-      res.writeHead(200, JSON_HEADERS);
-      res.end(JSON.stringify({ docs: filtered }));
-    } catch (e) {
-      this.logger.error('[/api/docs-index] failed', e);
-      res.writeHead(200, JSON_HEADERS);
-      res.end(JSON.stringify({ docs: this.docLinks }));
     }
   }
 
@@ -2650,8 +2547,9 @@ export class TrailDataServer {
       }
     }
 
-    if (this.docLinks.length > 0) {
-      const docMsg: ServerMessage = { type: 'doc-links-updated', docLinks: this.docLinks };
+    const currentDocLinks = this.docsApi.getCurrent();
+    if (currentDocLinks.length > 0) {
+      const docMsg: ServerMessage = { type: 'doc-links-updated', docLinks: currentDocLinks };
       ws.send(JSON.stringify(docMsg));
     }
 
@@ -2833,15 +2731,6 @@ export class TrailDataServer {
       agents,
       conflicts,
     };
-    const payload = JSON.stringify(message);
-    for (const ws of this.clients) {
-      ws.send(payload);
-    }
-  }
-
-  private notifyDocLinks(): void {
-    if (this.clients.size === 0) return;
-    const message: ServerMessage = { type: 'doc-links-updated', docLinks: this.docLinks };
     const payload = JSON.stringify(message);
     for (const ws of this.clients) {
       ws.send(payload);
@@ -3484,91 +3373,6 @@ export function isClientMessage(data: unknown): data is ClientMessage {
   ];
   return typeof msg.type === 'string' && validTypes.includes(msg.type);
 }
-
-// ---------------------------------------------------------------------------
-//  Helper: scan local docs directory for DocLink entries
-// ---------------------------------------------------------------------------
-
-async function scanLocalDocs(docsDir: string): Promise<DocLink[]> {
-  const docs: DocLink[] = [];
-
-  let entries: string[];
-  try {
-    entries = await collectMarkdownFiles(docsDir, '');
-  } catch {
-    return docs;
-  }
-
-  for (const relPath of entries) {
-    try {
-      const content = await fs.promises.readFile(path.join(docsDir, relPath), 'utf-8');
-      const meta = parseLocalFrontmatter(content);
-      if (meta) {
-        docs.push({ ...meta, path: relPath });
-      }
-    } catch {
-      // skip unreadable files
-    }
-  }
-  return docs;
-}
-
-async function collectMarkdownFiles(base: string, rel: string): Promise<string[]> {
-  const results: string[] = [];
-  const dir = rel ? path.join(base, rel) : base;
-  const entries = await fs.promises.readdir(dir, { withFileTypes: true });
-  for (const entry of entries) {
-    const entryRel = rel ? `${rel}/${entry.name}` : entry.name;
-    if (entry.isDirectory()) {
-      results.push(...await collectMarkdownFiles(base, entryRel));
-    } else if (entry.isFile() && entry.name.endsWith('.md')) {
-      results.push(entryRel);
-    }
-  }
-  return results;
-}
-
-function parseLocalFrontmatter(raw: string): Omit<DocLink, 'path'> | null {
-  const fmMatch = /^---\r?\n([\s\S]*?)\r?\n---/.exec(raw);
-  if (!fmMatch) return null;
-  const fm = fmMatch[1];
-
-  const scopeLines: string[] = [];
-  let inScope = false;
-  for (const line of fm.split(/\r?\n/)) {
-    if (/^c4Scope\s*:/.test(line)) {
-      inScope = true;
-      const inline = /\[([^\]]*)\]/.exec(line);
-      if (inline) {
-        scopeLines.push(
-          ...inline[1].split(',').map(s => s.trim().replaceAll(/^["']|["']$/g, '')).filter(Boolean),
-        );
-        inScope = false;
-      }
-      continue;
-    }
-    if (inScope) {
-      if (/^\s+-\s+/.test(line)) {
-        scopeLines.push(line.replace(/^\s+-\s+/, '').trim().replaceAll(/^["']|["']$/g, ''));
-      } else {
-        inScope = false;
-      }
-    }
-  }
-  if (scopeLines.length === 0) return null;
-
-  const titleMatch = /^title\s*:\s*"?(.+?)"?\s*$/m.exec(fm);
-  const typeMatch = /^type\s*:\s*"?(\w+)"?\s*$/m.exec(fm);
-  const dateMatch = /^date\s*:\s*"?(\d{4}-\d{2}-\d{2})"?\s*$/m.exec(fm);
-
-  return {
-    title: titleMatch?.[1] ?? 'Untitled',
-    type: typeMatch?.[1] ?? 'unknown',
-    c4Scope: scopeLines,
-    date: dateMatch?.[1] ?? '',
-  };
-}
-
 
 // ---------------------------------------------------------------------------
 //  Standalone HTML builder
