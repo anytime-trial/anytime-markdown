@@ -1,4 +1,4 @@
-import type { Database } from 'sql.js';
+import type { Database } from 'better-sqlite3';
 import type { C4Model, ManualElement, ManualRelationship } from '@anytime-markdown/trail-core';
 import { codeGraphToC4, mergeManualIntoC4Model } from '@anytime-markdown/trail-core';
 import { all, get } from './sqlJsUtil';
