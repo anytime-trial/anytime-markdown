@@ -1,5 +1,4 @@
-import initSqlJs from 'sql.js';
-import { SqlJsMemoryDb } from '../../src/db/connection/SqlJsMemoryDb';
+import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
 import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
@@ -31,8 +30,7 @@ async function openTestDb(commits: TrailCommit[], files: TrailFile[]) {
   process.env.MEMORY_CORE_DB_PATH = tmpPath;
   const { db, close } = await openMemoryCoreDb();
 
-  const SQL = await initSqlJs();
-  const trailHandle = SqlJsMemoryDb.fromDatabase(new SQL.Database());
+  const trailHandle = BetterSqlite3MemoryDb.openInMemory();
   trailHandle.run(`CREATE TABLE session_commits (
     id INTEGER PRIMARY KEY,
     commit_hash TEXT NOT NULL,

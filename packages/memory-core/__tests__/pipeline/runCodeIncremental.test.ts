@@ -1,6 +1,4 @@
-import initSqlJs from 'sql.js';
-import { SqlJsMemoryDb } from '../../src/db/connection/SqlJsMemoryDb';
-import type { Database, SqlJsStatic } from 'sql.js';
+import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { attachTrailDbFromHandle } from '../../src/db/attach';
 import { runCodeIncremental } from '../../src/pipeline/runCodeIncremental';
@@ -64,21 +62,16 @@ const silentLogger: MemoryLogger = {
   error: () => {},
 };
 
-let SQL: SqlJsStatic;
 
-beforeAll(async () => {
-  SQL = await initSqlJs();
-});
-
-function makeMemoryDb(): SqlJsMemoryDb {
-  const db = SqlJsMemoryDb.fromDatabase(new SQL.Database());
+function makeMemoryDb(): BetterSqlite3MemoryDb {
+  const db = BetterSqlite3MemoryDb.openInMemory();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
 }
 
-function makeTrailDb(): SqlJsMemoryDb {
-  const trailDb = SqlJsMemoryDb.fromDatabase(new SQL.Database());
+function makeTrailDb(): BetterSqlite3MemoryDb {
+  const trailDb = BetterSqlite3MemoryDb.openInMemory();
   // current_code_graphs
   trailDb.run(`
     CREATE TABLE current_code_graphs (
@@ -109,7 +102,7 @@ function makeTrailDb(): SqlJsMemoryDb {
 }
 
 function insertCodeGraph(
-  trailDb: SqlJsMemoryDb,
+  trailDb: BetterSqlite3MemoryDb,
   repoName: string,
   updatedAt: string
 ): void {
@@ -140,12 +133,12 @@ function insertCodeGraph(
   );
 }
 
-function countPipelineRuns(db: SqlJsMemoryDb): number {
+function countPipelineRuns(db: BetterSqlite3MemoryDb): number {
   const result = db.exec(`SELECT COUNT(*) FROM memory_pipeline_runs WHERE scope = 'code_incremental'`);
   return result[0]?.values[0][0] as number ?? 0;
 }
 
-function getPipelineState(db: SqlJsMemoryDb): { status: string; last_processed_at: string } | null {
+function getPipelineState(db: BetterSqlite3MemoryDb): { status: string; last_processed_at: string } | null {
   const stmt = db.prepare(`SELECT status, last_processed_at FROM memory_pipeline_state WHERE scope = 'code_incremental'`);
   try {
     const row = stmt.get();

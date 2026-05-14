@@ -8,11 +8,11 @@
  */
 
 import * as fs from 'fs';
-import { SqlJsMemoryDb } from '../../src/db/connection/SqlJsMemoryDb';
+import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
 import * as os from 'os';
 import * as path from 'path';
 import { createHash } from 'crypto';
-import initSqlJs, { Database, SqlJsStatic } from 'sql.js';
+// sql.js removed
 import { attachTrailDbFromHandle } from '../../src/db/attach';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { runSpecIncremental } from '../../src/pipeline/runSpecIncremental';
@@ -56,9 +56,8 @@ type: "proposal"
 
 // ── Setup ─────────────────────────────────────────────────────────────────────
 
-let SQL: SqlJsStatic;
-let memDb: SqlJsMemoryDb;
-let trailDb: SqlJsMemoryDb;
+let memDb: BetterSqlite3MemoryDb;
+let trailDb: BetterSqlite3MemoryDb;
 let specRoot: string;
 
 const MOCK_CLAIMS_RESPONSE = JSON.stringify({
@@ -105,16 +104,13 @@ beforeAll(async () => {
   fs.writeFileSync(path.join(specRoot, 'tech', 'foo.md'), TECH_MD);
   fs.writeFileSync(path.join(specRoot, 'proposal', 'bar.md'), PROPOSAL_MD);
 
-  // 2. Initialize sql.js
-  SQL = await initSqlJs();
-
-  // 3. Create memory-core DB and apply migrations
-  memDb = SqlJsMemoryDb.fromDatabase(new SQL.Database());
+  // 2. Create memory-core DB and apply migrations
+  memDb = BetterSqlite3MemoryDb.openInMemory();
   memDb.run('PRAGMA foreign_keys = ON');
   runMigrations(memDb);
 
   // 4. Create synthetic trail DB with c4_manual_elements
-  trailDb = SqlJsMemoryDb.fromDatabase(new SQL.Database());
+  trailDb = BetterSqlite3MemoryDb.openInMemory();
   trailDb.run('PRAGMA foreign_keys = ON');
   trailDb.run(
     `CREATE TABLE c4_manual_elements (

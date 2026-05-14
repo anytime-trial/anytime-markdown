@@ -1,5 +1,4 @@
-import initSqlJs from 'sql.js';
-import { SqlJsMemoryDb } from '../../../src/db/connection/SqlJsMemoryDb';
+import { BetterSqlite3MemoryDb } from '../../../src/db/connection/BetterSqlite3MemoryDb';
 import { linkAffectedFiles } from '../../../src/ingest/bug-history/linkAffectedFiles';
 import { attachTrailDbFromHandle } from '../../../src/db/attach';
 import { entityId } from '../../../src/canonical/entityId';
@@ -21,8 +20,7 @@ async function buildTestDb(commitSha: string, filePaths: string[], repoName = 'a
   const { db, close: closeMain } = await openMemoryCoreDb();
 
   // 2. Build trail DB in-memory using sql.js and attach via handle
-  const SQL = await initSqlJs();
-  const trailHandle = SqlJsMemoryDb.fromDatabase(new SQL.Database());
+  const trailHandle = BetterSqlite3MemoryDb.openInMemory();
   trailHandle.run('PRAGMA foreign_keys = ON');
   trailHandle.run(`CREATE TABLE commit_files (
     id INTEGER PRIMARY KEY,

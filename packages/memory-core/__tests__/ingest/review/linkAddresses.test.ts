@@ -1,6 +1,4 @@
-import initSqlJs from 'sql.js';
-import { SqlJsMemoryDb } from '../../../src/db/connection/SqlJsMemoryDb';
-import type { Database } from 'sql.js';
+import { BetterSqlite3MemoryDb } from '../../../src/db/connection/BetterSqlite3MemoryDb';
 import type { MemoryDbConnection } from '../../../src/db/connection/types';
 import * as os from 'os';
 import * as path from 'path';
@@ -37,7 +35,7 @@ type SetupResult = {
   findingId: string;
   findingEntityId: string;
   reviewEntityId: string;
-  trailHandle: SqlJsMemoryDb;
+  trailHandle: BetterSqlite3MemoryDb;
   close: () => void;
 };
 
@@ -69,8 +67,7 @@ async function buildSetup(opts: {
   const { db, close: closeMain } = await openMemoryCoreDb();
 
   // 2. Build trail DB in-memory
-  const SQL = await initSqlJs();
-  const trailHandle: SqlJsMemoryDb = SqlJsMemoryDb.fromDatabase(new SQL.Database());
+  const trailHandle: BetterSqlite3MemoryDb = BetterSqlite3MemoryDb.openInMemory();
   trailHandle.run('PRAGMA foreign_keys = ON');
   trailHandle.run(`CREATE TABLE session_commits (
     commit_hash TEXT NOT NULL,

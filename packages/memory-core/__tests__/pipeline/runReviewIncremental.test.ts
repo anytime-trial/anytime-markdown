@@ -1,5 +1,4 @@
-import initSqlJs from 'sql.js';
-import { SqlJsMemoryDb } from '../../src/db/connection/SqlJsMemoryDb';
+import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
 import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
@@ -64,8 +63,7 @@ async function openTestDb(opts?: {
 
   const { db, close } = await openMemoryCoreDb();
 
-  const SQL = await initSqlJs();
-  const trailHandle = SqlJsMemoryDb.fromDatabase(new SQL.Database());
+  const trailHandle = BetterSqlite3MemoryDb.openInMemory();
 
   trailHandle.run(`CREATE TABLE messages (
     uuid TEXT PRIMARY KEY,

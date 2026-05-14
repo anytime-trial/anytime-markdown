@@ -1,21 +1,18 @@
-import initSqlJs from 'sql.js';
-import { SqlJsMemoryDb } from '../../src/db/connection/SqlJsMemoryDb';
-import type { Database } from 'sql.js';
+import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { runCodeReconciliation } from '../../src/pipeline/runCodeReconciliation';
 
 const RECORDED_AT = '2026-05-12T00:00:00.000Z';
 
-async function makeDb(): Promise<SqlJsMemoryDb> {
-  const SQL = await initSqlJs();
-  const db = SqlJsMemoryDb.fromDatabase(new SQL.Database());
+async function makeDb(): Promise<BetterSqlite3MemoryDb> {
+  const db = BetterSqlite3MemoryDb.openInMemory();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
 }
 
 function insertEntity(
-  db: SqlJsMemoryDb,
+  db: BetterSqlite3MemoryDb,
   id: string,
   type: string,
   canon: string,

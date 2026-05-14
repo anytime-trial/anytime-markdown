@@ -9,8 +9,8 @@
  * No filesystem writes are performed (all DBs live in WASM memory).
  */
 
-import initSqlJs, { Database, SqlJsStatic } from 'sql.js';
-import { SqlJsMemoryDb } from '../../src/db/connection/SqlJsMemoryDb';
+// sql.js removed
+import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
 import { startMockOllama, type MockOllamaServer } from './mockOllama';
 import { attachTrailDbFromHandle } from '../../src/db/attach';
 import { runConversationIncremental } from '../../src/pipeline/runConversationIncremental';
@@ -25,8 +25,8 @@ const silentLogger: MemoryLogger = {
   error: () => {},
 };
 
-function makeTrailDb(SQL: SqlJsStatic): SqlJsMemoryDb {
-  const db = SqlJsMemoryDb.fromDatabase(new SQL.Database());
+function makeTrailDb(): BetterSqlite3MemoryDb {
+  const db = BetterSqlite3MemoryDb.openInMemory();
   db.run('PRAGMA foreign_keys = ON');
   db.run(`CREATE TABLE sessions (
     id        TEXT PRIMARY KEY,
@@ -46,12 +46,12 @@ function makeTrailDb(SQL: SqlJsStatic): SqlJsMemoryDb {
   return db;
 }
 
-function insertSession(trailDb: SqlJsMemoryDb, id: string): void {
+function insertSession(trailDb: BetterSqlite3MemoryDb, id: string): void {
   trailDb.run(`INSERT INTO sessions (id) VALUES (?)`, [id]);
 }
 
 function insertMessage(
-  trailDb: SqlJsMemoryDb,
+  trailDb: BetterSqlite3MemoryDb,
   uuid: string,
   sessionId: string,
   type: string,
@@ -68,8 +68,7 @@ function insertMessage(
 
 /** Opens an in-memory memory-core DB without touching the filesystem. */
 async function makeMemoryDb(): Promise<MemoryCoreDb> {
-  const SQL = await initSqlJs();
-  const rawDb = SqlJsMemoryDb.fromDatabase(new SQL.Database());
+  const rawDb = BetterSqlite3MemoryDb.openInMemory();
   rawDb.run('PRAGMA foreign_keys = ON');
 
   // Run migrations manually (same as openMemoryCoreDb)
@@ -90,11 +89,9 @@ async function makeMemoryDb(): Promise<MemoryCoreDb> {
 // ── Test Suite ────────────────────────────────────────────────────────────────
 
 describe('E2E: runConversationIncremental', () => {
-  let SQL: SqlJsStatic;
   let mockServer: MockOllamaServer;
 
   beforeAll(async () => {
-    SQL = await initSqlJs();
     mockServer = await startMockOllama();
   });
 
@@ -124,7 +121,7 @@ describe('E2E: runConversationIncremental', () => {
     'E1: two sessions processed in one run — 2 edges, cursor advances, second run is no-op',
     async () => {
       const memDb = await makeMemoryDb();
-      const trailDb = makeTrailDb(SQL);
+      const trailDb = makeTrailDb();
 
       // Session A messages
       insertSession(trailDb, 'sess-a');
@@ -254,7 +251,7 @@ describe('E2E: runConversationIncremental', () => {
     'E1b: single_active invalidation — replaces predicate sets valid_to on old edge',
     async () => {
       const memDb = await makeMemoryDb();
-      const trailDb = makeTrailDb(SQL);
+      const trailDb = makeTrailDb();
 
       const t1 = '2026-03-01T00:00:00.000Z';
       const t2 = '2026-03-01T00:00:30.000Z';
@@ -358,7 +355,7 @@ describe('E2E: runConversationIncremental', () => {
     'E2: prefers Concept/ConventionalCommits — edge active, pipeline_state advanced',
     async () => {
       const memDb = await makeMemoryDb();
-      const trailDb = makeTrailDb(SQL);
+      const trailDb = makeTrailDb();
 
       const t1 = '2026-02-01T10:00:00.000Z';
       const t2 = '2026-02-01T10:00:30.000Z';

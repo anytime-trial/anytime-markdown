@@ -1,19 +1,12 @@
-import initSqlJs from 'sql.js';
-import { SqlJsMemoryDb } from '../../src/db/connection/SqlJsMemoryDb';
-import type { Database, SqlJsStatic } from 'sql.js';
+import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { detectRecurringQuestions } from '../../src/drift/recurringQuestions';
 import type { MemoryLogger } from '../../src/logger';
 
 const silentLogger: MemoryLogger = { info: () => {}, error: () => {} };
-let SQL: SqlJsStatic;
 
-beforeAll(async () => {
-  SQL = await initSqlJs();
-});
-
-function makeDb(): SqlJsMemoryDb {
-  const db = SqlJsMemoryDb.fromDatabase(new SQL.Database());
+function makeDb(): BetterSqlite3MemoryDb {
+  const db = BetterSqlite3MemoryDb.openInMemory();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
@@ -31,7 +24,7 @@ function makeEmbedding(values: [number, number, number, number]): Uint8Array {
 }
 
 function insertQuestion(
-  db: SqlJsMemoryDb,
+  db: BetterSqlite3MemoryDb,
   opts: {
     id?: string;
     embedding: Uint8Array;

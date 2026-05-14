@@ -1,6 +1,4 @@
-import initSqlJs from 'sql.js';
-import { SqlJsMemoryDb } from '../../src/db/connection/SqlJsMemoryDb';
-import type { Database } from 'sql.js';
+import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { attachTrailDbFromHandle } from '../../src/db/attach';
 import { runConversationBackfill } from '../../src/pipeline/runConversationBackfill';
@@ -12,18 +10,15 @@ const silentLogger: MemoryLogger = {
   error: () => {},
 };
 
-async function makeMemoryDb(): Promise<SqlJsMemoryDb> {
-  const SQL = await initSqlJs();
-  const db = SqlJsMemoryDb.fromDatabase(new SQL.Database());
+async function makeMemoryDb(): Promise<BetterSqlite3MemoryDb> {
+  const db = BetterSqlite3MemoryDb.openInMemory();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
 }
 
-function makeTrailDb(
-  SQL: ReturnType<typeof initSqlJs> extends Promise<infer T> ? T : never,
-): SqlJsMemoryDb {
-  const trailDb = SqlJsMemoryDb.fromDatabase(new SQL.Database());
+function makeTrailDb(): BetterSqlite3MemoryDb {
+  const trailDb = BetterSqlite3MemoryDb.openInMemory();
   trailDb.run(`CREATE TABLE sessions (id TEXT PRIMARY KEY) STRICT`);
   trailDb.run(
     `CREATE TABLE messages (
@@ -38,12 +33,12 @@ function makeTrailDb(
   return trailDb;
 }
 
-function insertSession(trailDb: SqlJsMemoryDb, id: string): void {
+function insertSession(trailDb: BetterSqlite3MemoryDb, id: string): void {
   trailDb.run(`INSERT INTO sessions VALUES (?)`, [id]);
 }
 
 function insertUserMessage(
-  trailDb: SqlJsMemoryDb,
+  trailDb: BetterSqlite3MemoryDb,
   uuid: string,
   sessionId: string,
   timestamp: string,
@@ -57,7 +52,7 @@ function insertUserMessage(
 }
 
 function preInsertEpisode(
-  memDb: SqlJsMemoryDb,
+  memDb: BetterSqlite3MemoryDb,
   sessionId: string,
   msgUuid: string,
   validFrom: string,
@@ -86,15 +81,9 @@ function makeValidOllama() {
 }
 
 describe('runConversationBackfill resume', () => {
-  let SQL: Awaited<ReturnType<typeof initSqlJs>>;
-
   const ts3DaysAgo = new Date(Date.now() - 3 * 86_400_000).toISOString();
   const ts2DaysAgo = new Date(Date.now() - 2 * 86_400_000).toISOString();
   const ts1DayAgo = new Date(Date.now() - 1 * 86_400_000).toISOString();
-
-  beforeAll(async () => {
-    SQL = await initSqlJs();
-  });
 
   afterEach(() => {
     jest.clearAllMocks();
@@ -103,7 +92,7 @@ describe('runConversationBackfill resume', () => {
   // ── R1: all-skip path ────────────────────────────────────────────────────
   test('R1: 5 already-persisted episodes are all skipped, Ollama is not called', async () => {
     const memDb = await makeMemoryDb();
-    const trailDb = makeTrailDb(SQL);
+    const trailDb = makeTrailDb();
 
     for (let i = 0; i < 5; i++) {
       const sessId = `sess_skip_${i}`;
@@ -136,7 +125,7 @@ describe('runConversationBackfill resume', () => {
   // ── R2: mixed skip + process ─────────────────────────────────────────────
   test('R2: 5 already-persisted + 4 new episodes → 4 processed, 5 skipped, 4 Ollama calls', async () => {
     const memDb = await makeMemoryDb();
-    const trailDb = makeTrailDb(SQL);
+    const trailDb = makeTrailDb();
 
     // 5 already-persisted episodes
     for (let i = 0; i < 5; i++) {
@@ -179,7 +168,7 @@ describe('runConversationBackfill resume', () => {
   // ── R3: maxTimestamp progresses even when all skipped ────────────────────
   test('R3: skip-only run still advances conversation_incremental.last_processed_at', async () => {
     const memDb = await makeMemoryDb();
-    const trailDb = makeTrailDb(SQL);
+    const trailDb = makeTrailDb();
 
     insertSession(trailDb, 'sess_a');
     insertUserMessage(trailDb, 'msg_a', 'sess_a', ts3DaysAgo, 'a');

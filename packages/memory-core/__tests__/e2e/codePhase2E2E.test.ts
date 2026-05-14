@@ -13,10 +13,10 @@
  */
 
 import * as fs from 'fs';
-import { SqlJsMemoryDb } from '../../src/db/connection/SqlJsMemoryDb';
+import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
 import * as os from 'os';
 import * as path from 'path';
-import initSqlJs, { Database, SqlJsStatic } from 'sql.js';
+// sql.js removed
 import { attachTrailDbFromHandle } from '../../src/db/attach';
 import { runCodeIncremental } from '../../src/pipeline/runCodeIncremental';
 import { noopLogger } from '../../src/logger';
@@ -33,8 +33,8 @@ const TS_GLOB_NO_MS = '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]T[0-2][0-9]:[0-
  *   - session_commits with one commit containing "Rationale:" in the body
  *   - current_code_graphs with one row for the given repoName
  */
-function makeTrailDb(SQL: SqlJsStatic, repoName: string): SqlJsMemoryDb {
-  const db = SqlJsMemoryDb.fromDatabase(new SQL.Database());
+function makeTrailDb(repoName: string): BetterSqlite3MemoryDb {
+  const db = BetterSqlite3MemoryDb.openInMemory();
   db.run('PRAGMA foreign_keys = ON');
 
   // sessions table (FK target for session_commits)
@@ -108,7 +108,7 @@ function makeTrailDb(SQL: SqlJsStatic, repoName: string): SqlJsMemoryDb {
  *   - test-pkg-a: src/a/index.ts, src/a/utils.ts, src/a/types.ts
  *   - test-pkg-b: src/b/service.ts, src/b/helper.ts
  */
-function insertCodeGraph(trailDb: SqlJsMemoryDb, repoName: string): void {
+function insertCodeGraph(trailDb: BetterSqlite3MemoryDb, repoName: string): void {
   const generatedAt = '2026-01-15T12:00:00.000Z';
   const graphJson = JSON.stringify({
     generatedAt,
@@ -189,8 +189,7 @@ function insertCodeGraph(trailDb: SqlJsMemoryDb, repoName: string): void {
 
 /** Opens an in-memory memory-core DB with Phase 1+2 migrations applied. */
 async function makeMemoryDb(): Promise<MemoryCoreDb> {
-  const SQL = await initSqlJs();
-  const rawDb = SqlJsMemoryDb.fromDatabase(new SQL.Database());
+  const rawDb = BetterSqlite3MemoryDb.openInMemory();
   rawDb.run('PRAGMA foreign_keys = ON');
 
   const { runMigrations } = await import('../../src/db/migrations/runner');
@@ -289,11 +288,9 @@ export function serve(name: string): string {
 // ── Test Suite ────────────────────────────────────────────────────────────────
 
 describe('E2E Phase 2: runCodeIncremental', () => {
-  let SQL: SqlJsStatic;
   let tmpDir: string;
 
-  beforeAll(async () => {
-    SQL = await initSqlJs();
+  beforeAll(() => {
     // Create a temp directory for TS fixture files
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `memory-test-${process.pid}-`));
   });
@@ -327,7 +324,7 @@ describe('E2E Phase 2: runCodeIncremental', () => {
       const gitRoot = tmpDir; // no real git, commitSha will be null
 
       const memDb = await makeMemoryDb();
-      const trailDb = makeTrailDb(SQL, repoName);
+      const trailDb = makeTrailDb(repoName);
       insertCodeGraph(trailDb, repoName);
 
       attachTrailDbFromHandle(memDb.db, trailDb);
@@ -462,7 +459,7 @@ describe('E2E Phase 2: runCodeIncremental', () => {
       const gitRoot = tmpDir;
 
       const memDb = await makeMemoryDb();
-      const trailDb = makeTrailDb(SQL, repoName);
+      const trailDb = makeTrailDb(repoName);
       insertCodeGraph(trailDb, repoName);
       attachTrailDbFromHandle(memDb.db, trailDb);
 
@@ -517,7 +514,7 @@ describe('E2E Phase 2: runCodeIncremental', () => {
 
       const memDb = await makeMemoryDb();
       // Trail DB without any current_code_graphs rows
-      const trailDb2 = makeTrailDb(SQL, 'other-repo'); // different repo, no graph
+      const trailDb2 = makeTrailDb('other-repo'); // different repo, no graph
       // Don't insertCodeGraph for repoName
       attachTrailDbFromHandle(memDb.db, trailDb2);
 

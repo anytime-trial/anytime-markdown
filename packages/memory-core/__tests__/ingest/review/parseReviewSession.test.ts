@@ -1,23 +1,15 @@
-import initSqlJs from 'sql.js';
-import { SqlJsMemoryDb } from '../../../src/db/connection/SqlJsMemoryDb';
-import type { Database, SqlJsStatic } from 'sql.js';
+import { BetterSqlite3MemoryDb } from '../../../src/db/connection/BetterSqlite3MemoryDb';
 import { attachTrailDbFromHandle } from '../../../src/db/attach';
 import { parseReviewSessions } from '../../../src/ingest/review/parseReviewSession';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-let SQL: SqlJsStatic;
-
-beforeAll(async () => {
-  SQL = await initSqlJs();
-});
-
 /**
  * Create a minimal memory-core main DB (no migrations needed — we just need
  * the attach guard to work, which requires memory_failed_items table).
  */
-function makeMainDb(): SqlJsMemoryDb {
-  const db = SqlJsMemoryDb.fromDatabase(new SQL.Database());
+function makeMainDb(): BetterSqlite3MemoryDb {
+  const db = BetterSqlite3MemoryDb.openInMemory();
   db.run('PRAGMA foreign_keys = ON');
   db.run(`
     CREATE TABLE IF NOT EXISTS memory_failed_items (
@@ -36,8 +28,8 @@ function makeMainDb(): SqlJsMemoryDb {
 /**
  * Create an in-memory trail DB with just the messages table.
  */
-function makeTrailDb(): SqlJsMemoryDb {
-  const db = SqlJsMemoryDb.fromDatabase(new SQL.Database());
+function makeTrailDb(): BetterSqlite3MemoryDb {
+  const db = BetterSqlite3MemoryDb.openInMemory();
   db.run(`
     CREATE TABLE messages (
       uuid TEXT PRIMARY KEY,
@@ -64,7 +56,7 @@ type InsertMsgOpts = {
   skill?: string | null;
 };
 
-function insertMsg(trailDb: SqlJsMemoryDb, opts: InsertMsgOpts): void {
+function insertMsg(trailDb: BetterSqlite3MemoryDb, opts: InsertMsgOpts): void {
   trailDb.run(
     `INSERT INTO messages
       (uuid, session_id, type, timestamp, text_content, tool_calls, subagent_type, skill)

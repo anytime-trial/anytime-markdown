@@ -6,10 +6,9 @@
  */
 
 import * as fs from 'fs';
-import { SqlJsMemoryDb } from '../../src/db/connection/SqlJsMemoryDb';
+import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
 import * as os from 'os';
 import * as path from 'path';
-import initSqlJs from 'sql.js';
 import { openMemoryCoreDb } from '../../src/db/connection';
 import { attachTrailDbFromHandle } from '../../src/db/attach';
 import { runReviewIncremental } from '../../src/pipeline/runReviewIncremental';
@@ -94,11 +93,11 @@ const FIX_COMMIT_HASH = 'fix001e2eaaaaaaaaa';
 const FIX_COMMITTED_AT = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 const SESSION_ID = 'sess-e2e-bug-001';
 
-function buildTrailDb(SQL: Awaited<ReturnType<typeof initSqlJs>>, opts: {
+function buildTrailDb(opts: {
   withFixCommit: boolean;
   reviewerMessages?: Array<{ uuid: string; sessionId: string; ts: string; text: string }>;
 }) {
-  const db = SqlJsMemoryDb.fromDatabase(new SQL.Database());
+  const db = BetterSqlite3MemoryDb.openInMemory();
   db.run('PRAGMA foreign_keys = ON');
 
   db.run(`CREATE TABLE sessions (
@@ -175,11 +174,9 @@ async function openFreshMemDb(tmpDir: string, suffix: string) {
 // ── Test Suite ────────────────────────────────────────────────────────────────
 
 describe('E2E Phase 2.7: runReviewIncremental', () => {
-  let SQL: Awaited<ReturnType<typeof initSqlJs>>;
   let tmpDir: string;
 
-  beforeAll(async () => {
-    SQL = await initSqlJs();
+  beforeAll(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `review-e2e-${process.pid}-`));
   });
 
@@ -203,7 +200,7 @@ describe('E2E Phase 2.7: runReviewIncremental', () => {
       const { db, close } = await openFreshMemDb(tmpDir, 'e5');
 
       // 3. Build trail DB with fix commit
-      const trailHandle = buildTrailDb(SQL, { withFixCommit: true });
+      const trailHandle = buildTrailDb({ withFixCommit: true });
       attachTrailDbFromHandle(db, trailHandle);
 
       // 4. Insert Bug entity + memory_bug_fixes to simulate Phase 2.5 output
@@ -268,7 +265,7 @@ describe('E2E Phase 2.7: runReviewIncremental', () => {
       const TS1 = '2026-03-01T00:00:00.000Z';
       const TS2 = '2026-03-02T00:00:00.000Z';
 
-      const trailHandle = buildTrailDb(SQL, {
+      const trailHandle = buildTrailDb({
         withFixCommit: false,
         reviewerMessages: [
           {
