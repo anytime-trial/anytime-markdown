@@ -26,6 +26,9 @@ export const CREATE_RELEASE_INDEXES = [
   'CREATE INDEX IF NOT EXISTS idx_release_coverage_tag ON release_coverage(release_tag)',
   'CREATE INDEX IF NOT EXISTS idx_release_code_graphs_tag ON release_code_graphs(release_tag)',
   'CREATE INDEX IF NOT EXISTS idx_release_code_graph_communities_tag ON release_code_graph_communities(release_tag)',
+  // stable_key による「同じノード集合のコミュニティ」高速検索（mappings_json 引き継ぎ用）
+  "CREATE INDEX IF NOT EXISTS idx_ccgc_stable_key ON current_code_graph_communities(repo_name, stable_key) WHERE stable_key != ''",
+  "CREATE INDEX IF NOT EXISTS idx_rcgc_stable_key ON release_code_graph_communities(release_tag, stable_key) WHERE stable_key != ''",
 ];
 
 export const CREATE_CURRENT_COVERAGE_INDEXES = [

@@ -273,6 +273,11 @@ export interface CommunityRow {
   name: string;
   summary: string;
   mappingsJson: string | null;
+  /**
+   * コミュニティ内ノード ID 集合のコンテンツハッシュ（stable_key）。
+   * 古いスキーマでは空文字。AI 付与した name / summary / mappings を community_id 再採番から守る引き継ぎキー。
+   */
+  stableKey: string;
 }
 
 export interface CommunitySummaryInput {

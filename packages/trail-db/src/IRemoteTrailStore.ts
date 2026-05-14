@@ -185,6 +185,7 @@ export interface IRemoteTrailStore {
     name: string;
     summary: string;
     mappings_json: string | null;
+    stable_key: string;
     generated_at: string;
     updated_at: string;
   }[]): Promise<void>;
@@ -202,6 +203,7 @@ export interface IRemoteTrailStore {
     label: string;
     name: string;
     summary: string;
+    stable_key: string;
     generated_at: string;
     updated_at: string;
   }[]): Promise<void>;

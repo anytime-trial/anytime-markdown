@@ -80,12 +80,62 @@ const DEFAULT_DB_DIR = path.join(os.homedir(), '.claude', 'trail');
 
 export { assertNotProductionWriteDuringTests } from './TrailDatabase.guard';
 import { ITrailStorage, FileTrailStorage } from './ITrailStorage';
+import { resolveCarryOver, type OldCommunity, type NewCommunity } from './communityCarryOver';
 import { DatabaseIntegrityMonitor, type IntegrityAlert } from './DatabaseIntegrityMonitor';
 export type { ITrailStorage } from './ITrailStorage';
 export { FileTrailStorage, InMemoryTrailStorage } from './ITrailStorage';
 export type { BackupEntry } from './ITrailStorage';
 export { DatabaseIntegrityMonitor } from './DatabaseIntegrityMonitor';
 export type { IntegrityAlert } from './DatabaseIntegrityMonitor';
+
+/**
+ * 指定 community_id に属するノード ID の集合を CodeGraph.nodes から取り出す。
+ * ジャッカード引き継ぎロジックの「新コミュニティ members」入力に使う。
+ */
+function collectMembersForCommunity(
+  nodes: ReadonlyArray<{ id: string; community: number }>,
+  communityId: number,
+): ReadonlySet<string> {
+  const out = new Set<string>();
+  for (const n of nodes) {
+    if (n.community === communityId) out.add(n.id);
+  }
+  return out;
+}
+
+/**
+ * テーブルに指定列が存在するか判定する。古いスキーマの DB（migration 未実行）への
+ * 後方互換性を保つために使う。
+ */
+function columnExists(db: Database, table: string, column: string): boolean {
+  const cols = db.exec(`PRAGMA table_info(${table})`)[0]?.values ?? [];
+  return cols.some((c) => String(c[1]) === column);
+}
+
+/**
+ * `*_code_graph_communities` テーブルに `stable_key` 列が無ければ ALTER で追加する。
+ * 起動時マイグレーションのため、`saveCurrentCodeGraph` / `saveReleaseCodeGraph` / `upsert*` の
+ * 各書き込みパスの冒頭で 1 度だけ実行する想定。`IF NOT EXISTS` セマンティクスを columnExists で代用。
+ */
+function ensureCommunityStableKeyColumn(
+  db: Database,
+  table: 'current_code_graph_communities' | 'release_code_graph_communities',
+): void {
+  if (!columnExists(db, table, 'stable_key')) {
+    db.run(`ALTER TABLE ${table} ADD COLUMN stable_key TEXT NOT NULL DEFAULT ''`);
+  }
+}
+
+/**
+ * `current_code_graph_communities` に `mappings_json` 列が無ければ ALTER で追加する。
+ * 当初のスキーマには無く、AI 後処理スキル（anytime-reverse-engineer）の導入時に動的追加した経緯あり。
+ * saveCurrentCodeGraph 等の書き込みパスで INSERT 文に mappings_json を含める前に呼ぶ。
+ */
+function ensureCommunityMappingsJsonColumn(db: Database, table: 'current_code_graph_communities'): void {
+  if (!columnExists(db, table, 'mappings_json')) {
+    db.run(`ALTER TABLE ${table} ADD COLUMN mappings_json TEXT`);
+  }
+}
 
 const SKIP_TYPES = new Set([
   'file-history-snapshot',
@@ -3840,14 +3890,27 @@ export class TrailDatabase {
 
   saveCurrentCodeGraph(repoName: string, graph: CodeGraph): void {
     const db = this.ensureDb();
+    ensureCommunityStableKeyColumn(db, 'current_code_graph_communities');
+    ensureCommunityMappingsJsonColumn(db, 'current_code_graph_communities');
     const { stored, communities } = splitCodeGraph(graph);
+
+    // ジャッカード引き継ぎ: DELETE/INSERT で community_id が再採番される前に、
+    // 旧スナップショット（members 集合 + name / summary / mappings_json）を読み出して引き継ぎ表を構築する。
+    const oldCommunities = this.readCommunitiesForCarryOver(db, repoName);
+    const newCommunities: NewCommunity[] = communities.map((c) => ({
+      id: c.id,
+      stableKey: c.stableKey,
+      members: collectMembersForCommunity(graph.nodes, c.id),
+    }));
+    const carryOver = resolveCarryOver(oldCommunities, newCommunities);
+
     db.run(
       `INSERT OR REPLACE INTO current_code_graphs
          (repo_name, graph_json, generated_at, updated_at)
        VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`,
       [repoName, JSON.stringify(stored), stored.generatedAt],
     );
-    // 新しいグラフに存在しない古いコミュニティのみ削除（AI 要約を保持するため全削除はしない）
+    // 新しいグラフに存在しない古いコミュニティを削除。mappings_json などは Step 1/2 で carryOver に退避済み。
     if (communities.length === 0) {
       db.run('DELETE FROM current_code_graph_communities WHERE repo_name = ?', [repoName]);
     } else {
@@ -3857,22 +3920,90 @@ export class TrailDatabase {
         [repoName, ...communities.map((c) => c.id)],
       );
     }
-    // label は常に更新。name/summary は新しい値が空の場合は既存の AI 要約を保持する
+    // label / stable_key は常に最新を採用。
+    // name/summary は (1) 引き継ぎ表 (2) 既存値 (3) 新規空文字 の順で解決する。
+    // mappings_json も引き継ぎ表から復元する（既存 ON CONFLICT 句は mappings_json を触らない設計のため、
+    // INSERT 時の VALUES に直接埋めて NULL 上書きを防ぐ）。
     const stmt = db.prepare(
       `INSERT INTO current_code_graph_communities
-         (repo_name, community_id, label, name, summary, generated_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+         (repo_name, community_id, label, name, summary, stable_key, mappings_json, generated_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
        ON CONFLICT(repo_name, community_id) DO UPDATE SET
          label      = excluded.label,
          name       = CASE WHEN excluded.name    != '' THEN excluded.name    ELSE name    END,
          summary    = CASE WHEN excluded.summary != '' THEN excluded.summary ELSE summary END,
+         stable_key = excluded.stable_key,
+         mappings_json = COALESCE(excluded.mappings_json, mappings_json),
          updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`,
     );
     for (const c of communities) {
-      stmt.run([repoName, c.id, c.label, c.name, c.summary]);
+      const co = carryOver.get(c.id);
+      const effectiveName = c.name !== '' ? c.name : (co?.name ?? '');
+      const effectiveSummary = c.summary !== '' ? c.summary : (co?.summary ?? '');
+      const effectiveMappingsJson = co?.mappingsJson ?? null;
+      stmt.run([repoName, c.id, c.label, effectiveName, effectiveSummary, c.stableKey, effectiveMappingsJson]);
     }
     stmt.free();
     this.save();
+  }
+
+  /**
+   * 旧コミュニティの引き継ぎに必要な情報（members 集合 + name / summary / mappings_json + stableKey）を
+   * `current_code_graphs.graph_json` と `current_code_graph_communities` から再構築する。
+   * graph_json から community_id ごとの members を集計し、別テーブル列と join する。
+   */
+  private readCommunitiesForCarryOver(db: Database, repoName: string): readonly OldCommunity[] {
+    // graph_json から members 集合を取得
+    const graphResult = db.exec(
+      'SELECT graph_json FROM current_code_graphs WHERE repo_name = ?',
+      [repoName],
+    );
+    const json = graphResult[0]?.values?.[0]?.[0];
+    const membersByCommunity = new Map<number, Set<string>>();
+    if (typeof json === 'string') {
+      try {
+        const stored = JSON.parse(json) as { nodes?: ReadonlyArray<{ id: string; community: number }> };
+        for (const n of stored.nodes ?? []) {
+          const set = membersByCommunity.get(n.community) ?? new Set<string>();
+          set.add(n.id);
+          membersByCommunity.set(n.community, set);
+        }
+      } catch {
+        // 破損 JSON は引き継ぎ無しで進む（DELETE 後に mappings 喪失するが、新規生成と同等の挙動）
+      }
+    }
+
+    // メタ列を読み出し
+    const hasStableKey = columnExists(db, 'current_code_graph_communities', 'stable_key');
+    const hasMappings = columnExists(db, 'current_code_graph_communities', 'mappings_json');
+    const cols = [
+      'community_id',
+      'name',
+      'summary',
+      ...(hasStableKey ? ['stable_key'] : []),
+      ...(hasMappings ? ['mappings_json'] : []),
+    ];
+    const result = db.exec(
+      `SELECT ${cols.join(', ')} FROM current_code_graph_communities WHERE repo_name = ?`,
+      [repoName],
+    );
+    const idx = (col: string) => cols.indexOf(col);
+
+    const olds: OldCommunity[] = [];
+    for (const row of result[0]?.values ?? []) {
+      const communityId = Number(row[idx('community_id')] ?? 0);
+      const sIdx = idx('stable_key');
+      const mIdx = idx('mappings_json');
+      olds.push({
+        communityId,
+        stableKey: sIdx >= 0 ? String(row[sIdx] ?? '') : '',
+        members: membersByCommunity.get(communityId) ?? new Set<string>(),
+        name: String(row[idx('name')] ?? ''),
+        summary: String(row[idx('summary')] ?? ''),
+        mappingsJson: mIdx >= 0 ? (row[mIdx] == null ? null : String(row[mIdx])) : null,
+      });
+    }
+    return olds;
   }
 
   getCurrentCodeGraph(repoName: string): CodeGraph | null {
@@ -3884,15 +4015,17 @@ export class TrailDatabase {
     const json = graphResult[0]?.values?.[0]?.[0];
     if (typeof json !== 'string') return null;
     const stored = JSON.parse(json) as import('@anytime-markdown/trail-core/codeGraph').StoredCodeGraph;
-    const commResult = db.exec(
-      'SELECT community_id, label, name, summary FROM current_code_graph_communities WHERE repo_name = ?',
-      [repoName],
-    );
+    const hasStableKey = columnExists(db, 'current_code_graph_communities', 'stable_key');
+    const select = hasStableKey
+      ? 'SELECT community_id, label, name, summary, stable_key FROM current_code_graph_communities WHERE repo_name = ?'
+      : 'SELECT community_id, label, name, summary FROM current_code_graph_communities WHERE repo_name = ?';
+    const commResult = db.exec(select, [repoName]);
     const communities: StoredCommunity[] = (commResult[0]?.values ?? []).map((row) => ({
       id: row[0] as number,
       label: row[1] as string,
       name: row[2] as string,
       summary: row[3] as string,
+      stableKey: hasStableKey ? String(row[4] ?? '') : '',
     }));
     return composeCodeGraph(stored, communities);
   }
@@ -3909,26 +4042,41 @@ export class TrailDatabase {
     }));
   }
 
-  getAllCurrentCodeGraphCommunityRaws(): Array<{ repo_name: string; community_id: number; label: string; name: string; summary: string; mappings_json: string | null; generated_at: string; updated_at: string }> {
+  getAllCurrentCodeGraphCommunityRaws(): Array<{ repo_name: string; community_id: number; label: string; name: string; summary: string; mappings_json: string | null; stable_key: string; generated_at: string; updated_at: string }> {
     const db = this.ensureDb();
     const cols = db.exec('PRAGMA table_info(current_code_graph_communities)');
     const colNames = (cols[0]?.values ?? []).map((r) => String(r[1]));
     const hasMappings = colNames.includes('mappings_json');
-    const select = hasMappings
-      ? 'SELECT repo_name, community_id, label, name, summary, mappings_json, generated_at, updated_at FROM current_code_graph_communities'
-      : 'SELECT repo_name, community_id, label, name, summary, generated_at, updated_at FROM current_code_graph_communities';
-    const result = db.exec(select);
+    const hasStableKey = colNames.includes('stable_key');
+    const selectCols = [
+      'repo_name',
+      'community_id',
+      'label',
+      'name',
+      'summary',
+      ...(hasMappings ? ['mappings_json'] : []),
+      ...(hasStableKey ? ['stable_key'] : []),
+      'generated_at',
+      'updated_at',
+    ];
+    const result = db.exec(`SELECT ${selectCols.join(', ')} FROM current_code_graph_communities`);
     const values = result[0]?.values ?? [];
-    return values.map((r) => ({
-      repo_name: String(r[0] ?? ''),
-      community_id: Number(r[1] ?? 0),
-      label: String(r[2] ?? ''),
-      name: String(r[3] ?? ''),
-      summary: String(r[4] ?? ''),
-      mappings_json: hasMappings ? (r[5] == null ? null : String(r[5])) : null,
-      generated_at: String(r[hasMappings ? 6 : 5] ?? ''),
-      updated_at: String(r[hasMappings ? 7 : 6] ?? ''),
-    }));
+    return values.map((r) => {
+      const idx = (col: string) => selectCols.indexOf(col);
+      const mIdx = idx('mappings_json');
+      const sIdx = idx('stable_key');
+      return {
+        repo_name: String(r[idx('repo_name')] ?? ''),
+        community_id: Number(r[idx('community_id')] ?? 0),
+        label: String(r[idx('label')] ?? ''),
+        name: String(r[idx('name')] ?? ''),
+        summary: String(r[idx('summary')] ?? ''),
+        mappings_json: mIdx >= 0 ? (r[mIdx] == null ? null : String(r[mIdx])) : null,
+        stable_key: sIdx >= 0 ? String(r[sIdx] ?? '') : '',
+        generated_at: String(r[idx('generated_at')] ?? ''),
+        updated_at: String(r[idx('updated_at')] ?? ''),
+      };
+    });
   }
 
   getAllReleaseCodeGraphRaws(): Array<{ release_tag: string; graph_json: string; generated_at: string; updated_at: string }> {
@@ -3943,11 +4091,13 @@ export class TrailDatabase {
     }));
   }
 
-  getAllReleaseCodeGraphCommunityRaws(): Array<{ release_tag: string; community_id: number; label: string; name: string; summary: string; generated_at: string; updated_at: string }> {
+  getAllReleaseCodeGraphCommunityRaws(): Array<{ release_tag: string; community_id: number; label: string; name: string; summary: string; stable_key: string; generated_at: string; updated_at: string }> {
     const db = this.ensureDb();
-    const result = db.exec(
-      'SELECT release_tag, community_id, label, name, summary, generated_at, updated_at FROM release_code_graph_communities',
-    );
+    const hasStableKey = columnExists(db, 'release_code_graph_communities', 'stable_key');
+    const sql = hasStableKey
+      ? 'SELECT release_tag, community_id, label, name, summary, stable_key, generated_at, updated_at FROM release_code_graph_communities'
+      : 'SELECT release_tag, community_id, label, name, summary, generated_at, updated_at FROM release_code_graph_communities';
+    const result = db.exec(sql);
     const values = result[0]?.values ?? [];
     return values.map((r) => ({
       release_tag: String(r[0] ?? ''),
@@ -3955,27 +4105,43 @@ export class TrailDatabase {
       label: String(r[2] ?? ''),
       name: String(r[3] ?? ''),
       summary: String(r[4] ?? ''),
-      generated_at: String(r[5] ?? ''),
-      updated_at: String(r[6] ?? ''),
+      stable_key: hasStableKey ? String(r[5] ?? '') : '',
+      generated_at: String(r[hasStableKey ? 6 : 5] ?? ''),
+      updated_at: String(r[hasStableKey ? 7 : 6] ?? ''),
     }));
   }
 
   upsertCurrentCodeGraphCommunities(
     repoName: string,
-    communities: ReadonlyArray<{ community_id: number; label?: string; name: string; summary: string }>,
+    communities: ReadonlyArray<{ community_id: number; label?: string; name: string; summary: string; stable_key?: string }>,
   ): void {
     const db = this.ensureDb();
+    ensureCommunityStableKeyColumn(db, 'current_code_graph_communities');
+    ensureCommunityMappingsJsonColumn(db, 'current_code_graph_communities');
     for (const c of communities) {
+      // 既存行から失われたくない列（label / stable_key / mappings_json）を退避してから INSERT OR REPLACE する。
+      // INSERT OR REPLACE は SQLite で「DELETE → INSERT」になり、VALUES に含めない列は NULL / DEFAULT に上書きされてしまうため。
       const existing = db.exec(
-        'SELECT label FROM current_code_graph_communities WHERE repo_name = ? AND community_id = ?',
+        'SELECT label, stable_key, mappings_json FROM current_code_graph_communities WHERE repo_name = ? AND community_id = ?',
         [repoName, c.community_id],
       );
-      const existingLabel = existing[0]?.values?.[0]?.[0] as string | undefined;
+      const row = existing[0]?.values?.[0];
+      const existingLabel = row?.[0] as string | undefined;
+      const existingStableKey = row?.[1] as string | undefined;
+      const existingMappingsJson = row?.[2] as string | undefined;
       db.run(
         `INSERT OR REPLACE INTO current_code_graph_communities
-           (repo_name, community_id, label, name, summary, generated_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`,
-        [repoName, c.community_id, c.label ?? existingLabel ?? '', c.name, c.summary],
+           (repo_name, community_id, label, name, summary, stable_key, mappings_json, generated_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`,
+        [
+          repoName,
+          c.community_id,
+          c.label ?? existingLabel ?? '',
+          c.name,
+          c.summary,
+          c.stable_key ?? existingStableKey ?? '',
+          existingMappingsJson ?? null,
+        ],
       );
     }
     this.save();
@@ -4020,11 +4186,13 @@ export class TrailDatabase {
   ): { updated: number; inserted: number } {
     const db = this.ensureDb();
 
-    // mappings_json カラム保証（初回マイグレーション）
+    // mappings_json / stable_key カラム保証（初回マイグレーション）
     const cols = db.exec('PRAGMA table_info(current_code_graph_communities)')[0]?.values ?? [];
-    if (!cols.some((c) => String((c as unknown[])[1]) === 'mappings_json')) {
+    const colNames = cols.map((c) => String((c as unknown[])[1]));
+    if (!colNames.includes('mappings_json')) {
       db.run('ALTER TABLE current_code_graph_communities ADD COLUMN mappings_json TEXT');
     }
+    ensureCommunityStableKeyColumn(db, 'current_code_graph_communities');
 
     let updated = 0;
     let inserted = 0;
@@ -4062,25 +4230,41 @@ export class TrailDatabase {
     readonly name: string;
     readonly summary: string;
     readonly mappingsJson: string | null;
+    readonly stableKey: string;
   }> {
     const db = this.ensureDb();
     const cols = db.exec('PRAGMA table_info(current_code_graph_communities)')[0]?.values ?? [];
-    const hasMappings = cols.some((c) => String((c as unknown[])[1]) === 'mappings_json');
-    const sql = hasMappings
-      ? 'SELECT community_id, label, name, summary, mappings_json FROM current_code_graph_communities WHERE repo_name = ? ORDER BY community_id'
-      : 'SELECT community_id, label, name, summary FROM current_code_graph_communities WHERE repo_name = ? ORDER BY community_id';
+    const colNames = cols.map((c) => String((c as unknown[])[1]));
+    const hasMappings = colNames.includes('mappings_json');
+    const hasStableKey = colNames.includes('stable_key');
+    const selectCols = [
+      'community_id',
+      'label',
+      'name',
+      'summary',
+      ...(hasMappings ? ['mappings_json'] : []),
+      ...(hasStableKey ? ['stable_key'] : []),
+    ];
+    const sql = `SELECT ${selectCols.join(', ')} FROM current_code_graph_communities WHERE repo_name = ? ORDER BY community_id`;
     const result = db.exec(sql, [repoName]);
-    return (result[0]?.values ?? []).map((row) => ({
-      communityId: Number(row[0]),
-      label: String(row[1] ?? ''),
-      name: String(row[2] ?? ''),
-      summary: String(row[3] ?? ''),
-      mappingsJson: hasMappings ? (row[4] == null ? null : String(row[4])) : null,
-    }));
+    return (result[0]?.values ?? []).map((row) => {
+      const idx = (col: string) => selectCols.indexOf(col);
+      const mIdx = idx('mappings_json');
+      const sIdx = idx('stable_key');
+      return {
+        communityId: Number(row[idx('community_id')]),
+        label: String(row[idx('label')] ?? ''),
+        name: String(row[idx('name')] ?? ''),
+        summary: String(row[idx('summary')] ?? ''),
+        mappingsJson: mIdx >= 0 ? (row[mIdx] == null ? null : String(row[mIdx])) : null,
+        stableKey: sIdx >= 0 ? String(row[sIdx] ?? '') : '',
+      };
+    });
   }
 
   saveReleaseCodeGraph(tag: string, graph: CodeGraph): void {
     const db = this.ensureDb();
+    ensureCommunityStableKeyColumn(db, 'release_code_graph_communities');
     const { stored, communities } = splitCodeGraph(graph);
     db.run(
       `INSERT OR REPLACE INTO release_code_graphs
@@ -4091,11 +4275,11 @@ export class TrailDatabase {
     db.run('DELETE FROM release_code_graph_communities WHERE release_tag = ?', [tag]);
     const stmt = db.prepare(
       `INSERT INTO release_code_graph_communities
-         (release_tag, community_id, label, name, summary, generated_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`,
+         (release_tag, community_id, label, name, summary, stable_key, generated_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`,
     );
     for (const c of communities) {
-      stmt.run([tag, c.id, c.label, c.name, c.summary]);
+      stmt.run([tag, c.id, c.label, c.name, c.summary, c.stableKey]);
     }
     stmt.free();
     this.save();
@@ -4110,15 +4294,17 @@ export class TrailDatabase {
     const json = graphResult[0]?.values?.[0]?.[0];
     if (typeof json !== 'string') return null;
     const stored = JSON.parse(json) as import('@anytime-markdown/trail-core/codeGraph').StoredCodeGraph;
-    const commResult = db.exec(
-      'SELECT community_id, label, name, summary FROM release_code_graph_communities WHERE release_tag = ?',
-      [tag],
-    );
+    const hasStableKey = columnExists(db, 'release_code_graph_communities', 'stable_key');
+    const sql = hasStableKey
+      ? 'SELECT community_id, label, name, summary, stable_key FROM release_code_graph_communities WHERE release_tag = ?'
+      : 'SELECT community_id, label, name, summary FROM release_code_graph_communities WHERE release_tag = ?';
+    const commResult = db.exec(sql, [tag]);
     const communities: StoredCommunity[] = (commResult[0]?.values ?? []).map((row) => ({
       id: row[0] as number,
       label: row[1] as string,
       name: row[2] as string,
       summary: row[3] as string,
+      stableKey: hasStableKey ? String(row[4] ?? '') : '',
     }));
     return composeCodeGraph(stored, communities);
   }

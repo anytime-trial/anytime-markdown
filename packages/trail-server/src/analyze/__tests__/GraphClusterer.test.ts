@@ -53,6 +53,28 @@ describe('GraphClusterer', () => {
     const result = new GraphClusterer().cluster(g);
     expect(Object.values(result.labels)).toContain('web-app');
   });
+
+  it('produces identical community_id assignments across runs (seedrandom)', () => {
+    // 同一入力グラフを 2 回クラスタリングして、community_id 採番が完全一致することを確認する。
+    // シード未固定だと Louvain は確率的に動くため採番順がランダムに入れ替わる。
+    const makeFixture = () =>
+      makeGraph(
+        [
+          'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
+        ],
+        [
+          ['A', 'B'], ['B', 'C'], ['A', 'C'],
+          ['D', 'E'], ['E', 'F'], ['D', 'F'],
+          ['G', 'H'], ['C', 'D'],
+        ],
+      );
+
+    const run1 = new GraphClusterer().cluster(makeFixture());
+    const run2 = new GraphClusterer().cluster(makeFixture());
+
+    expect(run1.communities).toEqual(run2.communities);
+    expect(run1.labels).toEqual(run2.labels);
+  });
 });
 
 describe('buildCommunityLabels', () => {
