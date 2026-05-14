@@ -134,6 +134,14 @@ export class BetterSqlite3MemoryDb implements MemoryDbConnection {
   close(): void {
     this.db.close();
   }
+
+  /**
+   * DB の全内容をバイト列として返す (better-sqlite3 native `serialize()` のラッパー)。
+   * テストで in-memory db のスナップショットを別接続から ATTACH する用途に使う。
+   */
+  serialize(): Buffer {
+    return this.db.serialize();
+  }
 }
 
 function toBindArgs(params?: ReadonlyArray<SqlValue>): ReadonlyArray<SqlValue> {

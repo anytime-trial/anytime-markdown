@@ -271,7 +271,7 @@ describe('E2E Phase 2.5: runBugHistoryIncremental', () => {
       trailDb.close();
 
       const memDb = await makeMemoryDb();
-      const handle = await attachTrailDbReadOnly(memDb.db, trailDbPath);
+      await attachTrailDbReadOnly(memDb.db, trailDbPath);
 
       try {
         const result = await runBugHistoryIncremental({
@@ -332,7 +332,7 @@ describe('E2E Phase 2.5: runBugHistoryIncremental', () => {
         expect(pipeStatus).toBe('idle');
         expect(lastAt >= '2026-03-06T10:00:00.000Z').toBe(true);
       } finally {
-        handle.trailHandle?.close();
+        // better-sqlite3: trailHandle 不要
         memDb.close();
       }
     },
@@ -357,7 +357,7 @@ describe('E2E Phase 2.5: runBugHistoryIncremental', () => {
       trailDb.close();
 
       const memDb = await makeMemoryDb();
-      const handle = await attachTrailDbReadOnly(memDb.db, trailDbPath);
+      await attachTrailDbReadOnly(memDb.db, trailDbPath);
 
       try {
         const r1 = await runBugHistoryIncremental({
@@ -390,7 +390,7 @@ describe('E2E Phase 2.5: runBugHistoryIncremental', () => {
         );
         expect(fixesEdges[0]?.values[0][0] as number).toBe(6);
       } finally {
-        handle.trailHandle?.close();
+        // better-sqlite3: trailHandle 不要
         memDb.close();
       }
     },
@@ -417,7 +417,7 @@ describe('E2E Phase 2.5: runBugHistoryIncremental', () => {
       trailDb.close();
 
       const memDb = await makeMemoryDb();
-      const handle = await attachTrailDbReadOnly(memDb.db, trailDbPath);
+      await attachTrailDbReadOnly(memDb.db, trailDbPath);
 
       try {
         await runBugHistoryIncremental({
@@ -459,7 +459,7 @@ describe('E2E Phase 2.5: runBugHistoryIncremental', () => {
         );
         expect(commitCount[0]?.values[0][0] as number).toBe(6);
       } finally {
-        handle.trailHandle?.close();
+        // better-sqlite3: trailHandle 不要
         memDb.close();
       }
     },

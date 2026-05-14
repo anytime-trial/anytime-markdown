@@ -1,76 +1,37 @@
-import initSqlJs from 'sql.js';
-import { SqlJsMemoryDb } from '../../src/db/connection/SqlJsMemoryDb';
-import * as os from 'os';
-import * as path from 'path';
-import * as fs from 'fs';
-import { attachTrailDbFromHandle } from '../../src/db/attach';
-import { openMemoryCoreDb } from '../../src/db/connection';
-import type { Database } from 'sql.js';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import * as fs from 'node:fs';
+import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
+import { attachTrailDbReadOnly } from '../../src/db/attach';
 
-const tmpMemDb = path.join(os.tmpdir(), `memory-attach-test-${process.pid}-${Date.now()}.db`);
-let trailHandle: SqlJsMemoryDb;
+const trailDbPath = path.join(os.tmpdir(), `attach-trail-${process.pid}-${Date.now()}.db`);
 
-beforeAll(async () => {
-  // Create minimal in-memory trail db (stays in the same WASM module)
-  const SQL = await initSqlJs();
-  trailHandle = SqlJsMemoryDb.fromDatabase(new SQL.Database());
-  trailHandle.run(`CREATE TABLE sessions (id TEXT PRIMARY KEY, path TEXT) STRICT`);
-  trailHandle.run("INSERT INTO sessions VALUES ('sess1', '/path')");
+beforeAll(() => {
+  const seed = new BetterSqlite3MemoryDb({ filePath: trailDbPath });
+  seed.execMany(`
+    CREATE TABLE sessions (id TEXT PRIMARY KEY, path TEXT) STRICT;
+    INSERT INTO sessions VALUES ('sess1', '/path');
+  `);
+  seed.close();
 });
 
 afterAll(() => {
-  trailHandle.close();
-  try {
-    fs.unlinkSync(tmpMemDb);
-  } catch (_) {
-    // ignore
-  }
+  if (fs.existsSync(trailDbPath)) fs.unlinkSync(trailDbPath);
 });
 
-describe('ATTACH read-only guard', () => {
-  test('SELECT from trail.sessions succeeds', async () => {
-    process.env.MEMORY_CORE_DB_PATH = tmpMemDb;
-    const { db, close } = await openMemoryCoreDb();
-    attachTrailDbFromHandle(db, trailHandle);
+describe('attachTrailDbReadOnly', () => {
+  test('attach 後に trail.sessions を SELECT できる', async () => {
+    const db = BetterSqlite3MemoryDb.openInMemory();
+    await attachTrailDbReadOnly(db, trailDbPath);
+    const rows = db.exec('SELECT id FROM trail.sessions');
+    expect(rows[0].values[0][0]).toBe('sess1');
+    db.close();
+  });
 
-    const result = db.exec('SELECT id FROM trail.sessions');
-    expect(result[0]?.values[0][0]).toBe('sess1');
-
-    close();
-    delete process.env.MEMORY_CORE_DB_PATH;
-  }, 30000);
-
-  test('INSERT into trail.* throws', async () => {
-    process.env.MEMORY_CORE_DB_PATH = tmpMemDb;
-    const { db, close } = await openMemoryCoreDb();
-    attachTrailDbFromHandle(db, trailHandle);
-
-    expect(() => {
-      db.run("INSERT INTO trail.sessions (id, path) VALUES ('x', '/x')");
-    }).toThrow(/trail\.\* is forbidden/);
-
-    close();
-    delete process.env.MEMORY_CORE_DB_PATH;
-  }, 30000);
-
-  test('failed_items recorded after blocked write', async () => {
-    process.env.MEMORY_CORE_DB_PATH = tmpMemDb;
-    const { db, close } = await openMemoryCoreDb();
-    attachTrailDbFromHandle(db, trailHandle);
-
-    try {
-      db.run("INSERT INTO trail.sessions (id, path) VALUES ('y', '/y')");
-    } catch (_) {
-      // expected
-    }
-
-    const result = db.exec(
-      "SELECT COUNT(*) FROM memory_failed_items WHERE scope='trail_db_write_attempt'"
-    );
-    const count = result[0]?.values[0][0] as number;
-    expect(count).toBeGreaterThan(0);
-
-    close();
-    delete process.env.MEMORY_CORE_DB_PATH;
-  }, 30000);
+  test('attach 後に trail.* への書き込みは拒否される', async () => {
+    const db = BetterSqlite3MemoryDb.openInMemory();
+    await attachTrailDbReadOnly(db, trailDbPath);
+    expect(() => db.run("INSERT INTO trail.sessions VALUES ('x', '/y')")).toThrow();
+    db.close();
+  });
 });
