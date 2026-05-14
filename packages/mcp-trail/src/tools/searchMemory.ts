@@ -27,18 +27,14 @@ export async function handleSearchMemory(input: SearchMemoryInput): Promise<Sear
 
   try {
     if (trailDbPath) {
-      const attachHandle = await attachTrailDbReadOnly(memHandle.db, trailDbPath);
-      // trailHandle will be closed below
-      try {
-        const ollama = createOllamaClient(ollamaBaseUrl ? { baseUrl: ollamaBaseUrl } : {});
-        return await searchMemory({
-          db: memHandle.db,
-          ollama,
-          input,
-        });
-      } finally {
-        attachHandle.trailHandle?.close();
-      }
+      await attachTrailDbReadOnly(memHandle.db, trailDbPath);
+      // better-sqlite3 ATTACH は同一接続のため、close は memHandle.close() で完了
+      const ollama = createOllamaClient(ollamaBaseUrl ? { baseUrl: ollamaBaseUrl } : {});
+      return await searchMemory({
+        db: memHandle.db,
+        ollama,
+        input,
+      });
     } else {
       const ollama = createOllamaClient(ollamaBaseUrl ? { baseUrl: ollamaBaseUrl } : {});
       return await searchMemory({
