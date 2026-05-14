@@ -117,7 +117,7 @@ program
           analysisRoot,
           tsconfigPath: resolvedTsconfig,
           trailDb,
-          trailDataServer: server,
+          callbacks: server,
           codeGraphService,
           logger,
         });
