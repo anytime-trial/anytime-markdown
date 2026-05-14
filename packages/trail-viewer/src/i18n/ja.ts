@@ -389,7 +389,7 @@ export const ja: TrailI18n = {
   'viewer.tab.memory': 'Memory',
   'memory.loading': 'メモリDBを読み込み中...',
   'memory.noDb': 'memory-core.db が見つかりません',
-  'memory.noDb.description': 'Memory Core が起動すると自動的にデータが表示されます。',
+  'memory.noDb.description': 'Anytime Memory が起動すると自動的にデータが表示されます。',
   'memory.drift.tab': 'Drift',
   'memory.bug.tab': 'Bugs',
   'memory.review.tab': 'Reviews',
