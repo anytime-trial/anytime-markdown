@@ -22,6 +22,7 @@ import {
 	findTsconfigCandidates,
 	runAnalyzeCurrentCodePipeline,
 	runAnalyzeReleaseCodePipeline,
+	loadConfig,
 } from '@anytime-markdown/trail-server';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
 import { analyze } from '@anytime-markdown/trail-core/analyze';
@@ -508,6 +509,13 @@ export async function activate(context: vscode.ExtensionContext) {
 	TrailPanel.setDataServer(trailDataServer);
 	setupServerCallbacks(trailDataServer);
 
+	// trail config — daemon と extension で共通の設定ソース。
+	// 旧 anytimeTrail.memory.* (~v0.18) は config.json (memory.*) に統合された。
+	const trailConfigPath = path.join(os.homedir(), '.claude', 'trail', 'config.json');
+	const trailConfig = loadConfig(trailConfigPath, {
+		warn: (msg: string) => TrailLogger.warn(msg),
+	});
+
 	// MemoryCoreService — ingest pipeline を周期実行する長寿命サービス。
 	// useExternalDaemon=true かつ daemon が見つかった場合は二重実行防止のため
 	// 拡張側では起動しない (daemon が hosting する)。
@@ -515,10 +523,9 @@ export async function activate(context: vscode.ExtensionContext) {
 	// service を起動する (TrailPanel が local server URL を使うのと同じ paradigm)。
 	const hostMemoryCoreLocally = !(useExternalDaemon && externalDaemonInfo);
 	if (hostMemoryCoreLocally && dbStorageDir) {
-		const ingestConfig = vscode.workspace.getConfiguration('anytimeTrail.memory.ingest');
-		const intervalSec = ingestConfig.get<number>('intervalSec', 1800);
-		const runOnStart = ingestConfig.get<boolean>('runOnStart', true);
-		const startupDelaySec = ingestConfig.get<number>('startupDelaySec', 5);
+		const intervalSec = trailConfig.memory.ingest.intervalSec;
+		const runOnStart = trailConfig.memory.ingest.runOnStart;
+		const startupDelaySec = trailConfig.memory.ingest.startupDelaySec;
 		const trailDbPath = path.join(dbStorageDir, 'trail.db');
 		memoryCoreService = new MemoryCoreService({
 			logSink: memoryCoreOutputChannel,
@@ -526,6 +533,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			distPath: extensionDistPath,
 			nativeBinding: memoryCoreNativeBinding,
 			gitRoot: wsRootForDb ?? process.cwd(),
+			backfillDays: trailConfig.memory.conversation.backfillDays,
 		});
 		trailDataServer.setMemoryCoreService(memoryCoreService);
 		memoryCoreService.start(intervalSec * 1000, {
@@ -552,28 +560,31 @@ export async function activate(context: vscode.ExtensionContext) {
 	};
 	setImmediate(() => {
 		void (async () => {
+			if (!hostMemoryCoreLocally) {
+				TrailLogger.info('[memory-chat] hosted by external daemon, skipping local ChatBridge/RebuildScheduler');
+				return;
+			}
 			try {
 				const { ChatBridge } = await import('@anytime-markdown/trail-server');
 				const chatBridge = new ChatBridge({
 					memoryDbPath,
 					memoryNativeBinding,
-					getConfig: () => {
-						const cfg = vscode.workspace.getConfiguration('anytimeTrail.memory');
-						return {
-							baseUrl: cfg.get<string>('ollama.baseUrl') ?? 'http://localhost:11434',
-							chatModel: cfg.get<string>('chat.model') ?? 'qwen2.5-coder:14b',
-							embedModel: cfg.get<string>('embedding.model') ?? 'bge-m3',
-						};
-					},
+					getConfig: () => ({
+						baseUrl: trailConfig.memory.ollama.baseUrl,
+						chatModel: trailConfig.memory.chat.model,
+						embedModel: trailConfig.memory.embedding.model,
+						bm25Limit: trailConfig.memory.rag.bm25Limit,
+						vecLimit: trailConfig.memory.rag.vecLimit,
+						finalLimit: trailConfig.memory.rag.finalLimit,
+						rrfK: trailConfig.memory.rag.rrfK,
+					}),
 					logger: memoryLogger,
 				});
 				trailDataServer!.setChatBridge(chatBridge);
 				context.subscriptions.push({ dispose: () => void chatBridge.dispose() });
 
 				const { RebuildScheduler } = await import('@anytime-markdown/trail-server');
-				const rebuildIntervalMin = vscode.workspace
-					.getConfiguration('anytimeTrail.memory.fts')
-					.get<number>('rebuildIntervalMinutes') ?? 60;
+				const rebuildIntervalMin = trailConfig.memory.fts.rebuildIntervalMinutes;
 				const rebuildScheduler = new RebuildScheduler({
 					memoryDbPath,
 					memoryNativeBinding,

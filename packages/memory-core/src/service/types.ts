@@ -54,6 +54,8 @@ export interface PipelineRunnerContext {
   distPath?: string;
   nativeBinding?: string;
   gitRoot?: string;
+  /** 初回 backfill 期間 (日)。省略時は runner 側 default (5)。 */
+  backfillDays?: number;
 }
 
 export interface PipelineLogger {
@@ -85,6 +87,11 @@ export interface MemoryCoreServiceOptions {
    * defaultMemoryCorePipelineRunner が使われる。
    */
   pipelineRunner?: (ctx: PipelineRunnerContext) => Promise<void>;
+  /**
+   * 初回 backfill (memory_pipeline_state.last_processed_at が空の場合) で
+   * trail.db から遡って読み込む日数。省略時は 5 日。
+   */
+  backfillDays?: number;
 }
 
 export interface MemoryCoreServiceStartOptions {

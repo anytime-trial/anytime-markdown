@@ -12,6 +12,9 @@ export interface ChatServiceOptions {
   readonly chatProvider: ChatProvider;
   readonly embedModel?: string;
   readonly retrieveLimit?: number;
+  readonly bm25Limit?: number;
+  readonly vecLimit?: number;
+  readonly rrfK?: number;
 }
 
 const TS = () => new Date().toISOString();
@@ -42,6 +45,9 @@ export class ChatService {
           : undefined,
         final_limit: retrieveLimit,
         hops: 0,
+        ...(this.opts.bm25Limit !== undefined && { bm25_limit: this.opts.bm25Limit }),
+        ...(this.opts.vecLimit !== undefined && { vec_limit: this.opts.vecLimit }),
+        ...(this.opts.rrfK !== undefined && { rrf_k: this.opts.rrfK }),
       },
     });
 

@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "gitRoots": [],
+  "scheduler": {
+    "periodicImport": { "intervalSec": 60, "runOnStart": true, "startupDelaySec": 5 },
+    "memoryCore": { "intervalSec": 900, "runOnStart": false, "startupDelaySec": 10 }
+  }
+}
